@@ -27,18 +27,21 @@ func fakePrivWS(t *testing.T, loginOK bool, frames []string) *httptest.Server {
 		if _, _, err := conn.ReadMessage(); err != nil { // login
 			return
 		}
+		// login ack 契约（生产=先 ack 后订阅，T-0008 竞态修入的 ack 先行语义——
+		// 桩不回 ack=握手不对称挂死，即 CI 红真根）。
 		if !loginOK {
 			_ = conn.WriteMessage(websocket.TextMessage,
 				[]byte(`{"event":"login","code":"60011","msg":"bad key"}`))
 			return
 		}
+		_ = conn.WriteMessage(websocket.TextMessage, []byte(`{"event":"login","code":"0","msg":""}`))
 		if _, _, err := conn.ReadMessage(); err != nil { // subscribe
 			return
 		}
 		for _, f := range frames {
 			_ = conn.WriteMessage(websocket.TextMessage, []byte(f))
 		}
-		time.Sleep(2 * time.Second)
+		time.Sleep(5 * time.Second) // 挂住连接供断言窗（2s 边际过窄——竞态坑）
 	}))
 }
 
@@ -48,7 +51,15 @@ func TestPrivE2E(t *testing.T) {
 	if err := pgstore.Migrate(ctx, pool); err != nil {
 		t.Fatal(err)
 	}
-	evt := `{"arg":{"channel":"balance_and_position"},"data":[{"ccy":"USDT","eqUsd":"21.6","availEq":"20"}]}`
+	// 专属标记锚（共享测试实例——残留行假绿坑，断言只认本拍注入件）
+	evt := `{"arg":{"channel":"balance_and_position"},"data":[{"ccy":"TSTCCY","instId":"TESTPRIV-USDT-SWAP","eqUsd":"21.6","availEq":"20"}]}`
+	for _, q := range []string{
+		"DELETE FROM md_account_events WHERE inst_id='TESTPRIV-USDT-SWAP'",
+		"DELETE FROM fin_venue_account_snapshot WHERE ccy='TSTCCY'"} {
+		if _, err := pool.Exec(ctx, q); err != nil {
+			t.Fatal(err)
+		}
+	}
 	srv := fakePrivWS(t, true, []string{evt})
 	defer srv.Close()
 
@@ -58,16 +69,23 @@ func TestPrivE2E(t *testing.T) {
 	ctx2, cancel := context.WithCancel(ctx)
 	defer cancel()
 	go c.dialLoop(ctx2)
-	time.Sleep(1500 * time.Millisecond)
 
+	// 事件驱动断言（禁固定睡眠——dial/login/ack/订阅/推帧/落库全异步链，
+	// 固定 1.5s 在 CI 慢机竞态必炸：坑根=按时序假设而非就绪条件断言）。
+	deadline := time.Now().Add(10 * time.Second)
 	var n int
-	if err := pool.QueryRow(ctx,
-		"SELECT count(*) FROM md_account_events WHERE channel='balance_and_position'").Scan(&n); err != nil || n == 0 {
-		t.Fatalf("事件未落事实行 n=%d err=%v", n, err)
-	}
 	var eq float64
-	if err := pool.QueryRow(ctx,
-		"SELECT equity FROM fin_venue_account_snapshot WHERE venue='okx' AND ccy='USDT'").Scan(&eq); err != nil || eq != 21.6 {
-		t.Fatalf("快照行未刷 eq=%v err=%v", eq, err)
+	for {
+		_ = pool.QueryRow(ctx,
+			"SELECT count(*) FROM md_account_events WHERE inst_id='TESTPRIV-USDT-SWAP'").Scan(&n)
+		_ = pool.QueryRow(ctx,
+			"SELECT equity FROM fin_venue_account_snapshot WHERE venue='okx' AND ccy='TSTCCY'").Scan(&eq)
+		if n > 0 && eq == 21.6 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("链路未通 n=%d eq=%v（事件行/快照行双锚超时）", n, eq)
+		}
+		time.Sleep(150 * time.Millisecond)
 	}
 }
