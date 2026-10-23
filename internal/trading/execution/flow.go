@@ -16,11 +16,14 @@ func (r *Runner) Execute(ctx context.Context, in Intent) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	// ②live 闸（委员会开关位——缺键/非 true fail-closed）。
-	live, err := r.getB("invest.lifecycle.live_switch")
-	if err != nil || !live {
-		r.rej.Inc("live_switch_off")
-		return 0, fmt.Errorf("live_switch_off")
+	// ②live 闸（委员会开关位——开仓闸非退仓闸：close intent 免检，
+	// 缺键/非 true fail-closed 只对 open）。
+	if in.Kind != "close" {
+		live, err := r.getB("invest.lifecycle.live_switch")
+		if err != nil || !live {
+			r.rej.Inc("live_switch_off")
+			return 0, fmt.Errorf("live_switch_off")
+		}
 	}
 	// ③对冲带：双腿名义额差容忍 exec.hedge_band_bps（缺键 fail-closed）。
 	band, err := r.getF("exec.hedge_band_bps")
@@ -41,8 +44,8 @@ func (r *Runner) Execute(ctx context.Context, in Intent) (int64, error) {
 		return 0, err
 	}
 	// ③.5 前置赎回（D-0006 停泊态：闲资默认停 Earn——开仓先赎回 notional+buffer 回拢；
-	// 败=fail-closed 不开仓，留痕=exec 行翻 failed+计数门）。
-	if r.earn != nil {
+	// 败=fail-closed 不开仓，留痕=exec 行翻 failed+计数门。close 免赎——退仓不进钱径）。
+	if r.earn != nil && in.Kind != "close" {
 		if err := r.earn.RedeemToTrading(ctx, in.NotionalUSD); err != nil {
 			r.setState(ctx, execID, "failed")
 			r.rej.Inc("earn_redeem_failed")

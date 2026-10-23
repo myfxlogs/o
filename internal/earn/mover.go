@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strconv"
 
 	"phase/internal/ledger"
 	"phase/internal/trading/okxexec"
@@ -129,15 +130,32 @@ func (w *Worker) afterMove(ctx context.Context, op string, amt float64, kind str
 }
 
 // refreshParkingSnapshot 停泊余额快照（事件锚定：boot 首读/移动后刷——周期态摄入禁新增）。
+// 余额=Σ(amt+pendingAmt)（pending 为赎回在途仍属停泊款），按 ccy 过滤。
 func (w *Worker) refreshParkingSnapshot(ctx context.Context, src string) error {
 	if w.api == nil {
 		w.rej.Inc("venue_absent")
 		return fmt.Errorf("earn venue 未挂接")
 	}
-	bal, err := w.api.SavingsBalance(ctx, w.ccy)
+	raw, err := w.api.SavingsBalance(ctx)
 	if err != nil {
 		w.rej.Inc("snapshot_refresh_failed")
 		return err
+	}
+	var rows []struct {
+		Ccy        string `json:"ccy"`
+		Amt        string `json:"amt"`
+		PendingAmt string `json:"pendingAmt"`
+	}
+	if err := json.Unmarshal(raw, &rows); err != nil {
+		w.rej.Inc("snapshot_refresh_failed")
+		return err
+	}
+	var bal float64
+	for _, r := range rows {
+		if r.Ccy != w.ccy {
+			continue
+		}
+		bal += parseAmt(r.Amt) + parseAmt(r.PendingAmt)
 	}
 	if _, err := w.pool.Exec(ctx, `INSERT INTO fin_venue_account_snapshot(venue,venue_type,ccy,equity,avail,src)
 		VALUES($1,'earn',$2,$3,$3,$4)
@@ -147,4 +165,13 @@ func (w *Worker) refreshParkingSnapshot(ctx context.Context, src string) error {
 		return err
 	}
 	return nil
+}
+
+// parseAmt venue 金额串→float（空/坏=0——快照面坏值不炸读径）。
+func parseAmt(s string) float64 {
+	if s == "" {
+		return 0
+	}
+	f, _ := strconv.ParseFloat(s, 64)
+	return f
 }

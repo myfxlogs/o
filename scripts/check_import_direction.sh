@@ -22,6 +22,7 @@ internal/data/okxpriv -> internal/platform/signutil
 internal/data/okxws -> internal/platform/config
 internal/ledger -> internal/platform/config
 internal/ledger -> internal/platform/rejects
+internal/ledger/holding -> internal/platform/rejects
 internal/ledger -> internal/platform/roster
 internal/portfolio/lifecycle -> internal/platform/config
 internal/risk -> internal/platform/config
@@ -31,6 +32,10 @@ internal/trading/execution -> internal/platform/roster
 internal/trading/execution -> internal/trading/okxexec
 internal/risk -> internal/platform/rejects
 internal/risk -> internal/platform/roster
+internal/guard -> internal/platform/config
+internal/guard -> internal/platform/rejects
+internal/guard -> internal/platform/roster
+internal/guard -> internal/risk
 internal/portfolio/lifecycle -> internal/platform/rejects
 internal/portfolio/lifecycle -> internal/platform/roster
 internal/review -> internal/platform/rejects

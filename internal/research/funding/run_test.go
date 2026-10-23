@@ -132,7 +132,7 @@ func TestScanEarnFloorE2E(t *testing.T) {
 		t.Fatal(err)
 	}
 	var reason string
-	if err := pool.QueryRow(ctx, `SELECT reason FROM fin_opp_eval WHERE inst_id='TESTE1-USDT-SWAP'
+	if err := pool.QueryRow(ctx, `SELECT evidence->>'reason' FROM fin_opp_eval WHERE inst_id='TESTE1-USDT-SWAP'
 		ORDER BY id DESC LIMIT 1`).Scan(&reason); err != nil || len(reason) < 10 || reason[:10] != "below_earn" {
 		t.Fatalf("between 态 reason=%q err=%v（应 below_earn）", reason, err)
 	}

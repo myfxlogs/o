@@ -65,7 +65,7 @@ func TestEvaluateDynamicFloor(t *testing.T) {
 	}
 	// ④Earn 底低于静态底：floor 取 max=静态底——below_earn 不误杀（net<0.05 走静态拒因）
 	low := 0.01
-	e = Evaluate("TEST-USDT-SWAP", 0.001, evalParams(&low))
+	e = Evaluate("TEST-USDT-SWAP", 0.0005, evalParams(&low)) // net=0.1825-0.305<0→静态拒
 	if e.Verdict != "rejected" || e.Reason[:10] == "below_earn" {
 		t.Fatalf("低 Earn 底 verdict=%s reason=%s（应静态拒因）", e.Verdict, e.Reason)
 	}

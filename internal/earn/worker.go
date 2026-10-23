@@ -17,7 +17,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"strconv"
 	"sync"
 	"time"
 
@@ -43,7 +42,8 @@ const (
 type VenueAPI interface {
 	SavingsPurchase(ctx context.Context, ccy string, amt float64) error
 	SavingsRedeem(ctx context.Context, ccy string, amt float64) error
-	SavingsBalance(ctx context.Context, ccy string) (float64, error)
+	// SavingsBalance raw 返回（client.go T-holding 契约——earn 侧按 ccy 过滤解析）。
+	SavingsBalance(ctx context.Context) (json.RawMessage, error)
 	AssetTransfer(ctx context.Context, ccy string, amt float64, from, to string) (string, error)
 	AssetTransferState(ctx context.Context, ccy, clTID string) (string, error)
 }
@@ -179,15 +179,5 @@ func (w *Worker) tradingIdleUSDT(ctx context.Context) (float64, bool, error) {
 	return avail, true, nil
 }
 
-// getF 标量判据读（app_config jsonb→string→float64；缺/坏=fail-closed 上抛）。
-func (w *Worker) getF(k string) (float64, error) {
-	raw, err := w.cfg.Get(k)
-	if err != nil {
-		return 0, err
-	}
-	var s string
-	if err := json.Unmarshal(raw, &s); err != nil {
-		return 0, err
-	}
-	return strconv.ParseFloat(s, 64)
-}
+// getF 标量判据读（typed client——T-0018 标量契约根修口径；缺/坏=fail-closed 上抛）。
+func (w *Worker) getF(k string) (float64, error) { return w.cfg.GetFloat(k) }

@@ -101,29 +101,8 @@ func (c *Client) savingsMove(ctx context.Context, ccy string, amt float64, side 
 	return err
 }
 
-// SavingsBalance Earn 灵活持仓（ccy 维度合计 amt+pendingAmt——pending 为赎回在途，仍属停泊款）。
-func (c *Client) SavingsBalance(ctx context.Context, ccy string) (float64, error) {
-	raw, err := c.Get(ctx, "/api/v5/finance/savings/balance?ccy="+ccy)
-	if err != nil {
-		return 0, err
-	}
-	var rows []struct {
-		Amt        string `json:"amt"`
-		PendingAmt string `json:"pendingAmt"`
-	}
-	if err := json.Unmarshal(raw, &rows); err != nil {
-		return 0, err
-	}
-	var total float64
-	for _, r := range rows {
-		v, _ := strconv.ParseFloat(r.Amt, 64)
-		total += v
-		if v, err := strconv.ParseFloat(r.PendingAmt, 64); err == nil {
-			total += v
-		}
-	}
-	return total, nil
-}
+// SavingsBalance /finance/savings/balance 持仓查询已落 client.go（raw 返回，T-holding
+// 钦定保留面）；ccy 语义封装（过滤+pendingAmt 计入）在 internal/earn 消费侧。
 
 // AssetTransfer 账户内划转（type=0，funding↔trading）——携 clTId 幂等键（传输败后
 // 按 clTId 查 transfer-state 定真态，同 clOrdId 定态律：禁盲重发）。

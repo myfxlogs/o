@@ -34,5 +34,5 @@ CREATE TABLE IF NOT EXISTS fin_position (
     closed_at    timestamptz
 );
 INSERT INTO app_config(key,value) VALUES
-  ('exec.hedge_band_bps','"20"')
+  ('exec.hedge_band_bps','20')
 ON CONFLICT (key) DO NOTHING;

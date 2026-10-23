@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -65,17 +64,7 @@ func (r *Runner) Run(ctx context.Context, errc chan<- error) {
 // params 判据全自 config 快照读；任一键缺=不可评估面（fail-closed 不虚构判据）。
 func (r *Runner) params() (Params, error) {
 	var p Params
-	get := func(k string) (float64, error) {
-		raw, err := r.cfg.Get(k)
-		if err != nil {
-			return 0, err
-		}
-		var s string
-		if err := json.Unmarshal(raw, &s); err != nil {
-			return 0, err
-		}
-		return strconv.ParseFloat(s, 64)
-	}
+	get := func(k string) (float64, error) { return r.cfg.GetFloat(k) }
 	var err error
 	if p.TakerFeeBps, err = get(paramKeys[0]); err != nil {
 		return p, fmt.Errorf("%s: %w", paramKeys[0], err)
@@ -142,23 +131,10 @@ func (r *Runner) scan(ctx context.Context) error {
 	return rows.Err()
 }
 
-// getF 标量判据读（app_config jsonb→string→float64）。
-func (r *Runner) getF(k string) (float64, error) {
-	raw, err := r.cfg.Get(k)
-	if err != nil {
-		return 0, err
-	}
-	var s string
-	if err := json.Unmarshal(raw, &s); err != nil {
-		return 0, err
-	}
-	return strconv.ParseFloat(s, 64)
-}
-
 // earnRateAPR 最新 Earn 现率（USDT，动态比较底取值源）。缺失/陈旧/新鲜度键缺=
 // (nil,false)=降级静态底——降级不阻断，计数门留痕。
 func (r *Runner) earnRateAPR(ctx context.Context) (*float64, bool, error) {
-	hours, err := r.getF("research.earn.stale_hours")
+	hours, err := r.cfg.GetFloat("research.earn.stale_hours")
 	if err != nil || hours <= 0 {
 		return nil, false, nil // 新鲜度门键缺=不敢当鲜（fail-closed 降级）
 	}
@@ -206,3 +182,6 @@ func (r *Runner) persist(ctx context.Context, e Eval, p Params) error {
 	}
 	return err
 }
+
+// ScanOnce 单拍壳（工具/实证件消费——scan 本体私有语义不变）。
+func (r *Runner) ScanOnce(ctx context.Context) error { return r.scan(ctx) }

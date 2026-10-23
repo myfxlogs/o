@@ -7,9 +7,7 @@ package execution
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -49,8 +47,11 @@ type EarnMover interface {
 	RedeemToTrading(ctx context.Context, usdAmt float64) error
 }
 
-// Intent 执行意图（decision_id 为闸令牌引）。
+// Intent 执行意图（decision_id 为闸令牌引）。Kind=open|close——
+// live_switch 是开仓闸非退仓闸：close 免检（拦平仓=存风险，与 kill_switch
+// 不拦 close 同款逻辑——委员会关闸时有仓必须退得掉）。
 type Intent struct {
+	Kind        string // open（缺省）|close
 	DecisionID  int64
 	StrategyRef int64
 	InstID      string
@@ -112,25 +113,6 @@ func (r *Runner) verifyToken(ctx context.Context, decisionID int64) (string, err
 	return tok, nil
 }
 
-func (r *Runner) getB(k string) (bool, error) {
-	raw, err := r.cfg.Get(k)
-	if err != nil {
-		return false, err
-	}
-	var s string
-	if err := json.Unmarshal(raw, &s); err != nil {
-		return false, err
-	}
-	return s == "true", nil
-}
-func (r *Runner) getF(k string) (float64, error) {
-	raw, err := r.cfg.Get(k)
-	if err != nil {
-		return 0, err
-	}
-	var s string
-	if err := json.Unmarshal(raw, &s); err != nil {
-		return 0, err
-	}
-	return strconv.ParseFloat(s, 64)
-}
+func (r *Runner) getB(k string) (bool, error) { return r.cfg.GetBool(k) }
+
+func (r *Runner) getF(k string) (float64, error) { return r.cfg.GetFloat(k) }

@@ -70,6 +70,7 @@ func Evaluate(instID string, rate float64, p Params) Eval {
 		// 动态底杀：静态底过但停泊收益更高——below_earn（verdict/reason 面机读）。
 		e.Verdict, e.Reason = "rejected", fmt.Sprintf("below_earn: net_apr %.4f < Earn 底 %.4f（静态底 %.4f 过）", net, floor, p.MinNetAPR)
 	}
+	e.Evidence["reason"] = e.Reason // 拒因入 evidence 落卡（fin_opp_eval 无独立 reason 列——机读面=evidence jsonb）
 	return e
 }
 

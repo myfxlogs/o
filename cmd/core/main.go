@@ -12,13 +12,16 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
 	"phase/internal/data/okxpriv"
 	"phase/internal/data/okxws"
 	"phase/internal/earn"
+	"phase/internal/guard"
 	"phase/internal/ledger"
+	"phase/internal/ledger/holding"
 	"phase/internal/platform/config"
 	"phase/internal/platform/roster"
 	"phase/internal/portfolio/lifecycle"
@@ -90,6 +93,8 @@ func run() error {
 
 	// 私流守：OKX 私有 WS（凭据自 app_secrets 密文列解；缺件 fail-closed
 	// 不炸 boot——E-1 未落位期岗位缺席留痕非死码）。
+	// 凭据缺席期仓巡平仓缝降级 stub（拒执 fail-closed）——凭据落位重启即全链。
+	var closer guard.Executor
 	// Earn 停泊态（员工 配管）：现率采集无凭据径先行；停泊钱动面凭据就位挂接。
 	earnW := earn.NewWorker(pool, cfg)
 	go earnW.Run(ctx, errc)
@@ -101,6 +106,7 @@ func run() error {
 		execR := execution.NewRunner(pool, cfg,
 			execution.OkxExecutor{C: okxexec.NewClient(priv.Credentials(), false)}).WithEarn(earnW)
 		go execution.Run(ctx, errc, execR)
+		closer = closeExec{r: execR}
 		// boot 首读播种器=okxexec /account/balance（事件锚定形一次性拉取——
 		// cmd 装配层接线，数据域不反向依赖交易域）。
 		creds := priv.Credentials()
@@ -108,6 +114,41 @@ func run() error {
 			return okxexec.BalanceEquity(ctx, creds, false)
 		})
 		go priv.Run(ctx, errc)
+
+		// 台账同步：资产端点采（okxexec 装配注入——账本域不反向依赖交易域；
+		// /asset/balances+earn 面=钦定 REST 保留面非轮询病灶）。
+		okcli := okxexec.NewClient(priv.Credentials(), false)
+		hs := holding.NewSyncer(pool, func(ctx context.Context) ([]holding.AssetRow, error) {
+			var out []holding.AssetRow
+			bals, err := okcli.AssetBalances(ctx)
+			if err != nil {
+				return nil, err
+			}
+			for _, b := range bals {
+				amt := okxexec.ParseF(b.Bal)
+				if amt == 0 {
+					continue
+				}
+				out = append(out, holding.AssetRow{Ccy: b.Ccy, Amount: amt,
+					Kind: "spot_dust", VenueRef: "asset",
+					ValRef: map[string]any{"avail": b.AvailBal, "frozen": b.FrozenBal}})
+			}
+			if sav, err := okcli.SavingsBalance(ctx); err == nil {
+				var rows []struct {
+					Ccy string `json:"ccy"`
+					Amt string `json:"amt"`
+				}
+				if json.Unmarshal(sav, &rows) == nil {
+					for _, r2 := range rows {
+						out = append(out, holding.AssetRow{Ccy: r2.Ccy,
+							Amount: okxexec.ParseF(r2.Amt), Kind: "earn_flexible",
+							VenueRef: "savings", Product: "savings"})
+					}
+				}
+			}
+			return out, nil
+		})
+		go hs.Run(ctx, errc)
 	}
 
 	// 研究域首岗：funding 枚举+评估卡（员工 探员/验证官）——判据全 app_config 机读。
@@ -125,6 +166,10 @@ func run() error {
 	// 风控域首岗：唯一交易前闸（员工 门官）——G7 消费件就绪后只认放行令牌。
 	riskGate := risk.NewGate(pool, cfg)
 	go risk.Run(ctx, errc, riskGate)
+
+	// 看护域首岗：仓巡（G8）——持仓哨戒三触发+策略联动，close intent 过闸免拦径，
+	// 反向双腿平走执事 G7 径（凭据缺席=缝降级 stub 拒执 fail-closed）。
+	go guard.NewWarden(pool, cfg, riskGate, closer).Run(ctx, errc)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -154,4 +199,20 @@ func run() error {
 		return err
 	}
 	return nil
+}
+
+// closeExec 仓巡×执事装配缝（cmd 组合根——guard 不 import execution，方向闸零边）：
+// guard CloseSpec → execution 反向双腿 Intent；腿 sz 沿 fin_order_leg 串传
+// （okx 张数口径换算归 venue 层）；Notional 取名义半额（delta 中性带检入参口径）。
+type closeExec struct{ r *execution.Runner }
+
+func (c closeExec) ExecuteClose(ctx context.Context, spec guard.CloseSpec) (int64, error) {
+	mk := func(l guard.CloseLeg) execution.Leg {
+		return execution.Leg{Venue: l.Venue, InstID: l.InstID, Side: l.Side,
+			Sz: strconv.FormatFloat(l.Sz, 'f', -1, 64), Notional: spec.NotionalUSD / 2}
+	}
+	return c.r.Execute(ctx, execution.Intent{
+		DecisionID: spec.DecisionID, StrategyRef: spec.StrategyRef, InstID: spec.InstID,
+		NotionalUSD: spec.NotionalUSD, Legs: [2]execution.Leg{mk(spec.Legs[0]), mk(spec.Legs[1])},
+	})
 }

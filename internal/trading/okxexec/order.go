@@ -71,3 +71,6 @@ func parseF(s string) float64 {
 	f, _ := strconv.ParseFloat(s, 64)
 	return f
 }
+
+// ParseF venue 数字串解析壳（台账装配层消费）。
+func ParseF(s string) float64 { return parseF(s) }

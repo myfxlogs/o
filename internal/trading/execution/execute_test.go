@@ -197,3 +197,27 @@ func TestSingleUseAtomic(t *testing.T) {
 		t.Fatalf("复用应拒 token_used: %v", err)
 	}
 }
+
+// close 径 live_switch 免检锚（T-0021：开仓闸非退仓闸——关闸期仓必须退得掉）。
+func TestCloseSkipsLiveSwitch(t *testing.T) {
+	ctx, r := setup(t, &fakeVenue{})
+	if _, err := r.pool.Exec(ctx,
+		"UPDATE app_config SET value='\"false\"' WHERE key='invest.lifecycle.live_switch'"); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.cfg.Load(ctx); err != nil {
+		t.Fatal(err)
+	}
+	// open 原锚不破：live off=拒执
+	did := mkToken(t, ctx, r, false, false, "allow")
+	if _, err := r.Execute(ctx, mkIntent(did)); err == nil || err.Error() != "live_switch_off" {
+		t.Fatalf("open live off: %v", err)
+	}
+	// close 免检：live off 仍放行（令牌照常验——机械防绕过不松）
+	did2 := mkToken(t, ctx, r, false, false, "allow")
+	in := mkIntent(did2)
+	in.Kind = "close"
+	if _, err := r.Execute(ctx, in); err != nil {
+		t.Fatalf("close 应免检放行: %v", err)
+	}
+}
