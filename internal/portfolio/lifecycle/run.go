@@ -115,9 +115,21 @@ func (r *Runner) admitProposals(ctx context.Context, notional, minH, minNet, max
 	for _, x := range ps {
 		crit, _ := json.Marshal(map[string]float64{"min_hours": minH, "min_net": minNet, "max_dd": maxDD})
 		var sid int64
-		err := r.pool.QueryRow(ctx, `INSERT INTO fin_strategy(inst_id,template_ref,proposal_ref,state,notional_usd,criteria)
-			VALUES($1,'funding-hedge',$2,'paper',$3,$4) RETURNING id`, x.inst, x.id, notional, crit).Scan(&sid)
+		// 同键去重（T-0022：同 venue+inst_id+direction 同时最多一个非 retired
+		// 策略行——已挂 active 行=复用不新建，提案照样 armed 被吸收）。
+		err := r.pool.QueryRow(ctx, `INSERT INTO fin_strategy(inst_id,template_ref,proposal_ref,state,notional_usd,criteria,direction)
+			VALUES($1,'funding-hedge',$2,'paper',$3,$4,$5)
+			ON CONFLICT (venue,inst_id,direction) WHERE state<>'retired' DO NOTHING
+			RETURNING id`, x.inst, x.id, notional, crit, x.dir).Scan(&sid)
 		if err != nil {
+			if err.Error() == "no rows in result set" {
+				if _, err := r.pool.Exec(ctx,
+					"UPDATE fin_proposal SET state='fin_armed' WHERE id=$1", x.id); err != nil {
+					return err
+				}
+				log.Printf("[lifecycle] %s %s 同键 active 行在挂——提案 armed 复用不叠仓", x.inst, x.dir)
+				continue
+			}
 			r.rej.Inc("write_err")
 			return err
 		}
