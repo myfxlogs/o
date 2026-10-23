@@ -27,5 +27,6 @@ ALTER TABLE fin_risk_decision ADD CONSTRAINT fin_risk_decision_reason_check CHEC
 INSERT INTO app_config(key,value) VALUES
   ('research.earn.stale_hours', '"2"'),
   ('earn.sweep_min_usd',        '"100"'),
-  ('earn.redeem_buffer_bps',    '"50"')
+  ('earn.redeem_buffer_bps',    '"50"'),
+  ('data.earn.poll_sec',        '"60"')
 ON CONFLICT (key) DO NOTHING;

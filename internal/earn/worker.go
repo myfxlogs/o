@@ -93,9 +93,18 @@ func (w *Worker) Run(ctx context.Context, errc chan<- error) {
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(scanEvery):
+		case <-time.After(w.pollEvery()):
 		}
 	}
+}
+
+// pollEvery 采样拍长（data.earn.poll_sec 热启；节拍非判据——键缺/坏降默认拍
+// 不驻停，停泊面不因节拍键缺而停摆）。
+func (w *Worker) pollEvery() time.Duration {
+	if sec, err := w.cfg.GetInt("data.earn.poll_sec"); err == nil && sec > 0 {
+		return time.Duration(sec) * time.Second
+	}
+	return scanEvery
 }
 
 // scan 一拍两件：现率采样（独立——败不连坐扫额）+扫额回拢。
