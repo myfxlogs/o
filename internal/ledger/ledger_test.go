@@ -44,9 +44,13 @@ func TestPostGuards(t *testing.T) {
 
 func TestSettleAndBreakdown(t *testing.T) {
 	ctx, r := setup(t)
-	var pid int64
+	var xid, pid int64
+	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_execution(inst_id,notional_usd,state)
+		VALUES('X',100,'open') RETURNING id`).Scan(&xid); err != nil {
+		t.Fatal(err)
+	}
 	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_position(execution_id,inst_id,notional_usd,closed_at)
-		VALUES(1,'X',100,now()) RETURNING id`).Scan(&pid); err != nil {
+		VALUES($1,'X',100,now()) RETURNING id`, xid).Scan(&pid); err != nil {
 		t.Fatal(err)
 	}
 	for _, e := range []Entry{

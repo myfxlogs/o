@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | 施工中 |
+| 状态 | 待验 |
 | 提出 | `[角色:决策]` 2026-10-23（T-0015 施工上报两缺口，均属实裁立） |
 | 类别 | 缺陷修复×2（钱径安全+测试面） |
 | 依赖 | T-0015✅ |
@@ -32,3 +32,16 @@ master 裸跑复现：`TestAllowDenyAnchors`/`TestTokenMechanics` 在全量并�
 ## 范围外
 
 - 看护其他判据；live_switch 语义本身的委员会流程细化（P4 面板期）
+
+## 结果回填
+
+分支 `t/0021-close-gate-testiso`（已推 origin）。施工面=worktree `/opt/phase-wt/t0021`。
+
+**验收锚对账**：
+
+- close 径 live_switch 免检双锚+open 原判不破 = **PASS**：Intent.Kind（open 缺省|close）判序分流——close 跳过 live_switch（令牌照验不松）；测试锚 live off 下 open 拒执+close 放行双腿成交。
+- risk/ledger 隔离硬化+三连绿 = **PASS**：testutil.Pool 每包独占 `t_<pkg>_<rand>` schema+AfterConnect search_path（治本——guard 翻 kill_switch 不再误伤 risk，跨包 fixture 零干扰）；ledger 去持存 execution_id=1 假设；risk 专属 fixture 名空间+venue='rktest' 双保险；`go test ./...` 三连全绿 13 包×3 实拍。
+- 双坑入库 = **PASS**：`gate-semantics-exit-vs-entry`（critical——闸拦进攻非退出，拦平仓=存风险）+`test-shared-db-namespace`（high——本地绿≠隔离绿，修法=隔离层非断言放宽）schema v2 齐。
+- 机检全绿 = **PASS**：build/vet/gofmt/lines/env/migration/import 全过。
+
+**实测修正**：testutil schema 隔离=一处修全域受益（risk/ledger/guard 三包病灶同根同源——非逐测补桩）。

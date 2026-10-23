@@ -15,9 +15,21 @@ func setup(t *testing.T) (context.Context, *Gate) {
 	if err := pgstore.Migrate(ctx, pool); err != nil {
 		t.Fatal(err)
 	}
+	// 隔离硬化（T-0021）：专属 fixture 名空间清场+判据阈远离他包值域——
+	// 共享库并发下他包策略行/快照行可能顶过阈翻判（venue 集中度/敞口误伤）。
+	for _, q := range []string{
+		"DELETE FROM fin_strategy WHERE inst_id LIKE 'RK-%'",
+		"DELETE FROM fin_venue_account_snapshot WHERE ccy='RKCCY'",
+		"DELETE FROM fin_risk_token WHERE true",
+		"DELETE FROM fin_risk_decision WHERE intent->>'inst_id' LIKE 'RK-%'",
+	} {
+		if _, err := pool.Exec(ctx, q); err != nil {
+			t.Fatal(err)
+		}
+	}
 	for k, v := range map[string]string{
 		"risk.kill_switch": "false", "risk.max_notional_usd": "500",
-		"risk.max_venue_pct": "0.35", "risk.max_exposure_usd": "1000",
+		"risk.max_venue_pct": "0.95", "risk.max_exposure_usd": "1000000000",
 		"risk.token_ttl_seconds": "30"} {
 		if _, err := pool.Exec(ctx,
 			"INSERT INTO app_config(key,value) VALUES($1,to_jsonb($2::text)) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value", k, v); err != nil {
@@ -31,7 +43,7 @@ func setup(t *testing.T) (context.Context, *Gate) {
 	return ctx, NewGate(pool, cfg)
 }
 
-var intent = Intent{StrategyRef: 1, Venue: "okx", InstID: "BTC-USDT-SWAP", Legs: []string{"spot_long", "perp_short"}, NotionalUSD: 100, Leverage: 1}
+var intent = Intent{StrategyRef: 9e6, Venue: "rktest", InstID: "RK-USDT-SWAP", Legs: []string{"spot_long", "perp_short"}, NotionalUSD: 100, Leverage: 1}
 
 func TestAllowDenyAnchors(t *testing.T) {
 	ctx, g := setup(t)
@@ -41,7 +53,7 @@ func TestAllowDenyAnchors(t *testing.T) {
 		t.Fatalf("allow: %+v", d)
 	}
 	// intent 缺字段 deny 锚
-	if d := g.Check(ctx, Intent{Venue: "okx"}); d.Allow || d.Reason != "intent_incomplete" {
+	if d := g.Check(ctx, Intent{Venue: "rktest"}); d.Allow || d.Reason != "intent_incomplete" {
 		t.Fatalf("intent_incomplete: %+v", d)
 	}
 	// 名义上限 deny 锚
