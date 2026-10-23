@@ -12,18 +12,22 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
 	"phase/internal/data/okxpriv"
 	"phase/internal/data/okxws"
 	"phase/internal/guard"
+	"phase/internal/ledger"
 	"phase/internal/platform/config"
 	"phase/internal/platform/roster"
 	"phase/internal/portfolio/lifecycle"
 	"phase/internal/research/funding"
+	"phase/internal/review"
 	"phase/internal/risk"
 	"phase/internal/store/pgstore"
+	"phase/internal/trading/execution"
 	"phase/internal/trading/okxexec"
 )
 
@@ -87,9 +91,16 @@ func run() error {
 
 	// 私流守：OKX 私有 WS（凭据自 app_secrets 密文列解；缺件 fail-closed
 	// 不炸 boot——E-1 未落位期岗位缺席留痕非死码）。
+	// 凭据缺席期仓巡平仓缝降级 stub（拒执 fail-closed）——凭据落位重启即全链。
+	var closer guard.Executor
 	if priv, err := okxpriv.NewCollector(ctx, pool, false); err != nil {
 		log.Printf("WARN: 私流守缺席（%v）——凭据落位后重启即上岗", err)
 	} else {
+		// 交易域首岗：执事（Executor=okxexec 唯一 venue 径——凭据与私流守同源解出）。
+		execR := execution.NewRunner(pool, cfg,
+			execution.OkxExecutor{C: okxexec.NewClient(priv.Credentials(), false)})
+		go execution.Run(ctx, errc, execR)
+		closer = closeExec{r: execR}
 		// boot 首读播种器=okxexec /account/balance（事件锚定形一次性拉取——
 		// cmd 装配层接线，数据域不反向依赖交易域）。
 		creds := priv.Credentials()
@@ -105,13 +116,19 @@ func run() error {
 	// 投资域首岗：生命周期官（员工 命官）——提案→paper 沙箱→probe 晋升闸。
 	go lifecycle.NewRunner(pool, cfg).Run(ctx, errc)
 
+	// 复盘域：评史官（一仓一判决书+远期验证写回环——G10 收口）。
+	go review.NewRunner(pool).Run(ctx, errc)
+
+	// 账本域：司账+核账（入账结算+对账环——消费事实行不触发钱动作）。
+	go ledger.NewRunner(pool, cfg).Run(ctx, errc)
+
 	// 风控域首岗：唯一交易前闸（员工 门官）——G7 消费件就绪后只认放行令牌。
 	riskGate := risk.NewGate(pool, cfg)
 	go risk.Run(ctx, errc, riskGate)
 
-	// 看护域首岗：仓巡（G8）——持仓哨戒三触发+策略联动，close intent 过闸免拦径
-	// （执行缝 T-0014 落位前缺件 stub 拒执 fail-closed——无 open 仓时哨戒空转无害）。
-	go guard.NewWarden(pool, cfg, riskGate, nil).Run(ctx, errc)
+	// 看护域首岗：仓巡（G8）——持仓哨戒三触发+策略联动，close intent 过闸免拦径，
+	// 反向双腿平走执事 G7 径（凭据缺席=缝降级 stub 拒执 fail-closed）。
+	go guard.NewWarden(pool, cfg, riskGate, closer).Run(ctx, errc)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -141,4 +158,20 @@ func run() error {
 		return err
 	}
 	return nil
+}
+
+// closeExec 仓巡×执事装配缝（cmd 组合根——guard 不 import execution，方向闸零边）：
+// guard CloseSpec → execution 反向双腿 Intent；腿 sz 沿 fin_order_leg 串传
+// （okx 张数口径换算归 venue 层）；Notional 取名义半额（delta 中性带检入参口径）。
+type closeExec struct{ r *execution.Runner }
+
+func (c closeExec) ExecuteClose(ctx context.Context, spec guard.CloseSpec) (int64, error) {
+	mk := func(l guard.CloseLeg) execution.Leg {
+		return execution.Leg{Venue: l.Venue, InstID: l.InstID, Side: l.Side,
+			Sz: strconv.FormatFloat(l.Sz, 'f', -1, 64), Notional: spec.NotionalUSD / 2}
+	}
+	return c.r.Execute(ctx, execution.Intent{
+		DecisionID: spec.DecisionID, StrategyRef: spec.StrategyRef, InstID: spec.InstID,
+		NotionalUSD: spec.NotionalUSD, Legs: [2]execution.Leg{mk(spec.Legs[0]), mk(spec.Legs[1])},
+	})
 }

@@ -1,4 +1,4 @@
--- 0010 看护平仓（G8）：risk 判径 kind 列 + 平仓态子面表 + guard 热启键。
+-- 0012 看护平仓（G8）：risk 判径 kind 列 + 平仓态子面表 + guard 热启键。
 -- 平仓态机落自有 fin_guard_close（position_id 逻辑关联不设 FK——fin_position 归
 -- T-0014/0009 所有，本票零 schema 依赖、合并序无关）；position 侧只写契约内
 -- closed_at 列。close intent 与 open 同落 fin_risk_decision 留痕，kind 区分判径。

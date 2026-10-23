@@ -13,51 +13,31 @@ import (
 	"phase/internal/store/pgstore"
 )
 
-// setup 镜像 T-0014/0009 钉定契约表（fin_execution/fin_order_leg/fin_position）——
-// 0009 合入后 CREATE TABLE IF NOT EXISTS=no-op，镜像面被真迁移取代（并行开发缝，
-// 契约漂移须对拍 0009 面改）。
 func setup(t *testing.T) (context.Context, *Warden, *fakeExec) {
 	t.Helper()
 	pool := testutil.Pool(t)
 	ctx := context.Background()
-	// 测试面隔离：只清本包自有面（fin_position 系仅 guard scaffold 写入；
-	// fin_strategy 打标清——lifecycle 等包并发共用此表，无差别清=撞他包在途行）。
+	if err := pgstore.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	// 测试面隔离：只清本包自有面（fin_position 系 fixture 行按 guard-test 策略打标
+	// 级联清——lifecycle/execution 等包并发共用库，无差别清=撞他包在途行）。
 	for _, stmt := range []string{
-		"DELETE FROM fin_guard_close",
-		"DELETE FROM fin_position",
-		"DELETE FROM fin_order_leg",
-		"DELETE FROM fin_execution",
+		`DELETE FROM fin_guard_close WHERE position_id IN
+		   (SELECT id FROM fin_position WHERE strategy_ref IN
+		     (SELECT id FROM fin_strategy WHERE template_ref='guard-test'))`,
+		`DELETE FROM fin_position WHERE strategy_ref IN
+		   (SELECT id FROM fin_strategy WHERE template_ref='guard-test')`,
+		`DELETE FROM fin_order_leg WHERE execution_id IN
+		   (SELECT id FROM fin_execution WHERE strategy_ref IN
+		     (SELECT id FROM fin_strategy WHERE template_ref='guard-test'))`,
+		`DELETE FROM fin_execution WHERE strategy_ref IN
+		   (SELECT id FROM fin_strategy WHERE template_ref='guard-test')`,
 		"DELETE FROM fin_strategy WHERE template_ref='guard-test'",
 	} {
 		if _, err := pool.Exec(ctx, stmt); err != nil {
 			t.Fatal(err)
 		}
-	}
-	for _, ddl := range []string{
-		`CREATE TABLE IF NOT EXISTS fin_execution (
-			id bigserial PRIMARY KEY, strategy_ref bigint, decision_id bigint, token_id uuid,
-			inst_id text NOT NULL, notional_usd numeric NOT NULL,
-			state text NOT NULL CHECK (state IN ('open','legged','rolled_back','closed','failed','rollback_failed')),
-			created_at timestamptz NOT NULL DEFAULT now())`,
-		`CREATE TABLE IF NOT EXISTS fin_order_leg (
-			id bigserial PRIMARY KEY, execution_id bigint NOT NULL REFERENCES fin_execution(id),
-			leg_no smallint NOT NULL, cl_ord_id text NOT NULL,
-			venue text NOT NULL CHECK (venue NOT LIKE '%:%'), side text NOT NULL,
-			inst_id text NOT NULL, sz numeric NOT NULL, px numeric,
-			state text NOT NULL CHECK (state IN ('placed','ack','filled','failed','ambiguous','rolled_back')),
-			ts timestamptz NOT NULL DEFAULT now())`,
-		`CREATE TABLE IF NOT EXISTS fin_position (
-			id bigserial PRIMARY KEY, execution_id bigint NOT NULL REFERENCES fin_execution(id),
-			strategy_ref bigint, inst_id text NOT NULL, notional_usd numeric NOT NULL,
-			delta_neutral boolean NOT NULL DEFAULT true,
-			opened_at timestamptz NOT NULL DEFAULT now(), closed_at timestamptz)`,
-	} {
-		if _, err := pool.Exec(ctx, ddl); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if err := pgstore.Migrate(ctx, pool); err != nil {
-		t.Fatal(err)
 	}
 	for k, v := range map[string]string{
 		"guard.flip_bps": "5", "guard.max_hold_hours": "72",
