@@ -17,6 +17,7 @@ import (
 
 	"phase/internal/data/okxpriv"
 	"phase/internal/data/okxws"
+	"phase/internal/guard"
 	"phase/internal/platform/config"
 	"phase/internal/platform/roster"
 	"phase/internal/portfolio/lifecycle"
@@ -107,6 +108,10 @@ func run() error {
 	// 风控域首岗：唯一交易前闸（员工 门官）——G7 消费件就绪后只认放行令牌。
 	riskGate := risk.NewGate(pool, cfg)
 	go risk.Run(ctx, errc, riskGate)
+
+	// 看护域首岗：仓巡（G8）——持仓哨戒三触发+策略联动，close intent 过闸免拦径
+	// （执行缝 T-0014 落位前缺件 stub 拒执 fail-closed——无 open 仓时哨戒空转无害）。
+	go guard.NewWarden(pool, cfg, riskGate, nil).Run(ctx, errc)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {

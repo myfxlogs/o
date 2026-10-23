@@ -24,6 +24,10 @@ internal/portfolio/lifecycle -> internal/platform/config
 internal/risk -> internal/platform/config
 internal/risk -> internal/platform/rejects
 internal/risk -> internal/platform/roster
+internal/guard -> internal/platform/config
+internal/guard -> internal/platform/rejects
+internal/guard -> internal/platform/roster
+internal/guard -> internal/risk
 internal/portfolio/lifecycle -> internal/platform/rejects
 internal/portfolio/lifecycle -> internal/platform/roster
 internal/research/funding -> internal/platform/config
