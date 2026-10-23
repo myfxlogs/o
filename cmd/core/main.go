@@ -23,6 +23,7 @@ import (
 	"phase/internal/research/funding"
 	"phase/internal/risk"
 	"phase/internal/store/pgstore"
+	"phase/internal/trading/execution"
 	"phase/internal/trading/okxexec"
 )
 
@@ -89,6 +90,10 @@ func run() error {
 	if priv, err := okxpriv.NewCollector(ctx, pool, false); err != nil {
 		log.Printf("WARN: 私流守缺席（%v）——凭据落位后重启即上岗", err)
 	} else {
+		// 交易域首岗：执事（Executor=okxexec 唯一 venue 径——凭据与私流守同源解出）。
+		execR := execution.NewRunner(pool, cfg,
+			execution.OkxExecutor{C: okxexec.NewClient(priv.Credentials(), false)})
+		go execution.Run(ctx, errc, execR)
 		// boot 首读播种器=okxexec /account/balance（事件锚定形一次性拉取——
 		// cmd 装配层接线，数据域不反向依赖交易域）。
 		creds := priv.Credentials()
