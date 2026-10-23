@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | 施工中 |
+| 状态 | 待验 |
 | 提出 | `[角色:决策]` 2026-10-23 |
 | 类别 | 系统骨架（P1） |
 | 领取 | devin-t0002 @ 2026-10-23 |
@@ -29,3 +29,18 @@ P1 目标：公司架构从纸面到可启动——运行时能连库、读配�
 
 - 任何 venue 连接/真实业务逻辑（P2+）；web 前端（P4）；员工 28 岗分批入职（后续单）
 - 设计验证：schema/config 面属架构级——施工前须决策席过设计验证（自审 A–I）
+
+## 结果回填
+
+分支 `t/0006-p1-skeleton`（commit e7255d3，已推 origin）。施工面=worktree `/opt/phase-wt/t0006`。
+
+**验收锚对账**：
+
+- migrations 底表 = **PASS**：`migrations/0001_app_config.sql`（app_config+app_secrets 代次列 generation+`bump_config_generation`/`notify_config_changed` 触发器 `config_changed`）+ `0002_fin_employee_registry.sql`；`migrations/migrations.go` embed FS；`internal/store/pgstore/{pool,migrate,migrate_table}.go` 序进迁移器（schema_migrations 基线+advisory lock 串行化——多测试包并发迁移撞 pg_type 唯一索引实证后修）；测试实拍四表落 `phase_test` 实例。
+- `internal/platform/config` = **PASS**：`client.go`（Load 快照/Watch=LISTEN+断线重连重载/Get fail-closed 未就绪+缺键/Secret 按次直读密文行）；`masterkey.go`（`PHASE_MASTER_KEY_FILE` 引导键→缺省 `/run/secrets/phase_master_key`，缺件 fail-closed）；测试实拍：未就绪 Get 拒、写库 UPDATE→通知→快照重载 v2 生效（0.45s 内）。
+- `cmd/core` = **PASS**：boot 序 DB_DSN→Connect→Migrate→config Load/Watch→`roster.Register("phase-core","platform")`+BeatLoop(30s)→`:50051`。实拍：`curl :50051/`→`ok`（compose healthcheck 同径）；`POST /phase.dashboard.v1.CoreService/Ping`→`{"status":"ok"}`；`fin_employee_registry` 行 active+last_beat 实拍落库。
+- 六域空壳+import 红线 = **PASS**：`internal/{data,research,portfolio,risk,trading,ledger,review}/doc.go` 就位；`check_import_direction.sh` 实拍边集冻结——唯一边 `internal/gen/dashboardv1/dashboardv1connect -> internal/gen/dashboardv1`（codegen 固有）入白名单，三红线判据保留，输出 `OK: import direction gate（1/1 边）`。
+- proto 首 service+buf generate = **PASS**：`proto/dashboardv1/core.proto`（package `phase.dashboard.v1`，service CoreService/Ping，connect-go v2.0.1 钉版生成——`connect.NewServer`+`connecthttp.Mount` 新 API 实拍）；产物 `internal/gen/`+`web/src/gen/`（gitignored）；`web/package.json` 最小化仅载 protoc-gen-es 2.16.0（buf 链路依赖，build 脚本占位——前端全新设计 P4 票）。
+- 机检全绿+测试走 5434 独立实例 = **PASS（带环境说明）**：`go build ./... && go vet ./...` 净；`gofmt -l .` 零出；`check-lines`/`check-env-reads`/`check_migration_contract`/`import_direction` 全过；`go test ./...` 5 pass（DSN 注 `localhost:15434`——本机 5434 被 nox-postgres-test 占用，T-0002 已记；testutil 缺 DSN=skip 语义）。pre-commit 全闸实测（本次 commit 过闸）。
+
+**实测修正（回填留痕）**：① 迁移并发竞态 pg_type 唯一索引撞→Migrate 加 `pg_advisory_lock(860223)`；② connect-go v2 与 v1 API 不兼容（Request/Response 泛型壳取消→裸 message 出入参）——按生成件实拍改 service.go；③ proto 须带 `option go_package`。

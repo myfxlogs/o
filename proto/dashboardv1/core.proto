@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package phase.dashboard.v1;
+
+option go_package = "phase/internal/gen/dashboardv1";
+
+// 首个 service（P1 骨架链路验证件）——cmd/core 实现并挂载于 :50051。
+service CoreService {
+  rpc Ping(PingRequest) returns (PingResponse) {}
+}
+
+message PingRequest {}
+
+message PingResponse {
+  string status = 1;
+}
