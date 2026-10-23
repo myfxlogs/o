@@ -20,7 +20,15 @@ RUN cd web && mkdir -p dist && if [ ! -s dist/index.html ]; then \
 FROM golang:1.27-alpine AS build
 WORKDIR /src
 COPY . .
+# internal/gen 亦 gitignore 不随 COPY 入镜像——Go 侧同样镜像内 regen（T-0009，与 CI go build 前
+# buf generate 同序）。buf 由源码 go install（npm 全局 buf 是 node 壳，golang 面无 node——
+# 跨阶段挪用不可行）；钉 1.74.0 与 CI/本地三处同号。Go 插件钉版与 CI（ci.yml）/go.mod 同号；
+# buf.gen.core.yaml 只含 Go 插件段。
 COPY --from=web-build /src/web/dist web/dist
+RUN go install github.com/bufbuild/buf/cmd/buf@v1.74.0 && \
+    go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.12 && \
+    go install connectrpc.com/connect/v2/cmd/protoc-gen-connect-go@v2.0.1
+RUN buf generate --template buf.gen.core.yaml
 RUN go build -o /bin/core ./cmd/core
 
 FROM alpine:3.20

@@ -1,0 +1,14 @@
+# Go-only 模板——Dockerfile.core build 阶段用（golang 镜像无 web/node_modules，protoc-gen-es 不可达）。
+# 与 buf.gen.yaml 的 Go 插件段保持同 out/opt——改其一须同步改另一（同 buf.gen.web.yaml 先例）。
+version: v2
+plugins:
+  - local: protoc-gen-go
+    out: internal/gen
+    opt: paths=source_relative
+  - local: protoc-gen-connect-go
+    out: internal/gen
+    opt: paths=source_relative
+inputs:
+  - directory: proto
+    paths:
+      - proto/dashboardv1
