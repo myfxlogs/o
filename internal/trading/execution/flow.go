@@ -40,6 +40,15 @@ func (r *Runner) Execute(ctx context.Context, in Intent) (int64, error) {
 		r.rej.Inc("write_err")
 		return 0, err
 	}
+	// ③.5 前置赎回（D-0006 停泊态：闲资默认停 Earn——开仓先赎回 notional+buffer 回拢；
+	// 败=fail-closed 不开仓，留痕=exec 行翻 failed+计数门）。
+	if r.earn != nil {
+		if err := r.earn.RedeemToTrading(ctx, in.NotionalUSD); err != nil {
+			r.setState(ctx, execID, "failed")
+			r.rej.Inc("earn_redeem_failed")
+			return execID, fmt.Errorf("前置赎回: %w", err)
+		}
+	}
 	// ④leg1
 	res1, err := r.placeAndResolve(ctx, execID, 1, l1)
 	if err != nil {

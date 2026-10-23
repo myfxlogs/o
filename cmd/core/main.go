@@ -17,6 +17,7 @@ import (
 
 	"phase/internal/data/okxpriv"
 	"phase/internal/data/okxws"
+	"phase/internal/earn"
 	"phase/internal/ledger"
 	"phase/internal/platform/config"
 	"phase/internal/platform/roster"
@@ -89,12 +90,16 @@ func run() error {
 
 	// 私流守：OKX 私有 WS（凭据自 app_secrets 密文列解；缺件 fail-closed
 	// 不炸 boot——E-1 未落位期岗位缺席留痕非死码）。
+	// Earn 停泊态（员工 配管）：现率采集无凭据径先行；停泊钱动面凭据就位挂接。
+	earnW := earn.NewWorker(pool, cfg)
+	go earnW.Run(ctx, errc)
 	if priv, err := okxpriv.NewCollector(ctx, pool, false); err != nil {
 		log.Printf("WARN: 私流守缺席（%v）——凭据落位后重启即上岗", err)
 	} else {
+		earnW.AttachVenue(okxexec.NewClient(priv.Credentials(), false))
 		// 交易域首岗：执事（Executor=okxexec 唯一 venue 径——凭据与私流守同源解出）。
 		execR := execution.NewRunner(pool, cfg,
-			execution.OkxExecutor{C: okxexec.NewClient(priv.Credentials(), false)})
+			execution.OkxExecutor{C: okxexec.NewClient(priv.Credentials(), false)}).WithEarn(earnW)
 		go execution.Run(ctx, errc, execR)
 		// boot 首读播种器=okxexec /account/balance（事件锚定形一次性拉取——
 		// cmd 装配层接线，数据域不反向依赖交易域）。

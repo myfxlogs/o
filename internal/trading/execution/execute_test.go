@@ -10,16 +10,20 @@ import (
 	"phase/internal/store/pgstore"
 )
 
-// fakeVenue 可控 venue（Place 行为按 clOrdID 路由）。
+// fakeVenue 可控 venue（Place 行为按 clOrdID 路由；onPlace=调用序钩子——前置赎回序锚用）。
 type fakeVenue struct {
 	leg2Fail  bool
 	rbFail    bool
 	resolveTo string
 	placed    []string
+	onPlace   func()
 }
 
 func (f *fakeVenue) Place(ctx context.Context, leg Leg, clOrdID string) (OrderResult, error) {
 	f.placed = append(f.placed, clOrdID+":"+leg.Side)
+	if f.onPlace != nil {
+		f.onPlace()
+	}
 	if f.leg2Fail && leg.Venue == "leg2" {
 		return OrderResult{ClOrdID: clOrdID, State: "unknown"}, fmt.Errorf("transport down")
 	}

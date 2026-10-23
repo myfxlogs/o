@@ -40,6 +40,11 @@ internal/research/funding -> internal/platform/rejects
 internal/research/funding -> internal/platform/roster
 internal/data/okxws -> internal/platform/rejects
 internal/data/okxws -> internal/platform/roster
+internal/earn -> internal/ledger
+internal/earn -> internal/platform/config
+internal/earn -> internal/platform/rejects
+internal/earn -> internal/platform/roster
+internal/earn -> internal/trading/okxexec
 internal/trading/okxexec -> internal/platform/signutil
 internal/gen/dashboardv1/dashboardv1connect -> internal/gen/dashboardv1
 EOF

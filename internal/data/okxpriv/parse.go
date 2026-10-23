@@ -52,6 +52,35 @@ func (c *Collector) handle(ctx context.Context, data []byte) {
 	c.frames.Add(1)
 	c.lastFrm.Store(time.Now().UnixNano())
 	for _, d := range msg.Data {
+		// details[]（account 频道实拍形状——per-ccy eq/avail 行，生产库 md_account_events
+		// 亲证 2026-10-23）：逐 ccy 拆行进末帧缓存，快照行才有 per-ccy equity/avail 双值。
+		if raw, ok := d["details"]; ok {
+			var rows []map[string]json.RawMessage
+			if err := json.Unmarshal(raw, &rows); err != nil {
+				c.rej.Inc("parse_fail")
+			} else {
+				for _, dr := range rows {
+					dc := str(dr, "ccy")
+					if dc == "" {
+						continue
+					}
+					deq := num(dr, "eq") // ccy 本位口径（快照行 ccy 键=行本位——USDT 行对账自洽）
+					if deq == 0 {
+						deq = num(dr, "eqUsd")
+					}
+					if deq != 0 {
+						c.lastEq[dc] = deq
+					}
+					av := num(dr, "availEq") // unified 可用权益（扣保证金占用——闲余判据取值源）
+					if av == 0 {
+						av = num(dr, "availBal")
+					}
+					if av != 0 {
+						c.setAvail(dc, av)
+					}
+				}
+			}
+		}
 		ccy := str(d, "ccy")
 		if ccy == "" {
 			ccy = "USDT" // balance_and_position 账户行币种归一（快照行 Currency=USDT 口径）
@@ -73,13 +102,28 @@ func (c *Collector) handle(ctx context.Context, data []byte) {
 	c.flushSnapshot(ctx, "okx_event")
 }
 
-// flushSnapshot 末帧 equity 写快照行（src 标事件/心跳源——unified 键域归一）。
+// setAvail 末帧 avail 缓存写（懒初始化——测试直构 Collector 无 map 场景不炸）。
+func (c *Collector) setAvail(ccy string, v float64) {
+	if c.lastAvail == nil {
+		c.lastAvail = map[string]float64{}
+	}
+	c.lastAvail[ccy] = v
+}
+
+// flushSnapshot 末帧 equity/avail 写快照行（src 标事件/心跳源——unified 键域归一；
+// avail 只进不退：EXCLUDED 空值不覆写既有值——boot 播种行 eq-only 场景保 avail）。
 func (c *Collector) flushSnapshot(ctx context.Context, src string) {
 	for ccy, eq := range c.lastEq {
-		if _, err := c.pool.Exec(ctx, `INSERT INTO fin_venue_account_snapshot(venue,venue_type,ccy,equity,src,updated_at)
-			VALUES('okx','unified',$1,$2,$3,now())
-			ON CONFLICT(venue,venue_type,ccy) DO UPDATE SET equity=EXCLUDED.equity,src=EXCLUDED.src,updated_at=now()`,
-			ccy, eq, src); err != nil {
+		var avail any
+		if a, ok := c.lastAvail[ccy]; ok {
+			avail = a
+		}
+		if _, err := c.pool.Exec(ctx, `INSERT INTO fin_venue_account_snapshot(venue,venue_type,ccy,equity,avail,src,updated_at)
+			VALUES('okx','unified',$1,$2,$3,$4,now())
+			ON CONFLICT(venue,venue_type,ccy) DO UPDATE SET equity=EXCLUDED.equity,
+				avail=COALESCE(EXCLUDED.avail,fin_venue_account_snapshot.avail),
+				src=EXCLUDED.src,updated_at=now()`,
+			ccy, eq, avail, src); err != nil {
 			c.rej.Inc("write_err")
 		}
 	}

@@ -12,6 +12,8 @@ type Params struct {
 	WindowLossBps float64
 	MinNetAPR     float64
 	SettlesPerDay float64
+	// EarnRateAPR Earn 现率年化（D-0006 动态比较底；nil=缺失/陈旧——降级静态底+告警计数）。
+	EarnRateAPR *float64
 }
 
 // Eval 评估卡出件。
@@ -37,6 +39,13 @@ func Evaluate(instID string, rate float64, p Params) Eval {
 		e.Direction = "long_perp_short_spot"
 		e.Legs = map[string]any{"perp": "long", "spot": "short"}
 	}
+	// 动态比较底（D-0006）：floor=max(静态底, Earn 现率)——停泊收益是机会成本底线。
+	floor := p.MinNetAPR
+	floorSrc := "static"
+	if p.EarnRateAPR != nil && *p.EarnRateAPR > floor {
+		floor = *p.EarnRateAPR
+		floorSrc = "earn"
+	}
 	gross := abs(rate) * p.SettlesPerDay * 365
 	cost := (2*p.TakerFeeBps + p.SlippageBps + p.FailCostBps + p.WindowLossBps) / 1e4
 	net := gross - cost
@@ -45,15 +54,21 @@ func Evaluate(instID string, rate float64, p Params) Eval {
 		"funding_rate": rate, "settles_per_day": p.SettlesPerDay,
 		"taker_fee_bps": p.TakerFeeBps, "slippage_bps": p.SlippageBps,
 		"fail_cost_bps": p.FailCostBps, "window_loss_bps": p.WindowLossBps,
-		"min_net_apr": p.MinNetAPR,
+		"min_net_apr": p.MinNetAPR, "floor_apr": floor, "floor_source": floorSrc,
+	}
+	if p.EarnRateAPR != nil {
+		e.Evidence["earn_rate_apr"] = *p.EarnRateAPR
 	}
 	switch {
 	case rate < 0:
 		e.Verdict, e.Reason = "rejected", "负 funding 反向=现货做空腿无 venue 支撑（不可执行）"
-	case net >= p.MinNetAPR:
+	case net >= floor:
 		e.Verdict = "proposed"
-	default:
+	case net < p.MinNetAPR:
 		e.Verdict, e.Reason = "rejected", fmt.Sprintf("net_apr %.4f < 阈 %.4f", net, p.MinNetAPR)
+	default:
+		// 动态底杀：静态底过但停泊收益更高——below_earn（verdict/reason 面机读）。
+		e.Verdict, e.Reason = "rejected", fmt.Sprintf("below_earn: net_apr %.4f < Earn 底 %.4f（静态底 %.4f 过）", net, floor, p.MinNetAPR)
 	}
 	return e
 }
