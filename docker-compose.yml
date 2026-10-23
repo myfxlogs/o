@@ -66,7 +66,9 @@ services:
     ports:
       - "127.0.0.1:5433:5432"
     volumes:
-      - phase-pgdata:/var/lib/postgresql/data
+      # postgres:18 挂载约定=挂 /var/lib/postgresql 根（数据落 PGDATA 子目录，
+      # pg_upgrade --link 跨版不降容——挂 data 子路径镜像拒起）
+      - phase-pgdata:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U phase -d phase"]
       interval: 10s
@@ -96,7 +98,7 @@ services:
     ports:
       - "127.0.0.1:5434:5432"
     volumes:
-      - phase-pgdata-test:/var/lib/postgresql/data
+      - phase-pgdata-test:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U phase -d phase_test"]
       interval: 10s
