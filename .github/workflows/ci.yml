@@ -39,7 +39,7 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
       - uses: bufbuild/buf-setup-action@v1
-        if: hashFiles('buf.yaml') != ''
+        if: hashFiles('proto/**/*.proto') != ''
         with:
           version: 1.74.0
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -51,7 +51,7 @@ jobs:
           go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.12
           go install connectrpc.com/connect/v2/cmd/protoc-gen-connect-go@v2.0.1
           buf generate
-        if: hashFiles('buf.yaml') != ''
+        if: hashFiles('proto/**/*.proto') != ''
       # 前端产物须在 go build 之前（embed.go go:embed web/dist）
       - run: npm run build
         if: hashFiles('web/package.json') != ''
