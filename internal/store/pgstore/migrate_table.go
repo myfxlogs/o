@@ -12,4 +12,5 @@ var migrationTable = []struct {
 	{5, "0005_private_facts.sql"},
 	{6, "0006_research.sql"},
 	{7, "0007_lifecycle.sql"},
+	{8, "0008_risk.sql"},
 }
