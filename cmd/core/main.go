@@ -16,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	"phase/internal/data/earnrate"
 	"phase/internal/data/okxpriv"
 	"phase/internal/data/okxws"
 	"phase/internal/earn"
@@ -149,6 +150,11 @@ func run() error {
 			return out, nil
 		})
 		go hs.Run(ctx, errc)
+
+		// Earn 现率采集（T-0023：装配注入 okxexec 签名径——钦定 REST 面）。
+		go earnrate.NewCollector(pool, cfg, func(ctx context.Context) (json.RawMessage, error) {
+			return okcli.Get(ctx, "/api/v5/finance/savings/lending-rate-summary?ccy=USDT")
+		}).Run(ctx, errc)
 	}
 
 	// 研究域首岗：funding 枚举+评估卡（员工 探员/验证官）——判据全 app_config 机读。
