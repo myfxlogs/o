@@ -2,10 +2,8 @@ package ledger
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
-	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -50,15 +48,7 @@ func (r *Runner) Run(ctx context.Context, errc chan<- error) {
 }
 
 func (r *Runner) tol(ctx context.Context) (float64, error) {
-	raw, err := r.cfg.Get("ledger.recon_tol_usd")
-	if err != nil {
-		return 0, err
-	}
-	var s string
-	if err := json.Unmarshal(raw, &s); err != nil {
-		return 0, err
-	}
-	return strconv.ParseFloat(s, 64)
+	return r.cfg.GetFloat("ledger.recon_tol_usd")
 }
 
 // scan 一拍：①closed 仓结算落位 ②对账环（快照 vs 净额，差即计门）③日切快照。

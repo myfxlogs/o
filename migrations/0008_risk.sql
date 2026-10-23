@@ -22,11 +22,11 @@ CREATE TABLE IF NOT EXISTS fin_risk_token (
 );
 
 INSERT INTO app_config(key,value) VALUES
-  ('risk.kill_switch',           '"false"'),
-  ('risk.max_notional_usd',      '"500"'),
-  ('risk.max_venue_pct',         '"0.35"'),
-  ('risk.max_exposure_usd',      '"1000"'),
-  ('risk.token_ttl_seconds',     '"30"')
+  ('risk.kill_switch','false'),
+  ('risk.max_notional_usd',      '500'),
+  ('risk.max_venue_pct',         '0.35'),
+  ('risk.max_exposure_usd',      '1000'),
+  ('risk.token_ttl_seconds',     '30')
 ON CONFLICT (key) DO NOTHING;
 
 -- fin_strategy 补 venue 列（venue 集中度判据须按 venue 分桶；键域 CHECK+COMMENT）。

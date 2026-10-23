@@ -33,5 +33,5 @@ CREATE TABLE IF NOT EXISTS fin_ledger_snapshot (
 COMMENT ON COLUMN fin_ledger_snapshot.venue IS 'venue 域（裸值禁冒号投影）';
 
 INSERT INTO app_config(key,value) VALUES
-  ('ledger.recon_tol_usd','"0.50"')
+  ('ledger.recon_tol_usd','0.50')
 ON CONFLICT (key) DO NOTHING;

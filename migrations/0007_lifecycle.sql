@@ -34,9 +34,9 @@ CREATE TABLE IF NOT EXISTS fin_paper_fill (
 -- 晋升判据+paper 参数（缺任一键=不晋升 fail-closed；live_switch=投资委员会开关位——
 -- G4 第一笔真钱须此键显式 true，缺键/非 true=禁 live 迁移）。
 INSERT INTO app_config(key,value) VALUES
-  ('invest.paper.notional_usd',      '"100"'),
-  ('invest.lifecycle.paper_min_hours','"24"'),
-  ('invest.lifecycle.paper_min_net_usd','"0.01"'),
-  ('invest.lifecycle.paper_max_dd_usd','"5"'),
-  ('invest.lifecycle.live_switch',    '"false"')
+  ('invest.paper.notional_usd',      '100'),
+  ('invest.lifecycle.paper_min_hours','24'),
+  ('invest.lifecycle.paper_min_net_usd','0.01'),
+  ('invest.lifecycle.paper_max_dd_usd','5'),
+  ('invest.lifecycle.live_switch','false')
 ON CONFLICT (key) DO NOTHING;

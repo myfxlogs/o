@@ -51,28 +51,8 @@ func NewGate(pool *pgxpool.Pool, cfg *config.Client) *Gate {
 			"token_missing", "token_expired", "token_used", "write_err")}
 }
 
-func (g *Gate) getF(k string) (float64, error) {
-	raw, err := g.cfg.Get(k)
-	if err != nil {
-		return 0, err
-	}
-	var s string
-	if err := json.Unmarshal(raw, &s); err != nil {
-		return 0, err
-	}
-	return strconv.ParseFloat(s, 64)
-}
-func (g *Gate) getB(k string) (bool, error) {
-	raw, err := g.cfg.Get(k)
-	if err != nil {
-		return false, err
-	}
-	var s string
-	if err := json.Unmarshal(raw, &s); err != nil {
-		return false, err
-	}
-	return s == "true", nil
-}
+func (g *Gate) getF(k string) (float64, error) { return g.cfg.GetFloat(k) }
+func (g *Gate) getB(k string) (bool, error)    { return g.cfg.GetBool(k) }
 
 // Check 唯一交易前闸。判序：kill switch（最高优先）→intent 完整性→判据读备
 // （缺键=deny）→名义上限→venue 集中度→总敞口→allow+令牌。
