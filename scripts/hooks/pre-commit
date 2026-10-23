@@ -31,7 +31,7 @@ elif command -v staticcheck >/dev/null 2>&1 || [ -x "$HOME/go/bin/staticcheck" ]
   SC_BIN=$(command -v staticcheck || echo "$HOME/go/bin/staticcheck")
   SC_BASE=/tmp/.phase_staticcheck_baseline.txt
   SC_NOW=$(mktemp)
-  GOTOOLCHAIN="go$(go mod edit -json | jq -r .Go)" "$SC_BIN" ./internal/... > "$SC_NOW" 2>&1 || true
+  GOTOOLCHAIN="$(go version | awk '{print $3}')" "$SC_BIN" ./internal/... > "$SC_NOW" 2>&1 || true
   if grep -q "export data version" "$SC_NOW"; then
     echo "FAIL: staticcheck 工具链不兼容（export data version 错文，本机 go 与 go.mod 漂移）" >&2
     grep "export data version" "$SC_NOW" | head -3 >&2
