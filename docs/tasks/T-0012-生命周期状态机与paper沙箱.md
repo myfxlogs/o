@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | 施工中 |
+| 状态 | 待验 |
 | 提出 | `[角色:决策]` 2026-10-23 |
 | 类别 | 投资域/研究域衔接（M1 链） |
 | 依赖 | T-0010✅（fin_proposal 提案面）；`策略评估与仓位` 技能必查 |
@@ -31,3 +31,18 @@ M1=OKX funding 对冲打穿 G0→G11。G0→G2 已通（T-0007/T-0010）；本�
 ## 范围外
 
 - 风控闸实现（G6 下一票）、真单执行（G7）、账本入账（G9 起）；MT5 面；其他五模板生命周期（funding 型先通）
+
+## 结果回填
+
+分支 `t/0012-lifecycle-paper`（已推 origin）。施工面=worktree `/opt/phase-wt/t0012`。
+
+**验收锚对账**：
+
+- fin_strategy+迁移日志 = **PASS**：`0007` fin_strategy（state 六态闭集 CHECK proposed/paper/probe/live/degraded/retired）+fin_strategy_transition（迁移留痕同表）+fin_paper_fill（虚拟结算行 kind 闭集）+判据种子 invest.lifecycle.*/invest.paper.notional_usd。
+- 状态机合法性+非法迁移拒 = **PASS**：`machine.go` 迁移闭集表（paper→live 越级禁绝、live 须 live_switch=true）+Transition 同事务翻转+留痕；测试锚：Legal 表六格、paper→live 拒、probe→live 无开关 fail-closed。
+- paper 沙箱吃真实事实行+import 零违 = **PASS**：paperAccounting 按策略逐条吃 md_funding 新行（ts>最近 fill，rate×notional 虚拟入账 fin_paper_fill）；**零 execution 引用**——import 方向闸 OK 16/16 边，research/portfolio→trading 零边。
+- 晋升判据全热启+缺键 fail-closed+留痕 = **PASS**：criteria() 五键全读缺任一键=整拍停（missing_criteria 门测试锚）；时长/净回报/回撤三机读过→Transition 留痕 probe；live_switch=false 下 live 拒迁测试锚；criteria 快照入行（判据代次留痕）。
+- 命官在岗 = **PASS**：Register+BeatLoop(30s)，产出窗=fin_strategy/fin_strategy_transition/fin_paper_fill 三表可查；E2E 实拍提案→paper 开户→funding 虚拟结算→probe 迁移链全绿。
+- 机检全绿 = **PASS**：build/vet/gofmt/lines/env/migration/import 16/16 边全过；go test 9 包全绿 @15434。
+
+**实测修正**：paper 结算 ts>entered_at 语义天然排开仓前 funding（开仓前收益不该算——测试数据误用过去时，改 now() 后绿，语义本身正确非 bug）。
