@@ -11,6 +11,11 @@ COPY proto/dashboardv1 proto/dashboardv1
 COPY web/ web/
 RUN buf generate --template buf.gen.web.yaml
 RUN cd web && npm run build
+# P4 前端本体未落位——build 脚本只 echo 不产 dist，下游 COPY --from 会炸（T-0009）。
+# 真前端落位后 dist/index.html 已存在，此步零触碰；目录有文件即满足 go:embed web/dist 语义。
+RUN cd web && mkdir -p dist && if [ ! -s dist/index.html ]; then \
+      printf '<!doctype html><meta charset="utf-8"><title>PHASE</title><p>占位——前端本体=P4</p>\n' > dist/index.html; \
+    fi
 
 FROM golang:1.27-alpine AS build
 WORKDIR /src
