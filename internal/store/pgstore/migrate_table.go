@@ -9,4 +9,5 @@ var migrationTable = []struct {
 	{2, "0002_fin_employee_registry.sql"},
 	{3, "0003_market_facts.sql"},
 	{4, "0004_seed_okx_symbols.sql"},
+	{5, "0005_private_facts.sql"},
 }
