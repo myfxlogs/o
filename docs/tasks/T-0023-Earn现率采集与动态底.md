@@ -1,0 +1,30 @@
+# T-0023 Earn 现率采集+动态比较底（T-0019 拆分快半——读面零钱动）
+
+| 字段 | 值 |
+|---|---|
+| 状态 | 已批 |
+| 提出 | `[角色:决策]` 2026-10-23（T-0019 慢在途，拆读面先行） |
+| 类别 | 数据+研究域（D-0006 读面半） |
+| 依赖 | T-0010✅、T-0016✅、T-0018✅（typed 读器）；`okx-exec`/`okx-rest-boundary` 必查 |
+| 领取 | |
+
+## 背景
+
+T-0019 全票在 zcode 席慢工。拆其**读面半**独立成票——Earn 现率采集+评估卡动态底，零资金移动、零 schema 大动，速通面。**若 T-0019 先行落地覆盖本票面，本票改纯验证收口**（竞合安全）。
+
+## 范围
+
+1. **`md_earn_rate` 表+采集**：`GET /api/v5/finance/savings/lending-rate-summary?ccy=USDT` 周期采（拍长走 `data.earn.poll_sec` 键）→venue/ccy/rate/ts 事实行；采败=告警计数不造假。采集件=okxexec 签名径装配注入（data 域不引 trading 包——platform 面或 okxexec 同面复用，按 import 闸选径）。
+2. **评估卡动态底**：research 比较器改 `floor=max(min_net_apr键, latest md_earn_rate.rate)`；`net_apr<floor`→reject，reason 面加 `below_earn`；现率缺失/陈旧（>`research.earn.stale_hours` 键）→退回静态底+告警计数（降级不阻断）。
+3. **留痕**：评估卡 evidence 记 floor 构成（static_floor/earn_rate/floor_used）——将来复盘看得出「是被谁拒的」。
+
+## 验收标准
+
+- [ ] md_earn_rate 事实行产出（dev 库实拍可查）；rate=OKX 实返
+- [ ] 动态底三态测试锚：net_apr 介于静态底与 earn 间→below_earn 拒；高于 earn→过；earn 缺失→静态底降级+计数
+- [ ] evidence 记 floor 构成；热启键全走 app_config 缺键 fail-closed
+- [ ] import 闸零违；机检全绿；CI 绿
+
+## 范围外
+
+- 赎回/回存/配管（T-0019 残面）；earn 持仓台账（T-0020 已立骨架）
