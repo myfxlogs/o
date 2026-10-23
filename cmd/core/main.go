@@ -21,6 +21,7 @@ import (
 	"phase/internal/platform/roster"
 	"phase/internal/portfolio/lifecycle"
 	"phase/internal/research/funding"
+	"phase/internal/risk"
 	"phase/internal/store/pgstore"
 	"phase/internal/trading/okxexec"
 )
@@ -102,6 +103,10 @@ func run() error {
 
 	// 投资域首岗：生命周期官（员工 命官）——提案→paper 沙箱→probe 晋升闸。
 	go lifecycle.NewRunner(pool, cfg).Run(ctx, errc)
+
+	// 风控域首岗：唯一交易前闸（员工 门官）——G7 消费件就绪后只认放行令牌。
+	riskGate := risk.NewGate(pool, cfg)
+	go risk.Run(ctx, errc, riskGate)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
