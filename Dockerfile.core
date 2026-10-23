@@ -1,0 +1,23 @@
+# PHASE core 镜像（自 nox Dockerfile.core 誊入；钉版规=架构约束 §1.1）。
+# 前置依赖：web/、proto/、cmd/core、go.mod（T-0006 骨架票落位后方可构建）。
+FROM node:24-alpine AS web-build
+WORKDIR /src
+COPY web/package.json web/package-lock.json web/
+RUN cd web && npm ci
+# web/src/gen gitignore——镜像内须 buf regen（buf 钉 1.74.0，与 CI/本地三处同号）
+RUN npm i -g @bufbuild/buf@1.74.0
+COPY buf.yaml buf.gen.web.yaml ./
+COPY proto/dashboardv1 proto/dashboardv1
+COPY web/ web/
+RUN buf generate --template buf.gen.web.yaml
+RUN cd web && npm run build
+
+FROM golang:1.27-alpine AS build
+WORKDIR /src
+COPY . .
+COPY --from=web-build /src/web/dist web/dist
+RUN go build -o /bin/core ./cmd/core
+
+FROM alpine:3.20
+COPY --from=build /bin/core /bin/core
+ENTRYPOINT ["/bin/core"]

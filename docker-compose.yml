@@ -1,0 +1,110 @@
+# PHASE 本机服务拓扑（自 nox docker-compose.yml 誊入；契约=架构约束 §7.2）。
+# SG 生产覆写层见 docker-compose.sg.yml（compose -f base -f sg up -d）。
+services:
+  phase-core:
+    build:
+      context: .
+      dockerfile: Dockerfile.core
+    image: phase-core:latest
+    container_name: phase-core
+    restart: unless-stopped
+    # 资源封顶 + 健康检查（busybox wget 探活 RPC 端口）。
+    mem_limit: 4g
+    cpus: 4
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:50051/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging: # 日志轮转封顶 50m×3=150MB/容器，防 json 日志无界增长顶爆盘
+      driver: json-file
+      options:
+        max-size: 50m
+        max-file: "3"
+    ports:
+      - "127.0.0.1:50051:50051"
+    depends_on:
+      phase-postgres:
+        condition: service_healthy
+    environment:
+      # D-0005（业主令 2026-10-23）：生产 runtime env 只留 DB_DSN 一键——鸡生蛋引导；
+      # 其余全量入 DB（app_config/app_secrets/exchange_configs 密文列）。
+      # MASTER_KEY 不进 env 不进库——主机密钥文件挂载（/run/secrets/phase_master_key，600）。
+      DB_DSN: "postgres://phase:phase@phase-postgres:5432/phase?sslmode=disable"
+      PHASE_MASTER_KEY_FILE: "/run/secrets/phase_master_key"
+    volumes:
+      # 主权钥文件挂载位（宿主机 ./secrets/phase_master_key，600 权限，业主离线备份）
+      - ./secrets:/run/secrets:ro
+      # D-091 分析员工具根 /kn：docs 可写 + internal/proto/cmd 只读
+      # （internal/proto/cmd 三 ro 挂载随 T-0006 骨架目录落位后启用——缺目录 docker 会
+      #   自建 root 属主空目录污染仓面，暂挂注释）
+      - ./docs:/kn/docs
+      # - ./internal:/kn/internal:ro
+      # - ./proto:/kn/proto:ro
+      # - ./cmd:/kn/cmd:ro
+
+  phase-postgres:
+    image: postgres:18
+    container_name: phase-postgres
+    restart: unless-stopped
+    # 资源封顶 + pg_stat_statements 预载。
+    mem_limit: 8g
+    cpus: 8
+    # D-021：/dev/shm 从 docker 缺省 64MB 提到 1g——多席并发并行查询耗尽 shm
+    # →后端段错误→全库 recovery 事故先例。
+    shm_size: "1gb"
+    command: -c shared_preload_libraries=pg_stat_statements
+    logging:
+      driver: json-file
+      options:
+        max-size: 50m
+        max-file: "3"
+    environment:
+      POSTGRES_USER: phase
+      POSTGRES_PASSWORD: phase
+      POSTGRES_DB: phase
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      # postgres:18 挂载约定=挂 /var/lib/postgresql 根（数据落 PGDATA 子目录，
+      # pg_upgrade --link 跨版不降容——挂 data 子路径镜像拒起）
+      - phase-pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U phase -d phase"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # D-021：测试库独立实例——生产实例零测试库（shm 耗尽事故隔离面）。
+  # 测试全部流量（testutil 缺省 DSN/CI/test_db_gc/restore_test）走 5434。
+  phase-postgres-test:
+    image: postgres:18
+    container_name: phase-postgres-test
+    restart: unless-stopped
+    mem_limit: 4g
+    cpus: 4
+    shm_size: "1gb"
+    # D-165：缺省 max_connections=100 vs go test 并行需求→too many clients flake，抬 500。
+    command: postgres -c max_connections=500
+    logging:
+      driver: json-file
+      options:
+        max-size: 50m
+        max-file: "3"
+    environment:
+      POSTGRES_USER: phase
+      POSTGRES_PASSWORD: phase
+      POSTGRES_DB: phase_test
+    ports:
+      - "127.0.0.1:5434:5432"
+    volumes:
+      - phase-pgdata-test:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U phase -d phase_test"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  phase-pgdata:
+  phase-pgdata-test:

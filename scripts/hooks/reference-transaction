@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# reference-transaction —— master 防回退门禁（自 nox 誊入，PHASE 豁免键 PHASE_ALLOW_NONFF）。
+# 检测 refs/heads/master 更新非 ff（new 非 old 后代）→ 拒绝。
+# stdin 每行：old-oid SP new-oid SP ref-name
+set -euo pipefail
+
+while read -r old new ref; do
+  [ "$ref" = "refs/heads/master" ] || continue
+  case "$new" in
+    0000000000000000000000000000000000000000) continue ;;
+  esac
+  if [ "$old" != "0000000000000000000000000000000000000000" ]; then
+    if ! git merge-base --is-ancestor "$old" "$new" >/dev/null 2>&1; then
+      if [ "${PHASE_ALLOW_NONFF:-0}" != "1" ]; then
+        echo "FAIL: master 非 ff 移动被拒（old=$old new=$new）；显式豁免请 PHASE_ALLOW_NONFF=1" >&2
+        exit 1
+      fi
+    fi
+  fi
+done
+exit 0

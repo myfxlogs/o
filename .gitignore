@@ -1,0 +1,10 @@
+# 运行时/构建产物不入库
+.env
+secrets/
+bin/
+logs/
+web/node_modules/
+web/dist/
+web/src/gen/
+internal/gen/
+internal/data/adapter/gen/

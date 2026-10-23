@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# pre-push 门禁：master 只允许从部署树 /opt/phase 推送（D-651）。
+# 远端名闸——本仓唯一远端=origin；裸推到错名远端=显式失败指路，防静默吞件。
+set -u
+
+remote="$1"
+
+case "$remote" in
+    origin)
+        ;;
+    *)
+        echo "FAIL: 推送远端必须是 origin（本仓唯一远端；'$remote' 非法）——统一走 scripts/git_push.sh" >&2
+        exit 1
+        ;;
+esac
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+    [ "$remote_ref" = "refs/heads/master" ] || continue
+    # refspec 变形面 fail-open 禁绝：+force 前缀/全零 sha（远端删除 master）一律拦。
+    if [ "$local_sha" = "0000000000000000000000000000000000000000" ]; then
+        echo "FAIL: 远端删除 refs/heads/master 禁绝（pre-push 闸——变形 refspec 面）" >&2
+        exit 1
+    fi
+    case "$local_ref" in
+        +*|refs/tags/*|*:*) echo "FAIL: master 推送禁 refspec 变形（force/映射/tag）——refs/heads/<branch> 直推" >&2; exit 1 ;;
+    esac
+    repo="$(git rev-parse --show-toplevel 2>/dev/null || echo "${GIT_DIR:-unknown}")"
+    case "$repo" in
+        /opt/phase)
+            exit 0
+            ;;
+        *)
+            echo "FAIL: master 只能从部署树 /opt/phase 推送；工作分支请推 t/<票名>" >&2
+            exit 1
+            ;;
+    esac
+done
+
+exit 0
