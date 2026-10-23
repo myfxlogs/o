@@ -40,8 +40,11 @@ type Executor interface {
 	Resolve(ctx context.Context, leg Leg, clOrdID string) (OrderResult, error)
 }
 
-// Intent 执行意图（decision_id 为闸令牌引）。
+// Intent 执行意图（decision_id 为闸令牌引）。Kind=open|close——
+// live_switch 是开仓闸非退仓闸：close 免检（拦平仓=存风险，与 kill_switch
+// 不拦 close 同款逻辑——委员会关闸时有仓必须退得掉）。
 type Intent struct {
+	Kind        string // open（缺省）|close
 	DecisionID  int64
 	StrategyRef int64
 	InstID      string
