@@ -40,6 +40,13 @@ type Executor interface {
 	Resolve(ctx context.Context, leg Leg, clOrdID string) (OrderResult, error)
 }
 
+// EarnMover 开仓前 Earn 停泊赎回面（D-0006 停泊态：闲资默认停 Earn——开仓先赎回
+// notional+buffer 回拢交易户，败=fail-closed 不开仓。注入式——execution 不识
+// earn/venue 方言，产线=earn.Worker）。
+type EarnMover interface {
+	RedeemToTrading(ctx context.Context, usdAmt float64) error
+}
+
 // Intent 执行意图（decision_id 为闸令牌引）。Kind=open|close——
 // live_switch 是开仓闸非退仓闸：close 免检（拦平仓=存风险，与 kill_switch
 // 不拦 close 同款逻辑——委员会关闸时有仓必须退得掉）。
@@ -57,6 +64,7 @@ type Runner struct {
 	pool *pgxpool.Pool
 	cfg  *config.Client
 	exec Executor
+	earn EarnMover
 	rej  *rejects.Door
 }
 
@@ -64,8 +72,11 @@ func NewRunner(pool *pgxpool.Pool, cfg *config.Client, exec Executor) *Runner {
 	return &Runner{pool: pool, cfg: cfg, exec: exec,
 		rej: rejects.New("execution", "token_missing", "token_expired", "token_used",
 			"token_not_allow", "live_switch_off", "missing_param",
-			"hedge_band", "rollback_failed", "write_err")}
+			"hedge_band", "rollback_failed", "earn_redeem_failed", "write_err")}
 }
+
+// WithEarn 挂接停泊赎回面（cmd 装配层接线；未挂=停泊关闭——资金常驻交易户径）。
+func (r *Runner) WithEarn(m EarnMover) *Runner { r.earn = m; return r }
 
 // verifyToken 令牌验证为第一件事：不存在/非 allow/过期/已消费=拒（四径）。
 // 通过则同 tx 置 used_at（单次消费原子性）。

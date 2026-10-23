@@ -3,10 +3,12 @@ package funding
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"phase/internal/platform/config"
@@ -34,7 +36,8 @@ type Runner struct {
 
 func NewRunner(pool *pgxpool.Pool, cfg *config.Client) *Runner {
 	return &Runner{pool: pool, cfg: cfg,
-		rej: rejects.New("research", "missing_params", "stale_funding", "neg_funding_infeasible", "write_err")}
+		rej: rejects.New("research", "missing_params", "stale_funding", "neg_funding_infeasible",
+			"write_err", "earn_rate_degraded")}
 }
 
 // Run 双员工在岗+扫描循环（阻塞至 ctx 取消）。
@@ -84,13 +87,21 @@ func (r *Runner) params() (Params, error) {
 	return p, nil
 }
 
-// scan 一拍：md_funding 最新行/inst_id → 五拆评估 → 落卡 → 阈闸提案。
+// scan 一拍：Earn 现率→md_funding 最新行/inst_id → 动态底五拆评估 → 落卡 → 阈闸提案。
 func (r *Runner) scan(ctx context.Context) error {
 	p, err := r.params()
 	if err != nil {
 		r.rej.Inc("missing_params")
 		return fmt.Errorf("判据缺位=不可评估（fail-closed）: %w", err)
 	}
+	earnAPR, fresh, err := r.earnRateAPR(ctx)
+	if err != nil {
+		return err
+	}
+	if !fresh {
+		r.rej.Inc("earn_rate_degraded") // 降级不阻断：退回静态底+告警计数（D-0006）
+	}
+	p.EarnRateAPR = earnAPR
 	rows, err := r.pool.Query(ctx, `SELECT DISTINCT ON (inst_id) inst_id, funding_rate, ts
 		FROM md_funding ORDER BY inst_id, ts DESC`)
 	if err != nil {
@@ -118,6 +129,29 @@ func (r *Runner) scan(ctx context.Context) error {
 		}
 	}
 	return rows.Err()
+}
+
+// earnRateAPR 最新 Earn 现率（USDT，动态比较底取值源）。缺失/陈旧/新鲜度键缺=
+// (nil,false)=降级静态底——降级不阻断，计数门留痕。
+func (r *Runner) earnRateAPR(ctx context.Context) (*float64, bool, error) {
+	hours, err := r.cfg.GetFloat("research.earn.stale_hours")
+	if err != nil || hours <= 0 {
+		return nil, false, nil // 新鲜度门键缺=不敢当鲜（fail-closed 降级）
+	}
+	var rate float64
+	var ts time.Time
+	err = r.pool.QueryRow(ctx, `SELECT rate,ts FROM md_earn_rate
+		WHERE venue='okx' AND ccy='USDT' ORDER BY ts DESC LIMIT 1`).Scan(&rate, &ts)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	if time.Since(ts) > time.Duration(hours*float64(time.Hour)) {
+		return nil, false, nil
+	}
+	return &rate, true, nil
 }
 
 // persist 评估卡落表；proposed 且无 open 提案→fin_proposal 行（闸后唯一提案径）。

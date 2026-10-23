@@ -38,6 +38,8 @@ type Collector struct {
 	creds  signutil.Credentials
 	sim    bool
 	lastEq map[string]float64 // ccy→最近 equity（心跳刷源用末帧值）
+	// lastAvail ccy→最近可用权益（availEq 口径——扫额闲余判据取值源；懒初始化）。
+	lastAvail map[string]float64
 	// bootFn boot 首读播种器（事件锚定形 REST——装配层注入 okxexec 件；
 	// nil=纯流径不播种）。数据域不反向依赖交易域故注入非直 import。
 	bootFn  func(ctx context.Context) (map[string]float64, error)
