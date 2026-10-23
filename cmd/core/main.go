@@ -20,6 +20,7 @@ import (
 	"phase/internal/data/okxws"
 	"phase/internal/guard"
 	"phase/internal/ledger"
+	"phase/internal/ledger/holding"
 	"phase/internal/platform/config"
 	"phase/internal/platform/roster"
 	"phase/internal/portfolio/lifecycle"
@@ -108,6 +109,41 @@ func run() error {
 			return okxexec.BalanceEquity(ctx, creds, false)
 		})
 		go priv.Run(ctx, errc)
+
+		// 台账同步：资产端点采（okxexec 装配注入——账本域不反向依赖交易域；
+		// /asset/balances+earn 面=钦定 REST 保留面非轮询病灶）。
+		okcli := okxexec.NewClient(priv.Credentials(), false)
+		hs := holding.NewSyncer(pool, func(ctx context.Context) ([]holding.AssetRow, error) {
+			var out []holding.AssetRow
+			bals, err := okcli.AssetBalances(ctx)
+			if err != nil {
+				return nil, err
+			}
+			for _, b := range bals {
+				amt := okxexec.ParseF(b.Bal)
+				if amt == 0 {
+					continue
+				}
+				out = append(out, holding.AssetRow{Ccy: b.Ccy, Amount: amt,
+					Kind: "spot_dust", VenueRef: "asset",
+					ValRef: map[string]any{"avail": b.AvailBal, "frozen": b.FrozenBal}})
+			}
+			if sav, err := okcli.SavingsBalance(ctx); err == nil {
+				var rows []struct {
+					Ccy string `json:"ccy"`
+					Amt string `json:"amt"`
+				}
+				if json.Unmarshal(sav, &rows) == nil {
+					for _, r2 := range rows {
+						out = append(out, holding.AssetRow{Ccy: r2.Ccy,
+							Amount: okxexec.ParseF(r2.Amt), Kind: "earn_flexible",
+							VenueRef: "savings", Product: "savings"})
+					}
+				}
+			}
+			return out, nil
+		})
+		go hs.Run(ctx, errc)
 	}
 
 	// 研究域首岗：funding 枚举+评估卡（员工 探员/验证官）——判据全 app_config 机读。
