@@ -12,11 +12,13 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
 	"phase/internal/data/okxpriv"
 	"phase/internal/data/okxws"
+	"phase/internal/guard"
 	"phase/internal/ledger"
 	"phase/internal/platform/config"
 	"phase/internal/platform/roster"
@@ -89,6 +91,8 @@ func run() error {
 
 	// 私流守：OKX 私有 WS（凭据自 app_secrets 密文列解；缺件 fail-closed
 	// 不炸 boot——E-1 未落位期岗位缺席留痕非死码）。
+	// 凭据缺席期仓巡平仓缝降级 stub（拒执 fail-closed）——凭据落位重启即全链。
+	var closer guard.Executor
 	if priv, err := okxpriv.NewCollector(ctx, pool, false); err != nil {
 		log.Printf("WARN: 私流守缺席（%v）——凭据落位后重启即上岗", err)
 	} else {
@@ -96,6 +100,7 @@ func run() error {
 		execR := execution.NewRunner(pool, cfg,
 			execution.OkxExecutor{C: okxexec.NewClient(priv.Credentials(), false)})
 		go execution.Run(ctx, errc, execR)
+		closer = closeExec{r: execR}
 		// boot 首读播种器=okxexec /account/balance（事件锚定形一次性拉取——
 		// cmd 装配层接线，数据域不反向依赖交易域）。
 		creds := priv.Credentials()
@@ -120,6 +125,10 @@ func run() error {
 	// 风控域首岗：唯一交易前闸（员工 门官）——G7 消费件就绪后只认放行令牌。
 	riskGate := risk.NewGate(pool, cfg)
 	go risk.Run(ctx, errc, riskGate)
+
+	// 看护域首岗：仓巡（G8）——持仓哨戒三触发+策略联动，close intent 过闸免拦径，
+	// 反向双腿平走执事 G7 径（凭据缺席=缝降级 stub 拒执 fail-closed）。
+	go guard.NewWarden(pool, cfg, riskGate, closer).Run(ctx, errc)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -149,4 +158,20 @@ func run() error {
 		return err
 	}
 	return nil
+}
+
+// closeExec 仓巡×执事装配缝（cmd 组合根——guard 不 import execution，方向闸零边）：
+// guard CloseSpec → execution 反向双腿 Intent；腿 sz 沿 fin_order_leg 串传
+// （okx 张数口径换算归 venue 层）；Notional 取名义半额（delta 中性带检入参口径）。
+type closeExec struct{ r *execution.Runner }
+
+func (c closeExec) ExecuteClose(ctx context.Context, spec guard.CloseSpec) (int64, error) {
+	mk := func(l guard.CloseLeg) execution.Leg {
+		return execution.Leg{Venue: l.Venue, InstID: l.InstID, Side: l.Side,
+			Sz: strconv.FormatFloat(l.Sz, 'f', -1, 64), Notional: spec.NotionalUSD / 2}
+	}
+	return c.r.Execute(ctx, execution.Intent{
+		DecisionID: spec.DecisionID, StrategyRef: spec.StrategyRef, InstID: spec.InstID,
+		NotionalUSD: spec.NotionalUSD, Legs: [2]execution.Leg{mk(spec.Legs[0]), mk(spec.Legs[1])},
+	})
 }
