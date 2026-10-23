@@ -65,7 +65,9 @@ func NewCollector(pool *pgxpool.Pool, cfg *config.Client) *Collector {
 func (c *Collector) Run(ctx context.Context, errc chan<- error) {
 	c.Stats = c.rej
 	if err := roster.Register(ctx, c.pool, employeeName, employeeDept, employeeTitle, nil); err != nil {
-		errc <- fmt.Errorf("行情巡 register: %w", err)
+		if ctx.Err() == nil {
+			errc <- fmt.Errorf("行情巡 register: %w", err)
+		}
 		return
 	}
 	go roster.BeatLoop(ctx, c.pool, employeeName, 30*time.Second, errc)

@@ -15,10 +15,12 @@ import (
 	"syscall"
 	"time"
 
+	"phase/internal/data/okxpriv"
 	"phase/internal/data/okxws"
 	"phase/internal/platform/config"
 	"phase/internal/platform/roster"
 	"phase/internal/store/pgstore"
+	"phase/internal/trading/okxexec"
 )
 
 const (
@@ -78,6 +80,20 @@ func run() error {
 	// 键缺席=采集岗待命自轮询不炸 boot（配置驱动装配，非 env 驱动）。
 	collector := okxws.NewCollector(pool, cfg)
 	go collector.Run(ctx, errc)
+
+	// 私流守：OKX 私有 WS（凭据自 app_secrets 密文列解；缺件 fail-closed
+	// 不炸 boot——E-1 未落位期岗位缺席留痕非死码）。
+	if priv, err := okxpriv.NewCollector(ctx, pool, false); err != nil {
+		log.Printf("WARN: 私流守缺席（%v）——凭据落位后重启即上岗", err)
+	} else {
+		// boot 首读播种器=okxexec /account/balance（事件锚定形一次性拉取——
+		// cmd 装配层接线，数据域不反向依赖交易域）。
+		creds := priv.Credentials()
+		priv.SetBootFn(func(ctx context.Context) (map[string]float64, error) {
+			return okxexec.BalanceEquity(ctx, creds, false)
+		})
+		go priv.Run(ctx, errc)
+	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
