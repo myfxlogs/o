@@ -1,4 +1,4 @@
--- 0014 Earn 停泊态（D-0006 业主令——金钱不眠）：现率事实行+cashflow/reason 闭集扩+earn 配置键。
+-- 0015 Earn 停泊态（D-0006 业主令——金钱不眠）：现率事实行+cashflow/reason 闭集扩+earn 配置键。
 -- md_earn_rate=事实行族（append-only，非态表）：公开面 lending-rate-summary 采样行，
 -- 读径带新鲜度门（research.earn.stale_hours）；采不到=不写行（禁假值）。
 CREATE TABLE IF NOT EXISTS md_earn_rate (

@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | 施工中 |
+| 状态 | 完成 |
 | 提出 | `[角色:决策]` 2026-10-23（dev 库实证） |
 | 类别 | 缺陷修复（小件） |
 | 依赖 | T-0012✅ |
@@ -25,3 +25,15 @@ dev 实证：BTC 提案每拍 armed→新 paper 策略行，同 inst 同向已�
 ## 范围外
 
 - probe/live 态去重（真钱态一 strategy-instance 一仓已由 fin_position 面守）；跨 inst 面
+
+## 结果回填
+
+分支 `t/0022-paper-dedupe`（已推 origin）。施工面=worktree `/opt/phase-wt/t0022`。
+
+**验收锚对账**：
+
+- 部分唯一索引+插入侧拒绝锚 = **PASS**：`0014` direction 补列+`fin_strategy_active_dedupe`（venue+inst_id+direction WHERE state<>'retired'）；同键第二 active 行直插拒测试锚过。
+- 已挂 active 行提案不重复建策略 = **PASS**：admitProposals 加 direction 列+`ON CONFLICT...DO NOTHING` 复用径——同键 active 行在挂时提案 armed 被吸收不叠仓（E2E：连拍两提案→strategy=1、armed 提案=2 实拍）。
+- 机检全绿 = **PASS**：build/vet/gofmt/lines/env/migration/import 全过；go test 15 包全绿 @5434。
+
+**实测修正**：排查 direction 列缺席耗时——根因=测试建双 Pool（setup 内一池跑迁移+外层一池空壳落 public 旧表），改 setup 返回同池（T-0021 schema 隔离面暴露出的测试自身结构坑，同族「本地过≠隔离对」教训）。

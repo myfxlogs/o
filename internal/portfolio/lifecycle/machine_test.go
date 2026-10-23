@@ -2,11 +2,11 @@ package lifecycle
 
 import (
 	"context"
-	"testing"
-
+	"github.com/jackc/pgx/v5/pgxpool"
 	"phase/internal/platform/config"
 	"phase/internal/platform/testutil"
 	"phase/internal/store/pgstore"
+	"testing"
 )
 
 func TestLegal(t *testing.T) {
@@ -18,8 +18,7 @@ func TestLegal(t *testing.T) {
 		}
 	}
 }
-
-func setup(t *testing.T) (context.Context, *config.Client) {
+func setup(t *testing.T) (context.Context, *pgxpool.Pool, *config.Client) {
 	pool := testutil.Pool(t)
 	ctx := context.Background()
 	if err := pgstore.Migrate(ctx, pool); err != nil {
@@ -38,12 +37,10 @@ func setup(t *testing.T) (context.Context, *config.Client) {
 	if err := cfg.Load(ctx); err != nil {
 		t.Fatal(err)
 	}
-	return ctx, cfg
+	return ctx, pool, cfg
 }
-
 func TestLifecycleE2E(t *testing.T) {
-	pool := testutil.Pool(t)
-	ctx, cfg := setup(t)
+	ctx, pool, cfg := setup(t)
 	for _, q := range []string{
 		"DELETE FROM fin_paper_fill", "DELETE FROM fin_strategy_transition",
 		"DELETE FROM fin_strategy", "DELETE FROM fin_proposal WHERE inst_id='LC-USDT-SWAP'",
@@ -53,7 +50,6 @@ func TestLifecycleE2E(t *testing.T) {
 		}
 	}
 	r := NewRunner(pool, cfg)
-
 	// 提案→paper 开户
 	var pid int64
 	if err := pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,verdict,legs,evidence)
@@ -73,7 +69,6 @@ func TestLifecycleE2E(t *testing.T) {
 		"SELECT id,state FROM fin_strategy WHERE inst_id='LC-USDT-SWAP'").Scan(&sid, &state); err != nil || state != "paper" {
 		t.Fatalf("paper 开户败 state=%s err=%v", state, err)
 	}
-
 	// 非法迁移锚：paper→live 越级拒
 	if err := Transition(ctx, pool, sid, "live", "越级试", false); err == nil {
 		t.Fatal("paper→live 越级未被拒")
@@ -88,7 +83,6 @@ func TestLifecycleE2E(t *testing.T) {
 	if _, err := pool.Exec(ctx, "UPDATE fin_strategy SET state='paper' WHERE id=$1", sid); err != nil {
 		t.Fatal(err)
 	}
-
 	// funding 行→虚拟记账+晋升（判据 min_hours=0 即时满）
 	if _, err := pool.Exec(ctx, `INSERT INTO md_funding(ts,inst_id,funding_rate)
 		VALUES(now(),'LC-USDT-SWAP',0.01)`); err != nil {
@@ -110,8 +104,7 @@ func TestLifecycleE2E(t *testing.T) {
 
 // 缺判据键 fail-closed 锚。
 func TestMissingCriteriaFailClosed(t *testing.T) {
-	pool := testutil.Pool(t)
-	ctx, cfg := setup(t)
+	ctx, pool, cfg := setup(t)
 	if _, err := pool.Exec(ctx, "DELETE FROM app_config WHERE key='invest.lifecycle.paper_min_hours'"); err != nil {
 		t.Fatal(err)
 	}
@@ -124,5 +117,50 @@ func TestMissingCriteriaFailClosed(t *testing.T) {
 	}
 	if r.rej.Snapshot()["lifecycle/missing_criteria"] == 0 {
 		t.Fatal("missing_criteria 门未计")
+	}
+}
+
+// T-0022 去重锚：同键连拍两提案→strategy=1（armed 复用不叠仓）；
+// 第二 active 行直插拒（部分唯一索引）。
+func TestPaperDedupe(t *testing.T) {
+	ctx, pool, cfg := setup(t)
+	for _, q := range []string{
+		"DELETE FROM fin_strategy_transition", "DELETE FROM fin_strategy WHERE inst_id='DD-USDT-SWAP'",
+		"DELETE FROM fin_proposal WHERE inst_id='DD-USDT-SWAP'"} {
+		if _, err := pool.Exec(ctx, q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	r := NewRunner(pool, cfg)
+	mkProp := func() {
+		var eid int64
+		if err := pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,verdict,legs,evidence)
+			VALUES('DD-USDT-SWAP','funding-hedge','short_perp_long_spot','proposed','{}','{}') RETURNING id`).Scan(&eid); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := pool.Exec(ctx,
+			"INSERT INTO fin_proposal(eval_id,inst_id,direction,net_apr) VALUES($1,'DD-USDT-SWAP','short_perp_long_spot',1.0)", eid); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mkProp()
+	mkProp() // 连拍两提案
+	if err := r.scan(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	if err := pool.QueryRow(ctx,
+		"SELECT count(*) FROM fin_strategy WHERE inst_id='DD-USDT-SWAP'").Scan(&n); err != nil || n != 1 {
+		t.Fatalf("同键策略行=%d（应=1 armed 复用）", n)
+	}
+	// 两提案都 armed（被吸收不滞留 proposed）
+	if err := pool.QueryRow(ctx,
+		"SELECT count(*) FROM fin_proposal WHERE inst_id='DD-USDT-SWAP' AND state='fin_armed'").Scan(&n); err != nil || n != 2 {
+		t.Fatalf("armed 提案=%d", n)
+	}
+	// 部分唯一索引拒第二 active 行
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_strategy(inst_id,template_ref,state,notional_usd,venue,direction)
+		VALUES('DD-USDT-SWAP','funding-hedge','paper',1,'okx','short_perp_long_spot')`); err == nil {
+		t.Fatal("同键第二 active 行未被索引拒")
 	}
 }
