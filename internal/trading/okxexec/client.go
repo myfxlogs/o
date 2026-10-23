@@ -122,3 +122,32 @@ func BalanceEquity(ctx context.Context, creds Credentials, simulated bool) (map[
 	}
 	return out, nil
 }
+
+// AssetBalance /asset/balances（资金户——funding 户无推送频道，钦定保留面）。
+func (c *Client) AssetBalances(ctx context.Context) ([]struct {
+	Ccy, Bal, AvailBal, FrozenBal string
+}, error) {
+	raw, err := c.Get(ctx, "/api/v5/asset/balances")
+	if err != nil {
+		return nil, err
+	}
+	var rows []struct {
+		Ccy       string `json:"ccy"`
+		Bal       string `json:"bal"`
+		AvailBal  string `json:"availBal"`
+		FrozenBal string `json:"frozenBal"`
+	}
+	if err := json.Unmarshal(raw, &rows); err != nil {
+		return nil, err
+	}
+	out := make([]struct{ Ccy, Bal, AvailBal, FrozenBal string }, len(rows))
+	for i, r := range rows {
+		out[i].Ccy, out[i].Bal, out[i].AvailBal, out[i].FrozenBal = r.Ccy, r.Bal, r.AvailBal, r.FrozenBal
+	}
+	return out, nil
+}
+
+// SavingsBalance /finance/savings/balance（earn 活期货产——钦定保留面）。
+func (c *Client) SavingsBalance(ctx context.Context) (json.RawMessage, error) {
+	return c.Get(ctx, "/api/v5/finance/savings/balance")
+}
