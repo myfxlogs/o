@@ -1,0 +1,93 @@
+name: ci
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    # postgres service（钉版=架构约束 §1.1）：容器 5432 → 宿主 5434，
+    # 与本地测试实例同坐标——CI/本地一套 DSN 口径（D-021）。
+    # PHASE 迁移面含 CREATE EXTENSION timescaledb（ticks/facts hypertable）——
+    # 裸 postgres 无该扩展会炸，直接钉 tsdb 薄镜像。
+    services:
+      postgres:
+        image: timescale/timescaledb:2.30.2-pg18
+        env:
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: phase_test
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+        ports:
+          - 5434:5432
+    steps:
+      - uses: actions/checkout@v4
+      # 骨架未落位期（go.mod/web/proto 未入库）：Go/buf/npm 链条件未备跳过，
+      # 全门面通用闸（gofmt/check-lines/结构钉）照常执行——不谎报已检。
+      - uses: actions/setup-go@v5
+        if: hashFiles('go.mod') != ''
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        if: hashFiles('web/package.json') != ''
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - uses: bufbuild/buf-setup-action@v1
+        if: hashFiles('buf.yaml') != ''
+        with:
+          version: 1.74.0
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+      - run: npm ci --legacy-peer-deps
+        if: hashFiles('web/package.json') != ''
+        working-directory: web
+      # web/src/gen 不入库（gitignore）——npm build 前重产（protoc-gen-es 在 node_modules）
+      - run: |
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.12
+          go install connectrpc.com/connect/v2/cmd/protoc-gen-connect-go@v2.0.1
+          buf generate
+        if: hashFiles('buf.yaml') != ''
+      # 前端产物须在 go build 之前（embed.go go:embed web/dist）
+      - run: npm run build
+        if: hashFiles('web/package.json') != ''
+        working-directory: web
+      - run: go mod download
+        if: hashFiles('go.mod') != ''
+      - run: go build ./...
+        if: hashFiles('go.mod') != ''
+      - run: go vet ./...
+        if: hashFiles('go.mod') != ''
+      # D-514：分层方向门禁与 pre-commit 同令（无 Go 面时脚本自身报「条件未备跳过」）。
+      - run: ./scripts/check_import_direction.sh
+      # gofmt 全树 sweep（非仅 diff 面）。
+      - run: |
+          UNFMT=$(gofmt -l . || true)
+          if [ -n "$UNFMT" ]; then
+            echo "FAIL: gofmt 漂移: $UNFMT —— gofmt -w 后重试" >&2
+            exit 1
+          fi
+      # 缺省 DSN 契约 phase:phase——CI postgres 仅 postgres role，补建。
+      - run: psql "postgres://postgres:test@localhost:5434/postgres" -c "CREATE ROLE phase LOGIN PASSWORD 'phase' SUPERUSER" || true
+        if: hashFiles('go.mod') != ''
+      # go test 全量（DSN 注入 5434，缺 DSN 的 skip 语义不变）；
+      # ulimit -n 提 hard limit（race + pgxpool fd 压力先例 D-177/D-255）。
+      - run: ulimit -n $(ulimit -Hn) && go test ./... -count=1 -timeout=1800s
+        if: hashFiles('go.mod') != ''
+        env:
+          PHASE_TEST_PG_DSN: "postgres://postgres:test@localhost:5434/phase_test?sslmode=disable"
+          PHASE_TEST_PG_SERVICE_DSN: "postgres://postgres:test@localhost:5434/phase_service_test?sslmode=disable"
+          PHASE_EXEC_TEST_PG_DSN: "postgres://postgres:test@localhost:5434/phase_exec_test?sslmode=disable"
+          PHASE_RECONCILE_TEST_PG_DSN: "postgres://postgres:test@localhost:5434/phase_reconcile_test?sslmode=disable"
+      - run: ulimit -n $(ulimit -Hn) && go test -race -count=1 ./internal/...
+        if: hashFiles('internal/**/*.go') != ''
+        env:
+          PHASE_TEST_PG_DSN: "postgres://postgres:test@localhost:5434/phase_test?sslmode=disable"
+          PHASE_TEST_PG_SERVICE_DSN: "postgres://postgres:test@localhost:5434/phase_service_test?sslmode=disable"
+          PHASE_EXEC_TEST_PG_DSN: "postgres://postgres:test@localhost:5434/phase_exec_test?sslmode=disable"
+          PHASE_RECONCILE_TEST_PG_DSN: "postgres://postgres:test@localhost:5434/phase_reconcile_test?sslmode=disable"
+      - run: ./scripts/check-lines.sh
