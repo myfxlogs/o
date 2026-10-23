@@ -17,6 +17,7 @@ import (
 
 	"phase/internal/data/okxpriv"
 	"phase/internal/data/okxws"
+	"phase/internal/ledger"
 	"phase/internal/platform/config"
 	"phase/internal/platform/roster"
 	"phase/internal/portfolio/lifecycle"
@@ -108,6 +109,9 @@ func run() error {
 
 	// 投资域首岗：生命周期官（员工 命官）——提案→paper 沙箱→probe 晋升闸。
 	go lifecycle.NewRunner(pool, cfg).Run(ctx, errc)
+
+	// 账本域：司账+核账（入账结算+对账环——消费事实行不触发钱动作）。
+	go ledger.NewRunner(pool, cfg).Run(ctx, errc)
 
 	// 风控域首岗：唯一交易前闸（员工 门官）——G7 消费件就绪后只认放行令牌。
 	riskGate := risk.NewGate(pool, cfg)
