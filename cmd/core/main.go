@@ -22,6 +22,7 @@ import (
 	"phase/internal/platform/roster"
 	"phase/internal/portfolio/lifecycle"
 	"phase/internal/research/funding"
+	"phase/internal/review"
 	"phase/internal/risk"
 	"phase/internal/store/pgstore"
 	"phase/internal/trading/execution"
@@ -109,6 +110,9 @@ func run() error {
 
 	// 投资域首岗：生命周期官（员工 命官）——提案→paper 沙箱→probe 晋升闸。
 	go lifecycle.NewRunner(pool, cfg).Run(ctx, errc)
+
+	// 复盘域：评史官（一仓一判决书+远期验证写回环——G10 收口）。
+	go review.NewRunner(pool).Run(ctx, errc)
 
 	// 账本域：司账+核账（入账结算+对账环——消费事实行不触发钱动作）。
 	go ledger.NewRunner(pool, cfg).Run(ctx, errc)

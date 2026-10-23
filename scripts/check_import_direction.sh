@@ -33,6 +33,8 @@ internal/risk -> internal/platform/rejects
 internal/risk -> internal/platform/roster
 internal/portfolio/lifecycle -> internal/platform/rejects
 internal/portfolio/lifecycle -> internal/platform/roster
+internal/review -> internal/platform/rejects
+internal/review -> internal/platform/roster
 internal/research/funding -> internal/platform/config
 internal/research/funding -> internal/platform/rejects
 internal/research/funding -> internal/platform/roster
