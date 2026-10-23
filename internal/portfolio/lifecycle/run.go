@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -53,17 +52,7 @@ func (r *Runner) Run(ctx context.Context, errc chan<- error) {
 	}
 }
 
-func (r *Runner) getF(key string) (float64, error) {
-	raw, err := r.cfg.Get(key)
-	if err != nil {
-		return 0, err
-	}
-	var s string
-	if err := json.Unmarshal(raw, &s); err != nil {
-		return 0, err
-	}
-	return strconv.ParseFloat(s, 64)
-}
+func (r *Runner) getF(key string) (float64, error) { return r.cfg.GetFloat(key) }
 
 // criteria 全键读（缺任一键=fail-closed 整拍停——判据不虚构）。
 func (r *Runner) criteria() (minH, minNet, maxDD, notional float64, liveSw bool, err error) {
@@ -79,15 +68,7 @@ func (r *Runner) criteria() (minH, minNet, maxDD, notional float64, liveSw bool,
 	if notional, err = r.getF(critKeys[4]); err != nil {
 		return
 	}
-	raw, err := r.cfg.Get(critKeys[3])
-	if err != nil {
-		return
-	}
-	var s string
-	if err = json.Unmarshal(raw, &s); err != nil {
-		return
-	}
-	liveSw = s == "true"
+	liveSw, err = r.cfg.GetBool(critKeys[3])
 	return
 }
 

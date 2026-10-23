@@ -7,9 +7,7 @@ package execution
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -101,25 +99,6 @@ func (r *Runner) verifyToken(ctx context.Context, decisionID int64) (string, err
 	return tok, nil
 }
 
-func (r *Runner) getB(k string) (bool, error) {
-	raw, err := r.cfg.Get(k)
-	if err != nil {
-		return false, err
-	}
-	var s string
-	if err := json.Unmarshal(raw, &s); err != nil {
-		return false, err
-	}
-	return s == "true", nil
-}
-func (r *Runner) getF(k string) (float64, error) {
-	raw, err := r.cfg.Get(k)
-	if err != nil {
-		return 0, err
-	}
-	var s string
-	if err := json.Unmarshal(raw, &s); err != nil {
-		return 0, err
-	}
-	return strconv.ParseFloat(s, 64)
-}
+func (r *Runner) getB(k string) (bool, error) { return r.cfg.GetBool(k) }
+
+func (r *Runner) getF(k string) (float64, error) { return r.cfg.GetFloat(k) }

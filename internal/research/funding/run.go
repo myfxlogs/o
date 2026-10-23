@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -62,17 +61,7 @@ func (r *Runner) Run(ctx context.Context, errc chan<- error) {
 // params 判据全自 config 快照读；任一键缺=不可评估面（fail-closed 不虚构判据）。
 func (r *Runner) params() (Params, error) {
 	var p Params
-	get := func(k string) (float64, error) {
-		raw, err := r.cfg.Get(k)
-		if err != nil {
-			return 0, err
-		}
-		var s string
-		if err := json.Unmarshal(raw, &s); err != nil {
-			return 0, err
-		}
-		return strconv.ParseFloat(s, 64)
-	}
+	get := func(k string) (float64, error) { return r.cfg.GetFloat(k) }
 	var err error
 	if p.TakerFeeBps, err = get(paramKeys[0]); err != nil {
 		return p, fmt.Errorf("%s: %w", paramKeys[0], err)
@@ -159,3 +148,6 @@ func (r *Runner) persist(ctx context.Context, e Eval, p Params) error {
 	}
 	return err
 }
+
+// ScanOnce 单拍壳（工具/实证件消费——scan 本体私有语义不变）。
+func (r *Runner) ScanOnce(ctx context.Context) error { return r.scan(ctx) }
