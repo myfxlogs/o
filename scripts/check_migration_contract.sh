@@ -16,7 +16,7 @@ if [ $# -gt 0 ]; then FILES="$*"; fi
 
 uniq_fail=0
 # a) 文件名级：migrations/ 顶层 NNNN_*.sql 按号聚合查重（staged+已提交并集=ls 域）
-dup_files=$(ls migrations/*.sql 2>/dev/null | xargs -n1 basename | grep -oE '^[0-9]{3,4}' | sort | uniq -d || true)
+dup_files=$(ls migrations/*.sql 2>/dev/null | xargs -r -n1 basename | grep -oE '^[0-9]{3,4}' | sort | uniq -d || true)
 if [ -n "$dup_files" ]; then
   echo "FAIL migrations/: 迁移号文件名撞号（$(echo "$dup_files" | paste -sd' ' -)）——同号后登记者会被 silent-skip" >&2
   uniq_fail=1
