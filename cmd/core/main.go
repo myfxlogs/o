@@ -19,6 +19,7 @@ import (
 	"phase/internal/data/okxws"
 	"phase/internal/platform/config"
 	"phase/internal/platform/roster"
+	"phase/internal/research/funding"
 	"phase/internal/store/pgstore"
 	"phase/internal/trading/okxexec"
 )
@@ -94,6 +95,9 @@ func run() error {
 		})
 		go priv.Run(ctx, errc)
 	}
+
+	// 研究域首岗：funding 枚举+评估卡（员工 探员/验证官）——判据全 app_config 机读。
+	go funding.NewRunner(pool, cfg).Run(ctx, errc)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {

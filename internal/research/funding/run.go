@@ -1,0 +1,161 @@
+package funding
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"log"
+	"strconv"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"phase/internal/platform/config"
+	"phase/internal/platform/rejects"
+	"phase/internal/platform/roster"
+)
+
+const (
+	scanEvery    = 60 * time.Second // 枚举拍（评估=本地计算非数据摄入——不占数据写径）
+	freshnessMax = 25 * time.Hour   // funding 事实行新鲜度门（8h 结算×3+余量）
+)
+
+var paramKeys = []string{
+	"research.funding.taker_fee_bps", "research.funding.slippage_bps",
+	"research.funding.fail_cost_bps", "research.funding.window_loss_bps",
+	"research.funding.min_net_apr", "research.funding.settles_per_day",
+}
+
+// Runner 枚举+评估+闸岗（双员工：探员=枚举面，验证官=评估+提案闸面）。
+type Runner struct {
+	pool *pgxpool.Pool
+	cfg  *config.Client
+	rej  *rejects.Door
+}
+
+func NewRunner(pool *pgxpool.Pool, cfg *config.Client) *Runner {
+	return &Runner{pool: pool, cfg: cfg,
+		rej: rejects.New("research", "missing_params", "stale_funding", "neg_funding_infeasible", "write_err")}
+}
+
+// Run 双员工在岗+扫描循环（阻塞至 ctx 取消）。
+func (r *Runner) Run(ctx context.Context, errc chan<- error) {
+	for _, e := range [][3]string{{"探员", "research", "机会枚举岗"}, {"验证官", "research", "评估卡+提案闸岗"}} {
+		if err := roster.Register(ctx, r.pool, e[0], e[1], e[2], nil); err != nil {
+			errc <- fmt.Errorf("%s register: %w", e[0], err)
+			return
+		}
+		go roster.BeatLoop(ctx, r.pool, e[0], 30*time.Second, errc)
+	}
+	for {
+		if err := r.scan(ctx); err != nil {
+			log.Printf("[research] scan: %v", err)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(scanEvery):
+		}
+	}
+}
+
+// params 判据全自 config 快照读；任一键缺=不可评估面（fail-closed 不虚构判据）。
+func (r *Runner) params() (Params, error) {
+	var p Params
+	get := func(k string) (float64, error) {
+		raw, err := r.cfg.Get(k)
+		if err != nil {
+			return 0, err
+		}
+		var s string
+		if err := json.Unmarshal(raw, &s); err != nil {
+			return 0, err
+		}
+		return strconv.ParseFloat(s, 64)
+	}
+	var err error
+	if p.TakerFeeBps, err = get(paramKeys[0]); err != nil {
+		return p, fmt.Errorf("%s: %w", paramKeys[0], err)
+	}
+	if p.SlippageBps, err = get(paramKeys[1]); err != nil {
+		return p, fmt.Errorf("%s: %w", paramKeys[1], err)
+	}
+	if p.FailCostBps, err = get(paramKeys[2]); err != nil {
+		return p, fmt.Errorf("%s: %w", paramKeys[2], err)
+	}
+	if p.WindowLossBps, err = get(paramKeys[3]); err != nil {
+		return p, fmt.Errorf("%s: %w", paramKeys[3], err)
+	}
+	if p.MinNetAPR, err = get(paramKeys[4]); err != nil {
+		return p, fmt.Errorf("%s: %w", paramKeys[4], err)
+	}
+	if p.SettlesPerDay, err = get(paramKeys[5]); err != nil {
+		return p, fmt.Errorf("%s: %w", paramKeys[5], err)
+	}
+	return p, nil
+}
+
+// scan 一拍：md_funding 最新行/inst_id → 五拆评估 → 落卡 → 阈闸提案。
+func (r *Runner) scan(ctx context.Context) error {
+	p, err := r.params()
+	if err != nil {
+		r.rej.Inc("missing_params")
+		return fmt.Errorf("判据缺位=不可评估（fail-closed）: %w", err)
+	}
+	rows, err := r.pool.Query(ctx, `SELECT DISTINCT ON (inst_id) inst_id, funding_rate, ts
+		FROM md_funding ORDER BY inst_id, ts DESC`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var instID string
+		var rate float64
+		var ts time.Time
+		if err := rows.Scan(&instID, &rate, &ts); err != nil {
+			return err
+		}
+		if time.Since(ts) > freshnessMax {
+			r.rej.Inc("stale_funding")
+			continue // 陈数据不评估（快照禁令——陈行非现值）
+		}
+		e := Evaluate(instID, rate, p)
+		if e.Verdict == "rejected" && rate < 0 {
+			r.rej.Inc("neg_funding_infeasible")
+		}
+		if err := r.persist(ctx, e, p); err != nil {
+			r.rej.Inc("write_err")
+			return err
+		}
+	}
+	return rows.Err()
+}
+
+// persist 评估卡落表；proposed 且无 open 提案→fin_proposal 行（闸后唯一提案径）。
+func (r *Runner) persist(ctx context.Context, e Eval, p Params) error {
+	legs, _ := json.Marshal(e.Legs)
+	ev, _ := json.Marshal(e.Evidence)
+	var evalID int64
+	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,gross_apr,net_apr,verdict,legs,evidence)
+		VALUES($1,'funding-hedge',$2,$3,$4,$5,$6,$7) RETURNING id`,
+		e.InstID, e.Direction, e.GrossAPR, e.NetAPR, e.Verdict, legs, ev).Scan(&evalID); err != nil {
+		return err
+	}
+	if e.Verdict != "proposed" {
+		return nil
+	}
+	var open int
+	if err := r.pool.QueryRow(ctx,
+		"SELECT count(*) FROM fin_proposal WHERE inst_id=$1 AND state='fin_proposed'", e.InstID).Scan(&open); err != nil {
+		return err
+	}
+	if open > 0 {
+		return nil // 已挂提案不重复提案（滞留禁超 SLA 由生命周期票管）
+	}
+	_, err := r.pool.Exec(ctx, `INSERT INTO fin_proposal(eval_id,inst_id,direction,net_apr)
+		VALUES($1,$2,$3,$4)`, evalID, e.InstID, e.Direction, e.NetAPR)
+	if err == nil {
+		log.Printf("[research] 提案落卡 %s %s net_apr=%.4f（验证官闸过）", e.InstID, e.Direction, e.NetAPR)
+	}
+	return err
+}
