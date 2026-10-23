@@ -34,7 +34,7 @@ type Runner struct {
 
 func NewRunner(pool *pgxpool.Pool, cfg *config.Client) *Runner {
 	return &Runner{pool: pool, cfg: cfg,
-		rej: rejects.New("research", "missing_params", "stale_funding", "neg_funding_infeasible", "write_err")}
+		rej: rejects.New("research", "missing_params", "stale_funding", "earn_stale", "neg_funding_infeasible", "write_err")}
 }
 
 // Run 双员工在岗+扫描循环（阻塞至 ctx 取消）。
@@ -109,6 +109,17 @@ func (r *Runner) scan(ctx context.Context) error {
 			continue // 陈数据不评估（快照禁令——陈行非现值）
 		}
 		e := Evaluate(instID, rate, p)
+		// 动态底（T-0023）：floor=max(静态底, 最新 earn 现率)；陈/缺→静态底+计数降级。
+		floor, used, stale := r.floor(ctx, p.MinNetAPR)
+		if stale {
+			r.rej.Inc("earn_stale")
+		}
+		if e.Verdict == "proposed" && e.NetAPR < floor {
+			e.Verdict, e.Reason = "rejected", fmt.Sprintf("below_earn: net %.4f < floor %.4f(%s)", e.NetAPR, floor, used)
+		}
+		e.Evidence["floor_used"] = used
+		e.Evidence["earn_rate"] = floor
+		e.Evidence["static_floor"] = p.MinNetAPR
 		if e.Verdict == "rejected" && rate < 0 {
 			r.rej.Inc("neg_funding_infeasible")
 		}
@@ -151,3 +162,24 @@ func (r *Runner) persist(ctx context.Context, e Eval, p Params) error {
 
 // ScanOnce 单拍壳（工具/实证件消费——scan 本体私有语义不变）。
 func (r *Runner) ScanOnce(ctx context.Context) error { return r.scan(ctx) }
+
+// floor 动态比较底：最新 USDT earn 现率>静态底则抬（stale>research.earn.stale_hours
+// 或缺失→静态底降级+stale=true 由调用方计数）。
+func (r *Runner) floor(ctx context.Context, static float64) (fl float64, used string, stale bool) {
+	fl, used = static, "static_floor"
+	staleH, err := r.cfg.GetFloat("research.earn.stale_hours")
+	if err != nil {
+		return fl, used, true
+	}
+	var rate float64
+	var ts time.Time
+	err = r.pool.QueryRow(ctx, `SELECT rate,ts FROM md_earn_rate
+		WHERE ccy='USDT' ORDER BY ts DESC LIMIT 1`).Scan(&rate, &ts)
+	if err != nil || time.Since(ts) > time.Duration(staleH)*time.Hour {
+		return fl, used, true
+	}
+	if rate > fl {
+		return rate, "earn_rate", false
+	}
+	return fl, used, false
+}
