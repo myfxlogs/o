@@ -1,0 +1,10 @@
+package pgstore
+
+// 迁移登记表——版本号唯一（门禁 check_migration_contract.sh ④b 查重锚）。
+var migrationTable = []struct {
+	Version int
+	Name    string
+}{
+	{1, "0001_app_config.sql"},
+	{2, "0002_fin_employee_registry.sql"},
+}

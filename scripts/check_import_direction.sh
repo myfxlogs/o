@@ -12,8 +12,9 @@ if [ ! -f go.mod ] || [ ! -d internal ]; then
 fi
 MOD=$(go list -m)
 
-# 白名单冻结表（格式：src -> dst，一行一边）。骨架实拍边集冻结于 T-0006 收口。
+# 白名单冻结表（格式：src -> dst，一行一边）。T-0006 骨架实拍冻结：codegen 固有边。
 ALLOWED=$(cat <<'EOF'
+internal/gen/dashboardv1/dashboardv1connect -> internal/gen/dashboardv1
 EOF
 )
 
