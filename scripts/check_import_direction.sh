@@ -14,6 +14,9 @@ MOD=$(go list -m)
 
 # 白名单冻结表（格式：src -> dst，一行一边）。T-0006 骨架实拍冻结：codegen 固有边。
 ALLOWED=$(cat <<'EOF'
+internal/data/okxws -> internal/platform/config
+internal/data/okxws -> internal/platform/rejects
+internal/data/okxws -> internal/platform/roster
 internal/gen/dashboardv1/dashboardv1connect -> internal/gen/dashboardv1
 EOF
 )

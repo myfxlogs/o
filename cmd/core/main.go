@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -14,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	"phase/internal/data/okxws"
 	"phase/internal/platform/config"
 	"phase/internal/platform/roster"
 	"phase/internal/store/pgstore"
@@ -72,10 +74,24 @@ func run() error {
 		}
 	}()
 
+	// P2 首岗：OKX 公开行情采集（员工「行情巡」）——标的集自 app_config 热启，
+	// 键缺席=采集岗待命自轮询不炸 boot（配置驱动装配，非 env 驱动）。
+	collector := okxws.NewCollector(pool, cfg)
+	go collector.Run(ctx, errc)
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
+	})
+	// 产出窗=行情新鲜度+rejects 计数门观测端点（判定面可观测 D-652-A）。
+	mux.HandleFunc("/md/status", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"frames":     collector.FrameCount(),
+			"last_frame": collector.LastFrame(),
+			"rejects":    collector.Stats.Snapshot(),
+		})
 	})
 	mountCore(mux)
 

@@ -44,7 +44,7 @@ services:
       # - ./cmd:/kn/cmd:ro
 
   phase-postgres:
-    image: postgres:18
+    image: timescale/timescaledb:2.30.2-pg18
     container_name: phase-postgres
     restart: unless-stopped
     # 资源封顶 + pg_stat_statements 预载。
@@ -53,7 +53,8 @@ services:
     # D-021：/dev/shm 从 docker 缺省 64MB 提到 1g——多席并发并行查询耗尽 shm
     # →后端段错误→全库 recovery 事故先例。
     shm_size: "1gb"
-    command: -c shared_preload_libraries=pg_stat_statements
+    # hypertable 面须 timescaledb 预载（md_* 迁移 create_hypertable）
+    command: -c shared_preload_libraries=timescaledb,pg_stat_statements
     logging:
       driver: json-file
       options:
@@ -78,14 +79,14 @@ services:
   # D-021：测试库独立实例——生产实例零测试库（shm 耗尽事故隔离面）。
   # 测试全部流量（testutil 缺省 DSN/CI/test_db_gc/restore_test）走 5434。
   phase-postgres-test:
-    image: postgres:18
+    image: timescale/timescaledb:2.30.2-pg18
     container_name: phase-postgres-test
     restart: unless-stopped
     mem_limit: 4g
     cpus: 4
     shm_size: "1gb"
     # D-165：缺省 max_connections=100 vs go test 并行需求→too many clients flake，抬 500。
-    command: postgres -c max_connections=500
+    command: postgres -c max_connections=500 -c shared_preload_libraries=timescaledb,pg_stat_statements
     logging:
       driver: json-file
       options:
