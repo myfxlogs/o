@@ -4,16 +4,16 @@
 version: v2
 plugins:
   - local: protoc-gen-go
-    out: internal/data/adapter/gen
+    out: internal/gen
     opt: paths=source_relative
   - local: protoc-gen-go-grpc
-    out: internal/data/adapter/gen
+    out: internal/gen
     opt: paths=source_relative
   - local: protoc-gen-connect-go
-    out: internal/data/adapter/gen
+    out: internal/gen
     opt: paths=source_relative
 inputs:
   - directory: proto
     paths:
-      - proto/mtapi/mt4
+      # mt4 面未入仓（T-0031 只接 mt5 读面——mt4 需要时按权威源 /opt/grpc-proto/mt4 再入）
       - proto/mtapi/mt5

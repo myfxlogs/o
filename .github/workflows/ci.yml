@@ -51,6 +51,7 @@ jobs:
           go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.12
           go install connectrpc.com/connect/v2/cmd/protoc-gen-connect-go@v2.0.1
           buf generate
+          buf generate --template buf.gen.mtapi.yaml
         if: hashFiles('proto/**/*.proto') != ''
       # 前端产物须在 go build 之前（embed.go go:embed web/dist）
       - run: npm run build
