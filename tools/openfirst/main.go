@@ -135,11 +135,11 @@ func main() {
 			os.Exit(1)
 		}
 		execR = execution.NewRunner(pool, cfg, execution.RouterExecutor{
-			"okx": execution.OkxExecutor{C: cli},
+			"okx": &execution.OkxExecutor{C: cli},
 			"mt5": mtexec.Executor{C: mt},
 		}).WithEarn(earnW)
 	} else {
-		execR = execution.NewRunner(pool, cfg, execution.OkxExecutor{C: cli}).WithEarn(earnW)
+		execR = execution.NewRunner(pool, cfg, &execution.OkxExecutor{C: cli}).WithEarn(earnW)
 		// 双腿乐器派生+sz 换算（leg1 SWAP 卖/leg2 派生现货买；minSz 闸 fail-closed）。
 		var lerr error
 		legs, spotInst, lerr = execution.BuildLegs(ctx, pool, func(ctx context.Context, iid string) (execution.InstMeta, error) {

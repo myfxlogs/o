@@ -149,7 +149,7 @@ func run() error {
 		earnW.AttachAlerter(alerter)
 		// 交易域首岗：执事（Executor=okxexec 唯一 venue 径——凭据与私流守同源解出）。
 		execR := execution.NewRunner(pool, cfg,
-			execution.OkxExecutor{C: okxexec.NewClient(priv.Credentials(), false)}).WithEarn(earnW).WithAlerter(alerter)
+			&execution.OkxExecutor{C: okxexec.NewClient(priv.Credentials(), false)}).WithEarn(earnW).WithAlerter(alerter)
 		go execution.Run(ctx, errc, execR)
 		closer = closeExec{r: execR}
 		// boot 首读播种器=okxexec /account/balance（事件锚定形一次性拉取——

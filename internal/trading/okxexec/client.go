@@ -86,7 +86,7 @@ func (c *Client) do(ctx context.Context, method, pathWithQuery string, body []by
 		return nil, fmt.Errorf("resp parse: %w", err)
 	}
 	if env.Code != "0" {
-		return nil, fmt.Errorf("okx code=%s msg=%s", env.Code, env.Msg)
+		return nil, &APIError{Code: env.Code, Msg: env.Msg}
 	}
 	return env.Data, nil
 }

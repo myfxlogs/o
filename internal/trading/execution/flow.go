@@ -84,19 +84,19 @@ func (r *Runner) placeAndResolve(ctx context.Context, execID int64, no int, leg 
 		// 传输败→clOrdId 定态三分支；查询亦败=ambiguous 禁补单。
 		res, err = r.exec.Resolve(ctx, leg, clOrdID)
 		if err != nil || res.State == "unknown" {
-			r.leg(ctx, execID, no, leg, clOrdID, "ambiguous")
+			r.leg(ctx, execID, no, leg, clOrdID, "ambiguous", "", "")
 			return res, fmt.Errorf("ambiguous")
 		}
 	}
 	switch res.State {
 	case "filled":
-		r.leg(ctx, execID, no, leg, clOrdID, "filled")
+		r.leg(ctx, execID, no, leg, clOrdID, "filled", "", "")
 		return res, nil
 	case "live", "partially_filled":
-		r.leg(ctx, execID, no, leg, clOrdID, "ack")
+		r.leg(ctx, execID, no, leg, clOrdID, "ack", "", "")
 		return res, fmt.Errorf("未即时成交（live 确认轨未落）")
 	default:
-		r.leg(ctx, execID, no, leg, clOrdID, "failed")
+		r.leg(ctx, execID, no, leg, clOrdID, "failed", res.VenueCode, res.VenueMsg)
 		return res, fmt.Errorf("state=%s", res.State)
 	}
 }
@@ -121,18 +121,18 @@ func (r *Runner) rollback(ctx context.Context, execID int64, leg Leg, res OrderR
 		r.rej.Inc("rollback_failed")
 		r.al.Alert(ctx, "rollback_failed", "LEGGED 回滚败——人工介入")
 		log.Printf("ALERT [execution] #%d 回滚败——残留 leg1 敞口须人工升级处置（err=%v）", execID, err)
-		r.leg(ctx, execID, 1, leg, clOrdID, "ambiguous")
+		r.leg(ctx, execID, 1, leg, clOrdID, "ambiguous", "", "")
 		return
 	}
-	r.leg(ctx, execID, 1, leg, clOrdID, "rolled_back")
+	r.leg(ctx, execID, 1, leg, clOrdID, "rolled_back", "", "")
 	r.setState(ctx, execID, "rolled_back")
 	log.Printf("[execution] #%d LEGGED→leg1 回滚成", execID)
 }
 
-func (r *Runner) leg(ctx context.Context, execID int64, no int, leg Leg, clOrdID, state string) {
-	if _, err := r.pool.Exec(ctx, `INSERT INTO fin_order_leg(execution_id,leg_no,cl_ord_id,venue,side,inst_id,sz,state)
-		VALUES($1,$2,$3,$4,$5,$6,$7,$8)`,
-		execID, no, clOrdID, leg.Venue, leg.Side, leg.InstID, leg.Sz, state); err != nil {
+func (r *Runner) leg(ctx context.Context, execID int64, no int, leg Leg, clOrdID, state, venueCode, venueMsg string) {
+	if _, err := r.pool.Exec(ctx, `INSERT INTO fin_order_leg(execution_id,leg_no,cl_ord_id,venue,side,inst_id,sz,state,venue_err_code,venue_err_msg)
+		VALUES($1,$2,$3,$4,$5,$6,$7,$8,NULLIF($9,''),NULLIF($10,''))`,
+		execID, no, clOrdID, leg.Venue, leg.Side, leg.InstID, leg.Sz, state, venueCode, venueMsg); err != nil {
 		r.rej.Inc("write_err")
 	}
 }

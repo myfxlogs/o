@@ -91,3 +91,34 @@ func TestPlaceOrderTimeoutIsTransportErr(t *testing.T) {
 		t.Fatalf("传输败应标 httpStatusError 供定态分流: %v", err)
 	}
 }
+
+// T-0040 锚：51603 Order does not exist=确定单未建→absent（非查询败）。
+func TestResolve51603Absent(t *testing.T) {
+	srv := fakeAPI(t, "51603", "")
+	defer srv.Close()
+	cli := withBase(NewClient(Credentials{Key: "k", Secret: "s", Passphrase: "p"}, false), srv.URL)
+	st, err := cli.ResolveOrder(context.Background(), "BTC-USDT-SWAP", "ph1x1x1")
+	if err != nil || st != StateAbsent {
+		t.Fatalf("51603 应 absent 无 err（同 clOrdId 可重试）got=%v err=%v", st, err)
+	}
+}
+
+// T-0040 锚：posMode 实读（long_short_mode）；空值 fail-closed。
+func TestAccountPosMode(t *testing.T) {
+	ctx := context.Background()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"code":"0","data":[{"posMode":"long_short_mode","acctLv":"2"}]}`))
+	}))
+	defer srv.Close()
+	cli := withBase(NewClient(Credentials{Key: "k", Secret: "s", Passphrase: "p"}, false), srv.URL)
+	if pm, err := cli.AccountPosMode(ctx); err != nil || pm != "long_short_mode" {
+		t.Fatalf("posMode 实读: got=%q err=%v", pm, err)
+	}
+	empty := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"code":"0","data":[{"acctLv":"2"}]}`))
+	}))
+	defer empty.Close()
+	if _, err := withBase(NewClient(Credentials{}, false), empty.URL).AccountPosMode(ctx); err == nil {
+		t.Fatal("posMode 空值应 fail-closed 上抛")
+	}
+}
