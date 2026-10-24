@@ -8,16 +8,14 @@ package review
 import (
 	"context"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"phase/internal/platform/events"
 	"phase/internal/platform/rejects"
 	"phase/internal/platform/roster"
 )
-
-const scanEvery = 60 * time.Second
 
 var stagingFile = "docs/经济经验库/待归纳.md"
 
@@ -37,16 +35,23 @@ func (r *Runner) Run(ctx context.Context, errc chan<- error) {
 		return
 	}
 	go roster.BeatLoop(ctx, r.pool, "评史官", 30*time.Second, errc)
-	for {
-		if err := r.scan(ctx); err != nil {
-			log.Printf("[review] scan: %v", err)
-		}
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(scanEvery):
-		}
+	// 事件化（T-0048：周期环拆——仓行变 ev_position+判决到期期界等待）。
+	events.ListenOrDeadline(ctx, r.pool, "review",
+		[]string{"ev_position", "ev_fwdchk"}, r.nextDue, r.scan)
+}
+
+// nextDue 下一判决到期距（fin_forward_check 最早未判 target_ts——期界等待语义）。
+func (r *Runner) nextDue(ctx context.Context) time.Duration {
+	var ts time.Time
+	if err := r.pool.QueryRow(ctx,
+		"SELECT min(target_ts) FROM fin_forward_check WHERE judged_ok IS NULL").Scan(&ts); err != nil {
+		return 0
 	}
+	d := time.Until(ts)
+	if d < 0 {
+		return 0 // 已到期=立即一拍
+	}
+	return d
 }
 
 func (r *Runner) scan(ctx context.Context) error {

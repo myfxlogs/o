@@ -86,7 +86,15 @@ func (c *Client) do(ctx context.Context, method, pathWithQuery string, body []by
 		return nil, fmt.Errorf("resp parse: %w", err)
 	}
 	if env.Code != "0" {
-		return nil, &APIError{Code: env.Code, Msg: env.Msg}
+		ae := &APIError{Code: env.Code, Msg: env.Msg}
+		var inner []struct {
+			SCode string `json:"sCode"`
+			SMsg  string `json:"sMsg"`
+		}
+		if json.Unmarshal(env.Data, &inner) == nil && len(inner) > 0 {
+			ae.SCode, ae.SMsg = inner[0].SCode, inner[0].SMsg
+		}
+		return nil, ae
 	}
 	return env.Data, nil
 }
@@ -94,6 +102,11 @@ func (c *Client) do(ctx context.Context, method, pathWithQuery string, body []by
 // Get 签名 GET（事务按需单发——无轮询用法）。
 func (c *Client) Get(ctx context.Context, pathWithQuery string) (json.RawMessage, error) {
 	return c.do(ctx, http.MethodGet, pathWithQuery, nil)
+}
+
+// Post 签名 POST（事务面：set-leverage/transfer 族——body 为完整 JSON）。
+func (c *Client) Post(ctx context.Context, path string, body []byte) (json.RawMessage, error) {
+	return c.do(ctx, http.MethodPost, path, body)
 }
 
 // BalanceEquity GET /account/balance → ccy→eqUsd 表（boot 锚定首读用——
@@ -122,6 +135,30 @@ func BalanceEquity(ctx context.Context, creds Credentials, simulated bool) (map[
 		}
 	}
 	return out, nil
+}
+
+// TradingAvailBal GET /account/balance → ccy availBal（交易户闲余口径——
+// T-0048 返修：earn 摆渡自 AcctTrading，量资金户=错户；钦定事务面单发）。
+func (c *Client) TradingAvailBal(ctx context.Context, ccy string) (float64, error) {
+	raw, err := c.Get(ctx, "/api/v5/account/balance")
+	if err != nil {
+		return 0, err
+	}
+	var rows []struct {
+		Details []struct {
+			Ccy      string `json:"ccy"`
+			AvailBal string `json:"availBal"`
+		} `json:"details"`
+	}
+	if err := json.Unmarshal(raw, &rows); err != nil || len(rows) == 0 {
+		return 0, fmt.Errorf("balance parse: %w", err)
+	}
+	for _, d := range rows[0].Details {
+		if d.Ccy == ccy {
+			return parseF(d.AvailBal), nil
+		}
+	}
+	return 0, fmt.Errorf("ccy %s 缺席", ccy)
 }
 
 // AssetBalance /asset/balances（资金户——funding 户无推送频道，钦定保留面）。

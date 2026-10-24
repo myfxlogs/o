@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"phase/internal/platform/events"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -21,8 +22,6 @@ import (
 	"phase/internal/platform/roster"
 	"phase/internal/risk"
 )
-
-const scanEvery = 30 * time.Second
 
 // CloseSpec 平仓执行件规格（双腿反向原子平——guard 反转原仓腿侧，执行件只管
 // 成开成/开不成全收回的 G7 语义）。
@@ -54,21 +53,31 @@ func (missingExecutor) ExecuteClose(context.Context, CloseSpec) (int64, error) {
 
 // Warden 员工「仓巡」——常驻哨戒循环。
 type Warden struct {
-	pool  *pgxpool.Pool
-	cfg   *config.Client
-	gate  *risk.Gate
-	ex    Executor
-	sizer VenueSizer
-	rej   *rejects.Door
-	al    *notify.Alerter
-	notes map[string]time.Time // skip 态限频日志时间戳（键级 10min 节流）
+	pool   *pgxpool.Pool
+	cfg    *config.Client
+	gate   *risk.Gate
+	ex     Executor
+	sizer  VenueSizer
+	ctVal  func(ctx context.Context, venue, instID string) (float64, bool) // 合约面值现读件（T-0046①——T-0048 后 facts 表废，cmd 注入 venue 现读）
+	rej    *rejects.Door
+	al     *notify.Alerter
+	notes  map[string]time.Time                       // skip 态限频日志时间戳（键级 10min 节流）
+	equity func(ctx context.Context) (float64, error) // 净权益现读件（dd 硬线判定时点实读）
 }
 
 // AttachSizer 挂平仓量 venue 现读面（cmd 装配注入——未挂=平仓 fail-closed）。
 func (w *Warden) AttachSizer(s VenueSizer) { w.sizer = s }
 
+// AttachCtVal 挂合约面值现读面（T-0046①——未挂=SWAP 腿名义读不到 fail-closed）。
+func (w *Warden) AttachCtVal(f func(ctx context.Context, venue, instID string) (float64, bool)) {
+	w.ctVal = f
+}
+
 // AttachAlerter 挂告警器（nil=静默降级不炸）。
 func (w *Warden) AttachAlerter(a *notify.Alerter) { w.al = a }
+
+// AttachEquity 挂净权益现读件（装配层接线——dd 硬线判定时点 balances 实读）。
+func (w *Warden) AttachEquity(fn func(ctx context.Context) (float64, error)) { w.equity = fn }
 
 func NewWarden(pool *pgxpool.Pool, cfg *config.Client, gate *risk.Gate, ex Executor) *Warden {
 	if ex == nil {
@@ -88,16 +97,9 @@ func (w *Warden) Run(ctx context.Context, errc chan<- error) {
 		return
 	}
 	go roster.BeatLoop(ctx, w.pool, "仓巡", 30*time.Second, errc)
-	for {
-		if err := w.scanOnce(ctx); err != nil {
-			log.Printf("[guard] scan: %v", err)
-		}
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(scanEvery):
-		}
-	}
+	// 事件化（T-0048：周期环拆——tick/funding/仓行变真事件驱动 evaluate）。
+	events.ListenLoop(ctx, w.pool, "guard",
+		[]string{"ev_ticks", "ev_funding", "ev_position"}, w.scanOnce)
 }
 
 type posRow struct {

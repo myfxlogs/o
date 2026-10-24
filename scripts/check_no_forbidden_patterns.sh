@@ -7,11 +7,12 @@
 set -euo pipefail
 fail=0
 
-# A: 决策域禁读快照
-for d in internal/risk/ internal/trading/execution/ tools/openfirst/; do
+# A: 全域禁读快照（D-0008 三令终裁——快照=违规构造非「分域禁」，UPSERT 最新值表
+#    任何新增引用即拒；迁移 DROP/清理件自身涉及表名者行内 snapshot-audit-ok 豁免）
+for d in internal/ cmd/ tools/; do
   hits=$(git diff --cached -- "$d" | grep -nE "^\+" | grep -vE "snapshot-audit-ok" | grep -E "fin_venue_account_snapshot|md_venue_fact|fin_ledger_snapshot" || true)
   if [ -n "$hits" ]; then
-    echo "BLOCK(D-0008-A): $d 新增行读快照表当现况——venue 动态事实必现读："
+    echo "BLOCK(D-0008-A): $d 新增行引用快照表——快照=全域禁用物（三令终裁），现况=venue 现读："
     echo "$hits" | head -5; fail=1
   fi
 done

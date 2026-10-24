@@ -99,7 +99,7 @@ func (c *Collector) handle(ctx context.Context, data []byte) {
 			c.lastEq[ccy] = eq
 		}
 	}
-	c.flushSnapshot(ctx, "okx_event")
+	// T-0048：快照写面拆除——md_account_events append-only 行已是同源真源。
 	// 余额/持仓变动=一切到账事件（funding 结算/手续费/成交）——触发 bills 记账拉取。
 	if msg.Arg.Channel == "account" || msg.Arg.Channel == "balance_and_position" {
 		c.tryBills(ctx)
@@ -112,25 +112,6 @@ func (c *Collector) setAvail(ccy string, v float64) {
 		c.lastAvail = map[string]float64{}
 	}
 	c.lastAvail[ccy] = v
-}
-
-// flushSnapshot 末帧 equity/avail 写快照行（src 标事件/心跳源——unified 键域归一；
-// avail 只进不退：EXCLUDED 空值不覆写既有值——boot 播种行 eq-only 场景保 avail）。
-func (c *Collector) flushSnapshot(ctx context.Context, src string) {
-	for ccy, eq := range c.lastEq {
-		var avail any
-		if a, ok := c.lastAvail[ccy]; ok {
-			avail = a
-		}
-		if _, err := c.pool.Exec(ctx, `INSERT INTO fin_venue_account_snapshot(venue,venue_type,ccy,equity,avail,src,updated_at)
-			VALUES('okx','unified',$1,$2,$3,$4,now())
-			ON CONFLICT(venue,venue_type,ccy) DO UPDATE SET equity=EXCLUDED.equity,
-				avail=COALESCE(EXCLUDED.avail,fin_venue_account_snapshot.avail),
-				src=EXCLUDED.src,updated_at=now()`,
-			ccy, eq, avail, src); err != nil {
-			c.rej.Inc("write_err")
-		}
-	}
 }
 
 // bootstrapEquity 一次性账户首读播种末帧 equity（boot 锚定——非轮询面；
@@ -147,5 +128,4 @@ func (c *Collector) bootstrapEquity(ctx context.Context) {
 	for ccy, v := range eqs {
 		c.lastEq[ccy] = v
 	}
-	c.flushSnapshot(ctx, "okx_event_boot")
 }

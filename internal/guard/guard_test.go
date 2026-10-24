@@ -59,7 +59,7 @@ func setup(t *testing.T) (context.Context, *Warden, *fakeExec) {
 		t.Fatal(err)
 	}
 	fx := &fakeExec{}
-	w := NewWarden(pool, cfg, risk.NewGate(pool, cfg), fx)
+	w := NewWarden(pool, cfg, risk.NewGate(pool, cfg).WithEquity(func(ctx context.Context, v string) (float64, error) { return 1000, nil }), fx)
 	w.AttachSizer(fakeSizer{}) // T-0046 ②：现读面必接（缺=平仓 fail-closed）——默认直通量
 	return ctx, w, fx
 }
@@ -160,17 +160,22 @@ func seedFacts(t *testing.T, ctx context.Context, w *Warden, rate float64) {
 		`INSERT INTO md_funding(ts,venue,inst_id,funding_rate) VALUES(now(),'okx','BTC-USDT-SWAP',$1)`, rate); err != nil {
 		t.Fatal(err)
 	}
-	// 乐器面值 facts（T-0046 ①：SWAP 名义=sz×ctVal×px——perp 腿分派依赖）。
-	seedInstr(t, ctx, w, 1)
+	// 乐器面值现读件（T-0046 ①：SWAP 名义=sz×ctVal×px——perp 腿分派依赖；
+	// T-0048 后 facts 表废，注入假件同产线语义）。
+	w.AttachCtVal(func(ctx context.Context, venue, instID string) (float64, bool) {
+		if v, ok := instrCtVal[instID]; ok {
+			return v, true
+		}
+		return 0, false
+	})
 }
+
+// instrCtVal 面值假件表（测试可写——面值注入件测试源）。
+var instrCtVal = map[string]float64{"BTC-USDT-SWAP": 1}
 
 func seedInstr(t *testing.T, ctx context.Context, w *Warden, ctVal float64) {
 	t.Helper()
-	if _, err := w.pool.Exec(ctx, `INSERT INTO md_venue_fact(venue,kind,key,value)
-		VALUES('okx','instrument','inst:BTC-USDT-SWAP',jsonb_build_object('ctVal',$1::numeric))
-		ON CONFLICT(venue,kind,key) DO UPDATE SET value=EXCLUDED.value`, ctVal); err != nil {
-		t.Fatal(err)
-	}
+	instrCtVal["BTC-USDT-SWAP"] = ctVal
 }
 
 func posClosed(t *testing.T, ctx context.Context, w *Warden, posID int64) (bool, string, string) {
@@ -412,10 +417,8 @@ func TestNotionalCtValDispatch(t *testing.T) {
 	if len(fx.calls) != 0 {
 		t.Fatalf("均衡仓误触发平仓（量纲病灶体征）: %+v", fx.calls)
 	}
-	// ctVal 缺行=fail-closed 不误判（facts_missing 计数不触发）。
-	if _, err := w.pool.Exec(ctx, "DELETE FROM md_venue_fact"); err != nil {
-		t.Fatal(err)
-	}
+	// ctVal 读不到=fail-closed 不误判（facts_missing 计数不触发）。
+	w.AttachCtVal(nil)
 	if n, ok := w.notionalNow(ctx, leg{inst: "BTC-USDT-SWAP", venue: "okx", sz: 1}); ok || n != 0 {
 		t.Fatal("ctVal 缺行应 false")
 	}

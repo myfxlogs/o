@@ -44,24 +44,76 @@ func TestSymbolCandidates(t *testing.T) {
 	}
 }
 
-// TestSnapshotWrite 账户快照落表锚（venue='mt5'/venue_type='mt5'/USD 本位行可查）。
-func TestSnapshotWrite(t *testing.T) {
+// TestProfitDedup OnOrderProfit 帧去重键锚——同值帧不落（push-on-change 事件语义：
+// venue ~1Hz 周期推但表只记值变，防 append-only 表被同值帧灌水）。
+func TestProfitDedup(t *testing.T) {
+	snap := func(eq, fm, bal, m, p, ml float64, open int) profitSnap {
+		return profitSnap{eq, fm, bal, m, p, ml, open}
+	}
+	a := snap(3247.5, 3245.4, 3247.5, 2.02, 0.05, 160800, 1)
+	if a != snap(3247.5, 3245.4, 3247.5, 2.02, 0.05, 160800, 1) {
+		t.Fatal("同值帧键应相等——去重谓词失效")
+	}
+	if a == snap(3247.51, 3245.4, 3247.5, 2.02, 0.05, 160800, 1) {
+		t.Fatal("equity 变应判变帧")
+	}
+	if a == snap(3247.5, 3245.4, 3247.5, 2.02, 0.05, 160800, 0) {
+		t.Fatal("open 仓数变应判变帧")
+	}
+}
+
+// TestAccountEventWrite 账户事件行落表锚（复审 18212d4：快照表 0029 废弃——
+// 写形状锚改锚 md_account_events append-only 行：venue='mt5'/USD 本位/eq·avail 键域）。
+func TestAccountEventWrite(t *testing.T) {
 	pool := testutil.Pool(t)
 	ctx := context.Background()
 	if err := pgstore.Migrate(ctx, pool); err != nil {
 		t.Fatal(err)
 	}
-	// 直写径验证：snapshotOnce 需要 live client——此处验证落表形状（写径同 SQL）。
-	if _, err := pool.Exec(ctx, `INSERT INTO fin_venue_account_snapshot(venue,venue_type,ccy,equity,avail,src)
-		VALUES('mt5','mt5','USD',1000.5,900.25,'test')
-		ON CONFLICT(venue,venue_type,ccy) DO UPDATE SET equity=EXCLUDED.equity,updated_at=now()`); err != nil {
+	// 直写径验证：snapshotOnce/profitLoop 需要 live client——此处验证行形状（写径同 SQL）。
+	if _, err := pool.Exec(ctx, `INSERT INTO md_account_events(ts,venue,channel,ccy,data)
+		VALUES(now(),'mt5','boot','USD',$1)`,
+		[]byte(`{"eq":1000.5,"avail":900.25,"src":"boot"}`)); err != nil {
 		t.Fatal(err)
 	}
 	var eq, av float64
-	var src string
-	var up time.Time
-	if err := pool.QueryRow(ctx, `SELECT equity,avail,src,updated_at FROM fin_venue_account_snapshot
-		WHERE venue='mt5' AND venue_type='mt5' AND ccy='USD'`).Scan(&eq, &av, &src, &up); err != nil || eq != 1000.5 || av != 900.25 {
-		t.Fatalf("mt5 快照行 eq=%v av=%v err=%v", eq, av, err)
+	if err := pool.QueryRow(ctx, `SELECT (data->>'eq')::numeric,(data->>'avail')::numeric
+		FROM md_account_events WHERE venue='mt5' AND channel='boot' AND ccy='USD'
+		ORDER BY ts DESC LIMIT 1`).Scan(&eq, &av); err != nil || eq != 1000.5 || av != 900.25 {
+		t.Fatalf("mt5 事件行 eq=%v av=%v err=%v", eq, av, err)
+	}
+}
+
+// T-0053 锚：Connect 有界化——grpc.NewClient 懒拨号，首个 RPC 无死线=连接建立
+// 无限期阻塞（OpenSession 静默悬挂实证）。黑洞址注入：自带死线兜底+调用方
+// 更短 budget 继承，两路都必须在死线内返错而非悬挂。
+func TestConnectDeadlineBounded(t *testing.T) {
+	blackhole := "10.255.255.1:443" // 不可路由——连接建立阻塞直至死线
+	// ① 自带死线兜底：调用方 ctx 无 Deadline → connectBudget 兜底返错。
+	old := connectBudget
+	connectBudget = 300 * time.Millisecond
+	defer func() { connectBudget = old }()
+	cl, err := Dial(blackhole)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cl.Close()
+	start := time.Now()
+	if err := cl.Connect(context.Background(), Credentials{Host: blackhole, Login: 1, Password: "x"}); err == nil {
+		t.Fatal("黑洞址 Connect 不应成功")
+	} else if d := time.Since(start); d > 5*time.Second {
+		t.Fatalf("自带死线失效（悬挂）: %v", d)
+	}
+	// ② 调用方更短 budget 继承不覆写。
+	connectBudget = 30 * time.Second
+	cctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	start = time.Now()
+	err = cl.Connect(cctx, Credentials{Host: blackhole, Login: 1, Password: "x"})
+	if err == nil {
+		t.Fatal("黑洞址 Connect 不应成功")
+	}
+	if d := time.Since(start); d > 2*time.Second {
+		t.Fatalf("调用方短 budget 未继承（悬挂）: %v", d)
 	}
 }

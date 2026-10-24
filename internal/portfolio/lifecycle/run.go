@@ -10,11 +10,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"phase/internal/platform/config"
+	"phase/internal/platform/events"
 	"phase/internal/platform/rejects"
 	"phase/internal/platform/roster"
 )
-
-const scanEvery = 60 * time.Second
 
 var critKeys = []string{
 	"invest.lifecycle.paper_min_hours", "invest.lifecycle.paper_min_net_usd",
@@ -22,16 +21,17 @@ var critKeys = []string{
 	"invest.paper.notional_usd",
 }
 
-// Runner 命官岗：提案→paper 开户→虚拟结算→判据晋升。
+// Runner 命官岗：提案→paper 开户→虚拟结算→判据晋升→live 开仓消费（T-0050）。
 type Runner struct {
 	pool *pgxpool.Pool
 	cfg  *config.Client
+	op   Opener
 	rej  *rejects.Door
 }
 
 func NewRunner(pool *pgxpool.Pool, cfg *config.Client) *Runner {
 	return &Runner{pool: pool, cfg: cfg,
-		rej: rejects.New("lifecycle", "illegal_transition", "missing_criteria", "write_err", "live_switch_off")}
+		rej: rejects.New("lifecycle", "illegal_transition", "missing_criteria", "write_err", "live_switch_off", "open_failed")}
 }
 
 func (r *Runner) Run(ctx context.Context, errc chan<- error) {
@@ -40,16 +40,9 @@ func (r *Runner) Run(ctx context.Context, errc chan<- error) {
 		return
 	}
 	go roster.BeatLoop(ctx, r.pool, "命官", 30*time.Second, errc)
-	for {
-		if err := r.scan(ctx); err != nil {
-			log.Printf("[lifecycle] scan: %v", err)
-		}
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(scanEvery):
-		}
-	}
+	// 事件化（T-0048：周期环拆——策略/评估卡行变 ev_strategy/ev_eval 驱动）。
+	events.ListenLoop(ctx, r.pool, "lifecycle",
+		[]string{"ev_strategy", "ev_eval"}, r.scan)
 }
 
 func (r *Runner) getF(key string) (float64, error) { return r.cfg.GetFloat(key) }
@@ -86,7 +79,12 @@ func (r *Runner) scan(ctx context.Context) error {
 	if err := r.paperAccounting(ctx); err != nil {
 		return err
 	}
-	return r.promote(ctx, minH, minNet, maxDD, liveSw)
+	if err := r.promote(ctx, minH, minNet, maxDD, liveSw); err != nil {
+		return err
+	}
+	// ④ live 开仓消费（T-0050 首仓序④——无未平仓行的 live 行过 Opener 缝）。
+	r.openLive(ctx)
+	return nil
 }
 
 // admitProposals 新提案开户（state=paper；criteria 快照入行——判据代次留痕）。

@@ -1,3 +1,16 @@
+---
+schema_version: 2
+id: rollback-close-direction
+kind: pitfall
+risk: critical
+status: verified
+keywords: [回滚, Close语义, 平仓Intent, reduceOnly, 方向反置, LEGGED]
+scope: [cex 双腿执行, okx, 回滚径, 平滚方向逻辑]
+summary: 回滚腿 Close 语义必须随原腿 Intent 反置——平仓 Intent 的回滚=重开原向仓非再平，无条件 Close=true 打在空仓上=拒单歧态势
+first_seen: 2026-10-24
+last_verified: 2026-10-24
+skills: [okx-exec]
+---
 # rollback-close-direction —— 回滚腿的 Close 语义必须随原腿反置：平回滚=重开非再平
 
 ## 坑

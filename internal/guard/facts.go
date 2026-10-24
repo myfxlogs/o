@@ -113,7 +113,8 @@ func (w *Warden) latestFunding(ctx context.Context, inst string) (float64, bool)
 
 // notionalNow 腿现价名义额——量纲按乐器类型分派（T-0046 ①根修，canon
 // exec-notional-ctval-missing）：SPOT=sz×px（sz=币量）；SWAP=sz×ctVal×px
-// （sz=张数——ctVal 自 md_venue_fact instrument 行决策时点现读，禁按币种名猜）。
+// （sz=张数——ctVal 经 cmd 注入 venue 现读件（T-0048 后 facts 表废，D-0008 决策
+// 时点现读——okx instruments 静态属性短 TTL 缓存径），禁按币种名猜）。
 // 无 tick/合约缺 ctVal=false（调用方 facts_missing 计数不误判）。
 func (w *Warden) notionalNow(ctx context.Context, l leg) (float64, bool) {
 	var last *float64
@@ -132,15 +133,13 @@ func (w *Warden) notionalNow(ctx context.Context, l leg) (float64, bool) {
 	return l.sz * mult * *last, true
 }
 
-// ctValOf 合约面值（md_venue_fact instrument 现读——facts 集使层维护，
-// ctVal 静态属性小时级刷即鲜；缺行/空值=false fail-closed）。
+// ctValOf 合约面值（cmd 注入现读件——缺件/读败/零值=false fail-closed：
+// 漂移判据跳过不误判，绝不虚构面值）。
 func (w *Warden) ctValOf(ctx context.Context, venue, inst string) (float64, bool) {
-	var ct *float64
-	if err := w.pool.QueryRow(ctx, `SELECT (value->>'ctVal')::numeric FROM md_venue_fact
-		WHERE venue=$1 AND kind='instrument' AND key=$2`, venue, "inst:"+inst).Scan(&ct); err != nil || ct == nil || *ct == 0 {
+	if w.ctVal == nil {
 		return 0, false
 	}
-	return *ct, true
+	return w.ctVal(ctx, venue, inst)
 }
 
 func (w *Warden) getF(k string) (float64, error) {

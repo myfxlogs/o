@@ -1,6 +1,8 @@
 // collector.go —— 员工「汇市巡」（编制册数据域新增卡）：MT5 只读采集岗。
 // 职责：boot 首读账户快照（venue='mt5'/USD 本位）+符号清单实读落采集面；
-// quote 走 Subscribe+OnQuote 流（D-004 流正道——mt5 无 poll 报价语义）→md_ticks。
+// quote 走 Subscribe+OnQuote 流（D-004 流正道——mt5 无 poll 报价语义）→md_ticks；
+// 账户权益走 OnOrderProfit 推送流→md_account_events（持仓期 ~1Hz ProfitUpdate，
+// push-on-change 值变才落行；空仓静默=无变动非流死——venue 事件流双轨同 okxpriv）。
 // 断线=退避重连（重连=重订阅+账户快照愈合读——事件锚定形）；禁 mutating 面
 // （mt5-trading-mutating 卡——client_test.go grep 锚）。
 package mt5
@@ -14,7 +16,9 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"google.golang.org/grpc"
 
+	mt5pb "phase/internal/gen/mtapi/mt5"
 	"phase/internal/platform/config"
 	"phase/internal/platform/cryptoutil"
 	"phase/internal/platform/rejects"
@@ -41,24 +45,6 @@ type Collector struct {
 	addr string
 	// dial 覆写面（测试注入 fake server；nil=grpc.NewClient 生产径）。
 	dial func(addr string) (*Client, error)
-}
-
-// OpenSession 独立一次性会话（开连+登录——用毕调用方 Disconnect；facts 采面/
-// 探针面用，凭据/网关址与 Collector 同源）。
-func OpenSession(ctx context.Context, pool *pgxpool.Pool, cfg *config.Client) (*Client, error) {
-	addr, cr, err := readCreds(ctx, pool, cfg)
-	if err != nil {
-		return nil, err
-	}
-	cl, err := Dial(addr)
-	if err != nil {
-		return nil, err
-	}
-	if err := cl.Connect(ctx, cr); err != nil {
-		cl.Close()
-		return nil, err
-	}
-	return cl, nil
 }
 
 // readCreds 凭据+网关址读（NewCollector/OpenSession 共源）。
@@ -170,14 +156,44 @@ func (c *Collector) session(ctx context.Context, dial func(string) (*Client, err
 	if len(syms) == 0 {
 		return fmt.Errorf("采集清单空（mt5.symbols 空且 SymbolList 实读筛选零命中）")
 	}
-	stream, err := cl.OnQuote(ctx)
+	// 账户权益推送流（OnOrderProfit——持仓期 ~1Hz ProfitUpdate 全摘要帧；
+	// push-on-change：空仓静默=无变动非流死。任一框架死=会话退重连）。
+	sessCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	if n, err := cl.SubscribeOrderProfit(ctx); err != nil {
+		c.rej.Inc("subscribe_failed")
+		log.Printf("[mt5] SubscribeOrderProfit 败（流实测免订阅自推，不阻塞）: %v", err)
+	} else {
+		log.Printf("[mt5] order_profit 订阅回执: 在册 %d 仓", n)
+	}
+	pstr, err := cl.OnOrderProfit(sessCtx)
+	if err != nil {
+		return fmt.Errorf("OnOrderProfit 开流: %w", err)
+	}
+	profitErr := make(chan error, 1)
+	go func() {
+		err := c.profitLoop(ctx, pstr)
+		profitErr <- err // 先送因后 cancel——主循环 Recv 断时真因可取
+		cancel()
+	}()
+	stream, err := cl.OnQuote(sessCtx)
 	if err != nil {
 		return err
 	}
 	for {
 		f, err := stream.Recv()
 		if err != nil {
+			select {
+			case pe := <-profitErr:
+				return fmt.Errorf("OnOrderProfit 流断: %w", pe)
+			default:
+			}
 			return fmt.Errorf("OnQuote 流断: %w", err)
+		}
+		select {
+		case pe := <-profitErr:
+			return fmt.Errorf("OnOrderProfit 流断: %w", pe)
+		default:
 		}
 		if f.Result == nil {
 			continue
@@ -194,18 +210,55 @@ func (c *Collector) session(ctx context.Context, dial func(string) (*Client, err
 	}
 }
 
-// snapshotOnce 账户快照行（equity/avail——AccountSummary 实读；写败=计数不炸会话）。
+// profitSnap OnOrderProfit 帧去重键——venue ~1Hz 周期推，事件语义只记值变。
+type profitSnap struct {
+	eq, fm, bal, margin, profit, ml float64
+	open                            int
+}
+
+// profitLoop OnOrderProfit 帧消费：值变帧落 md_account_events（channel='order_profit'
+// append-only，INSERT 自带 ev_account NOTIFY）；同值帧/内嵌 Error 帧不落。
+// 返回 err=流死——调用侧取消会话走重连径。
+func (c *Collector) profitLoop(ctx context.Context, st grpc.ServerStreamingClient[mt5pb.OnOrderProfitReply]) error {
+	var last profitSnap
+	for {
+		f, err := st.Recv()
+		if err != nil {
+			return err
+		}
+		if f.Error != nil || f.Result == nil {
+			continue
+		}
+		p := f.Result
+		cur := profitSnap{p.Equity, p.FreeMargin, p.Balance, p.Margin, p.Profit, p.MarginLevel, len(p.Orders)}
+		if cur == last {
+			continue
+		}
+		last = cur
+		blob, _ := json.Marshal(map[string]any{
+			"eq": p.Equity, "avail": p.FreeMargin, "bal": p.Balance,
+			"margin": p.Margin, "profit": p.Profit, "margin_level": p.MarginLevel,
+			"open": len(p.Orders), "src": "on_order_profit"})
+		if _, err := c.pool.Exec(ctx,
+			`INSERT INTO md_account_events(ts,venue,channel,ccy,data)
+			VALUES(now(),'mt5','order_profit','USD',$1)`, blob); err != nil {
+			c.rej.Inc("snapshot_write_failed")
+		}
+	}
+}
+
+// snapshotOnce 账户权益事件行（AccountSummary 实读→md_account_events append-only
+// 事实行；写败=计数不炸会话。T-0048：快照表废弃——事件行是同源真源）。
 func (c *Collector) snapshotOnce(ctx context.Context, cl *Client, src string) {
 	eq, fm, _, err := cl.AccountSummary(ctx)
 	if err != nil {
 		c.rej.Inc("symbols_read_failed")
-		log.Printf("[mt5] AccountSummary 读败（快照缺席）: %v", err)
+		log.Printf("[mt5] AccountSummary 读败（事件行缺席）: %v", err)
 		return
 	}
-	if _, err := c.pool.Exec(ctx, `INSERT INTO fin_venue_account_snapshot(venue,venue_type,ccy,equity,avail,src)
-		VALUES('mt5','mt5','USD',$1,$2,$3)
-		ON CONFLICT(venue,venue_type,ccy) DO UPDATE SET equity=EXCLUDED.equity,avail=EXCLUDED.avail,src=EXCLUDED.src,updated_at=now()`,
-		eq, fm, src); err != nil {
+	blob, _ := json.Marshal(map[string]any{"eq": eq, "avail": fm, "src": src})
+	if _, err := c.pool.Exec(ctx, `INSERT INTO md_account_events(ts,venue,channel,ccy,data)
+		VALUES(now(),'mt5',$1,'USD',$2)`, src, blob); err != nil {
 		c.rej.Inc("snapshot_write_failed")
 	}
 }

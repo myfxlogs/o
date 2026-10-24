@@ -18,7 +18,6 @@ import (
 	"phase/internal/data/okxpriv"
 	"phase/internal/data/okxws"
 	"phase/internal/earn"
-	"phase/internal/facts"
 	"phase/internal/guard"
 	"phase/internal/ledger"
 	legfunding "phase/internal/ledger/funding"
@@ -125,44 +124,41 @@ func run() error {
 		v, _ := cfg.GetString("feishu.chat_id")
 		return v
 	}, func() bool { v, _ := cfg.GetBool("notify.feishu.enabled"); return v })
-	// kill_switch 状态变迁推（true/false 各一报——轮询 config 代次，不重复）。
-	go func() {
-		prev, _ := cfg.GetBool("risk.kill_switch")
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(30 * time.Second):
-			}
-			v, err := cfg.GetBool("risk.kill_switch")
-			if err == nil && v != prev {
-				alerter.Alert(ctx, "kill_switch", fmt.Sprintf("kill_switch %v→%v", prev, v))
-				prev = v
-			}
-		}
-	}()
+	go killSwitchNotifier(ctx, pool, cfg, alerter)
+	riskGate := risk.NewGate(pool, cfg)
+	var okcli *okxexec.Client
 	earnW := earn.NewWorker(pool, cfg)
 	go earnW.Run(ctx, errc)
-	var closeSizer guard.VenueSizer // 平仓量现读面（priv 凭据域内接线——T-0046 ②）
+	var closeSizer guard.VenueSizer // 平仓量现读面（priv 域接线 T-0046②）
+	var liveOpener lifecycle.Opener // live 开仓缝（priv 域接线 T-0050）
 	if priv, err := okxpriv.NewCollector(ctx, pool, false); err != nil {
 		log.Printf("WARN: 私流守缺席（%v）——凭据落位后重启即上岗", err)
 	} else {
-		earnW.AttachVenue(okxexec.NewClient(priv.Credentials(), false))
+		okcli = okxexec.NewClient(priv.Credentials(), false)
+		earnW.AttachVenue(okcli)
 		earnW.AttachAlerter(alerter)
+		// venue 现读件（T-0048：决策/判定/对账时点实读——快照行全域出局）。
+		// T-0048 返修②③：闲余=account 帧 details availBal（交易户口径——
+		// depositIdle 自 AcctTrading 摆钱；push-on-change 帧龄不判陈）。
+		earnW.AttachIdle(func(ctx context.Context) (float64, error) {
+			return okxAvailFromEvents(ctx, pool)
+		})
 		// 交易域首岗：执事（Executor=okxexec 唯一 venue 径——凭据与私流守同源解出）。
 		execR := execution.NewRunner(pool, cfg,
 			&execution.OkxExecutor{C: okxexec.NewClient(priv.Credentials(), false)}).WithEarn(earnW).WithAlerter(alerter)
 		go execution.Run(ctx, errc, execR)
 		closer = closeExec{r: execR}
-		// boot 首读播种器=okxexec /account/balance（事件锚定形一次性拉取——
-		// cmd 装配层接线，数据域不反向依赖交易域）。
+		// live 开仓缝（T-0050——gate+执事+元数据件同源接线）。
+		liveOpener = hedgeOpener{pool: pool, cfg: cfg, gate: riskGate, r: execR, // T-0050
+			cli: okxexec.NewClient(priv.Credentials(), false)}
+		// boot 首读播种（事件锚定一次性——cmd 接线，数据域不反依赖交易域）。
 		creds := priv.Credentials()
 		priv.SetBootFn(func(ctx context.Context) (map[string]float64, error) {
 			return okxexec.BalanceEquity(ctx, creds, false)
 		})
 		// 平仓量现读面（T-0046 ②——priv 凭据域内接线）。
 		closeSizer = okxSizer{okxexec.NewClient(priv.Credentials(), false)}
-		// funding 实收记账（T-0044）：余额帧事件驱动 bills→fin_cashflow（bills.go）。
+		// funding 记账（T-0044）：余额帧事件驱动 bills→fin_cashflow（bills.go）。
 		priv.SetBillsHook(legfunding.NewIngester(pool,
 			billsSrc{okxexec.NewClient(priv.Credentials(), false)}).Hook())
 		go priv.Run(ctx, errc)
@@ -211,32 +207,15 @@ func run() error {
 		go m5.Run(ctx, errc)
 	}
 
-	// 账户事实面（员工 集使——T-0041 业主令：全面了解不猜）：两 venue 户层+乐器层
-	// facts 单源层；okx 源=私流守凭据同源，mt5 源=独立会话开件；双缺=岗缺席 WARN。
-	{
-		var srcs []facts.Source
-		if priv, err := okxpriv.NewCollector(ctx, pool, false); err == nil {
-			okcli := okxexec.NewClient(priv.Credentials(), false)
-			srcs = append(srcs, &facts.OkxSource{Cli: okcli,
-				Symbols: func() []string { return cfg.GetStringList("okx.symbols") }})
-		}
-		if _, err := mt5.NewCollector(ctx, pool, cfg); err == nil {
-			srcs = append(srcs, &facts.Mt5Source{
-				Open:    func(ctx context.Context) (*mt5.Client, error) { return mt5.OpenSession(ctx, pool, cfg) },
-				Symbols: func() []string { return cfg.GetStringList("mt5.symbols") }})
-		}
-		if len(srcs) > 0 {
-			go facts.NewCollector(pool, srcs...).Run(ctx, errc)
-		} else {
-			log.Printf("WARN: 集使缺席——两 venue 凭据均缺，facts 面单源层待凭据落位")
-		}
-	}
-
 	// 研究域首岗：funding 枚举+评估卡（员工 探员/验证官）——判据全 app_config 机读。
 	go funding.NewRunner(pool, cfg).Run(ctx, errc)
 
-	// 投资域首岗：生命周期官（员工 命官）——提案→paper 沙箱→probe 晋升闸。
-	go lifecycle.NewRunner(pool, cfg).Run(ctx, errc)
+	// 投资域首岗：命官——paper→probe→live 开仓消费（T-0050 Opener 缝）。
+	lr := lifecycle.NewRunner(pool, cfg)
+	if liveOpener != nil {
+		lr.AttachOpener(liveOpener)
+	}
+	go lr.Run(ctx, errc)
 
 	// 复盘域：评史官（一仓一判决书+远期验证写回环——G10 收口）。
 	go review.NewRunner(pool).Run(ctx, errc)
@@ -246,21 +225,25 @@ func run() error {
 		mk, _ := config.ReadMasterKey()
 		go report.NewRunner(pool, report.NewPusher(pool, cfg, mk)).WithConfig(cfg).Run(ctx, errc)
 	}
-	go ledger.NewRunner(pool, cfg).WithAlerter(alerter).Run(ctx, errc)
+	ledgerR := ledger.NewRunner(pool, cfg).WithAlerter(alerter)
+	go ledgerR.Run(ctx, errc)
 
-	// 风控域首岗：唯一交易前闸（员工 门官）——G7 消费件就绪后只认放行令牌。
-	riskGate := risk.NewGate(pool, cfg)
+	// 风控域首岗：门官——唯一交易前闸，只认放行令牌。
 	go risk.Run(ctx, errc, riskGate)
 
-	// 看护域首岗：仓巡（G8）——持仓哨戒三触发+策略联动，close intent 过闸免拦径，
-	// 反向双腿平走执事 G7 径（凭据缺席=缝降级 stub 拒执 fail-closed）。
+	// 看护域首岗：仓巡（G8）——三触发+联动，close 免拦径，双腿平走 G7
+	//（凭据缺席=缝降级 stub 拒执 fail-closed）。
 	wd := guard.NewWarden(pool, cfg, riskGate, closer)
 	// 平仓量 venue 现读面（T-0046 ②——availBal/positions 实读，禁抄腿行委托量；
 	// 凭据缺席=不挂=平仓 fail-closed 不假量）。
 	if closeSizer != nil {
-		wd.AttachSizer(closeSizer)
+		wd.AttachSizer(closeSizer) // T-0046②：平仓量现读件
 	}
+	wd.AttachCtVal(ctValReader(okcli)) // T-0046①：面值现读件（venue_readers.go）
 	wd.AttachAlerter(alerter)
+	// venue 现读件（T-0048：快照行全域出局——venue_readers.go 装配）。
+	attachVenueReaders(riskGate, wd, ledgerR, pool, okcli,
+		func(ctx context.Context) (*mt5.Client, error) { return mt5.OpenSession(ctx, pool, cfg) })
 	go wd.Run(ctx, errc)
 
 	mux := http.NewServeMux()

@@ -24,7 +24,6 @@ func (c *Collector) Run(ctx context.Context, errc chan<- error) {
 		return
 	}
 	go roster.BeatLoop(ctx, c.pool, employeeName, 30*time.Second, errc)
-	go c.heartbeatLoop(ctx)
 
 	backoff := backoffMin
 	for ctx.Err() == nil {
@@ -124,21 +123,6 @@ func (c *Collector) dialLoop(ctx context.Context) error {
 			if last := c.lastFrm.Load(); last != 0 && time.Since(time.Unix(0, last)) > dataIdle {
 				return fmt.Errorf("私有帧静默 >%s——判死重连", dataIdle)
 			}
-		}
-	}
-}
-
-// heartbeatLoop 3min 拍刷末帧写快照行（防「静户无推送→快照陈→误杀」——
-// 活性判据=快照行新鲜度，事件零到达≠WS 死）。
-func (c *Collector) heartbeatLoop(ctx context.Context) {
-	t := time.NewTicker(heartbeat)
-	defer t.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-t.C:
-			c.flushSnapshot(ctx, "okx_event_hb")
 		}
 	}
 }
