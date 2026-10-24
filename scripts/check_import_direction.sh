@@ -57,6 +57,11 @@ internal/research/funding -> internal/platform/roster
 internal/data/okxws -> internal/platform/rejects
 internal/data/okxws -> internal/platform/roster
 internal/gen/mtapi/mt5/mt5connect -> internal/gen/mtapi/mt5
+internal/facts -> internal/gen/mtapi/mt5
+internal/facts -> internal/mt5
+internal/facts -> internal/platform/rejects
+internal/facts -> internal/platform/roster
+internal/facts -> internal/trading/okxexec
 internal/mt5 -> internal/gen/mtapi/mt5
 internal/mt5 -> internal/platform/config
 internal/mt5 -> internal/platform/cryptoutil

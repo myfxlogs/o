@@ -43,12 +43,29 @@ type Collector struct {
 	dial func(addr string) (*Client, error)
 }
 
-// NewCollector 凭据自 app_secrets 密文列解+网关址热启（缺件 fail-closed 上抛——
-// 装配层 WARN 缺席不炸 boot，与 okxpriv 同构）。
-func NewCollector(ctx context.Context, pool *pgxpool.Pool, cfg *config.Client) (*Collector, error) {
+// OpenSession 独立一次性会话（开连+登录——用毕调用方 Disconnect；facts 采面/
+// 探针面用，凭据/网关址与 Collector 同源）。
+func OpenSession(ctx context.Context, pool *pgxpool.Pool, cfg *config.Client) (*Client, error) {
+	addr, cr, err := readCreds(ctx, pool, cfg)
+	if err != nil {
+		return nil, err
+	}
+	cl, err := Dial(addr)
+	if err != nil {
+		return nil, err
+	}
+	if err := cl.Connect(ctx, cr); err != nil {
+		cl.Close()
+		return nil, err
+	}
+	return cl, nil
+}
+
+// readCreds 凭据+网关址读（NewCollector/OpenSession 共源）。
+func readCreds(ctx context.Context, pool *pgxpool.Pool, cfg *config.Client) (string, Credentials, error) {
 	mk, err := config.ReadMasterKey()
 	if err != nil {
-		return nil, fmt.Errorf("master key: %w", err)
+		return "", Credentials{}, fmt.Errorf("master key: %w", err)
 	}
 	get := func(k string) (string, error) {
 		var ct []byte
@@ -59,34 +76,43 @@ func NewCollector(ctx context.Context, pool *pgxpool.Pool, cfg *config.Client) (
 	}
 	login, err := get("mt5.login")
 	if err != nil {
-		return nil, err
+		return "", Credentials{}, err
 	}
 	var loginN uint64
 	if _, err := fmt.Sscanf(login, "%d", &loginN); err != nil {
-		return nil, fmt.Errorf("mt5.login 非数字（demo 户字样如实注）: %w", err)
+		return "", Credentials{}, fmt.Errorf("mt5.login 非数字（demo 户字样如实注）: %w", err)
 	}
 	pass, err := get("mt5.password")
 	if err != nil {
-		return nil, err
+		return "", Credentials{}, err
 	}
 	server, err := get("mt5.server")
 	if err != nil {
-		return nil, err
+		return "", Credentials{}, err
 	}
 	host, err := get("mt5.host")
 	if err != nil {
-		return nil, err // 密文行在但值可空（server 径户 host 空串合法）
+		return "", Credentials{}, err // 密文行在但值可空（server 径户 host 空串合法）
 	}
 	raw, err := cfg.Get("mt5.gateway_addr")
 	if err != nil {
-		return nil, fmt.Errorf("mt5.gateway_addr: %w", err)
+		return "", Credentials{}, fmt.Errorf("mt5.gateway_addr: %w", err)
 	}
 	var addr string
 	if err := json.Unmarshal(raw, &addr); err != nil {
+		return "", Credentials{}, err
+	}
+	return addr, Credentials{Login: loginN, Password: pass, Server: server, Host: host}, nil
+}
+
+// NewCollector 凭据自 app_secrets 密文列解+网关址热启（缺件 fail-closed 上抛——
+// 装配层 WARN 缺席不炸 boot，与 okxpriv 同构）。
+func NewCollector(ctx context.Context, pool *pgxpool.Pool, cfg *config.Client) (*Collector, error) {
+	addr, cr, err := readCreds(ctx, pool, cfg)
+	if err != nil {
 		return nil, err
 	}
-	return &Collector{pool: pool, cfg: cfg, addr: addr,
-		cr: Credentials{Login: loginN, Password: pass, Server: server, Host: host},
+	return &Collector{pool: pool, cfg: cfg, addr: addr, cr: cr,
 		rej: rejects.New("mt5", "connect_failed", "subscribe_failed", "stream_dead",
 			"symbols_read_failed", "snapshot_write_failed", "tick_write_err", "write_err")}, nil
 }
