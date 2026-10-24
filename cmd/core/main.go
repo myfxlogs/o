@@ -135,6 +135,7 @@ func run() error {
 			alerter.Alert(ctx, kind, msg)
 		})
 	}
+	startEventPush(ctx, errc, pool, cfg, sender) // 经营事件报（T-0061——event_push.go）
 	go killSwitchNotifier(ctx, pool, cfg, alerter)
 	riskGate := risk.NewGate(pool, cfg)
 	var okcli *okxexec.Client
