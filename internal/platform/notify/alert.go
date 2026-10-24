@@ -75,7 +75,12 @@ func (a *Alerter) Alert(ctx context.Context, kind, payload string) {
 	a.last[k] = time.Now()
 	a.sent[k] = n + 1
 	a.mu.Unlock()
-	text := fmt.Sprintf("[PHASE告警] %s | %s | %s", kind, payload, time.Now().Format("15:04:05"))
+	body, actable := HumanText(kind, payload)
+	prefix := "[经营事件] "
+	if actable {
+		prefix = "[PHASE告警] "
+	}
+	text := fmt.Sprintf("%s%s | %s", prefix, body, time.Now().Format("15:04:05"))
 	if _, err := a.cli.SendText(ctx, a.chatID(), text); err != nil {
 		log.Printf("[alert] feishu push err (%s): %v", kind, err)
 	}
