@@ -44,3 +44,9 @@
 - 返工 9fb33b0：`ledgerCap/backCap` 无条件封顶（min(avail-缓冲, max(引入,0))——零引入=零额度，fail-open 物理消失）+双零初态锚测试+restore.go 拆件。
 - 「继续推进」裁定：OnOrderProfit 事件化即动（与复审并行）——`550ead4` 汇市巡 profitLoop→md_account_events channel='order_profit'（值变才落+send-before-cancel 重连语义）；③ first-poll 项裁不适用（PHASE 无该组件）；§11-12 部署 runbook+复审增量范围回填 3dc8eb3。
 - 待办剩：复审席翻 550ead4+3dc8eb3 → merge 删支 → SG 部署 → 持仓期 `order_profit` 行流首验（勿为验证专开仓）。
+
+### 追加②（机制尾巴清场段）
+
+- 「机制尾巴要处理吧」→ T-0003 尾闭环：kbgen 迁移+7 旧条目补 frontmatter+索引机生重建；台账径行为首验 PASS（-mut 54 全绿，零越界实证）。
+- 「为什么要卖ETC？可以做call？」→ 实证裁：OKX 无 ETC 期权面、借贷率 1%/年≈$0.03——残尘非可操作量级留账不动；业主「收益太低再裁」的判准被 venue 事实坐实。
+- 待办剩：Claude 增量复审（§12）→merge→SG 部署→持仓期 order_profit 首验；collab.md 纪要条款入规=决策席修订件（§13 草案备妥）。

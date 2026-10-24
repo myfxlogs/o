@@ -95,3 +95,10 @@ clientId 方言（okx-asset-funding:3,20）、envelope sCode/sMsg（okx-exec:34�
 台账制修复径未实跑=本席同判「码面待修+修后首 `-mut` 实证」；当前真实账户 trading≈$0.2，两处 fail-open 现实危害≈0——**打回理由是保证语句不成立，非现账损失**。
 
 **裁定：段一二三事实面+机检+转录全过；台账制两处 fail-open 打回补丁（单点、量小），修复合入后本席复审即翻完成。**
+
+## 13. 续段补录（@21987fa）
+
+- **台账制复位径真金首验 PASS**（-mut 全谱 54/0/0）：dust_sell ETC→买回归账（耗 $2.83≈卖出所得，零越界）、`transfer_back 复位 0.00`（soldUSD=0 以外资金零动用实证）——ledgerCap/backCap 无条件封顶行为级成立。
+- **经验库索引机迁移落位**：`tools/kbgen`（gen/--check/read，noxkb gen 面移植，induct/LLM 管线不搬）；7 件散文旧条目补 schema v2 frontmatter；`索引.md` 机生重建（21 条目在册）、`技能清单.md` 首建。`gen --check` 可挂机检门禁。
+- **ETC 收益面裁定（业主探问实证）**：OKX 期权无 ETC（OPTION&uly=ETC-USD 空集）——covered call 此 venue 不可行；ETC 活期借贷利率 1% APR，0.369 ETC≈$3 规模年息 ~$0.03——**低于任何操作量级，残尘留 fin_holding 记实不动**。
+- **会话纪要规程化草案（待决策席修订 collab.md）**：check-out 协议增一步——「实质对话（决策/探问/转向/授权级）落 `docs/handoff/dialogue.md`；session 死≠事实死」；机制现以 `docs/handoff/dialogue.md` 文件+本 session 先例先行运转。
