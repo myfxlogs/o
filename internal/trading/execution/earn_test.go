@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"testing"
 )
 
@@ -76,5 +77,21 @@ func TestEarnAbsentNoRedeem(t *testing.T) {
 	did := mkToken(t, ctx, r, false, false, "allow")
 	if _, err := r.Execute(ctx, mkIntent(did)); err != nil {
 		t.Fatalf("未挂接应照常开仓: %v", err)
+	}
+}
+
+// TestClOrdIDCharset clOrdId 字符集锚（T-0038：OKX 大小写英数 only——连字符实拍
+// 51000；生成串必过 ^[A-Za-z0-9]{1,32}$，含回滚径 rb 形）。
+func TestClOrdIDCharset(t *testing.T) {
+	re := regexp.MustCompile(`^[A-Za-z0-9]{1,32}$`)
+	for i := 1; i <= 3; i++ {
+		for _, id := range []string{
+			fmt.Sprintf("ph%dx%dx%d", 123, i, 456789),
+			fmt.Sprintf("ph%drb%d", 123, 456789),
+		} {
+			if !re.MatchString(id) {
+				t.Fatalf("clOrdId 字符集非法: %q", id)
+			}
+		}
 	}
 }

@@ -31,7 +31,7 @@ func (f *fakeVenue) Place(ctx context.Context, leg Leg, clOrdID string) (OrderRe
 	if f.leg2Fail && leg.Venue == "leg2" {
 		return OrderResult{ClOrdID: clOrdID, State: "unknown"}, fmt.Errorf("transport down")
 	}
-	if f.rbFail && contains(clOrdID, "-rb-") {
+	if f.rbFail && contains(clOrdID, "rb") {
 		return OrderResult{ClOrdID: clOrdID, State: "unknown"}, fmt.Errorf("rb transport down")
 	}
 	return OrderResult{ClOrdID: clOrdID, State: "filled", FillPx: 1, FillSz: 100}, nil
@@ -43,7 +43,7 @@ func (f *fakeVenue) Resolve(ctx context.Context, leg Leg, clOrdID string) (Order
 	if f.leg2Fail && leg.Venue == "leg2" {
 		return OrderResult{ClOrdID: clOrdID, State: "unknown"}, fmt.Errorf("resolve down")
 	}
-	if f.rbFail && contains(clOrdID, "-rb-") {
+	if f.rbFail && contains(clOrdID, "rb") {
 		return OrderResult{ClOrdID: clOrdID, State: "unknown"}, fmt.Errorf("rb resolve down")
 	}
 	return OrderResult{ClOrdID: clOrdID, State: "filled"}, nil
@@ -188,13 +188,13 @@ func TestRollbackFailedEscalates(t *testing.T) {
 		t.Fatalf("state=%s（应 rollback_failed 升级留痕）", state)
 	}
 	for i, c := range fv.closed {
-		if c && fv.placed[i] != "" && !strings.Contains(fv.placed[i], "-rb-") {
+		if c && fv.placed[i] != "" && !strings.Contains(fv.placed[i], "rb") {
 			t.Fatalf("close 腿应只在 rb 径: %v", fv.placed[i])
 		}
 	}
 	var rbSeen bool
 	for i, p := range fv.placed {
-		if strings.Contains(p, "-rb-") && fv.closed[i] {
+		if strings.Contains(p, "rb") && fv.closed[i] {
 			rbSeen = true
 		}
 	}
