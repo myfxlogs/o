@@ -90,7 +90,7 @@ func mTransfers(ctx context.Context, cli *okxexec.Client, mvusd, tra float64) {
 	sec := "mut"
 	mv := mvusd / 4
 	if tra >= mv+1 {
-		cltid, err := cli.AssetTransfer(ctx, "USDT", mv, okxexec.AcctTrading, okxexec.AcctFunding)
+		cltid, _, err := cli.AssetTransfer(ctx, "USDT", mv, okxexec.AcctTrading, okxexec.AcctFunding)
 		if err != nil {
 			rec(sec, "transfer_out", "clTId="+cltid, "ok", "歧态势——查 transfer-state", false)
 			st, _ := cli.AssetTransferState(ctx, "USDT", cltid)
@@ -101,7 +101,7 @@ func mTransfers(ctx context.Context, cli *okxexec.Client, mvusd, tra float64) {
 			st, _ := cli.AssetTransferState(ctx, "USDT", cltid)
 			rec(sec, "transfer_state", st, "success", "clTId 定态实证", st == "success")
 		}
-		cltid2, err := cli.AssetTransfer(ctx, "USDT", mv, okxexec.AcctFunding, okxexec.AcctTrading)
+		cltid2, _, err := cli.AssetTransfer(ctx, "USDT", mv, okxexec.AcctFunding, okxexec.AcctTrading)
 		if err != nil {
 			recFail(sec, "transfer_in", "clTId="+cltid2+" "+err.Error())
 		} else {

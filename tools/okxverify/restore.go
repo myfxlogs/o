@@ -137,7 +137,7 @@ func mRestore(ctx context.Context, cli *okxexec.Client, dustInst string, soldUSD
 	// 零摆回零复购，fail-open 分支物理消失（原 if soldUSD>0 卫=事故同族残留）。
 	back := ledgerCap(tra2-0.5, soldUSD)
 	if back > 0 {
-		cltid, err := cli.AssetTransfer(ctx, "USDT", back, okxexec.AcctTrading, okxexec.AcctFunding)
+		cltid, _, err := cli.AssetTransfer(ctx, "USDT", back, okxexec.AcctTrading, okxexec.AcctFunding)
 		if err != nil {
 			recFail(sec, "transfer_back", err.Error())
 		} else {

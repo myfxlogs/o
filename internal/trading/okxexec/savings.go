@@ -14,6 +14,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net"
 	"net/http"
 	"strconv"
@@ -106,13 +107,22 @@ func (c *Client) savingsMove(ctx context.Context, ccy string, amt float64, side 
 
 // AssetTransfer 账户内划转（type=0，funding↔trading）——携幂等键（POST 体字段名=
 // clientId；查询侧 GET transfer-state 参名同为 clientId——实测 2026-10-24：写
-// clTId 被静默吞，查 clientId=自建值 返 51000 参数错）。
-func (c *Client) AssetTransfer(ctx context.Context, ccy string, amt float64, from, to string) (clTID string, err error) {
-	clTID = fmt.Sprintf("%d", time.Now().UnixNano()%1e15)
+// clTId 被静默吞）。T-0059：clientId=字母前缀混合（全数字在产查态被 58129 拒——
+// 方言防御）；响应 transId 落行返出（真源单号——留痕/对拍锚）。
+func (c *Client) AssetTransfer(ctx context.Context, ccy string, amt float64, from, to string) (clTID, transID string, err error) {
+	clTID = fmt.Sprintf("phT%x", time.Now().UnixNano()%1e15)
 	body := fmt.Sprintf(`{"type":"0","ccy":%q,"amt":%q,"from":%q,"to":%q,"clientId":%q}`,
 		ccy, fmtAmt(amt), from, to, clTID)
-	_, err = c.do(ctx, http.MethodPost, "/api/v5/asset/transfer", []byte(body))
-	return clTID, err
+	raw, err := c.do(ctx, http.MethodPost, "/api/v5/asset/transfer", []byte(body))
+	if err == nil {
+		var rows []struct {
+			TransID string `json:"transId"`
+		}
+		if json.Unmarshal(raw, &rows) == nil && len(rows) > 0 {
+			transID = rows[0].TransID
+		}
+	}
+	return clTID, transID, err
 }
 
 // AssetTransferState 按 clTId 定划转真态（success/failed/其他=在途或未知——调用方
@@ -134,9 +144,12 @@ func (c *Client) AssetTransferState(ctx context.Context, ccy, clTID string) (str
 	return rows[0].State, nil
 }
 
-// fmtAmt 金额串（8 位小数截齐，尾零裁剪——float 乘法噪声不进请求体）。
+// fmtAmt 金额串（8 位小数**向下截断**，尾零裁剪——float 乘法噪声不进请求体）。
+// T-0059 根修：全额划拨语义禁四舍五入——向上进位=请求额比实余大（$75.93 实证
+// 第 9 位 7 进位→58350 Insufficient balance→死锁环）。floor 是钱径铁律：
+// 请求额 ≤ 实余。
 func fmtAmt(amt float64) string {
-	s := strconv.FormatFloat(amt, 'f', 8, 64)
+	s := strconv.FormatFloat(math.Trunc(amt*1e8)/1e8, 'f', 8, 64)
 	s = strings.TrimRight(s, "0")
 	return strings.TrimSuffix(s, ".")
 }

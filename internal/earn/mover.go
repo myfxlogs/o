@@ -7,6 +7,7 @@ package earn
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"strconv"
@@ -67,33 +68,47 @@ func (w *Worker) RedeemToTrading(ctx context.Context, usdAmt float64) error {
 	return fmt.Errorf("earn redeem 划转在途: %w", terr)
 }
 
-// depositIdle 闲余回存停泊：摆渡 funding 户→申购 Earn。败=计数+ALERT（下拍重试=重试节拍）。
+// depositIdle 闲余回存停泊：摆渡 funding 户→申购 Earn。败=计数+ALERT+同因 5min 退避（T-0059）。
 // 调用方持单飞锁。
-func (w *Worker) depositIdle(ctx context.Context, amt float64) {
+func (w *Worker) depositIdle(ctx context.Context, amt float64) (moved bool) {
 	out, err := w.transfer(ctx, w.ccy, amt, okxexec.AcctTrading, okxexec.AcctFunding)
 	if out != txMoved {
 		w.rej.Inc("deposit_failed")
-		log.Printf("ALERT [earn] 回存摆渡败 %.4f USDT（%v）——钱留交易户，下拍重试", amt, err)
-		return
+		log.Printf("ALERT [earn] 回存摆渡败 %.8f USDT（%v）——钱留交易户，同因 5min 退避", amt, err)
+		return false
 	}
 	if err := w.api.SavingsPurchase(ctx, w.ccy, amt); err != nil {
 		w.rej.Inc("deposit_failed")
-		log.Printf("ALERT [earn] Earn 申购败 %.4f USDT（%v）——补偿摆回交易户", amt, err)
+		log.Printf("ALERT [earn] Earn 申购败 %.8f USDT（%v）——补偿摆回交易户", amt, err)
 		if cout, cerr := w.transfer(ctx, w.ccy, amt, okxexec.AcctFunding, okxexec.AcctTrading); cout != txMoved {
 			w.rej.Inc("compensation_failed")
-			log.Printf("ALERT [earn] 回存补偿摆回亦败——%.4f USDT 滞 funding 户（人工升级）: %v", amt, cerr)
+			log.Printf("ALERT [earn] 回存补偿摆回亦败——%.8f USDT 滞 funding 户（人工升级）: %v", amt, cerr)
 		}
-		return
+		return false
 	}
 	w.afterMove(ctx, "earn_deposit", amt, "earn_out", -amt,
-		fmt.Sprintf("闲资 %.4f USDT 回存 Earn 停泊（sweep_min_usd 阈上）", amt))
+		fmt.Sprintf("闲资 %.8f USDT 回存 Earn 停泊（sweep_min_usd 阈上）", amt))
+	return true
 }
 
-// transfer 划转+定态（type=0 账户内摆渡；传输名败按 clTId 查真态——禁盲重发）。
+// transfer 划转+定态（T-0059 分型律）：
+//   - venue 业务终拒（*APIError——58xxx/5xxxx 族）=确定单未建→txFailed 直返，
+//     **禁送仲裁禁重试**（58350 终拒→误送仲裁→58129「态未定」ALERT→5s 重试死锁实证）。
+//   - 传输名败（超时/5xx/conn 断）才进 transfer-state 仲裁；仲裁查询自身业务拒
+//     （*APIError）=该 clientId 无单在案→txFailed（58129/51000 双坑即此态 venue 表达）；
+//     查询亦传输败=txAmbiguous 禁重发禁补偿。
 func (w *Worker) transfer(ctx context.Context, ccy string, amt float64, from, to string) (transferOutcome, error) {
-	clTID, err := w.api.AssetTransfer(ctx, ccy, amt, from, to)
+	clTID, transID, err := w.api.AssetTransfer(ctx, ccy, amt, from, to)
 	if err == nil {
+		if transID != "" {
+			log.Printf("[earn] transfer 成 clTId=%s transId=%s amt=%.8f", clTID, transID, amt)
+		}
 		return txMoved, nil
+	}
+	var ae *okxexec.APIError
+	if errors.As(err, &ae) {
+		w.rej.Inc("transfer_rejected")
+		return txFailed, fmt.Errorf("transfer 终拒（clTId=%s code=%s）: %w", clTID, ae.Code, err)
 	}
 	state, serr := w.api.AssetTransferState(ctx, ccy, clTID)
 	switch {
@@ -101,6 +116,8 @@ func (w *Worker) transfer(ctx context.Context, ccy string, amt float64, from, to
 		return txMoved, nil // 传输名败实成——定真态放行
 	case serr == nil && state == transferTxFailed:
 		return txFailed, fmt.Errorf("transfer state=failed（clTId=%s）: %w", clTID, err)
+	case serr != nil && errors.As(serr, &ae):
+		return txFailed, fmt.Errorf("transfer 终拒+查态无单在案（clTId=%s qcode=%s）: %w", clTID, ae.Code, err)
 	default:
 		w.rej.Inc("transfer_ambiguous")
 		return txAmbiguous, fmt.Errorf("transfer 态未定（clTId=%s state=%s qerr=%v）: %w", clTID, state, serr, err)

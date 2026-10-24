@@ -17,7 +17,8 @@ import (
 // fakeAPI 可控 venue 停泊面（行为开关+调用记录——钱动锚全走此件）。
 type fakeAPI struct {
 	redeemErr, purchaseErr, transferErr, stateErr error
-	transferState                                 string // 非""=传输败后按 clTId 查得此态
+	transferReject                                *okxexec.APIError // venue 业务终拒（T-0059：txFailed 直返禁仲裁）
+	transferState                                 string            // 非""=传输败后按 clTId 查得此态
 	balance                                       float64
 	balOverride                                   string // 非""=SavingsBalance 原文覆写（⑦锚：pendingAmt 在途形）
 	redeems, purchases, stateQueries              []float64
@@ -38,9 +39,12 @@ func (f *fakeAPI) SavingsBalance(ctx context.Context) (json.RawMessage, error) {
 	}
 	return json.RawMessage(fmt.Sprintf(`[{"ccy":"USDT","amt":"%v"}]`, f.balance)), nil
 }
-func (f *fakeAPI) AssetTransfer(ctx context.Context, ccy string, amt float64, from, to string) (string, error) {
+func (f *fakeAPI) AssetTransfer(ctx context.Context, ccy string, amt float64, from, to string) (string, string, error) {
 	f.transfers = append(f.transfers, fmt.Sprintf("%s->%s:%.4f", from, to, amt))
-	return "777", f.transferErr
+	if f.transferReject != nil {
+		return "phT777", "", f.transferReject
+	}
+	return "phT777", "tr123", f.transferErr
 }
 func (f *fakeAPI) AssetTransferState(ctx context.Context, ccy, clTID string) (string, error) {
 	f.stateQueries = append(f.stateQueries, 1)
@@ -330,5 +334,34 @@ func TestParkingAmtNoDoubleCount(t *testing.T) {
 	if err := w.pool.QueryRow(context.Background(), `SELECT (data->>'earn_bal')::float FROM md_account_events
 		WHERE venue=$1 AND channel='earn_parking' AND ccy=$2 ORDER BY ts DESC LIMIT 1`, w.venue, w.ccy).Scan(&bal); err != nil || bal != 2129.00 {
 		t.Fatalf("停泊快照 bal=%v err=%v（应=amt 2129.00 非 2229.40 双计）", bal, err)
+	}
+}
+
+// T-0059 锚②：58xxx 业务终拒→txFailed 直返+零仲裁调用（58350 终拒误送仲裁→
+// 58129「态未定」ALERT→5s 同参重试死锁环实证的反面）。
+func TestTransferTerminalRejectNoArbitration(t *testing.T) {
+	fake := &fakeAPI{transferReject: &okxexec.APIError{Code: "58350", Msg: "Insufficient balance"}}
+	ctx, w, _ := setupW(t, fake, nil)
+	out, err := w.transfer(ctx, "USDT", 75.92713388, "18", "6")
+	if out != txFailed {
+		t.Fatalf("终拒应 txFailed: out=%v err=%v", out, err)
+	}
+	if len(fake.stateQueries) != 0 {
+		t.Fatalf("终拒禁送仲裁: stateQueries=%d", len(fake.stateQueries))
+	}
+	// 摆渡径消费面：depositIdle 终拒→moved=false（退避钩挂上游 sweepIdle）。
+	if moved := w.depositIdle(ctx, 75.92713388); moved {
+		t.Fatal("终拒后 moved 应 false")
+	}
+}
+
+// T-0059 锚②b：传输败→仲裁查询自身业务拒（*APIError）=无单在案→txFailed
+// （58129/51000 双坑的正解——非「态未定」死循环）。
+func TestTransferArbitrationQueryRejectIsFailed(t *testing.T) {
+	fake := &fakeAPI{transferErr: fmt.Errorf("conn reset"), stateErr: &okxexec.APIError{Code: "58129", Msg: "clientId does not match with 'type'"}}
+	ctx, w, _ := setupW(t, fake, nil)
+	out, _ := w.transfer(ctx, "USDT", 10, "18", "6")
+	if out != txFailed || len(fake.stateQueries) != 1 {
+		t.Fatalf("查询业务拒应 txFailed+一次仲裁: out=%v queries=%d", out, len(fake.stateQueries))
 	}
 }
