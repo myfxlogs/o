@@ -33,6 +33,13 @@ internal/guard -> internal/platform/notify
 internal/trading/execution -> internal/platform/notify
 internal/trading/mtexec -> internal/gen/mtapi/mt5
 internal/trading/mtexec -> internal/trading/execution
+internal/earn -> internal/platform/events
+internal/guard -> internal/platform/events
+internal/ledger -> internal/platform/events
+internal/ledger/holding -> internal/platform/events
+internal/portfolio/lifecycle -> internal/platform/events
+internal/research/funding -> internal/platform/events
+internal/review -> internal/platform/events
 internal/ledger/report -> internal/platform/roster
 internal/ledger -> internal/platform/roster
 internal/portfolio/lifecycle -> internal/platform/config

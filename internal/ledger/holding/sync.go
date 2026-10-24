@@ -8,15 +8,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
-	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"phase/internal/platform/events"
 	"phase/internal/platform/rejects"
 )
-
-const scanEvery = 5 * time.Minute // 资产端点采拍（账本侧低频同步——非行情流替代）
 
 // AssetRow venue 回报行（ccy/amount/可用/冻结+kind 归位）。
 type AssetRow struct {
@@ -45,16 +42,8 @@ func NewSyncer(pool *pgxpool.Pool, fetch Fetcher) *Syncer {
 
 // Run 采拍循环。
 func (s *Syncer) Run(ctx context.Context, errc chan<- error) {
-	for {
-		if err := s.sync(ctx); err != nil {
-			log.Printf("[holding] sync: %v", err)
-		}
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(scanEvery):
-		}
-	}
+	// 事件化（T-0048：周期环拆——venue 余额帧 ev_account 驱动采拍）。
+	events.ListenLoop(ctx, s.pool, "holding", []string{"ev_account"}, s.sync)
 }
 
 // sync 一拍：拉资产→UPSERT 行（asof 刷新，stale=false）；拉败=全行标陈旧不抹值。

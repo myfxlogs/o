@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"phase/internal/platform/events"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -14,11 +15,12 @@ import (
 	"phase/internal/platform/roster"
 )
 
-const scanEvery = 60 * time.Second
-
 // Runner 司账+核账双岗（结算闭环+对账环——账本只消费事实行不触发钱动作）。
 type Runner struct {
-	al   *notify.Alerter
+	al *notify.Alerter
+	// bal venue 侧余额现读件（T-0048：对账=检查时点 balances+savings 直连——
+	// (venue,ccy)→equity 实读聚合；nil=对账件缺席跳过不炸）。
+	bal  func(ctx context.Context) (map[[2]string]float64, error)
 	pool *pgxpool.Pool
 	cfg  *config.Client
 	rej  *rejects.Door
@@ -26,6 +28,12 @@ type Runner struct {
 
 // WithAlerter 挂告警器（nil=静默降级）。
 func (r *Runner) WithAlerter(a *notify.Alerter) *Runner { r.al = a; return r }
+
+// WithBalances 挂 venue 侧余额现读件（cmd 装配层接线——对账检查时点直读）。
+func (r *Runner) WithBalances(fn func(ctx context.Context) (map[[2]string]float64, error)) *Runner {
+	r.bal = fn
+	return r
+}
 
 func NewRunner(pool *pgxpool.Pool, cfg *config.Client) *Runner {
 	return &Runner{pool: pool, cfg: cfg,
@@ -40,16 +48,9 @@ func (r *Runner) Run(ctx context.Context, errc chan<- error) {
 		}
 		go roster.BeatLoop(ctx, r.pool, e[0], 30*time.Second, errc)
 	}
-	for {
-		if err := r.scan(ctx); err != nil {
-			log.Printf("[ledger] scan: %v", err)
-		}
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(scanEvery):
-		}
-	}
+	// 事件化（T-0048：周期环拆——cashflow 写+venue 余额帧+仓行变驱动）。
+	events.ListenLoop(ctx, r.pool, "ledger",
+		[]string{"ev_cashflow", "ev_account", "ev_position"}, r.scan)
 }
 
 func (r *Runner) tol(ctx context.Context) (float64, error) {
@@ -108,38 +109,34 @@ func (r *Runner) reconcile(ctx context.Context) error {
 		r.rej.Inc("missing_param")
 		return err
 	}
-	// T-0045 根修：快照 PK=(venue,venue_type,ccy)——同 venue+ccy 合法多子户行
-	//（okx/USDT=unified 交易户+earn 停泊户）。按 (venue,ccy) 聚合 equity 总额比对
-	//（fresh 判取 max(updated_at)——任一子户行新即整组判）。
-	rows, err := r.pool.Query(ctx, `SELECT s.venue,s.ccy,sum(s.equity),
-		COALESCE((SELECT sum(amount) FROM fin_cashflow c WHERE c.venue=s.venue AND c.ccy=s.ccy),0),
-		max(s.updated_at)
-		FROM fin_venue_account_snapshot s WHERE s.ccy IN ('USDT','USD')
-		GROUP BY s.venue,s.ccy`)
-	if err != nil {
-		return err
+	// T-0048 根修：venue 侧=检查时点 balances+savings 现读聚合（快照行出局——
+	// 判定面只读现读；读件缺席=对账面让位不炸——司账/结算径仍事件驱动）。
+	if r.bal == nil {
+		return nil
 	}
-	type rec struct {
+	ven, err := r.bal(ctx)
+	if err != nil {
+		r.rej.Inc("write_err")
+		return fmt.Errorf("venue 现读: %w", err)
+	}
+	var rs []struct {
 		venue, ccy string
 		eq, net    float64
-		fresh      bool
 	}
-	var rs []rec
-	for rows.Next() {
-		var x rec
-		var up time.Time
-		if err := rows.Scan(&x.venue, &x.ccy, &x.eq, &x.net, &up); err != nil {
-			rows.Close()
-			return err
+	for k, eq := range ven {
+		if k[1] != "USDT" && k[1] != "USD" {
+			continue
 		}
-		x.fresh = time.Since(up) < 5*time.Minute
-		rs = append(rs, x)
+		var net float64
+		_ = r.pool.QueryRow(ctx,
+			"SELECT COALESCE(sum(amount),0) FROM fin_cashflow WHERE venue=$1 AND ccy=$2",
+			k[0], k[1]).Scan(&net)
+		rs = append(rs, struct {
+			venue, ccy string
+			eq, net    float64
+		}{k[0], k[1], eq, net})
 	}
-	rows.Close()
 	for _, x := range rs {
-		if !x.fresh {
-			continue // 陈快照不单边判
-		}
 		if Diff(x.net, x.eq) > tol {
 			r.rej.Inc("diff_alert")
 			r.al.Alert(ctx, "ledger_diff_alert", "账实差超限——人工对拍")

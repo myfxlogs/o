@@ -101,7 +101,7 @@ func (c *Client) authed(ctx context.Context) context.Context {
 	return metadata.NewOutgoingContext(ctx, metadata.New(map[string]string{"id": c.token}))
 }
 
-// AccountSummary 权益/保证金实读（fin_venue_account_snapshot 源——USD 本位）。
+// AccountSummary 权益/保证金实读（md_account_events 事件行——USD 本位）。
 func (c *Client) AccountSummary(ctx context.Context) (equity, freeMargin, balance float64, err error) {
 	s, err := c.mt5.AccountSummary(c.authed(ctx), &mt5pb.AccountSummaryRequest{Id: c.token})
 	if err != nil {

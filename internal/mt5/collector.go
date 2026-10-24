@@ -194,18 +194,18 @@ func (c *Collector) session(ctx context.Context, dial func(string) (*Client, err
 	}
 }
 
-// snapshotOnce 账户快照行（equity/avail——AccountSummary 实读；写败=计数不炸会话）。
+// snapshotOnce 账户权益事件行（AccountSummary 实读→md_account_events append-only
+// 事实行；写败=计数不炸会话。T-0048：快照表废弃——事件行是同源真源）。
 func (c *Collector) snapshotOnce(ctx context.Context, cl *Client, src string) {
 	eq, fm, _, err := cl.AccountSummary(ctx)
 	if err != nil {
 		c.rej.Inc("symbols_read_failed")
-		log.Printf("[mt5] AccountSummary 读败（快照缺席）: %v", err)
+		log.Printf("[mt5] AccountSummary 读败（事件行缺席）: %v", err)
 		return
 	}
-	if _, err := c.pool.Exec(ctx, `INSERT INTO fin_venue_account_snapshot(venue,venue_type,ccy,equity,avail,src)
-		VALUES('mt5','mt5','USD',$1,$2,$3)
-		ON CONFLICT(venue,venue_type,ccy) DO UPDATE SET equity=EXCLUDED.equity,avail=EXCLUDED.avail,src=EXCLUDED.src,updated_at=now()`,
-		eq, fm, src); err != nil {
+	blob, _ := json.Marshal(map[string]any{"eq": eq, "avail": fm, "src": src})
+	if _, err := c.pool.Exec(ctx, `INSERT INTO md_account_events(ts,venue,channel,ccy,data)
+		VALUES(now(),'mt5',$1,'USD',$2)`, src, blob); err != nil {
 		c.rej.Inc("snapshot_write_failed")
 	}
 }

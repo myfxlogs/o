@@ -1,6 +1,6 @@
 // ddline.go —— 回撤硬线执行件（T-0025 段一；并入「仓巡」产出窗——业主令 2026-10-24
 // 军令机械化：-3%/30d 净权益回撤触线=全平+kill_switch 落闸+告警，无自动复位）。
-// 数据源（会签补正①）：fin_venue_account_snapshot.equity（venue 自报含 uPnL，对账环
+// 数据源（会签补正①）：venue 现读 equity（balances 实读含 uPnL，对账环
 // 同基准）→每拍采点 md_equity_curve 事实行（append-only 统计面；快照行本身 WS 事件源，
 // 本件零 venue 轮询）。判撤语义（会签补正②）：史满窗口→30d 滚动 peak-to-now；
 // 史不足→交易起点至今 HWM（开业首月无保护洞）。
@@ -19,8 +19,7 @@ import (
 )
 
 const (
-	equityFreshMax = 5 * time.Minute // 快照行新鲜度门（对账环/T-0019 同律——陈源不判）
-	ddTrigger      = "dd_30d"        // 硬线触发名（fin_guard_close.trigger 留痕）
+	ddTrigger = "dd_30d" // 硬线触发名（fin_guard_close.trigger 留痕）
 )
 
 // ddScan 一拍：采点→判撤→触线动作链。缺键/陈源=fail-closed 本拍不判+计数
@@ -79,20 +78,17 @@ func (w *Warden) ddScan(ctx context.Context) {
 	w.ddResume(ctx) // 触发拍即首轮续平（首败次拍起按节拍重入）
 }
 
-// captureEquity 净权益采点（unified 快照行 equity→md_equity_curve 事实行；
-// 缺行/陈>5min=计数不采不判——快照禁令读径新鲜度门）。
+// captureEquity 净权益采点（venue 现读件→md_equity_curve 事实行——T-0048 快照
+// 出局：硬线判定时点 equity 实读，读件缺/读败=计数不采不判）。
 func (w *Warden) captureEquity(ctx context.Context) (float64, bool) {
-	var eq float64
-	var up time.Time
-	err := w.pool.QueryRow(ctx, `SELECT equity,updated_at FROM fin_venue_account_snapshot
-		WHERE venue='okx' AND venue_type='unified' AND ccy='USDT'`).Scan(&eq, &up)
-	if err != nil {
+	if w.equity == nil {
 		w.rej.Inc("equity_missing")
 		return 0, false
 	}
-	if time.Since(up) > equityFreshMax {
-		w.rej.Inc("equity_stale")
-		log.Printf("ALERT [guard] unified 快照陈（%s>5min）——回撤判撤让位", up)
+	eq, err := w.equity(ctx)
+	if err != nil {
+		w.rej.Inc("equity_missing")
+		log.Printf("ALERT [guard] 净权益现读败——回撤判撤让位 fail-closed: %v", err)
 		return 0, false
 	}
 	if _, err := w.pool.Exec(ctx,

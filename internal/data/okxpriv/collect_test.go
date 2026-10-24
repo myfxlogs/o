@@ -55,7 +55,7 @@ func TestPrivE2E(t *testing.T) {
 	evt := `{"arg":{"channel":"balance_and_position"},"data":[{"ccy":"TSTCCY","instId":"TESTPRIV-USDT-SWAP","eqUsd":"21.6","availEq":"20"}]}`
 	for _, q := range []string{
 		"DELETE FROM md_account_events WHERE inst_id='TESTPRIV-USDT-SWAP'",
-		"DELETE FROM fin_venue_account_snapshot WHERE ccy='TSTCCY'"} {
+		"DELETE FROM md_account_events WHERE ccy='TSTCCY'"} {
 		if _, err := pool.Exec(ctx, q); err != nil {
 			t.Fatal(err)
 		}
@@ -79,7 +79,7 @@ func TestPrivE2E(t *testing.T) {
 		_ = pool.QueryRow(ctx,
 			"SELECT count(*) FROM md_account_events WHERE inst_id='TESTPRIV-USDT-SWAP'").Scan(&n)
 		_ = pool.QueryRow(ctx,
-			"SELECT equity FROM fin_venue_account_snapshot WHERE venue='okx' AND ccy='TSTCCY'").Scan(&eq)
+			"SELECT COALESCE((data->>'eqUsd')::float,(data->>'eq')::float) FROM md_account_events WHERE venue='okx' AND ccy='TSTCCY' ORDER BY ts DESC LIMIT 1").Scan(&eq)
 		if n > 0 && eq == 21.6 {
 			break
 		}
@@ -99,13 +99,13 @@ func TestAccountDetailsSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, q := range []string{
-		"DELETE FROM fin_venue_account_snapshot WHERE ccy IN ('TSTCCY2','TSTCCY3')",
+		"DELETE FROM md_account_events WHERE ccy IN ('TSTCCY2','TSTCCY3')",
 		"DELETE FROM md_account_events WHERE ccy IN ('TSTCCY2','TSTCCY3')"} {
 		if _, err := pool.Exec(ctx, q); err != nil {
 			t.Fatal(err)
 		}
 	}
-	defer pool.Exec(ctx, "DELETE FROM fin_venue_account_snapshot WHERE ccy IN ('TSTCCY2','TSTCCY3')")
+	defer pool.Exec(ctx, "DELETE FROM md_account_events WHERE ccy IN ('TSTCCY2','TSTCCY3')")
 	defer pool.Exec(ctx, "DELETE FROM md_account_events WHERE ccy IN ('TSTCCY2','TSTCCY3')")
 	frame := `{"arg":{"channel":"account"},"data":[{"uTime":"1792769662989","details":[
 		{"ccy":"TSTCCY2","eq":"100.5","eqUsd":"100.5","availEq":"80.25","availBal":"80.25"},
@@ -114,12 +114,14 @@ func TestAccountDetailsSnapshot(t *testing.T) {
 	c.rej = newTestRej()
 	c.handle(ctx, []byte(frame))
 	var eq, avail float64
-	if err := pool.QueryRow(ctx, `SELECT equity,avail FROM fin_venue_account_snapshot
-		WHERE venue='okx' AND venue_type='unified' AND ccy='TSTCCY2'`).Scan(&eq, &avail); err != nil || eq != 100.5 || avail != 80.25 {
+	if err := pool.QueryRow(ctx, `SELECT (d->>'eq')::float,COALESCE((d->>'availEq')::float,(d->>'availBal')::float)
+		FROM md_account_events e CROSS JOIN LATERAL jsonb_array_elements(e.data->'details') d
+		WHERE e.channel='account' AND d->>'ccy'='TSTCCY2' ORDER BY e.ts DESC LIMIT 1`).Scan(&eq, &avail); err != nil || eq != 100.5 || avail != 80.25 {
 		t.Fatalf("TSTCCY2 eq=%v avail=%v err=%v", eq, avail, err)
 	}
-	if err := pool.QueryRow(ctx, `SELECT equity,avail FROM fin_venue_account_snapshot
-		WHERE venue='okx' AND venue_type='unified' AND ccy='TSTCCY3'`).Scan(&eq, &avail); err != nil || eq != 7 || avail != 5 {
+	if err := pool.QueryRow(ctx, `SELECT (d->>'eq')::float,COALESCE((d->>'availEq')::float,(d->>'availBal')::float)
+		FROM md_account_events e CROSS JOIN LATERAL jsonb_array_elements(e.data->'details') d
+		WHERE e.channel='account' AND d->>'ccy'='TSTCCY3' ORDER BY e.ts DESC LIMIT 1`).Scan(&eq, &avail); err != nil || eq != 7 || avail != 5 {
 		t.Fatalf("TSTCCY3 eq=%v（ccy 本位口径优先）avail=%v err=%v", eq, avail, err)
 	}
 }

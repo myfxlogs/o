@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"phase/internal/platform/events"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -21,8 +22,6 @@ import (
 	"phase/internal/platform/roster"
 	"phase/internal/risk"
 )
-
-const scanEvery = 30 * time.Second
 
 // CloseSpec 平仓执行件规格（双腿反向原子平——guard 反转原仓腿侧，执行件只管
 // 成开成/开不成全收回的 G7 语义）。
@@ -54,16 +53,20 @@ func (missingExecutor) ExecuteClose(context.Context, CloseSpec) (int64, error) {
 
 // Warden 员工「仓巡」——常驻哨戒循环。
 type Warden struct {
-	pool *pgxpool.Pool
-	cfg  *config.Client
-	gate *risk.Gate
-	ex   Executor
-	rej  *rejects.Door
-	al   *notify.Alerter
+	pool   *pgxpool.Pool
+	cfg    *config.Client
+	gate   *risk.Gate
+	ex     Executor
+	rej    *rejects.Door
+	al     *notify.Alerter
+	equity func(ctx context.Context) (float64, error) // 净权益现读件（dd 硬线判定时点实读）
 }
 
 // AttachAlerter 挂告警器（nil=静默降级不炸）。
 func (w *Warden) AttachAlerter(a *notify.Alerter) { w.al = a }
+
+// AttachEquity 挂净权益现读件（装配层接线——dd 硬线判定时点 balances 实读）。
+func (w *Warden) AttachEquity(fn func(ctx context.Context) (float64, error)) { w.equity = fn }
 
 func NewWarden(pool *pgxpool.Pool, cfg *config.Client, gate *risk.Gate, ex Executor) *Warden {
 	if ex == nil {
@@ -83,16 +86,9 @@ func (w *Warden) Run(ctx context.Context, errc chan<- error) {
 		return
 	}
 	go roster.BeatLoop(ctx, w.pool, "仓巡", 30*time.Second, errc)
-	for {
-		if err := w.scanOnce(ctx); err != nil {
-			log.Printf("[guard] scan: %v", err)
-		}
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(scanEvery):
-		}
-	}
+	// 事件化（T-0048：周期环拆——tick/funding/仓行变真事件驱动 evaluate）。
+	events.ListenLoop(ctx, w.pool, "guard",
+		[]string{"ev_ticks", "ev_funding", "ev_position"}, w.scanOnce)
 }
 
 type posRow struct {

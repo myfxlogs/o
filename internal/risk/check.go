@@ -52,11 +52,20 @@ type Gate struct {
 	pool *pgxpool.Pool
 	cfg  *config.Client
 	rej  *rejects.Door
+	// equity venue 净权益现读件（T-0048：快照行出局——决策时点 balances/AccountSummary
+	// 实读注入；nil=concentration 判件缺席 fail-closed 拒开）。
+	equity func(ctx context.Context, venue string) (float64, error)
+}
+
+// WithEquity 挂 venue 权益现读件（cmd 装配层接线——risk 域不识 venue 方言）。
+func (g *Gate) WithEquity(fn func(ctx context.Context, venue string) (float64, error)) *Gate {
+	g.equity = fn
+	return g
 }
 
 func NewGate(pool *pgxpool.Pool, cfg *config.Client) *Gate {
 	return &Gate{pool: pool, cfg: cfg,
-		rej: rejects.New("risk", "kill_switch", "missing_param", "intent_incomplete",
+		rej: rejects.New("risk", "kill_switch", "missing_param", "intent_incomplete", "equity_missing",
 			"notional_cap", "venue_concentration", "exposure_cap",
 			"token_missing", "token_expired", "token_used", "write_err")}
 }
@@ -95,9 +104,16 @@ func (g *Gate) Check(ctx context.Context, in Intent) Decision {
 			return g.deny(ctx, in, "notional_cap")
 		}
 		// venue 集中度：该 venue 现有 open 敞口+本意图 > equity*max_pct。
+		// 权益=venue 现读（快照出局——读败=fail-closed 拒开，禁陈拍裁决）。
 		var eq, vExp, tExp float64
-		_ = g.pool.QueryRow(ctx,
-			"SELECT COALESCE(sum(equity),0) FROM fin_venue_account_snapshot WHERE venue=$1", in.Venue).Scan(&eq)
+		if g.equity == nil {
+			return g.deny(ctx, in, "missing_param")
+		}
+		eqV, err := g.equity(ctx, in.Venue)
+		if err != nil {
+			return g.deny(ctx, in, "equity_missing")
+		}
+		eq = eqV
 		// 敞口读面=非退役策略名义额事实行（paper/probe/live/degraded 占额）。
 		_ = g.pool.QueryRow(ctx,
 			"SELECT COALESCE(sum(notional_usd),0) FROM fin_strategy WHERE venue=$1 AND state<>'retired'", in.Venue).Scan(&vExp)

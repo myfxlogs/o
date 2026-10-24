@@ -57,7 +57,7 @@ func setup(t *testing.T) (context.Context, *Warden, *fakeExec) {
 		t.Fatal(err)
 	}
 	fx := &fakeExec{}
-	return ctx, NewWarden(pool, cfg, risk.NewGate(pool, cfg), fx), fx
+	return ctx, NewWarden(pool, cfg, risk.NewGate(pool, cfg).WithEquity(func(ctx context.Context, v string) (float64, error) { return 1000, nil }), fx), fx
 }
 
 // fakeExec 执行缝假件——录调用、可编程序失败（execID 定值 999 供衍生仓关闭断言；
