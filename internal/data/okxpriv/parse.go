@@ -100,6 +100,10 @@ func (c *Collector) handle(ctx context.Context, data []byte) {
 		}
 	}
 	c.flushSnapshot(ctx, "okx_event")
+	// 余额/持仓变动=一切到账事件（funding 结算/手续费/成交）——触发 bills 记账拉取。
+	if msg.Arg.Channel == "account" || msg.Arg.Channel == "balance_and_position" {
+		c.tryBills(ctx)
+	}
 }
 
 // setAvail 末帧 avail 缓存写（懒初始化——测试直构 Collector 无 map 场景不炸）。

@@ -87,6 +87,7 @@ func (c *Collector) dialLoop(ctx context.Context) error {
 	// boot 首读（事件锚定形 REST 播种——快照写径禁周期轮询，仅此一次性）：
 	// 静户零推送期快照即鲜；之后流事件+心跳续源。
 	c.bootstrapEquity(ctx)
+	c.tryBills(ctx) // boot 补漏：断连窗口内 bills 一次性拉齐（事件驱动主的兜底）
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()

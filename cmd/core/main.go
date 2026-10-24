@@ -21,6 +21,7 @@ import (
 	"phase/internal/facts"
 	"phase/internal/guard"
 	"phase/internal/ledger"
+	legfunding "phase/internal/ledger/funding"
 	"phase/internal/ledger/holding"
 	"phase/internal/ledger/report"
 	"phase/internal/mt5"
@@ -158,6 +159,9 @@ func run() error {
 		priv.SetBootFn(func(ctx context.Context) (map[string]float64, error) {
 			return okxexec.BalanceEquity(ctx, creds, false)
 		})
+		// funding 实收记账（T-0044）：余额帧事件驱动 bills→fin_cashflow（bills.go）。
+		priv.SetBillsHook(legfunding.NewIngester(pool,
+			billsSrc{okxexec.NewClient(priv.Credentials(), false)}).Hook())
 		go priv.Run(ctx, errc)
 
 		// 台账同步：资产端点采（okxexec 装配注入——账本域不反向依赖交易域；

@@ -42,9 +42,13 @@ type Collector struct {
 	lastAvail map[string]float64
 	// bootFn boot 首读播种器（事件锚定形 REST——装配层注入 okxexec 件；
 	// nil=纯流径不播种）。数据域不反向依赖交易域故注入非直 import。
-	bootFn  func(ctx context.Context) (map[string]float64, error)
-	frames  atomic.Int64
-	lastFrm atomic.Int64
+	bootFn func(ctx context.Context) (map[string]float64, error)
+	// billsHook bills 记账钩（T-0044 事件驱动：余额/持仓变动帧触发——
+	// 装配层注入 funding 记账件；nil=不触发）。
+	billsHook func(ctx context.Context)
+	lastBills atomic.Int64
+	frames    atomic.Int64
+	lastFrm   atomic.Int64
 }
 
 // NewCollector 凭据自 app_secrets 密文列解（master key 文件径；缺件 fail-closed 上抛）。
@@ -79,6 +83,27 @@ func newTestRej() *rejects.Door {
 // SetBootFn 注入 boot 首读播种器（装配层 cmd/core 接 okxexec——cmd 不受方向闸）。
 func (c *Collector) SetBootFn(fn func(ctx context.Context) (map[string]float64, error)) {
 	c.bootFn = fn
+}
+
+// SetBillsHook 注入 bills 记账钩（cmd 装配层接线——数据域不反向依赖账本域）。
+func (c *Collector) SetBillsHook(fn func(ctx context.Context)) { c.billsHook = fn }
+
+// tryBills 事件触发记账拉取（30s 节流——事件洪峰不放大 REST 面；
+// 异步+无取消 ctx——WS 读循环禁被 REST 拖死）。
+func (c *Collector) tryBills(ctx context.Context) {
+	if c.billsHook == nil {
+		return
+	}
+	for {
+		last := c.lastBills.Load()
+		if time.Now().Unix()-last < 30 {
+			return
+		}
+		if c.lastBills.CompareAndSwap(last, time.Now().Unix()) {
+			go c.billsHook(context.WithoutCancel(ctx))
+			return
+		}
+	}
 }
 
 // Credentials 装配层取凭据（bootFn 接线用——值不出 pkg 外非注入径）。
