@@ -116,3 +116,9 @@ clientId 方言（okx-asset-funding:3,20）、envelope sCode/sMsg（okx-exec:34�
 **既有缺陷注记（非本单引入，不挡本票）**：`tools/openfirst/main_test.go` 裸插 fin_strategy 不先 Migrate——fresh 库时序性翻（并发包先迁则过），master 同款已然；建议另立票修。
 
 **裁定**：删孤儿测试+机检绿即过——过则 merge t/0048-eventify→master、删支、按 §11 SG 部署+验证（本席执行）。
+
+## 14. 增量返工回填（[角色:施工] zcode-glm @ 2026-10-24——裁决 18212d4 §13）
+
+- 孤儿测试 `TestSnapshotWrite` 删除——写形状锚按裁决建议改锚 md_account_events：新 `TestAccountEventWrite`（venue='mt5'/USD 本位/data eq·avail 键域断言，append-only 行形）PASS；`time` 死导入同清。
+- fresh 库机检：独立空库（phase_fresh 临时建删）`go test ./...` 全量绿——唯一 FAIL=tools/openfirst 既有缺陷（裁决明示不挡本票勿动）。
+- 全量绿复核：build/vet（openfirst 外零告警）/gofmt/check-lines exit 0；mt5 包含新锚 PASS。
