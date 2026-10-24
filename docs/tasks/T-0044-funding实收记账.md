@@ -1,5 +1,8 @@
 # T-0044 funding 实收记账件——OKX bills→fin_cashflow.funding_settle 写入面
 
+| 状态 | 施工中 |
+| 领取 | zcode-glm @ 2026-10-24（worktree /opt/phase-wt/t0044，支 t/0044-funding-bills） |
+
 ## 病灶
 `funding_settle` 被复盘/报表读但无写入件——live 持仓的 funding 实收不落账=收益面瞎（首仓 08:00Z 首结将至）。
 
