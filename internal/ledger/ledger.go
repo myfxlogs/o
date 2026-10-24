@@ -59,7 +59,7 @@ func Post(ctx context.Context, pool *pgxpool.Pool, e Entry) (int64, error) {
 
 // NetAmount venue×ccy 净额=Σcashflow（一仓一判决书=position_ref 过滤同式）。
 func NetAmount(ctx context.Context, pool *pgxpool.Pool, venue, ccy string, positionRef *int64) (float64, error) {
-	q := "SELECT COALESCE(sum(amount),0) FROM fin_cashflow WHERE venue=$1 AND ccy=$2"
+	q := "SELECT COALESCE(sum(amount),0) FROM fin_cashflow WHERE venue=$1 AND ccy=$2 AND kind NOT IN ('earn_in','earn_out')"
 	args := []any{venue, ccy}
 	if positionRef != nil {
 		q += " AND position_ref=$3"

@@ -121,17 +121,14 @@ func TestRedeemAmountNotionalPlusBuffer(t *testing.T) {
 	if fmt.Sprint(fake.transfers) != fmt.Sprint(want) {
 		t.Fatalf("transfers=%v（应 funding→trading %v）", fake.transfers, want)
 	}
-	cf := cashflowOf(t, ctx, w, "earn_in")
-	if len(cf) != 1 || fmt.Sprintf("%.4f", cf[0]) != "100.5000" {
-		t.Fatalf("earn_in 留痕=%v", cf)
+	if cf := cashflowOf(t, ctx, w, "earn_in"); len(cf) != 0 {
+		t.Fatalf("T-0060：内部划转禁落 cashflow，行=%v", cf)
 	}
 	var reason string
-	var srcRef int64
-	var srcTable string
-	if err := w.pool.QueryRow(ctx, `SELECT d.reason,c.source_ref,c.source_table FROM fin_cashflow c
-		JOIN fin_risk_decision d ON d.id=c.source_ref WHERE c.kind='earn_in' AND c.source_table='fin_risk_decision'`).
-		Scan(&reason, &srcRef, &srcTable); err != nil || reason != "transfer" {
-		t.Fatalf("transfer 留痕链 reason=%s err=%v", reason, err)
+	if err := w.pool.QueryRow(ctx, `SELECT reason FROM fin_risk_decision
+		WHERE intent->>'kind'='transfer' AND intent->>'op'='earn_redeem' ORDER BY id DESC LIMIT 1`).
+		Scan(&reason); err != nil || reason != "transfer" {
+		t.Fatalf("transfer decision 留痕缺 reason=%s err=%v", reason, err)
 	}
 	var bal float64
 	if err := w.pool.QueryRow(ctx, `SELECT (data->>'earn_bal')::float FROM md_account_events
@@ -197,8 +194,8 @@ func TestRedeemTransportFailActuallyMoved(t *testing.T) {
 	if len(fake.purchases) != 0 {
 		t.Fatal("实成不应补偿")
 	}
-	if cf := cashflowOf(t, ctx, w, "earn_in"); len(cf) != 1 {
-		t.Fatalf("earn_in 留痕缺: %v", cf)
+	if cf := cashflowOf(t, ctx, w, "earn_in"); len(cf) != 0 {
+		t.Fatalf("T-0060：内部划转禁落 cashflow，行=%v", cf)
 	}
 }
 
@@ -218,8 +215,13 @@ func TestDepositSweep(t *testing.T) {
 	if len(fake.purchases) != 1 || fake.purchases[0] != 150 {
 		t.Fatalf("申购=%v", fake.purchases)
 	}
-	if cf := cashflowOf(t, ctx, w, "earn_out"); len(cf) != 1 || fmt.Sprintf("%.4f", cf[0]) != "-150.0000" {
-		t.Fatalf("earn_out 留痕=%v（应 -150）", cf)
+	if cf := cashflowOf(t, ctx, w, "earn_out"); len(cf) != 0 {
+		t.Fatalf("T-0060：内部划转禁落 cashflow，行=%v", cf)
+	}
+	var op string
+	if err := w.pool.QueryRow(ctx, `SELECT intent->>'op' FROM fin_risk_decision
+		WHERE intent->>'kind'='transfer' ORDER BY id DESC LIMIT 1`).Scan(&op); err != nil || op != "earn_deposit" {
+		t.Fatalf("decision 留痕 op=%s err=%v", op, err)
 	}
 	var bal float64
 	if err := w.pool.QueryRow(ctx, `SELECT (data->>'earn_bal')::float FROM md_account_events

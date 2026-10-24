@@ -97,7 +97,7 @@ func (r *Runner) settle(ctx context.Context) error {
 	for _, id := range ids {
 		var net float64
 		if err := r.pool.QueryRow(ctx,
-			"SELECT COALESCE(sum(amount),0) FROM fin_cashflow WHERE position_ref=$1", id).Scan(&net); err != nil {
+			"SELECT COALESCE(sum(amount),0) FROM fin_cashflow WHERE position_ref=$1 AND kind NOT IN ('earn_in','earn_out')", id).Scan(&net); err != nil {
 			return err
 		}
 		if _, err := r.pool.Exec(ctx,
@@ -143,7 +143,7 @@ func (r *Runner) reconcile(ctx context.Context) error {
 		}
 		var net float64
 		_ = r.pool.QueryRow(ctx,
-			"SELECT COALESCE(sum(amount),0) FROM fin_cashflow WHERE venue=$1 AND ccy=$2",
+			"SELECT COALESCE(sum(amount),0) FROM fin_cashflow WHERE venue=$1 AND ccy=$2 AND kind NOT IN ('earn_in','earn_out')",
 			k[0], k[1]).Scan(&net)
 		rs = append(rs, struct {
 			venue, ccy string
@@ -160,10 +160,12 @@ func (r *Runner) reconcile(ctx context.Context) error {
 	return nil
 }
 
-// daySnapshot 日切（venue×ccy 净额行——NAV 底数；USDT/USD 各记各的行零折算）。
+// daySnapshot 日切（venue×ccy 净额行——NAV=venue 总权益口径 T-0060 钉死；
+// earn_in/earn_out 内部划转显式排除——历史行在禁改=过滤非删）。
 func (r *Runner) daySnapshot(ctx context.Context) error {
 	_, err := r.pool.Exec(ctx, `INSERT INTO fin_ledger_snapshot(venue,ccy,net_usd,snap_date)
-		SELECT venue,ccy,sum(amount),CURRENT_DATE FROM fin_cashflow GROUP BY venue,ccy
+		SELECT venue,ccy,sum(amount),CURRENT_DATE FROM fin_cashflow
+		WHERE kind NOT IN ('earn_in','earn_out') GROUP BY venue,ccy
 		ON CONFLICT(venue,ccy,snap_date) DO UPDATE SET net_usd=EXCLUDED.net_usd,ts=now()`)
 	return err
 }

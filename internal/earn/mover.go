@@ -134,6 +134,10 @@ func (w *Worker) afterMove(ctx context.Context, op string, amt float64, kind str
 		VALUES($1,'allow','transfer',$2) RETURNING id`, intent, w.cfg.Generation()).Scan(&dID); err != nil {
 		w.rej.Inc("write_err")
 		log.Printf("ALERT [earn] %s——decision 留痕写败: %v", msg, err)
+	} else if kind == "earn_in" || kind == "earn_out" {
+		// T-0060 根修：停泊/赎回=venue 内部划转（trading↔funding↔earn——
+		// NAV 总额零影响）——fin_cashflow 单边落行=等额假差病灶，停写；
+		// 留痕径=decision 行+md_account_events earn_parking 事件行。
 	} else if _, err := ledger.Post(ctx, w.pool, ledger.Entry{
 		Kind: kind, Venue: w.venue, Ccy: w.ccy, Amount: cashAmount,
 		SourceRef: dID, SourceTable: "fin_risk_decision",
