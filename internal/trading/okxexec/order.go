@@ -67,32 +67,41 @@ const (
 // 例外：51603 Order does not exist=确定的单未建（absent 语义——同 clOrdId 可重试
 // 幂等键；真单 exec_id=2 实勘），非查询败。
 func (c *Client) ResolveOrder(ctx context.Context, instID, clOrdID string) (OrderState, error) {
+	st, _, err := c.ResolveOrderDetail(ctx, instID, clOrdID)
+	return st, err
+}
+
+// ResolveOrderDetail 定真态+成交均价（T-0077：avgPx 落库锚——px 缺席=mtm/已
+// 实现盈亏双断；签名增值不破坏旧口径）。
+func (c *Client) ResolveOrderDetail(ctx context.Context, instID, clOrdID string) (OrderState, float64, error) {
 	raw, err := c.Get(ctx, fmt.Sprintf("/api/v5/trade/order?instId=%s&clOrdId=%s", instID, clOrdID))
 	if err != nil {
 		var ae *APIError
 		if errors.As(err, &ae) && ae.Code == "51603" {
-			return StateAbsent, nil
+			return StateAbsent, 0, nil
 		}
-		return StateUnknown, fmt.Errorf("resolve 查询败（歧态势禁补单）: %w", err)
+		return StateUnknown, 0, fmt.Errorf("resolve 查询败（歧态势禁补单）: %w", err)
 	}
 	var rows []struct {
 		State string `json:"state"`
+		AvgPx string `json:"avgPx"`
 	}
 	if err := json.Unmarshal(raw, &rows); err != nil {
-		return StateUnknown, err
+		return StateUnknown, 0, err
 	}
 	if len(rows) == 0 {
-		return StateAbsent, nil
+		return StateAbsent, 0, nil
 	}
+	px := ParseF(rows[0].AvgPx)
 	switch rows[0].State {
 	case "filled":
-		return StateFilled, nil
+		return StateFilled, px, nil
 	case "live":
-		return StateLive, nil
+		return StateLive, px, nil
 	case "partially_filled":
-		return StatePartial, nil
+		return StatePartial, px, nil
 	default: // canceled/mmp_canceled 等→按 absent 消费语义由调用方判
-		return OrderState(rows[0].State), nil
+		return OrderState(rows[0].State), px, nil
 	}
 }
 
