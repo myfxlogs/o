@@ -65,6 +65,9 @@ fi
 if [ -x scripts/check_migration_contract.sh ]; then
   scripts/check_migration_contract.sh
 fi
+if [ -x scripts/check_no_decision_snapshot.sh ]; then
+  scripts/check_no_decision_snapshot.sh
+fi
 
 # 7. gofmt 门禁（-c core.quotepath=off 必须带：中文路径 quoted 形态破匹配）
 STAGED_GO=$(git -c core.quotepath=off diff --cached --name-only --diff-filter=ACMR | grep '\.go$' || true)
