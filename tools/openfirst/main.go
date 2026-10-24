@@ -6,6 +6,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -69,6 +70,43 @@ func main() {
 		os.Exit(1)
 	}
 	gate := risk.NewGate(pool, cfg)
+	// venue 权益现读件（T-0050：open 径 venue 集中度判据依赖——裸 gate 缺件=
+	// missing_param 拒，真单前置闸实测炸点）。eq=Σdetails eqUsd（USDT 本位户）。
+	{
+		cred0 := okxCreds(ctx, pool, mk)
+		gate.WithEquity(func(ctx context.Context, venue string) (float64, error) {
+			if venue != "okx" {
+				return 0, fmt.Errorf("openfirst 只识 okx venue: %s", venue)
+			}
+			bal, err := okxexec.BalanceEquity(ctx, cred0, false)
+			if err != nil {
+				return 0, err
+			}
+			sum := 0.0
+			for _, v := range bal {
+				sum += v
+			}
+			// 停泊态口径（T-0050 同 cmd 产线）：venue 权益含 funding 户+Earn
+			//（D-0006 资本可及面——只读交易户=停泊态集中度永拒）。
+			c0 := okxexec.NewClient(cred0, false)
+			if bals, err := c0.AssetBalances(ctx); err == nil {
+				for _, b := range bals {
+					sum += okxexec.ParseF(b.Bal)
+				}
+			}
+			if sav, err := c0.SavingsBalance(ctx); err == nil {
+				var rows []struct {
+					Amt string `json:"amt"`
+				}
+				if json.Unmarshal(sav, &rows) == nil {
+					for _, r2 := range rows {
+						sum += okxexec.ParseF(r2.Amt)
+					}
+				}
+			}
+			return sum, nil
+		})
+	}
 	in := risk.Intent{StrategyRef: *sid, Venue: venue, InstID: instID,
 		Legs: []string{"perp_short", "spot_long"}, NotionalUSD: notional, Leverage: 1, Kind: "open"}
 	dec := gate.Check(ctx, in)
@@ -76,16 +114,7 @@ func main() {
 	if !dec.Allow || *dry {
 		return
 	}
-	var cred okxexec.Credentials
-	for k, dst := range map[string]*string{"okx.api_key": &cred.Key, "okx.api_secret": &cred.Secret, "okx.passphrase": &cred.Passphrase} {
-		var ct []byte
-		if err := pool.QueryRow(ctx, "SELECT ciphertext FROM app_secrets WHERE key=$1", k).Scan(&ct); err != nil {
-			fmt.Fprintln(os.Stderr, k, err)
-			os.Exit(1)
-		}
-		p, _ := cryptoutil.Open(mk, ct)
-		*dst = p
-	}
+	cred := okxCreds(ctx, pool, mk)
 	cli := okxexec.NewClient(cred, false)
 	// Earn 赎回件装配同产线（T-0037——交易户 USDT≈0 实勘，不挂=保证金必拒；
 	// 两结构通用：赎回只动 OKX Earn，cfd_perp 的 mt5 腿保证金在 MT5 户内）。
@@ -221,4 +250,19 @@ func resolveStrategy(ctx context.Context, pool *pgxpool.Pool, sid int64) (int64,
 			WHERE state IN ('probe','live') ORDER BY id DESC LIMIT 1`).
 		Scan(&id, &instID, &notional, &venue)
 	return id, instID, notional, venue, err
+}
+
+// okxCreds okx 凭据解（app_secrets 密文列+master key——零回显）。
+func okxCreds(ctx context.Context, pool *pgxpool.Pool, mk []byte) okxexec.Credentials {
+	var cred okxexec.Credentials
+	for k, dst := range map[string]*string{"okx.api_key": &cred.Key, "okx.api_secret": &cred.Secret, "okx.passphrase": &cred.Passphrase} {
+		var ct []byte
+		if err := pool.QueryRow(ctx, "SELECT ciphertext FROM app_secrets WHERE key=$1", k).Scan(&ct); err != nil {
+			fmt.Fprintln(os.Stderr, k, err)
+			os.Exit(1)
+		}
+		p, _ := cryptoutil.Open(mk, ct)
+		*dst = p
+	}
+	return cred
 }

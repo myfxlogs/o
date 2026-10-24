@@ -158,6 +158,10 @@ func (c *Collector) dialLoop(ctx context.Context, syms []string, gen int64) erro
 		return fmt.Errorf("subscribe: %w", err)
 	}
 	log.Printf("[okxws] subscribed syms=%d args=%d url=%s", len(syms), len(sub["args"].([]map[string]string)), c.url)
+	// 看门狗起表（T-0050 根修）：lastFrame 初值 0=「未起表」盲区——队列塞死时
+	// 业务帧永不上前移，watchdog 恒 skip（SG 实勘静默断流）。订阅成功即起表：
+	// 75s 无帧判死重连，盲区消失。
+	c.lastFrame.Store(time.Now().UnixNano())
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()

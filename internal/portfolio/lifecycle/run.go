@@ -21,16 +21,17 @@ var critKeys = []string{
 	"invest.paper.notional_usd",
 }
 
-// Runner 命官岗：提案→paper 开户→虚拟结算→判据晋升。
+// Runner 命官岗：提案→paper 开户→虚拟结算→判据晋升→live 开仓消费（T-0050）。
 type Runner struct {
 	pool *pgxpool.Pool
 	cfg  *config.Client
+	op   Opener
 	rej  *rejects.Door
 }
 
 func NewRunner(pool *pgxpool.Pool, cfg *config.Client) *Runner {
 	return &Runner{pool: pool, cfg: cfg,
-		rej: rejects.New("lifecycle", "illegal_transition", "missing_criteria", "write_err", "live_switch_off")}
+		rej: rejects.New("lifecycle", "illegal_transition", "missing_criteria", "write_err", "live_switch_off", "open_failed")}
 }
 
 func (r *Runner) Run(ctx context.Context, errc chan<- error) {
@@ -78,7 +79,12 @@ func (r *Runner) scan(ctx context.Context) error {
 	if err := r.paperAccounting(ctx); err != nil {
 		return err
 	}
-	return r.promote(ctx, minH, minNet, maxDD, liveSw)
+	if err := r.promote(ctx, minH, minNet, maxDD, liveSw); err != nil {
+		return err
+	}
+	// ④ live 开仓消费（T-0050 首仓序④——无未平仓行的 live 行过 Opener 缝）。
+	r.openLive(ctx)
+	return nil
 }
 
 // admitProposals 新提案开户（state=paper；criteria 快照入行——判据代次留痕）。

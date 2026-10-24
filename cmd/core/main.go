@@ -153,6 +153,8 @@ func run() error {
 			}
 		}
 	}()
+	riskGate := risk.NewGate(pool, cfg)
+	var liveOpener lifecycle.Opener // live 开仓缝（priv 凭据域内接线——T-0050）
 	var okcli *okxexec.Client
 	earnW := earn.NewWorker(pool, cfg)
 	go earnW.Run(ctx, errc)
@@ -173,6 +175,9 @@ func run() error {
 			&execution.OkxExecutor{C: okxexec.NewClient(priv.Credentials(), false)}).WithEarn(earnW).WithAlerter(alerter)
 		go execution.Run(ctx, errc, execR)
 		closer = closeExec{r: execR}
+		// live 开仓缝（T-0050 首仓序④——gate+执事+okx 元数据现读件同源接线）。
+		liveOpener = hedgeOpener{pool: pool, cfg: cfg, gate: riskGate, r: execR,
+			cli: okxexec.NewClient(priv.Credentials(), false)}
 		// boot 首读播种器=okxexec /account/balance（事件锚定形一次性拉取——
 		// cmd 装配层接线，数据域不反向依赖交易域）。
 		creds := priv.Credentials()
@@ -231,8 +236,13 @@ func run() error {
 	// 研究域首岗：funding 枚举+评估卡（员工 探员/验证官）——判据全 app_config 机读。
 	go funding.NewRunner(pool, cfg).Run(ctx, errc)
 
-	// 投资域首岗：生命周期官（员工 命官）——提案→paper 沙箱→probe 晋升闸。
-	go lifecycle.NewRunner(pool, cfg).Run(ctx, errc)
+	// 投资域首岗：生命周期官（员工 命官）——提案→paper 沙箱→probe 晋升→
+	// live 开仓消费（T-0050：Opener 缝=gate→BuildLegs→Execute 事件驱自动径）。
+	lr := lifecycle.NewRunner(pool, cfg)
+	if liveOpener != nil {
+		lr.AttachOpener(liveOpener)
+	}
+	go lr.Run(ctx, errc)
 
 	// 复盘域：评史官（一仓一判决书+远期验证写回环——G10 收口）。
 	go review.NewRunner(pool).Run(ctx, errc)
@@ -246,7 +256,6 @@ func run() error {
 	go ledgerR.Run(ctx, errc)
 
 	// 风控域首岗：唯一交易前闸（员工 门官）——G7 消费件就绪后只认放行令牌。
-	riskGate := risk.NewGate(pool, cfg)
 	go risk.Run(ctx, errc, riskGate)
 
 	// 看护域首岗：仓巡（G8）——持仓哨戒三触发+策略联动，close intent 过闸免拦径，

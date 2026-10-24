@@ -97,6 +97,43 @@ func (r *Runner) promote(ctx context.Context, minH, minNet, maxDD float64, liveS
 			return err
 		}
 	}
+	// probe→live（T-0050 首仓序④）：观察窗（同 minH 键复用——不另造判据）+
+	// paper 净回报续优 + **委员会 live_switch=true**（缺/非 true fail-closed 不晋）。
+	if !liveSw {
+		return nil
+	}
+	prows, err := r.pool.Query(ctx, `SELECT s.id,
+		EXTRACT(EPOCH FROM (now()-s.entered_at))/3600.0,
+		COALESCE((SELECT sum(amount_usd) FROM fin_paper_fill f WHERE f.strategy_id=s.id),0)
+		FROM fin_strategy s WHERE s.state='probe'`)
+	if err != nil {
+		return err
+	}
+	type pc struct {
+		id    int64
+		hours float64
+		net   float64
+	}
+	var pcs []pc
+	for prows.Next() {
+		var c pc
+		if err := prows.Scan(&c.id, &c.hours, &c.net); err != nil {
+			prows.Close()
+			return err
+		}
+		pcs = append(pcs, c)
+	}
+	prows.Close()
+	for _, c := range pcs {
+		if c.hours < minH || c.net < minNet {
+			continue
+		}
+		if err := Transition(ctx, r.pool, c.id, "live",
+			"probe 观察窗满+净回报续优+委员会开关 true→live 真钱开仓岗", liveSw); err != nil {
+			r.rej.Inc("illegal_transition")
+			return err
+		}
+	}
 	return nil
 }
 
