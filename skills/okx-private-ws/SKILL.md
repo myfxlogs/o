@@ -8,6 +8,7 @@ domain: 工程
 - 实现件：`internal/data/collect/exchange/okx_private_ws_events.go`（事件→快照行）、`okx_private_ws_heartbeat.go`（活性心跳）
 - SG 产验：`fin_venue_account_snapshot` `src=okx_event` `venue_type=unified` 行 ~5s 一拍（balance_and_position 含浮盈变动=自带心跳）；capitalview 私面败件清零
 - JIT 事件源：`JitOkxEarnEvent` 由 account push 钩子触发（外部入金/赎回到账/成交结算全覆盖）
+- bills 记账钩（T-0044）：account/balance_and_position 帧触发 `SetBillsHook`→/account/bills 拉取→fin_venue_bill（billId 幂等）→fin_cashflow.funding_settle/fee；30s 节流+boot 补漏一次；funding 记账件在 internal/ledger/funding（REST=事件后增量拉非轮询）
 ## 频道与口径
 - `balance_and_position`：余额+持仓变动推送——**一切余额变动都是事件**（成交/费用/入金/赎回）；落 `okx_event` 快照行
 - 快照行：`Venue=okx, VenueType=unified, Currency=USDT`；`EquityRaw=Σdetails eqUsd`，`FreeMarginRaw` 不采=equity 回退

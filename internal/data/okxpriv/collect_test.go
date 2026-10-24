@@ -123,3 +123,30 @@ func TestAccountDetailsSnapshot(t *testing.T) {
 		t.Fatalf("TSTCCY3 eq=%v（ccy 本位口径优先）avail=%v err=%v", eq, avail, err)
 	}
 }
+
+// T-0044 锚：余额/持仓变动帧触发 bills 记账钩（事件驱动——REST 非轮询主径）。
+func TestBillsHookOnAccountFrame(t *testing.T) {
+	pool := testutil.Pool(t)
+	ctx := context.Background()
+	c := &Collector{pool: pool, rej: newTestRej(), lastEq: map[string]float64{}}
+	hit := make(chan struct{}, 4)
+	c.SetBillsHook(func(context.Context) { hit <- struct{}{} })
+	frame := []byte(`{"arg":{"channel":"account"},"data":[{"ccy":"USDT","eqUsd":"100"}]}`)
+	c.handle(ctx, frame)
+	select {
+	case <-hit:
+	case <-time.After(2 * time.Second): // sched-exempt-ok 测试等待异步钩——非周期调度
+		t.Fatal("account 帧未触发 bills 钩")
+	}
+	// 节流窗内第二帧不再触发（30s 窗）。
+	c.handle(ctx, frame)
+	select {
+	case <-hit:
+		t.Fatal("节流窗内不应重复触发")
+	case <-time.After(200 * time.Millisecond): // sched-exempt-ok 测试等待节流窗——非周期调度
+	}
+	// 非余额面频道（未知频道）不触发。
+	c2 := &Collector{pool: pool, rej: newTestRej(), lastEq: map[string]float64{}}
+	c2.SetBillsHook(func(context.Context) { t.Fatal("无关频道不应触发") })
+	c2.handle(ctx, []byte(`{"arg":{"channel":"orders"},"data":[{"instId":"X"}]}`))
+}
