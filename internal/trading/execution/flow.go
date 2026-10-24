@@ -77,7 +77,8 @@ func (r *Runner) Execute(ctx context.Context, in Intent) (int64, error) {
 // placeAndResolve 下单+歧义定态（okx-exec 契约：传输败→Resolve 定真态；
 // unknown=ambiguous 禁补单）。腿行每拍落 fin_order_leg。
 func (r *Runner) placeAndResolve(ctx context.Context, execID int64, no int, leg Leg) (OrderResult, error) {
-	clOrdID := fmt.Sprintf("ph-%d-%d-%d", execID, no, time.Now().UnixNano()%1e6)
+	// clOrdId=大小写英数 only（OKX 实拍 51000——T-0038：连字符非法；字母位分隔）。
+	clOrdID := fmt.Sprintf("ph%dx%dx%d", execID, no, time.Now().UnixNano()%1e6)
 	res, err := r.exec.Place(ctx, leg, clOrdID)
 	if err != nil {
 		// 传输败→clOrdId 定态三分支；查询亦败=ambiguous 禁补单。
@@ -110,7 +111,7 @@ func (r *Runner) rollback(ctx context.Context, execID int64, leg Leg, res OrderR
 	}
 	rev.Close = true // hedge 平仓语义根修（T-0036：反向新开非平仓——executor 按位走平径）
 	rev.Ticket = res.FillTicket
-	clOrdID := fmt.Sprintf("ph-%d-rb-%d", execID, time.Now().UnixNano()%1e6)
+	clOrdID := fmt.Sprintf("ph%drb%d", execID, time.Now().UnixNano()%1e6)
 	rb, err := r.exec.Place(ctx, rev, clOrdID)
 	if err != nil {
 		rb, err = r.exec.Resolve(ctx, rev, clOrdID)
