@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -27,12 +28,35 @@ func (coreService) Ping(context.Context, *dashboardv1.PingRequest) (*dashboardv1
 // Overview 总览四联活读（所见即所得——零快照零缓存；数据出生证=查询时戳）。
 func (c coreService) Overview(ctx context.Context, _ *dashboardv1.OverviewRequest) (*dashboardv1.OverviewResponse, error) {
 	o := &dashboardv1.OverviewResponse{Ts: time.Now().UTC().Format(time.RFC3339)}
+	// T-0072 口径正名：nav=venue 帧总权益（account/balance_and_position
+	// details 全币 eqUsd 求和——与对账同源非现金流累加；deposit 本金不计资产）。
+	var frame json.RawMessage
+	if err := c.pool.QueryRow(ctx, `SELECT data FROM md_account_events
+		WHERE channel IN ('account','balance_and_position') ORDER BY ts DESC LIMIT 1`).Scan(&frame); err == nil {
+		var top struct {
+			EqUsd   string `json:"eqUsd"`
+			Details []struct {
+				EqUsd string `json:"eqUsd"`
+			} `json:"details"`
+		}
+		if json.Unmarshal(frame, &top) == nil {
+			if len(top.Details) > 0 {
+				for _, d := range top.Details {
+					v, _ := strconv.ParseFloat(d.EqUsd, 64)
+					o.NavTotal += v
+				}
+			} else {
+				o.NavTotal, _ = strconv.ParseFloat(top.EqUsd, 64)
+			}
+		}
+	}
+	// 盈亏=经营性四件（interest/funding_settle/trade_pnl/fee）——
+	// deposit/withdraw/earn_*/recon_adjust 全出局（口径正名锚）。
+	const opKinds = "('interest','funding_settle','trade_pnl','fee')"
 	_ = c.pool.QueryRow(ctx, `SELECT COALESCE(sum(amount),0) FROM fin_cashflow
-		WHERE kind NOT IN ('earn_in','earn_out')`).Scan(&o.NavTotal)
+		WHERE occurred_at::date=CURRENT_DATE AND kind IN `+opKinds).Scan(&o.PnlToday)
 	_ = c.pool.QueryRow(ctx, `SELECT COALESCE(sum(amount),0) FROM fin_cashflow
-		WHERE occurred_at::date=CURRENT_DATE AND kind NOT IN ('earn_in','earn_out')`).Scan(&o.PnlToday)
-	_ = c.pool.QueryRow(ctx, `SELECT COALESCE(sum(amount),0) FROM fin_cashflow
-		WHERE kind NOT IN ('earn_in','earn_out','deposit','withdraw')`).Scan(&o.PnlCum)
+		WHERE kind IN `+opKinds).Scan(&o.PnlCum)
 	prow, _ := c.pool.Query(ctx, `SELECT id,inst_id,opened_at FROM fin_position
 		WHERE closed_at IS NULL ORDER BY id DESC LIMIT 5`)
 	for prow.Next() {
@@ -66,7 +90,7 @@ func (c coreService) Overview(ctx context.Context, _ *dashboardv1.OverviewReques
 		_ = rrows.Scan(&ts, &kind, &amt)
 		verb := map[string]string{"funding_settle": "资金费到账", "fee": "交易成本",
 			"trade_pnl": "平仓盈亏", "deposit": "入金", "withdraw": "出金",
-			"interest": "活期利息", "recon_adjust": "对账校准"}[kind]
+			"interest": "活期利息", "recon_adjust": "校账调整"}[kind]
 		o.Recent = append(o.Recent, fmt.Sprintf("%s %s %+.4f USDT",
 			ts.Format("15:04"), verb, amt))
 	}
