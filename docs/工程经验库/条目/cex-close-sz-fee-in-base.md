@@ -1,3 +1,16 @@
+---
+schema_version: 2
+id: cex-close-sz-fee-in-base
+kind: pitfall
+risk: high
+status: verified
+keywords: [平仓量, availBal实读, taker费基准币扣, LEGGED, 委托量非持仓量, sz]
+scope: [cex 现货平仓, okx, 平滚径, 一切「再操作量」读径]
+summary: 现货平仓量禁抄腿行 sz——taker 费从基准币扣实持<记录；一切「再操作量」必须 venue 余额实读现况推，禁从当时委托参数推
+first_seen: 2026-10-24
+last_verified: 2026-10-24
+skills: [okx-exec, okx-account]
+---
 # cex-close-sz-fee-in-base —— 现货平仓量禁抄腿行 sz：taker 费从基准币扣，实持 < 记录
 
 ## 坑

@@ -1,3 +1,16 @@
+---
+schema_version: 2
+id: earn-amt-pending-doublecount
+kind: pitfall
+risk: high
+status: verified
+keywords: [savings, amt, pendingAmt, 双计, Earn, 在途申购]
+scope: [okx Earn 余额读径, 权益聚合, 对账面]
+summary: /finance/savings/balance 的 amt 已含在途 pendingAmt——amt+pending 求和=双计权益虚高
+first_seen: 2026-10-24
+last_verified: 2026-10-24
+skills: [okx-asset-funding, okx-account]
+---
 # earn-amt-pending-doublecount —— OKX savings amt 已含 pendingAmt，amt+pending 求和=双计
 
 ## 坑

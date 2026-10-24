@@ -1,3 +1,16 @@
+---
+schema_version: 2
+id: exec-notional-ctval-missing
+kind: pitfall
+risk: high
+status: verified
+keywords: [ctVal, 名义额, 张数, notional, swap, 漂移误判]
+scope: [cex 合约腿, okx swap, 名义额/净敞口计算]
+summary: 合约名义额=sz×ctVal×px——sz 是张数非币量，漏 ctVal 因子错一个数量级（假漂移误诊）
+first_seen: 2026-10-24
+last_verified: 2026-10-24
+skills: [okx-api-spec, okx-exec]
+---
 # exec-notional-ctval-missing —— 合约名义额 = sz×ctVal×px，sz×px 错一个数量级
 
 ## 坑
