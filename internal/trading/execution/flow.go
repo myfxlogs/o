@@ -81,14 +81,19 @@ func (r *Runner) Execute(ctx context.Context, in Intent) (int64, error) {
 		r.rollback(ctx, execID, l1, res1)
 		return execID, fmt.Errorf("leg2 败/歧义→LEGGED 回滚 leg1")
 	}
-	// ⑥仓行（delta 中性标——funding 对冲天然）。
-	var posID int64
-	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_position(execution_id,strategy_ref,inst_id,notional_usd)
-		VALUES($1,$2,$3,$4) RETURNING id`,
-		execID, in.StrategyRef, in.InstID, in.NotionalUSD).Scan(&posID); err != nil {
-		r.rej.Inc("write_err")
-	} else {
-		r.linkLegCash(ctx, execID, posID)
+	// ⑥仓行（delta 中性标——funding 对冲天然）——仅 open 径建（T-0083 返修①：
+	// close 径禁建新仓行——被平的是既有仓（guard markClosed 关原行），close 建
+	// 行=空壳壳行+cash 错绑病灶源）；linkLegCash 同律只挂 open 径（返修②：
+	// close 腿 posRef 已按开仓仓现读对，execution_id 回溯会错绑本 exec 壳行）。
+	if in.Kind != "close" {
+		var posID int64
+		if err := r.pool.QueryRow(ctx, `INSERT INTO fin_position(execution_id,strategy_ref,inst_id,notional_usd)
+			VALUES($1,$2,$3,$4) RETURNING id`,
+			execID, in.StrategyRef, in.InstID, in.NotionalUSD).Scan(&posID); err != nil {
+			r.rej.Inc("write_err")
+		} else {
+			r.linkLegCash(ctx, execID, posID)
+		}
 	}
 	log.Printf("[execution] #%d %s 双腿成交（clOrdId %s/%s）", execID, in.InstID, res1.ClOrdID, res2.ClOrdID)
 	return execID, nil

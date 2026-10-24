@@ -11,6 +11,7 @@ import (
 	"phase/internal/platform/testutil"
 	"phase/internal/store/pgstore"
 	"phase/internal/trading/okxexec"
+	"phase/migrations"
 )
 
 // fakeVenue 可控 venue（Place 行为按 clOrdID 路由；onPlace=调用序钩子——前置赎回序锚用）。
@@ -587,5 +588,104 @@ func TestLegCashSymmetric(t *testing.T) {
 		JOIN fin_order_leg l ON c.source_ref=l.id AND c.source_table='fin_order_leg'
 		WHERE l.inst_id LIKE '%-SWAP'`).Scan(&n); err != nil || n != 0 {
 		t.Fatalf("合约腿现金行=%d（应 0）", n)
+	}
+}
+
+// T-0083 返修①②锚：close 径禁建 fin_position 新行（空壳病灶根除）+linkLegCash
+// 只挂 open 径——close 卖腿现金行归「开仓仓现读」原行，不被 execution_id 回溯重绑。
+func TestCloseNoShellRowBindsOriginal(t *testing.T) {
+	fv := &fakeVenue{}
+	ctx, r := setup(t, fv)
+	did := mkToken(t, ctx, r, false, false, "allow")
+	eid, err := r.Execute(ctx, mkIntent(did))
+	if err != nil {
+		t.Fatalf("开仓: %v", err)
+	}
+	var pid int64
+	if err := r.pool.QueryRow(ctx, "SELECT id FROM fin_position WHERE execution_id=$1", eid).Scan(&pid); err != nil {
+		t.Fatal(err)
+	}
+	did2 := mkToken(t, ctx, r, false, false, "allow")
+	cin := Intent{Kind: "close", DecisionID: did2, InstID: "BTC-USDT-SWAP", NotionalUSD: 100,
+		Legs: [2]Leg{
+			{Venue: "okx", InstID: "BTC-USDT-SWAP", Side: "buy", Sz: "1", Notional: 50, Close: true},
+			{Venue: "okx", InstID: "BTC-USDT", Side: "sell", Sz: "0.02", Notional: 50, Close: true},
+		}}
+	if _, err := r.Execute(ctx, cin); err != nil {
+		t.Fatalf("平仓: %v", err)
+	}
+	var n int
+	if err := r.pool.QueryRow(ctx, "SELECT count(*) FROM fin_position").Scan(&n); err != nil || n != 1 {
+		t.Fatalf("close 径建仓行=%d（应 0——禁空壳）", n)
+	}
+	var amt float64
+	var pref *int64
+	if err := r.pool.QueryRow(ctx, `SELECT amount,position_ref FROM fin_cashflow
+		WHERE kind='spot_sell' AND source_table='fin_order_leg'`).Scan(&amt, &pref); err != nil {
+		t.Fatal(err)
+	}
+	if amt != 0.02 || pref == nil || *pref != pid {
+		t.Fatalf("spot_sell 归仓错: amount=%.4f pref=%v want %d", amt, pref, pid)
+	}
+}
+
+// T-0083 返修③④锚：0040 数据修复——壳绑现金行重绑「该 inst 最近已开仓」
+// 原开仓行；零引用壳行删除。幂等：重跑零变化。
+func TestMigration0040ShellRepair(t *testing.T) {
+	fv := &fakeVenue{}
+	ctx, r := setup(t, fv)
+	// 造病灶快照：原开仓 P1 + close exec 壳 P2 + 卖腿 + 壳绑现金行。
+	var eidOpen, eidClose int64
+	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_execution(strategy_ref,inst_id,notional_usd,state)
+		VALUES(1,'BTC-USDT',100,'closed') RETURNING id`).Scan(&eidOpen); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_execution(strategy_ref,inst_id,notional_usd,state)
+		VALUES(1,'BTC-USDT',100,'closed') RETURNING id`).Scan(&eidClose); err != nil {
+		t.Fatal(err)
+	}
+	var p1, p2 int64
+	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_position(execution_id,inst_id,notional_usd,opened_at)
+		VALUES($1,'BTC-USDT',100,now()-interval '2 hours') RETURNING id`, eidOpen).Scan(&p1); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_position(execution_id,inst_id,notional_usd,opened_at)
+		VALUES($1,'BTC-USDT',100,now()) RETURNING id`, eidClose).Scan(&p2); err != nil {
+		t.Fatal(err)
+	}
+	var legID int64
+	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_order_leg(execution_id,leg_no,cl_ord_id,venue,side,inst_id,sz,state,px)
+		VALUES($1,2,'cl-x','okx','sell','BTC-USDT','0.02','filled',100) RETURNING id`, eidClose).Scan(&legID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.pool.Exec(ctx, `INSERT INTO fin_cashflow(kind,venue,ccy,amount,position_ref,source_ref,source_table,occurred_at)
+		VALUES('spot_sell','okx','USDT',2,$1,$2,'fin_order_leg',now())`, p2, legID); err != nil {
+		t.Fatal(err)
+	}
+	// 跑 0040 本体（Migrate 版本序已含——测试库走手排防版本先记账）。
+	body, err := migrations.FS.ReadFile("0040_position_ref_repair.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.pool.Exec(ctx, string(body)); err != nil {
+		t.Fatal(err)
+	}
+	var pref *int64
+	if err := r.pool.QueryRow(ctx, "SELECT position_ref FROM fin_cashflow WHERE source_ref=$1", legID).Scan(&pref); err != nil {
+		t.Fatal(err)
+	}
+	if pref == nil || *pref != p1 {
+		t.Fatalf("卖腿现金行应重绑原开仓 %d: got %v", p1, pref)
+	}
+	var n int
+	if err := r.pool.QueryRow(ctx, "SELECT count(*) FROM fin_position WHERE inst_id='BTC-USDT'").Scan(&n); err != nil || n != 1 {
+		t.Fatalf("壳行未清: inst 仓行=%d（应 1）", n)
+	}
+	// 幂等：重跑零变化。
+	if _, err := r.pool.Exec(ctx, string(body)); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.pool.QueryRow(ctx, "SELECT position_ref FROM fin_cashflow WHERE source_ref=$1", legID).Scan(&pref); err != nil || pref == nil || *pref != p1 {
+		t.Fatalf("重跑应零变化: %v %v", pref, err)
 	}
 }

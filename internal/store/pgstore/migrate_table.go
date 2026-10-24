@@ -42,6 +42,7 @@ var migrationTable = []struct {
 	{37, "0037_trade_pnl_symmetric.sql"},
 	{38, "0038_leg_cashflow_symmetric.sql"},
 	{39, "0039_next_funding.sql"},
+	{40, "0040_position_ref_repair.sql"},
 	{25, "0025_order_leg_venue_err.sql"},
 	{26, "0026_venue_facts.sql"},
 	{27, "0027_venue_bill.sql"},
