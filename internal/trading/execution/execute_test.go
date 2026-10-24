@@ -20,6 +20,7 @@ type fakeVenue struct {
 	placed    []string
 	closed    []bool
 	onPlace   func()
+	reject    bool // Place 业务拒（sCode≠0 语义——T-0040 留痕锚）
 }
 
 func (f *fakeVenue) Place(ctx context.Context, leg Leg, clOrdID string) (OrderResult, error) {
@@ -27,6 +28,9 @@ func (f *fakeVenue) Place(ctx context.Context, leg Leg, clOrdID string) (OrderRe
 	f.closed = append(f.closed, leg.Close)
 	if f.onPlace != nil {
 		f.onPlace()
+	}
+	if f.reject {
+		return OrderResult{ClOrdID: clOrdID, State: "absent", VenueCode: "51000", VenueMsg: "Parameter clOrdId error"}, nil
 	}
 	if f.leg2Fail && leg.Venue == "leg2" {
 		return OrderResult{ClOrdID: clOrdID, State: "unknown"}, fmt.Errorf("transport down")
@@ -373,5 +377,24 @@ func TestCfdTradeModeGate(t *testing.T) {
 	if _, _, err := BuildCfdLegs("BTC-USDT-SWAP", "BTCUSDm", 2000,
 		CfdMeta{ContractSize: 1, MinLot: 0.01, LotStep: 0.01, TradeMode: 4}, 90000, 0.01); err != nil {
 		t.Fatalf("FullAccess 应放行: %v", err)
+	}
+}
+
+// T-0040 锚：Place 业务拒（sCode≠0）真拒因进 fin_order_leg.state=failed+拒码留痕。
+func TestPlaceRejectCodeLeavesTrace(t *testing.T) {
+	fv := &fakeVenue{reject: true}
+	ctx, r := setup(t, fv)
+	did := mkToken(t, ctx, r, false, false, "allow")
+	eid, err := r.Execute(ctx, mkIntent(did))
+	if err == nil {
+		t.Fatal("业务拒应失败收场")
+	}
+	var state, code, msg string
+	if err := r.pool.QueryRow(ctx, `SELECT state,venue_err_code,venue_err_msg FROM fin_order_leg
+		WHERE execution_id=$1 AND leg_no=1`, eid).Scan(&state, &code, &msg); err != nil {
+		t.Fatal(err)
+	}
+	if state != "failed" || code != "51000" || msg == "" {
+		t.Fatalf("留痕缺失: state=%s code=%q msg=%q（应 failed+51000+真拒因）", state, code, msg)
 	}
 }

@@ -3,9 +3,16 @@ package okxexec
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 )
+
+// APIError venue 业务层拒（envelope code≠0）——类型化供调用方按码定态
+// （如 51603=Order does not exist→absent，禁字符串匹配）。
+type APIError struct{ Code, Msg string }
+
+func (e *APIError) Error() string { return "okx code=" + e.Code + " msg=" + e.Msg }
 
 // OrderParams 下单入参（方言：tdMode=cash[spot]/cross[perp]；posSide=net 单向户）。
 type OrderParams struct {
@@ -43,9 +50,15 @@ const (
 )
 
 // ResolveOrder GET /trade/order?instId&clOrdId 定真态；查询败→StateUnknown。
+// 例外：51603 Order does not exist=确定的单未建（absent 语义——同 clOrdId 可重试
+// 幂等键；真单 exec_id=2 实勘），非查询败。
 func (c *Client) ResolveOrder(ctx context.Context, instID, clOrdID string) (OrderState, error) {
 	raw, err := c.Get(ctx, fmt.Sprintf("/api/v5/trade/order?instId=%s&clOrdId=%s", instID, clOrdID))
 	if err != nil {
+		var ae *APIError
+		if errors.As(err, &ae) && ae.Code == "51603" {
+			return StateAbsent, nil
+		}
 		return StateUnknown, fmt.Errorf("resolve 查询败（歧态势禁补单）: %w", err)
 	}
 	var rows []struct {
@@ -67,6 +80,22 @@ func (c *Client) ResolveOrder(ctx context.Context, instID, clOrdID string) (Orde
 	default: // canceled/mmp_canceled 等→按 absent 消费语义由调用方判
 		return OrderState(rows[0].State), nil
 	}
+}
+
+// AccountPosMode GET /account/config posMode（long_short_mode|net_mode）——
+// 双向户开仓腿 posSide 装配依据（T-0040）。空值/读败上抛=调用方 fail-closed。
+func (c *Client) AccountPosMode(ctx context.Context) (string, error) {
+	raw, err := c.Get(ctx, "/api/v5/account/config")
+	if err != nil {
+		return "", err
+	}
+	var rows []struct {
+		PosMode string `json:"posMode"`
+	}
+	if err := json.Unmarshal(raw, &rows); err != nil || len(rows) == 0 || rows[0].PosMode == "" {
+		return "", fmt.Errorf("posMode 读不回（fail-closed）: err=%v rows=%d", err, len(rows))
+	}
+	return rows[0].PosMode, nil
 }
 
 func parseF(s string) float64 {
