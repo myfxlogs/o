@@ -14,6 +14,7 @@ import (
 	"hash/fnv"
 	"log"
 	"reflect"
+	"strings"
 	"sync"
 	"time"
 )
@@ -57,8 +58,12 @@ func (a *Alerter) Alert(ctx context.Context, kind, payload string) {
 	if a == nil || cliNil(a.cli) || a.chatID == nil || a.chatID() == "" || (a.on != nil && !a.on()) {
 		return
 	}
+	// T-0081 返修：指纹按 kind+title 定（payload 变额每抖重置阶梯=持续差
+	// 退避失效病灶——title 稳定=同病同阶）。
+	body0, _ := HumanText(kind, payload)
+	title := strings.SplitN(body0, "\n", 2)[0]
 	fp := fnv.New64a()
-	_, _ = fp.Write([]byte(kind + "|" + payload))
+	_, _ = fp.Write([]byte(kind + "|" + title))
 	k := fp.Sum64()
 	a.mu.Lock()
 	n := a.sent[k]
@@ -75,7 +80,13 @@ func (a *Alerter) Alert(ctx context.Context, kind, payload string) {
 	a.last[k] = time.Now()
 	a.sent[k] = n + 1
 	a.mu.Unlock()
-	text := fmt.Sprintf("[PHASE告警] %s | %s | %s", kind, payload, time.Now().Format("15:04:05"))
+	body := body0
+	_, actable := HumanText(kind, payload)
+	prefix := "[经营事件] "
+	if actable {
+		prefix = "[PHASE告警] "
+	}
+	text := fmt.Sprintf("%s%s | %s", prefix, body, time.Now().Format("15:04:05"))
 	if _, err := a.cli.SendText(ctx, a.chatID(), text); err != nil {
 		log.Printf("[alert] feishu push err (%s): %v", kind, err)
 	}

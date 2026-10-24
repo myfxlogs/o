@@ -176,9 +176,16 @@ func (r *Runner) reconcile(ctx context.Context) error {
 		}{k[0], k[1], eq, net})
 	}
 	for _, x := range rs {
-		if Diff(x.net, x.eq) > tol {
+		// T-0081 已知残差豁免：未过期豁免额补进容差——只压已定性部分，
+		// unexplained 超额仍即报（豁免≠白名单静默一切）。
+		var exempt float64
+		_ = r.pool.QueryRow(ctx, `SELECT COALESCE(sum(amount_usd),0) FROM fin_known_residual
+			WHERE venue=$1 AND ccy=$2 AND expires_at>now()`, x.venue, x.ccy).Scan(&exempt)
+		if Diff(x.net, x.eq) > tol+exempt {
 			r.rej.Inc("diff_alert")
-			r.al.Alert(ctx, "ledger_diff_alert", "账实差超限——人工对拍")
+			r.al.Alert(ctx, "ledger_diff_alert",
+				fmt.Sprintf("账实差 $%.2f（容差 $%.2f +已定性豁免 $%.2f）",
+					Diff(x.net, x.eq), tol, exempt))
 			log.Printf("ALERT [ledger] 对账差 %s/%s venue=%.4f ledger=%.4f（容差 %.2f）", x.venue, x.ccy, x.eq, x.net, tol)
 		}
 	}
