@@ -44,6 +44,24 @@ func TestSymbolCandidates(t *testing.T) {
 	}
 }
 
+// TestProfitDedup OnOrderProfit 帧去重键锚——同值帧不落（push-on-change 事件语义：
+// venue ~1Hz 周期推但表只记值变，防 append-only 表被同值帧灌水）。
+func TestProfitDedup(t *testing.T) {
+	snap := func(eq, fm, bal, m, p, ml float64, open int) profitSnap {
+		return profitSnap{eq, fm, bal, m, p, ml, open}
+	}
+	a := snap(3247.5, 3245.4, 3247.5, 2.02, 0.05, 160800, 1)
+	if a != snap(3247.5, 3245.4, 3247.5, 2.02, 0.05, 160800, 1) {
+		t.Fatal("同值帧键应相等——去重谓词失效")
+	}
+	if a == snap(3247.51, 3245.4, 3247.5, 2.02, 0.05, 160800, 1) {
+		t.Fatal("equity 变应判变帧")
+	}
+	if a == snap(3247.5, 3245.4, 3247.5, 2.02, 0.05, 160800, 0) {
+		t.Fatal("open 仓数变应判变帧")
+	}
+}
+
 // TestSnapshotWrite 账户快照落表锚（venue='mt5'/venue_type='mt5'/USD 本位行可查）。
 func TestSnapshotWrite(t *testing.T) {
 	pool := testutil.Pool(t)

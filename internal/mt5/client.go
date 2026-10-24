@@ -149,6 +149,25 @@ func (c *Client) OnQuote(ctx context.Context) (grpc.ServerStreamingClient[mt5pb.
 	return c.strm.OnQuote(c.authed(ctx), &mt5pb.OnQuoteRequest{Id: c.token})
 }
 
+// SubscribeOrderProfit 账户权益推送订阅（回执 Result=在册仓全档——boot 仓态首拍；
+// 幂等。败≠流死：OnOrderProfit 实测免订阅自推，订阅仅取回执语义）。
+func (c *Client) SubscribeOrderProfit(ctx context.Context) (int, error) {
+	r, err := c.subs.SubscribeOrderProfit(c.authed(ctx), &mt5pb.SubscribeOrderProfitRequest{Id: c.token})
+	if err != nil {
+		return 0, err
+	}
+	if r.Error != nil {
+		return 0, fmt.Errorf("subscribe order profit: %s", r.Error.Message)
+	}
+	return len(r.Result), nil
+}
+
+// OnOrderProfit 账户权益推送流（持仓期 ~1Hz ProfitUpdate=全账户摘要+订单明细——
+// push-on-change：空仓静默=无变动非流死。断线=err 返回由调用方重连；帧内嵌 Error）。
+func (c *Client) OnOrderProfit(ctx context.Context) (grpc.ServerStreamingClient[mt5pb.OnOrderProfitReply], error) {
+	return c.strm.OnOrderProfit(c.authed(ctx), &mt5pb.OnOrderProfitRequest{Id: c.token})
+}
+
 // Disconnect 会话登出（200ms 排水窗后由 Close 收 conn）。
 func (c *Client) Disconnect(ctx context.Context) {
 	if c.token == "" {

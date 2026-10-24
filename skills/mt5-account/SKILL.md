@@ -28,6 +28,8 @@ domain: 工程
 | OnOrderProfit | **实现，账户摘要推送流**——持仓时 ~1Hz 推 `ProfitUpdate{Balance,Equity,Margin,FreeMargin,Profit,MarginLevel,Orders[]}`；空仓静默（push-on-change 语义） | 类型化 protobuf 全字段 |
 | OnTickValue | 实现，零帧 | tick 值 |
 
+**生产接线（T-0048 落位）**：mt5 Collector `profitLoop` 消费此流→`md_account_events` channel='order_profit'（venue='mt5' ccy='USD'，值变才落行——venue 周期推、表记变动语义）；`SubscribeOrderProfit` 回执=在册仓全档（boot 仓态首拍用途）；`AccountSummary` 为判时点现读件不变。
+
 **定谳（当日证伪修正）**：mtapi **有**账户摘要推送流——`OnOrderProfit` 推 `ProfitUpdate`（equity/margin/freeMargin/profit/marginLevel+订单明细全量）；**持仓期 ~1Hz 活动，空仓静默**（push-on-change——无推送即无变动，帧龄不判陈）。双轨：`OnOrderProfit` 流=持仓态唤醒+载荷源，`AccountSummary`=判时点现读/空仓态校验径——与 OKX 双轨同构（流推+REST 现读）。
 
 **证伪修正**：原坑①「metadata header 径网关不读」失效——2026-10-24 实拍 `id` **header 必带**（Connect 用临时 sid，登录后所有调用 header `id`=<token> **且** 请求体 Id=<token>，双位同填）；缺 header=「Id header is required」全拒。
