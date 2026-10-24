@@ -52,8 +52,8 @@ func (e *OkxExecutor) Place(ctx context.Context, leg Leg, clOrdID string) (Order
 }
 
 func (e *OkxExecutor) Resolve(ctx context.Context, leg Leg, clOrdID string) (OrderResult, error) {
-	st, err := e.C.ResolveOrder(ctx, leg.InstID, clOrdID)
-	return OrderResult{ClOrdID: clOrdID, State: string(st)}, err
+	st, px, err := e.C.ResolveOrderDetail(ctx, leg.InstID, clOrdID)
+	return OrderResult{ClOrdID: clOrdID, State: string(st), FillPx: px}, err
 }
 
 // buildOrderParams 腿→下单参装配（posSide 注入纯函数——T-0040 测试锚）：

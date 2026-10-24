@@ -108,7 +108,7 @@ func (r *Runner) placeAndResolve(ctx context.Context, execID int64, no int, leg 
 	}
 	switch res.State {
 	case "filled":
-		r.leg(ctx, execID, no, leg, clOrdID, "filled", vc, vm)
+		r.legPx(ctx, execID, no, leg, clOrdID, "filled", vc, vm, res.FillPx)
 		return res, nil
 	case "live", "partially_filled":
 		r.leg(ctx, execID, no, leg, clOrdID, "ack", vc, vm)
@@ -168,9 +168,19 @@ func (r *Runner) rollback(ctx context.Context, execID int64, leg Leg, res OrderR
 }
 
 func (r *Runner) leg(ctx context.Context, execID int64, no int, leg Leg, clOrdID, state, venueCode, venueMsg string) {
-	if _, err := r.pool.Exec(ctx, `INSERT INTO fin_order_leg(execution_id,leg_no,cl_ord_id,venue,side,inst_id,sz,state,venue_err_code,venue_err_msg)
-		VALUES($1,$2,$3,$4,$5,$6,$7,$8,NULLIF($9,''),NULLIF($10,''))`,
-		execID, no, clOrdID, leg.Venue, leg.Side, leg.InstID, leg.Sz, state, venueCode, venueMsg); err != nil {
+	r.legPx(ctx, execID, no, leg, clOrdID, state, venueCode, venueMsg, 0)
+}
+
+// legPx 腿行落库携成交价（T-0077：avgPx>0 才落——filled 态 anchor；
+// px=NULL 旧调用面保值守）。
+func (r *Runner) legPx(ctx context.Context, execID int64, no int, leg Leg, clOrdID, state, venueCode, venueMsg string, px float64) {
+	var pxArg *float64
+	if px > 0 {
+		pxArg = &px
+	}
+	if _, err := r.pool.Exec(ctx, `INSERT INTO fin_order_leg(execution_id,leg_no,cl_ord_id,venue,side,inst_id,sz,state,venue_err_code,venue_err_msg,px)
+		VALUES($1,$2,$3,$4,$5,$6,$7,$8,NULLIF($9,''),NULLIF($10,''),$11)`,
+		execID, no, clOrdID, leg.Venue, leg.Side, leg.InstID, leg.Sz, state, venueCode, venueMsg, pxArg); err != nil {
 		r.rej.Inc("write_err")
 	}
 }
