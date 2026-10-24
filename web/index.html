@@ -107,9 +107,7 @@ t2.textContent=b.className?'🌙 暗色':'☀️ 亮色'}
     </div>
   </div>
 
-    <div id="staff-graph" style="display:none" onclick="this.style.display='none';
-      document.getElementById('staff-sum').style.display=''"></div>
-  </div>
+  <div class="card" style="grid-column:span 6"></div>
 
   <div class="card skel" style="grid-column:span 6">
     <h3>骨 架 屏（加载中态演示）</h3>
@@ -125,12 +123,15 @@ t2.textContent=b.className?'🌙 暗色':'☀️ 亮色'}
         <path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>
       <p>一切平静</p><i>「没有消息，就是最好的消息。」</i>
     </div>
-    <div class="card staff" id="c-staff" style="display:none;cursor:pointer;grid-column:span 12">
+  </div>
+
+  <div class="card staff" id="c-staff" style="display:none;cursor:pointer;grid-column:span 12">
     <div id="staff-sum" onclick="document.getElementById('staff-graph').style.display=
       document.getElementById('staff-graph').style.display?'':'block';this.style.display=
       this.style.display?'':'none'"></div>
-
-</div>
+    <div id="staff-graph" style="display:none" onclick="this.style.display='none';
+      document.getElementById('staff-sum').style.display=''"></div>
+  </div>
 
 </div>
 <script type="module" src="/src/main.ts"></script>
