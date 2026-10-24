@@ -12,9 +12,22 @@ import (
 type OkxExecutor struct{ C *okxexec.Client }
 
 func (e OkxExecutor) Place(ctx context.Context, leg Leg, clOrdID string) (OrderResult, error) {
-	raw, err := e.C.PlaceOrder(ctx, okxexec.OrderParams{
+	p := okxexec.OrderParams{
 		InstID: leg.InstID, TdMode: tdMode(leg), Side: leg.Side,
-		OrdType: "market", Sz: leg.Sz, ClOrdID: clOrdID})
+		OrdType: "market", Sz: leg.Sz, ClOrdID: clOrdID}
+	if leg.Close {
+		p.ReduceOnly = true
+		// 双向户（posMode=long_short_mode 实勘）：close sell→平 long 仓、
+		// close buy→平 short 仓——posSide 必填否则语义=反向新开（T-0036 根修）。
+		if tdMode(leg) == "cross" {
+			if leg.Side == "buy" {
+				p.PosSide = "short"
+			} else {
+				p.PosSide = "long"
+			}
+		}
+	}
+	raw, err := e.C.PlaceOrder(ctx, p)
 	if err != nil {
 		return OrderResult{ClOrdID: clOrdID, State: "unknown"}, err
 	}

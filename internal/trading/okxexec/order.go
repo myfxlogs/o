@@ -9,13 +9,15 @@ import (
 
 // OrderParams 下单入参（方言：tdMode=cash[spot]/cross[perp]；posSide=net 单向户）。
 type OrderParams struct {
-	InstID  string `json:"instId"`
-	TdMode  string `json:"tdMode"`
-	Side    string `json:"side"`    // buy|sell
-	OrdType string `json:"ordType"` // market|limit
-	Sz      string `json:"sz"`
-	Px      string `json:"px,omitempty"`
-	ClOrdID string `json:"clOrdId"`
+	InstID     string `json:"instId"`
+	TdMode     string `json:"tdMode"`
+	Side       string `json:"side"`    // buy|sell
+	OrdType    string `json:"ordType"` // market|limit
+	Sz         string `json:"sz"`
+	Px         string `json:"px,omitempty"`
+	ClOrdID    string `json:"clOrdId"`
+	PosSide    string `json:"posSide,omitempty"`    // 双向户平腿：long|short（net 单向户空省）
+	ReduceOnly bool   `json:"reduceOnly,omitempty"` // 平仓腿必置——防「反向单=新开仓」自欺
 }
 
 // PlaceOrder POST /trade/order——钱径事务单发；传输败上抛 httpStatusError

@@ -12,16 +12,20 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	mt5pb "phase/internal/gen/mtapi/mt5"
+	"phase/internal/mt5"
 	"phase/internal/platform/config"
 	"phase/internal/platform/cryptoutil"
 	"phase/internal/risk"
 	"phase/internal/trading/execution"
+	"phase/internal/trading/mtexec"
 	"phase/internal/trading/okxexec"
 )
 
 func main() {
 	sid := flag.Int64("strategy", 0, "strategy_id（缺省=最新 probe/live 非 retired 行）")
 	dry := flag.Bool("dry", false, "干跑——构 Intent+Check 不执行")
+	structure := flag.String("structure", "funding", "腿构：funding（同 venue 双腿）|cfd_perp（okx perp 卖+mt5 cfd 买）")
 	flag.Parse()
 	ctx := context.Background()
 	pool, err := pgxpool.New(ctx, os.Getenv("DB_DSN"))
@@ -90,19 +94,61 @@ func main() {
 		*dst = p
 	}
 	cli := okxexec.NewClient(cred, false)
-	execR := execution.NewRunner(pool, cfg, execution.OkxExecutor{C: cli})
-	// 双腿乐器派生+sz 换算（leg1 SWAP 卖/leg2 派生现货买；minSz 闸 fail-closed）。
-	legs, spotInst, err := execution.BuildLegs(ctx, pool, func(ctx context.Context, iid string) (execution.InstMeta, error) {
-		it := "SWAP"
-		if iid == spotInstCached(instID) {
-			it = "SPOT"
+	var execR *execution.Runner
+	var legs [2]execution.Leg
+	var spotInst string
+	if *structure == "cfd_perp" {
+		// cfd_perp：leg1=okx SWAP 卖（ctVal 系）+leg2=mt5 cfd 买（lot 换算
+		// SymbolParams→CfdMeta——venue 元数据缺=fail-closed）。
+		mt := mtConnect(ctx, pool, cfg, mk)
+		cfdInst, err := cfg.GetString("exec.cfd_map." + instID)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "exec.cfd_map 无映射 fail-closed:", instID)
+			os.Exit(1)
 		}
-		m, err := cli.InstrumentMeta(ctx, it, iid)
-		return execution.InstMeta{CtVal: m.CtVal, LotSz: m.LotSz, MinSz: m.MinSz}, err
-	}, venue, instID, notional)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "legs:", err)
-		os.Exit(1)
+		pm, err := cli.InstrumentMeta(ctx, "SWAP", instID)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "perp 元数据:", err)
+			os.Exit(1)
+		}
+		sp, err := mt.MT5().SymbolParams(mt.Authed(ctx), &mt5pb.SymbolParamsRequest{Symbol: cfdInst})
+		if err != nil || sp.GetResult() == nil {
+			fmt.Fprintln(os.Stderr, "cfd 元数据:", err)
+			os.Exit(1)
+		}
+		sgi, sg := sp.GetResult().GetSymbolInfo(), sp.GetResult().GetSymbolGroup()
+		px, err := execution.LatestPx(ctx, pool, spotInstCached(instID))
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "px:", err)
+			os.Exit(1)
+		}
+		legs, spotInst, err = execution.BuildCfdLegs(instID, cfdInst, notional,
+			execution.CfdMeta{ContractSize: sgi.GetContractSize(),
+				MinLot: sg.GetMinLots(), LotStep: sg.GetLotsStep()}, px, pm.CtVal)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "legs:", err)
+			os.Exit(1)
+		}
+		execR = execution.NewRunner(pool, cfg, execution.RouterExecutor{
+			"okx": execution.OkxExecutor{C: cli},
+			"mt5": mtexec.Executor{C: mt},
+		})
+	} else {
+		execR = execution.NewRunner(pool, cfg, execution.OkxExecutor{C: cli})
+		// 双腿乐器派生+sz 换算（leg1 SWAP 卖/leg2 派生现货买；minSz 闸 fail-closed）。
+		var lerr error
+		legs, spotInst, lerr = execution.BuildLegs(ctx, pool, func(ctx context.Context, iid string) (execution.InstMeta, error) {
+			it := "SWAP"
+			if iid == spotInstCached(instID) {
+				it = "SPOT"
+			}
+			m, err := cli.InstrumentMeta(ctx, it, iid)
+			return execution.InstMeta{CtVal: m.CtVal, LotSz: m.LotSz, MinSz: m.MinSz}, err
+		}, venue, instID, notional)
+		if lerr != nil {
+			fmt.Fprintln(os.Stderr, "legs:", lerr)
+			os.Exit(1)
+		}
 	}
 	fmt.Printf("legs: %s sell %s + %s buy %s\n", instID, legs[0].Sz, spotInst, legs[1].Sz)
 	eid, err := execR.Execute(ctx, execution.Intent{
@@ -118,4 +164,39 @@ func main() {
 func spotInstCached(instID string) string {
 	spot, _ := execution.DeriveSpotInst(instID)
 	return spot
+}
+
+// mtConnect mt5 真户会话接线（凭据自 app_secrets mt5.*；gateway_addr=config 键；
+// 凭据缺=fail-closed——未连成功不构腿）。
+func mtConnect(ctx context.Context, pool *pgxpool.Pool, cfg *config.Client, mk []byte) *mt5.Client {
+	get := func(k string) string {
+		var ct []byte
+		if err := pool.QueryRow(ctx, "SELECT ciphertext FROM app_secrets WHERE key=$1", k).Scan(&ct); err != nil {
+			fmt.Fprintln(os.Stderr, k, err)
+			os.Exit(1)
+		}
+		p, _ := cryptoutil.Open(mk, ct)
+		return p
+	}
+	addr, err := cfg.GetString("mt5.gateway_addr")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "mt5.gateway_addr:", err)
+		os.Exit(1)
+	}
+	cli, err := mt5.Dial(addr)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "mt5 dial:", err)
+		os.Exit(1)
+	}
+	var login uint64
+	if _, err := fmt.Sscanf(get("mt5.login"), "%d", &login); err != nil {
+		fmt.Fprintln(os.Stderr, "mt5.login 非数字:", err)
+		os.Exit(1)
+	}
+	if err := cli.Connect(ctx, mt5.Credentials{Login: login,
+		Password: get("mt5.password"), Server: get("mt5.server"), Host: get("mt5.host")}); err != nil {
+		fmt.Fprintln(os.Stderr, "mt5 connect:", err)
+		os.Exit(1)
+	}
+	return cli
 }

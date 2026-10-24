@@ -29,4 +29,5 @@ var migrationTable = []struct {
 	{21, "0021_mt5_readface.sql"},
 	{22, "0022_push_ledger.sql"},
 	{23, "0023_probe_notional.sql"},
+	{24, "0024_cfd_map.sql"},
 }

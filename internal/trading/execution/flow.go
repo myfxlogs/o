@@ -108,6 +108,8 @@ func (r *Runner) rollback(ctx context.Context, execID int64, leg Leg, res OrderR
 	} else {
 		rev.Side = "buy"
 	}
+	rev.Close = true // hedge 平仓语义根修（T-0036：反向新开非平仓——executor 按位走平径）
+	rev.Ticket = res.FillTicket
 	clOrdID := fmt.Sprintf("ph-%d-rb-%d", execID, time.Now().UnixNano()%1e6)
 	rb, err := r.exec.Place(ctx, rev, clOrdID)
 	if err != nil {
