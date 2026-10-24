@@ -163,7 +163,10 @@ func run() error {
 	go review.NewRunner(pool).Run(ctx, errc)
 
 	// 账本域：司账+核账（入账结算+对账环——消费事实行不触发钱动作）。
-	go report.NewRunner(pool).Run(ctx, errc)
+	{
+		mk, _ := config.ReadMasterKey()
+		go report.NewRunner(pool, report.NewPusher(pool, cfg, mk)).Run(ctx, errc)
+	}
 	go ledger.NewRunner(pool, cfg).Run(ctx, errc)
 
 	// 风控域首岗：唯一交易前闸（员工 门官）——G7 消费件就绪后只认放行令牌。

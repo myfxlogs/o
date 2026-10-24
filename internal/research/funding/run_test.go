@@ -181,3 +181,51 @@ func TestScanEarnFloorE2E(t *testing.T) {
 		t.Fatalf("陈现率降级 verdict=%s err=%v", verdict, err)
 	}
 }
+
+// T-0029 macro 注解锚：近窗事件→evidence.macro 在；无事件→缺省；判据不受影响。
+func TestMacroAnnotate(t *testing.T) {
+	pool := testutil.Pool(t)
+	ctx := context.Background()
+	if err := pgstore.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	// 种子锚：kind 三值齐+行数≥15
+	var kinds, n int
+	if err := pool.QueryRow(ctx,
+		"SELECT count(DISTINCT kind),count(*) FROM md_macro_event").Scan(&kinds, &n); err != nil || kinds != 3 || n < 15 {
+		t.Fatalf("种子行 kinds=%d n=%d", kinds, n)
+	}
+	// 注一个明日事件→evidence.macro 应在
+	if _, err := pool.Exec(ctx,
+		"INSERT INTO md_macro_event(event_date,kind,title) VALUES(current_date+1,'fomc','dbg-event') ON CONFLICT DO NOTHING"); err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.New(pool)
+	if err := cfg.Load(ctx); err != nil {
+		t.Fatal(err)
+	}
+	r := NewRunner(pool, cfg)
+	e := &Eval{InstID: "M-USDT-SWAP", Evidence: map[string]any{}}
+	r.annotateMacro(ctx, e)
+	if _, ok := e.Evidence["macro"]; !ok {
+		t.Fatal("近窗事件 macro 注解缺席")
+	}
+	// 无近窗事件（horizon=0 域内）→不注解
+	e2 := &Eval{InstID: "M2", Evidence: map[string]any{}}
+	if _, err := pool.Exec(ctx,
+		"UPDATE app_config SET value='\"0\"' WHERE key='research.macro.horizon_days'"); err != nil {
+		t.Fatal(err)
+	}
+	_ = cfg.Load(ctx)
+	r.annotateMacro(ctx, e2)
+	if _, ok := e2.Evidence["macro"]; ok {
+		t.Fatal("horizon=0 不应注解")
+	}
+	// 缺键 fail-open：删键不炸不注解
+	if _, err := pool.Exec(ctx, "DELETE FROM app_config WHERE key='research.macro.horizon_days'"); err != nil {
+		t.Fatal(err)
+	}
+	_ = cfg.Load(ctx)
+	e3 := &Eval{InstID: "M3", Evidence: map[string]any{}}
+	r.annotateMacro(ctx, e3) // fail-open 无注解不炸
+}
