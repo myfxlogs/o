@@ -24,14 +24,17 @@ type Leg struct {
 	Side     string // buy|sell
 	Sz       string // 数量（venue 方言——okx 张数口径由 venue 层换算）
 	Notional float64
+	Close    bool  // close 语义位（rollback/平仓腿=true——executor 按位分派平仓径，禁反向新开）
+	Ticket   int64 // MT5 平仓凭据（leg1 回报 ticket——hedge 户 OrderClose 必携）
 }
 
 // OrderResult venue 回报（filled/live/absent/ambiguous 归一为 leg 状态机值）。
 type OrderResult struct {
-	ClOrdID string
-	State   string // filled|live|partially_filled|absent|unknown
-	FillPx  float64
-	FillSz  float64
+	ClOrdID    string
+	State      string // filled|live|partially_filled|absent|unknown
+	FillPx     float64
+	FillSz     float64
+	FillTicket int64 // venue 仓凭据（MT5 ticket——hedge 户平仓 OrderClose 必携；okx=0 略）
 }
 
 // Executor venue 下单面（测试注入 fake——产线=okxexec 包装）。

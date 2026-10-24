@@ -20,13 +20,24 @@ type Cli interface {
 	MT5() mt5pb.MT5Client
 }
 
-func (e Executor) trading() mt5pb.TradingClient { return mt5pb.NewTradingClient(e.C.Conn()) }
+func (e Executor) trading() mt5pb.TradingClient {
+	if e.T != nil {
+		return e.T
+	}
+	return mt5pb.NewTradingClient(e.C.Conn())
+}
 
 // Executor MT5 venue 执行件。
-type Executor struct{ C Cli }
+type Executor struct {
+	C Cli
+	T mt5pb.TradingClient // 测试注假面（产线 nil→自构）
+}
 
 // Place OrderSend 市价单（BUY/SELL；回报空/错=unknown|absent 定态分流）。
 func (e Executor) Place(ctx context.Context, leg execution.Leg, clOrdID string) (execution.OrderResult, error) {
+	if leg.Close {
+		return e.placeClose(ctx, leg, clOrdID)
+	}
 	op := mt5pb.OrderType_OrderType_Buy
 	if leg.Side == "sell" {
 		op = mt5pb.OrderType_OrderType_Sell
@@ -42,9 +53,28 @@ func (e Executor) Place(ctx context.Context, leg execution.Leg, clOrdID string) 
 	}
 	if ord := r.GetResult(); ord != nil {
 		return execution.OrderResult{ClOrdID: clOrdID, State: "filled",
-			FillPx: ord.GetOpenPrice(), FillSz: vol}, nil
+			FillPx: ord.GetOpenPrice(), FillSz: vol, FillTicket: ord.GetTicket()}, nil
 	}
 	return execution.OrderResult{ClOrdID: clOrdID, State: "unknown"}, nil
+}
+
+// placeClose 平仓径（T-0036 根修：hedge 户「反向单=新开仓」自欺——
+// 平仓必走 OrderClose 携 ticket；ticket 缺=unknown fail-closed 禁反向新开）。
+func (e Executor) placeClose(ctx context.Context, leg execution.Leg, clOrdID string) (execution.OrderResult, error) {
+	if leg.Ticket == 0 {
+		return execution.OrderResult{ClOrdID: clOrdID, State: "unknown"},
+			fmt.Errorf("mt5 平仓缺 ticket——fail-closed 禁反向单")
+	}
+	vol, _ := strconv.ParseFloat(leg.Sz, 64)
+	r, err := e.trading().OrderClose(e.C.Authed(ctx), &mt5pb.OrderCloseRequest{
+		Ticket: leg.Ticket, Lots: &vol})
+	if err != nil {
+		return execution.OrderResult{ClOrdID: clOrdID, State: "unknown"}, fmt.Errorf("mt5 close: %w", err)
+	}
+	if ge := r.GetError(); ge != nil && ge.GetCode() != mt5pb.ErrorCode_DONE && ge.GetCode() != mt5pb.ErrorCode_OK {
+		return execution.OrderResult{ClOrdID: clOrdID, State: "absent"}, fmt.Errorf("mt5 close: %s", ge.GetCode())
+	}
+	return execution.OrderResult{ClOrdID: clOrdID, State: "filled", FillSz: vol}, nil
 }
 
 // Resolve 按 comment 查仓态（MT5 无 clOrdId 查询——comment 留痕+OpenedOrders 补查。

@@ -3,6 +3,7 @@ package execution
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"phase/internal/platform/config"
@@ -16,11 +17,13 @@ type fakeVenue struct {
 	rbFail    bool
 	resolveTo string
 	placed    []string
+	closed    []bool
 	onPlace   func()
 }
 
 func (f *fakeVenue) Place(ctx context.Context, leg Leg, clOrdID string) (OrderResult, error) {
 	f.placed = append(f.placed, clOrdID+":"+leg.Side)
+	f.closed = append(f.closed, leg.Close)
 	if f.onPlace != nil {
 		f.onPlace()
 	}
@@ -150,6 +153,7 @@ func TestHedgeBand(t *testing.T) {
 }
 
 func TestLeggedRollback(t *testing.T) {
+	t.Cleanup(func() {})
 	fv := &fakeVenue{leg2Fail: true}
 	ctx, r := setup(t, fv)
 	did := mkToken(t, ctx, r, false, false, "allow")
@@ -181,6 +185,20 @@ func TestRollbackFailedEscalates(t *testing.T) {
 	var state string
 	if err := r.pool.QueryRow(ctx, "SELECT state FROM fin_execution WHERE id=$1", eid).Scan(&state); err != nil || state != "rollback_failed" {
 		t.Fatalf("state=%s（应 rollback_failed 升级留痕）", state)
+	}
+	for i, c := range fv.closed {
+		if c && fv.placed[i] != "" && !strings.Contains(fv.placed[i], "-rb-") {
+			t.Fatalf("close 腿应只在 rb 径: %v", fv.placed[i])
+		}
+	}
+	var rbSeen bool
+	for i, p := range fv.placed {
+		if strings.Contains(p, "-rb-") && fv.closed[i] {
+			rbSeen = true
+		}
+	}
+	if !rbSeen {
+		t.Fatal("回滚腿未携 Close 标记——hedge 户反向新开险")
 	}
 	if r.rej.Snapshot()["execution/rollback_failed"] == 0 {
 		t.Fatal("rollback_failed 计数门未计")
