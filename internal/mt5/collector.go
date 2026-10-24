@@ -47,24 +47,6 @@ type Collector struct {
 	dial func(addr string) (*Client, error)
 }
 
-// OpenSession 独立一次性会话（开连+登录——用毕调用方 Disconnect；facts 采面/
-// 探针面用，凭据/网关址与 Collector 同源）。
-func OpenSession(ctx context.Context, pool *pgxpool.Pool, cfg *config.Client) (*Client, error) {
-	addr, cr, err := readCreds(ctx, pool, cfg)
-	if err != nil {
-		return nil, err
-	}
-	cl, err := Dial(addr)
-	if err != nil {
-		return nil, err
-	}
-	if err := cl.Connect(ctx, cr); err != nil {
-		cl.Close()
-		return nil, err
-	}
-	return cl, nil
-}
-
 // readCreds 凭据+网关址读（NewCollector/OpenSession 共源）。
 func readCreds(ctx context.Context, pool *pgxpool.Pool, cfg *config.Client) (string, Credentials, error) {
 	mk, err := config.ReadMasterKey()

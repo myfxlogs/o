@@ -63,8 +63,18 @@ func Dial(gatewayAddr string) (*Client, error) {
 	}, nil
 }
 
+// connectBudget Connect 自带死线（调用方 ctx 无 Deadline 时兜底——T-0053 根修：
+// grpc.NewClient 懒拨号，首个 RPC 无死线=连接建立无限期阻塞=OpenSession 静默悬挂；
+// 测试可短缩注入）。调用方已带更短 budget 则继承不覆写。
+var connectBudget = 30 * time.Second
+
 // Connect 登录换 token（Server 名径优先；Host 多候选逐试）。
 func (c *Client) Connect(ctx context.Context, cr Credentials) error {
+	if _, ok := ctx.Deadline(); !ok {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, connectBudget)
+		defer cancel()
+	}
 	sid := fmt.Sprintf("phase-%d", time.Now().UnixNano())
 	loginCtx := metadata.NewOutgoingContext(ctx, metadata.New(map[string]string{"id": sid}))
 	if cr.Server != "" {
