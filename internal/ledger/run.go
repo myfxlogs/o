@@ -18,6 +18,9 @@ import (
 // Runner 司账+核账双岗（结算闭环+对账环——账本只消费事实行不触发钱动作）。
 type Runner struct {
 	al *notify.Alerter
+	// mtm 持仓盯市偏移读件（T-0076：venue 权益含盯市盈亏随价动——ledger 侧
+	// 补在持仓盯市值项使 NAV 对 NAV 同口径；缺件=0 不判 fail-closed 让位）。
+	mtm func(ctx context.Context) (map[[2]string]float64, error)
 	// bal venue 侧余额现读件（T-0048：对账=检查时点 balances+savings 直连——
 	// (venue,ccy)→equity 实读聚合；nil=对账件缺席跳过不炸）。
 	bal func(ctx context.Context) (map[[2]string]float64, error)
@@ -41,6 +44,12 @@ func (r *Runner) WithEarnEarnings(fn func(ctx context.Context) (map[string]float
 // WithBalances 挂 venue 侧余额现读件（cmd 装配层接线——对账检查时点直读）。
 func (r *Runner) WithBalances(fn func(ctx context.Context) (map[[2]string]float64, error)) *Runner {
 	r.bal = fn
+	return r
+}
+
+// WithMTM 挂持仓盯市偏移读件（T-0076——venue×ccy 偏移额；无持仓=空 map）。
+func (r *Runner) WithMTM(fn func(ctx context.Context) (map[[2]string]float64, error)) *Runner {
+	r.mtm = fn
 	return r
 }
 
@@ -155,6 +164,12 @@ func (r *Runner) reconcile(ctx context.Context) error {
 		_ = r.pool.QueryRow(ctx,
 			"SELECT COALESCE(sum(amount),0) FROM fin_cashflow WHERE venue=$1 AND ccy=$2 AND kind NOT IN ('earn_in','earn_out')",
 			k[0], k[1]).Scan(&net)
+		// T-0076：net+盯市偏移=同口径 NAV（持仓浮动与真差分离——偏移读败=0 不加不减）。
+		if r.mtm != nil {
+			if mv, merr := r.mtm(ctx); merr == nil {
+				net += mv[k]
+			}
+		}
 		rs = append(rs, struct {
 			venue, ccy string
 			eq, net    float64

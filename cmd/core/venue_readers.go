@@ -22,13 +22,12 @@ import (
 //   - okx 权益/闲余=md_account_events 最新 account/balance_and_position 帧解
 //     （details eqUsd 总权益/availBal 闲余；push-on-change——帧龄不判陈，陈度归 WS 活性件管）。
 //   - okx 对账聚合=事件帧交易户 eq+REST /asset/balances(funding)+/finance/savings/balance(amt)
-//     现读合 {okx,USDT}——资金/停泊户无推送面（skill 在案）。
-//   - mt5 权益=AccountSummary.Equity 现读。
+//     现读合 {okx,USDT}——资金/停泊户无推送面（skill 在案）；mt5=AccountSummary 现读。
 //
 // 凭据缺席=boot 明示 WARN 不静默缺岗；各闭包判 nil 不 panic。
 func attachVenueReaders(riskGate *risk.Gate, wd *guard.Warden, ledgerR *ledger.Runner,
 	pool *pgxpool.Pool, okcli *okxexec.Client, openMt5 func(ctx context.Context) (*mt5.Client, error)) {
-	// frameEq/frameAvail 事件帧现读（okx 交易户——数据域落行的同源读，REST 非判据源）。
+	// frameVals 事件帧现读（okx 交易户同源读，REST 非判据源——帧龄不判陈）。
 	frameVals := func(ctx context.Context) (eq, avail float64, err error) {
 		if pool == nil {
 			return 0, 0, fmt.Errorf("pool 缺")
@@ -178,6 +177,7 @@ func attachVenueReaders(riskGate *risk.Gate, wd *guard.Warden, ledgerR *ledger.R
 	// 对账聚合=帧 eq+REST funding+savings（无推送户）+mt5 AccountSummary。
 	// T-0058 根修：三分量任一读败=整读 err（对账轮跳过非假差——
 	// 「读件缺席跳过本轮」与「真差超限」两文本分径）。
+	ledgerR.WithMTM(mtmReader(pool, ctValReader(okcli))) // T-0076 盯市偏移
 	ledgerR.WithBalances(func(ctx context.Context) (map[[2]string]float64, error) {
 		out := map[[2]string]float64{}
 		eq, _, err := tradingVals(ctx)
