@@ -64,7 +64,9 @@ func buildOrderParams(leg Leg, clOrdID, posMode string) okxexec.OrderParams {
 	p := okxexec.OrderParams{
 		InstID: leg.InstID, TdMode: tdMode(leg), Side: leg.Side,
 		OrdType: "market", Sz: leg.Sz, ClOrdID: clOrdID}
-	if leg.Close {
+	// reduceOnly 域界（T-0043）：官方口径仅适用杠杆+合约——合约腿（cross）平仓
+	// 必置防反向新开；spot 腿（cash）带 reduceOnly=51000 参数拒，禁带。
+	if leg.Close && p.TdMode == "cross" {
 		p.ReduceOnly = true
 	}
 	// T-0042 方言根修：spot 市价买 sz 默认按计价币（quote_ccy）解释——BTC 数量

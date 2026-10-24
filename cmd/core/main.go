@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
 	"time"
 
@@ -281,20 +280,4 @@ func run() error {
 		return err
 	}
 	return nil
-}
-
-// closeExec 仓巡×执事装配缝（cmd 组合根——guard 不 import execution，方向闸零边）：
-// guard CloseSpec → execution 反向双腿 Intent；腿 sz 沿 fin_order_leg 串传
-// （okx 张数口径换算归 venue 层）；Notional 取名义半额（delta 中性带检入参口径）。
-type closeExec struct{ r *execution.Runner }
-
-func (c closeExec) ExecuteClose(ctx context.Context, spec guard.CloseSpec) (int64, error) {
-	mk := func(l guard.CloseLeg) execution.Leg {
-		return execution.Leg{Venue: l.Venue, InstID: l.InstID, Side: l.Side,
-			Sz: strconv.FormatFloat(l.Sz, 'f', -1, 64), Notional: spec.NotionalUSD / 2}
-	}
-	return c.r.Execute(ctx, execution.Intent{
-		DecisionID: spec.DecisionID, StrategyRef: spec.StrategyRef, InstID: spec.InstID,
-		NotionalUSD: spec.NotionalUSD, Legs: [2]execution.Leg{mk(spec.Legs[0]), mk(spec.Legs[1])},
-	})
 }
