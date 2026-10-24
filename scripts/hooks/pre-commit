@@ -97,6 +97,18 @@ if git -c core.quotepath=off diff --cached --name-only | grep -qE '^docs/工程�
   fi
 fi
 
+# 8b. skills 索引机生门禁（T-0052）：staged 触 skills/→kbgen skills --check（与经验库闸同款）。
+if git -c core.quotepath=off diff --cached --name-only | grep -qE '^skills/'; then
+  if [ -d tools/kbgen ]; then
+    (go run ./tools/kbgen skills --check) || {
+      echo "FAIL: skills/索引.md 陈旧——staged 改 skills/ 须跑 go run ./tools/kbgen skills 重建（禁手编）" >&2
+      exit 1
+    }
+  else
+    echo "[pre-commit] skills 索引闸: 条件未备跳过（tools/kbgen 未落位）"
+  fi
+fi
+
 # 9. 秘钥扫描门禁（D-460）：staged 新增行匹配秘钥形态即拒。
 # PEM 模式写作 PRIVATE+空白+KEY----- 的 ERE（字面量含真实空格会自匹配本 hook 自身改动）。
 SECRET_ADDED=$(git -c core.quotepath=off diff --cached -U0 | grep '^+' | grep -v '^+++' | sed 's/^+//' || true)
