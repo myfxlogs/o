@@ -242,7 +242,7 @@ func resolvePaths(lib string) error {
 func main() {
 	lib := flag.String("lib", "工程经验库", "库名（docs/<lib>/）——工程经验库|经济经验库")
 	flag.Usage = func() {
-		fmt.Fprintln(os.Stderr, "usage: kbgen [-lib 库名] gen [--check] | read <id>")
+		fmt.Fprintln(os.Stderr, "usage: kbgen [-lib 库名] gen [--check] | skills [--check] | read <id>")
 		flag.PrintDefaults()
 	}
 	flag.Parse()
@@ -259,6 +259,11 @@ func main() {
 	switch args[0] {
 	case "gen":
 		err = gen(len(args) > 1 && args[1] == "--check")
+	case "skills":
+		// skills 域锚定：repo root=entriesDir 上溯三级（docs/<lib>/条目）。
+		root := filepath.Dir(filepath.Dir(filepath.Dir(entriesDir)))
+		err = genSkills(filepath.Join(root, "skills"), filepath.Join(root, "skills", "索引.md"),
+			len(args) > 1 && args[1] == "--check")
 	case "read":
 		if len(args) < 2 {
 			fmt.Fprintln(os.Stderr, "usage: kbgen read <id>")
