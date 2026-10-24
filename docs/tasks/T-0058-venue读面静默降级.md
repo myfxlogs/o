@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | 施工中 |
+| 状态 | 完成 |
 | 优先级 | 高 |
 | 涉及面 | `cmd/core/venue_readers.go` `internal/ledger` `internal/trading/okxexec` |
 | 证据日 | 2026-10-24（ledger_diff 假警实证） |
