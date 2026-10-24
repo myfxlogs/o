@@ -1,0 +1,16 @@
+# cex-market-buy-sz-quote-ccy —— CEX 市价买单数量默认=计价币（USDT）口径非基准币
+
+## 坑
+OKX spot **市价买单**的 `sz` 默认按**计价币（USDT 金额）**解释，不是基准币数量——传 BTC 数量 0.00030914 被当 $0.0003 买单拒单。业主钦定口径：**CEX 所有计价都是 USDT**——市价买单的金额语义先想 USDT，要按基准币数量下单必须显式 `tgtCcy=base_ccy`。
+
+## 实证
+PHASE exec_id=3（2026-10-24 真户）：leg1 BTC-USDT-SWAP sell 0.03 filled；leg2 BTC-USDT spot buy sz=0.00030914 failed（本意 $25 等值 BTC，被解释为 $0.0003 USDT 买单）。leg1 已按平仓语义真回滚零残仓。拒码因走 envelope APIError 径未留痕（T-0042 同修）。
+
+## 反证条件
+- 任何 venue 的市价买单面：下单前必核 sz 计量币种（quote 默认/base 显式）——sell 市价单默认 base、buy 市价单默认 quote 是 OKX 方言，**禁跨方向/跨 venue 推广假设**。
+- 换用 limit 单/IOC 或 tgtCcy 显式声明可绕——但口径必须在代码注释钉死。
+- 同族病灶：ctVal 币本位（T-0037）、posSide 户型（T-0040）——**venue 数量/金额语义永不猜，下单时点读 instruments 元数据+方言卡**。
+
+## 机械化
+- T-0042：OrderParams.TgtCcy + spot 市价买单传 base_ccy + 测试锚。
+- skills/okx-exec 补 tgtCcy 方言条目（T-0042 同票落）。
