@@ -102,7 +102,30 @@ func attachVenueReaders(riskGate *risk.Gate, wd *guard.Warden, ledgerR *ledger.R
 		if venue != "okx" {
 			return 0, fmt.Errorf("venue 无权益件: %s", venue)
 		}
-		return liveEq(ctx)
+		// T-0050 停泊态口径：venue 权益=交易户帧 eq+funding 户+Earn 停泊（D-0006
+		// 资本可及面——闲资默认停 Earn，只读交易户 eq=停泊态下集中度闸永拒）。
+		eq, _, err := frameVals(ctx)
+		if err != nil {
+			return 0, err
+		}
+		if okcli != nil {
+			if bals, err := okcli.AssetBalances(ctx); err == nil {
+				for _, b := range bals {
+					eq += okxexec.ParseF(b.Bal)
+				}
+			}
+			if sav, err := okcli.SavingsBalance(ctx); err == nil {
+				var rows []struct {
+					Amt string `json:"amt"`
+				}
+				if json.Unmarshal(sav, &rows) == nil {
+					for _, r2 := range rows {
+						eq += okxexec.ParseF(r2.Amt)
+					}
+				}
+			}
+		}
+		return eq, nil
 	})
 	wd.AttachEquity(liveEq)
 	// 对账聚合=帧 eq+REST funding+savings（无推送户）+mt5 AccountSummary。
