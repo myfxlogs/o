@@ -22,4 +22,5 @@ var migrationTable = []struct {
 	{15, "0015_earn.sql"},
 	{16, "0016_earn_rate.sql"},
 	{17, "0017_report.sql"},
+	{18, "0018_dd_hardline.sql"},
 }
