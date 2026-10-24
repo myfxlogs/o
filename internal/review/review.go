@@ -21,8 +21,9 @@ var stagingFile = "docs/经济经验库/待归纳.md"
 
 // Runner 评史官岗。
 type Runner struct {
-	pool *pgxpool.Pool
-	rej  *rejects.Door
+	pool          *pgxpool.Pool
+	rej           *rejects.Door
+	stagingLogged bool // 待归纳镜像写败一次性标记（容器 FS 易失——best-effort 不刷屏）
 }
 
 func NewRunner(pool *pgxpool.Pool) *Runner {
