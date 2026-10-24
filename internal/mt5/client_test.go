@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"phase/internal/platform/testutil"
 	"phase/internal/store/pgstore"
@@ -80,5 +81,39 @@ func TestAccountEventWrite(t *testing.T) {
 		FROM md_account_events WHERE venue='mt5' AND channel='boot' AND ccy='USD'
 		ORDER BY ts DESC LIMIT 1`).Scan(&eq, &av); err != nil || eq != 1000.5 || av != 900.25 {
 		t.Fatalf("mt5 事件行 eq=%v av=%v err=%v", eq, av, err)
+	}
+}
+
+// T-0053 锚：Connect 有界化——grpc.NewClient 懒拨号，首个 RPC 无死线=连接建立
+// 无限期阻塞（OpenSession 静默悬挂实证）。黑洞址注入：自带死线兜底+调用方
+// 更短 budget 继承，两路都必须在死线内返错而非悬挂。
+func TestConnectDeadlineBounded(t *testing.T) {
+	blackhole := "10.255.255.1:443" // 不可路由——连接建立阻塞直至死线
+	// ① 自带死线兜底：调用方 ctx 无 Deadline → connectBudget 兜底返错。
+	old := connectBudget
+	connectBudget = 300 * time.Millisecond
+	defer func() { connectBudget = old }()
+	cl, err := Dial(blackhole)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cl.Close()
+	start := time.Now()
+	if err := cl.Connect(context.Background(), Credentials{Host: blackhole, Login: 1, Password: "x"}); err == nil {
+		t.Fatal("黑洞址 Connect 不应成功")
+	} else if d := time.Since(start); d > 5*time.Second {
+		t.Fatalf("自带死线失效（悬挂）: %v", d)
+	}
+	// ② 调用方更短 budget 继承不覆写。
+	connectBudget = 30 * time.Second
+	cctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	start = time.Now()
+	err = cl.Connect(cctx, Credentials{Host: blackhole, Login: 1, Password: "x"})
+	if err == nil {
+		t.Fatal("黑洞址 Connect 不应成功")
+	}
+	if d := time.Since(start); d > 2*time.Second {
+		t.Fatalf("调用方短 budget 未继承（悬挂）: %v", d)
 	}
 }
