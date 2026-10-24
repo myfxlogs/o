@@ -111,21 +111,18 @@ function orgSVG(staff: { name: string; duty: string; state: number }[]): string 
     const p = pos.get(a), q = pos.get(b)
     if (!p || !q) return ''
     return `<line x1="${p[0] + 40}" y1="${p[1] + 14}" x2="${q[0] + 40}" y2="${q[1] + 14}"
-      stroke="${c}" stroke-width="1.5" stroke-dasharray="${d}" filter="url(#gl)"/>`
+      stroke="${c}" stroke-width="1.5" stroke-dasharray="${d}" />`
   }
   const dots = ['#34d399', '#fbbf24', '#f87171']
-  const anim = ['breath 2.4s ease-in-out infinite', 'breath .8s ease-in-out infinite', 'none']
-  let g = `<defs><filter id="gl" x="-50%" y="-50%" width="200%" height="200%">
-    <feGaussianBlur stdDeviation="2.2" result="b"/>
-    <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>`
-  for (const [a, b] of solid) g += link(a, b, '#22d3ee', '0')
-  for (const [a, b] of dash) g += link(a, b, '#a78bfa', '4 3')
+  let g = ''
+  for (const [a, b] of solid) g += link(a, b, '#7dd3fc', '0')
+  for (const [a, b] of dash) g += link(a, b, '#94a3b8', '4 3')
   for (const [nm, [x, y]] of pos) {
     const s = byName.get(nm)!
     g += `<rect x="${x}" y="${y}" rx="8" width="120" height="30" fill="rgba(255,255,255,.06)"
       stroke="rgba(255,255,255,.12)"/>
       <circle cx="${x + 8}" cy="${y + 8}" r="4" fill="${dots[s.state] || dots[0]}"
-      style="animation:${anim[s.state] || anim[0]}"/>
+      />
       <text x="${x + 18}" y="${y + 13}" fill="var(--txt)" font-size="11">${h(nm)}</text>
       <text x="${x + 18}" y="${y + 25}" fill="var(--dim)" font-size="9">${h(s.duty)}</text>`
   }
