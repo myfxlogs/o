@@ -37,7 +37,7 @@ func (r *Runner) WithBalances(fn func(ctx context.Context) (map[[2]string]float6
 
 func NewRunner(pool *pgxpool.Pool, cfg *config.Client) *Runner {
 	return &Runner{pool: pool, cfg: cfg,
-		rej: rejects.New("ledger", "diff_alert", "missing_param", "write_err")}
+		rej: rejects.New("ledger", "diff_alert", "missing_param", "bal_missing", "write_err")}
 }
 
 func (r *Runner) Run(ctx context.Context, errc chan<- error) {
@@ -112,6 +112,8 @@ func (r *Runner) reconcile(ctx context.Context) error {
 	// T-0048 根修：venue 侧=检查时点 balances+savings 现读聚合（快照行出局——
 	// 判定面只读现读；读件缺席=对账面让位不炸——司账/结算径仍事件驱动）。
 	if r.bal == nil {
+		r.rej.Inc("bal_missing")
+		log.Printf("WARN [ledger] 对账 venue 现读件未挂接——对账缺岗可见（fail-closed 让位）")
 		return nil
 	}
 	ven, err := r.bal(ctx)

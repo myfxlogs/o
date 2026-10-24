@@ -124,6 +124,30 @@ func BalanceEquity(ctx context.Context, creds Credentials, simulated bool) (map[
 	return out, nil
 }
 
+// TradingAvailBal GET /account/balance → ccy availBal（交易户闲余口径——
+// T-0048 返修：earn 摆渡自 AcctTrading，量资金户=错户；钦定事务面单发）。
+func (c *Client) TradingAvailBal(ctx context.Context, ccy string) (float64, error) {
+	raw, err := c.Get(ctx, "/api/v5/account/balance")
+	if err != nil {
+		return 0, err
+	}
+	var rows []struct {
+		Details []struct {
+			Ccy      string `json:"ccy"`
+			AvailBal string `json:"availBal"`
+		} `json:"details"`
+	}
+	if err := json.Unmarshal(raw, &rows); err != nil || len(rows) == 0 {
+		return 0, fmt.Errorf("balance parse: %w", err)
+	}
+	for _, d := range rows[0].Details {
+		if d.Ccy == ccy {
+			return parseF(d.AvailBal), nil
+		}
+	}
+	return 0, fmt.Errorf("ccy %s 缺席", ccy)
+}
+
 // AssetBalance /asset/balances（资金户——funding 户无推送频道，钦定保留面）。
 func (c *Client) AssetBalances(ctx context.Context) ([]struct {
 	Ccy, Bal, AvailBal, FrozenBal string

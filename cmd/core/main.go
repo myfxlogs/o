@@ -163,17 +163,10 @@ func run() error {
 		earnW.AttachVenue(okcli)
 		earnW.AttachAlerter(alerter)
 		// venue 现读件（T-0048：决策/判定/对账时点实读——快照行全域出局）。
+		// T-0048 返修②：闲余=交易户 availBal（depositIdle 自 AcctTrading 摆钱——
+		// 量资金户=错户已纠）。
 		earnW.AttachIdle(func(ctx context.Context) (float64, error) {
-			b, err := okcli.AssetBalances(ctx)
-			if err != nil {
-				return 0, err
-			}
-			for _, x := range b {
-				if x.Ccy == "USDT" {
-					return okxexec.ParseF(x.AvailBal), nil
-				}
-			}
-			return 0, nil
+			return okcli.TradingAvailBal(ctx, "USDT")
 		})
 		// 交易域首岗：执事（Executor=okxexec 唯一 venue 径——凭据与私流守同源解出）。
 		execR := execution.NewRunner(pool, cfg,
@@ -261,7 +254,8 @@ func run() error {
 	wd := guard.NewWarden(pool, cfg, riskGate, closer)
 	wd.AttachAlerter(alerter)
 	// venue 现读件（T-0048：快照行全域出局——venue_readers.go 装配）。
-	attachVenueReaders(riskGate, wd, ledgerR, okcli)
+	attachVenueReaders(riskGate, wd, ledgerR, okcli,
+		func(ctx context.Context) (*mt5.Client, error) { return mt5.OpenSession(ctx, pool, cfg) })
 	go wd.Run(ctx, errc)
 
 	mux := http.NewServeMux()
