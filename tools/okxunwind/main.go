@@ -103,7 +103,7 @@ func main() {
 	// 零复购，fail-open 分支物理消失（原 if tra0>0&&proceeds>0 卫=同族残留）。
 	back := backCap(tra, proceeds)
 	if back > 0 {
-		cltid, err := cli.AssetTransfer(ctx, "USDT", back, okxexec.AcctTrading, okxexec.AcctFunding)
+		cltid, _, err := cli.AssetTransfer(ctx, "USDT", back, okxexec.AcctTrading, okxexec.AcctFunding)
 		if err != nil {
 			die(fmt.Errorf("transfer back: %w (clTId=%s)", err, cltid))
 		}

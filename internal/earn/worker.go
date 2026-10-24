@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
 	"phase/internal/platform/events"
 	"sync"
 	"time"
@@ -44,7 +45,7 @@ type VenueAPI interface {
 	SavingsRedeem(ctx context.Context, ccy string, amt float64) error
 	// SavingsBalance raw 返回（client.go T-holding 契约——earn 侧按 ccy 过滤解析）。
 	SavingsBalance(ctx context.Context) (json.RawMessage, error)
-	AssetTransfer(ctx context.Context, ccy string, amt float64, from, to string) (string, error)
+	AssetTransfer(ctx context.Context, ccy string, amt float64, from, to string) (clTID, transID string, err error)
 	AssetTransferState(ctx context.Context, ccy, clTID string) (string, error)
 }
 
@@ -63,6 +64,10 @@ type Worker struct {
 	idle   func(ctx context.Context) (float64, error)
 	rateFn func(ctx context.Context) (okxexec.RateSummary, error)
 	mu     sync.Mutex // 单飞锁：redeem 持锁必进（开仓不排队），sweep TryLock 让位
+	// T-0059 同因退避：上一拍 sweep 败（amt 近似+时点）——同因 5min 内不再发
+	// （终拒后同参重试=死锁环实证；告警随尝试节拍自然 ≤1 条/5min）。
+	lastSweepFailAmt float64
+	lastSweepFailAt  time.Time
 }
 
 // NewWorker 装配（api 未挂接=现率采集岗；AttachVenue 后停泊钱动上岗）。
@@ -154,12 +159,20 @@ func (w *Worker) sweepIdle(ctx context.Context) error {
 		w.rej.Inc("sweep_skip_inflight")
 		return nil
 	}
+	if time.Since(w.lastSweepFailAt) < 5*time.Minute && math.Abs(idle-w.lastSweepFailAmt) < 0.01 {
+		w.rej.Inc("sweep_backoff") // 同因退避中——禁同参重发（死锁环根修件）
+		return nil
+	}
 	if !w.mu.TryLock() {
 		w.rej.Inc("sweep_busy")
 		return nil
 	}
 	defer w.mu.Unlock()
-	w.depositIdle(ctx, idle)
+	if moved := w.depositIdle(ctx, idle); !moved {
+		w.lastSweepFailAmt, w.lastSweepFailAt = idle, time.Now()
+	} else {
+		w.lastSweepFailAmt, w.lastSweepFailAt = 0, time.Time{}
+	}
 	return nil
 }
 
