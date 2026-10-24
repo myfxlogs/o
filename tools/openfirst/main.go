@@ -12,6 +12,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"phase/internal/earn"
 	mt5pb "phase/internal/gen/mtapi/mt5"
 	"phase/internal/mt5"
 	"phase/internal/platform/config"
@@ -94,6 +95,10 @@ func main() {
 		*dst = p
 	}
 	cli := okxexec.NewClient(cred, false)
+	// Earn 赎回件装配同产线（T-0037——交易户 USDT≈0 实勘，不挂=保证金必拒；
+	// 两结构通用：赎回只动 OKX Earn，cfd_perp 的 mt5 腿保证金在 MT5 户内）。
+	earnW := earn.NewWorker(pool, cfg)
+	earnW.AttachVenue(cli)
 	var execR *execution.Runner
 	var legs [2]execution.Leg
 	var spotInst string
@@ -132,9 +137,9 @@ func main() {
 		execR = execution.NewRunner(pool, cfg, execution.RouterExecutor{
 			"okx": execution.OkxExecutor{C: cli},
 			"mt5": mtexec.Executor{C: mt},
-		})
+		}).WithEarn(earnW)
 	} else {
-		execR = execution.NewRunner(pool, cfg, execution.OkxExecutor{C: cli})
+		execR = execution.NewRunner(pool, cfg, execution.OkxExecutor{C: cli}).WithEarn(earnW)
 		// 双腿乐器派生+sz 换算（leg1 SWAP 卖/leg2 派生现货买；minSz 闸 fail-closed）。
 		var lerr error
 		legs, spotInst, lerr = execution.BuildLegs(ctx, pool, func(ctx context.Context, iid string) (execution.InstMeta, error) {
@@ -143,7 +148,7 @@ func main() {
 				it = "SPOT"
 			}
 			m, err := cli.InstrumentMeta(ctx, it, iid)
-			return execution.InstMeta{CtVal: m.CtVal, LotSz: m.LotSz, MinSz: m.MinSz}, err
+			return execution.InstMeta{CtVal: m.CtVal, CtValCcy: m.CtValCcy, LotSz: m.LotSz, MinSz: m.MinSz}, err
 		}, venue, instID, notional)
 		if lerr != nil {
 			fmt.Fprintln(os.Stderr, "legs:", lerr)

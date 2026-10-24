@@ -162,18 +162,21 @@ func (c *Client) PublicGet(ctx context.Context, pathWithQuery string) (json.RawM
 // bootstrap 钦定面非轮询病灶）。
 func (c *Client) InstrumentMeta(ctx context.Context, instType, instID string) (struct {
 	CtVal, LotSz, MinSz float64
+	CtValCcy            string
 }, error) {
 	var out struct {
 		CtVal, LotSz, MinSz float64
+		CtValCcy            string
 	}
 	raw, err := c.Get(ctx, "/api/v5/public/instruments?instType="+instType+"&instId="+instID)
 	if err != nil {
 		return out, err
 	}
 	var rows []struct {
-		CtVal string `json:"ctVal"`
-		LotSz string `json:"lotSz"`
-		MinSz string `json:"minSz"`
+		CtVal    string `json:"ctVal"`
+		LotSz    string `json:"lotSz"`
+		MinSz    string `json:"minSz"`
+		CtValCcy string `json:"ctValCcy"`
 	}
 	if err := json.Unmarshal(raw, &rows); err != nil || len(rows) == 0 {
 		return out, fmt.Errorf("instruments 空: %w", err)
@@ -181,5 +184,6 @@ func (c *Client) InstrumentMeta(ctx context.Context, instType, instID string) (s
 	out.CtVal, _ = strconv.ParseFloat(rows[0].CtVal, 64)
 	out.LotSz, _ = strconv.ParseFloat(rows[0].LotSz, 64)
 	out.MinSz, _ = strconv.ParseFloat(rows[0].MinSz, 64)
+	out.CtValCcy = rows[0].CtValCcy
 	return out, nil
 }
