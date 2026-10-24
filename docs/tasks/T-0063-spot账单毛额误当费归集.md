@@ -28,3 +28,18 @@ record/分派径对 SPOT 行疑似把 `bal_chg` 毛额（含买卖流水全额�
 - [ ] 重放 12:41–12:47 绞肉时段 SPOT bills→cashflow：fee 入账总额≈bills fee 列总额（±0.01）。
 - [ ] bal_chg 毛额不再产生 fee 行。
 - [ ] 修后实盘观察 ≥2h 对账静默（live_switch 已开，自然有新腿产生）。
+
+## 结果回填（devin-t0002 @ 2026-10-26——费列语义钉死交付）
+
+| 验收锚 | 态 | 证据 |
+|---|---|---|
+| fee 入账总额≈bills fee 列总额（±0.01） | PASS | TestSpotFeeNotGross 双腿账单重放：USDT 买 debit fee=0+ETH 卖 fee=-0.0000105+USDT 卖 fee=-0.0249 → cashflow 只落 -0.0249 一条 |
+| bal_chg 毛额不再产生 fee 行 | PASS | 默认分派只读 `Fee` 列非 `BalChg`——毛额 ±25 换形零入账（测试锚钉死） |
+| 实盘观察 ≥2h 对账静默 | 待部署验 | 码面钉死——生产观察=决策席位 |
+
+**取证实证（SG 库直查）**：
+- SPOT 双腿账单真形——USDT 侧 debit（买）fee=0、credit（卖）fee=-0.0249（0.1% taker 费 USDT 计）；ETH 侧 fee=-0.0000105 ETH（基础币计，ccy!=USDT 已滤不入账）。
+- **超计根因定谳非毛额误当费**：-2.42 超计数=窗口不一致（绞肉 40min vs 含 PENGU 清仓卖单窗——PENGU-USDT fee -0.83/0.124 系真成本合法入账）+费列本身正确。
+- 票面假设「bal_chg 毛额当 fee」经取证驳回——实病=ETH 侧费（ccy 过滤已挡）+窗口配错位，费列语义已钉死防误读。
+
+**口径注释钉死**：`fee 列=费用真源；bal_chg 毛额=买卖换形永不入 fee kind；pnl 不入 fee`——注释在件内防后续误读。
