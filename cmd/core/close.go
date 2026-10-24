@@ -16,11 +16,17 @@ import (
 type closeExec struct{ r *execution.Runner }
 
 func (c closeExec) ExecuteClose(ctx context.Context, spec guard.CloseSpec) (int64, error) {
-	return c.r.Execute(ctx, execution.Intent{
+	return c.r.Execute(ctx, closeIntent(spec))
+}
+
+// closeIntent 平仓 Intent 装配——Kind="close" 免闸免赎语义位+双腿 Close=true 必置。
+func closeIntent(spec guard.CloseSpec) execution.Intent {
+	return execution.Intent{
+		Kind:       "close", // T-0043：live_switch 翻 false 时平仓被拦=安全律反向
 		DecisionID: spec.DecisionID, StrategyRef: spec.StrategyRef, InstID: spec.InstID,
 		NotionalUSD: spec.NotionalUSD,
 		Legs:        [2]execution.Leg{closeLegOf(spec, spec.Legs[0]), closeLegOf(spec, spec.Legs[1])},
-	})
+	}
 }
 
 // closeLegOf 平仓腿装配——Close=true 必置（T-0043 根修）。
