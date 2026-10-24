@@ -88,3 +88,8 @@
 - T-0054 二轮轮换实录合入；T-0055 合入（工具径绕账~$93 实锤+利息事件化+校准径）；T-0057 合入（SG 实测 RX 39KB/s=预算 0.8%，帧级计量+两档告警）。
 - 决策席亲跑 SOP 轮换 eaa0672a（含 0030/0031 迁移+netmeter+利息入账在产）；recon_adjust -96.0164 落行校准（id=31）→ledger 2133.4036≈venue 2133.4035 告警静默。
 - 二进制残渣第二犯（billsaudit 16MB）→gitignore 工具族通配根绝（7d2ff7f）。
+
+### 追加⑩（ledger_diff 复发根查 2026-10-24）
+
+- 三段定性：08:30-10:38 告警=旧 $96 工具绕账差（T-0055 根修+recon_adjust 校准已愈）；09:38-09:44 rollback_failed/close_gave_up=T-0050 事故实录（exec11 LEGGED/回滚败+平仓重试耗尽，okxunwind 人工回卷收官）；10:59 新告警=venue 读面静默降级新病灶——frameVals 帧缺席返 0 被 `eq!=0` 当「真零」丢腿，假差 $75.8（trading 户实有 75.93 unwind 残资）。
+- 立 T-0058：读面 fail-closed 化+REST 兜底+告警区分+残资归停泊。
