@@ -23,6 +23,7 @@ import (
 	"phase/internal/ledger"
 	"phase/internal/ledger/holding"
 	"phase/internal/ledger/report"
+	"phase/internal/mt5"
 	"phase/internal/platform/config"
 	"phase/internal/platform/cryptoutil"
 	"phase/internal/platform/notify"
@@ -188,6 +189,13 @@ func run() error {
 		})
 		go hs.Run(ctx, errc)
 
+	}
+
+	// MT5 数据面只读接入（员工 汇市巡——T-0031）：凭据缺席 fail-closed WARN 不炸 boot。
+	if m5, err := mt5.NewCollector(ctx, pool, cfg); err != nil {
+		log.Printf("WARN: 汇市巡缺席（%v）——mt5 凭据落位后重启即上岗", err)
+	} else {
+		go m5.Run(ctx, errc)
 	}
 
 	// 研究域首岗：funding 枚举+评估卡（员工 探员/验证官）——判据全 app_config 机读。
