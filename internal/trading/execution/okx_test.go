@@ -53,3 +53,16 @@ func TestBuildOrderParamsTgtCcy(t *testing.T) {
 		}
 	}
 }
+
+// T-0043 锚②③：reduceOnly 域界——官方口径仅适用杠杆+合约；spot 平腿带
+// reduceOnly=51000 参数拒禁带；cross 平腿 posSide+reduceOnly 双置。
+func TestBuildOrderParamsReduceOnlyDomain(t *testing.T) {
+	p := buildOrderParams(Leg{InstID: "BTC-USDT", Side: "sell", Sz: "0.01", Close: true}, "ph4x1x1", "long_short_mode")
+	if p.TdMode != "cash" || p.ReduceOnly {
+		t.Fatalf("spot 平腿禁带 reduceOnly: tdMode=%q reduceOnly=%v", p.TdMode, p.ReduceOnly)
+	}
+	p = buildOrderParams(Leg{InstID: "BTC-USDT-SWAP", Side: "buy", Sz: "1", Close: true}, "ph4x1x1", "long_short_mode")
+	if p.TdMode != "cross" || !p.ReduceOnly || p.PosSide != "short" {
+		t.Fatalf("cross 平腿 posSide+reduceOnly 双置败: tdMode=%q reduceOnly=%v posSide=%q", p.TdMode, p.ReduceOnly, p.PosSide)
+	}
+}
