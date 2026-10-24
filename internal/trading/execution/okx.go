@@ -69,10 +69,15 @@ func buildOrderParams(leg Leg, clOrdID, posMode string) okxexec.OrderParams {
 	if leg.Close && p.TdMode == "cross" {
 		p.ReduceOnly = true
 	}
-	// T-0042 方言根修：spot 市价买 sz 默认按计价币（quote_ccy）解释——BTC 数量
-	// 意图会被当 USDT 金额拒单（exec_id=3 实弹实证），必带 base_ccy 钉死口径。
+	// T-0042 方言根修：spot 市价买 sz 默认按计价币（quote_ccy）解释——base 量意图
+	// 必带 base_ccy 钉死口径（exec_id=3 实弹实证）；T-0064 追加：TgtQuote 位=显式
+	// quote_ccy 委托（sz=USDT 额 venue 内换算——配比径落法，粒度残差→舍入级）。
 	if p.TdMode == "cash" && p.Side == "buy" && p.OrdType == "market" {
-		p.TgtCcy = "base_ccy"
+		if leg.TgtQuote {
+			p.TgtCcy = "quote_ccy"
+		} else {
+			p.TgtCcy = "base_ccy"
+		}
 	}
 	if posMode == "long_short_mode" && p.TdMode == "cross" {
 		if leg.Close {

@@ -111,6 +111,27 @@ func (w *Warden) latestFunding(ctx context.Context, inst string) (float64, bool)
 	return *rate, true
 }
 
+// driftTriggered 漂移双闸（T-0064）：①绝对兜底 |imb|>500bps 无条件杀；②语义闸
+// |imb_now−imb_open|>band——基线 NULL=首拍实算落列零杀（基线播种拍）。
+const driftAbsCapBps = 500
+
+func (w *Warden) driftTriggered(ctx context.Context, posID int64, imbNow, bandBps float64) bool {
+	if imbNow > driftAbsCapBps || imbNow < -driftAbsCapBps {
+		return true // 绝对兜底闸：裸腿级失衡无条件杀（基线也拦不住的失守）
+	}
+	var open *float64
+	if err := w.pool.QueryRow(ctx,
+		"SELECT open_imbalance_bps FROM fin_position WHERE id=$1", posID).Scan(&open); err != nil || open == nil {
+		// 基线播种：首拍实算落列，本拍零杀（出生残差入基线）。
+		if _, err := w.pool.Exec(ctx,
+			"UPDATE fin_position SET open_imbalance_bps=$2 WHERE id=$1 AND open_imbalance_bps IS NULL", posID, imbNow); err != nil {
+			w.rej.Inc("write_err")
+		}
+		return false
+	}
+	return math.Abs(imbNow-*open) > bandBps
+}
+
 // notionalNow 腿现价名义额——量纲按乐器类型分派（T-0046 ①根修，canon
 // exec-notional-ctval-missing）：SPOT=sz×px（sz=币量）；SWAP=sz×ctVal×px
 // （sz=张数——ctVal 经 cmd 注入 venue 现读件（T-0048 后 facts 表废，D-0008 决策

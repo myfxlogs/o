@@ -226,8 +226,10 @@ func (w *Warden) evaluate(ctx context.Context, p posRow, legs legSet) string {
 	} else if rate*sign < 0 && math.Abs(rate)*10000 > flipBps {
 		return "funding_flip"
 	}
-	// ② delta 漂移：两腿现价名义额中差超 exec.hedge_band_bps（T-0014 同键复用）。
-	// 腿数非 2=契约外形态（计数不误判）。
+	// ② delta 漂移（T-0064 语义正名）：漂移=对**开时基线**的偏移非绝对失衡——
+	// |imb_now − imb_open| > band（出生粒度残差不杀，canon
+	// lotsz-granularity-vs-hedge-band 裁决案）；双闸：imb_now>500bps 绝对
+	// 兜底（防 sizer 失守放裸腿级失衡）。基线=NULL=首拍实算落列（0033 列）。
 	if bandBps, err := w.getF("exec.hedge_band_bps"); err != nil {
 		w.rej.Inc("missing_param")
 		w.note("missing_param:band", fmt.Sprintf("仓 %d exec.hedge_band_bps 读败——漂移判据链跳过: %v", p.id, err))
@@ -240,7 +242,7 @@ func (w *Warden) evaluate(ctx context.Context, p posRow, legs legSet) string {
 	} else if n2, ok2 := w.notionalNow(ctx, legs.b); !ok2 {
 		w.rej.Inc("facts_missing")
 		w.note("facts_missing:notional", fmt.Sprintf("仓 %d 腿 %s 名义读败（tick/ctVal 缺）——漂移判据跳过", p.id, legs.b.inst))
-	} else if avg := (n1 + n2) / 2; avg > 0 && math.Abs(n1-n2)/avg*10000 > bandBps {
+	} else if avg := (n1 + n2) / 2; avg > 0 && w.driftTriggered(ctx, p.id, (n1-n2)/avg*10000, bandBps) {
 		return "delta_drift"
 	}
 	// ③ 持仓超龄：age > guard.max_hold_hours。

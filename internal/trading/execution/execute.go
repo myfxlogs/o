@@ -24,7 +24,8 @@ type Leg struct {
 	Side     string // buy|sell
 	Sz       string // 数量（venue 方言——okx 张数口径由 venue 层换算）
 	Notional float64
-	Close    bool  // close 语义位（rollback/平仓腿=true——executor 按位分派平仓径，禁反向新开）
+	Close    bool  // close 语义位（rollback/平仓腿=true——executor 按位分派平仓径，禁反向新开)
+	TgtQuote bool  // spot 市价腿 quote_ccy 委托位（T-0064——sz=USDT 额 venue 内换算，免 base lotSz floor）
 	Ticket   int64 // MT5 平仓凭据（leg1 回报 ticket——hedge 户 OrderClose 必携）
 }
 
