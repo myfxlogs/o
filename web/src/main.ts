@@ -44,10 +44,28 @@ async function ov(): Promise<void> {
         const ss = document.getElementById('staff-sum')
         const bad = d.staff.filter((x: { state: number }) => x.state === 2).length
         const warn = d.staff.filter((x: { state: number }) => x.state === 1).length
+        if (ss && !ss.dataset.wired) {
+          ss.dataset.wired = '1'
+          ss.onclick = () => {
+            sc.style.gridColumn = 'span 12'
+            const g = document.getElementById('staff-graph')
+            if (g) g.style.display = 'block'
+          }
+        }
         if (ss) ss.innerHTML = `<h3>员 工 · ${d.staff.length} 在册</h3>
           <div class="staffline" style="color:var(--dim)">${bad ? `${bad} 心跳迟滞` : warn ? `${warn} 心跳偏慢` : '全员心跳正常'} · 展开架构图 ▸</div>`
         const sg = document.getElementById('staff-graph')
-        if (sg) sg.innerHTML = orgSVG(d.staff)
+        if (sg) {
+          sg.innerHTML = orgSVG(d.staff)
+          if (!sg.dataset.wired) {
+            sg.dataset.wired = '1'
+            sg.onclick = (e) => {
+              e.stopPropagation()
+              sg.style.display = 'none'
+              sc.style.gridColumn = 'span 6'
+            }
+          }
+        }
       } else {
         sc.style.display = 'none'
       }
@@ -65,30 +83,53 @@ new EventSource('/api/watch').onmessage = () => ov()
 ov()
 setInterval(ov, 30000)
 
-// orgSVG 16 节点关系图（T-0078：实线=数据/钱流，虚线=控制——呼吸灯态
-// 绿<60s/琥珀<5m/红>5m 直映 last_beat；折叠态=摘要行点击展开）。
+// orgSVG 霓虹关系图（T-0079 钦定规格：深色底+feGaussianBlur 辉光连线；
+// 实线青=钱/仓流主链，虚线紫=控制/数据/回环；节点=圆角卡名+职+呼吸灯；
+// 右上徽标 ◉ N 在岗；拓扑按 16 岗语义写死非力导向；底部图例行）。
 function orgSVG(staff: { name: string; duty: string; state: number }[]): string {
-  const pos: Record<string, [number, number]> = {}
-  const n = staff.length
-  staff.forEach((s, i) => {
-    const col = i % 4, row = Math.floor(i / 4)
-    pos[s.name] = [70 + col * 180, 40 + row * 70]
-  })
+  // 钦定座次（16 岗语义固定——registry name 对位，缺席=跳过不虚构）。
+  const grid: [string, number, number][] = [
+    ['探员', 60, 40], ['验证官', 220, 40], ['命官', 380, 40], ['门官', 540, 40],
+    ['执事', 700, 40], ['评史官', 60, 140], ['配管', 220, 140], ['仓巡', 380, 140],
+    ['司账', 540, 140], ['核账', 620, 140], ['信使', 700, 140],
+    ['行情巡', 60, 240], ['私流守', 220, 240], ['汇市巡', 380, 240],
+    ['集使', 540, 240], ['phase-core', 700, 240],
+  ]
+  const byName = new Map(staff.map(s => [s.name, s]))
+  const pos = new Map<string, [number, number]>()
+  for (const [nm, x, y] of grid) if (byName.has(nm)) pos.set(nm, [x, y])
+  const solid: [string, string][] = [
+    ['探员', '验证官'], ['验证官', '命官'], ['命官', '门官'], ['门官', '执事'],
+    ['执事', '司账'], ['司账', '核账'], ['核账', '信使'],
+  ]
+  const dash: [string, string][] = [
+    ['评史官', '探员'], ['配管', '命官'], ['仓巡', '执事'],
+    ['行情巡', '探员'], ['私流守', '执事'], ['汇市巡', '执事'], ['集使', '命官'],
+    ['phase-core', '信使'],
+  ]
+  const link = (a: string, b: string, c: string, d: string) => {
+    const p = pos.get(a), q = pos.get(b)
+    if (!p || !q) return ''
+    return `<line x1="${p[0] + 40}" y1="${p[1] + 14}" x2="${q[0] + 40}" y2="${q[1] + 14}"
+      stroke="${c}" stroke-width="1.5" stroke-dasharray="${d}" filter="url(#gl)"/>`
+  }
   const dots = ['#34d399', '#fbbf24', '#f87171']
   const anim = ['breath 2.4s ease-in-out infinite', 'breath .8s ease-in-out infinite', 'none']
-  const dataFlow = staff.slice(1).map(s => s.name) // 简化拓扑：首节点=中枢汇聚
-  let e = ''
-  for (const t of dataFlow) {
-    if (!pos[t] || !pos[staff[0].name]) continue
-    const [x1, y1] = pos[staff[0].name]; const [x2, y2] = pos[t]
-    e += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="rgba(255,255,255,.15)" stroke-width="1"/>`
-  }
-  let g = e
-  for (const s of staff) {
-    const [x, y] = pos[s.name]
-    g += `<circle cx="${x}" cy="${y}" r="6" fill="${dots[s.state] || dots[0]}"
+  let g = `<defs><filter id="gl" x="-50%" y="-50%" width="200%" height="200%">
+    <feGaussianBlur stdDeviation="2.2" result="b"/>
+    <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>`
+  for (const [a, b] of solid) g += link(a, b, '#22d3ee', '0')
+  for (const [a, b] of dash) g += link(a, b, '#a78bfa', '4 3')
+  for (const [nm, [x, y]] of pos) {
+    const s = byName.get(nm)!
+    g += `<rect x="${x}" y="${y}" rx="8" width="120" height="30" fill="rgba(255,255,255,.06)"
+      stroke="rgba(255,255,255,.12)"/>
+      <circle cx="${x + 8}" cy="${y + 8}" r="4" fill="${dots[s.state] || dots[0]}"
       style="animation:${anim[s.state] || anim[0]}"/>
-      <text x="${x + 12}" y="${y + 4}" fill="var(--txt)" font-size="12">${h(s.name)} ${h(s.duty)}</text>`
+      <text x="${x + 18}" y="${y + 13}" fill="var(--txt)" font-size="11">${h(nm)}</text>
+      <text x="${x + 18}" y="${y + 25}" fill="var(--dim)" font-size="9">${h(s.duty)}</text>`
   }
-  return `<svg viewBox="0 0 760 ${Math.ceil(n / 4) * 70 + 40}" style="width:100%;height:auto">${g}</svg>`
+  g += `<text x="620" y="20" fill="var(--dim)" font-size="12">◉ ${staff.length} 个员工在岗</text>
+    <text x="20" y="290" fill="var(--dim)" font-size="11">实线=钱/仓流｜虚线=控制/数据/回环｜灯三色</text>`
+  return `<svg viewBox="0 0 780 310" style="width:100%;height:auto">${g}</svg>`
 }

@@ -114,3 +114,8 @@
 
 - 业主令：里程碑可达 feishu——立 T-0061 经营事件报层（开仓/结算/平仓三件事 event push，独立开关+去重频控+零秘面）。
 - 推送面三档语义钉死：介入级告警（出事）/经营事件报（里程碑）/期界报表（经营节律）。
+
+### 追加（T-0064 返修令+T-0079 领，devin-cli 施工）
+
+- 决策席令：T-0064 分支基 94e85ad 陈旧（直合=回滚 70 文件级）——rebase 至 master d3d5014 重推，唯一冲突=migrate_table.go 迁移号序（master 新占 34/35），解为 33/34/35 依序保留。已 force-with-lease 推 t/0064-drift-baseline @b7d5497。
+- 令随行：live_switch 维持 true 待验收——本 session 未触部署树、未动 config，状态保持。
