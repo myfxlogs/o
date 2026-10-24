@@ -104,6 +104,15 @@ func (r *Runner) settle(ctx context.Context) error {
 	}
 	rows.Close()
 	for _, id := range ids {
+		// T-0082 对称口径闸：trade_pnl 毛额级行（平仓腿本金回笼误当利润）
+		// 结算前矫正=卖出所得−开仓成本（腿名义半额基准）——真价差入账非幻影；
+		// 价差级行不动（<10% notional 阈值——矫正只打毛额病灶）。
+		if _, cerr := r.pool.Exec(ctx, `UPDATE fin_cashflow c SET amount=c.amount-p.notional_usd/2
+			FROM fin_position p WHERE c.position_ref=p.id AND p.id=$1
+			AND c.kind='trade_pnl' AND c.source_table='fin_order_leg'
+			AND abs(c.amount)>p.notional_usd*0.1`, id); cerr != nil {
+			return cerr
+		}
 		var net float64
 		if err := r.pool.QueryRow(ctx,
 			"SELECT COALESCE(sum(amount),0) FROM fin_cashflow WHERE position_ref=$1 AND kind NOT IN ('earn_in','earn_out')", id).Scan(&net); err != nil {
