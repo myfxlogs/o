@@ -101,14 +101,22 @@ func (w *Warden) legs(ctx context.Context, execID int64) legSet {
 	return ls
 }
 
-// latestFunding 最新 funding 事实行（md_funding 按 ts 最新；无行/空值=false）。
-func (w *Warden) latestFunding(ctx context.Context, inst string) (float64, bool) {
+// fundingRate funding 行读件（latest=已结算/next=预测分口径；无行/空值=false）。
+func (w *Warden) fundingRate(ctx context.Context, inst, col string) (float64, bool) {
 	var rate *float64
-	if err := w.pool.QueryRow(ctx,
-		"SELECT funding_rate FROM md_funding WHERE inst_id=$1 ORDER BY ts DESC LIMIT 1", inst).Scan(&rate); err != nil || rate == nil {
+	err := w.pool.QueryRow(ctx, fmt.Sprintf(
+		"SELECT %s FROM md_funding WHERE inst_id=$1 AND %s IS NOT NULL ORDER BY ts DESC LIMIT 1",
+		col, col), inst).Scan(&rate)
+	if err != nil || rate == nil {
 		return 0, false
 	}
 	return *rate, true
+}
+func (w *Warden) latestFunding(ctx context.Context, inst string) (float64, bool) {
+	return w.fundingRate(ctx, inst, "funding_rate")
+}
+func (w *Warden) nextFunding(ctx context.Context, inst string) (float64, bool) {
+	return w.fundingRate(ctx, inst, "next_funding_rate")
 }
 
 // driftTriggered 漂移双闸（T-0064）：①绝对兜底 |imb|>500bps 无条件杀；②语义闸
@@ -132,11 +140,9 @@ func (w *Warden) driftTriggered(ctx context.Context, posID int64, imbNow, bandBp
 	return math.Abs(imbNow-*open) > bandBps
 }
 
-// notionalNow 腿现价名义额——量纲按乐器类型分派（T-0046 ①根修，canon
-// exec-notional-ctval-missing）：SPOT=sz×px（sz=币量）；SWAP=sz×ctVal×px
+// notionalNow 腿现价名义额（量纲按乐器分派——T-0046 根修）。
 // （sz=张数——ctVal 经 cmd 注入 venue 现读件（T-0048 后 facts 表废，D-0008 决策
-// 时点现读——okx instruments 静态属性短 TTL 缓存径），禁按币种名猜）。
-// 无 tick/合约缺 ctVal=false（调用方 facts_missing 计数不误判）。
+// 时点现读——okx instruments 静态属性短 TTL 缓存径），禁按币种名猜）。 无 tick/合约缺 ctVal=false（调用方 facts_missing 计数不误判）。
 func (w *Warden) notionalNow(ctx context.Context, l leg) (float64, bool) {
 	var last *float64
 	if err := w.pool.QueryRow(ctx,
@@ -154,8 +160,7 @@ func (w *Warden) notionalNow(ctx context.Context, l leg) (float64, bool) {
 	return l.sz * mult * *last, true
 }
 
-// ctValOf 合约面值（cmd 注入现读件——缺件/读败/零值=false fail-closed：
-// 漂移判据跳过不误判，绝不虚构面值）。
+// ctValOf 合约面值（cmd 注入件——缺件/读败/零值=false fail-closed）。
 func (w *Warden) ctValOf(ctx context.Context, venue, inst string) (float64, bool) {
 	if w.ctVal == nil {
 		return 0, false
@@ -164,23 +169,20 @@ func (w *Warden) ctValOf(ctx context.Context, venue, inst string) (float64, bool
 }
 
 func (w *Warden) getF(k string) (float64, error) {
-	// T-0046 ④根修：单型 string 解读废裸数字键（canon config-json-type-fragility）
-	// ——改走平台双型读器（number|string 两形皆收）。
+	// T-0046 ④根修：单型 string 解读废裸数字键（canon config-json-type-fragility） ——改走平台双型读器（number|string 两形皆收）。
 	return w.cfg.GetFloat(k)
 }
 
 // VenueSizer 平仓量 venue 现读面（cmd 装配注入——guard 不识 venue 方言）。
 // D-0008 钦定径（canon cex-close-sz-fee-in-base）：再操作量从 venue 实况推
-// ——现货平仓量=availBal（taker 费基准币内扣致实持<委托）、合约=posCcy 张数；
-// 禁抄腿行委托量。读败=fail-closed 不构平仓腿。
+// ——现货平仓量=availBal（taker 费基准币内扣致实持<委托）、合约=posCcy 张数； 禁抄腿行委托量。读败=fail-closed 不构平仓腿。
 type VenueSizer interface {
 	SpotAvailBal(ctx context.Context, instID string) (float64, error)
 	ContractPos(ctx context.Context, instID string) (float64, error) // 净持仓张数 abs
 	LotSz(ctx context.Context, instID string) (float64, error)       // 数量步长
 }
 
-// alignCloseSz 平仓量对齐：min(腿记录, venue 实读) 按 lotSz 网格向下取整；
-// 对齐后≤0=false（fail-closed 不发残量单）。
+// alignCloseSz 平仓量对齐：min(腿记录, venue 实读) 按 lotSz 网格向下取整； 对齐后≤0=false（fail-closed 不发残量单）。
 func alignCloseSz(want, avail, lotSz float64) (float64, bool) {
 	sz := math.Min(want, avail)
 	if lotSz > 0 {
@@ -192,8 +194,7 @@ func alignCloseSz(want, avail, lotSz float64) (float64, bool) {
 	return sz, true
 }
 
-// sizedCloseLegs 反向腿 venue 实读定量（T-0046 ②根修）——任一腿读败/对齐零=
-// false（fail-closed：不构 intent 不发半仓平仓）。
+// sizedCloseLegs 反向腿 venue 实读定量（T-0046 ②根修）——任一腿读败/对齐零= false（fail-closed：不构 intent 不发半仓平仓）。
 func (w *Warden) sizedCloseLegs(ctx context.Context, cls [2]CloseLeg) ([2]CloseLeg, bool) {
 	if w.sizer == nil {
 		return cls, false // 未接线=禁发（现读面缺席——腿行推导禁线）
@@ -222,8 +223,7 @@ func (w *Warden) sizedCloseLegs(ctx context.Context, cls [2]CloseLeg) ([2]CloseL
 	return cls, true
 }
 
-// note skip 态限频结构化日志（T-0046 ④c——无触发也是决策必须可观测；
-// 计数器有可见出口，10min 键级节流防噪音——alert 级噪音禁线）。
+// note skip 态限频结构化日志（T-0046 ④c——无触发也是决策必须可观测； 计数器有可见出口，10min 键级节流防噪音——alert 级噪音禁线）。
 func (w *Warden) note(key, msg string) {
 	if w.notes == nil {
 		w.notes = map[string]time.Time{}
@@ -263,8 +263,7 @@ func (w *Warden) markFailed(ctx context.Context, posID int64) {
 	}
 }
 
-// markClosed 平仓成交态迁移（同 tx：原仓+反向腿衍生仓行一并 closed——衍生行不关
-// =哨戒自触发循环；guard 子面记录收官）。
+// markClosed 平仓成交态迁移（同 tx：原仓+反向腿衍生仓行一并 closed——衍生行不关 =哨戒自触发循环；guard 子面记录收官）。
 func (w *Warden) markClosed(ctx context.Context, posID, closeExecID int64) error {
 	tx, err := w.pool.Begin(ctx)
 	if err != nil {

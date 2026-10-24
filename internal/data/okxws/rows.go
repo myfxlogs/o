@@ -27,10 +27,11 @@ type booksRow struct {
 	hasSeq   bool
 }
 type fundingRow struct {
-	instID        string
-	ts            time.Time
-	fundingRate   float64
-	nextFundingTs time.Time
+	instID          string
+	ts              time.Time
+	fundingRate     float64
+	nextFundingTs   time.Time
+	nextFundingRate float64
 }
 type markRow struct {
 	instID  string

@@ -20,3 +20,9 @@ domain: 工程
 - **REST depth 兜底闸关**：`NOX_DEPTH_REST_OKX=1` 才开，默认 fail-closed（缺数据≠降级数据——宁缺交易不静默降级）。
 - **WS 即 h1 升级**：okx WS 是 HTTP/1.1 Upgrade（RFC6455 非 h2/h3）——WS 通≠h2 通证；REST 传输病灶须单测（见 `docs/经验库/条目/` h2 感染条目）。
 - **端点**：`wss://ws.okx.com:8443/ws/v5/public`；代理约定 `wsViaProxyURLs("/okxws/ws/v5/public", 直连URL)`——禁裸写 URL 不挂代理备径。
+
+## funding-rate 帧字段面（T-0084 补记——预测 vs 实收双口径）
+
+- `fundingRate`+`fundingTime`=已结算费率（落 md_funding.funding_rate/ts）。
+- `nextFundingRate`+`nextFundingTime`=预测面（落 next_funding_rate/next_funding_ts——T-0084 采集前置闸数据源；负值预警先平不等实收）。
+- 帧推送频=结算前逐帧推预测值（非仅 fundingTime 拍）。

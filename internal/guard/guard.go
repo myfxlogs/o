@@ -225,6 +225,8 @@ func (w *Warden) evaluate(ctx context.Context, p posRow, legs legSet) string {
 		w.note("leg_anomaly:perpSign", fmt.Sprintf("仓 %d perp 侧不可辨——翻面判据跳过", p.id))
 	} else if rate*sign < 0 && math.Abs(rate)*10000 > flipBps {
 		return "funding_flip"
+	} else if nr, ok := w.nextFunding(ctx, p.inst); ok && nr*sign < 0 && math.Abs(nr)*10000 > flipBps {
+		return "funding_flip_preempt" // T-0084：预测负值前置平——不等实收先交一刀
 	}
 	// ② delta 漂移（T-0064 语义正名）：漂移=对**开时基线**的偏移非绝对失衡——
 	// |imb_now − imb_open| > band（出生粒度残差不杀，canon

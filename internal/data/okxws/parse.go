@@ -93,7 +93,8 @@ func parseFunding(instID string, d map[string]json.RawMessage) *fundingRow {
 		ts = time.Now().UTC()
 	}
 	return &fundingRow{instID: instID, ts: ts,
-		fundingRate: num(d, "fundingRate"), nextFundingTs: tsms(d, "nextFundingTime")}
+		fundingRate: num(d, "fundingRate"), nextFundingTs: tsms(d, "nextFundingTime"),
+		nextFundingRate: num(d, "nextFundingRate")}
 }
 
 // parseMark → markRow（mark-price/index-tickers 同形：markPx/idxPx）。
