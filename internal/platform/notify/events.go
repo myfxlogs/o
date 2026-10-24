@@ -69,21 +69,30 @@ func (e *EventPush) pushOpened(ctx context.Context) {
 	defer rows.Close()
 	for rows.Next() {
 		var id int64
-		var inst, tmpl string
+		var inst string
 		var notional float64
 		var at interface{}
-		var sr *int64
-		_ = rows.Scan(&id, &inst, &notional, &at, &sr)
-		tmpl = "?"
-		if sr != nil {
-			tmpl = fmt.Sprint(*sr)
+		var tmpl *string
+		if err := rows.Scan(&id, &inst, &notional, &at, &tmpl); err != nil {
+			continue // 扫行败跳过非吞——行级病灶不阻余行
+		}
+		ref := "?"
+		if tmpl != nil && *tmpl != "" {
+			ref = *tmpl
 		}
 		e.push(ctx, fmt.Sprintf("opened:%d", id),
-			fmt.Sprintf("开仓 %s notional=$%.2f 策略=%s（venue 腿行在案）", inst, notional, tmpl))
+			fmt.Sprintf("开仓 %s notional=$%.2f 策略=%s（venue 腿行在案）", inst, notional, ref))
 	}
 }
 
 func (e *EventPush) pushFunding(ctx context.Context) {
+	if _, ok := e.cursor["funding"]; !ok {
+		var maxID int64
+		if err := e.pool.QueryRow(ctx,
+			"SELECT COALESCE(max(id),0) FROM fin_cashflow WHERE kind='funding_settle'").Scan(&maxID); err == nil {
+			e.cursor["funding"] = maxID // boot 播种基线——历史行不重推（重启防护）
+		}
+	}
 	rows, err := e.pool.Query(ctx, `SELECT id,ccy,amount,position_ref FROM fin_cashflow
 		WHERE kind='funding_settle' AND id>$1 ORDER BY id`, e.cursor["funding"])
 	if err != nil {
