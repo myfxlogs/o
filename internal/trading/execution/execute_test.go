@@ -221,3 +221,43 @@ func TestCloseSkipsLiveSwitch(t *testing.T) {
 		t.Fatalf("close 应免检放行: %v", err)
 	}
 }
+
+// T-0033 返修锚：双腿异乐器断言+sz 非空且≥minSz；派生败 fail-closed。
+func TestLegsDerivationAndSz(t *testing.T) {
+	pool := testutil.Pool(t)
+	ctx := context.Background()
+	if err := pgstore.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx,
+		"INSERT INTO md_ticks(ts,inst_id,last) VALUES(now(),'BTC-USDT',90000)"); err != nil {
+		t.Fatal(err)
+	}
+	load := func(ctx context.Context, iid string) (InstMeta, error) {
+		if iid == "BTC-USDT-SWAP" {
+			return InstMeta{CtVal: 0.01, LotSz: 0.1, MinSz: 0.1}, nil
+		}
+		return InstMeta{MinSz: 0.0001, LotSz: 0.0001}, nil
+	}
+	legs, spot, err := BuildLegs(ctx, pool, load, "okx", "BTC-USDT-SWAP", 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if legs[0].InstID == legs[1].InstID {
+		t.Fatal("双腿同乐器——派生失败")
+	}
+	if spot != "BTC-USDT" || legs[1].InstID != "BTC-USDT" {
+		t.Fatalf("派生错: %s", spot)
+	}
+	if legs[0].Sz == "" || legs[1].Sz == "" {
+		t.Fatal("sz 空")
+	}
+	// 派生败 fail-closed 锚
+	if _, _, err := BuildLegs(ctx, pool, load, "okx", "BTC-USDT", 100); err == nil {
+		t.Fatal("非 SWAP 乐器应 fail-closed")
+	}
+	// minSz 闸锚：notional 过小 → perp sz<minSz 拒
+	if _, _, err := BuildLegs(ctx, pool, load, "okx", "BTC-USDT-SWAP", 0.5); err == nil {
+		t.Fatal("最小张起不来应拒")
+	}
+}

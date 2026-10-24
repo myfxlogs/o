@@ -89,18 +89,33 @@ func main() {
 		p, _ := cryptoutil.Open(mk, ct)
 		*dst = p
 	}
-	half := notional / 2
-	execR := execution.NewRunner(pool, cfg,
-		execution.OkxExecutor{C: okxexec.NewClient(cred, false)})
+	cli := okxexec.NewClient(cred, false)
+	execR := execution.NewRunner(pool, cfg, execution.OkxExecutor{C: cli})
+	// 双腿乐器派生+sz 换算（leg1 SWAP 卖/leg2 派生现货买；minSz 闸 fail-closed）。
+	legs, spotInst, err := execution.BuildLegs(ctx, pool, func(ctx context.Context, iid string) (execution.InstMeta, error) {
+		it := "SWAP"
+		if iid == spotInstCached(instID) {
+			it = "SPOT"
+		}
+		m, err := cli.InstrumentMeta(ctx, it, iid)
+		return execution.InstMeta{CtVal: m.CtVal, LotSz: m.LotSz, MinSz: m.MinSz}, err
+	}, venue, instID, notional)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "legs:", err)
+		os.Exit(1)
+	}
+	fmt.Printf("legs: %s sell %s + %s buy %s\n", instID, legs[0].Sz, spotInst, legs[1].Sz)
 	eid, err := execR.Execute(ctx, execution.Intent{
 		DecisionID: dec.DecisionID, StrategyRef: *sid, InstID: instID, NotionalUSD: notional,
-		Legs: [2]execution.Leg{
-			{Venue: venue, InstID: instID, Side: "sell", Notional: half},
-			{Venue: venue, InstID: instID, Side: "buy", Notional: half},
-		}})
+		Legs: legs})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "execute:", err, "exec_id=", eid)
 		os.Exit(1)
 	}
 	fmt.Printf("EXEC-OK exec_id=%d notional=%.2f inst=%s\n", eid, notional, instID)
+}
+
+func spotInstCached(instID string) string {
+	spot, _ := execution.DeriveSpotInst(instID)
+	return spot
 }
