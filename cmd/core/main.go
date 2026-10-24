@@ -26,6 +26,7 @@ import (
 	"phase/internal/mt5"
 	"phase/internal/platform/config"
 	"phase/internal/platform/cryptoutil"
+	"phase/internal/platform/netmeter"
 	"phase/internal/platform/notify"
 	"phase/internal/platform/roster"
 	"phase/internal/portfolio/lifecycle"
@@ -92,7 +93,11 @@ func run() error {
 
 	// P2 首岗：OKX 公开行情采集（员工「行情巡」）——标的集自 app_config 热启，
 	// 键缺席=采集岗待命自轮询不炸 boot（配置驱动装配，非 env 驱动）。
+	// 带宽计量件（T-0057：net.budget_kbps 键缺=闸缺席计量仍行——fail-open 计量面；
+	// alerter 声明后置位——闭包延迟调 nil 安全）。
+	var meter *netmeter.Meter
 	collector := okxws.NewCollector(pool, cfg)
+	collector.AttachMeter(meter)
 	go collector.Run(ctx, errc)
 
 	// 私流守：OKX 私有 WS（凭据自 app_secrets 密文列解；缺件 fail-closed
@@ -124,6 +129,12 @@ func run() error {
 		v, _ := cfg.GetString("feishu.chat_id")
 		return v
 	}, func() bool { v, _ := cfg.GetBool("notify.feishu.enabled"); return v })
+	{
+		budgetKB, _ := cfg.GetInt("net.budget_kbps")
+		meter = netmeter.New(int(budgetKB), func(ctx context.Context, kind, msg string) {
+			alerter.Alert(ctx, kind, msg)
+		})
+	}
 	go killSwitchNotifier(ctx, pool, cfg, alerter)
 	riskGate := risk.NewGate(pool, cfg)
 	var okcli *okxexec.Client
@@ -204,6 +215,7 @@ func run() error {
 	if m5, err := mt5.NewCollector(ctx, pool, cfg); err != nil {
 		log.Printf("WARN: 汇市巡缺席（%v）——mt5 凭据落位后重启即上岗", err)
 	} else {
+		m5.AttachMeter(meter)
 		go m5.Run(ctx, errc)
 	}
 
@@ -259,6 +271,8 @@ func run() error {
 			"frames":     collector.FrameCount(),
 			"last_frame": collector.LastFrame(),
 			"rejects":    collector.Stats.Snapshot(),
+			"net_kbps":   meter.RateKbps(),
+			"net_bytes":  meter.Channels(),
 		})
 	})
 	mountCore(mux)

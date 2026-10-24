@@ -102,6 +102,16 @@ func (c *Collector) dialLoop(ctx context.Context) error {
 				continue
 			}
 			c.handle(ctx, data)
+			if c.meter != nil {
+				var msg struct {
+					Arg struct {
+						Channel string `json:"channel"`
+					} `json:"arg"`
+				}
+				if json.Unmarshal(data, &msg) == nil {
+					c.meter.Add("okx_priv/"+msg.Arg.Channel, len(data))
+				}
+			}
 		}
 	}()
 	ping := time.NewTicker(pingEvery)

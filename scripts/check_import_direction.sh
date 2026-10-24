@@ -40,6 +40,9 @@ internal/ledger/holding -> internal/platform/events
 internal/portfolio/lifecycle -> internal/platform/events
 internal/research/funding -> internal/platform/events
 internal/review -> internal/platform/events
+internal/data/okxpriv -> internal/platform/netmeter
+internal/data/okxws -> internal/platform/netmeter
+internal/mt5 -> internal/platform/netmeter
 internal/ledger/report -> internal/platform/roster
 internal/ledger -> internal/platform/roster
 internal/portfolio/lifecycle -> internal/platform/config
