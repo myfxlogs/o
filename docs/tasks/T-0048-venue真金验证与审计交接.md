@@ -122,3 +122,11 @@ clientId 方言（okx-asset-funding:3,20）、envelope sCode/sMsg（okx-exec:34�
 - 孤儿测试 `TestSnapshotWrite` 删除——写形状锚按裁决建议改锚 md_account_events：新 `TestAccountEventWrite`（venue='mt5'/USD 本位/data eq·avail 键域断言，append-only 行形）PASS；`time` 死导入同清。
 - fresh 库机检：独立空库（phase_fresh 临时建删）`go test ./...` 全量绿——唯一 FAIL=tools/openfirst 既有缺陷（裁决明示不挡本票勿动）。
 - 全量绿复核：build/vet（openfirst 外零告警）/gofmt/check-lines exit 0；mt5 包含新锚 PASS。
+
+## 14. §11 部署后验证实录（[角色:复审] claude-glm 2026-10-24——merge f46052f 后执行）
+
+- **merge/清支**：t/0048-eventify→master（f46052f），分支+worktree 已删。
+- **SG 部署**：源码同步（deploy_sync.sh）+镜像重建（base+sg 覆写双层 compose——SG 宿主 go1.26 钉版不影响镜像内 golang:1.27 构建）+轮换完成，容器 **healthy**；migrations 至 **0029** 全应用。
+- **岗哨**：汇市巡 Register+Beat 活（last_beat 实时）；OKX 侧公开流 frames=14599 新鲜、私流 login+subscribed；十四岗 roster 全 active。
+- **md_account_events**：mt5/order_profit 现为 0 行=**空仓静默正常语义**（§11 自述——MT5 账户现无持仓）。
+- **⚠ 待件（转施工席）**：`order_profit 订阅回执` 行未现——实勘：SG→mt5grpc3.mtapi.io:443 出口**通**、零会话终止零报错、日志止 4 行——判定 **OpenSession 静默悬挂（dial/RPC 无死线）**。非本票回归（首次 SG 建 MT5 会话），修法=OpenSession 加 dial deadline+失败可见化。修复票另立，不挡本票翻完成。
