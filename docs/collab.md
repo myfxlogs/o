@@ -157,3 +157,12 @@ session 标识自定（如 `devin-a1b2`），全仓唯一即可，建议加可�
 1. **实质对话落 `docs/handoff/dialogue.md`**——只录决策/探问/转向/授权级内容（谁授权了什么、为什么改方向、裁了什么争议）；纯执行回执不录。session 死≠事实死——对话里的授权与裁断不落文件，对项目等于没发生。
 2. **事实归位扫描**——本 session 产生的项目事实各归其位：坑→`docs/工程经验库/条目/`（高危直写+`tools/kbgen gen` 重建索引，中低可停待归纳）；venue 面新证→`skills/` 同票修订（在用中证错必修）；方向裁断→`docs/decisions/`。**私有记忆不得独存项目事实**。
 3. **提交即推送**——收工时 `git status` 净 + `git log @{u}..` 空；本地领先未推送=断链风险。
+
+## 11. SG 轮换 SOP（T-0054 立——build 吞码+旧镜像容器假象双坑实证后钉死）
+
+轮换四步，每步机检显式断言——禁管道吞退出码、禁「Started」即当成功：
+
+1. **build 显式断言**：`docker build --network=host -t phase-core:latest -f Dockerfile.core .` 直跑（**禁 `| tail` 等管道吞码**——复合放大器实证：build 炸被吞→`up` 照跑→容器带旧镜像「Started」假象）。
+2. **镜像投递+源码同步**：`docker save phase-core:latest | gzip -1 | ssh root@<SG> 'docker load'` → `scripts/deploy_sync.sh`（prune 已排除 `internal/gen/**`；镜像内 buf 双模板 regen 自洽，SG/宿主 gen 面零依赖）。
+3. **up 强制重建**：`ssh <SG> 'cd /opt/phase && docker compose -f docker-compose.yml -f docker-compose.sg.yml up -d --force-recreate'`——**`--force-recreate` 必带**（不带=容器保留旧镜像运行实证 08:59Z）。
+4. **容器镜像比对**：新镜像 ID（`docker images phase-core:latest -q`）与运行容器 `.Image`（`docker inspect phase-core --format '{{.Image}}'`）逐字比对一致+`healthy`——不一致=轮换未生效禁收工；新镜像 `CreatedAt` 须晚于 merge 提交时点。

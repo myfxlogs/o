@@ -12,8 +12,10 @@ rsync -az "${EXTRA[@]}" --files-from=<(git -c core.quotepath=false ls-files) ./ 
 
 # 陈件 prune：git 已删 .go/migrations 差集定点删——**禁 rsync --delete**
 # （坑正典 deploy-sync-stale-files：--files-from 下 --delete 扫删 .env/logs 活件）。
-git -c core.quotepath=false ls-files '*.go' 'migrations/*.sql' > /tmp/phase-sync-tracked.$$
-ssh "$SG" "cd $DEST 2>/dev/null && find . -name '*.go' -o -name '*.sql' -path './migrations/*' -type f" | sed 's|^\./||' | sort > /tmp/phase-sync-sg.$$ 2>/dev/null || true
+# T-0054：internal/gen/** 排除——gitignore 产物不在跟踪清单，计入差集=SG 侧生成码
+# 每轮被误删（镜像内 buf regen 自洽后宿主/SG gen 面均免依赖，此处只防误删活件）。
+git -c core.quotepath=off ls-files '*.go' 'migrations/*.sql' > /tmp/phase-sync-tracked.$$
+ssh "$SG" "cd $DEST 2>/dev/null && find . \\( -name '*.go' -o -name '*.sql' -path './migrations/*' \\) -type f -not -path './internal/gen/*'" | sed 's|^\./||' | sort > /tmp/phase-sync-sg.$$ 2>/dev/null || true
 sort -u /tmp/phase-sync-tracked.$$ > /tmp/phase-sync-tracked-sort.$$
 comm -13 /tmp/phase-sync-tracked-sort.$$ /tmp/phase-sync-sg.$$ > /tmp/phase-sync-stale.$$ || true
 stale_n=$(wc -l < /tmp/phase-sync-stale.$$)
