@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
+	"sync"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -194,4 +197,35 @@ func okxAvailFromEvents(ctx context.Context, pool *pgxpool.Pool) (float64, error
 		}
 	}
 	return 0, fmt.Errorf("USDT 行缺席")
+}
+
+// ctValReader 合约面值现读件（T-0046①——T-0048 三令后 facts 表废，改 okx
+// instruments 决策时点现读；静态乐器属性 10min TTL 缓存：guard 逐 tick 事件评
+// 估，无缓存=限速自杀。读败/零值=false fail-closed 漂移判据跳过不误判）。
+func ctValReader(okcli *okxexec.Client) func(ctx context.Context, venue, instID string) (float64, bool) {
+	var mu sync.Mutex
+	type ent struct {
+		v  float64
+		at time.Time
+	}
+	cache := map[string]ent{}
+	return func(ctx context.Context, venue, instID string) (float64, bool) {
+		if okcli == nil || venue != "okx" || !strings.HasSuffix(instID, "-SWAP") {
+			return 0, false
+		}
+		mu.Lock()
+		e, ok := cache[instID]
+		mu.Unlock()
+		if ok && time.Since(e.at) < 10*time.Minute {
+			return e.v, e.v > 0
+		}
+		m, err := okcli.InstrumentMeta(ctx, "SWAP", instID)
+		if err != nil || m.CtVal <= 0 {
+			return 0, false
+		}
+		mu.Lock()
+		cache[instID] = ent{m.CtVal, time.Now()}
+		mu.Unlock()
+		return m.CtVal, true
+	}
 }

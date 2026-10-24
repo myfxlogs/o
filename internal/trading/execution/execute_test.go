@@ -470,3 +470,59 @@ func TestPlaceAPIErrorNon51FamilyResolves(t *testing.T) {
 		t.Fatalf("50004 留痕透传: state=%s code=%q（应 filled+50004）", state, code)
 	}
 }
+
+// T-0046 ③锚：close Intent 的 LEGGED 回滚=重开原向仓（Close=false——恒 true=
+// reduceOnly 打空仓拒单→歧态势，exec5 实证 canon rollback-close-direction）。
+func TestRollbackCloseIntentReopens(t *testing.T) {
+	fv := &fakeVenue{leg2Fail: true}
+	ctx, r := setup(t, fv)
+	did := mkToken(t, ctx, r, false, false, "allow")
+	in := mkIntent(did)
+	in.Kind = "close"
+	in.Legs[0].Close = true // 平仓 Intent 双腿 Close=true（cmd closeLegOf 语义）
+	in.Legs[1].Close = true
+	eid, err := r.Execute(ctx, in)
+	if err == nil {
+		t.Fatal("leg2 败应 LEGGED")
+	}
+	// 回滚腿（clOrdID 含 rb）Close 必为 false（重开非再平）。
+	for i, p := range fv.placed {
+		if contains(p, "rb") && fv.closed[i] {
+			t.Fatalf("close Intent 回滚腿 Close 应 false（重开语义）: %v", p)
+		}
+		if contains(p, "rb") && !fv.closed[i] {
+			// 重开装配核：无 reduceOnly；SWAP 重开 posSide=开仓向（spot 免带）。
+			if bp := buildOrderParams(Leg{InstID: "BTC-USDT", Side: "buy"}, "phx", "long_short_mode"); bp.ReduceOnly {
+				t.Fatalf("spot 重开腿带 reduceOnly: %+v", bp)
+			}
+			bp := buildOrderParams(Leg{InstID: "BTC-USDT-SWAP", Side: "buy"}, "phx", "long_short_mode")
+			if bp.ReduceOnly || bp.PosSide != "long" {
+				t.Fatalf("SWAP 重开腿应无 reduceOnly+开仓 posSide: %+v", bp)
+			}
+		}
+	}
+	var state string
+	if err := r.pool.QueryRow(ctx, "SELECT state FROM fin_execution WHERE id=$1", eid).Scan(&state); err != nil || state != "rolled_back" {
+		t.Fatalf("state=%s err=%v（应 rolled_back——重开回滚成）", state, err)
+	}
+}
+
+// T-0046 ⑤锚：非 51 族 envelope 拒→Resolve 定态 absent——拒码兜底不丢
+// （venue_err_code=50013 留痕，禁留空吞真拒因）。
+func TestVenueErrNon51Fallback(t *testing.T) {
+	fv := &fakeVenue{apiReject: &okxexec.APIError{Code: "50013", Msg: "System busy"}, resolveTo: "absent"}
+	ctx, r := setup(t, fv)
+	did := mkToken(t, ctx, r, false, false, "allow")
+	eid, err := r.Execute(ctx, mkIntent(did))
+	if err == nil {
+		t.Fatal("应失败收场")
+	}
+	var code, msg string
+	if err := r.pool.QueryRow(ctx, `SELECT venue_err_code,venue_err_msg FROM fin_order_leg
+		WHERE execution_id=$1 AND leg_no=1`, eid).Scan(&code, &msg); err != nil {
+		t.Fatal(err)
+	}
+	if code != "50013" || msg != "System busy" {
+		t.Fatalf("拒码兜底丢失: code=%q msg=%q", code, msg)
+	}
+}

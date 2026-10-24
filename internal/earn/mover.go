@@ -131,7 +131,8 @@ func (w *Worker) afterMove(ctx context.Context, op string, amt float64, kind str
 }
 
 // refreshParkingSnapshot 停泊余额快照（事件锚定：boot 首读/移动后刷——周期态摄入禁新增）。
-// 余额=Σ(amt+pendingAmt)（pending 为赎回在途仍属停泊款），按 ccy 过滤。
+// 余额=Σamt（T-0046 ⑦根修，canon earn-amt-pending-doublecount：savings 的 amt
+// 已含在途 pendingAmt——loanAmt+pendingAmt=amt 实证，再求和=双计虚高），按 ccy 过滤。
 func (w *Worker) refreshParkingSnapshot(ctx context.Context, src string) error {
 	if w.api == nil {
 		w.rej.Inc("venue_absent")
@@ -143,9 +144,8 @@ func (w *Worker) refreshParkingSnapshot(ctx context.Context, src string) error {
 		return err
 	}
 	var rows []struct {
-		Ccy        string `json:"ccy"`
-		Amt        string `json:"amt"`
-		PendingAmt string `json:"pendingAmt"`
+		Ccy string `json:"ccy"`
+		Amt string `json:"amt"`
 	}
 	if err := json.Unmarshal(raw, &rows); err != nil {
 		w.rej.Inc("snapshot_refresh_failed")
@@ -156,7 +156,7 @@ func (w *Worker) refreshParkingSnapshot(ctx context.Context, src string) error {
 		if r.Ccy != w.ccy {
 			continue
 		}
-		bal += parseAmt(r.Amt) + parseAmt(r.PendingAmt)
+		bal += parseAmt(r.Amt)
 	}
 	blob, _ := json.Marshal(map[string]any{"earn_bal": bal, "src": src})
 	if _, err := w.pool.Exec(ctx, `INSERT INTO md_account_events(ts,venue,channel,ccy,data)

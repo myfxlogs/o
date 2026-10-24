@@ -57,9 +57,20 @@ type Warden struct {
 	cfg    *config.Client
 	gate   *risk.Gate
 	ex     Executor
+	sizer  VenueSizer
+	ctVal  func(ctx context.Context, venue, instID string) (float64, bool) // 合约面值现读件（T-0046①——T-0048 后 facts 表废，cmd 注入 venue 现读）
 	rej    *rejects.Door
 	al     *notify.Alerter
+	notes  map[string]time.Time                       // skip 态限频日志时间戳（键级 10min 节流）
 	equity func(ctx context.Context) (float64, error) // 净权益现读件（dd 硬线判定时点实读）
+}
+
+// AttachSizer 挂平仓量 venue 现读面（cmd 装配注入——未挂=平仓 fail-closed）。
+func (w *Warden) AttachSizer(s VenueSizer) { w.sizer = s }
+
+// AttachCtVal 挂合约面值现读面（T-0046①——未挂=SWAP 腿名义读不到 fail-closed）。
+func (w *Warden) AttachCtVal(f func(ctx context.Context, venue, instID string) (float64, bool)) {
+	w.ctVal = f
 }
 
 // AttachAlerter 挂告警器（nil=静默降级不炸）。
@@ -170,9 +181,15 @@ func (w *Warden) tend(ctx context.Context, p posRow, maxAtt int64, trig string) 
 		log.Printf("[guard] WARN 仓 %d 平仓被闸拒（%s/%s）——升级留痕", p.id, trig, dec.Reason)
 		return
 	}
+	cls, ok := w.sizedCloseLegs(ctx, legs.reverse())
+	if !ok {
+		w.rej.Inc("facts_missing")
+		w.note("sizer_fail", fmt.Sprintf("仓 %d 平仓量 venue 现读败/对齐零——fail-closed 不发 intent", p.id))
+		return
+	}
 	execID, err := w.ex.ExecuteClose(ctx, CloseSpec{
 		DecisionID: dec.DecisionID, StrategyRef: p.stratRef, InstID: p.inst,
-		NotionalUSD: p.notional, Legs: legs.reverse(),
+		NotionalUSD: p.notional, Legs: cls,
 	})
 	if err != nil {
 		w.rej.Inc("close_failed")
@@ -199,10 +216,13 @@ func (w *Warden) evaluate(ctx context.Context, p posRow, legs legSet) string {
 	// ① funding 翻面：最新 funding 与开仓方向异号且超 guard.flip_bps。
 	if flipBps, err := w.getF("guard.flip_bps"); err != nil {
 		w.rej.Inc("missing_param")
+		w.note("missing_param:flip", fmt.Sprintf("仓 %d guard.flip_bps 读败——判据链跳过: %v", p.id, err))
 	} else if rate, ok := w.latestFunding(ctx, p.inst); !ok {
 		w.rej.Inc("facts_missing")
+		w.note("facts_missing:funding", fmt.Sprintf("仓 %d 无 funding 事实行——翻面判据跳过", p.id))
 	} else if sign, ok := perpSign(legs, p.inst); !ok {
 		w.rej.Inc("leg_anomaly")
+		w.note("leg_anomaly:perpSign", fmt.Sprintf("仓 %d perp 侧不可辨——翻面判据跳过", p.id))
 	} else if rate*sign < 0 && math.Abs(rate)*10000 > flipBps {
 		return "funding_flip"
 	}
@@ -210,18 +230,23 @@ func (w *Warden) evaluate(ctx context.Context, p posRow, legs legSet) string {
 	// 腿数非 2=契约外形态（计数不误判）。
 	if bandBps, err := w.getF("exec.hedge_band_bps"); err != nil {
 		w.rej.Inc("missing_param")
+		w.note("missing_param:band", fmt.Sprintf("仓 %d exec.hedge_band_bps 读败——漂移判据链跳过: %v", p.id, err))
 	} else if legs.one {
 		w.rej.Inc("leg_anomaly")
+		w.note("leg_anomaly:legs", fmt.Sprintf("仓 %d 腿形态异常——漂移判据跳过", p.id))
 	} else if n1, ok1 := w.notionalNow(ctx, legs.a); !ok1 {
 		w.rej.Inc("facts_missing")
+		w.note("facts_missing:notional", fmt.Sprintf("仓 %d 腿 %s 名义读败（tick/ctVal 缺）——漂移判据跳过", p.id, legs.a.inst))
 	} else if n2, ok2 := w.notionalNow(ctx, legs.b); !ok2 {
 		w.rej.Inc("facts_missing")
+		w.note("facts_missing:notional", fmt.Sprintf("仓 %d 腿 %s 名义读败（tick/ctVal 缺）——漂移判据跳过", p.id, legs.b.inst))
 	} else if avg := (n1 + n2) / 2; avg > 0 && math.Abs(n1-n2)/avg*10000 > bandBps {
 		return "delta_drift"
 	}
 	// ③ 持仓超龄：age > guard.max_hold_hours。
 	if maxH, err := w.getF("guard.max_hold_hours"); err != nil {
 		w.rej.Inc("missing_param")
+		w.note("missing_param:maxhold", fmt.Sprintf("仓 %d guard.max_hold_hours 读败——超龄判据跳过: %v", p.id, err))
 	} else if time.Since(p.opened) > time.Duration(maxH*float64(time.Hour)) {
 		return "max_hold"
 	}
@@ -232,5 +257,6 @@ func (w *Warden) evaluate(ctx context.Context, p posRow, legs legSet) string {
 	case "retired":
 		return "strategy_retired"
 	}
+	w.note("no_trigger", fmt.Sprintf("仓 %d 全判据无触发——无触发也是决策（可观测）", p.id))
 	return ""
 }

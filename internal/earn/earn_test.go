@@ -19,6 +19,7 @@ type fakeAPI struct {
 	redeemErr, purchaseErr, transferErr, stateErr error
 	transferState                                 string // 非""=传输败后按 clTId 查得此态
 	balance                                       float64
+	balOverride                                   string // 非""=SavingsBalance 原文覆写（⑦锚：pendingAmt 在途形）
 	redeems, purchases, stateQueries              []float64
 	transfers                                     []string // "from->to:amt"
 }
@@ -32,7 +33,10 @@ func (f *fakeAPI) SavingsPurchase(ctx context.Context, ccy string, amt float64) 
 	return f.purchaseErr
 }
 func (f *fakeAPI) SavingsBalance(ctx context.Context) (json.RawMessage, error) {
-	return json.RawMessage(fmt.Sprintf(`[{"ccy":"USDT","amt":"%v","pendingAmt":"0"}]`, f.balance)), nil
+	if f.balOverride != "" {
+		return json.RawMessage(f.balOverride), nil
+	}
+	return json.RawMessage(fmt.Sprintf(`[{"ccy":"USDT","amt":"%v"}]`, f.balance)), nil
 }
 func (f *fakeAPI) AssetTransfer(ctx context.Context, ccy string, amt float64, from, to string) (string, error) {
 	f.transfers = append(f.transfers, fmt.Sprintf("%s->%s:%.4f", from, to, amt))
@@ -308,5 +312,23 @@ func TestRatePollFactRow(t *testing.T) {
 	}
 	if w.rej.Snapshot()["earn/rate_fetch_failed"] == 0 {
 		t.Fatal("rate_fetch_failed 计数门未计")
+	}
+}
+
+// T-0046 ⑦锚：amt 已含在途 pendingAmt（loanAmt+pendingAmt=amt 实证）——
+// 停泊快照取 amt 单字段，amt+pendingAmt 求和=双计虚高（2129≠2229.4）。
+func TestParkingAmtNoDoubleCount(t *testing.T) {
+	ctx, w, fake := setupW(t, &fakeAPI{}, map[string]string{"earn.park_ccy": "USDT"})
+	_ = ctx
+	fake.balance = 2129.00
+	// savings 响应含在途 pendingAmt=100.40（amt 已含——canon 实证口径）。
+	fake.balOverride = `[{"ccy":"USDT","amt":"2129.00","pendingAmt":"100.40"}]`
+	if err := w.refreshParkingSnapshot(context.Background(), "test"); err != nil {
+		t.Fatal(err)
+	}
+	var bal float64
+	if err := w.pool.QueryRow(context.Background(), `SELECT (data->>'earn_bal')::float FROM md_account_events
+		WHERE venue=$1 AND channel='earn_parking' AND ccy=$2 ORDER BY ts DESC LIMIT 1`, w.venue, w.ccy).Scan(&bal); err != nil || bal != 2129.00 {
+		t.Fatalf("停泊快照 bal=%v err=%v（应=amt 2129.00 非 2229.40 双计）", bal, err)
 	}
 }

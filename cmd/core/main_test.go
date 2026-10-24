@@ -23,3 +23,14 @@ func TestCloseLegOfSetsClose(t *testing.T) {
 		}
 	}
 }
+
+// T-0043 欠件锚（T-0046 补）：closeIntent Kind 必为 "close"（live_switch 翻 false
+// 时平仓被拦=安全律反向——Kind 错=平仓被开仓闸吞）。
+func TestCloseIntentKindIsClose(t *testing.T) {
+	in := closeIntent(guard.CloseSpec{DecisionID: 1, StrategyRef: 1, InstID: "BTC-USDT-SWAP", NotionalUSD: 100,
+		Legs: [2]guard.CloseLeg{{Venue: "okx", InstID: "BTC-USDT-SWAP", Side: "buy", Sz: 1},
+			{Venue: "okx", InstID: "BTC-USDT", Side: "sell", Sz: 0.001}}})
+	if in.Kind != "close" {
+		t.Fatalf("close Intent Kind=%q（应 close——免闸免赎语义位）", in.Kind)
+	}
+}

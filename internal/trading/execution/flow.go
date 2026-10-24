@@ -114,9 +114,19 @@ func (r *Runner) placeAndResolve(ctx context.Context, execID int64, no int, leg 
 		r.leg(ctx, execID, no, leg, clOrdID, "ack", vc, vm)
 		return res, fmt.Errorf("未即时成交（live 确认轨未落）")
 	default:
-		r.leg(ctx, execID, no, leg, clOrdID, "failed", res.VenueCode, res.VenueMsg)
+		// T-0046 ⑤：envelope 拒码兜底——Resolve 后 absent 态 res 无码（Resolve 不产
+		// 拒码），先 Place 已抽的 vc/vm 顶上，禁留空吞真拒因。
+		r.leg(ctx, execID, no, leg, clOrdID, "failed", orVal(res.VenueCode, vc), orVal(res.VenueMsg, vm))
 		return res, fmt.Errorf("state=%s", res.State)
 	}
+}
+
+// orVal 首非空值（venue_err 兜底装配）。
+func orVal(a, b string) string {
+	if a != "" {
+		return a
+	}
+	return b
 }
 
 // rollback leg1 对向平仓腿（LEGGED 处置）；回滚败=rollback_failed 升级留痕。
@@ -127,10 +137,20 @@ func (r *Runner) rollback(ctx context.Context, execID int64, leg Leg, res OrderR
 	} else {
 		rev.Side = "buy"
 	}
-	rev.Close = true // hedge 平仓语义根修（T-0036：反向新开非平仓——executor 按位走平径）
+	// 回滚方向律（T-0046 ③根修，canon rollback-close-direction）：rev.Close 随原腿
+	// 反置——开腿回滚=平（T-0036 语义）；平腿回滚=重开（恒 true=reduceOnly 打空仓
+	// 拒单→歧态势，exec5 实证）。语义位按 Intent 上下文派生非恒定值。
+	rev.Close = !leg.Close
 	rev.Ticket = res.FillTicket
 	clOrdID := fmt.Sprintf("ph%drb%d", execID, time.Now().UnixNano()%1e6)
 	rb, err := r.exec.Place(ctx, rev, clOrdID)
+	// 回滚径拒码留痕（T-0046 ⑤：任何 Place/Resolve 败径都带拒码——envelope 业务拒
+	// 先抽码，透传失败面 leg 行）。
+	var rvc, rvm string
+	var rae *okxexec.APIError
+	if errors.As(err, &rae) {
+		rvc, rvm = rae.Code, rae.Msg
+	}
 	if err != nil {
 		rb, err = r.exec.Resolve(ctx, rev, clOrdID)
 	}
@@ -139,7 +159,7 @@ func (r *Runner) rollback(ctx context.Context, execID int64, leg Leg, res OrderR
 		r.rej.Inc("rollback_failed")
 		r.al.Alert(ctx, "rollback_failed", "LEGGED 回滚败——人工介入")
 		log.Printf("ALERT [execution] #%d 回滚败——残留 leg1 敞口须人工升级处置（err=%v）", execID, err)
-		r.leg(ctx, execID, 1, leg, clOrdID, "ambiguous", "", "")
+		r.leg(ctx, execID, 1, leg, clOrdID, "ambiguous", rvc, rvm)
 		return
 	}
 	r.leg(ctx, execID, 1, leg, clOrdID, "rolled_back", "", "")
