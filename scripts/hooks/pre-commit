@@ -65,8 +65,8 @@ fi
 if [ -x scripts/check_migration_contract.sh ]; then
   scripts/check_migration_contract.sh
 fi
-if [ -x scripts/check_no_decision_snapshot.sh ]; then
-  scripts/check_no_decision_snapshot.sh
+if [ -x scripts/check_no_forbidden_patterns.sh ]; then
+  scripts/check_no_forbidden_patterns.sh
 fi
 
 # 7. gofmt 门禁（-c core.quotepath=off 必须带：中文路径 quoted 形态破匹配）
