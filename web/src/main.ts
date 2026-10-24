@@ -10,7 +10,7 @@ async function ov(): Promise<void> {
       b[2].textContent = (d.pnl_cum >= 0 ? '+' : '') + (d.pnl_cum || 0).toFixed(2)
     }
     const st = document.querySelector('.hero .stamp')
-    if (st) st.textContent = '数据 ' + new Date().toLocaleTimeString() + ' · 刚刚'
+    if (st) st.textContent = '数据 ' + (() => { const d = new Date(); return String(d.getUTCHours()).padStart(2,'0') + ':' + String(d.getUTCMinutes()).padStart(2,'0') + ':' + String(d.getUTCSeconds()).padStart(2,'0') + ' UTC' })() + ' · 刚刚'
   } catch { /* 断源=读数灰化露相面（禁演新鲜） */ }
 }
 new EventSource('/api/watch').onmessage = () => ov()

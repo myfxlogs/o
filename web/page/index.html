@@ -59,9 +59,12 @@ background-size:200% 100%;animation:shimmer 1.4s infinite;border-radius:8px;heig
 </style>
 </head>
 <body>
+<div id="utc" style="position:fixed;top:26px;right:150px;z-index:9;font-size:13px;color:var(--dim);font-variant-numeric:tabular-nums"></div>
 <button class="toggle" id="th" onclick="t()">🌙 暗色</button>
 <script>
 const b=document.body,t2=document.getElementById('th');
+setInterval(()=>{const d=new Date();document.getElementById('utc').textContent=
+'UTC '+String(d.getUTCHours()).padStart(2,'0')+':'+String(d.getUTCMinutes()).padStart(2,'0')+':'+String(d.getUTCSeconds()).padStart(2,'0')},1000);
 b.className=localStorage.th||'';t2.textContent=b.className?'🌙 暗色':'☀️ 亮色';
 function t(){b.classList.toggle('light');localStorage.th=b.className;
 t2.textContent=b.className?'🌙 暗色':'☀️ 亮色'}
@@ -69,32 +72,33 @@ t2.textContent=b.className?'🌙 暗色':'☀️ 亮色'}
 <div class="grid">
 
   <div class="card hero">
-    <div class="metric"><b>$2,133.51</b><span>总资产（OKX）</span></div>
-    <div class="metric"><b class="dn">-$0.17</b><span>今日盈亏</span></div>
-    <div class="metric"><b class="dn">-$2.10</b><span>累计盈亏 · 试单期</span></div>
-    <span class="stamp">数据 12:47:03 · 刚刚</span>
+    <div class="metric"><b>—</b><span>总资产（OKX）</span></div>
+    <div class="metric"><b>—</b><span>今日盈亏</span></div>
+    <div class="metric"><b>—</b><span>累计盈亏 · 试单期</span></div>
+    <span class="stamp">—</span>
   </div>
 
   <div class="card doing">
     <h3>现 在 在 干 什 么</h3>
-    <div class="pos"><span class="dot"></span>ETH 对冲仓 #15 — 持仓中，已持 <b class="count">2h13m</b></div>
-    <div class="ev">距资金费结算 <b class="count">1h47m</b>（16:00 UTC）· 预计落账 +$0.0X</div>
-    <div class="ev">备款 $50.2 活期生息中（年化 ~3.5%）</div>
-    <span class="stamp">12:46:58</span>
+    <div class="empty">
+      <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+        <path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>
+      <p>静持中</p><i>「没有持仓，就是最深的持仓。」</i>
+    </div>
   </div>
 
   <div class="card money">
     <h3>钱 在 哪</h3>
-    <div class="row"><span>活期理财 Earn</span><b>$2,083.1</b></div>
-    <div class="row"><span>交易备用金</span><b>$50.2</b></div>
-    <div class="bar"><i></i><i></i></div>
+    <div class="empty">
+      <p>读数装载中</p><i>「真金白银，不看假数。」</i>
+    </div>
   </div>
 
   <div class="card recent">
     <h3>最 近 动 作</h3>
-    <div class="ev"><b>13:44</b> 平仓 ETH 对冲仓 · 本轮净盈亏 <span class="up">+$0.04</span></div>
-    <div class="ev"><b>12:31</b> 闲钱 $50 存入活期</div>
-    <div class="ev"><b>12:01</b> 策略 101 晋级实盘</div>
+    <div class="empty">
+      <p>暂无动作</p><i>「安静，是系统最好的状态。」</i>
+    </div>
   </div>
 
   <div class="card staff">
@@ -124,14 +128,6 @@ t2.textContent=b.className?'🌙 暗色':'☀️ 亮色'}
   </div>
 
 </div>
-<script>
-async function ov(){try{const r=await fetch('/api/overview');const d=await r.json();
-  document.querySelectorAll('.metric b')[0].textContent='$'+(d.nav_total||0).toLocaleString('en-US',{minimumFractionDigits:2});
-  document.querySelectorAll('.metric b')[1].textContent=(d.pnl_today>=0?'+':'')+d.pnl_today.toFixed(2);
-  document.querySelectorAll('.metric b')[2].textContent=(d.pnl_cum>=0?'+':'')+d.pnl_cum.toFixed(2);
-  document.querySelector('.hero .stamp').textContent='数据 '+new Date().toLocaleTimeString()+' · 刚刚';}catch(e){}}
-new EventSource('/api/watch').onmessage=()=>ov();
-ov();setInterval(ov,30000);
-</script>
+<script type="module" src="/src/main.ts"></script>
 </body>
 </html>
