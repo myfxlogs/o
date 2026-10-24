@@ -57,3 +57,7 @@
 - 业主令：「10K 一半在 MT5，能进 OKX 的只有 5K，先用现有的试单，确认需要增资时再通知」→ D-0010 裁决落档：OKX 侧上限 ~$5k、试单资本=现有 ~2133 USDT Earn、增资通报制（仅过闸缺口时明提）。
 - 「将会话纪要规程化」→ T-0049：collab.md 增 §10 会话尾三步机械门（纪要落 dialogue.md/事实归位/提交即推送）——决策席自执行闭环。
 - T-0050 立：funding-hedge 真钱试单（首仓序④执行化）——$500 名义上限、Earn 动态底、live_switch 本单授权。
+
+### 追加④（T-0051 杠杆写面）
+
+- 业主令「okx可以通过api key调整杠杆，先做测试再做skills」→ T-0051 立并实测完毕：cross/isolated 双侧行为、posSide 必填方言、59102 壳码全入 okx-account；okxexec 补 Post 封装。终态三侧归 3x。

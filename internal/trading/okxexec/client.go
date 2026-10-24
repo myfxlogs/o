@@ -104,6 +104,11 @@ func (c *Client) Get(ctx context.Context, pathWithQuery string) (json.RawMessage
 	return c.do(ctx, http.MethodGet, pathWithQuery, nil)
 }
 
+// Post 签名 POST（事务面：set-leverage/transfer 族——body 为完整 JSON）。
+func (c *Client) Post(ctx context.Context, path string, body []byte) (json.RawMessage, error) {
+	return c.do(ctx, http.MethodPost, path, body)
+}
+
 // BalanceEquity GET /account/balance → ccy→eqUsd 表（boot 锚定首读用——
 // 事务按需单发，非轮询面）。
 func BalanceEquity(ctx context.Context, creds Credentials, simulated bool) (map[string]float64, error) {
