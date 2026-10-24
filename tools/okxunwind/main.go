@@ -99,11 +99,10 @@ func main() {
 	proceeds := tra - tra0
 	fmt.Printf("USDT 回笼: trading_avail=%.4f（本次卖出所得 %.4f，基线 %.4f）\n", tra, proceeds, tra0)
 	var parked float64
-	if tra > 1 {
-		back := tra - 0.2
-		if tra0 > 0 && proceeds > 0 && back > proceeds {
-			back = proceeds // 存量 USDT 禁碰——只摆回回卷所得
-		}
+	// 复审 860b8c1：台账封顶无条件——proceeds<=0（零所得/无货可卖路径）=零摆回
+	// 零复购，fail-open 分支物理消失（原 if tra0>0&&proceeds>0 卫=同族残留）。
+	back := backCap(tra, proceeds)
+	if back > 0 {
 		cltid, err := cli.AssetTransfer(ctx, "USDT", back, okxexec.AcctTrading, okxexec.AcctFunding)
 		if err != nil {
 			die(fmt.Errorf("transfer back: %w (clTId=%s)", err, cltid))
@@ -216,3 +215,9 @@ func fmtAmt(x float64) string {
 	return s
 }
 func die(err error) { fmt.Fprintln(os.Stderr, "FAIL:", err); os.Exit(1) }
+
+// backCap 台账封顶（复审 860b8c1 钦定形）：可摆回= min(trading 闲余-缓冲,
+// max(本次卖出所得,0))——零所得=零摆回，封顶无条件无卫分支。
+func backCap(tra, proceeds float64) float64 {
+	return min(tra-0.2, max(proceeds, 0))
+}

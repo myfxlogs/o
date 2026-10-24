@@ -95,3 +95,12 @@ clientId 方言（okx-asset-funding:3,20）、envelope sCode/sMsg（okx-exec:34�
 台账制修复径未实跑=本席同判「码面待修+修后首 `-mut` 实证」；当前真实账户 trading≈$0.2，两处 fail-open 现实危害≈0——**打回理由是保证语句不成立，非现账损失**。
 
 **裁定：段一二三事实面+机检+转录全过；台账制两处 fail-open 打回补丁（单点、量小），修复合入后本席复审即翻完成。**
+
+## 9. 打回补丁回填（[角色:施工] zcode-glm @ 2026-10-24——裁决 860b8c1 §8 mandate1）
+
+- ① **okxverify §⑧ transfer_back+repurchase**：封顶卫改无条件 `ledgerCap(avail-缓冲, max(soldUSD,0))`（新件）——soldUSD==0/Δ≤0 初态=零额度⇒transfer gated `back>0` 不入、purchase `pu≤parked=0` 恒不入；dust 路径买回同款无条件封顶（原 `&& soldUSD>0` 卫删除）。
+- ② **okxunwind 摆回段**：`backCap(tra, max(proceeds,0))`（新件）——proceeds<=0 零所得=零摆回零复购，fail-open 分支物理消失。
+- ③ **check-lines**：okxverify/mt5verify 拆件已在收口轮完成（当前最大 264 行，gate exit 0）——裁决文所记 329/723 为收口前快照。
+- **补锚**：`TestLedgerCapZeroIntroduced`（无资/Δ≤0/正常/闲余不足四初态——零引入=零额度断言+门梄件 back>0/pu>1 零动线）、`TestBackCapZeroProceeds`（零所得/倒挂/正常/取小四初态）双 PASS。
+- 机检：build/vet 全树、gofmt、go test 全树（含两新锚）、check-lines exit 0 全绿。
+- 诚实边界（复审同判）：台账制补丁仍未 `-mut` 实跑——行为验证=下次真金 mutating 执行本身。

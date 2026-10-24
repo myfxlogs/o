@@ -109,8 +109,10 @@ func mRestore(ctx context.Context, cli *okxexec.Client, dustInst string, soldUSD
 	if target != "" {
 		tra3, _ := cli.TradingAvailBal(ctx, "USDT")
 		buyback := tra3 - 0.5
-		if target == strings.TrimSuffix(dustInst, "-USDT") && soldUSD > 0 && buyback > soldUSD {
-			buyback = soldUSD // 自筹资路径：只买回本探针卖掉的额度
+		if target == strings.TrimSuffix(dustInst, "-USDT") {
+			// 复审 860b8c1：dust 路径封顶无条件——soldUSD 实测 Δ≤0 时=零买回，
+			// fail-open 分支物理消失（原 if soldUSD>0 卫=同族残留）。
+			buyback = ledgerCap(buyback, soldUSD)
 		}
 		if restore != "" && buyback > restoremax {
 			buyback = restoremax // 显式复位：封顶防扫存量
@@ -131,11 +133,10 @@ func mRestore(ctx context.Context, cli *okxexec.Client, dustInst string, soldUSD
 		}
 	}
 	tra2, _ := cli.TradingAvailBal(ctx, "USDT")
-	if tra2 > 1 {
-		back := tra2 - 0.5
-		if soldUSD > 0 && back > soldUSD {
-			back = soldUSD // 台账封顶：只许摆回本探针引入的资金
-		}
+	// 复审 860b8c1：台账封顶无条件——soldUSD==0（无尘币/存量足额起跑路径）=
+	// 零摆回零复购，fail-open 分支物理消失（原 if soldUSD>0 卫=事故同族残留）。
+	back := ledgerCap(tra2-0.5, soldUSD)
+	if back > 0 {
 		cltid, err := cli.AssetTransfer(ctx, "USDT", back, okxexec.AcctTrading, okxexec.AcctFunding)
 		if err != nil {
 			recFail(sec, "transfer_back", err.Error())
@@ -195,6 +196,12 @@ func fmtAmt(f float64) string {
 	s := strconv.FormatFloat(f, 'f', 8, 64)
 	s = strings.TrimRight(s, "0")
 	return strings.TrimSuffix(s, ".")
+}
+
+// ledgerCap 台账封顶（复审 860b8c1 钦定形）：可动额度= min(闲余-缓冲, max(本进程引入,0))
+// ——引入额度为零=零额度（零摆回/零买回），封顶无条件、无卫分支。
+func ledgerCap(availLessBuffer, introduced float64) float64 {
+	return min(availLessBuffer, max(introduced, 0))
 }
 
 func die(err error) { fmt.Fprintln(os.Stderr, "FAIL:", err); os.Exit(1) }
