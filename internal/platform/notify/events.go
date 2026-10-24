@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -72,16 +73,13 @@ func (e *EventPush) pushOpened(ctx context.Context) {
 		var inst string
 		var notional float64
 		var at interface{}
-		var tmpl *string
-		if err := rows.Scan(&id, &inst, &notional, &at, &tmpl); err != nil {
+		var _tmpl *string
+		if err := rows.Scan(&id, &inst, &notional, &at, &_tmpl); err != nil {
 			continue // 扫行败跳过非吞——行级病灶不阻余行
 		}
-		ref := "?"
-		if tmpl != nil && *tmpl != "" {
-			ref = *tmpl
-		}
 		e.push(ctx, fmt.Sprintf("opened:%d", id),
-			fmt.Sprintf("开仓 %s notional=$%.2f 策略=%s（venue 腿行在案）", inst, notional, ref))
+			fmt.Sprintf("开仓：%s，投入本金 %.2f USDT（现货买入+永续卖出对冲）",
+				hedgeName(inst), notional))
 	}
 }
 
@@ -106,7 +104,7 @@ func (e *EventPush) pushFunding(ctx context.Context) {
 		_ = rows.Scan(&id, &ccy, &amt, &posRef)
 		e.cursor["funding"] = id
 		e.push(ctx, fmt.Sprintf("funding:%d", id),
-			fmt.Sprintf("funding 结算 %s %.4f（仓ref #%d）", ccy, amt, posRef))
+			fmt.Sprintf("资金费到账：%.4f USDT（对冲仓#%d）", amt, posRef))
 	}
 }
 
@@ -128,8 +126,18 @@ func (e *EventPush) pushClosed(ctx context.Context) {
 			sign = "-"
 		}
 		e.push(ctx, fmt.Sprintf("closed:%d", id),
-			fmt.Sprintf("平仓 %s notional=$%.2f 净额=%s$%.4f", inst, notional, sign, absf(pnl)))
+			fmt.Sprintf("平仓：%s，本轮净盈亏 %s%.4f USDT", hedgeName(inst), sign, absf(pnl)))
 	}
+}
+
+// hedgeName inst_id→人话仓名（T-0065：ETH-USDT-SWAP→「ETH 期现对冲仓」；
+// 黑话 inst_id/notional/策略名不进业主文案——内部编号细节超需禁推）。
+func hedgeName(inst string) string {
+	base := inst
+	if i := strings.IndexByte(inst, '-'); i > 0 {
+		base = inst[:i] // ETH-USDT-SWAP→ETH
+	}
+	return base + " 期现对冲仓"
 }
 
 func absf(v float64) float64 {
