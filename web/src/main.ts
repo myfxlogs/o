@@ -83,6 +83,12 @@ function orgSVG(staff: { name: string; duty: string; state: number }[]): string 
     const [x1, y1] = pos[staff[0].name]; const [x2, y2] = pos[t]
     e += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="rgba(255,255,255,.15)" stroke-width="1"/>`
   }
+  // 控制边（虚线）：门官⇢执事 闸 / 仓巡⇢执事 平仓 / 命官⇢执事 策略晋升落执行
+  for (const [a, b] of [['门官', '执事'], ['仓巡', '执事'], ['命官', '执事']]) {
+    if (!pos[a] || !pos[b]) continue
+    const [x1, y1] = pos[a]; const [x2, y2] = pos[b]
+    e += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="rgba(96,165,250,.55)" stroke-width="1" stroke-dasharray="4 3"/>`
+  }
   let g = e
   for (const s of staff) {
     const [x, y] = pos[s.name]

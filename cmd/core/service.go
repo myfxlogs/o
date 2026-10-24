@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -112,6 +113,7 @@ func (c coreService) Overview(ctx context.Context, _ *dashboardv1.OverviewReques
 	srows, err := c.pool.Query(ctx, `SELECT name,title,last_beat FROM fin_employee_registry
 		WHERE status='active' ORDER BY name`)
 	if err != nil {
+		log.Printf("staff 花名册查询败: %v", err)
 		return o, nil // 花名册读败=staff 卡藏如实（不炸总览）
 	}
 	for srows.Next() {
