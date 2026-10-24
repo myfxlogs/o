@@ -157,5 +157,5 @@ func mountUI(mux *http.ServeMux, pool *pgxpool.Pool) {
 			}
 		}
 	})
-	mux.Handle("/ui/", http.StripPrefix("/ui/", http.FileServer(http.FS(web.Dist))))
+	mux.Handle("/ui/", http.StripPrefix("/ui/", http.FileServer(http.FS(web.Page))))
 }

@@ -3,5 +3,5 @@ package web
 
 import "embed"
 
-//go:embed dist
-var Dist embed.FS
+//go:embed page
+var Page embed.FS
