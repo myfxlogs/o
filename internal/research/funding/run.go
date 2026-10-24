@@ -185,3 +185,24 @@ func (r *Runner) persist(ctx context.Context, e Eval, p Params) error {
 
 // ScanOnce 单拍壳（工具/实证件消费——scan 本体私有语义不变）。
 func (r *Runner) ScanOnce(ctx context.Context) error { return r.scan(ctx) }
+
+// annotateMacro 高冲击日历注解（T-0029）：查 event_date−today ≤ horizon_days
+// 最近事件→evidence.macro（kind+date+days_out）；缺键/无事件=fail-open 不注解。
+func (r *Runner) annotateMacro(ctx context.Context, e *Eval) {
+	h, err := r.cfg.GetFloat("research.macro.horizon_days")
+	if err != nil {
+		return // 缺键 fail-open——此面非闸不注解
+	}
+	var kind, title string
+	var d time.Time
+	err = r.pool.QueryRow(ctx, `SELECT kind,title,event_date FROM md_macro_event
+		WHERE event_date BETWEEN current_date AND current_date+$1::int
+		ORDER BY event_date LIMIT 1`, int(h)).Scan(&kind, &title, &d)
+	if err != nil {
+		return // 无近窗事件=不注解（缺省正常）
+	}
+	e.Evidence["macro"] = map[string]any{
+		"kind": kind, "title": title, "date": d.Format("2006-01-02"),
+		"days_out": int(time.Until(d).Hours() / 24),
+	}
+}
