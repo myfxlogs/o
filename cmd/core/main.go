@@ -22,6 +22,7 @@ import (
 	"phase/internal/guard"
 	"phase/internal/ledger"
 	"phase/internal/ledger/holding"
+	"phase/internal/ledger/report"
 	"phase/internal/platform/config"
 	"phase/internal/platform/roster"
 	"phase/internal/portfolio/lifecycle"
@@ -162,6 +163,7 @@ func run() error {
 	go review.NewRunner(pool).Run(ctx, errc)
 
 	// 账本域：司账+核账（入账结算+对账环——消费事实行不触发钱动作）。
+	go report.NewRunner(pool).Run(ctx, errc)
 	go ledger.NewRunner(pool, cfg).Run(ctx, errc)
 
 	// 风控域首岗：唯一交易前闸（员工 门官）——G7 消费件就绪后只认放行令牌。
@@ -178,6 +180,7 @@ func run() error {
 		_, _ = w.Write([]byte("ok"))
 	})
 	// 产出窗=行情新鲜度+rejects 计数门观测端点（判定面可观测 D-652-A）。
+	mux.HandleFunc("/report", report.Handler(pool))
 	mux.HandleFunc("/md/status", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
