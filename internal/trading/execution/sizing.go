@@ -113,13 +113,16 @@ func BuildLegs(ctx context.Context, pool *pgxpool.Pool, loadMeta MetaLoader,
 	if perpM.CtValCcy != "USD" && perpM.CtValCcy != "USDT" {
 		perpUSD *= pxPerp
 	}
-	spotSz := floorLot(perpUSD/px, spotM.LotSz)
-	if spotSz < spotM.MinSz {
-		return [2]Leg{}, spotInst, fmt.Errorf("spot 最小张起不来: sz=%.6f<minSz=%.6f", spotSz, spotM.MinSz)
+	// T-0064 追加决策（业主问案采纳）：spot 腿改 tgtCcy=quote_ccy 市价径——
+	// sz=USDT 额（=perpUSD）venue 内部换算，免 base 侧 lotSz floor（失衡残差
+	// 从粒度级→舍入级）；官方限域=币币市价单（executor 只对 cash+market+buy
+	// 带 TgtCcy，限价/卖/合约径不沾——docs-v5 原文钉）。
+	if perpUSD < spotM.MinSz*px {
+		return [2]Leg{}, spotInst, fmt.Errorf("spot 最小额起不来: usd=%.4f<minSz=%.6f×px", perpUSD, spotM.MinSz)
 	}
 	return [2]Leg{
 		{Venue: venue, InstID: instID, Side: "sell", Sz: strconv.FormatFloat(perpSz, 'f', -1, 64), Notional: half},
-		{Venue: venue, InstID: spotInst, Side: "buy", Sz: strconv.FormatFloat(spotSz, 'f', -1, 64), Notional: half},
+		{Venue: venue, InstID: spotInst, Side: "buy", Sz: strconv.FormatFloat(perpUSD, 'f', -1, 64), Notional: half, TgtQuote: true},
 	}, spotInst, nil
 }
 

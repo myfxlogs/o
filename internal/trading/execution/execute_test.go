@@ -289,6 +289,17 @@ func TestLegsDerivationAndSz(t *testing.T) {
 	if legs[0].Sz == "" || legs[1].Sz == "" {
 		t.Fatal("sz 空")
 	}
+	// T-0064 追加锚：spot 腿 quote_ccy 径——sz=perp 实名义 USD 额（venue 内换算）
+	// +TgtQuote 位；perpUSD=0.03×0.01×80950=$24.285。
+	if !legs[1].TgtQuote {
+		t.Fatalf("spot 腿应 TgtQuote（quote_ccy 市价径）: %+v", legs[1])
+	}
+	qsz, _ := strconv.ParseFloat(legs[1].Sz, 64)
+	perpUSD, _ := strconv.ParseFloat(legs[0].Sz, 64)
+	perpUSD *= 0.01 * 80950
+	if qsz < perpUSD*0.999 || qsz > perpUSD*1.001 {
+		t.Fatalf("quote 委托额应=perp 实名义: qsz=%.4f perpUSD=%.4f", qsz, perpUSD)
+	}
 	// 派生败 fail-closed 锚
 	if _, _, err := BuildLegs(ctx, pool, load, "okx", "BTC-USDT", 100); err == nil {
 		t.Fatal("非 SWAP 乐器应 fail-closed")
