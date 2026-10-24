@@ -119,3 +119,8 @@
 
 - 决策席令：T-0064 分支基 94e85ad 陈旧（直合=回滚 70 文件级）——rebase 至 master d3d5014 重推，唯一冲突=migrate_table.go 迁移号序（master 新占 34/35），解为 33/34/35 依序保留。已 force-with-lease 推 t/0064-drift-baseline @b7d5497。
 - 令随行：live_switch 维持 true 待验收——本 session 未触部署树、未动 config，状态保持。
+
+### 追加（T-0080 实扫移交+T-0081 断言返修令，devin-cli 施工）
+
+- 决策席令：T-0080 码面件在库即翻待验（@317df92）；页面部份已验，执行面（dustsweep -dry=false 真户实扫）归决策席手动触发——mutating 钱径纪律守，施工不代跑。
+- 决策席令：T-0081 退避指纹改 kind|title 新语义——DebounceAndDegrade 断言追平（同 kind 变额 sent=1 去抖/异 kind 照推）@c94c05c。
