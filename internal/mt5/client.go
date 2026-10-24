@@ -160,6 +160,16 @@ func (c *Client) Disconnect(ctx context.Context) {
 }
 
 // Close 收 conn。
+// Conn 取底层 gRPC 连接（执行面装配层经此自构 TradingClient——mutating 禁锚守：
+// 本包零 mutating 面引用，conn 出口非钱径）。
+func (c *Client) Conn() *grpc.ClientConn { return c.conn }
+
+// MT5 取 MT5Client（读面——OpenedOrders/OrderHistory 定态查询）。
+func (c *Client) MT5() mt5pb.MT5Client { return c.mt5 }
+
+// Authed 携 token ctx（读面调用共用——token 体域携行）。
+func (c *Client) Authed(ctx context.Context) context.Context { return c.authed(ctx) }
+
 func (c *Client) Close() { _ = c.conn.Close() }
 
 func splitHosts(h string) []string {

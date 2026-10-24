@@ -31,6 +31,8 @@ internal/ledger -> internal/platform/notify
 internal/earn -> internal/platform/notify
 internal/guard -> internal/platform/notify
 internal/trading/execution -> internal/platform/notify
+internal/trading/mtexec -> internal/gen/mtapi/mt5
+internal/trading/mtexec -> internal/trading/execution
 internal/ledger/report -> internal/platform/roster
 internal/ledger -> internal/platform/roster
 internal/portfolio/lifecycle -> internal/platform/config

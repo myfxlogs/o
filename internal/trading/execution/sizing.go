@@ -92,3 +92,52 @@ func BuildLegs(ctx context.Context, pool *pgxpool.Pool, loadMeta MetaLoader,
 		{Venue: venue, InstID: spotInst, Side: "buy", Sz: strconv.FormatFloat(spotSz, 'f', -1, 64), Notional: half},
 	}, spotInst, nil
 }
+
+// RouterExecutor 跨 venue 路由（map[venue]Executor——腿按 Venue 分派，互不串）。
+type RouterExecutor map[string]Executor
+
+func (r RouterExecutor) Place(ctx context.Context, leg Leg, id string) (OrderResult, error) {
+	ex, ok := r[leg.Venue]
+	if !ok {
+		return OrderResult{ClOrdID: id, State: "unknown"}, fmt.Errorf("venue 无执行件: %s", leg.Venue)
+	}
+	return ex.Place(ctx, leg, id)
+}
+func (r RouterExecutor) Resolve(ctx context.Context, leg Leg, id string) (OrderResult, error) {
+	ex, ok := r[leg.Venue]
+	if !ok {
+		return OrderResult{ClOrdID: id, State: "unknown"}, fmt.Errorf("venue 无执行件: %s", leg.Venue)
+	}
+	return ex.Resolve(ctx, leg, id)
+}
+
+// CFD 腿构（mt5 侧 lot 换算——SymbolParams contract_size 系；lot<min_lot fail-closed）。
+type CfdMeta struct{ ContractSize, MinLot, LotStep float64 }
+
+// BuildCfdLegs 跨 venue 双腿：leg1=okx SWAP 卖（perp 张数 ctVal 系——
+// okx 腿 sizing 仍走 BuildLegs 正径的工具侧已在用；本件产出 cfd 腿+拼腿）。
+// cfd 腿 inst=cfdInst（exec.cfd_map 键映射 BTC-USDT-SWAP→BTCUSDm——工具侧读）。
+func BuildCfdLegs(instID, cfdInst string, notional float64, cfdM CfdMeta, px float64, perpCtVal float64) ([2]Leg, string, error) {
+	if cfdInst == "" {
+		return [2]Leg{}, "", fmt.Errorf("exec.cfd_map 无 %s 映射——fail-closed", instID)
+	}
+	if perpCtVal <= 0 {
+		return [2]Leg{}, "", fmt.Errorf("perp ctVal 缺")
+	}
+	half := notional / 2
+	if px <= 0 {
+		return [2]Leg{}, "", fmt.Errorf("px 缺")
+	}
+	lots := math.Floor(half/px/cfdM.ContractSize/cfdM.LotStep) * cfdM.LotStep
+	if lots < cfdM.MinLot {
+		return [2]Leg{}, "", fmt.Errorf("cfd 最小手数起不来: lots=%.4f<min=%.4f", lots, cfdM.MinLot)
+	}
+	perpSz := math.Floor(half / perpCtVal)
+	if perpSz <= 0 {
+		return [2]Leg{}, "", fmt.Errorf("perp 张数=0 拒构")
+	}
+	return [2]Leg{
+		{Venue: "okx", InstID: instID, Side: "sell", Sz: strconv.FormatFloat(perpSz, 'f', -1, 64), Notional: half},
+		{Venue: "mt5", InstID: cfdInst, Side: "buy", Sz: strconv.FormatFloat(lots, 'f', -1, 64), Notional: half},
+	}, cfdInst, nil
+}
