@@ -157,5 +157,16 @@ func mountUI(mux *http.ServeMux, pool *pgxpool.Pool) {
 			}
 		}
 	})
-	mux.Handle("/ui/", http.StripPrefix("/ui/", http.FileServer(http.FS(web.Dist))))
+	// 根路径直开（T-0068：GET / → index.html 直返无跳转；/ui/ 目录列表禁——
+	// dist 单层文件面逐件挂，禁 FileServer 目录模式）。
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		b, err := web.Dist.ReadFile("dist/index.html")
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write(b)
+	})
+	mux.Handle("/assets/", http.FileServer(http.FS(web.Dist)))
 }
