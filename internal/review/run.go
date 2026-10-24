@@ -69,6 +69,13 @@ func (r *Runner) reviewSettled(ctx context.Context) error {
 			}
 		}
 		if verdict == "falsified" {
+			if _, err := r.pool.Exec(ctx, `INSERT INTO fin_review_verdict
+				(position_ref,verdict,pred_apr,actual_pnl,attribution)
+				VALUES($1,$2,$3,$4,$5) ON CONFLICT (position_ref) DO NOTHING`,
+				x.id, verdict, pred, x.net, attrib); err != nil {
+				r.rej.Inc("write_err")
+				return err
+			}
 			r.stageLesson(x.id, pred, x.net, attrib)
 			if _, err := r.pool.Exec(ctx, `INSERT INTO fin_template_proposal(template,param_key,cur_val,sug_val,evidence)
 				VALUES('funding-hedge','research.funding.min_net_apr',$1,$2,$3)`,
@@ -145,18 +152,24 @@ func (r *Runner) judgeDue(ctx context.Context) error {
 	return nil
 }
 
-// stageLesson falsified→经济经验库待归纳行（幂等——pos 标记防重复）。
+// stageLesson falsified→待归纳派生镜像（best-effort——T-0066：权威在
+// fin_review_verdict 库表；容器 FS 易失，写败只 log 一次/进程不刷屏）。
 func (r *Runner) stageLesson(posID int64, pred, actual float64, attrib string) {
+	if r.stagingLogged {
+		return // 写败已记过一次——镜像降级静默不刷屏
+	}
 	marker := fmt.Sprintf("<!-- pos:%d -->", posID)
 	f, err := os.OpenFile(stagingFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		log.Printf("[review] 待归纳写败: %v", err)
+		r.stagingLogged = true
+		log.Printf("[review] 待归纳镜像写败（权威在 fin_review_verdict——镜像降级静默）: %v", err)
 		return
 	}
 	defer f.Close()
 	if _, err := fmt.Fprintf(f, "%s\n- falsified 复盘 pos#%d：pred_net=%.4f actual_net=%.4f 归因=%s（T-0017 自动行）\n",
 		marker, posID, pred, actual, attrib); err != nil {
-		log.Printf("[review] 待归纳写败: %v", err)
+		r.stagingLogged = true
+		log.Printf("[review] 待归纳镜像写败（权威在库——镜像降级静默）: %v", err)
 	}
 }
 
