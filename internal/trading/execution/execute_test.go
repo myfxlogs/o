@@ -10,17 +10,20 @@ import (
 	"phase/internal/platform/config"
 	"phase/internal/platform/testutil"
 	"phase/internal/store/pgstore"
+	"phase/internal/trading/okxexec"
 )
 
 // fakeVenue 可控 venue（Place 行为按 clOrdID 路由；onPlace=调用序钩子——前置赎回序锚用）。
 type fakeVenue struct {
-	leg2Fail  bool
-	rbFail    bool
-	resolveTo string
-	placed    []string
-	closed    []bool
-	onPlace   func()
-	reject    bool // Place 业务拒（sCode≠0 语义——T-0040 留痕锚）
+	leg2Fail     bool
+	rbFail       bool
+	resolveTo    string
+	placed       []string
+	closed       []bool
+	onPlace      func()
+	reject       bool              // Place 业务拒（sCode≠0 语义——T-0040 留痕锚）
+	apiReject    *okxexec.APIError // envelope 业务拒走 err 径（T-0042 留痕锚）
+	resolveCalls int
 }
 
 func (f *fakeVenue) Place(ctx context.Context, leg Leg, clOrdID string) (OrderResult, error) {
@@ -28,6 +31,9 @@ func (f *fakeVenue) Place(ctx context.Context, leg Leg, clOrdID string) (OrderRe
 	f.closed = append(f.closed, leg.Close)
 	if f.onPlace != nil {
 		f.onPlace()
+	}
+	if f.apiReject != nil {
+		return OrderResult{ClOrdID: clOrdID, State: "unknown"}, f.apiReject
 	}
 	if f.reject {
 		return OrderResult{ClOrdID: clOrdID, State: "absent", VenueCode: "51000", VenueMsg: "Parameter clOrdId error"}, nil
@@ -41,6 +47,7 @@ func (f *fakeVenue) Place(ctx context.Context, leg Leg, clOrdID string) (OrderRe
 	return OrderResult{ClOrdID: clOrdID, State: "filled", FillPx: 1, FillSz: 100}, nil
 }
 func (f *fakeVenue) Resolve(ctx context.Context, leg Leg, clOrdID string) (OrderResult, error) {
+	f.resolveCalls++
 	if f.resolveTo != "" {
 		return OrderResult{ClOrdID: clOrdID, State: f.resolveTo}, nil
 	}
@@ -396,5 +403,70 @@ func TestPlaceRejectCodeLeavesTrace(t *testing.T) {
 	}
 	if state != "failed" || code != "51000" || msg == "" {
 		t.Fatalf("留痕缺失: state=%s code=%q msg=%q（应 failed+51000+真拒因）", state, code, msg)
+	}
+}
+
+// T-0042 锚：envelope 业务拒（*APIError 走 err 径）拒码进 fin_order_leg.venue_err_*。
+func TestPlaceAPIErrorLeavesTrace(t *testing.T) {
+	fv := &fakeVenue{apiReject: &okxexec.APIError{Code: "51016", Msg: "Order amount is below minimum"}}
+	ctx, r := setup(t, fv)
+	did := mkToken(t, ctx, r, false, false, "allow")
+	eid, err := r.Execute(ctx, mkIntent(did))
+	if err == nil {
+		t.Fatal("envelope 拒应失败收场")
+	}
+	var state, code, msg string
+	if err := r.pool.QueryRow(ctx, `SELECT state,venue_err_code,venue_err_msg FROM fin_order_leg
+		WHERE execution_id=$1 AND leg_no=1`, eid).Scan(&state, &code, &msg); err != nil {
+		t.Fatal(err)
+	}
+	if state != "failed" || code != "51016" || msg == "" {
+		t.Fatalf("envelope 拒留痕缺失: state=%s code=%q msg=%q", state, code, msg)
+	}
+}
+
+// T-0042 返修锚：envelope 拒分码族——51xxx 参数/业务拒族=确定单未建，直接
+// absent 留痕、禁查单（Resolve 零调用）。
+func TestPlaceAPIError51FamilyNoResolve(t *testing.T) {
+	fv := &fakeVenue{apiReject: &okxexec.APIError{Code: "51016", Msg: "Order amount is below minimum"}, resolveTo: "filled"}
+	ctx, r := setup(t, fv)
+	did := mkToken(t, ctx, r, false, false, "allow")
+	eid, err := r.Execute(ctx, mkIntent(did))
+	if err == nil {
+		t.Fatal("51 族拒应失败收场")
+	}
+	if fv.resolveCalls != 0 {
+		t.Fatalf("51 族拒禁走 Resolve（单确定未建）: resolveCalls=%d", fv.resolveCalls)
+	}
+	var state, code string
+	if err := r.pool.QueryRow(ctx, `SELECT state,venue_err_code FROM fin_order_leg
+		WHERE execution_id=$1 AND leg_no=1`, eid).Scan(&state, &code); err != nil {
+		t.Fatal(err)
+	}
+	if state != "failed" || code != "51016" {
+		t.Fatalf("51 族留痕: state=%s code=%q", state, code)
+	}
+}
+
+// T-0042 返修锚：非 51 族（50004 超时等）=歧态势——留痕后仍走 Resolve 定真态
+// （禁直接 absent），拒码透传进 leg 行。
+func TestPlaceAPIErrorNon51FamilyResolves(t *testing.T) {
+	fv := &fakeVenue{apiReject: &okxexec.APIError{Code: "50004", Msg: "The request timed out"}, resolveTo: "filled"}
+	ctx, r := setup(t, fv)
+	did := mkToken(t, ctx, r, false, false, "allow")
+	eid, err := r.Execute(ctx, mkIntent(did))
+	if err != nil {
+		t.Fatalf("50004→Resolve=filled 应成功收场: %v", err)
+	}
+	if fv.resolveCalls == 0 {
+		t.Fatal("非 51 族拒必须走 Resolve 定真态（单或已建=歧态势）")
+	}
+	var state, code string
+	if err := r.pool.QueryRow(ctx, `SELECT state,venue_err_code FROM fin_order_leg
+		WHERE execution_id=$1 AND leg_no=1`, eid).Scan(&state, &code); err != nil {
+		t.Fatal(err)
+	}
+	if state != "filled" || code != "50004" {
+		t.Fatalf("50004 留痕透传: state=%s code=%q（应 filled+50004）", state, code)
 	}
 }

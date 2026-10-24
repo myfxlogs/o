@@ -67,6 +67,11 @@ func buildOrderParams(leg Leg, clOrdID, posMode string) okxexec.OrderParams {
 	if leg.Close {
 		p.ReduceOnly = true
 	}
+	// T-0042 方言根修：spot 市价买 sz 默认按计价币（quote_ccy）解释——BTC 数量
+	// 意图会被当 USDT 金额拒单（exec_id=3 实弹实证），必带 base_ccy 钉死口径。
+	if p.TdMode == "cash" && p.Side == "buy" && p.OrdType == "market" {
+		p.TgtCcy = "base_ccy"
+	}
 	if posMode == "long_short_mode" && p.TdMode == "cross" {
 		if leg.Close {
 			if leg.Side == "buy" {

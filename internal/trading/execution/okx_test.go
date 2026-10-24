@@ -36,3 +36,20 @@ func TestBuildOrderParamsPosSide(t *testing.T) {
 		}
 	}
 }
+
+// T-0042 锚：spot 市价买 sz 口径=base_ccy（默认 quote_ccy 方言坑——exec_id=3 实弹
+// 实证 0.00030914 BTC 意图被按 USDT 金额拒）；spot 卖/perp 不带。
+func TestBuildOrderParamsTgtCcy(t *testing.T) {
+	p := buildOrderParams(Leg{InstID: "BTC-USDT", Side: "buy", Sz: "0.00030914"}, "ph1x2x1", "net_mode")
+	if p.TdMode != "cash" || p.TgtCcy != "base_ccy" {
+		t.Fatalf("spot 市价买应 base_ccy: tdMode=%q tgtCcy=%q", p.TdMode, p.TgtCcy)
+	}
+	if p := buildOrderParams(Leg{InstID: "BTC-USDT", Side: "sell", Sz: "0.01"}, "ph1x2x1", "net_mode"); p.TgtCcy != "" {
+		t.Fatalf("spot 卖默认即 base 口径不应带: %q", p.TgtCcy)
+	}
+	for _, side := range []string{"buy", "sell"} {
+		if p := buildOrderParams(Leg{InstID: "BTC-USDT-SWAP", Side: side, Sz: "1"}, "ph1x2x1", "net_mode"); p.TgtCcy != "" {
+			t.Fatalf("perp %s 不应带 tgtCcy: %q", side, p.TgtCcy)
+		}
+	}
+}

@@ -24,6 +24,7 @@ type OrderParams struct {
 	Px         string `json:"px,omitempty"`
 	ClOrdID    string `json:"clOrdId"`
 	PosSide    string `json:"posSide,omitempty"`    // 双向户平腿：long|short（net 单向户空省）
+	TgtCcy     string `json:"tgtCcy,omitempty"`     // spot 市价单 sz 口径：base_ccy|quote_ccy（市价买默认 quote_ccy——T-0042 根修；SWAP/FUTURES 不带）
 	ReduceOnly bool   `json:"reduceOnly,omitempty"` // 平仓腿必置——防「反向单=新开仓」自欺
 }
 

@@ -45,20 +45,12 @@ func main() {
 		os.Exit(1)
 	}
 	// 策略行：-strategy 显式 or 最新 probe/live（非 retired）。
-	var instID string
-	var notional float64
-	var venue string
-	q := `SELECT inst_id,notional_usd,venue FROM fin_strategy WHERE id=$1 AND state IN ('probe','live')`
-	args := []any{*sid}
-	if *sid == 0 {
-		q = `SELECT inst_id,notional_usd,venue FROM fin_strategy
-			WHERE state IN ('probe','live') ORDER BY id DESC LIMIT 1`
-		args = nil
-	}
-	if err := pool.QueryRow(ctx, q, args...).Scan(&instID, &notional, &venue); err != nil {
+	sidV, instID, notional, venue, err := resolveStrategy(ctx, pool, *sid)
+	if err != nil {
 		fmt.Fprintln(os.Stderr, "strategy:", err)
 		os.Exit(1)
 	}
+	*sid = sidV
 	// 双帽取小：min(strategy.notional, probe_notional, max_notional)。
 	cap1, e1 := cfg.GetFloat("exec.probe_notional_usd")
 	cap2, e2 := cfg.GetFloat("risk.max_notional_usd")
@@ -206,4 +198,27 @@ func mtConnect(ctx context.Context, pool *pgxpool.Pool, cfg *config.Client, mk [
 		os.Exit(1)
 	}
 	return cli
+}
+
+// resolveStrategy 策略行解析：sid>0 显式行；sid=0 取最新 probe/live 行并回赋 sid
+// （T-0042 顺带修：默认径 StrategyRef 恒 0→intent_incomplete）。
+func resolveStrategy(ctx context.Context, pool *pgxpool.Pool, sid int64) (int64, string, float64, string, error) {
+	if sid > 0 {
+		var instID string
+		var notional float64
+		var venue string
+		err := pool.QueryRow(ctx,
+			`SELECT inst_id,notional_usd,venue FROM fin_strategy WHERE id=$1 AND state IN ('probe','live')`,
+			sid).Scan(&instID, &notional, &venue)
+		return sid, instID, notional, venue, err
+	}
+	var id int64
+	var instID string
+	var notional float64
+	var venue string
+	err := pool.QueryRow(ctx,
+		`SELECT id,inst_id,notional_usd,venue FROM fin_strategy
+			WHERE state IN ('probe','live') ORDER BY id DESC LIMIT 1`).
+		Scan(&id, &instID, &notional, &venue)
+	return id, instID, notional, venue, err
 }
