@@ -78,8 +78,9 @@ t2.textContent=b.className?'🌙 暗色':'☀️ 亮色'}
     <span class="stamp">—</span>
   </div>
 
-  <div class="card doing">
+  <div class="card doing" id="c-doing">
     <h3>现 在 在 干 什 么</h3>
+    <div id="doing-body">
     <div class="empty">
       <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
         <path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>
@@ -89,21 +90,26 @@ t2.textContent=b.className?'🌙 暗色':'☀️ 亮色'}
 
   <div class="card money">
     <h3>钱 在 哪</h3>
+    <div id="money-body">
     <div class="empty">
       <p>读数装载中</p><i>「真金白银，不看假数。」</i>
+    </div>
     </div>
   </div>
 
   <div class="card recent">
     <h3>最 近 动 作</h3>
+    <div id="recent-body">
     <div class="empty">
       <p>暂无动作</p><i>「安静，是系统最好的状态。」</i>
     </div>
+    </div>
   </div>
 
-  <div class="card staff">
+  <div class="card staff" id="c-staff" style="display:none">
     <h3>员 工 · 16 在 岗</h3>
-    <div class="staffline"><span class="dot"></span>执事 · 交易执行</div>
+    <div id="staff-body"></div>
+  <div class="staffline"><span class="dot"></span>执事 · 交易执行</div>
     <div class="staffline"><span class="dot"></span>仓巡 · 平仓看护</div>
     <div class="staffline"><span class="dot"></span>司账 · 入账结算</div>
     <div class="staffline"><span class="dot"></span>核账 · 对账</div>
