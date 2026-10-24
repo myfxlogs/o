@@ -33,8 +33,8 @@ background:linear-gradient(135deg,rgba(255,255,255,.08),transparent 40%);pointer
 .metric b{font-size:34px;font-weight:700;letter-spacing:-.5px}
 .metric span{display:block;color:var(--dim);font-size:13px;margin-top:4px}
 .up{color:var(--up)} .dn{color:var(--dn)}
-.money{grid-column:span 4}.doing{grid-column:span 8}
-.recent{grid-column:span 8}.staff{grid-column:span 4}
+.money{grid-column:span 6}.doing{grid-column:span 6}
+.recent{grid-column:span 6}.staff{grid-column:span 6}
 h3{font-size:13px;color:var(--dim);font-weight:500;margin-bottom:14px;letter-spacing:1px}
 .row{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px dashed rgba(255,255,255,.06);font-size:14px}
 .row:last-child{border:0}
@@ -106,7 +106,7 @@ t2.textContent=b.className?'🌙 暗色':'☀️ 亮色'}
     </div>
   </div>
 
-  <div class="card staff" id="c-staff" style="display:none;grid-column:span 12;cursor:pointer">
+  <div class="card staff" id="c-staff" style="display:none;cursor:pointer;grid-column:span 6">
     <div id="staff-sum" onclick="document.getElementById('staff-graph').style.display=
       document.getElementById('staff-graph').style.display?'':'block';this.style.display=
       this.style.display?'':'none'"></div>
@@ -114,14 +114,14 @@ t2.textContent=b.className?'🌙 暗色':'☀️ 亮色'}
       document.getElementById('staff-sum').style.display=''"></div>
   </div>
 
-  <div class="card skel" style="grid-column:span 7">
+  <div class="card skel" style="grid-column:span 6">
     <h3>骨 架 屏（加载中态演示）</h3>
     <div class="bone" style="width:60%"></div>
     <div class="bone" style="width:85%"></div>
     <div class="bone" style="width:40%"></div>
   </div>
 
-  <div class="card" style="grid-column:span 5">
+  <div class="card" style="grid-column:span 6">
     <h3>空 状 态（无告警时演示）</h3>
     <div class="empty">
       <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
