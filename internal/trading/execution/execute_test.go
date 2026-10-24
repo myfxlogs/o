@@ -323,7 +323,7 @@ func TestRouterAndCfdLegs(t *testing.T) {
 	// cfd 腿：lot 换算+minLot 闸+异 venue 断言+perp 币本位换算锚（T-0037：
 	// half=1000 → 1000/(0.01×90000)=1.111→floor=1 张——旧病灶 1000/0.01=10 万张）
 	legs, inst, err := BuildCfdLegs("BTC-USDT-SWAP", "BTCUSDm", 2000,
-		CfdMeta{ContractSize: 1, MinLot: 0.01, LotStep: 0.01}, 90000, 0.01)
+		CfdMeta{ContractSize: 1, MinLot: 0.01, LotStep: 0.01, TradeMode: 4}, 90000, 0.01)
 	if err != nil || legs[0].Venue != "okx" || legs[1].Venue != "mt5" || inst != "BTCUSDm" {
 		t.Fatalf("cfd 腿构 err=%v inst=%s", err, inst)
 	}
@@ -333,10 +333,10 @@ func TestRouterAndCfdLegs(t *testing.T) {
 	if legs[1].Sz == "" {
 		t.Fatal("sz 空")
 	}
-	if _, _, err := BuildCfdLegs("BTC-USDT-SWAP", "", 100, CfdMeta{1, 0.01, 0.01}, 90000, 0.01); err == nil {
+	if _, _, err := BuildCfdLegs("BTC-USDT-SWAP", "", 100, CfdMeta{1, 0.01, 0.01, 4}, 90000, 0.01); err == nil {
 		t.Fatal("cfd_map 缺映射应拒")
 	}
-	if _, _, err := BuildCfdLegs("BTC-USDT-SWAP", "BTCUSDm", 0.001, CfdMeta{1, 0.01, 0.01}, 90000, 0.01); err == nil {
+	if _, _, err := BuildCfdLegs("BTC-USDT-SWAP", "BTCUSDm", 0.001, CfdMeta{1, 0.01, 0.01, 4}, 90000, 0.01); err == nil {
 		t.Fatal("minLot 起不来应拒")
 	}
 }
@@ -352,4 +352,26 @@ func (f fakeVenueTag) Place(ctx context.Context, leg Leg, id string) (OrderResul
 }
 func (f fakeVenueTag) Resolve(ctx context.Context, leg Leg, id string) (OrderResult, error) {
 	return OrderResult{ClOrdID: id, State: "filled"}, nil
+}
+
+// TestCfdTradeModeGate T-0039 可开性预检锚：TradeMode==FullAccess(4) 才放行；
+// CloseOnly(3)/Disabled(0)/单向限(1/2) 拒构（文案带实测值——Exness 动态限防线）。
+func TestCfdTradeModeGate(t *testing.T) {
+	for tm, label := range map[int32]string{
+		0: "Disabled", 1: "LongOnly", 2: "ShortOnly", 3: "CloseOnly",
+	} {
+		_, _, err := BuildCfdLegs("BTC-USDT-SWAP", "BTCUSDm", 2000,
+			CfdMeta{ContractSize: 1, MinLot: 0.01, LotStep: 0.01, TradeMode: tm}, 90000, 0.01)
+		if err == nil {
+			t.Fatalf("TradeMode=%d(%s) 应拒构", tm, label)
+		}
+		if !strings.Contains(err.Error(), fmt.Sprintf("TradeMode=%d", tm)) {
+			t.Fatalf("拒构文案缺实测值: %v", err)
+		}
+	}
+	// FullAccess 放行（既有换算锚面复证）
+	if _, _, err := BuildCfdLegs("BTC-USDT-SWAP", "BTCUSDm", 2000,
+		CfdMeta{ContractSize: 1, MinLot: 0.01, LotStep: 0.01, TradeMode: 4}, 90000, 0.01); err != nil {
+		t.Fatalf("FullAccess 应放行: %v", err)
+	}
 }

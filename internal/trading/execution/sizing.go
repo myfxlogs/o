@@ -144,7 +144,12 @@ func (r RouterExecutor) Resolve(ctx context.Context, leg Leg, id string) (OrderR
 
 // CFD 腿构（mt5 侧 lot 换算——SymbolParams contract_size 系；lot<min_lot fail-closed；
 // T-0037 根修：perp 张数同 BuildLegs 径=usd/(perpCtVal×px)——px 即 BTC 价双腿共用）。
-type CfdMeta struct{ ContractSize, MinLot, LotStep float64 }
+// TradeMode=SymbolGroup.TradeMode（T-0039：Exness 平台级 CloseOnly 动态限实勘——
+// 下单时点断言 FullAccess 非此拒构，禁读台账快照当放行证；mt5pb 数值枚举 0-4）。
+type CfdMeta struct {
+	ContractSize, MinLot, LotStep float64
+	TradeMode                     int32
+}
 
 // BuildCfdLegs 跨 venue 双腿：leg1=okx SWAP 卖（perp 张数 ctVal 系——
 // okx 腿 sizing 仍走 BuildLegs 正径的工具侧已在用；本件产出 cfd 腿+拼腿）。
@@ -152,6 +157,11 @@ type CfdMeta struct{ ContractSize, MinLot, LotStep float64 }
 func BuildCfdLegs(instID, cfdInst string, notional float64, cfdM CfdMeta, px float64, perpCtVal float64) ([2]Leg, string, error) {
 	if cfdInst == "" {
 		return [2]Leg{}, "", fmt.Errorf("exec.cfd_map 无 %s 映射——fail-closed", instID)
+	}
+	// T-0039 可开性预检：TradeMode==FullAccess(4) 断言——CloseOnly(3)/Disabled(0)/
+	// 单向限(1/2) 皆拒构（文案带实测值；Exness 动态限=下单时点查非快照）。
+	if cfdM.TradeMode != 4 {
+		return [2]Leg{}, "", fmt.Errorf("cfd %s TradeMode=%d 非 FullAccess（可开性预检拒——broker 动态限，单腿裸露防线）", cfdInst, cfdM.TradeMode)
 	}
 	if perpCtVal <= 0 {
 		return [2]Leg{}, "", fmt.Errorf("perp ctVal 缺")

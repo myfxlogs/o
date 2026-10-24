@@ -127,9 +127,11 @@ func main() {
 			fmt.Fprintln(os.Stderr, "px:", err)
 			os.Exit(1)
 		}
+		fmt.Printf("cfd %s trade_mode=%d（FullAccess=4——下单时点实读留痕 T-0039）\n", cfdInst, sg.GetTradeMode())
 		legs, spotInst, err = execution.BuildCfdLegs(instID, cfdInst, notional,
 			execution.CfdMeta{ContractSize: sgi.GetContractSize(),
-				MinLot: sg.GetMinLots(), LotStep: sg.GetLotsStep()}, px, pm.CtVal)
+				MinLot: sg.GetMinLots(), LotStep: sg.GetLotsStep(),
+				TradeMode: int32(sg.GetTradeMode())}, px, pm.CtVal)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "legs:", err)
 			os.Exit(1)
