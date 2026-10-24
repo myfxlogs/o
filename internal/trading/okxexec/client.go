@@ -161,12 +161,12 @@ func (c *Client) PublicGet(ctx context.Context, pathWithQuery string) (json.RawM
 // InstrumentMeta /public/instruments 取 ctVal/lotSz/minSz（公开只读——instruments
 // bootstrap 钦定面非轮询病灶）。
 func (c *Client) InstrumentMeta(ctx context.Context, instType, instID string) (struct {
-	CtVal, LotSz, MinSz float64
-	CtValCcy            string
+	CtVal, LotSz, MinSz, TickSz float64
+	CtValCcy, State             string
 }, error) {
 	var out struct {
-		CtVal, LotSz, MinSz float64
-		CtValCcy            string
+		CtVal, LotSz, MinSz, TickSz float64
+		CtValCcy, State             string
 	}
 	raw, err := c.Get(ctx, "/api/v5/public/instruments?instType="+instType+"&instId="+instID)
 	if err != nil {
@@ -176,7 +176,9 @@ func (c *Client) InstrumentMeta(ctx context.Context, instType, instID string) (s
 		CtVal    string `json:"ctVal"`
 		LotSz    string `json:"lotSz"`
 		MinSz    string `json:"minSz"`
+		TickSz   string `json:"tickSz"`
 		CtValCcy string `json:"ctValCcy"`
+		State    string `json:"state"`
 	}
 	if err := json.Unmarshal(raw, &rows); err != nil || len(rows) == 0 {
 		return out, fmt.Errorf("instruments 空: %w", err)
@@ -185,5 +187,10 @@ func (c *Client) InstrumentMeta(ctx context.Context, instType, instID string) (s
 	out.LotSz, _ = strconv.ParseFloat(rows[0].LotSz, 64)
 	out.MinSz, _ = strconv.ParseFloat(rows[0].MinSz, 64)
 	out.CtValCcy = rows[0].CtValCcy
+	out.TickSz, _ = strconv.ParseFloat(rows[0].TickSz, 64)
+	out.State = rows[0].State
 	return out, nil
 }
+
+// Creds 凭据取件（boot 首读/facts 采面装配注入用——值不出 pkg 非注入径）。
+func (c *Client) Creds() Credentials { return c.creds }

@@ -194,3 +194,38 @@ func splitHostPort(h string) (string, int32) {
 	}
 	return h, 443
 }
+
+// AccountFacts 户层事实（Account 实读——login/leverage；AccountSummary 补
+// leverage/method/ccy 面；server 名=Credentials 侧装配注记——AccountRec 无此字段）。
+func (c *Client) AccountFacts(ctx context.Context) (login, leverage int64, ccy string, err error) {
+	r, err := c.mt5.Account(c.authed(ctx), &mt5pb.AccountRequest{Id: c.token})
+	if err != nil || r.Result == nil {
+		if err == nil {
+			err = fmt.Errorf("account 空体")
+		}
+		return 0, 0, "", err
+	}
+	s, err := c.mt5.AccountSummary(c.authed(ctx), &mt5pb.AccountSummaryRequest{Id: c.token})
+	if err != nil || s.Result == nil {
+		return int64(r.Result.Login), int64(r.Result.Leverage), "", nil
+	}
+	return int64(r.Result.Login), int64(r.Result.Leverage), s.Result.Currency, nil
+}
+
+// SymbolFacts 乐器层事实（SymbolParams 实读——ContractSize/MinLots/LotsStep/
+// TradeMode/spread/digits；T-0041 决策输入层）。
+func (c *Client) SymbolFacts(ctx context.Context, sym string) (map[string]any, error) {
+	r, err := c.mt5.SymbolParams(c.authed(ctx), &mt5pb.SymbolParamsRequest{Id: c.token, Symbol: sym})
+	if err != nil || r.Result == nil {
+		if err == nil {
+			err = fmt.Errorf("symbolParams %s 空体", sym)
+		}
+		return nil, err
+	}
+	si, sg := r.Result.SymbolInfo, r.Result.SymbolGroup
+	return map[string]any{
+		"contractSize": si.GetContractSize(), "minLots": sg.GetMinLots(),
+		"lotsStep": sg.GetLotsStep(), "tradeMode": int32(sg.GetTradeMode()),
+		"spread": si.GetSpread(), "digits": si.GetDigits(),
+	}, nil
+}

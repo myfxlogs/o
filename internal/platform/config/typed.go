@@ -69,3 +69,16 @@ func (c *Client) GetInt(k string) (int64, error) {
 	}
 	return int64(f), nil
 }
+
+// GetStringList 字符串数组键（jsonb 数组——okx.symbols/mt5.symbols 采集清单形）。
+func (c *Client) GetStringList(k string) []string {
+	raw, err := c.Get(k)
+	if err != nil {
+		return nil
+	}
+	var out []string
+	if json.Unmarshal(raw, &out) != nil {
+		return nil
+	}
+	return out
+}

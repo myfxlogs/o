@@ -19,6 +19,7 @@ import (
 	"phase/internal/data/okxpriv"
 	"phase/internal/data/okxws"
 	"phase/internal/earn"
+	"phase/internal/facts"
 	"phase/internal/guard"
 	"phase/internal/ledger"
 	"phase/internal/ledger/holding"
@@ -202,6 +203,27 @@ func run() error {
 		log.Printf("WARN: 汇市巡缺席（%v）——mt5 凭据落位后重启即上岗", err)
 	} else {
 		go m5.Run(ctx, errc)
+	}
+
+	// 账户事实面（员工 集使——T-0041 业主令：全面了解不猜）：两 venue 户层+乐器层
+	// facts 单源层；okx 源=私流守凭据同源，mt5 源=独立会话开件；双缺=岗缺席 WARN。
+	{
+		var srcs []facts.Source
+		if priv, err := okxpriv.NewCollector(ctx, pool, false); err == nil {
+			okcli := okxexec.NewClient(priv.Credentials(), false)
+			srcs = append(srcs, &facts.OkxSource{Cli: okcli,
+				Symbols: func() []string { return cfg.GetStringList("okx.symbols") }})
+		}
+		if _, err := mt5.NewCollector(ctx, pool, cfg); err == nil {
+			srcs = append(srcs, &facts.Mt5Source{
+				Open:    func(ctx context.Context) (*mt5.Client, error) { return mt5.OpenSession(ctx, pool, cfg) },
+				Symbols: func() []string { return cfg.GetStringList("mt5.symbols") }})
+		}
+		if len(srcs) > 0 {
+			go facts.NewCollector(pool, srcs...).Run(ctx, errc)
+		} else {
+			log.Printf("WARN: 集使缺席——两 venue 凭据均缺，facts 面单源层待凭据落位")
+		}
 	}
 
 	// 研究域首岗：funding 枚举+评估卡（员工 探员/验证官）——判据全 app_config 机读。
