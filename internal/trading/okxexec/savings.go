@@ -14,6 +14,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net"
 	"net/http"
 	"strconv"
@@ -134,9 +135,15 @@ func (c *Client) AssetTransferState(ctx context.Context, ccy, clTID string) (str
 	return rows[0].State, nil
 }
 
-// fmtAmt 金额串（8 位小数截齐，尾零裁剪——float 乘法噪声不进请求体）。
+// trunc8 向零截断 8 位小数（非四舍五入——转出额恒≤余额真值）。
+func trunc8(amt float64) float64 {
+	return math.Trunc(amt*1e8) / 1e8
+}
+
+// fmtAmt 金额串（8 位小数截断非四舍五入——T-0058 实证：75.927133877… 四舍
+// 五入成 75.92713388>availBal 即 58350 拒；截断=不超余额真值）。
 func fmtAmt(amt float64) string {
-	s := strconv.FormatFloat(amt, 'f', 8, 64)
+	s := strconv.FormatFloat(trunc8(amt), 'f', 8, 64)
 	s = strings.TrimRight(s, "0")
 	return strings.TrimSuffix(s, ".")
 }
