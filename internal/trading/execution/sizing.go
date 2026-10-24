@@ -106,7 +106,14 @@ func BuildLegs(ctx context.Context, pool *pgxpool.Pool, loadMeta MetaLoader,
 	if perpSz < perpM.MinSz {
 		return [2]Leg{}, spotInst, fmt.Errorf("perp 最小张起不来: sz=%.4f<minSz=%.4f", perpSz, perpM.MinSz)
 	}
-	spotSz := floorLot(half/px, spotM.LotSz)
+	// T-0062 根修①：perp 落网格后的实名义额反推 spot 腿（lot 砍残失衡=
+	// delta_drift 绞肉环根因——出生即对齐带内）。USD 面值张=ctVal 直乘；
+	// 币本位=ctVal×pxPerp 换 USD。
+	perpUSD := perpSz * perpM.CtVal
+	if perpM.CtValCcy != "USD" && perpM.CtValCcy != "USDT" {
+		perpUSD *= pxPerp
+	}
+	spotSz := floorLot(perpUSD/px, spotM.LotSz)
 	if spotSz < spotM.MinSz {
 		return [2]Leg{}, spotInst, fmt.Errorf("spot 最小张起不来: sz=%.6f<minSz=%.6f", spotSz, spotM.MinSz)
 	}

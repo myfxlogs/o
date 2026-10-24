@@ -125,6 +125,16 @@ func (r *Runner) reconcile(ctx context.Context) error {
 		log.Printf("WARN [ledger] 对账 venue 现读件未挂接——对账缺岗可见（fail-closed 让位）")
 		return nil
 	}
+	// T-0062 根修③：在途换形窗 debounce（USDT→ETH 换形 ~2s 拍内 venue 读
+	// 少 ~$25 超容差每轮一警——30s 内有执行活动=本轮跳过不判，容差不降）。
+	var inflight bool
+	_ = r.pool.QueryRow(ctx, `SELECT EXISTS(
+		SELECT 1 FROM fin_order_leg WHERE created_at > now()-interval '30 seconds'
+		UNION SELECT 1 FROM fin_execution WHERE opened_at > now()-interval '30 seconds')`).Scan(&inflight)
+	if inflight {
+		log.Printf("[ledger] 对账跳过——执行在途换形窗（30s 内 leg/execution 活动，不判不警）")
+		return nil
+	}
 	// T-0055：Earn 利息先入账再对拍（savings amt 已含应计利息——不入账=账本
 	// 系统性偏低且逐日走阔；事件化高水位幂等）。
 	r.postInterest(ctx)

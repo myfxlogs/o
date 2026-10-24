@@ -42,8 +42,10 @@ const (
 	subFundingPay = "173"
 	subFundingRcv = "174"
 	maxPages      = 5 // 单次事件拉取上限页（100/页——常规结算拍远不及）
-	instTypeSWAP  = "SWAP"
 )
+
+// instTypesAll 账单拉取型谱（T-0062 根修②：SWAP+SPOT 双采——现货腿成本归集）。
+var instTypesAll = []string{"SWAP", "SPOT"}
 
 // Ingester 记账执事。
 type Ingester struct {
@@ -58,10 +60,23 @@ func NewIngester(pool *pgxpool.Pool, src BillSource) *Ingester {
 // Ingest 事件后拉取：首页→逐页向旧游标推进，遇已入库 billId 即止（增量切口）。
 // 返回本次新记账账单数；失败上抛由调用方记数（不炸事件主径——见 Hook 包装）。
 func (i *Ingester) Ingest(ctx context.Context) (int, error) {
+	inserted := 0
+	for _, it := range instTypesAll {
+		n, err := i.ingestType(ctx, it)
+		inserted += n
+		if err != nil {
+			return inserted, err
+		}
+	}
+	return inserted, nil
+}
+
+// ingestType 单 instType 增量拉取（源行幂等切面——杂币过滤在 record 内分派）。
+func (i *Ingester) ingestType(ctx context.Context, it string) (int, error) {
 	after := ""
 	inserted := 0
 	for p := 0; p < maxPages; p++ {
-		bills, err := i.src.Bills(ctx, instTypeSWAP, after)
+		bills, err := i.src.Bills(ctx, it, after)
 		if err != nil {
 			return inserted, err
 		}
