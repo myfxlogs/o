@@ -95,3 +95,30 @@ clientId 方言（okx-asset-funding:3,20）、envelope sCode/sMsg（okx-exec:34�
 台账制修复径未实跑=本席同判「码面待修+修后首 `-mut` 实证」；当前真实账户 trading≈$0.2，两处 fail-open 现实危害≈0——**打回理由是保证语句不成立，非现账损失**。
 
 **裁定：段一二三事实面+机检+转录全过；台账制两处 fail-open 打回补丁（单点、量小），修复合入后本席复审即翻完成。**
+
+## 13. 续段补录（@21987fa）
+
+- **台账制复位径真金首验 PASS**（-mut 全谱 54/0/0）：dust_sell ETC→买回归账（耗 $2.83≈卖出所得，零越界）、`transfer_back 复位 0.00`（soldUSD=0 以外资金零动用实证）——ledgerCap/backCap 无条件封顶行为级成立。
+- **经验库索引机迁移落位**：`tools/kbgen`（gen/--check/read，noxkb gen 面移植，induct/LLM 管线不搬）；7 件散文旧条目补 schema v2 frontmatter；`索引.md` 机生重建（21 条目在册）、`技能清单.md` 首建。`gen --check` 可挂机检门禁。
+- **ETC 收益面裁定（业主探问实证）**：OKX 期权无 ETC（OPTION&uly=ETC-USD 空集）——covered call 此 venue 不可行；ETC 活期借贷利率 1% APR，0.369 ETC≈$3 规模年息 ~$0.03——**低于任何操作量级，残尘留 fin_holding 记实不动**。
+- **会话纪要规程化草案（待决策席修订 collab.md）**：check-out 协议增一步——「实质对话（决策/探问/转向/授权级）落 `docs/handoff/dialogue.md`；session 死≠事实死」；机制现以 `docs/handoff/dialogue.md` 文件+本 session 先例先行运转。
+
+## 13. 增量复审裁决（[角色:复审] claude-glm 2026-10-24 @dc46a1a）
+
+**判据①②③ 全过**：
+- ① ledgerCap/backCap 无条件封顶——`min(闲余-缓冲, max(引入,0))` 钦定形、卫分支物理消失；双锚四初态（零引入/倒挂/正常/取小）实跑绿。打回点完整命中。
+- ② profitLoop 写径与 snapshotOnce 同表同构（md_account_events append-only，INSERT 自带 NOTIFY）；send-before-cancel 保真因+双流同会话重连语义实读合规。
+- ③ 去重键七字段（eq/avail/bal/margin/profit/margin_level/open）与可写字段一一对应，零漏。
+
+**一条 merge blocker，打回**：
+- `0029_drop_snapshots` 废表合规（生产码零残余引用已核），但 **`TestSnapshotWrite` 成孤儿**——仍 INSERT 已 DROP 的 `fin_venue_account_snapshot`，fresh 库确定性 FAIL（本轮复审实测三跑三翻），合并即 CI 红。修法：删孤儿测试（或改锚 md_account_events 行形——write 径形状锚由 TestDDCaptureAppendsCurve/同族覆盖可选）。
+
+**既有缺陷注记（非本单引入，不挡本票）**：`tools/openfirst/main_test.go` 裸插 fin_strategy 不先 Migrate——fresh 库时序性翻（并发包先迁则过），master 同款已然；建议另立票修。
+
+**裁定**：删孤儿测试+机检绿即过——过则 merge t/0048-eventify→master、删支、按 §11 SG 部署+验证（本席执行）。
+
+## 14. 增量返工回填（[角色:施工] zcode-glm @ 2026-10-24——裁决 18212d4 §13）
+
+- 孤儿测试 `TestSnapshotWrite` 删除——写形状锚按裁决建议改锚 md_account_events：新 `TestAccountEventWrite`（venue='mt5'/USD 本位/data eq·avail 键域断言，append-only 行形）PASS；`time` 死导入同清。
+- fresh 库机检：独立空库（phase_fresh 临时建删）`go test ./...` 全量绿——唯一 FAIL=tools/openfirst 既有缺陷（裁决明示不挡本票勿动）。
+- 全量绿复核：build/vet（openfirst 外零告警）/gofmt/check-lines exit 0；mt5 包含新锚 PASS。

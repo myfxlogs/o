@@ -19,7 +19,6 @@ func setup(t *testing.T) (context.Context, *Gate) {
 	// 共享库并发下他包策略行/快照行可能顶过阈翻判（venue 集中度/敞口误伤）。
 	for _, q := range []string{
 		"DELETE FROM fin_strategy WHERE inst_id LIKE 'RK-%'",
-		"DELETE FROM fin_venue_account_snapshot WHERE ccy='RKCCY'",
 		"DELETE FROM fin_risk_token WHERE true",
 		"DELETE FROM fin_risk_decision WHERE intent->>'inst_id' LIKE 'RK-%'",
 	} {
@@ -40,7 +39,7 @@ func setup(t *testing.T) (context.Context, *Gate) {
 	if err := cfg.Load(ctx); err != nil {
 		t.Fatal(err)
 	}
-	return ctx, NewGate(pool, cfg)
+	return ctx, NewGate(pool, cfg).WithEquity(func(ctx context.Context, v string) (float64, error) { return 1000, nil })
 }
 
 var intent = Intent{StrategyRef: 9e6, Venue: "rktest", InstID: "RK-USDT-SWAP", Legs: []string{"spot_long", "perp_short"}, NotionalUSD: 100, Leverage: 1}

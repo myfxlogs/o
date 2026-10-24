@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"phase/internal/platform/events"
 	"sync"
 	"time"
 
@@ -30,13 +31,11 @@ import (
 )
 
 const (
-	defaultVenue     = "okx"
-	defaultCcy       = "USDT" // Earn 停泊本位（杂币不入账闭集；枚举面限 USDT 同规）
-	beatEvery        = 30 * time.Second
-	scanEvery        = 60 * time.Second
-	snapshotFreshMax = 5 * time.Minute // unified 快照新鲜度门（okx-rest-boundary 同律）
-	parkingSrcBoot   = "earn_boot"     // 快照行 src：boot 首读
-	parkingSrcMove   = "earn_move"     // 快照行 src：移动后事件锚定刷
+	defaultVenue   = "okx"
+	defaultCcy     = "USDT" // Earn 停泊本位（杂币不入账闭集；枚举面限 USDT 同规）
+	beatEvery      = 30 * time.Second
+	parkingSrcBoot = "earn_boot" // 快照行 src：boot 首读
+	parkingSrcMove = "earn_move" // 快照行 src：移动后事件锚定刷
 )
 
 // VenueAPI venue 停泊面（注入式——earn 不识 venue 方言，产线=okxexec.Client）。
@@ -52,13 +51,16 @@ type VenueAPI interface {
 // Worker 配管在岗体（rateFn 可注入=测试面；api 缺席=仅现率采集在岗；
 // venue/ccy 字段化——生产默认 okx/USDT，测试键域隔离用）。
 type Worker struct {
-	al     *notify.Alerter
-	pool   *pgxpool.Pool
-	cfg    *config.Client
-	rej    *rejects.Door
-	api    VenueAPI
-	venue  string
-	ccy    string
+	al    *notify.Alerter
+	pool  *pgxpool.Pool
+	cfg   *config.Client
+	rej   *rejects.Door
+	api   VenueAPI
+	venue string
+	ccy   string
+	// idle 交易户闲余现读件（T-0048：快照行出局——availEq 实读注入；
+	// nil/读败=fail-closed 禁动钱）。
+	idle   func(ctx context.Context) (float64, error)
 	rateFn func(ctx context.Context) (okxexec.RateSummary, error)
 	mu     sync.Mutex // 单飞锁：redeem 持锁必进（开仓不排队），sweep TryLock 让位
 }
@@ -67,7 +69,7 @@ type Worker struct {
 func NewWorker(pool *pgxpool.Pool, cfg *config.Client) *Worker {
 	return &Worker{pool: pool, cfg: cfg, venue: defaultVenue, ccy: defaultCcy,
 		rej: rejects.New("earn", "rate_fetch_failed", "rate_parse_failed", "missing_param",
-			"snapshot_stale", "sweep_skip_inflight", "sweep_busy", "venue_absent",
+			"idle_missing", "sweep_skip_inflight", "sweep_busy", "venue_absent",
 			"deposit_failed", "transfer_ambiguous", "compensation_failed",
 			"snapshot_refresh_failed", "write_err"),
 		rateFn: func(ctx context.Context) (okxexec.RateSummary, error) {
@@ -81,35 +83,21 @@ func (w *Worker) AttachVenue(api VenueAPI) { w.api = api }
 // AttachAlerter 挂告警器（nil=静默降级）。
 func (w *Worker) AttachAlerter(a *notify.Alerter) { w.al = a }
 
+// AttachIdle 挂交易户闲余现读件（装配层接线——availEq 口径）。
+func (w *Worker) AttachIdle(fn func(ctx context.Context) (float64, error)) { w.idle = fn }
+
 // Run 配管上岗（Register+BeatLoop 30s+扫描循环；boot 首读刷停泊快照——事件锚定形）。
 func (w *Worker) Run(ctx context.Context, errc chan<- error) {
 	if err := roster.Register(ctx, w.pool, "配管", "portfolio", "闲置承接岗——Earn 停泊+现率采集", nil); err != nil {
 		errc <- fmt.Errorf("配管 register: %w", err)
 		return
 	}
-	go roster.BeatLoop(ctx, w.pool, "配管", beatEvery, errc)
+	go roster.BeatLoop(ctx, w.pool, "配管", 30*time.Second, errc)
 	if err := w.refreshParkingSnapshot(ctx, parkingSrcBoot); err != nil {
 		log.Printf("[earn] boot 停泊快照缺席（凭据落位后移动时自愈）: %v", err)
 	}
-	for {
-		if err := w.scan(ctx); err != nil {
-			log.Printf("[earn] scan: %v", err)
-		}
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(w.pollEvery()):
-		}
-	}
-}
-
-// pollEvery 采样拍长（data.earn.poll_sec 热启；节拍非判据——键缺/坏降默认拍
-// 不驻停，停泊面不因节拍键缺而停摆）。
-func (w *Worker) pollEvery() time.Duration {
-	if sec, err := w.cfg.GetInt("data.earn.poll_sec"); err == nil && sec > 0 {
-		return time.Duration(sec) * time.Second
-	}
-	return scanEvery
+	// 事件化（T-0048：周期环拆——unified 余额帧 ev_account 驱动一拍）。
+	events.ListenLoop(ctx, w.pool, "earn", []string{"ev_account"}, w.scan)
 }
 
 // scan 一拍两件：现率采样（独立——败不连坐扫额）+扫额回拢。
@@ -175,19 +163,16 @@ func (w *Worker) sweepIdle(ctx context.Context) error {
 	return nil
 }
 
-// tradingIdleUSDT 交易户闲余（unified 快照行 avail；缺行/陈=fail-closed ok=false）。
+// tradingIdleUSDT 交易户闲余（venue 现读件——快照出局；读件缺/读败=fail-closed 禁动钱）。
 func (w *Worker) tradingIdleUSDT(ctx context.Context) (float64, bool, error) {
-	var avail float64
-	var up time.Time
-	err := w.pool.QueryRow(ctx, `SELECT avail,updated_at FROM fin_venue_account_snapshot
-		WHERE venue=$1 AND venue_type='unified' AND ccy=$2`, w.venue, w.ccy).Scan(&avail, &up)
-	if err != nil {
-		w.rej.Inc("snapshot_stale")
-		return 0, false, nil // 快照行缺席=闲余不可知——禁动钱（禁虚构判据）
+	if w.idle == nil {
+		w.rej.Inc("idle_missing")
+		return 0, false, nil
 	}
-	if time.Since(up) > snapshotFreshMax {
-		w.rej.Inc("snapshot_stale")
-		log.Printf("ALERT [earn] unified 快照陈（updated_at=%s>5min）——扫额让位 fail-closed", up)
+	avail, err := w.idle(ctx)
+	if err != nil {
+		w.rej.Inc("idle_missing")
+		log.Printf("ALERT [earn] 交易户闲余现读败——扫额让位 fail-closed: %v", err)
 		return 0, false, nil
 	}
 	return avail, true, nil

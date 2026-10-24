@@ -144,3 +144,11 @@ session 标识自定（如 `devin-a1b2`），全仓唯一即可，建议加可�
 - **施工工作面=自己的 worktree**：`git worktree add /opt/phase-wt/<票> -b t/<票>`，一单一树；票毕 `worktree remove`+删支。
 - 多席并行零互踩的前提=各守各树；`.git` 级竞态（index.lock/HEAD 漂移）一旦出现即说明有人在部署树动手。
 - 检出纪律自查：任何席在 /opt/phase 见到 `git branch --show-current` 非 master = 先报决策席，禁顺手切回（可能正有合并/领单进行中）。
+
+## 10. 会话尾（退仓纪律——nox D-592 精神继承版，T-0049 立）
+
+任何角色 session 收尾前，三步机械门——缺一=半交付：
+
+1. **实质对话落 `docs/handoff/dialogue.md`**——只录决策/探问/转向/授权级内容（谁授权了什么、为什么改方向、裁了什么争议）；纯执行回执不录。session 死≠事实死——对话里的授权与裁断不落文件，对项目等于没发生。
+2. **事实归位扫描**——本 session 产生的项目事实各归其位：坑→`docs/工程经验库/条目/`（高危直写+`tools/kbgen gen` 重建索引，中低可停待归纳）；venue 面新证→`skills/` 同票修订（在用中证错必修）；方向裁断→`docs/decisions/`。**私有记忆不得独存项目事实**。
+3. **提交即推送**——收工时 `git status` 净 + `git log @{u}..` 空；本地领先未推送=断链风险。

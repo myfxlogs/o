@@ -18,11 +18,7 @@ func ddSeed(t *testing.T, ctx context.Context, w *Warden, cur float64, hist map[
 	if _, err := w.pool.Exec(ctx, "DELETE FROM md_equity_curve"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := w.pool.Exec(ctx, `INSERT INTO fin_venue_account_snapshot(venue,venue_type,ccy,equity,src,updated_at)
-		VALUES('okx','unified','USDT',$1,'dd-test',now())
-		ON CONFLICT(venue,venue_type,ccy) DO UPDATE SET equity=EXCLUDED.equity,updated_at=now()`, cur); err != nil {
-		t.Fatal(err)
-	}
+	w.AttachEquity(func(ctx context.Context) (float64, error) { return cur, nil })
 	for ago, eq := range hist {
 		if _, err := w.pool.Exec(ctx,
 			`INSERT INTO md_equity_curve(ts,venue,ccy,equity,src) VALUES(now()-$1::interval,'okx','USDT',$2,'test')`, ago, eq); err != nil {
@@ -188,14 +184,10 @@ func TestDDEquityStaleSkips(t *testing.T) {
 	if _, err := w.pool.Exec(ctx, "DELETE FROM md_equity_curve"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := w.pool.Exec(ctx, `INSERT INTO fin_venue_account_snapshot(venue,venue_type,ccy,equity,src,updated_at)
-		VALUES('okx','unified','USDT',90,'dd-test',now()-interval '10 minutes')
-		ON CONFLICT(venue,venue_type,ccy) DO UPDATE SET equity=EXCLUDED.equity,updated_at=now()-interval '10 minutes'`); err != nil {
-		t.Fatal(err)
-	}
+	w.AttachEquity(func(ctx context.Context) (float64, error) { return 0, fmt.Errorf("现读败") })
 	w.ddScan(ctx)
-	if w.rej.Snapshot()["guard/equity_stale"] == 0 {
-		t.Fatal("陈快照计数未计")
+	if w.rej.Snapshot()["guard/equity_missing"] == 0 {
+		t.Fatal("现读败计数未计")
 	}
 	var n int
 	if err := w.pool.QueryRow(ctx, "SELECT count(*) FROM md_equity_curve").Scan(&n); err != nil || n != 0 {

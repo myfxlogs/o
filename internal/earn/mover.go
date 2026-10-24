@@ -158,10 +158,9 @@ func (w *Worker) refreshParkingSnapshot(ctx context.Context, src string) error {
 		}
 		bal += parseAmt(r.Amt) + parseAmt(r.PendingAmt)
 	}
-	if _, err := w.pool.Exec(ctx, `INSERT INTO fin_venue_account_snapshot(venue,venue_type,ccy,equity,avail,src)
-		VALUES($1,'earn',$2,$3,$3,$4)
-		ON CONFLICT(venue,venue_type,ccy) DO UPDATE SET equity=EXCLUDED.equity,avail=EXCLUDED.avail,src=EXCLUDED.src,updated_at=now()`,
-		w.venue, w.ccy, bal, src); err != nil {
+	blob, _ := json.Marshal(map[string]any{"earn_bal": bal, "src": src})
+	if _, err := w.pool.Exec(ctx, `INSERT INTO md_account_events(ts,venue,channel,ccy,data)
+		VALUES(now(),$1,'earn_parking',$2,$3)`, w.venue, w.ccy, blob); err != nil {
 		w.rej.Inc("write_err")
 		return err
 	}

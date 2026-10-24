@@ -10,11 +10,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"phase/internal/platform/config"
+	"phase/internal/platform/events"
 	"phase/internal/platform/rejects"
 	"phase/internal/platform/roster"
 )
-
-const scanEvery = 60 * time.Second
 
 var critKeys = []string{
 	"invest.lifecycle.paper_min_hours", "invest.lifecycle.paper_min_net_usd",
@@ -40,16 +39,9 @@ func (r *Runner) Run(ctx context.Context, errc chan<- error) {
 		return
 	}
 	go roster.BeatLoop(ctx, r.pool, "命官", 30*time.Second, errc)
-	for {
-		if err := r.scan(ctx); err != nil {
-			log.Printf("[lifecycle] scan: %v", err)
-		}
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(scanEvery):
-		}
-	}
+	// 事件化（T-0048：周期环拆——策略/评估卡行变 ev_strategy/ev_eval 驱动）。
+	events.ListenLoop(ctx, r.pool, "lifecycle",
+		[]string{"ev_strategy", "ev_eval"}, r.scan)
 }
 
 func (r *Runner) getF(key string) (float64, error) { return r.cfg.GetFloat(key) }

@@ -9,10 +9,17 @@ import (
 )
 
 // APIError venue 业务层拒（envelope code≠0）——类型化供调用方按码定态
-// （如 51603=Order does not exist→absent，禁字符串匹配）。
-type APIError struct{ Code, Msg string }
+// （如 51603=Order does not exist→absent，禁字符串匹配）。SCode/SMsg 透内层
+// data[0] 真实拒因（envelope code=1「All operations failed」只是壳——真码在里层，
+// 实测 2026-10-24：余额不足报 code=1 壳+内层 51008）。
+type APIError struct{ Code, Msg, SCode, SMsg string }
 
-func (e *APIError) Error() string { return "okx code=" + e.Code + " msg=" + e.Msg }
+func (e *APIError) Error() string {
+	if e.SCode != "" {
+		return "okx code=" + e.Code + "/" + e.SCode + " msg=" + e.Msg + "/" + e.SMsg
+	}
+	return "okx code=" + e.Code + " msg=" + e.Msg
+}
 
 // OrderParams 下单入参（方言：tdMode=cash[spot]/cross[perp]；posSide=net 单向户）。
 type OrderParams struct {
@@ -36,6 +43,12 @@ func (c *Client) PlaceOrder(ctx context.Context, p OrderParams) (json.RawMessage
 		return nil, err
 	}
 	return c.do(ctx, "POST", "/api/v5/trade/order", body)
+}
+
+// CancelOrder POST /trade/cancel-order——撤挂事务单发（ordId/clOrdId 二选一）。
+func (c *Client) CancelOrder(ctx context.Context, instID, ordID, clOrdID string) (json.RawMessage, error) {
+	body, _ := json.Marshal(map[string]string{"instId": instID, "ordId": ordID, "clOrdId": clOrdID})
+	return c.do(ctx, "POST", "/api/v5/trade/cancel-order", body)
 }
 
 // OrderState clOrdId 定态三分支（okx-exec 契约：filled→成交录；live/partially→

@@ -103,7 +103,6 @@ func TestRedeemAmountNotionalPlusBuffer(t *testing.T) {
 	ctx, w, fake := setupW(t, &fakeAPI{balance: 42}, map[string]string{"earn.redeem_buffer_bps": "50"})
 	defer w.pool.Exec(ctx, "DELETE FROM fin_cashflow WHERE venue=$1 AND kind IN ('earn_in','earn_out')", w.venue)
 	defer w.pool.Exec(ctx, "DELETE FROM fin_risk_decision WHERE intent->>'kind'='transfer'")
-	defer w.pool.Exec(ctx, "DELETE FROM fin_venue_account_snapshot WHERE venue_type='earn'")
 	if err := w.RedeemToTrading(ctx, 100); err != nil {
 		t.Fatalf("赎回应成: %v", err)
 	}
@@ -127,9 +126,9 @@ func TestRedeemAmountNotionalPlusBuffer(t *testing.T) {
 		t.Fatalf("transfer 留痕链 reason=%s err=%v", reason, err)
 	}
 	var bal float64
-	if err := w.pool.QueryRow(ctx, `SELECT equity FROM fin_venue_account_snapshot
-		WHERE venue=$1 AND venue_type='earn' AND ccy=$2`, w.venue, w.ccy).Scan(&bal); err != nil || bal != 42 {
-		t.Fatalf("停泊快照 bal=%v err=%v（应=balance 42）", bal, err)
+	if err := w.pool.QueryRow(ctx, `SELECT (data->>'earn_bal')::float FROM md_account_events
+		WHERE venue=$1 AND channel='earn_parking' AND ccy=$2 ORDER BY ts DESC LIMIT 1`, w.venue, w.ccy).Scan(&bal); err != nil || bal != 42 {
+		t.Fatalf("停泊事件行 bal=%v err=%v（应=balance 42）", bal, err)
 	}
 }
 
@@ -200,11 +199,7 @@ func TestDepositSweep(t *testing.T) {
 	ctx, w, fake := setupW(t, &fakeAPI{balance: 42}, map[string]string{"earn.sweep_min_usd": "100"})
 	defer w.pool.Exec(ctx, "DELETE FROM fin_cashflow WHERE venue=$1 AND kind IN ('earn_in','earn_out')", w.venue)
 	defer w.pool.Exec(ctx, "DELETE FROM fin_risk_decision WHERE intent->>'kind'='transfer'")
-	defer w.pool.Exec(ctx, "DELETE FROM fin_venue_account_snapshot WHERE venue='tstearn'")
-	if _, err := w.pool.Exec(ctx, `INSERT INTO fin_venue_account_snapshot(venue,venue_type,ccy,equity,avail,src)
-		VALUES('tstearn','unified','USDT',150,150,'test')`); err != nil {
-		t.Fatal(err)
-	}
+	w.AttachIdle(func(ctx context.Context) (float64, error) { return 150, nil })
 	if err := w.scan(ctx); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -219,9 +214,9 @@ func TestDepositSweep(t *testing.T) {
 		t.Fatalf("earn_out 留痕=%v（应 -150）", cf)
 	}
 	var bal float64
-	if err := w.pool.QueryRow(ctx, `SELECT equity FROM fin_venue_account_snapshot
-		WHERE venue=$1 AND venue_type='earn' AND ccy=$2`, w.venue, w.ccy).Scan(&bal); err != nil || bal != 42 {
-		t.Fatalf("停泊快照=%v err=%v", bal, err)
+	if err := w.pool.QueryRow(ctx, `SELECT (data->>'earn_bal')::float FROM md_account_events
+		WHERE venue=$1 AND channel='earn_parking' AND ccy=$2 ORDER BY ts DESC LIMIT 1`, w.venue, w.ccy).Scan(&bal); err != nil || bal != 42 {
+		t.Fatalf("停泊事件行=%v err=%v", bal, err)
 	}
 }
 
@@ -230,11 +225,7 @@ func TestSweepThresholdHot(t *testing.T) {
 	ctx, w, fake := setupW(t, &fakeAPI{}, map[string]string{"earn.sweep_min_usd": "200"})
 	defer w.pool.Exec(ctx, "DELETE FROM fin_cashflow WHERE venue=$1 AND kind IN ('earn_in','earn_out')", w.venue)
 	defer w.pool.Exec(ctx, "DELETE FROM fin_risk_decision WHERE intent->>'kind'='transfer'")
-	defer w.pool.Exec(ctx, "DELETE FROM fin_venue_account_snapshot WHERE venue='tstearn'")
-	if _, err := w.pool.Exec(ctx, `INSERT INTO fin_venue_account_snapshot(venue,venue_type,ccy,equity,avail,src)
-		VALUES('tstearn','unified','USDT',150,150,'test')`); err != nil {
-		t.Fatal(err)
-	}
+	w.AttachIdle(func(ctx context.Context) (float64, error) { return 150, nil })
 	if err := w.scan(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -255,21 +246,17 @@ func TestSweepThresholdHot(t *testing.T) {
 	}
 }
 
-// TestSweepStaleSnapshotSkips 陈快照 fail-closed 不动钱+计数门。
+// TestSweepStaleSnapshotSkips 现读败 fail-closed 不动钱+计数门。
 func TestSweepStaleSnapshotSkips(t *testing.T) {
 	ctx, w, fake := setupW(t, &fakeAPI{}, map[string]string{"earn.sweep_min_usd": "100"})
-	defer w.pool.Exec(ctx, "DELETE FROM fin_venue_account_snapshot WHERE venue='tstearn'")
-	if _, err := w.pool.Exec(ctx, `INSERT INTO fin_venue_account_snapshot(venue,venue_type,ccy,equity,avail,src,updated_at)
-		VALUES('tstearn','unified','USDT',150,150,'test',now()-interval '10 minutes')`); err != nil {
-		t.Fatal(err)
-	}
+	w.AttachIdle(func(ctx context.Context) (float64, error) { return 0, fmt.Errorf("读败假件") })
 	if err := w.scan(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if len(fake.transfers) != 0 {
-		t.Fatalf("陈快照不应动钱: %v", fake.transfers)
+		t.Fatalf("读败不应动钱: %v", fake.transfers)
 	}
-	if w.rej.Snapshot()["earn/snapshot_stale"] == 0 {
+	if w.rej.Snapshot()["earn/idle_missing"] == 0 {
 		t.Fatal("snapshot_stale 计数门未计")
 	}
 }
@@ -279,12 +266,8 @@ func TestSweepInflightSkips(t *testing.T) {
 	ctx, w, fake := setupW(t, &fakeAPI{}, map[string]string{"earn.sweep_min_usd": "100"})
 	defer w.pool.Exec(ctx, "DELETE FROM fin_cashflow WHERE venue=$1 AND kind IN ('earn_in','earn_out')", w.venue)
 	defer w.pool.Exec(ctx, "DELETE FROM fin_risk_decision WHERE intent->>'kind'='transfer'")
-	defer w.pool.Exec(ctx, "DELETE FROM fin_venue_account_snapshot WHERE venue='tstearn'")
 	defer w.pool.Exec(ctx, "DELETE FROM fin_execution WHERE inst_id='TEST-EARN'")
-	if _, err := w.pool.Exec(ctx, `INSERT INTO fin_venue_account_snapshot(venue,venue_type,ccy,equity,avail,src)
-		VALUES('tstearn','unified','USDT',150,150,'test')`); err != nil {
-		t.Fatal(err)
-	}
+	w.AttachIdle(func(ctx context.Context) (float64, error) { return 150, nil })
 	if _, err := w.pool.Exec(ctx, `INSERT INTO fin_execution(strategy_ref,decision_id,token_id,inst_id,notional_usd,state)
 		VALUES(1,1,NULL,'TEST-EARN',100,'open')`); err != nil {
 		t.Fatal(err)

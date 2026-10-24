@@ -1,3 +1,16 @@
+---
+schema_version: 2
+id: config-json-type-fragility
+kind: pitfall
+risk: high
+status: verified
+keywords: [app_config, jsonb, 型别敏感, getF, 静默失效, fail-closed倒错向]
+scope: [config 热启, 判据参数, 一切 jsonb 标量读径]
+summary: app_config 值型别敏感——getF 只吃 JSON 字符串形，裸数字静默废触发器（安全闸被配置型别哑掉零日志）
+first_seen: 2026-10-24
+last_verified: 2026-10-24
+skills: []
+---
 # config-json-type-fragility —— app_config 值型别敏感：getF 只吃 JSON 字符串，裸数字静默废触发器
 
 ## 坑

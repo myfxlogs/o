@@ -12,13 +12,13 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"phase/internal/platform/config"
+	"phase/internal/platform/events"
 	"phase/internal/platform/rejects"
 	"phase/internal/platform/roster"
 )
 
 const (
-	scanEvery    = 60 * time.Second // 枚举拍（评估=本地计算非数据摄入——不占数据写径）
-	freshnessMax = 25 * time.Hour   // funding 事实行新鲜度门（8h 结算×3+余量）
+	freshnessMax = 25 * time.Hour // funding 事实行新鲜度门（8h 结算×3+余量）
 )
 
 var paramKeys = []string{
@@ -49,16 +49,8 @@ func (r *Runner) Run(ctx context.Context, errc chan<- error) {
 		}
 		go roster.BeatLoop(ctx, r.pool, e[0], 30*time.Second, errc)
 	}
-	for {
-		if err := r.scan(ctx); err != nil {
-			log.Printf("[research] scan: %v", err)
-		}
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(scanEvery):
-		}
-	}
+	// 事件化（T-0048：周期环拆——funding 帧 ev_funding 驱动评估一拍）。
+	events.ListenLoop(ctx, r.pool, "research", []string{"ev_funding"}, r.scan)
 }
 
 // params 判据全自 config 快照读；任一键缺=不可评估面（fail-closed 不虚构判据）。

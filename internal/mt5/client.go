@@ -101,7 +101,7 @@ func (c *Client) authed(ctx context.Context) context.Context {
 	return metadata.NewOutgoingContext(ctx, metadata.New(map[string]string{"id": c.token}))
 }
 
-// AccountSummary 权益/保证金实读（fin_venue_account_snapshot 源——USD 本位）。
+// AccountSummary 权益/保证金实读（md_account_events 事件行——USD 本位）。
 func (c *Client) AccountSummary(ctx context.Context) (equity, freeMargin, balance float64, err error) {
 	s, err := c.mt5.AccountSummary(c.authed(ctx), &mt5pb.AccountSummaryRequest{Id: c.token})
 	if err != nil {
@@ -147,6 +147,25 @@ func (c *Client) Subscribe(ctx context.Context, symbol string) error {
 // OnQuote 报价流（先 Subscribe 后流——流正道 D-004；断线=err 返回由调用方重连）。
 func (c *Client) OnQuote(ctx context.Context) (grpc.ServerStreamingClient[mt5pb.OnQuoteReply], error) {
 	return c.strm.OnQuote(c.authed(ctx), &mt5pb.OnQuoteRequest{Id: c.token})
+}
+
+// SubscribeOrderProfit 账户权益推送订阅（回执 Result=在册仓全档——boot 仓态首拍；
+// 幂等。败≠流死：OnOrderProfit 实测免订阅自推，订阅仅取回执语义）。
+func (c *Client) SubscribeOrderProfit(ctx context.Context) (int, error) {
+	r, err := c.subs.SubscribeOrderProfit(c.authed(ctx), &mt5pb.SubscribeOrderProfitRequest{Id: c.token})
+	if err != nil {
+		return 0, err
+	}
+	if r.Error != nil {
+		return 0, fmt.Errorf("subscribe order profit: %s", r.Error.Message)
+	}
+	return len(r.Result), nil
+}
+
+// OnOrderProfit 账户权益推送流（持仓期 ~1Hz ProfitUpdate=全账户摘要+订单明细——
+// push-on-change：空仓静默=无变动非流死。断线=err 返回由调用方重连；帧内嵌 Error）。
+func (c *Client) OnOrderProfit(ctx context.Context) (grpc.ServerStreamingClient[mt5pb.OnOrderProfitReply], error) {
+	return c.strm.OnOrderProfit(c.authed(ctx), &mt5pb.OnOrderProfitRequest{Id: c.token})
 }
 
 // Disconnect 会话登出（200ms 排水窗后由 Close 收 conn）。

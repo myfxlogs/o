@@ -104,11 +104,12 @@ func (c *Client) savingsMove(ctx context.Context, ccy string, amt float64, side 
 // SavingsBalance /finance/savings/balance 持仓查询已落 client.go（raw 返回，T-holding
 // 钦定保留面）；ccy 语义封装（过滤+pendingAmt 计入）在 internal/earn 消费侧。
 
-// AssetTransfer 账户内划转（type=0，funding↔trading）——携 clTId 幂等键（传输败后
-// 按 clTId 查 transfer-state 定真态，同 clOrdId 定态律：禁盲重发）。
+// AssetTransfer 账户内划转（type=0，funding↔trading）——携幂等键（POST 体字段名=
+// clientId；查询侧 GET transfer-state 参名同为 clientId——实测 2026-10-24：写
+// clTId 被静默吞，查 clientId=自建值 返 51000 参数错）。
 func (c *Client) AssetTransfer(ctx context.Context, ccy string, amt float64, from, to string) (clTID string, err error) {
 	clTID = fmt.Sprintf("%d", time.Now().UnixNano()%1e15)
-	body := fmt.Sprintf(`{"type":"0","ccy":%q,"amt":%q,"from":%q,"to":%q,"clTId":%q}`,
+	body := fmt.Sprintf(`{"type":"0","ccy":%q,"amt":%q,"from":%q,"to":%q,"clientId":%q}`,
 		ccy, fmtAmt(amt), from, to, clTID)
 	_, err = c.do(ctx, http.MethodPost, "/api/v5/asset/transfer", []byte(body))
 	return clTID, err
@@ -117,7 +118,7 @@ func (c *Client) AssetTransfer(ctx context.Context, ccy string, amt float64, fro
 // AssetTransferState 按 clTId 定划转真态（success/failed/其他=在途或未知——调用方
 // 禁对非终态盲动：在途禁重发，未知 fail-closed）。
 func (c *Client) AssetTransferState(ctx context.Context, ccy, clTID string) (string, error) {
-	raw, err := c.Get(ctx, "/api/v5/asset/transfer-state?type=0&ccy="+ccy+"&clTId="+clTID)
+	raw, err := c.Get(ctx, "/api/v5/asset/transfer-state?type=0&ccy="+ccy+"&clientId="+clTID)
 	if err != nil {
 		return "", err
 	}

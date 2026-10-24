@@ -1,3 +1,16 @@
+---
+schema_version: 2
+id: gate-script-pipefail-empty-grep
+kind: pitfall
+risk: medium
+status: verified
+keywords: [pipefail, grep空集, pre-commit, set -euo pipefail, 静默失败]
+scope: [门禁脚本, shell 管道, 一切 grep|xx 组合]
+summary: 闸脚本内 grep 空集退出 1→pipefail 杀脚本——钩子静默失败提交被拒且零报错行；过滤用 true 兜底或 rg||true 径
+first_seen: 2026-10-24
+last_verified: 2026-10-24
+skills: []
+---
 # gate-script-pipefail-empty-grep
 
 ## 坑

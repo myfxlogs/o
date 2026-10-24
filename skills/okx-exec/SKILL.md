@@ -31,3 +31,5 @@ domain: 工程
 - **50004 超时歧义**：「接口请求超时（不代表请求成功或失败，请检查请求结果）」——与 clOrdId 定态轨同语义：传输/超时败≠业务败，**必查单定真态**，禁直接重试。
 - **鉴权族 501xx**：50101 key/环境不匹配、50102 时间戳过期〔**UTC 偏差=最常见因**，装表须 NTP〕、50110/50121 IP 白名单〔业主配合域〕、50113 签名无效〔sign_string 序错——ts+method+path+body〕、50120 权限不足〔提币/划转域权限缺——gate 同族病灶先例〕。
 - **交易类 51xxx**：51000 参数错、51001 instId 不存在〔目录脏符触发——SILVER-USDT-SWAP 实证〕、51003 ordId/clOrdId 至少填一、**51008 可用余额不足**〔子码 _1101/_1103=杠杆档位持仓上限——调杠杆或减张〕、51131 仓位可用余额不足。
+- **envelope 壳码坑（2026-10-24 真户实证）**：批量端点错误 envelope `code=1 All operations failed` 只是壳——真拒因在 `data[0].sCode/sMsg`（余额不足实锤=内层 51008）。`APIError` 已透 SCode/SMsg 双字段；判读/告警取内层码。
+- **真户全谱实测（2026-10-24，tools/okxverify -mut）**：perp 全周期真钱过（BTC-USDT-SWAP 0.01 张 long_short 户 posSide=long 开→reduceOnly 平→positions 归零实读）、现货买→卖回、深价限价挂→orders-pending 见→cancel→canceled、划转往返 trading↔funding（clientId 幂等键查证 success）、Earn 赎回/复购、bills 行在案。**残余纪律**：测试金台账制——复位径禁动台账外资金（probe-restore-scope-overreach 条目）。

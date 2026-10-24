@@ -88,32 +88,27 @@ func TestSettleAndBreakdown(t *testing.T) {
 
 func TestReconcileDiffAlert(t *testing.T) {
 	ctx, r := setup(t)
-	// 账本净额 100；venue 快照 200→差 100>0.5 容差=告警计门
-	if _, err := Post(ctx, r.pool, Entry{Kind: "deposit", Venue: "okx", Ccy: "USDT", Amount: 100, SourceRef: 1, SourceTable: "fin_venue_account_snapshot"}); err != nil {
+	// 账本净额 100；venue 现读 200→差 100>0.5 容差=告警计门
+	var ven map[[2]string]float64
+	r.WithBalances(func(ctx context.Context) (map[[2]string]float64, error) { return ven, nil })
+	if _, err := Post(ctx, r.pool, Entry{Kind: "deposit", Venue: "okx", Ccy: "USDT", Amount: 100, SourceRef: 1, SourceTable: "t"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := r.pool.Exec(ctx, `INSERT INTO fin_venue_account_snapshot(venue,venue_type,ccy,equity,src,updated_at)
-		VALUES('okx','unified','USDT',200,'x',now())
-		ON CONFLICT(venue,venue_type,ccy) DO UPDATE SET equity=200,updated_at=now()`); err != nil {
-		t.Fatal(err)
-	}
+	ven = map[[2]string]float64{{"okx", "USDT"}: 200}
 	if err := r.reconcile(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if r.rej.Snapshot()["ledger/diff_alert"] == 0 {
 		t.Fatal("造差未告警计门")
 	}
-	// 陈快照不判锚（>5min）
-	if _, err := r.pool.Exec(ctx,
-		"UPDATE fin_venue_account_snapshot SET updated_at=now()-interval '10 minutes' WHERE ccy='USDT'"); err != nil {
+	// venue 现读件缺席=对账让位不炸锚
+	r2 := NewRunner(r.pool, r.cfg)
+	before := r2.rej.Snapshot()["ledger/diff_alert"]
+	if err := r2.reconcile(ctx); err != nil {
 		t.Fatal(err)
 	}
-	before := r.rej.Snapshot()["ledger/diff_alert"]
-	if err := r.reconcile(ctx); err != nil {
-		t.Fatal(err)
-	}
-	if r.rej.Snapshot()["ledger/diff_alert"] != before {
-		t.Fatal("陈快照被单边判")
+	if r2.rej.Snapshot()["ledger/diff_alert"] != before {
+		t.Fatal("读件缺席被单边判")
 	}
 }
 
@@ -121,32 +116,21 @@ func TestReconcileDiffAlert(t *testing.T) {
 // 按 (venue,ccy) 聚合比对——聚合后账实平=零告警（修前逐行对总额比永响）。
 func TestReconcileMultiSubAccountAggregated(t *testing.T) {
 	ctx, r := setup(t)
-	// 账本净额 2104.09（告警实证场景复刻）；快照两行 75.49+2028.60。
-	if _, err := Post(ctx, r.pool, Entry{Kind: "deposit", Venue: "okx", Ccy: "USDT", Amount: 2104.09, SourceRef: 1, SourceTable: "fin_venue_account_snapshot"}); err != nil {
+	// 账本净额 2104.09（告警实证场景复刻）；venue 现读聚合额=unified 75.49+earn 2028.60 同口径。
+	var ven map[[2]string]float64
+	r.WithBalances(func(ctx context.Context) (map[[2]string]float64, error) { return ven, nil })
+	if _, err := Post(ctx, r.pool, Entry{Kind: "deposit", Venue: "okx", Ccy: "USDT", Amount: 2104.09, SourceRef: 1, SourceTable: "t"}); err != nil {
 		t.Fatal(err)
 	}
-	for _, row := range []struct {
-		vt string
-		eq float64
-	}{
-		{"unified", 75.49}, {"earn", 2028.60},
-	} {
-		if _, err := r.pool.Exec(ctx, `INSERT INTO fin_venue_account_snapshot(venue,venue_type,ccy,equity,src,updated_at)
-			VALUES('okx',$1,'USDT',$2,'x',now())
-			ON CONFLICT(venue,venue_type,ccy) DO UPDATE SET equity=$2,updated_at=now()`, row.vt, row.eq); err != nil {
-			t.Fatal(err)
-		}
-	}
+	ven = map[[2]string]float64{{"okx", "USDT"}: 2104.09}
 	if err := r.reconcile(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if n := r.rej.Snapshot()["ledger/diff_alert"]; n != 0 {
-		t.Fatalf("聚合平账误报: diff_alert=%d（应 0——75.49+2028.60=2104.09 与账本平）", n)
+		t.Fatalf("聚合平账误报: diff_alert=%d（应 0——venue 现读与账本平）", n)
 	}
-	// 反向证：抽走一行（聚合额缺 2028.60）→差超容差必须告警。
-	if _, err := r.pool.Exec(ctx, "DELETE FROM fin_venue_account_snapshot WHERE venue_type='earn'"); err != nil {
-		t.Fatal(err)
-	}
+	// 反向证：聚合额缺 2028.60→差超容差必须告警。
+	ven = map[[2]string]float64{{"okx", "USDT"}: 75.49}
 	if err := r.reconcile(ctx); err != nil {
 		t.Fatal(err)
 	}

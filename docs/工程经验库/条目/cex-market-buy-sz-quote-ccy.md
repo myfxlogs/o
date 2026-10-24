@@ -1,3 +1,16 @@
+---
+schema_version: 2
+id: cex-market-buy-sz-quote-ccy
+kind: pitfall
+risk: medium
+status: verified
+keywords: [市价买单, sz, tgtCcy, quote_ccy, base_ccy, USDT计价]
+scope: [cex 现货市价买, okx, 下单量口径]
+summary: CEX 市价买单 sz 默认=计价币（USDT 金额）口径非基准币——要按基准币数量下单必须显式 tgtCcy=base_ccy
+first_seen: 2026-10-24
+last_verified: 2026-10-24
+skills: [okx-api-spec, okx-exec]
+---
 # cex-market-buy-sz-quote-ccy —— CEX 市价买单数量默认=计价币（USDT）口径非基准币
 
 ## 坑

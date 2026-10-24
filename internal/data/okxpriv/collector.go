@@ -1,6 +1,6 @@
 // Package okxpriv —— OKX 私有 WS（balance_and_position/account 频道）。
 // 契约（okx-private-ws skill）：login 握手 sign=HMAC(secret,ts+"GET"+"/users/self/verify")；
-// 事件→md_account_events 事实行+fin_venue_account_snapshot 快照行（src=okx_event，
+// 事件→md_account_events 事实行+md_account_events append-only 行（src=okx_event，
 // 键域归一 unified）；3min 心跳刷末帧写行——活性判据=快照行新鲜度非事件到达率；
 // login/权限错误 fail-loud 重连不静默退化；凭据只自 app_secrets 密文列解。
 package okxpriv
@@ -23,7 +23,6 @@ const (
 	PrivateURL    = "wss://ws.okx.com:8443/ws/v5/private"
 	pingEvery     = 20 * time.Second
 	dataIdle      = 5 * time.Minute // 私有面事件低频（静户零事件正常）——看门狗只判死连
-	heartbeat     = 3 * time.Minute // 快照行刷源拍
 	backoffMin    = 2 * time.Second
 	backoffMax    = 60 * time.Second
 	employeeName  = "私流守"
