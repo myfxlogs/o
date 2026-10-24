@@ -33,6 +33,7 @@ var migrationTable = []struct {
 	{28, "0028_event_triggers.sql"},
 	{29, "0029_drop_snapshots.sql"},
 	{30, "0030_cashflow_interest_kind.sql"},
+	{31, "0031_net_budget.sql"},
 	{25, "0025_order_leg_venue_err.sql"},
 	{26, "0026_venue_facts.sql"},
 	{27, "0027_venue_bill.sql"},

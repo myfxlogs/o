@@ -12,11 +12,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"phase/internal/platform/netmeter"
 	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/proto"
 
 	mt5pb "phase/internal/gen/mtapi/mt5"
 	"phase/internal/platform/config"
@@ -38,11 +40,12 @@ const (
 
 // Collector 汇市巡在岗体。
 type Collector struct {
-	pool *pgxpool.Pool
-	cfg  *config.Client
-	rej  *rejects.Door
-	cr   Credentials
-	addr string
+	meter *netmeter.Meter
+	pool  *pgxpool.Pool
+	cfg   *config.Client
+	rej   *rejects.Door
+	cr    Credentials
+	addr  string
 	// dial 覆写面（测试注入 fake server；nil=grpc.NewClient 生产径）。
 	dial func(addr string) (*Client, error)
 }
@@ -105,6 +108,9 @@ func NewCollector(ctx context.Context, pool *pgxpool.Pool, cfg *config.Client) (
 
 // Run 上岗：Register+Beat → 连接循环（Connect→boot 读→订阅→OnQuote 流消费；
 // 流断=退避重连同重订阅——订阅镜像在 connectLoop 内重建）。
+// AttachMeter 挂带宽计量件（T-0057：nil=不计量）。
+func (c *Collector) AttachMeter(m *netmeter.Meter) { c.meter = m }
+
 func (c *Collector) Run(ctx context.Context, errc chan<- error) {
 	if err := roster.Register(ctx, c.pool, employeeName, employeeDept, employeeTitle, nil); err != nil {
 		errc <- fmt.Errorf("%s register: %w", employeeName, err)
@@ -182,6 +188,9 @@ func (c *Collector) session(ctx context.Context, dial func(string) (*Client, err
 	}
 	for {
 		f, err := stream.Recv()
+		if c.meter != nil && f != nil {
+			c.meter.Add("mt5/quote", proto.Size(f))
+		}
 		if err != nil {
 			select {
 			case pe := <-profitErr:

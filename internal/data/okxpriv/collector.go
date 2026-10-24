@@ -15,6 +15,7 @@ import (
 
 	"phase/internal/platform/config"
 	"phase/internal/platform/cryptoutil"
+	"phase/internal/platform/netmeter"
 	"phase/internal/platform/rejects"
 	"phase/internal/platform/signutil"
 )
@@ -36,6 +37,7 @@ type Collector struct {
 	rej    *rejects.Door
 	creds  signutil.Credentials
 	sim    bool
+	meter  *netmeter.Meter
 	lastEq map[string]float64 // ccy→最近 equity（心跳刷源用末帧值）
 	// lastAvail ccy→最近可用权益（availEq 口径——扫额闲余判据取值源；懒初始化）。
 	lastAvail map[string]float64
@@ -107,3 +109,6 @@ func (c *Collector) tryBills(ctx context.Context) {
 
 // Credentials 装配层取凭据（bootFn 接线用——值不出 pkg 外非注入径）。
 func (c *Collector) Credentials() signutil.Credentials { return c.creds }
+
+// AttachMeter 挂带宽计量件（T-0057：nil=不计量）。
+func (c *Collector) AttachMeter(m *netmeter.Meter) { c.meter = m }

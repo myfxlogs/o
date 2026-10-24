@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"phase/internal/platform/config"
+	"phase/internal/platform/netmeter"
 	"phase/internal/platform/rejects"
 	"phase/internal/platform/roster"
 )
@@ -45,7 +46,11 @@ type Collector struct {
 	lastFrame atomic.Int64 // 最近业务帧 UnixNano（status 端点/看门狗同读）
 	lastSeq   map[string]int64
 	Stats     *Door // 别名 rej（对外观测名）
+	meter     *netmeter.Meter
 }
+
+// AttachMeter 挂带宽计量件（T-0057：nil=不计量）。
+func (c *Collector) AttachMeter(m *netmeter.Meter) { c.meter = m }
 
 type Door = rejects.Door
 
