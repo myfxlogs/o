@@ -128,3 +128,33 @@ func TestIngestPaginationStopsAtKnown(t *testing.T) {
 		t.Fatalf("重放应 0 got=%d", n)
 	}
 }
+
+// TestSpotFeeNotGross T-0063 锚：SPOT 双腿账单（USDT 买 debit fee=0 + ETH 卖
+// credit fee=-0.0000105 ETH + USDT 卖 credit fee=-0.0249）→cashflow 只落
+// USDT 侧费列一条；bal_chg 毛额（±25 换形）零入账。
+func TestSpotFeeNotGross(t *testing.T) {
+	ctx, pool := setup(t)
+	nowMs := time.Now().UnixMilli()
+	i := NewIngester(pool, fakeSrc{pages: map[string][]Bill{
+		"": {
+			{BillID: "s1", SubType: "2", InstID: "ETH-USDT", InstType: "SPOT", Ccy: "USDT", TsMs: nowMs, BalChg: -24.998, Fee: 0},
+			{BillID: "s2", SubType: "1", InstID: "ETH-USDT", InstType: "SPOT", Ccy: "ETH", TsMs: nowMs + 1, BalChg: 0.01053, Fee: -0.0000105},
+			{BillID: "s3", SubType: "1", InstID: "ETH-USDT", InstType: "SPOT", Ccy: "USDT", TsMs: nowMs + 2, BalChg: 24.948, Fee: -0.0249},
+		},
+	}})
+	n, err := i.Ingest(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Fatalf("入账=%d（应 1——只 USDT 侧费列）", n)
+	}
+	var sum float64
+	if err := pool.QueryRow(ctx,
+		"SELECT COALESCE(sum(amount),0) FROM fin_cashflow WHERE kind='fee'").Scan(&sum); err != nil {
+		t.Fatal(err)
+	}
+	if sum != -0.0249 {
+		t.Fatalf("fee 总=%v（应 -0.0249——毛额换形不入）", sum)
+	}
+}

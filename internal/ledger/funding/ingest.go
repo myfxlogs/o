@@ -138,7 +138,9 @@ func (i *Ingester) record(ctx context.Context, b Bill) (int, error) {
 		}
 		return 1, i.post(ctx, "funding_settle", amt, b, ccy, srcID, occurred)
 	default:
-		if b.Fee != 0 { // 交易费/返佣（开平仓 taker 费入 fee kind）
+		// T-0063 口径钉死：fee 列=费用真源（SPOT USDT 侧费列即真成本——
+		// bal_chg 毛额=买卖换形永不入 fee kind；pnl 不入 fee）。
+		if b.Fee != 0 {
 			return 1, i.post(ctx, "fee", b.Fee, b, ccy, srcID, occurred)
 		}
 	}
