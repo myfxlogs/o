@@ -1,6 +1,6 @@
 # T-0044 funding 实收记账件——OKX bills→fin_cashflow.funding_settle 写入面
 
-| 状态 | 待验 |
+| 状态 | 完成 |
 | 领取 | zcode-glm @ 2026-10-24（worktree /opt/phase-wt/t0044，支 t/0044-funding-bills） |
 
 ## 病灶
