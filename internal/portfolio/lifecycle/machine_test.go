@@ -153,10 +153,15 @@ func TestPaperDedupe(t *testing.T) {
 		"SELECT count(*) FROM fin_strategy WHERE inst_id='DD-USDT-SWAP'").Scan(&n); err != nil || n != 1 {
 		t.Fatalf("同键策略行=%d（应=1 armed 复用）", n)
 	}
-	// 两提案都 armed（被吸收不滞留 proposed）
+	// T-0069：同键只留最新一行 armed——旧武装退役（被吸收不滞留 proposed
+	// 也不淤积 armed）。两提案：1 armed + 1 retired。
 	if err := pool.QueryRow(ctx,
-		"SELECT count(*) FROM fin_proposal WHERE inst_id='DD-USDT-SWAP' AND state='fin_armed'").Scan(&n); err != nil || n != 2 {
-		t.Fatalf("armed 提案=%d", n)
+		"SELECT count(*) FROM fin_proposal WHERE inst_id='DD-USDT-SWAP' AND state='fin_armed'").Scan(&n); err != nil || n != 1 {
+		t.Fatalf("armed 提案=%d（应=1 同键只留最新）", n)
+	}
+	if err := pool.QueryRow(ctx,
+		"SELECT count(*) FROM fin_proposal WHERE inst_id='DD-USDT-SWAP' AND state='fin_retired'").Scan(&n); err != nil || n != 1 {
+		t.Fatalf("retired 提案=%d（应=1 旧武装退役）", n)
 	}
 	// 部分唯一索引拒第二 active 行
 	if _, err := pool.Exec(ctx, `INSERT INTO fin_strategy(inst_id,template_ref,state,notional_usd,venue,direction)
