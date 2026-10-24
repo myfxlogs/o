@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"net/http"
 	"strings"
 	"time"
@@ -160,6 +161,10 @@ func mountUI(mux *http.ServeMux, pool *pgxpool.Pool) {
 	// 根路径直开（T-0068：GET / → index.html 直返无跳转；/ui/ 目录列表禁——
 	// dist 单层文件面逐件挂，禁 FileServer 目录模式）。
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/" { // "/" 是兜底全捕——仅根路径返页，API 错路 404 不吃 HTML
+			http.NotFound(w, r)
+			return
+		}
 		b, err := web.Dist.ReadFile("dist/index.html")
 		if err != nil {
 			http.NotFound(w, r)
@@ -168,5 +173,7 @@ func mountUI(mux *http.ServeMux, pool *pgxpool.Pool) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		_, _ = w.Write(b)
 	})
-	mux.Handle("/assets/", http.FileServer(http.FS(web.Dist)))
+	// assets 子树挂接（fs.Sub——embed FS 全件带 dist/ 前缀，指根=资产 404 病灶）。
+	assets, _ := fs.Sub(web.Dist, "dist")
+	mux.Handle("/assets/", http.FileServer(http.FS(assets)))
 }
