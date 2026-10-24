@@ -17,3 +17,8 @@
 ## 验收锚
 - 真 meta 测试：BTC-USDT-SWAP $50 双腿→sz 落在 [0.02,0.04] 区间（非 2500）
 - go test 全绿+既有锚不回退
+
+## 追加（验审同轮实勘——同件同轮修）
+openfirst 未挂 `.WithEarn(earnW)`——产线 Runner 有 earn 装配（cmd/core/main.go:152 WithEarn(earnW).WithAlerter），工具裸奔无赎回件。OKX 交易户实勘 USDT≈0（2129 全泊 Earn）——不挂=首单保证金必拒。修法=工具装配同产线：earn.NewWorker+AttachVenue(okxcli)+WithEarn 挂上（赎回额=notional 全闸径内）。
+## 追加验收锚
+- openfirst 装配含 WithEarn——dry 跑日志见赎回径装配（或真单前 RedeemToTrading 留痕行）
