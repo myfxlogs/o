@@ -24,6 +24,8 @@ import (
 	"phase/internal/ledger/holding"
 	"phase/internal/ledger/report"
 	"phase/internal/platform/config"
+	"phase/internal/platform/cryptoutil"
+	"phase/internal/platform/notify"
 	"phase/internal/platform/roster"
 	"phase/internal/portfolio/lifecycle"
 	"phase/internal/research/funding"
@@ -97,15 +99,50 @@ func run() error {
 	// 凭据缺席期仓巡平仓缝降级 stub（拒执 fail-closed）——凭据落位重启即全链。
 	var closer guard.Executor
 	// Earn 停泊态（员工 配管）：现率采集无凭据径先行；停泊钱动面凭据就位挂接。
+	mkA, _ := config.ReadMasterKey()
+	var feishuCli *notify.FeishuClient
+	{
+		var idCt, secCt []byte
+		if err := pool.QueryRow(ctx, "SELECT ciphertext FROM app_secrets WHERE key='feishu.app_id'").Scan(&idCt); err == nil {
+			if err := pool.QueryRow(ctx, "SELECT ciphertext FROM app_secrets WHERE key='feishu.app_secret'").Scan(&secCt); err == nil {
+				id, e1 := cryptoutil.Open(mkA, idCt)
+				sec, e2 := cryptoutil.Open(mkA, secCt)
+				if e1 == nil && e2 == nil {
+					feishuCli = notify.NewFeishu(id, sec)
+				}
+			}
+		}
+	}
+	alerter := notify.NewAlerter(feishuCli, func() string {
+		v, _ := cfg.GetString("feishu.chat_id")
+		return v
+	}(), func() bool { v, _ := cfg.GetBool("notify.feishu.enabled"); return v })
+	// kill_switch 状态变迁推（true/false 各一报——轮询 config 代次，不重复）。
+	go func() {
+		prev, _ := cfg.GetBool("risk.kill_switch")
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(30 * time.Second):
+			}
+			v, err := cfg.GetBool("risk.kill_switch")
+			if err == nil && v != prev {
+				alerter.Alert(ctx, "kill_switch", fmt.Sprintf("kill_switch %v→%v", prev, v))
+				prev = v
+			}
+		}
+	}()
 	earnW := earn.NewWorker(pool, cfg)
 	go earnW.Run(ctx, errc)
 	if priv, err := okxpriv.NewCollector(ctx, pool, false); err != nil {
 		log.Printf("WARN: 私流守缺席（%v）——凭据落位后重启即上岗", err)
 	} else {
 		earnW.AttachVenue(okxexec.NewClient(priv.Credentials(), false))
+		earnW.AttachAlerter(alerter)
 		// 交易域首岗：执事（Executor=okxexec 唯一 venue 径——凭据与私流守同源解出）。
 		execR := execution.NewRunner(pool, cfg,
-			execution.OkxExecutor{C: okxexec.NewClient(priv.Credentials(), false)}).WithEarn(earnW)
+			execution.OkxExecutor{C: okxexec.NewClient(priv.Credentials(), false)}).WithEarn(earnW).WithAlerter(alerter)
 		go execution.Run(ctx, errc, execR)
 		closer = closeExec{r: execR}
 		// boot 首读播种器=okxexec /account/balance（事件锚定形一次性拉取——
@@ -167,7 +204,7 @@ func run() error {
 		mk, _ := config.ReadMasterKey()
 		go report.NewRunner(pool, report.NewPusher(pool, cfg, mk)).Run(ctx, errc)
 	}
-	go ledger.NewRunner(pool, cfg).Run(ctx, errc)
+	go ledger.NewRunner(pool, cfg).WithAlerter(alerter).Run(ctx, errc)
 
 	// 风控域首岗：唯一交易前闸（员工 门官）——G7 消费件就绪后只认放行令牌。
 	riskGate := risk.NewGate(pool, cfg)
@@ -175,7 +212,9 @@ func run() error {
 
 	// 看护域首岗：仓巡（G8）——持仓哨戒三触发+策略联动，close intent 过闸免拦径，
 	// 反向双腿平走执事 G7 径（凭据缺席=缝降级 stub 拒执 fail-closed）。
-	go guard.NewWarden(pool, cfg, riskGate, closer).Run(ctx, errc)
+	wd := guard.NewWarden(pool, cfg, riskGate, closer)
+	wd.AttachAlerter(alerter)
+	go wd.Run(ctx, errc)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {

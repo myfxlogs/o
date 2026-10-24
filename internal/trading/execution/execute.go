@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"phase/internal/platform/config"
+	"phase/internal/platform/notify"
 	"phase/internal/platform/rejects"
 )
 
@@ -66,6 +67,7 @@ type Runner struct {
 	exec Executor
 	earn EarnMover
 	rej  *rejects.Door
+	al   *notify.Alerter
 }
 
 func NewRunner(pool *pgxpool.Pool, cfg *config.Client, exec Executor) *Runner {
@@ -74,6 +76,9 @@ func NewRunner(pool *pgxpool.Pool, cfg *config.Client, exec Executor) *Runner {
 			"token_not_allow", "live_switch_off", "missing_param",
 			"hedge_band", "rollback_failed", "earn_redeem_failed", "write_err")}
 }
+
+// WithAlerter 挂告警器（nil=静默降级）。
+func (r *Runner) WithAlerter(a *notify.Alerter) *Runner { r.al = a; return r }
 
 // WithEarn 挂接停泊赎回面（cmd 装配层接线；未挂=停泊关闭——资金常驻交易户径）。
 func (r *Runner) WithEarn(m EarnMover) *Runner { r.earn = m; return r }

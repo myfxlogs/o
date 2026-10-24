@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"phase/internal/platform/config"
+	"phase/internal/platform/notify"
 	"phase/internal/platform/rejects"
 	"phase/internal/platform/roster"
 	"phase/internal/risk"
@@ -58,7 +59,11 @@ type Warden struct {
 	gate *risk.Gate
 	ex   Executor
 	rej  *rejects.Door
+	al   *notify.Alerter
 }
+
+// AttachAlerter 挂告警器（nil=静默降级不炸）。
+func (w *Warden) AttachAlerter(a *notify.Alerter) { w.al = a }
 
 func NewWarden(pool *pgxpool.Pool, cfg *config.Client, gate *risk.Gate, ex Executor) *Warden {
 	if ex == nil {
@@ -178,6 +183,7 @@ func (w *Warden) tend(ctx context.Context, p posRow, maxAtt int64, trig string) 
 		w.markFailed(ctx, p.id)
 		if p.attempts+1 >= maxAtt {
 			w.rej.Inc("close_gave_up")
+			w.al.Alert(ctx, "close_gave_up", "平仓重试耗尽——人工介入")
 			log.Printf("[guard] ERROR 仓 %d 平仓重试耗尽（%s，%d 次）——人工介入", p.id, trig, p.attempts+1)
 			return
 		}

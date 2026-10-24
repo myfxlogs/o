@@ -27,6 +27,10 @@ internal/ledger/report -> internal/platform/config
 internal/ledger/report -> internal/platform/cryptoutil
 internal/ledger/report -> internal/platform/notify
 internal/ledger/report -> internal/platform/rejects
+internal/ledger -> internal/platform/notify
+internal/earn -> internal/platform/notify
+internal/guard -> internal/platform/notify
+internal/trading/execution -> internal/platform/notify
 internal/ledger/report -> internal/platform/roster
 internal/ledger -> internal/platform/roster
 internal/portfolio/lifecycle -> internal/platform/config

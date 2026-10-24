@@ -62,6 +62,7 @@ func (w *Worker) RedeemToTrading(ctx context.Context, usdAmt float64) error {
 		return fmt.Errorf("earn redeem 划转败: %w", terr)
 	}
 	w.rej.Inc("transfer_ambiguous")
+	w.al.Alert(ctx, "transfer_ambiguous", "划转歧态势——禁补偿中止")
 	log.Printf("ALERT [earn] 赎回款 %.4f 在途/态不可知——禁补偿（双动险），开仓 fail-closed 中止", amt)
 	return fmt.Errorf("earn redeem 划转在途: %w", terr)
 }
