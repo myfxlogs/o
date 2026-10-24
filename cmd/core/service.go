@@ -70,6 +70,18 @@ func (c coreService) Overview(ctx context.Context, _ *dashboardv1.OverviewReques
 		WHERE occurred_at::date=CURRENT_DATE AND kind IN `+opKinds).Scan(&o.PnlToday)
 	_ = c.pool.QueryRow(ctx, `SELECT COALESCE(sum(amount),0) FROM fin_cashflow
 		WHERE kind IN `+opKinds).Scan(&o.PnlCum)
+	// T-0083：平仓仓现货腿净额=真价差入盈亏（持仓期买腿流出=资产置换非亏损
+	// ——只计已平仓仓腿行，防置换流出当亏）。
+	var legToday, legCum float64
+	_ = c.pool.QueryRow(ctx, `SELECT COALESCE(sum(c.amount),0) FROM fin_cashflow c
+		JOIN fin_position p ON p.id=c.position_ref
+		WHERE c.occurred_at::date=CURRENT_DATE AND c.kind IN ('spot_buy','spot_sell')
+		  AND p.closed_at IS NOT NULL`).Scan(&legToday)
+	_ = c.pool.QueryRow(ctx, `SELECT COALESCE(sum(c.amount),0) FROM fin_cashflow c
+		JOIN fin_position p ON p.id=c.position_ref
+		WHERE c.kind IN ('spot_buy','spot_sell') AND p.closed_at IS NOT NULL`).Scan(&legCum)
+	o.PnlToday += legToday
+	o.PnlCum += legCum
 	prow, _ := c.pool.Query(ctx, `SELECT id,inst_id,opened_at FROM fin_position
 		WHERE closed_at IS NULL ORDER BY id DESC LIMIT 5`)
 	for prow.Next() {
@@ -103,7 +115,8 @@ func (c coreService) Overview(ctx context.Context, _ *dashboardv1.OverviewReques
 		_ = rrows.Scan(&ts, &kind, &amt)
 		verb := map[string]string{"funding_settle": "资金费到账", "fee": "交易成本",
 			"trade_pnl": "平仓盈亏", "deposit": "入金", "withdraw": "出金",
-			"interest": "活期利息", "recon_adjust": "校账调整"}[kind]
+			"interest": "活期利息", "recon_adjust": "校账调整",
+			"spot_buy": "现货买入", "spot_sell": "现货卖出"}[kind]
 		o.Recent = append(o.Recent, fmt.Sprintf("%s %s %+.4f USDT",
 			ts.Format("15:04"), verb, amt))
 	}

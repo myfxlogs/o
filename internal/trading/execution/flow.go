@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"strconv"
 	"strings"
 	"time"
 
@@ -47,6 +48,17 @@ func (r *Runner) Execute(ctx context.Context, in Intent) (int64, error) {
 		r.rej.Inc("write_err")
 		return 0, err
 	}
+	// T-0083 腿级现金流对称：现货腿现金行 source_ref=腿行 id+position_ref 归仓
+	// ——close 径仓已存按 inst 现读归仓；open 径仓行在双腿成交后建（linkLegCash 补挂）。
+	var posRef *int64
+	if in.Kind == "close" {
+		var pid int64
+		if err := r.pool.QueryRow(ctx, `SELECT id FROM fin_position
+			WHERE inst_id=$1 AND closed_at IS NULL ORDER BY id DESC LIMIT 1`,
+			in.InstID).Scan(&pid); err == nil {
+			posRef = &pid
+		}
+	}
 	// ③.5 前置赎回（D-0006 停泊态：闲资默认停 Earn——开仓先赎回 notional+buffer 回拢；
 	// 败=fail-closed 不开仓，留痕=exec 行翻 failed+计数门。close 免赎——退仓不进钱径）。
 	if r.earn != nil && in.Kind != "close" {
@@ -57,22 +69,26 @@ func (r *Runner) Execute(ctx context.Context, in Intent) (int64, error) {
 		}
 	}
 	// ④leg1
-	res1, err := r.placeAndResolve(ctx, execID, 1, l1)
+	res1, err := r.placeAndResolve(ctx, execID, 1, l1, posRef)
 	if err != nil {
 		r.setState(ctx, execID, "failed")
 		return execID, fmt.Errorf("leg1: %w", err)
 	}
 	// ⑤leg2——败/歧义=LEGGED→自动回滚 leg1（不留半成品敞口）。
-	res2, err := r.placeAndResolve(ctx, execID, 2, l2)
+	res2, err := r.placeAndResolve(ctx, execID, 2, l2, posRef)
 	if err != nil || res2.State == "ambiguous" {
 		r.setState(ctx, execID, "legged")
 		r.rollback(ctx, execID, l1, res1)
 		return execID, fmt.Errorf("leg2 败/歧义→LEGGED 回滚 leg1")
 	}
 	// ⑥仓行（delta 中性标——funding 对冲天然）。
-	if _, err := r.pool.Exec(ctx, `INSERT INTO fin_position(execution_id,strategy_ref,inst_id,notional_usd)
-		VALUES($1,$2,$3,$4)`, execID, in.StrategyRef, in.InstID, in.NotionalUSD); err != nil {
+	var posID int64
+	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_position(execution_id,strategy_ref,inst_id,notional_usd)
+		VALUES($1,$2,$3,$4) RETURNING id`,
+		execID, in.StrategyRef, in.InstID, in.NotionalUSD).Scan(&posID); err != nil {
 		r.rej.Inc("write_err")
+	} else {
+		r.linkLegCash(ctx, execID, posID)
 	}
 	log.Printf("[execution] #%d %s 双腿成交（clOrdId %s/%s）", execID, in.InstID, res1.ClOrdID, res2.ClOrdID)
 	return execID, nil
@@ -80,7 +96,7 @@ func (r *Runner) Execute(ctx context.Context, in Intent) (int64, error) {
 
 // placeAndResolve 下单+歧义定态（okx-exec 契约：传输败→Resolve 定真态；
 // unknown=ambiguous 禁补单）。腿行每拍落 fin_order_leg。
-func (r *Runner) placeAndResolve(ctx context.Context, execID int64, no int, leg Leg) (OrderResult, error) {
+func (r *Runner) placeAndResolve(ctx context.Context, execID int64, no int, leg Leg, posRef *int64) (OrderResult, error) {
 	// clOrdId=大小写英数 only（OKX 实拍 51000——T-0038：连字符非法；字母位分隔）。
 	clOrdID := fmt.Sprintf("ph%dx%dx%d", execID, no, time.Now().UnixNano()%1e6)
 	res, err := r.exec.Place(ctx, leg, clOrdID)
@@ -108,7 +124,8 @@ func (r *Runner) placeAndResolve(ctx context.Context, execID int64, no int, leg 
 	}
 	switch res.State {
 	case "filled":
-		r.legPx(ctx, execID, no, leg, clOrdID, "filled", vc, vm, res.FillPx)
+		legID := r.legPx(ctx, execID, no, leg, clOrdID, "filled", vc, vm, res.FillPx)
+		r.legCash(ctx, legID, leg, res.FillPx, posRef)
 		return res, nil
 	case "live", "partially_filled":
 		r.leg(ctx, execID, no, leg, clOrdID, "ack", vc, vm)
@@ -162,7 +179,9 @@ func (r *Runner) rollback(ctx context.Context, execID int64, leg Leg, res OrderR
 		r.leg(ctx, execID, 1, leg, clOrdID, "ambiguous", rvc, rvm)
 		return
 	}
-	r.leg(ctx, execID, 1, leg, clOrdID, "rolled_back", "", "")
+	legID := r.legPx(ctx, execID, 1, leg, clOrdID, "rolled_back", "", "", 0)
+	// 回滚腿=真实现金事件（买回即卖出）——spot 腿同径记账（rev.Side 定向，px 缺=名义锚）。
+	r.legCash(ctx, legID, rev, rb.FillPx, nil)
 	r.setState(ctx, execID, "rolled_back")
 	log.Printf("[execution] #%d LEGGED→leg1 回滚成", execID)
 }
@@ -172,15 +191,63 @@ func (r *Runner) leg(ctx context.Context, execID int64, no int, leg Leg, clOrdID
 }
 
 // legPx 腿行落库携成交价（T-0077：avgPx>0 才落——filled 态 anchor；
-// px=NULL 旧调用面保值守）。
-func (r *Runner) legPx(ctx context.Context, execID int64, no int, leg Leg, clOrdID, state, venueCode, venueMsg string, px float64) {
+// px=NULL 旧调用面保值守）。返腿行 id（cashflow source_ref 锚用）。
+func (r *Runner) legPx(ctx context.Context, execID int64, no int, leg Leg, clOrdID, state, venueCode, venueMsg string, px float64) int64 {
 	var pxArg *float64
 	if px > 0 {
 		pxArg = &px
 	}
-	if _, err := r.pool.Exec(ctx, `INSERT INTO fin_order_leg(execution_id,leg_no,cl_ord_id,venue,side,inst_id,sz,state,venue_err_code,venue_err_msg,px)
-		VALUES($1,$2,$3,$4,$5,$6,$7,$8,NULLIF($9,''),NULLIF($10,''),$11)`,
-		execID, no, clOrdID, leg.Venue, leg.Side, leg.InstID, leg.Sz, state, venueCode, venueMsg, pxArg); err != nil {
+	var id int64
+	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_order_leg(execution_id,leg_no,cl_ord_id,venue,side,inst_id,sz,state,venue_err_code,venue_err_msg,px)
+		VALUES($1,$2,$3,$4,$5,$6,$7,$8,NULLIF($9,''),NULLIF($10,''),$11) RETURNING id`,
+		execID, no, clOrdID, leg.Venue, leg.Side, leg.InstID, leg.Sz, state, venueCode, venueMsg, pxArg).Scan(&id); err != nil {
+		r.rej.Inc("write_err")
+	}
+	return id
+}
+
+// legCash 腿级现金行（T-0083 对称记账）：okx 现货腿（非 SWAP）买=流出毛额负、
+// 卖=流入毛额正——两腿各记净额自然=真价差；合约腿无名义现金（结算走 bills/fee）。
+// source_ref=腿行 id（幂等溯源锚）；perp/CFD/杂 venue 不触现径。
+func (r *Runner) legCash(ctx context.Context, legID int64, leg Leg, px float64, posRef *int64) {
+	if legID == 0 || leg.Venue != "okx" || strings.HasSuffix(leg.InstID, "-SWAP") {
+		return
+	}
+	kind, sign := "spot_buy", -1.0
+	if leg.Side == "sell" {
+		kind, sign = "spot_sell", 1.0
+	}
+	if _, err := r.pool.Exec(ctx, `INSERT INTO fin_cashflow
+		(kind,venue,ccy,amount,position_ref,source_ref,source_table,occurred_at)
+		VALUES($1,$2,'USDT',$3,$4,$5,'fin_order_leg',now())`,
+		kind, leg.Venue, sign*legGross(leg, px), posRef, legID); err != nil {
+		r.rej.Inc("write_err")
+	}
+}
+
+// legGross 腿毛额（quote_ccy 买委托=sz 即 USDT 额；base 委托=sz×px；px/sz 缺=
+// 名义兜底——毛额锚不空）。回滚卖腿（rev）走名义锚（quote 额不可当 base 量卖）。
+func legGross(leg Leg, px float64) float64 {
+	sz, _ := strconv.ParseFloat(leg.Sz, 64)
+	if leg.TgtQuote {
+		if leg.Side == "buy" && sz > 0 {
+			return sz
+		}
+		return leg.Notional
+	}
+	if sz > 0 && px > 0 {
+		return sz * px
+	}
+	return leg.Notional
+}
+
+// linkLegCash open 径仓行建后补挂 position_ref（腿行 source_ref 锚回溯——
+// 下单时仓未生 position_ref 暂 NULL，此处补链不丢归仓）。
+func (r *Runner) linkLegCash(ctx context.Context, execID, posID int64) {
+	if _, err := r.pool.Exec(ctx, `UPDATE fin_cashflow c SET position_ref=$2
+		FROM fin_order_leg l WHERE c.source_table='fin_order_leg'
+		AND c.source_ref=l.id AND l.execution_id=$1 AND c.position_ref IS NULL`,
+		execID, posID); err != nil {
 		r.rej.Inc("write_err")
 	}
 }
