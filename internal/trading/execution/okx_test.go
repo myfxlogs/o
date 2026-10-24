@@ -66,3 +66,17 @@ func TestBuildOrderParamsReduceOnlyDomain(t *testing.T) {
 		t.Fatalf("cross 平腿 posSide+reduceOnly 双置败: tdMode=%q reduceOnly=%v posSide=%q", p.TdMode, p.ReduceOnly, p.PosSide)
 	}
 }
+
+// T-0064 追加锚：TgtQuote 位=spot 市价买 quote_ccy 委托（sz=USDT 额）；
+// 默认径仍 base_ccy（T-0042）——双径分派断言。
+func TestBuildOrderParamsTgtQuote(t *testing.T) {
+	base := Leg{InstID: "ETH-USDT", Side: "buy"}
+	if p := buildOrderParams(base, "ph1", ""); p.TgtCcy != "base_ccy" {
+		t.Fatalf("默认 base 量径应 base_ccy: %+v", p)
+	}
+	q := Leg{InstID: "ETH-USDT", Side: "buy", TgtQuote: true}
+	p := buildOrderParams(q, "ph1", "")
+	if p.TgtCcy != "quote_ccy" {
+		t.Fatalf("TgtQuote 位应 quote_ccy: %+v", p)
+	}
+}

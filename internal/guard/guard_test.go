@@ -521,3 +521,105 @@ func TestMarkClosedClosesExecution(t *testing.T) {
 		t.Fatalf("平仓 exec 行未关: n=%d err=%v", cn, err)
 	}
 }
+
+// mkPosLegs 造指定腿量仓（T-0064 漂移基线锚用——返回 posID）。
+func mkPosLegs(t *testing.T, ctx context.Context, w *Warden, spotSz, perpSz float64) int64 {
+	t.Helper()
+	var stratID, execID, posID int64
+	if err := w.pool.QueryRow(ctx,
+		`INSERT INTO fin_strategy(inst_id,template_ref,state,notional_usd,venue) VALUES('ETH-USDT-SWAP','guard-test','live',50,'okx') RETURNING id`).Scan(&stratID); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.pool.QueryRow(ctx,
+		`INSERT INTO fin_execution(strategy_ref,inst_id,notional_usd,state) VALUES($1,'ETH-USDT-SWAP',50,'open') RETURNING id`, stratID).Scan(&execID); err != nil {
+		t.Fatal(err)
+	}
+	for i, lg := range []struct {
+		inst, side string
+		sz         float64
+	}{{"ETH-USDT", "buy", spotSz}, {"ETH-USDT-SWAP", "sell", perpSz}} {
+		if _, err := w.pool.Exec(ctx,
+			`INSERT INTO fin_order_leg(execution_id,leg_no,cl_ord_id,venue,side,inst_id,sz,state)
+			VALUES($1,$2,$3,'okx',$4,$5,$6,'filled')`, execID, i+1, fmt.Sprintf("imb-%d-%s", execID, lg.inst), lg.side, lg.inst, lg.sz); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := w.pool.QueryRow(ctx,
+		`INSERT INTO fin_position(execution_id,strategy_ref,inst_id,notional_usd,opened_at)
+		VALUES($1,$2,'ETH-USDT-SWAP',50,now()) RETURNING id`, execID, stratID).Scan(&posID); err != nil {
+		t.Fatal(err)
+	}
+	return posID
+}
+
+func seedEthFacts(t *testing.T, ctx context.Context, w *Warden, spotPx, perpPx string) {
+	t.Helper()
+	for inst, px := range map[string]string{"ETH-USDT": spotPx, "ETH-USDT-SWAP": perpPx} {
+		if _, err := w.pool.Exec(ctx,
+			`INSERT INTO md_ticks(ts,venue,inst_id,last) VALUES(now(),'okx',$1,$2)`, inst, px); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := w.pool.Exec(ctx,
+		`INSERT INTO md_funding(ts,venue,inst_id,funding_rate) VALUES(now(),'okx','ETH-USDT-SWAP',0.0001)`); err != nil {
+		t.Fatal(err)
+	}
+	instrCtVal["ETH-USDT-SWAP"] = 0.01
+	w.AttachCtVal(func(ctx context.Context, venue, instID string) (float64, bool) {
+		if v, ok := instrCtVal[instID]; ok {
+			return v, true
+		}
+		return 0, false
+	})
+}
+
+// T-0064 锚①：出生粒度残差（~300bps）入基线不杀——两拍零触发+基线落列。
+func TestDriftBaselineNoKill(t *testing.T) {
+	ctx, w, fx := setup(t)
+	posID := mkPosLegs(t, ctx, w, 0.2425, 25) // imb≈(24.25−25)/24.625≈−304bps
+	seedEthFacts(t, ctx, w, "100", "100")
+	for i := 0; i < 2; i++ {
+		if err := w.scanOnce(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(fx.calls) != 0 {
+		t.Fatalf("基线残差不应杀: %+v", fx.calls)
+	}
+	var imb *float64
+	if err := w.pool.QueryRow(ctx,
+		"SELECT open_imbalance_bps FROM fin_position WHERE id=$1", posID).Scan(&imb); err != nil || imb == nil || *imb > -250 || *imb < -350 {
+		t.Fatalf("基线未落列/值错: %v err=%v", imb, err)
+	}
+	_ = posID
+}
+
+// T-0064 锚②：基线外偏移 >band 照杀（spot 价走 100→100.5，imb 偏移>20bps）。
+func TestDriftOffsetKills(t *testing.T) {
+	ctx, w, fx := setup(t)
+	mkPosLegs(t, ctx, w, 0.2425, 25)
+	seedEthFacts(t, ctx, w, "100", "100")
+	if err := w.scanOnce(ctx); err != nil { // 基线播种拍
+		t.Fatal(err)
+	}
+	seedEthFacts(t, ctx, w, "100.5", "100") // spot 腿走强——imb 偏移≈200bps>20
+	if err := w.scanOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if len(fx.calls) == 0 {
+		t.Fatal("基线外真漂移应杀")
+	}
+}
+
+// T-0064 锚③：绝对兜底闸——imb>500bps 无条件杀（基线也拦不住）。
+func TestDriftAbsCap(t *testing.T) {
+	ctx, w, fx := setup(t)
+	mkPosLegs(t, ctx, w, 0.2350, 25) // imb≈(23.5−25)/24.25≈−619bps>500
+	seedEthFacts(t, ctx, w, "100", "100")
+	if err := w.scanOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if len(fx.calls) == 0 {
+		t.Fatal("绝对兜底闸应杀（裸腿级失衡）")
+	}
+}
