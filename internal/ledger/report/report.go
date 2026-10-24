@@ -38,9 +38,10 @@ func Gen(ctx context.Context, pool *pgxpool.Pool, period string, b Bounds) error
 	q(`SELECT COALESCE(sum(amount),0) FROM fin_cashflow`, &cumNav)
 	q(`SELECT COALESCE(sum(amount),0) FROM fin_holding WHERE kind LIKE 'earn%' AND stale=false`, &earnBal)
 	q1(`SELECT count(*) FROM fin_strategy WHERE entered_at>=$1 AND entered_at<$2`, &opened, b.Start, b.End)
-	q1(`SELECT count(*) FROM fin_position WHERE state='closed' AND closed_at>=$1 AND closed_at<$2`, &closed, b.Start, b.End)
-	q1(`SELECT count(*) FROM fin_opp_eval WHERE verdict='proposed' AND created_at>=$1 AND created_at<$2`, &proposed, b.Start, b.End)
-	q1(`SELECT count(*) FROM fin_opp_eval WHERE verdict='rejected' AND created_at>=$1 AND created_at<$2`, &rejected, b.Start, b.End)
+	q1(`SELECT count(*) FROM fin_position WHERE closed_at IS NOT NULL AND closed_at>=$1 AND closed_at<$2`, &closed, b.Start, b.End)
+	q1(`SELECT count(*) FROM fin_opp_eval WHERE verdict='proposed' AND ts>=$1 AND ts<$2`, &proposed, b.Start, b.End)
+	q1(`SELECT count(*) FROM fin_opp_eval WHERE verdict='rejected' AND ts>=$1 AND ts<$2`, &rejected, b.Start, b.End)
+	q1(`SELECT count(*) FROM fin_risk_decision WHERE decision='deny' AND ts>=$1 AND ts<$2`, &alerts, b.Start, b.End)
 	q1(`SELECT count(*) FROM fin_strategy WHERE state<>'retired'`, &active)
 	q1(`SELECT count(*) FROM fin_cashflow WHERE kind='deposit'`, &capital)
 	note := ""
@@ -57,7 +58,7 @@ func Gen(ctx context.Context, pool *pgxpool.Pool, period string, b Bounds) error
 		m["annualized"] = ann
 		m["capital_base"] = base
 		var retired int
-		q1(`SELECT count(*) FROM fin_strategy WHERE state='retired' AND entered_at>=$1`, &retired, b.Start)
+		q1(`SELECT count(*) FROM fin_strategy_transition WHERE to_state='retired' AND ts>=$1 AND ts<$2`, &retired, b.Start, b.End)
 		m["retired"] = retired
 		note = fmt.Sprintf("月净=%.4f 年化=%.4f（基数 %.0f）——赚亏/因/步三行交卷", net, ann, base)
 	}
