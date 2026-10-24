@@ -116,3 +116,41 @@ func TestReconcileDiffAlert(t *testing.T) {
 		t.Fatal("陈快照被单边判")
 	}
 }
+
+// T-0045 锚：同 venue+ccy 多 venue_type 子户行（unified 交易户+earn 停泊户）
+// 按 (venue,ccy) 聚合比对——聚合后账实平=零告警（修前逐行对总额比永响）。
+func TestReconcileMultiSubAccountAggregated(t *testing.T) {
+	ctx, r := setup(t)
+	// 账本净额 2104.09（告警实证场景复刻）；快照两行 75.49+2028.60。
+	if _, err := Post(ctx, r.pool, Entry{Kind: "deposit", Venue: "okx", Ccy: "USDT", Amount: 2104.09, SourceRef: 1, SourceTable: "fin_venue_account_snapshot"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, row := range []struct {
+		vt string
+		eq float64
+	}{
+		{"unified", 75.49}, {"earn", 2028.60},
+	} {
+		if _, err := r.pool.Exec(ctx, `INSERT INTO fin_venue_account_snapshot(venue,venue_type,ccy,equity,src,updated_at)
+			VALUES('okx',$1,'USDT',$2,'x',now())
+			ON CONFLICT(venue,venue_type,ccy) DO UPDATE SET equity=$2,updated_at=now()`, row.vt, row.eq); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := r.reconcile(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if n := r.rej.Snapshot()["ledger/diff_alert"]; n != 0 {
+		t.Fatalf("聚合平账误报: diff_alert=%d（应 0——75.49+2028.60=2104.09 与账本平）", n)
+	}
+	// 反向证：抽走一行（聚合额缺 2028.60）→差超容差必须告警。
+	if _, err := r.pool.Exec(ctx, "DELETE FROM fin_venue_account_snapshot WHERE venue_type='earn'"); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.reconcile(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if r.rej.Snapshot()["ledger/diff_alert"] == 0 {
+		t.Fatal("真差不告警=漏报")
+	}
+}

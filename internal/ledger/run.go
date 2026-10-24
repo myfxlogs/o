@@ -108,10 +108,14 @@ func (r *Runner) reconcile(ctx context.Context) error {
 		r.rej.Inc("missing_param")
 		return err
 	}
-	rows, err := r.pool.Query(ctx, `SELECT s.venue,s.ccy,s.equity,
+	// T-0045 根修：快照 PK=(venue,venue_type,ccy)——同 venue+ccy 合法多子户行
+	//（okx/USDT=unified 交易户+earn 停泊户）。按 (venue,ccy) 聚合 equity 总额比对
+	//（fresh 判取 max(updated_at)——任一子户行新即整组判）。
+	rows, err := r.pool.Query(ctx, `SELECT s.venue,s.ccy,sum(s.equity),
 		COALESCE((SELECT sum(amount) FROM fin_cashflow c WHERE c.venue=s.venue AND c.ccy=s.ccy),0),
-		s.updated_at
-		FROM fin_venue_account_snapshot s WHERE s.ccy IN ('USDT','USD')`)
+		max(s.updated_at)
+		FROM fin_venue_account_snapshot s WHERE s.ccy IN ('USDT','USD')
+		GROUP BY s.venue,s.ccy`)
 	if err != nil {
 		return err
 	}
