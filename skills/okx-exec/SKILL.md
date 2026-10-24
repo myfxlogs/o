@@ -20,7 +20,7 @@ domain: 工程
 - **WS 下单未迁**：`/ws` trade 域文档有等价面，但缺生产验证——REST 下单为已验证桥，迁移须独立票+协议取证
 ## 鉴权与方言（重建第一日件）
 - **REST 签名**：`signutil.OkxSign(secret,ts,method,pathWithQuery,body)`=`base64(HMAC-SHA256(secret, ts+method+path含query+body))`；四头 `OK-ACCESS-KEY/SIGN/TIMESTAMP/PASSPHRASE`；ts=ISO8601 毫秒串。demo 户加头 `x-simulated-trading:1`。
-- **下单方言**：`tdMode`=cash〔spot〕/cross〔perp 全仓〕〔isolated 码内有备未产验〕；`posSide`=net〔单向持仓户〕vs long/short〔双向户——arms 簿须与账户持仓模式一致〕；`instId`=`BTC-USDT-SWAP`〔perp〕/`BTC-USDT`〔spot〕原生键。
+- **下单方言**：`tdMode`=cash〔spot〕/cross〔perp 全仓〕〔isolated 码内有备未产验〕；`posSide`=net〔单向持仓户〕vs long/short〔双向户——arms 簿须与账户持仓模式一致〕；`instId`=`BTC-USDT-SWAP`〔perp〕/`BTC-USDT`〔spot〕原生键。**tgtCcy 方言坑（T-0042 实弹实证 exec_id=3）**：spot 市价买 sz 默认按计价币（quote_ccy）解释——传 BTC 数量意图会被当 USDT 金额拒单（低于单笔最小额）；spot 市价买必带 `tgtCcy="base_ccy"` 钉死口径，市价卖默认即 base 口径免带，SWAP/FUTURES 不带此参。
 - **WS 下单未迁**：见钱径节——文档有等价面但产验缺，REST 下单是已验证桥。
 ## 错误码族谱（docs-v5#error-code 取证 2026-10-23——总表 50000-53999，子码形 `51008_1000`）
 - **50004 超时歧义**：「接口请求超时（不代表请求成功或失败，请检查请求结果）」——与 clOrdId 定态轨同语义：传输/超时败≠业务败，**必查单定真态**，禁直接重试。

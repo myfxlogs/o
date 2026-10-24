@@ -10,6 +10,7 @@ import (
 	"phase/internal/platform/config"
 	"phase/internal/platform/testutil"
 	"phase/internal/store/pgstore"
+	"phase/internal/trading/okxexec"
 )
 
 // fakeVenue 可控 venue（Place 行为按 clOrdID 路由；onPlace=调用序钩子——前置赎回序锚用）。
@@ -20,7 +21,8 @@ type fakeVenue struct {
 	placed    []string
 	closed    []bool
 	onPlace   func()
-	reject    bool // Place 业务拒（sCode≠0 语义——T-0040 留痕锚）
+	reject    bool              // Place 业务拒（sCode≠0 语义——T-0040 留痕锚）
+	apiReject *okxexec.APIError // envelope 业务拒走 err 径（T-0042 留痕锚）
 }
 
 func (f *fakeVenue) Place(ctx context.Context, leg Leg, clOrdID string) (OrderResult, error) {
@@ -28,6 +30,9 @@ func (f *fakeVenue) Place(ctx context.Context, leg Leg, clOrdID string) (OrderRe
 	f.closed = append(f.closed, leg.Close)
 	if f.onPlace != nil {
 		f.onPlace()
+	}
+	if f.apiReject != nil {
+		return OrderResult{ClOrdID: clOrdID, State: "unknown"}, f.apiReject
 	}
 	if f.reject {
 		return OrderResult{ClOrdID: clOrdID, State: "absent", VenueCode: "51000", VenueMsg: "Parameter clOrdId error"}, nil
@@ -396,5 +401,24 @@ func TestPlaceRejectCodeLeavesTrace(t *testing.T) {
 	}
 	if state != "failed" || code != "51000" || msg == "" {
 		t.Fatalf("留痕缺失: state=%s code=%q msg=%q（应 failed+51000+真拒因）", state, code, msg)
+	}
+}
+
+// T-0042 锚：envelope 业务拒（*APIError 走 err 径）拒码进 fin_order_leg.venue_err_*。
+func TestPlaceAPIErrorLeavesTrace(t *testing.T) {
+	fv := &fakeVenue{apiReject: &okxexec.APIError{Code: "51016", Msg: "Order amount is below minimum"}}
+	ctx, r := setup(t, fv)
+	did := mkToken(t, ctx, r, false, false, "allow")
+	eid, err := r.Execute(ctx, mkIntent(did))
+	if err == nil {
+		t.Fatal("envelope 拒应失败收场")
+	}
+	var state, code, msg string
+	if err := r.pool.QueryRow(ctx, `SELECT state,venue_err_code,venue_err_msg FROM fin_order_leg
+		WHERE execution_id=$1 AND leg_no=1`, eid).Scan(&state, &code, &msg); err != nil {
+		t.Fatal(err)
+	}
+	if state != "failed" || code != "51016" || msg == "" {
+		t.Fatalf("envelope 拒留痕缺失: state=%s code=%q msg=%q", state, code, msg)
 	}
 }

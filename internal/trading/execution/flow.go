@@ -2,10 +2,13 @@ package execution
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"math"
 	"time"
+
+	"phase/internal/trading/okxexec"
 )
 
 // Execute 双腿原子开仓：令牌→live 闸→对冲带→leg1→leg2→（败则 LEGGED 回滚）。
@@ -81,6 +84,13 @@ func (r *Runner) placeAndResolve(ctx context.Context, execID int64, no int, leg 
 	clOrdID := fmt.Sprintf("ph%dx%dx%d", execID, no, time.Now().UnixNano()%1e6)
 	res, err := r.exec.Place(ctx, leg, clOrdID)
 	if err != nil {
+		// envelope 业务拒（*APIError）=确定单未建——拒码进 leg 行 venue_err_*
+		//（与 body 内 sCode≠0 同轨留痕——T-0042 真凶乙：禁走 err 径丢码）。
+		var ae *okxexec.APIError
+		if errors.As(err, &ae) {
+			r.leg(ctx, execID, no, leg, clOrdID, "failed", ae.Code, ae.Msg)
+			return OrderResult{ClOrdID: clOrdID, State: "absent"}, fmt.Errorf("venue 拒: %w", err)
+		}
 		// 传输败→clOrdId 定态三分支；查询亦败=ambiguous 禁补单。
 		res, err = r.exec.Resolve(ctx, leg, clOrdID)
 		if err != nil || res.State == "unknown" {
