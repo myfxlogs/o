@@ -2,9 +2,9 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | 已批 |
+| 状态 | 施工中 |
 | 立项 | `[角色:决策]` @ 2026-10-26（T-0050 移交项③：recon 告警每帧洪刷 venue 2133.6 vs ledger 2129.0） |
-| 领取 | （空=未领） |
+| 领取 | zcode-glm @ 2026-10-26（worktree /opt/phase-wt/t0055，支 t/0055-recon-gap） |
 | 优先级 | 中 |
 | 涉及面 | `internal/ledger/`（recon 面）、`fin_cashflow` 行源、Earn 收益入账径 |
 | 范围外 | recon 告警节流（洪刷是症状——先根查缺口） |
