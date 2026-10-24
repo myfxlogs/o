@@ -66,12 +66,14 @@ func NewWarden(pool *pgxpool.Pool, cfg *config.Client, gate *risk.Gate, ex Execu
 	}
 	return &Warden{pool: pool, cfg: cfg, gate: gate, ex: ex,
 		rej: rejects.New("guard", "missing_param", "facts_missing", "leg_anomaly",
-			"close_denied", "close_failed", "close_gave_up", "write_err")}
+			"close_denied", "close_failed", "close_gave_up", "write_err",
+			"dd_missing_param", "equity_missing", "equity_stale", "dd_no_base", "dd_hardline_tripped", "dd_close_exhausted")}
 }
 
-// Run 在岗登记+心跳+哨戒循环（产出窗=fin_guard_close 行/fin_position.closed_at 迁移）。
+// Run 在岗登记+心跳+哨戒循环（产出窗=fin_guard_close 行/fin_position.closed_at 迁移
+// +回撤硬线动作链——T-0025 段一并入本岗）。
 func (w *Warden) Run(ctx context.Context, errc chan<- error) {
-	if err := roster.Register(ctx, w.pool, "仓巡", "risk", "看护平仓哨——三触发+策略联动自动退", nil); err != nil {
+	if err := roster.Register(ctx, w.pool, "仓巡", "risk", "看护平仓哨——三触发+策略联动+回撤硬线自动退", nil); err != nil {
 		errc <- fmt.Errorf("仓巡 register: %w", err)
 		return
 	}
@@ -97,9 +99,11 @@ type posRow struct {
 	stratState           string
 }
 
-// scanOnce 一轮哨戒：扫在仓行（close_failed 按 guard.retry_* 节拍重试、超上限
-// 不再扫=升级留痕不沉默），逐仓判触发→close intent 过闸→执行缝→状态迁移。
+// scanOnce 一轮哨戒：回撤硬线先判（账本级——触线即落闸全平，优先于单仓触发），
+// 再扫在仓行（close_failed 按 guard.retry_* 节拍重试、超上限不再扫=升级留痕不沉默），
+// 逐仓判触发→close intent 过闸→执行缝→状态迁移。
 func (w *Warden) scanOnce(ctx context.Context) error {
+	w.ddScan(ctx)
 	backoff, maxAtt, err := w.retryKeys()
 	if err != nil {
 		return err
@@ -133,15 +137,15 @@ func (w *Warden) scanOnce(ctx context.Context) error {
 		return fmt.Errorf("scan rows: %w", err)
 	}
 	for _, p := range batch {
-		w.tend(ctx, p, maxAtt)
+		w.tend(ctx, p, maxAtt, w.evaluate(ctx, p, w.legs(ctx, p.execID)))
 	}
 	return nil
 }
 
-// tend 单仓看护：判触发→标 closing（节拍账 attempts+1）→闸→反向双腿执行→状态迁移。
-func (w *Warden) tend(ctx context.Context, p posRow, maxAtt int64) {
+// tend 单仓看护：按既定触发（evaluate 判得或 dd_30d 强制）→标 closing（节拍账
+// attempts+1）→闸→反向双腿执行→状态迁移。trig 空=无触发零动作。
+func (w *Warden) tend(ctx context.Context, p posRow, maxAtt int64, trig string) {
 	legs := w.legs(ctx, p.execID)
-	trig := w.evaluate(ctx, p, legs)
 	if trig == "" {
 		return
 	}
