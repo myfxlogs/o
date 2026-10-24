@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"phase/internal/platform/config"
+	"phase/internal/platform/notify"
 	"phase/internal/platform/rejects"
 	"phase/internal/platform/roster"
 )
@@ -17,10 +18,14 @@ const scanEvery = 60 * time.Second
 
 // Runner 司账+核账双岗（结算闭环+对账环——账本只消费事实行不触发钱动作）。
 type Runner struct {
+	al   *notify.Alerter
 	pool *pgxpool.Pool
 	cfg  *config.Client
 	rej  *rejects.Door
 }
+
+// WithAlerter 挂告警器（nil=静默降级）。
+func (r *Runner) WithAlerter(a *notify.Alerter) *Runner { r.al = a; return r }
 
 func NewRunner(pool *pgxpool.Pool, cfg *config.Client) *Runner {
 	return &Runner{pool: pool, cfg: cfg,
@@ -133,6 +138,7 @@ func (r *Runner) reconcile(ctx context.Context) error {
 		}
 		if Diff(x.net, x.eq) > tol {
 			r.rej.Inc("diff_alert")
+			r.al.Alert(ctx, "ledger_diff_alert", "账实差超限——人工对拍")
 			log.Printf("ALERT [ledger] 对账差 %s/%s venue=%.4f ledger=%.4f（容差 %.2f）", x.venue, x.ccy, x.eq, x.net, tol)
 		}
 	}

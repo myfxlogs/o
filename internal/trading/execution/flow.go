@@ -116,6 +116,7 @@ func (r *Runner) rollback(ctx context.Context, execID int64, leg Leg, res OrderR
 	if err != nil || (rb.State != "filled" && rb.State != "live" && rb.State != "partially_filled") {
 		r.setState(ctx, execID, "rollback_failed")
 		r.rej.Inc("rollback_failed")
+		r.al.Alert(ctx, "rollback_failed", "LEGGED 回滚败——人工介入")
 		log.Printf("ALERT [execution] #%d 回滚败——残留 leg1 敞口须人工升级处置（err=%v）", execID, err)
 		r.leg(ctx, execID, 1, leg, clOrdID, "ambiguous")
 		return

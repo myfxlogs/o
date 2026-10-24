@@ -23,6 +23,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"phase/internal/platform/config"
+	"phase/internal/platform/notify"
 	"phase/internal/platform/rejects"
 	"phase/internal/platform/roster"
 	"phase/internal/trading/okxexec"
@@ -51,6 +52,7 @@ type VenueAPI interface {
 // Worker 配管在岗体（rateFn 可注入=测试面；api 缺席=仅现率采集在岗；
 // venue/ccy 字段化——生产默认 okx/USDT，测试键域隔离用）。
 type Worker struct {
+	al     *notify.Alerter
 	pool   *pgxpool.Pool
 	cfg    *config.Client
 	rej    *rejects.Door
@@ -75,6 +77,9 @@ func NewWorker(pool *pgxpool.Pool, cfg *config.Client) *Worker {
 
 // AttachVenue 挂接 venue 停泊面（cmd 装配层凭据就位后调用——earn 不解凭据）。
 func (w *Worker) AttachVenue(api VenueAPI) { w.api = api }
+
+// AttachAlerter 挂告警器（nil=静默降级）。
+func (w *Worker) AttachAlerter(a *notify.Alerter) { w.al = a }
 
 // Run 配管上岗（Register+BeatLoop 30s+扫描循环；boot 首读刷停泊快照——事件锚定形）。
 func (w *Worker) Run(ctx context.Context, errc chan<- error) {

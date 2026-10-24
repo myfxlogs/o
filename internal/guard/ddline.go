@@ -69,6 +69,8 @@ func (w *Warden) ddScan(ctx context.Context) {
 		return
 	}
 	w.rej.Inc("dd_hardline_tripped")
+	w.al.Alert(ctx, "dd_hardline_tripped",
+		fmt.Sprintf("dd=%.4f≥%.4f peak=%.2f cur=%.2f", dd, thr, peak, cur))
 	seg := "30d 滚动窗"
 	if !full {
 		seg = "起点至今 HWM（史不足窗口）"
@@ -154,6 +156,7 @@ func (w *Warden) ddResume(ctx context.Context) {
 	}
 	if stuck > 0 {
 		w.rej.Inc("dd_close_exhausted")
+		w.al.Alert(ctx, "dd_close_exhausted", fmt.Sprintf("%d 仓耗尽敞口仍开——人工介入", stuck))
 		log.Printf("ALERT [guard] ERROR 回撤触线平仓重试耗尽——%d 仓敞口仍开，人工介入", stuck)
 	}
 	// 仍可平仓（节拍窗内）续平。
