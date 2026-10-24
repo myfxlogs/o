@@ -125,12 +125,9 @@ t2.textContent=b.className?'🌙 暗色':'☀️ 亮色'}
     </div>
   </div>
 
-  <div class="card staff" id="c-staff" style="display:none;cursor:pointer;grid-column:span 12">
-    <div id="staff-sum" onclick="document.getElementById('staff-graph').style.display=
-      document.getElementById('staff-graph').style.display?'':'block';this.style.display=
-      this.style.display?'':'none'"></div>
-    <div id="staff-graph" style="display:none" onclick="this.style.display='none';
-      document.getElementById('staff-sum').style.display=''"></div>
+  <div class="card staff" id="c-staff" style="display:none;grid-column:span 12">
+    <h3 id="staff-sum"></h3>
+    <div id="staff-graph"></div>
   </div>
 
 </div>
