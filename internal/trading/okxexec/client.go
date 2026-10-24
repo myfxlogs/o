@@ -13,6 +13,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strconv"
 	"time"
 
 	"phase/internal/platform/signutil"
@@ -150,4 +151,35 @@ func (c *Client) AssetBalances(ctx context.Context) ([]struct {
 // SavingsBalance /finance/savings/balance（earn 活期货产——钦定保留面）。
 func (c *Client) SavingsBalance(ctx context.Context) (json.RawMessage, error) {
 	return c.Get(ctx, "/api/v5/finance/savings/balance")
+}
+
+// PublicGet 公开端点无签名径（instruments 等钦定保留面——零凭据）。
+func (c *Client) PublicGet(ctx context.Context, pathWithQuery string) (json.RawMessage, error) {
+	return c.Get(ctx, pathWithQuery)
+}
+
+// InstrumentMeta /public/instruments 取 ctVal/lotSz/minSz（公开只读——instruments
+// bootstrap 钦定面非轮询病灶）。
+func (c *Client) InstrumentMeta(ctx context.Context, instType, instID string) (struct {
+	CtVal, LotSz, MinSz float64
+}, error) {
+	var out struct {
+		CtVal, LotSz, MinSz float64
+	}
+	raw, err := c.Get(ctx, "/api/v5/public/instruments?instType="+instType+"&instId="+instID)
+	if err != nil {
+		return out, err
+	}
+	var rows []struct {
+		CtVal string `json:"ctVal"`
+		LotSz string `json:"lotSz"`
+		MinSz string `json:"minSz"`
+	}
+	if err := json.Unmarshal(raw, &rows); err != nil || len(rows) == 0 {
+		return out, fmt.Errorf("instruments 空: %w", err)
+	}
+	out.CtVal, _ = strconv.ParseFloat(rows[0].CtVal, 64)
+	out.LotSz, _ = strconv.ParseFloat(rows[0].LotSz, 64)
+	out.MinSz, _ = strconv.ParseFloat(rows[0].MinSz, 64)
+	return out, nil
 }
