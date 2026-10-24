@@ -25,5 +25,7 @@ var migrationTable = []struct {
 	{18, "0018_dd_hardline.sql"},
 	{19, "0019_feishu_notify.sql"},
 	{20, "0020_macro_event.sql"},
+
 	{21, "0021_mt5_readface.sql"},
+	{22, "0022_probe_notional.sql"},
 }
