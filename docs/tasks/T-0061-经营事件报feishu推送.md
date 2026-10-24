@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | 施工中 |
+| 状态 | 完成 |
 | 优先级 | 中 |
 | 涉及面 | `internal/platform/notify` `cmd/core`（新 worker 或挂信使）、`app_config` 键 |
 | 证据日 | 2026-10-24（首仓序试单期里程碑业主侧不可见实证） |
@@ -47,3 +47,24 @@
 3. 迁移件头注 `-- 0031` 误标为 0031（文件为 0032）——注释对齐。
 
 返工后重发收口，决策席复验合并。
+---
+## 结果回填（devin-t0002 @ 2026-10-26——事件报层交付）
+
+| 验收锚 | 态 | 证据 |
+|---|---|---|
+| 三事件注入→sender 收三条 [经营事件] 文 | PASS | pushOpened/pushFunding/pushClosed 三源各查增推；文案前缀 [经营事件] 与 [PHASE告警] 视觉分区 |
+| 开关 false→零发；同 id 重注入→一推 | PASS | TestEventPushOffNoSend+TestEventPushDedup 双锚过；kind:id 去重键；键缺=false fail-closed 静默 |
+| 告警径回归不受影响 | PASS | sender 复用装配面不新造通知栈；al.Alert 径零触碰 |
+| 无新增周期环 | PASS | events.ListenLoop ev_position/ev_cashflow 脊——T-0048 律守（架构约束硬项） |
+| 机检全绿 | PASS | build/vet/gofmt/lines 295<300/env 20 键/migration 0031/import 65/70 边/go test 零 FAIL @5434 |
+
+**实勘修正**：①fakeSender 双定义撞名（复用 alert_test 件）；②中文多字节断言 [:5] 截错改 strings.Contains；③棘轮 301→EventPush 装配移 event_push.go 独立件。
+
+**部署注记**：notify.feishu.events.enabled=false 种子（0031）——开=决策席动作；T-0056 试单剩余段=天然实户锚。
+
+### 返修回填（2026-10-26 同票续作——三项打回齐修 @12fe43b）
+
+- ① **template_ref 文本化**：*int64→*string 扫型对齐（扫败静默吞改 err continue 行级病灶不吞）——策略列不再恒 `?`。
+- ② **pushFunding 游标播种**：boot 首拍 max(id) 置基——重启→id>0 全史重推病灶根除。
+- ③ **迁移件头注对齐**：0031→0032（文件号与注释同步）。
+- 机检：go test notify 包绿 @5434。
