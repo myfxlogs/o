@@ -22,6 +22,11 @@ domain: 工程
 - **REST 签名**：`signutil.OkxSign(secret,ts,method,pathWithQuery,body)`=`base64(HMAC-SHA256(secret, ts+method+path含query+body))`；四头 `OK-ACCESS-KEY/SIGN/TIMESTAMP/PASSPHRASE`；ts=ISO8601 毫秒串。demo 户加头 `x-simulated-trading:1`。
 - **下单方言**：`tdMode`=cash〔spot〕/cross〔perp 全仓〕〔isolated 码内有备未产验〕；`posSide`=net〔单向持仓户〕vs long/short〔双向户——arms 簿须与账户持仓模式一致〕；`instId`=`BTC-USDT-SWAP`〔perp〕/`BTC-USDT`〔spot〕原生键。
 - **WS 下单未迁**：见钱径节——文档有等价面但产验缺，REST 下单是已验证桥。
+## 数量/金额计量方言（docs-v5 下单端点核证 2026-10-24——exec_id=3 实弹坑锚）
+- **币币市价单 sz=tgtCcy 口径**：买单默认 `quote_ccy`（USDT 金额——「CEX 计价皆 USDT」业主钦定）、卖单默认 `base_ccy`；要按币量买须显式 `tgtCcy="base_ccy"`。sz 传币量走默认口径=金额被当 USDT 拒（exec3 leg2 实证）。
+- **合约单 sz=张数**：面值=`sz×ctVal×markPx`〔正向=USDT 本位〕/`sz×ctVal`〔反向=币本位〕——**分清币本位/U本位**（业主令）：看 instruments 的 ctValCcy+ctType，禁按币种名猜。
+- **long_short 户**：平仓单天然只减仓（reduceOnly 语义内建），sz 超持仓=整单拒非截断。
+- **滑点**：`slippageBps` 仅币币/杠杆市价单，0~0.05，默认 0——市价单拒价保护面。
 ## 错误码族谱（docs-v5#error-code 取证 2026-10-23——总表 50000-53999，子码形 `51008_1000`）
 - **50004 超时歧义**：「接口请求超时（不代表请求成功或失败，请检查请求结果）」——与 clOrdId 定态轨同语义：传输/超时败≠业务败，**必查单定真态**，禁直接重试。
 - **鉴权族 501xx**：50101 key/环境不匹配、50102 时间戳过期〔**UTC 偏差=最常见因**，装表须 NTP〕、50110/50121 IP 白名单〔业主配合域〕、50113 签名无效〔sign_string 序错——ts+method+path+body〕、50120 权限不足〔提币/划转域权限缺——gate 同族病灶先例〕。
