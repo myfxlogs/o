@@ -20,6 +20,9 @@ var kinds = map[string]bool{
 	// T-0055：interest=Earn 利息（earnings 累计值事件化入账）；
 	// recon_adjust=基线校准一次性行（书面归因后真值校准——禁日常使用）。
 	"interest": true, "recon_adjust": true,
+	// T-0083 腿级现金流对称：spot_buy=现货腿买入流出毛额（负）、spot_sell=
+	// 卖出流入毛额（正）——两腿各记净额自然=真价差；损益派生读面不单写。
+	"spot_buy": true, "spot_sell": true,
 }
 var ccys = map[string]bool{"USDT": true, "USD": true}
 
