@@ -86,7 +86,15 @@ func (c *Client) do(ctx context.Context, method, pathWithQuery string, body []by
 		return nil, fmt.Errorf("resp parse: %w", err)
 	}
 	if env.Code != "0" {
-		return nil, &APIError{Code: env.Code, Msg: env.Msg}
+		ae := &APIError{Code: env.Code, Msg: env.Msg}
+		var inner []struct {
+			SCode string `json:"sCode"`
+			SMsg  string `json:"sMsg"`
+		}
+		if json.Unmarshal(env.Data, &inner) == nil && len(inner) > 0 {
+			ae.SCode, ae.SMsg = inner[0].SCode, inner[0].SMsg
+		}
+		return nil, ae
 	}
 	return env.Data, nil
 }

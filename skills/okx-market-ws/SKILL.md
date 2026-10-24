@@ -7,6 +7,7 @@ domain: 工程
 ## 证据
 - 实现件：`internal/data/collect/exchange/okx_ws.go`、`okx_ws_books5.go`
 - SG 产验（2026-10-23）：syms=7、books5 全谱订阅活、182-271 行/2-3min 落库
+- **真户复验（2026-10-24，tools/okxverify 15s 窗）**：tickers 95 帧/books5 124 帧/mark-price 76 帧/funding-rate 2 帧——四频道全流实证
 - 退役面实证：funding-rate(-history) REST 轮询清零后 WS 频道持续供数（`facts` 表 `src=okx_ws_v5` `kind=funding` 行流）
 ## 订阅面（公共频道全谱）
 - `books5`：深度五档——原生 instId 键域（如 `BTC-USDT-SWAP`），节流+异步落库（读路径禁同步 DB 写）

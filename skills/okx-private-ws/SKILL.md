@@ -10,7 +10,10 @@ domain: 工程
 - JIT 事件源：`JitOkxEarnEvent` 由 account push 钩子触发（外部入金/赎回到账/成交结算全覆盖）
 - bills 记账钩（T-0044）：account/balance_and_position 帧触发 `SetBillsHook`→/account/bills 拉取→fin_venue_bill（billId 幂等）→fin_cashflow.funding_settle/fee；30s 节流+boot 补漏一次；funding 记账件在 internal/ledger/funding（REST=事件后增量拉非轮询）
 ## 频道与口径
-- `balance_and_position`：余额+持仓变动推送——**一切余额变动都是事件**（成交/费用/入金/赎回）；落 `okx_event` 快照行
+- `balance_and_position`：余额+持仓变动推送——**一切余额变动都是事件**（成交/费用/入金/赎回）；落 `okx_event` 快照行。帧形 `{balData[],posData[],trades[],eventType}`——划转时 `eventType:"transferred"` 实证在案
+- `account`：账户权益推——帧形 `{adjEq,availEq,details[]}`，eventType=snapshot（首拍）/event_update（变动推）；**push-on-change，无变动=静默≠死连**
+- `orders`（instType=ANY）：**订单事件流——真单实证在案**（2026-10-24 okxverify -mut：挂/撤/成交帧推自家 clOrdId 全档 ordId/px/sz/state）
+- `positions`（instType=ANY）：持仓事件流——订阅即收 snapshot 首拍；持仓变动推帧
 - 快照行：`Venue=okx, VenueType=unified, Currency=USDT`；`EquityRaw=Σdetails eqUsd`，`FreeMarginRaw` 不采=equity 回退
 - 心跳：`okx_private_ws_heartbeat` 3min 拍刷末帧写行——防「静户无推送→快照陈→误杀」
 ## 坑注记
