@@ -18,3 +18,25 @@
 - [ ] 测试锚三枚绿
 - [ ] 真弹第四发：leg1+leg2 双 filled，或拒因真实入 venue_err（再拒=新方言坑如实回填）
 - [ ] skills/okx-exec tgtCcy 条目在
+
+
+## 结果（施工回填 2026-10-24）
+
+### 码面三修（commit 8f0…两笔于支 t/0042-tgtccy-apireerr）
+1. **tgtCcy 方言**：`okxexec.OrderParams` 加 `TgtCcy`（`tgtCcy,omitempty` 序列化）；`buildOrderParams`：tdMode==cash && side==buy && ordType==market → `TgtCcy="base_ccy"`（spot 卖默认即 base 口径免带；SWAP 不带）。核证链：票面 exec_id=3 实弹实证（0.00030914 BTC 意图按 USDT 金额拒）+ 官方 docs-v5 place-order tgtCcy 参数义（base_ccy/quote_ccy，spot 市价买缺省 quote_ccy）。
+2. **APIError 拒码留痕**：`flow.go placeAndResolve` Place err 径 `errors.As(*okxexec.APIError)` → leg 行 `state=failed`+`venue_err_code/msg`（envelope 拒=确定单未建，不走 Resolve 歧义径；与 body sCode≠0 同轨）。
+3. **sid 回赋**：openfirst 策略行解析抽 `resolveStrategy(ctx,pool,sid)`——默认径 `SELECT id,…` 回赋 sid（防 StrategyRef=0→intent_incomplete）。
+
+### 测试锚三枚（绿）
+- `TestBuildOrderParamsTgtCcy`：spot buy→base_ccy；spot sell/perp buy/sell 不带。
+- `TestPlaceAPIErrorLeavesTrace`：fakeVenue 返 `*APIError{51016}` → fin_order_leg failed+venue_err_code=51016+真拒因。
+- `TestResolveStrategyDefaultScansID`：默认径回赋真实 strategy id。
+
+### 机检
+build/vet/gofmt/test 全量 / -race（trading+openfirst）/ import-direction（59/60 边）/ migration-contract / lines / env-reads——全绿。无新 migration。
+
+### 真弹第四发——**前置态未备，未发**
+核验（dev 库 phase-postgres）：fin_strategy 最新 669=BTC-USDT-SWAP **paper**（无 probe/live 行）；`invest.lifecycle.live_switch=false`。按 T-0025 段二/三纪律（禁自行翻 live_switch、未晋升禁动），施工席不可自造前置态。**待决策席：策略晋升 probe + live_switch=true 后，跑 `openfirst`（默认径即验 sid 回赋）一发即验**——预期 leg1 SWAP sell+leg2 spot buy（携 tgtCcy=base_ccy）双 filled；若再拒，venue_err 留痕已在（两径兜齐）。
+
+### 能力账
+skills/okx-exec 「下单方言」补 tgtCcy 方言坑条目（同票同修，D-641 钩）。
