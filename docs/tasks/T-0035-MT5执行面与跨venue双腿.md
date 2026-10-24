@@ -24,3 +24,19 @@
 
 ## 回填
 - 实现面、demo 双 venue 实跑实录、风险闸逐腿实勘、真户就绪清单
+
+## 结果回填（devin-t0002 @ 2026-10-24——部分交付如实报）
+
+| 锚 | 态 | 证据 |
+|---|---|---|
+| Executor 路由按 leg.Venue 分派互不串 | **PASS** | `RouterExecutor` map[venue]Executor；无 venue 执行件=unknown 拒；TestRouterAndCfdLegs 锚过 |
+| mtexec 适配器（OrderSend/OrderClose 包 Place/Resolve；歧态势=unknown 禁补单同 okx 纪律） | **PASS 码面** | internal/trading/mtexec——DONE/OK 以外=absent，空回报=unknown；Resolve 走 OrderHistory comment 对位 |
+| cfd 腿构（lot 换算 minLot 闸+异 venue 断言+cfd_map 缺映射拒） | **PASS** | BuildCfdLegs 测试锚四反面全过 |
+| demo 户真单开→平全周期实证 | **未达** | mtexec 装配未走完（Cli 接口出 Conn 径须 cmd/openfirst 接线后再跑 demo 实单——本席如实报未达，不粉饰） |
+| 真户=决策席手动触发 | 守 | 未经决策令本席未跑任何 venue 单 |
+| fail-closed 全谱 | PASS（构面） | venue 缺执行件/价缺/minLot/映射缺=拒 |
+| 机检 | PASS | build✓ vet✓ gofmt✓ go test ./internal/... 零 FAIL @5434（mt5 禁锚守——mutating 件归 mtexec 不污读面包）；import 55/55 边 |
+
+**实勘修正**：mt5 读面包含禁锚（T-0031 验收锚 TestNoMutatingSurface 扫源码）——mutating 执行件归 mtexec 独立包，mt5 只出 Conn() 连接件；禁锚守位不回退。
+
+**续作清单（决策席复派径）**：cmd/openfirst 装配 Cli 适配（mt5.Client→Conn+Authed+MT5 三件）→-structure=cfd_perp→demo 户双 venue 实跑→真户禁跑纪律守。
