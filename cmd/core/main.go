@@ -143,6 +143,7 @@ func run() error {
 	}()
 	earnW := earn.NewWorker(pool, cfg)
 	go earnW.Run(ctx, errc)
+	var closeSizer guard.VenueSizer // 平仓量现读面（priv 凭据域内接线——T-0046 ②）
 	if priv, err := okxpriv.NewCollector(ctx, pool, false); err != nil {
 		log.Printf("WARN: 私流守缺席（%v）——凭据落位后重启即上岗", err)
 	} else {
@@ -159,6 +160,8 @@ func run() error {
 		priv.SetBootFn(func(ctx context.Context) (map[string]float64, error) {
 			return okxexec.BalanceEquity(ctx, creds, false)
 		})
+		// 平仓量现读面（T-0046 ②——priv 凭据域内接线）。
+		closeSizer = okxSizer{okxexec.NewClient(priv.Credentials(), false)}
 		// funding 实收记账（T-0044）：余额帧事件驱动 bills→fin_cashflow（bills.go）。
 		priv.SetBillsHook(legfunding.NewIngester(pool,
 			billsSrc{okxexec.NewClient(priv.Credentials(), false)}).Hook())
@@ -252,6 +255,11 @@ func run() error {
 	// 看护域首岗：仓巡（G8）——持仓哨戒三触发+策略联动，close intent 过闸免拦径，
 	// 反向双腿平走执事 G7 径（凭据缺席=缝降级 stub 拒执 fail-closed）。
 	wd := guard.NewWarden(pool, cfg, riskGate, closer)
+	// 平仓量 venue 现读面（T-0046 ②——availBal/positions 实读，禁抄腿行委托量；
+	// 凭据缺席=不挂=平仓 fail-closed 不假量）。
+	if closeSizer != nil {
+		wd.AttachSizer(closeSizer)
+	}
 	wd.AttachAlerter(alerter)
 	go wd.Run(ctx, errc)
 

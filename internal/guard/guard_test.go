@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
+	"strings"
 	"testing"
 	"time"
 
@@ -57,7 +59,38 @@ func setup(t *testing.T) (context.Context, *Warden, *fakeExec) {
 		t.Fatal(err)
 	}
 	fx := &fakeExec{}
-	return ctx, NewWarden(pool, cfg, risk.NewGate(pool, cfg), fx), fx
+	w := NewWarden(pool, cfg, risk.NewGate(pool, cfg), fx)
+	w.AttachSizer(fakeSizer{}) // T-0046 ②：现读面必接（缺=平仓 fail-closed）——默认直通量
+	return ctx, w, fx
+}
+
+// fakeSizer 平仓量现读假件（默认直通：avail 巨量+无网格；可编程 avail/lot/err）。
+type fakeSizer struct {
+	avail    float64
+	contract float64 // 合约实读（缺省随 avail）
+	lot      float64
+	errOn    string // instID 后缀命中=读败
+}
+
+func (f fakeSizer) SpotAvailBal(ctx context.Context, instID string) (float64, error) {
+	if f.errOn != "" && strings.HasSuffix(instID, f.errOn) {
+		return 0, errors.New("venue read down")
+	}
+	if f.avail > 0 {
+		return f.avail, nil
+	}
+	return 1e9, nil
+}
+
+func (f fakeSizer) ContractPos(ctx context.Context, instID string) (float64, error) {
+	if f.contract > 0 {
+		return f.contract, nil
+	}
+	return f.SpotAvailBal(ctx, instID)
+}
+
+func (f fakeSizer) LotSz(ctx context.Context, instID string) (float64, error) {
+	return f.lot, nil
 }
 
 // fakeExec 执行缝假件——录调用、可编程序失败（execID 定值 999 供衍生仓关闭断言；
@@ -125,6 +158,17 @@ func seedFacts(t *testing.T, ctx context.Context, w *Warden, rate float64) {
 	}
 	if _, err := w.pool.Exec(ctx,
 		`INSERT INTO md_funding(ts,venue,inst_id,funding_rate) VALUES(now(),'okx','BTC-USDT-SWAP',$1)`, rate); err != nil {
+		t.Fatal(err)
+	}
+	// 乐器面值 facts（T-0046 ①：SWAP 名义=sz×ctVal×px——perp 腿分派依赖）。
+	seedInstr(t, ctx, w, 1)
+}
+
+func seedInstr(t *testing.T, ctx context.Context, w *Warden, ctVal float64) {
+	t.Helper()
+	if _, err := w.pool.Exec(ctx, `INSERT INTO md_venue_fact(venue,kind,key,value)
+		VALUES('okx','instrument','inst:BTC-USDT-SWAP',jsonb_build_object('ctVal',$1::numeric))
+		ON CONFLICT(venue,kind,key) DO UPDATE SET value=EXCLUDED.value`, ctVal); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -317,5 +361,160 @@ func TestMissingKeyFailClosed(t *testing.T) {
 	reloadCfg(t, ctx, w)
 	if err := w.scanOnce(ctx); err == nil {
 		t.Fatal("retry 键缺应整轮报错 fail-closed")
+	}
+}
+
+// T-0046 ①锚：SWAP 名义=sz×ctVal×px（0.03 张 ctVal=0.01 → ~$24 级非 $2421）；
+// 两腿均衡名义（$25 vs $25）漂移 < band 不误触发。
+func TestNotionalCtValDispatch(t *testing.T) {
+	ctx, w, _ := setup(t)
+	seedFacts(t, ctx, w, 0.0001) // tick=100
+	seedInstr(t, ctx, w, 0.01)   // ctVal=0.01 BTC/张
+	n, ok := w.notionalNow(ctx, leg{inst: "BTC-USDT-SWAP", venue: "okx", sz: 0.03})
+	if !ok || n != 0.03*0.01*100 {
+		t.Fatalf("SWAP 名义 sz×ctVal×px: got %v ok=%v want %v", n, ok, 0.03*0.01*100)
+	}
+	ns, ok := w.notionalNow(ctx, leg{inst: "BTC-USDT", venue: "okx", sz: 0.25})
+	if !ok || ns != 25 {
+		t.Fatalf("SPOT 名义 sz×px: got %v ok=%v want 25", ns, ok)
+	}
+	// 均衡仓（spot 0.25 BTC=$25 vs perp 25 张×0.01×100=$25）——漂移 0 不触发。
+	fx := &fakeExec{}
+	w2 := NewWarden(w.pool, w.cfg, w.gate, fx)
+	w2.AttachSizer(fakeSizer{})
+	var stratID, execID, posID int64
+	if err := w.pool.QueryRow(ctx,
+		`INSERT INTO fin_strategy(inst_id,template_ref,state,notional_usd,venue) VALUES('BTC-USDT-SWAP','guard-test','live',25,'okx') RETURNING id`).Scan(&stratID); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.pool.QueryRow(ctx,
+		`INSERT INTO fin_execution(strategy_ref,inst_id,notional_usd,state) VALUES($1,'BTC-USDT-SWAP',25,'open') RETURNING id`, stratID).Scan(&execID); err != nil {
+		t.Fatal(err)
+	}
+	for i, lg := range []struct {
+		inst, side string
+		sz         float64
+	}{{"BTC-USDT", "buy", 0.25}, {"BTC-USDT-SWAP", "sell", 25}} {
+		if _, err := w.pool.Exec(ctx,
+			`INSERT INTO fin_order_leg(execution_id,leg_no,cl_ord_id,venue,side,inst_id,sz,state)
+			VALUES($1,$2,$3,'okx',$4,$5,$6,'filled')`, execID, i+1, fmt.Sprintf("cl-x-%d", i), lg.side, lg.inst, lg.sz); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := w.pool.QueryRow(ctx,
+		`INSERT INTO fin_position(execution_id,strategy_ref,inst_id,notional_usd,opened_at)
+		VALUES($1,$2,'BTC-USDT-SWAP',25,now()) RETURNING id`, execID, stratID).Scan(&posID); err != nil {
+		t.Fatal(err)
+	}
+	if err := w2.scanOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if len(fx.calls) != 0 {
+		t.Fatalf("均衡仓误触发平仓（量纲病灶体征）: %+v", fx.calls)
+	}
+	// ctVal 缺行=fail-closed 不误判（facts_missing 计数不触发）。
+	if _, err := w.pool.Exec(ctx, "DELETE FROM md_venue_fact"); err != nil {
+		t.Fatal(err)
+	}
+	if n, ok := w.notionalNow(ctx, leg{inst: "BTC-USDT-SWAP", venue: "okx", sz: 1}); ok || n != 0 {
+		t.Fatal("ctVal 缺行应 false")
+	}
+}
+
+// T-0046 ②锚：平仓量 venue 实读对齐——avail<腿记录取 avail 落网格；读败=fail-closed。
+func TestSizedCloseLegs(t *testing.T) {
+	ctx, w, _ := setup(t)
+	cls := [2]CloseLeg{
+		{Venue: "okx", InstID: "BTC-USDT", Side: "sell", Sz: 0.00030897},
+		{Venue: "okx", InstID: "BTC-USDT-SWAP", Side: "buy", Sz: 3}}
+	// avail=0.00030866（taker 费内扣实持）、lot=0.0000001——0.00030897→0.0003086。
+	w.AttachSizer(fakeSizer{avail: 0.00030866, contract: 1e9, lot: 0.0000001})
+	got, ok := w.sizedCloseLegs(ctx, cls)
+	if !ok || math.Abs(got[0].Sz-0.0003086) > 1e-12 {
+		t.Fatalf("spot 平仓量应对齐 avail 网格: ok=%v sz=%.8f", ok, got[0].Sz)
+	}
+	if got[1].Sz != 3 { // perp avail 直通（同 sizer avail>3）
+		t.Fatalf("perp 平仓量应沿实读: %v", got[1].Sz)
+	}
+	w.AttachSizer(fakeSizer{errOn: "-USDT"})
+	if _, ok := w.sizedCloseLegs(ctx, cls); ok {
+		t.Fatal("venue 读败应 fail-closed 拒平")
+	}
+	w.AttachSizer(fakeSizer{avail: 0.000000001, lot: 0.0000001})
+	if _, ok := w.sizedCloseLegs(ctx, cls); ok {
+		t.Fatal("对齐后零量应 fail-closed 拒平（禁发残量单）")
+	}
+}
+
+// T-0046 ④锚：getF 双型——20 / "20" / "20.5" 三形同值（裸数字废闸根修）。
+func TestGetFDualType(t *testing.T) {
+	ctx, w, _ := setup(t)
+	for i, v := range []string{"20", "20.5", "0.5"} {
+		k := "guard.test_dual"
+		// 裸数字形（jsonb 原生 number）与字符串形交替写。
+		raw := v
+		if i == 0 {
+			raw = v // to_jsonb text→"20"；裸数字走下面 exec
+		}
+		_ = raw
+		if i == 0 {
+			if _, err := w.pool.Exec(ctx,
+				`INSERT INTO app_config(key,value) VALUES('guard.test_dual','20'::jsonb)
+				 ON CONFLICT(key) DO UPDATE SET value='20'::jsonb`); err != nil {
+				t.Fatal(err)
+			}
+		} else {
+			if _, err := w.pool.Exec(ctx,
+				`INSERT INTO app_config(key,value) VALUES('guard.test_dual',to_jsonb($1::text))
+				 ON CONFLICT(key) DO UPDATE SET value=to_jsonb($1::text)`, v); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := w.cfg.Load(ctx); err != nil {
+			t.Fatal(err)
+		}
+		want := 20.0
+		if v == "20.5" {
+			want = 20.5
+		}
+		if v == "0.5" {
+			want = 0.5
+		}
+		got, err := w.getF(k)
+		if err != nil || got != want {
+			t.Fatalf("形 %q: getF=%v err=%v want %v（单型废闸病灶）", v, got, err, want)
+		}
+	}
+}
+
+// T-0046 ⑥锚：markClosed 同关 fin_execution（原仓 exec+平仓 exec 行 state=closed）。
+func TestMarkClosedClosesExecution(t *testing.T) {
+	ctx, w, _ := setup(t)
+	seedFacts(t, ctx, w, -0.001)
+	posID := mkPosition(t, ctx, w, "live", 1, time.Now())
+	// 平仓 exec fixture（fakeExec 定值 999——markClosed 应同关此行）。
+	var stratID int64
+	if err := w.pool.QueryRow(ctx,
+		"SELECT strategy_ref FROM fin_position WHERE id=$1", posID).Scan(&stratID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.pool.Exec(ctx,
+		`INSERT INTO fin_execution(id,strategy_ref,inst_id,notional_usd,state)
+		 VALUES($1,$2,'BTC-USDT-SWAP',100,'open')`, fakeCloseExecID, stratID); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.scanOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	if err := w.pool.QueryRow(ctx, `SELECT count(*) FROM fin_execution e
+		JOIN fin_position p ON p.execution_id=e.id
+		WHERE p.id=$1::bigint AND e.state='closed'`, posID).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("原仓 exec 行未关（sweepIdle 闸堵病灶）: n=%d err=%v", n, err)
+	}
+	var cn int
+	if err := w.pool.QueryRow(ctx,
+		"SELECT count(*) FROM fin_execution WHERE id=$1 AND state='closed'", fakeCloseExecID).Scan(&cn); err != nil || cn != 1 {
+		t.Fatalf("平仓 exec 行未关: n=%d err=%v", cn, err)
 	}
 }
