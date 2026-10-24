@@ -259,7 +259,9 @@ func run() error {
 		func(ctx context.Context) (*mt5.Client, error) { return mt5.OpenSession(ctx, pool, cfg) })
 	go wd.Run(ctx, errc)
 
+	// 总览活页（T-0067：service.go mountUI——静态面+JSON/SSE）。
 	mux := http.NewServeMux()
+	mountUI(mux, pool)
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
@@ -276,7 +278,7 @@ func run() error {
 			"net_bytes":  meter.Channels(),
 		})
 	})
-	mountCore(mux)
+	mountCore(mux, pool)
 
 	srv := &http.Server{Addr: listenAddr, Handler: mux, ReadHeaderTimeout: 10 * time.Second}
 	go func() {

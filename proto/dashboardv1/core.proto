@@ -4,13 +4,28 @@ package phase.dashboard.v1;
 
 option go_package = "phase/internal/gen/dashboardv1";
 
-// 首个 service（P1 骨架链路验证件）——cmd/core 实现并挂载于 :50051。
 service CoreService {
   rpc Ping(PingRequest) returns (PingResponse) {}
+  rpc Overview(OverviewRequest) returns (OverviewResponse) {}
+  rpc Watch(WatchRequest) returns (stream WatchEvent) {}
 }
 
 message PingRequest {}
-
-message PingResponse {
-  string status = 1;
+message PingResponse { string status = 1; }
+message OverviewRequest {}
+message OverviewResponse {
+  double nav_total = 1;
+  double pnl_today = 2;
+  double pnl_cum = 3;
+  string ts = 4;                 // 数据出生证——RFC3339
+  repeated DoingItem doing = 5;
+  repeated MoneyRow money = 6;   // 钱在哪
+  repeated string recent = 7;
+  repeated StaffRow staff = 8;
+  string alert = 9;              // 异常条（空=平静）
 }
+message DoingItem { string text = 1; string stamp = 2; }
+message MoneyRow { string label = 1; double amount = 2; }
+message StaffRow { string name = 1; string duty = 2; int32 state = 3; } // 0绿1琥珀2红
+message WatchRequest {}
+message WatchEvent { string kind = 1; string ts = 2; }
