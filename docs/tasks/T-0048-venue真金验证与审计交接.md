@@ -104,3 +104,11 @@ clientId 方言（okx-asset-funding:3,20）、envelope sCode/sMsg（okx-exec:34�
 - **补锚**：`TestLedgerCapZeroIntroduced`（无资/Δ≤0/正常/闲余不足四初态——零引入=零额度断言+门梄件 back>0/pu>1 零动线）、`TestBackCapZeroProceeds`（零所得/倒挂/正常/取小四初态）双 PASS。
 - 机检：build/vet 全树、gofmt、go test 全树（含两新锚）、check-lines exit 0 全绿。
 - 诚实边界（复审同判）：台账制补丁仍未 `-mut` 实跑——行为验证=下次真金 mutating 执行本身。
+
+## 10. 续作①落位（[角色:施工] @ 550ead4——OnOrderProfit 事件化）
+
+- `internal/mt5` Collector：`SubscribeOrderProfit`（回执=在册仓首拍，boot log）+`OnOrderProfit` 流 profitLoop 消费→`md_account_events` channel='order_profit'（USD，INSERT 自带 ev_account）；**值变才落**（venue ~1Hz 周期推、事件语义记变动）；profit 流死=会话级重连（send-before-cancel 保真因）。
+- ③项裁决=不适用：PHASE 无 account-monitor/querier 组件（NOX 病灶件），venue_readers 直读 md_account_events 无 REST 兜底径；skill 注记留作未来监控件戒律。
+- ②项部分落位：订阅回执携仓档已用（boot 在册仓数 log）；仓态首拍消费面后续议。
+- 机检：build/vet/gofmt/test 全绿（mt5 包 3 测试含 TestProfitDedup 锚）；collector.go 297 行压线过 check-lines。
+- 待复审：550ead4 diff。
