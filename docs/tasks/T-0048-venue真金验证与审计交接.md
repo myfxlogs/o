@@ -112,3 +112,19 @@ clientId 方言（okx-asset-funding:3,20）、envelope sCode/sMsg（okx-exec:34�
 - ②项部分落位：订阅回执携仓档已用（boot 在册仓数 log）；仓态首拍消费面后续议。
 - 机检：build/vet/gofmt/test 全绿（mt5 包 3 测试含 TestProfitDedup 锚）；collector.go 297 行压线过 check-lines。
 - 待复审：550ead4 diff。
+
+## 11. 部署后验证 runbook（merge 后由部署/复审席执行）
+
+**部署**（SG 192.229.85.35，`/opt/phase` master 树）：`git pull && go build ./cmd/core && 重启 core 服务`——汇市巡随主装配起。
+**健康判定**：
+- boot log 应见 `[mt5] order_profit 订阅回执: 在册 N 仓`（订阅败不阻塞——流免订阅自推，见 WARN 即可）；
+- `SELECT count(*) FROM md_account_events WHERE venue='mt5' AND channel='order_profit'`：持仓期应随值变增行（~每分钟级——venue 推帧+本地值变去重）；**空仓期零行=正常语义非缺岗**；
+- 持仓期抽查行形：`data` 携 `eq/avail/bal/margin/profit/margin_level/open/src='on_order_profit'`；
+- 断流演验（可选）：杀网关会话→汇市巡退避重连→重订阅+流重建（`stream_dead` 计数可见）。
+**行为首验窗口**：下一持仓期自然到达（含业主授权的真金验证谱）——勿为验证专开仓。
+**残尘在册**：PENGU 0.1856（<minSz）存交易户——记实保留，勿凑单清零。
+
+## 12. 复审增量范围（merge 前置）
+
+复审席增量看面：`9fb33b0` 打回返工（ledgerCap/backCap 无条件封顶+双零初态锚测试——对应裁决 mandate1）+ `550ead4` OnOrderProfit 事件化（client 两件+profitLoop+双流同体重连语义+去重谓词）+ `049de12` 文档回填。
+判据：①台账封顶是否真无条件（零引入=零额度的全初态推演）；②profitLoop 写径与 snapshotOnce 同表同构（md_account_events 既有 INSERT 面）——写形状已产验、新增的只是流喂源；③去重键是否覆盖所有可写字段（漏字段=丢变帧）。
