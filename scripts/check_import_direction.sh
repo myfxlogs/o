@@ -23,6 +23,10 @@ internal/data/okxws -> internal/platform/config
 internal/ledger -> internal/platform/config
 internal/ledger -> internal/platform/rejects
 internal/ledger/holding -> internal/platform/rejects
+internal/ledger/report -> internal/platform/config
+internal/ledger/report -> internal/platform/cryptoutil
+internal/ledger/report -> internal/platform/notify
+internal/ledger/report -> internal/platform/rejects
 internal/ledger/report -> internal/platform/roster
 internal/ledger -> internal/platform/roster
 internal/portfolio/lifecycle -> internal/platform/config
