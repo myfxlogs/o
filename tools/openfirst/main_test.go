@@ -12,6 +12,14 @@ import (
 func TestResolveStrategyDefaultScansID(t *testing.T) {
 	pool := testutil.Pool(t)
 	ctx := context.Background()
+	// fixture 自含：CI 测试实例无基线表（迁移登记表只载增量——fin_strategy 属 0007 未登记段）
+	if _, err := pool.Exec(ctx, `CREATE TABLE IF NOT EXISTS fin_strategy (
+		id bigserial PRIMARY KEY, inst_id text NOT NULL, template_ref text NOT NULL,
+		proposal_ref bigint, state text NOT NULL, notional_usd numeric NOT NULL,
+		entered_at timestamptz NOT NULL DEFAULT now(), criteria jsonb NOT NULL DEFAULT '{}',
+		created_at timestamptz NOT NULL DEFAULT now(), venue text NOT NULL DEFAULT 'okx')`); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := pool.Exec(ctx, `INSERT INTO fin_strategy(inst_id,template_ref,state,notional_usd,venue)
 		VALUES('BTC-USDT-SWAP','tpl','probe',100,'okx')`); err != nil {
 		t.Fatal(err)
