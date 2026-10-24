@@ -2,10 +2,14 @@
   "name": "phase-web",
   "private": true,
   "version": "0.0.0",
+  "type": "module",
   "scripts": {
-    "build": "echo 'web 骨架未落位（前端全新设计=P4 票）'"
+    "dev": "vite",
+    "build": "vite build"
   },
   "devDependencies": {
-    "@bufbuild/protoc-gen-es": "2.16.0"
+    "@bufbuild/protoc-gen-es": "2.16.0",
+    "typescript": "~5.6.3",
+    "vite": "^5.4.10"
   }
 }

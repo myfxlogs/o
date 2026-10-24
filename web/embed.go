@@ -1,7 +1,8 @@
-// Package web 总览静态面 embed（T-0067：设计稿活页=钦定视觉锚直开径）。
+// Package web 总览静态面 embed（T-0067：dist=npm run build 产物——
+// gitignore 常态，CI 序 npm build 在 go build 前钦定）。
 package web
 
 import "embed"
 
-//go:embed page
-var Page embed.FS
+//go:embed dist
+var Dist embed.FS
