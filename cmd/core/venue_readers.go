@@ -51,8 +51,8 @@ func attachVenueReaders(riskGate *risk.Gate, wd *guard.Warden, ledgerR *ledger.R
 			}
 			if jerr := json.Unmarshal(data, &top); jerr == nil && len(top.Details) > 0 {
 				for _, d := range top.Details {
+					eq += parseNum(d.EqUsd) // 全币行求和=交易户总 USD 权益（持仓含现货值）
 					if d.Ccy == "USDT" {
-						eq = parseNum(d.EqUsd)
 						avail = parseNum(d.AvailBal)
 					}
 				}
@@ -71,8 +71,8 @@ func attachVenueReaders(riskGate *risk.Gate, wd *guard.Warden, ledgerR *ledger.R
 		_ = json.Unmarshal(data, &top2)
 		if len(top2.Details) > 0 {
 			for _, d := range top2.Details {
+				eq += parseNum(d.EqUsd) // 全币行求和=总 USD 权益
 				if d.Ccy == "USDT" {
-					eq = parseNum(d.EqUsd)
 					avail = parseNum(d.AvailBal)
 				}
 			}
@@ -80,9 +80,8 @@ func attachVenueReaders(riskGate *risk.Gate, wd *guard.Warden, ledgerR *ledger.R
 		}
 		return parseNum(top2.EqUsd), parseNum(top2.AvailBal), nil
 	}
-	// tradingVals 帧先 REST 兜底读件（T-0058 根修：帧缺席/eqUsd 未到=静默丢腿
-	// 假差病灶——帧败/eq=0→/account/balance 兜底 details eqUsd/availBal；
-	// 兜底再败=err 上抛 fail-closed 禁部分聚合）。
+	// tradingVals 帧先 REST 兜底读件（T-0058 根修+T-0071 全币求和——帧败/
+	// eq=0→/account/balance 兜底；兜底再败=err 上抛 fail-closed 禁部分聚合）。
 	tradingVals := func(ctx context.Context) (eq, avail float64, err error) {
 		if eq, avail, err = frameVals(ctx); err == nil && eq != 0 {
 			return eq, avail, nil
@@ -102,11 +101,15 @@ func attachVenueReaders(riskGate *risk.Gate, wd *guard.Warden, ledgerR *ledger.R
 			return 0, 0, fmt.Errorf("balance parse: %v", uerr)
 		}
 		for _, d := range rows[0].Details {
+			eq += parseNum(d.EqUsd) // 全币行求和=总 USD 权益（REST 兜底同口径）
 			if d.Ccy == "USDT" {
-				return parseNum(d.EqUsd), parseNum(d.AvailBal), nil
+				avail = parseNum(d.AvailBal)
 			}
 		}
-		return 0, 0, fmt.Errorf("USDT details 缺席")
+		if eq == 0 {
+			return 0, 0, fmt.Errorf("details 缺席")
+		}
+		return eq, avail, nil
 	}
 	if okcli == nil {
 		log.Printf("WARN: venue 现读件未挂接（okx 凭据缺席）——risk equity/dd 硬线/对账 fail-closed 让位")
