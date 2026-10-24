@@ -114,10 +114,16 @@ func run() error {
 			}
 		}
 	}
-	alerter := notify.NewAlerter(feishuCli, func() string {
+	// typed-nil 主修（T-0032）：凭据缺席传 nil 接口非 (*FeishuClient)(nil)——接口装
+	// 类型化 nil 指针时 ==nil 判 false，SendText 调 nil receiver 即 panic（SG 崩环实证）。
+	var sender notify.Sender
+	if feishuCli != nil {
+		sender = feishuCli
+	}
+	alerter := notify.NewAlerter(sender, func() string {
 		v, _ := cfg.GetString("feishu.chat_id")
 		return v
-	}(), func() bool { v, _ := cfg.GetBool("notify.feishu.enabled"); return v })
+	}, func() bool { v, _ := cfg.GetBool("notify.feishu.enabled"); return v })
 	// kill_switch 状态变迁推（true/false 各一报——轮询 config 代次，不重复）。
 	go func() {
 		prev, _ := cfg.GetBool("risk.kill_switch")
@@ -210,7 +216,7 @@ func run() error {
 	// 账本域：司账+核账（入账结算+对账环——消费事实行不触发钱动作）。
 	{
 		mk, _ := config.ReadMasterKey()
-		go report.NewRunner(pool, report.NewPusher(pool, cfg, mk)).Run(ctx, errc)
+		go report.NewRunner(pool, report.NewPusher(pool, cfg, mk)).WithConfig(cfg).Run(ctx, errc)
 	}
 	go ledger.NewRunner(pool, cfg).WithAlerter(alerter).Run(ctx, errc)
 

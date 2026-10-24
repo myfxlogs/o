@@ -16,11 +16,12 @@ import (
 	"phase/internal/platform/rejects"
 )
 
-// Pusher 推送岗（cli 装配注入——凭据缺席=nil 降级不推不炸）。
+// Pusher 推送岗（cli=Sender 接口注入——凭据缺席=nil 降级不推不炸；接口面防
+// typed-nil 同病灶：装配只装非 nil 具体件，测试注假件）。
 type Pusher struct {
 	cfg  *config.Client
 	pool *pgxpool.Pool
-	cli  *notify.FeishuClient
+	cli  notify.Sender
 	rej  *rejects.Door
 }
 
@@ -84,4 +85,26 @@ func (p *Pusher) MaybePush(ctx context.Context, period string, m map[string]any,
 
 func boundsLabel(period string) string {
 	return BoundsOf(period, time.Now()).Start.Format("2006-01-02")
+}
+
+// PushText 通用文本推送（日历日推径——enabled/chat_id 缺=降级计数同 MaybePush）。
+func (p *Pusher) PushText(ctx context.Context, text string) {
+	if p.cli == nil {
+		p.rej.Inc("push_degraded")
+		return
+	}
+	en, err := p.cfg.GetBool("notify.feishu.enabled")
+	if err != nil || !en {
+		p.rej.Inc("push_degraded")
+		return
+	}
+	chatID, err := p.cfg.GetString("feishu.chat_id")
+	if err != nil || chatID == "" {
+		p.rej.Inc("push_degraded")
+		return
+	}
+	if _, err := p.cli.SendText(ctx, chatID, text); err != nil {
+		p.rej.Inc("push_err")
+		log.Printf("[report] feishu push err: %v", err)
+	}
 }
