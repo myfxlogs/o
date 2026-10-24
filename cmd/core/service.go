@@ -28,8 +28,8 @@ func (coreService) Ping(context.Context, *dashboardv1.PingRequest) (*dashboardv1
 // Overview 总览四联活读（所见即所得——零快照零缓存；数据出生证=查询时戳）。
 func (c coreService) Overview(ctx context.Context, _ *dashboardv1.OverviewRequest) (*dashboardv1.OverviewResponse, error) {
 	o := &dashboardv1.OverviewResponse{Ts: time.Now().UTC().Format(time.RFC3339)}
-	// T-0072 口径正名：nav=venue 帧总权益（account/balance_and_position
-	// details 全币 eqUsd 求和——与对账同源非现金流累加；deposit 本金不计资产）。
+	// T-0072+0073 口径正名：nav=venue 帧总权益（交易户 details 全币 eqUsd
+	// 求和）+资金户/Earn 余额——全账户合计非交易户窄口径；deposit 本金不计资产。
 	var frame json.RawMessage
 	if err := c.pool.QueryRow(ctx, `SELECT data FROM md_account_events
 		WHERE channel IN ('account','balance_and_position') ORDER BY ts DESC LIMIT 1`).Scan(&frame); err == nil {
@@ -47,6 +47,18 @@ func (c coreService) Overview(ctx context.Context, _ *dashboardv1.OverviewReques
 				}
 			} else {
 				o.NavTotal, _ = strconv.ParseFloat(top.EqUsd, 64)
+			}
+		}
+	}
+	// 资金户+Earn 面（T-0073：earn_parking 帧 earn_bal+funding 帧 top 值——
+	// 缺帧=0 不误报，与「钱在哪」卡同源自洽）。
+	var earnRaw json.RawMessage
+	if err := c.pool.QueryRow(ctx, `SELECT data FROM md_account_events
+		WHERE channel='earn_parking' ORDER BY ts DESC LIMIT 1`).Scan(&earnRaw); err == nil {
+		var ev map[string]json.RawMessage
+		if json.Unmarshal(earnRaw, &ev) == nil {
+			if v, err := strconv.ParseFloat(strings.Trim(string(ev["earn_bal"]), `"`), 64); err == nil {
+				o.NavTotal += v
 			}
 		}
 	}
