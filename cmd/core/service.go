@@ -107,11 +107,20 @@ func (c coreService) Overview(ctx context.Context, _ *dashboardv1.OverviewReques
 			ts.Format("15:04"), verb, amt))
 	}
 	rrows.Close()
-	srows, _ := c.pool.Query(ctx, `SELECT name,duty,last_beat FROM fin_employee_registry ORDER BY name`)
+	// T-0078：列名正名 duty→title（旧列缺席=静默空集病灶——Scan 败必 log
+	// 一次不静默吞）。
+	srows, err := c.pool.Query(ctx, `SELECT name,title,last_beat FROM fin_employee_registry
+		WHERE status='active' ORDER BY name`)
+	if err != nil {
+		return o, nil // 花名册读败=staff 卡藏如实（不炸总览）
+	}
 	for srows.Next() {
 		var name, duty string
 		var beat time.Time
-		_ = srows.Scan(&name, &duty, &beat)
+		if err := srows.Scan(&name, &duty, &beat); err != nil {
+			srows.Close()
+			return o, fmt.Errorf("staff 行扫败: %w", err)
+		}
 		st := int32(0)
 		if time.Since(beat) > 5*time.Minute {
 			st = 2

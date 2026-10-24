@@ -106,15 +106,12 @@ t2.textContent=b.className?'🌙 暗色':'☀️ 亮色'}
     </div>
   </div>
 
-  <div class="card staff" id="c-staff" style="display:none">
-    <h3>员 工 · 16 在 岗</h3>
-    <div id="staff-body"></div>
-  <div class="staffline"><span class="dot"></span>执事 · 交易执行</div>
-    <div class="staffline"><span class="dot"></span>仓巡 · 平仓看护</div>
-    <div class="staffline"><span class="dot"></span>司账 · 入账结算</div>
-    <div class="staffline"><span class="dot"></span>核账 · 对账</div>
-    <div class="staffline"><span class="dot" style="background:var(--warn);animation-duration:.8s"></span>集使 · 心跳迟滞 2m</div>
-    <div class="staffline" style="color:var(--dim);font-size:12px">… 展开架构图 ▸</div>
+  <div class="card staff" id="c-staff" style="display:none;grid-column:span 12;cursor:pointer">
+    <div id="staff-sum" onclick="document.getElementById('staff-graph').style.display=
+      document.getElementById('staff-graph').style.display?'':'block';this.style.display=
+      this.style.display?'':'none'"></div>
+    <div id="staff-graph" style="display:none" onclick="this.style.display='none';
+      document.getElementById('staff-sum').style.display=''"></div>
   </div>
 
   <div class="card skel" style="grid-column:span 7">
