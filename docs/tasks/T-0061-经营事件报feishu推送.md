@@ -39,3 +39,11 @@
 2. 部署后 T-0056 试单剩余段（开仓/结算/平仓）在 feishu 实收——本票的天然实户锚。
 3. 告警径回归：原 al.Alert 推送不受影响（介入级与事件级两信道并存）。
 4. build/vet/test 绿；无新增周期环（架构约束硬项）。
+
+## 决策席验收返工（@936652b 打回）
+
+1. `pushOpened`：`fin_strategy.template_ref`（text）扫入 `*int64`——Scan 必败且静默吞（`_ =`），策略列恒显 `?`。按 text 扫或 `COALESCE(s.template_ref,'')` 文本化。
+2. `pushFunding` 游标 in-mem 无播种：进程重启→cursor=0→`id>0`→全历史 funding_settle 重推一遍。boot 首拍 `SELECT max(id)` 置基（或改 now()-interval 时间窗与另两径一致）。
+3. 迁移件头注 `-- 0031` 误标为 0031（文件为 0032）——注释对齐。
+
+返工后重发收口，决策席复验合并。
