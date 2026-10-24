@@ -80,13 +80,41 @@ func attachVenueReaders(riskGate *risk.Gate, wd *guard.Warden, ledgerR *ledger.R
 		}
 		return parseNum(top2.EqUsd), parseNum(top2.AvailBal), nil
 	}
+	// tradingVals 帧先 REST 兜底读件（T-0058 根修：帧缺席/eqUsd 未到=静默丢腿
+	// 假差病灶——帧败/eq=0→/account/balance 兜底 details eqUsd/availBal；
+	// 兜底再败=err 上抛 fail-closed 禁部分聚合）。
+	tradingVals := func(ctx context.Context) (eq, avail float64, err error) {
+		if eq, avail, err = frameVals(ctx); err == nil && eq != 0 {
+			return eq, avail, nil
+		}
+		raw, rerr := okcli.Get(ctx, "/api/v5/account/balance")
+		if rerr != nil {
+			return 0, 0, fmt.Errorf("帧缺+REST 兜底败: %w", rerr)
+		}
+		var rows []struct {
+			Details []struct {
+				Ccy      string `json:"ccy"`
+				EqUsd    string `json:"eqUsd"`
+				AvailBal string `json:"availBal"`
+			} `json:"details"`
+		}
+		if uerr := json.Unmarshal(raw, &rows); uerr != nil || len(rows) == 0 {
+			return 0, 0, fmt.Errorf("balance parse: %v", uerr)
+		}
+		for _, d := range rows[0].Details {
+			if d.Ccy == "USDT" {
+				return parseNum(d.EqUsd), parseNum(d.AvailBal), nil
+			}
+		}
+		return 0, 0, fmt.Errorf("USDT details 缺席")
+	}
 	if okcli == nil {
 		log.Printf("WARN: venue 现读件未挂接（okx 凭据缺席）——risk equity/dd 硬线/对账 fail-closed 让位")
 		return
 	}
-	// okx 权益=事件帧现读（push-on-change——不判帧龄）。
+	// okx 权益=帧先 REST 兜底现读（T-0058：帧龄不判陈但帧缺必兜底）。
 	liveEq := func(ctx context.Context) (float64, error) {
-		eq, _, err := frameVals(ctx)
+		eq, _, err := tradingVals(ctx)
 		return eq, err
 	}
 	riskGate.WithEquity(func(ctx context.Context, venue string) (float64, error) {
@@ -105,28 +133,19 @@ func attachVenueReaders(riskGate *risk.Gate, wd *guard.Warden, ledgerR *ledger.R
 		if venue != "okx" {
 			return 0, fmt.Errorf("venue 无权益件: %s", venue)
 		}
-		// T-0050 停泊态口径：venue 权益=交易户帧 eq+funding 户+Earn 停泊（D-0006
+		// T-0050 停泊态口径：venue 权益=交易户+funding 户+Earn 停泊（D-0006
 		// 资本可及面——闲资默认停 Earn，只读交易户 eq=停泊态下集中度闸永拒）。
-		eq, _, err := frameVals(ctx)
+		// T-0058 根修：三分量任一读败=err 上抛 fail-closed（静默跳腿=假差病灶）。
+		eq, _, err := tradingVals(ctx)
 		if err != nil {
 			return 0, err
 		}
-		if okcli != nil {
-			if bals, err := okcli.AssetBalances(ctx); err == nil {
-				for _, b := range bals {
-					eq += okxexec.ParseF(b.Bal)
-				}
-			}
-			if sav, err := okcli.SavingsBalance(ctx); err == nil {
-				var rows []struct {
-					Amt string `json:"amt"`
-				}
-				if json.Unmarshal(sav, &rows) == nil {
-					for _, r2 := range rows {
-						eq += okxexec.ParseF(r2.Amt)
-					}
-				}
-			}
+		fs := map[[2]string]float64{}
+		if err := fundSaveBalances(ctx, okcli, fs); err != nil {
+			return 0, err
+		}
+		for _, v := range fs {
+			eq += v
 		}
 		return eq, nil
 	})
@@ -154,39 +173,58 @@ func attachVenueReaders(riskGate *risk.Gate, wd *guard.Warden, ledgerR *ledger.R
 		return out, nil
 	})
 	// 对账聚合=帧 eq+REST funding+savings（无推送户）+mt5 AccountSummary。
+	// T-0058 根修：三分量任一读败=整读 err（对账轮跳过非假差——
+	// 「读件缺席跳过本轮」与「真差超限」两文本分径）。
 	ledgerR.WithBalances(func(ctx context.Context) (map[[2]string]float64, error) {
 		out := map[[2]string]float64{}
-		if eq, _, err := frameVals(ctx); err == nil && eq != 0 {
-			out[[2]string{"okx", "USDT"}] += eq
+		eq, _, err := tradingVals(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("trading 读败: %w", err)
 		}
-		if okcli != nil {
-			if bals, err := okcli.AssetBalances(ctx); err == nil {
-				for _, b := range bals {
-					out[[2]string{"okx", b.Ccy}] += okxexec.ParseF(b.Bal)
-				}
-			}
-			if sav, err := okcli.SavingsBalance(ctx); err == nil {
-				var rows []struct {
-					Ccy string `json:"ccy"`
-					Amt string `json:"amt"`
-				}
-				if json.Unmarshal(sav, &rows) == nil {
-					for _, r2 := range rows {
-						out[[2]string{"okx", r2.Ccy}] += okxexec.ParseF(r2.Amt)
-					}
-				}
-			}
+		out[[2]string{"okx", "USDT"}] += eq
+		if err := fundSaveBalances(ctx, okcli, out); err != nil {
+			return nil, err
 		}
 		if openMt5 != nil {
-			if cl, err := openMt5(ctx); err == nil {
-				if e, _, _, err := cl.AccountSummary(ctx); err == nil {
-					out[[2]string{"mt5", "USD"}] = e
-				}
-				cl.Close()
+			cl, cerr := openMt5(ctx)
+			if cerr != nil {
+				return nil, fmt.Errorf("mt5 读败: %w", cerr)
 			}
+			e, _, _, aerr := cl.AccountSummary(ctx)
+			cl.Close()
+			if aerr != nil {
+				return nil, fmt.Errorf("mt5 AccountSummary 读败: %w", aerr)
+			}
+			out[[2]string{"mt5", "USD"}] = e
 		}
 		return out, nil
 	})
+}
+
+// fundSaveBalances funding+savings 现读聚（T-0058：任一读败=err 上抛——静默跳腿禁）。
+func fundSaveBalances(ctx context.Context, okcli *okxexec.Client, out map[[2]string]float64) error {
+	bals, err := okcli.AssetBalances(ctx)
+	if err != nil {
+		return fmt.Errorf("funding 读败: %w", err)
+	}
+	for _, b := range bals {
+		out[[2]string{"okx", b.Ccy}] += okxexec.ParseF(b.Bal)
+	}
+	sav, err := okcli.SavingsBalance(ctx)
+	if err != nil {
+		return fmt.Errorf("savings 读败: %w", err)
+	}
+	var rows []struct {
+		Ccy string `json:"ccy"`
+		Amt string `json:"amt"`
+	}
+	if json.Unmarshal(sav, &rows) != nil {
+		return fmt.Errorf("savings parse")
+	}
+	for _, r2 := range rows {
+		out[[2]string{"okx", r2.Ccy}] += okxexec.ParseF(r2.Amt)
+	}
+	return nil
 }
 
 func parseNum(s string) float64 {
@@ -198,11 +236,14 @@ func parseNum(s string) float64 {
 // okxAvailFromEvents 交易户可用额=md_account_events 最新帧 details availBal
 // （T-0048 返修③：depositIdle 自 AcctTrading 摆钱——资金户=错户已纠；
 // push-on-change 帧龄不判陈，陈度归 WS 活性件管）。
-func okxAvailFromEvents(ctx context.Context, pool *pgxpool.Pool) (float64, error) {
+func okxAvailFromEvents(ctx context.Context, pool *pgxpool.Pool, okcli *okxexec.Client) (float64, error) {
 	var data json.RawMessage
 	if err := pool.QueryRow(ctx, `SELECT data FROM md_account_events
 		WHERE channel='account' ORDER BY ts DESC LIMIT 1`).Scan(&data); err != nil {
-		return 0, err
+		if okcli == nil {
+			return 0, err
+		}
+		return okcli.TradingAvailBal(ctx, "USDT") // 帧缺→REST 兜底（T-0058）
 	}
 	var top struct {
 		Details []struct {
@@ -217,6 +258,9 @@ func okxAvailFromEvents(ctx context.Context, pool *pgxpool.Pool) (float64, error
 		if d.Ccy == "USDT" {
 			return parseNum(d.AvailBal), nil
 		}
+	}
+	if okcli != nil {
+		return okcli.TradingAvailBal(ctx, "USDT") // USDT 行缺=REST 兜底
 	}
 	return 0, fmt.Errorf("USDT 行缺席")
 }

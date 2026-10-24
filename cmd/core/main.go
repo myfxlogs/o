@@ -152,7 +152,7 @@ func run() error {
 		// T-0048 返修②③：闲余=account 帧 details availBal（交易户口径——
 		// depositIdle 自 AcctTrading 摆钱；push-on-change 帧龄不判陈）。
 		earnW.AttachIdle(func(ctx context.Context) (float64, error) {
-			return okxAvailFromEvents(ctx, pool)
+			return okxAvailFromEvents(ctx, pool, okcli)
 		})
 		// 交易域首岗：执事（Executor=okxexec 唯一 venue 径——凭据与私流守同源解出）。
 		execR := execution.NewRunner(pool, cfg,
