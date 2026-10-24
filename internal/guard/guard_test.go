@@ -60,16 +60,21 @@ func setup(t *testing.T) (context.Context, *Warden, *fakeExec) {
 	return ctx, NewWarden(pool, cfg, risk.NewGate(pool, cfg), fx), fx
 }
 
-// fakeExec 执行缝假件——录调用、可编程序失败（execID 定值 999 供衍生仓关闭断言）。
+// fakeExec 执行缝假件——录调用、可编程序失败（execID 定值 999 供衍生仓关闭断言；
+// failFirstN=首 N 次瞬时败——dd 续平循环锚用）。
 type fakeExec struct {
-	calls []CloseSpec
-	fail  error
+	calls      []CloseSpec
+	fail       error
+	failFirstN int
 }
 
 const fakeCloseExecID int64 = 999
 
 func (f *fakeExec) ExecuteClose(_ context.Context, spec CloseSpec) (int64, error) {
 	f.calls = append(f.calls, spec)
+	if f.failFirstN > 0 && len(f.calls) <= f.failFirstN {
+		return 0, errors.New("transient venue fail")
+	}
 	return fakeCloseExecID, f.fail
 }
 

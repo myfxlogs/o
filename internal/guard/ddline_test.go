@@ -218,3 +218,63 @@ func TestDDCaptureAppendsCurve(t *testing.T) {
 	}
 	_ = fmt.Sprint(src)
 }
+
+// TestDDRetryAfterFirstFail 触线续平循环：首败→次拍自动重平→closed（打回返工锚①
+// ——敞口禁在最大回撤时刻无限期开放）。
+func TestDDRetryAfterFirstFail(t *testing.T) {
+	ctx, w, fx := setup(t)
+	fx.failFirstN = 1 // 首平瞬时败
+	ddSeed(t, ctx, w, 96, map[string]float64{"'2 days'": 100})
+	posID := mkPosition(t, ctx, w, "live", 1, time.Now().Add(-time.Hour))
+	w.ddScan(ctx) // 触发拍：落闸+首平败（close_failed，attempts=1）
+	if !killSwitchDB(t, ctx, w) || len(fx.calls) != 1 {
+		t.Fatalf("触发拍 kill=%v calls=%d", killSwitchDB(t, ctx, w), len(fx.calls))
+	}
+	if closed, _, _ := posClosed(t, ctx, w, posID); closed {
+		t.Fatal("首败不应已平")
+	}
+	w.ddScan(ctx) // 次拍：触线态续平（节拍窗内 attempts=1<3）→成
+	if len(fx.calls) != 2 {
+		t.Fatalf("次拍未自动重平: calls=%d", len(fx.calls))
+	}
+	closed, state, trig := posClosed(t, ctx, w, posID)
+	if !closed || state != "closed" || trig != ddTrigger {
+		t.Fatalf("重平后 closed=%v state=%v trig=%v", closed, state, trig)
+	}
+	if !killSwitchDB(t, ctx, w) {
+		t.Fatal("闸不应复位")
+	}
+	w.ddScan(ctx) // 全平后归静默：无第三平
+	if len(fx.calls) != 2 {
+		t.Fatalf("全平后重复动作: calls=%d", len(fx.calls))
+	}
+}
+
+// TestDDExhaustedPersistentAlert 重试上限耗尽→持续告警不静默（打回返工锚②；
+// tend 自身耗尽升级单次，dd 续平面每拍声张耗尽仓）。
+func TestDDExhaustedPersistentAlert(t *testing.T) {
+	ctx, w, fx := setup(t)
+	fx.failFirstN = 100 // 全败
+	ddSeed(t, ctx, w, 96, map[string]float64{"'2 days'": 100})
+	mkPosition(t, ctx, w, "live", 1, time.Now().Add(-time.Hour))
+	for i := 0; i < 3; i++ { // 三拍耗尽上限（retry_max_attempts=3）
+		w.ddScan(ctx)
+	}
+	if len(fx.calls) != 3 {
+		t.Fatalf("耗尽前平仓尝试=%d（应 3）", len(fx.calls))
+	}
+	if w.rej.Snapshot()["guard/close_gave_up"] != 1 {
+		t.Fatalf("tend 耗尽升级=%v（应单次）", w.rej.Snapshot()["guard/close_gave_up"])
+	}
+	w.ddScan(ctx)
+	if w.rej.Snapshot()["guard/dd_close_exhausted"] != 1 {
+		t.Fatal("耗尽仓首拍声张未计")
+	}
+	w.ddScan(ctx) // 后续拍持续告警（禁静默漂移）
+	if w.rej.Snapshot()["guard/dd_close_exhausted"] != 2 {
+		t.Fatalf("持续告警未逐拍声张: %v", w.rej.Snapshot()["guard/dd_close_exhausted"])
+	}
+	if len(fx.calls) != 3 {
+		t.Fatal("耗尽后不应再打 venue")
+	}
+}

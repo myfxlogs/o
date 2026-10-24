@@ -67,7 +67,7 @@ func NewWarden(pool *pgxpool.Pool, cfg *config.Client, gate *risk.Gate, ex Execu
 	return &Warden{pool: pool, cfg: cfg, gate: gate, ex: ex,
 		rej: rejects.New("guard", "missing_param", "facts_missing", "leg_anomaly",
 			"close_denied", "close_failed", "close_gave_up", "write_err",
-			"dd_missing_param", "equity_missing", "equity_stale", "dd_no_base", "dd_hardline_tripped")}
+			"dd_missing_param", "equity_missing", "equity_stale", "dd_no_base", "dd_hardline_tripped", "dd_close_exhausted")}
 }
 
 // Run 在岗登记+心跳+哨戒循环（产出窗=fin_guard_close 行/fin_position.closed_at 迁移

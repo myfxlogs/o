@@ -45,7 +45,8 @@ func (w *Warden) ddScan(ctx context.Context) {
 	if tripped, err := w.killSwitchOn(ctx); err != nil {
 		return
 	} else if tripped {
-		return // 触线态已立：全平由 tend 节拍收尾，本件无自动复位不重复动作
+		w.ddResume(ctx) // 触线态：仍有在仓行则每拍续平（节拍/上限走热启键），全平后归静默
+		return
 	}
 	peak, full, err := w.windowPeak(ctx, days)
 	if err != nil {
@@ -73,7 +74,7 @@ func (w *Warden) ddScan(ctx context.Context) {
 		seg = "起点至今 HWM（史不足窗口）"
 	}
 	log.Printf("ALERT [guard] ERROR 回撤硬线触发：dd=%.4f ≥ %.4f（%s，peak=%.2f cur=%.2f）——kill_switch 落闸+逐仓全平，复盘后显式翻闸", dd, thr, seg, peak, cur)
-	w.forceCloseAll(ctx)
+	w.ddResume(ctx) // 触发拍即首轮续平（首败次拍起按节拍重入）
 }
 
 // captureEquity 净权益采点（unified 快照行 equity→md_equity_curve 事实行；
@@ -133,18 +134,41 @@ func (w *Warden) killSwitchOn(ctx context.Context) (bool, error) {
 	return s == "true", nil
 }
 
-// forceCloseAll 触线全平：所有在仓行走 dd_30d 强制触发径（复用 tend——过闸/反向
-// 原子平/节拍重试/耗尽升级；close 径 kill_switch 已落不拦——T-0021 语义）。
-func (w *Warden) forceCloseAll(ctx context.Context) {
+// ddResume 触线态每拍续平循环：仍可平的仓（节拍/上限走热启键）继续 dd_30d 强制径；
+// 上限耗尽的仓持续告警不静默（敞口在最大回撤时刻禁无限期开放）；全平后归静默
+// （不重复落闸——dd_hardline_tripped 计数只加一次，触发拍已计）。
+func (w *Warden) ddResume(ctx context.Context) {
+	backoff, maxAtt, err := w.retryKeys()
+	if err != nil {
+		w.rej.Inc("dd_missing_param")
+		log.Printf("ALERT [guard] 触线态重试键缺（%v）——续平停，人工介入", err)
+		return
+	}
+	// 耗尽仓持续告警（在仓行 attempts≥上限=平不掉——每拍声张，禁静默漂移）。
+	var stuck int
+	if err := w.pool.QueryRow(ctx, `SELECT count(*) FROM fin_position p
+		LEFT JOIN fin_guard_close g ON g.position_id = p.id
+		WHERE p.closed_at IS NULL AND COALESCE(g.attempts,0) >= $1`, maxAtt).Scan(&stuck); err != nil {
+		w.rej.Inc("write_err")
+		return
+	}
+	if stuck > 0 {
+		w.rej.Inc("dd_close_exhausted")
+		log.Printf("ALERT [guard] ERROR 回撤触线平仓重试耗尽——%d 仓敞口仍开，人工介入", stuck)
+	}
+	// 仍可平仓（节拍窗内）续平。
 	rows, err := w.pool.Query(ctx, `SELECT p.id, p.execution_id, p.strategy_ref, p.inst_id,
 		p.notional_usd, p.opened_at, COALESCE(g.attempts,0), COALESCE(s.state,'')
 		FROM fin_position p
 		LEFT JOIN fin_guard_close g ON g.position_id = p.id
 		LEFT JOIN fin_strategy s ON s.id = p.strategy_ref
-		WHERE p.closed_at IS NULL AND COALESCE(g.state,'open') <> 'closed'`)
+		WHERE p.closed_at IS NULL AND COALESCE(g.state,'open') <> 'closed'
+		  AND COALESCE(g.attempts,0) < $1
+		  AND (g.last_try_at IS NULL OR now() - g.last_try_at >= make_interval(secs => $2))`,
+		maxAtt, backoff)
 	if err != nil {
 		w.rej.Inc("write_err")
-		log.Printf("ALERT [guard] 触线全平扫仓败（%v）——人工升级", err)
+		log.Printf("ALERT [guard] 触线续平扫仓败（%v）——人工升级", err)
 		return
 	}
 	var batch []posRow
@@ -160,6 +184,6 @@ func (w *Warden) forceCloseAll(ctx context.Context) {
 	}
 	rows.Close()
 	for _, p := range batch {
-		w.tend(ctx, p, 0, ddTrigger)
+		w.tend(ctx, p, maxAtt, ddTrigger)
 	}
 }
