@@ -58,6 +58,10 @@
 - 「将会话纪要规程化」→ T-0049：collab.md 增 §10 会话尾三步机械门（纪要落 dialogue.md/事实归位/提交即推送）——决策席自执行闭环。
 - T-0050 立：funding-hedge 真钱试单（首仓序④执行化）——$500 名义上限、Earn 动态底、live_switch 本单授权。
 
+### 追加④（T-0051 杠杆写面）
+
+- 业主令「okx可以通过api key调整杠杆，先做测试再做skills」→ T-0051 立并实测完毕：cross/isolated 双侧行为、posSide 必填方言、59102 壳码全入 okx-account；okxexec 补 Post 封装。终态三侧归 3x。
+
 ### 追加⑤（T-0053 决策）
 
 - 复审席 §11 实录移交：SG 汇市巡 OpenSession 静默悬挂（亲证：grpc.NewClient 懒拨号+Connect 无死线）。裁：立 T-0053 中优——fail-silent 占岗=roster 完整性洞，不挡 T-0050 并行。
