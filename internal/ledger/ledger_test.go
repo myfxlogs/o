@@ -138,3 +138,48 @@ func TestReconcileMultiSubAccountAggregated(t *testing.T) {
 		t.Fatal("真差不告警=漏报")
 	}
 }
+
+// T-0055 锚①：Earn 利息事件化入账——bootstrap 播种零入账；累计涨→interest 行
+// 落账（source=事件行）；涨不足半分不落。
+func TestPostInterest(t *testing.T) {
+	pool := testutil.Pool(t)
+	ctx := context.Background()
+	if err := pgstore.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, "TRUNCATE fin_cashflow"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, "DELETE FROM md_account_events WHERE channel='earn_interest'"); err != nil {
+		t.Fatal(err)
+	}
+	r := NewRunner(pool, config.New(pool))
+	ens := map[string]float64{"USDT": 72.22}
+	r.earnings = func(ctx context.Context) (map[string]float64, error) { return ens, nil }
+	r.postInterest(ctx) // bootstrap：播种事件行零入账
+	var n int
+	if err := pool.QueryRow(ctx, "SELECT count(*) FROM fin_cashflow WHERE kind='interest'").Scan(&n); err != nil || n != 0 {
+		t.Fatalf("bootstrap 应零入账: n=%d err=%v", n, err)
+	}
+	ens["USDT"] = 72.2245
+	r.postInterest(ctx) // delta 0.0045 < 0.005 不落
+	if err := pool.QueryRow(ctx, "SELECT count(*) FROM fin_cashflow WHERE kind='interest'").Scan(&n); err != nil || n != 0 {
+		t.Fatalf("应计不足半分不落: n=%d", n)
+	}
+	ens["USDT"] = 72.2312
+	r.postInterest(ctx) // delta ≥0.005 落账
+	var amt float64
+	var src int64
+	var tbl string
+	if err := pool.QueryRow(ctx, `SELECT amount,source_ref,source_table FROM fin_cashflow WHERE kind='interest'`).
+		Scan(&amt, &src, &tbl); err != nil || amt < 0.005 || tbl != "md_account_events" || src == 0 {
+		t.Fatalf("interest 行: amt=%v src=%v tbl=%s err=%v", amt, src, tbl, err)
+	}
+}
+
+// T-0055 锚②：kind 闭集含 interest/recon_adjust（迁移 0030 后语义）。
+func TestInterestKindsInClosedSet(t *testing.T) {
+	if !kinds["interest"] || !kinds["recon_adjust"] {
+		t.Fatal("interest/recon_adjust 应在 kind 闭集")
+	}
+}
