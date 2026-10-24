@@ -40,3 +40,8 @@ build/vet/gofmt/test 全量 / -race（trading+openfirst）/ import-direction（5
 
 ### 能力账
 skills/okx-exec 「下单方言」补 tgtCcy 方言坑条目（同票同修，D-641 钩）。
+
+## 返修（决策令 2026-10-24）：APIError 分码族定态
+- `placeAndResolve` envelope 拒分流：`51` 前缀（参数/业务拒族）=确定单未建→absent+拒码留痕、**禁查单**；非 `51`（50004 超时/50011 限速/50013 系统忙等）=歧态势→**留痕透传（vc/vm）后仍走 Resolve 定真态**，定态结果行（filled/ack/ambiguous）均带拒码。
+- 返修锚两枚绿：`TestPlaceAPIError51FamilyNoResolve`（51016→failed+留痕+resolveCalls=0）、`TestPlaceAPIErrorNon51FamilyResolves`（50004→Resolve 被调→filled+venue_err_code=50004 透传）。
+- 机检全量复跑绿（build/vet/gofmt/test/race/import/migration/lines/env）。

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"strings"
 	"time"
 
 	"phase/internal/trading/okxexec"
@@ -83,27 +84,34 @@ func (r *Runner) placeAndResolve(ctx context.Context, execID int64, no int, leg 
 	// clOrdId=大小写英数 only（OKX 实拍 51000——T-0038：连字符非法；字母位分隔）。
 	clOrdID := fmt.Sprintf("ph%dx%dx%d", execID, no, time.Now().UnixNano()%1e6)
 	res, err := r.exec.Place(ctx, leg, clOrdID)
-	if err != nil {
-		// envelope 业务拒（*APIError）=确定单未建——拒码进 leg 行 venue_err_*
-		//（与 body 内 sCode≠0 同轨留痕——T-0042 真凶乙：禁走 err 径丢码）。
-		var ae *okxexec.APIError
-		if errors.As(err, &ae) {
-			r.leg(ctx, execID, no, leg, clOrdID, "failed", ae.Code, ae.Msg)
+	// envelope 业务拒（*APIError）分码族定态（T-0042 返修）：
+	// 51xxx=参数/业务拒族——确定单未建，absent+拒码进 leg 行 venue_err_*；
+	// 非 51xxx（50004 超时/50011 限速/50013 系统忙等）——单或已建=歧态势，
+	// 留痕后仍走 Resolve 定真态（禁直接 absent）。
+	var vc, vm string
+	var ae *okxexec.APIError
+	if errors.As(err, &ae) {
+		vc, vm = ae.Code, ae.Msg
+		if strings.HasPrefix(ae.Code, "51") {
+			r.leg(ctx, execID, no, leg, clOrdID, "failed", vc, vm)
 			return OrderResult{ClOrdID: clOrdID, State: "absent"}, fmt.Errorf("venue 拒: %w", err)
 		}
-		// 传输败→clOrdId 定态三分支；查询亦败=ambiguous 禁补单。
+	}
+	if err != nil {
+		// 传输败/非族 envelope 拒→clOrdId 定态三分支；查询亦败=ambiguous 禁补单
+		//（拒码 vc/vm 透传留痕——禁走 err 径丢码）。
 		res, err = r.exec.Resolve(ctx, leg, clOrdID)
 		if err != nil || res.State == "unknown" {
-			r.leg(ctx, execID, no, leg, clOrdID, "ambiguous", "", "")
+			r.leg(ctx, execID, no, leg, clOrdID, "ambiguous", vc, vm)
 			return res, fmt.Errorf("ambiguous")
 		}
 	}
 	switch res.State {
 	case "filled":
-		r.leg(ctx, execID, no, leg, clOrdID, "filled", "", "")
+		r.leg(ctx, execID, no, leg, clOrdID, "filled", vc, vm)
 		return res, nil
 	case "live", "partially_filled":
-		r.leg(ctx, execID, no, leg, clOrdID, "ack", "", "")
+		r.leg(ctx, execID, no, leg, clOrdID, "ack", vc, vm)
 		return res, fmt.Errorf("未即时成交（live 确认轨未落）")
 	default:
 		r.leg(ctx, execID, no, leg, clOrdID, "failed", res.VenueCode, res.VenueMsg)
