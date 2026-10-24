@@ -16,10 +16,28 @@ import (
 )
 
 // InstMeta 乐器元数据（/public/instruments 公开只读——钦定保留面）。
+// CtValCcy=张面值币种（T-0037 根修）：BTC-USDT-SWAP ctVal=0.01 是 **BTC 本位**
+// 面值非 USD——币本位面值须乘 perp 价换 USD；ctValCcy=USD/USDT 才可直除。
 type InstMeta struct {
-	CtVal float64
-	LotSz float64
-	MinSz float64
+	CtVal    float64
+	LotSz    float64
+	MinSz    float64
+	CtValCcy string
+}
+
+// perpContracts perp 张数换算（T-0037 根修）：ctValCcy=USD/USDT → 张=usd/ctVal；
+// 币本位（base coin，如 BTC）→ 张=usd/(ctVal×px)——px 缺（≤0）=拒构不虚构。
+func perpContracts(usd, ctVal float64, ctValCcy string, px float64) (float64, error) {
+	if ctVal <= 0 {
+		return 0, fmt.Errorf("ctVal 非法: %v", ctVal)
+	}
+	if ctValCcy == "USD" || ctValCcy == "USDT" {
+		return usd / ctVal, nil
+	}
+	if px <= 0 {
+		return 0, fmt.Errorf("币本位 ctValCcy=%s 须 px 换算（px 缺拒构）", ctValCcy)
+	}
+	return usd / (ctVal * px), nil
 }
 
 // MetaLoader 元数据拉取口（cmd/openfirst 装配注入 okxexec——公开端点零凭据径）。
@@ -71,26 +89,39 @@ func BuildLegs(ctx context.Context, pool *pgxpool.Pool, loadMeta MetaLoader,
 	if err != nil {
 		return [2]Leg{}, spotInst, err
 	}
-	half := notional / 2
-	// perp: 张数=floor(notional/ctVal)；spot: 数量=notional/px——均过 minSz 闸。
-	perpSz := math.Floor(half / perpM.CtVal)
-	if perpSz < perpM.MinSz {
-		return [2]Leg{}, spotInst, fmt.Errorf("perp 最小张起不来: sz=%.0f<minSz=%.4f", perpSz, perpM.MinSz)
+	// px_perp=SWAP 腿自身最新价（ctVal 币本位换算用——T-0037 根修主径）。
+	pxPerp, err := LatestPx(ctx, pool, instID)
+	if err != nil {
+		return [2]Leg{}, spotInst, err
 	}
-	spotSz := half / px
+	half := notional / 2
+	// perp: 张数=usd/(ctVal×px_perp)（币本位）或 usd/ctVal（USD 面值）；spot: 数量=usd/px。
+	perpRaw, err := perpContracts(half, perpM.CtVal, perpM.CtValCcy, pxPerp)
+	if err != nil {
+		return [2]Leg{}, spotInst, err
+	}
+	// 先落 lot 网格再过 minSz 闸（次病灶：raw<1 先 floor 整数=0 再闸必拒——
+	// 币本位张数普遍 <1 张，网格取整才是合法最小可下单量形）。
+	perpSz := floorLot(perpRaw, perpM.LotSz)
+	if perpSz < perpM.MinSz {
+		return [2]Leg{}, spotInst, fmt.Errorf("perp 最小张起不来: sz=%.4f<minSz=%.4f", perpSz, perpM.MinSz)
+	}
+	spotSz := floorLot(half/px, spotM.LotSz)
 	if spotSz < spotM.MinSz {
 		return [2]Leg{}, spotInst, fmt.Errorf("spot 最小张起不来: sz=%.6f<minSz=%.6f", spotSz, spotM.MinSz)
-	}
-	if perpM.LotSz > 0 {
-		perpSz = math.Floor(perpSz/perpM.LotSz) * perpM.LotSz
-	}
-	if spotM.LotSz > 0 {
-		spotSz = math.Floor(spotSz/spotM.LotSz) * spotM.LotSz
 	}
 	return [2]Leg{
 		{Venue: venue, InstID: instID, Side: "sell", Sz: strconv.FormatFloat(perpSz, 'f', -1, 64), Notional: half},
 		{Venue: venue, InstID: spotInst, Side: "buy", Sz: strconv.FormatFloat(spotSz, 'f', -1, 64), Notional: half},
 	}, spotInst, nil
+}
+
+// floorLot lot 网格向下取整（lot≤0=整数 floor）。
+func floorLot(v, lot float64) float64 {
+	if lot <= 0 {
+		return math.Floor(v)
+	}
+	return math.Floor(v/lot) * lot
 }
 
 // RouterExecutor 跨 venue 路由（map[venue]Executor——腿按 Venue 分派，互不串）。
@@ -111,7 +142,8 @@ func (r RouterExecutor) Resolve(ctx context.Context, leg Leg, id string) (OrderR
 	return ex.Resolve(ctx, leg, id)
 }
 
-// CFD 腿构（mt5 侧 lot 换算——SymbolParams contract_size 系；lot<min_lot fail-closed）。
+// CFD 腿构（mt5 侧 lot 换算——SymbolParams contract_size 系；lot<min_lot fail-closed；
+// T-0037 根修：perp 张数同 BuildLegs 径=usd/(perpCtVal×px)——px 即 BTC 价双腿共用）。
 type CfdMeta struct{ ContractSize, MinLot, LotStep float64 }
 
 // BuildCfdLegs 跨 venue 双腿：leg1=okx SWAP 卖（perp 张数 ctVal 系——
@@ -132,7 +164,11 @@ func BuildCfdLegs(instID, cfdInst string, notional float64, cfdM CfdMeta, px flo
 	if lots < cfdM.MinLot {
 		return [2]Leg{}, "", fmt.Errorf("cfd 最小手数起不来: lots=%.4f<min=%.4f", lots, cfdM.MinLot)
 	}
-	perpSz := math.Floor(half / perpCtVal)
+	perpRaw, err := perpContracts(half, perpCtVal, "", px) // CFD 腿无 ctValCcy 面——按币本位径（×px）
+	if err != nil {
+		return [2]Leg{}, "", err
+	}
+	perpSz := floorLot(perpRaw, 0)
 	if perpSz <= 0 {
 		return [2]Leg{}, "", fmt.Errorf("perp 张数=0 拒构")
 	}

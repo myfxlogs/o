@@ -12,6 +12,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"phase/internal/earn"
 	"phase/internal/platform/config"
 	"phase/internal/platform/cryptoutil"
 	"phase/internal/risk"
@@ -90,7 +91,13 @@ func main() {
 		*dst = p
 	}
 	cli := okxexec.NewClient(cred, false)
-	execR := execution.NewRunner(pool, cfg, execution.OkxExecutor{C: cli})
+	// T-0037 追加：Earn 赎回件装配同产线（cmd/core WithEarn 径）——交易户实勘
+	// USDT≈0（资金全泊 Earn），不挂=首单保证金必拒；赎回额=notional（buffer 键面
+	// 归 earn 包，fail-closed 律同产线）。
+	earnW := earn.NewWorker(pool, cfg)
+	earnW.AttachVenue(cli)
+	execR := execution.NewRunner(pool, cfg, execution.OkxExecutor{C: cli}).WithEarn(earnW)
+	fmt.Printf("earn 赎回径装配 OK（WithEarn——首单前 RedeemToTrading 生效）\n")
 	// 双腿乐器派生+sz 换算（leg1 SWAP 卖/leg2 派生现货买；minSz 闸 fail-closed）。
 	legs, spotInst, err := execution.BuildLegs(ctx, pool, func(ctx context.Context, iid string) (execution.InstMeta, error) {
 		it := "SWAP"

@@ -3,6 +3,7 @@ package execution
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"testing"
 
 	"phase/internal/platform/config"
@@ -229,19 +230,26 @@ func TestLegsDerivationAndSz(t *testing.T) {
 	if err := pgstore.Migrate(ctx, pool); err != nil {
 		t.Fatal(err)
 	}
+	// 真 meta（OKX 实勘 2026-10-24）：SWAP ctVal=0.01 **BTC 本位**（ctValCcy=BTC——
+	// T-0037 病灶位：旧锚把它当 USD 面值，$25 腿算出 2500 张≈$2M）；px=80950。
 	if _, err := pool.Exec(ctx,
-		"INSERT INTO md_ticks(ts,inst_id,last) VALUES(now(),'BTC-USDT',90000)"); err != nil {
+		"INSERT INTO md_ticks(ts,inst_id,last) VALUES(now(),'BTC-USDT',90000),(now(),'BTC-USDT-SWAP',80950)"); err != nil {
 		t.Fatal(err)
 	}
 	load := func(ctx context.Context, iid string) (InstMeta, error) {
 		if iid == "BTC-USDT-SWAP" {
-			return InstMeta{CtVal: 0.01, LotSz: 0.1, MinSz: 0.1}, nil
+			return InstMeta{CtVal: 0.01, CtValCcy: "BTC", LotSz: 0.01, MinSz: 0.01}, nil
 		}
 		return InstMeta{MinSz: 0.0001, LotSz: 0.0001}, nil
 	}
-	legs, spot, err := BuildLegs(ctx, pool, load, "okx", "BTC-USDT-SWAP", 100)
+	legs, spot, err := BuildLegs(ctx, pool, load, "okx", "BTC-USDT-SWAP", 50)
 	if err != nil {
 		t.Fatal(err)
+	}
+	// T-0037 验收锚：$50 双腿→perp 张 ≈25/(0.01×80950)=0.0309→lot 取整 0.03 ∈[0.02,0.04]
+	sz, _ := strconv.ParseFloat(legs[0].Sz, 64)
+	if sz < 0.02 || sz > 0.04 {
+		t.Fatalf("perp 张数=%.4f（应∈[0.02,0.04]——币本位换算未生效，2500=旧病灶）", sz)
 	}
 	if legs[0].InstID == legs[1].InstID {
 		t.Fatal("双腿同乐器——派生失败")
@@ -259,6 +267,20 @@ func TestLegsDerivationAndSz(t *testing.T) {
 	// minSz 闸锚：notional 过小 → perp sz<minSz 拒
 	if _, _, err := BuildLegs(ctx, pool, load, "okx", "BTC-USDT-SWAP", 0.5); err == nil {
 		t.Fatal("最小张起不来应拒")
+	}
+	// ctValCcy=USD 分流锚（字段实读不假设）：面值=10 USD → 张=25/10=2.5→floor lot 0.01=2.5
+	loadUSD := func(ctx context.Context, iid string) (InstMeta, error) {
+		if iid == "BTC-USDT-SWAP" {
+			return InstMeta{CtVal: 10, CtValCcy: "USD", LotSz: 0.01, MinSz: 0.01}, nil
+		}
+		return InstMeta{MinSz: 0.0001, LotSz: 0.0001}, nil
+	}
+	legs2, _, err := BuildLegs(ctx, pool, loadUSD, "okx", "BTC-USDT-SWAP", 50)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if legs2[0].Sz != "2.5" {
+		t.Fatalf("USD 面值直除锚: sz=%s（应 2.5）", legs2[0].Sz)
 	}
 }
 
@@ -280,13 +302,17 @@ func TestRouterAndCfdLegs(t *testing.T) {
 	if _, err := r.Place(context.Background(), Leg{Venue: "nope", InstID: "X"}, "x3"); err == nil {
 		t.Fatal("无 venue 执行件应拒")
 	}
-	// cfd 腿：lot 换算+minLot 闸+异 venue 断言
+	// cfd 腿：lot 换算+minLot 闸+异 venue 断言+perp 币本位换算锚（T-0037：
+	// half=1000 → 1000/(0.01×90000)=1.111→floor=1 张——旧病灶 1000/0.01=10 万张）
 	legs, inst, err := BuildCfdLegs("BTC-USDT-SWAP", "BTCUSDm", 2000,
 		CfdMeta{ContractSize: 1, MinLot: 0.01, LotStep: 0.01}, 90000, 0.01)
 	if err != nil || legs[0].Venue != "okx" || legs[1].Venue != "mt5" || inst != "BTCUSDm" {
 		t.Fatalf("cfd 腿构 err=%v inst=%s", err, inst)
 	}
-	if legs[0].Sz == "" || legs[1].Sz == "" {
+	if legs[0].Sz != "1" {
+		t.Fatalf("perp 张=%s（应 1——币本位 ×px 换算未生效）", legs[0].Sz)
+	}
+	if legs[1].Sz == "" {
 		t.Fatal("sz 空")
 	}
 	if _, _, err := BuildCfdLegs("BTC-USDT-SWAP", "", 100, CfdMeta{1, 0.01, 0.01}, 90000, 0.01); err == nil {
