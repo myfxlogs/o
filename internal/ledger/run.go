@@ -20,14 +20,23 @@ type Runner struct {
 	al *notify.Alerter
 	// bal venue 侧余额现读件（T-0048：对账=检查时点 balances+savings 直连——
 	// (venue,ccy)→equity 实读聚合；nil=对账件缺席跳过不炸）。
-	bal  func(ctx context.Context) (map[[2]string]float64, error)
-	pool *pgxpool.Pool
-	cfg  *config.Client
-	rej  *rejects.Door
+	bal func(ctx context.Context) (map[[2]string]float64, error)
+	// earnings savings 累计收益读件（T-0055 利息入账源）。
+	earnings func(ctx context.Context) (map[string]float64, error)
+	pool     *pgxpool.Pool
+	cfg      *config.Client
+	rej      *rejects.Door
 }
 
 // WithAlerter 挂告警器（nil=静默降级）。
 func (r *Runner) WithAlerter(a *notify.Alerter) *Runner { r.al = a; return r }
+
+// WithEarnEarnings 挂 savings 累计收益读件（T-0055——cmd 注入 ccy→earnings 累计值；
+// Earn 利息 bills 无此面实证，唯 savings/balance.earnings 字段为真源）。
+func (r *Runner) WithEarnEarnings(fn func(ctx context.Context) (map[string]float64, error)) *Runner {
+	r.earnings = fn
+	return r
+}
 
 // WithBalances 挂 venue 侧余额现读件（cmd 装配层接线——对账检查时点直读）。
 func (r *Runner) WithBalances(fn func(ctx context.Context) (map[[2]string]float64, error)) *Runner {
@@ -116,6 +125,9 @@ func (r *Runner) reconcile(ctx context.Context) error {
 		log.Printf("WARN [ledger] 对账 venue 现读件未挂接——对账缺岗可见（fail-closed 让位）")
 		return nil
 	}
+	// T-0055：Earn 利息先入账再对拍（savings amt 已含应计利息——不入账=账本
+	// 系统性偏低且逐日走阔；事件化高水位幂等）。
+	r.postInterest(ctx)
 	ven, err := r.bal(ctx)
 	if err != nil {
 		r.rej.Inc("write_err")
@@ -154,4 +166,49 @@ func (r *Runner) daySnapshot(ctx context.Context) error {
 		SELECT venue,ccy,sum(amount),CURRENT_DATE FROM fin_cashflow GROUP BY venue,ccy
 		ON CONFLICT(venue,ccy,snap_date) DO UPDATE SET net_usd=EXCLUDED.net_usd,ts=now()`)
 	return err
+}
+
+// postInterest Earn 利息事件化入账：earnings 累计值 vs 最近 earn_interest 事件行
+// 高水位，delta≥0.005 → 落事件行（append-only 真源）+interest cashflow 行
+// （source=事件行——禁推断记账）。首拍=播种事件行零入账（历史累计归基线校准面）。
+func (r *Runner) postInterest(ctx context.Context) {
+	if r.earnings == nil {
+		return
+	}
+	ens, err := r.earnings(ctx)
+	if err != nil {
+		r.rej.Inc("bal_missing")
+		return
+	}
+	for ccy, cur := range ens {
+		if ccy != "USDT" && ccy != "USD" {
+			continue
+		}
+		var last *float64
+		_ = r.pool.QueryRow(ctx, `SELECT (data->>'earnings')::numeric FROM md_account_events
+			WHERE venue='okx' AND channel='earn_interest' AND ccy=$1 ORDER BY ts DESC LIMIT 1`, ccy).Scan(&last)
+		if last != nil && cur-*last < 0.005 {
+			continue // 应计不足半分不入账（逐拍对拍不放大 REST/写面）
+		}
+		// md_account_events 无代理 PK（hypertable）——source_ref=事件行 ts 毫秒
+		//（append-only 单调，真源定位口径：source_table='md_account_events'+ts 毫秒）。
+		var evID int64
+		if err := r.pool.QueryRow(ctx, `INSERT INTO md_account_events(ts,venue,channel,ccy,data)
+			VALUES(now(),'okx','earn_interest',$1,jsonb_build_object('earnings',$2::numeric))
+			RETURNING (extract(epoch from ts)*1000)::bigint`,
+			ccy, cur).Scan(&evID); err != nil {
+			r.rej.Inc("write_err")
+			continue
+		}
+		if last == nil {
+			continue // bootstrap 播种：高水位立起，零入账
+		}
+		if delta := cur - *last; delta > 0 {
+			if _, err := Post(ctx, r.pool, Entry{Kind: "interest", Venue: "okx", Ccy: ccy,
+				Amount: delta, SourceRef: evID, SourceTable: "md_account_events"}); err != nil {
+				r.rej.Inc("write_err")
+				log.Printf("[ledger] interest 入账败: %v", err)
+			}
+		}
+	}
 }

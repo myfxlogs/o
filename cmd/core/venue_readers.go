@@ -131,6 +131,28 @@ func attachVenueReaders(riskGate *risk.Gate, wd *guard.Warden, ledgerR *ledger.R
 		return eq, nil
 	})
 	wd.AttachEquity(liveEq)
+	// T-0055：savings 累计收益读件（利息事件化入账源——earnings 字段真源）。
+	ledgerR.WithEarnEarnings(func(ctx context.Context) (map[string]float64, error) {
+		out := map[string]float64{}
+		if okcli == nil {
+			return out, fmt.Errorf("earnings 件缺席（凭据缺）")
+		}
+		sav, err := okcli.SavingsBalance(ctx)
+		if err != nil {
+			return nil, err
+		}
+		var rows []struct {
+			Ccy      string `json:"ccy"`
+			Earnings string `json:"earnings"`
+		}
+		if json.Unmarshal(sav, &rows) != nil {
+			return nil, fmt.Errorf("savings parse")
+		}
+		for _, r2 := range rows {
+			out[r2.Ccy] = okxexec.ParseF(r2.Earnings)
+		}
+		return out, nil
+	})
 	// 对账聚合=帧 eq+REST funding+savings（无推送户）+mt5 AccountSummary。
 	ledgerR.WithBalances(func(ctx context.Context) (map[[2]string]float64, error) {
 		out := map[[2]string]float64{}

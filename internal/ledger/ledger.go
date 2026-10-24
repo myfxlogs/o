@@ -17,6 +17,9 @@ var kinds = map[string]bool{
 	"rollback_cost": true, "deposit": true, "withdraw": true,
 	// Earn 停泊款移动（D-0006）：earn_out=出交易户进停泊（amount 负），earn_in=赎回回拢（amount 正）。
 	"earn_in": true, "earn_out": true,
+	// T-0055：interest=Earn 利息（earnings 累计值事件化入账）；
+	// recon_adjust=基线校准一次性行（书面归因后真值校准——禁日常使用）。
+	"interest": true, "recon_adjust": true,
 }
 var ccys = map[string]bool{"USDT": true, "USD": true}
 
