@@ -53,3 +53,10 @@
 **实勘修正**：①fakeSender 双定义撞名（复用 alert_test 件）；②中文多字节断言 [:5] 截错改 strings.Contains；③棘轮 301→EventPush 装配移 event_push.go 独立件。
 
 **部署注记**：notify.feishu.events.enabled=false 种子（0031）——开=决策席动作；T-0056 试单剩余段=天然实户锚。
+
+### 返修回填（2026-10-26 同票续作——三项打回齐修 @12fe43b）
+
+- ① **template_ref 文本化**：*int64→*string 扫型对齐（扫败静默吞改 err continue 行级病灶不吞）——策略列不再恒 `?`。
+- ② **pushFunding 游标播种**：boot 首拍 max(id) 置基——重启→id>0 全史重推病灶根除。
+- ③ **迁移件头注对齐**：0031→0032（文件号与注释同步）。
+- 机检：go test notify 包绿 @5434。
