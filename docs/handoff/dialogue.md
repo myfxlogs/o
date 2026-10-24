@@ -37,3 +37,10 @@
 - T-0048 批次改动（6 探针+12 skill+3 生产码修+5 经验条目+交接报告）待独立复审→提交。
 - 会话纪要机制规程化（check-out 补录步骤）→ 待决策席立单。
 - 台账制复位径行为首验 → 下次 -mut 实跑。
+
+### 追加（同 session 续段——复审回路已跑通）
+
+- 复审席（claude）裁决 860b8c1：mandate 一二三过、**台账制两处 fail-open 打回**（我的条件卫 `if soldUSD>0` 在零引入初态失效=同族残留）——自审盲区第二次实证。
+- 返工 9fb33b0：`ledgerCap/backCap` 无条件封顶（min(avail-缓冲, max(引入,0))——零引入=零额度，fail-open 物理消失）+双零初态锚测试+restore.go 拆件。
+- 「继续推进」裁定：OnOrderProfit 事件化即动（与复审并行）——`550ead4` 汇市巡 profitLoop→md_account_events channel='order_profit'（值变才落+send-before-cancel 重连语义）；③ first-poll 项裁不适用（PHASE 无该组件）；§11-12 部署 runbook+复审增量范围回填 3dc8eb3。
+- 待办剩：复审席翻 550ead4+3dc8eb3 → merge 删支 → SG 部署 → 持仓期 `order_profit` 行流首验（勿为验证专开仓）。
