@@ -9,3 +9,4 @@ web/src/gen/
 internal/gen/
 internal/data/adapter/gen/
 kbgen
+/openfirst
