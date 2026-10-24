@@ -11,6 +11,12 @@ PHASE exec_id=3（2026-10-24 真户）：leg1 BTC-USDT-SWAP sell 0.03 filled；l
 - 换用 limit 单/IOC 或 tgtCcy 显式声明可绕——但口径必须在代码注释钉死。
 - 同族病灶：ctVal 币本位（T-0037）、posSide 户型（T-0040）——**venue 数量/金额语义永不猜，下单时点读 instruments 元数据+方言卡**。
 
+## 官方口径（docs-v5 下单端点核证 2026-10-24）
+- **币币/币币杠杆市价单**：sz 单位由 `tgtCcy` 决定——买单默认 quote_ccy（USDT 金额）、卖单默认 base_ccy；显式 `tgtCcy=base_ccy` 则按交易货币数量
+- **合约单（交割/永续/期权）**：sz=张数——面值 = `sz×ctVal×markPx`（**正向=USDT 本位**）或 `sz×ctVal`（**反向=币本位 USD 计价**）；ctVal/ctType 取 instruments
+- **开平仓模式（long_short）**：平仓单天然只减仓逻辑（reduceOnly 传不传都生效），sz 超持仓=整单拒
+- 文档源：okx.com/docs-v5/zh 下单端点 sz/tgtCcy 参数表（trick 页无此细目）
+
 ## 机械化
 - T-0042：OrderParams.TgtCcy + spot 市价买单传 base_ccy + 测试锚。
 - skills/okx-exec 补 tgtCcy 方言条目（T-0042 同票落）。
