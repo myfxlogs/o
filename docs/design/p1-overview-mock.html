@@ -59,9 +59,12 @@ background-size:200% 100%;animation:shimmer 1.4s infinite;border-radius:8px;heig
 </style>
 </head>
 <body>
+<div id="utc" style="position:fixed;top:26px;right:150px;z-index:9;font-size:13px;color:var(--dim);font-variant-numeric:tabular-nums"></div>
 <button class="toggle" id="th" onclick="t()">🌙 暗色</button>
 <script>
 const b=document.body,t2=document.getElementById('th');
+setInterval(()=>{const d=new Date();document.getElementById('utc').textContent=
+'UTC '+String(d.getUTCHours()).padStart(2,'0')+':'+String(d.getUTCMinutes()).padStart(2,'0')+':'+String(d.getUTCSeconds()).padStart(2,'0')},1000);
 b.className=localStorage.th||'';t2.textContent=b.className?'🌙 暗色':'☀️ 亮色';
 function t(){b.classList.toggle('light');localStorage.th=b.className;
 t2.textContent=b.className?'🌙 暗色':'☀️ 亮色'}
