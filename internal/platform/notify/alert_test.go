@@ -20,10 +20,13 @@ func TestAlerterDebounceAndDegrade(t *testing.T) {
 	a := NewAlerter(f, func() string { return "c1" }, func() bool { return true })
 	ctx := context.Background()
 	a.Alert(ctx, "dd_hardline_tripped", "dd=0.031")
-	a.Alert(ctx, "dd_hardline_tripped", "dd=0.031") // 同指纹 5min 退避首档
-	a.Alert(ctx, "dd_hardline_tripped", "dd=0.040") // 异指纹照推（各自首报即时）
+	a.Alert(ctx, "dd_hardline_tripped", "dd=0.040") // kind|title 指纹：同 kind 变额=同指纹→去抖拦
+	if len(f.sent) != 1 {
+		t.Fatalf("同指纹变额去抖失败 sent=%d", len(f.sent))
+	}
+	a.Alert(ctx, "kill_switch", "on") // 异 kind=异指纹首报即时照推
 	if len(f.sent) != 2 {
-		t.Fatalf("去抖失败 sent=%d", len(f.sent))
+		t.Fatalf("异 kind 未照推 sent=%d", len(f.sent))
 	}
 	// enabled=false 降级不炸
 	off := NewAlerter(f, func() string { return "c1" }, func() bool { return false })
