@@ -95,36 +95,3 @@ clientId 方言（okx-asset-funding:3,20）、envelope sCode/sMsg（okx-exec:34�
 台账制修复径未实跑=本席同判「码面待修+修后首 `-mut` 实证」；当前真实账户 trading≈$0.2，两处 fail-open 现实危害≈0——**打回理由是保证语句不成立，非现账损失**。
 
 **裁定：段一二三事实面+机检+转录全过；台账制两处 fail-open 打回补丁（单点、量小），修复合入后本席复审即翻完成。**
-
-## 9. 打回补丁回填（[角色:施工] zcode-glm @ 2026-10-24——裁决 860b8c1 §8 mandate1）
-
-- ① **okxverify §⑧ transfer_back+repurchase**：封顶卫改无条件 `ledgerCap(avail-缓冲, max(soldUSD,0))`（新件）——soldUSD==0/Δ≤0 初态=零额度⇒transfer gated `back>0` 不入、purchase `pu≤parked=0` 恒不入；dust 路径买回同款无条件封顶（原 `&& soldUSD>0` 卫删除）。
-- ② **okxunwind 摆回段**：`backCap(tra, max(proceeds,0))`（新件）——proceeds<=0 零所得=零摆回零复购，fail-open 分支物理消失。
-- ③ **check-lines**：okxverify/mt5verify 拆件已在收口轮完成（当前最大 264 行，gate exit 0）——裁决文所记 329/723 为收口前快照。
-- **补锚**：`TestLedgerCapZeroIntroduced`（无资/Δ≤0/正常/闲余不足四初态——零引入=零额度断言+门梄件 back>0/pu>1 零动线）、`TestBackCapZeroProceeds`（零所得/倒挂/正常/取小四初态）双 PASS。
-- 机检：build/vet 全树、gofmt、go test 全树（含两新锚）、check-lines exit 0 全绿。
-- 诚实边界（复审同判）：台账制补丁仍未 `-mut` 实跑——行为验证=下次真金 mutating 执行本身。
-
-## 10. 续作①落位（[角色:施工] @ 550ead4——OnOrderProfit 事件化）
-
-- `internal/mt5` Collector：`SubscribeOrderProfit`（回执=在册仓首拍，boot log）+`OnOrderProfit` 流 profitLoop 消费→`md_account_events` channel='order_profit'（USD，INSERT 自带 ev_account）；**值变才落**（venue ~1Hz 周期推、事件语义记变动）；profit 流死=会话级重连（send-before-cancel 保真因）。
-- ③项裁决=不适用：PHASE 无 account-monitor/querier 组件（NOX 病灶件），venue_readers 直读 md_account_events 无 REST 兜底径；skill 注记留作未来监控件戒律。
-- ②项部分落位：订阅回执携仓档已用（boot 在册仓数 log）；仓态首拍消费面后续议。
-- 机检：build/vet/gofmt/test 全绿（mt5 包 3 测试含 TestProfitDedup 锚）；collector.go 297 行压线过 check-lines。
-- 待复审：550ead4 diff。
-
-## 11. 部署后验证 runbook（merge 后由部署/复审席执行）
-
-**部署**（SG 192.229.85.35，`/opt/phase` master 树）：`git pull && go build ./cmd/core && 重启 core 服务`——汇市巡随主装配起。
-**健康判定**：
-- boot log 应见 `[mt5] order_profit 订阅回执: 在册 N 仓`（订阅败不阻塞——流免订阅自推，见 WARN 即可）；
-- `SELECT count(*) FROM md_account_events WHERE venue='mt5' AND channel='order_profit'`：持仓期应随值变增行（~每分钟级——venue 推帧+本地值变去重）；**空仓期零行=正常语义非缺岗**；
-- 持仓期抽查行形：`data` 携 `eq/avail/bal/margin/profit/margin_level/open/src='on_order_profit'`；
-- 断流演验（可选）：杀网关会话→汇市巡退避重连→重订阅+流重建（`stream_dead` 计数可见）。
-**行为首验窗口**：下一持仓期自然到达（含业主授权的真金验证谱）——勿为验证专开仓。
-**残尘在册**：PENGU 0.1856（<minSz）存交易户——记实保留，勿凑单清零。
-
-## 12. 复审增量范围（merge 前置）
-
-复审席增量看面：`9fb33b0` 打回返工（ledgerCap/backCap 无条件封顶+双零初态锚测试——对应裁决 mandate1）+ `550ead4` OnOrderProfit 事件化（client 两件+profitLoop+双流同体重连语义+去重谓词）+ `049de12` 文档回填。
-判据：①台账封顶是否真无条件（零引入=零额度的全初态推演）；②profitLoop 写径与 snapshotOnce 同表同构（md_account_events 既有 INSERT 面）——写形状已产验、新增的只是流喂源；③去重键是否覆盖所有可写字段（漏字段=丢变帧）。
