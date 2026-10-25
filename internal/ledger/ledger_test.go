@@ -353,14 +353,16 @@ func TestFundCcyOpenLegBase(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, k := range [][2]string{{"okx", "USDT"}, {"okx", "ETH"}, {"mt5", "USD"}} {
+	for _, k := range [][2]string{{"okx:trading", "USDT"}, {"okx:funding", "USDT"},
+		{"okx:earn", "USDT"}, {"okx:trading", "ETH"}, {"mt5", "USD"}} {
 		if !set[k] {
 			t.Fatalf("基金钱集缺 %v", k)
 		}
 	}
-	for _, k := range [][2]string{{"okx", "DOGE"}} {
+	for _, k := range [][2]string{{"okx:earn", "ETH"}, {"okx:funding", "ETH"},
+		{"okx", "USDT"}, {"okx:trading", "DOGE"}} {
 		if set[k] {
-			t.Fatalf("%v 不应入集（腿平/无腿=托管尘）", k)
+			t.Fatalf("%v 不应入集（腿平/域外/裸 venue 键=托管尘）", k)
 		}
 	}
 }
@@ -378,8 +380,11 @@ func TestReconcileParkedUnits(t *testing.T) {
 		Amount: 100, SourceRef: 1, SourceTable: "t"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := r.pool.Exec(ctx, `INSERT INTO fin_risk_decision(intent,decision,reason,config_gen)
-		VALUES('{"kind":"transfer","op":"residual_park","venue":"okx","ccy":"DOGE","amt":100}','allow','transfer',1)`); err != nil {
+	// ts 回拨避在途窗（reason='transfer' 近 30s 全跳过——不对拍不判）；
+	// ParkedAmt 不限 ts 故台账照常入账。
+	if _, err := r.pool.Exec(ctx, `INSERT INTO fin_risk_decision(intent,decision,reason,config_gen,ts)
+		VALUES('{"kind":"transfer","op":"residual_park","venue":"okx","ccy":"DOGE","amt":100}','allow','transfer',1,
+		now()-interval '60 seconds')`); err != nil {
 		t.Fatal(err)
 	}
 	// 停泊 100 DOGE 台账=venue 100.2（利息微漂<容差）→静默；同时 USDT 平。

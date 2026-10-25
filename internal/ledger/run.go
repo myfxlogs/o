@@ -190,6 +190,11 @@ func (r *Runner) reconcile(ctx context.Context) error {
 		r.rej.Inc("write_err")
 		return err
 	}
+	for k := range parked {
+		if _, ok := ven[k]; !ok {
+			ven[k] = 0 // 台账有量 venue 无行=真差候选——补零行强制比对（漏报根修）
+		}
+	}
 	var rs []struct {
 		venue, ccy string
 		eq, net    float64
