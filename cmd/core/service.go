@@ -68,20 +68,39 @@ func (c coreService) Overview(ctx context.Context, _ *dashboardv1.OverviewReques
 		o.Doing = append(o.Doing, &dashboardv1.DoingItem{Stamp: time.Now().UTC().Format(time.RFC3339),
 			Text: fmt.Sprintf("面差哨——%d 个新面待裁（差扫岗在案）", n)})
 	}
+	// T-0105 在干列表全集化：策略对冲仓+结构性持仓（DCD live）两源入列
+	// （所见即所得——DCD 是基金第二大资产块却不在「持仓中」=业主令病灶）；
+	// 展示引用不重复入 NAV（钱卡 dcdRows 已计值）。静持空态判据=基金真空
+	// 持仓（无 open 仓且无 DCD live 单）；DCD 读件缺显形不静默（不假零）。
 	prow, _ := c.pool.Query(ctx, `SELECT id,inst_id,opened_at FROM fin_position
 		WHERE closed_at IS NULL ORDER BY id DESC LIMIT 5`)
+	posN := 0
 	for prow.Next() {
 		var id int64
 		var inst string
 		var at time.Time
 		_ = prow.Scan(&id, &inst, &at)
+		posN++
 		base := strings.SplitN(inst, "-", 2)[0]
 		o.Doing = append(o.Doing, &dashboardv1.DoingItem{
 			Text:  fmt.Sprintf("%s 对冲仓 #%d — 持仓中，已持 %s", base, id, durHuman(time.Since(at))),
 			Stamp: at.UTC().Format(time.RFC3339)})
 	}
 	prow.Close()
-	if len(o.Doing) == 0 {
+	dcds, ok := c.dcdOrds(ctx)
+	for _, od := range dcds {
+		u := valCcy(ctx, c.pool, od.NotionalCcy, okxexec.ParseF(od.NotionalSz))
+		o.Doing = append(o.Doing, &dashboardv1.DoingItem{
+			Text: fmt.Sprintf("DCD %s #%s 名义%s %s 行权%s 到期%s — 持仓中，估值 $%.2f",
+				od.ProductID, od.OrdID, od.NotionalSz, od.NotionalCcy,
+				od.Strike, msDay(od.SettleTime), u),
+			Stamp: msStamp(od.CTime)})
+	}
+	if !ok {
+		o.Doing = append(o.Doing, &dashboardv1.DoingItem{Stamp: time.Now().UTC().Format(time.RFC3339),
+			Text: "结构性持仓——读件缺（dcd 活读缺席/读败，不假零）"})
+	}
+	if posN == 0 && ok && len(dcds) == 0 {
 		o.Doing = append(o.Doing, &dashboardv1.DoingItem{Text: "静持——无开仓在案"})
 	}
 	rrows, _ := c.pool.Query(ctx, `SELECT ts,kind,amount FROM fin_cashflow

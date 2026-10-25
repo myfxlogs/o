@@ -3,15 +3,17 @@ package main
 import (
 	"context"
 	"fmt"
+	"strings"
+	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"o/internal/gen/dashboardv1"
+	"o/internal/guard"
 	"o/internal/platform/testutil"
 	"o/internal/store/pgstore"
-	"testing"
-
-	"o/internal/guard"
+	"o/internal/trading/okxexec"
 )
 
 // T-0043 锚①：Warden 平仓径双腿必置 Close=true（漏置=按开仓腿装配→
@@ -188,5 +190,92 @@ func TestOverviewMissingAccountsZero(t *testing.T) {
 	}
 	if len(o2.Money) != 2 || o2.Money[0].Note != "读件缺" {
 		t.Fatalf("MT5 读败应显读件缺: %+v", o2.Money)
+	}
+}
+
+// dcdFixtureOrder 业主实爆单形（T-0105 病灶锚——BTC-USDT-261225-95000-C
+// #11448262 名义 0.0207 BTC）。
+func dcdFixtureOrder() okxexec.DcdOrder {
+	return okxexec.DcdOrder{OrdID: "11448262", ProductID: "BTC-USDT-261225-95000-C",
+		State: "live", NotionalCcy: "BTC", NotionalSz: "0.0207", Strike: "95000",
+		AnnualizedYield: "0.0857",
+		SettleTime:      fmt.Sprint(time.Now().Add(60 * 24 * time.Hour).UnixMilli()),
+		CTime:           fmt.Sprint(time.Now().Add(-24 * time.Hour).UnixMilli())}
+}
+
+func doingTexts(o *dashboardv1.OverviewResponse) string {
+	var b strings.Builder
+	for _, d := range o.Doing {
+		b.WriteString(d.Text + "\n")
+	}
+	return b.String()
+}
+
+// T-0105 锚：在干列表全集化——①无仓有 DCD→DCD 行无静持（展示引用不重复
+// 入 NAV）②双有→两行 ③全空→静持 ④DCD 读件缺→显形非静默非假静持。
+func TestOverviewDoingFullCoverage(t *testing.T) {
+	ctx := context.Background()
+	pool := testutil.Pool(t)
+	if err := pgstore.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, "DELETE FROM md_account_events WHERE channel IN ('account','earn_parking')"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO md_ticks(ts,inst_id,last) VALUES(now(),'BTC-USDT',80000)`); err != nil {
+		t.Fatal(err)
+	}
+	ord := dcdFixtureOrder()
+	newSvc := func(dcds []okxexec.DcdOrder, err error) coreService {
+		return coreService{pool: pool, dcdLive: func(context.Context) ([]okxexec.DcdOrder, error) {
+			return dcds, err
+		}}
+	}
+	// ①无仓有 DCD。
+	o1, err := newSvc([]okxexec.DcdOrder{ord}, nil).Overview(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tx1 := doingTexts(o1)
+	if !strings.Contains(tx1, "DCD BTC-USDT-261225-95000-C") ||
+		!strings.Contains(tx1, "#11448262") || !strings.Contains(tx1, "持仓中") {
+		t.Fatalf("DCD 行应入列: %q", tx1)
+	}
+	if strings.Contains(tx1, "静持") {
+		t.Fatalf("有 DCD 不得显静持: %q", tx1)
+	}
+	// NAV 单计锚：钱卡 dcdRows 计 0.0207×80000=1656——在干展示引用不再加。
+	if o1.NavTotal < 1655.99 || o1.NavTotal > 1656.01 {
+		t.Fatalf("NAV 应单计 1656: %v", o1.NavTotal)
+	}
+	// ③全空→静持（恰一行——前端空态契约不变）。
+	o3, err := newSvc(nil, nil).Overview(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(o3.Doing) != 1 || !strings.HasPrefix(o3.Doing[0].Text, "静持") {
+		t.Fatalf("真空应恰静持一行: %+v", o3.Doing)
+	}
+	// ④DCD 读件缺→显形行、无静持（不假零不误报）。
+	o4, err := newSvc(nil, fmt.Errorf("dcd 429")).Overview(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tx4 := doingTexts(o4)
+	if !strings.Contains(tx4, "读件缺") || strings.Contains(tx4, "静持") {
+		t.Fatalf("读件缺应显形且不静持: %q", tx4)
+	}
+	// ②双有→对冲仓+DCD 两行。
+	openEthLeg(t, ctx, pool)
+	o2, err := newSvc([]okxexec.DcdOrder{ord}, nil).Overview(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tx2 := doingTexts(o2)
+	if !strings.Contains(tx2, "ETH 对冲仓") || !strings.Contains(tx2, "DCD BTC-USDT") {
+		t.Fatalf("双有应两源入列: %q", tx2)
+	}
+	if strings.Contains(tx2, "静持") {
+		t.Fatalf("双有不得显静持: %q", tx2)
 	}
 }
