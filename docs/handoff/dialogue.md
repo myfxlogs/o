@@ -145,3 +145,13 @@
 **双端同户钱径双活实证→T-0104 立票**：本机库 fin_risk_decision 自写 earn_deposit×4+residual_park×1=本机对同户真钱移动在跑。SG 同岗同跑=同余量双扫竞态+划转在途窗互扰。角色未钉（只读/双活/备援）+策略晋升双跑敞口——立 T-0104 审计。
 
 **外部实录**：mtapi 网关 07:25-07:30Z SERVICE_NOT_AVAILABLE/502/socket 断连环——外部侧抖动，自复（07:28 重连订阅回执），非本仓病。
+
+### 追加（2026-10-25 决策席 session 续——T-0103 验收合入部署+仓23断腿实爆处置）
+
+**T-0103 验收二轮闭环**：首验打回（判据同构 PASS，桩测面 4 红=阈界种子/父行 FK/facts_missing 改判）@0d4a0a7；返修后独立复跑 39 绿（lifecycle12+review/guard27），合入 @6fca63e 并双端轮换部署（IMAGE-MATCH 2a9e7ccb5c27+healthy）。
+
+**仓 23 断腿实爆（T-0104 首案）**：T-0103 镜像激活 T-0095 v3 残币归口码——本机 o-core boot 后 9s 将 SG 活仓 #23（策略101 ETH hedge）spot 腿 ETH 0.00998 归集至 Earn。根：**本机库无仓位行→FundCcy 盲→盲扫搬腿**（SG 本端因库有仓行正确跳过）。后果：perp 裸空 + SG `对账差 venue=2108.82 ledger=2131.75` 连刷。
+- 处置（决策席运维）：`docker stop` 本机 o-core（其 mutating 面在 T-0104 裁决前不可信）；`tools/legrestore` 归 ETH 0.009983 回 trading（SavingsRedeem→AssetTransfer，transId 3242707203）→对账静默 venue≈2131.8≈ledger 2131.75。
+- **破例备忘**：legrestore 系决策席亲写运维件——实现码禁线在紧急钱径处置下让位（事后票载+工具入库），非施工单产出。
+- T-0104 翻「已批」+实爆节入库；residual_park 双跑已裁=禁。
+- **本机 o-core 现停跑**（决策保留态）：本机 dashboard/研究/对账面随停；复跑前提=T-0104 角色裁决（最小可能=只读镜像或 mutating 面装配层关断）。
