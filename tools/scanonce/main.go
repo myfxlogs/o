@@ -9,8 +9,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"phase/internal/platform/config"
-	"phase/internal/research/funding"
+	"o/internal/platform/config"
+	"o/internal/research/funding"
 )
 
 func main() {

@@ -1,7 +1,7 @@
 // dustsweep 粉尘归集件（T-0080：venue 非 USDT 小额余额→USDT——POST
 // /api/v5/asset/convert-dust 一次性运营动作非周期环；PENGU 业主令豁免不进单；
 // mutating 钱径=手动触发钦定面；账行经 venue_bill 来源行锚非虚写）。
-// 用法：DB_DSN=… PHASE_MASTER_KEY_FILE=… dustsweep [-ccy ETC,TRX] [-dry=false]
+// 用法：DB_DSN=… O_MASTER_KEY_FILE=… dustsweep [-ccy ETC,TRX] [-dry=false]
 package main
 
 import (
@@ -15,9 +15,9 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"phase/internal/platform/config"
-	"phase/internal/platform/cryptoutil"
-	"phase/internal/trading/okxexec"
+	"o/internal/platform/config"
+	"o/internal/platform/cryptoutil"
+	"o/internal/trading/okxexec"
 )
 
 func main() {

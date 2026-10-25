@@ -6,9 +6,9 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"phase/internal/platform/config"
-	"phase/internal/platform/events"
-	"phase/internal/platform/notify"
+	"o/internal/platform/config"
+	"o/internal/platform/events"
+	"o/internal/platform/notify"
 )
 
 // startEventPush 经营事件报（T-0061：三里程碑实时可见——与告警分径独立开关；

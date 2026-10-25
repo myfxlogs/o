@@ -6,13 +6,13 @@ import (
 	"os"
 )
 
-// MasterKeyPath 主权钥文件路径——env PHASE_MASTER_KEY_FILE（白名单引导件，仅指路径
-// 不载密），缺省 /run/secrets/phase_master_key（compose 挂载位，600 权限）。
+// MasterKeyPath 主权钥文件路径——env O_MASTER_KEY_FILE（白名单引导件，仅指路径
+// 不载密），缺省 /run/secrets/o_master_key（compose 挂载位，600 权限）。
 func MasterKeyPath() string {
-	if p := os.Getenv("PHASE_MASTER_KEY_FILE"); p != "" {
+	if p := os.Getenv("O_MASTER_KEY_FILE"); p != "" {
 		return p
 	}
-	return "/run/secrets/phase_master_key"
+	return "/run/secrets/o_master_key"
 }
 
 // ReadMasterKey 读主权钥（主机密钥文件=唯一合法存放——不入库不入 env）。

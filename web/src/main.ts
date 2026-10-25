@@ -1,4 +1,4 @@
-// PHASE 总览活推（T-0067 脊+T-0075 卡绑定——API 四卡真值覆写空态；
+// O 总览活推（T-0067 脊+T-0075 卡绑定——API 四卡真值覆写空态；
 // 断源=灰化露相禁演新鲜）。
 const h = (s: string): string => {
   const d = document.createElement('div'); d.textContent = s; return d.innerHTML
@@ -116,7 +116,7 @@ function venuesHTML(gs: VGroup[]): string {
 }
 
 // orgSVG v2 组织架构图（T-0079 返修④钦定——宪章 §6「一笔钱的旅程」拓扑：
-// 顶层=phase-core(左)+业主·投资委(右金框)；钱程主链实线携产出物；
+// 顶层=o-core(左)+业主·投资委(右金框)；钱程主链实线携产出物；
 // 支撑回环+数据供数群虚线；状态灯=节点左上三色静点；素色无动画无辉光）。
 function orgSVG(staff: { name: string; duty: string; state: number }[]): string {
   const byName = new Map(staff.map(s => [s.name, s]))
@@ -137,7 +137,7 @@ function orgSVG(staff: { name: string; duty: string; state: number }[]): string 
     `<text x="${x}" y="${y}" fill="var(--dim)" font-size="8.5">${h(t)}</text>`
 
   const P: Record<string, [number, number]> = {
-    'phase-core': [40, 14], '业主·投资委': [760, 14],
+    'o-core': [40, 14], '业主·投资委': [760, 14],
     '探员': [40, 130], '验证官': [240, 130], '命官': [440, 130], '门官': [640, 130],
     '执事': [840, 130], '司账': [1040, 130], '核账': [1040, 240],
     '信使': [1040, 350],
@@ -173,7 +173,7 @@ function orgSVG(staff: { name: string; duty: string; state: number }[]): string 
   g += seg(`270,240 140,240 140,170`, '4 3', 'ar') + lbl(150, 233, '回炉重枚举→探员')
   g += seg(`${840 + 75},240 ${840 + 75},170`, '4 3', 'ar') + lbl(930, 208, '平仓触发')
   g += seg(`${440 + 75},240 ${440 + 75},170`, '4 3', 'ar') + lbl(530, 208, '停泊/抽调')
-  // phase-core 心跳环→全员（顶部虚线落主链各岗）。
+  // o-core 心跳环→全员（顶部虚线落主链各岗）。
   g += seg(`115,54 115,100 115,130`, '3 3', 'ar')
   // 数据供数群（底排虚线上供）。
   g += lbl(40, 445, '数据域 · 供数群（可观测世界）')
@@ -189,7 +189,7 @@ function orgSVG(staff: { name: string; duty: string; state: number }[]): string 
     <circle cx="430" cy="540" r="4" fill="#34d399"/><text x="440" y="544" fill="var(--dim)" font-size="10">心跳正常</text>
     <circle cx="510" cy="540" r="4" fill="#fbbf24"/><text x="520" y="544" fill="var(--dim)" font-size="10">迟滞</text>
     <circle cx="570" cy="540" r="4" fill="#f87171"/><text x="580" y="544" fill="var(--dim)" font-size="10">离线</text>`
-  for (const nm of ['phase-core', '探员', '验证官', '命官', '门官', '执事', '司账', '核账', '信使',
+  for (const nm of ['o-core', '探员', '验证官', '命官', '门官', '执事', '司账', '核账', '信使',
     '评史官', '配管', '仓巡', '集使', '行情巡', '私流守', '汇市巡']) {
     if (P[nm]) g += node(nm, P[nm][0], P[nm][1])
   }

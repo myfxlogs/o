@@ -24,7 +24,7 @@ import (
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/metadata"
 
-	mt5pb "phase/internal/gen/mtapi/mt5"
+	mt5pb "o/internal/gen/mtapi/mt5"
 )
 
 // Credentials MT5 户三件套（自 app_secrets 密文列解——demo 户如实注）。
@@ -75,7 +75,7 @@ func (c *Client) Connect(ctx context.Context, cr Credentials) error {
 		ctx, cancel = context.WithTimeout(ctx, connectBudget)
 		defer cancel()
 	}
-	sid := fmt.Sprintf("phase-%d", time.Now().UnixNano())
+	sid := fmt.Sprintf("o-%d", time.Now().UnixNano())
 	loginCtx := metadata.NewOutgoingContext(ctx, metadata.New(map[string]string{"id": sid}))
 	if cr.Server != "" {
 		resp, err := c.connM.ConnectEx(loginCtx, &mt5pb.ConnectExRequest{

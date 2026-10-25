@@ -10,8 +10,8 @@ import (
 	"connectrpc.com/connect/v2"
 	"connectrpc.com/connect/v2/connecthttp"
 
-	dashboardv1 "phase/internal/gen/dashboardv1"
-	"phase/internal/gen/dashboardv1/dashboardv1connect"
+	dashboardv1 "o/internal/gen/dashboardv1"
+	"o/internal/gen/dashboardv1/dashboardv1connect"
 )
 
 func main() {

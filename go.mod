@@ -1,4 +1,4 @@
-module phase
+module o
 
 go 1.27
 

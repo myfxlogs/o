@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# pre-push 门禁：master 只允许从部署树 /opt/phase 推送（D-651）。
+# pre-push 门禁：master 只允许从部署树 /opt/o 推送（D-651）。
 # 远端名闸——本仓唯一远端=origin；裸推到错名远端=显式失败指路，防静默吞件。
 set -u
 
@@ -26,11 +26,11 @@ while read -r local_ref local_sha remote_ref remote_sha; do
     esac
     repo="$(git rev-parse --show-toplevel 2>/dev/null || echo "${GIT_DIR:-unknown}")"
     case "$repo" in
-        /opt/phase)
+        /opt/o)
             exit 0
             ;;
         *)
-            echo "FAIL: master 只能从部署树 /opt/phase 推送；工作分支请推 t/<票名>" >&2
+            echo "FAIL: master 只能从部署树 /opt/o 推送；工作分支请推 t/<票名>" >&2
             exit 1
             ;;
     esac

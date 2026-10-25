@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # check_import_direction.sh —— D-514：internal/* 包间 import 方向白名单门禁（自 nox 誊入）。
-# PHASE 骨架未落位期：白名单=空集（实拍边集随 T-0006 骨架冻结——新增跨包 import 须评审
+# O 骨架未落位期：白名单=空集（实拍边集随 T-0006 骨架冻结——新增跨包 import 须评审
 # 方向合规并更新本表）；删边不拦。无 Go 面=条件未备直通（如实跳过非谎报）。
 # 模块名动态取 go list -m，不钉字面量。
 set -euo pipefail

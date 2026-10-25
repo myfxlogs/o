@@ -15,9 +15,9 @@ import (
 	connecthttp "connectrpc.com/connect/v2/connecthttp"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"phase/internal/gen/dashboardv1"
-	"phase/internal/gen/dashboardv1/dashboardv1connect"
-	"phase/web"
+	"o/internal/gen/dashboardv1"
+	"o/internal/gen/dashboardv1/dashboardv1connect"
+	"o/web"
 )
 
 type coreService struct {

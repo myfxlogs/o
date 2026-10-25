@@ -1,6 +1,6 @@
 // okxprobe —— E-1 已验探针：解 app_secrets 三件套 → GET /account/balance
 // 实测回读。禁线：凭据零落 stdout/log/文件；只回显余额数与成败。
-// 用法：okxprobe -dsn <phase DSN> [-key <keyfile>] [-sim]
+// 用法：okxprobe -dsn <o DSN> [-key <keyfile>] [-sim]
 package main
 
 import (
@@ -11,13 +11,13 @@ import (
 	"os"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"phase/internal/platform/config"
-	"phase/internal/platform/cryptoutil"
-	"phase/internal/trading/okxexec"
+	"o/internal/platform/config"
+	"o/internal/platform/cryptoutil"
+	"o/internal/trading/okxexec"
 )
 
 func main() {
-	dsn := flag.String("dsn", "", "phase DSN")
+	dsn := flag.String("dsn", "", "o DSN")
 	keyf := flag.String("key", config.MasterKeyPath(), "master key 文件")
 	sim := flag.Bool("sim", false, "demo 户头")
 	flag.Parse()

@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"phase/internal/gen/dashboardv1"
+	"o/internal/gen/dashboardv1"
 )
 
 // venues 交易所在线四行（T-0088：真事实源禁假——读件缺席=红+「读件缺」，

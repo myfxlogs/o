@@ -12,7 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"phase/internal/platform/netmeter"
+	"o/internal/platform/netmeter"
 	"strings"
 	"time"
 
@@ -20,11 +20,11 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
 
-	mt5pb "phase/internal/gen/mtapi/mt5"
-	"phase/internal/platform/config"
-	"phase/internal/platform/cryptoutil"
-	"phase/internal/platform/rejects"
-	"phase/internal/platform/roster"
+	mt5pb "o/internal/gen/mtapi/mt5"
+	"o/internal/platform/config"
+	"o/internal/platform/cryptoutil"
+	"o/internal/platform/rejects"
+	"o/internal/platform/roster"
 )
 
 const (

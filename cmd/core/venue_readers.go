@@ -11,11 +11,11 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"phase/internal/guard"
-	"phase/internal/ledger"
-	"phase/internal/mt5"
-	"phase/internal/risk"
-	"phase/internal/trading/okxexec"
+	"o/internal/guard"
+	"o/internal/ledger"
+	"o/internal/mt5"
+	"o/internal/risk"
+	"o/internal/trading/okxexec"
 )
 
 // attachVenueReaders venue 现读件装配（T-0048 返修②口径钉死——快照行全域出局）：

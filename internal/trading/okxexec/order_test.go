@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"phase/internal/platform/signutil"
+	"o/internal/platform/signutil"
 )
 
 func TestSignVector(t *testing.T) {

@@ -2,7 +2,7 @@
 # git_push.sh —— 带重试的推送包装器（D-588：裸 git push 瞬时失败静默滞留病灶修，自 nox 誊入）。
 # 用法：scripts/git_push.sh [remote] [refspec]——缺省 origin HEAD:master。
 # 3 次指数退避；终败非零退出+醒目报错（调用方/复审席须处置，禁吞）。
-# PHASE 仓唯一远端=origin；请求远端不存在而 origin 在→告警自动改推 origin；皆缺→显式失败。
+# O 仓唯一远端=origin；请求远端不存在而 origin 在→告警自动改推 origin；皆缺→显式失败。
 set -uo pipefail
 REMOTE="${1:-origin}"
 REFSPEC="${2:-HEAD:master}"

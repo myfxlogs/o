@@ -4,15 +4,15 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"phase/internal/platform/events"
+	"o/internal/platform/events"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"phase/internal/platform/config"
-	"phase/internal/platform/notify"
-	"phase/internal/platform/rejects"
-	"phase/internal/platform/roster"
+	"o/internal/platform/config"
+	"o/internal/platform/notify"
+	"o/internal/platform/rejects"
+	"o/internal/platform/roster"
 )
 
 // Runner 司账+核账双岗（结算闭环+对账环——账本只消费事实行不触发钱动作）。

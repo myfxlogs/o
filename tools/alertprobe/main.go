@@ -8,9 +8,9 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"phase/internal/platform/config"
-	"phase/internal/platform/cryptoutil"
-	"phase/internal/platform/notify"
+	"o/internal/platform/config"
+	"o/internal/platform/cryptoutil"
+	"o/internal/platform/notify"
 )
 
 func main() {
@@ -38,7 +38,7 @@ func main() {
 	if len(chat) >= 2 {
 		chat = chat[1 : len(chat)-1]
 	}
-	mid, err := cli.SendText(ctx, chat, "[PHASE告警] alert_probe | T-0030 投递实证行（五事件源接源前实证）")
+	mid, err := cli.SendText(ctx, chat, "[O告警] alert_probe | T-0030 投递实证行（五事件源接源前实证）")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "send:", err)
 		os.Exit(1)

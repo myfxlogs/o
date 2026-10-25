@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"phase/internal/platform/roster"
+	"o/internal/platform/roster"
 )
 
 // Run 员工「门官」在岗登记+心跳（闸=被动面——在岗行/心跳供产出窗与活性判据）。

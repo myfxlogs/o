@@ -9,8 +9,8 @@ import (
 	"google.golang.org/grpc"
 	"strconv"
 
-	mt5pb "phase/internal/gen/mtapi/mt5"
-	"phase/internal/trading/execution"
+	mt5pb "o/internal/gen/mtapi/mt5"
+	"o/internal/trading/execution"
 )
 
 // Cli mt5 会话件（authed ctx 携 token——executor 侧不持凭据）。

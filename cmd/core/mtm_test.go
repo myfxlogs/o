@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"phase/internal/platform/testutil"
-	"phase/internal/store/pgstore"
+	"o/internal/platform/testutil"
+	"o/internal/store/pgstore"
 )
 
 // T-0087 锚①：开现货仓后偏移含现货全值（非仅增量），与合约腿增量并轨；

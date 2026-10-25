@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"testing"
 
-	"phase/internal/platform/config"
-	"phase/internal/platform/rejects"
-	"phase/internal/platform/testutil"
-	"phase/internal/store/pgstore"
+	"o/internal/platform/config"
+	"o/internal/platform/rejects"
+	"o/internal/platform/testutil"
+	"o/internal/store/pgstore"
 )
 
 func setup(t *testing.T) (context.Context, *Runner) {

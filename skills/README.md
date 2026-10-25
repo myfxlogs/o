@@ -1,4 +1,4 @@
-# skills/ — PHASE 能力账（canon）
+# skills/ — O 能力账（canon）
 
 > 自 `myfxlogs/nox` master `skills/` @ `b43c02d6` 全量继承（业主定调「skills 随库继承即能力账不重建」）。frontmatter 增 `domain:` 域标签分**工程/经济**；内容未改，文中 `/opt/nox`、nox 仓路径等指前身实物。
 > 桥接：`.devin/skills` → `../skills`（app 侧只加桥不搬件，D-608 规）。
@@ -35,4 +35,4 @@
 
 - 触及 venue/API 面的开工指令必带对应 skill 指针；有而未查=复审退回理由（总纲 D-617）
 - skill 在用中被证错/缺面→同单内修件是职责（D-641），不推后
-- 证据指针回指 `docs/能力账/`（nox 侧）——PHASE 能力账档未建，落位走任务单
+- 证据指针回指 `docs/能力账/`（nox 侧）——O 能力账档未建，落位走任务单

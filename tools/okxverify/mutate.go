@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"phase/internal/trading/okxexec"
+	"o/internal/trading/okxexec"
 )
 
 func mSelfFund(ctx context.Context, cli *okxexec.Client) (tra float64, dustInst string, soldUSD float64) {

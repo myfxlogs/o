@@ -1,12 +1,12 @@
-// kbgen —— PHASE 经验库索引生成器（nox tools/noxkb gen 面的迁移件；induct/LLM
-// 归纳管线不搬——PHASE 分期再议）。子命令：
+// kbgen —— O 经验库索引生成器（nox tools/noxkb gen 面的迁移件；induct/LLM
+// 归纳管线不搬——O 分期再议）。子命令：
 //
 //	kbgen gen            生成 索引.md+技能清单.md（幂等：相同不写）
 //	kbgen gen --check    只校验不落盘——索引陈旧 exit 1（机检门禁用）
 //	kbgen read <id>      读条目全文到 stdout
 //
 // 路径：自 cwd 上溯锚定 docs/<lib>/条目（repo root 标记——错 cwd 显式报错非静默
-// 写丢）；PHASE_KB_DIR env 覆写全部基准（工具引导参非业务配置）。
+// 写丢）；O_KB_DIR env 覆写全部基准（工具引导参非业务配置）。
 package main
 
 import (
@@ -50,7 +50,7 @@ type Entry struct {
 	EALink        string                   `yaml:"ea_link"`
 }
 
-const header = `# PHASE 工程经验索引
+const header = `# O 工程经验索引
 
 > 任务开始时读取一次；命中后读 docs/工程经验库/条目/<id>.md 全文（或 kbgen read <id>）。
 
@@ -211,9 +211,9 @@ func gen(check bool) error {
 	return writeIfChanged(skillsIndexFile, renderSkillsIndex(entries))
 }
 
-// resolvePaths repo root 锚定：上溯找 docs/<lib>/条目 目录；PHASE_KB_DIR 优先。
+// resolvePaths repo root 锚定：上溯找 docs/<lib>/条目 目录；O_KB_DIR 优先。
 func resolvePaths(lib string) error {
-	if v := os.Getenv("PHASE_KB_DIR"); v != "" {
+	if v := os.Getenv("O_KB_DIR"); v != "" {
 		entriesDir = filepath.Join(v, "条目")
 		indexFile = filepath.Join(v, "索引.md")
 		skillsIndexFile = filepath.Join(v, "技能清单.md")

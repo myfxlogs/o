@@ -8,9 +8,9 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"phase/internal/platform/config"
-	"phase/internal/platform/cryptoutil"
-	"phase/internal/trading/okxexec"
+	"o/internal/platform/config"
+	"o/internal/platform/cryptoutil"
+	"o/internal/trading/okxexec"
 )
 
 func main() {

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# pre-commit gate — 工程纪律 §4.1 十二道（自 nox scripts/hooks/pre-commit 誊入改 PHASE 件名）
+# pre-commit gate — 工程纪律 §4.1 十二道（自 nox scripts/hooks/pre-commit 誊入改 O 件名）
 # 用法：git config core.hooksPath scripts/hooks
 # 骨架未落位期语义：依赖 Go 面/索引工具的闸打「条件未备跳过」放行，不谎报已检（D-616）。
 set -euo pipefail
@@ -10,7 +10,7 @@ if [ -f .kill_switch ]; then
   exit 1
 fi
 
-# 2. 部署树写禁（D-651——/opt/phase 只 pull/build/deploy，开发走 worktree）
+# 2. 部署树写禁（D-651——/opt/o 只 pull/build/deploy，开发走 worktree）
 if [ -x scripts/hooks/check-deploy-tree.sh ]; then
   scripts/hooks/check-deploy-tree.sh || exit 1
 fi
@@ -29,7 +29,7 @@ if [ ! -f go.mod ] || [ ! -d internal ]; then
   echo "[pre-commit] staticcheck: 条件未备跳过（无 Go 面）"
 elif command -v staticcheck >/dev/null 2>&1 || [ -x "$HOME/go/bin/staticcheck" ]; then
   SC_BIN=$(command -v staticcheck || echo "$HOME/go/bin/staticcheck")
-  SC_BASE=/tmp/.phase_staticcheck_baseline.txt
+  SC_BASE=/tmp/.o_staticcheck_baseline.txt
   SC_NOW=$(mktemp)
   GOTOOLCHAIN="$(go version | awk '{print $3}')" "$SC_BIN" ./internal/... > "$SC_NOW" 2>&1 || true
   if grep -q "export data version" "$SC_NOW"; then
@@ -81,19 +81,19 @@ fi
 
 # 8. 经验库 schema 门禁（D-130）：staged 触经验库目录→索引 gen --check；索引工具未落位则跳过。
 if git -c core.quotepath=off diff --cached --name-only | grep -qE '^docs/工程经验库/|^docs/经济经验库/'; then
-  if [ -d tools/phasekb ]; then
-    (cd tools/phasekb && go run . gen --check) || {
-      echo "FAIL: phasekb gen --check 未过——条目 frontmatter 须符合 Schema（模板 docs/工程经验库/模板.md），索引自动生成禁手编" >&2
+  if [ -d tools/okb ]; then
+    (cd tools/okb && go run . gen --check) || {
+      echo "FAIL: okb gen --check 未过——条目 frontmatter 须符合 Schema（模板 docs/工程经验库/模板.md），索引自动生成禁手编" >&2
       exit 1
     }
     if git -c core.quotepath=off diff --cached --name-only | grep -qE '^docs/经济经验库/'; then
-      (cd tools/phasekb && go run . gen-econ --check) || {
-        echo "FAIL: phasekb gen-econ --check 未过——经济条目须含判据挂接字段，索引自动生成禁手编" >&2
+      (cd tools/okb && go run . gen-econ --check) || {
+        echo "FAIL: okb gen-econ --check 未过——经济条目须含判据挂接字段，索引自动生成禁手编" >&2
         exit 1
       }
     fi
   else
-    echo "[pre-commit] 经验库 schema 闸: 条件未备跳过（tools/phasekb 未落位——索引工具待迁）"
+    echo "[pre-commit] 经验库 schema 闸: 条件未备跳过（tools/okb 未落位——索引工具待迁）"
   fi
 fi
 
@@ -127,7 +127,7 @@ if [ -n "$SECRET_ADDED" ]; then
   check_secret "PRIVATE[[:space:]]+KEY-----" "PEM 私钥块"
   check_secret "(^|[^A-Za-z0-9])(ghp_|gho_)[A-Za-z0-9]{20,}" "GitHub token 前缀"
   check_secret "(^|[^A-Za-z0-9])sk-[A-Za-z0-9]{20,}" "sk- 秘钥前缀"
-  check_secret "PHASE_AUTH_TOKEN=[A-Za-z0-9]{16,}" "PHASE_AUTH_TOKEN 非占位值"
+  check_secret "O_AUTH_TOKEN=[A-Za-z0-9]{16,}" "O_AUTH_TOKEN 非占位值"
 fi
 
 # 10. 资金/审计写通道 `_ =` 门禁（D-508）：热路径清单内新增 `_ = <err调用>` 即拒；

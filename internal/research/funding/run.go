@@ -11,10 +11,10 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"phase/internal/platform/config"
-	"phase/internal/platform/events"
-	"phase/internal/platform/rejects"
-	"phase/internal/platform/roster"
+	"o/internal/platform/config"
+	"o/internal/platform/events"
+	"o/internal/platform/rejects"
+	"o/internal/platform/roster"
 )
 
 const (

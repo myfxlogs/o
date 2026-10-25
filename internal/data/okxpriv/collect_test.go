@@ -10,8 +10,8 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"phase/internal/platform/testutil"
-	"phase/internal/store/pgstore"
+	"o/internal/platform/testutil"
+	"o/internal/store/pgstore"
 )
 
 // fakePrivWS 抬升→读 login+subscribe→推 balance_and_position 帧。

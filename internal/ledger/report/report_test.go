@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"phase/internal/platform/testutil"
-	"phase/internal/store/pgstore"
+	"o/internal/platform/testutil"
+	"o/internal/store/pgstore"
 )
 
 // 三粒度幂等锚：daily 重跑 UPDATE 非插重；零数据期如实出行。

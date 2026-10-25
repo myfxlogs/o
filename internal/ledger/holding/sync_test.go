@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"testing"
 
-	"phase/internal/platform/testutil"
-	"phase/internal/store/pgstore"
+	"o/internal/platform/testutil"
+	"o/internal/store/pgstore"
 )
 
 func TestSyncAndStale(t *testing.T) {

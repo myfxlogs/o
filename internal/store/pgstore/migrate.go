@@ -6,7 +6,7 @@ import (
 	"sort"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"phase/migrations"
+	"o/migrations"
 )
 
 // Migrate 按登记表序进应用 migrations/*.sql；schema_migrations 记已应用版本（基线制）。

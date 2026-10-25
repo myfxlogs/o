@@ -5,8 +5,8 @@ package main
 import (
 	"context"
 
-	legfunding "phase/internal/ledger/funding"
-	"phase/internal/trading/okxexec"
+	legfunding "o/internal/ledger/funding"
+	"o/internal/trading/okxexec"
 )
 
 // billsSrc okxexec bills 源适配（cmd 装配层——funding.Bill 域自有型转换）。

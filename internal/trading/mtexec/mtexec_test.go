@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	mt5pb "phase/internal/gen/mtapi/mt5"
-	"phase/internal/trading/execution"
+	mt5pb "o/internal/gen/mtapi/mt5"
+	"o/internal/trading/execution"
 
 	"google.golang.org/grpc"
 )

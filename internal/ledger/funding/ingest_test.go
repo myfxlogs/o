@@ -7,8 +7,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"phase/internal/platform/testutil"
-	"phase/internal/store/pgstore"
+	"o/internal/platform/testutil"
+	"o/internal/store/pgstore"
 )
 
 // fakeSrc 可编程账单源（pages 逐页弹夹——after 游标推进）。

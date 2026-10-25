@@ -7,11 +7,11 @@ import (
 	"strings"
 	"testing"
 
-	"phase/internal/platform/config"
-	"phase/internal/platform/testutil"
-	"phase/internal/store/pgstore"
-	"phase/internal/trading/okxexec"
-	"phase/migrations"
+	"o/internal/platform/config"
+	"o/internal/platform/testutil"
+	"o/internal/store/pgstore"
+	"o/internal/trading/okxexec"
+	"o/migrations"
 )
 
 // fakeVenue 可控 venue（Place 行为按 clOrdID 路由；onPlace=调用序钩子——前置赎回序锚用）。

@@ -13,11 +13,11 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"phase/internal/platform/config"
-	"phase/internal/platform/cryptoutil"
-	"phase/internal/platform/netmeter"
-	"phase/internal/platform/rejects"
-	"phase/internal/platform/signutil"
+	"o/internal/platform/config"
+	"o/internal/platform/cryptoutil"
+	"o/internal/platform/netmeter"
+	"o/internal/platform/rejects"
+	"o/internal/platform/signutil"
 )
 
 const (

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"sync"
 
-	"phase/internal/trading/okxexec"
+	"o/internal/trading/okxexec"
 )
 
 // OkxExecutor okxexec 适配器（venue 调用只走 T-0008 已验 FreshClient/clOrdId 径——

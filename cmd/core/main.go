@@ -1,6 +1,6 @@
-// cmd/core —— PHASE 单二进制（cmd/core，架构约束 §1 装配钉）。
+// cmd/core —— O 单二进制（cmd/core，架构约束 §1 装配钉）。
 // boot 序：DB_DSN 连库 → 迁移 → config client（Load+Watch）→ 花名册 Register+Beat
-// （运行时本体=1 号员工 phase-core）→ :50051 ConnectRPC+健康端点。
+// （运行时本体=1 号员工 o-core）→ :50051 ConnectRPC+健康端点。
 package main
 
 import (
@@ -15,31 +15,31 @@ import (
 	"syscall"
 	"time"
 
-	"phase/internal/data/okxpriv"
-	"phase/internal/data/okxws"
-	"phase/internal/earn"
-	"phase/internal/guard"
-	"phase/internal/ledger"
-	legfunding "phase/internal/ledger/funding"
-	"phase/internal/ledger/holding"
-	"phase/internal/ledger/report"
-	"phase/internal/mt5"
-	"phase/internal/platform/config"
-	"phase/internal/platform/cryptoutil"
-	"phase/internal/platform/netmeter"
-	"phase/internal/platform/notify"
-	"phase/internal/platform/roster"
-	"phase/internal/portfolio/lifecycle"
-	"phase/internal/research/funding"
-	"phase/internal/review"
-	"phase/internal/risk"
-	"phase/internal/store/pgstore"
-	"phase/internal/trading/execution"
-	"phase/internal/trading/okxexec"
+	"o/internal/data/okxpriv"
+	"o/internal/data/okxws"
+	"o/internal/earn"
+	"o/internal/guard"
+	"o/internal/ledger"
+	legfunding "o/internal/ledger/funding"
+	"o/internal/ledger/holding"
+	"o/internal/ledger/report"
+	"o/internal/mt5"
+	"o/internal/platform/config"
+	"o/internal/platform/cryptoutil"
+	"o/internal/platform/netmeter"
+	"o/internal/platform/notify"
+	"o/internal/platform/roster"
+	"o/internal/portfolio/lifecycle"
+	"o/internal/research/funding"
+	"o/internal/review"
+	"o/internal/risk"
+	"o/internal/store/pgstore"
+	"o/internal/trading/execution"
+	"o/internal/trading/okxexec"
 )
 
 const (
-	employeeName  = "phase-core"
+	employeeName  = "o-core"
 	employeeDept  = "platform"
 	employeeTitle = "运行时本体（1 号员工）"
 	beatEvery     = 30 * time.Second
@@ -284,7 +284,7 @@ func run() error {
 		defer cancel()
 		_ = srv.Shutdown(shCtx)
 	}()
-	log.Printf("phase-core up :%s（employee=%s 已注册，config gen=%d）", listenAddr, employeeName, cfg.Generation())
+	log.Printf("o-core up :%s（employee=%s 已注册，config gen=%d）", listenAddr, employeeName, cfg.Generation())
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}

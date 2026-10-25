@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"phase/internal/platform/testutil"
-	"phase/internal/store/pgstore"
+	"o/internal/platform/testutil"
+	"o/internal/store/pgstore"
 )
 
 func TestFailClosedBeforeLoad(t *testing.T) {
@@ -63,7 +63,7 @@ func TestLoadGetNotify(t *testing.T) {
 }
 
 func TestMasterKeyFile(t *testing.T) {
-	t.Setenv("PHASE_MASTER_KEY_FILE", "/nonexistent/path/key")
+	t.Setenv("O_MASTER_KEY_FILE", "/nonexistent/path/key")
 	if _, err := ReadMasterKey(); err == nil {
 		t.Fatal("缺件应 fail-closed")
 	}
@@ -71,7 +71,7 @@ func TestMasterKeyFile(t *testing.T) {
 	if err := os.WriteFile(f, []byte("testkey-material-32B-padded-000"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("PHASE_MASTER_KEY_FILE", f)
+	t.Setenv("O_MASTER_KEY_FILE", f)
 	b, err := ReadMasterKey()
 	if err != nil || len(b) == 0 {
 		t.Fatalf("read: %v len=%d", err, len(b))

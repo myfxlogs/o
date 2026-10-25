@@ -6,7 +6,7 @@ import (
 	"context"
 	"fmt"
 
-	mt5pb "phase/internal/gen/mtapi/mt5"
+	mt5pb "o/internal/gen/mtapi/mt5"
 )
 
 func verifyQuotesSubs(ctx context.Context) {

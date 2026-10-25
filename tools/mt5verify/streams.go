@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	mt5pb "phase/internal/gen/mtapi/mt5"
+	mt5pb "o/internal/gen/mtapi/mt5"
 )
 
 // sres 流面单流结果；sresM 流面结果（包级——main 判定输出段消费；verifyStreams 填充）。

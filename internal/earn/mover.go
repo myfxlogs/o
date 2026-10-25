@@ -12,8 +12,8 @@ import (
 	"log"
 	"strconv"
 
-	"phase/internal/ledger"
-	"phase/internal/trading/okxexec"
+	"o/internal/ledger"
+	"o/internal/trading/okxexec"
 )
 
 // transferOutcome 划转定态三值（okx-exec 定态律的 transfer 版）。

@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"phase/internal/platform/testutil"
-	"phase/internal/store/pgstore"
+	"o/internal/platform/testutil"
+	"o/internal/store/pgstore"
 )
 
 // TestNoMutatingSurface 禁 mutating 面锚（T-0031 验收标准：mt5-trading-mutating 卡

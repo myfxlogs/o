@@ -1,7 +1,7 @@
 // credx —— E-1 凭据提取工具（一次性运维件）：nox dump 库 exchange_configs okx 行
-// *_enc 密文列解密 → 同构 Seal → 写 PHASE app_secrets + exchange_configs。
+// *_enc 密文列解密 → 同构 Seal → 写 O app_secrets + exchange_configs。
 // 禁线：任何明文只进 DB/内存，零落 stdout/log/文件。
-// 用法：credx -src <noxdump DSN> -dst <phase DSN> -key <master key 文件>
+// 用法：credx -src <noxdump DSN> -dst <o DSN> -key <master key 文件>
 package main
 
 import (
@@ -12,13 +12,13 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"phase/internal/platform/config"
-	"phase/internal/platform/cryptoutil"
+	"o/internal/platform/config"
+	"o/internal/platform/cryptoutil"
 )
 
 func main() {
 	src := flag.String("src", "", "nox dump DSN")
-	dst := flag.String("dst", "", "phase DSN")
+	dst := flag.String("dst", "", "o DSN")
 	keyf := flag.String("key", config.MasterKeyPath(), "master key 文件路径")
 	flag.Parse()
 	if *src == "" || *dst == "" {

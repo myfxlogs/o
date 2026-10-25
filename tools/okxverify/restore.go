@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"phase/internal/trading/okxexec"
+	"o/internal/trading/okxexec"
 )
 
 func mSpot(ctx context.Context, cli *okxexec.Client, tra float64, priv chan string) {

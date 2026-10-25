@@ -14,8 +14,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"phase/internal/platform/config"
-	"phase/internal/platform/rejects"
+	"o/internal/platform/config"
+	"o/internal/platform/rejects"
 )
 
 // Intent 执行意图（完整性校验缺字段=deny）。Kind 空值=open（兼容既有 caller）；

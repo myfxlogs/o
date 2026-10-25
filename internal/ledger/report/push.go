@@ -10,10 +10,10 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"phase/internal/platform/config"
-	"phase/internal/platform/cryptoutil"
-	"phase/internal/platform/notify"
-	"phase/internal/platform/rejects"
+	"o/internal/platform/config"
+	"o/internal/platform/cryptoutil"
+	"o/internal/platform/notify"
+	"o/internal/platform/rejects"
 )
 
 // Pusher 推送岗（cli=Sender 接口注入——凭据缺席=nil 降级不推不炸；接口面防
@@ -67,7 +67,7 @@ func (p *Pusher) MaybePush(ctx context.Context, period string, m map[string]any,
 		p.rej.Inc("push_degraded")
 		return
 	}
-	text := fmt.Sprintf("【PHASE %s 报】%s\n净额 %s / 累计净值 %s\n开 %s 平 %s / 评 %s 过 %s 拒\nEarn 停泊 %s\n%s",
+	text := fmt.Sprintf("【O %s 报】%s\n净额 %s / 累计净值 %s\n开 %s 平 %s / 评 %s 过 %s 拒\nEarn 停泊 %s\n%s",
 		map[string]string{"daily": "日", "weekly": "周", "monthly": "月"}[period],
 		boundsLabel(period),
 		fmt.Sprint(m["net"]), fmt.Sprint(m["cum_nav"]),

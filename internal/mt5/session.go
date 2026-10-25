@@ -8,7 +8,7 @@ import (
 	"log"
 	"time"
 
-	"phase/internal/platform/config"
+	"o/internal/platform/config"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )

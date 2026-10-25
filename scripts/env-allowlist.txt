@@ -1,21 +1,21 @@
 # env-allowlist.txt —— env 直读白名单（逐键显式登记；本表只缩不增，新键须过评审）。
 # 「env 里能读到=合法」不是理由，读本表才是。业务配置唯一真相=PG（app_config/app_secrets）。
 # D-0005（业主令 2026-10-23）：生产 runtime env 只留 DB_DSN 一键；MASTER_KEY 走主机密钥
-# 文件（PHASE_MASTER_KEY_FILE 仅指路径不载密）；其余全量入 DB。
+# 文件（O_MASTER_KEY_FILE 仅指路径不载密）；其余全量入 DB。
 # —— 引导件（连库前/密钥文件路径/RPC 鉴权/debug/测试基建/工具参数）——
 DB_DSN
-PHASE_MASTER_KEY_FILE
-PHASE_PPROF_ADDR
-PHASE_WEB_DIR
-PHASE_ECONKB_DIR
-PHASE_KB_DIR
+O_MASTER_KEY_FILE
+O_PPROF_ADDR
+O_WEB_DIR
+O_ECONKB_DIR
+O_KB_DIR
 # —— 测试基建（internal/platform/testutil 域；鸡生蛋——被测库不能装自己的地址）——
-PHASE_TEST_PG_DSN
-PHASE_TEST_PG_SERVICE_DSN
-PHASE_EXEC_TEST_PG_DSN
-PHASE_RECONCILE_TEST_PG_DSN
-PHASE_TEST_ALLOW_SKIP_DSN
-PHASE_TEST_SEAT
+O_TEST_PG_DSN
+O_TEST_PG_SERVICE_DSN
+O_EXEC_TEST_PG_DSN
+O_RECONCILE_TEST_PG_DSN
+O_TEST_ALLOW_SKIP_DSN
+O_TEST_SEAT
 # —— MT5_* 一次性工具入参（不进 PG）——
 MT5_HOST
 MT5_PASS

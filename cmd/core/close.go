@@ -10,9 +10,9 @@ import (
 	"strconv"
 	"strings"
 
-	"phase/internal/guard"
-	"phase/internal/trading/execution"
-	"phase/internal/trading/okxexec"
+	"o/internal/guard"
+	"o/internal/trading/execution"
+	"o/internal/trading/okxexec"
 )
 
 type closeExec struct{ r *execution.Runner }

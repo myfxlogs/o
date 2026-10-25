@@ -9,9 +9,9 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"phase/internal/platform/config"
-	"phase/internal/platform/cryptoutil"
-	"phase/internal/platform/notify"
+	"o/internal/platform/config"
+	"o/internal/platform/cryptoutil"
+	"o/internal/platform/notify"
 )
 
 func main() {
@@ -46,7 +46,7 @@ func main() {
 	var chatID string
 	_ = pool.QueryRow(ctx, "SELECT value::text FROM app_config WHERE key='feishu.chat_id'").Scan(&chatID)
 	chatID = trimJSONStr(chatID)
-	mid, err := cli.SendText(ctx, chatID, "【PHASE 推送通道实证】T-0028——chat_id 绑定+SendText 径走通（本行为 dev 实证消息）")
+	mid, err := cli.SendText(ctx, chatID, "【O 推送通道实证】T-0028——chat_id 绑定+SendText 径走通（本行为 dev 实证消息）")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "send:", err)
 		os.Exit(1)

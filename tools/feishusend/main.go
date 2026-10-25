@@ -1,7 +1,7 @@
 // feishusend —— 通知面发送微件（T-0025 段三执行配套：核对点/晋升结果推业主飞书；
 // feishuprobe 同族=T-0028 通知面工具族延伸）。用法：
 //
-//	DB_DSN=postgres://... PHASE_MASTER_KEY_FILE=./secrets/phase_master_key \
+//	DB_DSN=postgres://... O_MASTER_KEY_FILE=./secrets/o_master_key \
 //	  go run ./tools/feishusend "文本"
 //
 // chat_id 读 app_config.feishu.chat_id（绑定态）；缺绑定/缺键=fail-closed 退非零。
@@ -14,14 +14,14 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"phase/internal/platform/config"
-	"phase/internal/platform/cryptoutil"
-	"phase/internal/platform/notify"
+	"o/internal/platform/config"
+	"o/internal/platform/cryptoutil"
+	"o/internal/platform/notify"
 )
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, `用法: go run ./tools/feishusend "文本"（env: DB_DSN, PHASE_MASTER_KEY_FILE）`)
+		fmt.Fprintln(os.Stderr, `用法: go run ./tools/feishusend "文本"（env: DB_DSN, O_MASTER_KEY_FILE）`)
 		os.Exit(1)
 	}
 	ctx := context.Background()

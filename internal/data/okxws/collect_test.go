@@ -11,9 +11,9 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"phase/internal/platform/config"
-	"phase/internal/platform/testutil"
-	"phase/internal/store/pgstore"
+	"o/internal/platform/config"
+	"o/internal/platform/testutil"
+	"o/internal/store/pgstore"
 )
 
 // fakeOKX 抬升 ws→读订阅帧→推 tickers+funding 帧（fake server 形证链路，

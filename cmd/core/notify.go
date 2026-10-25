@@ -8,8 +8,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"phase/internal/platform/config"
-	"phase/internal/platform/notify"
+	"o/internal/platform/config"
+	"o/internal/platform/notify"
 )
 
 func killSwitchNotifier(ctx context.Context, pool *pgxpool.Pool, cfg *config.Client, alerter *notify.Alerter) {

@@ -1,8 +1,8 @@
 syntax = "proto3";
 
-package phase.dashboard.v1;
+package o.dashboard.v1;
 
-option go_package = "phase/internal/gen/dashboardv1";
+option go_package = "o/internal/gen/dashboardv1";
 
 service CoreService {
   rpc Ping(PingRequest) returns (PingResponse) {}

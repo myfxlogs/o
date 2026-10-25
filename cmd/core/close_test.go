@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	"phase/internal/guard"
+	"o/internal/guard"
 )
 
 // T-0043 锚：closeExec Intent.Kind=="close"+双腿 Close=true（免闸免赎语义位——

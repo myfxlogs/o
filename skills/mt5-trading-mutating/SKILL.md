@@ -28,7 +28,7 @@ domain: 工程
 | OrderSend 市价 BUY（mt5ordstream 复跑） | 连拒 2 次「Request processing error」栈卡 `MarketOpenWaiterAsync`→第 3 次 ok ticket=2567601594 | **会话开+报价流正常仍瞬态拒**——MarketOpenWaiter 等网关侧成交确认超时；退避 ~10s 重试即过（发送侧同竞态族） |
 | OrderClose 同一新仓（ordstream 内即平） | 「Request processing error」栈卡 `MarketCloseWaiterAsync`；**mt5close att1 带 Lots 即成** | 开/平两侧同族瞬态——**败后必须 OpenedOrders 仲裁残仓**，禁信报错=未成交（该次确未平，残仓 2567601594 后清） |
 **符号方言硬坑**：demo 户同 Exness 系=BTCUSDm/XAUUSDm 型 m 尾（XAUUSD 裸名 not exist 实拍同 EXR 真户）——**symbol 名一律 venue SymbolList 实读禁猜**；周六仅加密面开（外汇对停盘勿试）。
-**复跑**：nox `go run ./tools/mtprobe --dsn <dsn> --demo-env /opt/nox-secrets/mt5-demo.env`；PHASE `tools/mt5verify -demoenv <env>`（mutating 谱 6 拍：市价开→改 SL/TP→平→挂→改价→撤，2026-10-24 全绿）。
+**复跑**：nox `go run ./tools/mtprobe --dsn <dsn> --demo-env /opt/nox-secrets/mt5-demo.env`；O `tools/mt5verify -demoenv <env>`（mutating 谱 6 拍：市价开→改 SL/TP→平→挂→改价→撤，2026-10-24 全绿）。
 **请求字段速查**：OrderSend{symbol,operation(OrderType 枚举),volume,price*(pending),slippage,sl,tp,comment}；OrderModify{ticket,stoploss,takeprofit,price*}；OrderClose{ticket,lots*,price*,slippage*}。
 ## 错误码→动作分类表（errclass.ClassifyMT5——真钱重试语义层，重建必录）
 | 码串 | Action | 语义 |

@@ -12,9 +12,9 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"phase/internal/platform/config"
-	"phase/internal/platform/notify"
-	"phase/internal/platform/rejects"
+	"o/internal/platform/config"
+	"o/internal/platform/notify"
+	"o/internal/platform/rejects"
 )
 
 // Leg 腿规格（execution 自有型——不引 intent 他域型）。

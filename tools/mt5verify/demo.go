@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	mt5pb "phase/internal/gen/mtapi/mt5"
+	mt5pb "o/internal/gen/mtapi/mt5"
 )
 
 // readDemoEnv demo 凭据 env 解析（值禁打印）。

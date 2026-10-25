@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"phase/internal/platform/config"
-	"phase/internal/platform/rejects"
-	"phase/internal/platform/testutil"
-	"phase/internal/store/pgstore"
+	"o/internal/platform/config"
+	"o/internal/platform/rejects"
+	"o/internal/platform/testutil"
+	"o/internal/store/pgstore"
 )
 
 // pushFake 假 Sender（报表/日历推送计数+文本留痕）。

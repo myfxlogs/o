@@ -7,7 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"phase/internal/gen/dashboardv1"
+	"o/internal/gen/dashboardv1"
 )
 
 // moneyRow 组装（T-0086 ②：分区+币种+遗留资产标注——非在册币种涨跌不报警）。

@@ -84,7 +84,7 @@ func (a *Alerter) Alert(ctx context.Context, kind, payload string) {
 	_, actable := HumanText(kind, payload)
 	prefix := "[经营事件] "
 	if actable {
-		prefix = "[PHASE告警] "
+		prefix = "[O告警] "
 	}
 	text := fmt.Sprintf("%s%s | %s", prefix, body, time.Now().Format("15:04:05"))
 	if _, err := a.cli.SendText(ctx, a.chatID(), text); err != nil {

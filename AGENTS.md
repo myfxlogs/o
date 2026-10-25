@@ -1,4 +1,4 @@
-# PHASE
+# O
 
 套利基金系统（前身 NOX）。命名源流与业务锚见 README.md。
 

@@ -19,17 +19,17 @@ import (
 	"fmt"
 	"log"
 	"math"
-	"phase/internal/platform/events"
+	"o/internal/platform/events"
 	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"phase/internal/platform/config"
-	"phase/internal/platform/notify"
-	"phase/internal/platform/rejects"
-	"phase/internal/platform/roster"
-	"phase/internal/trading/okxexec"
+	"o/internal/platform/config"
+	"o/internal/platform/notify"
+	"o/internal/platform/rejects"
+	"o/internal/platform/roster"
+	"o/internal/trading/okxexec"
 )
 
 const (

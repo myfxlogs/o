@@ -1,6 +1,6 @@
 // rescuespot —— 事故运维件：LEGGED 残仓人工救助。决策时点现读 /account/balance
 // 卖 BTC-USDT 现货残仓（availBal 实读，禁快照）。执行后打印 venue 终态对拍。
-// 用法：DB_DSN=… PHASE_MASTER_KEY_FILE=… rescuespot [-dry]
+// 用法：DB_DSN=… O_MASTER_KEY_FILE=… rescuespot [-dry]
 package main
 
 import (
@@ -15,9 +15,9 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"phase/internal/platform/config"
-	"phase/internal/platform/cryptoutil"
-	"phase/internal/trading/okxexec"
+	"o/internal/platform/config"
+	"o/internal/platform/cryptoutil"
+	"o/internal/trading/okxexec"
 )
 
 func main() {

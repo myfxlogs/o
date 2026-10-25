@@ -11,11 +11,11 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"phase/internal/platform/config"
-	"phase/internal/portfolio/lifecycle"
-	"phase/internal/risk"
-	"phase/internal/trading/execution"
-	"phase/internal/trading/okxexec"
+	"o/internal/platform/config"
+	"o/internal/portfolio/lifecycle"
+	"o/internal/risk"
+	"o/internal/trading/execution"
+	"o/internal/trading/okxexec"
 )
 
 // hedgeOpener funding-hedge 开仓适配（cmd 组合根——投资域不反向依赖交易/风控域）。

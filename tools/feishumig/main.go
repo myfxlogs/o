@@ -1,4 +1,4 @@
-// feishumig —— T-0028 凭据迁移件：nox app_secrets FEISHU 行解密→phase app_secrets
+// feishumig —— T-0028 凭据迁移件：nox app_secrets FEISHU 行解密→o app_secrets
 // feishu.app_id/app_secret 密文落册（密文进出，值不入会话/不入仓）。
 package main
 
@@ -9,8 +9,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"phase/internal/platform/config"
-	"phase/internal/platform/cryptoutil"
+	"o/internal/platform/config"
+	"o/internal/platform/cryptoutil"
 )
 
 func main() {

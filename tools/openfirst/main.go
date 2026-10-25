@@ -1,7 +1,7 @@
 // openfirst —— T-0033 运维触发件：人工显式触发单次开仓流（probe/live 策略
 // →open Intent→risk.Check→token→Execute）。全程走既有闸径不绕一件
 // （live_switch/hedge_band/Earn 赎回/双腿原子——与自动径同码）。
-// 用法：DB_DSN=… PHASE_MASTER_KEY_FILE=… openfirst [-strategy <id>] [-dry]
+// 用法：DB_DSN=… O_MASTER_KEY_FILE=… openfirst [-strategy <id>] [-dry]
 package main
 
 import (
@@ -13,15 +13,15 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"phase/internal/earn"
-	mt5pb "phase/internal/gen/mtapi/mt5"
-	"phase/internal/mt5"
-	"phase/internal/platform/config"
-	"phase/internal/platform/cryptoutil"
-	"phase/internal/risk"
-	"phase/internal/trading/execution"
-	"phase/internal/trading/mtexec"
-	"phase/internal/trading/okxexec"
+	"o/internal/earn"
+	mt5pb "o/internal/gen/mtapi/mt5"
+	"o/internal/mt5"
+	"o/internal/platform/config"
+	"o/internal/platform/cryptoutil"
+	"o/internal/risk"
+	"o/internal/trading/execution"
+	"o/internal/trading/mtexec"
+	"o/internal/trading/okxexec"
 )
 
 func main() {

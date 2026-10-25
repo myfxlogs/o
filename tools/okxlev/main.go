@@ -17,9 +17,9 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"phase/internal/platform/config"
-	"phase/internal/platform/cryptoutil"
-	"phase/internal/trading/okxexec"
+	"o/internal/platform/config"
+	"o/internal/platform/cryptoutil"
+	"o/internal/trading/okxexec"
 )
 
 func jstr(raw json.RawMessage, keys ...string) string {
@@ -41,7 +41,7 @@ func jstr(raw json.RawMessage, keys ...string) string {
 }
 
 func main() {
-	dsn := flag.String("dsn", "", "phase DSN")
+	dsn := flag.String("dsn", "", "o DSN")
 	keyf := flag.String("key", config.MasterKeyPath(), "")
 	inst := flag.String("inst", "BTC-USDT-SWAP", "标的合约")
 	flag.Parse()

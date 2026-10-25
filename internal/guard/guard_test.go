@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"phase/internal/platform/config"
-	"phase/internal/platform/testutil"
-	"phase/internal/risk"
-	"phase/internal/store/pgstore"
+	"o/internal/platform/config"
+	"o/internal/platform/testutil"
+	"o/internal/risk"
+	"o/internal/store/pgstore"
 )
 
 func setup(t *testing.T) (context.Context, *Warden, *fakeExec) {

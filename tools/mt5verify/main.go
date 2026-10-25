@@ -18,7 +18,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
 
-	mt5pb "phase/internal/gen/mtapi/mt5"
+	mt5pb "o/internal/gen/mtapi/mt5"
 )
 
 const sym = "BTCUSDm" // EXR 户方言实认符号

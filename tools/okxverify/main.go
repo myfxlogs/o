@@ -16,9 +16,9 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"phase/internal/platform/config"
-	"phase/internal/platform/cryptoutil"
-	"phase/internal/trading/okxexec"
+	"o/internal/platform/config"
+	"o/internal/platform/cryptoutil"
+	"o/internal/trading/okxexec"
 )
 
 var (
@@ -71,7 +71,7 @@ func jget(raw json.RawMessage, keys ...string) string {
 func f64(s string) float64 { f, _ := strconv.ParseFloat(s, 64); return f }
 
 func main() {
-	dsn := flag.String("dsn", "", "phase DSN")
+	dsn := flag.String("dsn", "", "o DSN")
 	keyf := flag.String("key", config.MasterKeyPath(), "")
 	sim := flag.Bool("sim", false, "demo 户头")
 	mut := flag.Bool("mut", false, "跑 mutating 实单谱（真钱）")

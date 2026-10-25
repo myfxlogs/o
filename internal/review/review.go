@@ -12,9 +12,9 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"phase/internal/platform/events"
-	"phase/internal/platform/rejects"
-	"phase/internal/platform/roster"
+	"o/internal/platform/events"
+	"o/internal/platform/rejects"
+	"o/internal/platform/roster"
 )
 
 var stagingFile = "docs/经济经验库/待归纳.md"

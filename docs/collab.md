@@ -1,4 +1,4 @@
-# PHASE 多 Agent 协作协议
+# O 多 Agent 协作协议
 
 > `[角色:决策]` 立于 2026-10-23。修订走任务单流程。依据见 `docs/decisions/D-0001-multi-agent-collab.md`。
 
@@ -68,11 +68,11 @@
 
 ## 3. 领单与防双抢
 
-施工 Agent 进仓（**全程不碰部署树 `/opt/phase`**，§9）：
+施工 Agent 进仓（**全程不碰部署树 `/opt/o`**，§9）：
 
 1. `git fetch origin`（任意工作目录）
 2. 找 `状态=已批` 且 `领取` 为空的单（master 或远端票内为准）
-3. **建工作树即建支**：`git worktree add /opt/phase-wt/tNNNN -b t/NNNN-slug origin/master`
+3. **建工作树即建支**：`git worktree add /opt/o-wt/tNNNN -b t/NNNN-slug origin/master`
 4. 在**自己分支上**翻单：`状态→施工中`、填 `领取`（session 标识 @ 时间）
 5. **立即** commit + push 分支：`[角色:施工][T-NNNN] 领单`——**分支 push 成功=锁单**；远端已有 `t/NNNN-*` 支=有人先抢，换单
 
@@ -145,10 +145,10 @@ session 标识自定（如 `devin-a1b2`），全仓唯一即可，建议加可�
 
 ## 9. 工作面隔离（双席并行防占位——2026-10-23 实证立）
 
-- **`/opt/phase` 部署树=master 常检，决策席专用面**：只许台账 docs 提交（D-651 白名单面）+验收合并。施工席**禁在部署树检出分支/编辑/提交**——违者 D-651 闸拦+计次。
-- **施工工作面=自己的 worktree**：`git worktree add /opt/phase-wt/<票> -b t/<票>`，一单一树；票毕 `worktree remove`+删支。
+- **`/opt/o` 部署树=master 常检，决策席专用面**：只许台账 docs 提交（D-651 白名单面）+验收合并。施工席**禁在部署树检出分支/编辑/提交**——违者 D-651 闸拦+计次。
+- **施工工作面=自己的 worktree**：`git worktree add /opt/o-wt/<票> -b t/<票>`，一单一树；票毕 `worktree remove`+删支。
 - 多席并行零互踩的前提=各守各树；`.git` 级竞态（index.lock/HEAD 漂移）一旦出现即说明有人在部署树动手。
-- 检出纪律自查：任何席在 /opt/phase 见到 `git branch --show-current` 非 master = 先报决策席，禁顺手切回（可能正有合并/领单进行中）。
+- 检出纪律自查：任何席在 /opt/o 见到 `git branch --show-current` 非 master = 先报决策席，禁顺手切回（可能正有合并/领单进行中）。
 
 ## 10. 会话尾（退仓纪律——nox D-592 精神继承版，T-0049 立）
 
@@ -162,7 +162,7 @@ session 标识自定（如 `devin-a1b2`），全仓唯一即可，建议加可�
 
 轮换四步，每步机检显式断言——禁管道吞退出码、禁「Started」即当成功：
 
-1. **build 显式断言**：`docker build --network=host -t phase-core:latest -f Dockerfile.core .` 直跑（**禁 `| tail` 等管道吞码**——复合放大器实证：build 炸被吞→`up` 照跑→容器带旧镜像「Started」假象）。
-2. **镜像投递+源码同步**：`docker save phase-core:latest | gzip -1 | ssh root@<SG> 'docker load'` → `scripts/deploy_sync.sh`（prune 已排除 `internal/gen/**`；镜像内 buf 双模板 regen 自洽，SG/宿主 gen 面零依赖）。
-3. **up 强制重建**：`ssh <SG> 'cd /opt/phase && docker compose -f docker-compose.yml -f docker-compose.sg.yml up -d --force-recreate'`——**`--force-recreate` 必带**（不带=容器保留旧镜像运行实证 08:59Z）。
-4. **容器镜像比对**：新镜像 ID（`docker images phase-core:latest -q`）与运行容器 `.Image`（`docker inspect phase-core --format '{{.Image}}'`）逐字比对一致+`healthy`——不一致=轮换未生效禁收工；新镜像 `CreatedAt` 须晚于 merge 提交时点。
+1. **build 显式断言**：`docker build --network=host -t o-core:latest -f Dockerfile.core .` 直跑（**禁 `| tail` 等管道吞码**——复合放大器实证：build 炸被吞→`up` 照跑→容器带旧镜像「Started」假象）。
+2. **镜像投递+源码同步**：`docker save o-core:latest | gzip -1 | ssh root@<SG> 'docker load'` → `scripts/deploy_sync.sh`（prune 已排除 `internal/gen/**`；镜像内 buf 双模板 regen 自洽，SG/宿主 gen 面零依赖）。
+3. **up 强制重建**：`ssh <SG> 'cd /opt/o && docker compose -f docker-compose.yml -f docker-compose.sg.yml up -d --force-recreate'`——**`--force-recreate` 必带**（不带=容器保留旧镜像运行实证 08:59Z）。
+4. **容器镜像比对**：新镜像 ID（`docker images o-core:latest -q`）与运行容器 `.Image`（`docker inspect o-core --format '{{.Image}}'`）逐字比对一致+`healthy`——不一致=轮换未生效禁收工；新镜像 `CreatedAt` 须晚于 merge 提交时点。

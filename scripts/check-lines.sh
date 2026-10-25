@@ -17,7 +17,7 @@ exempt() {
   return 1
 }
 
-# 既有超标文件白名单——PHASE 新仓零存量，白名单天生为空（渐进收紧条款保留）。
+# 既有超标文件白名单——O 新仓零存量，白名单天生为空（渐进收紧条款保留）。
 LEGACY_OVERSIZE=()
 
 is_legacy_oversize() {

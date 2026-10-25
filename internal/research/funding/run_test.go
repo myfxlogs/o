@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"phase/internal/platform/config"
-	"phase/internal/platform/testutil"
-	"phase/internal/store/pgstore"
+	"o/internal/platform/config"
+	"o/internal/platform/testutil"
+	"o/internal/store/pgstore"
 )
 
 func TestScanE2E(t *testing.T) {

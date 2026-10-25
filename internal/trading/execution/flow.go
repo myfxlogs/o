@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"phase/internal/trading/okxexec"
+	"o/internal/trading/okxexec"
 )
 
 // Execute 双腿原子开仓：令牌→live 闸→对冲带→leg1→leg2→（败则 LEGGED 回滚）。

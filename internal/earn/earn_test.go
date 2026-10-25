@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"phase/internal/platform/config"
-	"phase/internal/platform/testutil"
-	"phase/internal/store/pgstore"
-	"phase/internal/trading/okxexec"
+	"o/internal/platform/config"
+	"o/internal/platform/testutil"
+	"o/internal/store/pgstore"
+	"o/internal/trading/okxexec"
 )
 
 // fakeAPI 可控 venue 停泊面（行为开关+调用记录——钱动锚全走此件）。

@@ -3,9 +3,9 @@ package lifecycle
 import (
 	"context"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"phase/internal/platform/config"
-	"phase/internal/platform/testutil"
-	"phase/internal/store/pgstore"
+	"o/internal/platform/config"
+	"o/internal/platform/testutil"
+	"o/internal/store/pgstore"
 	"testing"
 )
 

@@ -2,12 +2,12 @@ package main
 
 import (
 	"context"
-	"phase/internal/gen/dashboardv1"
-	"phase/internal/platform/testutil"
-	"phase/internal/store/pgstore"
+	"o/internal/gen/dashboardv1"
+	"o/internal/platform/testutil"
+	"o/internal/store/pgstore"
 	"testing"
 
-	"phase/internal/guard"
+	"o/internal/guard"
 )
 
 // T-0043 锚①：Warden 平仓径双腿必置 Close=true（漏置=按开仓腿装配→

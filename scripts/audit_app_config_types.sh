@@ -2,11 +2,11 @@
 # app_config 值型别普查（T-0046 ④b——canon config-json-type-fragility）：
 # 读器已双型兼容（GetFloat=number|string、GetBool=bool|string），本普查揪
 # 结构性异类（object/array/null——任何读器都不吃）+ 给数字消费键的人核清单。
-# 用法：PHASE_TEST_PG_DSN=… 或 DB_DSN=…（生产普查由决策席跑）
+# 用法：O_TEST_PG_DSN=… 或 DB_DSN=…（生产普查由决策席跑）
 # 出口：结构性异类存在=非零退出（异常行零=PASS）。
 set -euo pipefail
-DSN="${PHASE_TEST_PG_DSN:-${DB_DSN:-}}"
-if [ -z "$DSN" ]; then echo "需要 PHASE_TEST_PG_DSN 或 DB_DSN" >&2; exit 2; fi
+DSN="${O_TEST_PG_DSN:-${DB_DSN:-}}"
+if [ -z "$DSN" ]; then echo "需要 O_TEST_PG_DSN 或 DB_DSN" >&2; exit 2; fi
 
 echo "== 全键型别分布 =="
 psql "$DSN" -Atc "SELECT t||'  '||n FROM (SELECT jsonb_typeof(value) t, count(*) n FROM app_config GROUP BY 1) x ORDER BY 1;"

@@ -10,8 +10,8 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"phase/internal/platform/roster"
-	"phase/internal/platform/signutil"
+	"o/internal/platform/roster"
+	"o/internal/platform/signutil"
 )
 
 // Run 私有流主循环：Register「私流守」→Beat→心跳刷源协程→拨号循环。

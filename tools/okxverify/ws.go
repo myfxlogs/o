@@ -12,8 +12,8 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"phase/internal/platform/signutil"
-	"phase/internal/trading/okxexec"
+	"o/internal/platform/signutil"
+	"o/internal/trading/okxexec"
 )
 
 const okxPublicURL = "wss://ws.okx.com:8443/ws/v5/public"

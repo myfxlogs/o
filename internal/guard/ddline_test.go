@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"phase/internal/risk"
+	"o/internal/risk"
 )
 
 // 回撤硬线测试锚（T-0025 段一·验收标准一）——共享库纪律：md_equity_curve/快照行

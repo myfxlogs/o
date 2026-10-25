@@ -15,8 +15,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"phase/internal/platform/config"
-	"phase/internal/platform/roster"
+	"o/internal/platform/config"
+	"o/internal/platform/roster"
 )
 
 const beatEvery = 30 * time.Second
@@ -176,7 +176,7 @@ func (r *Runner) macroDailyPush(ctx context.Context, now time.Time) {
 	if len(evs) == 0 {
 		return // 无近窗事件=静默不推
 	}
-	text := "【PHASE 财经日历】近窗高冲击事件：\n"
+	text := "【O 财经日历】近窗高冲击事件：\n"
 	for _, e := range evs {
 		text += fmt.Sprintf("- %s %s %s\n", e.d.Format("01-02"), e.k, e.t)
 	}
