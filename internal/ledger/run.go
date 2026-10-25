@@ -18,8 +18,9 @@ import (
 // Runner 司账+核账双岗（结算闭环+对账环——账本只消费事实行不触发钱动作）。
 type Runner struct {
 	al *notify.Alerter
-	// mtm 持仓盯市偏移读件（T-0076：venue 权益含盯市盈亏随价动——ledger 侧
-	// 补在持仓盯市值项使 NAV 对 NAV 同口径；缺件=0 不判 fail-closed 让位）。
+	// mtm 对账净值偏移读件（T-0076 合约盯市增量+T-0087 现货全值并轨——venue
+	// 权益含现货资产市值随价动，ledger 侧现货腿加全值、合约腿加增量使 NAV 同
+	// 口径；缺件=0 不判 fail-closed 让位）。
 	mtm func(ctx context.Context) (map[[2]string]float64, error)
 	// bal venue 侧余额现读件（T-0048：对账=检查时点 balances+savings 直连——
 	// (venue,ccy)→equity 实读聚合；nil=对账件缺席跳过不炸）。
@@ -55,7 +56,8 @@ func (r *Runner) WithMTM(fn func(ctx context.Context) (map[[2]string]float64, er
 
 func NewRunner(pool *pgxpool.Pool, cfg *config.Client) *Runner {
 	return &Runner{pool: pool, cfg: cfg,
-		rej: rejects.New("ledger", "diff_alert", "missing_param", "bal_missing", "write_err")}
+		rej: rejects.New("ledger", "diff_alert", "missing_param", "bal_missing", "write_err",
+			"recon_probe_failed")}
 }
 
 func (r *Runner) Run(ctx context.Context, errc chan<- error) {
@@ -134,14 +136,26 @@ func (r *Runner) reconcile(ctx context.Context) error {
 		log.Printf("WARN [ledger] 对账 venue 现读件未挂接——对账缺岗可见（fail-closed 让位）")
 		return nil
 	}
-	// T-0062 根修③：在途换形窗 debounce（USDT→ETH 换形 ~2s 拍内 venue 读
-	// 少 ~$25 超容差每轮一警——30s 内有执行活动=本轮跳过不判，容差不降）。
+	// T-0062 根修③+T-0087 扩面：在途换形/划转窗 debounce——30s 内有执行活动
+	// （leg/execution）或划转活动=本轮跳过不判，容差不降。划转触发面两件：
+	// fin_cashflow earn_in/earn_out 行（票面钦定）+fin_risk_decision transfer 行
+	// （T-0060 停写 earn 行后划转的唯一实况留痕，afterMove 每动必落）。
+	// 列名勘误：fin_order_leg 时间列=ts、fin_execution=created_at（0009 schema）
+	// ——旧式 created_at/opened_at 恒报错被吞，debounce 自立起未生效过（T-0087 实证）。
 	var inflight bool
-	_ = r.pool.QueryRow(ctx, `SELECT EXISTS(
-		SELECT 1 FROM fin_order_leg WHERE created_at > now()-interval '30 seconds'
-		UNION SELECT 1 FROM fin_execution WHERE opened_at > now()-interval '30 seconds')`).Scan(&inflight)
+	if err := r.pool.QueryRow(ctx, `SELECT EXISTS(
+		SELECT 1 FROM fin_order_leg WHERE ts > now()-interval '30 seconds'
+		UNION SELECT 1 FROM fin_execution WHERE created_at > now()-interval '30 seconds'
+		UNION SELECT 1 FROM fin_cashflow WHERE kind IN ('earn_in','earn_out')
+			AND ts > now()-interval '30 seconds'
+		UNION SELECT 1 FROM fin_risk_decision WHERE reason='transfer'
+			AND ts > now()-interval '30 seconds')`).Scan(&inflight); err != nil {
+		r.rej.Inc("recon_probe_failed")
+		log.Printf("WARN [ledger] 在途窗探测败——本轮对账让位不判: %v", err)
+		return nil
+	}
 	if inflight {
-		log.Printf("[ledger] 对账跳过——执行在途换形窗（30s 内 leg/execution 活动，不判不警）")
+		log.Printf("[ledger] 对账跳过——执行/划转在途窗（30s 内活动，不判不警）")
 		return nil
 	}
 	// T-0055：Earn 利息先入账再对拍（savings amt 已含应计利息——不入账=账本

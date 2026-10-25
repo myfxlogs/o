@@ -30,6 +30,7 @@ domain: 工程
 
 - **clientId 方言（2026-10-24 真单实证）**：transfer POST 体幂等键字段=**`clientId`**（写 `clTId` 被静默吞——划转成功但键没存）；transfer-state 查询参名同为 `clientId`（写 clTId=→50015 缺参拒、clientId=不存在值→51000 校验拒=端点在岗非可达性证）。
 - **savings/balance 多行遍历**：rows 按 ccy 多行，取首行=可能拿到非目标币尘行（曾致「Earn 无 USDT」误判→2139 USDT 停泊仓差点被漏看）。
+- **amt 不含 earnings（T-0087 实测）**：`amt=loanAmt+pendingAmt`（出借在途本金），应计利息在 **`earnings` 另列不入 amt**——venue 对拍聚 savings 须 `amt`（本金面）与 `earnings`（利息面）分读：本金入对拍、利息走 interest 高水位入账，混读=双计或恒差。
 - **581xx 族**：58110 风控锁（业主配合域）、58111 funding 结算窗撞期=瞬态可重试、58113 币不可划、58114 额≤0。
 - **歧态势**：transfer 传输败→transfer-state 按 clientId 定真态，禁盲重发（同 clOrdId 律）。
 - **复位径纪律（critical——probe-restore-scope-overreach 条目）**：Earn/资金户归集只许冲销台账内条目，**存量资金禁动**——按现值「有多少抽多少」式调用是越权动业主资产（$2145 事故实证）。

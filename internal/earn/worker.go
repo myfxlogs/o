@@ -7,8 +7,9 @@
 //  3. 开仓前置赎回 RedeemToTrading：执行链 leg1 前调用（EarnTransfer(redeem,
 //     notional+buffer)）；赎回/划转败=fail-closed 不开仓。
 //
-// 留痕：每次钱动落 fin_risk_decision（reason=transfer——内部移动不走敞口判）+
-// fin_cashflow earn_in/earn_out（source_ref=decision 行，禁推断记账）。
+// 留痕：每次钱动落 fin_risk_decision（reason=transfer——内部移动不走敞口判）；
+// earn_in/earn_out 现金流行自 T-0060 停写（venue 内部划转 NAV 零影响，单边
+// 落行=等额假差），留痕径=decision 行+md_account_events earn_parking 事件行。
 // 快照纪律：earn 余额快照只事件锚定写（boot 首读+移动后刷）——周期态摄入禁新增。
 package earn
 

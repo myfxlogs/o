@@ -7,8 +7,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// mtmReader 持仓盯市偏移读件（T-0076：venue×ccy——腿现价 vs 入价差×方向号；
-// 现货腿+perp 腿同式，对账 net+mtm=NAV 同口径；价缺=该腿跳过 fail-closed）。
+// mtmReader 对账净值偏移读件（venue×ccy——T-0076 合约增量+T-0087 现货全值并轨）：
+// 合约腿只有保证金+浮盈=加增量 sign×sz×ctv×(现价−入价)；现货腿持真币=加全值
+// sign×sz×现价（买入现金流已计流出，全值项补资产本金，增量已含在现价里）。
+// 现价=md_ticks 最新 last；价缺=该腿按 0 加不减（不产假偏移）。
 func mtmReader(pool *pgxpool.Pool,
 	ctv func(ctx context.Context, venue, inst string) (float64, bool),
 ) func(ctx context.Context) (map[[2]string]float64, error) {
@@ -33,15 +35,17 @@ func mtmReader(pool *pgxpool.Pool,
 				inst).Scan(&now); err != nil || now <= 0 {
 				continue
 			}
-			mult := 1.0
-			if strings.HasSuffix(inst, "-SWAP") {
-				if cv, ok := ctv(ctx, venue, inst); ok {
-					mult = cv
-				}
-			}
 			sign := 1.0
 			if side == "sell" {
 				sign = -1.0
+			}
+			if !strings.HasSuffix(inst, "-SWAP") {
+				out[[2]string{venue, "USDT"}] += sign * sz * now
+				continue
+			}
+			mult := 1.0
+			if cv, ok := ctv(ctx, venue, inst); ok {
+				mult = cv
 			}
 			out[[2]string{venue, "USDT"}] += sign * sz * mult * (now - entry)
 		}
