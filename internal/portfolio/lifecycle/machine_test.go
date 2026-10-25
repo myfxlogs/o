@@ -230,3 +230,34 @@ func TestDegradedTTLRetire(t *testing.T) {
 		t.Fatalf("同键新提案未开 paper（死锁仍存）: %v", err)
 	}
 }
+
+// T-0124 锚：模板门闸——无 paper 径模板族（dcd_put）提案不建策略行、留
+// fin_proposed 待 executor 票；SG 实证 748 DCD 提案被建成 funding-hedge
+// paper 的盲晋升不得再演。
+func TestTemplateGateBlocksNonPaper(t *testing.T) {
+	ctx, pool, cfg := setup(t)
+	r := NewRunner(pool, cfg)
+	var eid int64
+	if err := pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,verdict,legs,evidence)
+		VALUES('BTC-USDT-261101-68000-P','dcd_put','dcd_put','proposed','{}','{}') RETURNING id`).Scan(&eid); err != nil {
+		t.Fatal(err)
+	}
+	var pid int64
+	if err := pool.QueryRow(ctx, `INSERT INTO fin_proposal(eval_id,inst_id,direction,net_apr)
+		VALUES($1,'BTC-USDT-261101-68000-P','dcd_put',0.11) RETURNING id`, eid).Scan(&pid); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.scan(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM fin_strategy
+		WHERE inst_id='BTC-USDT-261101-68000-P'`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("dcd 提案不应建策略行 n=%d err=%v", n, err)
+	}
+	var st string
+	if err := pool.QueryRow(ctx,
+		"SELECT state FROM fin_proposal WHERE id=$1", pid).Scan(&st); err != nil || st != "fin_proposed" {
+		t.Fatalf("无 executor 提案应留 fin_proposed: %s %v", st, err)
+	}
+}

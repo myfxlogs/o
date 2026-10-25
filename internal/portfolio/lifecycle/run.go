@@ -31,7 +31,7 @@ type Runner struct {
 
 func NewRunner(pool *pgxpool.Pool, cfg *config.Client) *Runner {
 	return &Runner{pool: pool, cfg: cfg,
-		rej: rejects.New("lifecycle", "illegal_transition", "missing_criteria", "write_err", "live_switch_off", "open_failed")}
+		rej: rejects.New("lifecycle", "illegal_transition", "missing_criteria", "write_err", "live_switch_off", "open_failed", "template_blocked")}
 }
 
 func (r *Runner) Run(ctx context.Context, errc chan<- error) {
@@ -90,9 +90,15 @@ func (r *Runner) scan(ctx context.Context) error {
 	return nil
 }
 
-// admitProposals 新提案开户（state=paper；criteria 快照入行——判据代次留痕）。
+// paperTemplates 有 paper 径的模板族白名单（T-0124 模板门闸——无 executor 的
+// 模板提案不晋升，留 fin_proposed 待 executor 票；扩张新族须在此登记）。
+var paperTemplates = map[string]bool{"funding-hedge": true}
+
+// admitProposals 新提案开户（state=paper；criteria 快照入行——判据代次留痕；
+// 模板门闸：join fin_opp_eval 取模板，无 paper 径族拦下不建策略）。
 func (r *Runner) admitProposals(ctx context.Context, notional, minH, minNet, maxDD float64) error {
-	rows, err := r.pool.Query(ctx, `SELECT p.id,p.inst_id,p.direction FROM fin_proposal p
+	rows, err := r.pool.Query(ctx, `SELECT p.id,p.inst_id,p.direction,e.template FROM fin_proposal p
+		JOIN fin_opp_eval e ON e.id=p.eval_id
 		WHERE p.state='fin_proposed' AND NOT EXISTS(
 			SELECT 1 FROM fin_strategy s WHERE s.proposal_ref=p.id)`)
 	if err != nil {
@@ -102,26 +108,33 @@ func (r *Runner) admitProposals(ctx context.Context, notional, minH, minNet, max
 		id   int64
 		inst string
 		dir  string
+		tmpl string
 	}
 	var ps []prop
 	for rows.Next() {
 		var x prop
-		if err := rows.Scan(&x.id, &x.inst, &x.dir); err != nil {
+		if err := rows.Scan(&x.id, &x.inst, &x.dir, &x.tmpl); err != nil {
 			rows.Close()
 			return err
 		}
 		ps = append(ps, x)
 	}
 	rows.Close()
+	blocked := map[string]int{}
 	for _, x := range ps {
+		if !paperTemplates[x.tmpl] {
+			blocked[x.tmpl]++
+			continue // executor 缺席=看见了做不了——提案留 proposed（模板门闸，T-0124）
+		}
 		crit, _ := json.Marshal(map[string]float64{"min_hours": minH, "min_net": minNet, "max_dd": maxDD})
 		var sid int64
-		// 同键去重（T-0022：同 venue+inst_id+direction 同时最多一个非 retired
-		// 策略行——已挂 active 行=复用不新建，提案照样 armed 被吸收）。
+		// 同键去重（T-0022：同 venue+inst_id+direction+template 同时最多一个非
+		// retired 策略行——T-0124 键绑模板防跨族串仓；已挂 active 行=复用不新建，
+		// 提案照样 armed 被吸收）。
 		err := r.pool.QueryRow(ctx, `INSERT INTO fin_strategy(inst_id,template_ref,proposal_ref,state,notional_usd,criteria,direction)
-			VALUES($1,'funding-hedge',$2,'paper',$3,$4,$5)
-			ON CONFLICT (venue,inst_id,direction) WHERE state<>'retired' DO NOTHING
-			RETURNING id`, x.inst, x.id, notional, crit, x.dir).Scan(&sid)
+			VALUES($1,$2,$3,'paper',$4,$5,$6)
+			ON CONFLICT (venue,inst_id,direction,template_ref) WHERE state<>'retired' DO NOTHING
+			RETURNING id`, x.inst, x.tmpl, x.id, notional, crit, x.dir).Scan(&sid)
 		if err != nil {
 			if err.Error() == "no rows in result set" {
 				if _, err := r.pool.Exec(ctx,
@@ -143,6 +156,10 @@ func (r *Runner) admitProposals(ctx context.Context, notional, minH, minNet, max
 			return err
 		}
 		log.Printf("[lifecycle] #%d %s paper 开户 notional=%.0f", sid, x.inst, notional)
+	}
+	if len(blocked) > 0 {
+		r.rej.Inc("template_blocked")
+		log.Printf("[lifecycle] 模板门闸拦下 %+v（无 paper 径——提案留 fin_proposed 待 executor 票）", blocked)
 	}
 	return r.retireStaleArmed(ctx)
 }
