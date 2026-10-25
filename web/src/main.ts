@@ -26,10 +26,21 @@ async function ov(): Promise<void> {
             `<div class="ev">${h(x.stamp)} UTC</div>`).join('')
         : `<div class="empty"><p>静持中</p><i>「没有持仓，就是最深的持仓。」</i></div>`
     }
+    // T-0086 ②：钱在哪三分卡（交易户/资金户/Earn）——逐币行+遗留资产标
+    //（非在册币种身份豁免：涨跌不报警，展示只求如实）。
     const mb = document.getElementById('money-body')
     if (mb && d.money && d.money.length) {
-      mb.innerHTML = d.money.map((m: { label: string; amount: number }) =>
-        `<div class="row"><span>${h(m.label)}</span><b>$${m.amount.toFixed(1)}</b></div>`).join('')
+      const secs: string[] = ['交易户', '资金户', 'Earn']
+      mb.innerHTML = secs.map((sec: string) => {
+        const rows = (d.money as Array<{ section: string; label: string; amount: number; ccy: string; legacy: boolean }>)
+          .filter((m) => m.section === sec)
+        if (!rows.length) return ''
+        const sum = rows.reduce((a, m) => a + m.amount, 0)
+        return `<div class="sec-t">${h(sec)}<i>$${sum.toFixed(1)}</i></div>` +
+          rows.map((m) =>
+            `<div class="row"><span>${h(m.label)}${m.legacy ? ' <em class="lg">遗留资产</em>' : ''}</span>` +
+            `<b>$${m.amount.toFixed(1)}</b></div>`).join('')
+      }).join('')
     }
     const rb = document.getElementById('recent-body')
     if (rb && d.recent && d.recent.length) {

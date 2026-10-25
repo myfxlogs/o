@@ -20,46 +20,68 @@ import (
 	"phase/web"
 )
 
-type coreService struct{ pool *pgxpool.Pool }
+type coreService struct {
+	pool *pgxpool.Pool
+	// T-0086 ①④：资金户/Earn 活读件（cmd 装配注入 okxexec——REST 保留面非
+	// 快照；nil/读败=该户 0 不误报）。venue=唯一事实源，零落地。
+	fundingLive func(ctx context.Context) (map[string]float64, error)
+	earnLive    func(ctx context.Context) (map[string]float64, error)
+}
 
 func (coreService) Ping(context.Context, *dashboardv1.PingRequest) (*dashboardv1.PingResponse, error) {
 	return &dashboardv1.PingResponse{Status: "ok"}, nil
 }
 
-// Overview 总览四联活读（所见即所得——零快照零缓存；数据出生证=查询时戳）。
 func (c coreService) Overview(ctx context.Context, _ *dashboardv1.OverviewRequest) (*dashboardv1.OverviewResponse, error) {
 	o := &dashboardv1.OverviewResponse{Ts: time.Now().UTC().Format(time.RFC3339)}
-	// T-0072+0073 口径正名：nav=venue 帧总权益（交易户 details 全币 eqUsd
-	// 求和）+资金户/Earn 余额——全账户合计非交易户窄口径；deposit 本金不计资产。
+	// T-0086 ①②④：NAV=交易户全币 eqUsd（WS 帧=交易户真源）+资金户全币+Earn
+	// 全币 amt 估值（③④活读）——合计口径，缺户=0 不误报。「钱在哪」三分卡
+	//（交易户/资金户/Earn）逐币行，非在册币种标遗留资产。
+	ledgered := c.ledgeredCcy(ctx, "okx")
 	var frame json.RawMessage
 	if err := c.pool.QueryRow(ctx, `SELECT data FROM md_account_events
 		WHERE channel IN ('account','balance_and_position') ORDER BY ts DESC LIMIT 1`).Scan(&frame); err == nil {
 		var top struct {
-			EqUsd   string `json:"eqUsd"`
 			Details []struct {
+				Ccy   string `json:"ccy"`
 				EqUsd string `json:"eqUsd"`
 			} `json:"details"`
 		}
 		if json.Unmarshal(frame, &top) == nil {
-			if len(top.Details) > 0 {
-				for _, d := range top.Details {
-					v, _ := strconv.ParseFloat(d.EqUsd, 64)
-					o.NavTotal += v
+			for _, d := range top.Details {
+				v, _ := strconv.ParseFloat(d.EqUsd, 64)
+				if v == 0 {
+					continue
 				}
-			} else {
-				o.NavTotal, _ = strconv.ParseFloat(top.EqUsd, 64)
+				o.NavTotal += v
+				o.Money = append(o.Money, moneyRow("交易户", d.Ccy,
+					ccyName(d.Ccy), v, !ledgered[d.Ccy]))
 			}
 		}
 	}
-	// 资金户+Earn 面（T-0073：earn_parking 帧 earn_bal+funding 帧 top 值——
-	// 缺帧=0 不误报，与「钱在哪」卡同源自洽）。
-	var earnRaw json.RawMessage
-	if err := c.pool.QueryRow(ctx, `SELECT data FROM md_account_events
-		WHERE channel='earn_parking' ORDER BY ts DESC LIMIT 1`).Scan(&earnRaw); err == nil {
-		var ev map[string]json.RawMessage
-		if json.Unmarshal(earnRaw, &ev) == nil {
-			if v, err := strconv.ParseFloat(strings.Trim(string(ev["earn_bal"]), `"`), 64); err == nil {
-				o.NavTotal += v
+	// 资金户/Earn 行=原生代币数（展示如实）；NAV 计值=amt估值（T-0086 ①）——
+	// USDT/USD 直入，其余按 md_ticks 最新价折算（无 tick=0 不入 NAV 仍上卡）。
+	if c.fundingLive != nil {
+		if fb, err := c.fundingLive(ctx); err == nil {
+			for ccy, v := range fb {
+				if v == 0 {
+					continue
+				}
+				o.NavTotal += valCcy(ctx, c.pool, ccy, v)
+				o.Money = append(o.Money, moneyRow("资金户", ccy,
+					ccyName(ccy), v, !ledgered[ccy]))
+			}
+		}
+	}
+	if c.earnLive != nil {
+		if eb, err := c.earnLive(ctx); err == nil {
+			for ccy, v := range eb {
+				if v == 0 {
+					continue
+				}
+				o.NavTotal += valCcy(ctx, c.pool, ccy, v)
+				o.Money = append(o.Money, moneyRow("Earn", ccy,
+					ccyName(ccy), v, !ledgered[ccy]))
 			}
 		}
 	}
@@ -98,14 +120,6 @@ func (c coreService) Overview(ctx context.Context, _ *dashboardv1.OverviewReques
 	if len(o.Doing) == 0 {
 		o.Doing = append(o.Doing, &dashboardv1.DoingItem{Text: "静持——无开仓在案"})
 	}
-	mrows, _ := c.pool.Query(ctx, `SELECT (data->>'earn_bal')::float FROM md_account_events
-		WHERE channel='earn_parking' ORDER BY ts DESC LIMIT 1`)
-	for mrows.Next() {
-		var v float64
-		_ = mrows.Scan(&v)
-		o.Money = append(o.Money, &dashboardv1.MoneyRow{Label: "活期理财 Earn", Amount: v})
-	}
-	mrows.Close()
 	rrows, _ := c.pool.Query(ctx, `SELECT ts,kind,amount FROM fin_cashflow
 		WHERE kind NOT IN ('earn_in','earn_out') ORDER BY id DESC LIMIT 6`)
 	for rrows.Next() {
@@ -182,17 +196,23 @@ func durHuman(d time.Duration) string {
 }
 
 // mountCore 挂 ConnectRPC 服务到 mux（connect-go v2：Server 注册 + connecthttp.Mount）。
-func mountCore(mux *http.ServeMux, pool *pgxpool.Pool) {
+func mountCore(mux *http.ServeMux, pool *pgxpool.Pool,
+	fundingLive func(context.Context) (map[string]float64, error),
+	earnLive func(context.Context) (map[string]float64, error)) {
 	server := connect.NewServer()
-	dashboardv1connect.RegisterCoreServiceHandler(server, coreService{pool: pool})
+	dashboardv1connect.RegisterCoreServiceHandler(server,
+		coreService{pool: pool, fundingLive: fundingLive, earnLive: earnLive})
 	connecthttp.Mount(mux, server)
 }
 
 // mountUI 总览活页面挂接（静态 embed+JSON/SSE——所见即所得零缓存；活推=ev_* 脊）。
-func mountUI(mux *http.ServeMux, pool *pgxpool.Pool) {
+func mountUI(mux *http.ServeMux, pool *pgxpool.Pool,
+	fundingLive func(context.Context) (map[string]float64, error),
+	earnLive func(context.Context) (map[string]float64, error)) {
 	mux.HandleFunc("/api/overview", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		if o, err := (coreService{pool: pool}).Overview(r.Context(), nil); err == nil {
+		if o, err := (coreService{pool: pool, fundingLive: fundingLive,
+			earnLive: earnLive}).Overview(r.Context(), nil); err == nil {
 			b, _ := json.Marshal(o)
 			_, _ = w.Write(b)
 		}

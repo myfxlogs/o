@@ -166,12 +166,29 @@ func (r *Runner) reconcile(ctx context.Context) error {
 		r.rej.Inc("write_err")
 		return fmt.Errorf("venue 现读: %w", err)
 	}
+	// T-0086 ③：对拍白名单=USDT+在册（fin_cashflow 有账币种）——账外币种
+	//（粉尘/杂币/Earn 非本位）按身份豁免：不钉金额，涨跌不报警。
+	wl := map[[2]string]bool{}
+	wrows, err := r.pool.Query(ctx, "SELECT DISTINCT venue,ccy FROM fin_cashflow")
+	if err != nil {
+		r.rej.Inc("write_err")
+		return err
+	}
+	for wrows.Next() {
+		var v, c string
+		if err := wrows.Scan(&v, &c); err != nil {
+			wrows.Close()
+			return err
+		}
+		wl[[2]string{v, c}] = true
+	}
+	wrows.Close()
 	var rs []struct {
 		venue, ccy string
 		eq, net    float64
 	}
 	for k, eq := range ven {
-		if k[1] != "USDT" && k[1] != "USD" {
+		if !wl[k] {
 			continue
 		}
 		var net float64
