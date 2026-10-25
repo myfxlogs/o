@@ -4,6 +4,8 @@ package pgstore
 import (
 	"context"
 	"fmt"
+	"log"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -28,4 +30,24 @@ func Connect(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
 		return nil, fmt.Errorf("pg ping: %w", err)
 	}
 	return pool, nil
+}
+
+// Store 行级封装（T-0108 nox 移植面——trx/cmc 持久化方法挂点；O 面只需 pool 一件）。
+type Store struct {
+	pool *pgxpool.Pool
+}
+
+// NewStore 池封装（cmd 装配层注入）。
+func NewStore(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
+
+// InsertAlert/InsertAlertDedup 告警写面降级件（T-0108 移植——O 无 alerts 表域；
+// 采集面告警降格 log 显形不假静默，真告警径=rej/notify 另行立票）。
+func (s *Store) InsertAlert(ctx context.Context, _ *int64, level, msg string) error {
+	log.Printf("[trx/%s] %s", level, msg)
+	return nil
+}
+
+// InsertAlertDedup 去重告警（同窗内同文抑写——log 径同降格）。
+func (s *Store) InsertAlertDedup(ctx context.Context, level, msg string, _ time.Duration) error {
+	return s.InsertAlert(ctx, nil, level, msg)
 }
