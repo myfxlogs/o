@@ -17,9 +17,11 @@ import (
 // datedFutRe 季度期货形（'-' 尾 6 位到期日——mark-price 适用无 funding）。
 var datedFutRe = regexp.MustCompile(`-[0-9]{6}$`)
 
-// subscribeArgs 宇宙低频订阅面（T-0132 分级——全宇宙=费率/标记价/指数价三
+// subscribeArgs 宇宙低频订阅面（T-0132 分级——全宇宙=费率/标记价两
 // 事实层零损发现面；tickers 退出宇宙订活跃集动态补：funding-rate/mark-price
-// 仅 SWAP instId 合法；index-tickers 挂 spot 形 instId；季度期货订 mark-price）。
+// 仅 SWAP instId 合法；季度期货订 mark-price。
+// T-0134：现货形 index-tickers 撤 WS（秒级推送 2300 标的=链路饱和踢连）——
+// 转 REST 轮询 60s 级（spotpoll.go——评估/发现面精度足，链路载降）。
 func subscribeArgs(syms []string) []map[string]string {
 	args := make([]map[string]string, 0, len(syms)*3)
 	for _, s := range syms {
@@ -30,8 +32,7 @@ func subscribeArgs(syms []string) []map[string]string {
 				map[string]string{"channel": "mark-price", "instId": s})
 		case datedFutRe.MatchString(s):
 			args = append(args, map[string]string{"channel": "mark-price", "instId": s})
-		default:
-			args = append(args, map[string]string{"channel": "index-tickers", "instId": s})
+		default: // 现货形=宇宙内零订（T-0134 REST 轮询面替——链路饱和实证）
 		}
 	}
 	return args
