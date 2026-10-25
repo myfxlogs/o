@@ -1,16 +1,27 @@
 #!/usr/bin/env bash
-# commit-msg 门禁——坑条目自问（D-585）
-# 触发：commit message 含修复类信号 且 暂存面未触碰经验库/待归纳 → warn 提醒（exit 0 不拦）。
+# commit-msg 门禁——坑条目自问（D-585；T-0125 升级 WARN→FAIL）
+# 触发：commit message 含修复类信号 且 暂存面含码面文件（internal//cmd//
+# migrations//scripts//tools//web/src）且未触碰经验库/待归纳：
+#   → commit message 必须带「坑处置:」显式行（无坑或有坑去向），缺一=拦。
+# 例外（现行 WARN 口径照搬）：纯 docs/revert/观测面=零码面件不触发。
 MSG_FILE="$1"
 MSG=$(cat "$MSG_FILE" 2>/dev/null || true)
 
 printf '%s' "$MSG" | grep -qiE 'fix|修复|修|bug|bugfix|hotfix|regression|回归|病灶|坑|patch|revert' || exit 0
 
-if git -c core.quotepath=off diff --cached --name-only | grep -qE '^docs/工程经验库/|^docs/经济经验库/|待归纳'; then
+STAGED=$(git -c core.quotepath=off diff --cached --name-only)
+
+printf '%s' "$STAGED" | grep -qE '^internal/|^cmd/|^migrations/|^scripts/|^tools/|^web/src/' || exit 0 # 纯 docs/例外面
+
+if printf '%s' "$STAGED" | grep -qE '^docs/工程经验库/|^docs/经济经验库/|待归纳'; then
   exit 0
 fi
 
-echo "WARN(D-585): 疑似修复类提交但未触碰 docs/工程经验库|经济经验库/或待归纳——" >&2
-echo "  坑成立→条目同 commit 入库；坑不成立→复审收口注记块『坑处置:无坑』显式声明。" >&2
-echo "  （本条是提醒非拦截——验收收口时核验坑处置字段）" >&2
-exit 0
+if printf '%s' "$MSG" | grep -qE '坑处置'; then
+  exit 0
+fi
+
+echo "FAIL(D-585): 修复类码面提交缺「坑处置:」显式声明——" >&2
+echo "  坑成立→条目同 commit 入库（docs/工程经验库/条目/）；坑不成立→commit message 带『坑处置:无坑』。" >&2
+echo "  业主令 10-25：坑立即归纳固化成纪律非记忆（T-0125 WARN→FAIL）。" >&2
+exit 1
