@@ -29,7 +29,9 @@ import (
 	"o/internal/platform/notify"
 	"o/internal/platform/roster"
 	"o/internal/portfolio/lifecycle"
+	"o/internal/research/dcd"
 	"o/internal/research/funding"
+	"o/internal/research/gapscan"
 	"o/internal/review"
 	"o/internal/risk"
 	"o/internal/store/pgstore"
@@ -208,6 +210,11 @@ func run() error {
 
 	// 研究域首岗：funding 枚举+评估卡（员工 探员/验证官）——判据全 app_config 机读。
 	go funding.NewRunner(pool, cfg).Run(ctx, errc)
+	// dcd 枚举臂（T-0102——注册表消费第二模板面；feed 缺席=让位 WARN 不炸 boot）。
+	go dcd.NewRunner(pool, cfg).AttachFeed(dcdFeedFor(okcli)).
+		AttachCoins(okxCoinsFor(pool, okcli)).Run(ctx, errc)
+	// 差扫岗（T-0102 v3/v4——目录差扫+面分类，检测层永不离线；probe 缺席=让位）。
+	go gapscan.NewRunner(pool, cfg).AttachProbe(gapProbeFor(okcli)).Run(ctx, errc)
 
 	// 投资域首岗：命官——paper→probe→live 开仓消费（T-0050 Opener 缝）。
 	lr := lifecycle.NewRunner(pool, cfg)

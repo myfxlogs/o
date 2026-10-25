@@ -64,6 +64,12 @@ internal/review -> internal/platform/roster
 internal/research/funding -> internal/platform/config
 internal/research/funding -> internal/platform/rejects
 internal/research/funding -> internal/platform/roster
+internal/research/dcd -> internal/platform/config
+internal/research/dcd -> internal/platform/events
+internal/research/dcd -> internal/platform/rejects
+internal/research/gapscan -> internal/platform/config
+internal/research/gapscan -> internal/platform/rejects
+internal/research/gapscan -> internal/platform/roster
 internal/data/okxws -> internal/platform/rejects
 internal/data/okxws -> internal/platform/roster
 internal/gen/mtapi/mt5/mt5connect -> internal/gen/mtapi/mt5

@@ -17,6 +17,7 @@ import (
 
 	"o/internal/gen/dashboardv1"
 	"o/internal/gen/dashboardv1/dashboardv1connect"
+	"o/internal/research/gapscan"
 	"o/web"
 )
 
@@ -129,6 +130,12 @@ func (c coreService) Overview(ctx context.Context, _ *dashboardv1.OverviewReques
 		WHERE c.kind IN ('spot_buy','spot_sell') AND p.closed_at IS NOT NULL`).Scan(&legCum)
 	o.PnlToday += legToday
 	o.PnlCum += legCum
+	// T-0102 v3：面差待裁计数露一行（业主可见「系统发现了几件还没裁的事」）。
+	if n, gerr := gapscan.PendingCount(ctx, c.pool); gerr == nil && n > 0 {
+		o.Doing = append(o.Doing, &dashboardv1.DoingItem{
+			Text:  fmt.Sprintf("面差哨——%d 个新面待裁（差扫岗在案）", n),
+			Stamp: time.Now().UTC().Format(time.RFC3339)})
+	}
 	prow, _ := c.pool.Query(ctx, `SELECT id,inst_id,opened_at FROM fin_position
 		WHERE closed_at IS NULL ORDER BY id DESC LIMIT 5`)
 	for prow.Next() {

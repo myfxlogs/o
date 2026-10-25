@@ -38,16 +38,45 @@ type Client struct {
 }
 
 // NewClient h1 钉死 transport（NextProtos/TLSNextProto 双钉——clone 浅继中毒字段
-// 族教训，裸 DefaultTransport 禁行）。
+// 族教训，裸 DefaultTransport 禁行）。拨号钉 tcp4（T-0102：OKX key 白名单按源
+// IP 判——IPv6 egress 双栈漂移触发 50110 间歇拒，坑条 okx-dcd-endpoint-dialect）。
 func NewClient(creds Credentials, simulated bool) *Client {
+	d := &net.Dialer{Timeout: 10 * time.Second}
 	tr := &http.Transport{
 		TLSClientConfig:   &tls.Config{NextProtos: []string{"http/1.1"}},
 		TLSNextProto:      map[string]func(string, *tls.Conn) http.RoundTripper{},
 		ForceAttemptHTTP2: false,
 		DisableKeepAlives: true, // FreshClient 口径：钱径每请新 conn
-		DialContext:       (&net.Dialer{Timeout: 10 * time.Second}).DialContext,
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			if network == "tcp" {
+				network = "tcp4" // 白名单按 v4 源判——双栈漂移禁（50110 坑条）
+			}
+			return d.DialContext(ctx, network, addr)
+		},
 	}
 	return &Client{creds: creds, base: BaseURL, hc: &http.Client{Transport: tr, Timeout: 15 * time.Second}, sim: simulated}
+}
+
+// flexCode 信封 code 联合型（T-0102：sfp/dcd 族 code 是 number 非 string——
+// string 解析拒=200 真数据被信封方言误杀，坑条 okx-dcd-endpoint-dialect；
+// string|number 双收，APIError.Code 保持 string 形不变）。
+type flexCode string
+
+func (f *flexCode) UnmarshalJSON(b []byte) error {
+	if len(b) > 0 && b[0] == '"' {
+		var s string
+		if err := json.Unmarshal(b, &s); err != nil {
+			return err
+		}
+		*f = flexCode(s)
+		return nil
+	}
+	var n json.Number
+	if err := json.Unmarshal(b, &n); err != nil {
+		return err
+	}
+	*f = flexCode(n.String())
+	return nil
 }
 
 // do 签名请求：四头 + demo 头（sim 时）。返回 body 字节；HTTP 非 2xx 或 code≠"0" 上抛。
@@ -78,7 +107,7 @@ func (c *Client) do(ctx context.Context, method, pathWithQuery string, body []by
 		return nil, fmt.Errorf("http %d: %s", resp.StatusCode, string(b))
 	}
 	var env struct {
-		Code string          `json:"code"`
+		Code flexCode        `json:"code"`
 		Msg  string          `json:"msg"`
 		Data json.RawMessage `json:"data"`
 	}
@@ -86,7 +115,7 @@ func (c *Client) do(ctx context.Context, method, pathWithQuery string, body []by
 		return nil, fmt.Errorf("resp parse: %w", err)
 	}
 	if env.Code != "0" {
-		ae := &APIError{Code: env.Code, Msg: env.Msg}
+		ae := &APIError{Code: string(env.Code), Msg: env.Msg}
 		var inner []struct {
 			SCode string `json:"sCode"`
 			SMsg  string `json:"sMsg"`
