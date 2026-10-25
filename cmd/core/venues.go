@@ -38,21 +38,23 @@ func (c coreService) venues(ctx context.Context) []*dashboardv1.VenueGroup {
 		SELECT last_beat b FROM fin_employee_registry WHERE name='汇市巡'
 		UNION ALL SELECT max(ts) FROM md_ticks WHERE venue='mt5') t`).Scan(&sess)
 	mt5g := &dashboardv1.VenueGroup{Name: "mt5"}
-	lrows, _ := c.pool.Query(ctx, `SELECT data->>'login', max(ts) FROM md_account_events
+	lrows, lerr := c.pool.Query(ctx, `SELECT data->>'login', max(ts) FROM md_account_events
 		WHERE venue='mt5' AND data ? 'login' GROUP BY 1 ORDER BY 1`)
-	for lrows.Next() {
-		var login string
-		var at time.Time
-		if lrows.Scan(&login, &at) != nil {
-			continue
+	if lerr == nil {
+		defer lrows.Close()
+		for lrows.Next() {
+			var login string
+			var at time.Time
+			if lrows.Scan(&login, &at) != nil {
+				continue
+			}
+			if sess != nil && sess.After(at) {
+				at = *sess
+			}
+			mt5g.Channels = append(mt5g.Channels,
+				withName(ageChan(&at), "户 "+login, "login "+login))
 		}
-		if sess != nil && sess.After(at) {
-			at = *sess
-		}
-		mt5g.Channels = append(mt5g.Channels,
-			withName(ageChan(&at), "户 "+login, "login "+login))
 	}
-	lrows.Close()
 	if len(mt5g.Channels) == 0 {
 		fb := ageChan(sess)
 		fb.State, fb.Note = 2, "读件缺" // 账号枚举缺=红显不藏（sess ts 仅作旁注）
