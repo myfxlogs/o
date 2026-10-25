@@ -75,6 +75,16 @@ func main() {
 		ingested[b] = true
 	}
 	rows2.Close()
+	// T-0116 顺修：ts 窗过滤前移到聚合前（原过滤在分桶后——「N 天窗」表头
+	// 实为全窗统计假数；bills 端点 3 月窗，-days 本地截）。
+	cut := time.Now().AddDate(0, 0, -*days).UnixMilli()
+	filt := all[:0]
+	for _, b := range all {
+		if ts, _ := strconv.ParseInt(b.Ts, 10, 64); ts >= cut {
+			filt = append(filt, b)
+		}
+	}
+	all = filt
 	// 逐类汇总：type/subType 分桶（balChg/fee 聚合+是否已入账）。
 	type agg struct {
 		n, ing int
@@ -99,15 +109,6 @@ func main() {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
-	// ts 窗过滤（bills 端点 3 月窗；-days 本地截）。
-	cut := time.Now().AddDate(0, 0, -*days).UnixMilli()
-	filt := all[:0]
-	for _, b := range all {
-		if ts, _ := strconv.ParseInt(b.Ts, 10, 64); ts >= cut {
-			filt = append(filt, b)
-		}
-	}
-	all = filt
 	fmt.Printf("总账单 %d 行（%d 天窗）；已入账 %d\n", len(all), *days, len(ingested))
 	for _, k := range keys {
 		a := m[k]

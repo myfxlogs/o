@@ -46,3 +46,16 @@
 ## canon
 
 `条目/ledger-baseline-per-node.md`；T-0055/T-0080 同族（账本 venue 对账差）。
+
+## 结果回填
+
+- legGross→Runner 方法件（成交额锚需 rej 计数件）：quote_ccy 买腿
+  `TgtQuote && buy && fillSz>0 && px>0` → `accFillSz×avgPx` 成交额；
+  成交额读不到=退委托 sz + `execution/gross_fallback` 显形计数（已入
+  rejects 预注册门键）。卖腿/名义锚/回滚径零动；legPx 同读径 fillSz
+  透传（res.FillSz/rb.FillSz 两调用点已携参）。
+- billsaudit 顺修：ts 窗过滤前移聚合前（原「N 天窗」表头=全窗统计假数）。
+- 历史 9 轮 ~$0.50：票面钦定不动历史行——recon_adjust 基线归位件
+  待决策席部署口径（施工面未擅加迁移行——差额属在册基线调整域）。
+- 桩测：TestLegGrossQuoteBuyFillAmt（成交锚+fallback 计数双径绿——
+  float 精度断言带容差窗）。
