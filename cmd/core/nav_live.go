@@ -149,6 +149,15 @@ func dcdLiveFor(okcli *okxexec.Client) func(context.Context) ([]okxexec.DcdOrder
 	}
 }
 
+// msStamp 毫秒时戳→RFC3339（dcd cTime 开仓时点展示位——空/解析败=now）。
+func msStamp(ms string) string {
+	v, err := strconv.ParseInt(ms, 10, 64)
+	if err != nil || v <= 0 {
+		return time.Now().UTC().Format(time.RFC3339)
+	}
+	return time.UnixMilli(v).UTC().Format(time.RFC3339)
+}
+
 // msDay 毫秒时戳→YYYY-MM-DD（dcd settleTime 展示位——空/解析败=原文返回）。
 func msDay(ms string) string {
 	v, err := strconv.ParseInt(ms, 10, 64)

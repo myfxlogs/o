@@ -41,19 +41,28 @@ func (c coreService) fundCcy(ctx context.Context, scope string) map[string]bool 
 	return out
 }
 
+// dcdOrds dcd LIVE 单现读共用件（T-0105：钱卡/在干列表双消费——T-0101 60s
+// TTL 单飞缓存已防限流撞车；读件缺/读败=(nil,false) 显形径自裁，(ords,true)=
+// 在持单真值）。
+func (c coreService) dcdOrds(ctx context.Context) ([]okxexec.DcdOrder, bool) {
+	if c.dcdLive == nil {
+		return nil, false
+	}
+	ords, err := c.dcdLive(ctx)
+	if err != nil {
+		log.Printf("WARN: dcd 持仓活读败（卡面/在干显读件缺）: %v", err)
+		return nil, false
+	}
+	return ords, true
+}
+
 // dcdRows 结构性持仓区行组装（T-0101：LIVE 单=已部署产品持仓=基金的钱第三
 // 类别——productId/ordId/名义/行权/到期/年化全入 label〔note 位=读件缺专用，
 // 非空即无额行，持仓行不占用〕；usd=名义×md_ticks 估值入 NAV；读件缺/读败
 // =note 行显形不假零）。
 func (c coreService) dcdRows(ctx context.Context, o *dashboardv1.OverviewResponse) {
-	if c.dcdLive == nil {
-		o.Money = append(o.Money, &dashboardv1.MoneyRow{
-			Venue: "okx", Section: "结构性持仓", Label: "读件缺", Note: "读件缺"})
-		return
-	}
-	ords, err := c.dcdLive(ctx)
-	if err != nil {
-		log.Printf("WARN: dcd 持仓活读败（结构性持仓区显读件缺）: %v", err)
+	ords, ok := c.dcdOrds(ctx)
+	if !ok {
 		o.Money = append(o.Money, &dashboardv1.MoneyRow{
 			Venue: "okx", Section: "结构性持仓", Label: "读件缺", Note: "读件缺"})
 		return
