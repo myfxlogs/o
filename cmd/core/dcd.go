@@ -26,13 +26,14 @@ func dcdFeedFor(okcli *okxexec.Client) dcd.Feed {
 		if err != nil {
 			return nil, err
 		}
-		ulys, err := dcd.ParseCurrencyPairs(raw)
+		pairs, err := dcd.ParseCurrencyPairs(raw)
 		if err != nil {
 			return nil, err
 		}
 		var out []dcd.Product
-		for _, u := range ulys {
-			raw2, err := okcli.Get(ctx, s.EndpointFamily+"/products?uly="+u)
+		for _, pr := range pairs {
+			raw2, err := okcli.Get(ctx, fmt.Sprintf("%s/products?baseCcy=%s&quoteCcy=%s&optType=%s",
+				s.EndpointFamily, pr.BaseCcy, pr.QuoteCcy, pr.OptType))
 			if err != nil {
 				return nil, err
 			}

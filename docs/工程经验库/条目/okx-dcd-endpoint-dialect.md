@@ -43,3 +43,13 @@ evidence_refs:
 - venue 新族接入三查：信封方言（code 型别）、端点真名（文档钉死）、
   资金流水 subType 表（账单枚举页）。
 - 白名单 401 先看报错 IP 的栈族——间歇性 401=egress 漂移特征非凭据病。
+
+
+## 追补（2026-10-25 T-0102 部署日实证）
+- `products` 参数名=**baseCcy+quoteCcy+optType 三必参**（官方文档钦定）——
+  施工曾猜 `?uly=` 全 50014；`uly` 只存在于 `order-history` 过滤参。
+- 响应字段真名：`optType`（非 direction）、`expTime`（非 expiryTime）、
+  `productId/strike/annualizedYield/minSize/maxSize/notionalCcy`——伪字段名
+  静默解析零行，不报错难察觉。
+- 响应形歧：`currency-pair` data=裸数组；`products` data=`{"products":[...]}`
+  对象包络——同族端点 envelope 不统一，按裸数组解析=静默零行。
