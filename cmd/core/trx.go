@@ -1,14 +1,13 @@
-// trx.go —— TRX 自营盘采集臂装配（T-0108 nox 移植——只读观测面）：
-// trx 链上 4 采集器（账户资源/txs/witness/apr）+cmc 3 采集器（prices/account/
-// history）+WS 事件流，Poll 周期=app_config trx.poll_seconds（缺 300s fail-closed
-// 跳臂）。cmc 凭据=app_secrets 密文列解（业主条件请求未供=臂让位显形不假零）。
+// trx.go —— TRX 自营盘采集臂装配（T-0108 nox 移植；T-0110 整品升级——
+// 独立页+全功能读面+trxvote 引擎旗歇）。trx 链上 4 采集器+cmc 采集+WS 事件流，
+// Poll 周期=app_config trx.poll_seconds（缺 300s fail-closed 跳臂）。凭据=
+// app_secrets 密文列解（业主条件请求未供=臂让位显形不假零）。D-629：全面
+// 「业绩外·自营盘」——数据面独挂不塞 Overview/nav_total。
 package main
 
 import (
 	"context"
-	"encoding/json"
 	"log"
-	"net/http"
 	"strconv"
 	"time"
 
@@ -21,51 +20,68 @@ import (
 	"o/internal/store/pgstore"
 )
 
-// trxArms 双臂发射（T-0108：TRX 链上+CMC 纯读——缺件各自让位显形）。
-func trxArms(ctx context.Context, errc chan<- error, pool *pgxpool.Pool, cfg *config.Client) {
-	go trxArm(ctx, errc, pool, cfg)
-	go cmcArm(ctx, errc, pool, cfg)
+// trxWiring 采集件共享装配（T-0110——采集臂与读面/刷新踢/投票引擎同源单例；
+// nil 件=让位显形不假零）。
+type trxWiring struct {
+	pool        *pgxpool.Pool
+	cfg         *config.Client
+	st          *pgstore.Store
+	accts       *trx.AccountCollector
+	txs         *trx.TxsCollector
+	wit         *trx.WitnessCollector
+	apr         *trx.AprCollector
+	cmcLive     func() cmc.LiveState // nil=WS 未接线（freshLive DB 兜底径）
+	cmcWsHealth func() bool          // nil=false（REST 兜底显形）
+}
+
+// trxArms 双臂发射+装配返回（T-0110：wiring 供读面/刷新踢/引擎同源消费）。
+func trxArms(ctx context.Context, errc chan<- error, pool *pgxpool.Pool, cfg *config.Client) *trxWiring {
+	w := &trxWiring{pool: pool, cfg: cfg, st: pgstore.NewStore(pool)}
+	go trxArm(ctx, errc, w)
+	go cmcArm(ctx, errc, w)
+	go trxvoteArm(ctx, errc, w) // T-0110 旗歇引擎（trx.vote_enabled=false 停驶待令）
+	return w
 }
 
 // trxArm TRX 链上采集臂（地址缺=让位不误报——业主条件请求件）。
-func trxArm(ctx context.Context, errc chan<- error, pool *pgxpool.Pool, cfg *config.Client) {
-	addr, err := cfg.GetString("trx.stake_address")
+func trxArm(ctx context.Context, errc chan<- error, w *trxWiring) {
+	addr, err := w.cfg.GetString("trx.stake_address")
 	if err != nil || addr == "" {
 		log.Printf("[trx] stake_address 键缺/空——链上采集臂让位（业主条件请求件）")
 		return
 	}
 	secs := 300
-	if v, e := cfg.GetFloat("trx.poll_seconds"); e == nil && v > 0 {
+	if v, e := w.cfg.GetFloat("trx.poll_seconds"); e == nil && v > 0 {
 		secs = int(v)
 	}
-	st := pgstore.NewStore(pool)
-	apiKey := func() string { v, _ := cfg.GetString("trx.trongrid_api_key"); return v }
-	accts := trx.NewAccountCollector(addr, st, "https://api.trongrid.io",
+	apiKey := func() string { v, _ := w.cfg.GetString("trx.trongrid_api_key"); return v }
+	w.accts = trx.NewAccountCollector(addr, w.st, "https://api.trongrid.io",
 		"https://api.tronscan.org/api", apiKey)
-	txs := trx.NewTxsCollector(addr, st, "https://apilist.tronscan.org/api",
+	w.txs = trx.NewTxsCollector(addr, w.st, "https://apilist.tronscan.org/api",
 		apiKey, "https://api.tronscan.org/api", nil, 0.10)
-	wit := trx.NewWitnessCollector(addr, st, "https://api.tronscan.org/api", apiKey)
-	apr := trx.NewAprCollector(addr, st, "https://api.tronscan.org/api")
-	if err := roster.Register(ctx, pool, "TRX 链上采集", "trx",
+	w.wit = trx.NewWitnessCollector(addr, w.st, "https://api.tronscan.org/api", apiKey)
+	w.apr = trx.NewAprCollector(addr, w.st, "https://api.tronscan.org/api")
+	if err := roster.Register(ctx, w.pool, "TRX 链上采集", "trx",
 		"账户资源+txs+witness+APR 采集岗", nil); err != nil {
 		errc <- err
 		return
 	}
 	poll := func() {
-		if _, err := accts.Poll(ctx); err != nil {
+		if _, err := w.accts.Poll(ctx); err != nil {
 			log.Printf("[trx] account 采集败: %v", err)
 		}
-		if _, err := txs.Poll(ctx); err != nil {
+		if _, err := w.txs.Poll(ctx); err != nil {
 			log.Printf("[trx] txs 采集败: %v", err)
 		}
-		if _, err := wit.Poll(ctx); err != nil {
+		if _, err := w.wit.Poll(ctx); err != nil {
 			log.Printf("[trx] witness 采集败: %v", err)
 		}
-		if _, err := apr.Poll(ctx); err != nil {
+		if _, err := w.apr.Poll(ctx); err != nil {
 			log.Printf("[trx] apr 采集败: %v", err)
 		}
+		trxRollup(ctx, w) // T-0110：日终 rollup（幂等 ON CONFLICT(day)——随拍补当日）
 	}
-	go roster.BeatLoop(ctx, pool, "TRX 链上采集", 30*time.Second, errc)
+	go roster.BeatLoop(ctx, w.pool, "TRX 链上采集", 30*time.Second, errc)
 	log.Printf("[trx] 链上采集臂上岗 addr=%s poll=%ds", addr, secs)
 	poll()
 	for {
@@ -79,25 +95,35 @@ func trxArm(ctx context.Context, errc chan<- error, pool *pgxpool.Pool, cfg *con
 }
 
 // cmcArm CMC 纯读采集臂（凭据未供=让位显形——业主条件请求件 fin_condition_gap）。
-func cmcArm(ctx context.Context, errc chan<- error, pool *pgxpool.Pool, cfg *config.Client) {
+func cmcArm(ctx context.Context, errc chan<- error, w *trxWiring) {
 	// 凭据密文列解（凭据归 pg 律——app_config 禁明文凭据，T-0108 返修）。
 	sec := func(k string) string {
-		b, err := cfg.Secret(ctx, k)
+		b, err := w.cfg.Secret(ctx, k)
 		if err != nil {
 			return ""
 		}
 		return string(b)
 	}
 	email, pass := sec("cmc.email"), sec("cmc.password")
-	acctS, _ := cfg.GetString("cmc.account_id") // 非密装配键（账户号非凭据）
+	acctS, _ := w.cfg.GetString("cmc.account_id") // 非密装配键（账户号非凭据）
 	acct, _ := strconv.ParseInt(acctS, 10, 64)
 	if email == "" || pass == "" || acct == 0 {
 		log.Printf("[cmc] 凭据键缺——采集臂让位（业主条件请求件——对冲腿显读件缺）")
 		return
 	}
-	st := pgstore.NewStore(pool)
+	pool, st := w.pool, w.st
 	auth := cmc.NewAuthManager(email, pass, acct, "https://api-cmc.markets.com")
 	go auth.StartRefresh(ctx)
+	// WS 事件流（T-0110：LiveState 内存态=对冲结构 freshLive 主源；ws_disabled
+	// 热启回退全 REST——nox wire_cmc 同语义）。
+	wsOff, _ := w.cfg.GetBool("cmc.ws_disabled")
+	if !wsOff {
+		ws := cmc.NewWsClient(auth, acct, st, cmc.DefaultWsBase, cmc.DefaultRestBase)
+		w.cmcLive = ws.LiveState
+		w.cmcWsHealth = ws.IsHealthy
+		go ws.Run(ctx) // sched-exempt-ok：WS 事件流（有流用流——断流自愈循环）
+		log.Printf("[cmc] WS 事件流接线（LiveState 内存态供数）")
+	}
 	if err := roster.Register(ctx, pool, "CMC CFD 采集", "cmc", "prices/account/history 纯读采集岗", nil); err != nil {
 		errc <- err
 		return
@@ -127,39 +153,4 @@ func cmcArm(ctx context.Context, errc chan<- error, pool *pgxpool.Pool, cfg *con
 			poll()
 		}
 	}
-}
-
-// mountTrxAPI /api/trx/* 只读端点（D-629：自营盘业绩外——数据面独挂不塞
-// Overview/nav_total）。读件缺=null 显形不造零。
-func mountTrxAPI(mux *http.ServeMux, pool *pgxpool.Pool) {
-	get := func(path string, q string) {
-		mux.HandleFunc("/api/trx/"+path, func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Content-Type", "application/json")
-			var raw json.RawMessage
-			if err := pool.QueryRow(r.Context(), q).Scan(&raw); err != nil || raw == nil {
-				raw = json.RawMessage("null")
-			}
-			_, _ = w.Write(raw)
-		})
-	}
-	get("account", `SELECT row_to_json(t) FROM (SELECT address,votes_total,sr_address,
-		balance_sun,allowance_sun,energy_limit,energy_used,net_limit,net_used,
-		free_net_used,free_net_limit,energy_delegated,bandwidth_staked,
-		tron_power,reward_num_sun,fetched_at FROM fin_trx_account
-		ORDER BY fetched_at DESC LIMIT 1) t`)
-	get("txs", `SELECT COALESCE(json_agg(t ORDER BY t.ts DESC),'[]') FROM
-		(SELECT tx_id,ts,kind,amount_sun,counterparty FROM fin_trx_txs
-		ORDER BY ts DESC LIMIT 30) t`)
-	get("radar", `SELECT COALESCE(json_agg(t ORDER BY t.apr DESC),'[]') FROM
-		(SELECT sr_address,apr FROM fin_trx_vote_apr_top ORDER BY apr DESC LIMIT 27) t`)
-	get("vote", `SELECT row_to_json(t) FROM (SELECT current_rate,current_sr,
-		max_rate,max_sr,spread,min_rate FROM fin_trx_vote_apr
-		ORDER BY fetched_at DESC LIMIT 1) t`)
-	get("cmc", `SELECT row_to_json(t) FROM (SELECT account_id,total_account_value,
-		total_cash_balance,total_unrealised_pnl,distance_to_closeout_pct,fetched_at
-		FROM fin_cmc_account_summary ORDER BY fetched_at DESC LIMIT 1) t`)
-	get("cmc_positions", `SELECT COALESCE(json_agg(t),'[]') FROM
-		(SELECT instrument_id,direction,quantity,entry_price,unrealised_pnl,
-		margin_percentage,fetched_at FROM fin_cmc_positions
-		ORDER BY fetched_at DESC LIMIT 20) t`)
 }
