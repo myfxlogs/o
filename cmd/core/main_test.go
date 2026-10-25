@@ -71,8 +71,8 @@ func TestOverviewThreeAccount(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// NAV=2100+3+0.2+0.05+2057.37+295 ≈ 4455.62（缺户=0 件由 nil 注入面他测覆盖）
-	if o.NavTotal < 4455 || o.NavTotal > 4456 {
+	// NAV=2100+3+0.2+0.05+2057.37（amt估值：DOGE 无 tick=0 不入 NAV 仍上卡）
+	if o.NavTotal < 4160 || o.NavTotal > 4161 {
 		t.Fatalf("NAV 三户合计: %v", o.NavTotal)
 	}
 	sec := map[string][]*dashboardv1.MoneyRow{}

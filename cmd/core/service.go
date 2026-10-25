@@ -32,35 +32,6 @@ func (coreService) Ping(context.Context, *dashboardv1.PingRequest) (*dashboardv1
 	return &dashboardv1.PingResponse{Status: "ok"}, nil
 }
 
-// moneyRow 组装（T-0086 ②：分区+币种+遗留资产标注——非在册币种涨跌不报警）。
-func moneyRow(section, ccy, label string, amt float64, legacy bool) *dashboardv1.MoneyRow {
-	return &dashboardv1.MoneyRow{Label: label, Amount: amt, Section: section, Ccy: ccy, Legacy: legacy}
-}
-
-// ledgeredCcy 在册币种集（fin_cashflow 有账——身份豁免判据）。
-func (c coreService) ledgeredCcy(ctx context.Context, venue string) map[string]bool {
-	out := map[string]bool{}
-	rows, err := c.pool.Query(ctx, "SELECT DISTINCT ccy FROM fin_cashflow WHERE venue=$1", venue)
-	if err != nil {
-		return out
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var ccy string
-		_ = rows.Scan(&ccy)
-		out[ccy] = true
-	}
-	return out
-}
-
-// legacyName 遗留资产人类名（常见杂币——未知币种回退代码本身）。
-var legacyName = map[string]string{
-	"AVAX": "Avalanche", "COMP": "Compound", "NFT": "NFT 凭证",
-	"DOGE": "Dogecoin", "FIL": "Filecoin", "BTC": "Bitcoin", "ETH": "Ethereum",
-	"PENGU": "Pudgy Penguins", "MEW": "cat in a dogs world",
-}
-
-// Overview 总览四联活读（所见即所得——零快照零缓存；数据出生证=查询时戳）。
 func (c coreService) Overview(ctx context.Context, _ *dashboardv1.OverviewRequest) (*dashboardv1.OverviewResponse, error) {
 	o := &dashboardv1.OverviewResponse{Ts: time.Now().UTC().Format(time.RFC3339)}
 	// T-0086 ①②④：NAV=交易户全币 eqUsd（WS 帧=交易户真源）+资金户全币+Earn
@@ -88,13 +59,15 @@ func (c coreService) Overview(ctx context.Context, _ *dashboardv1.OverviewReques
 			}
 		}
 	}
+	// 资金户/Earn 行=原生代币数（展示如实）；NAV 计值=amt估值（T-0086 ①）——
+	// USDT/USD 直入，其余按 md_ticks 最新价折算（无 tick=0 不入 NAV 仍上卡）。
 	if c.fundingLive != nil {
 		if fb, err := c.fundingLive(ctx); err == nil {
 			for ccy, v := range fb {
 				if v == 0 {
 					continue
 				}
-				o.NavTotal += v
+				o.NavTotal += valCcy(ctx, c.pool, ccy, v)
 				o.Money = append(o.Money, moneyRow("资金户", ccy,
 					ccyName(ccy), v, !ledgered[ccy]))
 			}
@@ -106,7 +79,7 @@ func (c coreService) Overview(ctx context.Context, _ *dashboardv1.OverviewReques
 				if v == 0 {
 					continue
 				}
-				o.NavTotal += v
+				o.NavTotal += valCcy(ctx, c.pool, ccy, v)
 				o.Money = append(o.Money, moneyRow("Earn", ccy,
 					ccyName(ccy), v, !ledgered[ccy]))
 			}
@@ -219,14 +192,6 @@ func durHuman(d time.Duration) string {
 		return fmt.Sprintf("%dm", int(d.Minutes()))
 	}
 	return fmt.Sprintf("%dh%dm", int(d.Hours()), int(d.Minutes())%60)
-}
-
-// ccyName 币种人类名（遗留资产卡可读性）。
-func ccyName(ccy string) string {
-	if n, ok := legacyName[ccy]; ok {
-		return n
-	}
-	return ccy
 }
 
 // mountCore 挂 ConnectRPC 服务到 mux（connect-go v2：Server 注册 + connecthttp.Mount）。
