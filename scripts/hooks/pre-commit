@@ -65,6 +65,10 @@ fi
 if [ -x scripts/check_migration_contract.sh ]; then
   scripts/check_migration_contract.sh
 fi
+# 6b. 迁移序号三断言（T-0109——canon migration-number-collision 硬闸）。
+if [ -x scripts/check_migrations.sh ]; then
+  scripts/check_migrations.sh
+fi
 if [ -x scripts/check_no_forbidden_patterns.sh ]; then
   scripts/check_no_forbidden_patterns.sh
 fi
