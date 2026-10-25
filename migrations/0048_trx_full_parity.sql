@@ -11,11 +11,18 @@ INSERT INTO app_config(key,value) VALUES
   ('trx.vote_min_srs',          '3'),
   ('trx.vote_max_srs',          '3'),
   ('trx.vote_max_brokerage',    '20'),
-  ('trx.vote_yield_drop_pct',   '15.0'),
-  ('trx.vote_better_opp_pct',   '0.0'),
-  ('trx.vote_max_rebal_per_day','1'),
+  ('trx.vote_yield_drop_pct',   '1.0'),
+  ('trx.vote_better_opp_pct',   '0.1'),
+  ('trx.vote_max_rebal_per_day','12'),
   ('trx.vote_min_interval_min', '120'),
   ('trx.vote_spread_threshold', '0.001'),
   ('trx.floor_pct',             '8.0'),
   ('trx.grpc_endpoint',         '"grpc.trongrid.io:50051"')
 ON CONFLICT (key) DO NOTHING;
+
+-- 回执①根修：已入库双库对称纠值（ON CONFLICT DO NOTHING 不回写已播种子——
+-- 三值=nox 生产库 app_config 实拍非码内缺省：YIELD_DROP=1.0/BETTER_OPP=0.1/
+-- MAX_REBAL_PER_DAY=12；幂等重跑安全）。
+UPDATE app_config SET value='1.0' WHERE key='trx.vote_yield_drop_pct';
+UPDATE app_config SET value='0.1' WHERE key='trx.vote_better_opp_pct';
+UPDATE app_config SET value='12' WHERE key='trx.vote_max_rebal_per_day';
