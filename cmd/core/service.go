@@ -170,6 +170,21 @@ func (c coreService) venues(ctx context.Context) []*dashboardv1.VenueGroup {
 		return ch
 	}
 	okx := &dashboardv1.VenueGroup{Name: "okx"}
+	// REST=对拍环实调成功戳（earn_parking 帧稀疏不可当活性——restOKAt 原子戳）。
+	restCh := &dashboardv1.VenueChannel{State: 2, Note: "读件缺"}
+	if t := restOKAt.Load(); t > 0 {
+		ts := time.Unix(0, t).UTC()
+		restCh.LastTs = ts.Format(time.RFC3339)
+		restCh.Note = ""
+		switch d := time.Since(ts); {
+		case d > 2*time.Minute:
+			restCh.State = 2
+		case d > 30*time.Second:
+			restCh.State = 1
+		default:
+			restCh.State = 0
+		}
+	}
 	okx.Channels = append(okx.Channels,
 		// 公开 WS=md_ticks 真流龄（md_funding.ts=费率事件时间可未来值，
 		// 入 union 会伪造行情流活性——liveness 只取 tick 心跳）。
@@ -177,8 +192,7 @@ func (c coreService) venues(ctx context.Context) []*dashboardv1.VenueGroup {
 			WHERE coalesce(venue,'okx')='okx'`), "公开 WS", "md_ticks"),
 		withName(age(`SELECT max(ts) FROM md_account_events
 			WHERE channel IN ('account','balance_and_position')`), "私有 WS", "md_account_events"),
-		withName(age(`SELECT max(ts) FROM md_account_events
-			WHERE channel='earn_parking'`), "REST", "earn_parking"))
+		withName(restCh, "REST", "funding+savings 实调"))
 	mt5g := &dashboardv1.VenueGroup{Name: "mt5"}
 	mt5g.Channels = append(mt5g.Channels,
 		withName(age(`SELECT max(b) FROM (

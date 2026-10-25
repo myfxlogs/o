@@ -204,32 +204,6 @@ func attachVenueReaders(riskGate *risk.Gate, wd *guard.Warden, ledgerR *ledger.R
 	})
 }
 
-// fundSaveBalances funding+savings 现读聚（T-0058：任一读败=err 上抛——静默跳腿禁）。
-func fundSaveBalances(ctx context.Context, okcli *okxexec.Client, out map[[2]string]float64) error {
-	bals, err := okcli.AssetBalances(ctx)
-	if err != nil {
-		return fmt.Errorf("funding 读败: %w", err)
-	}
-	for _, b := range bals {
-		out[[2]string{"okx", b.Ccy}] += okxexec.ParseF(b.Bal)
-	}
-	sav, err := okcli.SavingsBalance(ctx)
-	if err != nil {
-		return fmt.Errorf("savings 读败: %w", err)
-	}
-	var rows []struct {
-		Ccy string `json:"ccy"`
-		Amt string `json:"amt"`
-	}
-	if json.Unmarshal(sav, &rows) != nil {
-		return fmt.Errorf("savings parse")
-	}
-	for _, r2 := range rows {
-		out[[2]string{"okx", r2.Ccy}] += okxexec.ParseF(r2.Amt)
-	}
-	return nil
-}
-
 func parseNum(s string) float64 {
 	var v float64
 	_, _ = fmt.Sscanf(s, "%f", &v)
