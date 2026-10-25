@@ -28,6 +28,7 @@ type Surface struct {
 type Product struct {
 	ProductID       string
 	Uly             string
+	QuoteCcy        string // 计价/锁仓币（USDT/USDG/USDC/RLUSD 族；P 产品锁此币）
 	Direction       string // C=call / P=put
 	Strike          float64
 	Expiry          time.Time
@@ -78,6 +79,7 @@ func ParseProducts(raw []byte) ([]Product, error) {
 		Products []struct {
 			ProductID       string          `json:"productId"`
 			Uly             string          `json:"uly"`
+			QuoteCcy        string          `json:"quoteCcy"`
 			Direction       string          `json:"optType"`
 			Strike          string          `json:"strike"`
 			ExpiryTime      string          `json:"expTime"`
@@ -102,7 +104,7 @@ func ParseProducts(raw []byte) ([]Product, error) {
 		if r.ProductID == "" || (r.Direction != "C" && r.Direction != "P") {
 			continue
 		}
-		p := Product{ProductID: r.ProductID, Uly: r.Uly, Direction: r.Direction,
+		p := Product{ProductID: r.ProductID, Uly: r.Uly, QuoteCcy: r.QuoteCcy, Direction: r.Direction,
 			Strike: parseF(r.Strike), AnnualizedYield: parseF(r.AnnualizedYield),
 			MinSize: parseF(r.MinSize), MaxSize: parseF(r.MaxSize)}
 		if ms, err := strconv.ParseInt(r.ExpiryTime, 10, 64); err == nil && ms > 0 {

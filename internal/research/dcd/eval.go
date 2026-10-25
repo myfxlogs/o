@@ -1,5 +1,6 @@
 // eval.go —— 双币赢评估+阈闸（T-0102 钦定初版，判据全 config 热启）：
 // dist→term→notional→单 uly 方向不叠→apr 顺闸，拒因=首触（evidence.reason）；
+// 锁仓币=C 基础币/P 计价币（quoteCcy 族，USDG/USDC/RLUSD 计价产品各归各币）。
 // 判据缺位=unevaluable fail-closed（禁虚构判据）。
 package dcd
 
@@ -24,16 +25,20 @@ type Eval struct {
 	TermDays  float64
 	DistPct   float64
 	APR       float64
-	Avail     float64 // 锁仓侧币种可动余量（C=基础币、P=USDT）
+	Avail     float64 // 锁仓侧币种可动余量（C=基础币、P=计价币）
 	Verdict   string  // proposed / rejected / unevaluable
 	Reason    string  // 拒因/不可评估因（evidence.reason）
 	lockedCcy string  // 锁仓侧币种
 }
 
-// lockedCcyOf 锁仓侧币种（C=锁基础币卖 call；P=锁 USDT 卖 put）。
+// lockedCcyOf 锁仓侧币种（C=锁基础币卖 call；P=锁计价币卖 put——quoteCcy
+// 族 USDT/USDG/USDC/RLUSD，缺省回落 USDT 兼容旧夹具）。
 func lockedCcyOf(p Product) string {
 	if p.Direction == "C" {
 		return firstSeg(p.Uly)
+	}
+	if p.QuoteCcy != "" {
+		return p.QuoteCcy
 	}
 	return "USDT"
 }
@@ -111,5 +116,5 @@ func (e Eval) Legs() map[string]any {
 	if e.Product.Direction == "C" {
 		return map[string]any{"locked": e.lockedCcy, "sell": "call", "settle": "expiry"}
 	}
-	return map[string]any{"locked": "USDT", "sell": "put", "settle": "expiry"}
+	return map[string]any{"locked": e.lockedCcy, "sell": "put", "settle": "expiry"}
 }

@@ -207,8 +207,9 @@ func TestUlyDialectNormalizedEvaluable(t *testing.T) {
 		return []Product{
 			{ProductID: "BTC-USDG-261101-92000-C", Uly: "BTC-USDG", Direction: "C",
 				Strike: 92000, Expiry: d7, AnnualizedYield: 0.13, MinSize: 0.01},
-			{ProductID: "BTC-USDG-261101-68000-P", Uly: "BTC-USDG", Direction: "P",
-				Strike: 68000, Expiry: d7, AnnualizedYield: 0.11, MinSize: 100},
+			{ProductID: "BTC-USDG-261101-68000-P", Uly: "BTC-USDG", QuoteCcy: "USDG",
+				Direction: "P", Strike: 68000, Expiry: d7, AnnualizedYield: 0.11,
+				MinSize: 100},
 		}, nil
 	})
 	r.AttachCoins(func(context.Context) (map[string]float64, error) {
@@ -231,5 +232,11 @@ func TestUlyDialectNormalizedEvaluable(t *testing.T) {
 	if err := r.pool.QueryRow(ctx, `SELECT (evidence->>'spot')::numeric FROM fin_opp_eval
 		WHERE inst_id='BTC-USDG-261101-92000-C' LIMIT 1`).Scan(&spot); err != nil || spot != 80000 {
 		t.Fatalf("spot 应归一取 BTC-USDT 价 80000: %v %v", spot, err)
+	}
+	// USDG 计价 put 锁仓币=USDG 非 USDT——余量错币过闸=钱径方言坑。
+	var locked string
+	if err := r.pool.QueryRow(ctx, `SELECT evidence->>'locked_ccy' FROM fin_opp_eval
+		WHERE inst_id='BTC-USDG-261101-68000-P' LIMIT 1`).Scan(&locked); err != nil || locked != "USDG" {
+		t.Fatalf("put 锁仓币应=USDG: %v %v", locked, err)
 	}
 }

@@ -55,7 +55,10 @@ evidence_refs:
   对象包络——同族端点 envelope 不统一，按裸数组解析=静默零行。
 
 ## 追补（2026-10-25 T-0117 返修③实证）
-- `products` 的 `uly` 字段=**指数名非可采 inst_id**：普通族 `BTC-USD`、
-  保底族 `BTC-USDG`（G 尾）——md_ticks 采的是 `BTC-USDT`/`BTC-USDT-SWAP`，
-  按 uly 直查价=零命中全 spot_missing。取价须归一链
-  `uly→uly+T→uly+T-SWAP→uly-SWAP` 外再补 `USDG→USDT` 变体。
+- `products` 的 `uly` 字段=**标的指数名非可采 inst_id**：`BTC-USD`、
+  `BTC-USDG`（USDG=USDG 稳定币计价族，标的仍 BTC）——md_ticks 采的是
+  `BTC-USDT`/`BTC-USDT-SWAP`，按 uly 直查价=零命中全 spot_missing。
+  取价须归一链 `uly→uly+T→uly+T-SWAP→uly-SWAP` 外再补 `USDG→USDT` 变体。
+- **`quoteCcy` 计价币族=USDT/USDG/USDC/RLUSD**（官方 2025-12 上线 USDG/USDC
+  计价双币赢）：P 产品锁的是 quoteCcy 非 USDT——锁仓余量判据硬写 USDT=
+  错币过闸，产品行必须解析 quoteCcy 各归各币。

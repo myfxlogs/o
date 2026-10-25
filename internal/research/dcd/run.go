@@ -158,10 +158,10 @@ func (r *Runner) scanSurface(ctx context.Context, s Surface, ps []Product, p Par
 }
 
 // spot uly 现价（md_ticks 最新——与卡面/对拍同源估值面）。
-// spot uly 现价（T-0117 返修③/④——uly 方言归一：OKX DCD uly=指数名 BTC-USD
-// /保底族 BTC-USDG，行情采 BTC-USDT/BTC-USDT-SWAP——okx-api-spec 符号方言
-// 同族坑。归一序 uly→uly+T→uly+T-SWAP→uly-SWAP，USDG 尾再补 USDG→USDT
-// 变体，首命中即回）。
+// spot uly 现价（T-0117 返修③/④——uly 方言归一：OKX DCD uly=标的指数名，
+// USD 指数族含 BTC-USD/BTC-USDG（USDG=USDG 稳定币计价族，标的仍是 BTC），
+// 行情只采 *-USDT/*-USDT-SWAP——okx-api-spec 符号方言同族坑。归一序
+// uly→uly+T→uly+T-SWAP→uly-SWAP，USDG 尾再补 USDG→USDT 变体，首命中即回）。
 func (r *Runner) spot(ctx context.Context, uly string) float64 {
 	cands := []string{uly, uly + "T", uly + "T-SWAP", uly + "-SWAP"}
 	if alt := strings.Replace(uly, "USDG", "USDT", 1); alt != uly {
@@ -178,7 +178,8 @@ func (r *Runner) spot(ctx context.Context, uly string) float64 {
 	return 0
 }
 
-// availOf 锁仓侧可动余量（C=基础币、P=USDT）；读件缺=ok=false（unevaluable）。
+// availOf 锁仓侧可动余量（C=基础币、P=计价币 quoteCcy）；读件缺=ok=false
+// （unevaluable）。
 func (r *Runner) availOf(ctx context.Context, p Product) (float64, bool) {
 	if r.coins == nil {
 		return 0, false
@@ -189,7 +190,7 @@ func (r *Runner) availOf(ctx context.Context, p Product) (float64, bool) {
 		return 0, false
 	}
 	if p.Direction == "P" {
-		return coins["USDT"], true
+		return coins[lockedCcyOf(p)], true
 	}
 	return coins[firstSeg(p.Uly)], true
 }
