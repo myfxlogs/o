@@ -155,6 +155,18 @@ func TestGapTerminalStates(t *testing.T) {
 		WHERE venue='okx' AND surface='earn-flex'`).Scan(&state); err != nil || state != "pending" {
 		t.Fatalf("复活面应回 pending: %v state=%s", err, state)
 	}
+	// T-0106：hypothesized（卡已立）重探不翻案——假想官消费态守恒。
+	if _, err := r.pool.Exec(ctx, `UPDATE fin_surface_gap SET state='hypothesized',
+		hypothesis_id=1 WHERE venue='okx' AND surface='earn-flex'`); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.scan(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.pool.QueryRow(ctx, `SELECT state FROM fin_surface_gap
+		WHERE venue='okx' AND surface='earn-flex'`).Scan(&state); err != nil || state != "hypothesized" {
+		t.Fatalf("已起草面重探应守恒: %v state=%s", err, state)
+	}
 }
 
 // 锚：爆面上限（gen_cap=1——第二面候选排队不生成）。

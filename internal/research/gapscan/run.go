@@ -181,8 +181,8 @@ func (r *Runner) markGap(ctx context.Context, f ProbeFace, state string, meta ma
 	switch {
 	case err == nil:
 		next := state
-		if cur == "registered" || cur == "rejected" {
-			next = cur // 终态不机器翻案
+		if cur == "registered" || cur == "rejected" || cur == "hypothesized" {
+			next = cur // 终态/已起草不机器翻案（T-0106：hypothesized=卡已立）
 		}
 		if _, err := r.pool.Exec(ctx, `UPDATE fin_surface_gap SET state=$3, metadata=$4,
 			reason=$5, last_seen=now() WHERE venue=$1 AND surface=$2`,
