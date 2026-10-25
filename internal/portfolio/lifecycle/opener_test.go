@@ -123,3 +123,79 @@ func TestProbeToLivePromotion(t *testing.T) {
 		t.Fatalf("晋 live 后应过缝开仓: %d", len(fo.calls))
 	}
 }
+
+// seedFlip 判据键补种（T-0103：flip_bps=平闸同口径——setup 基表未含此键）。
+func seedFlip(t *testing.T, ctx context.Context, r *Runner) {
+	t.Helper()
+	if _, err := r.pool.Exec(ctx, `INSERT INTO app_config(key,value)
+		VALUES('guard.flip_bps',to_jsonb('5'::text)) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value`); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.cfg.Load(ctx); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// T-0103 ①锚：预测翻负即开闸拒——next_funding 与开向异号=寿命低于结算窗，
+// 不开+fin_opp_eval rejected/lifetime_below_min 落卡（开平判据对偶化）。
+func TestOpenLifetimeRejectsFlip(t *testing.T) {
+	ctx, r, fo := openerSetup(t)
+	seedFlip(t, ctx, r)
+	sid := mkStrategy(t, ctx, r, "live", time.Hour)
+	if _, err := r.pool.Exec(ctx, `INSERT INTO md_funding(ts,inst_id,funding_rate,next_funding_rate)
+		VALUES(now(),'OP-USDT-SWAP',0.0001,-0.0005)`); err != nil {
+		t.Fatal(err)
+	}
+	r.openLive(ctx)
+	if len(fo.calls) != 0 {
+		t.Fatalf("预测翻负仍开——判据分裂未修: %+v", fo.calls)
+	}
+	var reason, verdict string
+	if err := r.pool.QueryRow(ctx, `SELECT verdict,evidence->>'reason' FROM fin_opp_eval
+		WHERE inst_id='OP-USDT-SWAP' ORDER BY id DESC LIMIT 1`).Scan(&verdict, &reason); err != nil {
+		t.Fatalf("rejected 评估卡未落: %v", err)
+	}
+	if verdict != "rejected" || reason != "lifetime_below_min" {
+		t.Fatalf("拒因卡面: %s/%s", verdict, reason)
+	}
+	var st string
+	if err := r.pool.QueryRow(ctx, `SELECT state FROM fin_strategy WHERE id=$1`, sid).Scan(&st); err != nil || st != "live" {
+		t.Fatalf("寿命拒=不开非降级: %s", st)
+	}
+}
+
+// T-0103 ③锚：同键 1h ≥3 轮开平=振荡保险丝——不开+降级（兜底判据再分裂）。
+func TestOpenOscillationFuse(t *testing.T) {
+	ctx, r, fo := openerSetup(t)
+	seedFlip(t, ctx, r)
+	sid := mkStrategy(t, ctx, r, "live", time.Hour)
+	for i := 0; i < 3; i++ {
+		if _, err := r.pool.Exec(ctx, `INSERT INTO fin_position(strategy_ref,inst_id,notional_usd,opened_at,closed_at)
+			VALUES($1,'OP-USDT-SWAP',100,now()-interval '30 min',now()-interval '20 min')`, sid); err != nil {
+			t.Fatal(err)
+		}
+	}
+	r.openLive(ctx)
+	if len(fo.calls) != 0 {
+		t.Fatalf("振荡窗仍喂开: %+v", fo.calls)
+	}
+	var st string
+	if err := r.pool.QueryRow(ctx, `SELECT state FROM fin_strategy WHERE id=$1`, sid).Scan(&st); err != nil || st != "degraded" {
+		t.Fatalf("振荡保险丝未降级: %s", st)
+	}
+}
+
+// 正例锚：funding 正+预测正=正常开（判据对偶不误杀好仓）。
+func TestOpenLifetimePassesHealthy(t *testing.T) {
+	ctx, r, fo := openerSetup(t)
+	seedFlip(t, ctx, r)
+	mkStrategy(t, ctx, r, "live", time.Hour)
+	if _, err := r.pool.Exec(ctx, `INSERT INTO md_funding(ts,inst_id,funding_rate,next_funding_rate)
+		VALUES(now(),'OP-USDT-SWAP',0.0005,0.0004)`); err != nil {
+		t.Fatal(err)
+	}
+	r.openLive(ctx)
+	if len(fo.calls) != 1 {
+		t.Fatalf("健康仓被误拒: %+v", fo.calls)
+	}
+}
