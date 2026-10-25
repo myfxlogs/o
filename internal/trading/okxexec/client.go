@@ -36,6 +36,7 @@ type Client struct {
 	base    string
 	hc      *http.Client
 	sim     bool
+	ro      bool       // T-0104 D-0013：只读镜像件——venue 写径结构不可达
 	dcdMu   sync.Mutex // dcd LIVE 单 60s 单飞窗（限流端点——429 实证）
 	dcdAt   time.Time
 	dcdOrds []DcdOrder
@@ -62,6 +63,18 @@ func NewClient(creds Credentials, simulated bool) *Client {
 	return &Client{creds: creds, base: BaseURL, hc: &http.Client{Transport: tr, Timeout: 15 * time.Second}, sim: simulated}
 }
 
+// NewClientReadOnly 只读镜像件（T-0104 D-0013——凭据同源同件但 venue 写径
+// 结构不可达：do() 硬闸非 GET 全拒，非业务层自律 flag——盲库节点 mutating
+// 面从「双跑」降格「结构不跑」）。读径与常规件全同。
+func NewClientReadOnly(creds Credentials, simulated bool) *Client {
+	c := NewClient(creds, simulated)
+	c.ro = true
+	return c
+}
+
+// ErrReadOnly 只读件写径拒（结构不可达——非 venue 业务拒，类型化供调用方判）。
+var ErrReadOnly = fmt.Errorf("只读镜像件——venue 写径结构不可达（D-0013/T-0104）")
+
 // flexCode 信封 code 联合型（T-0102：sfp/dcd 族 code 是 number 非 string——
 // string 解析拒=200 真数据被信封方言误杀，坑条 okx-dcd-endpoint-dialect；
 // string|number 双收，APIError.Code 保持 string 形不变）。
@@ -86,6 +99,9 @@ func (f *flexCode) UnmarshalJSON(b []byte) error {
 
 // do 签名请求：四头 + demo 头（sim 时）。返回 body 字节；HTTP 非 2xx 或 code≠"0" 上抛。
 func (c *Client) do(ctx context.Context, method, pathWithQuery string, body []byte) ([]byte, error) {
+	if c.ro && method != http.MethodGet {
+		return nil, ErrReadOnly // T-0104：写径签名前硬闸——非 GET 一律不达 venue
+	}
 	ts := signutil.OkxTS(time.Now())
 	req, err := http.NewRequestWithContext(ctx, method, c.base+pathWithQuery, bytes.NewReader(body))
 	if err != nil {

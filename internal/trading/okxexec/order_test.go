@@ -3,6 +3,7 @@ package okxexec
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -133,5 +134,35 @@ func TestEnvelopeNumericCode(t *testing.T) {
 	raw, err := cli.Get(context.Background(), "/api/v5/finance/sfp/dcd/order-history")
 	if err != nil || !strings.Contains(string(raw), "11448262") && !strings.Contains(string(raw), "ordId") {
 		t.Fatalf("数字 code 信封误杀: raw=%s err=%v", raw, err)
+	}
+}
+
+// T-0104 锚：只读件写径结构不可达——非 GET 签名前硬闸 ErrReadOnly，
+// 服务端零请求到达（非业务拒=venue 未触）。
+func TestReadOnlyBlocksWrites(t *testing.T) {
+	var hits int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits++
+		w.Write([]byte(`{"code":"0","msg":"","data":[]}`))
+	}))
+	defer srv.Close()
+	cli := withBase(NewClientReadOnly(Credentials{Key: "k", Secret: "s", Passphrase: "p"}, false), srv.URL)
+	ctx := context.Background()
+	for _, call := range []func() error{
+		func() error { return cli.SavingsPurchase(ctx, "USDT", 1) },
+		func() error { _, _, e := cli.AssetTransfer(ctx, "USDT", 1, "18", "6"); return e },
+		func() error { _, e := cli.PlaceOrder(ctx, OrderParams{}); return e },
+		func() error { _, e := cli.CancelOrder(ctx, "X", "1", "c1"); return e },
+	} {
+		if err := call(); !errors.Is(err, ErrReadOnly) {
+			t.Fatalf("写径未被只读闸拒: %v", err)
+		}
+	}
+	if hits != 0 {
+		t.Fatalf("只读件写请求到达 venue: %d 次", hits)
+	}
+	// 读径全通（对照——GET 不拦）。
+	if _, err := cli.Get(ctx, "/api/v5/account/balance"); err != nil {
+		t.Fatalf("只读件读径被误拦: %v", err)
 	}
 }

@@ -125,47 +125,56 @@ func run() error {
 	startEventPush(ctx, errc, pool, cfg, sender) // 经营事件报（T-0061——event_push.go）
 	go killSwitchNotifier(ctx, pool, cfg, alerter)
 	riskGate := risk.NewGate(pool, cfg)
+	// T-0104/D-0013：节点角色闸（noderole.go）——只读镜像写径不可达。
+	ro := nodeReadonly()
+	newCli := cliFactory(ro)
 	var okcli *okxexec.Client
 	earnW := earn.NewWorker(pool, cfg)
-	go earnW.Run(ctx, errc)
+	if !ro {
+		go earnW.Run(ctx, errc)
+	}
 	var closeSizer guard.VenueSizer // 平仓量现读面（priv 域接线 T-0046②）
 	var liveOpener lifecycle.Opener // live 开仓缝（priv 域接线 T-0050）
 	if priv, err := okxpriv.NewCollector(ctx, pool, false); err != nil {
 		log.Printf("WARN: 私流守缺席（%v）——凭据落位后重启即上岗", err)
 	} else {
-		okcli = okxexec.NewClient(priv.Credentials(), false)
-		earnW.AttachVenue(okcli)
-		earnW.AttachAlerter(alerter)
-		// venue 现读件（T-0048：决策/判定/对账时点实读——快照行全域出局）。
-		// T-0048 返修②③：闲余=account 帧 details availBal（交易户口径——
-		// depositIdle 自 AcctTrading 摆钱；push-on-change 帧龄不判陈）。
-		earnW.AttachIdle(func(ctx context.Context) (float64, error) {
-			return okxAvailFromEvents(ctx, pool, okcli)
-		})
-		earnW.AttachCoins(okxCoinsFor(pool, okcli)) // T-0095 v3 残币归口判据源
-		// 交易域首岗：执事（Executor=okxexec 唯一 venue 径——凭据与私流守同源解出）。
-		execR := execution.NewRunner(pool, cfg,
-			&execution.OkxExecutor{C: okxexec.NewClient(priv.Credentials(), false)}).WithEarn(earnW).WithAlerter(alerter)
-		go execution.Run(ctx, errc, execR)
-		closer = closeExec{r: execR}
-		// live 开仓缝（T-0050——gate+执事+元数据件同源接线）。
-		liveOpener = hedgeOpener{pool: pool, cfg: cfg, gate: riskGate, r: execR, // T-0050
-			cli: okxexec.NewClient(priv.Credentials(), false)}
-		// boot 首读播种（事件锚定一次性——cmd 接线，数据域不反依赖交易域）。
+		okcli = newCli(priv.Credentials())
+		if ro {
+			// 只读件已注（读径全通）——mutating 接线全撤：归口/执事/开平仓缝不挂。
+		} else {
+			earnW.AttachVenue(okcli)
+			earnW.AttachAlerter(alerter)
+			// venue 现读件（T-0048：决策/判定/对账时点实读——快照行全域出局）。
+			// T-0048 返修②③：闲余=account 帧 details availBal（交易户口径——
+			// depositIdle 自 AcctTrading 摆钱；push-on-change 帧龄不判陈）。
+			earnW.AttachIdle(func(ctx context.Context) (float64, error) {
+				return okxAvailFromEvents(ctx, pool, okcli)
+			})
+			earnW.AttachCoins(okxCoinsFor(pool, okcli)) // T-0095 v3 残币归口判据源
+			// 交易域首岗：执事（Executor=okxexec 唯一 venue 径——凭据与私流守同源解出）。
+			execR := execution.NewRunner(pool, cfg,
+				&execution.OkxExecutor{C: okxexec.NewClient(priv.Credentials(), false)}).WithEarn(earnW).WithAlerter(alerter)
+			go execution.Run(ctx, errc, execR)
+			closer = closeExec{r: execR}
+			// live 开仓缝（T-0050——gate+执事+元数据件同源接线）。
+			liveOpener = hedgeOpener{pool: pool, cfg: cfg, gate: riskGate, r: execR, // T-0050
+				cli: newCli(priv.Credentials())}
+		} // !ro mutating 接线域收
+		// 读径面（只读镜像全通）：boot 首读播种+平仓量现读+funding 记账+私流守。
 		creds := priv.Credentials()
 		priv.SetBootFn(func(ctx context.Context) (map[string]float64, error) {
 			return okxexec.BalanceEquity(ctx, creds, false)
 		})
 		// 平仓量现读面（T-0046 ②——priv 凭据域内接线）。
-		closeSizer = okxSizer{okxexec.NewClient(priv.Credentials(), false)}
+		closeSizer = okxSizer{newCli(priv.Credentials())}
 		// funding 记账（T-0044）：余额帧事件驱动 bills→fin_cashflow（bills.go）。
 		priv.SetBillsHook(legfunding.NewIngester(pool,
-			billsSrc{okxexec.NewClient(priv.Credentials(), false)}).Hook())
+			billsSrc{newCli(priv.Credentials())}).Hook())
 		go priv.Run(ctx, errc)
 
 		// 台账同步：资产端点采（okxexec 装配注入——账本域不反向依赖交易域；
 		// /asset/balances+earn 面=钦定 REST 保留面非轮询病灶）。
-		okcli := okxexec.NewClient(priv.Credentials(), false)
+		okcli := newCli(priv.Credentials())
 		hs := holding.NewSyncer(pool, func(ctx context.Context) ([]holding.AssetRow, error) {
 			var out []holding.AssetRow
 			bals, err := okcli.AssetBalances(ctx)
