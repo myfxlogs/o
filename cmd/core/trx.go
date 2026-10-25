@@ -96,16 +96,16 @@ func cmcArm(ctx context.Context, errc chan<- error, pool *pgxpool.Pool, cfg *con
 		return
 	}
 	st := pgstore.NewStore(pool)
-	auth := cmc.NewAuthManager(email, pass, acct, "https://api-cmc.markets.com")
+	auth := cmc.NewAuthManager(email, pass, acct, cmc.DefaultPlatformBase)
 	go auth.StartRefresh(ctx)
 	if err := roster.Register(ctx, pool, "CMC CFD 采集", "cmc", "prices/account/history 纯读采集岗", nil); err != nil {
 		errc <- err
 		return
 	}
 	go roster.BeatLoop(ctx, pool, "CMC CFD 采集", 30*time.Second, errc)
-	prices := cmc.NewPricesCollector(auth, "TRXUSD", st, "https://api-cmc.markets.com")
-	accts := cmc.NewAccountCollector(auth, acct, st, "https://api-cmc.markets.com")
-	hist := cmc.NewHistoryCollector(auth, acct, st, "https://api-cmc.markets.com")
+	prices := cmc.NewPricesCollector(auth, "X-AFQUL", st, cmc.DefaultRestBase)
+	accts := cmc.NewAccountCollector(auth, acct, st, cmc.DefaultRestBase)
+	hist := cmc.NewHistoryCollector(auth, acct, st, cmc.DefaultRestBase)
 	poll := func() {
 		if _, err := prices.Poll(ctx); err != nil {
 			log.Printf("[cmc] prices 采集败: %v", err)
