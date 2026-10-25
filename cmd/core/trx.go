@@ -88,6 +88,7 @@ func cmcArm(ctx context.Context, errc chan<- error, pool *pgxpool.Pool, cfg *con
 		}
 		return string(b)
 	}
+	cmc.SetCreateTplHex(sec("cmc.create_tpl")) // 重登模板密件注入（nox wire_cmc.go:22 同位）
 	email, pass := sec("cmc.email"), sec("cmc.password")
 	acctS, _ := cfg.GetString("cmc.account_id") // 非密装配键（账户号非凭据）
 	acct, _ := strconv.ParseInt(acctS, 10, 64)
