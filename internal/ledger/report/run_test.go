@@ -48,6 +48,11 @@ func setupPush(t *testing.T) (context.Context, *Runner, *pushFake) {
 	if err := cfg.Load(ctx); err != nil {
 		t.Fatal(err)
 	}
+	// CI 定时炸弹根修：迁移 0020 给测试库也种真历（FOMC 10-28 等）——
+	// 真时间走过界窗测试即连环炸。「无事件」语义须清全表非只清自种行。
+	if _, err := pool.Exec(ctx, "DELETE FROM md_macro_event"); err != nil {
+		t.Fatal(err)
+	}
 	f := &pushFake{}
 	r := NewRunner(pool, &Pusher{cfg: cfg, pool: pool, cli: f,
 		rej: rejects.New("report", "push_degraded", "push_err")}).WithConfig(cfg)
