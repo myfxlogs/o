@@ -34,11 +34,14 @@ func TestSubscribeArgs(t *testing.T) {
 	for _, a := range args {
 		got[a["channel"]]++
 	}
-	want := map[string]int{"tickers": 2, "funding-rate": 1, "mark-price": 1, "index-tickers": 1}
+	want := map[string]int{"funding-rate": 1, "mark-price": 1, "index-tickers": 1}
 	for ch, n := range want {
 		if got[ch] != n {
 			t.Fatalf("channel %s=%d want %d（args=%v）", ch, got[ch], n, args)
 		}
+	}
+	if got["tickers"] != 0 {
+		t.Fatalf("tickers 应退出宇宙订阅（活跃集动态加订）: %v", args)
 	}
 }
 

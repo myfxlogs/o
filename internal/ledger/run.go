@@ -219,8 +219,9 @@ func (r *Runner) reconcile(ctx context.Context) error {
 		diff := Diff(x.net, x.eq)
 		if x.ccy != "USDT" && x.ccy != "USD" && diff != 0 {
 			var px float64
-			_ = r.pool.QueryRow(ctx, `SELECT last FROM md_ticks
-				WHERE inst_id=$1||'-USDT' ORDER BY ts DESC LIMIT 1`, x.ccy).Scan(&px)
+			_ = r.pool.QueryRow(ctx, `SELECT v FROM (SELECT last v,ts FROM md_ticks
+				WHERE inst_id=$1||'-USDT' UNION ALL SELECT px,ts FROM md_mark_index
+				WHERE inst_id=$1||'-USDT') q ORDER BY ts DESC LIMIT 1`, x.ccy).Scan(&px)
 			if px <= 0 {
 				diff = tol + exempt + 1 // 不可估值分歧强制告警
 			} else {

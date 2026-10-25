@@ -96,7 +96,6 @@ func run() error {
 	var meter *netmeter.Meter
 	var okcli *okxexec.Client
 	collector := okxws.NewCollector(pool, cfg)
-	collector.AttachMeter(meter)
 	collector.ExpandSymbols = universeExpander(func() *okxexec.Client { return okcli })
 	go collector.Run(ctx, errc)
 
@@ -119,6 +118,8 @@ func run() error {
 		meter = netmeter.New(int(budgetKB), func(ctx context.Context, kind, msg string) {
 			alerter.Alert(ctx, kind, msg)
 		})
+		// T-0130 序位修：meter 造成后才挂（原 AttachMeter(nil)——计量面死挂实证）。
+		collector.AttachMeter(meter)
 	}
 	startEventPush(ctx, errc, pool, cfg, sender) // 经营事件报（T-0061——event_push.go）
 	collector.AttachAlerter(alerter)             // T-0128 返修②：面死告警 humanize kind

@@ -16,7 +16,9 @@ func (w *Warden) notionalNow(ctx context.Context, l leg) (float64, bool) {
 	var last *float64
 	var ts time.Time
 	if err := w.pool.QueryRow(ctx,
-		"SELECT last,ts FROM md_ticks WHERE inst_id=$1 ORDER BY ts DESC LIMIT 1", l.inst).Scan(&last, &ts); err != nil || last == nil {
+		`SELECT v,ts FROM (SELECT last v,ts FROM md_ticks WHERE inst_id=$1
+			UNION ALL SELECT px,ts FROM md_mark_index WHERE inst_id=$1) q
+			ORDER BY ts DESC LIMIT 1`, l.inst).Scan(&last, &ts); err != nil || last == nil {
 		return 0, false
 	}
 	maxAge := 120.0

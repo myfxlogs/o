@@ -65,7 +65,7 @@ type Door = rejects.Door
 func NewCollector(pool *pgxpool.Pool, cfg *config.Client) *Collector {
 	return &Collector{
 		pool: pool, cfg: cfg, url: PublicURL,
-		rej:   rejects.New("okxws", "non_usdt_instid", "seq_gap", "parse_fail", "write_err", "symbols_missing"),
+		rej:   rejects.New("okxws", "non_usdt_instid", "seq_gap", "parse_fail", "write_err", "symbols_missing", "activeset_read_failed"),
 		queue: make(chan rowItem, 1024),
 		Stats: nil,
 	}
@@ -164,6 +164,33 @@ func (c *Collector) dialLoop(ctx context.Context, syms []string, gen int64) erro
 		return err
 	}
 	log.Printf("[okxws] subscribed syms=%d url=%s", len(syms), c.url)
+	// T-0132 活跃集 tickers 动态重订（增删订阅帧不重建连接——fin_position
+	// 在仓+fin_proposal 在途+fin_strategy 非退役的 inst_id 才配成交价级实时性）。
+	subTick := map[string]bool{}
+	syncActive := func() {
+		set, err := c.activeSet(ctx)
+		if err != nil {
+			c.rej.Inc("activeset_read_failed")
+			return
+		}
+		for inst := range set {
+			if !subTick[inst] && isUSDTInst(inst) {
+				if err := conn.WriteJSON(subArgs("subscribe", inst)); err != nil {
+					return
+				}
+				subTick[inst] = true
+			}
+		}
+		for inst := range subTick {
+			if !set[inst] {
+				if err := conn.WriteJSON(subArgs("unsubscribe", inst)); err != nil {
+					return
+				}
+				delete(subTick, inst)
+			}
+		}
+	}
+	syncActive() // 连接建立即加订当前活跃集
 	// 看门狗起表（T-0050 根修）：lastFrame 初值 0=「未起表」盲区——队列塞死时
 	// 业务帧永不上前移，watchdog 恒 skip（SG 实勘静默断流）。订阅成功即起表：
 	// 75s 无帧判死重连，盲区消失。
@@ -189,6 +216,8 @@ func (c *Collector) dialLoop(ctx context.Context, syms []string, gen int64) erro
 	defer ping.Stop()
 	watch := time.NewTicker(10 * time.Second)
 	defer watch.Stop()
+	actTick := time.NewTicker(30 * time.Second) // sched-exempt-ok 活跃集轮询
+	defer actTick.Stop()
 	for {
 		select {
 		case <-ctx.Done():
@@ -199,6 +228,8 @@ func (c *Collector) dialLoop(ctx context.Context, syms []string, gen int64) erro
 			if err := conn.WriteMessage(websocket.TextMessage, []byte("ping")); err != nil {
 				return fmt.Errorf("ping: %w", err)
 			}
+		case <-actTick.C:
+			syncActive() // 活跃集变化→增删订阅帧
 		case <-watch.C:
 			if idle := time.Since(time.Unix(0, c.lastFrame.Load())); c.lastFrame.Load() != 0 && idle > dataIdle {
 				return fmt.Errorf("业务帧静默 %s > %s（ack≠存活——看门狗判死重连）", idle.Round(time.Second), dataIdle)
@@ -216,6 +247,9 @@ func (c *Collector) handle(data []byte) {
 	if err := json.Unmarshal(data, &msg); err != nil {
 		c.rej.Inc("parse_fail")
 		return
+	}
+	if c.meter != nil {
+		c.meter.Add("okxws/"+msg.Arg.Channel, len(data))
 	}
 	if msg.Event != "" {
 		if msg.Event == "error" {
@@ -261,40 +295,3 @@ func (c *Collector) FrameCount() int64 { return c.frames.Load() }
 
 // LastFrame 最近业务帧时刻（status/看门狗观测面）。
 func (c *Collector) LastFrame() time.Time { return time.Unix(0, c.lastFrame.Load()) }
-
-// staleWatch 面级断流告警（T-0129）：60s 一拍——订阅标的中 md_ticks
-// 全行超龄（>3min 无新鲜行）=行情面死 ALERT 一次，恢复清标可再报；
-// 单标的陈≠面死（逐键告警另有 facts_missing 计数面）。
-func (c *Collector) staleWatch(ctx context.Context) {
-	tick := time.NewTicker(60 * time.Second) // sched-exempt-ok：面级断流看门狗节拍（活性探针非业务轮询）
-	defer tick.Stop()
-	alerted := false
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-tick.C:
-			syms, err := c.symbols(ctx)
-			if err != nil || len(syms) == 0 {
-				continue
-			}
-			var fresh int
-			if err := c.pool.QueryRow(ctx, `SELECT count(DISTINCT inst_id) FROM md_ticks
-				WHERE inst_id = ANY($1) AND ts>now()-interval '3 minutes'`,
-				syms).Scan(&fresh); err != nil {
-				continue
-			}
-			if fresh == 0 && !alerted {
-				msg := fmt.Sprintf("订阅 %d 标的 md_ticks 全行超龄 3min（断流面非单键陈）", len(syms))
-				if c.al != nil {
-					c.al.Alert(ctx, "okxws_face_dead", msg)
-				} else {
-					log.Printf("ALERT [okxws] 行情面死——%s", msg)
-				}
-				alerted = true
-			} else if fresh > 0 {
-				alerted = false // 恢复清标可再报
-			}
-		}
-	}
-}

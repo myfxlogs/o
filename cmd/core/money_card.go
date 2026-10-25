@@ -86,7 +86,8 @@ func valCcy(ctx context.Context, pool *pgxpool.Pool, ccy string, units float64) 
 		return units
 	}
 	var last *float64
-	_ = pool.QueryRow(ctx, `SELECT last FROM md_ticks WHERE inst_id=$1 ORDER BY ts DESC LIMIT 1`,
+	_ = pool.QueryRow(ctx, `SELECT v FROM (SELECT last v,ts FROM md_ticks WHERE inst_id=$1
+		UNION ALL SELECT px,ts FROM md_mark_index WHERE inst_id=$1) q ORDER BY ts DESC LIMIT 1`,
 		ccy+"-USDT").Scan(&last)
 	if last == nil {
 		return 0

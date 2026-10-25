@@ -1,33 +1,46 @@
-// subscribe.go —— 订阅面装配件（T-0122 返修② 拆出——棘轮行数控制件）：
-// 四频道 args 构建+≤100 args/帧分帧发送（OKX WS 单帧硬限——全宇宙 ~500
-// arg 单帧被拍死；帧间 50ms 节流防限流）。
+// subscribe.go —— 订阅面装配件（T-0122 返修② 拆出——棘轮行数控制件；
+// T-0132 分级：宇宙=低频三面 args，tickers 退出全宇宙改活跃集动态增删）：
+// 宇宙 args 构建+≤100 args/帧分帧发送（OKX WS 单帧硬限——全宇宙 ~500
+// arg 单帧被拍死；帧间 50ms 节流防限流）+活跃集增删订阅帧。
 package okxws
 
 import (
+	"context"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
 )
 
-// subscribeArgs 四频道订阅面（funding-rate/mark-price 仅 SWAP instId 合法；
-// index-tickers 挂 spot 形 instId；tickers 两形通用——books5 已切除
-// T-0117 返修③：D-0018 停采零读者面订阅负荷主动降）。
+// datedFutRe 季度期货形（'-' 尾 6 位到期日——mark-price 适用无 funding）。
+var datedFutRe = regexp.MustCompile(`-[0-9]{6}$`)
+
+// subscribeArgs 宇宙低频订阅面（T-0132 分级——全宇宙=费率/标记价/指数价三
+// 事实层零损发现面；tickers 退出宇宙订活跃集动态补：funding-rate/mark-price
+// 仅 SWAP instId 合法；index-tickers 挂 spot 形 instId；季度期货订 mark-price）。
 func subscribeArgs(syms []string) []map[string]string {
-	args := make([]map[string]string, 0, len(syms)*4)
+	args := make([]map[string]string, 0, len(syms)*3)
 	for _, s := range syms {
-		args = append(args, map[string]string{"channel": "tickers", "instId": s})
-		if strings.HasSuffix(s, "-SWAP") {
+		switch {
+		case strings.HasSuffix(s, "-SWAP"):
 			args = append(args,
 				map[string]string{"channel": "funding-rate", "instId": s},
 				map[string]string{"channel": "mark-price", "instId": s})
-		} else if !strings.Contains(s, "-2") { // 现货形=index-tickers；
-			// 季度期货（-USDT-YYMMDD 尾）指数面不适用——tickers 唯订
+		case datedFutRe.MatchString(s):
+			args = append(args, map[string]string{"channel": "mark-price", "instId": s})
+		default:
 			args = append(args, map[string]string{"channel": "index-tickers", "instId": s})
 		}
 	}
 	return args
+}
+
+// subArgs tickers 增删订阅帧（op=subscribe/unsubscribe——活跃集动态重订不重建连接）。
+func subArgs(op, inst string) map[string]any {
+	return map[string]any{"op": op,
+		"args": []map[string]string{{"channel": "tickers", "instId": inst}}}
 }
 
 // subscribeAll ≤100 args/帧分帧订阅（帧间节流 50ms）。
@@ -46,4 +59,26 @@ func subscribeAll(conn *websocket.Conn, args []map[string]string) error {
 		}
 	}
 	return nil
+}
+
+// activeSet 活跃集标的（T-0132 分级——在仓+在途提案+非退役策略 inst_id
+// 才配 tickers 级实时性；其余宇宙标的三低频面即足）。
+func (c *Collector) activeSet(ctx context.Context) (map[string]bool, error) {
+	rows, err := c.pool.Query(ctx, `SELECT DISTINCT inst_id FROM (
+		SELECT inst_id FROM fin_position WHERE closed_at IS NULL
+		UNION SELECT inst_id FROM fin_proposal WHERE state IN ('fin_proposed','fin_armed')
+		UNION SELECT inst_id FROM fin_strategy WHERE state<>'retired') t`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	set := map[string]bool{}
+	for rows.Next() {
+		var s string
+		if err := rows.Scan(&s); err != nil {
+			return nil, err
+		}
+		set[s] = true
+	}
+	return set, rows.Err()
 }

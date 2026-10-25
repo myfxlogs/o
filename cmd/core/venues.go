@@ -23,10 +23,10 @@ func (c coreService) venues(ctx context.Context) []*dashboardv1.VenueGroup {
 		restCh = ageChan(&ts)
 	}
 	okx.Channels = append(okx.Channels,
-		// 公开 WS=md_ticks 真流龄（md_funding.ts=费率事件时间可未来值，
-		// 入 union 会伪造行情流活性——liveness 只取 tick 心跳）。
-		withName(age(`SELECT max(ts) FROM md_ticks
-			WHERE coalesce(venue,'okx')='okx'`), "公开 WS", "md_ticks"),
+		// 公开 WS 真流龄=md_ticks∪md_mark_index（T-0132 分级后宇宙面主源=
+		// mark/index 心跳；md_funding.ts=费率事件时间可未来值仍不入）。
+		withName(age(`SELECT max(ts) FROM (SELECT ts FROM md_ticks WHERE coalesce(venue,'okx')='okx'
+			UNION ALL SELECT ts FROM md_mark_index) t`), "公开 WS", "md_ticks+mark_index"),
 		withName(age(`SELECT max(ts) FROM md_account_events
 			WHERE channel IN ('account','balance_and_position')`), "私有 WS", "md_account_events"),
 		withName(restCh, "REST", "funding+savings 实调"))

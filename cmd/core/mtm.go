@@ -40,7 +40,9 @@ func mtmReader(pool *pgxpool.Pool,
 			}
 			var now float64
 			if err := pool.QueryRow(ctx,
-				"SELECT last FROM md_ticks WHERE inst_id=$1 ORDER BY ts DESC LIMIT 1",
+				`SELECT v FROM (SELECT last v,ts FROM md_ticks WHERE inst_id=$1
+					UNION ALL SELECT px,ts FROM md_mark_index WHERE inst_id=$1) q
+					ORDER BY ts DESC LIMIT 1`,
 				inst).Scan(&now); err != nil || now <= 0 {
 				continue
 			}
