@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | 已批 |
+| 状态 | 完成 |
 | 立项 | `[角色:决策]` @ 2026-10-25（ledger_diff_alert $0.57 取证归因） |
 | 优先级 | 高（对账差持续鸣叫；每轮现货开仓虚记 ~0.24% 支出） |
 | 分诊 | 真问题——记账口径病非资金病（venue 比账本**多** $0.57） |
@@ -59,3 +59,15 @@
   待决策席部署口径（施工面未擅加迁移行——差额属在册基线调整域）。
 - 桩测：TestLegGrossQuoteBuyFillAmt（成交锚+fallback 计数双径绿——
   float 精度断言带容差窗）。
+
+## 验收回执（`[角色:决策]` @f99a006——**通过**）
+
+- **venue 真值亲证**（SG 直查 /trade/order clOrdId=ph53x2x483171）：
+  `sz=24.1`（OKX 截 quote 精度）/`accFillSz=0.00029952`/`avgPx=80460.9`
+  → 0.00029952×80460.9=**24.0996**=bills 实扣 24.099648 ✓——修法对径。
+  （腿行 qty_base=0.000299869 是 legrestore 回填 sz/px 的派生值非 venue
+  值——T-0107 后新单走 accFillSz 真源，与本修法同源。）
+- 桩测 TestLegGrossQuoteBuyFillAmt 独立绿；vet 绿；billsaudit 过滤前移合格。
+- 历史 9 轮基线行已落 SG：`recon_adjust +0.484904`（账本 217.381170 −
+  bills 216.896266，source_ref=116）。
+- 部署后锚：SG `ALERT [ledger]` 停鸣 ≥1h（下次巡检核销）。
