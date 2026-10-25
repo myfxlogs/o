@@ -46,7 +46,8 @@ type Collector struct {
 	lastFrame atomic.Int64 // 最近业务帧 UnixNano（status 端点/看门狗同读）
 	Stats     *Door        // 别名 rej（对外观测名）
 	meter     *netmeter.Meter
-	al        *notify.Alerter // 面死告警业主通道（T-0128 返修②——nil=log 退路）
+	al        *notify.Alerter
+	refuseSub map[string]bool // 60018 拒收集（本连接内生效——T-0133 ③） // 面死告警业主通道（T-0128 返修②——nil=log 退路）
 	// ExpandSymbols 宇宙扩件（T-0122：okx.symbols 含 "*"=放开全 SWAP+季度
 	// 期货——装配层挂 instruments 实读闭包，未挂=键面拒签 fail-closed）。
 	ExpandSymbols func(ctx context.Context) ([]string, error)
@@ -166,30 +167,10 @@ func (c *Collector) dialLoop(ctx context.Context, syms []string, gen int64) erro
 	log.Printf("[okxws] subscribed syms=%d url=%s", len(syms), c.url)
 	// T-0132 活跃集 tickers 动态重订（增删订阅帧不重建连接——fin_position
 	// 在仓+fin_proposal 在途+fin_strategy 非退役的 inst_id 才配成交价级实时性）。
+	// T-0133 幽灵标的滤除+分帧加订+60018 拒收集（件在 subscribe.go——棘轮）。
 	subTick := map[string]bool{}
-	syncActive := func() {
-		set, err := c.activeSet(ctx)
-		if err != nil {
-			c.rej.Inc("activeset_read_failed")
-			return
-		}
-		for inst := range set {
-			if !subTick[inst] && isUSDTInst(inst) {
-				if err := conn.WriteJSON(subArgs("subscribe", inst)); err != nil {
-					return
-				}
-				subTick[inst] = true
-			}
-		}
-		for inst := range subTick {
-			if !set[inst] {
-				if err := conn.WriteJSON(subArgs("unsubscribe", inst)); err != nil {
-					return
-				}
-				delete(subTick, inst)
-			}
-		}
-	}
+	c.refuseSub = map[string]bool{}
+	syncActive := func() { c.syncActiveSet(ctx, conn, syms, subTick, c.refuseSub) }
 	syncActive() // 连接建立即加订当前活跃集
 	// 看门狗起表（T-0050 根修）：lastFrame 初值 0=「未起表」盲区——队列塞死时
 	// 业务帧永不上前移，watchdog 恒 skip（SG 实勘静默断流）。订阅成功即起表：
@@ -254,6 +235,11 @@ func (c *Collector) handle(data []byte) {
 	if msg.Event != "" {
 		if msg.Event == "error" {
 			log.Printf("[okxws] 服务端 error 帧: %s", data)
+			// T-0133 ③60018 拒收集：带 instId 的服务端拒收记黑名单——本连接
+			// 内 syncActive 不再重发（重连清表自然放行）。
+			if c.refuseSub != nil && msg.Arg.InstID != "" {
+				c.refuseSub[msg.Arg.InstID] = true
+			}
 		}
 		return // subscribe ack/channel-conn-count/error 留痕非业务帧
 	}
