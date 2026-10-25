@@ -693,3 +693,22 @@ func TestQuotedLegsNoInstantKill(t *testing.T) {
 		t.Fatalf("次拍衡仓不得杀: %+v", fx.calls)
 	}
 }
+
+// T-0111 锚②：盈利 carry 仓免超龄杀——100h 仓但 trailing 24h funding 实收>0
+// =豁免不杀（收益失效判）；零收入仓同例照杀（TestMaxHoldTrigger 对照已在）。
+func TestMaxHoldExemptIncome(t *testing.T) {
+	ctx, w, _ := setup(t)
+	seedFacts(t, ctx, w, 0.0001)
+	posID := mkPosition(t, ctx, w, "live", 1, time.Now().Add(-100*time.Hour))
+	if _, err := w.pool.Exec(ctx, `INSERT INTO fin_cashflow(kind,venue,ccy,amount,position_ref,source_ref,source_table,occurred_at)
+		VALUES('funding_settle','okx','USDT',0.5,$1,0,'fin_order_leg',now()-interval '1 hour')`, posID); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.scanOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	_, state, _ := posClosed(t, ctx, w, posID)
+	if state == "closed" {
+		t.Fatal("盈利仓被超龄错杀——收益失效判豁免失效")
+	}
+}

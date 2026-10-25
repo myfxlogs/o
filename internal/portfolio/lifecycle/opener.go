@@ -85,6 +85,13 @@ func (r *Runner) openLive(ctx context.Context) {
 			log.Printf("[lifecycle] 策略 %d %s 开闸拒——%s", c.spec.StrategyRef, c.spec.InstID, why)
 			continue
 		}
+		// T-0111 ①回本窗判据：预期 carry（持有上限内）≥ 往返摩擦×1.5 不满足
+		// =拒开（fin_opp_eval rejected/breakeven_beyond_hold——「72h 开闸制
+		// 度性亏损」根修；T-0103 对偶同位判）。
+		if ok, why := r.breakevenOK(ctx, c.spec); !ok {
+			log.Printf("[lifecycle] 策略 %d %s 开闸拒——%s", c.spec.StrategyRef, c.spec.InstID, why)
+			continue
+		}
 		eid, err := r.op.Open(ctx, c.spec)
 		if err != nil {
 			r.rej.Inc("open_failed")
@@ -137,22 +144,78 @@ func (r *Runner) lifetimeOK(ctx context.Context, spec OpenSpec) (bool, string) {
 	return true, ""
 }
 
-// rejectEval 寿命拒落卡（T-0103：fin_opp_eval rejected+reason 机读面——
-// 1h 幂等窗防振荡期行洪）。
-func (r *Runner) rejectEval(ctx context.Context, spec OpenSpec, latest, next float64) bool {
-	ev, _ := json.Marshal(map[string]any{
-		"reason": "lifetime_below_min", "latest_funding": latest, "next_funding": next})
+// breakevenOK 回本窗判据（T-0111 ①）：预期 carry=|funding 率|×结算次数
+// （max_hold 窗内 8h 一结）×名义 ≥ 往返摩擦×安全系数——摩擦=4 腿×
+// （taker+slippage）bps（research.funding.* 键组），安全系数
+// guard.breakeven_safety（缺省 1.5）。键缺/率缺=fail-closed 拒开。
+func (r *Runner) breakevenOK(ctx context.Context, spec OpenSpec) (bool, string) {
+	maxH, err := r.cfg.GetFloat("guard.max_hold_hours")
+	if err != nil {
+		r.rej.Inc("missing_param")
+		return false, "guard.max_hold_hours 判据键缺 fail-closed"
+	}
+	taker, err := r.cfg.GetFloat("research.funding.taker_fee_bps")
+	if err != nil {
+		r.rej.Inc("missing_param")
+		return false, "research.funding.taker_fee_bps 判据键缺 fail-closed"
+	}
+	slip, err := r.cfg.GetFloat("research.funding.slippage_bps")
+	if err != nil {
+		r.rej.Inc("missing_param")
+		return false, "research.funding.slippage_bps 判据键缺 fail-closed"
+	}
+	safety := 1.5
+	if v, err := r.cfg.GetFloat("guard.breakeven_safety"); err == nil && v > 0 {
+		safety = v
+	}
+	var rate *float64
+	if err := r.pool.QueryRow(ctx, `SELECT funding_rate FROM md_funding
+		WHERE inst_id=$1 AND funding_rate IS NOT NULL ORDER BY ts DESC LIMIT 1`,
+		spec.InstID).Scan(&rate); err != nil || rate == nil {
+		r.rej.Inc("facts_missing")
+		return false, "funding 率行缺 fail-closed"
+	}
+	settles := maxH / 8
+	if settles < 1 {
+		settles = 1 // 不足一窗仍按一次结算计下限
+	}
+	carryBps := *rate * 10000 * settles // 预期 carry（bps）
+	frictionBps := 4 * (taker + slip)   // 4 腿往返摩擦（bps）
+	if carryBps < frictionBps*safety {
+		if n := r.rejectEvalReason(ctx, spec, "breakeven_beyond_hold", map[string]any{
+			"carry_bps": carryBps, "friction_bps": frictionBps, "safety": safety,
+			"funding_rate": *rate, "settles": settles}); !n {
+			return false, fmt.Sprintf("breakeven_beyond_hold:预期 carry %.2fbps<摩擦 %.2fbps×%.1f",
+				carryBps, frictionBps, safety)
+		}
+		return false, "breakeven_beyond_hold"
+	}
+	return true, ""
+}
+
+// rejectEvalReason 通用拒卡落件（T-0111：reason 参数化——lifetime/回本窗同径
+// 落卡幂等窗共位；rejectEval 保留原名签名收编到本件）。
+func (r *Runner) rejectEvalReason(ctx context.Context, spec OpenSpec, reason string, ev map[string]any) bool {
+	ev["reason"] = reason
+	b, _ := json.Marshal(ev)
 	var n int
 	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_opp_eval
 		WHERE inst_id=$1 AND verdict='rejected'
-		AND evidence->>'reason'='lifetime_below_min' AND ts>now()-interval '1 hour'`,
-		spec.InstID).Scan(&n); err != nil || n > 0 {
+		AND evidence->>'reason'=$2 AND ts>now()-interval '1 hour'`,
+		spec.InstID, reason).Scan(&n); err != nil || n > 0 {
 		return false
 	}
 	if _, err := r.pool.Exec(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,verdict,legs,evidence)
 		VALUES($1,'funding-hedge',$2,'rejected','[]',$3)`,
-		spec.InstID, spec.Direction, ev); err != nil {
+		spec.InstID, spec.Direction, b); err != nil {
 		r.rej.Inc("write_err")
 	}
 	return false
+}
+
+// rejectEval 寿命拒落卡（T-0103：fin_opp_eval rejected+reason 机读面——
+// 1h 幂等窗防振荡期行洪）。
+func (r *Runner) rejectEval(ctx context.Context, spec OpenSpec, latest, next float64) bool {
+	return r.rejectEvalReason(ctx, spec, "lifetime_below_min", map[string]any{
+		"latest_funding": latest, "next_funding": next})
 }

@@ -247,12 +247,18 @@ func (w *Warden) evaluate(ctx context.Context, p posRow, legs legSet) string {
 	} else if avg := (n1 + n2) / 2; avg > 0 && w.driftTriggered(ctx, p.id, (n1-n2)/avg*10000, bandBps) {
 		return "delta_drift"
 	}
-	// ③ 持仓超龄：age > guard.max_hold_hours。
+	// ③ 持仓超龄：age > guard.max_hold_hours（T-0111：收益失效判——live 且
+	// trailing 24h 实收 funding>0 的仓免超龄闸；无收入仓保留年龄闸——僵尸
+	// 杀手机制不丢，盈利 carry 仓不再制度性误杀）。
 	if maxH, err := w.getF("guard.max_hold_hours"); err != nil {
 		w.rej.Inc("missing_param")
 		w.note("missing_param:maxhold", fmt.Sprintf("仓 %d guard.max_hold_hours 读败——超龄判据跳过: %v", p.id, err))
 	} else if time.Since(p.opened) > time.Duration(maxH*float64(time.Hour)) {
-		return "max_hold"
+		if w.trailingIncomePositive(ctx, p.id) {
+			w.note("max_hold_exempt", fmt.Sprintf("仓 %d 超龄但 trailing 24h 实收>0——收益失效判豁免", p.id))
+		} else {
+			return "max_hold"
+		}
 	}
 	// ④ 策略降级/退役联动（状态机事实直读，无键面——degraded/retired 必平）。
 	switch p.stratState {
@@ -263,4 +269,18 @@ func (w *Warden) evaluate(ctx context.Context, p posRow, legs legSet) string {
 	}
 	w.note("no_trigger", fmt.Sprintf("仓 %d 全判据无触发——无触发也是决策（可观测）", p.id))
 	return ""
+}
+
+// trailingIncomePositive 收益失效判实读（T-0111）：fin_cashflow 归仓行
+// kind=funding 近 24h 实收合计>0=仓仍在赚——免超龄处决。读败/无行=false
+// 保守侧（证据缺不豁免——fail-closed 回年龄判据）。
+func (w *Warden) trailingIncomePositive(ctx context.Context, posID int64) bool {
+	var sum float64
+	if err := w.pool.QueryRow(ctx, `SELECT COALESCE(SUM(amount),0) FROM fin_cashflow
+		WHERE position_ref=$1 AND kind='funding_settle' AND occurred_at>now()-interval '24 hours'`,
+		posID).Scan(&sum); err != nil {
+		log.Printf("WARN [guard] 仓 %d trailing 实收读败（豁免判据回退年龄闸）: %v", posID, err)
+		return false
+	}
+	return sum > 0
 }

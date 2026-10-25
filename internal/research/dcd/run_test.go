@@ -161,3 +161,13 @@ func TestDCDReadFailClosed(t *testing.T) {
 		t.Fatalf("读败禁造零快照: %d", n)
 	}
 }
+
+// T-0117 锚：臂静默告警——零成功产出超 2×节拍置标一次（恢复清标可再报）。
+func TestArmSilentFlag(t *testing.T) {
+	ctx, r := setup(t)
+	r.lastOK = time.Now().Add(-3 * time.Hour) // 3h 零产出
+	_ = r.scan(ctx)                           // params 缺径=fail-closed 让位；静默标仍须置位
+	if !r.silentRd {
+		t.Fatal("静默告警未置标")
+	}
+}
