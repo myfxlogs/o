@@ -79,20 +79,6 @@ func (c coreService) dcdRows(ctx context.Context, o *dashboardv1.OverviewRespons
 	}
 }
 
-// ccyName 币种人类名（行可读性——未知币种回退代码本身）。
-var ccyName = map[string]string{
-	"AVAX": "Avalanche", "COMP": "Compound", "NFT": "NFT 凭证",
-	"DOGE": "Dogecoin", "FIL": "Filecoin", "BTC": "Bitcoin", "ETH": "Ethereum",
-	"PENGU": "Pudgy Penguins", "MEW": "cat in a dogs world",
-}
-
-func nameOf(ccy string) string {
-	if n, ok := ccyName[ccy]; ok {
-		return n
-	}
-	return ccy
-}
-
 // valCcy 代币数→USD 估值（T-0086 ① amt估值）：USDT/USD 直入；其余=md_ticks
 // 最新价×量（无 tick=0——卡面仍展示，NAV 不虚计 51M NFT 级原生数）。
 func valCcy(ctx context.Context, pool *pgxpool.Pool, ccy string, units float64) float64 {
@@ -128,6 +114,7 @@ func (c coreService) moneyRows(ctx context.Context, o *dashboardv1.OverviewRespo
 			Details []struct {
 				Ccy   string `json:"ccy"`
 				EqUsd string `json:"eqUsd"`
+				Eq    string `json:"eq"` // T-0114 甲A：原生持币量（卡面量纲归一原生数非美元值）
 			} `json:"details"`
 		}
 		if json.Unmarshal(frame, &top) == nil {
@@ -136,9 +123,13 @@ func (c coreService) moneyRows(ctx context.Context, o *dashboardv1.OverviewRespo
 				if v == 0 || !fundT[d.Ccy] {
 					continue
 				}
+				nat, _ := strconv.ParseFloat(d.Eq, 64)
+				if nat == 0 {
+					nat = v // eq 字段缺席=回退 eqUsd（帧方言兜底）
+				}
 				o.NavTotal += v
 				o.Money = append(o.Money, moneyRow("okx", "交易户", d.Ccy,
-					nameOf(d.Ccy), v, v))
+					d.Ccy, nat, v))
 			}
 		}
 	}
@@ -153,7 +144,7 @@ func (c coreService) moneyRows(ctx context.Context, o *dashboardv1.OverviewRespo
 				u := valCcy(ctx, c.pool, ccy, v)
 				o.NavTotal += u
 				o.Money = append(o.Money, moneyRow("okx", "资金户", ccy,
-					nameOf(ccy), v, u))
+					ccy, v, u))
 			}
 		}
 	}
@@ -166,7 +157,7 @@ func (c coreService) moneyRows(ctx context.Context, o *dashboardv1.OverviewRespo
 				u := valCcy(ctx, c.pool, ccy, v)
 				o.NavTotal += u
 				o.Money = append(o.Money, moneyRow("okx", "Earn", ccy,
-					nameOf(ccy), v, u))
+					ccy, v, u))
 			}
 		}
 	}

@@ -13,6 +13,9 @@ async function ov(): Promise<void> {
       b[0].textContent = '$' + (d.nav_total || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })
       b[1].textContent = (d.pnl_today >= 0 ? '+' : '') + (d.pnl_today || 0).toFixed(2)
       b[2].textContent = (d.pnl_cum >= 0 ? '+' : '') + (d.pnl_cum || 0).toFixed(2)
+      // T-0114 乙⑤：盈亏着色——负红正绿（--up/--dn 双主题变量）。
+      b[1].style.color = 'var(' + ((d.pnl_today || 0) < 0 ? '--dn' : '--up') + ')'
+      b[2].style.color = 'var(' + ((d.pnl_cum || 0) < 0 ? '--dn' : '--up') + ')' 
     }
     const st = document.querySelector('.hero .stamp')
     if (st) st.textContent = '数据 ' + utcStamp() + ' · 刚刚'
@@ -39,15 +42,25 @@ async function ov(): Promise<void> {
       mb.innerHTML = venues.map((vn) => {
         const vrows = rows.filter((m) => m.venue === vn)
         const secs = [...new Set(vrows.map((m) => m.section))]
-        return `<div class="venue-t">${VSVG[vn] || ''}${h(vn.toUpperCase())}</div>` +
+        // T-0114 乙②：场头右挂 venue 合计（OKX=可用 USDT 总额/MT5=汇总美元额）。
+        const vsum = vrows.reduce((a, m) => a + m.usd, 0)
+        return `<div class="venue-t">${VSVG[vn] || ''}${h(vn.toUpperCase())}` +
+          `<i>$${vsum.toFixed(1)}</i></div>` +
           secs.map((sec) => {
             const srows = vrows.filter((m) => m.section === sec)
             const sum = srows.reduce((a, m) => a + m.usd, 0)
-            return `<div class="sec-t">${h(sec)}<i>${srows.some((m) => m.note) ? '' : '$' + sum.toFixed(1)}</i></div>` +
+            // T-0114 乙④：户小计行撤除——其值已并入场头（其他分区小计保留）。
+            const secSum = sec === '户' ? '' : (srows.some((m) => m.note) ? '' : '$' + sum.toFixed(1))
+            return `<div class="sec-t">${h(sec)}<i>${secSum}</i></div>` +
               srows.map((m) =>
                 m.note
                   ? `<div class="row lg-t"><span>${h(m.label)}</span><b>${h(m.note)}</b></div>`
-                  : `<div class="row"><span>${h(m.label)}${m.ccy === 'USDT' || m.ccy === 'USD' ? '' : ` <i>${m.amount} ${m.ccy}</i>`}</span>` +
+                  // T-0114 乙③：结构性持仓 label 截短显产品号（hover 全长可溯）。
+                  : sec === '结构性持仓'
+                    ? `<div class="row"><span title="${h(m.label)}">${h(m.label.split(' ')[0])}` +
+                      `${m.ccy === 'USDT' || m.ccy === 'USD' ? '' : ` <i>${m.amount} ${m.ccy}</i>`}</span>` +
+                      `<b>$${m.usd.toFixed(1)}</b></div>`
+                    : `<div class="row"><span>${h(m.label)}${m.ccy === 'USDT' || m.ccy === 'USD' ? '' : ` <i>${m.amount} ${m.ccy}</i>`}</span>` +
                     `<b>$${m.usd.toFixed(1)}</b></div>`).join('')
           }).join('')
       }).join('')
