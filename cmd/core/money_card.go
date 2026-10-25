@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"o/internal/gen/dashboardv1"
+	"o/internal/ledger"
 )
 
 // moneyRow 组装（T-0086 ②：分区+币种+遗留资产标注——非在册币种涨跌不报警）。
@@ -15,18 +16,18 @@ func moneyRow(section, ccy, label string, amt float64, legacy bool) *dashboardv1
 	return &dashboardv1.MoneyRow{Label: label, Amount: amt, Section: section, Ccy: ccy, Legacy: legacy}
 }
 
-// ledgeredCcy 在册币种集（fin_cashflow 有账——身份豁免判据）。
+// ledgeredCcy 在册币种集（T-0090：fin_cashflow 有账 ∪ 已成交腿基币——
+// 现货腿底层币非遗留；ledger.LedgeredCcy 唯一真源按 venue 过滤——身份豁免判据）。
 func (c coreService) ledgeredCcy(ctx context.Context, venue string) map[string]bool {
 	out := map[string]bool{}
-	rows, err := c.pool.Query(ctx, "SELECT DISTINCT ccy FROM fin_cashflow WHERE venue=$1", venue)
+	set, err := ledger.LedgeredCcy(ctx, c.pool)
 	if err != nil {
 		return out
 	}
-	defer rows.Close()
-	for rows.Next() {
-		var ccy string
-		_ = rows.Scan(&ccy)
-		out[ccy] = true
+	for k := range set {
+		if k[0] == venue {
+			out[k[1]] = true
+		}
 	}
 	return out
 }
