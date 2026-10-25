@@ -1,3 +1,20 @@
+---
+schema_version: 2
+id: servemux-pattern-duplicate-panic
+kind: pitfall
+risk: high
+status: verified
+keywords: [ServeMux, pattern 冲突, boot panic, mux.HandleFunc 双注册, Go 1.22+]
+scope: [cmd/core, http mux 挂载面]
+summary: Go 1.22+ ServeMux 同 pattern 双注册=boot panic 生产全瘫——挂 `/`/`*`/裸前缀 pattern 前须 grep 全仓注册面；mux 是全局命名空间非文件局部事；验收锚=新容器 boot 零 panic 非 curl 通
+first_seen: 2026-10-24
+last_verified: 2026-10-24
+skills: []
+evidence_refs:
+  - type: doc
+    ref: docs/tasks/（T-0068 票面——mountUI `/` 撞 main.go 探活件）
+---
+
 # servemux-pattern-duplicate-panic — mux 同 pattern 双注册=boot panic
 
 ## 事故
