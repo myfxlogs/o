@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+	"time"
 
 	"o/internal/research/dcd"
 	"o/internal/research/gapscan"
@@ -31,7 +32,11 @@ func dcdFeedFor(okcli *okxexec.Client) dcd.Feed {
 			return nil, err
 		}
 		var out []dcd.Product
-		for _, pr := range pairs {
+		for i, pr := range pairs {
+			if i > 0 {
+				time.Sleep(300 * time.Millisecond) // sched-exempt-ok：限流件
+				// 退避节拍（429 实证——逐对连发风暴；sfp 族限速紧，非轮询）
+			}
 			raw2, err := okcli.Get(ctx, fmt.Sprintf("%s/products?baseCcy=%s&quoteCcy=%s&optType=%s",
 				s.EndpointFamily, pr.BaseCcy, pr.QuoteCcy, pr.OptType))
 			if err != nil {

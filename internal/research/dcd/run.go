@@ -25,11 +25,13 @@ type Coins func(ctx context.Context) (map[string]float64, error)
 
 // Runner dcd 枚举臂（feed 缺席=枚举让位 WARN——凭据落位重启即上岗）。
 type Runner struct {
-	pool  *pgxpool.Pool
-	cfg   *config.Client
-	rej   *rejects.Door
-	feed  Feed
-	coins Coins
+	pool   *pgxpool.Pool
+	cfg    *config.Client
+	rej    *rejects.Door
+	feed   Feed
+	coins  Coins
+	lastAt time.Time // 最小间隔节流（T-0102 修补7——ev_account 每 ~5s 触发曾
+	// 致产品面 429 风暴；research.dcd.scan_interval_min 热启，缺=30min 底）。
 }
 
 func NewRunner(pool *pgxpool.Pool, cfg *config.Client) *Runner {
@@ -76,6 +78,14 @@ func (r *Runner) surfaces(ctx context.Context) ([]Surface, error) {
 
 // scan 一拍：判据→枚举面→逐面扫产品→快照+评估+闸。
 func (r *Runner) scan(ctx context.Context) error {
+	iv := 30 * time.Minute
+	if v, err := r.cfg.GetFloat("research.dcd.scan_interval_min"); err == nil && v > 0 {
+		iv = time.Duration(v) * time.Minute
+	}
+	if time.Since(r.lastAt) < iv {
+		return nil // 节流窗内让位（事件风暴≠扫描风暴）
+	}
+	r.lastAt = time.Now()
 	p, err := r.params()
 	if err != nil {
 		r.rej.Inc("dcd_missing_params")
