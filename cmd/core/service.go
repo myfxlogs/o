@@ -26,6 +26,9 @@ type coreService struct {
 	// 快照；nil/读败=该户 0 不误报）。venue=唯一事实源，零落地。
 	fundingLive func(ctx context.Context) (map[string]float64, error)
 	earnLive    func(ctx context.Context) (map[string]float64, error)
+	// T-0096：MT5 户活读件（每真实账号一行净值现读；nil/读败=venue 区显
+	// 「读件缺」不藏禁假零）。
+	mt5Live func(ctx context.Context) ([]mt5Acct, error)
 }
 
 func (coreService) Ping(context.Context, *dashboardv1.PingRequest) (*dashboardv1.PingResponse, error) {
@@ -34,10 +37,11 @@ func (coreService) Ping(context.Context, *dashboardv1.PingRequest) (*dashboardv1
 
 func (c coreService) Overview(ctx context.Context, _ *dashboardv1.OverviewRequest) (*dashboardv1.OverviewResponse, error) {
 	o := &dashboardv1.OverviewResponse{Ts: time.Now().UTC().Format(time.RFC3339)}
-	// T-0086 ①②④：NAV=交易户全币 eqUsd（WS 帧=交易户真源）+资金户全币+Earn
-	// 全币 amt 估值（③④活读）——合计口径，缺户=0 不误报。「钱在哪」三分卡
-	//（交易户/资金户/Earn）逐币行，非在册币种标遗留资产。
-	ledgered := c.ledgeredCcy(ctx, "okx")
+	// T-0095 v2：NAV 与三区卡面=基金的钱口径（USDT∪open 腿基币，FundCcy 唯一
+	// 真源）——集合外（腿平残币/杂币/Earn 非本位）=托管尘，不返不渲染不入 NAV；
+	// 零遗留概念（T-0092 聚合行全撤）。交易户=WS 帧真源 eqUsd，资金户/Earn=
+	// REST 活读 amt 估值（T-0086 ①④缺户=0 不误报）。
+	fund := c.fundCcy(ctx, "okx")
 	var frame json.RawMessage
 	if err := c.pool.QueryRow(ctx, `SELECT data FROM md_account_events
 		WHERE channel IN ('account','balance_and_position') ORDER BY ts DESC LIMIT 1`).Scan(&frame); err == nil {
@@ -50,12 +54,12 @@ func (c coreService) Overview(ctx context.Context, _ *dashboardv1.OverviewReques
 		if json.Unmarshal(frame, &top) == nil {
 			for _, d := range top.Details {
 				v, _ := strconv.ParseFloat(d.EqUsd, 64)
-				if v == 0 {
+				if v == 0 || !fund[d.Ccy] {
 					continue
 				}
 				o.NavTotal += v
-				o.Money = append(o.Money, moneyRow("交易户", d.Ccy,
-					ccyName(d.Ccy), v, v, !ledgered[d.Ccy]))
+				o.Money = append(o.Money, moneyRow("okx", "交易户", d.Ccy,
+					nameOf(d.Ccy), v, v))
 			}
 		}
 	}
@@ -64,27 +68,44 @@ func (c coreService) Overview(ctx context.Context, _ *dashboardv1.OverviewReques
 	if c.fundingLive != nil {
 		if fb, err := c.fundingLive(ctx); err == nil {
 			for ccy, v := range fb {
-				if v == 0 {
+				if v == 0 || !fund[ccy] {
 					continue
 				}
 				u := valCcy(ctx, c.pool, ccy, v)
 				o.NavTotal += u
-				o.Money = append(o.Money, moneyRow("资金户", ccy,
-					ccyName(ccy), v, u, !ledgered[ccy]))
+				o.Money = append(o.Money, moneyRow("okx", "资金户", ccy,
+					nameOf(ccy), v, u))
 			}
 		}
 	}
 	if c.earnLive != nil {
 		if eb, err := c.earnLive(ctx); err == nil {
 			for ccy, v := range eb {
-				if v == 0 {
+				if v == 0 || !fund[ccy] {
 					continue
 				}
 				u := valCcy(ctx, c.pool, ccy, v)
 				o.NavTotal += u
-				o.Money = append(o.Money, moneyRow("Earn", ccy,
-					ccyName(ccy), v, u, !ledgered[ccy]))
+				o.Money = append(o.Money, moneyRow("okx", "Earn", ccy,
+					nameOf(ccy), v, u))
 			}
+		}
+	}
+	// T-0096：MT5 入户（基金专属券商户=全部基金钱，全计）——每真实账号一行
+	// 净值现读；读件缺/读败=该 venue 区显「读件缺」行不藏（禁假零）。
+	// nav_total += MT5 净值合计——基金全资产口径归真。
+	if c.mt5Live == nil {
+		o.Money = append(o.Money, &dashboardv1.MoneyRow{
+			Venue: "mt5", Section: "户", Label: "读件缺", Note: "读件缺"})
+	} else if accts, aerr := c.mt5Live(ctx); aerr != nil {
+		log.Printf("WARN: MT5 户活读败（钱在哪卡显读件缺）: %v", aerr)
+		o.Money = append(o.Money, &dashboardv1.MoneyRow{
+			Venue: "mt5", Section: "户", Label: "读件缺", Note: "读件缺"})
+	} else {
+		for _, a := range accts {
+			o.NavTotal += a.Equity
+			o.Money = append(o.Money, moneyRow("mt5", "户", "USD",
+				"户 "+a.Login, a.Equity, a.Equity))
 		}
 	}
 	// 盈亏=经营性四件（interest/funding_settle/trade_pnl/fee）——
@@ -200,21 +221,23 @@ func durHuman(d time.Duration) string {
 // mountCore 挂 ConnectRPC 服务到 mux（connect-go v2：Server 注册 + connecthttp.Mount）。
 func mountCore(mux *http.ServeMux, pool *pgxpool.Pool,
 	fundingLive func(context.Context) (map[string]float64, error),
-	earnLive func(context.Context) (map[string]float64, error)) {
+	earnLive func(context.Context) (map[string]float64, error),
+	mt5Live func(context.Context) ([]mt5Acct, error)) {
 	server := connect.NewServer()
 	dashboardv1connect.RegisterCoreServiceHandler(server,
-		coreService{pool: pool, fundingLive: fundingLive, earnLive: earnLive})
+		coreService{pool: pool, fundingLive: fundingLive, earnLive: earnLive, mt5Live: mt5Live})
 	connecthttp.Mount(mux, server)
 }
 
 // mountUI 总览活页面挂接（静态 embed+JSON/SSE——所见即所得零缓存；活推=ev_* 脊）。
 func mountUI(mux *http.ServeMux, pool *pgxpool.Pool,
 	fundingLive func(context.Context) (map[string]float64, error),
-	earnLive func(context.Context) (map[string]float64, error)) {
+	earnLive func(context.Context) (map[string]float64, error),
+	mt5Live func(context.Context) ([]mt5Acct, error)) {
 	mux.HandleFunc("/api/overview", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if o, err := (coreService{pool: pool, fundingLive: fundingLive,
-			earnLive: earnLive}).Overview(r.Context(), nil); err == nil {
+			earnLive: earnLive, mt5Live: mt5Live}).Overview(r.Context(), nil); err == nil {
 			b, _ := json.Marshal(o)
 			_, _ = w.Write(b)
 		}

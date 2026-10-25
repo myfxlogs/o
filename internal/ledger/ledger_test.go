@@ -316,35 +316,51 @@ func TestReconcileOffLedgerExempt(t *testing.T) {
 	}
 }
 
-// T-0090 锚：在册口径=fin_cashflow ∪ 已成交腿基币（ETH-USDT→ETH，-SWAP 后缀
-// 同剥；未成交腿不算）——legacy 标位与对拍白名单同源消费唯一真源。
-func TestLedgeredCcyLegBase(t *testing.T) {
+// T-0095 v2 锚：基金的钱集=USDT∪**open** 腿基币（ETH-USDT→ETH，-SWAP 后缀
+// 同剥；未成交/已平腿基币与「有 cashflow 无腿」的币都不入集）——钱在哪过滤
+// 与对拍白名单同源消费唯一真源；mt5/USD 恒在册。
+func TestFundCcyOpenLegBase(t *testing.T) {
 	ctx, r := setup(t)
-	if _, err := Post(ctx, r.pool, Entry{Kind: "deposit", Venue: "okx", Ccy: "USDT",
-		Amount: 1, SourceRef: 1, SourceTable: "t"}); err != nil {
-		t.Fatal(err)
-	}
-	var xid int64
+	var xid, pid int64
 	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_execution(inst_id,notional_usd,state)
 		VALUES('ETH-USDT-SWAP',100,'open') RETURNING id`).Scan(&xid); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_position(execution_id,inst_id,notional_usd)
+		VALUES($1,'ETH-USDT-SWAP',100) RETURNING id`, xid).Scan(&pid); err != nil {
+		t.Fatal(err)
+	}
+	var cxid int64
+	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_execution(inst_id,notional_usd,state)
+		VALUES('DOGE-USDT',50,'closed') RETURNING id`).Scan(&cxid); err != nil {
+		t.Fatal(err)
+	}
+	var cpid int64
+	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_position(execution_id,inst_id,notional_usd,closed_at)
+		VALUES($1,'DOGE-USDT',50,now()) RETURNING id`, cxid).Scan(&cpid); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := r.pool.Exec(ctx, `INSERT INTO fin_order_leg(execution_id,leg_no,cl_ord_id,venue,side,inst_id,sz,state)
 		VALUES ($1,1,'cl-a','okx','buy','ETH-USDT',1,'filled'),
 		       ($1,2,'cl-b','okx','sell','ETH-USDT-SWAP',1,'filled'),
-		       ($1,3,'cl-c','okx','buy','DOGE-USDT',1,'placed')`, xid); err != nil {
+		       ($1,3,'cl-c','okx','buy','DOGE-USDT',1,'placed'),
+		       ($2,1,'cl-d','okx','sell','DOGE-USDT',1,'filled')`, pid, cpid); err != nil {
 		t.Fatal(err)
 	}
-	set, err := LedgeredCcy(ctx, r.pool)
+	// （cashflow 表 ccy 闭集 USDT/USD——「有账无腿」形 schema 层不可存在，
+	// v2 集合判据=腿基币自证完备。）
+	set, err := FundCcy(ctx, r.pool)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, k := range [][2]string{{"okx", "USDT"}, {"okx", "ETH"}} {
+	for _, k := range [][2]string{{"okx", "USDT"}, {"okx", "ETH"}, {"mt5", "USD"}} {
 		if !set[k] {
-			t.Fatalf("在册集缺 %v", k)
+			t.Fatalf("基金钱集缺 %v", k)
 		}
 	}
-	if set[[2]string{"okx", "DOGE"}] {
-		t.Fatal("未成交腿基币不应入册")
+	for _, k := range [][2]string{{"okx", "DOGE"}} {
+		if set[k] {
+			t.Fatalf("%v 不应入集（腿平/无腿=托管尘）", k)
+		}
 	}
 }

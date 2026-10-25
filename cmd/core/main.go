@@ -25,7 +25,6 @@ import (
 	"o/internal/ledger/report"
 	"o/internal/mt5"
 	"o/internal/platform/config"
-	"o/internal/platform/cryptoutil"
 	"o/internal/platform/netmeter"
 	"o/internal/platform/notify"
 	"o/internal/platform/roster"
@@ -105,24 +104,10 @@ func run() error {
 	// 凭据缺席期仓巡平仓缝降级 stub（拒执 fail-closed）——凭据落位重启即全链。
 	var closer guard.Executor
 	// Earn 停泊态（员工 配管）：现率采集无凭据径先行；停泊钱动面凭据就位挂接。
-	mkA, _ := config.ReadMasterKey()
-	var feishuCli *notify.FeishuClient
-	{
-		var idCt, secCt []byte
-		if err := pool.QueryRow(ctx, "SELECT ciphertext FROM app_secrets WHERE key='feishu.app_id'").Scan(&idCt); err == nil {
-			if err := pool.QueryRow(ctx, "SELECT ciphertext FROM app_secrets WHERE key='feishu.app_secret'").Scan(&secCt); err == nil {
-				id, e1 := cryptoutil.Open(mkA, idCt)
-				sec, e2 := cryptoutil.Open(mkA, secCt)
-				if e1 == nil && e2 == nil {
-					feishuCli = notify.NewFeishu(id, sec)
-				}
-			}
-		}
-	}
-	// typed-nil 主修（T-0032）：凭据缺席传 nil 接口非 (*FeishuClient)(nil)——接口装
-	// 类型化 nil 指针时 ==nil 判 false，SendText 调 nil receiver 即 panic（SG 崩环实证）。
+	// feishu 告警通道（boot_secrets.go——app_secrets 密文列解，缺件=nil 降级；
+	// typed-nil 主修 T-0032：凭据缺席传真 nil 接口非 (*FeishuClient)(nil)）。
 	var sender notify.Sender
-	if feishuCli != nil {
+	if feishuCli := feishuSender(ctx, pool); feishuCli != nil {
 		sender = feishuCli
 	}
 	alerter := notify.NewAlerter(sender, func() string {
@@ -155,6 +140,7 @@ func run() error {
 		earnW.AttachIdle(func(ctx context.Context) (float64, error) {
 			return okxAvailFromEvents(ctx, pool, okcli)
 		})
+		earnW.AttachCoins(okxCoinsFor(pool, okcli)) // T-0095 v3 残币归口判据源
 		// 交易域首岗：执事（Executor=okxexec 唯一 venue 径——凭据与私流守同源解出）。
 		execR := execution.NewRunner(pool, cfg,
 			&execution.OkxExecutor{C: okxexec.NewClient(priv.Credentials(), false)}).WithEarn(earnW).WithAlerter(alerter)
@@ -264,7 +250,7 @@ func run() error {
 
 	// 总览活页（T-0067：service.go mountUI——静态面+JSON/SSE）。
 	mux := http.NewServeMux()
-	mountUI(mux, pool, fundingLiveFor(okcli), earnLiveFor(okcli))
+	mountUI(mux, pool, fundingLiveFor(okcli), earnLiveFor(okcli), mt5LiveFor(pool, cfg))
 	// 产出窗=行情新鲜度+rejects 计数门观测端点（判定面可观测 D-652-A）。
 	mux.HandleFunc("/report", report.Handler(pool))
 	mux.HandleFunc("/md/status", func(w http.ResponseWriter, r *http.Request) {
@@ -279,7 +265,8 @@ func run() error {
 		})
 	})
 	// T-0086 ①④：资金户/Earn 活读件注入（venue_readers.go——REST 保留面）。
-	mountCore(mux, pool, fundingLiveFor(okcli), earnLiveFor(okcli))
+	// T-0096：MT5 户活读件同注（OpenSession 现读——凭据缺席=读件缺不假零）。
+	mountCore(mux, pool, fundingLiveFor(okcli), earnLiveFor(okcli), mt5LiveFor(pool, cfg))
 
 	srv := &http.Server{Addr: listenAddr, Handler: mux, ReadHeaderTimeout: 10 * time.Second}
 	go func() {

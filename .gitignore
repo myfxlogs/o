@@ -3,12 +3,11 @@
 secrets/
 bin/
 logs/
-web/node_modules/
+web/node_modules
 web/dist/
 web/src/gen/
 internal/gen/
 internal/data/adapter/gen/
-kbgen
 /openfirst
 
 # go build 落仓根二进制残渣族（openfirst/billsaudit 实证两犯——工具二进制禁入库）
@@ -22,4 +21,4 @@ kbgen
 /mt5verify
 /mt5stream
 /mt5close
-core
+/core

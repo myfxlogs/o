@@ -2,6 +2,10 @@ package main
 
 import (
 	"context"
+	"fmt"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"o/internal/gen/dashboardv1"
 	"o/internal/platform/testutil"
 	"o/internal/store/pgstore"
@@ -39,9 +43,28 @@ func TestCloseIntentKindIsClose(t *testing.T) {
 	}
 }
 
-// T-0086 ①②④锚：NAV 三户合计（交易户帧+资金户+Earn 活读，缺户=0）+钱在哪
-// 三分卡逐币行+非在册币种遗留资产标。
-func TestOverviewThreeAccount(t *testing.T) {
+// openEthLeg 开仓 ETH 腿 fixture（fund 集={okx:USDT,ETH}——在持腿基币入口径）。
+func openEthLeg(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
+	t.Helper()
+	var xid, pid int64
+	if err := pool.QueryRow(ctx, `INSERT INTO fin_execution(inst_id,notional_usd,state)
+		VALUES('ETH-USDT',100,'open') RETURNING id`).Scan(&xid); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(ctx, `INSERT INTO fin_position(execution_id,inst_id,notional_usd)
+		VALUES($1,'ETH-USDT',100) RETURNING id`, xid).Scan(&pid); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_order_leg(execution_id,leg_no,cl_ord_id,venue,side,inst_id,sz,state)
+		VALUES($1,1,'cl-ovw','okx','buy','ETH-USDT',1,'filled')`, xid); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// T-0095 v2+T-0096 锚：NAV=基金的钱口径合计（USDT∪open 腿基币+MT5 全计）
+// ——账外尘（AVAX/COMP/DOGE）出 NAV 不出卡不返行（零遗留概念）；腿平=基币
+// 跌出口径；MT5 户行=净值现读随 NAV。
+func TestOverviewFundScopeVenueCard(t *testing.T) {
 	ctx := context.Background()
 	pool := testutil.Pool(t)
 	if err := pgstore.Migrate(ctx, pool); err != nil {
@@ -50,14 +73,11 @@ func TestOverviewThreeAccount(t *testing.T) {
 	if _, err := pool.Exec(ctx, "DELETE FROM md_account_events WHERE channel IN ('account','earn_parking')"); err != nil {
 		t.Fatal(err)
 	}
-	// 交易户帧：USDT eqUsd=2100 + AVAX 尘 3（非在册）
+	openEthLeg(t, ctx, pool)
+	// 交易户帧：USDT 2100+ETH 腿 23.6 入口径；AVAX 尘 3=托管尘出局。
 	if _, err := pool.Exec(ctx, `INSERT INTO md_account_events(ts,channel,ccy,data)
 		VALUES(now(),'account','USDT',$1)`,
-		[]byte(`{"details":[{"ccy":"USDT","eqUsd":"2100"},{"ccy":"AVAX","eqUsd":"3"}]}`)); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := pool.Exec(ctx,
-		"INSERT INTO fin_cashflow(kind,venue,ccy,amount,source_ref,source_table,occurred_at) VALUES('deposit','okx','USDT',100,1,'t',now())"); err != nil {
+		[]byte(`{"details":[{"ccy":"USDT","eqUsd":"2100"},{"ccy":"ETH","eqUsd":"23.6"},{"ccy":"AVAX","eqUsd":"3"}]}`)); err != nil {
 		t.Fatal(err)
 	}
 	svc := coreService{pool: pool,
@@ -66,44 +86,57 @@ func TestOverviewThreeAccount(t *testing.T) {
 		},
 		earnLive: func(context.Context) (map[string]float64, error) {
 			return map[string]float64{"USDT": 2057.37, "DOGE": 295.0}, nil
+		},
+		mt5Live: func(context.Context) ([]mt5Acct, error) {
+			return []mt5Acct{{Login: "3001157", Equity: 3247.41, Balance: 3200}}, nil
 		}}
 	o, err := svc.Overview(ctx, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	// NAV=2100+3+0.2+0.05+2057.37（amt估值：DOGE 无 tick=0 不入 NAV 仍上卡）
-	if o.NavTotal < 4160 || o.NavTotal > 4161 {
-		t.Fatalf("NAV 三户合计: %v", o.NavTotal)
+	// NAV=2100+23.6+0.2+2057.37+3247.41（托管尘零计入）
+	if o.NavTotal < 7428.57 || o.NavTotal > 7428.59 {
+		t.Fatalf("NAV 基金口径合计: %v", o.NavTotal)
 	}
 	sec := map[string][]*dashboardv1.MoneyRow{}
 	for _, m := range o.Money {
-		sec[m.Section] = append(sec[m.Section], m)
+		if m.Legacy {
+			t.Fatalf("零遗留概念——legacy 位恒 false: %+v", m)
+		}
+		sec[m.Venue+"/"+m.Section] = append(sec[m.Venue+"/"+m.Section], m)
 	}
-	if len(sec["交易户"]) != 2 || len(sec["资金户"]) != 2 || len(sec["Earn"]) != 2 {
-		t.Fatalf("三分卡行数: %+v", o.Money)
+	if len(sec["okx/交易户"]) != 2 || len(sec["okx/资金户"]) != 1 || len(sec["okx/Earn"]) != 1 {
+		t.Fatalf("三区行数（托管尘不返不渲染）: %+v", o.Money)
+	}
+	if len(sec["mt5/户"]) != 1 || sec["mt5/户"][0].Label != "户 3001157" ||
+		sec["mt5/户"][0].Usd != 3247.41 {
+		t.Fatalf("MT5 户行: %+v", sec["mt5/户"])
 	}
 	for _, m := range o.Money {
-		if m.Ccy == "USDT" && m.Legacy {
-			t.Fatalf("USDT 在册不应标遗留: %+v", m)
-		}
-		if (m.Ccy == "AVAX" || m.Ccy == "COMP" || m.Ccy == "DOGE") && !m.Legacy {
-			t.Fatalf("账外币应标遗留资产: %+v", m)
-		}
-		// T-0092 usd 估值列：交易户=eqUsd 原值、资金户=amt估值（COMP 无 tick=0）。
-		if m.Ccy == "AVAX" && m.Usd != 3 {
-			t.Fatalf("交易户遗留行 usd 应=eqUsd: %+v", m)
-		}
-		if m.Section == "资金户" && m.Ccy == "COMP" && m.Usd != 0 {
-			t.Fatalf("无 tick 估值应 0 随行: %+v", m)
+		if m.Ccy == "AVAX" || m.Ccy == "COMP" || m.Ccy == "DOGE" {
+			t.Fatalf("账外尘不应返行: %+v", m)
 		}
 	}
-	// ④：Earn 活读（无 earn_parking 帧仍出 Earn 行——venue 唯一事实源）
-	if len(sec["Earn"]) == 0 {
-		t.Fatal("Earn 活读行缺席")
+	// 腿平=基币跌出口径（ETH 行消失，NAV 同步 -23.6）。
+	if _, err := pool.Exec(ctx, `UPDATE fin_position SET closed_at=now()`); err != nil {
+		t.Fatal(err)
+	}
+	o2, err := svc.Overview(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if o2.NavTotal < 7404.97 || o2.NavTotal > 7404.99 {
+		t.Fatalf("腿平后 NAV（ETH 跌出）: %v", o2.NavTotal)
+	}
+	for _, m := range o2.Money {
+		if m.Ccy == "ETH" {
+			t.Fatalf("腿平残币=托管尘不应返行: %+v", m)
+		}
 	}
 }
 
-// T-0086 ①：缺户=0 不误报——两读件 nil+无帧 → NAV=0 零炸。
+// T-0086 ①+T-0096 锚：缺户=0 不误报；MT5 读件缺/读败=venue 区显「读件缺」
+// 行不藏（禁假零禁假绿）。
 func TestOverviewMissingAccountsZero(t *testing.T) {
 	ctx := context.Background()
 	pool := testutil.Pool(t)
@@ -120,5 +153,20 @@ func TestOverviewMissingAccountsZero(t *testing.T) {
 	}
 	if o.NavTotal != 0 {
 		t.Fatalf("缺户 NAV 应 0: %v", o.NavTotal)
+	}
+	if len(o.Money) != 1 || o.Money[0].Venue != "mt5" || o.Money[0].Note != "读件缺" {
+		t.Fatalf("MT5 读件缺行不藏: %+v", o.Money)
+	}
+	// 读败同径（err 上抛→读件缺行）。
+	svc2 := coreService{pool: pool,
+		mt5Live: func(context.Context) ([]mt5Acct, error) {
+			return nil, fmt.Errorf("mt5 connect refused")
+		}}
+	o2, err := svc2.Overview(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(o2.Money) != 1 || o2.Money[0].Note != "读件缺" {
+		t.Fatalf("MT5 读败应显读件缺: %+v", o2.Money)
 	}
 }
