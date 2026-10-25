@@ -124,13 +124,8 @@ func attachVenueReaders(riskGate *risk.Gate, wd *guard.Warden, ledgerR *ledger.R
 			if openMt5 == nil {
 				return 0, fmt.Errorf("mt5 权益件缺席")
 			}
-			cl, err := openMt5(ctx)
-			if err != nil {
-				return 0, err
-			}
-			defer cl.Close()
-			e, _, _, err := cl.AccountSummary(ctx)
-			return e, err
+			a, err := mt5SummaryOnce(ctx, pool, nil, openMt5)
+			return a.Equity, err
 		}
 		if venue != "okx" {
 			return 0, fmt.Errorf("venue 无权益件: %s", venue)
@@ -194,16 +189,11 @@ func attachVenueReaders(riskGate *risk.Gate, wd *guard.Warden, ledgerR *ledger.R
 			return nil, err
 		}
 		if openMt5 != nil {
-			cl, cerr := openMt5(ctx)
+			a, cerr := mt5SummaryOnce(ctx, pool, nil, openMt5)
 			if cerr != nil {
 				return nil, fmt.Errorf("mt5 读败: %w", cerr)
 			}
-			e, _, _, aerr := cl.AccountSummary(ctx)
-			cl.Close()
-			if aerr != nil {
-				return nil, fmt.Errorf("mt5 AccountSummary 读败: %w", aerr)
-			}
-			out[[2]string{"mt5", "USD"}] = e
+			out[[2]string{"mt5", "USD"}] = a.Equity
 		}
 		return out, nil
 	})
