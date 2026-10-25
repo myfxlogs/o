@@ -42,6 +42,7 @@ internal/research/funding -> internal/platform/events
 internal/review -> internal/platform/events
 internal/data/okxpriv -> internal/platform/netmeter
 internal/data/okxws -> internal/platform/netmeter
+internal/data/collect -> internal/data/fact
 internal/data/trx -> internal/data/fact
 internal/data/trx -> internal/platform/safego
 internal/data/trx -> internal/store/pgstore

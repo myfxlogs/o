@@ -80,9 +80,16 @@ func trxArm(ctx context.Context, errc chan<- error, pool *pgxpool.Pool, cfg *con
 
 // cmcArm CMC 纯读采集臂（凭据未供=让位显形——业主条件请求件 fin_condition_gap）。
 func cmcArm(ctx context.Context, errc chan<- error, pool *pgxpool.Pool, cfg *config.Client) {
-	email, _ := cfg.GetString("cmc.email")
-	pass, _ := cfg.GetString("cmc.password")
-	acctS, _ := cfg.GetString("cmc.account_id")
+	// 凭据密文列解（凭据归 pg 律——app_config 禁明文凭据，T-0108 返修）。
+	sec := func(k string) string {
+		b, err := cfg.Secret(ctx, k)
+		if err != nil {
+			return ""
+		}
+		return string(b)
+	}
+	email, pass := sec("cmc.email"), sec("cmc.password")
+	acctS, _ := cfg.GetString("cmc.account_id") // 非密装配键（账户号非凭据）
 	acct, _ := strconv.ParseInt(acctS, 10, 64)
 	if email == "" || pass == "" || acct == 0 {
 		log.Printf("[cmc] 凭据键缺——采集臂让位（业主条件请求件——对冲腿显读件缺）")
