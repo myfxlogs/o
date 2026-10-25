@@ -103,16 +103,19 @@ func (c *Calendar) Scan(ctx context.Context) error {
 		if exists {
 			continue // 幂等锚——一键一推
 		}
-		if _, err := c.pool.Exec(ctx,
-			"INSERT INTO md_calendar_push(event_key) VALUES($1) ON CONFLICT DO NOTHING", key); err != nil {
-			continue
-		}
 		text := fmt.Sprintf("[财经日历] %s UTC %s %s", et.Format("15:04"), countryName(e.Country), e.Title)
 		if e.Forecast != "" || e.Previous != "" {
 			text += fmt.Sprintf("（预期 %s，前值 %s）", e.Forecast, e.Previous)
 		}
+		// T-0093 同病同修：送达才记 md_calendar_push（行=已送达非已尝试）——
+		// 发败不占位，下拍重试不丢报。
 		if _, err := c.cli.SendText(ctx, c.chatID(), text); err != nil {
-			log.Printf("[财经日历] %s 推送败（下拍重试——幂等行已占位防重推风暴）: %v", key, err)
+			log.Printf("[财经日历] %s 推送败（下拍重试——未记账不占位）: %v", key, err)
+			continue
+		}
+		if _, err := c.pool.Exec(ctx,
+			"INSERT INTO md_calendar_push(event_key) VALUES($1) ON CONFLICT DO NOTHING", key); err != nil {
+			log.Printf("[财经日历] %s 幂等记账败: %v", key, err)
 		}
 	}
 	return nil

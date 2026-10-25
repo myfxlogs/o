@@ -2,6 +2,7 @@ package report
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -14,6 +15,14 @@ import (
 
 // pushFake 假 Sender（报表/日历推送计数+文本留痕）。
 type pushFake struct{ texts []string }
+
+// errFake 恒败 Sender（T-0093 发败不记账锚）。
+type errFake struct{ n int }
+
+func (f *errFake) SendText(ctx context.Context, chatID, text string) (string, error) {
+	f.n++
+	return "", fmt.Errorf("stub send fail")
+}
 
 func (f *pushFake) SendText(ctx context.Context, chatID, text string) (string, error) {
 	f.texts = append(f.texts, text)
@@ -158,5 +167,38 @@ func TestMacroDailyPush(t *testing.T) {
 		if strings.Contains(tx, "财经日历") {
 			t.Fatal("同日重推日历")
 		}
+	}
+}
+
+// T-0093 序根修锚：SendText 返 err → fin_push_ledger 无行+push_err+1；换成功
+// sender 下界重试 → 行落（幂等语义=已送达非已尝试，瞬时败≠永久丢报）。
+func TestPushFailNoLedger(t *testing.T) {
+	ctx, r, _ := setupPush(t)
+	_, _ = r.pool.Exec(ctx, "DELETE FROM fin_push_ledger")
+	_, _ = r.pool.Exec(ctx, "DELETE FROM fin_report WHERE period_start>=now()-interval '30 days'")
+	fail := &errFake{}
+	r.pusher.cli = fail
+	r.cycle(ctx)
+	var n int
+	_ = r.pool.QueryRow(ctx,
+		"SELECT count(*) FROM fin_push_ledger WHERE scope='report'").Scan(&n)
+	if n != 0 {
+		t.Fatalf("发败记账了: %d 行（行=已送达语义破）", n)
+	}
+	if r.pusher.rej.Snapshot()["report/push_err"] == 0 {
+		t.Fatal("push_err 未计数")
+	}
+	r.pusher.cli = &pushFake{}
+	r.cycle(ctx) // 下界重试：送达→行落+msg_id 记
+	_ = r.pool.QueryRow(ctx,
+		"SELECT count(*) FROM fin_push_ledger WHERE scope='report'").Scan(&n)
+	if n != 3 {
+		t.Fatalf("重试送达后 ledger 行=%d（日/周/月应 3）", n)
+	}
+	var mid string
+	_ = r.pool.QueryRow(ctx,
+		"SELECT msg_id FROM fin_push_ledger WHERE scope='report' LIMIT 1").Scan(&mid)
+	if mid != "mid" {
+		t.Fatalf("msg_id 未记: %q", mid)
 	}
 }
