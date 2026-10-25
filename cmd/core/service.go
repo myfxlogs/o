@@ -232,7 +232,7 @@ func mountUI(mux *http.ServeMux, pool *pgxpool.Pool,
 	// T-0110：/trx → TRX 自营盘独立页（D-629 业绩外面独立入口非总览瓦片）。
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		page := "dist/index.html"
-		if r.URL.Path == "/trx" {
+		if r.URL.Path == "/trx" || r.URL.Path == "/trx.html" { // T-0115 双径别名
 			page = "dist/trx.html"
 		} else if r.URL.Path != "/" { // "/" 是兜底全捕——仅根路径返页，API 错路 404 不吃 HTML
 			http.NotFound(w, r)
