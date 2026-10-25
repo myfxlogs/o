@@ -205,10 +205,13 @@ func mountCore(mux *http.ServeMux, pool *pgxpool.Pool,
 }
 
 // mountUI 总览活页面挂接（静态 embed+JSON/SSE——所见即所得零缓存；活推=ev_* 脊）。
-func mountUI(mux *http.ServeMux, pool *pgxpool.Pool) {
+func mountUI(mux *http.ServeMux, pool *pgxpool.Pool,
+	fundingLive func(context.Context) (map[string]float64, error),
+	earnLive func(context.Context) (map[string]float64, error)) {
 	mux.HandleFunc("/api/overview", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		if o, err := (coreService{pool: pool}).Overview(r.Context(), nil); err == nil {
+		if o, err := (coreService{pool: pool, fundingLive: fundingLive,
+			earnLive: earnLive}).Overview(r.Context(), nil); err == nil {
 			b, _ := json.Marshal(o)
 			_, _ = w.Write(b)
 		}
