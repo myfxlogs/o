@@ -201,13 +201,13 @@ func TestUlyDialectNormalizedEvaluable(t *testing.T) {
 		`INSERT INTO md_ticks(ts,inst_id,last) VALUES(now(),'BTC-USDT',80000)`); err != nil {
 		t.Fatal(err)
 	}
-	// 全 uly=指数名 BTC-USD（SG 实拍方言形）；call+put 各一合格品。
+	// 全 uly=保底族指数名 BTC-USDG（SG 实拍返修③方言形）；call+put 各一合格品。
 	d7 := time.Now().UTC().Add(7 * 24 * time.Hour).Truncate(time.Second)
 	r.AttachFeed(func(_ context.Context, s Surface) ([]Product, error) {
 		return []Product{
-			{ProductID: "BTC-USD-261101-92000-C", Uly: "BTC-USD", Direction: "C",
+			{ProductID: "BTC-USDG-261101-92000-C", Uly: "BTC-USDG", Direction: "C",
 				Strike: 92000, Expiry: d7, AnnualizedYield: 0.13, MinSize: 0.01},
-			{ProductID: "BTC-USD-261101-68000-P", Uly: "BTC-USD", Direction: "P",
+			{ProductID: "BTC-USDG-261101-68000-P", Uly: "BTC-USDG", Direction: "P",
 				Strike: 68000, Expiry: d7, AnnualizedYield: 0.11, MinSize: 100},
 		}, nil
 	})
@@ -229,7 +229,7 @@ func TestUlyDialectNormalizedEvaluable(t *testing.T) {
 	}
 	var spot float64
 	if err := r.pool.QueryRow(ctx, `SELECT (evidence->>'spot')::numeric FROM fin_opp_eval
-		WHERE inst_id='BTC-USD-261101-92000-C' LIMIT 1`).Scan(&spot); err != nil || spot != 80000 {
+		WHERE inst_id='BTC-USDG-261101-92000-C' LIMIT 1`).Scan(&spot); err != nil || spot != 80000 {
 		t.Fatalf("spot 应归一取 BTC-USDT 价 80000: %v %v", spot, err)
 	}
 }
