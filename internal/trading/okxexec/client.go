@@ -14,6 +14,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"o/internal/platform/signutil"
@@ -31,10 +32,14 @@ type Credentials = signutil.Credentials
 
 // Client OKX 私有 REST 客户端（h1 钉死）。
 type Client struct {
-	creds Credentials
-	base  string
-	hc    *http.Client
-	sim   bool
+	creds   Credentials
+	base    string
+	hc      *http.Client
+	sim     bool
+	dcdMu   sync.Mutex // dcd LIVE 单 60s 单飞窗（限流端点——429 实证）
+	dcdAt   time.Time
+	dcdOrds []DcdOrder
+	dcdErr  error
 }
 
 // NewClient h1 钉死 transport（NextProtos/TLSNextProto 双钉——clone 浅继中毒字段

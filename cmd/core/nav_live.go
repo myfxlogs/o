@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"sync"
 	"time"
 
 	"o/internal/mt5"
@@ -25,24 +26,59 @@ type mt5Acct struct {
 	Balance float64
 }
 
+// mt5 会话单飞+短窗缓存（T-0101 验收修补：mtapi 并发会话读 AccountSummary
+// 返 0 实证——卡面/对拍/风控三调用方各自建会话互踩。20s 窗内共享一次
+// 会话结果；窗口过期重建。登录号/净值/余额三元组同缓存）。
+var mt5Sum = struct {
+	mu   sync.Mutex
+	at   time.Time
+	acct mt5Acct
+	err  error
+}{}
+
+// mt5SummaryOnce MT5 户概要单飞读（TTL 20s——闲户净值秒级漂移无意义，
+// 并发会话互踩返零才是真实风险）。
+func mt5SummaryOnce(ctx context.Context, pool *pgxpool.Pool, cfg *config.Client,
+	openMt5 func(context.Context) (*mt5.Client, error)) (mt5Acct, error) {
+	mt5Sum.mu.Lock()
+	defer mt5Sum.mu.Unlock()
+	if time.Since(mt5Sum.at) < 20*time.Second {
+		return mt5Sum.acct, mt5Sum.err
+	}
+	open := openMt5
+	if open == nil {
+		open = func(ctx context.Context) (*mt5.Client, error) {
+			return mt5.OpenSession(ctx, pool, cfg)
+		}
+	}
+	cl, err := open(ctx)
+	if err != nil {
+		mt5Sum.at, mt5Sum.err = time.Now(), err
+		return mt5Sum.acct, err
+	}
+	defer cl.Close()
+	login, _, _, ferr := cl.AccountFacts(ctx)
+	eq, _, bal, aerr := cl.AccountSummary(ctx)
+	if ferr != nil || aerr != nil {
+		mt5Sum.at = time.Now()
+		mt5Sum.err = fmt.Errorf("mt5 facts/summary: %v / %v", ferr, aerr)
+		return mt5Sum.acct, mt5Sum.err
+	}
+	mt5Sum.acct = mt5Acct{Login: fmt.Sprintf("%d", login), Equity: eq, Balance: bal}
+	mt5Sum.at, mt5Sum.err = time.Now(), nil
+	return mt5Sum.acct, nil
+}
+
 // mt5LiveFor MT5 户活读件（OpenSession 逐会话现读——AccountFacts 出 login、
-// AccountSummary 出净值；凭据缺席/读败=err 上抛，卡面显「读件缺」不假零）。
+// AccountSummary 出净值；凭据缺席/读败=err 上抛，卡面显「读件缺」不假零。
+// T-0101：走单飞缓存——与对拍/风控同一会话窗，防并发会话互踩返零）。
 func mt5LiveFor(pool *pgxpool.Pool, cfg *config.Client) func(context.Context) ([]mt5Acct, error) {
 	return func(ctx context.Context) ([]mt5Acct, error) {
-		cl, err := mt5.OpenSession(ctx, pool, cfg)
+		a, err := mt5SummaryOnce(ctx, pool, cfg, nil)
 		if err != nil {
 			return nil, err
 		}
-		defer cl.Close()
-		login, _, _, ferr := cl.AccountFacts(ctx)
-		if ferr != nil {
-			return nil, fmt.Errorf("mt5 account facts: %w", ferr)
-		}
-		eq, _, bal, aerr := cl.AccountSummary(ctx)
-		if aerr != nil {
-			return nil, fmt.Errorf("mt5 account summary: %w", aerr)
-		}
-		return []mt5Acct{{Login: fmt.Sprintf("%d", login), Equity: eq, Balance: bal}}, nil
+		return []mt5Acct{a}, nil
 	}
 }
 
@@ -90,13 +126,26 @@ func earnLiveFor(okcli *okxexec.Client) func(context.Context) (map[string]float6
 }
 
 // dcdLiveFor dcd 产品持仓活读件（T-0101：state=live 枚举——已部署资本第
-// 三类别；读件缺席/读败=err 上抛，卡面显「读件缺」不假零）。
+// 三类别；读件缺席/读败=err 上抛，卡面显「读件缺」不假零。
+// T-0101 修补：60s TTL 单飞——卡面+对拍双消费方裸打限流端点曾撞 429；
+// 持仓单结算粒度日级，60s 陈旧无风险）。
 func dcdLiveFor(okcli *okxexec.Client) func(context.Context) ([]okxexec.DcdOrder, error) {
+	var mu sync.Mutex
+	var at time.Time
+	var ords []okxexec.DcdOrder
+	var lastErr error
 	return func(ctx context.Context) ([]okxexec.DcdOrder, error) {
 		if okcli == nil {
 			return nil, fmt.Errorf("dcd 读件缺席（凭据缺）")
 		}
-		return okcli.DcdLiveOrders(ctx)
+		mu.Lock()
+		defer mu.Unlock()
+		if time.Since(at) < 60*time.Second {
+			return ords, lastErr
+		}
+		o2, err := okcli.DcdLiveOrders(ctx)
+		ords, lastErr, at = o2, err, time.Now()
+		return ords, lastErr
 	}
 }
 
