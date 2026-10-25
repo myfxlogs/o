@@ -172,3 +172,7 @@
 - 本机激活径=`docker-compose.override.yml`（未跟踪件——deploy_sync 只推 git 跟踪件故永不染 SG），O_NODE_ROLE=readonly，boot 行实证；mutating 岗（earn/execution/opener/closer）全撤，读径全通。
 - SG 无 env 无宣告=生产全 mutating 无恙；本机 residual_park 台账负行冲销 legrestore 归位后 ETH 键净零→对账静默。
 - **运维律新增**：本机树 docker-compose.override.yml=本机专属覆写位（凡需节点特异 env 皆走此径，禁改跟踪内 compose.yml——一改即染 SG）。
+
+### 追加（T-0105 验收合入——所见即所得落地）
+
+- 「在干」列表全集化上线：DCD #11448262 生产实拍入列（估值 $1666.36 与仓 23 并列），静持空态改真持仓判据（面差行污染旧漏兼修），读件缺显形径通。镜像 4118a368d09f 双端一致。
