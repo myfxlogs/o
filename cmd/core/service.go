@@ -37,11 +37,13 @@ func (coreService) Ping(context.Context, *dashboardv1.PingRequest) (*dashboardv1
 
 func (c coreService) Overview(ctx context.Context, _ *dashboardv1.OverviewRequest) (*dashboardv1.OverviewResponse, error) {
 	o := &dashboardv1.OverviewResponse{Ts: time.Now().UTC().Format(time.RFC3339)}
-	// T-0095 v2：NAV 与三区卡面=基金的钱口径（USDT∪open 腿基币，FundCcy 唯一
-	// 真源）——集合外（腿平残币/杂币/Earn 非本位）=托管尘，不返不渲染不入 NAV；
-	// 零遗留概念（T-0092 聚合行全撤）。交易户=WS 帧真源 eqUsd，资金户/Earn=
-	// REST 活读 amt 估值（T-0086 ①④缺户=0 不误报）。
-	fund := c.fundCcy(ctx, "okx")
+	// T-0100 ①②：NAV 与三区卡面=基金的钱口径账户域作用（FundCcy 唯一真源）
+	// ——交易户=USDT∪open 腿基币；资金户/Earn=USDT∪停泊溯源币（residual_park
+	// 凭据）；域外同币（Earn 利息尘/腿基币渗漏）=托管尘不返不渲染不入 NAV。
+	// 交易户=WS 帧真源 eqUsd，资金户/Earn=REST 活读 amt 估值（缺户=0 不误报）。
+	fundT := c.fundCcy(ctx, "okx:trading")
+	fundF := c.fundCcy(ctx, "okx:funding")
+	fundE := c.fundCcy(ctx, "okx:earn")
 	var frame json.RawMessage
 	if err := c.pool.QueryRow(ctx, `SELECT data FROM md_account_events
 		WHERE channel IN ('account','balance_and_position') ORDER BY ts DESC LIMIT 1`).Scan(&frame); err == nil {
@@ -54,7 +56,7 @@ func (c coreService) Overview(ctx context.Context, _ *dashboardv1.OverviewReques
 		if json.Unmarshal(frame, &top) == nil {
 			for _, d := range top.Details {
 				v, _ := strconv.ParseFloat(d.EqUsd, 64)
-				if v == 0 || !fund[d.Ccy] {
+				if v == 0 || !fundT[d.Ccy] {
 					continue
 				}
 				o.NavTotal += v
@@ -68,7 +70,7 @@ func (c coreService) Overview(ctx context.Context, _ *dashboardv1.OverviewReques
 	if c.fundingLive != nil {
 		if fb, err := c.fundingLive(ctx); err == nil {
 			for ccy, v := range fb {
-				if v == 0 || !fund[ccy] {
+				if v == 0 || !fundF[ccy] {
 					continue
 				}
 				u := valCcy(ctx, c.pool, ccy, v)
@@ -81,7 +83,7 @@ func (c coreService) Overview(ctx context.Context, _ *dashboardv1.OverviewReques
 	if c.earnLive != nil {
 		if eb, err := c.earnLive(ctx); err == nil {
 			for ccy, v := range eb {
-				if v == 0 || !fund[ccy] {
+				if v == 0 || !fundE[ccy] {
 					continue
 				}
 				u := valCcy(ctx, c.pool, ccy, v)

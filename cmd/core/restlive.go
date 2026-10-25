@@ -21,13 +21,31 @@ import (
 var restOKAt atomic.Int64
 
 // fundSaveBalances funding+savings 现读聚（T-0058：任一读败=err 上抛——静默跳腿禁）。
-func fundSaveBalances(ctx context.Context, okcli *okxexec.Client, out map[[2]string]float64) error {
+// T-0100 ①③：非本位币只收停泊溯源币（okx:funding/earn 域 FundCcy 成员——
+// Earn 利息尘/腿基币渗漏=托管不入 venue 侧键）；usd=true=非 USDT 按 md_ticks
+// 估值归一（权益求和径），false=原币量（对拍 ledger 侧按币量建键径）。
+func fundSaveBalances(ctx context.Context, pool *pgxpool.Pool, okcli *okxexec.Client,
+	out map[[2]string]float64, usd bool) error {
+	set, err := ledger.FundCcy(ctx, pool)
+	if err != nil {
+		return err
+	}
+	emit := func(ccy string, amt float64) {
+		if ccy != "USDT" && ccy != "USD" &&
+			!set[[2]string{"okx:funding", ccy}] && !set[[2]string{"okx:earn", ccy}] {
+			return // 非停泊托管币=域外不键（T-0100 ① venue 侧同源排除）
+		}
+		if usd && ccy != "USDT" && ccy != "USD" {
+			amt = valCcy(ctx, pool, ccy, amt)
+		}
+		out[[2]string{"okx", ccy}] += amt
+	}
 	bals, err := okcli.AssetBalances(ctx)
 	if err != nil {
 		return fmt.Errorf("funding 读败: %w", err)
 	}
 	for _, b := range bals {
-		out[[2]string{"okx", b.Ccy}] += okxexec.ParseF(b.Bal)
+		emit(b.Ccy, okxexec.ParseF(b.Bal))
 	}
 	sav, err := okcli.SavingsBalance(ctx)
 	if err != nil {
@@ -41,15 +59,16 @@ func fundSaveBalances(ctx context.Context, okcli *okxexec.Client, out map[[2]str
 		return fmt.Errorf("savings parse")
 	}
 	for _, r2 := range rows {
-		out[[2]string{"okx", r2.Ccy}] += okxexec.ParseF(r2.Amt)
+		emit(r2.Ccy, okxexec.ParseF(r2.Amt))
 	}
 	restOKAt.Store(time.Now().UnixNano())
 	return nil
 }
 
-// tradingFundEq 交易户基金口径 eqUsd（T-0095 v2：USDT∪open 腿基币行过滤求和——
-// 不按全账户取；账外尘〔腿平残币/杂币〕口径内天然排除）。帧 details 逐 ccy 过滤，
-// 帧缺/零和→REST /account/balance 兜底同口径（fail-closed 上抛禁静默跳腿）。
+// tradingFundEq 交易户基金口径 eqUsd（T-0100 ①：trading 域=USDT∪open 腿基币
+// 行过滤求和——不按全账户取；账外尘〔腿平残币/杂币〕口径内天然排除）。
+// 帧 details 逐 ccy 过滤，帧缺/零和→REST /account/balance 兜底同口径
+// （fail-closed 上抛禁静默跳腿）。
 func tradingFundEq(ctx context.Context, pool *pgxpool.Pool, okcli *okxexec.Client) (float64, error) {
 	wl, err := ledger.FundCcy(ctx, pool)
 	if err != nil {
@@ -57,7 +76,7 @@ func tradingFundEq(ctx context.Context, pool *pgxpool.Pool, okcli *okxexec.Clien
 	}
 	fund := map[string]bool{}
 	for k := range wl {
-		if k[0] == "okx" {
+		if k[0] == "okx:trading" {
 			fund[k[1]] = true
 		}
 	}

@@ -353,14 +353,55 @@ func TestFundCcyOpenLegBase(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, k := range [][2]string{{"okx", "USDT"}, {"okx", "ETH"}, {"mt5", "USD"}} {
+	for _, k := range [][2]string{{"okx:trading", "USDT"}, {"okx:funding", "USDT"},
+		{"okx:earn", "USDT"}, {"okx:trading", "ETH"}, {"mt5", "USD"}} {
 		if !set[k] {
 			t.Fatalf("基金钱集缺 %v", k)
 		}
 	}
-	for _, k := range [][2]string{{"okx", "DOGE"}} {
+	for _, k := range [][2]string{{"okx:earn", "ETH"}, {"okx:funding", "ETH"},
+		{"okx", "USDT"}, {"okx:trading", "DOGE"}} {
 		if set[k] {
-			t.Fatalf("%v 不应入集（腿平/无腿=托管尘）", k)
+			t.Fatalf("%v 不应入集（腿平/域外/裸 venue 键=托管尘）", k)
 		}
+	}
+}
+
+// T-0100 ③锚：非本位键按币量建键——停泊残币 venue=币数 ledger=ParkedAmt
+// 台账币数同径比对；台账内漂移静默、超漂真差照报（错配爆雷根除）。
+func TestReconcileParkedUnits(t *testing.T) {
+	ctx, r := setup(t)
+	if _, err := r.pool.Exec(ctx, "DELETE FROM fin_known_residual"); err != nil {
+		t.Fatal(err)
+	}
+	var ven map[[2]string]float64
+	r.WithBalances(func(ctx context.Context) (map[[2]string]float64, error) { return ven, nil })
+	if _, err := Post(ctx, r.pool, Entry{Kind: "deposit", Venue: "okx", Ccy: "USDT",
+		Amount: 100, SourceRef: 1, SourceTable: "t"}); err != nil {
+		t.Fatal(err)
+	}
+	// ts 回拨避在途窗（reason='transfer' 近 30s 全跳过——不对拍不判）；
+	// ParkedAmt 不限 ts 故台账照常入账。
+	if _, err := r.pool.Exec(ctx, `INSERT INTO fin_risk_decision(intent,decision,reason,config_gen,ts)
+		VALUES('{"kind":"transfer","op":"residual_park","venue":"okx","ccy":"DOGE","amt":100}','allow','transfer',1,
+		now()-interval '60 seconds')`); err != nil {
+		t.Fatal(err)
+	}
+	// 停泊 100 DOGE 台账=venue 100.2（利息微漂<容差）→静默；同时 USDT 平。
+	ven = map[[2]string]float64{{"okx", "USDT"}: 100, {"okx", "DOGE"}: 100.2}
+	r.rej = rejects.New("ledger", "diff_alert", "missing_param", "bal_missing", "write_err")
+	if err := r.reconcile(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if r.rej.Snapshot()["ledger/diff_alert"] != 0 {
+		t.Fatal("停泊台账币量同径——微漂误报")
+	}
+	// venue 少 5 币单位→真差照报（按币量差非 USD——台账 100 vs 95）。
+	ven = map[[2]string]float64{{"okx", "USDT"}: 100, {"okx", "DOGE"}: 95}
+	if err := r.reconcile(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if r.rej.Snapshot()["ledger/diff_alert"] == 0 {
+		t.Fatal("停泊币量真差漏报")
 	}
 }
