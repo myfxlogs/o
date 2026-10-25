@@ -140,11 +140,12 @@ func seedFlip(t *testing.T, ctx context.Context, r *Runner) {
 	}
 }
 
-// seedFunding 健康 funding 行补种（判据过径——正费率+正预测不翻面）。
+// seedFunding 健康 funding 行补种（判据过径——正费率+正预测不翻面；0.0006
+// →carry=5.4×9=48.6bps>4×(5+3)×1.5=48 回本窗闸过——T-0111 尾注夹具提量）。
 func seedFunding(t *testing.T, ctx context.Context, r *Runner) {
 	t.Helper()
 	if _, err := r.pool.Exec(ctx, `INSERT INTO md_funding(ts,inst_id,funding_rate,next_funding_rate)
-		VALUES(now(),'OP-USDT-SWAP',0.0005,0.0004)`); err != nil {
+		VALUES(now(),'OP-USDT-SWAP',0.0006,0.0004)`); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -208,8 +209,9 @@ func TestOpenLifetimePassesHealthy(t *testing.T) {
 	ctx, r, fo := openerSetup(t)
 	seedFlip(t, ctx, r)
 	mkStrategy(t, ctx, r, "live", time.Hour)
+	// 0.0006→carry 48.6bps>48 回本窗闸过（T-0111 尾注——0.0005 夹具落闸下）。
 	if _, err := r.pool.Exec(ctx, `INSERT INTO md_funding(ts,inst_id,funding_rate,next_funding_rate)
-		VALUES(now(),'OP-USDT-SWAP',0.0005,0.0004)`); err != nil {
+		VALUES(now(),'OP-USDT-SWAP',0.0006,0.0004)`); err != nil {
 		t.Fatal(err)
 	}
 	r.openLive(ctx)
