@@ -166,6 +166,33 @@ if git diff --cached --name-only | grep -qE '\.go$'; then
   fi
 fi
 
+# 11b. 大文件/二进制闸（T-0091）：staged 文件 >1MB 且后缀不在源码白名单，或
+# file 判定为 ELF/Mach-O/PE 可执行体（白名单后缀豁免）即拒——go build cwd
+# 产物被 git add -A 扫入两犯在档（fillsprobe 16MB/core 28MB）。
+SRC_EXT_RE='\.(go|ts|tsx|js|json|md|sql|proto|html|css|yaml|yml|toml|svg|png|txt)$'
+BIGFILE_BAD=""
+while IFS= read -r f; do
+  [ -f "$f" ] || continue
+  size=$(stat -c %s "$f" 2>/dev/null || echo 0)
+  if printf '%s' "$f" | grep -qiE "$SRC_EXT_RE"; then
+    continue # 白名单后缀豁免两道判定
+  fi
+  ftype=$(file -b "$f" 2>/dev/null || echo "?")
+  case "$ftype" in
+    ELF*|*Mach-O*|PE32*|*PE32+*)
+      BIGFILE_BAD="${BIGFILE_BAD}  $f  （可执行体: $ftype）\n" ;;
+    *)
+      if [ "$size" -gt 1048576 ]; then
+        BIGFILE_BAD="${BIGFILE_BAD}  $f  $((size/1024))KB（非源码后缀大文件: $ftype）\n"
+      fi ;;
+  esac
+done < <(git -c core.quotepath=off diff --cached --name-only --diff-filter=ACMR)
+if [ -n "$BIGFILE_BAD" ]; then
+  echo "FAIL: staged 大文件/二进制疑似构建产物——go build 产物请 \`-o /tmp\` 输出或加 .gitignore，勿提交入仓：" >&2
+  printf '%b' "$BIGFILE_BAD" >&2
+  exit 1
+fi
+
 # 12. 未推送 warn（D-588）：本地领先远端 N commit 即 warn 断链风险，推送成功自消。
 UPSTREAM=""
 if git rev-parse --abbrev-ref @{u} >/dev/null 2>&1; then
