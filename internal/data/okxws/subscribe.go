@@ -1,5 +1,5 @@
 // subscribe.go —— 订阅面装配件（T-0122 返修② 拆出——棘轮行数控制件）：
-// 五频道 args 构建+≤100 args/帧分帧发送（OKX WS 单帧硬限——全宇宙 ~500
+// 四频道 args 构建+≤100 args/帧分帧发送（OKX WS 单帧硬限——全宇宙 ~500
 // arg 单帧被拍死；帧间 50ms 节流防限流）。
 package okxws
 
@@ -11,13 +11,13 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// subscribeArgs 五频道订阅面（funding-rate/mark-price 仅 SWAP instId 合法；
-// index-tickers 挂 spot 形 instId；books5/tickers 两形通用）。
+// subscribeArgs 四频道订阅面（funding-rate/mark-price 仅 SWAP instId 合法；
+// index-tickers 挂 spot 形 instId；tickers 两形通用——books5 已切除
+// T-0117 返修③：D-0018 停采零读者面订阅负荷主动降）。
 func subscribeArgs(syms []string) []map[string]string {
 	args := make([]map[string]string, 0, len(syms)*4)
 	for _, s := range syms {
-		args = append(args, map[string]string{"channel": "tickers", "instId": s},
-			map[string]string{"channel": "books5", "instId": s})
+		args = append(args, map[string]string{"channel": "tickers", "instId": s})
 		if strings.HasSuffix(s, "-SWAP") {
 			args = append(args,
 				map[string]string{"channel": "funding-rate", "instId": s},
