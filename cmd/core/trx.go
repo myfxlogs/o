@@ -108,6 +108,10 @@ func cmcArm(ctx context.Context, errc chan<- error, pool *pgxpool.Pool, cfg *con
 	accts := cmc.NewAccountCollector(auth, acct, st, cmc.DefaultRestBase)
 	hist := cmc.NewHistoryCollector(auth, acct, st, cmc.DefaultRestBase)
 	poll := func() {
+		if err := auth.Login(ctx); err != nil {
+			log.Printf("[cmc] login 败（本轮采集让位）: %v", err)
+			return
+		}
 		if _, err := prices.Poll(ctx); err != nil {
 			log.Printf("[cmc] prices 采集败: %v", err)
 		}
