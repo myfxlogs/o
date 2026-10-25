@@ -18,16 +18,17 @@ func moneyRow(venue, section, ccy, label string, amt, usd float64) *dashboardv1.
 		Venue: venue, Section: section, Ccy: ccy}
 }
 
-// fundCcy 基金的钱币种集·venue 域过滤（T-0095 v2 在册集=USDT∪open 腿基币，
-// ledger.FundCcy 唯一真源——历史腿已平的币=托管尘非基金钱）。
-func (c coreService) fundCcy(ctx context.Context, venue string) map[string]bool {
+// fundCcy 基金的钱币种集·作用域过滤（T-0100 ①：在册集账户域作用——trading
+// 域=USDT∪open 腿基币、funding/earn 域=USDT∪停泊溯源币；ledger.FundCcy
+// 唯一真源——域外同币=托管尘非基金钱）。
+func (c coreService) fundCcy(ctx context.Context, scope string) map[string]bool {
 	out := map[string]bool{}
 	set, err := ledger.FundCcy(ctx, c.pool)
 	if err != nil {
 		return out
 	}
 	for k := range set {
-		if k[0] == venue {
+		if k[0] == scope {
 			out[k[1]] = true
 		}
 	}

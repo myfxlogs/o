@@ -80,12 +80,19 @@ func TestOverviewFundScopeVenueCard(t *testing.T) {
 		[]byte(`{"details":[{"ccy":"USDT","eqUsd":"2100"},{"ccy":"ETH","eqUsd":"23.6"},{"ccy":"AVAX","eqUsd":"3"}]}`)); err != nil {
 		t.Fatal(err)
 	}
+	// T-0100 ②：DOGE 残币停泊凭据（residual_park decision 行→Earn 域回集）；
+	// T-0100 ①：Earn ETH 0.0013 利息尘=腿基币渗漏托管不显（Earn 域只有
+	// USDT+停泊溯源币）。
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_risk_decision(intent,decision,reason,config_gen)
+		VALUES('{"kind":"transfer","op":"residual_park","venue":"okx","ccy":"DOGE","amt":295}','allow','transfer',1)`); err != nil {
+		t.Fatal(err)
+	}
 	svc := coreService{pool: pool,
 		fundingLive: func(context.Context) (map[string]float64, error) {
 			return map[string]float64{"USDT": 0.2, "COMP": 0.05}, nil
 		},
 		earnLive: func(context.Context) (map[string]float64, error) {
-			return map[string]float64{"USDT": 2057.37, "DOGE": 295.0}, nil
+			return map[string]float64{"USDT": 2057.37, "DOGE": 295.0, "ETH": 0.0013}, nil
 		},
 		mt5Live: func(context.Context) ([]mt5Acct, error) {
 			return []mt5Acct{{Login: "3001157", Equity: 3247.41, Balance: 3200}}, nil
@@ -105,15 +112,27 @@ func TestOverviewFundScopeVenueCard(t *testing.T) {
 		}
 		sec[m.Venue+"/"+m.Section] = append(sec[m.Venue+"/"+m.Section], m)
 	}
-	if len(sec["okx/交易户"]) != 2 || len(sec["okx/资金户"]) != 1 || len(sec["okx/Earn"]) != 1 {
-		t.Fatalf("三区行数（托管尘不返不渲染）: %+v", o.Money)
+	if len(sec["okx/交易户"]) != 2 || len(sec["okx/资金户"]) != 1 || len(sec["okx/Earn"]) != 2 {
+		t.Fatalf("三区行数（Earn=USDT+停泊 DOGE 回集，ETH 渗漏尘不显）: %+v", o.Money)
+	}
+	var earnDog bool
+	for _, m := range sec["okx/Earn"] {
+		if m.Ccy == "DOGE" {
+			earnDog = true
+		}
+		if m.Ccy == "ETH" {
+			t.Fatalf("Earn 域腿基币渗漏尘不应返行: %+v", m)
+		}
+	}
+	if !earnDog {
+		t.Fatalf("停泊溯源币未回集: %+v", sec["okx/Earn"])
 	}
 	if len(sec["mt5/户"]) != 1 || sec["mt5/户"][0].Label != "户 3001157" ||
 		sec["mt5/户"][0].Usd != 3247.41 {
 		t.Fatalf("MT5 户行: %+v", sec["mt5/户"])
 	}
 	for _, m := range o.Money {
-		if m.Ccy == "AVAX" || m.Ccy == "COMP" || m.Ccy == "DOGE" {
+		if m.Ccy == "AVAX" || m.Ccy == "COMP" {
 			t.Fatalf("账外尘不应返行: %+v", m)
 		}
 	}

@@ -26,17 +26,31 @@ import (
 // 最低额，币种面以可分精度为底；此处=归口经济性底（低于此额=托管如实标）。
 const minPurchaseUsd = 1.0
 
-// fundCcy 在持腿基币集（T-0095 v2 口径——ledger.FundCcy 唯一真源，venue 域
-// 过滤）：集合内=基金的钱不归口不托管；集合外=残币候选。
+// fundCcy 在持腿基币集（T-0100 ①：ledger.FundCcy 唯一真源 trading 域过滤
+// ——coins 源=交易户余量，腿基币豁免只在 trading 域生效）：集合内=基金的
+// 钱不归口不托管；集合外=残币候选。
 func (w *Worker) fundCcy(ctx context.Context) (map[string]bool, error) {
 	set, err := ledger.FundCcy(ctx, w.pool)
 	out := map[string]bool{}
 	for k := range set {
-		if k[0] == w.venue {
+		if k[0] == w.venue+":trading" {
 			out[k[1]] = true
 		}
 	}
 	return out, err
+}
+
+// custodyMarked 30 天托管窗判定（T-0100 ④：申购拒已标币窗内整币跳过——
+// 摆渡→拒→回摆空转+告警循环斩；窗满自然重试一次合语义）。
+func (w *Worker) custodyMarked(ctx context.Context, ccy string) bool {
+	var n int
+	if err := w.pool.QueryRow(ctx, `SELECT count(*) FROM fin_residual_custody
+		WHERE venue=$1 AND ccy=$2 AND marked_at>now()-interval '30 days'`,
+		w.venue, ccy).Scan(&n); err != nil {
+		w.rej.Inc("write_err")
+		return false // 查败=不豁免照判（误判一摆可回摆非钱险；写败计数留痕）
+	}
+	return n > 0
 }
 
 // valCcyOf 代币数→USD 估值（md_ticks 最新 last——无 tick=0；与 cmd/core
@@ -79,6 +93,9 @@ func (w *Worker) sweepResidual(ctx context.Context) error {
 		if valCcyOf(ctx, w.pool, ccy, amt) < minPurchaseUsd {
 			w.persistCustody(ctx, ccy, amt)
 			continue
+		}
+		if w.custodyMarked(ctx, ccy) {
+			continue // T-0100 ④：30 天托管窗内零动零警（拒后空转斩——窗满重试）
 		}
 		if !w.mu.TryLock() {
 			w.rej.Inc("sweep_busy")

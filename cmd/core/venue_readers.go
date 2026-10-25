@@ -138,12 +138,13 @@ func attachVenueReaders(riskGate *risk.Gate, wd *guard.Warden, ledgerR *ledger.R
 		// T-0050 停泊态口径：venue 权益=交易户+funding 户+Earn 停泊（D-0006
 		// 资本可及面——闲资默认停 Earn，只读交易户 eq=停泊态下集中度闸永拒）。
 		// T-0058 根修：三分量任一读败=err 上抛 fail-closed（静默跳腿=假差病灶）。
+		// T-0100：usd=true 非本位停泊币按估值入权益求和（币量≠USD 禁混）。
 		eq, _, err := tradingVals(ctx)
 		if err != nil {
 			return 0, err
 		}
 		fs := map[[2]string]float64{}
-		if err := fundSaveBalances(ctx, okcli, fs); err != nil {
+		if err := fundSaveBalances(ctx, pool, okcli, fs, true); err != nil {
 			return 0, err
 		}
 		for _, v := range fs {
@@ -187,7 +188,9 @@ func attachVenueReaders(riskGate *risk.Gate, wd *guard.Warden, ledgerR *ledger.R
 			return nil, fmt.Errorf("trading 读败: %w", err)
 		}
 		out[[2]string{"okx", "USDT"}] += eq
-		if err := fundSaveBalances(ctx, okcli, out); err != nil {
+		// T-0100 ③：对拍径 usd=false 原币量入键——ledger 侧非本位键按币量
+		// 建键（ParkedAmt 台账），venue/ledger 单位同径不错配。
+		if err := fundSaveBalances(ctx, pool, okcli, out, false); err != nil {
 			return nil, err
 		}
 		if openMt5 != nil {
