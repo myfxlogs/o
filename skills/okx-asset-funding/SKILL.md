@@ -39,7 +39,7 @@ domain: 工程
 - NAV 基金口径（T-0095 v2，替代 T-0086 三户全币）：交易户=USDT∪**open** 腿基币行 eqUsd 过滤求和（tradingFundEq——不按全账户取）；资金户/Earn=REST 活读零落地（/asset/balances 逐币、/finance/savings/balance 逐行 amt——遍历所有行找 ccy，首行序不定坑在案）但只出基金口径币种行；集合外=托管尘出 NAV 出卡（零遗留概念）；缺户=0 不误报。T-0096：MT5 净值随 NAV 全计（mt5/USD 恒在册）。
 - 对账白名单（T-0095 v2）：ledger.FundCcy 唯一真源（USDT∪open filled 腿基币，LedgeredCcy 已退役）——账外尘非「豁免」而是口径内天然排除（venue 侧同口径过滤求和）；fin_known_residual 豁免面退役（0042 清 T-0080 行）。
 - 残币活期归口（T-0095 v3）：腿平事件+巡检拍双触发（ev_position+ev_account）——在持腿基币之外交易户非 USDT 余量，≥$1 起投底=交易户→资金户→savings purchase 同币零换手（Earn 申购扩币种，USDT 闭集破）；申购业务拒=确认未动回摆+fin_residual_custody 托管标（**禁兑换径**——摩擦>本金，同复位径纪律：残币处置权在业主）；<底额=托管标幂等（30 天窗）。
-- 双币赢枚举消费（T-0102）：internal/research/dcd 臂从 `fin_capability_surface` 注册表读枚举面（注册+fin_opp_template 模板适用声明=探员即枚举，零新代码扩张）；扫 currency-pair→products?uly= 全对在架（信封数字 code 已由 okxexec flexCode 兼容、拨号钉 tcp4——50110 IPv6 坑根修）；评估落 fin_opp_eval（dcd_call/dcd_put）→阈闸热启（dist≥8%/term≤30d/notional≤avail×20%/单 uly 方向不叠/apr≥5%）进 fin_proposal 同链；读败 fail-closed 不造零快照。
+- 双币赢枚举消费（T-0102）：internal/research/dcd 臂从 `fin_capability_surface` 注册表读枚举面（注册+fin_opp_template 模板适用声明=探员即枚举，零新代码扩张）；扫 currency-pair→products?baseCcy&quoteCcy&optType 全对在架（三参方言——uly 伪参 50014 实证，勿猜参名）（信封数字 code 已由 okxexec flexCode 兼容、拨号钉 tcp4——50110 IPv6 坑根修）；评估落 fin_opp_eval（dcd_call/dcd_put）→阈闸热启（dist≥8%/term≤30d/notional≤avail×20%/单 uly 方向不叠/apr≥5%）进 fin_proposal 同链；读败 fail-closed 不造零快照。
 - 差扫岗（T-0102 v3/v4）：目录探针（种子=dcd currency-pair+earn-flex lending-rate-summary 两实测面，扩面=补行+证据禁猜端点）→对拍注册表→fin_surface_gap 队列；面分类器全机审（yield_bearing→carry / funding_bearing→hedge / swap_sign 正→carry 负→hedge / options→vol 后期）自动生候选走毕业线（provenance=surface_gap，gen_cap=3 防洪水）；瞬态读败不裁死、死面 autorejected+拒因、终态不机器翻案。
 
 ## 复跑
@@ -50,7 +50,7 @@ domain: 工程
 
 > 权威文档锚：https://www.okx.com/docs-v5/zh/#financial-product-dual-investment
 
-- 端点族 `/api/v5/finance/sfp/dcd/*`：**`currency-pair`/`products` 读面实测 200**（BTC-USDT/ETH-USDT 的 C/P 全谱——产品 id 形如 `BTC-USDT-261028-83700-C`，载 strike/expiry/annualizedYield/minSize/maxSize）；`quote`/`trade`/`redeem-quote`/`redeem` 为 POST 写面。
+- 端点族 `/api/v5/finance/sfp/dcd/*`：**`currency-pair`/`products?baseCcy&quoteCcy&optType` 读面实测 200**（BTC-USDT/ETH-USDT 的 C/P 全谱——产品 id 形如 `BTC-USDT-261028-83700-C`，载 strike/expiry/annualizedYield/minSize/maxSize）；`quote`/`trade`/`redeem-quote`/`redeem` 为 POST 写面。
 - **订单枚举面**：`GET /order-history`（可选 ?uly= 过滤）**实测 200 返全谱订单**（LIVE/SETTLED 含 notionalSz/notionalCcy/strike/settleTime/annualizedYield/yieldSz/settleSz 结算落果）；`GET /order-status?ordId=X` 单查。注意 `orders`/`orders-list` 等非名 500——端点名以文档为准勿猜。
 - **资金流水面**：dcd 申购/回款/收益/退款落 bills subType **160/161/162/163**（精简版 207/208/209/210）——查证走 `/account/bills`、`/asset/bills` 按 subType 过滤。
 - 响应信封坑：dcd 族 `code` 字段是**数字**非字符串（`{"code":0,...}`）——okxexec.Client.Get 的信封解析（string code）会拒，须裸签名自解或信封兼容改（经验库 `okx-dcd-endpoint-dialect`）。
