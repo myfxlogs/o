@@ -51,6 +51,7 @@ var migrationTable = []struct {
 	{45, "0045_hypothesis_chain.sql"},
 	{47, "0047_leg_unit_disambig.sql"},
 	{48, "0048_trx_full_parity.sql"},
+	{49, "0049_capability_dense.sql"},
 	{25, "0025_order_leg_venue_err.sql"},
 	{26, "0026_venue_facts.sql"},
 	{27, "0027_venue_bill.sql"},
