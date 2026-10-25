@@ -38,7 +38,7 @@ var econMatchKeys = map[string]bool{
 }
 
 func econDirPath() string {
-	if d := os.Getenv("NOX_ECONKB_DIR"); d != "" {
+	if d := os.Getenv("O_ECONKB_DIR"); d != "" {
 		return d
 	}
 	return econDirConst
