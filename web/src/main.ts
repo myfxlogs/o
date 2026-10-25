@@ -35,6 +35,11 @@ async function ov(): Promise<void> {
     if (rb && d.recent && d.recent.length) {
       rb.innerHTML = d.recent.map((x: string) => `<div class="ev">${h(x)}</div>`).join('')
     }
+    // 交易所在线树状卡（T-0088：venue 组→channel 行，三态真判，断行红显不藏）。
+    const vb = document.getElementById('venues-body')
+    if (vb && d.venues && d.venues.length) {
+      vb.innerHTML = venuesHTML(d.venues)
+    }
     // staff 组织架构图（T-0079 v2：直显不收起——宪章 §6 钱程拓扑；API 缺面藏卡如实）。
     const sc = document.getElementById('c-staff')
     if (sc) {
@@ -62,6 +67,42 @@ function utcStamp(): string {
 new EventSource('/api/watch').onmessage = () => ov()
 ov()
 setInterval(ov, 30000)
+
+// venuesHTML 交易所在线树（T-0088——venue 行=logo+名+◆/◇ 聚合态；
+// channel 行=├/└ 树线+三色静灯+末拍龄 Ns/Nm/h 自适应；note 旁注覆盖龄显）。
+const VDOTS = ['s0', 's1', 's2']
+const VSVG: Record<string, string> = {
+  okx: `<svg viewBox="0 0 24 24" width="18" height="18" fill="var(--txt)">
+    <rect x="2" y="2" width="6" height="6"/><rect x="9" y="2" width="6" height="6"/><rect x="16" y="2" width="6" height="6"/>
+    <rect x="2" y="9" width="6" height="6"/><rect x="16" y="9" width="6" height="6"/>
+    <rect x="2" y="16" width="6" height="6"/><rect x="9" y="16" width="6" height="6"/><rect x="16" y="16" width="6" height="6"/></svg>`,
+  mt5: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--txt)" stroke-width="1.8">
+    <path d="M3 20V6l5 8 4-6 4 6 5-8v14"/><path d="M3 20h18"/></svg>`,
+}
+interface VChan { name: string; channel: string; last_ts: string; state: number; note: string }
+interface VGroup { name: string; channels: VChan[] }
+function vAge(ts: string): string {
+  const d = (Date.now() - new Date(ts).getTime()) / 1000
+  if (d < 60) return `${Math.max(0, Math.floor(d))}s 前`
+  if (d < 3600) return `${Math.floor(d / 60)}m 前`
+  return `${Math.floor(d / 3600)}h 前`
+}
+function venuesHTML(gs: VGroup[]): string {
+  return gs.map(g => {
+    const worst = Math.max(...g.channels.map(c => c.state))
+    const mark = worst === 0 ? '◆' : '◇'
+    const chans = g.channels.map((c, i) => {
+      const tw = i === g.channels.length - 1 ? '└' : '├'
+      const age = c.note || (c.last_ts
+        ? (c.state === 1 ? '迟滞 ' : c.state === 2 ? '离线 ' : '') + vAge(c.last_ts)
+        : '读件缺')
+      return `<div class="vline chan"><span class="tree">${tw}</span>${h(c.name)}` +
+        `<span class="vage">${h(age)}</span><span class="vdot ${VDOTS[c.state] || 's2'}"></span></div>`
+    }).join('')
+    return `<div class="vline venue"><span class="vlogo">${VSVG[g.name] || ''}</span>` +
+      `${mark} ${h(g.name.toUpperCase())}</div>${chans}`
+  }).join('')
+}
 
 // orgSVG v2 组织架构图（T-0079 返修④钦定——宪章 §6「一笔钱的旅程」拓扑：
 // 顶层=phase-core(左)+业主·投资委(右金框)；钱程主链实线携产出物；

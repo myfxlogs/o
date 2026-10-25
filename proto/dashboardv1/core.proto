@@ -23,6 +23,15 @@ message OverviewResponse {
   repeated string recent = 7;
   repeated StaffRow staff = 8;
   string alert = 9;              // 异常条（空=平静）
+  repeated VenueGroup venues = 10; // 交易所在线——venue 组→channel 行
+}
+message VenueGroup { string name = 1; repeated VenueChannel channels = 2; }
+message VenueChannel {
+  string name = 1;     // channel 行名（公开 WS/私有 WS/REST/行情流）
+  string channel = 2;  // 事实源标识
+  string last_ts = 3;  // 末拍 RFC3339（空=读件缺）
+  int32 state = 4;     // 0绿 1黄 2红
+  string note = 5;     // 旁注（读件缺等——空=正常）
 }
 message DoingItem { string text = 1; string stamp = 2; }
 message MoneyRow { string label = 1; double amount = 2; }

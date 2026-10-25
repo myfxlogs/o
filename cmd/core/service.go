@@ -145,7 +145,51 @@ func (c coreService) Overview(ctx context.Context, _ *dashboardv1.OverviewReques
 		o.Staff = append(o.Staff, &dashboardv1.StaffRow{Name: name, Duty: duty, State: st})
 	}
 	srows.Close()
+	o.Venues = c.venues(ctx)
 	return o, nil
+}
+
+// venues 交易所在线四行（T-0088：真事实源禁假——读件缺席=红+「读件缺」，
+// 禁零值绿灯；龄律 30s 黄 / 2min 红全行同判）。
+func (c coreService) venues(ctx context.Context) []*dashboardv1.VenueGroup {
+	age := func(q string, args ...any) *dashboardv1.VenueChannel {
+		ch := &dashboardv1.VenueChannel{State: 2, Note: "读件缺"}
+		var ts *time.Time
+		if err := c.pool.QueryRow(ctx, q, args...).Scan(&ts); err == nil && ts != nil {
+			ch.LastTs = ts.UTC().Format(time.RFC3339)
+			ch.Note = ""
+			switch d := time.Since(*ts); {
+			case d > 2*time.Minute:
+				ch.State = 2
+			case d > 30*time.Second:
+				ch.State = 1
+			default:
+				ch.State = 0
+			}
+		}
+		return ch
+	}
+	okx := &dashboardv1.VenueGroup{Name: "okx"}
+	okx.Channels = append(okx.Channels,
+		// 公开 WS=md_ticks 真流龄（md_funding.ts=费率事件时间可未来值，
+		// 入 union 会伪造行情流活性——liveness 只取 tick 心跳）。
+		withName(age(`SELECT max(ts) FROM md_ticks
+			WHERE coalesce(venue,'okx')='okx'`), "公开 WS", "md_ticks"),
+		withName(age(`SELECT max(ts) FROM md_account_events
+			WHERE channel IN ('account','balance_and_position')`), "私有 WS", "md_account_events"),
+		withName(age(`SELECT max(ts) FROM md_account_events
+			WHERE channel='earn_parking'`), "REST", "earn_parking"))
+	mt5g := &dashboardv1.VenueGroup{Name: "mt5"}
+	mt5g.Channels = append(mt5g.Channels,
+		withName(age(`SELECT max(b) FROM (
+			SELECT last_beat b FROM fin_employee_registry WHERE name='汇市巡'
+			UNION ALL SELECT max(ts) FROM md_ticks WHERE venue='mt5') t`), "行情流", "汇市巡/md_ticks"))
+	return []*dashboardv1.VenueGroup{okx, mt5g}
+}
+
+func withName(ch *dashboardv1.VenueChannel, name, src string) *dashboardv1.VenueChannel {
+	ch.Name, ch.Channel = name, src
+	return ch
 }
 
 // Watch SSE 脊推变（ev_* NOTIFY——所见即所得刷新源，事件驱动律守不新造环）。
