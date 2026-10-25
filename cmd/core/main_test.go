@@ -173,8 +173,9 @@ func TestOverviewMissingAccountsZero(t *testing.T) {
 	if o.NavTotal != 0 {
 		t.Fatalf("缺户 NAV 应 0: %v", o.NavTotal)
 	}
-	if len(o.Money) != 1 || o.Money[0].Venue != "mt5" || o.Money[0].Note != "读件缺" {
-		t.Fatalf("MT5 读件缺行不藏: %+v", o.Money)
+	if len(o.Money) != 2 || o.Money[0].Venue != "mt5" || o.Money[0].Note != "读件缺" ||
+		o.Money[1].Section != "结构性持仓" || o.Money[1].Note != "读件缺" {
+		t.Fatalf("MT5/dcd 读件缺行不藏: %+v", o.Money)
 	}
 	// 读败同径（err 上抛→读件缺行）。
 	svc2 := coreService{pool: pool,
@@ -185,7 +186,7 @@ func TestOverviewMissingAccountsZero(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(o2.Money) != 1 || o2.Money[0].Note != "读件缺" {
+	if len(o2.Money) != 2 || o2.Money[0].Note != "读件缺" {
 		t.Fatalf("MT5 读败应显读件缺: %+v", o2.Money)
 	}
 }

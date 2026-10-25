@@ -212,7 +212,22 @@ func (r *Runner) reconcile(ctx context.Context) error {
 		var exempt float64
 		_ = r.pool.QueryRow(ctx, `SELECT COALESCE(sum(amount_usd),0) FROM fin_known_residual
 			WHERE venue=$1 AND ccy=$2 AND expires_at>now()`, x.venue, x.ccy).Scan(&exempt)
-		if Diff(x.net, x.eq) > tol+exempt {
+		// T-0101 修补：非本位键 diff 为币量——按 md_ticks 折 USD 再对容差
+		// （容差/豁免皆 USD 口径；币量直接对 $0.5=高价币真差永静默——
+		// 0.02 BTC 差值 $2400 曾被容差吞）。无 tick 价且 diff≠0=不可估值
+		// 分歧→照报不误压（fail-closed）。
+		diff := Diff(x.net, x.eq)
+		if x.ccy != "USDT" && x.ccy != "USD" && diff != 0 {
+			var px float64
+			_ = r.pool.QueryRow(ctx, `SELECT last FROM md_ticks
+				WHERE inst_id=$1||'-USDT' ORDER BY ts DESC LIMIT 1`, x.ccy).Scan(&px)
+			if px <= 0 {
+				diff = tol + exempt + 1 // 不可估值分歧强制告警
+			} else {
+				diff *= px
+			}
+		}
+		if diff > tol+exempt {
 			r.rej.Inc("diff_alert")
 			r.al.Alert(ctx, "ledger_diff_alert",
 				fmt.Sprintf("账实差 $%.2f（容差 $%.2f +已定性豁免 $%.2f）",
