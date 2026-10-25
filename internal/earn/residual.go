@@ -57,7 +57,8 @@ func (w *Worker) custodyMarked(ctx context.Context, ccy string) bool {
 // valCcy 同源口径——起投判据估值面）。
 func valCcyOf(ctx context.Context, pool *pgxpool.Pool, ccy string, units float64) float64 {
 	var last *float64
-	_ = pool.QueryRow(ctx, `SELECT last FROM md_ticks WHERE inst_id=$1
+	_ = pool.QueryRow(ctx, `SELECT v FROM (SELECT last v,ts FROM md_ticks WHERE inst_id=$1
+		UNION ALL SELECT px,ts FROM md_mark_index WHERE inst_id=$1) q
 		ORDER BY ts DESC LIMIT 1`, ccy+"-USDT").Scan(&last)
 	if last == nil {
 		return 0

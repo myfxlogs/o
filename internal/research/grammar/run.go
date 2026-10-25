@@ -173,8 +173,13 @@ func (r *Runner) writeEval(ctx context.Context, inst, template, direction, verdi
 // evalBasis 季度期货基差评估（future tick−spot tick=年化基差 vs 判据阈；
 // 季度期货 tick 缺席=unevaluable 真因行——数据面诚实）。
 func (r *Runner) evalBasis(ctx context.Context, f Family) error {
-	rows, err := r.pool.Query(ctx, `SELECT t1.inst_id,t1.last,t2.last FROM md_ticks t1
-		JOIN md_ticks t2 ON t2.inst_id=split_part(t1.inst_id,'-',1)||'-'||split_part(t1.inst_id,'-',2)
+	// T-0132 分级后季度期货只有 mark-price 行——md_ticks∪md_mark_index 同视图读。
+	rows, err := r.pool.Query(ctx, `SELECT t1.inst_id,t1.px,t2.px FROM
+		(SELECT inst_id,px,ts FROM md_mark_index WHERE channel='mark-price'
+		UNION ALL SELECT inst_id,last,ts FROM md_ticks) t1
+		JOIN (SELECT inst_id,px,ts FROM md_mark_index
+		UNION ALL SELECT inst_id,last,ts FROM md_ticks) t2
+		ON t2.inst_id=split_part(t1.inst_id,'-',1)||'-'||split_part(t1.inst_id,'-',2)
 		WHERE t1.inst_id ~ '-[0-9]{6}$' AND t1.ts>now()-interval '15 minutes'
 		AND t2.ts>now()-interval '15 minutes'`)
 	if err != nil {

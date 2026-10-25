@@ -59,7 +59,7 @@ type Door = rejects.Door
 func NewCollector(pool *pgxpool.Pool, cfg *config.Client) *Collector {
 	return &Collector{
 		pool: pool, cfg: cfg, url: PublicURL,
-		rej:   rejects.New("okxws", "non_usdt_instid", "seq_gap", "parse_fail", "write_err", "symbols_missing"),
+		rej:   rejects.New("okxws", "non_usdt_instid", "seq_gap", "parse_fail", "write_err", "symbols_missing", "activeset_read_failed"),
 		queue: make(chan rowItem, 1024),
 		Stats: nil,
 	}
@@ -157,6 +157,33 @@ func (c *Collector) dialLoop(ctx context.Context, syms []string, gen int64) erro
 		return err
 	}
 	log.Printf("[okxws] subscribed syms=%d url=%s", len(syms), c.url)
+	// T-0132 活跃集 tickers 动态重订（增删订阅帧不重建连接——fin_position
+	// 在仓+fin_proposal 在途+fin_strategy 非退役的 inst_id 才配成交价级实时性）。
+	subTick := map[string]bool{}
+	syncActive := func() {
+		set, err := c.activeSet(ctx)
+		if err != nil {
+			c.rej.Inc("activeset_read_failed")
+			return
+		}
+		for inst := range set {
+			if !subTick[inst] && isUSDTInst(inst) {
+				if err := conn.WriteJSON(subArgs("subscribe", inst)); err != nil {
+					return
+				}
+				subTick[inst] = true
+			}
+		}
+		for inst := range subTick {
+			if !set[inst] {
+				if err := conn.WriteJSON(subArgs("unsubscribe", inst)); err != nil {
+					return
+				}
+				delete(subTick, inst)
+			}
+		}
+	}
+	syncActive() // 连接建立即加订当前活跃集
 	// 看门狗起表（T-0050 根修）：lastFrame 初值 0=「未起表」盲区——队列塞死时
 	// 业务帧永不上前移，watchdog 恒 skip（SG 实勘静默断流）。订阅成功即起表：
 	// 75s 无帧判死重连，盲区消失。
@@ -182,6 +209,8 @@ func (c *Collector) dialLoop(ctx context.Context, syms []string, gen int64) erro
 	defer ping.Stop()
 	watch := time.NewTicker(10 * time.Second)
 	defer watch.Stop()
+	actTick := time.NewTicker(30 * time.Second) // sched-exempt-ok 活跃集轮询
+	defer actTick.Stop()
 	for {
 		select {
 		case <-ctx.Done():
@@ -192,6 +221,8 @@ func (c *Collector) dialLoop(ctx context.Context, syms []string, gen int64) erro
 			if err := conn.WriteMessage(websocket.TextMessage, []byte("ping")); err != nil {
 				return fmt.Errorf("ping: %w", err)
 			}
+		case <-actTick.C:
+			syncActive() // 活跃集变化→增删订阅帧
 		case <-watch.C:
 			if idle := time.Since(time.Unix(0, c.lastFrame.Load())); c.lastFrame.Load() != 0 && idle > dataIdle {
 				return fmt.Errorf("业务帧静默 %s > %s（ack≠存活——看门狗判死重连）", idle.Round(time.Second), dataIdle)
@@ -209,6 +240,9 @@ func (c *Collector) handle(data []byte) {
 	if err := json.Unmarshal(data, &msg); err != nil {
 		c.rej.Inc("parse_fail")
 		return
+	}
+	if c.meter != nil {
+		c.meter.Add("okxws/"+msg.Arg.Channel, len(data))
 	}
 	if msg.Event != "" {
 		if msg.Event == "error" {

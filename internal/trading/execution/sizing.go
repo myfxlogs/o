@@ -55,17 +55,20 @@ func DeriveSpotInst(instID string) (string, error) {
 	return spot, nil
 }
 
-// LatestPx 最新价（md_ticks 就近取——事实行流径非 REST 轮询）。
+// LatestPx 最新价（md_ticks∪md_mark_index 末帧就近取——T-0132 分级后非活跃
+// 集无 tick 行，mark/index 价续供；事实行流径非 REST 轮询）。
 func LatestPx(ctx context.Context, pool *pgxpool.Pool, instID string) (float64, error) {
 	var px float64
 	var ts time.Time
 	if err := pool.QueryRow(ctx,
-		"SELECT last,ts FROM md_ticks WHERE inst_id=$1 ORDER BY ts DESC LIMIT 1",
+		`SELECT v,ts FROM (SELECT last v,ts FROM md_ticks WHERE inst_id=$1
+			UNION ALL SELECT px,ts FROM md_mark_index WHERE inst_id=$1) q
+			ORDER BY ts DESC LIMIT 1`,
 		instID).Scan(&px, &ts); err != nil {
-		return 0, fmt.Errorf("md_ticks 无 %s 行: %w", instID, err)
+		return 0, fmt.Errorf("md_ticks/md_mark_index 无 %s 行: %w", instID, err)
 	}
 	if time.Since(ts) > 60*time.Second {
-		return 0, fmt.Errorf("md_ticks %s 陈（%v>60s）", instID, time.Since(ts))
+		return 0, fmt.Errorf("md_ticks/md_mark_index %s 陈（%v>60s）", instID, time.Since(ts))
 	}
 	return px, nil
 }

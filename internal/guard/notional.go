@@ -11,7 +11,9 @@ import (
 func (w *Warden) notionalNow(ctx context.Context, l leg) (float64, bool) {
 	var last *float64
 	if err := w.pool.QueryRow(ctx,
-		"SELECT last FROM md_ticks WHERE inst_id=$1 ORDER BY ts DESC LIMIT 1", l.inst).Scan(&last); err != nil || last == nil {
+		`SELECT v FROM (SELECT last v,ts FROM md_ticks WHERE inst_id=$1
+			UNION ALL SELECT px,ts FROM md_mark_index WHERE inst_id=$1) q
+			ORDER BY ts DESC LIMIT 1`, l.inst).Scan(&last); err != nil || last == nil {
 		return 0, false
 	}
 	if l.qtyBase > 0 {
