@@ -227,3 +227,46 @@ func (s *Store) SumTRXTxVoteClaimByRange(ctx context.Context, from, to time.Time
 	}
 	return sum, nil
 }
+
+// SumDailyIncomeByRange D-212 对冲工作台：区间日收益合计（nil 界=全表）。
+func (s *Store) SumDailyIncomeByRange(ctx context.Context, from, to *time.Time) (energyTrx, votingTrx, interestUsd float64, err error) {
+	q := `SELECT COALESCE(SUM(energy_trx),0), COALESCE(SUM(voting_trx),0), COALESCE(SUM(interest_usd),0)
+		FROM position_daily_income WHERE ($1::timestamptz IS NULL OR day >= $1::date)
+		AND ($2::timestamptz IS NULL OR day <= $2::date)`
+	err = s.pool.QueryRow(ctx, q, from, to).Scan(&energyTrx, &votingTrx, &interestUsd)
+	return
+}
+
+// FirstDailyIncomeDay 首收益日（年化时间感知分母；空表=nil 诚实缺）。
+func (s *Store) FirstDailyIncomeDay(ctx context.Context) (*time.Time, error) {
+	var d *time.Time
+	err := s.pool.QueryRow(ctx,
+		`SELECT min(day)::timestamptz FROM position_daily_income`).Scan(&d)
+	return d, err
+}
+
+// CountDailyIncomeByRange 区间日行数（mtd 样本天数）。
+func (s *Store) CountDailyIncomeByRange(ctx context.Context, from, to *time.Time) (int, error) {
+	var n int
+	err := s.pool.QueryRow(ctx, `SELECT count(*) FROM position_daily_income
+		WHERE ($1::timestamptz IS NULL OR day >= $1::date)
+		AND ($2::timestamptz IS NULL OR day <= $2::date)`, from, to).Scan(&n)
+	return n, err
+}
+
+// AddDailyIncomeAuto 日终 rollup 写行（source='auto'——D-211 SSOT §5）。
+func (s *Store) AddDailyIncomeAuto(ctx context.Context, day time.Time, energyTrx, votingTrx, overnightUsd float64, price, pnl *float64, note string) error {
+	_, err := s.pool.Exec(ctx, `INSERT INTO position_daily_income
+		(day, energy_trx, voting_trx, interest_usd, price, pnl_usd, note, source)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, 'auto')
+		ON CONFLICT (day) DO UPDATE SET energy_trx=EXCLUDED.energy_trx,
+		  voting_trx=EXCLUDED.voting_trx, interest_usd=EXCLUDED.interest_usd,
+		  price=EXCLUDED.price, pnl_usd=EXCLUDED.pnl_usd, note=EXCLUDED.note,
+		  source='auto'
+		WHERE position_daily_income.source='auto'`,
+		day, energyTrx, votingTrx, overnightUsd, price, pnl, note)
+	if err != nil {
+		return fmt.Errorf("add daily income auto: %w", err)
+	}
+	return nil
+}

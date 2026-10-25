@@ -83,6 +83,8 @@ internal/research/hypothesis -> internal/platform/config
 internal/research/hypothesis -> internal/platform/events
 internal/research/hypothesis -> internal/platform/rejects
 internal/research/hypothesis -> internal/platform/roster
+internal/portfolio/trxvote -> internal/platform/safego
+internal/portfolio/trxvote -> internal/store/pgstore
 internal/data/okxws -> internal/platform/rejects
 internal/data/okxws -> internal/platform/roster
 internal/gen/mtapi/mt5/mt5connect -> internal/gen/mtapi/mt5

@@ -222,7 +222,7 @@ func run() error {
 	// 研究域扩张臂（T-0102/0106——dcd 枚举面/差扫岗/假想官起草席；读件缺席=让位 WARN 不炸 boot）。
 	go dcd.NewRunner(pool, cfg).AttachFeed(dcdFeedFor(okcli)).AttachCoins(okxCoinsFor(pool, okcli)).Run(ctx, errc)
 	go gapscan.NewRunner(pool, cfg).AttachProbe(gapProbeFor(okcli)).Run(ctx, errc)
-	go trxArms(ctx, errc, pool, cfg) // T-0108 TRX/CMC 自营盘采集双臂（trx.go）
+	trxW := trxArms(ctx, errc, pool, cfg) // T-0110 TRX/CMC 采集臂+读面装配（trx.go）
 	go hypothesis.NewRunner(pool, cfg).Run(ctx, errc)
 
 	// 投资域首岗：命官——paper→probe→live 开仓消费（T-0050 Opener 缝）。
@@ -267,7 +267,7 @@ func run() error {
 	// 总览活页（T-0067：service.go mountUI——静态面+JSON/SSE）。
 	mux := http.NewServeMux()
 	mountUI(mux, pool, fundingLiveFor(okcli), earnLiveFor(okcli), mt5LiveFor(pool, cfg), dcdLiveFor(okcli))
-	mountTrxAPI(mux, pool)
+	mountTrxAPI(mux, trxW) // T-0110：独立页全功能读面+刷新踢
 	// 产出窗=行情新鲜度+rejects 计数门观测端点（判定面可观测 D-652-A）。
 	mux.HandleFunc("/report", report.Handler(pool))
 	mux.HandleFunc("/md/status", func(w http.ResponseWriter, r *http.Request) {

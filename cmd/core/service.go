@@ -229,12 +229,16 @@ func mountUI(mux *http.ServeMux, pool *pgxpool.Pool,
 	})
 	// 根路径直开（T-0068：GET / → index.html 直返无跳转；/ui/ 目录列表禁——
 	// dist 单层文件面逐件挂，禁 FileServer 目录模式）。
+	// T-0110：/trx → TRX 自营盘独立页（D-629 业绩外面独立入口非总览瓦片）。
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/" { // "/" 是兜底全捕——仅根路径返页，API 错路 404 不吃 HTML
+		page := "dist/index.html"
+		if r.URL.Path == "/trx" {
+			page = "dist/trx.html"
+		} else if r.URL.Path != "/" { // "/" 是兜底全捕——仅根路径返页，API 错路 404 不吃 HTML
 			http.NotFound(w, r)
 			return
 		}
-		b, err := web.Dist.ReadFile("dist/index.html")
+		b, err := web.Dist.ReadFile(page)
 		if err != nil {
 			http.NotFound(w, r)
 			return
