@@ -145,7 +145,8 @@ func TestPaperDedupe(t *testing.T) {
 		}
 	}
 	mkProp()
-	mkProp() // 连拍两提案
+	mkProp() // 连拍两提案——T-0131 去重触发器在源：第二插同键在途即跳，
+	// 表内恒一行（旧语义 armed+retired 对不再产生）。
 	if err := r.scan(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -154,15 +155,13 @@ func TestPaperDedupe(t *testing.T) {
 		"SELECT count(*) FROM fin_strategy WHERE inst_id='DD-USDT-SWAP'").Scan(&n); err != nil || n != 1 {
 		t.Fatalf("同键策略行=%d（应=1 armed 复用）", n)
 	}
-	// T-0069：同键只留最新一行 armed——旧武装退役（被吸收不滞留 proposed
-	// 也不淤积 armed）。两提案：1 armed + 1 retired。
 	if err := pool.QueryRow(ctx,
-		"SELECT count(*) FROM fin_proposal WHERE inst_id='DD-USDT-SWAP' AND state='fin_armed'").Scan(&n); err != nil || n != 1 {
-		t.Fatalf("armed 提案=%d（应=1 同键只留最新）", n)
+		"SELECT count(*) FROM fin_proposal WHERE inst_id='DD-USDT-SWAP'").Scan(&n); err != nil || n != 1 {
+		t.Fatalf("去重触发器后同键提案应恒=1 n=%d", n)
 	}
 	if err := pool.QueryRow(ctx,
-		"SELECT count(*) FROM fin_proposal WHERE inst_id='DD-USDT-SWAP' AND state='fin_retired'").Scan(&n); err != nil || n != 1 {
-		t.Fatalf("retired 提案=%d（应=1 旧武装退役）", n)
+		"SELECT count(*) FROM fin_proposal WHERE inst_id='DD-USDT-SWAP' AND state='fin_armed'").Scan(&n); err != nil || n != 1 {
+		t.Fatalf("armed 提案=%d（应=1）", n)
 	}
 	// 部分唯一索引拒第二 active 行
 	if _, err := pool.Exec(ctx, `INSERT INTO fin_strategy(inst_id,template_ref,state,notional_usd,venue,direction)

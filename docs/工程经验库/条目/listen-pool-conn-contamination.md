@@ -41,3 +41,10 @@ T-0126 前 ev_eval 只发 INSERT（罕发），扩成 INSERT OR UPDATE 后变成
 LISTEN/NOTIFY 的会话语义 vs 连接池复用语义的错配——两层各自正确
 （PG 会话常驻、池复用透明），组合后频道归属不可见。T-0126 合理的
 UPDATE 触发器扩展只是把它从低频引爆成高频。
+
+## 追补（2026-10-25 T-0131 根修落件）
+- `listenOnce`/`listenOnceDeadline` defer `UNLISTEN *` 还池——污染根断；
+  ctx 取消态用 Background 兜底执行（取消≠免清）。
+- 写入入口幂等=止血闸钦定形：`fin_proposal_dedupe` BEFORE INSERT 触发器
+  入迁移 0054（临时件固化）；应用层去重同步升「proposed/armed 提案+active
+  策略」双查——触发器兜应用层查插竞态。

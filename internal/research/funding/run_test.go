@@ -229,3 +229,60 @@ func TestMacroAnnotate(t *testing.T) {
 	e3 := &Eval{InstID: "M3", Evidence: map[string]any{}}
 	r.annotateMacro(ctx, e3) // fail-open 无注解不炸
 }
+
+// T-0131 锚：提案去重升级——同键 active 策略在册→persist 不再插提案行
+// （洪泛期病灶：armed/live 消化后下拍重插灌穿提案表）。
+func TestActiveStrategyBlocksProposal(t *testing.T) {
+	pool := testutil.Pool(t)
+	ctx := context.Background()
+	if err := pgstore.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	for k, v := range map[string]string{
+		"research.funding.taker_fee_bps": "5", "research.funding.slippage_bps": "3",
+		"research.funding.fail_cost_bps": "2", "research.funding.window_loss_bps": "4",
+		"research.funding.min_net_apr": "0.05", "research.funding.settles_per_day": "3"} {
+		if _, err := pool.Exec(ctx,
+			"INSERT INTO app_config(key,value) VALUES($1,to_jsonb($2::text)) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value", k, v); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO md_funding(ts,inst_id,funding_rate)
+		VALUES(now(),'DUP-USDT-SWAP',0.01)`); err != nil {
+		t.Fatal(err)
+	}
+	// 同键 active 策略在册——新提案应被闸。
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_strategy(inst_id,template_ref,state,notional_usd,direction)
+		VALUES('DUP-USDT-SWAP','funding-hedge','paper',100,'short_perp_long_spot')`); err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.New(pool)
+	if err := cfg.Load(ctx); err != nil {
+		t.Fatal(err)
+	}
+	r := NewRunner(pool, cfg)
+	if err := r.scan(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM fin_proposal
+		WHERE inst_id='DUP-USDT-SWAP'`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("同键 active 策略在册应零提案 n=%d err=%v", n, err)
+	}
+	// 触发器闸（迁移 0054）：同键 proposed/armed 直插也被跳。
+	var eid int64
+	if err := pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,verdict,legs,evidence)
+		VALUES('TRG-USDT-SWAP','funding-hedge','short_perp_long_spot','proposed','{}','{}') RETURNING id`).Scan(&eid); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 2; i++ {
+		if _, err := pool.Exec(ctx, `INSERT INTO fin_proposal(eval_id,inst_id,direction,net_apr)
+			VALUES($1,'TRG-USDT-SWAP','short_perp_long_spot',1.0)`, eid); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM fin_proposal
+		WHERE inst_id='TRG-USDT-SWAP'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("去重触发器应同键只留一行 n=%d err=%v", n, err)
+	}
+}

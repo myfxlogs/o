@@ -172,8 +172,11 @@ func (r *Runner) persist(ctx context.Context, e Eval, p Params) error {
 		return nil
 	}
 	var open int
-	if err := r.pool.QueryRow(ctx,
-		"SELECT count(*) FROM fin_proposal WHERE inst_id=$1 AND state='fin_proposed'", e.InstID).Scan(&open); err != nil {
+	if err := r.pool.QueryRow(ctx, `SELECT (SELECT count(*) FROM fin_proposal
+		WHERE inst_id=$1 AND direction=$2 AND state IN ('fin_proposed','fin_armed'))
+		+ (SELECT count(*) FROM fin_strategy
+		WHERE inst_id=$1 AND direction=$2 AND state<>'retired')`,
+		e.InstID, e.Direction).Scan(&open); err != nil {
 		return err
 	}
 	if open > 0 {

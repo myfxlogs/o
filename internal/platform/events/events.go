@@ -44,7 +44,12 @@ func listenOnce(ctx context.Context, pool *pgxpool.Pool, channels []string, fn f
 	if err != nil {
 		return err
 	}
-	defer conn.Release()
+	// LISTEN 会话级常驻——还池前 UNLISTEN 全清（T-0131 根修：池连接频道残留
+	// 污染下任借用者=自激洪泛源；ctx 已取消时用 Background 兜底执行）。
+	defer func() {
+		_, _ = conn.Exec(context.Background(), "UNLISTEN *")
+		conn.Release()
+	}()
 	for _, ch := range channels {
 		if _, err := conn.Exec(ctx, "LISTEN "+ch); err != nil {
 			return err
@@ -98,7 +103,10 @@ func listenOnceDeadline(ctx context.Context, pool *pgxpool.Pool, name string, ch
 	if err != nil {
 		return err
 	}
-	defer conn.Release()
+	defer func() { // 同 listenOnce——频道残留禁带还池（T-0131）
+		_, _ = conn.Exec(context.Background(), "UNLISTEN *")
+		conn.Release()
+	}()
 	for _, ch := range channels {
 		if _, err := conn.Exec(ctx, "LISTEN "+ch); err != nil {
 			return err
