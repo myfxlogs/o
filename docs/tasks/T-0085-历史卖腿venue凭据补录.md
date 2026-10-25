@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | 待验 |
+| 状态 | 完成 |
 | 立项 | `[角色:决策]` 会话指派令 2026-10-25（本票面由施工席自指派令转档——决策席未及入库，验收席核） |
 | 领取 | zcode-glm @ 2026-10-25（worktree /opt/phase-wt/t0085，支 t/0085-sell-leg-backfill） |
 | 涉及面 | fin_order_leg/fin_cashflow 历史行补录（生产数据面）、tools/fillsprobe（只读取证件） |
