@@ -2,6 +2,7 @@ package ledger
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"phase/internal/platform/config"
@@ -181,5 +182,107 @@ func TestPostInterest(t *testing.T) {
 func TestInterestKindsInClosedSet(t *testing.T) {
 	if !kinds["interest"] || !kinds["recon_adjust"] {
 		t.Fatal("interest/recon_adjust 应在 kind 闭集")
+	}
+}
+
+// T-0087 锚②：划转/执行在途窗 debounce——30s 内 earn_in/earn_out 行（票面
+// 触发面）、transfer decision 行（T-0060 停写后实况触发面）、leg/execution
+// 行（列名勘误锚）任一在=跳过不判；全拨窗外=恢复判定。
+func TestReconcileDebounceWindows(t *testing.T) {
+	ctx, r := setup(t)
+	var ven map[[2]string]float64
+	r.WithBalances(func(ctx context.Context) (map[[2]string]float64, error) { return ven, nil })
+	if _, err := Post(ctx, r.pool, Entry{Kind: "deposit", Venue: "okx", Ccy: "USDT",
+		Amount: 100, SourceRef: 1, SourceTable: "t"}); err != nil {
+		t.Fatal(err)
+	}
+	ven = map[[2]string]float64{{"okx", "USDT"}: 200} // 恒差 100 的判定态
+	snap := func() int64 { return r.rej.Snapshot()["ledger/diff_alert"] }
+	expectSkip := func(stage string) {
+		before := snap()
+		if err := r.reconcile(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if snap() != before {
+			t.Fatalf("%s: 窗内应跳过不判", stage)
+		}
+	}
+	expectJudge := func(stage string) {
+		before := snap()
+		if err := r.reconcile(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if snap() == before {
+			t.Fatalf("%s: 窗外应恢复判定（差 100 超容差必告警）", stage)
+		}
+	}
+	// ① 票面触发面：earn_in 行窗内→跳过；拨旧→判定。
+	if _, err := Post(ctx, r.pool, Entry{Kind: "earn_in", Venue: "okx", Ccy: "USDT",
+		Amount: 50, SourceRef: 9, SourceTable: "fin_risk_decision"}); err != nil {
+		t.Fatal(err)
+	}
+	expectSkip("earn 行窗内")
+	if _, err := r.pool.Exec(ctx, `UPDATE fin_cashflow SET ts=now()-interval '1 hour' WHERE kind='earn_in'`); err != nil {
+		t.Fatal(err)
+	}
+	expectJudge("earn 行窗外")
+	// ② 实况触发面：transfer decision 行窗内→跳过；拨旧→判定。
+	if _, err := r.pool.Exec(ctx, `INSERT INTO fin_risk_decision(intent,decision,reason,config_gen)
+		VALUES('{"kind":"transfer"}','allow','transfer',1)`); err != nil {
+		t.Fatal(err)
+	}
+	expectSkip("transfer 行窗内")
+	if _, err := r.pool.Exec(ctx, `UPDATE fin_risk_decision SET ts=now()-interval '1 hour' WHERE reason='transfer'`); err != nil {
+		t.Fatal(err)
+	}
+	// ③ 执行面：leg/execution 窗内→跳过（旧列名 created_at/opened_at 恒错被
+	// 吞=debounce 假在——此段对列名勘误为直接锚）；全拨旧→判定。
+	var xid int64
+	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_execution(inst_id,notional_usd,state)
+		VALUES('X',100,'open') RETURNING id`).Scan(&xid); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.pool.Exec(ctx, `INSERT INTO fin_order_leg(execution_id,leg_no,cl_ord_id,venue,side,inst_id,sz,state)
+		VALUES($1,1,'cl-t87','okx','buy','X-USDT',1,'filled')`, xid); err != nil {
+		t.Fatal(err)
+	}
+	expectSkip("leg/execution 窗内")
+	if _, err := r.pool.Exec(ctx, `UPDATE fin_order_leg SET ts=now()-interval '1 hour'`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.pool.Exec(ctx, `UPDATE fin_execution SET created_at=now()-interval '1 hour'`); err != nil {
+		t.Fatal(err)
+	}
+	expectJudge("全窗外")
+}
+
+// T-0087 锚①（账本面）：对拍净值=Σcashflow+mtm 偏移——现货资产市值项经 mtm
+// 读件入净（读件构成锚在 cmd/core）；偏移读败=0 不加不减，照判不让位。
+func TestReconcileMTMOffset(t *testing.T) {
+	ctx, r := setup(t)
+	var ven map[[2]string]float64
+	r.WithBalances(func(ctx context.Context) (map[[2]string]float64, error) { return ven, nil })
+	if _, err := Post(ctx, r.pool, Entry{Kind: "deposit", Venue: "okx", Ccy: "USDT",
+		Amount: 100, SourceRef: 1, SourceTable: "t"}); err != nil {
+		t.Fatal(err)
+	}
+	ven = map[[2]string]float64{{"okx", "USDT"}: 104.5}
+	r.WithMTM(func(ctx context.Context) (map[[2]string]float64, error) {
+		return map[[2]string]float64{{"okx", "USDT"}: 4.5}, nil
+	})
+	if err := r.reconcile(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if n := r.rej.Snapshot()["ledger/diff_alert"]; n != 0 {
+		t.Fatalf("mtm 偏移应入净（100+4.5=104.5 平）: diff_alert=%d", n)
+	}
+	r.WithMTM(func(ctx context.Context) (map[[2]string]float64, error) {
+		return nil, fmt.Errorf("mtm 读败")
+	})
+	if err := r.reconcile(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if r.rej.Snapshot()["ledger/diff_alert"] == 0 {
+		t.Fatal("mtm 读败应按 0 净额判定（差 4.5 必告警）")
 	}
 }
