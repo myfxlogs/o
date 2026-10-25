@@ -315,3 +315,36 @@ func TestReconcileOffLedgerExempt(t *testing.T) {
 		t.Fatalf("diff_alert=%d（应恰 1——USDT 告警、账外币豁免零警）", got)
 	}
 }
+
+// T-0090 锚：在册口径=fin_cashflow ∪ 已成交腿基币（ETH-USDT→ETH，-SWAP 后缀
+// 同剥；未成交腿不算）——legacy 标位与对拍白名单同源消费唯一真源。
+func TestLedgeredCcyLegBase(t *testing.T) {
+	ctx, r := setup(t)
+	if _, err := Post(ctx, r.pool, Entry{Kind: "deposit", Venue: "okx", Ccy: "USDT",
+		Amount: 1, SourceRef: 1, SourceTable: "t"}); err != nil {
+		t.Fatal(err)
+	}
+	var xid int64
+	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_execution(inst_id,notional_usd,state)
+		VALUES('ETH-USDT-SWAP',100,'open') RETURNING id`).Scan(&xid); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.pool.Exec(ctx, `INSERT INTO fin_order_leg(execution_id,leg_no,cl_ord_id,venue,side,inst_id,sz,state)
+		VALUES ($1,1,'cl-a','okx','buy','ETH-USDT',1,'filled'),
+		       ($1,2,'cl-b','okx','sell','ETH-USDT-SWAP',1,'filled'),
+		       ($1,3,'cl-c','okx','buy','DOGE-USDT',1,'placed')`, xid); err != nil {
+		t.Fatal(err)
+	}
+	set, err := LedgeredCcy(ctx, r.pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, k := range [][2]string{{"okx", "USDT"}, {"okx", "ETH"}} {
+		if !set[k] {
+			t.Fatalf("在册集缺 %v", k)
+		}
+	}
+	if set[[2]string{"okx", "DOGE"}] {
+		t.Fatal("未成交腿基币不应入册")
+	}
+}
