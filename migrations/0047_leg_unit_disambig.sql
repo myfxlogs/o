@@ -1,4 +1,4 @@
--- 0046 T-0107 腿量纲混记绞肉环根修（P0 钱径）：
+-- 0047 T-0107 腿量纲混记绞肉环根修（P0 钱径）：
 --   fin_order_leg.sz 双语义（ETH 币量记 vs BTC quote 额记）→ guard.notionalNow
 --   按 sz×px 读 quote 额腿=$1.94M 假失衡 ~20000bps ≫500 兜底 → 开盘 140ms 秒杀
 --   ×9 轮连绞（$0.05/轮）。消歧：sz_unit 语义位+qty_base=venue 实填币量
