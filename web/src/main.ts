@@ -49,9 +49,10 @@ async function ov(): Promise<void> {
           secs.map((sec) => {
             const srows = vrows.filter((m) => m.section === sec)
             const sum = srows.reduce((a, m) => a + m.usd, 0)
-            // T-0114 乙④：户小计行撤除——其值已并入场头（其他分区小计保留）。
+            // T-0114 乙④返修：户节头整行删净（其值已并入场头——零行零占位）。
             const secSum = sec === '户' ? '' : (srows.some((m) => m.note) ? '' : '$' + sum.toFixed(1))
-            return `<div class="sec-t">${h(sec)}<i>${secSum}</i></div>` +
+            const secHead = sec === '户' ? '' : `<div class="sec-t">${h(sec)}<i>${secSum}</i></div>`
+            return secHead +
               srows.map((m) =>
                 m.note
                   ? `<div class="row lg-t"><span>${h(m.label)}</span><b>${h(m.note)}</b></div>`
