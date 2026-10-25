@@ -44,8 +44,7 @@ type Collector struct {
 
 	frames    atomic.Int64 // 业务帧计数（观测面）
 	lastFrame atomic.Int64 // 最近业务帧 UnixNano（status 端点/看门狗同读）
-	lastSeq   map[string]int64
-	Stats     *Door // 别名 rej（对外观测名）
+	Stats     *Door        // 别名 rej（对外观测名）
 	meter     *netmeter.Meter
 }
 
@@ -58,10 +57,9 @@ type Door = rejects.Door
 func NewCollector(pool *pgxpool.Pool, cfg *config.Client) *Collector {
 	return &Collector{
 		pool: pool, cfg: cfg, url: PublicURL,
-		rej:     rejects.New("okxws", "non_usdt_instid", "seq_gap", "parse_fail", "write_err", "symbols_missing"),
-		queue:   make(chan rowItem, 1024),
-		lastSeq: map[string]int64{},
-		Stats:   nil,
+		rej:   rejects.New("okxws", "non_usdt_instid", "seq_gap", "parse_fail", "write_err", "symbols_missing"),
+		queue: make(chan rowItem, 1024),
+		Stats: nil,
 	}
 }
 
@@ -132,13 +130,12 @@ func (c *Collector) symbols(ctx context.Context) ([]string, error) {
 	return out, nil
 }
 
-// subscribeArgs 五频道订阅面（funding-rate/mark-price 仅 SWAP instId 合法；
-// index-tickers 挂 spot 形 instId；books5/tickers 两形通用）。
+// subscribeArgs 四频道订阅面（funding-rate/mark-price 仅 SWAP instId 合法；
+// index-tickers 挂 spot 形 instId；T-0123 books5 撤订——零读者实锤）。
 func subscribeArgs(syms []string) []map[string]string {
 	args := make([]map[string]string, 0, len(syms)*4)
 	for _, s := range syms {
-		args = append(args, map[string]string{"channel": "tickers", "instId": s},
-			map[string]string{"channel": "books5", "instId": s})
+		args = append(args, map[string]string{"channel": "tickers", "instId": s})
 		if strings.HasSuffix(s, "-SWAP") {
 			args = append(args,
 				map[string]string{"channel": "funding-rate", "instId": s},
@@ -232,11 +229,6 @@ func (c *Collector) handle(data []byte) {
 		switch msg.Arg.Channel {
 		case "tickers":
 			it.tick = parseTickers(instID, d)
-		case "books5":
-			it.books = parseBooks5(instID, d)
-			if it.books != nil {
-				c.checkSeq(it.books)
-			}
 		case "funding-rate":
 			it.funding = parseFunding(instID, d)
 		case "mark-price", "index-tickers":
@@ -244,7 +236,7 @@ func (c *Collector) handle(data []byte) {
 		default:
 			continue
 		}
-		if it.tick == nil && it.books == nil && it.funding == nil && it.mark == nil {
+		if it.tick == nil && it.funding == nil && it.mark == nil {
 			c.rej.Inc("parse_fail")
 			continue
 		}
@@ -258,18 +250,7 @@ func (c *Collector) handle(data []byte) {
 	}
 }
 
-// checkSeq books5 seqId 单调性判据（快照频道 seqId 递增；倒退=序列缺——
-// 计数+warn 不丢行，事实行原样入库带 recv_ts）。
-func (c *Collector) checkSeq(b *booksRow) {
-	if !b.hasSeq {
-		return
-	}
-	if last, ok := c.lastSeq[b.instID]; ok && b.seqID <= last {
-		c.rej.Inc("seq_gap")
-		log.Printf("[okxws] books5 seq 倒退 %s: %d<=%d（序列完整性违例）", b.instID, b.seqID, last)
-	}
-	c.lastSeq[b.instID] = b.seqID
-}
+// （books5 撤订后序列完整性判据随面退役——T-0123，seq 缺口无消费者）。
 
 // FrameCount 业务帧累计（status 观测面）。
 func (c *Collector) FrameCount() int64 { return c.frames.Load() }

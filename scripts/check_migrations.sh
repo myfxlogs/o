@@ -51,8 +51,21 @@ while IFS= read -r f; do
 	}
 done < <(find migrations -maxdepth 1 -name '*.sql' | sort)
 
+# ④ T-0123：新 md_* 表（>0049）须声明 upsert 键（PRIMARY KEY/UNIQUE）或窗口
+# 读面坐标+保留期（add_retention_policy）——追加式快照全废机检化，缺=拦。
+while IFS= read -r f; do
+	name=$(basename "$f")
+	num=$((10#${name%%_*}))
+	[ "$num" -le 49 ] && continue
+	grep -qE 'CREATE TABLE[^(]*\bmd_' "$f" || continue
+	grep -qE 'PRIMARY KEY|UNIQUE|add_retention_policy' "$f" || {
+		echo "FAIL $name: 新 md_* 表未声明 upsert 键/窗口保留期（追加式快照全废——T-0123）" >&2
+		fail=1
+	}
+done < <(find migrations -maxdepth 1 -name '*.sql' | sort)
+
 if [ "$fail" -eq 1 ]; then
-	echo "❌ check_migrations: 迁移序号断言红——撞号/silent-skip 病灶禁提交（canon migration-number-collision）" >&2
+	echo "❌ check_migrations: 断言红——撞号/silent-skip/快照表病灶禁提交（canon migration-number-collision）" >&2
 	exit 1
 fi
-echo "OK: check_migrations（三断言过——登记唯一/前缀实存/零孤儿）"
+echo "OK: check_migrations（四断言过——登记唯一/前缀实存/零孤儿/md_* 键域或保留期）"

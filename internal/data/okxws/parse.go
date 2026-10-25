@@ -68,24 +68,6 @@ func parseTickers(instID string, d map[string]json.RawMessage) *tickRow {
 	return &tickRow{instID: instID, ts: ts, last: num(d, "last"), bid: bid, ask: ask, vol24h: num(d, "vol24h")}
 }
 
-// parseBooks5 → booksRow（五档快照；bids/asks 原样存 jsonb+顶档校验存在性）。
-func parseBooks5(instID string, d map[string]json.RawMessage) *booksRow {
-	if _, ok := d["bids"]; !ok {
-		return nil
-	}
-	if _, ok := d["asks"]; !ok {
-		return nil
-	}
-	ts := tsms(d, "ts")
-	if ts.IsZero() {
-		ts = time.Now().UTC()
-	}
-	seq := intv(d, "seqId")
-	return &booksRow{instID: instID, ts: ts,
-		bids: json.RawMessage(d["bids"]), asks: json.RawMessage(d["asks"]),
-		seqID: seq, checksum: intv(d, "checksum"), hasSeq: seq != 0}
-}
-
 // parseFunding → fundingRow。
 func parseFunding(instID string, d map[string]json.RawMessage) *fundingRow {
 	ts := tsms(d, "fundingTime")

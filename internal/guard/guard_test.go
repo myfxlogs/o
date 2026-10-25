@@ -568,7 +568,8 @@ func seedEthFacts(t *testing.T, ctx context.Context, w *Warden, spotPx, perpPx s
 	t.Helper()
 	for inst, px := range map[string]string{"ETH-USDT": spotPx, "ETH-USDT-SWAP": perpPx} {
 		if _, err := w.pool.Exec(ctx,
-			`INSERT INTO md_ticks(ts,venue,inst_id,last) VALUES(now(),'okx',$1,$2)`, inst, px); err != nil {
+			`INSERT INTO md_ticks(ts,venue,inst_id,last) VALUES(now(),'okx',$1,$2)
+			ON CONFLICT (venue,inst_id) DO UPDATE SET ts=EXCLUDED.ts,last=EXCLUDED.last`, inst, px); err != nil {
 			t.Fatal(err)
 		}
 	}

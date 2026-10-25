@@ -138,7 +138,8 @@ func (w *Worker) pollRate(ctx context.Context) {
 		return
 	}
 	if _, err := w.pool.Exec(ctx,
-		`INSERT INTO md_earn_rate(ts,venue,ccy,rate) VALUES(now(),$1,$2,$3)`, w.venue, w.ccy, rs.AvgRate); err != nil {
+		`INSERT INTO md_earn_rate(ts,venue,ccy,rate) VALUES(now(),$1,$2,$3)
+		ON CONFLICT (venue,ccy) DO UPDATE SET ts=EXCLUDED.ts,rate=EXCLUDED.rate`, w.venue, w.ccy, rs.AvgRate); err != nil {
 		w.rej.Inc("write_err")
 		log.Printf("[earn] md_earn_rate 写败: %v", err)
 	}

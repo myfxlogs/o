@@ -34,7 +34,7 @@ func TestSubscribeArgs(t *testing.T) {
 	for _, a := range args {
 		got[a["channel"]]++
 	}
-	want := map[string]int{"tickers": 2, "books5": 2, "funding-rate": 1, "mark-price": 1, "index-tickers": 1}
+	want := map[string]int{"tickers": 2, "funding-rate": 1, "mark-price": 1, "index-tickers": 1}
 	for ch, n := range want {
 		if got[ch] != n {
 			t.Fatalf("channel %s=%d want %d（args=%v）", ch, got[ch], n, args)
@@ -52,16 +52,6 @@ func TestParseTicks(t *testing.T) {
 	bad := msg(t, "tickers", "BTC-USDT-SWAP", map[string]any{"bidPx": "0", "askPx": "0"})
 	if r := parseTickers(bad.Arg.InstID, bad.Data[0]); r != nil {
 		t.Fatal("零价帧应拒")
-	}
-}
-
-func TestParseBooks5Seq(t *testing.T) {
-	m := msg(t, "books5", "BTC-USDT-SWAP", map[string]any{
-		"bids": [][]string{{"1", "2"}}, "asks": [][]string{{"3", "4"}},
-		"seqId": "42", "checksum": "7", "ts": "1761000000000"})
-	r := parseBooks5(m.Arg.InstID, m.Data[0])
-	if r == nil || r.seqID != 42 || !r.hasSeq || r.checksum != 7 {
-		t.Fatalf("books5 parse: %+v", r)
 	}
 }
 

@@ -105,7 +105,9 @@ func dcdSyncEvents(ctx context.Context, pool *pgxpool.Pool, ords []okxexec.DcdOr
 	}
 	data, _ := json.Marshal(map[string]any{"live_ids": fp, "orders": payload})
 	if _, err := pool.Exec(ctx, `INSERT INTO md_account_events(venue,channel,ccy,data,ts)
-		VALUES('okx','dcd_live','', $1, now())`, data); err != nil {
+		VALUES('okx','dcd_live','', $1, now())
+		ON CONFLICT (venue,channel,ccy,inst_id) DO UPDATE SET ts=EXCLUDED.ts,
+		data=EXCLUDED.data,recv_ts=now()`, data); err != nil {
 		log.Printf("[dcd] 持仓集事件行写败: %v", err)
 	}
 }

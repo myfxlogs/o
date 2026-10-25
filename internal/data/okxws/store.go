@@ -38,7 +38,9 @@ func (c *Collector) writer(ctx context.Context) {
 	}
 }
 
-// insertBatch 单事务四表分桶批量插（pgx.Batch——一次往返，venue 列默认 'okx'）。
+// insertBatch 单事务三表分桶批量插（pgx.Batch——一次往返，venue 列默认 'okx'；
+// T-0123 状态表化：ticks/mark 改 upsert 末帧覆盖，books5 零读者停写撤订阅，
+// funding 有窗口消费者仍追加+30d 保留期）。
 func (c *Collector) insertBatch(ctx context.Context, rows []rowItem) error {
 	b := &pgx.Batch{}
 	n := 0
@@ -46,13 +48,10 @@ func (c *Collector) insertBatch(ctx context.Context, rows []rowItem) error {
 		switch {
 		case it.tick != nil:
 			r := it.tick
-			b.Queue(`INSERT INTO md_ticks(ts,inst_id,last,bid,ask,vol_24h) VALUES($1,$2,$3,$4,$5,$6)`,
+			b.Queue(`INSERT INTO md_ticks(ts,inst_id,last,bid,ask,vol_24h) VALUES($1,$2,$3,$4,$5,$6)
+				ON CONFLICT (venue,inst_id) DO UPDATE SET ts=EXCLUDED.ts,last=EXCLUDED.last,
+				bid=EXCLUDED.bid,ask=EXCLUDED.ask,vol_24h=EXCLUDED.vol_24h,recv_ts=now()`,
 				r.ts, r.instID, r.last, r.bid, r.ask, r.vol24h)
-			n++
-		case it.books != nil:
-			r := it.books
-			b.Queue(`INSERT INTO md_books5(ts,inst_id,bids,asks,seq_id,checksum) VALUES($1,$2,$3,$4,$5,$6)`,
-				r.ts, r.instID, r.bids, r.asks, r.seqID, r.checksum)
 			n++
 		case it.funding != nil:
 			r := it.funding
@@ -61,7 +60,9 @@ func (c *Collector) insertBatch(ctx context.Context, rows []rowItem) error {
 			n++
 		case it.mark != nil:
 			r := it.mark
-			b.Queue(`INSERT INTO md_mark_index(ts,inst_id,channel,px) VALUES($1,$2,$3,$4)`,
+			b.Queue(`INSERT INTO md_mark_index(ts,inst_id,channel,px) VALUES($1,$2,$3,$4)
+				ON CONFLICT (venue,inst_id,channel) DO UPDATE SET ts=EXCLUDED.ts,
+				px=EXCLUDED.px,recv_ts=now()`,
 				r.ts, r.instID, r.channel, r.px)
 			n++
 		}

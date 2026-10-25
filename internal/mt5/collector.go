@@ -212,7 +212,9 @@ func (c *Collector) session(ctx context.Context, dial func(string) (*Client, err
 			continue // 空帧（心跳形）不落表
 		}
 		if _, err := c.pool.Exec(ctx,
-			`INSERT INTO md_ticks(ts,venue,inst_id,last,bid,ask) VALUES(now(),'mt5',$1,$2,$3,$4)`,
+			`INSERT INTO md_ticks(ts,venue,inst_id,last,bid,ask) VALUES(now(),'mt5',$1,$2,$3,$4)
+			ON CONFLICT (venue,inst_id) DO UPDATE SET ts=EXCLUDED.ts,last=EXCLUDED.last,
+			bid=EXCLUDED.bid,ask=EXCLUDED.ask,recv_ts=now()`,
 			q.Symbol, q.Last, q.Bid, q.Ask); err != nil {
 			c.rej.Inc("tick_write_err")
 		}
@@ -250,7 +252,9 @@ func (c *Collector) profitLoop(ctx context.Context, st grpc.ServerStreamingClien
 			"open": len(p.Orders), "src": "on_order_profit"})
 		if _, err := c.pool.Exec(ctx,
 			`INSERT INTO md_account_events(ts,venue,channel,ccy,data)
-			VALUES(now(),'mt5','order_profit','USD',$1)`, blob); err != nil {
+			VALUES(now(),'mt5','order_profit','USD',$1)
+			ON CONFLICT (venue,channel,ccy,inst_id) DO UPDATE SET ts=EXCLUDED.ts,
+			data=EXCLUDED.data,recv_ts=now()`, blob); err != nil {
 			c.rej.Inc("snapshot_write_failed")
 		}
 	}
@@ -267,7 +271,9 @@ func (c *Collector) snapshotOnce(ctx context.Context, cl *Client, src string) {
 	}
 	blob, _ := json.Marshal(map[string]any{"eq": eq, "avail": fm, "src": src, "login": c.cr.Login})
 	if _, err := c.pool.Exec(ctx, `INSERT INTO md_account_events(ts,venue,channel,ccy,data)
-		VALUES(now(),'mt5',$1,'USD',$2)`, src, blob); err != nil {
+		VALUES(now(),'mt5',$1,'USD',$2)
+		ON CONFLICT (venue,channel,ccy,inst_id) DO UPDATE SET ts=EXCLUDED.ts,
+		data=EXCLUDED.data,recv_ts=now()`, src, blob); err != nil {
 		c.rej.Inc("snapshot_write_failed")
 	}
 }

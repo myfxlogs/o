@@ -186,7 +186,9 @@ func (w *Worker) refreshParkingSnapshot(ctx context.Context, src string) error {
 	}
 	blob, _ := json.Marshal(map[string]any{"earn_bal": bal, "src": src})
 	if _, err := w.pool.Exec(ctx, `INSERT INTO md_account_events(ts,venue,channel,ccy,data)
-		VALUES(now(),$1,'earn_parking',$2,$3)`, w.venue, w.ccy, blob); err != nil {
+		VALUES(now(),$1,'earn_parking',$2,$3)
+		ON CONFLICT (venue,channel,ccy,inst_id) DO UPDATE SET ts=EXCLUDED.ts,
+		data=EXCLUDED.data,recv_ts=now()`, w.venue, w.ccy, blob); err != nil {
 		w.rej.Inc("write_err")
 		return err
 	}

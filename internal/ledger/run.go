@@ -270,11 +270,13 @@ func (r *Runner) postInterest(ctx context.Context) {
 		if last != nil && cur-*last < 0.005 {
 			continue // 应计不足半分不入账（逐拍对拍不放大 REST/写面）
 		}
-		// md_account_events 无代理 PK（hypertable）——source_ref=事件行 ts 毫秒
-		//（append-only 单调，真源定位口径：source_table='md_account_events'+ts 毫秒）。
+		// md_account_events 状态表化（T-0123）——source_ref=行 ts 毫秒
+		//（upsert 末帧覆盖仍单调，真源定位口径同前：source_table+ts 毫秒）。
 		var evID int64
 		if err := r.pool.QueryRow(ctx, `INSERT INTO md_account_events(ts,venue,channel,ccy,data)
 			VALUES(now(),'okx','earn_interest',$1,jsonb_build_object('earnings',$2::numeric))
+			ON CONFLICT (venue,channel,ccy,inst_id) DO UPDATE SET ts=EXCLUDED.ts,
+			data=EXCLUDED.data,recv_ts=now()
 			RETURNING (extract(epoch from ts)*1000)::bigint`,
 			ccy, cur).Scan(&evID); err != nil {
 			r.rej.Inc("write_err")
