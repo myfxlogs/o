@@ -1,0 +1,8 @@
+internal/gen
+web/src/gen
+web/node_modules
+web/dist
+.git
+docs
+secrets
+tools/**/fillsprobe

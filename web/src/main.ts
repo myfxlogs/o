@@ -152,6 +152,7 @@ function orgSVG(staff: { name: string; duty: string; state: number }[]): string 
     '执事': [840, 130], '司账': [1040, 130], '核账': [1040, 240],
     '信使': [1040, 350],
     '评史官': [240, 240], '配管': [440, 240], '仓巡': [840, 240],
+    '差扫': [40, 350],
     '集使': [40, 460], '行情巡': [240, 460], '私流守': [440, 460], '汇市巡': [640, 460],
   }
   const defs = `<defs>
@@ -200,7 +201,7 @@ function orgSVG(staff: { name: string; duty: string; state: number }[]): string 
     <circle cx="510" cy="540" r="4" fill="#fbbf24"/><text x="520" y="544" fill="var(--dim)" font-size="10">迟滞</text>
     <circle cx="570" cy="540" r="4" fill="#f87171"/><text x="580" y="544" fill="var(--dim)" font-size="10">离线</text>`
   for (const nm of ['o-core', '探员', '验证官', '命官', '门官', '执事', '司账', '核账', '信使',
-    '评史官', '配管', '仓巡', '集使', '行情巡', '私流守', '汇市巡']) {
+    '评史官', '配管', '仓巡', '差扫', '集使', '行情巡', '私流守', '汇市巡']) {
     if (P[nm]) g += node(nm, P[nm][0], P[nm][1])
   }
   return `<svg viewBox="0 0 1260 570" style="width:100%;height:auto">${g}</svg>`
