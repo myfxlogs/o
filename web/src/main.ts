@@ -61,6 +61,8 @@ async function ov(): Promise<void> {
     if (vb && d.venues && d.venues.length) {
       vb.innerHTML = venuesHTML(d.venues)
     }
+    // TRX 自营盘（T-0108：业绩外显形——独立 /api/trx 端点零计 nav_total）。
+    renderTrx()
     // staff 组织架构图（T-0079 v2：直显不收起——宪章 §6 钱程拓扑；API 缺面藏卡如实）。
     const sc = document.getElementById('c-staff')
     if (sc) {
@@ -205,4 +207,51 @@ function orgSVG(staff: { name: string; duty: string; state: number }[]): string 
     if (P[nm]) g += node(nm, P[nm][0], P[nm][1])
   }
   return `<svg viewBox="0 0 1260 570" style="width:100%;height:auto">${g}</svg>`
+}
+
+// renderTrx 自营盘四件（T-0108：账户资源/收益雷达/近期 txs/对冲结构——
+// 全件读件缺显形不造零；sun→TRX=1e6 显式换算）。
+async function renderTrx() {
+  const tb = document.getElementById('trx-body')
+  if (!tb) return
+  const j = async (p: string) => (await fetch('/api/trx/' + p)).json()
+  const [acct, radar, vote, txs, cmc, cpos] = await Promise.all(
+    ['account', 'radar', 'vote', 'txs', 'cmc', 'cmc_positions'].map(j))
+  const sun = (x: number) => (x / 1e6).toFixed(0)
+  const row = (l: string, v: string) =>
+    `<div class="row"><span>${h(l)}</span><b>${h(v)}</b></div>`
+  let h1 = '<div class="sec-t">账户资源<i>链上质押</i></div>'
+  if (!acct) h1 += row('账户资源', '读件缺')
+  else {
+    h1 += row('余额', sun(acct.balance_sun) + ' TRX') +
+      row('投票权', sun(acct.tron_power) + ' TRX → ' + (acct.sr_address || '未投票')) +
+      row('能量', `${acct.energy_used}/${acct.energy_limit}`) +
+      row('带宽', `${acct.net_used + acct.free_net_used}/${acct.net_limit + acct.free_net_limit}`) +
+      row('待领收益', sun(acct.reward_num_sun) + ' TRX')
+  }
+  let h2 = '<div class="sec-t">收益雷达<i>SR APR 榜</i></div>'
+  if (vote) h2 += row('当前 ' + (vote.current_sr || '—'),
+    `${(vote.current_rate * 100).toFixed(2)}% ｜ 最优 ${vote.max_sr} ${(vote.max_rate * 100).toFixed(2)}%`)
+  if (Array.isArray(radar) && radar.length) {
+    h2 += radar.slice(0, 5).map((r: { sr_address: string; apr: number }) =>
+      row(r.sr_address, (r.apr * 100).toFixed(2) + '%')).join('')
+  } else if (!vote) h2 += row('收益雷达', '读件缺')
+  let h3 = '<div class="sec-t">对冲结构<i>CMC CFD 腿</i></div>'
+  if (!cmc) h3 += row('CMC 账户', '读件缺')
+  else {
+    h3 += row('账户净值', '$' + Number(cmc.total_account_value).toFixed(0)) +
+      row('强平距离', (cmc.distance_to_closeout_pct || 0).toFixed(1) + '%')
+  }
+  if (Array.isArray(cpos) && cpos.length) {
+    h3 += cpos.map((p: { instrument_id: string; direction: string; quantity: number; unrealised_pnl: number }) =>
+      row(`${p.instrument_id} ${p.direction} ${p.quantity}`,
+        (p.unrealised_pnl >= 0 ? '+' : '') + p.unrealised_pnl.toFixed(0))).join('')
+  }
+  let h4 = '<div class="sec-t">近期 txs<i>链上动账</i></div>'
+  if (Array.isArray(txs) && txs.length) {
+    h4 += txs.slice(0, 8).map((t: { kind: string; amount_sun: number; ts: string }) =>
+      row(`${t.kind} ${t.ts.slice(0, 16).replace('T', ' ')}`,
+        sun(t.amount_sun) + ' TRX')).join('')
+  } else h4 += row('近期动账', '读件缺')
+  tb.innerHTML = h1 + h2 + h3 + h4
 }

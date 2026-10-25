@@ -42,6 +42,15 @@ internal/research/funding -> internal/platform/events
 internal/review -> internal/platform/events
 internal/data/okxpriv -> internal/platform/netmeter
 internal/data/okxws -> internal/platform/netmeter
+internal/platform/config -> internal/platform/cryptoutil
+internal/data/collect -> internal/data/fact
+internal/data/trx -> internal/data/fact
+internal/data/trx -> internal/platform/safego
+internal/data/trx -> internal/store/pgstore
+internal/data/cmc -> internal/data/fact
+internal/data/cmc -> internal/platform/safego
+internal/data/cmc -> internal/store/pgstore
+internal/data/fact -> internal/store/pgstore
 internal/mt5 -> internal/platform/netmeter
 internal/ledger/report -> internal/platform/roster
 internal/ledger -> internal/platform/roster

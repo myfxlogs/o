@@ -47,6 +47,7 @@ var migrationTable = []struct {
 	{43, "0043_dcd_baseline.sql"},
 	{42, "0042_fund_scope_tighten.sql"},
 	{44, "0044_capability_surface_dcd.sql"},
+	{46, "0046_trx_cmc_tables.sql"},
 	{45, "0045_hypothesis_chain.sql"},
 	{25, "0025_order_leg_venue_err.sql"},
 	{26, "0026_venue_facts.sql"},

@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"o/internal/platform/cryptoutil"
 	"sync"
 	"time"
 
@@ -125,12 +126,21 @@ func (c *Client) listenLoop(ctx context.Context, conn *pgx.Conn) error {
 	}
 }
 
-// Secret 读取 app_secrets 密文行（按次直读库——密文不进快照内存常驻面）。
+// Secret 读取 app_secrets 密文行并解密（按次直读库——密文不进快照内存常驻
+// 面；主权钥=ReadMasterKey 同九处惯例）。密钥缺件/解败=err 上抛 fail-closed。
 func (c *Client) Secret(ctx context.Context, key string) ([]byte, error) {
 	var ct []byte
 	if err := c.pool.QueryRow(ctx,
 		"SELECT ciphertext FROM app_secrets WHERE key=$1", key).Scan(&ct); err != nil {
 		return nil, fmt.Errorf("config: secret %q 读败：%w", key, err)
 	}
-	return ct, nil
+	mk, err := ReadMasterKey()
+	if err != nil {
+		return nil, fmt.Errorf("config: secret %q 密钥缺席：%w", key, err)
+	}
+	p, err := cryptoutil.Open(mk, ct)
+	if err != nil {
+		return nil, fmt.Errorf("config: secret %q 解密败：%w", key, err)
+	}
+	return []byte(p), nil
 }
