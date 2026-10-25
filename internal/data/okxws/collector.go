@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"strings"
 	"sync/atomic"
 	"time"
 
@@ -146,24 +145,6 @@ func (c *Collector) symbols(ctx context.Context) ([]string, error) {
 	return out, nil
 }
 
-// subscribeArgs 五频道订阅面（funding-rate/mark-price 仅 SWAP instId 合法；
-// index-tickers 挂 spot 形 instId；books5/tickers 两形通用）。
-func subscribeArgs(syms []string) []map[string]string {
-	args := make([]map[string]string, 0, len(syms)*4)
-	for _, s := range syms {
-		args = append(args, map[string]string{"channel": "tickers", "instId": s},
-			map[string]string{"channel": "books5", "instId": s})
-		if strings.HasSuffix(s, "-SWAP") {
-			args = append(args,
-				map[string]string{"channel": "funding-rate", "instId": s},
-				map[string]string{"channel": "mark-price", "instId": s})
-		} else {
-			args = append(args, map[string]string{"channel": "index-tickers", "instId": s})
-		}
-	}
-	return args
-}
-
 // dialLoop 单连接生命周期：dial→订阅→读循环+ping+看门狗+config 代次探针。
 // 返回终因（错误/代次变）——外层退避重连。
 func (c *Collector) dialLoop(ctx context.Context, syms []string, gen int64) error {
@@ -172,11 +153,12 @@ func (c *Collector) dialLoop(ctx context.Context, syms []string, gen int64) erro
 		return fmt.Errorf("dial: %w", err)
 	}
 	defer conn.Close()
-	sub := map[string]any{"op": "subscribe", "args": subscribeArgs(syms)}
-	if err := conn.WriteJSON(sub); err != nil {
-		return fmt.Errorf("subscribe: %w", err)
+	// T-0122 返修②：OKX WS 单帧订阅 ≤100 args（全宇宙 ~500 arg 单帧被拍
+	// 死——分帧多 op 续发，订阅节流件在 subscribeAll 内）。
+	if err := subscribeAll(conn, subscribeArgs(syms)); err != nil {
+		return err
 	}
-	log.Printf("[okxws] subscribed syms=%d args=%d url=%s", len(syms), len(sub["args"].([]map[string]string)), c.url)
+	log.Printf("[okxws] subscribed syms=%d url=%s", len(syms), c.url)
 	// 看门狗起表（T-0050 根修）：lastFrame 初值 0=「未起表」盲区——队列塞死时
 	// 业务帧永不上前移，watchdog 恒 skip（SG 实勘静默断流）。订阅成功即起表：
 	// 75s 无帧判死重连，盲区消失。
