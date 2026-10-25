@@ -104,8 +104,8 @@ func dcdSyncEvents(ctx context.Context, pool *pgxpool.Pool, ords []okxexec.DcdOr
 		return // 在持集无变——幂等跳写
 	}
 	data, _ := json.Marshal(map[string]any{"live_ids": fp, "orders": payload})
-	if _, err := pool.Exec(ctx, `INSERT INTO md_account_events(venue,channel,ccy,data)
-		VALUES('okx','dcd_live','', $1)`, data); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO md_account_events(venue,channel,ccy,data,ts)
+		VALUES('okx','dcd_live','', $1, now())`, data); err != nil {
 		log.Printf("[dcd] 持仓集事件行写败: %v", err)
 	}
 }
