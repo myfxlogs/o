@@ -169,3 +169,64 @@ func TestPaperDedupe(t *testing.T) {
 		t.Fatal("同键第二 active 行未被索引拒")
 	}
 }
+
+// T-0098 方案 A 锚：degraded 超龄自动 retired+transition 留痕；龄内不波及；
+// 同键新提案可重新开 paper（#1 场景桩测——860 被吸径解锁）。
+func TestDegradedTTLRetire(t *testing.T) {
+	ctx, pool, cfg := setup(t)
+	for _, q := range []string{"DELETE FROM fin_strategy_transition", "DELETE FROM fin_strategy",
+		"DELETE FROM fin_proposal", "DELETE FROM fin_opp_eval"} {
+		if _, err := pool.Exec(ctx, q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var oldID, youngID, paperID int64
+	if err := pool.QueryRow(ctx, `INSERT INTO fin_strategy(inst_id,template_ref,state,notional_usd,entered_at)
+		VALUES('TTL-USDT-SWAP','funding-hedge','degraded',100,now()-interval '30 hours') RETURNING id`).Scan(&oldID); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(ctx, `INSERT INTO fin_strategy(inst_id,template_ref,state,notional_usd)
+		VALUES('TTL2-USDT-SWAP','funding-hedge','degraded',100) RETURNING id`).Scan(&youngID); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(ctx, `INSERT INTO fin_strategy(inst_id,template_ref,state,notional_usd)
+		VALUES('TTL3-USDT-SWAP','funding-hedge','paper',100) RETURNING id`).Scan(&paperID); err != nil {
+		t.Fatal(err)
+	}
+	r := NewRunner(pool, cfg)
+	if err := r.scan(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var st, reason string
+	if err := pool.QueryRow(ctx, "SELECT state FROM fin_strategy WHERE id=$1", oldID).Scan(&st); err != nil || st != "retired" {
+		t.Fatalf("超龄 degraded 未退役 state=%s err=%v", st, err)
+	}
+	if err := pool.QueryRow(ctx, `SELECT reason FROM fin_strategy_transition
+		WHERE strategy_id=$1 AND to_state='retired'`, oldID).Scan(&reason); err != nil ||
+		reason != "degraded 超龄自动退役——莫环重生窗" {
+		t.Fatalf("退役留痕缺/错 reason=%q err=%v", reason, err)
+	}
+	for id, want := range map[int64]string{youngID: "degraded", paperID: "paper"} {
+		if err := pool.QueryRow(ctx, "SELECT state FROM fin_strategy WHERE id=$1", id).Scan(&st); err != nil || st != want {
+			t.Fatalf("#%d 波及 state=%s（应 %s）err=%v", id, st, want, err)
+		}
+	}
+	// #1 场景复刻：同键新提案→paper 开户（degraded 退役=键解锁）。
+	var eid int64
+	if err := pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,verdict,legs,evidence)
+		VALUES('TTL-USDT-SWAP','funding-hedge','short_perp_long_spot','proposed','{}','{}') RETURNING id`).Scan(&eid); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx,
+		"INSERT INTO fin_proposal(eval_id,inst_id,direction,net_apr) VALUES($1,'TTL-USDT-SWAP','short_perp_long_spot',1.0)", eid); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.scan(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var nid int64
+	if err := pool.QueryRow(ctx, `SELECT id FROM fin_strategy
+		WHERE inst_id='TTL-USDT-SWAP' AND state='paper'`).Scan(&nid); err != nil {
+		t.Fatalf("同键新提案未开 paper（死锁仍存）: %v", err)
+	}
+}
