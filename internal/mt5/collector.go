@@ -265,7 +265,7 @@ func (c *Collector) snapshotOnce(ctx context.Context, cl *Client, src string) {
 		log.Printf("[mt5] AccountSummary 读败（事件行缺席）: %v", err)
 		return
 	}
-	blob, _ := json.Marshal(map[string]any{"eq": eq, "avail": fm, "src": src})
+	blob, _ := json.Marshal(map[string]any{"eq": eq, "avail": fm, "src": src, "login": c.cr.Login})
 	if _, err := c.pool.Exec(ctx, `INSERT INTO md_account_events(ts,venue,channel,ccy,data)
 		VALUES(now(),'mt5',$1,'USD',$2)`, src, blob); err != nil {
 		c.rej.Inc("snapshot_write_failed")

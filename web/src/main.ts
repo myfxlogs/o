@@ -68,8 +68,8 @@ new EventSource('/api/watch').onmessage = () => ov()
 ov()
 setInterval(ov, 30000)
 
-// venuesHTML 交易所在线树（T-0088——venue 行=logo+名+◆/◇ 聚合态；
-// channel 行=├/└ 树线+三色静灯+末拍龄 Ns/Nm/h 自适应；note 旁注覆盖龄显）。
+// venuesHTML 交易所在线树（T-0088 v2——venue 行=logo+名+呼吸总灯（辖下
+// 最差态聚合）；channel 行=├/└ 树线+呼吸三色灯+末拍龄 Ns/Nm/h；note 覆盖龄显）。
 const VDOTS = ['s0', 's1', 's2']
 const VSVG: Record<string, string> = {
   okx: `<svg viewBox="0 0 24 24" width="18" height="18" fill="var(--txt)">
@@ -89,8 +89,7 @@ function vAge(ts: string): string {
 }
 function venuesHTML(gs: VGroup[]): string {
   return gs.map(g => {
-    const worst = Math.max(...g.channels.map(c => c.state ?? 0))
-    const mark = worst === 0 ? '◆' : '◇'
+    const worst = g.channels.length ? Math.max(...g.channels.map(c => c.state ?? 0)) : 2
     const chans = g.channels.map((c, i) => {
       const tw = i === g.channels.length - 1 ? '└' : '├'
       const age = c.note || (c.last_ts
@@ -100,7 +99,8 @@ function venuesHTML(gs: VGroup[]): string {
         `<span class="vage">${h(age)}</span><span class="vdot ${VDOTS[c.state ?? 0]}"></span></div>`
     }).join('')
     return `<div class="vline venue"><span class="vlogo">${VSVG[g.name] || ''}</span>` +
-      `${mark} ${h(g.name.toUpperCase())}</div>${chans}`
+      `${h(g.name.toUpperCase())}<span class="vage"></span>` +
+      `<span class="vdot ${VDOTS[worst]}"></span></div>${chans}`
   }).join('')
 }
 
