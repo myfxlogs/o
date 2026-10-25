@@ -112,12 +112,22 @@ func (w *Warden) legs(ctx context.Context, execID int64) legSet {
 }
 
 // fundingRate funding 行读件（latest=已结算/next=预测分口径；无行/空值=false）。
+// T-0128 同病灶过闸：funding 行亦断言新鲜度——结算窗 8h 故阈=9h
+// （guard.funding_max_age_min 缺省 540min；陈行=缺 fail-closed）。
 func (w *Warden) fundingRate(ctx context.Context, inst, col string) (float64, bool) {
 	var rate *float64
+	var ts time.Time
 	err := w.pool.QueryRow(ctx, fmt.Sprintf(
-		"SELECT %s FROM md_funding WHERE inst_id=$1 AND %s IS NOT NULL ORDER BY ts DESC LIMIT 1",
-		col, col), inst).Scan(&rate)
+		"SELECT %s,ts FROM md_funding WHERE inst_id=$1 AND %s IS NOT NULL ORDER BY ts DESC LIMIT 1",
+		col, col), inst).Scan(&rate, &ts)
 	if err != nil || rate == nil {
+		return 0, false
+	}
+	maxMin := 540.0
+	if v, err := w.getF("guard.funding_max_age_min"); err == nil && v > 0 {
+		maxMin = v
+	}
+	if time.Since(ts) > time.Duration(maxMin*float64(time.Minute)) {
 		return 0, false
 	}
 	return *rate, true

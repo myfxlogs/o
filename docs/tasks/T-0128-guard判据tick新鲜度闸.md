@@ -29,3 +29,13 @@ md_ticks 状态表模型下行恒在、内容可陈——一腿陈一腿新即�
 - 桩测：一腿 tick 陈（>阈值）一腿新→仓不杀+facts_missing 计数
 - 两腿皆新但真失衡>band→照杀（不误伤）
 - 部署后实证：现货 tick 断流窗口内无 delta_drift 触发记录
+
+## 结果回填
+
+- notionalNow 回读 ts+age 断言（exec.tick_max_age_s 缺省 120s——陈行=
+  facts_missing 让位不杀；一腿陈一腿新不再产价时差型假失衡）。
+- fundingRate 同径过闸（guard.funding_max_age_min 缺省 540min——结算窗
+  8h 尺度）；0053 两键入 app_config 机读。
+- 桩测：TestStaleTickNoKill（现货 4h 陈+SWAP 新→facts_missing 不杀）+
+  TestFreshTickRealDriftKills（两腿皆新真失衡|imb|>500bps→照杀）PG 实跑绿。
+- 坑条目 guard-drift-stale-tick-false-kill 直写 canon（仓 23 误杀实证）。

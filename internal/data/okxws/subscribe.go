@@ -22,7 +22,8 @@ func subscribeArgs(syms []string) []map[string]string {
 			args = append(args,
 				map[string]string{"channel": "funding-rate", "instId": s},
 				map[string]string{"channel": "mark-price", "instId": s})
-		} else {
+		} else if !strings.Contains(s, "-2") { // 现货形=index-tickers；
+			// 季度期货（-USDT-YYMMDD 尾）指数面不适用——tickers 唯订
 			args = append(args, map[string]string{"channel": "index-tickers", "instId": s})
 		}
 	}
