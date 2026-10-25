@@ -67,41 +67,45 @@ const (
 // 例外：51603 Order does not exist=确定的单未建（absent 语义——同 clOrdId 可重试
 // 幂等键；真单 exec_id=2 实勘），非查询败。
 func (c *Client) ResolveOrder(ctx context.Context, instID, clOrdID string) (OrderState, error) {
-	st, _, err := c.ResolveOrderDetail(ctx, instID, clOrdID)
+	st, _, _, err := c.ResolveOrderDetail(ctx, instID, clOrdID)
 	return st, err
 }
 
 // ResolveOrderDetail 定真态+成交均价（T-0077：avgPx 落库锚——px 缺席=mtm/已
 // 实现盈亏双断；签名增值不破坏旧口径）。
-func (c *Client) ResolveOrderDetail(ctx context.Context, instID, clOrdID string) (OrderState, float64, error) {
+// ResolveOrderDetail 订单定态查询（state/avgPx/accFillSz——T-0107：accFillSz=
+// venue 实填量唯一真源，spot=base 币量/衍生品=张数，禁拿下单请求量当成交记）。
+func (c *Client) ResolveOrderDetail(ctx context.Context, instID, clOrdID string) (OrderState, float64, float64, error) {
 	raw, err := c.Get(ctx, fmt.Sprintf("/api/v5/trade/order?instId=%s&clOrdId=%s", instID, clOrdID))
 	if err != nil {
 		var ae *APIError
 		if errors.As(err, &ae) && ae.Code == "51603" {
-			return StateAbsent, 0, nil
+			return StateAbsent, 0, 0, nil
 		}
-		return StateUnknown, 0, fmt.Errorf("resolve 查询败（歧态势禁补单）: %w", err)
+		return StateUnknown, 0, 0, fmt.Errorf("resolve 查询败（歧态势禁补单）: %w", err)
 	}
 	var rows []struct {
-		State string `json:"state"`
-		AvgPx string `json:"avgPx"`
+		State     string `json:"state"`
+		AvgPx     string `json:"avgPx"`
+		AccFillSz string `json:"accFillSz"`
 	}
 	if err := json.Unmarshal(raw, &rows); err != nil {
-		return StateUnknown, 0, err
+		return StateUnknown, 0, 0, err
 	}
 	if len(rows) == 0 {
-		return StateAbsent, 0, nil
+		return StateAbsent, 0, 0, nil
 	}
 	px := ParseF(rows[0].AvgPx)
+	fillSz := ParseF(rows[0].AccFillSz)
 	switch rows[0].State {
 	case "filled":
-		return StateFilled, px, nil
+		return StateFilled, px, fillSz, nil
 	case "live":
-		return StateLive, px, nil
+		return StateLive, px, fillSz, nil
 	case "partially_filled":
-		return StatePartial, px, nil
+		return StatePartial, px, fillSz, nil
 	default: // canceled/mmp_canceled 等→按 absent 消费语义由调用方判
-		return OrderState(rows[0].State), px, nil
+		return OrderState(rows[0].State), px, fillSz, nil
 	}
 }
 

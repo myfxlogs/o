@@ -689,3 +689,37 @@ func TestMigration0040ShellRepair(t *testing.T) {
 		t.Fatalf("重跑应零变化: %v %v", pref, err)
 	}
 }
+
+// T-0107 锚：腿行量纲消歧落档——sz_unit 按 TgtQuote/SWAP 分派；qty_base=
+// venue 实填量（accFillSz）唯一真源（请求量禁当成交记；SWAP=contract 无币量）。
+func TestLegUnitRecorded(t *testing.T) {
+	ctx, r := setup(t, &fakeVenue{})
+	did := mkToken(t, ctx, r, false, false, "allow")
+	in := mkIntent(did)
+	in.Legs[0].TgtQuote = true // T-0064 生产径：spot 市价买 quote_ccy 委托
+	if _, err := r.Execute(ctx, in); err != nil {
+		t.Fatal(err)
+	}
+	var execID int64
+	if err := r.pool.QueryRow(ctx, `SELECT max(id) FROM fin_execution`).Scan(&execID); err != nil {
+		t.Fatal(err)
+	}
+	var unit1 string
+	var qty1 *float64
+	if err := r.pool.QueryRow(ctx, `SELECT sz_unit,qty_base FROM fin_order_leg
+		WHERE execution_id=$1 AND leg_no=1`, execID).Scan(&unit1, &qty1); err != nil {
+		t.Fatal(err)
+	}
+	if unit1 != "quote" || qty1 == nil || *qty1 != 100 {
+		t.Fatalf("spot quote 腿应 quote+实填 100: %s %v", unit1, qty1)
+	}
+	var unit2 string
+	var qty2 *float64
+	if err := r.pool.QueryRow(ctx, `SELECT sz_unit,qty_base FROM fin_order_leg
+		WHERE execution_id=$1 AND leg_no=2`, execID).Scan(&unit2, &qty2); err != nil {
+		t.Fatal(err)
+	}
+	if unit2 != "contract" || qty2 != nil {
+		t.Fatalf("SWAP 腿应 contract 无币量: %s %v", unit2, qty2)
+	}
+}

@@ -11,6 +11,7 @@ import (
 
 	"o/internal/gen/dashboardv1"
 	"o/internal/guard"
+	"o/internal/platform/config"
 	"o/internal/platform/testutil"
 	"o/internal/store/pgstore"
 	"o/internal/trading/okxexec"
@@ -277,5 +278,61 @@ func TestOverviewDoingFullCoverage(t *testing.T) {
 	}
 	if strings.Contains(tx2, "静持") {
 		t.Fatalf("双有不得显静持: %q", tx2)
+	}
+}
+
+// T-0107 锚：再开冷却窗——guard 平仓后同策略同标的窗内拒再开；窗外放行；
+// 键缺 fail-closed（宁可冻结不再开也不裸奔连绞）。
+func TestReopenCooldownBlocked(t *testing.T) {
+	ctx := context.Background()
+	pool := testutil.Pool(t)
+	if err := pgstore.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	var stratID, execID, posID int64
+	if err := pool.QueryRow(ctx,
+		`INSERT INTO fin_strategy(inst_id,template_ref,state,notional_usd,venue) VALUES('BTC-USDT-SWAP','guard-test','live',25,'okx') RETURNING id`).Scan(&stratID); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(ctx,
+		`INSERT INTO fin_execution(strategy_ref,inst_id,notional_usd,state) VALUES($1,'BTC-USDT-SWAP',25,'open') RETURNING id`, stratID).Scan(&execID); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(ctx,
+		`INSERT INTO fin_position(execution_id,strategy_ref,inst_id,notional_usd)
+		VALUES($1,$2,'BTC-USDT-SWAP',25) RETURNING id`, execID, stratID).Scan(&posID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO fin_guard_close(position_id,state,trigger_kind,updated_at)
+		VALUES($1,'closed','delta_drift',now())`, posID); err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.New(pool)
+	if err := cfg.Load(ctx); err != nil {
+		t.Fatal(err)
+	}
+	// 窗内（updated_at=now < 300s）→blocked。
+	blocked, err := reopenCooldownBlocked(ctx, cfg, pool, stratID, "BTC-USDT-SWAP")
+	if err != nil || !blocked {
+		t.Fatalf("冷却窗内应拦: blocked=%v err=%v", blocked, err)
+	}
+	// 窗外（updated_at=301s 前）→放行。
+	if _, err := pool.Exec(ctx,
+		`UPDATE fin_guard_close SET updated_at=now()-interval '301 seconds' WHERE position_id=$1`, posID); err != nil {
+		t.Fatal(err)
+	}
+	if blocked, err = reopenCooldownBlocked(ctx, cfg, pool, stratID, "BTC-USDT-SWAP"); err != nil || blocked {
+		t.Fatalf("窗外应放行: blocked=%v err=%v", blocked, err)
+	}
+	// 键缺=fail-closed 拦截。
+	if _, err := pool.Exec(ctx, `DELETE FROM app_config WHERE key='exec.reopen_cooldown_sec'`); err != nil {
+		t.Fatal(err)
+	}
+	if err := cfg.Load(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = reopenCooldownBlocked(ctx, cfg, pool, stratID, "BTC-USDT-SWAP"); err == nil {
+		t.Fatal("键缺应 fail-closed 上抛")
 	}
 }

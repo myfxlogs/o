@@ -129,7 +129,7 @@ func (r *Runner) placeAndResolve(ctx context.Context, execID int64, no int, leg 
 	}
 	switch res.State {
 	case "filled":
-		legID := r.legPx(ctx, execID, no, leg, clOrdID, "filled", vc, vm, res.FillPx)
+		legID := r.legPx(ctx, execID, no, leg, clOrdID, "filled", vc, vm, res.FillPx, res.FillSz)
 		r.legCash(ctx, legID, leg, res.FillPx, posRef)
 		return res, nil
 	case "live", "partially_filled":
@@ -184,7 +184,7 @@ func (r *Runner) rollback(ctx context.Context, execID int64, leg Leg, res OrderR
 		r.leg(ctx, execID, 1, leg, clOrdID, "ambiguous", rvc, rvm)
 		return
 	}
-	legID := r.legPx(ctx, execID, 1, leg, clOrdID, "rolled_back", "", "", 0)
+	legID := r.legPx(ctx, execID, 1, leg, clOrdID, "rolled_back", "", "", 0, rb.FillSz)
 	// 回滚腿=真实现金事件（买回即卖出）——spot 腿同径记账（rev.Side 定向，px 缺=名义锚）。
 	r.legCash(ctx, legID, rev, rb.FillPx, nil)
 	r.setState(ctx, execID, "rolled_back")
@@ -192,20 +192,37 @@ func (r *Runner) rollback(ctx context.Context, execID int64, leg Leg, res OrderR
 }
 
 func (r *Runner) leg(ctx context.Context, execID int64, no int, leg Leg, clOrdID, state, venueCode, venueMsg string) {
-	r.legPx(ctx, execID, no, leg, clOrdID, state, venueCode, venueMsg, 0)
+	r.legPx(ctx, execID, no, leg, clOrdID, state, venueCode, venueMsg, 0, 0)
 }
 
-// legPx 腿行落库携成交价（T-0077：avgPx>0 才落——filled 态 anchor；
-// px=NULL 旧调用面保值守）。返腿行 id（cashflow source_ref 锚用）。
-func (r *Runner) legPx(ctx context.Context, execID int64, no int, leg Leg, clOrdID, state, venueCode, venueMsg string, px float64) int64 {
+// legPx 腿行落库携成交价+量纲消歧（T-0107：sz_unit=腿 sz 语义位——SWAP=contract/
+// spot quote_ccy 委托=quote/余=base；qty_base=venue 实填币量（accFillSz）唯一
+// 真源——请求量禁当成交记，fill 缺=NULL 消费面 fail-closed 禁猜）。
+// px=NULL 旧调用面保值守。返腿行 id（cashflow source_ref 锚用）。
+func (r *Runner) legPx(ctx context.Context, execID int64, no int, leg Leg, clOrdID, state, venueCode, venueMsg string, px, fillSz float64) int64 {
 	var pxArg *float64
 	if px > 0 {
 		pxArg = &px
 	}
+	szUnit := "base"
+	var qtyBase *float64
+	switch {
+	case strings.HasSuffix(leg.InstID, "-SWAP"):
+		szUnit = "contract"
+	case leg.TgtQuote:
+		szUnit = "quote"
+		if fillSz > 0 {
+			qtyBase = &fillSz
+		}
+	default:
+		if fillSz > 0 {
+			qtyBase = &fillSz
+		}
+	}
 	var id int64
-	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_order_leg(execution_id,leg_no,cl_ord_id,venue,side,inst_id,sz,state,venue_err_code,venue_err_msg,px)
-		VALUES($1,$2,$3,$4,$5,$6,$7,$8,NULLIF($9,''),NULLIF($10,''),$11) RETURNING id`,
-		execID, no, clOrdID, leg.Venue, leg.Side, leg.InstID, leg.Sz, state, venueCode, venueMsg, pxArg).Scan(&id); err != nil {
+	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_order_leg(execution_id,leg_no,cl_ord_id,venue,side,inst_id,sz,state,venue_err_code,venue_err_msg,px,sz_unit,qty_base)
+		VALUES($1,$2,$3,$4,$5,$6,$7,$8,NULLIF($9,''),NULLIF($10,''),$11,$12,$13) RETURNING id`,
+		execID, no, clOrdID, leg.Venue, leg.Side, leg.InstID, leg.Sz, state, venueCode, venueMsg, pxArg, szUnit, qtyBase).Scan(&id); err != nil {
 		r.rej.Inc("write_err")
 	}
 	return id

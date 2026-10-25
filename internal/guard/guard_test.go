@@ -128,14 +128,14 @@ func mkPosition(t *testing.T, ctx context.Context, w *Warden, stratState string,
 		t.Fatal(err)
 	}
 	for i, lg := range []struct {
-		inst, side string
-		sz         float64
+		inst, side, unit string
+		sz, qty          float64
 	}{
-		{"BTC-USDT", "buy", 1}, {"BTC-USDT-SWAP", "sell", perpSz}} {
+		{"BTC-USDT", "buy", "base", 1, 1}, {"BTC-USDT-SWAP", "sell", "contract", perpSz, 0}} {
 		if _, err := w.pool.Exec(ctx,
-			`INSERT INTO fin_order_leg(execution_id,leg_no,cl_ord_id,venue,side,inst_id,sz,state)
-			VALUES($1,$2,$3,'okx',$4,$5,$6,'filled')`,
-			execID, i+1, fmt.Sprintf("cl-%d-%s", execID, lg.inst), lg.side, lg.inst, lg.sz); err != nil {
+			`INSERT INTO fin_order_leg(execution_id,leg_no,cl_ord_id,venue,side,inst_id,sz,state,sz_unit,qty_base)
+			VALUES($1,$2,$3,'okx',$4,$5,$6,'filled',$7,NULLIF($8,0))`,
+			execID, i+1, fmt.Sprintf("cl-%d-%s", execID, lg.inst), lg.side, lg.inst, lg.sz, lg.unit, lg.qty); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -375,13 +375,25 @@ func TestNotionalCtValDispatch(t *testing.T) {
 	ctx, w, _ := setup(t)
 	seedFacts(t, ctx, w, 0.0001) // tick=100
 	seedInstr(t, ctx, w, 0.01)   // ctVal=0.01 BTC/张
-	n, ok := w.notionalNow(ctx, leg{inst: "BTC-USDT-SWAP", venue: "okx", sz: 0.03})
+	n, ok := w.notionalNow(ctx, leg{inst: "BTC-USDT-SWAP", venue: "okx", sz: 0.03, szUnit: "contract"})
 	if !ok || n != 0.03*0.01*100 {
 		t.Fatalf("SWAP 名义 sz×ctVal×px: got %v ok=%v want %v", n, ok, 0.03*0.01*100)
 	}
-	ns, ok := w.notionalNow(ctx, leg{inst: "BTC-USDT", venue: "okx", sz: 0.25})
+	ns, ok := w.notionalNow(ctx, leg{inst: "BTC-USDT", venue: "okx", sz: 0.25, szUnit: "base"})
 	if !ok || ns != 25 {
-		t.Fatalf("SPOT 名义 sz×px: got %v ok=%v want 25", ns, ok)
+		t.Fatalf("SPOT base 名义 sz×px: got %v ok=%v want 25", ns, ok)
+	}
+	// T-0107 锚：实填币量径（qty_base 优先——accFillSz 唯一真源；tick=100）。
+	nq, ok := w.notionalNow(ctx, leg{inst: "BTC-USDT", venue: "okx", sz: 24.13, szUnit: "quote", qtyBase: 0.0003})
+	if !ok || nq < 0.03-0.001 || nq > 0.03+0.001 {
+		t.Fatalf("quote 腿实填币量×px: got %v ok=%v want ~0.03", nq, ok)
+	}
+	// T-0107 锚：quote 缺 base 量/量纲未消歧=fail-closed 不误读（病灶径）。
+	if n, ok := w.notionalNow(ctx, leg{inst: "BTC-USDT", venue: "okx", sz: 24.13, szUnit: "quote"}); ok || n != 0 {
+		t.Fatalf("quote 缺 qty_base 应 false: %v %v", n, ok)
+	}
+	if n, ok := w.notionalNow(ctx, leg{inst: "BTC-USDT", venue: "okx", sz: 24.13}); ok || n != 0 {
+		t.Fatalf("量纲未消歧应 false: %v %v", n, ok)
 	}
 	// 均衡仓（spot 0.25 BTC=$25 vs perp 25 张×0.01×100=$25）——漂移 0 不触发。
 	fx := &fakeExec{}
@@ -397,12 +409,12 @@ func TestNotionalCtValDispatch(t *testing.T) {
 		t.Fatal(err)
 	}
 	for i, lg := range []struct {
-		inst, side string
-		sz         float64
-	}{{"BTC-USDT", "buy", 0.25}, {"BTC-USDT-SWAP", "sell", 25}} {
+		inst, side, unit string
+		sz, qty          float64
+	}{{"BTC-USDT", "buy", "base", 0.25, 0.25}, {"BTC-USDT-SWAP", "sell", "contract", 25, 0}} {
 		if _, err := w.pool.Exec(ctx,
-			`INSERT INTO fin_order_leg(execution_id,leg_no,cl_ord_id,venue,side,inst_id,sz,state)
-			VALUES($1,$2,$3,'okx',$4,$5,$6,'filled')`, execID, i+1, fmt.Sprintf("cl-x-%d", i), lg.side, lg.inst, lg.sz); err != nil {
+			`INSERT INTO fin_order_leg(execution_id,leg_no,cl_ord_id,venue,side,inst_id,sz,state,sz_unit,qty_base)
+			VALUES($1,$2,$3,'okx',$4,$5,$6,'filled',$7,NULLIF($8,0))`, execID, i+1, fmt.Sprintf("cl-x-%d", i), lg.side, lg.inst, lg.sz, lg.unit, lg.qty); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -419,7 +431,7 @@ func TestNotionalCtValDispatch(t *testing.T) {
 	}
 	// ctVal 读不到=fail-closed 不误判（facts_missing 计数不触发）。
 	w.AttachCtVal(nil)
-	if n, ok := w.notionalNow(ctx, leg{inst: "BTC-USDT-SWAP", venue: "okx", sz: 1}); ok || n != 0 {
+	if n, ok := w.notionalNow(ctx, leg{inst: "BTC-USDT-SWAP", venue: "okx", sz: 1, szUnit: "contract"}); ok || n != 0 {
 		t.Fatal("ctVal 缺行应 false")
 	}
 }
@@ -535,12 +547,12 @@ func mkPosLegs(t *testing.T, ctx context.Context, w *Warden, spotSz, perpSz floa
 		t.Fatal(err)
 	}
 	for i, lg := range []struct {
-		inst, side string
-		sz         float64
-	}{{"ETH-USDT", "buy", spotSz}, {"ETH-USDT-SWAP", "sell", perpSz}} {
+		inst, side, unit string
+		sz, qty          float64
+	}{{"ETH-USDT", "buy", "base", spotSz, spotSz}, {"ETH-USDT-SWAP", "sell", "contract", perpSz, 0}} {
 		if _, err := w.pool.Exec(ctx,
-			`INSERT INTO fin_order_leg(execution_id,leg_no,cl_ord_id,venue,side,inst_id,sz,state)
-			VALUES($1,$2,$3,'okx',$4,$5,$6,'filled')`, execID, i+1, fmt.Sprintf("imb-%d-%s", execID, lg.inst), lg.side, lg.inst, lg.sz); err != nil {
+			`INSERT INTO fin_order_leg(execution_id,leg_no,cl_ord_id,venue,side,inst_id,sz,state,sz_unit,qty_base)
+			VALUES($1,$2,$3,'okx',$4,$5,$6,'filled',$7,NULLIF($8,0))`, execID, i+1, fmt.Sprintf("imb-%d-%s", execID, lg.inst), lg.side, lg.inst, lg.sz, lg.unit, lg.qty); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -621,5 +633,63 @@ func TestDriftAbsCap(t *testing.T) {
 	}
 	if len(fx.calls) == 0 {
 		t.Fatal("绝对兜底闸应杀（裸腿级失衡）")
+	}
+}
+
+// T-0107 主锚：BTC quotecy 腿录（sz=USDT 额+venue 实填币量 qty_base）→
+// 漂移判据不得秒杀（病灶：24.13×80460=$1.94M 假失衡 20000bps≫500 开盘 140ms
+// 绞杀×9 轮）；开盘基线播种拍实测——首拍实算落列零杀，次拍仍衡不杀。
+func TestQuotedLegsNoInstantKill(t *testing.T) {
+	ctx, w, fx := setup(t)
+	seedFacts(t, ctx, w, 0.0001) // tick=100
+	seedInstr(t, ctx, w, 0.01)   // ctVal=0.01 BTC/张
+	var stratID, execID, posID int64
+	if err := w.pool.QueryRow(ctx,
+		`INSERT INTO fin_strategy(inst_id,template_ref,state,notional_usd,venue) VALUES('BTC-USDT-SWAP','guard-test','live',25,'okx') RETURNING id`).Scan(&stratID); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.pool.QueryRow(ctx,
+		`INSERT INTO fin_execution(strategy_ref,inst_id,notional_usd,state) VALUES($1,'BTC-USDT-SWAP',25,'open') RETURNING id`, stratID).Scan(&execID); err != nil {
+		t.Fatal(err)
+	}
+	// 病灶形：spot 腿 quote_ccy 委托（sz=24.13 USDT 额，实填 0.0003 BTC）+
+	// perp 腿 0.03 张——两腿实盘各 ~$3 均衡。
+	for i, lg := range []struct {
+		inst, side, unit string
+		sz, qty          float64
+	}{
+		{"BTC-USDT", "buy", "quote", 24.13, 0.0003},
+		{"BTC-USDT-SWAP", "sell", "contract", 0.03, 0},
+	} {
+		if _, err := w.pool.Exec(ctx,
+			`INSERT INTO fin_order_leg(execution_id,leg_no,cl_ord_id,venue,side,inst_id,sz,state,sz_unit,qty_base)
+			VALUES($1,$2,$3,'okx',$4,$5,$6,'filled',$7,$8)`, execID, i+1,
+			fmt.Sprintf("q%d-%s", execID, lg.inst), lg.side, lg.inst, lg.sz, lg.unit, lg.qty); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := w.pool.QueryRow(ctx,
+		`INSERT INTO fin_position(execution_id,strategy_ref,inst_id,notional_usd,opened_at)
+		VALUES($1,$2,'BTC-USDT-SWAP',25,now()) RETURNING id`, execID, stratID).Scan(&posID); err != nil {
+		t.Fatal(err)
+	}
+	// 首拍=基线播种：零杀（140ms 绞杀病灶禁再演）。
+	if err := w.scanOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if len(fx.calls) != 0 {
+		t.Fatalf("quotecy 腿不得秒杀: %+v", fx.calls)
+	}
+	var imb *float64
+	if err := w.pool.QueryRow(ctx,
+		"SELECT open_imbalance_bps FROM fin_position WHERE id=$1", posID).Scan(&imb); err != nil || imb == nil {
+		t.Fatalf("基线应播种落列: %v err=%v", imb, err)
+	}
+	// 次拍（价稳）仍衡不杀。
+	if err := w.scanOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if len(fx.calls) != 0 {
+		t.Fatalf("次拍衡仓不得杀: %+v", fx.calls)
 	}
 }

@@ -21,6 +21,8 @@ type legSet struct {
 type leg struct {
 	inst, side, venue string
 	sz                float64
+	szUnit            string  // T-0107 量纲语义位：base/quote/contract；空=历史未消歧
+	qtyBase           float64 // venue 实填币量（accFillSz）——spot 盯市唯一真源
 }
 
 func (ls legSet) labels() []string {
@@ -73,7 +75,7 @@ func (ls legSet) of(inst string) (leg, bool) {
 
 func (w *Warden) legs(ctx context.Context, execID int64) legSet {
 	rows, err := w.pool.Query(ctx,
-		`SELECT inst_id, side, sz, venue FROM fin_order_leg WHERE execution_id=$1 ORDER BY leg_no`, execID)
+		`SELECT inst_id, side, sz, venue, sz_unit, qty_base FROM fin_order_leg WHERE execution_id=$1 ORDER BY leg_no`, execID)
 	if err != nil {
 		w.rej.Inc("facts_missing")
 		return legSet{one: true}
@@ -82,9 +84,17 @@ func (w *Warden) legs(ctx context.Context, execID int64) legSet {
 	var ls legSet
 	for rows.Next() {
 		var l leg
-		if err := rows.Scan(&l.inst, &l.side, &l.sz, &l.venue); err != nil {
+		var su *string
+		var qb *float64
+		if err := rows.Scan(&l.inst, &l.side, &l.sz, &l.venue, &su, &qb); err != nil {
 			w.rej.Inc("facts_missing")
 			return legSet{one: true}
+		}
+		if su != nil {
+			l.szUnit = *su
+		}
+		if qb != nil {
+			l.qtyBase = *qb
 		}
 		ls.venue = l.venue
 		if ls.a.inst == "" {
@@ -138,34 +148,6 @@ func (w *Warden) driftTriggered(ctx context.Context, posID int64, imbNow, bandBp
 		return false
 	}
 	return math.Abs(imbNow-*open) > bandBps
-}
-
-// notionalNow 腿现价名义额（量纲按乐器分派——T-0046 根修）。
-// （sz=张数——ctVal 经 cmd 注入 venue 现读件（T-0048 后 facts 表废，D-0008 决策
-// 时点现读——okx instruments 静态属性短 TTL 缓存径），禁按币种名猜）。 无 tick/合约缺 ctVal=false（调用方 facts_missing 计数不误判）。
-func (w *Warden) notionalNow(ctx context.Context, l leg) (float64, bool) {
-	var last *float64
-	if err := w.pool.QueryRow(ctx,
-		"SELECT last FROM md_ticks WHERE inst_id=$1 ORDER BY ts DESC LIMIT 1", l.inst).Scan(&last); err != nil || last == nil {
-		return 0, false
-	}
-	mult := 1.0
-	if strings.HasSuffix(l.inst, "-SWAP") {
-		ct, ok := w.ctValOf(ctx, l.venue, l.inst)
-		if !ok {
-			return 0, false
-		}
-		mult = ct
-	}
-	return l.sz * mult * *last, true
-}
-
-// ctValOf 合约面值（cmd 注入件——缺件/读败/零值=false fail-closed）。
-func (w *Warden) ctValOf(ctx context.Context, venue, inst string) (float64, bool) {
-	if w.ctVal == nil {
-		return 0, false
-	}
-	return w.ctVal(ctx, venue, inst)
 }
 
 func (w *Warden) getF(k string) (float64, error) {

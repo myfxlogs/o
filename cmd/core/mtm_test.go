@@ -29,15 +29,18 @@ func TestMTMReaderSpotFullValueAndSwapIncrement(t *testing.T) {
 		no         int
 		side, inst string
 		sz, px     float64
+		szUnit     string
+		qtyBase    float64
 	}{
-		{1, "buy", "ETH-USDT", 0.01, 2000},      // 现货腿：全值 +0.01×2100=+21
-		{2, "sell", "ETH-USDT-SWAP", 0.1, 2000}, // 合约腿：增量 −0.1×0.1×(2100−2000)=−1
-		{3, "buy", "BTC-USDT", 0.001, 50000},    // 价缺腿：无 tick 按 0 加不减
+		{1, "buy", "ETH-USDT", 0.01, 2000, "base", 0.01},       // 现货腿：全值 +0.01×2100=+21（实填币量径）
+		{2, "sell", "ETH-USDT-SWAP", 0.1, 2000, "contract", 0}, // 合约腿：增量 −0.1×0.1×(2100−2000)=−1
+		{3, "buy", "BTC-USDT", 0.001, 50000, "base", 0.001},    // 价缺腿：无 tick 按 0 加不减
+		{4, "buy", "BTC-USDT", 24.13, 0, "quote", 0},           // quote 额腿缺 base 量：跳过不产假偏移（T-0107）
 	}
 	for _, l := range legs {
-		if _, err := pool.Exec(ctx, `INSERT INTO fin_order_leg(execution_id,leg_no,cl_ord_id,venue,side,inst_id,sz,px,state)
-			VALUES($1,$2,$3,'okx',$4,$5,$6,$7,'filled')`,
-			xid, l.no, "cl-t87", l.side, l.inst, l.sz, l.px); err != nil {
+		if _, err := pool.Exec(ctx, `INSERT INTO fin_order_leg(execution_id,leg_no,cl_ord_id,venue,side,inst_id,sz,px,state,sz_unit,qty_base)
+			VALUES($1,$2,$3,'okx',$4,$5,$6,$7,'filled',$8,NULLIF($9,0))`,
+			xid, l.no, "cl-t87", l.side, l.inst, l.sz, l.px, l.szUnit, l.qtyBase); err != nil {
 			t.Fatal(err)
 		}
 	}
