@@ -93,3 +93,4 @@ jobs:
           O_EXEC_TEST_PG_DSN: "postgres://postgres:test@localhost:5434/o_exec_test?sslmode=disable"
           O_RECONCILE_TEST_PG_DSN: "postgres://postgres:test@localhost:5434/o_reconcile_test?sslmode=disable"
       - run: ./scripts/check-lines.sh
+      - run: ./scripts/check_migrations.sh
