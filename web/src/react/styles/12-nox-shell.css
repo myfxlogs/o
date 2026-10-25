@@ -1,0 +1,51 @@
+/* 12-nox-shell：壳层范式（画骨样式批 10-19 升 arb 面——顶头条 header.app
+   + .sidebar 图标侧栏 + 移动汉堡抽屉；基础规则在 07-bell-tabs/00-base，
+   本件存 NOX 壳专属补面）。旧 .nox-shell/.nox-side/.nox-topbar 段退役。 */
+.brand { font-weight: 700; font-size: 16px; letter-spacing: 1px; color: var(--ink); }
+.app-spacer { flex: 1; }
+.theme-btn {
+  border: 1px solid var(--line); background: none; color: var(--ink);
+  border-radius: 6px; padding: 3px 8px; cursor: pointer; font-size: 14px; line-height: 1;
+}
+.theme-btn:hover { background: var(--page); }
+.sidebar .grp-label { font-size: 11px; color: var(--ink-3); margin: 12px 12px 4px; letter-spacing: 0.5px; }
+.nav-badge {
+  min-width: 18px; padding: 0 5px; border-radius: 9px; font-size: 11px;
+  background: var(--warn); color: #0b0b0b; text-align: center; line-height: 16px;
+  margin-left: auto;
+}
+.sidebar-item.active .nav-badge { background: rgba(255,255,255,0.85); }
+/* 移动端：组标隐藏（抽屉内项自明） */
+@media (max-width: 767px) {
+  .sidebar .grp-label { margin-top: 8px; }
+}
+
+/* S3′-b 补正：工序卡改流程图形态——十段小卡横排连线（纯布局，读模不动）。
+   段间连线=::after 伪元素箭头，窄屏换行续连（横滚不折布局）。 */
+.pipe-flow { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; padding: 4px 0 8px; }
+/* 业主令 10-19 总览版重排①：flex+overflow-x 横滚退役——宽屏单行 10 卡、
+   窄屏自动折 5×2，全工序卡一眼同屏（第一性「一眼看完」）；链式 ::after
+   箭头随退役——折行后箭头语义已破，边框色+icon+序位载状态足够。 */
+.pipe-flow .pipe-card {
+  position: relative; border: 1px solid var(--line);
+  border-radius: 8px; background: var(--surface); padding: 8px 10px;
+  box-sizing: border-box;
+  /* 实时卡防抖（业主批 10-17）：①卡高钉死——流推帧文字变长不顶页面；
+     ④contain:layout——卡内重排不外溢传播。全文兜底=hover title+点卡 Modal。 */
+  height: 70px; contain: layout; cursor: pointer;
+}
+.pipe-flow .pipe-card.live { border-color: var(--good); border-left-width: 4px; }
+.pipe-flow .pipe-card.stale { border-color: var(--warn); border-left-width: 4px; }
+.pipe-flow .pipe-card.down { border-color: var(--critical); border-left-width: 4px; }
+.pipe-flow .pipe-head { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+.pipe-flow .pipe-head .nm { font-size: 13px; font-weight: 600; color: var(--ink); white-space: nowrap; }
+/* 工序卡标题件重构（业主令 10-17）×防抖并集解：fresh-dot 删（边框色单载状态），
+   证据 icon=.pipe-ev 左端 20px×line-height:1（兼容 70px 定高：20+4+2×14.85+16≈69.7≤70）；
+   旧 .pipe-ts 18px 规则随重构退役（icon 已左置，右侧无 18px 消费者——04 注记教训归档）。 */
+.pipe-flow .pipe-ev { font-size: 20px; line-height: 1; color: var(--ink-3); }
+/* 时戳 HH:MM 缩写右置小字（防抖③固位：tabular-nums+nowrap 防跳宽；全时戳 title 兜底）。 */
+.pipe-flow .pipe-clock { font-size: 11px; color: var(--ink-3); margin-left: auto; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.pipe-flow .pipe-line { font-size: 11px; color: var(--ink-3); line-height: 1.35; } /* 防抖②钳 2 行=共享 .clamp-2（04，TSX 挂） */
+
+/* ov-duo 退役（业主令 10-19 再裁）：双栏并列两列行数差→行线错位病灶——改
+   overview_duo.tsx 两段顺序满宽纵排，.opp-grid 满页宽卡密度升+无列可错。 */
