@@ -165,3 +165,10 @@
 
 - T-0105 在干持仓列表全集化：DCD $1.7k 不在持仓列+静持空态宣「没有持仓」=所见非所得，业主直令修。
 - T-0106 假想官编制：业主令「系统不得圈死」——名册研究域补原创岗（面差→假想卡→决策审→注册链），占位 gap 提案转正死胡同根修；自动批准不开，决策席为闸。
+
+### 追加（T-0104 验收合入部署——只读镜像双端分位实证）
+
+- 合入 @396a16b，部署镜像 30cce5544b4f 双端 IMAGE-MATCH+healthy。
+- 本机激活径=`docker-compose.override.yml`（未跟踪件——deploy_sync 只推 git 跟踪件故永不染 SG），O_NODE_ROLE=readonly，boot 行实证；mutating 岗（earn/execution/opener/closer）全撤，读径全通。
+- SG 无 env 无宣告=生产全 mutating 无恙；本机 residual_park 台账负行冲销 legrestore 归位后 ETH 键净零→对账静默。
+- **运维律新增**：本机树 docker-compose.override.yml=本机专属覆写位（凡需节点特异 env 皆走此径，禁改跟踪内 compose.yml——一改即染 SG）。
