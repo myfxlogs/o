@@ -129,9 +129,15 @@ func (r *Runner) pushClosed(ctx context.Context, period string, b Bounds) {
 		WHERE period=$1 AND period_start=$2`, period, b.Start).Scan(&m, &note); err != nil {
 		return
 	}
-	r.pusher.MaybePush(ctx, period, m, note)
+	// T-0093 序倒转：送达才记账（行=「已送达」非「已尝试」）——发败/降级不记，
+	// 下界自然重试（瞬时败≠永久丢报）。
+	mid, ok := r.pusher.MaybePush(ctx, period, m, note)
+	if !ok {
+		return
+	}
 	if _, err := r.pool.Exec(ctx,
-		"INSERT INTO fin_push_ledger(scope,key) VALUES('report',$1) ON CONFLICT DO NOTHING", key); err != nil {
+		"INSERT INTO fin_push_ledger(scope,key,msg_id) VALUES('report',$1,$2) ON CONFLICT DO NOTHING",
+		key, mid); err != nil {
 		log.Printf("[report] push ledger 记账败 %s: %v", key, err)
 	}
 }
@@ -180,9 +186,14 @@ func (r *Runner) macroDailyPush(ctx context.Context, now time.Time) {
 	for _, e := range evs {
 		text += fmt.Sprintf("- %s %s %s\n", e.d.Format("01-02"), e.k, e.t)
 	}
-	r.pusher.PushText(ctx, text)
+	// T-0093 同序：送达才记账——发败/降级明日重试不丢报。
+	mid, ok := r.pusher.PushText(ctx, text)
+	if !ok {
+		return
+	}
 	if _, err := r.pool.Exec(ctx,
-		"INSERT INTO fin_push_ledger(scope,key) VALUES('macro_daily',$1) ON CONFLICT DO NOTHING", key); err != nil {
+		"INSERT INTO fin_push_ledger(scope,key,msg_id) VALUES('macro_daily',$1,$2) ON CONFLICT DO NOTHING",
+		key, mid); err != nil {
 		log.Printf("[report] macro ledger 记账败: %v", err)
 	}
 }

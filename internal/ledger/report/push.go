@@ -51,21 +51,22 @@ func NewPusher(pool *pgxpool.Pool, cfg *config.Client, mk []byte) *Pusher {
 }
 
 // MaybePush Gen 落行后即时推（notify.feishu.enabled 热启；chat_id 缺=fail-closed
-// 降级计数非炸——票据语义：无 chat_id=不推不炸）。
-func (p *Pusher) MaybePush(ctx context.Context, period string, m map[string]any, note string) {
+// 降级计数非炸——票据语义：无 chat_id=不推不炸）。T-0093 序根修：返 (msg_id,ok)
+// ——ok=false=未送达（调用方禁记 fin_push_ledger，下界/下拍自然重试）。
+func (p *Pusher) MaybePush(ctx context.Context, period string, m map[string]any, note string) (string, bool) {
 	if p.cli == nil {
 		p.rej.Inc("push_degraded")
-		return
+		return "", false
 	}
 	en, err := p.cfg.GetBool("notify.feishu.enabled")
 	if err != nil || !en {
 		p.rej.Inc("push_degraded")
-		return
+		return "", false
 	}
 	chatID, err := p.cfg.GetString("feishu.chat_id")
 	if err != nil || chatID == "" {
 		p.rej.Inc("push_degraded")
-		return
+		return "", false
 	}
 	text := fmt.Sprintf("【O %s 报】%s\n净额 %s / 累计净值 %s\n开 %s 平 %s / 评 %s 过 %s 拒\nEarn 停泊 %s\n%s",
 		map[string]string{"daily": "日", "weekly": "周", "monthly": "月"}[period],
@@ -78,33 +79,42 @@ func (p *Pusher) MaybePush(ctx context.Context, period string, m map[string]any,
 	if err != nil {
 		p.rej.Inc("push_err")
 		log.Printf("[report] feishu push err: %v", err)
-		return
+		return "", false
 	}
 	log.Printf("[report] feishu pushed %s msg=%s", period, mid)
+	return mid, true
 }
 
 func boundsLabel(period string) string {
 	return BoundsOf(period, time.Now()).Start.Format("2006-01-02")
 }
 
-// PushText 通用文本推送（日历日推径——enabled/chat_id 缺=降级计数同 MaybePush）。
-func (p *Pusher) PushText(ctx context.Context, text string) {
+// PushText 通用文本推送（日历日推径——enabled/chat_id 缺=降级计数同 MaybePush；
+// T-0093 返 (msg_id,ok) 同序——未送达调用方禁记账）。
+func (p *Pusher) PushText(ctx context.Context, text string) (string, bool) {
 	if p.cli == nil {
 		p.rej.Inc("push_degraded")
-		return
+		return "", false
 	}
 	en, err := p.cfg.GetBool("notify.feishu.enabled")
 	if err != nil || !en {
 		p.rej.Inc("push_degraded")
-		return
+		return "", false
 	}
 	chatID, err := p.cfg.GetString("feishu.chat_id")
 	if err != nil || chatID == "" {
 		p.rej.Inc("push_degraded")
-		return
+		return "", false
 	}
-	if _, err := p.cli.SendText(ctx, chatID, text); err != nil {
+	mid, err := p.cli.SendText(ctx, chatID, text)
+	if err != nil {
 		p.rej.Inc("push_err")
 		log.Printf("[report] feishu push err: %v", err)
+		return "", false
 	}
+	return mid, true
 }
+
+// Snapshot push_degraded/push_err 计数快照（T-0093 降级显性——md/status 捎带
+// 出观测面，丢报计数不只躺内存）。
+func (p *Pusher) Snapshot() map[string]int64 { return p.rej.Snapshot() }
