@@ -88,7 +88,7 @@ EOF
 )
 
 RAW=$(go list -f '{{.ImportPath}}|{{join .Imports " "}}' ./internal/... 2>/dev/null)
-ACTUAL=$(printf '%s\n' "$RAW" | awk -F'|' -v mod="$MOD" '{split($2,a," "); for(i in a) if(a[i] ~ "^"mod"/internal/") print $1" -> "a[i]}' | sed "s|${MOD}/||g" | sort -u)
+ACTUAL=$(printf '%s\n' "$RAW" | awk -F'|' -v mod="$MOD" '{split($2,a," "); for(i in a) if(a[i] ~ "^"mod"/internal/") print $1" -> "a[i]}' | sed "s|^${MOD}/||; s| -> ${MOD}/| -> |" | sort -u)
 
 VIOL=""
 while IFS= read -r e; do
