@@ -66,9 +66,9 @@ if [ -x scripts/check_migration_contract.sh ]; then
   scripts/check_migration_contract.sh
 fi
 # T-0119 能力账致密化机检（种子面 vs skills 钉表）。
-if git -c core.quotepath=off diff --cached --name-only | grep -qE '^skills/|^migrations/0049'; then
+if git -c core.quotepath=off diff --cached --name-only | grep -qE '^skills/|^migrations/0051'; then
   go run ./tools/capcheck || {
-    echo "FAIL: capcheck 未过——skills 面钉表 vs 0049 种子行缺席（致密化退回）" >&2
+    echo "FAIL: capcheck 未过——skills 面钉表 vs 0051 种子行缺席（致密化退回）" >&2
     exit 1
   }
 fi

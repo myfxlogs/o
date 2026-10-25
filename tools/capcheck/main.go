@@ -25,7 +25,7 @@ var want = []string{
 }
 
 func main() {
-	b, err := os.ReadFile("migrations/0049_capability_dense.sql")
+	b, err := os.ReadFile("migrations/0051_capability_dense.sql")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "capcheck: 种子件缺席: %v\n", err)
 		os.Exit(1)
@@ -42,5 +42,5 @@ func main() {
 		fmt.Fprintf(os.Stderr, "capcheck: %d 面种子缺席——%v\n", len(miss), miss)
 		os.Exit(1)
 	}
-	fmt.Printf("capcheck: %d 面种子齐（0049）\n", len(want))
+	fmt.Printf("capcheck: %d 面种子齐（0051）\n", len(want))
 }

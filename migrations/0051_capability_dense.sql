@@ -4,7 +4,7 @@
 INSERT INTO fin_capability_surface(venue,surface,endpoint_family,product_family,rw_class,cost_attrs,enabled) VALUES
 -- okx 行情面（okx-market-ws 能力账——WS 公开流）
 ('okx','market-tickers','ws-public:tickers','quotes','read','{"src":"ws"}',true),
-('okx','market-books5','ws-public:books5','quotes-depth','read','{"src":"ws"}',true),
+('okx','market-books5','ws-public:books5','quotes-depth','read','{"src":"ws","note":"能力在/采集停(D-0018 停采零读者)"}',false),
 ('okx','market-funding-rate','ws-public:funding-rate','perp-funding','read','{"src":"ws"}',true),
 ('okx','market-mark-price','ws-public:mark-price','perp-mark','read','{"src":"ws"}',true),
 ('okx','market-index-tickers','ws-public:index-tickers','index-quotes','read','{"src":"ws"}',true),
