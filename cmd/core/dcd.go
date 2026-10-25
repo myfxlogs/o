@@ -12,8 +12,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"o/internal/platform/config"
+	"o/internal/platform/notify"
 	"o/internal/research/dcd"
+	"o/internal/research/funding"
 	"o/internal/research/gapscan"
+	"o/internal/research/hypothesis"
 	"o/internal/trading/okxexec"
 )
 
@@ -121,4 +127,15 @@ func gapProbeFor(okcli *okxexec.Client) gapscan.Probe {
 		}
 		return res, nil
 	}
+}
+
+// researchArms 研究域四臂发射（T-0117：funding/dcd/差扫/假想官静默告警同挂
+// 业主通道——读件缺席=让位 WARN 不炸 boot）。
+func researchArms(ctx context.Context, errc chan<- error, pool *pgxpool.Pool,
+	cfg *config.Client, okcli *okxexec.Client, alerter *notify.Alerter) {
+	go funding.NewRunner(pool, cfg).AttachAlerter(alerter).Run(ctx, errc)
+	go dcd.NewRunner(pool, cfg).AttachFeed(dcdFeedFor(okcli)).
+		AttachCoins(okxCoinsFor(pool, okcli)).AttachAlerter(alerter).Run(ctx, errc)
+	go gapscan.NewRunner(pool, cfg).AttachProbe(gapProbeFor(okcli)).AttachAlerter(alerter).Run(ctx, errc)
+	go hypothesis.NewRunner(pool, cfg).AttachAlerter(alerter).Run(ctx, errc)
 }

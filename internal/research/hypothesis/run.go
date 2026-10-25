@@ -22,8 +22,10 @@ import (
 
 	"o/internal/platform/config"
 	"o/internal/platform/events"
+	"o/internal/platform/notify"
 	"o/internal/platform/rejects"
 	"o/internal/platform/roster"
+	"o/internal/research/armwatch"
 )
 
 // legVocab 腿原语基元词汇表（闭集——假想卡组合器只从此表按 family 取，
@@ -50,13 +52,14 @@ var reqTemplates = map[string]map[string]any{
 
 // Runner 假想官在岗体（enroll 注册+心跳；ev_gap 事件驱动——D-0008-B 正解）。
 type Runner struct {
-	pool *pgxpool.Pool
-	cfg  *config.Client
-	rej  *rejects.Door
+	pool  *pgxpool.Pool
+	cfg   *config.Client
+	rej   *rejects.Door
+	watch *armwatch.Watch // 臂活性看门（T-0117——四臂共用件）
 }
 
 func NewRunner(pool *pgxpool.Pool, cfg *config.Client) *Runner {
-	return &Runner{pool: pool, cfg: cfg,
+	return &Runner{pool: pool, cfg: cfg, watch: armwatch.New("假想官"),
 		rej: rejects.New("research", "hypo_missing_params", "hypo_write_err")}
 }
 
@@ -103,6 +106,8 @@ func (r *Runner) scan(ctx context.Context) error {
 		r.rej.Inc("hypo_missing_params")
 		return fmt.Errorf("判据缺位=不起草（fail-closed）: %w", err)
 	}
+	r.watch.SetBeat(24 * time.Hour)
+	r.watch.Check(ctx) // 臂静默判定（T-0117——ev_gap 事件驱动，beat=日窗兜底）
 	rows, err := r.pool.Query(ctx, `SELECT id,venue,surface,metadata FROM fin_surface_gap
 		WHERE state='pending' ORDER BY id`)
 	if err != nil {
@@ -153,6 +158,7 @@ func (r *Runner) scan(ctx context.Context) error {
 		log.Printf("[research/hypo] 假想卡 #%d 立卡 %s/%s（family=%s——待决策席审，零执行权）",
 			cardID, g.venue, g.surface, family)
 	}
+	r.watch.OK() // 消费拍完成=产出（卡零立=无 pending 静默属正常）
 	return nil
 }
 
@@ -178,6 +184,9 @@ func (r *Runner) draft(ctx context.Context, venue, surface, family string, gapID
 		WHERE venue=$1 AND surface=$2`, venue, surface).Scan(&id)
 	return id, err
 }
+
+// AttachAlerter 挂业主告警通道（臂静默——T-0117 返修）。
+func (r *Runner) AttachAlerter(a *notify.Alerter) *Runner { r.watch.AttachAlerter(a); return r }
 
 // ScanOnce 单拍壳（工具/实证件消费）。
 func (r *Runner) ScanOnce(ctx context.Context) error { return r.scan(ctx) }

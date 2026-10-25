@@ -21,8 +21,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"o/internal/platform/config"
+	"o/internal/platform/notify"
 	"o/internal/platform/rejects"
 	"o/internal/platform/roster"
+	"o/internal/research/armwatch"
 )
 
 // ProbeFace 目录探针面（目录种子——只收技能档/文档锚实过验的面，禁猜端点）。
@@ -68,13 +70,17 @@ type Runner struct {
 	cfg   *config.Client
 	rej   *rejects.Door
 	probe Probe
+	watch *armwatch.Watch // 臂活性看门（T-0117——四臂共用件）
 }
 
 func NewRunner(pool *pgxpool.Pool, cfg *config.Client) *Runner {
-	return &Runner{pool: pool, cfg: cfg,
+	return &Runner{pool: pool, cfg: cfg, watch: armwatch.New("差扫"),
 		rej: rejects.New("research", "gap_probe_failed", "gap_write_err",
 			"gap_gen_cap", "gap_registry_read_failed")}
 }
+
+// AttachAlerter 挂业主告警通道（臂静默——T-0117 返修）。
+func (r *Runner) AttachAlerter(a *notify.Alerter) *Runner { r.watch.AttachAlerter(a); return r }
 
 // AttachProbe 挂面探针读件（cmd 装配层签名 GET 闭包）。
 func (r *Runner) AttachProbe(fn Probe) *Runner { r.probe = fn; return r }
@@ -92,6 +98,8 @@ func (r *Runner) Run(ctx context.Context, errc chan<- error) {
 		if v, err := r.cfg.GetFloat("research.gap.scan_interval_min"); err == nil && v > 0 {
 			interval = time.Duration(v * float64(time.Minute))
 		}
+		r.watch.SetBeat(interval)
+		r.watch.Check(ctx) // 臂静默判定（T-0117——周期差扫 2×节拍窗）
 		if err := r.scan(ctx); err != nil {
 			errc <- fmt.Errorf("gapscan: %w", err)
 		}
@@ -145,6 +153,7 @@ func (r *Runner) scan(ctx context.Context) error {
 			}
 		}
 	}
+	r.watch.OK() // 差扫拍完成（目录探针轮毕=产出——死面裁定亦产出）
 	return r.classifyPending(ctx)
 }
 
