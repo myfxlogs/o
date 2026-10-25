@@ -199,6 +199,10 @@ func (c *Client) MT5() mt5pb.MT5Client { return c.mt5 }
 // Authed 携 token ctx（读面调用共用——token 体域携行）。
 func (c *Client) Authed(ctx context.Context) context.Context { return c.authed(ctx) }
 
+// Token 会话 token（请求体 Id 字段双位同填用——探针/工具面自构 Request 时取；
+// Authed 只携 header，体域 Id 须调用方填本值，mt5-gateway-admin 双位契约）。
+func (c *Client) Token() string { return c.token }
+
 func (c *Client) Close() { _ = c.conn.Close() }
 
 func splitHosts(h string) []string {
