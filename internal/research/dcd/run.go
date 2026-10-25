@@ -128,8 +128,19 @@ func (r *Runner) scan(ctx context.Context) error {
 
 // scanSurface 单面：快照留痕+评估落卡+阈闸提案。
 func (r *Runner) scanSurface(ctx context.Context, s Surface, ps []Product, p Params) error {
+	skipCcy := 0 // T-0117 修4：USDT 计价硬闸（业主令 10-25——非 USDT 产品
+	// 枚举期挡不入 eval：异币评出 insufficient_balance=误导性条件缺口；产品
+	// 行照留宇宙可见性保留）。
 	for _, prod := range ps {
 		spot := r.spot(ctx, prod.Uly)
+		if prod.QuoteCcy != "" && prod.QuoteCcy != "USDT" {
+			skipCcy++
+			if err := r.persistProduct(ctx, s, prod, spot); err != nil {
+				r.rej.Inc("dcd_write_err")
+				return err
+			}
+			continue // 行留痕不评估
+		}
 		avail, ok := r.availOf(ctx, prod)
 		e := Evaluate(prod, spot, avail, p)
 		if !ok {
@@ -151,6 +162,9 @@ func (r *Runner) scanSurface(ctx context.Context, s Surface, ps []Product, p Par
 			r.rej.Inc("dcd_write_err")
 			return err
 		}
+	}
+	if skipCcy > 0 {
+		log.Printf("[research/dcd] 面 %s skipped_scope_ccy=%d（非 USDT 计价产品枚举期挡——范围硬闸）", s.Surface, skipCcy)
 	}
 	return nil
 }

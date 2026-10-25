@@ -205,9 +205,9 @@ func TestUlyDialectNormalizedEvaluable(t *testing.T) {
 	d7 := time.Now().UTC().Add(7 * 24 * time.Hour).Truncate(time.Second)
 	r.AttachFeed(func(_ context.Context, s Surface) ([]Product, error) {
 		return []Product{
-			{ProductID: "BTC-USDG-261101-92000-C", Uly: "BTC-USDG", Direction: "C",
-				Strike: 92000, Expiry: d7, AnnualizedYield: 0.13, MinSize: 0.01},
-			{ProductID: "BTC-USDG-261101-68000-P", Uly: "BTC-USDG", QuoteCcy: "USDG",
+			{ProductID: "BTC-USDT-261101-92000-C", Uly: "BTC-USDG", QuoteCcy: "USDT",
+				Direction: "C", Strike: 92000, Expiry: d7, AnnualizedYield: 0.13, MinSize: 0.01},
+			{ProductID: "BTC-USDT-261101-68000-P", Uly: "BTC-USDG", QuoteCcy: "USDT",
 				Direction: "P", Strike: 68000, Expiry: d7, AnnualizedYield: 0.11,
 				MinSize: 100},
 		}, nil
@@ -230,13 +230,50 @@ func TestUlyDialectNormalizedEvaluable(t *testing.T) {
 	}
 	var spot float64
 	if err := r.pool.QueryRow(ctx, `SELECT (evidence->>'spot')::numeric FROM fin_opp_eval
-		WHERE inst_id='BTC-USDG-261101-92000-C' LIMIT 1`).Scan(&spot); err != nil || spot != 80000 {
+		WHERE inst_id='BTC-USDT-261101-92000-C' LIMIT 1`).Scan(&spot); err != nil || spot != 80000 {
 		t.Fatalf("spot 应归一取 BTC-USDT 价 80000: %v %v", spot, err)
 	}
 	// USDG 计价 put 锁仓币=USDG 非 USDT——余量错币过闸=钱径方言坑。
 	var locked string
 	if err := r.pool.QueryRow(ctx, `SELECT evidence->>'locked_ccy' FROM fin_opp_eval
-		WHERE inst_id='BTC-USDG-261101-68000-P' LIMIT 1`).Scan(&locked); err != nil || locked != "USDG" {
-		t.Fatalf("put 锁仓币应=USDG: %v %v", locked, err)
+		WHERE inst_id='BTC-USDT-261101-68000-P' LIMIT 1`).Scan(&locked); err != nil || locked != "USDT" {
+		t.Fatalf("put 锁仓币应=USDT: %v %v", locked, err)
+	}
+}
+
+// T-0117 返修④锚：USDT 计价硬闸——USDG/USDC 产品行照留不入 eval
+// （异币余量误评 insufficient_balance 禁）。
+func TestScopeCcyGateSkipsEval(t *testing.T) {
+	ctx, r := setup(t)
+	if _, err := r.pool.Exec(ctx,
+		`INSERT INTO md_ticks(ts,inst_id,last) VALUES(now(),'BTC-USDT',80000)`); err != nil {
+		t.Fatal(err)
+	}
+	d7 := time.Now().UTC().Add(7 * 24 * time.Hour).Truncate(time.Second)
+	r.AttachFeed(func(_ context.Context, s Surface) ([]Product, error) {
+		return []Product{
+			{ProductID: "BTC-USDG-261101-92000-C", Uly: "BTC-USDG", QuoteCcy: "USDG",
+				Direction: "C", Strike: 92000, Expiry: d7, AnnualizedYield: 0.13,
+				MinSize: 0.01},
+		}, nil
+	})
+	r.AttachCoins(func(context.Context) (map[string]float64, error) {
+		return map[string]float64{"USDT": 420}, nil
+	})
+	if err := r.ScanOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var nEval int
+	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_opp_eval
+		WHERE inst_id='BTC-USDG-261101-92000-C'`).Scan(&nEval); err != nil {
+		t.Fatal(err)
+	}
+	if nEval != 0 {
+		t.Fatalf("USDG 产品应枚举期挡不入 eval: %d 行", nEval)
+	}
+	var nProd int
+	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM md_dcd_product
+		WHERE product_id='BTC-USDG-261101-92000-C'`).Scan(&nProd); err != nil || nProd == 0 {
+		t.Fatalf("产品行应照留宇宙可见性: %d", nProd)
 	}
 }
