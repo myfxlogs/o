@@ -217,3 +217,25 @@ func TestOpenLifetimePassesHealthy(t *testing.T) {
 		t.Fatalf("健康仓被误拒: %+v", fo.calls)
 	}
 }
+
+// T-0111 ①锚：回本窗判据——funding 0.5bps/72h(9 结)=4.5bps carry <
+// 4 腿×(5+3)bps×1.5=48bps → breakeven_beyond_hold 拒开。
+func TestOpenBreakevenRejectsThin(t *testing.T) {
+	ctx, r, fo := openerSetup(t)
+	seedFlip(t, ctx, r)
+	mkStrategy(t, ctx, r, "live", time.Hour)
+	// ETH 级薄 funding（0.5bps=0.00005——回本窗远超 72h 持仓上限）。
+	if _, err := r.pool.Exec(ctx, `INSERT INTO md_funding(ts,inst_id,funding_rate,next_funding_rate)
+		VALUES(now(),'OP-USDT-SWAP',0.00005,0.00005)`); err != nil {
+		t.Fatal(err)
+	}
+	r.openLive(ctx)
+	if len(fo.calls) != 0 {
+		t.Fatal("回本窗不满仓被开出")
+	}
+	var n int
+	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_opp_eval
+		WHERE evidence->>'reason'='breakeven_beyond_hold'`).Scan(&n); err != nil || n == 0 {
+		t.Fatalf("breakeven_beyond_hold 拒卡未落（n=%d）", n)
+	}
+}

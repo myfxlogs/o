@@ -32,6 +32,8 @@ type Runner struct {
 	coins  Coins
 	lastAt time.Time // 最小间隔节流（T-0102 修补7——ev_account 每 ~5s 触发曾
 	// 致产品面 429 风暴；research.dcd.scan_interval_min 热启，缺=30min 底）。
+	lastOK   time.Time // 上次成功产出拍（臂静默告警锚——T-0117）
+	silentRd bool      // 静默告警已发（抑刷屏——恢复后清零）
 }
 
 func NewRunner(pool *pgxpool.Pool, cfg *config.Client) *Runner {
@@ -86,6 +88,12 @@ func (r *Runner) scan(ctx context.Context) error {
 		return nil // 节流窗内让位（事件风暴≠扫描风暴）
 	}
 	r.lastAt = time.Now()
+	// T-0117 臂静默告警：超 2×节拍零成功产出=明牌告警一次（非静默死亡——
+	// fail-closed 让位循环不再无声）；恢复产出即清标可再报。
+	if !r.lastOK.IsZero() && time.Since(r.lastOK) > 2*iv && !r.silentRd {
+		log.Printf("ALERT [research_arm_silent] dcd 枚举臂超 %.0fmin 零成功产出——fail-closed 让位循环（429/读败）", iv.Minutes()*2)
+		r.silentRd = true
+	}
 	p, err := r.params()
 	if err != nil {
 		r.rej.Inc("dcd_missing_params")
@@ -112,6 +120,10 @@ func (r *Runner) scan(ctx context.Context) error {
 		if err := r.scanSurface(ctx, s, ps, p); err != nil {
 			return err
 		}
+	}
+	if len(ss) > 0 {
+		r.lastOK = time.Now()
+		r.silentRd = false // 恢复产出清标（再静默可再报）
 	}
 	return nil
 }

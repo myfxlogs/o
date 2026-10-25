@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"o/internal/research/dcd"
@@ -18,12 +19,38 @@ import (
 
 // dcdFeedFor 双币赢枚举 REST 面（<endpoint_family>/currency-pair → products?uly=
 // 全对在架；信封数字 code 由 okxexec flexCode 兼容——坑条 okx-dcd-endpoint-dialect）。
+// get429 限频退避重读件（T-0117 根修：boot 两臂同打 DCD 产品端点撞 429
+// fail-closed 让位成静默死亡——429/5xx ≤3 次指数退避重试再让位；4xx 不重试）。
+func get429(ctx context.Context, okcli *okxexec.Client, path string) ([]byte, error) {
+	var raw []byte
+	var err error
+	for try := 0; try < 4; try++ {
+		raw, err = okcli.Get(ctx, path)
+		if err == nil {
+			return raw, nil
+		}
+		msg := err.Error()
+		if !strings.Contains(msg, "429") && !strings.Contains(msg, "http 5") {
+			return nil, err // 非限频/服务端错不重试
+		}
+		if try == 3 {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			return nil, err
+		case <-time.After(time.Duration(1<<try) * time.Second): // sched-exempt-ok：429 退避
+		}
+	}
+	return nil, err
+}
+
 func dcdFeedFor(okcli *okxexec.Client) dcd.Feed {
 	return func(ctx context.Context, s dcd.Surface) ([]dcd.Product, error) {
 		if okcli == nil {
 			return nil, fmt.Errorf("dcd feed 缺席（凭据缺）")
 		}
-		raw, err := okcli.Get(ctx, s.EndpointFamily+"/currency-pair")
+		raw, err := get429(ctx, okcli, s.EndpointFamily+"/currency-pair")
 		if err != nil {
 			return nil, err
 		}
@@ -37,7 +64,7 @@ func dcdFeedFor(okcli *okxexec.Client) dcd.Feed {
 				time.Sleep(300 * time.Millisecond) // sched-exempt-ok：限流件
 				// 退避节拍（429 实证——逐对连发风暴；sfp 族限速紧，非轮询）
 			}
-			raw2, err := okcli.Get(ctx, fmt.Sprintf("%s/products?baseCcy=%s&quoteCcy=%s&optType=%s",
+			raw2, err := get429(ctx, okcli, fmt.Sprintf("%s/products?baseCcy=%s&quoteCcy=%s&optType=%s",
 				s.EndpointFamily, pr.BaseCcy, pr.QuoteCcy, pr.OptType))
 			if err != nil {
 				return nil, err
@@ -62,7 +89,7 @@ func gapProbeFor(okcli *okxexec.Client) gapscan.Probe {
 		if okcli == nil {
 			return gapscan.ProbeResult{}, fmt.Errorf("probe 缺席（凭据缺）")
 		}
-		raw, err := okcli.Get(ctx, f.Endpoint)
+		raw, err := get429(ctx, okcli, f.Endpoint)
 		if err != nil {
 			var ae *okxexec.APIError
 			if errors.As(err, &ae) {
