@@ -130,7 +130,7 @@ func (r *Runner) placeAndResolve(ctx context.Context, execID int64, no int, leg 
 	switch res.State {
 	case "filled":
 		legID := r.legPx(ctx, execID, no, leg, clOrdID, "filled", vc, vm, res.FillPx, res.FillSz)
-		r.legCash(ctx, legID, leg, res.FillPx, posRef)
+		r.legCash(ctx, legID, leg, res.FillPx, res.FillSz, posRef)
 		return res, nil
 	case "live", "partially_filled":
 		r.leg(ctx, execID, no, leg, clOrdID, "ack", vc, vm)
@@ -186,7 +186,7 @@ func (r *Runner) rollback(ctx context.Context, execID int64, leg Leg, res OrderR
 	}
 	legID := r.legPx(ctx, execID, 1, leg, clOrdID, "rolled_back", "", "", 0, rb.FillSz)
 	// 回滚腿=真实现金事件（买回即卖出）——spot 腿同径记账（rev.Side 定向，px 缺=名义锚）。
-	r.legCash(ctx, legID, rev, rb.FillPx, nil)
+	r.legCash(ctx, legID, rev, rb.FillPx, rb.FillSz, nil)
 	r.setState(ctx, execID, "rolled_back")
 	log.Printf("[execution] #%d LEGGED→leg1 回滚成", execID)
 }
@@ -231,7 +231,7 @@ func (r *Runner) legPx(ctx context.Context, execID int64, no int, leg Leg, clOrd
 // legCash 腿级现金行（T-0083 对称记账）：okx 现货腿（非 SWAP）买=流出毛额负、
 // 卖=流入毛额正——两腿各记净额自然=真价差；合约腿无名义现金（结算走 bills/fee）。
 // source_ref=腿行 id（幂等溯源锚）；perp/CFD/杂 venue 不触现径。
-func (r *Runner) legCash(ctx context.Context, legID int64, leg Leg, px float64, posRef *int64) {
+func (r *Runner) legCash(ctx context.Context, legID int64, leg Leg, px, fillSz float64, posRef *int64) {
 	if legID == 0 || leg.Venue != "okx" || strings.HasSuffix(leg.InstID, "-SWAP") {
 		return
 	}
@@ -242,17 +242,23 @@ func (r *Runner) legCash(ctx context.Context, legID int64, leg Leg, px float64, 
 	if _, err := r.pool.Exec(ctx, `INSERT INTO fin_cashflow
 		(kind,venue,ccy,amount,position_ref,source_ref,source_table,occurred_at)
 		VALUES($1,$2,'USDT',$3,$4,$5,'fin_order_leg',now())`,
-		kind, leg.Venue, sign*legGross(leg, px), posRef, legID); err != nil {
+		kind, leg.Venue, sign*r.legGross(leg, px, fillSz), posRef, legID); err != nil {
 		r.rej.Inc("write_err")
 	}
 }
 
-// legGross 腿毛额（quote_ccy 买委托=sz 即 USDT 额；base 委托=sz×px；px/sz 缺=
-// 名义兜底——毛额锚不空）。回滚卖腿（rev）走名义锚（quote 额不可当 base 量卖）。
-func legGross(leg Leg, px float64) float64 {
+// legGross 腿毛额（T-0116 根修：quote_ccy 买=成交额 accFillSz×avgPx 非委托
+// 额——OKX 市价 quote 买实扣<委托，差额回退交易户现金账本看不见；成交额
+// 读不到=退委托额并计 rej.gross_fallback 显形）。base 委托=sz×px；px/sz 缺=
+// 名义兜底——毛额锚不空。回滚卖腿（rev）走名义锚（quote 额不可当 base 量卖）。
+func (r *Runner) legGross(leg Leg, px, fillSz float64) float64 {
 	sz, _ := strconv.ParseFloat(leg.Sz, 64)
 	if leg.TgtQuote {
 		if leg.Side == "buy" && sz > 0 {
+			if fillSz > 0 && px > 0 {
+				return fillSz * px // T-0116：成交额锚（非委托额）
+			}
+			r.rej.Inc("gross_fallback")
 			return sz
 		}
 		return leg.Notional

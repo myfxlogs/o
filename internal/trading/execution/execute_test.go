@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"o/internal/platform/config"
+	"o/internal/platform/rejects"
 	"o/internal/platform/testutil"
 	"o/internal/store/pgstore"
 	"o/internal/trading/okxexec"
@@ -721,5 +722,22 @@ func TestLegUnitRecorded(t *testing.T) {
 	}
 	if unit2 != "contract" || qty2 != nil {
 		t.Fatalf("SWAP 腿应 contract 无币量: %s %v", unit2, qty2)
+	}
+}
+
+// T-0116 锚：quote 买腿入账=成交额（accFillSz×avgPx）非委托额——
+// 委托 24.1572/实扣 24.0999 → cashflow −24.0999 非 −24.1572。
+func TestLegGrossQuoteBuyFillAmt(t *testing.T) {
+	r := &Runner{rej: rejects.New("execution", "gross_fallback")}
+	leg := Leg{TgtQuote: true, Side: "buy", Sz: "24.1572", InstID: "BTC-USDT", Venue: "okx"}
+	if got := r.legGross(leg, 100, 0.240999); got < 24.09989 || got > 24.09991 {
+		t.Fatalf("成交额锚: got %v want ~24.0999", got)
+	}
+	// 成交额读不到=退委托额+rej.gross_fallback 显形。
+	if got := r.legGross(leg, 100, 0); got != 24.1572 {
+		t.Fatalf("fallback: got %v", got)
+	}
+	if r.rej.Snapshot()["execution/gross_fallback"] != 1 {
+		t.Fatalf("gross_fallback 未计: %v", r.rej.Snapshot())
 	}
 }

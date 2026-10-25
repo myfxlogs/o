@@ -80,7 +80,7 @@ func NewRunner(pool *pgxpool.Pool, cfg *config.Client, exec Executor) *Runner {
 	return &Runner{pool: pool, cfg: cfg, exec: exec,
 		rej: rejects.New("execution", "token_missing", "token_expired", "token_used",
 			"token_not_allow", "live_switch_off", "missing_param",
-			"hedge_band", "rollback_failed", "earn_redeem_failed", "write_err")}
+			"hedge_band", "rollback_failed", "earn_redeem_failed", "write_err", "gross_fallback")}
 }
 
 // WithAlerter 挂告警器（nil=静默降级）。
