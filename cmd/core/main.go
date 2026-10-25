@@ -121,6 +121,7 @@ func run() error {
 		})
 	}
 	startEventPush(ctx, errc, pool, cfg, sender) // 经营事件报（T-0061——event_push.go）
+	collector.AttachAlerter(alerter)             // T-0128 返修②：面死告警 humanize kind
 	go killSwitchNotifier(ctx, pool, cfg, alerter)
 	riskGate := risk.NewGate(pool, cfg)
 	// T-0104/D-0013：节点角色闸（noderole.go）——只读镜像写径不可达。

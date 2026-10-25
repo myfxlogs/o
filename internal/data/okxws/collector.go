@@ -15,6 +15,7 @@ import (
 
 	"o/internal/platform/config"
 	"o/internal/platform/netmeter"
+	"o/internal/platform/notify"
 	"o/internal/platform/rejects"
 	"o/internal/platform/roster"
 )
@@ -45,6 +46,7 @@ type Collector struct {
 	lastFrame atomic.Int64 // 最近业务帧 UnixNano（status 端点/看门狗同读）
 	Stats     *Door        // 别名 rej（对外观测名）
 	meter     *netmeter.Meter
+	al        *notify.Alerter // 面死告警业主通道（T-0128 返修②——nil=log 退路）
 	// ExpandSymbols 宇宙扩件（T-0122：okx.symbols 含 "*"=放开全 SWAP+季度
 	// 期货——装配层挂 instruments 实读闭包，未挂=键面拒签 fail-closed）。
 	ExpandSymbols func(ctx context.Context) ([]string, error)
@@ -52,6 +54,10 @@ type Collector struct {
 
 // AttachMeter 挂带宽计量件（T-0057：nil=不计量）。
 func (c *Collector) AttachMeter(m *netmeter.Meter) { c.meter = m }
+
+// AttachAlerter 挂业主告警通道（T-0128 返修②——面死告警走 humanize kind
+// 非 log 前缀；nil=测试/无装配 log 退路）。
+func (c *Collector) AttachAlerter(a *notify.Alerter) { c.al = a }
 
 type Door = rejects.Door
 
@@ -279,7 +285,12 @@ func (c *Collector) staleWatch(ctx context.Context) {
 				continue
 			}
 			if fresh == 0 && !alerted {
-				log.Printf("ALERT [okxws] 行情面死——订阅 %d 标的 md_ticks 全行超龄 3min（断流面非单键陈）", len(syms))
+				msg := fmt.Sprintf("订阅 %d 标的 md_ticks 全行超龄 3min（断流面非单键陈）", len(syms))
+				if c.al != nil {
+					c.al.Alert(ctx, "okxws_face_dead", msg)
+				} else {
+					log.Printf("ALERT [okxws] 行情面死——%s", msg)
+				}
 				alerted = true
 			} else if fresh > 0 {
 				alerted = false // 恢复清标可再报

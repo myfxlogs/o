@@ -21,6 +21,7 @@ var kindSpec = map[string]struct {
 	"net_budget_crit":     {"带宽预算临界", false, "观测面超阈"},
 	"bal_missing":         {"对账缺岗", false, "venue 读件缺席"},
 	"research_arm_silent": {"研究臂静默", true, "在编臂零产出——机会面停摆（T-0117）"},
+	"okxws_face_dead":     {"行情面断流", false, "订阅标的行情全冻——系统面故障（T-0129）"},
 }
 
 // HumanText 人话载荷装配（三段式——业主零黑话）。

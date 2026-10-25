@@ -20,6 +20,7 @@ internal/data/okxpriv -> internal/platform/rejects
 internal/data/okxpriv -> internal/platform/roster
 internal/data/okxpriv -> internal/platform/signutil
 internal/data/okxws -> internal/platform/config
+internal/data/okxws -> internal/platform/notify
 internal/ledger -> internal/platform/config
 internal/ledger -> internal/platform/rejects
 internal/ledger/holding -> internal/platform/rejects
