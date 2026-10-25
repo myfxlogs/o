@@ -89,6 +89,24 @@ b.className=localStorage.th||'';t2.textContent=b.className?'🌙 暗色':'☀️
 function t(){b.classList.toggle('light');localStorage.th=b.className;
 t2.textContent=b.className?'🌙 暗色':'☀️ 亮色'}
 </script>
+<nav class="oside" aria-label="视图切换">
+  <div class="grp-label">门面</div>
+  <a class="sidebar-item active" href="/"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/></svg><span>总览</span></a>
+  <a class="sidebar-item" href="/trx.html"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M2 12h20"/></svg><span>TRX 自营盘</span></a>
+  <div class="grp-label">运维</div>
+</nav>
+<style>
+/* T-0113 左栏导航（vanilla 页静态件——与 React Shell 同类名同构） */
+.oside{position:fixed;left:0;top:0;bottom:0;width:180px;padding:16px 8px;
+  background:var(--card);border-right:1px solid var(--edge);backdrop-filter:blur(18px)}
+.oside .grp-label{font-size:11px;color:var(--dim);margin:12px 12px 4px;letter-spacing:.5px}
+.oside .sidebar-item{display:flex;align-items:center;gap:10px;padding:8px 12px;
+  color:var(--dim);text-decoration:none;border-radius:8px;font-size:13px}
+.oside .sidebar-item.active{color:var(--txt);background:rgba(255,255,255,.08)}
+.oside .sidebar-item:hover{color:var(--txt)}
+body{padding-left:196px}
+@media (max-width:767px){.oside{display:none}body{padding-left:0}}
+</style>
 <div class="grid">
 
   <div class="card hero"><span class="tile-no">#1</span>
@@ -128,7 +146,7 @@ t2.textContent=b.className?'🌙 暗色':'☀️ 亮色'}
   </div>
 
   <div class="card" id="c-trx" style="grid-column:span 6">
-    <h3>TRX 自营盘 <i style="font-size:11px;color:var(--dim)">自营盘·业绩外</i></h3><span class="tile-no">#5</span>
+    <h3><a href="/trx.html" style="color:inherit;text-decoration:none">TRX 自营盘</a> <i style="font-size:11px;color:var(--dim)">自营盘·业绩外</i></h3><span class="tile-no">#5</span>
     <div id="trx-body">
     <div class="empty"><p>读数装载中</p><i>「本金自带回报，不入口径。」</i></div>
     </div>
