@@ -274,7 +274,8 @@ func run() error {
 			"net_bytes":  meter.Channels(),
 		})
 	})
-	mountCore(mux, pool)
+	// T-0086 ①④：资金户/Earn 活读件注入（venue_readers.go——REST 保留面）。
+	mountCore(mux, pool, fundingLiveFor(okcli), earnLiveFor(okcli))
 
 	srv := &http.Server{Addr: listenAddr, Handler: mux, ReadHeaderTimeout: 10 * time.Second}
 	go func() {

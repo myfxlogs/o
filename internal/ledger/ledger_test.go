@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"phase/internal/platform/config"
+	"phase/internal/platform/rejects"
 	"phase/internal/platform/testutil"
 	"phase/internal/store/pgstore"
 )
@@ -181,5 +182,33 @@ func TestPostInterest(t *testing.T) {
 func TestInterestKindsInClosedSet(t *testing.T) {
 	if !kinds["interest"] || !kinds["recon_adjust"] {
 		t.Fatal("interest/recon_adjust 应在 kind 闭集")
+	}
+}
+
+// T-0086 ③锚：对拍白名单=USDT+在册（fin_cashflow 有账币种）——账外币种按身份
+// 豁免：钉多大金额都不报警（涨跌不警）。
+func TestReconcileOffLedgerExempt(t *testing.T) {
+	ctx, r := setup(t)
+	// 隔离：清他测留下的已知残差豁免（T-0081 容差补进会吃掉本测造差）。
+	if _, err := r.pool.Exec(ctx, "DELETE FROM fin_known_residual"); err != nil {
+		t.Fatal(err)
+	}
+	var ven map[[2]string]float64
+	r.WithBalances(func(ctx context.Context) (map[[2]string]float64, error) { return ven, nil })
+	if _, err := Post(ctx, r.pool, Entry{Kind: "deposit", Venue: "okx", Ccy: "USDT", Amount: 100, SourceRef: 1, SourceTable: "t"}); err != nil {
+		t.Fatal(err)
+	}
+	// 在册 USDT 差 1（>容差 0.5）→告警；账外 DOGE/Earn-BTC 钉巨额→零告警。
+	ven = map[[2]string]float64{
+		{"okx", "USDT"}: 101,
+		{"okx", "DOGE"}: 999999,
+		{"okx", "BTC"}:  8888,
+	}
+	r.rej = rejects.New("ledger", "diff_alert", "missing_param", "bal_missing", "write_err")
+	if err := r.reconcile(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := r.rej.Snapshot()["ledger/diff_alert"]; got != 1 {
+		t.Fatalf("diff_alert=%d（应恰 1——USDT 告警、账外币豁免零警）", got)
 	}
 }

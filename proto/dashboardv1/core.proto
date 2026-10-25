@@ -25,7 +25,13 @@ message OverviewResponse {
   string alert = 9;              // 异常条（空=平静）
 }
 message DoingItem { string text = 1; string stamp = 2; }
-message MoneyRow { string label = 1; double amount = 2; }
+message MoneyRow {
+  string label = 1;    // 币种人类名（如 USDT/Ethereum）
+  double amount = 2;
+  string section = 3;  // 分区：交易户|资金户|Earn（T-0086 ②三分卡）
+  string ccy = 4;
+  bool legacy = 5;     // 非在册币种=遗留资产（涨跌不报警——身份豁免）
+}
 message StaffRow { string name = 1; string duty = 2; int32 state = 3; } // 0绿1琥珀2红
 message WatchRequest {}
 message WatchEvent { string kind = 1; string ts = 2; }

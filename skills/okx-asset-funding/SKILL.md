@@ -34,6 +34,10 @@ domain: 工程
 - **歧态势**：transfer 传输败→transfer-state 按 clientId 定真态，禁盲重发（同 clOrdId 律）。
 - **复位径纪律（critical——probe-restore-scope-overreach 条目）**：Earn/资金户归集只许冲销台账内条目，**存量资金禁动**——按现值「有多少抽多少」式调用是越权动业主资产（$2145 事故实证）。
 
+## 消费面
+- NAV 三户口径（T-0086）：资金户/Earn=REST 活读零落地（/asset/balances 逐币、/finance/savings/balance 逐行 amt——遍历所有行找 ccy，首行序不定坑在案）；缺户=0 不误报。
+- 对账白名单：账外币种按身份豁免（在册=fin_cashflow 有账币种），粉尘/杂币涨跌不报警。
+
 ## 复跑
 
 `tools/okxverify -mut`（划转往返+Earn 赎购真单谱）；`tools/okxunwind -ccy <X>`（回卷件——限价保护卖+摆回 Earn）。
