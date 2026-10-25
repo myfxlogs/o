@@ -19,6 +19,7 @@ import (
 	"o/internal/research/dcd"
 	"o/internal/research/funding"
 	"o/internal/research/gapscan"
+	"o/internal/research/grammar"
 	"o/internal/research/hypothesis"
 	"o/internal/trading/okxexec"
 )
@@ -138,4 +139,5 @@ func researchArms(ctx context.Context, errc chan<- error, pool *pgxpool.Pool,
 		AttachCoins(okxCoinsFor(pool, okcli)).AttachAlerter(alerter).Run(ctx, errc)
 	go gapscan.NewRunner(pool, cfg).AttachProbe(gapProbeFor(okcli)).AttachAlerter(alerter).Run(ctx, errc)
 	go hypothesis.NewRunner(pool, cfg).AttachAlerter(alerter).Run(ctx, errc)
+	go grammar.NewRunner(pool, cfg).Run(ctx, errc) // T-0120 文法枚举臂
 }

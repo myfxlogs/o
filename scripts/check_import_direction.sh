@@ -75,9 +75,12 @@ internal/research/funding -> internal/platform/rejects
 internal/research/funding -> internal/platform/roster
 internal/research/funding -> internal/platform/notify
 internal/research/dcd -> internal/platform/config
+internal/research/grammar -> internal/platform/config
 internal/research/dcd -> internal/platform/events
+internal/research/grammar -> internal/platform/events
 internal/research/dcd -> internal/platform/notify
 internal/research/dcd -> internal/platform/rejects
+internal/research/grammar -> internal/platform/rejects
 internal/research/dcd -> internal/research/armwatch
 internal/research/armwatch -> internal/platform/notify
 internal/research/funding -> internal/research/armwatch
