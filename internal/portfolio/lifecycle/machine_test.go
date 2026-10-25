@@ -135,7 +135,8 @@ func TestPaperDedupe(t *testing.T) {
 	mkProp := func() {
 		var eid int64
 		if err := pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,verdict,legs,evidence)
-			VALUES('DD-USDT-SWAP','funding-hedge','short_perp_long_spot','proposed','{}','{}') RETURNING id`).Scan(&eid); err != nil {
+			VALUES('DD-USDT-SWAP','funding-hedge','short_perp_long_spot','proposed','{}','{}')
+			ON CONFLICT (inst_id,template,direction) DO UPDATE SET ts=now() RETURNING id`).Scan(&eid); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := pool.Exec(ctx,

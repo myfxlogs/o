@@ -53,6 +53,7 @@ var migrationTable = []struct {
 	{48, "0048_trx_full_parity.sql"},
 	{49, "0049_md_state_tables.sql"},
 	{50, "0050_promote_template_gate.sql"},
+	{53, "0053_eval_state_table.sql"},
 	{51, "0051_capability_dense.sql"},
 	{25, "0025_order_leg_venue_err.sql"},
 	{26, "0026_venue_facts.sql"},

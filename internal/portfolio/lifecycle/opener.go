@@ -206,7 +206,9 @@ func (r *Runner) rejectEvalReason(ctx context.Context, spec OpenSpec, reason str
 		return false
 	}
 	if _, err := r.pool.Exec(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,verdict,legs,evidence)
-		VALUES($1,'funding-hedge',$2,'rejected','[]',$3)`,
+		VALUES($1,'funding-hedge',$2,'rejected','[]',$3)
+		ON CONFLICT (inst_id,template,direction) DO UPDATE SET ts=now(),
+		verdict=EXCLUDED.verdict,legs=EXCLUDED.legs,evidence=EXCLUDED.evidence`,
 		spec.InstID, spec.Direction, b); err != nil {
 		r.rej.Inc("write_err")
 	}
