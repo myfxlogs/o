@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | 待派 |
+| 状态 | ✅ 验收合入部署 @f1bd7b8（tick/funding 龄闸+alerter 挂接+0055 迁移；返修①②全补）|
 | 优先 | **高**——真仓误杀实证（#23），所有现货腿对冲仓暴露 |
 | 出处 | 仓 23 delta_drift 误杀取证；坑条目 `guard-drift-stale-tick-false-kill` |
 
