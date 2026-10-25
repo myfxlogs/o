@@ -82,3 +82,41 @@ func (c *Collector) activeSet(ctx context.Context) (map[string]bool, error) {
 	}
 	return set, rows.Err()
 }
+
+// syncActiveSet 活跃集动态重订（T-0132 面；T-0133 三修——①幽灵标的滤除：
+// activeSet 提案/策略/在仓 inst_id 含 DCD 产品名等假想链产物非真实行情
+// 标的，∩订阅宇宙 syms 才发 tickers 帧；②加订分帧节流≤100 args/帧
+// ——60014 限频实证；③60018 拒收集 refused 本连接内不再重发）。
+func (c *Collector) syncActiveSet(ctx context.Context, conn *websocket.Conn,
+	syms []string, subTick, refused map[string]bool) {
+	valid := map[string]bool{}
+	for _, s := range syms {
+		valid[s] = true
+	}
+	set, err := c.activeSet(ctx)
+	if err != nil {
+		c.rej.Inc("activeset_read_failed")
+		return
+	}
+	var adds []map[string]string
+	for inst := range set {
+		if subTick[inst] || !isUSDTInst(inst) || !valid[inst] || refused[inst] {
+			continue
+		}
+		adds = append(adds, map[string]string{"channel": "tickers", "instId": inst})
+	}
+	if err := subscribeAll(conn, adds); err != nil {
+		return
+	}
+	for _, a := range adds {
+		subTick[a["instId"]] = true
+	}
+	for inst := range subTick {
+		if !set[inst] {
+			if err := conn.WriteJSON(subArgs("unsubscribe", inst)); err != nil {
+				return
+			}
+			delete(subTick, inst)
+		}
+	}
+}
