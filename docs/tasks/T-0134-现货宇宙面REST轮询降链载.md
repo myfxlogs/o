@@ -18,3 +18,12 @@
 - `md_mark_index` 现货行 ts<90s 鲜（轮询+入库时延内）
 - 连续 30min 零 `close 1006`（现基线 ~110s/次）
 - 棘轮/机检全绿
+
+## 结果回填
+
+- subscribeArgs 现货形 index-tickers 撤 WS（2300 标的秒推=链路饱和实证
+  源切除）；宇宙 WS 剩 SWAP funding-rate/mark-price+季度期货 mark-price。
+- spotpoll.go REST 轮询件：GET market/tickers?instType=SPOT 单请求全量→
+  md_mark_index channel='spot_last'（键域分位不混 WS 面）；60s 周期热启
+  okxws.spot_poll_s；读败计 rejects 不造零；restOKAt 活性戳在位。
+- 现货腿判仓不断供：活跃集 tickers 面零动（成交价级流保留）。

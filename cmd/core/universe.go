@@ -62,3 +62,15 @@ func universeExpander(getCli func() *okxexec.Client) func(ctx context.Context) (
 		return out, nil
 	}
 }
+
+// spotFeedFor 现货现价 REST 读件（T-0134——index-tickers WS 撤下转轮询替；
+// 凭据缺席期无凭据 PublicGet 公开面直读同 universeExpander 径）。
+func spotFeedFor(getCli func() *okxexec.Client) func(ctx context.Context) ([]byte, error) {
+	return func(ctx context.Context) ([]byte, error) {
+		cli := getCli()
+		if cli == nil {
+			cli = okxexec.NewClient(okxexec.Credentials{}, false)
+		}
+		return cli.PublicGet(ctx, "/api/v5/market/tickers?instType=SPOT")
+	}
+}
