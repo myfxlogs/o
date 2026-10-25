@@ -50,6 +50,8 @@ func mkStrategy(t *testing.T, ctx context.Context, r *Runner, state string, open
 // T-0050 锚①：live 无未平仓行→Opener 开仓；有行=幂等不再开（fin_position=天然幂等键）。
 func TestOpenLiveFiresOnce(t *testing.T) {
 	ctx, r, fo := openerSetup(t)
+	seedFlip(t, ctx, r)
+	seedFunding(t, ctx, r)
 	sid := mkStrategy(t, ctx, r, "live", time.Hour)
 	r.openLive(ctx)
 	if len(fo.calls) != 1 || fo.calls[0].StrategyRef != sid || fo.calls[0].NotionalUSD != 100 ||
@@ -92,6 +94,8 @@ func TestOpenLiveNilOpenerNoop(t *testing.T) {
 // T-0050 锚③：probe→live 晋升=观察窗+净回报续优+委员会开关（false=不晋）。
 func TestProbeToLivePromotion(t *testing.T) {
 	ctx, r, fo := openerSetup(t)
+	seedFlip(t, ctx, r)
+	seedFunding(t, ctx, r)
 	sid := mkStrategy(t, ctx, r, "probe", 2*time.Hour)
 	if _, err := r.pool.Exec(ctx,
 		"INSERT INTO fin_paper_fill(strategy_id,kind,inst_id,amount_usd,ts) VALUES($1,'funding','OP-USDT-SWAP',0.5,now())", sid); err != nil {
@@ -136,6 +140,15 @@ func seedFlip(t *testing.T, ctx context.Context, r *Runner) {
 	}
 }
 
+// seedFunding 健康 funding 行补种（判据过径——正费率+正预测不翻面）。
+func seedFunding(t *testing.T, ctx context.Context, r *Runner) {
+	t.Helper()
+	if _, err := r.pool.Exec(ctx, `INSERT INTO md_funding(ts,inst_id,funding_rate,next_funding_rate)
+		VALUES(now(),'OP-USDT-SWAP',0.0005,0.0004)`); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // T-0103 ①锚：预测翻负即开闸拒——next_funding 与开向异号=寿命低于结算窗，
 // 不开+fin_opp_eval rejected/lifetime_below_min 落卡（开平判据对偶化）。
 func TestOpenLifetimeRejectsFlip(t *testing.T) {
@@ -143,7 +156,7 @@ func TestOpenLifetimeRejectsFlip(t *testing.T) {
 	seedFlip(t, ctx, r)
 	sid := mkStrategy(t, ctx, r, "live", time.Hour)
 	if _, err := r.pool.Exec(ctx, `INSERT INTO md_funding(ts,inst_id,funding_rate,next_funding_rate)
-		VALUES(now(),'OP-USDT-SWAP',0.0001,-0.0005)`); err != nil {
+		VALUES(now(),'OP-USDT-SWAP',0.0001,-0.0006)`); err != nil {
 		t.Fatal(err)
 	}
 	r.openLive(ctx)
@@ -169,9 +182,14 @@ func TestOpenOscillationFuse(t *testing.T) {
 	ctx, r, fo := openerSetup(t)
 	seedFlip(t, ctx, r)
 	sid := mkStrategy(t, ctx, r, "live", time.Hour)
+	var eid int64
+	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_execution(strategy_ref,inst_id,notional_usd,state)
+		VALUES($1,'OP-USDT-SWAP',100,'closed') RETURNING id`, sid).Scan(&eid); err != nil {
+		t.Fatal(err)
+	}
 	for i := 0; i < 3; i++ {
-		if _, err := r.pool.Exec(ctx, `INSERT INTO fin_position(strategy_ref,inst_id,notional_usd,opened_at,closed_at)
-			VALUES($1,'OP-USDT-SWAP',100,now()-interval '30 min',now()-interval '20 min')`, sid); err != nil {
+		if _, err := r.pool.Exec(ctx, `INSERT INTO fin_position(execution_id,strategy_ref,inst_id,notional_usd,opened_at,closed_at)
+			VALUES($2,$1,'OP-USDT-SWAP',100,now()-interval '30 min',now()-interval '20 min')`, sid, eid); err != nil {
 			t.Fatal(err)
 		}
 	}
