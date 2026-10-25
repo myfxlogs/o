@@ -89,7 +89,7 @@ function vAge(ts: string): string {
 }
 function venuesHTML(gs: VGroup[]): string {
   return gs.map(g => {
-    const worst = Math.max(...g.channels.map(c => c.state))
+    const worst = Math.max(...g.channels.map(c => c.state ?? 0))
     const mark = worst === 0 ? '◆' : '◇'
     const chans = g.channels.map((c, i) => {
       const tw = i === g.channels.length - 1 ? '└' : '├'
@@ -97,7 +97,7 @@ function venuesHTML(gs: VGroup[]): string {
         ? (c.state === 1 ? '迟滞 ' : c.state === 2 ? '离线 ' : '') + vAge(c.last_ts)
         : '读件缺')
       return `<div class="vline chan"><span class="tree">${tw}</span>${h(c.name)}` +
-        `<span class="vage">${h(age)}</span><span class="vdot ${VDOTS[c.state] || 's2'}"></span></div>`
+        `<span class="vage">${h(age)}</span><span class="vdot ${VDOTS[c.state ?? 0]}"></span></div>`
     }).join('')
     return `<div class="vline venue"><span class="vlogo">${VSVG[g.name] || ''}</span>` +
       `${mark} ${h(g.name.toUpperCase())}</div>${chans}`
