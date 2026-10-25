@@ -16,7 +16,7 @@ func mtmReader(pool *pgxpool.Pool,
 ) func(ctx context.Context) (map[[2]string]float64, error) {
 	return func(ctx context.Context) (map[[2]string]float64, error) {
 		out := map[[2]string]float64{}
-		rows, err := pool.Query(ctx, `SELECT l.venue,l.inst_id,l.side,l.sz,l.px
+		rows, err := pool.Query(ctx, `SELECT l.venue,l.inst_id,l.side,l.sz,l.px,l.sz_unit,l.qty_base
 			FROM fin_order_leg l JOIN fin_position p ON p.execution_id=l.execution_id
 			WHERE p.closed_at IS NULL AND l.state='filled' AND l.px IS NOT NULL`)
 		if err != nil {
@@ -26,8 +26,17 @@ func mtmReader(pool *pgxpool.Pool,
 		for rows.Next() {
 			var venue, inst, side string
 			var sz, entry float64
-			if err := rows.Scan(&venue, &inst, &side, &sz, &entry); err != nil {
+			var su *string
+			var qb *float64
+			if err := rows.Scan(&venue, &inst, &side, &sz, &entry, &su, &qb); err != nil {
 				continue
+			}
+			qtyBase, szUnit := 0.0, ""
+			if qb != nil {
+				qtyBase = *qb
+			}
+			if su != nil {
+				szUnit = *su
 			}
 			var now float64
 			if err := pool.QueryRow(ctx,
@@ -40,7 +49,14 @@ func mtmReader(pool *pgxpool.Pool,
 				sign = -1.0
 			}
 			if !strings.HasSuffix(inst, "-SWAP") {
-				out[[2]string{venue, "USDT"}] += sign * sz * now
+				// T-0107 量纲消歧：实填币量（qty_base）×现价；base 回填行=sz×现价；
+				// quote 额腿缺 base 量/未消歧=跳过不产假偏移（24×80460=$1.9M 病灶）。
+				switch {
+				case qtyBase > 0:
+					out[[2]string{venue, "USDT"}] += sign * qtyBase * now
+				case szUnit == "base":
+					out[[2]string{venue, "USDT"}] += sign * sz * now
+				}
 				continue
 			}
 			mult := 1.0
