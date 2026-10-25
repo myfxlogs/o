@@ -122,3 +122,16 @@ func TestAccountPosMode(t *testing.T) {
 		t.Fatal("posMode 空值应 fail-closed 上抛")
 	}
 }
+
+// T-0101 锚：dcd 族信封 code=数字型（非字符串）——Get 双型兼容拒收 200 真数据。
+func TestEnvelopeNumericCode(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"code":0,"msg":"","data":[{"ordId":"1","state":"LIVE"}]}`))
+	}))
+	defer srv.Close()
+	cli := withBase(NewClient(Credentials{Key: "k", Secret: "s", Passphrase: "p"}, false), srv.URL)
+	raw, err := cli.Get(context.Background(), "/api/v5/finance/sfp/dcd/order-history")
+	if err != nil || !strings.Contains(string(raw), "11448262") && !strings.Contains(string(raw), "ordId") {
+		t.Fatalf("数字 code 信封误杀: raw=%s err=%v", raw, err)
+	}
+}

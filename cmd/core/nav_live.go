@@ -7,6 +7,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
+	"time"
 
 	"o/internal/mt5"
 	"o/internal/platform/config"
@@ -85,4 +87,24 @@ func earnLiveFor(okcli *okxexec.Client) func(context.Context) (map[string]float6
 		}
 		return out, nil
 	}
+}
+
+// dcdLiveFor dcd 产品持仓活读件（T-0101：state=live 枚举——已部署资本第
+// 三类别；读件缺席/读败=err 上抛，卡面显「读件缺」不假零）。
+func dcdLiveFor(okcli *okxexec.Client) func(context.Context) ([]okxexec.DcdOrder, error) {
+	return func(ctx context.Context) ([]okxexec.DcdOrder, error) {
+		if okcli == nil {
+			return nil, fmt.Errorf("dcd 读件缺席（凭据缺）")
+		}
+		return okcli.DcdLiveOrders(ctx)
+	}
+}
+
+// msDay 毫秒时戳→YYYY-MM-DD（dcd settleTime 展示位——空/解析败=原文返回）。
+func msDay(ms string) string {
+	v, err := strconv.ParseInt(ms, 10, 64)
+	if err != nil {
+		return ms
+	}
+	return time.UnixMilli(v).UTC().Format("2006-01-02")
 }

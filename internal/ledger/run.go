@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"o/internal/platform/events"
-	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -167,32 +166,19 @@ func (r *Runner) reconcile(ctx context.Context) error {
 		r.rej.Inc("write_err")
 		return fmt.Errorf("venue 现读: %w", err)
 	}
-	// T-0100 ①③：对拍白名单=基金的钱口径 venue 域折叠（FundCcy 账户域作用
-	// 集折叠成 venue×ccy——venue 侧 fundSaveBalances 同源只发域内键）；非
-	// 本位键 ledger 侧按币量建键——net=cashflow净额（非本位恒 0）+ParkedAmt
-	// 停泊台账币数，venue=币数同径比对，单位错配爆雷根除（USD 归一另一径
-	// 弃用：台账币数对 venue 币数零价漂）。
-	wl := map[[2]string]bool{}
-	set, err := FundCcy(ctx, r.pool)
+	// T-0100 ①③+T-0101：对拍白名单=ReconSets 三件一次出（venue 域折叠白
+	// 名单+停泊/dcd 台账币数）；非本位键 ledger 侧按币量建键——venue=币数
+	// 同径比对，单位错配爆雷根除。台账有量 venue 无行=补零强制比对（漏报根修）。
+	wl, parked, dcdBase, err := ReconSets(ctx, r.pool)
 	if err != nil {
 		r.rej.Inc("write_err")
 		return err
 	}
-	for k := range set {
-		v := k[0]
-		if i := strings.IndexByte(v, ':'); i >= 0 {
-			v = v[:i] // 账户域作用键折叠回 venue 域
-		}
-		wl[[2]string{v, k[1]}] = true
-	}
-	parked, err := ParkedAmt(ctx, r.pool)
-	if err != nil {
-		r.rej.Inc("write_err")
-		return err
-	}
-	for k := range parked {
-		if _, ok := ven[k]; !ok {
-			ven[k] = 0 // 台账有量 venue 无行=真差候选——补零行强制比对（漏报根修）
+	for _, m := range []map[[2]string]float64{parked, dcdBase} {
+		for k := range m {
+			if _, ok := ven[k]; !ok {
+				ven[k] = 0
+			}
 		}
 	}
 	var rs []struct {
@@ -207,7 +193,8 @@ func (r *Runner) reconcile(ctx context.Context) error {
 		_ = r.pool.QueryRow(ctx,
 			"SELECT COALESCE(sum(amount),0) FROM fin_cashflow WHERE venue=$1 AND ccy=$2 AND kind NOT IN ('earn_in','earn_out')",
 			k[0], k[1]).Scan(&net)
-		net += parked[k] // 非本位停泊币台账币数（venue=币量同径）
+		net += parked[k]  // 非本位停泊币台账币数（venue=币量同径）
+		net += dcdBase[k] // T-0101：dcd 基线台账币数（venue=名义币量同径）
 		// T-0076：net+盯市偏移=同口径 NAV（持仓浮动与真差分离——偏移读败=0 不加不减）。
 		if r.mtm != nil {
 			if mv, merr := r.mtm(ctx); merr == nil {

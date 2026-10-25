@@ -4,6 +4,10 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"log"
+
+	"o/internal/trading/okxexec"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -33,6 +37,35 @@ func (c coreService) fundCcy(ctx context.Context, scope string) map[string]bool 
 		}
 	}
 	return out
+}
+
+// dcdRows 结构性持仓区行组装（T-0101：LIVE 单=已部署产品持仓=基金的钱第三
+// 类别——productId/ordId/名义/行权/到期/年化全入 label〔note 位=读件缺专用，
+// 非空即无额行，持仓行不占用〕；usd=名义×md_ticks 估值入 NAV；读件缺/读败
+// =note 行显形不假零）。
+func (c coreService) dcdRows(ctx context.Context, o *dashboardv1.OverviewResponse) {
+	if c.dcdLive == nil {
+		o.Money = append(o.Money, &dashboardv1.MoneyRow{
+			Venue: "okx", Section: "结构性持仓", Label: "读件缺", Note: "读件缺"})
+		return
+	}
+	ords, err := c.dcdLive(ctx)
+	if err != nil {
+		log.Printf("WARN: dcd 持仓活读败（结构性持仓区显读件缺）: %v", err)
+		o.Money = append(o.Money, &dashboardv1.MoneyRow{
+			Venue: "okx", Section: "结构性持仓", Label: "读件缺", Note: "读件缺"})
+		return
+	}
+	for _, od := range ords {
+		sz := okxexec.ParseF(od.NotionalSz)
+		u := valCcy(ctx, c.pool, od.NotionalCcy, sz)
+		o.NavTotal += u
+		exp := msDay(od.SettleTime)
+		apy := okxexec.ParseF(od.AnnualizedYield) * 100
+		o.Money = append(o.Money, moneyRow("okx", "结构性持仓", od.NotionalCcy,
+			fmt.Sprintf("%s #%s 行权%s 到期%s 年化%.1f%%",
+				od.ProductID, od.OrdID, od.Strike, exp, apy), sz, u))
+	}
 }
 
 // ccyName 币种人类名（行可读性——未知币种回退代码本身）。

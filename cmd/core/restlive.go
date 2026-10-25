@@ -7,6 +7,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
+	"sort"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -61,8 +64,50 @@ func fundSaveBalances(ctx context.Context, pool *pgxpool.Pool, okcli *okxexec.Cl
 	for _, r2 := range rows {
 		emit(r2.Ccy, okxexec.ParseF(r2.Amt))
 	}
+	// T-0101：dcd 在持产品单无条件入键（venue LIVE 单=已部署资本铁证——
+	// 不走 FundCcy 闸：未基线的新购仓 venue 侧照发，基线缺席由对拍面兜差）；
+	// 读败=err 上抛不假零。
+	ords, err := okcli.DcdLiveOrders(ctx)
+	if err != nil {
+		return fmt.Errorf("dcd 持仓读败: %w", err)
+	}
+	for _, od := range ords {
+		amt := okxexec.ParseF(od.NotionalSz)
+		if usd && od.NotionalCcy != "USDT" && od.NotionalCcy != "USD" {
+			amt = valCcy(ctx, pool, od.NotionalCcy, amt)
+		}
+		out[[2]string{"okx", od.NotionalCcy}] += amt
+	}
+	dcdSyncEvents(ctx, pool, ords)
 	restOKAt.Store(time.Now().UnixNano())
 	return nil
+}
+
+// dcdSyncEvents LIVE 集指纹对账（T-0101 到期收口：在持集变动=LIVE→SETTLED
+// 迁移/新增部署——md_account_events channel='dcd_live' 落事件行，指纹相同
+// 幂等跳写不复读）。写败只 log 不炸对账面。
+func dcdSyncEvents(ctx context.Context, pool *pgxpool.Pool, ords []okxexec.DcdOrder) {
+	var ids []string
+	payload := []map[string]any{}
+	for _, od := range ords {
+		ids = append(ids, od.OrdID)
+		payload = append(payload, map[string]any{
+			"ordId": od.OrdID, "productId": od.ProductID, "notionalCcy": od.NotionalCcy,
+			"notionalSz": od.NotionalSz, "settleTime": od.SettleTime})
+	}
+	sort.Strings(ids)
+	fp := strings.Join(ids, ",")
+	var prev string
+	_ = pool.QueryRow(ctx, `SELECT COALESCE(data->>'live_ids','') FROM md_account_events
+		WHERE channel='dcd_live' ORDER BY ts DESC LIMIT 1`).Scan(&prev)
+	if prev == fp {
+		return // 在持集无变——幂等跳写
+	}
+	data, _ := json.Marshal(map[string]any{"live_ids": fp, "orders": payload})
+	if _, err := pool.Exec(ctx, `INSERT INTO md_account_events(venue,channel,ccy,data)
+		VALUES('okx','dcd_live','', $1)`, data); err != nil {
+		log.Printf("[dcd] 持仓集事件行写败: %v", err)
+	}
 }
 
 // tradingFundEq 交易户基金口径 eqUsd（T-0100 ①：trading 域=USDT∪open 腿基币
