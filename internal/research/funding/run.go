@@ -13,8 +13,10 @@ import (
 
 	"o/internal/platform/config"
 	"o/internal/platform/events"
+	"o/internal/platform/notify"
 	"o/internal/platform/rejects"
 	"o/internal/platform/roster"
+	"o/internal/research/armwatch"
 )
 
 const (
@@ -29,16 +31,20 @@ var paramKeys = []string{
 
 // Runner 枚举+评估+闸岗（双员工：探员=枚举面，验证官=评估+提案闸面）。
 type Runner struct {
-	pool *pgxpool.Pool
-	cfg  *config.Client
-	rej  *rejects.Door
+	pool  *pgxpool.Pool
+	cfg   *config.Client
+	rej   *rejects.Door
+	watch *armwatch.Watch // 臂活性看门（T-0117——四臂共用件）
 }
 
 func NewRunner(pool *pgxpool.Pool, cfg *config.Client) *Runner {
-	return &Runner{pool: pool, cfg: cfg,
+	return &Runner{pool: pool, cfg: cfg, watch: armwatch.New("funding 枚举"),
 		rej: rejects.New("research", "missing_params", "stale_funding", "neg_funding_infeasible",
 			"write_err", "earn_rate_degraded")}
 }
+
+// AttachAlerter 挂业主告警通道（臂静默——T-0117 返修）。
+func (r *Runner) AttachAlerter(a *notify.Alerter) *Runner { r.watch.AttachAlerter(a); return r }
 
 // Run 双员工在岗+扫描循环（阻塞至 ctx 取消）。
 func (r *Runner) Run(ctx context.Context, errc chan<- error) {
@@ -81,6 +87,8 @@ func (r *Runner) params() (Params, error) {
 
 // scan 一拍：Earn 现率→md_funding 最新行/inst_id → 动态底五拆评估 → 落卡 → 阈闸提案。
 func (r *Runner) scan(ctx context.Context) error {
+	r.watch.SetBeat(freshnessMax)
+	r.watch.Check(ctx) // 臂静默判定（T-0117——beat=funding 新鲜度窗 25h）
 	p, err := r.params()
 	if err != nil {
 		r.rej.Inc("missing_params")
@@ -120,6 +128,7 @@ func (r *Runner) scan(ctx context.Context) error {
 			return err
 		}
 	}
+	r.watch.OK() // 评估拍完成=产出（恢复清标）
 	return rows.Err()
 }
 

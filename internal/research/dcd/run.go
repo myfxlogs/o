@@ -16,7 +16,9 @@ import (
 
 	"o/internal/platform/config"
 	"o/internal/platform/events"
+	"o/internal/platform/notify"
 	"o/internal/platform/rejects"
+	"o/internal/research/armwatch"
 )
 
 // Coins 逐币可动余量读件（notional 闸判据源——cmd 装配注入；nil/缺币=闸缺位
@@ -32,12 +34,11 @@ type Runner struct {
 	coins  Coins
 	lastAt time.Time // 最小间隔节流（T-0102 修补7——ev_account 每 ~5s 触发曾
 	// 致产品面 429 风暴；research.dcd.scan_interval_min 热启，缺=30min 底）。
-	lastOK   time.Time // 上次成功产出拍（臂静默告警锚——T-0117）
-	silentRd bool      // 静默告警已发（抑刷屏——恢复后清零）
+	watch *armwatch.Watch // 臂活性看门（T-0117 返修——四臂共用件非 dcd 独份）
 }
 
 func NewRunner(pool *pgxpool.Pool, cfg *config.Client) *Runner {
-	return &Runner{pool: pool, cfg: cfg,
+	return &Runner{pool: pool, cfg: cfg, watch: armwatch.New("dcd 枚举"),
 		rej: rejects.New("research", "dcd_missing_params", "dcd_feed_failed",
 			"dcd_registry_read_failed", "dcd_write_err", "dcd_coins_absent")}
 }
@@ -47,6 +48,9 @@ func (r *Runner) AttachFeed(fn Feed) *Runner { r.feed = fn; return r }
 
 // AttachCoins 挂逐币可动余量读件（notional 闸判据源）。
 func (r *Runner) AttachCoins(fn Coins) *Runner { r.coins = fn; return r }
+
+// AttachAlerter 挂业主告警通道（臂静默——T-0117 返修：走 Alert() 非 log 前缀）。
+func (r *Runner) AttachAlerter(a *notify.Alerter) *Runner { r.watch.AttachAlerter(a); return r }
 
 // Run 枚举臂在岗（funding 同构事件化——T-0048 周期环拆：ev_account/ev_funding
 // 帧驱动评估一拍；产品在架面无推送事件，账户/结算帧=节拍源，D-0008-B 轮询禁）。
@@ -88,12 +92,8 @@ func (r *Runner) scan(ctx context.Context) error {
 		return nil // 节流窗内让位（事件风暴≠扫描风暴）
 	}
 	r.lastAt = time.Now()
-	// T-0117 臂静默告警：超 2×节拍零成功产出=明牌告警一次（非静默死亡——
-	// fail-closed 让位循环不再无声）；恢复产出即清标可再报。
-	if !r.lastOK.IsZero() && time.Since(r.lastOK) > 2*iv && !r.silentRd {
-		log.Printf("ALERT [research_arm_silent] dcd 枚举臂超 %.0fmin 零成功产出——fail-closed 让位循环（429/读败）", iv.Minutes()*2)
-		r.silentRd = true
-	}
+	r.watch.SetBeat(iv)
+	r.watch.Check(ctx) // T-0117 臂静默判定（业主通道 Alert 一次抑刷屏）
 	p, err := r.params()
 	if err != nil {
 		r.rej.Inc("dcd_missing_params")
@@ -122,8 +122,7 @@ func (r *Runner) scan(ctx context.Context) error {
 		}
 	}
 	if len(ss) > 0 {
-		r.lastOK = time.Now()
-		r.silentRd = false // 恢复产出清标（再静默可再报）
+		r.watch.OK() // 成功产出拍（恢复清标——再静默可再报）
 	}
 	return nil
 }
@@ -158,18 +157,19 @@ func (r *Runner) scanSurface(ctx context.Context, s Surface, ps []Product, p Par
 }
 
 // spot uly 现价（md_ticks 最新——与卡面/对拍同源估值面）。
+// spot uly 现价（T-0117 返修③——uly 方言归一：OKX DCD uly=指数名 BTC-USD，
+// 行情采 BTC-USDT/BTC-USDT-SWAP——okx-api-spec 符号方言同族坑。归一序
+// uly→uly+T→uly+T-SWAP→uly-SWAP 首命中即回）。
 func (r *Runner) spot(ctx context.Context, uly string) float64 {
 	var last *float64
-	_ = r.pool.QueryRow(ctx, `SELECT last FROM md_ticks WHERE inst_id=$1
-		ORDER BY ts DESC LIMIT 1`, uly).Scan(&last)
-	if last == nil {
+	for _, inst := range []string{uly, uly + "T", uly + "T-SWAP", uly + "-SWAP"} {
 		_ = r.pool.QueryRow(ctx, `SELECT last FROM md_ticks WHERE inst_id=$1
-			ORDER BY ts DESC LIMIT 1`, uly+"-SWAP").Scan(&last)
+			ORDER BY ts DESC LIMIT 1`, inst).Scan(&last)
+		if last != nil {
+			return *last
+		}
 	}
-	if last == nil {
-		return 0
-	}
-	return *last
+	return 0
 }
 
 // availOf 锁仓侧可动余量（C=基础币、P=USDT）；读件缺=ok=false（unevaluable）。
