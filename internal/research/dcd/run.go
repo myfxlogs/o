@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -128,18 +127,25 @@ func (r *Runner) scan(ctx context.Context) error {
 	return nil
 }
 
-// scanSurface 单面：快照留痕+评估落卡+阈闸提案。
+// scanSurface 单面：快照留痕+评估落卡+阈闸提案（T-0117 返修④业主令硬闸：
+// 只做 USDT 计价——非 USDT quoteCcy 产品快照行照留但枚举期挡不进 eval，
+// 防 USDG/USDC/RLUSD 品按零余量出 misleading 拒因）。
 func (r *Runner) scanSurface(ctx context.Context, s Surface, ps []Product, p Params) error {
+	skipped := 0
 	for _, prod := range ps {
 		spot := r.spot(ctx, prod.Uly)
+		if err := r.persistProduct(ctx, s, prod, spot); err != nil {
+			r.rej.Inc("dcd_write_err")
+			return err
+		}
+		if prod.QuoteCcy != "" && prod.QuoteCcy != "USDT" {
+			skipped++
+			continue
+		}
 		avail, ok := r.availOf(ctx, prod)
 		e := Evaluate(prod, spot, avail, p)
 		if !ok {
 			e.Verdict, e.Reason = "unevaluable", "coins_absent"
-		}
-		if err := r.persistProduct(ctx, s, prod, spot); err != nil {
-			r.rej.Inc("dcd_write_err")
-			return err
 		}
 		dup, err := r.directionStacked(ctx, prod.Uly, e.Template)
 		if err != nil {
@@ -154,28 +160,11 @@ func (r *Runner) scanSurface(ctx context.Context, s Surface, ps []Product, p Par
 			return err
 		}
 	}
+	if skipped > 0 {
+		log.Printf("[research/dcd] 面 %s skipped_scope_ccy=%d（非 USDT 计价枚举期挡）",
+			s.Surface, skipped)
+	}
 	return nil
-}
-
-// spot uly 现价（md_ticks 最新——与卡面/对拍同源估值面）。
-// spot uly 现价（T-0117 返修③/④——uly 方言归一：OKX DCD uly=标的指数名，
-// USD 指数族含 BTC-USD/BTC-USDG（USDG=USDG 稳定币计价族，标的仍是 BTC），
-// 行情只采 *-USDT/*-USDT-SWAP——okx-api-spec 符号方言同族坑。归一序
-// uly→uly+T→uly+T-SWAP→uly-SWAP，USDG 尾再补 USDG→USDT 变体，首命中即回）。
-func (r *Runner) spot(ctx context.Context, uly string) float64 {
-	cands := []string{uly, uly + "T", uly + "T-SWAP", uly + "-SWAP"}
-	if alt := strings.Replace(uly, "USDG", "USDT", 1); alt != uly {
-		cands = append(cands, alt, alt+"-SWAP")
-	}
-	var last *float64
-	for _, inst := range cands {
-		_ = r.pool.QueryRow(ctx, `SELECT last FROM md_ticks WHERE inst_id=$1
-			ORDER BY ts DESC LIMIT 1`, inst).Scan(&last)
-		if last != nil {
-			return *last
-		}
-	}
-	return 0
 }
 
 // availOf 锁仓侧可动余量（C=基础币、P=计价币 quoteCcy）；读件缺=ok=false

@@ -192,21 +192,26 @@ func (f *dcdCapSender) SendText(ctx context.Context, chatID, text string) (strin
 	return "m1", nil
 }
 
-// T-0117 返修锚③：uly 方言归一——DCD uly=指数名 BTC-USD，行情采 BTC-USDT
-// （归一序 uly→+T→+T-SWAP→+-SWAP 首命中）——spot_missing 假拒不得再演，
-// 评估出 evaluable dcd 行（proposed 或带数值 reason 的 rejected）。
+// T-0117 返修锚③/④：uly 方言归一（DCD uly=指数名 BTC-USD，行情采 BTC-USDT，
+// 归一序 uly→+T→+T-SWAP→+-SWAP 首命中）——spot_missing 假拒不得再演，评估出
+// evaluable dcd 行；+业主令 USDT 计价硬闸——非 USDT quoteCcy 产品快照行照留
+// 但枚举期挡不进 eval（misleading 零余量拒因禁产）。
 func TestUlyDialectNormalizedEvaluable(t *testing.T) {
 	ctx, r := setup(t)
 	if _, err := r.pool.Exec(ctx,
 		`INSERT INTO md_ticks(ts,inst_id,last) VALUES(now(),'BTC-USDT',80000)`); err != nil {
 		t.Fatal(err)
 	}
-	// 全 uly=保底族指数名 BTC-USDG（SG 实拍返修③方言形）；call+put 各一合格品。
+	// USDT 计价 call+put 各一（uly=指数名 BTC-USD）+USDG 计价 put 一（硬闸对象）。
 	d7 := time.Now().UTC().Add(7 * 24 * time.Hour).Truncate(time.Second)
 	r.AttachFeed(func(_ context.Context, s Surface) ([]Product, error) {
 		return []Product{
-			{ProductID: "BTC-USDG-261101-92000-C", Uly: "BTC-USDG", Direction: "C",
-				Strike: 92000, Expiry: d7, AnnualizedYield: 0.13, MinSize: 0.01},
+			{ProductID: "BTC-USDT-261101-92000-C", Uly: "BTC-USD", QuoteCcy: "USDT",
+				Direction: "C", Strike: 92000, Expiry: d7, AnnualizedYield: 0.13,
+				MinSize: 0.01},
+			{ProductID: "BTC-USDT-261101-68000-P", Uly: "BTC-USD", QuoteCcy: "USDT",
+				Direction: "P", Strike: 68000, Expiry: d7, AnnualizedYield: 0.11,
+				MinSize: 100},
 			{ProductID: "BTC-USDG-261101-68000-P", Uly: "BTC-USDG", QuoteCcy: "USDG",
 				Direction: "P", Strike: 68000, Expiry: d7, AnnualizedYield: 0.11,
 				MinSize: 100},
@@ -230,13 +235,16 @@ func TestUlyDialectNormalizedEvaluable(t *testing.T) {
 	}
 	var spot float64
 	if err := r.pool.QueryRow(ctx, `SELECT (evidence->>'spot')::numeric FROM fin_opp_eval
-		WHERE inst_id='BTC-USDG-261101-92000-C' LIMIT 1`).Scan(&spot); err != nil || spot != 80000 {
+		WHERE inst_id='BTC-USDT-261101-92000-C' LIMIT 1`).Scan(&spot); err != nil || spot != 80000 {
 		t.Fatalf("spot 应归一取 BTC-USDT 价 80000: %v %v", spot, err)
 	}
-	// USDG 计价 put 锁仓币=USDG 非 USDT——余量错币过闸=钱径方言坑。
-	var locked string
-	if err := r.pool.QueryRow(ctx, `SELECT evidence->>'locked_ccy' FROM fin_opp_eval
-		WHERE inst_id='BTC-USDG-261101-68000-P' LIMIT 1`).Scan(&locked); err != nil || locked != "USDG" {
-		t.Fatalf("put 锁仓币应=USDG: %v %v", locked, err)
+	// USDT 硬闸：USDG 计价品零 eval 行（不进 eval 非拒因）但快照行照留。
+	if n := count(t, ctx, r, `SELECT count(*) FROM fin_opp_eval
+		WHERE inst_id='BTC-USDG-261101-68000-P'`); n != 0 {
+		t.Fatalf("USDG 计价品应枚举期挡零 eval 行: %d", n)
+	}
+	if n := count(t, ctx, r, `SELECT count(*) FROM md_dcd_product
+		WHERE product_id='BTC-USDG-261101-68000-P'`); n != 1 {
+		t.Fatalf("USDG 计价品快照行应照留（宇宙可见性）: %d", n)
 	}
 }

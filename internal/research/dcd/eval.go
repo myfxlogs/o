@@ -5,9 +5,32 @@
 package dcd
 
 import (
+	"context"
 	"math"
+	"strings"
 	"time"
 )
+
+// spot uly 现价（md_ticks 最新——与卡面/对拍同源估值面；T-0117 返修③/④
+// uly 方言归一：OKX DCD uly=标的指数名，USD 指数族含 BTC-USD/BTC-USDG
+// （USDG=USDG 稳定币计价族，标的仍是 BTC），行情只采 *-USDT/*-USDT-SWAP——
+// okx-api-spec 符号方言同族坑。归一序 uly→uly+T→uly+T-SWAP→uly-SWAP，
+// USDG 尾再补 USDG→USDT 变体，首命中即回）。
+func (r *Runner) spot(ctx context.Context, uly string) float64 {
+	cands := []string{uly, uly + "T", uly + "T-SWAP", uly + "-SWAP"}
+	if alt := strings.Replace(uly, "USDG", "USDT", 1); alt != uly {
+		cands = append(cands, alt, alt+"-SWAP")
+	}
+	var last *float64
+	for _, inst := range cands {
+		_ = r.pool.QueryRow(ctx, `SELECT last FROM md_ticks WHERE inst_id=$1
+			ORDER BY ts DESC LIMIT 1`, inst).Scan(&last)
+		if last != nil {
+			return *last
+		}
+	}
+	return 0
+}
 
 // Params 阈闸判据（票面初版数值种 0043——热启可调）。
 type Params struct {
