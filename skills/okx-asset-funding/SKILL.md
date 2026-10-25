@@ -46,8 +46,11 @@ domain: 工程
 
 ## 结构化产品面（双币赢 sfp/dcd——2026-10-25 决策席实证补件）
 
-- 端点族 `/api/v5/finance/sfp/dcd/*`：**`currency-pair`/`products` 读面实测 200**（BTC-USDT/ETH-USDT 的 C/P 全谱——产品 id 形如 `BTC-USDT-261028-83700-C`，载 strike/expiry/annualizedYield/minSize/maxSize）；`quote`/`trade`/`redeem` 为 POST 写面。
-- **订单枚举面**：`GET /order-history`（可选 ?uly= 过滤）**实测 200 返全谱订单**（LIVE/SETTLED 含 notionalSz/notionalCcy/strike/settleTime/annualizedYield/yieldSz）；`GET /order-status?ordId=X` 单查。注意 `orders`/`orders-list` 等非名 500——端点名以文档为准勿猜。
-- 响应信封坑：dcd 族 `code` 字段是**数字**非字符串（`{"code":0,...}`）——okxexec.Client.Get 的信封解析（string code）会拒，须裸签名自解（tools/posprobe 实证径）。
-- **网络坑**：OKX 白名单按源 IP 判——IPv6 egress（本机无外网 v4 时双栈漂移）触发 50110 拒绝；同机同钥匙间歇 401=查出口栈族，非钥匙坏。
-- 定位：双币赢=卖 call 收权利金型 carry（在架 BTC-USDT call 年化 13–72% 实证）——结构产品面候选策略模板，评估须走票面生命周期。
+> 权威文档锚：https://www.okx.com/docs-v5/zh/#financial-product-dual-investment
+
+- 端点族 `/api/v5/finance/sfp/dcd/*`：**`currency-pair`/`products` 读面实测 200**（BTC-USDT/ETH-USDT 的 C/P 全谱——产品 id 形如 `BTC-USDT-261028-83700-C`，载 strike/expiry/annualizedYield/minSize/maxSize）；`quote`/`trade`/`redeem-quote`/`redeem` 为 POST 写面。
+- **订单枚举面**：`GET /order-history`（可选 ?uly= 过滤）**实测 200 返全谱订单**（LIVE/SETTLED 含 notionalSz/notionalCcy/strike/settleTime/annualizedYield/yieldSz/settleSz 结算落果）；`GET /order-status?ordId=X` 单查。注意 `orders`/`orders-list` 等非名 500——端点名以文档为准勿猜。
+- **资金流水面**：dcd 申购/回款/收益/退款落 bills subType **160/161/162/163**（精简版 207/208/209/210）——查证走 `/account/bills`、`/asset/bills` 按 subType 过滤。
+- 响应信封坑：dcd 族 `code` 字段是**数字**非字符串（`{"code":0,...}`）——okxexec.Client.Get 的信封解析（string code）会拒，须裸签名自解或信封兼容改（经验库 `okx-dcd-endpoint-dialect`）。
+- **网络坑**：OKX 白名单按源 IP 判——IPv6 egress（无外网 v4 时双栈漂移）触发 50110 间歇拒绝；同机同钥匙间歇 401=查出口栈族，非钥匙坏。
+- 定位：双币赢=卖 call 收权利金型 carry（在架 BTC-USDT call 年化 13–72% 实证）——结构产品面候选策略模板，评估须走票面生命周期。生产实持仓：ordId=11448262 0.0207 BTC LIVE（T-0101 入账票）。
