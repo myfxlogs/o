@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { client, errText } from "../api";
 import { onCase } from "../stream";
-import type { WatchRule } from "../../gen/dashboardv1/watch_rule_pb";
+import type { WatchRule } from "../gen/dashboardv1/watch_rule_pb";
 import { LevelChip } from "./Chip";
 import { EmptyState } from "./EmptyState";
 
