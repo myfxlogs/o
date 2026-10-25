@@ -55,7 +55,7 @@ func (c coreService) Overview(ctx context.Context, _ *dashboardv1.OverviewReques
 				}
 				o.NavTotal += v
 				o.Money = append(o.Money, moneyRow("交易户", d.Ccy,
-					ccyName(d.Ccy), v, !ledgered[d.Ccy]))
+					ccyName(d.Ccy), v, v, !ledgered[d.Ccy]))
 			}
 		}
 	}
@@ -67,9 +67,10 @@ func (c coreService) Overview(ctx context.Context, _ *dashboardv1.OverviewReques
 				if v == 0 {
 					continue
 				}
-				o.NavTotal += valCcy(ctx, c.pool, ccy, v)
+				u := valCcy(ctx, c.pool, ccy, v)
+				o.NavTotal += u
 				o.Money = append(o.Money, moneyRow("资金户", ccy,
-					ccyName(ccy), v, !ledgered[ccy]))
+					ccyName(ccy), v, u, !ledgered[ccy]))
 			}
 		}
 	}
@@ -79,9 +80,10 @@ func (c coreService) Overview(ctx context.Context, _ *dashboardv1.OverviewReques
 				if v == 0 {
 					continue
 				}
-				o.NavTotal += valCcy(ctx, c.pool, ccy, v)
+				u := valCcy(ctx, c.pool, ccy, v)
+				o.NavTotal += u
 				o.Money = append(o.Money, moneyRow("Earn", ccy,
-					ccyName(ccy), v, !ledgered[ccy]))
+					ccyName(ccy), v, u, !ledgered[ccy]))
 			}
 		}
 	}

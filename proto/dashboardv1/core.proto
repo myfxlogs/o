@@ -40,6 +40,7 @@ message MoneyRow {
   string section = 3;  // 分区：交易户|资金户|Earn（T-0086 ②三分卡）
   string ccy = 4;
   bool legacy = 5;     // 非在册币种=遗留资产（涨跌不报警——身份豁免）
+  double usd = 6;      // USD 估值（T-0092：渲染层聚合遗留行合计用——交易户=eqUsd，资金户/Earn=amt估值）
 }
 message StaffRow { string name = 1; string duty = 2; int32 state = 3; } // 0绿1琥珀2红
 message WatchRequest {}

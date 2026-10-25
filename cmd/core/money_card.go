@@ -11,9 +11,11 @@ import (
 	"o/internal/ledger"
 )
 
-// moneyRow 组装（T-0086 ②：分区+币种+遗留资产标注——非在册币种涨跌不报警）。
-func moneyRow(section, ccy, label string, amt float64, legacy bool) *dashboardv1.MoneyRow {
-	return &dashboardv1.MoneyRow{Label: label, Amount: amt, Section: section, Ccy: ccy, Legacy: legacy}
+// moneyRow 组装（T-0086 ②：分区+币种+遗留资产标注——非在册币种涨跌不报警；
+// T-0092 usd 估值列随行——渲染层聚合遗留行合计用）。
+func moneyRow(section, ccy, label string, amt, usd float64, legacy bool) *dashboardv1.MoneyRow {
+	return &dashboardv1.MoneyRow{Label: label, Amount: amt, Usd: usd,
+		Section: section, Ccy: ccy, Legacy: legacy}
 }
 
 // ledgeredCcy 在册币种集（T-0090：fin_cashflow 有账 ∪ 已成交腿基币——

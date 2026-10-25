@@ -26,20 +26,28 @@ async function ov(): Promise<void> {
             `<div class="ev">${h(x.stamp)} UTC</div>`).join('')
         : `<div class="empty"><p>静持中</p><i>「没有持仓，就是最深的持仓。」</i></div>`
     }
-    // T-0086 ②：钱在哪三分卡（交易户/资金户/Earn）——逐币行+遗留资产标
-    //（非在册币种身份豁免：涨跌不报警，展示只求如实）。
+    // T-0086 ②+T-0092：钱在哪三分卡（交易户/资金户/Earn）——在册币种逐行直显；
+    // 账外/遗留币种聚合单行「遗留资产 N 种 ≈ $X」（N=币数，X=usd 估值合计，
+    // 无 tick=0 计入照数 N）——不可点不展开（API 仍全量返回保 drill-down 余地）。
     const mb = document.getElementById('money-body')
     if (mb && d.money && d.money.length) {
       const secs: string[] = ['交易户', '资金户', 'Earn']
+      type MRow = { section: string; label: string; amount: number; ccy: string; legacy: boolean; usd: number }
       mb.innerHTML = secs.map((sec: string) => {
-        const rows = (d.money as Array<{ section: string; label: string; amount: number; ccy: string; legacy: boolean }>)
-          .filter((m) => m.section === sec)
+        const rows = (d.money as MRow[]).filter((m) => m.section === sec)
         if (!rows.length) return ''
         const sum = rows.reduce((a, m) => a + m.amount, 0)
+        const live = rows.filter((m) => !m.legacy)
+        const lgcy = rows.filter((m) => m.legacy)
+        const lsum = lgcy.reduce((a, m) => a + m.usd, 0)
         return `<div class="sec-t">${h(sec)}<i>$${sum.toFixed(1)}</i></div>` +
-          rows.map((m) =>
-            `<div class="row"><span>${h(m.label)}${m.legacy ? ' <em class="lg">遗留资产</em>' : ''}</span>` +
-            `<b>$${m.amount.toFixed(1)}</b></div>`).join('')
+          live.map((m) =>
+            `<div class="row"><span>${h(m.label)}</span>` +
+            `<b>$${m.amount.toFixed(1)}</b></div>`).join('') +
+          (lgcy.length
+            ? `<div class="row lg-t"><span>遗留资产 ${lgcy.length} 种</span>` +
+              `<b>≈ $${lsum.toFixed(1)}</b></div>`
+            : '')
       }).join('')
     }
     const rb = document.getElementById('recent-body')
