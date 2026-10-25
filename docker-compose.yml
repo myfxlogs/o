@@ -108,4 +108,6 @@ services:
 
 volumes:
   o-pgdata:
+    name: o-pgdata
   o-pgdata-test:
+    name: o-pgdata-test
