@@ -94,16 +94,17 @@ func run() error {
 	// 带宽计量件（T-0057：net.budget_kbps 键缺=闸缺席计量仍行——fail-open 计量面；
 	// alerter 声明后置位——闭包延迟调 nil 安全）。
 	var meter *netmeter.Meter
+	var okcli *okxexec.Client
 	collector := okxws.NewCollector(pool, cfg)
 	collector.AttachMeter(meter)
+	collector.ExpandSymbols = universeExpander(func() *okxexec.Client { return okcli })
 	go collector.Run(ctx, errc)
 
 	// 私流守：OKX 私有 WS（凭据自 app_secrets 密文列解；缺件 fail-closed
 	// 不炸 boot——E-1 未落位期岗位缺席留痕非死码）。
 	// 凭据缺席期仓巡平仓缝降级 stub（拒执 fail-closed）——凭据落位重启即全链。
 	var closer guard.Executor
-	// Earn 停泊态（员工 配管）：现率采集无凭据径先行；停泊钱动面凭据就位挂接。
-	// feishu 告警通道（boot_secrets.go——app_secrets 密文列解，缺件=nil 降级；
+	// Earn 停泊态+feishu 告警通道（凭据就位挂接——boot_secrets.go）。（boot_secrets.go——app_secrets 密文列解，缺件=nil 降级；
 	// typed-nil 主修 T-0032：凭据缺席传真 nil 接口非 (*FeishuClient)(nil)）。
 	var sender notify.Sender
 	if feishuCli := feishuSender(ctx, pool); feishuCli != nil {
@@ -125,7 +126,6 @@ func run() error {
 	// T-0104/D-0013：节点角色闸（noderole.go）——只读镜像写径不可达。
 	ro := nodeReadonly()
 	newCli := cliFactory(ro)
-	var okcli *okxexec.Client
 	earnW := earn.NewWorker(pool, cfg)
 	if !ro {
 		go earnW.Run(ctx, errc)

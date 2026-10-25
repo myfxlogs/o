@@ -46,6 +46,9 @@ type Collector struct {
 	lastFrame atomic.Int64 // 最近业务帧 UnixNano（status 端点/看门狗同读）
 	Stats     *Door        // 别名 rej（对外观测名）
 	meter     *netmeter.Meter
+	// ExpandSymbols 宇宙扩件（T-0122：okx.symbols 含 "*"=放开全 SWAP+季度
+	// 期货——装配层挂 instruments 实读闭包，未挂=键面拒签 fail-closed）。
+	ExpandSymbols func(ctx context.Context) ([]string, error)
 }
 
 // AttachMeter 挂带宽计量件（T-0057：nil=不计量）。
@@ -117,6 +120,17 @@ func (c *Collector) symbols(ctx context.Context) ([]string, error) {
 	}
 	var out []string
 	for _, s := range all {
+		if s == "*" { // 宇宙放开：装配层实读面（SWAP 全谱+季度期货 tick）
+			if c.ExpandSymbols == nil {
+				return nil, errors.New("okx.symbols=* 但 ExpandSymbols 未挂——fail-closed")
+			}
+			exp, err := c.ExpandSymbols(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("宇宙扩读败（fail-closed 不虚构标的集）: %w", err)
+			}
+			out = append(out, exp...)
+			continue
+		}
 		if !isUSDTInst(s) {
 			c.rej.Inc("non_usdt_instid")
 			log.Printf("[okxws] 非 USDT 计价标的拒订: %s（业主令杂币不采）", s)
