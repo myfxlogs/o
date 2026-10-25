@@ -66,7 +66,7 @@ func (c coreService) Overview(ctx context.Context, _ *dashboardv1.OverviewReques
 	// T-0102 v3：面差待裁计数露一行（业主可见「系统发现了几件还没裁的事」）。
 	if n, gerr := gapscan.PendingCount(ctx, c.pool); gerr == nil && n > 0 {
 		o.Doing = append(o.Doing, &dashboardv1.DoingItem{Stamp: time.Now().UTC().Format(time.RFC3339),
-			Text: fmt.Sprintf("面差哨——%d 个新面待裁（差扫岗在案）", n)})
+			Text: fmt.Sprintf("待办：发现 %d 个未用的交易所功能——等裁决", n)})
 	}
 	// T-0105 在干列表全集化：策略对冲仓+结构性持仓（DCD live）两源入列
 	// （所见即所得——DCD 是基金第二大资产块却不在「持仓中」=业主令病灶）；
