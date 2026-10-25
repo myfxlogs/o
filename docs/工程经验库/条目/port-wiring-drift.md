@@ -11,8 +11,10 @@ first_seen: 2026-10-25
 last_verified: 2026-10-25
 skills: []
 evidence_refs:
-  - commit 9dc17e5/f634aaf/dd086c7（T-0108 cmcArm 三修）
-  - /opt/nox/cmd/core/wire_cmc.go:35-55（源调用位对拍锚）
+  - type: commit
+    ref: 9dc17e5/f634aaf/dd086c7（T-0108 cmcArm 三修）
+  - type: source
+    ref: /opt/nox/cmd/core/wire_cmc.go:35-55（源调用位对拍锚）
 ---
 
 ## 病灶（T-0108 CMC 采集臂实测——一次移植三处漂移，编译全过）

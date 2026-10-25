@@ -259,6 +259,10 @@ func main() {
 	switch args[0] {
 	case "gen":
 		err = gen(len(args) > 1 && args[1] == "--check")
+	case "gen-econ":
+		err = econGen(len(args) > 1 && args[1] == "--check")
+	case "econ-verdict":
+		err = econVerdictCmd()
 	case "skills":
 		// skills 域锚定：repo root=entriesDir 上溯三级（docs/<lib>/条目）。
 		root := filepath.Dir(filepath.Dir(filepath.Dir(entriesDir)))

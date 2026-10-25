@@ -85,19 +85,19 @@ fi
 
 # 8. 经验库 schema 门禁（D-130）：staged 触经验库目录→索引 gen --check；索引工具未落位则跳过。
 if git -c core.quotepath=off diff --cached --name-only | grep -qE '^docs/工程经验库/|^docs/经济经验库/'; then
-  if [ -d tools/okb ]; then
-    (cd tools/okb && go run . gen --check) || {
+  if [ -d tools/kbgen ]; then
+    (cd tools/kbgen && go run . gen --check) || {
       echo "FAIL: okb gen --check 未过——条目 frontmatter 须符合 Schema（模板 docs/工程经验库/模板.md），索引自动生成禁手编" >&2
       exit 1
     }
     if git -c core.quotepath=off diff --cached --name-only | grep -qE '^docs/经济经验库/'; then
-      (cd tools/okb && go run . gen-econ --check) || {
+      (cd tools/kbgen && go run . gen-econ --check) || {
         echo "FAIL: okb gen-econ --check 未过——经济条目须含判据挂接字段，索引自动生成禁手编" >&2
         exit 1
       }
     fi
   else
-    echo "[pre-commit] 经验库 schema 闸: 条件未备跳过（tools/okb 未落位——索引工具待迁）"
+    echo "[pre-commit] 经验库 schema 闸: 条件未备跳过（tools/kbgen 未落位——索引工具待迁）"
   fi
 fi
 
