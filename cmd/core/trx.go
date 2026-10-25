@@ -97,7 +97,7 @@ func cmcArm(ctx context.Context, errc chan<- error, pool *pgxpool.Pool, cfg *con
 	}
 	st := pgstore.NewStore(pool)
 	auth := cmc.NewAuthManager(email, pass, acct, "https://api-cmc.markets.com")
-	auth.StartRefresh(ctx)
+	go auth.StartRefresh(ctx)
 	if err := roster.Register(ctx, pool, "CMC CFD 采集", "cmc", "prices/account/history 纯读采集岗", nil); err != nil {
 		errc <- err
 		return
