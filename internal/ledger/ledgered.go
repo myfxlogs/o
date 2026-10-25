@@ -3,6 +3,8 @@ package ledger
 import (
 	"context"
 
+	"strings"
+
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -52,7 +54,22 @@ func FundCcy(ctx context.Context, pool *pgxpool.Pool) (map[[2]string]bool, error
 		out[[2]string{v + ":funding", c}] = true
 		out[[2]string{v + ":earn", c}] = true
 	}
-	return out, prows.Err()
+	// T-0101 第三类别：dcd 基线入册币落 venue:dcd 域（已部署产品持仓=基金的钱，
+	// 卡面走专属区不经此域——此域只为对拍 venue 键供集）。
+	drows, err := pool.Query(ctx, `SELECT DISTINCT intent->>'venue',intent->>'ccy'
+		FROM fin_risk_decision WHERE intent->>'op'='dcd_baseline'`)
+	if err != nil {
+		return nil, err
+	}
+	defer drows.Close()
+	for drows.Next() {
+		var v, c string
+		if err := drows.Scan(&v, &c); err != nil {
+			return nil, err
+		}
+		out[[2]string{v + ":dcd", c}] = true
+	}
+	return out, drows.Err()
 }
 
 // ParkedAmt 停泊溯源币台账量（T-0100 ③对拍 ledger 侧按币量建键——
@@ -63,6 +80,53 @@ func ParkedAmt(ctx context.Context, pool *pgxpool.Pool) (map[[2]string]float64, 
 	rows, err := pool.Query(ctx, `SELECT intent->>'venue',intent->>'ccy',
 		sum((intent->>'amt')::numeric) FROM fin_risk_decision
 		WHERE intent->>'op'='residual_park' GROUP BY 1,2`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var v, c string
+		var a float64
+		if err := rows.Scan(&v, &c, &a); err != nil {
+			return nil, err
+		}
+		out[[2]string{v, c}] += a
+	}
+	return out, rows.Err()
+}
+
+// ReconSets 对拍三件一次出（T-0100/T-0101——账户域作用集折叠 venue×ccy
+// 白名单+停泊台账币数+dcd 基线台账币数）。
+func ReconSets(ctx context.Context, pool *pgxpool.Pool) (wlSet map[[2]string]bool,
+	parked, dcdBase map[[2]string]float64, err error) {
+	set, err := FundCcy(ctx, pool)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	wlSet = map[[2]string]bool{}
+	for k := range set {
+		v := k[0]
+		if i := strings.IndexByte(v, ':'); i >= 0 {
+			v = v[:i] // 账户域作用键折叠回 venue 域
+		}
+		wlSet[[2]string{v, k[1]}] = true
+	}
+	parked, err = ParkedAmt(ctx, pool)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	dcdBase, err = DcdBaselineAmt(ctx, pool)
+	return
+}
+
+// DcdBaselineAmt dcd 基线台账量（T-0101：op='dcd_baseline' 凭据行 Σamt 逐
+// (venue,ccy)——venue 名义币量对拍的 ledger 侧键；新购/结算 venue 侧缺席或
+// 超额=真差告警，基线行=部署决策书面归因凭据）。
+func DcdBaselineAmt(ctx context.Context, pool *pgxpool.Pool) (map[[2]string]float64, error) {
+	out := map[[2]string]float64{}
+	rows, err := pool.Query(ctx, `SELECT intent->>'venue',intent->>'ccy',
+		sum((intent->>'amt')::numeric) FROM fin_risk_decision
+		WHERE intent->>'op'='dcd_baseline' GROUP BY 1,2`)
 	if err != nil {
 		return nil, err
 	}

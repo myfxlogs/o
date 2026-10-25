@@ -250,7 +250,7 @@ func run() error {
 
 	// 总览活页（T-0067：service.go mountUI——静态面+JSON/SSE）。
 	mux := http.NewServeMux()
-	mountUI(mux, pool, fundingLiveFor(okcli), earnLiveFor(okcli), mt5LiveFor(pool, cfg))
+	mountUI(mux, pool, fundingLiveFor(okcli), earnLiveFor(okcli), mt5LiveFor(pool, cfg), dcdLiveFor(okcli))
 	// 产出窗=行情新鲜度+rejects 计数门观测端点（判定面可观测 D-652-A）。
 	mux.HandleFunc("/report", report.Handler(pool))
 	mux.HandleFunc("/md/status", func(w http.ResponseWriter, r *http.Request) {
@@ -266,7 +266,7 @@ func run() error {
 	})
 	// T-0086 ①④：资金户/Earn 活读件注入（venue_readers.go——REST 保留面）。
 	// T-0096：MT5 户活读件同注（OpenSession 现读——凭据缺席=读件缺不假零）。
-	mountCore(mux, pool, fundingLiveFor(okcli), earnLiveFor(okcli), mt5LiveFor(pool, cfg))
+	mountCore(mux, pool, fundingLiveFor(okcli), earnLiveFor(okcli), mt5LiveFor(pool, cfg), dcdLiveFor(okcli))
 
 	srv := &http.Server{Addr: listenAddr, Handler: mux, ReadHeaderTimeout: 10 * time.Second}
 	go func() {

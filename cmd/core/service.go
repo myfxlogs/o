@@ -17,6 +17,7 @@ import (
 
 	"o/internal/gen/dashboardv1"
 	"o/internal/gen/dashboardv1/dashboardv1connect"
+	"o/internal/trading/okxexec"
 	"o/web"
 )
 
@@ -29,6 +30,9 @@ type coreService struct {
 	// T-0096：MT5 户活读件（每真实账号一行净值现读；nil/读败=venue 区显
 	// 「读件缺」不藏禁假零）。
 	mt5Live func(ctx context.Context) ([]mt5Acct, error)
+	// T-0101：dcd 产品持仓活读件（state=live 枚举——已部署资本第三类别；
+	// nil/读败=卡面显「读件缺」不假零）。
+	dcdLive func(ctx context.Context) ([]okxexec.DcdOrder, error)
 }
 
 func (coreService) Ping(context.Context, *dashboardv1.PingRequest) (*dashboardv1.PingResponse, error) {
@@ -110,6 +114,9 @@ func (c coreService) Overview(ctx context.Context, _ *dashboardv1.OverviewReques
 				"户 "+a.Login, a.Equity, a.Equity))
 		}
 	}
+	// T-0101：结构性持仓区（dcd LIVE 单=已部署产品持仓=基金的钱第三类别，
+	// 行组装见 money_card.go dcdRows——区 0 行不误导，读件缺显形不假零）。
+	c.dcdRows(ctx, o)
 	// 盈亏=经营性四件（interest/funding_settle/trade_pnl/fee）——
 	// deposit/withdraw/earn_*/recon_adjust 全出局（口径正名锚）。
 	const opKinds = "('interest','funding_settle','trade_pnl','fee')"
@@ -224,10 +231,12 @@ func durHuman(d time.Duration) string {
 func mountCore(mux *http.ServeMux, pool *pgxpool.Pool,
 	fundingLive func(context.Context) (map[string]float64, error),
 	earnLive func(context.Context) (map[string]float64, error),
-	mt5Live func(context.Context) ([]mt5Acct, error)) {
+	mt5Live func(context.Context) ([]mt5Acct, error),
+	dcdLive func(context.Context) ([]okxexec.DcdOrder, error)) {
 	server := connect.NewServer()
 	dashboardv1connect.RegisterCoreServiceHandler(server,
-		coreService{pool: pool, fundingLive: fundingLive, earnLive: earnLive, mt5Live: mt5Live})
+		coreService{pool: pool, fundingLive: fundingLive, earnLive: earnLive,
+			mt5Live: mt5Live, dcdLive: dcdLive})
 	connecthttp.Mount(mux, server)
 }
 
@@ -235,11 +244,12 @@ func mountCore(mux *http.ServeMux, pool *pgxpool.Pool,
 func mountUI(mux *http.ServeMux, pool *pgxpool.Pool,
 	fundingLive func(context.Context) (map[string]float64, error),
 	earnLive func(context.Context) (map[string]float64, error),
-	mt5Live func(context.Context) ([]mt5Acct, error)) {
+	mt5Live func(context.Context) ([]mt5Acct, error),
+	dcdLive func(context.Context) ([]okxexec.DcdOrder, error)) {
 	mux.HandleFunc("/api/overview", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if o, err := (coreService{pool: pool, fundingLive: fundingLive,
-			earnLive: earnLive, mt5Live: mt5Live}).Overview(r.Context(), nil); err == nil {
+			earnLive: earnLive, mt5Live: mt5Live, dcdLive: dcdLive}).Overview(r.Context(), nil); err == nil {
 			b, _ := json.Marshal(o)
 			_, _ = w.Write(b)
 		}

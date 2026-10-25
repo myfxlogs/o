@@ -78,15 +78,21 @@ func (c *Client) do(ctx context.Context, method, pathWithQuery string, body []by
 		return nil, fmt.Errorf("http %d: %s", resp.StatusCode, string(b))
 	}
 	var env struct {
-		Code string          `json:"code"`
+		Code json.RawMessage `json:"code"`
 		Msg  string          `json:"msg"`
 		Data json.RawMessage `json:"data"`
 	}
 	if err := json.Unmarshal(b, &env); err != nil {
 		return nil, fmt.Errorf("resp parse: %w", err)
 	}
-	if env.Code != "0" {
-		ae := &APIError{Code: env.Code, Msg: env.Msg}
+	// T-0101：code 信封双型兼容——标准族 "0" 字符串、dcd 族数字 0（经验库
+	// okx-dcd-endpoint-dialect：200 真数据被信封方言误杀坑在案）。
+	code := string(env.Code)
+	if unq, err := strconv.Unquote(code); err == nil {
+		code = unq
+	}
+	if code != "0" {
+		ae := &APIError{Code: code, Msg: env.Msg}
 		var inner []struct {
 			SCode string `json:"sCode"`
 			SMsg  string `json:"sMsg"`

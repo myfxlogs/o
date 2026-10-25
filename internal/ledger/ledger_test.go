@@ -25,6 +25,12 @@ func setup(t *testing.T) (context.Context, *Runner) {
 	if err := cfg.Load(ctx); err != nil {
 		t.Fatal(err)
 	}
+	// 迁移种子基线（0043 dcd_baseline）属生产事实——测试 schema 隔离，
+	// 清场防全局真差污染各对拍用例。
+	if _, err := pool.Exec(ctx, `DELETE FROM fin_risk_decision
+		WHERE intent->>'op'='dcd_baseline'`); err != nil {
+		t.Fatal(err)
+	}
 	return ctx, NewRunner(pool, cfg)
 }
 
@@ -387,7 +393,11 @@ func TestReconcileParkedUnits(t *testing.T) {
 		now()-interval '60 seconds')`); err != nil {
 		t.Fatal(err)
 	}
-	// 停泊 100 DOGE 台账=venue 100.2（利息微漂<容差）→静默；同时 USDT 平。
+	if _, err := r.pool.Exec(ctx, `INSERT INTO md_ticks(ts,venue,inst_id,last)
+		VALUES(now(),'okx','DOGE-USDT',0.15)`); err != nil {
+		t.Fatal(err)
+	}
+	// 停泊 100 DOGE 台账=venue 100.2（利息微漂 $0.03<容差）→静默；同时 USDT 平。
 	ven = map[[2]string]float64{{"okx", "USDT"}: 100, {"okx", "DOGE"}: 100.2}
 	r.rej = rejects.New("ledger", "diff_alert", "missing_param", "bal_missing", "write_err")
 	if err := r.reconcile(ctx); err != nil {
@@ -403,5 +413,50 @@ func TestReconcileParkedUnits(t *testing.T) {
 	}
 	if r.rej.Snapshot()["ledger/diff_alert"] == 0 {
 		t.Fatal("停泊币量真差漏报")
+	}
+}
+
+// T-0101 ③锚：dcd 基线台账币数——venue 名义币量同径比对；基线入册 venue
+// 无持仓=补零行真差照报（未部署被吞漏报根修）。
+func TestReconcileDcdBaseline(t *testing.T) {
+	ctx, r := setup(t)
+	if _, err := r.pool.Exec(ctx, "DELETE FROM fin_known_residual"); err != nil {
+		t.Fatal(err)
+	}
+	// 迁移 0043 种子基线（ordId=11448262）全局在册——测前清场免双计。
+	if _, err := r.pool.Exec(ctx, `DELETE FROM fin_risk_decision
+		WHERE intent->>'op'='dcd_baseline'`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.pool.Exec(ctx, `INSERT INTO md_ticks(ts,venue,inst_id,last)
+		VALUES(now(),'okx','BTC-USDT',115000)`); err != nil {
+		t.Fatal(err)
+	}
+	var ven map[[2]string]float64
+	r.WithBalances(func(ctx context.Context) (map[[2]string]float64, error) { return ven, nil })
+	if _, err := Post(ctx, r.pool, Entry{Kind: "deposit", Venue: "okx", Ccy: "USDT",
+		Amount: 100, SourceRef: 1, SourceTable: "t"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.pool.Exec(ctx, `INSERT INTO fin_risk_decision(intent,decision,reason,ts,config_gen)
+		VALUES('{"kind":"transfer","op":"dcd_baseline","venue":"okx","ccy":"BTC","amt":0.0207,"ordId":"x"}','allow','transfer',now()-interval '60 seconds',1)`); err != nil {
+		t.Fatal(err)
+	}
+	// venue 持仓=基线币量→静默（补零路径不触发）。
+	ven = map[[2]string]float64{{"okx", "USDT"}: 100, {"okx", "BTC"}: 0.0207}
+	r.rej = rejects.New("ledger", "diff_alert", "missing_param", "bal_missing", "write_err")
+	if err := r.reconcile(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if r.rej.Snapshot()["ledger/diff_alert"] != 0 {
+		t.Fatal("基线币量同径——误报")
+	}
+	// venue 无持仓行→补零强制比对→基线 0.0207>容差 0.5=真差照报。
+	ven = map[[2]string]float64{{"okx", "USDT"}: 100}
+	if err := r.reconcile(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if r.rej.Snapshot()["ledger/diff_alert"] == 0 {
+		t.Fatal("基线 venue 缺席漏报")
 	}
 }
