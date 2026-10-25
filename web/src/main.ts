@@ -36,14 +36,14 @@ async function ov(): Promise<void> {
       mb.innerHTML = secs.map((sec: string) => {
         const rows = (d.money as MRow[]).filter((m) => m.section === sec)
         if (!rows.length) return ''
-        const sum = rows.reduce((a, m) => a + m.amount, 0)
+        const sum = rows.reduce((a, m) => a + m.usd, 0)
         const live = rows.filter((m) => !m.legacy)
         const lgcy = rows.filter((m) => m.legacy)
         const lsum = lgcy.reduce((a, m) => a + m.usd, 0)
         return `<div class="sec-t">${h(sec)}<i>$${sum.toFixed(1)}</i></div>` +
           live.map((m) =>
-            `<div class="row"><span>${h(m.label)}</span>` +
-            `<b>$${m.amount.toFixed(1)}</b></div>`).join('') +
+            `<div class="row"><span>${h(m.label)}${m.ccy === 'USDT' ? '' : ` <i>${m.amount} ${m.ccy}</i>`}</span>` +
+            `<b>$${m.usd.toFixed(1)}</b></div>`).join('') +
           (lgcy.length
             ? `<div class="row lg-t"><span>遗留资产 ${lgcy.length} 种</span>` +
               `<b>≈ $${lsum.toFixed(1)}</b></div>`
