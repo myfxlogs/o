@@ -101,6 +101,8 @@ func TestDCDEnumerateEvaluatePropose(t *testing.T) {
 		t.Fatalf("提案应恰 2（C+P）: %d", n)
 	}
 	// 重扫：单 uly 方向不叠+提案幂等——提案仍 2，重评行 rejected。
+	// lastAt 重置越节流窗（生产=事件风暴节流，测试=逐拍显式放行）。
+	r.lastAt = time.Time{}
 	if err := r.ScanOnce(ctx); err != nil {
 		t.Fatal(err)
 	}
