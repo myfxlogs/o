@@ -35,12 +35,14 @@ message VenueChannel {
 }
 message DoingItem { string text = 1; string stamp = 2; }
 message MoneyRow {
-  string label = 1;    // 币种人类名（如 USDT/Ethereum）
+  string label = 1;    // 币种人类名（如 USDT/Ethereum；MT5=户 <login>）
   double amount = 2;
-  string section = 3;  // 分区：交易户|资金户|Earn（T-0086 ②三分卡）
+  string section = 3;  // 二级分区：交易户|资金户|Earn|户（venue 下）
   string ccy = 4;
-  bool legacy = 5;     // 非在册币种=遗留资产（涨跌不报警——身份豁免）
-  double usd = 6;      // USD 估值（T-0092：渲染层聚合遗留行合计用——交易户=eqUsd，资金户/Earn=amt估值）
+  bool legacy = 5;     // 退役位（T-0095 v2 零遗留概念——恒 false，wire 兼容保留）
+  double usd = 6;      // USD 估值（交易户=eqUsd，资金户/Earn=amt估值，MT5=净值）
+  string venue = 7;    // 一级 venue（T-0096：okx/mt5/…——未来新增所同构复制）
+  string note = 8;     // 旁注（读件缺等——空=正常行；非空=如实标注不显金额）
 }
 message StaffRow { string name = 1; string duty = 2; int32 state = 3; } // 0绿1琥珀2红
 message WatchRequest {}

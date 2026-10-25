@@ -36,8 +36,9 @@ domain: 工程
 - **复位径纪律（critical——probe-restore-scope-overreach 条目）**：Earn/资金户归集只许冲销台账内条目，**存量资金禁动**——按现值「有多少抽多少」式调用是越权动业主资产（$2145 事故实证）。
 
 ## 消费面
-- NAV 三户口径（T-0086）：资金户/Earn=REST 活读零落地（/asset/balances 逐币、/finance/savings/balance 逐行 amt——遍历所有行找 ccy，首行序不定坑在案）；缺户=0 不误报。
-- 对账白名单：账外币种按身份豁免（在册=fin_cashflow 有账币种），粉尘/杂币涨跌不报警。
+- NAV 基金口径（T-0095 v2，替代 T-0086 三户全币）：交易户=USDT∪**open** 腿基币行 eqUsd 过滤求和（tradingFundEq——不按全账户取）；资金户/Earn=REST 活读零落地（/asset/balances 逐币、/finance/savings/balance 逐行 amt——遍历所有行找 ccy，首行序不定坑在案）但只出基金口径币种行；集合外=托管尘出 NAV 出卡（零遗留概念）；缺户=0 不误报。T-0096：MT5 净值随 NAV 全计（mt5/USD 恒在册）。
+- 对账白名单（T-0095 v2）：ledger.FundCcy 唯一真源（USDT∪open filled 腿基币，LedgeredCcy 已退役）——账外尘非「豁免」而是口径内天然排除（venue 侧同口径过滤求和）；fin_known_residual 豁免面退役（0042 清 T-0080 行）。
+- 残币活期归口（T-0095 v3）：腿平事件+巡检拍双触发（ev_position+ev_account）——在持腿基币之外交易户非 USDT 余量，≥$1 起投底=交易户→资金户→savings purchase 同币零换手（Earn 申购扩币种，USDT 闭集破）；申购业务拒=确认未动回摆+fin_residual_custody 托管标（**禁兑换径**——摩擦>本金，同复位径纪律：残币处置权在业主）；<底额=托管标幂等（30 天窗）。
 
 ## 复跑
 

@@ -177,10 +177,12 @@ func attachVenueReaders(riskGate *risk.Gate, wd *guard.Warden, ledgerR *ledger.R
 	// 对账聚合=帧 eq+REST funding+savings（无推送户）+mt5 AccountSummary。
 	// T-0058 根修：三分量任一读败=整读 err（对账轮跳过非假差——
 	// 「读件缺席跳过本轮」与「真差超限」两文本分径）。
+	// T-0095 v2：交易户贡献=基金口径过滤求和（USDT∪open 腿基币行 eqUsd——
+	// 不按全账户取，账外尘口径内天然排除），白名单 FundCcy 同源。
 	ledgerR.WithMTM(mtmReader(pool, ctValReader(okcli))) // T-0076 盯市偏移
 	ledgerR.WithBalances(func(ctx context.Context) (map[[2]string]float64, error) {
 		out := map[[2]string]float64{}
-		eq, _, err := tradingVals(ctx)
+		eq, err := tradingFundEq(ctx, pool, okcli)
 		if err != nil {
 			return nil, fmt.Errorf("trading 读败: %w", err)
 		}

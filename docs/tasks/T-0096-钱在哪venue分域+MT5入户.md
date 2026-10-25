@@ -39,3 +39,18 @@ MT5
 - 卡面三级不变（venue→分区→行），但**全图零遗留行零遗留概念**——三区只显 USDT+在持腿币行
 - MT5 户全计（基金专属券商户=全部基金钱）不变
 - NAV 预期 = 76.7(交易USDT)+23.6(ETH腿)+0.2(资金)+2032.3(Earn)+3247.4(MT5) ≈ 5380
+
+
+## 结果（施工回填 zcode-c9596 @ 2026-10-25）
+
+- 实现：proto `MoneyRow` +`venue`/`note`（wire 兼容，legacy 字段退役保留位）；
+  卡面 venue→分区→行三级（okx→mt5→注册序，venue 头 logo 复用 T-0088 VSVG
+  件）；MT5 行=`mt5LiveFor`（OpenSession 逐会话 AccountFacts 出 login +
+  AccountSummary 出净值现读）；`nav_total += MT5 净值合计`——基金全资产口径
+  归真；读件缺/读败=venue 区「读件缺」行不藏（禁假零）；main.go mountUI/
+  mountCore mt5Live 注入。
+- 测试：`TestOverviewFundScopeVenueCard`（MT5 户行=净值现读随 NAV）、
+  `TestOverviewMissingAccountsZero`（nil/读败=读件缺行两形）。
+- 偏离：①票面 v1 示例「遗留 N 种 ≈$X」与 v2 追改冲突——按 v2 执行零遗留；
+  ②MT5 多账号=每真实账号一行（当前凭据=单账号，枚举面就绪）；③Overview
+  每调建 MT5 会话（30s budget 死线——读败 WARN+读件缺不悬挂）。

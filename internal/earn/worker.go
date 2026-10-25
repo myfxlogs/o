@@ -6,6 +6,9 @@
 //     →EarnTransfer(deposit) 回存；失败=告警计数+下拍重试（不静默）。
 //  3. 开仓前置赎回 RedeemToTrading：执行链 leg1 前调用（EarnTransfer(redeem,
 //     notional+buffer)）；赎回/划转败=fail-closed 不开仓。
+//  4. 腿平残币活期归口（T-0095 v3）：在持腿基币之外的交易户非 USDT 余量——
+//     够起投=交易户→资金户→savings purchase 零换手停泊；业务拒=回摆+托管
+//     如实标（业主令禁兑换径）。ev_position 腿平主触发+ev_account 巡检兜底。
 //
 // 留痕：每次钱动落 fin_risk_decision（reason=transfer——内部移动不走敞口判）；
 // earn_in/earn_out 现金流行自 T-0060 停写（venue 内部划转 NAV 零影响，单边
@@ -62,7 +65,9 @@ type Worker struct {
 	ccy   string
 	// idle 交易户闲余现读件（T-0048：快照行出局——availEq 实读注入；
 	// nil/读败=fail-closed 禁动钱）。
-	idle   func(ctx context.Context) (float64, error)
+	idle func(ctx context.Context) (float64, error)
+	// coins 交易户逐币可动余量现读件（T-0095 v3 残币归口判据源；nil=归口让位）。
+	coins  func(ctx context.Context) (map[string]float64, error)
 	rateFn func(ctx context.Context) (okxexec.RateSummary, error)
 	mu     sync.Mutex // 单飞锁：redeem 持锁必进（开仓不排队），sweep TryLock 让位
 	// T-0059 同因退避：上一拍 sweep 败（amt 近似+时点）——同因 5min 内不再发
@@ -77,7 +82,7 @@ func NewWorker(pool *pgxpool.Pool, cfg *config.Client) *Worker {
 		rej: rejects.New("earn", "rate_fetch_failed", "rate_parse_failed", "missing_param",
 			"idle_missing", "sweep_skip_inflight", "sweep_busy", "venue_absent",
 			"deposit_failed", "transfer_ambiguous", "compensation_failed",
-			"snapshot_refresh_failed", "write_err"),
+			"snapshot_refresh_failed", "write_err", "custody_marked"),
 		rateFn: func(ctx context.Context) (okxexec.RateSummary, error) {
 			return okxexec.LendingRateSummary(ctx, defaultCcy)
 		}}
@@ -92,6 +97,9 @@ func (w *Worker) AttachAlerter(a *notify.Alerter) { w.al = a }
 // AttachIdle 挂交易户闲余现读件（装配层接线——availEq 口径）。
 func (w *Worker) AttachIdle(fn func(ctx context.Context) (float64, error)) { w.idle = fn }
 
+// AttachCoins 挂交易户逐币可动余量现读件（T-0095 v3 残币归口判据源）。
+func (w *Worker) AttachCoins(fn func(ctx context.Context) (map[string]float64, error)) { w.coins = fn }
+
 // Run 配管上岗（Register+BeatLoop 30s+扫描循环；boot 首读刷停泊快照——事件锚定形）。
 func (w *Worker) Run(ctx context.Context, errc chan<- error) {
 	if err := roster.Register(ctx, w.pool, "配管", "portfolio", "闲置承接岗——Earn 停泊+现率采集", nil); err != nil {
@@ -102,14 +110,18 @@ func (w *Worker) Run(ctx context.Context, errc chan<- error) {
 	if err := w.refreshParkingSnapshot(ctx, parkingSrcBoot); err != nil {
 		log.Printf("[earn] boot 停泊快照缺席（凭据落位后移动时自愈）: %v", err)
 	}
-	// 事件化（T-0048：周期环拆——unified 余额帧 ev_account 驱动一拍）。
-	events.ListenLoop(ctx, w.pool, "earn", []string{"ev_account"}, w.scan)
+	// 事件化（T-0048：周期环拆——unified 余额帧 ev_account 驱动一拍；
+	// T-0095 v3：+ev_position 腿平主触发（close 执行后扫残币——复用不新造环））。
+	events.ListenLoop(ctx, w.pool, "earn", []string{"ev_account", "ev_position"}, w.scan)
 }
 
-// scan 一拍两件：现率采样（独立——败不连坐扫额）+扫额回拢。
+// scan 一拍三件：现率采样（独立——败不连坐扫额）+扫额回拢+残币归口。
 func (w *Worker) scan(ctx context.Context) error {
 	w.pollRate(ctx)
-	return w.sweepIdle(ctx)
+	if err := w.sweepIdle(ctx); err != nil {
+		return err
+	}
+	return w.sweepResidual(ctx)
 }
 
 // pollRate 现率采样→md_earn_rate 事实行（append-only；采不到=计数不入假值）。

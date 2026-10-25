@@ -50,7 +50,7 @@ func (w *Worker) RedeemToTrading(ctx context.Context, usdAmt float64) error {
 	}
 	out, terr := w.transfer(ctx, w.ccy, amt, okxexec.AcctFunding, okxexec.AcctTrading)
 	if out == txMoved {
-		w.afterMove(ctx, "earn_redeem", amt, "earn_in", amt,
+		w.afterMove(ctx, "earn_redeem", w.ccy, amt, "earn_in", amt,
 			fmt.Sprintf("开仓前赎回 %.4f USDT 回拢交易户（notional %.4f+buffer %.1f bps）", amt, usdAmt, bps))
 		return nil
 	}
@@ -86,7 +86,7 @@ func (w *Worker) depositIdle(ctx context.Context, amt float64) (moved bool) {
 		}
 		return false
 	}
-	w.afterMove(ctx, "earn_deposit", amt, "earn_out", -amt,
+	w.afterMove(ctx, "earn_deposit", w.ccy, amt, "earn_out", -amt,
 		fmt.Sprintf("闲资 %.8f USDT 回存 Earn 停泊（sweep_min_usd 阈上）", amt))
 	return true
 }
@@ -125,10 +125,11 @@ func (w *Worker) transfer(ctx context.Context, ccy string, amt float64, from, to
 }
 
 // afterMove 钱动成：decision(transfer)+cashflow 双行留痕+停泊快照事件锚定刷。
+// ccy 显式传参（T-0095 v3 残币归口扩非本位币——intent 凭据行记真币种）。
 // 留痕写败不回滚钱动（ALERT+计数；对账环差即报兜底）。
-func (w *Worker) afterMove(ctx context.Context, op string, amt float64, kind string, cashAmount float64, msg string) {
+func (w *Worker) afterMove(ctx context.Context, op, ccy string, amt float64, kind string, cashAmount float64, msg string) {
 	intent, _ := json.Marshal(map[string]any{
-		"kind": "transfer", "op": op, "venue": w.venue, "ccy": w.ccy, "amt": amt})
+		"kind": "transfer", "op": op, "venue": w.venue, "ccy": ccy, "amt": amt})
 	var dID int64
 	if err := w.pool.QueryRow(ctx, `INSERT INTO fin_risk_decision(intent,decision,reason,config_gen)
 		VALUES($1,'allow','transfer',$2) RETURNING id`, intent, w.cfg.Generation()).Scan(&dID); err != nil {
@@ -138,15 +139,19 @@ func (w *Worker) afterMove(ctx context.Context, op string, amt float64, kind str
 		// T-0060 根修：停泊/赎回=venue 内部划转（trading↔funding↔earn——
 		// NAV 总额零影响）——fin_cashflow 单边落行=等额假差病灶，停写；
 		// 留痕径=decision 行+md_account_events earn_parking 事件行。
-	} else if _, err := ledger.Post(ctx, w.pool, ledger.Entry{
-		Kind: kind, Venue: w.venue, Ccy: w.ccy, Amount: cashAmount,
-		SourceRef: dID, SourceTable: "fin_risk_decision",
-	}); err != nil {
-		w.rej.Inc("write_err")
-		log.Printf("ALERT [earn] %s——cashflow 留痕写败（decision #%d 已在）: %v", msg, dID, err)
+	} else if kind != "" { // 残币归口零换手——无现金流事件（T-0095 v3 kind 空位）
+		if _, err := ledger.Post(ctx, w.pool, ledger.Entry{
+			Kind: kind, Venue: w.venue, Ccy: ccy, Amount: cashAmount,
+			SourceRef: dID, SourceTable: "fin_risk_decision",
+		}); err != nil {
+			w.rej.Inc("write_err")
+			log.Printf("ALERT [earn] %s——cashflow 留痕写败（decision #%d 已在）: %v", msg, dID, err)
+		}
 	}
-	if err := w.refreshParkingSnapshot(ctx, parkingSrcMove); err != nil {
-		log.Printf("[earn] %s——停泊快照刷败: %v", msg, err)
+	if ccy == w.ccy { // 快照=本位停泊面（残币归口不动 USDT 快照——免假刷）
+		if err := w.refreshParkingSnapshot(ctx, parkingSrcMove); err != nil {
+			log.Printf("[earn] %s——停泊快照刷败: %v", msg, err)
+		}
 	}
 	log.Printf("[earn] %s", msg)
 }

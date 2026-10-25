@@ -166,10 +166,10 @@ func (r *Runner) reconcile(ctx context.Context) error {
 		r.rej.Inc("write_err")
 		return fmt.Errorf("venue 现读: %w", err)
 	}
-	// T-0086 ③+T-0090：对拍白名单=在册口径（fin_cashflow ∪ 已成交腿基币，
-	// LedgeredCcy 唯一真源）——账外币种（粉尘/杂币/Earn 非本位）按身份豁免：
-	// 不钉金额，涨跌不报警。
-	wl, err := LedgeredCcy(ctx, r.pool)
+	// T-0095 v2：对拍白名单=基金的钱口径（USDT ∪ open 腿基币，FundCcy 唯一
+	// 真源）——账外尘（腿平残币/杂币/Earn 非本位）按身份在口径内天然排除
+	// （ venue 侧同口径过滤求和，非残差豁免）。
+	wl, err := FundCcy(ctx, r.pool)
 	if err != nil {
 		r.rej.Inc("write_err")
 		return err

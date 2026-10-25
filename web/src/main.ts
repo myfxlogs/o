@@ -26,28 +26,30 @@ async function ov(): Promise<void> {
             `<div class="ev">${h(x.stamp)} UTC</div>`).join('')
         : `<div class="empty"><p>静持中</p><i>「没有持仓，就是最深的持仓。」</i></div>`
     }
-    // T-0086 ②+T-0092：钱在哪三分卡（交易户/资金户/Earn）——在册币种逐行直显；
-    // 账外/遗留币种聚合单行「遗留资产 N 种 ≈ $X」（N=币数，X=usd 估值合计，
-    // 无 tick=0 计入照数 N）——不可点不展开（API 仍全量返回保 drill-down 余地）。
+    // T-0096：钱在哪 venue→分区→行三级卡（okx→mt5→注册序；venue 块头携
+    // logo——T-0088 件复用）。T-0095 v2：零遗留概念——卡面只出 API 给定行
+    //（基金的钱=USDT+在持腿币，托管尘后端已过滤不返）；读件缺=显式行非假零。
     const mb = document.getElementById('money-body')
     if (mb && d.money && d.money.length) {
-      const secs: string[] = ['交易户', '资金户', 'Earn']
-      type MRow = { section: string; label: string; amount: number; ccy: string; legacy: boolean; usd: number }
-      mb.innerHTML = secs.map((sec: string) => {
-        const rows = (d.money as MRow[]).filter((m) => m.section === sec)
-        if (!rows.length) return ''
-        const sum = rows.reduce((a, m) => a + m.usd, 0)
-        const live = rows.filter((m) => !m.legacy)
-        const lgcy = rows.filter((m) => m.legacy)
-        const lsum = lgcy.reduce((a, m) => a + m.usd, 0)
-        return `<div class="sec-t">${h(sec)}<i>$${sum.toFixed(1)}</i></div>` +
-          live.map((m) =>
-            `<div class="row"><span>${h(m.label)}${m.ccy === 'USDT' ? '' : ` <i>${m.amount} ${m.ccy}</i>`}</span>` +
-            `<b>$${m.usd.toFixed(1)}</b></div>`).join('') +
-          (lgcy.length
-            ? `<div class="row lg-t"><span>遗留资产 ${lgcy.length} 种</span>` +
-              `<b>≈ $${lsum.toFixed(1)}</b></div>`
-            : '')
+      type MRow = { venue: string; section: string; label: string; amount: number; ccy: string; usd: number; note: string }
+      const rows = d.money as MRow[]
+      const order = ['okx', 'mt5']
+      const venues = [...new Set(rows.map((m) => m.venue))]
+        .sort((a, b) => (order.indexOf(a) + 1 || 99) - (order.indexOf(b) + 1 || 99))
+      mb.innerHTML = venues.map((vn) => {
+        const vrows = rows.filter((m) => m.venue === vn)
+        const secs = [...new Set(vrows.map((m) => m.section))]
+        return `<div class="venue-t">${VSVG[vn] || ''}${h(vn.toUpperCase())}</div>` +
+          secs.map((sec) => {
+            const srows = vrows.filter((m) => m.section === sec)
+            const sum = srows.reduce((a, m) => a + m.usd, 0)
+            return `<div class="sec-t">${h(sec)}<i>${srows.some((m) => m.note) ? '' : '$' + sum.toFixed(1)}</i></div>` +
+              srows.map((m) =>
+                m.note
+                  ? `<div class="row lg-t"><span>${h(m.label)}</span><b>${h(m.note)}</b></div>`
+                  : `<div class="row"><span>${h(m.label)}${m.ccy === 'USDT' || m.ccy === 'USD' ? '' : ` <i>${m.amount} ${m.ccy}</i>`}</span>` +
+                    `<b>$${m.usd.toFixed(1)}</b></div>`).join('')
+          }).join('')
       }).join('')
     }
     const rb = document.getElementById('recent-body')

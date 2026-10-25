@@ -1,5 +1,5 @@
-// money_card.go —— 钱在哪卡面件（T-0086 ②三分卡：行组装/在册集/遗留资产
-// 命名/amt 估值——自主文件拆分，行数棘轮）。
+// money_card.go —— 钱在哪卡面件（T-0086 ②三分卡起版；T-0095 v2 口径收紧+
+// T-0096 venue 分域后=venue→分区→行三级：行组装/在册集/amt 估值）。
 package main
 
 import (
@@ -11,18 +11,18 @@ import (
 	"o/internal/ledger"
 )
 
-// moneyRow 组装（T-0086 ②：分区+币种+遗留资产标注——非在册币种涨跌不报警；
-// T-0092 usd 估值列随行——渲染层聚合遗留行合计用）。
-func moneyRow(section, ccy, label string, amt, usd float64, legacy bool) *dashboardv1.MoneyRow {
+// moneyRow 组装（T-0095 v2：零遗留概念——集合外托管行不组装不返不渲染；
+// T-0096：venue 一级+note 旁注〔读件缺等如实标注〕）。
+func moneyRow(venue, section, ccy, label string, amt, usd float64) *dashboardv1.MoneyRow {
 	return &dashboardv1.MoneyRow{Label: label, Amount: amt, Usd: usd,
-		Section: section, Ccy: ccy, Legacy: legacy}
+		Venue: venue, Section: section, Ccy: ccy}
 }
 
-// ledgeredCcy 在册币种集（T-0090：fin_cashflow 有账 ∪ 已成交腿基币——
-// 现货腿底层币非遗留；ledger.LedgeredCcy 唯一真源按 venue 过滤——身份豁免判据）。
-func (c coreService) ledgeredCcy(ctx context.Context, venue string) map[string]bool {
+// fundCcy 基金的钱币种集·venue 域过滤（T-0095 v2 在册集=USDT∪open 腿基币，
+// ledger.FundCcy 唯一真源——历史腿已平的币=托管尘非基金钱）。
+func (c coreService) fundCcy(ctx context.Context, venue string) map[string]bool {
 	out := map[string]bool{}
-	set, err := ledger.LedgeredCcy(ctx, c.pool)
+	set, err := ledger.FundCcy(ctx, c.pool)
 	if err != nil {
 		return out
 	}
@@ -34,14 +34,20 @@ func (c coreService) ledgeredCcy(ctx context.Context, venue string) map[string]b
 	return out
 }
 
-// legacyName 遗留资产人类名（常见杂币——未知币种回退代码本身）。
-var legacyName = map[string]string{
+// ccyName 币种人类名（行可读性——未知币种回退代码本身）。
+var ccyName = map[string]string{
 	"AVAX": "Avalanche", "COMP": "Compound", "NFT": "NFT 凭证",
 	"DOGE": "Dogecoin", "FIL": "Filecoin", "BTC": "Bitcoin", "ETH": "Ethereum",
 	"PENGU": "Pudgy Penguins", "MEW": "cat in a dogs world",
 }
 
-// Overview 总览四联活读（所见即所得——零快照零缓存；数据出生证=查询时戳）。
+func nameOf(ccy string) string {
+	if n, ok := ccyName[ccy]; ok {
+		return n
+	}
+	return ccy
+}
+
 // valCcy 代币数→USD 估值（T-0086 ① amt估值）：USDT/USD 直入；其余=md_ticks
 // 最新价×量（无 tick=0——卡面仍展示，NAV 不虚计 51M NFT 级原生数）。
 func valCcy(ctx context.Context, pool *pgxpool.Pool, ccy string, units float64) float64 {
@@ -55,12 +61,4 @@ func valCcy(ctx context.Context, pool *pgxpool.Pool, ccy string, units float64) 
 		return 0
 	}
 	return units * *last
-}
-
-// ccyName 币种人类名（遗留资产卡可读性）。
-func ccyName(ccy string) string {
-	if n, ok := legacyName[ccy]; ok {
-		return n
-	}
-	return ccy
 }
