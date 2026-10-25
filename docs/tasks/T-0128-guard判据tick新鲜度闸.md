@@ -29,3 +29,15 @@ md_ticks 状态表模型下行恒在、内容可陈——一腿陈一腿新即�
 - 桩测：一腿 tick 陈（>阈值）一腿新→仓不杀+facts_missing 计数
 - 两腿皆新但真失衡>band→照杀（不误伤）
 - 部署后实证：现货 tick 断流窗口内无 delta_drift 触发记录
+
+## 回执①（决策席 2026-10-26）
+
+- **本体合格**：notionalNow tick 龄闸（120s 缺省可调）+fundingRate 龄闸
+  （540min 对 8h 结算窗对径）+TestStaleTickNoKill 复现 #23 径——判据层
+  「陈=缺」fail-closed 落地方向正确。
+- **返修两缺**：
+  1. 迁移撞号——0054 被 T-0131 proposal_dedupe_gate 先占，改 0055
+     （文件名+登记行+头注三处同改，T-0109 机检拦实证）。
+  2. staleWatch 面死告警仍 `log.Printf("ALERT")`——T-0117 同坑重犯：
+     ALERT 不经 notify.Alerter+humanize kind 注册=业主收不到；collector
+     需 AttachAlerter 挂接装配。
