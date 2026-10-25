@@ -41,3 +41,21 @@ md_ticks 状态表模型下行恒在、内容可陈——一腿陈一腿新即�
   2. staleWatch 面死告警仍 `log.Printf("ALERT")`——T-0117 同坑重犯：
      ALERT 不经 notify.Alerter+humanize kind 注册=业主收不到；collector
      需 AttachAlerter 挂接装配。
+
+## 结果回填
+
+- notionalNow 回读 ts+age 断言（exec.tick_max_age_s 缺省 120s——陈行=
+  facts_missing 让位不杀；一腿陈一腿新不再产价时差型假失衡）。
+- fundingRate 同径过闸（guard.funding_max_age_min 缺省 540min——结算窗
+  8h 尺度）；0053 两键入 app_config 机读。
+- 桩测：TestStaleTickNoKill（现货 4h 陈+SWAP 新→facts_missing 不杀）+
+  TestFreshTickRealDriftKills（两腿皆新真失衡|imb|>500bps→照杀）PG 实跑绿。
+- 坑条目 guard-drift-stale-tick-false-kill 直写 canon（仓 23 误杀实证）。
+
+## 返修补丁（回执——迁移撞号+告警通道两件）
+
+- ① 0054→0055 三处同步（文件改名+migrate_table 登记+头注）——master
+  0054_proposal_dedupe_gate 先占；T-0127 小件索引用 0056。
+- ② staleWatch 告警走 notify.Alerter humanize kind=okxws_face_dead
+  （kindSpec 新增事件级行——「行情面断流」白话标题；nil=log 退路）；
+  collector.AttachAlerter 装配件挂 cmd/main。

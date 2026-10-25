@@ -58,6 +58,8 @@ func setup(t *testing.T) (context.Context, *Warden, *fakeExec) {
 	if err := cfg.Load(ctx); err != nil {
 		t.Fatal(err)
 	}
+	instrCtVal["BTC-USDT-SWAP"] = 1 // 面值假件全局表复位（跨测渗漏实证——
+	// 前测 seedInstr 改值后豁免测被假失衡误杀）
 	fx := &fakeExec{}
 	w := NewWarden(pool, cfg, risk.NewGate(pool, cfg).WithEquity(func(ctx context.Context, v string) (float64, error) { return 1000, nil }), fx)
 	w.AttachSizer(fakeSizer{}) // T-0046 ②：现读面必接（缺=平仓 fail-closed）——默认直通量
@@ -396,6 +398,8 @@ func TestNotionalCtValDispatch(t *testing.T) {
 		t.Fatalf("量纲未消歧应 false: %v %v", n, ok)
 	}
 	// 均衡仓（spot 0.25 BTC=$25 vs perp 25 张×0.01×100=$25）——漂移 0 不触发。
+	instrCtVal["BTC-USDT-SWAP"] = 1 // 面值假件全局表复位（跨测渗漏实证——
+	// 前测 seedInstr 改值后豁免测被假失衡误杀）
 	fx := &fakeExec{}
 	w2 := NewWarden(w.pool, w.cfg, w.gate, fx)
 	w2.AttachSizer(fakeSizer{})
@@ -711,5 +715,47 @@ func TestMaxHoldExemptIncome(t *testing.T) {
 	_, state, _ := posClosed(t, ctx, w, posID)
 	if state == "closed" {
 		t.Fatal("盈利仓被超龄错杀——收益失效判豁免失效")
+	}
+}
+
+// T-0128 锚①：一腿 tick 陈（>阈）一腿新→facts_missing 让位不杀（陈=缺
+// fail-closed；#23 误杀复现径）。现货 4h 陈+SWAP 新——漂移判据链跳过。
+func TestStaleTickNoKill(t *testing.T) {
+	ctx, w, _ := setup(t)
+	seedFacts(t, ctx, w, 0.0001)
+	posID := mkPosition(t, ctx, w, "live", 1, time.Now().Add(-time.Hour))
+	if _, err := w.pool.Exec(ctx, `INSERT INTO md_ticks(ts,venue,inst_id,last)
+		VALUES(now()-interval '4 hours','okx','BTC-USDT',80000)
+		ON CONFLICT (venue,inst_id) DO UPDATE SET last=EXCLUDED.last,ts=EXCLUDED.ts`); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.scanOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	_, state, _ := posClosed(t, ctx, w, posID)
+	if state == "closed" {
+		t.Fatal("陈 tick 腿被误杀——新鲜度闸失效")
+	}
+}
+
+// T-0128 锚②：两腿皆新但真失衡>band→照杀（不误伤判据面）。
+func TestFreshTickRealDriftKills(t *testing.T) {
+	ctx, w, _ := setup(t)
+	seedFacts(t, ctx, w, 0.0001)
+	posID := mkPosition(t, ctx, w, "live", 1, time.Now().Add(-time.Hour))
+	if err := w.scanOnce(ctx); err != nil { // 首拍=漂移基线播种
+		t.Fatal(err)
+	}
+	// 双腿真失衡（现货腿量×100——绝对兜底 |imb|>500bps 直杀，新鲜度闸不误伤）。
+	if _, err := w.pool.Exec(ctx, `UPDATE fin_order_leg SET qty_base=qty_base*100
+		WHERE inst_id='BTC-USDT'`); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.scanOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	_, state, trig := posClosed(t, ctx, w, posID)
+	if state != "closed" || trig != "delta_drift" {
+		t.Fatalf("真失衡仓应 closed/delta_drift，got %s/%s", state, trig)
 	}
 }

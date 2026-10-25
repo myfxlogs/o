@@ -28,3 +28,13 @@ SG 实拍 2026-10-25：md_ticks 全部现货行（BTC-USDT/ETH-USDT 等 4 行）
 - md_ticks 现货行恢复秒级刷新
 - 面级断流有告警通路（不靠人盯发现）
 - 与 T-0128 联合验证：断流窗口内 guard 不误杀
+
+## 结果回填
+
+- 根因定性：`okx.symbols="*"` 扩张只返 SWAP+季度期货——现货腿标的全掉
+  出订阅集（15:58 翻键激活时点即现货 tick 冻结时点，订阅日志照发=
+  订阅在发标的已换）。修法=ExpandSymbols 同返 SWAP 基币现货对（去重
+  dedup 面）——现货腿定价回 tickers 面（index-tickers 指数价不可代）。
+- 季度期货 args 不挂 index-tickers（-USDT-YYMMDD 尾=tickers 唯订）。
+- 面级断流告警：collector staleWatch 60s 拍——订阅标的 md_ticks 全行
+  超龄 3min=ALERT [okxws] 一次抑刷屏恢复清标（面死显形非单键静默）。

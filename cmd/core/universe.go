@@ -29,9 +29,17 @@ func universeExpander(getCli func() *okxexec.Client) func(ctx context.Context) (
 			return nil, err
 		}
 		var out []string
+		seenSpot := map[string]bool{}
 		for _, i := range swap {
 			if i.State == "live" && strings.HasSuffix(i.InstID, "-USDT-SWAP") {
 				out = append(out, i.InstID)
+				// T-0129 根修：宇宙放开须含现货腿面——SWAP 基币现货对
+				// 同入订阅集（对冲腿现价源非指数价——index-tickers 不可代）。
+				base := strings.TrimSuffix(i.InstID, "-USDT-SWAP") + "-USDT"
+				if !seenSpot[base] {
+					seenSpot[base] = true
+					out = append(out, base)
+				}
 			}
 		}
 		raw, err = cli.PublicGet(ctx, "/api/v5/public/instruments?instType=FUTURES")
