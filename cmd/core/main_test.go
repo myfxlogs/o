@@ -89,6 +89,13 @@ func TestOverviewThreeAccount(t *testing.T) {
 		if (m.Ccy == "AVAX" || m.Ccy == "COMP" || m.Ccy == "DOGE") && !m.Legacy {
 			t.Fatalf("账外币应标遗留资产: %+v", m)
 		}
+		// T-0092 usd 估值列：交易户=eqUsd 原值、资金户=amt估值（COMP 无 tick=0）。
+		if m.Ccy == "AVAX" && m.Usd != 3 {
+			t.Fatalf("交易户遗留行 usd 应=eqUsd: %+v", m)
+		}
+		if m.Section == "资金户" && m.Ccy == "COMP" && m.Usd != 0 {
+			t.Fatalf("无 tick 估值应 0 随行: %+v", m)
+		}
 	}
 	// ④：Earn 活读（无 earn_parking 帧仍出 Earn 行——venue 唯一事实源）
 	if len(sec["Earn"]) == 0 {
