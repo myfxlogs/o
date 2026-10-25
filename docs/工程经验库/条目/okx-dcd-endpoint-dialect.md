@@ -53,3 +53,9 @@ evidence_refs:
   静默解析零行，不报错难察觉。
 - 响应形歧：`currency-pair` data=裸数组；`products` data=`{"products":[...]}`
   对象包络——同族端点 envelope 不统一，按裸数组解析=静默零行。
+
+## 追补（2026-10-25 T-0117 返修③实证）
+- `products` 的 `uly` 字段=**指数名非可采 inst_id**：普通族 `BTC-USD`、
+  保底族 `BTC-USDG`（G 尾）——md_ticks 采的是 `BTC-USDT`/`BTC-USDT-SWAP`，
+  按 uly 直查价=零命中全 spot_missing。取价须归一链
+  `uly→uly+T→uly+T-SWAP→uly-SWAP` 外再补 `USDG→USDT` 变体。
