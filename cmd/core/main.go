@@ -262,10 +262,10 @@ func run() error {
 		func(ctx context.Context) (*mt5.Client, error) { return mt5.OpenSession(ctx, pool, cfg) })
 	go wd.Run(ctx, errc)
 
-	// 总览活页（T-0067：service.go mountUI——静态面+JSON/SSE）。
+	// 总览活页（T-0067：service.go mountUI——静态面；数据面唯一入口=CoreService
+	// Connect，活推=Watch 流帧——T-0156 REST/SSE 双轨面撤）。
 	mux := http.NewServeMux()
-	mountUI(mux, pool, fundingLiveFor(okcli), earnLiveFor(okcli), mt5LiveFor(pool, cfg), dcdLiveFor(okcli))
-	mountTrxAPI(mux, trxW) // T-0110：独立页全功能读面+刷新踢
+	mountUI(mux)
 	// 产出窗=行情新鲜度+rejects 计数门观测端点（判定面可观测 D-652-A）。
 	mux.HandleFunc("/report", report.Handler(pool))
 	mux.HandleFunc("/md/status", func(w http.ResponseWriter, r *http.Request) {
@@ -279,9 +279,10 @@ func run() error {
 			"net_bytes":    meter.Channels(),
 		})
 	})
-	// T-0086 ①④：资金户/Earn 活读件注入（venue_readers.go——REST 保留面）。
+	// T-0086 ①④：资金户/Earn 活读件注入（venue_readers.go——活读件注入）。
 	// T-0096：MT5 户活读件同注（OpenSession 现读——凭据缺席=读件缺不假零）。
-	mountCore(mux, pool, fundingLiveFor(okcli), earnLiveFor(okcli), mt5LiveFor(pool, cfg), dcdLiveFor(okcli))
+	// T-0110：TRX 自营盘读面同 server 注册（trxW 同源单例）。
+	mountCore(mux, pool, fundingLiveFor(okcli), earnLiveFor(okcli), mt5LiveFor(pool, cfg), dcdLiveFor(okcli), trxW)
 
 	srv := &http.Server{Addr: listenAddr, Handler: mux, ReadHeaderTimeout: 10 * time.Second}
 	go func() {

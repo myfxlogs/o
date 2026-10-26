@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"o/internal/data/cmc"
+	"o/internal/gen/dashboardv1"
 	"o/internal/portfolio/trxvote"
 )
 
@@ -75,8 +76,9 @@ func (w *trxWiring) freshLive(ctx context.Context) cmc.LiveState {
 	return ls
 }
 
-// computeHedgeCarry carry 统计（nox 同名件对拍——窗口/年化/分段照搬）。
-func (w *trxWiring) computeHedgeCarry(ctx context.Context, mid, qtyStaked float64) map[string]any {
+// hedgeCarry carry 统计（nox 同名件对拍——窗口/年化/分段照搬；T-0156 proto
+// 单源——返回值直入 GetHedgeStructureResponse）。
+func (w *trxWiring) hedgeCarry(ctx context.Context, mid, qtyStaked float64) *dashboardv1.HedgeCarry {
 	now := time.Now().UTC()
 	from7d := now.Add(-7 * 24 * time.Hour)
 	energy7d, voting7d, _, _ := w.st.SumDailyIncomeByRange(ctx, &from7d, &now)
@@ -108,12 +110,12 @@ func (w *trxWiring) computeHedgeCarry(ctx context.Context, mid, qtyStaked float6
 	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
 	mtdE, mtdV, mtdI, _ := w.st.SumDailyIncomeByRange(ctx, &monthStart, &now)
 	mtdDays, _ := w.st.CountDailyIncomeByRange(ctx, &monthStart, &now)
-	return map[string]any{
-		"trx_rental_7d_trx": energy7d, "trx_vote_7d_trx": voting7d,
-		"cmc_overnight_7d_usd": overnight7d, "cum_usd": cumUsd,
-		"annualized_pct": annualized, "hedged_cum_usd": hedgedCumUsd,
-		"hedged_annualized_pct": hedgedAnnual, "mtd_net_usd": (mtdE+mtdV)*mid + mtdI,
-		"mtd_sample_days": mtdDays,
+	return &dashboardv1.HedgeCarry{
+		TrxRental_7DTrx: energy7d, TrxVote_7DTrx: voting7d,
+		CmcOvernight_7DUsd: overnight7d, CumUsd: cumUsd,
+		AnnualizedPct: annualized, HedgedCumUsd: hedgedCumUsd,
+		HedgedAnnualizedPct: hedgedAnnual, MtdNetUsd: (mtdE+mtdV)*mid + mtdI,
+		MtdSampleDays: int32(mtdDays),
 	}
 }
 

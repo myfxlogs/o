@@ -2,19 +2,22 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
+	connect "connectrpc.com/connect/v2"
+	connecthttp "connectrpc.com/connect/v2/connecthttp"
+
+	"o/internal/gen/dashboardv1"
+	"o/internal/gen/dashboardv1/dashboardv1connect"
 	"o/internal/platform/config"
 	"o/internal/platform/testutil"
 	"o/internal/store/pgstore"
 )
 
-func trxTestSetup(t *testing.T) (context.Context, *trxWiring, *http.ServeMux) {
+func trxTestSetup(t *testing.T) (context.Context, *trxWiring, coreService) {
 	t.Helper()
 	pool := testutil.Pool(t)
 	ctx := context.Background()
@@ -26,50 +29,57 @@ func trxTestSetup(t *testing.T) (context.Context, *trxWiring, *http.ServeMux) {
 		t.Fatal(err)
 	}
 	w := &trxWiring{pool: pool, cfg: cfg, st: pgstore.NewStore(pool)}
+	return ctx, w, coreService{pool: pool, trx: w}
+}
+
+// T-0156 锚：REST 手拼面全撤 404 化——mountUI+mountCore 同生产装配，
+// /api/overview、/api/watch、/api/trx/* 一律 404（数据面唯一入口=Connect）。
+func TestRestFacesRetired(t *testing.T) {
+	_, w, _ := trxTestSetup(t)
 	mux := http.NewServeMux()
-	mountTrxAPI(mux, w)
-	return ctx, w, mux
+	mountUI(mux)
+	mountCore(mux, w.pool, nil, nil, nil, nil, w)
+	for _, p := range []string{"/api/overview", "/api/watch", "/api/trx/account",
+		"/api/trx/yield_radar", "/api/trx/hedge_flow", "/api/trx/account_refresh"} {
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, httptest.NewRequest("GET", p, nil))
+		if rec.Code != http.StatusNotFound {
+			t.Fatalf("%s 应 404 化（REST 面已撤）: %d", p, rec.Code)
+		}
+	}
 }
 
-func trxGet(t *testing.T, mux *http.ServeMux, path string) (int, string) {
-	t.Helper()
-	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, httptest.NewRequest("GET", path, nil))
-	return rec.Code, rec.Body.String()
-}
-
-// T-0110 桩测锚：全读面 200+合法 JSON；空表=读件缺显形不造零；
-// cex_scan 读件缺 face 核销形（empty 数组+扫描器未迁 note）。
+// T-0156 桩测锚：全 proto 读面空表可答——读件缺显形不造零（found=false），
+// 刷新踢 nil 采集件静默不炸；收益面冷启动零样本透传。
 func TestTrxFacesParity(t *testing.T) {
-	_, _, mux := trxTestSetup(t)
-	for _, p := range []string{"account", "txs", "yield_radar", "yield_curve",
-		"hedge_structure", "hedge_flow", "cmc_history", "cex_scan"} {
-		code, body := trxGet(t, mux, "/api/trx/"+p)
-		if code != 200 {
-			t.Fatalf("%s 端点态: %d", p, code)
-		}
-		var v any
-		if err := json.Unmarshal([]byte(body), &v); err != nil {
-			t.Fatalf("%s 出数非法 JSON: %v", p, err)
-		}
+	ctx, _, svc := trxTestSetup(t)
+	if r, err := svc.GetTrxAccount(ctx, &dashboardv1.GetTrxAccountRequest{}); err != nil || r.Found {
+		t.Fatalf("空表 account 应 found=false 读件缺显形: %+v %v", r, err)
 	}
-	if _, body := trxGet(t, mux, "/api/trx/account"); !strings.Contains(body, "读件缺") {
-		t.Fatalf("空表 account 应读件缺显形: %s", body)
+	if r, err := svc.TrxAccountRefresh(ctx, &dashboardv1.TrxAccountRefreshRequest{}); err != nil || r.Found {
+		t.Fatalf("刷新踢 nil 采集件应静默+found=false: %+v %v", r, err)
 	}
-	if _, body := trxGet(t, mux, "/api/trx/cex_scan"); !strings.Contains(body, "扫描器未迁") ||
-		!strings.Contains(body, `"spreads":[]`) {
-		t.Fatalf("cex_scan 核销形: %s", body)
+	if r, err := svc.ListTrxTxs(ctx, &dashboardv1.ListTrxTxsRequest{}); err != nil || len(r.Txs) != 0 {
+		t.Fatalf("空表 txs 应空集: %+v %v", r, err)
 	}
-	// 刷新踢：nil 采集件静默不炸+读件缺显形（非钱径读侧拉新）。
-	if code, _ := trxGet(t, mux, "/api/trx/account_refresh"); code != 200 {
-		t.Fatal("刷新踢应 200（静默败不阻断渲染）")
+	if r, err := svc.GetTrxYieldRadar(ctx, &dashboardv1.GetTrxYieldRadarRequest{}); err != nil ||
+		r.SampleDays_7D != 0 || r.SampleDays_30D != 0 {
+		t.Fatalf("冷启动雷达应零样本透传: %+v %v", r, err)
+	}
+	if r, err := svc.GetTrxYieldCurve(ctx, &dashboardv1.GetTrxYieldCurveRequest{}); err != nil ||
+		len(r.Points) != 0 {
+		t.Fatalf("冷启动曲线应空集不猜: %+v %v", r, err)
+	}
+	if r, err := svc.GetHedgeStructure(ctx, &dashboardv1.GetHedgeStructureRequest{}); err != nil ||
+		r.Structure == nil || r.Structure.LegSpot == nil || r.Structure.LegShort == nil {
+		t.Fatalf("冷启动结构应双腿空壳不炸: %+v %v", r, err)
 	}
 }
 
-// T-0110 锚：hedge_flow 双源 UNION 归一（trx TRX 折值/cmc kind 映射+cheat/vote/
-// 买卖成交剔除）+计数；bandwidthStatus 阈值锚（trxvote 常量同源）。
+// T-0110/T-0156 锚：hedge_flow 双源 UNION 归一（trx TRX 折值/cmc kind 映射+
+// cheat/vote/买卖成交剔除）+计数；bandwidthStatus 阈值锚（trxvote 常量同源）。
 func TestHedgeFlowUnionAndBandwidth(t *testing.T) {
-	ctx, w, mux := trxTestSetup(t)
+	ctx, w, svc := trxTestSetup(t)
 	var execID int64
 	if err := w.pool.QueryRow(ctx, `INSERT INTO fin_execution(inst_id,notional_usd,state)
 		VALUES('ETH-USDT',100,'open') RETURNING id`).Scan(&execID); err != nil {
@@ -106,17 +116,8 @@ func TestHedgeFlowUnionAndBandwidth(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	_, body := trxGet(t, mux, "/api/trx/hedge_flow")
-	var resp struct {
-		Total int `json:"total"`
-		Txs   []struct {
-			Source      string  `json:"source"`
-			Kind        string  `json:"kind"`
-			AmountValue float64 `json:"amount_value"`
-			AmountUnit  string  `json:"amount_unit"`
-		} `json:"txs"`
-	}
-	if err := json.Unmarshal([]byte(body), &resp); err != nil {
+	resp, err := svc.ListHedgeFlow(ctx, &dashboardv1.ListHedgeFlowRequest{})
+	if err != nil {
 		t.Fatal(err)
 	}
 	if resp.Total != 3 || len(resp.Txs) != 3 {
@@ -137,6 +138,28 @@ func TestHedgeFlowUnionAndBandwidth(t *testing.T) {
 	if bandwidthStatus(600, 0, 0, 0) != "normal" || bandwidthStatus(400, 0, 0, 0) != "yellow" ||
 		bandwidthStatus(200, 0, 0, 0) != "red" {
 		t.Fatal("带宽状态阈值错（500/250 线）")
+	}
+}
+
+// T-0156 锚：折值与状态字段真值透传（账户快照→proto 折值后端算定）。
+func TestTrxAccountRowMapping(t *testing.T) {
+	ctx, w, svc := trxTestSetup(t)
+	if _, err := w.pool.Exec(ctx, `INSERT INTO fin_trx_account(address,votes_total,balance_sun,
+		allowance_sun,reward_num_sun,energy_delegated,net_limit,net_used,free_net_limit,
+		free_net_used,energy_limit,energy_used,bandwidth_staked,tron_power,sr_address,fetched_at)
+		VALUES('T-test',3,5000000,0,7000000,2000000,600,0,400,0,0,0,1000000,3000000,'SR-x',now())`); err != nil {
+		t.Fatal(err)
+	}
+	r, err := svc.GetTrxAccount(ctx, &dashboardv1.GetTrxAccountRequest{})
+	if err != nil || !r.Found {
+		t.Fatalf("有快照应 found=true: %+v %v", r, err)
+	}
+	if r.TrxBalance != 5 || r.TronPower != 3 || r.TrxAllowance != 7 ||
+		r.EnergyDelegated != 2 || r.Votes != 3 || r.SrAddress != "SR-x" {
+		t.Fatalf("折值口径错（sun→TRX=1e6）: %+v", r)
+	}
+	if r.BandwidthStatus != "normal" { // 剩余 600+400=1000 ≥ 500 线
+		t.Fatalf("带宽状态应 normal: %s", r.BandwidthStatus)
 	}
 }
 
@@ -197,4 +220,59 @@ func TestTrxvoteFlagOffDormant(t *testing.T) {
 		`SELECT count(*) FROM fin_trx_vote_rebalance`).Scan(&n); err != nil || n != 0 {
 		t.Fatalf("停驶态不得产生引擎写入: %d %v", n, err)
 	}
+}
+
+// T-0156 验收桩锚：Connect 全链路——mountCore 同生产装配+connect-go 客户端
+// 过线打读面（REST 撤后唯一入口），+Watch 帧 NOTIFY→帧达 <1s（事件驱动律：
+// fin_cashflow 行落→ev_cashflow 触发器→LISTEN 流帧，所见即所得刷新源）。
+func TestConnectEndToEndAndWatchLatency(t *testing.T) {
+	ctx, w, _ := trxTestSetup(t)
+	mux := http.NewServeMux()
+	mountUI(mux)
+	mountCore(mux, w.pool, nil, nil, nil, nil, w)
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	cl := dashboardv1connect.NewCoreServiceClient(connect.NewClient(
+		connecthttp.NewTransport(srv.Client(), srv.URL)))
+	if r, err := cl.GetTrxAccount(ctx, &dashboardv1.GetTrxAccountRequest{}); err != nil || r.Found {
+		t.Fatalf("过线 GetTrxAccount 应空表 found=false: %+v %v", r, err)
+	}
+	if r, err := cl.GetTrxYieldRadar(ctx, &dashboardv1.GetTrxYieldRadarRequest{}); err != nil {
+		t.Fatalf("过线 GetTrxYieldRadar: %v", err)
+	} else if r.SampleDays_7D != 0 {
+		t.Fatalf("冷启动雷达应零样本: %+v", r)
+	}
+	// Watch 帧 <1s 桩锚：watch_open 首帧=就绪信号（LISTEN 注册在先——无
+	// 就绪竞速），随后拍行 ev_cashflow 帧达测距 <1s（NOTIFY 同事务提交即醒，
+	// 实测 ms 级）。
+	wctx, cancel := context.WithTimeout(ctx, 8*time.Second)
+	defer cancel()
+	stream, err := cl.Watch(wctx, &dashboardv1.WatchRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	open, err := stream.Receive()
+	if err != nil {
+		t.Fatalf("就绪首帧未达: %v", err)
+	}
+	if open.Kind != "watch_open" {
+		t.Fatalf("首帧应 watch_open: %s", open.Kind)
+	}
+	t0 := time.Now()
+	if _, err := w.pool.Exec(ctx, `INSERT INTO fin_cashflow
+		(kind,venue,ccy,amount,source_ref,source_table,occurred_at)
+		VALUES('fee','okx','USDT',-0.1,1,'fin_execution',now())`); err != nil {
+		t.Fatal(err)
+	}
+	ev, err := stream.Receive()
+	if err != nil {
+		t.Fatalf("流帧未达: %v", err)
+	}
+	if el := time.Since(t0); el > time.Second {
+		t.Fatalf("NOTIFY→帧达应 <1s（事件驱动律）: %v", el)
+	}
+	if k := ev.Kind; k != "ev_cashflow" {
+		t.Fatalf("帧通道应 ev_cashflow: %s", k)
+	}
+	cancel()
 }

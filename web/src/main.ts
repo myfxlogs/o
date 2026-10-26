@@ -1,21 +1,31 @@
 // O 总览活推（T-0067 脊+T-0075 卡绑定——API 四卡真值覆写空态；
-// 断源=灰化露相禁演新鲜）。
+// 断源=灰化露相禁演新鲜）。T-0156：REST /api/overview+SSE /api/watch+30s
+// 轮询全撤——数据面唯一入口=CoreService Connect，活推=Watch 流帧（ev_* 脊，
+// 事件驱动律；断流 3s 重连=传输维护非数据轮询）。
+import { createClient } from '@connectrpc/connect'
+import { createConnectTransport } from '@connectrpc/connect-web'
+import { timestampDate } from '@bufbuild/protobuf/wkt'
+import type { Timestamp } from '@bufbuild/protobuf/wkt'
+import { CoreService } from './gen/dashboardv1/core_pb'
+
+const client = createClient(CoreService,
+  createConnectTransport({ baseUrl: window.location.origin }))
+
 const h = (s: string): string => {
   const d = document.createElement('div'); d.textContent = s; return d.innerHTML
 }
 async function ov(): Promise<void> {
   try {
-    const r = await fetch('/api/overview')
-    const d = await r.json()
+    const d = await client.overview({})
     document.querySelectorAll('.card').forEach(c => (c as HTMLElement).style.opacity = '1')
     const b = document.querySelectorAll<HTMLElement>('.metric b')
     if (b.length >= 3) {
-      b[0].textContent = '$' + (d.nav_total || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })
-      b[1].textContent = (d.pnl_today >= 0 ? '+' : '') + (d.pnl_today || 0).toFixed(2)
-      b[2].textContent = (d.pnl_cum >= 0 ? '+' : '') + (d.pnl_cum || 0).toFixed(2)
+      b[0].textContent = '$' + (d.navTotal || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })
+      b[1].textContent = (d.pnlToday >= 0 ? '+' : '') + (d.pnlToday || 0).toFixed(2)
+      b[2].textContent = (d.pnlCum >= 0 ? '+' : '') + (d.pnlCum || 0).toFixed(2)
       // T-0114 乙⑤：盈亏着色——负红正绿（--up/--dn 双主题变量）。
-      b[1].style.color = 'var(' + ((d.pnl_today || 0) < 0 ? '--dn' : '--up') + ')'
-      b[2].style.color = 'var(' + ((d.pnl_cum || 0) < 0 ? '--dn' : '--up') + ')' 
+      b[1].style.color = 'var(' + ((d.pnlToday || 0) < 0 ? '--dn' : '--up') + ')'
+      b[2].style.color = 'var(' + ((d.pnlCum || 0) < 0 ? '--dn' : '--up') + ')'
     }
     const st = document.querySelector('.hero .stamp')
     if (st) st.textContent = '数据 ' + utcStamp() + ' · 刚刚'
@@ -34,8 +44,7 @@ async function ov(): Promise<void> {
     //（基金的钱=USDT+在持腿币，托管尘后端已过滤不返）；读件缺=显式行非假零。
     const mb = document.getElementById('money-body')
     if (mb && d.money && d.money.length) {
-      type MRow = { venue: string; section: string; label: string; amount: number; ccy: string; usd: number; note: string }
-      const rows = d.money as MRow[]
+      const rows = d.money
       const order = ['okx', 'mt5']
       const venues = [...new Set(rows.map((m) => m.venue))]
         .sort((a, b) => (order.indexOf(a) + 1 || 99) - (order.indexOf(b) + 1 || 99))
@@ -73,9 +82,9 @@ async function ov(): Promise<void> {
     // 交易所在线树状卡（T-0088：venue 组→channel 行，三态真判，断行红显不藏）。
     const vb = document.getElementById('venues-body')
     if (vb && d.venues && d.venues.length) {
-      vb.innerHTML = venuesHTML(d.venues)
+      vb.innerHTML = venuesHTML(d.venues as VGroup[])
     }
-    // TRX 自营盘（T-0108：业绩外显形——独立 /api/trx 端点零计 nav_total）。
+    // TRX 自营盘（T-0108：业绩外显形——proto 读面零计 nav_total；T-0156 活口）。
     renderTrx()
     // staff 组织架构图（T-0079 v2：直显不收起——宪章 §6 钱程拓扑；API 缺面藏卡如实）。
     const sc = document.getElementById('c-staff')
@@ -101,9 +110,16 @@ function utcStamp(): string {
   return String(d.getUTCHours()).padStart(2, '0') + ':' + String(d.getUTCMinutes()).padStart(2, '0') +
     ':' + String(d.getUTCSeconds()).padStart(2, '0') + ' UTC'
 }
-new EventSource('/api/watch').onmessage = () => ov()
-ov()
-setInterval(ov, 30000)
+async function watchPump(): Promise<void> {
+  for await (const _ev of client.watch({})) ov()
+}
+function watchRun(): void {
+  void watchPump()
+    .catch(() => {}) // 断流吞错（下一帧自然回填）
+    .finally(() => setTimeout(watchRun, 3000))
+}
+watchRun()
+void ov()
 
 // venuesHTML 交易所在线树（T-0088 v2——venue 行=logo+名+呼吸总灯（辖下
 // 最差态聚合）；channel 行=├/└ 树线+呼吸三色灯+末拍龄 Ns/Nm/h；note 覆盖龄显）。
@@ -116,7 +132,7 @@ const VSVG: Record<string, string> = {
   mt5: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--txt)" stroke-width="1.8">
     <path d="M3 20V6l5 8 4-6 4 6 5-8v14"/><path d="M3 20h18"/></svg>`,
 }
-interface VChan { name: string; channel: string; last_ts: string; state: number; note: string }
+interface VChan { name: string; channel: string; lastTs: string; state: number; note: string }
 interface VGroup { name: string; channels: VChan[] }
 function vAge(ts: string): string {
   const d = (Date.now() - new Date(ts).getTime()) / 1000
@@ -129,8 +145,8 @@ function venuesHTML(gs: VGroup[]): string {
     const worst = g.channels.length ? Math.max(...g.channels.map(c => c.state ?? 0)) : 2
     const chans = g.channels.map((c, i) => {
       const tw = i === g.channels.length - 1 ? '└' : '├'
-      const age = c.note || (c.last_ts
-        ? (c.state === 1 ? '迟滞 ' : c.state === 2 ? '离线 ' : '') + vAge(c.last_ts)
+      const age = c.note || (c.lastTs
+        ? (c.state === 1 ? '迟滞 ' : c.state === 2 ? '离线 ' : '') + vAge(c.lastTs)
         : '读件缺')
       return `<div class="vline chan"><span class="tree">${tw}</span>${h(c.name)}` +
         `<span class="vage">${h(age)}</span><span class="vdot ${VDOTS[c.state ?? 0]}"></span></div>`
@@ -223,49 +239,48 @@ function orgSVG(staff: { name: string; duty: string; state: number }[]): string 
   return `<svg viewBox="0 0 1260 570" style="width:100%;height:auto">${g}</svg>`
 }
 
-// renderTrx 自营盘四件（T-0108：账户资源/收益雷达/近期 txs/对冲结构——
-// 全件读件缺显形不造零；sun→TRX=1e6 显式换算）。
+// renderTrx 自营盘四件（T-0108：账户资源/收益雷达/对冲结构/近期 txs——
+// T-0156 proto 读面活口（REST 僵尸 face radar/vote/cmc/cmc_positions 已随
+// mountTrxAPI 撤）；读件缺显形不造零；单面败不连坐其余区）。
 async function renderTrx() {
   const tb = document.getElementById('trx-body')
   if (!tb) return
-  const j = async (p: string) => (await fetch('/api/trx/' + p)).json()
-  const [acct, radar, vote, txs, cmc, cpos] = await Promise.all(
-    ['account', 'radar', 'vote', 'txs', 'cmc', 'cmc_positions'].map(j))
-  const sun = (x: number) => (x / 1e6).toFixed(0)
+  const [acct, radar, hedge, txs] = await Promise.all([
+    client.getTrxAccount({}).catch(() => null),
+    client.getTrxYieldRadar({}).catch(() => null),
+    client.getHedgeStructure({}).catch(() => null),
+    client.listTrxTxs({ limit: 8 }).catch(() => null),
+  ])
   const row = (l: string, v: string) =>
     `<div class="row"><span>${h(l)}</span><b>${h(v)}</b></div>`
+  const pc = (v: number) => (v ? v.toFixed(2) + '%' : '—')
+  const stamp = (t?: Timestamp): string =>
+    t ? timestampDate(t).toISOString().slice(0, 16).replace('T', ' ') : '—'
   let h1 = '<div class="sec-t">账户资源<i>链上质押</i></div>'
-  if (!acct) h1 += row('账户资源', '读件缺')
-  else {
-    h1 += row('余额', sun(acct.balance_sun) + ' TRX') +
-      row('投票权', sun(acct.tron_power) + ' TRX → ' + (acct.sr_address || '未投票')) +
-      row('能量', `${acct.energy_used}/${acct.energy_limit}`) +
-      row('带宽', `${acct.net_used + acct.free_net_used}/${acct.net_limit + acct.free_net_limit}`) +
-      row('待领收益', sun(acct.reward_num_sun) + ' TRX')
-  }
-  let h2 = '<div class="sec-t">收益雷达<i>SR APR 榜</i></div>'
-  if (vote) h2 += row('当前 ' + (vote.current_sr || '—'),
-    `${(vote.current_rate * 100).toFixed(2)}% ｜ 最优 ${vote.max_sr} ${(vote.max_rate * 100).toFixed(2)}%`)
-  if (Array.isArray(radar) && radar.length) {
-    h2 += radar.slice(0, 5).map((r: { sr_address: string; apr: number }) =>
-      row(r.sr_address, (r.apr * 100).toFixed(2) + '%')).join('')
-  } else if (!vote) h2 += row('收益雷达', '读件缺')
+  if (acct?.found) {
+    h1 += row('余额', acct.trxBalance.toFixed(0) + ' TRX') +
+      row('投票权', acct.tronPower.toFixed(0) + ' TRX → ' + (acct.srAddress || '未投票')) +
+      row('能量', `${acct.energyUsed}/${acct.energyLimit}`) +
+      row('带宽', `${acct.netUsed + acct.freeNetUsed}/${acct.netLimit + acct.freeNetLimit}`) +
+      row('待领收益', acct.trxAllowance.toFixed(0) + ' TRX')
+  } else h1 += row('账户资源', '读件缺')
+  let h2 = '<div class="sec-t">收益雷达<i>SR APR 年化</i></div>'
+  if (radar) {
+    h2 += row('投票当前', pc(radar.voteAprCurrent)) +
+      row('市场最优' + (radar.voteAprMaxSr ? ` ${radar.voteAprMaxSr}` : ''), pc(radar.voteAprMax)) +
+      row('能量 7d / 30d', `${pc(radar.energyApr7d)} ｜ ${pc(radar.energyApr30d)}`)
+  } else h2 += row('收益雷达', '读件缺')
   let h3 = '<div class="sec-t">对冲结构<i>CMC CFD 腿</i></div>'
-  if (!cmc) h3 += row('CMC 账户', '读件缺')
-  else {
-    h3 += row('账户净值', '$' + Number(cmc.total_account_value).toFixed(0)) +
-      row('强平距离', (cmc.distance_to_closeout_pct || 0).toFixed(1) + '%')
-  }
-  if (Array.isArray(cpos) && cpos.length) {
-    h3 += cpos.map((p: { instrument_id: string; direction: string; quantity: number; unrealised_pnl: number }) =>
-      row(`${p.instrument_id} ${p.direction} ${p.quantity}`,
-        (p.unrealised_pnl >= 0 ? '+' : '') + p.unrealised_pnl.toFixed(0))).join('')
-  }
+  const st = hedge?.structure
+  if (st) {
+    h3 += row('账户净值', '$' + (st.accts?.cmcEquity ?? 0).toFixed(0)) +
+      row('强平距离', (st.legShort?.distPct ?? 0).toFixed(1) + '%') +
+      row('净敞口', `${st.netExposureTrx.toFixed(0)} TRX`)
+  } else h3 += row('对冲结构', '读件缺')
   let h4 = '<div class="sec-t">近期 txs<i>链上动账</i></div>'
-  if (Array.isArray(txs) && txs.length) {
-    h4 += txs.slice(0, 8).map((t: { kind: string; amount_sun: number; ts: string }) =>
-      row(`${t.kind} ${t.ts.slice(0, 16).replace('T', ' ')}`,
-        sun(t.amount_sun) + ' TRX')).join('')
+  if (txs && txs.txs.length) {
+    h4 += txs.txs.map((t) =>
+      row(`${t.kind} ${stamp(t.ts)}`, t.amountTrx.toFixed(0) + ' TRX')).join('')
   } else h4 += row('近期动账', '读件缺')
   tb.innerHTML = h1 + h2 + h3 + h4
 }
