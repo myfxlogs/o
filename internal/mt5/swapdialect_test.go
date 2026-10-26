@@ -90,3 +90,20 @@ func TestSwapLoopStopsWithSession(t *testing.T) {
 		t.Fatalf("goroutine 应归位 before=%d after=%d", before, after)
 	}
 }
+
+// T-0144 返修①锚：双腿年化——swap_long=-1786.5pts（实拍 raw）代入
+// points=0.01/cs=1/mid=79842 → long_ann≈-816bps；short=0→short_ann=0；
+// 双端齐 ok。
+func TestSwapAnnualBoth(t *testing.T) {
+	long, short, ok := SwapAnnualBoth(siOf(0, 0, 0.01, 1), sgOf(mt5pb.SwapType_SwapType_InPoints, 0), 79842)
+	if !ok {
+		t.Fatal("双腿应双端齐")
+	}
+	want := -1786.5 * 0.01 * 365 / 79842 * 10000
+	if long < want*1.01 || long > want*0.99 {
+		t.Fatalf("long_ann=%v want≈%v", long, want)
+	}
+	if short != 0 {
+		t.Fatalf("short_ann=%v（空腿零成本实拍）", short)
+	}
+}

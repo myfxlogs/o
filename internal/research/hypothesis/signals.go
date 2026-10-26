@@ -74,6 +74,7 @@ func (r *Runner) ScanSignals(ctx context.Context) error {
 				"spread_spike", x.val, x)
 		}
 	}
+	r.xvenueCarryScan(ctx) // T-0144 跨所 carry 臂（carry_diff 亮牌→卡+评估+提案止 fin_proposed）
 	return nil
 }
 

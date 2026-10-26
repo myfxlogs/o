@@ -1,6 +1,7 @@
 # T-0144 跨所 carry 假想→评估→纸面全链（xvenue_carry 模板首立）
 
-## 态：待派
+## 态：施工中
+## 领取：zcode-t0144（ZCode 施工席）@ 2026-10-26
 ## 域：发现链 / 假想模板 / 评估 / 纸面撮合
 ## 源出：T-0141+T-0143 信号面投产的消费件——carry_diff/xvenue_spread 有燃料无引擎
 
@@ -44,3 +45,70 @@ D-0022 桥二期终态件。第一性跨所生意模板：**OKX perp × MT5 CFD 
 ## skills 域
 mt5-trading-mutating（腿能力事实源）+mt5-quotes-history（SymbolParams/
 contract_size 语义）+okx-exec（腿口径对照）。
+
+## 结果回填（zcode-t0144 @ 2026-10-26）
+
+- **①假想层**：hypothesis 信号臂 xvenueCarryScan 支路——carry_diff |val|≥阈
+  （research.signal.xvenue_carry_diff_bps=300，0060 种）亮牌→xvenue_carry 卡
+  （surface='xvenue-carry'，legVocab 闭集扩 {"okx_perp_long","okx_perp_short",
+  "mt5_cfd_short","mt5_cfd_long"} 随票非运行时；evidence 携
+  provenance=hypothesis_officer+signals 源信号+direction 语义钉：大负 diff=
+  long_perp_short_cfd 正主/大正=反向）；UNIQUE(venue,surface) 幂等。
+- **②评估层**：xvenueCarryEval——净年化=−carry_diff−spread 摊销（|spread|×2
+  按持有窗 72h 热启年化占比）−滑点缓冲（taker×2 腿）；evidence 四件分解
+  （funding_ann_bps/swap_ann_bps/spread_bps/net_ann_bps+capacity_usd）；容量
+  三件=min(okx depth5 顶档×0.5 可吸, mt5 contract_size×max_volume 名义,
+  initial_margin 率随 meta)；verdict 双闸=okx 腿 fin_venue_untradeable 滤+
+  MT5 腿 trade-order 面在册（master 能力账无执行面→mt5_leg_capability_
+  missing 如实拒——「看见了但做不了」显形）；净负→net_ann_negative 如实。
+  proposed verdict→fin_proposal 立行（fin_proposed 止）。
+- **③纸面层**：admitProposals 模板门闸 xvenue-carry 分支→admitXvenuePair
+  主从策略对：主行 venue='okx' inst=perp（funding 端，走既有 paperAccounting
+  md_funding 记账）+副行 venue='mt5' inst=CFD（bridge.xvenue.map 反查同映射
+  源；向取反 short_cfd/long_cfd）；两腿 proposal_ref 同引（p_and_l 提案级
+  聚合）；副行建行时锁 mt5_swap meta 快照→fin_paper_fill kind=
+  'swap_snapshot'（防回改——票面钦定）；幂等=双腿恒 2 行。
+- **④armed→open 显式禁**：openLive 候选带 template_ref，xvenue-carry→
+  xvenue_open_forbidden 拒计数+ALERT 日志钉死+stub Opener 零调用断言——
+  零真执行（禁线守）。
+- **配套**：0060 迁移（xvenue_carry_diff_bps 阈种+fin_venue_untradeable
+  幂等保底〔0059 同构——T-0142 未合 master 的自洽面，合并序无冲突；登记
+  {60}，59 位留 T-0142〕+direction 枚举扩 long_perp_short_cfd/
+  short_perp_long_cfd〔fin_opp_eval+fin_proposal〕+fin_paper_fill kind 扩
+  swap_snapshot）；bridge swapLoop meta 扩容量件（max_volume/initial_margin
+  随 mt5_swap 信号携行）。
+- **桩测**（PG 实跑全绿）：TestXvenueCarryChain（-532bps 亮牌→卡
+  provenance/signals/direction 三断+评估四件+capability_missing 如实拒+
+  阈内 BTC 零卡）；TestXvenuePairAdmit（双腿 venue 各正/proposal_ref 同引/
+  向取反/armed 翻面/swap 快照/幂等恒 2 行）；TestXvenueOpenForbidden
+  （显式拒计数+Opener 零调用+零开仓行）；lifecycle 全包回归绿。
+- **机检**：build✓ vet✓ gofmt✓ staticcheck✓ check-lines✓ import 闸 101/108✓
+  migration 闸✓（0060 登记；0059 位留 T-0142）。
+- **移交面（部署后决策席实证）**：ETH 域负 funding 态下 xvenue_carry 卡/
+  评估行（当下 carry_diff 实值驱动——无机会如实也是过）；armed→open 禁
+  日志钉死；双腿行 venue 各正实拍。
+
+## 返修回填（zcode-t0144 @ 2026-10-26——正 funding 径双腿经济学归正）
+
+- **①bridge.go 双腿年化**：SwapAnnualBoth（swap_long/short 各经同换算核
+  swapAnnualSide——InPoints 正典式/PercCurPrice 分腿字段各算；任一腿不可
+  年化=ok false 双端须齐）；mt5_swap meta 携 swap_long_ann_bps/
+  swap_short_ann_bps/ann_ok。桩锚 TestSwapAnnualBoth（swap_long=-1786.5pts
+  代入 mid=79842→long_ann≈-816bps 精断+short=0 空腿零成本实拍形）。
+- **②sigdist carry_diff meta 增携**：双腿年化+容量件
+  （swap_long_ann_bps/swap_short_ann_bps/ann_ok/contract_size/max_volume/
+  initial_margin）全随行；val 语义不动（仍 funding−short 端）。
+- **③xcarry 分径**：xvenueCarryNet 方向感知——diff<0 长perp径
+  net=−diff−成本（现行对）；diff>0 短perp径 net=+fundingAnn−|swap_long_ann|
+  −成本（swap_long 取 meta.swap_long_ann_bps 非 val）。
+- **④方向感知阈**：双向各自 |net|≥th 才起草（正向算不出净正 card 不立）；
+  net<0（经济学不通）→评估 rejected/net_ann_economics 如实不撞哑+零卡；
+  双腿年化源缺（桥旧版 meta）=不可判 false 如实。
+- **⑤清**：xcarry.go 重写去文件尾 var _ 引面锚+无用 import；max_volume 段
+  确认 SymGroup 实有域携入非死枝（容量三件 meta 源在案）。
+- **桩锚**（返修单三件全绿）：TestSwapAnnualBoth（long_ann≈−816bps）；
+  TestXvenueCarryPositiveDiff 幕1（diff=532+funding=200<816→rejected/
+  net_ann_economics+零卡不撞哑）幕2（funding=2000>816→卡立+direction=
+  short_perp_long_cfd 双腿向反）；hypothesis/mt5/lifecycle/sigdist 全包回归绿。
+- **验收判据不变**：mt5_swap.val 非 NULL+carry_diff 落行（部署后实证）；
+  新增：正 funding 态下 economics 拒/反向 proposed 双态实证。

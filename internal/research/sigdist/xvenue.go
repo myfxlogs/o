@@ -86,12 +86,24 @@ func (r *Runner) Xvenue(ctx context.Context) error {
 		}
 		fundingAnn := funding * 3 * 365 * 10000 // 8h 期→年化 bps
 		diff := fundingAnn - swapAnn
-		meta2, _ := json.Marshal(map[string]any{
-			"mt5_symbol": mt5Sym, "funding_ann_bps": fundingAnn, "mt5_swap_ann_bps": swapAnn})
+		// T-0144 返修②：双腿年化随行（val 语义不动=仍 funding−short 端；
+		// swap_long 成本端/容量件全携——正 funding 径经济学归正源）。
+		var swapMeta map[string]any
+		_ = r.pool.QueryRow(ctx, `SELECT meta FROM md_signal
+			WHERE kind='mt5_swap' AND key=$1 ORDER BY ts DESC LIMIT 1`, mt5Sym).Scan(&swapMeta)
+		meta2 := map[string]any{
+			"mt5_symbol": mt5Sym, "funding_ann_bps": fundingAnn, "mt5_swap_ann_bps": swapAnn}
+		for _, k := range []string{"swap_long_ann_bps", "swap_short_ann_bps", "ann_ok",
+			"contract_size", "max_volume", "initial_margin"} {
+			if v, ok := swapMeta[k]; ok {
+				meta2[k] = v
+			}
+		}
+		metaB2, _ := json.Marshal(meta2)
 		if _, err := r.pool.Exec(ctx, `INSERT INTO md_signal(kind,key,val,meta,ts)
 			VALUES('carry_diff',$1,$2,$3::jsonb,now())
 			ON CONFLICT (kind,key) DO UPDATE SET val=EXCLUDED.val,
-			meta=EXCLUDED.meta, ts=EXCLUDED.ts`, okxInst, diff, string(meta2)); err != nil {
+			meta=EXCLUDED.meta, ts=EXCLUDED.ts`, okxInst, diff, string(metaB2)); err != nil {
 			return err
 		}
 	}

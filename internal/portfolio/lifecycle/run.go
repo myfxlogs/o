@@ -33,7 +33,7 @@ type Runner struct {
 
 func NewRunner(pool *pgxpool.Pool, cfg *config.Client) *Runner {
 	return &Runner{pool: pool, denyAt: map[int64]time.Time{}, cfg: cfg,
-		rej: rejects.New("lifecycle", "illegal_transition", "missing_criteria", "write_err", "live_switch_off", "open_failed", "template_blocked")}
+		rej: rejects.New("lifecycle", "illegal_transition", "missing_criteria", "write_err", "live_switch_off", "open_failed", "template_blocked", "xvenue_open_forbidden")}
 }
 
 func (r *Runner) Run(ctx context.Context, errc chan<- error) {
@@ -127,6 +127,13 @@ func (r *Runner) admitProposals(ctx context.Context, notional, minH, minNet, max
 		if !paperTemplates[x.tmpl] {
 			blocked[x.tmpl]++
 			continue // executor 缺席=看见了做不了——提案留 proposed（模板门闸，T-0124）
+		}
+		if x.tmpl == "xvenue-carry" {
+			if err := r.admitXvenuePair(ctx, x.id, x.inst, x.dir, notional, minH, minNet, maxDD); err != nil {
+				r.rej.Inc("write_err")
+				return err
+			}
+			continue // 跨所双腿径（T-0144——主从策略对，proposal_ref 同引）
 		}
 		crit, _ := json.Marshal(map[string]float64{"min_hours": minH, "min_net": minNet, "max_dd": maxDD})
 		var sid int64
