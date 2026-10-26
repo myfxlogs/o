@@ -87,6 +87,7 @@ internal/research/armwatch -> internal/platform/notify
 internal/research/researcher -> internal/platform/notify
 internal/research/sigdist -> internal/platform/rejects
 internal/research/sigdist -> internal/platform/roster
+internal/research/sigdist -> internal/platform/config
 internal/research/funding -> internal/research/armwatch
 internal/research/gapscan -> internal/research/armwatch
 internal/research/hypothesis -> internal/research/armwatch
