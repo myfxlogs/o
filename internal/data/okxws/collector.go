@@ -48,8 +48,9 @@ type Collector struct {
 	Stats     *Door        // 别名 rej（对外观测名）
 	meter     *netmeter.Meter
 	al        *notify.Alerter
-	refuseSub map[string]bool                           // 60018 拒收集（本连接内生效——T-0133 ③）
-	spotFeed  func(ctx context.Context) ([]byte, error) // T-0134 现货 REST 读件 // 面死告警业主通道（T-0128 返修②——nil=log 退路）
+	refuseSub map[string]bool                             // 60018 拒收集（本连接内生效——T-0133 ③）
+	spotFeed  func(ctx context.Context) ([]byte, error)   // T-0134 现货 REST 读件
+	markFeed  func(ctx context.Context) ([][]byte, error) // T-0135 mark-price REST 读件（SWAP+FUTURES 两请求） // 面死告警业主通道（T-0128 返修②——nil=log 退路）
 	// ExpandSymbols 宇宙扩件（T-0122：okx.symbols 含 "*"=放开全 SWAP+季度
 	// 期货——装配层挂 instruments 实读闭包，未挂=键面拒签 fail-closed）。
 	ExpandSymbols func(ctx context.Context) ([]string, error)
@@ -68,13 +69,20 @@ func (c *Collector) AttachSpotFeed(fn func(ctx context.Context) ([]byte, error))
 	c.spotFeed = fn
 }
 
+// AttachMarkFeed 挂 mark-price REST 读件（T-0135——SWAP+FUTURES 两请求
+// 批量返回；md_mark_index channel='mark_price' 同键域）。
+func (c *Collector) AttachMarkFeed(fn func(ctx context.Context) ([][]byte, error)) {
+	c.markFeed = fn
+}
+
 type Door = rejects.Door
 
 // NewCollector 默认参数版（生产径）。
 func NewCollector(pool *pgxpool.Pool, cfg *config.Client) *Collector {
 	return &Collector{
 		pool: pool, cfg: cfg, url: PublicURL,
-		rej:   rejects.New("okxws", "non_usdt_instid", "seq_gap", "parse_fail", "write_err", "symbols_missing", "activeset_read_failed"),
+		rej: rejects.New("okxws", "non_usdt_instid", "seq_gap", "parse_fail", "write_err", "symbols_missing",
+			"spot_feed_failed", "mark_feed_failed", "activeset_read_failed"),
 		queue: make(chan rowItem, 1024),
 		Stats: nil,
 	}

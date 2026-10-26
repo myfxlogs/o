@@ -17,21 +17,18 @@ import (
 // datedFutRe 季度期货形（'-' 尾 6 位到期日——mark-price 适用无 funding）。
 var datedFutRe = regexp.MustCompile(`-[0-9]{6}$`)
 
-// subscribeArgs 宇宙低频订阅面（T-0132 分级——全宇宙=费率/标记价两
-// 事实层零损发现面；tickers 退出宇宙订活跃集动态补：funding-rate/mark-price
-// 仅 SWAP instId 合法；季度期货订 mark-price。
-// T-0134：现货形 index-tickers 撤 WS（秒级推送 2300 标的=链路饱和踢连）——
-// 转 REST 轮询 60s 级（spotpoll.go——评估/发现面精度足，链路载降）。
+// subscribeArgs 宇宙低频订阅面（T-0132 分级；tickers 退出宇宙订活跃集
+// 动态补：funding-rate 仅 SWAP instId 合法）。
+// T-0134：现货形 index-tickers 撤 WS；T-0135：mark-price 全宇宙撤 WS
+// （507 SWAP 秒推=1.8Mbps 链路大头实证）——双件均转 spotpoll REST 轮询替。
 func subscribeArgs(syms []string) []map[string]string {
 	args := make([]map[string]string, 0, len(syms)*3)
 	for _, s := range syms {
 		switch {
 		case strings.HasSuffix(s, "-SWAP"):
-			args = append(args,
-				map[string]string{"channel": "funding-rate", "instId": s},
-				map[string]string{"channel": "mark-price", "instId": s})
-		case datedFutRe.MatchString(s):
-			args = append(args, map[string]string{"channel": "mark-price", "instId": s})
+			args = append(args, map[string]string{"channel": "funding-rate", "instId": s})
+		case datedFutRe.MatchString(s): // mark-price 同撤（T-0135 REST 替）
+			continue
 		default: // 现货形=宇宙内零订（T-0134 REST 轮询面替——链路饱和实证）
 		}
 	}
