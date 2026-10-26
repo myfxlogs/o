@@ -1,6 +1,6 @@
 # T-0170 dcd/gapscan 认证读面恢复——venue 私有 GET 经 SG 中继或只读钥（T-0165 投产回归件）
 
-## 态：已批
+## 态：已批（钦定径 B——dev 零凭据物料；A 备选过渡）
 ## 立项：决策席 @ 2026-10-26（T-0165 投产实证回归）
 ## 决策档：D-0029/T-0165/T-0102
 
@@ -11,17 +11,25 @@ o-research 起后两臂 fail-closed：dcd feed 调 `sfp/dcd/currency-pair`+`prod
 现 dcd/gapscan 每拍 401 让位（不崩）——DCD 发现链+gap 扫描暗、
 `md_dcd_product` 冻结、244 paper 策略 fill 随报价陈化自然停。
 
-## 施工（二径——先等业主只读钥回执；超时走 relay）
+## 施工（两径——**钦定 B：dev 零凭据物料**；业主问 2026-10-26 裁）
 
-- **径 A（钦定首选）**：业主 OKX console 开**只读权限 API 钥**→
-  `~/o-research.env` 加 `OKX_API_KEY/SECRET/PASSPHRASE` 三件→
-  `cmd/research` okcli 构造改读 env 凭据（`NewClientReadOnly`——读钥天然配
-  ReadOnly client，写径 client 侧亦不可达）。研究域持**只读**钥不违 T-0102
-  （红线本意=不碰钱径；只读钥 venue 侧无写权）。
-- **径 B（工程兜底）**：o-core 加 `GET /v1/venue-get?path=` 中继——SG 本地
-  凭据签名+GET-only+path allowlist（`sfp/dcd/*`+gap 探针面）+bind 127.0.0.1；
-  隧道加 `-L 5545:127.0.0.1:PORT`；research feed 加 relay 模式
-  （okcli 无签名直指 relay）。
+**凭据面裁**（业主问「必须 env？能放 PG？热启怎么办」）：
+
+- app_secrets 密文需主权钥解——**主权钥永不出 SG**（出=全库密钥面失守，
+  okx 交易钥/mt5/feishu 一泄俱泄）——故「key 放 PG 密文+dev 解」天然毙。
+- env vs PG 可读表对 dev 节点**暴露面等价**（research_rw DSN 本就在 env
+  里——持 DSN 即可读表；表仅省 /proc/environ 泄露一项）——争论存哪是次优解。
+- **钦定 B=零物料**：dev 不存任何 venue 凭据，热启问题消失（无钥可热）。
+
+- **径 B（钦定首选）**：o-core 加 `GET /v1/venue-get?path=` 中继——SG 本地
+  凭据签名+GET-only+path allowlist（`sfp/dcd/*`+gap 探针面+日后研究面私有
+  GET 白名单扩张位）+bind 127.0.0.1；隧道 unit 加 `-L 5545:127.0.0.1:PORT`；
+  research feed 加 relay 模式（okcli 变体：GET 不签名直指 relay，响应原样透传——
+  信封/限流语义不变；relay 侧限流沿用 get429 退避）。**防滥用**：path 白名单
+  正则钉死+禁 body+禁 method≠GET；relay 不可作任意 URL 代理。
+- **径 A（备选）**：业主 OKX console 开**只读权限 API 钥**→dev env 三件+
+  `NewClientReadOnly`（client 侧写径亦不可达）。若先到手可用作过渡——
+  B 落地后撤钥（不留双径）。
 
 ## 桩锚
 
