@@ -21,6 +21,7 @@ import (
 	"o/internal/research/gapscan"
 	"o/internal/research/grammar"
 	"o/internal/research/hypothesis"
+	"o/internal/research/researcher"
 	"o/internal/trading/okxexec"
 )
 
@@ -140,4 +141,8 @@ func researchArms(ctx context.Context, errc chan<- error, pool *pgxpool.Pool,
 	go gapscan.NewRunner(pool, cfg).AttachProbe(gapProbeFor(okcli)).AttachAlerter(alerter).Run(ctx, errc)
 	go hypothesis.NewRunner(pool, cfg).AttachAlerter(alerter).Run(ctx, errc)
 	go grammar.NewRunner(pool, cfg).Run(ctx, errc) // T-0120 文法枚举臂
+	// 研究员席静默看门（T-0121：短会话岗无臂拍——DB 双源锚 14 天窗，core 代守）
+	sw := researcher.NewSilentWatch(pool)
+	sw.AttachAlerter(alerter)
+	go sw.Run(ctx)
 }
