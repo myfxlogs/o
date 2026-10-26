@@ -70,3 +70,16 @@
 - **移交面（部署后决策席实证）**：黑名单词条在册 inst 的 live 策略零残留/
   armed 提案零残留（回扫实跑——本轮决策席手动清尾两行的人工替身）；
   开仓败 51001 日志风暴绝迹（命中即退役非重试）。
+
+## 返修回填（zcode-t0147 @ 2026-10-26——untradeable 双写撞闭集消解）
+
+- 病灶：untradeable() 原序「入册先于显式迁移」——0061 trigger 回扫先把本
+  策略退 retired，随后显式 Transition 撞「retired→retired 非法迁移」闭集。
+- 消解形（自选后者=更优）：**显式迁移先于入册**——显式 reason 精确
+  （venue_untradeable:<code> <msg>）保留；trigger 入册后续扫同 inst 余量
+  （其余策略/armed 提案）=真回扫覆盖。容退守卫：state='live' 才显式迁移
+  （幂等重入/trigger 先至=跳过，溯源性由先至方 transition 行承载）。
+- 本轮实测（pgx 真跑非自报）：TestTerminalInstErr/TestUntradeableDisposition/
+  TestBlacklistConsumers/TestLegBuildTerminalTriage/TestRetroactiveScanTrigger
+  （手工 INSERT 回扫存量实证桩）/TestParamErrNoTriage 六桩 PASS——
+  cmd/core 包 ok（7.975s 实时输出在案）。
