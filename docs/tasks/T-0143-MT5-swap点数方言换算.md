@@ -73,3 +73,17 @@ TradeTickValue/TradeTickSize（或 ContractSize）径——mtapi 载荷字段先
   合法产出非缺席）+swap_short=-1786.5 代入 mid=79842→≈-816.8bps/yr 量级断；
   缺环桩改真缺环形（points=0）。
 - 验收判据不变：mt5_swap.val 非 NULL+carry_diff 落行（部署后实证）。
+
+---
+
+## 验收档（决策席 2026-10-26）✅（三轮）
+
+- **合入**：`dc6dd67`→master（build✓ test 7✓——含会话域泄漏桩 TestSwapLoopStopsWithSession）
+- **返修一**：sessCtx+cancel 会话域派生落（bridgeSession defer 止拍——goroutine 零泄漏）
+- **返修二（根因）**：venue 实证 tick_value/tick_size=0 不填——换算式归正典点值径
+  `点值=points×contract_size`（tick 双字段降候选佐证非必需环）
+- **生产实拍**：mt5_swap val=0.00 真实零（swap_short=0 空腿免费）；
+  **carry_diff 投产** BTC +621/ETH +532bps 56s 鲜；xvenue_spread 同鲜
+- **消费语义钉**：carry_diff 大**负**值=亮牌（funding 砸负→长 perp 收+空 CFD 零成本组合）；
+  正值=funding 正常态非机会读数。下游消费面禁反读。
+- **坑沉淀**：session-scoped-goroutine-ctx 条目入工程经验库（worker 顺带归档）
