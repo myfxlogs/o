@@ -18,3 +18,15 @@
 - armed 超龄行自动翻 retired、留痕 reason 可查
 - 拒放日志频次降至冷窗量级
 - 单测：armed 在册未开仓不计 venue 分子；超龄退役触发
+
+## 结果回填
+
+- ①venue 分子改：open 持仓 notional+在途 intent（fin_execution state='open'
+  已发令牌未成交）——armed 未开仓策略不计（额度=真实敞口上限非管道上限；
+  0 仓时 vExp≈0 不再拒开）。exposure_cap 同径并轨。
+- ②armed 超龄退役：retireStaleArmed 加龄闸——fin_proposal armed 超
+  lifecycle.armed_ttl_h（缺省 24h）未开火→fin_retired+notes 留痕；
+  fin_strategy armed 同径 retired（额度释放+T-0069 淤积同族治）。
+- ③拒放冷窗：denyAt map 记策略最近拒放戳——lifecycle.reject_cooldown_s
+  （缺省 300s）冷窗内跳过同策略（8705/15min 空转止血）。
+- 机检：build✓ gofmt✓ test✓（lifecycle+risk 绿）；棘轮零触。
