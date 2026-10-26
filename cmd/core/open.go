@@ -99,11 +99,13 @@ func (h hedgeOpener) untradeable(ctx context.Context, spec lifecycle.OpenSpec, x
 	// reason 精确（venue_untradeable:<code>），随后入册——0061 trigger 续扫
 	// 同 inst 余量（其余策略/armed 提案=真回扫覆盖）。顺序反置则 trigger 先
 	// 退役本策略，显式迁移撞「retired→retired 非法迁移」闭集。
-	// 容退守卫：state='live' 才显式迁移（幂等重入/trigger 先至=跳过，溯源性
-	// 已由先至方 transition 行承载）。
+	// 容退守卫（T-0151 谓词集对齐 0062——retired 外五态全可显式迁移，序位
+	// 不动）：state IN 五态才显式迁移（已 retired=幂等重入/trigger 先至=跳过，
+	// 溯源性已由先至方 transition 行承载）。
 	var live int
 	if err := h.pool.QueryRow(ctx, `SELECT count(*) FROM fin_strategy
-		WHERE id=$1 AND state='live'`, spec.StrategyRef).Scan(&live); err != nil {
+		WHERE id=$1 AND state IN ('live','paper','proposed','probe','degraded')`,
+		spec.StrategyRef).Scan(&live); err != nil {
 		return err
 	}
 	if live > 0 {

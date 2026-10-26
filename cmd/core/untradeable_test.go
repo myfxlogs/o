@@ -237,3 +237,84 @@ func TestParamErrNoTriage(t *testing.T) {
 		t.Fatalf("零入册应零回扫 got %q", st)
 	}
 }
+
+// T-0151 桩锚：五态全覆盖——0061 只覆 live/paper/proposed 三态，probe 态
+// 幽灵（286181 SHEIN-USDT-SWAP 滞留实案形）入册即退为票面生产锚；degraded
+// 同形。另钉闭集自挡：已 retired 行入册域内不再触（零新增 transition）。
+// 每腿独 inst——trigger 回扫域=同 inst，互不串。
+func TestRetroTwoStates(t *testing.T) {
+	ctx, pool, _ := setupDB(t)
+	for _, state := range []string{"live", "paper", "proposed", "probe", "degraded"} {
+		inst := fmt.Sprintf("STUB-T0151-%s-USDT-SWAP", state)
+		var sid int64
+		if err := pool.QueryRow(ctx, `INSERT INTO fin_strategy(inst_id,template_ref,proposal_ref,direction,notional_usd,state,venue,criteria)
+			VALUES($1,'funding-hedge',0,'short_perp_long_spot',100,$2,'okx','{}') RETURNING id`,
+			inst, state).Scan(&sid); err != nil {
+			t.Fatalf("%s 策略夹具: %v", state, err)
+		}
+		if _, err := pool.Exec(ctx, `INSERT INTO fin_venue_untradeable(inst_id,code,msg)
+			VALUES($1,'51001','stub')`, inst); err != nil {
+			t.Fatalf("%s 入册: %v", state, err)
+		}
+		var st string
+		if err := pool.QueryRow(ctx, `SELECT state FROM fin_strategy WHERE id=$1`, sid).Scan(&st); err != nil || st != "retired" {
+			t.Fatalf("%s 态应入册即退 got st=%q err=%v", state, st, err)
+		}
+		var from string
+		if err := pool.QueryRow(ctx, `SELECT from_state FROM fin_strategy_transition
+			WHERE strategy_id=$1 AND reason LIKE 'venue_untradeable_retroactive:%'`,
+			sid).Scan(&from); err != nil || from != state {
+			t.Fatalf("%s 态 retroactive 溯源行应落（from=%s）got %q err=%v", state, state, from, err)
+		}
+	}
+	// 闭集自挡：已 retired 行不被回扫重触（状态谓词拒自挡已退役行）。
+	var rid int64
+	if err := pool.QueryRow(ctx, `INSERT INTO fin_strategy(inst_id,template_ref,proposal_ref,direction,notional_usd,state,venue,criteria)
+		VALUES('STUB-T0151-RETIRED-USDT-SWAP','funding-hedge',0,'short_perp_long_spot',100,'retired','okx','{}') RETURNING id`).Scan(&rid); err != nil {
+		t.Fatal("retired 夹具:", err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_venue_untradeable(inst_id,code,msg)
+		VALUES('STUB-T0151-RETIRED-USDT-SWAP','51001','stub')`); err != nil {
+		t.Fatal("入册:", err)
+	}
+	var tn int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM fin_strategy_transition
+		WHERE strategy_id=$1`, rid).Scan(&tn); err != nil {
+		t.Fatal(err)
+	}
+	if tn != 0 {
+		t.Fatalf("已 retired 行应闭集自挡（零 transition）got %d", tn)
+	}
+}
+
+// T-0151 桩锚：opener 容退守卫谓词集对齐（0062 同扩——retired 外五态皆可
+// 显式迁移）：probe/degraded 态策略走 untradeable() 应显式迁移（reason=
+// venue_untradeable:<code> 非 retroactive——守卫放行的直证；回退 state='live'
+// 守卫则显式迁移被跳、仅剩入册 trigger retroactive 行=红）。
+func TestUntradeableGuardTwoStates(t *testing.T) {
+	ctx, pool, cfg := setupDB(t)
+	h := hedgeOpener{pool: pool, cfg: cfg}
+	for _, state := range []string{"probe", "degraded"} {
+		inst := fmt.Sprintf("STUB-T0151-GUARD-%s-USDT-SWAP", state)
+		var sid int64
+		if err := pool.QueryRow(ctx, `INSERT INTO fin_strategy(inst_id,template_ref,proposal_ref,direction,notional_usd,state,venue,criteria)
+			VALUES($1,'funding-hedge',0,'short_perp_long_spot',100,$2,'okx','{}') RETURNING id`,
+			inst, state).Scan(&sid); err != nil {
+			t.Fatalf("%s 策略夹具: %v", state, err)
+		}
+		spec := lifecycle.OpenSpec{StrategyRef: sid, Venue: "okx", InstID: inst}
+		if err := h.untradeable(ctx, spec, t51001()); err != nil {
+			t.Fatalf("%s 处置败: %v", state, err)
+		}
+		var st string
+		if err := pool.QueryRow(ctx, `SELECT state FROM fin_strategy WHERE id=$1`, sid).Scan(&st); err != nil || st != "retired" {
+			t.Fatalf("%s 态守卫应显式迁移退役 got st=%q err=%v", state, st, err)
+		}
+		var n int
+		if err := pool.QueryRow(ctx, `SELECT count(*) FROM fin_strategy_transition
+			WHERE strategy_id=$1 AND reason LIKE 'venue_untradeable:%'
+			  AND reason NOT LIKE '%retroactive%'`, sid).Scan(&n); err != nil || n != 1 {
+			t.Fatalf("%s 态应恰一条显式迁移溯源行 got n=%d err=%v", state, n, err)
+		}
+	}
+}

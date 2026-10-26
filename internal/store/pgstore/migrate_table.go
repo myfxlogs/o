@@ -63,6 +63,7 @@ var migrationTable = []struct {
 	{59, "0059_venue_untradeable.sql"},
 	{60, "0060_xvenue_carry.sql"},
 	{61, "0061_untradeable_retro.sql"},
+	{62, "0062_untradeable_retro_probe_degraded.sql"},
 	{25, "0025_order_leg_venue_err.sql"},
 	{26, "0026_venue_facts.sql"},
 	{27, "0027_venue_bill.sql"},
