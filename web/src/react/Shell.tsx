@@ -8,6 +8,36 @@ const ICONS: Record<string, string> = {
   '/trx': 'M12 2v20M2 12h20',
 }
 
+// ThemeButton 主题钮（T-0157 主题单源——o_theme 共键双页同写；缺省随系统，
+// 按下即显式钉；label=当前生效主题，与 vanilla 总览页 .toggle 同语义）。
+function ThemeButton() {
+  const effective = (): 'light' | 'dark' => {
+    const t = document.documentElement.dataset.theme
+    if (t === 'light' || t === 'dark') return t
+    return matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
+  }
+  const [cur, setCur] = useState<'light' | 'dark'>(effective)
+  useEffect(() => {
+    const mq = matchMedia('(prefers-color-scheme: light)')
+    const f = () => {
+      if (!document.documentElement.dataset.theme) setCur(effective())
+    }
+    mq.addEventListener('change', f)
+    return () => mq.removeEventListener('change', f)
+  }, [])
+  const flip = () => {
+    const next = effective() === 'light' ? 'dark' : 'light'
+    document.documentElement.dataset.theme = next
+    localStorage.setItem('o_theme', next)
+    setCur(next)
+  }
+  return (
+    <button className="theme-btn" onClick={flip} title="切换主题">
+      {cur === 'light' ? '☀️ 亮色' : '🌙 暗色'}
+    </button>
+  )
+}
+
 function ShellClock() {
   const [s, setS] = useState('')
   useEffect(() => {
@@ -34,6 +64,7 @@ export function Shell({ children }: { children: ReactNode }) {
         </button>
         <span className="brand">O</span>
         <span className="app-spacer" />
+        <ThemeButton />
         <ShellClock />
       </header>
       <nav className={`sidebar${sideOpen ? ' open' : ''}`} aria-label="视图切换">

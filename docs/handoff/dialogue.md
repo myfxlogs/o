@@ -219,3 +219,8 @@
 
 - **陈领续任不换单**：前席 zcode-glm 15:42 领单（仅领单提交 90fe1bc）即断，零实质施工；本席同 git 身份续任原支 `t/0152-trx-stub-day-boundary`，并 master 对齐 T→D 改编后续锁（c982256）——锁凭据连续，未触「远端有支即换单」条款（该款防双抢，非防陈领接续）。
 - 普查定论与锚证详见票面结果回填（生产面日窗谓词仅 trxRollup 一径；faketime 缺位走边界时刻锚证三件套）。
+
+- **T-0156 施工 session（glm-t0156 @ 2026-10-26）**：业主指令误发 T-0152 单行指针，随即撤回更正「发错了，请继续 156 任务」——本席自始至终只领 T-0156，未触碰 T-0152 面。施工三 commit（529c848 步0热修/101c919 步1+2 后端/e923d59 步3+4 前端）推 t/0156-frontend-proto-stream，票翻待验。
+- **范围偏离自报（交决策裁）**：proto 扩面实落七 RPC 非票面「四读面」——GetTrxAccount/ListTrxTxs 为 vanilla 总览 TRX 段活口所需（该段消费的 radar/vote/cmc/cmc_positions REST face 自 T-0110 改名起即 404 僵尸，Promise.all 连坐致整段恒空；本票顺带修活），验收「/api/trx/* 全撤 404 化」的下界要求。
+- **坑发现+入库**：connect-server-stream-no-headers-before-first-write——connect 服务端流首写前不发响应头，客户端 Watch()/for-await 悬挂至首个数据事件；CoreService.Watch 自 T-0067 起从未被前端真用（前端走 SSE），潜伏雷由本票 e2e 桩测首踩引爆。修法=LISTEN 注册后立即发 watch_open 初始就绪帧（兼前端连接即回填拍）。
+- **T-0157 施工 session（glm-t0157 @ 2026-10-26）**：与 T-0156 涉及面相撞（main.ts）——决策指令明示「语义定位为准」预期叠加态施工，本席叠 t/0156 支立 t/0157-visual-cluster（验收顺序 T-0156→T-0157）。主题单源裁决落 o_theme 共键（'light'/'dark' 显式+缺省随系统跟变）；React 侧涉面单未列的 Shell.tsx/react/main.tsx 各加数行主题接线（.theme-btn 既有件首度接线），如实回填报决策裁。

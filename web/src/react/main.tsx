@@ -1,5 +1,12 @@
 // main.tsx —— TRX 页 React 壳（T-0113：左栏导航 nox shell 同款+TrxPage 全件）。
-import { StrictMode } from 'react'
+// 主题单源（T-0157）：o_theme 共键（与 vanilla 总览页同源）——'light'/'dark'
+// 显式钉 data-theme；缺省不设=随系统（00-base prefers-color-scheme 径）。
+const savedTheme = localStorage.getItem('o_theme')
+if (savedTheme === 'light' || savedTheme === 'dark') {
+  document.documentElement.dataset.theme = savedTheme
+}
+
+import { StrictMode } from 'react' 
 import { createRoot } from 'react-dom/client'
 import TrxPage from './pages/trx'
 import { Shell } from './Shell'
