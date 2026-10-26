@@ -1,28 +1,28 @@
-// xcarry.go —— xvenue_carry 跨所 carry 臂（T-0144/D-0022 终态件）：OKX perp ×
-// MT5 CFD 对冲 carry 首个真跨所模板。链环：carry_diff 信号亮牌（大负值=负
-// funding 对冲机会——票面钦定语义钉）→假想卡（legVocab xvenue_carry 闭集）→
-// 评估（净年化四件分解+容量三件+verdict 双腿能力账双闸）→提案至
-// fin_proposed 止（paper 双腿开户 lifecycle 径；真执行=T-0145 另票——本票
-// armed→open 显式禁，抢跑=裸腿风险）。
+// xcarry.go —— xvenue_carry 跨所 carry 臂（T-0144/D-0022 终态件；返修归正
+// 双腿经济学）：OKX perp × MT5 CFD 对冲 carry 首个真跨所模板。
+//
+//	负 diff 径（正主）：长 OKX perp 收 funding+空 MT5 CFD（swap_short=0 零成本）
+//	  →net=−diff−spread 摊销−缓冲；
+//	正 diff 径：空 OKX perp 收 funding+长 MT5 CFD——swap_long 成本端入账
+//	  （meta.swap_long_ann_bps，返修①双腿年化源）
+//	  →net=+fundingAnn−|swap_long_ann|−成本；swap 成本吃光 funding=net<0
+//	  →评估 rejected/economics 如实不撞哑（卡不起草——返修④方向感知阈）。
+//
+// 卡条件=方向感知净阈（|net|≥th 才起草）。链环止于提案 fin_proposed；
+// paper 双腿 lifecycle 径；真执行=T-0145。
 package hypothesis
 
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log"
 	"math"
-
-	"github.com/jackc/pgx/v5/pgxpool"
-
-	"o/internal/platform/config"
-	"o/internal/platform/rejects"
 )
 
 // xvenueCarryScan 信号臂 xvenue_carry 支路（ScanSignals 尾调）：carry_diff
-// |val|≥阈→立卡+评估→提案（fin_proposed 步进，armed 由 lifecycle 径）。
+// 鲜信号→方向感知净年化→三态（立卡+评估/仅评估拒/零动作）。
 func (r *Runner) xvenueCarryScan(ctx context.Context) {
-	th := 300.0 // 亮牌阈 bps（research.signal.xvenue_carry_diff_bps 热启）
+	th := 300.0 // 净年化阈 bps（research.signal.xvenue_carry_diff_bps 热启）
 	if v, err := r.cfg.GetFloat("research.signal.xvenue_carry_diff_bps"); err == nil && v > 0 {
 		th = v
 	}
@@ -51,16 +51,70 @@ func (r *Runner) xvenueCarryScan(ctx context.Context) {
 	}
 	rows.Close()
 	for _, x := range ss {
-		if math.Abs(x.val) < th {
-			continue
+		dir, net, feasible := r.xvenueCarryNet(ctx, x.key, x.val, x.meta)
+		switch {
+		case !feasible:
+			// 正 diff 径经济学不通（swap_long 成本≥funding）——评估 rejected
+			// 如实不撞哑，卡不起草（返修④）。
+			r.xvenueCarryEval(ctx, x.key, dir, net, x.val, x.meta, false)
+		case math.Abs(net) >= th:
+			r.xvenueCarryCard(ctx, x.key, x.val, x.meta, dir, net)
+		default: // 阈内零动作
 		}
-		r.xvenueCarryCard(ctx, x.key, x.val, x.meta)
 	}
+}
+
+// xvenueCarryNet 方向感知净年化（返修③分径）：返 (direction, net, feasible)。
+//
+//	diff<0（正主）：net=−diff−spreadAmort−buffer（恒可行——负 diff 即正收入端）；
+//	diff>0：net=+fundingAnn−|swap_long_ann|−spreadAmort−buffer——swap_long
+//	  年化缺（meta 无双腿年化源=桥旧版）=不可判 false；<0=经济学不通 false。
+func (r *Runner) xvenueCarryNet(ctx context.Context, okxInst string, diff float64, meta map[string]any) (string, float64, bool) {
+	spreadAmort := r.spreadAmortBPS(ctx, okxInst)
+	buffer := r.slippageBufferBPS()
+	if diff < 0 {
+		return "long_perp_short_cfd", -diff - spreadAmort - buffer, true
+	}
+	dir := "short_perp_long_cfd"
+	fa := numMeta(meta, "funding_ann_bps")
+	lraw, has := meta["swap_long_ann_bps"]
+	if !has {
+		return dir, 0, false // 双腿年化源缺——不可判如实
+	}
+	longAnn, _ := lraw.(float64)
+	net := fa - math.Abs(longAnn) - spreadAmort - buffer
+	if net < 0 {
+		return dir, net, false
+	}
+	return dir, net, true
+}
+
+// spreadAmortBPS 进出双边点差按持有窗年化占比摊销（max_hold 热启）；
+// 点差缺席=摊销零（evidence spread_bps 缺席如实——非成本低估面）。
+func (r *Runner) spreadAmortBPS(ctx context.Context, okxInst string) float64 {
+	holdH := 72.0
+	if v, err := r.cfg.GetFloat("guard.max_hold_hours"); err == nil && v > 0 {
+		holdH = v
+	}
+	var spread float64
+	if err := r.pool.QueryRow(ctx, `SELECT val FROM md_signal
+		WHERE kind='xvenue_spread' AND key=$1 AND ts > now()-interval '120 seconds'`, okxInst).Scan(&spread); err != nil {
+		return 0
+	}
+	return math.Abs(spread) * 2 * (holdH / (365 * 24))
+}
+
+// slippageBufferBPS 双腿滑点缓冲（taker×2 腿热启）。
+func (r *Runner) slippageBufferBPS() float64 {
+	if v, err := r.cfg.GetFloat("research.funding.taker_fee_bps"); err == nil && v > 0 {
+		return v * 2
+	}
+	return 8.0
 }
 
 // xvenueCarryCard 立卡+评估（UNIQUE(venue,surface) 幂等——同面待审卡在则只
 // 刷评估行不重立卡）。
-func (r *Runner) xvenueCarryCard(ctx context.Context, okxInst string, diff float64, meta map[string]any) {
+func (r *Runner) xvenueCarryCard(ctx context.Context, okxInst string, diff float64, meta map[string]any, dir string, net float64) {
 	var n int
 	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_opp_hypothesis
 		WHERE venue='okx' AND surface='xvenue-carry' AND family='xvenue_carry'
@@ -69,17 +123,14 @@ func (r *Runner) xvenueCarryCard(ctx context.Context, okxInst string, diff float
 		return
 	}
 	if n == 0 {
-		prims, _ := json.Marshal([]string{"okx_perp_long", "okx_perp_short", "mt5_cfd_short", "mt5_cfd_long"})
-		reqs, _ := json.Marshal(map[string]any{
-			"evaluator":  "跨所净年化四件分解（funding_ann/swap_ann/spread/滑点）",
-			"risk":       []string{"min_net_ann_bps", "spread_amort_hold_h"},
-			"executors":  []string{"okx_perp", "mt5_cfd"}, // 双腿 executor——真执行 T-0145
-			"data_needs": []string{"carry_diff", "xvenue_spread", "mt5_swap", "depth5", "md_ticks mt5"}})
+		prims, _ := json.Marshal(legVocab["xvenue_carry"])
+		reqs, _ := json.Marshal(reqTemplates["xvenue_carry"])
 		ev, _ := json.Marshal(map[string]any{
 			"provenance": "hypothesis_officer", "inst": okxInst,
 			"trigger": "carry_diff_signal", "trigger_strength": diff,
 			"signals":       []Sig{{Kind: "carry_diff", Key: okxInst, Val: diff, Meta: meta}},
-			"direction":     directionOf(diff), // 负 diff=长 perp 收 funding+空 CFD（正主）
+			"direction":     dir,
+			"net_ann_bps":   net,
 			"surface_basis": "md_signal 新鲜信号（T-0144 信号驱动——非面差枚举）"})
 		if _, err := r.pool.Exec(ctx, `INSERT INTO fin_opp_hypothesis
 			(venue,surface,family,leg_primitives,requirements,evidence)
@@ -89,96 +140,77 @@ func (r *Runner) xvenueCarryCard(ctx context.Context, okxInst string, diff float
 			log.Printf("[research/hypo] xvenue_carry 卡写败: %v", err)
 			return
 		}
-		log.Printf("[research/hypo] xvenue_carry 卡立 %s（diff=%.0fbps——待决策席审）", okxInst, diff)
+		log.Printf("[research/hypo] xvenue_carry 卡立 %s（diff=%.0fbps 净=%.0fbps——待决策席审）", okxInst, diff, net)
 	}
-	r.xvenueCarryEval(ctx, okxInst, diff, meta)
-}
-
-// directionOf 腿向语义（票面钦定钉）：大负 carry_diff=负 funding→长 OKX perp
-// 收 funding+空 MT5 CFD 对冲（正主）；大正=反向（空 perp+长 CFD——swap_long
-// 成本入账由评估如实算）。
-func directionOf(diff float64) string {
-	if diff < 0 {
-		return "long_perp_short_cfd"
-	}
-	return "short_perp_long_cfd"
+	r.xvenueCarryEval(ctx, okxInst, dir, net, diff, meta, true)
 }
 
 // xvenueCarryEval 净年化四件分解评估（fin_opp_eval template='xvenue-carry'）：
-// 净年化 = −carry_diff（funding_ann−swap_ann 合成端）− spread 摊销 − 滑点缓冲；
-// 容量三件 = min(okx depth5 顶档可吸, mt5 contract_size×max_volume 名义,
-// RequiredMargin 等效=名义×initial_margin 率可承)；verdict 双闸 = okx 腿
-// venue_untradeable 黑名单滤 + MT5 腿 trade-order 面在册。
-func (r *Runner) xvenueCarryEval(ctx context.Context, okxInst string, diff float64, meta map[string]any) {
+// verdict 闸序 = 经济学可行→容量三件（okx depth5 顶档×0.5 / mt5 contract_size
+// ×max_volume 名义）→okx 腿黑名单→MT5 腿 trade-order 面在册→净负；
+// feasible=false（经济学不通）=rejected/net_ann_economics 如实。
+func (r *Runner) xvenueCarryEval(ctx context.Context, okxInst, dir string, net, diff float64, meta map[string]any, feasible bool) {
 	fa := numMeta(meta, "funding_ann_bps")
 	sa := numMeta(meta, "mt5_swap_ann_bps")
 	mt5Sym, _ := meta["mt5_symbol"].(string)
-	holdH := 72.0 // spread 摊销持有窗（guard.max_hold_hours 热启）
-	if v, err := r.cfg.GetFloat("guard.max_hold_hours"); err == nil && v > 0 {
-		holdH = v
-	}
-	buffer := 8.0 // 双腿滑点缓冲 bps（research.funding.taker_fee_bps×2 腿近似）
-	if v, err := r.cfg.GetFloat("research.funding.taker_fee_bps"); err == nil && v > 0 {
-		buffer = v * 2
-	}
-	// spread 摊销：进出双边点差×2（开+平）按持有窗年化占比。
-	var spread float64
-	sErr := r.pool.QueryRow(ctx, `SELECT val FROM md_signal
-		WHERE kind='xvenue_spread' AND key=$1 AND ts > now()-interval '120 seconds'`, okxInst).Scan(&spread)
-	spreadAmort := 0.0
-	if sErr == nil {
-		spreadAmort = math.Abs(spread) * 2 * (holdH / (365 * 24))
-	}
-	netAnn := -diff - spreadAmort - buffer
+	spread, sErr := r.spreadVal(ctx, okxInst)
+	spreadAmort := r.spreadAmortBPS(ctx, okxInst)
+	buffer := r.slippageBufferBPS()
 	// 容量三件。
 	capacity := 0.0
 	var depthTop float64
-	dErr := r.pool.QueryRow(ctx, `SELECT meta->'bid_usd'->0 FROM md_signal
-		WHERE kind='depth5' AND key=$1 AND ts > now()-interval '120 seconds'`, okxInst).Scan(&depthTop)
-	if dErr == nil && depthTop > 0 {
+	if err := r.pool.QueryRow(ctx, `SELECT meta->'bid_usd'->>0 FROM md_signal
+		WHERE kind='depth5' AND key=$1 AND ts > now()-interval '120 seconds'`, okxInst).Scan(&depthTop); err == nil && depthTop > 0 {
 		capacity = depthTop * 0.5 // 顶档可吸保守折半
 	}
-	if cs, ok := meta["contract_size"].(float64); ok && cs > 0 {
-		if mv, ok2 := meta["max_volume"].(float64); ok2 && mv > 0 {
-			var mid float64
-			if e := r.pool.QueryRow(ctx, `SELECT (bid+ask)/2 FROM md_ticks
-				WHERE venue='mt5' AND inst_id=$1 AND bid>0 AND ask>0`, mt5Sym).Scan(&mid); e == nil && mid > 0 {
-				capMt5 := mid * cs * mv // MT5 名义上限
-				capacity = minCapacity(capacity, capMt5)
-			}
+	cs := numMeta(meta, "contract_size")
+	mv := numMeta(meta, "max_volume")
+	if cs > 0 && mv > 0 {
+		var mid float64
+		if e := r.pool.QueryRow(ctx, `SELECT (bid+ask)/2 FROM md_ticks
+			WHERE venue='mt5' AND inst_id=$1 AND bid>0 AND ask>0`, mt5Sym).Scan(&mid); e == nil && mid > 0 {
+			capacity = minCapacity(capacity, mid*cs*mv) // MT5 名义上限
 		}
 	}
-	// verdict 双闸。
+	// verdict 闸序。
 	verdict, reason := "proposed", ""
-	if capacity <= 0 {
+	switch {
+	case !feasible:
+		verdict, reason = "rejected", "net_ann_economics"
+	case capacity <= 0:
 		verdict, reason = "rejected", "capacity_missing"
+	default:
+		var banned int
+		if e := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_venue_untradeable
+			WHERE inst_id=$1`, okxInst).Scan(&banned); e == nil && banned > 0 {
+			verdict, reason = "rejected", "okx_leg_untradeable"
+		}
 	}
-	var banned int
-	if e := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_venue_untradeable
-		WHERE inst_id=$1`, okxInst).Scan(&banned); e == nil && banned > 0 {
-		verdict, reason = "rejected", "okx_leg_untradeable"
+	if verdict == "proposed" {
+		var mt5Exec int
+		if e := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_capability_surface
+			WHERE venue='mt5' AND surface='trade-order' AND enabled`).Scan(&mt5Exec); e != nil || mt5Exec == 0 {
+			verdict, reason = "rejected", "mt5_leg_capability_missing"
+		} else if net < 0 {
+			verdict, reason = "rejected", "net_ann_negative"
+		}
 	}
-	var mt5Exec int
-	if e := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_capability_surface
-		WHERE venue='mt5' AND surface='trade-order' AND enabled`).Scan(&mt5Exec); e != nil || mt5Exec == 0 {
-		verdict, reason = "rejected", "mt5_leg_capability_missing"
+	if sErr != nil {
+		spread = 0 // 点差缺席——evidence 零值如实
 	}
-	if netAnn < 0 && verdict == "proposed" {
-		verdict, reason = "rejected", "net_ann_negative"
-	}
-	// 提案步进（proposed verdict 才立——评估先于执行能力，看见但做不了如实）。
 	ev, _ := json.Marshal(map[string]any{
 		"funding_ann_bps": fa, "swap_ann_bps": sa,
-		"spread_bps": spread, "spread_amort_bps": spreadAmort,
-		"slippage_buffer_bps": buffer, "net_ann_bps": netAnn,
-		"capacity_usd": capacity, "direction": directionOf(diff),
+		"swap_long_ann_bps": numMeta(meta, "swap_long_ann_bps"),
+		"spread_bps":        spread, "spread_amort_bps": spreadAmort,
+		"slippage_buffer_bps": buffer, "net_ann_bps": net,
+		"capacity_usd": capacity, "direction": dir,
 		"mt5_symbol": mt5Sym, "reason": reason})
 	var evalID int64
 	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,gross_apr,net_apr,verdict,legs,evidence)
 		VALUES($1,'xvenue-carry',$2,NULL,$3,$4,'[]',$5)
 		ON CONFLICT (inst_id,template,direction) DO UPDATE SET ts=now(),
 		net_apr=EXCLUDED.net_apr, verdict=EXCLUDED.verdict, evidence=EXCLUDED.evidence
-		RETURNING id`, okxInst, directionOf(diff), netAnn/10000, verdict, ev).Scan(&evalID); err != nil {
+		RETURNING id`, okxInst, dir, net/10000, verdict, ev).Scan(&evalID); err != nil {
 		r.rej.Inc("hypo_write_err")
 		log.Printf("[research/hypo] xvenue_carry 评估写败: %v", err)
 		return
@@ -188,17 +220,25 @@ func (r *Runner) xvenueCarryEval(ctx context.Context, okxInst string, diff float
 		if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_proposal
 			WHERE eval_id=$1`).Scan(&n); err == nil && n == 0 {
 			if _, err := r.pool.Exec(ctx, `INSERT INTO fin_proposal(eval_id,inst_id,direction,net_apr)
-				VALUES($1,$2,$3,$4)`, evalID, okxInst, directionOf(diff), netAnn/10000); err != nil {
+				VALUES($1,$2,$3,$4)`, evalID, okxInst, dir, net/10000); err != nil {
 				r.rej.Inc("hypo_write_err")
 				return
 			}
 			log.Printf("[research/hypo] xvenue_carry 提案立 %s（净年化 %.0fbps 容量≈%.0fUSD——fin_proposed 止，真执行 T-0145）",
-				okxInst, netAnn, capacity)
+				okxInst, net, capacity)
 		}
 	} else {
 		log.Printf("[research/hypo] xvenue_carry 评估 %s=%s/%s（净 %.0fbps 容量≈%.0fUSD——无机会/做不了如实）",
-			okxInst, verdict, reason, netAnn, capacity)
+			okxInst, verdict, reason, net, capacity)
 	}
+}
+
+// spreadVal 点差现值鲜读（评估 evidence 逐环实值）。
+func (r *Runner) spreadVal(ctx context.Context, okxInst string) (float64, error) {
+	var v float64
+	err := r.pool.QueryRow(ctx, `SELECT val FROM md_signal
+		WHERE kind='xvenue_spread' AND key=$1 AND ts > now()-interval '120 seconds'`, okxInst).Scan(&v)
+	return v, err
 }
 
 // numMeta meta 浮点安全取。
@@ -220,9 +260,3 @@ func minCapacity(a, b float64) float64 {
 	}
 	return b
 }
-
-// 编译期锚：pool/config/rejects 引用面（xcarry 归 Runner 域——域内件）。
-var _ = func(r *Runner) func(context.Context, *pgxpool.Pool) { return nil }(nil)
-var _ = fmt.Stringer(nil)
-var _ = rejects.New
-var _ = config.New

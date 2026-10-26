@@ -101,3 +101,54 @@ func TestXvenueCarryChain(t *testing.T) {
 		t.Fatalf("阈内应零卡 got %d", n)
 	}
 }
+
+// T-0144 返修③④锚：正 diff 径经济学归正——
+//
+//	diff>0+funding<|swap_long_ann|→net<0→评估 rejected/net_ann_economics
+//	如实（不撞哑）+卡不起草；
+//	diff>0+funding>|swap_long_ann|→proposed 双腿向反（short_perp_long_cfd）。
+func TestXvenueCarryPositiveDiff(t *testing.T) {
+	ctx, r := xsetup(t)
+	xseed(t, ctx, r, map[string]string{"research.signal.xvenue_carry_diff_bps": "300"})
+	seedSig := func(inst string, diff, fa, longAnn float64) {
+		t.Helper()
+		meta, _ := json.Marshal(map[string]any{
+			"funding_ann_bps": fa, "swap_long_ann_bps": longAnn,
+			"mt5_swap_ann_bps": 0, "mt5_symbol": "ETHUSDm",
+			"contract_size": 1, "max_volume": 100})
+		if _, err := r.pool.Exec(ctx, `INSERT INTO md_signal(kind,key,val,meta,ts)
+			VALUES('carry_diff',$1,$2,$3::jsonb,now())
+			ON CONFLICT (kind,key) DO UPDATE SET val=EXCLUDED.val, meta=EXCLUDED.meta, ts=EXCLUDED.ts`,
+			inst, diff, string(meta)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// 幕1：funding=200 < |long_ann|=816 → rejected/net_ann_economics+零卡（不撞哑）。
+	seedSig("BTC-USDT-SWAP", 532, 200, -816)
+	r.xvenueCarryScan(ctx)
+	var verdict, reason string
+	if err := r.pool.QueryRow(ctx, `SELECT verdict, evidence->>'reason' FROM fin_opp_eval
+		WHERE inst_id='BTC-USDT-SWAP' AND template='xvenue-carry'`).Scan(&verdict, &reason); err != nil {
+		t.Fatal("经济学拒评估行应落（不撞哑）:", err)
+	}
+	if verdict != "rejected" || reason != "net_ann_economics" {
+		t.Fatalf("verdict/reason=%s/%s", verdict, reason)
+	}
+	var n int
+	r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_opp_hypothesis
+		WHERE evidence->>'inst'='BTC-USDT-SWAP' AND family='xvenue_carry'`).Scan(&n)
+	if n != 0 {
+		t.Fatalf("经济学不通应零卡 got %d", n)
+	}
+	// 幕2：funding=2000 > |long_ann|=816 → proposed+双腿向反 short_perp_long_cfd。
+	seedSig("BTC-USDT-SWAP", 532, 2000, -816)
+	r.xvenueCarryScan(ctx)
+	var dir string
+	if err := r.pool.QueryRow(ctx, `SELECT evidence->>'direction' FROM fin_opp_hypothesis
+		WHERE evidence->>'inst'='BTC-USDT-SWAP' AND family='xvenue_carry'`).Scan(&dir); err != nil {
+		t.Fatal("净正径应立卡:", err)
+	}
+	if dir != "short_perp_long_cfd" {
+		t.Fatalf("双腿向应反 short_perp_long_cfd got %q", dir)
+	}
+}

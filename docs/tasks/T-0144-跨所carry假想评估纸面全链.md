@@ -87,3 +87,28 @@ contract_size 语义）+okx-exec（腿口径对照）。
 - **移交面（部署后决策席实证）**：ETH 域负 funding 态下 xvenue_carry 卡/
   评估行（当下 carry_diff 实值驱动——无机会如实也是过）；armed→open 禁
   日志钉死；双腿行 venue 各正实拍。
+
+## 返修回填（zcode-t0144 @ 2026-10-26——正 funding 径双腿经济学归正）
+
+- **①bridge.go 双腿年化**：SwapAnnualBoth（swap_long/short 各经同换算核
+  swapAnnualSide——InPoints 正典式/PercCurPrice 分腿字段各算；任一腿不可
+  年化=ok false 双端须齐）；mt5_swap meta 携 swap_long_ann_bps/
+  swap_short_ann_bps/ann_ok。桩锚 TestSwapAnnualBoth（swap_long=-1786.5pts
+  代入 mid=79842→long_ann≈-816bps 精断+short=0 空腿零成本实拍形）。
+- **②sigdist carry_diff meta 增携**：双腿年化+容量件
+  （swap_long_ann_bps/swap_short_ann_bps/ann_ok/contract_size/max_volume/
+  initial_margin）全随行；val 语义不动（仍 funding−short 端）。
+- **③xcarry 分径**：xvenueCarryNet 方向感知——diff<0 长perp径
+  net=−diff−成本（现行对）；diff>0 短perp径 net=+fundingAnn−|swap_long_ann|
+  −成本（swap_long 取 meta.swap_long_ann_bps 非 val）。
+- **④方向感知阈**：双向各自 |net|≥th 才起草（正向算不出净正 card 不立）；
+  net<0（经济学不通）→评估 rejected/net_ann_economics 如实不撞哑+零卡；
+  双腿年化源缺（桥旧版 meta）=不可判 false 如实。
+- **⑤清**：xcarry.go 重写去文件尾 var _ 引面锚+无用 import；max_volume 段
+  确认 SymGroup 实有域携入非死枝（容量三件 meta 源在案）。
+- **桩锚**（返修单三件全绿）：TestSwapAnnualBoth（long_ann≈−816bps）；
+  TestXvenueCarryPositiveDiff 幕1（diff=532+funding=200<816→rejected/
+  net_ann_economics+零卡不撞哑）幕2（funding=2000>816→卡立+direction=
+  short_perp_long_cfd 双腿向反）；hypothesis/mt5/lifecycle/sigdist 全包回归绿。
+- **验收判据不变**：mt5_swap.val 非 NULL+carry_diff 落行（部署后实证）；
+  新增：正 funding 态下 economics 拒/反向 proposed 双态实证。

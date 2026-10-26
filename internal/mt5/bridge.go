@@ -181,6 +181,7 @@ func (c *BridgeCollector) swapLoop(ctx context.Context, cl *Client) {
 			// 换算链全携 meta（票面钦定——点数→bps 链逐环可查）
 			si := r.Result.SymbolInfo
 			ann, ok := SwapAnnualBPS(si, sg, c.midOf(sym))
+			longAnn, shortAnn, ok2 := SwapAnnualBoth(si, sg, c.midOf(sym)) // 返修①双腿年化
 			meta, _ := json.Marshal(map[string]any{
 				"swap_long": sg.GetSwapLong(), "swap_short": sg.GetSwapShort(),
 				"swap_type": int32(sg.GetSwapType())})
@@ -190,8 +191,9 @@ func (c *BridgeCollector) swapLoop(ctx context.Context, cl *Client) {
 					"swap_type":  int32(sg.GetSwapType()),
 					"tick_value": si.GetTickValue(), "tick_size": si.GetTickSize(),
 					"points": si.GetPoints(), "contract_size": si.GetContractSize(),
-					// T-0144 容量件随行（跨所评估容量三件源——max_volume/initial_margin）。
 					"max_volume": float64(sg.GetMaxVolume()), "initial_margin": sg.GetInitialMargin(),
+					// T-0144 返修①：双腿年化随 meta（正 funding 径 swap_long 成本端入账源）。
+					"swap_long_ann_bps": longAnn, "swap_short_ann_bps": shortAnn, "ann_ok": ok2,
 					"mid": c.midOf(sym)})
 			}
 			var val any // NULL=单位方言不可年化（缺换算件缺席如实）
@@ -253,9 +255,25 @@ func SwapAnnualBPS(si *mt5pb.SymbolInfo, sg *mt5pb.SymGroup, mid float64) (float
 	if sg == nil {
 		return 0, false
 	}
+	return swapAnnualSide(si, sg, mid, sg.GetSwapShort())
+}
+
+// SwapAnnualBoth 双腿年化（T-0144 返修①——swap_long/short 各经同换算核：
+// 任一腿不可年化=ok false 整体缺席——双腿经济学须双端齐）。
+func SwapAnnualBoth(si *mt5pb.SymbolInfo, sg *mt5pb.SymGroup, mid float64) (float64, float64, bool) {
+	if sg == nil {
+		return 0, 0, false
+	}
+	long, okL := swapAnnualSide(si, sg, mid, sg.GetSwapLong())
+	short, okS := swapAnnualSide(si, sg, mid, sg.GetSwapShort())
+	return long, short, okL && okS
+}
+
+// swapAnnualSide 单腿换算核（swap=长/短腿字段值——单位方言判据同正典式）。
+func swapAnnualSide(si *mt5pb.SymbolInfo, sg *mt5pb.SymGroup, mid, swap float64) (float64, bool) {
 	switch sg.GetSwapType() {
 	case mt5pb.SwapType_SwapType_PercCurPrice:
-		return sg.GetSwapShort() * 365 * 10000, true
+		return swap * 365 * 10000, true
 	case mt5pb.SwapType_SwapType_InPoints:
 		// T-0143 二返修正典式（venue 实证 2026-10-26：BTCUSDm/ETHUSDm
 		// tick_value/tick_size=0 不填、points=0.01/contract_size=1 实填——
@@ -269,7 +287,7 @@ func SwapAnnualBPS(si *mt5pb.SymbolInfo, sg *mt5pb.SymGroup, mid float64) (float
 		if pts <= 0 || cs <= 0 || mid <= 0 {
 			return 0, false // 换算链缺环——缺席如实
 		}
-		ccyPerLot := sg.GetSwapShort() * pts * cs
+		ccyPerLot := swap * pts * cs
 		return ccyPerLot * 365 / (mid * cs) * 10000, true
 	default:
 		return 0, false
