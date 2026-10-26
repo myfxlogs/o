@@ -35,7 +35,10 @@ background:linear-gradient(135deg,rgba(255,255,255,.08),transparent 40%);pointer
 .up{color:var(--up)} .dn{color:var(--dn)}
 .money{grid-column:span 6}.doing{grid-column:span 6}
 .recent{grid-column:span 6}.staff{grid-column:span 6}
-h3{font-size:13px;color:var(--dim);font-weight:500;margin-bottom:14px;letter-spacing:1px}
+h3{font-size:13px;color:var(--dim);font-weight:500;margin-bottom:14px;letter-spacing:.4em}
+/* T-0157：字距归 CSS（空格 hack 损复制/检索/可及性）；h3 内注释 note 不随字距。 */
+h3 i{letter-spacing:normal}
+h3 a{letter-spacing:normal}
 .row{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px dashed rgba(255,255,255,.06);font-size:14px}
 .row:last-child{border:0}
 .sec-t{display:flex;justify-content:space-between;margin:10px 0 2px;font-size:12px;color:var(--dim);letter-spacing:.08em}
@@ -48,8 +51,7 @@ border-top:1px solid rgba(255,255,255,.10);font-size:13px;letter-spacing:.12em}
 .lg-t{color:var(--dim)}
 em.lg{font-style:normal;font-size:10px;color:var(--dim);border:1px solid rgba(255,255,255,.14);border-radius:3px;padding:0 4px;margin-left:6px;vertical-align:1px}
 .pos{display:flex;align-items:center;gap:10px;font-size:15px}
-.dot{width:9px;height:9px;border-radius:50%;background:var(--up);animation:breath 2.4s ease-in-out infinite}
-@keyframes breath{0%,100%{opacity:.35;transform:scale(.8)}50%{opacity:1;transform:scale(1.15)}}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--up)}
 .count{font-variant-numeric:tabular-nums;color:var(--warn)}
 .bar{display:flex;height:10px;border-radius:6px;overflow:hidden;margin-top:12px}
 .bar i{display:block}.bar i:first-child{background:var(--up);width:97.6%}.bar i:last-child{background:var(--warn)}
@@ -65,14 +67,13 @@ em.lg{font-style:normal;font-size:10px;color:var(--dim);border:1px solid rgba(25
 .empty svg{opacity:.4;margin-bottom:10px}
 .empty p{font-size:13px}.empty i{display:block;font-size:11.5px;margin-top:6px;color:#5a6373}
 .staffline{display:flex;align-items:center;gap:8px;font-size:13.5px;padding:5px 0}
-/* 7 交易所在线树状卡（T-0088——灯是信息不是装饰：静态三色，零动画零辉光） */
+/* 7 交易所在线树状卡（T-0088 裁决已兑现 T-0157——灯是信息不是装饰：静态三色，零动画零辉光） */
 .vline{display:flex;align-items:center;gap:8px;font-size:13.5px;padding:4px 0}
 .vline.venue{font-size:14.5px;font-weight:600;padding-top:10px}
 .vline.venue:first-child{padding-top:0}
 .vline.chan{padding-left:8px}
 .vline .tree{color:var(--dim);font-size:12px;width:18px;flex:none}
-.vdot{width:9px;height:9px;border-radius:50%;flex:none;animation:vbreath 2.4s ease-in-out infinite}
-@keyframes vbreath{0%,100%{opacity:.4;transform:scale(.85)}50%{opacity:1;transform:scale(1.1)}}
+.vdot{width:9px;height:9px;border-radius:50%;flex:none}
 .s0{background:var(--up)}.s1{background:var(--warn)}.s2{background:var(--dn)}
 .vage{margin-left:auto;font-size:11.5px;color:var(--dim);font-variant-numeric:tabular-nums}
 .vlogo{width:18px;height:18px;flex:none;display:inline-flex}
@@ -85,9 +86,15 @@ em.lg{font-style:normal;font-size:10px;color:var(--dim);border:1px solid rgba(25
 const b=document.body,t2=document.getElementById('th');
 setInterval(()=>{const d=new Date();document.getElementById('utc').textContent=
 'UTC '+String(d.getUTCHours()).padStart(2,'0')+':'+String(d.getUTCMinutes()).padStart(2,'0')+':'+String(d.getUTCSeconds()).padStart(2,'0')},1000);
-b.className=localStorage.th||'';t2.textContent=b.className?'🌙 暗色':'☀️ 亮色';
-function t(){b.classList.toggle('light');localStorage.th=b.className;
-t2.textContent=b.className?'🌙 暗色':'☀️ 亮色'}
+// 主题单源（T-0157）：o_theme 共键双页——'light'/'dark' 显式钉；缺省随系统跟变。
+if (localStorage.th !== undefined) { if (localStorage.th) localStorage.o_theme = localStorage.th; localStorage.removeItem('th'); }
+const sysLight = matchMedia('(prefers-color-scheme: light)');
+const effTheme = () => localStorage.o_theme || (sysLight.matches ? 'light' : 'dark');
+const applyTheme = () => { const v = effTheme(); b.classList.toggle('light', v === 'light');
+  t2.textContent = v === 'light' ? '☀️ 亮色' : '🌙 暗色' };
+applyTheme();
+sysLight.addEventListener('change', applyTheme); // 无显式选择=随系统跟变
+function t(){localStorage.o_theme = b.classList.contains('light') ? 'dark' : 'light';applyTheme()}
 </script>
 <nav class="oside" aria-label="视图切换">
   <div class="grp-label">门面</div>
@@ -105,7 +112,24 @@ t2.textContent=b.className?'🌙 暗色':'☀️ 亮色'}
 .oside .sidebar-item.active{color:var(--txt);background:rgba(255,255,255,.08)}
 .oside .sidebar-item:hover{color:var(--txt)}
 body{padding-left:196px}
-@media (max-width:767px){.oside{display:none}body{padding-left:0}}
+@media (max-width:767px){
+  /* T-0157：孤儿页修复——侧栏折底栏替身（同 DOM 重布局，非新导航）。 */
+  .oside{display:flex;left:0;right:0;top:auto;bottom:0;width:auto;height:54px;
+    padding:0 8px;align-items:center;justify-content:space-around;
+    border-right:0;border-top:1px solid var(--edge)}
+  .oside .grp-label{display:none}
+  .oside .sidebar-item{flex-direction:column;gap:2px;font-size:10px;padding:5px 12px}
+  body{padding-left:0;padding-bottom:66px}
+}
+/* T-0157 移动断点：单列纵排+hero 折行全显+组织图降级藏（420px 实证缺陷簇）。 */
+@media (max-width:640px){
+  .grid{grid-template-columns:1fr}
+  .grid>.card{grid-column:1/-1!important}
+  .hero{flex-wrap:wrap;gap:14px 22px}
+  .metric b{font-size:26px}
+  #staff-graph{display:none}
+  body{padding:16px}
+}
 </style>
 <div class="grid">
 
@@ -117,7 +141,7 @@ body{padding-left:196px}
   </div>
 
   <div class="card doing" id="c-doing">
-    <h3>现 在 在 干 什 么</h3><span class="tile-no">#2</span>
+    <h3>现在在干什么</h3><span class="tile-no">#2</span>
     <div id="doing-body">
     <div class="empty">
       <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
@@ -128,7 +152,7 @@ body{padding-left:196px}
   </div>
 
   <div class="card money">
-    <h3>钱 在 哪</h3><span class="tile-no">#3</span>
+    <h3>钱在哪</h3><span class="tile-no">#3</span>
     <div id="money-body">
     <div class="empty">
       <p>读数装载中</p><i>「真金白银，不看假数。」</i>
@@ -137,7 +161,7 @@ body{padding-left:196px}
   </div>
 
   <div class="card recent">
-    <h3>最 近 动 作</h3><span class="tile-no">#4</span>
+    <h3>最近动作</h3><span class="tile-no">#4</span>
     <div id="recent-body">
     <div class="empty">
       <p>暂无动作</p><i>「安静，是系统最好的状态。」</i>
@@ -153,7 +177,7 @@ body{padding-left:196px}
   </div>
 
   <div class="card" id="c-venues" style="grid-column:span 6">
-    <h3>交 易 所 在 线</h3><span class="tile-no">#6</span>
+    <h3>交易所在线</h3><span class="tile-no">#6</span>
     <div id="venues-body">
     <div class="empty">
       <p>读数装载中</p><i>「通道活性，一盏一真。」</i>

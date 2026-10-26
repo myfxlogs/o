@@ -94,7 +94,7 @@ async function ov(): Promise<void> {
         const bad = d.staff.filter((x: { state: number }) => x.state === 2).length
         const warn = d.staff.filter((x: { state: number }) => x.state === 1).length
         const ss = document.getElementById('staff-sum')
-        if (ss) ss.textContent = `员 工 · ${d.staff.length} 在册 · ${bad ? bad + ' 离线' : warn ? warn + ' 迟滞' : '全员心跳正常'}`
+        if (ss) ss.textContent = `员工 · ${d.staff.length} 在册 · ${bad ? bad + ' 离线' : warn ? warn + ' 迟滞' : '全员心跳正常'}`
         const sg = document.getElementById('staff-graph')
         if (sg) sg.innerHTML = orgSVG(d.staff)
       } else {
