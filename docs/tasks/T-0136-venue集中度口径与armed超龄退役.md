@@ -30,3 +30,13 @@
 - ③拒放冷窗：denyAt map 记策略最近拒放戳——lifecycle.reject_cooldown_s
   （缺省 300s）冷窗内跳过同策略（8705/15min 空转止血）。
 - 机检：build✓ gofmt✓ test✓（lifecycle+risk 绿）；棘轮零触。
+
+## 返修①（A/B 增量）
+
+- A：策略退役谓词收紧——`live/probe` 态+无 open 持仓+最近活动戳
+  （fin_position 末次开仓 vs entered_at 兜底）超 armed_ttl_h 才退役；
+  有仓/近期开过的不再误杀（原 state='armed' 裸谓词替换）。
+- B：denyAt 拒放出口全位接线——lifetimeOK/breakevenOK/op.Open 三拒径
+  同写戳；冷窗查前置保险丝检查前（窗内 skip 早退——拒因级均匀覆盖）；
+  lifecycle.reject_cooldown_s 缺省 300s 热启。
+- 修误：fin_proposal 无 notes 列——退役 UPDATE 去 notes 写（桩测红实证）

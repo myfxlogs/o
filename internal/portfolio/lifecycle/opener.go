@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"time"
 )
 
 // OpenSpec live 开仓规格（funding-hedge 模板：direction=short_perp_long_spot）。
@@ -68,6 +69,13 @@ func (r *Runner) openLive(ctx context.Context) {
 			r.rej.Inc("write_err")
 			continue
 		}
+		cd := 300.0 // T-0136 ③拒放冷窗（缺省秒，lifecycle.reject_cooldown_s 热启）
+		if v, err := r.cfg.GetFloat("lifecycle.reject_cooldown_s"); err == nil && v > 0 {
+			cd = v
+		}
+		if r.denyAt != nil && time.Since(r.denyAt[c.spec.StrategyRef]) < time.Duration(cd*float64(time.Second)) {
+			continue // T-0136 ③冷窗（窗内拒放出口前移——拒因出口全位写戳）
+		}
 		if rounds >= 3 {
 			r.rej.Inc("oscillation_fuse")
 			log.Printf("ALERT [lifecycle] 策略 %d %s 1h 内 %d 轮开平——振荡保险丝熔断降级", c.spec.StrategyRef, c.spec.InstID, rounds)
@@ -82,6 +90,7 @@ func (r *Runner) openLive(ctx context.Context) {
 		// 平闸 funding 翻面判据（latest+next 双口径）开时同测：开即翻=
 		// 寿命低于一个结算窗=开闸拒，fin_opp_eval 落 rejected/lifetime_below_min。
 		if ok, why := r.lifetimeOK(ctx, c.spec); !ok {
+			r.denyAt[c.spec.StrategyRef] = time.Now()
 			log.Printf("[lifecycle] 策略 %d %s 开闸拒——%s", c.spec.StrategyRef, c.spec.InstID, why)
 			continue
 		}
@@ -89,6 +98,7 @@ func (r *Runner) openLive(ctx context.Context) {
 		// =拒开（fin_opp_eval rejected/breakeven_beyond_hold——「72h 开闸制
 		// 度性亏损」根修；T-0103 对偶同位判）。
 		if ok, why := r.breakevenOK(ctx, c.spec); !ok {
+			r.denyAt[c.spec.StrategyRef] = time.Now()
 			log.Printf("[lifecycle] 策略 %d %s 开闸拒——%s", c.spec.StrategyRef, c.spec.InstID, why)
 			continue
 		}
