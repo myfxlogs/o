@@ -146,11 +146,11 @@ func TestHypothesisZeroWriteAndGuards(t *testing.T) {
 // 读闸（陈=缺席）在 sigdist.Fresh 侧——stub 直证附据形。
 func TestHypothesisEvidenceSignals(t *testing.T) {
 	ctx, r := setup(t)
-	r.AttachSignals(func(ctx context.Context, kind, key string) (Sig, bool, error) {
-		if kind == "funding_view" && key == "okx-USDT-SWAP" {
-			return Sig{Kind: kind, Key: key, Val: 0.0001}, true, nil
+	r.AttachSignals(func(ctx context.Context, venue, surface string) ([]Sig, bool, error) {
+		if surface == "USDT-SWAP-sig" {
+			return []Sig{{Kind: "funding_view", Key: "BTC-USDT-SWAP", Val: 0.0001}}, true, nil
 		}
-		return Sig{}, false, nil
+		return nil, false, nil
 	})
 	gapID := seedGap(t, ctx, r, "okx", "USDT-SWAP-sig", "hedge", 5)
 	if err := r.ScanOnce(ctx); err != nil {
@@ -167,4 +167,97 @@ func TestHypothesisEvidenceSignals(t *testing.T) {
 		t.Fatalf("evidence.signals 应含新鲜信号: %s err=%v", raw, err)
 	}
 	_ = gapID
+}
+
+// T-0140 锚：信号驱动卡——funding 背离超阈→provenance=hypothesis_officer+
+// signals 域实证；阈内/均值缺席→零卡；陈信号（停桥）→零卡不误报。
+func TestSignalDrivenCards(t *testing.T) {
+	ctx, r := setup(t)
+	seedTh := func(t *testing.T) {
+		t.Helper()
+		for _, kv := range [][2]string{
+			{"research.signal.funding_div_ratio", "3"},
+			{"research.signal.spread_bps", "50"},
+		} {
+			if _, err := r.pool.Exec(ctx, `INSERT INTO app_config(key,value) VALUES($1,$2)
+				ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value`, kv[0], kv[1]); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := r.cfg.Load(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	seedCard := func(t *testing.T, kind, key string, val float64, meta string, age string) {
+		t.Helper()
+		if _, err := r.pool.Exec(ctx, `INSERT INTO md_signal(kind,key,val,meta,ts)
+			VALUES($1,$2,$3,$4::jsonb, now()-interval '`+age+`')
+			ON CONFLICT (kind,key) DO UPDATE SET val=EXCLUDED.val, meta=EXCLUDED.meta, ts=EXCLUDED.ts`,
+			kind, key, val, meta); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// ① 背离 5×>3 阈→carry 卡（provenance/signals/trigger 全验）
+	seedTh(t)
+	seedCard(t, "funding_view", "BTC-USDT-SWAP", 0.0005,
+		`{"avg_7d":0.0001}`, "0 seconds")
+	if err := r.ScanSignals(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var prov string
+	var ev map[string]any
+	if err := r.pool.QueryRow(ctx, `SELECT evidence->>'provenance', evidence
+		FROM fin_opp_hypothesis WHERE venue='okx' AND surface='market-funding-rate'`).
+		Scan(&prov, &ev); err != nil {
+		t.Fatal("背离卡应立:", err)
+	}
+	if prov != "hypothesis_officer" || ev["trigger"] != "funding_divergence" {
+		t.Fatalf("卡 provenance/trigger=%s/%v", prov, ev["trigger"])
+	}
+	raw, _ := json.Marshal(ev["signals"])
+	var sigs []Sig
+	json.Unmarshal(raw, &sigs)
+	if len(sigs) != 1 || sigs[0].Key != "BTC-USDT-SWAP" {
+		t.Fatalf("卡 signals 域应含源信号: %s", raw)
+	}
+	// ② 阈内背离→零新卡（幂等重扫也不重生）
+	seedCard(t, "funding_view", "ETH-USDT-SWAP", 0.00011,
+		`{"avg_7d":0.0001}`, "0 seconds")
+	if err := r.ScanSignals(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_opp_hypothesis WHERE surface='market-funding-rate'`).Scan(&n)
+	if n != 1 {
+		t.Fatalf("阈内零卡（同面幂等）got %d", n)
+	}
+	// ③ depth5 spread 超阈→hedge 卡
+	seedCard(t, "depth5", "BTC-USDT-SWAP", 80, `{"best_bid":100}`, "0 seconds")
+	if err := r.ScanSignals(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var fam string
+	if err := r.pool.QueryRow(ctx, `SELECT family FROM fin_opp_hypothesis
+		WHERE venue='okx' AND surface='books5'`).Scan(&fam); err != nil {
+		t.Fatal("spread 突变卡应立:", err)
+	}
+	if fam != "hedge" {
+		t.Fatalf("spread 卡 family=%s", fam)
+	}
+	// ④ 陈信号（停桥 5min）→零卡不误报
+	seedTh(t)
+	if _, err := r.pool.Exec(ctx, `DELETE FROM fin_opp_hypothesis WHERE surface='market-funding-rate'`); err != nil {
+		t.Fatal(err)
+	}
+	seedCard(t, "funding_view", "BTC-USDT-SWAP", 0.0005,
+		`{"avg_7d":0.0001}`, "5 minutes") // ① 行翻陈——全表现陈（停桥形）
+	seedCard(t, "funding_view", "SOL-USDT-SWAP", 0.001,
+		`{"avg_7d":0.0001}`, "5 minutes")
+	if err := r.ScanSignals(ctx); err != nil {
+		t.Fatal(err)
+	}
+	r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_opp_hypothesis WHERE surface='market-funding-rate'`).Scan(&n)
+	if n != 0 {
+		t.Fatalf("陈信号应零卡不误报 got %d", n)
+	}
 }

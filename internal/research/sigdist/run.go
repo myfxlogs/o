@@ -13,7 +13,10 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math"
 	"regexp"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -225,4 +228,73 @@ func Fresh(ctx context.Context, pool *pgxpool.Pool, kind, key string) (Sig, bool
 	s.Meta = map[string]any{}
 	_ = json.Unmarshal(metaB, &s.Meta)
 	return s, true, nil
+}
+
+// freshByKind 全行读闸（kind 域新鲜信号——ts 超 2×蒸馏拍=缺席）。
+func (r *Runner) freshByKind(ctx context.Context, kind string) (map[string]Sig, error) {
+	rows, err := r.pool.Query(ctx, `SELECT key, val, meta FROM md_signal
+		WHERE kind=$1 AND ts > now()-interval '120 seconds'`, kind)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]Sig{}
+	for rows.Next() {
+		var s Sig
+		var metaB []byte
+		if err := rows.Scan(&s.Key, &s.Val, &metaB); err != nil {
+			return nil, err
+		}
+		s.Kind = kind
+		s.Meta = map[string]any{}
+		_ = json.Unmarshal(metaB, &s.Meta)
+		out[s.Key] = s
+	}
+	return out, rows.Err()
+}
+
+// SurfaceSignals gap surface→信号绑定语义映射（T-0140 键域修正正解——
+// surface=能力账面名域，非 instId；映射：
+//
+//	funding 面→funding_view 榜 |val| top3（carry 候选燃料）；
+//	quarter/basis 面→basis_ann 全行；
+//	book/depth 面→depth5 全行（桥面标的集=armed 域，配置时已窄）。
+//
+// 陈=缺席如实（Fresh 闸同款 120s 窗）。
+func (r *Runner) SurfaceSignals(ctx context.Context, venue, surface string) ([]Sig, bool, error) {
+	kind := ""
+	switch {
+	case strings.Contains(surface, "funding"):
+		kind = "funding_view"
+	case strings.Contains(surface, "quarter"), strings.Contains(surface, "basis"):
+		kind = "basis_ann"
+	case strings.Contains(surface, "book"), strings.Contains(surface, "depth"):
+		kind = "depth5"
+	default:
+		return nil, false, nil // 非信号敏感面——零绑定如实
+	}
+	all, err := r.freshByKind(ctx, kind)
+	if err != nil {
+		return nil, false, err
+	}
+	if len(all) == 0 {
+		return nil, false, nil
+	}
+	sigs := make([]Sig, 0, len(all))
+	for _, s := range all {
+		sigs = append(sigs, s)
+	}
+	if kind == "funding_view" { // 榜 top3 |val|（carry 候选燃料防挂载全宇宙）
+		sort.Slice(sigs, func(i, j int) bool { return math.Abs(sigs[i].Val) > math.Abs(sigs[j].Val) })
+		if len(sigs) > 3 {
+			sigs = sigs[:3]
+		}
+	}
+	return sigs, true, nil
+}
+
+// SurfaceAdapter 装配侧信号读闸出口（T-0140 接线件——core 假想官
+// AttachSignals 传此闭包；读面零岗，不注册不节拍）。
+func SurfaceAdapter(pool *pgxpool.Pool) func(ctx context.Context, venue, surface string) ([]Sig, bool, error) {
+	return New(pool).SurfaceSignals
 }
