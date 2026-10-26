@@ -49,7 +49,7 @@ const (
 )
 
 // instTypesAll 账单拉取型谱（T-0062 根修②：SWAP+SPOT 双采——现货腿成本归集）。
-var instTypesAll = []string{"SWAP", "SPOT"}
+var instTypesAll = []string{"SWAP", "SPOT", "ASSET"} // T-0160 ④：ASSET 域补——dcd 160-163 资金流水在此过滤域（skills/okx-asset-funding 实证）
 
 // Ingester 记账执事。
 type Ingester struct {

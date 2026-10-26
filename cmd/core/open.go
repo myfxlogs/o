@@ -208,9 +208,11 @@ func (h hedgeOpener) dcdOpen(ctx context.Context, spec lifecycle.OpenSpec) (int6
 			rows[0].SCode+":"+rows[0].SMsg, execID)
 		return execID, fmt.Errorf("dcd 业务拒 %s: %s", rows[0].SCode, rows[0].SMsg)
 	}
-	// order-status 对拍定真态（ordId 实读非盲信 trade 回文）。
+	// order-status 对拍定真态（T-0160 返修①：读败/空态→ambiguous 禁默认
+	// LIVE 造仓——歧态势禁补单纪律同 clOrdId 律；exec 行待查证非吞）。
+	oraw, serr := h.cli.DcdOrderStatus(ctx, rows[0].OrdID)
 	var state string
-	if oraw, err := h.cli.DcdOrderStatus(ctx, rows[0].OrdID); err == nil {
+	if serr == nil {
 		var orows []struct {
 			State string `json:"state"`
 		}
@@ -218,16 +220,42 @@ func (h hedgeOpener) dcdOpen(ctx context.Context, spec lifecycle.OpenSpec) (int6
 			state = orows[0].State
 		}
 	}
-	if state == "" {
-		state = "LIVE"
+	if serr != nil || state == "" {
+		_, _ = h.pool.Exec(ctx, "UPDATE fin_execution SET state='ambiguous' WHERE id=$1", execID)
+		return execID, fmt.Errorf("order-status 读败/空态（歧态势禁补单——exec_id=%d 待查证非默认 LIVE 造仓）: %w", execID, serr)
 	}
-	var pid int64
-	if err := h.pool.QueryRow(ctx, `INSERT INTO fin_position(execution_id,strategy_ref,inst_id,notional_usd,opened_at)
-		VALUES($1,$2,$3,$4,now()) RETURNING id`, execID, spec.StrategyRef, spec.InstID, spec.NotionalUSD).Scan(&pid); err != nil {
+	// T-0160 返修⑤：exec 状态更新+position 落位同事务（position 写败→
+	// exec orphan 标非半成——歧态势=exec 行在仓行缺=查证面不吞）。
+	tx, err := h.pool.Begin(ctx)
+	if err != nil {
 		return execID, err
 	}
-	_, _ = h.pool.Exec(ctx, "UPDATE fin_execution SET state=$1 WHERE id=$2",
-		map[string]string{"LIVE": "open", "SETTLED": "closed"}[state], execID)
+	var pid int64
+	if err := tx.QueryRow(ctx, `INSERT INTO fin_position(execution_id,strategy_ref,inst_id,notional_usd,opened_at)
+		VALUES($1,$2,$3,$4,now()) RETURNING id`, execID, spec.StrategyRef, spec.InstID, spec.NotionalUSD).Scan(&pid); err != nil {
+		_ = tx.Rollback(ctx)
+		_, _ = h.pool.Exec(ctx, "UPDATE fin_execution SET state='orphan' WHERE id=$1", execID)
+		return execID, fmt.Errorf("position 落位败（exec orphan 标）: %w", err)
+	}
+	estate := dcdExecState(state)
+	if estate == "" {
+		_ = tx.Rollback(ctx)
+		_, _ = h.pool.Exec(ctx, "UPDATE fin_execution SET state='ambiguous' WHERE id=$1", execID)
+		return execID, fmt.Errorf("order-status 态 %q 未载映射表（禁默认 open 造仓——歧态势）", state)
+	}
+	if _, err := tx.Exec(ctx, "UPDATE fin_execution SET state=$1 WHERE id=$2", estate, execID); err != nil {
+		_ = tx.Rollback(ctx)
+		return execID, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return execID, err
+	}
 	log.Printf("[lifecycle] DCD 开仓 exec=%d pos=%d ordId=%s state=%s", execID, pid, rows[0].OrdID, state)
 	return execID, nil
+}
+
+// dcdExecState order-status 态→fin_execution 态映射（T-0160 返修⑤桩锚件——
+// 未载态=空串让位（禁默认 open）；歧态势由调用径置 ambiguous）。
+func dcdExecState(vstate string) string {
+	return map[string]string{"LIVE": "open", "SETTLED": "closed", "CANCELLED": "failed"}[vstate]
 }
