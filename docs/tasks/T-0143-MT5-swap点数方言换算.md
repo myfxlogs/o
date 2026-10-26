@@ -60,3 +60,16 @@ TradeTickValue/TradeTickSize（或 ContractSize）径——mtapi 载荷字段先
 - 桩锚：TestSwapLoopStopsWithSession（sessCtx cancel→goroutine 退出断言，
   runtime 计数归位；sched-exempt-ok 期界等待）。全包测试绿。
 - 余件勿动守线：换算件/两缺陷归修/桩测零改。
+
+## 二返修回填（zcode-t0143 @ 2026-10-26——InPoints 正典式）
+
+- venue 实证（防重取证）：BTCUSDm/ETHUSDm tick_value/tick_size=0 **不填**、
+  points=0.01/contract_size=1 实填——一返修 tick 链（×TickValue/TickSize）在
+  真实 venue 形必 false=换算永缺席。
+- 正典式：点值=points×contract_size（报价币/点/手）；币值/手/天=swap×points×cs；
+  年化 bps=swap×points×cs×365/(mid×cs)×10⁴（cs 约掉量纲自洽）。
+  tick 双字段降候选佐证非必需环（0=不阻断，meta 照携）。
+- 桩锚改真实 venue 形：ETHUSDm 空腿免费形（tick 双 0/swap_short=0→ann=0
+  合法产出非缺席）+swap_short=-1786.5 代入 mid=79842→≈-816.8bps/yr 量级断；
+  缺环桩改真缺环形（points=0）。
+- 验收判据不变：mt5_swap.val 非 NULL+carry_diff 落行（部署后实证）。

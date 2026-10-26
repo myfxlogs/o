@@ -31,24 +31,30 @@ func TestSwapAnnualPercCurPrice(t *testing.T) {
 	}
 }
 
-// 锚：Points 径——swap_short=-50 点/天，tv=1USDT/tick，ts=0.01，pts=0.01，
-// cs=1，mid=3000 → 币值/手/天=-50×1×0.01/0.01=-50 → 年化=-50×365/3000×10⁴。
-func TestSwapAnnualPoints(t *testing.T) {
-	ann, ok := SwapAnnualBPS(siOf(1, 0.01, 0.01, 1), sgOf(mt5pb.SwapType_SwapType_InPoints, -50), 3000)
-	if !ok {
-		t.Fatal("points 径应可年化")
+// 锚：Points 径（二返修正典式——真实 venue 形：tick 双 0 不填，points/cs 实填）。
+// ETHUSDm 实拍形：points=0.01/cs=1/tick_value=tick_size=0/swap_short=0→空腿免费 ann=0。
+func TestSwapAnnualPointsVenueShape(t *testing.T) {
+	ann, ok := SwapAnnualBPS(siOf(0, 0, 0.01, 1), sgOf(mt5pb.SwapType_SwapType_InPoints, 0), 3000)
+	if !ok || ann != 0 {
+		t.Fatalf("空腿免费形 ann=%v ok=%v（0 值合法产出非缺席）", ann, ok)
 	}
-	want := -50 * 1 * 0.01 / 0.01 * 365 / 3000 * 10000
-	if ann < want*1.001 || ann > want*0.999 {
-		t.Fatalf("points 径 ann=%v want≈%v", ann, want)
+	// swap_long=-1786.5 点/天（实拍 raw）代入 mid=79842 →
+	// -1786.5×0.01×1×365/(79842×1)×10⁴≈-816.8 bps/yr 量级断。
+	ann, ok = SwapAnnualBPS(siOf(0, 0, 0.01, 1), sgOf(mt5pb.SwapType_SwapType_InPoints, -1786.5), 79842)
+	if !ok {
+		t.Fatal("tick 双 0 不应阻断（候选佐证非必需环）")
+	}
+	want := -1786.5 * 0.01 * 1 * 365 / 79842 * 10000
+	if ann < want*1.01 || ann > want*0.99 {
+		t.Fatalf("points 正典式 ann=%v want≈%v", ann, want)
 	}
 }
 
 // 锚：换算链缺环（tick_value=0）→false（val=NULL 缺席如实）；非 Points/Perc
 // 方言→false；mid 缺（0）→false；SymbolInfo 缺→false。
 func TestSwapAnnualMissingLinks(t *testing.T) {
-	if _, ok := SwapAnnualBPS(siOf(0, 0.01, 0.01, 1), sgOf(mt5pb.SwapType_SwapType_InPoints, -50), 3000); ok {
-		t.Fatal("tick_value 缺应 false")
+	if _, ok := SwapAnnualBPS(siOf(0, 0, 0, 1), sgOf(mt5pb.SwapType_SwapType_InPoints, -50), 3000); ok {
+		t.Fatal("points 缺应 false（真缺环）")
 	}
 	if _, ok := SwapAnnualBPS(siOf(1, 0.01, 0.01, 1), sgOf(mt5pb.SwapType_SwapType_InPoints, -50), 0); ok {
 		t.Fatal("mid 缺应 false")
