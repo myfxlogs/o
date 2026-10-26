@@ -28,7 +28,6 @@ import (
 	"o/internal/platform/notify"
 	"o/internal/platform/roster"
 	"o/internal/portfolio/lifecycle"
-	"o/internal/review"
 	"o/internal/risk"
 	"o/internal/store/pgstore"
 	"o/internal/trading/execution"
@@ -231,17 +230,9 @@ func run() error {
 	}
 	go lr.Run(ctx, errc)
 
-	// 复盘域：评史官（一仓一判决书+远期验证写回环——G10 收口）。
-	go review.NewRunner(pool).Run(ctx, errc)
+	// T-0165：复盘域随迁开发机（o-research——SG 零研究行）。
 
-	// 账本域：司账+核账（入账结算+对账环——消费事实行不触发钱动作）。
-	// T-0093：pusher 提件存引用——降级/发败计数捎 /md/status 出观测面。
-	var pusher *report.Pusher
-	{
-		mk, _ := config.ReadMasterKey()
-		pusher = report.NewPusher(pool, cfg, mk)
-		go report.NewRunner(pool, pusher).WithConfig(cfg).Run(ctx, errc)
-	}
+	// T-0165：司账随迁开发机（o-research——SG 零研究行；pusher 件同迁）。
 	ledgerR := ledger.NewRunner(pool, cfg).WithAlerter(alerter)
 	go ledgerR.Run(ctx, errc)
 
@@ -272,12 +263,11 @@ func run() error {
 	mux.HandleFunc("/md/status", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"frames":       collector.FrameCount(),
-			"last_frame":   collector.LastFrame(),
-			"rejects":      collector.Stats.Snapshot(),
-			"push_rejects": pusher.Snapshot(),
-			"net_kbps":     meter.RateKbps(),
-			"net_bytes":    meter.Channels(),
+			"frames":     collector.FrameCount(),
+			"last_frame": collector.LastFrame(),
+			"rejects":    collector.Stats.Snapshot(),
+			"net_kbps":   meter.RateKbps(),
+			"net_bytes":  meter.Channels(),
 		})
 	})
 	// T-0086 ①④：资金户/Earn 活读件注入（venue_readers.go——活读件注入）。
