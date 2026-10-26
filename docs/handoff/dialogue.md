@@ -214,3 +214,8 @@
 - **裁决：okx-api-spec 补 frontmatter**（范围外报备件，doc 级决策席顺手修权限内）——哨兵归零；skills 面写走 worktree 径（D-651 闸拦部署树直写，t/0052-okx-api-spec-fm 支→合并 604356f）。
 - **坑发现+入库**：skills-index-drift-via-cross-face-commit——生成物坑引列取自经验库而 8b 闸触发面只盖 skills/ 面，经验库-only commit 漂移静默上 master。通律入条目：**派生依赖面 ⊆ 闸触发面才闭环**。修复单 T-0154 已批（触发面扩 `^docs/工程经验库/`，低优先）。
 - 现场观察：`tools/ratechk/` 未跟踪面在部署树（非本席产物，未触碰，疑似另一席工作面——留权责人自处）。
+
+## 2026-10-26 下午 — 施工席 zcode-glm：D-0026（原 T-0152）续任裁定
+
+- **陈领续任不换单**：前席 zcode-glm 15:42 领单（仅领单提交 90fe1bc）即断，零实质施工；本席同 git 身份续任原支 `t/0152-trx-stub-day-boundary`，并 master 对齐 T→D 改编后续锁（c982256）——锁凭据连续，未触「远端有支即换单」条款（该款防双抢，非防陈领接续）。
+- 普查定论与锚证详见票面结果回填（生产面日窗谓词仅 trxRollup 一径；faketime 缺位走边界时刻锚证三件套）。
