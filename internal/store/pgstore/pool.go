@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"o/internal/platform/pgguard"
 )
 
 // Connect 建池并 ping（失败即错——鸡生蛋引导面 fail-closed）。
@@ -21,6 +23,7 @@ func Connect(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
 	}
 	cfg.MaxConns = 20
 	cfg.MinConns = 8
+	pgguard.GuardPool(cfg)
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("pgpool new: %w", err)

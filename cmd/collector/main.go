@@ -17,6 +17,7 @@ import (
 	"o/internal/data/okxws"
 	"o/internal/mt5"
 	"o/internal/platform/config"
+	"o/internal/platform/pgguard"
 	"o/internal/research/sigdist"
 	"o/internal/trading/okxexec"
 )
@@ -27,7 +28,12 @@ func main() {
 	if dsn == "" {
 		log.Fatal("SG_PG_DSN 缺——桥写径无目的地 fail-closed")
 	}
-	pool, err := pgxpool.New(ctx, dsn)
+	pcfg, err := pgxpool.ParseConfig(dsn)
+	if err != nil {
+		log.Fatalf("SG PG DSN 解析败: %v", err)
+	}
+	pgguard.GuardPool(pcfg) // T-0154 事务残留守卫（同源普查——自建池同守）
+	pool, err := pgxpool.NewWithConfig(ctx, pcfg)
 	if err != nil {
 		log.Fatalf("SG PG 连接败: %v", err)
 	}

@@ -16,6 +16,8 @@ import (
 
 	"o/internal/platform/config"
 	"o/internal/platform/notify"
+
+	"o/internal/platform/pgguard"
 	"o/internal/research/dcd"
 	"o/internal/research/funding"
 	"o/internal/research/gapscan"
@@ -155,6 +157,10 @@ func researchArms(ctx context.Context, errc chan<- error, pool *pgxpool.Pool,
 	sw := researcher.NewSilentWatch(pool)
 	sw.AttachAlerter(alerter)
 	go sw.Run(ctx)
+	// T-0154 backend_xmin 哨兵（先报不杀——vacuum 水平线钉手观测面）
+	xs := pgguard.NewSentinel(pool)
+	xs.AttachAlerter(alerter)
+	go xs.Run(ctx)
 }
 
 // hypoSignalReader 信号读闸出口（T-0140 接线件——sigdist.SurfaceSignals

@@ -1,6 +1,7 @@
 # T-0154 池连接事务残留守卫 + backend_xmin 哨兵（真空域钉死双病灶根修）
 
-## 态：待施工
+## 态：施工中
+## 领取：zcode-t0154（ZCode 施工席）@ 2026-10-26
 ## 域：平台池基建 / 数据面
 ## 源出：数据体积排查实案（2026-10-26）——dev 库 LISTEN ev_eval 会话
   backend_xmin=2274019 钉 14.5h（当时 xid 已 8.66M），VACUUM FULL 都收不了；
@@ -34,3 +35,31 @@ ListenLoop 借到即继承——此后 WaitForNotification 永不结束事务：
 - 生产零 backend_xmin>10min 残留会话（哨兵静默=对）。
 - 热表体积回到行数正常量级且不复胀（fin_opp_eval 量级 MB 非 GB）。
 - 事务态还池日志计数可观测（抓真凶借用者后续专票根修）。
+
+## 结果回填（zcode-t0154 @ 2026-10-26）
+
+- **守卫件 pgguard（新独立包）**：GuardPool(cfg)——池配 PrepareConn
+  借出前 TxStatus 检查（BeforeAcquire 已弃用 v5.10，SA1019 归 PrepareConn
+  本位）：非 idle→ROLLBACK 清态放行+log 计数（TxResidueCount 观测面——
+  抓泄漏借用者定位面）；ROLLBACK 败=销毁连接。独立包形（pgstore/
+  testutil/cmd 自建池共用——互引环引隔离实勘后定）。
+- **三处挂线**：①pgstore.Connect 默认挂；②cmd/collector 自建池
+  （pgxpool.New→ParseConfig+GuardPool+NewWithConfig）；③testutil.Pool
+  同守（测试面桩锚同池验）。import 闸 +2 边（pgstore/testutil→pgguard）。
+- **listener 双保险自净**：listenOnce/listenOnceDeadline Acquire 后
+  TxStatus 检查→ROLLBACK（事务内 LISTEN 永不生效=聋哑双实害源防御）。
+- **xmin 哨兵**：pgguard.Sentinel（10min 节拍 sched-exempt-ok 观测拍）——
+  pg_stat_activity xact_start>10min 命中→Alert(pool_tx_residue) 一次
+  （恢复清标再报抑刷屏）**先报不杀**（杀权留人工——票面钦定）；挂
+  cmd/core（业主通道）+nil log 退路。
+- **桩锚**（PG 实跑全绿）：TestTxResidueGuard（直协议 BEGIN 带病还池→
+  下任借用者 TxStatus='I' 干净——卫生结果断言）；TestXminSentinelQuiet
+  （零钉手零警静默语义）；pgstore/testutil/events 回归绿。
+- **实勘归正（防再议）**：pgx v5.10 Release 已自毁带事务态连接
+  （pgxpool/conn.go Release：TxStatus!='I'→res.Destroy）——canon 病灶
+  出自旧版/旁路直协议径；守卫=版本差异防御纵深，桩锚计数诚实化为观测面
+  （卫生结果断言为锚——双层任一生效即绿）。canon 条目事实补注随票。
+- **机检**：build✓ vet✓ gofmt✓ staticcheck✓（SA1019 归 PrepareConn 本位）
+  check-lines✓ import 闸✓（+2 边）D-0008-B✓（哨兵观测拍豁免先例径）。
+- **移交面（部署后决策席实证）**：生产零 backend_xmin>10min 残留（哨兵
+  静默=对）；热表体积回正常量级不复胀；事务态还池日志计数可观测。

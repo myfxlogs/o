@@ -40,6 +40,9 @@ FROM pg_stat_activity WHERE backend_xmin IS NOT NULL
 命中 LISTEN/长驻会话=xmin 钉实证。`pg_terminate_backend(pid)` 后
 VACUUM FULL 即回收（LISTEN 臂有断线重连兜底，杀安全）。
 
+## 实勘补注（T-0154 施工 2026-10-26）
+pgx v5.10 Release 已自毁带事务态连接（pgxpool/conn.go：TxStatus!='I'→res.Destroy）——本条病灶出自旧版/旁路直协议径（PgConn 层 BEGIN pgx 不可见形）。守卫（pgguard.GuardPool PrepareConn）=版本差异防御纵深+观测计数面，卫生断言锚在下任借用者 idle。
+
 ## 修法（T-0154）
 - 池配守卫：`AfterRelease`/`BeforeAcquire` 检 `TxStatus()!='I'`→销毁
   连接或 ROLLBACK 放行（并 log 计数定位真凶借用者）。
