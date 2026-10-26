@@ -63,3 +63,20 @@ ListenLoop 借到即继承——此后 WaitForNotification 永不结束事务：
   check-lines✓ import 闸✓（+2 边）D-0008-B✓（哨兵观测拍豁免先例径）。
 - **移交面（部署后决策席实证）**：生产零 backend_xmin>10min 残留（哨兵
   静默=对）；热表体积回正常量级不复胀；事务态还池日志计数可观测。
+
+## 哨兵首报分诊（决策席第 2 席 @ 2026-10-26 17:2x CST——移交面「部署后实证」项启动）
+
+- **告警**：pool_tx_residue 09:24:36Z——pid 120093 LISTEN ev_eval 会话事务超 10min。
+- **时序判定**：哨兵/守卫/自净同一 commit（35e7f25 15:30 CST），告警=17:24 CST
+  （验收后 1.7h）——**哨兵活着=新码在跑；容器模型下旧会话不可能跨 force-recreate
+  存活 → 指向新码复发（守卫覆盖漏或自净失效）**，非历史残会话。
+- **码面推演**：全仓唯一 ev_eval 监听者=lifecycle ListenLoop（run.go:47）；
+  借出 TxStatus 双检+LISTEN autocommit，推演给不出开事务径——**实证压倒推演，
+  待 SG 亲证**：①该 pid state/xact_start/app/client_addr ②镜像 ID+CreatedAt
+  vs 35e7f25 时点 ③会话年龄 vs 容器年龄（会话<容器年龄=新码复发实锤）。
+- **裁决**：①杀权授权——kill pid 120093（该臂钉+聋双重害，ListenLoop 断线
+  自愈 boot 首拍重对齐，零数据风险；本席 ssh 被权限界拦两次，执行明提条件
+  请求）②若实锤新码复发→本票返修单（守卫覆盖漏根修），哨兵维持先报不杀
+  ③「升自动」暂缓至返修验证毕。
+- **移交面原项仍挂**：生产零 backend_xmin>10min 残留未达成（首报即违）——
+  本票不计完成，状态待返修裁。
