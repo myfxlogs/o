@@ -1,6 +1,7 @@
 # T-0151 黑名单回扫覆面补 probe/degraded 态（T-0147 验收衍生）
 
-## 态：待施工
+## 态：待验
+## 领取：zcode-o-7d3f @ 2026-10-26
 ## 域：执行径 / venue 终局分类
 ## 源出：T-0147 验收生产窗实案——0061 trigger 谓词只覆
   live/paper/proposed 三态，策略 286181（SHEIN-USDT-SWAP）probe 态
@@ -25,3 +26,32 @@ probe→live 晋升后首开仓才被 opener 黑名单闸退役，窗口期策�
 ## 验收锚
 - 五态全覆盖桩绿；存量黑名单 inst 上任意非 retired 策略=零。
 - 生产实证：probe 态幽灵（如再出现）入册即退。
+
+## 结果回填
+
+- ①0062 迁移（migrations/0062_untradeable_retro_probe_degraded.sql，登记
+  migrate_table.go {62,…}）：fn_untradeable_retro 谓词集扩五态
+  IN ('live','paper','proposed','probe','degraded')——六态闭集减 retired
+  （0007 CHECK 域亲证），幂等二重承 0061（PK 冲突走 UPDATE 不触发+状态
+  谓词拒自挡已退役行）。
+- ②存量清尾随迁（验收锚「存量=零」的达成面——trigger 只打新入册行，
+  0061 生效期漏网 probe/degraded 由迁移一次性回扫）：transition 行
+  reason=venue_untradeable_retroactive:0062_backfill 溯源+armed 提案
+  fin_retired；谓词自挡=重跑幂等。
+- ③opener 容退守卫对齐（cmd/core/open.go untradeable()）：守卫谓词
+  state='live'→IN 五态，序位不动（显式迁移先于入册）。probe/degraded
+  →retired 均合法迁移（machine.go legal 亲证）。
+- ④晋升闸核查记档（票面「顺带核」项）：paper.go promote() 的 probe→live
+  闸不读 fin_venue_untradeable——0062 后黑名单入册时点即五态全退，
+  probe 态幽灵无处滞留到晋升；纵深仍三层（universe 滤/入册回扫/opener
+  双兜底：黑名单开仓败退役+untradeable 显式迁移），票面预设「未读=靠
+  opener 兜底可接受」成立，不改晋升径。
+- 桩锚三件全绿（go test ./cmd/core/ -count=1，O_TEST_PG_DSN=5434 实例）：
+  TestRetroTwoStates（五态逐腿入册即退+retroactive 溯源行+已 retired
+  闭集自挡零 transition）、TestUntradeableGuardTwoStates（probe/degraded
+  显式迁移 venue_untradeable:<code> 非 retroactive——守卫放行直证，回退
+  live 单态守卫必红）、存量 TestRetroactiveScanTrigger 等四件回归绿。
+- 偏离说明：存量清尾为验收锚②推定的必做面（施工清单未单列）——非越单，
+  语义与 trigger 体同构。
+- 生产实证锚（待验席合并部署后可亲证）：黑名单新入册任一非 retired 态
+  策略=入册即退（桩测同形直证）；存量侧合并时 0062 清尾自动落。
