@@ -50,3 +50,25 @@ func (c *Client) DcdLiveOrders(ctx context.Context) ([]DcdOrder, error) {
 	c.dcdOrds, c.dcdErr = rows, nil
 	return rows, nil
 }
+
+// —— 写面（T-0160 DCD 执行席：quote→trade→order-status 链；信封 code
+// 数字型已由 flexCode 承接——okx-dcd-endpoint-dialect 条目径）。
+
+// DcdQuote 产品报价（GET quote?productId&sz——陈旧提案重 quote 不盲执）。
+func (c *Client) DcdQuote(ctx context.Context, productID, sz string) (json.RawMessage, error) {
+	return c.Get(ctx, "/api/v5/finance/sfp/dcd/quote?productId="+productID+"&sz="+sz)
+}
+
+// DcdTrade 产品成交（POST trade {productId,sz,clOrdId}——幂等键方言同
+// transfer clientId：正文参数名 clOrdId 保持；歧态势禁补单纪律同规）。
+func (c *Client) DcdTrade(ctx context.Context, productID, sz, clOrdID string) (json.RawMessage, error) {
+	body, _ := json.Marshal(map[string]string{
+		"productId": productID, "sz": sz, "clOrdId": clOrdID})
+	return c.Post(ctx, "/api/v5/finance/sfp/dcd/trade", body)
+}
+
+// DcdOrderStatus 单查证（GET order-status?ordId——歧态势定真态入口，
+// 禁盲重发）。
+func (c *Client) DcdOrderStatus(ctx context.Context, ordID string) (json.RawMessage, error) {
+	return c.Get(ctx, "/api/v5/finance/sfp/dcd/order-status?ordId="+ordID)
+}

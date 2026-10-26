@@ -20,6 +20,7 @@ type OpenSpec struct {
 	InstID      string // SWAP 键（BTC-USDT-SWAP）——现货腿装配层派生
 	Direction   string
 	NotionalUSD float64
+	Template    string // 模板族（T-0160：dcd_call 走 DCD 执行面非双腿原子径）
 }
 
 // Opener 开仓执行缝（未接线=nil fail-closed 不开——禁无闸直开）。
@@ -46,13 +47,12 @@ func (r *Runner) openLive(ctx context.Context) {
 	}
 	type cand struct {
 		spec OpenSpec
-		tmpl string
 	}
 	var cs []cand
 	for rows.Next() {
 		var c cand
 		if err := rows.Scan(&c.spec.StrategyRef, &c.spec.InstID, &c.spec.Direction,
-			&c.spec.NotionalUSD, &c.spec.Venue, &c.tmpl); err != nil {
+			&c.spec.NotionalUSD, &c.spec.Venue, &c.spec.Template); err != nil {
 			rows.Close()
 			r.rej.Inc("write_err")
 			return
@@ -63,7 +63,7 @@ func (r *Runner) openLive(ctx context.Context) {
 	for _, c := range cs {
 		// T-0144 armed→open 显式禁：xvenue_carry 执行原子性语义未建（两腿序+
 		// 败一腿处置缺——T-0145 另票），抢跑=裸腿风险。永拒非瞬态（钉死）。
-		if c.tmpl == "xvenue-carry" {
+		if c.spec.Template == "xvenue-carry" {
 			r.rej.Inc("xvenue_open_forbidden")
 			log.Printf("ALERT [lifecycle] 策略 %d %s armed→open 显式禁（xvenue-carry 双腿执行径未建——T-0145 另票）",
 				c.spec.StrategyRef, c.spec.InstID)
