@@ -47,3 +47,12 @@
   摆渡；交易户段三跳零动；58350/歧态同规 fail-closed。
 - 桩锚双绿：TestDepositScanIdempotent（重复巡检不重账+非完成态不入账）、
   TestFundingIdleDirectPurchase（funding 500 直购零摆渡）。
+
+## 二返修（三锚）
+
+- ①USDT 谓词闸：r.Ccy!="USDT"→rej 计数+skip 不入账不留 bill（D-0021
+  TRX 自营边界——非 USDT 入金非基金注资入账=虚增 NAV）。
+- ②逐行错误隔离：单行 begin/bill/cashflow/commit 败=log+rej+continue
+  不 abort 整扫（毒行饿死后续行=现产实证病灶根修）。
+- 桩锚：TestDepositScanUSDTGate（TRX/BTC 行零写+后续 USDT 照入账）
+  +TestFundingIdleBackoff（连败两拍第二拍不重发）。

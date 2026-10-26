@@ -12,6 +12,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"o/internal/platform/rejects"
 )
 
 // DepositSrc 充币史读件（装配层=okxexec Get /asset/deposit-history——
@@ -34,10 +36,12 @@ type DepositRow struct {
 type DepositScanner struct {
 	pool *pgxpool.Pool
 	src  DepositSrc
+	rej  *rejects.Door
 }
 
 func NewDepositScanner(pool *pgxpool.Pool, src DepositSrc) *DepositScanner {
-	return &DepositScanner{pool: pool, src: src}
+	return &DepositScanner{pool: pool, src: src,
+		rej: rejects.New("deposit", "write_err", "non_usdt_deposit")}
 }
 
 // Scan 巡检一拍：state=2 完成行→bill 幂等落→cashflow deposit。
@@ -55,12 +59,20 @@ func (s *DepositScanner) Scan(ctx context.Context) (int, error) {
 		if r.State != "2" {
 			continue // 非完成态（确认中/失败）——不入账留档
 		}
+		// T-0149 二返修①USDT 谓词闸：非 USDT 入金=非基金注资（TRX 自营
+		// 边界 D-0021）——入账=虚增 NAV，skip 不入账不留 bill。
+		if r.Ccy != "USDT" {
+			s.rej.Inc("non_usdt_deposit")
+			continue
+		}
 		tsMs, _ := parseMs(r.Ts)
 		// T-0149 返修②：bill+cashflow 同事务原子（注入败→bill 行同回滚
 		// 不留孤儿源行——幂等切面不失效语义守恒）。
 		tx, err := s.pool.Begin(ctx)
-		if err != nil {
-			return n, err
+		if err != nil { // T-0149 二返修②逐行隔离：单行败=log+rej+continue 不 abort
+			s.rej.Inc("write_err")
+			log.Printf("[ledger] 入金行 begin 败（depId=%s 跳过续扫）: %v", r.DepID, err)
+			continue
 		}
 		var srcID int64
 		err = tx.QueryRow(ctx, `INSERT INTO fin_venue_bill
@@ -75,18 +87,24 @@ func (s *DepositScanner) Scan(ctx context.Context) (int, error) {
 		}
 		if err != nil {
 			_ = tx.Rollback(ctx)
-			return n, err
+			s.rej.Inc("write_err")
+			log.Printf("[ledger] 入金行 bill 写败（depId=%s 跳过续扫）: %v", r.DepID, err)
+			continue
 		}
 		amt, _ := parseFloat(r.Amt)
-		if _, err := tx.Exec(ctx, `INSERT INTO fin_cashflow
+		if _, err2 := tx.Exec(ctx, `INSERT INTO fin_cashflow
 			(kind,venue,ccy,amount,source_ref,source_table,occurred_at)
 			VALUES('deposit','okx',$1,$2,$3,'fin_venue_bill',$4)`,
-			r.Ccy, amt, srcID, time.UnixMilli(tsMs)); err != nil {
+			r.Ccy, amt, srcID, time.UnixMilli(tsMs)); err2 != nil {
 			_ = tx.Rollback(ctx)
-			return n, err
+			s.rej.Inc("write_err")
+			log.Printf("[ledger] 入金行 cashflow 写败（depId=%s 同回滚跳过续扫）: %v", r.DepID, err2)
+			continue
 		}
 		if err := tx.Commit(ctx); err != nil {
-			return n, err
+			s.rej.Inc("write_err")
+			log.Printf("[ledger] 入金行 commit 败（depId=%s 跳过续扫）: %v", r.DepID, err)
+			continue
 		}
 		log.Printf("[ledger] 入金入账 depId=%s %.4f %s（fin_venue_bill id=%d）", r.DepID, amt, r.Ccy, srcID)
 		n++
