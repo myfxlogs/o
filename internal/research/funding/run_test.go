@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/jackc/pgx/v5"
+
 	"o/internal/platform/config"
 	"o/internal/platform/testutil"
 	"o/internal/store/pgstore"
@@ -320,7 +322,9 @@ func TestSpotLegPrecheckGate(t *testing.T) {
 		}
 		json.Unmarshal(legsB, &e.Legs)
 		json.Unmarshal(evB, &e.Evidence)
-		if err := r.persist(ctx, e, Params{}); err != nil {
+		if err := pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
+			return r.persist(ctx, tx, e, Params{})
+		}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -359,7 +363,9 @@ func TestSpotLegPrecheckGate(t *testing.T) {
 	json.Unmarshal(legsB, &e.Legs)
 	json.Unmarshal(evB, &e.Evidence)
 	e.Verdict = "proposed"
-	if err := r.persist(ctx, e, Params{}); err != nil {
+	if err := pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
+		return r.persist(ctx, tx, e, Params{})
+	}); err != nil {
 		t.Fatal(err)
 	}
 	pool.QueryRow(ctx, `SELECT evidence->>'reason' FROM fin_opp_eval WHERE inst_id='TEST-USDT-SWAP'`).Scan(&reason)

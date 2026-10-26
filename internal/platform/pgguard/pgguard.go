@@ -49,17 +49,25 @@ type Alerter interface {
 
 // Sentinel backend_xmin 年龄哨兵（先报不杀——杀权留人工/后续裁定）：
 // pg_stat_activity 中 xact_start 超 10min 的会话=快照钉死 vacuum 水平线实锤
-// （命中 LISTEN/长驻会话=钉手）。
+// （命中 LISTEN/长驻会话=钉手）；另带 notify 队列水位探针（T-0162——
+// pg_notification_queue_usage() 供方洪泛先于队列爆顶可见，爆顶=发送方
+// NOTIFY 直接报错）。
 type Sentinel struct {
-	pool    *pgxpool.Pool
-	al      Alerter
-	alerted bool
-	mu      sync.Mutex
+	pool     *pgxpool.Pool
+	al       Alerter
+	alerted  bool    // xmin 钉手 arm/disarm 位
+	qAlerted bool    // notify 水位 arm/disarm 位（独立条件独立清标）
+	qMax     float64 // 水位告警线（NewSentinel 置 notifyQueueMax——桩测可调）
+	mu       sync.Mutex
 }
+
+// notifyQueueMax 水位告警线（0..1 分数——过半即供方洪泛实锤先报，
+// 离 1.0 爆顶留处置余量；治洪后常态≈0，非零即值得看）。
+const notifyQueueMax = 0.5
 
 // NewSentinel 构造。
 func NewSentinel(pool *pgxpool.Pool) *Sentinel {
-	return &Sentinel{pool: pool}
+	return &Sentinel{pool: pool, qMax: notifyQueueMax}
 }
 
 // AttachAlerter 挂业主告警通道（nil=log 退路）。
@@ -75,6 +83,7 @@ func (x *Sentinel) Run(ctx context.Context) {
 			return
 		case <-t.C:
 			x.Check(ctx)
+			x.CheckNotifyQueue(ctx)
 		}
 	}
 }
@@ -126,6 +135,32 @@ func (x *Sentinel) Check(ctx context.Context) {
 		len(hits), strings.Join(detail, "；"))
 	if x.al != nil {
 		x.al.Alert(ctx, "pool_tx_residue", msg)
+	} else {
+		log.Printf("[pgguard] WARN %s", msg)
+	}
+}
+
+// CheckNotifyQueue 一拍：pg_notification_queue_usage() 水位过线即告警一次
+// （恢复清标再报——同 xmin 臂抑刷屏语义）。读败不判（观测面非工作面）。
+func (x *Sentinel) CheckNotifyQueue(ctx context.Context) {
+	var usage float64
+	if err := x.pool.QueryRow(ctx, "SELECT pg_notification_queue_usage()").Scan(&usage); err != nil {
+		log.Printf("[pgguard] notify 水位读败（不判）: %v", err)
+		return
+	}
+	x.mu.Lock()
+	defer x.mu.Unlock()
+	if usage < x.qMax {
+		x.qAlerted = false // 恢复清标（再洪可再报）
+		return
+	}
+	if x.qAlerted {
+		return
+	}
+	x.qAlerted = true
+	msg := fmt.Sprintf("notify 队列水位哨兵：pg_notification_queue_usage()=%.0f%%≥%.0f%%——供方洪泛实锤（洪泛先于队列爆顶可见；爆顶=发送方 NOTIFY 直接报错），先报不杀", usage*100, x.qMax*100)
+	if x.al != nil {
+		x.al.Alert(ctx, "notify_queue_usage", msg)
 	} else {
 		log.Printf("[pgguard] WARN %s", msg)
 	}
