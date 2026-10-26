@@ -1,3 +1,9 @@
+---
+name: okx-api-spec
+description: OKX v5 参数字典——sz/面值/参数先查本表不猜（docs-v5/zh 全量核证）；与 okx-exec 下单径、流面、REST 界桩分工=参数字典层
+domain: 工程
+---
+
 # okx-api-spec —— OKX v5 参数字典（docs-v5/zh 全量核证 2026-10-24）
 
 > 用途：设计/施工碰 OKX 参数前**先查本表不猜**。源=官方 docs-v5 中文站全量页（71k 行抓档核证）。
