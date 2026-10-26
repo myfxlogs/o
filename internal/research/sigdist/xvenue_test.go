@@ -65,3 +65,51 @@ func TestXvenue(t *testing.T) {
 		t.Fatal("mt5 单边陈应不再刷新（ts 不变）")
 	}
 }
+
+// T-0146 频道方言归并桩锚：SOL 形场景——mark_price 陈行（SG 兜底 150s）+
+// mark-price 鲜行（桥写 16s）并存→跨频道读到鲜行 xvenue_spread 落；
+// 双陈→缺席如实不变。
+func TestXvenueChannelDialect(t *testing.T) {
+	ctx, r := setup(t)
+	if err := r.AttachConfigForTest(ctx, map[string]any{
+		"bridge.xvenue.map": map[string]string{"SOL-USDT-SWAP": "SOLUSDm"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	seed := []string{
+		// 双频道并存：下划线陈（150s）/连字符鲜（16s）
+		`INSERT INTO md_mark_index(ts,inst_id,channel,px) VALUES(now()-interval '150 seconds','SOL-USDT-SWAP','mark_price',100)`,
+		`INSERT INTO md_mark_index(ts,inst_id,channel,px) VALUES(now()-interval '16 seconds','SOL-USDT-SWAP','mark-price',210)`,
+		`INSERT INTO md_ticks(ts,venue,inst_id,bid,ask) VALUES(now(),'mt5','SOLUSDm',200,202)`,
+	}
+	for _, q := range seed {
+		if _, err := r.pool.Exec(ctx, q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := r.Xvenue(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var val float64
+	var meta map[string]any
+	if err := r.pool.QueryRow(ctx, `SELECT val, meta FROM md_signal
+		WHERE kind='xvenue_spread' AND key='SOL-USDT-SWAP'`).Scan(&val, &meta); err != nil {
+		t.Fatal("跨频道鲜行应撑起 xvenue_spread:", err)
+	}
+	if meta["okx_mark"] != 210.0 {
+		t.Fatalf("应读连字符鲜行 okx_mark=%v（非下划线陈行 100）", meta["okx_mark"])
+	}
+	// 双陈→缺席如实（新拍零刷新）
+	if _, err := r.pool.Exec(ctx, `UPDATE md_ticks SET ts=now()-interval '5 minutes' WHERE venue='mt5'`); err != nil {
+		t.Fatal(err)
+	}
+	var ts1, ts2 time.Time
+	r.pool.QueryRow(ctx, `SELECT ts FROM md_signal WHERE kind='xvenue_spread' AND key='SOL-USDT-SWAP'`).Scan(&ts1)
+	if err := r.Xvenue(ctx); err != nil {
+		t.Fatal(err)
+	}
+	r.pool.QueryRow(ctx, `SELECT ts FROM md_signal WHERE kind='xvenue_spread' AND key='SOL-USDT-SWAP'`).Scan(&ts2)
+	if !ts1.Equal(ts2) {
+		t.Fatal("双陈应不刷新（缺席如实不变）")
+	}
+}

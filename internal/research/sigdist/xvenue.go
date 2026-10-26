@@ -46,8 +46,14 @@ func (r *Runner) Xvenue(ctx context.Context) error {
 	// funding_view / mt5_swap——任一单边陈/缺=该对跳过如实。
 	for okxInst, mt5Sym := range xm {
 		var okxMark, mt5Mid float64
-		err := r.pool.QueryRow(ctx, `SELECT px FROM md_mark_index
-			WHERE channel='mark_price' AND inst_id=$1 AND ts > now()-interval '120 seconds'`,
+		// T-0146 频道方言归并：桥写 'mark-price'（WS 原名秒级鲜）+SG 兜底
+		// 'mark_price'（下划线，活跃集轮询）双键域并存——消费者 freshness-priority
+		// 读跨双频道取最新行（写侧双键不动，归一化另裁）。
+		err := r.pool.QueryRow(ctx, `SELECT px FROM (
+			SELECT px, ts FROM md_mark_index
+			WHERE channel IN ('mark_price','mark-price') AND inst_id=$1
+			  AND ts > now()-interval '120 seconds'
+			ORDER BY ts DESC LIMIT 1) t`,
 			okxInst).Scan(&okxMark)
 		if err != nil {
 			continue // okx 单边陈/缺

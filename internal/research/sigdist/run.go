@@ -84,56 +84,6 @@ func (r *Runner) Distill(ctx context.Context) error {
 	return nil
 }
 
-// basisAnn 季度基差年化（bps）：mark-price（md_mark_index channel='mark_price'
-// FUTURES inst）对同基币 spot_last——(mark-index)/index×365/到期日数×10⁴。
-// 无到期解析的 inst 跳过如实。
-func (r *Runner) basisAnn(ctx context.Context) error {
-	rows, err := r.pool.Query(ctx, `SELECT f.inst_id, f.px, s.px FROM md_mark_index f
-		JOIN md_mark_index s
-		  ON s.channel='spot_last'
-		 AND s.inst_id = regexp_replace(f.inst_id, '-[0-9]{6}$', '')
-		WHERE f.channel='mark_price' AND f.inst_id ~ '-[0-9]{6}$'`)
-	if err != nil {
-		return err
-	}
-	defer rows.Close()
-	now := time.Now()
-	n := 0
-	for rows.Next() {
-		var instID string
-		var mark, index float64
-		if err := rows.Scan(&instID, &mark, &index); err != nil {
-			return err
-		}
-		m := datedFutRe.FindStringSubmatch(instID)
-		if m == nil || index == 0 {
-			continue // 无到期解析/零指数——跳过如实
-		}
-		exp, err := time.Parse("060102", m[2])
-		if err != nil {
-			continue // 到期日坏形——跳过如实
-		}
-		days := exp.Sub(now).Hours() / 24
-		if days <= 0 {
-			continue // 到期邻近/已过——基差年化无意义
-		}
-		bps := (mark - index) / index * 365 / days * 10000
-		meta, _ := json.Marshal(map[string]any{
-			"expiry": exp.Format("2006-01-02"), "mark": mark, "index": index,
-			"days": int(days) + 1})
-		if _, err := r.pool.Exec(ctx, `INSERT INTO md_signal(kind,key,val,meta,ts)
-			VALUES('basis_ann',$1,$2,$3::jsonb,$4)
-			ON CONFLICT (kind,key) DO UPDATE SET val=EXCLUDED.val,
-			meta=EXCLUDED.meta, ts=EXCLUDED.ts`,
-			instID, bps, string(meta), now); err != nil {
-			return err
-		}
-		n++
-	}
-	log.Printf("[sigdist] basis_ann 拍：%d 行", n)
-	return nil
-}
-
 // fundingView per SWAP 当期 funding rate（md_funding 最新行）+meta 附下一期
 // 预测（next_funding_rate venue 域内含）+7d 滚动均值（窗口缺数据=字段缺席如实）。
 func (r *Runner) fundingView(ctx context.Context) error {
