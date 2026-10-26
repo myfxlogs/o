@@ -22,6 +22,7 @@ import (
 	"o/internal/research/grammar"
 	"o/internal/research/hypothesis"
 	"o/internal/research/researcher"
+	"o/internal/research/sigdist"
 	"o/internal/trading/okxexec"
 )
 
@@ -139,10 +140,30 @@ func researchArms(ctx context.Context, errc chan<- error, pool *pgxpool.Pool,
 	go dcd.NewRunner(pool, cfg).AttachFeed(dcdFeedFor(okcli)).
 		AttachCoins(okxCoinsFor(pool, okcli)).AttachAlerter(alerter).Run(ctx, errc)
 	go gapscan.NewRunner(pool, cfg).AttachProbe(gapProbeFor(okcli)).AttachAlerter(alerter).Run(ctx, errc)
-	go hypothesis.NewRunner(pool, cfg).AttachAlerter(alerter).Run(ctx, errc)
+	hr := hypothesis.NewRunner(pool, cfg)
+	hr.AttachAlerter(alerter)
+	hr.AttachSignals(hypoSignalReader(pool)) // T-0140 信号读闸接线（sig 域→hypothesis 域投影）
+	go hr.Run(ctx, errc)
 	go grammar.NewRunner(pool, cfg).Run(ctx, errc) // T-0120 文法枚举臂
 	// 研究员席静默看门（T-0121：短会话岗无臂拍——DB 双源锚 14 天窗，core 代守）
 	sw := researcher.NewSilentWatch(pool)
 	sw.AttachAlerter(alerter)
 	go sw.Run(ctx)
+}
+
+// hypoSignalReader 信号读闸出口（T-0140 接线件——sigdist.SurfaceSignals
+// 语义映射+Fresh 闸，投影 hypothesis.Sig 窄形：包间类型隔离）。
+func hypoSignalReader(pool *pgxpool.Pool) hypothesis.SignalReader {
+	adapter := sigdist.SurfaceAdapter(pool)
+	return func(ctx context.Context, venue, surface string) ([]hypothesis.Sig, bool, error) {
+		ss, ok, err := adapter(ctx, venue, surface)
+		if err != nil || !ok {
+			return nil, ok, err
+		}
+		out := make([]hypothesis.Sig, 0, len(ss))
+		for _, x := range ss {
+			out = append(out, hypothesis.Sig{Kind: x.Kind, Key: x.Key, Val: x.Val, Meta: x.Meta})
+		}
+		return out, true, nil
+	}
 }

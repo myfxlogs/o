@@ -138,3 +138,31 @@ func TestBoundedRows(t *testing.T) {
 		t.Fatalf("三拍后行数应有界（≤2）got %d", n)
 	}
 }
+
+// T-0140 surface 语义映射锚：funding 面→funding_view 榜（|val| 降序 top3）；
+// quarter/basis 面→basis_ann；非信号敏感面→零绑定；陈信号零绑定。
+func TestSurfaceSignalsMapping(t *testing.T) {
+	ctx, r := setup(t)
+	if _, err := r.pool.Exec(ctx, `INSERT INTO md_signal(kind,key,val,meta,ts) VALUES
+		('funding_view','BTC-USDT-SWAP',0.0002,'{}',now()),
+		('funding_view','ETH-USDT-SWAP',0.0005,'{}',now()),
+		('funding_view','SOL-USDT-SWAP',0.0003,'{}',now()),
+		('funding_view','XRP-USDT-SWAP',0.0004,'{}',now()),
+		('funding_view','STALE-USDT-SWAP',0.9,'{}',now()-interval '5 minutes'),
+		('basis_ann','BTC-USDT-270626',300,'{}',now())`); err != nil {
+		t.Fatal(err)
+	}
+	sigs, ok, err := r.SurfaceSignals(ctx, "okx", "market-funding-rate")
+	if err != nil || !ok {
+		t.Fatalf("funding 面应有绑定 err=%v", err)
+	}
+	if len(sigs) != 3 || sigs[0].Key != "ETH-USDT-SWAP" { // |val| 降序 top3，陈行不录入
+		t.Fatalf("榜 top3 降序+陈行排除: %v", sigs)
+	}
+	if bs, ok, _ := r.SurfaceSignals(ctx, "okx", "quarter-basis"); !ok || len(bs) != 1 || bs[0].Kind != "basis_ann" {
+		t.Fatalf("quarter 面→basis_ann 绑定: %v", bs)
+	}
+	if _, ok, _ := r.SurfaceSignals(ctx, "okx", "savings-balance"); ok {
+		t.Fatal("非信号敏感面应零绑定")
+	}
+}

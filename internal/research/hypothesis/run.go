@@ -59,15 +59,17 @@ type Runner struct {
 	sigs  SignalReader    // 桥二期信号读面（T-0139——可选；nil=信号缺席面）
 }
 
-// SignalReader 信号读闸出口（sigdist.Fresh 同形——接读面不接生成逻辑；
-// 本票零假想生成改动，信号只作 evidence 附据）。
-type SignalReader func(ctx context.Context, kind, key string) (sig Sig, ok bool, err error)
+// SignalReader 信号读闸出口（T-0140 键域修正：gap surface 域→信号绑定按
+// surface 语义映射——kind/instId 键域知识归适配器〔sigdist 侧〕，假想官
+// 零键域知识；Fresh 闸在适配器内，陈=缺席）。
+type SignalReader func(ctx context.Context, venue, surface string) (sigs []Sig, ok bool, err error)
 
 // Sig 信号值形（sigdist.Sig 投影——包依赖反向禁：researcher 纪律同款窄接口）。
 type Sig struct {
-	Kind string
-	Key  string
-	Val  float64
+	Kind string         `json:"kind"`
+	Key  string         `json:"key"`
+	Val  float64        `json:"val"`
+	Meta map[string]any `json:"meta,omitempty"`
 }
 
 // AttachSignals 挂信号读面（T-0139 消费闸——装配层传 sigdist.Fresh 适配）。
@@ -93,6 +95,9 @@ func (r *Runner) Run(ctx context.Context, errc chan<- error) {
 	}
 	go roster.BeatLoop(ctx, r.pool, "假想官", 30*time.Second, errc)
 	events.ListenLoop(ctx, r.pool, "research-hypo", []string{"ev_gap"}, r.scan)
+	// T-0140 信号驱动臂：md_funding INSERT→ev_funding（0028 事件脊）——
+	// 信号语义扫描（背离/突变→假想卡；幂等+Fresh 闸内，事件驱动 D-0008-B 正解）。
+	events.ListenLoop(ctx, r.pool, "research-hypo-sig", []string{"ev_funding"}, r.ScanSignals)
 }
 
 // params 判据全 app_config 机读（缺/坏=fail-closed 不起草不虚构判据）。
@@ -185,18 +190,10 @@ func (r *Runner) draft(ctx context.Context, venue, surface, family string, gapID
 	meta["provenance"] = "hypothesis_officer"
 	meta["gap_id"] = gapID
 	meta["leg_vocab"] = "closed-set" // 词汇表闭集声明——非自由发明
-	// T-0139 消费闸：新鲜信号（2×蒸馏拍窗内）作 evidence 附据——陈/缺席=
-	// 不附（信号是派生面非事实源，读闸在 sigdist.Fresh 侧）。
+	// T-0140 消费闸：surface 语义映射读新鲜信号作 evidence 附据——陈/缺席=
+	// 不附（信号是派生面非事实源；Fresh 闸在适配器侧）。
 	if r.sigs != nil {
-		var sigs []Sig
-		for _, inst := range []string{venue + "-USDT-SWAP", venue + "-USDT"} {
-			for _, kind := range []string{"funding_view", "basis_ann", "depth5"} {
-				if sg, ok, err := r.sigs(ctx, kind, inst); err == nil && ok {
-					sigs = append(sigs, sg)
-				}
-			}
-		}
-		if len(sigs) > 0 {
+		if sigs, ok, err := r.sigs(ctx, venue, surface); err == nil && ok && len(sigs) > 0 {
 			meta["signals"] = sigs
 		}
 	}
