@@ -1,4 +1,4 @@
-// bridge —— 采集面外置开发机蒸馏件（T-0137/D-0020）：dev 跑全宇宙 WS
+// collector —— 采集面外置开发机蒸馏件（采集器机）（T-0137/D-0020）：dev 跑全宇宙 WS
 // （index-tickers/mark-price/funding-rate 全量+spot_last REST 件复用），
 // 蒸馏态 upsert 直写 SG md_* 表（SSH 隧道径——写权 collector_rw 收窄件）。
 // 键域契约：同键 upsert 最新 ts 赢——SG REST 兜底自动接管无开关。
@@ -56,12 +56,12 @@ func main() {
 	})
 	errc := make(chan error, 4)
 	go c.Run(ctx, errc)
-	log.Printf("[o-bridge] 采集桥起——全宇宙蒸馏写 SG（共写语义：同键最新 ts 赢）")
+	log.Printf("[collector] 采集桥起——全宇宙蒸馏写 SG（共写语义：同键最新 ts 赢）")
 	for {
 		select {
 		case err := <-errc:
 			if err != nil {
-				log.Fatalf("[o-bridge] 岗终: %v", err)
+				log.Fatalf("[collector] 岗终: %v", err)
 			}
 		case <-ctx.Done():
 			return

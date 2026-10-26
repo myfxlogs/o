@@ -24,3 +24,4 @@ internal/data/adapter/gen/
 /core
 /capcheck
 /bridge
+/collector

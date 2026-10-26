@@ -1,7 +1,7 @@
 # autossh 隧道 systemd 单元（T-0137——dev 本地 5433→SG 127.0.0.1:5432；
 # 桥写径唯一通道，断则 SG REST 兜底自动接管零切换）。
 [Unit]
-Description=o-bridge SSH tunnel dev:5433->SG:5432
+Description=o-collecto SSH tunnel dev:5433->SG:5432
 After=network-online.target
 [Service]
 ExecStart=/usr/bin/autossh -M 0 -N -L 5433:127.0.0.1:5432 SG_HOST \
