@@ -1,7 +1,7 @@
 package sigdist
 
 // xvenue_test.go —— 跨所信号桩测（T-0141 验收锚）：xvenue_spread/carry_diff
-// 数值形+单边陈/缺不产如实+行数有界。
+// 数值形+单边陈/缺不产如实+行数有界+T-0164 血统闸（派生 ts=最旧上游观测）。
 import (
 	"testing"
 	"time"
@@ -111,5 +111,49 @@ func TestXvenueChannelDialect(t *testing.T) {
 	r.pool.QueryRow(ctx, `SELECT ts FROM md_signal WHERE kind='xvenue_spread' AND key='SOL-USDT-SWAP'`).Scan(&ts2)
 	if !ts1.Equal(ts2) {
 		t.Fatal("双陈应不刷新（缺席如实不变）")
+	}
+}
+
+// T-0164 血统闸桩锚（派单钦定：上游陈→派生行即陈→评估面视缺席）：
+// swap 观测 2h 陈（8h 推导窗内）+funding 鲜→carry_diff 行落但 ts=swap 观测
+// ts（2h 前，非写拍 now）→Fresh 120s 消费闸读=缺席——行存在而消费不可见，
+// 禁合成面自盖章冒充鲜。spread 同律（ts=最旧边 tick 观测 30s 前）。
+func TestXvenueLineage(t *testing.T) {
+	ctx, r := setup(t)
+	if err := r.AttachConfigForTest(ctx, map[string]any{
+		"bridge.xvenue.map": map[string]string{"ETH-USDT-SWAP": "ETHUSDm"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	md(t, ctx, r, `INSERT INTO md_mark_index(ts,inst_id,channel,px)
+		VALUES(now()-interval '10 seconds','ETH-USDT-SWAP','mark_price',3000)`)
+	md(t, ctx, r, `INSERT INTO md_ticks(ts,venue,inst_id,bid,ask)
+		VALUES(now()-interval '30 seconds','mt5','ETHUSDm',2990,2992)`)
+	md(t, ctx, r, `INSERT INTO md_signal(kind,key,val,meta,ts) VALUES
+		('funding_view','ETH-USDT-SWAP',-0.0001,'{}',now()-interval '5 seconds'),
+		('mt5_swap','ETHUSDm',-1000,'{"swap_type":5}',now()-interval '2 hours')`)
+	if err := r.Xvenue(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var spreadTs, carryTs time.Time
+	if err := r.pool.QueryRow(ctx, `SELECT ts FROM md_signal
+		WHERE kind='xvenue_spread' AND key='ETH-USDT-SWAP'`).Scan(&spreadTs); err != nil {
+		t.Fatal("xvenue_spread 应落:", err)
+	}
+	// spread ts=最旧边 mt5 tick 观测（30s 前——非写拍 now()）。
+	if age := time.Since(spreadTs); age < 25*time.Second || age > 60*time.Second {
+		t.Fatalf("spread ts 应=最旧上游观测（tick 30s 前）got age=%v", age)
+	}
+	if err := r.pool.QueryRow(ctx, `SELECT ts FROM md_signal
+		WHERE kind='carry_diff' AND key='ETH-USDT-SWAP'`).Scan(&carryTs); err != nil {
+		t.Fatal("carry_diff 应落:", err)
+	}
+	// carry ts=最旧上游 mt5_swap 观测（2h 前——funding 虽鲜不救）。
+	if age := time.Since(carryTs); age < 110*time.Minute {
+		t.Fatalf("carry ts 应=swap 观测（2h 前）got age=%v", age)
+	}
+	// 桩锚：行存在而评估面（Fresh 120s 闸）视缺席。
+	if _, ok, _ := Fresh(ctx, r.pool, "carry_diff", "ETH-USDT-SWAP"); ok {
+		t.Fatal("swap 上游陈（2h）→carry_diff 消费面应视缺席（血统层禁自盖章）")
 	}
 }
