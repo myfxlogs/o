@@ -2,6 +2,7 @@ package funding
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"o/internal/platform/config"
@@ -284,5 +285,85 @@ func TestActiveStrategyBlocksProposal(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM fin_proposal
 		WHERE inst_id='TRG-USDT-SWAP'`).Scan(&n); err != nil || n != 1 {
 		t.Fatalf("去重触发器应同键只留一行 n=%d err=%v", n, err)
+	}
+}
+
+// T-0150 起草闸桩锚：perp-only 合成 inst（无 spot 对）proposed 评估→
+// infeasible/no_spot_leg 零提案；正常现货对不受影响。
+func TestSpotLegPrecheckGate(t *testing.T) {
+	ctx := context.Background()
+	pool := testutil.Pool(t)
+	if err := pgstore.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.New(pool)
+	if err := cfg.Load(ctx); err != nil {
+		t.Fatal(err)
+	}
+	r := NewRunner(pool, cfg)
+	// SPOT 目录桩：只实有 TEST-USDT（合成器 SHEIN 类不在）。
+	r.AttachSpotFeed(func(ctx context.Context) ([]byte, error) {
+		return []byte(`[{"instId":"TEST-USDT"},{"instId":"BTC-USDT"}]`), nil
+	})
+	for _, inst := range []string{"SHEIN-USDT-SWAP", "TEST-USDT-SWAP"} {
+		var eid int64
+		if err := pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,gross_apr,net_apr,verdict,legs,evidence)
+			VALUES($1,'funding-hedge','short_perp_long_spot',9.9,8.8,'proposed','[]','{}') RETURNING id`, inst).Scan(&eid); err != nil {
+			t.Fatal(err)
+		}
+		var e Eval
+		var legsB, evB []byte
+		if err := pool.QueryRow(ctx, `SELECT inst_id,direction,gross_apr,net_apr,verdict,legs,evidence
+			FROM fin_opp_eval WHERE id=$1`, eid).Scan(&e.InstID, &e.Direction, &e.GrossAPR, &e.NetAPR,
+			&e.Verdict, &legsB, &evB); err != nil {
+			t.Fatal(err)
+		}
+		json.Unmarshal(legsB, &e.Legs)
+		json.Unmarshal(evB, &e.Evidence)
+		if err := r.persist(ctx, e, Params{}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var v string
+	if err := pool.QueryRow(ctx, `SELECT verdict FROM fin_opp_eval WHERE inst_id='SHEIN-USDT-SWAP'`).Scan(&v); err != nil || v != "rejected" {
+		t.Fatalf("合成 inst 应 rejected(no_spot_leg) got %q err=%v", v, err)
+	}
+	var reason string
+	pool.QueryRow(ctx, `SELECT evidence->>'reason' FROM fin_opp_eval WHERE inst_id='SHEIN-USDT-SWAP'`).Scan(&reason)
+	if reason != "no_spot_leg" {
+		t.Fatalf("拒因=%q", reason)
+	}
+	var pn int
+	pool.QueryRow(ctx, `SELECT count(*) FROM fin_proposal WHERE inst_id='SHEIN-USDT-SWAP'`).Scan(&pn)
+	if pn != 0 {
+		t.Fatalf("合成 inst 应零提案 got %d", pn)
+	}
+	pool.QueryRow(ctx, `SELECT count(*) FROM fin_proposal WHERE inst_id='TEST-USDT-SWAP'`).Scan(&pn)
+	if pn != 1 {
+		t.Fatalf("正常现货对应照常提案 got %d", pn)
+	}
+	// 黑名单同读面：TEST-USDT-SWAP 入册→后续 persist 拒 blacklisted。
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_venue_untradeable(inst_id,code,msg)
+		VALUES('TEST-USDT-SWAP','51001','stub') ON CONFLICT DO NOTHING`); err != nil {
+		t.Fatal(err)
+	}
+	var eid int64
+	pool.QueryRow(ctx, `SELECT id FROM fin_opp_eval WHERE inst_id='TEST-USDT-SWAP'`).Scan(&eid)
+	var e Eval
+	var legsB, evB []byte
+	if err := pool.QueryRow(ctx, `SELECT inst_id,direction,gross_apr,net_apr,verdict,legs,evidence
+		FROM fin_opp_eval WHERE id=$1`, eid).Scan(&e.InstID, &e.Direction, &e.GrossAPR, &e.NetAPR,
+		&e.Verdict, &legsB, &evB); err != nil {
+		t.Fatal(err)
+	}
+	json.Unmarshal(legsB, &e.Legs)
+	json.Unmarshal(evB, &e.Evidence)
+	e.Verdict = "proposed"
+	if err := r.persist(ctx, e, Params{}); err != nil {
+		t.Fatal(err)
+	}
+	pool.QueryRow(ctx, `SELECT evidence->>'reason' FROM fin_opp_eval WHERE inst_id='TEST-USDT-SWAP'`).Scan(&reason)
+	if reason != "blacklisted" {
+		t.Fatalf("黑名单拒因应 blacklisted got %q", reason)
 	}
 }

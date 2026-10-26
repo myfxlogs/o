@@ -136,7 +136,13 @@ func gapProbeFor(okcli *okxexec.Client) gapscan.Probe {
 // 业主通道——读件缺席=让位 WARN 不炸 boot）。
 func researchArms(ctx context.Context, errc chan<- error, pool *pgxpool.Pool,
 	cfg *config.Client, okcli *okxexec.Client, alerter *notify.Alerter) {
-	go funding.NewRunner(pool, cfg).AttachAlerter(alerter).Run(ctx, errc)
+	fr := funding.NewRunner(pool, cfg)
+	fr.AttachAlerter(alerter)
+	// T-0150 起草闸读件：SPOT 目录复用 market/tickers 全量面（零新端点）。
+	fr.AttachSpotFeed(func(ctx context.Context) ([]byte, error) {
+		return get429(ctx, okcli, "/api/v5/market/tickers?instType=SPOT")
+	})
+	go fr.Run(ctx, errc)
 	go dcd.NewRunner(pool, cfg).AttachFeed(dcdFeedFor(okcli)).
 		AttachCoins(okxCoinsFor(pool, okcli)).AttachAlerter(alerter).Run(ctx, errc)
 	go gapscan.NewRunner(pool, cfg).AttachProbe(gapProbeFor(okcli)).AttachAlerter(alerter).Run(ctx, errc)
