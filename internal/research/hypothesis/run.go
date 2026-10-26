@@ -104,7 +104,9 @@ func (r *Runner) Run(ctx context.Context, errc chan<- error) {
 	events.ListenLoop(ctx, r.pool, "research-hypo", []string{"ev_gap"}, r.scan)
 	// T-0140 信号驱动臂：md_funding INSERT→ev_funding（0028 事件脊）——
 	// 信号语义扫描（背离/突变→假想卡；幂等+Fresh 闸内，事件驱动 D-0008-B 正解）。
-	events.ListenLoop(ctx, r.pool, "research-hypo-sig", []string{"ev_funding"}, r.ScanSignals)
+	// T-0144 验收根修：ListenLoop 阻塞死循环——缺 go 则本臂永不到行
+	// （research-hypo-sig 自 T-0140 起零跑实证——串行调用第二听被首听占死）。
+	go events.ListenLoop(ctx, r.pool, "research-hypo-sig", []string{"ev_funding"}, r.ScanSignals)
 }
 
 // params 判据全 app_config 机读（缺/坏=fail-closed 不起草不虚构判据）。
