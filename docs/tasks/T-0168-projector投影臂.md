@@ -105,3 +105,23 @@ check_rejects_keys✓ check-lines✓ 全仓回归见收口行。
    评审」，本席 D-520 份内先决，决策复核。
 5. 投影官告警走 log 面（feishu 凭据 SG 侧密文——dev 零 master key 不装），
    projector 死亡面由 roster last_beat 陈化覆盖（SG 侧哨）。
+
+## 验收（决策席 2026-10-27 @merge 后落）
+
+**判：PASS——合入 master。**
+
+独立取证：SG 侧六键约束逐一对拍全在（ticks/venue,inst_id·markidx/venue,
+inst_id,channel·signal/kind,key·dcd/venue,product_id·eval id·proposal id·
+macro event_date·funding UQ 待 fin_0066 轮换应用）；check_migrations 七断言/
+build×4/vet 绿；projector 测试 6 桩全过（集外零投影/双向三列回写/杀连自愈/
+macro 覆写/切序守卫两相/60s 闸拒）。
+
+**要害裁**：①跨库 id 键空间守卫=施工捕真坑（md 序列 1 起 vs SG 63.5万
+legacy——裸投即覆写），拒起哨+T-0169 前置清单三件全收；②**本席补一坑**：
+fin_opp_eval 自然键 UNIQUE 与按 id upsert 的毒丸环——setval 不覆盖，已钉
+T-0169 前置（首选 COPY legacy 行入 PG-md）；③载荷/新鲜两锚前置缺席如实
+移交 T-0169 对拍期——票据未声称实测，不收「达标」只收「机制+桩锚」；
+④三帧补全/ListenLoopChan 加法变体/env+import 两册=份内先决合规，收。
+
+票态：✅ 验收合入。T-0169 候派前置：本票机制毕+T-0167 PG-md 在跑——
+剩 SG 轮换窗与三缺清单（见 T-0169 承接段）。
