@@ -84,6 +84,7 @@ internal/research/dcd -> internal/platform/rejects
 internal/research/grammar -> internal/platform/rejects
 internal/research/dcd -> internal/research/armwatch
 internal/research/armwatch -> internal/platform/notify
+internal/research/researcher -> internal/platform/notify
 internal/research/funding -> internal/research/armwatch
 internal/research/gapscan -> internal/research/armwatch
 internal/research/hypothesis -> internal/research/armwatch
