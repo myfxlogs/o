@@ -23,14 +23,16 @@ var critKeys = []string{
 
 // Runner 命官岗：提案→paper 开户→虚拟结算→判据晋升→live 开仓消费（T-0050）。
 type Runner struct {
-	pool *pgxpool.Pool
-	cfg  *config.Client
-	op   Opener
-	rej  *rejects.Door
+	pool   *pgxpool.Pool
+	denyAt map[int64]time.Time // T-0136 ③拒放冷窗（策略→最近拒放戳）
+
+	cfg *config.Client
+	op  Opener
+	rej *rejects.Door
 }
 
 func NewRunner(pool *pgxpool.Pool, cfg *config.Client) *Runner {
-	return &Runner{pool: pool, cfg: cfg,
+	return &Runner{pool: pool, denyAt: map[int64]time.Time{}, cfg: cfg,
 		rej: rejects.New("lifecycle", "illegal_transition", "missing_criteria", "write_err", "live_switch_off", "open_failed", "template_blocked")}
 }
 
@@ -209,5 +211,32 @@ func (r *Runner) retireStaleArmed(ctx context.Context) error {
 	if err == nil && tag.RowsAffected() > 0 {
 		log.Printf("[lifecycle] armed 退役 %d 行（同键只留最新——淤积卫生闸）", tag.RowsAffected())
 	}
-	return err
+	// T-0136 ②armed 超龄退役：提案/策略 armed 超 lifecycle.armed_ttl_h
+	//（缺省 24h）未开火→自动退役+留痕（释放额度预算+T-0069 淤积同族治）。
+	ttl := 24.0
+	if v, err := r.cfg.GetFloat("lifecycle.armed_ttl_h"); err == nil && v > 0 {
+		ttl = v
+	}
+	tag2, err2 := r.pool.Exec(ctx, `UPDATE fin_proposal SET state='fin_retired'
+		WHERE state='fin_armed' AND created_at<now()-make_interval(hours=>$1)`, ttl)
+	if err2 == nil && tag2.RowsAffected() > 0 {
+		log.Printf("[lifecycle] armed 提案超 %.0fh 退役 %d 行（未开火额度释放）", ttl, tag2.RowsAffected())
+	}
+	// 返修①A：策略退役谓词收紧——live/probe 态+无 open 持仓+最近活动戳
+	//（fin_position 末次开仓时间）超 ttl 才退役；有仓/近期开过的不误杀。
+	tag3, err3 := r.pool.Exec(ctx, `UPDATE fin_strategy s SET state='retired'
+		WHERE s.state IN ('live','probe') AND NOT EXISTS(
+			SELECT 1 FROM fin_position p WHERE p.strategy_ref=s.id AND p.closed_at IS NULL)
+		AND COALESCE((SELECT max(p2.opened_at) FROM fin_position p2 WHERE p2.strategy_ref=s.id),
+			s.entered_at)<now()-make_interval(hours=>$1)`, ttl)
+	if err3 == nil && tag3.RowsAffected() > 0 {
+		log.Printf("[lifecycle] armed 策略超 %.0fh 退役 %d 行（未开火额度释放）", ttl, tag3.RowsAffected())
+	}
+	if err != nil {
+		return err
+	}
+	if err2 != nil {
+		return err2
+	}
+	return err3
 }

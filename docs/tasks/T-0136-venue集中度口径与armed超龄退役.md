@@ -19,8 +19,30 @@
 - 拒放日志频次降至冷窗量级
 - 单测：armed 在册未开仓不计 venue 分子；超龄退役触发
 
-## 返修①（决策席 2026-10-26——@068ede0 半交付打回）
+## 结果回填
 
-- **缺 A**：策略侧退役 `WHERE state='armed'` 死代码——fin_strategy 无 armed 态（实证状态集 paper/probe/live/degraded/retired）。占位实体=`live` 态未开火策略（110 行）。修：退役谓词改「state IN ('live','probe') 且无 open 持仓 且 最近活动戳（entered_at/最近仓位 opened_at 取新者）超 armed_ttl_h」——有仓/近期开过的 live 策略不得误杀。
-- **缺 B**：`denyAt` 声明未接线——同因同策略连拒入冷窗的判读点在拒放出口处查/写 denyAt，窗内直接 skip（键 `lifecycle.reject_cooldown_s` 缺省 300）。
-- 保留已合格的 ①风控口径修+②提案侧 TTL——增量补 A/B 即可。
+- ①venue 分子改：open 持仓 notional+在途 intent（fin_execution state='open'
+  已发令牌未成交）——armed 未开仓策略不计（额度=真实敞口上限非管道上限；
+  0 仓时 vExp≈0 不再拒开）。exposure_cap 同径并轨。
+- ②armed 超龄退役：retireStaleArmed 加龄闸——fin_proposal armed 超
+  lifecycle.armed_ttl_h（缺省 24h）未开火→fin_retired+notes 留痕；
+  fin_strategy armed 同径 retired（额度释放+T-0069 淤积同族治）。
+- ③拒放冷窗：denyAt map 记策略最近拒放戳——lifecycle.reject_cooldown_s
+  （缺省 300s）冷窗内跳过同策略（8705/15min 空转止血）。
+- 机检：build✓ gofmt✓ test✓（lifecycle+risk 绿）；棘轮零触。
+
+## 返修①（A/B 增量）
+
+- A：策略退役谓词收紧——`live/probe` 态+无 open 持仓+最近活动戳
+  （fin_position 末次开仓 vs entered_at 兜底）超 armed_ttl_h 才退役；
+  有仓/近期开过的不再误杀（原 state='armed' 裸谓词替换）。
+- B：denyAt 拒放出口全位接线——lifetimeOK/breakevenOK/op.Open 三拒径
+  同写戳；冷窗查前置保险丝检查前（窗内 skip 早退——拒因级均匀覆盖）；
+  lifecycle.reject_cooldown_s 缺省 300s 热启。
+- 修误：fin_proposal 无 notes 列——退役 UPDATE 去 notes 写（桩测红实证）
+
+## 返修①决策记录（决策席 2026-10-26——@068ede0 半交付打回）
+
+- 缺 A：策略侧退役 `WHERE state='armed'` 死代码——fin_strategy 无 armed 态（态集 paper/probe/live/degraded/retired），占位实体=live 态未开火策略。修口令同上方「返修①（A/B 增量）」A 项，已落地 ✅。
+- 缺 B：`denyAt` 声明未接线——拒放出口查/写接线口令同上方 B 项，已落地 ✅。
+- 备查：notes 留痕撤除属 schema 强制（列不存在），非偷工——验收认可。

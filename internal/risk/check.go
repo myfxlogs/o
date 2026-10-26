@@ -114,11 +114,25 @@ func (g *Gate) Check(ctx context.Context, in Intent) Decision {
 			return g.deny(ctx, in, "equity_missing")
 		}
 		eq = eqV
-		// 敞口读面=非退役策略名义额事实行（paper/probe/live/degraded 占额）。
+		// T-0136 口径修：venue 分子=open 持仓名义+在途 intent（已发令牌未
+		// 成交执行行）——armed 策略开火时竞额度非注册时占死（额度本义=真实
+		// 敞口上限非管道上限；armed 未开仓 3.5k 占死额度死锁实证）。
 		_ = g.pool.QueryRow(ctx,
-			"SELECT COALESCE(sum(notional_usd),0) FROM fin_strategy WHERE venue=$1 AND state<>'retired'", in.Venue).Scan(&vExp)
+			`SELECT COALESCE(sum(p.notional_usd),0) FROM fin_position p
+			WHERE p.closed_at IS NULL AND EXISTS(
+			  SELECT 1 FROM fin_strategy s WHERE s.id=p.strategy_ref AND s.venue=$1)`,
+			in.Venue).Scan(&vExp)
+		var inflight float64
 		_ = g.pool.QueryRow(ctx,
-			"SELECT COALESCE(sum(notional_usd),0) FROM fin_strategy WHERE state<>'retired'").Scan(&tExp)
+			`SELECT COALESCE(sum(notional_usd),0) FROM fin_execution
+			WHERE state='open' AND EXISTS(
+			  SELECT 1 FROM fin_strategy s WHERE s.id=strategy_ref AND s.venue=$1)`,
+			in.Venue).Scan(&inflight)
+		vExp += inflight
+		_ = g.pool.QueryRow(ctx,
+			`SELECT COALESCE(sum(x),0) FROM (
+			  SELECT sum(notional_usd) x FROM fin_position WHERE closed_at IS NULL
+			  UNION ALL SELECT sum(notional_usd) FROM fin_execution WHERE state='open') t`).Scan(&tExp)
 		if eq > 0 && (vExp+in.NotionalUSD) > eq*maxPct {
 			return g.deny(ctx, in, "venue_concentration")
 		}
