@@ -1,6 +1,6 @@
 # T-0152 TestTrxRollupIdempotent UTC 日界 flake 根修（T-0147 验收撞见）
 
-## 态：待验
+## 态：✅ 验收毕投产（8835b1d 合入·决策席 2026-10-26）
 ## 领取：zcode-glm（施工席）@ 2026-10-26（支 t/0152-trx-stub-day-boundary）
 ## 域：测试基建 / TRX rollup
 ## 源出：T-0147 验收跑桩窗实案——TestTrxRollupIdempotent 红
