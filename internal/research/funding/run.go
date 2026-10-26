@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -35,12 +36,64 @@ type Runner struct {
 	cfg   *config.Client
 	rej   *rejects.Door
 	watch *armwatch.Watch // 臂活性看门（T-0117——四臂共用件）
+	// T-0150 现货腿存在性预核读件（instruments/SPOT 目录——装配层挂
+	// PublicGet 闭包复用现读面勿新造轮；未挂=预核让位放行 fail-open？否：
+	// 读件未挂=预核缺席如实跳过核（存量行为）——挂线后 fail-closed 生效。
+	spotFeed func(ctx context.Context) ([]byte, error)
+	spotAt   time.Time
+	spots    map[string]bool
+}
+
+// AttachSpotFeed 挂 SPOT 目录读件（T-0150 起草闸——market/tickers 全量
+// 响应 instId 集复用，零新端点）。
+func (r *Runner) AttachSpotFeed(fn func(ctx context.Context) ([]byte, error)) *Runner {
+	r.spotFeed = fn
+	return r
+}
+
+// spotLegOK 现货腿存在性预核（起草闸）：短_perp_long_spot 族的 spot 腿
+// （基币-USDT）须在 venue 目录实有——perp-only 合成器（股权/指数映射类）
+// 永续有 perp 无 spot，提案肥数字全是空气（T-0150 实案）。黑名单
+// fin_venue_untradeable 同读面复用。目录缓存 10min。读败=fail-closed
+// 不起草（宁缺不空气）。
+func (r *Runner) spotLegOK(ctx context.Context, instID string) (bool, string) {
+	base := strings.TrimSuffix(instID, "-USDT-SWAP")
+	spotInst := base + "-USDT"
+	var banned int
+	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_venue_untradeable
+		WHERE inst_id IN ($1,$2)`, instID, spotInst).Scan(&banned); err == nil && banned > 0 {
+		return false, "blacklisted"
+	}
+	if r.spotFeed == nil {
+		return true, "" // 读件未挂=预核缺席（装配层挂线前存量行为）
+	}
+	if r.spots == nil || time.Since(r.spotAt) > 10*time.Minute {
+		raw, err := r.spotFeed(ctx)
+		if err != nil {
+			return false, "spot_catalog_read_failed"
+		}
+		var rows []struct {
+			InstID string `json:"instId"`
+		}
+		if err := json.Unmarshal(raw, &rows); err != nil {
+			return false, "spot_catalog_parse_failed"
+		}
+		r.spots = map[string]bool{}
+		for _, row := range rows {
+			r.spots[row.InstID] = true
+		}
+		r.spotAt = time.Now()
+	}
+	if !r.spots[spotInst] {
+		return false, "no_spot_leg"
+	}
+	return true, ""
 }
 
 func NewRunner(pool *pgxpool.Pool, cfg *config.Client) *Runner {
 	return &Runner{pool: pool, cfg: cfg, watch: armwatch.New("funding 枚举"),
 		rej: rejects.New("research", "missing_params", "stale_funding", "neg_funding_infeasible",
-			"write_err", "earn_rate_degraded")}
+			"write_err", "earn_rate_degraded", "no_spot_leg")}
 }
 
 // AttachAlerter 挂业主告警通道（臂静默——T-0117 返修）。
@@ -169,6 +222,24 @@ func (r *Runner) persist(ctx context.Context, e Eval, p Params) error {
 		return err
 	}
 	if e.Verdict != "proposed" {
+		return nil
+	}
+	// T-0150 起草闸：proposed 提案落卡前核现货腿存在性——无 spot 腿
+	// （perp-only 合成器）=评估行改 infeasible 如实拒绝由，不进提案队列。
+	if ok, why := r.spotLegOK(ctx, e.InstID); !ok {
+		// verdict 闭集（0006 三值）——infeasible 语义落 rejected+拒绝由
+		// （neg_funding_infeasible 同构先例）。
+		if e.Evidence == nil {
+			e.Evidence = map[string]any{}
+		}
+		e.Evidence["reason"] = why
+		ev2, _ := json.Marshal(e.Evidence)
+		if _, err := r.pool.Exec(ctx, `UPDATE fin_opp_eval SET verdict='rejected',
+			evidence=$2 WHERE id=$1`, evalID, ev2); err != nil {
+			return err
+		}
+		r.rej.Inc("no_spot_leg")
+		log.Printf("[research] %s 起草闸拒（%s——perp-only 合成器不进提案队列）", e.InstID, why)
 		return nil
 	}
 	var open int
