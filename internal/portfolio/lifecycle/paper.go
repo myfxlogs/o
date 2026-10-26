@@ -140,3 +140,55 @@ func (r *Runner) promote(ctx context.Context, minH, minNet, maxDD float64, liveS
 func ftoa(f float64) string {
 	return strconv.FormatFloat(f, 'g', -1, 64)
 }
+
+// dcdPaperAccounting dcd_call paper 记账（T-0160 ①paper 径实装：md_dcd_product
+// 最新快照 annualized_yield 按日摊→fin_paper_fill kind='funding'——
+// amount=notional*apr*days/365；quote 缺/过期=fail-closed 跳过不造零）。
+func (r *Runner) dcdPaperAccounting(ctx context.Context) error {
+	rows, err := r.pool.Query(ctx, `SELECT s.id, s.inst_id, s.notional_usd,
+		COALESCE((SELECT max(ts) FROM fin_paper_fill f WHERE f.strategy_id=s.id), s.entered_at)
+		FROM fin_strategy s WHERE s.state='paper' AND s.template_ref='dcd_call'`)
+	if err != nil {
+		return err
+	}
+	type st struct {
+		id       int64
+		inst     string
+		notional float64
+		last     time.Time
+	}
+	var sts []st
+	for rows.Next() {
+		var x st
+		if err := rows.Scan(&x.id, &x.inst, &x.notional, &x.last); err != nil {
+			rows.Close()
+			return err
+		}
+		sts = append(sts, x)
+	}
+	rows.Close()
+	for _, x := range sts {
+		var apr, spot float64
+		var expiry time.Time
+		err := r.pool.QueryRow(ctx, `SELECT annualized_yield,COALESCE(spot,0),expiry FROM md_dcd_product
+			WHERE product_id=$1 ORDER BY ts DESC LIMIT 1`, x.inst).Scan(&apr, &spot, &expiry)
+		if err != nil || apr <= 0 {
+			r.rej.Inc("dcd_quote_missing")
+			continue // quote 面缺=fail-closed 不造零 fill
+		}
+		if time.Now().After(expiry) {
+			continue // 到期=终局由 settle 径（实战归 bills 160-163；paper 期满即收）
+		}
+		days := time.Since(x.last).Hours() / 24
+		if days < 1.0 {
+			continue
+		}
+		if _, err := r.pool.Exec(ctx, `INSERT INTO fin_paper_fill(strategy_id,kind,inst_id,amount_usd,detail,ts)
+			VALUES($1,'funding',$2,$3,$4,now())`,
+			x.id, x.inst, x.notional*apr*days/365,
+			[]byte(`{"apr":`+ftoa(apr)+`,"spot":`+ftoa(spot)+`}`)); err != nil {
+			return err
+		}
+	}
+	return nil
+}

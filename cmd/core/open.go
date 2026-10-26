@@ -6,10 +6,13 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -32,6 +35,9 @@ type hedgeOpener struct {
 // Open live 策略开仓：双帽取小→闸→腿构→原子执行。任一环败=err 上抛
 // （lifecycle 计数续试——ev_strategy 事件驱非热环）。
 func (h hedgeOpener) Open(ctx context.Context, spec lifecycle.OpenSpec) (int64, error) {
+	if spec.Template == "dcd_call" {
+		return h.dcdOpen(ctx, spec) // T-0160 DCD 执行面分派（产品买非双腿原子径）
+	}
 	notional := spec.NotionalUSD
 	// 双帽取小（openfirst 同径：probe_notional/max_notional——缺键 fail-closed）。
 	cap1, e1 := h.cfg.GetFloat("exec.probe_notional_usd")
@@ -159,3 +165,101 @@ func (h hedgeOpener) loadMeta(ctx context.Context, iid string) (execution.InstMe
 	m, err := h.cli.InstrumentMeta(ctx, it, iid)
 	return execution.InstMeta{CtVal: m.CtVal, CtValCcy: m.CtValCcy, LotSz: m.LotSz, MinSz: m.MinSz}, err
 }
+
+// dcdOpen DCD 产品开仓（T-0160 ②executor：quote 重取→trade→order-status
+// 对拍→fin_execution/fin_position 落位——陈旧提案 productId 重 quote 不盲执；
+// clOrdId=幂等键，歧态势=禁补单走 order-status 定真态）。
+func (h hedgeOpener) dcdOpen(ctx context.Context, spec lifecycle.OpenSpec) (int64, error) {
+	// 陈旧提案闸：按 spec.InstID=productId 重取 quote——产品失效=弃权如实。
+	if _, err := h.cli.DcdQuote(ctx, spec.InstID, dcdSz(spec.NotionalUSD)); err != nil {
+		return 0, fmt.Errorf("dcd quote 失效弃权（陈旧提案不盲执）: %w", err)
+	}
+	// 风控过闸同 carry 仓（notional/exposure 谓词现行；Legs 记 dcd 单腿形）。
+	dec := h.gate.Check(ctx, risk.Intent{StrategyRef: spec.StrategyRef, Venue: spec.Venue,
+		InstID: spec.InstID, Legs: []string{"dcd_call_buy"},
+		NotionalUSD: spec.NotionalUSD, Leverage: 1, Kind: "open"})
+	if !dec.Allow {
+		return 0, fmt.Errorf("闸拒: %s", dec.Reason)
+	}
+	var execID int64
+	if err := h.pool.QueryRow(ctx, `INSERT INTO fin_execution(strategy_ref,decision_id,inst_id,notional_usd,state)
+		VALUES($1,$2,$3,$4,'open') RETURNING id`,
+		spec.StrategyRef, dec.DecisionID, spec.InstID, spec.NotionalUSD).Scan(&execID); err != nil {
+		return 0, err
+	}
+	clOrdID := fmt.Sprintf("dcd%dx%d", execID, time.Now().Unix()%1e9)
+	raw, err := h.cli.DcdTrade(ctx, spec.InstID, dcdSz(spec.NotionalUSD), clOrdID)
+	if err != nil {
+		// 传输/超时败=歧态势：禁补单——exec 行待人工/读件定真态（okx-exec 纪律）。
+		_, _ = h.pool.Exec(ctx, "UPDATE fin_execution SET state='ambiguous' WHERE id=$1", execID)
+		return execID, fmt.Errorf("dcd trade 歧态势禁补单（exec_id=%d）: %w", execID, err)
+	}
+	var rows []struct {
+		OrdID string `json:"ordId"`
+		SCode string `json:"sCode"`
+		SMsg  string `json:"sMsg"`
+	}
+	if err := json.Unmarshal(raw, &rows); err != nil || len(rows) == 0 {
+		_, _ = h.pool.Exec(ctx, "UPDATE fin_execution SET state='ambiguous' WHERE id=$1", execID)
+		return execID, fmt.Errorf("dcd trade 响应解析败（歧态势禁补单）: %v", err)
+	}
+	if rows[0].SCode != "0" {
+		_, _ = h.pool.Exec(ctx, "UPDATE fin_execution SET state='failed',venue_err=$1 WHERE id=$2",
+			rows[0].SCode+":"+rows[0].SMsg, execID)
+		return execID, fmt.Errorf("dcd 业务拒 %s: %s", rows[0].SCode, rows[0].SMsg)
+	}
+	// order-status 对拍定真态（T-0160 返修①：读败/空态→ambiguous 禁默认
+	// LIVE 造仓——歧态势禁补单纪律同 clOrdId 律；exec 行待查证非吞）。
+	oraw, serr := h.cli.DcdOrderStatus(ctx, rows[0].OrdID)
+	var state string
+	if serr == nil {
+		var orows []struct {
+			State string `json:"state"`
+		}
+		if json.Unmarshal(oraw, &orows) == nil && len(orows) > 0 {
+			state = orows[0].State
+		}
+	}
+	if serr != nil || state == "" {
+		_, _ = h.pool.Exec(ctx, "UPDATE fin_execution SET state='ambiguous' WHERE id=$1", execID)
+		return execID, fmt.Errorf("order-status 读败/空态（歧态势禁补单——exec_id=%d 待查证非默认 LIVE 造仓）: %w", execID, serr)
+	}
+	// T-0160 返修⑤：exec 状态更新+position 落位同事务（position 写败→
+	// exec orphan 标非半成——歧态势=exec 行在仓行缺=查证面不吞）。
+	tx, err := h.pool.Begin(ctx)
+	if err != nil {
+		return execID, err
+	}
+	var pid int64
+	if err := tx.QueryRow(ctx, `INSERT INTO fin_position(execution_id,strategy_ref,inst_id,notional_usd,opened_at)
+		VALUES($1,$2,$3,$4,now()) RETURNING id`, execID, spec.StrategyRef, spec.InstID, spec.NotionalUSD).Scan(&pid); err != nil {
+		_ = tx.Rollback(ctx)
+		_, _ = h.pool.Exec(ctx, "UPDATE fin_execution SET state='orphan' WHERE id=$1", execID)
+		return execID, fmt.Errorf("position 落位败（exec orphan 标）: %w", err)
+	}
+	estate := dcdExecState(state)
+	if estate == "" {
+		_ = tx.Rollback(ctx)
+		_, _ = h.pool.Exec(ctx, "UPDATE fin_execution SET state='ambiguous' WHERE id=$1", execID)
+		return execID, fmt.Errorf("order-status 态 %q 未载映射表（禁默认 open 造仓——歧态势）", state)
+	}
+	if _, err := tx.Exec(ctx, "UPDATE fin_execution SET state=$1 WHERE id=$2", estate, execID); err != nil {
+		_ = tx.Rollback(ctx)
+		return execID, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return execID, err
+	}
+	log.Printf("[lifecycle] DCD 开仓 exec=%d pos=%d ordId=%s state=%s", execID, pid, rows[0].OrdID, state)
+	return execID, nil
+}
+
+// dcdExecState order-status 态→fin_execution 态映射（T-0160 返修⑤桩锚件——
+// 未载态=空串让位（禁默认 open）；歧态势由调用径置 ambiguous）。
+func dcdExecState(vstate string) string {
+	return map[string]string{"LIVE": "open", "SETTLED": "closed", "CANCELLED": "failed"}[vstate]
+}
+
+// dcdSz 数量格式化（venue sz 方言拒 sci——FormatFloat f,-1 去指数形；
+// T-0160 返修②实证锚）。
+func dcdSz(v float64) string { return strconv.FormatFloat(v, 'f', -1, 64) }

@@ -128,3 +128,30 @@ func TestIngestPaginationStopsAtKnown(t *testing.T) {
 		t.Fatalf("重放应 0 got=%d", n)
 	}
 }
+
+// T-0160 ④锚：bills subType 160-163 入 instTypesAll 引账——dcd 资金流水
+// 四类行照 kind 分账（160 扣款=earn_out/161-163 回款收益退款=earn_in）。
+func TestIngestDcdSubTypes(t *testing.T) {
+	ctx, pool := setup(t)
+	nowMs := time.Now().UnixMilli()
+	bills := []Bill{
+		{BillID: "d160", SubType: "160", InstType: "ASSET", Ccy: "USDT", TsMs: nowMs, BalChg: -100, Raw: []byte(`{}`)},
+		{BillID: "d161", SubType: "161", InstType: "ASSET", Ccy: "USDT", TsMs: nowMs + 1, BalChg: 100, Raw: []byte(`{}`)},
+		{BillID: "d162", SubType: "162", InstType: "ASSET", Ccy: "USDT", TsMs: nowMs + 2, BalChg: 2.5, Raw: []byte(`{}`)},
+		{BillID: "d163", SubType: "163", InstType: "ASSET", Ccy: "USDT", TsMs: nowMs + 3, BalChg: 0.5, Raw: []byte(`{}`)},
+	}
+	ing := NewIngester(pool, fakeSrc{pages: map[string][]Bill{"": bills}})
+	n, err := ing.Ingest(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 4 {
+		t.Fatalf("dcd 四行应入账: %d", n)
+	}
+	var out, in float64
+	_ = pool.QueryRow(ctx, "SELECT COALESCE(sum(amount),0) FROM fin_cashflow WHERE kind='earn_out'").Scan(&out)
+	_ = pool.QueryRow(ctx, "SELECT COALESCE(sum(amount),0) FROM fin_cashflow WHERE kind='earn_in'").Scan(&in)
+	if out != -100 || in != 103 {
+		t.Fatalf("earn_out=%v earn_in=%v 应 -100/103", out, in)
+	}
+}

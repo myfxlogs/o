@@ -34,7 +34,7 @@ type Runner struct {
 func NewRunner(pool *pgxpool.Pool, cfg *config.Client) *Runner {
 	return &Runner{pool: pool, denyAt: map[int64]time.Time{}, cfg: cfg,
 		rej: rejects.New("lifecycle", "illegal_transition", "missing_criteria", "write_err", "live_switch_off", "open_failed", "template_blocked", "xvenue_open_forbidden", "blacklist_retire",
-			"facts_missing", "missing_param", "oscillation_fuse")}
+			"facts_missing", "missing_param", "oscillation_fuse", "dcd_quote_missing")}
 }
 
 func (r *Runner) Run(ctx context.Context, errc chan<- error) {
@@ -82,6 +82,9 @@ func (r *Runner) scan(ctx context.Context) error {
 	if err := r.admitProposals(ctx, notional, minH, minNet, maxDD); err != nil {
 		return err
 	}
+	if err := r.dcdPaperAccounting(ctx); err != nil {
+		log.Printf("[lifecycle] dcd paper 记账败: %v", err)
+	}
 	if err := r.paperAccounting(ctx); err != nil {
 		return err
 	}
@@ -95,7 +98,7 @@ func (r *Runner) scan(ctx context.Context) error {
 
 // paperTemplates 有 paper 径的模板族白名单（T-0124 模板门闸——无 executor 的
 // 模板提案不晋升，留 fin_proposed 待 executor 票；扩张新族须在此登记）。
-var paperTemplates = map[string]bool{"funding-hedge": true}
+var paperTemplates = map[string]bool{"funding-hedge": true, "dcd_call": true} // T-0160：dcd_call 接 paper 径
 
 // admitProposals 新提案开户（state=paper；criteria 快照入行——判据代次留痕；
 // 模板门闸：join fin_opp_eval 取模板，无 paper 径族拦下不建策略）。

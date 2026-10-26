@@ -27,7 +27,10 @@ type Bill struct {
 // Bills GET /account/bills（instType 过滤，新→旧序，limit=100/页）。
 // afterBillID 非空=取该账单之前（更旧）一页——分页游标。
 func (c *Client) Bills(ctx context.Context, instType, afterBillID string) ([]Bill, error) {
-	q := "/api/v5/account/bills?instType=" + instType + "&limit=100"
+	q := "/api/v5/account/bills?limit=100"
+	if instType != "" {
+		q += "&instType=" + instType // T-0160 ③空串=无过滤全谱（ASSET 非法参 51000 实证——dcd 160-163 唯捕获径）
+	}
 	if afterBillID != "" {
 		q += "&after=" + afterBillID
 	}
