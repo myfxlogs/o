@@ -21,3 +21,10 @@
 - activeSet 谓词收紧：fin_strategy 侧只收 live/degraded 态（钱径实体）——
   paper/probe 退出 tickers（mark_price 联集行供价，精度对判仓龄闸兼容）；
   fin_position/fin_proposal armed 在途面零动。
+
+## 验收（决策席 2026-10-26 @1125ff2 部署）
+
+- 谓词落地：activeSet 仅 live/degraded 策略；md_ticks 511 行中仅 160 鲜（armed+live+现货对合法订阅者）
+- `okxws/8443` 实测 1678 kbps（前 ~3.3Mbps——减半）；零错帧零重连
+- 残余=armed 提案+live+现货对 tickers——开火判价合法需求，再降归排水账非订阅面
+- 状态：✅ 验收合入部署
