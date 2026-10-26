@@ -10,10 +10,15 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// projectEvals 评估桥投影（谓词=仅被 fin_proposal 引用的行——D-0030 §三）。
+// projectEvals 评估桥投影（serve 谓词=仅被 fin_proposal 引用的行——D-0030 §三；
+// dualwrite=全量旁写）。
 func (r *Runner) projectEvals(ctx context.Context) error {
 	wm := r.getWm("fin_opp_eval")
-	rows, err := r.md.Query(ctx, qEvalFresh, wm)
+	q := qEvalFresh
+	if r.dualwrite {
+		q = qEvalDual
+	}
+	rows, err := r.md.Query(ctx, q, wm)
 	if err != nil {
 		return fmt.Errorf("eval 查询: %w", err)
 	}
@@ -124,55 +129,6 @@ func (r *Runner) projectProposalsByID(ctx context.Context, ids []int64) error {
 	}
 	r.bumpPropWm(maxID) // 批成后推进——批败行留窗（活性对账 max-id 径兜住）
 	return nil
-}
-
-// projectMacro 宏观日历全表 diff（~30 行 event_date 键——无 ts 全列覆写语义）。
-func (r *Runner) projectMacro(ctx context.Context) error {
-	mdRows, err := r.md.Query(ctx, qMacroAll)
-	if err != nil {
-		return fmt.Errorf("macro md: %w", err)
-	}
-	type ev struct {
-		date   time.Time
-		kind   string
-		brief  string
-		source string
-	}
-	want := map[time.Time]ev{}
-	defer mdRows.Close()
-	for mdRows.Next() {
-		var e ev
-		if err := mdRows.Scan(&e.date, &e.kind, &e.brief, &e.source); err != nil {
-			return err
-		}
-		want[e.date] = e
-	}
-	if err := mdRows.Err(); err != nil {
-		return err
-	}
-	have := map[time.Time]ev{}
-	sgRows, err := r.sg.Query(ctx, `SELECT event_date,kind,title,source FROM md_macro_event`)
-	if err != nil {
-		return fmt.Errorf("macro sg: %w", err)
-	}
-	defer sgRows.Close()
-	for sgRows.Next() {
-		var e ev
-		if err := sgRows.Scan(&e.date, &e.kind, &e.brief, &e.source); err != nil {
-			return err
-		}
-		have[e.date] = e
-	}
-	if err := sgRows.Err(); err != nil {
-		return err
-	}
-	var batch [][]any
-	for d, e := range want {
-		if h, ok := have[d]; !ok || h != e {
-			batch = append(batch, []any{e.date, e.kind, e.brief, e.source})
-		}
-	}
-	return batchExec(ctx, r.sg, uMacro, batch)
 }
 
 // repairProposalStates 反向回写（SG state 列组=正本——D-0030 写权矩阵）：

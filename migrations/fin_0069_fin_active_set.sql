@@ -47,3 +47,10 @@ CREATE OR REPLACE TRIGGER fin_active_set_strategy_trg
 INSERT INTO fin_data_retention(table_name,class,note)
 VALUES ('fin_active_set','state','状态表不删行——活跃集发布面（projector 谓词源）')
 ON CONFLICT (table_name) DO NOTHING;
+
+-- T-0169 承接段（T-0167 验收钉入）：种子回填——触发器只随行变入集，建表时
+-- 已存在的 open 仓/非 retired 策略不入集=谓词源空集。一行幂等回填（轮换即装）。
+INSERT INTO fin_active_set(inst_id)
+SELECT inst_id FROM fin_position WHERE closed_at IS NULL
+UNION SELECT inst_id FROM fin_strategy WHERE state <> 'retired'
+ON CONFLICT (inst_id) DO NOTHING;

@@ -9,6 +9,36 @@ import (
 	"time"
 )
 
+// guards boot 前置：SG 侧帧源在位（fin_0070——o-core 轮换前置）/跨库 id 键空间
+// 切序前置（T-0169 setval——md 新序列撞 SG legacy id=镜像覆写 legacy 行，实害）。
+func (r *Runner) guards(ctx context.Context) error {
+	var n int
+	err := r.sg.QueryRow(ctx, `SELECT count(*) FROM pg_trigger WHERE tgname='ev_proposal_sg_trg'
+		AND tgrelid='fin_proposal'::regclass`).Scan(&n)
+	if err != nil {
+		return fmt.Errorf("SG 触发器探针: %w", err)
+	}
+	if n == 0 {
+		return fmt.Errorf("SG 侧 ev_proposal_sg_trg 缺席（fin_0070 未应用——o-core 须先轮换再起投影臂）")
+	}
+	for _, g := range []struct{ seq, tbl string }{
+		{"fin_proposal_id_seq", "fin_proposal"}, {"fin_opp_eval_id_seq", "fin_opp_eval"},
+	} {
+		var mdNext, sgMax int64
+		if err := r.md.QueryRow(ctx, "SELECT last_value FROM "+g.seq).Scan(&mdNext); err != nil {
+			return fmt.Errorf("md %s 读序: %w", g.seq, err)
+		}
+		if err := r.sg.QueryRow(ctx, "SELECT COALESCE(max(id),0) FROM "+g.tbl).Scan(&sgMax); err != nil {
+			return fmt.Errorf("sg %s max: %w", g.tbl, err)
+		}
+		if mdNext <= sgMax {
+			return fmt.Errorf("跨库 id 键空间相撞：md %s next=%d ≤ SG %s max=%d——"+
+				"T-0169 切换前置 setval（md 序列抬过 SG legacy max）后始可投影", g.seq, mdNext, g.tbl, sgMax)
+		}
+	}
+	return nil
+}
+
 // Reconcile 对账：谓词自算→回写态修复→正向缺口补投影→macro diff→ts 面重刷。
 func (r *Runner) Reconcile(ctx context.Context, full bool) error {
 	if err := r.refreshSets(ctx); err != nil {
@@ -22,6 +52,9 @@ func (r *Runner) Reconcile(ctx context.Context, full bool) error {
 	}
 	if err := r.projectMacro(ctx); err != nil {
 		return fmt.Errorf("macro diff: %w", err)
+	}
+	if err := r.syncConfig(ctx); err != nil {
+		return fmt.Errorf("config 副本同步: %w", err)
 	}
 	if err := r.replayTsTables(ctx, full); err != nil {
 		return err
@@ -100,6 +133,9 @@ func (r *Runner) repairForwardGap(ctx context.Context, full bool) error {
 	}
 	q := `SELECT e.id FROM fin_opp_eval e WHERE e.id>$1
 		AND EXISTS (SELECT 1 FROM fin_proposal p WHERE p.eval_id=e.id)`
+	if r.dualwrite { // 旁写泵：全量增量（引用谓词不设——SG 旧行为保真）
+		q = `SELECT id FROM fin_opp_eval WHERE id>$1`
+	}
 	rows, err := r.md.Query(ctx, q, eMax)
 	if err != nil {
 		return err
@@ -147,7 +183,7 @@ func (r *Runner) replayTsTables(ctx context.Context, full bool) error {
 		if wm.Before(since) {
 			wm = since
 		}
-		rows, err := r.md.Query(ctx, p.query, wm, p.set(r))
+		rows, err := r.queryTs(ctx, p, wm)
 		if err != nil {
 			return fmt.Errorf("%s 重刷: %w", p.wmKey, err)
 		}

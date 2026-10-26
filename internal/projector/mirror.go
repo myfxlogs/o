@@ -46,6 +46,25 @@ const qEvalByID = `SELECT id,ts,inst_id,template,direction,gross_apr,net_apr,ver
 
 const qMacroAll = `SELECT event_date,kind,title,source FROM md_macro_event ORDER BY event_date`
 
+// dualwrite 旁写泵变体（T-0169 对拍期——无谓词全量搬运：SG 旧行为保真，旁写语义）。
+const qTicksDual = `SELECT ts,venue,inst_id,last,bid,ask,vol_24h,recv_ts FROM md_ticks WHERE ts>$1 ORDER BY ts`
+const qMarkIdxDual = `SELECT ts,venue,inst_id,channel,px,recv_ts FROM md_mark_index WHERE ts>$1 ORDER BY ts`
+const qFundingDual = `SELECT ts,venue,inst_id,funding_rate,next_funding_rate,next_funding_ts,recv_ts FROM md_funding WHERE ts>$1 ORDER BY ts`
+const qSignalDual = `SELECT kind,key,val,meta,ts FROM md_signal WHERE ts>$1 ORDER BY ts`
+const qDcdDual = `SELECT ts,venue,surface,uly,product_id,direction,strike,expiry,annualized_yield,min_size,max_size,spot,raw
+	FROM md_dcd_product WHERE ts>$1 ORDER BY ts`
+const qEvalDual = `SELECT e.id,e.ts,e.inst_id,e.template,e.direction,e.gross_apr,e.net_apr,e.verdict,e.legs,e.evidence
+	FROM fin_opp_eval e WHERE e.ts>$1 ORDER BY e.ts`
+
+const qConfigAll = `SELECT key,value::text,generation,updated_at FROM app_config ORDER BY key`
+
+const uConfig = `INSERT INTO app_config(key,value,generation,updated_at)
+	VALUES($1,$2::jsonb,$3,$4::timestamptz)
+	ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value,generation=EXCLUDED.generation,
+		updated_at=EXCLUDED.updated_at`
+
+const dConfigGone = `DELETE FROM app_config WHERE key=ANY($1)`
+
 // SG 落地面（镜像侧 upsert——per-table 键/新旧判照 D-0030 §六表）。
 
 const uTicks = `INSERT INTO md_ticks(ts,venue,inst_id,last,bid,ask,vol_24h,recv_ts)

@@ -11,17 +11,19 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// tsProjection ts 判桥表的通道绑定（query $1=水印 $2=键集）。
+// tsProjection ts 判桥表的通道绑定（query $1=水印 $2=键集；queryDual=dualwrite
+// 旁写泵无谓词变体——$2 不传）。
 type tsProjection struct {
-	wmKey  string
-	query  string
-	upsert string
-	set    func(*Runner) []string
-	scan   func(pgx.Rows) ([][]any, time.Time, error)
+	wmKey     string
+	query     string
+	queryDual string
+	upsert    string
+	set       func(*Runner) []string
+	scan      func(pgx.Rows) ([][]any, time.Time, error)
 }
 
 var tsProjections = map[string]tsProjection{
-	"ev_ticks": {"md_ticks", qTicks, uTicks,
+	"ev_ticks": {"md_ticks", qTicks, qTicksDual, uTicks,
 		func(r *Runner) []string { return r.activeList() },
 		func(rows pgx.Rows) ([][]any, time.Time, error) {
 			defer rows.Close()
@@ -42,7 +44,7 @@ var tsProjections = map[string]tsProjection{
 			}
 			return out, max, rows.Err()
 		}},
-	"ev_markidx": {"md_mark_index", qMarkIdx, uMarkIdx,
+	"ev_markidx": {"md_mark_index", qMarkIdx, qMarkIdxDual, uMarkIdx,
 		func(r *Runner) []string { return r.activeList() },
 		func(rows pgx.Rows) ([][]any, time.Time, error) {
 			defer rows.Close()
@@ -63,7 +65,7 @@ var tsProjections = map[string]tsProjection{
 			}
 			return out, max, rows.Err()
 		}},
-	"ev_funding": {"md_funding", qFunding, uFunding,
+	"ev_funding": {"md_funding", qFunding, qFundingDual, uFunding,
 		func(r *Runner) []string { return r.activeList() },
 		func(rows pgx.Rows) ([][]any, time.Time, error) {
 			defer rows.Close()
@@ -84,7 +86,7 @@ var tsProjections = map[string]tsProjection{
 			}
 			return out, max, rows.Err()
 		}},
-	"ev_signal": {"md_signal", qSignal, uSignal,
+	"ev_signal": {"md_signal", qSignal, qSignalDual, uSignal,
 		func(r *Runner) []string { return r.activeList() },
 		func(rows pgx.Rows) ([][]any, time.Time, error) {
 			defer rows.Close()
@@ -105,7 +107,7 @@ var tsProjections = map[string]tsProjection{
 			}
 			return out, max, rows.Err()
 		}},
-	"ev_dcd": {"md_dcd_product", qDcd, uDcd,
+	"ev_dcd": {"md_dcd_product", qDcd, qDcdDual, uDcd,
 		func(r *Runner) []string { return r.dcdSet() },
 		func(rows pgx.Rows) ([][]any, time.Time, error) {
 			defer rows.Close()
@@ -131,6 +133,14 @@ var tsProjections = map[string]tsProjection{
 		}},
 }
 
+// queryTs mode 感知查询（serve=谓词切片；dualwrite=无谓词旁写变体）。
+func (r *Runner) queryTs(ctx context.Context, p tsProjection, wm time.Time) (pgx.Rows, error) {
+	if r.dualwrite {
+		return r.md.Query(ctx, p.queryDual, wm)
+	}
+	return r.md.Query(ctx, p.query, wm, p.set(r))
+}
+
 // projectTsTable 单 ts 桥表谓词切片投影（水印后增量）。
 func (r *Runner) projectTsTable(ctx context.Context, ch string) error {
 	p, ok := tsProjections[ch]
@@ -138,7 +148,7 @@ func (r *Runner) projectTsTable(ctx context.Context, ch string) error {
 		return nil
 	}
 	wm := r.getWm(p.wmKey)
-	rows, err := r.md.Query(ctx, p.query, wm, p.set(r))
+	rows, err := r.queryTs(ctx, p, wm)
 	if err != nil {
 		return fmt.Errorf("%s 查询: %w", p.wmKey, err)
 	}

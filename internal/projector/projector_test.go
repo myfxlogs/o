@@ -27,7 +27,25 @@ func runner(t *testing.T) (*Runner, *pgxpool.Pool, *pgxpool.Pool) {
 	if err := pgstore.Migrate(ctx, sg, "fin"); err != nil {
 		t.Fatalf("migrate fin: %v", err)
 	}
-	r, err := New(md, sg, nil)
+	r, err := New(md, sg, nil, "serve")
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	return r, md, sg
+}
+
+func runnerDual(t *testing.T) (*Runner, *pgxpool.Pool, *pgxpool.Pool) {
+	t.Helper()
+	ctx := context.Background()
+	md := testutil.Pool(t)
+	sg := testutil.Pool(t)
+	if err := pgstore.Migrate(ctx, md, "md"); err != nil {
+		t.Fatalf("migrate md: %v", err)
+	}
+	if err := pgstore.Migrate(ctx, sg, "fin"); err != nil {
+		t.Fatalf("migrate fin: %v", err)
+	}
+	r, err := New(md, sg, nil, "dualwrite")
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -323,5 +341,67 @@ func TestMirrorStaleSizingFailClosed(t *testing.T) {
 	}
 	if _, err := execution.LatestPx(ctx, sg, "BTC-USDT-SWAP"); err == nil {
 		t.Fatal("镜像 ts 陈>60s 应拒（sizing fail-closed）")
+	}
+}
+
+// TestDualwriteBypassPredicate 对拍旁写泵：无谓词全量搬运（集外行也投影——
+// SG 旧行为保真，对拍口径一致）。
+func TestDualwriteBypassPredicate(t *testing.T) {
+	ctx := context.Background()
+	r, md, sg := runnerDual(t)
+	seedActive(t, sg) // BTC 集内；ETH 集外——dualwrite 不分
+	seedMdFacts(t, md)
+	if err := r.Reconcile(ctx, true); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if n := count(t, sg, "SELECT count(*) FROM md_ticks"); n != 2 {
+		t.Fatalf("dualwrite 集外也投影（应 2 行）: %d", n)
+	}
+	if n := count(t, sg, "SELECT count(*) FROM md_signal WHERE kind='basis_ann'"); n != 1 {
+		t.Fatalf("dualwrite 全 kinds（basis_ann 应在）: %d", n)
+	}
+}
+
+// TestConfigReplicaSync 第九桥副本：正本 diff 副本+删陈+热启帧回灌语义（行变才通知）。
+func TestConfigReplicaSync(t *testing.T) {
+	ctx := context.Background()
+	r, md, sg := runner(t)
+	if _, err := sg.Exec(ctx, `INSERT INTO app_config(key,value) VALUES('probe.tick_age','90')`); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.syncConfig(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var v string
+	if err := md.QueryRow(ctx, "SELECT value::text FROM app_config WHERE key='probe.tick_age'").Scan(&v); err != nil {
+		t.Fatalf("副本应落: %v", err)
+	}
+	if v != "90" {
+		t.Fatalf("副本值应 verbatim: %s", v)
+	}
+	// 正本改值→副本覆写；正本删键→副本删陈。
+	if _, err := sg.Exec(ctx, `UPDATE app_config SET value='"120"' WHERE key='probe.tick_age'`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sg.Exec(ctx, `INSERT INTO app_config(key,value) VALUES('tmp.k','"x"')`); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.syncConfig(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := md.QueryRow(ctx, "SELECT value::text FROM app_config WHERE key='probe.tick_age'").Scan(&v); err != nil || v != `"`+"120"+`"` {
+		t.Fatalf("副本应覆写（jsonb 文本形含引号）: %s %v", v, err)
+	}
+	if n := count(t, md, "SELECT count(*) FROM app_config WHERE key='tmp.k'"); n != 1 {
+		t.Fatal("新键应副本")
+	}
+	if _, err := sg.Exec(ctx, "DELETE FROM app_config WHERE key='tmp.k'"); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.syncConfig(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if n := count(t, md, "SELECT count(*) FROM app_config WHERE key='tmp.k'"); n != 0 {
+		t.Fatal("正本删键副本应删陈")
 	}
 }
