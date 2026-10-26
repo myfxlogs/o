@@ -1,6 +1,7 @@
 # T-0151 黑名单回扫覆面补 probe/degraded 态（T-0147 验收衍生）
 
-## 态：待施工
+## 态：施工中
+## 领取：zcode-o-7d3f @ 2026-10-26
 ## 域：执行径 / venue 终局分类
 ## 源出：T-0147 验收生产窗实案——0061 trigger 谓词只覆
   live/paper/proposed 三态，策略 286181（SHEIN-USDT-SWAP）probe 态
