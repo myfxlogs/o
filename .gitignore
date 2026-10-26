@@ -5,9 +5,9 @@ bin/
 logs/
 web/node_modules
 web/dist/
-web/src/gen/
-internal/gen/
-internal/data/adapter/gen/
+web/src/gen
+internal/gen
+internal/data/adapter/gen
 /openfirst
 
 # go build 落仓根二进制残渣族（openfirst/billsaudit 实证两犯——工具二进制禁入库）

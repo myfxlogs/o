@@ -101,11 +101,11 @@ func (r *Runner) Run(ctx context.Context, errc chan<- error) {
 		return
 	}
 	go roster.BeatLoop(ctx, r.pool, "假想官", 30*time.Second, errc)
-	events.ListenLoop(ctx, r.pool, "research-hypo", []string{"ev_gap"}, r.scan)
+	// T-0144 验收根修：ListenLoop 阻塞死循环——双耳皆须 go，任一同步调用
+	// 都会把其后的行占死（首轮返修只给第二听加 go=没修，死臂实证才抓出）。
+	go events.ListenLoop(ctx, r.pool, "research-hypo", []string{"ev_gap"}, r.scan)
 	// T-0140 信号驱动臂：md_funding INSERT→ev_funding（0028 事件脊）——
 	// 信号语义扫描（背离/突变→假想卡；幂等+Fresh 闸内，事件驱动 D-0008-B 正解）。
-	// T-0144 验收根修：ListenLoop 阻塞死循环——缺 go 则本臂永不到行
-	// （research-hypo-sig 自 T-0140 起零跑实证——串行调用第二听被首听占死）。
 	go events.ListenLoop(ctx, r.pool, "research-hypo-sig", []string{"ev_funding"}, r.ScanSignals)
 }
 
