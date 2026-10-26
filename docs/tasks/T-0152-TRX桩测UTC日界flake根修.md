@@ -1,6 +1,7 @@
 # T-0152 TestTrxRollupIdempotent UTC 日界 flake 根修（T-0147 验收撞见）
 
-## 态：待施工
+## 态：施工中
+## 领取：zcode-glm（施工席）@ 2026-10-26
 ## 域：测试基建 / TRX rollup
 ## 源出：T-0147 验收跑桩窗实案——TestTrxRollupIdempotent 红
   `voting=0（应 2=Δreward 正增量）`。UTC 06:50 实拍：桩插入
