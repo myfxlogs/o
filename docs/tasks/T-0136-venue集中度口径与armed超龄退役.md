@@ -46,3 +46,9 @@
 - 缺 A：策略侧退役 `WHERE state='armed'` 死代码——fin_strategy 无 armed 态（态集 paper/probe/live/degraded/retired），占位实体=live 态未开火策略。修口令同上方「返修①（A/B 增量）」A 项，已落地 ✅。
 - 缺 B：`denyAt` 声明未接线——拒放出口查/写接线口令同上方 B 项，已落地 ✅。
 - 备查：notes 留痕撤除属 schema 强制（列不存在），非偷工——验收认可。
+
+## 验收（决策席 2026-10-26 @0b0bcf4 部署）
+
+- 三锚全落：venue 口径修上线；armed 退役 996 提案+82 策略（TTL 热启收紧 4h——armed_ttl_h=4 已落 app_config）；拒放 0/3min（原 580/min）
+- RX 4767→2273 kbps 排水进行式（probe/paper 队列 4h 陈化中，趋势向下）
+- 状态：✅ 验收合入部署
