@@ -267,3 +267,20 @@ func ctValReader(okcli *okxexec.Client) func(ctx context.Context, venue, instID 
 		return m.CtVal, true
 	}
 }
+
+// okxFundingAvailUSDT funding 户 USDT 闲余（T-0149 ②——/asset/balances REST
+// 低频件；入金天然落 funding 面钦定补漏；无行=0 不误报）。
+func okxFundingAvailUSDT(ctx context.Context, okcli *okxexec.Client) (float64, error) {
+	rows, err := okcli.AssetBalances(ctx)
+	if err != nil {
+		return 0, err
+	}
+	for _, r := range rows {
+		if r.Ccy == "USDT" {
+			var v float64
+			fmt.Sscanf(r.AvailBal, "%f", &v)
+			return v, nil
+		}
+	}
+	return 0, nil
+}

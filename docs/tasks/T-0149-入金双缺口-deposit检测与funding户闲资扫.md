@@ -35,3 +35,15 @@
 - 手工处置档（决策席代机件）：fin_venue_bill id=699780（dep-440867191
   raw venue JSON）、fin_cashflow id=212（deposit 2000）、
   fin_risk_decision id=32942（earn_deposit 2000）、earn_parking 快照行。
+
+## 结果回填
+
+- ①deposit 检测径：internal/ledger/funding/deposit.go——deposit-history
+  state=2 完成行→fin_venue_bill（bill_id=dep-<depId> 幂等键）→
+  fin_cashflow kind='deposit'（source_ref 引用链禁推断记账）；同挂
+  billsHook 事件帧同拍扫（无推送面=REST 补漏正当面）。
+- ②funding 户闲资扫入 sweepIdle：AttachIdleFunding（/asset/balances
+  USDT availBal 现读件）——funding 段超阈直 SavingsPurchase 单跳零
+  摆渡；交易户段三跳零动；58350/歧态同规 fail-closed。
+- 桩锚双绿：TestDepositScanIdempotent（重复巡检不重账+非完成态不入账）、
+  TestFundingIdleDirectPurchase（funding 500 直购零摆渡）。
