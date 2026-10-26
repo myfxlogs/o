@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -79,8 +80,12 @@ func (x *Sentinel) Run(ctx context.Context) {
 }
 
 // Check 一拍：命中即告警一次（恢复清标再报——抑刷屏同 armwatch 语义）。
+// 取证粒度（T-0154 返修判据④）：wait_event（ClientWrite=读饥饿型实锤指纹——
+// notify 交付卡在对端饿死的套接字上）+backend_start（会话年龄——跨容器
+// 复发判定锚）逐会话入报。
 func (x *Sentinel) Check(ctx context.Context) {
-	rows, err := x.pool.Query(ctx, `SELECT pid, coalesce(application_name,''), left(query,60)
+	rows, err := x.pool.Query(ctx, `SELECT pid, coalesce(application_name,''), left(query,60),
+		coalesce(wait_event,''), backend_start
 		FROM pg_stat_activity
 		WHERE backend_xmin IS NOT NULL AND xact_start < now()-interval '10 minutes'`)
 	if err != nil {
@@ -88,14 +93,16 @@ func (x *Sentinel) Check(ctx context.Context) {
 		return
 	}
 	type hit struct {
-		pid   int32
-		app   string
-		query string
+		pid       int32
+		app       string
+		query     string
+		waitEvent string
+		started   time.Time
 	}
 	var hits []hit
 	for rows.Next() {
 		var h hit
-		if rows.Scan(&h.pid, &h.app, &h.query) == nil {
+		if rows.Scan(&h.pid, &h.app, &h.query, &h.waitEvent, &h.started) == nil {
 			hits = append(hits, h)
 		}
 	}
@@ -110,8 +117,13 @@ func (x *Sentinel) Check(ctx context.Context) {
 		return
 	}
 	x.alerted = true
-	msg := fmt.Sprintf("backend_xmin 哨兵：%d 会话事务超 10min 钉死 vacuum 水平线（先报不杀——pid %v；杀权留人工，LISTEN 臂重连兜底可后续升自动）",
-		len(hits), hits)
+	detail := make([]string, len(hits))
+	for i, h := range hits {
+		detail[i] = fmt.Sprintf("pid %d backend_start %s wait_event %s app %q query %q",
+			h.pid, h.started.Format("01-02T15:04:05"), h.waitEvent, h.app, h.query)
+	}
+	msg := fmt.Sprintf("backend_xmin 哨兵：%d 会话事务超 10min 钉死 vacuum 水平线（先报不杀——杀权留人工，LISTEN 臂重连兜底可后续升自动）｜%s",
+		len(hits), strings.Join(detail, "；"))
 	if x.al != nil {
 		x.al.Alert(ctx, "pool_tx_residue", msg)
 	} else {

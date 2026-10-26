@@ -1,6 +1,6 @@
 # T-0154 池连接事务残留守卫 + backend_xmin 哨兵（真空域钉死双病灶根修）
 
-## 态：施工中·返修（读饥饿根修——返修令六判据，zcode-t0154r @ 2026-10-26）
+## 态：待验·返修（读饥饿根修六判据——zcode-t0154r @ 2026-10-26，分支 t/0154-listen-read-starvation 已推送）
 ## 领取：zcode-t0154（ZCode 施工席）@ 2026-10-26；返修 zcode-t0154r（ZCode 施工席）@ 2026-10-26
 ## 域：平台池基建 / 数据面
 ## 源出：数据体积排查实案（2026-10-26）——dev 库 LISTEN ev_eval 会话
@@ -99,3 +99,44 @@ ListenLoop 借到即继承——此后 WaitForNotification 永不结束事务：
   wait_event/backend_start（取证粒度）⑤KB 条目记读饥饿钉死型
   （pool-tx-residue 姊妹病灶）⑥scan 20min/拍的 DB 竞争侧案另案观察。
 - **移交面仍挂**：零钉未达成——本票置「返修待派」，哨兵维持先报不杀。
+
+## 返修结果回填（zcode-t0154r @ 2026-10-26——返修令六判据逐条）
+
+- **判据①读/worker 解耦**（events.go 重写）：listenSession 件（conn+wake
+  cap1 合流位+readErr 回传+cancel/reap 收摊）——专读 goroutine 独占套接字
+  持续 WaitForNotification（fn 长拍不歇），通知塌陷进 wake（积压 N 件合流
+  一醒），worker 取拍跑 fn——「一醒一拍」背压语义不变；listenOnce/
+  listenOnceDeadline 双环同装。还池前必经 teardown（cancel→等读环退出→
+  UNLISTEN→Release——读与还池互斥）。期界由 worker 侧 timer 承接（专读环
+  全程不中断）。
+- **判据②自净堵错**：startListener 借出 TxStatus!='I'→ROLLBACK；ROLLBACK
+  败→UNLISTEN+Release（pgx Release 层自毁带病连接）+wrapped err 走重连梯
+  ——不 proceed（首修吞错洞堵死）。
+- **判据③注册断言**：LISTEN 注册毕 TxStatus!='I'→弃连+err 拒启（事务内
+  注册聋哑形拦死）。两环共用 startListener 单点。
+- **判据④哨兵取证粒度**（pgguard.Check）：查询+报文补 wait_event
+  （ClientWrite=读饥饿型实锤指纹）+backend_start（会话年龄——跨容器复发
+  判定锚）逐会话入报；alert kind 仍 pool_tx_residue。
+- **判据⑤KB**：新条目 listen-socket-starvation-xmin-pin（姊妹病灶型——
+  wait_event 分诊指纹/根因链/桩锚形）+pool-tx-residue 条目补姊妹互引；
+  kbgen gen/--check 绿、skills --check 绿。
+- **判据⑥**（scan 20min/拍 DB 竞争侧案）：决策席另案观察——本席未动 fn 面。
+- **桩锚**（PG 实跑双向实证）：TestListenSocketStarvationRootFix——fn 阻塞
+  ~30s 期间 7KB×15ms 灌通知（量>500）：发射零反压（零超时、最大单发延时
+  <5s 断言）+listener 会话全程 backend_xmin 零钉/state=idle/末采样
+  wait_event=ClientRead（排空指纹）+放行后积压塌陷恰 2 拍（一醒一拍）+
+  cancel 收摊不悬挂+还池 TxStatus 干净。**对抗性双向实证：旧码（origin/
+  master events.go）跑同测=120s 红悬（交付反卡实锤形）——测试真杀病灶非恒绿**。
+- **机检**：build✓ vet✓ gofmt✓ staticcheck✓ check-lines✓ import 闸✓
+  （104/111 边零新增——events_test 测试 import 不入闸）kbgen gen/--check✓
+  skills --check✓ 全量 go test（三 DSN 本地实例 5434）✓ platform 面
+  -race✓。本地测试 DSN=postgres://o:o@localhost:5434（o-postgres-test 容器
+  约定；CI 同构 postgres:test）。
+- **勘察移交（语义面发现，非本返修改动）**：期界环 T-0048 注释称「fn 每
+  事件/到期各一拍」，实码期界到=return nil 弃连重连、期界拍从不跑 fn
+  （overdue 时 nextDue=0→livenessMax 再等 10min）——本返修按令「语义不动」
+  保留实码、注释改记实况；「判决到期无事件时迟 ~10min+退避才被拾起」是否
+  合意请决策席另裁。
+- **移交面（部署后决策席实证）**：生产 ev_* 臂零 xmin 钉>10min（哨兵静默
+  =对）；哨兵首报报文含 wait_event/backend_start；lifecycle 长扫拍期间 SG
+  无 ClientWrite 钉手复发。
