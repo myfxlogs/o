@@ -11,9 +11,11 @@ CREATE TABLE IF NOT EXISTS fin_data_retention (
     note          text
 );
 -- 全表默认入册（防新表漂出账面——deploy 时快照在册，后续新表须显式批注）。
+-- current_schema() 非 'public' 钉死——testutil 包级 schema 隔离（T-0021）下
+-- 迁移表落测试 schema，钉 public 快照=空账（清道夫 fail-closed 全拒动）。
 INSERT INTO fin_data_retention(table_name,class,note)
 SELECT t.tablename,'permanent','默认账链保留——新表须显式裁窗'
-FROM pg_tables t WHERE schemaname='public'
+FROM pg_tables t WHERE schemaname=current_schema()
 ON CONFLICT (table_name) DO NOTHING;
 -- 钦定初值覆写（T-0153 票面钦定）。
 UPDATE fin_data_retention SET class='audit_keep',keep_interval=interval '30 days',
