@@ -18,3 +18,9 @@
 - armed 超龄行自动翻 retired、留痕 reason 可查
 - 拒放日志频次降至冷窗量级
 - 单测：armed 在册未开仓不计 venue 分子；超龄退役触发
+
+## 返修①（决策席 2026-10-26——@068ede0 半交付打回）
+
+- **缺 A**：策略侧退役 `WHERE state='armed'` 死代码——fin_strategy 无 armed 态（实证状态集 paper/probe/live/degraded/retired）。占位实体=`live` 态未开火策略（110 行）。修：退役谓词改「state IN ('live','probe') 且无 open 持仓 且 最近活动戳（entered_at/最近仓位 opened_at 取新者）超 armed_ttl_h」——有仓/近期开过的 live 策略不得误杀。
+- **缺 B**：`denyAt` 声明未接线——同因同策略连拒入冷窗的判读点在拒放出口处查/写 denyAt，窗内直接 skip（键 `lifecycle.reject_cooldown_s` 缺省 300）。
+- 保留已合格的 ①风控口径修+②提案侧 TTL——增量补 A/B 即可。
