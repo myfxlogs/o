@@ -1,6 +1,6 @@
 # T-0170 dcd/gapscan 认证读面恢复——venue 私有 GET 经 SG 中继或只读钥（T-0165 投产回归件）
 
-## 态：已批（**径 A 钦定**——最优解终裁 2026-10-26；C/B 对分离目的反向已撤）
+## 态：已批（径 A 钦定+存放面终裁：app_secrets 唯一真源+dev boot 内存取零磁盘副本）
 ## 立项：决策席 @ 2026-10-26（T-0165 投产实证回归）
 ## 决策档：D-0029/T-0165/T-0102
 
@@ -16,11 +16,15 @@ o-research 起后两臂 fail-closed：dcd feed 调 `sfp/dcd/currency-pair`+`prod
 **目的轴**：二级分离=SG 硬盘+带宽卸载——故 venue 下载须在 dev 出口、研究
 存储落 dev（PG-md）。据此：
 
-- **径 A（钦定——最优）**：只读 OKX key→`~/o-research.env` 三件→
-  `cmd/research` okcli 读 env+`NewClientReadOnly`。**边际暴露≈0**：
-  research_rw=SELECT 全表角色，dev 已持「读穿基金全账」凭据——只读钥
-  面（账户读）是其严格子集。下载出口 dev、存储落 dev（PG-md 后）——
-  唯一两面对齐分离目的的径。**业主授权在案，等钥物料。**
+- **径 A（钦定——最优）**：只读 OKX key→dev 端 `NewClientReadOnly`。
+  **边际暴露≈0**：research_rw=SELECT 全表角色，dev 已持「读穿基金全账」
+  凭据——只读钥面是其严格子集。下载出口 dev、存储落 dev（PG-md 后）。
+  **存放面终裁（业主「还是落 env？」问 2026-10-26）**：不落 env——
+  key 写 `app_secrets.okx_read.*`（密文唯一真源，与交易钥同店不同架）；
+  o-core `GET /v1/readcred/okx`（127.0.0.1:8095 解密出）+隧道
+  `-L 5545:127.0.0.1:8095`；o-research boot 拉取**仅进内存**
+  （dev 磁盘零副本）；**自重取**：feed 401→重取一次→再败 fail-closed——
+  轮换自愈零值守。**业主授权在案，等钥物料（到手直写 app_secrets）。**
 - ~~径 C 表作中继~~（撤）：SG 调 API→SG 落表→dev 隧道读——fetch 带宽+
   表盘双压 SG，与分离目的直接反向（优化错轴：凭据纯度压过了真目标）。
 - ~~径 B relay~~（降兜底）：同上 SG 双跳，仅未来「同步即时读」场景可用。
