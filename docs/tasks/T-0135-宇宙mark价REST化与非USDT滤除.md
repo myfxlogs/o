@@ -31,3 +31,9 @@
 - writeSpotLast+writeMarkRest 补 isUSDTInst 滤（非 USDT 死行滤除——
   T-0134 遗留面同封）。
 - 活跃集 tickers 零动；netmeter okxws/mark-price 字节账应归零（部署实证面）。
+
+## 验收（决策席 2026-10-26 @5b8d0eb 部署）
+
+- mark_price REST 507 行/21s 鲜、spot_last 1195/20s、netmeter okxws/mark-price 归零、观测窗 0×1006——**宇宙面完全离线** ✅
+- 带宽锚未达（RX 3258>1500kbps）：残余=活跃集 ~269 策略 inst_id 的 tickers 流 ~3.3Mbps——属 T-0136 armed 幽灵账（armed 超龄退役落地后活跃集自然缩编）
+- 状态：✅ 验收合入部署（残余链载归 T-0136 账）
