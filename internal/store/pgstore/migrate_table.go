@@ -58,6 +58,7 @@ var migrationTable = []struct {
 	{54, "0054_proposal_dedupe_gate.sql"},
 	{55, "0055_facts_freshness_keys.sql"},
 	{56, "0056_proposal_eval_id_idx.sql"},
+	{57, "0057_md_signal.sql"},
 	{25, "0025_order_leg_venue_err.sql"},
 	{26, "0026_venue_facts.sql"},
 	{27, "0027_venue_bill.sql"},

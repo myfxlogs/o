@@ -56,6 +56,14 @@ type Collector struct {
 	// ExpandSymbols 宇宙扩件（T-0122：okx.symbols 含 "*"=放开全 SWAP+季度
 	// 期货——装配层挂 instruments 实读闭包，未挂=键面拒签 fail-closed）。
 	ExpandSymbols func(ctx context.Context) ([]string, error)
+
+	// T-0139 桥二期信号面：books5 复活（D-0022——特征值非原始盘口；标的集
+	// 可配置域 bridge.depth5.symbols，非全宇宙防桥自造洪泛）。
+	depth5Syms []string                                              // 本连接订阅的深度标的集（config 热启，重连拍读）
+	ctvFeed    func(ctx context.Context) (map[string]float64, error) // SWAP ctVal 读件（USD 额换算）
+	ctvCache   map[string]float64
+	ctvAt      time.Time
+	depth5At   map[string]time.Time // per-inst 蒸馏写节流（特征值 5s 鲜度足够）
 }
 
 // AttachMeter 挂带宽计量件（T-0057：nil=不计量）。
@@ -119,6 +127,7 @@ func (c *Collector) Run(ctx context.Context, errc chan<- error) {
 			backoff = min(backoff*2, backoffMax)
 			continue
 		}
+		c.depth5Syms = c.depth5Symbols(ctx) // 桥面深度集热启（重连拍刷新）
 		gen := c.cfg.Generation()
 		err = c.dialLoop(ctx, syms, gen)
 		if ctx.Err() != nil {
@@ -183,6 +192,26 @@ func (c *Collector) dialLoop(ctx context.Context, syms []string, gen int64) erro
 	if err := subscribeAll(conn, c.subscribeSet(syms)); err != nil {
 		return err
 	}
+	// T-0139 books5 复活订阅（D-0022 桥面信号域——标的集可配置非全宇宙）。
+	if len(c.depth5Syms) > 0 {
+		if c.ctvFeed != nil { // ctv 预载（读循环零同步外呼——帧径只查缓存）
+			if m, err := c.ctvFeed(ctx); err == nil {
+				c.ctvCache = m
+				c.ctvAt = time.Now()
+			} else {
+				c.rej.Inc("depth5_no_ctval")
+			}
+		}
+		args := make([]map[string]string, 0, len(c.depth5Syms))
+		for _, s := range c.depth5Syms {
+			args = append(args, map[string]string{"channel": "books5", "instId": s})
+		}
+		if err := subscribeAll(conn, args); err != nil {
+			return fmt.Errorf("books5 subscribe: %w", err)
+		}
+		c.depth5At = map[string]time.Time{}
+		log.Printf("[okxws] books5 桥面订阅 syms=%d（信号蒸馏域）", len(c.depth5Syms))
+	}
 	log.Printf("[okxws] subscribed syms=%d url=%s", len(syms), c.url)
 	// T-0132 活跃集 tickers 动态重订（增删订阅帧不重建连接——fin_position
 	// 在仓+fin_proposal 在途+fin_strategy 非退役的 inst_id 才配成交价级实时性）。
@@ -238,60 +267,6 @@ func (c *Collector) dialLoop(ctx context.Context, syms []string, gen int64) erro
 		}
 	}
 }
-
-// handle 帧分流：按 arg.channel 解析→行入异步队列（解析失败/非 USDT 键域计 rejects）。
-func (c *Collector) handle(data []byte) {
-	var msg wsMsg
-	if err := json.Unmarshal(data, &msg); err != nil {
-		c.rej.Inc("parse_fail")
-		return
-	}
-	if c.meter != nil {
-		c.meter.Add("okxws/"+msg.Arg.Channel, len(data))
-	}
-	if msg.Event != "" {
-		if msg.Event == "error" {
-			log.Printf("[okxws] 服务端 error 帧: %s", data)
-			// T-0133 ③60018 拒收集：带 instId 的服务端拒收记黑名单——本连接
-			// 内 syncActive 不再重发（重连清表自然放行）。
-			if c.refuseSub != nil && msg.Arg.InstID != "" {
-				c.refuseSub[msg.Arg.InstID] = true
-			}
-		}
-		return // subscribe ack/channel-conn-count/error 留痕非业务帧
-	}
-	instID := msg.Arg.InstID
-	if instID != "" && !isUSDTInst(instID) {
-		c.rej.Inc("non_usdt_instid")
-		return
-	}
-	for _, d := range msg.Data {
-		var it rowItem
-		switch msg.Arg.Channel {
-		case "tickers":
-			it.tick = parseTickers(instID, d)
-		case "funding-rate":
-			it.funding = parseFunding(instID, d)
-		case "mark-price", "index-tickers":
-			it.mark = parseMark(instID, msg.Arg.Channel, d)
-		default:
-			continue
-		}
-		if it.tick == nil && it.funding == nil && it.mark == nil {
-			c.rej.Inc("parse_fail")
-			continue
-		}
-		c.frames.Add(1)
-		c.lastFrame.Store(time.Now().UnixNano())
-		select {
-		case c.queue <- it:
-		default:
-			c.rej.Inc("write_err")
-		}
-	}
-}
-
-// （books5 撤订后序列完整性判据随面退役——T-0123，seq 缺口无消费者）。
 
 // FrameCount 业务帧累计（status 观测面）。
 func (c *Collector) FrameCount() int64 { return c.frames.Load() }

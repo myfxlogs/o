@@ -56,7 +56,22 @@ type Runner struct {
 	cfg   *config.Client
 	rej   *rejects.Door
 	watch *armwatch.Watch // 臂活性看门（T-0117——四臂共用件）
+	sigs  SignalReader    // 桥二期信号读面（T-0139——可选；nil=信号缺席面）
 }
+
+// SignalReader 信号读闸出口（sigdist.Fresh 同形——接读面不接生成逻辑；
+// 本票零假想生成改动，信号只作 evidence 附据）。
+type SignalReader func(ctx context.Context, kind, key string) (sig Sig, ok bool, err error)
+
+// Sig 信号值形（sigdist.Sig 投影——包依赖反向禁：researcher 纪律同款窄接口）。
+type Sig struct {
+	Kind string
+	Key  string
+	Val  float64
+}
+
+// AttachSignals 挂信号读面（T-0139 消费闸——装配层传 sigdist.Fresh 适配）。
+func (r *Runner) AttachSignals(fn SignalReader) *Runner { r.sigs = fn; return r }
 
 func NewRunner(pool *pgxpool.Pool, cfg *config.Client) *Runner {
 	return &Runner{pool: pool, cfg: cfg, watch: armwatch.New("假想官"),
@@ -170,6 +185,21 @@ func (r *Runner) draft(ctx context.Context, venue, surface, family string, gapID
 	meta["provenance"] = "hypothesis_officer"
 	meta["gap_id"] = gapID
 	meta["leg_vocab"] = "closed-set" // 词汇表闭集声明——非自由发明
+	// T-0139 消费闸：新鲜信号（2×蒸馏拍窗内）作 evidence 附据——陈/缺席=
+	// 不附（信号是派生面非事实源，读闸在 sigdist.Fresh 侧）。
+	if r.sigs != nil {
+		var sigs []Sig
+		for _, inst := range []string{venue + "-USDT-SWAP", venue + "-USDT"} {
+			for _, kind := range []string{"funding_view", "basis_ann", "depth5"} {
+				if sg, ok, err := r.sigs(ctx, kind, inst); err == nil && ok {
+					sigs = append(sigs, sg)
+				}
+			}
+		}
+		if len(sigs) > 0 {
+			meta["signals"] = sigs
+		}
+	}
 	ev, _ := json.Marshal(meta)
 	var id int64
 	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_opp_hypothesis

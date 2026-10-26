@@ -7,3 +7,7 @@ REVOKE ALL ON fin_cashflow,fin_position,fin_order_leg,fin_execution,
   fin_strategy,fin_strategy_transition,fin_proposal,fin_opp_eval,
   fin_venue_bill,fin_push_ledger,app_config,app_secrets
   FROM collector_rw;
+
+-- T-0139 桥二期信号层：md_signal 入桥写权白名单（SG psql 一次性执行——
+-- 迁移 0057 建表后跑；收窄语义不变：仅此信号面新增，钱径零扩）。
+GRANT INSERT,UPDATE,SELECT ON md_signal TO collector_rw;

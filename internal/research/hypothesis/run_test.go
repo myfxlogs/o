@@ -4,6 +4,7 @@ package hypothesis
 
 import (
 	"context"
+	"encoding/json"
 	"strconv"
 	"strings"
 	"testing"
@@ -139,4 +140,31 @@ func TestHypothesisZeroWriteAndGuards(t *testing.T) {
 			t.Fatalf("%s 应留 pending: %v %s", s, err, state)
 		}
 	}
+}
+
+// T-0139 消费闸锚：信号读面挂上→新鲜信号入卡 evidence.signals；
+// 读闸（陈=缺席）在 sigdist.Fresh 侧——stub 直证附据形。
+func TestHypothesisEvidenceSignals(t *testing.T) {
+	ctx, r := setup(t)
+	r.AttachSignals(func(ctx context.Context, kind, key string) (Sig, bool, error) {
+		if kind == "funding_view" && key == "okx-USDT-SWAP" {
+			return Sig{Kind: kind, Key: key, Val: 0.0001}, true, nil
+		}
+		return Sig{}, false, nil
+	})
+	gapID := seedGap(t, ctx, r, "okx", "USDT-SWAP-sig", "hedge", 5)
+	if err := r.ScanOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var ev map[string]any
+	if err := r.pool.QueryRow(ctx, `SELECT evidence FROM fin_opp_hypothesis
+		WHERE venue='okx' AND surface='USDT-SWAP-sig'`).Scan(&ev); err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := json.Marshal(ev["signals"])
+	var sigs []Sig
+	if err := json.Unmarshal(raw, &sigs); err != nil || len(sigs) != 1 || sigs[0].Val != 0.0001 {
+		t.Fatalf("evidence.signals 应含新鲜信号: %s err=%v", raw, err)
+	}
+	_ = gapID
 }

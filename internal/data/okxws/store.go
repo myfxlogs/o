@@ -2,6 +2,7 @@ package okxws
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -64,6 +65,16 @@ func (c *Collector) insertBatch(ctx context.Context, rows []rowItem) error {
 				ON CONFLICT (venue,inst_id,channel) DO UPDATE SET ts=EXCLUDED.ts,
 				px=EXCLUDED.px,recv_ts=now()`,
 				r.ts, r.instID, r.channel, r.px)
+			n++
+		case it.depth5 != nil: // T-0139：md_signal kind='depth5'——特征值 upsert（有界状态表）
+			r := it.depth5
+			meta, _ := json.Marshal(map[string]any{
+				"bid_usd": r.bidUSD, "ask_usd": r.askUSD,
+				"best_bid": r.bestBid, "best_ask": r.bestAsk})
+			b.Queue(`INSERT INTO md_signal(kind,key,val,meta,ts) VALUES('depth5',$1,$2,$3::jsonb,$4)
+				ON CONFLICT (kind,key) DO UPDATE SET val=EXCLUDED.val,
+				meta=EXCLUDED.meta, ts=EXCLUDED.ts`,
+				r.instID, r.spreadBP, string(meta), r.ts)
 			n++
 		}
 	}
