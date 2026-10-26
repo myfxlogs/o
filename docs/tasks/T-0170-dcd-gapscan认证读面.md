@@ -1,6 +1,6 @@
 # T-0170 dcd/gapscan 认证读面恢复——venue 私有 GET 经 SG 中继或只读钥（T-0165 投产回归件）
 
-## 态：已批（**钦定径 C 表作中继**——业主授权 A 作过渡备选；B relay 留即时读场景）
+## 态：已批（**径 A 钦定**——最优解终裁 2026-10-26；C/B 对分离目的反向已撤）
 ## 立项：决策席 @ 2026-10-26（T-0165 投产实证回归）
 ## 决策档：D-0029/T-0165/T-0102
 
@@ -11,21 +11,19 @@ o-research 起后两臂 fail-closed：dcd feed 调 `sfp/dcd/currency-pair`+`prod
 现 dcd/gapscan 每拍 401 让位（不崩）——DCD 发现链+gap 扫描暗、
 `md_dcd_product` 冻结、244 paper 策略 fill 随报价陈化自然停。
 
-## 施工（三径——最优解裁 2026-10-26）
+## 施工（终裁——最优解按分离目的轴重判 2026-10-26）
 
-**两臂真实需求=两份慢变目录**（非任意 venue 读）：dcd feed
-`currency-pair`+`products?baseCcy=`；gapscan `OKXCatalog` 两面
-（currency-pair+lending-rate-summary）。周期性同步即足。
+**目的轴**：二级分离=SG 硬盘+带宽卸载——故 venue 下载须在 dev 出口、研究
+存储落 dev（PG-md）。据此：
 
-- **径 C（钦定——表作中继）**：o-core 起「venue read sync」岗——按面清单
-  （OKXCatalog+dcd products 展开式）周期调认证 GET→原样落 `md_venue_read`
-  表（venue/face/raw_json/ts，迁移一链）；dev 侧 dcd feed+gap probe 改读表
-  （ts 陈=面死=臂让位——血统语义复用）。**dev 零凭据物料+零新攻击面**；
-  扩面=sync 岗加行；PG-md 落地后经 projector 桥表投影零返工。
-- **径 A（过渡备选——业主授权在案）**：只读钥→env→NewClientReadOnly。
-  面宽于需要（全账户读权换两目录）——C 落地前想先复明可用，C 落地撤钥。
-- **径 B（留即时读场景）**：SG `/v1/venue-get` relay——仅当未来某面需
-  同步即时读时启用；目录面不需要。
+- **径 A（钦定——最优）**：只读 OKX key→`~/o-research.env` 三件→
+  `cmd/research` okcli 读 env+`NewClientReadOnly`。**边际暴露≈0**：
+  research_rw=SELECT 全表角色，dev 已持「读穿基金全账」凭据——只读钥
+  面（账户读）是其严格子集。下载出口 dev、存储落 dev（PG-md 后）——
+  唯一两面对齐分离目的的径。**业主授权在案，等钥物料。**
+- ~~径 C 表作中继~~（撤）：SG 调 API→SG 落表→dev 隧道读——fetch 带宽+
+  表盘双压 SG，与分离目的直接反向（优化错轴：凭据纯度压过了真目标）。
+- ~~径 B relay~~（降兜底）：同上 SG 双跳，仅未来「同步即时读」场景可用。
 
 ## 桩锚
 
