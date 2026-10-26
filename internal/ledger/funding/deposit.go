@@ -41,7 +41,7 @@ type DepositScanner struct {
 
 func NewDepositScanner(pool *pgxpool.Pool, src DepositSrc) *DepositScanner {
 	return &DepositScanner{pool: pool, src: src,
-		rej: rejects.New("deposit", "write_err", "non_usdt_deposit")}
+		rej: rejects.New("deposit", "write_err", "non_usdt_deposit", "pre_baseline")}
 }
 
 // Scan 巡检一拍：state=2 完成行→bill 幂等落→cashflow deposit。
@@ -54,6 +54,11 @@ func (s *DepositScanner) Scan(ctx context.Context) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+	// T-0149 三返修：账基线截止谓词——bill_id 幂等只防重不防史（venue
+	// 全史前身时代入金非基金注资）；occurred_at ≤ fin_cashflow 最早行=
+	// skip 不入账不留 bill；postdate 基线=入账面无损。
+	var baseline time.Time
+	_ = s.pool.QueryRow(ctx, `SELECT COALESCE(min(occurred_at),now()) FROM fin_cashflow`).Scan(&baseline)
 	var n int
 	for _, r := range rows {
 		if r.State != "2" {
@@ -66,6 +71,10 @@ func (s *DepositScanner) Scan(ctx context.Context) (int, error) {
 			continue
 		}
 		tsMs, _ := parseMs(r.Ts)
+		if !time.UnixMilli(tsMs).After(baseline) {
+			s.rej.Inc("pre_baseline") // 账基线前 venue 史=非基金注资不入账
+			continue
+		}
 		// T-0149 返修②：bill+cashflow 同事务原子（注入败→bill 行同回滚
 		// 不留孤儿源行——幂等切面不失效语义守恒）。
 		tx, err := s.pool.Begin(ctx)
