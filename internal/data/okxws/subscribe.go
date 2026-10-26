@@ -59,13 +59,13 @@ func subscribeAll(conn *websocket.Conn, args []map[string]string) error {
 	return nil
 }
 
-// activeSet 活跃集标的（T-0132 分级——在仓+在途提案+非退役策略 inst_id
+// activeSet 活跃集标的（T-0132 分级——在仓+在途提案+live/degraded 策略 inst_id
 // 才配 tickers 级实时性；其余宇宙标的三低频面即足）。
 func (c *Collector) activeSet(ctx context.Context) (map[string]bool, error) {
 	rows, err := c.pool.Query(ctx, `SELECT DISTINCT inst_id FROM (
 		SELECT inst_id FROM fin_position WHERE closed_at IS NULL
 		UNION SELECT inst_id FROM fin_proposal WHERE state IN ('fin_proposed','fin_armed')
-		UNION SELECT inst_id FROM fin_strategy WHERE state<>'retired') t`)
+		UNION SELECT inst_id FROM fin_strategy WHERE state IN ('live','degraded')) t`)
 	if err != nil {
 		return nil, err
 	}
