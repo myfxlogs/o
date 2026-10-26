@@ -16,7 +16,7 @@ function camel(v: unknown): unknown {
   if (v && typeof v === 'object') {
     const o: Record<string, unknown> = {}
     for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
-      o[k.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase())] = camel(x)
+      o[k.replace(/_([a-z0-9])/g, (_, c: string) => c.toUpperCase())] = camel(x)
     }
     return o
   }

@@ -2,9 +2,9 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | 已批 |
+| 状态 | 施工中 |
 | 立项 | `[角色:决策]` @ 2026-10-26（业主令：①禁轮询/定时任务要实时流 ②手拼 JSON 易错走 buf proto） |
-| 领取 | （空=未领） |
+| 领取 | glm-t0156 @ 2026-10-26 |
 | 优先级 | 高 |
 | 涉及面 | `proto/dashboardv1/core.proto`（扩面）、`cmd/core/service.go`/`trx_faces.go`/`trx_yield_face.go`（REST 手拼面撤）、`web/src/react/api.ts`/`stream.ts`、`web/index.html`+`web/src/main.ts`（30s 轮询撤）、buf 双模板 |
 
