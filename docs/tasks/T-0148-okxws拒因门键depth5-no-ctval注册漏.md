@@ -1,6 +1,7 @@
 # T-0148 okxws 拒因门键 depth5_no_ctval 未注册（拒门完整性漏）
 
-## 态：待施工
+## 态：施工中
+## 领取：zcode-o-7d3f @ 2026-10-26
 ## 域：桥面数据面 / rejects 审计门
 ## 源出：T-0142 部署窗首见，T-0144 验证窗仍在——o-core 日志每分 ~77 行
   `WARN rejects[okxws] 未注册门键 "depth5_no_ctval"`（05:50 实拍，占日志量 ~96%）
