@@ -141,22 +141,25 @@ func TestHedgeFlowUnionAndBandwidth(t *testing.T) {
 }
 
 // T-0110 锚：日终 rollup 幂等（ON CONFLICT(day)）+能量/投票成分口径。
+// D-0026：桩时戳钉当日 UTC 日内（day+2h/+8h，与 trxRollup/ListTRXAccountByDay
+// 谓词同域）——固定位 now()-N h 在 UTC 00:00–08:00 漂过日界被当日谓词滤掉。
 func TestTrxRollupIdempotent(t *testing.T) {
 	ctx, w, _ := trxTestSetup(t)
+	day := time.Now().UTC().Truncate(24 * time.Hour)
 	if _, err := w.pool.Exec(ctx, `INSERT INTO fin_trx_txs(tx_id,ts,kind,amount_sun,cheat_status)
-		VALUES('r-1',now(),'rental_income',3000000,false)`); err != nil {
+		VALUES('r-1',$1,'rental_income',3000000,false)`, day.Add(8*time.Hour)); err != nil {
 		t.Fatal(err)
 	}
 	// 账户快照两行（reward 正增量=投票成分 2 TRX）。
 	for _, rw := range []struct {
 		reward int64
-		ago    string
-	}{{10000000, "8 hours"}, {12000000, "2 hours"}} {
+		at     time.Time
+	}{{10000000, day.Add(2 * time.Hour)}, {12000000, day.Add(8 * time.Hour)}} {
 		if _, err := w.pool.Exec(ctx, `INSERT INTO fin_trx_account(address,votes_total,balance_sun,
 			allowance_sun,reward_num_sun,energy_delegated,net_limit,net_used,free_net_limit,
 			free_net_used,energy_limit,energy_used,bandwidth_staked,tron_power,fetched_at)
-			VALUES('T-test',0,0,0,$1,0,0,0,0,0,0,0,0,0, now() - $2::interval)`,
-			rw.reward, rw.ago); err != nil {
+			VALUES('T-test',0,0,0,$1,0,0,0,0,0,0,0,0,0,$2)`,
+			rw.reward, rw.at); err != nil {
 			t.Fatal(err)
 		}
 	}
