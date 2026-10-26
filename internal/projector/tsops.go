@@ -1,0 +1,154 @@
+// tsops.go —— ts 判桥表（ticks/mark_index/funding/signal/dcd）的通道绑定与
+// 扫描面：水印后谓词切片查询（md 正本）→参数行（SG upsert）。numeric 文本搬运
+// 保精度；活跃集/dcd 集经 Runner 快照取（set 钩）。
+package projector
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+)
+
+// tsProjection ts 判桥表的通道绑定（query $1=水印 $2=键集）。
+type tsProjection struct {
+	wmKey  string
+	query  string
+	upsert string
+	set    func(*Runner) []string
+	scan   func(pgx.Rows) ([][]any, time.Time, error)
+}
+
+var tsProjections = map[string]tsProjection{
+	"ev_ticks": {"md_ticks", qTicks, uTicks,
+		func(r *Runner) []string { return r.activeList() },
+		func(rows pgx.Rows) ([][]any, time.Time, error) {
+			defer rows.Close()
+			var out [][]any
+			var max time.Time
+			for rows.Next() {
+				var ts time.Time
+				var venue, inst string
+				var last, bid, ask, vol *string
+				var recv time.Time
+				if err := rows.Scan(&ts, &venue, &inst, &last, &bid, &ask, &vol, &recv); err != nil {
+					return nil, max, err
+				}
+				out = append(out, []any{ts, venue, inst, last, bid, ask, vol, recv})
+				if ts.After(max) {
+					max = ts
+				}
+			}
+			return out, max, rows.Err()
+		}},
+	"ev_markidx": {"md_mark_index", qMarkIdx, uMarkIdx,
+		func(r *Runner) []string { return r.activeList() },
+		func(rows pgx.Rows) ([][]any, time.Time, error) {
+			defer rows.Close()
+			var out [][]any
+			var max time.Time
+			for rows.Next() {
+				var ts time.Time
+				var venue, inst, channel string
+				var px *string
+				var recv time.Time
+				if err := rows.Scan(&ts, &venue, &inst, &channel, &px, &recv); err != nil {
+					return nil, max, err
+				}
+				out = append(out, []any{ts, venue, inst, channel, px, recv})
+				if ts.After(max) {
+					max = ts
+				}
+			}
+			return out, max, rows.Err()
+		}},
+	"ev_funding": {"md_funding", qFunding, uFunding,
+		func(r *Runner) []string { return r.activeList() },
+		func(rows pgx.Rows) ([][]any, time.Time, error) {
+			defer rows.Close()
+			var out [][]any
+			var max time.Time
+			for rows.Next() {
+				var ts time.Time
+				var venue, inst string
+				var rate, nextRate *string
+				var nextTs, recv *time.Time
+				if err := rows.Scan(&ts, &venue, &inst, &rate, &nextRate, &nextTs, &recv); err != nil {
+					return nil, max, err
+				}
+				out = append(out, []any{ts, venue, inst, rate, nextRate, nextTs, recv})
+				if ts.After(max) {
+					max = ts
+				}
+			}
+			return out, max, rows.Err()
+		}},
+	"ev_signal": {"md_signal", qSignal, uSignal,
+		func(r *Runner) []string { return r.activeList() },
+		func(rows pgx.Rows) ([][]any, time.Time, error) {
+			defer rows.Close()
+			var out [][]any
+			var max time.Time
+			for rows.Next() {
+				var kind, key string
+				var val *string
+				var meta []byte
+				var ts time.Time
+				if err := rows.Scan(&kind, &key, &val, &meta, &ts); err != nil {
+					return nil, max, err
+				}
+				out = append(out, []any{kind, key, val, meta, ts})
+				if ts.After(max) {
+					max = ts
+				}
+			}
+			return out, max, rows.Err()
+		}},
+	"ev_dcd": {"md_dcd_product", qDcd, uDcd,
+		func(r *Runner) []string { return r.dcdSet() },
+		func(rows pgx.Rows) ([][]any, time.Time, error) {
+			defer rows.Close()
+			var out [][]any
+			var max time.Time
+			for rows.Next() {
+				var ts time.Time
+				var venue, surface, uly, product, direction string
+				var strike, ann, minSz, maxSz, spot *string
+				var expiry *time.Time
+				var raw []byte
+				if err := rows.Scan(&ts, &venue, &surface, &uly, &product, &direction,
+					&strike, &expiry, &ann, &minSz, &maxSz, &spot, &raw); err != nil {
+					return nil, max, err
+				}
+				out = append(out, []any{ts, venue, surface, uly, product, direction,
+					strike, expiry, ann, minSz, maxSz, spot, raw})
+				if ts.After(max) {
+					max = ts
+				}
+			}
+			return out, max, rows.Err()
+		}},
+}
+
+// projectTsTable 单 ts 桥表谓词切片投影（水印后增量）。
+func (r *Runner) projectTsTable(ctx context.Context, ch string) error {
+	p, ok := tsProjections[ch]
+	if !ok {
+		return nil
+	}
+	wm := r.getWm(p.wmKey)
+	rows, err := r.md.Query(ctx, p.query, wm, p.set(r))
+	if err != nil {
+		return fmt.Errorf("%s 查询: %w", p.wmKey, err)
+	}
+	batch, max, err := p.scan(rows)
+	if err != nil {
+		return fmt.Errorf("%s 扫描: %w", p.wmKey, err)
+	}
+	if err := batchExec(ctx, r.sg, p.upsert, batch); err != nil {
+		return fmt.Errorf("%s 投影: %w", p.wmKey, err)
+	}
+	r.bumpWm(p.wmKey, max)
+	return nil
+}

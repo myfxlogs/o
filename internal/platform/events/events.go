@@ -21,7 +21,7 @@ const livenessMax = 10 * time.Minute
 // 触碰——无锁。
 type listenSession struct {
 	conn    *pgxpool.Conn
-	wake    chan struct{}      // 通知合流唤醒位（cap1——积压塌陷一醒）
+	wake    chan string        // 通知合流唤醒位（cap1——积压塌陷一醒；携 channel 名）
 	readErr chan error         // 读环败因回传（cap1——断线重连径）
 	cancel  context.CancelFunc // 停读环（rctx 派生自环 ctx——收摊中断读）
 	reaped  bool
@@ -34,7 +34,7 @@ func startListener(ctx context.Context, pool *pgxpool.Pool, channels []string) (
 	if err != nil {
 		return nil, err
 	}
-	ls := &listenSession{conn: conn, wake: make(chan struct{}, 1), readErr: make(chan error, 1)}
+	ls := &listenSession{conn: conn, wake: make(chan string, 1), readErr: make(chan error, 1)}
 	drop := func(err error) (*listenSession, error) { // 读环未起——UNLISTEN 清频弃还（T-0131）
 		_, _ = conn.Exec(context.Background(), "UNLISTEN *")
 		conn.Release()
@@ -68,13 +68,14 @@ func startListener(ctx context.Context, pool *pgxpool.Pool, channels []string) (
 // （cap1：积压合流一醒）。读败经 readErr 回传 worker（断线重连径）。
 func (ls *listenSession) read(ctx context.Context) {
 	for {
-		if _, err := ls.conn.Conn().WaitForNotification(ctx); err != nil {
+		n, err := ls.conn.Conn().WaitForNotification(ctx)
+		if err != nil {
 			ls.readErr <- err
 			return
 		}
 		select {
-		case ls.wake <- struct{}{}:
-		default: // 已有未取唤醒位=塌陷（「一醒一拍」背压）
+		case ls.wake <- n.Channel:
+		default: // 已有未取唤醒位=塌陷（「一醒一拍」背压；新 channel 名覆盖旧）
 		}
 	}
 }
@@ -100,7 +101,14 @@ func (ls *listenSession) teardown() error {
 // cap1 唤醒位（积压合流一醒），fn 同步串行一拍——「一醒一拍」背压语义不变。
 // 断线=重连重听。boot 首拍先跑一次（事件化≠丢首拍——起步态须一次对齐）。
 func ListenLoop(ctx context.Context, pool *pgxpool.Pool, name string, channels []string, fn func(context.Context) error) {
-	if err := fn(ctx); err != nil {
+	ListenLoopChan(ctx, pool, name, channels, func(ctx context.Context, _ string) error { return fn(ctx) })
+}
+
+// ListenLoopChan ListenLoop 的 channel 感知变体（T-0168 projector——单 loop 多
+// channel 按 channel 名分派，免全表族过水印）。塌陷期多 channel 合流：唤醒位
+// 只携末到 channel 名——余者由调用方水印/对账径兜（幂等 upsert 语义下无损）。
+func ListenLoopChan(ctx context.Context, pool *pgxpool.Pool, name string, channels []string, fn func(context.Context, string) error) {
+	if err := fn(ctx, ""); err != nil {
 		log.Printf("[%s] boot 首拍: %v", name, err)
 	}
 	backoff := time.Second
@@ -121,7 +129,7 @@ func ListenLoop(ctx context.Context, pool *pgxpool.Pool, name string, channels [
 	}
 }
 
-func listenOnce(ctx context.Context, pool *pgxpool.Pool, channels []string, fn func(context.Context) error) error {
+func listenOnce(ctx context.Context, pool *pgxpool.Pool, channels []string, fn func(context.Context, string) error) error {
 	ls, err := startListener(ctx, pool, channels)
 	if err != nil {
 		return err
@@ -134,8 +142,8 @@ func listenOnce(ctx context.Context, pool *pgxpool.Pool, channels []string, fn f
 		case err := <-ls.readErr:
 			ls.reaped, ls.rerr = true, err
 			return ls.teardown()
-		case <-ls.wake:
-			if err := fn(ctx); err != nil {
+		case ch := <-ls.wake:
+			if err := fn(ctx, ch); err != nil {
 				log.Printf("事件拍 fn 败: %v", err)
 			}
 		}

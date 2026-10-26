@@ -76,6 +76,7 @@ var migrationTable = []struct {
 	{67, "fin_0067_md_macro_event_mirror.sql"},
 	{68, "fin_0068_fin_eval_reject.sql"},
 	{69, "fin_0069_fin_active_set.sql"},
+	{70, "fin_0070_projector_frames.sql"},
 
 	// —— md 链（版本链内唯一且单调；md 链版本=历史号+1000 与 fin 键空间全局不相交——跨链并 schema 时 schema_migrations 零撞号，check_migrations 断言①⑤）——
 	{1003, "md_1003_market_facts.sql"},
@@ -100,4 +101,5 @@ var migrationTable = []struct {
 	{1064, "md_1064_notify_flood_shrink.sql"},
 	{1065, "md_1065_proposal_retire_trace.sql"},
 	{1066, "md_1066_md_funding_uq.sql"},
+	{1067, "md_1067_projector_frames.sql"},
 }
