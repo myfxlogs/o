@@ -5,10 +5,12 @@ package sigdist
 
 import (
 	"context"
+	"encoding/json"
 	"strconv"
 	"testing"
 	"time"
 
+	"o/internal/platform/config"
 	"o/internal/platform/testutil"
 	"o/internal/store/pgstore"
 )
@@ -165,4 +167,20 @@ func TestSurfaceSignalsMapping(t *testing.T) {
 	if _, ok, _ := r.SurfaceSignals(ctx, "okx", "savings-balance"); ok {
 		t.Fatal("非信号敏感面应零绑定")
 	}
+}
+
+// AttachConfigForTest 测试注 config 键（app_config 直植+Load——热启同径）。
+func (r *Runner) AttachConfigForTest(ctx context.Context, kv map[string]any) error {
+	for k, v := range kv {
+		raw, err := json.Marshal(v)
+		if err != nil {
+			return err
+		}
+		if _, err := r.pool.Exec(ctx, `INSERT INTO app_config(key,value) VALUES($1,$2)
+			ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value`, k, string(raw)); err != nil {
+			return err
+		}
+	}
+	r.cfg = config.New(r.pool)
+	return r.cfg.Load(ctx)
 }

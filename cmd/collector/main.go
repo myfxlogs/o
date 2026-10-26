@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"o/internal/data/okxws"
+	"o/internal/mt5"
 	"o/internal/platform/config"
 	"o/internal/research/sigdist"
 	"o/internal/trading/okxexec"
@@ -48,7 +49,15 @@ func main() {
 	c.AttachCTV(ctvFeed(cli)) // T-0139 depth5 USD 额换算（instruments SWAP ctVal 实读）
 	errc := make(chan error, 4)
 	go c.Run(ctx, errc)
-	go sigdist.New(pool).Run(ctx, errc) // 桥二期信号蒸馏拍（basis_ann/funding_view→md_signal）
+	sd := sigdist.New(pool)
+	sd.AttachConfig(cfg)
+	go sd.Run(ctx, errc) // 桥二期信号蒸馏拍（basis_ann/funding_view/xvenue→md_signal）
+	// T-0141 MT5 quote-only 桥腿（env 凭据本地注入；缺件=让位 WARN 不拖 OKX 面）
+	if bc, err := mt5.NewBridgeCollector(pool, cfg); err != nil {
+		log.Printf("[collector] MT5 桥腿缺席（凭据 env 未注入——跨所族停摆非全桥）: %v", err)
+	} else {
+		go bc.Run(ctx, errc)
+	}
 	c.AttachMarkFeed(func(ctx context.Context) ([][]byte, error) {
 		var out [][]byte
 		for _, typ := range []string{"SWAP", "FUTURES"} {

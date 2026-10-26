@@ -23,8 +23,13 @@ MT5_PORT
 MT5_SERVER
 MT5_USER
 MT5_VENUE
+# —— COLLECTO_MT5_* 桥腿凭据（T-0141 决策席契约：dev 桥零 app_secrets 读权，
+# env 本地注入 /opt/o-collecto/.env——读取契约仅此径禁 DB 径）。
+# 前缀行=拼接键域（os.Getenv("COLLECTO_MT5_"+k) 五键 LOGIN/PASSWORD/SERVER/HOST/GATEWAY_ADDR）——
+COLLECTO_MT5_
 SRC_DSN
 DST_DSN
 O_NODE_ROLE
 O_ECONKB_DIR
 SG_PG_DSN
+COLLECTO_MT5_HOST

@@ -22,6 +22,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"o/internal/platform/config"
 	"o/internal/platform/rejects"
 	"o/internal/platform/roster"
 )
@@ -36,6 +37,7 @@ var datedFutRe = regexp.MustCompile(`^([A-Z0-9]+)-USDT-([0-9]{6})$`)
 // Runner 信号蒸馏岗（桥面常驻节拍——随采集器进程）。
 type Runner struct {
 	pool *pgxpool.Pool
+	cfg  *config.Client // T-0141 跨所族映射读件（AttachConfig 可选）
 	rej  *rejects.Door
 }
 
@@ -75,6 +77,9 @@ func (r *Runner) Distill(ctx context.Context) error {
 	if err := r.fundingView(ctx); err != nil {
 		r.rej.Inc("funding_read_failed")
 		return fmt.Errorf("funding_view: %w", err)
+	}
+	if err := r.Xvenue(ctx); err != nil { // T-0141 跨所族（映射缺=让位不炸 OKX 族）
+		log.Printf("[sigdist] xvenue 族让位: %v", err)
 	}
 	return nil
 }
@@ -291,10 +296,4 @@ func (r *Runner) SurfaceSignals(ctx context.Context, venue, surface string) ([]S
 		}
 	}
 	return sigs, true, nil
-}
-
-// SurfaceAdapter 装配侧信号读闸出口（T-0140 接线件——core 假想官
-// AttachSignals 传此闭包；读面零岗，不注册不节拍）。
-func SurfaceAdapter(pool *pgxpool.Pool) func(ctx context.Context, venue, surface string) ([]Sig, bool, error) {
-	return New(pool).SurfaceSignals
 }
