@@ -190,6 +190,8 @@ func (c *BridgeCollector) swapLoop(ctx context.Context, cl *Client) {
 					"swap_type":  int32(sg.GetSwapType()),
 					"tick_value": si.GetTickValue(), "tick_size": si.GetTickSize(),
 					"points": si.GetPoints(), "contract_size": si.GetContractSize(),
+					// T-0144 容量件随行（跨所评估容量三件源——max_volume/initial_margin）。
+					"max_volume": float64(sg.GetMaxVolume()), "initial_margin": sg.GetInitialMargin(),
 					"mid": c.midOf(sym)})
 			}
 			var val any // NULL=单位方言不可年化（缺换算件缺席如实）
