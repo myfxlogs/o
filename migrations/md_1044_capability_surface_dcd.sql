@@ -1,4 +1,5 @@
--- 0043 T-0102 探员双币赢枚举面+能力面注册表（v2 架构级——对外扩张机制）：
+-- 0043 T-0102 探员双币赢枚举面+能力面注册表 md 链（T-0167 分链：能力面/DCD 目录/
+-- 面差队列=研究域归 PG-md；判据 config 种在 fin_0044；⑤项原文序号保留）：
 --   ① fin_capability_surface 机器可读能力面注册表——能力账（skills）的机器
 --     投影，行=「系统知道这面存在」；探员枚举面从表读（零硬编码端点清单）。
 --   ② md_dcd_product 在架产品快照（每扫一帧留痕——评估可溯源；append-only）。
@@ -41,7 +42,7 @@ CREATE TABLE IF NOT EXISTS md_dcd_product (
     spot             numeric,
     raw              jsonb NOT NULL DEFAULT '{}'
 );
-SELECT create_hypertable('md_dcd_product', 'ts', if_not_exists => TRUE);
+DO $$ BEGIN IF to_regclass('md_dcd_product') IS NULL THEN PERFORM create_hypertable('md_dcd_product', 'ts', if_not_exists => TRUE); END IF; END $$;
 CREATE INDEX IF NOT EXISTS md_dcd_product_pid ON md_dcd_product(product_id, ts DESC);
 
 ALTER TABLE fin_opp_eval DROP CONSTRAINT IF EXISTS fin_opp_eval_direction_check;
@@ -83,11 +84,3 @@ CREATE TABLE IF NOT EXISTS fin_surface_gap (
 COMMENT ON TABLE fin_surface_gap IS
   '面差队列（T-0102 v3/v4）——差扫岗目录对拍注册表写行；分类器全机审裁态';
 
-INSERT INTO app_config(key,value) VALUES
-  ('research.dcd.min_dist_pct',  '8'),
-  ('research.dcd.max_term_days', '30'),
-  ('research.dcd.min_apr',       '0.05'),
-  ('research.dcd.notional_pct',  '20'),
-  ('research.gap.scan_interval_min', '360'),
-  ('research.gap.gen_cap',       '3')
-ON CONFLICT (key) DO NOTHING;

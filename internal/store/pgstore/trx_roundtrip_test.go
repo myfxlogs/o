@@ -12,7 +12,7 @@ import (
 func TestTrxStoreRoundtrip(t *testing.T) {
 	ctx := context.Background()
 	pool := testutil.Pool(t)
-	if err := Migrate(ctx, pool); err != nil {
+	if err := Migrate(ctx, pool, "fin"); err != nil {
 		t.Fatal(err)
 	}
 	s := NewStore(pool)

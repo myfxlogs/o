@@ -20,6 +20,7 @@ WHERE EXISTS (
       AND k.id > e.id)
   AND NOT EXISTS (SELECT 1 FROM fin_proposal p WHERE p.eval_id = e.id);
 
+ALTER TABLE fin_opp_eval DROP CONSTRAINT IF EXISTS fin_opp_eval_key;
 ALTER TABLE fin_opp_eval
     ADD CONSTRAINT fin_opp_eval_key UNIQUE (inst_id, template, direction);
 

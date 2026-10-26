@@ -12,7 +12,7 @@ import (
 func TestRegisterBeat(t *testing.T) {
 	pool := testutil.Pool(t)
 	ctx := context.Background()
-	if err := pgstore.Migrate(ctx, pool); err != nil {
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, "DELETE FROM fin_employee_registry WHERE name='test-emp'"); err != nil {

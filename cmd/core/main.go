@@ -63,7 +63,7 @@ func run() error {
 	}
 	defer pool.Close()
 
-	if err := pgstore.Migrate(ctx, pool); err != nil {
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil { // SG=钱径域（D-0030 §三）选 fin 链
 		return err
 	}
 

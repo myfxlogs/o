@@ -14,7 +14,7 @@ import (
 func setup(t *testing.T) (context.Context, *Runner) {
 	pool := testutil.Pool(t)
 	ctx := context.Background()
-	if err := pgstore.Migrate(ctx, pool); err != nil {
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx,
@@ -152,7 +152,7 @@ func TestReconcileMultiSubAccountAggregated(t *testing.T) {
 func TestPostInterest(t *testing.T) {
 	pool := testutil.Pool(t)
 	ctx := context.Background()
-	if err := pgstore.Migrate(ctx, pool); err != nil {
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, "TRUNCATE fin_cashflow"); err != nil {

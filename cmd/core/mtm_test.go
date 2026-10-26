@@ -13,7 +13,7 @@ import (
 func TestMTMReaderSpotFullValueAndSwapIncrement(t *testing.T) {
 	pool := testutil.Pool(t)
 	ctx := context.Background()
-	if err := pgstore.Migrate(ctx, pool); err != nil {
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
 		t.Fatal(err)
 	}
 	var xid, pid int64

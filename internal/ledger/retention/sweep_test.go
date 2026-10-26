@@ -13,7 +13,12 @@ import (
 func TestSweepDrivenDelete(t *testing.T) {
 	pool := testutil.Pool(t)
 	ctx := context.Background()
-	if err := pgstore.Migrate(ctx, pool); err != nil {
+	// T-0167 分链：两链并集态——账（fin_data_retention）在 fin 链、账样表
+	// fin_forward_check 判例在 md 链（评估前瞻校验归 PG-md），md 先 fin 后。
+	if err := pgstore.Migrate(ctx, pool, "md"); err != nil {
+		t.Fatal(err)
+	}
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
 		t.Fatal(err)
 	}
 	_, _ = pool.Exec(ctx, "TRUNCATE fin_forward_check,fin_paper_fill")
@@ -42,7 +47,12 @@ func TestSweepDrivenDelete(t *testing.T) {
 func TestUnregisteredReported(t *testing.T) {
 	pool := testutil.Pool(t)
 	ctx := context.Background()
-	if err := pgstore.Migrate(ctx, pool); err != nil {
+	// T-0167 分链：两链并集态——账（fin_data_retention）在 fin 链、账样表
+	// fin_forward_check 判例在 md 链（评估前瞻校验归 PG-md），md 先 fin 后。
+	if err := pgstore.Migrate(ctx, pool, "md"); err != nil {
+		t.Fatal(err)
+	}
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
 		t.Fatal(err)
 	}
 	_, _ = pool.Exec(ctx, "CREATE TABLE IF NOT EXISTS t_orphan_x(id int)")
@@ -59,7 +69,12 @@ func TestUnregisteredReported(t *testing.T) {
 func TestSizeSentinelFires(t *testing.T) {
 	pool := testutil.Pool(t)
 	ctx := context.Background()
-	if err := pgstore.Migrate(ctx, pool); err != nil {
+	// T-0167 分链：两链并集态——账（fin_data_retention）在 fin 链、账样表
+	// fin_forward_check 判例在 md 链（评估前瞻校验归 PG-md），md 先 fin 后。
+	if err := pgstore.Migrate(ctx, pool, "md"); err != nil {
+		t.Fatal(err)
+	}
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
 		t.Fatal(err)
 	}
 	var alerts []string

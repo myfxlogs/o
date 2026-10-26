@@ -15,7 +15,12 @@ import (
 func TestScanE2E(t *testing.T) {
 	pool := testutil.Pool(t)
 	ctx := context.Background()
-	if err := pgstore.Migrate(ctx, pool); err != nil {
+	// T-0167 分链：本包测试面跨域（研究域表+判据键）——两链并集态（md 先 fin 后
+	// =历史重放方向：md 链瞬态超表层先落，fin 链状态化/守卫后到）。
+	if err := pgstore.Migrate(ctx, pool, "md"); err != nil {
+		t.Fatal(err)
+	}
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
 		t.Fatal(err)
 	}
 	for k, v := range map[string]string{
@@ -93,7 +98,12 @@ func TestScanE2E(t *testing.T) {
 func TestScanEarnFloorE2E(t *testing.T) {
 	pool := testutil.Pool(t)
 	ctx := context.Background()
-	if err := pgstore.Migrate(ctx, pool); err != nil {
+	// T-0167 分链：本包测试面跨域（研究域表+判据键）——两链并集态（md 先 fin 后
+	// =历史重放方向：md 链瞬态超表层先落，fin 链状态化/守卫后到）。
+	if err := pgstore.Migrate(ctx, pool, "md"); err != nil {
+		t.Fatal(err)
+	}
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
 		t.Fatal(err)
 	}
 	// net=0.06 锚定形判据（taker 1500+slip 50bps；rate 0.001×1 settle×365）
@@ -189,7 +199,12 @@ func TestScanEarnFloorE2E(t *testing.T) {
 func TestMacroAnnotate(t *testing.T) {
 	pool := testutil.Pool(t)
 	ctx := context.Background()
-	if err := pgstore.Migrate(ctx, pool); err != nil {
+	// T-0167 分链：本包测试面跨域（研究域表+判据键）——两链并集态（md 先 fin 后
+	// =历史重放方向：md 链瞬态超表层先落，fin 链状态化/守卫后到）。
+	if err := pgstore.Migrate(ctx, pool, "md"); err != nil {
+		t.Fatal(err)
+	}
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
 		t.Fatal(err)
 	}
 	// 种子锚：kind 三值齐+行数≥15
@@ -238,7 +253,12 @@ func TestMacroAnnotate(t *testing.T) {
 func TestActiveStrategyBlocksProposal(t *testing.T) {
 	pool := testutil.Pool(t)
 	ctx := context.Background()
-	if err := pgstore.Migrate(ctx, pool); err != nil {
+	// T-0167 分链：本包测试面跨域（研究域表+判据键）——两链并集态（md 先 fin 后
+	// =历史重放方向：md 链瞬态超表层先落，fin 链状态化/守卫后到）。
+	if err := pgstore.Migrate(ctx, pool, "md"); err != nil {
+		t.Fatal(err)
+	}
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
 		t.Fatal(err)
 	}
 	for k, v := range map[string]string{
@@ -295,7 +315,12 @@ func TestActiveStrategyBlocksProposal(t *testing.T) {
 func TestSpotLegPrecheckGate(t *testing.T) {
 	ctx := context.Background()
 	pool := testutil.Pool(t)
-	if err := pgstore.Migrate(ctx, pool); err != nil {
+	// T-0167 分链：本包测试面跨域（研究域表+判据键）——两链并集态（md 先 fin 后
+	// =历史重放方向：md 链瞬态超表层先落，fin 链状态化/守卫后到）。
+	if err := pgstore.Migrate(ctx, pool, "md"); err != nil {
+		t.Fatal(err)
+	}
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
 		t.Fatal(err)
 	}
 	cfg := config.New(pool)

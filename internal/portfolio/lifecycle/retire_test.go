@@ -18,7 +18,7 @@ func newRig(t *testing.T) *Runner {
 	t.Helper()
 	pool := testutil.Pool(t)
 	ctx := context.Background()
-	if err := pgstore.Migrate(ctx, pool); err != nil {
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	for k, v := range map[string]string{

@@ -1,7 +1,7 @@
--- 0052 模板文法化（T-0120/D-0016 Ⅱ）：fin_opp_template +state 列——
--- enabled=现役执行态（存量行默认）/candidate=文法枚举候选（无 executor
--- 不落执行径）/retired。结构键 UNIQUE(template,venue,surface) 幂等锚；
--- fin_opp_eval direction 扩三族向（basis/lending/earn 利差+vol-sell）。
+-- 0052 模板文法化 md 链（T-0120/D-0016 Ⅱ；T-0167 分链：fin_opp_template 文法列
+-- =研究域归 PG-md；fin_opp_eval direction 扩=桥表 DDL 与 fin 链 fin_0052 同形；
+-- 判据键在 fin_0052）：fin_opp_template +state 列——enabled=现役执行态（存量行
+-- 默认）/candidate=文法枚举候选（无 executor 不落执行径）/retired。
 
 ALTER TABLE fin_opp_template ADD COLUMN IF NOT EXISTS state text NOT NULL DEFAULT 'enabled';
 ALTER TABLE fin_opp_template ADD CONSTRAINT fin_opp_template_state_check
@@ -15,8 +15,3 @@ ALTER TABLE fin_opp_eval ADD CONSTRAINT fin_opp_eval_direction_check
                        'gap_carry','gap_hedge',
                        'basis_quarter','basis_quarter_short','lending_spread',
                        'earn_term_spread','vol_sell'));
-
--- 文法枚举节拍判据键（scan_interval_min 热启）。
-INSERT INTO app_config(key,value) VALUES
-  ('research.grammar.scan_interval_min', '120')
-ON CONFLICT (key) DO NOTHING;

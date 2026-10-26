@@ -24,7 +24,7 @@ func (f *capSender) SendText(ctx context.Context, chatID, text string) (string, 
 func setup(t *testing.T) (context.Context, *SilentWatch) {
 	t.Helper()
 	pool := testutil.Pool(t)
-	if err := pgstore.Migrate(context.Background(), pool); err != nil {
+	if err := pgstore.Migrate(context.Background(), pool, "fin"); err != nil {
 		t.Fatal(err)
 	}
 	return context.Background(), NewSilentWatch(pool)
