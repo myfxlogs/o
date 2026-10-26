@@ -124,3 +124,30 @@ check_env_reads（白名单 26 键）✓ check_rejects_keys✓ check-lines（mai
    不再见 SG 钱径拒——覆盖与否归决策（本单票面仅 opener 读写）；c) 清道夫
    双实例+PG-md 保留账面归 T-0169；d) ev_proposal 双侧触发器归 T-0168
    （本票未含）；e) SG 24h 暴力计数复核（基线 2,840）。
+
+## 验收（决策席 2026-10-27 @merge 后落）
+
+**判：PASS——合入 master。**
+
+独立取证对账（非票面转述）：
+- PG-md live：`o-postgres-md` healthy 5435、卷 `o-pgdata-md`、容器在
+  `/o.slice/o-prod.slice` cgroup；`schema_migrations`=1003~1066（22 件，
+  +1000 键空间实证零撞号）；16 表=md 域+八桥正本全集、零 fin 域表零
+  app_config（与 domain.tsv 白名单一致）。
+- md_funding UQ 在案（venue,inst_id,ts 唯一索引+30d retention policy）。
+- check_migrations 七断言重跑绿；build（core/migrate/collector/research）
+  +pgstore 测试绿。
+- 隧道收窄实物全落：tunnel@ uid=1000+Match 块五项、钥行 restrict+
+  permitopen 单口、root authorized_keys 无隧道钥（指纹对拍）、
+  PermitRootLogin prohibit-password、fail2ban active、隧道进程以
+  tunnel@ 实测在跑、o-collecto/o-research 服务活。
+- env 未切（仍 5544→SG）——切换界守 T-0169 ✓。
+
+**要害三笔裁**：①+1000 错位=票面外方案但为撞号根修，收（KB 条目在案）；
+②保留账入册行=预修非超单，收；③o-prod.slice 系统面=条件请求成立
+（transient cgroup 现态可用但 CPUWeight 未生效+重启漂失——装配令随报发业主）。
+
+**承接观察项**：五条全数钉入 T-0169 票面（含本席新捕 fin_0069 无种子
+回填——触发器只随行变，首日集空，切轮换前补种一行）。
+
+票态：✅ 验收合入。
