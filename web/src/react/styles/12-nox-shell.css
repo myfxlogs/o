@@ -1,6 +1,33 @@
 /* 12-nox-shell：壳层范式（画骨样式批 10-19 升 arb 面——顶头条 header.app
-   + .sidebar 图标侧栏 + 移动汉堡抽屉；基础规则在 07-bell-tabs/00-base，
-   本件存 NOX 壳专属补面）。旧 .nox-shell/.nox-side/.nox-topbar 段退役。 */
+   + .sidebar 图标侧栏 + 移动汉堡抽屉）。旧 .nox-shell/.nox-side/.nox-topbar 段退役。
+   T-0160 导航壳统一：.sidebar 基础规则补件（07-bell-tabs 源面缺位=壳坏实锤）——
+   参数全列对拍 index.html .oside 件（宽 180/pad 16-8/item 8-12/active=--page/
+   移动替身=底栏 54px——两页侧栏逐参一致，移动全站同替身）。 */
+.sidebar {
+  position: fixed; left: 0; top: 0; bottom: 0; width: 180px; padding: 16px 8px;
+  background: var(--surface); border-right: 1px solid var(--line); z-index: 30;
+}
+.sidebar-item {
+  display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+  color: var(--ink-3); text-decoration: none; border-radius: 8px; font-size: 13px;
+}
+.sidebar-item:hover { color: var(--ink); }
+.sidebar-item.active { color: var(--ink); background: var(--page); }
+.sidebar-overlay { display: none; }
+.sidebar-toggle { display: none; }
+/* 移动替身统一=底栏（vanilla .oside 同款 54px 底栏——抽屉件留位可用但替身
+   全站一态钦定底栏；toggle/overlay 面禁出）。 */
+@media (max-width: 767px) {
+  .sidebar {
+    display: flex; left: 0; right: 0; top: auto; bottom: 0; width: auto; height: 54px;
+    padding: 0 8px; align-items: center; justify-content: space-around;
+    border-right: 0; border-top: 1px solid var(--line);
+  }
+  .sidebar .grp-label { display: none; }
+  .sidebar-item { flex-direction: column; gap: 2px; font-size: 10px; padding: 5px 12px; }
+  body { padding-bottom: 66px; }
+}
+@media (min-width: 768px) { body { padding-left: 196px; } }
 .brand { font-weight: 700; font-size: 16px; letter-spacing: 1px; color: var(--ink); }
 .app-spacer { flex: 1; }
 .theme-btn {
