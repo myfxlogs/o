@@ -1,6 +1,7 @@
 # T-0143 MT5 swap 点数方言换算件（carry_diff 解锁闸）
 
-## 态：待派
+## 态：施工中
+## 领取：zcode-t0143（ZCode 施工席）@ 2026-10-26
 ## 域：桥面蒸馏 / MT5 能力面
 ## 源出：T-0141 验收（carry_diff 缺席根因——venue swap_type=1 点数方言）
 
