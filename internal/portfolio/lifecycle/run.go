@@ -76,6 +76,12 @@ func (r *Runner) scan(ctx context.Context) error {
 		r.rej.Inc("missing_criteria")
 		return fmt.Errorf("lifecycle 判据缺位 fail-closed: %w", err)
 	}
+	if err := r.retireEvalRejected(ctx); err != nil {
+		return err
+	}
+	if err := r.retireStaleProposed(ctx); err != nil {
+		return err
+	}
 	if err := r.retireStaleDegraded(ctx); err != nil {
 		return err
 	}
@@ -221,11 +227,13 @@ func (r *Runner) retireStaleArmed(ctx context.Context) error {
 	}
 	// T-0136 ②armed 超龄退役：提案/策略 armed 超 lifecycle.armed_ttl_h
 	//（缺省 24h）未开火→自动退役+留痕（释放额度预算+T-0069 淤积同族治）。
+	// T-0161 补溯源列（armed_ttl_expired）——每条退役径必落因。
 	ttl := 24.0
 	if v, err := r.cfg.GetFloat("lifecycle.armed_ttl_h"); err == nil && v > 0 {
 		ttl = v
 	}
-	tag2, err2 := r.pool.Exec(ctx, `UPDATE fin_proposal SET state='fin_retired'
+	tag2, err2 := r.pool.Exec(ctx, `UPDATE fin_proposal SET state='fin_retired',
+		retire_reason='armed_ttl_expired', retired_at=now()
 		WHERE state='fin_armed' AND created_at<now()-make_interval(hours=>$1)`, ttl)
 	if err2 == nil && tag2.RowsAffected() > 0 {
 		log.Printf("[lifecycle] armed 提案超 %.0fh 退役 %d 行（未开火额度释放）", ttl, tag2.RowsAffected())
