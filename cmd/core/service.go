@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io/fs"
 	"log"
@@ -33,6 +32,8 @@ type coreService struct {
 	// T-0101：dcd 产品持仓活读件（state=live 枚举——已部署资本第三类别；
 	// nil/读败=卡面显「读件缺」不假零）。
 	dcdLive func(ctx context.Context) ([]okxexec.DcdOrder, error)
+	// T-0156：TRX 自营盘读面同源装配（采集臂单例——读面/刷新踢同源）。
+	trx *trxWiring
 }
 
 func (coreService) Ping(context.Context, *dashboardv1.PingRequest) (*dashboardv1.PingResponse, error) {
@@ -178,55 +179,23 @@ func durHuman(d time.Duration) string {
 	return fmt.Sprintf("%dh%dm", int(d.Hours()), int(d.Minutes())%60)
 }
 
-// mountCore 挂 ConnectRPC 服务到 mux（connect-go v2：Server 注册 + connecthttp.Mount）。
+// mountCore 挂 ConnectRPC 服务到 mux（connect-go v2：Server 注册 + connecthttp.Mount；
+// T-0156：REST 双轨全撤——CoreService 单源，trx 读面同 server 注册）。
 func mountCore(mux *http.ServeMux, pool *pgxpool.Pool,
 	fundingLive func(context.Context) (map[string]float64, error),
 	earnLive func(context.Context) (map[string]float64, error),
 	mt5Live func(context.Context) ([]mt5Acct, error),
-	dcdLive func(context.Context) ([]okxexec.DcdOrder, error)) {
+	dcdLive func(context.Context) ([]okxexec.DcdOrder, error), trxW *trxWiring) {
 	server := connect.NewServer()
 	dashboardv1connect.RegisterCoreServiceHandler(server,
 		coreService{pool: pool, fundingLive: fundingLive, earnLive: earnLive,
-			mt5Live: mt5Live, dcdLive: dcdLive})
+			mt5Live: mt5Live, dcdLive: dcdLive, trx: trxW})
 	connecthttp.Mount(mux, server)
 }
 
-// mountUI 总览活页面挂接（静态 embed+JSON/SSE——所见即所得零缓存；活推=ev_* 脊）。
-func mountUI(mux *http.ServeMux, pool *pgxpool.Pool,
-	fundingLive func(context.Context) (map[string]float64, error),
-	earnLive func(context.Context) (map[string]float64, error),
-	mt5Live func(context.Context) ([]mt5Acct, error),
-	dcdLive func(context.Context) ([]okxexec.DcdOrder, error)) {
-	mux.HandleFunc("/api/overview", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		if o, err := (coreService{pool: pool, fundingLive: fundingLive,
-			earnLive: earnLive, mt5Live: mt5Live, dcdLive: dcdLive}).Overview(r.Context(), nil); err == nil {
-			b, _ := json.Marshal(o)
-			_, _ = w.Write(b)
-		}
-	})
-	mux.HandleFunc("/api/watch", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/event-stream")
-		conn, err := pool.Acquire(r.Context())
-		if err != nil {
-			return
-		}
-		defer conn.Release()
-		if _, err := conn.Exec(r.Context(), "LISTEN ev_position"); err != nil {
-			return
-		}
-		_, _ = conn.Exec(r.Context(), "LISTEN ev_cashflow")
-		_, _ = conn.Exec(r.Context(), "LISTEN ev_account")
-		for {
-			if _, err := conn.Conn().WaitForNotification(r.Context()); err != nil {
-				return
-			}
-			_, _ = fmt.Fprint(w, "data: tick\n\n")
-			if f, ok := w.(http.Flusher); ok {
-				f.Flush()
-			}
-		}
-	})
+// mountUI 总览活页面挂接（T-0156：JSON/SSE 双轨面撤——静态 embed 单存；
+// 数据面唯一入口=CoreService Connect，活推=Watch 流帧 ev_* 脊）。
+func mountUI(mux *http.ServeMux) {
 	// 根路径直开（T-0068：GET / → index.html 直返无跳转；/ui/ 目录列表禁——
 	// dist 单层文件面逐件挂，禁 FileServer 目录模式）。
 	// T-0110：/trx → TRX 自营盘独立页（D-629 业绩外面独立入口非总览瓦片）。

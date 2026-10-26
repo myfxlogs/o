@@ -2,12 +2,23 @@ syntax = "proto3";
 
 package o.dashboard.v1;
 
+import "google/protobuf/timestamp.proto";
+
 option go_package = "o/internal/gen/dashboardv1";
 
 service CoreService {
   rpc Ping(PingRequest) returns (PingResponse) {}
   rpc Overview(OverviewRequest) returns (OverviewResponse) {}
   rpc Watch(WatchRequest) returns (stream WatchEvent) {}
+  // —— TRX 自营盘读面（T-0156：/api/trx/* 手拼 REST 全撤，proto 单源；
+  // D-629 业绩外自营盘零 NAV 计入）——
+  rpc GetTrxAccount(GetTrxAccountRequest) returns (GetTrxAccountResponse) {}
+  rpc TrxAccountRefresh(TrxAccountRefreshRequest) returns (TrxAccountRefreshResponse) {}
+  rpc ListTrxTxs(ListTrxTxsRequest) returns (ListTrxTxsResponse) {}
+  rpc GetTrxYieldRadar(GetTrxYieldRadarRequest) returns (GetTrxYieldRadarResponse) {}
+  rpc GetTrxYieldCurve(GetTrxYieldCurveRequest) returns (GetTrxYieldCurveResponse) {}
+  rpc GetHedgeStructure(GetHedgeStructureRequest) returns (GetHedgeStructureResponse) {}
+  rpc ListHedgeFlow(ListHedgeFlowRequest) returns (ListHedgeFlowResponse) {}
 }
 
 message PingRequest {}
@@ -47,3 +58,170 @@ message MoneyRow {
 message StaffRow { string name = 1; string duty = 2; int32 state = 3; } // 0绿1琥珀2红
 message WatchRequest {}
 message WatchEvent { string kind = 1; string ts = 2; }
+
+// —— TRX 自营盘（T-0156 收口面——字段折值后端算定，前端零计算；
+// found=false=读件缺显形不假零，冷启动不猜）——
+
+message GetTrxAccountRequest {}
+message GetTrxAccountResponse {
+  bool found = 1;                  // false=无快照在读（读件缺）
+  string address = 2;
+  string sr_address = 3;           // 空=未投票
+  double trx_balance = 4;          // sun→TRX 折值
+  double trx_allowance = 5;        // 待领奖励（rewardNum 折值）
+  double tron_power = 6;           // 质押量折值
+  double energy_delegated = 7;
+  double bandwidth_staked = 8;
+  int64 net_limit = 9;
+  int64 net_used = 10;
+  int64 free_net_limit = 11;
+  int64 free_net_used = 12;
+  int64 energy_limit = 13;
+  int64 energy_used = 14;
+  int64 votes = 15;
+  string bandwidth_status = 16;    // normal|yellow|red
+  google.protobuf.Timestamp fetched_at = 17;
+}
+
+message TrxAccountRefreshRequest {}
+message TrxAccountRefreshResponse {
+  bool found = 1;
+  string address = 2;
+  double trx_balance = 3;
+  google.protobuf.Timestamp fetched_at = 4;
+}
+
+message ListTrxTxsRequest {
+  int32 limit = 1;   // <=0 走后端缺省
+  string kind = 2;   // 空=全 kind
+}
+message ListTrxTxsResponse { repeated TrxTx txs = 1; }
+message TrxTx {
+  int64 id = 1;
+  string tx_id = 2;
+  google.protobuf.Timestamp ts = 3;
+  string kind = 4;
+  double amount_trx = 5;           // sun→TRX 折值
+  string counterparty = 6;         // 空=无对手方
+  bool cheat_status = 7;           // TronScan 官方恶意标记
+}
+
+message GetTrxYieldRadarRequest {}
+message GetTrxYieldRadarResponse {
+  double energy_apr_7d = 1;        // 实收年化 %（收入÷质押量）
+  double energy_apr_30d = 2;
+  double vote_apr_current = 3;     // 投票报价年化 %
+  double vote_apr_30d_avg = 4;
+  double floor_pct = 5;            // 参考线（app_config trx.floor_pct）
+  int32 sample_days_7d = 6;        // 样本天数（<窗口=冷启动透传）
+  int32 sample_days_30d = 7;
+  bool transition = 8;             // 7d 窗在押变化>20%=扩容过渡期 floor 无效
+  double vote_apr_max = 9;
+  string vote_apr_max_sr = 10;     // 空=无 producer
+  double vote_apr_spread = 11;     // max−min（pp）
+  google.protobuf.Timestamp updated_at = 12;
+}
+
+message GetTrxYieldCurveRequest { int32 days = 1; }  // <=0=30
+message GetTrxYieldCurveResponse {
+  repeated TrxYieldCurvePoint points = 1;
+  double annualized_7d = 2;        // 组合年化 %（能量+投票，$36.5K 池口径）
+  double annualized_30d = 3;
+  double current_price = 4;        // TRXUSDT mid
+  double pool_principal_usd = 5;
+  int32 sample_days_7d = 6;
+  int32 sample_days_30d = 7;
+  double cumulative_unhedged_income_trx = 8;
+  double cumulative_unhedged_income_usd = 9;
+}
+message TrxYieldCurvePoint {
+  google.protobuf.Timestamp day = 1;
+  double energy_trx = 2;
+  double voting_trx = 3;
+  double price = 4;                // 当日 TRXUSDT（缺=现价兜底）
+  double daily_total_usd = 5;
+}
+
+message GetHedgeStructureRequest {}
+message GetHedgeStructureResponse { HedgeStructure structure = 1; }
+message HedgeStructure {
+  double baseline_price = 1;       // 开仓基价（X-AFQUL entry）
+  double mid = 2;
+  double ask = 3;
+  HedgeLegSpot leg_spot = 4;
+  HedgeLegShort leg_short = 5;
+  double net_exposure_trx = 6;
+  double net_exposure_usd = 7;
+  HedgeCarry carry = 8;            // 收益事实（render 归收益率卡域）
+  HedgeAccounts accts = 9;
+  bool ws_connected = 10;          // false=REST 兜底径
+  string closeout_source = 11;     // platform_rule_50
+  string platform_alert_state = 12;  // normal|warn|breach（CMC 平台预警）
+  double closeout_level_usd = 13;  // 保证金 50%
+  double warning_level_usd = 14;   // 保证金 80%
+}
+message HedgeStake { double energy = 1; double bandwidth = 2; }
+message HedgeLegSpot {
+  string label = 1;
+  double qty_staked = 2;
+  double qty_liquid = 3;
+  HedgeStake stake = 4;
+  double pnl_vs_base = 5;          // 镜像近似（现货购价未知）
+  double vote_apr_current = 6;
+  double vote_apr_max = 7;
+  double vote_apr_spread = 8;
+  string vote_apr_max_sr = 9;
+}
+message HedgeLegShort {
+  string label = 1;
+  double qty = 2;
+  double pnl_vs_base = 3;          // 平台真值（不反推）
+  double lev = 4;
+  double liq = 5;                  // 强平价（平台口径 50% 标定）
+  double dist_pct = 6;             // 距强平 %
+}
+message HedgeCarry {
+  double trx_rental_7d_trx = 1;
+  double trx_vote_7d_trx = 2;
+  double cmc_overnight_7d_usd = 3;
+  double cum_usd = 4;
+  double annualized_pct = 5;
+  double mtd_net_usd = 6;
+  int32 mtd_sample_days = 7;
+  double hedged_cum_usd = 8;       // 对冲起算径
+  double hedged_annualized_pct = 9;
+}
+message HedgeAccounts {
+  double trx_balance = 1;
+  double trx_allowance = 2;
+  double energy_delegated = 3;
+  double votes = 4;
+  int64 net_limit = 5;
+  int64 net_used = 6;
+  int64 free_net_limit = 7;
+  int64 free_net_used = 8;
+  int64 energy_limit = 9;
+  int64 energy_used = 10;
+  string bandwidth_status = 11;
+  double cmc_cash = 12;
+  double cmc_equity = 13;
+}
+
+message ListHedgeFlowRequest {
+  string source_filter = 1;        // ''|trx|cmc
+  int32 limit = 2;                 // <=0=50
+  int32 offset = 3;
+}
+message ListHedgeFlowResponse {
+  int32 total = 1;                 // 过滤后总行数（分页下推）
+  repeated HedgeFlowItem txs = 2;
+}
+message HedgeFlowItem {
+  string source = 1;               // trx|cmc
+  google.protobuf.Timestamp ts = 2;
+  string kind = 3;
+  double amount_value = 4;         // trx=TRX 折值 / cmc=USD 原值
+  string amount_unit = 5;
+  string counterparty = 6;
+  string tx_id = 7;
+}
