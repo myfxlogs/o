@@ -42,7 +42,7 @@ func (s *Sweeper) Sweep(ctx context.Context) error {
 func (s *Sweeper) reportUnregistered(ctx context.Context) error {
 	var missing []string
 	rows, err := s.pool.Query(ctx, `SELECT t.table_name FROM information_schema.tables t
-		WHERE t.table_schema='public' AND t.table_type='BASE TABLE'
+		WHERE t.table_schema=ANY(current_schemas(false)) AND t.table_type='BASE TABLE'
 		AND NOT EXISTS(SELECT 1 FROM fin_data_retention r WHERE r.table_name=t.table_name)
 		AND t.table_name NOT LIKE 'timescale%' AND t.table_name NOT LIKE 'pg_%'`)
 	if err != nil {
@@ -112,7 +112,8 @@ func (s *Sweeper) sizeSentinel(ctx context.Context) error {
 			var at *time.Time
 			_ = rows.Scan(&t, &prev, &at)
 			var cur int64
-			_ = s.pool.QueryRow(ctx, "SELECT pg_total_relation_size($1::regclass)", "public."+t).Scan(&cur)
+			_ = s.pool.QueryRow(ctx,
+				"SELECT pg_total_relation_size(to_regclass(current_schema()||'.'||$1))", t).Scan(&cur)
 			if prev > 0 && at != nil && time.Since(*at) < 35*24*time.Hour &&
 				time.Since(*at) > 20*24*time.Hour {
 				growth := float64(cur-prev) / (time.Since(*at).Hours() / 24)
