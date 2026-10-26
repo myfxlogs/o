@@ -1,6 +1,7 @@
-# T-0152 TestTrxRollupIdempotent UTC 日界 flake 根修（T-0147 验收撞见）
+# D-0026 TestTrxRollupIdempotent UTC 日界 flake 根修（T-0147 验收撞见）
 
 ## 态：待施工
+## 原编号：T-0152（2026-10-26 前后台分系改编——后台 D 系/前端 T 系）
 ## 域：测试基建 / TRX rollup
 ## 源出：T-0147 验收跑桩窗实案——TestTrxRollupIdempotent 红
   `voting=0（应 2=Δreward 正增量）`。UTC 06:50 实拍：桩插入
