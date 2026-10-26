@@ -1,0 +1,115 @@
+// bridge —— 采集面外置开发机蒸馏件（T-0137/D-0020）：dev 跑全宇宙 WS
+// （index-tickers/mark-price/funding-rate 全量+spot_last REST 件复用），
+// 蒸馏态 upsert 直写 SG md_* 表（SSH 隧道径——写权 collector_rw 收窄件）。
+// 键域契约：同键 upsert 最新 ts 赢——SG REST 兜底自动接管无开关。
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"log"
+	"os"
+	"strings"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"o/internal/data/okxws"
+	"o/internal/platform/config"
+	"o/internal/trading/okxexec"
+)
+
+func main() {
+	ctx := context.Background()
+	dsn := os.Getenv("SG_PG_DSN") // env 白名单件（隧道终点 SG PG——开发机出口）
+	if dsn == "" {
+		log.Fatal("SG_PG_DSN 缺——桥写径无目的地 fail-closed")
+	}
+	pool, err := pgxpool.New(ctx, dsn)
+	if err != nil {
+		log.Fatalf("SG PG 连接败: %v", err)
+	}
+	defer pool.Close()
+	cfg := config.New(pool)
+	if err := cfg.Load(ctx); err != nil {
+		log.Fatalf("config load: %v", err)
+	}
+	cli := okxexec.NewClient(okxexec.Credentials{}, false) // 公开面零凭据
+	c := okxws.NewCollector(pool, cfg)
+	c.FullSub = true             // 桥面=全量订阅（不受 SG 瘦身口径）
+	c.AlertKind = "bridge_stale" // 面死告警 kind 覆写（T-0137 设计钉）
+	c.ExpandSymbols = func(ctx context.Context) ([]string, error) {
+		return universe(ctx, cli) // 宇宙扩件同 SG universeExpander 径
+	}
+	c.AttachSpotFeed(func(ctx context.Context) ([]byte, error) {
+		return cli.PublicGet(ctx, "/api/v5/market/tickers?instType=SPOT")
+	})
+	c.AttachMarkFeed(func(ctx context.Context) ([][]byte, error) {
+		var out [][]byte
+		for _, typ := range []string{"SWAP", "FUTURES"} {
+			raw, err := cli.PublicGet(ctx, "/api/v5/public/mark-price?instType="+typ)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, raw)
+		}
+		return out, nil
+	})
+	errc := make(chan error, 4)
+	go c.Run(ctx, errc)
+	log.Printf("[o-bridge] 采集桥起——全宇宙蒸馏写 SG（共写语义：同键最新 ts 赢）")
+	for {
+		select {
+		case err := <-errc:
+			if err != nil {
+				log.Fatalf("[o-bridge] 岗终: %v", err)
+			}
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+// universe 全宇宙标的（instruments 实读——SWAP live+季度期货+基币现货对，
+// 与 cmd/core/universe.go 同语义桥面复制件）。
+func universe(ctx context.Context, cli *okxexec.Client) ([]string, error) {
+	raw, err := cli.PublicGet(ctx, "/api/v5/public/instruments?instType=SWAP")
+	if err != nil {
+		return nil, err
+	}
+	var swap []struct {
+		InstID string `json:"instId"`
+		State  string `json:"state"`
+	}
+	if err := json.Unmarshal(raw, &swap); err != nil {
+		return nil, err
+	}
+	var out []string
+	seen := map[string]bool{}
+	for _, i := range swap {
+		if i.State == "live" && strings.HasSuffix(i.InstID, "-USDT-SWAP") {
+			out = append(out, i.InstID)
+			base := strings.TrimSuffix(i.InstID, "-USDT-SWAP") + "-USDT"
+			if !seen[base] {
+				seen[base] = true
+				out = append(out, base)
+			}
+		}
+	}
+	raw, err = cli.PublicGet(ctx, "/api/v5/public/instruments?instType=FUTURES")
+	if err != nil {
+		return out, nil
+	}
+	var fut []struct {
+		InstID string `json:"instId"`
+		Alias  string `json:"alias"`
+		State  string `json:"state"`
+	}
+	if err := json.Unmarshal(raw, &fut); err == nil {
+		for _, i := range fut {
+			if i.State == "live" && i.Alias == "quarter" && strings.HasSuffix(i.InstID, "-USDT") {
+				out = append(out, i.InstID)
+			}
+		}
+	}
+	return out, nil
+}

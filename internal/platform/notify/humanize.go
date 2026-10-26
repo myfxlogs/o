@@ -22,6 +22,7 @@ var kindSpec = map[string]struct {
 	"bal_missing":         {"对账缺岗", false, "venue 读件缺席"},
 	"research_arm_silent": {"研究臂静默", true, "在编臂零产出——机会面停摆（T-0117）"},
 	"okxws_face_dead":     {"行情面断流", false, "订阅标的行情全冻——系统面故障（T-0129）"},
+	"bridge_stale":        {"采集桥断链", false, "dev 蒸馏写径超时——SG REST 兜底自动接管（T-0137）"},
 }
 
 // HumanText 人话载荷装配（三段式——业主零黑话）。

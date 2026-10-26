@@ -118,3 +118,30 @@ func (c *Collector) syncActiveSet(ctx context.Context, conn *websocket.Conn,
 		}
 	}
 }
+
+// subscribeArgsFull 桥面全量订阅面（T-0137：dev 蒸馏=index-tickers 现货全量+
+// mark-price 全量+funding-rate——不受 SG 瘦身口径；tickers 仍活跃集动态补）。
+func subscribeArgsFull(syms []string) []map[string]string {
+	args := make([]map[string]string, 0, len(syms)*4)
+	for _, s := range syms {
+		switch {
+		case strings.HasSuffix(s, "-SWAP"):
+			args = append(args,
+				map[string]string{"channel": "funding-rate", "instId": s},
+				map[string]string{"channel": "mark-price", "instId": s})
+		case datedFutRe.MatchString(s):
+			args = append(args, map[string]string{"channel": "mark-price", "instId": s})
+		default:
+			args = append(args, map[string]string{"channel": "index-tickers", "instId": s})
+		}
+	}
+	return args
+}
+
+// subscribeSet 订阅面分派（桥=全量含 index-tickers/mark-price；SG=瘦身面）。
+func (c *Collector) subscribeSet(syms []string) []map[string]string {
+	if c.FullSub {
+		return subscribeArgsFull(syms)
+	}
+	return subscribeArgs(syms)
+}

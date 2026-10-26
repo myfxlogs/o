@@ -50,6 +50,8 @@ type Collector struct {
 	al        *notify.Alerter
 	refuseSub map[string]bool                             // 60018 拒收集（本连接内生效——T-0133 ③）
 	spotFeed  func(ctx context.Context) ([]byte, error)   // T-0134 现货 REST 读件
+	FullSub   bool                                        // T-0137 桥面全量 WS 订阅（index-tickers/mark-price 同订——dev 蒸馏面）
+	AlertKind string                                      // 面死告警 kind 覆写（桥=bridge_stale；缺省 okxws_face_dead）
 	markFeed  func(ctx context.Context) ([][]byte, error) // T-0135 mark-price REST 读件（SWAP+FUTURES 两请求） // 面死告警业主通道（T-0128 返修②——nil=log 退路）
 	// ExpandSymbols 宇宙扩件（T-0122：okx.symbols 含 "*"=放开全 SWAP+季度
 	// 期货——装配层挂 instruments 实读闭包，未挂=键面拒签 fail-closed）。
@@ -178,7 +180,7 @@ func (c *Collector) dialLoop(ctx context.Context, syms []string, gen int64) erro
 	defer conn.Close()
 	// T-0122 返修②：OKX WS 单帧订阅 ≤100 args（全宇宙 ~500 arg 单帧被拍
 	// 死——分帧多 op 续发，订阅节流件在 subscribeAll 内）。
-	if err := subscribeAll(conn, subscribeArgs(syms)); err != nil {
+	if err := subscribeAll(conn, c.subscribeSet(syms)); err != nil {
 		return err
 	}
 	log.Printf("[okxws] subscribed syms=%d url=%s", len(syms), c.url)
@@ -189,9 +191,7 @@ func (c *Collector) dialLoop(ctx context.Context, syms []string, gen int64) erro
 	c.refuseSub = map[string]bool{}
 	syncActive := func() { c.syncActiveSet(ctx, conn, syms, subTick, c.refuseSub) }
 	syncActive() // 连接建立即加订当前活跃集
-	// 看门狗起表（T-0050 根修）：lastFrame 初值 0=「未起表」盲区——队列塞死时
-	// 业务帧永不上前移，watchdog 恒 skip（SG 实勘静默断流）。订阅成功即起表：
-	// 75s 无帧判死重连，盲区消失。
+	// 看门狗起表（T-0050 根修——订阅成功即起表消盲区：75s 无帧判死重连）。
 	c.lastFrame.Store(time.Now().UnixNano())
 
 	ctx, cancel := context.WithCancel(ctx)

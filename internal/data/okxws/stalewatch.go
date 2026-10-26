@@ -32,7 +32,11 @@ func (c *Collector) staleWatch(ctx context.Context) {
 			if fresh == 0 && !alerted {
 				msg := fmt.Sprintf("订阅 %d 标的 md_ticks 全行超龄 3min（断流面非单键陈）", len(syms))
 				if c.al != nil {
-					c.al.Alert(ctx, "okxws_face_dead", msg)
+					kind := c.AlertKind
+					if kind == "" {
+						kind = "okxws_face_dead"
+					}
+					c.al.Alert(ctx, kind, msg)
 				} else {
 					log.Printf("ALERT [okxws] 行情面死——%s", msg)
 				}
