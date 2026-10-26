@@ -367,3 +367,19 @@ func TestTransferArbitrationQueryRejectIsFailed(t *testing.T) {
 		t.Fatalf("查询业务拒应 txFailed+一次仲裁: out=%v queries=%d", out, len(fake.stateQueries))
 	}
 }
+
+// T-0149 ②锚：funding 户闲资超阈→直购 Earn 零摆渡（无 transfer 帧）；歧态停手同退避。
+func TestFundingIdleDirectPurchase(t *testing.T) {
+	ctx, w, fake := setupW(t, &fakeAPI{}, map[string]string{"earn.sweep_min_usd": "100"})
+	w.AttachIdleFunding(func(context.Context) (float64, error) { return 500, nil }) // funding 500>thr
+	w.AttachIdle(func(context.Context) (float64, error) { return 0, nil })          // 交易户零——不触发三跳
+	if err := w.sweepIdle(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if len(fake.purchases) != 1 || fake.purchases[0] != 500 {
+		t.Fatalf("funding 直购应 500 一笔: %v", fake.purchases)
+	}
+	if len(fake.transfers) != 0 {
+		t.Fatalf("funding 段应零摆渡: %v", fake.transfers)
+	}
+}

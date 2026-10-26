@@ -66,6 +66,9 @@ type Worker struct {
 	// idle 交易户闲余现读件（T-0048：快照行出局——availEq 实读注入；
 	// nil/读败=fail-closed 禁动钱）。
 	idle func(ctx context.Context) (float64, error)
+	// idleFund funding 户闲余现读件（T-0149 ②：入金天然落 funding 户——
+	// 钱到即闲而原扫面只看交易户=真缺口；/asset/balances REST 低频件）。
+	idleFund func(ctx context.Context) (float64, error)
 	// coins 交易户逐币可动余量现读件（T-0095 v3 残币归口判据源；nil=归口让位）。
 	coins  func(ctx context.Context) (map[string]float64, error)
 	rateFn func(ctx context.Context) (okxexec.RateSummary, error)
@@ -96,6 +99,10 @@ func (w *Worker) AttachAlerter(a *notify.Alerter) { w.al = a }
 
 // AttachIdle 挂交易户闲余现读件（装配层接线——availEq 口径）。
 func (w *Worker) AttachIdle(fn func(ctx context.Context) (float64, error)) { w.idle = fn }
+
+// AttachIdleFunding 挂 funding 户闲余现读件（T-0149——入金落 funding 天然
+// 闲资面；装配层=AssetBalances 找 USDT availBal）。
+func (w *Worker) AttachIdleFunding(fn func(ctx context.Context) (float64, error)) { w.idleFund = fn }
 
 // AttachCoins 挂交易户逐币可动余量现读件（T-0095 v3 残币归口判据源）。
 func (w *Worker) AttachCoins(fn func(ctx context.Context) (map[string]float64, error)) { w.coins = fn }
@@ -153,6 +160,17 @@ func (w *Worker) sweepIdle(ctx context.Context) error {
 		w.rej.Inc("missing_param")
 		return fmt.Errorf("earn.sweep_min_usd: %w", err)
 	}
+	// T-0149 ②funding 户闲资先扫（入金落 funding 天然闲——直购 Earn 免
+	// 摆渡单跳；读件缺=让位不误报非阻断径）。
+	if w.idleFund != nil {
+		if favail, err := w.idleFund(ctx); err == nil && favail > thr {
+			if w.depositIdleFunding(ctx, favail) {
+				return nil // funding 段已动——下一拍再扫交易户段
+			}
+		} else if err != nil {
+			w.rej.Inc("idle_fund_missing")
+		}
+	}
 	idle, ok, err := w.tradingIdleUSDT(ctx)
 	if err != nil {
 		return err
@@ -188,6 +206,26 @@ func (w *Worker) sweepIdle(ctx context.Context) error {
 		w.lastSweepFailAmt, w.lastSweepFailAt = 0, time.Time{}
 	}
 	return nil
+}
+
+// depositIdleFunding funding 户闲资直购 Earn（T-0149 ②：funding→Earn 单跳
+// 免摆渡；58350 竞态幂等+clientId 幂等键+歧态禁补单 fail-closed 同规——
+// 败=计数+ALERT+同因 5min 退避）。
+func (w *Worker) depositIdleFunding(ctx context.Context, amt float64) bool {
+	if !w.mu.TryLock() {
+		w.rej.Inc("sweep_busy")
+		return false
+	}
+	defer w.mu.Unlock()
+	if err := w.api.SavingsPurchase(ctx, w.ccy, amt); err != nil {
+		w.rej.Inc("deposit_failed")
+		log.Printf("ALERT [earn] funding 户直购败 %.8f USDT（%v）——钱留 funding 户，同因 5min 退避", amt, err)
+		w.lastSweepFailAmt, w.lastSweepFailAt = amt, time.Now()
+		return false
+	}
+	w.afterMove(ctx, "earn_deposit", w.ccy, amt, "earn_out", -amt,
+		fmt.Sprintf("funding 户闲资 %.8f USDT 直购 Earn 停泊（入金落 funding 径 T-0149）", amt))
+	return true
 }
 
 // tradingIdleUSDT 交易户闲余（venue 现读件——快照出局；读件缺/读败=fail-closed 禁动钱）。

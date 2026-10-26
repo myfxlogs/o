@@ -20,7 +20,6 @@ import (
 	"o/internal/earn"
 	"o/internal/guard"
 	"o/internal/ledger"
-	legfunding "o/internal/ledger/funding"
 	"o/internal/ledger/holding"
 	"o/internal/ledger/report"
 	"o/internal/mt5"
@@ -150,6 +149,9 @@ func run() error {
 			earnW.AttachIdle(func(ctx context.Context) (float64, error) {
 				return okxAvailFromEvents(ctx, pool, okcli)
 			})
+			earnW.AttachIdleFunding(func(ctx context.Context) (float64, error) { // T-0149 ②
+				return okxFundingAvailUSDT(ctx, okcli)
+			})
 			earnW.AttachCoins(okxCoinsFor(pool, okcli)) // T-0095 v3 残币归口判据源
 			// 交易域首岗：执事（Executor=okxexec 唯一 venue 径——凭据与私流守同源解出）。
 			execR := execution.NewRunner(pool, cfg,
@@ -168,8 +170,7 @@ func run() error {
 		// 平仓量现读面（T-0046 ②——priv 凭据域内接线）。
 		closeSizer = okxSizer{newCli(priv.Credentials())}
 		// funding 记账（T-0044）：余额帧事件驱动 bills→fin_cashflow（bills.go）。
-		priv.SetBillsHook(legfunding.NewIngester(pool,
-			billsSrc{newCli(priv.Credentials())}).Hook())
+		priv.SetBillsHook(ledgerHook(pool, func() *okxexec.Client { return newCli(priv.Credentials()) }))
 		go priv.Run(ctx, errc)
 
 		// 台账同步：资产端点采（okxexec 装配注入——账本域不反向依赖交易域；

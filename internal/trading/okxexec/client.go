@@ -235,6 +235,12 @@ func (c *Client) AssetBalances(ctx context.Context) ([]struct {
 	return out, nil
 }
 
+// DepositHistory /asset/deposit-history（入金检测径 T-0149——无推送面 venue
+// REST 补漏正当；state=2 完成态判件在 ledger 侧）。
+func (c *Client) DepositHistory(ctx context.Context) (json.RawMessage, error) {
+	return c.Get(ctx, "/api/v5/asset/deposit-history")
+}
+
 // SavingsBalance /finance/savings/balance（earn 活期货产——钦定保留面）。
 func (c *Client) SavingsBalance(ctx context.Context) (json.RawMessage, error) {
 	return c.Get(ctx, "/api/v5/finance/savings/balance")
