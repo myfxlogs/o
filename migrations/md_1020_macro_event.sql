@@ -1,5 +1,7 @@
 -- 0020 高冲击日历事实表（T-0029：种成事实最省——零第三方 API 依赖；
 -- v1 仅评估卡 evidence 注解非闸不改判据）。日期以官方公布历录种子。
+-- T-0167 分链：md_macro_event=第八桥表正本（PG-md——D-0032 §二裁，report 留 SG
+-- 读镜像 fin_0067，research 读 PG-md 本地）；research.macro.horizon_days 配置键在 fin 链 fin_0020。
 CREATE TABLE IF NOT EXISTS md_macro_event (
     event_date date PRIMARY KEY,
     kind       text NOT NULL CHECK (kind IN ('fomc','cpi','nfp')),
@@ -7,9 +9,6 @@ CREATE TABLE IF NOT EXISTS md_macro_event (
     source     text NOT NULL DEFAULT 'seed'
 );
 COMMENT ON TABLE md_macro_event IS '宏观高冲击日历事实域（md_ 前缀——种成事实非行情流）';
-INSERT INTO app_config(key,value) VALUES
-  ('research.macro.horizon_days','"2"')
-ON CONFLICT (key) DO NOTHING;
 
 -- 种子：2026 余下 FOMC（官方历）+ CPI/NFP 月度例行（美国劳工部公布历——
 -- 例行日=按月首个周三/周五口径近似录入，种子域注 source='seed'）。

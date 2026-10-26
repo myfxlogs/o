@@ -1,0 +1,23 @@
+# o-prod.slice —— 生产件 systemd slice（T-0167/D-0030 §八：施工树 /opt/o-wt/*、
+# 施工面进程走默认 slice；生产件（PG-md 容器/collector/research/projector）
+# 归本 slice——CPUWeight 高=施工重活（build/test）不挤采集与研究算力）。
+#
+# 装配（双面——系统面管 docker 容器，用户面管 systemd --user 单元）：
+#   系统面（需 root）：
+#     cp deploy/o-prod.slice /etc/systemd/system/ && systemctl daemon-reload && systemctl start o-prod.slice
+#   用户面（collector/research 为 systemd --user 单元——系统 slice 用户单元不可入，
+#   同名用户 slice 落 ~/.config/systemd/user/o-prod.slice，单元加 Slice=o-prod.slice）：
+#     mkdir -p ~/.config/systemd/user && cp deploy/o-prod.slice ~/.config/systemd/user/
+#     systemctl --user daemon-reload && systemctl --user start o-prod.slice
+#
+# 装配时序注记：若 docker 容器已先跑（cgroup 浮动创建）systemctl start 报
+# 冲突时——docker compose -f docker-compose.dev.yml down → start slice → up 再起。
+# 条件请求：系统面装配需 root（sudo 无密码缺席——决策席/运维执行）。
+[Unit]
+Description=o production services slice（T-0167/D-0030 §八——生产件 CPUWeight 高，施工默认 slice）
+Documentation=file:/opt/o/docs/decisions/D-0030-PG分域设计.md
+Before=slices.target
+
+[Slice]
+# CPUWeight 高（缺省 100）：生产件权重 3×——施工 build/test 与生产采集/研究抢核时生产优先。
+CPUWeight=300

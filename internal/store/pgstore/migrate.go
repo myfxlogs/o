@@ -4,14 +4,19 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"o/migrations"
 )
 
-// Migrate 按登记表序进应用 migrations/*.sql；schema_migrations 记已应用版本（基线制）。
-// 幂等：已应用版本跳过；未登记文件不执行（登记表=唯一合法迁移清单）。
-func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
+// Migrate 按域选链（md|fin——T-0167 分域：PG-md 走 md 链、SG 走 fin 链），按登记表
+// 序进应用 migrations/<domain>_*.sql；schema_migrations 记已应用版本（基线制，库级
+// 一库一链）。幂等：已应用版本跳过；未登记文件不执行（登记表=唯一合法迁移清单）。
+func Migrate(ctx context.Context, pool *pgxpool.Pool, domain string) error {
+	if domain != "md" && domain != "fin" {
+		return fmt.Errorf("migrate domain %q 非法（合法域=md|fin——分域选链 fail-closed）", domain)
+	}
 	// 迁移串行化：并发 Migrate（多测试包/多实例 boot）在目录层撞 pg_type 唯一索引——
 	// advisory lock 互斥（会话级，连接断开自放）。
 	conn, err := pool.Acquire(ctx)
@@ -29,8 +34,18 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 		applied_at timestamptz NOT NULL DEFAULT now())`); err != nil {
 		return fmt.Errorf("schema_migrations bootstrap: %w", err)
 	}
-	sort.Slice(migrationTable, func(i, j int) bool { return migrationTable[i].Version < migrationTable[j].Version })
+	type entry = struct {
+		Version int
+		Name    string
+	}
+	chain := make([]entry, 0, len(migrationTable))
 	for _, m := range migrationTable {
+		if strings.HasPrefix(m.Name, domain+"_") {
+			chain = append(chain, m)
+		}
+	}
+	sort.Slice(chain, func(i, j int) bool { return chain[i].Version < chain[j].Version })
+	for _, m := range chain {
 		var applied bool
 		if err := pool.QueryRow(ctx,
 			"SELECT EXISTS(SELECT 1 FROM schema_migrations WHERE version=$1)", m.Version,

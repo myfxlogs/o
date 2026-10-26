@@ -1,17 +1,5 @@
--- 0011 复盘判决书+远期验证（G10 闭环收口）：fin_review/fin_forward_check/模板修正提案行。
-CREATE TABLE IF NOT EXISTS fin_review (
-    id            bigserial PRIMARY KEY,
-    position_ref  bigint NOT NULL,
-    verdict       text NOT NULL CHECK (verdict IN ('strong','mild','marginal','falsified')),
-    pred_net      numeric,
-    actual_net    numeric,
-    deviation     numeric,
-    attribution   text CHECK (attribution IN ('fee_drift','funding_flip','slippage','model_err','luck','na')),
-    detail        jsonb NOT NULL DEFAULT '{}',
-    reviewed_at   timestamptz NOT NULL DEFAULT now(),
-    UNIQUE (position_ref)
-);
-COMMENT ON COLUMN fin_review.verdict IS '四值闭集分级——falsified=经济经验库回改点挂钩';
+-- 0011 复盘面 md 链（T-0167 分链：fin_forward_check 评估前瞻校验+fin_template_proposal
+-- 模板修正提案=研究域归 PG-md；fin_review 判决书=钱径账链归 fin 链 fin_0011）。
 
 -- 远期验证排期（DSHQ 五池模式：决策点后多窗复测；否决提案同排——拒对/拒错考据）。
 CREATE TABLE IF NOT EXISTS fin_forward_check (

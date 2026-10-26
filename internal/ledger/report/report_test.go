@@ -15,7 +15,7 @@ import (
 func TestReportGen(t *testing.T) {
 	pool := testutil.Pool(t)
 	ctx := context.Background()
-	if err := pgstore.Migrate(ctx, pool); err != nil {
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
 		t.Fatal(err)
 	}
 	now := time.Now()
@@ -50,7 +50,7 @@ func TestReportGen(t *testing.T) {
 func TestReportHandler(t *testing.T) {
 	pool := testutil.Pool(t)
 	ctx := context.Background()
-	if err := pgstore.Migrate(ctx, pool); err != nil {
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
 		t.Fatal(err)
 	}
 	if err := Gen(ctx, pool, "daily", BoundsOf("daily", time.Now())); err != nil {
@@ -76,7 +76,7 @@ func TestReportHandler(t *testing.T) {
 func TestSchemaColumnAssertions(t *testing.T) {
 	pool := testutil.Pool(t)
 	ctx := context.Background()
-	if err := pgstore.Migrate(ctx, pool); err != nil {
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
 		t.Fatal(err)
 	}
 	for tbl, cols := range map[string][]string{
@@ -101,7 +101,7 @@ func TestSchemaColumnAssertions(t *testing.T) {
 func TestReportCounts(t *testing.T) {
 	pool := testutil.Pool(t)
 	ctx := context.Background()
-	if err := pgstore.Migrate(ctx, pool); err != nil {
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,verdict,legs,evidence)

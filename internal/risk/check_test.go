@@ -12,7 +12,7 @@ import (
 func setup(t *testing.T) (context.Context, *Gate) {
 	pool := testutil.Pool(t)
 	ctx := context.Background()
-	if err := pgstore.Migrate(ctx, pool); err != nil {
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
 		t.Fatal(err)
 	}
 	// 隔离硬化（T-0021）：专属 fixture 名空间清场+判据阈远离他包值域——

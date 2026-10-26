@@ -70,7 +70,7 @@ func openEthLeg(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 func TestOverviewFundScopeVenueCard(t *testing.T) {
 	ctx := context.Background()
 	pool := testutil.Pool(t)
-	if err := pgstore.Migrate(ctx, pool); err != nil {
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, "DELETE FROM md_account_events WHERE channel IN ('account','earn_parking')"); err != nil {
@@ -162,7 +162,7 @@ func TestOverviewFundScopeVenueCard(t *testing.T) {
 func TestOverviewMissingAccountsZero(t *testing.T) {
 	ctx := context.Background()
 	pool := testutil.Pool(t)
-	if err := pgstore.Migrate(ctx, pool); err != nil {
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, "DELETE FROM md_account_events WHERE channel IN ('account','earn_parking')"); err != nil {
@@ -217,7 +217,7 @@ func doingTexts(o *dashboardv1.OverviewResponse) string {
 func TestOverviewDoingFullCoverage(t *testing.T) {
 	ctx := context.Background()
 	pool := testutil.Pool(t)
-	if err := pgstore.Migrate(ctx, pool); err != nil {
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, "DELETE FROM md_account_events WHERE channel IN ('account','earn_parking')"); err != nil {
@@ -286,7 +286,7 @@ func TestOverviewDoingFullCoverage(t *testing.T) {
 func TestReopenCooldownBlocked(t *testing.T) {
 	ctx := context.Background()
 	pool := testutil.Pool(t)
-	if err := pgstore.Migrate(ctx, pool); err != nil {
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
 		t.Fatal(err)
 	}
 	var stratID, execID, posID int64

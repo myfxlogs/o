@@ -15,7 +15,7 @@ import (
 func xsetup(t *testing.T) (context.Context, *Runner) {
 	t.Helper()
 	pool := testutil.Pool(t)
-	if err := pgstore.Migrate(context.Background(), pool); err != nil {
+	if err := pgstore.Migrate(context.Background(), pool, "fin"); err != nil {
 		t.Fatal(err)
 	}
 	cfg := config.New(pool)

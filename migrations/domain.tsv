@@ -1,0 +1,66 @@
+# migrations/domain.tsv —— 域表白名单（T-0167/D-0030 §三/§五/D-0032 §三-5）。
+# 表名<TAB>md|fin|bridge；check_migrations.sh 据此断言：链内出现非本域且非
+# bridge 的表即红（串链）。bridge=八桥表（md 链正表/fin 链镜像，DDL 归一化
+# 同形断言另钉）。前缀不可判域（研究表多 fin_ 前缀、md_calendar_push 名 md
+# 实 fin）——一律以此清单为准；新表先入册再落迁移，缺册=红。
+# 格式：每行 `表名\t域`；# 起头为注。
+app_config	fin
+app_secrets	fin
+config_generation_seq	fin
+fin_employee_registry	fin
+md_ticks	bridge
+md_books5	md
+md_funding	bridge
+md_mark_index	bridge
+md_account_events	fin
+fin_venue_account_snapshot	fin
+fin_opp_template	md
+fin_opp_eval	bridge
+fin_proposal	bridge
+fin_paper_fill	fin
+fin_strategy	fin
+fin_strategy_transition	fin
+fin_risk_decision	fin
+fin_risk_token	fin
+fin_execution	fin
+fin_order_leg	fin
+fin_position	fin
+fin_cashflow	fin
+fin_ledger_snapshot	fin
+fin_review	fin
+fin_forward_check	md
+fin_template_proposal	md
+fin_guard_close	fin
+fin_holding	fin
+md_earn_rate	md
+md_equity_curve	fin
+md_macro_event	bridge
+fin_report	fin
+fin_push_ledger	fin
+md_venue_fact	fin
+fin_venue_bill	fin
+fin_review_verdict	fin
+md_calendar_push	fin
+fin_known_residual	fin
+fin_residual_custody	fin
+md_dcd_product	bridge
+fin_capability_surface	md
+fin_surface_gap	md
+fin_opp_hypothesis	md
+fin_trx_account	fin
+fin_trx_txs	fin
+fin_trx_cycle_vi	fin
+fin_trx_vote_apr	fin
+fin_trx_vote_apr_top	fin
+fin_trx_vote_rebalance	fin
+fin_trx_witness	fin
+fin_cmc_account_summary	fin
+fin_cmc_history	fin
+fin_cmc_positions	fin
+fin_cmc_prices	fin
+position_daily_income	fin
+fin_venue_untradeable	fin
+md_signal	bridge
+fin_data_retention	fin
+fin_eval_reject	fin
+fin_active_set	fin

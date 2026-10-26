@@ -1,0 +1,41 @@
+# docker-compose.dev.yml —— 开发机 PG-md 容器（T-0167/D-0030 §八：行情/研究域落
+# 开发机本地；SG 永不加载本文件——与 docker-compose.yml 无叠加关系，独立 compose
+# project）。数据卷=named volume（docker 管理域，与施工树 /opt/o-wt/*、生产件
+# /opt/o-collecto 目录天然隔离）；CPU 隔离=o-prod.slice（deploy/o-prod.slice 装
+# 入 /etc/systemd/system 后 systemctl start；cgroup_parent 落位由 docker 托管）。
+# 端口占用账：5433=本机 o-postgres（基线 compose）、5434=o-postgres-test、
+# **5435=PG-md**、5544=SG 隧道口（o-collecto-tunnel）。
+services:
+  o-postgres-md:
+    image: timescale/timescaledb:2.30.2-pg18 # 与 SG 自建镜像扩展同源（2.30.2/pg18）
+    container_name: o-postgres-md
+    restart: unless-stopped
+    mem_limit: 8g
+    cpus: 4
+    shm_size: "1gb"
+    command: -c shared_preload_libraries=timescaledb,pg_stat_statements
+    logging:
+      driver: json-file
+      options:
+        max-size: 50m
+        max-file: "3"
+    environment:
+      POSTGRES_USER: o
+      POSTGRES_PASSWORD: o
+      POSTGRES_DB: o
+    ports:
+      - "127.0.0.1:5435:5432" # 公网零暴露——同 SG PG 纪律（只绑环回）
+    volumes:
+      # postgres:18 挂载约定=挂 /var/lib/postgresql 根（数据落 PGDATA 子目录，
+      # 与基线 o-pgdata 同款——pg_upgrade --link 跨版不降容）
+      - o-pgdata-md:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U o -d o"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    cgroup_parent: o-prod.slice # 生产件 CPU 隔离（deploy/o-prod.slice——CPUWeight 高）
+
+volumes:
+  o-pgdata-md:
+    name: o-pgdata-md

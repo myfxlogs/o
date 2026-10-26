@@ -83,7 +83,7 @@ func (l *listener) expectQuiet(t *testing.T, within time.Duration) {
 func TestEvalNotifyFloodShrink(t *testing.T) {
 	pool := testutil.Pool(t)
 	ctx := context.Background()
-	if err := pgstore.Migrate(ctx, pool); err != nil {
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 

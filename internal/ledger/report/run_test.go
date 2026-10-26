@@ -33,7 +33,7 @@ func setupPush(t *testing.T) (context.Context, *Runner, *pushFake) {
 	t.Helper()
 	pool := testutil.Pool(t)
 	ctx := context.Background()
-	if err := pgstore.Migrate(ctx, pool); err != nil {
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
 		t.Fatal(err)
 	}
 	for k, v := range map[string]string{

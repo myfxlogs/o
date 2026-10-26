@@ -11,7 +11,7 @@ import (
 func TestTypedReaders(t *testing.T) {
 	pool := testutil.Pool(t)
 	ctx := context.Background()
-	if err := pgstore.Migrate(ctx, pool); err != nil {
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
 		t.Fatal(err)
 	}
 	// 原生类型种子（裸数字+原生布尔+字符串）

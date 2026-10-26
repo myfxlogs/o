@@ -48,7 +48,7 @@ func fakePrivWS(t *testing.T, loginOK bool, frames []string) *httptest.Server {
 func TestPrivE2E(t *testing.T) {
 	pool := testutil.Pool(t)
 	ctx := context.Background()
-	if err := pgstore.Migrate(ctx, pool); err != nil {
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
 		t.Fatal(err)
 	}
 	// 专属标记锚（共享测试实例——残留行假绿坑，断言只认本拍注入件）
@@ -95,7 +95,7 @@ func TestPrivE2E(t *testing.T) {
 func TestAccountDetailsSnapshot(t *testing.T) {
 	pool := testutil.Pool(t)
 	ctx := context.Background()
-	if err := pgstore.Migrate(ctx, pool); err != nil {
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
 		t.Fatal(err)
 	}
 	for _, q := range []string{

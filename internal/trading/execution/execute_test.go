@@ -73,7 +73,7 @@ func contains(s, sub string) bool {
 func setup(t *testing.T, fv Executor) (context.Context, *Runner) {
 	pool := testutil.Pool(t)
 	ctx := context.Background()
-	if err := pgstore.Migrate(ctx, pool); err != nil {
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
 		t.Fatal(err)
 	}
 	for k, v := range map[string]string{
@@ -258,7 +258,7 @@ func TestCloseSkipsLiveSwitch(t *testing.T) {
 func TestLegsDerivationAndSz(t *testing.T) {
 	pool := testutil.Pool(t)
 	ctx := context.Background()
-	if err := pgstore.Migrate(ctx, pool); err != nil {
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
 		t.Fatal(err)
 	}
 	// 真 meta（OKX 实勘 2026-10-24）：SWAP ctVal=0.01 **BTC 本位**（ctValCcy=BTC——
@@ -664,7 +664,7 @@ func TestMigration0040ShellRepair(t *testing.T) {
 		t.Fatal(err)
 	}
 	// 跑 0040 本体（Migrate 版本序已含——测试库走手排防版本先记账）。
-	body, err := migrations.FS.ReadFile("0040_position_ref_repair.sql")
+	body, err := migrations.FS.ReadFile("fin_0040_position_ref_repair.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

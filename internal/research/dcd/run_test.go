@@ -20,7 +20,12 @@ func setup(t *testing.T) (context.Context, *Runner) {
 	t.Helper()
 	pool := testutil.Pool(t)
 	ctx := context.Background()
-	if err := pgstore.Migrate(ctx, pool); err != nil {
+	// T-0167 分链：本包测试面跨域（研究域表+判据键）——两链并集态（md 先 fin 后
+	// =历史重放方向：md 链瞬态超表层先落，fin 链状态化/守卫后到）。
+	if err := pgstore.Migrate(ctx, pool, "md"); err != nil {
+		t.Fatal(err)
+	}
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
 		t.Fatal(err)
 	}
 	cfg := config.New(pool)

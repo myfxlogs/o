@@ -21,7 +21,7 @@ func trxTestSetup(t *testing.T) (context.Context, *trxWiring, coreService) {
 	t.Helper()
 	pool := testutil.Pool(t)
 	ctx := context.Background()
-	if err := pgstore.Migrate(ctx, pool); err != nil {
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
 		t.Fatal(err)
 	}
 	cfg := config.New(pool)

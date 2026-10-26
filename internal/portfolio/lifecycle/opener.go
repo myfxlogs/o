@@ -227,28 +227,29 @@ func (r *Runner) breakevenOK(ctx context.Context, spec OpenSpec) (bool, string) 
 }
 
 // rejectEvalReason 通用拒卡落件（T-0111：reason 参数化——lifetime/回本窗同径
-// 落卡幂等窗共位；rejectEval 保留原名签名收编到本件）。
+// 落卡幂等窗共位；rejectEval 保留原名签名收编到本件。T-0167/D-0032 §三-3：
+// 拒件落 fin_eval_reject 拆表——ID 空间与 fin_opp_eval 正本隔离，桥镜像对
+// SG 严格只读前提成立；reason 升显式列，1h 幂等窗语义原样）。
 func (r *Runner) rejectEvalReason(ctx context.Context, spec OpenSpec, reason string, ev map[string]any) bool {
 	ev["reason"] = reason
 	b, _ := json.Marshal(ev)
 	var n int
-	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_opp_eval
-		WHERE inst_id=$1 AND verdict='rejected'
-		AND evidence->>'reason'=$2 AND ts>now()-interval '1 hour'`,
+	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_eval_reject
+		WHERE inst_id=$1 AND reason=$2 AND ts>now()-interval '1 hour'`,
 		spec.InstID, reason).Scan(&n); err != nil || n > 0 {
 		return false
 	}
-	if _, err := r.pool.Exec(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,verdict,legs,evidence)
-		VALUES($1,'funding-hedge',$2,'rejected','[]',$3)
-		ON CONFLICT (inst_id,template,direction) DO UPDATE SET ts=now(),
-		verdict=EXCLUDED.verdict,legs=EXCLUDED.legs,evidence=EXCLUDED.evidence`,
-		spec.InstID, spec.Direction, b); err != nil {
+	if _, err := r.pool.Exec(ctx, `INSERT INTO fin_eval_reject(inst_id,template,direction,reason,evidence)
+		VALUES($1,'funding-hedge',$2,$3,$4)
+		ON CONFLICT (inst_id,template,direction,reason) DO UPDATE SET ts=now(),
+		evidence=EXCLUDED.evidence`,
+		spec.InstID, spec.Direction, reason, b); err != nil {
 		r.rej.Inc("write_err")
 	}
 	return false
 }
 
-// rejectEval 寿命拒落卡（T-0103：fin_opp_eval rejected+reason 机读面——
+// rejectEval 寿命拒落卡（T-0103：拒因机读面——T-0167 起落 fin_eval_reject，
 // 1h 幂等窗防振荡期行洪）。
 func (r *Runner) rejectEval(ctx context.Context, spec OpenSpec, latest, next float64) bool {
 	return r.rejectEvalReason(ctx, spec, "lifetime_below_min", map[string]any{

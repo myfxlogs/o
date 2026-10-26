@@ -1,12 +1,17 @@
-# autossh 隧道 systemd 单元（T-0137——dev 本地 5433→SG 127.0.0.1:5432；
-# 桥写径唯一通道，断则 SG REST 兜底自动接管零切换）。
+# ssh 隧道 systemd --user 单元（T-0137 建，T-0167 收窄——专用低权 tunnel@ +
+# restrict 钥；root 钥从隧道退役，D-0030 §八）。
+# SG 侧配套（/etc/ssh/sshd_config 追加）：Match User tunnel→ForceCommand /bin/false
+# +PermitOpen 127.0.0.1:15433；/home/tunnel/.ssh/authorized_keys 钥行
+# restrict,port-forwarding,permitopen="127.0.0.1:15433"。
+# dev 侧专用钥：~/.ssh/o_tunnel_pg_ed25519（o-pg-tunnel-dev）。
 [Unit]
-Description=o-collecto SSH tunnel dev:5433->SG:5432
+Description=collector tunnel dev:5544 -> SG 127.0.0.1:15433
 After=network-online.target
 [Service]
-ExecStart=/usr/bin/autossh -M 0 -N -L 5433:127.0.0.1:5432 SG_HOST \
-  -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o ExitOnForwardFailure=yes
+ExecStart=/usr/bin/ssh -N -L 127.0.0.1:5544:127.0.0.1:15433 tunnel@SG_HOST \
+  -o IdentitiesOnly=yes -i %h/.ssh/o_tunnel_pg_ed25519 \
+  -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o ExitOnForwardFailure=yes -o BatchMode=yes
 Restart=always
 RestartSec=10
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target
