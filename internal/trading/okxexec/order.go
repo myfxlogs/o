@@ -132,3 +132,27 @@ func parseF(s string) float64 {
 
 // ParseF venue 数字串解析壳（台账装配层消费）。
 func ParseF(s string) float64 { return parseF(s) }
+
+// TerminalInstErr instrument 终局拒判（T-0142/D-0022 同域实案——SHEIN/
+// CSOPSKHYNIX2L 股权永续 catalog-live 但下单 51001，lifecycle 事件续试风暴
+// 256 拒/5min）：venue 拒语=终局事实。终局码域=instrument 不存在/暂停/过期族：
+//
+//	51001 Instrument ID doesn't exist（区域/资质门拒语——本户不可交易终局）；
+//	51003 Instrument ID 已过期或暂停交易。
+//
+// 51000 不入（参数族——clOrdId 连字符先例=参数 bug 非标的终局，误伤面大）。
+// 黑名单只对 instrument 级不波及同 venue 他标的（票面禁线）。
+func TerminalInstErr(err error) bool {
+	var ae *APIError
+	if !errorsAs(err, &ae) {
+		return false
+	}
+	switch ae.Code {
+	case "51001", "51003":
+		return true
+	}
+	return false
+}
+
+// errorsAs 薄壳（errors.As 注入面——本文件不直引 errors 包重复名）。
+func errorsAs(err error, target any) bool { return errors.As(err, target) }

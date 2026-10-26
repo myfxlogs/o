@@ -136,6 +136,13 @@ func (r *Runner) generateCandidate(ctx context.Context, venue, surface, family s
 		r.rej.Inc("gap_write_err")
 		return false, err
 	}
+	// T-0142 黑名单滤：venue 拒过的 inst 不再起草（同族不再武装——学费一次）。
+	var banned int
+	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_venue_untradeable
+		WHERE inst_id=$1`, instID).Scan(&banned); err == nil && banned > 0 {
+		log.Printf("[gapscan] %s 黑名单命中（venue_untradeable）——候选不起草", instID)
+		return false, nil
+	}
 	if _, err := r.pool.Exec(ctx, `INSERT INTO fin_proposal(eval_id,inst_id,direction,net_apr)
 		VALUES($1,$2,$3,0)`, evalID, instID, direction); err != nil {
 		r.rej.Inc("gap_write_err")

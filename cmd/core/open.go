@@ -6,7 +6,9 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log"
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -61,8 +63,44 @@ func (h hedgeOpener) Open(ctx context.Context, spec lifecycle.OpenSpec) (int64, 
 	if err != nil {
 		return 0, fmt.Errorf("腿构: %w", err)
 	}
-	return h.r.Execute(ctx, execution.Intent{DecisionID: dec.DecisionID,
+	eid, xerr := h.r.Execute(ctx, execution.Intent{DecisionID: dec.DecisionID,
 		StrategyRef: spec.StrategyRef, InstID: spec.InstID, NotionalUSD: notional, Legs: legs})
+	// T-0142 终局分类：instrument 终局拒（51001/51003 族）=venue 拒语终局事实
+	// ——黑名单入册+策略退（retired,venue_untradeable）+同 inst armed 提案退。
+	// 策略退后 openLive 查询（state='live'）不再选中=续试风暴根除（禁事件续试）。
+	if okxexec.TerminalInstErr(xerr) {
+		if herr := h.untradeable(ctx, spec, xerr); herr != nil {
+			return eid, fmt.Errorf("终局处置败（须人查）: %w", herr)
+		}
+		return eid, fmt.Errorf("venue_untradeable: %w", xerr)
+	}
+	return eid, xerr
+}
+
+// untradeable 终局处置三件（T-0142）：黑名单入册（学费一次）→策略退
+// （Transition 留痕同决策席手动处置写径）→同 inst armed 提案退 fin_retired。
+func (h hedgeOpener) untradeable(ctx context.Context, spec lifecycle.OpenSpec, xerr error) error {
+	var ae *okxexec.APIError
+	_ = errors.As(xerr, &ae)
+	code, msg := "", ""
+	if ae != nil {
+		code, msg = ae.Code, ae.Msg
+	}
+	if _, err := h.pool.Exec(ctx, `INSERT INTO fin_venue_untradeable(inst_id,code,msg)
+		VALUES($1,$2,$3)
+		ON CONFLICT (inst_id) DO UPDATE SET code=EXCLUDED.code, msg=EXCLUDED.msg`,
+		spec.InstID, code, msg); err != nil {
+		return err
+	}
+	log.Printf("ALERT [open] 终局拒 %s（%s %s）——黑名单入册+策略 %d 退+armed 提案退",
+		spec.InstID, code, msg, spec.StrategyRef)
+	if err := lifecycle.Transition(ctx, h.pool, spec.StrategyRef, "retired",
+		"venue_untradeable:"+code+" "+msg, false); err != nil {
+		return fmt.Errorf("策略退: %w", err)
+	}
+	_, err := h.pool.Exec(ctx, `UPDATE fin_proposal SET state='fin_retired'
+		WHERE inst_id=$1 AND state='fin_armed'`, spec.InstID)
+	return err
 }
 
 // reopenCooldownBlocked 再开冷却窗判定（T-0107）：同策略同标的存在冷却窗内
