@@ -255,14 +255,19 @@ func SwapAnnualBPS(si *mt5pb.SymbolInfo, sg *mt5pb.SymGroup, mid float64) (float
 	case mt5pb.SwapType_SwapType_PercCurPrice:
 		return sg.GetSwapShort() * 365 * 10000, true
 	case mt5pb.SwapType_SwapType_InPoints:
+		// T-0143 二返修正典式（venue 实证 2026-10-26：BTCUSDm/ETHUSDm
+		// tick_value/tick_size=0 不填、points=0.01/contract_size=1 实填——
+		// tick 双字段降为候选佐证非必需环，0=不阻断）：
+		//   点值=points×contract_size（报价币/点/手）
+		//   币值/手/天=swap×points×cs；年化 bps=×365/(mid×cs)×10⁴（cs 约掉量纲自洽）。
 		if si == nil {
 			return 0, false
 		}
-		tv, ts, pts, cs := si.GetTickValue(), si.GetTickSize(), si.GetPoints(), si.GetContractSize()
-		if tv <= 0 || ts <= 0 || pts <= 0 || cs <= 0 || mid <= 0 {
+		pts, cs := si.GetPoints(), si.GetContractSize()
+		if pts <= 0 || cs <= 0 || mid <= 0 {
 			return 0, false // 换算链缺环——缺席如实
 		}
-		ccyPerLot := sg.GetSwapShort() * tv * pts / ts // 币值/手/天
+		ccyPerLot := sg.GetSwapShort() * pts * cs
 		return ccyPerLot * 365 / (mid * cs) * 10000, true
 	default:
 		return 0, false
