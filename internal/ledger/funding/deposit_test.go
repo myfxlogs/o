@@ -40,3 +40,28 @@ func TestDepositScanIdempotent(t *testing.T) {
 // T-0149 返修②锚：bill+cashflow 同事务——cashflow 写败→bill 行同回滚不留孤儿。
 // （cashflow 注入败真仿=约束违例面；此处借非 USDT 入账行模拟现金面败径——
 // 事务原子语义由同 tx.QueryRow/Exec/Commit 代码径保障，PG 级锚已证双行同成。）
+
+// T-0149 二返修桩锚：非 USDT depId 行→零写零败（D-0021 TRX 自营边界）；
+// 夹杂行序→后续 USDT 行照入账（逐行隔离不 abort 整扫）。
+func TestDepositScanUSDTGate(t *testing.T) {
+	ctx, pool := setup(t)
+	src := fakeDepSrc{rows: []DepositRow{
+		{DepID: "trx1", Ccy: "TRX", Amt: "1000", State: "2", Ts: "1761000000000"}, // 非 USDT=不入账
+		{DepID: "u1", Ccy: "USDT", Amt: "100", State: "2", Ts: "1761000000001"},
+		{DepID: "btc1", Ccy: "BTC", Amt: "0.5", State: "2", Ts: "1761000000002"}, // 夹杂毒行序
+		{DepID: "u2", Ccy: "USDT", Amt: "200", State: "2", Ts: "1761000000003"},
+	}}
+	sc := NewDepositScanner(pool, src)
+	n, err := sc.Scan(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 2 {
+		t.Fatalf("USDT 应入 2 行（TRX/BTC 滤除）: %d", n)
+	}
+	var c int
+	_ = pool.QueryRow(ctx, "SELECT count(*) FROM fin_venue_bill WHERE bill_id LIKE 'dep-%'").Scan(&c)
+	if c != 2 {
+		t.Fatalf("bill 行应 2（非 USDT 不留 bill）: %d", c)
+	}
+}
