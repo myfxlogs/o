@@ -211,6 +211,15 @@ if [ -n "$BIGFILE_BAD" ]; then
   exit 1
 fi
 
+# 11c. 票号唯一性闸（T-0163）：双席并行立单撞号根治——staged 新立/拷贝/改名票
+# 逐号对全仓（index）计数，同号多于一即红报冲突件名；存量双号不溯（决策裁注记
+# 共存，M 改票不触发）。新立票过闸附取号提示（本地最大号+1 非必对，远端为准）。
+if [ -x scripts/check_ticket_numbers.sh ]; then
+  scripts/check_ticket_numbers.sh --staged || exit 1
+else
+  echo "[pre-commit] 票号唯一性闸: 条件未备跳过（scripts/check_ticket_numbers.sh 未落位）"
+fi
+
 # 12. 未推送 warn（D-588）：本地领先远端 N commit 即 warn 断链风险，推送成功自消。
 UPSTREAM=""
 if git rev-parse --abbrev-ref @{u} >/dev/null 2>&1; then
