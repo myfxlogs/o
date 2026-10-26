@@ -79,6 +79,11 @@ fi
 if [ -x scripts/check_no_forbidden_patterns.sh ]; then
   scripts/check_no_forbidden_patterns.sh
 fi
+# 6c. rejects 门键对账（T-0148——Inc 键 ⊆ 同包 rejects.New 注册集，
+# 漏注册=运行期 WARN 洪泛+计数丢失）。
+if [ -x scripts/check_rejects_keys.sh ]; then
+  scripts/check_rejects_keys.sh
+fi
 
 # 7. gofmt 门禁（-c core.quotepath=off 必须带：中文路径 quoted 形态破匹配）
 STAGED_GO=$(git -c core.quotepath=off diff --cached --name-only --diff-filter=ACMR | grep '\.go$' || true)

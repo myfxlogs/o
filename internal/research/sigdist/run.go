@@ -44,7 +44,8 @@ type Runner struct {
 // New 构造。
 func New(pool *pgxpool.Pool) *Runner {
 	return &Runner{pool: pool,
-		rej: rejects.New("sigdist", "basis_read_failed", "funding_read_failed", "sig_write_err")}
+		rej: rejects.New("sigdist", "basis_read_failed", "funding_read_failed", "sig_write_err",
+			"xvenue_map_missing")}
 }
 
 // Run 在岗（蒸馏节拍——写协程语义同桥面：失败计 rejects 下一拍再算，fail-closed 不造零）。

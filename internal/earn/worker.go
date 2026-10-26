@@ -85,7 +85,7 @@ func NewWorker(pool *pgxpool.Pool, cfg *config.Client) *Worker {
 		rej: rejects.New("earn", "rate_fetch_failed", "rate_parse_failed", "missing_param",
 			"idle_missing", "idle_fund_missing", "sweep_skip_inflight", "sweep_busy", "sweep_backoff", "venue_absent",
 			"deposit_failed", "transfer_ambiguous", "compensation_failed",
-			"snapshot_refresh_failed", "write_err", "custody_marked"),
+			"snapshot_refresh_failed", "write_err", "custody_marked", "transfer_rejected"),
 		rateFn: func(ctx context.Context) (okxexec.RateSummary, error) {
 			return okxexec.LendingRateSummary(ctx, defaultCcy)
 		}}

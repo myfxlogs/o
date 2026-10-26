@@ -84,7 +84,8 @@ func (r *Runner) AttachSignals(fn SignalReader) *Runner { r.sigs = fn; return r 
 
 func NewRunner(pool *pgxpool.Pool, cfg *config.Client) *Runner {
 	return &Runner{pool: pool, cfg: cfg, watch: armwatch.New("假想官"),
-		rej: rejects.New("research", "hypo_missing_params", "hypo_write_err")}
+		rej: rejects.New("research", "hypo_missing_params", "hypo_write_err",
+			"sig_missing_params", "sig_write_err")}
 }
 
 // enroll 花名册落位（T-0078 判据：名单岗必须 runtime 在行——编制册研究域

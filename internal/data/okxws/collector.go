@@ -92,7 +92,7 @@ func NewCollector(pool *pgxpool.Pool, cfg *config.Client) *Collector {
 	return &Collector{
 		pool: pool, cfg: cfg, url: PublicURL,
 		rej: rejects.New("okxws", "non_usdt_instid", "seq_gap", "parse_fail", "write_err", "symbols_missing",
-			"spot_feed_failed", "mark_feed_failed", "activeset_read_failed"),
+			"spot_feed_failed", "mark_feed_failed", "activeset_read_failed", "depth5_no_ctval"),
 		queue: make(chan rowItem, 1024),
 		Stats: nil,
 	}
