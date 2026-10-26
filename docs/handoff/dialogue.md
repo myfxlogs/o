@@ -214,3 +214,6 @@
 - **裁决：okx-api-spec 补 frontmatter**（范围外报备件，doc 级决策席顺手修权限内）——哨兵归零；skills 面写走 worktree 径（D-651 闸拦部署树直写，t/0052-okx-api-spec-fm 支→合并 604356f）。
 - **坑发现+入库**：skills-index-drift-via-cross-face-commit——生成物坑引列取自经验库而 8b 闸触发面只盖 skills/ 面，经验库-only commit 漂移静默上 master。通律入条目：**派生依赖面 ⊆ 闸触发面才闭环**。修复单 T-0154 已批（触发面扩 `^docs/工程经验库/`，低优先）。
 - 现场观察：`tools/ratechk/` 未跟踪面在部署树（非本席产物，未触碰，疑似另一席工作面——留权责人自处）。
+- **T-0156 施工 session（glm-t0156 @ 2026-10-26）**：业主指令误发 T-0152 单行指针，随即撤回更正「发错了，请继续 156 任务」——本席自始至终只领 T-0156，未触碰 T-0152 面。施工三 commit（529c848 步0热修/101c919 步1+2 后端/e923d59 步3+4 前端）推 t/0156-frontend-proto-stream，票翻待验。
+- **范围偏离自报（交决策裁）**：proto 扩面实落七 RPC 非票面「四读面」——GetTrxAccount/ListTrxTxs 为 vanilla 总览 TRX 段活口所需（该段消费的 radar/vote/cmc/cmc_positions REST face 自 T-0110 改名起即 404 僵尸，Promise.all 连坐致整段恒空；本票顺带修活），验收「/api/trx/* 全撤 404 化」的下界要求。
+- **坑发现+入库**：connect-server-stream-no-headers-before-first-write——connect 服务端流首写前不发响应头，客户端 Watch()/for-await 悬挂至首个数据事件；CoreService.Watch 自 T-0067 起从未被前端真用（前端走 SSE），潜伏雷由本票 e2e 桩测首踩引爆。修法=LISTEN 注册后立即发 watch_open 初始就绪帧（兼前端连接即回填拍）。
