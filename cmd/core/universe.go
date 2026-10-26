@@ -8,10 +8,12 @@ import (
 	"encoding/json"
 	"strings"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"o/internal/trading/okxexec"
 )
 
-func universeExpander(getCli func() *okxexec.Client) func(ctx context.Context) ([]string, error) {
+func universeExpander(getCli func() *okxexec.Client, pool *pgxpool.Pool) func(ctx context.Context) ([]string, error) {
 	return func(ctx context.Context) ([]string, error) {
 		cli := getCli()
 		if cli == nil {
@@ -58,6 +60,24 @@ func universeExpander(getCli func() *okxexec.Client) func(ctx context.Context) (
 					out = append(out, i.InstID)
 				}
 			}
+		}
+		// T-0142 黑名单滤（venue_untradeable——venue 拒过的 inst 不进订阅/评估）。
+		if bl, qerr := pool.Query(ctx, `SELECT inst_id FROM fin_venue_untradeable`); qerr == nil {
+			banned := map[string]bool{}
+			for bl.Next() {
+				var b string
+				if bl.Scan(&b) == nil {
+					banned[b] = true
+				}
+			}
+			bl.Close()
+			var kept []string
+			for _, sy := range out {
+				if !banned[sy] {
+					kept = append(kept, sy)
+				}
+			}
+			out = kept
 		}
 		return out, nil
 	}

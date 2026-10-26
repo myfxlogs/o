@@ -96,7 +96,7 @@ func run() error {
 	var meter *netmeter.Meter
 	var okcli *okxexec.Client
 	collector := okxws.NewCollector(pool, cfg)
-	collector.ExpandSymbols = universeExpander(func() *okxexec.Client { return okcli })
+	collector.ExpandSymbols = universeExpander(func() *okxexec.Client { return okcli }, pool)
 	go collector.Run(ctx, errc)
 
 	// 私流守：OKX 私有 WS（凭据自 app_secrets 密文列解；缺件 fail-closed
