@@ -80,3 +80,22 @@ ListenLoop 借到即继承——此后 WaitForNotification 永不结束事务：
   ③「升自动」暂缓至返修验证毕。
 - **移交面原项仍挂**：生产零 backend_xmin>10min 残留未达成（首报即违）——
   本票不计完成，状态待返修裁。
+
+## 首报根修分诊（决策席 @ 2026-10-26 18:2x CST——实证压倒推演，机制改判）
+
+- **现场终勘（pid 124436 全字段）**：state=`idle`、wait_event=`ClientWrite`、
+  backend_xmin 钉、`query_start=xact_start=LISTEN ev_eval` 拍时；同池其余
+  LISTEN 会话全 `ClientRead` 健康。**杀权执行（第 2 席授权）**：terminate 后
+  **90s 零「事件听断」日志 = goroutine 不在 WaitForNotification/Exec——
+  卡 fn(r.scan) 内部**（conn 死对它无感）。
+- **机制实锤（非守卫漏、非残留借出）**：LISTEN 注册干净（零自净 WARN 实证）；
+  fn 同步串行于读环→**扫拍 ~20min+ 期间套接字零读**→ev_* 通知洪泛塞满
+  Recv-Q→服务端 notify 交付隐式事务卡 ClientWrite 收尾不出→xmin 钉死。
+  跨容器复现（上轮 pid 120093 同形）=**读饥饿型死锁，与池卫生无关**。
+- **返修令（判据）**：①读/worker 解耦——专读 goroutine 持续排干
+  WaitForNotification→合流唤醒位（cap1 塌陷，「一醒一拍」语义不变），
+  fn 时长不再饿死套接字 ②自净 ROLLBACK 败→Release+err 不再 proceed
+  （吞错洞实证）③LISTEN 注册毕断言 TxStatus=='I'④哨兵报文加
+  wait_event/backend_start（取证粒度）⑤KB 条目记读饥饿钉死型
+  （pool-tx-residue 姊妹病灶）⑥scan 20min/拍的 DB 竞争侧案另案观察。
+- **移交面仍挂**：零钉未达成——本票置「返修待派」，哨兵维持先报不杀。
