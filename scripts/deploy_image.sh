@@ -11,3 +11,6 @@ echo "[deploy_image] 船运→SG（gzip 流）"
 docker save "$IMG" | gzip -1 | ssh "$SG" 'gunzip | docker load'
 ssh "$SG" "cd /opt/o && docker compose -f docker-compose.yml -f docker-compose.sg.yml up -d o-core"
 echo "[deploy_image] done→$SG"
+
+# T-0153 船运后镜像自剪——留 72h 回滚余量（SG 盘 76% 实证病灶面治）。
+ssh "$SG" 'docker image prune -f --filter "until=72h" && echo "[deploy_image] prune≤72h done"'

@@ -25,6 +25,7 @@ internal/ledger -> internal/platform/config
 internal/ledger -> internal/platform/rejects
 internal/ledger/holding -> internal/platform/rejects
 internal/ledger/funding -> internal/platform/rejects
+internal/ledger/retention -> internal/platform/rejects
 internal/ledger/report -> internal/platform/config
 internal/ledger/report -> internal/platform/cryptoutil
 internal/ledger/report -> internal/platform/notify

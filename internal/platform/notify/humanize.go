@@ -10,19 +10,20 @@ var kindSpec = map[string]struct {
 	actable  bool   // 业主可处置（true=告警级，false=降级事件级）
 	relation string // 定性注脚（已定性票号在案者注）
 }{
-	"ledger_diff_alert":   {"账实差超限", true, "未定性——需排查"},
-	"rollback_failed":     {"平仓回滚败", false, "残留敞口人工升级"},
-	"close_gave_up":       {"平仓放弃", false, "仓残人工处置"},
-	"dd_hardline_tripped": {"净值硬线触停", true, "风险停手已自动执行"},
-	"dd_close_exhausted":  {"触停平仓耗尽", false, "仓残人工处置"},
-	"kill_switch":         {"急停开关", true, "系统停手状态变化"},
-	"transfer_ambiguous":  {"划转歧态势", true, "钱动未确认——人工核实"},
-	"net_budget_warn":     {"带宽预算预警", false, "观测面超阈"},
-	"net_budget_crit":     {"带宽预算临界", false, "观测面超阈"},
-	"bal_missing":         {"对账缺岗", false, "venue 读件缺席"},
-	"research_arm_silent": {"研究臂静默", true, "在编臂零产出——机会面停摆（T-0117）"},
-	"okxws_face_dead":     {"行情面断流", false, "订阅标的行情全冻——系统面故障（T-0129）"},
-	"bridge_stale":        {"采集桥断链", false, "dev 蒸馏写径超时——SG REST 兜底自动接管（T-0137）"},
+	"ledger_diff_alert":      {"账实差超限", true, "未定性——需排查"},
+	"rollback_failed":        {"平仓回滚败", false, "残留敞口人工升级"},
+	"close_gave_up":          {"平仓放弃", false, "仓残人工处置"},
+	"dd_hardline_tripped":    {"净值硬线触停", true, "风险停手已自动执行"},
+	"dd_close_exhausted":     {"触停平仓耗尽", false, "仓残人工处置"},
+	"kill_switch":            {"急停开关", true, "系统停手状态变化"},
+	"transfer_ambiguous":     {"划转歧态势", true, "钱动未确认——人工核实"},
+	"net_budget_warn":        {"带宽预算预警", false, "观测面超阈"},
+	"net_budget_crit":        {"带宽预算临界", false, "观测面超阈"},
+	"bal_missing":            {"对账缺岗", false, "venue 读件缺席"},
+	"research_arm_silent":    {"研究臂静默", true, "在编臂零产出——机会面停摆（T-0117）"},
+	"retention_volume_alert": {"体积哨兵告警", false, "库/单表体积超阈——新无底洞查证（T-0153）"},
+	"okxws_face_dead":        {"行情面断流", false, "订阅标的行情全冻——系统面故障（T-0129）"},
+	"bridge_stale":           {"采集桥断链", false, "dev 蒸馏写径超时——SG REST 兜底自动接管（T-0137）"},
 }
 
 // HumanText 人话载荷装配（三段式——业主零黑话）。
