@@ -33,20 +33,23 @@ func md(t *testing.T, ctx context.Context, r *Runner, q string, args ...any) {
 
 // 锚：basis_ann=(mark-index)/index×365/days×10⁴ bps——夹具 2027-06-26 到期，
 // mark=102 index=100 days≈243 → 年化≈10000×0.02×365/243≈300.4 bps。
+// T-0164 血统闸：行 ts=最旧上游观测（spot 40s 前/mark 10s 前→ts=spot 边）。
 func TestBasisAnn(t *testing.T) {
 	ctx, r := setup(t)
 	now := time.Now()
 	md(t, ctx, r, `INSERT INTO md_mark_index(ts,inst_id,channel,px) VALUES
 		($1,'BTC-USDT-270626','mark_price',102),
-		($1,'BTC-USDT','spot_last',100),
-		($1,'ETH-USDT-999999','mark_price',101)`, now) // 999999=坏到期——跳过如实
+		($2,'BTC-USDT','spot_last',100),
+		($1,'ETH-USDT-999999','mark_price',101)`, // 999999=坏到期——跳过如实
+		now.Add(-10*time.Second), now.Add(-40*time.Second))
 	if err := r.basisAnn(ctx); err != nil {
 		t.Fatal(err)
 	}
 	var bps float64
 	var meta map[string]any
-	if err := r.pool.QueryRow(ctx, `SELECT val, meta FROM md_signal WHERE kind='basis_ann' AND key='BTC-USDT-270626'`).
-		Scan(&bps, &meta); err != nil {
+	var rowTs time.Time
+	if err := r.pool.QueryRow(ctx, `SELECT val, meta, ts FROM md_signal WHERE kind='basis_ann' AND key='BTC-USDT-270626'`).
+		Scan(&bps, &meta, &rowTs); err != nil {
 		t.Fatal("basis_ann 行应落:", err)
 	}
 	want := float64(102-100) / 100 * 365 / 243 * 10000
@@ -55,6 +58,10 @@ func TestBasisAnn(t *testing.T) {
 	}
 	if meta["expiry"] != "2027-06-26" {
 		t.Fatalf("meta.expiry=%v", meta["expiry"])
+	}
+	// 血统：行 ts=最旧上游观测（spot_last 40s 前——非写拍 now()）。
+	if age := time.Since(rowTs); age < 35*time.Second || age > 60*time.Second {
+		t.Fatalf("basis ts 应=最旧上游观测（spot 40s 前）got age=%v", age)
 	}
 	var n int
 	r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM md_signal WHERE kind='basis_ann'`).Scan(&n)

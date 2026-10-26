@@ -3,6 +3,8 @@
 // 负 funding 对冲径的先行亮牌，经济动机钉 2026-10-26：主流币负 funding=正主）。
 // 单边陈/缺=不产如实（Fresh 120s 同款窗）；换算缺件（mt5_swap val=NULL 单位
 // 方言不可年化）=carry_diff 该对缺席如实。
+// T-0164 血统闸：合成面禁 now() 自盖章——行 ts=最旧上游观测 ts，上游陈→
+// 行即陈→消费 Fresh 闸视缺席（D-0022「信号陈=不存在」钉到血统层）。
 package sigdist
 
 import (
@@ -10,11 +12,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"o/internal/platform/config"
 )
+
+// leastTs 血统最旧观测 ts（两上游取旧——派生行的陈=最旧上游的陈）。
+func leastTs(a, b time.Time) time.Time {
+	if a.Before(b) {
+		return a
+	}
+	return b
+}
 
 // AttachConfig 挂 config 读件（bridge.xvenue.map 热启——nil=跨所族让位）。
 func (r *Runner) AttachConfig(cfg *config.Client) { r.cfg = cfg }
@@ -46,41 +57,44 @@ func (r *Runner) Xvenue(ctx context.Context) error {
 	// funding_view / mt5_swap——任一单边陈/缺=该对跳过如实。
 	for okxInst, mt5Sym := range xm {
 		var okxMark, mt5Mid float64
+		var markTs, midTs time.Time
 		// T-0146 频道方言归并：桥写 'mark-price'（WS 原名秒级鲜）+SG 兜底
 		// 'mark_price'（下划线，活跃集轮询）双键域并存——消费者 freshness-priority
 		// 读跨双频道取最新行（写侧双键不动，归一化另裁）。
-		err := r.pool.QueryRow(ctx, `SELECT px FROM (
+		err := r.pool.QueryRow(ctx, `SELECT px, ts FROM (
 			SELECT px, ts FROM md_mark_index
 			WHERE channel IN ('mark_price','mark-price') AND inst_id=$1
 			  AND ts > now()-interval '120 seconds'
 			ORDER BY ts DESC LIMIT 1) t`,
-			okxInst).Scan(&okxMark)
+			okxInst).Scan(&okxMark, &markTs)
 		if err != nil {
 			continue // okx 单边陈/缺
 		}
-		err = r.pool.QueryRow(ctx, `SELECT (bid+ask)/2 FROM md_ticks
+		err = r.pool.QueryRow(ctx, `SELECT (bid+ask)/2, ts FROM md_ticks
 			WHERE venue='mt5' AND inst_id=$1 AND ask>0 AND bid>0 AND ts > now()-interval '120 seconds'`,
-			mt5Sym).Scan(&mt5Mid)
+			mt5Sym).Scan(&mt5Mid, &midTs)
 		if err != nil || mt5Mid == 0 {
 			continue // mt5 单边陈/缺/坏价
 		}
 		bps := (okxMark - mt5Mid) / mt5Mid * 10000
 		meta, _ := json.Marshal(map[string]any{
 			"mt5_symbol": mt5Sym, "okx_mark": okxMark, "mt5_mid": mt5Mid})
+		// T-0164 血统闸：ts=最旧上游观测（mark/tick 任一陈→行随陈，非写拍自盖章）。
 		if _, err := r.pool.Exec(ctx, `INSERT INTO md_signal(kind,key,val,meta,ts)
-			VALUES('xvenue_spread',$1,$2,$3::jsonb,now())
+			VALUES('xvenue_spread',$1,$2,$3::jsonb,$4)
 			ON CONFLICT (kind,key) DO UPDATE SET val=EXCLUDED.val,
-			meta=EXCLUDED.meta, ts=EXCLUDED.ts`, okxInst, bps, string(meta)); err != nil {
+			meta=EXCLUDED.meta, ts=EXCLUDED.ts`, okxInst, bps, string(meta), leastTs(markTs, midTs)); err != nil {
 			return err
 		}
 		// carry_diff：funding 年化（8h 期×3×365）− MT5 空腿 swap 年化（bps）。
 		var funding, swapAnn float64
-		fErr := r.pool.QueryRow(ctx, `SELECT val FROM md_signal
+		var fundingTs, swapTs time.Time
+		fErr := r.pool.QueryRow(ctx, `SELECT val, ts FROM md_signal
 			WHERE kind='funding_view' AND key=$1 AND ts > now()-interval '120 seconds'`,
-			okxInst).Scan(&funding)
-		sErr := r.pool.QueryRow(ctx, `SELECT val FROM md_signal
+			okxInst).Scan(&funding, &fundingTs)
+		sErr := r.pool.QueryRow(ctx, `SELECT val, ts FROM md_signal
 			WHERE kind='mt5_swap' AND key=$1 AND val IS NOT NULL AND ts > now()-interval '8 hours'`,
-			mt5Sym).Scan(&swapAnn)
+			mt5Sym).Scan(&swapAnn, &swapTs)
 		if fErr != nil || sErr != nil {
 			continue // 换算缺件/单边陈——缺席如实（mt5_swap val=NULL 单位方言不可年化）
 		}
@@ -100,10 +114,12 @@ func (r *Runner) Xvenue(ctx context.Context) error {
 			}
 		}
 		metaB2, _ := json.Marshal(meta2)
+		// T-0164 血统闸：ts=最旧上游观测——mt5_swap 4h 拍面陈（>120s）→carry_diff
+		// 行随陈→消费 Fresh 120s 闸视缺席（mt5_swap 陈=carry_diff 陈，派单钦定）。
 		if _, err := r.pool.Exec(ctx, `INSERT INTO md_signal(kind,key,val,meta,ts)
-			VALUES('carry_diff',$1,$2,$3::jsonb,now())
+			VALUES('carry_diff',$1,$2,$3::jsonb,$4)
 			ON CONFLICT (kind,key) DO UPDATE SET val=EXCLUDED.val,
-			meta=EXCLUDED.meta, ts=EXCLUDED.ts`, okxInst, diff, string(metaB2)); err != nil {
+			meta=EXCLUDED.meta, ts=EXCLUDED.ts`, okxInst, diff, string(metaB2), leastTs(fundingTs, swapTs)); err != nil {
 			return err
 		}
 	}
