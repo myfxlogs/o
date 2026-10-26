@@ -34,4 +34,17 @@ type rowItem struct {
 	tick    *tickRow
 	funding *fundingRow
 	mark    *markRow
+	depth5  *depth5Row
+}
+
+// depth5Row books5 蒸馏特征行（T-0139/D-0022：特征值非原始盘口——top5
+// 深度 USD 额+spread_bps upsert md_signal kind='depth5'；桥面轻量非全宇宙）。
+type depth5Row struct {
+	instID   string
+	ts       time.Time
+	bidUSD   []float64 // top5 bid 档 USD 额（px×sz×ctv——SPOT ctv=1）
+	askUSD   []float64
+	bestBid  float64
+	bestAsk  float64
+	spreadBP float64
 }

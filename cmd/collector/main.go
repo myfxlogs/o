@@ -9,12 +9,14 @@ import (
 	"encoding/json"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"o/internal/data/okxws"
 	"o/internal/platform/config"
+	"o/internal/research/sigdist"
 	"o/internal/trading/okxexec"
 )
 
@@ -43,6 +45,10 @@ func main() {
 	c.AttachSpotFeed(func(ctx context.Context) ([]byte, error) {
 		return cli.PublicGet(ctx, "/api/v5/market/tickers?instType=SPOT")
 	})
+	c.AttachCTV(ctvFeed(cli)) // T-0139 depth5 USD 额换算（instruments SWAP ctVal 实读）
+	errc := make(chan error, 4)
+	go c.Run(ctx, errc)
+	go sigdist.New(pool).Run(ctx, errc) // 桥二期信号蒸馏拍（basis_ann/funding_view→md_signal）
 	c.AttachMarkFeed(func(ctx context.Context) ([][]byte, error) {
 		var out [][]byte
 		for _, typ := range []string{"SWAP", "FUTURES"} {
@@ -54,8 +60,6 @@ func main() {
 		}
 		return out, nil
 	})
-	errc := make(chan error, 4)
-	go c.Run(ctx, errc)
 	log.Printf("[collector] 采集桥起——全宇宙蒸馏写 SG（共写语义：同键最新 ts 赢）")
 	for {
 		select {
@@ -112,4 +116,30 @@ func universe(ctx context.Context, cli *okxexec.Client) ([]string, error) {
 		}
 	}
 	return out, nil
+}
+
+// ctvFeed SWAP 合约面值实读（instruments SWAP——ctVal 币数/张；depth5 USD
+// 额=px×sz×ctVal 换算源）。
+func ctvFeed(cli *okxexec.Client) func(ctx context.Context) (map[string]float64, error) {
+	return func(ctx context.Context) (map[string]float64, error) {
+		raw, err := cli.PublicGet(ctx, "/api/v5/public/instruments?instType=SWAP")
+		if err != nil {
+			return nil, err
+		}
+		var rows []struct {
+			InstID string `json:"instId"`
+			CtVal  string `json:"ctVal"`
+		}
+		if err := json.Unmarshal(raw, &rows); err != nil {
+			return nil, err
+		}
+		m := map[string]float64{}
+		for _, r := range rows {
+			v, err := strconv.ParseFloat(r.CtVal, 64)
+			if err == nil && v > 0 {
+				m[r.InstID] = v
+			}
+		}
+		return m, nil
+	}
 }

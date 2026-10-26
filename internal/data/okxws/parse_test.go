@@ -77,3 +77,40 @@ func TestParseMarkBothForms(t *testing.T) {
 		t.Fatalf("index-tickers parse: %+v", r)
 	}
 }
+
+// T-0139 books5 蒸馏解析锚：USD 额=px×sz×ctv、spread_bps、截断 top5。
+func TestParseBooks5(t *testing.T) {
+	d := map[string]any{
+		"ts": "1700000000000",
+		"bids": []any{
+			[]any{"100", "2"}, []any{"99", "1"}, []any{"98", "1"},
+			[]any{"97", "1"}, []any{"96", "1"}, []any{"95", "1"}, // 第 6 档截断
+		},
+		"asks": []any{
+			[]any{"101", "1"}, []any{"102", "1"},
+		},
+	}
+	raw, _ := json.Marshal(d)
+	var m map[string]json.RawMessage
+	json.Unmarshal(raw, &m)
+	r := parseBooks5("BTC-USDT-SWAP", m, 0.01)
+	if r == nil {
+		t.Fatal("应解析成行")
+	}
+	if r.bestBid != 100 || r.bestAsk != 101 {
+		t.Fatalf("best=%v/%v", r.bestBid, r.bestAsk)
+	}
+	if len(r.bidUSD) != 5 {
+		t.Fatalf("bid 档应截断 top5 got %d", len(r.bidUSD))
+	}
+	if r.bidUSD[0] != 100*2*0.01 {
+		t.Fatalf("USD 额=px×sz×ctv got %v", r.bidUSD[0])
+	}
+	want := float64(101-100) / 100.5 * 10000 // 中点=(101+100)/2=100.5
+	if r.spreadBP < want-0.01 || r.spreadBP > want+0.01 {
+		t.Fatalf("spread_bps=%v want≈%v", r.spreadBP, want)
+	}
+	if parseBooks5("BTC-USDT-SWAP", m, 0) != nil {
+		t.Fatal("缺 ctv 应拒入如实（nil）")
+	}
+}
