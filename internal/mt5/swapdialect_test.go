@@ -3,9 +3,16 @@ package mt5
 // swapdialect_test.go —— swap 点数方言换算桩测（T-0143 验收锚）：Points 径
 // 数值形/PercCurPrice 径/换算链缺环 NULL/非 Points NULL。
 import (
+	"context"
+	"runtime"
 	"testing"
+	"time"
 
 	mt5pb "o/internal/gen/mtapi/mt5"
+
+	"o/internal/platform/config"
+	"o/internal/platform/rejects"
+	"o/internal/platform/testutil"
 )
 
 func sgOf(t mt5pb.SwapType, short float64) *mt5pb.SymGroup {
@@ -51,5 +58,29 @@ func TestSwapAnnualMissingLinks(t *testing.T) {
 	}
 	if _, ok := SwapAnnualBPS(nil, sgOf(mt5pb.SwapType_SwapType_InPoints, -50), 3000); ok {
 		t.Fatal("SymbolInfo 缺应 false")
+	}
+}
+
+// 返修锚（T-0143）：swapLoop 随会话 ctx 止——sessCtx cancel→goroutine 退出
+// （断连桩锚：bridgeSession defer cancel 同源语义，goroutine 零泄漏）。
+func TestSwapLoopStopsWithSession(t *testing.T) {
+	pool := testutil.Pool(t)
+	c := &BridgeCollector{pool: pool, cfg: config.New(pool),
+		rej: rejects.New("mt5bridge", "test")}
+	sessCtx, cancel := context.WithCancel(context.Background())
+	before := runtime.NumGoroutine()
+	done := make(chan struct{})
+	go func() {
+		c.swapLoop(sessCtx, nil) // cl=nil——会话 ctx cancel 即退（poll 零 sym 不触 RPC）
+		close(done)
+	}()
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second): // sched-exempt-ok 桩测期界等待
+		t.Fatal("swapLoop 应随会话 ctx 止（零泄漏）")
+	}
+	if after := runtime.NumGoroutine(); after > before+2 { // 容忍 runtime 波动
+		t.Fatalf("goroutine 应归位 before=%d after=%d", before, after)
 	}
 }

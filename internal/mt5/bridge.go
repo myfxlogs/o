@@ -100,6 +100,11 @@ func (c *BridgeCollector) Run(ctx context.Context, errc chan<- error) {
 // bridgeSession 一次会话：Connect→订阅（bridge.mt5.symbols 热启，缺=fail-closed
 // 返错重试）→OnQuote 流→md_ticks venue='mt5'。零账户面（禁 snapshot/profit）。
 func (c *BridgeCollector) bridgeSession(ctx context.Context, dial func(string) (*Client, error)) error {
+	// T-0143 返修：会话域派生 ctx（Run 的 ctx 跨重连共用——直接传则断连不
+	// cancel，swapLoop goroutine 随重连累积）。sessCtx 于会话终（stream 断返
+	// 触发 defer）cancel——swapLoop 随会话止，零泄漏。
+	sessCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	syms := c.symbols()
 	if len(syms) == 0 {
 		return fmt.Errorf("bridge.mt5.symbols 缺/空——fail-closed 不虚构标的集")
@@ -120,12 +125,12 @@ func (c *BridgeCollector) bridgeSession(ctx context.Context, dial func(string) (
 		}
 	}
 	log.Printf("[mt5bridge] quote-only 桥腿起 syms=%d（零账户面）", len(syms))
-	stream, err := cl.OnQuote(ctx)
+	stream, err := cl.OnQuote(sessCtx)
 	if err != nil {
 		return err
 	}
 	// swap 率面低频拍（≤1/4h——SymbolParams 域，日级变量；sched-exempt-ok 慢特征节拍）。
-	go c.swapLoop(ctx, cl)
+	go c.swapLoop(sessCtx, cl)
 	for {
 		f, err := stream.Recv()
 		if c.meter != nil && f != nil {

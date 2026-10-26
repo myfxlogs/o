@@ -50,3 +50,13 @@ TradeTickValue/TradeTickSize（或 ContractSize）径——mtapi 载荷字段先
 - **机检**：build✓ vet✓ gofmt✓ staticcheck✓ check-lines✓（bridge.go 265<300）。
 - **解锁判据（部署后决策席实证）**：BTCUSDm/ETHUSDm mt5_swap.val 非 NULL
   （bps 量级合理）+carry_diff 2 对落行 ts 鲜≤2×拍；断连重连 swapLoop 零累积。
+
+## 返修回填（zcode-t0143 @ 2026-10-26——swapLoop 会话域 ctx）
+
+- 病灶实锤：swapLoop 直传 Run 外层 ctx（跨重连共用）——断连不 cancel，
+  每次重连新起 swapLoop，旧 ticker goroutine 活到进程死=累积泄漏。
+- 修：bridgeSession 内派生 sessCtx+cancel（defer 于会话终触发）——
+  OnQuote 流与 swapLoop 同挂 sessCtx，stream 断返/defer cancel 双径皆止。
+- 桩锚：TestSwapLoopStopsWithSession（sessCtx cancel→goroutine 退出断言，
+  runtime 计数归位；sched-exempt-ok 期界等待）。全包测试绿。
+- 余件勿动守线：换算件/两缺陷归修/桩测零改。
