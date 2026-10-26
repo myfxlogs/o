@@ -57,8 +57,9 @@ em.lg{font-style:normal;font-size:10px;color:var(--dim);border:1px solid rgba(25
 .bar i{display:block}.bar i:first-child{background:var(--up);width:97.6%}.bar i:last-child{background:var(--warn)}
 .ev{color:var(--dim);font-size:13.5px;padding:7px 0}
 .ev b{color:var(--txt);font-weight:500}
-/* T-0112 瓦片编号=沟通坐标契约——硬编码 DOM 序，新卡接号 #8 起不插队不重排。
-  映射：#1 hero / #2 在干什么 / #3 钱在哪 / #4 最近动作 / #5 TRX 自营盘 / #6 交易所在线 / #7 员工组织 */
+/* T-0112 立、T-0155 改字母系——瓦片编号=沟通坐标契约：硬编码 DOM 序，新卡自 H 起接号，不插队不重排。
+  映射：A hero / B 在干什么 / C 钱在哪 / D 最近动作 / E TRX 自营盘 / F 交易所在线 / G 员工组织。
+  旧档 #N 引用=第 N 个字母换算（#3=卡 C）；字母系实用顶 26，顶格再议 */
 .tile-no{position:absolute;top:14px;right:14px;font-size:11px;font-variant-numeric:tabular-nums;color:var(--dim);opacity:.65;letter-spacing:.5px}
 .stamp{position:absolute;right:18px;bottom:12px;font-size:11px;color:#5a6373}
 /* 5 骨架屏 */
@@ -133,7 +134,7 @@ body{padding-left:196px}
 </style>
 <div class="grid">
 
-  <div class="card hero"><span class="tile-no">#1</span>
+  <div class="card hero"><span class="tile-no">A</span>
     <div class="metric"><b>—</b><span>总资产（OKX）</span></div>
     <div class="metric"><b>—</b><span>今日盈亏</span></div>
     <div class="metric"><b>—</b><span>累计盈亏 · 试单期</span></div>
@@ -141,7 +142,7 @@ body{padding-left:196px}
   </div>
 
   <div class="card doing" id="c-doing">
-    <h3>现在在干什么</h3><span class="tile-no">#2</span>
+    <h3>现在在干什么</h3><span class="tile-no">B</span>
     <div id="doing-body">
     <div class="empty">
       <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
@@ -152,7 +153,7 @@ body{padding-left:196px}
   </div>
 
   <div class="card money">
-    <h3>钱在哪</h3><span class="tile-no">#3</span>
+    <h3>钱在哪</h3><span class="tile-no">C</span>
     <div id="money-body">
     <div class="empty">
       <p>读数装载中</p><i>「真金白银，不看假数。」</i>
@@ -161,7 +162,7 @@ body{padding-left:196px}
   </div>
 
   <div class="card recent">
-    <h3>最近动作</h3><span class="tile-no">#4</span>
+    <h3>最近动作</h3><span class="tile-no">D</span>
     <div id="recent-body">
     <div class="empty">
       <p>暂无动作</p><i>「安静，是系统最好的状态。」</i>
@@ -170,14 +171,14 @@ body{padding-left:196px}
   </div>
 
   <div class="card" id="c-trx" style="grid-column:span 6">
-    <h3><a href="/trx.html" style="color:inherit;text-decoration:none">TRX 自营盘</a> <i style="font-size:11px;color:var(--dim)">自营盘·业绩外</i></h3><span class="tile-no">#5</span>
+    <h3><a href="/trx.html" style="color:inherit;text-decoration:none">TRX 自营盘</a> <i style="font-size:11px;color:var(--dim)">自营盘·业绩外</i></h3><span class="tile-no">E</span>
     <div id="trx-body">
     <div class="empty"><p>读数装载中</p><i>「本金自带回报，不入口径。」</i></div>
     </div>
   </div>
 
   <div class="card" id="c-venues" style="grid-column:span 6">
-    <h3>交易所在线</h3><span class="tile-no">#6</span>
+    <h3>交易所在线</h3><span class="tile-no">F</span>
     <div id="venues-body">
     <div class="empty">
       <p>读数装载中</p><i>「通道活性，一盏一真。」</i>
@@ -186,7 +187,7 @@ body{padding-left:196px}
   </div>
 
   <div class="card staff" id="c-staff" style="display:none;grid-column:span 12">
-    <h3 id="staff-sum"></h3><span class="tile-no">#7</span>
+    <h3 id="staff-sum"></h3><span class="tile-no">G</span>
     <div id="staff-graph"></div>
   </div>
 
