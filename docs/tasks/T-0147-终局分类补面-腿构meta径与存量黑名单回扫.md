@@ -40,3 +40,33 @@
 ## 备注
 - 同窗口观测 `rejects[okxws] 未注册门键 depth5_no_ctval` 每分 ~77 行洪泛——
   拒因门键注册遗漏同族病灶，另案 T-0148。
+
+## 结果回填（zcode-t0147 @ 2026-10-26）
+
+- **①开仓全链终局收口**：cmd/core/open.go hedgeOpener.Open——BuildLegs
+  腿构径（spot 元数据拉取段实案形 286078）与 Execute 提交径**同闸统一**
+  TerminalInstErr 分类（错误冒泡点收口非按函数名散贴）；任一径命中→
+  untradeable 三件（入册/策略退/armed 提案清）。
+- **②入册钩回扫 trigger**（migrations/0061）：AFTER INSERT ON
+  fin_venue_untradeable FOR EACH ROW fn_untradeable_retro——同 inst
+  live/paper/proposed 策略→retired（transition 行
+  reason=venue_untradeable_retroactive:<code> 溯源）+armed 提案→
+  fin_retired。幂等二重：inst_id PK（重复入册走 UPDATE 不触发 AFTER
+  INSERT）+状态谓词。**ROW 级钉死**（STATEMENT 级 NEW=NULL 零匹配
+  实案——开发期桩测揪出，迁移注释在案防再议）；覆盖手工入册径，服务侧
+  自动径同 trigger 双保险（谓词幂等零冲突）。
+- **③拦截前周期重试闸**：openLive Open 失败径查黑名单命中→
+  Transition retired（reason=venue_untradeable:blacklisted）+拒计数
+  blacklist_retire（预注册）——防御纵深第二层（NOT EXISTS 候选滤为第一层，
+  本闸防存量漏网形复发）。51000 参数族不触发（TerminalInstErr 除外条款
+  不变——TestParamErrNoTriage 回归桩）。
+- **桩锚三件**（PG 实跑全绿）：TestLegBuildTerminalTriage（腿构 meta
+  51001 冒泡 wrap 链→errors.As 穿透判终局+三件全落）；TestRetroactiveScanTrigger
+  （手工 INSERT→存量 live 策略自动退役+retroactive transition 溯源+
+  armed 提案清+重复入册 transition 恒 1 行幂等）；TestParamErrNoTriage
+  （51000 零处置+零入册零回扫）。
+- **机检**：build✓ vet✓ gofmt✓ staticcheck✓ check-lines✓ migration 闸✓
+  （0061 登记）回归（cmd/core 全包+okxexec+lifecycle）绿。
+- **移交面（部署后决策席实证）**：黑名单词条在册 inst 的 live 策略零残留/
+  armed 提案零残留（回扫实跑——本轮决策席手动清尾两行的人工替身）；
+  开仓败 51001 日志风暴绝迹（命中即退役非重试）。

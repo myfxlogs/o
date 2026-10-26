@@ -59,9 +59,18 @@ func (h hedgeOpener) Open(ctx context.Context, spec lifecycle.OpenSpec) (int64, 
 	if !dec.Allow {
 		return 0, fmt.Errorf("闸拒: %s", dec.Reason)
 	}
-	legs, _, err := execution.BuildLegs(ctx, h.pool, h.loadMeta, spec.Venue, spec.InstID, notional)
-	if err != nil {
-		return 0, fmt.Errorf("腿构: %w", err)
+	legs, _, lerr := execution.BuildLegs(ctx, h.pool, h.loadMeta, spec.Venue, spec.InstID, notional)
+	if lerr != nil {
+		// T-0147 终局分类收口（错误冒泡点统一——腿构 meta/校验径与下单提交
+		// 径同闸）：51001 在腿构 spot 元数据拉取段返回（实案 286078），
+		// TerminalInstErr 分类不得只钉 order-submit 出口。
+		if okxexec.TerminalInstErr(lerr) {
+			if herr := h.untradeable(ctx, spec, lerr); herr != nil {
+				return 0, fmt.Errorf("终局处置败（须人查）: %w", herr)
+			}
+			return 0, fmt.Errorf("venue_untradeable: %w", lerr)
+		}
+		return 0, fmt.Errorf("腿构: %w", lerr)
 	}
 	eid, xerr := h.r.Execute(ctx, execution.Intent{DecisionID: dec.DecisionID,
 		StrategyRef: spec.StrategyRef, InstID: spec.InstID, NotionalUSD: notional, Legs: legs})
