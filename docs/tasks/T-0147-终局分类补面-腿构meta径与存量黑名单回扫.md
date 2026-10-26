@@ -1,6 +1,7 @@
 # T-0147 终局分类补面——腿构 meta 径漏分类 + 黑名单存量回扫（T-0142 覆盖洞实证）
 
-## 态：待施工
+## 态：施工中
+## 领取：zcode-t0147（ZCode 施工席）@ 2026-10-26
 ## 域：执行径 / venue 终局分类
 ## 源出：T-0144 部署验证窗实案——SHEIN-USDT-SWAP 在 fin_venue_untradeable
   黑名单在册，策略 286078 仍 live 状态每 ~2s 空转重试开仓（05:51 实拍）
@@ -39,3 +40,46 @@
 ## 备注
 - 同窗口观测 `rejects[okxws] 未注册门键 depth5_no_ctval` 每分 ~77 行洪泛——
   拒因门键注册遗漏同族病灶，另案 T-0148。
+
+## 结果回填（zcode-t0147 @ 2026-10-26）
+
+- **①开仓全链终局收口**：cmd/core/open.go hedgeOpener.Open——BuildLegs
+  腿构径（spot 元数据拉取段实案形 286078）与 Execute 提交径**同闸统一**
+  TerminalInstErr 分类（错误冒泡点收口非按函数名散贴）；任一径命中→
+  untradeable 三件（入册/策略退/armed 提案清）。
+- **②入册钩回扫 trigger**（migrations/0061）：AFTER INSERT ON
+  fin_venue_untradeable FOR EACH ROW fn_untradeable_retro——同 inst
+  live/paper/proposed 策略→retired（transition 行
+  reason=venue_untradeable_retroactive:<code> 溯源）+armed 提案→
+  fin_retired。幂等二重：inst_id PK（重复入册走 UPDATE 不触发 AFTER
+  INSERT）+状态谓词。**ROW 级钉死**（STATEMENT 级 NEW=NULL 零匹配
+  实案——开发期桩测揪出，迁移注释在案防再议）；覆盖手工入册径，服务侧
+  自动径同 trigger 双保险（谓词幂等零冲突）。
+- **③拦截前周期重试闸**：openLive Open 失败径查黑名单命中→
+  Transition retired（reason=venue_untradeable:blacklisted）+拒计数
+  blacklist_retire（预注册）——防御纵深第二层（NOT EXISTS 候选滤为第一层，
+  本闸防存量漏网形复发）。51000 参数族不触发（TerminalInstErr 除外条款
+  不变——TestParamErrNoTriage 回归桩）。
+- **桩锚三件**（PG 实跑全绿）：TestLegBuildTerminalTriage（腿构 meta
+  51001 冒泡 wrap 链→errors.As 穿透判终局+三件全落）；TestRetroactiveScanTrigger
+  （手工 INSERT→存量 live 策略自动退役+retroactive transition 溯源+
+  armed 提案清+重复入册 transition 恒 1 行幂等）；TestParamErrNoTriage
+  （51000 零处置+零入册零回扫）。
+- **机检**：build✓ vet✓ gofmt✓ staticcheck✓ check-lines✓ migration 闸✓
+  （0061 登记）回归（cmd/core 全包+okxexec+lifecycle）绿。
+- **移交面（部署后决策席实证）**：黑名单词条在册 inst 的 live 策略零残留/
+  armed 提案零残留（回扫实跑——本轮决策席手动清尾两行的人工替身）；
+  开仓败 51001 日志风暴绝迹（命中即退役非重试）。
+
+## 返修回填（zcode-t0147 @ 2026-10-26——untradeable 双写撞闭集消解）
+
+- 病灶：untradeable() 原序「入册先于显式迁移」——0061 trigger 回扫先把本
+  策略退 retired，随后显式 Transition 撞「retired→retired 非法迁移」闭集。
+- 消解形（自选后者=更优）：**显式迁移先于入册**——显式 reason 精确
+  （venue_untradeable:<code> <msg>）保留；trigger 入册后续扫同 inst 余量
+  （其余策略/armed 提案）=真回扫覆盖。容退守卫：state='live' 才显式迁移
+  （幂等重入/trigger 先至=跳过，溯源性由先至方 transition 行承载）。
+- 本轮实测（pgx 真跑非自报）：TestTerminalInstErr/TestUntradeableDisposition/
+  TestBlacklistConsumers/TestLegBuildTerminalTriage/TestRetroactiveScanTrigger
+  （手工 INSERT 回扫存量实证桩）/TestParamErrNoTriage 六桩 PASS——
+  cmd/core 包 ok（7.975s 实时输出在案）。

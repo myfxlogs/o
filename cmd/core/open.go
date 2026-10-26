@@ -59,9 +59,18 @@ func (h hedgeOpener) Open(ctx context.Context, spec lifecycle.OpenSpec) (int64, 
 	if !dec.Allow {
 		return 0, fmt.Errorf("闸拒: %s", dec.Reason)
 	}
-	legs, _, err := execution.BuildLegs(ctx, h.pool, h.loadMeta, spec.Venue, spec.InstID, notional)
-	if err != nil {
-		return 0, fmt.Errorf("腿构: %w", err)
+	legs, _, lerr := execution.BuildLegs(ctx, h.pool, h.loadMeta, spec.Venue, spec.InstID, notional)
+	if lerr != nil {
+		// T-0147 终局分类收口（错误冒泡点统一——腿构 meta/校验径与下单提交
+		// 径同闸）：51001 在腿构 spot 元数据拉取段返回（实案 286078），
+		// TerminalInstErr 分类不得只钉 order-submit 出口。
+		if okxexec.TerminalInstErr(lerr) {
+			if herr := h.untradeable(ctx, spec, lerr); herr != nil {
+				return 0, fmt.Errorf("终局处置败（须人查）: %w", herr)
+			}
+			return 0, fmt.Errorf("venue_untradeable: %w", lerr)
+		}
+		return 0, fmt.Errorf("腿构: %w", lerr)
 	}
 	eid, xerr := h.r.Execute(ctx, execution.Intent{DecisionID: dec.DecisionID,
 		StrategyRef: spec.StrategyRef, InstID: spec.InstID, NotionalUSD: notional, Legs: legs})
@@ -86,21 +95,36 @@ func (h hedgeOpener) untradeable(ctx context.Context, spec lifecycle.OpenSpec, x
 	if ae != nil {
 		code, msg = ae.Code, ae.Msg
 	}
+	// T-0147 返修消解（显式迁移先于入册——后者更优形）：显式 Transition 的
+	// reason 精确（venue_untradeable:<code>），随后入册——0061 trigger 续扫
+	// 同 inst 余量（其余策略/armed 提案=真回扫覆盖）。顺序反置则 trigger 先
+	// 退役本策略，显式迁移撞「retired→retired 非法迁移」闭集。
+	// 容退守卫：state='live' 才显式迁移（幂等重入/trigger 先至=跳过，溯源性
+	// 已由先至方 transition 行承载）。
+	var live int
+	if err := h.pool.QueryRow(ctx, `SELECT count(*) FROM fin_strategy
+		WHERE id=$1 AND state='live'`, spec.StrategyRef).Scan(&live); err != nil {
+		return err
+	}
+	if live > 0 {
+		if err := lifecycle.Transition(ctx, h.pool, spec.StrategyRef, "retired",
+			"venue_untradeable:"+code+" "+msg, false); err != nil {
+			return fmt.Errorf("策略退: %w", err)
+		}
+	}
+	if _, err := h.pool.Exec(ctx, `UPDATE fin_proposal SET state='fin_retired'
+		WHERE inst_id=$1 AND state='fin_armed'`, spec.InstID); err != nil {
+		return err
+	}
 	if _, err := h.pool.Exec(ctx, `INSERT INTO fin_venue_untradeable(inst_id,code,msg)
 		VALUES($1,$2,$3)
 		ON CONFLICT (inst_id) DO UPDATE SET code=EXCLUDED.code, msg=EXCLUDED.msg`,
 		spec.InstID, code, msg); err != nil {
 		return err
 	}
-	log.Printf("ALERT [open] 终局拒 %s（%s %s）——黑名单入册+策略 %d 退+armed 提案退",
-		spec.InstID, code, msg, spec.StrategyRef)
-	if err := lifecycle.Transition(ctx, h.pool, spec.StrategyRef, "retired",
-		"venue_untradeable:"+code+" "+msg, false); err != nil {
-		return fmt.Errorf("策略退: %w", err)
-	}
-	_, err := h.pool.Exec(ctx, `UPDATE fin_proposal SET state='fin_retired'
-		WHERE inst_id=$1 AND state='fin_armed'`, spec.InstID)
-	return err
+	log.Printf("ALERT [open] 终局拒 %s（%s %s）——显式迁移先于入册+trigger 续扫余量",
+		spec.InstID, code, msg)
+	return nil
 }
 
 // reopenCooldownBlocked 再开冷却窗判定（T-0107）：同策略同标的存在冷却窗内

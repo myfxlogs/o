@@ -113,6 +113,20 @@ func (r *Runner) openLive(ctx context.Context) {
 		}
 		eid, err := r.op.Open(ctx, c.spec)
 		if err != nil {
+			// T-0147 拦截前周期重试闸（防御纵深第二层）：开仓败命中黑名单
+			// inst→直接退役不重试（防存量漏网形复发——黑名单在册=终局事实，
+			// 周期续试=风暴复发温床）。
+			var banned int
+			if be := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_venue_untradeable
+				WHERE inst_id=$1`, c.spec.InstID).Scan(&banned); be == nil && banned > 0 {
+				r.rej.Inc("blacklist_retire")
+				if terr := Transition(ctx, r.pool, c.spec.StrategyRef, "retired",
+					"venue_untradeable:blacklisted 开仓败命中黑名单——退役不重试", false); terr != nil {
+					r.rej.Inc("write_err")
+				}
+				log.Printf("[lifecycle] 策略 %d %s 命中黑名单——退役不重试（终局）", c.spec.StrategyRef, c.spec.InstID)
+				continue
+			}
 			r.rej.Inc("open_failed")
 			log.Printf("[lifecycle] WARN 策略 %d 开仓败（%v exec_id=%d）——事件续试", c.spec.StrategyRef, err, eid)
 			continue
