@@ -1,0 +1,300 @@
+// Package projector —— 投影臂（T-0168/D-0030 §四：桥面唯一正式接口的搬运工）。
+// LISTEN PG-md 本地 ev_*（零轮询，D-0008 律）→活跃集谓词查最新行→写 SG 镜像表；
+// fin_proposal 唯一双向面（SG state 列组回写）。谓词自算 fin_position/
+// fin_strategy（不赖 fin_active_set 种子——0069 无回填，reconciler 同径兼治）；
+// 启动全表对账自愈+活性兜底重对账（events.go 期界豁免类——失联自检非工作扫描）。
+package projector
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"sync"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"o/internal/platform/events"
+	"o/internal/platform/notify"
+	"o/internal/platform/roster"
+	"o/migrations"
+)
+
+const (
+	seatName      = "投影官"
+	seatDept      = "bridge"
+	seatTitle     = "PG-md→SG 投影臂（八桥镜像+proposal 双向）"
+	beatEvery     = 30 * time.Second
+	livenessEvery = 10 * time.Minute // 活性兜底重对账（事件失联自检——钦定豁免类）
+	mirrorStale   = 2 * time.Minute  // 镜像 max(ts) 陈阈——告警 projector_silent（D-0030 §七）
+)
+
+// Runner 投影臂本体。md=PG-md 正本池；sg=SG 镜像池（隧道径）。
+type Runner struct {
+	md, sg *pgxpool.Pool
+	alert  *notify.Alerter
+
+	mu     sync.Mutex
+	active map[string]bool // 活跃集（SG fin_position 未平仓 ∪ fin_strategy 非 retired——谓词自算）
+	dcd    []string        // dcd_call 活策略 product_id（=fin_strategy.inst_id）
+
+	wmMu   sync.Mutex
+	wm     map[string]time.Time // per-table ts 水印（ticks/markidx/funding/signal/dcd/eval）
+	propWm int64                // fin_proposal id 水印（md 正本 bigserial 单调）
+}
+
+// New 装配（桥表集对册 fail-closed——消费面与 domain.tsv 单源禁漂移）。
+func New(md, sg *pgxpool.Pool, alert *notify.Alerter) (*Runner, error) {
+	reg, err := migrations.BridgeTables()
+	if err != nil {
+		return nil, err
+	}
+	want := []string{"fin_opp_eval", "fin_proposal", "md_dcd_product", "md_funding",
+		"md_macro_event", "md_mark_index", "md_signal", "md_ticks"}
+	if len(reg) != len(want) {
+		return nil, fmt.Errorf("域册 bridge=%d 行与投影面八桥表不符——册面先行", len(reg))
+	}
+	for i := range reg {
+		if reg[i] != want[i] {
+			return nil, fmt.Errorf("域册 bridge=%v 与投影面八桥表不符——册面先行", reg)
+		}
+	}
+	return &Runner{md: md, sg: sg, alert: alert, wm: map[string]time.Time{}, active: map[string]bool{}}, nil
+}
+
+// Run 主环：守卫→启动对账→双侧听→beat/silent→活性兜底。败经 errc 岗终
+// （systemd 重启→reconciler 自愈——验收锚「杀连自愈」的运行时形态）。
+func (r *Runner) Run(ctx context.Context, errc chan<- error) {
+	if err := r.guards(ctx); err != nil {
+		errc <- fmt.Errorf("[projector] boot 守卫: %w", err)
+		return
+	}
+	if err := r.Reconcile(ctx, true); err != nil {
+		errc <- fmt.Errorf("[projector] 启动对账: %w", err)
+		return
+	}
+	log.Printf("[projector] 对账毕——活跃集 %d inst、dcd 活策略 %d 品", r.activeCount(), len(r.dcdSet()))
+
+	mdCh := []string{"ev_ticks", "ev_markidx", "ev_funding", "ev_signal", "ev_eval", "ev_proposal", "ev_dcd"}
+	sgCh := []string{"ev_active_set", "ev_proposal"}
+	go events.ListenLoopChan(ctx, r.md, "projector-md", mdCh, r.mdWake)
+	go events.ListenLoopChan(ctx, r.sg, "projector-sg", sgCh, r.sgWake)
+	go r.beatLoop(ctx, errc)
+	go r.livenessLoop(ctx, errc)
+}
+
+// mdWake PG-md 侧帧分派（ev_*→对应桥表谓词切片投影）。
+func (r *Runner) mdWake(ctx context.Context, ch string) error {
+	switch ch {
+	case "ev_ticks", "ev_markidx", "ev_funding", "ev_signal", "ev_dcd":
+		return r.projectTsTable(ctx, ch)
+	case "ev_eval":
+		return r.projectEvals(ctx)
+	case "ev_proposal":
+		return r.projectNewProposals(ctx)
+	case "": // boot 首拍（无 channel）——水印零值全量过一遍谓词面
+		for _, c := range []string{"ev_ticks", "ev_markidx", "ev_funding", "ev_signal", "ev_dcd"} {
+			if err := r.projectTsTable(ctx, c); err != nil {
+				return err
+			}
+		}
+		return r.projectEvals(ctx)
+	}
+	return nil
+}
+
+// sgWake SG 侧帧分派（活跃集刷+proposal 回写）。
+func (r *Runner) sgWake(ctx context.Context, ch string) error {
+	switch ch {
+	case "ev_active_set":
+		if err := r.refreshSets(ctx); err != nil {
+			return err
+		}
+		return r.projectMacro(ctx) // ~30 行全表 diff——廉价顺带（事件级表无独立写帧）
+	case "ev_proposal":
+		return r.repairProposalStates(ctx)
+	case "":
+		return r.refreshSets(ctx)
+	}
+	return nil
+}
+
+// guards boot 前置：SG 侧帧源在位（fin_0070——o-core 轮换前置）/跨库 id 键空间
+// 切序前置（T-0169 setval——md 新序列撞 SG legacy id=镜像覆写 legacy 行，实害）。
+func (r *Runner) guards(ctx context.Context) error {
+	var n int
+	err := r.sg.QueryRow(ctx, `SELECT count(*) FROM pg_trigger WHERE tgname='ev_proposal_sg_trg'
+		AND tgrelid='fin_proposal'::regclass`).Scan(&n)
+	if err != nil {
+		return fmt.Errorf("SG 触发器探针: %w", err)
+	}
+	if n == 0 {
+		return fmt.Errorf("SG 侧 ev_proposal_sg_trg 缺席（fin_0070 未应用——o-core 须先轮换再起投影臂）")
+	}
+	for _, g := range []struct{ seq, tbl string }{
+		{"fin_proposal_id_seq", "fin_proposal"}, {"fin_opp_eval_id_seq", "fin_opp_eval"},
+	} {
+		var mdNext, sgMax int64
+		if err := r.md.QueryRow(ctx, "SELECT last_value FROM "+g.seq).Scan(&mdNext); err != nil {
+			return fmt.Errorf("md %s 读序: %w", g.seq, err)
+		}
+		if err := r.sg.QueryRow(ctx, "SELECT COALESCE(max(id),0) FROM "+g.tbl).Scan(&sgMax); err != nil {
+			return fmt.Errorf("sg %s max: %w", g.tbl, err)
+		}
+		if mdNext <= sgMax {
+			return fmt.Errorf("跨库 id 键空间相撞：md %s next=%d ≤ SG %s max=%d——"+
+				"T-0169 切换前置 setval（md 序列抬过 SG legacy max）后始可投影", g.seq, mdNext, g.tbl, sgMax)
+		}
+	}
+	return nil
+}
+
+// refreshSets 谓词自算（SG 源表现读——不赖 fin_active_set 种子；D-0032 裁，
+// 同径兼治 0069 无回填）。
+func (r *Runner) refreshSets(ctx context.Context) error {
+	rows, err := r.sg.Query(ctx, `SELECT inst_id FROM fin_position WHERE closed_at IS NULL
+		UNION SELECT inst_id FROM fin_strategy WHERE state<>'retired'`)
+	if err != nil {
+		return fmt.Errorf("活跃集自算: %w", err)
+	}
+	active := map[string]bool{}
+	for rows.Next() {
+		var inst string
+		if err := rows.Scan(&inst); err != nil {
+			rows.Close()
+			return err
+		}
+		active[inst] = true
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	var dcd []string
+	if err := r.sg.QueryRow(ctx, `SELECT COALESCE(array_agg(DISTINCT inst_id),'{}'::text[]) FROM fin_strategy
+		WHERE state<>'retired' AND template_ref='dcd_call'`).Scan(&dcd); err != nil {
+		return fmt.Errorf("dcd 活策略集: %w", err)
+	}
+	r.mu.Lock()
+	r.active, r.dcd = active, dcd
+	r.mu.Unlock()
+	return nil
+}
+
+func (r *Runner) activeCount() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return len(r.active)
+}
+
+func (r *Runner) activeList() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([]string, 0, len(r.active))
+	for k := range r.active {
+		out = append(out, k)
+	}
+	return out
+}
+
+func (r *Runner) dcdSet() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]string(nil), r.dcd...)
+}
+
+func (r *Runner) getWm(table string) time.Time {
+	r.wmMu.Lock()
+	defer r.wmMu.Unlock()
+	return r.wm[table]
+}
+
+func (r *Runner) resetWm() {
+	r.wmMu.Lock()
+	defer r.wmMu.Unlock()
+	r.wm = map[string]time.Time{}
+}
+
+func (r *Runner) bumpWm(table string, ts time.Time) {
+	r.wmMu.Lock()
+	defer r.wmMu.Unlock()
+	if ts.After(r.wm[table]) {
+		r.wm[table] = ts
+	}
+}
+
+func (r *Runner) getPropWm() int64 {
+	r.wmMu.Lock()
+	defer r.wmMu.Unlock()
+	return r.propWm
+}
+
+func (r *Runner) bumpPropWm(id int64) {
+	r.wmMu.Lock()
+	defer r.wmMu.Unlock()
+	if id > r.propWm {
+		r.propWm = id
+	}
+}
+
+// beatLoop 席位心跳+镜像静默哨（30s 拍——roster 台账+projector_silent 转沿告警）。
+func (r *Runner) beatLoop(ctx context.Context, errc chan<- error) {
+	t := time.NewTicker(beatEvery) // sched-exempt-ok 席位心跳+镜像静默哨（roster 台账活性类，非工作扫描）
+	defer t.Stop()
+	silent := false
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			if err := roster.Beat(ctx, r.sg, seatName); err != nil {
+				errc <- fmt.Errorf("[projector] beat: %w", err)
+				return
+			}
+			stale, err := r.mirrorStaleSince(ctx)
+			if err != nil {
+				log.Printf("[projector] silent 哨读败: %v", err)
+				continue
+			}
+			switch {
+			case stale && !silent && r.alert != nil:
+				r.alert.Alert(ctx, "projector_silent",
+					"SG 镜像 max(ts) 陈>"+mirrorStale.String()+"——投影断流（projector 死或 PG-md 写停）")
+			case !stale && silent:
+				log.Printf("[projector] 镜像复鲜——projector_silent 解除")
+			}
+			silent = stale
+		}
+	}
+}
+
+// mirrorStaleSince SG ts 桥面最大值是否陈于阈（全空=未始不判陈）。
+func (r *Runner) mirrorStaleSince(ctx context.Context) (bool, error) {
+	var latest *time.Time
+	err := r.sg.QueryRow(ctx, `SELECT max(ts) FROM (
+		SELECT max(ts) ts FROM md_ticks UNION ALL SELECT max(ts) FROM md_mark_index
+		UNION ALL SELECT max(ts) FROM md_signal UNION ALL SELECT max(ts) FROM md_dcd_product
+		UNION ALL SELECT max(ts) FROM md_funding UNION ALL SELECT max(ts) FROM fin_opp_eval) q`).Scan(&latest)
+	if err != nil {
+		return false, err
+	}
+	return latest != nil && time.Since(*latest) > mirrorStale, nil
+}
+
+// livenessLoop 活性兜底（10min 期界——事件失联自检非工作扫描，events.go 钦定
+// 豁免类）：断窗行与低频桥表靠期界重对账收敛。
+func (r *Runner) livenessLoop(ctx context.Context, errc chan<- error) {
+	t := time.NewTicker(livenessEvery) // sched-exempt-ok 活性兜底重对账（事件失联自检——events.go 钦定豁免类，非工作扫描）
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			if err := r.Reconcile(ctx, false); err != nil {
+				errc <- fmt.Errorf("[projector] 活性对账: %w", err)
+				return
+			}
+		}
+	}
+}

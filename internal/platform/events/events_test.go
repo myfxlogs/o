@@ -33,7 +33,7 @@ func TestListenSocketStarvationRootFix(t *testing.T) {
 
 	gate := make(chan struct{})
 	var ticks atomic.Int64
-	fn := func(context.Context) error {
+	fn := func(context.Context, string) error {
 		if ticks.Add(1) == 1 {
 			<-gate // 首拍长拍——模拟 20min+ 扫拍卡读环实害形（本测 30s 量级）
 		}

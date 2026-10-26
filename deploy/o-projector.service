@@ -1,0 +1,20 @@
+# o-projector.service —— 投影臂 systemd --user 单元（T-0168——部署按用户级落，
+# 同 o-research/o-collecto 形；系统级模板差异记档 D-0030 §八）。
+# 装配：cp 至 ~/.config/systemd/user/ && systemctl --user daemon-reload &&
+#       systemctl --user enable --now o-projector
+# env：~/.config/o-projector.env 或 %h/o-projector.env（MD_PG_DSN/SG_PG_DSN）。
+[Unit]
+Description=o-projector 投影臂（PG-md→SG 八桥镜像+proposal 双向）
+After=network-online.target o-collecto-tunnel.service
+Wants=network-online.target o-collecto-tunnel.service
+
+[Service]
+EnvironmentFile=%h/o-projector.env
+ExecStart=/opt/o-projector/o-projector
+Restart=always
+RestartSec=10
+WorkingDirectory=/opt/o-projector
+Slice=o-prod.slice
+
+[Install]
+WantedBy=default.target
