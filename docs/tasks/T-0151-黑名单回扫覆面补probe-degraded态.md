@@ -1,7 +1,6 @@
-# D-0025 黑名单回扫覆面补 probe/degraded 态（T-0147 验收衍生）
+# T-0151 黑名单回扫覆面补 probe/degraded 态（T-0147 验收衍生）
 
 ## 态：待施工
-## 原编号：T-0151（2026-10-26 前后台分系改编——后台 D 系/前端 T 系）
 ## 域：执行径 / venue 终局分类
 ## 源出：T-0147 验收生产窗实案——0061 trigger 谓词只覆
   live/paper/proposed 三态，策略 286181（SHEIN-USDT-SWAP）probe 态
