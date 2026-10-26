@@ -7,7 +7,7 @@ import { useCallback, useEffect, useState } from "react";
 import { client, errText } from "../api";
 import { onCase } from "../stream";
 import { fmtNum, fmtUsd } from "./fmt";
-import type { HedgeFlowItem } from "../gen/dashboardv1/position_pb";
+import type { HedgeFlowItem } from "../../gen/dashboardv1/core_pb";
 
 const PAGE = 10;
 

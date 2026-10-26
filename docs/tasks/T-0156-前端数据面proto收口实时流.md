@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | 施工中 |
+| 状态 | 待验 |
 | 立项 | `[角色:决策]` @ 2026-10-26（业主令：①禁轮询/定时任务要实时流 ②手拼 JSON 易错走 buf proto） |
 | 领取 | glm-t0156 @ 2026-10-26 |
 | 优先级 | 高 |
@@ -63,3 +63,54 @@ stream.ts:11）违业主事件驱动令。
 - `web/src/react/api.ts:14`（camel 正则病灶）、`web/src/react/stream.ts:11`（保底轮询）
 - `cmd/core/trx_yield_face.go:48`（手拼 map 病灶）
 - 评估截图：/tmp/o-render/（ov-dark/light/narrow、trx-light）
+
+## 结果回填（glm-t0156 @ 2026-10-26）
+
+- **步0 热修独立投产**（529c848）：`camel()` 正则 `_([a-z0-9])`——
+  `_7d/_30d` 数字尾缀键复活；`ts()` string 支路——「更新于 Invalid Date」
+  根治（步3 收口后 string 支路已随 proto 直连撤除，热修语义由 proto
+  Timestamp 直读继承）。
+- **proto 单源**（core.proto 扩面）：CoreService 新增七 RPC——
+  GetTrxAccount/TrxAccountRefresh/ListTrxTxs/GetTrxYieldRadar/
+  GetTrxYieldCurve/GetHedgeStructure/ListHedgeFlow；消息形状对齐消费面
+  （折值后端算定，found=false=读件缺显形不假零）；buf 双模板 regen
+  Go+TS 同 commit（101c919+本票）。
+- **后端收口**：trx_faces.go/trx_yield_face.go 改 proto service 实现
+  （trxWiring 同源注入 coreService）；computeHedgeCarry→typed
+  hedgeCarry、legQtyStaked 撤；mountTrxAPI/writeJSON/cmc_history/
+  cex_scan REST 面全拔；mountUI 砍成纯静态（/api/overview+/api/watch
+  SSE 撤，404 化有桩测锚）。**偏离说明**：票面「四读面」实落六读面+
+  刷新踢——GetTrxAccount/ListTrxTxs 为 vanilla 总览 TRX 段活口所需
+  （原段消费的 radar/vote/cmc/cmc_positions 僵尸 face 自 T-0110 起即
+  404，本票顺带修活），验收「/api/trx/* 全撤」的数学下界。
+- **watch_open 就绪帧**（service.go Watch）：connect 服务端流首写前不
+  发响应头——客户端 Watch()/for-await 悬挂至首事件（潜伏雷：该服务
+  此前从未被前端真用过）。LISTEN 注册后发 watch_open 非数据帧=就绪
+  信号+前端连接即回填。坑条目同 commit 入库。
+- **前端 connect-web 接管**：@connectrpc/connect(-web)@2.2.0 直连
+  CoreService（api.ts 同签名件——组件零感兑现 T-0113 铺路）；双页
+  （vanilla index+React trx）全切；react/gen 本地 interface 等价件三件
+  删（trx_cex_pb/position_pb/watch_rule_pb）+TrxWatchCard 监控卡下架
+  （watch_rule 后端落位后同 proto 恢复）；stream.ts=Watch 流帧泵
+  （ev_cashflow→trx 主题映射——TRX 现金行租金/领奖/隔夜息全在
+  fin_cashflow），30s 保底轮询+SSE shim 撤；vanilla main.ts 30s 轮询+
+  EventSource 撤（watchPump 3s 断流重连=传输维护非数据轮询，注释在
+  案）；renderTrx 改 proto 读面活口（单面败不连坐）。
+- **验收锚对账**：
+  - 收益率卡六格真值显形：码面达成（energyApr7d/30d 数字尾缀键
+    proto 直供）——本地浏览器实证未做（本地无 o-core 全栈运行面），
+    **SG 双端显形=验收轮换后决策席实证项**。
+  - 事件驱动 <1s：桩锚 TestConnectEndToEndAndWatchLatency（-count=3
+    确定性过）——watch_open 就绪帧后拍行，ev_cashflow 帧达 <1s 实测
+    ms 级；前端帧→重取接线码面直驱（流帧同步派发）。
+  - setInterval 仅剩时钟两处：grep 实证（Shell.tsx:16+index.html:86
+    各 1s 时钟）；/api/overview、/api/watch、/api/trx/* 404 化：桩测
+    锚 TestRestFacesRetired。
+  - 手拼 JSON 零残留：trx_faces.go/trx_yield_face.go=proto 实现；
+    writeJSON/mountTrxAPI 拔除（grep 零命中）。
+  - 监控提醒卡不渲染+本地 interface 零残留：trx.tsx 撤卡；
+    react/gen/ 整目录删。
+  - build✓ typecheck✓ test✓：go build/vet/gofmt 净+go test ./...
+    全量绿（四 DSN 真跑，exit 0）+web typecheck/build 净。
+- **机检**：build✓ vet✓ gofmt✓ test✓（全仓四 DSN）buf lint✓（新增
+  面零告警，存量历史债另案）web build✓ typecheck✓。

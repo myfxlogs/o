@@ -7,13 +7,9 @@ export function fmtUsd(v: number | null | undefined): string {
   return `${s}$${Math.abs(v).toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
 }
 
-export function ts(t: Timestamp | string | undefined): string {
+export function ts(t: Timestamp | undefined): string {
   if (!t) return "—";
-  // string 支路=REST 手拼面 updated_at（RFC3339）过渡兼容——proto 直连后撤（T-0156）。
-  const d = typeof t === "string" ? new Date(t) : timestampDate(t);
-  return Number.isNaN(d.getTime())
-    ? "—"
-    : d.toLocaleString("zh-CN", { hour12: false });
+  return timestampDate(t).toLocaleString("zh-CN", { hour12: false });
 }
 
 export function tsUnix(u: bigint | number): string {

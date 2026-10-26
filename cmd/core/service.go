@@ -160,6 +160,13 @@ func (c coreService) Watch(ctx context.Context, _ *dashboardv1.WatchRequest,
 			return err
 		}
 	}
+	// watch_open 初始帧=就绪信号（LISTEN 注册完成后客户端才收到首帧——
+	// 连接即回填，前端借帧刷新快照；非 ev_* 通道，数据事件语义不混）。
+	// connect 服务端流首写前不出响应头——无此帧客户端 Watch() 悬挂至首事件。
+	if err := stream.Send(&dashboardv1.WatchEvent{Kind: "watch_open",
+		Ts: time.Now().UTC().Format(time.RFC3339)}); err != nil {
+		return err
+	}
 	for {
 		n, err := conn.Conn().WaitForNotification(ctx)
 		if err != nil {

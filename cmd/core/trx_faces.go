@@ -26,10 +26,10 @@ func trxAccountRow(a pgstore.TRXAccount) *dashboardv1.GetTrxAccountResponse {
 		TronPower:       float64(a.TronPower) / 1e6,
 		EnergyDelegated: float64(a.EnergyDelegated) / 1e6,
 		BandwidthStaked: float64(a.BandwidthStaked) / 1e6,
-		NetLimit:        a.NetLimit, NetUsed: a.NetUsed,
-		FreeNetLimit: a.FreeNetLimit, FreeNetUsed: a.FreeNetUsed,
-		EnergyLimit: a.EnergyLimit, EnergyUsed: a.EnergyUsed,
-		Votes:           a.VotesTotal,
+		NetLimit:        float64(a.NetLimit), NetUsed: float64(a.NetUsed),
+		FreeNetLimit: float64(a.FreeNetLimit), FreeNetUsed: float64(a.FreeNetUsed),
+		EnergyLimit: float64(a.EnergyLimit), EnergyUsed: float64(a.EnergyUsed),
+		Votes:           float64(a.VotesTotal),
 		BandwidthStatus: bandwidthStatus(a.NetLimit, a.NetUsed, a.FreeNetLimit, a.FreeNetUsed),
 		FetchedAt:       timestamppb.New(a.FetchedAt),
 	}
@@ -159,12 +159,12 @@ func (c coreService) GetHedgeStructure(ctx context.Context,
 		accts.TrxAllowance = float64(trxAcc.RewardNumSun) / 1e6
 		accts.EnergyDelegated = float64(trxAcc.EnergyDelegated) / 1e6
 		accts.Votes = float64(trxAcc.VotesTotal)
-		accts.NetLimit = trxAcc.NetLimit
-		accts.NetUsed = trxAcc.NetUsed
-		accts.FreeNetLimit = trxAcc.FreeNetLimit
-		accts.FreeNetUsed = trxAcc.FreeNetUsed
-		accts.EnergyLimit = trxAcc.EnergyLimit
-		accts.EnergyUsed = trxAcc.EnergyUsed
+		accts.NetLimit = float64(trxAcc.NetLimit)
+		accts.NetUsed = float64(trxAcc.NetUsed)
+		accts.FreeNetLimit = float64(trxAcc.FreeNetLimit)
+		accts.FreeNetUsed = float64(trxAcc.FreeNetUsed)
+		accts.EnergyLimit = float64(trxAcc.EnergyLimit)
+		accts.EnergyUsed = float64(trxAcc.EnergyUsed)
 		accts.BandwidthStatus = bandwidthStatus(trxAcc.NetLimit, trxAcc.NetUsed, trxAcc.FreeNetLimit, trxAcc.FreeNetUsed)
 	}
 	if ls.Cash > 0 || ls.Equity > 0 {

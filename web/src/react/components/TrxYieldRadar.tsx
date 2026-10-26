@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { client } from "../api";
 import { onCase } from "../stream";
-import type { GetTrxYieldRadarResponse, GetTrxYieldCurveResponse, HedgeCarry } from "../gen/dashboardv1/trx_cex_pb";
+import type { GetTrxYieldRadarResponse, GetTrxYieldCurveResponse, HedgeCarry } from "../../gen/dashboardv1/core_pb";
 import { fmtUsd, fmtNum, ts } from "./fmt";
 
 const fmtPct = (v: number) => (v ? `${v.toFixed(2)}%` : "—");

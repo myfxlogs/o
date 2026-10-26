@@ -7,7 +7,11 @@ import (
 	"testing"
 	"time"
 
+	connect "connectrpc.com/connect/v2"
+	connecthttp "connectrpc.com/connect/v2/connecthttp"
+
 	"o/internal/gen/dashboardv1"
+	"o/internal/gen/dashboardv1/dashboardv1connect"
 	"o/internal/platform/config"
 	"o/internal/platform/testutil"
 	"o/internal/store/pgstore"
@@ -213,4 +217,59 @@ func TestTrxvoteFlagOffDormant(t *testing.T) {
 		`SELECT count(*) FROM fin_trx_vote_rebalance`).Scan(&n); err != nil || n != 0 {
 		t.Fatalf("停驶态不得产生引擎写入: %d %v", n, err)
 	}
+}
+
+// T-0156 验收桩锚：Connect 全链路——mountCore 同生产装配+connect-go 客户端
+// 过线打读面（REST 撤后唯一入口），+Watch 帧 NOTIFY→帧达 <1s（事件驱动律：
+// fin_cashflow 行落→ev_cashflow 触发器→LISTEN 流帧，所见即所得刷新源）。
+func TestConnectEndToEndAndWatchLatency(t *testing.T) {
+	ctx, w, _ := trxTestSetup(t)
+	mux := http.NewServeMux()
+	mountUI(mux)
+	mountCore(mux, w.pool, nil, nil, nil, nil, w)
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	cl := dashboardv1connect.NewCoreServiceClient(connect.NewClient(
+		connecthttp.NewTransport(srv.Client(), srv.URL)))
+	if r, err := cl.GetTrxAccount(ctx, &dashboardv1.GetTrxAccountRequest{}); err != nil || r.Found {
+		t.Fatalf("过线 GetTrxAccount 应空表 found=false: %+v %v", r, err)
+	}
+	if r, err := cl.GetTrxYieldRadar(ctx, &dashboardv1.GetTrxYieldRadarRequest{}); err != nil {
+		t.Fatalf("过线 GetTrxYieldRadar: %v", err)
+	} else if r.SampleDays_7D != 0 {
+		t.Fatalf("冷启动雷达应零样本: %+v", r)
+	}
+	// Watch 帧 <1s 桩锚：watch_open 首帧=就绪信号（LISTEN 注册在先——无
+	// 就绪竞速），随后拍行 ev_cashflow 帧达测距 <1s（NOTIFY 同事务提交即醒，
+	// 实测 ms 级）。
+	wctx, cancel := context.WithTimeout(ctx, 8*time.Second)
+	defer cancel()
+	stream, err := cl.Watch(wctx, &dashboardv1.WatchRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	open, err := stream.Receive()
+	if err != nil {
+		t.Fatalf("就绪首帧未达: %v", err)
+	}
+	if open.Kind != "watch_open" {
+		t.Fatalf("首帧应 watch_open: %s", open.Kind)
+	}
+	t0 := time.Now()
+	if _, err := w.pool.Exec(ctx, `INSERT INTO fin_cashflow
+		(kind,venue,ccy,amount,source_ref,source_table,occurred_at)
+		VALUES('fee','okx','USDT',-0.1,1,'fin_execution',now())`); err != nil {
+		t.Fatal(err)
+	}
+	ev, err := stream.Receive()
+	if err != nil {
+		t.Fatalf("流帧未达: %v", err)
+	}
+	if el := time.Since(t0); el > time.Second {
+		t.Fatalf("NOTIFY→帧达应 <1s（事件驱动律）: %v", el)
+	}
+	if k := ev.Kind; k != "ev_cashflow" {
+		t.Fatalf("帧通道应 ev_cashflow: %s", k)
+	}
+	cancel()
 }

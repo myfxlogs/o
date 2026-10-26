@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { client } from "../api";
 import { onCase } from "../stream";
-import type { HedgeStructure } from "../gen/dashboardv1/trx_cex_pb";
+import type { HedgeStructure } from "../../gen/dashboardv1/core_pb";
 import { fmtUsd, fmtNum, fmtPrice, fmtThr, pnlClass, fmtSigned } from "./fmt";
 
 export function TrxHedgeCard() {
