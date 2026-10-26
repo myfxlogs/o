@@ -15,6 +15,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"o/internal/platform/pgguard"
 )
 
 // Pool 接 O_TEST_PG_DSN 独立测试实例+包级 schema 隔离；
@@ -47,6 +49,7 @@ func Pool(t *testing.T) *pgxpool.Pool {
 		_, err := c.Exec(ctx, "SET search_path TO "+schema+",public")
 		return err
 	}
+	pgguard.GuardPool(cfg) // T-0154 事务残留守卫（测试面同守——桩锚同池验）
 	pool, err := pgxpool.NewWithConfig(context.Background(), cfg)
 	if err != nil {
 		t.Fatalf("test pool: %v", err)

@@ -44,6 +44,12 @@ func listenOnce(ctx context.Context, pool *pgxpool.Pool, channels []string, fn f
 	if err != nil {
 		return err
 	}
+	// T-0154 双保险自净：借到事务态连接（守卫漏网形）→ROLLBACK 清态——
+	// 事务内 LISTEN 永不生效（聋哑）+backend_xmin 钉死双实害源。
+	if st := conn.Conn().PgConn().TxStatus(); st != 'I' {
+		_, _ = conn.Exec(ctx, "ROLLBACK")
+		log.Printf("[events] WARN 借到事务态连接已自净回滚（TxStatus=%q）", st)
+	}
 	// LISTEN 会话级常驻——还池前 UNLISTEN 全清（T-0131 根修：池连接频道残留
 	// 污染下任借用者=自激洪泛源；ctx 已取消时用 Background 兜底执行）。
 	defer func() {
@@ -102,6 +108,10 @@ func listenOnceDeadline(ctx context.Context, pool *pgxpool.Pool, name string, ch
 	conn, err := pool.Acquire(ctx)
 	if err != nil {
 		return err
+	}
+	if st := conn.Conn().PgConn().TxStatus(); st != 'I' { // T-0154 双保险自净（同 listenOnce）
+		_, _ = conn.Exec(ctx, "ROLLBACK")
+		log.Printf("[events] WARN 借到事务态连接已自净回滚（TxStatus=%q）", st)
 	}
 	defer func() { // 同 listenOnce——频道残留禁带还池（T-0131）
 		_, _ = conn.Exec(context.Background(), "UNLISTEN *")
