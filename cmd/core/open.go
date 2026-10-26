@@ -171,7 +171,7 @@ func (h hedgeOpener) loadMeta(ctx context.Context, iid string) (execution.InstMe
 // clOrdId=幂等键，歧态势=禁补单走 order-status 定真态）。
 func (h hedgeOpener) dcdOpen(ctx context.Context, spec lifecycle.OpenSpec) (int64, error) {
 	// 陈旧提案闸：按 spec.InstID=productId 重取 quote——产品失效=弃权如实。
-	if _, err := h.cli.DcdQuote(ctx, spec.InstID, strconv.FormatFloat(spec.NotionalUSD, 'f', -1, 64)); err != nil {
+	if _, err := h.cli.DcdQuote(ctx, spec.InstID, dcdSz(spec.NotionalUSD)); err != nil {
 		return 0, fmt.Errorf("dcd quote 失效弃权（陈旧提案不盲执）: %w", err)
 	}
 	// 风控过闸同 carry 仓（notional/exposure 谓词现行；Legs 记 dcd 单腿形）。
@@ -188,7 +188,7 @@ func (h hedgeOpener) dcdOpen(ctx context.Context, spec lifecycle.OpenSpec) (int6
 		return 0, err
 	}
 	clOrdID := fmt.Sprintf("dcd%dx%d", execID, time.Now().Unix()%1e9)
-	raw, err := h.cli.DcdTrade(ctx, spec.InstID, strconv.FormatFloat(spec.NotionalUSD, 'f', -1, 64), clOrdID)
+	raw, err := h.cli.DcdTrade(ctx, spec.InstID, dcdSz(spec.NotionalUSD), clOrdID)
 	if err != nil {
 		// 传输/超时败=歧态势：禁补单——exec 行待人工/读件定真态（okx-exec 纪律）。
 		_, _ = h.pool.Exec(ctx, "UPDATE fin_execution SET state='ambiguous' WHERE id=$1", execID)
@@ -259,3 +259,7 @@ func (h hedgeOpener) dcdOpen(ctx context.Context, spec lifecycle.OpenSpec) (int6
 func dcdExecState(vstate string) string {
 	return map[string]string{"LIVE": "open", "SETTLED": "closed", "CANCELLED": "failed"}[vstate]
 }
+
+// dcdSz 数量格式化（venue sz 方言拒 sci——FormatFloat f,-1 去指数形；
+// T-0160 返修②实证锚）。
+func dcdSz(v float64) string { return strconv.FormatFloat(v, 'f', -1, 64) }

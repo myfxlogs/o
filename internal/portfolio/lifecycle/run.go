@@ -34,7 +34,7 @@ type Runner struct {
 func NewRunner(pool *pgxpool.Pool, cfg *config.Client) *Runner {
 	return &Runner{pool: pool, denyAt: map[int64]time.Time{}, cfg: cfg,
 		rej: rejects.New("lifecycle", "illegal_transition", "missing_criteria", "write_err", "live_switch_off", "open_failed", "template_blocked", "xvenue_open_forbidden", "blacklist_retire",
-			"facts_missing", "missing_param", "oscillation_fuse")}
+			"facts_missing", "missing_param", "oscillation_fuse", "dcd_quote_missing")}
 }
 
 func (r *Runner) Run(ctx context.Context, errc chan<- error) {
@@ -81,6 +81,9 @@ func (r *Runner) scan(ctx context.Context) error {
 	}
 	if err := r.admitProposals(ctx, notional, minH, minNet, maxDD); err != nil {
 		return err
+	}
+	if err := r.dcdPaperAccounting(ctx); err != nil {
+		log.Printf("[lifecycle] dcd paper 记账败: %v", err)
 	}
 	if err := r.paperAccounting(ctx); err != nil {
 		return err

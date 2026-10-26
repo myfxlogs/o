@@ -2,7 +2,6 @@
 package main
 
 import (
-	"strconv"
 	"strings"
 	"testing"
 )
@@ -26,7 +25,7 @@ func TestDcdExecStateMapping(t *testing.T) {
 // 锚：sz 去 sci——notional 格式化不产指数形（venue sz 方言拒 sci）。
 func TestDcdSzFormatNoSci(t *testing.T) {
 	for _, v := range []float64{1e3, 0.00001, 1234.5678, 2e6} {
-		out := strconv.FormatFloat(v, 'f', -1, 64)
+		out := dcdSz(v) // 桩绑调用点——测源码函数非字面
 		if strings.ContainsAny(out, "eE") {
 			t.Fatalf("sz 应去 sci: %v→%s", v, out)
 		}
