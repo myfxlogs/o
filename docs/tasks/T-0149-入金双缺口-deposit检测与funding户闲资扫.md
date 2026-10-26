@@ -56,3 +56,12 @@
   不 abort 整扫（毒行饿死后续行=现产实证病灶根修）。
 - 桩锚：TestDepositScanUSDTGate（TRX/BTC 行零写+后续 USDT 照入账）
   +TestFundingIdleBackoff（连败两拍第二拍不重发）。
+
+## 三返修（账基线截止谓词）
+
+- Scan 入金行加基线截止谓词：occurred_at ≤ fin_cashflow 最早行 occurred_at
+  （账基线锚）→pre_baseline 计数+skip 不入账不留 bill——bill_id 幂等只
+  防重不防史病灶根修（venue 全史前身时代入金 $420,803 当注资入账=虚增
+  8 倍实证）；postdate 基线行照常入账。
+- 桩锚：TestDepositScanBaselineCutoff（pre1 零写无 bill+post1 入账）绿；
+  前两桩测补 seedBaseline 基线行（基线参照不在即全 skip——按设计语义）。
