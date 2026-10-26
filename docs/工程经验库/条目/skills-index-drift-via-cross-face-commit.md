@@ -12,7 +12,9 @@ last_verified: 2026-10-26
 skills: [策略评估与仓位]
 evidence_refs:
   - type: code_fact
-    ref: tools/kbgen/skills.go——坑引列=解析 docs/工程经验库/技能清单.md；scripts/hooks/pre-commit 闸 8b——触发面仅 `git diff --cached --name-only | grep -qE '^skills/'`；master 实测 `kbgen skills --check` exit 1（dual-listenloop-serial-starvation 等 5 枚新坑在坑引列缺）
+    ref: tools/kbgen/skills.go——坑引列=解析 docs/工程经验库/技能清单.md；scripts/hooks/pre-commit 闸 8b——修复前触发面仅 `grep -qE '^skills/'`，master 实测 `kbgen skills --check` exit 1（dual-listenloop-serial-starvation 等 5 枚新坑在坑引列缺）
+  - type: commit
+    ref: e7dffc2
   - type: doc
     ref: docs/tasks/T-0052（验收毕段）+T-0158（闸触发面修复单——原编号 T-0154 撞号让号重编）
 ---

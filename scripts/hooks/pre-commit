@@ -113,11 +113,13 @@ if git -c core.quotepath=off diff --cached --name-only | grep -qE '^docs/工程�
   fi
 fi
 
-# 8b. skills 索引机生门禁（T-0052）：staged 触 skills/→kbgen skills --check（与经验库闸同款）。
-if git -c core.quotepath=off diff --cached --name-only | grep -qE '^skills/'; then
+# 8b. skills 索引机生门禁（T-0052 立，T-0158 扩触发面）：staged 触 skills/ 或 docs/工程经验库/→
+# kbgen skills --check。坑引列自经验库技能清单.md 派生——依赖面 ⊆ 触发面才闭环，否则
+# 经验库-only commit 照常过闸、坑引漂移静默上 master（坑：skills-index-drift-via-cross-face-commit）。
+if git -c core.quotepath=off diff --cached --name-only | grep -qE '^skills/|^docs/工程经验库/'; then
   if [ -d tools/kbgen ]; then
     (go run ./tools/kbgen skills --check) || {
-      echo "FAIL: skills/索引.md 陈旧——staged 改 skills/ 须跑 go run ./tools/kbgen skills 重建（禁手编）" >&2
+      echo "FAIL: skills/索引.md 陈旧——staged 改 skills/ 或 docs/工程经验库/ 须跑 go run ./tools/kbgen skills 重建（禁手编）" >&2
       exit 1
     }
   else
