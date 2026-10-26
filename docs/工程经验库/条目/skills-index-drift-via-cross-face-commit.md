@@ -14,7 +14,7 @@ evidence_refs:
   - type: code_fact
     ref: tools/kbgen/skills.go——坑引列=解析 docs/工程经验库/技能清单.md；scripts/hooks/pre-commit 闸 8b——触发面仅 `git diff --cached --name-only | grep -qE '^skills/'`；master 实测 `kbgen skills --check` exit 1（dual-listenloop-serial-starvation 等 5 枚新坑在坑引列缺）
   - type: doc
-    ref: docs/tasks/T-0052（验收毕段）+T-0150（闸触发面修复单）
+    ref: docs/tasks/T-0052（验收毕段）+T-0158（闸触发面修复单——原编号 T-0154 撞号让号重编）
 ---
 
 # 生成物索引跨面派生列——触发面不含依赖面=闸静默漏漂移
@@ -41,6 +41,6 @@ master 上 `kbgen skills --check` exit 1。
 
 ## 处置形
 
-- 触发面 ⊇ 依赖面：闸 grep 扩为 `^skills/|^docs/工程经验库/`（T-0150 修复单）
+- 触发面 ⊇ 依赖面：闸 grep 扩为 `^skills/|^docs/工程经验库/`（T-0158 修复单）
 - 通律：凡「A 生成的产物内容取自 B 面」——A 面闸的触发面必须含 B 面；
   派生链每加一个输入源，触发面同步扩，否则闸=装饰
