@@ -26,3 +26,61 @@ Watch 前端被无谓推帧。消费端解耦已止血，供方洪泛是同类�
 - 生产实测 ev_eval NOTIFY 率降一个数量级+（log/队列水位对照）。
 - lifecycle 唤醒语义不变（实质变仍即时醒）。
 - 供方侧零「notify queue full」类错误。
+
+## 结果回填
+
+- 0064 迁移（migrations/0064_notify_flood_shrink.sql，已登记
+  migrate_table.go）：ev_eval 触发器改 row-level「实质变才发」——
+  INSERT（新键）恒醒；UPDATE（普通 UPDATE 与 upsert DO UPDATE 臂同径）
+  verdict/gross_apr/net_apr/legs/evidence 任一 `IS DISTINCT FROM` 才
+  pg_notify（ts=写拍元数据不计；DO NOTHING 臂零行零 fire）。空 payload
+  +同事务同值去重律（0028）不动——批内合流天然在位。
+- **形状律实证（PG 18.6 生产同版探针）**：statement 级 transition table
+  触发器禁多事件（"transition tables cannot be specified for triggers
+  with more than one event"）+INSERT 单事件触发器禁声明 OLD TABLE——
+  upsert 写拍在 statement 级拿不到旧版；可行形=row-level 多事件触发器
+  （探针实拍：DO UPDATE 臂 TG_OP='UPDATE' 且 OLD/NEW 完整可比）。已入
+  工程经验库条目 pg18-upsert-trigger-material-change-shape。
+- funding 扫描臂拍级合流（internal/research/funding/run.go）：读评分离
+  （md_funding 排干在池连）+写拍整体单事务（pgx.BeginFunc）——逐行
+  autocommit 旧形每行独立事务=同事务去重永不生效=洪泛根；改后全拍
+  至多一醒+拍原子性（半拍态消除）。persist 改 tx 面（评估/起草闸/
+  提案写读同事务一致）。dcd/xcarry/gapscan/grammar 写拍低频（生产
+  实测 churn 100%=funding-hedge），留 0064 同值静默即治，不动。
+- ev_strategy 同查结论（票面施工项②）：写方全是单 statement 批量
+  UPDATE（statement 级触发器天然批合流）+状态迁移皆实质变——零改动。
+- 水位观测面（internal/platform/pgguard）：Sentinel 10min 节拍加
+  pg_notification_queue_usage() 探针（CheckNotifyQueue）——≥50% 告警
+  一次（notify_queue_usage kind，走业主通道；恢复清标再报；线独立于
+  xmin 臂）。爆顶=发送方 NOTIFY 报错，50% 线留处置余量。
+- 生产亲证（验收锚对账基底）：
+  - 病灶量：fin_opp_eval 6532 行，churn≈509 行/拍（100% funding-hedge），
+    逐行 autocommit=同率 NOTIFY（票面 ~770 行/min 峰形同源）。
+  - 值漂移率：4 分钟窗（恰一拍）509 覆写中 73 行实质变（verdict 变≈0
+    ——600 行采样两拍间 verdict 变更=0）；700s 窗 600 行采样 3 行变。
+  - 预测：0064 同值静默≈率降至实质变行（~14%/拍活跃窗~0.5%/拍静默窗）
+    ；funding 拍级合流把上界钉在 ≤1 NOTIFY/拍——合计从 ~509/拍 → ≤1/拍
+    （≥两个数量级，锚①达标线以部署后实测为准）。
+- 桩锚（internal/platform/events/notifyflood_test.go 全绿）：
+  - 结构锚：Migrate 后 ev_eval_trg=FOR EACH ROW+ev_notify_eval('ev_eval')。
+  - 锚①同键同值覆写三连写零 NOTIFY（静默窗）；锚②批内多变一
+    （一语句三行恰一醒+同事务三条逐行 upsert 恰一醒——拍级合流形）+
+    重放全同值零醒；锚③INSERT 恒发；锚④实质变（verdict/评分/evidence
+    三面各测）仍即时醒=lifecycle 唤醒语义不变线；边缘：DO NOTHING 零醒。
+  - 哨兵桩锚（pgguard_test.go TestNotifyQueueSentinel）：水位可读可判、
+    过线告警恰一次+arm 抑刷、清标再报、常态静默。
+  - 行为测触发器重指每测独占频道（共享测试实例跨包噪声隔离），生产
+    频道形由结构锚直验。
+- 机检：build✓ vet✓ gofmt✓ migration contract✓ migrations 四断言✓
+  kbgen gen/skills --check✓ env✓ staticcheck 新增零告警（pre-commit 闸
+  实跑）；go test 全绿（本单触及包全绿+其余包隔离跑绿）。
+  附注：全量并行跑下 guard/earn/cmd/core/trading-execution 在 600s
+  超时崖随机翻车为既有环境病（改造前 run 同形翻车实测：cmd/core 545s/
+  earn 556s 贴崖而过；本支隔离跑 guard 174s/earn 145s/cmd/core 147s
+  全绿）；pgguard TestXminSentinelQuiet 并行跑一次红=共享实例跨包
+  10min+ 残留事务被 pg_stat_activity（集群级可见）喂进哨兵判定的跨包
+  噪声，隔离跑+复跑全绿——两处均非本单代码病，留观察。
+- 偏离说明：票面「payload 含新 ts 使 PG 同事务去重失效」与码面不符——
+  实际触发器自 0028 起恒空 payload（同事务去重有效），洪泛真根=逐行
+  autocommit（每行独立事务）。按票面病灶方向（供方逐行 NOTIFY 塌陷）
+  治，细节以本段生产亲证为准。

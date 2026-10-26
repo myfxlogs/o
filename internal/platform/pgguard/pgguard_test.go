@@ -4,7 +4,9 @@ package pgguard
 // 回滚+计数——下任借用者 TxStatus='I' 干净；哨兵零钉手静默语义。
 import (
 	"context"
+	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -94,3 +96,49 @@ func TestXminSentinelQuiet(t *testing.T) {
 	}
 	_ = time.Now
 }
+
+// 锚③（T-0162）：notify 队列水位哨兵判定语义——水位=pg_notification_queue_usage()
+// 可读可判（观测面在位）；过线告警一次+arm 抑刷；线回落清标再报。
+func TestNotifyQueueSentinel(t *testing.T) {
+	pool := tpool(t)
+	ctx := context.Background()
+	x := NewSentinel(pool)
+	type cap struct{ kind, payload string }
+	var got []cap
+	x.AttachAlerter(alerterFunc(func(ctx context.Context, kind, payload string) {
+		got = append(got, cap{kind, payload})
+	}))
+	var usage float64
+	if err := pool.QueryRow(ctx, "SELECT pg_notification_queue_usage()").Scan(&usage); err != nil {
+		t.Fatal(err)
+	}
+	// 过线告警恰一次（qMax 置负=必过线）+arm 位抑重复。
+	x.qMax = -1
+	x.CheckNotifyQueue(ctx)
+	x.CheckNotifyQueue(ctx)
+	if len(got) != 1 || got[0].kind != "notify_queue_usage" {
+		t.Fatalf("过线应告警一次 notify_queue_usage got %+v", got)
+	}
+	if !strings.Contains(got[0].payload, fmt.Sprintf("%.0f%%", usage*100)) {
+		t.Fatalf("告警载荷应含水位数 %v: %q", usage, got[0].payload)
+	}
+	// 线回落清标（qMax 置 2=永不过线）→再过线可再报。
+	x.qMax = 2
+	x.CheckNotifyQueue(ctx)
+	x.qMax = -1
+	x.CheckNotifyQueue(ctx)
+	if len(got) != 2 {
+		t.Fatalf("清标后过线应再报 got %+v", got)
+	}
+	// 常态静默（qMax 复位缺省线——空队列远低于线，不警不清他人标）。
+	x.qMax = notifyQueueMax
+	x.CheckNotifyQueue(ctx)
+	if len(got) != 2 {
+		t.Fatalf("常态不应告警 got %+v", got)
+	}
+}
+
+// alerterFunc 告警窄接口函数适配（桩测收集面）。
+type alerterFunc func(ctx context.Context, kind, payload string)
+
+func (f alerterFunc) Alert(ctx context.Context, kind, payload string) { f(ctx, kind, payload) }
