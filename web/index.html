@@ -4,98 +4,95 @@
 <meta charset="utf-8">
 <title>O 总览 · 设计稿</title>
 <style>
-:root{--bg:#0b0e14;--card:rgba(255,255,255,.06);--edge:rgba(255,255,255,.1);
---txt:#e8ecf2;--dim:#8b93a3;--up:#34d399;--dn:#f87171;--warn:#fbbf24;--b1:#1a2440;--b2:#2a1a3a;
---stampc:#5a6373;--dash:rgba(255,255,255,.06);--skl1:rgba(255,255,255,.06);--skl2:rgba(255,255,255,.14)}
-body.light{--bg:#f2f4f9;--card:rgba(255,255,255,.65);--edge:rgba(15,23,42,.08);
---txt:#1c2333;--dim:#64748b;--up:#059669;--dn:#dc2626;--warn:#d97706;--b1:#c9d8f2;--b2:#e0d4ee;
---stampc:#94a3b8;--dash:rgba(15,23,42,.08);--skl1:rgba(15,23,42,.06);--skl2:rgba(15,23,42,.12)}
-*{margin:0;box-sizing:border-box;font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif}
-body{background:radial-gradient(1200px 600px at 20% -10%,var(--b1) 0%,transparent 60%),
-radial-gradient(900px 500px at 90% 10%,var(--b2) 0%,transparent 55%),var(--bg);
-color:var(--txt);min-height:100vh;padding:28px;transition:background .3s,color .3s}
-.toggle{position:fixed;top:22px;right:26px;z-index:9;background:var(--card);backdrop-filter:blur(14px);
-border:1px solid var(--edge);border-radius:999px;padding:8px 16px;color:var(--txt);cursor:pointer;
-font-size:13px;transition:transform .2s}
-.toggle:hover{transform:translateY(-2px)}
+/* T-0159 设计系统收敛：令牌单源=arbcn 00-base.css（main.ts 直引，本表零独立
+   调色板）——表面 --surface/墨线 --line/字墨三级 --ink·--ink-2·--ink-3/状态灯
+   --good·--warn·--critical/涨跌字 --good-ink·--delta-down。玻璃拟态件撤除
+   （backdrop-filter/径向渐变底/hover 浮起/18px 大圆角——T-0157 缺陷⑥裁决，
+   arbcn 系为准）。 */
+*{margin:0;box-sizing:border-box}
+body{background:var(--page);color:var(--ink);min-height:100vh;padding:28px;
+font-family:system-ui,-apple-system,"Segoe UI",sans-serif;font-size:14px;line-height:1.5}
+.toggle{position:fixed;top:22px;right:26px;z-index:9;background:var(--surface);
+border:1px solid var(--line);border-radius:6px;padding:6px 14px;color:var(--ink);cursor:pointer;
+font-size:13px}
+.toggle:hover{background:var(--page)}
 /* 1 栅格：12 列隐形网格 */
 .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:20px;max-width:1200px;margin:0 auto}
-/* 4 液态玻璃卡片 */
-.card{background:var(--card);backdrop-filter:blur(18px) saturate(140%);
-border:1px solid var(--edge);border-radius:18px;padding:20px 22px;
-transition:transform .25s,box-shadow .25s,background .25s;position:relative;overflow:hidden}
-/* 2 悬停轻浮起+变色 */
-.card:hover{transform:translateY(-4px);background:rgba(255,255,255,.09);
-box-shadow:0 12px 40px rgba(0,0,0,.45)}
-.card::before{content:"";position:absolute;inset:0;border-radius:18px;
-background:linear-gradient(135deg,rgba(255,255,255,.08),transparent 40%);pointer-events:none}
+/* 4 卡面=arbcn 中性（8px 圆角对齐 03-table 节奏；零 blur 零浮起零渐变叠层） */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:8px;
+padding:20px 22px;position:relative;overflow:hidden}
 .hero{grid-column:span 12;display:flex;gap:40px;align-items:baseline}
 .metric b{font-size:34px;font-weight:700;letter-spacing:-.5px}
-.metric span{display:block;color:var(--dim);font-size:13px;margin-top:4px}
-.up{color:var(--up)} .dn{color:var(--dn)}
+.metric span{display:block;color:var(--ink-3);font-size:13px;margin-top:4px}
+.up{color:var(--good-ink)} .dn{color:var(--delta-down)}
 .money{grid-column:span 6}.doing{grid-column:span 6}
 .recent{grid-column:span 6}.staff{grid-column:span 6}
-h3{font-size:13px;color:var(--dim);font-weight:500;margin-bottom:14px;letter-spacing:.4em}
+h3{font-size:13px;color:var(--ink-2);font-weight:500;margin-bottom:14px;letter-spacing:.4em}
 /* T-0157：字距归 CSS（空格 hack 损复制/检索/可及性）；h3 内注释 note 不随字距。 */
 h3 i{letter-spacing:normal}
 h3 a{letter-spacing:normal}
-.row{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px dashed rgba(255,255,255,.06);font-size:14px}
+.row{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--line);font-size:14px}
 .row:last-child{border:0}
-.sec-t{display:flex;justify-content:space-between;margin:10px 0 2px;font-size:12px;color:var(--dim);letter-spacing:.08em}
+.sec-t{display:flex;justify-content:space-between;margin:10px 0 2px;font-size:12px;color:var(--ink-3);letter-spacing:.08em}
 .sec-t:first-child{margin-top:0}
 .venue-t{display:flex;align-items:center;gap:8px;margin-top:14px;padding-top:10px;
-border-top:1px solid rgba(255,255,255,.10);font-size:13px;letter-spacing:.12em}
+border-top:1px solid var(--line);font-size:13px;letter-spacing:.12em}
 .venue-t:first-child{margin-top:0;padding-top:0;border-top:0}
 .venue-t svg{opacity:.75}
 .sec-t i{font-style:normal;font-variant-numeric:tabular-nums}
-.lg-t{color:var(--dim)}
-em.lg{font-style:normal;font-size:10px;color:var(--dim);border:1px solid rgba(255,255,255,.14);border-radius:3px;padding:0 4px;margin-left:6px;vertical-align:1px}
+.lg-t{color:var(--ink-3)}
+em.lg{font-style:normal;font-size:10px;color:var(--ink-3);border:1px solid var(--ring);border-radius:3px;padding:0 4px;margin-left:6px;vertical-align:1px}
 .pos{display:flex;align-items:center;gap:10px;font-size:15px}
-.dot{width:9px;height:9px;border-radius:50%;background:var(--up)}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--good)}
 .count{font-variant-numeric:tabular-nums;color:var(--warn)}
 .bar{display:flex;height:10px;border-radius:6px;overflow:hidden;margin-top:12px}
-.bar i{display:block}.bar i:first-child{background:var(--up);width:97.6%}.bar i:last-child{background:var(--warn)}
-.ev{color:var(--dim);font-size:13.5px;padding:7px 0}
-.ev b{color:var(--txt);font-weight:500}
+.bar i{display:block}.bar i:first-child{background:var(--good);width:97.6%}.bar i:last-child{background:var(--warn)}
+.ev{color:var(--ink-3);font-size:13.5px;padding:7px 0}
+.ev b{color:var(--ink);font-weight:500}
 /* T-0112 立、T-0155 改字母系——瓦片编号=沟通坐标契约：硬编码 DOM 序，新卡自 H 起接号，不插队不重排。
   映射：A hero / B 在干什么 / C 钱在哪 / D 最近动作 / E TRX 自营盘 / F 交易所在线 / G 员工组织。
   旧档 #N 引用=第 N 个字母换算（#3=卡 C）；字母系实用顶 26，顶格再议 */
-.tile-no{position:absolute;top:14px;right:14px;font-size:11px;font-variant-numeric:tabular-nums;color:var(--dim);opacity:.65;letter-spacing:.5px}
-.stamp{position:absolute;right:18px;bottom:12px;font-size:11px;color:#5a6373}
+.tile-no{position:absolute;top:14px;right:14px;font-size:11px;font-variant-numeric:tabular-nums;color:var(--ink-3);opacity:.65;letter-spacing:.5px}
+.stamp{position:absolute;right:18px;bottom:12px;font-size:11px;color:var(--ink-3)}
 /* 5 骨架屏 */
 /* 6 空状态 */
-.empty{text-align:center;padding:26px 0;color:var(--dim)}
+.empty{text-align:center;padding:26px 0;color:var(--ink-3)}
 .empty svg{opacity:.4;margin-bottom:10px}
-.empty p{font-size:13px}.empty i{display:block;font-size:11.5px;margin-top:6px;color:#5a6373}
+.empty p{font-size:13px}.empty i{display:block;font-size:11.5px;margin-top:6px;color:var(--ink-3)}
 .staffline{display:flex;align-items:center;gap:8px;font-size:13.5px;padding:5px 0}
 /* 7 交易所在线树状卡（T-0088 裁决已兑现 T-0157——灯是信息不是装饰：静态三色，零动画零辉光） */
 .vline{display:flex;align-items:center;gap:8px;font-size:13.5px;padding:4px 0}
 .vline.venue{font-size:14.5px;font-weight:600;padding-top:10px}
 .vline.venue:first-child{padding-top:0}
 .vline.chan{padding-left:8px}
-.vline .tree{color:var(--dim);font-size:12px;width:18px;flex:none}
+.vline .tree{color:var(--ink-3);font-size:12px;width:18px;flex:none}
 .vdot{width:9px;height:9px;border-radius:50%;flex:none}
-.s0{background:var(--up)}.s1{background:var(--warn)}.s2{background:var(--dn)}
-.vage{margin-left:auto;font-size:11.5px;color:var(--dim);font-variant-numeric:tabular-nums}
+.s0{background:var(--good)}.s1{background:var(--warn)}.s2{background:var(--critical)}
+.vage{margin-left:auto;font-size:11.5px;color:var(--ink-3);font-variant-numeric:tabular-nums}
 .vlogo{width:18px;height:18px;flex:none;display:inline-flex}
 </style>
 </head>
 <body>
-<div id="utc" style="position:fixed;top:26px;right:150px;z-index:9;font-size:13px;color:var(--dim);font-variant-numeric:tabular-nums"></div>
+<div id="utc" style="position:fixed;top:26px;right:150px;z-index:9;font-size:13px;color:var(--ink-3);font-variant-numeric:tabular-nums"></div>
 <button class="toggle" id="th" onclick="t()">🌙 暗色</button>
 <script>
-const b=document.body,t2=document.getElementById('th');
+const t2=document.getElementById('th');
 setInterval(()=>{const d=new Date();document.getElementById('utc').textContent=
 'UTC '+String(d.getUTCHours()).padStart(2,'0')+':'+String(d.getUTCMinutes()).padStart(2,'0')+':'+String(d.getUTCSeconds()).padStart(2,'0')},1000);
-// 主题单源（T-0157）：o_theme 共键双页——'light'/'dark' 显式钉；缺省随系统跟变。
+// 主题单源（T-0157 立 o_theme 共键；T-0159 收敛 data-theme 径——与 React 侧
+// main.tsx/ThemeButton 同契约）：'light'/'dark' 显式钉 <html data-theme>；
+// 缺省不设=随系统跟变（00-base prefers-color-scheme 径）。
 if (localStorage.th !== undefined) { if (localStorage.th) localStorage.o_theme = localStorage.th; localStorage.removeItem('th'); }
 const sysLight = matchMedia('(prefers-color-scheme: light)');
 const effTheme = () => localStorage.o_theme || (sysLight.matches ? 'light' : 'dark');
-const applyTheme = () => { const v = effTheme(); b.classList.toggle('light', v === 'light');
+const applyTheme = () => { const v = effTheme();
+  if (localStorage.o_theme) document.documentElement.dataset.theme = v;
+  else delete document.documentElement.dataset.theme;
   t2.textContent = v === 'light' ? '☀️ 亮色' : '🌙 暗色' };
 applyTheme();
 sysLight.addEventListener('change', applyTheme); // 无显式选择=随系统跟变
-function t(){localStorage.o_theme = b.classList.contains('light') ? 'dark' : 'light';applyTheme()}
+function t(){const next = effTheme() === 'light' ? 'dark' : 'light';
+  localStorage.o_theme = next;applyTheme()}
 </script>
 <nav class="oside" aria-label="视图切换">
   <div class="grp-label">门面</div>
@@ -104,20 +101,20 @@ function t(){localStorage.o_theme = b.classList.contains('light') ? 'dark' : 'li
   <div class="grp-label">运维</div>
 </nav>
 <style>
-/* T-0113 左栏导航（vanilla 页静态件——与 React Shell 同类名同构） */
+/* T-0113 左栏导航（vanilla 页静态件——与 React Shell 同类名同构；T-0159 面收 arbcn 令牌） */
 .oside{position:fixed;left:0;top:0;bottom:0;width:180px;padding:16px 8px;
-  background:var(--card);border-right:1px solid var(--edge);backdrop-filter:blur(18px)}
-.oside .grp-label{font-size:11px;color:var(--dim);margin:12px 12px 4px;letter-spacing:.5px}
+  background:var(--surface);border-right:1px solid var(--line)}
+.oside .grp-label{font-size:11px;color:var(--ink-3);margin:12px 12px 4px;letter-spacing:.5px}
 .oside .sidebar-item{display:flex;align-items:center;gap:10px;padding:8px 12px;
-  color:var(--dim);text-decoration:none;border-radius:8px;font-size:13px}
-.oside .sidebar-item.active{color:var(--txt);background:rgba(255,255,255,.08)}
-.oside .sidebar-item:hover{color:var(--txt)}
+  color:var(--ink-3);text-decoration:none;border-radius:8px;font-size:13px}
+.oside .sidebar-item.active{color:var(--ink);background:var(--page)}
+.oside .sidebar-item:hover{color:var(--ink)}
 body{padding-left:196px}
 @media (max-width:767px){
   /* T-0157：孤儿页修复——侧栏折底栏替身（同 DOM 重布局，非新导航）。 */
   .oside{display:flex;left:0;right:0;top:auto;bottom:0;width:auto;height:54px;
     padding:0 8px;align-items:center;justify-content:space-around;
-    border-right:0;border-top:1px solid var(--edge)}
+    border-right:0;border-top:1px solid var(--line)}
   .oside .grp-label{display:none}
   .oside .sidebar-item{flex-direction:column;gap:2px;font-size:10px;padding:5px 12px}
   body{padding-left:0;padding-bottom:66px}
@@ -171,7 +168,7 @@ body{padding-left:196px}
   </div>
 
   <div class="card" id="c-trx" style="grid-column:span 6">
-    <h3><a href="/trx.html" style="color:inherit;text-decoration:none">TRX 自营盘</a> <i style="font-size:11px;color:var(--dim)">自营盘·业绩外</i></h3><span class="tile-no">E</span>
+    <h3><a href="/trx.html" style="color:inherit;text-decoration:none">TRX 自营盘</a> <i style="font-size:11px;color:var(--ink-3)">自营盘·业绩外</i></h3><span class="tile-no">E</span>
     <div id="trx-body">
     <div class="empty"><p>读数装载中</p><i>「本金自带回报，不入口径。」</i></div>
     </div>

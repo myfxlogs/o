@@ -7,6 +7,10 @@ import { createConnectTransport } from '@connectrpc/connect-web'
 import { timestampDate } from '@bufbuild/protobuf/wkt'
 import type { Timestamp } from '@bufbuild/protobuf/wkt'
 import { CoreService } from './gen/dashboardv1/core_pb'
+// 令牌单源（T-0159）：总览页调色板并入 arbcn 00-base.css——与 TRX 页同源
+// 同名令牌（--page/--surface/--ink/--line/--good/--critical 双主题），本页
+// 零独立调色板；index.html 内联表只消费令牌不定义色值。
+import './react/styles/00-base.css'
 
 const client = createClient(CoreService,
   createConnectTransport({ baseUrl: window.location.origin }))
@@ -23,9 +27,9 @@ async function ov(): Promise<void> {
       b[0].textContent = '$' + (d.navTotal || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })
       b[1].textContent = (d.pnlToday >= 0 ? '+' : '') + (d.pnlToday || 0).toFixed(2)
       b[2].textContent = (d.pnlCum >= 0 ? '+' : '') + (d.pnlCum || 0).toFixed(2)
-      // T-0114 乙⑤：盈亏着色——负红正绿（--up/--dn 双主题变量）。
-      b[1].style.color = 'var(' + ((d.pnlToday || 0) < 0 ? '--dn' : '--up') + ')'
-      b[2].style.color = 'var(' + ((d.pnlCum || 0) < 0 ? '--dn' : '--up') + ')'
+      // T-0114 乙⑤：盈亏着色——负红正绿（--delta-down/--good-ink 双主题令牌，T-0159 arbcn 收敛）。
+      b[1].style.color = 'var(' + ((d.pnlToday || 0) < 0 ? '--delta-down' : '--good-ink') + ')'
+      b[2].style.color = 'var(' + ((d.pnlCum || 0) < 0 ? '--delta-down' : '--good-ink') + ')'
     }
     const st = document.querySelector('.hero .stamp')
     if (st) st.textContent = '数据 ' + utcStamp() + ' · 刚刚'
@@ -125,11 +129,11 @@ void ov()
 // 最差态聚合）；channel 行=├/└ 树线+呼吸三色灯+末拍龄 Ns/Nm/h；note 覆盖龄显）。
 const VDOTS = ['s0', 's1', 's2']
 const VSVG: Record<string, string> = {
-  okx: `<svg viewBox="0 0 24 24" width="18" height="18" fill="var(--txt)">
+  okx: `<svg viewBox="0 0 24 24" width="18" height="18" fill="var(--ink)">
     <rect x="2" y="2" width="6" height="6"/><rect x="9" y="2" width="6" height="6"/><rect x="16" y="2" width="6" height="6"/>
     <rect x="2" y="9" width="6" height="6"/><rect x="16" y="9" width="6" height="6"/>
     <rect x="2" y="16" width="6" height="6"/><rect x="9" y="16" width="6" height="6"/><rect x="16" y="16" width="6" height="6"/></svg>`,
-  mt5: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--txt)" stroke-width="1.8">
+  mt5: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--ink)" stroke-width="1.8">
     <path d="M3 20V6l5 8 4-6 4 6 5-8v14"/><path d="M3 20h18"/></svg>`,
 }
 interface VChan { name: string; channel: string; lastTs: string; state: number; note: string }
@@ -162,21 +166,22 @@ function venuesHTML(gs: VGroup[]): string {
 // 支撑回环+数据供数群虚线；状态灯=节点左上三色静点；素色无动画无辉光）。
 function orgSVG(staff: { name: string; duty: string; state: number }[]): string {
   const byName = new Map(staff.map(s => [s.name, s]))
-  const dots = ['#34d399', '#fbbf24', '#f87171']
+  const dots = ['var(--good)', 'var(--warn)', 'var(--critical)']
   const NW = 150, NH = 40
   const node = (nm: string, x: number, y: number, gold = false) => {
     if (!byName.has(nm)) return ''
     const st = byName.get(nm)!
-    const edge = gold ? 'stroke="#fbbf24"' : 'stroke="rgba(255,255,255,.14)"'
-    return `<rect x="${x}" y="${y}" rx="8" width="${NW}" height="${NH}" fill="rgba(255,255,255,.05)" ${edge}/>
+    // T-0159 令牌收敛：节点面=--surface/线=--line，业主金框=--warn 描边（素底归中性）。
+    const edge = gold ? 'stroke="var(--warn)"' : 'stroke="var(--line)"'
+    return `<rect x="${x}" y="${y}" rx="8" width="${NW}" height="${NH}" fill="var(--surface)" ${edge}/>
       <circle cx="${x + 12}" cy="${y + 11}" r="4" fill="${dots[st.state] || dots[0]}"/>
-      <text x="${x + 22}" y="${y + 17}" fill="var(--txt)" font-size="12">${h(nm)}</text>
-      <text x="${x + 22}" y="${y + 31}" fill="var(--dim)" font-size="9">${h(st.duty)}</text>`
+      <text x="${x + 22}" y="${y + 17}" fill="var(--ink)" font-size="12">${h(nm)}</text>
+      <text x="${x + 22}" y="${y + 31}" fill="var(--ink-3)" font-size="9">${h(st.duty)}</text>`
   }
   const seg = (pts: string, dash: string, arr: string) =>
-    `<polyline points="${pts}" fill="none" stroke="#8b9bb4" stroke-width="1.2" stroke-dasharray="${dash}" marker-end="url(#${arr})"/>`
+    `<polyline points="${pts}" fill="none" stroke="var(--ink-3)" stroke-width="1.2" stroke-dasharray="${dash}" marker-end="url(#${arr})"/>`
   const lbl = (x: number, y: number, t: string) =>
-    `<text x="${x}" y="${y}" fill="var(--dim)" font-size="8.5">${h(t)}</text>`
+    `<text x="${x}" y="${y}" fill="var(--ink-3)" font-size="8.5">${h(t)}</text>`
 
   const P: Record<string, [number, number]> = {
     'o-core': [40, 14], '业主·投资委': [760, 14],
@@ -188,12 +193,12 @@ function orgSVG(staff: { name: string; duty: string; state: number }[]): string 
     '集使': [40, 460], '行情巡': [240, 460], '私流守': [440, 460], '汇市巡': [640, 460],
   }
   const defs = `<defs>
-    <marker id="ar" markerWidth="9" markerHeight="9" refX="7" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7" fill="none" stroke="#8b9bb4" stroke-width="1.2"/></marker>
+    <marker id="ar" markerWidth="9" markerHeight="9" refX="7" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7" fill="none" stroke="var(--ink-3)" stroke-width="1.2"/></marker>
   </defs>`
-  // 业主金框（非 registry 静态位）。
-  let g = defs + `<rect x="${P['业主·投资委'][0]}" y="14" rx="8" width="180" height="40" fill="rgba(251,191,36,.07)" stroke="#fbbf24"/>
-    <text x="${P['业主·投资委'][0] + 14}" y="30" fill="var(--txt)" font-size="12">业主 · 投资委</text>
-    <text x="${P['业主·投资委'][0] + 14}" y="44" fill="var(--dim)" font-size="8.5">只收：经营报表 + 条件请求</text>`
+  // 业主金框（非 registry 静态位——金=--warn 描边，底同节点素面）。
+  let g = defs + `<rect x="${P['业主·投资委'][0]}" y="14" rx="8" width="180" height="40" fill="var(--surface)" stroke="var(--warn)"/>
+    <text x="${P['业主·投资委'][0] + 14}" y="30" fill="var(--ink)" font-size="12">业主 · 投资委</text>
+    <text x="${P['业主·投资委'][0] + 14}" y="44" fill="var(--ink-3)" font-size="8.5">只收：经营报表 + 条件请求</text>`
   // 心跳回执（顶层虚线）。
   g += seg(`190,34 760,34`, '5 4', 'ar') + lbl(430, 27, '心跳活性回执')
   // 钱程主链（实线+产出物——G0→G11）。
@@ -225,13 +230,13 @@ function orgSVG(staff: { name: string; duty: string; state: number }[]): string 
   g += seg(`510,460 510,420 480,420 480,170`, '3 3', 'ar')
   g += seg(`710,460 710,420 915,420 915,170`, '3 3', 'ar') + lbl(770, 400, '费率/账户事实')
   // 图例。
-  g += `<line x1="40" y1="540" x2="75" y2="540" stroke="#8b9bb4" stroke-width="1.2"/>
-    <text x="82" y="544" fill="var(--dim)" font-size="10">实线=钱/仓流（产出物移交）</text>
-    <line x1="240" y1="540" x2="275" y2="540" stroke="#8b9bb4" stroke-width="1.2" stroke-dasharray="4 3"/>
-    <text x="282" y="544" fill="var(--dim)" font-size="10">虚线=控制/数据/回环</text>
-    <circle cx="430" cy="540" r="4" fill="#34d399"/><text x="440" y="544" fill="var(--dim)" font-size="10">心跳正常</text>
-    <circle cx="510" cy="540" r="4" fill="#fbbf24"/><text x="520" y="544" fill="var(--dim)" font-size="10">迟滞</text>
-    <circle cx="570" cy="540" r="4" fill="#f87171"/><text x="580" y="544" fill="var(--dim)" font-size="10">离线</text>`
+  g += `<line x1="40" y1="540" x2="75" y2="540" stroke="var(--ink-3)" stroke-width="1.2"/>
+    <text x="82" y="544" fill="var(--ink-3)" font-size="10">实线=钱/仓流（产出物移交）</text>
+    <line x1="240" y1="540" x2="275" y2="540" stroke="var(--ink-3)" stroke-width="1.2" stroke-dasharray="4 3"/>
+    <text x="282" y="544" fill="var(--ink-3)" font-size="10">虚线=控制/数据/回环</text>
+    <circle cx="430" cy="540" r="4" fill="var(--good)"/><text x="440" y="544" fill="var(--ink-3)" font-size="10">心跳正常</text>
+    <circle cx="510" cy="540" r="4" fill="var(--warn)"/><text x="520" y="544" fill="var(--ink-3)" font-size="10">迟滞</text>
+    <circle cx="570" cy="540" r="4" fill="var(--critical)"/><text x="580" y="544" fill="var(--ink-3)" font-size="10">离线</text>`
   for (const nm of ['o-core', '探员', '验证官', '命官', '门官', '执事', '司账', '核账', '信使',
     '评史官', '配管', '仓巡', '差扫', '集使', '行情巡', '私流守', '汇市巡']) {
     if (P[nm]) g += node(nm, P[nm][0], P[nm][1])
