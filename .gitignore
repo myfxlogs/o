@@ -25,3 +25,4 @@ internal/data/adapter/gen
 /capcheck
 /bridge
 /collector
+.claude/settings.local.json
