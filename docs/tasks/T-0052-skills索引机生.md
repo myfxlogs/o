@@ -52,4 +52,10 @@ session 启动 harness 已注入 name+description 清单——「有无 skill」
 ### 机检
 build/vet/gofmt/test 全量 / import-direction / migration-contract / lines（kbgen main 285、skills 176）/ env-reads——全绿。无新 migration。
 
-### 状态：待验
+### 验收毕（决策席第 2 席 @ 2026-10-26 清账）
+- 锚逐项复核：kbgen skills 出表覆盖 19 在册 skill ✓；索引 25 行 ≤60 ✓；`skills --check` 漂移档实测红（下见）+重建绿 ✓；pre-commit 闸 8b 挂点在档（scripts/hooks/pre-commit:111）✓。
+- 范围外报备裁决：okx-api-spec 缺 frontmatter——**本席补件**（doc 级，决策席顺手修权限内），哨兵归零。
+- 验收中发现的闸缺口（坑引列依赖经验库内容、8b 门只查 staged skills/ 面→经验库-only commit 溜漂移）→ 坑条目入库+立 T-0150 修复，不阻本票。
+- 状态翻完成。
+
+### 状态：完成
