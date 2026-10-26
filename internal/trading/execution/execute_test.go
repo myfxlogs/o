@@ -664,7 +664,7 @@ func TestMigration0040ShellRepair(t *testing.T) {
 		t.Fatal(err)
 	}
 	// 跑 0040 本体（Migrate 版本序已含——测试库走手排防版本先记账）。
-	body, err := migrations.FS.ReadFile("0040_position_ref_repair.sql")
+	body, err := migrations.FS.ReadFile("fin_0040_position_ref_repair.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
