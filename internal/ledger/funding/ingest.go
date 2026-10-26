@@ -41,7 +41,11 @@ const (
 	// OKX 账单子类型（官方 docs-v5 核证）：173 资金费支出/174 资金费收入。
 	subFundingPay = "173"
 	subFundingRcv = "174"
-	maxPages      = 5 // 单次事件拉取上限页（100/页——常规结算拍远不及）
+	subDcdDebit   = "160" // dcd 申购扣款（T-0160 ④——结构化产品资金流水 160-163）
+	subDcdSettle  = "161" // dcd 回款
+	subDcdYield   = "162" // dcd 收益
+	subDcdRefund  = "163" // dcd 退款
+	maxPages      = 5     // 单次事件拉取上限页（100/页——常规结算拍远不及）
 )
 
 // instTypesAll 账单拉取型谱（T-0062 根修②：SWAP+SPOT 双采——现货腿成本归集）。
@@ -137,6 +141,10 @@ func (i *Ingester) record(ctx context.Context, b Bill) (int, error) {
 			amt = b.Pnl // 个性口径兜底：资金费行 balChg 空→pnl 查询总额口径（官方口径注）
 		}
 		return 1, i.post(ctx, "funding_settle", amt, b, ccy, srcID, occurred)
+	case subDcdDebit: // 申购扣款=earn_out（balChg 负号原生——如实进账）
+		return 1, i.post(ctx, "earn_out", b.BalChg, b, ccy, srcID, occurred)
+	case subDcdSettle, subDcdYield, subDcdRefund: // 回款/收益/退款=earn_in
+		return 1, i.post(ctx, "earn_in", b.BalChg, b, ccy, srcID, occurred)
 	default:
 		if b.Fee != 0 { // 交易费/返佣（开平仓 taker 费入 fee kind）
 			return 1, i.post(ctx, "fee", b.Fee, b, ccy, srcID, occurred)
