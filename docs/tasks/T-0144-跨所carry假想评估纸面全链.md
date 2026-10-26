@@ -112,3 +112,26 @@ contract_size 语义）+okx-exec（腿口径对照）。
   short_perp_long_cfd 双腿向反）；hypothesis/mt5/lifecycle/sigdist 全包回归绿。
 - **验收判据不变**：mt5_swap.val 非 NULL+carry_diff 落行（部署后实证）；
   新增：正 funding 态下 economics 拒/反向 proposed 双态实证。
+
+## 验收档（决策席 2026-10-26，e2f34dd 合入毕投产）
+
+**正径经济学实证（活判据）**：部署后 `fin_opp_eval template='xvenue-carry'` 落行——
+BTC `short_perp_long_cfd` rejected/net_ann_economics 净 −35bps（funding +697bps
+vs MT5 长腿 swap −814bps，成本吃光如实拒）；ETH 同径 −299bps rejected。
+双腿 swap meta（swap_long_ann_bps/swap_short_ann_bps/max_volume/initial_margin）
+全链随行实证。**正 funding 径不再撞哑——方向感知经济学成立**。
+
+**验收窗自捕根修（run.go 双听饥饿）**：验证中抓出 research-hypo-sig 自
+T-0140 起零跑——首听同步阻塞占死第二听。首轮返修误把 go 加在死代码行
+（病灶原封部署），死臂实证闸（pg_stat_activity LISTEN 计数+评估行复跑）
+二次抓出。真修=双听皆 go（811ceed）→部署后 LISTEN ev_funding 2→3 实增、
+xvenue-carry 评估行落地、臂日志如实拒——**死臂真活三证齐**。
+KB 条目 dual-listenloop-serial-starvation 两度回写（坑加深实证）。
+
+**附带清源**：internal/gen 软链误入库（gitignore 尾斜杠罩不住软链）——
+untrack+三处 ignore 洞同堵+buf 真件重生成。
+
+**衍生票**：T-0147（终局分类补面——SHEIN 286078 腿构meta径漏分类+
+黑名单存量回扫实证）、T-0148（okxws depth5_no_ctval 门键漏注册洪泛）。
+
+## 态：验收毕（投产）2026-10-26
