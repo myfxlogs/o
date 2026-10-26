@@ -5,10 +5,12 @@
 ## 决策档：D-0030
 
 ## 施工
-0. **跨机网段换 Tailscale**（D-0030 §八裁）：SG 装 tailscaled+ACL 只放 5432；
-   collector/research/projector DSN 改指 SG `100.x:15433`（或直 5432 去 docker-proxy）；
-   `o-collecto-tunnel`/`alert-bridge-tunnel` SSH 单元停用保留=回退径；验证：
-   `ss` 零 ssh -L 进程+PG `client_addr` 为 100.x。
+0. **隧道钥匙收窄（D-0030 §八 r4 改判——Tailscale 非必要）**：SG sshd
+   `PermitRootLogin prohibit-password`+fail2ban；隧道走专用低权用户 `tunnel@`
+   （`Match User tunnel`→`ForceCommand /bin/false`+`PermitOpen 127.0.0.1:15433`）
+   或钥匙行加 `restrict,port-forwarding,permitopen="127.0.0.1:15433"`；root 钥匙
+   从隧道退役；`alert-bridge-tunnel` 同收窄。验证：以隧道钥匙 `ssh SG id`→拒；
+   PG 隧道通；SG 24h 暴力认证计数降。
 1. 开发机 `docker-compose.dev.yml` 起 PG-md（timescale 同版），数据卷与施工树
    目录隔离；systemd `o-prod.slice`（collector/research/projector/PG-md 归入）。
 2. `migrations/` 分链：`md_NNNN_*`/`fin_NNNN_*`；桥表镜像 DDL **归一化断言**
