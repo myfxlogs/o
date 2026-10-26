@@ -67,7 +67,7 @@ func (w *SilentWatch) Run(ctx context.Context) {
 func (w *SilentWatch) Check(ctx context.Context) {
 	var anchor sql.NullTime
 	err := w.pool.QueryRow(ctx, `SELECT GREATEST(
-			(SELECT max(ts) FROM fin_opp_hypothesis),
+			(SELECT max(ts) FROM fin_opp_hypothesis WHERE evidence->>'provenance'='researcher'),
 			(SELECT max(last_beat) FROM fin_employee_registry WHERE name='研究员')
 		)`).Scan(&anchor)
 	if err != nil {

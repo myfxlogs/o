@@ -79,11 +79,13 @@ func card(ctx context.Context, pool *pgxpool.Pool, args []string) {
 
 func metrics(ctx context.Context, pool *pgxpool.Pool) {
 	var weekly, adopted, total int
+	// 席 KPI=席卡——provenance=researcher 收窄（grammar/假想官卡不入席度量；
+	// wk_all=7/wk_seat=0 锚污染实案 2026-10-26）
 	if err := pool.QueryRow(ctx, `SELECT
 			COUNT(*) FILTER (WHERE ts > now()-interval '7 days'),
 			COUNT(*) FILTER (WHERE state='adopted'),
 			COUNT(*)
-		FROM fin_opp_hypothesis`).Scan(&weekly, &adopted, &total); err != nil {
+		FROM fin_opp_hypothesis WHERE evidence->>'provenance'='researcher'`).Scan(&weekly, &adopted, &total); err != nil {
 		fatal(err)
 	}
 	rate := 0.0

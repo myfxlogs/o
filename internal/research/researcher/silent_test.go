@@ -42,9 +42,19 @@ func beat(t *testing.T, ctx context.Context, w *SilentWatch, at time.Time) {
 
 func card(t *testing.T, ctx context.Context, w *SilentWatch, at time.Time) {
 	t.Helper()
-	if _, err := w.pool.Exec(ctx, `INSERT INTO fin_opp_hypothesis(venue,surface,family,ts)
-		VALUES('okx','test-surface','carry',$1)
+	if _, err := w.pool.Exec(ctx, `INSERT INTO fin_opp_hypothesis(venue,surface,family,ts,evidence)
+		VALUES('okx','test-surface','carry',$1,'{"provenance":"researcher"}'::jsonb)
 		ON CONFLICT (venue,surface) DO NOTHING`, at); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// foreignCard 异源卡（grammar 枚举臂 provenance——席锚不看它）。
+func foreignCard(t *testing.T, ctx context.Context, w *SilentWatch, at time.Time, surface string) {
+	t.Helper()
+	if _, err := w.pool.Exec(ctx, `INSERT INTO fin_opp_hypothesis(venue,surface,family,ts,evidence)
+		VALUES('okx',$1,'carry',$2,'{"provenance":"grammar_enumerate"}'::jsonb)
+		ON CONFLICT (venue,surface) DO NOTHING`, surface, at); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -118,5 +128,23 @@ func TestResearcherSilentAnchorDualSource(t *testing.T) {
 	w.Check(ctx)
 	if len(fs.sent) != 1 {
 		t.Fatalf("双源皆陈应告警: %v", fs.sent)
+	}
+}
+
+// 锚源归席判别桩（返修 2026-10-26）：异源鲜卡（grammar_enumerate provenance）
+// 不擡席锚——席 Beat 超龄+异源卡新→仍须 Alert（污染实案 wk_all=7/wk_seat=0）。
+func TestResearcherSilentIgnoresForeignCards(t *testing.T) {
+	ctx, w := setup(t)
+	fs := &capSender{}
+	w.AttachAlerter(notify.NewAlerter(fs, func() string { return "c1" }, func() bool { return true }))
+	base := time.Unix(1700000000, 0)
+	w.SetNow(func() time.Time { return base })
+	w.boot = base.Add(-2 * silentWindow) // boot 宽限已过——锚全凭 DB 双源
+
+	foreignCard(t, ctx, w, base, "fresh-grammar-surface") // 异源卡鲜（ts=now）
+	beat(t, ctx, w, base.Add(-silentWindow-time.Hour))    // 席 Beat 超龄
+	w.Check(ctx)
+	if len(fs.sent) != 1 {
+		t.Fatalf("异源鲜卡不得擡席锚（席 Beat 超龄仍须告警）: %v", fs.sent)
 	}
 }
