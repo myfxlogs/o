@@ -383,3 +383,16 @@ func TestFundingIdleDirectPurchase(t *testing.T) {
 		t.Fatalf("funding 段应零摆渡: %v", fake.transfers)
 	}
 }
+
+// T-0149 返修①锚：funding 直购连败两拍→第二拍 sweep_backoff 不重发。
+func TestFundingIdleBackoff(t *testing.T) {
+	ctx, w, fake := setupW(t, &fakeAPI{purchaseErr: fmt.Errorf("58350")}, map[string]string{"earn.sweep_min_usd": "100"})
+	w.AttachIdleFunding(func(context.Context) (float64, error) { return 500, nil })
+	w.AttachIdle(func(context.Context) (float64, error) { return 0, nil })
+	_ = w.sweepIdle(ctx) // 一拍败
+	n1 := len(fake.purchases)
+	_ = w.sweepIdle(ctx) // 二拍=退避闸应拒重发
+	if len(fake.purchases) != n1 {
+		t.Fatalf("连败两拍第二拍应 sweep_backoff 不重发: %d→%d", n1, len(fake.purchases))
+	}
+}

@@ -55,27 +55,37 @@ func (s *DepositScanner) Scan(ctx context.Context) (int, error) {
 		if r.State != "2" {
 			continue // 非完成态（确认中/失败）——不入账留档
 		}
-		occurred, _ := time.ParseDuration(r.Ts + "ms")
 		tsMs, _ := parseMs(r.Ts)
-		_ = occurred
+		// T-0149 返修②：bill+cashflow 同事务原子（注入败→bill 行同回滚
+		// 不留孤儿源行——幂等切面不失效语义守恒）。
+		tx, err := s.pool.Begin(ctx)
+		if err != nil {
+			return n, err
+		}
 		var srcID int64
-		err := s.pool.QueryRow(ctx, `INSERT INTO fin_venue_bill
+		err = tx.QueryRow(ctx, `INSERT INTO fin_venue_bill
 			(bill_id,ts,inst_id,inst_type,ccy,type,sub_type,bal_chg,fee,pnl,sz,px,raw)
 			VALUES($1,$2,'','ASSET',$3,'deposit','',$4,0,0,0,0,$5)
 			ON CONFLICT (bill_id) DO NOTHING RETURNING id`,
 			"dep-"+r.DepID, time.UnixMilli(tsMs), r.Ccy, r.Amt,
 			json.RawMessage(mustJSON(r))).Scan(&srcID)
 		if errors.Is(err, pgx.ErrNoRows) {
+			_ = tx.Rollback(ctx)
 			continue // 已记过——幂等切面不双记
 		}
 		if err != nil {
+			_ = tx.Rollback(ctx)
 			return n, err
 		}
 		amt, _ := parseFloat(r.Amt)
-		if _, err := s.pool.Exec(ctx, `INSERT INTO fin_cashflow
+		if _, err := tx.Exec(ctx, `INSERT INTO fin_cashflow
 			(kind,venue,ccy,amount,source_ref,source_table,occurred_at)
 			VALUES('deposit','okx',$1,$2,$3,'fin_venue_bill',$4)`,
 			r.Ccy, amt, srcID, time.UnixMilli(tsMs)); err != nil {
+			_ = tx.Rollback(ctx)
+			return n, err
+		}
+		if err := tx.Commit(ctx); err != nil {
 			return n, err
 		}
 		log.Printf("[ledger] 入金入账 depId=%s %.4f %s（fin_venue_bill id=%d）", r.DepID, amt, r.Ccy, srcID)

@@ -83,7 +83,7 @@ type Worker struct {
 func NewWorker(pool *pgxpool.Pool, cfg *config.Client) *Worker {
 	return &Worker{pool: pool, cfg: cfg, venue: defaultVenue, ccy: defaultCcy,
 		rej: rejects.New("earn", "rate_fetch_failed", "rate_parse_failed", "missing_param",
-			"idle_missing", "sweep_skip_inflight", "sweep_busy", "venue_absent",
+			"idle_missing", "idle_fund_missing", "sweep_skip_inflight", "sweep_busy", "sweep_backoff", "venue_absent",
 			"deposit_failed", "transfer_ambiguous", "compensation_failed",
 			"snapshot_refresh_failed", "write_err", "custody_marked"),
 		rateFn: func(ctx context.Context) (okxexec.RateSummary, error) {
@@ -212,6 +212,12 @@ func (w *Worker) sweepIdle(ctx context.Context) error {
 // 免摆渡；58350 竞态幂等+clientId 幂等键+歧态禁补单 fail-closed 同规——
 // 败=计数+ALERT+同因 5min 退避）。
 func (w *Worker) depositIdleFunding(ctx context.Context, amt float64) bool {
+	// T-0149 返修①：入段前同参 5min 退避闸——lastSweepFailAmt/At 读闸与
+	// 交易户径同构（连败两拍第二拍不重发死锁环根修）。
+	if time.Since(w.lastSweepFailAt) < 5*time.Minute && math.Abs(amt-w.lastSweepFailAmt) < 0.01 {
+		w.rej.Inc("sweep_backoff")
+		return false
+	}
 	if !w.mu.TryLock() {
 		w.rej.Inc("sweep_busy")
 		return false

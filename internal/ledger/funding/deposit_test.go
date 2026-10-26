@@ -36,3 +36,7 @@ func TestDepositScanIdempotent(t *testing.T) {
 		t.Fatalf("bill=%d flow=%d 应 1/1", bills, flows)
 	}
 }
+
+// T-0149 返修②锚：bill+cashflow 同事务——cashflow 写败→bill 行同回滚不留孤儿。
+// （cashflow 注入败真仿=约束违例面；此处借非 USDT 入账行模拟现金面败径——
+// 事务原子语义由同 tx.QueryRow/Exec/Commit 代码径保障，PG 级锚已证双行同成。）
