@@ -10,6 +10,8 @@
 #     mkdir -p ~/.config/systemd/user && cp deploy/o-prod.slice ~/.config/systemd/user/
 #     systemctl --user daemon-reload && systemctl --user start o-prod.slice
 #
+# 装配时序注记：若 docker 容器已先跑（cgroup 浮动创建）systemctl start 报
+# 冲突时——docker compose -f docker-compose.dev.yml down → start slice → up 再起。
 # 条件请求：系统面装配需 root（sudo 无密码缺席——决策席/运维执行）。
 [Unit]
 Description=o production services slice（T-0167/D-0030 §八——生产件 CPUWeight 高，施工默认 slice）
