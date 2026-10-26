@@ -166,3 +166,8 @@ session 标识自定（如 `devin-a1b2`），全仓唯一即可，建议加可�
 2. **镜像投递+源码同步**：`docker save o-core:latest | gzip -1 | ssh root@<SG> 'docker load'` → `scripts/deploy_sync.sh`（prune 已排除 `internal/gen/**`；镜像内 buf 双模板 regen 自洽，SG/宿主 gen 面零依赖）。
 3. **up 强制重建**：`ssh <SG> 'cd /opt/o && docker compose -f docker-compose.yml -f docker-compose.sg.yml up -d --force-recreate'`——**`--force-recreate` 必带**（不带=容器保留旧镜像运行实证 08:59Z）。
 4. **容器镜像比对**：新镜像 ID（`docker images o-core:latest -q`）与运行容器 `.Image`（`docker inspect o-core --format '{{.Image}}'`）逐字比对一致+`healthy`——不一致=轮换未生效禁收工；新镜像 `CreatedAt` 须晚于 merge 提交时点。
+
+## 数据流正本（2026-10-26 补）
+
+`docs/数据流.md` = 系统数据流唯一真源。改动链路的票同 commit 更新；
+决策席方向纠偏/复审架构核对/施工对位先读此图。
