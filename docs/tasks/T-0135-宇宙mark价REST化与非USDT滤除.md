@@ -20,3 +20,14 @@
 - 连续 30min 零 `close 1006`
 - netmeter `okxws/mark-price` 字节账归零（只剩 REST 轮询行）
 - 棘轮/机检全绿
+
+## 结果回填
+
+- subscribeArgs：SWAP 只留 funding-rate；mark-price 全宇宙撤（含季度期货
+  ——107 SWAP+FUTURES 秒推=1.8Mbps 链路大头切除）。
+- spotpoll 扩件：markFeed（PublicGet mark-price?instType=SWAP+FUTURES
+  两请求批量件）→md_mark_index channel='mark_price'（WS 原键域复用——
+  读面零改）；同周期热启键同 spot_poll_s。
+- writeSpotLast+writeMarkRest 补 isUSDTInst 滤（非 USDT 死行滤除——
+  T-0134 遗留面同封）。
+- 活跃集 tickers 零动；netmeter okxws/mark-price 字节账应归零（部署实证面）。
