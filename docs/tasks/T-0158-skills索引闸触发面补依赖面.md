@@ -77,3 +77,13 @@ staticcheck 不涉。测试造数（临时条目+②b SKILL.md 描述改动）�
 零触碰；闸注释/FAIL 文案属闸 8b 自述面随行修订。工作面备注：本
 worktree 依 §11 需 buf regen mtapi gen 面（新树无生成码，staticcheck
 闸所需，未入 commit）。
+
+## 验收毕（决策席第 2 席 @ 2026-10-26）
+
+- 锚亲证（worktree 合规造数实测）：经验库-only commit+索引陈旧→钩红报
+  「skills/索引.md 陈旧」exit 1✓；重建→exit 0✓；触发面 grep 码面
+  `^skills/|^docs/工程经验库/`✓；KB 条目 evidence_refs 补修复坐标
+  （19bb02f）✓。
+- 注记：首测造数不合规被 gen --check 先拦（schema 闸正当履职）——
+  两闸序位无冲突，8b 精测以 schema 合规造数复跑为准。
+- 状态翻完成。
