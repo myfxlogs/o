@@ -10,7 +10,6 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"o/internal/ledger/report"
 	"o/internal/platform/config"
 	"o/internal/platform/notify"
 	"o/internal/review"
@@ -42,8 +41,8 @@ func main() {
 	errc := make(chan error, 8)
 	go researchArms(ctx, errc, pool, cfg, okcli, alerter)
 	go review.NewRunner(pool).Run(ctx, errc) // 复盘域随迁
-	mk, _ := config.ReadMasterKey()
-	go report.NewRunner(pool, report.NewPusher(pool, cfg, mk)).WithConfig(cfg).Run(ctx, errc) // 司账随迁
+	// T-0165 返修③：report 回 SG（钱径读写面 app_secrets/master key/
+	// fin_cashflow——票面第5条明令只迁纯研究面；review 留此节点）。
 	log.Printf("[o-research] 研究域节点起——researchArms+review+report 全族（公开读面零凭据）")
 	for {
 		select {

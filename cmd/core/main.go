@@ -26,6 +26,7 @@ import (
 	"o/internal/platform/config"
 	"o/internal/platform/netmeter"
 	"o/internal/platform/notify"
+	"o/internal/platform/pgguard"
 	"o/internal/platform/roster"
 	"o/internal/portfolio/lifecycle"
 	"o/internal/risk"
@@ -218,9 +219,10 @@ func run() error {
 		go m5.Run(ctx, errc)
 	}
 
-	// 研究域四臂（funding/dcd/gap/假想官——researchArms 域内发射，T-0117 静默告警同挂业主通道）。
-	// 研究域扩张臂（T-0102/0106/0117——四臂静默告警同挂业主通道；装配细则 dcd.go）。
-	go researchArms(ctx, errc, pool, cfg, okcli, alerter)
+	// T-0165 返修①②：研究臂外置 cmd/research；xmin 哨兵留本机（守 PG 非守臂）。
+	xs := pgguard.NewSentinel(pool)
+	xs.AttachAlerter(alerter)
+	go xs.Run(ctx)
 	trxW := trxArms(ctx, errc, pool, cfg) // T-0110 TRX/CMC 采集臂+读面装配（trx.go）
 
 	// 投资域首岗：命官——paper→probe→live 开仓消费（T-0050 Opener 缝）。
@@ -232,7 +234,15 @@ func run() error {
 
 	// T-0165：复盘域随迁开发机（o-research——SG 零研究行）。
 
-	// T-0165：司账随迁开发机（o-research——SG 零研究行；pusher 件同迁）。
+	// 账本域：司账+核账（入账结算+对账环——消费事实行不触发钱动作）。
+	// T-0165 返修③：report 留 SG（钱径读写面 app_secrets/master key/
+	// fin_cashflow——票面第5条明令只迁纯研究面）。
+	var pusher *report.Pusher
+	{
+		mk, _ := config.ReadMasterKey()
+		pusher = report.NewPusher(pool, cfg, mk)
+		go report.NewRunner(pool, pusher).WithConfig(cfg).Run(ctx, errc)
+	}
 	ledgerR := ledger.NewRunner(pool, cfg).WithAlerter(alerter)
 	go ledgerR.Run(ctx, errc)
 

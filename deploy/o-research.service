@@ -1,9 +1,9 @@
 # o-research.service —— 研究域节点 systemd 单元（T-0165/D-0029：开发机
-# 算力面——researchArms+review+report 全族迁此；与 o-collecto 同形）。
+# 算力面——researchArms+review 全族迁此；与 o-collecto 同形）。
 [Unit]
 Description=o-research research arms node
-After=network-online.target o-bridge.service
-Wants=network-online.target
+After=network-online.target o-collecto-tunnel.service
+Wants=network-online.target o-collecto-tunnel.service
 
 [Service]
 Type=simple
