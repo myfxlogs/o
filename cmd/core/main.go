@@ -26,9 +26,9 @@ import (
 	"o/internal/platform/config"
 	"o/internal/platform/netmeter"
 	"o/internal/platform/notify"
+	"o/internal/platform/pgguard"
 	"o/internal/platform/roster"
 	"o/internal/portfolio/lifecycle"
-	"o/internal/review"
 	"o/internal/risk"
 	"o/internal/store/pgstore"
 	"o/internal/trading/execution"
@@ -219,9 +219,10 @@ func run() error {
 		go m5.Run(ctx, errc)
 	}
 
-	// 研究域四臂（funding/dcd/gap/假想官——researchArms 域内发射，T-0117 静默告警同挂业主通道）。
-	// 研究域扩张臂（T-0102/0106/0117——四臂静默告警同挂业主通道；装配细则 dcd.go）。
-	go researchArms(ctx, errc, pool, cfg, okcli, alerter)
+	// T-0165 返修①②：研究臂外置 cmd/research；xmin 哨兵留本机（守 PG 非守臂）。
+	xs := pgguard.NewSentinel(pool)
+	xs.AttachAlerter(alerter)
+	go xs.Run(ctx)
 	trxW := trxArms(ctx, errc, pool, cfg) // T-0110 TRX/CMC 采集臂+读面装配（trx.go）
 
 	// 投资域首岗：命官——paper→probe→live 开仓消费（T-0050 Opener 缝）。
@@ -231,11 +232,11 @@ func run() error {
 	}
 	go lr.Run(ctx, errc)
 
-	// 复盘域：评史官（一仓一判决书+远期验证写回环——G10 收口）。
-	go review.NewRunner(pool).Run(ctx, errc)
+	// T-0165：复盘域随迁开发机（o-research——SG 零研究行）。
 
 	// 账本域：司账+核账（入账结算+对账环——消费事实行不触发钱动作）。
-	// T-0093：pusher 提件存引用——降级/发败计数捎 /md/status 出观测面。
+	// T-0165 返修③：report 留 SG（钱径读写面 app_secrets/master key/
+	// fin_cashflow——票面第5条明令只迁纯研究面）。
 	var pusher *report.Pusher
 	{
 		mk, _ := config.ReadMasterKey()
@@ -272,12 +273,11 @@ func run() error {
 	mux.HandleFunc("/md/status", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"frames":       collector.FrameCount(),
-			"last_frame":   collector.LastFrame(),
-			"rejects":      collector.Stats.Snapshot(),
-			"push_rejects": pusher.Snapshot(),
-			"net_kbps":     meter.RateKbps(),
-			"net_bytes":    meter.Channels(),
+			"frames":     collector.FrameCount(),
+			"last_frame": collector.LastFrame(),
+			"rejects":    collector.Stats.Snapshot(),
+			"net_kbps":   meter.RateKbps(),
+			"net_bytes":  meter.Channels(),
 		})
 	})
 	// T-0086 ①④：资金户/Earn 活读件注入（venue_readers.go——活读件注入）。
