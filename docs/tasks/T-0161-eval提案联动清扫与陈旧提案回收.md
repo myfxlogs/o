@@ -1,6 +1,7 @@
 # T-0161 eval↔proposal 联动清扫+陈旧提案回收（滞留类病灶）
 
-## 态：已批
+## 态：施工中
+## 领取：zc-glm-t0161 @ 2026-10-26
 ## 域：组合生命周期 / 提案队列治理
 ## 源出：T-0150 验收观察（SHEIN 评估早已 rejected 而 armed 提案滞留靠手清）
 + T-0160 盘点（244 张 dcd_call fin_proposed 陈旧滞留——product 到期即僵尸）
