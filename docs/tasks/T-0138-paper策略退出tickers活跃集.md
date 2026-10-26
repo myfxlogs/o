@@ -15,3 +15,9 @@
 - `okxws/tickers` netmeter 字节速率降半以上
 - paper 策略虚拟撮合不因缺 tickers 报错（mark_price 联集行供价实证）
 - 棘轮/机检全绿
+
+## 结果回填
+
+- activeSet 谓词收紧：fin_strategy 侧只收 live/degraded 态（钱径实体）——
+  paper/probe 退出 tickers（mark_price 联集行供价，精度对判仓龄闸兼容）；
+  fin_position/fin_proposal armed 在途面零动。
