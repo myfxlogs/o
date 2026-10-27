@@ -105,4 +105,5 @@ var migrationTable = []struct {
 	{1068, "md_1068_app_config_replica.sql"},
 	{1069, "md_1069_data_retention_md.sql"},
 	{1070, "md_1070_fin_strategy_replica.sql"},
+	{1071, "md_1071_snapshot_price_retire.sql"},
 }

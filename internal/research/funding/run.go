@@ -42,7 +42,8 @@ type Runner struct {
 }
 
 // AttachSpotFeed 挂 SPOT 目录读件（T-0150 起草闸——market/tickers 全量
-// 响应 instId 集复用，零新端点）。
+// 响应 instId 集复用，零新端点）。非价格源：只取 instId 存在性集
+// （目录注册面），价格消费不落此径（T-0171 价格源律）。
 func (r *Runner) AttachSpotFeed(fn func(ctx context.Context) ([]byte, error)) *Runner {
 	r.spotFeed = fn
 	return r

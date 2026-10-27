@@ -33,14 +33,15 @@ func md(t *testing.T, ctx context.Context, r *Runner, q string, args ...any) {
 
 // 锚：basis_ann=(mark-index)/index×365/days×10⁴ bps——夹具 2027-06-26 到期，
 // mark=102 index=100 days≈243 → 年化≈10000×0.02×365/243≈300.4 bps。
-// T-0164 血统闸：行 ts=最旧上游观测（spot 40s 前/mark 10s 前→ts=spot 边）。
+// T-0164 血统闸：行 ts=最旧上游观测（index 40s 前/mark 10s 前→ts=index 边）。
+// T-0171：现货侧=index-tickers WS 行（spot_last REST 轮询行已退役）。
 func TestBasisAnn(t *testing.T) {
 	ctx, r := setup(t)
 	now := time.Now()
 	md(t, ctx, r, `INSERT INTO md_mark_index(ts,inst_id,channel,px) VALUES
-		($1,'BTC-USDT-270626','mark_price',102),
-		($2,'BTC-USDT','spot_last',100),
-		($1,'ETH-USDT-999999','mark_price',101)`, // 999999=坏到期——跳过如实
+		($1,'BTC-USDT-270626','mark-price',102),
+		($2,'BTC-USDT','index-tickers',100),
+		($1,'ETH-USDT-999999','mark-price',101)`, // 999999=坏到期——跳过如实
 		now.Add(-10*time.Second), now.Add(-40*time.Second))
 	if err := r.basisAnn(ctx); err != nil {
 		t.Fatal(err)
@@ -59,7 +60,7 @@ func TestBasisAnn(t *testing.T) {
 	if meta["expiry"] != "2027-06-26" {
 		t.Fatalf("meta.expiry=%v", meta["expiry"])
 	}
-	// 血统：行 ts=最旧上游观测（spot_last 40s 前——非写拍 now()）。
+	// 血统：行 ts=最旧上游观测（index-tickers 40s 前——非写拍 now()）。
 	if age := time.Since(rowTs); age < 35*time.Second || age > 60*time.Second {
 		t.Fatalf("basis ts 应=最旧上游观测（spot 40s 前）got age=%v", age)
 	}
@@ -136,7 +137,7 @@ func TestBoundedRows(t *testing.T) {
 		t.Fatalf("零夹具拍行数应 0（有界）got %d", n)
 	}
 	md(t, ctx, r, `INSERT INTO md_mark_index(ts,inst_id,channel,px) VALUES
-		(now(),'BTC-USDT-270626','mark_price',102),(now(),'BTC-USDT','spot_last',100)`)
+		(now(),'BTC-USDT-270626','mark-price',102),(now(),'BTC-USDT','index-tickers',100)`)
 	for i := 0; i < 3; i++ {
 		if err := r.Distill(ctx); err != nil {
 			t.Fatal(err)

@@ -120,10 +120,10 @@ func run() error {
 		// T-0130 序位修：meter 造成后才挂（原 AttachMeter(nil)——计量面死挂实证）。
 		collector.AttachMeter(meter)
 	}
-	startEventPush(ctx, errc, pool, cfg, sender)                                   // 经营事件报（T-0061——event_push.go）
-	collector.AttachAlerter(alerter)                                               // T-0128 返修②：面死告警 humanize kind
-	collector.AttachSpotFeed(spotFeedFor(func() *okxexec.Client { return okcli })) // T-0134 现货 REST 轮询读件
-	collector.AttachMarkFeed(markFeedFor(func() *okxexec.Client { return okcli })) // T-0135 mark-price REST 轮询读件
+	startEventPush(ctx, errc, pool, cfg, sender) // 经营事件报（T-0061——event_push.go）
+	collector.AttachAlerter(alerter)             // T-0128 返修②：面死告警 humanize kind
+	// T-0171 快照价格全面退役：spotpoll REST 轮询件（spot_last/mark_price 面）
+	// 全撤——mark/index 行唯一来源=WS，活跃集现货腿价走本地 tickers 订阅。
 	go killSwitchNotifier(ctx, pool, cfg, alerter)
 	go startRetention(ctx, errc, pool, alerter) // T-0153 清道夫日拍
 	riskGate := risk.NewGate(pool, cfg)

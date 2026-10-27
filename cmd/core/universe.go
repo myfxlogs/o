@@ -82,35 +82,3 @@ func universeExpander(getCli func() *okxexec.Client, pool *pgxpool.Pool) func(ct
 		return out, nil
 	}
 }
-
-// spotFeedFor 现货现价 REST 读件（T-0134——index-tickers WS 撤下转轮询替；
-// 凭据缺席期无凭据 PublicGet 公开面直读同 universeExpander 径）。
-func spotFeedFor(getCli func() *okxexec.Client) func(ctx context.Context) ([]byte, error) {
-	return func(ctx context.Context) ([]byte, error) {
-		cli := getCli()
-		if cli == nil {
-			cli = okxexec.NewClient(okxexec.Credentials{}, false)
-		}
-		return cli.PublicGet(ctx, "/api/v5/market/tickers?instType=SPOT")
-	}
-}
-
-// markFeedFor mark-price REST 读件（T-0135——SWAP+FUTURES 两请求批量；
-// 凭据缺席期无凭据 PublicGet 公开面直读同径）。
-func markFeedFor(getCli func() *okxexec.Client) func(ctx context.Context) ([][]byte, error) {
-	return func(ctx context.Context) ([][]byte, error) {
-		cli := getCli()
-		if cli == nil {
-			cli = okxexec.NewClient(okxexec.Credentials{}, false)
-		}
-		var out [][]byte
-		for _, typ := range []string{"SWAP", "FUTURES"} {
-			raw, err := cli.PublicGet(ctx, "/api/v5/public/mark-price?instType="+typ)
-			if err != nil {
-				return nil, err
-			}
-			out = append(out, raw)
-		}
-		return out, nil
-	}
-}
