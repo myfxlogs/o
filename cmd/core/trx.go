@@ -104,6 +104,7 @@ func cmcArm(ctx context.Context, errc chan<- error, w *trxWiring) {
 		}
 		return string(b)
 	}
+	cmc.SetCreateTplHex(sec("cmc.create_tpl")) // 重登模板密件注入（nox wire_cmc.go:22 同位）
 	email, pass := sec("cmc.email"), sec("cmc.password")
 	acctS, _ := w.cfg.GetString("cmc.account_id") // 非密装配键（账户号非凭据）
 	acct, _ := strconv.ParseInt(acctS, 10, 64)
@@ -112,7 +113,7 @@ func cmcArm(ctx context.Context, errc chan<- error, w *trxWiring) {
 		return
 	}
 	pool, st := w.pool, w.st
-	auth := cmc.NewAuthManager(email, pass, acct, "https://api-cmc.markets.com")
+	auth := cmc.NewAuthManager(email, pass, acct, cmc.DefaultPlatformBase)
 	go auth.StartRefresh(ctx)
 	// WS 事件流（T-0110：LiveState 内存态=对冲结构 freshLive 主源；ws_disabled
 	// 热启回退全 REST——nox wire_cmc 同语义）。
@@ -129,10 +130,14 @@ func cmcArm(ctx context.Context, errc chan<- error, w *trxWiring) {
 		return
 	}
 	go roster.BeatLoop(ctx, pool, "CMC CFD 采集", 30*time.Second, errc)
-	prices := cmc.NewPricesCollector(auth, "TRXUSD", st, "https://api-cmc.markets.com")
-	accts := cmc.NewAccountCollector(auth, acct, st, "https://api-cmc.markets.com")
-	hist := cmc.NewHistoryCollector(auth, acct, st, "https://api-cmc.markets.com")
+	prices := cmc.NewPricesCollector(auth, "X-AFQUL", st, cmc.DefaultRestBase)
+	accts := cmc.NewAccountCollector(auth, acct, st, cmc.DefaultRestBase)
+	hist := cmc.NewHistoryCollector(auth, acct, st, cmc.DefaultRestBase)
 	poll := func() {
+		if err := auth.Login(ctx); err != nil {
+			log.Printf("[cmc] login 败（本轮采集让位）: %v", err)
+			return
+		}
 		if _, err := prices.Poll(ctx); err != nil {
 			log.Printf("[cmc] prices 采集败: %v", err)
 		}
