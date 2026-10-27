@@ -12,12 +12,14 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"o/internal/data/okxws"
 	"o/internal/mt5"
 	"o/internal/platform/config"
+	"o/internal/platform/hostmetrics"
 	"o/internal/platform/pgguard"
 	"o/internal/platform/roster"
 	"o/internal/research/sigdist"
@@ -48,6 +50,8 @@ func main() {
 			log.Fatalf("roster 池连接败: %v", err)
 		}
 		defer rpool.Close()
+		// T-0173 主机资源自报（与席位 beat 同频同径——30s 拍 upsert dev 行）。
+		go hostmetrics.Run(ctx, rpool, "dev", "/", 30*time.Second)
 		roster.SetRegistryPool(rpool)
 	}
 	cfg := config.New(pool)

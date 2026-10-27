@@ -141,3 +141,38 @@ func TestListCashflows(t *testing.T) {
 		t.Fatalf("全量应 3: %+v", ra)
 	}
 }
+
+// 锚⑤：主机资源——两行直出+stale 判（>2min 陈=stale 显形）。
+func TestHostMetrics(t *testing.T) {
+	c := opsSetup(t)
+	ctx := context.Background()
+	_, err := c.pool.Exec(ctx, `INSERT INTO fin_host_metrics
+		(host,ts,cores,cpu_pct,mem_total_mb,mem_used_mb,disk_total_gb,disk_used_gb,net_rx_kbps,net_tx_kbps,uptime_s)
+		VALUES ('dev',now(),12,33.5,32768,16384,500,120,800,400,86400),
+		       ('sg',now()-interval '10 minutes',4,55.0,7680,6144,80,60,50,30,172800)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := c.GetHostMetrics(ctx, &dashboardv1.GetHostMetricsRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(r.Hosts) != 2 {
+		t.Fatalf("应 2 主机: %d", len(r.Hosts))
+	}
+	byHost := map[string]*dashboardv1.HostMetric{}
+	for _, hm := range r.Hosts {
+		byHost[hm.Host] = hm
+	}
+	dev := byHost["dev"]
+	if dev.Stale || dev.CpuPct != 33.5 || dev.Cores != 12 {
+		t.Fatalf("dev 行不对: %+v", dev)
+	}
+	sg := byHost["sg"]
+	if !sg.Stale {
+		t.Fatalf("10min 前的 sg 拍应 stale: %+v", sg)
+	}
+	if sg.UptimeHours != 48 {
+		t.Fatalf("uptime 折时不符: %v", sg.UptimeHours)
+	}
+}
