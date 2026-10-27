@@ -68,3 +68,13 @@ domain.tsv 标注 md|bridge 的表（fin_position=fin 域禁引）。
 - [x] 立单
 - [ ] 施工
 - [ ] 验收投产
+
+## 结果回填
+
+- subscribe.go:69 fin_position UNION 项删——md 侧查询只引 domain.tsv
+  md|bridge 表（注释钉死 fin 域禁引——relation does not exist→整查询
+  ERROR→订阅帧从未发出=md_ticks OKX 面归零病灶根修）；持仓标的由
+  live/degraded 策略项覆盖=冗余项删。
+- 普查件：internal/data/|cmd/collector/ grep fin_position 仅 collector.go
+  注释行（非表引）——无其他缺席表引用点。
+- 桩锚：okxws 测试包 20.5s 全绿（活跃集查询新态随件过）。
