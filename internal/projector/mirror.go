@@ -56,12 +56,12 @@ const qDcdDual = `SELECT ts,venue,surface,uly,product_id,direction,strike,expiry
 const qEvalDual = `SELECT e.id,e.ts,e.inst_id,e.template,e.direction,e.gross_apr,e.net_apr,e.verdict,e.legs,e.evidence
 	FROM fin_opp_eval e WHERE e.ts>$1 ORDER BY e.ts`
 
-const qConfigAll = `SELECT key,value::text,generation,updated_at FROM app_config ORDER BY key`
+const qConfigAll = `SELECT key,value::text,generation,updated_at,updated_by FROM app_config ORDER BY key`
 
-const uConfig = `INSERT INTO app_config(key,value,generation,updated_at)
-	VALUES($1,$2::jsonb,$3,$4::timestamptz)
+const uConfig = `INSERT INTO app_config(key,value,generation,updated_at,updated_by)
+	VALUES($1,$2::jsonb,$3,$4::timestamptz,$5)
 	ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value,generation=EXCLUDED.generation,
-		updated_at=EXCLUDED.updated_at`
+		updated_at=EXCLUDED.updated_at,updated_by=EXCLUDED.updated_by`
 
 const dConfigGone = `DELETE FROM app_config WHERE key=ANY($1)`
 

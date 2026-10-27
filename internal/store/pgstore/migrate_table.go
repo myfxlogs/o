@@ -79,6 +79,7 @@ var migrationTable = []struct {
 	{70, "fin_0070_projector_frames.sql"},
 	{71, "fin_0071_host_metrics.sql"},
 	{72, "fin_0072_condition_gap.sql"},
+	{73, "fin_0073_app_config_audit.sql"},
 
 	// —— md 链（版本链内唯一且单调；md 链版本=历史号+1000 与 fin 键空间全局不相交——跨链并 schema 时 schema_migrations 零撞号，check_migrations 断言①⑤）——
 	{1003, "md_1003_market_facts.sql"},
@@ -108,4 +109,5 @@ var migrationTable = []struct {
 	{1069, "md_1069_data_retention_md.sql"},
 	{1070, "md_1070_fin_strategy_replica.sql"},
 	{1071, "md_1071_snapshot_price_retire.sql"},
+	{1072, "md_1072_app_config_audit.sql"},
 }

@@ -20,12 +20,13 @@ func (r *Runner) syncConfig(ctx context.Context) error {
 		value      string
 		generation int64
 		updated    time.Time
+		updatedBy  string // T-0178 审计列随正本副本同步
 	}
 	want := map[string]kv{}
 	defer sgRows.Close()
 	for sgRows.Next() {
 		var c kv
-		if err := sgRows.Scan(&c.key, &c.value, &c.generation, &c.updated); err != nil {
+		if err := sgRows.Scan(&c.key, &c.value, &c.generation, &c.updated, &c.updatedBy); err != nil {
 			return err
 		}
 		want[c.key] = c
@@ -41,7 +42,7 @@ func (r *Runner) syncConfig(ctx context.Context) error {
 	defer mdRows.Close()
 	for mdRows.Next() {
 		var c kv
-		if err := mdRows.Scan(&c.key, &c.value, &c.generation, &c.updated); err != nil {
+		if err := mdRows.Scan(&c.key, &c.value, &c.generation, &c.updated, &c.updatedBy); err != nil {
 			return err
 		}
 		have[c.key] = c
@@ -53,7 +54,7 @@ func (r *Runner) syncConfig(ctx context.Context) error {
 	var gone []string
 	for k, c := range want {
 		if h, ok := have[k]; !ok || h != c {
-			batch = append(batch, []any{c.key, c.value, c.generation, c.updated})
+			batch = append(batch, []any{c.key, c.value, c.generation, c.updated, c.updatedBy})
 		}
 	}
 	for k := range have {
