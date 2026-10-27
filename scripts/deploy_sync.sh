@@ -26,3 +26,9 @@ else
 fi
 rm -f /tmp/o-sync-tracked.$$ /tmp/o-sync-sg.$$ /tmp/o-sync-tracked-sort.$$ /tmp/o-sync-stale.$$
 echo "[deploy_sync] done→$SG:$DEST"
+
+# T-0181 漂移哨兵挂验收序：部署尾拍对拍 fin/md 链 live version vs 登记表
+# （落后即红——「已合并≠已执行」灰色态自此由机器报不靠撞出来）。
+if [ -x scripts/check_schema_live.sh ]; then
+	bash scripts/check_schema_live.sh || echo "[deploy_sync] WARN schema 漂移哨兵报红（见上——补迁=显式动作非自动）"
+fi

@@ -16,6 +16,7 @@ import (
 	"o/internal/platform/rejects"
 	"o/internal/platform/roster"
 	"o/internal/review"
+	"o/internal/store/pgstore"
 	"o/internal/trading/okxexec"
 )
 
@@ -30,6 +31,12 @@ func main() {
 		log.Fatalf("SG PG 连接败: %v", err)
 	}
 	defer pool.Close()
+	// T-0181：boot 背 md 迁移闸——md 链执行者缺位根治（与 SG o-core
+	// Migrate(fin) 对称；dev 部署必重启 research=md schema 自追，
+	// 「已合并≠已执行」灰色态物理消失）。
+	if err := pgstore.Migrate(ctx, pool, "md"); err != nil {
+		log.Fatalf("md migrate 败: %v", err)
+	}
 	// T-0169 分域：席位台账归 SG 册（ROSTER_PG_DSN 隧道径——D-0030 §五直 beat）。
 	if rp := os.Getenv("ROSTER_PG_DSN"); rp != "" {
 		rpool, err := pgxpool.New(ctx, rp)
