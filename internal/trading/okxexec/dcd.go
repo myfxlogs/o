@@ -54,16 +54,30 @@ func (c *Client) DcdLiveOrders(ctx context.Context) ([]DcdOrder, error) {
 // —— 写面（T-0160 DCD 执行席：quote→trade→order-status 链；信封 code
 // 数字型已由 flexCode 承接——okx-dcd-endpoint-dialect 条目径）。
 
-// DcdQuote 产品报价（GET quote?productId&sz——陈旧提案重 quote 不盲执）。
-func (c *Client) DcdQuote(ctx context.Context, productID, sz string) (json.RawMessage, error) {
-	return c.Get(ctx, "/api/v5/finance/sfp/dcd/quote?productId="+productID+"&sz="+sz)
+// DcdQuote 产品报价（T-0207 真径：POST 体三参——GET+sz 参数名是 405
+// 方言坑；notionalCcy=产品锁定币 raw 回填勿猜）。返回 quoteId——
+// trade 径只认报价绑单。
+func (c *Client) DcdQuote(ctx context.Context, productID, notionalSz, notionalCcy string) (string, error) {
+	body, _ := json.Marshal(map[string]string{
+		"productId": productID, "notionalSz": notionalSz, "notionalCcy": notionalCcy})
+	raw, err := c.Post(ctx, "/api/v5/finance/sfp/dcd/quote", body)
+	if err != nil {
+		return "", err
+	}
+	var rows []struct {
+		QuoteID string `json:"quoteId"`
+	}
+	if err := json.Unmarshal(raw, &rows); err != nil || len(rows) == 0 || rows[0].QuoteID == "" {
+		return "", fmt.Errorf("dcd quote 响应无 quoteId: %w len=%d", err, len(rows))
+	}
+	return rows[0].QuoteID, nil
 }
 
-// DcdTrade 产品成交（POST trade {productId,sz,clOrdId}——幂等键方言同
-// transfer clientId：正文参数名 clOrdId 保持；歧态势禁补单纪律同规）。
-func (c *Client) DcdTrade(ctx context.Context, productID, sz, clOrdID string) (json.RawMessage, error) {
-	body, _ := json.Marshal(map[string]string{
-		"productId": productID, "sz": sz, "clOrdId": clOrdID})
+// DcdTrade 产品成交（T-0207 真径：POST trade 体唯 quoteId——报价绑单；
+// venue 无 clOrdId 幂等键——歧态势（超时/5xx 成否未知）禁补单，
+// 先 order-status?ordId 或 order-history 按 productId+ts 反查真态再定）。
+func (c *Client) DcdTrade(ctx context.Context, quoteID string) (json.RawMessage, error) {
+	body, _ := json.Marshal(map[string]string{"quoteId": quoteID})
 	return c.Post(ctx, "/api/v5/finance/sfp/dcd/trade", body)
 }
 

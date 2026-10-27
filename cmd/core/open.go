@@ -170,8 +170,17 @@ func (h hedgeOpener) loadMeta(ctx context.Context, iid string) (execution.InstMe
 // 对拍→fin_execution/fin_position 落位——陈旧提案 productId 重 quote 不盲执；
 // clOrdId=幂等键，歧态势=禁补单走 order-status 定真态）。
 func (h hedgeOpener) dcdOpen(ctx context.Context, spec lifecycle.OpenSpec) (int64, error) {
-	// 陈旧提案闸：按 spec.InstID=productId 重取 quote——产品失效=弃权如实。
-	if _, err := h.cli.DcdQuote(ctx, spec.InstID, dcdSz(spec.NotionalUSD)); err != nil {
+	// T-0207：notionalCcy=产品锁定币（md_dcd_product.raw 回填勿猜——
+	// quote 真径三参；缺件 fail-closed 不臆造）。
+	var notionalCcy string
+	if err := h.pool.QueryRow(ctx, `SELECT raw->>'notionalCcy' FROM md_dcd_product
+		WHERE product_id=$1 ORDER BY ts DESC LIMIT 1`, spec.InstID).Scan(&notionalCcy); err != nil || notionalCcy == "" {
+		return 0, fmt.Errorf("dcd notionalCcy 缺 fail-closed（产品 raw 无此字段）: %v", err)
+	}
+	// 陈旧提案闸：按 spec.InstID=productId 重取 quote——产品失效=弃权如实；
+	// quoteId 报价绑单径（每开必新 quote=陈旧提案不盲执语义自然保）。
+	quoteID, err := h.cli.DcdQuote(ctx, spec.InstID, dcdSz(spec.NotionalUSD), notionalCcy)
+	if err != nil {
 		return 0, fmt.Errorf("dcd quote 失效弃权（陈旧提案不盲执）: %w", err)
 	}
 	// 风控过闸同 carry 仓（notional/exposure 谓词现行；Legs 记 dcd 单腿形）。
@@ -187,8 +196,9 @@ func (h hedgeOpener) dcdOpen(ctx context.Context, spec lifecycle.OpenSpec) (int6
 		spec.StrategyRef, dec.DecisionID, spec.InstID, spec.NotionalUSD).Scan(&execID); err != nil {
 		return 0, err
 	}
-	clOrdID := fmt.Sprintf("dcd%dx%d", execID, time.Now().Unix()%1e9)
-	raw, err := h.cli.DcdTrade(ctx, spec.InstID, dcdSz(spec.NotionalUSD), clOrdID)
+	// T-0207：venue trade 无 clOrdId 幂等键——fin_execution intent 行承幂等
+	// 径照旧；歧态势=order-status?ordId/order-history 反查真态禁盲补。
+	raw, err := h.cli.DcdTrade(ctx, quoteID)
 	if err != nil {
 		// 传输/超时败=歧态势：禁补单——exec 行待人工/读件定真态（okx-exec 纪律）。
 		_, _ = h.pool.Exec(ctx, "UPDATE fin_execution SET state='ambiguous' WHERE id=$1", execID)
