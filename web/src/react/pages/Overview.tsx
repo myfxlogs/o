@@ -2,7 +2,7 @@
 // 状态/系统活着没；hero 大数字+在持+健康汇总+最近动作，数据全走 Connect）。
 import { client } from "../api";
 import { useSnap } from "../hooks";
-import { Card, EmptyRow, ErrorState, Skeleton, StateDot } from "../components/ui";
+import { Card, EmptyState, ErrorState, Skeleton, StateDot } from "../components/ui";
 import { fmtUsd } from "../components/fmt";
 
 const money = (v: number) =>
@@ -69,10 +69,9 @@ export function OverviewPage() {
 
       {/* 三问之二——仓什么状态 */}
       <Card title="在持">
-        {ov.loading && o ? null : null}
         {ov.err ? <ErrorState msg={ov.err} onRetry={ov.reload} /> : null}
         {doing.length === 0 ? (
-          <EmptyRow text="静持——无开仓在案" />
+          <EmptyState title="静持——无开仓在案" hint="系统在等下一个入场信号，来了这里会亮行" />
         ) : (
           <div className="feed">
             {doing.map((d, i) => (
@@ -86,7 +85,7 @@ export function OverviewPage() {
 
       <Card title="最近动作">
         {(o.recent ?? []).length === 0 ? (
-          <EmptyRow text="近零动作——账面平静" />
+          <EmptyState title="账面平静" hint="现金流落地后在此亮行" />
         ) : (
           <div className="feed">
             {(o.recent ?? []).map((s, i) => (
@@ -100,7 +99,7 @@ export function OverviewPage() {
 
       <Card title="钱在哪" extra={<span className="ink-3">{fmtUsd(o.navTotal)}</span>}>
         {(o.money ?? []).length === 0 ? (
-          <EmptyRow text="读件缺——venue 行缺席" />
+          <EmptyState title="读件缺——venue 行缺席" hint="账户面恢复后这里列出每一块钱" />
         ) : (
           <table className="rows">
             <tbody>

@@ -1,20 +1,73 @@
-/* 20-cards.css —— 卡面/hero/健康条/骨架/错误态（T-0170 新页共用件）。 */
+/* 20-cards.css —— 卡面体系（T-0173 视觉打磨八条：8pt 隐形栅格/留白放宽/
+   液态玻璃/悬浮反馈/瀑布流/骨架/空态插画）。 */
+
+/* —— 页面栅格：统一间距节拍（4px 基，元素间 ≥12px，卡间 20px）—— */
 .page {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 20px;
+  max-width: 1120px;
 }
+
+/* 瀑布流（桌面 ≥1100px 双列错落；卡内 break-inside 防 fragmentation）。
+   移动单列不动——首屏线性层级是总览的 intentional。 */
+.masonry {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+@media (min-width: 1100px) {
+  .masonry {
+    display: block;
+    columns: 2;
+    column-gap: 20px;
+  }
+  .masonry > * {
+    break-inside: avoid;
+    margin-bottom: 20px;
+  }
+}
+
+/* —— 液态玻璃卡（业主钦定回归——T-0157 撤除案重启，本次带降级兜底）—— */
 .card {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 14px 16px;
+  position: relative;
+  display: inline-block; /* masonry 列内自适应宽；flex 形态下由父级拉满 */
+  width: 100%;
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  border: 1px solid color-mix(in srgb, var(--line) 65%, transparent);
+  border-radius: 16px;
+  padding: 20px 22px;
+  transition: transform 0.18s ease, box-shadow 0.18s ease,
+    border-color 0.18s ease;
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .card {
+    background: var(--surface); /* 降级：不透明表面 */
+  }
+}
+@media (hover: hover) and (pointer: fine) {
+  .card:hover {
+    transform: translateY(-2px);
+    border-color: color-mix(in srgb, var(--ink) 16%, transparent);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.10), 0 2px 8px rgba(0, 0, 0, 0.05);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card {
+    transition: none;
+  }
+  .card:hover {
+    transform: none;
+  }
 }
 .card-h {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 10px;
+  gap: 12px;
+  margin-bottom: 14px;
 }
 .card-h h2 {
   margin: 0;
@@ -32,28 +85,52 @@
   color: var(--ink-3);
 }
 
-/* Hero：三问之一的大数字（手机一屏三格） */
+/* —— 流动感底色（缓慢漂移的两团色雾——折射的「活」感来源；降级静止）—— */
+body::before {
+  content: "";
+  position: fixed;
+  inset: -20%;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(42% 36% at 18% 24%, color-mix(in srgb, var(--accent) 15%, transparent), transparent 70%),
+    radial-gradient(38% 32% at 82% 72%, color-mix(in srgb, var(--good) 9%, transparent), transparent 70%),
+    radial-gradient(30% 26% at 60% 12%, color-mix(in srgb, var(--warn) 7%, transparent), transparent 70%);
+  filter: blur(56px);
+  animation: drift 28s ease-in-out infinite alternate;
+}
+@keyframes drift {
+  to {
+    transform: translate(4%, -3%) rotate(3deg) scale(1.07);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  body::before {
+    animation: none;
+  }
+}
+
+/* —— Hero：大数字三格（留白放宽）—— */
 .hero {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 14px 16px;
+  gap: 16px;
+  border-radius: 16px;
+  padding: 22px 24px;
 }
 .hero-item {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
   min-width: 0;
 }
 .hero-k {
   color: var(--ink-3);
   font-size: 12px;
+  letter-spacing: 0.02em;
 }
 .hero-v {
-  font-size: clamp(18px, 5vw, 26px);
+  font-size: clamp(19px, 5vw, 28px);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -61,37 +138,39 @@
   text-overflow: ellipsis;
 }
 
-/* 健康一句话条（点进系统页） */
+/* —— 健康一句话条（玻璃同款）—— */
 .health-strip {
   display: flex;
   align-items: center;
-  gap: 10px;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 11px 16px;
+  gap: 12px;
+  border-radius: 16px;
+  padding: 13px 20px;
   color: var(--ink);
   font-weight: 500;
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  border: 1px solid color-mix(in srgb, var(--line) 65%, transparent);
 }
 .health-strip:hover {
   text-decoration: none;
-  border-color: var(--ink-3);
+  border-color: color-mix(in srgb, var(--ink) 16%, transparent);
 }
 .health-strip > :last-child {
   margin-left: auto;
 }
 
-/* feed 行/表格 */
+/* —— feed 行/表格留白 —— */
 .feed {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 .feed-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 5px 0;
+  gap: 10px;
+  padding: 8px 0;
   border-bottom: 1px dashed var(--line);
   font-size: 13px;
 }
@@ -101,22 +180,17 @@
 .mono {
   font-variant-numeric: tabular-nums;
 }
-.empty-row {
-  color: var(--ink-3);
-  padding: 8px 0;
-  font-size: 13px;
-}
 .stat-strip {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 20px;
+  gap: 10px 24px;
   color: var(--ink-2);
   font-size: 13px;
 }
 .chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 8px;
 }
 .chip {
   display: inline-flex;
@@ -124,27 +198,30 @@
   gap: 6px;
   border: 1px solid var(--line);
   border-radius: 999px;
-  padding: 3px 10px;
+  padding: 4px 12px;
   font-size: 12.5px;
 }
 .venue-group {
-  margin-bottom: 8px;
+  margin-bottom: 12px;
+}
+.venue-group:last-child {
+  margin-bottom: 0;
 }
 .venue-name {
   font-weight: 700;
   font-size: 13px;
-  margin: 4px 0;
+  margin: 6px 0 4px;
 }
 
-/* 分段按钮组（period/kind 筛） */
+/* 分段按钮组 */
 .seg {
   display: inline-flex;
-  gap: 4px;
+  gap: 6px;
   flex-wrap: wrap;
 }
 .seg-btn {
-  min-height: 30px;
-  padding: 3px 10px;
+  min-height: 32px;
+  padding: 4px 12px;
   font-size: 12.5px;
 }
 .seg-btn.on {
@@ -155,7 +232,7 @@
 /* 报告折叠行 */
 details.rep {
   border-bottom: 1px dashed var(--line);
-  padding: 6px 0;
+  padding: 8px 0;
 }
 details.rep summary {
   cursor: pointer;
@@ -165,16 +242,16 @@ details.rep summary {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 14px;
-  margin-top: 10px;
+  gap: 16px;
+  margin-top: 14px;
   font-size: 13px;
 }
 
-/* 骨架/错误态 */
+/* —— 骨架（微光扫过——比纯灰多一拍「活着」）—— */
 .skel {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 .skel-row {
   height: 14px;
@@ -187,6 +264,34 @@ details.rep summary {
   to {
     background-position: -200% 0;
   }
+}
+
+/* —— 空态（插画+引导，禁白板）—— */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 22px 12px 14px;
+  text-align: center;
+}
+.empty-state svg {
+  width: 96px;
+  height: 64px;
+  opacity: 0.55;
+}
+.es-title {
+  font-weight: 600;
+  font-size: 13.5px;
+}
+.es-hint {
+  color: var(--ink-3);
+  font-size: 12.5px;
+}
+.empty-row {
+  color: var(--ink-3);
+  padding: 8px 0;
+  font-size: 13px;
 }
 .err-state {
   display: flex;

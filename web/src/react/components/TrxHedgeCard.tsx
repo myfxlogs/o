@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { client } from "../api";
 import { onData } from "../stream";
+import { Skeleton } from "./ui";
 import type { HedgeStructure } from "../../gen/dashboardv1/core_pb";
 import { fmtUsd, fmtNum, fmtPrice, fmtThr, pnlClass, fmtSigned } from "./fmt";
 
@@ -48,7 +49,7 @@ export function TrxHedgeCard() {
           </span>
         )}
       </div>
-      {!ready && <div className="empty" style={{ padding: "12px 0" }}>数据未就绪</div>}
+      {!ready && <Skeleton rows={4} />}
       {ready && (
         <>
           <div className="table-scroll scroll-cap">

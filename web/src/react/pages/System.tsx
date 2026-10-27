@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import { client } from "../api";
 import { useSnap } from "../hooks";
-import { Card, EmptyRow, ErrorState, Skeleton, StateDot } from "../components/ui";
+import { Card, EmptyState, ErrorState, Skeleton, StateDot } from "../components/ui";
 import { pbDate } from "../components/fmt";
 
 const AGE = (ts: Date) => {
@@ -70,6 +70,7 @@ export function SystemPage() {
         )}
       </Card>
 
+      <div className="masonry">
       <Card title="进程指标">
         {h.data ? (
           <div className="stat-strip">
@@ -124,7 +125,7 @@ export function SystemPage() {
 
       <Card title="席位在册">
         {(ov.data?.staff ?? []).length === 0 ? (
-          <EmptyRow text="花名册读败或零在册" />
+          <EmptyState title="花名册暂缺" hint="席位注册后此处逐盏亮灯" />
         ) : (
           <div className="chips">
             {(ov.data?.staff ?? []).map((s) => (
@@ -135,6 +136,7 @@ export function SystemPage() {
           </div>
         )}
       </Card>
+      </div>
     </div>
   );
 }

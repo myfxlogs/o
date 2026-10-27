@@ -49,3 +49,25 @@ export function StateDot(props: { state: number; title?: string }) {
 export function EmptyRow(props: { text: string }) {
   return <div className="empty-row">{props.text}</div>;
 }
+
+// EmptyState 空态（业主八条⑧：插画+引导，禁白板——插画=抽象线稿随主题墨色）。
+export function EmptyState(props: { title: string; hint?: string; children?: ReactNode }) {
+  return (
+    <div className="empty-state">
+      <svg viewBox="0 0 96 64" fill="none" aria-hidden>
+        {/* 托盘 + 悬停圆点 + 虚线轨迹——「等一件事发生」的抽象形 */}
+        <ellipse cx="48" cy="50" rx="30" ry="6" stroke="currentColor" strokeWidth="1.4" opacity="0.5" />
+        <path d="M28 44h40l-4-14H32l-4 14Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+        <circle cx="48" cy="22" r="7" stroke="currentColor" strokeWidth="1.6" />
+        <path d="M48 29v1" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+        <path d="M14 18c8-6 18-8 26-6" stroke="currentColor" strokeWidth="1.2" strokeDasharray="3 4" opacity="0.6" />
+        <path d="M82 46c-6 5-15 7-23 5" stroke="currentColor" strokeWidth="1.2" strokeDasharray="3 4" opacity="0.6" />
+        <circle cx="76" cy="14" r="2" fill="currentColor" opacity="0.55" />
+        <circle cx="20" cy="52" r="1.6" fill="currentColor" opacity="0.4" />
+      </svg>
+      <div className="es-title">{props.title}</div>
+      {props.hint ? <div className="es-hint">{props.hint}</div> : null}
+      {props.children}
+    </div>
+  );
+}
