@@ -6,6 +6,7 @@ package projector
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 )
 
@@ -21,6 +22,9 @@ func (r *Runner) guards(ctx context.Context) error {
 	if n == 0 {
 		return fmt.Errorf("SG 侧 ev_proposal_sg_trg 缺席（fin_0070 未应用——o-core 须先轮换再起投影臂）")
 	}
+	// T-0195：两序列为 md 正本发号域（钦定）——撞平即死改「撞平自抬」：
+	// md next≤SG max→setval(seq, sgMax+1000) 自抬+WARN 钉（镜像落后/遗产大
+	// id 段追平是可达稳态，重启掷骰崩环=可用性病灶；未知序列域仍 fail-closed）。
 	for _, g := range []struct{ seq, tbl string }{
 		{"fin_proposal_id_seq", "fin_proposal"}, {"fin_opp_eval_id_seq", "fin_opp_eval"},
 	} {
@@ -32,8 +36,11 @@ func (r *Runner) guards(ctx context.Context) error {
 			return fmt.Errorf("sg %s max: %w", g.tbl, err)
 		}
 		if mdNext <= sgMax {
-			return fmt.Errorf("跨库 id 键空间相撞：md %s next=%d ≤ SG %s max=%d——"+
-				"T-0169 切换前置 setval（md 序列抬过 SG legacy max）后始可投影", g.seq, mdNext, g.tbl, sgMax)
+			raise := sgMax + 1000 // 安全余量=遗产行回填再撞防
+			if _, err := r.md.Exec(ctx, fmt.Sprintf("SELECT setval('%s', %d)", g.seq, raise)); err != nil {
+				return fmt.Errorf("md %s setval 自抬: %w", g.seq, err)
+			}
+			log.Printf("[projector] WARN seq 自抬：md %s next=%d ≤ SG max=%d→setval %d（md 正本域撞平自抬钦定径）", g.seq, mdNext, sgMax, raise)
 		}
 	}
 	return nil

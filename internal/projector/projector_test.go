@@ -306,9 +306,17 @@ func TestGuardSequenceCollision(t *testing.T) {
 	if err := r.Reconcile(ctx, true); err != nil {
 		t.Fatal(err)
 	}
-	// md 序列 last_value=1（显式 id 插入不推进序）≤ sg max=1 → 守卫红。
-	if err := r.guards(ctx); err == nil {
-		t.Fatal("切序前置未满足应拒（md next ≤ SG legacy max）")
+	// md 序列 last_value=1（显式 id 插入不推进序）≤ sg max=1 →
+	// T-0195 撞平自抬：md 正本域两序列钦定自抬径（重启掷骰崩环根修）。
+	if err := r.guards(ctx); err != nil {
+		t.Fatalf("撞平自抬后应过: %v", err)
+	}
+	var raised int64
+	if err := md.QueryRow(ctx, "SELECT last_value FROM fin_proposal_id_seq").Scan(&raised); err != nil {
+		t.Fatal(err)
+	}
+	if raised < 2 { // sg max=1→setval≥1001（自抬安全余量锚）
+		t.Fatalf("自抬应 ≥sgMax+余量: %d", raised)
 	}
 	// setval 抬过 legacy max → 守卫过（T-0169 切换径同形）。
 	if _, err := md.Exec(ctx, "SELECT setval('fin_proposal_id_seq', 1000000, false)"); err != nil {
