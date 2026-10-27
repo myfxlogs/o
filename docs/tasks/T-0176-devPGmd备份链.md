@@ -32,3 +32,16 @@ SG+dev 两库备份同爆半径（各存本机盘）。业主供 R2/rclone 凭�
 - dev cron 次日 `/opt/o-backups-md/` 出 sql.gz+sha256
 - 恢复演练实录（行数对拍）入票面
 - SG `backup.log` 与本机备份日志互不踩踏
+
+## 结果回填
+
+- backup_pg.sh 泛化：BACKUP_CONTAINER 环境变量/第二参（o-postgres-md
+  同形适配——容器名/端口探测/dump 径零重抄）；R2 留位同形降级记。
+- dev 侧 /opt/o-backups-md/（700）建位；user cron `0 3 * * *` 错时
+  SG 半点（错时 00 vs 30 错开——本机件不扰 SG 拍）。
+- 实跑锚：o-20261027T054827Z.sql.gz 868K+sha256 同款产出；
+  .r2_missing_marker 留位同款降级记。
+- 恢复演练实录（钦定口径——备份未演练=没有备份）：空库 o_restore_drill
+  pg_restore→20 表全复+fin_proposal+fin_opp_eval 行数对拍
+  12587=12587 零差；drill 库演练后 DROP 清零。
+- SG backup.log/本机 backup.log 互不踩踏（同形日志各目录径）。
