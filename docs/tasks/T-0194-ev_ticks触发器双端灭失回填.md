@@ -32,3 +32,11 @@
 - guard 唤拍径活（日志或行为证据）
 - 迁移号机检闸过 + 全谱触发器对拍断言入册
 - `docs/数据流.md` 若涉链路面同 commit 更新
+
+## 结果回填
+
+- fin_0078+md_1073 双链同落+双侧实拍在 PG-md/SG 均已 CREATE 在位
+  （pg_trigger ev_ticks_trg 在位实证——仓巡哨 ev_ticks 唤拍径复通）。
+- 普查纠偏：check_schema_live.sh 触发器段——预期集=migrations/*.sql
+  全谱定义件（不限 fin_* 前缀），双侧 pg_trigger 在位逐一对拍
+  （缺席即 WARN——DROP+CREATE 吞零件同族坑自此机械拦）。
