@@ -96,7 +96,7 @@ func buildTrxVoteOptimizer(ctx context.Context, w *trxWiring) *trxvote.Scheduler
 	executor := trxvote.NewExecutor(conn, privKey, addr, func(level, msg string) {
 		log.Printf("ALERT [trxvote/%s] %s", level, msg)
 	})
-	tronscanBase := "https://api.tronscan.org/api"
+	tronscanBase := "https://apilist.tronscan.org" // T-0192：api.tronscan.org SG 双证不可达（curl 000）——apilist 换源（200 实证；裸 host 各器自拼 /api/）
 	rebalanceCfg := trxvote.RebalanceConfig{
 		MinSRs:             cfgInt(w, "trx.vote_min_srs", 3),
 		MaxSRs:             cfgInt(w, "trx.vote_max_srs", 3),

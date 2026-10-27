@@ -18,6 +18,9 @@ service CoreService {
   rpc GetTrxYieldRadar(GetTrxYieldRadarRequest) returns (GetTrxYieldRadarResponse) {}
   rpc GetTrxYieldCurve(GetTrxYieldCurveRequest) returns (GetTrxYieldCurveResponse) {}
   rpc GetHedgeStructure(GetHedgeStructureRequest) returns (GetHedgeStructureResponse) {}
+  // T-0184 投票引擎状态卡（只读显态——启停=app_config trx.vote_enabled
+  // 业主径不在前端鉴权面内，降级只读+热改径）。
+  rpc GetTrxVoteStatus(GetTrxVoteStatusRequest) returns (GetTrxVoteStatusResponse) {}
   rpc ListHedgeFlow(ListHedgeFlowRequest) returns (ListHedgeFlowResponse) {}
   // —— 系统健康与复盘读面（T-0170：/md/status、/report 手集 JSON 收编入契约
   // ——D-0009 落前端面：有 proto 的面=绝对 proto，前端零裸 JSON 依赖）——
@@ -69,6 +72,16 @@ message WatchEvent { string kind = 1; string ts = 2; }
 
 // —— TRX 自营盘（T-0156 收口面——字段折值后端算定，前端零计算；
 // found=false=读件缺显形不假零，冷启动不猜）——
+
+message GetTrxVoteStatusRequest {}
+message GetTrxVoteStatusResponse {
+  bool enabled = 1;                // app_config trx.vote_enabled（引擎在驶/停驶）
+  int64 rebalance_today = 2;       // 今日改投计数（fin_trx_vote_rebalance）
+  int64 claim_today = 3;           // 今日领奖计数（fin_trx_txs kind=vote_claim）
+  google.protobuf.Timestamp next_window = 4; // 下一领奖窗（00/06/12/18 UTC）
+  int32 rebalance_cap = 5;         // vote_max_rebal_per_day 上限面
+  double pending_trx = 6;          // 待领取 TRX（rewardNum 折值——同 trx_allowance 源）
+}
 
 message GetTrxAccountRequest {}
 message GetTrxAccountResponse {
