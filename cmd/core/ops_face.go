@@ -25,15 +25,13 @@ type compBeat struct {
 	zeroNote          string // 零行旁注（空行≠死的面在此显形）
 }
 
-// healthComps 采集组件全集（16 件——足迹表+channel 谓词逐件钉死；增组件=增行）。
+// healthComps 采集组件全集（14 件——足迹表+channel 谓词逐件钉死；增组件=增行）。
 func healthComps() []compBeat {
 	return []compBeat{
 		{name: "okxws WS 行情", fact: "md_mark_index mark-price|index-tickers", warn: 30 * time.Second, dead: 2 * time.Minute,
 			query: `SELECT max(recv_ts) FROM md_mark_index WHERE channel IN ('mark-price','index-tickers')`},
-		{name: "spotpoll REST(spot_last)", fact: "md_mark_index spot_last", warn: 90 * time.Second, dead: 5 * time.Minute,
-			query: `SELECT max(recv_ts) FROM md_mark_index WHERE channel='spot_last'`},
-		{name: "spotpoll REST(mark_price)", fact: "md_mark_index mark_price", warn: 90 * time.Second, dead: 5 * time.Minute,
-			query: `SELECT max(recv_ts) FROM md_mark_index WHERE channel='mark_price'`},
+		// T-0171 快照价格全面退役：spotpoll REST 两健康面（spot_last/mark_price）
+		// 随写径同撤——mark/index 行唯一来源=WS（桥全量+活跃集 tickers）。
 		{name: "funding WS", fact: "md_funding", warn: 30 * time.Minute, dead: 2 * time.Hour,
 			query: `SELECT max(recv_ts) FROM md_funding`},
 		{name: "买五档 depth5", fact: "md_signal kind=depth5", warn: 30 * time.Second, dead: 2 * time.Minute,

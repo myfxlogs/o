@@ -175,7 +175,7 @@ func (r *Runner) writeEval(ctx context.Context, inst, template, direction, verdi
 func (r *Runner) evalBasis(ctx context.Context, f Family) error {
 	// T-0132 分级后季度期货只有 mark-price 行——md_ticks∪md_mark_index 同视图读。
 	rows, err := r.pool.Query(ctx, `SELECT t1.inst_id,t1.px,t2.px FROM
-		(SELECT inst_id,px,ts FROM md_mark_index WHERE channel IN ('mark-price','mark_price') -- T-0146 频道方言归并
+		(SELECT inst_id,px,ts FROM md_mark_index WHERE channel='mark-price' -- T-0171 方言归一：REST 轮询面撤单键域
 		UNION ALL SELECT inst_id,last,ts FROM md_ticks) t1
 		JOIN (SELECT inst_id,px,ts FROM md_mark_index
 		UNION ALL SELECT inst_id,last,ts FROM md_ticks) t2

@@ -29,6 +29,8 @@ import (
 
 // dcdFeedFor 双币赢枚举 REST 面（<endpoint_family>/currency-pair → products?uly=
 // 全对在架；信封数字 code 由 okxexec flexCode 兼容——坑条 okx-dcd-endpoint-dialect）。
+// 非价格源：本面=静态条款/目录注册（strike/expiry/apr）——价格消费只准
+// WS 流径行（T-0171 价格源律）。
 // get429 限频退避重读件（T-0117 根修：boot 两臂同打 DCD 产品端点撞 429
 // fail-closed 让位成静默死亡——429/5xx ≤3 次指数退避重试再让位；4xx 不重试）。
 func get429(ctx context.Context, okcli *okxexec.Client, path string) ([]byte, error) {

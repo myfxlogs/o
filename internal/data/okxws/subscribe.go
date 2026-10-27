@@ -19,17 +19,17 @@ var datedFutRe = regexp.MustCompile(`-[0-9]{6}$`)
 
 // subscribeArgs 宇宙低频订阅面（T-0132 分级；tickers 退出宇宙订活跃集
 // 动态补：funding-rate 仅 SWAP instId 合法）。
-// T-0134：现货形 index-tickers 撤 WS；T-0135：mark-price 全宇宙撤 WS
-// （507 SWAP 秒推=1.8Mbps 链路大头实证）——双件均转 spotpoll REST 轮询替。
+// T-0171 快照价格全面退役：T-0134/T-0135 的 REST 轮询替（spotpoll）已撤——
+// SG 瘦身面 funding-rate 之外全赖活跃集 tickers 动态订（含 dcd 现货腿）。
 func subscribeArgs(syms []string) []map[string]string {
 	args := make([]map[string]string, 0, len(syms)*3)
 	for _, s := range syms {
 		switch {
 		case strings.HasSuffix(s, "-SWAP"):
 			args = append(args, map[string]string{"channel": "funding-rate", "instId": s})
-		case datedFutRe.MatchString(s): // mark-price 同撤（T-0135 REST 替）
+		case datedFutRe.MatchString(s): // 季度期货=SG 瘦身面零订（桥面 mark-price 供）
 			continue
-		default: // 现货形=宇宙内零订（T-0134 REST 轮询面替——链路饱和实证）
+		default: // 现货形=宇宙内零订（活跃集 tickers 动态补——T-0171 唯一现货价源）
 		}
 	}
 	return args
@@ -61,11 +61,18 @@ func subscribeAll(conn *websocket.Conn, args []map[string]string) error {
 
 // activeSet 活跃集标的（T-0132 分级——在仓+在途提案+live/degraded 策略 inst_id
 // 才配 tickers 级实时性；其余宇宙标的三低频面即足）。
+// T-0171 价格源律：dcd 策略现货腿 uly 一并入集（spotpoll REST 退役后现货腿
+// 真价唯一来源=本地 tickers WS 行——md_ticks 供 dcdPaperAccounting 记账价）；
+// uly 方言归一（OKX DCD uly=标的指数名 BTC-USD/BTC-USDG→现货对 BTC-USDT，
+// 与 research/dcd spot() 候选链同语义）。
 func (c *Collector) activeSet(ctx context.Context) (map[string]bool, error) {
 	rows, err := c.pool.Query(ctx, `SELECT DISTINCT inst_id FROM (
 		SELECT inst_id FROM fin_position WHERE closed_at IS NULL
 		UNION SELECT inst_id FROM fin_proposal WHERE state IN ('fin_proposed','fin_armed')
-		UNION SELECT inst_id FROM fin_strategy WHERE state IN ('live','degraded')) t`)
+		UNION SELECT inst_id FROM fin_strategy WHERE state IN ('live','degraded')
+		UNION SELECT regexp_replace(d.uly, '-USD(G)?$', '-USDT') FROM fin_strategy s
+			JOIN md_dcd_product d ON d.product_id=s.inst_id
+			WHERE s.state<>'retired' AND s.template_ref LIKE 'dcd%') t`)
 	if err != nil {
 		return nil, err
 	}

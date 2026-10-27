@@ -304,12 +304,15 @@ func TestDcdCallAdmitGate(t *testing.T) {
 
 // T-0160 三返修①锚：dcdPaperAccounting 读 md_dcd_product 快照→fill 行真生成
 // （snapshot annualized_yield→funding fill amount=notional*apr*days/365）。
+// T-0171 价格源律：现货腿价=md_ticks WS 行（目录 spot 字段非价格源）——
+// 缺/陈 tick=fill 让位 fail-closed；detail spot 与 md_ticks 行同源。
 func TestDcdPaperFillFromSnapshot(t *testing.T) {
 	ctx, pool, cfg := setup(t)
 	for _, q := range []string{
 		"DELETE FROM fin_paper_fill", "DELETE FROM fin_strategy_transition",
 		"DELETE FROM fin_strategy", "DELETE FROM fin_proposal",
-		"DELETE FROM md_dcd_product WHERE product_id='BTC-USDT-261225-95000-C'"} {
+		"DELETE FROM md_dcd_product WHERE product_id='BTC-USDT-261225-95000-C'",
+		"DELETE FROM md_ticks WHERE inst_id='BTC-USDT'"} {
 		if _, err := pool.Exec(ctx, q); err != nil {
 			t.Fatal(err)
 		}
@@ -329,16 +332,102 @@ func TestDcdPaperFillFromSnapshot(t *testing.T) {
 	}
 	// 推 paper 行 entered_at 回 2 天（摊计天数 ≥1 触发 fill）
 	_, _ = pool.Exec(ctx, "UPDATE fin_strategy SET entered_at=now()-interval '2 days' WHERE inst_id='BTC-USDT-261225-95000-C'")
+	// 无 tick 行=现货腿价缺——fail-closed 不造 fill（T-0171）
 	if err := r.dcdPaperAccounting(ctx); err != nil {
 		t.Fatal(err)
 	}
 	var cnt int
-	var amt float64
-	if err := pool.QueryRow(ctx, `SELECT count(*),COALESCE(sum(amount_usd),0) FROM fin_paper_fill
-		WHERE inst_id='BTC-USDT-261225-95000-C'`).Scan(&cnt, &amt); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM fin_paper_fill
+		WHERE inst_id='BTC-USDT-261225-95000-C'`).Scan(&cnt); err != nil {
 		t.Fatal(err)
 	}
-	if cnt < 1 || amt <= 0 {
-		t.Fatalf("snapshot→fill 应真生成行（cnt=%d amt=%v）", cnt, amt)
+	if cnt != 0 {
+		t.Fatalf("现货腿价缺应让位不造 fill（cnt=%d）", cnt)
+	}
+	// 鲜 tick 行→fill 生成；detail spot 与 md_ticks 行同源（88000）
+	if _, err := pool.Exec(ctx, `INSERT INTO md_ticks(ts,inst_id,last,bid,ask)
+		VALUES(now(),'BTC-USDT',88000,87990,88010)`); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.dcdPaperAccounting(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var amt float64
+	var detail map[string]any
+	if err := pool.QueryRow(ctx, `SELECT COALESCE(sum(amount_usd),0),
+		COALESCE((SELECT detail FROM fin_paper_fill WHERE inst_id='BTC-USDT-261225-95000-C' ORDER BY id DESC LIMIT 1),'{}'::jsonb)
+		FROM fin_paper_fill WHERE inst_id='BTC-USDT-261225-95000-C'`).Scan(&amt, &detail); err != nil {
+		t.Fatal(err)
+	}
+	if amt <= 0 {
+		t.Fatal("鲜 tick→fill 应真生成行（amt=0）")
+	}
+	if detail["spot"] != 88000.0 {
+		t.Fatalf("fill detail spot 应=md_ticks 行值 88000 got %v", detail["spot"])
+	}
+	var cntAfter int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM fin_paper_fill
+		WHERE inst_id='BTC-USDT-261225-95000-C'`).Scan(&cntAfter); err != nil {
+		t.Fatal(err)
+	}
+	// 陈 tick（>120s 闸）→后续拍 fill 让位不新增
+	if _, err := pool.Exec(ctx, `UPDATE md_ticks SET ts=now()-interval '10 minutes' WHERE inst_id='BTC-USDT'`); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.dcdPaperAccounting(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var cnt2 int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM fin_paper_fill
+		WHERE inst_id='BTC-USDT-261225-95000-C'`).Scan(&cnt2); err != nil {
+		t.Fatal(err)
+	}
+	if cnt2 != cntAfter {
+		t.Fatalf("陈 tick 应让位不新增 fill（前=%d 后=%d）", cntAfter, cnt2)
+	}
+}
+
+// T-0171 桩锚：uly 方言归一——OKX DCD uly=标的指数名（BTC-USD），现货腿
+// tick 行=现货对（BTC-USDT）→regexp 归一命中供价（指数名行不误读）。
+func TestDcdPaperSpotLegDialect(t *testing.T) {
+	ctx, pool, cfg := setup(t)
+	for _, q := range []string{
+		"DELETE FROM fin_paper_fill", "DELETE FROM fin_strategy_transition",
+		"DELETE FROM fin_strategy", "DELETE FROM fin_proposal",
+		"DELETE FROM md_dcd_product WHERE product_id='BTC-USDT-261225-95000-C'",
+		"DELETE FROM md_ticks WHERE inst_id IN ('BTC-USDT','BTC-USD')"} {
+		if _, err := pool.Exec(ctx, q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_, _ = pool.Exec(ctx, `INSERT INTO md_dcd_product(ts,venue,surface,uly,product_id,direction,strike,expiry,annualized_yield,spot,raw)
+		VALUES(now(),'okx','products','BTC-USD','BTC-USDT-261225-95000-C','C',95000,now()+interval '30 days',0.15,88000,'{}')`)
+	var eid int64
+	if err := pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,verdict,legs,evidence)
+		VALUES('BTC-USDT-261225-95000-C','dcd_call','dcd_call','proposed','{}','{}') RETURNING id`).Scan(&eid); err != nil {
+		t.Fatal(err)
+	}
+	_, _ = pool.Exec(ctx,
+		"INSERT INTO fin_proposal(eval_id,inst_id,direction,net_apr) VALUES($1,'BTC-USDT-261225-95000-C','dcd_call',0.15)", eid)
+	r := NewRunner(pool, cfg)
+	if err := r.scan(ctx); err != nil {
+		t.Fatal(err)
+	}
+	_, _ = pool.Exec(ctx, "UPDATE fin_strategy SET entered_at=now()-interval '2 days' WHERE inst_id='BTC-USDT-261225-95000-C'")
+	// 现货对行（归一命中）+指数名行（诱饵——归一不得误读）
+	if _, err := pool.Exec(ctx, `INSERT INTO md_ticks(ts,inst_id,last,bid,ask)
+		VALUES(now(),'BTC-USDT',88000,87990,88010),(now(),'BTC-USD',87000,86990,87010)`); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.dcdPaperAccounting(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var detail map[string]any
+	if err := pool.QueryRow(ctx, `SELECT COALESCE((SELECT detail FROM fin_paper_fill
+		WHERE inst_id='BTC-USDT-261225-95000-C' ORDER BY id DESC LIMIT 1),'{}'::jsonb)`).Scan(&detail); err != nil {
+		t.Fatal(err)
+	}
+	if detail["spot"] != 88000.0 {
+		t.Fatalf("uly=BTC-USD 应归一读 BTC-USDT tick 行 spot=88000 got %v", detail["spot"])
 	}
 }

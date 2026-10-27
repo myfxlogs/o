@@ -175,7 +175,8 @@ func (r *Runner) directionStacked(ctx context.Context, uly, tmpl string) (bool, 
 }
 
 // persistProduct 在架产品状态行（T-0123 状态表化——产品键 upsert 末帧覆盖，
-// 在架集=键域全量；评估可溯源照旧）。
+// 在架集=键域全量；评估可溯源照旧）。spot 列=溯源快照非价格源（消费面
+// 只准 md_ticks WS 行——T-0171 价格源律）。
 func (r *Runner) persistProduct(ctx context.Context, s Surface, p Product, spot float64) error {
 	var raw json.RawMessage
 	if len(p.Raw) > 0 {

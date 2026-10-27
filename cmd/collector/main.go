@@ -1,7 +1,8 @@
 // collector —— 采集面外置开发机蒸馏件（采集器机）（T-0137/D-0020）：dev 跑全宇宙 WS
-// （index-tickers/mark-price/funding-rate 全量+spot_last REST 件复用），
-// 蒸馏态 upsert 直写 SG md_* 表（SSH 隧道径——写权 collector_rw 收窄件）。
-// 键域契约：同键 upsert 最新 ts 赢——SG REST 兜底自动接管无开关。
+// （index-tickers/mark-price/funding-rate 全量），蒸馏态 upsert 直写 SG md_* 表
+// （SSH 隧道径——写权 collector_rw 收窄件）。键域契约：同键 upsert 最新 ts 赢。
+// T-0171 快照价格全面退役：spot_last/mark_price REST 轮询兜底件全撤——
+// mark/index 行唯一来源=WS 全量订阅（REST 只准条款/目录注册面）。
 package main
 
 import (
@@ -60,9 +61,6 @@ func main() {
 	c.ExpandSymbols = func(ctx context.Context) ([]string, error) {
 		return universe(ctx, cli) // 宇宙扩件同 SG universeExpander 径
 	}
-	c.AttachSpotFeed(func(ctx context.Context) ([]byte, error) {
-		return cli.PublicGet(ctx, "/api/v5/market/tickers?instType=SPOT")
-	})
 	c.AttachCTV(ctvFeed(cli)) // T-0139 depth5 USD 额换算（instruments SWAP ctVal 实读）
 	errc := make(chan error, 4)
 	go c.Run(ctx, errc)
@@ -75,17 +73,6 @@ func main() {
 	} else {
 		go bc.Run(ctx, errc)
 	}
-	c.AttachMarkFeed(func(ctx context.Context) ([][]byte, error) {
-		var out [][]byte
-		for _, typ := range []string{"SWAP", "FUTURES"} {
-			raw, err := cli.PublicGet(ctx, "/api/v5/public/mark-price?instType="+typ)
-			if err != nil {
-				return nil, err
-			}
-			out = append(out, raw)
-		}
-		return out, nil
-	})
 	log.Printf("[collector] 采集桥起——全宇宙蒸馏写 SG（共写语义：同键最新 ts 赢）")
 	for {
 		select {

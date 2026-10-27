@@ -41,8 +41,8 @@ func TestSystemHealthStates(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(r.Components) != 16 {
-		t.Fatalf("组件全集应 16 件: %d", len(r.Components))
+	if len(r.Components) != 14 { // T-0171 撤 spotpoll REST 两面——16→14
+		t.Fatalf("组件全集应 14 件: %d", len(r.Components))
 	}
 	byName := map[string]*dashboardv1.SystemComponent{}
 	for _, comp := range r.Components {

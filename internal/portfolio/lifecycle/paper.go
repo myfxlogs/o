@@ -144,6 +144,10 @@ func ftoa(f float64) string {
 // dcdPaperAccounting dcd_call paper 记账（T-0160 ①paper 径实装：md_dcd_product
 // 最新快照 annualized_yield 按日摊→fin_paper_fill kind='funding'——
 // amount=notional*apr*days/365；quote 缺/过期=fail-closed 跳过不造零）。
+// T-0171 价格源律：现货腿价改读 md_ticks WS 行——目录 spot 字段非价格源
+// （COALESCE(spot,0) 消费撤）；鲜度闸同 T-0128 语义（exec.tick_max_age_s
+// 缺省 120s，陈=fill 让位 fail-closed 不记账）。活跃集订阅面含 dcd 现货腿
+// （subscribe.go activeSet——SG 本地 tickers 供价，T-0171 裁本地订阅径）。
 func (r *Runner) dcdPaperAccounting(ctx context.Context) error {
 	rows, err := r.pool.Query(ctx, `SELECT s.id, s.inst_id, s.notional_usd,
 		COALESCE((SELECT max(ts) FROM fin_paper_fill f WHERE f.strategy_id=s.id), s.entered_at)
@@ -167,17 +171,32 @@ func (r *Runner) dcdPaperAccounting(ctx context.Context) error {
 		sts = append(sts, x)
 	}
 	rows.Close()
+	maxAge := 120.0
+	if v, err := r.cfg.GetFloat("exec.tick_max_age_s"); err == nil && v > 0 {
+		maxAge = v
+	}
 	for _, x := range sts {
-		var apr, spot float64
+		var apr float64
 		var expiry time.Time
-		err := r.pool.QueryRow(ctx, `SELECT annualized_yield,COALESCE(spot,0),expiry FROM md_dcd_product
-			WHERE product_id=$1 ORDER BY ts DESC LIMIT 1`, x.inst).Scan(&apr, &spot, &expiry)
+		var uly string
+		err := r.pool.QueryRow(ctx, `SELECT COALESCE(annualized_yield,0),expiry,uly FROM md_dcd_product
+			WHERE product_id=$1 ORDER BY ts DESC LIMIT 1`, x.inst).Scan(&apr, &expiry, &uly)
 		if err != nil || apr <= 0 {
 			r.rej.Inc("dcd_quote_missing")
 			continue // quote 面缺=fail-closed 不造零 fill
 		}
 		if time.Now().After(expiry) {
 			continue // 到期=终局由 settle 径（实战归 bills 160-163；paper 期满即收）
+		}
+		// 现货腿现价=md_ticks WS 行；uly 方言归一（BTC-USD/USDG→BTC-USDT，
+		// 表达式与 subscribe.go activeSet 同源）。
+		var spot float64
+		var tickTs time.Time
+		err = r.pool.QueryRow(ctx, `SELECT last,ts FROM md_ticks
+			WHERE inst_id=regexp_replace($1,'-USD(G)?$','-USDT')`, uly).Scan(&spot, &tickTs)
+		if err != nil || spot <= 0 || time.Since(tickTs) > time.Duration(maxAge*float64(time.Second)) {
+			r.rej.Inc("dcd_spot_stale")
+			continue // 现货腿价缺/陈=事实缺 fail-closed 让位不造 fill（T-0171）
 		}
 		days := time.Since(x.last).Hours() / 24
 		if days < 1.0 {
