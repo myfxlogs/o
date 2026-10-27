@@ -1,6 +1,7 @@
 # T-0170 dcd/gapscan 认证读面恢复——venue 私有 GET 经 SG 中继或只读钥（T-0165 投产回归件）
 
-## 态：已批（径 A 钦定+存放面终裁：app_secrets 唯一真源+dev boot 内存取零磁盘副本）
+## 态：待验（径 A 钦定+存放面终裁：app_secrets 唯一真源+dev boot 内存取零磁盘副本）
+## 领取：zcode-glm-t0170 @ 2026-10-27
 ## 立项：决策席 @ 2026-10-26（T-0165 投产实证回归）
 ## 决策档：D-0029/T-0165/T-0102
 
@@ -37,3 +38,71 @@ o-research 起后两臂 fail-closed：dcd feed 调 `sfp/dcd/currency-pair`+`prod
 ## 验收锚
 
 - `md_dcd_product` ts 恢复刷新；fin_surface_gap 新行；研究席六臂全活。
+
+## 结果回填
+
+### 施工面（径 A 全链——SG 解密专口+隧道+dev 内存取+401 自重取）
+
+- SG 端 `cmd/core/readcred.go` 新件：`GET /v1/readcred/okx` @ :8095 loopback
+  专口（独立 server 不挂 50051 总线，startReadcred 随 ctx 收停）——
+  app_secrets `okx_read.api_key/api_secret/passphrase` 三件解密直出 JSON
+  （no-store）；主钥缺/物料缺/解密败=503 fail-closed 不吐部分物料。
+  main.go 挂线一行调用（297 行，行数棘轮内）。
+- compose：o-core ports 增 `127.0.0.1:8095:8095`（host loopback pin 同
+  50051 形；sg overlay 无 ports 覆写=合并即生效）。
+- dev 端 `cmd/research/readcred.go` 新件：authClient 持守件——boot 拉
+  READCRED_URL（仅内存零磁盘）→`NewClientReadOnly`（D-0013 只读镜像
+  结构闸）；feed 认证拒（HTTP 401/信封 50103 双判——401 形状实拍
+  journalctl 实证）→重取一次→换件重试；再败=原错上抛 fail-closed
+  （与无凭据现态同形让位）；并发拍单飞双检；boot 败=WARN 降级不炸
+  boot（后续 401 自重取自愈——轮换零值守）。
+- 装配面：researchArms/dcdFeedFor/gapProbeFor/get429/okxCoinsFor 参数
+  `*okxexec.Client`→`authGetter` 窄面（域内零改——闭包对凭据件透明）；
+  main.go READCRED_URL 缺省=无凭据件原行为（桩锚②不回归）。
+- deploy：`o-readcred-tunnel.service` 新件（5545→SG 8095，
+  o-collecto-tunnel 同形同钥）+`o-research.service` After/Wants 随挂+
+  env 模板 READCRED_URL 行；env-allowlist `READCRED_URL` 入册（引导件
+  类——只载地址非凭据本，SG_PG_DSN 族同型先例）。
+- 数据流.md 同 commit 更新（反向流 readcred 行+凭据面 SG/dev 两行）。
+
+### 测试证据
+
+- cmd/research 6 测绿：fetchReadcred 形面（200 映射/缺件/非200/坏形拒）+
+  isAuthErr 判据（401 串/50103 真；他码他错 nil 假）+authClient 治愈/
+  重取败保原错/非认证错零重取。
+- cmd/core 4 测绿（testutil 独立 schema）：真钥三件 200 直出+删钥 503+
+  主钥缺 503+非 GET 405。
+- 机检：build✓（core+research+全树）vet✓（全树）gofmt✓ staticcheck
+  新增零告警 check-env-reads✓（白名单 30 键）check_import_direction✓
+  check-lines✓（main.go 297<300）。
+- 测闸：涉面两包带 DSN 独跑绿（`go test ./cmd/core/ ./cmd/research/
+  -count=1` exit 0——core 553.9s/research 0.004s，重构后终版）；earn/guard
+  独跑绿。**存量红三件（非本票，净 master 树 4517cee 对拍同值红）**：
+  sigdist TestBasisAnn（年化 bps 301.89 vs want 300.41——时敏断言漂）+
+  lifecycle TestOpenLifetimeRejectsFlip/TestOpenBreakevenRejectsThin
+  （rejected 评估卡未落——test-dsn 条目 T-0124 旧案同形夹具漂复发）；
+  交决策席另案。全树 `./...` 印记归 CI（跨席并发同库全测争用坑与
+  两段判红法→经验库 test-shared-db-cross-session-serialization 在案）。
+
+### 部署序（决策席——live 验收锚前置）
+
+1. SG tunnel@ authorized_keys permitopen 增 `127.0.0.1:8095`（现仅
+   15433——实拍 2026-10-27；缺行则隧道单元 ExitOnForwardFailure 周期重启）。
+2. SG 侧轮换（collab §11 四步；compose 增口随 --force-recreate 生效）+
+   readcred 实拍：`curl -s 127.0.0.1:8095/v1/readcred/okx` →200 三件。
+3. dev 侧：o-readcred-tunnel+o-research 单元更新（deploy/ 件）+
+   `/home/mluser/o-research.env` 增 READCRED_URL 行；restart o-research。
+4. 实拍验收锚：o-research 日志零 401/50103；`md_dcd_product` ts 刷新；
+   `fin_surface_gap` 新行；六臂 beat 在册。
+   ——注：钥物料已到位实拍（app_secrets okx_read 三件在库 2026-10-27），
+   live 锚须决策席部署后实证，本席交付止于分支+部署序。
+
+### 偏离说明
+
+- 票面「o-core（127.0.0.1:8095 解密出）」：容器内 server 绑 :8095
+  （容器内 loopback docker-proxy 不可达）——loopback pin 由 compose
+  host 侧 `127.0.0.1:8095:8095` 承担（与 50051 同形）；SG host loopback
+  独占语义不变。
+- coins（account/balance）随 dcd 臂同持守件——非票面明列但同属私有
+  读面（T-0095 归口判据源），不换则凭据到位仍 401 fail-closed；零新
+  端点，纯面换 authGetter。

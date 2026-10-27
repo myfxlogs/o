@@ -278,6 +278,10 @@ func run() error {
 	// T-0110：TRX 自营盘读面同 server 注册（trxW 同源单例）。
 	mountCore(mux, svc)
 
+	// T-0170 readcred 专口：只读钥解密端点（:8095 loopback——dev 隧道 5545
+	// boot 取；凭据面与 50051 UI/API 面隔离；缺件 503 fail-closed）。
+	startReadcred(ctx, errc, pool)
+
 	srv := &http.Server{Addr: listenAddr, Handler: mux, ReadHeaderTimeout: 10 * time.Second}
 	go func() {
 		<-ctx.Done()

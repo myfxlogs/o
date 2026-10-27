@@ -23,6 +23,7 @@ services:
         max-file: "3"
     ports:
       - "127.0.0.1:50051:50051"
+      - "127.0.0.1:8095:8095" # T-0170 readcred 只读钥解密面（host loopback pin——dev 隧道 5545 取）
     depends_on:
       o-postgres:
         condition: service_healthy

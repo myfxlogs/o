@@ -1,0 +1,15 @@
+# o-readcred-tunnel.service —— readcred 隧道 dev:5545 -> SG 127.0.0.1:8095
+# （T-0170 径 A：o-research boot 取只读钥——仅内存零磁盘副本；与 o-collecto-tunnel
+# 同形同钥）。部署序：SG 侧 tunnel@ authorized_keys permitopen 先增
+# "127.0.0.1:8095"（现仅 15433——缺行则本单元 ExitOnForwardFailure 周期重启）。
+[Unit]
+Description=readcred tunnel dev:5545 -> SG 127.0.0.1:8095（T-0170 只读钥取面）
+After=network-online.target
+
+[Service]
+ExecStart=/usr/bin/ssh -N -L 127.0.0.1:5545:127.0.0.1:8095 tunnel@192.229.85.35 -o IdentitiesOnly=yes -i %h/.ssh/o_tunnel_pg_ed25519 -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o ExitOnForwardFailure=yes -o BatchMode=yes
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target

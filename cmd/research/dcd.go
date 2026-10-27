@@ -1,5 +1,7 @@
 // dcd.go —— dcd 臂+差扫岗装配（T-0102——research 域零 venue 依赖红线：
-// feed/probe 闭包在此以 okcli 落地，解析/分类逻辑在域内纯函数）。
+// feed/probe 闭包在此以 okcli 落地，解析/分类逻辑在域内纯函数。
+// T-0170 认证读面：闭包参数换 authGetter 窄面——无凭据件与 readcred 持守件
+// （401 自重取）同形透明）。
 package main
 
 import (
@@ -31,7 +33,7 @@ import (
 // 全对在架；信封数字 code 由 okxexec flexCode 兼容——坑条 okx-dcd-endpoint-dialect）。
 // get429 限频退避重读件（T-0117 根修：boot 两臂同打 DCD 产品端点撞 429
 // fail-closed 让位成静默死亡——429/5xx ≤3 次指数退避重试再让位；4xx 不重试）。
-func get429(ctx context.Context, okcli *okxexec.Client, path string) ([]byte, error) {
+func get429(ctx context.Context, okcli authGetter, path string) ([]byte, error) {
 	var raw []byte
 	var err error
 	for try := 0; try < 4; try++ {
@@ -55,7 +57,7 @@ func get429(ctx context.Context, okcli *okxexec.Client, path string) ([]byte, er
 	return nil, err
 }
 
-func dcdFeedFor(okcli *okxexec.Client) dcd.Feed {
+func dcdFeedFor(okcli authGetter) dcd.Feed {
 	return func(ctx context.Context, s dcd.Surface) ([]dcd.Product, error) {
 		if okcli == nil {
 			return nil, fmt.Errorf("dcd feed 缺席（凭据缺）")
@@ -94,7 +96,7 @@ var httpStatusRe = regexp.MustCompile(`^http (\d{3}):`)
 // gapProbeFor 差扫面探针（签名 GET+响应形通用提取：JSON 数组长=products 计数、
 // avgRate/annualizedYield 正值=收益带位；错误分型=面缺席〔404/405〕/业务拒
 // 〔APIError〕/瞬态〔其余上抛——fail-closed 不裁死〕）。
-func gapProbeFor(okcli *okxexec.Client) gapscan.Probe {
+func gapProbeFor(okcli authGetter) gapscan.Probe {
 	return func(ctx context.Context, f gapscan.ProbeFace) (gapscan.ProbeResult, error) {
 		if okcli == nil {
 			return gapscan.ProbeResult{}, fmt.Errorf("probe 缺席（凭据缺）")
@@ -136,7 +138,7 @@ func gapProbeFor(okcli *okxexec.Client) gapscan.Probe {
 // researchArms 研究域四臂发射（T-0117：funding/dcd/差扫/假想官静默告警同挂
 // 业主通道——读件缺席=让位 WARN 不炸 boot）。
 func researchArms(ctx context.Context, errc chan<- error, pool *pgxpool.Pool,
-	cfg *config.Client, okcli *okxexec.Client, alerter *notify.Alerter) {
+	cfg *config.Client, okcli authGetter, alerter *notify.Alerter) {
 	fr := funding.NewRunner(pool, cfg)
 	fr.AttachAlerter(alerter)
 	// T-0150 起草闸读件：SPOT 目录复用 market/tickers 全量面（零新端点）。
