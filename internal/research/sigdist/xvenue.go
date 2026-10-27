@@ -87,8 +87,10 @@ func (r *Runner) Xvenue(ctx context.Context) error {
 		// carry_diff：funding 年化（8h 期×3×365）− MT5 空腿 swap 年化（bps）。
 		var funding, swapAnn float64
 		var fundingTs, swapTs time.Time
+		// T-0199 二巡：当值期判据（阶梯序列鲜=值仍当值——next_funding_ts>now() 钦定）
 		fErr := r.pool.QueryRow(ctx, `SELECT val, ts FROM md_signal
-			WHERE kind='funding_view' AND key=$1 AND ts > now()-interval '120 seconds'`,
+			WHERE kind='funding_view' AND key=$1
+				AND (meta->>'next_funding_ts')::timestamptz > now()`,
 			okxInst).Scan(&funding, &fundingTs)
 		sErr := r.pool.QueryRow(ctx, `SELECT val, ts FROM md_signal
 			WHERE kind='mt5_swap' AND key=$1 AND val IS NOT NULL AND ts > now()-interval '8 hours'`,
