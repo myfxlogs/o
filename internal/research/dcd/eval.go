@@ -92,6 +92,13 @@ func Evaluate(p Product, spot, avail float64, params Params) Eval {
 		e.Verdict, e.Reason = "unevaluable", "coins_absent"
 		return e
 	}
+	// T-0208①：可支付币种闸——锁仓币种非户持仓集（C 锁基币户内≈0
+	// =申购币种与持仓币种错配实证）→unevaluable ccy_unfundable 钉
+	//（avail=0 与 insufficient_balance 分流：零币种=不可支付定性非余量不足）。
+	if avail == 0 && p.Direction == "C" {
+		e.Verdict, e.Reason = "unevaluable", "ccy_unfundable"
+		return e
+	}
 	if avail*params.NotionalPct/100 < p.MinSize {
 		e.Verdict, e.Reason = "rejected", "insufficient_balance"
 		return e
