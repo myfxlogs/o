@@ -20,4 +20,10 @@ COMMENT ON TABLE fin_host_metrics IS
   '主机资源状态表（每机一行 upsert——面板服务器状态瓦片供数；采集断=行陈非删）';
 
 -- 写方角色授权（collector_rw=dev 采集自报径；SG core 写方=表主 o 免授）。
-GRANT SELECT, INSERT, UPDATE ON fin_host_metrics TO collector_rw;
+-- 角色存在才授——测试库/fresh DB 无该角色时零失败（生产 SG 角色在案）。
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'collector_rw') THEN
+    GRANT SELECT, INSERT, UPDATE ON fin_host_metrics TO collector_rw;
+  END IF;
+END $$;

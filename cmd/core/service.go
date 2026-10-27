@@ -166,7 +166,7 @@ func (c coreService) Watch(ctx context.Context, _ *dashboardv1.WatchRequest,
 		return err
 	}
 	defer conn.Release()
-	for _, ch := range []string{"ev_position", "ev_cashflow", "ev_account", "ev_strategy"} {
+	for _, ch := range []string{"ev_position", "ev_cashflow", "ev_account", "ev_strategy", "ev_hostmetrics"} {
 		if _, err := conn.Exec(ctx, "LISTEN "+ch); err != nil {
 			return err
 		}

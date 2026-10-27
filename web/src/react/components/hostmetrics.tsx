@@ -82,7 +82,7 @@ function HostTile(props: {
 }
 
 export function HostMetricsCard() {
-  const h = useSnap(["ev_account"], () => client.getHostMetrics({}));
+  const h = useSnap(["ev_hostmetrics"], () => client.getHostMetrics({}));
   return (
     <Card title="主机资源">
       {h.loading && !h.data ? (
