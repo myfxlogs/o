@@ -33,3 +33,11 @@
   戳——全族与 basis_ann/xvenue_spread 同构（孤例自盖章病灶根治）。
 - 桩锚 TestFundingViewTsLineage 绿——recv_ts 陈 4h 行→signal ts 随陈
   （非写拍 now 实证）。
+
+## 决策席验收（2026-10-27 夜）——投产销号
+
+- 改法照钦定：ts=源行 recv_ts（观测戳），recv 零值 ts 兜底；DISTINCT ON
+  最新参与行观测龄。
+- 库面实证：funding_view 行 ts 现为 recv_ts 口径（行龄 17s=观测龄真实值，
+  原 now() 恒 0 假鲜根治）。
+- TestFundingViewTsLineage 绿（recv_ts 陈 4h→行 ts 随陈）。

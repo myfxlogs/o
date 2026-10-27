@@ -32,3 +32,19 @@
 - guard 唤拍径活（日志或行为证据）
 - 迁移号机检闸过 + 全谱触发器对拍断言入册
 - `docs/数据流.md` 若涉链路面同 commit 更新
+
+## 决策席验收追注（2026-10-27 夜）
+
+**触发器面=已投产**(决策席先行直落解哨聋——幂等 DDL，迁移后随件注册）:
+dev+SG 双侧 `pg_trigger` 实证在位，仓巡价格唤拍径复通。
+
+**普查段=返修**——两处：
+1. **死代码**：普查块追加在 `check_schema_live.sh` 的 `exit $fail` 之后——
+   永不执行（shell 到 exit 即终）。须上移到 exit 前。
+2. **单域半盲**：域名启发式把每个触发器钉单侧——`ev_ticks_trg`/`ev_funding_trg`/
+   `ev_eval_trg`/`ev_fwdchk_trg`/`ev_gap_trg`/`fin_proposal_dedupe_trg` 实为
+   **双域件**（md+fin 两侧都该在），现只验单侧——dev 侧再灭失不可见。
+   修法建议：双域清单件维护（或在案侧表名映射——触发器定义里的 ON <table>
+   出所属表→domain.tsv 域查表定侧，双域表双侧验）。
+
+验收判据③改：普查段须真实执行且双域件双侧验。
