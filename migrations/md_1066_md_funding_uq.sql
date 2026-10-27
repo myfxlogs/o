@@ -4,6 +4,11 @@
 -- 保留 recv_ts 最新行（D-0018 同键最新赢语义）；键后 projector/共写方
 -- ON CONFLICT 幂等可写（同 ts 同拍=同值 DO NOTHING），回滚径「DDL 相同」
 -- 前提由 check_migrations 桥表归一化断言（含索引集）机检钉死。幂等可重放。
+-- 迁移原子性（T-0169 轮换实证）：结算拍写流活跃期 DELETE 与 CREATE INDEX 两
+-- 语句间 READ COMMITTED 新快照可见并发重复行=建索引 23505（首转实挫回滚）。
+-- SHARE ROW EXCLUSIVE 阻并发写（读不阻），去重+建键同锁内原子完成；写方批次
+-- 阻塞秒级让位（新码 ON CONFLICT 后键在无感）。
+LOCK TABLE md_funding IN SHARE ROW EXCLUSIVE MODE;
 DELETE FROM md_funding a
   USING md_funding b
   WHERE a.venue=b.venue AND a.inst_id=b.inst_id AND a.ts=b.ts

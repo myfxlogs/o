@@ -56,7 +56,11 @@ func (c *Collector) insertBatch(ctx context.Context, rows []rowItem) error {
 			n++
 		case it.funding != nil:
 			r := it.funding
-			b.Queue(`INSERT INTO md_funding(ts,inst_id,funding_rate,next_funding_ts,next_funding_rate) VALUES($1,$2,$3,$4,$5)`,
+			// T-0169：md_funding UNIQUE(venue,inst_id,ts)（fin_0066 双链同加）——
+			// funding-rate 帧 ts=结算拍（结算前恒值），逐拍裸 INSERT 必撞键；
+			// 同键同拍即同值 DO NOTHING（D-0030 §六 per-table 键表）。
+			b.Queue(`INSERT INTO md_funding(ts,inst_id,funding_rate,next_funding_ts,next_funding_rate) VALUES($1,$2,$3,$4,$5)
+				ON CONFLICT (venue,inst_id,ts) DO NOTHING`,
 				r.ts, r.instID, r.fundingRate, r.nextFundingTs, r.nextFundingRate)
 			n++
 		case it.mark != nil:
