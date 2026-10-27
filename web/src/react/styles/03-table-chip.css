@@ -356,3 +356,15 @@ table.rows td.alert-msg .alert-goto-link {
   word-break: break-word;
   text-align: left;
 }
+
+/* —— T-0173 视觉打磨（业主八条①③）：表格内容全左对齐+行距放宽（8pt 栅格拍）—— */
+table.matrix th,
+table.matrix td,
+table.rows th,
+table.rows td {
+  text-align: left;
+}
+table.rows td,
+table.rows th {
+  padding: 10px 12px;
+}

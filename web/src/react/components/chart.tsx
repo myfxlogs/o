@@ -65,6 +65,11 @@ export function LineChart(props: {
   }, [props.xs, props.ys, props.height, props.labels]);
 
   if (props.xs.length === 0)
-    return <div className="empty-row">曲线无采点——日拍起步后成形</div>;
+    return (
+      <div className="empty-state">
+        <div className="es-title">曲线还没成形</div>
+        <div className="es-hint">净值日拍今天开始积累——每天一个点，周后见形</div>
+      </div>
+    );
   return <div ref={box} className="chart-box" />;
 }

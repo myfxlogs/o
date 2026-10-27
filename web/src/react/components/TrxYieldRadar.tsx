@@ -4,6 +4,7 @@
 // 流帧重取——arb 原型 30s interval 已退役同径。
 import { useCallback, useEffect, useState } from "react";
 import { client } from "../api";
+import { Skeleton } from "./ui";
 import { onData } from "../stream";
 import type { GetTrxYieldRadarResponse, GetTrxYieldCurveResponse, HedgeCarry } from "../../gen/dashboardv1/core_pb";
 import { fmtUsd, fmtNum, ts } from "./fmt";
@@ -56,7 +57,7 @@ export function TrxYieldRadar() {
       {err && !ready ? (
         <div className="empty" style={{ padding: "12px 0" }}>{err}</div>
       ) : !ready ? (
-        <div className="empty" style={{ padding: "12px 0" }}>加载中…</div>
+        <Skeleton rows={4} />
       ) : (
         <>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px 16px", padding: "8px 0" }}>

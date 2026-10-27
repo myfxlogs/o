@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { client } from "../api";
 import { useSnap } from "../hooks";
-import { Card, EmptyRow, ErrorState, Skeleton } from "../components/ui";
+import { Card, EmptyState, ErrorState, Skeleton } from "../components/ui";
 import { LineChart } from "../components/chart";
 import { fmtUsd, pbDate } from "../components/fmt";
 
@@ -57,7 +57,7 @@ function ReportsCard() {
       ) : r.err && !r.data ? (
         <ErrorState msg={r.err} onRetry={r.reload} />
       ) : (r.data?.reports ?? []).length === 0 ? (
-        <EmptyRow text="该粒度尚无报告——期界到自动出行" />
+        <EmptyState title="首份报告在路上" hint="下一个 UTC 日界自动出行，出行即推飞书" />
       ) : (
         <div className="feed">
           {(r.data?.reports ?? []).map((rep) => (
@@ -143,7 +143,7 @@ function FlowsCard() {
       ) : f.err && !f.data ? (
         <ErrorState msg={f.err} onRetry={f.reload} />
       ) : (f.data?.rows ?? []).length === 0 ? (
-        <EmptyRow text="该筛无现金流行" />
+        <EmptyState title="该筛无现金流" hint="换个类目，或等下一笔落地" />
       ) : (
         <>
           <table className="rows">
@@ -190,8 +190,10 @@ export function ReviewPage() {
   return (
     <div className="page">
       <EquityCard />
-      <ReportsCard />
-      <FlowsCard />
+      <div className="masonry">
+        <ReportsCard />
+        <FlowsCard />
+      </div>
     </div>
   );
 }
