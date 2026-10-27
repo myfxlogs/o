@@ -68,7 +68,14 @@ func (r *Runner) openLive(ctx context.Context) {
 		cs = append(cs, c)
 	}
 	rows.Close()
-	for _, c := range cs {
+	for i, c := range cs {
+		if i > 0 { // T-0208②：venue 限速节流——quote+trade 双调用扇出 1s/策略拍（429 洪泛根修；sched-exempt-ok 执行节流非轮询）
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(1 * time.Second): // sched-exempt-ok：venue 限速节流等待（非轮询——429 洪泛根修）
+			}
+		}
 		// T-0144 armed→open 显式禁：xvenue_carry 执行原子性语义未建（两腿序+
 		// 败一腿处置缺——T-0145 另票），抢跑=裸腿风险。永拒非瞬态（钉死）。
 		if c.spec.Template == "xvenue-carry" {
