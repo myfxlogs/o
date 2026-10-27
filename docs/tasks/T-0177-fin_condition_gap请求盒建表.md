@@ -15,7 +15,7 @@
 
 ## 施工面
 
-1. 迁移件 `fin_0071`（fin 域——裁决/请托属钱径面非行情）：
+1. 迁移件 `fin_0072`（0071 已被 T-0173 host_metrics 占）（fin 域——裁决/请托属钱径面非行情）：
    `fin_condition_gap(id bigserial PK, kind text NOT NULL CHECK
    (kind IN ('capital','credential','permission','constraint','holding',
    'executor')), venue text, surface text, payload jsonb NOT NULL

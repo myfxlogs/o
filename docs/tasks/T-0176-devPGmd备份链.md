@@ -1,6 +1,6 @@
 # T-0176 备份链最优构——SG 单信任锚收双机 dump 推 R2
 
-## 态：可领
+## 态：✅ 验收毕投产（merge 5299d39——R2 dev/o-md-*.age+sg/o-*.age 真件在桶、dev cron 03:30 在册、SG收罗/滚动/告警三件套实证）
 
 | 立项 | `[角色:决策]` @ 2026-10-27（债务盘点 A 级；同日 R2 凭据挖回——
 /opt/nox-backups/backup-r2.env 在役，arb-backup bucket 实证可写，
