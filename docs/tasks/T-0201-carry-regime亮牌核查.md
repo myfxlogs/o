@@ -43,3 +43,20 @@
 - venue spec 原值实拍入票
 - 方向/年化/单位三审结论在案
 - carry_diff 7d 分布钉值在案
+
+## 结果回填（施工席取证 2026-10-27）
+
+- MT5 swap 信号链实活：mt5_swap BTCUSDm/ETHUSDm val=0、swap_type=1、
+  ts=10-27 13:33 鲜——链取径正常（非死数据）。
+- **venue spec 原值未对拍**：本席会话内 MT5 venue spec 读径
+  （swap_long/swap_short 原值）未取——凭据面在 SG（readcred 闸内），
+  「免息实证」未能钉；swap=0 是「信号链报 0」而非「venue 证实 0」
+  ——此为本票最大未决锚，判伪风险即在此层。
+- 方向/年化/单位三审：carry_diff=1095bps=funding_ann(0.0001×3×365)
+  −swap_ann(0)——funding 单边主导；若 venue spec 免息实证则亮牌真
+  （OKX short perp 收 10.95% 年化），若非则「取错字段/换面错」立案。
+- 行史分布：今日仅 2 行（当值期判据下稀疏再写=预期——T-0199 语义）；
+  「持续亮牌」窗拍数实证不足（2 行难钉持续阈）。
+- 定性：**亮牌存疑待 venue spec 钉**——方向/换算/单位自洽无伪；
+  唯一未钉=MT5 侧免息真实性。建议决策席派「MT5 spec swap_long/
+  swap_short 原值实拍」小票（readcred 取凭→venue 读面）定夺 T-0145。
