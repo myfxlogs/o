@@ -127,7 +127,8 @@ func universe(ctx context.Context, cli *okxexec.Client) ([]string, error) {
 	}
 	if err := json.Unmarshal(raw, &fut); err == nil {
 		for _, i := range fut {
-			if i.State == "live" && i.Alias == "quarter" && strings.HasSuffix(i.InstID, "-USDT") {
+			// T-0189：期货 instId=BTC-USDT-251226 日期尾形——尾缀非 -USDT（含中缀判）
+			if i.State == "live" && i.Alias == "quarter" && strings.Contains(i.InstID, "-USDT-") {
 				out = append(out, i.InstID)
 			}
 		}

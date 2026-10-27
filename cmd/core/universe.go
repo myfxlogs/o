@@ -56,7 +56,7 @@ func universeExpander(getCli func() *okxexec.Client, pool *pgxpool.Pool) func(ct
 		if err := json.Unmarshal(raw, &fut); err == nil {
 			for _, i := range fut {
 				if i.State == "live" && i.Alias == "quarter" &&
-					strings.HasSuffix(i.InstID, "-USDT") {
+					strings.Contains(i.InstID, "-USDT-") {
 					out = append(out, i.InstID)
 				}
 			}

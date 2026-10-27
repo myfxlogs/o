@@ -53,3 +53,9 @@ USDT 保证金键域（形如 X-USDT-YYMMDD）。
 - [x] 立单
 - [ ] 施工
 - [ ] 验收投产
+
+## 结果回填
+
+- universe 过滤器 HasSuffix("-USDT")→Contains("-USDT-") 两处同修
+  （cmd/collector/main.go:130+cmd/core/universe.go:59——期货 instId
+  日期尾形笔误级 bug 根修；datedFutRe mark-price 订阅分支零动）。
