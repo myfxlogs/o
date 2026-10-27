@@ -1,5 +1,6 @@
-// readcred_test.go —— T-0170 dev 端：fetchReadcred 形面/isAuthErr 判据/
-// authClient 401 自重取（治愈/重取败原错上抛/非认证错不触发重取）。
+// readcred_test.go —— T-0170/T-0174 dev 端：fetchReadcred venue-map 形面/
+// venueCreds 按臂提件（桩锚：map 多所对号分发）/isAuthErr 判据/authClient
+// 401 自重取（治愈/重取败原错上抛/非认证错不触发重取）。
 package main
 
 import (
@@ -14,29 +15,38 @@ import (
 	"o/internal/trading/okxexec"
 )
 
-// 锚①：fetchReadcred 200 JSON→三件套映射。
+// 锚①：fetchReadcred 200 venue-map→原样解出；venueCreds 按臂提件（多所
+// 对号——伪所入 map 不串件）。
 func TestFetchReadcredOK(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte(`{"api_key":"k","api_secret":"s","passphrase":"p"}`))
+		_, _ = w.Write([]byte(`{"okx":{"api_key":"k","api_secret":"s","passphrase":"p"},"future":{"api_key":"x"}}`))
 	}))
 	defer srv.Close()
-	c, err := fetchReadcred(context.Background(), srv.Client(), srv.URL)
+	m, err := fetchReadcred(context.Background(), srv.Client(), srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := venueCreds(m, "okx")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if c.Key != "k" || c.Secret != "s" || c.Passphrase != "p" {
 		t.Fatalf("creds=%+v", c)
 	}
+	if _, err := venueCreds(m, "fake"); err == nil {
+		t.Fatal("伪所凭据形未支持应错（臂形面白名单外 fail-closed）")
+	}
 }
 
-// 锚②：缺件/非 200/坏形→错（fail-closed 不造空凭据）。
+// 锚②：缺所/缺件/非 200/坏形→错（fail-closed 不造空凭据）。
 func TestFetchReadcredFail(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		body string
 		code int
 	}{
-		{"缺件", `{"api_key":"k","api_secret":""}`, 200},
+		{"缺所", `{"other":{"api_key":"k"}}`, 200},
+		{"缺件", `{"okx":{"api_key":"k","api_secret":""}}`, 200},
 		{"503", "fail-closed", 503},
 		{"坏形", `not-json`, 200},
 	} {
@@ -44,8 +54,11 @@ func TestFetchReadcredFail(t *testing.T) {
 			w.WriteHeader(tc.code)
 			_, _ = w.Write([]byte(tc.body))
 		}))
-		if _, err := fetchReadcred(context.Background(), srv.Client(), srv.URL); err == nil {
-			t.Fatalf("%s: 应错", tc.name)
+		m, err := fetchReadcred(context.Background(), srv.Client(), srv.URL)
+		if err == nil {
+			if _, err = venueCreds(m, "okx"); err == nil {
+				t.Fatalf("%s: 应错", tc.name)
+			}
 		}
 		srv.Close()
 	}
@@ -77,7 +90,7 @@ func (f fakeGetter) Get(ctx context.Context, path string) (json.RawMessage, erro
 }
 
 func newTestAuthClient(srv *httptest.Server) *authClient {
-	a := &authClient{url: srv.URL, httpc: srv.Client(), cli: fakeGetter{}}
+	a := &authClient{url: srv.URL, venue: "okx", httpc: srv.Client(), cli: fakeGetter{}}
 	a.makeCli = func(c okxexec.Credentials) authGetter {
 		if c.Key == "rotated" {
 			return fakeGetter{ok: true}
@@ -87,12 +100,13 @@ func newTestAuthClient(srv *httptest.Server) *authClient {
 	return a
 }
 
-// 锚④：401→重取一次→换件重试治愈（轮换自愈）。
+// 锚④：401→重取一次→按本臂 venue 提件换件重试治愈（轮换自愈——map 回包
+// 多所并存只取 okx 件）。
 func TestAuthClientRefetchHeals(t *testing.T) {
 	var fetches atomic.Int64
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fetches.Add(1)
-		_, _ = w.Write([]byte(`{"api_key":"rotated","api_secret":"s","passphrase":"p"}`))
+		_, _ = w.Write([]byte(`{"okx":{"api_key":"rotated","api_secret":"s","passphrase":"p"},"future":{"api_key":"z"}}`))
 	}))
 	defer srv.Close()
 	a := newTestAuthClient(srv)

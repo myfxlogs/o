@@ -62,12 +62,12 @@ func main() {
 		log.Fatalf("config load: %v", err)
 	}
 	// T-0170 认证读面（径 A 终裁）：READCRED_URL 设→boot 经隧道（5545）取
-	// 只读钥仅进内存+401 自重取轮换自愈；缺→无凭据读面（dcd/gapscan 私有
-	// 读面 401 fail-closed 让位——桩锚不回归）。
+	// venue-map 仅进内存+401 自重取轮换自愈；缺→无凭据读面（dcd/gapscan 私有
+	// 读面 401 fail-closed 让位——桩锚不回归）。T-0174：okx 臂按 venue 提件。
 	var okcli authGetter = okxexec.NewClient(okxexec.Credentials{}, false)
 	rcMode := "无凭据公开读"
 	if url := os.Getenv("READCRED_URL"); url != "" {
-		okcli = newAuthClient(url)
+		okcli = newAuthClient(url, "okx")
 		rcMode = "readcred 认证读（只读钥内存取）"
 	}
 	alerter := notify.NewAlerter(nil, func() string {
