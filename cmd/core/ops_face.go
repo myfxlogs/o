@@ -49,8 +49,10 @@ func healthComps() []compBeat {
 			query:     `SELECT max(ts) FROM md_signal WHERE kind='basis_ann'`,
 			zeroState: 1, zeroNote: "零行——已知缺席（T-0164 立案另查，非采集死）"},
 		{name: "蒸馏 funding_view", host: "dev", exch: "蒸馏", cat: "collect", fact: "md_signal kind=funding_view", warn: 10 * time.Minute, dead: 30 * time.Minute,
-			fix:   "查 dev collector sigdist 日志；上游 funding 断则随愈",
-			query: `SELECT max(ts) FROM md_signal WHERE kind='funding_view'`},
+			fix: "查 dev collector sigdist 日志；上游 funding 断则随愈",
+			query: `SELECT CASE WHEN count(*) FILTER (WHERE (meta->>'next_funding_ts')::timestamptz > now()) > 0
+				THEN now() ELSE now()-interval '1 hour' END
+				FROM md_signal WHERE kind='funding_view'`}, // T-0199 二巡：稀疏源 ts 恒陈非病——改当值期存活判
 		{name: "蒸馏 xvenue_spread", host: "dev", exch: "蒸馏", cat: "collect", fact: "md_signal kind=xvenue_spread", warn: 10 * time.Minute, dead: 30 * time.Minute,
 			fix:   "查 dev collector sigdist+MT5 桥腿（单边陈=该对缺席如实）",
 			query: `SELECT max(ts) FROM md_signal WHERE kind='xvenue_spread'`},

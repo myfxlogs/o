@@ -21,7 +21,7 @@ func TestXvenue(t *testing.T) {
 		for _, q := range []string{
 			`INSERT INTO md_mark_index(ts,inst_id,channel,px) VALUES(now(),'ETH-USDT-SWAP','mark-price',3000)`,
 			`INSERT INTO md_ticks(ts,venue,inst_id,bid,ask) VALUES(now(),'mt5','ETHUSDm',2990,2992)`,
-			`INSERT INTO md_signal(kind,key,val,meta,ts) VALUES('funding_view','ETH-USDT-SWAP',-0.0001,'{}',now())`,
+			`INSERT INTO md_signal(kind,key,val,meta,ts) VALUES('funding_view','ETH-USDT-SWAP',-0.0001,'{"next_funding_ts":"2099-01-01T00:00:00Z"}',now())`,
 			`INSERT INTO md_signal(kind,key,val,meta,ts) VALUES('mt5_swap','ETHUSDm',-1000,'{"swap_type":5}',now())`,
 		} {
 			if _, err := r.pool.Exec(ctx, q); err != nil {
@@ -138,7 +138,7 @@ func TestXvenueLineage(t *testing.T) {
 	md(t, ctx, r, `INSERT INTO md_ticks(ts,venue,inst_id,bid,ask)
 		VALUES(now()-interval '30 seconds','mt5','ETHUSDm',2990,2992)`)
 	md(t, ctx, r, `INSERT INTO md_signal(kind,key,val,meta,ts) VALUES
-		('funding_view','ETH-USDT-SWAP',-0.0001,'{}',now()-interval '5 seconds'),
+		('funding_view','ETH-USDT-SWAP',-0.0001,'{"next_funding_ts":"2099-01-01T00:00:00Z"}',now()-interval '5 seconds'),
 		('mt5_swap','ETHUSDm',-1000,'{"swap_type":5}',now()-interval '2 hours')`)
 	if err := r.Xvenue(ctx); err != nil {
 		t.Fatal(err)

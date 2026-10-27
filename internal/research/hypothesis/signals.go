@@ -30,7 +30,8 @@ func (r *Runner) ScanSignals(ctx context.Context) error {
 		return nil
 	}
 	rows, err := r.pool.Query(ctx, `SELECT kind, key, val, meta FROM md_signal
-		WHERE kind IN ('funding_view','depth5') AND ts > now()-interval '120 seconds'`)
+		WHERE (kind='depth5' AND ts > now()-interval '120 seconds')
+			OR (kind='funding_view' AND (meta->>'next_funding_ts')::timestamptz > now())`) // T-0199 二巡：funding_view 当值期判据；depth5 帧龄闸守
 	if err != nil {
 		r.rej.Inc("sig_write_err")
 		return err
