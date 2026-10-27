@@ -14,7 +14,8 @@ import (
 //go:embed *.sql domain.tsv
 var FS embed.FS
 
-// DomainTSV 域册原文（表名→md|fin|bridge——check_migrations 断言⑦ 同源）。
+// DomainTSV 域册原文（表名→md|fin|bridge|bridge-reverse——check_migrations
+// 断言⑦ 同源）。
 func DomainTSV() string {
 	b, err := FS.ReadFile("domain.tsv")
 	if err != nil {
@@ -24,7 +25,13 @@ func DomainTSV() string {
 }
 
 // BridgeTables 域册 bridge 行（八桥表——投影臂消费面唯一合法清单源）。
-func BridgeTables() ([]string, error) {
+func BridgeTables() ([]string, error) { return tablesInDomain("bridge") }
+
+// ReverseBridgeTables 域册 bridge-reverse 行（T-0172 反向桥——SG 正本→PG-md
+// 只读副本；投影臂反向搬运面唯一合法清单源）。
+func ReverseBridgeTables() ([]string, error) { return tablesInDomain("bridge-reverse") }
+
+func tablesInDomain(domain string) ([]string, error) {
 	var out []string
 	sc := bufio.NewScanner(strings.NewReader(DomainTSV()))
 	for sc.Scan() {
@@ -36,7 +43,7 @@ func BridgeTables() ([]string, error) {
 		if len(parts) != 2 {
 			return nil, fmt.Errorf("domain.tsv 坏行 %q（应 表名\\t域）", line)
 		}
-		if parts[1] == "bridge" {
+		if parts[1] == domain {
 			out = append(out, parts[0])
 		}
 	}

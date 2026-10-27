@@ -40,4 +40,7 @@ MD_PG_DSN
 # ROSTER_PG_DSN=席位台账池（T-0169——fin_employee_registry 归 SG 册，dev 侧臂
 # 直 beat 隧道径；缺省=pool 自身，同库单机期语义不变）。
 ROSTER_PG_DSN
+# FIN_PG_DSN=review 钱径读写小池（T-0172——fin 域表正本在 SG，md 池无 fin 读面
+# =评史官全盲；隧道径与 ROSTER_PG_DSN 同形）。
+FIN_PG_DSN
 COLLECTO_MT5_HOST

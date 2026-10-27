@@ -19,15 +19,19 @@ import (
 
 var stagingFile = "docs/经济经验库/待归纳.md"
 
-// Runner 评史官岗。
+// Runner 评史官岗。pool=md 面（PG-md 正本——fin_forward_check/fin_template_
+// proposal/fin_opp_eval/md_funding）；fin=钱径面（SG 小池——FIN_PG_DSN 隧道径，
+// T-0172：fin 域表正本在 SG，md 池无 fin 读面=评史官全盲，分域后钱径读写臂
+// 归 SG 小池与 ROSTER_PG_DSN 同形，非分域违例）。
 type Runner struct {
 	pool          *pgxpool.Pool
+	fin           *pgxpool.Pool
 	rej           *rejects.Door
 	stagingLogged bool // 待归纳镜像写败一次性标记（容器 FS 易失——best-effort 不刷屏）
 }
 
-func NewRunner(pool *pgxpool.Pool) *Runner {
-	return &Runner{pool: pool, rej: rejects.New("review", "write_err")}
+func NewRunner(pool, fin *pgxpool.Pool) *Runner {
+	return &Runner{pool: pool, fin: fin, rej: rejects.New("review", "write_err")}
 }
 
 func (r *Runner) Run(ctx context.Context, errc chan<- error) {

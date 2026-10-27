@@ -56,6 +56,12 @@ func (r *Runner) Reconcile(ctx context.Context, full bool) error {
 	if err := r.syncConfig(ctx); err != nil {
 		return fmt.Errorf("config 副本同步: %w", err)
 	}
+	if err := r.reverseStrategies(ctx); err != nil {
+		return fmt.Errorf("反向桥 strategy diff: %w", err)
+	}
+	if err := r.reverseUntradeable(ctx); err != nil {
+		return fmt.Errorf("反向桥 untradeable diff: %w", err)
+	}
 	if err := r.replayTsTables(ctx, full); err != nil {
 		return err
 	}

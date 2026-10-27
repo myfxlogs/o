@@ -10,8 +10,9 @@ import (
 
 // reviewSettled settled 未复盘仓→判决书（预测 net_apr 自 eval 证据 vs 实际净额；
 // 同期排 8h/24h/72h 远期窗；falsified→经验库待归纳+模板修正提案行）。
+// 仓扫+判决写=钱径面（fin 池）；远期窗/模板提案排期=md 面（pool 池）。
 func (r *Runner) reviewSettled(ctx context.Context) error {
-	rows, err := r.pool.Query(ctx, `SELECT p.id, p.settled_amount, p.notional_usd,
+	rows, err := r.fin.Query(ctx, `SELECT p.id, p.settled_amount, p.notional_usd,
 		COALESCE((SELECT e.net_apr FROM fin_strategy s
 			JOIN fin_proposal pr ON pr.id=s.proposal_ref
 			JOIN fin_opp_eval e ON e.id=pr.eval_id
@@ -43,7 +44,7 @@ func (r *Runner) reviewSettled(ctx context.Context) error {
 		pred := x.predApr * x.notional / 365
 		var feeShare float64
 		var fee float64
-		_ = r.pool.QueryRow(ctx,
+		_ = r.fin.QueryRow(ctx,
 			"SELECT COALESCE(sum(-amount),0) FROM fin_cashflow WHERE position_ref=$1 AND kind='fee'", x.id).Scan(&fee)
 		if x.net != 0 {
 			feeShare = fee / abs(x.net)
@@ -52,7 +53,7 @@ func (r *Runner) reviewSettled(ctx context.Context) error {
 		attrib := Attribut(pred, x.net, feeShare)
 		detail := []byte(fmt.Sprintf(`{"pred_apr":%.6f,"pred_window":"1d","notional":%.4f,"fee":%.4f}`,
 			x.predApr, x.notional, fee))
-		if _, err := r.pool.Exec(ctx, `INSERT INTO fin_review(position_ref,verdict,pred_net,actual_net,deviation,attribution,detail)
+		if _, err := r.fin.Exec(ctx, `INSERT INTO fin_review(position_ref,verdict,pred_net,actual_net,deviation,attribution,detail)
 			VALUES($1,$2,$3,$4,$5,$6,$7)`,
 			x.id, verdict, pred, x.net, pred-x.net, attrib, detail); err != nil {
 			r.rej.Inc("write_err")
@@ -60,7 +61,7 @@ func (r *Runner) reviewSettled(ctx context.Context) error {
 		}
 		log.Printf("[review] 仓 #%d 判决书 verdict=%s pred=%.4f actual=%.4f 归因=%s",
 			x.id, verdict, pred, x.net, attrib)
-		// 远期窗排期（8/24/72h）
+		// 远期窗排期（8/24/72h——md 正本面）
 		for _, h := range []int{8, 24, 72} {
 			if _, err := r.pool.Exec(ctx, `INSERT INTO fin_forward_check(obj_kind,obj_ref,window_h,target_ts,anchor_val)
 				VALUES('position',$1,$2,now()+$3*interval '1 hour',$4)`,
@@ -69,7 +70,7 @@ func (r *Runner) reviewSettled(ctx context.Context) error {
 			}
 		}
 		if verdict == "falsified" {
-			if _, err := r.pool.Exec(ctx, `INSERT INTO fin_review_verdict
+			if _, err := r.fin.Exec(ctx, `INSERT INTO fin_review_verdict
 				(position_ref,verdict,pred_apr,actual_pnl,attribution)
 				VALUES($1,$2,$3,$4,$5) ON CONFLICT (position_ref) DO NOTHING`,
 				x.id, verdict, pred, x.net, attrib); err != nil {
@@ -126,7 +127,8 @@ func (r *Runner) judgeDue(ctx context.Context) error {
 		var actual float64
 		var err error
 		if c.kind == "position" {
-			err = r.pool.QueryRow(ctx, `SELECT COALESCE(sum(amount),0) FROM fin_cashflow
+			// 仓窗实收=钱径账（fin 池——fin_cashflow 正本在 SG）
+			err = r.fin.QueryRow(ctx, `SELECT COALESCE(sum(amount),0) FROM fin_cashflow
 				WHERE position_ref=$1 AND kind='funding_settle' AND occurred_at<=$2`, c.ref, c.target).Scan(&actual)
 		} else {
 			// 否决提案假设执行：inst_id 自 eval 行，notional 按锚值口径 100
@@ -183,24 +185,25 @@ func abs(f float64) float64 {
 
 // recycleFalsified falsified 判决回炉（T-0103 ②）：判决落库即联动策略状态位
 // ——armed 同键提案退役+策略回 degraded 待复盘（live→degraded 合法径），不再
-// 原地待命被同键 armed 续开（#1662 判据分裂振荡病灶）。
+// 原地待命被同键 armed 续开（#1662 判据分裂振荡病灶）。全钱径面（fin 池——
+// 策略态迁/transition 行=fin 域写权，SG 正本）。
 func (r *Runner) recycleFalsified(ctx context.Context, execID int64, attrib string) {
 	var sid int64
 	var inst, dir string
-	if err := r.pool.QueryRow(ctx, `SELECT s.id,s.inst_id,s.direction FROM fin_strategy s
+	if err := r.fin.QueryRow(ctx, `SELECT s.id,s.inst_id,s.direction FROM fin_strategy s
 		JOIN fin_execution f ON f.strategy_ref=s.id WHERE f.id=$1`,
 		execID).Scan(&sid, &inst, &dir); err != nil {
 		r.rej.Inc("write_err")
 		log.Printf("ALERT [review] falsified 回炉策略行查败（exec=%d）: %v", execID, err)
 		return
 	}
-	if tag, err := r.pool.Exec(ctx, `UPDATE fin_proposal SET state='fin_retired'
+	if tag, err := r.fin.Exec(ctx, `UPDATE fin_proposal SET state='fin_retired'
 		WHERE inst_id=$1 AND direction=$2 AND state='fin_armed'`, inst, dir); err == nil && tag.RowsAffected() > 0 {
 		log.Printf("[review] falsified 回炉——同键 armed 提案退役 %d 行（%s %s）", tag.RowsAffected(), inst, dir)
 	}
 	// live→degraded 合法径内联迁（review→lifecycle 跨包向禁——D-514）：
 	// state='live' 谓词=只迁 live 行，非 live 行零动不误迁。
-	tag, err := r.pool.Exec(ctx, `UPDATE fin_strategy SET state='degraded',entered_at=now()
+	tag, err := r.fin.Exec(ctx, `UPDATE fin_strategy SET state='degraded',entered_at=now()
 		WHERE id=$1 AND state='live'`, sid)
 	if err != nil {
 		r.rej.Inc("write_err")
@@ -210,7 +213,7 @@ func (r *Runner) recycleFalsified(ctx context.Context, execID int64, attrib stri
 	if tag.RowsAffected() == 0 {
 		return // 非 live 态（已退役/降级/未晋）——回炉径天然无事
 	}
-	if _, err := r.pool.Exec(ctx, `INSERT INTO fin_strategy_transition(strategy_id,from_state,to_state,reason)
+	if _, err := r.fin.Exec(ctx, `INSERT INTO fin_strategy_transition(strategy_id,from_state,to_state,reason)
 		VALUES($1,'live','degraded',$2)`, sid,
 		fmt.Sprintf("falsified 判决回炉（归因=%s）——降级待复盘非原地待命", attrib)); err != nil {
 		r.rej.Inc("write_err")

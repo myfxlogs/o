@@ -9,8 +9,9 @@
 #      列定义全项（名/类型/NOT NULL/DEFAULT）+CHECK/UNIQUE/FK 约束+索引集
 #      +hypertable/保留期，归一化（去注释/去 IF NOT EXISTS/折空白）后语句集相等
 #      （回滚径「SG 镜像表即正表（DDL 相同）」前提机检钉死）；
-#   ⑦ T-0167/D-0030 §六：域表白名单（migrations/domain.tsv 表名→md|fin|bridge）——
-#      链内 DDL/DML 触表出现非本域且非 bridge 即红（串链）；触表缺册=红。
+#   ⑦ T-0167/D-0030 §六：域表白名单（migrations/domain.tsv 表名→md|fin|bridge|
+#      bridge-reverse）——链内 DDL/DML 触表出现非本域且非桥（bridge/
+#      bridge-reverse）即红（串链）；触表缺册=红。
 # 判的是链内号重复非连续——链内单调由⑤另钉。全域一致性检查（工作树面），
 # 由 pre-commit 门禁链调用，可单独跑（与 check-lines 同构）。
 set -euo pipefail
@@ -169,20 +170,22 @@ while IFS=$'\t' read -r ch tbl kind stmt src; do
 	if [ -z "$d" ]; then
 		echo "FAIL $src: 触表 $tbl 缺 domain.tsv 册（新表先入册再落迁移）" >&2
 		fail=1
-	elif [ "$d" != "$ch" ] && [ "$d" != "bridge" ]; then
+	elif [ "$d" != "$ch" ] && [ "$d" != "bridge" ] && [ "$d" != "bridge-reverse" ]; then
 		echo "FAIL $src: $ch 链触表 $tbl 域=$d（非本域非 bridge——串链）" >&2
 		fail=1
 	fi
 done < "$EXTRACT"
 
-# ⑥ 八桥表 DDL 归一化同形：链间形状语句集（create/alter/index/hypertable/retention）相等
-BRIDGE="md_ticks md_mark_index md_signal md_dcd_product md_funding md_macro_event fin_proposal fin_opp_eval"
-for bt in $BRIDGE; do
-	if [ "${TD[$bt]:-}" != "bridge" ]; then
-		echo "FAIL $TSV: 桥表 $bt 未以 bridge 入册（八桥表清单对齐）" >&2
-		fail=1
-		continue
-	fi
+# ⑥ 八桥表+反向桥表 DDL 归一化同形：链间形状语句集（create/alter/index/
+# hypertable/retention）相等（T-0172：bridge-reverse 正本在 fin 链、md 链
+# 镜像——同形前提回滚径两向共用）。
+BRIDGE="md_ticks md_mark_index md_signal md_dcd_product md_funding md_macro_event fin_proposal fin_opp_eval fin_strategy fin_venue_untradeable"
+	for bt in $BRIDGE; do
+		if [ "${TD[$bt]:-}" != "bridge" ] && [ "${TD[$bt]:-}" != "bridge-reverse" ]; then
+			echo "FAIL $TSV: 桥表 $bt 未以 bridge|bridge-reverse 入册（同形断言清单对齐）" >&2
+			fail=1
+			continue
+		fi
 	for side in md fin; do
 		grep -P "^${side}\t${bt}\t(create|alter|index|hypertable|retention)\t" "$EXTRACT" \
 			| cut -f4 | sort -u > "$EXTRACT.$side" || true

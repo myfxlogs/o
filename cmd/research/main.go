@@ -37,6 +37,17 @@ func main() {
 		defer rpool.Close()
 		roster.SetRegistryPool(rpool)
 	}
+	// T-0172 分域：review 钱径读写面归 SG 小池（FIN_PG_DSN 隧道径——fin 域表
+	// 正本在 SG，md 池无 fin 读面=评史官全盲；与 ROSTER_PG_DSN 同形）。
+	finDSN := os.Getenv("FIN_PG_DSN")
+	if finDSN == "" {
+		log.Fatal("FIN_PG_DSN 缺——review 钱径读写面无目的地 fail-closed")
+	}
+	finPool, err := pgxpool.New(ctx, finDSN)
+	if err != nil {
+		log.Fatalf("fin 池连接败: %v", err)
+	}
+	defer finPool.Close()
 	cfg := config.New(pool)
 	if err := cfg.Load(ctx); err != nil {
 		log.Fatalf("config load: %v", err)
@@ -50,7 +61,7 @@ func main() {
 	}, func() bool { v, _ := cfg.GetBool("notify.feishu.enabled"); return v })
 	errc := make(chan error, 8)
 	go researchArms(ctx, errc, pool, cfg, okcli, alerter)
-	go review.NewRunner(pool).Run(ctx, errc) // 复盘域随迁
+	go review.NewRunner(pool, finPool).Run(ctx, errc) // 复盘域随迁（钱径臂 SG 小池——T-0172）
 	// T-0165 返修③：report 回 SG（钱径读写面 app_secrets/master key/
 	// fin_cashflow——票面第5条明令只迁纯研究面；review 留此节点）。
 	log.Printf("[o-research] 研究域节点起——researchArms+review+report 全族（公开读面零凭据）")

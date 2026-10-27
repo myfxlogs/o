@@ -1,5 +1,6 @@
-// ops.go —— 投影执行面（proposal/eval/macro/回写）：批量 upsert（SG 镜像）+
-// 反向回写。水印推进使 ev_* 重复唤醒零代价（空集即返）；ts 判桥表在 tsops.go。
+// ops.go —— 投影执行面（proposal/eval/macro/回写/帧分派）：批量 upsert（SG
+// 镜像）+反向回写+反向桥唤醒分派。水印推进使 ev_* 重复唤醒零代价（空集即返）；
+// ts 判桥表在 tsops.go。
 package projector
 
 import (
@@ -9,6 +10,49 @@ import (
 
 	"github.com/jackc/pgx/v5"
 )
+
+// mdWake PG-md 侧帧分派（ev_*→对应桥表谓词切片投影）。
+func (r *Runner) mdWake(ctx context.Context, ch string) error {
+	switch ch {
+	case "ev_ticks", "ev_markidx", "ev_funding", "ev_signal", "ev_dcd":
+		return r.projectTsTable(ctx, ch)
+	case "ev_eval":
+		return r.projectEvals(ctx)
+	case "ev_proposal":
+		return r.projectNewProposals(ctx)
+	case "": // boot 首拍（无 channel）——水印零值全量过一遍谓词面
+		for _, c := range []string{"ev_ticks", "ev_markidx", "ev_funding", "ev_signal", "ev_dcd"} {
+			if err := r.projectTsTable(ctx, c); err != nil {
+				return err
+			}
+		}
+		return r.projectEvals(ctx)
+	}
+	return nil
+}
+
+// sgWake SG 侧帧分派（活跃集刷+proposal 回写+反向桥 diff）。
+func (r *Runner) sgWake(ctx context.Context, ch string) error {
+	switch ch {
+	case "ev_active_set":
+		if err := r.refreshSets(ctx); err != nil {
+			return err
+		}
+		return r.projectMacro(ctx) // ~30 行全表 diff——廉价顺带（事件级表无独立写帧）
+	case "ev_proposal":
+		return r.repairProposalStates(ctx)
+	case "ev_strategy": // 反向桥帧（fin_0028 在册——策略行变即发，T-0172）
+		return r.reverseStrategies(ctx)
+	case "config_changed":
+		return r.syncConfig(ctx)
+	case "":
+		if err := r.refreshSets(ctx); err != nil {
+			return err
+		}
+		return r.syncConfig(ctx)
+	}
+	return nil
+}
 
 // projectEvals 评估桥投影（serve 谓词=仅被 fin_proposal 引用的行——D-0030 §三；
 // dualwrite=全量旁写）。

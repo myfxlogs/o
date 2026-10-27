@@ -1,6 +1,8 @@
 // Package projector —— 投影臂（T-0168/D-0030 §四：桥面唯一正式接口的搬运工）。
 // LISTEN PG-md 本地 ev_*（零轮询，D-0008 律）→活跃集谓词查最新行→写 SG 镜像表；
-// fin_proposal 唯一双向面（SG state 列组回写）。谓词自算 fin_position/
+// fin_proposal 唯一双向面（SG state 列组回写）；反向桥（T-0172/D-0030 §五延伸）
+// fin_strategy/fin_venue_untradeable SG 正本→PG-md 只读副本（ev_strategy 帧+
+// 全表 diff）。谓词自算 fin_position/
 // fin_strategy（不赖 fin_active_set 种子——0069 无回填，reconciler 同径兼治）；
 // 启动全表对账自愈+活性兜底重对账（events.go 期界豁免类——失联自检非工作扫描）。
 package projector
@@ -68,6 +70,21 @@ func New(md, sg *pgxpool.Pool, alert *notify.Alerter, mode string) (*Runner, err
 			return nil, fmt.Errorf("域册 bridge 缺投影面表 %s——册面先行", t)
 		}
 	}
+	// 反向桥搬运面须 ⊆ 册 bridge-reverse 行（T-0172——SG 正本→PG-md 只读副本，
+	// 同 fail-closed 对册）。
+	regRev, err := migrations.ReverseBridgeTables()
+	if err != nil {
+		return nil, err
+	}
+	regRevSet := map[string]bool{}
+	for _, t := range regRev {
+		regRevSet[t] = true
+	}
+	for _, t := range []string{"fin_strategy", "fin_venue_untradeable"} {
+		if !regRevSet[t] {
+			return nil, fmt.Errorf("域册 bridge-reverse 缺反向桥表 %s——册面先行", t)
+		}
+	}
 	return &Runner{md: md, sg: sg, alert: alert, dualwrite: mode == "dualwrite",
 		wm: map[string]time.Time{}, active: map[string]bool{}}, nil
 }
@@ -91,53 +108,14 @@ func (r *Runner) Run(ctx context.Context, errc chan<- error) {
 	log.Printf("[projector] 对账毕——活跃集 %d inst、dcd 活策略 %d 品", r.activeCount(), len(r.dcdSet()))
 
 	mdCh := []string{"ev_ticks", "ev_markidx", "ev_funding", "ev_signal", "ev_eval", "ev_proposal", "ev_dcd"}
-	sgCh := []string{"ev_active_set", "ev_proposal", "config_changed"}
+	sgCh := []string{"ev_active_set", "ev_proposal", "ev_strategy", "config_changed"}
 	go events.ListenLoopChan(ctx, r.md, "projector-md", mdCh, r.mdWake)
 	go events.ListenLoopChan(ctx, r.sg, "projector-sg", sgCh, r.sgWake)
 	go r.beatLoop(ctx, errc)
 	go r.livenessLoop(ctx, errc)
 }
 
-// mdWake PG-md 侧帧分派（ev_*→对应桥表谓词切片投影）。
-func (r *Runner) mdWake(ctx context.Context, ch string) error {
-	switch ch {
-	case "ev_ticks", "ev_markidx", "ev_funding", "ev_signal", "ev_dcd":
-		return r.projectTsTable(ctx, ch)
-	case "ev_eval":
-		return r.projectEvals(ctx)
-	case "ev_proposal":
-		return r.projectNewProposals(ctx)
-	case "": // boot 首拍（无 channel）——水印零值全量过一遍谓词面
-		for _, c := range []string{"ev_ticks", "ev_markidx", "ev_funding", "ev_signal", "ev_dcd"} {
-			if err := r.projectTsTable(ctx, c); err != nil {
-				return err
-			}
-		}
-		return r.projectEvals(ctx)
-	}
-	return nil
-}
-
-// sgWake SG 侧帧分派（活跃集刷+proposal 回写）。
-func (r *Runner) sgWake(ctx context.Context, ch string) error {
-	switch ch {
-	case "ev_active_set":
-		if err := r.refreshSets(ctx); err != nil {
-			return err
-		}
-		return r.projectMacro(ctx) // ~30 行全表 diff——廉价顺带（事件级表无独立写帧）
-	case "ev_proposal":
-		return r.repairProposalStates(ctx)
-	case "config_changed":
-		return r.syncConfig(ctx)
-	case "":
-		if err := r.refreshSets(ctx); err != nil {
-			return err
-		}
-		return r.syncConfig(ctx)
-	}
-	return nil
-}
+// mdWake/sgWake 帧分派面在 ops.go（执行域同居——projector.go 只留主环/装配）。
 
 // refreshSets 谓词自算（SG 源表现读——不赖 fin_active_set 种子；D-0032 裁，
 // 同径兼治 0069 无回填）。

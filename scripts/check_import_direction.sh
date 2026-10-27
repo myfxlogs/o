@@ -87,6 +87,7 @@ internal/research/grammar -> internal/platform/rejects
 internal/research/dcd -> internal/research/armwatch
 internal/research/armwatch -> internal/platform/notify
 internal/research/researcher -> internal/platform/notify
+internal/research/researcher -> internal/platform/roster
 internal/research/sigdist -> internal/platform/rejects
 # T-0168 projector 投影臂（桥面搬运工——events 听脊+notify 告警+roster 席位，
 # 同 research 臂边集形）。
