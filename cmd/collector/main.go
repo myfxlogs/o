@@ -124,6 +124,7 @@ func universe(ctx context.Context, cli *okxexec.Client) ([]string, error) {
 	var fut []struct {
 		InstID string `json:"instId"`
 		Alias  string `json:"alias"`
+		Uly    string `json:"uly"`
 		State  string `json:"state"`
 	}
 	if err := json.Unmarshal(raw, &fut); err == nil {
@@ -135,7 +136,7 @@ func universe(ctx context.Context, cli *okxexec.Client) ([]string, error) {
 			// 覆盖（basisAnn JOIN 键）。
 			if i.State == "live" && i.Alias == "quarter" && datedRe.MatchString(i.InstID) {
 				out = append(out, i.InstID)
-				out = append(out, datedRe.ReplaceAllString(i.InstID, ""))
+				out = append(out, i.Uly) // T-0189 返修③：uly 载荷字段=钦定指数键（_UM 变体剥串错源根治）
 			}
 		}
 	}

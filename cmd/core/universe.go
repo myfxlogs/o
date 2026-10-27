@@ -53,6 +53,7 @@ func universeExpander(getCli func() *okxexec.Client, pool *pgxpool.Pool) func(ct
 			InstID string `json:"instId"`
 			Alias  string `json:"alias"`
 			State  string `json:"state"`
+			Uly    string `json:"uly"`
 		}
 		if err := json.Unmarshal(raw, &fut); err == nil {
 			datedRe := regexp.MustCompile(`-\d{6}$`)
@@ -61,7 +62,7 @@ func universeExpander(getCli func() *okxexec.Client, pool *pgxpool.Pool) func(ct
 				// 剥离键并入集（index-tickers USD 指数行覆盖——basisAnn JOIN 键）。
 				if i.State == "live" && i.Alias == "quarter" && datedRe.MatchString(i.InstID) {
 					out = append(out, i.InstID)
-					out = append(out, datedRe.ReplaceAllString(i.InstID, ""))
+					out = append(out, i.Uly) // T-0189 返修③：uly 载荷字段=钦定指数键（_UM 变体剥串错源根治）
 				}
 			}
 		}

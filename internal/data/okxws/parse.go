@@ -53,7 +53,15 @@ func tsms(d map[string]json.RawMessage, k string) time.Time {
 }
 
 // isUSDTInst USDT 计价闸（业主令：杂币不采不用不计——instId 形如 X-USDT[-SWAP]）。
-func isUSDTInst(instID string) bool { return strings.Contains(instID, "-USDT") }
+func isUSDTInst(instID string) bool {
+	// T-0189：USD 指数键（BTC-USD——index-tickers uly 键域）+到期期货
+	// 形（-\d{6}$ 尾——BTC-USD-261225）放行豁免——「杂币不采」禁的是
+	// 杂计价币面，USD 指数/币本位期货系 basis 域钦定数据源非杂币。
+	if strings.HasSuffix(instID, "-USD") || datedFutRe.MatchString(instID) {
+		return true
+	}
+	return strings.Contains(instID, "-USDT")
+}
 
 // parseTickers → tickRow（last/bid/ask 零值=无效帧拒入）。
 func parseTickers(instID string, d map[string]json.RawMessage) *tickRow {
