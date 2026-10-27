@@ -1,7 +1,7 @@
 name: ci
 on:
   push:
-    branches: [master]
+    branches: ['**']   # 支推即跑 CI——check 绑 commit SHA，支绿后同 SHA ff 推 master 过服务端 required-check 闸
   pull_request:
     branches: [master]
 jobs:
