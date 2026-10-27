@@ -196,3 +196,10 @@
     animation: none;
   }
 }
+
+/* 业主裁（终）：红=死=没有呼吸——红灯静止（绿黄呼吸照旧）。 */
+.dot.breathe.s2 {
+  animation: none !important;
+  transform: none;
+  box-shadow: none;
+}
