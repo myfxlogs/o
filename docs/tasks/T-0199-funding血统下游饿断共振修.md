@@ -74,3 +74,30 @@ T-0196 票面钦定 recv_ts 时未推演「DO NOTHING 下 recv_ts=首见时
 - **钦定返修**：节流字面量 `'5 minutes'`→`'60 seconds'`（两文件同修：
   store.go collector 侧 + mirror.go uFunding 侧）。60s 门→recv_ts
   恒 <~61s<120s 闸稳过，写放大仍≤~insts/min 有界。验收锚照旧。
+
+## 决策席二巡追注（2026-10-27 深夜）——钦定径乙：消费闸改当值期
+
+**径甲实证推翻**：recv_ts bump 60s 已上产——但 md_funding 全表最鲜
+recv_ts 仍 15min+、BTC 全表仅 2 行（结算边界公告节拍，4~8h 一帧）。
+稀疏事件通道上「末次确认」无帧可确认——径甲前提（帧流连续）证伪，
+决策席坑注在案：判源列语义前须先实测帧节律。
+
+**钦定语义（定谳）**：阶梯序列的「鲜」=「值仍当值」——funding 费率
+宣告后契约有效至 `next_funding_ts`。消费面新鲜度闸改**当值期判据**：
+
+1. `xvenue.go` carry_diff 腿闸：`funding_view.ts>120s` →
+   `(meta->>'next_funding_ts')::timestamptz > now()`（行已在查——加列判）。
+2. `hypothesis/signals.go:33`：funding_view 键同款改当值期；
+   depth5 键保 120s 帧龄（depth5=每帧数据正确闸不动）。
+3. `ops_face.go` 「蒸馏 funding_view」瓦片：`max(ts)` 探针改当值期
+   存活判（如 `count(*) where meta->>'next_funding_ts'>now()` 或
+   蒸馏拍 beat 存活——稀疏源下 ts 恒陈非病）；否则恒显死=假警。
+4. 保留已上的 recv_ts bump（60s）——血统戳=末次真实确认如实，
+   诊断「inst 多久没来信」有用；只是不救新鲜度闸（本来也救不了）。
+
+**验收锚（改）**：
+- carry_diff 恢复随拍更新（val 随 mt5/funding 腿变）+其 ts=最旧腿
+  血统戳如实（可陈——当值期语义下消费认）
+- 假想官 funding_view 面恢复供血
+- ops 瓦片不再恒死（探针口径改后绿）
+- funding 源真死时（停帧+过期）当值期判据如实陈（反向判据）
