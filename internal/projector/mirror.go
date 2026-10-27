@@ -94,7 +94,9 @@ const uDcd = `INSERT INTO md_dcd_product(ts,venue,surface,uly,product_id,directi
 
 const uFunding = `INSERT INTO md_funding(ts,venue,inst_id,funding_rate,next_funding_rate,next_funding_ts,recv_ts)
 	VALUES($1::timestamptz,$2,$3,$4::numeric,$5::numeric,$6::timestamptz,$7::timestamptz)
-	ON CONFLICT (venue,inst_id,ts) DO NOTHING` // 同键同拍=同值（D-0030 §六表）
+	ON CONFLICT (venue,inst_id,ts) DO UPDATE SET recv_ts=now()
+			WHERE md_funding.funding_rate IS DISTINCT FROM EXCLUDED.funding_rate
+			   OR md_funding.recv_ts < now()-interval '5 minutes' -- T-0199：末次确认口径（阶梯序列 recv_ts 随确认帧鲜——funding_view 血统戳回分钟级）` // 同键同拍=同值（D-0030 §六表）
 
 const uMacro = `INSERT INTO md_macro_event(event_date,kind,title,source)
 	VALUES($1::date,$2,$3,$4)

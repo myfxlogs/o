@@ -72,7 +72,9 @@ func (c *Collector) insertBatch(ctx context.Context, rows []rowItem) error {
 			// funding-rate 帧 ts=结算拍（结算前恒值），逐拍裸 INSERT 必撞键；
 			// 同键同拍即同值 DO NOTHING（D-0030 §六 per-table 键表）。
 			b.Queue(`INSERT INTO md_funding(ts,inst_id,funding_rate,next_funding_ts,next_funding_rate) VALUES($1,$2,$3,$4,$5)
-				ON CONFLICT (venue,inst_id,ts) DO NOTHING`,
+				ON CONFLICT (venue,inst_id,ts) DO UPDATE SET recv_ts=now()
+			WHERE md_funding.funding_rate IS DISTINCT FROM EXCLUDED.funding_rate
+			   OR md_funding.recv_ts < now()-interval '5 minutes' -- T-0199：末次确认口径（阶梯序列 recv_ts 随确认帧鲜——funding_view 血统戳回分钟级）`,
 				r.ts, r.instID, r.fundingRate, r.nextFundingTs, r.nextFundingRate)
 			n++
 		case it.mark != nil:
