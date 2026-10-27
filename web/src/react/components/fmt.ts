@@ -7,6 +7,12 @@ export function fmtUsd(v: number | null | undefined): string {
   return `${s}$${Math.abs(v).toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
 }
 
+// pbDate：proto Timestamp→Date（v2 wkt 无 toDate——统一走 timestampDate）。
+export function pbDate(t: Timestamp | undefined): Date | null {
+  if (!t) return null;
+  try { return timestampDate(t); } catch { return null; }
+}
+
 export function ts(t: Timestamp | undefined): string {
   if (!t) return "—";
   return timestampDate(t).toLocaleString("zh-CN", { hour12: false });

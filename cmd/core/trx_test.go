@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -32,20 +33,29 @@ func trxTestSetup(t *testing.T) (context.Context, *trxWiring, coreService) {
 	return ctx, w, coreService{pool: pool, trx: w}
 }
 
-// T-0156 锚：REST 手拼面全撤 404 化——mountUI+mountCore 同生产装配，
-// /api/overview、/api/watch、/api/trx/* 一律 404（数据面唯一入口=Connect）。
+// T-0156 锚+T-0170 演进：REST 手拼面全撤——/api/* 现归 SPA 兜底（回 shell
+// 非数据）；Connect 前缀错路 404 不吃 HTML；旧 /report /md/status JSON 面
+// 收编 Connect 后同律（D-0009：数据面唯一入口=Connect）。
 func TestRestFacesRetired(t *testing.T) {
 	_, w, _ := trxTestSetup(t)
 	mux := http.NewServeMux()
 	mountUI(mux)
-	mountCore(mux, w.pool, nil, nil, nil, nil, w)
+	mountCore(mux, coreService{pool: w.pool, trx: w})
 	for _, p := range []string{"/api/overview", "/api/watch", "/api/trx/account",
-		"/api/trx/yield_radar", "/api/trx/hedge_flow", "/api/trx/account_refresh"} {
+		"/api/trx/yield_radar", "/api/trx/hedge_flow", "/api/trx/account_refresh",
+		"/report", "/md/status"} {
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, httptest.NewRequest("GET", p, nil))
-		if rec.Code != http.StatusNotFound {
-			t.Fatalf("%s 应 404 化（REST 面已撤）: %d", p, rec.Code)
+		ct := rec.Header().Get("Content-Type")
+		if rec.Code != http.StatusOK || !strings.Contains(ct, "text/html") {
+			t.Fatalf("%s 应归 SPA 兜底（200 text/html）: code=%d ct=%s", p, rec.Code, ct)
 		}
+	}
+	// Connect API 前缀错路=404 不吃 HTML（SPA 兜底例外径）。
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest("POST", "/o.dashboard.v1.CoreService/Nope", nil))
+	if rec.Code == http.StatusOK && strings.Contains(rec.Header().Get("Content-Type"), "text/html") {
+		t.Fatalf("Connect 错路不应吃 HTML: code=%d", rec.Code)
 	}
 }
 
@@ -229,7 +239,7 @@ func TestConnectEndToEndAndWatchLatency(t *testing.T) {
 	ctx, w, _ := trxTestSetup(t)
 	mux := http.NewServeMux()
 	mountUI(mux)
-	mountCore(mux, w.pool, nil, nil, nil, nil, w)
+	mountCore(mux, coreService{pool: w.pool, trx: w})
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 	cl := dashboardv1connect.NewCoreServiceClient(connect.NewClient(

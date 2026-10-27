@@ -34,6 +34,18 @@ type coreService struct {
 	dcdLive func(ctx context.Context) ([]okxexec.DcdOrder, error)
 	// T-0156：TRX 自营盘读面同源装配（采集臂单例——读面/刷新踢同源）。
 	trx *trxWiring
+	// T-0170：采集进程内指标源（okxws collector+netmeter 闭包——GetSystemHealth
+	// 供数；nil=观测面缺席显「读件缺」不假零）。
+	md *mdStats
+}
+
+// mdStats 采集观测源束（方法值闭包——collector/meter 单例由 main.go 装配注入）。
+type mdStats struct {
+	frames      func() int64
+	lastFrame   func() time.Time
+	rejects     func() map[string]int64
+	netKbps     func() float64
+	netChannels func() map[string]int64
 }
 
 func (coreService) Ping(context.Context, *dashboardv1.PingRequest) (*dashboardv1.PingResponse, error) {
@@ -188,33 +200,39 @@ func durHuman(d time.Duration) string {
 
 // mountCore 挂 ConnectRPC 服务到 mux（connect-go v2：Server 注册 + connecthttp.Mount；
 // T-0156：REST 双轨全撤——CoreService 单源，trx 读面同 server 注册）。
-func mountCore(mux *http.ServeMux, pool *pgxpool.Pool,
-	fundingLive func(context.Context) (map[string]float64, error),
-	earnLive func(context.Context) (map[string]float64, error),
-	mt5Live func(context.Context) ([]mt5Acct, error),
-	dcdLive func(context.Context) ([]okxexec.DcdOrder, error), trxW *trxWiring) {
+func mountCore(mux *http.ServeMux, svc coreService) {
 	server := connect.NewServer()
-	dashboardv1connect.RegisterCoreServiceHandler(server,
-		coreService{pool: pool, fundingLive: fundingLive, earnLive: earnLive,
-			mt5Live: mt5Live, dcdLive: dcdLive, trx: trxW})
+	dashboardv1connect.RegisterCoreServiceHandler(server, svc)
 	connecthttp.Mount(mux, server)
 }
 
-// mountUI 总览活页面挂接（T-0156：JSON/SSE 双轨面撤——静态 embed 单存；
-// 数据面唯一入口=CoreService Connect，活推=Watch 流帧 ev_* 脊）。
+// assemble 复盘域读面单例装配（T-0170：coreService 一处装配两处消费——
+// CoreService 挂载与 NAV 日拍闭包同源，live 读件不重复造）。
+func assemble(pool *pgxpool.Pool,
+	fundingLive func(context.Context) (map[string]float64, error),
+	earnLive func(context.Context) (map[string]float64, error),
+	mt5Live func(context.Context) ([]mt5Acct, error),
+	dcdLive func(context.Context) ([]okxexec.DcdOrder, error), trxW *trxWiring,
+	md *mdStats) (coreService, func(context.Context) (float64, error)) {
+	svc := coreService{pool: pool, fundingLive: fundingLive, earnLive: earnLive,
+		mt5Live: mt5Live, dcdLive: dcdLive, trx: trxW, md: md}
+	return svc, func(ctx context.Context) (float64, error) {
+		o := &dashboardv1.OverviewResponse{}
+		svc.moneyRows(ctx, o)
+		return o.NavTotal, nil
+	}
+}
+
+// mountUI SPA 单页挂接（T-0170：四页单 SPA——路由在客户端，服务端兜底全捕
+// 返 index.html；API 前缀 /o.dashboard. 不吃 HTML（错路 404 语义保留）；
+// /trx 旧双入口路径自然收敛进 SPA 路由）。
 func mountUI(mux *http.ServeMux) {
-	// 根路径直开（T-0068：GET / → index.html 直返无跳转；/ui/ 目录列表禁——
-	// dist 单层文件面逐件挂，禁 FileServer 目录模式）。
-	// T-0110：/trx → TRX 自营盘独立页（D-629 业绩外面独立入口非总览瓦片）。
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		page := "dist/index.html"
-		if r.URL.Path == "/trx" || r.URL.Path == "/trx.html" { // T-0115 双径别名
-			page = "dist/trx.html"
-		} else if r.URL.Path != "/" { // "/" 是兜底全捕——仅根路径返页，API 错路 404 不吃 HTML
-			http.NotFound(w, r)
+		if strings.HasPrefix(r.URL.Path, "/o.dashboard.") {
+			http.NotFound(w, r) // Connect API 错路——不回 HTML
 			return
 		}
-		b, err := web.Dist.ReadFile(page)
+		b, err := web.Dist.ReadFile("dist/index.html")
 		if err != nil {
 			http.NotFound(w, r)
 			return

@@ -5,7 +5,7 @@
 // fmtUsd 单位格式化+kindText/sourceText 中文映射逐字集+tbody 空态行。
 import { useCallback, useEffect, useState } from "react";
 import { client, errText } from "../api";
-import { onCase } from "../stream";
+import { onData } from "../stream";
 import { fmtNum, fmtUsd } from "./fmt";
 import type { HedgeFlowItem } from "../../gen/dashboardv1/core_pb";
 
@@ -75,7 +75,7 @@ export function HedgeFlow() {
 
   useEffect(() => { void load(src, page); }, [src, page, load]);
   useEffect(() => { setPage(1); }, [src]); // 切源回页1
-  useEffect(() => onCase("dataRefresh", () => { void load(src, page); }), [src, page, load]);
+  useEffect(() => onData((v) => { const t = (v as { topic?: string } | undefined)?.topic; if (!t || t === "trx") void load(src, page); }), [src, page, load]);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE));
   const safePage = Math.min(page, totalPages);

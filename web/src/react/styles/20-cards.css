@@ -1,0 +1,201 @@
+/* 20-cards.css —— 卡面/hero/健康条/骨架/错误态（T-0170 新页共用件）。 */
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+.card-h {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.card-h h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+}
+.note {
+  font-size: 12px;
+  margin-top: 2px;
+}
+.fact {
+  font-size: 12px;
+}
+.ink-3 {
+  color: var(--ink-3);
+}
+
+/* Hero：三问之一的大数字（手机一屏三格） */
+.hero {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+.hero-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.hero-k {
+  color: var(--ink-3);
+  font-size: 12px;
+}
+.hero-v {
+  font-size: clamp(18px, 5vw, 26px);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 健康一句话条（点进系统页） */
+.health-strip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 11px 16px;
+  color: var(--ink);
+  font-weight: 500;
+}
+.health-strip:hover {
+  text-decoration: none;
+  border-color: var(--ink-3);
+}
+.health-strip > :last-child {
+  margin-left: auto;
+}
+
+/* feed 行/表格 */
+.feed {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.feed-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  border-bottom: 1px dashed var(--line);
+  font-size: 13px;
+}
+.feed-row:last-child {
+  border-bottom: none;
+}
+.mono {
+  font-variant-numeric: tabular-nums;
+}
+.empty-row {
+  color: var(--ink-3);
+  padding: 8px 0;
+  font-size: 13px;
+}
+.stat-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  color: var(--ink-2);
+  font-size: 13px;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 12.5px;
+}
+.venue-group {
+  margin-bottom: 8px;
+}
+.venue-name {
+  font-weight: 700;
+  font-size: 13px;
+  margin: 4px 0;
+}
+
+/* 分段按钮组（period/kind 筛） */
+.seg {
+  display: inline-flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.seg-btn {
+  min-height: 30px;
+  padding: 3px 10px;
+  font-size: 12.5px;
+}
+.seg-btn.on {
+  border-color: var(--ink);
+  font-weight: 700;
+}
+
+/* 报告折叠行 */
+details.rep {
+  border-bottom: 1px dashed var(--line);
+  padding: 6px 0;
+}
+details.rep summary {
+  cursor: pointer;
+  font-weight: 500;
+}
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 10px;
+  font-size: 13px;
+}
+
+/* 骨架/错误态 */
+.skel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.skel-row {
+  height: 14px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--line) 25%, var(--page) 50%, var(--line) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+}
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+.err-state {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--critical);
+  font-size: 13px;
+}
+.chart-box {
+  width: 100%;
+}

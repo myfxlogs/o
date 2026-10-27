@@ -237,11 +237,16 @@ func run() error {
 	// 账本域：司账+核账（入账结算+对账环——消费事实行不触发钱动作）。
 	// T-0165 返修③：report 留 SG（钱径读写面 app_secrets/master key/
 	// fin_cashflow——票面第5条明令只迁纯研究面）。
+	// 采集观测源束（T-0170——collector/meter 方法值闭包，GetSystemHealth 供数）。
+	md := &mdStats{frames: collector.FrameCount, lastFrame: collector.LastFrame,
+		rejects: collector.Stats.Snapshot, netKbps: meter.RateKbps, netChannels: meter.Channels}
+	svc, navFn := assemble(pool, fundingLiveFor(okcli), earnLiveFor(okcli),
+		mt5LiveFor(pool, cfg), dcdLiveFor(okcli), trxW, md)
 	var pusher *report.Pusher
 	{
 		mk, _ := config.ReadMasterKey()
 		pusher = report.NewPusher(pool, cfg, mk)
-		go report.NewRunner(pool, pusher).WithConfig(cfg).Run(ctx, errc)
+		go report.NewRunner(pool, pusher).WithConfig(cfg).WithNav(navFn).Run(ctx, errc)
 	}
 	ledgerR := ledger.NewRunner(pool, cfg).WithAlerter(alerter)
 	go ledgerR.Run(ctx, errc)
@@ -264,26 +269,14 @@ func run() error {
 		func(ctx context.Context) (*mt5.Client, error) { return mt5.OpenSession(ctx, pool, cfg) })
 	go wd.Run(ctx, errc)
 
-	// 总览活页（T-0067：service.go mountUI——静态面；数据面唯一入口=CoreService
-	// Connect，活推=Watch 流帧——T-0156 REST/SSE 双轨面撤）。
+	// 总览活页（T-0067：service.go mountUI——SPA 静态面；数据面唯一入口=
+	// CoreService Connect，活推=Watch 流帧——T-0156 REST/SSE 双轨面撤）。
 	mux := http.NewServeMux()
 	mountUI(mux)
-	// 产出窗=行情新鲜度+rejects 计数门观测端点（判定面可观测 D-652-A）。
-	mux.HandleFunc("/report", report.Handler(pool))
-	mux.HandleFunc("/md/status", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"frames":     collector.FrameCount(),
-			"last_frame": collector.LastFrame(),
-			"rejects":    collector.Stats.Snapshot(),
-			"net_kbps":   meter.RateKbps(),
-			"net_bytes":  meter.Channels(),
-		})
-	})
 	// T-0086 ①④：资金户/Earn 活读件注入（venue_readers.go——活读件注入）。
 	// T-0096：MT5 户活读件同注（OpenSession 现读——凭据缺席=读件缺不假零）。
 	// T-0110：TRX 自营盘读面同 server 注册（trxW 同源单例）。
-	mountCore(mux, pool, fundingLiveFor(okcli), earnLiveFor(okcli), mt5LiveFor(pool, cfg), dcdLiveFor(okcli), trxW)
+	mountCore(mux, svc)
 
 	srv := &http.Server{Addr: listenAddr, Handler: mux, ReadHeaderTimeout: 10 * time.Second}
 	go func() {

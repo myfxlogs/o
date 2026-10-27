@@ -6,11 +6,8 @@ package report
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
-	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -71,6 +68,7 @@ type Runner struct {
 	pool   *pgxpool.Pool
 	pusher *Pusher
 	cfg    *config.Client
+	nav    func(ctx context.Context) (float64, error) // T-0170 NAV 日拍源（live 组装闭包；nil=不拍）
 }
 
 func NewRunner(pool *pgxpool.Pool, pusher *Pusher) *Runner {
@@ -79,6 +77,13 @@ func NewRunner(pool *pgxpool.Pool, pusher *Pusher) *Runner {
 
 // WithConfig 热启键接线（macro 日推 horizon 键——nil=日推静默缺）。
 func (r *Runner) WithConfig(cfg *config.Client) *Runner { r.cfg = cfg; return r }
+
+// WithNav NAV 日拍源接线（T-0170——闭包装配在 cmd/core：live 读件与
+// CoreService 同源，净值口径一处算定。nil=不拍，曲线零行如实）。
+func (r *Runner) WithNav(nav func(ctx context.Context) (float64, error)) *Runner {
+	r.nav = nav
+	return r
+}
 
 // Run 注册+Beat+期界循环：boot 补推（重启查账漏界）→睡到下界→出行推送。
 func (r *Runner) Run(ctx context.Context, errc chan<- error) {
@@ -97,14 +102,33 @@ func (r *Runner) Run(ctx context.Context, errc chan<- error) {
 	}
 }
 
-// cycle 一界：三粒度已闭期终行（未推者）生成+推送；日历日推（有货才说）。
+// cycle 一界：NAV 日拍（T-0170）+三粒度已闭期终行（未推者）生成+推送；日历日推（有货才说）。
 func (r *Runner) cycle(ctx context.Context) {
 	now := time.Now()
+	r.navSnapshot(ctx, now)
 	for _, p := range []string{"daily", "weekly", "monthly"} {
 		b := closedBounds(p, now)
 		r.pushClosed(ctx, p, b)
 	}
 	r.macroDailyPush(ctx, now)
+}
+
+// navSnapshot NAV 日拍入 md_equity_curve（ccy='NAV' 行——append-only 统计面，
+// 曲线读侧按日桶取末值聚，同日多拍（重启补推顺拍）天然幂等收敛）。
+func (r *Runner) navSnapshot(ctx context.Context, now time.Time) {
+	if r.nav == nil {
+		return // 未接线=不拍（曲线零行如实，非假零）
+	}
+	nav, err := r.nav(ctx)
+	if err != nil {
+		log.Printf("[report] NAV 日拍读败: %v", err)
+		return
+	}
+	if _, err := r.pool.Exec(ctx,
+		`INSERT INTO md_equity_curve(ts,venue,ccy,equity,src)
+		 VALUES (now(),'ledger','NAV',$1,'report_daily')`, nav); err != nil {
+		log.Printf("[report] NAV 日拍写败: %v", err)
+	}
 }
 
 // pushClosed 已闭期：行缺=生成终行；未推=推一次+ledger 记账（幂等锚）。
@@ -130,7 +154,10 @@ func (r *Runner) pushClosed(ctx context.Context, period string, b Bounds) {
 		return
 	}
 	// T-0093 序倒转：送达才记账（行=「已送达」非「已尝试」）——发败/降级不记，
-	// 下界自然重试（瞬时败≠永久丢报）。
+	// 下界自然重试（瞬时败≠永久丢报）。pusher 缺席=只生成不推（测试/降级面）。
+	if r.pusher == nil {
+		return
+	}
 	mid, ok := r.pusher.MaybePush(ctx, period, m, note)
 	if !ok {
 		return
@@ -187,6 +214,9 @@ func (r *Runner) macroDailyPush(ctx context.Context, now time.Time) {
 		text += fmt.Sprintf("- %s %s %s\n", e.d.Format("01-02"), e.k, e.t)
 	}
 	// T-0093 同序：送达才记账——发败/降级明日重试不丢报。
+	if r.pusher == nil {
+		return
+	}
 	mid, ok := r.pusher.PushText(ctx, text)
 	if !ok {
 		return
@@ -198,36 +228,5 @@ func (r *Runner) macroDailyPush(ctx context.Context, now time.Time) {
 	}
 }
 
-// Handler GET /report?period=daily|weekly|monthly&n= ——业主 curl 即得（同径供前端）。
-func Handler(pool *pgxpool.Pool) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		period := r.URL.Query().Get("period")
-		if period == "" {
-			period = "daily"
-		}
-		n, _ := strconv.Atoi(r.URL.Query().Get("n"))
-		if n <= 0 || n > 90 {
-			n = 8
-		}
-		rows, err := pool.Query(r.Context(), `SELECT period,period_start,period_end,metrics,note,generated_at
-			FROM fin_report WHERE period=$1 ORDER BY period_start DESC LIMIT $2`, period, n)
-		if err != nil {
-			http.Error(w, err.Error(), 500)
-			return
-		}
-		defer rows.Close()
-		var out []map[string]any
-		for rows.Next() {
-			var p, note string
-			var s, e, g time.Time
-			var m json.RawMessage
-			if err := rows.Scan(&p, &s, &e, &m, &note, &g); err != nil {
-				continue
-			}
-			out = append(out, map[string]any{"period": p, "period_start": s, "period_end": e,
-				"metrics": json.RawMessage(m), "note": note, "generated_at": g})
-		}
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(out)
-	}
-}
+// Handler GET /report 已退役（T-0170——fin_report 读面收编 CoreService
+// ListReports 契约，D-0009 手集 JSON 面收口）。

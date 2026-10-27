@@ -19,6 +19,12 @@ service CoreService {
   rpc GetTrxYieldCurve(GetTrxYieldCurveRequest) returns (GetTrxYieldCurveResponse) {}
   rpc GetHedgeStructure(GetHedgeStructureRequest) returns (GetHedgeStructureResponse) {}
   rpc ListHedgeFlow(ListHedgeFlowRequest) returns (ListHedgeFlowResponse) {}
+  // —— 系统健康与复盘读面（T-0170：/md/status、/report 手集 JSON 收编入契约
+  // ——D-0009 落前端面：有 proto 的面=绝对 proto，前端零裸 JSON 依赖）——
+  rpc GetSystemHealth(GetSystemHealthRequest) returns (GetSystemHealthResponse) {}
+  rpc ListReports(ListReportsRequest) returns (ListReportsResponse) {}
+  rpc GetEquityCurve(GetEquityCurveRequest) returns (GetEquityCurveResponse) {}
+  rpc ListCashflows(ListCashflowsRequest) returns (ListCashflowsResponse) {}
 }
 
 message PingRequest {}
@@ -224,4 +230,65 @@ message HedgeFlowItem {
   string amount_unit = 5;
   string counterparty = 6;
   string tx_id = 7;
+}
+
+// —— 系统健康（T-0170——采集足迹新鲜度=组件活性；状态服务端算定，前端零判据）——
+
+message GetSystemHealthRequest {}
+message SystemComponent {
+  string component = 1;            // 人类名（okxws WS 行情/MT5 桥行情/…）
+  string fact = 2;                 // 事实源标识（表+channel 谓词）
+  google.protobuf.Timestamp last_write = 3;  // 空=零行（语义空态看 note）
+  int32 state = 4;                 // 0绿 1黄 2红（按该组件节拍阈值判）
+  string note = 5;                 // 旁注（语义空态/读件缺——空=正常）
+}
+message GetSystemHealthResponse {
+  repeated SystemComponent components = 1;
+  int64 frames = 2;                // okxws 进程帧计数（boot 起累计）
+  google.protobuf.Timestamp last_frame = 3;  // 空=进程未收帧
+  map<string, int64> rejects = 4;  // 拒因计数门快照
+  double net_kbps = 5;             // 采集带宽速率
+  map<string, int64> net_channels = 6;  // 分频道累计字节
+}
+
+// —— 复盘面（fin_report 直出——metrics jsonb 服务端解为键值对，前端零解析）——
+
+message ListReportsRequest {
+  string period = 1;               // daily|weekly|monthly（空=daily）
+  int32 n = 2;                     // ≤0=8 上限 90
+}
+message ReportMetric { string k = 1; double v = 2; }
+message ReportRow {
+  string period = 1;
+  google.protobuf.Timestamp period_start = 2;
+  google.protobuf.Timestamp period_end = 3;
+  repeated ReportMetric metrics = 4;
+  string note = 5;
+  google.protobuf.Timestamp generated_at = 6;
+}
+message ListReportsResponse { repeated ReportRow reports = 1; }
+
+message GetEquityCurveRequest { int32 days = 1; }  // <=0=90
+message EquityPoint {
+  google.protobuf.Timestamp day = 1;   // UTC 日桶
+  double nav = 2;                      // 当日末次 NAV 采点
+}
+message GetEquityCurveResponse { repeated EquityPoint points = 1; }
+
+message ListCashflowsRequest {
+  string kind = 1;                 // 空=全 kind
+  int32 limit = 2;                 // <=0=50
+  int32 offset = 3;
+}
+message ListCashflowsResponse {
+  int32 total = 1;                 // 过滤后总行数（分页下推）
+  repeated CashflowRow rows = 2;
+}
+message CashflowRow {
+  int64 id = 1;
+  google.protobuf.Timestamp occurred_at = 2;
+  string kind = 3;
+  string ccy = 4;
+  double amount = 5;
+  string venue = 6;
 }
