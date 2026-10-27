@@ -160,3 +160,39 @@
 .dot.breathe {
   animation: breathe 2.2s ease-in-out infinite;
 }
+
+/* 呼吸节奏=状态语言（业主回单：每项状态以呼吸灯示——不看色也能从节奏读）：
+   绿=深缓息 2.4s / 黄=偏快 1.2s / 红=急促 0.75s+辉光。 */
+.dot.breathe.s0 {
+  animation: breatheCalm 2.4s ease-in-out infinite;
+}
+.dot.breathe.s1 {
+  animation: breatheQuick 1.2s ease-in-out infinite;
+}
+.dot.breathe.s2 {
+  animation: breatheAlarm 0.75s ease-in-out infinite;
+  box-shadow: 0 0 6px 1px color-mix(in srgb, var(--critical) 55%, transparent);
+}
+@keyframes breatheCalm {
+  50% {
+    opacity: 0.55;
+  }
+}
+@keyframes breatheQuick {
+  50% {
+    opacity: 0.35;
+  }
+}
+@keyframes breatheAlarm {
+  50% {
+    opacity: 0.3;
+    transform: scale(1.25);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dot.breathe.s0,
+  .dot.breathe.s1,
+  .dot.breathe.s2 {
+    animation: none;
+  }
+}
