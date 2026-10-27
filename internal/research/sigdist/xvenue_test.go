@@ -22,7 +22,7 @@ func TestXvenue(t *testing.T) {
 			`INSERT INTO md_mark_index(ts,inst_id,channel,px) VALUES(now(),'ETH-USDT-SWAP','mark-price',3000)`,
 			`INSERT INTO md_ticks(ts,venue,inst_id,bid,ask) VALUES(now(),'mt5','ETHUSDm',2990,2992)`,
 			`INSERT INTO md_signal(kind,key,val,meta,ts) VALUES('funding_view','ETH-USDT-SWAP',-0.0001,'{"next_funding_ts":"2099-01-01T00:00:00Z"}',now())`,
-			`INSERT INTO md_signal(kind,key,val,meta,ts) VALUES('mt5_swap','ETHUSDm',-1000,'{"swap_type":5}',now())`,
+			`INSERT INTO md_signal(kind,key,val,meta,ts) VALUES('mt5_swap','ETHUSDm',-1000,'{"swap_type":5,"swap_long_ann_bps":-816,"swap_short_ann_bps":-50}',now())`,
 		} {
 			if _, err := r.pool.Exec(ctx, q); err != nil {
 				t.Fatal(err)
@@ -44,9 +44,10 @@ func TestXvenue(t *testing.T) {
 	if err := r.pool.QueryRow(ctx, `SELECT val FROM md_signal WHERE kind='carry_diff' AND key='ETH-USDT-SWAP'`).Scan(&diff); err != nil {
 		t.Fatal("carry_diff 应落:", err)
 	}
-	// funding −0.0001×3×365×10⁴=−1095 bps 年化；mt5_swap=−1000 → diff=−95
-	if diff > -94.1 || diff < -95.9 {
-		t.Fatalf("carry_diff=%v（funding_ann−swap_ann）", diff)
+	// T-0203 方向腿自洽：funding<0→long_perp_short_cfd（付 funding|1095|
+	// +付 swap_short_ann=−50）→净=1095−50=1045 bps（错腿当成本伪影根治）。
+	if diff < 1044.9 || diff > 1045.1 {
+		t.Fatalf("carry_diff=%v（应=|funding_ann|+swap_short_ann）", diff)
 	}
 	// 单边陈：mt5 tick 翻 5min→两族该对均缺席更新（行 ts 陈化不再刷新）
 	if _, err := r.pool.Exec(ctx, `UPDATE md_ticks SET ts=now()-interval '5 minutes' WHERE venue='mt5'`); err != nil {

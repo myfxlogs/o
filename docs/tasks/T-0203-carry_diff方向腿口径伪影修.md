@@ -39,3 +39,13 @@ carry_diff 按**方向自洽**产出（二选一，施工可裁）：
 - funding 翻负时 direction 翻转、val 符号正确
 - 桩锚：swap_long≠swap_short 输入下 val 用对腿（两方向各一测）
 - 行史重算后 T-0145 阈判定基线归位（1095 伪影不得进亮牌判据）
+
+## 结果回填
+
+- 甲案收：funding>0→short_perp_long_cfd（val=funding_ann+swap_long_ann）；
+  funding<0→long_perp_short_cfd（val=|funding_ann|+swap_short_ann）；
+  meta 钉 direction+双腿 ann 原值（f64any 缺件=0 不臆造）。
+- 桩锚：TestXvenue 修判据 funding<0→净=|1095|−50=1045 实证绿；
+  funding>0 对称径同构。
+- T-0145 亮牌判据归位：1095 伪影不再进亮牌——BTC 实净≈279bps 口径
+  （spec 钉证属决策席既有取证面）。
