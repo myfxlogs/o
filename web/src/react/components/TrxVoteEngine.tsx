@@ -3,7 +3,7 @@
 // 内——降级只读+「config 热改径」注，鉴权面落位前零 mutating 控件）。
 import { useCallback, useEffect, useState } from "react";
 import { client } from "../api";
-import { Skeleton, StateDot } from "./ui";
+import { StateDot } from "./ui";
 import type { GetTrxVoteStatusResponse } from "../../gen/dashboardv1/core_pb";
 
 const fmtCountdown = (ms: number) => {
@@ -13,7 +13,9 @@ const fmtCountdown = (ms: number) => {
   return h > 0 ? `${h}h${m % 60}m` : `${m}m`;
 };
 
-export function TrxVoteEngine() {
+// TrxVoteEngineRows 投票引擎行组（业主㉓：撤独立卡——内容并入对冲结构卡
+// TRX 账户块；灯语同款：在驶=绿呼吸/停驶=黄静止待令）。
+export function TrxVoteEngineRows() {
   const [st, setSt] = useState<GetTrxVoteStatusResponse | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
@@ -27,24 +29,23 @@ export function TrxVoteEngine() {
     const t = setInterval(() => { load(); setNow(Date.now()); }, 30_000);
     return () => clearInterval(t);
   }, [load]);
-  if (err) return <section className="card"><h3><StateDot state={2} title="状态读败" /> 投票引擎</h3><div className="dim">读败：{err}</div></section>;
-  if (!st) return <section className="card"><h3>投票引擎</h3><Skeleton /></section>;
+  if (err) {
+    return <div className="muted" style={{ fontSize: 12 }}>投票引擎读败：{err}</div>;
+  }
+  if (!st) return null; // 首拍未落=静默（对冲卡自身骨架已占位）
   const next = st.nextWindow ? new Date(Number(st.nextWindow.seconds) * 1000 + st.nextWindow.nanos / 1e6) : null;
   const remain = next ? next.getTime() - now : 0;
   return (
-    <section className="card">
-      <h3>
-        {/* 灯语同款：在驶=绿呼吸，停驶=黄静止待令（红留给死——引擎停驶是主动态非死） */}
+    <div role="group" aria-label="投票引擎">
+      <div>
+        {/* 灯语同款：在驶=绿呼吸，停驶=黄静止待令 */}
         <StateDot state={st.enabled ? 0 : 1} breathe={st.enabled} title={st.enabled ? "引擎在驶" : "引擎停驶待令"} />{" "}
-        投票引擎 <span className={st.enabled ? "ok" : "warn"}>{st.enabled ? "在驶" : "停驶"}</span>
-      </h3>
-      <div className="grid-2">
-        <div><div className="dim">下次领奖窗</div><div>{next ? `${fmtCountdown(remain)}（${next.toISOString().slice(11, 16)} UTC）` : "—"}</div></div>
-        <div><div className="dim">待领取</div><div>{st.pendingTrx.toFixed(2)} TRX</div></div>
-        <div><div className="dim">今日改投</div><div>{st.rebalanceToday} / {st.rebalanceCap} 次</div></div>
-        <div><div className="dim">今日领奖</div><div>{st.claimToday} 笔</div></div>
+        投票引擎 <span className={st.enabled ? "u-good" : "u-orange"}>{st.enabled ? "在驶" : "停驶"}</span>
+        {next && <span className="muted"> · 下窗 {fmtCountdown(remain)}（{next.toISOString().slice(11, 16)} UTC）</span>}
       </div>
-      <div className="dim" style={{ marginTop: 8, fontSize: 11 }}>启停=业主径 app_config trx.vote_enabled（鉴权面未落——config 热改径，操作留账）</div>
-    </section>
+      <div className="muted" style={{ fontSize: 12 }}>
+        待领取 {st.pendingTrx.toFixed(2)} TRX · 今日改投 {st.rebalanceToday}/{st.rebalanceCap} · 今日领奖 {st.claimToday} 笔
+      </div>
+    </div>
   );
 }

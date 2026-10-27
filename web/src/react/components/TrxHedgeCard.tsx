@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { client } from "../api";
 import { onData } from "../stream";
+import { TrxVoteEngineRows } from "./TrxVoteEngine";
 import { Skeleton } from "./ui";
 import type { HedgeStructure } from "../../gen/dashboardv1/core_pb";
 import { fmtUsd, fmtNum, fmtPrice, fmtThr, pnlClass, fmtSigned } from "./fmt";
@@ -127,6 +128,7 @@ export function TrxHedgeCard() {
                     剩余能量 {fmtNum(accts.energyLimit - accts.energyUsed, 0)} Energy
                   </div>
                 )}
+                <TrxVoteEngineRows />
               </div>
               <div className="hedge-acct-block">
                 <h3 className="muted">CMC 账户</h3>

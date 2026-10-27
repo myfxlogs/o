@@ -4,7 +4,6 @@ import { useEffect } from "react";
 import { client } from "../api";
 import { TrxYieldRadar } from "../components/TrxYieldRadar";
 import { TrxHedgeCard } from "../components/TrxHedgeCard";
-import { TrxVoteEngine } from "../components/TrxVoteEngine";
 import { HedgeFlow } from "../components/HedgeFlow";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 
@@ -17,9 +16,6 @@ export function TrxPage() {
       {/* 业主令：收益率雷达置顶；卡级错误边界——单卡故障不连坐 */}
       <ErrorBoundary label="收益率雷达">
         <TrxYieldRadar />
-      </ErrorBoundary>
-      <ErrorBoundary label="投票引擎">
-        <TrxVoteEngine />
       </ErrorBoundary>
       <ErrorBoundary label="对冲结构">
         <TrxHedgeCard />
