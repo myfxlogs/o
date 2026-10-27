@@ -112,6 +112,8 @@ export function SystemPage() {
         </div>
       )}
 
+      {/* ②④ 2 行 2 列（业主⑬）：行1=生产机|采集，行2=主机资源|席位 */}
+      <div className="quad">
       {/* ② 交易（生产）第一——钱径面永远先于管道面 */}
       {h.data ? (
         <Card
@@ -167,7 +169,7 @@ export function SystemPage() {
         </Card>
       ) : null}
 
-      {/* ④ 主机资源垫底（硬件层） */}
+      {/* ④ 主机资源（行2 左） */}
       <HostMetricsCard />
 
       <Card title="席位在册">
@@ -183,6 +185,7 @@ export function SystemPage() {
           </div>
         )}
       </Card>
+      </div>
     </div>
   );
 }
