@@ -178,8 +178,12 @@ type Sig struct {
 func Fresh(ctx context.Context, pool *pgxpool.Pool, kind, key string) (Sig, bool, error) {
 	var s Sig
 	var metaB []byte
+	// T-0199 三巡：种类自适闸——funding_view=当值期判据（阶梯序列鲜=值
+	// 仍当值），其余=120s 帧龄（每帧数据正确闸守）。
 	err := pool.QueryRow(ctx, `SELECT val, meta, ts FROM md_signal
-		WHERE kind=$1 AND key=$2 AND ts > now()-interval '120 seconds'`,
+		WHERE kind=$1 AND key=$2 AND (
+			(kind='funding_view' AND (meta->>'next_funding_ts')::timestamptz > now())
+			OR (kind<>'funding_view' AND ts > now()-interval '120 seconds'))`,
 		kind, key).Scan(&s.Val, &metaB, new(time.Time))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -195,8 +199,12 @@ func Fresh(ctx context.Context, pool *pgxpool.Pool, kind, key string) (Sig, bool
 
 // freshByKind 全行读闸（kind 域新鲜信号——ts 超 2×蒸馏拍=缺席）。
 func (r *Runner) freshByKind(ctx context.Context, kind string) (map[string]Sig, error) {
+	// T-0199 三巡：种类自适闸（funding_view=当值期，余=120s 帧龄——
+	// 评估燃料「榜 top3」读闸全族恒 0 行断供病灶根治）。
 	rows, err := r.pool.Query(ctx, `SELECT key, val, meta FROM md_signal
-		WHERE kind=$1 AND ts > now()-interval '120 seconds'`, kind)
+		WHERE kind=$1 AND (
+			(kind='funding_view' AND (meta->>'next_funding_ts')::timestamptz > now())
+			OR (kind<>'funding_view' AND ts > now()-interval '120 seconds'))`, kind)
 	if err != nil {
 		return nil, err
 	}

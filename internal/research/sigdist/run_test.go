@@ -212,3 +212,23 @@ func TestFundingViewTsLineage(t *testing.T) {
 		t.Fatalf("ts 应随源行 recv_ts 陈（%v）：非写拍 now", sigTs)
 	}
 }
+
+// TestFreshKindAdaptive T-0199 三巡桩锚：funding_view 行 ts 陈 3h+meta 带
+// 未来 next_funding_ts→Fresh 返在（当值）；meta 过期→缺席如实。
+func TestFreshKindAdaptive(t *testing.T) {
+	ctx, r := setup(t)
+	md(t, ctx, r, `INSERT INTO md_signal(kind,key,val,meta,ts) VALUES
+		('funding_view','BTC-USDT-SWAP',0.0001,'{"next_funding_ts":"2099-01-01T00:00:00Z"}',now()-interval '3 hours'),
+		('funding_view','ETH-USDT-SWAP',0.0002,'{"next_funding_ts":"2020-01-01T00:00:00Z"}',now()-interval '3 hours'),
+		('depth5','BTC-USDT-SWAP',1,'{}',now()-interval '3 hours')`)
+	sig, ok, err := Fresh(ctx, r.pool, "funding_view", "BTC-USDT-SWAP")
+	if err != nil || !ok || sig.Val != 0.0001 {
+		t.Fatalf("当值期应在: ok=%v val=%v err=%v", ok, sig.Val, err)
+	}
+	if _, ok, _ := Fresh(ctx, r.pool, "funding_view", "ETH-USDT-SWAP"); ok {
+		t.Fatal("meta 过期=当值期判陈，应缺席")
+	}
+	if _, ok, _ := Fresh(ctx, r.pool, "depth5", "BTC-USDT-SWAP"); ok {
+		t.Fatal("depth5 帧龄闸守：陈 3h 应缺席")
+	}
+}
