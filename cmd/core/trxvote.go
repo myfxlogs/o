@@ -112,6 +112,13 @@ func buildTrxVoteOptimizer(ctx context.Context, w *trxWiring) *trxvote.Scheduler
 		rebalanceCfg, trxvote.NewFallbackAccountFetcher(
 			trxvote.NewTronscanAccountFetcher(tronscanBase),
 			trxvote.NewGRPCAccountFetcher(conn)))
+	// T-0192③：witness 备读源接线（主 apilist 断供时 trongrid
+	// /wallet/listwitnesses 顶——带 trx.trongrid_api_key；shape 差异在
+	// fetch 层抹平 hex→base58+年化 cache-last-good）。
+	sched.SetWitFallback(func(ctx context.Context) ([]trxvote.SRInfo, error) {
+		key, _ := w.cfg.GetString("trx.trongrid_api_key")
+		return trxvote.FetchSRListTrongridFallback(ctx, "https://api.trongrid.io", key)
+	})
 	sched.SetNextMaintenanceSource(func(ctx context.Context) (time.Time, error) {
 		nm, err := conn.GetNextMaintenanceTimeCtx(ctx)
 		if err != nil {
