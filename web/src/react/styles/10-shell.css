@@ -189,13 +189,8 @@
     transform: scale(1.25);
   }
 }
-@media (prefers-reduced-motion: reduce) {
-  .dot.breathe.s0,
-  .dot.breathe.s1,
-  .dot.breathe.s2 {
-    animation: none;
-  }
-}
+/* 状态灯不减动效（业主令：呼吸必须可见——状态灯是信息非装饰）；
+   其余装饰动效（卡悬浮/底色漂移）仍尊重系统减动效设置。 */
 
 /* 业主裁（终）：红=死=没有呼吸——红灯静止（绿黄呼吸照旧）。 */
 .dot.breathe.s2 {

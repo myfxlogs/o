@@ -179,7 +179,7 @@ export function SystemPage() {
           <div className="chips">
             {(ov.data?.staff ?? []).map((s) => (
               <span key={s.name} className="chip">
-                <StateDot state={s.state} /> {s.name}
+                <StateDot state={s.state} breathe={s.state !== 2} /> {s.name}
               </span>
             ))}
           </div>

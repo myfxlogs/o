@@ -62,6 +62,7 @@
   .card:hover {
     transform: none;
   }
+  /* 状态灯例外：呼吸是状态信号不减（业主令） */
 }
 .card-h {
   display: flex;
