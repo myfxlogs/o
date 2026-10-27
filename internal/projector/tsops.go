@@ -70,7 +70,7 @@ var tsProjections = map[string]tsProjection{
 		func(rows pgx.Rows) ([][]any, time.Time, error) {
 			defer rows.Close()
 			var out [][]any
-			var max time.Time
+			var max time.Time // 水印=recv_ts（ts=未来结算拍——非单调追加序，T-0169 实证）
 			for rows.Next() {
 				var ts time.Time
 				var venue, inst string
@@ -80,8 +80,8 @@ var tsProjections = map[string]tsProjection{
 					return nil, max, err
 				}
 				out = append(out, []any{ts, venue, inst, rate, nextRate, nextTs, recv})
-				if ts.After(max) {
-					max = ts
+				if recv != nil && recv.After(max) {
+					max = *recv
 				}
 			}
 			return out, max, rows.Err()

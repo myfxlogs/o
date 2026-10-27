@@ -20,36 +20,41 @@ q() { # q <dsn> <sql> → -tA 输出
 fail=0
 # 表集：投影搬运八桥+config 副本（fin_data_retention 分库独立账不比对）。
 TABLES="md_ticks md_mark_index md_signal md_dcd_product md_funding md_macro_event fin_proposal fin_opp_eval app_config"
+LIVE_TABLES="md_ticks md_mark_index md_signal md_dcd_product"
+# md_funding 不判时滞（结算拍键纪律——键静默期=正确行为非断流，T-0169 实证）
 
 printf '%-18s %12s %12s %10s %10s %8s\n' TABLE MD_CNT SG_CNT MD_MAXLAG SG_MAXLAG SAMPLE
 for t in $TABLES; do
 	tscol="ts"; [ "$t" = "md_macro_event" ] && tscol="event_date"
 	[ "$t" = "fin_proposal" ] && tscol="created_at"
+	[ "$t" = "md_funding" ] && tscol="recv_ts" # funding ts=未来结算拍（帧语义）——新鲜度判 recv_ts
 	md_cnt=$(q "$MD_DSN" "SELECT count(*) FROM $t" | tail -1)
 	sg_cnt=$(q "$SG_DSN" "SELECT count(*) FROM $t" | tail -1)
 	md_lag=$(q "$MD_DSN" "SELECT COALESCE(extract(epoch FROM (now()-max($tscol)))::int,-1) FROM $t" | tail -1)
 	sg_lag=$(q "$SG_DSN" "SELECT COALESCE(extract(epoch FROM (now()-max($tscol)))::int,-1) FROM $t" | tail -1)
 	md_win=$(q "$MD_DSN" "SELECT count(*) FROM $t WHERE $tscol>now()-interval '$WINDOW'" | tail -1)
 	sg_win=$(q "$SG_DSN" "SELECT count(*) FROM $t WHERE $tscol>now()-interval '$WINDOW'" | tail -1)
-	# 抽样行形：近窗一行键列 md5（列集随表——镜像同 DDL 前提下逐字对形）
+	# 抽样行形：近窗键集全语句（镜像同 DDL 前提下逐字对形）
 	case "$t" in
-		md_ticks)        k="inst_id"; sample="string_agg(inst_id||':'||COALESCE(last::text,''),',') FROM (SELECT inst_id,last FROM $t WHERE $tscol>now()-interval '$WINDOW' ORDER BY $tscol DESC LIMIT 50) s" ;;
-		md_mark_index)   k="inst_id"; sample="string_agg(inst_id||':'||channel||':'||COALESCE(px::text,''),',') FROM (SELECT inst_id,channel,px FROM $t WHERE $tscol>now()-interval '$WINDOW' ORDER BY $tscol DESC LIMIT 50) s" ;;
-		md_signal)       k="kind";   sample="string_agg(kind||':'||key,';') FROM (SELECT kind,key FROM $t WHERE $tscol>now()-interval '$WINDOW' ORDER BY $tscol DESC LIMIT 50) s" ;;
-		md_dcd_product)  k="product_id"; sample="string_agg(product_id||':'||COALESCE(annualized_yield::text,''),',') FROM (SELECT product_id,annualized_yield FROM $t WHERE $tscol>now()-interval '$WINDOW' ORDER BY $tscol DESC LIMIT 20) s" ;;
-		md_funding)      k="inst_id"; sample="string_agg(inst_id||':'||COALESCE(funding_rate::text,''),',') FROM (SELECT inst_id,funding_rate FROM $t WHERE $tscol>now()-interval '$WINDOW' ORDER BY ts DESC LIMIT 50) s" ;;
-		md_macro_event)  k="event_date"; sample="count(*) FROM $t" ;;
-		fin_proposal)    k="id";     sample="string_agg(id::text||':'||state,',') FROM (SELECT id,state FROM $t ORDER BY id DESC LIMIT 50) s" ;;
-		fin_opp_eval)    k="id";     sample="string_agg(id::text||':'||verdict,',') FROM (SELECT id,verdict FROM $t ORDER BY id DESC LIMIT 50) s" ;;
-		app_config)      k="key";    sample="string_agg(key,';') FROM app_config" ;;
+		md_ticks)        sample="SELECT COALESCE(string_agg(inst_id||':'||COALESCE(last::text,''),','),'∅') FROM (SELECT inst_id,last FROM $t WHERE $tscol>now()-interval '$WINDOW' ORDER BY $tscol DESC LIMIT 50) s" ;;
+		md_mark_index)   sample="SELECT COALESCE(string_agg(inst_id||':'||channel||':'||COALESCE(px::text,''),','),'∅') FROM (SELECT inst_id,channel,px FROM $t WHERE $tscol>now()-interval '$WINDOW' ORDER BY $tscol DESC LIMIT 50) s" ;;
+		md_signal)       sample="SELECT COALESCE(string_agg(kind||':'||key,';'),'∅') FROM (SELECT kind,key FROM $t WHERE $tscol>now()-interval '$WINDOW' ORDER BY $tscol DESC LIMIT 50) s" ;;
+		md_dcd_product)  sample="SELECT COALESCE(string_agg(product_id||':'||COALESCE(annualized_yield::text,''),','),'∅') FROM (SELECT product_id,annualized_yield FROM $t WHERE $tscol>now()-interval '$WINDOW' ORDER BY $tscol DESC LIMIT 20) s" ;;
+		md_funding)      sample="SELECT COALESCE(string_agg(inst_id||':'||COALESCE(funding_rate::text,''),','),'∅') FROM (SELECT inst_id,funding_rate FROM $t WHERE $tscol>now()-interval '$WINDOW' ORDER BY ts DESC LIMIT 50) s" ;;
+		md_macro_event)  sample="SELECT COALESCE(string_agg(event_date::text||':'||kind,','),'∅') FROM md_macro_event" ;;
+		fin_proposal)    sample="SELECT COALESCE(string_agg(id::text||':'||state,','),'∅') FROM (SELECT id,state FROM $t ORDER BY id DESC LIMIT 50) s" ;;
+		fin_opp_eval)    sample="SELECT COALESCE(string_agg(id::text||':'||verdict,','),'∅') FROM (SELECT id,verdict FROM $t ORDER BY id DESC LIMIT 50) s" ;;
+		app_config)      sample="SELECT COALESCE(string_agg(key,';' ORDER BY key),'∅') FROM app_config" ;;
 	esac
-	mdh=$(q "$MD_DSN" "SELECT COALESCE($sample,'∅')")
-	sgh=$(q "$SG_DSN" "SELECT COALESCE($sample,'∅')")
+	mdh=$(q "$MD_DSN" "$sample")
+	sgh=$(q "$SG_DSN" "$sample")
 	stamp="PASS"
 	[ "$mdh" != "$sgh" ] && stamp="SAMPLE-DIFF"
-	# max(ts) 时滞：md 或 sg 任一超 FRESH 秒（且该表应有数据）即红
-	if [ "$md_lag" -ge 0 ] && [ "$md_lag" -gt "$FRESH" ]; then stamp="MD-STALE"; fail=1; fi
-	if [ "$sg_lag" -ge 0 ] && [ "$sg_lag" -gt "$FRESH" ]; then stamp="SG-STALE"; fail=1; fi
+	# max(ts) 时滞只判活写表（proposal/eval/macro/app_config 低频——lag 仅报告）
+	case " $LIVE_TABLES " in *" $t "*)
+		if [ "$md_lag" -ge 0 ] && [ "$md_lag" -gt "$FRESH" ]; then stamp="MD-STALE"; fail=1; fi
+		if [ "$sg_lag" -ge 0 ] && [ "$sg_lag" -gt "$FRESH" ]; then stamp="SG-STALE"; fail=1; fi
+		;; esac
 	printf '%-18s %12s %12s %10s %10s %8s  win:%s/%s\n' "$t" "$md_cnt" "$sg_cnt" "${md_lag}s" "${sg_lag}s" "$stamp" "$md_win" "$sg_win"
 	[ "$stamp" = "SAMPLE-DIFF" ] && {
 		echo "    md:  ${mdh:0:180}"

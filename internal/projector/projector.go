@@ -75,6 +75,11 @@ func New(md, sg *pgxpool.Pool, alert *notify.Alerter, mode string) (*Runner, err
 // Run 主环：守卫→启动对账→双侧听→beat/silent→活性兜底。败经 errc 岗终
 // （systemd 重启→reconciler 自愈——验收锚「杀连自愈」的运行时形态）。
 func (r *Runner) Run(ctx context.Context, errc chan<- error) {
+	// 席位上岗（beatLoop 只 Beat 不 Register——册行缺席=岗终环，先 Register 幂等）。
+	if err := roster.Register(ctx, r.sg, seatName, seatDept, seatTitle, nil); err != nil {
+		errc <- fmt.Errorf("[projector] roster register: %w", err)
+		return
+	}
 	if err := r.guards(ctx); err != nil {
 		errc <- fmt.Errorf("[projector] boot 守卫: %w", err)
 		return

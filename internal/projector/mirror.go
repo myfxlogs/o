@@ -26,7 +26,7 @@ const qMarkIdx = `SELECT ts,venue,inst_id,channel,px,recv_ts FROM md_mark_index
 	WHERE ts>$1 AND inst_id=ANY($2) ORDER BY ts`
 
 const qFunding = `SELECT ts,venue,inst_id,funding_rate,next_funding_rate,next_funding_ts,recv_ts FROM md_funding
-	WHERE ts>$1 AND inst_id=ANY($2) ORDER BY ts`
+	WHERE recv_ts>$1 AND inst_id=ANY($2) ORDER BY recv_ts`
 
 const qSignal = `SELECT kind,key,val,meta,ts FROM md_signal
 	WHERE ts>$1 AND (kind IN ` + signalGlobalKinds + ` OR (kind IN ` + signalActiveKinds + ` AND key=ANY($2)))
@@ -49,7 +49,7 @@ const qMacroAll = `SELECT event_date,kind,title,source FROM md_macro_event ORDER
 // dualwrite 旁写泵变体（T-0169 对拍期——无谓词全量搬运：SG 旧行为保真，旁写语义）。
 const qTicksDual = `SELECT ts,venue,inst_id,last,bid,ask,vol_24h,recv_ts FROM md_ticks WHERE ts>$1 ORDER BY ts`
 const qMarkIdxDual = `SELECT ts,venue,inst_id,channel,px,recv_ts FROM md_mark_index WHERE ts>$1 ORDER BY ts`
-const qFundingDual = `SELECT ts,venue,inst_id,funding_rate,next_funding_rate,next_funding_ts,recv_ts FROM md_funding WHERE ts>$1 ORDER BY ts`
+const qFundingDual = `SELECT ts,venue,inst_id,funding_rate,next_funding_rate,next_funding_ts,recv_ts FROM md_funding WHERE recv_ts>$1 ORDER BY recv_ts`
 const qSignalDual = `SELECT kind,key,val,meta,ts FROM md_signal WHERE ts>$1 ORDER BY ts`
 const qDcdDual = `SELECT ts,venue,surface,uly,product_id,direction,strike,expiry,annualized_yield,min_size,max_size,spot,raw
 	FROM md_dcd_product WHERE ts>$1 ORDER BY ts`

@@ -10,12 +10,27 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// registryPool 席位台账池（fin_employee_registry 归 fin——D-0030 §五「直 beat」：
+// 分域后 dev 侧进程 boot 钉 SG 隧道径池，此后 Register/Beat 全走该池，业务池
+// 不掺席位面；nil=未钉（同库单机期/测试语义——pool 自身即册）。
+var registryPool *pgxpool.Pool
+
+// SetRegistryPool 钉席位台账池（节点 boot 一次性——并发前调用）。
+func SetRegistryPool(p *pgxpool.Pool) { registryPool = p }
+
+func target(pool *pgxpool.Pool) *pgxpool.Pool {
+	if registryPool != nil {
+		return registryPool
+	}
+	return pool
+}
+
 // Register 自注册上岗：name 冲突行更新 dept/title/meta 并刷 last_beat（重启幂等）。
 func Register(ctx context.Context, pool *pgxpool.Pool, name, dept, title string, meta []byte) error {
 	if len(meta) == 0 {
 		meta = []byte("{}")
 	}
-	_, err := pool.Exec(ctx, `INSERT INTO fin_employee_registry(name,dept,title,meta,last_beat)
+	_, err := target(pool).Exec(ctx, `INSERT INTO fin_employee_registry(name,dept,title,meta,last_beat)
 		VALUES($1,$2,$3,$4,now())
 		ON CONFLICT(name) DO UPDATE SET dept=EXCLUDED.dept, title=EXCLUDED.title,
 			meta=EXCLUDED.meta, status='active', last_beat=now()`,
@@ -28,7 +43,7 @@ func Register(ctx context.Context, pool *pgxpool.Pool, name, dept, title string,
 
 // Beat 刷心跳（行不在=未注册→fail-closed 报错，调用方须先 Register）。
 func Beat(ctx context.Context, pool *pgxpool.Pool, name string) error {
-	tag, err := pool.Exec(ctx,
+	tag, err := target(pool).Exec(ctx,
 		"UPDATE fin_employee_registry SET last_beat=now() WHERE name=$1", name)
 	if err != nil {
 		return fmt.Errorf("roster beat %s: %w", name, err)

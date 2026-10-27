@@ -405,3 +405,46 @@ func TestConfigReplicaSync(t *testing.T) {
 		t.Fatal("正本删键副本应删陈")
 	}
 }
+
+// TestFundingRecvWatermark funding 水印=recv_ts（ts=未来结算拍非单调——
+// 同结算键补写新 recv 行不得被 ts 水印吞，T-0169 对拍期实证修）。
+func TestFundingRecvWatermark(t *testing.T) {
+	ctx := context.Background()
+	r, md, sg := runnerDual(t)
+	seedActive(t, sg)
+	if err := r.refreshSets(ctx); err != nil {
+		t.Fatal(err)
+	}
+	settle := time.Now().Add(time.Hour).Truncate(time.Second) // 未来结算拍键
+	if _, err := md.Exec(ctx, `INSERT INTO md_funding(ts,inst_id,funding_rate,recv_ts)
+		VALUES ($1,'BTC-USDT-SWAP',0.0001,$2)`, settle, time.Now().Add(-time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.projectTsTable(ctx, "ev_funding"); err != nil {
+		t.Fatal(err)
+	}
+	if n := count(t, sg, "SELECT count(*) FROM md_funding WHERE inst_id='BTC-USDT-SWAP'"); n != 1 {
+		t.Fatalf("首拍应投影: %d", n)
+	}
+	// 同结算键（ts 不变）以更新 recv_ts 补写——ts 水印形会吞；recv 水印形必达。
+	if _, err := md.Exec(ctx, `INSERT INTO md_funding(ts,inst_id,funding_rate,recv_ts)
+		VALUES (now()+interval '1 hour','BTC-USDT-SWAP',0.0002,now())
+		ON CONFLICT (venue,inst_id,ts) DO NOTHING`); err != nil {
+		t.Fatal(err)
+	}
+	if n := count(t, md, "SELECT count(*) FROM md_funding WHERE inst_id='BTC-USDT-SWAP'"); n != 2 {
+		t.Fatalf("md 侧应两行（追加形）: %d", n)
+	}
+	if err := r.projectTsTable(ctx, "ev_funding"); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	var rate *string
+	if err := sg.QueryRow(ctx, `SELECT count(*), max(funding_rate::text) FROM md_funding
+		WHERE inst_id='BTC-USDT-SWAP'`).Scan(&n, &rate); err != nil {
+		t.Fatal(err)
+	}
+	if n < 2 || rate == nil || *rate != "0.0002" {
+		t.Fatalf("recv 水印应达新补写行（SG 侧最新 0.0002）: n=%d rate=%v", n, rate)
+	}
+}
