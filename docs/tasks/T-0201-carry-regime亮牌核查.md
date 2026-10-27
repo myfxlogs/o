@@ -43,3 +43,13 @@
 - venue spec 原值实拍入票
 - 方向/年化/单位三审结论在案
 - carry_diff 7d 分布钉值在案
+
+## 决策席验收（2026-10-27 深夜）——亮牌判伪收口
+
+施工三审+我自拍的 mt5_swap meta 双腿合判：
+- spec 面：链报 swap_long=-1786.5/swap_short=0 是 venue 原值级
+  （meta 直出 venue 读件）——「免息」只在空腿侧为真。
+- **判伪**：正 funding 收割向=short perp+long CFD，成本腿=
+  swap_long(-816bps)——carry_diff 用 swap_short(0) 虚高了 816bps。
+  真净≈+279bps<8% 阈——**T-0145 候场阈未达，不升派**。
+- 口径伪影根治转 T-0203（方向腿自洽化）。销号。
