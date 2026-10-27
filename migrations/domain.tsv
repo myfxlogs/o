@@ -68,3 +68,4 @@ md_signal	bridge
 fin_data_retention	bridge
 fin_eval_reject	fin
 fin_active_set	fin
+fin_host_metrics	fin

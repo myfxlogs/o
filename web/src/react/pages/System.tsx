@@ -6,6 +6,7 @@ import { client } from "../api";
 import { useSnap } from "../hooks";
 import { Card, EmptyState, ErrorState, Skeleton, StateDot } from "../components/ui";
 import { AGE, ExchSections, healthRows } from "../components/panel";
+import { HostMetricsCard } from "../components/hostmetrics";
 import { pbDate } from "../components/fmt";
 import type { SystemComponent, } from "../../gen/dashboardv1/core_pb";
 
@@ -101,6 +102,9 @@ export function SystemPage() {
           </Card>
         </div>
       )}
+
+      {/* 主机资源（CPU/内存/磁盘/网络——各机自报 30s 拍） */}
+      <HostMetricsCard />
 
       {/* SG core 采集臂进程观测 */}
       {h.data ? (

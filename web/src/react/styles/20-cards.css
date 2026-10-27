@@ -472,3 +472,37 @@ details.rep summary {
 .exch-rows {
   margin-left: 6px;
 }
+
+/* —— 主机资源瓦片（CPU/内存/磁盘条+网络/运行时长）—— */
+.hm-tile {
+  min-width: 0;
+}
+.hm-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 13.5px;
+}
+.hm-bar {
+  margin-bottom: 8px;
+}
+.hm-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12.5px;
+}
+.hm-track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--line);
+  margin-top: 4px;
+  overflow: hidden;
+}
+.hm-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--accent);
+  transition: width 0.4s ease;
+}

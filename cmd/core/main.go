@@ -24,6 +24,7 @@ import (
 	"o/internal/ledger/report"
 	"o/internal/mt5"
 	"o/internal/platform/config"
+	"o/internal/platform/hostmetrics"
 	"o/internal/platform/netmeter"
 	"o/internal/platform/notify"
 	"o/internal/platform/pgguard"
@@ -126,6 +127,8 @@ func run() error {
 	collector.AttachMarkFeed(markFeedFor(func() *okxexec.Client { return okcli })) // T-0135 mark-price REST 轮询读件
 	go killSwitchNotifier(ctx, pool, cfg, alerter)
 	go startRetention(ctx, errc, pool, alerter) // T-0153 清道夫日拍
+	// T-0173 主机资源自报（面板服务器状态——/proc 30s 拍 upsert 本机行）。
+	go hostmetrics.Run(ctx, pool, "sg", "/", 30*time.Second)
 	riskGate := risk.NewGate(pool, cfg)
 	// T-0104/D-0013：节点角色闸（noderole.go）——只读镜像写径不可达。
 	ro := nodeReadonly()

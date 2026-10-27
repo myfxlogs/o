@@ -22,6 +22,7 @@ service CoreService {
   // —— 系统健康与复盘读面（T-0170：/md/status、/report 手集 JSON 收编入契约
   // ——D-0009 落前端面：有 proto 的面=绝对 proto，前端零裸 JSON 依赖）——
   rpc GetSystemHealth(GetSystemHealthRequest) returns (GetSystemHealthResponse) {}
+  rpc GetHostMetrics(GetHostMetricsRequest) returns (GetHostMetricsResponse) {}
   rpc ListReports(ListReportsRequest) returns (ListReportsResponse) {}
   rpc GetEquityCurve(GetEquityCurveRequest) returns (GetEquityCurveResponse) {}
   rpc ListCashflows(ListCashflowsRequest) returns (ListCashflowsResponse) {}
@@ -254,6 +255,25 @@ message GetSystemHealthResponse {
   double net_kbps = 5;             // 采集带宽速率
   map<string, int64> net_channels = 6;  // 分频道累计字节
 }
+
+// —— 主机资源（T-0173 业主令：CPU/内存/磁盘/网络——各机自报 30s 拍，
+// 每机一行 upsert；stale=拍断 2min，面板显陈不假值）——
+message GetHostMetricsRequest {}
+message HostMetric {
+  string host = 1;
+  google.protobuf.Timestamp ts = 2;
+  int32 cores = 3;
+  double cpu_pct = 4;
+  double mem_total_mb = 5;
+  double mem_used_mb = 6;
+  double disk_total_gb = 7;
+  double disk_used_gb = 8;
+  double net_rx_kbps = 9;
+  double net_tx_kbps = 10;
+  double uptime_hours = 11;
+  bool stale = 12;
+}
+message GetHostMetricsResponse { repeated HostMetric hosts = 1; }
 
 // —— 复盘面（fin_report 直出——metrics jsonb 服务端解为键值对，前端零解析）——
 
