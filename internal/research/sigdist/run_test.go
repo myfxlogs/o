@@ -53,7 +53,11 @@ func TestBasisAnn(t *testing.T) {
 		Scan(&bps, &meta, &rowTs); err != nil {
 		t.Fatal("basis_ann 行应落:", err)
 	}
-	want := float64(102-100) / 100 * 365 / 243 * 10000
+	// T-0206③：夹具迁实现口径——到期天数=exp−now 实算（非硬编 243；
+	// 随时间漂移的精度偏先验败件根治）。
+	expD, _ := time.Parse("060102", "270626")
+	days := time.Until(expD).Hours() / 24
+	want := float64(102-100) / 100 * 365 / days * 10000
 	if bps < want-1 || bps > want+1 {
 		t.Fatalf("年化 bps≈%v want≈%v", bps, want)
 	}
