@@ -561,3 +561,10 @@ details.rep summary {
     grid-template-columns: 1fr;
   }
 }
+
+/* —— 对冲结构三列（业主⑳：TRX 资源|投票引擎|CMC 对冲腿）—— */
+@media (min-width: 640px) {
+  .hedge-accts {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}
