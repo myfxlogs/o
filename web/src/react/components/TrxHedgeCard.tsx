@@ -97,21 +97,7 @@ export function TrxHedgeCard() {
           {accts && (
             <div className="hedge-accts" role="group" aria-label="双账户摘要">
               <div className="hedge-acct-block">
-                <h3 className="muted">
-                  TRX 账户
-                  {/* D-254：kick trxAccountRefresh→等 trx 流帧回填（setTimeout 等待拍禁搬入） */}
-                  <button className="trx-refresh-btn" disabled={trxRefreshing}
-                    onClick={async () => {
-                      if (trxRefreshing) return;
-                      setTrxRefreshing(true);
-                      try { await client.trxAccountRefresh({}); void refetch(); }
-                      catch { /* 体感件静默败 */ }
-                      finally { setTrxRefreshing(false); }
-                    }}
-                    aria-label="刷新 TRX 账户" title="刷新 TRX 账户（双踢采集+流帧回填）">
-                    <span className={trxRefreshing ? "refresh-spin" : ""}>↻</span>
-                  </button>
-                </h3>
+                <h3 className="muted">TRX 账户</h3>
                 <div>余额 {fmtNum(accts.trxBalance, 3)} TRX</div>
                 {/* 待领取归投票引擎卡（同 rewardNum 源——T-0173 业主⑳能减尽减） */}
                 <div>能量委托 {fmtNum(accts.energyDelegated, 3)} TRX</div>
