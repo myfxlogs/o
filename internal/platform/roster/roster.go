@@ -4,6 +4,7 @@ package roster
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"time"
 
@@ -52,6 +53,15 @@ func Beat(ctx context.Context, pool *pgxpool.Pool, name string) error {
 		return fmt.Errorf("roster beat %s: 未注册行（须先 Register）", name)
 	}
 	return nil
+}
+
+// LastBeat 席位最近心跳读（走台账池——registry 归 fin 域册，分域节点经
+// SetRegistryPool 钉池路由，T-0172 研究侧读面断供收敛件）。
+func LastBeat(ctx context.Context, pool *pgxpool.Pool, name string) (sql.NullTime, error) {
+	var t sql.NullTime
+	err := target(pool).QueryRow(ctx,
+		"SELECT max(last_beat) FROM fin_employee_registry WHERE name=$1", name).Scan(&t)
+	return t, err
 }
 
 // BeatLoop 周期心跳 goroutine；errc 上报失败（beat 断=活性台账陈——声张不静默）。

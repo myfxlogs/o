@@ -24,6 +24,11 @@ func (f *capSender) SendText(ctx context.Context, chatID, text string) (string, 
 func setup(t *testing.T) (context.Context, *SilentWatch) {
 	t.Helper()
 	pool := testutil.Pool(t)
+	// T-0172：锚双源跨域（产出锚 fin_opp_hypothesis 归 md，在岗锚 registry 归
+	// fin）——两链并集态（md 先 fin 后，review_test 同律）。
+	if err := pgstore.Migrate(context.Background(), pool, "md"); err != nil {
+		t.Fatal(err)
+	}
 	if err := pgstore.Migrate(context.Background(), pool, "fin"); err != nil {
 		t.Fatal(err)
 	}
