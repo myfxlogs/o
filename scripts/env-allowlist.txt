@@ -43,4 +43,7 @@ ROSTER_PG_DSN
 # FIN_PG_DSN=review 钱径读写小池（T-0172——fin 域表正本在 SG，md 池无 fin 读面
 # =评史官全盲；隧道径与 ROSTER_PG_DSN 同形）。
 FIN_PG_DSN
+# READCRED_URL=只读钥取面定位件（T-0170 径 A——隧道 5545→SG 8095 readcred 专口；
+# 与 *_PG_DSN 同类引导件：钥本走 app_secrets 解密直出仅内存，env 只载地址非凭据）。
+READCRED_URL
 COLLECTO_MT5_HOST

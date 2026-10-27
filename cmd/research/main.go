@@ -1,6 +1,7 @@
 // research —— 研究域外置节点（T-0165/D-0029：开发机算力面——researchArms
-// 全族+review/report 迁此；公开读面零凭据；roster 席位名不变 beat 换机；
+// 全族+review/report 迁此；roster 席位名不变 beat 换机；
 // SG o-core 撤臂钱径独占）。DSN 经 SG_PG_DSN 隧道径（同 collector 接法）。
+// T-0170 认证读面：READCRED_URL 设=只读钥 boot 内存取+401 自重取（径 A）。
 package main
 
 import (
@@ -52,9 +53,15 @@ func main() {
 	if err := cfg.Load(ctx); err != nil {
 		log.Fatalf("config load: %v", err)
 	}
-	// 公开读面零凭据（T-0102 红线：research 域零 venue 凭据——
-	// okcli 无凭据 PublicGet 公开面直读同 universeExpander 径）。
-	okcli := okxexec.NewClient(okxexec.Credentials{}, false)
+	// T-0170 认证读面（径 A 终裁）：READCRED_URL 设→boot 经隧道（5545）取
+	// 只读钥仅进内存+401 自重取轮换自愈；缺→无凭据读面（dcd/gapscan 私有
+	// 读面 401 fail-closed 让位——桩锚不回归）。
+	var okcli authGetter = okxexec.NewClient(okxexec.Credentials{}, false)
+	rcMode := "无凭据公开读"
+	if url := os.Getenv("READCRED_URL"); url != "" {
+		okcli = newAuthClient(url)
+		rcMode = "readcred 认证读（只读钥内存取）"
+	}
 	alerter := notify.NewAlerter(nil, func() string {
 		v, _ := cfg.GetString("feishu.chat_id")
 		return v
@@ -64,7 +71,7 @@ func main() {
 	go review.NewRunner(pool, finPool).Run(ctx, errc) // 复盘域随迁（钱径臂 SG 小池——T-0172）
 	// T-0165 返修③：report 回 SG（钱径读写面 app_secrets/master key/
 	// fin_cashflow——票面第5条明令只迁纯研究面；review 留此节点）。
-	log.Printf("[o-research] 研究域节点起——researchArms+review+report 全族（公开读面零凭据）")
+	log.Printf("[o-research] 研究域节点起——researchArms+review+report 全族（读面=%s）", rcMode)
 	for {
 		select {
 		case err := <-errc:

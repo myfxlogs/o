@@ -1,9 +1,10 @@
 # o-research.service —— 研究域节点 systemd 单元（T-0165/D-0029：开发机
 # 算力面——researchArms+review 全族迁此；与 o-collecto 同形）。
+# T-0170：readcred 隧道单元随挂（boot 取只读钥——败=降级不炸 boot）。
 [Unit]
 Description=o-research research arms node
-After=network-online.target o-collecto-tunnel.service
-Wants=network-online.target o-collecto-tunnel.service
+After=network-online.target o-collecto-tunnel.service o-readcred-tunnel.service
+Wants=network-online.target o-collecto-tunnel.service o-readcred-tunnel.service
 
 [Service]
 Type=simple
