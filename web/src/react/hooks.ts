@@ -10,10 +10,12 @@ export type Snap<T> = {
   reload: () => void;
 };
 
-// useSnap：抓一次 + 每逢 topics 命中的 Watch 帧重抓（topics 空=不订阅事件）。
+// useSnap：抓一次 + 每逢 topics 命中的 Watch 帧重抓（topics 空=不订阅事件）
+// + key（请求参数指纹——参数变=重抓；漏传即「筛选/翻页失效」病灶）。
 export function useSnap<T>(
   topics: string[],
-  fetcher: () => Promise<T>
+  fetcher: () => Promise<T>,
+  key?: unknown
 ): Snap<T> {
   const [data, setData] = useState<T | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -40,7 +42,7 @@ export function useSnap<T>(
     return () => {
       alive = false;
     };
-  }, [tick]);
+  }, [tick, key]);
 
   useEffect(() => {
     if (topics.length === 0) return;

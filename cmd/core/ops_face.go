@@ -223,21 +223,33 @@ func (c coreService) ListCashflows(ctx context.Context,
 		limit = 50
 	}
 	kind := req.GetKind()
+	venue := req.GetVenue()
 	r := &dashboardv1.ListCashflowsResponse{}
 	var total int32
-	q := `SELECT count(*) FROM fin_cashflow`
-	args := []any{}
+	// count 与 select 各自独立参数组（复用切片=占位符错位、$1 无引用 42P18 病灶）。
+	cargs := []any{}
+	cq := `SELECT count(*) FROM fin_cashflow WHERE 1=1`
 	if kind != "" {
-		q += ` WHERE kind=$1`
-		args = append(args, kind)
+		cargs = append(cargs, kind)
+		cq += ` AND kind=$` + strconv.Itoa(len(cargs)) + `::text`
 	}
-	if err := c.pool.QueryRow(ctx, q, args...).Scan(&total); err != nil {
+	if venue != "" {
+		cargs = append(cargs, venue)
+		cq += ` AND venue=$` + strconv.Itoa(len(cargs)) + `::text`
+	}
+	if err := c.pool.QueryRow(ctx, cq, cargs...).Scan(&total); err != nil {
 		return nil, err
 	}
 	r.Total = total
-	q = `SELECT id,occurred_at,kind,ccy,amount,coalesce(venue,'') FROM fin_cashflow`
+	q := `SELECT id,occurred_at,kind,ccy,amount,coalesce(venue,'') FROM fin_cashflow WHERE 1=1`
+	args := []any{}
 	if kind != "" {
-		q += ` WHERE kind=$1`
+		args = append(args, kind)
+		q += ` AND kind=$` + strconv.Itoa(len(args)) + `::text`
+	}
+	if venue != "" {
+		args = append(args, venue)
+		q += ` AND venue=$` + strconv.Itoa(len(args)) + `::text`
 	}
 	q += ` ORDER BY id DESC LIMIT $` + strconv.Itoa(len(args)+1) + ` OFFSET $` + strconv.Itoa(len(args)+2)
 	args = append(args, limit, int(req.GetOffset()))

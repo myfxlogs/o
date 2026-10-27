@@ -13,6 +13,22 @@ const PERIODS: { k: string; label: string }[] = [
   { k: "monthly", label: "月报" },
 ];
 
+const KIND_CN: Record<string, string> = {
+  interest: "活期利息",
+  funding_settle: "资金费",
+  trade_pnl: "平仓盈亏",
+  fee: "交易成本",
+  deposit: "入金",
+  withdraw: "出金",
+  spot_buy: "现货买入",
+  spot_sell: "现货卖出",
+  recon_adjust: "校账调整",
+  rollback_cost: "回滚成本",
+  earn_in: "Earn 转入",
+  earn_out: "Earn 转出",
+};
+const VENUE_CN: Record<string, string> = { okx: "OKX", mt5: "MT5" };
+
 const METRIC_NAMES: Record<string, string> = {
   net: "净额",
   cum_nav: "累计净值",
@@ -33,8 +49,9 @@ const METRIC_NAMES: Record<string, string> = {
 function ReportsCard() {
   const [period, setPeriod] = useState("daily");
   const [page, setPage] = useState(0);
-  const r = useSnap(["ev_cashflow"], () =>
-    client.listReports({ period, n: 10, offset: page * 10 })
+  const r = useSnap(["ev_cashflow"],
+    () => client.listReports({ period, n: 10, offset: page * 10 }),
+    `${period}:${page}`
   );
   const total = r.data?.total ?? 0;
   const pages = Math.max(1, Math.ceil(total / 10));
@@ -128,13 +145,24 @@ function EquityCard() {
   );
 }
 
-const FLOW_KINDS = ["", "interest", "funding_settle", "trade_pnl", "fee", "deposit", "withdraw"];
+const FLOW_KINDS: [string, string][] = [
+  ["", "全部"],
+  ["interest", "活期利息"],
+  ["funding_settle", "资金费"],
+  ["trade_pnl", "平仓盈亏"],
+  ["fee", "交易成本"],
+  ["deposit", "入金"],
+  ["withdraw", "出金"],
+];
+const FLOW_VENUES: [string, string][] = [["", "全部平台"], ["okx", "OKX"], ["mt5", "MT5"]];
 
 function FlowsCard() {
   const [kind, setKind] = useState("");
+  const [venue, setVenue] = useState("");
   const [page, setPage] = useState(0);
-  const f = useSnap(["ev_cashflow"], () =>
-    client.listCashflows({ kind, limit: 20, offset: page * 20 })
+  const f = useSnap(["ev_cashflow"],
+    () => client.listCashflows({ kind, venue, limit: 20, offset: page * 20 }),
+    `${kind}:${venue}:${page}`
   );
   const total = f.data?.total ?? 0;
   const pages = Math.max(1, Math.ceil(total / 20));
@@ -143,7 +171,7 @@ function FlowsCard() {
       title="现金流全量"
       extra={
         <span className="seg">
-          {FLOW_KINDS.map((k) => (
+          {FLOW_KINDS.map(([k, cn]) => (
             <button
               key={k}
               className={"btn seg-btn" + (kind === k ? " on" : "")}
@@ -152,7 +180,20 @@ function FlowsCard() {
                 setPage(0);
               }}
             >
-              {k === "" ? "全部" : k}
+              {cn}
+            </button>
+          ))}
+          <span className="ink-3">｜</span>
+          {FLOW_VENUES.map(([v, cn]) => (
+            <button
+              key={v}
+              className={"btn seg-btn" + (venue === v ? " on" : "")}
+              onClick={() => {
+                setVenue(v);
+                setPage(0);
+              }}
+            >
+              {cn}
             </button>
           ))}
         </span>
@@ -172,19 +213,19 @@ function FlowsCard() {
                 <th>时间</th>
                 <th>类</th>
                 <th className="num">额</th>
-                <th>venue</th>
+                <th>平台</th>
               </tr>
             </thead>
             <tbody>
               {(f.data?.rows ?? []).map((row) => (
                 <tr key={row.id}>
                   <td className="mono">{(pbDate(row.occurredAt)?.toISOString().slice(5, 16).replace("T", " ") ?? '—')}</td>
-                  <td>{row.kind}</td>
+                  <td>{KIND_CN[row.kind] ?? row.kind}</td>
                   <td className={"num mono " + (row.amount >= 0 ? "u-good" : "u-bad")}>
                     {row.amount >= 0 ? "+" : ""}
                     {row.amount.toFixed(4)} {row.ccy}
                   </td>
-                  <td className="ink-3">{row.venue || "—"}</td>
+                  <td className="ink-3">{VENUE_CN[row.venue] || row.venue || "—"}</td>
                 </tr>
               ))}
             </tbody>
