@@ -210,7 +210,7 @@ export function ReviewPage() {
   return (
     <div className="page">
       <EquityCard />
-      <div className="masonry">
+      <div className="duo">
         <ReportsCard />
         <FlowsCard />
       </div>
