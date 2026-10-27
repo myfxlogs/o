@@ -38,3 +38,29 @@
 要求 fin 侧迁移+md 侧同形件**同 commit 落**（md_1072 顺位），否则
 check_migrations 即红。迁移序号：fin_0073 顺位（0071=host_metrics/
 0072=condition_gap 已占）。
+
+## 结果回填
+
+### ① 审计列（双链同落）
+- fin_0073_app_config_audit.sql：updated_by text NOT NULL DEFAULT '' +
+  updated_at 既有列零动；既有行回填 'legacy'。md_1072_app_config_audit.sql
+  副本同形（桥表两链同形闸过——七断言绿）。
+- config.Set(ctx,key,value,actor) 写径新增：INSERT ON CONFLICT 写
+  updated_by=actor+updated_at=now()（generation 序列触发器同源热启帧；
+  live_switch 此后翻位留写者名）。
+- projector 副本同步列扩展：qConfigAll/uConfig 带 updated_by——
+  正本写者名副本面同形同步。
+
+### ② 清算取证（生产对拍）
+- **recon_adjust +1.70（id=93，2026-10-24 13:10）定性=合法校准行**：
+  T-0100 残余币归口对账窗内校准批——同批 -3.39/+28.36/+125.17 五笔
+  同窗分布（05:13~13:10），source_ref=自引/基线锚口径（基线校准
+  一次性行律——非本席执行系前席对账动作，来源对清=合法记源）。
+- **sweepIdle 50.18 归因=结构性不修**：earn.sweep_min_usd=100 >
+  余额 50.18——阈值高于余额=永不回存（观察期零回存根因非事件面败）。
+  处置=调阈 SG 生产已落 `earn.sweep_min_usd=25`（50.18>25 下拍
+  自动停泊；updated_by 列迁移后翻位留痕）。
+
+### ③ 锚
+- 迁移七断言过（fin_0073+md_1072 同 commit 双链同形）；
+  config 包 4 测绿；check-env-reads/rejects 全绿。
