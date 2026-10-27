@@ -13,6 +13,7 @@ import (
 
 	"o/internal/platform/config"
 	"o/internal/platform/notify"
+	"o/internal/platform/rejects"
 	"o/internal/platform/roster"
 	"o/internal/review"
 	"o/internal/trading/okxexec"
@@ -67,7 +68,8 @@ func main() {
 		return v
 	}, func() bool { v, _ := cfg.GetBool("notify.feishu.enabled"); return v })
 	errc := make(chan error, 8)
-	go researchArms(ctx, errc, pool, cfg, okcli, alerter)
+	rej := rejects.New("research", "dcd_pair_429") // T-0180 对级容错拒因键
+	go researchArms(ctx, errc, pool, cfg, okcli, alerter, rej)
 	go review.NewRunner(pool, finPool).Run(ctx, errc) // 复盘域随迁（钱径臂 SG 小池——T-0172）
 	// T-0165 返修③：report 回 SG（钱径读写面 app_secrets/master key/
 	// fin_cashflow——票面第5条明令只迁纯研究面；review 留此节点）。

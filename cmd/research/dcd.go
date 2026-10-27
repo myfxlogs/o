@@ -18,6 +18,7 @@ import (
 
 	"o/internal/platform/config"
 	"o/internal/platform/notify"
+	"o/internal/platform/rejects"
 
 	"o/internal/research/dcd"
 	"o/internal/research/funding"
@@ -59,7 +60,7 @@ func get429(ctx context.Context, okcli authGetter, path string) ([]byte, error) 
 	return nil, err
 }
 
-func dcdFeedFor(okcli authGetter) dcd.Feed {
+func dcdFeedFor(okcli authGetter, rej *rejects.Door) dcd.Feed {
 	return func(ctx context.Context, s dcd.Surface) ([]dcd.Product, error) {
 		if okcli == nil {
 			return nil, fmt.Errorf("dcd feed 缺席（凭据缺）")
@@ -73,6 +74,7 @@ func dcdFeedFor(okcli authGetter) dcd.Feed {
 			return nil, err
 		}
 		var out []dcd.Product
+		var fail int
 		for i, pr := range pairs {
 			if i > 0 {
 				time.Sleep(300 * time.Millisecond) // sched-exempt-ok：限流件
@@ -81,13 +83,25 @@ func dcdFeedFor(okcli authGetter) dcd.Feed {
 			raw2, err := get429(ctx, okcli, fmt.Sprintf("%s/products?baseCcy=%s&quoteCcy=%s&optType=%s",
 				s.EndpointFamily, pr.BaseCcy, pr.QuoteCcy, pr.OptType))
 			if err != nil {
-				return nil, err
+				fail++
+				if rej != nil {
+					rej.Inc("dcd_pair_429")
+				}
+				continue // T-0180：单对败=跳过续跑（部分集>全集成败丢弃——枚举是覆盖面非事务）
 			}
 			ps, err := dcd.ParseProducts(raw2)
 			if err != nil {
-				return nil, err
+				fail++
+				if rej != nil {
+					rej.Inc("dcd_pair_429")
+				}
+				continue // 解析败同型容错（部分集续跑）
 			}
 			out = append(out, ps...)
+		}
+		if len(pairs) > 0 && fail*2 > len(pairs) {
+			// 半数级失败=系统性断供分型（非零星限频——整面照让位 fail-closed）
+			return nil, fmt.Errorf("dcd feed 对级失败率>50%%（%d/%d——系统性断供分型整面让位）", fail, len(pairs))
 		}
 		return out, nil
 	}
@@ -140,7 +154,7 @@ func gapProbeFor(okcli authGetter) gapscan.Probe {
 // researchArms 研究域四臂发射（T-0117：funding/dcd/差扫/假想官静默告警同挂
 // 业主通道——读件缺席=让位 WARN 不炸 boot）。
 func researchArms(ctx context.Context, errc chan<- error, pool *pgxpool.Pool,
-	cfg *config.Client, okcli authGetter, alerter *notify.Alerter) {
+	cfg *config.Client, okcli authGetter, alerter *notify.Alerter, rej *rejects.Door) {
 	fr := funding.NewRunner(pool, cfg)
 	fr.AttachAlerter(alerter)
 	// T-0150 起草闸读件：SPOT 目录复用 market/tickers 全量面（零新端点）。
@@ -148,7 +162,7 @@ func researchArms(ctx context.Context, errc chan<- error, pool *pgxpool.Pool,
 		return get429(ctx, okcli, "/api/v5/market/tickers?instType=SPOT")
 	})
 	go fr.Run(ctx, errc)
-	go dcd.NewRunner(pool, cfg).AttachFeed(dcdFeedFor(okcli)).
+	go dcd.NewRunner(pool, cfg).AttachFeed(dcdFeedFor(okcli, rej)).
 		AttachCoins(okxCoinsFor(pool, okcli)).AttachAlerter(alerter).Run(ctx, errc)
 	go gapscan.NewRunner(pool, cfg).AttachProbe(gapProbeFor(okcli)).AttachAlerter(alerter).Run(ctx, errc)
 	hr := hypothesis.NewRunner(pool, cfg)
