@@ -48,10 +48,34 @@ USDT 保证金键域（形如 X-USDT-YYMMDD）。
 5. `cmd/core/universe.go` 同点核对修或注记豁免（SG 面宇宙仅
    注册径不订阅——若同误同改）。
 
-## 状态
+## 决策席验收返修（2026-10-27——票面判据被 API 实证证伪）
+
+**我立单时的 `-USDT-` 判据错了**——venue 实测：
+
+```
+/api/v5/public/instruments?instType=FUTURES  live quarter 全 6 枚:
+  BTC-USD-261225 / ETH-USD-261225 …… 全是 -USD- 币本位
+  -USDT- 保证金到期期货 = 0 枚（OKX 不挂此形）
+```
+
+施工照票面改 `-USDT-` 中缀判=仍空集（合入无害但证不了 basis_ann）。
+**二次裁钦定**：
+
+1. 过滤改 `datedFutRe` 形判（`-\d{6}$` 尾）或 `Contains("-USD-")`——
+   凡 quarter 到期期货不论保证金种全收（6 枚实证）；
+2. **指数键域配套**：basisAnn JOIN 剥日期得 `BTC-USD` 对
+   index-tickers `inst_id='BTC-USD'`——universe 须把期货 uly
+   剥离键（`BTC-USD-261225`→`BTC-USD`）一并入集，index-tickers
+   订阅面才会覆盖 USD 指数行（现只有 -USDT 指数）。漏此步=
+   期货 mark 到了仍 JOIN 不上；
+3. `cmd/core/universe.go` 同修（同两处语义）。
+
+验收锚改判：`md_mark_index` 出现 `*-USD-*` 到期期货 mark 行+
+`BTC-USD` 形 index 行，`basis_ann` 拍行数 >0 方算绿。
 
 - [x] 立单
-- [ ] 施工
+- [x] 施工（一巡：-USDT- 判——判据错空集，返修）
+- [ ] 施工（二巡：quarter 全收+USD 指数键入集）
 - [ ] 验收投产
 
 ## 结果回填
