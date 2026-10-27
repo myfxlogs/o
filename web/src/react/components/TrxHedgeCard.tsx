@@ -116,6 +116,10 @@ export function TrxHedgeCard() {
                 {/* 待领取归投票引擎卡（同 rewardNum 源——T-0173 业主⑳能减尽减） */}
                 <div>能量委托 {fmtNum(accts.energyDelegated, 3)} TRX</div>
                 <div>票权 {fmtNum(accts.votes)}</div>
+              </div>
+              <div className="hedge-acct-block">
+                <h3 className="muted">投票引擎</h3>
+                <TrxVoteEngineRows />
                 {accts.netLimit > 0 && (
                   <div className="muted" title={`带宽上限 ${fmtNum(accts.netLimit + accts.freeNetLimit, 0)} BP`}>
                     剩余带宽 {fmtNum((accts.freeNetLimit - accts.freeNetUsed) + (accts.netLimit - accts.netUsed), 0)} BP
@@ -128,7 +132,6 @@ export function TrxHedgeCard() {
                     剩余能量 {fmtNum(accts.energyLimit - accts.energyUsed, 0)} Energy
                   </div>
                 )}
-                <TrxVoteEngineRows />
               </div>
               <div className="hedge-acct-block">
                 <h3 className="muted">CMC 账户</h3>
