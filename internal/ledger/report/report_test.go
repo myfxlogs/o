@@ -2,8 +2,6 @@ package report
 
 import (
 	"context"
-	"encoding/json"
-	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -46,28 +44,37 @@ func TestReportGen(t *testing.T) {
 	}
 }
 
-// GET /report 取径锚：三 period 应答字段齐。
-func TestReportHandler(t *testing.T) {
+// NAV 日拍锚（T-0170）：WithNav 接线→cycle 落 ccy='NAV' 行；nil 接线→零行
+// 如实（不假拍）；append-only 语义（同日多拍=多行，读侧日桶取末收敛）。
+func TestNavSnapshot(t *testing.T) {
 	pool := testutil.Pool(t)
 	ctx := context.Background()
 	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
 		t.Fatal(err)
 	}
-	if err := Gen(ctx, pool, "daily", BoundsOf("daily", time.Now())); err != nil {
-		t.Fatal(err)
+	_, _ = pool.Exec(ctx, "DELETE FROM md_equity_curve WHERE ccy='NAV'")
+	// nil 接线=不拍
+	NewRunner(pool, nil).cycle(ctx)
+	var n int
+	if err := pool.QueryRow(ctx,
+		"SELECT count(*) FROM md_equity_curve WHERE ccy='NAV'").Scan(&n); err != nil || n != 0 {
+		t.Fatalf("未接线不应拍: n=%d err=%v", n, err)
 	}
-	req := httptest.NewRequest("GET", "/report?period=daily&n=4", nil)
-	rec := httptest.NewRecorder()
-	Handler(pool)(rec, req)
-	var out []map[string]any
-	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil || len(out) != 1 {
-		t.Fatalf("handler rows=%d err=%v", len(out), err)
+	// 接线=落行，NAV 值如实透传
+	r := NewRunner(pool, nil).WithNav(func(context.Context) (float64, error) {
+		return 12345.5, nil
+	})
+	r.cycle(ctx)
+	var eq float64
+	if err := pool.QueryRow(ctx, `SELECT equity FROM md_equity_curve
+		WHERE ccy='NAV' AND src='report_daily' ORDER BY ts DESC LIMIT 1`).Scan(&eq); err != nil || eq != 12345.5 {
+		t.Fatalf("NAV 日拍缺席/错值: eq=%v err=%v", eq, err)
 	}
-	m := out[0]["metrics"].(map[string]any)
-	for _, k := range []string{"net", "cum_nav", "opened", "closed", "rejected", "earn_balance"} {
-		if _, ok := m[k]; !ok {
-			t.Fatalf("metrics 缺 %s", k)
-		}
+	// 二拍=追加非覆盖（读侧日桶收敛语义）
+	r.cycle(ctx)
+	if err := pool.QueryRow(ctx,
+		"SELECT count(*) FROM md_equity_curve WHERE ccy='NAV'").Scan(&n); err != nil || n != 2 {
+		t.Fatalf("append-only 语义破: n=%d", n)
 	}
 }
 

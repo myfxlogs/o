@@ -1,10 +1,10 @@
 // TrxYieldRadar.tsx —— 收益率卡（arb 同名件借形，D-288 合并版式）：
 // 6 格 grid=能量 7d/30d+投票当前/30d+组合 7d/30d（后端算定直渲，样本不足
-// 标透传），敞口计量行=累积收益+对冲漂移。onCase("dataRefresh") topic=trx
+// 标透传），敞口计量行=累积收益+对冲漂移。onData() topic=trx
 // 流帧重取——arb 原型 30s interval 已退役同径。
 import { useCallback, useEffect, useState } from "react";
 import { client } from "../api";
-import { onCase } from "../stream";
+import { onData } from "../stream";
 import type { GetTrxYieldRadarResponse, GetTrxYieldCurveResponse, HedgeCarry } from "../../gen/dashboardv1/core_pb";
 import { fmtUsd, fmtNum, ts } from "./fmt";
 
@@ -34,7 +34,7 @@ export function TrxYieldRadar() {
 
   useEffect(() => {
     void fetchAll();
-    return onCase("dataRefresh", (v) => {
+    return onData((v) => {
       if ((v as { topic: string }).topic === "trx") void fetchAll();
     });
   }, [fetchAll]);

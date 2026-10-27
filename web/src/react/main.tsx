@@ -1,27 +1,41 @@
-// main.tsx —— TRX 页 React 壳（T-0113：左栏导航 nox shell 同款+TrxPage 全件）。
-// 主题单源（T-0157）：o_theme 共键（与 vanilla 总览页同源）——'light'/'dark'
-// 显式钉 data-theme；缺省不设=随系统（00-base prefers-color-scheme 径）。
-const savedTheme = localStorage.getItem('o_theme')
-if (savedTheme === 'light' || savedTheme === 'dark') {
-  document.documentElement.dataset.theme = savedTheme
+// main.tsx —— SPA 单入口（T-0170：四页一栈，原 vanilla 总览+trx 双入口
+// 双栈归一；数据面唯一入口=CoreService Connect——D-0009）。
+import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+import { Shell } from "./Shell";
+import type { RouteDef } from "./router";
+import { usePath } from "./router";
+import { OverviewPage } from "./pages/Overview";
+import { SystemPage } from "./pages/System";
+import { TrxPage } from "./pages/Trx";
+import { ReviewPage } from "./pages/Review";
+import "./styles/00-base.css";
+import "./styles/10-shell.css";
+import "./styles/20-cards.css";
+import "./styles/03-table-chip.css";
+import "./styles/06-buttons.css";
+import "./styles/20-semantic.css";
+
+const ROUTES: RouteDef[] = [
+  { path: "/", label: "总览", el: <OverviewPage /> },
+  { path: "/system", label: "系统", el: <SystemPage /> },
+  { path: "/trx", label: "TRX", el: <TrxPage /> },
+  { path: "/review", label: "复盘", el: <ReviewPage /> },
+];
+
+function App() {
+  const path = usePath();
+  const active = ROUTES.find((r) => r.path === path) ?? ROUTES[0];
+  return (
+    <Shell routes={ROUTES}>
+      {/* 路由切换整页重挂（页内卡片各自以 topics 订阅局部刷新） */}
+      <div key={active.path}>{active.el}</div>
+    </Shell>
+  );
 }
 
-import { StrictMode } from 'react' 
-import { createRoot } from 'react-dom/client'
-import TrxPage from './pages/trx'
-import { Shell } from './Shell'
-import './styles/00-base.css'
-import './styles/03-table-chip.css'
-import './styles/06-buttons.css'
-import './styles/08-facts-ledger.css'
-import './styles/11-account-responsive.css'
-import './styles/12-nox-shell.css'
-import './styles/13-daily.css'
-import './styles/18-price-alert.css'
-import './styles/20-semantic.css'
-
-createRoot(document.getElementById('root')!).render(
+createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <Shell><TrxPage /></Shell>
-  </StrictMode>,
-)
+    <App />
+  </StrictMode>
+);

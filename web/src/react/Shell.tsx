@@ -1,91 +1,110 @@
-// Shell.tsx —— O 左侧栏导航壳（T-0113：nox 12-nox-shell 同款 DOM——
-// 门面组=总览+TRX 自营盘，运维组预留空壳接号不加组；active 态按 path 显形）。
-import type { ReactNode } from 'react'
-import { useEffect, useState } from 'react'
+// Shell.tsx —— 应用壳（T-0170：桌面左栏/手机底部 4-tab 双形态单壳；主题
+// 明暗 + Watch 连接状态点——断流黄点显形不静默）。
+import { useEffect, useState, type ReactNode } from "react";
+import { navigate, usePath, type RouteDef } from "./router";
+import { onLive } from "./stream";
 
-const ICONS: Record<string, string> = {
-  '/': 'M4 4h16v16H4z',
-  '/trx': 'M12 2v20M2 12h20',
-}
-
-// ThemeButton 主题钮（T-0157 主题单源——o_theme 共键双页同写；缺省随系统，
-// 按下即显式钉；label=当前生效主题，与 vanilla 总览页 .toggle 同语义）。
 function ThemeButton() {
-  const effective = (): 'light' | 'dark' => {
-    const t = document.documentElement.dataset.theme
-    if (t === 'light' || t === 'dark') return t
-    return matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
-  }
-  const [cur, setCur] = useState<'light' | 'dark'>(effective)
-  useEffect(() => {
-    const mq = matchMedia('(prefers-color-scheme: light)')
-    const f = () => {
-      if (!document.documentElement.dataset.theme) setCur(effective())
-    }
-    mq.addEventListener('change', f)
-    return () => mq.removeEventListener('change', f)
-  }, [])
+  const [theme, setTheme] = useState(() =>
+    document.documentElement.dataset.theme === "dark"
+      ? "dark"
+      : document.documentElement.dataset.theme === "light"
+        ? "light"
+        : window.matchMedia("(prefers-color-scheme: dark)").matches
+          ? "dark"
+          : "light"
+  );
   const flip = () => {
-    const next = effective() === 'light' ? 'dark' : 'light'
-    document.documentElement.dataset.theme = next
-    localStorage.setItem('o_theme', next)
-    setCur(next)
-  }
+    const next = theme === "dark" ? "light" : "dark";
+    document.documentElement.dataset.theme = next;
+    try {
+      localStorage.setItem("o_theme", next);
+    } catch {}
+    setTheme(next);
+  };
   return (
-    <button className="theme-btn" onClick={flip} title="切换主题">
-      {cur === 'light' ? '☀️ 亮色' : '🌙 暗色'}
+    <button className="btn theme-btn" onClick={flip} title="明暗切换">
+      {theme === "dark" ? "☾" : "☀"}
     </button>
-  )
+  );
 }
 
-function ShellClock() {
-  const [s, setS] = useState('')
-  useEffect(() => {
-    const f = () => setS(new Date().toISOString().slice(11, 19) + ' UTC')
-    f()
-    const t = setInterval(f, 1000)
-    return () => clearInterval(t)
-  }, [])
-  return <span className="shell-clock">{s}</span>
-}
-
-export function Shell({ children }: { children: ReactNode }) {
-  const [sideOpen, setSideOpen] = useState(false)
-  const path = location.pathname === '/trx' || location.pathname === '/trx.html' ? '/trx' : '/'
-  const groups: [string, [string, string][]][] = [
-    ['门面', [['/', '总览'], ['/trx', 'TRX 自营盘']]],
-    ['运维', []],
-  ]
+function LiveDot() {
+  const [live, setLive] = useState<boolean | null>(null);
+  useEffect(() => onLive((v) => setLive(Boolean(v))), []);
   return (
-    <main className="app-layout">
-      <header className="app">
-        <button className="sidebar-toggle" onClick={() => setSideOpen(o => !o)} aria-label="菜单">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M3 12h18M3 18h18" /></svg>
-        </button>
-        <span className="brand">O</span>
-        <span className="app-spacer" />
-        <ThemeButton />
-        <ShellClock />
+    <span
+      className={"dot " + (live ? "s0" : live === false ? "s1" : "s1")}
+      title={live ? "Watch 流在线——事件驱动实时" : "Watch 断流重连中——数据可能陈"}
+    />
+  );
+}
+
+function Clock() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <span className="clock">
+      {now.toISOString().slice(11, 19)} <span className="ink-3">UTC</span>
+    </span>
+  );
+}
+
+export function Shell(props: { routes: RouteDef[]; children: ReactNode }) {
+  const path = usePath();
+  const active = props.routes.find((r) => r.path === path) ?? props.routes[0];
+  const nav = (to: string) => (e: React.MouseEvent) => {
+    e.preventDefault();
+    navigate(to);
+  };
+  return (
+    <div className="shell">
+      <aside className="side">
+        <div className="brand">
+          O <LiveDot />
+        </div>
+        <nav>
+          {props.routes.map((r) => (
+            <a
+              key={r.path}
+              href={r.path}
+              onClick={nav(r.path)}
+              className={r.path === active?.path ? "on" : ""}
+            >
+              {r.label}
+            </a>
+          ))}
+        </nav>
+        <div className="side-f">
+          <Clock />
+          <ThemeButton />
+        </div>
+      </aside>
+      <header className="topbar">
+        <span className="brand-s">
+          O <LiveDot />
+        </span>
+        <span className="top-f">
+          <Clock />
+          <ThemeButton />
+        </span>
       </header>
-      <nav className={`sidebar${sideOpen ? ' open' : ''}`} aria-label="视图切换">
-        {groups.map(([label, routes]) => (
-          <div key={label}>
-            <div className="grp-label">{label}</div>
-            {routes.map(([p, title]) => (
-              <a key={p} href={p === '/' ? '/' : p + '.html'}
-                className={p === path ? 'sidebar-item active' : 'sidebar-item'}
-                onClick={() => setSideOpen(false)}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d={ICONS[p] ?? 'M4 4h16v16H4z'} />
-                </svg>
-                <span>{title}</span>
-              </a>
-            ))}
-          </div>
+      <main className="main">{props.children}</main>
+      <nav className="tabbar">
+        {props.routes.map((r) => (
+          <a
+            key={r.path}
+            href={r.path}
+            onClick={nav(r.path)}
+            className={r.path === active?.path ? "on" : ""}
+          >
+            {r.label}
+          </a>
         ))}
       </nav>
-      {sideOpen && <div className="sidebar-overlay" onClick={() => setSideOpen(false)} />}
-      <div className="app-content">{children}</div>
-    </main>
-  )
+    </div>
+  );
 }

@@ -1,11 +1,11 @@
 // TrxHedgeCard.tsx —— 对冲结构卡（arb 同名件借形，D-212 对冲工作台）：
 // 镜像双腿表（开仓价/现价/浮动盈亏/杠杆/强平价/距强平%）+净敞口徽章+carry
 // 统计条+双账户块+↻ 刷新钮。arb 原型 setTimeout(2s) 等待拍=前端人为延时——
-// NOX 改流帧驱动：kick trxAccountRefresh 后等 onCase("dataRefresh") trx 帧
+// NOX 改流帧驱动：kick trxAccountRefresh 后等 onData() trx 帧
 // 重取 getHedgeStructure（流先零定时器令，票面明令）。
 import { useCallback, useEffect, useState } from "react";
 import { client } from "../api";
-import { onCase } from "../stream";
+import { onData } from "../stream";
 import type { HedgeStructure } from "../../gen/dashboardv1/core_pb";
 import { fmtUsd, fmtNum, fmtPrice, fmtThr, pnlClass, fmtSigned } from "./fmt";
 
@@ -23,7 +23,7 @@ export function TrxHedgeCard() {
   // 挂载首取+trx 流帧重取（arb setTimeout(2s) 等待拍→流帧驱动）。
   useEffect(() => {
     void refetch();
-    return onCase("dataRefresh", (v) => {
+    return onData((v) => {
       if ((v as { topic: string }).topic === "trx") void refetch();
     });
   }, [refetch]);
