@@ -73,9 +73,26 @@ USDT 保证金键域（形如 X-USDT-YYMMDD）。
 验收锚改判：`md_mark_index` 出现 `*-USD-*` 到期期货 mark 行+
 `BTC-USD` 形 index 行，`basis_ann` 拍行数 >0 方算绿。
 
+## 决策席二次返修（d7c0d84 实证——两层断点俱在）
+
+**断点 A·剥离键取错源**：施工用 `datedRe.ReplaceAllString(instId,"")`
+剥 instId——`BTC-USD_UM-261225`（OKX _UM 产品线与裸形并存，uly 均
+=`BTC-USD`）剥出 `BTC-USD_UM` 非法指数名，index-tickers 订阅被
+60018 拒（日志实证）。**钦定改法**：instruments 载荷自带 `uly`
+字段=钦定指数键——`out = append(out, i.Uly)`，禁再 instId 剥串。
+
+**断点 B·帧径 USDT 硬闸拦收**：`isUSDTInst`（parse.go:56
+`Contains("-USDT")`）在 handle.go:32 把所有非 -USDT 键域帧入队前
+丢弃——**订阅就算成功，期货/USD 指数帧到不了库**（零行实证）。
+钦定改法：`isUSDTInst` 加豁免——`-\d{6}$` 到期期货形 + `-USD$`
+指数键形放行（注释钉 T-0189：业主「杂币不采」令禁的是杂计价币
+面，USD 指数/币本位期货系 basis 域钦定数据源，非杂币）。
+
 - [x] 立单
 - [x] 施工（一巡：-USDT- 判——判据错空集，返修）
-- [ ] 施工（二巡：quarter 全收+USD 指数键入集）
+- [x] 施工（二巡：datedRe 尾判——期货入集实证 syms 1014→1030，
+      但三层断点仍未通，返修③）
+- [ ] 施工（三巡：uly 字段键+USDT 闸豁免）
 - [ ] 验收投产
 
 ## 结果回填
