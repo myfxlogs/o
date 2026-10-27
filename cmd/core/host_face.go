@@ -40,3 +40,43 @@ func (c coreService) GetHostMetrics(ctx context.Context,
 	}
 	return r, rows.Err()
 }
+
+// ListClosedPositions 已平仓位列表（复盘历史订单——闭仓倒序+分页下推）。
+func (c coreService) ListClosedPositions(ctx context.Context,
+	req *dashboardv1.ListClosedPositionsRequest) (*dashboardv1.ListClosedPositionsResponse, error) {
+	limit := int(req.GetLimit())
+	if limit <= 0 {
+		limit = 20
+	}
+	r := &dashboardv1.ListClosedPositionsResponse{}
+	var total int32
+	if err := c.pool.QueryRow(ctx,
+		"SELECT count(*) FROM fin_position WHERE closed_at IS NOT NULL").Scan(&total); err != nil {
+		return nil, err
+	}
+	r.Total = total
+	rows, err := c.pool.Query(ctx, `SELECT id,inst_id,opened_at,closed_at,
+		coalesce(settled_amount,0),coalesce(settled_ccy,'') FROM fin_position
+		WHERE closed_at IS NOT NULL ORDER BY closed_at DESC LIMIT $1 OFFSET $2`,
+		limit, int(req.GetOffset()))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id int64
+		var inst string
+		var opened, closed time.Time
+		var amt float64
+		var ccy string
+		if err := rows.Scan(&id, &inst, &opened, &closed, &amt, &ccy); err != nil {
+			return nil, err
+		}
+		r.Positions = append(r.Positions, &dashboardv1.ClosedPosition{
+			Id: id, InstId: inst,
+			OpenedAt: tsProto(opened), ClosedAt: tsProto(closed),
+			SettledAmount: amt, SettledCcy: ccy,
+		})
+	}
+	return r, rows.Err()
+}

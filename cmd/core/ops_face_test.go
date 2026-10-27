@@ -193,3 +193,25 @@ func TestListCashflowsVenue(t *testing.T) {
 		t.Fatalf("mt5+interest 应恰 1 行: %+v", r)
 	}
 }
+
+// 锚⑦：已平仓列表——闭仓倒序+total 下推（业主⑭历史订单）。
+func TestListClosedPositions(t *testing.T) {
+	c := opsSetup(t)
+	ctx := context.Background()
+	_, err := c.pool.Exec(ctx, `INSERT INTO fin_position(execution_id,inst_id,opened_at,closed_at,settled_amount,settled_ccy)
+		VALUES (1,'BTC-USDT-SWAP',now()-interval '2 days',now()-interval '1 days',120,'USDT'),
+		       (2,'ETH-USDT-SWAP',now()-interval '3 days',now(),7,'USD')`)
+	if err != nil {
+		t.Skipf("fin_position 形不符跳过: %v", err)
+	}
+	r, err := c.ListClosedPositions(ctx, &dashboardv1.ListClosedPositionsRequest{Limit: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Total != 2 || len(r.Positions) != 1 {
+		t.Fatalf("应 total=2 页=1: %+v", r)
+	}
+	if r.Positions[0].InstId != "ETH-USDT-SWAP" {
+		t.Fatalf("应闭仓倒序: %+v", r.Positions[0])
+	}
+}

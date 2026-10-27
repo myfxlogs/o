@@ -5,6 +5,7 @@ import { client } from "../api";
 import { useSnap } from "../hooks";
 import { Card, EmptyState, ErrorState, Skeleton } from "../components/ui";
 import { LineChart } from "../components/chart";
+import { ClosedPositionsCard } from "../components/flows";
 import { fmtUsd, pbDate } from "../components/fmt";
 
 const PERIODS: { k: string; label: string }[] = [
@@ -255,6 +256,7 @@ export function ReviewPage() {
         <ReportsCard />
         <FlowsCard />
       </div>
+      <ClosedPositionsCard />
     </div>
   );
 }

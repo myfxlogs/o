@@ -26,6 +26,7 @@ service CoreService {
   rpc ListReports(ListReportsRequest) returns (ListReportsResponse) {}
   rpc GetEquityCurve(GetEquityCurveRequest) returns (GetEquityCurveResponse) {}
   rpc ListCashflows(ListCashflowsRequest) returns (ListCashflowsResponse) {}
+  rpc ListClosedPositions(ListClosedPositionsRequest) returns (ListClosedPositionsResponse) {}
 }
 
 message PingRequest {}
@@ -274,6 +275,24 @@ message HostMetric {
   bool stale = 12;
 }
 message GetHostMetricsResponse { repeated HostMetric hosts = 1; }
+
+// —— 历史订单（T-0173 业主⑭：已平仓位列表——复盘面供数）——
+message ListClosedPositionsRequest {
+  int32 limit = 1;                 // <=0=20
+  int32 offset = 2;
+}
+message ClosedPosition {
+  int64 id = 1;
+  string inst_id = 2;
+  google.protobuf.Timestamp opened_at = 3;
+  google.protobuf.Timestamp closed_at = 4;
+  double settled_amount = 5;
+  string settled_ccy = 6;
+}
+message ListClosedPositionsResponse {
+  int32 total = 1;
+  repeated ClosedPosition positions = 2;
+}
 
 // —— 复盘面（fin_report 直出——metrics jsonb 服务端解为键值对，前端零解析）——
 
