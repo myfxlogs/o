@@ -47,3 +47,4 @@ FIN_PG_DSN
 # 与 *_PG_DSN 同类引导件：钥本走 app_secrets 解密直出仅内存，env 只载地址非凭据）。
 READCRED_URL
 COLLECTO_MT5_HOST
+NOX_MASTER_KEY
