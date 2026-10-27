@@ -175,12 +175,12 @@
 }
 @keyframes breatheCalm {
   50% {
-    opacity: 0.55;
+    opacity: 0.78; /* 业主②：呼吸不褪色——下限抬高防小灯读灰 */
   }
 }
 @keyframes breatheQuick {
   50% {
-    opacity: 0.35;
+    opacity: 0.6;
   }
 }
 @keyframes breatheAlarm {

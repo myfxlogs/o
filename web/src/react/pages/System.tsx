@@ -1,95 +1,15 @@
 // System.tsx —— 服务器运行管理面板（T-0173 业主④终版：两卡=两台机器，
-// 卡题即机名；卡内按交易所分组，venue 在线行并入所属交易所组（私有 WS
-// 重复行去重——venue 行覆盖之）。灯语全站同款：绿缓息/黄急促/红静止。
-// 病因+处理建议服务端算定，黄红才带。
+// 卡题即机名；卡内按交易所分组可收拢+logo；venue 行并入生产机卡；席位
+// 灯纯三色。病因+处理建议服务端算定，黄红才带）。
 import { useEffect, useState } from "react";
 import { client } from "../api";
 import { useSnap } from "../hooks";
 import { Card, EmptyState, ErrorState, Skeleton, StateDot } from "../components/ui";
+import { AGE, ExchSections, healthRows } from "../components/panel";
 import { pbDate } from "../components/fmt";
-import type { SystemComponent } from "../../gen/dashboardv1/core_pb";
+import type { SystemComponent, } from "../../gen/dashboardv1/core_pb";
 
-const AGE = (ts: Date) => {
-  const s = Math.max(0, (Date.now() - ts.getTime()) / 1000);
-  if (s < 60) return `${s.toFixed(0)} 秒前`;
-  if (s < 3600) return `${(s / 60).toFixed(0)} 分前`;
-  if (s < 86400) return `${(s / 3600).toFixed(1)} 时前`;
-  return `${(s / 86400).toFixed(1)} 天前`;
-};
-
-// Row 统一行模型（health 组件与 venue 在线行同形渲染——灯/名/龄/注）。
-type Row = {
-  key: string;
-  name: string;
-  state: number;
-  ageIso: string | null;
-  note?: string;
-  title?: string;
-  exch?: string;
-};
-
-const EXCH_ORDER = ["OKX", "MT5", "蒸馏"];
-
-function ExchSections(props: { rows: Row[] }) {
-  const [, setTick] = useState(0);
-  useEffect(() => {
-    const t = setInterval(() => setTick((x) => x + 1), 30000);
-    return () => clearInterval(t);
-  }, []);
-  const byExch = new Map<string, Row[]>();
-  for (const r of props.rows) {
-    const ex = r.exch ?? "OKX";
-    if (!byExch.has(ex)) byExch.set(ex, []);
-    byExch.get(ex)!.push(r);
-  }
-  const exchs = [...byExch.keys()].sort(
-    (a, b) =>
-      (EXCH_ORDER.indexOf(a) + 1 || 99) - (EXCH_ORDER.indexOf(b) + 1 || 99)
-  );
-  return (
-    <>
-      {exchs.map((ex) => (
-        <div key={ex} className="exch-sec">
-          <div className="exch-label ink-3">{ex}</div>
-          {(byExch.get(ex) ?? []).map((r) => (
-            <div key={r.key} className="comp-row">
-              <StateDot
-                state={r.state}
-                breathe={r.state !== 2}
-                title={r.title ?? ""}
-              />
-              <div className="comp-main">
-                <span>{r.name}</span>
-                {r.note && r.state !== 0 ? (
-                  <div className="comp-note">{r.note}</div>
-                ) : r.note ? (
-                  <div className="ink-3 comp-note">{r.note}</div>
-                ) : null}
-              </div>
-              <span className="mono comp-age">
-                {r.ageIso ? AGE(new Date(r.ageIso)) : "—"}
-              </span>
-            </div>
-          ))}
-        </div>
-      ))}
-    </>
-  );
-}
-
-// health 组件→行（exch 挂行上供分组）。
-function healthRows(comps: SystemComponent[]): Row[] {
-  return comps.map((c) => ({
-    key: c.component,
-    name: c.component,
-    state: c.state,
-    ageIso: pbDate(c.lastWrite)?.toISOString() ?? null,
-    note: c.note || undefined,
-    title: c.fact,
-    exch: c.exch || "OKX",
-  }));
-}
-
+// SystemPage：面板页（数据=GetSystemHealth+Overview 双快照）。
 export function SystemPage() {
   const h = useSnap(["ev_account", "ev_position"], () =>
     client.getSystemHealth({})
@@ -101,7 +21,7 @@ export function SystemPage() {
 
   // 生产机卡：venue 在线行并入交易所组（在前），health 组件行随后；
   // OKX 私有 WS 由 venue 行覆盖（同一事实源——双行去重）。
-  const venueRows: Row[] = [];
+  const venueRows = [];
   for (const g of ov.data?.venues ?? []) {
     for (const ch of g.channels ?? []) {
       venueRows.push({
@@ -115,7 +35,7 @@ export function SystemPage() {
       });
     }
   }
-  const sgRowsFinal: Row[] = [
+  const sgRowsFinal = [
     ...venueRows,
     ...healthRows(sgComps.filter((c) => c.component !== "OKX 私有 WS")),
   ];
@@ -231,7 +151,7 @@ export function SystemPage() {
           <div className="chips">
             {(ov.data?.staff ?? []).map((s) => (
               <span key={s.name} className="chip">
-                <StateDot state={s.state} breathe={s.state !== 2} /> {s.name}
+                <StateDot state={s.state} /> {s.name}
               </span>
             ))}
           </div>
