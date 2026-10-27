@@ -104,9 +104,8 @@ func (c coreService) Overview(ctx context.Context, _ *dashboardv1.OverviewReques
 	for _, od := range dcds {
 		u := valCcy(ctx, c.pool, od.NotionalCcy, okxexec.ParseF(od.NotionalSz))
 		o.Doing = append(o.Doing, &dashboardv1.DoingItem{
-			Text: fmt.Sprintf("DCD %s #%s 名义%s %s 行权%s 到期%s — 持仓中，估值 $%.2f",
-				od.ProductID, od.OrdID, od.NotionalSz, od.NotionalCcy,
-				od.Strike, msDay(od.SettleTime), u),
+			Text: fmt.Sprintf("DCD %s — 持仓中，估值 $%.2f",
+				od.ProductID, u),
 			Stamp: msStamp(od.CTime)})
 	}
 	if !ok {
