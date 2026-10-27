@@ -39,6 +39,9 @@ type Scheduler struct {
 	accountQueryFailing  bool      // D-117：账户查询失败 episode 标记（告警去重+恢复边沿）
 	// 事件驱动改投（30min 盲醒 tick 已摘除，见 boundary.go）。
 	boundaryCh        chan string
+	rekickSteps       []time.Duration                              // T-0192②：账户读败退避重 kick 步谱（60/300/900s 心跳律 sched-exempt-ok）
+	rekickAt          int                                          // 当前退避档（读通归零）
+	witFallback       func(ctx context.Context) ([]SRInfo, error)  // T-0192③：witness 备读（trongrid listwitnesses）
 	nextMaintFn       func(ctx context.Context) (time.Time, error) // GetNextMaintenanceTime 源（failsafe 用）
 	nextMaint         time.Time                                    // 缓存下一维护期边界
 	nextMaintMu       sync.Mutex
@@ -79,6 +82,7 @@ func NewScheduler(executor *Executor, store Store, address, tronscanBase string,
 		account:      account,
 		now:          time.Now,
 		boundaryCh:   make(chan string, 4),
+		rekickSteps:  []time.Duration{60 * time.Second, 300 * time.Second, 900 * time.Second}, // sched-exempt-ok 账户读败退避心跳
 	}
 }
 
@@ -140,11 +144,11 @@ func (s *Scheduler) ClaimCheck(ctx context.Context, rewardSun int64) {
 }
 
 // doRebalance 执行一轮改投决策（设计 §5）。
-func (s *Scheduler) doRebalance(ctx context.Context) {
+func (s *Scheduler) doRebalance(ctx context.Context) bool {
 	// 1. 检查今日是否已改投
 	if s.store.TrxVoteRebalancedToday(ctx, s.config.MaxRebalancePerDay) {
 		log.Println("[trxvote] 今日已改投，跳过")
-		return
+		return true
 	}
 	// 1.1 防抖：距上次 executed < MinInterval → 跳过（不落库）
 	if s.config.MinInterval > 0 {
@@ -152,24 +156,24 @@ func (s *Scheduler) doRebalance(ctx context.Context) {
 		if err == nil && !lastExec.IsZero() && s.now().Sub(lastExec) < s.config.MinInterval {
 			log.Printf("[trxvote] 距上次改投 %v < MinInterval %v，跳过（防抖）",
 				s.now().Sub(lastExec).Round(time.Second), s.config.MinInterval)
-			return
+			return true
 		}
 	}
 	// 1.2 带宽阻塞冷却：距上次带宽不足/查询失败 <15min → 跳过（防重复告警轰炸）
 	if !s.lastRebalanceBlockAt.IsZero() && s.now().Sub(s.lastRebalanceBlockAt) < 15*time.Minute {
 		log.Printf("[trxvote] rebalance bandwidth: cooling down (last block %v ago), skip", s.now().Sub(s.lastRebalanceBlockAt).Round(time.Second))
-		return
+		return true
 	}
 	// 2. 拉 SR 列表（独立 HTTP fetch TronScan /api/witness）
-	srList, err := fetchSRList(ctx, s.tronscanBase)
+	srList, err := s.fetchSRListFallback(ctx)
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
 			log.Printf("[trxvote] fetch SR list canceled (container shutdown)")
-			return
+			return false
 		}
 		log.Printf("[trxvote] fetch SR list: %v", err)
 		s.executor.Alert("warn", "[投票采集失败] "+err.Error())
-		return
+		return false // T-0192①：读败返 false=边界不消费下拍 failsafe 重试
 	}
 
 	// 3. 拉当前投票分布 + 总 TP（D-117：tronscan /api/vote 主读，trongrid gRPC 兜底——
@@ -178,14 +182,15 @@ func (s *Scheduler) doRebalance(ctx context.Context) {
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
 			log.Printf("[trxvote] get account detail canceled (container shutdown)")
-			return
+			return false
 		}
 		log.Printf("[trxvote] get account detail: %v", err)
 		if !s.accountQueryFailing { // episode 首报 warn，期内失败只 log
 			s.accountQueryFailing = true
 			s.executor.Alert("warn", "[投票账户查询失败] "+err.Error())
 		}
-		return
+		s.scheduleRekick(ctx) // T-0192②：账户读失败退避重 kick（触发链单点饿死根修）
+		return false
 	}
 	if s.accountQueryFailing { // 恢复边沿各报一条（去重对账完整）
 		s.accountQueryFailing = false
@@ -215,12 +220,12 @@ func (s *Scheduler) doRebalance(ctx context.Context) {
 	id, err := s.store.InsertTrxVoteRebalance(ctx, rec)
 	if err != nil {
 		log.Printf("[trxvote] insert rebalance record: %v", err)
-		return
+		return true // 决策已落定=边界消费（执行败不吞窗）
 	}
 	// 6. 执行（仅在 needRebalance=true 时）
 	if !decision.NeedRebalance {
 		log.Printf("[trxvote] 无需改投: %s", decision.Reason)
-		return
+		return true
 	}
 
 	// 6.1 带宽预检：改投需要 ~500 BP，不足则跳过避免烧 TRX
@@ -229,20 +234,20 @@ func (s *Scheduler) doRebalance(ctx context.Context) {
 		log.Printf("[trxvote] bandwidth check: %v", err)
 		s.executor.Alert("warn", "[投票带宽查询失败] "+err.Error())
 		s.lastRebalanceBlockAt = s.now()
-		return
+		return true
 	}
 	if !ok {
 		log.Println("[trxvote] 带宽不足，跳过改投（避免烧 TRX）")
 		s.executor.Alert("warn", "[投票改投跳过] 带宽不足，等待恢复")
 		s.lastRebalanceBlockAt = s.now() // 设冷却防重复告警
-		return
+		return true
 	}
 
 	txHash, err := s.executor.Vote(ctx, decision.Target)
 	if err != nil {
 		log.Printf("[trxvote] rebalance failed: %v", err)
 		s.executor.Alert("critical", "[投票改投失败] "+err.Error())
-		return
+		return true
 	}
 	if err := s.store.UpdateTrxVoteRebalanceResult(ctx, id, txHash, "executed"); err != nil {
 		log.Printf("[trxvote] update rebalance result: %v", err)
@@ -252,4 +257,5 @@ func (s *Scheduler) doRebalance(ctx context.Context) {
 		formatFloat(decision.Improvement), topSRPrefix(currentVotes), topSRPrefix(decision.Target))
 	s.executor.Alert("warn", formatRebalanceAlert(txHash, decision, currentVotes))
 	s.watchSelfTx(ctx, txHash) // D-137③：自发 tx 有界确认窗
+	return true
 }

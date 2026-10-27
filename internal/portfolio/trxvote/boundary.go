@@ -9,6 +9,7 @@ package trxvote
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"time"
 
@@ -65,8 +66,9 @@ func (s *Scheduler) eventLoop(ctx context.Context) {
 			return
 		case reason := <-s.boundaryCh:
 			log.Printf("[trxvote] boundary event (%s) → rebalance eval", reason)
-			s.doRebalance(ctx)
-			s.noteEvaluated(ctx)
+			if s.doRebalance(ctx) { // T-0192①：败评不消费边界（下拍 failsafe 重试）
+				s.noteEvaluated(ctx)
+			}
 		case <-ticker.C:
 			s.failsafeCheck(ctx)
 		}
@@ -88,8 +90,9 @@ func (s *Scheduler) bootCatchup(ctx context.Context) {
 	if lastEval.Before(lastBoundary) {
 		log.Printf("[trxvote] boot catch-up: lastEval=%v < lastBoundary=%v → 补评估一次",
 			lastEval.Format(time.RFC3339), lastBoundary.Format(time.RFC3339))
-		s.doRebalance(ctx)
-		s.noteEvaluated(ctx)
+		if s.doRebalance(ctx) { // 败评不消费边界（吞窗语义守——只补「已过期未评」窗）
+			s.noteEvaluated(ctx)
+		}
 	}
 }
 
@@ -108,9 +111,10 @@ func (s *Scheduler) failsafeCheck(ctx context.Context) {
 	}
 	log.Printf("[trxvote] failsafe: boundary %v passed +%v grace without reward delta → eval",
 		next.Format(time.RFC3339), boundaryGrace)
-	s.doRebalance(ctx)
-	s.noteEvaluated(ctx)
-	s.refreshNextMaintenance(ctx) // 消费掉此边界，滚入下一周期
+	if s.doRebalance(ctx) {
+		s.noteEvaluated(ctx)
+		s.refreshNextMaintenance(ctx) // 消费掉此边界，滚入下一周期
+	}
 }
 
 // refreshNextMaintenance 拉取并缓存下一维护期边界。返回 (next, ok)。
@@ -174,4 +178,46 @@ func (s *Scheduler) confirmSelfTx(ctx context.Context, txHash string) {
 // watchSelfTx 广播成功后起确认窗（safego panic 护栏）。
 func (s *Scheduler) watchSelfTx(ctx context.Context, txHash string) {
 	safego.Go("trxvote:confirmSelfTx", func() { s.confirmSelfTx(ctx, txHash) })
+}
+
+// scheduleRekick T-0192②：账户读失败退避重 kick（60s/300s/900s 心跳律
+// sched-exempt-ok——触发链单点饿死根修：读通=rekickAt 归零）。
+func (s *Scheduler) scheduleRekick(ctx context.Context) {
+	if len(s.rekickSteps) == 0 {
+		return
+	}
+	d := s.rekickSteps[min(s.rekickAt, len(s.rekickSteps)-1)]
+	s.rekickAt++
+	time.AfterFunc(d, func() {
+		select {
+		case s.boundaryCh <- "account-retry":
+		default:
+		}
+	})
+}
+
+// SetWitFallback T-0192③：witness 备读源注入（trongrid listwitnesses——
+// 主 apilist 断供时兜底；hex→base58+年化 cache-last-good 在实现层）。
+func (s *Scheduler) SetWitFallback(fn func(ctx context.Context) ([]SRInfo, error)) {
+	s.witFallback = fn
+}
+
+// SetRekickSteps 测试可注小值（默认 60/300/900s）。
+func (s *Scheduler) SetRekickSteps(steps []time.Duration) { s.rekickSteps = steps }
+
+// fetchSRListFallback 主备双源读（T-0192③：主=apilist /api/witness 无 key；
+// 备=trongrid /wallet/listwitnesses 带 key——shape 差异在调用件层抹平）。
+func (s *Scheduler) fetchSRListFallback(ctx context.Context) ([]SRInfo, error) {
+	list, err := fetchSRList(ctx, s.tronscanBase)
+	if err == nil {
+		return list, nil
+	}
+	if s.witFallback == nil {
+		return nil, err // 无备源=原样上抛
+	}
+	fb, ferr := s.witFallback(ctx)
+	if ferr != nil {
+		return nil, fmt.Errorf("primary: %w; fallback: %v", err, ferr)
+	}
+	return fb, nil
 }
