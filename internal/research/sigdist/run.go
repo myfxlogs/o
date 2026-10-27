@@ -32,7 +32,7 @@ import (
 const distillPeriod = 60 * time.Second
 
 // datedFutRe 季度期货 instId 尾 6 位到期日（YYMMDD）。
-var datedFutRe = regexp.MustCompile(`^([A-Z0-9]+)-USDT-([0-9]{6})$`)
+var datedFutRe = regexp.MustCompile(`^([A-Z0-9]+-[A-Z]+)-([0-9]{6})$`)
 
 // Runner 信号蒸馏岗（桥面常驻节拍——随采集器进程）。
 type Runner struct {
