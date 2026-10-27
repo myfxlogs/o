@@ -4,7 +4,7 @@ import { client } from "../api";
 import { useSnap } from "../hooks";
 import { Card, EmptyState, ErrorState, Skeleton, StateDot } from "../components/ui";
 import { fmtUsd } from "../components/fmt";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { MoneyRow } from "../../gen/dashboardv1/core_pb";
 
 const money = (v: number) =>
@@ -56,6 +56,20 @@ function MoneyTree(props: { rows: MoneyRow[] }) {
         );
       })}
     </div>
+  );
+}
+
+// UtcClock 卡角 UTC 钟（业主回单：最近动作右上角 UTC 时间）。
+function UtcClock() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <span className="ink-3 mono" style={{ fontSize: 12 }}>
+      {now.toISOString().slice(11, 19)} UTC
+    </span>
   );
 }
 
@@ -134,7 +148,7 @@ export function OverviewPage() {
         )}
       </Card>
 
-      <Card title="最近动作">
+      <Card title="最近动作" extra={<UtcClock />}>
         {(o.recent ?? []).length === 0 ? (
           <EmptyState title="账面平静" hint="现金流落地后在此亮行" />
         ) : (
