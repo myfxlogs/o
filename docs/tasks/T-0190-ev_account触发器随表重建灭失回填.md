@@ -50,3 +50,14 @@ CREATE OR REPLACE TRIGGER ev_account_trg AFTER INSERT ON md_account_events
 - [x] 立单
 - [ ] 施工
 - [ ] 验收投产
+
+## 结果回填（SG 实拍+迁移同落）
+
+- fin_0077_ev_account_trg_restore.sql：ev_account_trg AFTER INSERT 回填
+  ——SG 实拍已落（pg_trigger 见 ev_account_trg 在位+schema_migrations
+  version=77 在册）；私有帧 NOTIFY 链路复通。
+- 触发器在位/定义对拍普查：SG pg_trigger 19 件全数对拍——18 件
+  migrations 定义在册，唯一 metadata_insert_trigger 系
+  _timescaledb_catalog.metadata 内部件（扩展所有非迁移面=如实
+  注明非漏件）；非 ev_ 族（app_config/secrets/active_set/dedupe/
+  class_stamp）全在册零缺。
