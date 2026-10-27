@@ -182,7 +182,12 @@ func (c *Collector) dialLoop(ctx context.Context, syms []string, gen int64) erro
 		return err
 	}
 	// T-0139 books5 复活订阅（D-0022 桥面信号域——标的集可配置非全宇宙）。
-	if len(c.depth5Syms) > 0 {
+	// T-0191 二巡：无 ctv 读件不订（SG 瘦件 AttachCTV 零挂=c.ctvFeed==nil——
+	// 订了也只能全拒=venue 带宽白烧+拒因假病；禁反向挂 feed=双产白烧）。
+	if len(c.depth5Syms) > 0 && c.ctvFeed == nil {
+		log.Printf("[okxws] 无 ctv 读件不订 books5（depth5=桥域产出面——SG 瘦件不产）")
+	}
+	if len(c.depth5Syms) > 0 && c.ctvFeed != nil {
 		if c.ctvFeed != nil { // ctv 预载（读循环零同步外呼——帧径只查缓存）
 			if m, err := c.ctvFeed(ctx); err == nil {
 				c.ctvMu.Lock()
