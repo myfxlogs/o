@@ -243,6 +243,8 @@ message SystemComponent {
   string note = 5;                 // 旁注（语义空态/读件缺——空=正常）
   string host = 6;                 // T-0173 业主③：机位（dev 采集机/sg 生产机）
   string fix = 7;                  // T-0173 业主追加：黄/红时的处理建议（runbook 指针——服务端算定）
+  string exch = 8;                 // T-0173 业主④：交易所/域分组（OKX/MT5/蒸馏）
+  string cat = 9;                  // T-0173 业主④：卡面归类（collect 采集/trade 交易生产）
 }
 message GetSystemHealthResponse {
   repeated SystemComponent components = 1;

@@ -6,7 +6,6 @@ import { Shell } from "./Shell";
 import type { RouteDef } from "./router";
 import { usePath } from "./router";
 import { OverviewPage } from "./pages/Overview";
-import { CollectPage } from "./pages/Collect";
 import { SystemPage } from "./pages/System";
 import { TrxPage } from "./pages/Trx";
 import { ReviewPage } from "./pages/Review";
@@ -19,7 +18,6 @@ import "./styles/20-semantic.css";
 
 const ROUTES: RouteDef[] = [
   { path: "/", label: "总览", el: <OverviewPage /> },
-  { path: "/collect", label: "采集", el: <CollectPage /> },
   { path: "/system", label: "系统", el: <SystemPage /> },
   { path: "/trx", label: "TRX", el: <TrxPage /> },
   { path: "/review", label: "复盘", el: <ReviewPage /> },

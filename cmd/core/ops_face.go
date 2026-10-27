@@ -23,6 +23,7 @@ import (
 type compBeat struct {
 	name, fact, query string
 	host              string
+	exch, cat         string // 交易所/域分组 + 卡面归类（collect/trade——业主④）
 	warn, dead        time.Duration
 	zeroState         int32  // 零行态（语义空态组件=0 绿非红）
 	zeroNote          string // 零行旁注（空行≠死的面在此显形）
@@ -32,52 +33,52 @@ type compBeat struct {
 // healthComps 采集组件全集（14 件——足迹表+channel 谓词逐件钉死；增组件=增行）。
 func healthComps() []compBeat {
 	return []compBeat{
-		{name: "okxws WS 行情", host: "dev", fact: "md_mark_index mark-price|index-tickers", warn: 30 * time.Second, dead: 2 * time.Minute,
+		{name: "okxws WS 行情", host: "dev", exch: "OKX", cat: "collect", fact: "md_mark_index mark-price|index-tickers", warn: 30 * time.Second, dead: 2 * time.Minute,
 			fix:   "查 dev: systemctl status o-collector+SSH 隧道；恢复后镜像自愈回绿",
 			query: `SELECT max(recv_ts) FROM md_mark_index WHERE channel IN ('mark-price','index-tickers')`},
 		// T-0171 快照价格全面退役：spotpoll REST 两健康面（spot_last/mark_price）
 		// 随写径同撤——mark/index 行唯一来源=WS（桥全量+活跃集 tickers）。
-		{name: "funding WS", host: "dev", fact: "md_funding", warn: 30 * time.Minute, dead: 2 * time.Hour,
+		{name: "funding WS", host: "dev", exch: "OKX", cat: "collect", fact: "md_funding", warn: 30 * time.Minute, dead: 2 * time.Hour,
 			fix:   "查 dev collector funding 订阅段；结算窗 8h 内静默可容忍",
 			query: `SELECT max(recv_ts) FROM md_funding`},
-		{name: "买五档 depth5", host: "dev", fact: "md_signal kind=depth5", warn: 30 * time.Second, dead: 2 * time.Minute,
+		{name: "买五档 depth5", host: "dev", exch: "OKX", cat: "collect", fact: "md_signal kind=depth5", warn: 30 * time.Second, dead: 2 * time.Minute,
 			fix:   "查 dev collector books5 订阅段——断连重订阅会自愈",
 			query: `SELECT max(ts) FROM md_signal WHERE kind='depth5'`},
-		{name: "蒸馏 basis_ann", host: "dev", fact: "md_signal kind=basis_ann", warn: 10 * time.Minute, dead: 30 * time.Minute,
+		{name: "蒸馏 basis_ann", host: "dev", exch: "蒸馏", cat: "collect", fact: "md_signal kind=basis_ann", warn: 10 * time.Minute, dead: 30 * time.Minute,
 			fix:       "查 dev collector sigdist 日志 basisAnn 段",
 			query:     `SELECT max(ts) FROM md_signal WHERE kind='basis_ann'`,
 			zeroState: 1, zeroNote: "零行——已知缺席（T-0164 立案另查，非采集死）"},
-		{name: "蒸馏 funding_view", host: "dev", fact: "md_signal kind=funding_view", warn: 10 * time.Minute, dead: 30 * time.Minute,
+		{name: "蒸馏 funding_view", host: "dev", exch: "蒸馏", cat: "collect", fact: "md_signal kind=funding_view", warn: 10 * time.Minute, dead: 30 * time.Minute,
 			fix:   "查 dev collector sigdist 日志；上游 funding 断则随愈",
 			query: `SELECT max(ts) FROM md_signal WHERE kind='funding_view'`},
-		{name: "蒸馏 xvenue_spread", host: "dev", fact: "md_signal kind=xvenue_spread", warn: 10 * time.Minute, dead: 30 * time.Minute,
+		{name: "蒸馏 xvenue_spread", host: "dev", exch: "蒸馏", cat: "collect", fact: "md_signal kind=xvenue_spread", warn: 10 * time.Minute, dead: 30 * time.Minute,
 			fix:   "查 dev collector sigdist+MT5 桥腿（单边陈=该对缺席如实）",
 			query: `SELECT max(ts) FROM md_signal WHERE kind='xvenue_spread'`},
-		{name: "蒸馏 carry_diff", host: "dev", fact: "md_signal kind=carry_diff", warn: 5 * time.Hour, dead: 9 * time.Hour,
+		{name: "蒸馏 carry_diff", host: "dev", exch: "蒸馏", cat: "collect", fact: "md_signal kind=carry_diff", warn: 5 * time.Hour, dead: 9 * time.Hour,
 			fix:       "随 mt5_swap 4h 拍；超 9h 查 dev sigdist+MT5 SymbolParams 拉取",
 			query:     `SELECT max(ts) FROM md_signal WHERE kind='carry_diff'`,
 			zeroState: 0, zeroNote: "随 mt5_swap 4h 拍刷新——拍间陈为设计语义"},
-		{name: "蒸馏 mt5_swap", host: "dev", fact: "md_signal kind=mt5_swap", warn: 5 * time.Hour, dead: 9 * time.Hour,
+		{name: "蒸馏 mt5_swap", host: "dev", exch: "蒸馏", cat: "collect", fact: "md_signal kind=mt5_swap", warn: 5 * time.Hour, dead: 9 * time.Hour,
 			fix:       "4h 慢拍设计；超 9h 查 dev MT5 桥 swapLoop（凭据/gateway）",
 			query:     `SELECT max(ts) FROM md_signal WHERE kind='mt5_swap'`,
 			zeroState: 0, zeroNote: "4h 慢拍设计（SymbolParams 日级变量）"},
-		{name: "MT5 桥行情", host: "dev", fact: "md_ticks venue=mt5", warn: 30 * time.Second, dead: 2 * time.Minute,
+		{name: "MT5 桥行情", host: "dev", exch: "MT5", cat: "collect", fact: "md_ticks venue=mt5", warn: 30 * time.Second, dead: 2 * time.Minute,
 			fix:   "查 dev COLLECTO_MT5_* env 与 MT5 gateway 进程连通",
 			query: `SELECT max(ts) FROM md_ticks WHERE venue='mt5'`},
-		{name: "MT5 利润流", host: "sg", fact: "md_account_events order_profit", warn: 5 * time.Minute, dead: 30 * time.Minute,
+		{name: "MT5 利润流", host: "sg", exch: "MT5", cat: "trade", fact: "md_account_events order_profit", warn: 5 * time.Minute, dead: 30 * time.Minute,
 			fix:       "查 SG o-core mt5 会话（OnOrderProfit 推送流）",
 			query:     `SELECT max(ts) FROM md_account_events WHERE channel='order_profit'`,
 			zeroState: 0, zeroNote: "空仓语义——无 MT5 持仓即无利润流（活性判据=MT5 行情行+汇市巡）"},
-		{name: "OKX 私有 WS", host: "sg", fact: "md_account_events account|balance_and_position", warn: 30 * time.Second, dead: 2 * time.Minute,
+		{name: "OKX 私有 WS", host: "sg", exch: "OKX", cat: "trade", fact: "md_account_events account|balance_and_position", warn: 30 * time.Second, dead: 2 * time.Minute,
 			fix:   "查 SG o-core 私流守日志（凭据/OKX WS 断连）",
 			query: `SELECT max(ts) FROM md_account_events WHERE channel IN ('account','balance_and_position')`},
-		{name: "dcd 枚举", host: "sg", fact: "md_dcd_product", warn: 2 * time.Hour, dead: 12 * time.Hour,
+		{name: "dcd 枚举", host: "sg", exch: "OKX", cat: "collect", fact: "md_dcd_product", warn: 2 * time.Hour, dead: 12 * time.Hour,
 			fix:   "查 SG core dcd 枚举臂日志（低频臂——黄先观察一拍）",
 			query: `SELECT max(ts) FROM md_dcd_product`},
-		{name: "earn 现率采样", host: "sg", fact: "md_earn_rate", warn: 2 * time.Hour, dead: 6 * time.Hour,
+		{name: "earn 现率采样", host: "sg", exch: "OKX", cat: "collect", fact: "md_earn_rate", warn: 2 * time.Hour, dead: 6 * time.Hour,
 			fix:   "查 SG core earn worker pollRate 段（OKX 公开读限流自愈）",
 			query: `SELECT max(ts) FROM md_earn_rate`},
-		{name: "行情 ticks(OKX)", host: "dev", fact: "md_ticks venue<>mt5", warn: 30 * time.Second, dead: 2 * time.Minute,
+		{name: "行情 ticks(OKX)", host: "dev", exch: "OKX", cat: "collect", fact: "md_ticks venue<>mt5", warn: 30 * time.Second, dead: 2 * time.Minute,
 			fix:   "查 dev collector tickers 订阅段（T-0132 分级面）",
 			query: `SELECT max(ts) FROM md_ticks WHERE coalesce(venue,'okx')<>'mt5'`},
 	}
@@ -90,7 +91,7 @@ func (c coreService) GetSystemHealth(ctx context.Context,
 	r := &dashboardv1.GetSystemHealthResponse{}
 	for _, b := range healthComps() {
 		comp := &dashboardv1.SystemComponent{Component: b.name, Fact: b.fact,
-			Host: b.host, State: 0, Note: ""}
+			Host: b.host, Exch: b.exch, Cat: b.cat, State: 0, Note: ""}
 		var ts *time.Time
 		if err := c.pool.QueryRow(ctx, b.query).Scan(&ts); err != nil {
 			comp.State, comp.Note = 2, "查询败（读件缺）"
