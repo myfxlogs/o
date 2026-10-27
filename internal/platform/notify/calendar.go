@@ -5,6 +5,7 @@
 package notify
 
 import (
+	"bytes"
 	"context"
 	"encoding/xml"
 	"fmt"
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"golang.org/x/net/html/charset"
 )
 
 const calendarFeed = "https://nfs.faireconomy.media/ff_calendar_thisweek.xml"
@@ -75,7 +77,12 @@ func (c *Calendar) Scan(ctx context.Context) error {
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	var w ffWeekly
-	if err := xml.Unmarshal(body, &w); err != nil {
+	// T-0183：windows-1252 声明 charset 病灶根修——Go xml 解包非 UTF-8
+	// 须显式 CharsetReader（charset.NewReaderLabel 一行接入——24h 恒败
+	// 高影响事件预推全灭面根修）。
+	dec := xml.NewDecoder(bytes.NewReader(body))
+	dec.CharsetReader = charset.NewReaderLabel
+	if err := dec.Decode(&w); err != nil {
 		log.Printf("[财经日历] feed 解包败: %v", err)
 		return nil
 	}
