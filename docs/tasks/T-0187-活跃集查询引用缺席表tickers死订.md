@@ -67,7 +67,7 @@ domain.tsv 标注 md|bridge 的表（fin_position=fin 域禁引）。
 
 - [x] 立单
 - [ ] 施工
-- [ ] 验收投产
+- [x] 验收投产（决策席 2026-10-27：37 活跃集标的 tickers 行恢复秒级流入 0.17s 鲜，activeset_read_failed 零计数，md 域 fin_position 引用普查清零）
 
 ## 结果回填
 
