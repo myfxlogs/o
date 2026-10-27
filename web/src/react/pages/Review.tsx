@@ -161,11 +161,11 @@ function FlowsCard() {
   const [venue, setVenue] = useState("");
   const [page, setPage] = useState(0);
   const f = useSnap(["ev_cashflow"],
-    () => client.listCashflows({ kind, venue, limit: 20, offset: page * 20 }),
+    () => client.listCashflows({ kind, venue, limit: 10, offset: page * 10 }),
     `${kind}:${venue}:${page}`
   );
   const total = f.data?.total ?? 0;
-  const pages = Math.max(1, Math.ceil(total / 20));
+  const pages = Math.max(1, Math.ceil(total / 10));
   return (
     <Card
       title="现金流全量"
