@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -58,11 +59,13 @@ type Collector struct {
 
 	// T-0139 桥二期信号面：books5 复活（D-0022——特征值非原始盘口；标的集
 	// 可配置域 bridge.depth5.symbols，非全宇宙防桥自造洪泛）。
-	depth5Syms []string                                              // 本连接订阅的深度标的集（config 热启，重连拍读）
-	ctvFeed    func(ctx context.Context) (map[string]float64, error) // SWAP ctVal 读件（USD 额换算）
-	ctvCache   map[string]float64
-	ctvAt      time.Time
-	depth5At   map[string]time.Time // per-inst 蒸馏写节流（特征值 5s 鲜度足够）
+	depth5Syms   []string                                              // 本连接订阅的深度标的集（config 热启，重连拍读）
+	ctvFeed      func(ctx context.Context) (map[string]float64, error) // SWAP ctVal 读件（USD 额换算）
+	ctvMu        sync.Mutex                                            // T-0191：ctv 字段读写互斥（reload 协程×读环并发）
+	ctvCache     map[string]float64
+	ctvAt        time.Time
+	ctvReloading bool                 // T-0191：后台重载飞行中闸（≤1 次/60s 节流——帧频防 venue 打爆）
+	depth5At     map[string]time.Time // per-inst 蒸馏写节流（特征值 5s 鲜度足够）
 }
 
 // AttachMeter 挂带宽计量件（T-0057：nil=不计量）。
@@ -182,8 +185,10 @@ func (c *Collector) dialLoop(ctx context.Context, syms []string, gen int64) erro
 	if len(c.depth5Syms) > 0 {
 		if c.ctvFeed != nil { // ctv 预载（读循环零同步外呼——帧径只查缓存）
 			if m, err := c.ctvFeed(ctx); err == nil {
+				c.ctvMu.Lock()
 				c.ctvCache = m
 				c.ctvAt = time.Now()
+				c.ctvMu.Unlock()
 			} else {
 				c.rej.Inc("depth5_no_ctval")
 			}
