@@ -63,3 +63,14 @@ T-0196 票面钦定 recv_ts 时未推演「DO NOTHING 下 recv_ts=首见时
 的观测龄语义不同构；验收时 funding_view 17s 鲜为「恰逢新期间公告」
 假绿，1h 后才显形。决策席坑注在案（本票首行直派来源），条目化入
 工程经验库：「血统戳取源列前，先钉该列语义=首见/末见/事件时」。
+
+## 决策席复审追注（2026-10-27）——**返修（窄口）**
+
+- DO UPDATE bump+WHERE 门设计对：值变即刷+节流写放大，实现方向收。
+- **一处数值错配**：节流 `'5 minutes'` > 下游 carry_diff 输入闸
+  `ts>120s`——recv_ts 在 [0,5min] 振荡，funding_view.ts 随之；
+  carry_diff 闸仅在 bump 后 120s 窗内过≈40% 占空——票面钦定
+  「ts 恢复随拍更新」不成立（间歇供血非随拍）。
+- **钦定返修**：节流字面量 `'5 minutes'`→`'60 seconds'`（两文件同修：
+  store.go collector 侧 + mirror.go uFunding 侧）。60s 门→recv_ts
+  恒 <~61s<120s 闸稳过，写放大仍≤~insts/min 有界。验收锚照旧。

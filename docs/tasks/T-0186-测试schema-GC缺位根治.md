@@ -50,3 +50,9 @@
   t_* CASCADE（用后清——实例窒息根治；白名单守=只 t_* 前缀）。
 - 乙案兜底：scripts/gc_test_schemas.sh 日拍 cron 件（quote_ident 拼；
   t_* LIKE 谓词——public/fin_*/md_* 永不进 DROP 集）。
+
+## 决策席验收投产（2026-10-27）
+
+- 甲案 `testutil.Pool` t.Cleanup DROP SCHEMA CASCADE 码面合规（每测自 schema 用后清，不误他件）；乙案 `gc_test_schemas.sh` `nspname LIKE 't\_%'`+quote_ident 谓词窄钉——DROP 集永不入白名单件。
+- **补位**：乙案 cron 件票面钦定「挂 dev cron 日拍」但分支未装——决策席投产步直挂：`23 5 * * * gc_test_schemas.sh >> /opt/o-backups/gc_test_schemas.log`（本机 crontab 实证在册）。
+- master 合入 `7cd3277`；七断言绿。销号。
