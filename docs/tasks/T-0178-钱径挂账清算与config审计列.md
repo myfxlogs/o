@@ -31,3 +31,10 @@
 - sweepIdle 50.18 归因+处置入票面
 - app_config 行带 updated_by/updated_at；Set 径新写留写者名
 - 迁移过闸+retention 照账
+
+### 施工注（派前补钉——桥表双侧约束）
+
+`app_config` 是**桥表**——加审计列=桥 DDL 变更，七断言「两链同形」闸
+要求 fin 侧迁移+md 侧同形件**同 commit 落**（md_1072 顺位），否则
+check_migrations 即红。迁移序号：fin_0073 顺位（0071=host_metrics/
+0072=condition_gap 已占）。
