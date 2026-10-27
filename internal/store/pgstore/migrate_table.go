@@ -80,7 +80,7 @@ var migrationTable = []struct {
 	{71, "fin_0071_host_metrics.sql"},
 	{72, "fin_0072_condition_gap.sql"},
 	{73, "fin_0073_app_config_audit.sql"},
-	{74, "fin_0074_host_metrics_notify.sql"}, ([角色:施工][T-0173] 主机资源做成流（业主问裁）：fin_0074 ev_hostmetrics 触发器（30s 自报拍逐拍 NOTIFY，2 主机=4 帧/分不洪泛）+Watch 脊 LISTEN 加通道+前端 topics 随帧重抓——事件驱动律 D-0008 守住（前端零轮询）；主机资源卡自动随拍刷新)
+	{74, "fin_0074_host_metrics_notify.sql"},
 
 	// —— md 链（版本链内唯一且单调；md 链版本=历史号+1000 与 fin 键空间全局不相交——跨链并 schema 时 schema_migrations 零撞号，check_migrations 断言①⑤）——
 	{1003, "md_1003_market_facts.sql"},
