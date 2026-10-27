@@ -351,3 +351,54 @@ details.rep summary {
 .tree-node table {
   margin: 2px 0 4px 26px;
 }
+
+/* —— 采集页：两台主机两大瓦片，组件逐行（呼吸灯+龄+病因/建议）—— */
+.host-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 20px;
+  align-items: start;
+}
+.host-sub {
+  font-size: 12px;
+  margin: -8px 0 12px;
+}
+.comp-rows {
+  display: flex;
+  flex-direction: column;
+}
+.comp-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px dashed var(--line);
+}
+.comp-row:last-child {
+  border-bottom: none;
+}
+.comp-row .dot {
+  margin-top: 4px;
+  flex: none;
+}
+.comp-main {
+  flex: 1;
+  min-width: 0;
+  font-size: 13.5px;
+}
+.comp-note {
+  font-size: 12px;
+  margin-top: 2px;
+  color: var(--warn);
+}
+.comp-age {
+  flex: none;
+  color: var(--ink-3);
+  font-size: 12.5px;
+  margin-top: 3px;
+}
+
+/* 死灯描环（业主①：颜色区分同样要——红静止且加环，一眼认尸） */
+.dot.s2 {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--critical) 22%, transparent);
+}
