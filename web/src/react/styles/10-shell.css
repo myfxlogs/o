@@ -155,3 +155,8 @@
   min-width: 36px;
   padding: 4px 8px;
 }
+
+/* 呼吸灯（业主②：席位活性=呼吸——色仍随三态，绿也缓息） */
+.dot.breathe {
+  animation: breathe 2.2s ease-in-out infinite;
+}

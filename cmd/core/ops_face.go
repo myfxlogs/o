@@ -124,13 +124,20 @@ func (c coreService) ListReports(ctx context.Context,
 	if n <= 0 || n > 90 {
 		n = 8
 	}
+	r := &dashboardv1.ListReportsResponse{}
+	var total int32
+	if err := c.pool.QueryRow(ctx,
+		"SELECT count(*) FROM fin_report WHERE period=$1", period).Scan(&total); err != nil {
+		return nil, err
+	}
+	r.Total = total
 	rows, err := c.pool.Query(ctx, `SELECT period,period_start,period_end,metrics,note,generated_at
-		FROM fin_report WHERE period=$1 ORDER BY period_start DESC LIMIT $2`, period, n)
+		FROM fin_report WHERE period=$1 ORDER BY period_start DESC LIMIT $2 OFFSET $3`,
+		period, n, int(req.GetOffset()))
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	r := &dashboardv1.ListReportsResponse{}
 	for rows.Next() {
 		var p, note string
 		var s, e, g time.Time

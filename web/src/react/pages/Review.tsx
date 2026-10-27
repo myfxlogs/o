@@ -32,9 +32,15 @@ const METRIC_NAMES: Record<string, string> = {
 
 function ReportsCard() {
   const [period, setPeriod] = useState("daily");
+  const [page, setPage] = useState(0);
   const r = useSnap(["ev_cashflow"], () =>
-    client.listReports({ period, n: 8 })
+    client.listReports({ period, n: 10, offset: page * 10 })
   );
+  const total = r.data?.total ?? 0;
+  const pages = Math.max(1, Math.ceil(total / 10));
+  const go = (p: number) => {
+    setPage(p);
+  };
   return (
     <Card
       title="报告"
@@ -44,7 +50,10 @@ function ReportsCard() {
             <button
               key={p.k}
               className={"btn seg-btn" + (period === p.k ? " on" : "")}
-              onClick={() => setPeriod(p.k)}
+              onClick={() => {
+                setPeriod(p.k);
+                go(0);
+              }}
             >
               {p.label}
             </button>
@@ -81,6 +90,17 @@ function ReportsCard() {
               {rep.note ? <div className="ink-3 note">{rep.note}</div> : null}
             </details>
           ))}
+          <div className="pager">
+            <button className="btn" disabled={page === 0} onClick={() => go(page - 1)}>
+              上一页
+            </button>
+            <span className="ink-3">
+              {page + 1}/{pages}（{total} 份）
+            </span>
+            <button className="btn" disabled={page + 1 >= pages} onClick={() => go(page + 1)}>
+              下一页
+            </button>
+          </div>
         </div>
       )}
     </Card>

@@ -256,6 +256,7 @@ message GetSystemHealthResponse {
 message ListReportsRequest {
   string period = 1;               // daily|weekly|monthly（空=daily）
   int32 n = 2;                     // ≤0=8 上限 90
+  int32 offset = 3;                // T-0173 业主③：报告随龄增长分页
 }
 message ReportMetric { string k = 1; double v = 2; }
 message ReportRow {
@@ -266,7 +267,10 @@ message ReportRow {
   string note = 5;
   google.protobuf.Timestamp generated_at = 6;
 }
-message ListReportsResponse { repeated ReportRow reports = 1; }
+message ListReportsResponse {
+  int32 total = 1;                 // 该 period 总行数（分页下推）
+  repeated ReportRow reports = 2;
+}
 
 message GetEquityCurveRequest { int32 days = 1; }  // <=0=90
 message EquityPoint {
