@@ -1,39 +1,47 @@
 #!/usr/bin/env bash
-# pre-push 门禁：master 只允许从部署树 /opt/o 推送（D-651）。
-# 远端名闸——本仓唯一远端=origin；裸推到错名远端=显式失败指路，防静默吞件。
-set -u
+# pre-push — 双闸合一（业主令 2026-10-27：绿了才推）：
+#
+# A. 推形闸：远端名 origin / master 只许 /opt/o 部署树 / 禁删禁force禁映射。
+# B. 绿戳闸：每个被推 head(local_sha) 须持 scripts/check_all.sh 鲜戳
+#    .git/check-green-<SHA>（6h 窗）——全链独立跑不在钩内（钩内跑全谱=
+#    持 git 连接数分钟，GitHub 掐空闲连接实证 10-27；拆戳=闸仍强制连接短促）。
+#
+# 伪戳=违例入案（服务端 required-check build-test 兜真伪——假绿推 master
+# 照拒）。--no-verify=违例本身。
+set -uo pipefail
 
 remote="$1"
-
 case "$remote" in
-    origin)
-        ;;
-    *)
-        echo "FAIL: 推送远端必须是 origin（本仓唯一远端；'$remote' 非法）——统一走 scripts/git_push.sh" >&2
-        exit 1
-        ;;
+    origin) ;;
+    *) echo "FAIL: 推送远端必须是 origin（O 仓唯一钦定远端），收到: ${remote:-<空>}" >&2; exit 1 ;;
 esac
 
+GITDIR=$(git rev-parse --git-dir)
+repo_root=$(git rev-parse --show-toplevel)
+
+fail() { echo "❌ [pre-push] $1" >&2; exit 1; }
+
+stamp_ok() {
+    # $1=被推 sha，$2=ref 名（报文用）
+    [ "$1" = "0000000000000000000000000000000000000000" ] && return 0  # 删 ref 无 head
+    local stamp="$GITDIR/check-green-$1"
+    [ -f "$stamp" ] || fail "$2 无绿戳——先跑 scripts/check_all.sh 绿了再推（伪戳=违例入案）"
+    local age=$(( $(date +%s) - $(date -r "$stamp" +%s) ))
+    [ "$age" -le 21600 ] || fail "$2 绿戳已陈（${age}s>6h）——check_all.sh 重跑盖新戳"
+    return 0
+}
+
 while read -r local_ref local_sha remote_ref remote_sha; do
+    [ -n "$remote_ref" ] || continue
+    stamp_ok "$local_sha" "$remote_ref"
     [ "$remote_ref" = "refs/heads/master" ] || continue
-    # refspec 变形面 fail-open 禁绝：+force 前缀/全零 sha（远端删除 master）一律拦。
-    if [ "$local_sha" = "0000000000000000000000000000000000000000" ]; then
-        echo "FAIL: 远端删除 refs/heads/master 禁绝（pre-push 闸——变形 refspec 面）" >&2
-        exit 1
-    fi
+    [ "$local_sha" = "0000000000000000000000000000000000000000" ] \
+        && fail "禁删 master"
     case "$local_ref" in
-        +*|refs/tags/*|*:*) echo "FAIL: master 推送禁 refspec 变形（force/映射/tag）——refs/heads/<branch> 直推" >&2; exit 1 ;;
+        +*|*:*|refs/tags/*) fail "master 禁 force/refspec/tag/映射形" ;;
     esac
-    repo="$(git rev-parse --show-toplevel 2>/dev/null || echo "${GIT_DIR:-unknown}")"
-    case "$repo" in
-        /opt/o)
-            exit 0
-            ;;
-        *)
-            echo "FAIL: master 只能从部署树 /opt/o 推送；工作分支请推 t/<票名>" >&2
-            exit 1
-            ;;
-    esac
+    [ "$repo_root" = "/opt/o" ] || fail "master 只许从部署树 /opt/o 推（当前: $repo_root）"
 done
 
+echo "✓ [pre-push] 形闸+绿戳全过——推送放行"
 exit 0
