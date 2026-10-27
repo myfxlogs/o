@@ -199,6 +199,12 @@ func (h hedgeOpener) dcdOpen(ctx context.Context, spec lifecycle.OpenSpec) (int6
 	// 径照旧；歧态势=order-status?ordId/order-history 反查真态禁盲补。
 	raw, err := h.cli.DcdTrade(ctx, quoteID)
 	if err != nil {
+		// T-0208②：429=未执行定态分流（venue 限速拒非歧态势——trade 未
+		// 落即拒可退避重试；真歧态势=请求已入未定才 ambiguous）。
+		if strings.Contains(err.Error(), "429") {
+			_, _ = h.pool.Exec(ctx, "UPDATE fin_execution SET state='failed',venue_err='rate_limited' WHERE id=$1", execID)
+			return execID, fmt.Errorf("dcd trade 429 限速退避（exec_id=%d）: %w", execID, err)
+		}
 		// 传输/超时败=歧态势：禁补单——exec 行待人工/读件定真态（okx-exec 纪律）。
 		_, _ = h.pool.Exec(ctx, "UPDATE fin_execution SET state='ambiguous' WHERE id=$1", execID)
 		return execID, fmt.Errorf("dcd trade 歧态势禁补单（exec_id=%d）: %w", execID, err)
