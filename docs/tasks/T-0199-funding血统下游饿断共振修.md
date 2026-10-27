@@ -119,3 +119,16 @@ OR 条件于 WHERE；freshByKind 同）。修毕当值期判据全族闭环。
 
 桩锚建议随行：funding_view 行 ts 陈 3h+meta 带未来 next_funding_ts
 → Fresh 返回在（当值）；meta 过期→缺席如实。
+
+## 决策席四巡追注——共享闸修件对，夹具语义未随迁
+
+Fresh/freshByKind 种类自适闸实现收——但 `run_test.go` 两处夹具
+还用旧「ts 龄」语义喂 funding_view 行（无 meta/'{}'）→两桩红：
+
+- `TestFreshGate`：鲜行应带 meta.next_funding_ts=未来值（当值=ok）；
+  陈行语义迁移→next_funding_ts=过期值（过期=缺席）——「禁陈当事实」
+  断言保语义覆盖。
+- `TestSurfaceSignalsMapping`：四行 funding_view meta 补未来
+  next_funding_ts；STALE 行补过期值（陈行排除断言改押过期戳）。
+- `TestBasisAnn` 精度偏（302.35 vs 300.41）=master 基线先验败件，
+  非本票引入——决策席记档另案（测试质量件候位）。
