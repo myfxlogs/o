@@ -25,6 +25,7 @@ type Row = {
   ageIso: string | null;
   note?: string;
   title?: string;
+  exch?: string;
 };
 
 const EXCH_ORDER = ["OKX", "MT5", "蒸馏"];
@@ -37,7 +38,7 @@ function ExchSections(props: { rows: Row[] }) {
   }, []);
   const byExch = new Map<string, Row[]>();
   for (const r of props.rows) {
-    const ex = (r as { exch?: string }).exch ?? "OKX";
+    const ex = r.exch ?? "OKX";
     if (!byExch.has(ex)) byExch.set(ex, []);
     byExch.get(ex)!.push(r);
   }
