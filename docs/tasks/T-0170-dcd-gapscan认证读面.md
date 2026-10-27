@@ -106,3 +106,18 @@ o-research 起后两臂 fail-closed：dcd feed 调 `sfp/dcd/currency-pair`+`prod
 - coins（account/balance）随 dcd 臂同持守件——非票面明列但同属私有
   读面（T-0095 归口判据源），不换则凭据到位仍 401 fail-closed；零新
   端点，纯面换 authGetter。
+
+### 部署实证补记（决策席 2026-10-27 部署后验）
+
+部署序 4 步全落：SG permitopen +8095/compose loopback pin/o-core 轮换 →
+`o-readcred-tunnel` 起（dev:5545→SG:8095）→ `/opt/o-research/env` 增
+READCRED_URL（单元实读件——~/o-research.env 双径坑再证实测，残影已
+symlink 归一）→ 新二进制停换起（Text file busy 坑：禁 cp 覆写活件）。
+
+live 锚实拍：o-research 起「读面=readcred 认证读」；重启后零 401/50103
+（前置态=每拍恒败）；readcred 端到端实拍 dev:5545→200 三件；
+`fin_surface_gap.last_seen` boot 拍刷新（gapscan 认证探针通）；独立
+取证 OKX currency-pair 直返 328 对（只读钥有效）；六臂 beat 在册。
+md_dcd_product 填充=feed 在飞中——328 对×300ms+429 退避（sfp 限频紧，
+实测首对即 429），feed 是全集返回制，整批约 ~40min 窗口后落行；
+任一单对退避尽=全面让位（T-0117 退避件既有语义，观察项）。
