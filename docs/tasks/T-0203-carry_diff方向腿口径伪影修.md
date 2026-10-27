@@ -49,3 +49,15 @@ carry_diff 按**方向自洽**产出（二选一，施工可裁）：
   funding>0 对称径同构。
 - T-0145 亮牌判据归位：1095 伪影不再进亮牌——BTC 实净≈279bps 口径
   （spec 钉证属决策席既有取证面）。
+
+## 决策席验收 2026-10-27——销号投产
+
+- 码面核：funding>0→`fundingAnn+sl`(swap_long_ann 负值相加即净)、
+  funding<0→`-fundingAnn+ss`——方向腿自洽对钦定；swapMeta 查询置
+  双腿取值前无空 map 坑；meta 钉 direction+双腿 ann+透传件。
+- 桩：9/10 绿（独败=TestBasisAnn 基线先验，另案记档）。
+- **活件实证**：部署后 carry_diff 重写——BTC `val=281.21bps`
+  （funding_ann 1095+swap_long_ann −813.79）、ETH 268.35bps；
+  meta.direction=`short_perp_long_cfd`、ts 随拍鲜。1095bps 伪影
+  死、实净≈2.8%/yr 口径归位——T-0145 亮牌阈（≥8%）未达，候场
+  票维持不升派。
