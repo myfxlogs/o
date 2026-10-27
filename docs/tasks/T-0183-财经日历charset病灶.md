@@ -27,3 +27,11 @@ xml 样本解出条目即过。
 
 不迁 dev：日历件挂 o-core alerter/去重台账同进程面；迁需飞书
 凭据面随件上 dev（凭据扩散面负收益）——微件原地修。
+
+## 结果回填
+
+- calendar.go 解包点接 CharsetReader：xml.NewDecoder+charset.
+  NewReaderLabel（x/net v0.57.0 已在 go.mod——间接升直接引用面）；
+  windows-1252 声明 charset 不再恒败。
+- 桩锚 TestCharsetReaderWindows1252：windows-1252 声明样本→NFP 条目
+  解出绿（T-0070 高影响预推面根修实证）。
