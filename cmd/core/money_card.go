@@ -5,7 +5,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log"
 	"strconv"
 
@@ -71,11 +70,8 @@ func (c coreService) dcdRows(ctx context.Context, o *dashboardv1.OverviewRespons
 		sz := okxexec.ParseF(od.NotionalSz)
 		u := valCcy(ctx, c.pool, od.NotionalCcy, sz)
 		o.NavTotal += u
-		exp := msDay(od.SettleTime)
-		apy := okxexec.ParseF(od.AnnualizedYield) * 100
 		o.Money = append(o.Money, moneyRow("okx", "结构性持仓", od.NotionalCcy,
-			fmt.Sprintf("%s #%s 行权%s 到期%s 年化%.1f%%",
-				od.ProductID, od.OrdID, od.Strike, exp, apy), sz, u))
+			od.ProductID, sz, u))
 	}
 }
 

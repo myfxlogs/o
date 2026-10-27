@@ -304,3 +304,50 @@ details.rep summary {
 .chart-box {
   width: 100%;
 }
+
+/* —— 钱在哪树（平台收拢/展开）—— */
+.tree {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.tree-head {
+  display: grid;
+  grid-template-columns: 16px 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  border: none;
+  background: none;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 8px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: left;
+}
+.tree-head:hover {
+  background: var(--page);
+}
+.tree-head .caret {
+  display: inline-block;
+  transition: transform 0.15s ease;
+  color: var(--ink-3);
+}
+.tree-head .caret.open {
+  transform: rotate(90deg);
+}
+.tree-name {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.tree-n {
+  font-size: 12px;
+}
+.tree-total {
+  font-weight: 700;
+}
+.tree-node table {
+  margin: 2px 0 4px 26px;
+}

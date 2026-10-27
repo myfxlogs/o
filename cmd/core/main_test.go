@@ -239,7 +239,8 @@ func TestOverviewDoingFullCoverage(t *testing.T) {
 	}
 	tx1 := doingTexts(o1)
 	if !strings.Contains(tx1, "DCD BTC-USDT-261225-95000-C") ||
-		!strings.Contains(tx1, "#11448262") || !strings.Contains(tx1, "持仓中") {
+		!strings.Contains(tx1, "持仓中") {
+		// T-0173 业主①：文案瘦到 productID——ordId/行权/到期出列
 		t.Fatalf("DCD 行应入列: %q", tx1)
 	}
 	if strings.Contains(tx1, "静持") {
