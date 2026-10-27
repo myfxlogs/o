@@ -115,19 +115,23 @@ func (c coreService) Overview(ctx context.Context, _ *dashboardv1.OverviewReques
 	if posN == 0 && ok && len(dcds) == 0 {
 		o.Doing = append(o.Doing, &dashboardv1.DoingItem{Text: "静持——无开仓在案"})
 	}
-	rrows, _ := c.pool.Query(ctx, `SELECT ts,kind,amount FROM fin_cashflow
+	rrows, _ := c.pool.Query(ctx, `SELECT ts,kind,amount,coalesce(venue,'') FROM fin_cashflow
 		WHERE kind NOT IN ('earn_in','earn_out') ORDER BY id DESC LIMIT 6`)
 	for rrows.Next() {
 		var ts time.Time
-		var kind string
+		var kind, venue string
 		var amt float64
-		_ = rrows.Scan(&ts, &kind, &amt)
+		_ = rrows.Scan(&ts, &kind, &amt, &venue)
 		verb := map[string]string{"funding_settle": "资金费到账", "fee": "交易成本",
 			"trade_pnl": "平仓盈亏", "deposit": "入金", "withdraw": "出金",
 			"interest": "活期利息", "recon_adjust": "校账调整",
 			"spot_buy": "现货买入", "spot_sell": "现货卖出"}[kind]
-		o.Recent = append(o.Recent, fmt.Sprintf("%s %s %+.4f USDT",
-			ts.Format("15:04"), verb, amt))
+		src := map[string]string{"okx": "OKX", "mt5": "MT5"}[venue]
+		if src != "" {
+			src = " · 来自" + src
+		}
+		o.Recent = append(o.Recent, fmt.Sprintf("%s %s %+.4f USDT%s",
+			ts.Format("15:04"), verb, amt, src))
 	}
 	rrows.Close()
 	// T-0078：列名正名 duty→title（旧列缺席=静默空集病灶——Scan 败必 log
