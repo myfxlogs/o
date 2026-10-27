@@ -128,6 +128,22 @@ func (c coreService) Overview(ctx context.Context, _ *dashboardv1.OverviewReques
 			"spot_buy": "现货买入", "spot_sell": "现货卖出"}[kind]
 		src := map[string]string{"okx": "OKX", "mt5": "MT5"}[venue]
 		if src != "" {
+			// 钱包/账号细化（业主令）：OKX 按 kind 语义映钱包（利息=Earn 停泊/
+			// 入出金=资金户/交易类=交易户）；MT5=在册 login 单户直标（多户时
+			// 退化为平台名——治本=写账落 account 列，另票）。
+			wallet := map[string]string{"interest": "Earn 停泊",
+				"funding_settle": "交易户", "trade_pnl": "交易户", "fee": "交易户",
+				"deposit": "资金户", "withdraw": "资金户"}[kind]
+			if venue == "mt5" {
+				var login string
+				_ = c.pool.QueryRow(ctx, `SELECT data->>'login' FROM md_account_events
+					WHERE venue='mt5' AND data ? 'login' ORDER BY ts DESC LIMIT 1`).Scan(&login)
+				if login != "" {
+					src += "·户" + login
+				}
+			} else if wallet != "" {
+				src += "·" + wallet
+			}
 			src = " · 来自" + src
 		}
 		o.Recent = append(o.Recent, fmt.Sprintf("%s %s %+.4f USDT%s",
