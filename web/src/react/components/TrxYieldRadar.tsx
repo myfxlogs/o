@@ -109,16 +109,8 @@ export function TrxYieldRadar() {
               </div>
             </div>
           </div>
-          <div style={{ marginTop: "8px", borderTop: "1px solid var(--line)", paddingTop: "8px" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "4px 16px" }}>
-              <div>
-                <span className="muted">累积收益（租金+领奖） </span>
-                <strong>{fmtNum(curve.cumulativeUnhedgedIncomeTrx, 2)} TRX</strong>
-                <span className="muted"> ≈ {fmtUsd(curve.cumulativeUnhedgedIncomeUsd)}</span>
-              </div>
-              {/* 对冲漂移格如实缺——NOX curve 响应无 hedgeRatioDrift* 字段（禁伪造） */}
-            </div>
-          </div>
+          {/* 累积收益行撤（T-0173 业主⑳能减尽减）——全量明细=统一流水卡、
+              全期累计=carry「累计」行，本行三记其一删 */}
         </>
       )}
       {carry && (
