@@ -176,3 +176,20 @@ func TestHostMetrics(t *testing.T) {
 		t.Fatalf("uptime 折时不符: %v", sg.UptimeHours)
 	}
 }
+
+// 锚⑥：venue 筛（业主⑨——平台维过滤与 kind 正交）。
+func TestListCashflowsVenue(t *testing.T) {
+	c := opsSetup(t)
+	ctx := context.Background()
+	if _, err := c.pool.Exec(ctx, `INSERT INTO fin_cashflow(kind,ccy,amount,venue,occurred_at,source_ref,source_table) VALUES
+		('interest','USDT',1,'okx',now(),11,'t'),('interest','USDT',2,'mt5',now(),12,'t')`); err != nil {
+		t.Fatal(err)
+	}
+	r, err := c.ListCashflows(ctx, &dashboardv1.ListCashflowsRequest{Kind: "interest", Venue: "mt5"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Total != 1 || len(r.Rows) != 1 || r.Rows[0].Venue != "mt5" {
+		t.Fatalf("mt5+interest 应恰 1 行: %+v", r)
+	}
+}

@@ -307,6 +307,7 @@ message ListCashflowsRequest {
   string kind = 1;                 // 空=全 kind
   int32 limit = 2;                 // <=0=50
   int32 offset = 3;
+  string venue = 4;                // T-0173 业主⑨：平台筛（okx/mt5——空=全）
 }
 message ListCashflowsResponse {
   int32 total = 1;                 // 过滤后总行数（分页下推）
