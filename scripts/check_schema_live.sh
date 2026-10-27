@@ -75,24 +75,31 @@ timeout 30 docker system df --format '{{.Type}}|{{.Size}}' 2>/dev/null | while I
 		echo "OK: $typ $sz ≤ 阈 ${th}GB"
 	fi
 done
+
+# —— T-0194 普查纠偏（返修：exit 前移位+双域件双侧验）：触发器预期集
+# =migrations/*.sql 全谱定义件；侧别=ON <table> →domain.tsv 域查表
+# （双域表双侧验——dev 侧再灭失不可见病灶根修）。
+while IFS= read -r line; do
+	tg=$(echo "$line" | awk '{print $NF}')
+	tbl=$(echo "$line" | sed -nE 's/.* ON ([a-z_0-9]+) .*/\1/p')
+	dom=$(awk -F'\t' -v t="$tbl" '$1==t{print $2}' migrations/domain.tsv 2>/dev/null | head -1)
+	case "$dom" in
+		fin)      sides="fin" ;;
+		md)       sides="md" ;;
+		*)        sides="fin md" ;; # 双域/未知表=双侧验
+	esac
+	for d in $sides; do
+		if [ "$d" = fin ]; then
+			hit=$(timeout 20 ssh -o BatchMode=yes -o ConnectTimeout=8 "$SG_HOST" \
+				"docker exec o-postgres psql -U o -d o -tc \"SELECT 1 FROM pg_trigger WHERE tgname='$tg'\"" 2>/dev/null | tr -d ' ')
+		else
+			hit=$(timeout 10 psql "$MD_DSN" -tc "SELECT 1 FROM pg_trigger WHERE tgname='$tg'" 2>/dev/null | tr -d ' ')
+		fi
+		if [ "$hit" != "1" ]; then
+			echo "WARN: 触发器缺席 $d/$tg（$tbl——定义在册 pg_trigger 无——DROP+CREATE 吞零件同族坑）" >&2
+		fi
+	done
+done < <(grep -hoE "CREATE (OR REPLACE )?TRIGGER [a-z_]+ ON [a-z_0-9]+ [^;]*" migrations/*.sql | sed -E 's/CREATE (OR REPLACE )?TRIGGER //' | sort -u)
+
 exit $fail
 
-# —— T-0194 普查纠偏：触发器预期集=migrations/*.sql 全谱定义件（不限
-# fin_* 前缀——md_1028 族漏网实证），双侧 pg_trigger 在位逐一对拍。
-exp=$(grep -hoE "CREATE (OR REPLACE )?TRIGGER [a-z_]+" migrations/*.sql | awk '{print $NF}' | sort -u)
-echo "$exp" | while read -r tg; do
-	[ -n "$tg" ] || continue
-	case "$tg" in
-		ev_account_trg|ev_cashflow_trg|ev_eval_trg|ev_funding_trg|ev_fwdchk_trg|ev_gap_trg|ev_hostmetrics_trg|ev_position_trg|ev_proposal_sg_trg|ev_strategy_trg|ev_ticks_trg|fin_*|app_*|bump_*|notify_*) dom=fin ;;
-		*) dom=md ;;
-	esac
-	if [ "$dom" = fin ]; then
-		hit=$(timeout 20 ssh -o BatchMode=yes -o ConnectTimeout=8 "$SG_HOST" \
-			"docker exec o-postgres psql -U o -d o -tc \"SELECT 1 FROM pg_trigger WHERE tgname='$tg'\"" 2>/dev/null | tr -d ' ')
-	else
-		hit=$(timeout 10 psql "$MD_DSN" -tc "SELECT 1 FROM pg_trigger WHERE tgname='$tg'" 2>/dev/null | tr -d ' ')
-	fi
-	if [ "$hit" != "1" ]; then
-		echo "WARN: 触发器缺席 $dom/$tg（定义在册 pg_trigger 无——DROP+CREATE 重建吞零件同族坑）" >&2
-	fi
-done
