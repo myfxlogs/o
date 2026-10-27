@@ -31,8 +31,9 @@ const (
 
 // Runner 投影臂本体。md=PG-md 正本池；sg=SG 镜像池（隧道径）。
 type Runner struct {
-	md, sg *pgxpool.Pool
-	alert  *notify.Alerter
+	md, sg    *pgxpool.Pool
+	alert     *notify.Alerter
+	dualwrite bool // dualwrite=对拍期旁写泵（无谓词全量搬运；serve=活跃集谓词正形）
 
 	mu     sync.Mutex
 	active map[string]bool // 活跃集（SG fin_position 未平仓 ∪ fin_strategy 非 retired——谓词自算）
@@ -44,27 +45,41 @@ type Runner struct {
 }
 
 // New 装配（桥表集对册 fail-closed——消费面与 domain.tsv 单源禁漂移）。
-func New(md, sg *pgxpool.Pool, alert *notify.Alerter) (*Runner, error) {
+// mode=serve（正形，缺省）|dualwrite（对拍旁写泵）。
+func New(md, sg *pgxpool.Pool, alert *notify.Alerter, mode string) (*Runner, error) {
+	if mode != "serve" && mode != "dualwrite" {
+		return nil, fmt.Errorf("mode %q 非法（serve|dualwrite）", mode)
+	}
 	reg, err := migrations.BridgeTables()
 	if err != nil {
 		return nil, err
 	}
-	want := []string{"fin_opp_eval", "fin_proposal", "md_dcd_product", "md_funding",
-		"md_macro_event", "md_mark_index", "md_signal", "md_ticks"}
-	if len(reg) != len(want) {
-		return nil, fmt.Errorf("域册 bridge=%d 行与投影面八桥表不符——册面先行", len(reg))
+	// 投影搬运面八桥表须 ⊆ 册 bridge 行（册可超——app_config 第九桥副本走
+	// syncConfig 专径、fin_data_retention 分库独立账不经投影，见 T-0169）。
+	want := map[string]bool{"fin_opp_eval": true, "fin_proposal": true, "md_dcd_product": true,
+		"md_funding": true, "md_macro_event": true, "md_mark_index": true,
+		"md_signal": true, "md_ticks": true}
+	regSet := map[string]bool{}
+	for _, t := range reg {
+		regSet[t] = true
 	}
-	for i := range reg {
-		if reg[i] != want[i] {
-			return nil, fmt.Errorf("域册 bridge=%v 与投影面八桥表不符——册面先行", reg)
+	for t := range want {
+		if !regSet[t] {
+			return nil, fmt.Errorf("域册 bridge 缺投影面表 %s——册面先行", t)
 		}
 	}
-	return &Runner{md: md, sg: sg, alert: alert, wm: map[string]time.Time{}, active: map[string]bool{}}, nil
+	return &Runner{md: md, sg: sg, alert: alert, dualwrite: mode == "dualwrite",
+		wm: map[string]time.Time{}, active: map[string]bool{}}, nil
 }
 
 // Run 主环：守卫→启动对账→双侧听→beat/silent→活性兜底。败经 errc 岗终
 // （systemd 重启→reconciler 自愈——验收锚「杀连自愈」的运行时形态）。
 func (r *Runner) Run(ctx context.Context, errc chan<- error) {
+	// 席位上岗（beatLoop 只 Beat 不 Register——册行缺席=岗终环，先 Register 幂等）。
+	if err := roster.Register(ctx, r.sg, seatName, seatDept, seatTitle, nil); err != nil {
+		errc <- fmt.Errorf("[projector] roster register: %w", err)
+		return
+	}
 	if err := r.guards(ctx); err != nil {
 		errc <- fmt.Errorf("[projector] boot 守卫: %w", err)
 		return
@@ -76,7 +91,7 @@ func (r *Runner) Run(ctx context.Context, errc chan<- error) {
 	log.Printf("[projector] 对账毕——活跃集 %d inst、dcd 活策略 %d 品", r.activeCount(), len(r.dcdSet()))
 
 	mdCh := []string{"ev_ticks", "ev_markidx", "ev_funding", "ev_signal", "ev_eval", "ev_proposal", "ev_dcd"}
-	sgCh := []string{"ev_active_set", "ev_proposal"}
+	sgCh := []string{"ev_active_set", "ev_proposal", "config_changed"}
 	go events.ListenLoopChan(ctx, r.md, "projector-md", mdCh, r.mdWake)
 	go events.ListenLoopChan(ctx, r.sg, "projector-sg", sgCh, r.sgWake)
 	go r.beatLoop(ctx, errc)
@@ -113,38 +128,13 @@ func (r *Runner) sgWake(ctx context.Context, ch string) error {
 		return r.projectMacro(ctx) // ~30 行全表 diff——廉价顺带（事件级表无独立写帧）
 	case "ev_proposal":
 		return r.repairProposalStates(ctx)
+	case "config_changed":
+		return r.syncConfig(ctx)
 	case "":
-		return r.refreshSets(ctx)
-	}
-	return nil
-}
-
-// guards boot 前置：SG 侧帧源在位（fin_0070——o-core 轮换前置）/跨库 id 键空间
-// 切序前置（T-0169 setval——md 新序列撞 SG legacy id=镜像覆写 legacy 行，实害）。
-func (r *Runner) guards(ctx context.Context) error {
-	var n int
-	err := r.sg.QueryRow(ctx, `SELECT count(*) FROM pg_trigger WHERE tgname='ev_proposal_sg_trg'
-		AND tgrelid='fin_proposal'::regclass`).Scan(&n)
-	if err != nil {
-		return fmt.Errorf("SG 触发器探针: %w", err)
-	}
-	if n == 0 {
-		return fmt.Errorf("SG 侧 ev_proposal_sg_trg 缺席（fin_0070 未应用——o-core 须先轮换再起投影臂）")
-	}
-	for _, g := range []struct{ seq, tbl string }{
-		{"fin_proposal_id_seq", "fin_proposal"}, {"fin_opp_eval_id_seq", "fin_opp_eval"},
-	} {
-		var mdNext, sgMax int64
-		if err := r.md.QueryRow(ctx, "SELECT last_value FROM "+g.seq).Scan(&mdNext); err != nil {
-			return fmt.Errorf("md %s 读序: %w", g.seq, err)
+		if err := r.refreshSets(ctx); err != nil {
+			return err
 		}
-		if err := r.sg.QueryRow(ctx, "SELECT COALESCE(max(id),0) FROM "+g.tbl).Scan(&sgMax); err != nil {
-			return fmt.Errorf("sg %s max: %w", g.tbl, err)
-		}
-		if mdNext <= sgMax {
-			return fmt.Errorf("跨库 id 键空间相撞：md %s next=%d ≤ SG %s max=%d——"+
-				"T-0169 切换前置 setval（md 序列抬过 SG legacy max）后始可投影", g.seq, mdNext, g.tbl, sgMax)
-		}
+		return r.syncConfig(ctx)
 	}
 	return nil
 }

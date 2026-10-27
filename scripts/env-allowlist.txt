@@ -37,4 +37,7 @@ SG_PG_DSN
 PG_DSN
 # MD_PG_DSN=projector 正本源（T-0168——本机 PG-md 5435；SG_PG_DSN 已在册）。
 MD_PG_DSN
+# ROSTER_PG_DSN=席位台账池（T-0169——fin_employee_registry 归 SG 册，dev 侧臂
+# 直 beat 隧道径；缺省=pool 自身，同库单机期语义不变）。
+ROSTER_PG_DSN
 COLLECTO_MT5_HOST

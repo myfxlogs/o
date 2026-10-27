@@ -102,4 +102,6 @@ var migrationTable = []struct {
 	{1065, "md_1065_proposal_retire_trace.sql"},
 	{1066, "md_1066_md_funding_uq.sql"},
 	{1067, "md_1067_projector_frames.sql"},
+	{1068, "md_1068_app_config_replica.sql"},
+	{1069, "md_1069_data_retention_md.sql"},
 }

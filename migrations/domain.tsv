@@ -4,7 +4,9 @@
 # 同形断言另钉）。前缀不可判域（研究表多 fin_ 前缀、md_calendar_push 名 md
 # 实 fin）——一律以此清单为准；新表先入册再落迁移，缺册=红。
 # 格式：每行 `表名\t域`；# 起头为注。
-app_config	fin
+# app_config 升 bridge（T-0169 承接裁：第九桥——正本 fin 写/PG-md projector 只读副本；
+# app_secrets 仍 fin 独占不出 SG）
+app_config	bridge
 app_secrets	fin
 config_generation_seq	fin
 fin_employee_registry	fin
@@ -61,6 +63,8 @@ fin_cmc_prices	fin
 position_daily_income	fin
 fin_venue_untradeable	fin
 md_signal	bridge
-fin_data_retention	fin
+# fin_data_retention 升 bridge（T-0169：清道夫双实例——保留账分库各一份，D-0030 §八；
+# 两库账行各自独立，DDL 同构断言钉）
+fin_data_retention	bridge
 fin_eval_reject	fin
 fin_active_set	fin

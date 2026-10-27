@@ -65,10 +65,17 @@ func TestMigrateChainSurface(t *testing.T) {
 				t.Fatalf("md 链缺表 %s", tbl)
 			}
 		}
-		for _, tbl := range []string{"fin_position", "fin_cashflow", "app_config", "fin_active_set"} {
+		for _, tbl := range []string{"fin_position", "fin_cashflow", "fin_active_set"} {
 			if tableExists(t, pool, tbl) {
 				t.Fatalf("md 链不应有 fin 域表 %s", tbl)
 			}
+		}
+		// app_config=T-0169 第九桥只读副本（bridge——md 链应有；app_secrets 仍 fin 独占）。
+		if !tableExists(t, pool, "app_config") {
+			t.Fatal("md 链应有 app_config 第九桥副本")
+		}
+		if tableExists(t, pool, "app_secrets") {
+			t.Fatal("md 链不应有 app_secrets（密文域不出 SG）")
 		}
 	})
 	t.Run("fin", func(t *testing.T) {

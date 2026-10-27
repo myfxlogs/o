@@ -6,6 +6,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"log"
 	"os"
 
@@ -17,6 +18,8 @@ import (
 
 func main() {
 	ctx := context.Background()
+	mode := flag.String("mode", "serve", "serve=正形投影（活跃集谓词）|dualwrite=对拍旁写泵（全量搬运）")
+	flag.Parse()
 	mdDSN := os.Getenv("MD_PG_DSN")
 	if mdDSN == "" {
 		log.Fatal("MD_PG_DSN 缺——投影无正本源 fail-closed")
@@ -48,13 +51,13 @@ func main() {
 		v, _ := cfg.GetString("feishu.chat_id")
 		return v
 	}, func() bool { v, _ := cfg.GetBool("notify.feishu.enabled"); return v })
-	r, err := projector.New(mdPool, sgPool, alerter)
+	r, err := projector.New(mdPool, sgPool, alerter, *mode)
 	if err != nil {
 		log.Fatalf("装配: %v", err)
 	}
 	errc := make(chan error, 8)
 	go r.Run(ctx, errc)
-	log.Printf("[projector] 投影臂起——八桥镜像+proposal 双向（谓词自算零轮询）")
+	log.Printf("[projector] 投影臂起（mode=%s）——八桥镜像+proposal 双向+config 第九桥副本", *mode)
 	for err := range errc {
 		log.Fatalf("[projector] 岗终: %v", err) // 单败即岗终——restart+对账自愈径
 	}

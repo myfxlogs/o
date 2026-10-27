@@ -18,6 +18,7 @@ import (
 	"o/internal/mt5"
 	"o/internal/platform/config"
 	"o/internal/platform/pgguard"
+	"o/internal/platform/roster"
 	"o/internal/research/sigdist"
 	"o/internal/trading/okxexec"
 )
@@ -38,6 +39,16 @@ func main() {
 		log.Fatalf("SG PG 连接败: %v", err)
 	}
 	defer pool.Close()
+	// T-0169 分域：席位台账归 SG 册（fin_employee_registry）——ROSTER_PG_DSN 钉
+	// 隧道径池（D-0030 §五直 beat）；业务写面=本池（PG-md 正本）。
+	if rp := os.Getenv("ROSTER_PG_DSN"); rp != "" {
+		rpool, err := pgxpool.New(ctx, rp)
+		if err != nil {
+			log.Fatalf("roster 池连接败: %v", err)
+		}
+		defer rpool.Close()
+		roster.SetRegistryPool(rpool)
+	}
 	cfg := config.New(pool)
 	if err := cfg.Load(ctx); err != nil {
 		log.Fatalf("config load: %v", err)
