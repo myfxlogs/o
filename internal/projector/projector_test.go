@@ -31,6 +31,7 @@ func runner(t *testing.T) (*Runner, *pgxpool.Pool, *pgxpool.Pool) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
+	r.tsMinPass = nil // 桩零化过拍闸——连拍召唤语义同现态（节拍=现测锚非产闸）
 	return r, md, sg
 }
 
@@ -49,6 +50,7 @@ func runnerDual(t *testing.T) (*Runner, *pgxpool.Pool, *pgxpool.Pool) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
+	r.tsMinPass = nil // 同 runner——桩零化过拍闸
 	return r, md, sg
 }
 
@@ -495,5 +497,39 @@ func TestReverseBridge(t *testing.T) {
 	}
 	if n := count(t, md, "SELECT count(*) FROM fin_strategy"); n != 2 {
 		t.Fatalf("幂等再 diff 应仍 2 行: %d", n)
+	}
+}
+
+// TestTsPassThrottle T-0193 桩锚：ts 表族过拍最小间隔闸——两连拍第二拍
+// 间隔内跳拍（串行 worker 挤兑根修语义锚；Elapsed 过闸后追平照常）。
+func TestTsPassThrottle(t *testing.T) {
+	ctx := context.Background()
+	r, md, sg := runnerDual(t)
+	r.tsMinPass = map[string]time.Duration{"ev_funding": time.Hour} // 大阈=第二拍必跳
+	seedActive(t, sg)
+	if err := r.refreshSets(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := md.Exec(ctx, `INSERT INTO md_funding(ts,inst_id,funding_rate,recv_ts)
+		VALUES (now(),'BTC-USDT-SWAP',0.0001,now())`); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.projectTsTable(ctx, "ev_funding"); err != nil {
+		t.Fatal(err)
+	}
+	var n1 int
+	if err := sg.QueryRow(ctx, "SELECT count(*) FROM md_funding").Scan(&n1); err != nil || n1 != 1 {
+		t.Fatalf("首拍应投影 1 行: %d %v", n1, err)
+	}
+	if _, err := md.Exec(ctx, `INSERT INTO md_funding(ts,inst_id,funding_rate,recv_ts)
+		VALUES (now()+interval '1 hour','ETH-USDT-SWAP',0.0002,now())`); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.projectTsTable(ctx, "ev_funding"); err != nil {
+		t.Fatal(err)
+	}
+	var n2 int
+	if err := sg.QueryRow(ctx, "SELECT count(*) FROM md_funding").Scan(&n2); err != nil || n2 != 1 {
+		t.Fatalf("间隔内应跳拍（仍 1 行）: %d %v", n2, err)
 	}
 }
