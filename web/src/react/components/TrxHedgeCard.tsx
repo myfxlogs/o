@@ -112,7 +112,7 @@ export function TrxHedgeCard() {
                   </button>
                 </h3>
                 <div>余额 {fmtNum(accts.trxBalance, 3)} TRX</div>
-                <div title="tronscan rewardNum 链上真值（与 TronLink 一致），每 30s 采集">待领取 {fmtNum(accts.trxAllowance, 3)} TRX</div>
+                {/* 待领取归投票引擎卡（同 rewardNum 源——T-0173 业主⑳能减尽减） */}
                 <div>能量委托 {fmtNum(accts.energyDelegated, 3)} TRX</div>
                 <div>票权 {fmtNum(accts.votes)}</div>
                 {accts.netLimit > 0 && (
