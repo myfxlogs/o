@@ -18,3 +18,6 @@ CREATE TABLE IF NOT EXISTS fin_host_metrics (
 );
 COMMENT ON TABLE fin_host_metrics IS
   '主机资源状态表（每机一行 upsert——面板服务器状态瓦片供数；采集断=行陈非删）';
+
+-- 写方角色授权（collector_rw=dev 采集自报径；SG core 写方=表主 o 免授）。
+GRANT SELECT, INSERT, UPDATE ON fin_host_metrics TO collector_rw;

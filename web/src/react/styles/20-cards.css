@@ -506,3 +506,12 @@ details.rep summary {
   background: var(--accent);
   transition: width 0.4s ease;
 }
+
+/* —— 灯可见性硬化（玻璃底/浅底不洗白——暗色细环兜住轮廓）—— */
+.dot.s0,
+.dot.s1,
+.dot.s2 {
+  width: 10px;
+  height: 10px;
+  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--ink) 25%, transparent);
+}
