@@ -22,7 +22,7 @@ import (
 
 // 端点/节流钉（skill okx-market-ws：WS=h1 Upgrade 非 h2；ping 帧=文本 "ping"）。
 const (
-	PublicURL  = "wss://ws.okx.com:8443/ws/v5/public"
+	PublicURL  = "wss://ws.okx.com:443/ws/v5/public"
 	pingEvery  = 20 * time.Second
 	dataIdle   = 75 * time.Second // 业务帧看门狗（ack≠存活——帧时戳前移才证活）
 	backoffMin = 2 * time.Second
