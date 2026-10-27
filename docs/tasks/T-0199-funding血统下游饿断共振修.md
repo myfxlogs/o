@@ -132,3 +132,17 @@ Fresh/freshByKind 种类自适闸实现收——但 `run_test.go` 两处夹具
   next_funding_ts；STALE 行补过期值（陈行排除断言改押过期戳）。
 - `TestBasisAnn` 精度偏（302.35 vs 300.41）=master 基线先验败件，
   非本票引入——决策席记档另案（测试质量件候位）。
+
+## 决策席验收投产（2026-10-27 深夜）——销号
+
+- 四巡收环：径甲 recv_ts bump(60s)+径乙当值期闸（三处直查点+
+  Fresh/freshByKind 共享闸种类自适）+run_test 夹具迁当值期语义。
+- **实证**:xmin 1996021→2162276（carry_diff 随拍重写）,ts 1min 鲜；
+  funding_view 当值期闸全族通；xvenue 拍 3 对正常。
+- sigdist 9/10 绿（独败 TestBasisAnn=master 基线先验件，另案记档）。
+
+### 附坑（部署面——决策席自踩记档）
+`o-collecto` 服务实跑 `/opt/o-collecto/collector`（非 /opt/o/bin/*）——
+构建投错径一次，活件照旧闸零察觉（xmin 取证才显形）。钉：部署件
+以 `systemctl show ExecStart`/`readlink /proc/PID/exe` 对拍二进制
+真身在位，禁以「build 过」当「换上」。
