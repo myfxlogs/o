@@ -6,7 +6,7 @@ import (
 )
 
 // T-0108 桩测锚：TronGrid 响应解析——accountJSON/txJSON 方言字段名对拍
-// （blockTimestamp 驼峰、txID 大写——R1 实证方言不可漂）。
+// （txID 驼峰、block_timestamp 蛇形——T-0192 SG 200 笔分段探针实拍：同结构大小写混杂）。
 func TestTronGridDialectParse(t *testing.T) {
 	var a accountJSON
 	if err := json.Unmarshal([]byte(`{"address":"TX","balance":1000000,"allowance":500,
@@ -20,7 +20,7 @@ func TestTronGridDialectParse(t *testing.T) {
 		t.Fatalf("account 解析: %+v", a)
 	}
 	var txr txsResponseJSON
-	if err := json.Unmarshal([]byte(`{"data":[{"blockTimestamp":1700000000000,"txID":"abc123",
+	if err := json.Unmarshal([]byte(`{"data":[{"block_timestamp":1700000000000,"txID":"abc123",
 		"raw_data":{"contract":[{"type":"TransferContract"}]},"ret":[{"contractRet":"SUCCESS"}]}]}`), &txr); err != nil {
 		t.Fatal(err)
 	}
