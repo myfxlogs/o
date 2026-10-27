@@ -109,9 +109,11 @@ func TestFundingView(t *testing.T) {
 // 锚：Fresh 闸——鲜=ok；陈（>2×蒸馏拍）=缺席如实；缺行=缺席。
 func TestFreshGate(t *testing.T) {
 	ctx, r := setup(t)
-	md(t, ctx, r, `INSERT INTO md_signal(kind,key,val,ts) VALUES
-		('funding_view','BTC-USDT-SWAP',0.0001,now()),
-		('funding_view','ETH-USDT-SWAP',0.0002,now()-interval '5 minutes')`)
+	// T-0199 四巡：当值期夹具迁——鲜行=未来 next_funding_ts（当值=ok），
+	// 陈行=过期 next_funding_ts（过期=缺席如实——「禁陈当事实」断言保语义）。
+	md(t, ctx, r, `INSERT INTO md_signal(kind,key,val,meta,ts) VALUES
+		('funding_view','BTC-USDT-SWAP',0.0001,'{"next_funding_ts":"2099-01-01T00:00:00Z"}',now()),
+		('funding_view','ETH-USDT-SWAP',0.0002,'{"next_funding_ts":"2020-01-01T00:00:00Z"}',now())`)
 	if _, ok, err := Fresh(ctx, r.pool, "funding_view", "BTC-USDT-SWAP"); err != nil || !ok {
 		t.Fatalf("鲜信号应 ok（err=%v）", err)
 	}
@@ -154,11 +156,11 @@ func TestBoundedRows(t *testing.T) {
 func TestSurfaceSignalsMapping(t *testing.T) {
 	ctx, r := setup(t)
 	if _, err := r.pool.Exec(ctx, `INSERT INTO md_signal(kind,key,val,meta,ts) VALUES
-		('funding_view','BTC-USDT-SWAP',0.0002,'{}',now()),
-		('funding_view','ETH-USDT-SWAP',0.0005,'{}',now()),
-		('funding_view','SOL-USDT-SWAP',0.0003,'{}',now()),
-		('funding_view','XRP-USDT-SWAP',0.0004,'{}',now()),
-		('funding_view','STALE-USDT-SWAP',0.9,'{}',now()-interval '5 minutes'),
+		('funding_view','BTC-USDT-SWAP',0.0002,'{"next_funding_ts":"2099-01-01T00:00:00Z"}',now()),
+		('funding_view','ETH-USDT-SWAP',0.0005,'{"next_funding_ts":"2099-01-01T00:00:00Z"}',now()),
+		('funding_view','SOL-USDT-SWAP',0.0003,'{"next_funding_ts":"2099-01-01T00:00:00Z"}',now()),
+		('funding_view','XRP-USDT-SWAP',0.0004,'{"next_funding_ts":"2099-01-01T00:00:00Z"}',now()),
+		('funding_view','STALE-USDT-SWAP',0.9,'{"next_funding_ts":"2020-01-01T00:00:00Z"}',now()), -- T-0199：陈行排除断言改押过期戳（当值期判据）
 		('basis_ann','BTC-USDT-270626',300,'{}',now())`); err != nil {
 		t.Fatal(err)
 	}
