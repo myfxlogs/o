@@ -67,7 +67,8 @@ export function OverviewPage() {
         <span className="ink-3">›</span>
       </a>
 
-      {/* 三问之二——仓什么状态 */}
+      {/* 三问之二——仓什么状态（业主①：总览同上瀑布错落——hero/健康条保全宽） */}
+      <div className="masonry">
       <Card title="在持">
         {ov.err ? <ErrorState msg={ov.err} onRetry={ov.reload} /> : null}
         {doing.length === 0 ? (
@@ -114,6 +115,7 @@ export function OverviewPage() {
           </table>
         )}
       </Card>
+      </div>
     </div>
   );
 }
