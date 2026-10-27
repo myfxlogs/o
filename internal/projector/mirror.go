@@ -8,6 +8,10 @@ package projector
 import (
 	"context"
 	"fmt"
+	"log"
+	"sort"
+	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -121,25 +125,41 @@ func batchExec(ctx context.Context, sg *pgxpool.Pool, stmt string, rows [][]any)
 	if len(rows) == 0 {
 		return nil
 	}
-	tx, err := sg.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("mirror tx: %w", err)
-	}
-	b := &pgx.Batch{}
-	for _, r := range rows {
-		b.Queue(stmt, r...)
-	}
-	br := tx.SendBatch(ctx, b)
-	for i := 0; i < len(rows); i++ { // 逐条驱动批（中段错误即回滚整批）
-		if _, err := br.Exec(); err != nil {
-			_ = br.Close()
-			_ = tx.Rollback(ctx)
-			return fmt.Errorf("mirror batch[%d/%d]: %w", i+1, len(rows), err)
+	// T-0198：锁序归一（批内按冲突键序排——与 collector insertBatch 同律
+	// 死锁结构性消除）；40P01 有界重试 ≤3 拍 jitter 兜底（消噪不根修面）。
+	rows = append([][]any(nil), rows...)
+	sort.SliceStable(rows, func(i, j int) bool {
+		return fmt.Sprint(rows[i]...) < fmt.Sprint(rows[j]...)
+	})
+	for retry := 0; ; retry++ {
+		tx, err := sg.Begin(ctx)
+		if err != nil {
+			return fmt.Errorf("mirror tx: %w", err)
 		}
-	}
-	if err := br.Close(); err != nil {
+		b := &pgx.Batch{}
+		for _, r := range rows {
+			b.Queue(stmt, r...)
+		}
+		br := tx.SendBatch(ctx, b)
+		var berr error
+		for i := 0; i < len(rows); i++ {
+			if _, err := br.Exec(); err != nil {
+				berr = fmt.Errorf("mirror batch[%d/%d]: %w", i+1, len(rows), err)
+				break
+			}
+		}
+		_ = br.Close()
+		if berr == nil {
+			if err := tx.Commit(ctx); err != nil {
+				return fmt.Errorf("mirror commit: %w", err)
+			}
+			return nil
+		}
 		_ = tx.Rollback(ctx)
-		return fmt.Errorf("mirror batch close: %w", err)
+		if !strings.Contains(berr.Error(), "40P01") || retry >= 3 {
+			return berr
+		}
+		log.Printf("[projector] mirror 40P01 死锁 retry=%d/3: %v", retry+1, berr)
+		time.Sleep(time.Duration(300*(retry+1)) * time.Millisecond) // sched-exempt-ok：死锁退避
 	}
-	return tx.Commit(ctx)
 }
