@@ -101,3 +101,21 @@ recv_ts 仍 15min+、BTC 全表仅 2 行（结算边界公告节拍，4~8h 一�
 - 假想官 funding_view 面恢复供血
 - ops 瓦片不再恒死（探针口径改后绿）
 - funding 源真死时（停帧+过期）当值期判据如实陈（反向判据）
+
+## 决策席三巡追注——同族漏二：共享读闸本体未修
+
+分支已修三处直查点（xvenue carry_diff 闸/hypothesis signals.go 行闸/
+ops 瓦片）——**但 funding_view 的两条主供水管仍是 120s 帧龄闸**：
+
+1. `sigdist.Fresh`（run.go:182）——假想官 `AttachSignals` 钦配的消费闸
+   本体：一切经它读 funding_view 的径照饿。
+2. `freshByKind`（run.go:199，调用点 :239）——评估燃料「榜 top3」读闸：
+   funding_view 全族恒 0 行=carry 候选燃料断供。
+
+**钦定**：两函数改**种类自适闸**——kind='funding_view' 时判
+`(meta->>'next_funding_ts')::timestamptz > now()`，否则保 120s 帧龄。
+SQL 内条件式即可（两函数 meta 列已在 select 面——Fresh 取单行可加
+OR 条件于 WHERE；freshByKind 同）。修毕当值期判据全族闭环。
+
+桩锚建议随行：funding_view 行 ts 陈 3h+meta 带未来 next_funding_ts
+→ Fresh 返回在（当值）；meta 过期→缺席如实。
