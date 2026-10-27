@@ -8,6 +8,10 @@ package projector
 import (
 	"context"
 	"fmt"
+	"log"
+	"sort"
+	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -94,7 +98,9 @@ const uDcd = `INSERT INTO md_dcd_product(ts,venue,surface,uly,product_id,directi
 
 const uFunding = `INSERT INTO md_funding(ts,venue,inst_id,funding_rate,next_funding_rate,next_funding_ts,recv_ts)
 	VALUES($1::timestamptz,$2,$3,$4::numeric,$5::numeric,$6::timestamptz,$7::timestamptz)
-	ON CONFLICT (venue,inst_id,ts) DO NOTHING` // 同键同拍=同值（D-0030 §六表）
+	ON CONFLICT (venue,inst_id,ts) DO UPDATE SET recv_ts=now()
+			WHERE md_funding.funding_rate IS DISTINCT FROM EXCLUDED.funding_rate
+			   OR md_funding.recv_ts < now()-interval '60 seconds' -- T-0199：末次确认口径（阶梯序列 recv_ts 随确认帧鲜——funding_view 血统戳回分钟级）` // 同键同拍=同值（D-0030 §六表）
 
 const uMacro = `INSERT INTO md_macro_event(event_date,kind,title,source)
 	VALUES($1::date,$2,$3,$4)
@@ -121,25 +127,41 @@ func batchExec(ctx context.Context, sg *pgxpool.Pool, stmt string, rows [][]any)
 	if len(rows) == 0 {
 		return nil
 	}
-	tx, err := sg.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("mirror tx: %w", err)
-	}
-	b := &pgx.Batch{}
-	for _, r := range rows {
-		b.Queue(stmt, r...)
-	}
-	br := tx.SendBatch(ctx, b)
-	for i := 0; i < len(rows); i++ { // 逐条驱动批（中段错误即回滚整批）
-		if _, err := br.Exec(); err != nil {
-			_ = br.Close()
-			_ = tx.Rollback(ctx)
-			return fmt.Errorf("mirror batch[%d/%d]: %w", i+1, len(rows), err)
+	// T-0198：锁序归一（批内按冲突键序排——与 collector insertBatch 同律
+	// 死锁结构性消除）；40P01 有界重试 ≤3 拍 jitter 兜底（消噪不根修面）。
+	rows = append([][]any(nil), rows...)
+	sort.SliceStable(rows, func(i, j int) bool { // 冲突键列序（args[1:] 起=venue,inst_id[,channel]——行首 ts 不入键）
+		return fmt.Sprint(rows[i][1:]...) < fmt.Sprint(rows[j][1:]...)
+	})
+	for retry := 0; ; retry++ {
+		tx, err := sg.Begin(ctx)
+		if err != nil {
+			return fmt.Errorf("mirror tx: %w", err)
 		}
-	}
-	if err := br.Close(); err != nil {
+		b := &pgx.Batch{}
+		for _, r := range rows {
+			b.Queue(stmt, r...)
+		}
+		br := tx.SendBatch(ctx, b)
+		var berr error
+		for i := 0; i < len(rows); i++ {
+			if _, err := br.Exec(); err != nil {
+				berr = fmt.Errorf("mirror batch[%d/%d]: %w", i+1, len(rows), err)
+				break
+			}
+		}
+		_ = br.Close()
+		if berr == nil {
+			if err := tx.Commit(ctx); err != nil {
+				return fmt.Errorf("mirror commit: %w", err)
+			}
+			return nil
+		}
 		_ = tx.Rollback(ctx)
-		return fmt.Errorf("mirror batch close: %w", err)
+		if !strings.Contains(berr.Error(), "40P01") || retry >= 3 {
+			return berr
+		}
+		log.Printf("[projector] mirror 40P01 死锁 retry=%d/3: %v", retry+1, berr)
+		time.Sleep(time.Duration(300*(retry+1)) * time.Millisecond) // sched-exempt-ok：死锁退避
 	}
-	return tx.Commit(ctx)
 }

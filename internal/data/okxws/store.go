@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"sort"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -27,6 +28,10 @@ func (c *Collector) writer(ctx context.Context) {
 			lastFlushFunding = nil
 			buf = buf2 // funding 缓行重试一拍再入批
 		}
+		sort.SliceStable(buf, func(i, j int) bool { // T-0198：锁序归一（键序与 projector 镜像批同律——同键集恒序死锁根修）
+			ki, kj := rowKey(buf[i]), rowKey(buf[j])
+			return ki < kj
+		})
 		if err := c.insertBatch(ctx, buf); err != nil {
 			c.rej.Inc("write_err")
 			lastFlushFunding = fundingOnly(buf) // funding 行入缓待下拍重试
@@ -72,7 +77,9 @@ func (c *Collector) insertBatch(ctx context.Context, rows []rowItem) error {
 			// funding-rate 帧 ts=结算拍（结算前恒值），逐拍裸 INSERT 必撞键；
 			// 同键同拍即同值 DO NOTHING（D-0030 §六 per-table 键表）。
 			b.Queue(`INSERT INTO md_funding(ts,inst_id,funding_rate,next_funding_ts,next_funding_rate) VALUES($1,$2,$3,$4,$5)
-				ON CONFLICT (venue,inst_id,ts) DO NOTHING`,
+				ON CONFLICT (venue,inst_id,ts) DO UPDATE SET recv_ts=now()
+			WHERE md_funding.funding_rate IS DISTINCT FROM EXCLUDED.funding_rate
+			   OR md_funding.recv_ts < now()-interval '60 seconds' -- T-0199：末次确认口径（阶梯序列 recv_ts 随确认帧鲜——funding_view 血统戳回分钟级）`,
 				r.ts, r.instID, r.fundingRate, r.nextFundingTs, r.nextFundingRate)
 			n++
 		case it.mark != nil:
@@ -100,6 +107,22 @@ func (c *Collector) insertBatch(ctx context.Context, rows []rowItem) error {
 	br := c.pool.SendBatch(ctx, b)
 	err := br.Close()
 	return err
+}
+
+// rowKey 批行冲突键序件（锁序归一判键——venue 恒 'okx' 不入键；
+// inst_id 主键+channel/桶类次键）。
+func rowKey(it rowItem) string {
+	switch {
+	case it.tick != nil:
+		return "1:" + it.tick.instID
+	case it.funding != nil:
+		return "2:" + it.funding.instID
+	case it.mark != nil:
+		return "3:" + it.mark.instID + ":" + it.mark.channel
+	case it.depth5 != nil:
+		return "4:" + it.depth5.instID
+	}
+	return "9:"
 }
 
 // fundingOnly 批内 funding 行过滤件（T-0197②——重试一拍缓行径）。
