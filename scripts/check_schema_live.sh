@@ -8,9 +8,11 @@ set -euo pipefail
 max_of() { grep -oE '\{[0-9]+, "[a-z]+_[0-9]+' internal/store/pgstore/migrate_table.go 2>/dev/null || true; }
 SG_DSN="${1:-}"
 MD_DSN="${2:-}"
+# T-0181 返修：fin 探针改 SSH 径打 SG 真库（docker port 自动探测=本机
+# 幻影库读空假红病灶根修——哨兵面=SG 远端权威库非本机探测）。
+SG_HOST="${SG_HOST:-root@192.229.85.35}"
 if [ -z "$SG_DSN" ]; then
-	SG_PORT="$(timeout 10 docker port o-postgres 5432 2>/dev/null | head -n1 | awk -F: '{print $NF}' || true)"
-	SG_DSN="postgres://o:o@localhost:${SG_PORT:-15433}/o?sslmode=disable"
+	SG_DSN="ssh"  # SSH 径标记（sg_live() 分派 ssh docker exec 查询）
 fi
 if [ -z "$MD_DSN" ]; then
 	MD_PORT="$(timeout 10 docker port o-postgres-md 5432 2>/dev/null | head -n1 | awk -F: '{print $NF}' || true)"
@@ -21,7 +23,12 @@ for dom in fin md; do
 	reg=$(grep -oE "\{[0-9]+, \"${dom}_[0-9]+" internal/store/pgstore/migrate_table.go \
 		| grep -oE '^\{[0-9]+' | tr -d '{' | sort -n | tail -1)
 	dsn=$([ "$dom" = fin ] && echo "$SG_DSN" || echo "$MD_DSN")
-	live=$(timeout 15 psql "$dsn" -tc "SELECT COALESCE(max(version),0) FROM schema_migrations" 2>/dev/null | tr -d ' ' || true)
+	if [ "$dom" = fin ] && [ "$SG_DSN" = "ssh" ]; then
+		live=$(timeout 20 ssh -o BatchMode=yes -o ConnectTimeout=8 "$SG_HOST" \
+			"docker exec o-postgres psql -U o -d o -tc 'SELECT COALESCE(max(version),0) FROM schema_migrations'" 2>/dev/null | tr -d ' ' || true)
+	else
+		live=$(timeout 15 psql "$dsn" -tc "SELECT COALESCE(max(version),0) FROM schema_migrations" 2>/dev/null | tr -d ' ' || true)
+	fi
 	if [ -z "$live" ]; then
 		echo "check_schema_live: $dom 链 schema_migrations 读败——fail-closed 红" >&2
 		exit 1
@@ -49,13 +56,15 @@ to_gb() { # docker size 字符串→GB 粗值（kB/MB/GB/TB 四档）
 		*)  echo 0 ;;
 	esac
 }
-docker system df --format '{{.Type}}	{{.TotalCount}}	{{.Size}}' 2>/dev/null | while read -r typ cnt sz; do
+timeout 30 docker system df --format '{{.Type}}|{{.Size}}' 2>/dev/null | while IFS='|' read -r typ sz; do
+	[ -n "$typ" ] || continue
+	tk=$(echo "$typ" | tr -d ' ' | tr 'A-Z' 'a-z') # 型名归一（Local Volumes→localvolumes）
 	v=${sz%% *}; u=${sz##* }
+	[ "$u" = "$sz" ] && u="GB" # 无单位=GB 兜底（62GB→v=62 u=GB）
 	g=$(to_gb "$v" "$u")
-	case $typ in
-		Volumes) th=$VOL_WARN_GB ;;
-		"Build Cache") th=$BC_WARN_GB ;;
-		Images) th=$BC_WARN_GB ;;
+	case $tk in
+		*volumes*) th=$VOL_WARN_GB ;;
+		*cache*|*images*) th=$BC_WARN_GB ;;
 		*) th=999999 ;;
 	esac
 	if [ "${g:-0}" -gt "$th" ]; then
