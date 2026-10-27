@@ -32,6 +32,7 @@ fin_position	fin
 fin_cashflow	fin
 fin_ledger_snapshot	fin
 fin_review	fin
+fin_condition_gap	fin
 fin_forward_check	md
 fin_template_proposal	md
 fin_guard_close	fin

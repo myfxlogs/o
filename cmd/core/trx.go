@@ -15,6 +15,7 @@ import (
 
 	"o/internal/data/cmc"
 	"o/internal/data/trx"
+	"o/internal/platform/condreq"
 	"o/internal/platform/config"
 	"o/internal/platform/roster"
 	"o/internal/store/pgstore"
@@ -110,6 +111,8 @@ func cmcArm(ctx context.Context, errc chan<- error, w *trxWiring) {
 	acct, _ := strconv.ParseInt(acctS, 10, 64)
 	if email == "" || pass == "" || acct == 0 {
 		log.Printf("[cmc] 凭据键缺——采集臂让位（业主条件请求件——对冲腿显读件缺）")
+		_ = condreq.Request(ctx, w.pool, "credential", "cmc", "cmc.email+cmc.password+cmc.account_id",
+			`{"missing":"凭据/账户号三件","impact":"CMC 对冲腿采集臂停摆"}`)
 		return
 	}
 	pool, st := w.pool, w.st
