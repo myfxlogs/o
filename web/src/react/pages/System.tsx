@@ -1,6 +1,6 @@
-// System.tsx —— 服务器运行管理面板（T-0173 业主④：采集+系统合一页——
-// 两卡【采集】【交易（生产）】，卡内按机→按交易所分组组件；席位在册保留
-// （非采集席的唯一活性板），灯语与交易所同款：绿缓息/黄急促/红静止。
+// System.tsx —— 服务器运行管理面板（T-0173 业主④终版：两卡=两台机器，
+// 卡题即机名；卡内按交易所分组，venue 在线行并入所属交易所组（私有 WS
+// 重复行去重——venue 行覆盖之）。灯语全站同款：绿缓息/黄急促/红静止。
 // 病因+处理建议服务端算定，黄红才带。
 import { useEffect, useState } from "react";
 import { client } from "../api";
@@ -17,91 +17,76 @@ const AGE = (ts: Date) => {
   return `${(s / 86400).toFixed(1)} 天前`;
 };
 
-const HOSTS: { key: string; label: string }[] = [
-  { key: "dev", label: "采集机（dev）" },
-  { key: "sg", label: "生产机（SG）" },
-];
+// Row 统一行模型（health 组件与 venue 在线行同形渲染——灯/名/龄/注）。
+type Row = {
+  key: string;
+  name: string;
+  state: number;
+  ageIso: string | null;
+  note?: string;
+  title?: string;
+};
 
-// CompGroup 卡内组件组：机→交易所两级分组，组头+逐行组件。
-function CompGroup(props: { comps: SystemComponent[] }) {
+const EXCH_ORDER = ["OKX", "MT5", "蒸馏"];
+
+function ExchSections(props: { rows: Row[] }) {
   const [, setTick] = useState(0);
   useEffect(() => {
     const t = setInterval(() => setTick((x) => x + 1), 30000);
     return () => clearInterval(t);
   }, []);
+  const byExch = new Map<string, Row[]>();
+  for (const r of props.rows) {
+    const ex = (r as { exch?: string }).exch ?? "OKX";
+    if (!byExch.has(ex)) byExch.set(ex, []);
+    byExch.get(ex)!.push(r);
+  }
+  const exchs = [...byExch.keys()].sort(
+    (a, b) =>
+      (EXCH_ORDER.indexOf(a) + 1 || 99) - (EXCH_ORDER.indexOf(b) + 1 || 99)
+  );
   return (
     <>
-      {HOSTS.map(({ key, label }) => {
-        const hostComps = props.comps.filter((c) => c.host === key);
-        if (hostComps.length === 0) return null;
-        const exchs = [...new Set(hostComps.map((c) => c.exch || "其他"))];
-        return (
-          <div key={key} className="host-sec">
-            <div className="host-label">
+      {exchs.map((ex) => (
+        <div key={ex} className="exch-sec">
+          <div className="exch-label ink-3">{ex}</div>
+          {(byExch.get(ex) ?? []).map((r) => (
+            <div key={r.key} className="comp-row">
               <StateDot
-                state={Math.max(0, ...hostComps.map((c) => c.state))}
-                breathe={hostComps.some((c) => c.state !== 2)}
+                state={r.state}
+                breathe={r.state !== 2}
+                title={r.title ?? ""}
               />
-              {label}
-            </div>
-            {exchs.map((ex) => (
-              <div key={ex} className="exch-sec">
-                <div className="exch-label ink-3">{ex}</div>
-                {hostComps
-                  .filter((c) => (c.exch || "其他") === ex)
-                  .map((c) => {
-                    const d = pbDate(c.lastWrite);
-                    return (
-                      <div key={c.component} className="comp-row">
-                        <StateDot
-                          state={c.state}
-                          breathe={c.state !== 2}
-                          title={c.fact}
-                        />
-                        <div className="comp-main">
-                          <span>{c.component}</span>
-                          {c.note && c.state !== 0 ? (
-                            <div className="comp-note">{c.note}</div>
-                          ) : c.note ? (
-                            <div className="ink-3 comp-note">{c.note}</div>
-                          ) : null}
-                        </div>
-                        <span className="mono comp-age">{d ? AGE(d) : "—"}</span>
-                      </div>
-                    );
-                  })}
+              <div className="comp-main">
+                <span>{r.name}</span>
+                {r.note && r.state !== 0 ? (
+                  <div className="comp-note">{r.note}</div>
+                ) : r.note ? (
+                  <div className="ink-3 comp-note">{r.note}</div>
+                ) : null}
               </div>
-            ))}
-          </div>
-        );
-      })}
+              <span className="mono comp-age">
+                {r.ageIso ? AGE(new Date(r.ageIso)) : "—"}
+              </span>
+            </div>
+          ))}
+        </div>
+      ))}
     </>
   );
 }
 
-function HealthCard(props: {
-  title: string;
-  cat: string;
-  comps: SystemComponent[];
-}) {
-  const mine = props.comps.filter((c) => c.cat === props.cat);
-  const worst = Math.max(0, ...mine.map((c) => c.state));
-  const bad = mine.filter((c) => c.state !== 0).length;
-  return (
-    <section className="card">
-      <div className="card-h">
-        <h2>
-          <StateDot state={worst} breathe={worst !== 2} /> {props.title}
-        </h2>
-        <span className="ink-3">{bad === 0 ? "全部正常" : `${bad} 件异常`}</span>
-      </div>
-      {mine.length === 0 ? (
-        <EmptyState title="无组件在册" hint="组件足迹落库后此处逐盏亮灯" />
-      ) : (
-        <CompGroup comps={mine} />
-      )}
-    </section>
-  );
+// health 组件→行（exch 挂行上供分组）。
+function healthRows(comps: SystemComponent[]): Row[] {
+  return comps.map((c) => ({
+    key: c.component,
+    name: c.component,
+    state: c.state,
+    ageIso: pbDate(c.lastWrite)?.toISOString() ?? null,
+    note: c.note || undefined,
+    title: c.fact,
+    exch: c.exch || "OKX",
+  }));
 }
 
 export function SystemPage() {
@@ -109,7 +94,31 @@ export function SystemPage() {
     client.getSystemHealth({})
   );
   const ov = useSnap(["ev_position", "ev_account"], () => client.overview({}));
-  const comps = h.data?.components ?? [];
+
+  const devComps = (h.data?.components ?? []).filter((c) => c.host === "dev");
+  const sgComps = (h.data?.components ?? []).filter((c) => c.host === "sg");
+
+  // 生产机卡：venue 在线行并入交易所组（在前），health 组件行随后；
+  // OKX 私有 WS 由 venue 行覆盖（同一事实源——双行去重）。
+  const venueRows: Row[] = [];
+  for (const g of ov.data?.venues ?? []) {
+    for (const ch of g.channels ?? []) {
+      venueRows.push({
+        key: "venue:" + g.name + ":" + ch.channel,
+        name: ch.name,
+        state: ch.state,
+        ageIso: ch.lastTs ?? null,
+        note: ch.note || undefined,
+        title: g.name + " " + ch.channel,
+        exch: g.name.toUpperCase(),
+      });
+    }
+  }
+  const sgRowsFinal: Row[] = [
+    ...venueRows,
+    ...healthRows(sgComps.filter((c) => c.component !== "OKX 私有 WS")),
+  ];
+
   return (
     <div className="page">
       {h.loading && !h.data ? (
@@ -118,8 +127,57 @@ export function SystemPage() {
         <ErrorState msg={h.err} onRetry={h.reload} />
       ) : (
         <div className="host-grid">
-          <HealthCard title="采集" cat="collect" comps={comps} />
-          <HealthCard title="交易（生产）" cat="trade" comps={comps} />
+          {/* 采集机（dev）——蒸馏/OKX/MT5 采集管道 */}
+          <Card
+            title={
+              <>
+                <StateDot
+                  state={Math.max(0, ...devComps.map((c) => c.state))}
+                  breathe={devComps.some((c) => c.state !== 2)}
+                />{" "}
+                采集机（dev）
+              </>
+            }
+            extra={
+              <span className="ink-3">
+                {devComps.filter((c) => c.state !== 0).length === 0
+                  ? "全部正常"
+                  : `${devComps.filter((c) => c.state !== 0).length} 件异常`}
+              </span>
+            }
+          >
+            <ExchSections rows={healthRows(devComps)} />
+          </Card>
+
+          {/* 生产机（SG）——交易面+SG 臂+venue 在线行并组 */}
+          <Card
+            title={
+              <>
+                <StateDot
+                  state={Math.max(
+                    0,
+                    ...sgRowsFinal.map((r) => r.state),
+                    ...sgComps.map((c) => c.state)
+                  )}
+                  breathe={sgRowsFinal.some((r) => r.state !== 2)}
+                />{" "}
+                生产机（SG）
+              </>
+            }
+            extra={
+              <span className="ink-3">
+                {sgRowsFinal.filter((r) => r.state !== 0).length === 0
+                  ? "全部正常"
+                  : `${sgRowsFinal.filter((r) => r.state !== 0).length} 件异常`}
+              </span>
+            }
+          >
+            {sgRowsFinal.length === 0 ? (
+              <EmptyState title="无行在读" hint="SG 面落库后此处逐盏亮灯" />
+            ) : (
+              <ExchSections rows={sgRowsFinal} />
+            )}
+          </Card>
         </div>
       )}
 
@@ -164,27 +222,6 @@ export function SystemPage() {
           </div>
         </section>
       ) : null}
-
-      <Card title="交易所在线（SG 视角）">
-        {(ov.data?.venues ?? []).length === 0 ? (
-          <Skeleton rows={3} />
-        ) : (
-          (ov.data?.venues ?? []).map((g) => (
-            <div key={g.name} className="venue-group">
-              <div className="venue-name">{g.name}</div>
-              {(g.channels ?? []).map((ch) => (
-                <div key={ch.channel} className="feed-row">
-                  <StateDot state={ch.state} breathe={ch.state !== 2} />
-                  <span>{ch.name}</span>
-                  <span className="ink-3 mono">
-                    {ch.lastTs ? AGE(new Date(ch.lastTs)) : "读件缺"}
-                  </span>
-                </div>
-              ))}
-            </div>
-          ))
-        )}
-      </Card>
 
       <Card title="席位在册">
         {(ov.data?.staff ?? []).length === 0 ? (
