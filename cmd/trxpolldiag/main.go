@@ -38,7 +38,7 @@ func main() {
 	_ = pool.QueryRow(ctx, "SELECT max(ts),min(ts) FROM fin_trx_txs").Scan(&lastTs, &firstTs)
 	fmt.Println("poll 前表态: max=", lastTs, " min=", firstTs)
 	facts, err := c.Poll(ctx)
-	fmt.Printf("Poll 返回: err=%v facts=%d\n", err, facts)
+	fmt.Printf("Poll 返回: err=%v facts=%d\n", err, len(facts))
 	if err != nil {
 		os.Exit(1)
 	}
