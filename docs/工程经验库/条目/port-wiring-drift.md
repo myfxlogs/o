@@ -42,3 +42,13 @@ evidence_refs:
 - ** venue 基址永用包常量**：手敲 URL 必然漂——`Default*Base` 存在即钦定。
 - **凭据搬迁清单**：密件不只有账号口令——协议模板/证书/token 模板等
   「非典型凭据」同样列搬迁表（NOX_CMC_CREATE_TPL 是抓包 protobuf 帧）。
+
+## 形态补记（三犯实证 2026-10-27，T-0175）
+
+**形态三：修而未合=未修**。T-0108 四连 fix 在 `t/0108-trx-selfoperated`
+分支修好两天（f634aaf~ff30e71），分支滞留未合 master——生产照跑死域、
+每 60s 刷 no such host，从运行面看与「从未修」零差别。教训：**漂移修复
+的完成定义=合入+部署+live 验签**，分支存在不算数；验收侧复犯前应先
+`git branch -a --contains <fix>` 查实修件落点。另证：dev 侧 mihomo
+fake-ip 对 NXDOMAIN 域兜底回包 198.18.0.x——「dev 能解 SG 不能解」
+不等于「SG 被墙」，先查 8.8.8.8 真解再判出口径。
