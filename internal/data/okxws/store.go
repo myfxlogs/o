@@ -3,6 +3,7 @@ package okxws
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -14,12 +15,23 @@ func (c *Collector) writer(ctx context.Context) {
 	buf := make([]rowItem, 0, 128)
 	tick := time.NewTicker(500 * time.Millisecond)
 	defer tick.Stop()
+	var lastFlushFunding []rowItem // T-0197②：funding 行败后入缓重试一拍（幂等键同名无害）
 	flush := func() {
 		if len(buf) == 0 {
 			return
 		}
+		// T-0197②：败弃全批静默根治——WARN 批大小/桶分布落行；
+		// funding 行败后重试一拍（窗口消费幂等键同拍同值无害）。
+		if fset := append(lastFlushFunding, fundingOnly(buf)...); len(fset) > 0 {
+			buf2 := append(fset, buf...)
+			lastFlushFunding = nil
+			buf = buf2 // funding 缓行重试一拍再入批
+		}
 		if err := c.insertBatch(ctx, buf); err != nil {
 			c.rej.Inc("write_err")
+			lastFlushFunding = fundingOnly(buf) // funding 行入缓待下拍重试
+			log.Printf("[okxws] insertBatch 败：批=%d 行（ticks=%d funding=%d mark=%d depth5=%d）: %v",
+				len(buf), countKind(buf, "tick"), countKind(buf, "funding"), countKind(buf, "mark"), countKind(buf, "depth5"), err)
 		}
 		buf = buf[:0]
 	}
@@ -88,4 +100,41 @@ func (c *Collector) insertBatch(ctx context.Context, rows []rowItem) error {
 	br := c.pool.SendBatch(ctx, b)
 	err := br.Close()
 	return err
+}
+
+// fundingOnly 批内 funding 行过滤件（T-0197②——重试一拍缓行径）。
+func fundingOnly(buf []rowItem) []rowItem {
+	out := make([]rowItem, 0, len(buf))
+	for _, it := range buf {
+		if it.funding != nil {
+			out = append(out, it)
+		}
+	}
+	return out
+}
+
+// countKind 桶分布计数（WARN 日志断点诊断件）。
+func countKind(buf []rowItem, kind string) int {
+	n := 0
+	for _, it := range buf {
+		switch kind {
+		case "tick":
+			if it.tick != nil {
+				n++
+			}
+		case "funding":
+			if it.funding != nil {
+				n++
+			}
+		case "mark":
+			if it.mark != nil {
+				n++
+			}
+		case "depth5":
+			if it.depth5 != nil {
+				n++
+			}
+		}
+	}
+	return n
 }

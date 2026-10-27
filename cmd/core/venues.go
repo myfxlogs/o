@@ -17,10 +17,14 @@ func (c coreService) venues(ctx context.Context) []*dashboardv1.VenueGroup {
 	}
 	okx := &dashboardv1.VenueGroup{Name: "okx"}
 	// REST=对拍环实调成功戳（earn_parking 帧稀疏不可当活性——restOKAt 原子戳）。
-	restCh := ageChan(nil)
+	var restCh *dashboardv1.VenueChannel
 	if t := restOKAt.Load(); t > 0 {
 		ts := time.Unix(0, t).UTC()
 		restCh = ageChan(&ts)
+	} else {
+		// T-0197①：戳缺席=暖机中（boot 未首拍——重启归零假死窗根修；
+		// 非死非缺，戳超龄才判死照阈）。
+		restCh = &dashboardv1.VenueChannel{State: 1, Note: "暖机中（boot 未首拍）"}
 	}
 	okx.Channels = append(okx.Channels,
 		// 公开 WS 真流龄=md_ticks∪md_mark_index（T-0132 分级后宇宙面主源=

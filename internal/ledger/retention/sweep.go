@@ -28,7 +28,33 @@ func New(pool *pgxpool.Pool, alert func(ctx context.Context, msg string)) *Sweep
 
 // Sweep 日拍一拍：①未入账表报缺 fail-closed；②audit_keep 账照窗删；
 // ③体积哨兵（库>5GB/单表月增>1GB 告警）。
+// deadTailSweep 离集陈键自净（T-0197④：状态表行「ts 超龄 AND 键不在
+// fin_active_set」→删；谓词读败 fail-safe 不删——防 active_set 读败成
+// 全表清空病灶）。
+func (s *Sweeper) deadTailSweep(ctx context.Context) error {
+	// 谓词读败即整扫 abort（fail-safe 钦定——不拿半读谓词下删刀）
+	if _, err := s.pool.Exec(ctx, `SELECT 1 FROM fin_active_set LIMIT 1`); err != nil {
+		return nil // 谓词读败=abort 整扫（fail-safe 不删）
+	}
+	for _, spec := range []struct{ table, tsCol, keyCol string }{
+		{"md_ticks", "ts", "inst_id"}, {"md_mark_index", "ts", "inst_id"},
+	} {
+		tag, err := s.pool.Exec(ctx, fmt.Sprintf(`DELETE FROM %s WHERE %s < now()-interval '7 days'
+			AND %s NOT IN (SELECT inst_id FROM fin_active_set)`, spec.table, spec.tsCol, spec.keyCol))
+		if err != nil {
+			continue // 逐表隔离不 abort 整扫
+		}
+		if tag.RowsAffected() > 0 && s.alert != nil {
+			s.alert(ctx, fmt.Sprintf("离集陈键清面：%s 删 %d 行", spec.table, tag.RowsAffected()))
+		}
+	}
+	return nil
+}
+
 func (s *Sweeper) Sweep(ctx context.Context) error {
+	if err := s.deadTailSweep(ctx); err != nil {
+		return err
+	}
 	if err := s.reportUnregistered(ctx); err != nil {
 		return err
 	}
