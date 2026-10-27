@@ -77,6 +77,7 @@ var migrationTable = []struct {
 	{68, "fin_0068_fin_eval_reject.sql"},
 	{69, "fin_0069_fin_active_set.sql"},
 	{70, "fin_0070_projector_frames.sql"},
+	{72, "fin_0072_condition_gap.sql"},
 
 	// —— md 链（版本链内唯一且单调；md 链版本=历史号+1000 与 fin 键空间全局不相交——跨链并 schema 时 schema_migrations 零撞号，check_migrations 断言①⑤）——
 	{1003, "md_1003_market_facts.sql"},
