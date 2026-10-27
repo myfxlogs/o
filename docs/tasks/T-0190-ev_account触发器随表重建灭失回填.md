@@ -48,8 +48,8 @@ CREATE OR REPLACE TRIGGER ev_account_trg AFTER INSERT ON md_account_events
 ## 状态
 
 - [x] 立单
-- [ ] 施工
-- [ ] 验收投产
+- [x] 施工
+- [x] 验收投产
 
 ## 结果回填（SG 实拍+迁移同落）
 
@@ -61,3 +61,18 @@ CREATE OR REPLACE TRIGGER ev_account_trg AFTER INSERT ON md_account_events
   _timescaledb_catalog.metadata 内部件（扩展所有非迁移面=如实
   注明非漏件）；非 ev_ 族（app_config/secrets/active_set/dedupe/
   class_stamp）全在册零缺。
+
+
+## 决策席验收锚回执（2026-10-27）
+
+1. ✅ SG pg_trigger 见 ev_account_trg 在位（pg_get_triggerdef 与
+   fin_0028 原本逐字同形：AFTER INSERT FOR EACH STATEMENT
+   EXECUTE FUNCTION ev_notify('ev_account')）；
+2. ✅ NOTIFY 功能实证：LISTEN ev_account 12s 窗内自然帧触发 3 次
+   （私有 account 帧秒级流入——事件脊肋骨复接非纸面在位）；
+3. ✅ fin_0077 在册（schema_migrations version=77，applied
+   2026-10-27 10:49Z）；deploy_sync 漂移哨兵 fin 链 live=77 ≥ 登记=77；
+4. ✅ 全席 beat 8s 鲜（司账/私流守/核账 等 8 席——事件环全链跑）；
+5. ✅ 19 件触发器普查留票面（施工回填在案）。
+
+销号投产。
