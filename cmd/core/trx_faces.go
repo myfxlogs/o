@@ -215,7 +215,7 @@ func (c coreService) GetTrxVoteStatus(ctx context.Context,
 	}
 	o.RebalanceCap = int32(cap)
 	_ = c.pool.QueryRow(ctx, `SELECT COALESCE(count(*),0) FROM fin_trx_vote_rebalance
-		WHERE created_at::date=CURRENT_DATE`).Scan(&o.RebalanceToday)
+		WHERE decided_at::date=CURRENT_DATE`).Scan(&o.RebalanceToday)
 	_ = c.pool.QueryRow(ctx, `SELECT COALESCE(count(*),0) FROM fin_trx_txs
 		WHERE kind='vote_claim' AND ts::date=CURRENT_DATE`).Scan(&o.ClaimToday)
 	// 待领取=rewardNum 折值（同 trx_allowance 源——account 快照行）。
