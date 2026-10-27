@@ -128,8 +128,8 @@ func batchExec(ctx context.Context, sg *pgxpool.Pool, stmt string, rows [][]any)
 	// T-0198：锁序归一（批内按冲突键序排——与 collector insertBatch 同律
 	// 死锁结构性消除）；40P01 有界重试 ≤3 拍 jitter 兜底（消噪不根修面）。
 	rows = append([][]any(nil), rows...)
-	sort.SliceStable(rows, func(i, j int) bool {
-		return fmt.Sprint(rows[i]...) < fmt.Sprint(rows[j]...)
+	sort.SliceStable(rows, func(i, j int) bool { // 冲突键列序（args[1:] 起=venue,inst_id[,channel]——行首 ts 不入键）
+		return fmt.Sprint(rows[i][1:]...) < fmt.Sprint(rows[j][1:]...)
 	})
 	for retry := 0; ; retry++ {
 		tx, err := sg.Begin(ctx)
