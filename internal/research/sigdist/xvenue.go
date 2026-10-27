@@ -99,14 +99,28 @@ func (r *Runner) Xvenue(ctx context.Context) error {
 			continue // 换算缺件/单边陈——缺席如实（mt5_swap val=NULL 单位方言不可年化）
 		}
 		fundingAnn := funding * 3 * 365 * 10000 // 8h 期→年化 bps
-		diff := fundingAnn - swapAnn
-		// T-0144 返修②：双腿年化随行（val 语义不动=仍 funding−short 端；
-		// swap_long 成本端/容量件全携——正 funding 径经济学归正源）。
+		// T-0203 方向腿自洽：funding>0=short perp 收 funding+long CFD 付
+		// swap_long；funding<0=long perp 付 funding+short CFD 付 swap_short——
+		// 错腿当成本=虚高伪影根治（钦定甲案：最优方向净 carry+方向钉）。
 		var swapMeta map[string]any
 		_ = r.pool.QueryRow(ctx, `SELECT meta FROM md_signal
 			WHERE kind='mt5_swap' AND key=$1 ORDER BY ts DESC LIMIT 1`, mt5Sym).Scan(&swapMeta)
+		sl := f64any(swapMeta["swap_long_ann_bps"])
+		ss := f64any(swapMeta["swap_short_ann_bps"])
+		var diff float64
+		var dir string
+		if fundingAnn > 0 {
+			dir = "short_perp_long_cfd"
+			diff = fundingAnn + sl // swap_long_ann 负值=成本相加即净
+		} else {
+			dir = "long_perp_short_cfd"
+			diff = -fundingAnn + ss // |funding|−|swap_short| 同构
+		}
+		// T-0144 返修②：双腿年化随行（val 语义不动=仍 funding−short 端；
+		// swap_long 成本端/容量件全携——正 funding 径经济学归正源）。
 		meta2 := map[string]any{
-			"mt5_symbol": mt5Sym, "funding_ann_bps": fundingAnn, "mt5_swap_ann_bps": swapAnn}
+			"mt5_symbol": mt5Sym, "funding_ann_bps": fundingAnn, "mt5_swap_ann_bps": swapAnn,
+			"direction": dir, "swap_long_ann_bps": sl, "swap_short_ann_bps": ss}
 		for _, k := range []string{"swap_long_ann_bps", "swap_short_ann_bps", "ann_ok",
 			"contract_size", "max_volume", "initial_margin"} {
 			if v, ok := swapMeta[k]; ok {
@@ -131,4 +145,16 @@ func (r *Runner) Xvenue(ctx context.Context) error {
 // AttachSignals 传此闭包；读面零岗，不注册不节拍）。
 func SurfaceAdapter(pool *pgxpool.Pool) func(ctx context.Context, venue, surface string) ([]Sig, bool, error) {
 	return New(pool).SurfaceSignals
+}
+
+// f64any meta 数取件（T-0203：双腿 ann 自 meta 域——缺件=0 不臆造）。
+func f64any(v any) float64 {
+	switch t := v.(type) {
+	case float64:
+		return t
+	case int64:
+		return float64(t)
+	default:
+		return 0
+	}
 }
