@@ -1,6 +1,6 @@
 # T-0183 财经日历 feed charset 病灶——windows-1252 解包恒败
 
-## 态：可领
+## 态：✅ 验收毕投产（merge 6cbcfd5——CharsetReader接入、windows-1252桩PASS、SG fin=74在册、o-core healthy；24h零解包败=观察锚随自然周期）
 
 ## 病灶（24h 实拍）
 
