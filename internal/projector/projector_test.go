@@ -448,3 +448,52 @@ func TestFundingRecvWatermark(t *testing.T) {
 		t.Fatalf("recv 水印应达新补写行（SG 侧最新 0.0002）: n=%d rate=%v", n, rate)
 	}
 }
+
+// TestReverseBridge fin_strategy/fin_venue_untradeable 反向桥（T-0172）：
+// SG 正本→PG-md 副本全表 diff；行变再 diff 只搬差行（state 覆写实证）。
+func TestReverseBridge(t *testing.T) {
+	ctx := context.Background()
+	r, md, sg := runner(t)
+	if _, err := sg.Exec(ctx, `INSERT INTO fin_strategy(inst_id,template_ref,proposal_ref,state,notional_usd,venue,direction)
+		VALUES ('BTC-USDT-SWAP','funding-hedge',NULL,'paper',100,'okx','short_perp_long_spot'),
+		       ('ETH-USDT-SWAP','dcd_call',NULL,'live',200,'okx','short_dcd')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sg.Exec(ctx, `INSERT INTO fin_venue_untradeable(inst_id,code,msg)
+		VALUES ('FAKE-USDT-SWAP','51001',' region-blocked')`); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.reverseStrategies(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.reverseUntradeable(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if n := count(t, md, "SELECT count(*) FROM fin_strategy"); n != 2 {
+		t.Fatalf("策略副本应 2 行: %d", n)
+	}
+	if n := count(t, md, "SELECT count(*) FROM fin_venue_untradeable WHERE inst_id='FAKE-USDT-SWAP'"); n != 1 {
+		t.Fatalf("黑名单副本应 1 行: %d", n)
+	}
+	// 正本行变（retire）→再 diff 副本覆写；未变行零重复不炸（幂等）。
+	if _, err := sg.Exec(ctx, `UPDATE fin_strategy SET state='retired' WHERE inst_id='BTC-USDT-SWAP'`); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.reverseStrategies(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var state string
+	if err := md.QueryRow(ctx, "SELECT state FROM fin_strategy WHERE inst_id='BTC-USDT-SWAP'").Scan(&state); err != nil {
+		t.Fatal(err)
+	}
+	if state != "retired" {
+		t.Fatalf("副本应覆写 retired: %s", state)
+	}
+	// 副本零漂移：再 diff 后行数不变（upsert-only——正本无删径）。
+	if err := r.reverseStrategies(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if n := count(t, md, "SELECT count(*) FROM fin_strategy"); n != 2 {
+		t.Fatalf("幂等再 diff 应仍 2 行: %d", n)
+	}
+}

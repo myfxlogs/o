@@ -104,4 +104,5 @@ var migrationTable = []struct {
 	{1067, "md_1067_projector_frames.sql"},
 	{1068, "md_1068_app_config_replica.sql"},
 	{1069, "md_1069_data_retention_md.sql"},
+	{1070, "md_1070_fin_strategy_replica.sql"},
 }

@@ -29,13 +29,15 @@ func setup(t *testing.T) (context.Context, *Runner) {
 	ctx := context.Background()
 	// T-0167 分链：本包测试面跨域（研究域表+判据键）——两链并集态（md 先 fin 后
 	// =历史重放方向：md 链瞬态超表层先落，fin 链状态化/守卫后到）。
+	// T-0172 双池：并集库同池充两池（md 面/fin 面同库——分池语义仍由语句面分派
+	// 覆盖：fin 面语句挂 fin 池=同库实拍）。
 	if err := pgstore.Migrate(ctx, pool, "md"); err != nil {
 		t.Fatal(err)
 	}
 	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
 		t.Fatal(err)
 	}
-	return ctx, NewRunner(pool)
+	return ctx, NewRunner(pool, pool)
 }
 
 func TestReviewAndForward(t *testing.T) {
