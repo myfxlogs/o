@@ -76,7 +76,6 @@ const uTicks = `INSERT INTO md_ticks(ts,venue,inst_id,last,bid,ask,vol_24h,recv_
 const uMarkIdx = `INSERT INTO md_mark_index(ts,venue,inst_id,channel,px,recv_ts)
 	VALUES($1::timestamptz,$2,$3,$4,$5::numeric,$6::timestamptz)
 	ON CONFLICT (venue,inst_id,channel) DO UPDATE SET ts=EXCLUDED.ts,px=EXCLUDED.px,recv_ts=EXCLUDED.recv_ts
-		WHERE EXCLUDED.ts > md_mark_index.ts -- T-0197③：陈写 no-op（同闸）
 	WHERE EXCLUDED.ts > md_mark_index.ts`
 
 const uSignal = `INSERT INTO md_signal(kind,key,val,meta,ts)

@@ -34,6 +34,7 @@ func New(pool *pgxpool.Pool, alert func(ctx context.Context, msg string)) *Sweep
 func (s *Sweeper) deadTailSweep(ctx context.Context) error {
 	// 谓词读败即整扫 abort（fail-safe 钦定——不拿半读谓词下删刀）
 	if _, err := s.pool.Exec(ctx, `SELECT 1 FROM fin_active_set LIMIT 1`); err != nil {
+		log.Printf("[retention] deadTailSweep abort：fin_active_set 谓词读败 %v（fail-safe 不删）", err)
 		return nil // 谓词读败=abort 整扫（fail-safe 不删）
 	}
 	for _, spec := range []struct{ table, tsCol, keyCol string }{
