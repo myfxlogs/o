@@ -43,3 +43,10 @@
 - [x] 立单
 - [ ] 施工
 - [ ] 验收投产
+
+## 结果回填
+
+- 甲案（测试内 GC）：testutil.Pool t.Cleanup 加 DROP SCHEMA IF EXISTS
+  t_* CASCADE（用后清——实例窒息根治；白名单守=只 t_* 前缀）。
+- 乙案兜底：scripts/gc_test_schemas.sh 日拍 cron 件（quote_ident 拼；
+  t_* LIKE 谓词——public/fin_*/md_* 永不进 DROP 集）。
