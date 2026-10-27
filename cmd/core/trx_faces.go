@@ -6,6 +6,8 @@ package main
 import (
 	"context"
 
+	"time"
+
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"o/internal/data/cmc"
@@ -192,4 +194,45 @@ func (c coreService) GetHedgeStructure(ctx context.Context,
 		CloseoutLevelUsd:   margin * 0.5,
 		WarningLevelUsd:    margin * 0.8,
 	}}, nil
+}
+
+// GetTrxVoteStatus 投票引擎状态卡（T-0184——只读显态面：在驶态/下窗/
+// 待领/今日改投计数/上限；启停=app_config 业主径不在前端鉴权面内，
+// 降级只读+热改径如实）。
+func (c coreService) GetTrxVoteStatus(ctx context.Context,
+	_ *dashboardv1.GetTrxVoteStatusRequest) (*dashboardv1.GetTrxVoteStatusResponse, error) {
+	w := c.trx
+	o := &dashboardv1.GetTrxVoteStatusResponse{}
+	if w == nil {
+		return o, nil
+	}
+	if v, err := w.cfg.GetBool("trx.vote_enabled"); err == nil {
+		o.Enabled = v
+	}
+	cap := 12
+	if n, err := w.cfg.GetInt("trx.vote_max_rebal_per_day"); err == nil && n > 0 {
+		cap = int(n)
+	}
+	o.RebalanceCap = int32(cap)
+	_ = c.pool.QueryRow(ctx, `SELECT COALESCE(count(*),0) FROM fin_trx_vote_rebalance
+		WHERE decided_at::date=CURRENT_DATE`).Scan(&o.RebalanceToday)
+	_ = c.pool.QueryRow(ctx, `SELECT COALESCE(count(*),0) FROM fin_trx_txs
+		WHERE kind='vote_claim' AND ts::date=CURRENT_DATE`).Scan(&o.ClaimToday)
+	// 待领取=rewardNum 折值（同 trx_allowance 源——account 快照行）。
+	if a, err := w.st.LastTRXAccount(ctx); err == nil {
+		o.PendingTrx = float64(a.RewardNumSun) / 1e6
+	}
+	// 下一领奖窗=00/06/12/18 UTC（boundary.go 实证锚——rewardNum 变化全贴边界）。
+	now := time.Now().UTC()
+	for h := 0; h <= 24; h += 6 {
+		t := time.Date(now.Year(), now.Month(), now.Day(), h%24, 0, 0, 0, time.UTC)
+		if h == 24 {
+			t = t.Add(24 * time.Hour)
+		}
+		if t.After(now) {
+			o.NextWindow = timestamppb.New(t)
+			break
+		}
+	}
+	return o, nil
 }

@@ -41,9 +41,11 @@ type Runner struct {
 	active map[string]bool // 活跃集（SG fin_position 未平仓 ∪ fin_strategy 非 retired——谓词自算）
 	dcd    []string        // dcd_call 活策略 product_id（=fin_strategy.inst_id）
 
-	wmMu   sync.Mutex
-	wm     map[string]time.Time // per-table ts 水印（ticks/markidx/funding/signal/dcd/eval）
-	propWm int64                // fin_proposal id 水印（md 正本 bigserial 单调）
+	wmMu       sync.Mutex
+	wm         map[string]time.Time     // per-table ts 水印（ticks/markidx/funding/signal/dcd/eval）
+	propWm     int64                    // fin_proposal id 水印（md 正本 bigserial 单调）
+	tsLastPass map[string]time.Time     // T-0193：per-channel 过拍最小间隔闸（串行 worker 挤兑根修）
+	tsMinPass  map[string]time.Duration // 过拍间隔册（New 装配默认=tsMinPassInterval 注册表；测试可零化）
 }
 
 // New 装配（桥表集对册 fail-closed——消费面与 domain.tsv 单源禁漂移）。
@@ -181,6 +183,8 @@ func (r *Runner) resetWm() {
 	r.wmMu.Lock()
 	defer r.wmMu.Unlock()
 	r.wm = map[string]time.Time{}
+	r.tsLastPass = map[string]time.Time{}
+	r.tsMinPass = tsMinPassInterval
 }
 
 func (r *Runner) bumpWm(table string, ts time.Time) {

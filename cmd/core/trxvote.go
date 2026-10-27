@@ -96,7 +96,7 @@ func buildTrxVoteOptimizer(ctx context.Context, w *trxWiring) *trxvote.Scheduler
 	executor := trxvote.NewExecutor(conn, privKey, addr, func(level, msg string) {
 		log.Printf("ALERT [trxvote/%s] %s", level, msg)
 	})
-	tronscanBase := "https://api.tronscan.org/api"
+	tronscanBase := "https://apilist.tronscan.org" // T-0192：api.tronscan.org SG 双证不可达（curl 000）——apilist 换源（200 实证；裸 host 各器自拼 /api/）
 	rebalanceCfg := trxvote.RebalanceConfig{
 		MinSRs:             cfgInt(w, "trx.vote_min_srs", 3),
 		MaxSRs:             cfgInt(w, "trx.vote_max_srs", 3),
@@ -112,6 +112,13 @@ func buildTrxVoteOptimizer(ctx context.Context, w *trxWiring) *trxvote.Scheduler
 		rebalanceCfg, trxvote.NewFallbackAccountFetcher(
 			trxvote.NewTronscanAccountFetcher(tronscanBase),
 			trxvote.NewGRPCAccountFetcher(conn)))
+	// T-0192③：witness 备读源接线（主 apilist 断供时 trongrid
+	// /wallet/listwitnesses 顶——带 trx.trongrid_api_key；shape 差异在
+	// fetch 层抹平 hex→base58+年化 cache-last-good）。
+	sched.SetWitFallback(func(ctx context.Context) ([]trxvote.SRInfo, error) {
+		key, _ := w.cfg.GetString("trx.trongrid_api_key")
+		return trxvote.FetchSRListTrongridFallback(ctx, "https://api.trongrid.io", key)
+	})
 	sched.SetNextMaintenanceSource(func(ctx context.Context) (time.Time, error) {
 		nm, err := conn.GetNextMaintenanceTimeCtx(ctx)
 		if err != nil {

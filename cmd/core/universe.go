@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"regexp"
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -52,12 +53,16 @@ func universeExpander(getCli func() *okxexec.Client, pool *pgxpool.Pool) func(ct
 			InstID string `json:"instId"`
 			Alias  string `json:"alias"`
 			State  string `json:"state"`
+			Uly    string `json:"uly"`
 		}
 		if err := json.Unmarshal(raw, &fut); err == nil {
+			datedRe := regexp.MustCompile(`-\d{6}$`)
 			for _, i := range fut {
-				if i.State == "live" && i.Alias == "quarter" &&
-					strings.HasSuffix(i.InstID, "-USDT") {
+				// T-0189 返修：quarter 到期期货全收（-\d{6}$ 尾判）+uly
+				// 剥离键并入集（index-tickers USD 指数行覆盖——basisAnn JOIN 键）。
+				if i.State == "live" && i.Alias == "quarter" && datedRe.MatchString(i.InstID) {
 					out = append(out, i.InstID)
+					out = append(out, i.Uly) // T-0189 返修③：uly 载荷字段=钦定指数键（_UM 变体剥串错源根治）
 				}
 			}
 		}

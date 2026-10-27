@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	PrivateURL    = "wss://ws.okx.com:8443/ws/v5/private"
+	PrivateURL    = "wss://ws.okx.com:443/ws/v5/private"
 	pingEvery     = 20 * time.Second
 	dataIdle      = 5 * time.Minute // 私有面事件低频（静户零事件正常）——看门狗只判死连
 	backoffMin    = 2 * time.Second

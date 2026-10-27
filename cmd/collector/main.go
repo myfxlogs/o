@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"log"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -123,12 +124,19 @@ func universe(ctx context.Context, cli *okxexec.Client) ([]string, error) {
 	var fut []struct {
 		InstID string `json:"instId"`
 		Alias  string `json:"alias"`
+		Uly    string `json:"uly"`
 		State  string `json:"state"`
 	}
 	if err := json.Unmarshal(raw, &fut); err == nil {
+		datedRe := regexp.MustCompile(`-\d{6}$`)
 		for _, i := range fut {
-			if i.State == "live" && i.Alias == "quarter" && strings.HasSuffix(i.InstID, "-USDT") {
+			// T-0189 返修：quarter 到期期货全收（-\d{6}$ 尾判——OKX 实挂
+			// 全 -USD- 币本位，-USDT- 保证金判=空集误诊）；uly 剥离键
+			//（BTC-USD-261225→BTC-USD）并入集——index-tickers USD 指数行
+			// 覆盖（basisAnn JOIN 键）。
+			if i.State == "live" && i.Alias == "quarter" && datedRe.MatchString(i.InstID) {
 				out = append(out, i.InstID)
+				out = append(out, i.Uly) // T-0189 返修③：uly 载荷字段=钦定指数键（_UM 变体剥串错源根治）
 			}
 		}
 	}

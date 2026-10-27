@@ -282,8 +282,8 @@ func run() error {
 	mountCore(mux, svc)
 
 	// T-0170 readcred 专口：只读钥解密端点（:8095 loopback——dev 隧道 5545
-	// boot 取；凭据面与 50051 UI/API 面隔离；缺件 503 fail-closed）。
-	startReadcred(ctx, errc, pool)
+	// boot 取；缺件 503 fail-closed）。T-0174：/v1/readcred venue-map 回包。
+	startReadcred(ctx, errc, pool, cfg)
 
 	srv := &http.Server{Addr: listenAddr, Handler: mux, ReadHeaderTimeout: 10 * time.Second}
 	go func() {

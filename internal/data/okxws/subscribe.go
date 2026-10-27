@@ -66,9 +66,11 @@ func subscribeAll(conn *websocket.Conn, args []map[string]string) error {
 // uly 方言归一（OKX DCD uly=标的指数名 BTC-USD/BTC-USDG→现货对 BTC-USDT，
 // 与 research/dcd spot() 候选链同语义）。
 func (c *Collector) activeSet(ctx context.Context) (map[string]bool, error) {
+	// T-0187：fin_position 项删——PG-md 无此表（fin 域禁引；持仓标的
+	// 由 live/degraded 策略项覆盖=冗余项）。md 侧查询只许引 domain.tsv
+	// 标 md|bridge 表（fin 域表禁引——relation does not exist 病灶根修）。
 	rows, err := c.pool.Query(ctx, `SELECT DISTINCT inst_id FROM (
-		SELECT inst_id FROM fin_position WHERE closed_at IS NULL
-		UNION SELECT inst_id FROM fin_proposal WHERE state IN ('fin_proposed','fin_armed')
+		SELECT inst_id FROM fin_proposal WHERE state IN ('fin_proposed','fin_armed')
 		UNION SELECT inst_id FROM fin_strategy WHERE state IN ('live','degraded')
 		UNION SELECT regexp_replace(d.uly, '-USD(G)?$', '-USDT') FROM fin_strategy s
 			JOIN md_dcd_product d ON d.product_id=s.inst_id

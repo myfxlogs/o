@@ -141,11 +141,33 @@ func (r *Runner) queryTs(ctx context.Context, p tsProjection, wm time.Time) (pgx
 	return r.md.Query(ctx, p.query, wm, p.set(r))
 }
 
+// tsMinPassInterval T-0193：ts 表族过拍最小间隔闸注册表——ticks/markidx/
+// funding ≥3s（高变桥追平式全量捞塌陷醒零损=拍率供给挤兑根修），
+// signal/dcd ≥1s。New 装配默认读此册（Runner.tsMinPass 实例化）。
+var tsMinPassInterval = map[string]time.Duration{
+	"ev_ticks": 3 * time.Second, "ev_markidx": 3 * time.Second,
+	"ev_funding": 3 * time.Second, "ev_signal": time.Second, "ev_dcd": time.Second,
+}
+
 // projectTsTable 单 ts 桥表谓词切片投影（水印后增量）。
 func (r *Runner) projectTsTable(ctx context.Context, ch string) error {
 	p, ok := tsProjections[ch]
 	if !ok {
 		return nil
+	}
+	// T-0193 过拍最小间隔闸：不足即 return nil——每拍本就 wm 追平式
+	// 全量捞（塌陷醒零损=cap1 合流语义同族），wm 幂等无行可丢。
+	if min := r.tsMinPass[ch]; min > 0 {
+		r.wmMu.Lock()
+		if r.tsLastPass == nil {
+			r.tsLastPass = map[string]time.Time{}
+		}
+		if last, ok := r.tsLastPass[ch]; ok && time.Since(last) < min {
+			r.wmMu.Unlock()
+			return nil
+		}
+		r.tsLastPass[ch] = time.Now()
+		r.wmMu.Unlock()
 	}
 	wm := r.getWm(p.wmKey)
 	rows, err := r.queryTs(ctx, p, wm)

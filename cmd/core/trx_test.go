@@ -286,3 +286,42 @@ func TestConnectEndToEndAndWatchLatency(t *testing.T) {
 	}
 	cancel()
 }
+
+// TestGetTrxVoteStatusCounts 桩锚（T-0192 复审返修①）：handler 读真列
+// （decided_at 非 created_at——列名错=计数恒 0 假数据病灶）+真计数上行。
+func TestGetTrxVoteStatusCounts(t *testing.T) {
+	ctx, w, svc := trxTestSetup(t)
+	pool := w.pool
+	if _, err := pool.Exec(ctx, `INSERT INTO app_config(key,value) VALUES('trx.vote_enabled','true') ON CONFLICT (key) DO UPDATE SET value='true'`); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.cfg.Load(ctx); err != nil {
+		t.Fatal(err)
+	} // seed 后重读——flag 热改径如实
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_trx_vote_rebalance
+		(id,decided_at,current_yield,target_yield,improvement_pct,need_rebalance,reason,target_votes)
+		VALUES(999001,now(),4.5,5.2,0.7,true,'stub','[]'::jsonb)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_trx_txs(tx_id,ts,kind,amount_sun)
+		VALUES('stubtx01',now(),'vote_claim',12300000)`); err != nil {
+		t.Fatal(err)
+	}
+	r, err := svc.GetTrxVoteStatus(ctx, &dashboardv1.GetTrxVoteStatusRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !r.Enabled || r.RebalanceToday != 1 || r.ClaimToday != 1 || r.RebalanceCap <= 0 || r.NextWindow == nil {
+		t.Fatalf("状态卡假数据病灶: %+v", r)
+	}
+	// 次日插行不误计（decided_at 今日窗判——非全史）。
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_trx_vote_rebalance
+		(id,decided_at,current_yield,target_yield,improvement_pct,need_rebalance,reason,target_votes)
+		VALUES(999002,now()-interval '2 day',4.5,5.2,0.7,true,'stub','[]'::jsonb)`); err != nil {
+		t.Fatal(err)
+	}
+	r2, _ := svc.GetTrxVoteStatus(ctx, &dashboardv1.GetTrxVoteStatusRequest{})
+	if r2.RebalanceToday != 1 {
+		t.Fatalf("decided_at 窗判病灶: %+v", r2)
+	}
+}

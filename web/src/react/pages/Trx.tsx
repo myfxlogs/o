@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { client } from "../api";
 import { TrxYieldRadar } from "../components/TrxYieldRadar";
 import { TrxHedgeCard } from "../components/TrxHedgeCard";
+import { TrxVoteEngine } from "../components/TrxVoteEngine";
 import { HedgeFlow } from "../components/HedgeFlow";
 
 export function TrxPage() {
@@ -12,6 +13,7 @@ export function TrxPage() {
   }, []);
   return (
     <div className="page">
+      <TrxVoteEngine />
       <TrxYieldRadar />
       <TrxHedgeCard />
       <HedgeFlow />

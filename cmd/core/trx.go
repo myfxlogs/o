@@ -57,11 +57,14 @@ func trxArm(ctx context.Context, errc chan<- error, w *trxWiring) {
 	}
 	apiKey := func() string { v, _ := w.cfg.GetString("trx.trongrid_api_key"); return v }
 	w.accts = trx.NewAccountCollector(addr, w.st, "https://api.trongrid.io",
-		"https://api.tronscan.org/api", apiKey)
-	w.txs = trx.NewTxsCollector(addr, w.st, "https://apilist.tronscan.org/api",
-		apiKey, "https://api.tronscan.org/api", nil, 0.10)
-	w.wit = trx.NewWitnessCollector(addr, w.st, "https://api.tronscan.org/api", apiKey)
-	w.apr = trx.NewAprCollector(addr, w.st, "https://api.tronscan.org/api")
+		"https://apilist.tronscan.org", apiKey)
+	// T-0182 凭据语义错配根修：/v1//wallet 径=TronGrid 面（TRON-PRO-API-KEY
+	// 成对）；tronscan /api/ 径=公开面零凭据（trongrid key 灌 tronscan=401 间歇
+	// 实证病灶——凭据语义错配典型坑）。witness/apr 基址同律纠。
+	w.txs = trx.NewTxsCollector(addr, w.st, "https://api.trongrid.io",
+		apiKey, "https://apilist.tronscan.org", nil, 0.10)
+	w.wit = trx.NewWitnessCollector(addr, w.st, "https://api.trongrid.io", apiKey)
+	w.apr = trx.NewAprCollector(addr, w.st, "https://apilist.tronscan.org")
 	if err := roster.Register(ctx, w.pool, "TRX 链上采集", "trx",
 		"账户资源+txs+witness+APR 采集岗", nil); err != nil {
 		errc <- err

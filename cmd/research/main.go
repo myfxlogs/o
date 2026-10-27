@@ -16,6 +16,7 @@ import (
 	"o/internal/platform/rejects"
 	"o/internal/platform/roster"
 	"o/internal/review"
+	"o/internal/store/pgstore"
 	"o/internal/trading/okxexec"
 )
 
@@ -30,6 +31,12 @@ func main() {
 		log.Fatalf("SG PG 连接败: %v", err)
 	}
 	defer pool.Close()
+	// T-0181：boot 背 md 迁移闸——md 链执行者缺位根治（与 SG o-core
+	// Migrate(fin) 对称；dev 部署必重启 research=md schema 自追，
+	// 「已合并≠已执行」灰色态物理消失）。
+	if err := pgstore.Migrate(ctx, pool, "md"); err != nil {
+		log.Fatalf("md migrate 败: %v", err)
+	}
 	// T-0169 分域：席位台账归 SG 册（ROSTER_PG_DSN 隧道径——D-0030 §五直 beat）。
 	if rp := os.Getenv("ROSTER_PG_DSN"); rp != "" {
 		rpool, err := pgxpool.New(ctx, rp)
@@ -55,12 +62,12 @@ func main() {
 		log.Fatalf("config load: %v", err)
 	}
 	// T-0170 认证读面（径 A 终裁）：READCRED_URL 设→boot 经隧道（5545）取
-	// 只读钥仅进内存+401 自重取轮换自愈；缺→无凭据读面（dcd/gapscan 私有
-	// 读面 401 fail-closed 让位——桩锚不回归）。
+	// venue-map 仅进内存+401 自重取轮换自愈；缺→无凭据读面（dcd/gapscan 私有
+	// 读面 401 fail-closed 让位——桩锚不回归）。T-0174：okx 臂按 venue 提件。
 	var okcli authGetter = okxexec.NewClient(okxexec.Credentials{}, false)
 	rcMode := "无凭据公开读"
 	if url := os.Getenv("READCRED_URL"); url != "" {
-		okcli = newAuthClient(url)
+		okcli = newAuthClient(url, "okx")
 		rcMode = "readcred 认证读（只读钥内存取）"
 	}
 	alerter := notify.NewAlerter(nil, func() string {

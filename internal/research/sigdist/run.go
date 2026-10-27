@@ -32,7 +32,7 @@ import (
 const distillPeriod = 60 * time.Second
 
 // datedFutRe 季度期货 instId 尾 6 位到期日（YYMMDD）。
-var datedFutRe = regexp.MustCompile(`^([A-Z0-9]+)-USDT-([0-9]{6})$`)
+var datedFutRe = regexp.MustCompile(`^([A-Z0-9]+-[A-Z]+)-([0-9]{6})$`)
 
 // Runner 信号蒸馏岗（桥面常驻节拍——随采集器进程）。
 type Runner struct {
@@ -55,7 +55,8 @@ func (r *Runner) Run(ctx context.Context, errc chan<- error) {
 		errc <- fmt.Errorf("信号蒸馏 register: %w", err)
 		return
 	}
-	t := time.NewTicker(distillPeriod) // sched-exempt-ok 桥面蒸馏拍（慢特征计算节拍非轮询拉取）
+	go roster.BeatLoop(ctx, r.pool, "信号蒸馏", 30*time.Second, errc) // T-0184：BeatLoop 补线——Register 有 BeatLoop 缺=活性台账假死病灶根治
+	t := time.NewTicker(distillPeriod)                            // sched-exempt-ok 桥面蒸馏拍（慢特征计算节拍非轮询拉取）
 	defer t.Stop()
 	for {
 		select {

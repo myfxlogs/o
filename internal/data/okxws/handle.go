@@ -2,6 +2,7 @@
 package okxws
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"time"
@@ -43,7 +44,11 @@ func (c *Collector) handle(data []byte) {
 		case "mark-price", "index-tickers":
 			it.mark = parseMark(instID, msg.Arg.Channel, d)
 		case "books5": // T-0139：深度蒸馏——5s 节流（特征值非原始盘口）
-			if ctv := c.ctvCache[instID]; ctv > 0 {
+			c.ctvMu.Lock()
+			ctv := c.ctvCache[instID]
+			stale := !c.ctvReloading && time.Since(c.ctvAt) > 60*time.Second
+			c.ctvMu.Unlock()
+			if ctv > 0 {
 				if c.depth5At == nil || time.Since(c.depth5At[instID]) > 5*time.Second {
 					it.depth5 = parseBooks5(instID, d, ctv)
 					if it.depth5 != nil && c.depth5At != nil {
@@ -52,6 +57,24 @@ func (c *Collector) handle(data []byte) {
 				}
 			} else {
 				c.rej.Inc("depth5_no_ctval")
+				// T-0191：载败饿死窗根治——ctvCache 空/此 inst 缺且距上次重载
+				// >60s→后台重载一次（飞行中闸节流≤1/60s，venue 调用频不炸；
+				// 载成自通不绑重连周期——「载一次败饿死一窗」结构病根治）。
+				if stale && c.ctvFeed != nil {
+					c.ctvMu.Lock()
+					c.ctvReloading = true
+					c.ctvMu.Unlock()
+					go func() {
+						m, err := c.ctvFeed(context.Background())
+						c.ctvMu.Lock()
+						defer c.ctvMu.Unlock()
+						c.ctvReloading = false
+						if err == nil && len(m) > 0 {
+							c.ctvCache = m
+							c.ctvAt = time.Now()
+						}
+					}()
+				}
 			}
 		default:
 			continue
