@@ -28,6 +28,14 @@ type Opener interface {
 	Open(ctx context.Context, spec OpenSpec) (execID int64, err error)
 }
 
+// fundingHedgeFamily 模板→funding 闸域映射（T-0202：lifetimeOK/
+// breakevenOK 钦定=funding-hedge 系专属——无 funding 腿模板跳闸）。
+// funding-hedge=perp 空+现货多家族；dcd_call=DCD 结构化产品买入
+// （无 funding 腿可判——闸域越界根修）。
+var fundingHedgeFamily = map[string]bool{
+	"funding-hedge": true, "xvenue-carry": true,
+}
+
 // AttachOpener 挂开仓缝（cmd 装配层接线）。
 func (r *Runner) AttachOpener(o Opener) *Runner { r.op = o; return r }
 
@@ -95,21 +103,26 @@ func (r *Runner) openLive(ctx context.Context) {
 			}
 			continue
 		}
-		// T-0103 ①开平判据对偶化：开仓评估含「预测持仓寿命 ≥ 最短窗」——
-		// 平闸 funding 翻面判据（latest+next 双口径）开时同测：开即翻=
-		// 寿命低于一个结算窗=开闸拒，fin_opp_eval 落 rejected/lifetime_below_min。
-		if ok, why := r.lifetimeOK(ctx, c.spec); !ok {
-			r.denyAt[c.spec.StrategyRef] = time.Now()
-			log.Printf("[lifecycle] 策略 %d %s 开闸拒——%s", c.spec.StrategyRef, c.spec.InstID, why)
-			continue
-		}
-		// T-0111 ①回本窗判据：预期 carry（持有上限内）≥ 往返摩擦×1.5 不满足
-		// =拒开（fin_opp_eval rejected/breakeven_beyond_hold——「72h 开闸制
-		// 度性亏损」根修；T-0103 对偶同位判）。
-		if ok, why := r.breakevenOK(ctx, c.spec); !ok {
-			r.denyAt[c.spec.StrategyRef] = time.Now()
-			log.Printf("[lifecycle] 策略 %d %s 开闸拒——%s", c.spec.StrategyRef, c.spec.InstID, why)
-			continue
+		// T-0202：funding 闸按模板域生效——lifetimeOK/breakevenOK 钦定语义
+		// =funding-hedge 系（perp 空+现货多家族）专属；dcd_call 等无 funding
+		// 腿模板跳闸（模板域错配=全谱 live 零开仓病灶根治）。
+		if fundingHedgeFamily[c.spec.Template] {
+			// T-0103 ①开平判据对偶化：开仓评估含「预测持仓寿命 ≥ 最短窗」——
+			// 平闸 funding 翻面判据（latest+next 双口径）开时同测：开即翻=
+			// 寿命低于一个结算窗=开闸拒，fin_opp_eval 落 rejected/lifetime_below_min。
+			if ok, why := r.lifetimeOK(ctx, c.spec); !ok {
+				r.denyAt[c.spec.StrategyRef] = time.Now()
+				log.Printf("[lifecycle] 策略 %d %s 开闸拒——%s", c.spec.StrategyRef, c.spec.InstID, why)
+				continue
+			}
+			// T-0111 ①回本窗判据：预期 carry（持有上限内）≥ 往返摩擦×1.5 不满足
+			// =拒开（fin_opp_eval rejected/breakeven_beyond_hold——「72h 开闸制
+			// 度性亏损」根修；T-0103 对偶同位判）。
+			if ok, why := r.breakevenOK(ctx, c.spec); !ok {
+				r.denyAt[c.spec.StrategyRef] = time.Now()
+				log.Printf("[lifecycle] 策略 %d %s 开闸拒——%s", c.spec.StrategyRef, c.spec.InstID, why)
+				continue
+			}
 		}
 		eid, err := r.op.Open(ctx, c.spec)
 		if err != nil {
