@@ -89,8 +89,10 @@ func (r *Runner) Distill(ctx context.Context) error {
 // fundingView per SWAP 当期 funding rate（md_funding 最新行）+meta 附下一期
 // 预测（next_funding_rate venue 域内含）+7d 滚动均值（窗口缺数据=字段缺席如实）。
 func (r *Runner) fundingView(ctx context.Context) error {
+	// T-0196 血统闸：ts=源行 recv_ts（观测戳非写拍——md_funding.ts=结算
+	// 拍可未来值；leastTs 同构即最新参与行观测龄）。
 	rows, err := r.pool.Query(ctx, `SELECT DISTINCT ON (inst_id)
-			inst_id, ts, funding_rate, next_funding_rate, next_funding_ts
+			inst_id, ts, funding_rate, next_funding_rate, next_funding_ts, recv_ts
 		FROM md_funding ORDER BY inst_id, ts DESC`)
 	if err != nil {
 		return err
@@ -98,6 +100,7 @@ func (r *Runner) fundingView(ctx context.Context) error {
 	type fv struct {
 		inst  string
 		ts    time.Time
+		recv  time.Time
 		rate  float64
 		nextR *float64
 		nextT *time.Time
@@ -108,7 +111,7 @@ func (r *Runner) fundingView(ctx context.Context) error {
 		var f fv
 		var nextR *float64
 		var nextT *time.Time
-		if err := rows.Scan(&f.inst, &f.ts, &f.rate, &nextR, &nextT); err != nil {
+		if err := rows.Scan(&f.inst, &f.ts, &f.rate, &nextR, &nextT, &f.recv); err != nil {
 			rows.Close()
 			return err
 		}
@@ -134,8 +137,11 @@ func (r *Runner) fundingView(ctx context.Context) error {
 	}
 	avg.Close()
 	n := 0
-	now := time.Now()
 	for inst, f := range vals {
+		wts := f.recv // 血统戳=源行 recv_ts（T-0196——非写拍 now）
+		if wts.IsZero() {
+			wts = f.ts // recv_ts 缺=ts 兜底（源行观测戳唯一候选）
+		}
 		meta := map[string]any{}
 		if f.nextR != nil {
 			meta["next_funding_rate"] = *f.nextR
@@ -151,7 +157,7 @@ func (r *Runner) fundingView(ctx context.Context) error {
 			VALUES('funding_view',$1,$2,$3::jsonb,$4)
 			ON CONFLICT (kind,key) DO UPDATE SET val=EXCLUDED.val,
 			meta=EXCLUDED.meta, ts=EXCLUDED.ts`,
-			inst, f.rate, string(metaB), now); err != nil {
+			inst, f.rate, string(metaB), wts); err != nil {
 			return err
 		}
 		n++

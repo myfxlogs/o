@@ -192,3 +192,23 @@ func (r *Runner) AttachConfigForTest(ctx context.Context, kv map[string]any) err
 	r.cfg = config.New(r.pool)
 	return r.cfg.Load(ctx)
 }
+
+// TestFundingViewTsLineage T-0196 桩锚：funding_view 行 ts=源行 recv_ts
+// （上游陈→行 ts 陈——血统闸语义断言）。
+func TestFundingViewTsLineage(t *testing.T) {
+	ctx, r := setup(t)
+	stale := time.Now().Add(-4 * time.Hour)
+	md(t, ctx, r, `INSERT INTO md_funding(ts,inst_id,funding_rate,recv_ts) VALUES
+		(now(),'SOL-USDT-SWAP',0.0003,$1)`, stale)
+	if err := r.fundingView(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var sigTs time.Time
+	if err := r.pool.QueryRow(ctx, `SELECT ts FROM md_signal
+		WHERE kind='funding_view' AND key='SOL-USDT-SWAP'`).Scan(&sigTs); err != nil {
+		t.Fatal(err)
+	}
+	if time.Since(sigTs) < time.Hour {
+		t.Fatalf("ts 应随源行 recv_ts 陈（%v）：非写拍 now", sigTs)
+	}
+}
