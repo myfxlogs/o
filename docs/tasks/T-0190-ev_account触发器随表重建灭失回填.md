@@ -1,0 +1,52 @@
+# T-0190 ev_account 触发器随表重建灭失——事件脊断肋回填
+
+> 立单：决策席 2026-10-27（SG「REST 已死」根查）
+> 域：migrations fin 链 + SG o-postgres
+> 量级：微件（一行迁移+在位/定义对拍普查断言）
+
+## 病灶实证（决策席取证在案）
+
+```
+migrations/fin_0028：ev_account_trg AFTER INSERT ON md_account_events 定义在册
+migrations/fin_0049:32：DROP TABLE md_account_events; CREATE TABLE（触发器随毁）
+SG pg_trigger 现拍：ev_* 在册 9 件，ev_account_trg 缺席（唯一缺）
+```
+
+**因果链**：okxpriv 私有帧 INSERT md_account_events→零 NOTIFY→
+ledger scan（监听 ev_cashflow/ev_account/ev_position）只剩稀疏
+cashflow/position 事件唤醒→`restOKAt`（对拍环尾端戳）间隙超
+System 页 2min 死阈→「OKX REST 已死 4 分钟」假死相。
+
+**连带影响**：scan 欠驱动=对账环节拍实质变慢（事件密度降一档），
+holding/sync（同听 ev_account）同病——私有帧再鲜也叫不醒它们。
+
+**同族病灶**：T-0187 fin_position 引用缺席姊妹——DROP+CREATE
+迁移吞零件（表重建=触发器/索引/授权全毁，重建面须零件清单对拍）。
+
+## 修法钦定
+
+新迁移 `fin_0077_ev_account_trg_restore.sql`：
+
+```sql
+CREATE OR REPLACE TRIGGER ev_account_trg AFTER INSERT ON md_account_events
+  FOR EACH STATEMENT EXECUTE FUNCTION ev_notify('ev_account');
+```
+
+并**普查断言**：`pg_trigger` 在位集 vs migrations 定义集全对拍——
+其余 DROP+CREATE 迁移（fin_0049/md_1049 同族件）涉及表的触发器
+逐件核对（本票已查 ev_* 族，施工面再核非 ev_ 前缀触发器与
+索引/授权类零件无漏）。
+
+## 验收锚
+
+1. SG `pg_trigger` 见 `ev_account_trg` 在位；
+2. 私有帧 INSERT→ledger scan 被唤醒（可插测试帧验 NOTIFY 链路，
+   或观察 restOKAt 间隙不再>2min）；
+3. System 页 REST 由红/黄复绿并稳定（不再 flap）；
+4. 触发器在位/定义对拍清单留票面（非 ev_ 族无缺席实证）。
+
+## 状态
+
+- [x] 立单
+- [ ] 施工
+- [ ] 验收投产
