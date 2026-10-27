@@ -81,3 +81,21 @@ func TestDisabledFaceNoFamily(t *testing.T) {
 		t.Fatalf("缺 executor 假想卡应 ≥3 族（lending/earn/quarter_basis/vol_sell）: %d", nH)
 	}
 }
+
+// TestProposedAprGate T-0205 桩锚：proposed 无 APR 估计→写径降级
+// unevaluable+apr_est_missing（NULL-proposed 不可能径断言）。
+func TestProposedAprGate(t *testing.T) {
+	ctx, r := setup(t)
+	if err := r.writeEval(ctx, "BTC-USD-261225", "quarter_basis", "short_perp_long_spot",
+		"proposed", "", map[string]any{"basis_pct": 0.9}); err != nil {
+		t.Fatal(err)
+	}
+	var v, reason string
+	if err := r.pool.QueryRow(ctx, `SELECT verdict, evidence->>'reason'
+		FROM fin_opp_eval WHERE inst_id='BTC-USD-261225' AND template='quarter_basis'`).Scan(&v, &reason); err != nil {
+		t.Fatal(err)
+	}
+	if v != "unevaluable" || reason != "apr_est_missing" {
+		t.Fatalf("无 APR proposed 应降级 unevaluable+apr_est_missing: %v/%s", v, reason)
+	}
+}

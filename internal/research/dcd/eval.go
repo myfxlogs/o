@@ -112,6 +112,9 @@ func (e Eval) Evidence() map[string]any {
 		"dist_pct": e.DistPct, "spot": e.Spot, "apr": e.APR,
 		"locked_ccy": e.lockedCcy, "avail": e.Avail,
 		"min_size": e.Product.MinSize, "reason": e.Reason,
+		// T-0205②甲案：减项分解显式在场（分解过且为零≠没分解——
+		// DCD 宣告 APR 为唯一收益源，无腿费/fee/滑点结构薄=0 钉实）。
+		"fee_bps": 0, "slippage_bps": 0, "settle_cost_bps": 0, "deduction_mode": "declared_apr",
 	}
 }
 

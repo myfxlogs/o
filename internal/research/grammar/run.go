@@ -151,6 +151,15 @@ func (r *Runner) evaluate(ctx context.Context, fams []Family) error {
 
 // writeEval 幂等评估行（同 inst+template+reason 1h 窗不重生——节拍防抖）。
 func (r *Runner) writeEval(ctx context.Context, inst, template, direction, verdict, reason string, ev map[string]any) error {
+	// T-0205①硬闸：proposed 前置 net_apr 存在——无 APR 估计下落 verdict=
+	// unevaluable+apr_est_missing（NULL 参与排序/阈值判=语义炸根修）。
+	if verdict == "proposed" {
+		if _, ok := ev["apr"]; !ok {
+			if _, ok2 := ev["net_apr"]; !ok2 {
+				verdict, reason = "unevaluable", "apr_est_missing"
+			}
+		}
+	}
 	ev["reason"] = reason
 	b, _ := json.Marshal(ev)
 	var n int
