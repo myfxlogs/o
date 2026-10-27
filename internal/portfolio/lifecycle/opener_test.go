@@ -164,13 +164,15 @@ func TestOpenLifetimeRejectsFlip(t *testing.T) {
 	if len(fo.calls) != 0 {
 		t.Fatalf("预测翻负仍开——判据分裂未修: %+v", fo.calls)
 	}
-	var reason, verdict string
-	if err := r.pool.QueryRow(ctx, `SELECT verdict,evidence->>'reason' FROM fin_opp_eval
-		WHERE inst_id='OP-USDT-SWAP' ORDER BY id DESC LIMIT 1`).Scan(&verdict, &reason); err != nil {
+	// T-0206①：拆表后拒因行在 fin_eval_reject（非 fin_opp_eval——
+	// 夹具迁移债根治；verdict 显式列无，reason=显式列直查）。
+	var reason string
+	if err := r.pool.QueryRow(ctx, `SELECT reason FROM fin_eval_reject
+		WHERE inst_id='OP-USDT-SWAP' ORDER BY id DESC LIMIT 1`).Scan(&reason); err != nil {
 		t.Fatalf("rejected 评估卡未落: %v", err)
 	}
-	if verdict != "rejected" || reason != "lifetime_below_min" {
-		t.Fatalf("拒因卡面: %s/%s", verdict, reason)
+	if reason != "lifetime_below_min" {
+		t.Fatalf("拒因卡面: %s", reason)
 	}
 	var st string
 	if err := r.pool.QueryRow(ctx, `SELECT state FROM fin_strategy WHERE id=$1`, sid).Scan(&st); err != nil || st != "live" {
@@ -236,8 +238,8 @@ func TestOpenBreakevenRejectsThin(t *testing.T) {
 		t.Fatal("回本窗不满仓被开出")
 	}
 	var n int
-	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_opp_eval
-		WHERE evidence->>'reason'='breakeven_beyond_hold'`).Scan(&n); err != nil || n == 0 {
+	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_eval_reject
+		WHERE reason='breakeven_beyond_hold'`).Scan(&n); err != nil || n == 0 {
 		t.Fatalf("breakeven_beyond_hold 拒卡未落（n=%d）", n)
 	}
 }

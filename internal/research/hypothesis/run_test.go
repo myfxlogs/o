@@ -205,7 +205,7 @@ func TestSignalDrivenCards(t *testing.T) {
 	// ① 背离 5×>3 阈→carry 卡（provenance/signals/trigger 全验）
 	seedTh(t)
 	seedCard(t, "funding_view", "BTC-USDT-SWAP", 0.0005,
-		`{"avg_7d":0.0001}`, "0 seconds")
+		`{"avg_7d":0.0001,"next_funding_ts":"2099-01-01T00:00:00Z"}`, "0 seconds")
 	if err := r.ScanSignals(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -227,7 +227,7 @@ func TestSignalDrivenCards(t *testing.T) {
 	}
 	// ② 阈内背离→零新卡（幂等重扫也不重生）
 	seedCard(t, "funding_view", "ETH-USDT-SWAP", 0.00011,
-		`{"avg_7d":0.0001}`, "0 seconds")
+		`{"avg_7d":0.0001,"next_funding_ts":"2099-01-01T00:00:00Z"}`, "0 seconds")
 	if err := r.ScanSignals(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -255,9 +255,9 @@ func TestSignalDrivenCards(t *testing.T) {
 		t.Fatal(err)
 	}
 	seedCard(t, "funding_view", "BTC-USDT-SWAP", 0.0005,
-		`{"avg_7d":0.0001}`, "5 minutes") // ① 行翻陈——全表现陈（停桥形）
+		`{"avg_7d":0.0001,"next_funding_ts":"2020-01-01T00:00:00Z"}`, "5 minutes") // ① 行翻陈——当值期判陈（停桥形）
 	seedCard(t, "funding_view", "SOL-USDT-SWAP", 0.001,
-		`{"avg_7d":0.0001}`, "5 minutes")
+		`{"avg_7d":0.0001,"next_funding_ts":"2020-01-01T00:00:00Z"}`, "5 minutes")
 	if err := r.ScanSignals(ctx); err != nil {
 		t.Fatal(err)
 	}
