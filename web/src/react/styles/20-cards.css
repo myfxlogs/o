@@ -515,3 +515,19 @@ details.rep summary {
   height: 10px;
   box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--ink) 25%, transparent);
 }
+
+/* —— 双列同行（业主回单：报告+现金流 1 行 2 列——grid 强制并排，
+   窄屏回落单列；与 masonry 的列平衡语义不同：这里永远并排）—— */
+.duo {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+@media (min-width: 1000px) {
+  .duo {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    align-items: start;
+  }
+}
