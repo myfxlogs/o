@@ -25,3 +25,11 @@
 - funding_view 行 ts=参与源行 recv_ts 语义（非写拍 now）
 - 测试覆盖「上游陈→行 ts 陈」断言
 - ops 面 funding_view 鲜度仍可读（recv_ts 口径下鲜度=帧流活性真值）
+
+## 结果回填
+
+- funding_view 行 ts=源行 recv_ts（观测戳血统闸——md_funding.ts=结算
+  拍可未来值非观测时；f.recv 零值=ts 兜底）；最新参与行观测龄即血统
+  戳——全族与 basis_ann/xvenue_spread 同构（孤例自盖章病灶根治）。
+- 桩锚 TestFundingViewTsLineage 绿——recv_ts 陈 4h 行→signal ts 随陈
+  （非写拍 now 实证）。
