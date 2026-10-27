@@ -36,16 +36,41 @@ echo "[$(date -u +%FT%TZ)] backup OK $f ($(du -h "$f"|cut -f1))"
 # 滚动 14 份
 ls -1t "$BACKUP_DIR"/o-*.sql.gz 2>/dev/null | tail -n +15 | xargs -r rm -f
 ls -1t "$BACKUP_DIR"/o-*.sql.gz.sha256 2>/dev/null | tail -n +15 | xargs -r rm -f
-
 # R2 三落点（凭据在案才走——$BACKUP_DIR/backup-r2.env 仓库外 600：
-# AGE_PUBKEY/R2_REMOTE/R2_BUCKET；缺席=首失 marker 幂等记，续日静默）
+# AGE_PUBKEY/R2_REMOTE/R2_BUCKET；缺席=首失 marker 幂等记，续日静默）。
+# T-0176 最优构：单加密径统两前缀——sg/o-*.sql.gz.age（本机件）/
+# dev/o-md-*.sql.gz.age（dev-inbox 收罗件）；滚动 14 份/前缀（lsl+deletefile
+# ——只推不转=无限胀病灶根修）；dev-inbox 陈 >26h=推链死→CRITICAL（响非默）。
 if [ -f "$BACKUP_DIR/backup-r2.env" ]; then
 	. "$BACKUP_DIR/backup-r2.env"
 	age -r "$AGE_PUBKEY" -o "$f.age" "$f" \
-		&& rclone copyto "$f.age" "$R2_REMOTE:$R2_BUCKET/o-$(basename "$f" .sql.gz).age" \
+		&& rclone copyto "$f.age" "$R2_REMOTE:$R2_BUCKET/sg/$(basename "$f" .sql.gz).age" \
 		&& rm -f "$f.age" \
-		&& echo "[$(date -u +%FT%TZ)] R2 pushed（三落点）" \
+		&& echo "[$(date -u +%FT%TZ)] R2 pushed（sg/ 前缀）" \
 		|| echo "[$(date -u +%FT%TZ)] R2 FAIL——本地全保留" >&2
+	# dev-inbox 收罗（dev scp 推件——凭据主权梯 SG 独占不破）
+	if [ -d "$BACKUP_DIR/dev-inbox" ]; then
+		for df in "$BACKUP_DIR/dev-inbox"/o-md-*.sql.gz; do
+			[ -f "$df" ] || continue
+			age -r "$AGE_PUBKEY" -o "$df.age" "$df" \
+				&& rclone copyto "$df.age" "$R2_REMOTE:$R2_BUCKET/dev/$(basename "$df" .sql.gz).age" \
+				&& rm -f "$df.age" "$df" "$df.sha256" \
+				&& echo "[$(date -u +%FT%TZ)] R2 dev/ pushed $(basename "$df")" \
+				|| echo "[$(date -u +%FT%TZ)] R2 dev/ FAIL $(basename "$df")——inbox 保留" >&2
+		done
+		oldest=$(find "$BACKUP_DIR/dev-inbox" -name 'o-md-*.sql.gz' -mmin +1560 -print -quit 2>/dev/null)
+		if [ -n "$oldest" ]; then
+			echo "[$(date -u +%FT%TZ)] CRITICAL dev-inbox 陈 >26h $(basename "$oldest")——推链死告警" >&2
+		fi
+	fi
+	# R2 滚动 14 份/前缀（lsl 正序+deletefile 斩尾——前缀隔离互不打）
+	for pfx in sg dev; do
+		rclone lsl "$R2_REMOTE:$R2_BUCKET/$pfx/" 2>/dev/null | awk '{print $NF}' | sort \
+			| head -n -14 | while read -r oldobj; do
+			[ -n "$oldobj" ] && rclone deletefile "$R2_REMOTE:$R2_BUCKET/$pfx/$oldobj" \
+				&& echo "[$(date -u +%FT%TZ)] R2 $pfx/ 滚动清 $oldobj"
+		done
+	done
 	rm -f "$MARKER"
 else
 	if [ ! -f "$MARKER" ]; then

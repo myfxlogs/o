@@ -45,3 +45,19 @@ SG+dev 两库备份同爆半径（各存本机盘）。业主供 R2/rclone 凭�
   pg_restore→20 表全复+fin_proposal+fin_opp_eval 行数对拍
   12587=12587 零差；drill 库演练后 DROP 清零。
 - SG backup.log/本机 backup.log 互不踩踏（同形日志各目录径）。
+
+## 最优构回填（钦定拓扑实跑实证）
+
+- backup_pg.sh 泛化+R2 滚动：BACKUP_CONTAINER 第二参/环境变量同形适配；
+  R2 键 sg/o-*.age+dev/o-md-*.age 前缀隔离（o-o-* 双前缀癖根修）；
+  lsl+deletefile 14 份/前缀滚动段入件；dev-inbox 收罗+陈 >26h CRITICAL
+  告警行（响非默）。
+- dev→SG 推送件 backup_push_sg.sh：scp o-md- 前缀件→SG dev-inbox
+  （dev 零新凭据——主权梯度不破）。
+- 部署实跑：SG /opt/o/scripts/backup_pg.sh+push 件就位（bash -n 绿）；
+  SG dev-inbox 700 建位；dev cron 30 3 dump→push 链（错时 SG 03:00）。
+- 端到端实证：dev push o-md-20261027T054827Z→SG dev-inbox→SG
+  backup 实跑→age→R2 双前缀对象（sg/ 9.0M+dev/ 885K）；
+  rclone 拉回实件 age-encry 头 9B 验+size 对拍 885156=885156。
+- 密文完整+rclone 拉回+sha256 三层验过；解密层=业主私钥件如实记
+  （业主配合项——age 密文径在案非本席可演）。
