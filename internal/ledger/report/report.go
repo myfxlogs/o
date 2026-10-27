@@ -33,9 +33,10 @@ func Gen(ctx context.Context, pool *pgxpool.Pool, period string, b Bounds) error
 	}
 	var net, funding, earnBal, cumNav float64
 	var opened, closed, proposed, rejected, active, alerts, capital int
-	q(`SELECT COALESCE(sum(amount),0) FROM fin_cashflow WHERE occurred_at>=$1 AND occurred_at<$2`, &net, b.Start, b.End)
+	// T-0185 三类口径：净额=Σincome（transfer/adjustment 不入盈亏）
+	q(`SELECT COALESCE(sum(amount),0) FROM fin_cashflow WHERE class='income' AND occurred_at>=$1 AND occurred_at<$2`, &net, b.Start, b.End)
 	q(`SELECT COALESCE(sum(amount),0) FROM fin_cashflow WHERE kind='funding_settle' AND occurred_at>=$1 AND occurred_at<$2`, &funding, b.Start, b.End)
-	q(`SELECT COALESCE(sum(amount),0) FROM fin_cashflow`, &cumNav)
+	q(`SELECT COALESCE(sum(amount),0) FROM fin_cashflow WHERE class='income'`, &cumNav)
 	q(`SELECT COALESCE(sum(amount),0) FROM fin_holding WHERE kind LIKE 'earn%' AND stale=false`, &earnBal)
 	q1(`SELECT count(*) FROM fin_strategy WHERE entered_at>=$1 AND entered_at<$2`, &opened, b.Start, b.End)
 	q1(`SELECT count(*) FROM fin_position WHERE closed_at IS NOT NULL AND closed_at>=$1 AND closed_at<$2`, &closed, b.Start, b.End)

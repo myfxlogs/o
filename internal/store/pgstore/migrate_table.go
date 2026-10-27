@@ -81,6 +81,7 @@ var migrationTable = []struct {
 	{72, "fin_0072_condition_gap.sql"},
 	{73, "fin_0073_app_config_audit.sql"},
 	{74, "fin_0074_host_metrics_notify.sql"},
+	{75, "fin_0075_cashflow_kind_class.sql"},
 
 	// —— md 链（版本链内唯一且单调；md 链版本=历史号+1000 与 fin 键空间全局不相交——跨链并 schema 时 schema_migrations 零撞号，check_migrations 断言①⑤）——
 	{1003, "md_1003_market_facts.sql"},
