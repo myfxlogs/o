@@ -58,6 +58,11 @@ func Pool(t *testing.T) *pgxpool.Pool {
 	if _, err := pool.Exec(ctx, "CREATE SCHEMA IF NOT EXISTS "+schema); err != nil {
 		t.Fatalf("schema: %v", err)
 	}
-	t.Cleanup(pool.Close)
+	t.Cleanup(func() { // T-0186：schema GC——用后清（实例窒息根治）
+		ctx2, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		_, _ = pool.Exec(ctx2, "DROP SCHEMA IF EXISTS "+schema+" CASCADE")
+		pool.Close()
+	})
 	return pool
 }
