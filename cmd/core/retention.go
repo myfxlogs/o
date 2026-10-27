@@ -19,6 +19,7 @@ func startRetention(ctx context.Context, errc chan<- error, pool *pgxpool.Pool, 
 		errc <- err
 		return
 	}
+	go roster.BeatLoop(ctx, pool, "清道夫", 30*time.Second, errc) // T-0184：BeatLoop 补线——日拍照跑 beat 陈=活性台账假死同径根治
 	sw := retention.New(pool, func(ctx context.Context, msg string) {
 		if al != nil {
 			al.Alert(ctx, "retention_volume_alert", msg)
