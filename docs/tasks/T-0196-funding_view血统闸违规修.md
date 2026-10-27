@@ -1,0 +1,27 @@
+# T-0196 funding_view 血统闸违规修——T-0164 族唯一自盖章件
+
+> 状态：待施工
+> 域：信号口径/蒸馏 · 决策席直派
+
+## 病灶实证（决策席审计 2026-10-27）
+
+`internal/research/sigdist/run.go:136`——funding_view 写行 `ts=now()`
+自盖章（写拍时间），违 T-0164 血统闸「派生信号 ts=最旧上游观测」。
+全族对照：basis_ann/xvenue_spread/carry_diff/mt5_swap 皆 leastTs 正形，
+此件孤例——上游 md_funding 断流陈腐时，信号仍披鲜皮（陈≠不存在的
+语义被本件单独掏空）。
+
+## 施工面
+
+- funding_view 行 ts 改=上游观测龄——注意 `md_funding.ts`=结算拍（可
+  未来值，事件时非观测时），血统正解取源行 **recv_ts**（观测戳），
+  多源行取最旧（leastTs 同构）。
+- 定参：读面 query 里把参与行的 max/适用 recv_ts 聚合出血统戳；
+  若无可用源行（val 全缺）照现语义不产行。
+- 单测：构造 funding 行 recv_ts 陈旧 → 信号行 ts 随陈（非 now）。
+
+## 验收判据
+
+- funding_view 行 ts=参与源行 recv_ts 语义（非写拍 now）
+- 测试覆盖「上游陈→行 ts 陈」断言
+- ops 面 funding_view 鲜度仍可读（recv_ts 口径下鲜度=帧流活性真值）
