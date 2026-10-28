@@ -21,6 +21,7 @@ UNFMT=$(gofmt -l . 2>/dev/null || true)
 step "env-reads";   bash scripts/check-env-reads.sh             || fail "env 门禁红"
 step "rejects";     bash scripts/check_rejects_keys.sh          || fail "rejects 键红"
 step "migrations";  bash scripts/check_migrations.sh            || fail "迁移机检红"
+step "bridge-audit"; bash scripts/check_bridge_registry.sh         || fail "桥域对账闸红"
 step "go test 全谱"
 if [ -z "${O_TEST_PG_DSN:-}" ] &&
    docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^o-postgres-test$'; then

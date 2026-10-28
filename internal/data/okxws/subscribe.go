@@ -65,6 +65,9 @@ func subscribeAll(conn *websocket.Conn, args []map[string]string) error {
 // 真价唯一来源=本地 tickers WS 行——md_ticks 供 dcdPaperAccounting 记账价）；
 // uly 方言归一（OKX DCD uly=标的指数名 BTC-USD/BTC-USDG→现货对 BTC-USDT，
 // 与 research/dcd spot() 候选链同语义）。
+// T-0216 返修：basis 两族 paper/live 策略现货腿并入集（基差期货键剥 -YYMMDD
+// 尾→剥 -USD 尾→-USDT 现货对，同 dcd 归一链）——basisPaperAccounting 记账
+// 现货腿价源（期货腿价=md_mark_index mark-price 桥面行，不占本地订）。
 func (c *Collector) activeSet(ctx context.Context) (map[string]bool, error) {
 	// T-0187：fin_position 项删——PG-md 无此表（fin 域禁引；持仓标的
 	// 由 live/degraded 策略项覆盖=冗余项）。md 侧查询只许引 domain.tsv
@@ -74,7 +77,10 @@ func (c *Collector) activeSet(ctx context.Context) (map[string]bool, error) {
 		UNION SELECT inst_id FROM fin_strategy WHERE state IN ('live','degraded')
 		UNION SELECT regexp_replace(d.uly, '-USD(G)?$', '-USDT') FROM fin_strategy s
 			JOIN md_dcd_product d ON d.product_id=s.inst_id
-			WHERE s.state<>'retired' AND s.template_ref LIKE 'dcd%') t`)
+			WHERE s.state<>'retired' AND s.template_ref LIKE 'dcd%'
+		UNION SELECT regexp_replace(regexp_replace(s.inst_id,'-[0-9]{6}$',''),'-USD$','-USDT')
+			FROM fin_strategy s WHERE s.state IN ('paper','live','degraded')
+			AND s.template_ref IN ('quarter_basis_long','perp_quarter_spread')) t`)
 	if err != nil {
 		return nil, err
 	}

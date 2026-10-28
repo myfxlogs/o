@@ -5,7 +5,7 @@ services:
     image: o-collecto:BUILD_HASH # 构建时替换——禁 latest（实验分支不得漂移生产采集件）
     restart: unless-stopped
     environment:
-      SG_PG_DSN: postgres://collector_rw:${COLLECTOR_RW_PASS}@127.0.0.1:5433/o
-      # 隧道终点=dev 本地 5433→SG 127.0.0.1:5432（autossh -L；SG PG 端口
-      # 只绑 127.0.0.1 公网零暴露——deploy/o-collecto/tunnel.service 单元钉存）
+      SG_PG_DSN: postgres://o:${O_PASS}@127.0.0.1:5435/o
+      # T-0234 世系漂移修齐：SG_PG_DSN 名残=本机 PG-md 5435（md 正本面——
+      # T-0211 迁 OCI 后采集落本地库；SG fin 径归 projector/ROSTER 键）。
     network_mode: host

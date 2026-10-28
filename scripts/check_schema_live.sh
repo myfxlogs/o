@@ -109,5 +109,9 @@ while IFS= read -r line; do
 	done
 done < <(grep -hoE "CREATE (OR REPLACE )?TRIGGER [a-z_]+ ON [a-z_0-9]+ [^;]*" migrations/*.sql | sed -E 's/CREATE (OR REPLACE )?TRIGGER //' | sort -u)
 
-exit $fail
 
+
+# —— 桥域对账闸（T-0223 三列：授权/触发器存在性/模板漂移——哨兵径）
+bash "$(dirname "$0")/check_bridge_registry.sh" || fail=1
+
+exit $fail
