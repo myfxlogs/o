@@ -35,6 +35,9 @@ ssh -i ~/.ssh/id_ed25519 ubuntu@149.118.58.98
 | `o-projector.service` | **用户级**(ubuntu) | 投影臂 dualwrite——盒 PG-md →SG 八桥镜像 |
 | `o-research.service` | **用户级**(ubuntu) | 研究臂全族（funding/dcd/gapscan/grammar/假想官/review)——2026-10-28 自 dev 迁入，`~/o-research/` |
 | `o-sg-tunnel.service` | **系统级** | SSH 隧道 盒→SG（15433=PG-fin，8095=readcred） |
+| `o-backup-fin.timer` | **系统级** | PG-fin 经隧道备份落盒（03:20 UTC，T-0173 跨机跨域） |
+| `o-backup-md.timer` | **系统级** | PG-md dump+推 SG oci-inbox+配置 escrow（02:40 UTC，T-0234——SG 统推 R2 `oci/` 前缀） |
+| `o-sentinel.timer` | **系统级** | 拨测哨兵（*/5min，红灯落 /var/log/o-sentinel/alerts.log） |
 | `sing-box.service` | **系统级** | vless+reality 出口 :443（dev mihomo 上游） |
 | docker `o-postgres-md` | 容器 | PG-md(timescaledb:2.30.2-pg18 arm64，卷 `o-pgdata-md`，绑 127.0.0.1:5435) |
 
@@ -58,20 +61,24 @@ ssh -i ~/.ssh/id_ed25519 ubuntu@149.118.58.98
 |---|---|---|
 | 盒 SSH 钥对 | dev `~/.ssh/`(ed25519+rsa) | 重生+控制台重贴公钥 |
 | SG 隧道钥 | 盒 `~/.ssh/`（restrict+permitopen=15433/8095 无壳钥） | 重生+SG authorized_keys 重挂 |
-| Reality 私钥/uuid/short_id | 盒 `/etc/sing-box/config.json`（root 0600) | 盒上 `sing-box generate reality-keypair/uuid` 重生，dev mihomo 配置同步换 public-key/uuid |
+| 备份推送键 | 盒 `/root/.ssh/id_ed25519_backup_push`（SG 侧 restrict+internal-sftp 无壳收口——T-0234） | 重生+SG authorized_keys 重挂（bootstrap 打印收口行） |
+| Reality 私钥/uuid/short_id | 盒 `/etc/sing-box/config.json`（root 0600) | escrow 原配置回灌则零换；缺则盒上 `sing-box generate reality-keypair/uuid` 重生，dev mihomo 配置同步换 public-key/uuid |
 | 备份锚 | SG `root@192.229.85.35:/root/oci-secrets/` | 信托锚在 SG——凭据副本统一归此，永不落 dev/repo |
+| 配置 escrow | SG `/root/oci-secrets/escrow/`（o-md-escrow-*.tar.age 日推滚动 14 份——T-0234；age 私钥业主离线） | 业主解包→bootstrap `/root/bootstrap-env/` 值面供给 |
 | PG-md 口令 | 盒 `~/o-*.env` | 同 env 重建（migrate -domain=md 重灌） |
 | OKX 只读钥 | **不在盒**——venue 物料不出 SG(readcred 经 8095 取） | — |
 
 ## 重灌径（机器被回收/烧毁时）
 
+**一键径=T-0234**：`scripts/oci_bootstrap.sh`（新盒 root 跑，`DRY_RUN=1` 干跑可推演）——下述八步全部机内化，前置 scp 清单/escrow 值面供给见脚本文件头。手工径（理解用/兜底）：
+
 1. OCI 重开 ARM A1(SG West,Ubuntu 24.04)→贴 dev 公钥
 2. `apt install docker.io postgresql-client-16` + `usermod -aG docker ubuntu`
 3. 盒钥对生→SG authorized_keys 挂 restrict 钥→`o-sg-tunnel` 立起
-4. `o-postgres-md` 容器起→`migrate -domain=md`(PG_DSN=127.0.0.1:5435)
+4. `o-postgres-md` 容器起→`migrate -domain=md`(PG_DSN=127.0.0.1:5435)；有 escrow/dump 则末份 o-md dump restore 优先
 5. GOARCH=arm64 交叉编 collector/projector→部署+env+用户级 unit+linger
 6. app_config 灌 `okx.symbols=["*"]` 等键（源=dev 或 SG app_config 表）
-7. sing-box 重装+Reality 钥对重生+dev mihomo `oci-reality` 换参
+7. sing-box 重装+Reality 钥对重生+dev mihomo `oci-reality` 换参（escrow 配置在位则零换）
 8. OCI NSG+盒 iptables 双开 22/443
 
 ## 判读规则
