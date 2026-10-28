@@ -52,7 +52,10 @@ body {
   margin: 0;
   background: var(--page);
   color: var(--ink);
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* T-0221 业主令：Apple 系统字体栈——SF Pro 语系优先（macOS/iOS 原生渲染），
+     Inter/系统栈兜底；全站唯一 font-family 声明点，组件面禁散写。 */
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
+    "SF Pro", Inter, system-ui, "Segoe UI", sans-serif;
   font-size: 14px;
   line-height: 1.5;
 }

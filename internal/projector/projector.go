@@ -82,7 +82,7 @@ func New(md, sg *pgxpool.Pool, alert *notify.Alerter, mode string) (*Runner, err
 	for _, t := range regRev {
 		regRevSet[t] = true
 	}
-	for _, t := range []string{"fin_strategy", "fin_venue_untradeable"} {
+	for _, t := range []string{"fin_strategy", "fin_venue_untradeable", "md_earn_rate"} {
 		if !regRevSet[t] {
 			return nil, fmt.Errorf("域册 bridge-reverse 缺反向桥表 %s——册面先行", t)
 		}

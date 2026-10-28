@@ -38,7 +38,7 @@ fin_forward_check	md
 fin_template_proposal	md
 fin_guard_close	fin
 fin_holding	fin
-md_earn_rate	md
+md_earn_rate	bridge-reverse
 md_equity_curve	fin
 md_macro_event	bridge
 fin_report	fin

@@ -244,7 +244,7 @@ func (r *Runner) evalBasis(ctx context.Context, f Family) error {
 // unevaluable 真因行）。
 func (r *Runner) evalCarry(ctx context.Context, f Family) error {
 	var rates float64
-	err := r.pool.QueryRow(ctx, `SELECT count(*) FROM md_savings_rate
+	err := r.pool.QueryRow(ctx, `SELECT count(*) FROM md_earn_rate
 		WHERE ts>now()-interval '1 day'`).Scan(&rates)
 	if err != nil {
 		// 表缺=数据面未启——unevaluable 真因行（不虚构利率）。

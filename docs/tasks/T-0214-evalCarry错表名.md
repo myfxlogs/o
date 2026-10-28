@@ -28,3 +28,13 @@ worker 跑在 SG 写 SG 侧，OCI 盒无该数据（SG 侧 md_earn_rate 有行�
 - 桩测：md_earn_rate 有行→evalCarry 不再落 savings_rate_missing。
 - 生产：lending_spread/earn_term_spread eval 出现 rejected/proposed
   判词（非 unevaluable）。
+
+## 结果回填（钦定两修）
+
+- ①表名 md_savings_rate→md_earn_rate（md_1049 列对：venue+ccy+rate+ts
+  PK（venue,ccy）——查询计数径不动）。
+- ②数据径=乙案反向桥：md_earn_rate 入册 bridge-reverse（md_* 域反向桥
+  首例——TSV 白名单允，DDL 双链同形已在 md_1016/md_1049+fin_0049）；
+  reverseEarnRate 全表 diff 期界对账兜底（untradeable 同律——无事件帧
+  低频面）；New() 册面 fail-closed 注册含 md_earn_rate。
+- 桩锚：TestEvalCarryEarnRate（有行→不落 savings_rate_missing）绿。

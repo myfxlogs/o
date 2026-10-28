@@ -5,7 +5,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.core
-    image: o-core:latest
+    # T-0217/D-0035：镜像 tag 环境可覆写——deploy_image.sh 传 O_CORE_IMAGE=o-core:<sha12>
+    # 使容器 {{.Config.Image}} 自报源码 commit；缺省 latest 兼容本机 compose up。
+    image: ${O_CORE_IMAGE:-o-core:latest}
     container_name: o-core
     restart: unless-stopped
     # 资源封顶 + 健康检查（busybox wget 探活 RPC 端口）。

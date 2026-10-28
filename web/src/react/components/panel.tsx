@@ -40,6 +40,17 @@ export function ExchLogo(props: { ex: string }) {
         </svg>
       </span>
     );
+  if (props.ex === "评估队列")
+    return (
+      <span className="exch-logo" aria-hidden>
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
+          <path
+            d="M2 3h12l-4.5 5.5v3L6.5 13V8.5L2 3z"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </span>
+    );
   if (props.ex === "MT5")
     return (
       <span className="exch-logo" aria-hidden>

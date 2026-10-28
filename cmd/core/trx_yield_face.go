@@ -71,9 +71,16 @@ func (c coreService) GetTrxYieldCurve(ctx context.Context,
 	if err != nil {
 		return nil, err
 	}
+	// T-0192 业主令：价格只认 CMC 平台报价（跨所价替代=漂移风险）——
+	// TRXUSDT 行缺席→X-AFQUL 腿原生 mid 回退（对冲基线同源零漂移）。
 	var currentPrice float64
-	if mid, _, err := w.st.LastCMCPriceMidWithTime(ctx, "TRXUSDT"); err == nil {
+	if mid, _, err := w.st.LastCMCPriceMidWithTime(ctx, "TRXUSDT"); err == nil && mid > 0 {
 		currentPrice = mid
+	}
+	if currentPrice == 0 {
+		if mid, _, err := w.st.LastCMCPriceMidWithTime(ctx, "X-AFQUL"); err == nil && mid > 0 {
+			currentPrice = mid
+		}
 	}
 	const poolPrincipal = 36500.0
 	points := make([]*dashboardv1.TrxYieldCurvePoint, 0, len(ys))

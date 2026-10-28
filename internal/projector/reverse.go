@@ -9,12 +9,24 @@ import (
 	"context"
 	"fmt"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const qStrategyRev = `SELECT id,inst_id,template_ref,proposal_ref,state,notional_usd::text,
 	criteria::text,entered_at,created_at,venue,direction FROM fin_strategy`
 
 const qUntradeableRev = `SELECT inst_id,code,msg,first_rejected_at FROM fin_venue_untradeable`
+
+// T-0214：md_earn_rate 反向桥——SG earn 臂写的现率正本（fin 链副本）→盒
+// PG-md 评估面（evalCarry 读面——md_* 表域反向桥首例；PK venue+ccy 最新赢
+// upsert，与正向 D-0018 同构）。
+const qEarnRateRev = `SELECT venue,ccy,rate::text,ts FROM md_earn_rate`
+
+const uEarnRateMirror = `INSERT INTO md_earn_rate(ts,venue,ccy,rate)
+	VALUES($4::timestamptz,$1,$2,$3::numeric)
+	ON CONFLICT (venue,ccy) DO UPDATE SET ts=EXCLUDED.ts,rate=EXCLUDED.rate
+		WHERE md_earn_rate.ts < EXCLUDED.ts`
 
 // 副本落地面（md 侧 upsert——id/inst_id 键全列覆写，SG 正本赢）。
 const uStrategyMirror = `INSERT INTO fin_strategy(id,inst_id,template_ref,proposal_ref,state,
@@ -136,4 +148,45 @@ func (r *Runner) reverseUntradeable(ctx context.Context) error {
 		}
 	}
 	return batchExec(ctx, r.md, uUntradeableMirror, batch)
+}
+
+// reverseEarnRate Earn 现率正本→副本全表 diff（T-0214——低频小表，期界对账
+// 兜底足够；evalCarry 盒侧利率事实行自此非空集）。
+func (r *Runner) reverseEarnRate(ctx context.Context) error {
+	type row struct {
+		rate string
+		ts   time.Time
+	}
+	fetch := func(pool *pgxpool.Pool) (map[[2]string]row, error) {
+		rows, err := pool.Query(ctx, qEarnRateRev)
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+		out := map[[2]string]row{}
+		for rows.Next() {
+			var v, c string
+			var x row
+			if err := rows.Scan(&v, &c, &x.rate, &x.ts); err != nil {
+				return nil, err
+			}
+			out[[2]string{v, c}] = x
+		}
+		return out, rows.Err()
+	}
+	want, err := fetch(r.sg)
+	if err != nil {
+		return fmt.Errorf("earn_rate 正本读: %w", err)
+	}
+	have, err := fetch(r.md)
+	if err != nil {
+		return fmt.Errorf("earn_rate 副本读: %w", err)
+	}
+	var batch [][]any
+	for k, x := range want {
+		if h, ok := have[k]; !ok || h.rate != x.rate || !h.ts.Equal(x.ts) {
+			batch = append(batch, []any{k[0], k[1], x.rate, x.ts})
+		}
+	}
+	return batchExec(ctx, r.md, uEarnRateMirror, batch)
 }
