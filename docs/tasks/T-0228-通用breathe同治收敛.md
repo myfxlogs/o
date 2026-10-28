@@ -50,6 +50,6 @@ check_all 全链绿（build✓ vet✓ import✓ gofmt✓ env✓ rejects✓ migra
 
 ### 偏离说明
 
-1. **工作树基点=本地 master `890f6f6`，非票面钦定 `origin/master`**：master 与 origin/master 分叉（merge-base=784db1e；本地领先 4 commit 含 T-0224 处方与本票面；origin 领先 5 commit 纯决策面文档）。票面参考处方（L218-263）与票面本身只在本地 master——基 origin 建树则参考不存在、票面不存在。领单支已推远端=锁单有效；基点偏离连同本地 4 commit 由决策席验收合并时并账（master↔origin 分叉调和属决策席面）。
+1. **工作树基点=本地 master `890f6f6`，非票面钦定 `origin/master`**：领单时 master 与 origin/master 分叉（merge-base=784db1e；本地领先 4 commit 含 T-0224 处方与本票面；origin 领先 5 commit 纯决策面文档）——票面参考处方（L218-263）与票面本身只在本地 master，基 origin 建树则参考不存在。**决策席随后重铸 master 调和分叉（PR #17+T-0224 链重放，内容同 SHA 变）**；推支被 T-0219 闸红（同径票面内容异），按闸指引**合流 origin/master 归位**（本 merge commit）——基点偏离消解，票面基点复归钦定 `origin/master`。
 2. **息相帧补恒驻贴珠微光**（原息相=20-cards 硬化段三件栈、无外辉光）：票面锚 3 钦定「两帧 `0 0 2px 0.5px` 恒定弥散+filter 成对在册」——息相从无辉光到 47% 贴珠微光属钦定内语义，非超单。
 
