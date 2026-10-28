@@ -7,6 +7,9 @@
 #   check_ticket_numbers.sh --staged   # pre-commit 增量闸：staged 新增/拷贝/改名票
 #                                      # 逐号核对，同号已存即红报冲突件名（exit 1）；
 #                                      # 新立票过闸后附取号提示（本地视野≠远端为准）
+#   check_ticket_numbers.sh --remote   # pre-push 远端对账（T-0219）：fetch 后扫
+#                                      # origin/master:docs/tasks/——新立票号远端已存
+#                                      # 或 ≤远端最大号即硬红；fetch 败降级 WARN 不拦
 #
 # 计数源=git index（本 commit 落定后的全仓票面：staged 删票不计、staged 加票计），
 # 不取工作树 glob——后者会把 staged 删票误计入数。
@@ -48,6 +51,65 @@ if [ "${1:-}" = "--staged" ]; then
     | grep -oE 'T-[0-9]{4,}' | sed 's/^T-//' | sort -n | tail -1 || true)
   echo "NOTE(T-0163): 新立票过本地唯一闸；本地最大票号=T-$lmax。取号非必对（双席视野差=撞号根因）——push 前 git fetch origin 并核 origin/master:docs/tasks/ 有无同号/更高号（远端为准）。" >&2
   exit 0
+fi
+
+if [ "${1:-}" = "--remote" ]; then
+  # 远端对账模（T-0219——T-0217 撞实证：本地树陈时 --staged 只数 index 闸盲）。
+  # 新立票面=staged ACR ∪ 推送区间（merge-base(origin/master,HEAD)..HEAD）ACR。
+  # 判红三径：①远端同路径但内容异（同票分叉——先合流）②同号异名（真撞号）
+  # ③新号 ≤远端最大号（本地视野陈，重取=scripts/next_ticket.sh）——但同径
+  # 票面若在任一 origin 远端支已见=同票未并 master（T-0219 实证：决策支立票
+  # 候并期号序前进），降级 NOTE 放行不误伤。
+  if ! git fetch origin master --quiet 2>/dev/null; then
+    echo "WARN(T-0219): git fetch 败——远端对账降级放行（离线推送不受阻）" >&2
+    exit 0
+  fi
+  remote_files=$(git ls-tree -r --name-only origin/master -- docs/tasks/ 2>/dev/null || true)
+  remote_nums=$(printf '%s\n' "$remote_files" | grep -oE 'T-[0-9]{4,}' | sed 's/^T-//' | sort -n | uniq || true)
+  rmax=$(printf '%s\n' "$remote_nums" | tail -1)
+  mb=$(git merge-base origin/master HEAD 2>/dev/null || true)
+  new_paths=$( {
+    git -c core.quotepath=off diff --cached --name-status --diff-filter=ACR 2>/dev/null \
+      | awk -F'\t' '{print $NF}'
+    [ -n "$mb" ] && git -c core.quotepath=off diff --name-status --diff-filter=ACR "$mb" HEAD 2>/dev/null \
+      | awk -F'\t' '{print $NF}'
+  } | grep -E "$TICKET_RE" | sort -u || true)
+  if [ -z "$new_paths" ]; then
+    echo "OK(T-0219): 无新立票——远端对账免（远端最大号 T-${rmax:-?}）" >&2
+    exit 0
+  fi
+  status=0
+  while IFS= read -r p; do
+    [ -z "$p" ] && continue
+    n=$(printf '%s' "$p" | num_of)
+    if printf '%s\n' "$remote_files" | grep -qx "$p"; then
+      if git diff --quiet origin/master HEAD -- "$p" 2>/dev/null; then
+        echo "NOTE(T-0219): $p 远端同票同文——幂等放行" >&2
+      else
+        echo "FAIL(T-0219): $p 远端同号同径但内容异——同票分叉，先合流 origin/master 再推" >&2
+        status=1
+      fi
+    elif printf '%s\n' "$remote_nums" | grep -qx "$n"; then
+      echo "FAIL(T-0219): 票号 T-$n 远端已被他票占用（双席取号竞态——让号重编）:" >&2
+      printf '%s\n' "$remote_files" | grep "/T-$n-" | sed 's/^/  /' >&2
+      status=1
+    elif [ -n "$rmax" ] && [ "$((10#$n))" -le "$((10#$rmax))" ]; then
+      on_branch=0
+      while IFS= read -r ref; do
+        git cat-file -e "$ref:$p" 2>/dev/null && { on_branch=1; break; }
+      done <<< "$(git for-each-ref 'refs/remotes/origin/t/*' --format='%(refname)')"
+      if [ "$on_branch" = 1 ]; then
+        echo "NOTE(T-0219): $p 远端支面已见（同票候并 master——T-0219 实证形）放行" >&2
+      else
+        echo "FAIL(T-0219): 新立票号 T-$n ≤ 远端最大号 T-$rmax——本地视野陈，重取 scripts/next_ticket.sh" >&2
+        status=1
+      fi
+    fi
+  done <<< "$new_paths"
+  if [ "$status" -eq 0 ]; then
+    echo "OK(T-0219): 新立票号远端对账过（远端最大号 T-${rmax:-?}）" >&2
+  fi
+  exit "$status"
 fi
 
 # 无参：存量查重——exit 1=存在同号共存；存量处置归决策，本模式只出清单不拦入链
