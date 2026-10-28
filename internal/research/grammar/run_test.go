@@ -99,3 +99,42 @@ func TestProposedAprGate(t *testing.T) {
 		t.Fatalf("无 APR proposed 应降级 unevaluable+apr_est_missing: %v/%s", v, reason)
 	}
 }
+
+// T-0213 桩锚：evalBasis net_apr 补发——fut/spot 行齐+基差超阈→proposed
+// +evidence 带 net_apr；基差不足→rejected/basis_below_min。
+func TestEvalBasisNetApr(t *testing.T) {
+	ctx, r := setup(t)
+	// fut=105 spot=100 inst 尾 361231（≈3y 到期→年化小；大额基差补短窗造高
+	// APR：取 26-02-25 尾=~120d，基差 5%/120d×365≈15%APR 过阈）。
+	if _, err := r.pool.Exec(ctx, `INSERT INTO md_mark_index(ts,inst_id,channel,px) VALUES
+		(now(),'BTC-USD-270225','mark-price',105),
+		(now(),'BTC-USD','index-tickers',100),
+		(now(),'ETH-USD-270225','mark-price',101),
+		(now(),'ETH-USD','index-tickers',100)`); err != nil {
+		t.Fatal(err)
+	}
+	f := Family{Template: "basis_ann", Direction: "gap_carry", Kind: "basis"}
+	if err := r.evalBasis(ctx, f); err != nil {
+		t.Fatal(err)
+	}
+	var verdict string
+	var apr, basisPct float64
+	if err := r.pool.QueryRow(ctx, `SELECT verdict, (evidence->>'net_apr')::float8,
+		(evidence->>'basis_pct')::float8 FROM fin_opp_eval
+		WHERE inst_id='BTC-USD-270225' ORDER BY id DESC LIMIT 1`).Scan(&verdict, &apr, &basisPct); err != nil {
+		t.Fatal("proposed 行未落:", err)
+	}
+	if verdict != "proposed" || apr <= 0.05 {
+		t.Fatalf("大额基差短窗应 proposed 且 net_apr>5%%: %s apr=%v", verdict, apr)
+	}
+	var verdict2, reason2 string
+	var apr2 *float64
+	if err := r.pool.QueryRow(ctx, `SELECT verdict, evidence->>'reason',
+		(evidence->>'net_apr')::float8 FROM fin_opp_eval
+		WHERE inst_id='ETH-USD-270225' ORDER BY id DESC LIMIT 1`).Scan(&verdict2, &reason2, &apr2); err != nil {
+		t.Fatal("rejected 行未落:", err)
+	}
+	if verdict2 != "rejected" || reason2 != "basis_below_min" {
+		t.Fatalf("小基差应 rejected/basis_below_min: %s/%s", verdict2, reason2)
+	}
+}
