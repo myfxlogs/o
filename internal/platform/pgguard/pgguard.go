@@ -96,7 +96,8 @@ func (x *Sentinel) Check(ctx context.Context) {
 	rows, err := x.pool.Query(ctx, `SELECT pid, coalesce(application_name,''), left(query,60),
 		coalesce(wait_event,''), backend_start
 		FROM pg_stat_activity
-		WHERE backend_xmin IS NOT NULL AND xact_start < now()-interval '10 minutes'`)
+		WHERE backend_xmin IS NOT NULL AND xact_start < now()-interval '10 minutes'
+		  AND backend_type='client backend'`)
 	if err != nil {
 		log.Printf("[pgguard] xmin 哨兵读败（不判）: %v", err)
 		return

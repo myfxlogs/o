@@ -189,8 +189,8 @@ func (r *Runner) ScanOnce(ctx context.Context) error { return r.scan(ctx) }
 // 最近事件→evidence.macro（kind+date+days_out）；缺键/无事件=fail-open 不注解。
 func (r *Runner) annotateMacro(ctx context.Context, e *Eval) {
 	h, err := r.cfg.GetFloat("research.macro.horizon_days")
-	if err != nil {
-		return // 缺键 fail-open——此面非闸不注解
+	if err != nil || h <= 0 {
+		return // 缺键/horizon=0 fail-open——此面非闸不注解
 	}
 	var kind, title string
 	var d time.Time
