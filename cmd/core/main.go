@@ -95,7 +95,7 @@ func run() error {
 	// alerter 声明后置位——闭包延迟调 nil 安全）。
 	var meter *netmeter.Meter
 	var okcli *okxexec.Client
-	collector := okxws.NewCollector(pool, cfg)
+	collector := attachLocalWritePred(ctx, okxws.NewCollector(pool, cfg), pool)
 	collector.ExpandSymbols = universeExpander(func() *okxexec.Client { return okcli }, pool)
 	go collector.Run(ctx, errc)
 
