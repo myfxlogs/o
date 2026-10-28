@@ -236,3 +236,11 @@
 - md_macro_event：T-0165 返修 report 留 SG 使 D-0031 锚③「report 同迁」
   前提失效——裁 r3 先钉默认=投影第八桥表，T-0167 执行；D-0029 Ⅰ级
   report 同迁文字加修订注记；T-0165 返修支未合入前 T-0167 不派。
+
+## 2026-10-28 晚 — 决策席：部署树归位+撞号纠偏（devin）
+
+- **病灶**：/opt/o 部署树分叉（ahead 3/behind 9）+index 压一坨半成品 staging 解析——前席 claude-glm 落 c5d20eb（T-0173+T-0192 验收合并）未推即断，staging 把远端内容罩入但**误删 D-0035/T-0217**（SG 部署互斥决策档+施工票，另一席合法件），另留 T-0220 未跟踪。
+- **裁断**：T-0217 撞号归位——远端 T-0217（部署互斥）保留，本地 TRX feishu 票换号 **T-0220**（zcode-t0220 已领，t/0220 支在远端）。合并 125f42b（双父 c5d20eb+d0ba19b）：远端全量 + 本地独件两块（T-0192 CMC 价回退 trx_yield_face.go、T-0173 OCI 标签 System.tsx）+ T-0220 票（随支版含领取行）——已推 origin/master，check_all 全绿。
+- **业主令**：T-0214（evalCarry 错表名+md_earn_rate 反向桥，t/0214-earn-rate @707f764 已推）**验收归另一席，本席不触**。
+- 队列快照：T-0215（P1 volsell-executor）/T-0216（P2 basis-executor）已批待领；T-0220 施工中（zcode）；T-0174 zcode-glm 领于 10-27 支仅本地未推（锁未立）；T-0124 devin-t0124 领于 10-25（远端有支 t/0124-promote-template-gate）；T-0213 已并 PR#9 而 master 票面仍「待施工」未翻（归验收席带翻）。
+- 台账卫生（低优）：T-0053/0054/0059/0158/0167/0168 票面藏陈「待验」行（实已验收投产），grep 巡逻口径需以头表/尾注为准。
