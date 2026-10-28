@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | 待验 |
+| 状态 | ✅ 完成 |
 | 立项 | `[角色:决策]` @ 2026-10-28（设计档 `docs/handoff/T-0173-最优解设计修订.md` §一/§五；票面文件由施工席依决策席 dispatch+设计档原样物化——b46be9d 只落设计档未落票文件，来源留痕交验收核） |
 | 领取 | glm-t0220 @ 2026-10-28 13:01Z |
 | 优先级 | 高 |
@@ -40,3 +40,9 @@
 - 测试证据：`watch_payload_test.go` 三锚全绿（ev_position 载荷=最新 5 行闭仓倒序+total 反读同值；signal kinds=nil 纯信号；ev_hostmetrics 零行=显式空集）；`TestConnectEndToEndAndWatchLatency` 增载荷断言（ev_cashflow 帧必带 txs 数组）PASS（O_TEST_PG_DSN 5434 实测，`go test ./cmd/core/ -run TestWatchPayload`+过线桩锚均 ok）。
 - 偏离说明：①`EmitUnpopulated:true`——默认 protojson 省零值字段会让空响应载荷成 `{}`（前端零键可解），显式空集契约更稳；②fin_position 测试行需 execution 父行+notional_usd（迁移形演进，RETURNING id 回填不假设序列值）。
 - 坑处置：无坑。
+
+---
+
+## 验收注（`[角色:决策]` @ 2026-10-28，接管验收：原验收席 claude 卡住，业主令转本席；收口合并 `050b180`，实现件随 `26bf968` 在 master）
+
+**裁：验收通过，票翻完成。** 票面物化来源追认（b46be9d 只落设计档未落票文件，施工依设计档 §一~§五 原样物化=合规）；回填四件（实现摘要/测试证据/偏离/坑处置）详实；偏离在案均认可；测试证据与生产目检（业主实见新前端）互证。
