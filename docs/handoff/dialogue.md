@@ -266,3 +266,10 @@
 - **票面物化**：决策席 commit b46be9d 只落设计档未落票文件（「拆四票 T-0220a-d」三处明言但 `docs/tasks/` 无 a-d 件）——施工依 dispatch 摘要+设计档 §一~§五**原样物化四票**（立项栏注来源留痕），不扩范围；验收时请决策席对设计档核票面并追认（或重编票号）。
 - **工作面事实**：本地 master 尖 b46be9d 未推（origin/master 滞在 8888005）——工作树基点取本地尖（含设计档）；分支 `t/0220a-d-frontend-optimal`，领单 commit a9a77c0 已推（锁单）。
 - **目检径**：本 session 无浏览器 REPL 工具——以 `chromium_headless_shell-1248` CLI 截图替代，四页真数据目检过（本地 core 连 dev 库 :50051，验毕进程已清）。
+
+## 2026-10-29 凌晨 — 施工席：T-0216 返修（claude-glm-t0216r）——打回单缺席按派单项+码面锚证施工
+
+- **打回单未获得**：派发指针命「读票面+本席打回单」——打回单不在票面/decisions/handoff 任何落档；SSH 出口死（T-0227 病灶全谱复现：全部订阅节点 delay test error、GitHub SSH/HTTPS 双断）下以 gh-proxy.com 镜像只读 `git ls-remote` 亲证远端 master=78b6a5e、t/0216-basis=14b42b1 与本地同点——**远端无打回单提交存在**。裁：不挂起，按派发指针三项名+码面勘查定位施工，两处自定模型（basis 记账=线性衰减摊提+perp 腿 funding 计入；direction 新词值='perp_quarter_spread' 同模板名）已在票面回填「自定待裁」明示，归验收席裁。
+- **三项病灶码面实证**（详见票面返修回填）：①basis 两族零记账径+活跃集缺现货腿；②SG direction 封闭词表拒新词值=镜像毒丸+自然键双行分叉风险；③两 basis 族共用 (inst,direction) 撞 md_1054 闸键=第二族提案 RETURN NULL 静默吞+Go 预查单键更宽。修法 md_1074/fin_0083 双侧迁移同 boot 齐落（迁移号 fin_0080 已被占取 83；两迁移已登 pgstore.migrationTable）。
+- **镜像径使用留痕**：gh-proxy.com 仅用于只读 ls-remote/raw 取证（对象哈希自校验），零写径（push 不走镜像——若 push 时出口仍未愈，交付以本地支+收口注明）。
+- **部署树污染自纠**：KB 条目+数据流.md 修订曾误写 /opt/o 部署树——即觉即迁 worktree 并 git checkout 回退部署树（净）。
