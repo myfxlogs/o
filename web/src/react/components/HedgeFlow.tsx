@@ -3,8 +3,11 @@
 // card 壳+card-head+hedge-flow-filter 按钮组+rows hedge-flow-table resp+
 // data-label 六列+flowDirection→heat-pos/neg/neutral 三色+/-前缀+fmtNum/
 // fmtUsd 单位格式化+kindText/sourceText 中文映射逐字集+tbody 空态行。
+// T-0220b：默认视图（全部/页1）=ev_cashflow 推帧分片订阅（一跳零重拉）；
+// 筛选/翻页视图=信号重取（参数面非推送面——载荷只载默认视图粒度）。
 import { useCallback, useEffect, useState } from "react";
 import { client, errText } from "../api";
+import { hydrate, useSlice } from "../store";
 import { onData } from "../stream";
 import { fmtNum, fmtUsd } from "./fmt";
 import type { HedgeFlowItem } from "../../gen/dashboardv1/core_pb";
@@ -58,24 +61,37 @@ const flowDirection = (kind: string, source: string, amountValue: number): "inco
 };
 
 export function HedgeFlow() {
-  const [items, setItems] = useState<HedgeFlowItem[]>([]);
-  const [total, setTotal] = useState(0);
+  const [fetched, setFetched] = useState<HedgeFlowItem[]>([]);
+  const [fetchedTotal, setFetchedTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [src, setSrc] = useState("");
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
+  const live = useSlice("hedgeFlow");
+  const home = src === "" && page === 1; // 默认视图=推帧分片；筛选/翻页=信号重取
 
   const load = useCallback(async (source: string, pg: number) => {
     setLoading(true);
     try {
       const r = await client.listHedgeFlow({ sourceFilter: source, limit: PAGE, offset: (pg - 1) * PAGE });
-      setItems(r.txs); setTotal(Number(r.total)); setErr("");
+      setFetched(r.txs); setFetchedTotal(Number(r.total)); setErr("");
     } catch (e) { setErr(errText(e)); } finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { void load(src, page); }, [src, page, load]);
+  useEffect(() => {
+    if (home) hydrate("hedgeFlow", () => client.listHedgeFlow({ sourceFilter: "", limit: PAGE, offset: 0 }));
+  }, [home]);
+  useEffect(() => { if (!home) void load(src, page); }, [home, src, page, load]);
   useEffect(() => { setPage(1); }, [src]); // 切源回页1
-  useEffect(() => onData((v) => { const t = (v as { topic?: string } | undefined)?.topic; if (!t || t === "trx") void load(src, page); }), [src, page, load]);
+  useEffect(() => onData((v) => {
+    const t = (v as { topic?: string } | undefined)?.topic;
+    if ((!t || t === "trx") && !home) void load(src, page);
+  }), [src, page, load, home]);
+
+  const items = home ? live.data?.txs ?? [] : fetched;
+  const total = home ? Number(live.data?.total ?? 0) : fetchedTotal;
+  const viewErr = home ? live.err ?? "" : err;
+  const viewLoading = home ? live.loading : loading;
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE));
   const safePage = Math.min(page, totalPages);
@@ -95,7 +111,7 @@ export function HedgeFlow() {
         </div>
       </div>
 
-      {err && <div className="banner" role="alert"><span>{err}</span></div>}
+      {viewErr && <div className="banner" role="alert"><span>{viewErr}</span></div>}
 
       <div className="table-scroll scroll-cap">
         <table className="rows hedge-flow-table resp">
@@ -126,7 +142,7 @@ export function HedgeFlow() {
               );
             })}
             {items.length === 0 && (
-              <tr><td colSpan={6} className="empty">{loading ? "加载中…" : "暂无流水"}</td></tr>
+              <tr><td colSpan={6} className="empty">{viewLoading ? "加载中…" : "暂无流水"}</td></tr>
             )}
           </tbody>
         </table>
