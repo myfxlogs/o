@@ -1,6 +1,6 @@
 // TrxYieldRadar.tsx —— 收益率卡（arb 同名件借形，D-288 合并版式）：
-// 6 格 grid=能量 7d/30d+投票当前/30d+组合 7d/30d（后端算定直渲，样本不足
-// 标透传），敞口计量行=累积收益+对冲漂移。onData() topic=trx
+// 4 格 grid=能量 7d/30d+投票当前/30d（T-0220c：组合 7d/30d 上移核心指标条
+// 不双显；后端算定直渲，样本不足标透传）。onData() topic=trx
 // 流帧重取——arb 原型 30s interval 已退役同径。
 import { useCallback, useEffect, useState } from "react";
 import { client } from "../api";
@@ -60,7 +60,7 @@ export function TrxYieldRadar() {
         <Skeleton rows={4} />
       ) : (
         <>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px 16px", padding: "8px 0" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "8px 16px", padding: "8px 0" }}>
             <div>
               <div className="muted">能量 7d 年化</div>
               <div className={belowFloor ? "u-bad" : "u-good"} style={{ fontSize: "1.4em", fontWeight: 600 }}>
@@ -94,20 +94,7 @@ export function TrxYieldRadar() {
                 {radar.voteApr30dAvg > 0 ? fmtPct(radar.voteApr30dAvg) : "—"}
               </div>
             </div>
-            <div>
-              <div className="muted">组合 7d 年化</div>
-              <div className="u-good" style={{ fontSize: "1.4em", fontWeight: 600 }}>
-                {curve.annualized7d > 0 ? fmtPct(curve.annualized7d) : "—"}
-                {cold7d && <span className="muted" style={{ fontSize: "0.7em" }}> 样本不足({curve.sampleDays7d}d)</span>}
-              </div>
-            </div>
-            <div>
-              <div className="muted">组合 30d 年化</div>
-              <div className="u-good" style={{ fontSize: "1.4em", fontWeight: 600 }}>
-                {curve.annualized30d > 0 ? fmtPct(curve.annualized30d) : "—"}
-                {cold30d && <span className="muted" style={{ fontSize: "0.7em" }}> 样本不足({curve.sampleDays30d}d)</span>}
-              </div>
-            </div>
+            {/* 组合 7d/30d 年化上移核心指标条（T-0220c——此处不双显） */}
           </div>
           {/* 累积收益行撤（T-0173 业主⑳能减尽减）——全量明细=统一流水卡、
               全期累计=carry「累计」行，本行三记其一删 */}
