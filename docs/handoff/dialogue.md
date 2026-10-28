@@ -283,3 +283,4 @@
 - **补亲证**（§1.2 清零）：`research_rw` 实测 **36 表**写权（图面 18=低估）；projector 实况 `-mode=dualwrite` 双证；提案 `#405143` 落库 10min 桥不动、手推 NOTIFY 即通（漏帧实案）。
 - **票序定版**：T-0229 → T-0223（Phase 0/1 共同前置闸，扩 existence 列）→ T-0230 → T-0227 → T-0226 → T-0231（待终切三锚）→ T-0232 → T-0225；终切 serve=决策席直执行，不入施工队。
 - **坑归位**：NOTIFY 唤醒非队列+10min 夹逼=永久跳行 → 条目 `notify-wake-only-10min-pin-skips-rows` 同批入库（kbgen 已重建）。
+- **收口实况（同日续）**：出口已愈；对账闸实战拦停本地 T-0230 撞号（远端 Phase 票族 T-0230/0231/0232 先取）→ 让位重编 **T-0233** 推毕（D-0037+T-0233+T-0227 补证 @414251e）。软重置途中曾误删远端四票+回退终稿，**未出本机即恢复**（checkout origin/master 原样复原后重铸），教训：reset --soft 跨分叉基线后必须先核 diff --cached 全量再 add/commit，只 add 自家路径不够。CC 在途件载运支 `claude-glm/d0036-cc-inflight` @b1327d4 已推（基于 e95ec64 终稿**纯增 129 行**零删改，非前记 c89e691 原基——stash 三方合并自动落位终稿）；入列审定归终裁席。worktree 配供坑再显形一次（gen 件缺→provision_worktree.sh 补齐）。
