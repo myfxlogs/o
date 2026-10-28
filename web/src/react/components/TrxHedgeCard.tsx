@@ -37,11 +37,18 @@ export function TrxHedgeCard() {
 
   return (
     <section className="card">
-      <div className="card-head">
+      <div className="card-h">
         <h2>对冲结构</h2>
-        <span className="ws-dot-wrap" title={structure?.wsConnected ? "WS 在线" : "REST 兜底"}>
-          <span className={`ws-dot ${structure?.wsConnected ? "ws-dot-ok" : "ws-dot-warn"}`} />
-          <span className="muted">{structure?.wsConnected ? "WS 在线" : "REST 兜底"}</span>
+        <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6 }}
+          title={structure?.wsConnected ? "CMC WS 在线（LiveState 30s 新鲜度验证）" : "REST 兜底——CMC WS 断/陈"}>
+          <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: "50%",
+            background: structure?.wsConnected ? "var(--good)" : "var(--warn)",
+            animation: structure?.wsConnected ? "breatheCalm 2.4s ease-in-out infinite" : "none",
+            boxShadow: "0 0 0 1.5px color-mix(in srgb, var(--ink) 25%, transparent)",
+          }} />
+          <span style={{ fontSize: 12, color: "var(--ink-2)" }}>
+            {structure?.wsConnected ? "WS 在线" : "REST 兜底"}
+          </span>
         </span>
         {ready && structure!.platformAlertState && structure!.platformAlertState !== "normal" && (
           <span className="ws-dot-wrap" title={`平台预警: ${structure!.platformAlertState}`}>

@@ -155,6 +155,7 @@ func (r *Runner) projectProposalsByID(ctx context.Context, ids []int64) error {
 		return err
 	}
 	// eval 先行（SG fin_proposal.eval_id FK 引用序——同批内先 eval 后提案）。
+	var mdEval map[int64][3]string // md eval_id→自然键（T-0211 译码底稿）
 	if len(evalIDs) > 0 {
 		erows, err := r.md.Query(ctx, qEvalByID, evalIDs)
 		if err != nil {
@@ -164,8 +165,21 @@ func (r *Runner) projectProposalsByID(ctx context.Context, ids []int64) error {
 		if err != nil {
 			return err
 		}
+		mdEval = map[int64][3]string{}
+		for _, e := range ebatch {
+			mdEval[e[0].(int64)] = [3]string{e[2].(string), e[3].(string), e[4].(string)}
+		}
 		if err := batchExec(ctx, r.sg, uEval, ebatch); err != nil {
 			return fmt.Errorf("引用 eval 投影: %w", err)
+		}
+	}
+	// T-0211 eval_id 译码：md 发号≠SG 发号（同键异 id 镜像后 SG 行持自有 id）——
+	// 提案 eval_id 按 eval 自然键译 SG id（fin_0053 重指钦定径：提案行自带
+	// inst/direction/net_apr，eval 引用=溯源面非载荷）。
+	if len(mdEval) > 0 {
+		var err error
+		if batch, err = r.remapEvalIDs(ctx, mdEval, batch); err != nil {
+			return err
 		}
 	}
 	if err := batchExec(ctx, r.sg, uProposal, batch); err != nil {
