@@ -284,6 +284,11 @@ func TestConnectEndToEndAndWatchLatency(t *testing.T) {
 	if k := ev.Kind; k != "ev_cashflow" {
 		t.Fatalf("帧通道应 ev_cashflow: %s", k)
 	}
+	// T-0220a 一跳推数桩锚：NOTIFY 帧即带载荷（ListHedgeFlowResponse 形——
+	// txs 数组在，前端收帧即渲染零重拉）。
+	if ev.GetData() == nil || ev.GetData().AsMap()["txs"] == nil {
+		t.Fatalf("ev_cashflow 帧应带 data 载荷: %v", ev.GetData())
+	}
 	cancel()
 }
 
