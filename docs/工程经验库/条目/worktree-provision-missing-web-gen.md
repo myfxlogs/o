@@ -40,3 +40,5 @@ evidence_refs:
   首个领单 commit 即被拦，非推支时才爆）。
 
 > 相关条目：[`worktree-fe-rebuild-gen-gap`](worktree-fe-rebuild-gen-gap.md)——同根因的首次实证（T-0222 前端重建踩坑）；两条目待归纳合并，根定位以本条为准。
+
+> **根修在案**：T-0229（2026-10-28，业主直令抢修）——`provision_worktree.sh` 三处补 `web/src/gen`（need 检/快径拷/慢径 buf+终检），dist 快照语义注明（仅供闸/dev，生产唯一径=deploy_image.sh）。第四次显形=他席部署镜像混装（当前后端+陈旧前端），部署链病灶实证补记。
