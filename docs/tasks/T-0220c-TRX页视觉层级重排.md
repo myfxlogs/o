@@ -1,0 +1,43 @@
+# T-0220c TRX 页视觉层级重排——核心指标条+次级瓦片+明细层三档
+
+| 字段 | 值 |
+|---|---|
+| 状态 | 施工中 |
+| 立项 | `[角色:决策]` @ 2026-10-28（设计档 `docs/handoff/T-0173-最优解设计修订.md` §三/§五；票面文件由施工席依决策席 dispatch+设计档原样物化——b46be9d 只落设计档未落票文件，来源留痕交验收核） |
+| 领取 | glm-t0220 @ 2026-10-28 13:01Z |
+| 优先级 | 高 |
+| 涉及面 | `web/src/react/pages/Trx.tsx`、`web/src/react/components/TrxKpiStrip.tsx`（新件）、`TrxYieldRadar.tsx`（组合两格上移后瘦身）、`styles/20-cards.css`（KPI 条/明细层段） |
+
+## 背景
+
+现状四瓦片等宽等高：核心数字（年化/待领取/强平距离）与次要标签视觉权重相同。设计令三档层级：核心指标条（大数字优先）→次级瓦片→明细层。
+
+## 目标
+
+```
+核心指标条：组合 7d 年化 | 组合 30d 年化 | 待领取 | 强平距离（大数字 2em+呼吸灯+独占首行）
+次级瓦片：收益率雷达（能量 7d/30d+投票当前/30d 四格）‖ 对冲结构（双列并排）
+明细层：统一流水（全宽 13px）
+```
+
+## 验收标准
+
+- [ ] 核心指标条 4 KPI 卡独占首行：大数字 2em（tabular-nums）+呼吸灯伴随+卡背景微调（较常规卡加重一档）；窄屏回落 2×2
+- [ ] KPI 取值：组合 7d/30d=GetTrxYieldCurve annualized、待领取=GetTrxVoteStatus pendingTrx、强平距离=HedgeStructure legShort.distPct；挂载取数+trx 信号帧重取（径同现役卡）
+- [ ] 呼吸灯状态色零新前端判据：强平距离灯随服务端 platformAlertState（normal=绿呼吸/warn=黄/breach=红静止）；年化/待领取=正负号显色（现有 u-good 先例）
+- [ ] 收益率雷达瘦身为四格（组合两格上移 KPI 条，不双显）；对冲结构+雷达双列并排（.duo 先例）
+- [ ] 明细层统一流水全宽、表格字号 13px
+- [ ] `tsc --noEmit`+`vite build` 绿；四态目检（就绪/加载/空/错）过
+
+## 范围外
+
+数据面（T-0220a/b）；玻璃材质全局件（T-0220d——KPI 卡复用 .card 材质自动继承）；Overview/System/Review 页布局。
+
+## 参考
+
+- 设计档 §三（版式 ASCII+三档规则）；现状 `Trx.tsx`/`TrxYieldRadar.tsx`（6 格 grid+carry 行）/`TrxHedgeCard.tsx`/`HedgeFlow.tsx`
+- 呼吸灯语：`10-shell.css` breatheCalm（绿缓息/黄急促/红静止全站同款）
+
+## 结果回填
+
+（施工写）

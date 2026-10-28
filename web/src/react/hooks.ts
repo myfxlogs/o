@@ -1,22 +1,23 @@
-// hooks.ts —— 读面钩子（T-0170：快照抓取+Watch 主题局部失效+加载/错误态
-// 归一——原每组件手写 useEffect 样板收拢；诚实空态律=错误显形不假零）。
+// hooks.ts —— 信号重取钩（T-0220b：useSnap 退役——推帧面（统一流水默认视图/
+// 历史订单首页/主机资源）走 store 分片订阅（store.ts useSlice，一跳零重拉）；
+// 未载荷化聚合面（overview/health/reports/equity/cashflows）走本钩=抓一次+
+// topics 命中帧重取+key（请求参数指纹——参数变=重取）；诚实空态律=错误显形
+// 不假零）。
 import { useCallback, useEffect, useRef, useState } from "react";
 import { onData } from "./stream";
 
-export type Snap<T> = {
+export type Live<T> = {
   data: T | null;
   err: string | null;
   loading: boolean;
   reload: () => void;
 };
 
-// useSnap：抓一次 + 每逢 topics 命中的 Watch 帧重抓（topics 空=不订阅事件）
-// + key（请求参数指纹——参数变=重抓；漏传即「筛选/翻页失效」病灶）。
-export function useSnap<T>(
+export function useLive<T>(
   topics: string[],
   fetcher: () => Promise<T>,
   key?: unknown
-): Snap<T> {
+): Live<T> {
   const [data, setData] = useState<T | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
