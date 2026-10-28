@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"log"
 	"math"
+	"regexp"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -124,6 +125,9 @@ func (r *Runner) hypothesis(ctx context.Context, f Family) error {
 	return err
 }
 
+// datedFutRe 到期日尾判（-YYMMDD——T-0213 net_apr 年化径到期解析）。
+var datedFutRe = regexp.MustCompile(`^([A-Z0-9]+-[A-Z]+)-([0-9]{6})$`)
+
 // evaluate 三族通用评估器（carry/basis/vol-sell→fin_opp_eval——数据缺=
 // unevaluable/rejected 真因行，禁虚构评分）。
 func (r *Runner) evaluate(ctx context.Context, fams []Family) error {
@@ -204,13 +208,28 @@ func (r *Runner) evalBasis(ctx context.Context, f Family) error {
 			return err
 		}
 		found = true
+		// T-0213：net_apr=年化基差补发（basis_pct/距到期天数×365——到期日
+		// 解析自 inst_id -YYMMDD 尾；无到期日解析=不写 proposed——
+		// T-0205 硬闸对齐 funding-hedge 判据维钦定）。
+		m := datedFutRe.FindStringSubmatch(inst)
+		var netApr float64
+		days := 0.0
+		if len(m) == 3 {
+			if exp, perr := time.Parse("060102", m[2]); perr == nil {
+				days = time.Until(exp).Hours() / 24
+			}
+		}
 		basis := (fut - spot) / spot * 100 // 基差百分比
+		if days > 0 {
+			netApr = basis / days * 365 / 100 // 基差%→年化比率（小数口径同 net_apr 域）
+		}
 		verdict, reason := "rejected", "basis_below_min"
-		if math.Abs(basis) > 0.5 { // 基差阈 50bps 名义（成本模型保守锚）
+		if days > 0 && math.Abs(netApr) > 0.05 { // 年化 APR 阈（判据维对齐——非裸 basis_pct）
 			verdict, reason = "proposed", ""
 		}
 		if err := r.writeEval(ctx, inst, f.Template, f.Direction, verdict, reason,
-			map[string]any{"fut": fut, "spot": spot, "basis_pct": basis}); err != nil {
+			map[string]any{"fut": fut, "spot": spot, "basis_pct": basis,
+				"net_apr": netApr, "days_to_expiry": int(days)}); err != nil {
 			return err
 		}
 	}
