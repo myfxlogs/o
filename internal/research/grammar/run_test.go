@@ -78,8 +78,8 @@ func TestDisabledFaceNoFamily(t *testing.T) {
 		WHERE requirements->>'executor' IS NOT NULL`).Scan(&nH); err != nil {
 		t.Fatal(err)
 	}
-	if nH < 3 {
-		t.Fatalf("缺 executor 假想卡应 ≥3 族（lending/earn/quarter_basis/vol_sell）: %d", nH)
+	if nH < 2 {
+		t.Fatalf("缺 executor 假想卡应 ≥2 族（lending/earn——T-0215/0216 executor 落位后 vol_sell/quarter_basis 族不再产卡；basis_short 面关不枚举）: %d", nH)
 	}
 }
 

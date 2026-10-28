@@ -105,7 +105,9 @@ func (r *Runner) scan(ctx context.Context) error {
 // paperTemplates 有 paper 径的模板族白名单（T-0124 模板门闸——无 executor 的
 // 模板提案不晋升，留 fin_proposed 待 executor 票；扩张新族须在此登记）。
 var paperTemplates = map[string]bool{"funding-hedge": true, "dcd_call": true,
-	"vol_sell_strangle": true, "vol_sell_single_call": true} // T-0160：dcd_call 接 paper 径；T-0215：vol-sell 两族 paper 先行（宪章沙箱段）
+	"vol_sell_strangle": true, "vol_sell_single_call": true,
+	"quarter_basis_long": true, "perp_quarter_spread": true} // T-0160：dcd_call 接 paper 径；T-0215：vol-sell 两族+T-0216：basis 两族 paper 先行
+// （宪章沙箱段；quarter_basis_short=spot_short 腿缺 margin 能力面——不在白名单）
 
 // admitProposals 新提案开户（state=paper；criteria 快照入行——判据代次留痕；
 // 模板门闸：join fin_opp_eval 取模板，无 paper 径族拦下不建策略）。
