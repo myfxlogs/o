@@ -38,7 +38,7 @@ function HostTile(props: {
     <div className="hm-tile">
       <div className="hm-head">
         <StateDot state={hm.stale ? 2 : 0} breathe={!hm.stale} />
-        <b>{hm.host.toUpperCase()}</b>
+        <b>{hm.host === "dev" ? "OCI" : hm.host.toUpperCase()}</b>
         <span className="ink-3" style={{ fontSize: 12 }}>
           {hm.stale ? "拍断（>2min）" : d ? AGE(d) : ""}
           {hm.cores ? ` · ${hm.cores} 核` : ""}
