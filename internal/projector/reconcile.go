@@ -69,6 +69,9 @@ func (r *Runner) Reconcile(ctx context.Context, full bool) error {
 	if err := r.reverseUntradeable(ctx); err != nil {
 		return fmt.Errorf("反向桥 untradeable diff: %w", err)
 	}
+	if err := r.reverseEarnRate(ctx); err != nil {
+		return fmt.Errorf("反向桥 earn_rate diff: %w", err)
+	}
 	if err := r.replayTsTables(ctx, full); err != nil {
 		return err
 	}

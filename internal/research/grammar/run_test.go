@@ -138,3 +138,24 @@ func TestEvalBasisNetApr(t *testing.T) {
 		t.Fatalf("小基差应 rejected/basis_below_min: %s/%s", verdict2, reason2)
 	}
 }
+
+// T-0214 桩锚：md_earn_rate 有行→evalCarry 不落 savings_rate_missing。
+func TestEvalCarryEarnRate(t *testing.T) {
+	ctx, r := setup(t)
+	if _, err := r.pool.Exec(ctx, `INSERT INTO md_earn_rate(ts,venue,ccy,rate)
+		VALUES(now(),'okx','USDT',0.035)`); err != nil {
+		t.Fatal(err)
+	}
+	f := Family{Template: "lending_spread", Direction: "gap_carry", Kind: "carry"}
+	if err := r.evalCarry(ctx, f); err != nil {
+		t.Fatal(err)
+	}
+	var verdict, reason string
+	if err := r.pool.QueryRow(ctx, `SELECT verdict, evidence->>'reason' FROM fin_opp_eval
+		WHERE template='lending_spread' ORDER BY id DESC LIMIT 1`).Scan(&verdict, &reason); err != nil {
+		t.Fatal("eval 行未落:", err)
+	}
+	if verdict == "unevaluable" || reason == "savings_rate_missing" {
+		t.Fatalf("有行仍 missing: %s/%s", verdict, reason)
+	}
+}
