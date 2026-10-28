@@ -1,9 +1,16 @@
 name: ci
 on:
   push:
-    branches: ['**']   # 支推即跑 CI——check 绑 commit SHA，支绿后同 SHA ff 推 master 过服务端 required-check 闸
+    # T-0219：收窄 master——required-check「build-test」绑 PR head SHA 由
+    # pull_request 跑满足（gh api 实证 contexts=[build-test]），PR 流全覆盖；
+    # 全支推=与 PR 同步双跑白烧（病灶①）。master 直推径保留兜底。
+    branches: [master]
   pull_request:
     branches: [master]
+# T-0219：同支连推陈跑自取消（省 runner 分钟）；不同支/PR 各组互不挤。
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   build-test:
     runs-on: ubuntu-latest
@@ -32,6 +39,9 @@ jobs:
         if: hashFiles('go.mod') != ''
         with:
           go-version-file: go.mod
+          # T-0219：module+build 缓存（go.sum 锚自动）——go mod download/
+          # 冷编译每跑全量重付病灶砍；语义零变。
+          cache: true
       - uses: actions/setup-node@v4
         if: hashFiles('web/package.json') != ''
         with:

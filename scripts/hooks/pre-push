@@ -43,5 +43,11 @@ while read -r local_ref local_sha remote_ref remote_sha; do
     [ "$repo_root" = "/opt/o" ] || fail "master 只许从部署树 /opt/o 推（当前: $repo_root）"
 done
 
-echo "✓ [pre-push] 形闸+绿戳全过——推送放行"
+# C. 票号远端对账闸（T-0219——T-0217 撞实证：本地 index 视野陈时 --staged
+# 闸盲）。推送本要联网，脚本内 fetch 败降级 WARN 不拦——离线推送不受阻。
+if [ -x scripts/check_ticket_numbers.sh ]; then
+    scripts/check_ticket_numbers.sh --remote || fail "票号远端对账红——见上（重取 scripts/next_ticket.sh）"
+fi
+
+echo "✓ [pre-push] 形闸+绿戳+票号对账全过——推送放行"
 exit 0
