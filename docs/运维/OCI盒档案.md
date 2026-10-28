@@ -33,6 +33,7 @@ ssh -i ~/.ssh/id_ed25519 ubuntu@149.118.58.98
 |---|---|---|
 | `o-collecto.service` | **用户级**(ubuntu) | 采集+sigdist 蒸馏（OKX 全宇宙 WS+MT5 桥） |
 | `o-projector.service` | **用户级**(ubuntu) | 投影臂 dualwrite——盒 PG-md →SG 八桥镜像 |
+| `o-research.service` | **用户级**(ubuntu) | 研究臂全族（funding/dcd/gapscan/grammar/假想官/review)——2026-10-28 自 dev 迁入，`~/o-research/` |
 | `o-sg-tunnel.service` | **系统级** | SSH 隧道 盒→SG（15433=PG-fin，8095=readcred） |
 | `sing-box.service` | **系统级** | vless+reality 出口 :443（dev mihomo 上游） |
 | docker `o-postgres-md` | 容器 | PG-md(timescaledb:2.30.2-pg18 arm64，卷 `o-pgdata-md`，绑 127.0.0.1:5435) |
