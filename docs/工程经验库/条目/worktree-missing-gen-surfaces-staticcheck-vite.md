@@ -8,7 +8,7 @@ keywords: [worktree, buf generate, internal/gen, web/src/gen, staticcheck, vite,
 scope: [worktree, pre-commit, go build, web, codegen]
 summary: 新 worktree 缺 gitignored 双 gen 面（internal/gen+web/src/gen）→ pre-commit staticcheck 报「package o/internal/gen/... is not in std (compile)」、npm run build 报「Could not resolve ./gen/dashboardv1/core_pb」；处置=buf generate（正典）或部署树 cp（master 对齐时等价）
 first_seen: 2026-10-26
-last_verified: 2026-10-26
+last_verified: 2026-10-28
 skills: []
 evidence_refs:
   - type: provenance
@@ -38,3 +38,6 @@ evidence_refs:
 
 - 仅新 worktree 首次构建/提交前适用；部署树 gen 面常在（部署链自产）
 - cp 法前提=部署树与 worktree 同源 master（proto 未漂）；漂了就走 buf generate
+- T-0218 实证补：`scripts/provision_worktree.sh` 只补 internal/gen+web/dist
+  两槽——web/src/gen 不在其补面，前端施工票须另行 cp 或 buf generate
+  （脚本扩槽属另单面）
