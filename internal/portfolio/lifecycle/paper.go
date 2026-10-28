@@ -3,6 +3,7 @@ package lifecycle
 import (
 	"context"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -149,9 +150,12 @@ func ftoa(f float64) string {
 // 缺省 120s，陈=fill 让位 fail-closed 不记账）。活跃集订阅面含 dcd 现货腿
 // （subscribe.go activeSet——SG 本地 tickers 供价，T-0171 裁本地订阅径）。
 func (r *Runner) dcdPaperAccounting(ctx context.Context) error {
+	// T-0215：vol-sell 两族同径记账——single_call 单腿键；strangle 复合键
+	// 「Cprod+Pprod」拆双腿各摊半名义（构型=双边权利金等权名义合并收割）。
 	rows, err := r.pool.Query(ctx, `SELECT s.id, s.inst_id, s.notional_usd,
 		COALESCE((SELECT max(ts) FROM fin_paper_fill f WHERE f.strategy_id=s.id), s.entered_at)
-		FROM fin_strategy s WHERE s.state='paper' AND s.template_ref='dcd_call'`)
+		FROM fin_strategy s WHERE s.state='paper' AND s.template_ref IN
+		('dcd_call','vol_sell_single_call','vol_sell_strangle')`)
 	if err != nil {
 		return err
 	}
@@ -176,24 +180,39 @@ func (r *Runner) dcdPaperAccounting(ctx context.Context) error {
 		maxAge = v
 	}
 	for _, x := range sts {
-		var apr float64
-		var expiry time.Time
-		var uly string
-		err := r.pool.QueryRow(ctx, `SELECT COALESCE(annualized_yield,0),expiry,uly FROM md_dcd_product
-			WHERE product_id=$1 ORDER BY ts DESC LIMIT 1`, x.inst).Scan(&apr, &expiry, &uly)
-		if err != nil || apr <= 0 {
-			r.rej.Inc("dcd_quote_missing")
-			continue // quote 面缺=fail-closed 不造零 fill
+		// T-0215：strangle 复合键拆双腿——各腿 APR×半名义各自摊，任一腿
+		// quote 缺/到期=该腿跳记不虚构（fail-closed 同单腿径）。
+		var aprs, ulys []struct {
+			apr float64
+			exp time.Time
+			uly string
 		}
-		if time.Now().After(expiry) {
-			continue // 到期=终局由 settle 径（实战归 bills 160-163；paper 期满即收）
+		legOK := true
+		for _, pid := range strings.Split(x.inst, "+") {
+			var a struct {
+				apr float64
+				exp time.Time
+				uly string
+			}
+			err := r.pool.QueryRow(ctx, `SELECT COALESCE(annualized_yield,0),expiry,uly FROM md_dcd_product
+				WHERE product_id=$1 ORDER BY ts DESC LIMIT 1`, pid).Scan(&a.apr, &a.exp, &a.uly)
+			if err != nil || a.apr <= 0 || time.Now().After(a.exp) {
+				r.rej.Inc("dcd_quote_missing")
+				legOK = false // quote 面缺/到期=fail-closed 不造零 fill
+				break
+			}
+			aprs = append(aprs, a)
+			ulys = append(ulys, a)
+		}
+		if !legOK {
+			continue
 		}
 		// 现货腿现价=md_ticks WS 行；uly 方言归一（BTC-USD/USDG→BTC-USDT，
 		// 表达式与 subscribe.go activeSet 同源）。
 		var spot float64
 		var tickTs time.Time
 		err = r.pool.QueryRow(ctx, `SELECT last,ts FROM md_ticks
-			WHERE inst_id=regexp_replace($1,'-USD(G)?$','-USDT')`, uly).Scan(&spot, &tickTs)
+			WHERE inst_id=regexp_replace($1,'-USD(G)?$','-USDT')`, ulys[0].uly).Scan(&spot, &tickTs)
 		if err != nil || spot <= 0 || time.Since(tickTs) > time.Duration(maxAge*float64(time.Second)) {
 			r.rej.Inc("dcd_spot_stale")
 			continue // 现货腿价缺/陈=事实缺 fail-closed 让位不造 fill（T-0171）
@@ -202,10 +221,14 @@ func (r *Runner) dcdPaperAccounting(ctx context.Context) error {
 		if days < 1.0 {
 			continue
 		}
+		var amt float64
+		for _, a := range aprs {
+			amt += a.apr * days / 365 * x.notional / float64(len(aprs))
+		}
 		if _, err := r.pool.Exec(ctx, `INSERT INTO fin_paper_fill(strategy_id,kind,inst_id,amount_usd,detail,ts)
 			VALUES($1,'funding',$2,$3,$4,now())`,
-			x.id, x.inst, x.notional*apr*days/365,
-			[]byte(`{"apr":`+ftoa(apr)+`,"spot":`+ftoa(spot)+`}`)); err != nil {
+			x.id, x.inst, amt,
+			[]byte(`{"apr":`+ftoa(aprs[0].apr)+`,"spot":`+ftoa(spot)+`}`)); err != nil {
 			return err
 		}
 	}
