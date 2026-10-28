@@ -5,6 +5,8 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 
 	"o/internal/gen/dashboardv1"
@@ -41,8 +43,8 @@ func TestSystemHealthStates(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(r.Components) != 14 { // T-0171 撤 spotpoll REST 两面——16→14
-		t.Fatalf("组件全集应 14 件: %d", len(r.Components))
+	if len(r.Components) != 18 { // T-0171 撤 spotpoll REST 两面 16→14；T-0218 评估与队列四行 14→18
+		t.Fatalf("组件全集应 18 件: %d", len(r.Components))
 	}
 	byName := map[string]*dashboardv1.SystemComponent{}
 	for _, comp := range r.Components {
@@ -191,6 +193,66 @@ func TestListCashflowsVenue(t *testing.T) {
 	}
 	if r.Total != 1 || len(r.Rows) != 1 || r.Rows[0].Venue != "mt5" {
 		t.Fatalf("mt5+interest 应恰 1 行: %+v", r)
+	}
+}
+
+// 锚⑧：评估与队列四行——unevaluable 占比超阈红/armed 超龄红/审批积压黄/
+// 候选模板灰显注（T-0218 语义哨兵——判词面非鲜度面）。
+func TestEvalQueueRows(t *testing.T) {
+	c := opsSetup(t)
+	ctx := context.Background()
+	// eval：1 proposed + 1 rejected + 7 unevaluable = 7/9≈77.8%>75%→红
+	for i, v := range []string{"proposed", "rejected", "unevaluable", "unevaluable",
+		"unevaluable", "unevaluable", "unevaluable", "unevaluable", "unevaluable"} {
+		if _, err := c.pool.Exec(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,verdict,legs,evidence)
+			VALUES ($1,'funding-hedge','short_perp_long_spot',$2,'[]','{"reason":"product_rows_missing"}')`,
+			fmt.Sprintf("T%d-USDT-SWAP", i), v); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// proposal：eval 行供 FK；armed 30h 陈→红
+	var evalID int64
+	if err := c.pool.QueryRow(ctx, `SELECT id FROM fin_opp_eval LIMIT 1`).Scan(&evalID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.pool.Exec(ctx, `INSERT INTO fin_proposal(eval_id,inst_id,direction,net_apr,state,created_at)
+		VALUES ($1,'T0-USDT-SWAP','short_perp_long_spot',10,'fin_armed',now()-interval '30 hours')`, evalID); err != nil {
+		t.Fatal(err)
+	}
+	// hypothesis：proposed 10 天陈→黄
+	if _, err := c.pool.Exec(ctx, `INSERT INTO fin_opp_hypothesis(venue,surface,family,state,ts)
+		VALUES ('okx','lending','lending_spread','proposed',now()-interval '10 days')`); err != nil {
+		t.Fatal(err)
+	}
+	// template：1 enabled + 1 candidate（名册灰显注）
+	if _, err := c.pool.Exec(ctx, `INSERT INTO fin_opp_template(template,venue,enabled)
+		VALUES ('test-cand','okx',false)`); err != nil {
+		t.Fatal(err)
+	}
+	r, err := c.GetSystemHealth(ctx, &dashboardv1.GetSystemHealthRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	byName := map[string]*dashboardv1.SystemComponent{}
+	for _, comp := range r.Components {
+		byName[comp.Component] = comp
+	}
+	v := byName["评估判词分布"]
+	if v == nil || v.State != 2 || !strings.Contains(v.Note, "unevaluable 7") ||
+		!strings.Contains(v.Note, "product_rows_missing×7") || v.Host != "sg" || v.Cat != "ops" {
+		t.Fatalf("判词分布行不对: %+v", v)
+	}
+	f := byName["提案状态漏斗"]
+	if f == nil || f.State != 2 || !strings.Contains(f.Note, "armed 1") {
+		t.Fatalf("漏斗行不对: %+v", f)
+	}
+	h := byName["假想卡审批队列"]
+	if h == nil || h.State != 1 || !strings.Contains(h.Note, "proposed 1") {
+		t.Fatalf("审批队列行不对: %+v", h)
+	}
+	tr := byName["机会模板名册"]
+	if tr == nil || tr.State != 0 || !strings.Contains(tr.Note, "test-cand:okx") {
+		t.Fatalf("模板名册行不对: %+v", tr)
 	}
 }
 

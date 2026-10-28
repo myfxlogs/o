@@ -121,6 +121,9 @@ func (c coreService) GetSystemHealth(ctx context.Context,
 		}
 		r.Components = append(r.Components, comp)
 	}
+	// T-0218：「评估与队列」语义哨兵四行（鲜度环外的判词/积压/名册面——
+	// 管「判词说什么」非「数据来没来」；host=sg cat=ops 钦定）。
+	r.Components = append(r.Components, c.evalQueueRows(ctx)...)
 	if c.md != nil {
 		r.Frames = c.md.frames()
 		r.Rejects = map[string]int64{}
