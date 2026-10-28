@@ -370,20 +370,55 @@ table.rows th {
 }
 
 /* —— T-0173 业主纠：chip 内状态灯回归三色（旧 .chip .dot 灰底同特异性
-   后到盖绿——高特异性覆写，颜色区分恢复；尺寸随 chips 放大）—— */
+   后到盖绿——高特异性覆写，颜色区分恢复）。
+   T-0222 同调：平涂→立体珠体（配方 canon=10-shell `.dot.sN` 双层径向，
+   两处同步改）、11→9px 席位灯档同降；s2 死灯认尸环（业主①）保留。 —— */
 .chip .dot.s0 {
-  background: var(--good);
-  width: 11px;
-  height: 11px;
+  background:
+    radial-gradient(
+      circle at 30% 26%,
+      rgba(255, 255, 255, 0.92) 0%,
+      rgba(255, 255, 255, 0) 34%
+    ),
+    radial-gradient(
+      circle at 34% 30%,
+      color-mix(in srgb, var(--good) 45%, #ffffff) 0%,
+      var(--good) 50%,
+      color-mix(in srgb, var(--good) 52%, #000000) 100%
+    );
+  width: 9px;
+  height: 9px;
 }
 .chip .dot.s1 {
-  background: var(--warn);
-  width: 11px;
-  height: 11px;
+  background:
+    radial-gradient(
+      circle at 30% 26%,
+      rgba(255, 255, 255, 0.92) 0%,
+      rgba(255, 255, 255, 0) 34%
+    ),
+    radial-gradient(
+      circle at 34% 30%,
+      color-mix(in srgb, var(--warn) 45%, #ffffff) 0%,
+      var(--warn) 50%,
+      color-mix(in srgb, var(--warn) 52%, #000000) 100%
+    );
+  width: 9px;
+  height: 9px;
 }
 .chip .dot.s2 {
-  background: var(--critical);
+  background:
+    radial-gradient(
+      circle at 30% 26%,
+      rgba(255, 255, 255, 0.92) 0%,
+      rgba(255, 255, 255, 0) 34%
+    ),
+    radial-gradient(
+      circle at 34% 30%,
+      color-mix(in srgb, var(--critical) 45%, #ffffff) 0%,
+      var(--critical) 50%,
+      color-mix(in srgb, var(--critical) 52%, #000000) 100%
+    );
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--critical) 22%, transparent);
-  width: 11px;
-  height: 11px;
+  width: 9px;
+  height: 9px;
 }
