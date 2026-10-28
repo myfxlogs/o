@@ -26,7 +26,10 @@ if [ -z "${O_TEST_PG_DSN:-}" ] &&
    docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^o-postgres-test$'; then
   export O_TEST_PG_DSN="postgres://o:o@localhost:5434/o_test?sslmode=disable"
 fi
-go test ./... -count=1 -timeout=1800s                           || fail "go test 红"
+# T-0212：去 -count=1 放行 Go 测试缓存——同 tree 复测近零本（业主令：全量
+# uncached 25-40min/次太贵）。缓存键=文件+依赖指纹非 git 态——外部依赖型
+# （真实 PG/venue）陈判窗口钦定放行（CI 服务端仍全谱 uncached 兜真伪）。
+go test ./... -timeout=1800s                                  || fail "go test 红"
 
 date -Is > "$STAMP"
 echo "✅ [check-all] 全链绿——戳落 $STAMP" >&2

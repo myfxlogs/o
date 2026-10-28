@@ -50,3 +50,41 @@ SG 存旧 id 行，批插触发自然键唯一违例，`Reconcile` 整体失败�
 
 - 系统页采集健康板处置文案仍写「查 dev collector」——迁移后宿
   主名陈（前端/健康检查文案面，同 commit 更新）
+
+## 施工回填（@分支 t/0211-ueval-natkey）
+
+**择案=甲**（自然键 upsert+eval_id 映射层）——票内推荐向，正解在「eval
+语义=每键最新态，id 仅发号」；乙案仍留「迁一次救一次」复犯窗。
+
+### 落件
+
+1. `uEval`（mirror.go）：`ON CONFLICT(id)` →
+   `ON CONFLICT (inst_id,template,direction) DO UPDATE ... WHERE
+   EXCLUDED.ts>ts`（ts 单调语义原位不动；键列组自 SET 清单摘——同值
+   无改写义）。`pick` CTE 兜 PK 防撞：md id 被 SG 异键行占用（重灌
+   序列回掷场景）→`max(id)+1` 另发号——不用 nextval：projector_rw
+   无序列 USAGE 位，且投影臂=SG eval 唯一写方，单写者下 max+1 无竞争。
+2. `remapEvalIDs`（ops.go）：提案批 eval_id 译码——eval upsert 后按
+   自然键回查 SG id 覆写提案批（unnest 三列键联查）。键缺席=源侧
+   eval 已删异常→该提案跳过+WARN（SG 无行=下轮 id 集差自重试，
+   不毒化整批管）。fin_0053 重指钦定径沿用：提案行自带
+   inst/direction/net_apr，eval 引用=溯源面非载荷。
+3. 健康板（ops_face.go）：host `dev`→`oci` 十行+处置文案换
+   `o-collecto`/OCI 盒径（采集/蒸馏/MT5桥全迁毕的宿主名对齐）。
+4. `docs/数据流.md`：eval 镜像键=自然键+eval_id 译码+序列守卫
+   现态（撞平自抬 T-0195 形）同步。
+
+### 桩测锚（projector_test.go 三枚，全绿）
+
+- `TestEvalNaturalKeyCrossWriter`：md 同键异 id+提案引用→SG 行持
+  自有 id 按 ts 新鲜赢、提案 eval_id 译 SG 发号、重演幂等
+- `TestEvalPKCollisionSeqRewind`：md id 撞 SG 异键行→另发号落行、
+  异键行不覆写、提案指另发号行
+- `TestEvalTsNewerWins`：同键异 id 陈帧不覆鲜行
+
+### 注记
+
+- 生产实证已两役（dev→OCI 迁期 10 行+研究臂产出期 509 行同键异
+  id——手工 id 归位各救一次）；本票落地后同类迁徙=零人工。
+- `fin_opp_eval_id_seq`（SG）无消费方——eval 全由显式 id/兜底
+  max+1 落，序列自抬面留 md 侧（T-0195 原位）。

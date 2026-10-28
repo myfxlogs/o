@@ -113,10 +113,19 @@ const uProposal = `INSERT INTO fin_proposal(id,eval_id,inst_id,direction,net_apr
 
 // 前向无 state 列组（D-0030 写权矩阵——lifecycle 唯一写方；不写=不触发 SG ev_proposal_sg，零回环）。
 
-const uEval = `INSERT INTO fin_opp_eval(id,ts,inst_id,template,direction,gross_apr,net_apr,verdict,legs,evidence)
-	VALUES($1,$2::timestamptz,$3,$4,$5,$6::numeric,$7::numeric,$8,$9::jsonb,$10::jsonb)
-	ON CONFLICT (id) DO UPDATE SET ts=EXCLUDED.ts,inst_id=EXCLUDED.inst_id,template=EXCLUDED.template,
-		direction=EXCLUDED.direction,gross_apr=EXCLUDED.gross_apr,net_apr=EXCLUDED.net_apr,
+// T-0211：fin_opp_eval=自然键状态表（UNIQUE=inst_id,template,direction）——
+// 冲突判改自然键（原 ON CONFLICT(id) 跨写者同键异 id 必撞=宿主迁移崩环实案）。
+// pick CTE 兜 PK 防撞：md id 被 SG 异键行占用（重灌序列回掷场景）→max(id)+1
+// 另发号（不用 nextval——projector_rw 无序列 USAGE 位；投影臂=SG eval 唯一
+// 写方，单写者下 max+1 无竞争）；同键占用/空位仍携 md id 落。
+const uEval = `WITH pick AS (
+	SELECT CASE WHEN EXISTS(SELECT 1 FROM fin_opp_eval x WHERE x.id=$1
+		AND (x.inst_id,x.template,x.direction) IS DISTINCT FROM ($3,$4,$5))
+		THEN (SELECT COALESCE(max(id),0)+1 FROM fin_opp_eval) ELSE $1 END AS id)
+	INSERT INTO fin_opp_eval(id,ts,inst_id,template,direction,gross_apr,net_apr,verdict,legs,evidence)
+	SELECT pick.id,$2::timestamptz,$3,$4,$5,$6::numeric,$7::numeric,$8,$9::jsonb,$10::jsonb FROM pick
+	ON CONFLICT (inst_id,template,direction) DO UPDATE SET ts=EXCLUDED.ts,
+		gross_apr=EXCLUDED.gross_apr,net_apr=EXCLUDED.net_apr,
 		verdict=EXCLUDED.verdict,legs=EXCLUDED.legs,evidence=EXCLUDED.evidence
 	WHERE EXCLUDED.ts > fin_opp_eval.ts`
 
