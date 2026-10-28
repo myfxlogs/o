@@ -741,3 +741,53 @@ func TestLegGrossQuoteBuyFillAmt(t *testing.T) {
 		t.Fatalf("gross_fallback 未计: %v", r.rej.Snapshot())
 	}
 }
+
+// 锚：basis 双腿构（T-0216）——fut 腿 sell=到期日期货张数径、spot 多头腿
+// quote_ccy 实名义对齐（futUSD 反推同 T-0062 律）；perp 多头腿=张数径。
+func TestBuildBasisLegs(t *testing.T) {
+	pool := testutil.Pool(t)
+	ctx := context.Background()
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO md_ticks(ts,inst_id,last) VALUES
+		(now(),'BTC-USDT',90000),(now(),'BTC-USDT-SWAP',80950),(now(),'BTC-USDT-251226',83000)`); err != nil {
+		t.Fatal(err)
+	}
+	load := func(ctx context.Context, iid string) (InstMeta, error) {
+		switch iid {
+		case "BTC-USDT-251226":
+			return InstMeta{CtVal: 0.01, CtValCcy: "USD", LotSz: 1, MinSz: 1}, nil
+		case "BTC-USDT-SWAP":
+			return InstMeta{CtVal: 0.01, CtValCcy: "BTC", LotSz: 0.01, MinSz: 0.01}, nil
+		}
+		return InstMeta{MinSz: 0.0001, LotSz: 0.0001}, nil
+	}
+	// quarter_basis_long：fut sell + spot buy（quote_ccy 口径）
+	legs, err := BuildBasisLegs(ctx, pool, load, "okx", "BTC-USDT-251226", "BTC-USDT", true, 2000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if legs[0].InstID != "BTC-USDT-251226" || legs[0].Side != "sell" {
+		t.Fatalf("fut 腿形错: %+v", legs[0])
+	}
+	// USD 面值 ctVal=0.01：1000/0.01=100000 张——远超 minSz，futUSD=100000×0.01=$1000
+	if legs[0].Sz != "100000" {
+		t.Fatalf("fut 张数应 100000: %s", legs[0].Sz)
+	}
+	if !legs[1].TgtQuote || legs[1].InstID != "BTC-USDT" || legs[1].Side != "buy" {
+		t.Fatalf("spot 腿形错: %+v", legs[1])
+	}
+	if legs[1].Sz != "1000" {
+		t.Fatalf("spot 腿应=futUSD $1000: %s", legs[1].Sz)
+	}
+	// perp_quarter_spread：fut sell + perp buy（币本位张数径）
+	legs2, err := BuildBasisLegs(ctx, pool, load, "okx", "BTC-USDT-251226", "BTC-USDT-SWAP", false, 2000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// perp 多腿=$1000/(0.01×80950)=1.235→floor 1.23 张
+	if legs2[1].InstID != "BTC-USDT-SWAP" || legs2[1].Sz != "1.23" {
+		t.Fatalf("perp 多腿应 1.23 张: %+v", legs2[1])
+	}
+}
