@@ -267,6 +267,7 @@
 - **工作面事实**：本地 master 尖 b46be9d 未推（origin/master 滞在 8888005）——工作树基点取本地尖（含设计档）；分支 `t/0220a-d-frontend-optimal`，领单 commit a9a77c0 已推（锁单）。
 - **目检径**：本 session 无浏览器 REPL 工具——以 `chromium_headless_shell-1248` CLI 截图替代，四页真数据目检过（本地 core 连 dev 库 :50051，验毕进程已清）。
 
+
 ## 2026-10-29 — 决策席：瓦片让位交互引入裁决（claude-glm）
 
 - **业主令**：指名 scaffold-master（wbr664393425-lgtm，Vue3+GSAP 脚手架）的瓦片交互——「打开一个瓦片，其余瓦片让出位置」——令阅读并评估前端引入。
@@ -284,3 +285,11 @@
 - **票序定版**：T-0229 → T-0223（Phase 0/1 共同前置闸，扩 existence 列）→ T-0230 → T-0227 → T-0226 → T-0231（待终切三锚）→ T-0232 → T-0225；终切 serve=决策席直执行，不入施工队。
 - **坑归位**：NOTIFY 唤醒非队列+10min 夹逼=永久跳行 → 条目 `notify-wake-only-10min-pin-skips-rows` 同批入库（kbgen 已重建）。
 - **收口实况（同日续）**：出口已愈；对账闸实战拦停本地 T-0230 撞号（远端 Phase 票族 T-0230/0231/0232 先取）→ 让位重编 **T-0233** 推毕（D-0037+T-0233+T-0227 补证 @414251e）。软重置途中曾误删远端四票+回退终稿，**未出本机即恢复**（checkout origin/master 原样复原后重铸），教训：reset --soft 跨分叉基线后必须先核 diff --cached 全量再 add/commit，只 add 自家路径不够。CC 在途件载运支 `claude-glm/d0036-cc-inflight` @b1327d4 已推（基于 e95ec64 终稿**纯增 129 行**零删改，非前记 c89e691 原基——stash 三方合并自动落位终稿）；入列审定归终裁席。worktree 配供坑再显形一次（gen 件缺→provision_worktree.sh 补齐）。
+
+## 2026-10-29 凌晨 — 施工席：T-0216 返修（claude-glm-t0216r）——打回单缺席按派单项+码面锚证施工
+
+- **打回单未获得**：派发指针命「读票面+本席打回单」——打回单不在票面/decisions/handoff 任何落档；SSH 出口死（T-0227 病灶全谱复现：全部订阅节点 delay test error、GitHub SSH/HTTPS 双断）下以 gh-proxy.com 镜像只读 `git ls-remote` 亲证远端 master=78b6a5e、t/0216-basis=14b42b1 与本地同点——**远端无打回单提交存在**。裁：不挂起，按派发指针三项名+码面勘查定位施工，两处自定模型（basis 记账=线性衰减摊提+perp 腿 funding 计入；direction 新词值='perp_quarter_spread' 同模板名）已在票面回填「自定待裁」明示，归验收席裁。
+- **三项病灶码面实证**（详见票面返修回填）：①basis 两族零记账径+活跃集缺现货腿；②SG direction 封闭词表拒新词值=镜像毒丸+自然键双行分叉风险；③两 basis 族共用 (inst,direction) 撞 md_1054 闸键=第二族提案 RETURN NULL 静默吞+Go 预查单键更宽。修法 md_1074/fin_0083 双侧迁移同 boot 齐落（迁移号 fin_0080 已被占取 83；两迁移已登 pgstore.migrationTable）。
+- **镜像径使用留痕**：gh-proxy.com 仅用于只读 ls-remote/raw 取证（对象哈希自校验），零写径（push 不走镜像——若 push 时出口仍未愈，交付以本地支+收口注明）。
+- **部署树污染自纠**：KB 条目+数据流.md 修订曾误写 /opt/o 部署树——即觉即迁 worktree 并 git checkout 回退部署树（净）。
+

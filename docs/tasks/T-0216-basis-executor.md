@@ -1,6 +1,6 @@
 # T-0216 basis 族 executor+short 腿能力缺口
 
-> 状态：待验 | 领取：devin-t0216 @ 2026-10-28 | 优先级：P2（次于 T-0215——数据刚就位，executor 后一步）
+> 状态：待验（返修送验） | 领取：claude-glm-t0216r @ 2026-10-29（首交 devin-t0216 打回返修续任） | 优先级：P2（次于 T-0215——数据刚就位，executor 后一步）
 > 立项：决策席 @ 2026-10-28
 
 ## 面况
@@ -36,3 +36,49 @@ Execute 原子双腿全链 funding-hedge 同构，loadMeta -YYMMDD→FUTURES；
 borrow-repay-history（read）双行在册 enabled=false（登记表补行）。
 测试：`TestBuildBasisLegs` 绿（USD 面值 10 万张 fut+spot quote_ccy $1000
 对齐/perp 币本位 1.23 张）；假想卡断言随 executor 落位移锚 ≥3→≥2。
+
+**返修**（2026-10-29 claude-glm-t0216r——三项按派单项+码面勘查落；打回单
+原文未落档未获，逐项锚证见码面/测试，裁决模型两处自定待验收席裁）：
+
+1. **basis paper 记账面补装**：basis 两族入 paperTemplates 而零记账径
+   （paperAccounting 只吃 md_funding 行——期货键无 funding 行；
+   dcdPaperAccounting 白名单不含 basis）→paper 恒零 fill、promote 三判据
+   永假。补装三件：①`lifecycle/paper.go` `basisPaperAccounting`（dcd 同构
+   日摊径）——期货腿价=md_mark_index mark-price 桥面行（paper 策略 inst
+   在投影活跃集谓词内），现货腿价=md_ticks 本地行
+   （`basisSpotLeg` 归一链 BTC-USD-261225→BTC-USDT 同 dcd/activeSet 律），
+   exec.tick_max_age_s 鲜度闸双侧同律，缺/陈=fail-closed 让位不造零；
+   溢价摊提 amt=notional×p/days_left×elapsed（p=(fut−spot)/spot 现价重算，
+   线性衰减下 p/days_left 恒=R₀/T 跨拍 telescoping 收敛全溢价；elapsed 夹
+   days_left=断窗至多补记全剩余溢价；sign 随结构如实）；perp_quarter_spread
+   加计 perp 腿 funding=md_funding 行 −rate×notional（long_perp 付正租），
+   fill inst_id=perp 键与溢价摊提分键互不污染 last-ts 基准；kind='funding'
+   同收入族；②`okxws/subscribe.go` activeSet 补 basis 两族 paper/live 策略
+   现货腿（T-0129 宇宙扩件含 USDT 现货对——valid 闸过）；③scan() 接线
+   （dcd 同款非致命 log）；rejects 门注册 basis_mark_stale。
+   【自定待裁】记账模型=线性衰减摊提（同 dcd apr 摊提家式）；perp 腿
+   funding 计入——打回单若另有钦定模型，验收时对表裁。
+2. **投影提案桥自修**：`fin_0083_basis_direction_defork.sql`（SG 侧）——
+   direction 封闭词表 CHECK 扩 'perp_quarter_spread'（扩容前镜像 uEval/
+   uProposal 携新词值落 SG=CHECK 拒批毒丸）+镜像行同构回填
+   （eval/proposal/fin_strategy 按 template 锚定 UPDATE）——回填先于服务起
+   则 uEval 自然键不分裂双行（SG 存量行旧词值不改=md 回填后同键异向分行）。
+   闸函数 fin_0054 零改——(inst_id,direction) 键随词表去分叉自然归一。
+3. **提案去重语叉回填**：根因=quarter_basis_long 与 perp_quarter_spread
+   共用 direction='basis_quarter' 且同 inst（季度期货键）——md_1054 闸键
+   (inst_id,direction) 双族撞车，BEFORE INSERT RETURN NULL **静默吞**第二族
+   提案（零错零痕）；Go 预查 inst 单键同病更宽。修：①`grammar.go`
+   perp_quarter_spread Direction→'perp_quarter_spread'（词表去分叉，同模板
+   名 dcd_call/gap_carry 同构式）；②`md_1074_basis_direction_defork.sql`
+   （md 侧）CHECK 扩容+存量 eval/proposal 按 template 回填；③run.go 预查键
+   对齐闸键（inst+direction+双在途态 fin_proposed/fin_armed）——
+   预查先行=吞显形为预查静默跳过、假「落卡」日志根除。
+   迁移已登记 pgstore.migrationTable（md 1074/fin 83——fin_0080 号已被占）。
+
+测试：`TestBasisDeforkDualFamilyProposals`（同 inst 双族双提案并存+direction
+配对词表锚）/`TestBasisPaperFillConvergence`（摊提 fill 真生成+detail 价源
+同源+陈 tick fail-closed 恒 1 行）/`TestBasisPaperFillFailClosedSpotMissing`
+（现货腿缺不造零）/`TestBasisPerpFundingNegativeSign`（负号记账+分键）/
+`TestBasisSpotLeg`（归一链纯件）全绿；check_all 全谱见机检行。
+坑条目：`工程经验库/条目/proposal-dedup-key-cross-family-fork.md`（去重键
+跨族分叉+双层键对齐律）+kbgen 重建；数据流.md paper 记账段同 commit 更新。
