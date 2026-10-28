@@ -29,6 +29,12 @@ export function TrxHedgeCard() {
       if ((v as { topic: string }).topic === "trx") void refetch();
     });
   }, [refetch]);
+  // T-0173 业主令：CMC 报价 30s 自动重抓（此前只靠 ev_cashflow 触发——
+  // CMC 价格变动不触发 PG NOTIFY，卡片价格分钟级陈旧）
+  useEffect(() => {
+    const t = setInterval(() => void refetch(), 30_000);
+    return () => clearInterval(t);
+  }, [refetch]);
 
   const ready = structure && structure.mid > 0;
   const legSpot = structure?.legSpot;
