@@ -229,6 +229,116 @@ func TestProposalBidirectional(t *testing.T) {
 	}
 }
 
+// TestEvalNaturalKeyCrossWriter T-0211 验收锚①+②：跨写者同键异 id（宿主
+// 迁移/重灌重演）——对账不崩、SG 行按 ts 新鲜赢、提案 eval_id 译 SG 发号。
+func TestEvalNaturalKeyCrossWriter(t *testing.T) {
+	ctx := context.Background()
+	r, md, sg := runnerDual(t)
+	// SG 存 dev 时代行：同键旧 id=100、旧判词。
+	if _, err := sg.Exec(ctx, `INSERT INTO fin_opp_eval(id,ts,inst_id,template,direction,net_apr,verdict,legs,evidence)
+		VALUES (100,now()-interval '1 hour','SOL-USDT-SWAP','funding-hedge','short_perp_long_spot',0.05,'rejected','[]','{}')`); err != nil {
+		t.Fatal(err)
+	}
+	// md 新宿主同键发新 id=200+提案引用（迁期实案形）。
+	seedProposal(t, md, 1, 200, "SOL-USDT-SWAP")
+	if err := r.projectEvals(ctx); err != nil {
+		t.Fatalf("同键异 id eval 投影应过（旧形此处撞 fin_opp_eval_key 崩）: %v", err)
+	}
+	var id int64
+	var verdict string
+	if err := sg.QueryRow(ctx, `SELECT id,verdict FROM fin_opp_eval
+		WHERE inst_id='SOL-USDT-SWAP'`).Scan(&id, &verdict); err != nil {
+		t.Fatal(err)
+	}
+	if id != 100 || verdict != "proposed" {
+		t.Fatalf("SG 行应持自有 id=100 按 ts 新鲜赢（verdict 翻 proposed）: id=%d verdict=%s", id, verdict)
+	}
+	// 提案投影：eval_id 译 SG 发号 100（不可落 md 发号 200——FK 指 SG 行）。
+	if err := r.projectNewProposals(ctx); err != nil {
+		t.Fatalf("提案投影: %v", err)
+	}
+	var evalID int64
+	if err := sg.QueryRow(ctx, "SELECT eval_id FROM fin_proposal WHERE id=1").Scan(&evalID); err != nil {
+		t.Fatal(err)
+	}
+	if evalID != 100 {
+		t.Fatalf("提案 eval_id 应译 SG 发号=100（md 发号 200 不落）: %d", evalID)
+	}
+	// 幂等重演：重复投影/对账不炸不漂（重启回环语义锚）。
+	if err := r.projectEvals(ctx); err != nil {
+		t.Fatalf("重演应幂等: %v", err)
+	}
+	if err := r.Reconcile(ctx, true); err != nil {
+		t.Fatalf("全量对账重演应过: %v", err)
+	}
+	if n := count(t, sg, "SELECT count(*) FROM fin_opp_eval WHERE inst_id='SOL-USDT-SWAP'"); n != 1 {
+		t.Fatalf("同键恒一行: %d", n)
+	}
+}
+
+// TestEvalPKCollisionSeqRewind T-0211 验收锚③：md 发号撞 SG 异键行 id
+// （重灌序列回掷场景）——pick CTE 另发号落行，PK 不炸、异键行不被覆写。
+func TestEvalPKCollisionSeqRewind(t *testing.T) {
+	ctx := context.Background()
+	r, md, sg := runnerDual(t)
+	if _, err := sg.Exec(ctx, `INSERT INTO fin_opp_eval(id,ts,inst_id,template,direction,net_apr,verdict,legs,evidence)
+		VALUES (300,now(),'AAA-USDT-SWAP','funding-hedge','short_perp_long_spot',0.05,'rejected','[]','{}')`); err != nil {
+		t.Fatal(err)
+	}
+	// md 重灌后发号回掷：id=300 被 SG AAA 行占用，但本行键=BBB。
+	seedProposal(t, md, 1, 300, "BBB-USDT-SWAP")
+	if err := r.projectNewProposals(ctx); err != nil {
+		t.Fatalf("异键撞号应另发号落行（旧形 PK 违例崩）: %v", err)
+	}
+	var verdict string
+	if err := sg.QueryRow(ctx, `SELECT verdict FROM fin_opp_eval WHERE id=300`).Scan(&verdict); err != nil {
+		t.Fatal(err)
+	}
+	if verdict != "rejected" {
+		t.Fatalf("SG id=300 的 AAA 行不得被覆写: %s", verdict)
+	}
+	var newID int64
+	if err := sg.QueryRow(ctx, `SELECT id FROM fin_opp_eval WHERE inst_id='BBB-USDT-SWAP'`).Scan(&newID); err != nil {
+		t.Fatal(err)
+	}
+	if newID == 300 {
+		t.Fatalf("撞号行应另发号（≠300）: %d", newID)
+	}
+	var evalID int64
+	if err := sg.QueryRow(ctx, "SELECT eval_id FROM fin_proposal WHERE id=1").Scan(&evalID); err != nil {
+		t.Fatal(err)
+	}
+	if evalID != newID {
+		t.Fatalf("提案 eval_id 应指另发号行 %d: %d", newID, evalID)
+	}
+}
+
+// TestEvalTsNewerWins T-0211 验收锚④：同键异 id 陈帧不覆鲜行
+// （WHERE EXCLUDED.ts>ts 单调语义在自然键下不动）。
+func TestEvalTsNewerWins(t *testing.T) {
+	ctx := context.Background()
+	r, md, sg := runnerDual(t)
+	if _, err := sg.Exec(ctx, `INSERT INTO fin_opp_eval(id,ts,inst_id,template,direction,net_apr,verdict,legs,evidence)
+		VALUES (100,now(),'SOL-USDT-SWAP','funding-hedge','short_perp_long_spot',0.08,'proposed','[]','{}')`); err != nil {
+		t.Fatal(err)
+	}
+	// md 同键异 id 但 ts 更陈（乱序帧/旧宿主残帧形）。
+	if _, err := md.Exec(ctx, `INSERT INTO fin_opp_eval(id,ts,inst_id,template,direction,net_apr,verdict,legs,evidence)
+		VALUES (200,now()-interval '2 hours','SOL-USDT-SWAP','funding-hedge','short_perp_long_spot',0.05,'rejected','[]','{}')`); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.projectEvals(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var verdict string
+	if err := sg.QueryRow(ctx, `SELECT verdict FROM fin_opp_eval WHERE id=100`).Scan(&verdict); err != nil {
+		t.Fatal(err)
+	}
+	if verdict != "proposed" {
+		t.Fatalf("陈帧不得覆鲜行（verdict 应仍 proposed）: %s", verdict)
+	}
+}
+
 // TestReconcileSelfHeal 杀连自愈：镜像行丢失+断窗新提案→全表对账集齐（验收锚）。
 func TestReconcileSelfHeal(t *testing.T) {
 	ctx := context.Background()
