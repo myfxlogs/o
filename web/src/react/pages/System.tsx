@@ -51,7 +51,7 @@ export function SystemPage() {
   );
   const ov = useSnap(["ev_position", "ev_account"], () => client.overview({}));
 
-  const devComps = (h.data?.components ?? []).filter((c) => c.host === "dev");
+  const devComps = (h.data?.components ?? []).filter((c) => c.host === "oci");
   const sgComps = (h.data?.components ?? []).filter((c) => c.host === "sg");
 
   // 生产机行：venue 在线行在前（私有 WS 由 venue 行覆盖去重），健康行随后。
@@ -149,7 +149,7 @@ export function SystemPage() {
                 state={Math.max(0, ...devRows.map((r) => r.state))}
                 breathe={devRows.some((r) => r.state !== 2)}
               />{" "}
-              采集（dev）——行情与蒸馏管道
+              采集（OCI）——行情与蒸馏管道
             </>
           }
           extra={
