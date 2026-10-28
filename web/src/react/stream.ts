@@ -1,7 +1,16 @@
-// stream.ts —— O Connect Watch 单泵（T-0170：原双泵归一；事件→topic 局部
-// 失效 + 连接状态显形（断流=顶栏黄点，不静默）。断流 3s 重连=传输维护，
-// 非数据轮询——事件驱动律不变）。
+// stream.ts —— O Connect Watch 单泵（T-0170 单泵归一；T-0220b v2：带载荷帧
+// （data）按 kind 类型化解析（fromJson 零手拼）直写 store 分片——一跳渲染
+// 零逐卡重拉；无载荷帧保持 topic 信号（未载荷化面 refetch 径）。断流 3s
+// 重连=传输维护，非数据轮询——事件驱动律不变）。
+import { fromJson } from "@bufbuild/protobuf";
+import {
+  GetHostMetricsResponseSchema,
+  ListClosedPositionsResponseSchema,
+  ListHedgeFlowResponseSchema,
+  type WatchEvent,
+} from "../gen/dashboardv1/core_pb";
 import { client } from "./api";
+import * as store from "./store";
 
 type Fn = (v?: unknown) => void;
 const subs: Fn[] = [];
@@ -9,10 +18,26 @@ const statusSubs: Fn[] = [];
 let booted = false;
 let live = false;
 
-// channel→topic：卡片粒度失效——ev_position→持仓卡、ev_cashflow→流水/TRX、
-// ev_account→健康/账户卡、ev_strategy→策略相关；watch_open=就绪信号全刷。
+// channel→topic：卡片粒度信号——ev_cashflow→trx（TRX 面）、watch_open=就绪
+// 信号全刷；载荷面更新走 store 分片通知（不经 topic）。
 const topic = (kind: string): string =>
   kind === "ev_cashflow" ? "trx" : kind;
+
+// T-0220a 三载荷面：kind→分片类型化写入（响应消息 protojson↔fromJson 直转）。
+function ingest(ev: WatchEvent): void {
+  if (!ev.data) return;
+  switch (ev.kind) {
+    case "ev_cashflow":
+      store.setHedgeFlow(fromJson(ListHedgeFlowResponseSchema, ev.data));
+      break;
+    case "ev_position":
+      store.setClosedPositions(fromJson(ListClosedPositionsResponseSchema, ev.data));
+      break;
+    case "ev_hostmetrics":
+      store.setHostMetrics(fromJson(GetHostMetricsResponseSchema, ev.data));
+      break;
+  }
+}
 
 function setLive(v: boolean): void {
   if (live === v) return;
@@ -23,6 +48,7 @@ function setLive(v: boolean): void {
 async function pump(): Promise<void> {
   for await (const ev of client.watch({})) {
     setLive(true);
+    ingest(ev);
     subs.forEach((f) => f({ topic: topic(ev.kind) }));
   }
 }
@@ -42,7 +68,7 @@ function boot(): void {
   run();
 }
 
-// onData 订阅数据事件帧（topic 过滤在订阅侧 done）。
+// onData 订阅事件帧信号（topic 过滤在订阅侧 done；载荷更新另走 store 分片）。
 export function onData(fn: Fn): () => void {
   boot();
   subs.push(fn);

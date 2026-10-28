@@ -1,0 +1,15 @@
+/* 22-effects.css —— 呼吸灯动画+主机资源瓦片（T-0173 业主⑳⑥拆分——20-cards 棘轮）*/
+
+/* —— 呼吸灯终版：不可能看不见（缩放 1.6×+光晕扩散+色相明暗交替）—— */
+@keyframes breatheCalm {
+  0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 0 transparent; }
+  50% { opacity: 0.5; transform: scale(1.6); box-shadow: 0 0 14px 5px color-mix(in srgb, var(--good) 65%, transparent); }
+}
+@keyframes breatheQuick {
+  0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 0 transparent; }
+  50% { opacity: 0.45; transform: scale(1.6); box-shadow: 0 0 14px 5px color-mix(in srgb, var(--warn) 65%, transparent); }
+}
+@keyframes breatheAlarm {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.3; transform: scale(1.8); box-shadow: 0 0 18px 6px color-mix(in srgb, var(--critical) 70%, transparent); }
+}

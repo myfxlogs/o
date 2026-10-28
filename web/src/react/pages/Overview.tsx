@@ -1,7 +1,7 @@
 // Overview.tsx —— 总览（T-0170 第一性首屏：30 秒答三问——赚亏多少/仓什么
 // 状态/系统活着没；hero 大数字+在持+健康汇总+最近动作，数据全走 Connect）。
 import { client } from "../api";
-import { useSnap } from "../hooks";
+import { useLive } from "../hooks";
 import { Card, EmptyState, ErrorState, Skeleton, StateDot } from "../components/ui";
 import { fmtUsd } from "../components/fmt";
 import { useEffect, useState } from "react";
@@ -78,10 +78,10 @@ function pnlCls(v: number): string {
 }
 
 export function OverviewPage() {
-  const ov = useSnap(["ev_position", "ev_cashflow", "ev_account"], () =>
+  const ov = useLive(["ev_position", "ev_cashflow", "ev_account"], () =>
     client.overview({})
   );
-  const health = useSnap(["ev_account"], () => client.getSystemHealth({}));
+  const health = useLive(["ev_account"], () => client.getSystemHealth({}));
 
   if (ov.loading && !ov.data) return <Skeleton rows={6} />;
   if (ov.err && !ov.data)

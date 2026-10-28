@@ -34,8 +34,21 @@ type hedgeOpener struct {
 // Open live 策略开仓：双帽取小→闸→腿构→原子执行。任一环败=err 上抛
 // （lifecycle 计数续试——ev_strategy 事件驱非热环）。
 func (h hedgeOpener) Open(ctx context.Context, spec lifecycle.OpenSpec) (int64, error) {
-	if spec.Template == "dcd_call" {
-		return h.dcdOpen(ctx, spec) // T-0160 DCD 执行面分派（产品买非双腿原子径）
+	switch spec.Template {
+	case "dcd_call", "vol_sell_single_call":
+		// T-0160 DCD 执行面分派（产品买非双腿原子径）；T-0215
+		// vol_sell_single_call=同型单腿 executor（假想卡 id=7 钦定名
+		// vol_sell_single_call_executor）。
+		return h.dcdOpen(ctx, spec)
+	case "quarter_basis_long", "perp_quarter_spread":
+		// T-0216 basis executor（quarter_basis_long_executor/perp_quarter_spread_
+		// executor）——衍生腿=到期日期货，多头腿 spot/perp；atomic 双腿同
+		// funding-hedge 径（Execute token/rollback 内建）。
+		return h.basisOpen(ctx, spec)
+	case "vol_sell_strangle":
+		// T-0215 strangle 双腿 executor（假想卡 id=6 钦定名
+		// vol_sell_strangle_executor——Cprod+Pprod 复合键拆腿序贯买）。
+		return h.volSellStrangle(ctx, spec)
 	}
 	notional := spec.NotionalUSD
 	// 双帽取小（openfirst 同径：probe_notional/max_notional——缺键 fail-closed）。
@@ -160,6 +173,9 @@ func (h hedgeOpener) loadMeta(ctx context.Context, iid string) (execution.InstMe
 	it := "SPOT"
 	if strings.HasSuffix(iid, "-SWAP") {
 		it = "SWAP"
+	}
+	if datedFutRe.MatchString(iid) { // T-0216：-YYMMDD 到期日期货=FUTURES 乐器域
+		it = "FUTURES"
 	}
 	m, err := h.cli.InstrumentMeta(ctx, it, iid)
 	return execution.InstMeta{CtVal: m.CtVal, CtValCcy: m.CtValCcy, LotSz: m.LotSz, MinSz: m.MinSz}, err

@@ -200,3 +200,68 @@ func BuildCfdLegs(instID, cfdInst string, notional float64, cfdM CfdMeta, px flo
 		{Venue: "mt5", InstID: cfdInst, Side: "buy", Sz: strconv.FormatFloat(lots, 'f', -1, 64), Notional: half},
 	}, cfdInst, nil
 }
+
+// BuildBasisLegs basis 族双腿构（T-0216——funding-hedge 同构：衍生腿 sell
+// +多头腿 buy 等权名义各半；差异=衍生腿是到期日期货（-YYMMDD）非 SWAP）。
+// longIsSpot=true→现货腿 quote_ccy 市价买（T-0064 径）；false→perp 多腿
+// 张数径。价源/网格/minSz 闸全同 BuildLegs——缺即 fail-closed 不虚构。
+func BuildBasisLegs(ctx context.Context, pool *pgxpool.Pool, loadMeta MetaLoader,
+	venue, futInst, longInst string, longIsSpot bool, notional float64) ([2]Leg, error) {
+	futM, err := loadMeta(ctx, futInst)
+	if err != nil {
+		return [2]Leg{}, fmt.Errorf("fut 元数据: %w", err)
+	}
+	pxFut, err := LatestPx(ctx, pool, futInst)
+	if err != nil {
+		return [2]Leg{}, err
+	}
+	half := notional / 2
+	futRaw, err := perpContracts(half, futM.CtVal, futM.CtValCcy, pxFut)
+	if err != nil {
+		return [2]Leg{}, err
+	}
+	futSz := floorLot(futRaw, futM.LotSz)
+	if futSz < futM.MinSz {
+		return [2]Leg{}, fmt.Errorf("fut 最小张起不来: sz=%.4f<minSz=%.4f", futSz, futM.MinSz)
+	}
+	// 期货落网格后实名义反推多头腿（同 T-0062 对齐律——出生即对齐带内）。
+	futUSD := futSz * futM.CtVal
+	if futM.CtValCcy != "USD" && futM.CtValCcy != "USDT" {
+		futUSD *= pxFut
+	}
+	futLeg := Leg{Venue: venue, InstID: futInst, Side: "sell",
+		Sz: strconv.FormatFloat(futSz, 'f', -1, 64), Notional: half}
+	if longIsSpot {
+		longM, err := loadMeta(ctx, longInst)
+		if err != nil {
+			return [2]Leg{}, fmt.Errorf("spot 元数据: %w", err)
+		}
+		px, err := LatestPx(ctx, pool, longInst)
+		if err != nil {
+			return [2]Leg{}, err
+		}
+		if futUSD < longM.MinSz*px {
+			return [2]Leg{}, fmt.Errorf("spot 最小额起不来: usd=%.4f<minSz=%.6f×px", futUSD, longM.MinSz)
+		}
+		return [2]Leg{futLeg, {Venue: venue, InstID: longInst, Side: "buy",
+			Sz: strconv.FormatFloat(futUSD, 'f', -1, 64), Notional: half, TgtQuote: true}}, nil
+	}
+	longM, err := loadMeta(ctx, longInst)
+	if err != nil {
+		return [2]Leg{}, fmt.Errorf("perp 元数据: %w", err)
+	}
+	pxLong, err := LatestPx(ctx, pool, longInst)
+	if err != nil {
+		return [2]Leg{}, err
+	}
+	longRaw, err := perpContracts(futUSD, longM.CtVal, longM.CtValCcy, pxLong)
+	if err != nil {
+		return [2]Leg{}, err
+	}
+	longSz := floorLot(longRaw, longM.LotSz)
+	if longSz < longM.MinSz {
+		return [2]Leg{}, fmt.Errorf("perp 最小张起不来: sz=%.4f<minSz=%.4f", longSz, longM.MinSz)
+	}
+	return [2]Leg{futLeg, {Venue: venue, InstID: longInst, Side: "buy",
+		Sz: strconv.FormatFloat(longSz, 'f', -1, 64), Notional: half}}, nil
+}

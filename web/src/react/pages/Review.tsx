@@ -2,7 +2,7 @@
 // 数据全走 Connect 新契约 ListReports/GetEquityCurve/ListCashflows）。
 import { useState } from "react";
 import { client } from "../api";
-import { useSnap } from "../hooks";
+import { useLive } from "../hooks";
 import { Card, EmptyState, ErrorState, Skeleton } from "../components/ui";
 import { LineChart } from "../components/chart";
 import { ClosedPositionsCard } from "../components/flows";
@@ -50,7 +50,7 @@ const METRIC_NAMES: Record<string, string> = {
 function ReportsCard() {
   const [period, setPeriod] = useState("daily");
   const [page, setPage] = useState(0);
-  const r = useSnap(["ev_cashflow"],
+  const r = useLive(["ev_cashflow"],
     () => client.listReports({ period, n: 10, offset: page * 10 }),
     `${period}:${page}`
   );
@@ -126,7 +126,7 @@ function ReportsCard() {
 }
 
 function EquityCard() {
-  const c = useSnap(["ev_cashflow"], () => client.getEquityCurve({ days: 90 }));
+  const c = useLive(["ev_cashflow"], () => client.getEquityCurve({ days: 90 }));
   const pts = c.data?.points ?? [];
   return (
     <Card title="净值曲线（90 天）">
@@ -161,7 +161,7 @@ function FlowsCard() {
   const [kind, setKind] = useState("");
   const [venue, setVenue] = useState("");
   const [page, setPage] = useState(0);
-  const f = useSnap(["ev_cashflow"],
+  const f = useLive(["ev_cashflow"],
     () => client.listCashflows({ kind, venue, limit: 10, offset: page * 10 }),
     `${kind}:${venue}:${page}`
   );

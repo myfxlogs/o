@@ -7,7 +7,7 @@
 // 灯语全站同款：绿缓息/黄急促/红静止；硬化为描边+底色（玻璃底不洗白）。
 import { useEffect, useState } from "react";
 import { client } from "../api";
-import { useSnap } from "../hooks";
+import { useLive } from "../hooks";
 import { Card, EmptyState, ErrorState, Skeleton, StateDot } from "../components/ui";
 import { AGE, ExchSections, healthRows } from "../components/panel";
 import { pbDate } from "../components/fmt";
@@ -46,10 +46,10 @@ function ProcStrip(props: {
 }
 
 export function SystemPage() {
-  const h = useSnap(["ev_account", "ev_position"], () =>
+  const h = useLive(["ev_account", "ev_position"], () =>
     client.getSystemHealth({})
   );
-  const ov = useSnap(["ev_position", "ev_account"], () => client.overview({}));
+  const ov = useLive(["ev_position", "ev_account"], () => client.overview({}));
 
   const devComps = (h.data?.components ?? []).filter((c) => c.host === "oci");
   const sgComps = (h.data?.components ?? []).filter((c) => c.host === "sg");

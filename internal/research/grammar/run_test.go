@@ -5,6 +5,7 @@ package grammar
 import (
 	"context"
 	"testing"
+	"time"
 
 	"o/internal/platform/config"
 	"o/internal/platform/testutil"
@@ -77,8 +78,8 @@ func TestDisabledFaceNoFamily(t *testing.T) {
 		WHERE requirements->>'executor' IS NOT NULL`).Scan(&nH); err != nil {
 		t.Fatal(err)
 	}
-	if nH < 3 {
-		t.Fatalf("缺 executor 假想卡应 ≥3 族（lending/earn/quarter_basis/vol_sell）: %d", nH)
+	if nH < 2 {
+		t.Fatalf("缺 executor 假想卡应 ≥2 族（lending/earn——T-0215/0216 executor 落位后 vol_sell/quarter_basis 族不再产卡；basis_short 面关不枚举）: %d", nH)
 	}
 }
 
@@ -157,5 +158,62 @@ func TestEvalCarryEarnRate(t *testing.T) {
 	}
 	if verdict == "unevaluable" || reason == "savings_rate_missing" {
 		t.Fatalf("有行仍 missing: %s/%s", verdict, reason)
+	}
+}
+
+// 锚⑤：vol-sell 实评（T-0215）——single_call 单腿 proposed 提案落+strangle
+// C×P 同 uly/expiry 配对复合键提案（executor_missing 钉已撤）。
+func TestEvalVolSellReal(t *testing.T) {
+	ctx, r := setup(t)
+	r.AttachCoins(func(context.Context) (map[string]float64, error) {
+		return map[string]float64{"BTC": 2.0, "USDT": 100000}, nil
+	})
+	exp := time.Now().Add(20 * 24 * time.Hour)
+	ins := func(pid, dir string, strike, apr float64, qc string) {
+		raw := []byte(`{"quoteCcy":"` + qc + `","notionalCcy":"` + qc + `"}`)
+		if _, err := r.pool.Exec(ctx, `INSERT INTO md_dcd_product(ts,venue,surface,uly,product_id,
+			direction,strike,expiry,annualized_yield,min_size,max_size,raw)
+			VALUES (now(),'okx','dcd','BTC-USD',$1,$2,$3,$4,$5,0.01,10,$6)`,
+			pid, dir, strike, exp, apr, raw); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ins("BTC-C-150", "C", 150000, 0.20, "BTC")
+	ins("BTC-P-80", "P", 80000, 0.18, "USDT")
+	ins("BTC-P-60", "P", 60000, 0.30, "USDT") // 同 uly/expiry 第二 P 腿——取高 APR
+	if _, err := r.pool.Exec(ctx, `INSERT INTO md_ticks(inst_id,last,ts) VALUES ('BTC-USDT',100000,now())`); err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range Families() {
+		if f.Template == "vol_sell_single_call" || f.Template == "vol_sell_strangle" {
+			if err := r.evalVolSell(ctx, f); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	var verdict, reason string
+	if err := r.pool.QueryRow(ctx, `SELECT verdict,evidence->>'reason' FROM fin_opp_eval
+		WHERE inst_id='BTC-C-150' AND template='vol_sell_single_call'`).Scan(&verdict, &reason); err != nil {
+		t.Fatalf("single_call eval 缺: %v", err)
+	}
+	if verdict != "proposed" {
+		t.Fatalf("single_call 应 proposed: %s/%s", verdict, reason)
+	}
+	var n int
+	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_proposal
+		WHERE inst_id='BTC-C-150' AND state='fin_proposed'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("single_call 提案应 1 行: %d %v", n, err)
+	}
+	var sverdict, sreason string
+	if err := r.pool.QueryRow(ctx, `SELECT verdict,evidence->>'reason' FROM fin_opp_eval
+		WHERE inst_id LIKE 'BTC-C-150+BTC-P-%' AND template='vol_sell_strangle'`).Scan(&sverdict, &sreason); err != nil {
+		t.Fatalf("strangle eval 缺: %v", err)
+	}
+	if sverdict != "proposed" {
+		t.Fatalf("strangle 应 proposed: %s/%s", sverdict, sreason)
+	}
+	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_proposal
+		WHERE inst_id='BTC-C-150+BTC-P-60' AND state='fin_proposed'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("strangle 提案应复合键高 APR P 腿: %d %v", n, err)
 	}
 }

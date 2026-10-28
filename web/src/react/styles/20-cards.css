@@ -55,6 +55,29 @@
   transition: transform 0.18s ease, box-shadow 0.18s ease,
     border-color 0.18s ease;
 }
+/* 玻璃质感三件套（T-0220d）：噪点纹理层（feTurbulence 磨砂颗粒，3%——
+   真实玻璃的非完美折射面）+上下边缘 1px 渐变高光线（上亮下淡=环境光从
+   上方来的折射边）。伪元素不吃交互、圆角继承不溢出。 */
+.card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 140px 140px;
+  opacity: 0.03;
+}
+.card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    linear-gradient(to bottom, color-mix(in srgb, #ffffff 34%, transparent), transparent) top / 100% 1px no-repeat,
+    linear-gradient(to top, color-mix(in srgb, #ffffff 12%, transparent), transparent) bottom / 100% 1px no-repeat;
+}
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .card {
     background: var(--surface); /* 降级：不透明表面 */
@@ -62,14 +85,14 @@
 }
 @media (hover: hover) and (pointer: fine) {
   .card:hover {
-    transform: translateY(-2px);
-    border-color: color-mix(in srgb, var(--ink) 16%, transparent);
+    transform: translateY(-3px); /* T-0220d 微交互加强（原 -2px） */
+    border-color: color-mix(in srgb, var(--ink) 20%, transparent);
     box-shadow:
-      inset 0 1px 0 color-mix(in srgb, #ffffff 50%, transparent),
-      inset 1px 0 0 color-mix(in srgb, #ffffff 20%, transparent),
-      inset 0 0 26px color-mix(in srgb, #ffffff 6%, transparent),
+      inset 0 1px 0 color-mix(in srgb, #ffffff 55%, transparent),
+      inset 1px 0 0 color-mix(in srgb, #ffffff 22%, transparent),
+      inset 0 0 30px color-mix(in srgb, #ffffff 9%, transparent),
       0 2px 4px rgba(0, 0, 0, 0.07),
-      0 16px 36px rgba(0, 0, 0, 0.14);
+      0 18px 40px rgba(0, 0, 0, 0.16);
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -219,8 +242,10 @@ body::before {
   font-size: 12.5px;
 }
 .chip .dot {
-  width: 11px;
-  height: 11px; /* 业主②：席位灯加大——呼吸色读得清 */
+  width: 9px;
+  height: 9px; /* T-0222 业主令：席位灯档同降 11→9px——小而亮非大而闪。
+                  注意 03-table-chip `.chip .dot.sN` 高特异性同治席位灯，
+                  两处档位须同步改。 */
 }
 .venue-group {
   margin-bottom: 12px;
@@ -524,13 +549,17 @@ details.rep summary {
   transition: width 0.4s ease;
 }
 
-/* —— 灯可见性硬化（玻璃底/浅底不洗白——暗色细环兜住轮廓）—— */
+/* —— 灯可见性硬化（玻璃底/浅底不洗白——暗色细环兜住轮廓）+ T-0222 3D
+   恒驻件：底部内影（inset 内凹感）+环境接触微影（落影贴珠底）。呼吸帧
+   逐帧同携此栈防闪烁。尺寸不在此钉——归还基档（10-shell 基径 8px/席位
+   chip 9px），收敛单点在基档。 —— */
 .dot.s0,
 .dot.s1,
 .dot.s2 {
-  width: 10px;
-  height: 10px;
-  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--ink) 25%, transparent);
+  box-shadow:
+    0 0 0 1.5px color-mix(in srgb, var(--ink) 25%, transparent),
+    inset 0 -1px 1.5px color-mix(in srgb, #000000 38%, transparent),
+    0 1px 1px color-mix(in srgb, var(--ink) 16%, transparent);
 }
 
 /* —— 双列同行（业主回单：报告+现金流 1 行 2 列——grid 强制并排，
@@ -582,4 +611,62 @@ details.rep summary {
   .hedge-accts {
     grid-template-columns: 1fr 1fr 1fr;
   }
+}
+
+/* —— TRX 核心指标条（T-0220c 三档层级首档：组合年化×2/待领取/强平距离——
+   大数字 2em+呼吸灯伴随+背景较常规卡加重一档；窄屏回落 2×2）—— */
+.trx-kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+}
+@media (max-width: 900px) {
+  .trx-kpi-strip {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+.kpi {
+  background: color-mix(in srgb, var(--surface) 58%, transparent);
+}
+.kpi-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.kpi-k {
+  color: var(--ink-3);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+.kpi-v {
+  font-size: 2em;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.kpi-unit {
+  font-size: 0.5em;
+  font-weight: 600;
+  color: var(--ink-2);
+  margin-left: 4px;
+}
+.kpi-note {
+  font-size: 12px;
+  color: var(--ink-3);
+  margin-top: 2px;
+}
+.kpi-err {
+  color: var(--ink-3);
+  font-size: 13px;
+}
+
+/* —— TRX 明细层（T-0220c 三档第三档：统一流水全宽表格 13px——明细是查证
+   面，字号让位密度；次级瓦片维持正文字号）—— */
+.hedge-flow-table {
+  font-size: 13px;
 }

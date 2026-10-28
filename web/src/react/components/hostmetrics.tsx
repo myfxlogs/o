@@ -1,8 +1,9 @@
 // hostmetrics.tsx —— 主机资源卡（T-0173 业主令：CPU/内存/磁盘/网络——
 // 各机自报 30s 拍，GetHostMetrics 契约；stale=拍断显陈不假值；
-// 用量条 ≥80% 转警示色）。
+// 用量条 ≥80% 转警示色。T-0220b：ev_hostmetrics 推帧分片订阅——一跳渲染）。
+import { useEffect } from "react";
 import { client } from "../api";
-import { useSnap } from "../hooks";
+import { hydrate, useSlice } from "../store";
 import { Card, ErrorState, Skeleton, StateDot } from "./ui";
 import { AGE } from "./panel";
 import { pbDate } from "./fmt";
@@ -38,7 +39,7 @@ function HostTile(props: {
     <div className="hm-tile">
       <div className="hm-head">
         <StateDot state={hm.stale ? 2 : 0} breathe={!hm.stale} />
-        <b>{hm.host.toUpperCase()}</b>
+        <b>{hm.host === "dev" ? "OCI" : hm.host.toUpperCase()}</b>
         <span className="ink-3" style={{ fontSize: 12 }}>
           {hm.stale ? "拍断（>2min）" : d ? AGE(d) : ""}
           {hm.cores ? ` · ${hm.cores} 核` : ""}
@@ -82,13 +83,19 @@ function HostTile(props: {
 }
 
 export function HostMetricsCard() {
-  const h = useSnap(["ev_hostmetrics"], () => client.getHostMetrics({}));
+  const h = useSlice("hostMetrics");
+  const retry = () =>
+    hydrate("hostMetrics", () => client.getHostMetrics({}));
+  useEffect(() => {
+    retry();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   return (
     <Card title="主机资源">
       {h.loading && !h.data ? (
         <Skeleton rows={4} />
       ) : h.err && !h.data ? (
-        <ErrorState msg={h.err} onRetry={h.reload} />
+        <ErrorState msg={h.err} onRetry={retry} />
       ) : (h.data?.hosts ?? []).length === 0 ? (
         <div className="ink-3" style={{ fontSize: 13, padding: "6px 0" }}>
           首拍未落——各机自报 30s 拍，重启后一分钟内成形
