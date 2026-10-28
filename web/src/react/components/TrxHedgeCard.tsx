@@ -37,7 +37,7 @@ export function TrxHedgeCard() {
 
   return (
     <section className="card">
-      <div className="card-head">
+      <div className="card-h">
         <h2>对冲结构</h2>
         <span className="ws-dot-wrap" title={structure?.wsConnected ? "WS 在线" : "REST 兜底"}>
           <span className={`ws-dot ${structure?.wsConnected ? "ws-dot-ok" : "ws-dot-warn"}`} />
