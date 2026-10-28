@@ -192,12 +192,12 @@ func TestDoRebalance_AccountFail(t *testing.T) {
 
 	sched.doRebalance(context.Background())
 
-	// account 查询失败 → engine 告警（scheduler.go 发 trxvote_engine）
+	// account 查询失败 → warn 告警（scheduler.go:138 发 warn）
 	if gotAlert == "" {
 		t.Fatal("should alert on account query failure")
 	}
-	if !strings.HasPrefix(gotAlert, "trxvote_engine:") {
-		t.Errorf("alert kind = %q, want trxvote_engine", gotAlert)
+	if len(gotAlert) < 4 || gotAlert[:4] != "warn" {
+		t.Errorf("alert level = %q, want warn", gotAlert)
 	}
 	// 不落库（account 失败在落库之前 return）
 	if store.insertedRebalance != nil {
@@ -341,12 +341,12 @@ func TestClaimCheck_Normal(t *testing.T) {
 	if gotAlert == "" {
 		t.Fatal("should alert on successful claim")
 	}
-	if !strings.HasPrefix(gotAlert, "trxvote_claim:") {
-		t.Errorf("alert kind = %q, want trxvote_claim", gotAlert)
+	if len(gotAlert) < 4 || gotAlert[:4] != "warn" {
+		t.Errorf("alert level = %q, want warn", gotAlert)
 	}
 }
 
-// TestClaimCheck_Failed 领奖失败 → engine 告警 + 设置失败冷却时间戳。
+// TestClaimCheck_Failed 领奖失败 → critical 告警 + 设置失败冷却时间戳。
 func TestClaimCheck_Failed(t *testing.T) {
 	conn := &testExecutorConn{rewardErr: errors.New("query failed")}
 	sched, exec := testScheduler(t, &fakeStore{}, &mockAccountFetcher{}, conn)
@@ -358,8 +358,8 @@ func TestClaimCheck_Failed(t *testing.T) {
 	if gotAlert == "" {
 		t.Error("should alert on claim failure")
 	}
-	if !strings.HasPrefix(gotAlert, "trxvote_engine:") {
-		t.Errorf("alert kind = %q, want trxvote_engine", gotAlert)
+	if len(gotAlert) < 8 || gotAlert[:8] != "critical" {
+		t.Errorf("alert level = %q, want critical", gotAlert)
 	}
 	if sched.lastClaimFailAt.IsZero() {
 		t.Error("lastClaimFailAt should be set on failure")
@@ -424,12 +424,12 @@ func TestConvertVotes(t *testing.T) {
 	}
 }
 
-// TestFormatRebalanceAlert 告警格式（D-293 S4：含 SR 变化明细；T-0220：年化差 pp+总票数）。
+// TestFormatRebalanceAlert 告警格式（D-293 S4：含 SR 变化明细）。
 func TestFormatRebalanceAlert(t *testing.T) {
 	d := RebalanceDecision{
-		CurrentYield: 1.00,
-		TargetYield:  1.12,
-		Improvement:  12.0,
+		CurrentYield: 100.0,
+		TargetYield:  120.0,
+		Improvement:  20.0,
 		Target: []VoteEntry{
 			{SRAddress: "TNewSR12345678", Votes: 5000},
 		},
@@ -437,7 +437,7 @@ func TestFormatRebalanceAlert(t *testing.T) {
 	currentVotes := []VoteEntry{
 		{SRAddress: "TOldSR87654321", Votes: 3000},
 	}
-	alert := formatRebalanceAlert("deadbeef1234567890abcdef", d, currentVotes, 107300)
+	alert := formatRebalanceAlert("deadbeef1234567890abcdef", d, currentVotes)
 	if alert == "" {
 		t.Error("alert should not be empty")
 	}
@@ -452,30 +452,15 @@ func TestFormatRebalanceAlert(t *testing.T) {
 	if !strings.Contains(alert, "TNewSR12") {
 		t.Errorf("alert should contain new top SR prefix 'TNewSR12': %q", alert)
 	}
-	// T-0220：年化差 pp（Target-Current，年化百分数差）+ 票数人话化
-	if !strings.Contains(alert, "年化差+0.12pp") {
-		t.Errorf("alert should contain annualized diff '+0.12pp': %q", alert)
-	}
-	if !strings.Contains(alert, "107.3k votes") {
-		t.Errorf("alert should contain humanized votes '107.3k votes': %q", alert)
-	}
 }
 
-// TestFormatClaimAlert 告警格式——amount 入参为 sun，渲染须换算 TRX（1e6）；
-// T-0220：priceUSD>0 附 USD 折算段，≤0 省略。
+// TestFormatClaimAlert 告警格式——amount 入参为 sun，渲染须换算 TRX（1e6）。
 func TestFormatClaimAlert(t *testing.T) {
-	alert := formatClaimAlert("deadbeef1234567890abcdef", 1000000, 0.328)
+	alert := formatClaimAlert("deadbeef1234567890abcdef", 1000000)
 	if alert == "" {
 		t.Error("alert should not be empty")
 	}
-	if !strings.Contains(alert, "+1.00 TRX") {
+	if !strings.Contains(alert, "amount=1.0000 TRX") {
 		t.Errorf("sun→TRX 换算缺失: %q", alert)
-	}
-	if !strings.Contains(alert, "≈$0.33") {
-		t.Errorf("USD 折算段缺失: %q", alert)
-	}
-	noPrice := formatClaimAlert("deadbeef1234567890abcdef", 1000000, 0)
-	if strings.Contains(noPrice, "$") {
-		t.Errorf("无报价不应出现 USD 段: %q", noPrice)
 	}
 }

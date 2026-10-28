@@ -7,7 +7,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"strconv"
 	"time"
@@ -18,7 +17,6 @@ import (
 	"o/internal/data/trx"
 	"o/internal/platform/condreq"
 	"o/internal/platform/config"
-	"o/internal/platform/notify"
 	"o/internal/platform/roster"
 	"o/internal/store/pgstore"
 )
@@ -29,7 +27,6 @@ type trxWiring struct {
 	pool        *pgxpool.Pool
 	cfg         *config.Client
 	st          *pgstore.Store
-	al          *notify.Alerter // T-0220：feishu 告警通道（nil=只 log——Alerter nil receiver 自守）
 	accts       *trx.AccountCollector
 	txs         *trx.TxsCollector
 	wit         *trx.WitnessCollector
@@ -38,10 +35,9 @@ type trxWiring struct {
 	cmcWsHealth func() bool          // nil=false（REST 兜底显形）
 }
 
-// trxArms 双臂发射+装配返回（T-0110：wiring 供读面/刷新踢/引擎同源消费；
-// T-0220：al 供引擎/租金 feishu 推送面——构造期注入免竞态）。
-func trxArms(ctx context.Context, errc chan<- error, pool *pgxpool.Pool, cfg *config.Client, al *notify.Alerter) *trxWiring {
-	w := &trxWiring{pool: pool, cfg: cfg, st: pgstore.NewStore(pool), al: al}
+// trxArms 双臂发射+装配返回（T-0110：wiring 供读面/刷新踢/引擎同源消费）。
+func trxArms(ctx context.Context, errc chan<- error, pool *pgxpool.Pool, cfg *config.Client) *trxWiring {
+	w := &trxWiring{pool: pool, cfg: cfg, st: pgstore.NewStore(pool)}
 	go trxArm(ctx, errc, w)
 	go cmcArm(ctx, errc, w)
 	go trxvoteArm(ctx, errc, w) // T-0110 旗歇引擎（trx.vote_enabled=false 停驶待令）
@@ -67,14 +63,6 @@ func trxArm(ctx context.Context, errc chan<- error, w *trxWiring) {
 	// 实证病灶——凭据语义错配典型坑）。witness/apr 基址同律纠。
 	w.txs = trx.NewTxsCollector(addr, w.st, "https://api.trongrid.io",
 		apiKey, "https://apilist.tronscan.org", nil, 0.10)
-	// T-0220：新租金入账 → feishu 推送（≥10 TRX/笔门槛在此过滤——微付款不推；
-	// Alerter 同指纹退避兜底防连笔轰炸）。
-	w.txs.SetOnRentalIncome(func(ctx context.Context, txID string, amountSun int64) {
-		if amountSun < 10_000_000 {
-			return
-		}
-		w.al.Alert(ctx, "trx_rent", fmt.Sprintf("[能量租金] +%.2f TRX", float64(amountSun)/1e6))
-	})
 	w.wit = trx.NewWitnessCollector(addr, w.st, "https://api.trongrid.io", apiKey)
 	w.apr = trx.NewAprCollector(addr, w.st, "https://apilist.tronscan.org")
 	if err := roster.Register(ctx, w.pool, "TRX 链上采集", "trx",

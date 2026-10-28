@@ -45,11 +45,10 @@ type Scheduler struct {
 	nextMaintFn       func(ctx context.Context) (time.Time, error) // GetNextMaintenanceTime 源（failsafe 用）
 	nextMaint         time.Time                                    // 缓存下一维护期边界
 	nextMaintMu       sync.Mutex
-	failsafeEvery     time.Duration                             // failsafe 核醒间隔（默认 60s，纯本地比对）
-	confirmSteps      []time.Duration                           // 自发 tx 确认窗节奏（测试可注）
-	onEvaluated       func(ctx context.Context)                 // 评估完成回调（apr/推送刷新）
-	onSelfTxConfirmed func(ctx context.Context)                 // 自发 tx 确认回调（account/apr 重取）
-	priceFn           func(ctx context.Context) (float64, bool) // T-0220：TRX 现价源（领奖 USD 折算；nil=省略折算段）
+	failsafeEvery     time.Duration             // failsafe 核醒间隔（默认 60s，纯本地比对）
+	confirmSteps      []time.Duration           // 自发 tx 确认窗节奏（测试可注）
+	onEvaluated       func(ctx context.Context) // 评估完成回调（apr/推送刷新）
+	onSelfTxConfirmed func(ctx context.Context) // 自发 tx 确认回调（account/apr 重取）
 }
 
 // Store 是 Scheduler 依赖的存储接口（解耦 pgstore.Store 供测试注入）。
@@ -90,10 +89,6 @@ func NewScheduler(executor *Executor, store Store, address, tronscanBase string,
 // SetNow 替换 now 函数（测试用）。
 func (s *Scheduler) SetNow(fn func() time.Time) { s.now = fn }
 
-// SetPriceFn 注入 TRX 现价源（T-0220 领奖 USD 折算——ok=false/nil=告警省略
-// 折算段不阻断推送）。
-func (s *Scheduler) SetPriceFn(fn func(ctx context.Context) (float64, bool)) { s.priceFn = fn }
-
 // Run 启动事件驱动改投评估（D-137：reward 差分/自 tx 确认/failsafe/boot 补课四触发源）。
 func (s *Scheduler) Run(ctx context.Context) {
 	safego.GoLoop("trxvote:rebalance", func() { s.eventLoop(ctx) })
@@ -121,13 +116,13 @@ func (s *Scheduler) ClaimCheck(ctx context.Context, rewardSun int64) {
 	ok, err := s.executor.HasBandwidth(ctx, BandwidthNeedClaimBP)
 	if err != nil {
 		log.Printf("[trxvote] claim bandwidth check: %v", err)
-		s.executor.Alert("trxvote_engine", "[投票领奖带宽查询失败] "+err.Error())
+		s.executor.Alert("warn", "[投票领奖带宽查询失败] "+err.Error())
 		s.lastClaimFailAt = s.now()
 		return
 	}
 	if !ok {
 		log.Println("[trxvote] 带宽不足，跳过领奖（避免烧 TRX）")
-		s.executor.Alert("trxvote_engine", "[投票领奖跳过] 带宽不足，等待恢复")
+		s.executor.Alert("warn", "[投票领奖跳过] 带宽不足，等待恢复")
 		s.lastClaimFailAt = s.now() // 带宽不足设冷却防告警轰炸
 		return
 	}
@@ -135,7 +130,7 @@ func (s *Scheduler) ClaimCheck(ctx context.Context, rewardSun int64) {
 	txHash, amount, err := s.executor.ClaimReward(ctx)
 	if err != nil {
 		log.Printf("[trxvote] claim failed: %v", err)
-		s.executor.Alert("trxvote_engine", "[投票领奖失败] "+err.Error())
+		s.executor.Alert("critical", "[投票领奖失败] "+err.Error())
 		s.lastClaimFailAt = s.now()
 		return
 	}
@@ -144,19 +139,8 @@ func (s *Scheduler) ClaimCheck(ctx context.Context, rewardSun int64) {
 		return
 	}
 	log.Printf("[trxvote] claim success: tx=%s amount=%d sun (%.4f TRX)", txHash, amount, float64(amount)/1e6)
-	s.executor.Alert("trxvote_claim", formatClaimAlert(txHash, amount, s.trxPrice(ctx)))
+	s.executor.Alert("warn", formatClaimAlert(txHash, amount))
 	s.watchSelfTx(ctx, txHash) // D-137③：自发 tx 有界确认窗
-}
-
-// trxPrice T-0220：现价读取（priceFn 缺席/失败=0——告警省略 USD 折算段）。
-func (s *Scheduler) trxPrice(ctx context.Context) float64 {
-	if s.priceFn == nil {
-		return 0
-	}
-	if p, ok := s.priceFn(ctx); ok {
-		return p
-	}
-	return 0
 }
 
 // doRebalance 执行一轮改投决策（设计 §5）。
@@ -188,7 +172,7 @@ func (s *Scheduler) doRebalance(ctx context.Context) bool {
 			return false
 		}
 		log.Printf("[trxvote] fetch SR list: %v", err)
-		s.executor.Alert("trxvote_engine", "[投票采集失败] "+err.Error())
+		s.executor.Alert("warn", "[投票采集失败] "+err.Error())
 		return false // T-0192①：读败返 false=边界不消费下拍 failsafe 重试
 	}
 
@@ -203,14 +187,14 @@ func (s *Scheduler) doRebalance(ctx context.Context) bool {
 		log.Printf("[trxvote] get account detail: %v", err)
 		if !s.accountQueryFailing { // episode 首报 warn，期内失败只 log
 			s.accountQueryFailing = true
-			s.executor.Alert("trxvote_engine", "[投票账户查询失败] "+err.Error())
+			s.executor.Alert("warn", "[投票账户查询失败] "+err.Error())
 		}
 		s.scheduleRekick(ctx) // T-0192②：账户读失败退避重 kick（触发链单点饿死根修）
 		return false
 	}
 	if s.accountQueryFailing { // 恢复边沿各报一条（去重对账完整）
 		s.accountQueryFailing = false
-		s.executor.Alert("trxvote_engine", "[投票账户查询恢复] tronscan/gRPC 账户读路恢复")
+		s.executor.Alert("warn", "[投票账户查询恢复] tronscan/gRPC 账户读路恢复")
 	}
 	currentVotes := convertVotes(accDetail.Votes)
 	tp := accDetail.TronPower
@@ -248,13 +232,13 @@ func (s *Scheduler) doRebalance(ctx context.Context) bool {
 	ok, err := s.executor.HasBandwidth(ctx, BandwidthNeedVoteBP)
 	if err != nil {
 		log.Printf("[trxvote] bandwidth check: %v", err)
-		s.executor.Alert("trxvote_engine", "[投票带宽查询失败] "+err.Error())
+		s.executor.Alert("warn", "[投票带宽查询失败] "+err.Error())
 		s.lastRebalanceBlockAt = s.now()
 		return true
 	}
 	if !ok {
 		log.Println("[trxvote] 带宽不足，跳过改投（避免烧 TRX）")
-		s.executor.Alert("trxvote_engine", "[投票改投跳过] 带宽不足，等待恢复")
+		s.executor.Alert("warn", "[投票改投跳过] 带宽不足，等待恢复")
 		s.lastRebalanceBlockAt = s.now() // 设冷却防重复告警
 		return true
 	}
@@ -262,7 +246,7 @@ func (s *Scheduler) doRebalance(ctx context.Context) bool {
 	txHash, err := s.executor.Vote(ctx, decision.Target)
 	if err != nil {
 		log.Printf("[trxvote] rebalance failed: %v", err)
-		s.executor.Alert("trxvote_engine", "[投票改投失败] "+err.Error())
+		s.executor.Alert("critical", "[投票改投失败] "+err.Error())
 		return true
 	}
 	if err := s.store.UpdateTrxVoteRebalanceResult(ctx, id, txHash, "executed"); err != nil {
@@ -271,7 +255,7 @@ func (s *Scheduler) doRebalance(ctx context.Context) bool {
 	log.Printf("[trxvote] rebalance success: tx=%s yield %s→%s TRX/yr (+%s%%) SR %s→%s",
 		txHash, formatFloat(decision.CurrentYield), formatFloat(decision.TargetYield),
 		formatFloat(decision.Improvement), topSRPrefix(currentVotes), topSRPrefix(decision.Target))
-	s.executor.Alert("trxvote_rebalance", formatRebalanceAlert(txHash, decision, currentVotes, tp))
+	s.executor.Alert("warn", formatRebalanceAlert(txHash, decision, currentVotes))
 	s.watchSelfTx(ctx, txHash) // D-137③：自发 tx 有界确认窗
 	return true
 }

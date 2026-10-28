@@ -24,10 +24,6 @@ var kindSpec = map[string]struct {
 	"retention_volume_alert": {"体积哨兵告警", false, "库/单表体积超阈——新无底洞查证（T-0153）"},
 	"okxws_face_dead":        {"行情面断流", false, "订阅标的行情全冻——系统面故障（T-0129）"},
 	"bridge_stale":           {"采集桥断链", false, "dev 蒸馏写径超时——SG REST 兜底自动接管（T-0137）"},
-	"trxvote_claim":          {"TRX 投票领奖到账", false, "投票引擎自动执行——收入事件（T-0220）"},
-	"trxvote_rebalance":      {"TRX 投票改投执行", false, "投票引擎自动执行——年化优化动作（T-0220）"},
-	"trxvote_engine":         {"TRX 投票引擎异常", false, "自营盘自动面故障——需排查（T-0220）"},
-	"trx_rent":               {"TRX 能量租金入账", false, "租金收款自动面——收入事件（T-0220）"},
 }
 
 // HumanText 人话载荷装配（三段式——业主零黑话）。
