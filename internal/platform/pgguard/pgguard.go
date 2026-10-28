@@ -97,7 +97,7 @@ func (x *Sentinel) Check(ctx context.Context) {
 		coalesce(wait_event,''), backend_start
 		FROM pg_stat_activity
 		WHERE backend_xmin IS NOT NULL AND xact_start < now()-interval '10 minutes'
-		  AND backend_type='client backend'`)
+		  AND backend_type='client backend'`) // T-0209：background worker 长事务排除（TimescaleDB 调度器系统会话非真空钉手——共享实例误报病灶根修）
 	if err != nil {
 		log.Printf("[pgguard] xmin 哨兵读败（不判）: %v", err)
 		return

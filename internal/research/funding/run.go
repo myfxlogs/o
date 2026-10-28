@@ -190,7 +190,7 @@ func (r *Runner) ScanOnce(ctx context.Context) error { return r.scan(ctx) }
 func (r *Runner) annotateMacro(ctx context.Context, e *Eval) {
 	h, err := r.cfg.GetFloat("research.macro.horizon_days")
 	if err != nil || h <= 0 {
-		return // 缺键/horizon=0 fail-open——此面非闸不注解
+		return // 缺键/horizon=0 fail-open——此面非闸不注解（0=关闸语义）
 	}
 	var kind, title string
 	var d time.Time
