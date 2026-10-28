@@ -242,8 +242,10 @@ body::before {
   font-size: 12.5px;
 }
 .chip .dot {
-  width: 11px;
-  height: 11px; /* 业主②：席位灯加大——呼吸色读得清 */
+  width: 9px;
+  height: 9px; /* T-0222 业主令：席位灯档同降 11→9px——小而亮非大而闪。
+                  注意 03-table-chip `.chip .dot.sN` 高特异性同治席位灯，
+                  两处档位须同步改。 */
 }
 .venue-group {
   margin-bottom: 12px;
@@ -547,13 +549,17 @@ details.rep summary {
   transition: width 0.4s ease;
 }
 
-/* —— 灯可见性硬化（玻璃底/浅底不洗白——暗色细环兜住轮廓）—— */
+/* —— 灯可见性硬化（玻璃底/浅底不洗白——暗色细环兜住轮廓）+ T-0222 3D
+   恒驻件：底部内影（inset 内凹感）+环境接触微影（落影贴珠底）。呼吸帧
+   逐帧同携此栈防闪烁。尺寸不在此钉——归还基档（10-shell 基径 8px/席位
+   chip 9px），收敛单点在基档。 —— */
 .dot.s0,
 .dot.s1,
 .dot.s2 {
-  width: 10px;
-  height: 10px;
-  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--ink) 25%, transparent);
+  box-shadow:
+    0 0 0 1.5px color-mix(in srgb, var(--ink) 25%, transparent),
+    inset 0 -1px 1.5px color-mix(in srgb, #000000 38%, transparent),
+    0 1px 1px color-mix(in srgb, var(--ink) 16%, transparent);
 }
 
 /* —— 双列同行（业主回单：报告+现金流 1 行 2 列——grid 强制并排，

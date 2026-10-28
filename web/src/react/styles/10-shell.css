@@ -124,48 +124,70 @@
   }
 }
 
-/* Watch 连接状态点（共用三态点色；断流呼吸） */
+/* Watch 连接状态点（共用三态点色；断流呼吸）。
+   T-0222 业主令：灯=小而亮的立体珠——基径 9→8px 收敛，立体感走明暗分层非尺寸。 */
 .live-dot,
 .dot {
   display: inline-block;
-  width: 9px;
-  height: 9px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   vertical-align: middle;
 }
-/* 活灯珠体（T-0221 业主令：Apple 式活灯——珠体径向渐变脱平色盘：
-   左上射光高光+边缘暗一档成球面光感，非平面圆盘；色仍随三态固定。 */
+/* 活灯珠体（T-0221 活灯化 + T-0222 3D 化）：双层径向=①紧聚光斑（小高光点
+   非大面渐变）+②球面明暗（上亮下暗、边缘暗弧收浓）；底部内影/环境接触
+   微影走 box-shadow 恒驻层（硬化段与呼吸帧同携防覆盖）。色仍随三态固定。 */
 .dot.s0 {
-  background: radial-gradient(
-    circle at 32% 30%,
-    color-mix(in srgb, var(--good) 42%, #ffffff) 0%,
-    var(--good) 55%,
-    color-mix(in srgb, var(--good) 64%, #000000) 100%
-  );
+  background:
+    radial-gradient(
+      circle at 30% 26%,
+      rgba(255, 255, 255, 0.92) 0%,
+      rgba(255, 255, 255, 0) 34%
+    ),
+    radial-gradient(
+      circle at 34% 30%,
+      color-mix(in srgb, var(--good) 45%, #ffffff) 0%,
+      var(--good) 50%,
+      color-mix(in srgb, var(--good) 52%, #000000) 100%
+    );
 }
 .dot.s1 {
-  background: radial-gradient(
-    circle at 32% 30%,
-    color-mix(in srgb, var(--warn) 42%, #ffffff) 0%,
-    var(--warn) 55%,
-    color-mix(in srgb, var(--warn) 64%, #000000) 100%
-  );
+  background:
+    radial-gradient(
+      circle at 30% 26%,
+      rgba(255, 255, 255, 0.92) 0%,
+      rgba(255, 255, 255, 0) 34%
+    ),
+    radial-gradient(
+      circle at 34% 30%,
+      color-mix(in srgb, var(--warn) 45%, #ffffff) 0%,
+      var(--warn) 50%,
+      color-mix(in srgb, var(--warn) 52%, #000000) 100%
+    );
   animation: breathe 1.6s ease-in-out infinite;
 }
 .dot.s2 {
-  background: radial-gradient(
-    circle at 32% 30%,
-    color-mix(in srgb, var(--critical) 42%, #ffffff) 0%,
-    var(--critical) 55%,
-    color-mix(in srgb, var(--critical) 64%, #000000) 100%
-  );
+  background:
+    radial-gradient(
+      circle at 30% 26%,
+      rgba(255, 255, 255, 0.92) 0%,
+      rgba(255, 255, 255, 0) 34%
+    ),
+    radial-gradient(
+      circle at 34% 30%,
+      color-mix(in srgb, var(--critical) 45%, #ffffff) 0%,
+      var(--critical) 50%,
+      color-mix(in srgb, var(--critical) 52%, #000000) 100%
+    );
 }
 @keyframes breathe {
   50% {
     opacity: 0.35;
     box-shadow:
       0 0 0 1.5px color-mix(in srgb, var(--ink) 25%, transparent),
-      0 0 10px 2px color-mix(in srgb, var(--warn) 62%, transparent);
+      inset 0 -1px 1.5px color-mix(in srgb, #000000 38%, transparent),
+      0 1px 1px color-mix(in srgb, var(--ink) 16%, transparent),
+      0 0 4px 1px color-mix(in srgb, var(--warn) 62%, transparent);
   }
 }
 .clock {
@@ -193,23 +215,27 @@
   animation: breatheAlarm 0.75s ease-in-out infinite;
   box-shadow: 0 0 6px 1px color-mix(in srgb, var(--critical) 55%, transparent);
 }
-/* 活灯呼吸（T-0221 业主令：光晕深浅涨落主驱——box-shadow 辉光涨落替球体
-   胀缩，transform: scale 弃用；描环层与 20-cards 灯可见性硬化同款——
-   动效帧自带描环防覆盖。辉光色显式挂状态变量：breatheCalm 亦被
-   TrxHedgeCard WS 点内联引用，须硬编码 --good 不随继承色漂移。） */
+/* 活灯呼吸（T-0221 辉光涨落主驱 + T-0222 光晕收幅：峰值弥散 10–11px→4–5px
+   贴珠——远读「一点亮珠在呼吸」非「一团光在胀缩」。3D 恒驻件（描环+底部
+   内影+接触微影）逐帧同携防覆盖，与 20-cards 硬化段同构。帧辉光色显式挂
+   状态变量，不随继承色漂移。） */
 @keyframes breatheCalm {
   0%,
   100% {
     opacity: 1;
     box-shadow:
       0 0 0 1.5px color-mix(in srgb, var(--ink) 25%, transparent),
-      0 0 3px 0.5px color-mix(in srgb, var(--good) 32%, transparent);
+      inset 0 -1px 1.5px color-mix(in srgb, #000000 38%, transparent),
+      0 1px 1px color-mix(in srgb, var(--ink) 16%, transparent),
+      0 0 2px 0.5px color-mix(in srgb, var(--good) 32%, transparent);
   }
   50% {
     opacity: 0.78; /* 业主②：呼吸不褪色——下限抬高防小灯读灰 */
     box-shadow:
       0 0 0 1.5px color-mix(in srgb, var(--ink) 25%, transparent),
-      0 0 11px 3px color-mix(in srgb, var(--good) 62%, transparent);
+      inset 0 -1px 1.5px color-mix(in srgb, #000000 38%, transparent),
+      0 1px 1px color-mix(in srgb, var(--ink) 16%, transparent),
+      0 0 5px 1px color-mix(in srgb, var(--good) 62%, transparent);
   }
 }
 @keyframes breatheQuick {
@@ -218,13 +244,17 @@
     opacity: 1;
     box-shadow:
       0 0 0 1.5px color-mix(in srgb, var(--ink) 25%, transparent),
-      0 0 3px 0.5px color-mix(in srgb, var(--warn) 40%, transparent);
+      inset 0 -1px 1.5px color-mix(in srgb, #000000 38%, transparent),
+      0 1px 1px color-mix(in srgb, var(--ink) 16%, transparent),
+      0 0 2px 0.5px color-mix(in srgb, var(--warn) 40%, transparent);
   }
   50% {
     opacity: 0.6;
     box-shadow:
       0 0 0 1.5px color-mix(in srgb, var(--ink) 25%, transparent),
-      0 0 10px 2.5px color-mix(in srgb, var(--warn) 68%, transparent);
+      inset 0 -1px 1.5px color-mix(in srgb, #000000 38%, transparent),
+      0 1px 1px color-mix(in srgb, var(--ink) 16%, transparent),
+      0 0 4px 1px color-mix(in srgb, var(--warn) 68%, transparent);
   }
 }
 @keyframes breatheAlarm {
@@ -241,4 +271,10 @@
   animation: none !important;
   transform: none;
   box-shadow: none;
+}
+
+/* 静止珠（T-0222：呼吸=活性语言，降级态不装活——WS 断流 REST 兜底等挂
+   still 钳住 .dot.s1 的 1.6s 自息；珠体/描环仍在册，只是不动。） */
+.dot.still {
+  animation: none !important;
 }

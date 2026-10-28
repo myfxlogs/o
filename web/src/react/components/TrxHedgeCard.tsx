@@ -47,11 +47,9 @@ export function TrxHedgeCard() {
         <h2>对冲结构</h2>
         <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6 }}
           title={structure?.wsConnected ? "CMC WS 在线（LiveState 30s 新鲜度验证）" : "REST 兜底——CMC WS 断/陈"}>
-          <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: "50%",
-            background: structure?.wsConnected ? "var(--good)" : "var(--warn)",
-            animation: structure?.wsConnected ? "breatheCalm 2.4s ease-in-out infinite" : "none",
-            boxShadow: "0 0 0 1.5px color-mix(in srgb, var(--ink) 25%, transparent)",
-          }} />
+          {/* WS 灯挂共用珠体（T-0222 统一）：在线=s0 breathe（breatheCalm 2.4s），
+              断流=s1 still（静止珠——呼吸=活性，降级不装活）。 */}
+          <span className={"dot " + (structure?.wsConnected ? "s0 breathe" : "s1 still")} />
           <span style={{ fontSize: 12, color: "var(--ink-2)" }}>
             {structure?.wsConnected ? "WS 在线" : "REST 兜底"}
           </span>
