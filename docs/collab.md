@@ -158,14 +158,22 @@ session 标识自定（如 `devin-a1b2`），全仓唯一即可，建议加可�
 2. **事实归位扫描**——本 session 产生的项目事实各归其位：坑→`docs/工程经验库/条目/`（**有坑即写条目+`tools/kbgen gen` 重建索引——业主令 10-25 废待归纳层，排队=下个 session 盲区**）；venue 面新证→`skills/` 同票修订（在用中证错必修）；方向裁断→`docs/decisions/`。**私有记忆不得独存项目事实**。
 3. **提交即推送**——收工时 `git status` 净 + `git log @{u}..` 空；本地领先未推送=断链风险。
 
-## 11. SG 轮换 SOP（T-0054 立——build 吞码+旧镜像容器假象双坑实证后钉死）
+## 11. SG 轮换 SOP（T-0054 立；D-0035/T-0217 重铸——多席撞车实证后部署唯一径固化）
 
-轮换四步，每步机检显式断言——禁管道吞退出码、禁「Started」即当成功：
+**钦定径=`scripts/deploy_image.sh` 一条令**（出处闸+SG 部署锁+SHA tag 留痕+健康闸全机内化；手工 build/save/up 绕锁=违例，回滚/热补走 `O_DEPLOY_ALLOW_UNPUSHED=1` 显式放行）：
 
-1. **build 显式断言**：`docker build --network=host -t o-core:latest -f Dockerfile.core .` 直跑（**禁 `| tail` 等管道吞码**——复合放大器实证：build 炸被吞→`up` 照跑→容器带旧镜像「Started」假象）。
-2. **镜像投递+源码同步**：`docker save o-core:latest | gzip -1 | ssh root@<SG> 'docker load'` → `scripts/deploy_sync.sh`（prune 已排除 `internal/gen/**`；镜像内 buf 双模板 regen 自洽，SG/宿主 gen 面零依赖）。
-3. **up 强制重建**：`ssh <SG> 'cd /opt/o && docker compose -f docker-compose.yml -f docker-compose.sg.yml up -d --force-recreate'`——**`--force-recreate` 必带**（不带=容器保留旧镜像运行实证 08:59Z）。
-4. **容器镜像比对**：新镜像 ID（`docker images o-core:latest -q`）与运行容器 `.Image`（`docker inspect o-core --format '{{.Image}}'`）逐字比对一致+`healthy`——不一致=轮换未生效禁收工；新镜像 `CreatedAt` 须晚于 merge 提交时点。
+```bash
+scripts/deploy_image.sh          # 本机构建+船运+锁内 up+健康闸+产地尾拍
+```
+
+脚本内断言（每步禁「Started」即当成功，与旧四步同构）：
+
+1. **出处闸**：脏树拒；HEAD 不在 origin/master 拒（堵陈码盖新码——多席撞车病灶机内化）。
+2. **SG 部署锁**：`ssh mkdir /opt/o/.deploy-lock` 原子互斥，持锁写 holder=seat/sha/ts/token；陈锁>30min 或 `O_DEPLOY_FORCE=1` 抢（WARN 先打），EXIT trap token 匹配释锁。
+3. **SHA tag 留痕**：`o-core:<sha12>` 主 tag+`o-core:latest` 同层别名双 ref 齐运——容器 `.Config.Image` 自报所跑源码 commit（旧「latest 逐字比对」步语义升级：产地在 tag 字面，不再靠镜像 ID 对拍）。
+4. **健康闸**：尾拍 `docker inspect .Config.Image` 印产地+90s 轮询 `.State.Health.Status`——不转 healthy 即 die 禁收工。
+
+人工排障对照（非部署径，仅查证用）：`.Config.Image`=o-core:<sha> 应对 `git rev-parse --short=12 HEAD`；`cat /opt/o/.deploy-lock/holder` 查持锁席。
 
 ## 数据流正本（2026-10-26 补）
 
