@@ -25,7 +25,10 @@ func runner(t *testing.T) (*Runner, *pgxpool.Pool, *pgxpool.Pool) {
 		t.Fatalf("migrate md: %v", err)
 	}
 	if err := pgstore.Migrate(ctx, sg, "fin"); err != nil {
-		t.Fatalf("migrate fin: %v", err)
+		t.Fatal(err)
+	}
+	if err := pgstore.Migrate(ctx, sg, "md"); err != nil { // T-0214：SG 单侧库双链（earn 写 md_earn_rate 实证）——反向桥正本面须含 md 域
+		t.Fatalf("migrate md: %v", err)
 	}
 	r, err := New(md, sg, nil, "serve")
 	if err != nil {
@@ -45,6 +48,9 @@ func runnerDual(t *testing.T) (*Runner, *pgxpool.Pool, *pgxpool.Pool) {
 	}
 	if err := pgstore.Migrate(ctx, sg, "fin"); err != nil {
 		t.Fatalf("migrate fin: %v", err)
+	}
+	if err := pgstore.Migrate(ctx, sg, "md"); err != nil { // T-0214：SG 单侧库双链
+		t.Fatalf("migrate md: %v", err)
 	}
 	r, err := New(md, sg, nil, "dualwrite")
 	if err != nil {
