@@ -35,3 +35,5 @@ evidence_refs:
   core_pb.ts`；缺则 `cp -r /opt/o/web/src/gen web/src/`（部署树恒有面）。
   诊断次序：vite 日志 grep "Failed to resolve" 先于一切前端码排查。
   provision 清单补该件属单外改动，须走票（本条目即事实归位）。
+
+> 相关条目：[`worktree-fe-rebuild-gen-gap`](worktree-fe-rebuild-gen-gap.md)——同根因的首次实证（T-0222 前端重建踩坑）；两条目待归纳合并，根定位以本条为准。
