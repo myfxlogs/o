@@ -87,6 +87,25 @@ func (c *Collector) handle(data []byte) {
 		}
 		c.frames.Add(1)
 		c.lastFrame.Store(time.Now().UnixNano())
+		// T-0209②：per-inst 3s 最小写间隔（tickers/funding 同拍——写洪防；
+		// T-0193 过拍闸量级沿）。
+		if !c.passThrottle(it) {
+			continue
+		}
+		// T-0209：SG 活跃集谓词闸（nil=全写 dev 径；set=开仓闸输入集限写
+		// ——漏谓词=不落行不写僵尸 fail-closed）。
+		if c.LocalWritePred != nil {
+			switch {
+			case it.tick != nil:
+				if !c.LocalWritePred("ticks", it.tick.instID) {
+					continue
+				}
+			case it.funding != nil:
+				if !c.LocalWritePred("funding", it.funding.instID) {
+					continue
+				}
+			}
+		}
 		select {
 		case c.queue <- it:
 		default:

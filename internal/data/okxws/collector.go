@@ -59,13 +59,18 @@ type Collector struct {
 
 	// T-0139 桥二期信号面：books5 复活（D-0022——特征值非原始盘口；标的集
 	// 可配置域 bridge.depth5.symbols，非全宇宙防桥自造洪泛）。
-	depth5Syms   []string                                              // 本连接订阅的深度标的集（config 热启，重连拍读）
-	ctvFeed      func(ctx context.Context) (map[string]float64, error) // SWAP ctVal 读件（USD 额换算）
-	ctvMu        sync.Mutex                                            // T-0191：ctv 字段读写互斥（reload 协程×读环并发）
-	ctvCache     map[string]float64
-	ctvAt        time.Time
-	ctvReloading bool                 // T-0191：后台重载飞行中闸（≤1 次/60s 节流——帧频防 venue 打爆）
-	depth5At     map[string]time.Time // per-inst 蒸馏写节流（特征值 5s 鲜度足够）
+	depth5Syms []string
+	// T-0209：SG 开仓闸行情自供谓词——inst∈活跃集（fin_position 未平仓
+	// ∪fin_strategy 非 retired）才落表；nil=全写（dev 全宇宙径不动）。
+	LocalWritePred func(kind, instID string) bool
+	passAt         map[string]time.Time // T-0209②：per-inst 末写戳
+	passMu         sync.Mutex
+	ctvFeed        func(ctx context.Context) (map[string]float64, error) // SWAP ctVal 读件（USD 额换算）
+	ctvMu          sync.Mutex                                            // T-0191：ctv 字段读写互斥（reload 协程×读环并发）
+	ctvCache       map[string]float64
+	ctvAt          time.Time
+	ctvReloading   bool                 // T-0191：后台重载飞行中闸（≤1 次/60s 节流——帧频防 venue 打爆）
+	depth5At       map[string]time.Time // per-inst 蒸馏写节流（特征值 5s 鲜度足够）
 }
 
 // AttachMeter 挂带宽计量件（T-0057：nil=不计量）。
@@ -83,8 +88,9 @@ func NewCollector(pool *pgxpool.Pool, cfg *config.Client) *Collector {
 		pool: pool, cfg: cfg, url: PublicURL,
 		rej: rejects.New("okxws", "non_usdt_instid", "seq_gap", "parse_fail", "write_err", "symbols_missing",
 			"activeset_read_failed", "depth5_no_ctval"),
-		queue: make(chan rowItem, 1024),
-		Stats: nil,
+		queue:  make(chan rowItem, 1024),
+		passAt: make(map[string]time.Time),
+		Stats:  nil,
 	}
 }
 
@@ -269,3 +275,24 @@ func (c *Collector) FrameCount() int64 { return c.frames.Load() }
 
 // LastFrame 最近业务帧时刻（status/看门狗观测面）。
 func (c *Collector) LastFrame() time.Time { return time.Unix(0, c.lastFrame.Load()) }
+
+// passThrottle T-0209②：per-inst 3s 最小写间隔（tickers/funding 同拍——
+// T-0193 过拍闸量级沿；写洪防）。间隔内跳帧=不落行。
+func (c *Collector) passThrottle(it rowItem) bool {
+	var kind, inst string
+	switch {
+	case it.tick != nil:
+		kind, inst = "ticks", it.tick.instID
+	case it.funding != nil:
+		kind, inst = "funding", it.funding.instID
+	default:
+		return true // mark/depth5 面不限
+	}
+	c.passMu.Lock()
+	defer c.passMu.Unlock()
+	if last, ok := c.passAt[kind+":"+inst]; ok && time.Since(last) < 3*time.Second {
+		return false
+	}
+	c.passAt[kind+":"+inst] = time.Now()
+	return true
+}
