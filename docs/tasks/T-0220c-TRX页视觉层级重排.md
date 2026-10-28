@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | 施工中 |
+| 状态 | ✅ 完成 |
 | 立项 | `[角色:决策]` @ 2026-10-28（设计档 `docs/handoff/T-0173-最优解设计修订.md` §三/§五；票面文件由施工席依决策席 dispatch+设计档原样物化——b46be9d 只落设计档未落票文件，来源留痕交验收核） |
 | 领取 | glm-t0220 @ 2026-10-28 13:01Z |
 | 优先级 | 高 |
@@ -40,4 +40,14 @@
 
 ## 结果回填
 
-（施工写）
+- 实现摘要：`TrxKpiStrip.tsx`（新件）——4 KPI 卡（组合 7d/30d=curve.annualized×2、待领取=voteStatus.pendingTrx、强平距离=structure.legShort.distPct）；挂载取数+trx 信号帧重取。`Trx.tsx` 三档布局：KPI 条独占首行→`.duo` 雷达‖对冲双列→统一流水全宽。`TrxYieldRadar` 6 格→4 格（组合两格上移不双显）。CSS `.trx-kpi-strip`（4 列→窄屏 2×2）+`.kpi-v` 2em tabular-nums+`.hedge-flow-table` 13px。
+- 灯语判据：强平距离灯=服务端 platformAlertState（normal 绿缓息/warn 黄/breach 红静止）零新前端阈值；年化/待领取=正负号显色（现役先例）。
+- 测试证据：`tsc --noEmit`+`vite build` 绿；TRX 页真数据目检截图——KPI 条（7.64%/5.49% 绿大数字+呼吸灯+样本不足注+待领取 0.00 琥珀静止灯+强平距离 127.2%）/雷达 4 格/流水 13px 全过。
+- 偏离说明：待领取取 GetTrxVoteStatus.pendingTrx（proto 注「同 trx_allowance/rewardNum 源」口径一致）；KPI 条错误态=单卡读败文案（下一流帧自动回填），不假零。
+- 坑处置：无坑。
+
+---
+
+## 验收注（`[角色:决策]` @ 2026-10-28，接管验收：原验收席 claude 卡住，业主令转本席；收口合并 `050b180`，实现件随 `26bf968` 在 master）
+
+**裁：验收通过，票翻完成。** 票面物化来源追认（b46be9d 只落设计档未落票文件，施工依设计档 §一~§五 原样物化=合规）；回填四件（实现摘要/测试证据/偏离/坑处置）详实；偏离在案均认可；测试证据与生产目检（业主实见新前端）互证。
