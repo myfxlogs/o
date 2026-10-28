@@ -109,6 +109,7 @@ var migrationTable = []struct {
 	{1056, "md_1056_proposal_eval_id_idx.sql"},
 	{1057, "md_1057_md_signal.sql"},
 	{1060, "md_1060_xvenue_carry.sql"},
+	{1061, "md_1061_margin_borrow_capability.sql"},
 	{1063, "md_1063_data_retention.sql"},
 	{1064, "md_1064_notify_flood_shrink.sql"},
 	{1065, "md_1065_proposal_retire_trace.sql"},

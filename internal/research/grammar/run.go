@@ -238,8 +238,28 @@ func (r *Runner) evalBasis(ctx context.Context, f Family) error {
 		}
 		if err := r.writeEval(ctx, inst, f.Template, f.Direction, verdict, reason,
 			map[string]any{"fut": fut, "spot": spot, "basis_pct": basis,
-				"net_apr": netApr, "days_to_expiry": int(days)}); err != nil {
+				"net_apr": netApr, "apr": math.Abs(netApr), "days_to_expiry": int(days)}); err != nil {
 			return err
+		}
+		if verdict == "proposed" { // T-0216：proposed→fin_proposal 提案径（executor 在位——同 volsell persistLegEval 幂等形）
+			var evalID int64
+			if err := r.pool.QueryRow(ctx, `SELECT id FROM fin_opp_eval
+				WHERE inst_id=$1 AND template=$2 AND direction=$3`, inst, f.Template, f.Direction).Scan(&evalID); err != nil {
+				return err
+			}
+			var open int
+			if err := r.pool.QueryRow(ctx,
+				"SELECT count(*) FROM fin_proposal WHERE inst_id=$1 AND state='fin_proposed'", inst).Scan(&open); err != nil {
+				return err
+			}
+			if open == 0 {
+				if _, err := r.pool.Exec(ctx, `INSERT INTO fin_proposal(eval_id,inst_id,direction,net_apr)
+					VALUES($1,$2,$3,$4)`, evalID, inst, f.Direction, math.Abs(netApr)); err != nil {
+					r.rej.Inc("proposal_write_err")
+					return err
+				}
+				log.Printf("[research/grammar] basis 提案落卡 %s %s net_apr=%.4f", inst, f.Template, netApr)
+			}
 		}
 	}
 	if !found {
