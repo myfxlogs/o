@@ -247,9 +247,13 @@ func (r *Runner) evalBasis(ctx context.Context, f Family) error {
 				WHERE inst_id=$1 AND template=$2 AND direction=$3`, inst, f.Template, f.Direction).Scan(&evalID); err != nil {
 				return err
 			}
+			// T-0216 返修：预查键对齐 md_1054 闸 (inst_id,direction)+双在途态
+			// （原 inst 单键=跨族误吞——同 inst 双 basis 族互斥；direction 已
+			// 去分叉后键语义归一，闸吞前先自静=「落卡」假日志根除）。
 			var open int
 			if err := r.pool.QueryRow(ctx,
-				"SELECT count(*) FROM fin_proposal WHERE inst_id=$1 AND state='fin_proposed'", inst).Scan(&open); err != nil {
+				"SELECT count(*) FROM fin_proposal WHERE inst_id=$1 AND direction=$2 AND state IN ('fin_proposed','fin_armed')",
+				inst, f.Direction).Scan(&open); err != nil {
 				return err
 			}
 			if open == 0 {

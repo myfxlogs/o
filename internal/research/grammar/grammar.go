@@ -66,10 +66,10 @@ func Families() []Family {
 			// T-0216 条件缺口：spot_short 腿=保证金借币卖——margin-borrow 面在册
 			// 但 enabled=false（读面待实测启用）→族不枚举=恒缺腿如实呈。
 			NeedFace: need("market-instruments", "market-tickers", "margin-borrow-repay")},
-		{Template: "perp_quarter_spread", Direction: "basis_quarter", Kind: "basis",
+		{Template: "perp_quarter_spread", Direction: "perp_quarter_spread", Kind: "basis",
 			Legs: []LegPrim{PerpLong, QFutShort}, Settle: "expiry",
 			NeedFace: need("market-funding-rate", "market-instruments", "market-tickers"),
-			Executor: "perp_quarter_spread_executor"}, // T-0216 executor 落位
+			Executor: "perp_quarter_spread_executor"}, // T-0216 executor 落位；T-0216 返修：direction 去分叉——原与 quarter_basis_long 共用 basis_quarter，同 inst 双族撞去重闸 (inst_id,direction) 键=第二族提案被 md_1054 静默吞（提案去重语叉根修）
 		// ③ vol-sell 族（DCD 外构型——T-0215 executor 落位：假想卡 id=6/7
 		// 钦定名 vol_sell_strangle_executor/vol_sell_single_call_executor）
 		{Template: "vol_sell_strangle", Direction: "vol_sell", Kind: "vol-sell",
