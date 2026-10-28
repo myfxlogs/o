@@ -63,15 +63,16 @@ func trxvoteArm(ctx context.Context, errc chan<- error, w *trxWiring) {
 
 // buildTrxVoteOptimizer 引擎装配（凭据缺/私钥坏/连接败=降级 nil 显形）。
 func buildTrxVoteOptimizer(ctx context.Context, w *trxWiring) *trxvote.Scheduler {
-	degrade := func(msg string) *trxvote.Scheduler {
-		log.Printf("ALERT %s", msg)
-		return nil
-	}
 	privKeyHex := ""
 	if b, err := w.cfg.Secret(ctx, "trx.vote_private_key"); err == nil {
 		privKeyHex = string(b)
 	}
 	addr, _ := w.cfg.GetString("trx.stake_address")
+	degrade := func(msg string) *trxvote.Scheduler {
+		log.Printf("ALERT %s", msg)
+		w.al.Alert(ctx, "trxvote_engine", msg) // T-0220：引擎异常停驶推送（boot 边沿——每因至多一条）
+		return nil
+	}
 	switch {
 	case privKeyHex == "":
 		return degrade("[trxvote] trx.vote_private_key 未设置——引擎不启")
@@ -93,8 +94,9 @@ func buildTrxVoteOptimizer(ctx context.Context, w *trxWiring) *trxvote.Scheduler
 	if apiKey, _ := w.cfg.GetString("trx.trongrid_api_key"); apiKey != "" {
 		conn.SetAPIKey(apiKey)
 	}
-	executor := trxvote.NewExecutor(conn, privKey, addr, func(level, msg string) {
-		log.Printf("ALERT [trxvote/%s] %s", level, msg)
+	executor := trxvote.NewExecutor(conn, privKey, addr, func(kind, msg string) {
+		log.Printf("ALERT [trxvote/%s] %s", kind, msg)
+		w.al.Alert(ctx, kind, msg) // T-0220：feishu 推送（nil receiver 自守——同指纹退避防轰炸）
 	})
 	tronscanBase := "https://apilist.tronscan.org" // T-0192：api.tronscan.org SG 双证不可达（curl 000）——apilist 换源（200 实证；裸 host 各器自拼 /api/）
 	rebalanceCfg := trxvote.RebalanceConfig{
@@ -125,6 +127,15 @@ func buildTrxVoteOptimizer(ctx context.Context, w *trxWiring) *trxvote.Scheduler
 			return time.Time{}, err
 		}
 		return time.UnixMilli(nm.GetNum()), nil
+	})
+	// T-0220：领奖 USD 折算价源——LastCMCPriceMidWithTime("TRXUSDT") mid，
+	// 与 GetTrxYieldCurve currentPrice 同源（T-0192：价格只认 CMC 平台源）。
+	sched.SetPriceFn(func(ctx context.Context) (float64, bool) {
+		mid, _, err := w.st.LastCMCPriceMidWithTime(ctx, "TRXUSDT")
+		if err != nil || mid <= 0 {
+			return 0, false
+		}
+		return mid, true
 	})
 	return sched
 }

@@ -36,6 +36,8 @@ type TxsCollector struct {
 	lastAlertDay string // 内存节流：上次告警 UTC 日期（YYYY-MM-DD），1 条/天
 	// 扳机三件套节流（各 1 条/天，内存日期戳）。
 	lastEnergy30dAlertDay string // 能量 30d 年化 <8% critical
+	// T-0220：新租金入账回调（增量新行触发；全史回填/首拉不触发防历史段轰炸；nil=未接线）。
+	onRentalIncome func(ctx context.Context, txID string, amountSun int64)
 }
 
 // NewTxsCollector 创建交易流采集器。rentalPayers 为付款方地址集（env 解析）。
@@ -54,6 +56,21 @@ func NewTxsCollector(address string, store *pgstore.Store, base string, apiKey f
 		}
 	}
 	return &TxsCollector{address: address, store: store, base: base, apiKey: apiKey, tronscanBase: tronscanBase, rentalPayers: set, floorPct: floorPct}
+}
+
+// SetOnRentalIncome 接线新租金入账回调（T-0220 feishu 推送面——采集器只报
+// 事件不知推送；仅增量段新行触发，全史回填/首拉静默）。
+func (c *TxsCollector) SetOnRentalIncome(fn func(ctx context.Context, txID string, amountSun int64)) {
+	c.onRentalIncome = fn
+}
+
+// emitRentalIncome T-0220：rental_income 新行入账事件（增量段才发——首拉
+// lastTs=0 走全史、forceFullBackfill 重写历史段，皆静默防轰炸）。
+func (c *TxsCollector) emitRentalIncome(ctx context.Context, rec pgstore.TRXTx, incremental bool) {
+	if !incremental || rec.Kind != "rental_income" || c.onRentalIncome == nil {
+		return
+	}
+	c.onRentalIncome(ctx, rec.TxID, rec.AmountSun)
 }
 
 // fetchWithdrawAmount 调 gettransactioninfobyid 取 WithdrawBalance（vote_claim）领取额（sun）。
@@ -97,6 +114,8 @@ func (c *TxsCollector) Poll(ctx context.Context) ([]fact.Fact, error) {
 		}
 	}
 	fetched := 0
+	// T-0220：增量段判定（lastTs 有存量且非全史回填）——租金入账事件仅此段报。
+	incremental := lastTs > 0 && !forceFullBackfill
 	// 批量查 TronScan cheatStatus（同地址最近 N 笔）
 	cheatMap := c.fetchCheatStatuses(ctx, 200)
 	fingerprint := ""
@@ -146,6 +165,7 @@ func (c *TxsCollector) Poll(ctx context.Context) ([]fact.Fact, error) {
 			if err := c.store.UpsertTRXTx(ctx, rec); err != nil {
 				return nil, fmt.Errorf("trx txs upsert: %w", err)
 			}
+			c.emitRentalIncome(ctx, rec, incremental) // T-0220：新租金入账事件（全史回填/首拉静默）
 			fetched++
 		}
 		if (!forceFullBackfill && oldest <= lastTs) || len(resp.Data) < 200 {

@@ -226,7 +226,7 @@ func run() error {
 	xs := pgguard.NewSentinel(pool)
 	xs.AttachAlerter(alerter)
 	go xs.Run(ctx)
-	trxW := trxArms(ctx, errc, pool, cfg) // T-0110 TRX/CMC 采集臂+读面装配（trx.go）
+	trxW := trxArms(ctx, errc, pool, cfg, alerter) // T-0110 TRX/CMC 采集臂+读面装配（trx.go）；T-0220 feishu 通道注入
 
 	// 投资域首岗：命官——paper→probe→live 开仓消费（T-0050 Opener 缝）。
 	lr := lifecycle.NewRunner(pool, cfg)
