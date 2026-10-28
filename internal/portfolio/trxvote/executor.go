@@ -42,9 +42,9 @@ type TronClient interface {
 // Executor 执行 TRX 投票交易（改投+领奖）。
 type Executor struct {
 	conn      TronClient
-	privKey   *btcec.PrivateKey       // 从 env 读取，never log
-	fromAddr  string                  // base58
-	alertSink func(level, msg string) // D-268 AlertSink 复用（可为 nil）
+	privKey   *btcec.PrivateKey      // 从 env 读取，never log
+	fromAddr  string                 // base58
+	alertSink func(kind, msg string) // D-268 AlertSink 复用（可为 nil；kind=feishu 告警域 trxvote_claim/rebalance/engine）
 }
 
 // NewExecutor 构造执行器。
@@ -148,10 +148,11 @@ func (e *Executor) TxConfirmed(ctx context.Context, txHash string) (bool, error)
 	return info != nil, nil
 }
 
-// Alert 发送告警（封装 alertSink nil 安全）。
-func (e *Executor) Alert(level, msg string) {
+// Alert 发送告警（封装 alertSink nil 安全；kind=feishu 告警域——
+// trxvote_claim 领奖/trxvote_rebalance 改投/trxvote_engine 异常，T-0220）。
+func (e *Executor) Alert(kind, msg string) {
 	if e.alertSink != nil {
-		e.alertSink(level, msg)
+		e.alertSink(kind, msg)
 	}
 }
 
