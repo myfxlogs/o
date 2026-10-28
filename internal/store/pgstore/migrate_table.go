@@ -89,6 +89,7 @@ var migrationTable = []struct {
 	{80, "fin_0080_vote_rebalance_identity.sql"},
 	{81, "fin_0081_trx_txs_uidx.sql"},
 	{82, "fin_0082_exec_ambiguous_state.sql"},
+	{83, "fin_0083_earn_rate_revbridge.sql"},
 
 	// —— md 链（版本链内唯一且单调；md 链版本=历史号+1000 与 fin 键空间全局不相交——跨链并 schema 时 schema_migrations 零撞号，check_migrations 断言①⑤）——
 	{1003, "md_1003_market_facts.sql"},
