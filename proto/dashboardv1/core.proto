@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package o.dashboard.v1;
 
+import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 
 option go_package = "o/internal/gen/dashboardv1";
@@ -68,7 +69,14 @@ message MoneyRow {
 }
 message StaffRow { string name = 1; string duty = 2; int32 state = 3; } // 0绿1琥珀2红
 message WatchRequest {}
-message WatchEvent { string kind = 1; string ts = 2; }
+// T-0220a Watch v2 一跳推数：NOTIFY 到达即按 kind 查表把最新行序列化进 data
+// （ev_cashflow→ListHedgeFlow 最新 10 行/ev_position→ListClosedPositions 最新
+// 5 行/ev_hostmetrics→GetHostMetrics 全量）；其余 kind 纯信号帧（data 空）。
+message WatchEvent {
+  string kind = 1;
+  string ts = 2;
+  google.protobuf.Struct data = 3;  // 类型化载荷（响应消息 protojson 直转）
+}
 
 // —— TRX 自营盘（T-0156 收口面——字段折值后端算定，前端零计算；
 // found=false=读件缺显形不假零，冷启动不猜）——

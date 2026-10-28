@@ -203,8 +203,16 @@ func (c coreService) Watch(ctx context.Context, _ *dashboardv1.WatchRequest,
 		if err != nil {
 			return err
 		}
-		if err := stream.Send(&dashboardv1.WatchEvent{
-			Kind: n.Channel, Ts: time.Now().UTC().Format(time.RFC3339)}); err != nil {
+		ev := &dashboardv1.WatchEvent{Kind: n.Channel, Ts: time.Now().UTC().Format(time.RFC3339)}
+		// T-0220a 一跳推数：NOTIFY 即按 kind 查表带载荷（查/转败=帧照发+log
+		// 显形——信号语义保留，不炸流不静默；无载荷面 kind=纯信号帧）。
+		st, perr := c.watchPayload(ctx, n.Channel)
+		if perr != nil {
+			log.Printf("watch 载荷 %s 查败（帧照发）: %v", n.Channel, perr)
+		} else if st != nil {
+			ev.Data = st
+		}
+		if err := stream.Send(ev); err != nil {
 			return err
 		}
 	}
