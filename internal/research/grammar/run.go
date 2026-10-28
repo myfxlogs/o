@@ -20,19 +20,28 @@ import (
 	"o/internal/platform/rejects"
 )
 
+// Coins 逐币可动余量读件（vol-sell 实评 notional 闸判据源——dcd.Coins 同型
+// 注入缝，cmd 装配 okxCoinsFor；nil/缺币=闸缺位 unevaluable fail-closed）。
+type Coins func(ctx context.Context) (map[string]float64, error)
+
 // Runner 文法枚举臂。
 type Runner struct {
 	pool   *pgxpool.Pool
 	cfg    *config.Client
 	rej    *rejects.Door
+	coins  Coins // T-0215：vol-sell 实评锁仓币余量读件
 	lastAt time.Time
 }
 
 func NewRunner(pool *pgxpool.Pool, cfg *config.Client) *Runner {
 	return &Runner{pool: pool, cfg: cfg,
 		rej: rejects.New("grammar", "missing_param", "surface_read_failed",
-			"template_write_err", "eval_write_err", "hypothesis_write_err")}
+			"template_write_err", "eval_write_err", "hypothesis_write_err",
+			"proposal_write_err", "coins_absent")}
 }
+
+// AttachCoins 挂逐币可动余量读件（vol-sell 实评判据源）。
+func (r *Runner) AttachCoins(fn Coins) *Runner { r.coins = fn; return r }
 
 // Run 在岗（事件化——行情/账户帧驱动节流拍）。
 func (r *Runner) Run(ctx context.Context, errc chan<- error) {
@@ -257,17 +266,4 @@ func (r *Runner) evalCarry(ctx context.Context, f Family) error {
 	}
 	return r.writeEval(ctx, "-", f.Template, f.Direction, "rejected", "spread_below_min",
 		map[string]any{"kind": f.Kind, "rate_rows": rates})
-}
-
-// evalVolSell DCD 外构型评估（在架产品行+executor 缺=需求卡已落——评估行
-// 只证「面在可评」非成交判断）。
-func (r *Runner) evalVolSell(ctx context.Context, f Family) error {
-	var n int
-	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM md_dcd_product
-		WHERE ts>now()-interval '2 days'`).Scan(&n); err != nil || n == 0 {
-		return r.writeEval(ctx, "-", f.Template, f.Direction, "unevaluable", "product_rows_missing",
-			map[string]any{"kind": f.Kind})
-	}
-	return r.writeEval(ctx, "-", f.Template, f.Direction, "rejected", "executor_missing",
-		map[string]any{"kind": f.Kind, "products": n, "need_executor": f.Template + "_executor"})
 }

@@ -84,6 +84,7 @@ internal/research/grammar -> internal/platform/events
 internal/research/dcd -> internal/platform/notify
 internal/research/dcd -> internal/platform/rejects
 internal/research/grammar -> internal/platform/rejects
+internal/research/grammar -> internal/research/dcd
 internal/research/dcd -> internal/research/armwatch
 internal/research/armwatch -> internal/platform/notify
 internal/research/researcher -> internal/platform/notify

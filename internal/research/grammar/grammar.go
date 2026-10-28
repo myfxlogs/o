@@ -66,13 +66,14 @@ func Families() []Family {
 		{Template: "perp_quarter_spread", Direction: "basis_quarter", Kind: "basis",
 			Legs: []LegPrim{PerpLong, QFutShort}, Settle: "expiry",
 			NeedFace: need("market-funding-rate", "market-instruments", "market-tickers")},
-		// ③ vol-sell 族（DCD 外构型——缺 executor 全族假想卡）
+		// ③ vol-sell 族（DCD 外构型——T-0215 executor 落位：假想卡 id=6/7
+		// 钦定名 vol_sell_strangle_executor/vol_sell_single_call_executor）
 		{Template: "vol_sell_strangle", Direction: "vol_sell", Kind: "vol-sell",
 			Legs: []LegPrim{LockedCcyCall, LockedUsdtPut}, Settle: "expiry",
-			NeedFace: need("dcd")},
+			NeedFace: need("dcd"), Executor: "vol_sell_strangle_executor"},
 		{Template: "vol_sell_single_call", Direction: "vol_sell", Kind: "vol-sell",
 			Legs: []LegPrim{LockedCcyCall}, Settle: "expiry",
-			NeedFace: need("dcd")},
+			NeedFace: need("dcd"), Executor: "vol_sell_single_call_executor"},
 		// ④ mt5 面映射（catalog 注册但 enabled=false——面关=族不生锚）
 		{Template: "mt5_swap_carry", Direction: "gap_carry", Kind: "carry",
 			Legs: []LegPrim{SpotLong}, Settle: "swap_daily",
