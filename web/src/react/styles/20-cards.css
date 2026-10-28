@@ -28,18 +28,30 @@
   }
 }
 
-/* —— 液态玻璃卡（业主钦定回归——T-0157 撤除案重启，本次带降级兜底）—— */
+/* —— Liquid Glass 卡（T-0221 业主令：参照 macOS Tahoe 玻璃件重做——
+   通透折射（blur+saturate+增亮，背景色雾过玻璃成形变感）+镜面高光边
+   （顶部细亮线+左上射光）+内发光+双层投影分层出厚度；非磨砂雾面。
+   玻璃吸底色：底色半透随主题面变，深浅双态各自成立——暗态靠亮边定形，
+   亮态靠投影+顶部高光定形。）—— */
+.card,
+.health-strip {
+  backdrop-filter: blur(20px) saturate(180%) brightness(1.06);
+  -webkit-backdrop-filter: blur(20px) saturate(180%) brightness(1.06);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #ffffff 42%, transparent),
+    inset 1px 0 0 color-mix(in srgb, #ffffff 16%, transparent),
+    inset 0 0 22px color-mix(in srgb, #ffffff 5%, transparent),
+    0 1px 2px rgba(0, 0, 0, 0.06),
+    0 10px 28px rgba(0, 0, 0, 0.1);
+}
 .card {
   position: relative;
   display: inline-block; /* masonry 列内自适应宽；flex 形态下由父级拉满 */
   width: 100%;
-  background: color-mix(in srgb, var(--surface) 55%, transparent);
-  backdrop-filter: blur(24px) saturate(185%);
-  -webkit-backdrop-filter: blur(24px) saturate(185%);
-  border: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
+  background: color-mix(in srgb, var(--surface) 46%, transparent);
+  border: 1px solid color-mix(in srgb, var(--line) 42%, transparent);
   border-radius: 18px;
   padding: 20px 22px;
-  box-shadow: inset 0 1px 0 color-mix(in srgb, #ffffff 28%, transparent);
   transition: transform 0.18s ease, box-shadow 0.18s ease,
     border-color 0.18s ease;
 }
@@ -52,7 +64,12 @@
   .card:hover {
     transform: translateY(-2px);
     border-color: color-mix(in srgb, var(--ink) 16%, transparent);
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.10), 0 2px 8px rgba(0, 0, 0, 0.05);
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, #ffffff 50%, transparent),
+      inset 1px 0 0 color-mix(in srgb, #ffffff 20%, transparent),
+      inset 0 0 26px color-mix(in srgb, #ffffff 6%, transparent),
+      0 2px 4px rgba(0, 0, 0, 0.07),
+      0 16px 36px rgba(0, 0, 0, 0.14);
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -140,7 +157,7 @@ body::before {
   text-overflow: ellipsis;
 }
 
-/* —— 健康一句话条（玻璃同款）—— */
+/* —— 健康一句话条（玻璃同款——材质与卡共用一段，几何自持）—— */
 .health-strip {
   display: flex;
   align-items: center;
@@ -149,10 +166,8 @@ body::before {
   padding: 13px 20px;
   color: var(--ink);
   font-weight: 500;
-  background: color-mix(in srgb, var(--surface) 55%, transparent);
-  backdrop-filter: blur(24px) saturate(185%);
-  -webkit-backdrop-filter: blur(24px) saturate(185%);
-  border: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
+  background: color-mix(in srgb, var(--surface) 46%, transparent);
+  border: 1px solid color-mix(in srgb, var(--line) 42%, transparent);
 }
 .health-strip:hover {
   text-decoration: none;

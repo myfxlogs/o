@@ -133,19 +133,39 @@
   border-radius: 50%;
   vertical-align: middle;
 }
+/* 活灯珠体（T-0221 业主令：Apple 式活灯——珠体径向渐变脱平色盘：
+   左上射光高光+边缘暗一档成球面光感，非平面圆盘；色仍随三态固定。 */
 .dot.s0 {
-  background: var(--good);
+  background: radial-gradient(
+    circle at 32% 30%,
+    color-mix(in srgb, var(--good) 42%, #ffffff) 0%,
+    var(--good) 55%,
+    color-mix(in srgb, var(--good) 64%, #000000) 100%
+  );
 }
 .dot.s1 {
-  background: var(--warn);
+  background: radial-gradient(
+    circle at 32% 30%,
+    color-mix(in srgb, var(--warn) 42%, #ffffff) 0%,
+    var(--warn) 55%,
+    color-mix(in srgb, var(--warn) 64%, #000000) 100%
+  );
   animation: breathe 1.6s ease-in-out infinite;
 }
 .dot.s2 {
-  background: var(--critical);
+  background: radial-gradient(
+    circle at 32% 30%,
+    color-mix(in srgb, var(--critical) 42%, #ffffff) 0%,
+    var(--critical) 55%,
+    color-mix(in srgb, var(--critical) 64%, #000000) 100%
+  );
 }
 @keyframes breathe {
   50% {
     opacity: 0.35;
+    box-shadow:
+      0 0 0 1.5px color-mix(in srgb, var(--ink) 25%, transparent),
+      0 0 10px 2px color-mix(in srgb, var(--warn) 62%, transparent);
   }
 }
 .clock {
@@ -173,14 +193,38 @@
   animation: breatheAlarm 0.75s ease-in-out infinite;
   box-shadow: 0 0 6px 1px color-mix(in srgb, var(--critical) 55%, transparent);
 }
+/* 活灯呼吸（T-0221 业主令：光晕深浅涨落主驱——box-shadow 辉光涨落替球体
+   胀缩，transform: scale 弃用；描环层与 20-cards 灯可见性硬化同款——
+   动效帧自带描环防覆盖。辉光色显式挂状态变量：breatheCalm 亦被
+   TrxHedgeCard WS 点内联引用，须硬编码 --good 不随继承色漂移。） */
 @keyframes breatheCalm {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow:
+      0 0 0 1.5px color-mix(in srgb, var(--ink) 25%, transparent),
+      0 0 3px 0.5px color-mix(in srgb, var(--good) 32%, transparent);
+  }
   50% {
     opacity: 0.78; /* 业主②：呼吸不褪色——下限抬高防小灯读灰 */
+    box-shadow:
+      0 0 0 1.5px color-mix(in srgb, var(--ink) 25%, transparent),
+      0 0 11px 3px color-mix(in srgb, var(--good) 62%, transparent);
   }
 }
 @keyframes breatheQuick {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow:
+      0 0 0 1.5px color-mix(in srgb, var(--ink) 25%, transparent),
+      0 0 3px 0.5px color-mix(in srgb, var(--warn) 40%, transparent);
+  }
   50% {
     opacity: 0.6;
+    box-shadow:
+      0 0 0 1.5px color-mix(in srgb, var(--ink) 25%, transparent),
+      0 0 10px 2.5px color-mix(in srgb, var(--warn) 68%, transparent);
   }
 }
 @keyframes breatheAlarm {
