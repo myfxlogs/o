@@ -14,9 +14,15 @@ SG_HOST="${SG_HOST:-root@192.229.85.35}"
 if [ -z "$SG_DSN" ]; then
 	SG_DSN="ssh"  # SSH 径标记（sg_live() 分派 ssh docker exec 查询）
 fi
+# T-0211 捎带：md 链正本已迁 OCI 盒（dev o-postgres-md 排水停机）——
+# 哨兵 md 探针改 SSH 径打 OCI 权威库（本机容器幻影读空同族坑）。
+MD_HOST="${MD_HOST:-ubuntu@149.118.58.98}"
+md_q() { # $1=SQL——SSH 径 sudo docker exec（OCI ubuntu 免密 sudo 实证）
+	timeout 20 ssh -o BatchMode=yes -o ConnectTimeout=8 "$MD_HOST" \
+		"sudo docker exec o-postgres-md psql -U o -d o -tc \"$1\"" 2>/dev/null | tr -d ' '
+}
 if [ -z "$MD_DSN" ]; then
-	MD_PORT="$(timeout 10 docker port o-postgres-md 5432 2>/dev/null | head -n1 | awk -F: '{print $NF}' || true)"
-	MD_DSN="postgres://o:o@localhost:${MD_PORT:-5435}/o?sslmode=disable"
+	MD_DSN="ssh"  # SSH 径标记（md 探针走 md_q）
 fi
 fail=0
 for dom in fin md; do
@@ -26,6 +32,8 @@ for dom in fin md; do
 	if [ "$dom" = fin ] && [ "$SG_DSN" = "ssh" ]; then
 		live=$(timeout 20 ssh -o BatchMode=yes -o ConnectTimeout=8 "$SG_HOST" \
 			"docker exec o-postgres psql -U o -d o -tc 'SELECT COALESCE(max(version),0) FROM schema_migrations'" 2>/dev/null | tr -d ' ' || true)
+	elif [ "$dom" = md ] && [ "$MD_DSN" = "ssh" ]; then
+		live=$(md_q 'SELECT COALESCE(max(version),0) FROM schema_migrations')
 	else
 		live=$(timeout 15 psql "$dsn" -tc "SELECT COALESCE(max(version),0) FROM schema_migrations" 2>/dev/null | tr -d ' ' || true)
 	fi
@@ -93,7 +101,7 @@ while IFS= read -r line; do
 			hit=$(timeout 20 ssh -o BatchMode=yes -o ConnectTimeout=8 "$SG_HOST" \
 				"docker exec o-postgres psql -U o -d o -tc \"SELECT 1 FROM pg_trigger WHERE tgname='$tg'\"" 2>/dev/null | tr -d ' ')
 		else
-			hit=$(timeout 10 psql "$MD_DSN" -tc "SELECT 1 FROM pg_trigger WHERE tgname='$tg'" 2>/dev/null | tr -d ' ')
+			hit=$(md_q "SELECT 1 FROM pg_trigger WHERE tgname='$tg'")
 		fi
 		if [ "$hit" != "1" ]; then
 			echo "WARN: 触发器缺席 $d/$tg（$tbl——定义在册 pg_trigger 无——DROP+CREATE 吞零件同族坑）" >&2
