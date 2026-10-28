@@ -266,3 +266,13 @@
 - **票面物化**：决策席 commit b46be9d 只落设计档未落票文件（「拆四票 T-0220a-d」三处明言但 `docs/tasks/` 无 a-d 件）——施工依 dispatch 摘要+设计档 §一~§五**原样物化四票**（立项栏注来源留痕），不扩范围；验收时请决策席对设计档核票面并追认（或重编票号）。
 - **工作面事实**：本地 master 尖 b46be9d 未推（origin/master 滞在 8888005）——工作树基点取本地尖（含设计档）；分支 `t/0220a-d-frontend-optimal`，领单 commit a9a77c0 已推（锁单）。
 - **目检径**：本 session 无浏览器 REPL 工具——以 `chromium_headless_shell-1248` CLI 截图替代，四页真数据目检过（本地 core 连 dev 库 :50051，验毕进程已清）。
+
+## 2026-10-29 — 决策席：瓦片让位交互引入裁决（claude-glm）
+
+- **业主令**：指名 scaffold-master（wbr664393425-lgtm，Vue3+GSAP 脚手架）的瓦片交互——「打开一个瓦片，其余瓦片让出位置」——令阅读并评估前端引入。
+- **亲证拆解**：让位=纯 CSS（`.is-open { grid-column: 1/-1 }` 占满整行）+ FLIP 动画（源 20 行 `flipLayout` 包 GSAP Flip 插件）两层；配套动效纪律（token 化/reduced-motion 降级/只动 transform-opacity）值得一并吸收。
+- **裁决（D-0037 生效）**：**引入机制，不引框架**——无依赖 React FLIP hook（约 60 行）+ CSS 让位式；GSAP 与 framer-motion 双双淘汰（弃因与翻案口在档）。首处落 Overview MoneyTree（业主回单②既有展开交互，现瞬跳）；占行式瓦片让位待真实内容面另立单。
+- **已立单**：T-0233（原编 T-0230 撞远端 Phase 票族让位重编；已批待领）——涉及面 web/src/react（motion.ts 新增/Overview.tsx/20-cards 或 22-effects）；package.json 无新增依赖为硬锚。
+- 队列排他：web 面在途单为零（T-0156~T-0224 全 ✅，T-0225/0226/0227 为 CI/部署/出口面不撞）；D-0036 在途稿（他席）未触碰。
+- **断链留痕**：D-0037/T-0233/T-0227 补证三个 commit 本地领先未推（原编 T-0230 撞号让位）——出口全组死绝（ oci-reality/vps2-cf/订阅池21节点全灭，详见 T-0227 补证段），push 三连败。出口修好后（T-0227 施工席）先补推——2026-10-29 续：出口已通，对账闸拦 T-0230 撞号（远端 Phase 票族 T-0230/0231/0232 先取），让位重编 T-0233 重推。
+- **CC 在途件保全**：D-0036 CC 意见块（前席 claude-glm 10-28 留件，远端终裁版未含、头部明写「随其自提交入列」）不属本席前端范围——原样上载运支 `claude-glm/d0036-cc-inflight`（基 c89e691）推远端，入列合并归 CC 席/终裁席处置。
