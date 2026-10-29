@@ -1,6 +1,6 @@
 # T-0238 funding-hedge maker 径执行面——post_only 限价双腿摩擦砍半
 
-> 状态：待验 | 领取：devin-t0238 @ 2026-10-29 | 优先级：P1（D-0037 主线条——T-0237 调研裁定的次径可叠件）
+> 状态：**闭环**（PR 并——三轮审计终过；partial 桩测转旗开前置锚）| 领取：devin-t0238 @ 2026-10-29 | 优先级：P1（D-0037 主线条）
 > 立项：决策席 @ 2026-10-29（T-0237 调研报告③裁定的执行面码件）
 > **动真钱径——施工产出=实现+桩测+灰度方案，放量由负责人审后落**
 
@@ -65,3 +65,10 @@ probe 径共用 Execute 同闸（exec.probe_notional_usd 小仓实发由负责�
 **坑（同票坑注）**：paramKeys 插键中段致后续索引全移判据串位（funding
 双 E2E 红实证，已逐位勘正+断言护）；maker 单下单成功后即交 Resolve
 轮询故非即时成交态正常（market 与 post_only 异步语义差）。
+## 旗开前置锚（决策席 T-0238 三轮审后固化 2026-10-29）
+
+`exec.maker_enabled` 任何环境置 true 之前必落：fakeVenue 增 partial 态
+（maker 腿 Resolve 回 canceled+accFillSz>0）+断言双腿行（partial 腿记
+'filled'@实量+市价余腿 Sz=原量−已填）+scaleLegRemainder 表测。
+——partial 支路病修本体的回归守卫；旗未开=支路物理不可达故非并码拦项。
+
