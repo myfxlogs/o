@@ -5,12 +5,20 @@ import (
 	"testing"
 
 	"o/internal/platform/testutil"
+	"o/internal/store/pgstore"
 )
 
 // T-0239 验收锚：五块各块渲染数据非空（mock 行注入断言）。
 func TestGetCockpitBlocks(t *testing.T) {
+	pool := testutil.Pool(t)
+	if err := pgstore.Migrate(context.Background(), pool, "fin"); err != nil {
+		t.Fatal(err)
+	}
+	if err := pgstore.Migrate(context.Background(), pool, "md"); err != nil {
+		t.Fatal(err)
+	}
 	ctx := context.Background()
-	c := coreService{pool: testutil.Pool(t)}
+	c := coreService{pool: pool}
 	// 桩数据：ops_event 一行 + armed 提案一行（fin_opp_eval+fin_proposal 夹具同族）
 	if _, err := c.pool.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note)
 		VALUES('席桩','领单','T-9999','桩')`); err != nil {
