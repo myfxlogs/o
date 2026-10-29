@@ -24,9 +24,11 @@ type Leg struct {
 	Side     string // buy|sell
 	Sz       string // 数量（venue 方言——okx 张数口径由 venue 层换算）
 	Notional float64
-	Close    bool  // close 语义位（rollback/平仓腿=true——executor 按位分派平仓径，禁反向新开)
-	TgtQuote bool  // spot 市价腿 quote_ccy 委托位（T-0064——sz=USDT 额 venue 内换算，免 base lotSz floor）
-	Ticket   int64 // MT5 平仓凭据（leg1 回报 ticket——hedge 户 OrderClose 必携）
+	Close    bool    // close 语义位（rollback/平仓腿=true——executor 按位分派平仓径，禁反向新开)
+	TgtQuote bool    // spot 市价腿 quote_ccy 委托位（T-0064——sz=USDT 额 venue 内换算，免 base lotSz floor）
+	Ticket   int64   // MT5 平仓凭据（leg1 回报 ticket——hedge 户 OrderClose 必携）
+	Maker    bool    // T-0238：post_only 限价腿位（runner 挂价装配位——buy→best bid/sell→best ask）
+	LimitPx  float64 // post_only 挂价（Maker=true 必带——零=市价径）
 }
 
 // OrderResult venue 回报（filled/live/absent/ambiguous 归一为 leg 状态机值）。
@@ -45,6 +47,9 @@ type Executor interface {
 	Place(ctx context.Context, leg Leg, clOrdID string) (OrderResult, error)
 	// Resolve 歧态势查单（okx clOrdId 定态三分支同语义）。
 	Resolve(ctx context.Context, leg Leg, clOrdID string) (OrderResult, error)
+	// Cancel 撤挂事务（T-0238 maker 时限降级件——超时未成取消再降级市价；
+	// 不支持面返 err 无害（降级径不问撤果，Resolve 定真态）。
+	Cancel(ctx context.Context, leg Leg, clOrdID string) error
 }
 
 // EarnMover 开仓前 Earn 停泊赎回面（D-0006 停泊态：闲资默认停 Earn——开仓先赎回

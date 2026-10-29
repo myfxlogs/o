@@ -22,7 +22,7 @@ const (
 )
 
 var paramKeys = []string{
-	"research.funding.taker_fee_bps", "research.funding.slippage_bps",
+	"research.funding.taker_fee_bps", "research.funding.maker_fee_bps", "research.funding.slippage_bps",
 	"research.funding.fail_cost_bps", "research.funding.window_loss_bps",
 	"research.funding.min_net_apr", "research.funding.settles_per_day",
 }
@@ -79,7 +79,10 @@ func (r *Runner) params() (Params, error) {
 	if p.TakerFeeBps, err = get(paramKeys[0]); err != nil {
 		return p, fmt.Errorf("%s: %w", paramKeys[0], err)
 	}
-	if p.SlippageBps, err = get(paramKeys[1]); err != nil {
+	if v, e := get(paramKeys[1]); e == nil {
+		p.MakerFeeBps = v
+	}
+	if p.SlippageBps, err = get(paramKeys[2]); err != nil {
 		return p, fmt.Errorf("%s: %w", paramKeys[1], err)
 	}
 	if p.FailCostBps, err = get(paramKeys[2]); err != nil {

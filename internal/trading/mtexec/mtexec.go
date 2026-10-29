@@ -34,6 +34,10 @@ type Executor struct {
 }
 
 // Place OrderSend 市价单（BUY/SELL；回报空/错=unknown|absent 定态分流）。
+func (e Executor) Cancel(_ context.Context, _ execution.Leg, _ string) error {
+	return fmt.Errorf("maker 径不支持（MT5 无 post_only——OKX 专径）")
+}
+
 func (e Executor) Place(ctx context.Context, leg execution.Leg, clOrdID string) (execution.OrderResult, error) {
 	if leg.Close {
 		return e.placeClose(ctx, leg, clOrdID)
