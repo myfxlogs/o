@@ -101,3 +101,29 @@ func TestGetCockpitBlocks(t *testing.T) {
 		}
 	}
 }
+
+// T-0241 三律③拔径桩：视图缺席→missing 名段+其余块不受染。
+func TestGetCockpitMissingDegrade(t *testing.T) {
+	pool := testutil.Pool(t)
+	if err := pgstore.Migrate(context.Background(), pool, "fin"); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	c := coreService{pool: pool}
+	if _, err := pool.Exec(ctx, "DROP VIEW IF EXISTS ops_seat_latest CASCADE"); err != nil {
+		t.Fatal("拆视图:", err)
+	}
+	r, err := c.GetCockpit(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, m := range r.Missing {
+		if m == "seats" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("拔 seats 径未显缺: %v", r.Missing)
+	}
+}

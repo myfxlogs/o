@@ -49,6 +49,9 @@ func (c coreService) GetCockpit(ctx context.Context,
 				r.Seats = append(r.Seats, &s)
 			}
 		}
+		if rows.Err() != nil {
+			r.Missing = append(r.Missing, "seats")
+		}
 	}
 
 	// ② 钱面：D-0037 口径月净利+本金水位+近30d 日净序列
