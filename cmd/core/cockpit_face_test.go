@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"o/internal/gen/dashboardv1"
+
 	"o/internal/platform/testutil"
 	"o/internal/store/pgstore"
 )
@@ -72,6 +74,25 @@ func TestGetCockpitBlocks(t *testing.T) {
 	}
 	if r2.Money.ExposureState != 2 {
 		t.Fatalf("越限红判态错: %d", r2.Money.ExposureState)
+	}
+	// 平台分列：crypto+MT5+total 三行在+合计=crypto（mt5Live 未注=0 不冒）
+	if len(r2.Money.Platforms) != 3 {
+		t.Fatalf("平台行数错: %d", len(r2.Money.Platforms))
+	}
+	var cr, tot *dashboardv1.CockpitPlatformRow
+	for _, pr := range r2.Money.Platforms {
+		if pr.Platform == "crypto" {
+			cr = pr
+		}
+		if pr.Platform == "total" {
+			tot = pr
+		}
+	}
+	if cr == nil || tot == nil || cr.Exposure != 120 || tot.Exposure != 120 || tot.Deposited != 1000 {
+		t.Fatalf("平台行数对拍错: %+v %+v", cr, tot)
+	}
+	if r2.AsOf == nil {
+		t.Fatal("as_of 戳缺")
 	}
 	// missing 段：拆 ops_event 视图语义拔径——表在所以不置 missing（断言面=零冒缺表）
 	for _, m := range r2.Missing {

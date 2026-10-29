@@ -95,6 +95,35 @@ func (c coreService) GetCockpit(ctx context.Context,
 	if moneyErr {
 		r.Missing = append(r.Missing, "money")
 	}
+	// 平台分列（T-0241 D-0038⑤升维——承诺/已入/停泊/敞口×平台+合计；
+	// committed=配置键 cockpit.committed_<plat>（归属业主候答——键面留位）；
+	// crypto=fin_cashflow deposit/earn 净+未平名义；MT5=mt5Live equity 现读）。
+	var commC, commM float64
+	_ = c.pool.QueryRow(ctx, `SELECT COALESCE((SELECT value::float FROM app_config WHERE key='cockpit.committed_crypto'),0)`).Scan(&commC)
+	_ = c.pool.QueryRow(ctx, `SELECT COALESCE((SELECT value::float FROM app_config WHERE key='cockpit.committed_mt5'),0)`).Scan(&commM)
+	var parked float64
+	_ = c.pool.QueryRow(ctx, `SELECT COALESCE(sum(amount),0) FROM fin_cashflow
+		WHERE kind IN ('earn_in','earn_out')`).Scan(&parked)
+	crow := &dashboardv1.CockpitPlatformRow{Platform: "crypto", Committed: commC,
+		Deposited: r.Money.Capital, Parked: parked, Exposure: r.Money.Exposure}
+	r.Money.Platforms = append(r.Money.Platforms, crow)
+	mrow := &dashboardv1.CockpitPlatformRow{Platform: "MT5", Committed: commM}
+	if c.mt5Live != nil {
+		if accts, e := c.mt5Live(ctx); e == nil {
+			for _, a := range accts {
+				mrow.Deposited += a.Equity
+			}
+		} else {
+			r.Missing = append(r.Missing, "mt5")
+		}
+	}
+	r.Money.Platforms = append(r.Money.Platforms, mrow)
+	tot := &dashboardv1.CockpitPlatformRow{Platform: "total",
+		Committed: commC + commM, Deposited: crow.Deposited + mrow.Deposited,
+		Parked: crow.Parked + mrow.Parked, Exposure: crow.Exposure + mrow.Exposure}
+	r.Money.Platforms = append(r.Money.Platforms, tot)
+	now := time.Now()
+	r.AsOf = tsProto(now)
 
 	// ③ 工单板：ops_ticket_state 派生态（闭环只看近 7d）
 	tr, err := c.pool.Query(ctx,

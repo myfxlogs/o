@@ -14,7 +14,7 @@ export function CockpitPage() {
 		t ? new Date(Number(t.seconds) * 1000).toLocaleString("zh-CN", { hour12: false }) : "—";
 	return (
 		<div className="page">
-			<h2>业主驾驶舱</h2>
+			<h2>业主驾驶舱（快照 {ts(d.asOf)}）</h2>
 			<section><h3>①⑤ 存活与在做什么</h3>{sec("seats", <>
 				<table><thead><tr><th>席</th><th>票</th><th>阶段</th><th>最近自报</th><th>备注</th></tr></thead>
 				<tbody>{d.seats.map(s => <tr key={s.seat}><td>{s.seat}</td><td>{s.ticket}</td>
@@ -24,7 +24,10 @@ export function CockpitPage() {
 				<p>敞口 {d.money?.exposure.toFixed(0)} / 上限 {d.money?.exposureLimit.toFixed(0)}（10% 硬线）：
 					{{0:"合规绿",1:"顶格黄",2:"越限红"}[d.money?.exposureState ?? 0]}｜
 					停泊态：活期/Earn 停泊（闲资默认 Earn——见执行面件）</p>
-				<p>近30d 日净：{d.money?.daily.map(v => v.toFixed(1)).join(" · ")}</p></>)}</section>
+				<p>近30d 日净：{d.money?.daily.map(v => v.toFixed(1)).join(" · ")}</p>
+				<table><thead><tr><th>平台</th><th>承诺</th><th>已入</th><th>停泊</th><th>敞口</th></tr></thead>
+				<tbody>{d.money?.platforms.map(p => <tr key={p.platform}><td>{p.platform}</td><td>{p.committed.toFixed(0)}</td>
+					<td>{p.deposited.toFixed(0)}</td><td>{p.parked.toFixed(0)}</td><td>{p.exposure.toFixed(0)}</td></tr>)}</tbody></table></>)}</section>
 			<section><h3>③ 工单板</h3>{sec("tickets", <>
 				<table><thead><tr><th>票</th><th>状态</th><th>席</th><th>时间</th></tr></thead>
 				<tbody>{d.tickets.map(t => <tr key={t.ticket}><td>{t.ticket}</td><td>{t.state}</td>
