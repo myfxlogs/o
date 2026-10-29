@@ -10,6 +10,7 @@ ck('缺注文', /该段数据缺/.test(src));
 // ②money 缺段不裸链——m 变量判据真源用
 ck('money 判据源', /const m = d\.money/.test(src));
 ck('裸链清', !/d\.money\?\.(netMonth|capital|exposure|daily|platforms)/.test(src));
+ck('mt5 缺显缺', /miss\.has\("mt5"\) \? "数据缺"/.test(src));
 // ③build 链 typecheck 前置
 const pj = JSON.parse(readFileSync(new URL('../../../../package.json', import.meta.url), 'utf8'));
 ck('typecheck 入链', /typecheck/.test(pj.scripts.build));

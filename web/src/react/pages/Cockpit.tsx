@@ -33,7 +33,8 @@ export function CockpitPage() {
 				<p>近30d 日净：{m.daily.map(v => v.toFixed(1)).join(" · ")}</p>
 				<table><thead><tr><th>平台</th><th>承诺</th><th>已入</th><th>停泊</th><th>敞口</th></tr></thead>
 				<tbody>{m.platforms.map((p: CockpitPlatformRow) => <tr key={p.platform}><td>{p.platform}</td><td>{p.committed < 0 ? "未设" : p.committed.toFixed(0)}</td>
-					<td>{p.deposited.toFixed(0)}</td><td>{p.parked.toFixed(0)}</td><td>{p.exposure.toFixed(0)}</td></tr>)}</tbody></table></>)}</section>
+					<td>{p.platform === "MT5" && miss.has("mt5") ? "数据缺" : p.deposited.toFixed(0)}</td><td>{p.parked.toFixed(0)}</td><td>{p.exposure.toFixed(0)}</td></tr>)}</tbody></table>
+				{miss.has("mt5") && <p className="dim">MT5 平台已入段数据缺（mt5Live 读败——合计行为不含 MT5 部分口径，非真 0）</p>}</>)}</section>
 			<section><h3>③ 工单板</h3>{sec("tickets", <>
 				<table><thead><tr><th>票</th><th>状态</th><th>席</th><th>时间</th></tr></thead>
 				<tbody>{d.tickets.map((t: CockpitTicket) => <tr key={t.ticket}><td>{t.ticket}</td><td>{t.state}</td>
