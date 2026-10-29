@@ -51,7 +51,7 @@ func (c coreService) GetCockpit(ctx context.Context,
 	// ② 钱面：D-0037 口径月净利+本金水位+近30d 日净序列
 	_ = c.pool.QueryRow(ctx,
 		`SELECT COALESCE(sum(amount),0) FROM fin_cashflow
-		 WHERE ts>date_trunc('month',now()) AND kind IN ('interest','funding_settle')`).Scan(&r.Money.NetMonth)
+		 WHERE ts>date_trunc('month',now()) AND kind IN ('interest','funding_settle','fee','spot_buy','spot_sell')`).Scan(&r.Money.NetMonth)
 	_ = c.pool.QueryRow(ctx,
 		`SELECT COALESCE(sum(amount),0) FROM fin_cashflow WHERE kind='deposit'`).Scan(&r.Money.Capital)
 	dr, err := c.pool.Query(ctx,
@@ -100,7 +100,7 @@ func (c coreService) GetCockpit(ctx context.Context,
 	// ④ 待开仓：armed 提案+TTL 倒计时（24h 默认同 lifecycle 口径）
 	ar, err := c.pool.Query(ctx,
 		`SELECT id,inst_id,direction,created_at,
-			24-EXTRACT(EPOCH FROM now()-created_at)/3600.0
+			COALESCE((SELECT value::float FROM app_config WHERE key='lifecycle.armed_ttl_h'),24)-EXTRACT(EPOCH FROM now()-created_at)/3600.0
 		 FROM fin_proposal WHERE state='fin_armed' ORDER BY created_at`)
 	if err == nil {
 		defer ar.Close()
