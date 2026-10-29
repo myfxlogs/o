@@ -80,7 +80,7 @@ func (r *Runner) params() (Params, error) {
 		return p, fmt.Errorf("%s: %w", paramKeys[0], err)
 	}
 	if v, e := get(paramKeys[1]); e == nil {
-		p.MakerFeeBps = v
+		p.MakerFeeBps, p.MakerFeeSet = v, true // T-0247 分层：在册含 0/负按真值
 	}
 	if p.SlippageBps, err = get(paramKeys[2]); err != nil {
 		return p, fmt.Errorf("%s: %w", paramKeys[1], err)
