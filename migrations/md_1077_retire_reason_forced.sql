@@ -37,9 +37,11 @@ CREATE OR REPLACE FUNCTION fn_untradeable_retro() RETURNS trigger AS $$
 BEGIN
   INSERT INTO fin_strategy_transition(strategy_id,from_state,to_state,reason)
   SELECT id, state, 'retired', 'venue_untradeable_retroactive:'||NEW.code
-  FROM fin_strategy WHERE inst_id=NEW.inst_id AND state IN ('live','paper','proposed');
+  FROM fin_strategy WHERE inst_id=NEW.inst_id
+    AND state IN ('live','paper','proposed','probe','degraded');
   UPDATE fin_strategy SET state='retired'
-  WHERE inst_id=NEW.inst_id AND state IN ('live','paper','proposed');
+  WHERE inst_id=NEW.inst_id
+    AND state IN ('live','paper','proposed','probe','degraded');
   UPDATE fin_proposal SET state='fin_retired',
     retire_reason='venue_untradeable',retired_at=now()
   WHERE inst_id=NEW.inst_id AND state='fin_armed';
