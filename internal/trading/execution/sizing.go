@@ -140,6 +140,13 @@ func floorLot(v, lot float64) float64 {
 // RouterExecutor 跨 venue 路由（map[venue]Executor——腿按 Venue 分派，互不串）。
 type RouterExecutor map[string]Executor
 
+func (r RouterExecutor) Cancel(ctx context.Context, leg Leg, id string) error {
+	if c, ok := r[leg.Venue]; ok {
+		return c.Cancel(ctx, leg, id)
+	}
+	return nil
+}
+
 func (r RouterExecutor) Place(ctx context.Context, leg Leg, id string) (OrderResult, error) {
 	ex, ok := r[leg.Venue]
 	if !ok {

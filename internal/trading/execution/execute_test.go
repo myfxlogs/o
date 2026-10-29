@@ -26,6 +26,13 @@ type fakeVenue struct {
 	reject       bool              // Place 业务拒（sCode≠0 语义——T-0040 留痕锚）
 	apiReject    *okxexec.APIError // envelope 业务拒走 err 径（T-0042 留痕锚）
 	resolveCalls int
+	makerFill    bool // maker 腿立即 filled（T-0238 锚——false=超时不成交径）
+	cancelled    int
+}
+
+func (f *fakeVenue) Cancel(_ context.Context, _ Leg, _ string) error {
+	f.cancelled++
+	return nil
 }
 
 func (f *fakeVenue) Place(ctx context.Context, leg Leg, clOrdID string) (OrderResult, error) {
@@ -49,6 +56,12 @@ func (f *fakeVenue) Place(ctx context.Context, leg Leg, clOrdID string) (OrderRe
 	return OrderResult{ClOrdID: clOrdID, State: "filled", FillPx: 1, FillSz: 100}, nil
 }
 func (f *fakeVenue) Resolve(ctx context.Context, leg Leg, clOrdID string) (OrderResult, error) {
+	if leg.Maker {
+		if f.makerFill {
+			return OrderResult{ClOrdID: clOrdID, State: "filled", FillPx: leg.LimitPx, FillSz: 1}, nil
+		}
+		return OrderResult{ClOrdID: clOrdID, State: "live"}, nil
+	}
 	f.resolveCalls++
 	if f.resolveTo != "" {
 		return OrderResult{ClOrdID: clOrdID, State: f.resolveTo}, nil
@@ -377,6 +390,7 @@ func (f fakeVenueTag) Place(ctx context.Context, leg Leg, id string) (OrderResul
 func (f fakeVenueTag) Resolve(ctx context.Context, leg Leg, id string) (OrderResult, error) {
 	return OrderResult{ClOrdID: id, State: "filled"}, nil
 }
+func (f fakeVenueTag) Cancel(_ context.Context, _ Leg, _ string) error { return nil }
 
 // TestCfdTradeModeGate T-0039 可开性预检锚：TradeMode==FullAccess(4) 才放行；
 // CloseOnly(3)/Disabled(0)/单向限(1/2) 拒构（文案带实测值——Exness 动态限防线）。

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"sync"
 
 	"o/internal/trading/okxexec"
@@ -64,6 +65,9 @@ func buildOrderParams(leg Leg, clOrdID, posMode string) okxexec.OrderParams {
 	p := okxexec.OrderParams{
 		InstID: leg.InstID, TdMode: tdMode(leg), Side: leg.Side,
 		OrdType: "market", Sz: leg.Sz, ClOrdID: clOrdID}
+	if leg.Maker { // T-0238 maker 径：post_only+挂价——成=低费/返佣面，超时径外取消降级
+		p.OrdType, p.Px = "post_only", strconv.FormatFloat(leg.LimitPx, 'f', -1, 64)
+	}
 	// reduceOnly 域界（T-0043）：官方口径仅适用杠杆+合约——合约腿（cross）平仓
 	// 必置防反向新开；spot 腿（cash）带 reduceOnly=51000 参数拒，禁带。
 	if leg.Close && p.TdMode == "cross" {
@@ -101,4 +105,10 @@ func tdMode(leg Leg) string {
 		return "cross"
 	}
 	return "cash"
+}
+
+// Cancel okx 撤挂（T-0238 maker 时限件——clOrdId 键）。
+func (e *OkxExecutor) Cancel(ctx context.Context, leg Leg, clOrdID string) error {
+	_, err := e.C.CancelOrder(ctx, leg.InstID, "", clOrdID)
+	return err
 }
