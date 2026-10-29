@@ -1,4 +1,4 @@
-# T-0254 dispatcher 双闸补闭——spawn 去重硬锚+Dev 非指令件消费缝（M3 缝二）
+# T-0254 Dev 非指令件消费缝收口（M3 缝二——互斥件移 T-0256 专票）
 
 > 状态：**待派** | 领取：虚位 | 优先级：**高（业主令 MANAGE-100 meta 序次件）**
 > 执行径：**无头**
@@ -16,10 +16,8 @@
 
 ## 钦定界
 
-- **spawn 去重硬闭**：/opt/meta/mbus-dispatch.sh——路由入口即取
-  `.spawned/<tid>` claim 文件（先 touch 后 spawn 原子序）或 flock 段内
-  先查后产；boot_sweep 与 route_directive 同走一闸（双径不可各产一）；
-  桩测复现：同 directive 二连投+补扫并发→仅一 spawn。
+- **spawn 去重硬闭**：【移至 T-0256 专票——MANAGE-114 钦定急诊
+  插队，本票不再覆盖，验收以 T-0256 为准】
 - **Dev 消费缝收口**：spawn 时把 Dev inbox 未 ack 件（非 directive 型）
   文本注入 prompt 文件尾部（`<!-- 在途信件 -->` 段）+spawn 成功后由
   dispatcher 代 ack 落执（消费=入眼即履）——零新监听型，复用既有
@@ -29,6 +27,6 @@
 
 ## 验收锚
 
-1. 双闸桩测：directive 重投/补扫并发→spawn=1（日志去重行实证）；
+1. ~~双闸桩测~~【移至 T-0256】；
 2. Dev 注入桩测：未 ack report 件→prompt 尾部含文+件落 acked；
 3. 全谱枚举复核行；4. DRYRUN 全谱绿；5. 票面回填+KB（若坑）。
