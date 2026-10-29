@@ -106,8 +106,11 @@ func (r *Runner) placeAndResolve(ctx context.Context, execID int64, no int, leg 
 	clOrdID := fmt.Sprintf("ph%dx%dx%d", execID, no, time.Now().UnixNano()%1e6)
 	// T-0238 maker 优先径：exec.maker_enabled 且 okx 腿且盘口鲜活→post_only
 	// 挂价等时；时限/未成/拒→取消定态降级 market（成=低费，败=原径无损）。
-	if res, ok := r.makerAttempt(ctx, execID, no, leg, posRef); ok {
-		return res, nil
+	if mres, ok := r.makerAttempt(ctx, execID, no, leg, posRef); ok {
+		if mres.State != "partial" {
+			return mres, nil
+		}
+		leg = scaleLegRemainder(leg, mres) // 碎量余腿缩放（maker.go——行棘轮拆位）
 	}
 	res, err := r.exec.Place(ctx, leg, clOrdID)
 	// envelope 业务拒（*APIError）分码族定态（T-0042 返修）：

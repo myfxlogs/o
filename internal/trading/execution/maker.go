@@ -5,6 +5,7 @@ package execution
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 )
 
@@ -69,6 +70,27 @@ func (r *Runner) makerAttempt(ctx context.Context, execID int64, no int, leg Leg
 		r.legCash(ctx, legID, ml, res.FillPx, res.FillSz, posRef)
 		return res, true
 	}
+	// 碎量径（审计驳回修①）：canceled+accFillSz>0=部分成交——实量记 post_only
+	// 行+legCash 入账，State="partial" 回上级做余量降级（记 0 量补全=裸腿
+	// 碎仓+台账吞量实证坑）。
+	if res.FillSz > 0 {
+		legID := r.legPx(ctx, execID, no, ml, clOrdID, "partial", "", "", res.FillPx, res.FillSz, "post_only")
+		r.legCash(ctx, legID, ml, res.FillPx, res.FillSz, posRef)
+		return OrderResult{ClOrdID: clOrdID, State: "partial", FillPx: res.FillPx, FillSz: res.FillSz}, true
+	}
 	r.legPx(ctx, execID, no, ml, clOrdID, "cancelled", "", "", 0, 0, "post_only")
 	return OrderResult{}, false
+}
+
+// scaleLegRemainder 碎量余腿缩放（T-0238 驳回修①助手——maker 腿实量已录，
+// 市价仅补余量：TgtQuote 腿按名义余比，合约腿按张余；FillSz 与 Sz 同量纲）。
+func scaleLegRemainder(leg Leg, mres OrderResult) Leg {
+	if leg.TgtQuote {
+		leg.Notional -= mres.FillPx * mres.FillSz
+		leg.Sz = fmt.Sprintf("%.8f", leg.Notional)
+	} else if orig, err := strconv.ParseFloat(leg.Sz, 64); err == nil && orig > mres.FillSz {
+		leg.Sz = fmt.Sprintf("%.8f", orig-mres.FillSz)
+		leg.Notional *= (orig - mres.FillSz) / orig
+	}
+	return leg
 }
