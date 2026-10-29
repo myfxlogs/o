@@ -33,6 +33,9 @@ func (c coreService) GetCockpit(ctx context.Context,
 	// ①⑤ 存活面+在做什么：每席最新自报→阶段派生
 	rows, err := c.pool.Query(ctx,
 		`SELECT seat,ticket,event,ts,note FROM ops_seat_latest`)
+	if err != nil {
+		r.Missing = append(r.Missing, "seats")
+	}
 	if err == nil {
 		defer rows.Close()
 		for rows.Next() {
@@ -49,11 +52,16 @@ func (c coreService) GetCockpit(ctx context.Context,
 	}
 
 	// ② 钱面：D-0037 口径月净利+本金水位+近30d 日净序列
-	_ = c.pool.QueryRow(ctx,
+	moneyErr := false
+	if err := c.pool.QueryRow(ctx,
 		`SELECT COALESCE(sum(amount),0) FROM fin_cashflow
-		 WHERE ts>date_trunc('month',now()) AND kind IN ('interest','funding_settle','fee','spot_buy','spot_sell')`).Scan(&r.Money.NetMonth)
-	_ = c.pool.QueryRow(ctx,
-		`SELECT COALESCE(sum(amount),0) FROM fin_cashflow WHERE kind='deposit'`).Scan(&r.Money.Capital)
+		 WHERE ts>date_trunc('month',now()) AND kind IN ('interest','funding_settle','fee','spot_buy','spot_sell')`).Scan(&r.Money.NetMonth); err != nil {
+		moneyErr = true
+	}
+	if err := c.pool.QueryRow(ctx,
+		`SELECT COALESCE(sum(amount),0) FROM fin_cashflow WHERE kind='deposit'`).Scan(&r.Money.Capital); err != nil {
+		moneyErr = true
+	}
 	dr, err := c.pool.Query(ctx,
 		`SELECT COALESCE(sum(amount),0) FROM fin_cashflow
 		 WHERE ts>now()-interval '30 days' AND kind IN ('interest','funding_settle','fee','spot_buy','spot_sell')
@@ -66,11 +74,34 @@ func (c coreService) GetCockpit(ctx context.Context,
 				r.Money.Daily = append(r.Money.Daily, v)
 			}
 		}
+	} else {
+		moneyErr = true
+	}
+	// 敞口段（T-0241 D-0038 标尺）：未平名义合计 vs 本金×10% 硬上限——
+	// 三态服务端判（<90%绿 顶格黄 越限红）；查询败=missing 显缺非冒零。
+	if err := c.pool.QueryRow(ctx,
+		`SELECT COALESCE(sum(notional_usd),0) FROM fin_position WHERE closed_at IS NULL`).Scan(&r.Money.Exposure); err != nil {
+		moneyErr = true
+	}
+	r.Money.ExposureLimit = r.Money.Capital * 0.10
+	if r.Money.ExposureLimit > 0 {
+		switch ratio := r.Money.Exposure / r.Money.ExposureLimit; {
+		case ratio > 1.0:
+			r.Money.ExposureState = 2
+		case ratio >= 0.9:
+			r.Money.ExposureState = 1
+		}
+	}
+	if moneyErr {
+		r.Missing = append(r.Missing, "money")
 	}
 
 	// ③ 工单板：ops_ticket_state 派生态（闭环只看近 7d）
 	tr, err := c.pool.Query(ctx,
 		`SELECT ticket,event,ts,seat FROM ops_ticket_state ORDER BY ts DESC`)
+	if err != nil {
+		r.Missing = append(r.Missing, "tickets")
+	}
 	if err == nil {
 		defer tr.Close()
 		for tr.Next() {
@@ -102,6 +133,9 @@ func (c coreService) GetCockpit(ctx context.Context,
 		`SELECT id,inst_id,direction,created_at,
 			COALESCE((SELECT value::float FROM app_config WHERE key='lifecycle.armed_ttl_h'),24)-EXTRACT(EPOCH FROM now()-created_at)/3600.0
 		 FROM fin_proposal WHERE state='fin_armed' ORDER BY created_at`)
+	if err != nil {
+		r.Missing = append(r.Missing, "armed")
+	}
 	if err == nil {
 		defer ar.Close()
 		for ar.Next() {
