@@ -70,3 +70,34 @@ func TestEvaluateDynamicFloor(t *testing.T) {
 		t.Fatalf("低 Earn 底 verdict=%s reason=%s（应静态拒因）", e.Verdict, e.Reason)
 	}
 }
+
+// T-0247 钦定锚①：存在性与取值分层四分支——0=复合非双 taker / 负=返佣
+// 入 cost 负项 / 缺=双 taker 回退 / 正=复合回归。
+func TestMakerFeeSetSplit(t *testing.T) {
+	base := Params{TakerFeeBps: 5, SlippageBps: 3, FailCostBps: 2, WindowLossBps: 4, MinNetAPR: 0.05, SettlesPerDay: 3}
+	mk := func(set bool, maker float64) Params { p := base; p.MakerFeeSet, p.MakerFeeBps = set, maker; return p }
+	cases := []struct {
+		name           string
+		set            bool
+		maker, wantFee float64
+	}{
+		{"缺键回退双 taker", false, 0, 10},
+		{"置 0 复合（免 maker 费）", true, 0, 5},
+		{"负值返佣入负项", true, -2, 3},
+		{"正值复合回归", true, 1, 6},
+	}
+	for _, c := range cases {
+		p := mk(c.set, c.maker)
+		e := Evaluate("T-USDT-SWAP", 0.0003, p)
+		fee := 2 * p.TakerFeeBps
+		if p.MakerFeeSet {
+			fee = p.TakerFeeBps + p.MakerFeeBps
+		}
+		if fee != c.wantFee {
+			t.Fatalf("%s: feeBps=%v want %v", c.name, fee, c.wantFee)
+		}
+		if ev, ok := e.Evidence["maker_fee_set"].(bool); !ok || ev != c.set {
+			t.Fatalf("%s: evidence maker_fee_set=%v", c.name, e.Evidence["maker_fee_set"])
+		}
+	}
+}
