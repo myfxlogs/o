@@ -89,12 +89,13 @@ func TestMakerFeeSetSplit(t *testing.T) {
 	for _, c := range cases {
 		p := mk(c.set, c.maker)
 		e := Evaluate("T-USDT-SWAP", 0.0003, p)
-		fee := 2 * p.TakerFeeBps
-		if p.MakerFeeSet {
-			fee = p.TakerFeeBps + p.MakerFeeBps
+		got, ok := e.Evidence["fee_bps"].(float64) // 断真产出非本地重算（返修①）
+		if !ok || got != c.wantFee {
+			t.Fatalf("%s: evidence fee_bps=%v want %v", c.name, got, c.wantFee)
 		}
-		if fee != c.wantFee {
-			t.Fatalf("%s: feeBps=%v want %v", c.name, fee, c.wantFee)
+		wantNet := 0.0003*p.SettlesPerDay*365 - (c.wantFee+p.SlippageBps+p.FailCostBps+p.WindowLossBps)/1e4
+		if e.NetAPR != wantNet {
+			t.Fatalf("%s: NetAPR=%v want %v", c.name, e.NetAPR, wantNet)
 		}
 		if ev, ok := e.Evidence["maker_fee_set"].(bool); !ok || ev != c.set {
 			t.Fatalf("%s: evidence maker_fee_set=%v", c.name, e.Evidence["maker_fee_set"])

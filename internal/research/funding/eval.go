@@ -60,7 +60,7 @@ func Evaluate(instID string, rate float64, p Params) Eval {
 	e.GrossAPR, e.NetAPR = gross, net
 	e.Evidence = map[string]any{
 		"funding_rate": rate, "settles_per_day": p.SettlesPerDay,
-		"taker_fee_bps": p.TakerFeeBps, "maker_fee_bps": p.MakerFeeBps, "maker_fee_set": p.MakerFeeSet, "slippage_bps": p.SlippageBps,
+		"fee_bps": feeBps, "taker_fee_bps": p.TakerFeeBps, "maker_fee_bps": p.MakerFeeBps, "maker_fee_set": p.MakerFeeSet, "slippage_bps": p.SlippageBps,
 		"fail_cost_bps": p.FailCostBps, "window_loss_bps": p.WindowLossBps,
 		"min_net_apr": p.MinNetAPR, "floor_apr": floor, "floor_source": floorSrc,
 	}

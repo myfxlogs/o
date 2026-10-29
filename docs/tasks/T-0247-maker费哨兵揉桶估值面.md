@@ -41,3 +41,16 @@
 1. 四分支桩测全过（0/负/缺/正）；
 2. evidence 面 maker_fee_bps 记值与计值同源（不再记真值算另值）；
 3. CI 绿。
+
+## 结果回填（施工席 @2026-10-29）
+
+**三处分层修毕**：Params.MakerFeeSet 在册标志（run.go e==nil 判在册）；
+eval/opener 以在册判非 >0——0=免 maker 费档走复合、负值返佣入 cost 负
+项如实、键缺=双 taker 保守回退（软键语义保留）。
+**evidence 同源**：`maker_fee_set`+`fee_bps` 两键入 evidence——记值与
+计值同源（返修①：桩测自证循环破——断真产出非本地重算）。
+**桩测**：TestMakerFeeSetSplit 四分支（缺→双 taker / 0→复合 / 负→复合含
+返佣项 / 正→复合回归）+fee_bps evidence 逐例断言+NetAPR 期望值对账。
+**产影响面**：research.funding.maker_fee_bps 未配=键缺回退径原语义零变；
+配上 0/负档即生效真值估（机会成本病灶闭合——误差方向保守向在案）。
+**机检**：全链绿戳在册。
