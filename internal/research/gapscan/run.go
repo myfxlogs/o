@@ -113,6 +113,15 @@ func (r *Runner) Run(ctx context.Context, errc chan<- error) {
 
 // scan 一拍：目录探针→注册表对拍→gap 队列→分类器裁态+候选生成。
 func (r *Runner) scan(ctx context.Context) error {
+	// T-0244 期界包络（dcd 同型——无界长扫挂死径封；gapscan.scan_timeout_s 热启缺=480s）
+	to := 8 * time.Minute
+	if v, err := r.cfg.GetFloat("gapscan.scan_timeout_s"); err == nil && v > 0 {
+		to = time.Duration(v) * time.Second
+	}
+	sctx, cancel := context.WithTimeout(ctx, to)
+	defer cancel()
+	ctx = sctx
+
 	if r.probe == nil {
 		log.Printf("WARN [research/gap] 面探针缺席（凭据落位后重启即上岗）")
 		return nil

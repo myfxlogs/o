@@ -7,6 +7,7 @@ package armwatch
 
 import (
 	"context"
+	"o/internal/platform/config"
 	"sync"
 	"time"
 
@@ -78,4 +79,14 @@ func (w *Watch) Check(ctx context.Context) {
 	if w.al != nil {
 		w.al.Alert(ctx, "research_arm_silent", msg)
 	}
+}
+
+// DeadlineCtx 期界包络共享件（T-0244——各臂 scan 顶层一行挂：cfg 键
+// <域>.scan_timeout_s 热启，缺=def；ctx 透下游全链有界，挂死径封）。
+func DeadlineCtx(ctx context.Context, cfg *config.Client, key string, def time.Duration) (context.Context, context.CancelFunc) {
+	to := def
+	if v, err := cfg.GetFloat(key); err == nil && v > 0 {
+		to = time.Duration(v) * time.Second
+	}
+	return context.WithTimeout(ctx, to)
 }
