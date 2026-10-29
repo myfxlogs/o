@@ -105,6 +105,15 @@ func (r *Runner) params() (Params, error) {
 // 写面整体单事务落卡——同事务空 payload NOTIFY 同值天然去重=全拍至多一醒
 // （旧逐行 autocommit 每行一醒=ev_eval 洪泛根，配合 0064 实质变触发器双治）。
 func (r *Runner) scan(ctx context.Context) error {
+	// T-0244 期界包络（dcd 同型——无界长扫挂死径封；funding.scan_timeout_s 热启缺=480s）
+	to := 8 * time.Minute
+	if v, err := r.cfg.GetFloat("funding.scan_timeout_s"); err == nil && v > 0 {
+		to = time.Duration(v) * time.Second
+	}
+	sctx, cancel := context.WithTimeout(ctx, to)
+	defer cancel()
+	ctx = sctx
+
 	r.watch.SetBeat(freshnessMax)
 	r.watch.Check(ctx) // 臂静默判定（T-0117——beat=funding 新鲜度窗 25h）
 	p, err := r.params()

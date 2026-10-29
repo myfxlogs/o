@@ -18,6 +18,7 @@ import (
 	"o/internal/platform/config"
 	"o/internal/platform/events"
 	"o/internal/platform/rejects"
+	"o/internal/research/armwatch"
 )
 
 // Coins 逐币可动余量读件（vol-sell 实评 notional 闸判据源——dcd.Coins 同型
@@ -61,6 +62,9 @@ func (r *Runner) scan(ctx context.Context) error {
 		return nil
 	}
 	r.lastAt = time.Now()
+	sctx, cancel := armwatch.DeadlineCtx(ctx, r.cfg, "grammar.scan_timeout_s", 8*time.Minute)
+	defer cancel()
+	ctx = sctx // T-0244 期界包络
 
 	// enabled 能力面集（注册即被枚举真源——T-0119 致密化面）。
 	enabled := map[string]bool{}

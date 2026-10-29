@@ -39,7 +39,7 @@ type Runner struct {
 func NewRunner(pool *pgxpool.Pool, cfg *config.Client) *Runner {
 	return &Runner{pool: pool, cfg: cfg, watch: armwatch.New("dcd 枚举"),
 		rej: rejects.New("research", "dcd_missing_params", "dcd_feed_failed",
-			"dcd_registry_read_failed", "dcd_write_err", "dcd_coins_absent")}
+			"dcd_registry_read_failed", "dcd_write_err", "dcd_coins_absent", "dcd_skip_scope_ccy", "dcd_feed_empty", "dcd_scan_timeout")}
 }
 
 // AttachFeed 挂枚举读件（cmd 装配层 REST 签名闭包）。
@@ -93,16 +93,9 @@ func (r *Runner) scan(ctx context.Context) error {
 	r.lastAt = time.Now()
 	r.watch.SetBeat(iv)
 	r.watch.Check(ctx) // T-0117 臂静默判定（业主通道 Alert 一次抑刷屏）
-	// T-0244 期界包络：N 对×（调用+300ms 退避）无界长扫——总 deadline 钉死
-	// （research.dcd.scan_timeout_s 热启，缺=480s）；ctx 透 feed→okcli 全链
-	// 有界，挂死径封（22:44→01:43 型疑面收口）。
-	to := 8 * time.Minute
-	if v, err := r.cfg.GetFloat("research.dcd.scan_timeout_s"); err == nil && v > 0 {
-		to = time.Duration(v) * time.Second
-	}
-	sctx, cancel := context.WithTimeout(ctx, to)
+	sctx, cancel := armwatch.DeadlineCtx(ctx, r.cfg, "research.dcd.scan_timeout_s", 8*time.Minute)
 	defer cancel()
-	ctx = sctx
+	ctx = sctx // T-0244 期界包络（挂死径封——N对×调用+退避无总deadline 收口）
 	p, err := r.params()
 	if err != nil {
 		r.rej.Inc("dcd_missing_params")
@@ -123,6 +116,9 @@ func (r *Runner) scan(ctx context.Context) error {
 		}
 		ps, err := r.feed(ctx, s)
 		if err != nil {
+			if ctx.Err() != nil { // 期界触达显形（驳回修①——超时专用计数非通用败）
+				r.rej.Inc("dcd_scan_timeout")
+			}
 			r.rej.Inc("dcd_feed_failed")
 			return fmt.Errorf("面 %s 读败 fail-closed（不造零快照）: %w", s.Surface, err)
 		}

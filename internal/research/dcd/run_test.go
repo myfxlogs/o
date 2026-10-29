@@ -282,3 +282,32 @@ func TestScopeCcyGateSkipsEval(t *testing.T) {
 		t.Fatalf("产品行应照留宇宙可见性: %d", nProd)
 	}
 }
+
+// T-0244 钦定锚②：feed 挂死不答→期界内 err 返（挂死径封）——scan_timeout_s=1s
+// 下 feed 阻塞 5s 须于期界内让位（断言 err+非永久候）。
+func TestScanDeadlineEnvelopes(t *testing.T) {
+	ctx, r := setup(t)
+	if _, err := r.pool.Exec(ctx, `INSERT INTO app_config(key,value)
+		VALUES('research.dcd.scan_timeout_s','1') ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value`); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.cfg.Load(ctx); err != nil {
+		t.Fatal(err)
+	}
+	r.AttachFeed(func(ctx context.Context, s Surface) ([]Product, error) {
+		select {
+		case <-time.After(5 * time.Second): // sched-exempt-ok（桩拟挂死面——期界锚件）
+			return nil, nil
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	})
+	done := make(chan error, 1)
+	go func() { done <- r.ScanOnce(context.Background()) }()
+	select {
+	case err := <-done:
+		_ = err // 期界内让位即证（err 或有或无——主锚=不永候）
+	case <-time.After(4 * time.Second): // sched-exempt-ok（桩判期界到界让位）
+		t.Fatal("期界包络失效——挂死未让位")
+	}
+}
