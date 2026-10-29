@@ -208,6 +208,7 @@ func (r *Runner) breakevenOK(ctx context.Context, spec OpenSpec) (bool, string) 
 		return false, "guard.max_hold_hours 判据键缺 fail-closed"
 	}
 	taker, err := r.cfg.GetFloat("research.funding.taker_fee_bps")
+	maker, _ := r.cfg.GetFloat("research.funding.maker_fee_bps") // 软键——缺=0 双 taker 形
 	if err != nil {
 		r.rej.Inc("missing_param")
 		return false, "research.funding.taker_fee_bps 判据键缺 fail-closed"
@@ -234,6 +235,9 @@ func (r *Runner) breakevenOK(ctx context.Context, spec OpenSpec) (bool, string) 
 	}
 	carryBps := *rate * 10000 * settles // 预期 carry（bps）
 	frictionBps := 4 * (taker + slip)   // 4 腿往返摩擦（bps）
+	if maker > 0 {                      // T-0238 分费制：maker 键在册=开腿 maker+关腿 taker 复合估
+		frictionBps = 2*(maker+slip) + 2*(taker+slip)
+	}
 	if carryBps < frictionBps*safety {
 		if n := r.rejectEvalReason(ctx, spec, "breakeven_beyond_hold", map[string]any{
 			"carry_bps": carryBps, "friction_bps": frictionBps, "safety": safety,
