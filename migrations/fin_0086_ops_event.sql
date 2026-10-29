@@ -20,6 +20,11 @@ CREATE OR REPLACE VIEW ops_ticket_state AS
 
 -- research_rw 自报写径（report.sh 双写=research_rw DSN——INSERT 表权+序权，
 -- 读面 SELECT 三视图——表随册可复现非仅产侧手工授）。
-GRANT INSERT ON ops_event TO research_rw;
-GRANT USAGE ON SEQUENCE ops_event_id_seq TO research_rw;
-GRANT SELECT ON ops_event,ops_seat_latest,ops_ticket_state TO research_rw;
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'research_rw') THEN
+    GRANT INSERT ON ops_event TO research_rw;
+    GRANT USAGE ON SEQUENCE ops_event_id_seq TO research_rw;
+    GRANT SELECT ON ops_event,ops_seat_latest,ops_ticket_state TO research_rw;
+  END IF;
+END $$;
