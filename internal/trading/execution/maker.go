@@ -74,11 +74,11 @@ func (r *Runner) makerAttempt(ctx context.Context, execID int64, no int, leg Leg
 	// 行+legCash 入账，State="partial" 回上级做余量降级（记 0 量补全=裸腿
 	// 碎仓+台账吞量实证坑）。
 	if res.FillSz > 0 {
-		legID := r.legPx(ctx, execID, no, ml, clOrdID, "partial", "", "", res.FillPx, res.FillSz, "post_only")
+		legID := r.legPx(ctx, execID, no, ml, clOrdID, "filled", "", "", res.FillPx, res.FillSz, "post_only")
 		r.legCash(ctx, legID, ml, res.FillPx, res.FillSz, posRef)
 		return OrderResult{ClOrdID: clOrdID, State: "partial", FillPx: res.FillPx, FillSz: res.FillSz}, true
 	}
-	r.legPx(ctx, execID, no, ml, clOrdID, "cancelled", "", "", 0, 0, "post_only")
+	r.legPx(ctx, execID, no, ml, clOrdID, "failed", "", "", 0, 0, "post_only")
 	return OrderResult{}, false
 }
 
