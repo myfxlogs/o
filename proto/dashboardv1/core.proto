@@ -26,6 +26,7 @@ service CoreService {
   // —— 系统健康与复盘读面（T-0170：/md/status、/report 手集 JSON 收编入契约
   // ——D-0009 落前端面：有 proto 的面=绝对 proto，前端零裸 JSON 依赖）——
   rpc GetSystemHealth(GetSystemHealthRequest) returns (GetSystemHealthResponse) {}
+  rpc GetCockpit(GetCockpitRequest) returns (GetCockpitResponse) {}
   rpc GetHostMetrics(GetHostMetricsRequest) returns (GetHostMetricsResponse) {}
   rpc ListReports(ListReportsRequest) returns (ListReportsResponse) {}
   rpc GetEquityCurve(GetEquityCurveRequest) returns (GetEquityCurveResponse) {}
@@ -360,4 +361,40 @@ message CashflowRow {
   string ccy = 4;
   double amount = 5;
   string venue = 6;
+}
+
+// —— 业主驾驶舱（T-0239——五块只读聚合：存活/钱面/工单板/待开仓/在做什么——
+// 服务端判态派生，前端零判据纯渲染）——
+message GetCockpitRequest {}
+message CockpitSeat {                    // 席存活面+⑤在做什么合并行
+  string seat = 1;
+  string ticket = 2;                     // 当前票（空=无自报）
+  string event = 3;                      // 原事件（领单/收口/移交/裁决/挂起）
+  string stage = 4;                      // 派生阶段（调研/施工/等审计/挂起/闭环）
+  google.protobuf.Timestamp ts = 5;      // 最近自报时间
+  string note = 6;                       // 自报短注
+}
+message CockpitMoney {                   // ②钱面（D-0037 口径纯读聚合）
+  double net_month = 1;                  // 月净利=interest+funding_settle+平仓盈亏近似（recon/earn 项不计）
+  double capital = 2;                    // 本金水位=deposit 累计
+  repeated double daily = 3;             // 近30d 日净现金流序列（fee+interest+settle+spot 净）
+}
+message CockpitTicket {                  // ③工单板派生行
+  string ticket = 1;
+  string state = 2;                      // 在飞/待派/挂起/闭环（近7d）
+  google.protobuf.Timestamp ts = 3;
+  string seat = 4;
+}
+message CockpitArmed {                   // ④待开仓 armed 提案+TTL 倒计时
+  int64 id = 1;
+  string inst_id = 2;
+  string direction = 3;
+  google.protobuf.Timestamp created = 4;
+  double ttl_hours_left = 5;             // 负数=已超龄待退役
+}
+message GetCockpitResponse {
+  repeated CockpitSeat seats = 1;
+  CockpitMoney money = 2;
+  repeated CockpitTicket tickets = 3;
+  repeated CockpitArmed armed = 4;
 }
