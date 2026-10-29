@@ -2,8 +2,8 @@
 
 > 状态：**收口待审** | 领取：devin-t0250 @ 2026-10-30 | 优先级：**急诊**（钱径——fill 锚现役于
 > dualwrite 旁写泵顶水，非正形不可长持；急诊抢占=管理令 MANAGE-82 钦定）
-> 执行径：**无头** | 收口commit：8dbb8d3b6b74ee0d4df0ff08e94aa9784a3c0e2f
-> （双臂码面=510439e、KB 条目+索引=8dbb8d3——撞车移交两 commit 合为交付，见结果回填偏离说明）
+> 执行径：**无头** | 收口commit：3abe67647b7ca36377280876b05df02f83ddf272
+> （双臂码面=510439e、KB 条目+索引=8dbb8d3、喂集断言桩=3abe676——撞车移交多 commit 合为交付，见结果回填偏离说明）
 > 立项：决策席 @ 2026-10-30（管理令 20261030-012400-MANAGE-82）
 
 ## 面况
@@ -94,8 +94,9 @@ dcd 喂集 `='dcd_call'`→`LIKE 'dcd%'` 放宽使镜像覆盖面=JOIN 谓词域
    （SOL-USDT/SOL-USD-270626），非钦定模板不归一（XRP-USDT 不入、
    XRP-USD-270626 裸键入），dcd_call/dcd_put→uly 归一入集
    （AVAX-USDT/LTC-USDT，含 -USDG 方言形），retired dcd 不误取
-   （DOT-USDT——镜像残行豁免）；端到端 BTC-USDT tick 落 SG 镜像
-   =1、SOL-USDT=0。
+   （DOT-USDT——镜像残行豁免）；dcd 喂集域断言同桩（dcdSet 含
+   DCD-AVAX-1/DCD-LTC-2、排 DCD-DOT-3——放宽断言位实证）；端到端
+   BTC-USDT tick 落 SG 镜像=1、SOL-USDT=0。
 3. **serve 产验锚（部署径待验）**：serve.conf 切回 `-mode=serve`=
    部署面动作（票面钦定：施工交付=码面+桩测，复原由部署径执）——
    复原后 SG md_ticks BTC-USDT 现货行续鲜+fin_paper_fill 续出，
