@@ -294,6 +294,18 @@
 - **部署树污染自纠**：KB 条目+数据流.md 修订曾误写 /opt/o 部署树——即觉即迁 worktree 并 git checkout 回退部署树（净）。
 
 
+## 2026-10-30 凌晨 — 管理席：T-0216 上线排障（devin-manage）——两段根因+dualwrite 临时径
+
+- **业主令**：「[角色：管理]接手开工，让216上线」——管理席 devin 直办（急件直办，事后报备在案）。
+- **根因链两段实证**（审计残差只捕到①）：
+  ① `o-collecto` 二进制 mtime 10-28 06:05 早于返修 merge——activeSet 现货腿补丁不在跑件里。处置：dev 交叉编 arm64（a6e8964 净树）→ 船运换件（旧件留 collector.bak-1028）→ 17:12Z 重启，OCI `md_ticks` BTC-USDT 行流实证。
+  ② **projector `refreshSets` 活跃集=裸 inst_id 无归一臂**——basis 现货腿+dcd uly 双面滤桥外：SG `md_ticks` BTC-USDT 滞留 10-25 陈行，订到≠到 SG。处置（急件临时径）：`o-projector` serve.conf 切 `-mode=dualwrite`（无谓词全量旁写，T-0169 设计态），17:19Z SG 行鲜。
+- **终验**：286990 quarter_basis_long 首笔 `fin_paper_fill` funding +0.006881@17:18:55Z 落地——216 实质上线；287004 首摊待下拍（事件节拍非整点）。
+- **令出**：MANAGE-82→DM 立票根修 `refreshSets` 归一双臂（对齐 okxws/subscribe.go activeSet 语义），部署生效后 serve.conf 复原 `-mode=serve`（dualwrite 旁写泵不可长持）；验收锚=serve 下现货行续鲜+fill 续出。dcd 同病灶（`dcd_spot_stale` 休眠缺口）已写入令——根修双臂齐补非单补 basis。
+- **坑条目**：`bridge-predicate-misses-normalized-legs`（订阅集/镜像集双臂同源律）入工程经验库，支 `docs/kb-bridge-predicate@0e43f9f` 已推候 DM 并。
+- **座况留痕**：①`master` 本地支被陈旧 worktree `/opt/o-wt/t0160-fixup`（落后 25+脏件）锁占→部署树被迫常驻 detached@origin/master——归 DM worktree 卫生处置；②Oct-28 残留 `gh pr checks 8` watcher 僵尸环已杀（PR#8 早并）；③Dev/DM 件消费面缺口实证（无头径不消费 inbox——MANAGE-75 滞留 30min+，心跳静默升级三件 DM-79/80/81 已回执定性「无头不读箱≠席死」）；④收件箱全清（DM-63/64 回执+DM-78/79/80/81 升级件均 ack）。
+- **部署树纪律再证**：/opt/o 非 master 禁 commit（D-651 机内化）——本席 KB 件一度落部署树 staging，即迁 worktree 径收口。
+
 ## 2026-10-30 晨 — 决策席：无头单飞晨务（devin dm-session-1030）——T-0255 三殁复飞+调度面三杀事故自裁
 
 - **进仓态**：管理席换防 claude-kimi（前任 glm 管道故障）；基座 03:00–08:04 停电全灭；交互席业主令退役，全席无头径。
