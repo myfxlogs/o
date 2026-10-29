@@ -657,3 +657,58 @@ func TestTsPassThrottle(t *testing.T) {
 		t.Fatalf("间隔内应跳拍（仍 1 行）: %d %v", n2, err)
 	}
 }
+
+// TestActiveSetNormalizedLegs T-0250 桩锚（T-0216 根因②）：refreshSets 归一
+// 双臂入集——basis 策略期货键剥 -YYMMDD→剥 -USD→-USDT 现货腿（paper/live
+// 均含）；dcd 策略经 SG 镜像 md_dcd_product JOIN 取 uly 剥 -USD(G)→-USDT；
+// retired 与非钦定模板不入归一臂；端到端现货 tick 落 SG 镜像。
+func TestActiveSetNormalizedLegs(t *testing.T) {
+	ctx := context.Background()
+	r, md, sg := runner(t)
+	if _, err := sg.Exec(ctx, `INSERT INTO fin_strategy(inst_id,template_ref,state,notional_usd) VALUES
+		('BTC-USD-270626','quarter_basis_long','paper',1000),
+		('ETH-USD-270626','perp_quarter_spread','live',1000),
+		('SOL-USD-270626','quarter_basis_long','retired',1000),
+		('XRP-USD-270626','funding-hedge','live',1000),
+		('DCD-AVAX-1','dcd_call','paper',500),
+		('DCD-LTC-2','dcd_put','live',500),
+		('DCD-DOT-3','dcd_call','retired',500)`); err != nil {
+		t.Fatal(err)
+	}
+	// SG 镜像 md_dcd_product（投影落面——uly 方言 -USDG/-USD 两形各一）。
+	if _, err := sg.Exec(ctx, `INSERT INTO md_dcd_product(ts,venue,surface,uly,product_id,direction,raw) VALUES
+		(now(),'okx','dcd','AVAX-USDG','DCD-AVAX-1','C','{}'),
+		(now(),'okx','dcd','LTC-USD','DCD-LTC-2','P','{}'),
+		(now(),'okx','dcd','DOT-USD','DCD-DOT-3','C','{}')`); err != nil {
+		t.Fatal(err)
+	}
+	// 现货腿 tick 实物：BTC-USDT 应落镜像（旧形裸键谓词滤桥外=T-0216 根因②），
+	// SOL-USDT（retired 腿）零投影。
+	if _, err := md.Exec(ctx, `INSERT INTO md_ticks(ts,venue,inst_id,last,recv_ts) VALUES
+		(now(),'okx','BTC-USDT',66000,now()),(now(),'okx','SOL-USDT',150,now())`); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Reconcile(ctx, true); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	have := map[string]bool{}
+	for _, s := range r.activeList() {
+		have[s] = true
+	}
+	for _, want := range []string{"BTC-USDT", "ETH-USDT", "AVAX-USDT", "LTC-USDT", "XRP-USD-270626"} {
+		if !have[want] {
+			t.Fatalf("归一臂入集缺 %s", want)
+		}
+	}
+	for _, reject := range []string{"SOL-USDT", "SOL-USD-270626", "XRP-USDT", "DOT-USDT"} {
+		if have[reject] {
+			t.Fatalf("离集键误入 %s", reject)
+		}
+	}
+	if n := count(t, sg, "SELECT count(*) FROM md_ticks WHERE inst_id='BTC-USDT'"); n != 1 {
+		t.Fatalf("basis 现货腿 tick 应投影: %d", n)
+	}
+	if n := count(t, sg, "SELECT count(*) FROM md_ticks WHERE inst_id='SOL-USDT'"); n != 0 {
+		t.Fatalf("retired 现货腿 tick 零投影: %d", n)
+	}
+}
