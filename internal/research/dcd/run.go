@@ -93,6 +93,16 @@ func (r *Runner) scan(ctx context.Context) error {
 	r.lastAt = time.Now()
 	r.watch.SetBeat(iv)
 	r.watch.Check(ctx) // T-0117 臂静默判定（业主通道 Alert 一次抑刷屏）
+	// T-0244 期界包络：N 对×（调用+300ms 退避）无界长扫——总 deadline 钉死
+	// （research.dcd.scan_timeout_s 热启，缺=480s）；ctx 透 feed→okcli 全链
+	// 有界，挂死径封（22:44→01:43 型疑面收口）。
+	to := 8 * time.Minute
+	if v, err := r.cfg.GetFloat("research.dcd.scan_timeout_s"); err == nil && v > 0 {
+		to = time.Duration(v) * time.Second
+	}
+	sctx, cancel := context.WithTimeout(ctx, to)
+	defer cancel()
+	ctx = sctx
 	p, err := r.params()
 	if err != nil {
 		r.rej.Inc("dcd_missing_params")
