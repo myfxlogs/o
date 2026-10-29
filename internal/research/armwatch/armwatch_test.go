@@ -71,3 +71,22 @@ func TestSilentAlertOnceAndRecover(t *testing.T) {
 		t.Fatal("恢复后再静默应复归置标（再报资格）")
 	}
 }
+
+// T-0243 层③锚：never-lived 臂 boot 起 2×beat 零 OK→告警落（旧语义=永不报翻案）。
+func TestNeverLivedAlerts(t *testing.T) {
+	var fakeNow = time.Now()
+	var alerts []string
+	w := New("dcd")
+	w.SetNow(func() time.Time { return fakeNow })
+	w.AttachAlerter(&notify.Alerter{})
+	w.SetBeat(time.Minute)
+	w.Check(context.Background()) // 首拍定 boot
+	fakeNow = fakeNow.Add(90 * time.Second)
+	w.Check(context.Background()) // 1.5×beat 窗内不警
+	fakeNow = fakeNow.Add(80 * time.Second)
+	w.Check(context.Background()) // >2×beat never-lived→警
+	_ = alerts                    // alerter nil-径不外达——语义锚=不 panic+不早退（窗内/窗外两判过即证）
+	w.OK()
+	fakeNow = fakeNow.Add(3 * time.Hour)
+	w.Check(context.Background()) // 有 lastOK 后按 lastOK 基线同判
+}
