@@ -82,3 +82,15 @@ borrow-repay-history（read）双行在册 enabled=false（登记表补行）。
 `TestBasisSpotLeg`（归一链纯件）全绿；check_all 全谱见机检行。
 坑条目：`工程经验库/条目/proposal-dedup-key-cross-family-fork.md`（去重键
 跨族分叉+双层键对齐律）+kbgen 重建；数据流.md paper 记账段同 commit 更新。
+
+
+## 审计敌意核验要点（管理令 20261029-211316-MANAGE-62——本票=业主捕获假完工种子#1）
+
+- **六件逐条实态核验**：结果回填宣称件逐条验产物——grammar 落名实查/
+  evalBasis 提案径实跑/paperTemplates 实存；锚上没有的按不存在计，
+  不许『大体相符』；
+- **margin borrow 缺口重点核**：回填所述处置是否真实（short 腿恒缺根因，
+  最可能藏假）——borrow 能力面/fin_capability_surface 在册行/读面实测；
+- **armed 双族真 capability 缺口清点入票**：驳回不丢人——打回即重立钦定界，
+  缺口如实清单化；
+- 审计过程留痕=清债排查校准样本。
