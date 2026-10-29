@@ -705,6 +705,20 @@ func TestActiveSetNormalizedLegs(t *testing.T) {
 			t.Fatalf("离集键误入 %s", reject)
 		}
 	}
+	// dcd 喂集域=镜像覆盖面自洽（T-0250）：dcd% 族活策略 product_id 入集
+	// （dcd_call+dcd_put——喂集窄于 JOIN 谓词域=覆盖面缺口同型静默滤）。
+	dcdHave := map[string]bool{}
+	for _, s := range r.dcdSet() {
+		dcdHave[s] = true
+	}
+	for _, want := range []string{"DCD-AVAX-1", "DCD-LTC-2"} {
+		if !dcdHave[want] {
+			t.Fatalf("dcd 喂集缺 %s", want)
+		}
+	}
+	if dcdHave["DCD-DOT-3"] {
+		t.Fatal("retired 策略产品误入 dcd 喂集")
+	}
 	if n := count(t, sg, "SELECT count(*) FROM md_ticks WHERE inst_id='BTC-USDT'"); n != 1 {
 		t.Fatalf("basis 现货腿 tick 应投影: %d", n)
 	}
