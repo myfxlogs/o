@@ -86,24 +86,24 @@ func (c coreService) GetCockpit(ctx context.Context,
 		`SELECT COALESCE(sum(notional_usd),0) FROM fin_position WHERE closed_at IS NULL`).Scan(&r.Money.Exposure); err != nil {
 		moneyErr = true
 	}
-	r.Money.ExposureLimit = r.Money.Capital * 0.10
-	if r.Money.ExposureLimit > 0 {
-		switch ratio := r.Money.Exposure / r.Money.ExposureLimit; {
-		case ratio > 1.0:
-			r.Money.ExposureState = 2
-		case ratio >= 0.9:
-			r.Money.ExposureState = 1
-		}
-	}
 	if moneyErr {
 		r.Missing = append(r.Missing, "money")
 	}
 	// 平台分列（T-0241 D-0038⑤升维——承诺/已入/停泊/敞口×平台+合计；
 	// committed=配置键 cockpit.committed_<plat>（归属业主候答——键面留位）；
 	// crypto=fin_cashflow deposit/earn 净+未平名义；MT5=mt5Live equity 现读）。
+	// ②committed 键缺席显缺非吞零（驳回修②——三律③同口径）：键缺
+	// =missing 名段+该行 committed 字段置 -1 哨兵（前端显「未设」非 0）。
 	var commC, commM float64
-	_ = c.pool.QueryRow(ctx, `SELECT COALESCE((SELECT value::float FROM app_config WHERE key='cockpit.committed_crypto'),0)`).Scan(&commC)
-	_ = c.pool.QueryRow(ctx, `SELECT COALESCE((SELECT value::float FROM app_config WHERE key='cockpit.committed_mt5'),0)`).Scan(&commM)
+	if err := c.pool.QueryRow(ctx, `SELECT value::float FROM app_config WHERE key='cockpit.committed_crypto'`).Scan(&commC); err != nil {
+		commC, r.Missing = -1, append(r.Missing, "committed")
+	}
+	if err := c.pool.QueryRow(ctx, `SELECT value::float FROM app_config WHERE key='cockpit.committed_mt5'`).Scan(&commM); err != nil {
+		commM = -1
+		if !containsStr(r.Missing, "committed") {
+			r.Missing = append(r.Missing, "committed")
+		}
+	}
 	var parked float64
 	_ = c.pool.QueryRow(ctx, `SELECT COALESCE(sum(amount),0) FROM fin_cashflow
 		WHERE kind IN ('earn_in','earn_out')`).Scan(&parked)
@@ -125,6 +125,19 @@ func (c coreService) GetCockpit(ctx context.Context,
 		Committed: commC + commM, Deposited: crow.Deposited + mrow.Deposited,
 		Parked: crow.Parked + mrow.Parked, Exposure: crow.Exposure + mrow.Exposure}
 	r.Money.Platforms = append(r.Money.Platforms, tot)
+	// ①敞口分母=跨平台已入合计（D-0038 帽按全平台本金非 crypto 单口径——
+	// 驳回修①：MT5 equity 3.2K 入分母防假红）。
+	r.Money.ExposureLimit = tot.Deposited * 0.10
+	if r.Money.ExposureLimit > 0 {
+		switch ratio := tot.Exposure / r.Money.ExposureLimit; {
+		case ratio > 1.0:
+			r.Money.ExposureState = 2
+		case ratio >= 0.9:
+			r.Money.ExposureState = 1
+		default:
+			r.Money.ExposureState = 0
+		}
+	}
 	now := time.Now()
 	r.AsOf = tsProto(now)
 
@@ -180,4 +193,14 @@ func (c coreService) GetCockpit(ctx context.Context,
 		}
 	}
 	return r, nil
+}
+
+// containsStr 名段判存（missing 幂等件）。
+func containsStr(xs []string, v string) bool {
+	for _, x := range xs {
+		if x == v {
+			return true
+		}
+	}
+	return false
 }
