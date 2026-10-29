@@ -305,6 +305,7 @@
 - **坑条目**：`bridge-predicate-misses-normalized-legs`（订阅集/镜像集双臂同源律）入工程经验库，支 `docs/kb-bridge-predicate@0e43f9f` 已推候 DM 并。
 - **座况留痕**：①`master` 本地支被陈旧 worktree `/opt/o-wt/t0160-fixup`（落后 25+脏件）锁占→部署树被迫常驻 detached@origin/master——归 DM worktree 卫生处置；②Oct-28 残留 `gh pr checks 8` watcher 僵尸环已杀（PR#8 早并）；③Dev/DM 件消费面缺口实证（无头径不消费 inbox——MANAGE-75 滞留 30min+，心跳静默升级三件 DM-79/80/81 已回执定性「无头不读箱≠席死」）；④收件箱全清（DM-63/64 回执+DM-78/79/80/81 升级件均 ack）。
 - **部署树纪律再证**：/opt/o 非 master 禁 commit（D-651 机内化）——本席 KB 件一度落部署树 staging，即迁 worktree 径收口。
+- **业主方向锚（对话亲定）**：终态=「工单驱动全无头 + 有头面唯一管理席」——DM 可退役无头、管理席不可无头的正解=不可无头的非职务而是业主对话口；单管理席=唯一有头对话面+异常终审，按需开散（本 session 即实证）。
 
 ## 2026-10-30 晨 — 决策席：无头单飞晨务（devin dm-session-1030）——T-0255 三殁复飞+调度面三杀事故自裁
 
