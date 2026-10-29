@@ -91,6 +91,7 @@ var migrationTable = []struct {
 	{82, "fin_0082_exec_ambiguous_state.sql"},
 	{83, "fin_0083_basis_direction_defork.sql"},
 	{84, "fin_0084_arch_eval_reject.sql"},
+	{86, "fin_0086_ops_event.sql"},
 
 	// —— md 链（版本链内唯一且单调；md 链版本=历史号+1000 与 fin 键空间全局不相交——跨链并 schema 时 schema_migrations 零撞号，check_migrations 断言①⑤）——
 	{1003, "md_1003_market_facts.sql"},
