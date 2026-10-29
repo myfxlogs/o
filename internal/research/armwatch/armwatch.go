@@ -21,6 +21,7 @@ type Watch struct {
 	beat   time.Duration // 判定窗基准（=臂节拍；2×beat 零产出=静默）
 	al     *notify.Alerter
 	lastOK time.Time
+	boot   time.Time        // never-lived 基线（T-0243 层③——lastOK 缺席按首 Check 起算）
 	silent bool             // 静默告警已发（恢复清标）
 	now    func() time.Time // 时钟注入面（测试）——nil=time.Now
 }
@@ -59,15 +60,22 @@ func (w *Watch) OK() {
 func (w *Watch) Check(ctx context.Context) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	if w.beat <= 0 || w.lastOK.IsZero() || w.silent {
+	if w.beat <= 0 || w.silent {
 		return
 	}
-	if w.clock().Sub(w.lastOK) <= 2*w.beat {
+	if w.boot.IsZero() {
+		w.boot = w.clock() // 首拍定基线（臂起动时刻近似）
+	}
+	base := w.lastOK
+	if base.IsZero() {
+		base = w.boot // never-lived 臂：boot 起算 beat 窗（曾零成功≠永免判——架构洞修）
+	}
+	if w.clock().Sub(base) <= 2*w.beat {
 		return
 	}
 	w.silent = true
 	msg := "研究臂 " + w.name + " 超 " + (2 * w.beat).Round(time.Minute).String() +
-		" 零成功产出——fail-closed 让位循环（限频/读败），产出面停摆"
+		" 零成功产出——fail-closed 让位循环（限频/读败/never-lived），产出面停摆"
 	if w.al != nil {
 		w.al.Alert(ctx, "research_arm_silent", msg)
 	}

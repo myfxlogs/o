@@ -170,7 +170,12 @@ func (r *Runner) scanSurface(ctx context.Context, s Surface, ps []Product, p Par
 		}
 	}
 	if skipCcy > 0 {
+		r.rej.Inc("dcd_skip_scope_ccy") // T-0243 层①：skip 集黑盒修——计数可见非仅日志
 		log.Printf("[research/dcd] 面 %s skipped_scope_ccy=%d（非 USDT 计价产品枚举期挡——范围硬闸）", s.Surface, skipCcy)
+	}
+	if len(ps) == 0 { // T-0243 层②：feed 空集显形（如实报空非静默零帧——真空/解析落两可皆须可见）
+		r.rej.Inc("dcd_feed_empty")
+		log.Printf("WARN [research/dcd] 面 %s feed 空集（products=0——OKX 面真空或上游断供，如实呈）", s.Surface)
 	}
 	return nil
 }
