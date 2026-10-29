@@ -33,28 +33,63 @@ jobs:
           - 5434:5432
     steps:
       - uses: actions/checkout@v4
+        with:
+          # T-0225：路由 diff 需 merge-base/event.before——浅拉取不到，全史。
+          fetch-depth: 0
+      # T-0225 文件类路由（业主令：内容无关全量跑是错误的）：diff 集合全中
+      # 快径白名单（docs/**、*.md、.devin/**、skills/**）→ 快径，仅跑
+      # gofmt+check-lines+check_migrations；任一越界（**.go/proto/web/
+      # migrations/scripts/.github 等）→ 全径原样，-count=1 判据不动。
+      # diff 源：PR=origin/<base>...HEAD（三点 merge-base）；push=
+      # event.before..HEAD（覆盖整段推送，比 HEAD~1 严——force-push/首推
+      # 回退 HEAD~1）。diff 空/失败=全径（fail-safe 宁全勿漏）。
+      # core.quotepath=false 必须带——本仓 docs 件大量中文名，默认 C-quote
+      # 成 "docs/... \345..." 后白名单前缀匹配全灭（D-077 同坑见 pre-commit）。
+      - name: 快径路由（docs-only diff → 跳 Go 面）
+        id: route
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            RANGE="origin/${{ github.base_ref }}...HEAD"
+          else
+            BEFORE="${{ github.event.before }}"
+            if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+              BEFORE="HEAD~1"
+            fi
+            RANGE="$BEFORE..HEAD"
+          fi
+          DIFF=$(git -c core.quotepath=false diff --name-only "$RANGE" 2>/dev/null || true)
+          echo "diff 源=$RANGE"; echo "$DIFF"
+          FAST=true
+          if [ -z "$DIFF" ]; then FAST=false; fi
+          while IFS= read -r f; do
+            case "$f" in
+              ""|docs/*|*.md|.devin/*|skills/*) ;;
+              *) FAST=false ;;
+            esac
+          done <<< "$DIFF"
+          echo "fastpath=$FAST" | tee -a "$GITHUB_OUTPUT"
       # 骨架未落位期（go.mod/web/proto 未入库）：Go/buf/npm 链条件未备跳过，
       # 全门面通用闸（gofmt/check-lines/结构钉）照常执行——不谎报已检。
       - uses: actions/setup-go@v5
-        if: hashFiles('go.mod') != ''
+        if: hashFiles('go.mod') != '' && steps.route.outputs.fastpath != 'true'
         with:
           go-version-file: go.mod
           # T-0219：module+build 缓存（go.sum 锚自动）——go mod download/
           # 冷编译每跑全量重付病灶砍；语义零变。
           cache: true
       - uses: actions/setup-node@v4
-        if: hashFiles('web/package.json') != ''
+        if: hashFiles('web/package.json') != '' && steps.route.outputs.fastpath != 'true'
         with:
           node-version: 24
           cache: npm
           cache-dependency-path: web/package-lock.json
       - uses: bufbuild/buf-setup-action@v1
-        if: hashFiles('proto/**/*.proto') != ''
+        if: hashFiles('proto/**/*.proto') != '' && steps.route.outputs.fastpath != 'true'
         with:
           version: 1.74.0
           github_token: ${{ secrets.GITHUB_TOKEN }}
       - run: npm ci --legacy-peer-deps
-        if: hashFiles('web/package.json') != ''
+        if: hashFiles('web/package.json') != '' && steps.route.outputs.fastpath != 'true'
         working-directory: web
       # web/src/gen 不入库（gitignore）——npm build 前重产（protoc-gen-es 在 node_modules）
       - run: |
@@ -63,19 +98,20 @@ jobs:
           go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1
           buf generate
           buf generate --template buf.gen.mtapi.yaml
-        if: hashFiles('proto/**/*.proto') != ''
+        if: hashFiles('proto/**/*.proto') != '' && steps.route.outputs.fastpath != 'true'
       # 前端产物须在 go build 之前（embed.go go:embed web/dist）
       - run: npm run build
-        if: hashFiles('web/package.json') != ''
+        if: hashFiles('web/package.json') != '' && steps.route.outputs.fastpath != 'true'
         working-directory: web
       - run: go mod download
-        if: hashFiles('go.mod') != ''
+        if: hashFiles('go.mod') != '' && steps.route.outputs.fastpath != 'true'
       - run: go build ./...
-        if: hashFiles('go.mod') != ''
+        if: hashFiles('go.mod') != '' && steps.route.outputs.fastpath != 'true'
       - run: go vet ./...
-        if: hashFiles('go.mod') != ''
+        if: hashFiles('go.mod') != '' && steps.route.outputs.fastpath != 'true'
       # D-514：分层方向门禁与 pre-commit 同令（无 Go 面时脚本自身报「条件未备跳过」）。
       - run: ./scripts/check_import_direction.sh
+        if: steps.route.outputs.fastpath != 'true'
       # gofmt 全树 sweep（非仅 diff 面）。
       - run: |
           UNFMT=$(gofmt -l . || true)
@@ -85,18 +121,18 @@ jobs:
           fi
       # 缺省 DSN 契约 o:o——CI postgres 仅 postgres role，补建。
       - run: psql "postgres://postgres:test@localhost:5434/postgres" -c "CREATE ROLE o LOGIN PASSWORD 'o' SUPERUSER" || true
-        if: hashFiles('go.mod') != ''
+        if: hashFiles('go.mod') != '' && steps.route.outputs.fastpath != 'true'
       # go test 全量（DSN 注入 5434，缺 DSN 的 skip 语义不变）；
       # ulimit -n 提 hard limit（race + pgxpool fd 压力先例 D-177/D-255）。
       - run: ulimit -n $(ulimit -Hn) && go test ./... -count=1 -timeout=1800s
-        if: hashFiles('go.mod') != ''
+        if: hashFiles('go.mod') != '' && steps.route.outputs.fastpath != 'true'
         env:
           O_TEST_PG_DSN: "postgres://postgres:test@localhost:5434/o_test?sslmode=disable"
           O_TEST_PG_SERVICE_DSN: "postgres://postgres:test@localhost:5434/o_service_test?sslmode=disable"
           O_EXEC_TEST_PG_DSN: "postgres://postgres:test@localhost:5434/o_exec_test?sslmode=disable"
           O_RECONCILE_TEST_PG_DSN: "postgres://postgres:test@localhost:5434/o_reconcile_test?sslmode=disable"
       - run: ulimit -n $(ulimit -Hn) && go test -race -count=1 ./internal/...
-        if: hashFiles('internal/**/*.go') != ''
+        if: hashFiles('internal/**/*.go') != '' && steps.route.outputs.fastpath != 'true'
         env:
           O_TEST_PG_DSN: "postgres://postgres:test@localhost:5434/o_test?sslmode=disable"
           O_TEST_PG_SERVICE_DSN: "postgres://postgres:test@localhost:5434/o_service_test?sslmode=disable"

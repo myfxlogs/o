@@ -99,4 +99,31 @@ while IFS='|' read -r tpl key envf; do
 done <<< "$pairs"
 echo "OK[bridge-audit] 模板列: deploy 三件套 DSN 键×实机对拍过"
 
-[ "$fail" = 0 ] && echo "OK[bridge-audit] 三列全绿" || exit 1
+
+# ── ④ arch-源水印列（T-0230 回退径——源表 max(ts) vs arch max(src_ts) 日级
+# 滞>24h=红；arch 表缺行且源有行=闸死红——T-0223 存在性列留位接入）。
+wm() { # $1=侧(fin|md) $2=源表 $3=arch表
+	if [ "$1" = fin ]; then
+		lag=$(sg_q "SELECT COALESCE(EXTRACT(EPOCH FROM (SELECT max(ts) FROM $2)-(SELECT max(src_ts) FROM $3)),0)")
+		srcn=$(sg_q "SELECT count(*) FROM $2")
+		archn=$(sg_q "SELECT count(*) FROM $3")
+	else
+		lag=$(md_q "SELECT COALESCE(EXTRACT(EPOCH FROM (SELECT max(ts) FROM $2)-(SELECT max(src_ts) FROM $3)),0)")
+		srcn=$(md_q "SELECT count(*) FROM $2")
+		archn=$(md_q "SELECT count(*) FROM $3")
+	fi
+	if [ -z "$lag" ] || [ -z "$srcn" ] || [ -z "$archn" ]; then
+		red "水印对拍读败: $1 $2→$3（fail-closed）"; return
+	fi
+	if [ "$srcn" -gt 0 ] && [ "$archn" = "0" ]; then
+		red "arch 闸死: $1 $2 源有 ${srcn} 行 $3 零行（触发器失效/未迁——历史正在丢）"
+	elif [ "${lag%.*}" -gt 86400 ] 2>/dev/null; then
+		red "水印滞: $1 $2→$3 lag=${lag%.*}s>86400s（arch 追不上源写）"
+	fi
+}
+wm md fin_opp_eval arch_eval
+wm md md_signal arch_signal
+wm fin fin_eval_reject arch_eval_reject
+echo "OK[bridge-audit] 水印列: arch×源三对日级滞 ≤24h"
+
+[ "$fail" = 0 ] && echo "OK[bridge-audit] 四列全绿" || exit 1
