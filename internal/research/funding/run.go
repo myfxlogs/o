@@ -85,16 +85,16 @@ func (r *Runner) params() (Params, error) {
 	if p.SlippageBps, err = get(paramKeys[2]); err != nil {
 		return p, fmt.Errorf("%s: %w", paramKeys[1], err)
 	}
-	if p.FailCostBps, err = get(paramKeys[2]); err != nil {
-		return p, fmt.Errorf("%s: %w", paramKeys[2], err)
-	}
-	if p.WindowLossBps, err = get(paramKeys[3]); err != nil {
+	if p.FailCostBps, err = get(paramKeys[3]); err != nil {
 		return p, fmt.Errorf("%s: %w", paramKeys[3], err)
 	}
-	if p.MinNetAPR, err = get(paramKeys[4]); err != nil {
+	if p.WindowLossBps, err = get(paramKeys[4]); err != nil {
 		return p, fmt.Errorf("%s: %w", paramKeys[4], err)
 	}
-	if p.SettlesPerDay, err = get(paramKeys[5]); err != nil {
+	if p.MinNetAPR, err = get(paramKeys[5]); err != nil {
+		return p, fmt.Errorf("%s: %w", paramKeys[6], err)
+	}
+	if p.SettlesPerDay, err = get(paramKeys[6]); err != nil {
 		return p, fmt.Errorf("%s: %w", paramKeys[5], err)
 	}
 	return p, nil
