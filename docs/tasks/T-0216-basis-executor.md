@@ -1,6 +1,6 @@
 # T-0216 basis 族 executor+short 腿能力缺口
 
-> 状态：待验（返修送验） | 领取：claude-glm-t0216r @ 2026-10-29（首交 devin-t0216 打回返修续任） | 优先级：P2（次于 T-0215——数据刚就位，executor 后一步）
+> 状态：审计通过 | 领取：claude-glm-t0216r @ 2026-10-29（首交 devin-t0216 打回返修续任） | 优先级：P2（次于 T-0215——数据刚就位，executor 后一步）
 > 立项：决策席 @ 2026-10-28
 
 ## 面况
@@ -94,3 +94,38 @@ borrow-repay-history（read）双行在册 enabled=false（登记表补行）。
 - **armed 双族真 capability 缺口清点入票**：驳回不丢人——打回即重立钦定界，
   缺口如实清单化；
 - 审计过程留痕=清债排查校准样本。
+
+## 审计判决（审计席：headless @ 2026-10-29）
+
+逐锚实态对账（码面+测试实例+生产 PG-md/PG-fin 三面亲证）：
+
+- ① grammar 落名实证——quarter_basis_long/perp_quarter_spread Executor 在
+  位（钦定名 *_executor）；short NeedFace 挂 margin-borrow-repay 且
+  executor 缺省——PG-md 实拍该面 enabled=f→Enumerate 不枚举：产上 short
+  eval 止 10-28 14:33Z（返修部署前），提案零行，恒缺腿如实呈未藏。
+- ② evalBasis 提案径实跑——evidence 补 apr 键过 T-0205 闸；产上
+  fin_opp_eval BTC-USD-261225 双族 proposed（11:43Z）+fin_proposal
+  406218/406219 同 inst 双族并存 fin_armed（各持分叉 direction）——
+  去重语叉根修产上直证，md_1054 共键吞件病灶实证消。
+- ③ paperTemplates 两族实存（short 不在）——SG fin_strategy
+  286990(quarter_basis_long)/287004(perp_quarter_spread) paper $50 实拍。
+- ④ BuildBasisLegs 衍生腿=到期日期货 sell（loadMeta -YYMMDD→FUTURES 元
+  数据域）+多头腿 spot TgtQuote/perp 张数，futUSD 反推对齐；⑤ basis_open
+  cap/冷却/闸/腿构/Execute 原子双腿全链同 funding-hedge 构；⑥ md_1061
+  双行（borrow-repay write=f + borrow-history read=f）PG-md 实拍在册，
+  md_1074/fin_0083 schema_migrations 双侧已应用。
+- 测试六件（defork 双提案并存/摊提收敛/缺腿 fail-closed/负号分键/
+  SpotLeg 归一/BuildBasisLegs）独立实例实跑全绿非 skip；CI 绿。
+- armed 双族真 capability 缺口清点：面级零缺（market-instruments/
+  tickers/funding-rate/trade-order 全 enabled；executor 在）；spot_short
+  margin 缺口=入册禁启用如实呈，无藏假。
+- 【残差入票·部署面非码面】OCI o-collecto 未随返修重启
+  （ActiveEnter=10-28 06:14Z，早于返修 commit）→activeSet 现货腿补丁
+  未生效→md_ticks BTC-USDT 零行。fill 锚（286990 首摊≈15:46Z/
+  287004≈17:39Z）到期将 basis_mark_stale fail-closed——与决策档挂起锚
+  同因，须先重启 collector 补订现货腿再验 fill；paper fill 现零行属
+  节拍内正常（elapsed<24h），非病灶。
+- 小注（不阻通过）：basis.go 结构卫语句（非到期键/过期/节拍未到）静默
+  continue 未挂 rej——记账让位语义非拒单语义；detail JSON 拼接沿
+  paper.go 同例；frows 中途 scan 败 break 留部分行，下拍自愈。
+
