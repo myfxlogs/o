@@ -50,19 +50,24 @@ func TestGetCockpitBlocks(t *testing.T) {
 		t.Fatal("待开仓空")
 	}
 	// 敞口段：未平仓 100usd + deposit 1000 → 上限 100 顶格黄（ratio=1.0→红）
+	var xid int64
+	if err := c.pool.QueryRow(ctx, `INSERT INTO fin_execution(strategy_ref,decision_id,token_id,inst_id,notional_usd,state)
+		VALUES(0,0,gen_random_uuid(),'STUB',120,'open') RETURNING id`).Scan(&xid); err != nil {
+		t.Fatal("执行桩:", err)
+	}
 	if _, err := c.pool.Exec(ctx, `INSERT INTO fin_position(execution_id,strategy_ref,inst_id,notional_usd)
-		VALUES(0,0,'STUB',100)`); err != nil {
+		VALUES($1,0,'STUB',120)`, xid); err != nil {
 		t.Fatal("仓桩:", err)
 	}
-	if _, err := c.pool.Exec(ctx, `INSERT INTO fin_cashflow(kind,venue,ccy,amount,class)
-		VALUES('deposit','okx','USDT',1000,'equity')`); err != nil {
+	if _, err := c.pool.Exec(ctx, `INSERT INTO fin_cashflow(kind,venue,ccy,amount,position_ref,source_ref,source_table,occurred_at,class)
+		VALUES('deposit','okx','USDT',1000,NULL,0,'manual',now(),'equity')`); err != nil {
 		t.Fatal("金桩:", err)
 	}
 	r2, err := c.GetCockpit(ctx, nil)
 	if err != nil || r2.Money == nil {
 		t.Fatal(err)
 	}
-	if r2.Money.Exposure != 100 || r2.Money.ExposureLimit != 100 {
+	if r2.Money.Exposure != 120 || r2.Money.ExposureLimit != 100 {
 		t.Fatalf("敞口/上限对拍错: expo=%.1f lim=%.1f", r2.Money.Exposure, r2.Money.ExposureLimit)
 	}
 	if r2.Money.ExposureState != 2 {
