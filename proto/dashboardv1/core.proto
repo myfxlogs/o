@@ -378,6 +378,17 @@ message CockpitMoney {                   // ②钱面（D-0037 口径纯读聚�
   double net_month = 1;                  // 月净利=interest+funding_settle+平仓盈亏近似（recon/earn 项不计）
   double capital = 2;                    // 本金水位=deposit 累计
   repeated double daily = 3;             // 近30d 日净现金流序列（fee+interest+settle+spot 净）
+  double exposure = 4;                   // 部署敞口现值（未平仓名义合计 USD——fin_position 未平行）
+  double exposure_limit = 5;             // 硬上限=本金×10%（D-0038 阶梯束）
+  int32 exposure_state = 6;              // 0绿合规 1黄顶格(≥90%) 2红越限(>100%) ——判态服务端算定
+  repeated CockpitPlatformRow platforms = 7;  // T-0241 升维：承诺/已入/停泊/敞口×平台分列+合计行（future 占位空行）
+}
+message CockpitPlatformRow {
+  string platform = 1;                   // crypto|MT5|future
+  double committed = 2;                  // 承诺本金（配置键 cockpit.committed_<plat>——归属业主候答留键）
+  double deposited = 3;                  // 已入（crypto=deposit 累计；MT5=equity 现读）
+  double parked = 4;                     // 停泊（crypto=earn 净额；MT5 无 Earn 面=0）
+  double exposure = 5;                   // 敞口（未平名义按 venue 分）
 }
 message CockpitTicket {                  // ③工单板派生行
   string ticket = 1;
@@ -397,4 +408,6 @@ message GetCockpitResponse {
   CockpitMoney money = 2;
   repeated CockpitTicket tickets = 3;
   repeated CockpitArmed armed = 4;
+  repeated string missing = 5;           // 各段查询败/表缺名表（seats/tickets/armed/money——显「数据缺」非冒零）
+  google.protobuf.Timestamp as_of = 6;   // 快照戳（五块共用一帧——逐块显戳同源件）
 }

@@ -47,7 +47,7 @@ func healthComps() []compBeat {
 		{name: "蒸馏 basis_ann", host: "oci", exch: "蒸馏", cat: "collect", fact: "md_signal kind=basis_ann", warn: 10 * time.Minute, dead: 30 * time.Minute,
 			fix:       "查 OCI o-collecto sigdist 日志 basisAnn 段",
 			query:     `SELECT max(ts) FROM md_signal WHERE kind='basis_ann'`,
-			zeroState: 1, zeroNote: "零行——已知缺席（T-0164 立案另查，非采集死）"},
+			zeroState: 0, zeroNote: "零行——数据缺（已知缺席 T-0164 立案，非采集死——节拍内正例显正常态）"},
 		{name: "蒸馏 funding_view", host: "oci", exch: "蒸馏", cat: "collect", fact: "md_signal kind=funding_view", warn: 10 * time.Minute, dead: 30 * time.Minute,
 			fix: "查 OCI o-collecto sigdist 日志；上游 funding 断则随愈",
 			query: `SELECT CASE WHEN count(*) FILTER (WHERE (meta->>'next_funding_ts')::timestamptz > now()) > 0

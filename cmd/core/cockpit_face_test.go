@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"o/internal/gen/dashboardv1"
+
 	"o/internal/platform/testutil"
 	"o/internal/store/pgstore"
 )
@@ -48,5 +50,80 @@ func TestGetCockpitBlocks(t *testing.T) {
 	}
 	if len(r.Armed) == 0 {
 		t.Fatal("待开仓空")
+	}
+	// 敞口段：未平仓 100usd + deposit 1000 → 上限 100 顶格黄（ratio=1.0→红）
+	var xid int64
+	if err := c.pool.QueryRow(ctx, `INSERT INTO fin_execution(strategy_ref,decision_id,token_id,inst_id,notional_usd,state)
+		VALUES(0,0,gen_random_uuid(),'STUB',120,'open') RETURNING id`).Scan(&xid); err != nil {
+		t.Fatal("执行桩:", err)
+	}
+	if _, err := c.pool.Exec(ctx, `INSERT INTO fin_position(execution_id,strategy_ref,inst_id,notional_usd)
+		VALUES($1,0,'STUB',120)`, xid); err != nil {
+		t.Fatal("仓桩:", err)
+	}
+	if _, err := c.pool.Exec(ctx, `INSERT INTO fin_cashflow(kind,venue,ccy,amount,position_ref,source_ref,source_table,occurred_at,class)
+		VALUES('deposit','okx','USDT',1000,NULL,0,'manual',now(),'equity')`); err != nil {
+		t.Fatal("金桩:", err)
+	}
+	r2, err := c.GetCockpit(ctx, nil)
+	if err != nil || r2.Money == nil {
+		t.Fatal(err)
+	}
+	if r2.Money.Exposure != 120 || r2.Money.ExposureLimit != 100 {
+		t.Fatalf("敞口/上限对拍错: expo=%.1f lim=%.1f", r2.Money.Exposure, r2.Money.ExposureLimit)
+	}
+	if r2.Money.ExposureState != 2 {
+		t.Fatalf("越限红判态错: %d", r2.Money.ExposureState)
+	}
+	// 平台分列：crypto+MT5+total 三行在+合计=crypto（mt5Live 未注=0 不冒）
+	if len(r2.Money.Platforms) != 3 {
+		t.Fatalf("平台行数错: %d", len(r2.Money.Platforms))
+	}
+	var cr, tot *dashboardv1.CockpitPlatformRow
+	for _, pr := range r2.Money.Platforms {
+		if pr.Platform == "crypto" {
+			cr = pr
+		}
+		if pr.Platform == "total" {
+			tot = pr
+		}
+	}
+	if cr == nil || tot == nil || cr.Exposure != 120 || tot.Exposure != 120 || tot.Deposited != 1000 {
+		t.Fatalf("平台行数对拍错: %+v %+v", cr, tot)
+	}
+	if r2.AsOf == nil {
+		t.Fatal("as_of 戳缺")
+	}
+	// missing 段：拆 ops_event 视图语义拔径——表在所以不置 missing（断言面=零冒缺表）
+	for _, m := range r2.Missing {
+		if m == "seats" || m == "armed" {
+			t.Fatalf("不该 missing: %v", r2.Missing)
+		}
+	}
+}
+
+// T-0241 三律③拔径桩：视图缺席→missing 名段+其余块不受染。
+func TestGetCockpitMissingDegrade(t *testing.T) {
+	pool := testutil.Pool(t)
+	if err := pgstore.Migrate(context.Background(), pool, "fin"); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	c := coreService{pool: pool}
+	if _, err := pool.Exec(ctx, "DROP VIEW IF EXISTS ops_seat_latest CASCADE"); err != nil {
+		t.Fatal("拆视图:", err)
+	}
+	r, err := c.GetCockpit(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, m := range r.Missing {
+		if m == "seats" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("拔 seats 径未显缺: %v", r.Missing)
 	}
 }
