@@ -30,6 +30,16 @@ func (c coreService) GetCockpit(ctx context.Context,
 	req *dashboardv1.GetCockpitRequest) (*dashboardv1.GetCockpitResponse, error) {
 	r := &dashboardv1.GetCockpitResponse{Money: &dashboardv1.CockpitMoney{}}
 
+	// FEAT-01：Earn 自动停泊开关态回读——读败/键缺=false（与 scan() 闸同径：
+	// fail-closed 停扫语义，前端显实态非假绿）。
+	var park bool
+	if err := c.pool.QueryRow(ctx,
+		`SELECT value::text='true' FROM app_config WHERE key='earn.sweep_enabled'`).Scan(&park); err != nil || !park {
+		r.EarnAutoPark = false
+	} else {
+		r.EarnAutoPark = true
+	}
+
 	// ①⑤ 存活面+在做什么：每席最新自报→阶段派生
 	rows, err := c.pool.Query(ctx,
 		`SELECT seat,ticket,event,ts,note FROM ops_seat_latest`)

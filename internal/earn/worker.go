@@ -82,7 +82,7 @@ type Worker struct {
 // NewWorker 装配（api 未挂接=现率采集岗；AttachVenue 后停泊钱动上岗）。
 func NewWorker(pool *pgxpool.Pool, cfg *config.Client) *Worker {
 	return &Worker{pool: pool, cfg: cfg, venue: defaultVenue, ccy: defaultCcy,
-		rej: rejects.New("earn", "rate_fetch_failed", "rate_parse_failed", "missing_param",
+		rej: rejects.New("earn", "rate_fetch_failed", "rate_parse_failed", "missing_param", "sweep_disabled",
 			"idle_missing", "idle_fund_missing", "sweep_skip_inflight", "sweep_busy", "sweep_backoff", "venue_absent",
 			"deposit_failed", "transfer_ambiguous", "compensation_failed",
 			"snapshot_refresh_failed", "write_err", "custody_marked", "transfer_rejected"),
@@ -125,6 +125,12 @@ func (w *Worker) Run(ctx context.Context, errc chan<- error) {
 // scan 一拍三件：现率采样（独立——败不连坐扫额）+扫额回拢+残币归口。
 func (w *Worker) scan(ctx context.Context) error {
 	w.pollRate(ctx)
+	// FEAT-01 开关闸：earn.sweep_enabled=false→两扫额全让位（pollRate/赎回不闸）。
+	// 读败/键缺=fail-closed 视为停扫（不动钱纪律；种子迁移保生产键在）。
+	if on, err := w.cfg.GetBool("earn.sweep_enabled"); err != nil || !on {
+		w.rej.Inc("sweep_disabled")
+		return nil
+	}
 	if err := w.sweepIdle(ctx); err != nil {
 		return err
 	}

@@ -85,6 +85,20 @@ function HeadlessTile() {
 export function CockpitPage() {
 	const [d, setD] = useState<GetCockpitResponse | null>(null);
 	const [page, setPage] = useState(1);
+	// FEAT-01 自动到活期瓦片：态=GetCockpit.earnAutoPark 同源；切换经
+	// SetEarnAutoPark 单用途 RPC（确认弹层=钱径相邻件；败态行内提示）。
+	const [parkBusy, setParkBusy] = useState(false);
+	const [parkErr, setParkErr] = useState("");
+	const togglePark = () => {
+		if (!d) return;
+		const target = !d.earnAutoPark;
+		if (!window.confirm(`确认${target ? "开启" : "关闭"}「自动到活期」？\n关闭后下一拍起闲资不再自动申购 Earn（赎回/开仓前置不受影响）。`)) return;
+		setParkBusy(true); setParkErr("");
+		client.setEarnAutoPark({ enabled: target })
+			.then(() => client.getCockpit({ ticketLimit: T_PAGE, ticketOffset: (page - 1) * T_PAGE }).then(setD))
+			.catch((e) => setParkErr(String(e)))
+			.finally(() => setParkBusy(false));
+	};
 	const hl = useSlice("headless");
 	// 无头取数泵页级单源（v2 上提——①存活卡与③状态面同读 headless 分片，
 	// 一页一取数点）：unary 快照首取+onLive 断流复连即回补；补洞水印判在
@@ -171,6 +185,11 @@ export function CockpitPage() {
 						</div>
 						<div className="kpi-note">日净 {posDays} 正 / {m.daily.length - posDays} 负</div>
 					</>)}
+				</Card>
+				<Card className="kpi" title="① 自动到活期">
+					<p><StateDot state={d.earnAutoPark ? 0 : 2} /> {d.earnAutoPark ? "开——闲资自动申购 Earn" : "关——扫额已停"}</p>
+					<button type="button" disabled={parkBusy} onClick={togglePark}>{parkBusy ? "切换中…" : d.earnAutoPark ? "关闭" : "开启"}</button>
+					{parkErr && <p className="dim">切换败：{parkErr}</p>}
 				</Card>
 				<Card className="kpi" title="① 存活"
 					extra={hl.data ? <StateDot state={hlBad > 0 ? 2 : 0} breathe={hlBad === 0}

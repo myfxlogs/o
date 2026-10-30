@@ -15,6 +15,7 @@ service CoreService {
   // D-629 业绩外自营盘零 NAV 计入）——
   rpc GetTrxAccount(GetTrxAccountRequest) returns (GetTrxAccountResponse) {}
   rpc TrxAccountRefresh(TrxAccountRefreshRequest) returns (TrxAccountRefreshResponse) {}
+  rpc SetEarnAutoPark(SetEarnAutoParkRequest) returns (SetEarnAutoParkResponse) {}
   rpc ListTrxTxs(ListTrxTxsRequest) returns (ListTrxTxsResponse) {}
   rpc GetTrxYieldRadar(GetTrxYieldRadarRequest) returns (GetTrxYieldRadarResponse) {}
   rpc GetTrxYieldCurve(GetTrxYieldCurveRequest) returns (GetTrxYieldCurveResponse) {}
@@ -114,6 +115,14 @@ message GetTrxAccountResponse {
   google.protobuf.Timestamp fetched_at = 17;
 }
 
+message SetEarnAutoParkRequest { bool enabled = 1; }
+// 单用途写径（FEAT-01）：禁泛化 config 写 RPC——app_config UPDATE→pg_notify
+// config_changed→config.Client 热载；切换落 ops_event 审计行。
+message SetEarnAutoParkResponse {
+  bool enabled = 1;
+  int64 generation = 2;
+  google.protobuf.Timestamp ts = 3;
+}
 message TrxAccountRefreshRequest {}
 message TrxAccountRefreshResponse {
   bool found = 1;
@@ -415,6 +424,7 @@ message GetCockpitResponse {
   repeated string missing = 5;           // 各段查询败/表缺名表（seats/tickets/armed/money——显「数据缺」非冒零）
   google.protobuf.Timestamp as_of = 6;   // 快照戳（五块共用一帧——逐块显戳同源件）
   int32 tickets_total = 7;               // ③工单板过滤后总行数（T-0262 分页下推）
+  bool earn_auto_park = 8;                 // Earn 自动停泊开关当前态（earn.sweep_enabled 实读——读败/键缺=false 与闸同径）
 }
 
 // —— 无头单状态面（T-0263——推送制信号径：dev 泵 inotify 日志写/.done/.hb+
