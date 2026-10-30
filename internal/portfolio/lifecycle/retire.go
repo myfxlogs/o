@@ -1,5 +1,7 @@
-// retire.go —— 提案队列卫生闸（T-0161 自 run.go 拆立：eval 联动退位+陈旧回收面）。
-// 溯源面=fin_proposal.retire_reason/retired_at（0065）——每条退役径必落因。
+// retire.go —— 提案队列+armed_ttl 策略面卫生闸（T-0161 自 run.go 拆立：
+// eval 联动退位+陈旧回收面；T-0258 tag3 策略退役归位本件）。
+// 溯源面=fin_proposal.retire_reason/retired_at（0065）+策略面
+// fin_strategy_transition——每条退役径必落因。
 package lifecycle
 
 import (
@@ -46,6 +48,56 @@ func (r *Runner) retireStaleProposed(ctx context.Context) error {
 	}
 	if tag.RowsAffected() > 0 {
 		log.Printf("[lifecycle] fin_proposed 超 %.0fh 陈旧回收 %d 行（stale_expired——提案队列止胀）", ttl, tag.RowsAffected())
+	}
+	return nil
+}
+
+// retireStaleArmedStrategies armed_ttl tag3 策略面退役（T-0258 根修）。
+// 判据①活动锚=执行侧证据最新戳：GREATEST(entered_at, fin_position 末次
+// 开仓, fin_execution 末次尝试, fin_eval_reject 末次闸拒) 超 ttl 才退——
+// 被开仓闸持续拒的活策略（拦在开仓前、零 position/execution）拒留痕即
+// 活动证据，全拒≠不活（7 条 live funding-hedge 误杀根修）；真 dormant
+// 照退语义不丢。fin_eval_reject 无 strategy_ref/venue 列——按
+// inst_id+direction 配且限 funding 闸域模板（rejectEvalReason 唯一写方、
+// 落件模板值硬记 'funding-hedge'：xvenue-carry 拒行同归此值，故以闸域集
+// 配非 s.template_ref 等值）。
+// 留痕②：退役逐行走 Transition（degraded 超龄径同例——原裸 UPDATE 零
+// transition 行=T-0255 取证断点根修），reason=armed_ttl_expired 同因续用。
+func (r *Runner) retireStaleArmedStrategies(ctx context.Context, ttl float64) error {
+	var fam []string
+	for k := range fundingHedgeFamily {
+		fam = append(fam, k)
+	}
+	rows, err := r.pool.Query(ctx, `SELECT s.id FROM fin_strategy s
+		WHERE s.state IN ('live','probe') AND NOT EXISTS(
+			SELECT 1 FROM fin_position p WHERE p.strategy_ref=s.id AND p.closed_at IS NULL)
+		AND GREATEST(s.entered_at,
+			(SELECT max(p2.opened_at) FROM fin_position p2 WHERE p2.strategy_ref=s.id),
+			(SELECT max(e.created_at) FROM fin_execution e WHERE e.strategy_ref=s.id),
+			(SELECT max(ej.ts) FROM fin_eval_reject ej
+				WHERE ej.inst_id=s.inst_id AND ej.direction=s.direction
+				AND s.template_ref=ANY($2))
+		)<now()-make_interval(hours=>$1)`, ttl, fam)
+	if err != nil {
+		r.rej.Inc("write_err")
+		return err
+	}
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return err
+		}
+		ids = append(ids, id)
+	}
+	rows.Close()
+	for _, id := range ids {
+		if err := Transition(ctx, r.pool, id, "retired", "armed_ttl_expired", false); err != nil {
+			r.rej.Inc("write_err")
+			return err
+		}
+		log.Printf("[lifecycle] 策略 #%d armed_ttl 超 %.0fh 退役（armed_ttl_expired——窗内零执行侧活动）", id, ttl)
 	}
 	return nil
 }
