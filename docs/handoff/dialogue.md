@@ -343,3 +343,11 @@
 - **簿记滞后提醒 DM（MANAGE-193）**：T-0248 修复 ae9b941（PR#58）早在部署 o-core:0dd4c069e280 内，但票面仍『待派』=重复派单风险——请 DM 翻终态。
 - **DM-192 收班汇总已核**：部署收口/裁二 DCD 全族退场执完/T-0258 在飞/立票七张/PR#91 并码绿戳全绿/陈旧 PR×7 核销零丢件。未尽移交：T-0259/0260/0264 留 DM 队列序；半速复跑候 T-0258 部署后启（24h 窗），首日复跑报到 MANAGE 箱后按 MANAGE-106 裁一盯——达标即确认全速。
 - **复任换防（业主裁定 ~12:25，交接态快照为凭）**：claude-kimi 回任管理席，devin→备位席（MANAGE tmux 会话保留，降级规则三档：单项级/会话级>15min 顶岗/结构级待立票）。末班执：①业主令 devin 派单 T-0259/0260（MANAGE-205/206 已发 Dev 箱）；②AGENTS.md 署名改回「claude-kimi 管理会话；devin=备位席」随本 commit 同支；③o-relay disable 已执（快照列待办可销）；④DM-192 已 ack（快照待办可销）。
+
+## 2026-10-30 午后 — 决策席：五票并码+钦定径部署+半速点火（管理席令 14:1x 主线收口）
+
+- **五票并码=PR#100（merge 00a6b6a）**：集成支 dm/1030-batch5-merge off origin/master 序并——dec-t0258-audit→t/0260（o仓票面+KB，码面 meta 03a1f54 已在 meta master）→t/0261→t/0262→t/0263（本地支含审计落票 d5f43c5，远端支缺=并入本地者）。前端三面 Cockpit.tsx 两撞逐一解：①T-0262 分页器嵌 Card③保 T-0261 瓦片骨架（state/limit 头区自动并）；②T-0263 HeadlessTile 外壳 section→Card——格尾注释钉「禁裸 section/div 入格」即 T-0261 为本票预钉的插槽契约，落 armed 卡后；proto/数据流.md 自动并净。生成件 buf 双模板重生+tsc --noEmit 零误。
+- **并码过程坑记（纪律级）**：①新 worktree 未 provision 时 check_import_direction.sh 静默 rc=1（go list 败被 set -e 吞——provision_worktree.sh 先行即解）；②码面合并 commit 须自带「坑处置：」行（D-585 闸对 merge commit 同律）。
+- **部署钦定径四闸全过**：o-core:00a6b6a69a88 产地尾拍自报+健康闸 healthy（14:50Z 区）。
+- **半速点火 2026-10-30T06:51:36Z（=24h 观察窗起算）**：SG app_config——grammar.scan_interval_min 120→240(gen361)、gap.scan_interval_min 360→720(gen362)、lifecycle.reject_cooldown_s **补种**600(gen364)。**缺键裁**：reject_cooldown_s SG 侧原缺位（码默认 300，opener.go:97）——按管理令「缺键即报不猜」如实报 MANAGE，同时按钉名补种 600 落实 300→600 语义（钉名在案=非猜；exec.reopen_cooldown_sec=guard 再开冷却异语义未动）。funding 臂事件驱无 interval 键=半速天然缺臂，已报 MANAGE 候裁（notional 半额/threshold 升档径）。mbus 报文 id 20261030-145152-DM-280。
+- **未尽**：T-0259 收口待审在飞随批后；T-0264/0249 不堵本批；24h 窗首日复跑报径=MANAGE 箱（MANAGE-106 裁一盯达标确认全速）。
