@@ -83,6 +83,27 @@ func fundSaveBalances(ctx context.Context, pool *pgxpool.Pool, okcli *okxexec.Cl
 	return nil
 }
 
+// okxVenueEq okx venue 权益聚合（T-0050 停泊态口径=交易户+funding 户+Earn
+// 停泊三分量——D-0006 资本可及面，闲资默认停 Earn 只读交易户=集中度闸永拒；
+// T-0058：任一分量读败=err 上抛 fail-closed；T-0100 usd=true 非本位按估值
+// 入和）。T-0264：riskGate/dd 硬线共用此件=单口径源（读件注入——生产接线
+// =tradingVals+fundSaveBalances 现读径，桩测替身）。
+func okxVenueEq(ctx context.Context, trading func(context.Context) (float64, error),
+	fundSave func(context.Context, map[[2]string]float64) error) (float64, error) {
+	eq, err := trading(ctx)
+	if err != nil {
+		return 0, err
+	}
+	fs := map[[2]string]float64{}
+	if err := fundSave(ctx, fs); err != nil {
+		return 0, err
+	}
+	for _, v := range fs {
+		eq += v
+	}
+	return eq, nil
+}
+
 // dcdSyncEvents LIVE 集指纹对账（T-0101 到期收口：在持集变动=LIVE→SETTLED
 // 迁移/新增部署——md_account_events channel='dcd_live' 落事件行，指纹相同
 // 幂等跳写不复读）。写败只 log 不炸对账面。

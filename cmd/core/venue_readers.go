@@ -114,10 +114,18 @@ func attachVenueReaders(riskGate *risk.Gate, wd *guard.Warden, ledgerR *ledger.R
 		log.Printf("WARN: venue 现读件未挂接（okx 凭据缺席）——risk equity/dd 硬线/对账 fail-closed 让位")
 		return
 	}
-	// okx 权益=帧先 REST 兜底现读（T-0058：帧龄不判陈但帧缺必兜底）。
-	liveEq := func(ctx context.Context) (float64, error) {
-		eq, _, err := tradingVals(ctx)
-		return eq, err
+	// okx 权益=三分量聚合单源（okxVenueEq——riskGate/dd 硬线共用同一闭包
+	// 禁平行第二口径；T-0264：dd 基准曾只读交易户——停泊态假零硬线空转+
+	// 户间划转假回撤误触）。
+	okxEq := func(ctx context.Context) (float64, error) {
+		return okxVenueEq(ctx,
+			func(c context.Context) (float64, error) {
+				eq, _, err := tradingVals(c)
+				return eq, err
+			},
+			func(c context.Context, m map[[2]string]float64) error {
+				return fundSaveBalances(c, pool, okcli, m, true)
+			})
 	}
 	riskGate.WithEquity(func(ctx context.Context, venue string) (float64, error) {
 		if venue == "mt5" {
@@ -130,24 +138,9 @@ func attachVenueReaders(riskGate *risk.Gate, wd *guard.Warden, ledgerR *ledger.R
 		if venue != "okx" {
 			return 0, fmt.Errorf("venue 无权益件: %s", venue)
 		}
-		// T-0050 停泊态口径：venue 权益=交易户+funding 户+Earn 停泊（D-0006
-		// 资本可及面——闲资默认停 Earn，只读交易户 eq=停泊态下集中度闸永拒）。
-		// T-0058 根修：三分量任一读败=err 上抛 fail-closed（静默跳腿=假差病灶）。
-		// T-0100：usd=true 非本位停泊币按估值入权益求和（币量≠USD 禁混）。
-		eq, _, err := tradingVals(ctx)
-		if err != nil {
-			return 0, err
-		}
-		fs := map[[2]string]float64{}
-		if err := fundSaveBalances(ctx, pool, okcli, fs, true); err != nil {
-			return 0, err
-		}
-		for _, v := range fs {
-			eq += v
-		}
-		return eq, nil
+		return okxEq(ctx)
 	})
-	wd.AttachEquity(liveEq)
+	wd.AttachEquity(okxEq)
 	// T-0055：savings 累计收益读件（利息事件化入账源——earnings 字段真源）。
 	ledgerR.WithEarnEarnings(func(ctx context.Context) (map[string]float64, error) {
 		out := map[string]float64{}
