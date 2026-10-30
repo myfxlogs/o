@@ -1,11 +1,12 @@
 // Cockpit.tsx —— T-0239 业主驾驶舱（五块只读：存活/钱面/工单/待开/在做什么——
 // 判态服务端派生，前端纯渲染零判据）；T-0261 全页瓦片化：四面板一一映射
 // Card 瓦片入 .tile-grid（页名+快照戳入顶条同 System 页）；T-0263 无头状态面
-// =推送制瓦片（Watch ev_headless 流帧+unary 快照 seq 水印，零定时器零轮询）。
+// =推送制瓦片（Watch ev_headless 流帧+unary 快照 seq 水印，零定时器零轮询）；
+// T-0268：无头面并入 getCockpit 首屏一往返（独立首调撤——hydrate 仅缺段兜底）。
 import { useEffect, useState } from "react";
 import { client } from "../api";
 import { onLive } from "../stream";
-import { applyHeadless, useSlice } from "../store";
+import { applyHeadless, hydrate, useSlice } from "../store";
 import { Component, type ReactNode } from "react";
 import { Card } from "../components/ui";
 import type { GetCockpitResponse, CockpitPlatformRow, CockpitSeat, CockpitTicket, CockpitArmed } from "../../gen/dashboardv1/core_pb";
@@ -15,18 +16,23 @@ const T_PAGE = 10; // ③工单板页长（T-0262——后端 ticket_limit 同�
 const ts = (t?: { seconds: bigint }) =>
 	t ? new Date(Number(t.seconds) * 1000).toLocaleString("zh-CN", { hour12: false }) : "—";
 
-// HeadlessTile 无头状态面（T-0263——挂载 unary 快照首取；onLive 断流复连即
-// unary 回补+接流 seq>水位帧补洞（补洞逻辑在 store.applyHeadless 水印判）。
+// HeadlessTile 无头状态面（T-0263——推送制瓦片：Watch ev_headless 流帧+seq 水印；
+// T-0268——挂载首取并入 getCockpit.headless（零独立首调），hydrate 仅缺段径
+// unary 兜底（data 在=零请求）；onLive 即时回放非重连不补，断流复连才 unary
+// 回补+接流 seq>水位帧补洞（补洞逻辑在 store.applyHeadless 水印判）。
 // 推送源=既有 Watch 单泵——本件零 interval 零定时器；瓦片契约=Card 直子级入格）。
 function HeadlessTile() {
 	const hl = useSlice("headless");
 	useEffect(() => {
-		let alive = true;
-		const refill = () => client.getHeadless({}).then((d) => { if (alive) applyHeadless(d); }).catch(() => {});
-		refill();
-		return onLive((v?: unknown) => { if (v === true) refill(); });
+		const refill = () => client.getHeadless({}).then(applyHeadless).catch(() => {});
+		hydrate("headless", () => client.getHeadless({}));
+		let replayed = false; // onLive 首调=现态即时回放非断流复连——跳过，不重演首取
+		return onLive((v?: unknown) => {
+			if (!replayed) { replayed = true; return; }
+			if (v === true) refill();
+		});
 	}, []);
-	if (!hl.data) return <Card title="无头状态面"><p className="dim">载中…</p></Card>;
+	if (!hl.data) return <Card title="无头状态面"><p className="dim">{hl.err ? "该段数据缺（读败）" : "载中…"}</p></Card>;
 	const rows = hl.data.rows;
 	return <Card title="无头状态面（推送制）">
 		{rows.length === 0 ? <p className="dim">无在册无头单</p> :
@@ -41,7 +47,8 @@ export function CockpitPage() {
 	const [page, setPage] = useState(1);
 	useEffect(() => {
 		client.getCockpit({ ticketLimit: T_PAGE, ticketOffset: (page - 1) * T_PAGE })
-			.then(setD).catch(() => setD(null));
+			.then((d) => { if (d.headless) applyHeadless(d.headless); setD(d); })
+			.catch(() => setD(null));
 	}, [page]);
 	if (!d) return <div className="page">载中…</div>;
 	const miss = new Set(d.missing);

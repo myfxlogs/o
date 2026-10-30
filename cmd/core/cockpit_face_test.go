@@ -172,6 +172,54 @@ func TestGetCockpitTicketPaging(t *testing.T) {
 	}
 }
 
+// T-0268 锚①：无头面并入 getCockpit 一往返——ops_headless 桩行随首帧出。
+func TestGetCockpitHeadlessMerged(t *testing.T) {
+	pool := testutil.Pool(t)
+	if err := pgstore.Migrate(context.Background(), pool, "fin"); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	c := coreService{pool: pool}
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO ops_headless(ticket,seat,model,state,last_activity)
+		 VALUES('T-8888','Dev','桩模','alive',now())`); err != nil {
+		t.Fatal("无头桩:", err)
+	}
+	r, err := c.GetCockpit(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Headless == nil || len(r.Headless.Rows) != 1 {
+		t.Fatalf("无头面未并入首帧: %+v", r.Headless)
+	}
+	row := r.Headless.Rows[0]
+	if row.Ticket != "T-8888" || row.State != "在飞" || row.Seq <= 0 {
+		t.Fatalf("无头行错: %+v", row)
+	}
+	if r.Headless.LastSeq != row.Seq {
+		t.Fatalf("水位错: last_seq=%d row.seq=%d", r.Headless.LastSeq, row.Seq)
+	}
+	for _, m := range r.Missing {
+		if m == "headless" {
+			t.Fatalf("不该 missing headless: %v", r.Missing)
+		}
+	}
+	// 拔径桩：表缺→missing 名段+其余块不受染
+	if _, err := pool.Exec(ctx, "DROP TABLE ops_headless CASCADE"); err != nil {
+		t.Fatal("拆表:", err)
+	}
+	r2, err := c.GetCockpit(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r2.Headless != nil || !containsStr(r2.Missing, "headless") {
+		t.Fatalf("拔径未显缺: hl=%v missing=%v", r2.Headless, r2.Missing)
+	}
+	if r2.Money == nil {
+		t.Fatal("拔径污染其余块")
+	}
+}
+
 // T-0241 三律③拔径桩：视图缺席→missing 名段+其余块不受染。
 func TestGetCockpitMissingDegrade(t *testing.T) {
 	pool := testutil.Pool(t)

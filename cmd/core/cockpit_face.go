@@ -202,6 +202,14 @@ func (c coreService) GetCockpit(ctx context.Context,
 			}
 		}
 	}
+
+	// ⑥ 无头状态面并入首帧（T-0268——getHeadless 并入 getCockpit 一往返；
+	// unary GetHeadless 保留=断流复连回补径）。读败=missing 名段显缺非冒零。
+	if hl, herr := c.GetHeadless(ctx, &dashboardv1.GetHeadlessRequest{}); herr != nil {
+		r.Missing = append(r.Missing, "headless")
+	} else {
+		r.Headless = hl
+	}
 	return r, nil
 }
 

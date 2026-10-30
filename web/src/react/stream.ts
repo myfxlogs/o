@@ -69,7 +69,10 @@ function run(): void {
 function boot(): void {
   if (booted) return;
   booted = true;
-  run();
+  // T-0268：流建立让出首绘帧——握手 fetch 异帧发起，首绘不等 server-stream
+  // 握手（订阅 effect 同步调 boot 也不与首绘同框）；断流/挂起期 UI 退化为
+  // unary+store 存量快照态（LiveDot 黄点显形），零阻塞零轮询。
+  setTimeout(run, 0);
 }
 
 // onData 订阅事件帧信号（topic 过滤在订阅侧 done；载荷更新另走 store 分片）。

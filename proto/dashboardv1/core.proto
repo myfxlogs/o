@@ -415,11 +415,13 @@ message GetCockpitResponse {
   repeated string missing = 5;           // 各段查询败/表缺名表（seats/tickets/armed/money——显「数据缺」非冒零）
   google.protobuf.Timestamp as_of = 6;   // 快照戳（五块共用一帧——逐块显戳同源件）
   int32 tickets_total = 7;               // ③工单板过滤后总行数（T-0262 分页下推）
+  GetHeadlessResponse headless = 8;      // T-0268：无头状态面并入首屏一往返（读败=missing "headless"）
 }
 
 // —— 无头单状态面（T-0263——推送制信号径：dev 泵 inotify 日志写/.done/.hb+
 // 静默超时判死挂 → ops_headless 有界态 → ev_headless 脊 → Watch 一跳载荷帧；
-// GetHeadless=unary 全量快照恢复面（断流重连/挂载首取），seq=去重补洞水印轴）——
+// GetHeadless=unary 全量快照恢复面（断流重连回补；挂载首取 T-0268 起并入
+// GetCockpit 一往返），seq=去重补洞水印轴）——
 message GetHeadlessRequest {}
 message HeadlessRow {
   string ticket = 1;                        // T-NNNN
