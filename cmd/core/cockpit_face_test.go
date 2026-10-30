@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"o/internal/gen/dashboardv1"
@@ -99,6 +100,75 @@ func TestGetCockpitBlocks(t *testing.T) {
 		if m == "seats" || m == "armed" {
 			t.Fatalf("不该 missing: %v", r2.Missing)
 		}
+	}
+}
+
+// T-0262 验收锚①②：工单板每页≤10+跨页不重不漏+稳定序（ts DESC,ticket DESC）对拍。
+func TestGetCockpitTicketPaging(t *testing.T) {
+	pool := testutil.Pool(t)
+	if err := pgstore.Migrate(context.Background(), pool, "fin"); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	c := coreService{pool: pool}
+	const n = 25
+	for i := 0; i < n; i++ {
+		if _, err := pool.Exec(ctx,
+			`INSERT INTO ops_event(seat,event,ticket,note,ts) VALUES('席桩','领单',$1,'桩',now()-$2*interval '1 second')`,
+			fmt.Sprintf("T-%04d", 9000+i), n-i); err != nil {
+			t.Fatal("工单桩:", err)
+		}
+	}
+	// 同戳对：决胜键 ticket DESC 实证（同 ts 序仍确定）
+	for _, tk := range []string{"T-8ZZZ", "T-8AAA"} {
+		if _, err := pool.Exec(ctx,
+			`INSERT INTO ops_event(seat,event,ticket,note,ts) VALUES('席桩','领单',$1,'桩','2026-10-30 00:00:00+00')`, tk); err != nil {
+			t.Fatal("同戳桩:", err)
+		}
+	}
+	get := func(off int32) *dashboardv1.GetCockpitResponse {
+		r, err := c.GetCockpit(ctx, &dashboardv1.GetCockpitRequest{TicketLimit: 10, TicketOffset: off})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return r
+	}
+	// ① 每页≤10+total=27（25 递戳+2 同戳），跨页收集判重
+	var all []*dashboardv1.CockpitTicket
+	seen := map[string]bool{}
+	for off := int32(0); ; off += 10 {
+		r := get(off)
+		if r.TicketsTotal != 27 {
+			t.Fatalf("tickets_total 错: %d", r.TicketsTotal)
+		}
+		if len(r.Tickets) > 10 {
+			t.Fatalf("页条目超10: %d", len(r.Tickets))
+		}
+		for _, tk := range r.Tickets {
+			if seen[tk.Ticket] {
+				t.Fatalf("跨页重条: %s", tk.Ticket)
+			}
+			seen[tk.Ticket] = true
+		}
+		all = append(all, r.Tickets...)
+		if len(r.Tickets) < 10 {
+			break
+		}
+	}
+	if len(all) != 27 {
+		t.Fatalf("跨页漏条: %d/27", len(all))
+	}
+	// ② 稳定序：相邻对满足 (ts DESC, ticket DESC)
+	for i := 1; i < len(all); i++ {
+		a, b := all[i-1], all[i]
+		at, bt := a.Ts.AsTime(), b.Ts.AsTime()
+		if at.Before(bt) || (at.Equal(bt) && a.Ticket < b.Ticket) {
+			t.Fatalf("序漂移: %s@%v 后随 %s@%v", a.Ticket, at, b.Ticket, bt)
+		}
+	}
+	// 序锚+决胜键实证：最新=T-9024，同戳尾二=T-8ZZZ,T-8AAA（ticket DESC）
+	if all[0].Ticket != "T-9024" || all[25].Ticket != "T-8ZZZ" || all[26].Ticket != "T-8AAA" {
+		t.Fatalf("序锚错: 首=%s 尾二=%s,%s", all[0].Ticket, all[25].Ticket, all[26].Ticket)
 	}
 }
 
