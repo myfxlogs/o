@@ -28,6 +28,16 @@
   }
 }
 
+/* —— 瓦片格（T-0261 业主令：驾驶舱整页 tile 化——auto-fit 自适应列铺，
+   列宽下限 340px，更窄自落单列；瓦片=Card 件禁裸 section 入格，
+   T-0263 状态面瓦片同格后插）—— */
+.tile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr));
+  gap: 20px;
+  align-items: start;
+}
+
 /* —— Liquid Glass 卡（T-0221 业主令：参照 macOS Tahoe 玻璃件重做——
    通透折射（blur+saturate+增亮，背景色雾过玻璃成形变感）+镜面高光边
    （顶部细亮线+左上射光）+内发光+双层投影分层出厚度；非磨砂雾面。
