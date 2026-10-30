@@ -63,11 +63,44 @@ domain.tsv 标注 md|bridge 的表（fin_position=fin 域禁引）。
    因无价 fail-closed）；
 5. 普查：md 侧零残余 fin_position 引用。
 
-## 状态
+## 状态：审计通过
+
+审计席：headless @ 2026-10-30
 
 - [x] 立单
 - [ ] 施工
 - [x] 验收投产（决策席 2026-10-27：37 活跃集标的 tickers 行恢复秒级流入 0.17s 鲜，activeset_read_failed 零计数，md 域 fin_position 引用普查清零）
+
+## 判决注记（审计席逐锚对账）
+
+- 锚1 PASS：`activeSet()`（subscribe.go:71-81 @master 0dbeb3d 亲核）
+  SQL 仅余 fin_proposal/fin_strategy/md_dcd_product/basis 双腿 UNION，
+  fin_position 项删、注释钉 domain.tsv md|bridge 律在案。
+- 锚2 PASS：md_ticks OKX 行恢复流入实锤——SG 侧桥接副本（PG-md→
+  projector 下游，127.0.0.1:5544 只读实拍 2026-10-30 ~09:58Z）：当前
+  活跃集以同构 UNION 查询实算=7 标（ALLO/BTC-USD-261225/BTC-USDT/
+  ME/NOT/SKY/WCT-USDT-SWAP），md_ticks venue='okx' 鲜行=同 7 标全
+  命中、age≤5s——订阅帧实发、消费点新数实落。
+- 锚3 PASS：「行情 ticks(OKX)」健康行源=ops_face.go:85
+  `SELECT max(ts) FROM md_ticks WHERE venue<>'mt5'`（warn30s/dead2min）
+  ——实测 max(ts) 秒级 ⇒ 复绿；页面读数同源无从另证（无头径）。
+- 锚4 PASS（条件件 N/A）：当前 dcd 在拍策略=0 行（fin_strategy
+  template_ref LIKE 'dcd%' AND state<>'retired'，SG 实拍）——机制面
+  在位：dcd uly→USDT 归一 UNION 腿保留于查询、BTC-USDT tickers
+  流入中，价源径无结构阻断。
+- 锚5 PASS：`grep -rn fin_position internal/data/ cmd/collector/`
+  仅 3 注释行（collector.go:63/218、subscribe.go:72）零 SQL 引用；
+  全仓余命中皆 fin 域 SG 侧件（projector r.sg/portfolio/risk/ledger/
+  guard/trading）合法不动。
+
+- 取证注：PG-md 本体（OCI 盒 :5435）无直达隧道，经 SG 侧桥接副
+  本+同构 UNION 实测替代，结论等价；`activeset_read_failed`=采集
+  进程内存计数无直读径，替代证据=全活跃集 tickers 实发⇒提前
+  return 分支未触发。
+- 锚外注记报管理席裁：票面「量级」行载「防回归断言必落」，收口
+  diff 未落针对缺席表引用的新增回归断言（ghost_test.go 系 T-0132
+  幽灵滤除件，不覆盖本病灶）；五锚未列此项→不阻塞判决，按「锚
+  本身疑似缺件」记档。
 
 ## 结果回填
 
