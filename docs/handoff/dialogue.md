@@ -378,3 +378,11 @@
 - **MANAGE-427（业主飞书转令）**：回投链三缺陷立 T-0270·P1 即派（DM-529）——spawn 假成功 rc=0 缺产物核验/静默死无 exit 行/glm-5.3[1m] unrecognized；施工面=/opt/meta/bin/manage-spawn.sh（仓外 meta 层钦定）。
 - **并行面实录**：T-0267/0268/0269 三无头在飞+CEO 席 check_all——五席并行盖戳下 5435 绿实证（load-flaky 坑条目同日主笔生效）；5436 撞 DSN 一次（ceo-charter 席同占，B 案机化 T-0266 前靠取号自觉）。
 - **箱面**：两波噪音代清（首波28+续波44 注「代清-回执噪音」），真指令 MANAGE-388/391/401/427 随处置逐件 ack——箱清零。
+
+## 2026-10-31 深夜 — 施工席：FIX-02 mt5swap 断供急诊（诊断反转+消哑交付）
+
+- **外部提示词单 FIX-02**（管理席拟，/opt/meta/docs/施工提示词-外部-mt5swap断供.md）：票面前提=桥 SymbolParams 层病（三假设：mtapi 形态变/符号方言变/SG nil）。施工席 worktree `fix-mt5-swap-outage` 分支 `fix/mt5-swap-outage` 按票「先诊断后修」开工。
+- **诊断全程反转票面前提**（证据链全文 docs/FIX02-收口.md）：①dev→mtapi 三符号探针全绿（三假设全否）；②OCI 本机 env-creds 生产径探针全绿（会话龄化 63s 内无腐坏）；③真源对拍——o-collecto 实写目标=OCI 本机 PG-md（`SG_PG_DSN` 实值 127.0.0.1:5435，env 名骗人），PG-md 上 mt5_swap 13:11:50Z 当拍健康/SOLUSDm tick 秒鲜；④SG 面冻结 13.5h 真病灶=**o-projector 10-30 02:56:57 重启后 02:57:00 对账毕即静默僵死**（重启后对账 173→115 inst、dcd 46→0 品旁证异常留观）。**桥无罪，B1 无病灶可修——如实记录不虚造。**
+- **旁获新证**：SG 核 10-30 09:31:59Z 重启后新增 25s 恒频 OpenSession（144/h，同账号 3001157 哈希实锤两端同户）——互踩负载与桥长驻会话叠加风险 nav_live 自认在案，本票未动（边界：不动 OpenSession 会话管理），移交件列收口报告 §6。
+- **B2 消哑照票面无条件项交付**：bridge.go rej 分键 `symbol_group_nil`（原 177 行第二哑径）+全灭拍 `WARN [mt5bridge]` 落 journalctl（ops_event 在 PG-md 无表且 collector 无写径——既有链取日志分支，stalewatch 同构）+败因样本（in-band 错误体原被吞现已捕获）；测试扩三锚入 swapdialect_test.go（失败形态 fixture）。
+- **移交**：projector 修复=生产运维（管理席全权面）——施工零重启零写入只读取证；SG 健康闸红行无人推 Feishu 的盲区、25s 互踩评估，两件另票建议列收口报告。

@@ -4,6 +4,8 @@ package mt5
 // 数值形/PercCurPrice 径/换算链缺环 NULL/非 Points NULL。
 import (
 	"context"
+	"errors"
+	"fmt"
 	"runtime"
 	"testing"
 	"time"
@@ -13,6 +15,7 @@ import (
 	"o/internal/platform/config"
 	"o/internal/platform/rejects"
 	"o/internal/platform/testutil"
+	"o/internal/store/pgstore"
 )
 
 func sgOf(t mt5pb.SwapType, short float64) *mt5pb.SymGroup {
@@ -105,5 +108,108 @@ func TestSwapAnnualBoth(t *testing.T) {
 	}
 	if short != 0 {
 		t.Fatalf("short_ann=%v（空腿零成本实拍）", short)
+	}
+}
+
+// FIX-02 消哑锚：失败形态 fixture 分键（探针实测谱——transport err/in-band err/
+// Result nil/SG nil 四形）——symbol_group_nil 独立键留痕（原 177 行静默 continue
+// 第二哑径），symbols_read_failed 收前三形；每形返非空败因样本（诊断种子）。
+func TestSwapPollFailShapesCounters(t *testing.T) {
+	pool := testutil.Pool(t)
+	c := &BridgeCollector{pool: pool, cfg: config.New(pool),
+		rej: rejects.New("mt5bridge", "symbols_read_failed", "symbol_group_nil", "tick_write_err")}
+	shapes := []struct {
+		name  string
+		reply *mt5pb.SymbolParamsReply
+		err   error
+		key   string
+		want  int64 // 门键累计值（rej 计数为跨拍累计——逐形递增断）
+	}{
+		{"transport_err", nil, errors.New("rpc error: EOF"), "symbols_read_failed", 1},
+		{"in_band_err", &mt5pb.SymbolParamsReply{Error: &mt5pb.Error{
+			Code: mt5pb.ErrorCode_COMMON_ERROR, Message: "Invalid token"}}, nil, "symbols_read_failed", 2},
+		{"result_nil", &mt5pb.SymbolParamsReply{}, nil, "symbols_read_failed", 3},
+		{"sg_nil", &mt5pb.SymbolParamsReply{Result: &mt5pb.SymbolParams{
+			SymbolInfo: siOf(0, 0, 0.01, 1)}}, nil, "symbol_group_nil", 1},
+	}
+	for _, sh := range shapes {
+		sh := sh
+		c.symFetch = func(ctx context.Context, cl *Client, sym string) (*mt5pb.SymbolParamsReply, error) {
+			return sh.reply, sh.err
+		}
+		why := c.fetchSwap(context.Background(), nil, "BTCUSDm")
+		if why == "" {
+			t.Fatalf("%s 形应返败因样本", sh.name)
+		}
+		snap := c.rej.Snapshot()
+		if snap["mt5bridge/"+sh.key] != sh.want {
+			t.Fatalf("%s 形应 %s=%d got %v", sh.name, sh.key, sh.want, snap)
+		}
+	}
+}
+
+// FIX-02 锚：全灭拍判定——pollSwap 零落行（okN=0）+ 样本携首败 sym 详情
+// （swapLoop WARN 触发条件 len(syms)>0 && okN==0 的判定输入面）。
+func TestSwapPollAllFailBlind(t *testing.T) {
+	pool := testutil.Pool(t)
+	c := &BridgeCollector{pool: pool, cfg: config.New(pool),
+		rej: rejects.New("mt5bridge", "symbols_read_failed")}
+	c.symFetch = func(ctx context.Context, cl *Client, sym string) (*mt5pb.SymbolParamsReply, error) {
+		return nil, fmt.Errorf("rpc error: EOF")
+	}
+	okN, sample := c.pollSwap(context.Background(), nil, []string{"BTCUSDm", "ETHUSDm", "SOLUSDm"})
+	if okN != 0 {
+		t.Fatalf("全灭拍应零落行 got %d", okN)
+	}
+	if len(sample) < 7 || sample[:7] != "BTCUSDm" {
+		t.Fatalf("样本应携首败 sym 详情: %q", sample)
+	}
+}
+
+// FIX-02 锚：健康实测形（探针实拍 BTCUSDm——InPoints L=-1778.7/points=0.01/cs=1）
+// 照常落行+meta 年化链随行——消哑改造零伤正道（单 sym 败仅计数语义不触动）。
+func TestSwapPollHealthyShapeLands(t *testing.T) {
+	pool := testutil.Pool(t)
+	ctx := context.Background()
+	if err := pgstore.Migrate(ctx, pool, "md"); err != nil {
+		t.Fatal(err)
+	}
+	c := &BridgeCollector{pool: pool, cfg: config.New(pool),
+		rej: rejects.New("mt5bridge", "tick_write_err")}
+	c.symFetch = func(ctx context.Context, cl *Client, sym string) (*mt5pb.SymbolParamsReply, error) {
+		return &mt5pb.SymbolParamsReply{Result: &mt5pb.SymbolParams{
+			Symbol:      "BTCUSDm",
+			SymbolInfo:  siOf(0, 0, 0.01, 1),
+			SymbolGroup: sgOf(mt5pb.SwapType_SwapType_InPoints, -1778.7)}}, nil
+	}
+	// mid 基准（midOf 读面——md_ticks venue='mt5' 实行）
+	if _, err := pool.Exec(ctx, `INSERT INTO md_ticks(ts,venue,inst_id,last,bid,ask)
+		VALUES(now(),'mt5','BTCUSDm',80000,80000,80000)
+		ON CONFLICT (venue,inst_id) DO UPDATE SET ts=now(),last=EXCLUDED.last,
+		bid=EXCLUDED.bid,ask=EXCLUDED.ask,recv_ts=now()`); err != nil {
+		t.Fatal(err)
+	}
+	if why := c.fetchSwap(ctx, nil, "BTCUSDm"); why != "" {
+		t.Fatalf("健康形应落行 got %q", why)
+	}
+	var val *float64
+	var meta map[string]any
+	if err := pool.QueryRow(ctx,
+		`SELECT val, meta FROM md_signal WHERE kind='mt5_swap' AND key='BTCUSDm'`).
+		Scan(&val, &meta); err != nil {
+		t.Fatalf("行应落: %v", err)
+	}
+	if val == nil {
+		t.Fatal("InPoints 形应年化 val 非 NULL")
+	}
+	want := -1778.7 * 0.01 * 1 * 365 / 80000 * 10000
+	if *val < want*1.01 || *val > want*0.99 {
+		t.Fatalf("ann=%v want≈%v", *val, want)
+	}
+	if meta["ann_ok"] != true {
+		t.Fatalf("meta 年化链应随行: %v", meta)
+	}
+	if mid, ok := meta["mid"].(float64); !ok || mid != 80000 {
+		t.Fatalf("meta mid 应=80000: %v", meta["mid"])
 	}
 }
