@@ -71,36 +71,41 @@ domain.tsv 标注 md|bridge 的表（fin_position=fin 域禁引）。
 - [ ] 施工
 - [x] 验收投产（决策席 2026-10-27：37 活跃集标的 tickers 行恢复秒级流入 0.17s 鲜，activeset_read_failed 零计数，md 域 fin_position 引用普查清零）
 
-## 判决注记（审计席逐锚对账）
+## 判决注记（审计席逐锚对账——独立取证径：journal 看门狗时序+双库实查）
 
-- 锚1 PASS：`activeSet()`（subscribe.go:71-81 @master 0dbeb3d 亲核）
-  SQL 仅余 fin_proposal/fin_strategy/md_dcd_product/basis 双腿 UNION，
-  fin_position 项删、注释钉 domain.tsv md|bridge 律在案。
-- 锚2 PASS：md_ticks OKX 行恢复流入实锤——SG 侧桥接副本（PG-md→
-  projector 下游，127.0.0.1:5544 只读实拍 2026-10-30 ~09:58Z）：当前
-  活跃集以同构 UNION 查询实算=7 标（ALLO/BTC-USD-261225/BTC-USDT/
-  ME/NOT/SKY/WCT-USDT-SWAP），md_ticks venue='okx' 鲜行=同 7 标全
-  命中、age≤5s——订阅帧实发、消费点新数实落。
-- 锚3 PASS：「行情 ticks(OKX)」健康行源=ops_face.go:85
-  `SELECT max(ts) FROM md_ticks WHERE venue<>'mt5'`（warn30s/dead2min）
-  ——实测 max(ts) 秒级 ⇒ 复绿；页面读数同源无从另证（无头径）。
-- 锚4 PASS（条件件 N/A）：当前 dcd 在拍策略=0 行（fin_strategy
-  template_ref LIKE 'dcd%' AND state<>'retired'，SG 实拍）——机制面
-  在位：dcd uly→USDT 归一 UNION 腿保留于查询、BTC-USDT tickers
-  流入中，价源径无结构阻断。
-- 锚5 PASS：`grep -rn fin_position internal/data/ cmd/collector/`
-  仅 3 注释行（collector.go:63/218、subscribe.go:72）零 SQL 引用；
-  全仓余命中皆 fin 域 SG 侧件（projector r.sg/portfolio/risk/ledger/
-  guard/trading）合法不动。
+- 锚1 PASS：收口 commit 9a6b31c3 全量 diff 亲核——activeSet() UNION
+  fin_position 项删、三行注释钉 domain.tsv md|bridge 域律；origin/master
+  现态在位（T-0216 后续 basis 腿增项未回退本修复，subscribe.go 注释存）。
+- 锚2 PASS：独立证据=采集器自带 stalewatch 看门狗（internal/data/okxws/
+  stalewatch.go，md_ticks 全行>3min 即 ALERT「行情面死」，分钟级灵敏）
+  ——journalctl 实录：10-27 14:28:41/16:35:38 两报（修复会话中间构建期
+  面死）→ 17:33:19 修复构建重订后告警绝迹至 10-28 01:46+，历次重启
+  重订 syms=1034 全净——tickers 行持续新鲜落库的机构级实证。
+- 锚3 PASS：健康行判据=ops_face.go「行情 ticks(OKX)」fact md_ticks
+  venue<>mt5（max(ts) 判、warn 30s）——与锚2 同源同事实；旁证=SG
+  生产库同面 2026-10-30 13:11Z 实拍 max(ts) 距查询时刻 0.4s、okx
+  511 标的在流。
+- 锚4 PASS：SG fin_paper_fill（dcd 族）时序实查——10-26 全日 1 笔
+  （价源饿死期）→ 10-27 12:00Z 时段 230 笔 → 10-28 105 笔（fill 落笔
+  前置=md_ticks 现货价过 <120s 鲜度闸，internal/portfolio/lifecycle/
+  paper.go）——记账价源恢复实证；当前 dcd 族策略全 retired（条件件
+  现时 N/A，机制面在位：uly→USDT 归一 UNION 腿保留）。
+- 锚5 PASS：origin/master `git grep fin_position -- internal/data/
+  cmd/collector/` =3 命中全注释行（collector.go:63/218、subscribe.go:72）
+  零 SQL 表引。
 
-- 取证注：PG-md 本体（OCI 盒 :5435）无直达隧道，经 SG 侧桥接副
-  本+同构 UNION 实测替代，结论等价；`activeset_read_failed`=采集
-  进程内存计数无直读径，替代证据=全活跃集 tickers 实发⇒提前
-  return 分支未触发。
-- 锚外注记报管理席裁：票面「量级」行载「防回归断言必落」，收口
-  diff 未落针对缺席表引用的新增回归断言（ghost_test.go 系 T-0132
-  幽灵滤除件，不覆盖本病灶）；五锚未列此项→不阻塞判决，按「锚
-  本身疑似缺件」记档。
+锚外注记（报管理席裁，不阻塞判决）：
+- ①票面量级行「防回归断言必落」未兑现——收口 diff 零新增 activeSet
+  组成断言（存量 ghost_test.go 不覆盖本病灶），义务缺位立票补齐。
+- ②activeSet() 为 o-core 共用（SG 库 fin_position 存在、原查询可跑），
+  删项同步收窄 SG tickers 活跃集；现时 SG 未平仓持仓实查=0 无暴露，
+  但 live→retired 过渡窗残留持仓将失价源（票面冗余论证未覆盖该窗），
+  设计风险记档。
+- ③collector.go:218 旧注释仍述「fin_position 在仓」活跃集组成——文档
+  残留非表引，随①顺修。
+- ④审计时点 dev 采集面整体停摆（o-postgres-md 容器 10-28 19:16Z 干净
+  停、o-collecto 单元 inactive、PG-md 不可直查）=10/28 停摆事件余波
+  非本票回归——代码修复在位，SG 自供面今测鲜活。
 
 ## 结果回填
 
