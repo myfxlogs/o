@@ -303,3 +303,8 @@
 - **T-0250**：audit 支判决落票（审计通过）；部署裁量=**取证期不重启 o-core**（保 cmc-ws 1011 现行犯现场给 T-0255），收口随复跑前置清单联动——o-core 仍 a6e8964cd15d。
 - **KPI（D-0037 月净利，cashflow 亲算+cum_nav 对拍）**：MTD ≈ **-1.9 USDT**（interest+1.45/funding+0.002/已实现-0.30/fee-3.05）；NAV≈$7381（mt5 3247+okx 4134）；日净节拍 +0.33（利息独撑，earn_balance 4429）；里程碑 10U/月未达，主因=执行面停摆 48h+。fin_report monthly 9/10 月=0 桩（月度生成面未产出，已录不报修）。
 - **未尽**：T-0257 待派序（在飞单满后择机，不挤占急诊带宽）；四票收口候审；部署树 detached HEAD 面——dispatcher 读 TASKS=/opt/o/docs/tasks，DM 合并后须 ff 部署树否则 directive gate「票面不存在」（本日实证）。
+
+## 2026-10-30 — 施工席：T-0254 dispatcher 双闸（devin-headless-T-0254，无头单飞）
+
+- **T-0256 并行撞面裁断**：T-0256（wrapper flock）钦定界面含 devin-headless-run.sh，而本票钦定界要求「未 ack 件注入 prompt 文件尾部」——prompt 唯一写者=该 wrapper，绕不开。裁：最小侵入——仅 prompt 块 HEADLESS_INJECT 注入段五行，绝不碰其 flock/让位区（文首），hunk 不重叠可净并；已在票面偏离说明明注，交审计席裁。
+- **claim 语义取舍**：.spawned 锚采「活 pid∧cmdline 含 tid=在飞；退壳 120s 宽限窗内死 pid 亦拒；逾龄陈锚回收」——既防「快退壳+重投」双产，又保崩殁票经再投/补扫自愈，不采「一次claim永拒」（会焊死票）。relay 冻结径 spawn 不取 claim 属钦定界外，wrapper 层互斥归 T-0256 flock 兜底。
