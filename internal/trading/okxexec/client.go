@@ -97,11 +97,10 @@ func (f *flexCode) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-// do 签名请求：四头 + demo 头（sim 时）。返回 body 字节；HTTP 非 2xx 或 code≠"0" 上抛。
-func (c *Client) do(ctx context.Context, method, pathWithQuery string, body []byte) ([]byte, error) {
-	if c.ro && method != http.MethodGet {
-		return nil, ErrReadOnly // T-0104：写径签名前硬闸——非 GET 一律不达 venue
-	}
+// doOnce 签名请求单发（T-0272④：429 退避包装在 retry.go do()——本件=单尝试体）。
+// 四头 + demo 头（sim 时）。返回 body 字节；HTTP 非 2xx（HTTPStatusError）或
+// code≠"0"（APIError）上抛。
+func (c *Client) doOnce(ctx context.Context, method, pathWithQuery string, body []byte) ([]byte, error) {
 	ts := signutil.OkxTS(time.Now())
 	req, err := http.NewRequestWithContext(ctx, method, c.base+pathWithQuery, bytes.NewReader(body))
 	if err != nil {
@@ -125,7 +124,7 @@ func (c *Client) do(ctx context.Context, method, pathWithQuery string, body []by
 		return nil, err
 	}
 	if resp.StatusCode/100 != 2 {
-		return nil, fmt.Errorf("http %d: %s", resp.StatusCode, string(b))
+		return nil, &HTTPStatusError{Code: resp.StatusCode, Body: string(b)}
 	}
 	var env struct {
 		Code flexCode        `json:"code"`
