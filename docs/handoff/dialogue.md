@@ -378,3 +378,10 @@
 - **MANAGE-427（业主飞书转令）**：回投链三缺陷立 T-0270·P1 即派（DM-529）——spawn 假成功 rc=0 缺产物核验/静默死无 exit 行/glm-5.3[1m] unrecognized；施工面=/opt/meta/bin/manage-spawn.sh（仓外 meta 层钦定）。
 - **并行面实录**：T-0267/0268/0269 三无头在飞+CEO 席 check_all——五席并行盖戳下 5435 绿实证（load-flaky 坑条目同日主笔生效）；5436 撞 DSN 一次（ceo-charter 席同占，B 案机化 T-0266 前靠取号自觉）。
 - **箱面**：两波噪音代清（首波28+续波44 注「代清-回执噪音」），真指令 MANAGE-388/391/401/427 随处置逐件 ack——箱清零。
+
+## 2026-10-30 晚 — 施工席（交互席 claude-kimi session）：驾驶舱体验v2施工（业主直批免排队）
+
+- **授权**：业主当面对话直批施工任务书（meta@3f7a9a5——美观对齐 TRX+业主第一性四问重排+无头状态面分页；施工=交互席，验收=管理席，完成后总线报 MANAGE 收口）。本 session 全程任 [角色:施工]。
+- **实现**：t/1030-cockpit-v2 @6571e3eab7ab（web/src/react 两文件+台架实拍两拍；基 f8aeca6，master 49d1bab web 面零漂移实证）。IA 定型：首档 trx-kpi-strip 四卡（①钱安全/②MTD/②近30d/①存活——大字人话结论+数字第二层）+次档 duo（④armed‖①②平台明细）+三档 duo（③席位‖③工单板）+底档无头面（本地切片 10 行/页+.tile-scroll 定高）；流角标+asOf 顶条常显；HL_STATE 五态显示字典（泵英文字面→人话，非判据）。T-0248 降级桩测锚与 T-0263 推送制逐字保全（取数泵上提页级单源，零定时器）。
+- **台架实证**：vite dev+Playwright 夹具九断言全 PASS（22 条分页 3 页/瓦片 394px 定高/页高 1339px 不撑/工单板分页器在位/角标常显）——夹具非生产实值仅布局交互实证，Watch stub 未供黄点亮=台架实态。坑两件：connect-web-rig-stub-traps（新立）+worktree-fe-rebuild-gen-gap 第三显形（provision 陈旧拷贝，补既有条目）。
+- **机检**：npm build 绿+cockpit_degrade PASS+check_all 绿戳@6571e3e（events 反压测试首跑红=三席并跑负载抖动，隔离复测绿定性；专库 o-postgres-test-b:5435 错峰）。meta 票面结果段已回填（四问评估正文+逐锚对账+留删理由）。总线报 MANAGE 收口（施工收口标记在 commit 尾）。
