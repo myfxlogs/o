@@ -3,7 +3,7 @@ schema_version: 2
 id: dispatcher-cgroup-kill-domain
 kind: pitfall
 risk: high
-status: verified
+status: mitigated
 keywords: [dispatcher, systemd, cgroup, KillMode, spawn, 无头, 斩杀域]
 scope: [ops, mbus-dispatch, headless, systemd]
 summary: kill dispatcher 主 pid=在飞无头单全灭——spawn 在 service cgroup 内连坐；setsid 不逃逸 cgroup，正解 systemd-run --scope 或 KillMode
@@ -34,3 +34,10 @@ evidence_refs:
   pid=事故级。
 - **伴生**：headless-supervisor once 键 reboot 内一次性——同票二代 spawn
   殁后不再报死讯（SAID 键首殁已占）；修=dead 键挂 spawn 代际再武装。
+- **根修（T-0257 @ 2026-10-30，meta 8952937）**：spawn_run/spawn_audit 改走
+  `systemd-run --user --scope`（headless-run|audit-<TID>.scope）——spawn 自带
+  scope 免疫父服务生命周期，scope 失败 fail-closed 升 MANAGE 不回退；
+  在飞五代树手工迁出 dispatcher cgroup 至 headless-legacy-*.scope 后
+  `systemctl --user restart` 实证零殉；supervisor SAID 键挂 spawn 代际
+  （日志 spawn 行数=世代号，新一代清键再武装）；生命线纪律成文于
+  devin-headless-role.md+service 注释——裸 kill 主 pid=事故级。
