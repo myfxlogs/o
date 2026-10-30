@@ -333,3 +333,13 @@
 - **陈旧 PR 核销**：#42/#80/#84 内容已等价在 master 关闭；#63/#70/#72/#83 独有内容 cherry-pick 归位后关闭（审计痕/KB/移交段全保——三陈票终态修回「完成」留审计痕）。
 - **并码**：T-0254/0256/0257 三支审计通过件并入本支（dialogue/索引 微撞已解——审计判决系审计席各 session 落支，本席仅合并簿记）。
 - **未尽挂账**：半速复跑候 T-0258 并码部署后启（观察窗 24h，首日报 MANAGE）；T-0259/0260 排队；前端三票为下一档主力；meta 仓 mbus-dispatch.sh T-0254 面未合并重启（票注：生效需 meta 合并+restart——meta 主支在 /opt/meta 本地仓，另席持有面，本席不动）。
+
+## 2026-10-30 午 — 管理席：devin 接任（业主当面点名换防 claude-kimi，GLM 底座不稳）
+
+- **接管三件套齐**：AGENTS.md 署名→「devin 管理会话 @/opt/o」走 worktree+绿戳+PR#90 并 master（dce54b8）；交接态快照刷新 @11:30（meta commit 9faa1bd）；MANAGE 箱清零——DM-186 升级件实证 MANAGE-136 已被 DM 批量清箱消化=过时告警，DM-187=T-0253 审计通过与快照一致。
+- **业主问驾驶舱缺瓦片/分页**：定性=非部署丢件——T-0261/0262/0263（业主令 10-30 晨·前端三件）DM 收班前刚立票待派。`ERR_HTTP2_PING_FAILED` 定性=传输层非缺件：o-core 讲 h1 明文且实拍服务的正是业主浏览器所求同 hash 件（index-CZPtpJ36.js）——h2=浏览器↔公网边缘间事，SG 上跑 sshd 反 tunnel 会话（tunnel 专用 user），部署重启/隧道瞬断大概率瞬态，刷新应愈。
+- **管理席直派前端三件（急件直办径）**：调度器=事件驱动（directive 落 Dev 箱→闸→spawn，不扫票面目录）——DM 收班=无人发件=待派票停滞。业主当问两回，发 MANAGE-194/195/197 三件 directive，T-0261/0262/0263 三无头同刻点火（在飞锁为每票级可并行，前端三件涉及面 web/src 与 T-0258 后端 lifecycle 不撞）。
+- **o-relay.service 净场**：退役冻结代（M4）unit 仍 enabled→auto-restart 每 5s 刷「relay v5 启动/tmux DM 缺席」噪音——`disable --now` 停死（DM-192 挂账『提示管理面可净场』+交接纪律『已停机勿重启』同旨）。坑已入 KB `retired-service-enabled-respawns`：停机≠退役，退役=disable+stop 双动。
+- **簿记滞后提醒 DM（MANAGE-193）**：T-0248 修复 ae9b941（PR#58）早在部署 o-core:0dd4c069e280 内，但票面仍『待派』=重复派单风险——请 DM 翻终态。
+- **DM-192 收班汇总已核**：部署收口/裁二 DCD 全族退场执完/T-0258 在飞/立票七张/PR#91 并码绿戳全绿/陈旧 PR×7 核销零丢件。未尽移交：T-0259/0260/0264 留 DM 队列序；半速复跑候 T-0258 部署后启（24h 窗），首日复跑报到 MANAGE 箱后按 MANAGE-106 裁一盯——达标即确认全速。
+- **复任换防（业主裁定 ~12:25，交接态快照为凭）**：claude-kimi 回任管理席，devin→备位席（MANAGE tmux 会话保留，降级规则三档：单项级/会话级>15min 顶岗/结构级待立票）。末班执：①业主令 devin 派单 T-0259/0260（MANAGE-205/206 已发 Dev 箱）；②AGENTS.md 署名改回「claude-kimi 管理会话；devin=备位席」随本 commit 同支；③o-relay disable 已执（快照列待办可销）；④DM-192 已 ack（快照待办可销）。
