@@ -1,9 +1,11 @@
 # T-0178 钱径挂账清算+config 翻位审计列——T-0056 三挂账收口
 
-## 态：✅ 验收毕投产（merge 1b24b45——fin_0073/md_1072双链同落在册、updated_by审计列SG+PGmd双侧实证、config.Set写者径通、sweep阈25生效闲资实弹回存、recon_adjust+1.70定性合法校准行在案）
+## 态：审计通过
 
 | 立项 | `[角色:决策]` @ 2026-10-27（债务盘点 B 级——T-0056 移交三件久挂） |
 |---|---|
+
+审计席：headless @ 2026-10-30
 
 ## 病灶（三笔挂账+一结构缺口）
 
@@ -64,3 +66,33 @@ check_migrations 即红。迁移序号：fin_0073 顺位（0071=host_metrics/
 ### ③ 锚
 - 迁移七断言过（fin_0073+md_1072 同 commit 双链同形）；
   config 包 4 测绿；check-env-reads/rejects 全绿。
+
+## 判决注记（审计席逐锚对账——SG 生产只读+码面+diff 三径取证）
+
+- 锚① +1.70 定性：SG `fin_cashflow` 实拍 id=93 amount=1.70 USDT
+  `source_table=recon_baseline_adjust` @2026-10-24 13:10:59Z 在案；同窗
+  基线校准批七笔（-96.01/+75.92/+125.17/+28.36/-3.39/+0.48 等，
+  recon_baseline_adjust 族+md_account_events 锚一笔）——
+  `ledger.go`「recon_adjust=基线校准一次性行」律口径对，
+  票面定性「合法校准行·记源」成立。（票面「同批五笔」计数偏松——
+  同窗实七笔，不影响定性结论。）
+- 锚② sweep 归因+处置：`internal/earn/worker.go:181` `idle<=thr` 直返
+  ——阈 100>余额 50.18 永不回存，「结构性不修」归因与码面吻合；
+  SG `app_config` 实拍 `earn.sweep_min_usd=25` 实落；翻阈后约 1.3s
+  `fin_risk_decision` id=32946 `earn_deposit` 30.97 allow/transfer
+  @2026-10-27 06:41:52Z——闲资实弹回存生产实证（留痕径=decision 行，
+  T-0060 后 earn_in/earn_out 停写 cashflow 系钦定口径非缺证）。
+- 锚③ 审计列+Set 留名：SG `app_config` 双列在（updated_at 自
+  fin_0001 既有、updated_by 由 fin_0073 落）；`write.go` Set 走
+  INSERT…ON CONFLICT 双径写 `updated_by=actor`+`updated_at=now()`；
+  SG 实拍 76 行回填 'legacy'，迁移后新写 named 写者二行实证
+  （`trx.vote_enabled`='t-0184-vote-arm'、`readcred.entitlement`
+  ='fin_0076'）。
+- 锚④ 迁移过闸+retention：fin_0073+md_1072 同 commit 双链同落、
+  `migrate_table.go` 双登记序号唯一单调、桥表双侧 ALTER 同形；
+  迁移契约闸无涉（updated_by 非 venue/account/symbol 键域列）；
+  md_1069 retention 账 `app_config='state'` 行无变更需要。
+- 注记（非锚不阻，报决策席跟踪）：`config.Set` 全仓零 Go 调用方
+  ——写径能力在册未接线；且非 Set 径写仍可留空名实证
+  （`lifecycle.reject_cooldown_s` updated_by='' @10-30）——
+  「凡写必留痕」尚为约定非强制，是否立票收口由决策席裁。

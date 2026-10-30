@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | 并入 T-0132（订阅分级重写含现货断流根修） |
+| 状态 | 审计通过 |
 | 优先 | **高**——行情面断流 1h+ 未被活性探针捕获；直接造成 T-0128 误杀 |
 | 出处 | T-0126 验收期取证（仓 23 误杀溯源上游病灶） |
 
@@ -38,3 +38,24 @@ SG 实拍 2026-10-25：md_ticks 全部现货行（BTC-USDT/ETH-USDT 等 4 行）
 - 季度期货 args 不挂 index-tickers（-USDT-YYMMDD 尾=tickers 唯订）。
 - 面级断流告警：collector staleWatch 60s 拍——订阅标的 md_ticks 全行
   超龄 3min=ALERT [okxws] 一次抑刷屏恢复清标（面死显形非单键静默）。
+
+## 审计判决
+
+审计席：headless @ 2026-10-30
+
+- 锚①现货秒级刷新——通过。修法链两段落码：a6b15019 宇宙扩件增 SWAP
+  基币现货对 dedup 入订阅集；83c6f3ad 活跃集 tickers 动态增删订。
+  master 现态 activeSet 含 dcd/basis 策略现货腿归一入集，tickers 帧→
+  INSERT md_ticks 写径实存。生产实拍（SG 只读 2026-10-30 15:48Z）：
+  现货行 BTC-USDT ts 龄 3s 秒级鲜；ETH-USDT 陈行=非活跃集无 tick 订
+  （T-0132 设计态非病灶）。
+- 锚②面级断流告警通路——通过。stalewatch.go 实存（60s 拍、宇宙键域
+  md_ticks 全行超龄 3min→面死告一次、恢复清标），collector.go 挂拍、
+  al.Alert→notify.Alerter→飞书推送接线（AttachAlerter）+日志兜底，
+  不靠人盯。注记边缘态：活跃集全空时 fresh=0 会发面死告警（理论误报
+  缘，建议另票裁，非本锚否项）。
+- 锚③断流窗口内 guard 不误杀——通过。新鲜度闸 diff 实证（tick/funding
+  龄超阈=缺 fail-closed facts_missing 不杀），TestStaleTickNoKill/
+  TestFreshTickRealDriftKills 桩测在库；生产 fin_guard_close 实拍：
+  delta_drift 触发全止 2026-10-25 17:00:02（原案时点），部署后零新
+  触发——含 ETH-USDT 陈 17h 窗口。

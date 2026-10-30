@@ -2,8 +2,8 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"io/fs"
 	"log"
 	"net/http"
 	"strings"
@@ -17,7 +17,6 @@ import (
 	"o/internal/gen/dashboardv1/dashboardv1connect"
 	"o/internal/research/gapscan"
 	"o/internal/trading/okxexec"
-	"o/web"
 )
 
 type coreService struct {
@@ -178,6 +177,10 @@ func (c coreService) Overview(ctx context.Context, _ *dashboardv1.OverviewReques
 	return o, nil
 }
 
+// watchHeartbeat 心跳期界（T-0269——锚：帧间隔 ≤20s，取 15s 留测量余量；
+// var=测试缝——桩测缩期界验节拍语义，产态恒 15s）。
+var watchHeartbeat = 15 * time.Second
+
 // Watch SSE 脊推变（ev_* NOTIFY——所见即所得刷新源，事件驱动律守不新造环）。
 func (c coreService) Watch(ctx context.Context, _ *dashboardv1.WatchRequest,
 	stream dashboardv1connect.CoreServiceWatchServerStream) error {
@@ -198,22 +201,37 @@ func (c coreService) Watch(ctx context.Context, _ *dashboardv1.WatchRequest,
 		Ts: time.Now().UTC().Format(time.RFC3339)}); err != nil {
 		return err
 	}
+	// T-0269 应用层心跳：事件静默期 ≤15s 一帧（CF h2 idle 杀流残余风险关窗
+	// ——期界等待形非周期定时器，事件到达仍即时推不阻塞）。
 	for {
-		n, err := conn.Conn().WaitForNotification(ctx)
-		if err != nil {
+		wctx, cancel := context.WithTimeout(ctx, watchHeartbeat)
+		n, err := conn.Conn().WaitForNotification(wctx)
+		cancel()
+		if n != nil {
+			ev := &dashboardv1.WatchEvent{Kind: n.Channel, Ts: time.Now().UTC().Format(time.RFC3339)}
+			// T-0220a 一跳推数：NOTIFY 即按 kind 查表带载荷（查/转败=帧照发+log
+			// 显形——信号语义保留，不炸流不静默；无载荷面 kind=纯信号帧）。
+			st, perr := c.watchPayload(ctx, n.Channel)
+			if perr != nil {
+				log.Printf("watch 载荷 %s 查败（帧照发）: %v", n.Channel, perr)
+			} else if st != nil {
+				ev.Data = st
+			}
+			if serr := stream.Send(ev); serr != nil {
+				return serr
+			}
+		}
+		if err == nil {
+			continue
+		}
+		if !errors.Is(err, context.DeadlineExceeded) || ctx.Err() != nil {
 			return err
 		}
-		ev := &dashboardv1.WatchEvent{Kind: n.Channel, Ts: time.Now().UTC().Format(time.RFC3339)}
-		// T-0220a 一跳推数：NOTIFY 即按 kind 查表带载荷（查/转败=帧照发+log
-		// 显形——信号语义保留，不炸流不静默；无载荷面 kind=纯信号帧）。
-		st, perr := c.watchPayload(ctx, n.Channel)
-		if perr != nil {
-			log.Printf("watch 载荷 %s 查败（帧照发）: %v", n.Channel, perr)
-		} else if st != nil {
-			ev.Data = st
-		}
-		if err := stream.Send(ev); err != nil {
-			return err
+		// 期界到=保真帧（kind=watch_hb 纯信号无载荷——前端对未知 kind 天然
+		// 忽略，不入数据语义）。
+		if serr := stream.Send(&dashboardv1.WatchEvent{
+			Kind: "watch_hb", Ts: time.Now().UTC().Format(time.RFC3339)}); serr != nil {
+			return serr
 		}
 	}
 }
@@ -250,31 +268,4 @@ func assemble(pool *pgxpool.Pool,
 	}
 }
 
-// mountUI SPA 单页挂接（T-0170：四页单 SPA——路由在客户端，服务端兜底全捕
-// 返 index.html；API 前缀 /o.dashboard. 不吃 HTML（错路 404 语义保留）；
-// /trx 旧双入口路径自然收敛进 SPA 路由）。
-// T-0268 缓存头鉴别：index.html=no-cache（入口每回重验证不发陈壳）；/assets/*
-// =vite hash 指纹件 immutable 年长缓存（文件名变=URL 变，缓存不陈）。
-func mountUI(mux *http.ServeMux) {
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, "/o.dashboard.") {
-			http.NotFound(w, r) // Connect API 错路——不回 HTML
-			return
-		}
-		b, err := web.Dist.ReadFile("dist/index.html")
-		if err != nil {
-			http.NotFound(w, r)
-			return
-		}
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Header().Set("Cache-Control", "no-cache")
-		_, _ = w.Write(b)
-	})
-	// assets 子树挂接（fs.Sub——embed FS 全件带 dist/ 前缀，指根=资产 404 病灶）。
-	assets, _ := fs.Sub(web.Dist, "dist")
-	fsrv := http.FileServer(http.FS(assets))
-	mux.Handle("/assets/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
-		fsrv.ServeHTTP(w, r)
-	}))
-}
+// mountUI 迁 ui.go（T-0269——favicon 挂接增量撑行，静态面自成件）。

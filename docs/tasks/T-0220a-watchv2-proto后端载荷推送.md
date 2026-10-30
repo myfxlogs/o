@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | ✅ 完成 |
+| 状态 | 审计通过 |
 | 立项 | `[角色:决策]` @ 2026-10-28（设计档 `docs/handoff/T-0173-最优解设计修订.md` §一/§五；票面文件由施工席依决策席 dispatch+设计档原样物化——b46be9d 只落设计档未落票文件，来源留痕交验收核） |
 | 领取 | glm-t0220 @ 2026-10-28 13:01Z |
 | 优先级 | 高 |
@@ -46,3 +46,19 @@
 ## 验收注（`[角色:决策]` @ 2026-10-28，接管验收：原验收席 claude 卡住，业主令转本席；收口合并 `050b180`，实现件随 `26bf968` 在 master）
 
 **裁：验收通过，票翻完成。** 票面物化来源追认（b46be9d 只落设计档未落票文件，施工依设计档 §一~§五 原样物化=合规）；回填四件（实现摘要/测试证据/偏离/坑处置）详实；偏离在案均认可；测试证据与生产目检（业主实见新前端）互证。
+
+---
+
+## 审计注记
+
+审计席：headless @ 2026-10-30
+
+**判：审计通过。** 收口实现件 `ba8f81d`+`6b958b1`（随合并 `26bf968` 落 master）全量 diff 对票面五锚逐条实核，隔离 worktree（基 origin/master @5073982）复跑实证：
+
+1. **proto 载荷字段+双模板 regen**——PASS。`core.proto` `import "google/protobuf/struct.proto"` 在册、`WatchEvent` 增 `google.protobuf.Struct data = 3` 在册（字段号未挤占 kind=1/ts=2）；审计 worktree 实跑 `buf generate` 三插件 exit 0——`core.pb.go:641` `Data *structpb.Struct`、`core_pb.ts:348` `data?: JsonObject` 双双再产（Go+web 双模板实证非宣称）。
+2. **kind 路由查表推载荷**——PASS。`watch_payload.go` switch 三分支对位：`ev_cashflow`→`ListHedgeFlow{Limit:10}`（源径 trx_faces.go:91→`ListHedgeFlowPage(limit)`）、`ev_position`→`ListClosedPositions{Limit:5}`（host_face.go:45-60 SQL `ORDER BY closed_at DESC LIMIT $1`——最新 5 行语义实）、`ev_hostmetrics`→`GetHostMetrics{}` 全量；全调既有读面方法零重写查询；序列化径 protojson EmitUnpopulated→`structpb.UnmarshalJSON` 类型化直转（禁手拼 JSON 律守）。
+3. **watch_open/信号面不变**——PASS。`service.go` `watch_open` 帧于 LISTEN 注册后循环前直发仅 `{kind,ts}` 零载荷（diff 未触该段）；`watchPayload` default→`(nil,nil)`，`ev_account`/`ev_strategy`/`watch_open` 纯信号帧——`TestWatchPayloadSignalKinds` 三 kind nil 断言实跑绿。
+4. **查/转败帧照发+log 显形**——PASS。`service.go` `perr != nil → log.Printf("watch 载荷 %s 查败（帧照发）: %v")` 后 `stream.Send(ev)` 照发；查败与 Marshal/UnmarshalJSON 败同归 perr 分支——信号语义保留、不炸流、不静默吞。
+5. **build/vet/test 绿+行数**——PASS。审计 worktree `go build`/`go vet ./cmd/core/` 双绿、gofmt 零漂移；`O_TEST_PG_DSN`@5434 实测 `TestWatchPayload`×3 + `TestConnectEndToEndAndWatchLatency`（含 `6b958b1` 增 ev_cashflow 帧必带 `txs` 载荷断言）4/4 PASS。行数：service.go 273、watch_payload.go 50、watch_payload_test.go 98 全 ≤300；载荷逻辑独立成件=锚括注实旨全达。
+
+附记：触碰件 trx_test.go 332 行>300——该件属 `*_test.go`，check-lines.sh `exempt()` 明豁免，且本票前已 327 行存量（+5 行载荷断言）；按门禁契约口径计过，留注备查。

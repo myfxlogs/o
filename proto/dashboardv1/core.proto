@@ -399,6 +399,10 @@ message CockpitTicket {                  // ③工单板派生行
   string state = 2;                      // 在飞/待派/挂起/闭环（近7d）
   google.protobuf.Timestamp ts = 3;
   string seat = 4;
+  // T-0267 件A 每席预算账——票→累计 token（ops_ticket_usage 聚合：in+out；
+  // usage_rows=0=该票零账行，前端显「—」非 0——不可得与零用量分辨口径）
+  int64 total_tokens = 5;
+  int64 usage_rows = 6;
 }
 message CockpitArmed {                   // ④待开仓 armed 提案+TTL 倒计时
   int64 id = 1;

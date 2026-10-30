@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | ✅ 完成 |
+| 状态 | 审计通过 |
 | 领取 | `zcode-glm-0228` @ 2026-10-28 |
 | 立项 | `[角色:决策]` @ 2026-10-28（T-0224 施工偏离①自报转单——通用自息键同款外廓病未治） |
 | 优先级 | 低 |
@@ -59,3 +59,18 @@ check_all 全链绿（build✓ vet✓ import✓ gofmt✓ env✓ rejects✓ migra
 ## 验收注（`[角色:决策]` @ 2026-10-28）
 
 **裁：验收通过，票翻完成。** 四锚全过（同法迁移/铁律零触/grep/目检六件——负年化实态命中 s1 通用键灯，呼=息同包络仅更亮）。偏离①基点偏离已按闸合流归位=认可；②息相恒驻微光属钦定锚内语义。至此灯语三段（calm/quick/通用自息）全走珠内生辉径，「呼时大灯」病诉三键全愈。
+
+---
+
+## 审计注记
+
+审计席：headless @ 2026-10-30
+
+**判：审计通过。** 收口 commit `a44a138` 全量 diff 对票面四锚逐条实核（独审，不引票面终态字段）：
+
+1. **同法迁移**——PASS。新 `@keyframes breathe` 与 T-0224 `breatheQuick` 处方逐字同构（仅键名异）：基帧 `0%,100%` `filter: brightness(1) saturate(1)` + 50% `filter: brightness(1.3) saturate(1.12)` 两帧显式成对（幅度=黄档原值，锚许「参照黄档」）；外辉光弥散两帧逐字同 `0 0 2px 0.5px`；呼相浓度 47÷1.3→35 与黄档同款对冲；opacity 声明段内零在册（通道撤除）。
+2. **节奏/灯语不动**——PASS。`.dot.s1` 仍 `animation: breathe 1.6s ease-in-out infinite`（实态 L167 在册未触）；`.dot.still { animation: none !important; }` 钳制在册；红死终裁三行 `.dot.breathe.s2 { animation: none !important; transform: none; box-shadow: none; }` 在册；diff hunks 仅及 keyframes 段+注释块，他面零触碰（breatheCalm/Quick/Alarm、`.dot.breathe` 裸类 2.2s 均未动，裸类随键同治属附带受益非超单）。
+3. **grep 锚**——PASS。`@keyframes breathe` 段内旧 `0 0 4px`/`opacity` 零残留（diff 删除行实证）；`0 0 2px 0.5px`×2 + `filter:`×2 成对在册。
+4. **目检锚**——PASS。`docs/design/T-0228-*.png` 六件实存（真 PNG、非空、尺寸实）；抽看 phases-dark 对比板：s1 通用键黄灯息/呼 1x+5x 四格——两相同珠径同灰晕包络，呼相仅珠体更亮（高光更白），合「呼=息同包络仅更亮」判据。
+
+附记：`.dot.breathe` 裸类（2.2s）共用此键自动同治，属键级改造的必然覆盖，不破票面使用面声明。

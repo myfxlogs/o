@@ -23,7 +23,7 @@ ck('getHeadless 仅存回补/兜底两径', (cockpit.match(/client\.getHeadless/
 ck('boot 异帧发起', /setTimeout\(run, 0\)/.test(stream));
 ck('pump 火忘分离', /void pump\(\)/.test(stream));
 ck('驾驶舱渲染径零 watch', !/client\.watch|for await/.test(cockpit));
-ck('断流重连看门狗守', /setTimeout\(run, 3000\)/.test(stream));
+ck('断流重连看门狗守（T-0269 指数退避形）', /backoffMs = Math\.min\(backoffMs \* 2, BACKOFF_MAX_MS\)/.test(stream) && /setTimeout\(run, delay\)/.test(stream));
 
 // 语义仿真：断流退化快照——store 水印判只升不降（applyHeadless 同律复刻）：
 // 存量快照在流挂/败时不清；陈帧≤水位弃不覆快照；新帧 seq>水位补洞。
