@@ -1,6 +1,7 @@
 # T-0151 黑名单回扫覆面补 probe/degraded 态（T-0147 验收衍生）
 
-## 态：✅ 验收毕投产（决策席 2026-10-26）
+## 态：审计通过
+审计席：headless @ 2026-10-30
 ## 领取：zcode-o-7d3f @ 2026-10-26
 ## 域：执行径 / venue 终局分类
 ## 源出：T-0147 验收生产窗实案——0061 trigger 谓词只覆
@@ -55,3 +56,26 @@ probe→live 晋升后首开仓才被 opener 黑名单闸退役，窗口期策�
   语义与 trigger 体同构。
 - 生产实证锚（待验席合并部署后可亲证）：黑名单新入册任一非 retired 态
   策略=入册即退（桩测同形直证）；存量侧合并时 0062 清尾自动落。
+
+## 判决注记（审计席逐锚对账，收口 86982d6d diff+生产只读取证）
+
+- 锚①五态全覆盖桩绿：0062 trigger 谓词 IN 五态 diff 亲证；桩码实存
+  untradeable_test.go——TestRetroTwoStates 五态逐腿入册即退+retroactive
+  溯源行+retired 闭集自挡零 transition、TestUntradeableGuardTwoStates
+  probe/degraded 显式迁移非 retroactive 行恰一（回退单态守卫必红设计）。
+  状态闭集=0007 CHECK 六态亲证、谓词集=六态减 retired 恰合；五态→retired
+  全合法（lifecycle/machine.go legal map 亲证）；helper（setupDB/t51001/
+  hedgeOpener 字段）签名吻合。存量=零：0062 迁移内一次性回扫（transition
+  溯源行 reason=…:0062_backfill+retired+fin_armed→fin_retired 谓词自挡
+  幂等），prod 实测 nonretired_on_blacklist=0、schema_migrations v62 已应用、
+  pg_proc 函数体含五态谓词——机制在产非仅码面。
+- 锚②生产实证（条件锚「如再出现」）：prod trigger 函数五态谓词已投产，
+  fin_venue_untradeable 现空=幽灵当前不存在；桩测同形直证入册即退语义，
+  条件满足。
+- 顺带核项：paper.go promote() 不读 fin_venue_untradeable 亲证（函数
+  全文无该表引用）；universe.go:70 滤面读黑名单实存——纵深三层在，票面
+  「未读=靠 opener 兜底可接受」判语成立，记档一致。
+- 工程面：迁移登记 migrate_table.go {62}（经 T-0167 归一化名 fin_0062
+  与文件一致）；open.go 297 行未超闸、*_test.go 豁免；无凭据入仓、无
+  快照/定时器/轮询违例、无 env 直读新增。
+- 判：审计通过。
