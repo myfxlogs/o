@@ -14,6 +14,7 @@ import { onLive } from "../stream";
 import { applyHeadless, useSlice } from "../store";
 import { Component, type ReactNode } from "react";
 import { Card, EmptyState, Skeleton, StateDot } from "../components/ui";
+import { AGE } from "../components/panel";
 import type { GetCockpitResponse, CockpitPlatformRow, CockpitSeat, CockpitTicket, CockpitArmed } from "../../gen/dashboardv1/core_pb";
 
 const T_PAGE = 10; // 分页页长：③工单板=T-0262 后端 ticket_limit 同值；无头面=本地切片同值
@@ -59,6 +60,7 @@ function Pager(props: { page: number; pages: number; total: number; onPage: (p: 
 // HeadlessTile 无头状态面（T-0263 推送制照旧——取数泵上提页级单源，本件纯
 // 渲染；v2 本地切片分页：推送全量→本地切 10 行/页，零后端改动；.tile-scroll
 // 定高滚动——瓦片高度固定，页高不被行数撑）。
+// v3 呼吸灯：瓦片右上角状态点（绿呼吸=无异响；红=含死亡/停滞/逾期单）。
 function HeadlessTile() {
 	const hl = useSlice("headless");
 	const [page, setPage] = useState(1);
@@ -67,11 +69,16 @@ function HeadlessTile() {
 	const pages = Math.max(1, Math.ceil(rows.length / T_PAGE));
 	const safePage = Math.min(page, pages);
 	const view = rows.slice((safePage - 1) * T_PAGE, safePage * T_PAGE);
+	const bad = rows.filter((r) => r.state === "dead" || r.state === "stalled" || r.state === "overdue").length;
+	const alive = rows.filter((r) => r.state === "alive").length;
+	const done = rows.filter((r) => r.state === "done").length;
 	return (
-		<Card title="③ 无头状态面（推送制）">
+		<Card title="③ 无头状态面（推送制）"
+			extra={<StateDot state={bad > 0 ? 2 : 0} breathe={bad === 0}
+				title={`${alive} 在飞 · ${done} 完工${bad > 0 ? ` · ${bad} 异常` : ""}`} />}>
 			{rows.length === 0 ? <EmptyState title="无在册无头单" /> : <>
 				<div className="tile-scroll">
-					<table><thead><tr><th>票</th><th>席</th><th>底模</th><th>相位</th><th>五态</th><th>最后活动</th></tr></thead>
+					<table className="tile-table"><thead><tr><th>票</th><th>席</th><th>底模</th><th>相位</th><th>五态</th><th>最后活动</th></tr></thead>
 						<tbody>{view.map((r) => <tr key={r.ticket}><td>{r.ticket}</td><td>{r.seat}</td>
 							<td>{r.model || "—"}</td><td>{r.phase || "—"}</td><td>{HL_STATE[r.state] ?? r.state}</td><td>{ts(r.lastActivity)}</td></tr>)}</tbody></table>
 				</div>
@@ -136,6 +143,11 @@ export function CockpitPage() {
 	const hlBad = hlRows.filter((r) => r.state === "dead" || r.state === "stalled" || r.state === "overdue").length;
 	const hlAlive = hlRows.filter((r) => r.state === "alive").length;
 	const hlDone = hlRows.filter((r) => r.state === "done").length;
+	// v3 呼吸灯：瓦片右上角状态点统一灯语（绿呼吸=段数据在；红=段缺/异常），
+	// title 携鲜度（快照 asOf / 最近自报——AGE 同 panel 件）。纯显示映射零判据。
+	const asOfD = d.asOf ? new Date(Number(d.asOf.seconds) * 1000) : null;
+	const asOfAge = asOfD ? AGE(asOfD) : "—";
+	const lastSeatAge = lastSeatTs ? AGE(new Date(Number(lastSeatTs.seconds) * 1000)) : "—";
 	return (
 		<div className="page">
 			<div className="health-strip">
@@ -147,7 +159,7 @@ export function CockpitPage() {
 			    数字第二层；trx-kpi-strip=TRX 首档同源件，零新 CSS）—— */}
 			<div className="trx-kpi-strip">
 				<Card className="kpi" title="① 钱安全吗"
-					extra={m ? <StateDot state={expSt} breathe={expSt === 0} title="敞口硬线判态（服务端派生）" /> : undefined}>
+					extra={m ? <StateDot state={expSt} breathe={expSt === 0} title={`敞口硬线判态（服务端派生）· 快照 ${asOfAge}`} /> : undefined}>
 					{sec("money", !m ? <p className="dim">该段数据缺</p> : <>
 						<div className={"kpi-v " + (expSt === 0 ? "u-good" : expSt === 2 ? "u-bad" : "")}>
 							{{ 0: "合规绿", 1: "顶格黄", 2: "越限红" }[expSt] ?? "—"}
@@ -156,7 +168,8 @@ export function CockpitPage() {
 						<div className="kpi-note">停泊 ${parked.toFixed(0)}（闲资默认活期/Earn——见执行面件）</div>
 					</>)}
 				</Card>
-				<Card className="kpi" title="② 赚了多少（MTD）">
+				<Card className="kpi" title="② 赚了多少（MTD）"
+					extra={<StateDot state={miss.has("money") ? 2 : 0} breathe={!miss.has("money")} title={`快照 ${asOfAge}`} />}>
 					{sec("money", !m ? <p className="dim">该段数据缺</p> : <>
 						<div className={"kpi-v " + (m.netMonth >= 0 ? "u-good" : "u-bad")}>
 							{m.netMonth >= 0 ? "月赚 " : "月亏 "}${Math.abs(m.netMonth).toFixed(2)}
@@ -164,7 +177,8 @@ export function CockpitPage() {
 						<div className="kpi-note">本金水位 ${m.capital.toFixed(2)}</div>
 					</>)}
 				</Card>
-				<Card className="kpi" title="② 近 30 天">
+				<Card className="kpi" title="② 近 30 天"
+					extra={<StateDot state={miss.has("money") ? 2 : 0} breathe={!miss.has("money")} title={`快照 ${asOfAge}`} />}>
 					{sec("money", !m ? <p className="dim">该段数据缺</p> : <>
 						<div className={"kpi-v " + (d30 >= 0 ? "u-good" : "u-bad")}>
 							{d30 >= 0 ? "赚 " : "亏 "}${Math.abs(d30).toFixed(2)}
@@ -187,14 +201,16 @@ export function CockpitPage() {
 			{/* —— 次档·答④要我动的（armed）+①②数字第二层（平台明细；
 			    近30d 日净原序列折此可查，首档只留人话结论）—— */}
 			<div className="duo">
-				<Card title="④ 待开仓（armed）">{sec("armed",
+				<Card title="④ 待开仓（armed）"
+					extra={<StateDot state={miss.has("armed") ? 2 : 0} breathe={!miss.has("armed")} title={`${d.armed.length} 单 · 快照 ${asOfAge}`} />}>{sec("armed",
 					d.armed.length === 0 ? <EmptyState title="无待开仓" hint="armed 队列为空——无待动事项" /> :
-						<table><thead><tr><th>#</th><th>标的</th><th>方向</th><th>建时</th><th>TTL余(h)</th></tr></thead>
+						<div className="tile-scroll"><table className="tile-table"><thead><tr><th>#</th><th>标的</th><th>方向</th><th>建时</th><th>TTL余(h)</th></tr></thead>
 							<tbody>{d.armed.map((a: CockpitArmed) => <tr key={a.id}><td>{a.id}</td><td>{a.instId}</td>
-								<td>{a.direction}</td><td>{ts(a.created)}</td><td>{a.ttlHoursLeft.toFixed(1)}</td></tr>)}</tbody></table>)}
+								<td>{a.direction}</td><td>{ts(a.created)}</td><td>{a.ttlHoursLeft.toFixed(1)}</td></tr>)}</tbody></table></div>)}
 				</Card>
-				<Card title="①② 钱面平台明细">{sec("money", !m ? <p className="dim">该段数据缺</p> : <>
-					<table><thead><tr><th>平台</th><th>承诺</th><th>已入</th><th>停泊</th><th>敞口</th></tr></thead>
+				<Card title="①② 钱面平台明细"
+					extra={<StateDot state={miss.has("money") ? 2 : 0} breathe={!miss.has("money")} title={`${m?.platforms.length ?? 0} 平台 · 快照 ${asOfAge}`} />}>{sec("money", !m ? <p className="dim">该段数据缺</p> : <>
+					<table className="tile-table"><thead><tr><th>平台</th><th>承诺</th><th>已入</th><th>停泊</th><th>敞口</th></tr></thead>
 						<tbody>{m.platforms.map((p: CockpitPlatformRow) => <tr key={p.platform}><td>{p.platform}</td><td>{p.committed < 0 ? "未设" : p.committed.toFixed(0)}</td>
 							<td>{p.platform === "MT5" && miss.has("mt5") ? "数据缺" : p.deposited.toFixed(0)}</td><td>{p.parked.toFixed(0)}</td><td>{p.exposure.toFixed(0)}</td></tr>)}</tbody></table>
 					{miss.has("mt5") && <p className="dim">MT5 平台已入段数据缺（mt5Live 读败——合计行为不含 MT5 部分口径，非真 0）</p>}
@@ -204,15 +220,17 @@ export function CockpitPage() {
 			</div>
 			{/* —— 三档·答③机器面（席位/工单概要）—— */}
 			<div className="duo">
-				<Card title="③ 席位与在做什么">{sec("seats",
+				<Card title="③ 席位与在做什么"
+					extra={<StateDot state={miss.has("seats") ? 2 : 0} breathe={!miss.has("seats")} title={`最近自报 ${lastSeatAge}`} />}>{sec("seats",
 					d.seats.length === 0 ? <EmptyState title="无在册席位" /> :
-						<table><thead><tr><th>席</th><th>票</th><th>阶段</th><th>最近自报</th><th>备注</th></tr></thead>
+						<table className="tile-table"><thead><tr><th>席</th><th>票</th><th>阶段</th><th>最近自报</th><th>备注</th></tr></thead>
 							<tbody>{d.seats.map((s: CockpitSeat) => <tr key={s.seat}><td>{s.seat}</td><td>{s.ticket}</td>
 								<td>{s.stage}</td><td>{ts(s.ts)}</td><td>{s.note}</td></tr>)}</tbody></table>)}
 				</Card>
-				<Card title="③ 工单板">{sec("tickets",
+				<Card title="③ 工单板"
+					extra={<StateDot state={miss.has("tickets") ? 2 : 0} breathe={!miss.has("tickets")} title={`${d.ticketsTotal} 单 · 快照 ${asOfAge}`} />}>{sec("tickets",
 					d.tickets.length === 0 ? <EmptyState title="无工单" /> :
-						<table><thead><tr><th>票</th><th>状态</th><th>席</th><th>时间</th></tr></thead>
+						<table className="tile-table"><thead><tr><th>票</th><th>状态</th><th>席</th><th>时间</th></tr></thead>
 							<tbody>{d.tickets.map((t: CockpitTicket) => <tr key={t.ticket}><td>{t.ticket}</td><td>{t.state}</td>
 								<td>{t.seat}</td><td>{ts(t.ts)}</td></tr>)}</tbody></table>)}
 					<Pager page={safePage} pages={tPages} total={d.ticketsTotal} onPage={setPage} />

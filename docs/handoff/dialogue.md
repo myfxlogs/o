@@ -378,3 +378,10 @@
 - **MANAGE-427（业主飞书转令）**：回投链三缺陷立 T-0270·P1 即派（DM-529）——spawn 假成功 rc=0 缺产物核验/静默死无 exit 行/glm-5.3[1m] unrecognized；施工面=/opt/meta/bin/manage-spawn.sh（仓外 meta 层钦定）。
 - **并行面实录**：T-0267/0268/0269 三无头在飞+CEO 席 check_all——五席并行盖戳下 5435 绿实证（load-flaky 坑条目同日主笔生效）；5436 撞 DSN 一次（ceo-charter 席同占，B 案机化 T-0266 前靠取号自觉）。
 - **箱面**：两波噪音代清（首波28+续波44 注「代清-回执噪音」），真指令 MANAGE-388/391/401/427 随处置逐件 ack——箱清零。
+
+## 2026-10-31 夜 — 施工席：驾驶舱v3（清道夫核诊+呼吸灯+排布）
+
+- **外部任务书**（/opt/meta/docs/施工任务书-驾驶舱v3-呼吸灯与排布.md，业主令：完成即部署）：A 清道夫-md 红灯核诊（先查真伪）/B 全瓦片呼吸灯/C 瓦片表格解挤；禁线=只动前端+真坏修复另走急诊线+礼让 T-0268（store/api/stream 零触）。
+- **A 定性=真坏**（三重亲证）：①SG 册清道夫-md last_beat=10-28 21:14:29Z 陈 2 天 1:55（30s 拍）；②OCI/dev 两机零 sweeper 进程零 unit（OCI 服务清单无此件）；③PG-md fin_data_retention audit_keep 行 last_swept_at=NULL（sweepAuditKeep 从未成功收尾）。**根因=10-28 采集层 cutover 迁移清单漏件——sweeper-md 未在 OCI 重建，孤儿 2 天**。T-0241 v4③「OCI 侧独立容器在跑」前提已陈旧。任务书猜「与四信号臂同根因」不成立（FIX-02 已证四臂真源健康、SG 冻结=projector 镜像伪象）。修复建议：OCI 用户级 o-sweeper.service（MD_PG_DSN=本机 5435+SG_PG_DSN=隧道 15433）——急诊线，候管理席。
+- **B/C 交付**（涉及面=web/src/react/** 五文件）：两页全瓦片右上角 StateDot 统一灯语（绿呼吸=段数据在/黄=陈/红=缺或死——复用既有 breathe 件与三态节奏，零新灯）+title 携鲜度（快照 asOf/最近自报/最陈行/beat 阈语义）；Cockpit 5 裸表入 .tile-table（padding 9×14/斑马纹墨 4%/表头吸顶/首列左对齐/tabular-nums）+.duo/.quad 间距 20→24px+armed 表入 .tile-scroll 滚动兜底。
+- **证**：npm run build（含 typecheck 前置）绿；cockpit_degrade 桩测全绿（sec/SecBoundary/流语义零伤）；流推送面（stream/store/api/hooks）零改动。部署后 System 页现成三态实证场：绿=健康行、红=清道夫-md（真坏如实红）、黄/红=采集行随 projector 修复前后对比。

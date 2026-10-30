@@ -91,7 +91,22 @@ export function HostMetricsCard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   return (
-    <Card title="主机资源">
+    <Card
+      title="主机资源"
+      extra={
+        (h.data?.hosts ?? []).length > 0 ? (
+          <StateDot
+            state={(h.data?.hosts ?? []).some((hm) => hm.stale) ? 2 : 0}
+            breathe={!(h.data?.hosts ?? []).some((hm) => hm.stale)}
+            title={`${(h.data?.hosts ?? []).length} 机自报${
+              (h.data?.hosts ?? []).some((hm) => hm.stale)
+                ? "——含停拍机（>2min）"
+                : " 在拍（30s 拍）"
+            }`}
+          />
+        ) : undefined
+      }
+    >
       {h.loading && !h.data ? (
         <Skeleton rows={4} />
       ) : h.err && !h.data ? (

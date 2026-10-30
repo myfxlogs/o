@@ -81,6 +81,16 @@ export function SystemPage() {
     ...devBad.map((r) => ({ state: r.state, name: r.name })),
     ...sgBad.map((r) => ({ state: r.state, name: r.name })),
   ];
+  // v3 呼吸灯：瓦片右上角状态点统一灯语（title 携最陈行鲜度——AGE 同 panel 件；
+  // 纯显示映射零判据，判态仍服务端派生）。
+  const oldestAge = (rows: { ageIso: string | null }[]) => {
+    const ts = rows
+      .map((r) => (r.ageIso ? new Date(r.ageIso).getTime() : NaN))
+      .filter((t) => !isNaN(t));
+    return ts.length ? AGE(new Date(Math.min(...ts))) : null;
+  };
+  const sgOldest = oldestAge(sgRowsFinal);
+  const devOldest = oldestAge(devRows);
 
   return (
     <div className="page">
@@ -117,18 +127,18 @@ export function SystemPage() {
       {/* ② 交易（生产）第一——钱径面永远先于管道面 */}
       {h.data ? (
         <Card
-          title={
-            <>
+          title="生产机（SG）——交易与本地臂"
+          extra={
+            <span
+              className="ink-3"
+              style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+            >
+              {sgBad.length === 0 ? "全部正常" : `${sgBad.length} 件异常`}
               <StateDot
                 state={Math.max(0, ...sgRowsFinal.map((r) => r.state))}
                 breathe={sgRowsFinal.some((r) => r.state !== 2)}
-              />{" "}
-              生产机（SG）——交易与本地臂
-            </>
-          }
-          extra={
-            <span className="ink-3">
-              {sgBad.length === 0 ? "全部正常" : `${sgBad.length} 件异常`}
+                title={sgOldest ? `最陈行 ${sgOldest}` : "无鲜度行"}
+              />
             </span>
           }
         >
@@ -143,18 +153,18 @@ export function SystemPage() {
       {/* ③ 采集——管道面（含 SG 采集臂进程观测组） */}
       {h.data ? (
         <Card
-          title={
-            <>
+          title="采集（OCI）——行情与蒸馏管道"
+          extra={
+            <span
+              className="ink-3"
+              style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+            >
+              {devBad.length === 0 ? "全部正常" : `${devBad.length} 件异常`}
               <StateDot
                 state={Math.max(0, ...devRows.map((r) => r.state))}
                 breathe={devRows.some((r) => r.state !== 2)}
-              />{" "}
-              采集（OCI）——行情与蒸馏管道
-            </>
-          }
-          extra={
-            <span className="ink-3">
-              {devBad.length === 0 ? "全部正常" : `${devBad.length} 件异常`}
+                title={devOldest ? `最陈行 ${devOldest}` : "无鲜度行"}
+              />
             </span>
           }
         >
@@ -172,13 +182,35 @@ export function SystemPage() {
       {/* ④ 主机资源（行2 左） */}
       <HostMetricsCard />
 
-      <Card title="席位在册">
+      <Card
+        title="席位在册"
+        extra={
+          (ov.data?.staff ?? []).length > 0 ? (
+            <StateDot
+              state={Math.max(0, ...(ov.data?.staff ?? []).map((s) => s.state))}
+              breathe={(ov.data?.staff ?? []).some((s) => s.state !== 2)}
+              title={`${(ov.data?.staff ?? []).length} 席在册——红=beat 陈>5min${
+                (ov.data?.staff ?? []).filter((s) => s.state === 2).length
+                  ? ` · 陈席: ${(ov.data?.staff ?? [])
+                      .filter((s) => s.state === 2)
+                      .map((s) => s.name)
+                      .join("、")}`
+                  : ""
+              }`}
+            />
+          ) : undefined
+        }
+      >
         {(ov.data?.staff ?? []).length === 0 ? (
           <EmptyState title="花名册暂缺" hint="席位注册后此处逐盏亮灯" />
         ) : (
           <div className="chips">
             {(ov.data?.staff ?? []).map((s) => (
-              <span key={s.name} className="chip">
+              <span
+                key={s.name}
+                className="chip"
+                title={`${s.duty}——红=beat 陈>5min（查进程与册）`}
+              >
                 <StateDot state={s.state} breathe={s.state !== 2} /> {s.name}
               </span>
             ))}
