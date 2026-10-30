@@ -48,6 +48,10 @@
 
 `[角色:X][T-NNNN] 摘要`；非任务单工作用 `[角色:X] 摘要`。
 
+## 每席专库（绿戳 DSN 隔离，T-0266/B 案）
+
+盖戳/跑测 DSN=每席一性专库——无头席 spawn 时 wrapper 自动租注 `O_TEST_PG_DSN`；交互席起手 `export O_TEST_PG_DSN=$(/opt/o/scripts/testdb.sh alloc <席名> $$)`。池位 `o-postgres-test-{b..i}`@127.0.0.1:5435–5442，名册现态 `scripts/testdb.sh status`；池尽/缺席落 5434 共享兜底。在飞席不可中途改 DSN。细则=`docs/工程纪律.md` §4.3。
+
 ## 进度自报（事件驱动面，2026-10-29 负责人令）
 
 里程碑动作完成时顺手执行 `~/bin/report.sh <事件> <T-编号> ["备注"]`（失败静默，不阻断主务）：
