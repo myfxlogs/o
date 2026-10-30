@@ -93,6 +93,7 @@ var migrationTable = []struct {
 	{84, "fin_0084_arch_eval_reject.sql"},
 	{86, "fin_0086_ops_event.sql"},
 	{87, "fin_0087_maker_ordtype.sql"},
+	{88, "fin_0088_exec_venue_err.sql"},
 
 	// —— md 链（版本链内唯一且单调；md 链版本=历史号+1000 与 fin 键空间全局不相交——跨链并 schema 时 schema_migrations 零撞号，check_migrations 断言①⑤）——
 	{1003, "md_1003_market_facts.sql"},
