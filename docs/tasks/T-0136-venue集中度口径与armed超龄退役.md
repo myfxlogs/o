@@ -51,4 +51,13 @@
 
 - 三锚全落：venue 口径修上线；armed 退役 996 提案+82 策略（TTL 热启收紧 4h——armed_ttl_h=4 已落 app_config）；拒放 0/3min（原 580/min）
 - RX 4767→2273 kbps 排水进行式（probe/paper 队列 4h 陈化中，趋势向下）
-- 状态：✅ 验收合入部署
+- 状态：驳回:锚④单测零交付（venue 新口径/armed 超龄退役均无测试落件）；策略退役裸 UPDATE 未写 transition 留痕；op.Open 拒径缺 denyAt 戳（返修B 三径仅落两径）
+- 审计席：headless @ 2026-10-30
+
+## 审计判决注记（无头单飞——逐锚对账 @0b0bcf45）
+
+- 锚① venue 口径修：达。`check.go` 分子=open 持仓 notional（venue 经 strategy 关联）+在途 `fin_execution state='open'`；0 仓 0 在途 vExp=0，exposure_cap 同径并轨。
+- 锚② armed 超龄退役：半达。提案 `fin_armed`+created_at 超龄→`fin_retired`、策略 `live/probe`+无仓+活动超龄→`retired`（返修 A 谓词如口令），TTL 键热启接线实。但策略侧裸 `UPDATE` 未写 `fin_strategy_transition`——同文件 degraded 退役径走 `Transition()` 落 reason 行（机制已存未用），库内 reason 不可查，唯日志行；提案侧无 reason 列属 schema 强制（票面已裁，不计缺）。
+- 锚③ 拒放冷窗：机制落（denyAt+`lifecycle.reject_cooldown_s` 缺省 300s，冷窗查前置保险丝前合规）；返修 B 钦定 lifetimeOK/breakevenOK/op.Open 三拒径同写戳——实盘 op.Open 败径仅 `rej.Inc("open_failed")` 无写戳，三径落两径（开仓连败仍逐轮 WARN 无冷窗）。
+- 锚④ 单测：缺。交付区间（@068ede0+@1cea248）零测试文件——venue 新口径测、armed_ttl 退役测、denyAt 冷窗测均无（既有 TestDegradedTTLRetire 系 degraded 径非同物）；票面验收自书「三锚全落」亦仅认三锚。
+- 重飞依据：补锚④单测（armed 在册不计 venue 分子+超龄退役触发+冷窗窗内 skip）；策略退役径落 transition 行（reason=armed_ttl_expired 类）；op.Open 败径补 denyAt 写戳。
