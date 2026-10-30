@@ -351,3 +351,12 @@
 - **部署钦定径四闸全过**：o-core:00a6b6a69a88 产地尾拍自报+健康闸 healthy（14:50Z 区）。
 - **半速点火 2026-10-30T06:51:36Z（=24h 观察窗起算）**：SG app_config——grammar.scan_interval_min 120→240(gen361)、gap.scan_interval_min 360→720(gen362)、lifecycle.reject_cooldown_s **补种**600(gen364)。**缺键裁**：reject_cooldown_s SG 侧原缺位（码默认 300，opener.go:97）——按管理令「缺键即报不猜」如实报 MANAGE，同时按钉名补种 600 落实 300→600 语义（钉名在案=非猜；exec.reopen_cooldown_sec=guard 再开冷却异语义未动）。funding 臂事件驱无 interval 键=半速天然缺臂，已报 MANAGE 候裁（notional 半额/threshold 升档径）。mbus 报文 id 20261030-145152-DM-280。
 - **未尽**：T-0259 收口待审在飞随批后；T-0264/0249 不堵本批；24h 窗首日复跑报径=MANAGE 箱（MANAGE-106 裁一盯达标确认全速）。
+
+## 2026-10-30 暮 — 决策席：波后清账会话（devin dm-closeout-1030e，管理席令 15:1x 五件）
+
+- **进仓**：部署树 detached@origin/master 常检净面；DM 箱 34 件=6 指令（MANAGE-193/220/221/222/242/245）+28 回执噪音（批量 ack 注「代清-回执噪音」）。
+- **并码 T-0259**：判决「审计通过」14:46 在案（DM-279）。集成支 dm/1030-t0259-merge 并 dec-t0259-audit——**fin_0088 撞号**（master=T-0263 ops_headless）→迁移改号 fin_0089_exec_venue_err+migrate_table 登 89+票面/坑条目文引同修。绿戳走隔离库 O_TEST_PG_DSN@5436（B 案钦定径首用）。坑：/opt/o gen 陈旧（缺 GetHeadless）——worktree 内 `buf generate --template buf.gen.core.yaml` 重生即解（provision 拷的是快照）。
+- **立票四张**：T-0265（TRX 租金分类回归=P1 即派——trx.go:64 nil 名单/floor 硬码 0.10、3 笔错账回改、trx.rental_payers 键、ops_event 防空跑告警）/T-0266（绿戳 B 案机化——每席一次性库+纪律文「DSN 隔离下并行盖戳」，5434 降兜底）/T-0267（MANAGE-245 双件合一票——每席预算账 wrapper→ops 表→cockpit 成本列 + 门2门3 manage-watch/晨单 cron + 状态注入块替 pgrep）/T-0268（前端首屏三件——getHeadless 并入 getCockpit/流不阻塞首绘/immutable 缓存头）。**裁注**：令曰「立票三张」，245 双件合一票面处理（件A/件B/件C 三段钦定界）——若管理席要拆票即报即拆。
+- **核销波**：①T-0225 验合最前——eebdcb4（PR#24）在 master、ci.yml route+fastpath 段实证，翻终态=完成；②18 张「审计通过」滞态翻完成——harvest.log 行引 14 张（T-0002/0003/0007/0010/0012/0014/0015/0017/0021/0025/0027/0030/0032/0250）+落票 commit 引 4 张（T-0253/0254/0256/0257）；③T-0248 翻完成（MANAGE-193：ae9b941 已在 o-core:0dd4c069e280）；④僵尸三张核销留痕——T-0234（支已并 master 祖先实证）/T-0235（9abc4be 在 master+业主群实收）/T-0202（销号投产 a138278+SG 拒因绝迹在票），均翻完成。
+- **判词残面如实报 MANAGE**：驳回 4 张（T-0005「报管理席裁」/T-0029/T-0238/T-0241 闭环但驳回=疑假待立修复票——anchor 亲审后立，本波不动 sweep 在跑面）；缺 2 张（T-0033/0045 审计坠亡，候 sweep 复跑）；判词缺位 11 张中日志载判=驳回 4 张（T-0009/0013/0022/0026——T-0009 已被 10-30 复判通过覆盖，余三张候 sweep 续跑落判后裁）。
+- **禁线守**：半速三键未动；/opt/o 工作树外零触碰；T-0249 sweep 面（queue/lander/审计支）零干预——本波只翻「审计通过」滞留态，不碰在跑票的判词落位。
