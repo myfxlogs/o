@@ -5,11 +5,15 @@ import { client } from "../api";
 import { Component, type ReactNode } from "react";
 import type { GetCockpitResponse, CockpitPlatformRow, CockpitSeat, CockpitTicket, CockpitArmed } from "../../gen/dashboardv1/core_pb";
 
+const T_PAGE = 10; // ③工单板页长（T-0262——后端 ticket_limit 同值）
+
 export function CockpitPage() {
 	const [d, setD] = useState<GetCockpitResponse | null>(null);
+	const [page, setPage] = useState(1);
 	useEffect(() => {
-		client.getCockpit({}).then(setD).catch(() => setD(null));
-	}, []);
+		client.getCockpit({ ticketLimit: T_PAGE, ticketOffset: (page - 1) * T_PAGE })
+			.then(setD).catch(() => setD(null));
+	}, [page]);
 	if (!d) return <div className="page">载中…</div>;
 	const ts = (t?: { seconds: bigint }) =>
 		t ? new Date(Number(t.seconds) * 1000).toLocaleString("zh-CN", { hour12: false }) : "—";
@@ -18,6 +22,8 @@ export function CockpitPage() {
 		miss.has(name) ? <p className="dim">该段数据缺（查询败——不冒零）</p> :
 			<SecBoundary>{el}</SecBoundary>;
 	const m = d.money; // money 块缺段判据真源=服务端 missing 字段——?. 后链式禁裸调
+	const tPages = Math.max(1, Math.ceil(d.ticketsTotal / T_PAGE));
+	const safePage = Math.min(page, tPages);
 	return (
 		<div className="page">
 			<h2>业主驾驶舱（快照 {ts(d.asOf)}）</h2>
@@ -38,7 +44,14 @@ export function CockpitPage() {
 			<section><h3>③ 工单板</h3>{sec("tickets", <>
 				<table><thead><tr><th>票</th><th>状态</th><th>席</th><th>时间</th></tr></thead>
 				<tbody>{d.tickets.map((t: CockpitTicket) => <tr key={t.ticket}><td>{t.ticket}</td><td>{t.state}</td>
-					<td>{t.seat}</td><td>{ts(t.ts)}</td></tr>)}</tbody></table></>)}</section>
+					<td>{t.seat}</td><td>{ts(t.ts)}</td></tr>)}</tbody></table>
+				{tPages > 1 && (
+					<div className="pager">
+						<button type="button" disabled={safePage <= 1} onClick={() => setPage(safePage - 1)}>上一页</button>
+						<span>第 {safePage} / {tPages} 页（共 {d.ticketsTotal} 条）</span>
+						<button type="button" disabled={safePage >= tPages} onClick={() => setPage(safePage + 1)}>下一页</button>
+					</div>
+				)}</>)}</section>
 			<section><h3>④ 待开仓（armed）</h3>{sec("armed", <>
 				<table><thead><tr><th>#</th><th>标的</th><th>方向</th><th>建时</th><th>TTL余(h)</th></tr></thead>
 				<tbody>{d.armed.map((a: CockpitArmed) => <tr key={a.id}><td>{a.id}</td><td>{a.instId}</td>
