@@ -35,6 +35,12 @@ func (c coreService) watchPayload(ctx context.Context, kind string) (*structpb.S
 			return nil, err
 		}
 		resp = r
+	case "ev_headless":
+		r, err := c.GetHeadless(ctx, &dashboardv1.GetHeadlessRequest{})
+		if err != nil {
+			return nil, err
+		}
+		resp = r
 	default:
 		return nil, nil // ev_account/ev_strategy/watch_open=纯信号帧
 	}
