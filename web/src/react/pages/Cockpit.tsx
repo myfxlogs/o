@@ -76,9 +76,9 @@ export function CockpitPage() {
 					{miss.has("mt5") && <p className="dim">MT5 平台已入段数据缺（mt5Live 读败——合计行为不含 MT5 部分口径，非真 0）</p>}</>)}
 				</Card>
 				<Card title="③ 工单板">{sec("tickets", <>
-					<table><thead><tr><th>票</th><th>状态</th><th>席</th><th>时间</th></tr></thead>
+					<table><thead><tr><th>票</th><th>状态</th><th>席</th><th>用量(tok)</th><th>时间</th></tr></thead>
 					<tbody>{d.tickets.map((t: CockpitTicket) => <tr key={t.ticket}><td>{t.ticket}</td><td>{t.state}</td>
-						<td>{t.seat}</td><td>{ts(t.ts)}</td></tr>)}</tbody></table>
+						<td>{t.seat}</td><td>{Number(t.usageRows) > 0 ? Number(t.totalTokens).toLocaleString() : "—"}</td><td>{ts(t.ts)}</td></tr>)}</tbody></table>
 					{tPages > 1 && (
 						<div className="pager">
 							<button type="button" disabled={safePage <= 1} onClick={() => setPage(safePage - 1)}>上一页</button>

@@ -101,6 +101,29 @@ func TestGetCockpitBlocks(t *testing.T) {
 			t.Fatalf("不该 missing: %v", r2.Missing)
 		}
 	}
+	// T-0267 件A 成本列：ops_ticket_usage 两行聚合（含一行 NULL=不可得账）
+	// →工单板 total_tokens=实测行合计+usage_rows=账行数（NULL 行照计行数）。
+	if _, err := c.pool.Exec(ctx, `INSERT INTO ops_ticket_usage(ticket,kind,model,prompt_tokens,completion_tokens,cached_tokens)
+		VALUES('T-9999','run','m',100,20,5),('T-9999','audit','m',NULL,NULL,NULL)`); err != nil {
+		t.Fatal("用量桩:", err)
+	}
+	r3, err := c.GetCockpit(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, tk := range r3.Tickets {
+		if tk.Ticket != "T-9999" {
+			continue
+		}
+		found = true
+		if tk.TotalTokens != 120 || tk.UsageRows != 2 {
+			t.Fatalf("用量聚合错: toks=%d rows=%d", tk.TotalTokens, tk.UsageRows)
+		}
+	}
+	if !found {
+		t.Fatal("T-9999 工单行缺——聚合 JOIN 断径")
+	}
 }
 
 // T-0262 验收锚①②：工单板每页≤10+跨页不重不漏+稳定序（ts DESC,ticket DESC）对拍。
