@@ -27,7 +27,7 @@ func stageOf(ev string) string {
 }
 
 func (c coreService) GetCockpit(ctx context.Context,
-	_ *dashboardv1.GetCockpitRequest) (*dashboardv1.GetCockpitResponse, error) {
+	req *dashboardv1.GetCockpitRequest) (*dashboardv1.GetCockpitResponse, error) {
 	r := &dashboardv1.GetCockpitResponse{Money: &dashboardv1.CockpitMoney{}}
 
 	// ①⑤ 存活面+在做什么：每席最新自报→阶段派生
@@ -141,10 +141,23 @@ func (c coreService) GetCockpit(ctx context.Context,
 	now := time.Now()
 	r.AsOf = tsProto(now)
 
-	// ③ 工单板：ops_ticket_state 派生态（闭环只看近 7d）
+	// ③ 工单板：ops_ticket_state 派生态（闭环只看近 7d——过滤谓词下推 SQL）；
+	// T-0262 真分页：稳定序 ts DESC,ticket DESC（ticket 唯一=决胜键，同 ts
+	// 不漂移）+LIMIT/OFFSET，tickets_total=同谓词计数（前端零判据口径）。
+	const ticketFilter = `event IN ('领单','开工','收口','移交','挂起') OR ts>now()-interval '7 days'`
+	lim := int(req.GetTicketLimit())
+	if lim <= 0 {
+		lim = 10
+	}
+	off := max(int(req.GetTicketOffset()), 0)
+	if err := c.pool.QueryRow(ctx,
+		`SELECT count(*) FROM ops_ticket_state WHERE `+ticketFilter).Scan(&r.TicketsTotal); err != nil {
+		r.Missing = append(r.Missing, "tickets")
+	}
 	tr, err := c.pool.Query(ctx,
-		`SELECT ticket,event,ts,seat FROM ops_ticket_state ORDER BY ts DESC`)
-	if err != nil {
+		`SELECT ticket,event,ts,seat FROM ops_ticket_state WHERE `+ticketFilter+
+			` ORDER BY ts DESC, ticket DESC LIMIT $1 OFFSET $2`, lim, off)
+	if err != nil && !containsStr(r.Missing, "tickets") {
 		r.Missing = append(r.Missing, "tickets")
 	}
 	if err == nil {
@@ -161,9 +174,6 @@ func (c coreService) GetCockpit(ctx context.Context,
 			case "挂起":
 				tk.State = "挂起"
 			default:
-				if ts != nil && time.Since(*ts) > 7*24*time.Hour {
-					continue // 闭环超 7d 出局（近7d闭环计数面）
-				}
 				tk.State = "闭环"
 			}
 			if ts != nil {

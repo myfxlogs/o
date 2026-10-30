@@ -365,7 +365,10 @@ message CashflowRow {
 
 // —— 业主驾驶舱（T-0239——五块只读聚合：存活/钱面/工单板/待开仓/在做什么——
 // 服务端判态派生，前端零判据纯渲染）——
-message GetCockpitRequest {}
+message GetCockpitRequest {
+  int32 ticket_limit = 1;   // ③工单板页长（<=0=10——T-0262 分页下推）
+  int32 ticket_offset = 2;  // ③工单板偏移（<0=0）
+}
 message CockpitSeat {                    // 席存活面+⑤在做什么合并行
   string seat = 1;
   string ticket = 2;                     // 当前票（空=无自报）
@@ -410,4 +413,5 @@ message GetCockpitResponse {
   repeated CockpitArmed armed = 4;
   repeated string missing = 5;           // 各段查询败/表缺名表（seats/tickets/armed/money——显「数据缺」非冒零）
   google.protobuf.Timestamp as_of = 6;   // 快照戳（五块共用一帧——逐块显戳同源件）
+  int32 tickets_total = 7;               // ③工单板过滤后总行数（T-0262 分页下推）
 }
