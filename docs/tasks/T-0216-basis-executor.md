@@ -1,6 +1,6 @@
 # T-0216 basis 族 executor+short 腿能力缺口
 
-> 状态：审计通过 | 领取：claude-glm-t0216r @ 2026-10-29（首交 devin-t0216 打回返修续任） | 优先级：P2（次于 T-0215——数据刚就位，executor 后一步）
+> 状态：完成 | 领取：claude-glm-t0216r @ 2026-10-29（首交 devin-t0216 打回返修续任） | 优先级：P2（次于 T-0215——数据刚就位，executor 后一步）
 > 立项：决策席 @ 2026-10-28
 
 ## 面况
@@ -125,6 +125,11 @@ borrow-repay-history（read）双行在册 enabled=false（登记表补行）。
   287004≈17:39Z）到期将 basis_mark_stale fail-closed——与决策档挂起锚
   同因，须先重启 collector 补订现货腿再验 fill；paper fill 现零行属
   节拍内正常（elapsed<24h），非病灶。
+- 【残差核销·2026-10-30 决策席实证（MANAGE-114①）】o-core 10-29 17:02Z
+  重建（o-core:a6e8964cd15d）已携带本票 collector 侧 activeSet 现货腿
+  补丁；决策席亲证 md_ticks BTC-USDT 现货行新鲜在流（10-30 09:4x CST
+  age<2s）。ETH-USDT 现货行滞 3h+=T-0250 projector 侧归一臂未部署所致
+  （另票残差，非本票）。
 - 小注（不阻通过）：basis.go 结构卫语句（非到期键/过期/节拍未到）静默
   continue 未挂 rej——记账让位语义非拒单语义；detail JSON 拼接沿
   paper.go 同例；frows 中途 scan 败 break 留部分行，下拍自愈。
