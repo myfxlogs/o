@@ -369,3 +369,12 @@
   TRX 数字若出现须标「业主自营·托管面」。周报/11-15 止损日报表同口径。
 - 公司 fallback 单收线=Earn 停泊。TRX 分类错账修复（T-0265 域）照常做——托管服务质量，
   不入公司赚钱叙事。
+
+## 2026-10-30 暮续 — 决策席：清账尾波+T-0265验收（devin 续段）
+
+- **KB 归位**：坑条目三件并 PR#108（2c1d62d）——provision-stale-source-gen（gen 快照陈旧→buf generate Go-only 重生）/checkall-parallel-load-flaky-timing（DSN 隔离不治 CPU 争用）/migration-number-collision 补第四犯实证（T-0259↔T-0263 撞 0088）。
+- **MANAGE-388**：T-0265 票面业主注记落（TRX 自营=个人 P&L 托管面+全席报表口径）；**MANAGE-391/401**：HTTP2 修复 T-0269·P1 同票立（档一心跳/favicon+档二退避/双取/getHedgeStructure×3 去重，禁装 http2.Server 明列）→PR#109 并（3dc6880）即派无头在飞；401③KB 条目 h1-origin-h2-mismatch-diagnosis-path 随 PR#112 并（5073982）。
+- **T-0265 验收**：决策席审计判词=**通过**——生产面亲证 SG psql（该址 10-27 起 rental_income=3/deposit=0、trx.rental_payers 播种在案）、migrate_table {90} 码面正（收口文{89}系笔误）；工人 rebase（0089→0090）致原戳 9daedb8 非 HEAD，集成支复戳 632c085 全链绿→PR#110 并（ae5f2fa）翻终态=完成。锚 3/5 部署轮后自然收讫列观察项。
+- **MANAGE-427（业主飞书转令）**：回投链三缺陷立 T-0270·P1 即派（DM-529）——spawn 假成功 rc=0 缺产物核验/静默死无 exit 行/glm-5.3[1m] unrecognized；施工面=/opt/meta/bin/manage-spawn.sh（仓外 meta 层钦定）。
+- **并行面实录**：T-0267/0268/0269 三无头在飞+CEO 席 check_all——五席并行盖戳下 5435 绿实证（load-flaky 坑条目同日主笔生效）；5436 撞 DSN 一次（ceo-charter 席同占，B 案机化 T-0266 前靠取号自觉）。
+- **箱面**：两波噪音代清（首波28+续波44 注「代清-回执噪音」），真指令 MANAGE-388/391/401/427 随处置逐件 ack——箱清零。
