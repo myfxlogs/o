@@ -29,31 +29,34 @@ type TxsCollector struct {
 	store        *pgstore.Store
 	base         string
 	apiKey       func() string
-	tronscanBase string          // D-279：TronScan cheatStatus 查询基址（默认 DefaultTronscanBase，空=跳过）
-	rentalPayers map[string]bool // TRX_RENTAL_PAYERS env 解析集
-	// 能量租金率 floor 告警（NOX_TRX_ENERGY_RATE_FLOOR_PCT，默认 8.0；0=禁用）。
-	floorPct     float64
+	tronscanBase string // D-279：TronScan cheatStatus 查询基址（默认 DefaultTronscanBase，空=跳过）
+	// T-0265：付款方集=app_config trx.rental_payers 热读取件（装配点硬码 nil
+	// 回归根修——按 Poll 次读非 boot 捕获，D-0005 严格热启）。
+	rentalPayers func() []string
+	// 能量租金率 floor 告警（app_config trx.floor_pct 热读——撤 0.10 硬码；<=0=禁用）。
+	floorPct     func() float64
 	lastAlertDay string // 内存节流：上次告警 UTC 日期（YYYY-MM-DD），1 条/天
 	// 扳机三件套节流（各 1 条/天，内存日期戳）。
 	lastEnergy30dAlertDay string // 能量 30d 年化 <8% critical
 }
 
-// NewTxsCollector 创建交易流采集器。rentalPayers 为付款方地址集（env 解析）。
-// floorPct=能量租金率 floor 告警阈值（0=禁用）。tronscanBase 空=DefaultTronscanBase（D-296 S3 参数化）。
-func NewTxsCollector(address string, store *pgstore.Store, base string, apiKey func() string, tronscanBase string, rentalPayers []string, floorPct float64) *TxsCollector {
+// NewTxsCollector 创建交易流采集器。rentalPayers=付款方地址集取件（每 Poll 现取；
+// nil=空集全落 deposit 兜底）。floorPct=能量租金率 floor 告警阈值取件
+// （nil/<=0=禁用）。tronscanBase 空=DefaultTronscanBase（D-296 S3 参数化）。
+func NewTxsCollector(address string, store *pgstore.Store, base string, apiKey func() string, tronscanBase string, rentalPayers func() []string, floorPct func() float64) *TxsCollector {
 	if base == "" {
 		base = DefaultBase
 	}
 	if tronscanBase == "" {
 		tronscanBase = DefaultTronscanBase
 	}
-	set := make(map[string]bool, len(rentalPayers))
-	for _, a := range rentalPayers {
-		if a = strings.TrimSpace(a); a != "" {
-			set[a] = true
-		}
+	if rentalPayers == nil {
+		rentalPayers = func() []string { return nil }
 	}
-	return &TxsCollector{address: address, store: store, base: base, apiKey: apiKey, tronscanBase: tronscanBase, rentalPayers: set, floorPct: floorPct}
+	if floorPct == nil {
+		floorPct = func() float64 { return 0 }
+	}
+	return &TxsCollector{address: address, store: store, base: base, apiKey: apiKey, tronscanBase: tronscanBase, rentalPayers: rentalPayers, floorPct: floorPct}
 }
 
 // fetchWithdrawAmount 调 gettransactioninfobyid 取 WithdrawBalance（vote_claim）领取额（sun）。
@@ -97,6 +100,13 @@ func (c *TxsCollector) Poll(ctx context.Context) ([]fact.Fact, error) {
 		}
 	}
 	fetched := 0
+	// 付款方集每 Poll 现取（T-0265：app_config 热读——键后补免重启生效）
+	rentalSet := map[string]bool{}
+	for _, a := range c.rentalPayers() {
+		if a = strings.TrimSpace(a); a != "" {
+			rentalSet[a] = true
+		}
+	}
 	// 批量查 TronScan cheatStatus（同地址最近 N 笔）
 	cheatMap := c.fetchCheatStatuses(ctx, 200)
 	fingerprint := ""
@@ -129,7 +139,7 @@ func (c *TxsCollector) Poll(ctx context.Context) ([]fact.Fact, error) {
 			if !forceFullBackfill && tx.BlockTimestamp <= lastTs {
 				continue // 增量：已入库的旧交易跳过（幂等双保险；R5：forceFullBackfill 时重写早期段）
 			}
-			rec, ok := classifyTx(tx, c.address, c.rentalPayers)
+			rec, ok := classifyTx(tx, c.address, rentalSet)
 			if !ok {
 				continue // P2-3：非资金移动合约不入库
 			}
@@ -199,7 +209,8 @@ func (c *TxsCollector) fetchCheatStatuses(ctx context.Context, limit int) map[st
 // maybeAlertEnergyRate D-258 S2：有新行时计算 7d 能量租金年化，低于 floor → warning 告警。
 // 节流 1 条/天（内存日期戳）；样本 <7d 或 floor=0 不评估。日志诚实：触发与未触发各一行。
 func (c *TxsCollector) maybeAlertEnergyRate(ctx context.Context) {
-	if c.floorPct <= 0 {
+	floor := c.floorPct()
+	if floor <= 0 {
 		return // 禁用
 	}
 	now := time.Now().UTC()
@@ -211,12 +222,12 @@ func (c *TxsCollector) maybeAlertEnergyRate(ctx context.Context) {
 	}
 	firstTs, ok, err := c.store.FirstTRXTxRentalTsInRange(ctx, from, now)
 	if err != nil || !ok {
-		log.Printf("[trx-yield] energy rate check skipped: no rental data in 7d (sampleDays=0 floor=%.1f)", c.floorPct)
+		log.Printf("[trx-yield] energy rate check skipped: no rental data in 7d (sampleDays=0 floor=%.1f)", floor)
 		return
 	}
 	sampleDays := int(now.Sub(firstTs)/(24*time.Hour)) + 1
 	if sampleDays < 7 {
-		log.Printf("[trx-yield] energy rate check skipped: sampleDays=%d < 7 (floor=%.1f)", sampleDays, c.floorPct)
+		log.Printf("[trx-yield] energy rate check skipped: sampleDays=%d < 7 (floor=%.1f)", sampleDays, floor)
 		return
 	}
 	acct, err := c.store.LastTRXAccount(ctx)
@@ -225,7 +236,7 @@ func (c *TxsCollector) maybeAlertEnergyRate(ctx context.Context) {
 		return
 	}
 	if acct.EnergyDelegated == 0 {
-		log.Printf("[trx-yield] energy rate check skipped: energy_delegated=0 (floor=%.1f)", c.floorPct)
+		log.Printf("[trx-yield] energy rate check skipped: energy_delegated=0 (floor=%.1f)", floor)
 		return
 	}
 	// 9-9 过渡期护栏：7d 窗内 energy_delegated 变化>20% → 分母失真（旧租金÷新在押），floor 评估无效。
@@ -237,23 +248,23 @@ func (c *TxsCollector) maybeAlertEnergyRate(ctx context.Context) {
 	rentalTRX := float64(rentalSun) / 1e6
 	energyTRX := float64(acct.EnergyDelegated) / 1e6
 	apr := (rentalTRX / float64(sampleDays) * 365) / energyTRX * 100
-	if apr >= c.floorPct {
-		log.Printf("[trx-yield] energy rate ok: apr=%.2f%% floor=%.1f%% sampleDays=%d", apr, c.floorPct, sampleDays)
+	if apr >= floor {
+		log.Printf("[trx-yield] energy rate ok: apr=%.2f%% floor=%.1f%% sampleDays=%d", apr, floor, sampleDays)
 		return
 	}
 	today := now.Format("2006-01-02")
 	if c.lastAlertDay == today {
-		log.Printf("[trx-yield] energy rate below floor but already alerted today: apr=%.2f%% floor=%.1f%%", apr, c.floorPct)
+		log.Printf("[trx-yield] energy rate below floor but already alerted today: apr=%.2f%% floor=%.1f%%", apr, floor)
 		return
 	}
 	msg := fmt.Sprintf("[trx-yield] 能量租金率 %.2f%% < 参考线 %.1f%%（7d 实测，在押 %.0f TRX）——真实收益率跌破线，需复核质押模式是否维持",
-		apr, c.floorPct, energyTRX)
+		apr, floor, energyTRX)
 	if err := c.store.InsertAlert(ctx, nil, "warn", msg); err != nil {
 		log.Printf("[trx-yield] alert insert failed: %v", err)
 		return
 	}
 	c.lastAlertDay = today // D-258 复审修正：成功后再置位——失败不消耗当日额度（可重试）
-	log.Printf("[trx-yield] energy rate below floor: apr=%.2f%% floor=%.1f%% sampleDays=%d → alert sent", apr, c.floorPct, sampleDays)
+	log.Printf("[trx-yield] energy rate below floor: apr=%.2f%% floor=%.1f%% sampleDays=%d → alert sent", apr, floor, sampleDays)
 }
 
 // WitnessCollector（24h）已拆至 witness.go（D-309 纯移动）。
