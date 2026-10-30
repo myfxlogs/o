@@ -8,6 +8,7 @@ const cockpit = readFileSync(new URL('Cockpit.tsx', pageDir), 'utf8');
 const stream = readFileSync(new URL('../stream.ts', pageDir), 'utf8');
 const proto = readFileSync(new URL('proto/dashboardv1/core.proto', repoRoot), 'utf8');
 const svc = readFileSync(new URL('cmd/core/service.go', repoRoot), 'utf8');
+const ui = readFileSync(new URL('cmd/core/ui.go', repoRoot), 'utf8'); // T-0269 起 mountUI 居此件——缓存头锚读此
 let fails = 0;
 const ck = (name, cond) => { if (!cond) { console.error('FAIL', name); fails = 1; } };
 
@@ -36,8 +37,8 @@ ck('陈帧不覆快照', apply({ rows: ['OLD'], lastSeq: 3 }) === false && sim.s
 ck('新帧补洞', apply({ rows: ['T-2'], lastSeq: 6 }) === true && sim.snap.rows[0] === 'T-2');
 
 // ③ 缓存头鉴别（Go 件源锚——vite hash 件 immutable 长缓存，壳 no-cache）
-ck('assets immutable', /Cache-Control", "public, max-age=31536000, immutable"/.test(svc));
-ck('index no-cache', /Cache-Control", "no-cache"/.test(svc));
+ck('assets immutable', /Cache-Control", "public, max-age=31536000, immutable"/.test(ui));
+ck('index no-cache', /Cache-Control", "no-cache"/.test(ui));
 
 if (!fails) console.log('PASS first_paint 桩测全绿');
 process.exit(fails);
