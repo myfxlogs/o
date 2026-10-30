@@ -4,6 +4,7 @@
 // 重连=传输维护，非数据轮询——事件驱动律不变）。
 import { fromJson } from "@bufbuild/protobuf";
 import {
+  GetHeadlessResponseSchema,
   GetHostMetricsResponseSchema,
   ListClosedPositionsResponseSchema,
   ListHedgeFlowResponseSchema,
@@ -35,6 +36,9 @@ function ingest(ev: WatchEvent): void {
       break;
     case "ev_hostmetrics":
       store.setHostMetrics(fromJson(GetHostMetricsResponseSchema, ev.data));
+      break;
+    case "ev_headless":
+      store.applyHeadless(fromJson(GetHeadlessResponseSchema, ev.data));
       break;
   }
 }

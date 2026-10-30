@@ -32,6 +32,7 @@ service CoreService {
   rpc GetEquityCurve(GetEquityCurveRequest) returns (GetEquityCurveResponse) {}
   rpc ListCashflows(ListCashflowsRequest) returns (ListCashflowsResponse) {}
   rpc ListClosedPositions(ListClosedPositionsRequest) returns (ListClosedPositionsResponse) {}
+  rpc GetHeadless(GetHeadlessRequest) returns (GetHeadlessResponse) {}
 }
 
 message PingRequest {}
@@ -410,4 +411,22 @@ message GetCockpitResponse {
   repeated CockpitArmed armed = 4;
   repeated string missing = 5;           // 各段查询败/表缺名表（seats/tickets/armed/money——显「数据缺」非冒零）
   google.protobuf.Timestamp as_of = 6;   // 快照戳（五块共用一帧——逐块显戳同源件）
+}
+
+// —— 无头单状态面（T-0263——推送制信号径：dev 泵 inotify 日志写/.done/.hb+
+// 静默超时判死挂 → ops_headless 有界态 → ev_headless 脊 → Watch 一跳载荷帧；
+// GetHeadless=unary 全量快照恢复面（断流重连/挂载首取），seq=去重补洞水印轴）——
+message GetHeadlessRequest {}
+message HeadlessRow {
+  string ticket = 1;                        // T-NNNN
+  string seat = 2;                          // 席位（Dev=施工 / DM=审计——日志前缀派生）
+  string model = 3;                         // 底模（DEVIN_MODEL 实读——读件缺=空）
+  string phase = 4;                         // 相位（席自报 ops_event 派生——施工/等审计/挂起/闭环；无自报=空）
+  string state = 5;                         // 五态显示标（服务端判态——在飞/停滞/死亡/逾期/完工）
+  google.protobuf.Timestamp last_activity = 6; // 末次活动时刻（日志 mtime——.hb 触碰同计座席活证）
+  int64 seq = 7;                            // 行版序号（流帧/快照去重水印轴）
+}
+message GetHeadlessResponse {
+  repeated HeadlessRow rows = 1;
+  int64 last_seq = 2;                       // = max(rows.seq)——快照水位（重连 seq 去重补洞锚）
 }
