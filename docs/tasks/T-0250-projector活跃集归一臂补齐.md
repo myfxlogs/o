@@ -13,6 +13,19 @@ a6e8964cd15d（PR#69 时点码，无 projector 双臂补丁）——部署收口
 运营裁量，联动 T-0255 复跑前置清单（急诊取证期不重启 o-core，免毁
 cmc-ws 1011 现行犯现场）。
 
+【部署收口·决策席执 10-30 ~02:56Z】MANAGE-151 前置①兑现：
+- SG o-core：`o-core:0dd4c069e280`（master 全量新码）经钦定径
+  `deploy_image.sh` 部署——出处闸+部署锁+SHA tag+健康闸全过，
+  healthy 转绿，部署锁 trap 释。
+- OCI o-projector：arm64 新件 @0dd4c06（含 fc09488 双臂）落
+  `~/o/projector`（旧件备 `projector.bak-1030`），serve.conf drop-in
+  复原 `-mode=serve`（dualwrite 旁写泵退役），`systemctl --user
+  restart` 生效。
+- 产验锚（票面③）：SG `md_ticks` BTC-USDT 现货 tick 3s 鲜；
+  7 条 live funding-hedge SWAP（BARD/HUMA/BCH/OKB/ZEC/BASED/QTUM）
+  tick 秒级鲜；`fin_paper_fill` 续出（2h 内 115 行）。
+- live_switch 全程未触（=true，DB 实拍）。
+
 ## 面况
 
 T-0216 上线排障实证根因两段：
