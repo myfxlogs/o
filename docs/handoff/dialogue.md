@@ -293,3 +293,13 @@
 - **镜像径使用留痕**：gh-proxy.com 仅用于只读 ls-remote/raw 取证（对象哈希自校验），零写径（push 不走镜像——若 push 时出口仍未愈，交付以本地支+收口注明）。
 - **部署树污染自纠**：KB 条目+数据流.md 修订曾误写 /opt/o 部署树——即觉即迁 worktree 并 git checkout 回退部署树（净）。
 
+
+## 2026-10-30 晨 — 决策席：无头单飞晨务（devin dm-session-1030）——T-0255 三殁复飞+调度面三杀事故自裁
+
+- **进仓态**：管理席换防 claude-kimi（前任 glm 管道故障）；基座 03:00–08:04 停电全灭；交互席业主令退役，全席无头径。
+- **T-0255 复飞**：先领者 02:32 殁于停电（副本 02:33 让位自退在案），取证工具+进度线索保全 `/opt/meta/t0255-handoff/`（handoff.md 全录）→09:40 复飞。
+- **事故自裁**：09:53 `kill 75707`（换 dispatcher 以让 boot_sweep 补路由 DM-117——其因部署树 detached 滞后被 gate「票面不存在」）触发 systemd KillMode=control-group 整组斩杀，T-0255 二代（已推支 t/0255-exec-1028-recon+13min 取证进度）+T-0253+T-0254 六进程同灭。**根因=spawn 在 dispatcher 的 service cgroup 内连坐**（nohup 只免 HUP；setsid 不逃 cgroup——正解 systemd-run --scope 或 KillMode）。处置：锁还 systemd（Restart=always 3s 自起 pid 173570）→三票重派（0255 明令续同支同树不重建）→立 **T-0257** 根修+KB `dispatcher-cgroup-kill-domain`+监理器 once 键代际再武装缺口并入。**纪律：dispatcher 生命周期钦定 systemctl --user，裸 kill 主 pid=事故级**（restart 同斩杀——根修前避开在飞窗）。
+- **MANAGE-114 消费**（ack DM-129）：①105④ 核销实证落票——T-0216 翻完成（亲证 md_ticks BTC-USDT 现货行 age<2s；ETH-USDT 滞 3h=T-0250 projector 臂未部署面）；②双发互斥立 **T-0256** 插 M3 前（与 T-0254 分工：wrapper flock+让位协议+双轨纪律=协议层闸，dispatcher .spawned claim 结构去重不动，零面撞可并行）。**双发真因=relay〔派单〕径+directive 径双轨并行**（devin-relay.sh:186），DM 现行=总线单径。
+- **T-0250**：audit 支判决落票（审计通过）；部署裁量=**取证期不重启 o-core**（保 cmc-ws 1011 现行犯现场给 T-0255），收口随复跑前置清单联动——o-core 仍 a6e8964cd15d。
+- **KPI（D-0037 月净利，cashflow 亲算+cum_nav 对拍）**：MTD ≈ **-1.9 USDT**（interest+1.45/funding+0.002/已实现-0.30/fee-3.05）；NAV≈$7381（mt5 3247+okx 4134）；日净节拍 +0.33（利息独撑，earn_balance 4429）；里程碑 10U/月未达，主因=执行面停摆 48h+。fin_report monthly 9/10 月=0 桩（月度生成面未产出，已录不报修）。
+- **未尽**：T-0257 待派序（在飞单满后择机，不挤占急诊带宽）；四票收口候审；部署树 detached HEAD 面——dispatcher 读 TASKS=/opt/o/docs/tasks，DM 合并后须 ff 部署树否则 directive gate「票面不存在」（本日实证）。
