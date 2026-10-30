@@ -294,6 +294,19 @@
 - **部署树污染自纠**：KB 条目+数据流.md 修订曾误写 /opt/o 部署树——即觉即迁 worktree 并 git checkout 回退部署树（净）。
 
 
+## 2026-10-30 凌晨 — 管理席：T-0216 上线排障（devin-manage）——两段根因+dualwrite 临时径
+
+- **业主令**：「[角色：管理]接手开工，让216上线」——管理席 devin 直办（急件直办，事后报备在案）。
+- **根因链两段实证**（审计残差只捕到①）：
+  ① `o-collecto` 二进制 mtime 10-28 06:05 早于返修 merge——activeSet 现货腿补丁不在跑件里。处置：dev 交叉编 arm64（a6e8964 净树）→ 船运换件（旧件留 collector.bak-1028）→ 17:12Z 重启，OCI `md_ticks` BTC-USDT 行流实证。
+  ② **projector `refreshSets` 活跃集=裸 inst_id 无归一臂**——basis 现货腿+dcd uly 双面滤桥外：SG `md_ticks` BTC-USDT 滞留 10-25 陈行，订到≠到 SG。处置（急件临时径）：`o-projector` serve.conf 切 `-mode=dualwrite`（无谓词全量旁写，T-0169 设计态），17:19Z SG 行鲜。
+- **终验**：286990 quarter_basis_long 首笔 `fin_paper_fill` funding +0.006881@17:18:55Z 落地——216 实质上线；287004 首摊待下拍（事件节拍非整点）。
+- **令出**：MANAGE-82→DM 立票根修 `refreshSets` 归一双臂（对齐 okxws/subscribe.go activeSet 语义），部署生效后 serve.conf 复原 `-mode=serve`（dualwrite 旁写泵不可长持）；验收锚=serve 下现货行续鲜+fill 续出。dcd 同病灶（`dcd_spot_stale` 休眠缺口）已写入令——根修双臂齐补非单补 basis。
+- **坑条目**：`bridge-predicate-misses-normalized-legs`（订阅集/镜像集双臂同源律）入工程经验库，支 `docs/kb-bridge-predicate@0e43f9f` 已推候 DM 并。
+- **座况留痕**：①`master` 本地支被陈旧 worktree `/opt/o-wt/t0160-fixup`（落后 25+脏件）锁占→部署树被迫常驻 detached@origin/master——归 DM worktree 卫生处置；②Oct-28 残留 `gh pr checks 8` watcher 僵尸环已杀（PR#8 早并）；③Dev/DM 件消费面缺口实证（无头径不消费 inbox——MANAGE-75 滞留 30min+，心跳静默升级三件 DM-79/80/81 已回执定性「无头不读箱≠席死」）；④收件箱全清（DM-63/64 回执+DM-78/79/80/81 升级件均 ack）。
+- **部署树纪律再证**：/opt/o 非 master 禁 commit（D-651 机内化）——本席 KB 件一度落部署树 staging，即迁 worktree 径收口。
+- **业主方向锚（对话亲定）**：终态=「工单驱动全无头 + 有头面唯一管理席」——DM 可退役无头、管理席不可无头的正解=不可无头的非职务而是业主对话口；单管理席=唯一有头对话面+异常终审，按需开散（本 session 即实证）。
+
 ## 2026-10-30 晨 — 决策席：无头单飞晨务（devin dm-session-1030）——T-0255 三殁复飞+调度面三杀事故自裁
 
 - **进仓态**：管理席换防 claude-kimi（前任 glm 管道故障）；基座 03:00–08:04 停电全灭；交互席业主令退役，全席无头径。
@@ -303,3 +316,20 @@
 - **T-0250**：audit 支判决落票（审计通过）；部署裁量=**取证期不重启 o-core**（保 cmc-ws 1011 现行犯现场给 T-0255），收口随复跑前置清单联动——o-core 仍 a6e8964cd15d。
 - **KPI（D-0037 月净利，cashflow 亲算+cum_nav 对拍）**：MTD ≈ **-1.9 USDT**（interest+1.45/funding+0.002/已实现-0.30/fee-3.05）；NAV≈$7381（mt5 3247+okx 4134）；日净节拍 +0.33（利息独撑，earn_balance 4429）；里程碑 10U/月未达，主因=执行面停摆 48h+。fin_report monthly 9/10 月=0 桩（月度生成面未产出，已录不报修）。
 - **未尽**：T-0257 待派序（在飞单满后择机，不挤占急诊带宽）；四票收口候审；部署树 detached HEAD 面——dispatcher 读 TASKS=/opt/o/docs/tasks，DM 合并后须 ff 部署树否则 directive gate「票面不存在」（本日实证）。
+
+## 2026-10-30 — 施工席：T-0254 dispatcher 双闸（devin-headless-T-0254，无头单飞）
+
+- **T-0256 并行撞面裁断**：T-0256（wrapper flock）钦定界面含 devin-headless-run.sh，而本票钦定界要求「未 ack 件注入 prompt 文件尾部」——prompt 唯一写者=该 wrapper，绕不开。裁：最小侵入——仅 prompt 块 HEADLESS_INJECT 注入段五行，绝不碰其 flock/让位区（文首），hunk 不重叠可净并；已在票面偏离说明明注，交审计席裁。
+- **claim 语义取舍**：.spawned 锚采「活 pid∧cmdline 含 tid=在飞；退壳 120s 宽限窗内死 pid 亦拒；逾龄陈锚回收」——既防「快退壳+重投」双产，又保崩殁票经再投/补扫自愈，不采「一次claim永拒」（会焊死票）。relay 冻结径 spawn 不取 claim 属钦定界外，wrapper 层互斥归 T-0256 flock 兜底。
+
+## 2026-10-30 午后 — 决策席：无头单飞二更（devin dm-session-1030pm）——MANAGE-151 终裁执行全序
+
+- **进仓**：部署树 detached（常检面），改仓走 dm/1030-manage151 支。DM 箱 68 件全 ack（实质件=151/116/134/135/136，余皆 receipt）。
+- **T-0250 部署执（前置①）**：部署树 HEAD→origin/master（0dd4c06）→`deploy_image.sh` 钦定径全闸过——SG `o-core:0dd4c069e280` healthy（锁持 DM-decision@dev，trap 释）；OCI `~/o/projector` 换 arm64 新件（含 fc09488 双臂，旧件 .bak-1030）+serve.conf drop-in 复原 `-mode=serve`+systemctl --user restart。验锚：BTC-USDT tick 3s 鲜、7 live SWAP 秒鲜、paper_fill 115/2h、**live_switch 零触碰（true 实拍）**。票面部署收口段已回填。
+- **裁二·DCD 全族退场已执**（SG PG-fin 单 tx）：`fin_opp_template` dcd_call×2+dcd_put 三行 enabled=f/state=retired（研究臂枚举闸 t.enabled 断源=**禁新开**）；`fin_strategy` 35 行 paper dcd→retired+35 行 `fin_strategy_transition` 留痕（Transition() 同构双写，reason 明注 MANAGE-151 裁二）。live/probe/armed 三态核=**零 DCD 残留**（DB 实查：非退态仅 35 paper）；venue 零持仓=T-0255 已证无平退腿；零非退 dcd 提案在飞。
+- **裁一前置②判=涉 armed**：`armed_ttl_h=4`（非 24h）+7 条 live funding-hedge（01:00Z 入场零仓零执行）——openLive 闸径（lifetimeOK/breakevenOK/denyAt 冷窗）拒在开仓前永不产 position，tag3 按 position 戳 05:00Z 起逐批误杀+裸 UPDATE 无 transition 痕（T-0255「retired 零迁移记录」悬案即此径）。**依令 T-0258 插队先行，复跑候其部署**。
+- **节拍×2 落点裁定**：系统无统一提案节拍键——funding 臂事件驱（ev_funding 即扫）无 interval 键，提案天然稀疏 ~2/6h。落地=存在键齐倍：`research.grammar.scan_interval_min` 120→240（basis 族源臂）、`research.gap.scan_interval_min` 360→720、`lifecycle.reject_cooldown_s` 300→600（开仓重试拍）。funding 臂半速缺口如实报 MANAGE，若钦定更严语义（如 notional 半额/threshold 升档）另裁。**待复跑启动时执行**（与 T-0258 部署同拍生效，提前动=无谓降现拍）。
+- **立票六张**：T-0258（armed_ttl tag3 根修=P1 插队）/T-0259（dcdOpen 拒因持久化=P1）/T-0260（监理器三缺陷=MANAGE-136，施工面在 meta 仓）/T-0261/0262/0263（前端三件——瓦片化+分页+状态面推送制；0263 票面已落 134 选型纪律+135 基准径：Connect 同栈流为基准，重连=unary 快照+接流+seq 去重入验收锚）。
+- **并码**：T-0254/0256/0257 三支审计通过件并入本支（dialogue/索引 微撞已解——审计判决系审计席各 session 落支，本席仅合并簿记）。
+- **陈旧 PR 处置**：#80（T-0250 落票已在 master）/#84（T-0254/0256 立票已在 master）冗余关；#42/63/70/72/83 留待逐核（老 audit/KB PR——内容是否已并 master 逐票对，非本 session 主务）。
+- **未尽挂账**：半速复跑候 T-0258 并码部署后启（观察窗 24h，首日报 MANAGE）；T-0259/0260 排队；前端三票为下一档主力；meta 仓 mbus-dispatch.sh T-0254 面未合并重启（票注：生效需 meta 合并+restart——meta 主支在 /opt/meta 本地仓，另席持有面，本席不动）。
