@@ -194,3 +194,21 @@ check_env_reads（白名单 26 键）✓ check_rejects_keys✓ check-lines（mai
   env 白名单+PG_DSN——施工「偏离/报备」五条明列披露非瞒报，
   且均为分链成立的配套面；o-prod.slice 系统面装配（root 依赖）
   票内已自标条件请求项。
+
+### 本席复核补证（headless 重飞 @ 2026-10-30——判词维「审计通过」不变）
+
+- 验收锚①升级实测：临时库 o_audit_md（5434 测试实例新建）
+  `cmd/migrate -domain=md` 空库全过（33 版 1003-1076、23 表、二次
+  重放零变更幂等）；o_audit_fin `-domain=fin` 同（88 版 1-90、56
+  表）；`-domain=both` 非法域拒 rc=1——fail-closed 亲证。
+- 验收锚②升级实证：隧道径 SG 只读（FIN_PG_DSN@5544）——
+  schema_migrations 含 66,67,68,69（count=90/max=90），
+  fin_eval_reject/fin_active_set/md_macro_event/md_funding/
+  fin_proposal/fin_opp_eval 六件全在——fin 链幂等键零变更成事实。
+- 桩锚负测双红亲跑：fin_ 件触 md 域表→断言⑦「串链」FAIL；
+  md 侧独改桥表 md_ticks→断言⑥「DDL 归一化漂移」FAIL；
+  本基线 check_migrations 绿。
+- 实物补证：PG 隧道进程以 tunnel@+o_tunnel_pg_ed25519 钥在跑
+  （root 钥退役径实证）；o-postgres-md 仍 exited、5435 现被
+  o-postgres-test-b 占用——运行态漂移照原判不否能力锚，
+  归运维承接（与 T-0169+ 谱系运行面一并复核）。
