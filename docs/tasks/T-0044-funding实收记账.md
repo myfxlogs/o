@@ -1,6 +1,6 @@
 # T-0044 funding 实收记账件——OKX bills→fin_cashflow.funding_settle 写入面
 
-| 状态 | 完成 |
+| 状态 | 审计通过 |
 | 领取 | zcode-glm @ 2026-10-24（worktree /opt/phase-wt/t0044，支 t/0044-funding-bills） |
 
 ## 病灶
@@ -33,3 +33,12 @@
 - 全树 `go test ./... -count=1` 绿；`-race`（funding/okxpriv）绿；build/vet/gofmt/lines 门全过
 
 **偏离说明**：迁移号 0026 撞 T-0041（master 前进），改 0027 并 rebase origin/master；真单 08:00Z 首结对拍（验收标准②）=决策席触发面。
+
+## 审计判决
+
+审计席：headless @ 2026-10-31
+
+- 锚①测试锚绿——对得上：幂等/游标/拒收/节流五测试件随收口 diff 落位（ingest_test/bills_test/collect_test），断言覆盖票面测试锚「同 billId 双发不双记」；收口 merge commit 的 CI 败于基建步（protoc-gen-go install，测试未跑到），后续 master CI（至 e70bfcd9）绿且含本票测试件=现绿。
+- 锚②08:00Z 首结 funding_settle——对得上（本机 o-postgres+SG 生产双库只读实证）：fin_cashflow 4 行 funding_settle@16:00/00:00/08:00/16:00Z，venue=okx source_table=fin_venue_bill，金额与源行 bal_chg 精确相等（08:00Z 行 0.0003037776522643=bill 4040383161736352010）；billId 幂等实测零双记；fee kind 落账 97 行佐证；position_ref=NULL 正确（fin_position 无 ETH-USDT-SWAP 仓）；杂币只留源。
+- 纪律面：事件驱动主径合规（WS 帧→30s 节流→异步拉+boot 一次补漏，无轮询器）；subType 173/174 口径与本仓 okx-account 能力账一致；迁移登记/经验库条目/skill 档案同步齐。
+- 注记（非阻锚，报管理席）：record() 源行 INSERT 与 cashflow INSERT 非同事务——两步间崩溃则该 bill 源行已记而 cashflow 永缺、重放被 ON CONFLICT 跳过（幂等面副作用）；建议后续立票包单 tx。另 maxPages=5 上限下 >500 条积压旧账永不补拉，属可接受边界如实注。

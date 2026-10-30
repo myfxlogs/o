@@ -1,6 +1,6 @@
 # T-0147 终局分类补面——腿构 meta 径漏分类 + 黑名单存量回扫（T-0142 覆盖洞实证）
 
-## 态：✅ 验收毕投产（cb0cb85·决策席 2026-10-26）
+## 态：审计通过
 ## 领取：zcode-t0147（ZCode 施工席）@ 2026-10-26
 ## 域：执行径 / venue 终局分类
 ## 源出：T-0144 部署验证窗实案——SHEIN-USDT-SWAP 在 fin_venue_untradeable
@@ -83,3 +83,34 @@
   TestBlacklistConsumers/TestLegBuildTerminalTriage/TestRetroactiveScanTrigger
   （手工 INSERT 回扫存量实证桩）/TestParamErrNoTriage 六桩 PASS——
   cmd/core 包 ok（7.975s 实时输出在案）。
+
+## 审计注记（headless 复核对账 @ 2026-10-30）
+
+审计席：headless @ 2026-10-30。逐锚对账（收口 diff `9824b808..8f87a854`
+经 `cb0cb85` 合入；生产实证=SG 正本只读直查，未跑 deploy/写径）：
+
+| 锚 | 判 | 实证 |
+|---|---|---|
+| ①黑名单在册 inst live 策略零残留、armed 提案零残留（回扫钩子实跑） | PASS | SG `fin_venue_untradeable` 5 行在册（SHEIN/CSOPSKHYNIX2L/KSTR/XPD/KR200-USDT-SWAP）；同 inst `fin_strategy` 11 行全 `retired`（live/paper/proposed=0）；同 inst `fin_proposal` 11 行全 `fin_retired`（fin_armed=0）。回扫钩子实跑双证：`trg_untradeable_retro` AFTER INSERT FOR EACH ROW 在位；`fin_strategy_transition` 见 `venue_untradeable_retroactive:51001(manual-probe-sweep)` 行（id 2607）+ KSTR/XPD/KR200 三行 `venue_untradeable:51001` 显式迁移与入册行毫秒级同拍（服务侧自动径实证） |
+| ②开仓败 51001 日志风暴形绝迹（命中即退役非重试） | PASS | SG o-core 当前容器窗（起 29min）`51001`/`开仓败`/`命中黑名单` 均 0 行；结构面黑名单 inst 零 live 策略=重试对象不存在（openLive 仅选 `state='live'`）；后入册三 inst 各仅一发 live→retired transition=首发即退无续试形 |
+| ③51000 参数族仍走瞬态重试不误退 | PASS | `TerminalInstErr` 码域亲证=51001/51003 两款（order.go:150-154，errors.As 穿 wrap）；TestParamErrNoTriage 真跑 PASS（51000 非终局+零入册零回扫断言）；非终局败径保留 `open_failed` 计数+事件续试（opener.go:150-152） |
+
+施工项对账：BuildLegs 腿构径与 Execute 提交径同闸 TerminalInstErr 收口
+（open.go:62-75；basis_open.go:60/70 早已同形）✓；untradeable 序位消解
+=显式迁移（state='live' 守卫）→armed 提案清→入册 trigger 续扫余量 ✓；
+0061 ROW 级 trigger+迁移表登记+生产在位 ✓；`blacklist_retire` rejects
+键预注册（run.go）✓；宣称六桩全部在案且本席独立复跑 6/6 PASS（真 PG
+5434，5.1s）✓；坑条目 statement-trigger-new-null 随收口入库 ✓。
+
+**瑕疵注记（不阻通过，报管理席知）**：
+① 回填「NOT EXISTS 候选滤为第一层」对位偏——openLive 生产候选查询的
+   NOT EXISTS 是仓位滤（opener.go:50-51），黑名单滤实在起草/universe
+   生产侧（universe.go:70/gapscan classify.go:141/persist.go:23/
+   xcarry.go:184）；openLive 侧实态=黑名单 inst 策略仍入选候选，一发
+   开仓败即被第二层闸退役（锚②行为达标，措辞精度项）。
+② 第二层闸 banned 查询读败 `be==nil && banned>0`=fail-open 回事件续试
+   （opener.go:140-141）——DB 读败窗内黑名单 inst 策略退回瞬态续试形
+   （事件驱动非热环）；与 T-0150 注④同类读败吞错观察项。
+③ 历史风暴日志不可复取——SG o-core 容器今日重建（docker logs 窗仅
+   29min），锚②以当前窗零风暴+DB 结构态+首发即退 transition 形三通道
+   交叉替代，缺位通道如实声明。

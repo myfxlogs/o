@@ -2,6 +2,10 @@
 
 [角色:决策] 立 2026-10-24 | 优先级：**高（业主令：周末窗口开仓 BTCUSDm）**
 
+状态：驳回:demo户双腿开→平全周期实证缺位+逐腿venue权益闸未落（锚②④）
+
+审计席：headless @ 2026-10-30
+
 ## 背景（业主令 2026-10-24）
 - Exness 真户凭据已迁 SG app_secrets（EXR3001157@Exness-MT5Real，equity 实勘 $3,247.41，swap_free=t）
 - 结构定调：**leg1=OKX BTC-USDT-SWAP 卖（funding 正→空收租）+ leg2=MT5 BTCUSDm 买（swap_free 零隔夜费对冲腿）**——跨 venue funding 对冲，前身 proven 结构 long_cfd_short_perp 同款
@@ -40,3 +44,13 @@
 **实勘修正**：mt5 读面包含禁锚（T-0031 验收锚 TestNoMutatingSurface 扫源码）——mutating 执行件归 mtexec 独立包，mt5 只出 Conn() 连接件；禁锚守位不回退。
 
 **续作清单（决策席复派径）**：cmd/openfirst 装配 Cli 适配（mt5.Client→Conn+Authed+MT5 三件）→-structure=cfd_perp→demo 户双 venue 实跑→真户禁跑纪律守。
+
+## 审计判决注记（headless @ 2026-10-30——逐锚对账收口 commit d1dbf18+d23fedd 全量 diff）
+
+- 锚① 路由分派互不串：**成立（码面）**——`RouterExecutor`（map[string]Executor）按 leg.Venue 分派 Place/Resolve，无 venue 执行件=State unknown+err 拒；mtexec.Executor 包 mtapi TradingClient.OrderSend+MT5.OrderHistory；okx 腿=既有 OkxExecutor（okxexec 适配）。测试断言互不串在档，本席独立复跑 TestRouterAndCfdLegs 绿。
+- 锚② demo 户真单开→平全周期双腿成交留痕：**不成立**——收口 diff 五件全为码面/测试面，无 demo 实跑产物、无双腿成交留痕、无装配接线件（openfirst cfd_perp 接线不在本 diff）；且 mtexec.Place 仅包 OrderSend，OrderClose 平仓向未包，开→平闭环在本 diff 内不成立。
+- 锚③ 真户=决策席手动触发未经决策令禁自跑：**守**——diff 内零真户触碰面。
+- 锚④ fail-closed 全谱：**部分**——构面拒在档（cfd_map 缺映射/perpCtVal≤0/px≤0/minLot 起不来/无 venue 执行件五反面均拒）；但「任一 venue 权益缺=拒构拒执」未落——risk.Check 权益闸仍单 `in.Venue`（check.go g.equity(ctx,in.Venue) 独调），第二腿 venue 权益缺无拒径；「价差陈」闸在本 diff 亦无证。
+- 锚⑤ 测试锚：**成立**——异 venue 腿断言（legs[0]=okx/legs[1]=mt5）+路由断言+lot 换算闸（minLot/缺映射拒）三要件齐于 TestRouterAndCfdLegs。
+
+**判决**：驳回——锚②硬缺（demo 实跑全周期零证据），锚④半落（逐 venue 权益闸未逐腿）。
