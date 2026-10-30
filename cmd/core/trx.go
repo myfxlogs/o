@@ -9,6 +9,7 @@ import (
 	"context"
 	"log"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -61,8 +62,22 @@ func trxArm(ctx context.Context, errc chan<- error, w *trxWiring) {
 	// T-0182 凭据语义错配根修：/v1//wallet 径=TronGrid 面（TRON-PRO-API-KEY
 	// 成对）；tronscan /api/ 径=公开面零凭据（trongrid key 灌 tronscan=401 间歇
 	// 实证病灶——凭据语义错配典型坑）。witness/apr 基址同律纠。
+	// T-0265：rental_payers/floor 双硬码回归根修——装配面热读 app_config
+	// （getter 按次读=严格热启非 boot 捕获；rental_payers=逗号分隔地址集）。
+	payers := trxRentalPayersGetter(w.cfg)
+	floor := func() float64 {
+		v, _ := w.cfg.GetFloat("trx.floor_pct")
+		return v
+	}
 	w.txs = trx.NewTxsCollector(addr, w.st, "https://api.trongrid.io",
-		apiKey, "https://apilist.tronscan.org", nil, 0.10)
+		apiKey, "https://apilist.tronscan.org", payers, floor)
+	// 装配面防再发断言（T-0265 钦定四④）：名单空→ops_event 告警不静默空跑。
+	if len(payers()) == 0 {
+		log.Printf("[trx] trx.rental_payers 键缺/空——rental_income 分类降级 deposit（ops_event 告警落行）")
+		if err := trxAlertRentalPayersEmpty(ctx, w.pool); err != nil {
+			log.Printf("[trx] ops_event 告警写败: %v", err)
+		}
+	}
 	w.wit = trx.NewWitnessCollector(addr, w.st, "https://api.trongrid.io", apiKey)
 	w.apr = trx.NewAprCollector(addr, w.st, "https://apilist.tronscan.org")
 	if err := roster.Register(ctx, w.pool, "TRX 链上采集", "trx",
@@ -96,6 +111,34 @@ func trxArm(ctx context.Context, errc chan<- error, w *trxWiring) {
 			poll()
 		}
 	}
+}
+
+// trxRentalPayersGetter app_config trx.rental_payers 热读取件（T-0265——
+// 逗号分隔地址集；键缺/空=空集，由装配面断言显形非静默）。返回值已 trim
+// 去空——len==0 即 collector 实效空集。
+func trxRentalPayersGetter(cfg *config.Client) func() []string {
+	return func() []string {
+		v, err := cfg.GetString("trx.rental_payers")
+		if err != nil {
+			return nil
+		}
+		var out []string
+		for _, a := range strings.Split(v, ",") {
+			if a = strings.TrimSpace(a); a != "" {
+				out = append(out, a)
+			}
+		}
+		return out
+	}
+}
+
+// trxAlertRentalPayersEmpty 名单空告警落 ops_event（T-0265 钦定四④）。
+// seat=o-core/event=异常——席存活面显形；ticket 空挂——工单板轴
+// ops_ticket_state 只收 ticket 非空行，不污染 T-0265 调度相位。
+func trxAlertRentalPayersEmpty(ctx context.Context, pool *pgxpool.Pool) error {
+	_, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note)
+		VALUES('o-core','异常','','trx.rental_payers 键缺/空——rental_income 分类降级 deposit（T-0265 防再发断言）')`)
+	return err
 }
 
 // cmcArm CMC 纯读采集臂（凭据未供=让位显形——业主条件请求件 fin_condition_gap）。

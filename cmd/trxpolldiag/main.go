@@ -32,7 +32,7 @@ func main() {
 	defer pool.Close()
 	st := pgstore.NewStore(pool)
 	c := trx.NewTxsCollector(*addr, st, "https://api.trongrid.io",
-		func() string { return *key }, "https://apilist.tronscan.org", nil, 0)
+		func() string { return *key }, "https://apilist.tronscan.org", nil, nil)
 	stageProbe(*key, *addr)
 	var lastTs, firstTs interface{}
 	_ = pool.QueryRow(ctx, "SELECT max(ts),min(ts) FROM fin_trx_txs").Scan(&lastTs, &firstTs)
