@@ -64,13 +64,19 @@ function LiveBadge() {
 // SeatBadge 步链徽（设计稿钉组件形 <SeatBadge seat result active>：
 // active=true 渲染 spinner（⟳ 在干），否则呼吸灯（色=该席最终结果——
 // 服务端派生 state/breathe，前端零判据）；title=席位级四要素悬停）。
+// 席位归一名→底纹类（T-0278②：施工/审计/CTO/CEO 四席可辨；未知席兜底
+// 无类原样不吞——视觉仅底色零判据，灯语/spinner 语义不动）。
+const SEAT_CLS: Record<string, string> = {
+	施工: "pipe-seat--dev", 审计: "pipe-seat--audit", CTO: "pipe-seat--cto", CEO: "pipe-seat--ceo",
+};
 function SeatBadge(props: { s: CockpitPipelineStep }) {
 	const s = props.s;
 	const hover = `${s.seat} | 进:${s.enter || "—"} | 出:${s.exit || "在干"} | ${STEP_RESULT[s.result] ?? s.result} | 耗时 ${durMs(s.ms)}`;
+	const cls = SEAT_CLS[s.seat.replace(/R\d+$/, "")] ?? "";
 	if (s.active && s.spin) {
-		return <span className="pipe-seat" title={hover}><span className="dot spin" />{s.seat}</span>;
+		return <span className={"pipe-seat " + cls} title={hover}><span className="dot spin" />{s.seat}</span>;
 	}
-	return <span className="pipe-seat" title={hover}><StateDot state={s.state} breathe={s.breathe} title={hover} />{s.seat}</span>;
+	return <span className={"pipe-seat " + cls} title={hover}><StateDot state={s.state} breathe={s.breathe} title={hover} />{s.seat}</span>;
 }
 
 // PipelineTile 工作流管道（v4 主瓦片——pipeline 分片：首帧 getCockpit.pipeline
@@ -107,6 +113,13 @@ function PipelineTile() {
 				})}
 				{more > 0 && <p className="dim">+{more} more…</p>}
 				</div>}
+			{/* T-0278③④ 底部计数条——全量活跃集口径服务端派生（在途/队列含
+			    主积压因点名+票号括注/今日完结），前端零判据纯渲染。 */}
+			{pl.data && <div className="pipe-foot dim"
+				title={`全量活跃集口径 — 在途=末步在干；队列=无在干步滞留${pl.data.queuedNote ? `（${pl.data.queuedNote}）` : ""}；今日完结=末事件≤部署线且当日`}>
+				在途 {pl.data.totalInflight} · 队列 {pl.data.totalQueued}
+				{pl.data.queuedNote ? `（${pl.data.queuedNote}）` : ""} · 今日完结 {pl.data.totalDoneToday}
+			</div>}
 		</Card>
 	);
 }

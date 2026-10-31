@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -255,5 +256,87 @@ func TestGetCockpitPipelineMerged(t *testing.T) {
 	}
 	if r2.Money == nil {
 		t.Fatal("拔径污染其余块")
+	}
+}
+
+// T-0278③④ 底部三计数锚：在途/队列（全量活跃集——>20 截断径仍按全量）/
+// 今日完结（末事件≤部署线且当日；零部署=0 如实显）+主积压因点名。
+func TestPipelineCounters(t *testing.T) {
+	pool := testutil.Pool(t)
+	if err := pgstore.Migrate(context.Background(), pool, "fin"); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	c := coreService{pool: pool, docsRoot: "docs/tasks"}
+	ins := func(agoMin int, seat, event, ticket, note string) {
+		if _, err := pool.Exec(ctx, `INSERT INTO ops_event(ts,seat,event,ticket,note)
+			VALUES(now()-$1*interval '1 minute',$2,$3,$4,$5)`, agoMin, seat, event, ticket, note); err != nil {
+			t.Fatal("事件桩:", err)
+		}
+	}
+	// T-8000 完结票（部署前）；活跃票：8001在干/8002收口等审计/8003挂起/
+	// 8004驳回/8005通过（不计积压）。
+	ins(150, "Dev", "领单", "T-8000", "")
+	ins(130, "DM", "裁决", "T-8000", "通过")
+	ins(90, "Dev", "领单", "T-8001", "")
+	ins(60, "Dev", "收口", "T-8002", "")
+	ins(55, "DM", "挂起", "T-8003", "桩挂")
+	ins(50, "DM", "裁决", "T-8004", "驳回:桩")
+	ins(45, "DM", "裁决", "T-8005", "通过")
+
+	// 零部署先拍：完结线缺=done_today=0；活跃=6。
+	r, err := c.GetPipeline(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.TotalDoneToday != 0 {
+		t.Fatalf("零部署日完结应 0: %d", r.TotalDoneToday)
+	}
+	if r.TotalActive != 6 || r.TotalInflight != 1 || r.TotalQueued != 3 {
+		t.Fatalf("计数错: act=%d fly=%d q=%d", r.TotalActive, r.TotalInflight, r.TotalQueued)
+	}
+	if r.QueuedNote == "" || !strings.Contains(r.QueuedNote, "等审计") ||
+		!strings.Contains(r.QueuedNote, "T-8002") {
+		t.Fatalf("积压注应点名+票号括注: %q", r.QueuedNote)
+	}
+
+	// 部署后：末事件≤部署线的 6 票全数当日完结（完结=部署线语义——
+	// 末事件早于最新部署拍即算完结退场）；仅 T-8006（部署后新领单）在飞。
+	ins(40, "DEPLOY", "部署", "", "deploy 桩")
+	ins(30, "Dev", "领单", "T-8006", "")
+	r, err = c.GetPipeline(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.TotalDoneToday != 6 {
+		t.Fatalf("今日完结应 6（部署线前全数末事件当日）: %d", r.TotalDoneToday)
+	}
+	if r.TotalActive != 1 || r.TotalInflight != 1 || r.TotalQueued != 0 {
+		t.Fatalf("部署后计数错: act=%d fly=%d q=%d", r.TotalActive, r.TotalInflight, r.TotalQueued)
+	}
+}
+
+// >20 行截断径：计数仍按全量活跃集（25 票在干→fly=25 rows=20）。
+func TestPipelineCountersFullSet(t *testing.T) {
+	pool := testutil.Pool(t)
+	if err := pgstore.Migrate(context.Background(), pool, "fin"); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	c := coreService{pool: pool, docsRoot: "docs/tasks"}
+	for i := 0; i < 25; i++ {
+		if _, err := pool.Exec(ctx,
+			`INSERT INTO ops_event(seat,event,ticket,note,ts) VALUES('Dev','领单',$1,'桩',now()-$2*interval '1 minute')`,
+			fmt.Sprintf("T-8%03d", i), 100-i); err != nil {
+			t.Fatal("事件桩:", err)
+		}
+	}
+	r, err := c.GetPipeline(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(r.Rows) != 20 || r.TotalActive != 25 || r.TotalInflight != 25 || r.TotalQueued != 0 {
+		t.Fatalf("截断径全量计数错: rows=%d act=%d fly=%d q=%d",
+			len(r.Rows), r.TotalActive, r.TotalInflight, r.TotalQueued)
 	}
 }

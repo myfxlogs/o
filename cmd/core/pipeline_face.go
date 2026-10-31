@@ -10,6 +10,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -75,8 +76,7 @@ func (c coreService) GetPipeline(ctx context.Context,
 			FROM ops_event WHERE ticket<>'' GROUP BY ticket
 		) f, dep
 		WHERE dep.d IS NULL OR f.last_ts > dep.d
-		ORDER BY f.last_ts DESC, f.ticket DESC
-		LIMIT $1`, pipelineRowCap)
+		ORDER BY f.last_ts DESC, f.ticket DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -95,6 +95,16 @@ func (c coreService) GetPipeline(ctx context.Context,
 	}
 	r.TotalActive = total
 	r.AsOf = tsProto(time.Now())
+
+	// T-0278③ 今日完结=末事件 ts≤部署线且 ts 当日（当日零部署=0 如实显禁造数）。
+	var doneToday int64
+	if err := c.pool.QueryRow(ctx, `
+		WITH dep AS (SELECT max(ts) AS d FROM ops_event WHERE event='部署'),
+		f AS (SELECT ticket, max(ts) AS last_ts FROM ops_event WHERE ticket<>'' GROUP BY ticket)
+		SELECT count(*) FROM f, dep WHERE dep.d IS NOT NULL
+		  AND f.last_ts <= dep.d AND f.last_ts::date = current_date`).Scan(&doneToday); err == nil {
+		r.TotalDoneToday = int32(doneToday)
+	}
 
 	if len(actives) == 0 {
 		// 零活跃也出 seq 水印（部署收尾帧——行退场靠 seq 推进可辨）。
@@ -144,9 +154,52 @@ func (c coreService) GetPipeline(ctx context.Context,
 	// 读败不炸面——headless 缺席按无行径（灯=自报流推演）。
 
 	// ③ 步链→出件行（标题 best-effort；灯色=当前活动面推演）。
+	// T-0278③④ 底部三计数全量活跃集派生——行渲染截 20 但计数不截：
+	// 在途=末步在干（!hasExit）；队列=无在干步滞留（closed=等审计/rejected=驳回/
+	// blocked=挂起）；queued_note=主积压因点名+票号括注（≤4 枚溢略）。
 	titles := ticketTitles(c.docsDir())
 	now := time.Now()
+	inflight, queued := 0, 0
+	reason := map[string][]string{} // 因→票号列
 	for _, t := range actives {
+		steps := buildSteps(byTicket[t.ticket])
+		if n := len(steps); n > 0 {
+			if last := steps[n-1]; !last.hasExit {
+				inflight++
+			} else {
+				switch last.result {
+				case "closed":
+					queued++
+					reason["等审计"] = append(reason["等审计"], t.ticket)
+				case "rejected":
+					queued++
+					reason["驳回"] = append(reason["驳回"], t.ticket)
+				case "blocked":
+					queued++
+					reason["挂起"] = append(reason["挂起"], t.ticket)
+				}
+			}
+		}
+	}
+	r.TotalInflight, r.TotalQueued = int32(inflight), int32(queued)
+	if queued > 0 {
+		var parts []string
+		for _, k := range []string{"等审计", "驳回", "挂起"} {
+			if ts := reason[k]; len(ts) > 0 {
+				show := ts
+				more := ""
+				if len(ts) > 4 {
+					show, more = ts[:4], "…"
+				}
+				parts = append(parts, fmt.Sprintf("%s %d(%s%s)", k, len(ts), strings.Join(show, "·"), more))
+			}
+		}
+		r.QueuedNote = strings.Join(parts, "·")
+	}
+	for _, t := range actives {
+		if len(r.Rows) >= pipelineRowCap {
+			break // 行渲染截 20——计数已全量派生毕
+		}
 		steps := buildSteps(byTicket[t.ticket])
 		row := &dashboardv1.CockpitPipelineRow{
 			Ticket:     t.ticket,

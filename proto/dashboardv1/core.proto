@@ -454,6 +454,10 @@ message GetPipelineResponse {
   int32 total_active = 2;                  // 活跃总数（>20 时前端显「+N more」）
   google.protobuf.Timestamp as_of = 3;
   int64 seq = 4;                           // 水印=max(ops_event.id)——快照/流帧去重轴（同 headless 模式）
+  int32 total_inflight = 5;                // 在途=活跃票中末步在干的票数（全量活跃集口径——非仅渲染行）
+  int32 total_queued = 6;                  // 队列=活跃票中无在干步滞留票数（等审计/驳回/挂起——卡在等下家）
+  int32 total_done_today = 7;              // 今日完结=末事件 ts≤max(部署ts) 且 ts 当日（当日零部署=0 如实显）
+  string queued_note = 8;                  // 主积压因点名（「等审计 6·驳回 2」形+票号括注；queued=0 空串）
 }
 
 // —— 无头单状态面（T-0263——推送制信号径：dev 泵 inotify 日志写/.done/.hb+

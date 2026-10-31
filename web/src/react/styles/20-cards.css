@@ -84,6 +84,36 @@
   align-items: center;
   gap: 4px;
 }
+/* 席位底纹分异（T-0278②：四席可辨——仅底色/描边视觉件，灯语/spinner/布局
+   尺寸族零动；未知席无类透底原样不吞）。色轴=既有语义变量墨化。 */
+.pipe-seat--dev {
+  background: color-mix(in srgb, var(--good) 12%, transparent);
+  border-radius: 4px;
+  padding: 0 3px;
+}
+.pipe-seat--audit {
+  background: color-mix(in srgb, var(--warn) 14%, transparent);
+  border-radius: 4px;
+  padding: 0 3px;
+}
+.pipe-seat--cto {
+  background: color-mix(in srgb, var(--accent, #5b8cf0) 14%, transparent);
+  border-radius: 4px;
+  padding: 0 3px;
+}
+.pipe-seat--ceo {
+  background: color-mix(in srgb, var(--critical) 10%, transparent);
+  border-radius: 4px;
+  padding: 0 3px;
+}
+/* 底部计数条（T-0278③④——在途/队列/今日完结全量口径+主积压因点名）。 */
+.pipe-foot {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid color-mix(in srgb, var(--ink) 10%, transparent);
+  font-size: 0.92em;
+  font-variant-numeric: tabular-nums;
+}
 .pipe-elapsed {
   margin-left: auto;
   color: var(--ink-3, #8a8f98);
