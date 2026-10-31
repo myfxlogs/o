@@ -34,6 +34,18 @@ deploy_event() {
   MBUS_FROM=MANAGE timeout 15 /opt/meta/mbus.sh send MANAGE notice "DEPLOY-$sha" \
     "via=DEPLOY deploy $sha rc=$rc image=o-core:$sha" >>"$HOME/devin-relay.log" 2>&1 \
     || echo "[deploy_image] 完工投件败（回执缺，不影响部署 rc=$rc）" >&2
+  # 驾驶舱 v4 完结线（设计稿钉：完结=部署上线）：部署事件落 ops_event
+  # （event=部署,ticket=''——管道按部署 ts≥票末事件退场判，fin_0092 触发器
+  # 同拍 NOTIFY→前端行秒级退场）。凭据取径同 report.sh（FIN_PG_DSN 自
+  # /opt/o-research/env）；败静默不影响部署 rc。
+  local dsn
+  dsn=$(grep '^FIN_PG_DSN=' /opt/o-research/env 2>/dev/null | cut -d= -f2- | tr -d '"')
+  if [ -n "$dsn" ]; then
+    timeout 15 psql "$dsn" -Atc \
+      "INSERT INTO ops_event(seat,event,ticket,note) VALUES('DEPLOY','部署','','deploy $sha rc=$rc image=o-core:$sha')" \
+      >/dev/null 2>&1 \
+      || echo "[deploy_image] ops_event 部署事件落簿败（管道完结线缺本拍，不影响部署 rc=$rc）" >&2
+  fi
 }
 LOCK_HELD=0
 trap 'deploy_event $?; release_lock' EXIT

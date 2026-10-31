@@ -6,11 +6,12 @@ import { useSyncExternalStore } from "react";
 import type {
   GetHeadlessResponse,
   GetHostMetricsResponse,
+  GetPipelineResponse,
   ListClosedPositionsResponse,
   ListHedgeFlowResponse,
 } from "../gen/dashboardv1/core_pb";
 
-export type SliceName = "hedgeFlow" | "closedPositions" | "hostMetrics" | "headless";
+export type SliceName = "hedgeFlow" | "closedPositions" | "hostMetrics" | "headless" | "pipeline";
 export type SliceView<T> = { data: T | null; err: string | null; loading: boolean };
 
 type AnyView = SliceView<unknown>;
@@ -22,6 +23,7 @@ const slices: Record<SliceName, Slice> = {
   closedPositions: { snap: freshView(), subs: new Set() },
   hostMetrics: { snap: freshView(), subs: new Set() },
   headless: { snap: freshView(), subs: new Set() },
+  pipeline: { snap: freshView(), subs: new Set() },
 };
 
 // 推帧已写入的分片：hydrate 迟到回包不再覆盖（推帧后分片恒新）。
@@ -45,6 +47,7 @@ export function useSlice(name: "hedgeFlow"): SliceView<ListHedgeFlowResponse>;
 export function useSlice(name: "closedPositions"): SliceView<ListClosedPositionsResponse>;
 export function useSlice(name: "hostMetrics"): SliceView<GetHostMetricsResponse>;
 export function useSlice(name: "headless"): SliceView<GetHeadlessResponse>;
+export function useSlice(name: "pipeline"): SliceView<GetPipelineResponse>;
 export function useSlice(name: SliceName): SliceView<unknown> {
   return useSyncExternalStore(
     (cb) => subscribe(name, cb),
@@ -87,11 +90,18 @@ export function setHostMetrics(d: GetHostMetricsResponse): void {
   setPushed("hostMetrics", d);
 }
 
-// applyHeadless seq 水印去重（T-0263——unary 快照与 ev_headless 流帧同径入：
-// 快照 seq=max(行版) 单调轴，陈帧/重帧 seq≤水位即弃；断流后 unary 回补+接流
-// seq>水位帧补洞，无重态无回退）。
+// applyHeadless/applyPipeline seq 水印去重（T-0263——unary 快照与流帧同径入：
+// 快照 seq 单调轴，陈帧/重帧 seq≤水位即弃；断流后 unary 回补+接流 seq>水位
+// 帧补洞，无重态无回退。管道轴=max(ops_event.id)——部署行 ticket='' 亦推进，
+// 行退场帧可辨）。
 export function applyHeadless(d: GetHeadlessResponse): void {
   const cur = slices.headless.snap.data as GetHeadlessResponse | null;
   if (cur && d.lastSeq <= cur.lastSeq) return;
   setPushed("headless", d);
+}
+
+export function applyPipeline(d: GetPipelineResponse): void {
+  const cur = slices.pipeline.snap.data as GetPipelineResponse | null;
+  if (cur && d.seq <= cur.seq) return;
+  setPushed("pipeline", d);
 }
