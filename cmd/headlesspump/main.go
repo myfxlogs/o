@@ -1,9 +1,11 @@
-// cmd/headlesspump —— 无头单状态面事件泵（T-0263 业主令：信号径全推送制）。
+// cmd/headlesspump —— 无头单状态面事件泵（T-0263 业主令：信号径全推送制；
+// 秒级化钉案 2026-10-31：5s 拍 tick——dir 对账/在飞 /proc 实证/30s 心跳三门控，
+// kill 突殁 ≤10s 上板不等 30min 静默判；写败退避 30s 自愈）。
 // mbusd 同款骨架：inotify 感知（~/devin-headless-*.log/devin-audit-*.log/.done
 // + mail .hb 心跳面 + devin-relay 自报行）→ 票级状态机 → ops_headless upsert
 // （行版 seq+ev_headless NOTIFY 由 DB 触发器派发）→o-core Watch→前端瓦片。
-// 死亡/挂起=泵侧静默超时判定（单发期界定时器事件驱动，无周期扫描）；
-// 进程生死=/proc cmdline 实证非轮询。daemon 互斥单飞（supervisor 同形 flock）。
+// 死亡/挂起=泵侧静默超时判定（单发期界定时器事件驱动）+5s 拍 /proc 实证兜底；
+// 进程生死=/proc cmdline 实证。daemon 互斥单飞（supervisor 同形 flock）。
 package main
 
 import (
@@ -21,16 +23,19 @@ import (
 )
 
 const (
-	lockPath    = "/tmp/o-headlesspump.lock"
-	hbDir       = "/opt/meta/mail/.hb"
-	silenceFor  = 30 * time.Minute // 日志静默阈（supervisor STALL 同口径）
-	overdueFor  = 8 * time.Hour    // 在飞逾期阈（supervisor MAXRUN 同口径）
-	emitMinGap  = time.Second      // 活动帧节流（一跳 ≤2s 锚内——满窗尾帧补新态）
-	relayLog    = "devin-relay.log"
-	doneSuffix  = ".done"
-	logSuffix   = ".log"
-	prefixRun   = "devin-headless-"
-	prefixAudit = "devin-audit-"
+	lockPath       = "/tmp/o-headlesspump.lock"
+	hbDir          = "/opt/meta/mail/.hb"
+	silenceFor     = 30 * time.Minute // 日志静默阈（supervisor STALL 同口径）
+	overdueFor     = 8 * time.Hour    // 在飞逾期阈（supervisor MAXRUN 同口径）
+	emitMinGap     = time.Second      // 活动帧节流（一跳 ≤2s 锚内——满窗尾帧补新态）
+	beatEvery      = 5 * time.Second  // 秒级化钉案①：泵周期拍（对账/proc 实证/心跳三门控）
+	heartbeatEvery = 30 * time.Second // 秒级化钉案②：liveness 心跳拍（在飞行 updated_at 保鲜）
+	backoffFor     = 30 * time.Second // 秒级化钉案④：写败退避拍（emit 成功自愈回 5s）
+	relayLog       = "devin-relay.log"
+	doneSuffix     = ".done"
+	logSuffix      = ".log"
+	prefixRun      = "devin-headless-"
+	prefixAudit    = "devin-audit-"
 )
 
 func main() {

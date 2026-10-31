@@ -37,6 +37,7 @@ type tk struct {
 	lastAct                                       time.Time
 	lastEmit                                      time.Time
 	procAlive, stalled, overdue, doneF, emitDirty bool
+	procSeen                                      bool // /proc 实证曾活（5s 拍翻死闸——spawn 起跑窗防伪死）
 	emitT, silenceT, overdueT                     *time.Timer
 }
 
@@ -60,6 +61,10 @@ type pump struct {
 	dir string
 	tks map[string]*tk
 	in  chan string // 定时器投信："silence|overdue|emit <TID>"
+
+	degraded   bool      // 写败退避旗（秒级化钉案④——退 30s 拍，成功自愈回 5s）
+	degradedAt time.Time // 退避起点
+	lastHb     time.Time // 心跳拍锚（30s 一拍——在飞行 updated_at 保鲜）
 }
 
 // writer 写缝（pgxpool 实装——测试注假件验状态机不连库）。
@@ -148,15 +153,24 @@ func (p *pump) emit(t *tk) {
 		   updated_at=now()`,
 		t.tid, t.seat, t.model, t.state, la)
 	if err != nil {
+		if !p.degraded {
+			p.degraded, p.degradedAt = true, time.Now()
+			log.Printf("ALERT [headlesspump] 写败入退避（拍降 30s，成功自愈回 5s）: %v", err)
+		}
 		log.Printf("WARN %s upsert 败（下事件自愈——有界态全行重写）: %v", t.tid, err)
 		return
+	}
+	if p.degraded {
+		p.degraded = false
+		log.Printf("[headlesspump] 写径自愈——拍回 5s")
 	}
 	log.Printf("emit %s seat=%s state=%s model=%s", t.tid, t.seat, t.state, t.model)
 }
 
 // onLog 日志写帧：tail 增量扫行锚 + 活动记账。行锚序=wrapper 时序（exit 行先、
 // 命中/无收口行随至——exit 自身不判态，后继锚裁决；wrapper 殁于 exit~裁决间
-// 的残案由静默判 30min 兜底）。
+// 的残案由静默判 30min 兜底）。无新字节=零副作用早退（5s 对账拍下不醒停滞旗
+// 不刷 lastAct——秒级化钉案防伪醒）。
 func (p *pump) onLog(t *tk) {
 	st, err := os.Stat(t.logPath)
 	if err != nil {
@@ -164,6 +178,9 @@ func (p *pump) onLog(t *tk) {
 	}
 	if st.Size() < t.offset {
 		t.offset = 0 // 截短复位
+	}
+	if st.Size() == t.offset {
+		return
 	}
 	f, err := os.Open(t.logPath)
 	if err != nil {
@@ -182,8 +199,13 @@ func (p *pump) onLog(t *tk) {
 	for _, ln := range strings.Split(string(buf[:n]), "\n") {
 		switch {
 		case reSpawn.MatchString(ln):
-			_, m, _ := findProc(t.tid)
-			t.model = m
+			_, m, alive := findProc(t.tid)
+			if alive {
+				t.procSeen = true
+			}
+			if m != "" {
+				t.model = m
+			}
 			t.procAlive, t.stalled, t.overdue, t.doneF = true, false, false, false
 		case reDone.MatchString(ln):
 			t.doneF = true
@@ -248,6 +270,9 @@ func (p *pump) onTimer(msg string) {
 			return
 		}
 		_, m, alive := findProc(t.tid) // 静默到点=/proc 实证：在=停滞 殁=死
+		if alive {
+			t.procSeen = true
+		}
 		if alive && m != "" {
 			t.model = m
 		}

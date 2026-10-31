@@ -44,3 +44,9 @@ func findProc(tid string) (pid int, model string, ok bool) {
 	}
 	return 0, "", false
 }
+
+// procReadable /proc 可读性锚（读败≠进程殁——tick 翻死闸防瞬时抖动假死）。
+func procReadable() bool {
+	_, err := os.ReadDir("/proc")
+	return err == nil
+}

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/fsnotify/fsnotify"
 )
@@ -95,7 +96,7 @@ func (p *pump) sweep(ctx context.Context) {
 				t.doneF = true
 			}
 			if _, m, alive := findProc(tid); alive {
-				t.procAlive, t.model = true, m
+				t.procAlive, t.procSeen, t.model = true, true, m
 				p.arm(t) // 在飞票武装双判（期界顺延自 lastAct 见 arm 注）
 			} else {
 				t.procAlive = t.doneF // 无进程且未完工=死（完工票不翻死）
@@ -109,6 +110,8 @@ func (p *pump) sweep(ctx context.Context) {
 }
 
 func (p *pump) loop(ctx context.Context, w *fsnotify.Watcher) {
+	beat := time.NewTicker(beatEvery) // sched-exempt-ok 秒级化钉案①（业主令 2026-10-31）：5s 活性看门狗拍——/proc 实证+对账自愈+心跳（活性探针非业务轮询拉取，stalewatch 同形；变化门控写=无全量刷）
+	defer beat.Stop()
 	for {
 		select {
 		case <-ctx.Done():
@@ -125,6 +128,8 @@ func (p *pump) loop(ctx context.Context, w *fsnotify.Watcher) {
 			log.Printf("watcher: %v", err)
 		case msg := <-p.in:
 			p.onTimer(msg)
+		case <-beat.C:
+			p.tick()
 		}
 	}
 }

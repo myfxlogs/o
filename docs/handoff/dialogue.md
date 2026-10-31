@@ -424,3 +424,10 @@
 - **MANAGE-838 裁决**：恒差实已销（FIX01 一次性补行 Dev-843 在案，告警 15:06Z 后静默，终差 $0.38<容差）——常设缺口立票 T-0274（venue 出金翻译径+内转对分辨，排波后施工）。
 - **旁获**（不入五件）：t0160-fixup worktree 占 master 支+脏树积压——已 detach 释引用，脏件权责人留自处；驾驶舱v3 揭「清道夫-md 孤儿」实案（10-28 cutover 漏件，OCI 无 sweeper）——管理席急诊线，非本席面。
 
+
+## 2026-10-31 午续 — 施工席：状态面秒级化（泵5s拍+变化门控+即时推）
+
+- **交付**（cmd/headlesspump 四件）：①5s tick（dir 对账自愈 fsnotify 漏件/在飞 /proc 实证 kill≤10s 翻死/30s 心跳在飞行保鲜——变化门控零全量刷）；②写败退避 30s 拍自愈 fail-loud；③procSeen 防伪死（spawn 起跑窗不翻死，静默判兜底）+procReadable 防抖（/proc 读败不翻死）；④onLog 无新字节零副作用早退（对账拍不伪醒停滞旗）。Watch 协议/前端/表结构零触（NOTIFY 触发器 ev_headless_trg 既有径亲证在位）。
+- **实测回归坑（真凶）**：双文件票（devin-headless-T-xxx+devin-audit-T-xxx 同 id）——tick 轮流 onLog 两件，offset 单锚随 logPath 交叉污染→size<offset 误判截短→全量重读→emitSoon 每拍重发（16 张 done 票 4 写/s 连环）。修=tick 只服现役件（t.logPath==f），双件并发仍走事件径。回归锚 TestTickDualFileNoThrash。
+- **部署即活体验证**（dev 泵换 binary+restart）：anchor a=spawn→上板 **4s**；b=kill 突殁（无 exit 行）→dead **3s**（旧径=30min 静默判）；c=无在飞全表 0 emit（修复前 4/s）+75s 窗 229 行仅探针 1 行有写（非全量刷亲证，journal 4 emits=变化帧+心跳逐条对账）。探针残留清零（行+文件）。
+- **旁获**：T-0249 等票 seat 在 DM/Dev 间摆动（双文件 ensure 覆写语义，事件径既有行为）——不在本票界，留观。
