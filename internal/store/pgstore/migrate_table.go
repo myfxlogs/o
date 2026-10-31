@@ -91,6 +91,7 @@ var migrationTable = []struct {
 	{82, "fin_0082_exec_ambiguous_state.sql"},
 	{83, "fin_0083_basis_direction_defork.sql"},
 	{84, "fin_0084_arch_eval_reject.sql"},
+	{85, "fin_0085_retire_reason_forced.sql"},
 	{86, "fin_0086_ops_event.sql"},
 	{87, "fin_0087_maker_ordtype.sql"},
 	{88, "fin_0088_ops_headless.sql"},
@@ -132,4 +133,5 @@ var migrationTable = []struct {
 	{1074, "md_1074_basis_direction_defork.sql"},
 	{1075, "md_1075_arch_eval.sql"},
 	{1076, "md_1076_arch_signal.sql"},
+	{1077, "md_1077_retire_reason_forced.sql"},
 }

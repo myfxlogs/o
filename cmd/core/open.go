@@ -132,7 +132,7 @@ func (h hedgeOpener) untradeable(ctx context.Context, spec lifecycle.OpenSpec, x
 			return fmt.Errorf("策略退: %w", err)
 		}
 	}
-	if _, err := h.pool.Exec(ctx, `UPDATE fin_proposal SET state='fin_retired'
+	if _, err := h.pool.Exec(ctx, `UPDATE fin_proposal SET state='fin_retired',retire_reason='venue_untradeable',retired_at=now()
 		WHERE inst_id=$1 AND state='fin_armed'`, spec.InstID); err != nil {
 		return err
 	}

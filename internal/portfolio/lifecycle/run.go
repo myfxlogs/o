@@ -227,7 +227,7 @@ func (r *Runner) retireStaleDegraded(ctx context.Context) error {
 // retireStaleArmed armed 提案卫生闸（T-0069：同键只留最新一行 armed——
 // 被吸收/被取代的旧武装退役，表不再随周期线性胀；paper/probe/live 语义零触）。
 func (r *Runner) retireStaleArmed(ctx context.Context) error {
-	tag, err := r.pool.Exec(ctx, `UPDATE fin_proposal SET state='fin_retired'
+	tag, err := r.pool.Exec(ctx, `UPDATE fin_proposal SET state='fin_retired',retire_reason='superseded_armed',retired_at=now()
 		WHERE state='fin_armed' AND id NOT IN (
 			SELECT max(id) FROM fin_proposal WHERE state='fin_armed'
 			GROUP BY inst_id,direction)`)
