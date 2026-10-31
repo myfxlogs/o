@@ -2,9 +2,9 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | 已批 |
+| 状态 | 收口待审 |
 | 立项 | `[角色:决策]` @ 2026-10-31（管理席令 `20261031-215533-MANAGE-3335`——门2-DM 落箱即点火） |
-| 领取 | （session 标识 @ 时间；空=未领） |
+| 领取 | devin-施工席 @ 2026-10-31（DM-3348 派单） |
 | 优先级 | **高**——journal 实测 8178 行/3min 持续空转烧 systemd 账；双仓票解析窄径=下次即复发 |
 | 涉及面 | `/opt/meta/mbusd/cmd/dlmd/main.go`+`main_test.go`、`/opt/meta/mbus-dispatch.sh`（o 仓仅本票+回填，零码面） |
 | 执行径 | 施工裁（meta 仓按现例直落 master——无分支流；o 仓票面随例） |
@@ -117,3 +117,27 @@ FireAt 即成永动。
 ## 结果回填
 
 （施工写：实现摘要 / 测试证据 / 偏离说明）
+
+## 结果回填（devin-施工席 2026-10-31）
+
+**实现摘要**
+- 件①：`mbusd/cmd/dlmd/main.go` lease 续期 CAS 回调内重读 `o.Payload["last_activity"]`→`o.FireAt = la+1800`（缺/≤0 兜底 now+1800——与 leaseRenew 判据同源按实账滚）；`armTimer` 改传 CAS 返回值 `nob`（禁外层陈旧 ob）；fireHb 延账分支 `:1166` 同型顺改（hb 侧一拍自纠属错同改）。
+- 件②：`mbus-dispatch.sh` 抽 `ticket_csha` 单源函数（文件内首个收口commit 行：优先 `o@<hex>` 界锚 `(^|[^A-Za-z0-9_-])o@` 防 `foo@hex` 误中→落空取行内首个裸 hex）；四处调用点全换（door4_csha/extaudit_dispatch csha/审计锚件 acsha/route_done gate）——禁各点自写正则再分叉。
+
+**测试证据**
+- `cd /opt/meta/mbusd && go test ./...` 全绿；新增 `TestFireShadowLeaseRenewRollsFireAt`（armed+FireAt 已过+last_activity 鲜→fireShadow 后 state=armed 且 FireAt>now+1700——旧码必红对抗核）；hb 延账断言在案（TestFireHbRenewsFresh 既有）。
+- `grep -n 'd\.armTimer(ob)'` 于两续期分支零命中（已改传 CAS 返回值）。
+- ticket_csha 自证三式：`收口commit：o@fdea6669+meta@c1f5230`→`fdea6669`；裸 `fdea6669`→`fdea6669`；`foo@aaa1111bb`→`aaa1111bb`（不误作 o 侧，hex 照取=commit 语义）。四处调用点 grep 无残留旧正则。
+- bash -n mbus-dispatch.sh 语法绿。
+
+**生产实证**
+- `cd /opt/meta/mbusd && go build -o ../bin/dlmd ./cmd/dlmd`+`systemctl --user restart dlmd`（钦定唯 dlmd 可重启——其余服务零触）；重启后 3min 窗 journal=164 行 vs 修前 8178 行/3min——`LEASE_RENEW` 零发（vs 修前 ~37行/秒每秒成对），`TIMER_ARM` secs=1800/14400/30 正常值非 1。
+- T-0276 lease：未手工 disarm——续期径自行滚动（禁线守）。
+
+**生效径注记**：mbus-dispatch.sh 生效=常驻进程下次重启（钦定禁重启本单——PIPEFIX 已 dispatched 无即时堵点，修=防下个双仓票复发）。
+
+**坑处置**：`docs/工程经验库/条目/T-0279-cas-fireat-与正则漂移.md` 在案（双病灶合记+铁律两条）+kbgen gen 已跑。
+
+**meta 侧 commit**：dlmd+main_test+mbus-dispatch @44e4d55；经验库条目 @3fa9038（meta 无远端——master 直落径）。
+
+**偏离说明**：无。
