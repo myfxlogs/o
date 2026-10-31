@@ -413,3 +413,14 @@
 - **B/C 交付**（涉及面=web/src/react/** 五文件）：两页全瓦片右上角 StateDot 统一灯语（绿呼吸=段数据在/黄=陈/红=缺或死——复用既有 breathe 件与三态节奏，零新灯）+title 携鲜度（快照 asOf/最近自报/最陈行/beat 阈语义）；Cockpit 5 裸表入 .tile-table（padding 9×14/斑马纹墨 4%/表头吸顶/首列左对齐/tabular-nums）+.duo/.quad 间距 20→24px+armed 表入 .tile-scroll 滚动兜底。
 - **证**：npm run build（含 typecheck 前置）绿；cockpit_degrade 桩测全绿（sec/SecBoundary/流语义零伤）；流推送面（stream/store/api/hooks）零改动。部署后 System 页现成三态实证场：绿=健康行、红=清道夫-md（真坏如实红）、黄/红=采集行随 projector 修复前后对比。
 
+
+
+## 2026-10-31 晨 — 决策席：清孤会话收口（devin session）
+
+- **五件依令清**：①MANAGE-764→T-0273 P1 立派，Dev 当晨交付三阶证据补锚（meta 716fbcd），审计通过并码（#131），生产首拍实证 T-0265~0269 四假警清零+监理器为本票亲手补 .done 自证闭环；②MANAGE-923 补证已入 T-0272 钦定界④（429 退避），施工交付 4b4b3f94（GET 限定 ≤3 次/≤10s、终败上抛、写径零重试）——审计通过并码（#129）；③PR #113/#116 权威态复核均 MERGED；④T-0236 补审通过（产侧双端亲证零 NULL/约束活/分布吻合，迁移序 85 保号插 86..91 前机械解突，#128 并码）——票面与现实不脱，不转 T-0249；⑤箱内 173 件全清（回执批 ack 两波+实体三件处置 ack）。
+- **MANAGE-1034 提速令落地**：T-0272 审计过→并码→部署→终验全链当晨闭合。o-projector 00:08Z+o-core 00:16Z 施工热补部署（钦定径放行），判词落票后 DM 同船再部署 o-core:0a3d04ea（master 全量——T-0268/0269/cockpit-v3/T-0236 同船）——部署后亲证：六 kind 镜流在案（depth5 秒鲜/basis_ann 4s/funding_view<1min/xvenue 3s；carry_diff/mt5_swap stamped-ts 22:35 待下个 4h 源拍，非病）。
+- **诊断三次反转全链**（防再议）：票面假设桥病→FIX-02 证桥无罪指 projector 僵死→DM 证 projector 未僵（静默=零日志正常，dump=SIGQUIT 退痕）→真病灶=ts 水印跳读+kind 缺谓词（T-0272 已根修）。
+- **FIX-02 消哑审计通过**（#130 候 CI）：B2 无条件项交付（symbol_group_nil 分键+全灭 WARN+in-band 错误体捕获），B1 无病灶不虚造如实记——移交三件（projector 僵死实案/健康闸推送盲区/25s OpenSession 互踩）待另票。
+- **MANAGE-838 裁决**：恒差实已销（FIX01 一次性补行 Dev-843 在案，告警 15:06Z 后静默，终差 $0.38<容差）——常设缺口立票 T-0274（venue 出金翻译径+内转对分辨，排波后施工）。
+- **旁获**（不入五件）：t0160-fixup worktree 占 master 支+脏树积压——已 detach 释引用，脏件权责人留自处；驾驶舱v3 揭「清道夫-md 孤儿」实案（10-28 cutover 漏件，OCI 无 sweeper）——管理席急诊线，非本席面。
+
