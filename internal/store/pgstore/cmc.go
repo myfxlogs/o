@@ -129,6 +129,51 @@ func (s *Store) InsertCMCPositions(ctx context.Context, accountID int64, positio
 	return nil
 }
 
+// TombstoneCMCPositions 空仓/减仓墓碑（CMC 空仓不落痕票①根修）：present=本拍
+// 快照在场 instrument 集——最新快照 qty>0 且缺席者写 quantity=0 墓碑行。
+// 取舍：direction/entry/评估价承末值（墓碑语义=腿已平非数据无，读面只取 qty；
+// 价字段承末使兜底显价不为零），unrealised_pnl/margin_amount 置零（平仓即无
+// 浮动盈亏/占保——口径正确非纯承末），fetched_at=now。幂等：上笔已 qty=0
+// 天然不满足 qty>0 前提，连续空仓不重复落碑。返回墓碑数。
+func (s *Store) TombstoneCMCPositions(ctx context.Context, accountID int64, present map[string]bool, now time.Time) (int, error) {
+	rows, err := s.pool.Query(ctx,
+		`SELECT DISTINCT ON (instrument_id) instrument_id, direction, quantity, entry_price,
+		        unrealised_pnl, margin_amount, margin_percentage,
+		        evaluation_bid_price, evaluation_ask_price, opened_at, order_id
+		 FROM fin_cmc_positions WHERE account_id = $1
+		 ORDER BY instrument_id, fetched_at DESC`, accountID)
+	if err != nil {
+		return 0, fmt.Errorf("tombstone cmc positions query: %w", err)
+	}
+	defer rows.Close()
+	var tombs []CMCPosition
+	for rows.Next() {
+		var p CMCPosition
+		if err := rows.Scan(&p.InstrumentID, &p.Direction, &p.Quantity, &p.EntryPrice,
+			&p.UnrealisedPnL, &p.MarginAmount, &p.MarginPercentage,
+			&p.EvaluationBidPrice, &p.EvaluationAskPrice, &p.OpenedAt, &p.OrderID); err != nil {
+			return 0, fmt.Errorf("tombstone cmc positions scan: %w", err)
+		}
+		if p.Quantity > 0 && !present[p.InstrumentID] {
+			p.Quantity = 0
+			p.UnrealisedPnL = 0
+			p.MarginAmount = 0
+			p.FetchedAt = now
+			tombs = append(tombs, p)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+	if len(tombs) == 0 {
+		return 0, nil
+	}
+	if err := s.InsertCMCPositions(ctx, accountID, tombs); err != nil {
+		return 0, err
+	}
+	return len(tombs), nil
+}
+
 func (s *Store) UpsertCMCHistory(ctx context.Context, accountID int64, txs []CMCHistoryTx) error {
 	if len(txs) == 0 {
 		return nil

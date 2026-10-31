@@ -163,36 +163,46 @@ func (w *WsClient) flushPositions() {
 	posCopy := make([]positionJSON, len(w.positions))
 	copy(posCopy, w.positions)
 	w.positionsMu.Unlock()
-	if len(posCopy) == 0 {
-		return
-	}
 	now := time.Now()
-	dbPositions := make([]pgstore.CMCPosition, 0, len(posCopy))
+	present := make(map[string]bool, len(posCopy))
 	for _, p := range posCopy {
-		dp := pgstore.CMCPosition{
-			AccountID: w.accountID, InstrumentID: p.InstrumentID, Direction: p.Direction,
-			Quantity: parseFloat(p.Quantity), EntryPrice: parseFloat(p.Price),
-			UnrealisedPnL: parseFloat(p.UnrealisedPnLInPrimaryCurrency),
-			MarginAmount:  parseFloat(p.MarginAmount), MarginPercentage: parseFloat(p.StandardMarginPercentage),
-			EvaluationBidPrice: parseFloat(p.EvaluationBidPrice),
-			EvaluationAskPrice: parseFloat(p.EvaluationAskPrice), FetchedAt: now,
-		}
-		if len(p.Orders) > 0 {
-			dp.OrderID = p.Orders[0].OrderID
-			if t, err := parseRFC3339Loose(p.Orders[0].SubmittedTimestamp); err == nil {
-				dp.OpenedAt = &t
-			}
-		}
-		dbPositions = append(dbPositions, dp)
+		present[p.InstrumentID] = true
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second) // D-508 S5
 	defer cancel()
-	if err := w.store.InsertCMCPositions(ctx, w.accountID, dbPositions); err != nil {
-		log.Printf("[cmc-ws] insert positions: %v", err)
-		return
+	if len(posCopy) > 0 {
+		dbPositions := make([]pgstore.CMCPosition, 0, len(posCopy))
+		for _, p := range posCopy {
+			dp := pgstore.CMCPosition{
+				AccountID: w.accountID, InstrumentID: p.InstrumentID, Direction: p.Direction,
+				Quantity: parseFloat(p.Quantity), EntryPrice: parseFloat(p.Price),
+				UnrealisedPnL: parseFloat(p.UnrealisedPnLInPrimaryCurrency),
+				MarginAmount:  parseFloat(p.MarginAmount), MarginPercentage: parseFloat(p.StandardMarginPercentage),
+				EvaluationBidPrice: parseFloat(p.EvaluationBidPrice),
+				EvaluationAskPrice: parseFloat(p.EvaluationAskPrice), FetchedAt: now,
+			}
+			if len(p.Orders) > 0 {
+				dp.OrderID = p.Orders[0].OrderID
+				if t, err := parseRFC3339Loose(p.Orders[0].SubmittedTimestamp); err == nil {
+					dp.OpenedAt = &t
+				}
+			}
+			dbPositions = append(dbPositions, dp)
+		}
+		if err := w.store.InsertCMCPositions(ctx, w.accountID, dbPositions); err != nil {
+			log.Printf("[cmc-ws] insert positions: %v", err)
+			return
+		}
+		w.emitFact(ctx, []fact.Fact{{Kind: fact.KindCMCAccount, Venue: "cmc",
+			Symbol: "positions", Value: 0, Unit: fact.UnitUSD, Ts: now, Src: "cmc_ws"}})
 	}
-	w.emitFact(ctx, []fact.Fact{{Kind: fact.KindCMCAccount, Venue: "cmc",
-		Symbol: "positions", Value: 0, Unit: fact.UnitUSD, Ts: now, Src: "cmc_ws"}})
+	// 空仓不落痕根修：快照缺席且上笔 qty>0 的 instrument 落 qty=0 墓碑
+	// （空快照=全平、部分缺席=单腿平——幂等不重碑；败只 log 下拍补）。
+	if n, err := w.store.TombstoneCMCPositions(ctx, w.accountID, present, now); err != nil {
+		log.Printf("[cmc-ws] tombstone positions: %v", err)
+	} else if n > 0 {
+		log.Printf("[cmc-ws] 墓碑落 %d 腿（快照缺席 qty=0）", n)
+	}
 }
 
 func (w *WsClient) emitFact(ctx context.Context, facts []fact.Fact) {
