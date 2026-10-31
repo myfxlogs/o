@@ -6,16 +6,16 @@ risk: high
 status: verified
 keywords: [迁移序号撞号, migrate_table, worktree 并行, 合并时序, duplicate version]
 scope: [migrations/, internal/store/pgstore/migrate_table.go, 并行施工流程]
-summary: 施工分支基于旧 master 立迁移号，并行票先合占位→后到者同号双注册（version 无 DB 级唯一约束）——三犯实证；立号前必查远端最新号，合并验收必核登记唯一性
+summary: 施工分支基于旧 master 立迁移号，并行票先合占位→后到者同号双注册（version 无 DB 级唯一约束）——四犯实证；立号前必查远端最新号，合并验收必核登记唯一性
 first_seen: 2026-10-25
-last_verified: 2026-10-25
+last_verified: 2026-10-30
 skills: [code-audit]
 evidence_refs:
   - type: git_fact
-    ref: T-0040/T-0041 撞 0025（merge 6cac7f8 改 0026）；T-0044 撞 0026 改 0027；T-0107/T-0108 撞 0046（T-0108 先合占位，T-0107 续编 0047 处置 f5fc216）
+    ref: T-0040/T-0041 撞 0025（merge 6cac7f8 改 0026）；T-0044 撞 0026 改 0027；T-0107/T-0108 撞 0046（T-0108 先合占位，T-0107 续编 0047 处置 f5fc216）；T-0259/T-0263 撞 0088（0263 ops_headless 先合，0259 并码时改 0089+票面/条目文引同修——dm/1030-t0259-merge）
 ---
 
-## 实案（三犯=系统性）
+## 实案（四犯=系统性）
 
 | 犯 | 撞 | 处置 |
 |---|---|---|

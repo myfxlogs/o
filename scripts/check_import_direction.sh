@@ -86,7 +86,9 @@ internal/research/dcd -> internal/platform/rejects
 internal/research/grammar -> internal/platform/rejects
 internal/research/grammar -> internal/research/dcd
 internal/research/dcd -> internal/research/armwatch
+internal/research/grammar -> internal/research/armwatch
 internal/research/armwatch -> internal/platform/notify
+internal/research/armwatch -> internal/platform/config
 internal/research/researcher -> internal/platform/notify
 internal/research/researcher -> internal/platform/roster
 internal/research/sigdist -> internal/platform/rejects

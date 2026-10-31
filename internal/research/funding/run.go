@@ -22,7 +22,7 @@ const (
 )
 
 var paramKeys = []string{
-	"research.funding.taker_fee_bps", "research.funding.slippage_bps",
+	"research.funding.taker_fee_bps", "research.funding.maker_fee_bps", "research.funding.slippage_bps",
 	"research.funding.fail_cost_bps", "research.funding.window_loss_bps",
 	"research.funding.min_net_apr", "research.funding.settles_per_day",
 }
@@ -79,19 +79,22 @@ func (r *Runner) params() (Params, error) {
 	if p.TakerFeeBps, err = get(paramKeys[0]); err != nil {
 		return p, fmt.Errorf("%s: %w", paramKeys[0], err)
 	}
-	if p.SlippageBps, err = get(paramKeys[1]); err != nil {
+	if v, e := get(paramKeys[1]); e == nil {
+		p.MakerFeeBps, p.MakerFeeSet = v, true // T-0247 分层：在册含 0/负按真值
+	}
+	if p.SlippageBps, err = get(paramKeys[2]); err != nil {
 		return p, fmt.Errorf("%s: %w", paramKeys[1], err)
 	}
-	if p.FailCostBps, err = get(paramKeys[2]); err != nil {
-		return p, fmt.Errorf("%s: %w", paramKeys[2], err)
-	}
-	if p.WindowLossBps, err = get(paramKeys[3]); err != nil {
+	if p.FailCostBps, err = get(paramKeys[3]); err != nil {
 		return p, fmt.Errorf("%s: %w", paramKeys[3], err)
 	}
-	if p.MinNetAPR, err = get(paramKeys[4]); err != nil {
+	if p.WindowLossBps, err = get(paramKeys[4]); err != nil {
 		return p, fmt.Errorf("%s: %w", paramKeys[4], err)
 	}
-	if p.SettlesPerDay, err = get(paramKeys[5]); err != nil {
+	if p.MinNetAPR, err = get(paramKeys[5]); err != nil {
+		return p, fmt.Errorf("%s: %w", paramKeys[6], err)
+	}
+	if p.SettlesPerDay, err = get(paramKeys[6]); err != nil {
 		return p, fmt.Errorf("%s: %w", paramKeys[5], err)
 	}
 	return p, nil
@@ -102,6 +105,15 @@ func (r *Runner) params() (Params, error) {
 // 写面整体单事务落卡——同事务空 payload NOTIFY 同值天然去重=全拍至多一醒
 // （旧逐行 autocommit 每行一醒=ev_eval 洪泛根，配合 0064 实质变触发器双治）。
 func (r *Runner) scan(ctx context.Context) error {
+	// T-0244 期界包络（dcd 同型——无界长扫挂死径封；funding.scan_timeout_s 热启缺=480s）
+	to := 8 * time.Minute
+	if v, err := r.cfg.GetFloat("funding.scan_timeout_s"); err == nil && v > 0 {
+		to = time.Duration(v) * time.Second
+	}
+	sctx, cancel := context.WithTimeout(ctx, to)
+	defer cancel()
+	ctx = sctx
+
 	r.watch.SetBeat(freshnessMax)
 	r.watch.Check(ctx) // 臂静默判定（T-0117——beat=funding 新鲜度窗 25h）
 	p, err := r.params()

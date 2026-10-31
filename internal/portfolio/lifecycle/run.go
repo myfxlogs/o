@@ -247,16 +247,9 @@ func (r *Runner) retireStaleArmed(ctx context.Context) error {
 	if err2 == nil && tag2.RowsAffected() > 0 {
 		log.Printf("[lifecycle] armed 提案超 %.0fh 退役 %d 行（未开火额度释放）", ttl, tag2.RowsAffected())
 	}
-	// 返修①A：策略退役谓词收紧——live/probe 态+无 open 持仓+最近活动戳
-	//（fin_position 末次开仓时间）超 ttl 才退役；有仓/近期开过的不误杀。
-	tag3, err3 := r.pool.Exec(ctx, `UPDATE fin_strategy s SET state='retired'
-		WHERE s.state IN ('live','probe') AND NOT EXISTS(
-			SELECT 1 FROM fin_position p WHERE p.strategy_ref=s.id AND p.closed_at IS NULL)
-		AND COALESCE((SELECT max(p2.opened_at) FROM fin_position p2 WHERE p2.strategy_ref=s.id),
-			s.entered_at)<now()-make_interval(hours=>$1)`, ttl)
-	if err3 == nil && tag3.RowsAffected() > 0 {
-		log.Printf("[lifecycle] armed 策略超 %.0fh 退役 %d 行（未开火额度释放）", ttl, tag3.RowsAffected())
-	}
+	// T-0258：tag3 策略面拆 retire.go——活动锚改执行侧证据+退役走
+	// Transition 留痕（裸 UPDATE 零 transition 行=T-0255 取证断点根修）。
+	err3 := r.retireStaleArmedStrategies(ctx, ttl)
 	if err != nil {
 		return err
 	}

@@ -7,6 +7,7 @@ package armwatch
 
 import (
 	"context"
+	"o/internal/platform/config"
 	"sync"
 	"time"
 
@@ -20,6 +21,7 @@ type Watch struct {
 	beat   time.Duration // 判定窗基准（=臂节拍；2×beat 零产出=静默）
 	al     *notify.Alerter
 	lastOK time.Time
+	boot   time.Time        // never-lived 基线（T-0243 层③——lastOK 缺席按首 Check 起算）
 	silent bool             // 静默告警已发（恢复清标）
 	now    func() time.Time // 时钟注入面（测试）——nil=time.Now
 }
@@ -58,16 +60,33 @@ func (w *Watch) OK() {
 func (w *Watch) Check(ctx context.Context) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	if w.beat <= 0 || w.lastOK.IsZero() || w.silent {
+	if w.beat <= 0 || w.silent {
 		return
 	}
-	if w.clock().Sub(w.lastOK) <= 2*w.beat {
+	if w.boot.IsZero() {
+		w.boot = w.clock() // 首拍定基线（臂起动时刻近似）
+	}
+	base := w.lastOK
+	if base.IsZero() {
+		base = w.boot // never-lived 臂：boot 起算 beat 窗（曾零成功≠永免判——架构洞修）
+	}
+	if w.clock().Sub(base) <= 2*w.beat {
 		return
 	}
 	w.silent = true
 	msg := "研究臂 " + w.name + " 超 " + (2 * w.beat).Round(time.Minute).String() +
-		" 零成功产出——fail-closed 让位循环（限频/读败），产出面停摆"
+		" 零成功产出——fail-closed 让位循环（限频/读败/never-lived），产出面停摆"
 	if w.al != nil {
 		w.al.Alert(ctx, "research_arm_silent", msg)
 	}
+}
+
+// DeadlineCtx 期界包络共享件（T-0244——各臂 scan 顶层一行挂：cfg 键
+// <域>.scan_timeout_s 热启，缺=def；ctx 透下游全链有界，挂死径封）。
+func DeadlineCtx(ctx context.Context, cfg *config.Client, key string, def time.Duration) (context.Context, context.CancelFunc) {
+	to := def
+	if v, err := cfg.GetFloat(key); err == nil && v > 0 {
+		to = time.Duration(v) * time.Second
+	}
+	return context.WithTimeout(ctx, to)
 }

@@ -7,6 +7,7 @@ import type { RouteDef } from "./router";
 import { usePath } from "./router";
 import { OverviewPage } from "./pages/Overview";
 import { SystemPage } from "./pages/System";
+import { CockpitPage } from "./pages/Cockpit";
 import { TrxPage } from "./pages/Trx";
 import { ReviewPage } from "./pages/Review";
 import "./styles/00-base.css";
@@ -19,6 +20,7 @@ import "./styles/22-effects.css";
 
 const ROUTES: RouteDef[] = [
   { path: "/", label: "总览", el: <OverviewPage /> },
+  { path: "/cockpit", label: "驾驶舱", el: <CockpitPage /> },
   { path: "/system", label: "系统", el: <SystemPage /> },
   { path: "/trx", label: "TRX", el: <TrxPage /> },
   { path: "/review", label: "复盘", el: <ReviewPage /> },

@@ -1,9 +1,11 @@
 // stream.ts —— O Connect Watch 单泵（T-0170 单泵归一；T-0220b v2：带载荷帧
 // （data）按 kind 类型化解析（fromJson 零手拼）直写 store 分片——一跳渲染
-// 零逐卡重拉；无载荷帧保持 topic 信号（未载荷化面 refetch 径）。断流 3s
-// 重连=传输维护，非数据轮询——事件驱动律不变）。
+// 零逐卡重拉；无载荷帧保持 topic 信号（未载荷化面 refetch 径）。断流重连=
+// 指数退避+抖动（T-0269——原固定 3s 在死路径上成重连风暴轰炸同一新 h2
+// 会话，事故放大器病灶）=传输维护，非数据轮询——事件驱动律不变）。
 import { fromJson } from "@bufbuild/protobuf";
 import {
+  GetHeadlessResponseSchema,
   GetHostMetricsResponseSchema,
   ListClosedPositionsResponseSchema,
   ListHedgeFlowResponseSchema,
@@ -36,6 +38,9 @@ function ingest(ev: WatchEvent): void {
     case "ev_hostmetrics":
       store.setHostMetrics(fromJson(GetHostMetricsResponseSchema, ev.data));
       break;
+    case "ev_headless":
+      store.applyHeadless(fromJson(GetHeadlessResponseSchema, ev.data));
+      break;
   }
 }
 
@@ -45,8 +50,14 @@ function setLive(v: boolean): void {
   statusSubs.forEach((f) => f(live));
 }
 
+// 重连退避梯（T-0269）：1s→2→4→…封顶 30s，±25% 抖动防雷群；帧到=流已证活
+// →梯子复位（连接即死的路径无帧→梯子持续升——风暴自动降频）。
+let backoffMs = 1_000;
+const BACKOFF_MAX_MS = 30_000;
+
 async function pump(): Promise<void> {
   for await (const ev of client.watch({})) {
+    backoffMs = 1_000;
     setLive(true);
     ingest(ev);
     subs.forEach((f) => f({ topic: topic(ev.kind) }));
@@ -58,7 +69,9 @@ function run(): void {
     .catch(() => {})
     .finally(() => {
       setLive(false); // 断流显形——不静默（T-0170 痛点④：实时性可见）
-      setTimeout(run, 3000);
+      const delay = backoffMs * (0.75 + Math.random() * 0.5);
+      backoffMs = Math.min(backoffMs * 2, BACKOFF_MAX_MS);
+      setTimeout(run, delay);
     });
 }
 

@@ -77,3 +77,6 @@ arch_eval	md
 arch_signal	md
 md_daily_snapshot	md
 arch_eval_reject	fin
+ops_event	fin
+ops_headless	fin
+ops_ticket_usage	fin

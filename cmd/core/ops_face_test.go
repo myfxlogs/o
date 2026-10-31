@@ -62,8 +62,9 @@ func TestSystemHealthStates(t *testing.T) {
 	if got := byName["MT5 利润流"]; got.State != 0 || got.Note == "" {
 		t.Fatalf("order_profit 零行=空仓语义应绿+注: %+v", got)
 	}
-	if got := byName["蒸馏 basis_ann"]; got.State != 1 || got.Note == "" {
-		t.Fatalf("basis_ann 零行=已知缺席应黄+注: %+v", got)
+	// T-0241 三律移锚：已知缺席=数据缺降级态非警——节拍内正例显正常（绿+缺注）
+	if got := byName["蒸馏 basis_ann"]; got.State != 0 || got.Note == "" {
+		t.Fatalf("basis_ann 零行=已知缺席应绿+数据缺注: %+v", got)
 	}
 }
 
