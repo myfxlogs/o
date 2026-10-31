@@ -7,11 +7,12 @@
 // 角标+asOf 快照戳常显（数据鲜度一眼可见）；③无头状态面本地切片分页
 // （T-0262 工单板同款分页器 10 行/页——推送全量本地切，零后端改动）+定高
 // 瓦片。降级语义原样保全（T-0248：sec/SecBoundary/missing 显缺不冒零）；
-// T-0263 推送制照旧（Watch ev_headless 流帧+unary 快照 seq 水印，零定时器）。
+// T-0263 推送制照旧（Watch ev_headless 流帧+unary 快照 seq 水印，零定时器）；
+// T-0268：无头面并入 getCockpit 首屏一往返（独立首调撤——hydrate 仅缺段兜底）。
 import { useEffect, useState } from "react";
 import { client } from "../api";
 import { onLive } from "../stream";
-import { applyHeadless, useSlice } from "../store";
+import { applyHeadless, hydrate, useSlice } from "../store";
 import { Component, type ReactNode } from "react";
 import { Card, EmptyState, Skeleton, StateDot } from "../components/ui";
 import type { GetCockpitResponse, CockpitPlatformRow, CockpitSeat, CockpitTicket, CockpitArmed } from "../../gen/dashboardv1/core_pb";
@@ -58,11 +59,11 @@ function Pager(props: { page: number; pages: number; total: number; onPage: (p: 
 
 // HeadlessTile 无头状态面（T-0263 推送制照旧——取数泵上提页级单源，本件纯
 // 渲染；v2 本地切片分页：推送全量→本地切 10 行/页，零后端改动；.tile-scroll
-// 定高滚动——瓦片高度固定，页高不被行数撑）。
+// 定高滚动——瓦片高度固定，页高不被行数撑；T-0268 读败显缺不永转骨架）。
 function HeadlessTile() {
 	const hl = useSlice("headless");
 	const [page, setPage] = useState(1);
-	if (!hl.data) return <Card title="③ 无头状态面（推送制）"><Skeleton rows={4} /></Card>;
+	if (!hl.data) return <Card title="③ 无头状态面（推送制）">{hl.err ? <p className="dim">该段数据缺（读败）</p> : <Skeleton rows={4} />}</Card>;
 	const rows = hl.data.rows;
 	const pages = Math.max(1, Math.ceil(rows.length / T_PAGE));
 	const safePage = Math.min(page, pages);
@@ -87,17 +88,23 @@ export function CockpitPage() {
 	const [page, setPage] = useState(1);
 	const hl = useSlice("headless");
 	// 无头取数泵页级单源（v2 上提——①存活卡与③状态面同读 headless 分片，
-	// 一页一取数点）：unary 快照首取+onLive 断流复连即回补；补洞水印判在
-	// store.applyHeadless（seq≤水位弃帧）。零 interval 零定时器。
+	// 一页一取数点）；T-0268 挂载首取并入 getCockpit.headless——本效零独立
+	// 首调，hydrate 仅缺段径 unary 兜底（data 在=零请求）；onLive 即时回放
+	// 非断流复连不补，复连才 unary 回补+接流 seq>水位帧补洞（水印判在
+	// store.applyHeadless）。零 interval 零定时器。
 	useEffect(() => {
-		let alive = true;
-		const refill = () => client.getHeadless({}).then((res) => { if (alive) applyHeadless(res); }).catch(() => {});
-		refill();
-		return onLive((v?: unknown) => { if (v === true) refill(); });
+		const refill = () => client.getHeadless({}).then(applyHeadless).catch(() => {});
+		hydrate("headless", () => client.getHeadless({}));
+		let replayed = false; // onLive 首调=现态即时回放非断流复连——跳过，不重演首取
+		return onLive((v?: unknown) => {
+			if (!replayed) { replayed = true; return; }
+			if (v === true) refill();
+		});
 	}, []);
 	useEffect(() => {
 		client.getCockpit({ ticketLimit: T_PAGE, ticketOffset: (page - 1) * T_PAGE })
-			.then(setD).catch(() => setD(null));
+			.then((d) => { if (d.headless) applyHeadless(d.headless); setD(d); })
+			.catch(() => setD(null));
 	}, [page]);
 	if (!d) return (
 		<div className="page">
@@ -133,9 +140,12 @@ export function CockpitPage() {
 	let lastSeatTs: { seconds: bigint } | undefined;
 	for (const s of d.seats) if (s.ts && (!lastSeatTs || s.ts.seconds > lastSeatTs.seconds)) lastSeatTs = s.ts;
 	const hlRows = hl.data?.rows ?? [];
-	const hlBad = hlRows.filter((r) => r.state === "dead" || r.state === "stalled" || r.state === "overdue").length;
-	const hlAlive = hlRows.filter((r) => r.state === "alive").length;
-	const hlDone = hlRows.filter((r) => r.state === "done").length;
+	// 计数双语归一（服务端判态中文标 or pump 原键——v2 裸键滤恒 0 病灶修：
+	// HL_STATE 正向映射后按显示标判，两径通吃）。
+	const hlL = (s: string) => HL_STATE[s] ?? s;
+	const hlBad = hlRows.filter((r) => ["死亡", "停滞", "逾期"].includes(hlL(r.state))).length;
+	const hlAlive = hlRows.filter((r) => hlL(r.state) === "在飞").length;
+	const hlDone = hlRows.filter((r) => hlL(r.state) === "完工").length;
 	return (
 		<div className="page">
 			<div className="health-strip">
@@ -212,9 +222,9 @@ export function CockpitPage() {
 				</Card>
 				<Card title="③ 工单板">{sec("tickets",
 					d.tickets.length === 0 ? <EmptyState title="无工单" /> :
-						<table><thead><tr><th>票</th><th>状态</th><th>席</th><th>时间</th></tr></thead>
+						<table><thead><tr><th>票</th><th>状态</th><th>席</th><th>用量(tok)</th><th>时间</th></tr></thead>
 							<tbody>{d.tickets.map((t: CockpitTicket) => <tr key={t.ticket}><td>{t.ticket}</td><td>{t.state}</td>
-								<td>{t.seat}</td><td>{ts(t.ts)}</td></tr>)}</tbody></table>)}
+								<td>{t.seat}</td><td>{Number(t.usageRows) > 0 ? Number(t.totalTokens).toLocaleString() : "—"}</td><td>{ts(t.ts)}</td></tr>)}</tbody></table>)}
 					<Pager page={safePage} pages={tPages} total={d.ticketsTotal} onPage={setPage} />
 				</Card>
 			</div>

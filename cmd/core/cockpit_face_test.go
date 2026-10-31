@@ -101,6 +101,29 @@ func TestGetCockpitBlocks(t *testing.T) {
 			t.Fatalf("不该 missing: %v", r2.Missing)
 		}
 	}
+	// T-0267 件A 成本列：ops_ticket_usage 两行聚合（含一行 NULL=不可得账）
+	// →工单板 total_tokens=实测行合计+usage_rows=账行数（NULL 行照计行数）。
+	if _, err := c.pool.Exec(ctx, `INSERT INTO ops_ticket_usage(ticket,kind,model,prompt_tokens,completion_tokens,cached_tokens)
+		VALUES('T-9999','run','m',100,20,5),('T-9999','audit','m',NULL,NULL,NULL)`); err != nil {
+		t.Fatal("用量桩:", err)
+	}
+	r3, err := c.GetCockpit(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, tk := range r3.Tickets {
+		if tk.Ticket != "T-9999" {
+			continue
+		}
+		found = true
+		if tk.TotalTokens != 120 || tk.UsageRows != 2 {
+			t.Fatalf("用量聚合错: toks=%d rows=%d", tk.TotalTokens, tk.UsageRows)
+		}
+	}
+	if !found {
+		t.Fatal("T-9999 工单行缺——聚合 JOIN 断径")
+	}
 }
 
 // T-0262 验收锚①②：工单板每页≤10+跨页不重不漏+稳定序（ts DESC,ticket DESC）对拍。
@@ -169,6 +192,54 @@ func TestGetCockpitTicketPaging(t *testing.T) {
 	// 序锚+决胜键实证：最新=T-9024，同戳尾二=T-8ZZZ,T-8AAA（ticket DESC）
 	if all[0].Ticket != "T-9024" || all[25].Ticket != "T-8ZZZ" || all[26].Ticket != "T-8AAA" {
 		t.Fatalf("序锚错: 首=%s 尾二=%s,%s", all[0].Ticket, all[25].Ticket, all[26].Ticket)
+	}
+}
+
+// T-0268 锚①：无头面并入 getCockpit 一往返——ops_headless 桩行随首帧出。
+func TestGetCockpitHeadlessMerged(t *testing.T) {
+	pool := testutil.Pool(t)
+	if err := pgstore.Migrate(context.Background(), pool, "fin"); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	c := coreService{pool: pool}
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO ops_headless(ticket,seat,model,state,last_activity)
+		 VALUES('T-8888','Dev','桩模','alive',now())`); err != nil {
+		t.Fatal("无头桩:", err)
+	}
+	r, err := c.GetCockpit(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Headless == nil || len(r.Headless.Rows) != 1 {
+		t.Fatalf("无头面未并入首帧: %+v", r.Headless)
+	}
+	row := r.Headless.Rows[0]
+	if row.Ticket != "T-8888" || row.State != "在飞" || row.Seq <= 0 {
+		t.Fatalf("无头行错: %+v", row)
+	}
+	if r.Headless.LastSeq != row.Seq {
+		t.Fatalf("水位错: last_seq=%d row.seq=%d", r.Headless.LastSeq, row.Seq)
+	}
+	for _, m := range r.Missing {
+		if m == "headless" {
+			t.Fatalf("不该 missing headless: %v", r.Missing)
+		}
+	}
+	// 拔径桩：表缺→missing 名段+其余块不受染
+	if _, err := pool.Exec(ctx, "DROP TABLE ops_headless CASCADE"); err != nil {
+		t.Fatal("拆表:", err)
+	}
+	r2, err := c.GetCockpit(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r2.Headless != nil || !containsStr(r2.Missing, "headless") {
+		t.Fatalf("拔径未显缺: hl=%v missing=%v", r2.Headless, r2.Missing)
+	}
+	if r2.Money == nil {
+		t.Fatal("拔径污染其余块")
 	}
 }
 

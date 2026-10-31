@@ -154,9 +154,19 @@ func (c coreService) GetCockpit(ctx context.Context,
 		`SELECT count(*) FROM ops_ticket_state WHERE `+ticketFilter).Scan(&r.TicketsTotal); err != nil {
 		r.Missing = append(r.Missing, "tickets")
 	}
+	// T-0267 件A：票→累计 token 聚合 LEFT JOIN（ops_ticket_usage——零账行
+	// =usage_rows 0，前端显「—」分辨「零用量」与「无账」）。
 	tr, err := c.pool.Query(ctx,
-		`SELECT ticket,event,ts,seat FROM ops_ticket_state WHERE `+ticketFilter+
-			` ORDER BY ts DESC, ticket DESC LIMIT $1 OFFSET $2`, lim, off)
+		`SELECT t.ticket,t.event,t.ts,t.seat,
+			COALESCE(u.toks,0),COALESCE(u.n,0)
+		 FROM ops_ticket_state t
+		 LEFT JOIN (
+			SELECT ticket,count(*) n,
+				sum(COALESCE(prompt_tokens,0))+sum(COALESCE(completion_tokens,0)) toks
+			FROM ops_ticket_usage GROUP BY ticket
+		 ) u ON u.ticket=t.ticket
+		 WHERE `+ticketFilter+
+			` ORDER BY t.ts DESC, t.ticket DESC LIMIT $1 OFFSET $2`, lim, off)
 	if err != nil && !containsStr(r.Missing, "tickets") {
 		r.Missing = append(r.Missing, "tickets")
 	}
@@ -165,7 +175,8 @@ func (c coreService) GetCockpit(ctx context.Context,
 		for tr.Next() {
 			var tk dashboardv1.CockpitTicket
 			var ts *time.Time
-			if tr.Scan(&tk.Ticket, &tk.State, &ts, &tk.Seat) != nil {
+			if tr.Scan(&tk.Ticket, &tk.State, &ts, &tk.Seat,
+				&tk.TotalTokens, &tk.UsageRows) != nil {
 				continue
 			}
 			switch tk.State {
@@ -201,6 +212,14 @@ func (c coreService) GetCockpit(ctx context.Context,
 				r.Armed = append(r.Armed, &a)
 			}
 		}
+	}
+
+	// ⑥ 无头状态面并入首帧（T-0268——getHeadless 并入 getCockpit 一往返；
+	// unary GetHeadless 保留=断流复连回补径）。读败=missing 名段显缺非冒零。
+	if hl, herr := c.GetHeadless(ctx, &dashboardv1.GetHeadlessRequest{}); herr != nil {
+		r.Missing = append(r.Missing, "headless")
+	} else {
+		r.Headless = hl
 	}
 	return r, nil
 }

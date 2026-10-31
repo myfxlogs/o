@@ -1,6 +1,7 @@
 # T-0161 eval↔proposal 联动清扫+陈旧提案回收（滞留类病灶）
 
-## 态：✅ 验收毕投产（决策席 2026-10-26）
+## 态：审计通过
+审计席：headless @ 2026-10-30
 ## 领取：zc-glm-t0161 @ 2026-10-26
 ## 域：组合生命周期 / 提案队列治理
 ## 源出：T-0150 验收观察（SHEIN 评估早已 rejected 而 armed 提案滞留靠手清）
@@ -58,3 +59,32 @@
   +pgstore 4.6s 绿（迁移登记面）——既有夹具（全 proposed 形）零干扰亲测。
 - 偏离说明：施工项②票面「日拍或事件径自择」择事件径（理由如上）；
   T-0069 退役径未补因（票面未列，留存量行为）。
+
+## 判决注记（审计席 headless @ 2026-10-30，收口=72610be，origin/master 在案）
+
+- 锚①eval rejected→提案当日退位零滞留【过】：链路亲证——fin_opp_eval
+  挂 ev_eval_trg（0064），lifecycle Runner 订 ev_eval 醒 scan()，
+  scan 首步即 retireEvalRejected（state 谓词幂等）+retireStaleProposed。
+  生产（o-postgres:5433 只读亲查）：138 行退位印 retire_reason=
+  eval_rejected+retired_at=2026-10-27 10:58:46Z（部署后首拍补清算式集中
+  退役）；当前 JOIN fin_opp_eval verdict='rejected' 而提案仍
+  fin_proposed/fin_armed 者=0——零滞留在实。
+- 锚②fin_proposed 不再无限堆积【过】：当前 fin_proposed=0 行、
+  created_at>24h 陈旧行=0；retireStaleProposed 已挂 scan 第二拍（TTL
+  =lifecycle.proposal_stale_ttl_h 缺省 24h）且桩锚过窗/幂等绿。
+  诚实注记：stale_expired 行生产实测=0——该径至今无独占目标（zombie
+  主流形态=eval 已拒，被 scan 序首拍 eval_rejected 先捕；余者 24h 内
+  armed/翻面），非机制缺位；退役行本身即落痕在案（reason+时点列）。
+- 锚③计数分布回正非手清【过】：fin_proposal 分布=823 fin_retired/
+  75 fin_armed/0 fin_proposed；机制后退役 399 行全部带机写
+  reason+retired_at（eval_rejected 138+armed_ttl_expired 261，
+  10-27→10-28 跨拍散布=持续在岗非一次性手清）；424 行 NULL=机制前
+  存量（回填自明不虚构）。
+- 码面核对：retire.go/run.go/retire_test.go/迁移内容在 origin/master
+  全在（迁移后随 T-0167 分链改名 fin_0065/md_1065 加 IF NOT EXISTS，
+  T-0258 增补策略面退役——后续演进非本票缺失）；两部份索引
+  live_eval/proposed_age 生产实存；迁移 contract 闸对 retire_reason
+  无强制（键域白名单不含此类列，闭集由写方字面量保证）——非违例。
+- 注记两则（不报缺）：①138 行中 45 张其 eval 今已翻回 proposed——
+  票面自明设计（评估写方下拍重新起草新行），非误伤；②o-core 容器
+  现处 Exited（~21h 前净退出）——运维面观察，锚外事实，报管理席知。

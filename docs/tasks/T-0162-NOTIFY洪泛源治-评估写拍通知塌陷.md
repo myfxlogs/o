@@ -1,6 +1,30 @@
 # T-0162 ev_* 通知洪泛源治——评估写拍逐行 NOTIFY 塌陷（饿死钉死的供方根）
 
-## 态：✅ 验收毕投产（决策席 2026-10-26）
+## 态：审计通过
+审计席：headless @ 2026-10-30
+
+## 审计判决注记（逐锚对账，收口 commit 657fa16 全量 diff 亲核+生产取证）
+
+- 锚①（生产实测 NOTIFY 率降一数量级+）：生产 schema_migrations 64 行在册
+  （2026-10-26 12:58Z 施）；ev_eval_trg 实拍=FOR EACH ROW +
+  ev_notify_eval('ev_eval')，函数体与 0064 同文（verdict/gross_apr/
+  net_apr/legs/evidence IS DISTINCT 才发）；本席实测径复验——生产 LISTEN
+  ev_eval 90s 窗零通知（测法本机先证伪：stdin-管 psql 确能印异步行），同窗
+  fin_opp_eval 写拍 ~13 行/min（300s 内 65 行）——旧逐行 autocommit 形应
+  同率醒，现=0；pg_notification_queue_usage()=0。降幅越一个数量级。
+- 锚②（lifecycle 唤醒语义不变）：lifecycle/run.go 仍 LISTEN ev_eval→
+  r.scan；触发器保留 INSERT 恒发+实质变即发（verdict 翻面即醒径在）；
+  notifyflood_test.go 桩断实质变即时醒——语义未改，只静默同值覆写。
+- 锚③（供方零 queue full 类错误）：o-postgres 72h 日志 grep 零命中；
+  o-core 72h 日志零命中；水位实测 0。
+- 产物三证：0064 迁移件在（T-0167 分链改名 fin_0064_notify_flood_shrink.sql
+  同文，migrate_table.go:73 在册）+md_1064 双链同文；persist.go 在，
+  run.go 拍级 pgx.BeginFunc 单事务合流在；pgguard CheckNotifyQueue 在且
+  装配于 cmd/core/main.go（≥50% 告警臂）；KB 条目+索引行在；
+  ev_strategy_trg 生产实拍 FOR EACH STATEMENT——「不动」宣称成立。
+- 偏离注：票面病灶描述「payload 含新 ts 致同事务去重失效」与码面不符
+  （实际恒空 payload，真根=逐行 autocommit）——结果回填已如实自纠，
+  治法对症，不影响锚面判决。
 ## 领取：zc-glm-t0162 @ 2026-10-26
 ## 域：事件脊 / PG notify 供方治理
 ## 源出：T-0154 返修实害根因链的供方半——消费侧读饥饿已修（专读排干），

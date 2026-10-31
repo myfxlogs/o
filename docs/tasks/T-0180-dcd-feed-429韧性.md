@@ -1,6 +1,36 @@
 # T-0180 dcd feed 429 韧性——全集成败制改逐对容错
 
-## 态：✅ 验收毕投产（merge 544b4ae——逐对容错+>50%断供分型落地、桩2测绿、o-research换件在线）
+## 态：审计通过
+
+审计席：headless @ 2026-10-30
+
+## 无头审计判决注记（收口 544b4ae5 全量 diff 逐锚对账）
+
+- 锚①桩测「1 对恒 429→余对照常枚举+rej=1」：TestDcdFeedPairTolerance
+  审计席实跑绿（go test ./cmd/research -run TestDcdFeed——2 passed）；
+  dcd.go get429 尽→fail++/rej.Inc("dcd_pair_429")/continue，
+  语义与票面逐字对账合。
+- 锚②桩测「>50% 对败→整面让位」：TestDcdFeedHalfFailYields 同跑绿
+  （2/3 对败→err）；fail*2>len(pairs) 触发 err 出口→Runner 原
+  dcd_feed_failed 让位径零动；300ms 间隔+四重退避参数 diff 核实零改
+  （sched-exempt-ok 注释在案）。
+- 锚③生产复查：PG-md（MD 机 o-postgres-md）只读实拉
+  md_dcd_product=18,052 行、max(ts)=2026-10-30 13:21Z——对票面
+  1,778 首拍基线无坍缩；o-research systemd active（PID 284881，
+  10-29 01:43 起）、部署二进制 grep -a 实证含 dcd_pair_429 与
+  「对级失败率」串、13:21 枚举日志实打产品在架。check_rejects_keys/
+  gofmt/vet 复审全绿（dcd.go 195 行、测试 51 行——≤300 门禁过）。
+- 注记报管理席（域级欠账非本票施工败）：研究门 rejects 全员只写
+  无读——cmd/research 无 ops/status 面，Snapshot() 生产零调用点
+  （risk.Rejects/report.Snapshot 有读者，research 门独缺），且
+  注册键 Inc 无日志行——≤50% 部分断供在生产层计数内陷不可见；
+  >50% 面有 err+dcd_feed_failed+armwatch 静默告警兜底可见。锚
+  「rej 键有观测行」在生产读径上引用了研究节点不存在的观测出口——
+  属锚措辞歧义/域级欠账（funding/gapscan/hypothesis 等同病），非
+  本票败；建议另立票：事件拍末将门 Snapshot 落持久行/日志（事件
+  锚定形非定时器）。
+- 附记：ParseProducts 解析败亦计入 dcd_pair_429 键（键名 429 而
+  实涵对级全因败——语义外推可接受，对级失败率口径一致，留痕）。
 
 | 立项 | `[角色:决策]` @ 2026-10-27（债务盘点 C 级——结构差非致命，实证在案） |
 |---|---|
