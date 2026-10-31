@@ -135,7 +135,7 @@ WantedBy=timers.target
 EOF
 	# 用户级三 unit（linger 开启后无会话不死）
 	doit "mkdir -p /home/ubuntu/.config/systemd/user /home/ubuntu/o /home/ubuntu/o-research"
-	for u in o-collecto o-projector o-research; do
+	for u in o-collecto o-projector o-research o-sweeper; do
 		if [ -f "/root/bootstrap-env/$u.service" ]; then
 			doit "install -m 644 /root/bootstrap-env/$u.service /home/ubuntu/.config/systemd/user/$u.service"
 		fi
@@ -144,16 +144,18 @@ EOF
 	if [ -f /root/bootstrap-env/o-collecto.env ]; then doit "install -m 600 /root/bootstrap-env/o-collecto.env /home/ubuntu/o-collecto.env"; else echo "  缺 o-collecto.env 值面——escrow 解包补入后手装（模板位见脚注）"; fi
 	if [ -f /root/bootstrap-env/o-projector.env ]; then doit "install -m 600 /root/bootstrap-env/o-projector.env /home/ubuntu/o-projector.env"; else echo "  缺 o-projector.env 值面——同上"; fi
 	if [ -f /root/bootstrap-env/env ]; then doit "install -m 600 /root/bootstrap-env/env /home/ubuntu/o-research/env"; else echo "  缺 o-research/env 值面——同上"; fi
+	# o-sweeper env 注记：复用 o-projector.env（零新密件——projector_rw 授权面已含
+	# Register+Beat 所需，T-0275 亲证；escrow 无新增件）
 	doit "chown -R ubuntu:ubuntu /home/ubuntu/.config /home/ubuntu/o /home/ubuntu/o-research /home/ubuntu/o-*.env"
 	doit "systemctl daemon-reload"
 	doit "systemctl enable --now o-backup-md.timer o-sentinel.timer"
 	doit "systemctl enable o-sg-tunnel.service"
 	# 臂体二进制位校验（值面/体面分离——二进制 dev 交叉编供给）
 	local b miss=0
-	for b in /home/ubuntu/o/collector /home/ubuntu/o/projector /home/ubuntu/o-research/o-research; do
+	for b in /home/ubuntu/o/collector /home/ubuntu/o/projector /home/ubuntu/o/sweeper /home/ubuntu/o-research/o-research; do
 		[ -f "$b" ] || { echo "  臂体缺 $b——dev: GOARCH=arm64 GOOS=linux go build -o <名> ./cmd/<入口>"; miss=1; }
 	done
-	[ "$miss" = "0" ] || echo "  （臂体补齐后: systemctl --machine=ubuntu@ --user enable --now o-collecto o-projector o-research）"
+	[ "$miss" = "0" ] || echo "  （臂体补齐后: systemctl --machine=ubuntu@ --user enable --now o-collecto o-projector o-research o-sweeper）"
 }
 
 stage_tunnel() {
@@ -262,6 +264,9 @@ stage_verify() {
 4. app_config 灌键（okx.symbols=["*"] 等——源=dev 或 SG app_config 表）
 5. SG: mkdir -p /opt/o-backups/oci-inbox /root/oci-secrets/escrow（700）
 6. 首份 dump 链验: SG oci-inbox 落件 → backup_pg.sh 手跑 → R2 oci/ 前缀列见
+7. 「谁在 beat=谁在跑」roster 反向核对：SG fin_employee_registry 全 active 席
+   last_beat<5min 逐席对拍盒上 unit 实跑册（有 beat 无 unit=孤儿漏册病灶
+   T-0275/有 unit 无 beat=死席——kb cutover-orphan-service-checklist-gap 判据落机）
 EOF
 }
 

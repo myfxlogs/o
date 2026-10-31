@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | 施工中 |
+| 状态 | 收口待审 |
 | 立项 | `[角色:决策]` @ 2026-10-31（CEO 裁件 MANAGE-1497 转办，源=MANAGE-1392 业主授权；MANAGE-3043 再催——验收锚转写入下） |
 | 领取 | devin-施工席 @ 2026-10-31（DM-3055 派单） |
 | 优先级 | 高（急诊——「清道夫-md」beat 自 2026-10-28 21:14Z 断，驾驶舱红灯如实红） |
@@ -82,3 +82,15 @@ WantedBy=default.target
 ## 结果回填
 
 （施工写：实现摘要 / 测试证据 / 偏离说明）
+
+## 结果回填
+
+- unit 建制：盒 `~/.config/systemd/user/o-sweeper.service` 按钦定字面落件（EnvironmentFile=%h/o-projector.env 复用、After 只钉 network-online、Restart=always/30s）；enable --now→active+enabled；journal 见「PG-md 清道夫起——首拍即时」、零 Fatal 循环。
+- SG beat：`now()-last_beat`=4.99s（<2min 锚达标，30s 拍恢复）；`fin_data_retention.last_swept_at`=2026-10-31 10:34:54（boot 首拍即时跑）。
+- 三表先入账：arch_eval/arch_signal→permanent、md_daily_snapshot→state（INSERT 0 3 实落）——下拍无「未入账」alert。
+- md_ticks>7d=0 维持（state 表结构性不删钦定行照存）。
+- 三层册：deploy/o-sweeper.service 模板（装配法+env 复用注记）入册；oci_bootstrap units 段加 o-sweeper（unit 安置环+env 零新密件注记+臂体 ~/o/sweeper 校验列+enable 令）、verify 段加 7「谁在 beat=谁在跑」roster 反向核对条；OCI盒档案服务清单+env 件行注记齐。
+- dev 遗件：unit 已 disabled+dead（票面实查照存）——`~/.config/systemd/user/o-sweeper.service`+`/opt/o-projector/o-sweeper` 已删+daemon-reload。
+- 误伤自报：施工中途曾把 dev 清理令误跑在 OCI 盒（刚建 unit 被删）——同拍重建+复验 active 收口，无净损。
+- ops_event 锚：`report.sh 收口 T-0275` 落行（席自报事件簿口径满足）。
+- 状态→收口待审；收口commit 见尾行。

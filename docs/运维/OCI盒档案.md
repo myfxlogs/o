@@ -34,6 +34,7 @@ ssh -i ~/.ssh/id_ed25519 ubuntu@149.118.58.98
 | `o-collecto.service` | **用户级**(ubuntu) | 采集+sigdist 蒸馏（OKX 全宇宙 WS+MT5 桥） |
 | `o-projector.service` | **用户级**(ubuntu) | 投影臂 dualwrite——盒 PG-md →SG 八桥镜像 |
 | `o-research.service` | **用户级**(ubuntu) | 研究臂全族（funding/dcd/gapscan/grammar/假想官/review)——2026-10-28 自 dev 迁入，`~/o-research/` |
+| `o-sweeper.service` | **用户级**(ubuntu) | PG-md 清道夫——fin_data_retention 分库账日拍+首拍即时（T-0275 建制恢复；曾 10-28 cutover 漏册断供 2.7d——无册面孤儿教训在 kb） |
 | `o-sg-tunnel.service` | **系统级** | SSH 隧道 盒→SG（15433=PG-fin，8095=readcred） |
 | `o-backup-fin.timer` | **系统级** | PG-fin 经隧道备份落盒（03:20 UTC，T-0173 跨机跨域） |
 | `o-backup-md.timer` | **系统级** | PG-md dump+推 SG oci-inbox+配置 escrow（02:40 UTC，T-0234——SG 统推 R2 `oci/` 前缀） |
@@ -42,7 +43,7 @@ ssh -i ~/.ssh/id_ed25519 ubuntu@149.118.58.98
 | docker `o-postgres-md` | 容器 | PG-md(timescaledb:2.30.2-pg18 arm64，卷 `o-pgdata-md`，绑 127.0.0.1:5435) |
 
 - **linger 已开**(`loginctl enable-linger ubuntu`)——用户级件无会话不死，勿关
-- env 件：`~/o-collecto.env` `~/o-projector.env`（含 DSN 口令，0600）
+- env 件：`~/o-collecto.env` `~/o-projector.env`（含 DSN 口令，0600；`o-sweeper` 复用 `o-projector.env`——projector_rw 已含 Register+Beat 授权面，零新密件 T-0275 亲证）
 
 ## 端口面
 

@@ -1,0 +1,27 @@
+# o-sweeper.service —— OCI 盒 PG-md 清道夫（用户级 systemd unit 模板）
+#
+# 装配法（与 o-collecto/o-projector/o-research 同机制——OCI Go 臂全走
+# ~/o/+用户级 unit；10-28 cutover 漏件教训：无册面孤儿服务必入本册
+# 重灌/迁移不再漏，病灶条目 cutover-orphan-service-checklist-gap.md）：
+#   1) scp 本件→ubuntu@<oci>:~/.config/systemd/user/o-sweeper.service
+#   2) 二进制：GOARCH=arm64 GOOS=linux go build -o /tmp/o-sweeper ./cmd/sweeper
+#      → scp→~/o/sweeper
+#   3) systemctl --user daemon-reload && systemctl --user enable --now o-sweeper
+#
+# env 复用注记：EnvironmentFile=%h/o-projector.env——复用投影 env（已含
+# MD_PG_DSN=本机 5435 + SG_PG_DSN=隧道 15433 projector_rw；projector_rw 对
+# fin_employee_registry 持 INSERT/UPDATE/SELECT=Register+Beat 全集，
+# 零新密件零新授权 T-0275 亲证）。
+[Unit]
+Description=o-sweeper PG-md 清道夫（T-0169 分库账日拍）
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+EnvironmentFile=%h/o-projector.env
+ExecStart=%h/o/sweeper
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=default.target
