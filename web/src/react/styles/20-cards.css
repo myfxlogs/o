@@ -39,10 +39,12 @@
 }
 
 /* —— 瓦片定高滚动体（驾驶舱 v2 业主令：固定瓦片高度——页高不被行数撑；
-   无头状态面本地分页 10 行/页，页内滚动兜底。布局工具类，非新设计语言）—— */
+   无头状态面本地分页 10 行/页，页内滚动兜底。布局工具类，非新设计语言。
+   v3：横向滚动兜底（tile-table nowrap 长行不破卡）—— */
 .tile-scroll {
   max-height: 380px;
   overflow-y: auto;
+  overflow-x: auto;
 }
 
 /* —— Liquid Glass 卡（T-0221 业主令：参照 macOS Tahoe 玻璃件重做——
@@ -580,33 +582,35 @@ details.rep summary {
 }
 
 /* —— 双列同行（业主回单：报告+现金流 1 行 2 列——grid 强制并排，
-   窄屏回落单列；与 masonry 的列平衡语义不同：这里永远并排）—— */
+   窄屏回落单列；与 masonry 的列平衡语义不同：这里永远并排。
+   v3 解挤：瓦片间距 20→24px（驾驶舱v3 业主令——表格加 padding 后
+   瓦片内呼吸感同步放宽）—— */
 .duo {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 24px;
 }
 @media (min-width: 1000px) {
   .duo {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 20px;
+    gap: 24px;
     align-items: start;
   }
 }
 
 /* —— 面板 2 行 2 列（业主⑬）：行1 生产机|采集，行2 主机资源|席位；
-   ≥1100px 生效，窄屏回落单列堆叠 —— */
+   ≥1100px 生效，窄屏回落单列堆叠；v3 解挤间距 20→24px 同 .duo —— */
 .quad {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 24px;
 }
 @media (min-width: 1100px) {
   .quad {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 20px;
+    gap: 24px;
     align-items: start;
   }
 }

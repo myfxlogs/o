@@ -12,7 +12,8 @@ import (
 )
 
 // tsProjection ts 判桥表的通道绑定（query $1=水印 $2=键集；queryDual=dualwrite
-// 旁写泵无谓词变体——$2 不传）。
+// 旁写泵无谓词变体——$2 不传；set=nil=无谓词全量镜像道零占位参——T-0272
+// 信号道撤水印）。
 type tsProjection struct {
 	wmKey     string
 	query     string
@@ -87,7 +88,7 @@ var tsProjections = map[string]tsProjection{
 			return out, max, rows.Err()
 		}},
 	"ev_signal": {"md_signal", qSignal, qSignalDual, uSignal,
-		func(r *Runner) []string { return r.activeList() },
+		nil, // T-0272：全量镜像道——无活跃集键谓词
 		func(rows pgx.Rows) ([][]any, time.Time, error) {
 			defer rows.Close()
 			var out [][]any
@@ -133,8 +134,12 @@ var tsProjections = map[string]tsProjection{
 		}},
 }
 
-// queryTs mode 感知查询（serve=谓词切片；dualwrite=无谓词旁写变体）。
+// queryTs mode 感知查询（set=nil=无谓词全量道零参；serve=谓词切片；
+// dualwrite=无谓词旁写变体）。
 func (r *Runner) queryTs(ctx context.Context, p tsProjection, wm time.Time) (pgx.Rows, error) {
+	if p.set == nil { // T-0272：无谓词全量镜像道（信号道撤水印——查询零占位参）
+		return r.md.Query(ctx, p.query)
+	}
 	if r.dualwrite {
 		return r.md.Query(ctx, p.queryDual, wm)
 	}

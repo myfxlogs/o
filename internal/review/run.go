@@ -197,7 +197,7 @@ func (r *Runner) recycleFalsified(ctx context.Context, execID int64, attrib stri
 		log.Printf("ALERT [review] falsified 回炉策略行查败（exec=%d）: %v", execID, err)
 		return
 	}
-	if tag, err := r.fin.Exec(ctx, `UPDATE fin_proposal SET state='fin_retired'
+	if tag, err := r.fin.Exec(ctx, `UPDATE fin_proposal SET state='fin_retired',retire_reason='falsified_回炉',retired_at=now()
 		WHERE inst_id=$1 AND direction=$2 AND state='fin_armed'`, inst, dir); err == nil && tag.RowsAffected() > 0 {
 		log.Printf("[review] falsified 回炉——同键 armed 提案退役 %d 行（%s %s）", tag.RowsAffected(), inst, dir)
 	}

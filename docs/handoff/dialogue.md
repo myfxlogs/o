@@ -396,6 +396,7 @@
 - **处置**：o-projector 重启一次性回填（carry_diff/funding_view/depth5 臂复——快照级，后续仍受跳读）；**T-0272 P1 立票即派 Dev**（DM-1029——信号道撤 ts 水印全表扫+serve 全 kind 镜像）；KB 条目 ts-watermark-vs-stamped-ts-order 入库；MANAGE-771/772 ack。
 - **在途**：fix/mt5-swap-outage（消哑 B2）待验排队正常审计流；FIX-02 移交三件（红行推送径/25s 互踩/健康闸盲区）待另票。
 
+
 ## 2026-10-31 深夜 — 施工席：FIX-02 mt5swap 断供急诊（诊断反转+消哑交付）
 
 - **外部提示词单 FIX-02**（管理席拟，/opt/meta/docs/施工提示词-外部-mt5swap断供.md）：票面前提=桥 SymbolParams 层病（三假设：mtapi 形态变/符号方言变/SG nil）。施工席 worktree `fix-mt5-swap-outage` 分支 `fix/mt5-swap-outage` 按票「先诊断后修」开工。
@@ -403,4 +404,12 @@
 - **旁获新证**：SG 核 10-30 09:31:59Z 重启后新增 25s 恒频 OpenSession（144/h，同账号 3001157 哈希实锤两端同户）——互踩负载与桥长驻会话叠加风险 nav_live 自认在案，本票未动（边界：不动 OpenSession 会话管理），移交件列收口报告 §6。
 - **B2 消哑照票面无条件项交付**：bridge.go rej 分键 `symbol_group_nil`（原 177 行第二哑径）+全灭拍 `WARN [mt5bridge]` 落 journalctl（ops_event 在 PG-md 无表且 collector 无写径——既有链取日志分支，stalewatch 同构）+败因样本（in-band 错误体原被吞现已捕获）；测试扩三锚入 swapdialect_test.go（失败形态 fixture）。
 - **移交**：projector 修复=生产运维（管理席全权面）——施工零重启零写入只读取证；SG 健康闸红行无人推 Feishu 的盲区、25s 互踩评估，两件另票建议列收口报告。
+
+
+## 2026-10-31 夜 — 施工席：驾驶舱v3（清道夫核诊+呼吸灯+排布）
+
+- **外部任务书**（/opt/meta/docs/施工任务书-驾驶舱v3-呼吸灯与排布.md，业主令：完成即部署）：A 清道夫-md 红灯核诊（先查真伪）/B 全瓦片呼吸灯/C 瓦片表格解挤；禁线=只动前端+真坏修复另走急诊线+礼让 T-0268（store/api/stream 零触）。
+- **A 定性=真坏**（三重亲证）：①SG 册清道夫-md last_beat=10-28 21:14:29Z 陈 2 天 1:55（30s 拍）；②OCI/dev 两机零 sweeper 进程零 unit（OCI 服务清单无此件）；③PG-md fin_data_retention audit_keep 行 last_swept_at=NULL（sweepAuditKeep 从未成功收尾）。**根因=10-28 采集层 cutover 迁移清单漏件——sweeper-md 未在 OCI 重建，孤儿 2 天**。T-0241 v4③「OCI 侧独立容器在跑」前提已陈旧。任务书猜「与四信号臂同根因」不成立（FIX-02 已证四臂真源健康、SG 冻结=projector 镜像伪象）。修复建议：OCI 用户级 o-sweeper.service（MD_PG_DSN=本机 5435+SG_PG_DSN=隧道 15433）——急诊线，候管理席。
+- **B/C 交付**（涉及面=web/src/react/** 五文件）：两页全瓦片右上角 StateDot 统一灯语（绿呼吸=段数据在/黄=陈/红=缺或死——复用既有 breathe 件与三态节奏，零新灯）+title 携鲜度（快照 asOf/最近自报/最陈行/beat 阈语义）；Cockpit 5 裸表入 .tile-table（padding 9×14/斑马纹墨 4%/表头吸顶/首列左对齐/tabular-nums）+.duo/.quad 间距 20→24px+armed 表入 .tile-scroll 滚动兜底。
+- **证**：npm run build（含 typecheck 前置）绿；cockpit_degrade 桩测全绿（sec/SecBoundary/流语义零伤）；流推送面（stream/store/api/hooks）零改动。部署后 System 页现成三态实证场：绿=健康行、红=清道夫-md（真坏如实红）、黄/红=采集行随 projector 修复前后对比。
 

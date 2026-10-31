@@ -17,10 +17,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// 活跃集信号谓词（D-0030 §三：carry_diff/xvenue_spread 全量，funding_view/depth5 活跃集键）。
-const signalGlobalKinds = `('carry_diff','xvenue_spread')`
-const signalActiveKinds = `('funding_view','depth5')`
-
 // md 查询面（正本侧）——watermark 后的谓词切片。
 
 const qTicks = `SELECT ts,venue,inst_id,last,bid,ask,vol_24h,recv_ts FROM md_ticks
@@ -32,9 +28,10 @@ const qMarkIdx = `SELECT ts,venue,inst_id,channel,px,recv_ts FROM md_mark_index
 const qFunding = `SELECT ts,venue,inst_id,funding_rate,next_funding_rate,next_funding_ts,recv_ts FROM md_funding
 	WHERE recv_ts>$1 AND inst_id=ANY($2) ORDER BY recv_ts`
 
-const qSignal = `SELECT kind,key,val,meta,ts FROM md_signal
-	WHERE ts>$1 AND (kind IN ` + signalGlobalKinds + ` OR (kind IN ` + signalActiveKinds + ` AND key=ANY($2)))
-	ORDER BY ts`
+// T-0272：信号道撤 ts 水印+kind 谓词——回戳形态行（stamped ts<wm，血统 lag
+// 可达 8h）在水印径结构性失明；md_signal=(kind,key) latest-value 小表全量
+// 镜像（serve/dualwrite 同形零占位参——set=nil 走 queryTs 零参径）。
+const qSignal = `SELECT kind,key,val,meta,ts FROM md_signal ORDER BY ts`
 
 const qDcd = `SELECT ts,venue,surface,uly,product_id,direction,strike,expiry,annualized_yield,min_size,max_size,spot,raw
 	FROM md_dcd_product WHERE ts>$1 AND product_id=ANY($2) ORDER BY ts`
@@ -54,7 +51,7 @@ const qMacroAll = `SELECT event_date,kind,title,source FROM md_macro_event ORDER
 const qTicksDual = `SELECT ts,venue,inst_id,last,bid,ask,vol_24h,recv_ts FROM md_ticks WHERE ts>$1 ORDER BY ts`
 const qMarkIdxDual = `SELECT ts,venue,inst_id,channel,px,recv_ts FROM md_mark_index WHERE ts>$1 ORDER BY ts`
 const qFundingDual = `SELECT ts,venue,inst_id,funding_rate,next_funding_rate,next_funding_ts,recv_ts FROM md_funding WHERE recv_ts>$1 ORDER BY recv_ts`
-const qSignalDual = `SELECT kind,key,val,meta,ts FROM md_signal WHERE ts>$1 ORDER BY ts`
+const qSignalDual = qSignal // 信号道双模同形（无谓词无水印——T-0272）
 const qDcdDual = `SELECT ts,venue,surface,uly,product_id,direction,strike,expiry,annualized_yield,min_size,max_size,spot,raw
 	FROM md_dcd_product WHERE ts>$1 ORDER BY ts`
 const qEvalDual = `SELECT e.id,e.ts,e.inst_id,e.template,e.direction,e.gross_apr,e.net_apr,e.verdict,e.legs,e.evidence
