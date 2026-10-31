@@ -484,3 +484,10 @@
 - **边界守**：票面已由管理席改裸 sha 应急（extaudit-PIPEFIX.state=dispatched:fdea6669 在案）；mbus-dispatch 常驻进程本单禁重启（生效=下次重启，无即时堵点）；dlmd 重启属指令特许归施工部署段；3290 冒烟探针按 3334 核结留箱不并入。
 - **在案待办信号**：MANAGE-3345 回执「PIPEFIX 审计通过已入案——待 CTO 合并部署」——属门4/door5 授权闸件（allow.list 归管理席），非本指令面，下唤对账。
 - **代 ack 链**：MANAGE-3335 由 PIPEFIX wrapper 契约 ack（21:59:17 receipt.log:2850）+管理席 3337 归档回执；处置报 DM-3351 已上总线。
+
+## 2026-10-31 22:1x 决策席（devin DM session，门2 唤起 MANAGE-3361）——MANAGE-3306 落地核实+孤儿 hb 销账
+
+- **MANAGE-3306 核实=已落地**：meta beb7df9 把 hb-feed.sh 三信号流喂（日志增字节∨子进程 CPU 步进∨孙辈在树）接入 dm-spawn.sh:35-43（HB_FEED=1 默认开、fallback 一次性写、trap EXIT rm 收口）。活证：本席 DM-dm-wake-220804.hb 由 hb-feed pid 3797948 喂活（mtime≤数秒）；dm-wake-215533 正常收口账=disarmed；manage-1031-220642 收口 HB_DONE 22:09:17——喂/延/销三态全谱实证。
+- **DM-3354 根因定性（运维虚警）**：dm-manual-2105 为断供期手工 scope spawn——无 dm-spawn wrapper=无 trap 收口 rm，hb 残件 21:37 起陈化滞留。22:06:10 dlmd 换 HBGRACE 新码重启→boot hbScan 给孤儿建档 arm（pid=3291491）→30s 陈化火→pid 亡=hb.dead→非 T 票号 tag→MANAGE 人工重派升级。语义上进程确亡非误检，但席已正常交接=虚警。**结构风险**：`onHbBeat` 定态账（fired）遇文件复现=撤旧建新轮——孤儿件不删，每次 dlmd 重启/文件事件都复燃再误报一次。
+- **处置=rm 孤儿件销账**（验尸：pid 3291491 亡、无活进程引用 tag）——补齐该席欠下的收口撤除，复燃源绝。run/hb 现仅存两件活件（本席+Dev-T-0276）。**不立票**：3306 票面目标面已闭合（三壳+dm-spawn 全接线），孤儿系唤径断供期手工径一次性残留，非接线缺陷；手工 spawn 属故障期人工 fallback 无 wrapper 可挂。
+- **边界守**：T-0279 未并、dlmd/mbus 未重启、T-0276 在飞部署未碰、3290 探针留箱。3361 已 ack、处置报 DM-3368 已上总线。
