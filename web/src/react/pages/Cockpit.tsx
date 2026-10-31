@@ -213,7 +213,7 @@ export function CockpitPage() {
 					extra={<StateDot state={miss.has("money") ? 2 : 0} breathe={!miss.has("money")} title={`快照 ${asOfAge}`} />}>
 					{sec("money", !m ? <p className="dim">该段数据缺</p> : <>
 						<div className={"kpi-v " + (m.netMonth >= 0 ? "u-good" : "u-bad")}>
-							{m.netMonth >= 0 ? "月赚 " : "月亏 "}${Math.abs(m.netMonth).toFixed(2)}
+							{m.netMonth >= 0 ? "+" : "-"}${Math.abs(m.netMonth).toFixed(2)}
 						</div>
 						<div className="kpi-note">本金水位 ${m.capital.toFixed(2)}</div>
 					</>)}
@@ -222,7 +222,7 @@ export function CockpitPage() {
 					extra={<StateDot state={miss.has("money") ? 2 : 0} breathe={!miss.has("money")} title={`快照 ${asOfAge}`} />}>
 					{sec("money", !m ? <p className="dim">该段数据缺</p> : <>
 						<div className={"kpi-v " + (d30 >= 0 ? "u-good" : "u-bad")}>
-							{d30 >= 0 ? "赚 " : "亏 "}${Math.abs(d30).toFixed(2)}
+							{d30 >= 0 ? "+" : "-"}${Math.abs(d30).toFixed(2)}
 						</div>
 						<div className="kpi-note">日净 {posDays} 正 / {m.daily.length - posDays} 负</div>
 					</>)}
