@@ -381,7 +381,7 @@ message CockpitSeat {                    // 席存活面+⑤在做什么合并�
 }
 message CockpitMoney {                   // ②钱面（D-0037 口径纯读聚合）
   double net_month = 1;                  // 月净利=interest+funding_settle+平仓盈亏近似（recon/earn 项不计）
-  double capital = 2;                    // 本金水位=deposit 累计
+  double capital = 2;                    // 本金水位=deposit−withdraw 净额
   repeated double daily = 3;             // 近30d 日净现金流序列（fee+interest+settle+spot 净）
   double exposure = 4;                   // 部署敞口现值（未平仓名义合计 USD——fin_position 未平行）
   double exposure_limit = 5;             // 硬上限=本金×10%（D-0038 阶梯束）

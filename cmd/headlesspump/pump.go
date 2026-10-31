@@ -17,14 +17,18 @@ import (
 )
 
 // wrapper 行锚（票面机读协议同 supervisor/relay——时间戳行首+命名词）。
+// T-0277：票号段 (T-\d+)→[A-Z0-9-]+ 受限构（WAKEFIX/CMCTOMB/EXTAUDIT/REWORK/
+// DOOR5 自由票号命中——禁 \S+ 裸放宽误中正文）；reExitAudit 兼容「排查审计」
+// 旧方言（devin-audit-T-00xx 历史日志尾锚）；reExitRun/reExitAudit 捕 rc 值——
+// 六态分流锚（rc=0 无收口=exit 正常收工；rc≠0=dead 真异常不稀释）。
 var (
-	reSpawn     = regexp.MustCompile(`无头(?:审计)? (T-\d+) spawn`)
-	reExitRun   = regexp.MustCompile(`无头 (T-\d+) 进程退出 rc=`)
-	reExitAudit = regexp.MustCompile(`无头审计 (T-\d+) 退出 rc=`)
-	reDone      = regexp.MustCompile(`(T-\d+) 收口待审命中`)
-	reNoDone    = regexp.MustCompile(`(T-\d+) 退出但全树无收口待审标记`)
-	reYield     = regexp.MustCompile(`无头 (T-\d+) 让位`)
-	reReport    = regexp.MustCompile(`\[自报\]\[[^\]]+\] \S+ (T-\d+)`)
+	reSpawn     = regexp.MustCompile(`无头(?:审计)? ([A-Z0-9-]+) spawn`)
+	reExitRun   = regexp.MustCompile(`无头 ([A-Z0-9-]+) 进程退出 rc=(\d+)`)
+	reExitAudit = regexp.MustCompile(`(?:无头审计|排查审计) ([A-Z0-9-]+) 退出 rc=(\d+)`)
+	reDone      = regexp.MustCompile(`([A-Z0-9-]+) 收口待审命中`)
+	reNoDone    = regexp.MustCompile(`([A-Z0-9-]+) 退出但全树无收口待审标记`)
+	reYield     = regexp.MustCompile(`无头 ([A-Z0-9-]+) 让位`)
+	reReport    = regexp.MustCompile(`\[自报\]\[[^\]]+\] \S+ ([A-Z0-9-]+)`)
 )
 
 // tk 票级态（标志位——derive() 派生五态串，事件只改旗不直写态）。
@@ -37,13 +41,20 @@ type tk struct {
 	lastAct                                       time.Time
 	lastEmit                                      time.Time
 	procAlive, stalled, overdue, doneF, emitDirty bool
+	exitW, deadW                                  bool // T-0277：rc=0 见证退出/rc≠0 见证退出（六态分流旗）
 	emitT, silenceT, overdueT                     *time.Timer
 }
 
+// derive 六态机（T-0277：exit=正常终态——witness rc=0 退出且无收口证；dead 收窄
+// =rc≠0 见证或无锚消失；dead 真异常语义不稀释）。
 func (t *tk) derive() string {
 	switch {
 	case t.doneF:
 		return "done"
+	case t.deadW:
+		return "dead"
+	case !t.procAlive && t.exitW:
+		return "exit"
 	case !t.procAlive:
 		return "dead"
 	case t.stalled:
@@ -185,6 +196,7 @@ func (p *pump) onLog(t *tk) {
 			_, m, _ := findProc(t.tid)
 			t.model = m
 			t.procAlive, t.stalled, t.overdue, t.doneF = true, false, false, false
+			t.exitW, t.deadW = false, false
 		case reDone.MatchString(ln):
 			t.doneF = true
 			p.disarm(t)
@@ -192,13 +204,25 @@ func (p *pump) onLog(t *tk) {
 			t.procAlive = false
 			p.disarm(t)
 		case reExitAudit.MatchString(ln):
-			t.doneF = true // 审计退出=本代审计 pass 完工（判决相位走 ops_event）
+			// 审计系退出锚（含排查审计旧方言）：rc=0=完工，rc≠0=异常死。
+			if m := reExitAudit.FindStringSubmatch(ln); m != nil && m[2] == "0" {
+				t.doneF = true
+			} else {
+				t.deadW, t.procAlive = true, false
+			}
 			p.disarm(t)
 		case reYield.MatchString(ln):
 			_, _, alive := findProc(t.tid)
 			t.procAlive = alive // 让位=它代在飞或全殁——proc 实证
 		case reExitRun.MatchString(ln):
-			// 判态待后继锚（收口命中/无收口行毫秒内随至——见文件头注）
+			// 捕 rc 分流（T-0277）：rc=0 见证=exitW 待收口锚裁决；rc≠0=dead 立判。
+			if m := reExitRun.FindStringSubmatch(ln); m != nil {
+				if m[2] == "0" {
+					t.exitW = true
+				} else {
+					t.deadW, t.procAlive = true, false
+				}
+			}
 		}
 	}
 	p.setState(t)

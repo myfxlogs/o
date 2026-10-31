@@ -23,6 +23,8 @@ func headlessStateLabel(state string) string {
 		return "逾期"
 	case "done":
 		return "完工"
+	case "exit":
+		return "已退"
 	default:
 		return state
 	}
@@ -39,7 +41,7 @@ func (c coreService) GetHeadless(ctx context.Context,
 		 LEFT JOIN LATERAL (
 			SELECT event FROM ops_event WHERE ticket=h.ticket ORDER BY id DESC LIMIT 1
 		 ) e ON true
-		 WHERE h.state<>'done' OR h.updated_at>now()-interval '7 days'
+		 WHERE h.state NOT IN ('done','exit') OR h.updated_at>now()-interval '7 days'
 		 ORDER BY h.seq DESC`)
 	if err != nil {
 		return nil, err

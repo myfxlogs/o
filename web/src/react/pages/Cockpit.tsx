@@ -145,7 +145,7 @@ export function CockpitPage() {
 			<div className="health-strip">
 				<span>业主驾驶舱</span>
 				<LiveBadge />
-				<span className="ink-3">快照 …</span>
+				<span className="ink-3">更新 …</span>
 			</div>
 			{/* 载中=瓦片骨架（诚实空态律——骨架=卡面独立，不整页灰） */}
 			<div className="trx-kpi-strip">
@@ -177,11 +177,13 @@ export function CockpitPage() {
 	// 标判，两径通吃；①存活卡「无头面」注行数据源——分片仍在流推只撤卡面）。
 	const HL_STATE: Record<string, string> = {
 		alive: "在飞", done: "完工", dead: "死亡", stalled: "停滞", overdue: "逾期",
+		exit: "已退",
 	};
 	const hlL = (s: string) => HL_STATE[s] ?? s;
 	const hlBad = hlRows.filter((r) => ["死亡", "停滞", "逾期"].includes(hlL(r.state))).length;
 	const hlAlive = hlRows.filter((r) => hlL(r.state) === "在飞").length;
 	const hlDone = hlRows.filter((r) => hlL(r.state) === "完工").length;
+	const hlExit = hlRows.filter((r) => hlL(r.state) === "已退").length;
 	// v3 呼吸灯：瓦片右上角状态点统一灯语（绿呼吸=段数据在；红=段缺/异常），
 	// title 携鲜度（快照 asOf / 最近自报——AGE 同 panel 件）。纯显示映射零判据。
 	const asOfD = d.asOf ? new Date(Number(d.asOf.seconds) * 1000) : null;
@@ -192,13 +194,13 @@ export function CockpitPage() {
 			<div className="health-strip">
 				<span>业主驾驶舱</span>
 				<LiveBadge />
-				<span className="ink-3">快照 {ts(d.asOf)}</span>
+				<span className="ink-3">更新 {ts(d.asOf)}</span>
 			</div>
 			{/* —— 首档·答①②置顶放大（业主第一性四问重排——人话结论大字居首，
 			    数字第二层；trx-kpi-strip=TRX 首档同源件，零新 CSS）—— */}
 			<div className="trx-kpi-strip">
 				<Card className="kpi" title="① 钱安全吗"
-					extra={m ? <StateDot state={expSt} breathe={expSt === 0} title={`敞口硬线判态（服务端派生）· 快照 ${asOfAge}`} /> : undefined}>
+					extra={m ? <StateDot state={expSt} breathe={expSt === 0} title={`敞口硬线判态（服务端派生）· 更新 ${asOfAge}`} /> : undefined}>
 					{sec("money", !m ? <p className="dim">该段数据缺</p> : <>
 						<div className={"kpi-v " + (expSt === 0 ? "u-good" : expSt === 2 ? "u-bad" : "")}>
 							{{ 0: "合规绿", 1: "顶格黄", 2: "越限红" }[expSt] ?? "—"}
@@ -208,7 +210,7 @@ export function CockpitPage() {
 					</>)}
 				</Card>
 				<Card className="kpi" title="② 赚了多少（MTD）"
-					extra={<StateDot state={miss.has("money") ? 2 : 0} breathe={!miss.has("money")} title={`快照 ${asOfAge}`} />}>
+					extra={<StateDot state={miss.has("money") ? 2 : 0} breathe={!miss.has("money")} title={`更新 ${asOfAge}`} />}>
 					{sec("money", !m ? <p className="dim">该段数据缺</p> : <>
 						<div className={"kpi-v " + (m.netMonth >= 0 ? "u-good" : "u-bad")}>
 							{m.netMonth >= 0 ? "+" : "-"}${Math.abs(m.netMonth).toFixed(2)}
@@ -217,7 +219,7 @@ export function CockpitPage() {
 					</>)}
 				</Card>
 				<Card className="kpi" title="② 近 30 天"
-					extra={<StateDot state={miss.has("money") ? 2 : 0} breathe={!miss.has("money")} title={`快照 ${asOfAge}`} />}>
+					extra={<StateDot state={miss.has("money") ? 2 : 0} breathe={!miss.has("money")} title={`更新 ${asOfAge}`} />}>
 					{sec("money", !m ? <p className="dim">该段数据缺</p> : <>
 						<div className={"kpi-v " + (d30 >= 0 ? "u-good" : "u-bad")}>
 							{d30 >= 0 ? "+" : "-"}${Math.abs(d30).toFixed(2)}
@@ -233,7 +235,7 @@ export function CockpitPage() {
 						<div className="kpi-note">最近自报 {ts(lastSeatTs)}</div>
 					</>)}
 					{hl.data && hlRows.length > 0 && (
-						<div className="kpi-note">无头面 {hlAlive} 在飞 · {hlDone} 完工{hlBad > 0 ? ` · ${hlBad} 异常` : ""}</div>
+						<div className="kpi-note">无头面 {hlAlive} 在飞 · {hlDone} 完工{hlExit > 0 ? ` · ${hlExit} 已退` : ""}{hlBad > 0 ? ` · ${hlBad} 异常` : ""}</div>
 					)}
 				</Card>
 			</div>
@@ -243,14 +245,14 @@ export function CockpitPage() {
 			{/* —— 底档·④要我动的（armed）+①②平台明细（v3.2 同档保留卡不动）—— */}
 			<div className="duo">
 				<Card title="④ 待开仓（armed）"
-					extra={<StateDot state={miss.has("armed") ? 2 : 0} breathe={!miss.has("armed")} title={`${d.armed.length} 单 · 快照 ${asOfAge}`} />}>{sec("armed",
+					extra={<StateDot state={miss.has("armed") ? 2 : 0} breathe={!miss.has("armed")} title={`${d.armed.length} 单 · 更新 ${asOfAge}`} />}>{sec("armed",
 					d.armed.length === 0 ? <EmptyState title="无待开仓" hint="armed 队列为空——无待动事项" /> :
 						<div className="tile-scroll"><table className="tile-table"><thead><tr><th>#</th><th>标的</th><th>方向</th><th>建时</th><th>TTL余(h)</th></tr></thead>
 							<tbody>{d.armed.map((a: CockpitArmed) => <tr key={a.id}><td>{a.id}</td><td>{a.instId}</td>
 								<td>{a.direction}</td><td>{ts(a.created)}</td><td>{a.ttlHoursLeft.toFixed(1)}</td></tr>)}</tbody></table></div>)}
 				</Card>
 				<Card title="①② 钱面平台明细"
-					extra={<StateDot state={miss.has("money") ? 2 : 0} breathe={!miss.has("money")} title={`${m?.platforms.length ?? 0} 平台 · 快照 ${asOfAge}`} />}>{sec("money", !m ? <p className="dim">该段数据缺</p> : <>
+					extra={<StateDot state={miss.has("money") ? 2 : 0} breathe={!miss.has("money")} title={`${m?.platforms.length ?? 0} 平台 · 更新 ${asOfAge}`} />}>{sec("money", !m ? <p className="dim">该段数据缺</p> : <>
 					<table className="tile-table"><thead><tr><th>平台</th><th>承诺</th><th>已入</th><th>停泊</th><th>敞口</th></tr></thead>
 						<tbody>{m.platforms.map((p: CockpitPlatformRow) => <tr key={p.platform}><td>{p.platform}</td><td>{p.committed < 0 ? "未设" : p.committed.toFixed(0)}</td>
 							<td>{p.platform === "MT5" && miss.has("mt5") ? "数据缺" : p.deposited.toFixed(0)}</td><td>{p.parked.toFixed(0)}</td><td>{p.exposure.toFixed(0)}</td></tr>)}</tbody></table>

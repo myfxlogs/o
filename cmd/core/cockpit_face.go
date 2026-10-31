@@ -62,7 +62,7 @@ func (c coreService) GetCockpit(ctx context.Context,
 		moneyErr = true
 	}
 	if err := c.pool.QueryRow(ctx,
-		`SELECT COALESCE(sum(amount),0) FROM fin_cashflow WHERE kind='deposit'`).Scan(&r.Money.Capital); err != nil {
+		`SELECT COALESCE(sum(amount),0) FROM fin_cashflow WHERE kind IN ('deposit','withdraw')`).Scan(&r.Money.Capital); err != nil {
 		moneyErr = true
 	}
 	dr, err := c.pool.Query(ctx,
