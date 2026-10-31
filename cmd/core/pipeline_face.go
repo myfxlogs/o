@@ -67,12 +67,19 @@ func (c coreService) GetPipeline(ctx context.Context,
 		firstTs time.Time
 	}
 	var actives []activeTicket
+	// ticket 全经首段归一（PIPEFIX 幻影行根修 2026-10-31）：写径 dm-spawn TID
+	// 提取曾吐换行串灌库（ops_event 722/733/736/739/740/743/745 幻影值）——读径
+	// GROUP BY/WHERE/SELECT 三处一致 split_part 归位真票；append-only 禁 UPDATE
+	// 库，脏行不清洗、由本面归一兜住。
 	ar, err := c.pool.Query(ctx, `
 		WITH dep AS (SELECT max(ts) AS d FROM ops_event WHERE event='部署')
 		SELECT f.ticket, f.last_ts, f.first_ts, count(*) OVER () AS total
 		FROM (
-			SELECT ticket, max(ts) AS last_ts, min(ts) AS first_ts
-			FROM ops_event WHERE ticket<>'' GROUP BY ticket
+			SELECT split_part(ticket, E'\n', 1) AS ticket,
+			       max(ts) AS last_ts, min(ts) AS first_ts
+			FROM ops_event
+			WHERE split_part(ticket, E'\n', 1)<>''
+			GROUP BY split_part(ticket, E'\n', 1)
 		) f, dep
 		WHERE dep.d IS NULL OR f.last_ts > dep.d
 		ORDER BY f.last_ts DESC, f.ticket DESC
