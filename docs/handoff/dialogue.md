@@ -446,3 +446,11 @@
 ### 交接提示词（下一 session 起手式）
 
 > [角色:管理] meta 闭环六件已实跑全通（KB: meta-event-plane-external-blind-spots）。起手三查：①MANAGE 箱未消费件（DEPLOY/审计判词/升级件）②`systemctl --user list-units | grep -E "door5|ghhook|dispatch"` 活性③`tail ~/devin-door5.log` 部署闸近况。allow.list 授权/三驳熔断/审计锚=你的三个人工闸。
+
+
+## 2026-10-31 暮 — 决策席：MANAGE-3043 急诊两件处置（devin DM session，门2 唤起）
+
+- **①sweeper=T-0275 已批票在案**（前裁 MANAGE-1497 systemd 部署口维持）：指令「加回compose」按 MANAGE-1497②授权 CTO 定处置——systemd 用户级同构终审勿翻案。指令锚转写入票：md_ticks>7d=0（PG-md 实查现态已 0 行，且该表=state upsert 非追加——**管理层模型对账：旧数据本不积**）+ops_event 自报行（ops_event=席自报事件簿 T-0239，sweeper 本体无写径——收口 report.sh 落行即满足）+未入账三表先入账（arch_eval/arch_signal/md_daily_snapshot）。
+- **取证新事实（票面注记）**：`deadTailSweep` 在 PG-md 结构性不删——`fin_active_set` 缺席→fail-safe abort 钦定行（T-0197④ 防半读谓词清空病灶）；死尾有界，清尾须另立「PG-md active_set 供源」票。
+- **②dcd 枚举臂=新立 T-0276 已批已派**（DM-3056）：根因亲证=SG 模板已退（fin_opp_template dcd_call/dcd_put enabled=f）但 **PG-md 侧仍 enabled=t**→o-research 枚举臂空扫（6h 3.67 万行日志、evals 全拒零提案）；ops_face「dcd 枚举」盯 SG md_dcd_product 鲜度→投影末帧 10-30 02:41 越 dead 阈红。裁=**config 发射闸** research.dcd.enabled=false（纯 DB 翻模板会触发 armwatch research_arm_silent 业主告警=换汤不换药故码闸）+PG-md 三钉+ops_face 删健康行。SG fin_strategy 实查零 dcd 持仓无下游断供。
+- **MANAGE-3051 补唤处置**：t/dlmdfix+t/gatefix 并 edr/p3（7646ddb/ce67679）。**并发席冲突实记**：18:35 管理席手动补位 spawn（dm-manual-merge-1835，自动唤径故障期）与本席叠同务——合并幂等无害；deploy-duty 归补位会话点火（lease 在持），本席首弹因 `timeout` 包壳连坐内代死亡（**meta 坑24 已立**——agent 会话内 manage-spawn 须 nohup/& 挂起）。3061（门2-DM systemd-run --unit 唤径缺陷）归补位会话处置。
