@@ -130,15 +130,10 @@ func TestActiveSetPredicate(t *testing.T) {
 	if n := count(t, sg, "SELECT count(*) FROM md_mark_index WHERE inst_id='ETH-USDT-SWAP'"); n != 0 {
 		t.Fatalf("集外 mark 零投影: %d", n)
 	}
-	// signal 谓词：carry_diff/xvenue_spread 全量；funding_view 活跃集键；basis_ann 不在面。
-	if n := count(t, sg, "SELECT count(*) FROM md_signal"); n != 3 {
-		t.Fatalf("signal 应 3 行（carry_diff+xvenue_spread+funding_view@BTC）: %d", n)
-	}
-	if n := count(t, sg, "SELECT count(*) FROM md_signal WHERE kind='funding_view' AND key='ETH-USDT-SWAP'"); n != 0 {
-		t.Fatal("集外 funding_view 零投影")
-	}
-	if n := count(t, sg, "SELECT count(*) FROM md_signal WHERE kind='basis_ann'"); n != 0 {
-		t.Fatal("basis_ann 不在投影谓词")
+	// signal T-0272 全量镜像（撤 ts 水印+kind 谓词）：五行全落——集外键与
+	// 谓词面外 kind（funding_view@ETH/basis_ann）同样镜像。
+	if n := count(t, sg, "SELECT count(*) FROM md_signal"); n != 5 {
+		t.Fatalf("signal 全量镜像应 5 行（全 kind 全键）: %d", n)
 	}
 	// dcd 谓词：无 dcd_call 活策略→零投影；补活策略→投影。
 	if n := count(t, sg, "SELECT count(*) FROM md_dcd_product"); n != 0 {
@@ -485,6 +480,40 @@ func TestDualwriteBypassPredicate(t *testing.T) {
 	}
 	if n := count(t, sg, "SELECT count(*) FROM md_signal WHERE kind='basis_ann'"); n != 1 {
 		t.Fatalf("dualwrite 全 kinds（basis_ann 应在）: %d", n)
+	}
+}
+
+// TestSignalBackstampWmBypass T-0272 回归锚：md_signal 行 stamped ts 早于
+// 当前 wm（T-0164 血统回戳形态——落地时 ts 已在水印后）+ serve 谓词面外
+// kind——事件拍后仍须落 SG 镜像。旧实现（ts>$1 水印+kind 谓词）结构性
+// 失明=本测必红。
+func TestSignalBackstampWmBypass(t *testing.T) {
+	ctx := context.Background()
+	r, md, sg := runner(t)
+	seedActive(t, sg)
+	// 首拍推 wm≈now（种子行 ts=now——回戳对照基线）。
+	if _, err := md.Exec(ctx, `INSERT INTO md_signal(kind,key,val,ts)
+		VALUES ('carry_diff','WARM',0.001,now())`); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.projectTsTable(ctx, "ev_signal"); err != nil {
+		t.Fatal(err)
+	}
+	// 回戳行落地：stamped ts=8h 前（血统 lag 上限形）<wm；mt5_swap=旧 serve
+	// 谓词面外 kind——旧实现下两行结构性失明。
+	if _, err := md.Exec(ctx, `INSERT INTO md_signal(kind,key,val,meta,ts) VALUES
+		('carry_diff','BACKSTAMP',0.004,'{}'::jsonb,now()-interval '8 hours'),
+		('mt5_swap','EXR-PAIR',0.0002,'{}'::jsonb,now()-interval '8 hours')`); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.projectTsTable(ctx, "ev_signal"); err != nil {
+		t.Fatal(err)
+	}
+	if n := count(t, sg, "SELECT count(*) FROM md_signal WHERE key='BACKSTAMP'"); n != 1 {
+		t.Fatalf("回戳行应镜像落地（旧水印谓词失明=本断言红）: %d", n)
+	}
+	if n := count(t, sg, "SELECT count(*) FROM md_signal WHERE kind='mt5_swap'"); n != 1 {
+		t.Fatalf("serve 全 kind 镜像——mt5_swap（旧谓词面外 kind）应落地: %d", n)
 	}
 }
 
