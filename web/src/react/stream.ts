@@ -7,6 +7,7 @@ import { fromJson } from "@bufbuild/protobuf";
 import {
   GetHeadlessResponseSchema,
   GetHostMetricsResponseSchema,
+  GetPipelineResponseSchema,
   ListClosedPositionsResponseSchema,
   ListHedgeFlowResponseSchema,
   type WatchEvent,
@@ -40,6 +41,9 @@ function ingest(ev: WatchEvent): void {
       break;
     case "ev_headless":
       store.applyHeadless(fromJson(GetHeadlessResponseSchema, ev.data));
+      break;
+    case "ev_pipeline":
+      store.applyPipeline(fromJson(GetPipelineResponseSchema, ev.data));
       break;
   }
 }

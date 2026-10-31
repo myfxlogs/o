@@ -221,6 +221,13 @@ func (c coreService) GetCockpit(ctx context.Context,
 	} else {
 		r.Headless = hl
 	}
+	// ⑦ 工作流管道并入首帧（驾驶舱 v4 三卡合一——ops_event 流水重建管道，
+	// 一往返同族径）。读败=missing 名段显缺非冒零。
+	if pl, perr := c.GetPipeline(ctx, &dashboardv1.GetPipelineRequest{}); perr != nil {
+		r.Missing = append(r.Missing, "pipeline")
+	} else {
+		r.Pipeline = pl
+	}
 	return r, nil
 }
 

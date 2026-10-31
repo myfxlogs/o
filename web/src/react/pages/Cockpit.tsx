@@ -1,38 +1,48 @@
-// Cockpit.tsx —— 业主驾驶舱 v2（T-0239 五块只读基座上重排——判态服务端派生，
-// 前端纯渲染零判据）。v2（业主直批施工任务书·驾驶舱体验v2 2026-10-30）三件：
-// ①美观对齐 TRX 基准——首档 trx-kpi-strip 大数字条+瓦片骨架+EmptyState 空态，
-// 全套设计件同源（20-cards.css 既有类，零新 CSS 语言；唯一新增 .tile-scroll
-// 定高滚动工具类）；②业主第一性四问重排——①钱安全②赚了多少置顶放大（人话
-// 结论首行、数字第二层），③机器面次之，纯机器细节（无头面）最次；流连接
-// 角标+asOf 快照戳常显（数据鲜度一眼可见）；③无头状态面本地切片分页
-// （T-0262 工单板同款分页器 10 行/页——推送全量本地切，零后端改动）+定高
-// 瓦片。降级语义原样保全（T-0248：sec/SecBoundary/missing 显缺不冒零）；
-// T-0263 推送制照旧（Watch ev_headless 流帧+unary 快照 seq 水印，零定时器）；
-// T-0268：无头面并入 getCockpit 首屏一往返（独立首调撤——hydrate 仅缺段兜底）。
+// Cockpit.tsx —— 业主驾驶舱 v4（设计稿·驾驶舱管道视图 2026-10-31 业主钦定：
+// 三张无头监控卡合一——「③ 席位与在做什么」「③ 无头状态面」「③ 工单板」撤，
+// 换「工作流管道」瓦片：1 票 1 行管道流，走过显/未到隐，在干席 spinner、
+// 已移交席呼吸灯（绿=完成/通过 黄=驳回/挂起/等审计 红=死/异常）、行首行级灯、
+// 驳回环 R2/R3 标注；完结=部署上线→行自动退场（ev_pipeline 流推 ≤10s）。
+// 判态全服务端派生（pipeline_face.go），前端纯渲染零判据。保留不动：①② 钱面
+// （KPI 条+平台明细）、④ 待开仓、System 页；三张旧卡的 ops 数据后端保留。
+// 降级语义原样保全（T-0248：sec/SecBoundary/missing 显缺不冒零）；流连接
+// 角标+asOf 快照戳常显；headless 分片保留=① 存活卡「无头面」注行数据源
+// （分片仍在流推，只撤其独立卡面）。
 import { useEffect, useState } from "react";
 import { client } from "../api";
 import { onLive } from "../stream";
-import { applyHeadless, hydrate, useSlice } from "../store";
+import { applyHeadless, applyPipeline, hydrate, useSlice } from "../store";
 import { Component, type ReactNode } from "react";
 import { Card, EmptyState, Skeleton, StateDot } from "../components/ui";
 import { AGE } from "../components/panel";
-import type { GetCockpitResponse, CockpitPlatformRow, CockpitSeat, CockpitTicket, CockpitArmed, HeadlessRow } from "../../gen/dashboardv1/core_pb";
-
-const T_PAGE = 10; // 分页页长：③工单板=T-0262 后端 ticket_limit 同值；无头面=本地切片同值
-
-// 无头五态显示字典（pump derive 串→人话——纯显示映射非判据，终态不猜在服务端）
-const HL_STATE: Record<string, string> = {
-	alive: "在飞", done: "完工", dead: "死亡", stalled: "停滞", overdue: "逾期",
-};
-
-// 行级呼吸灯（驾驶舱 v3.1 业主令：每票每席一盏）。ops_headless.state 语钉：
-// 绿呼吸=alive；黄=stalled/等审计；红=dead/overdue（死=静止不装活）；灰 s3=done。
-const HL_DOT: Record<string, [number, boolean]> = {
-	alive: [0, true], stalled: [1, true], dead: [2, false], overdue: [2, false], done: [3, false],
-};
+import type {
+  GetCockpitResponse,
+  CockpitPlatformRow,
+  CockpitArmed,
+  CockpitPipelineRow,
+  CockpitPipelineStep,
+} from "../../gen/dashboardv1/core_pb";
 
 const ts = (t?: { seconds: bigint }) =>
 	t ? new Date(Number(t.seconds) * 1000).toLocaleString("zh-CN", { hour12: false }) : "—";
+
+// 步/行结果人话字典（纯显示映射非判据——终态派生在服务端 pipeline_face.go）。
+const STEP_RESULT: Record<string, string> = {
+	working: "在干", closed: "完成移交", passed: "通过",
+	rejected: "驳回", blocked: "挂起", error: "异常",
+};
+
+// 耗时格式（ms/min → 人话：45s / 32m / 2h6m）。
+const durMs = (ms: bigint) => {
+	const m = Number(ms) / 60000;
+	if (m < 1) return `${Math.max(1, Math.round(Number(ms) / 1000))}s`;
+	if (m < 60) return `${Math.round(m)}m`;
+	return `${Math.floor(m / 60)}h${Math.round(m % 60)}m`;
+};
+const durMin = (min: bigint) => {
+	const m = Number(min);
+	return m < 60 ? `${m}m` : `${Math.floor(m / 60)}h${m % 60}m`;
+};
 
 // LiveBadge 流连接角标（v2 常显——数据鲜度一眼可见；onLive 挂载即回放现态，
 // 灯语同 Shell LiveDot：绿呼吸=流活，黄=断流重连中）。
@@ -51,67 +61,70 @@ function LiveBadge() {
 	);
 }
 
-// Pager 分页器（T-0262 工单板同款组件语——上一页/下一页/第 x/y 页（共 N 条）；
-// pages≤1 不显。工单板=服务端下推翻页重取，无头面=本地切片，共用此件）。
-function Pager(props: { page: number; pages: number; total: number; onPage: (p: number) => void }) {
-	if (props.pages <= 1) return null;
-	return (
-		<div className="pager">
-			<button type="button" disabled={props.page <= 1} onClick={() => props.onPage(props.page - 1)}>上一页</button>
-			<span>第 {props.page} / {props.pages} 页（共 {props.total} 条）</span>
-			<button type="button" disabled={props.page >= props.pages} onClick={() => props.onPage(props.page + 1)}>下一页</button>
-		</div>
-	);
+// SeatBadge 步链徽（设计稿钉组件形 <SeatBadge seat result active>：
+// active=true 渲染 spinner（⟳ 在干），否则呼吸灯（色=该席最终结果——
+// 服务端派生 state/breathe，前端零判据）；title=席位级四要素悬停）。
+function SeatBadge(props: { s: CockpitPipelineStep }) {
+	const s = props.s;
+	const hover = `${s.seat} | 进:${s.enter || "—"} | 出:${s.exit || "在干"} | ${STEP_RESULT[s.result] ?? s.result} | 耗时 ${durMs(s.ms)}`;
+	if (s.active && s.spin) {
+		return <span className="pipe-seat" title={hover}><span className="dot spin" />{s.seat}</span>;
+	}
+	return <span className="pipe-seat" title={hover}><StateDot state={s.state} breathe={s.breathe} title={hover} />{s.seat}</span>;
 }
 
-// HeadlessTile 无头状态面（T-0263 推送制照旧——取数泵上提页级单源，本件纯
-// 渲染；v2 本地切片分页：推送全量→本地切 10 行/页，零后端改动；.tile-scroll
-// 定高滚动——瓦片高度固定，页高不被行数撑；T-0268 读败显缺不永转骨架）。
-// v3 呼吸灯：瓦片右上角状态点（绿呼吸=无异响；红=含死亡/停滞/逾期单）。
-function HeadlessTile() {
-	const hl = useSlice("headless");
-	const [page, setPage] = useState(1);
-	if (!hl.data) return <Card title="③ 无头状态面（推送制）">{hl.err ? <p className="dim">该段数据缺（读败）</p> : <Skeleton rows={4} />}</Card>;
-	const all = hl.data.rows;
-	// 业主令 10-31：闭环完工单不上屏——行面只显未完成席（完工数留角标计数）。
-	const rows = all.filter((r) => r.state !== "done");
-	const pages = Math.max(1, Math.ceil(rows.length / T_PAGE));
-	const safePage = Math.min(page, pages);
-	const view = rows.slice((safePage - 1) * T_PAGE, safePage * T_PAGE);
-	const bad = rows.filter((r) => r.state === "dead" || r.state === "stalled" || r.state === "overdue").length;
-	const alive = rows.filter((r) => r.state === "alive").length;
-	const done = all.length - rows.length;
+// PipelineTile 工作流管道（v4 主瓦片——pipeline 分片：首帧 getCockpit.pipeline
+// 一往返，后 ev_pipeline 流推 seq 水印去重；断流复连 unary 回补。行=1 票：
+// 行级灯+票号+标题+步链+已历时；活跃>20 截断「+N more」（服务端 total_active）。
+// 完结（部署上线）票不入 rows——行自动退场即流推帧）。
+function PipelineTile() {
+	const pl = useSlice("pipeline");
+	const extra = pl.data ? <StateDot state={0} breathe title={`${pl.data.rows.length}/${pl.data.totalActive} 在飞 · 水印 ${pl.data.seq}`} /> : undefined;
+	if (!pl.data) return <Card title="③ 工作流管道" extra={extra}>{pl.err ? <p className="dim">该段数据缺（读败）</p> : <Skeleton rows={4} />}</Card>;
+	const rows = pl.data.rows;
+	const more = Number(pl.data.totalActive) - rows.length;
 	return (
-		<Card title="③ 无头状态面（推送制）"
-			extra={<StateDot state={bad > 0 ? 2 : 0} breathe={bad === 0}
-				title={`${alive} 在飞 · ${done} 完工${bad > 0 ? ` · ${bad} 异常` : ""}`} />}>
-			{rows.length === 0 ? <EmptyState title={done > 0 ? `无在飞单 · ${done} 完工` : "无在册无头单"} /> : <>
-				<div className="tile-scroll">
-					<table className="tile-table"><thead><tr><th>灯</th><th>票</th><th>席</th><th>底模</th><th>相位</th><th>五态</th><th>最后活动</th></tr></thead>
-						<tbody>{view.map((r) => { const [st, br] = HL_DOT[r.state] ?? [3, false]; return <tr key={r.ticket}>
-							<td><StateDot state={st} breathe={br} title={`${HL_STATE[r.state] ?? r.state} · ${r.ticket} · 活动 ${ts(r.lastActivity)}`} /></td>
-							<td>{r.ticket}</td><td>{r.seat}</td>
-							<td>{r.model || "—"}</td><td>{r.phase || "—"}</td><td>{HL_STATE[r.state] ?? r.state}</td><td>{ts(r.lastActivity)}</td></tr>; })}</tbody></table>
-				</div>
-				<Pager page={safePage} pages={pages} total={rows.length}
-					onPage={(p) => setPage(Math.max(1, Math.min(p, pages)))} />
-			</>}
+		<Card title="③ 工作流管道" extra={extra}>
+			{rows.length === 0 ? <EmptyState title="无在飞票" hint="活跃票（未部署上线）为空——管道空闲" /> :
+				<div className="tile-scroll">{rows.map((r: CockpitPipelineRow) => {
+					const rowHover = `${r.ticket} | ${r.title || "无题"} | 已历时 ${durMin(r.elapsedMin)} | 当前卡在 ${r.currentSeat}（${STEP_RESULT[r.currentState] ?? r.currentState}）`;
+					return (
+						<div className="pipe-row" key={r.ticket} title={rowHover}>
+							<StateDot state={r.state} breathe={r.breathe} title={`行级灯（=当前活动席状态色） · ${rowHover}`} />
+							<span className="pipe-ticket">{r.ticket}</span>
+							{r.title && <span className="pipe-title">{r.title}</span>}
+							<span className="pipe-chain">
+								{r.steps.map((s, i) => (
+									<span key={i} className="pipe-seat">
+										{i > 0 && <span className="pipe-arrow">→</span>}
+										<SeatBadge s={s} />
+									</span>
+								))}
+							</span>
+							<span className="pipe-elapsed">{durMin(r.elapsedMin)}</span>
+						</div>
+					);
+				})}
+				{more > 0 && <p className="dim">+{more} more…</p>}
+				</div>}
 		</Card>
 	);
 }
 
 export function CockpitPage() {
 	const [d, setD] = useState<GetCockpitResponse | null>(null);
-	const [page, setPage] = useState(1);
 	const hl = useSlice("headless");
-	// 无头取数泵页级单源（v2 上提——①存活卡与③状态面同读 headless 分片，
-	// 一页一取数点）；T-0268 挂载首取并入 getCockpit.headless——本效零独立
-	// 首调，hydrate 仅缺段径 unary 兜底（data 在=零请求）；onLive 即时回放
-	// 非断流复连不补，复连才 unary 回补+接流 seq>水位帧补洞（水印判在
-	// store.applyHeadless）。零 interval 零定时器。
+	// 取数泵页级单源（v2 上提；v4 加 pipeline 分片同族径）：T-0268 挂载首取
+	// 并入 getCockpit（headless+pipeline 两段）——hydrate 仅缺段径 unary 兜底；
+	// onLive 即时回放非断流复连不补，复连才 unary 回补+接流 seq>水位帧补洞
+	// （水印判在 store.applyHeadless/applyPipeline）。零 interval 零定时器。
 	useEffect(() => {
-		const refill = () => client.getHeadless({}).then(applyHeadless).catch(() => {});
+		const refill = () => {
+			client.getHeadless({}).then(applyHeadless).catch(() => {});
+			client.getPipeline({}).then(applyPipeline).catch(() => {});
+		};
 		hydrate("headless", () => client.getHeadless({}));
+		hydrate("pipeline", () => client.getPipeline({}));
 		let replayed = false; // onLive 首调=现态即时回放非断流复连——跳过，不重演首取
 		return onLive((v?: unknown) => {
 			if (!replayed) { replayed = true; return; }
@@ -119,10 +132,14 @@ export function CockpitPage() {
 		});
 	}, []);
 	useEffect(() => {
-		client.getCockpit({ ticketLimit: T_PAGE, ticketOffset: (page - 1) * T_PAGE })
-			.then((d) => { if (d.headless) applyHeadless(d.headless); setD(d); })
+		client.getCockpit({})
+			.then((d) => {
+				if (d.headless) applyHeadless(d.headless);
+				if (d.pipeline) applyPipeline(d.pipeline);
+				setD(d);
+			})
 			.catch(() => setD(null));
-	}, [page]);
+	}, []);
 	if (!d) return (
 		<div className="page">
 			<div className="health-strip">
@@ -136,6 +153,7 @@ export function CockpitPage() {
 					<Card key={k} className="kpi" title={k}><Skeleton rows={2} /></Card>
 				))}
 			</div>
+			<Card title="③ 工作流管道"><Skeleton rows={4} /></Card>
 			<div className="duo">
 				<Card title="④ 待开仓（armed）"><Skeleton rows={3} /></Card>
 				<Card title="①② 钱面平台明细"><Skeleton rows={4} /></Card>
@@ -147,8 +165,6 @@ export function CockpitPage() {
 		miss.has(name) ? <p className="dim">该段数据缺（查询败——不冒零）</p> :
 			<SecBoundary>{el}</SecBoundary>;
 	const m = d.money; // money 块缺段判据真源=服务端 missing 字段——?. 后链式禁裸调
-	const tPages = Math.max(1, Math.ceil(d.ticketsTotal / T_PAGE));
-	const safePage = Math.min(page, tPages);
 	// 展示层聚合（渲染算术，非判据——判态全部服务端派生）
 	const expSt = m?.exposureState ?? 0;
 	const parked = m ? m.platforms.reduce((a, p) => a + p.parked, 0) : 0;
@@ -157,31 +173,11 @@ export function CockpitPage() {
 	let lastSeatTs: { seconds: bigint } | undefined;
 	for (const s of d.seats) if (s.ts && (!lastSeatTs || s.ts.seconds > lastSeatTs.seconds)) lastSeatTs = s.ts;
 	const hlRows = hl.data?.rows ?? [];
-	// v3.1 行灯联查面：工单×无头状态按票号/席位双键联（ops_headless 有票字段）。
-	const hlByTicket = new Map<string, HeadlessRow>(hlRows.map((r) => [r.ticket, r]));
-	const hlBySeat = new Map<string, HeadlessRow>(hlRows.map((r) => [r.seat, r]));
-	// 席行灯：ops_headless.state 语钉（绿呼吸=alive/黄=stalled·等审计/红=dead·overdue/灰=done或无在册单）。
-	const seatDot = (s: CockpitSeat): { state: number; breathe: boolean; title: string } => {
-		const r = (s.ticket ? hlByTicket.get(s.ticket) : undefined) ?? hlBySeat.get(s.seat);
-		if (!r) return { state: 3, breathe: false, title: `${s.seat} · 无在册无头单 · 自报 ${ts(s.ts)}` };
-		const [st, br] = HL_DOT[r.state] ?? [3, false];
-		return { state: st, breathe: br, title: `${HL_STATE[r.state] ?? r.state} · ${r.ticket} · 活动 ${ts(r.lastActivity)}` };
+	// 计数双语归一（服务端判态中文标 or pump 原键——HL_STATE 正向映射后按显示
+	// 标判，两径通吃；①存活卡「无头面」注行数据源——分片仍在流推只撤卡面）。
+	const HL_STATE: Record<string, string> = {
+		alive: "在飞", done: "完工", dead: "死亡", stalled: "停滞", overdue: "逾期",
 	};
-	// 票行灯：灰=待派/已批（无领）；绿呼吸=施工中/在飞且联上活席；黄=收口待审·等审计/
-	// 席位失联（票面在飞但 ops_headless 无活席=断链嫌疑）；实绿=完成/闭环；红=驳回/挂起。
-	const ticketDot = (t: CockpitTicket): { state: number; breathe: boolean; title: string } => {
-		const st = t.state ?? "";
-		const ttl = (x: string) => `${st} · ${t.seat || x} · ${ts(t.ts)}`;
-		if (/待派|已批|pending|approved/i.test(st)) return { state: 3, breathe: false, title: ttl("无人领") };
-		if (/收口待审|审计|review/i.test(st)) return { state: 1, breathe: true, title: ttl("等审计") };
-		if (/完成|闭环|done|closed/i.test(st)) return { state: 0, breathe: false, title: ttl("闭环") };
-		if (/驳回|挂起|作废|reject|block|void/i.test(st)) return { state: 2, breathe: false, title: ttl("异常态") };
-		const r = hlByTicket.get(t.ticket);
-		if (r && r.state === "alive") return { state: 0, breathe: true, title: `${st} · ${r.seat || t.seat || "—"} · 活动 ${ts(r.lastActivity)}` };
-		return { state: 1, breathe: true, title: `${st} · ${t.seat || "—"} · 席位失联（票面在飞无活席） · ${ts(t.ts)}` };
-	};
-	// 计数双语归一（服务端判态中文标 or pump 原键——v2 裸键滤恒 0 病灶修：
-	// HL_STATE 正向映射后按显示标判，两径通吃）。
 	const hlL = (s: string) => HL_STATE[s] ?? s;
 	const hlBad = hlRows.filter((r) => ["死亡", "停滞", "逾期"].includes(hlL(r.state))).length;
 	const hlAlive = hlRows.filter((r) => hlL(r.state) === "在飞").length;
@@ -241,8 +237,10 @@ export function CockpitPage() {
 					)}
 				</Card>
 			</div>
-			{/* —— 次档·答④要我动的（armed）独档+③席位（机器面配对；
-			    业主令 v3.2：armed 单独占行不挤明细）—— */}
+			{/* —— 次档·答③机器面（v4：三张无头监控卡合一——工作流管道主瓦片，
+			    1 票 1 行管道流，ev_pipeline 流推秒级到屏）—— */}
+			<PipelineTile />
+			{/* —— 底档·④要我动的（armed）+①②平台明细（v3.2 同档保留卡不动）—— */}
 			<div className="duo">
 				<Card title="④ 待开仓（armed）"
 					extra={<StateDot state={miss.has("armed") ? 2 : 0} breathe={!miss.has("armed")} title={`${d.armed.length} 单 · 快照 ${asOfAge}`} />}>{sec("armed",
@@ -251,18 +249,6 @@ export function CockpitPage() {
 							<tbody>{d.armed.map((a: CockpitArmed) => <tr key={a.id}><td>{a.id}</td><td>{a.instId}</td>
 								<td>{a.direction}</td><td>{ts(a.created)}</td><td>{a.ttlHoursLeft.toFixed(1)}</td></tr>)}</tbody></table></div>)}
 				</Card>
-				<Card title="③ 席位与在做什么"
-					extra={<StateDot state={miss.has("seats") ? 2 : 0} breathe={!miss.has("seats")} title={`最近自报 ${lastSeatAge}`} />}>{sec("seats",
-					d.seats.length === 0 ? <EmptyState title="无在册席位" /> :
-						<table className="tile-table"><thead><tr><th>灯</th><th>席</th><th>票</th><th>阶段</th><th>最近自报</th><th>备注</th></tr></thead>
-							<tbody>{d.seats.map((s: CockpitSeat) => { const sd = seatDot(s); return <tr key={s.seat}>
-								<td><StateDot state={sd.state} breathe={sd.breathe} title={sd.title} /></td>
-								<td>{s.seat}</td><td>{s.ticket}</td>
-								<td>{s.stage}</td><td>{ts(s.ts)}</td><td>{s.note}</td></tr>; })}</tbody></table>)}
-				</Card>
-			</div>
-			{/* —— 三档·答③机器面（平台明细/工单概要——v3.2 业主令：明细|工单同档）—— */}
-			<div className="duo">
 				<Card title="①② 钱面平台明细"
 					extra={<StateDot state={miss.has("money") ? 2 : 0} breathe={!miss.has("money")} title={`${m?.platforms.length ?? 0} 平台 · 快照 ${asOfAge}`} />}>{sec("money", !m ? <p className="dim">该段数据缺</p> : <>
 					<table className="tile-table"><thead><tr><th>平台</th><th>承诺</th><th>已入</th><th>停泊</th><th>敞口</th></tr></thead>
@@ -272,19 +258,7 @@ export function CockpitPage() {
 					<p className="dim fact">近30d 日净：{m.daily.map((v) => v.toFixed(1)).join(" · ")}</p>
 				</>)}
 				</Card>
-				<Card title="③ 工单板"
-					extra={<StateDot state={miss.has("tickets") ? 2 : 0} breathe={!miss.has("tickets")} title={`${d.ticketsTotal} 单 · 快照 ${asOfAge}`} />}>{sec("tickets",
-					d.tickets.length === 0 ? <EmptyState title="无工单" /> :
-						<table className="tile-table"><thead><tr><th>灯</th><th>票</th><th>状态</th><th>席</th><th>用量(tok)</th><th>时间</th></tr></thead>
-							<tbody>{d.tickets.map((t: CockpitTicket) => { const td = ticketDot(t); return <tr key={t.ticket}>
-								<td><StateDot state={td.state} breathe={td.breathe} title={td.title} /></td>
-								<td>{t.ticket}</td><td>{t.state}</td>
-								<td>{t.seat}</td><td>{Number(t.usageRows) > 0 ? Number(t.totalTokens).toLocaleString() : "—"}</td><td>{ts(t.ts)}</td></tr>; })}</tbody></table>)}
-					<Pager page={safePage} pages={tPages} total={d.ticketsTotal} onPage={setPage} />
-				</Card>
 			</div>
-			{/* —— 底档·纯机器细节（③无头状态面——推送制+本地分页+定高）—— */}
-			<HeadlessTile />
 		</div>
 	);
 }
