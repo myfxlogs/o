@@ -180,6 +180,21 @@
       color-mix(in srgb, var(--critical) 52%, #000000) 100%
     );
 }
+/* 灰灯 s3（v3.1 行灯第四态：done/无人领——中性墨灰同 3D 珠形，无呼吸） */
+.dot.s3 {
+  background:
+    radial-gradient(
+      circle at 30% 26%,
+      rgba(255, 255, 255, 0.92) 0%,
+      rgba(255, 255, 255, 0) 34%
+    ),
+    radial-gradient(
+      circle at 34% 30%,
+      color-mix(in srgb, var(--ink-3, #8a8f98) 45%, #ffffff) 0%,
+      var(--ink-3, #8a8f98) 50%,
+      color-mix(in srgb, var(--ink-3, #8a8f98) 52%, #000000) 100%
+    );
+}
 /* 通用自息键同治（T-0228，承 T-0224 珠内生辉径=上方 breatheCalm/Quick 处
    方）：明暗主驱=filter brightness/saturate，opacity 通道撤除（恒 1）。
    外辉光弥散半径两帧逐字恒定 2px/0.5px，呼相浓度=息相÷brightness 增益
