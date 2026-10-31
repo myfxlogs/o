@@ -431,3 +431,18 @@
 - **CEO 裁件转办**（MANAGE-1497，源=MANAGE-1392 业主授权）：清道夫-OCI=10-28 cutover 漏件非新设非红线——①即修建制内恢复；②部署口 CTO 定（倾向与 SG 同机制）；③sweeper 入 cutover checklist 防再漏。
 - **CTO 裁=用户级 systemd `o-sweeper.service`**（淘汰 compose：OCI docker 只载 PG-md，单开 compose=双机制分裂；漏件根因=无 unit 孤儿，入册即防再漏）。逐字复刻 dev 原设计——`EnvironmentFile=%h/o-projector.env` 复用：projector_rw 对 fin_employee_registry 授权亲证够（information_schema 实查），**零新密件零新授权**。
 - **立票=T-0275 已批高优**（master@9586d3c）：部署+三层册补件（deploy/ 模板+oci_bootstrap units/verify 段+盒档案清单）+dev 遗件清理同票落；verify 段新增「谁在 beat=谁在跑」roster 反向核对——kb 判据落机。已回执 MANAGE 箱。
+
+
+## 2026-10-31 午→暮 — 管理席（devin）：meta 交付链全环自闭线建成+首跑实证
+
+- **业主令**：「事事有应答」——meta 须成自动化回环不再靠人催；业主直批链补方案。
+- **断点谱系实证**：meta 事件面只覆内部件流——①外部票生命周期断（门4收口悬空9h、DOOR5驳回返修靠人肉）②外部系统态断（CI绿靠人肉轮询）③长任务完工断（部署零投件）。
+- **六件补环全过审运行**：GHEVT（ghhookd webhook→mbus 桥，hook id=705464897 活跃）/EXTAUDIT（收口待审→自动派审，DOOR5R 返修即被其自动派审实证）/REWORK（驳回→自动返修 R1/R2 自派+R3 熔断升人裁）/门4（allow.list+五闸→gh pr merge）/门5（master头+CI绿+allow.list→deploy_image.sh）/DEPLOYNF（deploy_image EXIT trap→MANAGE 箱投件，已并 master adf8b34c）。
+- **端到端首跑**：14:27 授权行落→14:32 `o-core:adf8b34cd2b1 healthy`→DEPLOY-adf8b34cd2b1 投件回箱——**全链 5min 零人工**。设计内人工点仅三：allow.list 授权行/三驳熔断人裁/审计锚拟稿。
+- **CMC 空仓不落痕根修同批上线**（d2821e2f 部署）：墓碑 qty=0 行实落 SG（04:24Z 覆盖 03:19 qty=89300 陈行）——TRX 对冲腿清屏实证；前端同批：+/-符号面/排布v3.2/无头面滤闭环（#133/#134）。
+- **坑条目**：meta-event-plane-external-blind-spots 在案（索引已重建）；另两小账挂尾——①票面 `收口commit` 多 SHA 同行=解析取首值歧义（DOOR5 案零实害因席按 HEAD 全态对账，约定待理票）②antclaw 隧道注册边缘拒先于本批存在，修复留票。
+- **在飞/后续**：T-0275 sweeper-OCI 已立票待施工（CTO 裁 systemd 径）；无头面「最近动作」列=业主 deferred（全链通后再做状态可视化）。
+
+### 交接提示词（下一 session 起手式）
+
+> [角色:管理] meta 闭环六件已实跑全通（KB: meta-event-plane-external-blind-spots）。起手三查：①MANAGE 箱未消费件（DEPLOY/审计判词/升级件）②`systemctl --user list-units | grep -E "door5|ghhook|dispatch"` 活性③`tail ~/devin-door5.log` 部署闸近况。allow.list 授权/三驳熔断/审计锚=你的三个人工闸。
