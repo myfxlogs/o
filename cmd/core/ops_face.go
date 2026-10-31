@@ -30,7 +30,7 @@ type compBeat struct {
 	fix               string // 黄/红处理建议
 }
 
-// healthComps 采集组件全集（14 件——足迹表+channel 谓词逐件钉死；增组件=增行）。
+// healthComps 采集组件全集（13 件——足迹表+channel 谓词逐件钉死；增组件=增行）。
 func healthComps() []compBeat {
 	return []compBeat{
 		{name: "okxws WS 行情", host: "oci", exch: "OKX", cat: "collect", fact: "md_mark_index mark-price|index-tickers", warn: 30 * time.Second, dead: 2 * time.Minute,
