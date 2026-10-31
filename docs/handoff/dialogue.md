@@ -477,3 +477,10 @@
 - **T-0276 审计=驳回（生产实证锚失守，码面合格）**：①`research.dcd.enabled` 钉错 PG-md 副本被 projector 第九桥同步收割（正本=SG `o-postgres`——副本径独写必被删）②并发 T-0278 部署 4131cdb 覆盖本票改动（同型二度挤位——部署锁对未并支覆写无防御，系统性缺口）③P3 注释计数 14→13。返修 R1 已派（headless-run-T-0276 scope active，worktree 票面=权威面带重飞指引）。
 - **meta 远端同步仍欠账**：master 领前 origin 200 commits/落后 ~10（管理席 EDR P1-P3 等）——前班「远端同步三径涉凭据/重建级已转报业主候裁」在案，本席不擅动历史整合。
 - **遗留注**：dm-spawn 心跳=点火一次性写（81e3642 原设计）——长会话期心跳不续，dlmd 曾误判在飞席 inactive（dm-hb-2105 临时续命件在案）；如再发宜另票把心跳移 wrapper 循环。T-0276 部署一致性=返修票内处置（本席边界未直接动生产 DB/部署面）。探针 directive 20261031-212343-DM-3290 留 DM 箱——座让后自火=唤径活证。
+
+## 2026-10-31 22:0x 决策席（devin DM session，门2 唤起 MANAGE-3335）——dlmd 热循环+EXTAUDIT 解析立票
+
+- **立票 T-0279 已批已派**（o 仓 a4131ec 推远端；Dev directive DM-3348）：①dlmd `fireShadow` lease 续期 CAS 漏滚 `FireAt`→`armTimer` 负 secs 钳 1s 永动（journal 实证 lease:T-0276:1 `LEASE_RENEW+TIMER_ARM secs=1` 8178 行/3min；hb 同型分支有滚 FireAt 为对照组，「同 leaseRenew 律」半残）——修=CAS 内 `FireAt=last_activity+1800`+`armTimer` 传 CAS 返回值（hb :1159 同型一并）；②dispatch `收口commit` 解析两标准——:436/:447 紧邻裸 hex 窄径（`o@sha+meta@sha` 双仓式不可析→PIPEFIX 21:51 report.failed 实案）vs :323/:765 行内首 hex 宽径——修=抽 `ticket_csha` 单源容 `o@` 前缀/双仓取 o 侧四处同源（KB 同源核验律）。
+- **边界守**：票面已由管理席改裸 sha 应急（extaudit-PIPEFIX.state=dispatched:fdea6669 在案）；mbus-dispatch 常驻进程本单禁重启（生效=下次重启，无即时堵点）；dlmd 重启属指令特许归施工部署段；3290 冒烟探针按 3334 核结留箱不并入。
+- **在案待办信号**：MANAGE-3345 回执「PIPEFIX 审计通过已入案——待 CTO 合并部署」——属门4/door5 授权闸件（allow.list 归管理席），非本指令面，下唤对账。
+- **代 ack 链**：MANAGE-3335 由 PIPEFIX wrapper 契约 ack（21:59:17 receipt.log:2850）+管理席 3337 归档回执；处置报 DM-3351 已上总线。
