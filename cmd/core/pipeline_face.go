@@ -80,6 +80,15 @@ func (c coreService) GetPipeline(ctx context.Context,
 			FROM ops_event
 			WHERE split_part(ticket, E'\n', 1)<>''
 			GROUP BY split_part(ticket, E'\n', 1)
+			-- T-0283 完结粘滞：per-ticket 完结事件存在即退场（存在性判定与时序
+			-- 无关——完结行后至唤径杂讯/补报不诈尸）。完结谓词：①'完成'新钦定
+			-- 信号；②历史判结=裁决+通过-非驳回（269+ 条在案零补票自愈）；
+			-- ③决策系收口直结（DM/决策席——T-0282 型；施工/Dev 收口未审不结）。
+			HAVING NOT bool_or(
+				event='完成'
+				OR (event='裁决' AND note LIKE '%通过%' AND note NOT LIKE '%驳回%')
+				OR (event='收口' AND seat IN ('DM','决策席'))
+			)
 		) f, dep
 		WHERE dep.d IS NULL OR f.last_ts > dep.d
 		ORDER BY f.last_ts DESC, f.ticket DESC

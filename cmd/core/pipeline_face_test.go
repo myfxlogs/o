@@ -292,3 +292,60 @@ func TestGetCockpitPipelineMerged(t *testing.T) {
 		t.Fatal("拔径污染其余块")
 	}
 }
+
+// T-0283 完结粘滞锚：per-ticket 完结事件存在即退场（存在性与时序无关——
+// 完结后至杂讯不诈尸）；驳回/Dev收口未审非完结；部署水位线回归不破。
+func TestPipelineExitSemantics(t *testing.T) {
+	pool := testutil.Pool(t)
+	if err := pgstore.Migrate(context.Background(), pool, "fin"); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	c := coreService{pool: pool, docsRoot: "docs/tasks"}
+	ins := func(agoMin int, seat, event, ticket, note string) {
+		if _, err := pool.Exec(ctx, `INSERT INTO ops_event(ts,seat,event,ticket,note)
+			VALUES(now()-$1*interval '1 minute',$2,$3,$4,$5)`, agoMin, seat, event, ticket, note); err != nil {
+			t.Fatal("事件桩:", err)
+		}
+	}
+	// 部署线 180min：其后事件皆新于水位——退场唯完结谓词管。
+	ins(200, "Dev", "领单", "T-7006", "")
+	ins(180, "DEPLOY", "部署", "", "deploy 桩")
+	// T-7001 判结+诈尸杂讯（唤径「领单」后至——存在性判定不复活）。
+	ins(120, "Dev", "领单", "T-7001", "")
+	ins(110, "DM", "裁决", "T-7001", "审计通过→完成")
+	ins(100, "Dev", "领单", "T-7001", "CTO 接件杂讯")
+	// T-7007 「完成」钦定信号直结。
+	ins(90, "Dev", "领单", "T-7007", "")
+	ins(80, "DM", "完成", "T-7007", "翻完成落行")
+	// T-7004 决策系收口直结（T-0282 型）。
+	ins(70, "Dev", "领单", "T-7004", "")
+	ins(60, "DM", "收口", "T-7004", "决策直结补报")
+	// T-7002 驳回在飞；T-7003 Dev 收口未审在飞。
+	ins(50, "Dev", "领单", "T-7002", "")
+	ins(40, "DM", "裁决", "T-7002", "驳回:锚失守")
+	ins(30, "Dev", "领单", "T-7003", "")
+	ins(20, "Dev", "收口", "T-7003", "施工收口候审")
+
+	r, err := c.GetPipeline(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	have := map[string]bool{}
+	for _, row := range r.Rows {
+		have[row.Ticket] = true
+	}
+	for _, gone := range []string{"T-7001", "T-7007", "T-7004", "T-7006"} {
+		if have[gone] {
+			t.Fatalf("%s 应退场仍在飞（完结粘滞/水位线失守）", gone)
+		}
+	}
+	for _, fly := range []string{"T-7002", "T-7003"} {
+		if !have[fly] {
+			t.Fatalf("%s 应在飞（驳回/Dev收口未审非完结）", fly)
+		}
+	}
+	if r.TotalActive != 2 {
+		t.Fatalf("total_active 应=2（驳回+未审收口）: %d", r.TotalActive)
+	}
+}
