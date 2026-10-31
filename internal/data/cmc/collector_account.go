@@ -69,7 +69,9 @@ func (c *AccountCollector) Poll(ctx context.Context) ([]fact.Fact, error) {
 		return nil, fmt.Errorf("cmc account insert summary: %w", err)
 	}
 	var dbPositions []pgstore.CMCPosition
+	present := make(map[string]bool, len(pos.Positions))
 	for _, p := range pos.Positions {
+		present[p.InstrumentID] = true
 		dp := pgstore.CMCPosition{
 			AccountID:          c.accountID,
 			InstrumentID:       p.InstrumentID,
@@ -95,6 +97,11 @@ func (c *AccountCollector) Poll(ctx context.Context) ([]fact.Fact, error) {
 	}
 	if err := c.store.InsertCMCPositions(ctx, c.accountID, dbPositions); err != nil {
 		return nil, fmt.Errorf("cmc account insert positions: %w", err)
+	}
+	// 空仓不落痕根修：快照缺席且上笔 qty>0 的 instrument 落 qty=0 墓碑
+	// （REST 径同 WS 径——空快照=全平、缺席=单腿平；幂等不重碑）。
+	if _, err := c.store.TombstoneCMCPositions(ctx, c.accountID, present, now); err != nil {
+		return nil, fmt.Errorf("cmc positions tombstone: %w", err)
 	}
 	return []fact.Fact{{
 		Kind: fact.KindCMCAccount, Venue: "cmc", Symbol: "summary",
