@@ -461,3 +461,10 @@
 - **3061 → WAKEFIX 另立小票**（d018a51，已派 Dev DM-3064）：裁「另立」不并 T-0273——T-0273 审计通过且属 o 仓 headless 域，唤径缺陷属 meta 仓 spawn 域，异面不混票。票面：spawn_dm `systemd-run --unit`→`--scope` 最小修（火而不等+is-active 收敛判）+N1 执行位+N2 DEVIN_BIN 注缝并案（MANAGE-3048 注记随批）；验收锚原文照录入部署段（发 directive 10s 内 devin 在+wake log 起头）。Dev 已收口待审 @5095645（t/wakefix），EXTAUDIT notice 在飞。部署段待审计并码后派 deploy-duty-wakefix。
 - **病灶三证链闭合**：管理席冒烟探针（service 内 nohup sleep 被杀）→四弹哑（17:58–18:25 零 devin/log）→本席亲见 18:48 dispatcher 重启 boot 扫再火 dm-wake-184805 同死（`~/devin-dm-wake-184805.log`=0B）。根因=`--unit` 瞬态 service 主进程退→cgroup 收割；KB 坑23+meta 坑24 同族在案。
 - **并发席协同实记**：3051 ack 由 18:20 urgent 席先行消费（其注记部署段归本席），3061 ack 本席执行（DM-3076 回执）；处置报 DM-3077 已上 MANAGE。
+
+## 2026-10-31 夜 — 决策席：MANAGE-3125 驾驶舱 v4.1 四件修立票（devin DM session，门2 唤起）
+
+- **立票两枚**：T-0277（P1 三件：本金净额/无头六态/asOf「更新」）+T-0278（P2 管道增强：票号/席位图标底纹/底部计数/积压原因）已批已推（d6fda54c）；T-0277 已派 Dev 无头径（DM-3139），T-0278 钦定排 T-0277 合并后防撞 Cockpit.tsx 邻区。指令 ack+处置报 MANAGE（DM-3141）在案，deadline 已 disarm。
+- **根因亲证在票面（勿重复诊断）**：①本金虚高=Capital 只加 deposit 不减 withdraw（fin_cashflow withdraw=-10000 负号实证，17251→7251）；②206 假异常=泵锚族三漏——「排查审计」旧方言漏匹（DM 席 203 行主源）+自由票号（WAKEFIX/CMCTOMB 类）漏匹+run 系 rc=0 见证退出无 exit 档（BASESWP 案）；六态钦定=done/exit 正常、dead/stalled/overdue 异常，rc=0 见证退出=exit、rc≠0/无锚消失=dead，回改径=sweep 重派生禁手 UPDATE；③「快照」字样 O 违禁——渲染面改「更新」。
+- **部署树维护**：进场见 /opt/o detached HEAD @53b2a3cf（=origin/master merge 点，树净无 merge 在途）+本地 master 滞 941c47a2——判管理席 PR#138 合并检视残态，FF 修复 `checkout -B master origin/master`（祖先亲证安全，非历史改写）。
+- **环境坑注**：部署树 internal/gen 陈件（pipeline 消息缺）致 check_all go build 红——`buf generate` 重建即解（gen gitignored 属本地产物）。
