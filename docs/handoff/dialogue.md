@@ -498,3 +498,10 @@
 - **【排队动作登记】待 T-0276 superset 部署落地并合并后 → 基于新 master 合 `t/pipefix-phantom-rows@fdea6669` → `deploy_image.sh` 部署**。触发源=T-0276 部署落地+合并信号；本行为唯一欠账，PIPEFIX 无其他待办。
 - **边界守（本唤零动作）**：不并 PIPEFIX 不部署——T-0276 镜像 `871ddbeecc96` 重试构建在飞（`/opt/o-wt/t0276-deploy` worktree+`t/0276-deploy-superset` 支在案）；不并入 T-0279；3290 探针留箱；他在飞单未碰。本地 master 前班 T-0280 立票 commit `e59ceb7f`（未推）随本批同推。
 - **处置报**：见 MANAGE 箱（ack DM-3391 在先，处置报随收口补发件号）。
+
+## 2026-10-31 23:1x 决策席（devin DM session，门2-DM MANAGE-3414 点火）——判决并 master+PIPEFIX 超集部署+留案三裁
+
+- **①判决落正本**：T-0276 审计判决 3d40cd77 并 master（merge e7979831）+票面翻「完成」（T-0277 审计通过 9225b5a5 同批并 master 翻完成——审计已结单=决策收口例职，其码本在 prod 871ddbeecc96 超集内跑，并正本消歧离）。
+- **②PIPEFIX 排队执行**：合 t/pipefix-phantom-rows@fdea6669 入 master（d25065e4）。**部署裁=超集件非裸 master**——现跑 871ddbeecc96 含未并 T-0277/278 码（T-0278 收口待审在飞），裸 master+PIPEFIX 部署=T-0277/278 静默出网=MANAGE-3310 禁件第三度重演；照前例 t/pipefix-deploy-superset=merge(master′,t/0278)@d22219ed9b4a 保在跑全码+增 PIPEFIX，O_DEPLOY_ALLOW_UNPUSHED=1 钦定径部署（冲突解：PIPEFIX split_part 归一织入 T-0278 actives+doneToday 两处 GROUP BY；build/vet/管道测试绿）。
+- **③留案三裁**：(a)SG fin_capability_surface okx/dcd=t 残留→**裁=钉**（正本副本口径歧离=潜伏误导源）但涉生产 DB 超本指令边界→立 T-0281（低）；(b)部署锁未并支覆写缺口→**裁=机内化**：立 T-0282 落定 MANAGE-3310「含票锚校验」形态——现跑镜像 sha∈HEAD 祖先方放行（非祖先拒/未知 WARN/O_DEPLOY_ALLOW_REGRESS 显式径）；(c)票面 app_config 钉位→**裁=改**：erratum 段落钉「app_config 直写一律落 SG 正本」（副本收割机制 replica.go:55-68 实证），kb 条目 app-config-write-sg-primary-only 入库。
+- **边界守**：T-0276 镜像未重部署（超集件含其已并码=前进非重复）；钱径/生产 DB 零触（T-0281 钉键走票流）；判决语义零改；T-0278/0279/0280 票面未动。
