@@ -424,3 +424,10 @@
 - **MANAGE-838 裁决**：恒差实已销（FIX01 一次性补行 Dev-843 在案，告警 15:06Z 后静默，终差 $0.38<容差）——常设缺口立票 T-0274（venue 出金翻译径+内转对分辨，排波后施工）。
 - **旁获**（不入五件）：t0160-fixup worktree 占 master 支+脏树积压——已 detach 释引用，脏件权责人留自处；驾驶舱v3 揭「清道夫-md 孤儿」实案（10-28 cutover 漏件，OCI 无 sweeper）——管理席急诊线，非本席面。
 
+
+
+## 2026-10-31 午 — 决策席：MANAGE-1497 清道夫-OCI 急诊立票（devin DM session）
+
+- **CEO 裁件转办**（MANAGE-1497，源=MANAGE-1392 业主授权）：清道夫-OCI=10-28 cutover 漏件非新设非红线——①即修建制内恢复；②部署口 CTO 定（倾向与 SG 同机制）；③sweeper 入 cutover checklist 防再漏。
+- **CTO 裁=用户级 systemd `o-sweeper.service`**（淘汰 compose：OCI docker 只载 PG-md，单开 compose=双机制分裂；漏件根因=无 unit 孤儿，入册即防再漏）。逐字复刻 dev 原设计——`EnvironmentFile=%h/o-projector.env` 复用：projector_rw 对 fin_employee_registry 授权亲证够（information_schema 实查），**零新密件零新授权**。
+- **立票=T-0275 已批高优**（master@9586d3c）：部署+三层册补件（deploy/ 模板+oci_bootstrap units/verify 段+盒档案清单）+dev 遗件清理同票落；verify 段新增「谁在 beat=谁在跑」roster 反向核对——kb 判据落机。已回执 MANAGE 箱。
