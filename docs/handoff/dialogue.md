@@ -505,3 +505,10 @@
 - **②PIPEFIX 排队执行**：合 t/pipefix-phantom-rows@fdea6669 入 master（d25065e4）。**部署裁=超集件非裸 master**——现跑 871ddbeecc96 含未并 T-0277/278 码（T-0278 收口待审在飞），裸 master+PIPEFIX 部署=T-0277/278 静默出网=MANAGE-3310 禁件第三度重演；照前例 t/pipefix-deploy-superset=merge(master′,t/0278)@d22219ed9b4a 保在跑全码+增 PIPEFIX，O_DEPLOY_ALLOW_UNPUSHED=1 钦定径部署（冲突解：PIPEFIX split_part 归一织入 T-0278 actives+doneToday 两处 GROUP BY；build/vet/管道测试绿）。
 - **③留案三裁**：(a)SG fin_capability_surface okx/dcd=t 残留→**裁=钉**（正本副本口径歧离=潜伏误导源）但涉生产 DB 超本指令边界→立 T-0281（低）；(b)部署锁未并支覆写缺口→**裁=机内化**：立 T-0282 落定 MANAGE-3310「含票锚校验」形态——现跑镜像 sha∈HEAD 祖先方放行（非祖先拒/未知 WARN/O_DEPLOY_ALLOW_REGRESS 显式径）；(c)票面 app_config 钉位→**裁=改**：erratum 段落钉「app_config 直写一律落 SG 正本」（副本收割机制 replica.go:55-68 实证），kb 条目 app-config-write-sg-primary-only 入库。
 - **边界守**：T-0276 镜像未重部署（超集件含其已并码=前进非重复）；钱径/生产 DB 零触（T-0281 钉键走票流）；判决语义零改；T-0278/0279/0280 票面未动。
+
+## 2026-11-01 07:4x 决策席（devin DM session，门2-DM MANAGE-3456 点火）——管道退场语义缺口立票 T-0283
+
+- **业主报案定性**：「管道卡一堆」实=已结票假在飞。生产实拍 ops_event：在飞面 5 行（T-0276/DBP1/DBP2/T-0279/T-0282）仅 DBP2 真在飞——4/5 假在飞坐实。病灶=`pipeline_face.go` dep CTE 全局 `event='部署'` 水位线=唯一退场线：meta 票永无部署=永占行；部署后收尾事件（判结/DM收口/dm-wake 杂讯 `领单`）诈尸再激活（T-0276 部署15:19<判结15:27；23:29 本唤杂讯再复活——病灶当场重演）。
+- **裁=per-ticket 粘滞退场**：完结判定改存在性 `HAVING NOT bool_or(完结谓词)`——`完成`（新引入钦定信号，翻完成同拍 report.sh 落行）∨ `裁决`+note含通过不含驳回（269 条历史判结零补票自愈）∨ DM席`收口`（T-0282 型直结）；全局部署水位线保留作遗留兜底。**淘汰 CEO 修向甲**（完结类混入全局水位线）：他票完结会冲掉更老真在飞票（DBP2 型），失真方向相反——全局水位只对「部署=批量flush」成立，per-ticket 语义混入=范畴错误。
+- **已决/已立**：T-0283 已批立票（P1），生产实拍证据钉票面；T-0278 追加序列+口径注（本单先合、今日完结口径随新语义对齐——原部署单线口径作废）；派单 Dev 走 mbus 单行指针；处置报+ack 上总线。
+- **边界守**：步链/灯语/前端/其余派生面零触；唤径杂讯产生侧归 T-0280（meta 派发层）不拦——读侧粘滞兜住；ops_event append-only 纪律不破（补票=INSERT 新行禁 UPDATE）；生产 DB 只读取证零写。
