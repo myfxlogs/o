@@ -2,9 +2,9 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | 已批 |
+| 状态 | 施工中 |
 | 立项 | `[角色:决策]` @ 2026-10-31（CEO 裁件 MANAGE-1497 转办，源=MANAGE-1392 业主授权；MANAGE-3043 再催——验收锚转写入下） |
-| 领取 | （session 标识 @ 时间；空=未领） |
+| 领取 | devin-施工席 @ 2026-10-31（DM-3055 派单） |
 | 优先级 | 高（急诊——「清道夫-md」beat 自 2026-10-28 21:14Z 断，驾驶舱红灯如实红） |
 | 涉及面 | OCI 盒（`~/o/sweeper` 二进制、`~/.config/systemd/user/o-sweeper.service`、复用 `~/o-projector.env`）；repo：`deploy/o-sweeper.service`（新件）、`scripts/oci_bootstrap.sh`（units+verify 两段补件）、`docs/运维/OCI盒档案.md`（服务清单+凭据面注记）、dev 机遗件清理 |
 
