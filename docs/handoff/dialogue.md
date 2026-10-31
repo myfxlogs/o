@@ -491,3 +491,10 @@
 - **DM-3354 根因定性（运维虚警）**：dm-manual-2105 为断供期手工 scope spawn——无 dm-spawn wrapper=无 trap 收口 rm，hb 残件 21:37 起陈化滞留。22:06:10 dlmd 换 HBGRACE 新码重启→boot hbScan 给孤儿建档 arm（pid=3291491）→30s 陈化火→pid 亡=hb.dead→非 T 票号 tag→MANAGE 人工重派升级。语义上进程确亡非误检，但席已正常交接=虚警。**结构风险**：`onHbBeat` 定态账（fired）遇文件复现=撤旧建新轮——孤儿件不删，每次 dlmd 重启/文件事件都复燃再误报一次。
 - **处置=rm 孤儿件销账**（验尸：pid 3291491 亡、无活进程引用 tag）——补齐该席欠下的收口撤除，复燃源绝。run/hb 现仅存两件活件（本席+Dev-T-0276）。**不立票**：3306 票面目标面已闭合（三壳+dm-spawn 全接线），孤儿系唤径断供期手工径一次性残留，非接线缺陷；手工 spawn 属故障期人工 fallback 无 wrapper 可挂。
 - **边界守**：T-0279 未并、dlmd/mbus 未重启、T-0276 在飞部署未碰、3290 探针留箱。3361 已 ack、处置报 DM-3368 已上总线。
+
+## 2026-10-31 22:3x 决策席（devin DM session，门2 唤起 MANAGE-3388）——PIPEFIX 排程消费+排队动作登记
+
+- **MANAGE-3366 已消费 ack**（22:30 抢在 22:39 期限前，deadline/.disarm 在案；ack 回执 DM-3391）：原令=PIPEFIX 正式收口排程——CTO 合 `t/pipefix-phantom-rows@fdea6669`（施工 3359/3362 材料齐、审计 3341 已过）+ `deploy_image.sh` 重建部署；meta 侧 c1f5230 按 3256 Push Protection 案处置。原令边界=与 T-0276 在飞 superset 部署串行，禁并发部署互覆。
+- **【排队动作登记】待 T-0276 superset 部署落地并合并后 → 基于新 master 合 `t/pipefix-phantom-rows@fdea6669` → `deploy_image.sh` 部署**。触发源=T-0276 部署落地+合并信号；本行为唯一欠账，PIPEFIX 无其他待办。
+- **边界守（本唤零动作）**：不并 PIPEFIX 不部署——T-0276 镜像 `871ddbeecc96` 重试构建在飞（`/opt/o-wt/t0276-deploy` worktree+`t/0276-deploy-superset` 支在案）；不并入 T-0279；3290 探针留箱；他在飞单未碰。本地 master 前班 T-0280 立票 commit `e59ceb7f`（未推）随本批同推。
+- **处置报**：见 MANAGE 箱（ack DM-3391 在先，处置报随收口补发件号）。
