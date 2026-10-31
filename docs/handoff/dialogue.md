@@ -394,3 +394,10 @@
 - **实证链**：PG-md 六 kind 全鲜 vs SG 三死→重启 replay 落地（carry_diff 17:11→22:35、funding_view 17:30→23:14、depth5 复鲜）=水印跳读实锤；SG 自产 mt5/okx tick（非镜像径）。
 - **处置**：o-projector 重启一次性回填（carry_diff/funding_view/depth5 臂复——快照级，后续仍受跳读）；**T-0272 P1 立票即派 Dev**（DM-1029——信号道撤 ts 水印全表扫+serve 全 kind 镜像）；KB 条目 ts-watermark-vs-stamped-ts-order 入库；MANAGE-771/772 ack。
 - **在途**：fix/mt5-swap-outage（消哑 B2）待验排队正常审计流；FIX-02 移交三件（红行推送径/25s 互踩/健康闸盲区）待另票。
+
+## 2026-10-31 夜续 — 施工席：CEO 终端审批层去 glm 单点（1301 根治）
+
+- **机理实测钉死**：①权限规则=机械 glob（官方档："enforced by Claude Code itself, not by the model"）——纯前缀命中即免审；②rtk hook=第二层（known 10-20ms 自允+改写，未知名弃权落规则面；弃权集=冻结暴露面）；③**deny > hook-allow**（隔离台实证：rtk 自允 force push 仍被 deny 硬拦）。
+- **交付**（/opt/o/.claude/settings.local.json，备份 bak-1793405182）：宽配×3 撤（ssh 裸根形×2+`Bash(rtk *)` 任执行洞）→13 条内命令形精确只读 ssh 规则；gh pr checks/diff 补；journalctl 补；deny 三键（git push force/f 全位形）；危险面（rm -rf/sudo/凭据/curl/未知二进制）零入表=弃权径保留。
+- **隔离实证台**（独立 HOME+repo+claude -p 2.1.270，禁拿真会话试闸）：热径 20/20 真执行（FETCH_HEAD mtime/journal restart 事件=地面真值）；危险 6/6 拦；rtk hook 在场 force push 仍拒。
+- **禁线守**：无头席配置/user 级 settings/glm 选型零触；rtk 配置零触（deny 压得住 hook，无需动）。
