@@ -1,6 +1,7 @@
 # T-0168 cmd/projector 投影臂——活跃集谓词七镜像表+fin_proposal 双向（D-0030 §三/§四）
 
-## 态：✅ 验收毕投产（merge 87dfc6a+验收注 a9493d8——八桥投影双向live、回环断绝、id守卫在案）
+## 态：审计通过
+审计席：headless @ 2026-10-30
 ## 立项：决策席 @ 2026-10-26
 ## 领取：zcode-glm 施工席 @ 2026-10-27（支 t/0168-projector-arm，基 40772bc——T-0167 已合 ff684df）
 ## 决策档：D-0030
@@ -125,3 +126,13 @@ T-0169 前置（首选 COPY legacy 行入 PG-md）；③载荷/新鲜两锚前�
 
 票态：✅ 验收合入。T-0169 候派前置：本票机制毕+T-0167 PG-md 在跑——
 剩 SG 轮换窗与三缺清单（见 T-0169 承接段）。
+
+## 判决注记（审计席 headless @ 2026-10-30——收口 merge 87dfc6a 逐锚对账+产线实拍）
+
+- 锚①隧道载荷 ≤300 行/分（实拍）：**字面未达——判锚数值失准、报管理席裁决锚口径**（依规不自改锚）。实拍：SG `pg_stat_user_tables` 60s 增量桥面 upd 合计 ≈3,400/min（md_mark_index ~2,140 + fin_opp_eval ~975 + md_ticks ~272 + md_signal ~61；proposal/funding/macro/dcd = 0）。serve 谓词收窄产线生效实证：近 2min 新鲜 inst=107 ≡ fin_active_set 107，集外仅 SG 本地共写 BTC-USDT 一键——投影独写下限 markidx 单表 ~2,100/min（107 inst × 3s 节流拍率），任何符票面谓词语义的正确实现在现活跃集规模下均破 300（锚源 D-0030 ≈215 行/分预估，未含「活跃集数 × 源拍率」下限）。保护意旨已由字节口径实证达成：SG→隧道向 ~18KB/s（45s ss 混合向采样）vs 切前基线 498KB/s ≈96% 降，与 T-0169 钦定同法实拍 31.6KB/s（≥80% 锚过）同量级；SG CPU 降证见 T-0169 承接段。
+- 锚②镜像表 ts 新鲜 ≤60s：**过**——SG 实拍（~10:20Z）md_ticks 0.2s / md_mark_index 1.0s / md_signal 3.7s / fin_opp_eval 1.3s。md_dcd_product max ts=02:41Z 系源侧 catalog 静默非投影滞后（10min 活性对账+事件双径在役，源有新行必至——eval 引用面 30min 内 424 行续投为佐）；md_funding ts=资金时点语义（未来值正态）；proposal 无 ts 列 / macro event_date 键语义票定。
+- 锚③双向回写零丢：**过**——桩面 TestProposalBidirectional 绿（审计席 worktree 复跑 internal/projector 15/15）；产证：SG ev_proposal_sg_trg 在册、2090 行 fin_retired 态变发帧面在，前代 md 正本（dev:5433，OCI 迁移前）实拍 fin_armed/fin_retired+armed_ttl_expired+retired_at 三列回写落 md；repairProposalStates=diff 写非事件回放，丢帧由 boot 对账+10min 活性兜底收敛=构造性零丢。
+- 锚④reconciler 重启自愈实证：**过**——桩面 TestReconcileSelfHeal 绿（杀连→全表对账→集齐且不越活跃集谓词）；产证=dev journal 10-27/28 崩环窗每次重启皆达「对账毕——活跃集 NNN inst」（~1750+ 次全数收敛），终态 282 inst/139 品；现 OCI 在役 beat 9.7s 鲜（投影官 roster 实证），历 OCI 迁移+serve 终切多次重启镜像仍 <4s 鲜。
+- 机制面抽核（87dfc6a diff）：八桥 upsert 键照 D-0030 §六表全对（ts 判六表 EXCLUDED.ts>ts / funding 同 ts DO NOTHING / macro event_date 全列覆写）；uProposal 前向无 state 列组→SG ev_proposal_sg UPDATE OF state 不触=回环构造性断绝；eval 先于提案落（FK 序）在码；projector_silent 哨 mirrorStaleSince 2min 阈+roster 30s beat 在册；boot 守卫含 fin_0070 探针+跨库 id 键空间切序守卫（产证真拦：journal 10-27 08:25 next=max 拒起）。
+- 注记存案（不阻断判决）：①md_dcd_product 源侧静默 7.6h 与 T-0243/T-0244 feed 病灶同域，归该票链不属本票投影径；②本席行口径系 pg_stat 共享授权面（projector_rw/collector_rw/research_rw/o 均持写权）——归因偏差单向虚高（本地共写混入 ≤~250/min），投影独写下限仍 7× 超阈，不改变锚①失准判定；③dualwrite→serve 终切后实测形态与票内 dualwrite 期回填口径不同——产线现态以本注记为准。
+- 复验注（审计席 headless 重飞 @ 2026-10-30——87dfc6a diff 独立对账+产线重采样，四锚维持通过）：②镜像 ts 复实拍 md_ticks 0.3s/markidx 1.1s/signal 1.9s/eval 30s（funding ts=资金时点未来值不计滞）；③SG ev_proposal_sg_trg 在册、fin_retired 2092/armed 2 行、前代 md(dev:5433) retire 三列落行 399——回写产证维持；④投影官 roster active、beat 26s 鲜（OCI 在役）；①45s pg_stat 重采样桥面写 2,036 行≈2,715/min——同量级复证锚①字面失准（活跃集×源拍率下限即破 300，意旨字节降已证），续报管理席裁决锚口径。**新见偏离一处**（不阻断）：收口 diff 内 roster 仅 Beat 未 Register——册行缺席则 beat 岗终环，票面「roster 注册」项收口时点未达；T-0169（12ed90cb）补 Register 幂等后投产无碍，投产序列本就押 T-0169 前置清单故实害零，备录防再犯。

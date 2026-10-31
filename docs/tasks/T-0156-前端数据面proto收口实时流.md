@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | ✅ 验收毕投产（决策席 2026-10-26） |
+| 状态 | 审计通过 |
 | 立项 | `[角色:决策]` @ 2026-10-26（业主令：①禁轮询/定时任务要实时流 ②手拼 JSON 易错走 buf proto） |
 | 领取 | glm-t0156 @ 2026-10-26 |
 | 优先级 | 高 |
@@ -114,3 +114,48 @@ stream.ts:11）违业主事件驱动令。
     全量绿（四 DSN 真跑，exit 0）+web typecheck/build 净。
 - **机检**：build✓ vet✓ gofmt✓ test✓（全仓四 DSN）buf lint✓（新增
   面零告警，存量历史债另案）web build✓ typecheck✓。
+
+审计席：headless @ 2026-10-30
+
+## 判决注记（无头审计——逐锚对账收口链 529c848a→101c9195→e923d590→d8de5abb 全量 diff）
+
+- **锚①收益率卡六格真值显形（_7d/_30d 复活）**：根修成立——proto
+  `energy_apr_7d/30d` 类型化字段直供（core.proto:111-112），前端
+  `radar.energyApr7d/30d` 直读（TrxYieldRadar.tsx:45/66/75），snake→camel
+  正则盲区随双轨序列化撤除而根除；步0 热修 `_([a-z0-9])` 正则先行在案
+  （KB 条目 snake-camel-regex-digit-suffix-blindspot 同 commit 入库）。
+  本地 DB 侧只读探查 fin_trx_account/vote_apr/txs 三表本日续产=数据面有料。
+  施工如实申报本地浏览器实证未做、SG 显形归验收轮换决策席实证项——
+  该票当时已验收合入投产翻牌。码面机制可证+实证责任归属在案。**PASS**。
+- **锚②事件驱动 <1s**：Watch 实现=LISTEN ev_position/cashflow/account/
+  strategy 四通道→watch_open 就绪帧→WaitForNotification→Send 直转
+  （service.go:151-178）；桩锚 TestConnectEndToEndAndWatchLatency 断言
+  NOTIFY→帧达 <1s+首帧 watch_open+通道 kind（trx_test.go:225-269）；
+  前端 main.ts watchPump→ov() 帧驱重取+stream.ts pump→subs 派发。
+  **PASS**。
+- **锚③setInterval 仅剩时钟两处+/api/* 404**：收口树 grep setInterval
+  全仓=index.html:86+Shell.tsx:16 各 1s 时钟两处（web/src/ 内仅一处，
+  锚文「两处」口径含 index.html——时钟豁免项票面已注）；/api/overview·
+  /api/watch·/api/trx/* 零注册——mountCore 仅挂 Connect handler、mountUI
+  纯静态 embed，TestRestFacesRetired 桩测六路径 404 断言在案；
+  EventSource/fetch 数据径零命中。main.ts/stream.ts 3s setTimeout=断流
+  重连传输维护（注释在案），非数据轮询。**PASS**。
+- **锚④手拼 JSON 零残留**：trx_faces.go/trx_yield_face.go=CoreService
+  proto 实现（typed response，found=false 读件缺显形）；writeJSON/
+  mountTrxAPI 全仓零命中；cmd+web 双侧无手拼 JSON 写径。**PASS**。
+- **锚⑤监控卡不渲染+interface 零残留**：TrxWatchCard.tsx 整件删（152 行）、
+  trx.tsx 仅渲染三卡；web/src/react/gen/ 目录三件（trx_cex_pb/position_pb/
+  watch_rule_pb）全删、目录不存；组件 import 全指 ../../gen/dashboardv1/
+  core_pb（buf 产物 gitignored）。**PASS**。
+- **锚⑥build/typecheck/test**：收口时代无 CI required-check（10-27 令前），
+  绿证=验收合入 commit「构建实证绿」+回填全量绿申报；本席按钦定禁跑
+  check_all（并发互踩共享测试库），改以静态对账：proto↔后端实现字段名/
+  proto↔TS 消费面字段名逐点一致、七 RPC 注册齐全、依赖件
+  @connectrpc/connect(-web)@2.2.0 在 package.json、桩测三件在树。
+  **PASS**。
+- **范围偏离裁**：票面「四读面」实落七 RPC——施工自报 GetTrxAccount/
+  ListTrxTxs 为 vanilla 总览 TRX 段活口所需（原 REST face 自 T-0110 即
+  404 僵尸），dialogue.md 偏离自报+决策验收合入追认在案，属合规偏离。
+- **非锚注记**：TrxAccountRefresh 内 `_, _ = w.accts.Poll`/`floorPct, _ :=`
+  静默吞错——读面刷新踢非钱径、注释声明静默败不阻断，票面无此锚，记档
+  不阻通过。后票演进（T-0220 系 Watch v2 载荷直推等）不溯本票对账。

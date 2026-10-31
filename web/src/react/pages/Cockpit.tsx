@@ -230,9 +230,9 @@ export function CockpitPage() {
 				<Card title="③ 工单板"
 					extra={<StateDot state={miss.has("tickets") ? 2 : 0} breathe={!miss.has("tickets")} title={`${d.ticketsTotal} 单 · 快照 ${asOfAge}`} />}>{sec("tickets",
 					d.tickets.length === 0 ? <EmptyState title="无工单" /> :
-						<table className="tile-table"><thead><tr><th>票</th><th>状态</th><th>席</th><th>时间</th></tr></thead>
+						<table className="tile-table"><thead><tr><th>票</th><th>状态</th><th>席</th><th>用量(tok)</th><th>时间</th></tr></thead>
 							<tbody>{d.tickets.map((t: CockpitTicket) => <tr key={t.ticket}><td>{t.ticket}</td><td>{t.state}</td>
-								<td>{t.seat}</td><td>{ts(t.ts)}</td></tr>)}</tbody></table>)}
+								<td>{t.seat}</td><td>{Number(t.usageRows) > 0 ? Number(t.totalTokens).toLocaleString() : "—"}</td><td>{ts(t.ts)}</td></tr>)}</tbody></table>)}
 					<Pager page={safePage} pages={tPages} total={d.ticketsTotal} onPage={setPage} />
 				</Card>
 			</div>

@@ -36,4 +36,22 @@
 
 - mark_price REST 507 行/21s 鲜、spot_last 1195/20s、netmeter okxws/mark-price 归零、观测窗 0×1006——**宇宙面完全离线** ✅
 - 带宽锚未达（RX 3258>1500kbps）：残余=活跃集 ~269 策略 inst_id 的 tickers 流 ~3.3Mbps——属 T-0136 armed 幽灵账（armed 超龄退役落地后活跃集自然缩编）
-- 状态：✅ 验收合入部署（残余链载归 T-0136 账）
+- 状态：驳回:REST写channel='mark_price'下划线方言分叉——「复用WS原键域mark-price·读面零改无缝衔接」宣称不实,merge时点'mark-price'读面断鲜fail-closed~5h,T-0146归并/T-0171归一方绝;带宽锚自记亦未达(3258>1500kbps,残余归T-0136账)
+
+审计席：headless @ 2026-10-30
+
+## 判决注记（审计席 headless 2026-10-30）
+
+逐锚对账：
+
+1. `ens17` RX <1.5Mbps——**未达**（票面自记 3258>1500kbps）；残余=活跃集 ~269 inst_id tickers ~3.3Mbps 归 T-0136 账（撤 mark-price 实降 ~1.5Mbps 与实证口径自洽）。锚口径混入非本票链载——锚失准项报管理席知悉，锚原文不改。
+2. `md_mark_index` mark_price ts<90s 鲜、spot_last 同鲜——自记 507 行/21s、1195/20s **达成**；行后随 T-0171 退役 md_1071 清零在史，与本判无涉。
+3. 30min 零 `close 1006`——自记 0×1006 **达成**，无反证。
+4. netmeter `okxws/mark-price` 归零——自记归零 **达成**；diff 实证订阅全撤（SWAP 只留 funding-rate、datedFutRe 分支 continue）。
+5. 棘轮/机检全绿——merge commit 5b8d0eb CI **红**（TestTrxRollupIdempotent——TRX 域与本 diff 零交集）；同期 docs-only 邻提交同挂同测=master 系统性红窗，非本票引入，如实记不连坐。
+
+越锚实害（MANAGE-93 产物实态核验——驳回主据）：
+
+- 票面宣称「写 `channel='mark_price'` 复用 WS 原键域——读面零改无缝衔接」**不实且 merge 时点可由 diff 证伪**：WS 径 store.go 直存 `arg.channel='mark-price'`（连字符），同期读面全查连字符键——`grammar/run.go` evalBasis `channel='mark-price'`+15min 鲜门、`ops_face` 健康面 `IN ('mark-price','index-tickers')`。REST 行落下划线 `mark_price`=新方言非复用——部署 ~15min 后期货基差评估与 mark 健康面断鲜 fail-closed，直至 T-0146 归并三读面方愈（含部署滞后实害 ~5h 量级）。
+- 病灶在案：T-0146 票面自记「同语义双频道键」（SOL-USDT-SWAP xvenue_spread 缺席实证）；T-0171 票面自记「~247 行/分 同义异键共存（方言未归一）」退役清零归一 `mark-price` 单键域。
+- 判：施工忠实票面，但票面键域宣称本身证伪+读面实害在史=驳回；整改已由 T-0146/T-0171 历史落毕，无重飞对象——判决留档供席位键域命名纪律戒。

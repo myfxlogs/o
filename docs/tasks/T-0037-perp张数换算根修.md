@@ -2,7 +2,7 @@
 
 [角色:决策] 立 2026-10-24 | 优先级：**阻断级（首单前必修）**
 
-| 状态 | 完成 |
+| 状态 | 审计通过 |
 
 ## 病灶（实勘）
 - `BuildLegs`: `perpSz=floor(half/ctVal)`——ctVal=0.01 **BTC**（ctValCcy=BTC 币本位面值），被当 USD 面值算：$25 腿→2500 张≈$2M，正解≈0.03 张
@@ -44,3 +44,11 @@ build✓ vet✓ gofmt✓ test✓（全量 19 包零 FAIL）race✓（trading 域
 ### 偏离说明
 
 无——票面修法逐条落位；追加验收锚（openfirst WithEarn）以装配码+运行时日志行落位（真单前 RedeemToTrading 留痕行属首单执行时自然产出）。
+
+审计席：headless @ 2026-10-31
+
+## 判决注记（逐锚对账，收口 commit 668c8d3c 已对 origin/master 实态复核）
+
+- **锚1（真 meta 测试 $50→sz∈[0.02,0.04] 非2500）**：对。execute_test.go 实存——真 meta（CtVal=0.01/CtValCcy=BTC/LotSz=MinSz=0.01，SWAP tick 80950）；sizing.go perpContracts 币本位径 usd/(ctVal×pxPerp)，pxPerp=LatestPx(SWAP 腿自身) 60s 新鲜门同径，floorLot 先网格后 minSz 闸。算式复核：25/(0.01×80950)=0.0309→0.03∈区间；USD 分流锚（ctVal=10→2.5 直除）、minSz 拒锚、BuildCfdLegs 锚（1000/(0.01×90000)→1 张）同件在案——2500 病灶路径已灭。
+- **锚2（go test 全绿+既有锚不回退）**：对。本地 scoped `go build`+`go vet`（execution/okxexec 包）实测绿、gofmt 零漂移、四件行数合规；既有锚断言逐件核对未删未弱；CI 最近一次含 Go 面合入=Merge #110（dm/1030-t0265-merge，10-30，9m18s success，`go test ./...` 全谱+race）——含本票锚与全部后继改动全绿。
+- **追加锚（openfirst 装配含 WithEarn）**：对。openfirst master:121-123 `earn.NewWorker+AttachVenue(cli)`，:163/:165 cfd_perp 与常结构两路 `.WithEarn(earnW)`；flow.go:64-65 真单前 `RedeemToTrading(ctx, in.NotionalUSD)`（Kind≠close，赎回额=notional）全闸径在案；VenueAPI 五法（SavingsPurchase/Redeem/Balance/AssetTransfer/State）*okxexec.Client 全实装——AttachVenue 型检合法。注：初版装配 OK printf 在后继 cfd_perp 重构中撤下、装配移 post-dry-return；锚括弧为「或」双证形，实质件「装配含 WithEarn」实态全对，留痕行属真单执行自然产出。
