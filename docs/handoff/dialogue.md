@@ -468,3 +468,12 @@
 - **根因亲证在票面（勿重复诊断）**：①本金虚高=Capital 只加 deposit 不减 withdraw（fin_cashflow withdraw=-10000 负号实证，17251→7251）；②206 假异常=泵锚族三漏——「排查审计」旧方言漏匹（DM 席 203 行主源）+自由票号（WAKEFIX/CMCTOMB 类）漏匹+run 系 rc=0 见证退出无 exit 档（BASESWP 案）；六态钦定=done/exit 正常、dead/stalled/overdue 异常，rc=0 见证退出=exit、rc≠0/无锚消失=dead，回改径=sweep 重派生禁手 UPDATE；③「快照」字样 O 违禁——渲染面改「更新」。
 - **部署树维护**：进场见 /opt/o detached HEAD @53b2a3cf（=origin/master merge 点，树净无 merge 在途）+本地 master 滞 941c47a2——判管理席 PR#138 合并检视残态，FF 修复 `checkout -B master origin/master`（祖先亲证安全，非历史改写）。
 - **环境坑注**：部署树 internal/gen 陈件（pipeline 消息缺）致 check_all go build 红——`buf generate` 重建即解（gen gitignored 属本地产物）。
+
+---
+## 2026-10-31 21:3x CTO顶岗席（devin dm-manual-2105）——DM 积压清零+判决链四修+WAKEFIX 并 master
+
+- **判决链四修落 master（VCHAINFIX，审计通过 a0bc73f）**：c629a21 四修=①report 类闸（verdict/closure/failed 分家——T-0277 72 连根因=report.failed 正文含「审计判决」被 glob 自激消费；触发=票面表格方言 `| 状态 | X |` 非时序竞态）②成功/驳回判决同拍 disarm audit.failed 账 ③status_field 行锚双式统一读出（`状态：`+表格方言容错，tail 尾白剥净）④EXTAUDIT state 带 csha 指纹（dispatched:<commit> 同 commit 零动作、commit 变自动复审——WAKEFIX 复审即此径自派）⑤dm-spawn 等 devin 善终 rc=0 兜底 ack prompt 关联 directive（MANAGE-3251 治本）。
+- **WAKEFIX 复审 R2 全锚过→并 master f300bbc**：`--unit`→`--scope --quiet --unit -- ... 9>&- &` 落产线。冒烟实证：dispatcher 带新码 restart（DM 在飞期 restart 成功=fd9 断承袭生效）；探针 directive 落箱 5s 点火、座闸正确让位（本席在飞=一票一席设计）；DM_LOCK 注缝走同一 dm-spawn 全链真 devin -p pid 3384344 存活 02:22+、scope active、fd9=自有 socket 零 dispatch.lock、退后 log 落「探针到。」——0B 即死病灶根绝（devin -p 运行期日志缓冲=常态非病征）。
+- **T-0276 审计=驳回（生产实证锚失守，码面合格）**：①`research.dcd.enabled` 钉错 PG-md 副本被 projector 第九桥同步收割（正本=SG `o-postgres`——副本径独写必被删）②并发 T-0278 部署 4131cdb 覆盖本票改动（同型二度挤位——部署锁对未并支覆写无防御，系统性缺口）③P3 注释计数 14→13。返修 R1 已派（headless-run-T-0276 scope active，worktree 票面=权威面带重飞指引）。
+- **meta 远端同步仍欠账**：master 领前 origin 200 commits/落后 ~10（管理席 EDR P1-P3 等）——前班「远端同步三径涉凭据/重建级已转报业主候裁」在案，本席不擅动历史整合。
+- **遗留注**：dm-spawn 心跳=点火一次性写（81e3642 原设计）——长会话期心跳不续，dlmd 曾误判在飞席 inactive（dm-hb-2105 临时续命件在案）；如再发宜另票把心跳移 wrapper 循环。T-0276 部署一致性=返修票内处置（本席边界未直接动生产 DB/部署面）。探针 directive 20261031-212343-DM-3290 留 DM 箱——座让后自火=唤径活证。
