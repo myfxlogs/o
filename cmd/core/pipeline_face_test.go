@@ -201,6 +201,41 @@ func TestGetPipelineTruncation(t *testing.T) {
 	}
 }
 
+// 幻影行归一锚（PIPEFIX 2026-10-31）：写径 TID 换行串灌库案——脏行读径归位
+// 真票首段（split_part E'\n' 1），同票脏行+净行聚合单行出件不另立幻影行。
+func TestGetPipelinePhantomRowNormalized(t *testing.T) {
+	pool := testutil.Pool(t)
+	if err := pgstore.Migrate(context.Background(), pool, "fin"); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	c := coreService{pool: pool}
+	ins := func(ticket string, agoMin int) {
+		if _, err := pool.Exec(ctx,
+			`INSERT INTO ops_event(seat,event,ticket,note,ts) VALUES('无头施工席','领单',$1,'桩',now()-$2*interval '1 minute')`,
+			ticket, agoMin); err != nil {
+			t.Fatal("桩:", err)
+		}
+	}
+	ins("T-9301\nT-9301\nT-9301", 50) // 幻影行（实案 722/739/743 同构）
+	ins("T-9301\nT-9300", 40)         // 混排脏行——首段 T-9301 归位（实案 740 同构）
+	ins("T-9300", 30)
+	ins("T-9301", 10) // 净行（最新拍——T-9301 顶行）
+	r, err := c.GetPipeline(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.TotalActive != 2 || len(r.Rows) != 2 {
+		t.Fatalf("归一对拍错: total=%d rows=%d", r.TotalActive, len(r.Rows))
+	}
+	if r.Rows[0].Ticket != "T-9301" || r.Rows[1].Ticket != "T-9300" {
+		t.Fatalf("序/票错: %s, %s", r.Rows[0].Ticket, r.Rows[1].Ticket)
+	}
+	if len(r.Rows[0].Steps) == 0 {
+		t.Fatal("T-9301 步链空——脏行未归位")
+	}
+}
+
 // GetCockpit 并入管道（一往返）+拔径显缺（ops_event 缺→missing "pipeline"，
 // 其余块不受染）。拔径桩钉本 schema 拆表+search_path 去 public 兜底——共享
 // 测试实例公共 schema 有残表（2026-10-31 实证 o_test public.ops_event 10-29
