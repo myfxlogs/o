@@ -16,13 +16,19 @@ import { applyHeadless, hydrate, useSlice } from "../store";
 import { Component, type ReactNode } from "react";
 import { Card, EmptyState, Skeleton, StateDot } from "../components/ui";
 import { AGE } from "../components/panel";
-import type { GetCockpitResponse, CockpitPlatformRow, CockpitSeat, CockpitTicket, CockpitArmed } from "../../gen/dashboardv1/core_pb";
+import type { GetCockpitResponse, CockpitPlatformRow, CockpitSeat, CockpitTicket, CockpitArmed, HeadlessRow } from "../../gen/dashboardv1/core_pb";
 
 const T_PAGE = 10; // 分页页长：③工单板=T-0262 后端 ticket_limit 同值；无头面=本地切片同值
 
 // 无头五态显示字典（pump derive 串→人话——纯显示映射非判据，终态不猜在服务端）
 const HL_STATE: Record<string, string> = {
 	alive: "在飞", done: "完工", dead: "死亡", stalled: "停滞", overdue: "逾期",
+};
+
+// 行级呼吸灯（驾驶舱 v3.1 业主令：每票每席一盏）。ops_headless.state 语钉：
+// 绿呼吸=alive；黄=stalled/等审计；红=dead/overdue（死=静止不装活）；灰 s3=done。
+const HL_DOT: Record<string, [number, boolean]> = {
+	alive: [0, true], stalled: [1, true], dead: [2, false], overdue: [2, false], done: [3, false],
 };
 
 const ts = (t?: { seconds: bigint }) =>
@@ -79,9 +85,11 @@ function HeadlessTile() {
 				title={`${alive} 在飞 · ${done} 完工${bad > 0 ? ` · ${bad} 异常` : ""}`} />}>
 			{rows.length === 0 ? <EmptyState title="无在册无头单" /> : <>
 				<div className="tile-scroll">
-					<table className="tile-table"><thead><tr><th>票</th><th>席</th><th>底模</th><th>相位</th><th>五态</th><th>最后活动</th></tr></thead>
-						<tbody>{view.map((r) => <tr key={r.ticket}><td>{r.ticket}</td><td>{r.seat}</td>
-							<td>{r.model || "—"}</td><td>{r.phase || "—"}</td><td>{HL_STATE[r.state] ?? r.state}</td><td>{ts(r.lastActivity)}</td></tr>)}</tbody></table>
+					<table className="tile-table"><thead><tr><th>灯</th><th>票</th><th>席</th><th>底模</th><th>相位</th><th>五态</th><th>最后活动</th></tr></thead>
+						<tbody>{view.map((r) => { const [st, br] = HL_DOT[r.state] ?? [3, false]; return <tr key={r.ticket}>
+							<td><StateDot state={st} breathe={br} title={`${HL_STATE[r.state] ?? r.state} · ${r.ticket} · 活动 ${ts(r.lastActivity)}`} /></td>
+							<td>{r.ticket}</td><td>{r.seat}</td>
+							<td>{r.model || "—"}</td><td>{r.phase || "—"}</td><td>{HL_STATE[r.state] ?? r.state}</td><td>{ts(r.lastActivity)}</td></tr>; })}</tbody></table>
 				</div>
 				<Pager page={safePage} pages={pages} total={rows.length}
 					onPage={(p) => setPage(Math.max(1, Math.min(p, pages)))} />
@@ -147,6 +155,29 @@ export function CockpitPage() {
 	let lastSeatTs: { seconds: bigint } | undefined;
 	for (const s of d.seats) if (s.ts && (!lastSeatTs || s.ts.seconds > lastSeatTs.seconds)) lastSeatTs = s.ts;
 	const hlRows = hl.data?.rows ?? [];
+	// v3.1 行灯联查面：工单×无头状态按票号/席位双键联（ops_headless 有票字段）。
+	const hlByTicket = new Map<string, HeadlessRow>(hlRows.map((r) => [r.ticket, r]));
+	const hlBySeat = new Map<string, HeadlessRow>(hlRows.map((r) => [r.seat, r]));
+	// 席行灯：ops_headless.state 语钉（绿呼吸=alive/黄=stalled·等审计/红=dead·overdue/灰=done或无在册单）。
+	const seatDot = (s: CockpitSeat): { state: number; breathe: boolean; title: string } => {
+		const r = (s.ticket ? hlByTicket.get(s.ticket) : undefined) ?? hlBySeat.get(s.seat);
+		if (!r) return { state: 3, breathe: false, title: `${s.seat} · 无在册无头单 · 自报 ${ts(s.ts)}` };
+		const [st, br] = HL_DOT[r.state] ?? [3, false];
+		return { state: st, breathe: br, title: `${HL_STATE[r.state] ?? r.state} · ${r.ticket} · 活动 ${ts(r.lastActivity)}` };
+	};
+	// 票行灯：灰=待派/已批（无领）；绿呼吸=施工中/在飞且联上活席；黄=收口待审·等审计/
+	// 席位失联（票面在飞但 ops_headless 无活席=断链嫌疑）；实绿=完成/闭环；红=驳回/挂起。
+	const ticketDot = (t: CockpitTicket): { state: number; breathe: boolean; title: string } => {
+		const st = t.state ?? "";
+		const ttl = (x: string) => `${st} · ${t.seat || x} · ${ts(t.ts)}`;
+		if (/待派|已批|pending|approved/i.test(st)) return { state: 3, breathe: false, title: ttl("无人领") };
+		if (/收口待审|审计|review/i.test(st)) return { state: 1, breathe: true, title: ttl("等审计") };
+		if (/完成|闭环|done|closed/i.test(st)) return { state: 0, breathe: false, title: ttl("闭环") };
+		if (/驳回|挂起|作废|reject|block|void/i.test(st)) return { state: 2, breathe: false, title: ttl("异常态") };
+		const r = hlByTicket.get(t.ticket);
+		if (r && r.state === "alive") return { state: 0, breathe: true, title: `${st} · ${r.seat || t.seat || "—"} · 活动 ${ts(r.lastActivity)}` };
+		return { state: 1, breathe: true, title: `${st} · ${t.seat || "—"} · 席位失联（票面在飞无活席） · ${ts(t.ts)}` };
+	};
 	// 计数双语归一（服务端判态中文标 or pump 原键——v2 裸键滤恒 0 病灶修：
 	// HL_STATE 正向映射后按显示标判，两径通吃）。
 	const hlL = (s: string) => HL_STATE[s] ?? s;
@@ -233,16 +264,20 @@ export function CockpitPage() {
 				<Card title="③ 席位与在做什么"
 					extra={<StateDot state={miss.has("seats") ? 2 : 0} breathe={!miss.has("seats")} title={`最近自报 ${lastSeatAge}`} />}>{sec("seats",
 					d.seats.length === 0 ? <EmptyState title="无在册席位" /> :
-						<table className="tile-table"><thead><tr><th>席</th><th>票</th><th>阶段</th><th>最近自报</th><th>备注</th></tr></thead>
-							<tbody>{d.seats.map((s: CockpitSeat) => <tr key={s.seat}><td>{s.seat}</td><td>{s.ticket}</td>
-								<td>{s.stage}</td><td>{ts(s.ts)}</td><td>{s.note}</td></tr>)}</tbody></table>)}
+						<table className="tile-table"><thead><tr><th>灯</th><th>席</th><th>票</th><th>阶段</th><th>最近自报</th><th>备注</th></tr></thead>
+							<tbody>{d.seats.map((s: CockpitSeat) => { const sd = seatDot(s); return <tr key={s.seat}>
+								<td><StateDot state={sd.state} breathe={sd.breathe} title={sd.title} /></td>
+								<td>{s.seat}</td><td>{s.ticket}</td>
+								<td>{s.stage}</td><td>{ts(s.ts)}</td><td>{s.note}</td></tr>; })}</tbody></table>)}
 				</Card>
 				<Card title="③ 工单板"
 					extra={<StateDot state={miss.has("tickets") ? 2 : 0} breathe={!miss.has("tickets")} title={`${d.ticketsTotal} 单 · 快照 ${asOfAge}`} />}>{sec("tickets",
 					d.tickets.length === 0 ? <EmptyState title="无工单" /> :
-						<table className="tile-table"><thead><tr><th>票</th><th>状态</th><th>席</th><th>用量(tok)</th><th>时间</th></tr></thead>
-							<tbody>{d.tickets.map((t: CockpitTicket) => <tr key={t.ticket}><td>{t.ticket}</td><td>{t.state}</td>
-								<td>{t.seat}</td><td>{Number(t.usageRows) > 0 ? Number(t.totalTokens).toLocaleString() : "—"}</td><td>{ts(t.ts)}</td></tr>)}</tbody></table>)}
+						<table className="tile-table"><thead><tr><th>灯</th><th>票</th><th>状态</th><th>席</th><th>用量(tok)</th><th>时间</th></tr></thead>
+							<tbody>{d.tickets.map((t: CockpitTicket) => { const td = ticketDot(t); return <tr key={t.ticket}>
+								<td><StateDot state={td.state} breathe={td.breathe} title={td.title} /></td>
+								<td>{t.ticket}</td><td>{t.state}</td>
+								<td>{t.seat}</td><td>{Number(t.usageRows) > 0 ? Number(t.totalTokens).toLocaleString() : "—"}</td><td>{ts(t.ts)}</td></tr>; })}</tbody></table>)}
 					<Pager page={safePage} pages={tPages} total={d.ticketsTotal} onPage={setPage} />
 				</Card>
 			</div>
