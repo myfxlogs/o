@@ -33,6 +33,7 @@ service CoreService {
   rpc ListCashflows(ListCashflowsRequest) returns (ListCashflowsResponse) {}
   rpc ListClosedPositions(ListClosedPositionsRequest) returns (ListClosedPositionsResponse) {}
   rpc GetHeadless(GetHeadlessRequest) returns (GetHeadlessResponse) {}
+  rpc GetPipeline(GetPipelineRequest) returns (GetPipelineResponse) {}
 }
 
 message PingRequest {}
@@ -420,6 +421,39 @@ message GetCockpitResponse {
   google.protobuf.Timestamp as_of = 6;   // 快照戳（五块共用一帧——逐块显戳同源件）
   int32 tickets_total = 7;               // ③工单板过滤后总行数（T-0262 分页下推）
   GetHeadlessResponse headless = 8;      // T-0268：无头状态面并入首屏一往返（读败=missing "headless"）
+  GetPipelineResponse pipeline = 9;      // 驾驶舱 v4 工作流管道（首屏一往返；读败=missing "pipeline"）
+}
+
+// —— 工作流管道（驾驶舱 v4 三卡合一——1票1行管道流；ops_event 流水按票
+// GROUP BY+ts 序重建，禁新表；完结=部署上线→行退场；服务端判态派生前端零判据）——
+message GetPipelineRequest {}
+message CockpitPipelineStep {
+  string seat = 1;        // 归一显示席名（施工/审计/CTO/CEO——服务端映射；驳回环带 Rn 后缀）
+  string enter = 2;       // 进 HH:MM（服务端格式化）
+  string exit = 3;        // 出 HH:MM（空=在干）
+  string result = 4;      // working|closed|passed|rejected|blocked|error（该席最终结果）
+  int64 ms = 5;           // 该步耗时 ms（在干=至今）
+  bool active = 6;        // 当前在干步
+  bool spin = 7;          // spinner 径（active+进程活证——死/停滞/逾期步改灯不装活）
+  int32 state = 8;        // 0绿呼吸 1黄 2红 3灰（灯色服务端派生）
+  bool breathe = 9;       // 该步灯呼吸否
+}
+message CockpitPipelineRow {
+  string ticket = 1;
+  string title = 2;                        // 票标题（docs/tasks 文件名 slug best-effort——容器面缺=空）
+  google.protobuf.Timestamp started_at = 3; // 首事件 ts
+  int64 elapsed_min = 4;                    // 已历时分钟
+  string current_seat = 5;                  // 当前卡在哪席（含 Rn）
+  string current_state = 6;                 // working|waiting_audit|blocked|passed
+  int32 state = 7;                          // 行级灯 0绿呼吸 1黄 2红 3灰
+  bool breathe = 8;                         // 行灯呼吸否
+  repeated CockpitPipelineStep steps = 9;
+}
+message GetPipelineResponse {
+  repeated CockpitPipelineRow rows = 1;    // 活跃票（未部署上线）——最新票排最前，上限 20 行
+  int32 total_active = 2;                  // 活跃总数（>20 时前端显「+N more」）
+  google.protobuf.Timestamp as_of = 3;
+  int64 seq = 4;                           // 水印=max(ops_event.id)——快照/流帧去重轴（同 headless 模式）
 }
 
 // —— 无头单状态面（T-0263——推送制信号径：dev 泵 inotify 日志写/.done/.hb+

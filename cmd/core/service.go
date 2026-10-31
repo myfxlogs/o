@@ -36,6 +36,8 @@ type coreService struct {
 	// T-0170：采集进程内指标源（okxws collector+netmeter 闭包——GetSystemHealth
 	// 供数；nil=观测面缺席显「读件缺」不假零）。
 	md *mdStats
+	// 驾驶舱 v4：票标题扫面根（docs/tasks——注入缝，测试钉绝对径；零值=自寻）。
+	docsRoot string
 }
 
 // mdStats 采集观测源束（方法值闭包——collector/meter 单例由 main.go 装配注入）。
@@ -189,7 +191,7 @@ func (c coreService) Watch(ctx context.Context, _ *dashboardv1.WatchRequest,
 		return err
 	}
 	defer conn.Release()
-	for _, ch := range []string{"ev_position", "ev_cashflow", "ev_account", "ev_strategy", "ev_hostmetrics", "ev_headless"} {
+	for _, ch := range []string{"ev_position", "ev_cashflow", "ev_account", "ev_strategy", "ev_hostmetrics", "ev_headless", "ev_pipeline"} {
 		if _, err := conn.Exec(ctx, "LISTEN "+ch); err != nil {
 			return err
 		}
