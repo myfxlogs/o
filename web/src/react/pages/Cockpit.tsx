@@ -239,8 +239,8 @@ export function CockpitPage() {
 					)}
 				</Card>
 			</div>
-			{/* —— 次档·答④要我动的（armed）+①②数字第二层（平台明细；
-			    近30d 日净原序列折此可查，首档只留人话结论）—— */}
+			{/* —— 次档·答④要我动的（armed）独档+③席位（机器面配对；
+			    业主令 v3.2：armed 单独占行不挤明细）—— */}
 			<div className="duo">
 				<Card title="④ 待开仓（armed）"
 					extra={<StateDot state={miss.has("armed") ? 2 : 0} breathe={!miss.has("armed")} title={`${d.armed.length} 单 · 快照 ${asOfAge}`} />}>{sec("armed",
@@ -249,18 +249,6 @@ export function CockpitPage() {
 							<tbody>{d.armed.map((a: CockpitArmed) => <tr key={a.id}><td>{a.id}</td><td>{a.instId}</td>
 								<td>{a.direction}</td><td>{ts(a.created)}</td><td>{a.ttlHoursLeft.toFixed(1)}</td></tr>)}</tbody></table></div>)}
 				</Card>
-				<Card title="①② 钱面平台明细"
-					extra={<StateDot state={miss.has("money") ? 2 : 0} breathe={!miss.has("money")} title={`${m?.platforms.length ?? 0} 平台 · 快照 ${asOfAge}`} />}>{sec("money", !m ? <p className="dim">该段数据缺</p> : <>
-					<table className="tile-table"><thead><tr><th>平台</th><th>承诺</th><th>已入</th><th>停泊</th><th>敞口</th></tr></thead>
-						<tbody>{m.platforms.map((p: CockpitPlatformRow) => <tr key={p.platform}><td>{p.platform}</td><td>{p.committed < 0 ? "未设" : p.committed.toFixed(0)}</td>
-							<td>{p.platform === "MT5" && miss.has("mt5") ? "数据缺" : p.deposited.toFixed(0)}</td><td>{p.parked.toFixed(0)}</td><td>{p.exposure.toFixed(0)}</td></tr>)}</tbody></table>
-					{miss.has("mt5") && <p className="dim">MT5 平台已入段数据缺（mt5Live 读败——合计行为不含 MT5 部分口径，非真 0）</p>}
-					<p className="dim fact">近30d 日净：{m.daily.map((v) => v.toFixed(1)).join(" · ")}</p>
-				</>)}
-				</Card>
-			</div>
-			{/* —— 三档·答③机器面（席位/工单概要）—— */}
-			<div className="duo">
 				<Card title="③ 席位与在做什么"
 					extra={<StateDot state={miss.has("seats") ? 2 : 0} breathe={!miss.has("seats")} title={`最近自报 ${lastSeatAge}`} />}>{sec("seats",
 					d.seats.length === 0 ? <EmptyState title="无在册席位" /> :
@@ -269,6 +257,18 @@ export function CockpitPage() {
 								<td><StateDot state={sd.state} breathe={sd.breathe} title={sd.title} /></td>
 								<td>{s.seat}</td><td>{s.ticket}</td>
 								<td>{s.stage}</td><td>{ts(s.ts)}</td><td>{s.note}</td></tr>; })}</tbody></table>)}
+				</Card>
+			</div>
+			{/* —— 三档·答③机器面（平台明细/工单概要——v3.2 业主令：明细|工单同档）—— */}
+			<div className="duo">
+				<Card title="①② 钱面平台明细"
+					extra={<StateDot state={miss.has("money") ? 2 : 0} breathe={!miss.has("money")} title={`${m?.platforms.length ?? 0} 平台 · 快照 ${asOfAge}`} />}>{sec("money", !m ? <p className="dim">该段数据缺</p> : <>
+					<table className="tile-table"><thead><tr><th>平台</th><th>承诺</th><th>已入</th><th>停泊</th><th>敞口</th></tr></thead>
+						<tbody>{m.platforms.map((p: CockpitPlatformRow) => <tr key={p.platform}><td>{p.platform}</td><td>{p.committed < 0 ? "未设" : p.committed.toFixed(0)}</td>
+							<td>{p.platform === "MT5" && miss.has("mt5") ? "数据缺" : p.deposited.toFixed(0)}</td><td>{p.parked.toFixed(0)}</td><td>{p.exposure.toFixed(0)}</td></tr>)}</tbody></table>
+					{miss.has("mt5") && <p className="dim">MT5 平台已入段数据缺（mt5Live 读败——合计行为不含 MT5 部分口径，非真 0）</p>}
+					<p className="dim fact">近30d 日净：{m.daily.map((v) => v.toFixed(1)).join(" · ")}</p>
+				</>)}
 				</Card>
 				<Card title="③ 工单板"
 					extra={<StateDot state={miss.has("tickets") ? 2 : 0} breathe={!miss.has("tickets")} title={`${d.ticketsTotal} 单 · 快照 ${asOfAge}`} />}>{sec("tickets",
