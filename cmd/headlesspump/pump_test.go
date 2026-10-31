@@ -141,3 +141,59 @@ func TestEmitThrottle(t *testing.T) {
 		t.Fatal("节流窗内续帧未挂尾帧")
 	}
 }
+
+// T-0277 六态四径：排查审计旧方言锚→done、自由票号审计锚→done、
+// run rc=0 无收口→exit（正常终态非死）、rc≠0 见证→dead（真异常不稀释）。
+
+func TestAuditDialectExit(t *testing.T) {
+	dir := t.TempDir()
+	lp := filepath.Join(dir, "devin-audit-T-0001.log")
+	os.WriteFile(lp, []byte("[10-30 11:00:00] 无头审计 T-0001 spawn\n"), 0o644)
+	p := newPump(&fakeW{}, dir)
+	tk := p.ensure("T-0001", "DM", lp)
+	p.onLog(tk)
+	append(t, p, tk, "[10-30 12:00:00] 排查审计 T-0001 退出 rc=0\n")
+	if tk.state != "done" {
+		t.Fatalf("排查审计旧方言锚应 done: %q", tk.state)
+	}
+}
+
+func TestFreeTicketIDAudit(t *testing.T) {
+	dir := t.TempDir()
+	lp := filepath.Join(dir, "devin-audit-WAKEFIX.log")
+	os.WriteFile(lp, []byte("[10-30 11:00:00] 无头审计 WAKEFIX spawn\n"), 0o644)
+	p := newPump(&fakeW{}, dir)
+	tk := p.ensure("WAKEFIX", "DM", lp)
+	p.onLog(tk)
+	append(t, p, tk, "[10-30 12:00:00] 无头审计 WAKEFIX 退出 rc=0\n")
+	if tk.state != "done" {
+		t.Fatalf("自由票号审计锚应 done: %q", tk.state)
+	}
+}
+
+func TestRunExitRc0NoDone(t *testing.T) {
+	dir := t.TempDir()
+	lp := filepath.Join(dir, "devin-headless-BASESWP.log")
+	os.WriteFile(lp, []byte("[10-30 11:00:00] 无头 BASESWP spawn（devin -p）\n"), 0o644)
+	p := newPump(&fakeW{}, dir)
+	tk := p.ensure("BASESWP", "Dev", lp)
+	p.onLog(tk)
+	append(t, p, tk, "[10-30 12:00:00] 无头 BASESWP 进程退出 rc=0\n")
+	append(t, p, tk, "[10-30 12:00:01] ⚠ BASESWP 退出但全树无收口待审标记——需人工跟进\n")
+	if tk.state != "exit" {
+		t.Fatalf("rc=0 见证退出无收口应 exit 非 dead: %q", tk.state)
+	}
+}
+
+func TestRunExitRc1Dead(t *testing.T) {
+	dir := t.TempDir()
+	lp := filepath.Join(dir, "devin-headless-T-5555.log")
+	os.WriteFile(lp, []byte("[10-30 11:00:00] 无头 T-5555 spawn（devin -p）\n"), 0o644)
+	p := newPump(&fakeW{}, dir)
+	tk := p.ensure("T-5555", "Dev", lp)
+	p.onLog(tk)
+	append(t, p, tk, "[10-30 12:00:00] 无头 T-5555 进程退出 rc=1\n")
+	if tk.state != "dead" {
+		t.Fatalf("rc≠0 见证退出应 dead: %q", tk.state)
+	}
+}

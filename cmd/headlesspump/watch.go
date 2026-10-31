@@ -85,8 +85,27 @@ func (p *pump) sweep(ctx context.Context) {
 				switch {
 				case reSpawn.MatchString(ln):
 					t.procAlive, t.stalled, t.overdue, t.doneF = true, false, false, false
-				case reDone.MatchString(ln), reExitAudit.MatchString(ln):
+					t.exitW, t.deadW = false, false
+				case reDone.MatchString(ln):
 					t.doneF = true
+				case reExitAudit.MatchString(ln):
+					// 审计系退出锚（含排查审计旧方言）：rc=0=完工/rc≠0=dead（T-0277 同 onLog 派生）。
+					if m := reExitAudit.FindStringSubmatch(ln); m != nil {
+						if m[2] == "0" {
+							t.doneF = true
+						} else {
+							t.deadW = true
+						}
+					}
+				case reExitRun.MatchString(ln):
+					// 捕 rc 分流：rc=0 见证=exitW；rc≠0=dead（T-0277）。
+					if m := reExitRun.FindStringSubmatch(ln); m != nil {
+						if m[2] == "0" {
+							t.exitW = true
+						} else {
+							t.deadW, t.procAlive = true, false
+						}
+					}
 				case reNoDone.MatchString(ln), reYield.MatchString(ln):
 					t.procAlive = false
 				}

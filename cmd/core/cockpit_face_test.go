@@ -268,3 +268,29 @@ func TestGetCockpitMissingDegrade(t *testing.T) {
 		t.Fatalf("拔 seats 径未显缺: %v", r.Missing)
 	}
 }
+
+// T-0277 件①：本金=deposit+withdraw 净和（负号出金已带号——禁 ABS 禁再乘 -1）。
+// 布景 +2000/+10000 deposit + -10000 withdraw → Capital=2000。
+func TestCockpitCapitalNet(t *testing.T) {
+	pool := testutil.Pool(t)
+	if err := pgstore.Migrate(context.Background(), pool, "fin"); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	c := coreService{pool: pool}
+	for _, row := range [][2]any{
+		{"deposit", 2000}, {"deposit", 10000}, {"withdraw", -10000},
+	} {
+		if _, err := c.pool.Exec(ctx, `INSERT INTO fin_cashflow(kind,venue,ccy,amount,position_ref,source_ref,source_table,occurred_at,class)
+			VALUES($1,'okx','USDT',$2,NULL,0,'manual',now(),'equity')`, row[0], row[1]); err != nil {
+			t.Fatal("金桩:", err)
+		}
+	}
+	r, err := c.GetCockpit(ctx, nil)
+	if err != nil || r.Money == nil {
+		t.Fatal(err)
+	}
+	if r.Money.Capital != 2000 {
+		t.Fatalf("本金应 deposit+withdraw 净和=2000: %.1f", r.Money.Capital)
+	}
+}
