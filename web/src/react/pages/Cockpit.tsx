@@ -72,18 +72,20 @@ function HeadlessTile() {
 	const hl = useSlice("headless");
 	const [page, setPage] = useState(1);
 	if (!hl.data) return <Card title="③ 无头状态面（推送制）">{hl.err ? <p className="dim">该段数据缺（读败）</p> : <Skeleton rows={4} />}</Card>;
-	const rows = hl.data.rows;
+	const all = hl.data.rows;
+	// 业主令 10-31：闭环完工单不上屏——行面只显未完成席（完工数留角标计数）。
+	const rows = all.filter((r) => r.state !== "done");
 	const pages = Math.max(1, Math.ceil(rows.length / T_PAGE));
 	const safePage = Math.min(page, pages);
 	const view = rows.slice((safePage - 1) * T_PAGE, safePage * T_PAGE);
 	const bad = rows.filter((r) => r.state === "dead" || r.state === "stalled" || r.state === "overdue").length;
 	const alive = rows.filter((r) => r.state === "alive").length;
-	const done = rows.filter((r) => r.state === "done").length;
+	const done = all.length - rows.length;
 	return (
 		<Card title="③ 无头状态面（推送制）"
 			extra={<StateDot state={bad > 0 ? 2 : 0} breathe={bad === 0}
 				title={`${alive} 在飞 · ${done} 完工${bad > 0 ? ` · ${bad} 异常` : ""}`} />}>
-			{rows.length === 0 ? <EmptyState title="无在册无头单" /> : <>
+			{rows.length === 0 ? <EmptyState title={done > 0 ? `无在飞单 · ${done} 完工` : "无在册无头单"} /> : <>
 				<div className="tile-scroll">
 					<table className="tile-table"><thead><tr><th>灯</th><th>票</th><th>席</th><th>底模</th><th>相位</th><th>五态</th><th>最后活动</th></tr></thead>
 						<tbody>{view.map((r) => { const [st, br] = HL_DOT[r.state] ?? [3, false]; return <tr key={r.ticket}>
