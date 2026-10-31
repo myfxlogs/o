@@ -3,7 +3,7 @@
 | 字段 | 值 |
 |---|---|
 | 状态 | 已批 |
-| 立项 | `[角色:决策]` @ 2026-10-31（CEO 裁件 MANAGE-1497 转办，源=MANAGE-1392 业主授权） |
+| 立项 | `[角色:决策]` @ 2026-10-31（CEO 裁件 MANAGE-1497 转办，源=MANAGE-1392 业主授权；MANAGE-3043 再催——验收锚转写入下） |
 | 领取 | （session 标识 @ 时间；空=未领） |
 | 优先级 | 高（急诊——「清道夫-md」beat 自 2026-10-28 21:14Z 断，驾驶舱红灯如实红） |
 | 涉及面 | OCI 盒（`~/o/sweeper` 二进制、`~/.config/systemd/user/o-sweeper.service`、复用 `~/o-projector.env`）；repo：`deploy/o-sweeper.service`（新件）、`scripts/oci_bootstrap.sh`（units+verify 两段补件）、`docs/运维/OCI盒档案.md`（服务清单+凭据面注记）、dev 机遗件清理 |
@@ -20,6 +20,7 @@ CEO 裁（MANAGE-1497）：①即修=建制内恢复（非新设非红线）；�
 
 - 淘汰项=compose：OCI docker 面只载 `o-postgres-md` 一件，Go 二进制全走 `~/o/`+用户级 unit；为 sweeper 单开 compose=同盒双机制分裂。且漏件根因正是「无 unit 孤儿」——入 systemd 册=防再漏本体，恰合「建制内恢复」。
 - **零新密件零新授权**：`~/o-projector.env` 已含 `MD_PG_DSN`（本机 5435）+`SG_PG_DSN`（隧道 15433，projector_rw）；SG 实查 `projector_rw` 对 `fin_employee_registry` 持 INSERT/UPDATE/SELECT（Register+Beat 所需全集，本席亲证 information_schema.table_privileges 2026-10-31）。
+- **MANAGE-3043「加回compose」措辞处置**：部署口已授权 CTO 定（MANAGE-1497②），本裁 systemd 用户级同构为终审——勿翻案再议 compose。
 
 ## 目标
 
@@ -32,10 +33,13 @@ CEO 裁（MANAGE-1497）：①即修=建制内恢复（非新设非红线）；�
 - [ ] OCI：`systemctl --user is-active o-sweeper`=active 且 `is-enabled`=enabled；`journalctl --user -u o-sweeper` 见 `[sweeper] PG-md 清道夫起` 且无 Fatal 循环
 - [ ] SG：`SELECT now()-last_beat FROM fin_employee_registry WHERE name='清道夫-md'` < 2min（30s 拍恢复）
 - [ ] PG-md（盒 5435）：`fin_data_retention` 审计行 `last_swept_at` 非 NULL（boot 首拍即时跑，不等 24h tick）
+- [ ] **（MANAGE-3043 ①锚转写）md_ticks 旧数据被清**：PG-md `SELECT count(*) FROM md_ticks WHERE ts<now()-interval '7 days'`=0（10-31 实查现态已 0 行，验收复核保持）——注：`md_ticks` 为 state 表（产品键 upsert 末帧覆盖非追加），`deadTailSweep` 在 PG-md **结构性不删**（`fin_active_set` 缺席→fail-safe abort 钦定行，防半读谓词清空病灶 T-0197④）；死尾积累有界（universe 行数级），真需清尾须先立「PG-md active_set 供源」票，非本票面
+- [ ] **（MANAGE-3043 ①锚转写）ops_event 有 sweeper_md 记录**：`SELECT * FROM ops_event WHERE ticket='T-0275' AND (note ILIKE '%sweeper%' OR note ILIKE '%清道夫%')` 非空——`ops_event`=席自报事件簿（T-0239，SG fin 库），收口 `report.sh 收口 T-0275 "清道夫-md…"` 落行即满足；sweeper 本体不写 ops_event（PG-md 无该表）
+- [ ] PG-md 三张未入账表先入账再首拍（防报缺刷屏）：`arch_eval`/`arch_signal`→class `permanent`，`md_daily_snapshot`→class `state`（`INSERT INTO fin_data_retention(table_name,class) VALUES …`，10-31 实查仅此三件缺）
 - [ ] `deploy/o-sweeper.service` 模板入册（文件头注装配法+env 复用说明）
 - [ ] `scripts/oci_bootstrap.sh`：units 段 o-sweeper 入用户 unit 安置环+臂体校验列（`~/o/sweeper`）+env 注记（复用 o-projector.env 无需 escrow 新件）；verify 段尾查清单加一条「谁在 beat=谁在跑」roster 反向核对（SG `fin_employee_registry` active 席 beat 新鲜度逐席对拍——kb 判据落机）
 - [ ] `docs/运维/OCI盒档案.md`：服务清单加 `o-sweeper.service` 行（用户级·PG-md 清道），env 件行注 `o-sweeper` 复用 `o-projector.env`
-- [ ] dev：`systemctl --user disable --now o-sweeper`（若仍 enable）+删 `~/.config/systemd/user/o-sweeper.service`、`/opt/o-projector/o-sweeper` 遗件，daemon-reload
+- [ ] dev：`systemctl --user disable --now o-sweeper`（若仍 enable）+删 `~/.config/systemd/user/o-sweeper.service`、`/opt/o-projector/o-sweeper` 遗件，daemon-reload（10-31 实查：unit 已 disabled+dead，余删件动作）
 
 ## 执行要点（施工照做，不再勘查）
 
