@@ -52,8 +52,8 @@ func TestLifecycleE2E(t *testing.T) {
 	r := NewRunner(pool, cfg)
 	// 提案→paper 开户
 	var pid int64
-	if err := pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,verdict,legs,evidence)
-		VALUES('LC-USDT-SWAP','funding-hedge','short_perp_long_spot','proposed','{}','{}') RETURNING id`).Scan(&pid); err != nil {
+	if err := pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,net_apr,verdict,legs,evidence)
+		VALUES('LC-USDT-SWAP','funding-hedge','short_perp_long_spot',0.08,'proposed','{}','{}') RETURNING id`).Scan(&pid); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx,
@@ -134,8 +134,8 @@ func TestPaperDedupe(t *testing.T) {
 	r := NewRunner(pool, cfg)
 	mkProp := func() {
 		var eid int64
-		if err := pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,verdict,legs,evidence)
-			VALUES('DD-USDT-SWAP','funding-hedge','short_perp_long_spot','proposed','{}','{}')
+		if err := pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,net_apr,verdict,legs,evidence)
+			VALUES('DD-USDT-SWAP','funding-hedge','short_perp_long_spot',0.08,'proposed','{}','{}')
 			ON CONFLICT (inst_id,template,direction) DO UPDATE SET ts=now() RETURNING id`).Scan(&eid); err != nil {
 			t.Fatal(err)
 		}
@@ -213,8 +213,8 @@ func TestDegradedTTLRetire(t *testing.T) {
 	}
 	// #1 场景复刻：同键新提案→paper 开户（degraded 退役=键解锁）。
 	var eid int64
-	if err := pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,verdict,legs,evidence)
-		VALUES('TTL-USDT-SWAP','funding-hedge','short_perp_long_spot','proposed','{}','{}') RETURNING id`).Scan(&eid); err != nil {
+	if err := pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,net_apr,verdict,legs,evidence)
+		VALUES('TTL-USDT-SWAP','funding-hedge','short_perp_long_spot',0.08,'proposed','{}','{}') RETURNING id`).Scan(&eid); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx,
@@ -238,8 +238,8 @@ func TestTemplateGateBlocksNonPaper(t *testing.T) {
 	ctx, pool, cfg := setup(t)
 	r := NewRunner(pool, cfg)
 	var eid int64
-	if err := pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,verdict,legs,evidence)
-		VALUES('BTC-USDT-261101-68000-P','dcd_put','dcd_put','proposed','{}','{}') RETURNING id`).Scan(&eid); err != nil {
+	if err := pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,net_apr,verdict,legs,evidence)
+		VALUES('BTC-USDT-261101-68000-P','dcd_put','dcd_put',0.08,'proposed','{}','{}') RETURNING id`).Scan(&eid); err != nil {
 		t.Fatal(err)
 	}
 	var pid int64
@@ -278,8 +278,8 @@ func TestDcdCallAdmitGate(t *testing.T) {
 	_, _ = pool.Exec(ctx, `INSERT INTO md_dcd_product(ts,venue,surface,uly,product_id,direction,strike,expiry,annualized_yield,spot,raw)
 		VALUES(now(),'okx','products','BTC-USDT','BTC-USDT-261225-95000-C','C',95000,now()+interval '30 days',0.15,88000,'{}')`)
 	var eid int64
-	if err := pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,verdict,legs,evidence)
-		VALUES('BTC-USDT-261225-95000-C','dcd_call','dcd_call','proposed','{}','{}') RETURNING id`).Scan(&eid); err != nil {
+	if err := pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,net_apr,verdict,legs,evidence)
+		VALUES('BTC-USDT-261225-95000-C','dcd_call','dcd_call',0.08,'proposed','{}','{}') RETURNING id`).Scan(&eid); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx,
@@ -320,8 +320,8 @@ func TestDcdPaperFillFromSnapshot(t *testing.T) {
 	_, _ = pool.Exec(ctx, `INSERT INTO md_dcd_product(ts,venue,surface,uly,product_id,direction,strike,expiry,annualized_yield,spot,raw)
 		VALUES(now(),'okx','products','BTC-USDT','BTC-USDT-261225-95000-C','C',95000,now()+interval '30 days',0.15,88000,'{}')`)
 	var eid int64
-	if err := pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,verdict,legs,evidence)
-		VALUES('BTC-USDT-261225-95000-C','dcd_call','dcd_call','proposed','{}','{}') RETURNING id`).Scan(&eid); err != nil {
+	if err := pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,net_apr,verdict,legs,evidence)
+		VALUES('BTC-USDT-261225-95000-C','dcd_call','dcd_call',0.08,'proposed','{}','{}') RETURNING id`).Scan(&eid); err != nil {
 		t.Fatal(err)
 	}
 	_, _ = pool.Exec(ctx,
@@ -403,8 +403,8 @@ func TestDcdPaperSpotLegDialect(t *testing.T) {
 	_, _ = pool.Exec(ctx, `INSERT INTO md_dcd_product(ts,venue,surface,uly,product_id,direction,strike,expiry,annualized_yield,spot,raw)
 		VALUES(now(),'okx','products','BTC-USD','BTC-USDT-261225-95000-C','C',95000,now()+interval '30 days',0.15,88000,'{}')`)
 	var eid int64
-	if err := pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,verdict,legs,evidence)
-		VALUES('BTC-USDT-261225-95000-C','dcd_call','dcd_call','proposed','{}','{}') RETURNING id`).Scan(&eid); err != nil {
+	if err := pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,net_apr,verdict,legs,evidence)
+		VALUES('BTC-USDT-261225-95000-C','dcd_call','dcd_call',0.08,'proposed','{}','{}') RETURNING id`).Scan(&eid); err != nil {
 		t.Fatal(err)
 	}
 	_, _ = pool.Exec(ctx,

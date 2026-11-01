@@ -42,8 +42,12 @@ func fixture(t *testing.T, r *Runner, inst, verdict, propState string) (int64, i
 	t.Helper()
 	ctx := context.Background()
 	var eid, pid int64
-	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,verdict,legs,evidence)
-		VALUES($1,'funding-hedge','short_perp_long_spot',$2,'{}','{}') RETURNING id`, inst, verdict).Scan(&eid); err != nil {
+	apr := any(nil) // T-0205 fin_0094 行级闸：proposed 行 net_apr 列 NOT NULL
+	if verdict == "proposed" {
+		apr = 0.08
+	}
+	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,net_apr,verdict,legs,evidence)
+		VALUES($1,'funding-hedge','short_perp_long_spot',$3,$2,'{}','{}') RETURNING id`, inst, verdict, apr).Scan(&eid); err != nil {
 		t.Fatal(err)
 	}
 	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_proposal(eval_id,inst_id,direction,net_apr,state)

@@ -140,10 +140,10 @@ func TestEvalNotifyFloodShrink(t *testing.T) {
 
 	// 锚② 批内多变一 NOTIFY：一语句三行（一不变+一实质变+一新键）=同事务
 	// 三次 pg_notify 同值去重→恰一醒；同语句重放（全行已同值）=零醒。
-	batch := `INSERT INTO fin_opp_eval(inst_id,template,direction,verdict,legs,evidence)
-		VALUES('T0162-B1','funding-hedge','short_perp_long_spot','proposed','[]','{}'),
-		('T0162-B2','funding-hedge','short_perp_long_spot','rejected','[]','{}'),
-		('T0162-USDT-SWAP','funding-hedge','short_perp_long_spot','rejected','[]','{"n":2}')
+	batch := `INSERT INTO fin_opp_eval(inst_id,template,direction,net_apr,verdict,legs,evidence)
+		VALUES('T0162-B1','funding-hedge','short_perp_long_spot',0.08,'proposed','[]','{}'),
+		('T0162-B2','funding-hedge','short_perp_long_spot',NULL,'rejected','[]','{}'),
+		('T0162-USDT-SWAP','funding-hedge','short_perp_long_spot',NULL,'rejected','[]','{"n":2}')
 		ON CONFLICT (inst_id,template,direction) DO UPDATE SET ts=now(),
 		verdict=EXCLUDED.verdict,legs=EXCLUDED.legs,evidence=EXCLUDED.evidence`
 	if _, err := pool.Exec(ctx, batch); err != nil {
@@ -159,9 +159,9 @@ func TestEvalNotifyFloodShrink(t *testing.T) {
 	// 逐行 upsert（两行实质变+一行同值）→整事务恰一醒；重放全同值=零醒。
 	if err := pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
 		for _, a := range [][]any{
-			evalArgs("rejected", 0.20, `{"n":2}`),               // 同值行（静默）
-			{"T0162-B1", nil, nil, "rejected", "[]", `{"x":1}`}, // 实质变
-			{"T0162-B2", nil, nil, "proposed", "[]", `{"x":1}`}, // 实质变
+			evalArgs("rejected", 0.20, `{"n":2}`),                // 同值行（静默）
+			{"T0162-B1", nil, nil, "rejected", "[]", `{"x":1}`},  // 实质变
+			{"T0162-B2", nil, 0.20, "proposed", "[]", `{"x":1}`}, // 实质变（fin_0094 闸：proposed 行 net_apr 非 NULL）
 		} {
 			if _, err := tx.Exec(ctx, upsertEval, a...); err != nil {
 				return err
@@ -176,7 +176,7 @@ func TestEvalNotifyFloodShrink(t *testing.T) {
 		for _, a := range [][]any{
 			evalArgs("rejected", 0.20, `{"n":2}`),
 			{"T0162-B1", nil, nil, "rejected", "[]", `{"x":1}`},
-			{"T0162-B2", nil, nil, "proposed", "[]", `{"x":1}`},
+			{"T0162-B2", nil, 0.20, "proposed", "[]", `{"x":1}`},
 		} {
 			if _, err := tx.Exec(ctx, upsertEval, a...); err != nil {
 				return err
@@ -189,8 +189,8 @@ func TestEvalNotifyFloodShrink(t *testing.T) {
 	l.expectQuiet(t, 600*time.Millisecond)
 
 	// 边缘锚：DO NOTHING 臂零行零 fire=静默。
-	if _, err := pool.Exec(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,verdict,legs,evidence)
-		VALUES('T0162-USDT-SWAP','funding-hedge','short_perp_long_spot','proposed','[]','{}')
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,net_apr,verdict,legs,evidence)
+		VALUES('T0162-USDT-SWAP','funding-hedge','short_perp_long_spot',0.08,'proposed','[]','{}')
 		ON CONFLICT (inst_id,template,direction) DO NOTHING`); err != nil {
 		t.Fatal(err)
 	}

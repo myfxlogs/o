@@ -205,9 +205,13 @@ func TestEvalQueueRows(t *testing.T) {
 	// eval：1 proposed + 1 rejected + 7 unevaluable = 7/9≈77.8%>75%→红
 	for i, v := range []string{"proposed", "rejected", "unevaluable", "unevaluable",
 		"unevaluable", "unevaluable", "unevaluable", "unevaluable", "unevaluable"} {
-		if _, err := c.pool.Exec(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,verdict,legs,evidence)
-			VALUES ($1,'funding-hedge','short_perp_long_spot',$2,'[]','{"reason":"product_rows_missing"}')`,
-			fmt.Sprintf("T%d-USDT-SWAP", i), v); err != nil {
+		apr := any(nil) // T-0205 fin_0094 行级闸：proposed 行 net_apr 列 NOT NULL
+		if v == "proposed" {
+			apr = 0.08
+		}
+		if _, err := c.pool.Exec(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,net_apr,verdict,legs,evidence)
+			VALUES ($1,'funding-hedge','short_perp_long_spot',$3,$2,'[]','{"reason":"product_rows_missing"}')`,
+			fmt.Sprintf("T%d-USDT-SWAP", i), v, apr); err != nil {
 			t.Fatal(err)
 		}
 	}

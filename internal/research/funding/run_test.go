@@ -294,8 +294,8 @@ func TestActiveStrategyBlocksProposal(t *testing.T) {
 	}
 	// 触发器闸（迁移 0054）：同键 proposed/armed 直插也被跳。
 	var eid int64
-	if err := pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,verdict,legs,evidence)
-		VALUES('TRG-USDT-SWAP','funding-hedge','short_perp_long_spot','proposed','{}','{}') RETURNING id`).Scan(&eid); err != nil {
+	if err := pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,net_apr,verdict,legs,evidence)
+		VALUES('TRG-USDT-SWAP','funding-hedge','short_perp_long_spot',0.08,'proposed','{}','{}') RETURNING id`).Scan(&eid); err != nil {
 		t.Fatal(err)
 	}
 	for i := 0; i < 2; i++ {
