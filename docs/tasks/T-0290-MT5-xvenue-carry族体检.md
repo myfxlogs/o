@@ -2,9 +2,9 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | 已批 |
+| 状态 | 收口待审 |
 | 立项 | `[角色:决策]` @ 2026-11-01（T-0118 母票按机会族拆解首批） |
-| 领取 | （session 标识 @ 时间；空=未领） |
+| 领取 | devin-施工席 @ 2026-11-01 |
 | 优先级 | 中（跨 venue 面——能力账边界族） |
 | 涉及面 | `fin_opp_eval(xvenue-carry)`、md 镜像 mt5_swap/carry_diff 信号、MT5 持仓/报价面、`fin_capability_surface` MT5 行 |
 | 执行径 | 无头/交互皆可 |
@@ -34,3 +34,15 @@ mt5_swap/carry_diff 信号镜像双端同步（数据面在供），但评估产
 ## 范围外/禁线
 
 - 不新建模板不动 capability_surface 不部署
+
+## 结果回填（devin-施工席 2026-11-01）
+
+**eval 解剖**：xvenue-carry 7d 仅 3 件全 rejected——净 APR 分布 -0.019~0.043（低于任何 proposed 阈——机会面如实无货非口径死）。
+
+**信号面实证**：mt5_swap 3 行/carry_diff 2 行/xvenue_spread 3 行，max(ts)=11-01 02:55~03:41——T-0272 修复后镜像鲜活（PG-md↔SG 双端追平在案）。
+
+**capability 判定**：fin_capability_surface 无 MT5/xvenue executor 行——**「看见但做不了」显形族**（信号在供、eval 在跑、executor 缺席）；模板亦缺（fin_opp_template 无 xvenue 行——eval 3 件系他族评估漏网非本族模板）。
+
+**裁定建议**：**走 T-0120 文法化立模板**——依据：信号面就绪（镜像鲜活）+能力面明缺=正中文法化钦定场景「生成 candidate 模板+缺 executor 自动出需求卡」。搁置判据=低 regime（3 件 APR<5%——即使模板立了当前机会面也稀）；扩 universe 无意义（venue 内机会未见）。
+
+**范围外确认**：模板零新建、capability_surface 零动、零部署。
