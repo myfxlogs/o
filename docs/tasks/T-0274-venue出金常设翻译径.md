@@ -2,9 +2,9 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | 已批 |
+| 状态 | 施工中 |
 | 立项 | `[角色:决策]` @ 2026-10-31（MANAGE-838 簿记裁决——FIX01 一次性冲正已销恒差，常设径缺口留存） |
-| 领取 | （session 标识 @ 时间；空=未领） |
+| 领取 | claude-kimi @ 2026-11-01（支 t/0274-wdtrans） |
 | 优先级 | 中（现恒差已消=0.38<容差；缺口仅在业主下次外部划动时复发警——排 T-0272 波后施工） |
 | 涉及面 | `internal/ledger/funding/ingest.go`（bill 分派面）、`internal/ledger/funding/deposit.go`（镜像范式）、`internal/trading/okxexec`（/asset/bills 读件若新开）、`docs/数据流.md` |
 | 执行径 | 无头 |
