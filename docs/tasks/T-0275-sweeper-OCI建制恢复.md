@@ -4,9 +4,11 @@
 |---|---|
 | 状态 | 收口待审 |
 | 立项 | `[角色:决策]` @ 2026-10-31（CEO 裁件 MANAGE-1497 转办，源=MANAGE-1392 业主授权；MANAGE-3043 再催——验收锚转写入下） |
-| 领取 | devin-施工席 @ 2026-10-31（DM-3055 派单） |
+| 领取 | devin-施工席 @ 2026-10-31（DM-3055 派单）；续作 devin-无头施工席 @ 2026-11-01 |
 | 优先级 | 高（急诊——「清道夫-md」beat 自 2026-10-28 21:14Z 断，驾驶舱红灯如实红） |
 | 涉及面 | OCI 盒（`~/o/sweeper` 二进制、`~/.config/systemd/user/o-sweeper.service`、复用 `~/o-projector.env`）；repo：`deploy/o-sweeper.service`（新件）、`scripts/oci_bootstrap.sh`（units+verify 两段补件）、`docs/运维/OCI盒档案.md`（服务清单+凭据面注记）、dev 机遗件清理 |
+
+> 执行径：**无头** | 收口commit：27e3ffad85549ae998152cdf2507ef271bdeaaf5（领单=ea5fa869／实现+首轮回填=27e3ffad／本字段行+续取证注记落后 commit——自引用不可能，哈希以现链实现件为准）
 
 ## 背景
 
@@ -92,5 +94,10 @@ WantedBy=default.target
 - 三层册：deploy/o-sweeper.service 模板（装配法+env 复用注记）入册；oci_bootstrap units 段加 o-sweeper（unit 安置环+env 零新密件注记+臂体 ~/o/sweeper 校验列+enable 令）、verify 段加 7「谁在 beat=谁在跑」roster 反向核对条；OCI盒档案服务清单+env 件行注记齐。
 - dev 遗件：unit 已 disabled+dead（票面实查照存）——`~/.config/systemd/user/o-sweeper.service`+`/opt/o-projector/o-sweeper` 已删+daemon-reload。
 - 误伤自报：施工中途曾把 dev 清理令误跑在 OCI 盒（刚建 unit 被删）——同拍重建+复验 active 收口，无净损。
-- ops_event 锚：`report.sh 收口 T-0275` 落行（席自报事件簿口径满足）。
-- 状态→收口待审；收口commit 见尾行。
+- ops_event 锚：`report.sh 收口 T-0275` 落行（席自报事件簿口径满足——ops_event 实查 10-31 收口+移交双行在案，note 含「清道夫-md beat复活」）。
+- 状态→收口待审；收口commit=27e3ffad（执行径行钦定格）。
+
+### 续取证（devin-无头施工席 @ 2026-11-01 06:2xZ——断环续作）
+
+- 断环根因：前席全锚施工+自报收口/移交俱在，唯票面 `收口commit` 留「见尾行」未落实哈希——调度环审计触发字段缺失，支悬置 ~20h 未并；本席续作仅补字段+复核取证，码面零改动、生产零触碰。
+- 复核实拍（全锚仍立）：OCI `is-active`=active/`is-enabled`=enabled，journal 见「[sweeper] PG-md 清道夫起——首拍即时」且 24h 零 Fatal；SG `fin_employee_registry` 清道夫-md beat_age=9s（<2min）；PG-md `fin_data_retention` 的 fin_forward_check（audit_keep）行 last_swept_at=2026-10-31 10:34:54Z=boot 首拍审计行（state/permanent 类不走清窗故仅此行有值；日拍未满 24h 无第二拍属正常）；`md_ticks`>7d=0；三表入账 arch_eval/arch_signal→permanent、md_daily_snapshot→state；dev 三面清零（unit 件无/二进制无/is-enabled=not-found+inactive）。
