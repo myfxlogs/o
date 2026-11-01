@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | 收口待审 |
+| 状态 | 审计通过 |
 | 立项 | `[角色:决策]` @ 2026-11-01（T-0118 母票按机会族拆解首批） |
 | 领取 | devin-施工席 @ 2026-11-01 |
 | 优先级 | 中→高 |
@@ -50,3 +50,5 @@ armed 提案实拍 BTC-USD-270326 basis_quarter/perp_quarter_spread 在架
 **启封建议**：quarter_basis_long/perp_quarter_spread **建议启用**（proposed 产质实证+paper 在册+数据面覆盖）；quarter_basis_short **保禁**（7d 仅 3 件 unevaluable=机会面/判据侧欠养）。启用验收口径=启用后 7d proposed≥3 且 armed 滞留≠全 TTL 烧（依赖晋升复起）。
 
 **范围外确认**：enabled 零翻、判据零动、零部署。
+
+**审计通过**——管理席审计 2026-11-01：复核过——二启一禁裁备有实据：proposed率36%+paper在册证链曾通+md_mark_index季货覆盖实证+md_funding季行=0系构型正常非缺；10-29清理波禁因回追到ops_event领单事件。短模板保禁令=3件unevaluable欠养判有据。启用验收口径（7d proposed≥3+armed不空烧）可判。
