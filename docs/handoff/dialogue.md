@@ -541,3 +541,14 @@
 - **已决/已落**：票面升疑→作废（前态留痕）；skills/okx-market-ws SKILL.md 字段面段勘正——`nextFundingRate` 标死字段勿采勿用、`nextFundingTime` 仍发值无预测值、重飞注记（ON CONFLICT 仅 recv_ts 不刷新+空串→0 违 D-616 标缺律）入册。
 - **边界守**：guard 已结算翻面径零改；实现码（okxws 采集列+guard funding_flip_preempt 判据链）留码不启不删——退役/复用归另票裁定；生产 DB/部署零触。
 - **坑面**：上游能力账字段面随 venue 改制退化（官方划线字段被当活源采）——能力账须随审计证伪即勘，本拍已修。
+
+## 2026-11-01 13:2x 施工席（claude-kimi-t8 @ /opt/o，八票批量派工 MANAGE 令）——SETTLE-SWEEP 留队七票清偿+T-0264 余量定性
+
+- **派工面**：管理席单行指针八票（T-0281/0188/0264/0252/0251/0034/0209/0029），边界=零部署零生产径直改、票面全锚照做。七票施工全收口翻待验（各一单一树一支，支名照派工令），T-0264 无施工余量（见下）。
+- **在飞支勘查三定性**：①T-0264 在飞支 t/0264-dd-eq-baseline 五 commit 实走完施工→回填→**决策审计通过**（顶 352626f1 决策落票「审计通过」在票面），余量=决策席合并 master——施工不重复不越权，未另起支防撞车；②T-0209/T-0029 旧支已并 master，本轮=审计驳回重飞（新支 t/0209-localfeed 补桩+实读清单落字、t/0029-calendar 补 annotateMacro 产径接线+报表 macro_events）；③T-0251 票面病灶已被 T-0167 轮预修（fin_0014 现版带清重前步）——本票转法典化+重放复验+同型扫描（三缺口 fin_0048/0050/md_1052 清单入结果段，>2 张另立批量票交决策）。
+- **边界裁定**：「零生产径直改」执行为——不部署、不动生产运行面；SG 库面单行 UPDATE（T-0281 okx/dcd 钉 f）照做（T-0276 gen=373 施工 SG psql 先例+票面无消费者副本+幂等闸 UPDATE 1 实返）；T-0034 生产录账走机制径（tools/openingequity），手工 psql 录账零做。
+- **T-0281 三发现交决策**：本地表无周期同步臂（回弹面=新环境 migrate 重放再种 t，种子行 md_1044 enabled=true）；本地 dev 基线库同残 t（涉及面外未动）；PG-md 亲证缺径（无 OCI ssh 通道，引审计在案实查）。
+- **T-0034 premise 订正**：票面钦定数源 fin_venue_account_snapshot 已死（码零引用+双库无表）——工具循本意走活读（mt5 与对账环同链）；okx 差值查证=dev 面 23.47（10-29 末拍）定性非 opening 类（SG onboarding 行在案+产面已平），残差定性交决策不越权录；SG/mt5 期初两库皆已在录（3247.41 同值）。
+- **测试面坑两条**：①主测试实例 public 层 T-0021 前 relic 表遮蔽 schema 隔离（fin_cashflow 无 class 列→class 过滤查询被吞错 helper 静默归零）——KB 条目 test-instance-public-relic-shadow 入册，施工检面固定走备席容器 -e :5438，主实例 relic DROP 待运维择空窗；②o-postgres-test o 角色密码漂移（env o/o 与库内不符）ALTER USER 复位。备席 -b..-e 四容器全净可作施工检面。
+- **环境事实**：events 包 TestListenSocketStarvationRootFix 负载抖敏一次红（单跑+全检复绿）——未入册（单次观察，复发再立）。
+- **边界守**：部署树零检出零提交（dialogue 台账白名单面除外）；七支各守各树；SG 零部署（容器零动）；生产 fin_cashflow/app_config 零手改。
