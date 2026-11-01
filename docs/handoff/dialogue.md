@@ -581,3 +581,12 @@
 - **执行**：①授权列改查 research_ro（实机亲证 ro.SELECT×reverse 三表已在权，rw 写面已收读权过渡残留）——列绿；②fin_venue_untradeable 确未列四角色清单字面（md_earn_rate 于「md 只读」歧读）——按边界先落票面澄清行（裁：清单=T-0223 册面终态+收窄后差集，reverse 三表研究面读权整体承继 research_ro=册面基线非新加权）；③同文件修两闸内伤：env_field/tpl_field 命令替换败→pipefail+set -e 静默斩（exit 1 零诊断——KB while-read-ssh 同型），加 ||true 使 fail-closed 红报可达；列级 OK 行无条件打=谎报残留（T-0223 审计驳回项同型），改 colfail 条件打。
 - **闸态**：授权列+存在性列+水印列绿；**模板列 5 项真实红**——T-0232 env 正名在飞漂移（OCI 三 env 件 14:56 已改：SG_PG_DSN→MD/FIN_PG_DSN、ROSTER/FIN 角色 research_rw→roster_rw/review_rw；deploy 模板为施工未提交工件，/opt/o-wt/t0232 同文件在改中）——非本席施工面，不越席同步模板，闸如实红属设计行为（真漂移拦推=闸本职）。
 - **尾巴**：台账 commit 5d9dfd1a+本批仍候闸绿——模板列绿=T-0232 模板同步落 master 之日（或管理席另裁径）。已报 MANAGE。
+
+## 2026-11-01 15:4x 决策席（devin DM session，门2-DM directive obl692 点火——cal:morning-0830 升级链 L2 到点）
+
+- **令**：MANAGE-3948——修 cal:morning-0830 三病灶（时点漂移/双径空转/文案误报），诊断+立单由 DM 裁；边界=不动 /opt/o 码面、不改排期语义、不动 manage-morning。
+- **病灶实勘**（对指令表述的一处修正）：DBP2 全切把 `deadline fire` 收成 DB 行转移+.fireq 退役——**全部** dlm-*/edr-cal-* timer 皆死径（不止 08:30 那条），文件账实靠 `sweepDue` 事件顺带火（今 14:33:36 即此径，非「文件账 timer 真点火」）。建账 FireAt=now（首臂即跑偏，锚=dlmd 启时 10-31 14:33:36）+续期 now+period（自锁偏移，且 period_sec 对月租 spec 本错）。文案=enforceFire:689 通用升级模板误渲日历（Depth2→L3）。
+- **附带实证件④**：esc nid 拼原 subject 撞 idRe（`^[A-Za-z0-9._:-]+$`）全角非法→L2→L3 静默断链——本 subject 15:37:43 journal `dedup_or_err=非法 id` 实证即断，凡全角 ref 皆中。已并入票（slug 化+Subject 保全文）。
+- **已决**：T-0294 已立已批已派 Dev（directive DM-4099）——根修=OnCalendar 对齐（`systemd-analyze --base-time`）+syncCalendar 重启自愈对正+`deadline fire` 桥接 .fireq（文件账存在才落）+EARLY_FIREQ 早火判+日历账不建 dlm timer+kind==calendar 专用文案；部署段含 `restart dlmd`（唯此可重启，T-0279 先例）。
+- **回执**：链三件全 ack（MANAGE-3948/DM-4042/DM-4070——4070 抢在 16:07:42 三级火前消费），总线报 MANAGE=DM-4101。
+- **尾巴**：票面 commit b74722e 留本地——推送闸 bridge-audit 红（模板列=T-0232 env 正名在飞真漂移，承前席 DM-4044 报同源），闸绿即补推。DM-4071 链（内部：T-0001 审计双结论冲突）另案留箱——其账火归其唤，本席不越案消费。
