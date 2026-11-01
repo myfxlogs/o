@@ -314,8 +314,8 @@ func TestPaperTtlRetire(t *testing.T) {
 	// 同键重开回放：超龄行退役后，同 inst+direction+template 新提案应开
 	// 新 paper 行（吸收径不再触发——墓碑锁解锁）。
 	var eid int64
-	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,verdict,legs,evidence)
-		VALUES('PTTL-USDT-SWAP','funding-hedge','short_perp_long_spot','proposed','{}','{}') RETURNING id`).Scan(&eid); err != nil {
+	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,net_apr,verdict,legs,evidence)
+		VALUES('PTTL-USDT-SWAP','funding-hedge','short_perp_long_spot',0.08,'proposed','{}','{}') RETURNING id`).Scan(&eid); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := r.pool.Exec(ctx,
