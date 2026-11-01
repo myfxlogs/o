@@ -558,3 +558,12 @@
 - **测试面坑两条**：①主测试实例 public 层 T-0021 前 relic 表遮蔽 schema 隔离（fin_cashflow 无 class 列→class 过滤查询被吞错 helper 静默归零）——KB 条目 test-instance-public-relic-shadow 入册，施工检面固定走备席容器 -e :5438，主实例 relic DROP 待运维择空窗；②o-postgres-test o 角色密码漂移（env o/o 与库内不符）ALTER USER 复位。备席 -b..-e 四容器全净可作施工检面。
 - **环境事实**：events 包 TestListenSocketStarvationRootFix 负载抖敏一次红（单跑+全检复绿）——未入册（单次观察，复发再立）。
 - **边界守**：部署树零检出零提交（dialogue 台账白名单面除外）；七支各守各树；SG 零部署（容器零动）；生产 fin_cashflow/app_config 零手改。
+
+## 2026-11-01 14:3x 决策席（devin DM session，门2-DM directive MANAGE-3781/obl372 急诊点火）——dispatcher 陈票再派根修立单+六陈行清算
+
+- **病灶实态**：14:16:55 dispatcher 重启 boot 扫 phase='已派' 25 行逐个 spawn——票面终态（完成/作废）票照派，T-0215 空转 131865 tok、T-0279 自检让位退 185924 tok；扫至 14:23 全部排空（已派=0），误派会话自检径全干净退场（rc=0 零施工）。
+- **已决立单**：T-0292 已批+派 Dev（DM-3914）——派前票态闸（终态→作废/越位停泊→挂起/可派+不可析 fail-open）+生产词表补部+六陈行批转。meta 仓施工直落 master 惯例照录票面。
+- **陈行清算**（task_transition 唯一径，CTO 裁）：T-0215/T-0255/DBP3b-消费换血→完成（事已毕）；T-0279/0280/0284/0285/DBP3b孤儿/DBP3c 泊异常词候批转——生产词表缺 作废/挂起/候派 三词（repo DDL 未上产线），打缺词落异常词为系统行为，批转列 T-0292 验收锚。
+- **DBP3b 系复核**：DBP3b=无票面孤儿行→作废（同案由 DBP3b-消费换血承载）；DBP3c=票面候派=ADM 重设计停泊→挂起保复牌边；无陈票应照派。
+- **次生 P1 入册**：词表 DDL 漂移坑条目 meta-task-vocab-ddl-prod-gate…（工程经验库）；泛化律——DDL 演进票验收锚必含生产 SELECT 亲证。
+- **回执**：obl372 原件已 ack（DM 唤径代 ack），总线报 MANAGE=DM-3915。
