@@ -7,7 +7,7 @@ status: active
 domain: ops-gate
 tags: [shell, ssh, pipefail, gate]
 created: "2026-10-29"
-last_verified: "2026-10-29"
+last_verified: "2026-11-01"
 related: [T-0223]
 summary: "闸件内 while read <清单; do ssh ...; done 裸 ssh 继承 stdin 吞剩余行→循环首行即终=对拍静默失效；set -euo pipefail 下 grep 无匹配返 1 经管道传染→set -e 无声斩脚本——T-0223 闸双坑同件实证。"
 evidence_refs:
@@ -23,6 +23,7 @@ evidence_refs:
 - `sg_q() { ssh ... "docker exec psql ..." }` 包在 `while read ... done < "$TRG_LIST"` 内：ssh 默认继承 stdin，首轮把 TRG_LIST 剩余 17 行当远端输入吃光——循环只跑了第 1 条即终，存在性列「18 声明实查齐」绿字是纯谎报。
 - `for m in migrations/*.sql; do grep -oE ... "$m" | sed ...` 下 `set -euo pipefail`：首个无匹配迁移件 grep 返 1 → pipefail 把 1 传出 → set -e 静默斩整闸，无任何红字。
 - 桩测三红两列全绿假象定位根因后才曝此二坑——闸类件必须桩测红径，绿不能信。
+- **复现三（2026-11-01 同文件模板列）**：`av=$(env_field ...)` 命令替换——env_field 内 `oci_f|grep|sed` 管 grep 零匹配（实机 env 键改名缺位）返 1→pipefail→set -e 静默斩，设计的 `red "实机读缺"` 路径永不达——闸 exit 1 零红字。修=命令替换尾 `|| true`（tpl_field 同钉）；顺带曝列级 OK 行无条件打=谎报残留，改 colfail 条件打。
 
 ## 修法钦定
 

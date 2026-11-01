@@ -574,3 +574,10 @@
 - **病灶**：前席实体处置+回执投出后未消费自家 inbox 升级件——esc 链每级独立账行，只核上级消费态不核实体，致每 ~30min 滚一级至 L8 唤醒。条目 esc-chain-self-inbox-unacked-snowball 入册。
 - **处置**：链七件全 ack（级联 disarm esc 账），总线报 MANAGE=DM-4039；零码面/零生产面触碰。
 - **尾巴**：台账 commit 5d9dfd1a 未推——pre-push 闸 bridge-audit 红（SG research_rw 零 SELECT，T-0232 收窄在飞所致，终态角色=research_ro 与闸预期漂移）。已报 MANAGE=DM-4044（check_bridge_registry 研究面读角色须随 T-0232『授权清单入档』锚更新，或过收则补 GRANT）；闸绿即补推。
+
+## 2026-11-01 15:3x 决策席（devin DM session，门2-DM directive obl666/MANAGE-4049 点火——承 DM-4044 推送闸阻塞处置）
+
+- **令**：bridge-audit 研究面读角色按 T-0232 票面终态改查（research_ro+『授权清单入档』锚，不补 research_rw GRANT）；闸绿后自补推 docs commit 5d9dfd1a；边界=零生产 GRANT 动、T-0232 终态不动、票面清单若缺 fin_venue_untradeable 读权先回票面澄清不径自加权。
+- **执行**：①授权列改查 research_ro（实机亲证 ro.SELECT×reverse 三表已在权，rw 写面已收读权过渡残留）——列绿；②fin_venue_untradeable 确未列四角色清单字面（md_earn_rate 于「md 只读」歧读）——按边界先落票面澄清行（裁：清单=T-0223 册面终态+收窄后差集，reverse 三表研究面读权整体承继 research_ro=册面基线非新加权）；③同文件修两闸内伤：env_field/tpl_field 命令替换败→pipefail+set -e 静默斩（exit 1 零诊断——KB while-read-ssh 同型），加 ||true 使 fail-closed 红报可达；列级 OK 行无条件打=谎报残留（T-0223 审计驳回项同型），改 colfail 条件打。
+- **闸态**：授权列+存在性列+水印列绿；**模板列 5 项真实红**——T-0232 env 正名在飞漂移（OCI 三 env 件 14:56 已改：SG_PG_DSN→MD/FIN_PG_DSN、ROSTER/FIN 角色 research_rw→roster_rw/review_rw；deploy 模板为施工未提交工件，/opt/o-wt/t0232 同文件在改中）——非本席施工面，不越席同步模板，闸如实红属设计行为（真漂移拦推=闸本职）。
+- **尾巴**：台账 commit 5d9dfd1a+本批仍候闸绿——模板列绿=T-0232 模板同步落 master 之日（或管理席另裁径）。已报 MANAGE。
