@@ -60,4 +60,27 @@ obl372（管理席 14:21 急诊件）：14:16:55 dispatcher 重启后 boot 扫 `
 
 ## 结果回填
 
-（施工写：实现摘要 / 测试证据 / 偏离说明）
+（决策席代笔 @2026-11-01 15:0x——MANAGE directive obl606/件 `20261101-145009-MANAGE-3989`：施工=Dev 交互席直落 meta master 收口后 session 已结，§9 部署树禁碰+本指令授权，票面回填归决策席；票态字段保「已批」未动=边界钉「不翻票态」）
+
+**收口commit：`meta@4327873`**（origin/master 已同步——收口时本地领 3 件未推，决策席补推在案）——`[角色:施工][T-0292] dispatcher 派前票态否决闸+enum_base_of locale 钉`（meta-lead @14:42:16，+22/−1 @ `mbus-dispatch.sh`）
+
+### 实现摘要
+
+- **闸位**：`task_scan_dispatch_one` @766——`task_ticket_file` 定位后、`in_flight`/`claim_spawn` 前插 `status_field`→`enum_base_of` case 否决（veto 先于 claim，陈锚不白占）
+- **判词四分**：票面终态（完成/作废）→`task_claim 已派→作废`+log 零 spawn；泊/越位 11 词（挂起/候派/收口待审/审计中/审计通过/驳回/待验/通过/施工中/草案/返修）→`已派→挂起`候裁零 spawn；可派态/空值/解析败/词表外→原径照派；`task_claim` 零行（竞败/他径已转）→同式 return 不 spawn
+- **附带根修**：`enum_base_of` sed 在剥 locale 环境字节级匹配——全角 `（` 三字节 EF BC 88 中 0x88 撞字节类，`完成`(E6 88 90) 被截 `完\x88`→终态票否决漏判照派（沙箱 T-9120 实证，`veto-dbg vb=[完\x88]` 在案）；`LC_ALL=C.UTF-8` 钉一处全调用点共修（生产 systemd 极简 env 同坑）
+
+### 验收锚对账
+
+- **闸位+判词集**：PASS——码位/diff 上列在案，四分支全落，词集 ENUMFIX 单源（`ticket-state.enum` 经 `enum_base_of` 取基准词，零硬编码词形另立）
+- **生产词表补部+六陈行批转**：PASS（他径先落/施工核验）——管理席 SETTLE-SWEEP2 径 @14:33 已落 16 词+边集全列+批转（异常词→作废×5 / →挂起×1，owner=dispatcher）；施工 `/tmp/t0292-verify.sql` SELECT 核验，meta_task 行 note 记「全绿 @meta4327873」（幂等重放未再跑，无害）
+- **沙箱自证五景**：PASS——`/tmp/t0292-sbx5`（14:41:45 dryrun=1 全绿跑）：T-9110 票面作废→`veto→行转作废` 零 spawn｜T-9120 票面完成→同式｜T-9130 票面候派→`veto→行转挂起候裁` 零 spawn｜T-9140 票面已批→spawn 原径｜T-9150 票面无状态字段→spawn 不误伤。前序 sbx/sbx3/sbx4 三跑捕获并定位 locale 坑（根修实证链完整）
+- **生产实证**：机制侧 PASS/首自然命中待出具——dispatcher 14:42:15 重启（pid 841343，`mbus-dispatch.sh` mtime 14:41:34<进程起）载新码 HEAD=4327873；boot 扫 `已派=0` 无否决对象，否决行格式（`veto <票>：票面终态/泊越位『X』→行转作废/挂起…零 spawn`）沙箱已实证，生产待首个命中自然出具；`META_TASK_READ=0` 回退态整段不执行（`task_scan_round` 顶闸 `[ =1 ]||return 0` @961，闸内调 `task_scan_dispatch_one` @965）
+- **commit 格式+推送径**：PASS——`[角色:施工][T-0292]` 前缀，meta 仓直落 master 惯例，`origin/master=4327873`（补推在案）
+
+### 偏离说明
+
+1. **代笔回填**：施工主体=Dev 交互席（14:31 ack `DM-3914` 领单），meta 仓收口即 session 终；本票 `/opt/o` 面回填依 obl606 由决策席执行，票态字段未动——行相位 `收口待审`（owner=施工席，note @14:44:57+00）为权威，票面态处置归审计链
+2. **同票双发副本在案**：dispatcher 行扫 14:34 stale spawn 无头副本自检让位 rc=0（`~/devin-headless-T-0292.log` 全录含三相核实）——即本票所治病灶的活体实证；meta_task 行 wrapper CAS 已派→施工中→收口待审，CAS 链完好
+3. **撞票次生面**：同号两票面曾共享一行 meta_task（本票否决闸件/池化件已改号 T-0293）——审计径 `task_ticket_file` 取前件票面；EXTRAUDIT 审计锚缺已升 MANAGE（14:45 notice），本回填落票后锚件可立重扫
+4. **邻件存照**：DM 箱 `20261101-143705-MANAGE-3949`（T-0001 审计双结论冲突 directive，deadline 15:07）未 ack 在箱——obl606 边界不含其处置，留案不越单
