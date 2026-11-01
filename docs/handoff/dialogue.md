@@ -590,3 +590,19 @@
 - **已决**：T-0294 已立已批已派 Dev（directive DM-4099）——根修=OnCalendar 对齐（`systemd-analyze --base-time`）+syncCalendar 重启自愈对正+`deadline fire` 桥接 .fireq（文件账存在才落）+EARLY_FIREQ 早火判+日历账不建 dlm timer+kind==calendar 专用文案；部署段含 `restart dlmd`（唯此可重启，T-0279 先例）。
 - **回执**：链三件全 ack（MANAGE-3948/DM-4042/DM-4070——4070 抢在 16:07:42 三级火前消费），总线报 MANAGE=DM-4101。
 - **尾巴**：票面 commit b74722e 留本地——推送闸 bridge-audit 红（模板列=T-0232 env 正名在飞真漂移，承前席 DM-4044 报同源），闸绿即补推。DM-4071 链（内部：T-0001 审计双结论冲突）另案留箱——其账火归其唤，本席不越案消费。
+
+## 2026-11-01 16:0x 审计席（devin headless 单飞——T-0223 判决落票）
+
+- **判决**：驳回——四锚独立复证全过（闸 live 绿+doctored 三红亲跑），但收口件带两静默洞：
+  ①domain.tsv 无非空断言，册失→授权+存在性列 0 项实查仍「三列全绿」exit0（mv 实证）；
+  ②env_field/tpl_field 零匹配经 pipefail+set -e 哑死——设计判词「实机读缺/模板键缺」不可达，
+  审计窗内实机 o-collecto.env SG_PG_DSN→MD_PG_DSN 活漂移当场哑死两连（bash -x 定位 av= 斩点）。
+  另死码 want/dsn_fields、列级 FAIL 下仍印「齐」、坑条目 fm 违 schema v2（severity/tags/domain/
+  status:active 非钦定→索引行三列空+缺反证条件节）。
+- **落点异径**：判决落 master 票面（23c91c8+5ddbf13）非票支——票支 push 需绿戳而闸对现面真红
+  （自锁死锁：判票本即修闸令），master 台账面不载闸故戳可盖；票支侧判决同件已 ff 进
+  /opt/o-wt/t0223（287a3e9，随重飞推送入史）。T-0223 码件实已并 master=PR#23 squash（3dc58bd0），
+  票面「+2未并」清账定性为 refs 视角陈词。
+- **协同**：D2/D4 obl666 席独立中弹同修在 dm/1101-bridge-audit-ro（research_ro 随 T-0232）——
+  重飞承该支续 D1/D3/D5；模板列真红=T-0232 env 正名在飞（设计行为拦推）。
+- **自报**：report.sh 裁决 T-0223 驳回 已发。
