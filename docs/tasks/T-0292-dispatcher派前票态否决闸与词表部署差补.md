@@ -2,9 +2,9 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | 已批 |
+| 状态 | 收口待审 |
 | 立项 | `[角色:决策]` @ 2026-11-01（门2-DM directive obl372 落箱即办——MANAGE 急诊件） |
-| 领取 | （session 标识 @ 时间；空=未领） |
+| 领取 | devin-施工席 @ 2026-11-01 |
 | 优先级 | **急诊 P1**——作废/完成票继续照派，每票空转 ~9–19 万 token（今已实证 6+ 次） |
 | 涉及面 | `/opt/meta/mbus-dispatch.sh`（`task_scan_dispatch_one`）、`/opt/meta/sql/meta_task.sql`（部署重放径）、SG `o-postgres` 生产库 `meta.task_phase_words`/`task_phase_edges`（DDL 幂等重放）、`meta.meta_task` 陈行批转 |
 
@@ -61,3 +61,20 @@ obl372（管理席 14:21 急诊件）：14:16:55 dispatcher 重启后 boot 扫 `
 ## 结果回填
 
 （施工写：实现摘要 / 测试证据 / 偏离说明）
+
+## 回填（devin-施工席 2026-11-01）
+
+**实现**：`task_scan_dispatch_one` 在 `task_ticket_file` 定位后、`in_flight/claim_spawn` 前插票态否决——`status_field`+`enum_base_of`（ENUMFIX 单源）：基准词∈{完成,作废}→task_claim 已派→作废（note 记票面词）零 spawn；∈泊/越位 11 词集→已派→挂起候裁；可派态/空值/解析败/词表外→原径照派；task_claim 零行=竞败同式不 spawn。**伴生根修**：`enum_base_of` sed 在剥 locale 环境（env -i 沙箱/systemd 极简 env 实证同境）字节级匹配——全角`（`中字节 0x88 撞字节类把『完成』(E6 88 90) 截成『完\x88』→否决漏判照派；钉 `LC_ALL=C.UTF-8`（生产面所有 enum_base_of 调用点共修，非仅本闸）。
+
+**生产词表补部**：基线 13 词/26 边存证→钦定径幂等重放→16 词（作废*/挂起/候派在册）/51 边（已派→作废、已派→挂起、候派→已派、挂起→已派、异常词→作废等全列）。
+
+**陈行批转**（task_transition 唯一径，已执行产侧）：异常词→作废=T-0279/T-0280/T-0284/T-0285/DBP3b（5 行）；异常词→挂起=DBP3c-前端义务面（note 票面候派=ADM 重设计停泊）。批转后 phase 实测全到位。
+
+**沙箱五景自证**（o-postgres-test 隧径，单实例净扫）：①作废票面→行转作废零 spawn ②完成票面→同（LC_ALL 修后实证否决钉生）③候派票面→行转挂起零 spawn ④已批票面→spawn 原径 ⑤无状态字段票面→照派不误伤——全绿。否决行格式实测：`veto T-xxxx：票面终态『X』→行转作废零 spawn` / `veto T-xxxx：票面泊/越位『X』→行转挂起候裁零 spawn`。
+
+**生产实证**：`systemctl --user restart mbus-dispatch` 后 boot task 扫 已派=0（六陈行已批转清空——生产当前无终态票可否决，否决钉由沙箱五景+同码产径双证）；META_TASK_READ=0 回退态闸整段不执行（函数体在 DBP3b 闸内——锚6 旧径照跑）。
+
+**坑记**：enum_base_of locale 坑系本票沙箱实证新发——0x88 字节撞类截词；生产 systemd 剥 env 同坑潜伏（verdict_of/done_pending 等全调用点受益共修）。commit meta @4327873。
+
+**范围外确认**：audit/rework/pass 同构否决未扩（另票）；meta_task 结构/词表钦定集零增；在飞 headless 零杀。
+
