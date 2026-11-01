@@ -2,9 +2,9 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | 已批 |
+| 状态 | 收口待审 |
 | 立项 | `[角色:决策]` @ 2026-11-01（T-0118 母票按机会族拆解首批） |
-| 领取 | （session 标识 @ 时间；空=未领） |
+| 领取 | devin-施工席 @ 2026-11-01 |
 | 优先级 | 高 |
 | 涉及面 | `fin_opp_template(funding-hedge)`、`fin_opp_eval`、`fin_proposal`、`fin_strategy`（读径体检为主；修复另立子票） |
 | 执行径 | 无头/交互皆可 |
@@ -39,3 +39,16 @@ funding-hedge（OKX funding 套息，7d eval 产出 814 件）。T-0200 二期�
 
 - 不修码不部署不动策略开关；armed 提案不手工 disarm/promote
 - 晋升领取件修复另行立案（本票只出体检与建议）
+
+## 结果回填（devin-施工席 2026-11-01）
+
+**族产线台账（产侧 SQL 实拍 2026-11-01）**
+- eval→proposed：7d 产出 816 件——rejected 809/proposed 5；分日：10-30 rejected 541、10-31 rejected 10+78、proposed 仅 10-27~29 三笔。proposed 净 APR 全=0.05285（阈值边界值≈5.3%）。
+- proposed→armed：现役 armed=0（全数 `armed_ttl_expired` 退役——318 件中位存活 4h00m12s；eval_rejected 519/legacy 242）。
+- strategy 侧：funding-hedge live 23/paper 83/retired 1710——live 挂册在营但 armed 断粮中。
+
+**判据口径**：proposed 命中线净 APR≈5.3%（0.05285 全员同值=阈边界）；费率源=OKX funding 行情面（funding_view md 517 行/7d 鲜活）。
+
+**定性**：如实细流而非口径死——rejected 主力=费率 regime 低（客观无 >5.3% 机会），非判据恒不满足；链断后果=armed 层断粮（产了 5 件 proposed 也 4h 过期烧光）。修复建议=**晋升复起依赖型**（口径不动：低 regime 下拒判健康；armed→strategy 断点归 T-0200 在案件）。
+
+**范围外确认**：零码改零部署；armed 提案零手工 disarm/promote；晋升领取件修复另行立案（注：t/0286-armed-promote-claim-revive 支已在册——本票不越）。
