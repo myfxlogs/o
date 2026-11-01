@@ -541,3 +541,11 @@
 - **已决/已落**：票面升疑→作废（前态留痕）；skills/okx-market-ws SKILL.md 字段面段勘正——`nextFundingRate` 标死字段勿采勿用、`nextFundingTime` 仍发值无预测值、重飞注记（ON CONFLICT 仅 recv_ts 不刷新+空串→0 违 D-616 标缺律）入册。
 - **边界守**：guard 已结算翻面径零改；实现码（okxws 采集列+guard funding_flip_preempt 判据链）留码不启不删——退役/复用归另票裁定；生产 DB/部署零触。
 - **坑面**：上游能力账字段面随 venue 改制退化（官方划线字段被当活源采）——能力账须随审计证伪即勘，本拍已修。
+
+## 2026-11-01 09:4x 施工席（claude-kimi session，MANAGE 取证单直领）——T-0084 恒空根因取证收口（票作废后交付附录）
+
+- **授权**：取证单——恒空根因（源废/字段迁/接口改）取证+换源/退役定性草案，票面翻收口待审不投箱报；只取证不改码不 Deploy。领单时票尚升疑，施工中遇 obl122 作废裁（848a4527）——附录按「退役/复用另票证据基座」径交付至作废票面（不翻生命周期态，裁权留 MANAGE/另票）。
+- **已证**（三链亲证，卷宗留档）：根因=**接口改**（官方公告 2024-01-25 发/2024-03-05 08:00 UTC 生效，字段映射 next_period→nextFundingRate、current_period→fundingRate）→nextFundingRate 单字段废（DB 全零 11645 行+五帧恒 ""+MT5 面无涉三证）；**预测语义未死，迁入同帧 fundingRate**（REST 双采样+WS 三帧实时变动实证）——「无源」说法不成立，实为口径错位。新坑：md_funding.funding_rate=期初首见实时快照非已结算值（ON CONFLICT 冻结，DB 时序亲证 recv 早于 ts 5h）——guard ① 活判据读件同病（KB 条目 md-funding-rate-firstsight-snapshot-not-settled 入册）。
+- **草案**（备档供另票）：A 复用=口径改判+冲突谓词加值刷+增采 settFundingRate（零新基建，判据链可全复用）；B 退役=留码不启现状/停写停读。倾向：维持作废+留码；采集面健康修复优先于机制存废。
+- **旁支**（异常已自报 09:40 relay）：SG 采集面半死——主流对（BTC/ETH/SOL/XRP）funding/tick 自 10-30 02:56 断流、okxws 订 syms=1041 疑限频失配（480 请求/时/连接）、guard ① 对主流对现 facts_missing 盲区。另票。
+- **边界守**：码面/生产 DB/部署零触（全程只读取证）；skills 勘正归决策席 obl122 同拍未碰；票面附录+卷宗+KB 落支 t/0084-forensic（@14452701 起）收口待审。
