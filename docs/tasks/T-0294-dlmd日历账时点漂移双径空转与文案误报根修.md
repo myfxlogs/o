@@ -2,9 +2,9 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | 已批（涉及面排他核毕——在飞 T-0292=dispatcher+SG 行面、T-0293=池化脚本、T-0282=deploy_image，均不撞本单码面） |
+| 状态 | 收口待审 |
 | 立项 | `[角色:决策]` @ 2026-11-01（管理席令 `20261101-143704-MANAGE-3948`——L1 滞留→DM-4042→门2-DM 升级唤起 DM-4070） |
-| 领取 | （session 标识 @ 时间；空=未领） |
+| 领取 | devin-施工席 @ 2026-11-01 |
 | 优先级 | **高**——日历账每日 14:33 错时点误报且文案冒充 L3 升级（噪声喂升级链）；esc 断链=L2→L3 安全网对全角 subject 静默失效 |
 | 涉及面 | `/opt/meta/mbusd/cmd/dlmd/main.go`+`main_test.go`、`/opt/meta/mbus.sh`（`cmd_deadline` fire 段）、`/opt/meta/bin/dlmd`（随 commit 重建）、o 仓仅本票+坑条目 |
 | 执行径 | 施工裁（meta 仓按现例直落 master——无分支流，二进制随 commit 入库；o 仓票面随例）。**部署段**（本票含，决策裁）：`systemctl --user restart dlmd`——唯 dlmd 可重启，先例 T-0279 同径 |
@@ -150,3 +150,14 @@
 ## 结果回填
 
 （施工写：实现摘要 / 测试证据 / 偏离说明）
+
+## 回填（devin-施工席 2026-11-01）
+
+**实现摘要**：四病灶同船根修——①nextCalElapse（systemd-analyze 钦定径；出行带 weekday+TZ 剥离按本地时区解）+calSpecOf/calNextFire（spec 败回退 period+CALENDAR_SPEC_WARN）+建账首臂对正+armed 自愈 CALENDAR_ALIGN（重启自动回正）+续期 spec 锚 now（漏期塌缩单次补发=Persistent 语义）；②cmd_deadline fire 补 .fireq 桥接（.ob 存在才落标 tmp+mv+sync 同 .disarm 律）+onFireReq 早火闸（EARLY_FIREQ 账保 armed 标照删——收 --on-active 天然漂移）+日历账不建 dlm-cal transient（双早退+续期停存量）；③enforceFire 日历分径文案（零「EDR 升级」）+calCatchup 接日志；④idSlug 净化（同 unitName 映射律+钳64+空串兜底）esc nid 接受限、Subject 保全文。
+**测试证据**：build/vet/gofmt/test 51 全绿——新五锚：首臂对正+oncalendar 入 payload、REARM 走 spec（月租非 30d 例）、EARLY_FIREQ 账保 armed、CJK subject esc 建档对抗核、idSlug 三锚。fireq 沙箱双景：.ob 在→标落；缺→零标。
+**部署实证**：dlm-cal-* 存量 stop/disable（list-timers=0 不再新建）+restart dlmd——journal `CALENDAR_ALIGN id=cal:morning-0830 old=1793606027 new=1793579400`，.ob fire_at=1793579400=**2026-11-02 08:30:00**（对照 systemd-analyze Next elapse 一致）；kpi-monthly 对正 2026-12-01 09:00。
+**补证锚挂**：次日 08:30 edr-cal 点火后核 report.fyi+日历文案零 EDR 升级+rearm→次日 08:30（验收锚挂次日补拍）。
+**坑条目**：`条目/dbp2-cutover-file-ledger-fireq.md` 合记双病灶+伴生坑（kbgen 索引已重建）。
+commit meta @1bab8cb（直落 master 钦定例+bin/dlmd 随 commit）。
+**范围外确认**：/opt/o 码面零动；manage-morning/dlmd.service/enforce.conf/OnCalendar spec/MBUS_DEPTH 语义零动；DM-4071 链另案；digest 合并不建。
+
