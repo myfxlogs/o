@@ -31,8 +31,8 @@ func basisSetup(t *testing.T) (context.Context, *Runner, *pgxpool.Pool) {
 func basisStrategy(t *testing.T, ctx context.Context, pool *pgxpool.Pool,
 	tmpl, inst, direction string, notional float64) int64 {
 	var eid int64
-	if err := pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,verdict,legs,evidence)
-		VALUES($1,$2,$3,'proposed','{}','{}') RETURNING id`, inst, tmpl, direction).Scan(&eid); err != nil {
+	if err := pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,net_apr,verdict,legs,evidence)
+		VALUES($1,$2,$3,0.08,'proposed','{}','{}') RETURNING id`, inst, tmpl, direction).Scan(&eid); err != nil {
 		t.Fatal(err)
 	}
 	var pid int64

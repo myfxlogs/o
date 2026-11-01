@@ -111,8 +111,8 @@ func TestReportCounts(t *testing.T) {
 	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,verdict,legs,evidence)
-		VALUES('RC-USDT-SWAP','funding-hedge','short_perp_long_spot','proposed','{}','{}'),('RC2-USDT-SWAP','funding-hedge','short_perp_long_spot','rejected','{}','{}')`); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,net_apr,verdict,legs,evidence)
+		VALUES('RC-USDT-SWAP','funding-hedge','short_perp_long_spot',0.08,'proposed','{}','{}'),('RC2-USDT-SWAP','funding-hedge','short_perp_long_spot',NULL,'rejected','{}','{}')`); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `INSERT INTO fin_execution(intent,venue,inst_id,state) VALUES('{}','okx','RC-USDT-SWAP','done')`); err == nil {

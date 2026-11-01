@@ -28,8 +28,8 @@ func TestGetCockpitBlocks(t *testing.T) {
 		t.Fatal("ops_event 桩:", err)
 	}
 	var eid int64
-	if err := c.pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,verdict,legs,evidence)
-		VALUES('STUB','funding-hedge','short_perp_long_spot','proposed','[]','{}') RETURNING id`).Scan(&eid); err != nil {
+	if err := c.pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,net_apr,verdict,legs,evidence)
+		VALUES('STUB','funding-hedge','short_perp_long_spot',0.08,'proposed','[]','{}') RETURNING id`).Scan(&eid); err != nil {
 		t.Fatal("eval 桩:", err)
 	}
 	if _, err := c.pool.Exec(ctx, `INSERT INTO fin_proposal(eval_id,inst_id,direction,state,net_apr)

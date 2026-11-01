@@ -100,6 +100,7 @@ var migrationTable = []struct {
 	{91, "fin_0091_ops_ticket_usage.sql"},
 	{92, "fin_0092_ops_pipeline_trigger.sql"},
 	{93, "fin_0093_ops_headless_six_states.sql"},
+	{94, "fin_0094_eval_proposed_net_apr_gate.sql"},
 
 	// —— md 链（版本链内唯一且单调；md 链版本=历史号+1000 与 fin 键空间全局不相交——跨链并 schema 时 schema_migrations 零撞号，check_migrations 断言①⑤）——
 	{1003, "md_1003_market_facts.sql"},
@@ -136,4 +137,5 @@ var migrationTable = []struct {
 	{1075, "md_1075_arch_eval.sql"},
 	{1076, "md_1076_arch_signal.sql"},
 	{1077, "md_1077_retire_reason_forced.sql"},
+	{1078, "md_1078_eval_proposed_net_apr_gate.sql"},
 }
