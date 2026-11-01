@@ -1,6 +1,19 @@
 # T-0149 入金双缺口——deposit 自动检测入账 + funding 户闲资停泊扫（D-286 钱不眠）
 
-## 态：✅ 验收毕投产（241f79a 合入·决策席 2026-10-26）
+## 态：作废（superseded——11-01 清账定性·SETTLE-SWEEP）
+> 清账定性（`[角色:决策]` @ 2026-11-01，SETTLE-SWEEP/MANAGE-3551）：**作废**——superseded：deposit-history入金检测径落client.go:237+fin_venue_bill ASSET幂等件在案
+
+审计席：headless @ 2026-10-30
+
+审计注记（逐锚对账收口 SHA 241f79a 全量 diff ad61c68^..241f79a——判决对 SHA 不对现状）：
+- deposit 检测径 ✓落：internal/ledger/funding/deposit.go Scan——state=2 行→fin_venue_bill（bill_id=dep-<depId> ON CONFLICT 幂等）→fin_cashflow kind='deposit' occurred_at=venue ts，bill+cashflow 同事务原子；cmd/core/bills.go ledgerHook 挂 billsHook 事件帧同拍扫（无推送面 REST 补漏正当面，非定时轮询）。
+- 二返修①USDT 谓词闸 ✓落：r.Ccy!="USDT"→non_usdt_deposit 计数+skip 零 bill；②逐行隔离 ✓落：begin/bill/cashflow/commit 四败径各 log+rej+continue 不 abort 整扫。
+- 三返修账基线截止谓词 码落但fail-open：`_ = s.pool.QueryRow(SELECT COALESCE(min(occurred_at),now())).Scan(&baseline)` 读败吞错→baseline 留零时刻→After(零)全真→venue 全史过闸入账=防史谓词失效（票面自钦病灶 $420,803 全史虚增同构）；票自钦语义「基线参照不在即全 skip」读败应同归 fail-closed 全 skip 而非全放。
+- funding 户闲资扫 ✓落：AttachIdleFunding→okxFundingAvailUSDT（/asset/balances USDT availBal 现读件）；depositIdleFunding 直 SavingsPurchase 单跳零摆渡，5min 同参退避闸+TryLock+afterMove 留痕，idle_fund_missing/sweep_backoff 键注册在案。
+- 桩锚『双源闲资合并判阈』未落：实现为 sweepIdle 内 funding>thr 与 trading>thr 各自独立判阈（funding 段成即 return），合并语义（如 funding 60+trading 60 vs thr 100→合 120 应扫）无码无桩——双源各自低于阈而合计超阈档闲资仍躺=钱不眠缺口未全闭。
+- 桩测五件在案（TestDepositScanIdempotent/USDTGate/BaselineCutoff/FundingIdleDirectPurchase/FundingIdleBackoff）——diff 实见，未实跑（共享测试库串行收口纪律，走读对账）；rejects 面×门键全预注册；import 方向白名单已补 ledger/funding→rejects 边；文件长均在 300 内。
+- 验收锚①再入金零告警零手清=机制在案；②现网残留对账差归零=复核权在桩（runtime 面无通道证伪，不引终态词汇）。另记：`amt, _ := parseFloat(r.Amt)` 吞错（败值 0 入账行）同属吞错面，重飞同修。
+
 ## 域：ledger 记账 / earn 停泊径
 ## 源出：2026-10-26 实案——业主 OKX 入金 2000 USDT（depId 440867191，
   USDT-Omni state=2 实拉在案）触发账实差 $1999.57 告警；决策席手工三件清：

@@ -24,8 +24,12 @@ func bandwidthStatus(netLimit, netUsed, freeNetLimit, freeNetUsed int64) string 
 	return "normal"
 }
 
+// cmcDBStale CMC DB 回退鲜度闸（CMC 空仓不落痕票②读侧加固）：回退行龄>15min
+// 按缺数处理——陈行不填域（防再次陈行显活仓；显著大于采集节拍、小于业务容忍）。
+const cmcDBStale = 15 * time.Minute
+
 // freshLive 内存态优先、>30s 回退 DB（nox freshLive D-236 变更9 对拍——
-// mid 兜底序②③④照搬；nil live=纯 DB 径）。
+// mid 兜底序②③④照搬；nil live=纯 DB 径；DB 行龄>15min=缺数不填 T-空仓票②）。
 func (w *trxWiring) freshLive(ctx context.Context) cmc.LiveState {
 	var ls cmc.LiveState
 	if w.cmcLive != nil {
@@ -33,12 +37,14 @@ func (w *trxWiring) freshLive(ctx context.Context) cmc.LiveState {
 	}
 	posFresh := !ls.PosTs.IsZero() && time.Since(ls.PosTs) <= 30*time.Second
 	if !posFresh || ls.Mid <= 0 {
-		if mid, _, err := w.st.LastCMCPriceMidWithTime(ctx, "X-AFQUL"); err == nil && mid > 0 {
+		if mid, mt, err := w.st.LastCMCPriceMidWithTime(ctx, "X-AFQUL"); err == nil && mid > 0 &&
+			time.Since(mt) <= cmcDBStale {
 			ls.Mid = mid
 		}
 	}
 	if !posFresh || ls.Ask <= 0 {
-		if cmcPos, err := w.st.LastCMCPositionByInstrument(ctx, "X-AFQUL"); err == nil {
+		if cmcPos, err := w.st.LastCMCPositionByInstrument(ctx, "X-AFQUL"); err == nil &&
+			time.Since(cmcPos.FetchedAt) <= cmcDBStale {
 			if !posFresh || ls.Ask <= 0 {
 				ls.Ask = cmcPos.EvaluationAskPrice
 			}
@@ -66,7 +72,8 @@ func (w *trxWiring) freshLive(ctx context.Context) cmc.LiveState {
 	}
 	sumFresh := !ls.SumTs.IsZero() && time.Since(ls.SumTs) <= 30*time.Second
 	if !sumFresh {
-		if cmcSum, err := w.st.LastCMCAccountSummary(ctx); err == nil {
+		if cmcSum, err := w.st.LastCMCAccountSummary(ctx); err == nil &&
+			time.Since(cmcSum.FetchedAt) <= cmcDBStale {
 			ls.Cash = cmcSum.TotalCashBalance
 			ls.Equity = cmcSum.TotalAccountValue
 			ls.Margin = cmcSum.TotalEquityUsedInMargin

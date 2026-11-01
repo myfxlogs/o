@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | ✅ 完成 |
+| 状态 | 完成（判过并码在案，11-01清账翻面） |
 | 立项 | `[角色:决策]` @ 2026-10-28（设计档 `docs/handoff/T-0173-最优解设计修订.md` §三/§五；票面文件由施工席依决策席 dispatch+设计档原样物化——b46be9d 只落设计档未落票文件，来源留痕交验收核） |
 | 领取 | glm-t0220 @ 2026-10-28 13:01Z |
 | 优先级 | 高 |
@@ -51,3 +51,18 @@
 ## 验收注（`[角色:决策]` @ 2026-10-28，接管验收：原验收席 claude 卡住，业主令转本席；收口合并 `050b180`，实现件随 `26bf968` 在 master）
 
 **裁：验收通过，票翻完成。** 票面物化来源追认（b46be9d 只落设计档未落票文件，施工依设计档 §一~§五 原样物化=合规）；回填四件（实现摘要/测试证据/偏离/坑处置）详实；偏离在案均认可；测试证据与生产目检（业主实见新前端）互证。
+
+---
+
+## 审计判决（无头单飞）
+
+审计席：headless @ 2026-10-31
+
+**判：审计通过。** 逐锚对账（基 origin/master，实现件随 `26bf968` 系 diff 实核）：
+
+1. **首行四卡+大数字+窄屏回落**：`TrxKpiStrip.tsx`（新件 126 行 ≤300）渲 4 张 `.card.kpi`；`20-cards.css` `.trx-kpi-strip` grid repeat(4,1fr)、@media ≤900px 落 repeat(2,1fr)=2×2 ✓；`.kpi-v` font-size 2em+font-variant-numeric:tabular-nums ✓；每卡 kpi-head 挂 StateDot 呼吸灯伴随 ✓；`.kpi` 背景 surface 58% vs 常规 `.card` 46%——加重一档方向实证 ✓。
+2. **取值径**：`fetchAll` 并发取 getTrxYieldCurve→annualized7d/30d、getTrxVoteStatus→pendingTrx、getHedgeStructure→structure.legShort.distPct（缺省 null→显 "—" 不假零）；useEffect 挂载取数 + onData topic==="trx" 帧重取——径同现役卡、事件驱动无轮询/定时器 ✓。
+3. **灯语零新前端判据**：alert 映 platformAlertState（normal→s0+breathe=breatheCalm 绿缓息 / warn→s1+breathe=breatheQuick 黄急促 / breach→s2 且 breathe=false=红静止——与 10-shell.css「红死无呼吸」业主裁一致）；年化/待领取 value 正负号挂 u-good、dot 态随号——唯符号判据无新阈值 ✓。
+4. **雷达瘦身+双列**：`TrxYieldRadar` 6 格→4 格（grid 3 列→2 列，组合 7d/30d 两格删除留注「上移不双显」）；`Trx.tsx` 雷达‖对冲包 `.duo`（既有先例，≥1000px 双列窄屏单列）✓。
+5. **明细层**：HedgeFlow 出 `.duo` 独占全宽行；`.hedge-flow-table` font-size 13px，HedgeFlow.tsx 表实挂该类 ✓。
+6. **机检+四态**：`tsc/vite build` 绿——CI 链 npm run build 先于 go build（embed 依赖），实现件在 master 全谱过编译（HEAD 78be20c6 ci success 兜证）；四态覆盖在码（err→kpi-err 卡 / 首拍→null / 数据→渲染 / ErrorBoundary 隔卡），目检目见以生产实拍互证在案，无头态不复跑如实标。

@@ -1,6 +1,8 @@
 # T-0174 readcred 端点泛化——venue 束回包（第二家交易所出现前最便宜的改法）
 
-## 态：✅ 完成（票内决策席验收注+b690fc5 投产销号在案——支 c5e682b 已合 master；票面欠翻补正 @10-28）
+## 态：完成（判过并码在案，11-01 清账翻面·SETTLE-SWEEP）
+> 清账定性（`[角色:决策]` @ 2026-11-01，SETTLE-SWEEP/MANAGE-3551）：**完成**——审计通过落票在案，漏网翻面
+## 审计席：headless @ 2026-10-30
 ## 领取：zcode-glm @ 2026-10-27
 ## 立项：决策席 @ 2026-10-27（业主问「新所又要写 env?」——答：不该写，泛化掉）
 ## 决策档：T-0170 存放面终裁延伸
@@ -85,3 +87,34 @@ venue 集合是**数据不是拓扑**，应走库面。
   master 本尊（1166dd7）同挂实证，涉及面外，另案交决策。
 - 偏离测试坑一枚（自坑自纠）：`json.Unmarshal` 复用非空 map 不清底——
   二次解形 `{}` 残留首轮键，测试需新 map 承接（条目已入库）。
+
+## 判决注记（审计席 headless @ 2026-10-30——收口 c5e682b 全量 diff 逐锚对账+生产面只读实证）
+
+- **验收锚**「新 venue 上架径=app_secrets 加行+白名单加行两件——dev 零 env
+  变更实证」：**对账成立**。
+  - SG `GET /v1/readcred`（无 venue 段）落码实证：`strpos(key,'_read.')>0`
+    枚举行族+`strings.Cut` 切 venue/field、master key 解密直出
+    `{<venue>:{<field>:<明文>}}`（cmd/core/readcred.go:57-138）——加
+    `<venue>_read.*` 行即面扩零代码。
+  - 白名单出面实证：app_config `readcred.entitlement` 经 config.Client 按
+    次读（非 boot 捕获），`!allow[venue]` 过滤；生产库实查
+    `readcred.entitlement|["okx"]` 行在位、`okx_read.*` 三行密文在架。
+  - dev 零 env 变更实证：`newAuthClient(url,"okx")` venue 入码非入 env；
+    dev 机 /opt/o-research/env 实查 `READCRED_URL=.../v1/readcred`（venue
+    无段，此后零动）；**生产隧道实跑 GET :5545/v1/readcred → 200 venue-map
+    `{okx:{api_key,api_secret,passphrase}}` 形面正确**（载荷值不录）。
+  - 「dev map 分发各臂对号」桩锚：venueCreds 按臂 venue 键提件+okx 三件齐
+    校验、缺所/缺件/未支持=fail-closed；401 自重取 map 级粒度同形（施工④
+    旧路径直接切——dev 唯一消费方同票改，404 测试锚在）。
+- **迁移链实存核验**：票面/回填口径 fin_0071→0075 两度撞区让位，master
+  HEAD 实存 `migrations/fin_0076_readcred_entitlement.sql`+migrate_table
+  `{76}` 登记、种子 `["okx"]` 语义等价——实落即合规。
+- **偏离裁照**：①「白名单表」落 app_config 键（D-0005 配置唯一入口——另
+  立表=第二配置面，「加行」=数组加元素一行操作语义等价）；②残缺行族透传
+  +臂侧 fail-closed（SG 无 venue 形面知识，「加行零代码」语义自洽，形面
+  缺件由 venueCreds 对拍拒）；均已在票载明。
+- **纪律面抽查**：触碰文件 ≤300 行（readcred.go 138/测试 255/research 144/
+  156）；diff 零凭据零秘钥（测试值 rk-test/bk-test）；fail-closed 分级全谱
+  （主钥缺/白名单键缺形坏/查库败/解密败=503，禁 200 空 map 冒充在位）；
+  docs/数据流.md readcred 段同收口 commit 更新（链路变更票同 commit 正本
+  纪律符）；KB 双条目+索引同 commit 入库。

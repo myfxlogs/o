@@ -1,6 +1,7 @@
 # T-0215 vol-sell 族 executor——strangle/single_call 从评估到钱径
 
-> 状态：待验 | 领取：devin-t0215 @ 2026-10-28 | 优先级：P1（唯一「数据齐+评估通+能力在账」的新族）
+> 状态：完成（管理席直审通过 2026-11-01——交付已并 master 候审计收口）| 领取：devin-t0215 @ 2026-10-28 | 优先级：P1（唯一「数据齐+评估通+能力在账」的新族）
+> 清账定性（`[角色:决策]` @ 2026-11-01，SETTLE-SWEEP/MANAGE-3551）：**已批**——交付并master待审计收口——volsell执行件验收债在账
 > 立项：决策席 @ 2026-10-28
 
 ## 面况
@@ -54,3 +55,23 @@ SG 实况：md_dcd_product 8094 行在架——部署后下拍 eval 即出真判
 **遗留锚**：「paper 仓首笔 vol_sell 单+ledger 行」待合并部署后——proposed
 提案→paperTemplates→paper 策略→dcdPaperAccounting fill 链已全通，首笔
 依赖产品面实际过闸（非确定性时点，机制已备）。
+
+
+## 管理席直审（2026-11-01——交付 52ccd52f→8aa240a6 已并 master；业主钦定不走无头）
+
+**裁决：通过**——eval 真评+executor+paper 径三备齐，红条结构性守住。
+
+- **锚①核**：evalVolSell 真评落（single_call=dcd.Evaluate 同判据域、strangle
+  C×P 复合键配对取高 APR 腿）；假想卡钦定名双 executor 对拍，executor_missing
+  判词已消（TestEvalVolSellReal 断言在测+check_all 全谱绿实证）。
+- **钱径红条核（重点）**：`open.go`/`volsell_open.go` 派发码在而**生产不可达**
+  ——SG 实拍 `vol_sell_single_call`/`vol_sell_strangle` 双模板 enabled=f
+  （与 T-0289「IV 面先天缺双模板保禁」裁一致）；paperTemplates 白名单+paper
+  记账面备齐=paper 径先行钦定达成。enable=决策另案，票面亦钦定「模板
+  enabled 前 executor+paper 径必须都在」之序——本交付恰是该序的前件。
+- **fin_0094 交叉安全**：volsell 写径走 persistLegEval=dcd 恒写列共享径+
+  fin_proposal INSERT 同带 net_apr——新 CHECK 闸天然兼容，部署后零违例。
+- **纪律守**：strangle 半构=err+ALERT 人工对账（歧态势禁补单纪律沿）；
+  APR 等权口径偏离如实披露裁正当；零真单零部署施工边界内。
+- **锚②裁**：「paper 首笔+ledger 行」留为模板启封后观察项——提案→paper
+  →fill 链已全通，首笔依赖 enable 决策（T-0289 裁维持禁）非码件缺位。

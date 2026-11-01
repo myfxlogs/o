@@ -224,7 +224,7 @@ func TestMacroAnnotate(t *testing.T) {
 	}
 	r := NewRunner(pool, cfg)
 	e := &Eval{InstID: "M-USDT-SWAP", Evidence: map[string]any{}}
-	r.annotateMacro(ctx, e)
+	applyMacro(e, r.nearestMacro(ctx))
 	if _, ok := e.Evidence["macro"]; !ok {
 		t.Fatal("近窗事件 macro 注解缺席")
 	}
@@ -235,7 +235,7 @@ func TestMacroAnnotate(t *testing.T) {
 		t.Fatal(err)
 	}
 	_ = cfg.Load(ctx)
-	r.annotateMacro(ctx, e2)
+	applyMacro(e2, r.nearestMacro(ctx))
 	if _, ok := e2.Evidence["macro"]; ok {
 		t.Fatal("horizon=0 不应注解")
 	}
@@ -245,7 +245,7 @@ func TestMacroAnnotate(t *testing.T) {
 	}
 	_ = cfg.Load(ctx)
 	e3 := &Eval{InstID: "M3", Evidence: map[string]any{}}
-	r.annotateMacro(ctx, e3) // fail-open 无注解不炸
+	applyMacro(e3, r.nearestMacro(ctx)) // fail-open 无注解不炸
 }
 
 // T-0131 锚：提案去重升级——同键 active 策略在册→persist 不再插提案行
@@ -294,8 +294,8 @@ func TestActiveStrategyBlocksProposal(t *testing.T) {
 	}
 	// 触发器闸（迁移 0054）：同键 proposed/armed 直插也被跳。
 	var eid int64
-	if err := pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,verdict,legs,evidence)
-		VALUES('TRG-USDT-SWAP','funding-hedge','short_perp_long_spot','proposed','{}','{}') RETURNING id`).Scan(&eid); err != nil {
+	if err := pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,net_apr,verdict,legs,evidence)
+		VALUES('TRG-USDT-SWAP','funding-hedge','short_perp_long_spot',0.08,'proposed','{}','{}') RETURNING id`).Scan(&eid); err != nil {
 		t.Fatal(err)
 	}
 	for i := 0; i < 2; i++ {

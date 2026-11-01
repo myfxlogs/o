@@ -1,6 +1,7 @@
 # T-0167 PG-md 容器+迁移链分流（D-0030 §六/§八——分域施工①）
 
-## 态：✅ 验收毕投产（merge ff684df+验收注 c2ee626——PG-md容器live、迁移链分流、隧道收窄全实证；o-prod.slice系统装配=业主条件请求项）
+## 态：完成（判过并码在案，11-01 清账翻面·SETTLE-SWEEP）
+> 清账定性（`[角色:决策]` @ 2026-11-01，SETTLE-SWEEP/MANAGE-3551）：**完成**——审计通过落票在案，漏网翻面
 ## 立项：决策席 @ 2026-10-26
 ## 领取：zcode-glm 施工席 @ 2026-10-26（支 t/0167-pgmd-container-migration-split，前置于 b0223d0——T-0165 已翻投产）
 ## 决策档：D-0030
@@ -151,3 +152,64 @@ check_env_reads（白名单 26 键）✓ check_rejects_keys✓ check-lines（mai
 回填——触发器只随行变，首日集空，切轮换前补种一行）。
 
 票态：✅ 验收合入。
+
+审计席：headless @ 2026-10-30
+
+## 审计注记（headless——merge ff684df 全量 diff 142 件逐锚对账+本机实物面亲核）
+
+**判：审计通过。**
+
+- 验收锚「开发机 PG-md 空库 Migrate md 链全过」：**成立**——码面
+  `pgstore.Migrate(ctx,pool,domain)` 前缀选链+非法域 fail-closed
+  （migrate.go:16-18）；`cmd/migrate` 一次性执行器在案（-domain 必填、
+  PG_DSN 白名单第 35 行登记含理由注）；登记表 90 行=fin 68+md 22
+  （md=历史号+1000 键空间不相交）；`TestMigrateChains` md/fin 各空库
+  全过+二次幂等桩证在案。实物面本机亲核：`o-postgres-md` 容器实存
+  （image timescale/timescaledb:2.30.2-pg18 与票面同版钉、
+  HostConfig.CgroupParent=o-prod.slice）、`o-pgdata-md` 卷实存——
+  容器当前 exited(0)（2026-10-28T19:16Z 停）属运行态事实，卷在=
+  数据面持久，不否定锚所验收之「空库全过」能力与落地件。
+- 验收锚「SG fin 链 Migrate 幂等零变更」：**成立（构造性+桩证）**——
+  fin 链沿用原版本键 1-69，schema_migrations 以 version 为幂等键，
+  改名不动键→已装库重放全跳过；旧文件 1-65 每号 fin_NNNN 为其 fin 域
+  子集（md 域子集迁 md_1NNN，SG 不执行），真正新增仅 fin_0066-0069
+  全加法件（UQ/镜像/拆表/建集）随轮换一次性补——幂等由 Migrate
+  applied-check 构造保证+fin 二次幂等桩证；cmd/core 显式选 "fin"。
+- 桩锚三件套：**全成立**——两链各全过=TestMigrateChains；串链红=
+  断言⑦（domain.tsv 59 表显式三值白名单判域非前缀，触表缺册/串链
+  皆红）；桥表漂移红=断言⑥（八桥表 create/alter/index/hypertable/
+  retention 归一化语句集跨链 diff——含列全项+约束+索引集，满足
+  D-0032 §三-5 复审注记口径）；七断言脚本 100755 且 pre-commit
+  76-77 行实挂载。
+- 施工①-④落地件逐一在案：docker-compose.dev.yml（5435 环回绑/
+  named volume/cgroup_parent/健康检查）+deploy/o-prod.slice
+  （CPUWeight 300+双面装配注记+条件请求明标）；migrations/ 分链
+  全量重命名+桥表双链镜像；check_migrations.sh 扩断言；Migrate
+  域参签名+两调用方（core→fin、migrate→入参）。
+- 施工⓪隧道收窄仓内可核面=deploy/o-collecto/tunnel.service 切
+  tunnel@ 低权户+IdentitiesOnly+专用钥+BatchMode（root 钥退役径）；
+  SG sshd/fail2ban=主机侧件不入仓 diff，验证径（sshd -T/ssh 拒）
+  在施工回填在案——按仓外主机件计，不以 diff 缺位论违。
+- 非锚注记（报管理席/决策席备查，不阻塞判）：票面外捆绑件——
+  fin_0064-0069 新增迁移、opener.go fin_eval_reject 拆表读写、
+  env 白名单+PG_DSN——施工「偏离/报备」五条明列披露非瞒报，
+  且均为分链成立的配套面；o-prod.slice 系统面装配（root 依赖）
+  票内已自标条件请求项。
+
+### 本席复核补证（headless 重飞 @ 2026-10-30——判词维「审计通过」不变）
+
+- 验收锚①升级实测：临时库 o_audit_md（5434 测试实例新建）
+  `cmd/migrate -domain=md` 空库全过（33 版 1003-1076、23 表、二次
+  重放零变更幂等）；o_audit_fin `-domain=fin` 同（88 版 1-90、56
+  表）；`-domain=both` 非法域拒 rc=1——fail-closed 亲证。
+- 验收锚②升级实证：隧道径 SG 只读（FIN_PG_DSN@5544）——
+  schema_migrations 含 66,67,68,69（count=90/max=90），
+  fin_eval_reject/fin_active_set/md_macro_event/md_funding/
+  fin_proposal/fin_opp_eval 六件全在——fin 链幂等键零变更成事实。
+- 桩锚负测双红亲跑：fin_ 件触 md 域表→断言⑦「串链」FAIL；
+  md 侧独改桥表 md_ticks→断言⑥「DDL 归一化漂移」FAIL；
+  本基线 check_migrations 绿。
+- 实物补证：PG 隧道进程以 tunnel@+o_tunnel_pg_ed25519 钥在跑
+  （root 钥退役径实证）；o-postgres-md 仍 exited、5435 现被
+  o-postgres-test-b 占用——运行态漂移照原判不否能力锚，
+  归运维承接（与 T-0169+ 谱系运行面一并复核）。

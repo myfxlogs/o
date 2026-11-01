@@ -19,10 +19,11 @@ domain: 工程
 - **ack≠存活**：订阅 ack 收讫不代表帧在流——存活判据=帧时戳前移（同 binance 族教训）。
 - **REST depth 兜底闸关**：`NOX_DEPTH_REST_OKX=1` 才开，默认 fail-closed（缺数据≠降级数据——宁缺交易不静默降级）。
 - **WS 即 h1 升级**：okx WS 是 HTTP/1.1 Upgrade（RFC6455 非 h2/h3）——WS 通≠h2 通证；REST 传输病灶须单测（见 `docs/经验库/条目/` h2 感染条目）。
-- **端点**：`wss://ws.okx.com:8443/ws/v5/public`；代理约定 `wsViaProxyURLs("/okxws/ws/v5/public", 直连URL)`——禁裸写 URL 不挂代理备径。
+- **端点**：`wss://ws.okx.com:443/ws/v5/public`；代理约定 `wsViaProxyURLs("/okxws/ws/v5/public", 直连URL)`——禁裸写 URL 不挂代理备径。
 
-## funding-rate 帧字段面（T-0084 补记——预测 vs 实收双口径）
+## funding-rate 帧字段面（T-0084 补记勘正 2026-11-01——预测口径证伪）
 
 - `fundingRate`+`fundingTime`=已结算费率（落 md_funding.funding_rate/ts）。
-- `nextFundingRate`+`nextFundingTime`=预测面（落 next_funding_rate/next_funding_ts——T-0084 采集前置闸数据源；负值预警先平不等实收）。
-- 帧推送频=结算前逐帧推预测值（非仅 fundingTime 拍）。
+- `nextFundingRate`=**死字段，勿采勿用**——OKX 官方文档参数表已划线「no longer supported」：2024-03 资金费率机制改制后 `method=current_period` 为唯一支持形，该字段恒发 `""`（官方推送示例实发 `"nextFundingRate":""`；SG 一周全谱实采 `next_funding_rate` 非零行=0 实证）。T-0084 预测前置闸因此作废。
+- `nextFundingTime` 仍发值（落 next_funding_ts）——有下一拍时刻、无预测「值」；「帧逐帧推预测值」之前提不成立。
+- 重飞注记：`store.go` funding INSERT `ON CONFLICT (venue,inst_id,ts)` 仅 `SET recv_ts`——venue 若回补字段，同结算拍内首见值后永不刷新；且空串→`num()`→0 落库使「缺席」与「真值 0」不可分辨（违 D-616 标缺律——重开此径须改空串→NULL 语义+冲突刷新谓词）。

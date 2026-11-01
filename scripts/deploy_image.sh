@@ -11,11 +11,44 @@
 # ③ SHA tag 留痕：o-core:<sha12> 主 tag + o-core:latest 同层别名双 ref 齐运，
 #   compose image: ${O_CORE_IMAGE:-o-core:latest} 环境可覆写，容器
 #   {{.Config.Image}} 自报所跑源码 commit。
+# ④ 完工投件：EXIT trap 统一发 DEPLOY 事件至 MANAGE 箱（成功/失败/被闸三路
+#   同径；败静默不影响部署 rc；业主令 2026-10-31「事事有应答」）。
 set -euo pipefail
 SG="${O_SG_HOST:-root@192.229.85.35}"
 LOCK_DIR=/opt/o/.deploy-lock
 cd "$(dirname "$0")/.."
 die() { echo "❌ [deploy_image] $1" >&2; exit 1; }
+
+# ── ⓪ 退场义务（EXIT trap 统一径：释锁 + 完工投件）──────────────
+# 投件设闸前——出处闸拒也须报（业主令「事事有应答」）；败静默：mbus 缺席/投败
+# 仅落本地 relay log，部署 rc 不受影响（件是回执非命门）。SG 侧不投（mbus 是
+# dev 件）；DEPLOY 不在 SEATS 枚举，同 GHEVT 裁量借 MANAGE via 标记。
+release_lock() {
+  [ "$LOCK_HELD" = 1 ] || return 0
+  # 只释自己锁——holder token 对不上（抢锁后原主 trap 等情形）不动
+  ssh "$SG" "grep -q '^token=$TOKEN\$' $LOCK_DIR/holder 2>/dev/null && rm -rf $LOCK_DIR" \
+    >/dev/null 2>&1 || true
+}
+deploy_event() {
+  local rc=$1 sha=${SHA:-$(git rev-parse --short=12 HEAD 2>/dev/null || echo unknown)}
+  MBUS_FROM=MANAGE timeout 15 /opt/meta/mbus.sh send MANAGE notice "DEPLOY-$sha" \
+    "via=DEPLOY deploy $sha rc=$rc image=o-core:$sha" >>"$HOME/devin-relay.log" 2>&1 \
+    || echo "[deploy_image] 完工投件败（回执缺，不影响部署 rc=$rc）" >&2
+  # 驾驶舱 v4 完结线（设计稿钉：完结=部署上线）：部署事件落 ops_event
+  # （event=部署,ticket=''——管道按部署 ts≥票末事件退场判，fin_0092 触发器
+  # 同拍 NOTIFY→前端行秒级退场）。凭据取径同 report.sh（FIN_PG_DSN 自
+  # /opt/o-research/env）；败静默不影响部署 rc。
+  local dsn
+  dsn=$(grep '^FIN_PG_DSN=' /opt/o-research/env 2>/dev/null | cut -d= -f2- | tr -d '"')
+  if [ -n "$dsn" ]; then
+    timeout 15 psql "$dsn" -Atc \
+      "INSERT INTO ops_event(seat,event,ticket,note) VALUES('DEPLOY','部署','','deploy $sha rc=$rc image=o-core:$sha')" \
+      >/dev/null 2>&1 \
+      || echo "[deploy_image] ops_event 部署事件落簿败（管道完结线缺本拍，不影响部署 rc=$rc）" >&2
+  fi
+}
+LOCK_HELD=0
+trap 'deploy_event $?; release_lock' EXIT
 
 # ── ① 出处闸 ────────────────────────────────────────────────
 [ -z "$(git status --porcelain)" ] \
@@ -37,15 +70,6 @@ SEAT="${O_DEPLOY_SEAT:-$(whoami)}@$(hostname -s 2>/dev/null || hostname)"
 TOKEN="$SEAT-$$-$(date +%s)"
 
 # ── ② SG 部署锁 ─────────────────────────────────────────────
-LOCK_HELD=0
-release_lock() {
-  [ "$LOCK_HELD" = 1 ] || return 0
-  # 只释自己锁——holder token 对不上（抢锁后原主 trap 等情形）不动
-  ssh "$SG" "grep -q '^token=$TOKEN\$' $LOCK_DIR/holder 2>/dev/null && rm -rf $LOCK_DIR" \
-    >/dev/null 2>&1 || true
-}
-trap release_lock EXIT
-
 if ssh "$SG" "mkdir $LOCK_DIR" 2>/dev/null; then
   LOCK_HELD=1
 else

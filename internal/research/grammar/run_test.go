@@ -4,8 +4,11 @@ package grammar
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"o/internal/platform/config"
 	"o/internal/platform/testutil"
@@ -83,8 +86,10 @@ func TestDisabledFaceNoFamily(t *testing.T) {
 	}
 }
 
-// TestProposedAprGate T-0205 桩锚：proposed 无 APR 估计→写径降级
-// unevaluable+apr_est_missing（NULL-proposed 不可能径断言）。
+// TestProposedAprGate T-0205 桩锚（重飞·列级口径）：proposed 无 APR 估计→
+// 写径降级 unevaluable+apr_est_missing；估计在场→net_apr 列同拍非 NULL
+// （首飞病灶=闸键面在场而列恒 NULL——闸与不变量同维）；键在值非法
+// （nil/类型不识）=缺席同降级（残留窄洞并堵）。
 func TestProposedAprGate(t *testing.T) {
 	ctx, r := setup(t)
 	if err := r.writeEval(ctx, "BTC-USD-261225", "quarter_basis", "short_perp_long_spot",
@@ -98,6 +103,48 @@ func TestProposedAprGate(t *testing.T) {
 	}
 	if v != "unevaluable" || reason != "apr_est_missing" {
 		t.Fatalf("无 APR proposed 应降级 unevaluable+apr_est_missing: %v/%s", v, reason)
+	}
+	if err := r.writeEval(ctx, "ETH-USDT-261225", "quarter_basis", "short_perp_long_spot",
+		"proposed", "", map[string]any{"net_apr": 0.12, "apr": 0.12}); err != nil {
+		t.Fatal(err)
+	}
+	var colApr *float64
+	if err := r.pool.QueryRow(ctx, `SELECT net_apr::float8 FROM fin_opp_eval
+		WHERE inst_id='ETH-USDT-261225' AND template='quarter_basis'`).Scan(&colApr); err != nil {
+		t.Fatal(err)
+	}
+	if colApr == nil || *colApr != 0.12 {
+		t.Fatalf("proposed 行 net_apr 列应同拍落 0.12: %v", colApr)
+	}
+	if err := r.writeEval(ctx, "SOL-USDT-261225", "quarter_basis", "short_perp_long_spot",
+		"proposed", "", map[string]any{"apr": nil}); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.writeEval(ctx, "XRP-USDT-261225", "quarter_basis", "short_perp_long_spot",
+		"proposed", "", map[string]any{"net_apr": "0.3"}); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_opp_eval
+		WHERE template='quarter_basis' AND verdict='unevaluable'
+		AND evidence->>'reason'='apr_est_missing'
+		AND inst_id IN ('SOL-USDT-261225','XRP-USDT-261225')`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 2 {
+		t.Fatalf("非法值 proposed 应双双降级 unevaluable+apr_est_missing: %d", n)
+	}
+}
+
+// TestProposedNullAprDBGate T-0205 重飞 DB 闸锚（fin_0094）：proposed∧
+// net_apr NULL 直插=机器拒——写径旁路（gapscan 类）结构性封死。
+func TestProposedNullAprDBGate(t *testing.T) {
+	ctx, r := setup(t)
+	_, err := r.pool.Exec(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,verdict,legs,evidence)
+		VALUES('GATE-USDT-SWAP','funding-hedge','short_perp_long_spot','proposed','[]','{}')`)
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) || pgErr.ConstraintName != "fin_opp_eval_proposed_net_apr" {
+		t.Fatalf("proposed∧NULL 直插应被 fin_0094 CHECK 拒: %v", err)
 	}
 }
 
@@ -120,13 +167,17 @@ func TestEvalBasisNetApr(t *testing.T) {
 	}
 	var verdict string
 	var apr, basisPct float64
+	var colApr *float64
 	if err := r.pool.QueryRow(ctx, `SELECT verdict, (evidence->>'net_apr')::float8,
-		(evidence->>'basis_pct')::float8 FROM fin_opp_eval
-		WHERE inst_id='BTC-USD-270225' ORDER BY id DESC LIMIT 1`).Scan(&verdict, &apr, &basisPct); err != nil {
+		(evidence->>'basis_pct')::float8, net_apr::float8 FROM fin_opp_eval
+		WHERE inst_id='BTC-USD-270225' ORDER BY id DESC LIMIT 1`).Scan(&verdict, &apr, &basisPct, &colApr); err != nil {
 		t.Fatal("proposed 行未落:", err)
 	}
 	if verdict != "proposed" || apr <= 0.05 {
 		t.Fatalf("大额基差短窗应 proposed 且 net_apr>5%%: %s apr=%v", verdict, apr)
+	}
+	if colApr == nil || *colApr != apr { // T-0205 重飞：列与 evidence 同拍同值
+		t.Fatalf("proposed 行 net_apr 列应同拍落列: %v", colApr)
 	}
 	var verdict2, reason2 string
 	var apr2 *float64

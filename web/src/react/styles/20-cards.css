@@ -28,6 +28,80 @@
   }
 }
 
+/* —— 瓦片格（T-0261 业主令：驾驶舱整页 tile 化——auto-fit 自适应列铺，
+   列宽下限 340px，更窄自落单列；瓦片=Card 件禁裸 section 入格，
+   T-0263 状态面瓦片同格后插）—— */
+.tile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr));
+  gap: 20px;
+  align-items: start;
+}
+
+/* —— 瓦片定高滚动体（驾驶舱 v2 业主令：固定瓦片高度——页高不被行数撑；
+   无头状态面本地分页 10 行/页，页内滚动兜底。布局工具类，非新设计语言。
+   v3：横向滚动兜底（tile-table nowrap 长行不破卡）—— */
+.tile-scroll {
+  max-height: 380px;
+  overflow-y: auto;
+  overflow-x: auto;
+}
+
+/* —— 工作流管道（驾驶舱 v4 三卡合一：1 票 1 行管道流——走过显未到隐，
+   在干席 spinner、已移交席呼吸灯、行首行级灯。件语复用 dot/StateDot/
+   tile-scroll 同源，零新 CSS 语言；唯一新增在干 spinner 环+步链间距——） */
+.pipe-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 2px;
+  border-bottom: 1px solid color-mix(in srgb, var(--ink) 8%, transparent);
+  white-space: nowrap;
+}
+.pipe-row:last-child {
+  border-bottom: none;
+}
+.pipe-ticket {
+  font-weight: 600;
+}
+.pipe-title {
+  color: var(--ink-2, inherit);
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pipe-chain {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+}
+.pipe-arrow {
+  color: var(--ink-3, #8a8f98);
+}
+.pipe-seat {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.pipe-elapsed {
+  margin-left: auto;
+  color: var(--ink-3, #8a8f98);
+  font-variant-numeric: tabular-nums;
+}
+/* 在干席 spinner（⟳ 旋转环同珠径 8px——转速 1.1s 缓旋=在干不喧哗） */
+.dot.spin {
+  background: transparent;
+  border: 1.5px solid color-mix(in srgb, var(--good) 35%, transparent);
+  border-top-color: var(--good);
+  animation: seatspin 1.1s linear infinite;
+}
+@keyframes seatspin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* —— Liquid Glass 卡（T-0221 业主令：参照 macOS Tahoe 玻璃件重做——
    通透折射（blur+saturate+增亮，背景色雾过玻璃成形变感）+镜面高光边
    （顶部细亮线+左上射光）+内发光+双层投影分层出厚度；非磨砂雾面。
@@ -563,33 +637,35 @@ details.rep summary {
 }
 
 /* —— 双列同行（业主回单：报告+现金流 1 行 2 列——grid 强制并排，
-   窄屏回落单列；与 masonry 的列平衡语义不同：这里永远并排）—— */
+   窄屏回落单列；与 masonry 的列平衡语义不同：这里永远并排。
+   v3 解挤：瓦片间距 20→24px（驾驶舱v3 业主令——表格加 padding 后
+   瓦片内呼吸感同步放宽）—— */
 .duo {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 24px;
 }
 @media (min-width: 1000px) {
   .duo {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 20px;
+    gap: 24px;
     align-items: start;
   }
 }
 
 /* —— 面板 2 行 2 列（业主⑬）：行1 生产机|采集，行2 主机资源|席位；
-   ≥1100px 生效，窄屏回落单列堆叠 —— */
+   ≥1100px 生效，窄屏回落单列堆叠；v3 解挤间距 20→24px 同 .duo —— */
 .quad {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 24px;
 }
 @media (min-width: 1100px) {
   .quad {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 20px;
+    gap: 24px;
     align-items: start;
   }
 }

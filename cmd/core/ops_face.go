@@ -30,7 +30,7 @@ type compBeat struct {
 	fix               string // 黄/红处理建议
 }
 
-// healthComps 采集组件全集（14 件——足迹表+channel 谓词逐件钉死；增组件=增行）。
+// healthComps 采集组件全集（13 件——足迹表+channel 谓词逐件钉死；增组件=增行）。
 func healthComps() []compBeat {
 	return []compBeat{
 		{name: "okxws WS 行情", host: "oci", exch: "OKX", cat: "collect", fact: "md_mark_index mark-price|index-tickers", warn: 30 * time.Second, dead: 2 * time.Minute,
@@ -47,7 +47,7 @@ func healthComps() []compBeat {
 		{name: "蒸馏 basis_ann", host: "oci", exch: "蒸馏", cat: "collect", fact: "md_signal kind=basis_ann", warn: 10 * time.Minute, dead: 30 * time.Minute,
 			fix:       "查 OCI o-collecto sigdist 日志 basisAnn 段",
 			query:     `SELECT max(ts) FROM md_signal WHERE kind='basis_ann'`,
-			zeroState: 1, zeroNote: "零行——已知缺席（T-0164 立案另查，非采集死）"},
+			zeroState: 0, zeroNote: "零行——数据缺（已知缺席 T-0164 立案，非采集死——节拍内正例显正常态）"},
 		{name: "蒸馏 funding_view", host: "oci", exch: "蒸馏", cat: "collect", fact: "md_signal kind=funding_view", warn: 10 * time.Minute, dead: 30 * time.Minute,
 			fix: "查 OCI o-collecto sigdist 日志；上游 funding 断则随愈",
 			query: `SELECT CASE WHEN count(*) FILTER (WHERE (meta->>'next_funding_ts')::timestamptz > now()) > 0
@@ -74,9 +74,6 @@ func healthComps() []compBeat {
 		{name: "OKX 私有 WS", host: "sg", exch: "OKX", cat: "trade", fact: "md_account_events account|balance_and_position", warn: 30 * time.Second, dead: 2 * time.Minute,
 			fix:   "查 SG o-core 私流守日志（凭据/OKX WS 断连）",
 			query: `SELECT max(ts) FROM md_account_events WHERE channel IN ('account','balance_and_position')`},
-		{name: "dcd 枚举", host: "sg", exch: "OKX", cat: "collect", fact: "md_dcd_product", warn: 2 * time.Hour, dead: 12 * time.Hour,
-			fix:   "查 SG core dcd 枚举臂日志（低频臂——黄先观察一拍）",
-			query: `SELECT max(ts) FROM md_dcd_product`},
 		{name: "earn 现率采样", host: "sg", exch: "OKX", cat: "collect", fact: "md_earn_rate", warn: 2 * time.Hour, dead: 6 * time.Hour,
 			fix:   "查 SG core earn worker pollRate 段（OKX 公开读限流自愈）",
 			query: `SELECT max(ts) FROM md_earn_rate`},

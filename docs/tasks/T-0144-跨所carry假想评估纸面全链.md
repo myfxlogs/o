@@ -1,6 +1,48 @@
 # T-0144 跨所 carry 假想→评估→纸面全链（xvenue_carry 模板首立）
 
-## 态：✅ 验收毕投产（态字段欠翻——验收档 09124ce 在案，10-26清账）
+## 态：作废（superseded——11-01 清账定性·SETTLE-SWEEP）
+> 清账定性（`[角色:决策]` @ 2026-11-01，SETTLE-SWEEP/MANAGE-3551）：**作废**——superseded：xvenue-carry白名单+双腿paper件并master（2ecd0e8b/811ceedf），armed→open显性禁注记在案归T-0145
+## 审计席：headless @ 2026-10-30
+
+## 判决注记（无头审计逐锚对账——证据=收口链 2ecd0e8+c934134+811ceed/e2f34dd
+##   全量 diff + SG fin 库只读实拍 2026-10-30 + 现码 HEAD 复核；T-0124 审计
+##   注记 7e0759c 已独立记同款死径——非审计席孤证）
+
+- 锚①（ETH域负funding卡 或 rejected+净年化负值如实行——无机会如实也
+  是过）：**过**。生产 fin_opp_eval template='xvenue-carry' 实拍 3 行全
+  rejected 如实：BTC short_perp_long_cfd net_ann_economics 净−195.6bps
+  （10-26）、ETH 同径 −1188.9bps（10-30 续拍——ev_funding 事件臂仍活）、
+  BTC long_perp_short_cfd +433.3bps mt5_leg_capability_missing（能力闸
+  如实拒——「看见了做不了」显形）。「或」支成立。
+- 锚②（proposal→两腿策略行 venue各正/proposal_ref同引）：**未达——
+  驳回**。admitXvenuePair 机制在（主行 venue='okx'+副行 venue='mt5'
+  proposal_ref 同引，xvenuepair.go:48-67；TestXvenuePairAdmit 桩绿），
+  但 paperTemplates 白名单（run.go:110-112=funding-hedge/dcd_call/
+  vol_sell_*/quarter_basis_*/perp_quarter_spread 六件）自收口即不含
+  xvenue-carry——门闸 run.go:143 `!paperTemplates[x.tmpl]` 先于双腿
+  支路 :147 拦下，支路生产死径（收口 commit e2f34dd 与 HEAD 同形实核，
+  非后续回退）。生产 fin_strategy template='xvenue-carry' **零行**。
+  桩测直调内函绕闸——真链 proposal(fin_proposed)→scan→双腿行零覆盖，
+  「单测绿≠径可达」教科书案。
+- 锚③（评估 evidence 携四件分解）：**过**。生产 evidence 键实拍含
+  funding_ann_bps/swap_ann_bps/swap_long_ann_bps/spread_bps/
+  spread_amort_bps/slippage_buffer_bps/net_ann_bps/capacity_usd——
+  四件分解+容量/方向随行，与票面钦定相符。
+- 锚④（paper双腿撮合产 p_and_l 行+funding/swap 双账各入列）：**未达
+  ——驳回**。生产 fin_paper_fill×xvenue-carry 策略 **零行**、
+  swap_snapshot 全表零行——双腿策略行不生（锚②同根），撮合/fill
+  无从产。swap_snapshot/p_and_l 机制写在案但属死径内件。
+- 锚⑤（armed→open 闸对模板显式拒）：**过**。opener.go:81-86
+  xvenue-carry→xvenue_open_forbidden 拒计数+ALERT 日志钉死；拒因门
+  run.go:36 预注册挂载一致；TestXvenueOpenForbidden 断言拒计数+1/
+  stub Opener 零调用/零持仓行——钉死三证齐。
+- 重飞补（不代施工设计，仅指径）：①paperTemplates 登记 xvenue-carry
+  或拆死支路——取舍裁归决策/管理席（T-0124 审计注记同款建议另票）；
+  ②补链级桩测：fin_proposal 提案行→admitProposals→双腿策略行落，
+  让门闸与支路在真链上互证而非旁路直调。
+- 附：假想/评估/禁线面（锚①③⑤所涉链环）与收口 diff 相符无欺；
+  驳回严格限纸面撮合径死码，非全链否定。
+
 ## 领取：zcode-t0144（ZCode 施工席）@ 2026-10-26
 ## 域：发现链 / 假想模板 / 评估 / 纸面撮合
 ## 源出：T-0141+T-0143 信号面投产的消费件——carry_diff/xvenue_spread 有燃料无引擎

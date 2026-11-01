@@ -66,8 +66,8 @@ func TestUntradeableDisposition(t *testing.T) {
 		t.Fatal("策略夹具:", err)
 	}
 	var eid int64
-	if err := pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,verdict,legs,evidence)
-		VALUES('SHEIN-USDT-SWAP','funding-hedge','short_perp_long_spot','proposed','[]','{}') RETURNING id`).Scan(&eid); err != nil {
+	if err := pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,net_apr,verdict,legs,evidence)
+		VALUES('SHEIN-USDT-SWAP','funding-hedge','short_perp_long_spot',0.08,'proposed','[]','{}') RETURNING id`).Scan(&eid); err != nil {
 		t.Fatal("评估夹具:", err)
 	}
 	var pid int64
@@ -132,8 +132,8 @@ func TestLegBuildTerminalTriage(t *testing.T) {
 		t.Fatal("策略夹具:", err)
 	}
 	var eid int64
-	if err := pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,verdict,legs,evidence)
-		VALUES('SHEIN-USDT-SWAP','funding-hedge','short_perp_long_spot','proposed','[]','{}') RETURNING id`).Scan(&eid); err != nil {
+	if err := pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,net_apr,verdict,legs,evidence)
+		VALUES('SHEIN-USDT-SWAP','funding-hedge','short_perp_long_spot',0.08,'proposed','[]','{}') RETURNING id`).Scan(&eid); err != nil {
 		t.Fatal(err)
 	}
 	var pid int64
@@ -179,8 +179,8 @@ func TestRetroactiveScanTrigger(t *testing.T) {
 		t.Fatal(err)
 	}
 	var eid int64
-	pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,verdict,legs,evidence)
-		VALUES('CSOPSKHYNIX2L-USDT-SWAP','funding-hedge','short_perp_long_spot','proposed','[]','{}') RETURNING id`).Scan(&eid)
+	pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,net_apr,verdict,legs,evidence)
+		VALUES('CSOPSKHYNIX2L-USDT-SWAP','funding-hedge','short_perp_long_spot',0.08,'proposed','[]','{}') RETURNING id`).Scan(&eid)
 	var pid int64
 	if err := pool.QueryRow(ctx, `INSERT INTO fin_proposal(eval_id,inst_id,direction,state,net_apr)
 		VALUES($1,'CSOPSKHYNIX2L-USDT-SWAP','short_perp_long_spot','fin_armed',0) RETURNING id`, eid).Scan(&pid); err != nil {

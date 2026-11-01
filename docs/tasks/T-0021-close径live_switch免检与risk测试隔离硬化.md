@@ -8,6 +8,10 @@
 | 依赖 | T-0015✅ |
 | 领取 | devin-t0002 @ 2026-10-23 |
 
+审计席：headless @ 2026-10-30
+
+终态核销：决策席 @ 2026-10-30——判词「审计通过」在案（证据：~/audit-sweep-20261029-harvest.log 行17）；簿记翻终态=完成。
+
 ## 缺口一：live_switch 拦平仓=存风险（钱径级，先修）
 
 T-0014 实现的 `Execute` 对 `invest.lifecycle.live_switch` 一律 fail-closed——close intent 同走此闸意味着**委员会关闸时有仓退不掉**，与「拦平仓=存风险」原则（kill_switch 不拦 close 同款逻辑）相抵。

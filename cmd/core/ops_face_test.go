@@ -43,8 +43,8 @@ func TestSystemHealthStates(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(r.Components) != 18 { // T-0171 撤 spotpoll REST 两面 16→14；T-0218 评估与队列四行 14→18
-		t.Fatalf("组件全集应 18 件: %d", len(r.Components))
+	if len(r.Components) != 17 { // T-0171 撤 spotpoll REST 两面 16→14；T-0218 评估与队列四行 14→18；T-0276 dcd 枚举退役行删 18→17
+		t.Fatalf("组件全集应 17 件: %d", len(r.Components))
 	}
 	byName := map[string]*dashboardv1.SystemComponent{}
 	for _, comp := range r.Components {
@@ -62,8 +62,9 @@ func TestSystemHealthStates(t *testing.T) {
 	if got := byName["MT5 利润流"]; got.State != 0 || got.Note == "" {
 		t.Fatalf("order_profit 零行=空仓语义应绿+注: %+v", got)
 	}
-	if got := byName["蒸馏 basis_ann"]; got.State != 1 || got.Note == "" {
-		t.Fatalf("basis_ann 零行=已知缺席应黄+注: %+v", got)
+	// T-0241 三律移锚：已知缺席=数据缺降级态非警——节拍内正例显正常（绿+缺注）
+	if got := byName["蒸馏 basis_ann"]; got.State != 0 || got.Note == "" {
+		t.Fatalf("basis_ann 零行=已知缺席应绿+数据缺注: %+v", got)
 	}
 }
 
@@ -204,9 +205,13 @@ func TestEvalQueueRows(t *testing.T) {
 	// eval：1 proposed + 1 rejected + 7 unevaluable = 7/9≈77.8%>75%→红
 	for i, v := range []string{"proposed", "rejected", "unevaluable", "unevaluable",
 		"unevaluable", "unevaluable", "unevaluable", "unevaluable", "unevaluable"} {
-		if _, err := c.pool.Exec(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,verdict,legs,evidence)
-			VALUES ($1,'funding-hedge','short_perp_long_spot',$2,'[]','{"reason":"product_rows_missing"}')`,
-			fmt.Sprintf("T%d-USDT-SWAP", i), v); err != nil {
+		apr := any(nil) // T-0205 fin_0094 行级闸：proposed 行 net_apr 列 NOT NULL
+		if v == "proposed" {
+			apr = 0.08
+		}
+		if _, err := c.pool.Exec(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,net_apr,verdict,legs,evidence)
+			VALUES ($1,'funding-hedge','short_perp_long_spot',$3,$2,'[]','{"reason":"product_rows_missing"}')`,
+			fmt.Sprintf("T%d-USDT-SWAP", i), v, apr); err != nil {
 			t.Fatal(err)
 		}
 	}

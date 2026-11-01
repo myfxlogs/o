@@ -1,6 +1,7 @@
 # T-0089 PHASE→o 全切换
 
-| 字段 | 值 | |---|---| | 状态 | 完成 | | 领取 | devin-t0089 @ 2026-10-25 |
+| 字段 | 值 | |---|---| | 状态 | 完成（判过并码在案，11-01清账翻面） | | 领取 | devin-t0089 @ 2026-10-25 |
+审计席：headless @ 2026-10-31
 > 业主令：项目更名 PHASE→o（域名 o.myfxlogs.org 对齐）。一票原子切，禁半改态。
 
 ## 三层命名律
@@ -38,3 +39,12 @@
 - 偏离/留尾：①docs/tasks·decisions·经验库·skills·总纲·公司架构·migrations=档案/禁改面未动（票面注明的 archive 口径）；②README 命名源流正文按机械律全改 O（候选谱叙事变今名语境）+铭文 `ex phase-differentia`→`ex o-differentia`——铭文与名绑定应否另定新铭，留业主/决策裁；③`fin_holding.inherited_from` CHECK 值 'phase'=历史出处标记非身份名，未动；④/opt/o 部署树 master 检出待本票合并后 `git pull` 对齐（SG=rsync 面已是新码）；⑤旧卷 phase_phase-pgdata* 双端留冷备未删。
 - 停机窗：双端 core 停机≈2–4min（卷拷贝段），秒级 DSN 切换。
 - 测试证据：go build/vet/test 49 包 PASS；vite build✓；机检锚 grep go/yml/toml/Dockerfile=0；双端 `pg_isready -U o -d o`+API 200 亲证。
+
+## 审计注记（headless 逐锚对账 @ 2026-10-31，收口链 71ce0b25→9a9d0042）
+
+- 锚①grep=0：收口 commit 9a9d0042 上 `git grep "phase\|PHASE" -- '*.go' '*.yml' '*.toml' 'Dockerfile'`=0 命中 ✓。HEAD 现存 3 处 `phase` 均为后票新增：`tools/hlprobe/main.go`+`internal/gen/dashboardv1/core.pb.go`（T-0263 aee519bc 引入的席「相位」域词，非项目名残留）+未跟踪异树 `kb-tailscale/`（git status `??`，不在仓档）。非本票责任面。
+- 锚②镜像/容器/DB：`docker images` 实见 `o-core:latest`+9 SHA tag；`o-postgres` Running healthy、`o-postgres-test{,-b..e}` 在跑；`o-core` 容器在册（`o-core:latest` 镜像、env `DB_DSN=postgres://o:o@o-postgres:5432/o`），10-29 实跑日志含新名进程业务行——切换运行态实证。库列表现存仅 `o`、无 `phase` 库（`docker exec o-postgres \l` 实查）。审计时点 `o-core` 呈 Exited(0)（26h 前净退）——本机运行面后票时漂，非更名未生效。
+- 锚③员工行/面客：`fin_employee_registry` 实查 `o-core` active 在册、`%phase%` 行=0；`[O告警]` 在码 `internal/platform/notify/alert.go:87`、页面 `<title>O — 经营面</title>`。`/api/overview` 200 审计时点无现状可复跑（o-core 停、禁起停取证径）——收口回填双端 200 与容器新名运行残留互证。
+- 锚④worktree：本机 `git worktree list` 275 条在册；3 条 prunable（`/tmp/o-master-dd5f05b`、`/tmp/t0216-deploy`、`/tmp/t87master`）stat 创建时刻均 2026-10-31 00:39——后于本票收口 6 天，清扫器具新痕，非 repair 失联。
+- 结构核对：`go.mod`=`module o`；proto `go_package="o/internal/gen/dashboardv1"`；compose 容器名/卷名 o-*、卷显式 `name: o-pgdata{,-test}`；`deploy_image.sh` o-core tag+SG `/opt/o` 径；origin=`git@github.com:myfxlogs/o.git`；import 方向闸 `sed` 锚定根修为正当修法。
+- 注记：回填留尾①~⑤披露属实（档案面未动合票面 archive 口径；README 铭文留裁明示）。

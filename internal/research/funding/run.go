@@ -22,7 +22,7 @@ const (
 )
 
 var paramKeys = []string{
-	"research.funding.taker_fee_bps", "research.funding.slippage_bps",
+	"research.funding.taker_fee_bps", "research.funding.maker_fee_bps", "research.funding.slippage_bps",
 	"research.funding.fail_cost_bps", "research.funding.window_loss_bps",
 	"research.funding.min_net_apr", "research.funding.settles_per_day",
 }
@@ -79,19 +79,22 @@ func (r *Runner) params() (Params, error) {
 	if p.TakerFeeBps, err = get(paramKeys[0]); err != nil {
 		return p, fmt.Errorf("%s: %w", paramKeys[0], err)
 	}
-	if p.SlippageBps, err = get(paramKeys[1]); err != nil {
+	if v, e := get(paramKeys[1]); e == nil {
+		p.MakerFeeBps, p.MakerFeeSet = v, true // T-0247 分层：在册含 0/负按真值
+	}
+	if p.SlippageBps, err = get(paramKeys[2]); err != nil {
 		return p, fmt.Errorf("%s: %w", paramKeys[1], err)
 	}
-	if p.FailCostBps, err = get(paramKeys[2]); err != nil {
-		return p, fmt.Errorf("%s: %w", paramKeys[2], err)
-	}
-	if p.WindowLossBps, err = get(paramKeys[3]); err != nil {
+	if p.FailCostBps, err = get(paramKeys[3]); err != nil {
 		return p, fmt.Errorf("%s: %w", paramKeys[3], err)
 	}
-	if p.MinNetAPR, err = get(paramKeys[4]); err != nil {
+	if p.WindowLossBps, err = get(paramKeys[4]); err != nil {
 		return p, fmt.Errorf("%s: %w", paramKeys[4], err)
 	}
-	if p.SettlesPerDay, err = get(paramKeys[5]); err != nil {
+	if p.MinNetAPR, err = get(paramKeys[5]); err != nil {
+		return p, fmt.Errorf("%s: %w", paramKeys[6], err)
+	}
+	if p.SettlesPerDay, err = get(paramKeys[6]); err != nil {
 		return p, fmt.Errorf("%s: %w", paramKeys[5], err)
 	}
 	return p, nil
@@ -102,6 +105,15 @@ func (r *Runner) params() (Params, error) {
 // 写面整体单事务落卡——同事务空 payload NOTIFY 同值天然去重=全拍至多一醒
 // （旧逐行 autocommit 每行一醒=ev_eval 洪泛根，配合 0064 实质变触发器双治）。
 func (r *Runner) scan(ctx context.Context) error {
+	// T-0244 期界包络（dcd 同型——无界长扫挂死径封；funding.scan_timeout_s 热启缺=480s）
+	to := 8 * time.Minute
+	if v, err := r.cfg.GetFloat("funding.scan_timeout_s"); err == nil && v > 0 {
+		to = time.Duration(v) * time.Second
+	}
+	sctx, cancel := context.WithTimeout(ctx, to)
+	defer cancel()
+	ctx = sctx
+
 	r.watch.SetBeat(freshnessMax)
 	r.watch.Check(ctx) // 臂静默判定（T-0117——beat=funding 新鲜度窗 25h）
 	p, err := r.params()
@@ -117,6 +129,7 @@ func (r *Runner) scan(ctx context.Context) error {
 		r.rej.Inc("earn_rate_degraded") // 降级不阻断：退回静态底+告警计数（D-0006）
 	}
 	p.EarnRateAPR = earnAPR
+	macro := r.nearestMacro(ctx) // T-0029：产径注解源——一拍一查全拍复用
 	rows, err := r.pool.Query(ctx, `SELECT DISTINCT ON (inst_id) inst_id, funding_rate, ts
 		FROM md_funding ORDER BY inst_id, ts DESC`)
 	if err != nil {
@@ -136,6 +149,7 @@ func (r *Runner) scan(ctx context.Context) error {
 			continue // 陈数据不评估（快照禁令——陈行非现值）
 		}
 		e := Evaluate(instID, rate, p)
+		applyMacro(&e, macro) // 近窗事件→evidence.macro（纯注解层）
 		if e.Verdict == "rejected" && rate < 0 {
 			r.rej.Inc("neg_funding_infeasible")
 		}
@@ -185,12 +199,18 @@ func (r *Runner) earnRateAPR(ctx context.Context) (*float64, bool, error) {
 // ScanOnce 单拍壳（工具/实证件消费——scan 本体私有语义不变）。
 func (r *Runner) ScanOnce(ctx context.Context) error { return r.scan(ctx) }
 
-// annotateMacro 高冲击日历注解（T-0029）：查 event_date−today ≤ horizon_days
-// 最近事件→evidence.macro（kind+date+days_out）；缺键/无事件=fail-open 不注解。
-func (r *Runner) annotateMacro(ctx context.Context, e *Eval) {
+// macroEvt 近窗高冲击事件（评估卡 evidence.macro 注解源——T-0029）。
+type macroEvt struct {
+	kind, title string
+	date        time.Time
+}
+
+// nearestMacro 一拍一查（scan 单查全拍复用——逐卡零重查）：缺键/horizon=0/
+// 无近窗事件=nil（fail-open 不注解——此面非闸，0=关闸语义）。
+func (r *Runner) nearestMacro(ctx context.Context) *macroEvt {
 	h, err := r.cfg.GetFloat("research.macro.horizon_days")
 	if err != nil || h <= 0 {
-		return // 缺键/horizon=0 fail-open——此面非闸不注解（0=关闸语义）
+		return nil
 	}
 	var kind, title string
 	var d time.Time
@@ -198,10 +218,22 @@ func (r *Runner) annotateMacro(ctx context.Context, e *Eval) {
 		WHERE event_date BETWEEN current_date AND current_date+$1::int
 		ORDER BY event_date LIMIT 1`, int(h)).Scan(&kind, &title, &d)
 	if err != nil {
-		return // 无近窗事件=不注解（缺省正常）
+		return nil // 无近窗事件=不注解（缺省正常）
+	}
+	return &macroEvt{kind: kind, title: title, date: d}
+}
+
+// applyMacro 评估卡注解（evidence.macro=kind+title+date+days_out）——纯
+// evidence 层，net_apr 判据零触（T-0029 验收：同输入下 verdict 不变）。
+func applyMacro(e *Eval, m *macroEvt) {
+	if m == nil {
+		return
+	}
+	if e.Evidence == nil {
+		e.Evidence = map[string]any{}
 	}
 	e.Evidence["macro"] = map[string]any{
-		"kind": kind, "title": title, "date": d.Format("2006-01-02"),
-		"days_out": int(time.Until(d).Hours() / 24),
+		"kind": m.kind, "title": m.title, "date": m.date.Format("2006-01-02"),
+		"days_out": int(time.Until(m.date).Hours() / 24),
 	}
 }

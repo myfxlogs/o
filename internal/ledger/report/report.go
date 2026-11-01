@@ -49,19 +49,33 @@ func Gen(ctx context.Context, pool *pgxpool.Pool, period string, b Bounds) error
 	if net == 0 && opened == 0 && closed == 0 {
 		note = "本期无开平/零现金流（缺席≠静默——如实出行）"
 	}
-	if period == "monthly" {
-		var base float64
+	// T-0252：weekly 年化折算补齐——基数口径同 monthly 单源（lifetime fin_cashflow
+	// kind=deposit 累计），同式换系数（×12→×52）；daily 不补（日年化无经济义——裁定注记）。
+	var base, ann float64
+	if period == "weekly" || period == "monthly" {
 		q(`SELECT COALESCE(sum(amount),0) FROM fin_cashflow WHERE kind='deposit'`, &base)
-		ann := 0.0
+		mult := 12.0
+		if period == "weekly" {
+			mult = 52
+		}
 		if base > 0 {
-			ann = net / base * 12
+			ann = net / base * mult
 		}
 		m["annualized"] = ann
 		m["capital_base"] = base
+	}
+	if period == "monthly" {
 		var retired int
 		q1(`SELECT count(*) FROM fin_strategy_transition WHERE to_state='retired' AND ts>=$1 AND ts<$2`, &retired, b.Start, b.End)
 		m["retired"] = retired
 		note = fmt.Sprintf("月净=%.4f 年化=%.4f（基数 %.0f）——赚亏/因/步三行交卷", net, ann, base)
+	}
+	// T-0029 交付物3：weekly/monthly metrics 加期内宏观事件计数（注解面
+	// 顺手件——纯计数零判据触；daily 不补同周理由）。
+	if period == "weekly" || period == "monthly" {
+		var mev int
+		q1(`SELECT count(*) FROM md_macro_event WHERE event_date>=$1 AND event_date<$2`, &mev, b.Start, b.End)
+		m["macro_events"] = mev
 	}
 	m["net"] = net
 	m["cum_nav"] = cumNav

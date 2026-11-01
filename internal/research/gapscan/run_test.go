@@ -71,9 +71,12 @@ func TestGapScanClassifyGenerate(t *testing.T) {
 			t.Fatalf("元数据缺 %s: %s", frag, meta)
 		}
 	}
+	// T-0205 重飞：面元数据无 APR 估计——判词=unevaluable+apr_est_missing
+	// （禁 NULL 落 proposed——fin_0094 行级闸同维）；候选提案径不变。
 	if n := count(t, ctx, r, `SELECT count(*) FROM fin_opp_eval
-		WHERE inst_id='okx/earn-flex' AND direction='gap_carry' AND verdict='proposed'`); n != 1 {
-		t.Fatalf("面候选评估应 1: %d", n)
+		WHERE inst_id='okx/earn-flex' AND direction='gap_carry' AND verdict='unevaluable'
+		AND evidence->>'reason'='apr_est_missing' AND net_apr IS NULL`); n != 1 {
+		t.Fatalf("面候选评估应 1（unevaluable+apr_est_missing 如实缺席态）: %d", n)
 	}
 	if n := count(t, ctx, r, `SELECT count(*) FROM fin_proposal
 		WHERE inst_id='okx/earn-flex' AND direction='gap_carry' AND state='fin_proposed'`); n != 1 {
@@ -192,8 +195,8 @@ func TestGapGenCap(t *testing.T) {
 	})
 	// 预置一个在途 gap_carry 候选（占满上限）。
 	var eid int64
-	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,verdict,legs,evidence)
-		VALUES('okx/pre','surface-gap','gap_carry','proposed','{}','{"provenance":"surface_gap"}') RETURNING id`).Scan(&eid); err != nil {
+	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,net_apr,verdict,legs,evidence)
+		VALUES('okx/pre','surface-gap','gap_carry',0.08,'proposed','{}','{"provenance":"surface_gap"}') RETURNING id`).Scan(&eid); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := r.pool.Exec(ctx, `INSERT INTO fin_proposal(eval_id,inst_id,direction,net_apr)

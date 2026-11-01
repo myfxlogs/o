@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | 完成 |
+| 状态 | 完成（判过并码在案，11-01清账翻面） |
 | 立项 | `[角色:决策]` @ 2026-10-25（ledger_diff_alert $0.57 取证归因） |
 | 优先级 | 高（对账差持续鸣叫；每轮现货开仓虚记 ~0.24% 支出） |
 | 分诊 | 真问题——记账口径病非资金病（venue 比账本**多** $0.57） |
@@ -80,3 +80,41 @@ ETH 估值 −0.054（基准币扣费量差+价源）/USDT 折价 −0.010 可�
 **现金余差 +$0.15 未证**——假说=Earn 利息入账径（earnings 字段按小时
 采样 vs 余额连续累计）。证实法：24h 无划转窗 Σ`interest` 行 vs Earn 余额
 净增。**巡票到 2026-10-27 必做**；差不落该径=立票根查，禁以容差 $0.50 盖。
+
+审计席：headless @ 2026-10-31
+
+### 判决注记（逐锚对账，收口 commit f99a0060）
+
+- **锚1 桩测 quote 买腿 fill 24.0999/委托 24.1572 → cashflow −24.0999**：
+  过。收口 commit 新增 `TestLegGrossQuoteBuyFillAmt`——
+  `r.legGross(leg,100,0.240999)` 断 ~24.0999（fillSz×px 成交额径），
+  `r.legGross(leg,100,0)` 断退 24.1572 且 `execution/gross_fallback` 计 1；
+  审计席 HEAD 独立复跑该测绿。调用链 `legCash` 内 `sign*r.legGross(...)`
+  （buy sign=−1 → −24.0999）与锚口径合；`gross_fallback` 已入
+  execute.go `rejects.New` 预注册键集（D-652-A 门键规符）。
+- **锚2 部署后一轮真仓（或 paper 回放）bills sub2 balChg == 账本
+  spot_buy**：过（等价实态证链）。SG 实查：部署后无现货买腿发生——
+  `fin_order_leg` id≥102 均为对冲卖腿/SWAP 腿，`fin_paper_fill` 无回放
+  行。实态证：①venue 订单 ph53x2x483171 详情 accFillSz=0.00029952×
+  avgPx=80460.9=24.0996 与 bills 实扣 24.099648 逐位吻——公式对 venue
+  真值中；②同一 `legCash` 新签名径部署后由卖腿 105 实测行使
+  （spot_sell +23.5286 落账对平），FillSz 实参 plumbing 已在产验证；
+  ③现态 SG Σcashflow（除 earn_in/out）=4134.52=venue 快照面，全谱
+  对账容差内。且成交额读不到径=fallback 退委托额+rej 显形计数，
+  买支未获实盘行使的残余风险由门键托底可见——fail-safe 成立。
+- **锚3 SG `ALERT [ledger]` 停鸣 ≥1h（容差内）**：过。SG 库实查
+  `recon_adjust +0.484904 source_ref=116`（2026-10-25 12:15Z）在案。
+  锚外实态注记：10-30 14:36–15:06Z 该告警复鸣约 30 分钟
+  （venue=4134.0894 vs ledger=14134.4715）——实查系 $10000 充提对
+  （deposit +10000 @05:47Z、withdraw −10000 @14:36Z bill 时刻，withdraw
+  行 ~15:06 方 ingest 落账）之入账时滞假象，非本票 spot_buy 口径因果；
+  15:06:24 后静默至今 ≥1h，现态差 |4134.52−4134.09|≈$0.43 容差内。
+  该时滞面疑属 bills ingest 延迟域，报管理席知悉是否另立案。
+- **锚4 billsaudit `-days 2` 表头与行数一致**：过。diff 实证 ts 窗过滤
+  由分桶聚合后前移至聚合前（`cut`+`all=filt` 块上移），表头 `len(all)`
+  与桶行同集——「N 天窗表头实为全窗统计」假数病灶根除；HEAD 态同件
+  复验一致（全件 126 行≤300 门禁）。
+- **码面杂项**：flow.go 收口态 286 行≤300 门禁；`legGross` 由包函数升
+  Runner 方法件以承 rej 计数，filled/rollback 两调用点均携 FillSz 透传；
+  回滚 rev 卖腿仍走名义锚分支未动（quote 额不当 base 量）；未见死码/
+  TODO/调试残渣；`_ =` 吞错零新增（legCash 内 err→rej.write_err 显形）。

@@ -40,9 +40,9 @@ export function ErrorState(props: { msg: string; onRetry: () => void }) {
   );
 }
 
-// StateDot 三态点（0绿/1黄/2红——语义在旁注文字，色点不带字面）。
+// StateDot 态点（0绿/1黄/2红/3灰——语义在旁注文字，色点不带字面）。
 export function StateDot(props: { state: number; title?: string; breathe?: boolean }) {
-  const cls = props.state === 0 ? "s0" : props.state === 1 ? "s1" : "s2";
+  const cls = props.state === 0 ? "s0" : props.state === 1 ? "s1" : props.state === 3 ? "s3" : "s2";
   return (
     <span
       className={"dot " + cls + (props.breathe ? " breathe" : "")}

@@ -46,10 +46,10 @@ CREATE OR REPLACE TRIGGER ev_account_trg AFTER INSERT ON md_account_events
 4. 触发器在位/定义对拍清单留票面（非 ev_ 族无缺席实证）。
 
 ## 状态
+> 清账定性（`[角色:决策]` @ 2026-11-01，SETTLE-SWEEP/MANAGE-3551）：**完成**——审计通过落票在案（7fead027），漏网翻面
 
-- [x] 立单
-- [x] 施工
-- [x] 验收投产
+完成（判过并码在案，11-01 清账翻面·SETTLE-SWEEP）
+审计席：headless @ 2026-10-30
 
 ## 结果回填（SG 实拍+迁移同落）
 
@@ -76,3 +76,54 @@ CREATE OR REPLACE TRIGGER ev_account_trg AFTER INSERT ON md_account_events
 5. ✅ 19 件触发器普查留票面（施工回填在案）。
 
 销号投产。
+
+## 判决注记（无头审计逐锚对账——证据=收口 commit 66f9182 全量 diff
+##   + SG o-postgres 只读实拍 + Overview RPC/LISTEN 亲测 @ 2026-10-30 12:47~13:23Z）
+
+- **锚①（SG pg_trigger 见 ev_account_trg 在位）——过**：审计席
+  独立实拍 SG `o` 库——`ev_account_trg` ON `md_account_events`
+  在位且 tgenabled='O'（启用态非摆设）；pg_get_triggerdef=
+  `CREATE TRIGGER ev_account_trg AFTER INSERT ON public.md_account_events
+  FOR EACH STATEMENT EXECUTE FUNCTION ev_notify('ev_account')`，
+  与 fin_0028:16 原本逐字同形。产物三证：migrations/
+  fin_0077_ev_account_trg_restore.sql 在 master 实存（内容=钦定
+  修法字面+注释头）+ migrate_table.go {77,fin_0077…} 登记 +
+  schema_migrations version=77 applied 2026-10-27 10:49:41Z。
+- **锚②（私有帧 INSERT→ledger scan 被唤醒）——过**：审计席亲测
+  LISTEN ev_account 420s 窗（13:16~13:23Z）收自然帧 NOTIFY ~80 发，
+  来自 5 个写者 PID——私有帧 upsert 语句实发通知，非纸面在位。
+  下游三重活证：earn_interest 事件行→interest cashflow 两拍同毫
+  （12:06:03.535→.538、13:08:00.794→.797=scan 内 postInterest
+  写入）；account upsert 13:00:40→restOKAt 13:00:55（醒→对账→
+  REST 实调回环）；码面对拍 ledger ListenLoop 纯 NOTIFY 驱动零
+  轮询（internal/platform/events/events.go:110-150），订阅面
+  =ev_cashflow/ev_account/ev_position（ledger/run.go:72-73），
+  holding/sync.go:46 同订 ev_account——断肋复接且有消费端。
+  （审计过程注记：前两窗以 `psql -c "a;b"` 同隐式事务跑致
+  LISTEN 提交方生效=自聋窗，依法改用 stdin 分行即收证——
+  取证法错非链断，如实存案。）
+- **锚③（System 页 REST 由红/黄复绿并稳定）——过**：CoreService/
+  Overview 三样本跨 ~13min 复采（12:48/12:50/13:00Z）——okx
+  REST 通道 state=0 绿且 lastTs 逐样本秒级推进（12:48:15Z→
+  12:50:15Z→13:00:55Z=对拍环每拍实调成功续戳，非僵拍）；
+  同面公开 WS/私有 WS/MT5 户全绿。ops_event 48h 零 REST 死警、
+  o-core 24h 日志零「已死」——稳绿不 flap。
+- **锚④（在位/定义对拍清单留票面+非 ev_ 族零缺席）——过**：票面
+  『结果回填』段普查清单在案。审计席独立复拍：SG `o` 库 public
+  非内触发器现 24 件，逐件回映迁移定义——全部由已应用 fin 链
+  （schema_migrations 1-90 连续在册）定义或同族回填件覆盖，零
+  无源件；非 ev_ 族（app_config/app_secrets/active_set/class_stamp/
+  dedupe/untradeable/arch_eval_reject/ops_*）全在册零缺。重建四表
+  （fin_0049）索引面实核：md_account_events/md_ticks/md_mark_index
+  PK 各 1+md_dcd_product PK+uly 索引 2 件，与迁移定义符。
+- **对拍口径注记（如实存案，不构驳回）**：迁移定义集有而 SG 缺席
+  者全为 md_1xxx 链独有件（arch_eval_trg/arch_signal_trg/ev_dcd_trg/
+  ev_markidx_trg/ev_proposal_md_trg/ev_signal_trg）——schema_migrations
+  ≥1000 零行=md 链从未在 SG fin 库落号（md_* 表系 fin_0049 等
+  fin 链镜建），缺席属链界正常非漏件；ev_funding/ev_fwdchk/
+  ev_gap 三件在位仅 md_1028/1045 定义，md_1028 注释自钉
+  「SG 侧历史同在」=分链前历史件幸存。
+- **禁线核查——未违**：收口 diff 三件=迁移 SQL+登记表+票面回填，
+  零触 venue/钱径/部署面；CREATE OR REPLACE 幂等形在钦定修法
+  字面内。同族第二 casualty ev_ticks_trg 已由姊妹票 fin_0078
+  回填在册（T-0194 链）。

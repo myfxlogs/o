@@ -111,8 +111,8 @@ func TestReportCounts(t *testing.T) {
 	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,verdict,legs,evidence)
-		VALUES('RC-USDT-SWAP','funding-hedge','short_perp_long_spot','proposed','{}','{}'),('RC2-USDT-SWAP','funding-hedge','short_perp_long_spot','rejected','{}','{}')`); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,net_apr,verdict,legs,evidence)
+		VALUES('RC-USDT-SWAP','funding-hedge','short_perp_long_spot',0.08,'proposed','{}','{}'),('RC2-USDT-SWAP','funding-hedge','short_perp_long_spot',NULL,'rejected','{}','{}')`); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `INSERT INTO fin_execution(intent,venue,inst_id,state) VALUES('{}','okx','RC-USDT-SWAP','done')`); err == nil {
@@ -131,5 +131,108 @@ func TestReportCounts(t *testing.T) {
 	}
 	if p < 1 || r < 1 {
 		t.Fatalf("指标恒 0 返修未愈: proposed=%v rejected=%v", p, r)
+	}
+}
+
+// T-0252 weekly 年化折算锚：周净/资本基数×52——fixture 行验式非摆拍
+// （基数口径同 monthly=lifetime deposit 累计单源）；daily 无年化键（裁定注记）。
+func TestWeeklyAnnualized(t *testing.T) {
+	pool := testutil.Pool(t)
+	ctx := context.Background()
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatal(err)
+	}
+	_, _ = pool.Exec(ctx, "DELETE FROM fin_cashflow")
+	_, _ = pool.Exec(ctx, "DELETE FROM fin_report")
+	defer func() { _, _ = pool.Exec(ctx, "DELETE FROM fin_cashflow") }()
+	now := time.Now()
+	rows := []struct {
+		kind, class string
+		amt         float64
+	}{
+		{"deposit", "transfer", 1000}, {"deposit", "transfer", 500},
+		{"funding_settle", "income", 10}, {"funding_settle", "income", 5},
+	}
+	for i, r := range rows {
+		if _, err := pool.Exec(ctx, `INSERT INTO fin_cashflow(kind,venue,ccy,amount,source_ref,source_table,class,occurred_at)
+			VALUES($1,'okx','USDT',$2,0,'test',$3,$4)`, r.kind, r.amt, r.class, now.Add(-time.Duration(10-i)*time.Minute)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := Gen(ctx, pool, "weekly", BoundsOf("weekly", now)); err != nil {
+		t.Fatal(err)
+	}
+	var ann, base float64
+	if err := pool.QueryRow(ctx, `SELECT (metrics->>'annualized')::float8,(metrics->>'capital_base')::float8
+		FROM fin_report WHERE period='weekly'`).Scan(&ann, &base); err != nil {
+		t.Fatalf("weekly annualized/capital_base 键缺席: %v", err)
+	}
+	if base != 1500 || ann != 15.0/1500*52 {
+		t.Fatalf("weekly 算式漂移: base=%v ann=%v（期望 1500 / %v）", base, ann, 15.0/1500*52)
+	}
+	if err := Gen(ctx, pool, "monthly", BoundsOf("monthly", now)); err != nil {
+		t.Fatal(err)
+	}
+	var mann float64
+	if err := pool.QueryRow(ctx, `SELECT (metrics->>'annualized')::float8 FROM fin_report WHERE period='monthly'`).Scan(&mann); err != nil {
+		t.Fatal(err)
+	}
+	if mann != 15.0/1500*12 {
+		t.Fatalf("monthly ×12 漂移: %v", mann)
+	}
+	// daily 不补裁定锚：无 annualized 键
+	if err := Gen(ctx, pool, "daily", BoundsOf("daily", now)); err != nil {
+		t.Fatal(err)
+	}
+	var has bool
+	if err := pool.QueryRow(ctx, `SELECT metrics ? 'annualized' FROM fin_report WHERE period='daily'`).Scan(&has); err != nil || has {
+		t.Fatalf("daily 不应有 annualized 键: %v", has)
+	}
+}
+
+// T-0029 交付物3锚：weekly/monthly metrics.macro_events=期内 md_macro_event
+// 事件计数（fixture 验数非摆拍）；daily 无键。
+func TestReportMacroEventsCount(t *testing.T) {
+	pool := testutil.Pool(t)
+	ctx := context.Background()
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatal(err)
+	}
+	_, _ = pool.Exec(ctx, "DELETE FROM fin_cashflow")
+	_, _ = pool.Exec(ctx, "DELETE FROM fin_report")
+	_, _ = pool.Exec(ctx, "DELETE FROM md_macro_event")
+	defer func() {
+		_, _ = pool.Exec(ctx, "DELETE FROM fin_cashflow")
+		_, _ = pool.Exec(ctx, "DELETE FROM md_macro_event")
+	}()
+	now := time.Now()
+	// weekly 期内两事件+期外一事件（边界验证）
+	b := BoundsOf("weekly", now)
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO md_macro_event(event_date,kind,title) VALUES ($1,'fomc','in-week-1'),($2,'cpi','in-week-2')`, b.Start, b.Start.AddDate(0, 0, 1)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO md_macro_event(event_date,kind,title) VALUES ($1,'nfp','out-of-week')`, b.Start.AddDate(0, 0, -14)); err != nil {
+		t.Fatal(err)
+	}
+	if err := Gen(ctx, pool, "weekly", b); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	if err := pool.QueryRow(ctx,
+		`SELECT (metrics->>'macro_events')::int FROM fin_report WHERE period='weekly'`).Scan(&n); err != nil {
+		t.Fatalf("weekly macro_events 键缺席: %v", err)
+	}
+	if n != 2 {
+		t.Fatalf("weekly macro_events=%d（期望 2——期外事件不计）", n)
+	}
+	// daily 无键
+	if err := Gen(ctx, pool, "daily", BoundsOf("daily", now)); err != nil {
+		t.Fatal(err)
+	}
+	var has bool
+	if err := pool.QueryRow(ctx, `SELECT metrics ? 'macro_events' FROM fin_report WHERE period='daily'`).Scan(&has); err != nil || has {
+		t.Fatalf("daily 不应有 macro_events 键: %v", has)
 	}
 }

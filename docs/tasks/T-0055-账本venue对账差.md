@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | 完成 |
+| 状态 | 完成（判过并码在案，11-01清账翻面） |
 | 立项 | `[角色:决策]` @ 2026-10-26（T-0050 移交项③：recon 告警每帧洪刷 venue 2133.6 vs ledger 2129.0） |
 | 领取 | zcode-glm @ 2026-10-26（worktree /opt/phase-wt/t0055，支 t/0055-recon-gap） |
 | 优先级 | 中 |
@@ -35,3 +35,19 @@ SG 生产 recon 对账持续告警：venue 权益 2133.6 vs 账本 2129.0，缺�
 **测试锚**：TestPostInterest（bootstrap 零入账/应计不足半分不落/delta 落账 source 断言）+TestInterestKindsInClosedSet PASS；全树 build/vet/test/lines 绿。
 
 **校准执行（部署后必做——移交决策席随 T-0054 部署）**：CAL_DRY=1 先看数→落行→recon 静默判据 |差|<容差。
+
+审计席：headless @ 2026-10-30
+
+## 审计判决
+
+逐锚实态对账（收口 4be5938 全量 diff 亲读+SG 生产库/容器日志只读实测+测试锚本地复跑）：
+
+- **锚① 缺口归因实锤** ✓：tools/billsaudit/main.go 实存（125 行只读件——全谱 GET /account/bills 无 instType、fin_venue_bill billId 对拍、type/subType 分桶聚合，宣称口径与码面逐行相符）。票面书面归因在案：bills 177 行 vs 入账 14 行；漏类逐类定性——type1 sub11/12=资金户摆渡非损益、type2 sub1/2 内工具单绕账=缺口主体、利息 177 行零 interest 类=不在 bills 任何 subtype。生产旁证：首笔 recon_adjust −96.0164（id=31）与票面「ledger 高 $92.64」量级吻合；fin_venue_bill 现 315 行。
+- **锚② Earn 收益入账** ✓（前提半证伪·锚意等价达成）：锚文「bills ingest 补 subtype」前提经实锤证伪（利息仅现于 savings/balance.earnings），施工走唯一真源径等价落地——0030 迁移 kind 闭集扩 interest/recon_adjust（在 diff、生产已生效）；postInterest 事件化高水位入账在产实证：fin_cashflow interest 行 127 笔自 10-24 逐时走账至 10-30 08:05Z（本席实查 SG 库）；历史缺口走锚文备选「基线校准」——calibrate_recon.sh 在 diff + recon_adjust 7 行实落。测试锚复跑：O_TEST_PG_DSN 显式注入独立实例，TestPostInterest+TestInterestKindsInClosedSet 2 PASS 非 SKIP。
+- **锚③ 他因根因+修复+告警静默** ✓：根因=工具径绕账书面归因在票；关联坑条在库（ledger-baseline-per-node=校准机制 verified 条；unwind-limit-floor-protected/probe-restore-scope-overreach=致因工具事故条）。修复=系统性日漏（利息逐日走阔）事件化根治在产 + 历史缺口校准核销。告警静默生产实证：o-core 容器（10-30 06:50Z 起在跑）日志全谱零 `ALERT [ledger] 对账差`、零缺岗/探测败/在途 skip 行——对账环活判且 |diff|≤tol=$0.50（fin_known_residual 豁免=0）；末笔校准行 10-25 12:15 后零新增=缺口未再长。
+
+【注记报裁——不阻断，留档】
+1. 收口 commit 携 billsaudit 编译二进制 16MB 入库——同日决策 816f42d 剥离+gitignore 工具族通配根绝，残渣已闭环。
+2. postInterest 高水位 SELECT 以 `_ =` 吞 Scan 错——ErrNoRows=播种语义属设计内，他错亦落播种径（fail-safe 向），量级微。
+3. 「工具径绕账」根因无专条 KB——票面归因为正本+关联条在库，判锚意达成；要专条可另立微票。
+4. 锚②字面径前提被证伪、施工走等价径——锚文弹性报备管理席。

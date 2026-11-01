@@ -91,6 +91,16 @@ var migrationTable = []struct {
 	{82, "fin_0082_exec_ambiguous_state.sql"},
 	{83, "fin_0083_basis_direction_defork.sql"},
 	{84, "fin_0084_arch_eval_reject.sql"},
+	{85, "fin_0085_retire_reason_forced.sql"},
+	{86, "fin_0086_ops_event.sql"},
+	{87, "fin_0087_maker_ordtype.sql"},
+	{88, "fin_0088_ops_headless.sql"},
+	{89, "fin_0089_exec_venue_err.sql"},
+	{90, "fin_0090_trx_rental_payers.sql"},
+	{91, "fin_0091_ops_ticket_usage.sql"},
+	{92, "fin_0092_ops_pipeline_trigger.sql"},
+	{93, "fin_0093_ops_headless_six_states.sql"},
+	{94, "fin_0094_eval_proposed_net_apr_gate.sql"},
 
 	// —— md 链（版本链内唯一且单调；md 链版本=历史号+1000 与 fin 键空间全局不相交——跨链并 schema 时 schema_migrations 零撞号，check_migrations 断言①⑤）——
 	{1003, "md_1003_market_facts.sql"},
@@ -126,4 +136,6 @@ var migrationTable = []struct {
 	{1074, "md_1074_basis_direction_defork.sql"},
 	{1075, "md_1075_arch_eval.sql"},
 	{1076, "md_1076_arch_signal.sql"},
+	{1077, "md_1077_retire_reason_forced.sql"},
+	{1078, "md_1078_eval_proposed_net_apr_gate.sql"},
 }

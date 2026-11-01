@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | 完成 |
+| 状态 | 完成（判过并码在案，11-01清账翻面） |
 | 优先 | 高（账本虚低 ~$2.4，对账反向告警） |
 | 面 | internal/ledger/funding/ingest.go |
 
@@ -25,6 +25,16 @@ record/分派径对 SPOT 行疑似把 `bal_chg` 毛额（含买卖流水全额�
 - 虚低的 fee 行保留在账（审计轨不删原则）——修后一次校准即可。
 
 ## 验收锚
-- [ ] 重放 12:41–12:47 绞肉时段 SPOT bills→cashflow：fee 入账总额≈bills fee 列总额（±0.01）。
-- [ ] bal_chg 毛额不再产生 fee 行。
-- [ ] 修后实盘观察 ≥2h 对账静默（live_switch 已开，自然有新腿产生）。
+- [x] 重放 12:41–12:47 绞肉时段 SPOT bills→cashflow：fee 入账总额≈bills fee 列总额（±0.01）。
+- [x] bal_chg 毛额不再产生 fee 行。
+- [x] 修后实盘观察 ≥2h 对账静默（live_switch 已开，自然有新腿产生）。
+
+审计席：headless @ 2026-10-31
+
+## 判决注记（逐锚对账，收口 commit=62417989+回填 7aa8964a，生产库只读复证）
+
+- **锚1 PASS**：12:41–12:47 窗 SPOT USDT 侧 bills fee 列合计 -0.17481422336（7 行）＝同窗 SPOT 源 cashflow fee 行合计逐分相等；扩至全史 97 条 fee 行 `cf.amount=bill.fee` 逐行相等（mismatched=0）。±0.01 容差远满足。
+- **锚2 PASS**：码面 default 分派仅 `b.Fee` 入 fee kind（T-0062 部署版即此语义，master 现行同）；数据面零 fee 行量级等于 bal_chg（±25 换形从未入账），ETH 侧费（ccy≠USDT）被 ccy 闭集正确滤除。
+- **锚3 PASS**：修后期（≥10-24 13:15Z）30 条 fee 行合计 -0.480879182646 与 bills fee 列精确一致；账单续流至 10-25 17:00Z，10-25 07:35Z 账本重定基（recon_adjust 102/103）后 known_residual 仅剩 ETH 尘 ~$6（T-0080 归口在案），对账静默远超 2h。
+- **根因更正（取证驳回票设）**：事故读数系观测口径错位——「venue SPOT bills 实净」混 bal_chg 双腿与 fee-only cashflow 异口径对比，叠加 SWAP/SPOT 混域；非码面把毛额当费。收口实质=注释钉死口径+回归测试 TestSpotFeeNotGross（双腿账单锚），属文档级防线非行为修复。
+- **注记**：收口支 t/0063-spot-fee 未并入 master（注释+测试仅存在于支上），并入归 sweep_lander 串行收口；语义本身 master 已在位，锚不受影响。recon_adjust id=92 已被 10-25 基线件吸收。

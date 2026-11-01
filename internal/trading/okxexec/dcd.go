@@ -66,11 +66,23 @@ func (c *Client) DcdQuote(ctx context.Context, productID, notionalSz, notionalCc
 	}
 	var rows []struct {
 		QuoteID string `json:"quoteId"`
+		SCode   string `json:"sCode"`
+		SMsg    string `json:"sMsg"`
 	}
-	if err := json.Unmarshal(raw, &rows); err != nil || len(rows) == 0 || rows[0].QuoteID == "" {
-		return "", fmt.Errorf("dcd quote 响应无 quoteId: %w len=%d", err, len(rows))
+	if err := json.Unmarshal(raw, &rows); err != nil {
+		return "", fmt.Errorf("dcd quote 响应解析: %w", err)
 	}
-	return rows[0].QuoteID, nil
+	if len(rows) > 0 && rows[0].QuoteID != "" {
+		return rows[0].QuoteID, nil
+	}
+	// T-0259：code=0 壳内 per-item sCode≠0=venue 业务拒——拒因透 APIError 上抛
+	// （envelope 层拒 do() 已产 APIError；此层补内层码位——持久化径取得到原始码）。
+	for _, r := range rows {
+		if r.SCode != "" && r.SCode != "0" {
+			return "", &APIError{SCode: r.SCode, SMsg: r.SMsg}
+		}
+	}
+	return "", fmt.Errorf("dcd quote 响应无 quoteId（rows=%d）", len(rows))
 }
 
 // DcdTrade 产品成交（T-0207 真径：POST trade 体唯 quoteId——报价绑单；

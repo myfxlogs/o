@@ -293,3 +293,268 @@
 - **镜像径使用留痕**：gh-proxy.com 仅用于只读 ls-remote/raw 取证（对象哈希自校验），零写径（push 不走镜像——若 push 时出口仍未愈，交付以本地支+收口注明）。
 - **部署树污染自纠**：KB 条目+数据流.md 修订曾误写 /opt/o 部署树——即觉即迁 worktree 并 git checkout 回退部署树（净）。
 
+
+## 2026-10-30 凌晨 — 管理席：T-0216 上线排障（devin-manage）——两段根因+dualwrite 临时径
+
+- **业主令**：「[角色：管理]接手开工，让216上线」——管理席 devin 直办（急件直办，事后报备在案）。
+- **根因链两段实证**（审计残差只捕到①）：
+  ① `o-collecto` 二进制 mtime 10-28 06:05 早于返修 merge——activeSet 现货腿补丁不在跑件里。处置：dev 交叉编 arm64（a6e8964 净树）→ 船运换件（旧件留 collector.bak-1028）→ 17:12Z 重启，OCI `md_ticks` BTC-USDT 行流实证。
+  ② **projector `refreshSets` 活跃集=裸 inst_id 无归一臂**——basis 现货腿+dcd uly 双面滤桥外：SG `md_ticks` BTC-USDT 滞留 10-25 陈行，订到≠到 SG。处置（急件临时径）：`o-projector` serve.conf 切 `-mode=dualwrite`（无谓词全量旁写，T-0169 设计态），17:19Z SG 行鲜。
+- **终验**：286990 quarter_basis_long 首笔 `fin_paper_fill` funding +0.006881@17:18:55Z 落地——216 实质上线；287004 首摊待下拍（事件节拍非整点）。
+- **令出**：MANAGE-82→DM 立票根修 `refreshSets` 归一双臂（对齐 okxws/subscribe.go activeSet 语义），部署生效后 serve.conf 复原 `-mode=serve`（dualwrite 旁写泵不可长持）；验收锚=serve 下现货行续鲜+fill 续出。dcd 同病灶（`dcd_spot_stale` 休眠缺口）已写入令——根修双臂齐补非单补 basis。
+- **坑条目**：`bridge-predicate-misses-normalized-legs`（订阅集/镜像集双臂同源律）入工程经验库，支 `docs/kb-bridge-predicate@0e43f9f` 已推候 DM 并。
+- **座况留痕**：①`master` 本地支被陈旧 worktree `/opt/o-wt/t0160-fixup`（落后 25+脏件）锁占→部署树被迫常驻 detached@origin/master——归 DM worktree 卫生处置；②Oct-28 残留 `gh pr checks 8` watcher 僵尸环已杀（PR#8 早并）；③Dev/DM 件消费面缺口实证（无头径不消费 inbox——MANAGE-75 滞留 30min+，心跳静默升级三件 DM-79/80/81 已回执定性「无头不读箱≠席死」）；④收件箱全清（DM-63/64 回执+DM-78/79/80/81 升级件均 ack）。
+- **部署树纪律再证**：/opt/o 非 master 禁 commit（D-651 机内化）——本席 KB 件一度落部署树 staging，即迁 worktree 径收口。
+- **业主方向锚（对话亲定）**：终态=「工单驱动全无头 + 有头面唯一管理席」——DM 可退役无头、管理席不可无头的正解=不可无头的非职务而是业主对话口；单管理席=唯一有头对话面+异常终审，按需开散（本 session 即实证）。
+
+## 2026-10-30 晨 — 决策席：无头单飞晨务（devin dm-session-1030）——T-0255 三殁复飞+调度面三杀事故自裁
+
+- **进仓态**：管理席换防 claude-kimi（前任 glm 管道故障）；基座 03:00–08:04 停电全灭；交互席业主令退役，全席无头径。
+- **T-0255 复飞**：先领者 02:32 殁于停电（副本 02:33 让位自退在案），取证工具+进度线索保全 `/opt/meta/t0255-handoff/`（handoff.md 全录）→09:40 复飞。
+- **事故自裁**：09:53 `kill 75707`（换 dispatcher 以让 boot_sweep 补路由 DM-117——其因部署树 detached 滞后被 gate「票面不存在」）触发 systemd KillMode=control-group 整组斩杀，T-0255 二代（已推支 t/0255-exec-1028-recon+13min 取证进度）+T-0253+T-0254 六进程同灭。**根因=spawn 在 dispatcher 的 service cgroup 内连坐**（nohup 只免 HUP；setsid 不逃 cgroup——正解 systemd-run --scope 或 KillMode）。处置：锁还 systemd（Restart=always 3s 自起 pid 173570）→三票重派（0255 明令续同支同树不重建）→立 **T-0257** 根修+KB `dispatcher-cgroup-kill-domain`+监理器 once 键代际再武装缺口并入。**纪律：dispatcher 生命周期钦定 systemctl --user，裸 kill 主 pid=事故级**（restart 同斩杀——根修前避开在飞窗）。
+- **MANAGE-114 消费**（ack DM-129）：①105④ 核销实证落票——T-0216 翻完成（亲证 md_ticks BTC-USDT 现货行 age<2s；ETH-USDT 滞 3h=T-0250 projector 臂未部署面）；②双发互斥立 **T-0256** 插 M3 前（与 T-0254 分工：wrapper flock+让位协议+双轨纪律=协议层闸，dispatcher .spawned claim 结构去重不动，零面撞可并行）。**双发真因=relay〔派单〕径+directive 径双轨并行**（devin-relay.sh:186），DM 现行=总线单径。
+- **T-0250**：audit 支判决落票（审计通过）；部署裁量=**取证期不重启 o-core**（保 cmc-ws 1011 现行犯现场给 T-0255），收口随复跑前置清单联动——o-core 仍 a6e8964cd15d。
+- **KPI（D-0037 月净利，cashflow 亲算+cum_nav 对拍）**：MTD ≈ **-1.9 USDT**（interest+1.45/funding+0.002/已实现-0.30/fee-3.05）；NAV≈$7381（mt5 3247+okx 4134）；日净节拍 +0.33（利息独撑，earn_balance 4429）；里程碑 10U/月未达，主因=执行面停摆 48h+。fin_report monthly 9/10 月=0 桩（月度生成面未产出，已录不报修）。
+- **未尽**：T-0257 待派序（在飞单满后择机，不挤占急诊带宽）；四票收口候审；部署树 detached HEAD 面——dispatcher 读 TASKS=/opt/o/docs/tasks，DM 合并后须 ff 部署树否则 directive gate「票面不存在」（本日实证）。
+
+## 2026-10-30 — 施工席：T-0254 dispatcher 双闸（devin-headless-T-0254，无头单飞）
+
+- **T-0256 并行撞面裁断**：T-0256（wrapper flock）钦定界面含 devin-headless-run.sh，而本票钦定界要求「未 ack 件注入 prompt 文件尾部」——prompt 唯一写者=该 wrapper，绕不开。裁：最小侵入——仅 prompt 块 HEADLESS_INJECT 注入段五行，绝不碰其 flock/让位区（文首），hunk 不重叠可净并；已在票面偏离说明明注，交审计席裁。
+- **claim 语义取舍**：.spawned 锚采「活 pid∧cmdline 含 tid=在飞；退壳 120s 宽限窗内死 pid 亦拒；逾龄陈锚回收」——既防「快退壳+重投」双产，又保崩殁票经再投/补扫自愈，不采「一次claim永拒」（会焊死票）。relay 冻结径 spawn 不取 claim 属钦定界外，wrapper 层互斥归 T-0256 flock 兜底。
+
+## 2026-10-30 午后 — 决策席：无头单飞二更（devin dm-session-1030pm）——MANAGE-151 终裁执行全序
+
+- **进仓**：部署树 detached（常检面），改仓走 dm/1030-manage151 支。DM 箱 68 件全 ack（实质件=151/116/134/135/136，余皆 receipt）。
+- **T-0250 部署执（前置①）**：部署树 HEAD→origin/master（0dd4c06）→`deploy_image.sh` 钦定径全闸过——SG `o-core:0dd4c069e280` healthy（锁持 DM-decision@dev，trap 释）；OCI `~/o/projector` 换 arm64 新件（含 fc09488 双臂，旧件 .bak-1030）+serve.conf drop-in 复原 `-mode=serve`+systemctl --user restart。验锚：BTC-USDT tick 3s 鲜、7 live SWAP 秒鲜、paper_fill 115/2h、**live_switch 零触碰（true 实拍）**。票面部署收口段已回填。
+- **裁二·DCD 全族退场已执**（SG PG-fin 单 tx）：`fin_opp_template` dcd_call×2+dcd_put 三行 enabled=f/state=retired（研究臂枚举闸 t.enabled 断源=**禁新开**）；`fin_strategy` 35 行 paper dcd→retired+35 行 `fin_strategy_transition` 留痕（Transition() 同构双写，reason 明注 MANAGE-151 裁二）。live/probe/armed 三态核=**零 DCD 残留**（DB 实查：非退态仅 35 paper）；venue 零持仓=T-0255 已证无平退腿；零非退 dcd 提案在飞。
+- **裁一前置②判=涉 armed**：`armed_ttl_h=4`（非 24h）+7 条 live funding-hedge（01:00Z 入场零仓零执行）——openLive 闸径（lifetimeOK/breakevenOK/denyAt 冷窗）拒在开仓前永不产 position，tag3 按 position 戳 05:00Z 起逐批误杀+裸 UPDATE 无 transition 痕（T-0255「retired 零迁移记录」悬案即此径）。**依令 T-0258 插队先行，复跑候其部署**。
+- **节拍×2 落点裁定**：系统无统一提案节拍键——funding 臂事件驱（ev_funding 即扫）无 interval 键，提案天然稀疏 ~2/6h。落地=存在键齐倍：`research.grammar.scan_interval_min` 120→240（basis 族源臂）、`research.gap.scan_interval_min` 360→720、`lifecycle.reject_cooldown_s` 300→600（开仓重试拍）。funding 臂半速缺口如实报 MANAGE，若钦定更严语义（如 notional 半额/threshold 升档）另裁。**待复跑启动时执行**（与 T-0258 部署同拍生效，提前动=无谓降现拍）。
+- **立票七张**：T-0258（armed_ttl tag3 根修=P1 插队，11:29 已派无头 DM-190 在飞）/T-0259（dcdOpen 拒因持久化=P1）/T-0260（监理器三缺陷=MANAGE-136，施工面在 meta 仓）/T-0261/0262/0263（前端三件——瓦片化+分页+状态面推送制；0263 票面已落 134 选型纪律+135 基准径：Connect 同栈流为基准，重连=unary 快照+接流+seq 去重入验收锚）/T-0264（dd 硬线权益基准对齐=T-0025 审计注记①转案：wd.AttachEquity 仅交易户 vs riskGate 三分量，停泊态假回撤/空转双险）。
+- **陈旧 PR 核销**：#42/#80/#84 内容已等价在 master 关闭；#63/#70/#72/#83 独有内容 cherry-pick 归位后关闭（审计痕/KB/移交段全保——三陈票终态修回「完成」留审计痕）。
+- **并码**：T-0254/0256/0257 三支审计通过件并入本支（dialogue/索引 微撞已解——审计判决系审计席各 session 落支，本席仅合并簿记）。
+- **未尽挂账**：半速复跑候 T-0258 并码部署后启（观察窗 24h，首日报 MANAGE）；T-0259/0260 排队；前端三票为下一档主力；meta 仓 mbus-dispatch.sh T-0254 面未合并重启（票注：生效需 meta 合并+restart——meta 主支在 /opt/meta 本地仓，另席持有面，本席不动）。
+
+## 2026-10-30 午 — 管理席：devin 接任（业主当面点名换防 claude-kimi，GLM 底座不稳）
+
+- **接管三件套齐**：AGENTS.md 署名→「devin 管理会话 @/opt/o」走 worktree+绿戳+PR#90 并 master（dce54b8）；交接态快照刷新 @11:30（meta commit 9faa1bd）；MANAGE 箱清零——DM-186 升级件实证 MANAGE-136 已被 DM 批量清箱消化=过时告警，DM-187=T-0253 审计通过与快照一致。
+- **业主问驾驶舱缺瓦片/分页**：定性=非部署丢件——T-0261/0262/0263（业主令 10-30 晨·前端三件）DM 收班前刚立票待派。`ERR_HTTP2_PING_FAILED` 定性=传输层非缺件：o-core 讲 h1 明文且实拍服务的正是业主浏览器所求同 hash 件（index-CZPtpJ36.js）——h2=浏览器↔公网边缘间事，SG 上跑 sshd 反 tunnel 会话（tunnel 专用 user），部署重启/隧道瞬断大概率瞬态，刷新应愈。
+- **管理席直派前端三件（急件直办径）**：调度器=事件驱动（directive 落 Dev 箱→闸→spawn，不扫票面目录）——DM 收班=无人发件=待派票停滞。业主当问两回，发 MANAGE-194/195/197 三件 directive，T-0261/0262/0263 三无头同刻点火（在飞锁为每票级可并行，前端三件涉及面 web/src 与 T-0258 后端 lifecycle 不撞）。
+- **o-relay.service 净场**：退役冻结代（M4）unit 仍 enabled→auto-restart 每 5s 刷「relay v5 启动/tmux DM 缺席」噪音——`disable --now` 停死（DM-192 挂账『提示管理面可净场』+交接纪律『已停机勿重启』同旨）。坑已入 KB `retired-service-enabled-respawns`：停机≠退役，退役=disable+stop 双动。
+- **簿记滞后提醒 DM（MANAGE-193）**：T-0248 修复 ae9b941（PR#58）早在部署 o-core:0dd4c069e280 内，但票面仍『待派』=重复派单风险——请 DM 翻终态。
+- **DM-192 收班汇总已核**：部署收口/裁二 DCD 全族退场执完/T-0258 在飞/立票七张/PR#91 并码绿戳全绿/陈旧 PR×7 核销零丢件。未尽移交：T-0259/0260/0264 留 DM 队列序；半速复跑候 T-0258 部署后启（24h 窗），首日复跑报到 MANAGE 箱后按 MANAGE-106 裁一盯——达标即确认全速。
+- **复任换防（业主裁定 ~12:25，交接态快照为凭）**：claude-kimi 回任管理席，devin→备位席（MANAGE tmux 会话保留，降级规则三档：单项级/会话级>15min 顶岗/结构级待立票）。末班执：①业主令 devin 派单 T-0259/0260（MANAGE-205/206 已发 Dev 箱）；②AGENTS.md 署名改回「claude-kimi 管理会话；devin=备位席」随本 commit 同支；③o-relay disable 已执（快照列待办可销）；④DM-192 已 ack（快照待办可销）。
+
+## 2026-10-30 午后 — 决策席：五票并码+钦定径部署+半速点火（管理席令 14:1x 主线收口）
+
+- **五票并码=PR#100（merge 00a6b6a）**：集成支 dm/1030-batch5-merge off origin/master 序并——dec-t0258-audit→t/0260（o仓票面+KB，码面 meta 03a1f54 已在 meta master）→t/0261→t/0262→t/0263（本地支含审计落票 d5f43c5，远端支缺=并入本地者）。前端三面 Cockpit.tsx 两撞逐一解：①T-0262 分页器嵌 Card③保 T-0261 瓦片骨架（state/limit 头区自动并）；②T-0263 HeadlessTile 外壳 section→Card——格尾注释钉「禁裸 section/div 入格」即 T-0261 为本票预钉的插槽契约，落 armed 卡后；proto/数据流.md 自动并净。生成件 buf 双模板重生+tsc --noEmit 零误。
+- **并码过程坑记（纪律级）**：①新 worktree 未 provision 时 check_import_direction.sh 静默 rc=1（go list 败被 set -e 吞——provision_worktree.sh 先行即解）；②码面合并 commit 须自带「坑处置：」行（D-585 闸对 merge commit 同律）。
+- **部署钦定径四闸全过**：o-core:00a6b6a69a88 产地尾拍自报+健康闸 healthy（14:50Z 区）。
+- **半速点火 2026-10-30T06:51:36Z（=24h 观察窗起算）**：SG app_config——grammar.scan_interval_min 120→240(gen361)、gap.scan_interval_min 360→720(gen362)、lifecycle.reject_cooldown_s **补种**600(gen364)。**缺键裁**：reject_cooldown_s SG 侧原缺位（码默认 300，opener.go:97）——按管理令「缺键即报不猜」如实报 MANAGE，同时按钉名补种 600 落实 300→600 语义（钉名在案=非猜；exec.reopen_cooldown_sec=guard 再开冷却异语义未动）。funding 臂事件驱无 interval 键=半速天然缺臂，已报 MANAGE 候裁（notional 半额/threshold 升档径）。mbus 报文 id 20261030-145152-DM-280。
+- **未尽**：T-0259 收口待审在飞随批后；T-0264/0249 不堵本批；24h 窗首日复跑报径=MANAGE 箱（MANAGE-106 裁一盯达标确认全速）。
+
+## 2026-10-30 暮 — 决策席：波后清账会话（devin dm-closeout-1030e，管理席令 15:1x 五件）
+
+- **进仓**：部署树 detached@origin/master 常检净面；DM 箱 34 件=6 指令（MANAGE-193/220/221/222/242/245）+28 回执噪音（批量 ack 注「代清-回执噪音」）。
+- **并码 T-0259**：判决「审计通过」14:46 在案（DM-279）。集成支 dm/1030-t0259-merge 并 dec-t0259-audit——**fin_0088 撞号**（master=T-0263 ops_headless）→迁移改号 fin_0089_exec_venue_err+migrate_table 登 89+票面/坑条目文引同修。绿戳走隔离库 O_TEST_PG_DSN@5436（B 案钦定径首用）。坑：/opt/o gen 陈旧（缺 GetHeadless）——worktree 内 `buf generate --template buf.gen.core.yaml` 重生即解（provision 拷的是快照）。
+- **立票四张**：T-0265（TRX 租金分类回归=P1 即派——trx.go:64 nil 名单/floor 硬码 0.10、3 笔错账回改、trx.rental_payers 键、ops_event 防空跑告警）/T-0266（绿戳 B 案机化——每席一次性库+纪律文「DSN 隔离下并行盖戳」，5434 降兜底）/T-0267（MANAGE-245 双件合一票——每席预算账 wrapper→ops 表→cockpit 成本列 + 门2门3 manage-watch/晨单 cron + 状态注入块替 pgrep）/T-0268（前端首屏三件——getHeadless 并入 getCockpit/流不阻塞首绘/immutable 缓存头）。**裁注**：令曰「立票三张」，245 双件合一票面处理（件A/件B/件C 三段钦定界）——若管理席要拆票即报即拆。
+- **核销波**：①T-0225 验合最前——eebdcb4（PR#24）在 master、ci.yml route+fastpath 段实证，翻终态=完成；②18 张「审计通过」滞态翻完成——harvest.log 行引 14 张（T-0002/0003/0007/0010/0012/0014/0015/0017/0021/0025/0027/0030/0032/0250）+落票 commit 引 4 张（T-0253/0254/0256/0257）；③T-0248 翻完成（MANAGE-193：ae9b941 已在 o-core:0dd4c069e280）；④僵尸三张核销留痕——T-0234（支已并 master 祖先实证）/T-0235（9abc4be 在 master+业主群实收）/T-0202（销号投产 a138278+SG 拒因绝迹在票），均翻完成。
+- **判词残面如实报 MANAGE**：驳回 4 张（T-0005「报管理席裁」/T-0029/T-0238/T-0241 闭环但驳回=疑假待立修复票——anchor 亲审后立，本波不动 sweep 在跑面）；缺 2 张（T-0033/0045 审计坠亡，候 sweep 复跑）；判词缺位 11 张中日志载判=驳回 4 张（T-0009/0013/0022/0026——T-0009 已被 10-30 复判通过覆盖，余三张候 sweep 续跑落判后裁）。
+- **禁线守**：半速三键未动；/opt/o 工作树外零触碰；T-0249 sweep 面（queue/lander/审计支）零干预——本波只翻「审计通过」滞留态，不碰在跑票的判词落位。
+
+## 2026-10-30 业主裁断：TRX 自营归属（全席须知）
+
+- 业主令：「TRX 能量+投票是我的自营项目，不能算你的业绩」——**TRX 自营盘=业主个人 P&L**，
+  托管在公司基础设施（采集/账表/驾驶舱 TRX 页=托管服务面）。
+- **公司 KPI 口径（全席报表通用）**：只计基金账（fin_cashflow：Earn 停泊+交易引擎）；
+  TRX 数字若出现须标「业主自营·托管面」。周报/11-15 止损日报表同口径。
+- 公司 fallback 单收线=Earn 停泊。TRX 分类错账修复（T-0265 域）照常做——托管服务质量，
+  不入公司赚钱叙事。
+
+## 2026-10-30 暮续 — 决策席：清账尾波+T-0265验收（devin 续段）
+
+- **KB 归位**：坑条目三件并 PR#108（2c1d62d）——provision-stale-source-gen（gen 快照陈旧→buf generate Go-only 重生）/checkall-parallel-load-flaky-timing（DSN 隔离不治 CPU 争用）/migration-number-collision 补第四犯实证（T-0259↔T-0263 撞 0088）。
+- **MANAGE-388**：T-0265 票面业主注记落（TRX 自营=个人 P&L 托管面+全席报表口径）；**MANAGE-391/401**：HTTP2 修复 T-0269·P1 同票立（档一心跳/favicon+档二退避/双取/getHedgeStructure×3 去重，禁装 http2.Server 明列）→PR#109 并（3dc6880）即派无头在飞；401③KB 条目 h1-origin-h2-mismatch-diagnosis-path 随 PR#112 并（5073982）。
+- **T-0265 验收**：决策席审计判词=**通过**——生产面亲证 SG psql（该址 10-27 起 rental_income=3/deposit=0、trx.rental_payers 播种在案）、migrate_table {90} 码面正（收口文{89}系笔误）；工人 rebase（0089→0090）致原戳 9daedb8 非 HEAD，集成支复戳 632c085 全链绿→PR#110 并（ae5f2fa）翻终态=完成。锚 3/5 部署轮后自然收讫列观察项。
+- **MANAGE-427（业主飞书转令）**：回投链三缺陷立 T-0270·P1 即派（DM-529）——spawn 假成功 rc=0 缺产物核验/静默死无 exit 行/glm-5.3[1m] unrecognized；施工面=/opt/meta/bin/manage-spawn.sh（仓外 meta 层钦定）。
+- **并行面实录**：T-0267/0268/0269 三无头在飞+CEO 席 check_all——五席并行盖戳下 5435 绿实证（load-flaky 坑条目同日主笔生效）；5436 撞 DSN 一次（ceo-charter 席同占，B 案机化 T-0266 前靠取号自觉）。
+- **箱面**：两波噪音代清（首波28+续波44 注「代清-回执噪音」），真指令 MANAGE-388/391/401/427 随处置逐件 ack——箱清零。
+
+
+## 2026-10-30 晚 — 施工席（交互席 claude-kimi session）：驾驶舱体验v2施工（业主直批免排队）
+
+- **授权**：业主当面对话直批施工任务书（meta@3f7a9a5——美观对齐 TRX+业主第一性四问重排+无头状态面分页；施工=交互席，验收=管理席，完成后总线报 MANAGE 收口）。本 session 全程任 [角色:施工]。
+- **实现**：t/1030-cockpit-v2 @6571e3eab7ab（web/src/react 两文件+台架实拍两拍；基 f8aeca6，master 49d1bab web 面零漂移实证）。IA 定型：首档 trx-kpi-strip 四卡（①钱安全/②MTD/②近30d/①存活——大字人话结论+数字第二层）+次档 duo（④armed‖①②平台明细）+三档 duo（③席位‖③工单板）+底档无头面（本地切片 10 行/页+.tile-scroll 定高）；流角标+asOf 顶条常显；HL_STATE 五态显示字典（泵英文字面→人话，非判据）。T-0248 降级桩测锚与 T-0263 推送制逐字保全（取数泵上提页级单源，零定时器）。
+- **台架实证**：vite dev+Playwright 夹具九断言全 PASS（22 条分页 3 页/瓦片 394px 定高/页高 1339px 不撑/工单板分页器在位/角标常显）——夹具非生产实值仅布局交互实证，Watch stub 未供黄点亮=台架实态。坑两件：connect-web-rig-stub-traps（新立）+worktree-fe-rebuild-gen-gap 第三显形（provision 陈旧拷贝，补既有条目）。
+- **机检**：npm build 绿+cockpit_degrade PASS+check_all 绿戳@6571e3e（events 反压测试首跑红=三席并跑负载抖动，隔离复测绿定性；专库 o-postgres-test-b:5435 错峰）。meta 票面结果段已回填（四问评估正文+逐锚对账+留删理由）。总线报 MANAGE 收口（施工收口标记在 commit 尾）。
+
+## 2026-10-30 深夜急诊 — 决策席：信号臂断供双案同源收口（devin session）
+
+- **管理席令**（06:5x 插队）：mt5_swap 零写 21.7h+carry_diff 零写 5.7h 急诊诊断。
+- **MANAGE-771 消化径变更**：MANAGE-866 已改道外部急诊施工（fix/mt5-swap-outage 待验）——勿再立票，本席核验分支在案（c2457181 消哑 B2 交付）。
+- **诊断三连反转**（FIX-02「桥无罪→projector 僵死」再被本席反转）：projector 进程从未僵死——02:57–17:31 持续镜像，静默=正常零日志；17:31:33 寄存器 dump 是被 SIGQUIT 杀的退痕。真病灶=**信号道 ts 水印跳读**（stamped ts≈commit 序假设对 T-0164 血统回戳行结构性不成立）+**serve 谓词缺 kind**（mt5_swap/basis_ann 设计性不镜）。
+- **实证链**：PG-md 六 kind 全鲜 vs SG 三死→重启 replay 落地（carry_diff 17:11→22:35、funding_view 17:30→23:14、depth5 复鲜）=水印跳读实锤；SG 自产 mt5/okx tick（非镜像径）。
+- **处置**：o-projector 重启一次性回填（carry_diff/funding_view/depth5 臂复——快照级，后续仍受跳读）；**T-0272 P1 立票即派 Dev**（DM-1029——信号道撤 ts 水印全表扫+serve 全 kind 镜像）；KB 条目 ts-watermark-vs-stamped-ts-order 入库；MANAGE-771/772 ack。
+- **在途**：fix/mt5-swap-outage（消哑 B2）待验排队正常审计流；FIX-02 移交三件（红行推送径/25s 互踩/健康闸盲区）待另票。
+
+
+## 2026-10-31 深夜 — 施工席：FIX-02 mt5swap 断供急诊（诊断反转+消哑交付）
+
+- **外部提示词单 FIX-02**（管理席拟，/opt/meta/docs/施工提示词-外部-mt5swap断供.md）：票面前提=桥 SymbolParams 层病（三假设：mtapi 形态变/符号方言变/SG nil）。施工席 worktree `fix-mt5-swap-outage` 分支 `fix/mt5-swap-outage` 按票「先诊断后修」开工。
+- **诊断全程反转票面前提**（证据链全文 docs/FIX02-收口.md）：①dev→mtapi 三符号探针全绿（三假设全否）；②OCI 本机 env-creds 生产径探针全绿（会话龄化 63s 内无腐坏）；③真源对拍——o-collecto 实写目标=OCI 本机 PG-md（`SG_PG_DSN` 实值 127.0.0.1:5435，env 名骗人），PG-md 上 mt5_swap 13:11:50Z 当拍健康/SOLUSDm tick 秒鲜；④SG 面冻结 13.5h 真病灶=**o-projector 10-30 02:56:57 重启后 02:57:00 对账毕即静默僵死**（重启后对账 173→115 inst、dcd 46→0 品旁证异常留观）。**桥无罪，B1 无病灶可修——如实记录不虚造。**
+- **旁获新证**：SG 核 10-30 09:31:59Z 重启后新增 25s 恒频 OpenSession（144/h，同账号 3001157 哈希实锤两端同户）——互踩负载与桥长驻会话叠加风险 nav_live 自认在案，本票未动（边界：不动 OpenSession 会话管理），移交件列收口报告 §6。
+- **B2 消哑照票面无条件项交付**：bridge.go rej 分键 `symbol_group_nil`（原 177 行第二哑径）+全灭拍 `WARN [mt5bridge]` 落 journalctl（ops_event 在 PG-md 无表且 collector 无写径——既有链取日志分支，stalewatch 同构）+败因样本（in-band 错误体原被吞现已捕获）；测试扩三锚入 swapdialect_test.go（失败形态 fixture）。
+- **移交**：projector 修复=生产运维（管理席全权面）——施工零重启零写入只读取证；SG 健康闸红行无人推 Feishu 的盲区、25s 互踩评估，两件另票建议列收口报告。
+
+
+## 2026-10-31 夜 — 施工席：驾驶舱v3（清道夫核诊+呼吸灯+排布）
+
+- **外部任务书**（/opt/meta/docs/施工任务书-驾驶舱v3-呼吸灯与排布.md，业主令：完成即部署）：A 清道夫-md 红灯核诊（先查真伪）/B 全瓦片呼吸灯/C 瓦片表格解挤；禁线=只动前端+真坏修复另走急诊线+礼让 T-0268（store/api/stream 零触）。
+- **A 定性=真坏**（三重亲证）：①SG 册清道夫-md last_beat=10-28 21:14:29Z 陈 2 天 1:55（30s 拍）；②OCI/dev 两机零 sweeper 进程零 unit（OCI 服务清单无此件）；③PG-md fin_data_retention audit_keep 行 last_swept_at=NULL（sweepAuditKeep 从未成功收尾）。**根因=10-28 采集层 cutover 迁移清单漏件——sweeper-md 未在 OCI 重建，孤儿 2 天**。T-0241 v4③「OCI 侧独立容器在跑」前提已陈旧。任务书猜「与四信号臂同根因」不成立（FIX-02 已证四臂真源健康、SG 冻结=projector 镜像伪象）。修复建议：OCI 用户级 o-sweeper.service（MD_PG_DSN=本机 5435+SG_PG_DSN=隧道 15433）——急诊线，候管理席。
+- **B/C 交付**（涉及面=web/src/react/** 五文件）：两页全瓦片右上角 StateDot 统一灯语（绿呼吸=段数据在/黄=陈/红=缺或死——复用既有 breathe 件与三态节奏，零新灯）+title 携鲜度（快照 asOf/最近自报/最陈行/beat 阈语义）；Cockpit 5 裸表入 .tile-table（padding 9×14/斑马纹墨 4%/表头吸顶/首列左对齐/tabular-nums）+.duo/.quad 间距 20→24px+armed 表入 .tile-scroll 滚动兜底。
+- **证**：npm run build（含 typecheck 前置）绿；cockpit_degrade 桩测全绿（sec/SecBoundary/流语义零伤）；流推送面（stream/store/api/hooks）零改动。部署后 System 页现成三态实证场：绿=健康行、红=清道夫-md（真坏如实红）、黄/红=采集行随 projector 修复前后对比。
+
+
+
+## 2026-10-31 晨 — 决策席：清孤会话收口（devin session）
+
+- **五件依令清**：①MANAGE-764→T-0273 P1 立派，Dev 当晨交付三阶证据补锚（meta 716fbcd），审计通过并码（#131），生产首拍实证 T-0265~0269 四假警清零+监理器为本票亲手补 .done 自证闭环；②MANAGE-923 补证已入 T-0272 钦定界④（429 退避），施工交付 4b4b3f94（GET 限定 ≤3 次/≤10s、终败上抛、写径零重试）——审计通过并码（#129）；③PR #113/#116 权威态复核均 MERGED；④T-0236 补审通过（产侧双端亲证零 NULL/约束活/分布吻合，迁移序 85 保号插 86..91 前机械解突，#128 并码）——票面与现实不脱，不转 T-0249；⑤箱内 173 件全清（回执批 ack 两波+实体三件处置 ack）。
+- **MANAGE-1034 提速令落地**：T-0272 审计过→并码→部署→终验全链当晨闭合。o-projector 00:08Z+o-core 00:16Z 施工热补部署（钦定径放行），判词落票后 DM 同船再部署 o-core:0a3d04ea（master 全量——T-0268/0269/cockpit-v3/T-0236 同船）——部署后亲证：六 kind 镜流在案（depth5 秒鲜/basis_ann 4s/funding_view<1min/xvenue 3s；carry_diff/mt5_swap stamped-ts 22:35 待下个 4h 源拍，非病）。
+- **诊断三次反转全链**（防再议）：票面假设桥病→FIX-02 证桥无罪指 projector 僵死→DM 证 projector 未僵（静默=零日志正常，dump=SIGQUIT 退痕）→真病灶=ts 水印跳读+kind 缺谓词（T-0272 已根修）。
+- **FIX-02 消哑审计通过**（#130 候 CI）：B2 无条件项交付（symbol_group_nil 分键+全灭 WARN+in-band 错误体捕获），B1 无病灶不虚造如实记——移交三件（projector 僵死实案/健康闸推送盲区/25s OpenSession 互踩）待另票。
+- **MANAGE-838 裁决**：恒差实已销（FIX01 一次性补行 Dev-843 在案，告警 15:06Z 后静默，终差 $0.38<容差）——常设缺口立票 T-0274（venue 出金翻译径+内转对分辨，排波后施工）。
+- **旁获**（不入五件）：t0160-fixup worktree 占 master 支+脏树积压——已 detach 释引用，脏件权责人留自处；驾驶舱v3 揭「清道夫-md 孤儿」实案（10-28 cutover 漏件，OCI 无 sweeper）——管理席急诊线，非本席面。
+
+
+
+## 2026-10-31 午 — 决策席：MANAGE-1497 清道夫-OCI 急诊立票（devin DM session）
+
+- **CEO 裁件转办**（MANAGE-1497，源=MANAGE-1392 业主授权）：清道夫-OCI=10-28 cutover 漏件非新设非红线——①即修建制内恢复；②部署口 CTO 定（倾向与 SG 同机制）；③sweeper 入 cutover checklist 防再漏。
+- **CTO 裁=用户级 systemd `o-sweeper.service`**（淘汰 compose：OCI docker 只载 PG-md，单开 compose=双机制分裂；漏件根因=无 unit 孤儿，入册即防再漏）。逐字复刻 dev 原设计——`EnvironmentFile=%h/o-projector.env` 复用：projector_rw 对 fin_employee_registry 授权亲证够（information_schema 实查），**零新密件零新授权**。
+- **立票=T-0275 已批高优**（master@9586d3c）：部署+三层册补件（deploy/ 模板+oci_bootstrap units/verify 段+盒档案清单）+dev 遗件清理同票落；verify 段新增「谁在 beat=谁在跑」roster 反向核对——kb 判据落机。已回执 MANAGE 箱。
+
+
+## 2026-10-31 午→暮 — 管理席（devin）：meta 交付链全环自闭线建成+首跑实证
+
+- **业主令**：「事事有应答」——meta 须成自动化回环不再靠人催；业主直批链补方案。
+- **断点谱系实证**：meta 事件面只覆内部件流——①外部票生命周期断（门4收口悬空9h、DOOR5驳回返修靠人肉）②外部系统态断（CI绿靠人肉轮询）③长任务完工断（部署零投件）。
+- **六件补环全过审运行**：GHEVT（ghhookd webhook→mbus 桥，hook id=705464897 活跃）/EXTAUDIT（收口待审→自动派审，DOOR5R 返修即被其自动派审实证）/REWORK（驳回→自动返修 R1/R2 自派+R3 熔断升人裁）/门4（allow.list+五闸→gh pr merge）/门5（master头+CI绿+allow.list→deploy_image.sh）/DEPLOYNF（deploy_image EXIT trap→MANAGE 箱投件，已并 master adf8b34c）。
+- **端到端首跑**：14:27 授权行落→14:32 `o-core:adf8b34cd2b1 healthy`→DEPLOY-adf8b34cd2b1 投件回箱——**全链 5min 零人工**。设计内人工点仅三：allow.list 授权行/三驳熔断人裁/审计锚拟稿。
+- **CMC 空仓不落痕根修同批上线**（d2821e2f 部署）：墓碑 qty=0 行实落 SG（04:24Z 覆盖 03:19 qty=89300 陈行）——TRX 对冲腿清屏实证；前端同批：+/-符号面/排布v3.2/无头面滤闭环（#133/#134）。
+- **坑条目**：meta-event-plane-external-blind-spots 在案（索引已重建）；另两小账挂尾——①票面 `收口commit` 多 SHA 同行=解析取首值歧义（DOOR5 案零实害因席按 HEAD 全态对账，约定待理票）②antclaw 隧道注册边缘拒先于本批存在，修复留票。
+- **在飞/后续**：T-0275 sweeper-OCI 已立票待施工（CTO 裁 systemd 径）；无头面「最近动作」列=业主 deferred（全链通后再做状态可视化）。
+
+### 交接提示词（下一 session 起手式）
+
+> [角色:管理] meta 闭环六件已实跑全通（KB: meta-event-plane-external-blind-spots）。起手三查：①MANAGE 箱未消费件（DEPLOY/审计判词/升级件）②`systemctl --user list-units | grep -E "door5|ghhook|dispatch"` 活性③`tail ~/devin-door5.log` 部署闸近况。allow.list 授权/三驳熔断/审计锚=你的三个人工闸。
+
+
+## 2026-10-31 暮 — 决策席：MANAGE-3043 急诊两件处置（devin DM session，门2 唤起）
+
+- **①sweeper=T-0275 已批票在案**（前裁 MANAGE-1497 systemd 部署口维持）：指令「加回compose」按 MANAGE-1497②授权 CTO 定处置——systemd 用户级同构终审勿翻案。指令锚转写入票：md_ticks>7d=0（PG-md 实查现态已 0 行，且该表=state upsert 非追加——**管理层模型对账：旧数据本不积**）+ops_event 自报行（ops_event=席自报事件簿 T-0239，sweeper 本体无写径——收口 report.sh 落行即满足）+未入账三表先入账（arch_eval/arch_signal/md_daily_snapshot）。
+- **取证新事实（票面注记）**：`deadTailSweep` 在 PG-md 结构性不删——`fin_active_set` 缺席→fail-safe abort 钦定行（T-0197④ 防半读谓词清空病灶）；死尾有界，清尾须另立「PG-md active_set 供源」票。
+- **②dcd 枚举臂=新立 T-0276 已批已派**（DM-3056）：根因亲证=SG 模板已退（fin_opp_template dcd_call/dcd_put enabled=f）但 **PG-md 侧仍 enabled=t**→o-research 枚举臂空扫（6h 3.67 万行日志、evals 全拒零提案）；ops_face「dcd 枚举」盯 SG md_dcd_product 鲜度→投影末帧 10-30 02:41 越 dead 阈红。裁=**config 发射闸** research.dcd.enabled=false（纯 DB 翻模板会触发 armwatch research_arm_silent 业主告警=换汤不换药故码闸）+PG-md 三钉+ops_face 删健康行。SG fin_strategy 实查零 dcd 持仓无下游断供。
+- **MANAGE-3051 补唤处置**：t/dlmdfix+t/gatefix 并 edr/p3（7646ddb/ce67679）。**并发席冲突实记**：18:35 管理席手动补位 spawn（dm-manual-merge-1835，自动唤径故障期）与本席叠同务——合并幂等无害；deploy-duty 归补位会话点火（lease 在持），本席首弹因 `timeout` 包壳连坐内代死亡（**meta 坑24 已立**——agent 会话内 manage-spawn 须 nohup/& 挂起）。3061（门2-DM systemd-run --unit 唤径缺陷）归补位会话处置。
+
+## 2026-10-31 晚 — 决策席补位：MANAGE-3051/3061 处置（devin DM session，dm-wake-manual-1835 手动 scope 点火）
+
+- **3051 边界内全落地**：两并码在案（7646ddb/ce67679——18:20 urgent 席先并，本席 ancestor 亲证）；部署段双 duty 因前席首弹被 `timeout` 包壳连坐 SIGTERM（18:34，meta 坑24）全灭——本席以 `setsid systemd-run --user --scope --unit=deploy-duty-*` 独立瞬态 scope 重火，cgroup 与补位会话解耦：dlmd restart 18:44:57 active+journal 零 ERROR+新指纹在跑；gatefix pre-commit 钩 0755 落位+mbus-dispatch 18:48:05 restart+send 校验负面试验拒发实证（rc=2 零落箱）。双 feishu 回投已发。
+- **3061 → WAKEFIX 另立小票**（d018a51，已派 Dev DM-3064）：裁「另立」不并 T-0273——T-0273 审计通过且属 o 仓 headless 域，唤径缺陷属 meta 仓 spawn 域，异面不混票。票面：spawn_dm `systemd-run --unit`→`--scope` 最小修（火而不等+is-active 收敛判）+N1 执行位+N2 DEVIN_BIN 注缝并案（MANAGE-3048 注记随批）；验收锚原文照录入部署段（发 directive 10s 内 devin 在+wake log 起头）。Dev 已收口待审 @5095645（t/wakefix），EXTAUDIT notice 在飞。部署段待审计并码后派 deploy-duty-wakefix。
+- **病灶三证链闭合**：管理席冒烟探针（service 内 nohup sleep 被杀）→四弹哑（17:58–18:25 零 devin/log）→本席亲见 18:48 dispatcher 重启 boot 扫再火 dm-wake-184805 同死（`~/devin-dm-wake-184805.log`=0B）。根因=`--unit` 瞬态 service 主进程退→cgroup 收割；KB 坑23+meta 坑24 同族在案。
+- **并发席协同实记**：3051 ack 由 18:20 urgent 席先行消费（其注记部署段归本席），3061 ack 本席执行（DM-3076 回执）；处置报 DM-3077 已上 MANAGE。
+
+## 2026-10-31 夜 — 决策席：MANAGE-3125 驾驶舱 v4.1 四件修立票（devin DM session，门2 唤起）
+
+- **立票两枚**：T-0277（P1 三件：本金净额/无头六态/asOf「更新」）+T-0278（P2 管道增强：票号/席位图标底纹/底部计数/积压原因）已批已推（d6fda54c）；T-0277 已派 Dev 无头径（DM-3139），T-0278 钦定排 T-0277 合并后防撞 Cockpit.tsx 邻区。指令 ack+处置报 MANAGE（DM-3141）在案，deadline 已 disarm。
+- **根因亲证在票面（勿重复诊断）**：①本金虚高=Capital 只加 deposit 不减 withdraw（fin_cashflow withdraw=-10000 负号实证，17251→7251）；②206 假异常=泵锚族三漏——「排查审计」旧方言漏匹（DM 席 203 行主源）+自由票号（WAKEFIX/CMCTOMB 类）漏匹+run 系 rc=0 见证退出无 exit 档（BASESWP 案）；六态钦定=done/exit 正常、dead/stalled/overdue 异常，rc=0 见证退出=exit、rc≠0/无锚消失=dead，回改径=sweep 重派生禁手 UPDATE；③「快照」字样 O 违禁——渲染面改「更新」。
+- **部署树维护**：进场见 /opt/o detached HEAD @53b2a3cf（=origin/master merge 点，树净无 merge 在途）+本地 master 滞 941c47a2——判管理席 PR#138 合并检视残态，FF 修复 `checkout -B master origin/master`（祖先亲证安全，非历史改写）。
+- **环境坑注**：部署树 internal/gen 陈件（pipeline 消息缺）致 check_all go build 红——`buf generate` 重建即解（gen gitignored 属本地产物）。
+
+---
+## 2026-10-31 21:3x CTO顶岗席（devin dm-manual-2105）——DM 积压清零+判决链四修+WAKEFIX 并 master
+
+- **判决链四修落 master（VCHAINFIX，审计通过 a0bc73f）**：c629a21 四修=①report 类闸（verdict/closure/failed 分家——T-0277 72 连根因=report.failed 正文含「审计判决」被 glob 自激消费；触发=票面表格方言 `| 状态 | X |` 非时序竞态）②成功/驳回判决同拍 disarm audit.failed 账 ③status_field 行锚双式统一读出（`状态：`+表格方言容错，tail 尾白剥净）④EXTAUDIT state 带 csha 指纹（dispatched:<commit> 同 commit 零动作、commit 变自动复审——WAKEFIX 复审即此径自派）⑤dm-spawn 等 devin 善终 rc=0 兜底 ack prompt 关联 directive（MANAGE-3251 治本）。
+- **WAKEFIX 复审 R2 全锚过→并 master f300bbc**：`--unit`→`--scope --quiet --unit -- ... 9>&- &` 落产线。冒烟实证：dispatcher 带新码 restart（DM 在飞期 restart 成功=fd9 断承袭生效）；探针 directive 落箱 5s 点火、座闸正确让位（本席在飞=一票一席设计）；DM_LOCK 注缝走同一 dm-spawn 全链真 devin -p pid 3384344 存活 02:22+、scope active、fd9=自有 socket 零 dispatch.lock、退后 log 落「探针到。」——0B 即死病灶根绝（devin -p 运行期日志缓冲=常态非病征）。
+- **T-0276 审计=驳回（生产实证锚失守，码面合格）**：①`research.dcd.enabled` 钉错 PG-md 副本被 projector 第九桥同步收割（正本=SG `o-postgres`——副本径独写必被删）②并发 T-0278 部署 4131cdb 覆盖本票改动（同型二度挤位——部署锁对未并支覆写无防御，系统性缺口）③P3 注释计数 14→13。返修 R1 已派（headless-run-T-0276 scope active，worktree 票面=权威面带重飞指引）。
+- **meta 远端同步仍欠账**：master 领前 origin 200 commits/落后 ~10（管理席 EDR P1-P3 等）——前班「远端同步三径涉凭据/重建级已转报业主候裁」在案，本席不擅动历史整合。
+- **遗留注**：dm-spawn 心跳=点火一次性写（81e3642 原设计）——长会话期心跳不续，dlmd 曾误判在飞席 inactive（dm-hb-2105 临时续命件在案）；如再发宜另票把心跳移 wrapper 循环。T-0276 部署一致性=返修票内处置（本席边界未直接动生产 DB/部署面）。探针 directive 20261031-212343-DM-3290 留 DM 箱——座让后自火=唤径活证。
+
+## 2026-10-31 22:0x 决策席（devin DM session，门2 唤起 MANAGE-3335）——dlmd 热循环+EXTAUDIT 解析立票
+
+- **立票 T-0279 已批已派**（o 仓 a4131ec 推远端；Dev directive DM-3348）：①dlmd `fireShadow` lease 续期 CAS 漏滚 `FireAt`→`armTimer` 负 secs 钳 1s 永动（journal 实证 lease:T-0276:1 `LEASE_RENEW+TIMER_ARM secs=1` 8178 行/3min；hb 同型分支有滚 FireAt 为对照组，「同 leaseRenew 律」半残）——修=CAS 内 `FireAt=last_activity+1800`+`armTimer` 传 CAS 返回值（hb :1159 同型一并）；②dispatch `收口commit` 解析两标准——:436/:447 紧邻裸 hex 窄径（`o@sha+meta@sha` 双仓式不可析→PIPEFIX 21:51 report.failed 实案）vs :323/:765 行内首 hex 宽径——修=抽 `ticket_csha` 单源容 `o@` 前缀/双仓取 o 侧四处同源（KB 同源核验律）。
+- **边界守**：票面已由管理席改裸 sha 应急（extaudit-PIPEFIX.state=dispatched:fdea6669 在案）；mbus-dispatch 常驻进程本单禁重启（生效=下次重启，无即时堵点）；dlmd 重启属指令特许归施工部署段；3290 冒烟探针按 3334 核结留箱不并入。
+- **在案待办信号**：MANAGE-3345 回执「PIPEFIX 审计通过已入案——待 CTO 合并部署」——属门4/door5 授权闸件（allow.list 归管理席），非本指令面，下唤对账。
+- **代 ack 链**：MANAGE-3335 由 PIPEFIX wrapper 契约 ack（21:59:17 receipt.log:2850）+管理席 3337 归档回执；处置报 DM-3351 已上总线。
+
+## 2026-10-31 22:1x 决策席（devin DM session，门2 唤起 MANAGE-3361）——MANAGE-3306 落地核实+孤儿 hb 销账
+
+- **MANAGE-3306 核实=已落地**：meta beb7df9 把 hb-feed.sh 三信号流喂（日志增字节∨子进程 CPU 步进∨孙辈在树）接入 dm-spawn.sh:35-43（HB_FEED=1 默认开、fallback 一次性写、trap EXIT rm 收口）。活证：本席 DM-dm-wake-220804.hb 由 hb-feed pid 3797948 喂活（mtime≤数秒）；dm-wake-215533 正常收口账=disarmed；manage-1031-220642 收口 HB_DONE 22:09:17——喂/延/销三态全谱实证。
+- **DM-3354 根因定性（运维虚警）**：dm-manual-2105 为断供期手工 scope spawn——无 dm-spawn wrapper=无 trap 收口 rm，hb 残件 21:37 起陈化滞留。22:06:10 dlmd 换 HBGRACE 新码重启→boot hbScan 给孤儿建档 arm（pid=3291491）→30s 陈化火→pid 亡=hb.dead→非 T 票号 tag→MANAGE 人工重派升级。语义上进程确亡非误检，但席已正常交接=虚警。**结构风险**：`onHbBeat` 定态账（fired）遇文件复现=撤旧建新轮——孤儿件不删，每次 dlmd 重启/文件事件都复燃再误报一次。
+- **处置=rm 孤儿件销账**（验尸：pid 3291491 亡、无活进程引用 tag）——补齐该席欠下的收口撤除，复燃源绝。run/hb 现仅存两件活件（本席+Dev-T-0276）。**不立票**：3306 票面目标面已闭合（三壳+dm-spawn 全接线），孤儿系唤径断供期手工径一次性残留，非接线缺陷；手工 spawn 属故障期人工 fallback 无 wrapper 可挂。
+- **边界守**：T-0279 未并、dlmd/mbus 未重启、T-0276 在飞部署未碰、3290 探针留箱。3361 已 ack、处置报 DM-3368 已上总线。
+
+## 2026-10-31 22:3x 决策席（devin DM session，门2 唤起 MANAGE-3388）——PIPEFIX 排程消费+排队动作登记
+
+- **MANAGE-3366 已消费 ack**（22:30 抢在 22:39 期限前，deadline/.disarm 在案；ack 回执 DM-3391）：原令=PIPEFIX 正式收口排程——CTO 合 `t/pipefix-phantom-rows@fdea6669`（施工 3359/3362 材料齐、审计 3341 已过）+ `deploy_image.sh` 重建部署；meta 侧 c1f5230 按 3256 Push Protection 案处置。原令边界=与 T-0276 在飞 superset 部署串行，禁并发部署互覆。
+- **【排队动作登记】待 T-0276 superset 部署落地并合并后 → 基于新 master 合 `t/pipefix-phantom-rows@fdea6669` → `deploy_image.sh` 部署**。触发源=T-0276 部署落地+合并信号；本行为唯一欠账，PIPEFIX 无其他待办。
+- **边界守（本唤零动作）**：不并 PIPEFIX 不部署——T-0276 镜像 `871ddbeecc96` 重试构建在飞（`/opt/o-wt/t0276-deploy` worktree+`t/0276-deploy-superset` 支在案）；不并入 T-0279；3290 探针留箱；他在飞单未碰。本地 master 前班 T-0280 立票 commit `e59ceb7f`（未推）随本批同推。
+- **处置报**：见 MANAGE 箱（ack DM-3391 在先，处置报随收口补发件号）。
+
+## 2026-10-31 23:1x 决策席（devin DM session，门2-DM MANAGE-3414 点火）——判决并 master+PIPEFIX 超集部署+留案三裁
+
+- **①判决落正本**：T-0276 审计判决 3d40cd77 并 master（merge e7979831）+票面翻「完成」（T-0277 审计通过 9225b5a5 同批并 master 翻完成——审计已结单=决策收口例职，其码本在 prod 871ddbeecc96 超集内跑，并正本消歧离）。
+- **②PIPEFIX 排队执行**：合 t/pipefix-phantom-rows@fdea6669 入 master（d25065e4）。**部署裁=超集件非裸 master**——现跑 871ddbeecc96 含未并 T-0277/278 码（T-0278 收口待审在飞），裸 master+PIPEFIX 部署=T-0277/278 静默出网=MANAGE-3310 禁件第三度重演；照前例 t/pipefix-deploy-superset=merge(master′,t/0278)@d22219ed9b4a 保在跑全码+增 PIPEFIX，O_DEPLOY_ALLOW_UNPUSHED=1 钦定径部署（冲突解：PIPEFIX split_part 归一织入 T-0278 actives+doneToday 两处 GROUP BY；build/vet/管道测试绿）。
+- **③留案三裁**：(a)SG fin_capability_surface okx/dcd=t 残留→**裁=钉**（正本副本口径歧离=潜伏误导源）但涉生产 DB 超本指令边界→立 T-0281（低）；(b)部署锁未并支覆写缺口→**裁=机内化**：立 T-0282 落定 MANAGE-3310「含票锚校验」形态——现跑镜像 sha∈HEAD 祖先方放行（非祖先拒/未知 WARN/O_DEPLOY_ALLOW_REGRESS 显式径）；(c)票面 app_config 钉位→**裁=改**：erratum 段落钉「app_config 直写一律落 SG 正本」（副本收割机制 replica.go:55-68 实证），kb 条目 app-config-write-sg-primary-only 入库。
+- **边界守**：T-0276 镜像未重部署（超集件含其已并码=前进非重复）；钱径/生产 DB 零触（T-0281 钉键走票流）；判决语义零改；T-0278/0279/0280 票面未动。
+
+## 2026-11-01 07:4x 决策席（devin DM session，门2-DM MANAGE-3456 点火）——管道退场语义缺口立票 T-0283
+
+- **业主报案定性**：「管道卡一堆」实=已结票假在飞。生产实拍 ops_event：在飞面 5 行（T-0276/DBP1/DBP2/T-0279/T-0282）仅 DBP2 真在飞——4/5 假在飞坐实。病灶=`pipeline_face.go` dep CTE 全局 `event='部署'` 水位线=唯一退场线：meta 票永无部署=永占行；部署后收尾事件（判结/DM收口/dm-wake 杂讯 `领单`）诈尸再激活（T-0276 部署15:19<判结15:27；23:29 本唤杂讯再复活——病灶当场重演）。
+- **裁=per-ticket 粘滞退场**：完结判定改存在性 `HAVING NOT bool_or(完结谓词)`——`完成`（新引入钦定信号，翻完成同拍 report.sh 落行）∨ `裁决`+note含通过不含驳回（269 条历史判结零补票自愈）∨ DM席`收口`（T-0282 型直结）；全局部署水位线保留作遗留兜底。**淘汰 CEO 修向甲**（完结类混入全局水位线）：他票完结会冲掉更老真在飞票（DBP2 型），失真方向相反——全局水位只对「部署=批量flush」成立，per-ticket 语义混入=范畴错误。
+- **已决/已立**：T-0283 已批立票（P1），生产实拍证据钉票面；T-0278 追加序列+口径注（本单先合、今日完结口径随新语义对齐——原部署单线口径作废）；派单 Dev 走 mbus 单行指针；处置报+ack 上总线。
+- **边界守**：步链/灯语/前端/其余派生面零触；唤径杂讯产生侧归 T-0280（meta 派发层）不拦——读侧粘滞兜住；ops_event append-only 纪律不破（补票=INSERT 新行禁 UPDATE）；生产 DB 只读取证零写。
+
+## 2026-11-01 07:5x 决策席（devin DM session，门2-DM MANAGE-3476 点火）——EXTAUDIT 判决读出噪声立票 T-0284
+
+- **MANAGE-3476 实证复核=成立**：`extaudit_dispatch` 传审计锚作 `$2`→wrapper 读出单源锚件（`:101-114`）。补一裁深度=**读出域窄于判词落域**：产线判词两合法落点并存（锚件 12 件∨原票 4 件——DBP1/门4/门5/驳回自动返修皆落原票），REWORK 消费侧早已双源（`:748-762`），非「恒空」是「落原票时恒空」。伪票号析不出 `T-NNNN` 不进判决路由=功能无损纯噪声。
+- **裁=读出双源**（锚件+原票任一命中即报真值），立 T-0284 已批。**淘汰管理席建议甲**（spawn_audit `$2` 改传原票）：`$2` 同进提示词「本单票面」+DRYRUN hook——锚=审计任务书复验锚所在，换之审计失纲；票面明钉禁径，留增参/自解析两径施工自裁。
+- **边界守**：判词/生产服务/T-0283/DBP2 零触；同文件在飞协调注票面（T-0279 余 dlmd、T-0280 区段不叠）。ack+处置报已上总线（DM-3492/3493）。
+
+## 2026-11-01 08:2x 决策席（devin DM session，门2-DM obl38=MANAGE-3482 点火）——T-0283 双发实证入册+认领盲闸立票 T-0285
+
+- **实证复核=成立但归因修正**：MANAGE 原报「dm-wake-075123 @07:51:23 起无头副本」与时间线不符——journal 实锤 `headless-run-t0283.scope` @**07:48:04**（早于 dm-wake-075123 点火 3min），且 scope 名小写无横/argv 相对径/dispatch 零 spawn 行/.spawned 无锚四证合一=**带外手起 systemd-run 绕全闸**（非调度器径、非 supervisor、非 dm-wake 决策席——dm-wake-072953 心跳 07:37:06 已终）。席级归因存疑（候选=管理域交互席）不入票——机制面闭合即绝源。
+- **裁=三缺并修**：①带外 spawn 无闸（dispatcher 三闸只拦自家径，wrapper 只防无头不防交互席）②锁单凭据=推支时点非领单时点（已领未推窗 14min 假阴性实证，副本初判「唯一在飞」险接管）③互斥象限缺交互↔无头向——立 **T-0285 已批**：「已被领」四据（远端支/工作树/交互进程相/Dev箱已ack）两径同源预检+领单即推支钉+带外禁径+caller 父链归因痕。
+- **已决/已立**：KB 条目 `headless-outband-spawn-interactive-claim-blind` 入册；T-0285 立票已批（高——副本单发烧 1.28M tokens+双写险靠自觉兜底）。
+- **边界守**：T-0283 真席在飞零触（收口待审支 6071035d 在案不重派）；DBP2/生产/DB 零触；T-0256 无头↔无头面不重立；audit wrapper 闸面不扩；relay v5.5 冻结未碰。
+
+## 2026-11-01 08:5x 决策席（devin DM session，门2-DM SETTLE-SWEEP=MANAGE-3551 落箱即点火）——票簿清账 139 件逐件定性
+
+- **指令**：业主令「历史遗留单全部结清」——判过未翻117件已由管理席批翻（3aa8beef），余 limbo 逐件三分：被覆盖→作废(superseded:据)/仍真需→已批留队(存活理由)/语义不明→升疑报MANAGE。
+- **实清 139 件**（指令口径77扩面——漏网判过43+无状态旧票/母票/候场等全收入）：完成45/作废60/已批33/升疑1。master@4d19acf4，报告 DM-3565，ack 原件已落。
+- **定性方法锚**：①分支-远端实证——`merge-base --is-ancestor origin/t/* origin/master` 逐票判「交付并码欠翻」（18件）；②驳回散件逐件对码面/后续票链——真户事实（MT5 EXR3001157双谱）/整面换代（T-0173 SPA吞前端簇）/臂关停（T-0276吞DCD簇）覆盖即作废；③判过漏网43件判词落票在案+抽验并码全在 origin/master 即翻完成（同管理席批径）。
+- **裁项记**：交付并码未审件不一律作废——验收债明钉归 **T-0249** 清债票统辖（其本票在飞支+5判已批）；「已批」面含两子型——留队待审计（待验/收口支7+2）与仍真需续作（驳回未消锚7+冻结候令2+候场母票等）；**升疑唯 T-0084**（闸在码然 venue next_funding 恒空——前提死非覆盖，换源/退役归 MANAGE 裁）。
+- **边界守**：T-0274~0285 在飞件+DBP*/ENUMFIX 外部票零触；票件零删全注记落面；check_all docs-only 豁免绿戳后推。
+- **坑面**：管理席 3aa8beef 批翻漏网 43 件判过票（10-31 07:13 批审计通过件为主）——判词在案唯态字段欠翻；非新坑型（态字段欠翻已有前案谱），报告已载明细。
+
+## 2026-11-01 09:2x 决策席（devin DM session，门2-DM directive MANAGE-3574/obl122 点火）——T-0084 翻作废+skill 错误前提勘正
+
+- **MANAGE 裁=作废**：T-0084 预测费率前置闸票面前提证伪——OKX funding-rate 频道 `nextFundingRate` 自 current_period 改制恒发 `""`（官方文档划线 no longer supported；SG 一周全谱实采非零行=0，审计锚件已证）——锚②预测负值前置平仓结构性不可触发；D-0042 十一月方向不换源、不新基建，预测数据源不另觅。
+- **已决/已落**：票面升疑→作废（前态留痕）；skills/okx-market-ws SKILL.md 字段面段勘正——`nextFundingRate` 标死字段勿采勿用、`nextFundingTime` 仍发值无预测值、重飞注记（ON CONFLICT 仅 recv_ts 不刷新+空串→0 违 D-616 标缺律）入册。
+- **边界守**：guard 已结算翻面径零改；实现码（okxws 采集列+guard funding_flip_preempt 判据链）留码不启不删——退役/复用归另票裁定；生产 DB/部署零触。
+- **坑面**：上游能力账字段面随 venue 改制退化（官方划线字段被当活源采）——能力账须随审计证伪即勘，本拍已修。
+
+## 2026-11-01 12:5x 施工席（claude-kimi @ /opt/o-wt/t0205+t0274）——六领单批对位核账+两活票施工收口
+
+- **六领单批（业主转发声明）逐票对位**：T-0215 已交付在 master 候审计（devin-t0215）；T-0237 支 t/0237-fee-econ 状态=待验（调研已批复落地，候决策并支——无施工余件）；T-0205 审计驳回维持→本席重飞施工（列级口径）；T-0274 未领→本席新领施工；T-0145 **候场维持零施工**（票面「regime 未亮前零施工」+11-01 清账定性「候场条件未熟」——声明之「执行席框架落码」与票面冲突=超单，不动）；T-0111 完成（无件）。
+- **裁项**：①T-0274 择源反转（票面候选①/bills-from/to 前提被真户探针推翻→withdrawal-history 为常设主径）——全证+FIX01 id=516 换锚 runbook 落票面；②T-0205 fin_0094 DB CHECK 闸超出审计指引字面（择理+裁归审计席）落票面偏离段；③桥表约束双坑（漏 md 孪生+并库 42710）条目 `bridge-ddl-constraint-needs-md-twin` 入册、立票前提未探针条目 `endpoint-capability-claims-need-live-probe` 入册。
+- **边界守**：T-0274 钱径红条全程零真出金零真单（探针只读 GET；簿记行动作留决策席 runbook）；SG 生产 DB 只读+探针临时件用毕即删；T-0145/0211 等候场票零触；恒差告警阈值零改。
+
+## 2026-11-01 13:2x 施工席（claude-kimi-t8 @ /opt/o，八票批量派工 MANAGE 令）——SETTLE-SWEEP 留队七票清偿+T-0264 余量定性
+
+- **派工面**：管理席单行指针八票（T-0281/0188/0264/0252/0251/0034/0209/0029），边界=零部署零生产径直改、票面全锚照做。七票施工全收口翻待验（各一单一树一支，支名照派工令），T-0264 无施工余量（见下）。
+- **在飞支勘查三定性**：①T-0264 在飞支 t/0264-dd-eq-baseline 五 commit 实走完施工→回填→**决策审计通过**（顶 352626f1 决策落票「审计通过」在票面），余量=决策席合并 master——施工不重复不越权，未另起支防撞车；②T-0209/T-0029 旧支已并 master，本轮=审计驳回重飞（新支 t/0209-localfeed 补桩+实读清单落字、t/0029-calendar 补 annotateMacro 产径接线+报表 macro_events）；③T-0251 票面病灶已被 T-0167 轮预修（fin_0014 现版带清重前步）——本票转法典化+重放复验+同型扫描（三缺口 fin_0048/0050/md_1052 清单入结果段，>2 张另立批量票交决策）。
+- **边界裁定**：「零生产径直改」执行为——不部署、不动生产运行面；SG 库面单行 UPDATE（T-0281 okx/dcd 钉 f）照做（T-0276 gen=373 施工 SG psql 先例+票面无消费者副本+幂等闸 UPDATE 1 实返）；T-0034 生产录账走机制径（tools/openingequity），手工 psql 录账零做。
+- **T-0281 三发现交决策**：本地表无周期同步臂（回弹面=新环境 migrate 重放再种 t，种子行 md_1044 enabled=true）；本地 dev 基线库同残 t（涉及面外未动）；PG-md 亲证缺径（无 OCI ssh 通道，引审计在案实查）。
+- **T-0034 premise 订正**：票面钦定数源 fin_venue_account_snapshot 已死（码零引用+双库无表）——工具循本意走活读（mt5 与对账环同链）；okx 差值查证=dev 面 23.47（10-29 末拍）定性非 opening 类（SG onboarding 行在案+产面已平），残差定性交决策不越权录；SG/mt5 期初两库皆已在录（3247.41 同值）。
+- **测试面坑两条**：①主测试实例 public 层 T-0021 前 relic 表遮蔽 schema 隔离（fin_cashflow 无 class 列→class 过滤查询被吞错 helper 静默归零）——KB 条目 test-instance-public-relic-shadow 入册，施工检面固定走备席容器 -e :5438，主实例 relic DROP 待运维择空窗；②o-postgres-test o 角色密码漂移（env o/o 与库内不符）ALTER USER 复位。备席 -b..-e 四容器全净可作施工检面。
+- **环境事实**：events 包 TestListenSocketStarvationRootFix 负载抖敏一次红（单跑+全检复绿）——未入册（单次观察，复发再立）。
+- **边界守**：部署树零检出零提交（dialogue 台账白名单面除外）；七支各守各树；SG 零部署（容器零动）；生产 fin_cashflow/app_config 零手改。

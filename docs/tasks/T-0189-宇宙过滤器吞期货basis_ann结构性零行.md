@@ -100,3 +100,51 @@ USDT 保证金键域（形如 X-USDT-YYMMDD）。
 - universe 过滤器 HasSuffix("-USDT")→Contains("-USDT-") 两处同修
   （cmd/collector/main.go:130+cmd/core/universe.go:59——期货 instId
   日期尾形笔误级 bug 根修；datedFutRe mark-price 订阅分支零动）。
+
+## 状态
+> 清账定性（`[角色:决策]` @ 2026-11-01，SETTLE-SWEEP/MANAGE-3551）：**完成**——审计通过落票在案，漏网翻面
+
+完成（判过并码在案，11-01 清账翻面·SETTLE-SWEEP）
+
+> 审计席：headless @ 2026-10-30
+
+## 判决注记（无头审计——收口 c640660+99204d2 逐锚对账，返修改判锚口径）
+
+- 锚① **过**：在役件 vcs.revision=aa21046（`merge-base --is-ancestor`
+  双核——c640660/99204d2 均真祖先）；journalctl o-collecto 实拍
+  `[okxws] subscribed syms=1034`（10-27 22:29/10-28 13:16 两拍——
+  基数 1014 实涨）；码面 datedRe `-\d{6}$` 尾判+`i.Uly` 追加两处
+  在 origin/master 逐字核。
+- 锚② **过**（改判口径）：SG 库只读实拉（ROSTER 隧道 :5544）——
+  md_mark_index 到期期货 mark 行 6 枚在册（BTC-USD-261225/
+  BTC-USD_UM-261225/ETH-USD-261225/ETH-USD_UM-261225/
+  SOL-USD_UM-261225/XAU-USD_UM-261225，帧 ts 至 10-30 09:55Z 仍鲜）；
+  `*-USD` 指数键行 4 枚（BTC-USD/ETH-USD/SOL-USD/XAU-USD）——
+  「`*-USD-*` 到期期货 mark 行+`BTC-USD` 形 index 行」改判字面全中。
+- 锚③ **过**：`[sigdist] basis_ann 拍：2 行` 60s 拍连打 10-27 22:00→
+  10-28 14:18（服务停拍止）；md_signal@SG 现存 basis_ann 两键
+  （BTC-USD-261225=565.79bps/ETH-USD-261225=400.45bps，
+  末写 10-30 02:55Z——流延 ~28h 跨部署）N=2>0。
+- 锚④ **过**（机理级）：瓦片判据=同库 `max(ts) md_signal
+  kind='basis_ann'` 鲜度（ops_face.go:47-49，warn 10min）——行在
+  且鲜→服务端派生绿；黄态本=零行 zeroState=1 语义（T-0241 已改
+  zeroState=0），行实到即灭。附注：写判决时该键行龄 ~7h（采集面
+  02:55Z 后停拍）+本机 o-collecto 自 10-28 14:18 停役——现红=
+  管道停运运维面，非本票病灶；锚义「数到转绿」在证窗内达成。
+- 锚⑤ **过**：cmd/core/universe.go 同点同修（datedRe 尾判+i.Uly
+  追加+T-0189 钉注）——diff 逐字同构零漂移。
+- 钦定修法对账：断点A uly 载荷字段键（`out=append(out,i.Uly)`，
+  _UM 剥串错源根治，钉注在码）；断点B isUSDTInst 豁免
+  （`-USD$` 尾+datedFutRe——「杂币不采」令辨析注释钉 T-0189）；
+  sigdist datedFutRe 宽判 `^([A-Z0-9]+-[A-Z]+)-([0-9]{6})$`
+  （99204d2 真落库——蒸发回归坑条目 acceptance-hotfix-uncommitted-
+  evaporated 同 commit 在册）。
+- 残留注记（报管理席，不挡锚）：`_UM` 产品线 mark 行可收不可
+  JOIN——basis.go SQL 侧 `regexp_replace('-[0-9]{6}$','')` 剥得
+  `BTC-USD_UM` 非法指数键（指数键=uly=`BTC-USD`），6 枚 quarter
+  仅 2 枚裸形（BTC/ETH-USD-261225）产 signal，4 枚（_UM+SOL/XAU）
+  行在而 JOIN 空——覆盖面缺口建议立微件：JOIN 键改 uly 映射或
+  补剥 `_UM` 中缀。
+- 桩面核对：parse_test/ghost_test 用例与新豁免语义相容
+  （`BTC-USDC-SWAP` 仍拒、幽灵件 valid 闸兜住）；订阅分派
+  datedFutRe→mark-price/uly 键→index-tickers 逐字合钦定。

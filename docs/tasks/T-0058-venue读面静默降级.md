@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | 完成 |
+| 状态 | 完成（判过并码在案，11-01清账翻面） |
 | 优先级 | 高 |
 | 涉及面 | `cmd/core/venue_readers.go` `internal/ledger` `internal/trading/okxexec` |
 | 证据日 | 2026-10-24（ledger_diff 假警实证） |
@@ -42,3 +42,12 @@ venue 实态：trading cashBal **75.9271 USDT** + savings 2057.3787 + funding 0.
 **实勘修正**：①SG sweep_min_usd 100→50 实测触发摆渡——暴露 fmtAmt 截断坑+58129 clientId 方言（POST 体字段名正确 clientId 但 query 侧 type=0 缺参形态）；②fmtAmt FormatFloat 'f',8 已先四舍五入——须先 trunc8 再格式化；③fundSaveBalances 共享件防棘轮超 300。
 
 **生产观察项**：部署后 sweep 复推归位+30min 无 ledger_diff 假警=验签点（决策席部署位）。
+
+审计席：headless @ 2026-10-31
+
+## 判决注记（逐锚对账——收口 9994b248+4ca01bb8，部署实证 o-core:0dbeb3d5）
+
+1. **断帧→兜底/err** 通过：`tradingVals` 帧先→eq=0/err→REST `/account/balance` details 兜底→兜底败=err 上抛（venue_readers.go:83-107 实证），liveEq/WithBalances/WithEquity 三面同径。SG 生产：读败事件未产部分聚合假差。
+2. **读败→跳过+可见非假警** 通过（生产实证）：`funding 读败: http 429`（10-30 10:24/11:37/11:39 UTC）、`mt5 读败`（15:31-15:39）→对账轮跳过+`事件拍 fn 败: venue 现读:…` 错误行，期间零 ledger_diff——修复前同型故障即产假差。注记：实发文本为 ListenLoop 通用错误行非「读件缺席跳过本轮」WARN 原文——跳过+可见+非假警功能语义达标，文本口径偏差记档不判死。
+3. **$75.93 归位** 通过：`fin_cashflow earn_out -75.92713387720735` @10-24 11:49 source=fin_risk_decision——depositIdle→transfer→SavingsPurchase 正规划转径双行留痕；fmtAmt 四舍五入→trunc8 截断根修在 diff 实证。SG 现态 venue=4134.09 vs 净额 4134.57（0.48<0.5）账平；park 缺口查因+sweep_min 100→50 补件在票。
+4. **build/生产验** 通过：钩子链过检+文件 297<300 行（收口时）；修复随 `o-core:0dbeb3d5` 部署（git ancestor 实证）Up 4h healthy。10-30 14:43–15:06 告警风暴=**真差**非假警（$10k 撤资离场 venue=4134 实跌，人工 `withdraw` 簿记落账 ledger 14134→4134 即停）；15:06 后 ≥3.5h 静默，差 0.48<0.5。

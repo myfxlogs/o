@@ -1,6 +1,7 @@
 # T-0220 TRX 投票引擎 feishu 推送挂接——领奖/改投/异常/租金四事件上线
 
-## 态：施工中（领取：zcode-t0220 @ 2026-10-28T11:05Z）
+## 态：作废（superseded——11-01 清账定性·SETTLE-SWEEP）
+> 清账定性（`[角色:决策]` @ 2026-11-01，SETTLE-SWEEP/MANAGE-3551）：**作废**——superseded：TRX投票feishu挂接交付并master（t/0220-trxvote-feishu merge在案）——验收债归T-0249
 ## 立项：业主令 @ 2026-10-28（原指令携 T-0210 撞号退回——施工席勘查报告在案，补立 T-0217）
 ## 域：后端 / TRX 自营盘自动化通知
 ## 依赖：T-0192 投票引擎启驶（已投产，vote_enabled=true）

@@ -330,3 +330,43 @@ func TestGetTrxVoteStatusCounts(t *testing.T) {
 		t.Fatalf("decided_at 窗判病灶: %+v", r2)
 	}
 }
+
+// T-0265 验收锚④：rental_payers 键缺→getter 空集+ops_event 告警行（不静默
+// 空跑）；键播种→getter 热读生效（逗号分隔+trim 去空——按次读非 boot 捕获）。
+func TestTrxRentalPayersEmptyAlert(t *testing.T) {
+	ctx, w, _ := trxTestSetup(t)
+	// 0090 已播种——删键复演「键缺」装配路径
+	if _, err := w.pool.Exec(ctx, `DELETE FROM app_config WHERE key='trx.rental_payers'`); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.cfg.Load(ctx); err != nil {
+		t.Fatal(err)
+	}
+	payers := trxRentalPayersGetter(w.cfg)
+	if got := payers(); len(got) != 0 {
+		t.Fatalf("键缺应空集: %v", got)
+	}
+	if err := trxAlertRentalPayersEmpty(ctx, w.pool); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	if err := w.pool.QueryRow(ctx,
+		`SELECT count(*) FROM ops_event WHERE seat='o-core' AND event='异常'
+		 AND note LIKE '%rental_payers%'`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Fatalf("ops_event 告警行=%d 应=1", n)
+	}
+	// 键播种→热读生效（逗号分隔解析+trim；空段剔除）
+	if _, err := w.pool.Exec(ctx,
+		`INSERT INTO app_config(key,value) VALUES('trx.rental_payers','" A1 , B2 ,, "')`); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.cfg.Load(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := payers(); len(got) != 2 || got[0] != "A1" || got[1] != "B2" {
+		t.Fatalf("热读集错: %v", got)
+	}
+}

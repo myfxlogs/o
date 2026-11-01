@@ -1,6 +1,7 @@
 # T-0211 投影 uEval 跨写者同键冲突根修
 
-> 状态：已立单待施工 | 优先级：P1（宿主迁移复犯级）
+> 状态：作废（superseded——11-01 清账定性·SETTLE-SWEEP）| 优先级：P1（宿主迁移复犯级）
+> 清账定性（`[角色:决策]` @ 2026-11-01，SETTLE-SWEEP/MANAGE-3551）：**作废**——superseded：uEval同键冲突根修交付并master（t/0211 merge，三桩锚绿）——验收债归T-0249
 > 实证：2026-10-28 OCI 迁入后投影臂崩环 41 次（SQLSTATE 23505
 > `fin_opp_eval_key`)——启动对账 `正向缺口` 批插撞自然键，桥断 ~10min。
 

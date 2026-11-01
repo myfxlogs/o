@@ -16,8 +16,8 @@ import (
 	"o/internal/trading/okxexec"
 )
 
-const okxPublicURL = "wss://ws.okx.com:8443/ws/v5/public"
-const okxPrivateURL = "wss://ws.okx.com:8443/ws/v5/private"
+const okxPublicURL = "wss://ws.okx.com:443/ws/v5/public"
+const okxPrivateURL = "wss://ws.okx.com:443/ws/v5/private"
 
 // wsCollect 公开面通用订阅采样——返 channel→帧数。
 func wsCollect(ctx context.Context, url string, args []map[string]string, win time.Duration) map[string]int {

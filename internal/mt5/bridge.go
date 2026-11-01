@@ -29,13 +29,14 @@ import (
 
 // BridgeCollector MT5 桥腿在岗体（quote-only）。
 type BridgeCollector struct {
-	pool  *pgxpool.Pool
-	cfg   *config.Client
-	meter *netmeter.Meter
-	rej   *rejects.Door
-	addr  string
-	cr    Credentials
-	dial  func(addr string) (*Client, error) // 测试注入面
+	pool     *pgxpool.Pool
+	cfg      *config.Client
+	meter    *netmeter.Meter
+	rej      *rejects.Door
+	addr     string
+	cr       Credentials
+	dial     func(addr string) (*Client, error)                                                  // 测试注入面
+	symFetch func(ctx context.Context, cl *Client, sym string) (*mt5pb.SymbolParamsReply, error) // 测试注入面（FIX-02 消哑失败形态 fixture 缝——nil=生产径）
 }
 
 // NewBridgeCollector env 凭据装配（缺件=fail-closed 上抛——桥腿缺席不拖 OKX 面，
@@ -72,7 +73,7 @@ func NewBridgeCollector(pool *pgxpool.Pool, cfg *config.Client) (*BridgeCollecto
 	return &BridgeCollector{pool: pool, cfg: cfg, addr: addr,
 		cr: Credentials{Login: login, Password: pass, Server: server, Host: host},
 		rej: rejects.New("mt5bridge", "connect_failed", "subscribe_failed",
-			"symbols_missing", "tick_write_err", "symbols_read_failed")}, nil
+			"symbols_missing", "tick_write_err", "symbols_read_failed", "symbol_group_nil")}, nil
 }
 
 // Run 上岗（无 roster 注册——桥面工序岗属采集器机延伸，编制册零新卡；
@@ -163,49 +164,17 @@ func (c *BridgeCollector) AttachMeter(m *netmeter.Meter) { c.meter = m }
 // →md_signal kind='mt5_swap'。年化换算仅 SwapType=PercCurPrice（报价币百分比
 // /天——×365×10⁴ bps）；其余单位（点数/币量）缺换算件=meta 记 raw，val=NULL
 // （carry_diff 对该 sym 缺席如实——票面钦定）。会话断=拍随会话终（重连重启）。
+// FIX-02 消哑：全灭拍（零落行）=可观测事件——WARN 落日志携首败样本
+// （ops_event 在 PG-md 无表、collector 无写径——既有告警链取日志 WARN 分支）。
 func (c *BridgeCollector) swapLoop(ctx context.Context, cl *Client) {
 	syms := c.symbols()
 	t := time.NewTicker(swapEvery) // sched-exempt-ok：日级变量低频拍
 	defer t.Stop()
 	poll := func() {
-		for _, sym := range syms {
-			r, err := cl.MT5().SymbolParams(cl.Authed(ctx), &mt5pb.SymbolParamsRequest{Id: cl.Token(), Symbol: sym})
-			if err != nil || r.Result == nil {
-				c.rej.Inc("symbols_read_failed")
-				continue
-			}
-			sg := r.Result.SymbolGroup
-			if sg == nil {
-				continue
-			}
-			// 换算链全携 meta（票面钦定——点数→bps 链逐环可查）
-			si := r.Result.SymbolInfo
-			ann, ok := SwapAnnualBPS(si, sg, c.midOf(sym))
-			longAnn, shortAnn, ok2 := SwapAnnualBoth(si, sg, c.midOf(sym)) // 返修①双腿年化
-			meta, _ := json.Marshal(map[string]any{
-				"swap_long": sg.GetSwapLong(), "swap_short": sg.GetSwapShort(),
-				"swap_type": int32(sg.GetSwapType())})
-			if si != nil {
-				meta, _ = json.Marshal(map[string]any{
-					"swap_long": sg.GetSwapLong(), "swap_short": sg.GetSwapShort(),
-					"swap_type":  int32(sg.GetSwapType()),
-					"tick_value": si.GetTickValue(), "tick_size": si.GetTickSize(),
-					"points": si.GetPoints(), "contract_size": si.GetContractSize(),
-					"max_volume": float64(sg.GetMaxVolume()), "initial_margin": sg.GetInitialMargin(),
-					// T-0144 返修①：双腿年化随 meta（正 funding 径 swap_long 成本端入账源）。
-					"swap_long_ann_bps": longAnn, "swap_short_ann_bps": shortAnn, "ann_ok": ok2,
-					"mid": c.midOf(sym)})
-			}
-			var val any // NULL=单位方言不可年化（缺换算件缺席如实）
-			if ok {
-				val = ann // 空腿年化 bps（负 funding 对冲径正主）
-			}
-			if _, err := c.pool.Exec(ctx, `INSERT INTO md_signal(kind,key,val,meta,ts)
-				VALUES('mt5_swap',$1,$2,$3::jsonb,now())
-				ON CONFLICT (kind,key) DO UPDATE SET val=EXCLUDED.val,
-				meta=EXCLUDED.meta, ts=EXCLUDED.ts`, sym, val, string(meta)); err != nil {
-				c.rej.Inc("tick_write_err")
-			}
+		okN, sample := c.pollSwap(ctx, cl, syms)
+		if len(syms) > 0 && okN == 0 {
+			log.Printf("WARN [mt5bridge] swap 拍全灭——%d sym 零落行（面上盲拍，样本: %s）",
+				len(syms), sample)
 		}
 	}
 	poll()
@@ -217,6 +186,80 @@ func (c *BridgeCollector) swapLoop(ctx context.Context, cl *Client) {
 			poll()
 		}
 	}
+}
+
+// pollSwap 单拍逐 sym 读算写。返落行数+首败样本（诊断种子——全灭 WARN 携）。
+// 全灭（零落行）=可观测事件（FIX-02 消哑）；单 sym 败仅分键计数（票面语义）。
+func (c *BridgeCollector) pollSwap(ctx context.Context, cl *Client, syms []string) (int, string) {
+	okN, sample := 0, ""
+	for _, sym := range syms {
+		if why := c.fetchSwap(ctx, cl, sym); why == "" {
+			okN++
+		} else if sample == "" {
+			sample = why
+		}
+	}
+	return okN, sample
+}
+
+// fetchSwap 单 sym SymbolParams 读→裁定→换算→md_signal 落行。空返=落行成；
+// 非空=败因样本。FIX-02 消哑分键：transport err/in-band err/Result nil→
+// symbols_read_failed；SymbolGroup nil→symbol_group_nil（原 177 行静默
+// continue 第二哑径——独立键留痕）；写败→tick_write_err（既有键）。
+func (c *BridgeCollector) fetchSwap(ctx context.Context, cl *Client, sym string) string {
+	fetch := c.symFetch
+	if fetch == nil {
+		fetch = func(ctx context.Context, cl *Client, sym string) (*mt5pb.SymbolParamsReply, error) {
+			return cl.MT5().SymbolParams(cl.Authed(ctx), &mt5pb.SymbolParamsRequest{Id: cl.Token(), Symbol: sym})
+		}
+	}
+	r, err := fetch(ctx, cl, sym)
+	switch {
+	case err != nil:
+		c.rej.Inc("symbols_read_failed")
+		return sym + ": " + err.Error()
+	case r.GetError() != nil:
+		c.rej.Inc("symbols_read_failed")
+		return fmt.Sprintf("%s: mtapi err %d %q", sym, r.GetError().GetCode(), r.GetError().GetMessage())
+	case r.Result == nil:
+		c.rej.Inc("symbols_read_failed")
+		return sym + ": Result nil"
+	}
+	sg := r.Result.SymbolGroup
+	if sg == nil {
+		c.rej.Inc("symbol_group_nil")
+		return sym + ": SymbolGroup nil"
+	}
+	// 换算链全携 meta（票面钦定——点数→bps 链逐环可查）
+	si := r.Result.SymbolInfo
+	ann, ok := SwapAnnualBPS(si, sg, c.midOf(sym))
+	longAnn, shortAnn, ok2 := SwapAnnualBoth(si, sg, c.midOf(sym)) // 返修①双腿年化
+	meta, _ := json.Marshal(map[string]any{
+		"swap_long": sg.GetSwapLong(), "swap_short": sg.GetSwapShort(),
+		"swap_type": int32(sg.GetSwapType())})
+	if si != nil {
+		meta, _ = json.Marshal(map[string]any{
+			"swap_long": sg.GetSwapLong(), "swap_short": sg.GetSwapShort(),
+			"swap_type":  int32(sg.GetSwapType()),
+			"tick_value": si.GetTickValue(), "tick_size": si.GetTickSize(),
+			"points": si.GetPoints(), "contract_size": si.GetContractSize(),
+			"max_volume": float64(sg.GetMaxVolume()), "initial_margin": sg.GetInitialMargin(),
+			// T-0144 返修①：双腿年化随 meta（正 funding 径 swap_long 成本端入账源）。
+			"swap_long_ann_bps": longAnn, "swap_short_ann_bps": shortAnn, "ann_ok": ok2,
+			"mid": c.midOf(sym)})
+	}
+	var val any // NULL=单位方言不可年化（缺换算件缺席如实）
+	if ok {
+		val = ann // 空腿年化 bps（负 funding 对冲径正主）
+	}
+	if _, err := c.pool.Exec(ctx, `INSERT INTO md_signal(kind,key,val,meta,ts)
+		VALUES('mt5_swap',$1,$2,$3::jsonb,now())
+		ON CONFLICT (kind,key) DO UPDATE SET val=EXCLUDED.val,
+		meta=EXCLUDED.meta, ts=EXCLUDED.ts`, sym, val, string(meta)); err != nil {
+		c.rej.Inc("tick_write_err")
+		return sym + ": write " + err.Error()
+	}
+	return ""
 }
 
 // symbols 标的集（bridge.mt5.symbols 热启——首集 BTCUSDm/ETHUSDm 与 SG 钱径
@@ -242,54 +285,4 @@ func (c *BridgeCollector) midOf(sym string) float64 {
 	_ = c.pool.QueryRow(context.Background(), `SELECT (bid+ask)/2 FROM md_ticks
 		WHERE venue='mt5' AND inst_id=$1 AND bid>0 AND ask>0`, sym).Scan(&mid)
 	return mid
-}
-
-// SwapAnnualBPS swap→空腿年化 bps 换算件（T-0143 点数方言解锁闸）。
-// 单位方言判据（SwapType 全谱——skills/mt5-quotes-history+proto 实读）：
-//
-//	PercCurPrice（5）=报价币百分比/天→swap_short×365×10⁴ bps 直年化；
-//	Points（1）=点数/天→币值/手/天=swap_points×TickValue×Points/TickSize，
-//	  年化 bps=币值×365/(mid×ContractSize)×10⁴（换算链任一环零=不可年化如实）；
-//	其余单位（币量/保证金）=缺换算件（false——val=NULL 走缺席如实）。
-func SwapAnnualBPS(si *mt5pb.SymbolInfo, sg *mt5pb.SymGroup, mid float64) (float64, bool) {
-	if sg == nil {
-		return 0, false
-	}
-	return swapAnnualSide(si, sg, mid, sg.GetSwapShort())
-}
-
-// SwapAnnualBoth 双腿年化（T-0144 返修①——swap_long/short 各经同换算核：
-// 任一腿不可年化=ok false 整体缺席——双腿经济学须双端齐）。
-func SwapAnnualBoth(si *mt5pb.SymbolInfo, sg *mt5pb.SymGroup, mid float64) (float64, float64, bool) {
-	if sg == nil {
-		return 0, 0, false
-	}
-	long, okL := swapAnnualSide(si, sg, mid, sg.GetSwapLong())
-	short, okS := swapAnnualSide(si, sg, mid, sg.GetSwapShort())
-	return long, short, okL && okS
-}
-
-// swapAnnualSide 单腿换算核（swap=长/短腿字段值——单位方言判据同正典式）。
-func swapAnnualSide(si *mt5pb.SymbolInfo, sg *mt5pb.SymGroup, mid, swap float64) (float64, bool) {
-	switch sg.GetSwapType() {
-	case mt5pb.SwapType_SwapType_PercCurPrice:
-		return swap * 365 * 10000, true
-	case mt5pb.SwapType_SwapType_InPoints:
-		// T-0143 二返修正典式（venue 实证 2026-10-26：BTCUSDm/ETHUSDm
-		// tick_value/tick_size=0 不填、points=0.01/contract_size=1 实填——
-		// tick 双字段降为候选佐证非必需环，0=不阻断）：
-		//   点值=points×contract_size（报价币/点/手）
-		//   币值/手/天=swap×points×cs；年化 bps=×365/(mid×cs)×10⁴（cs 约掉量纲自洽）。
-		if si == nil {
-			return 0, false
-		}
-		pts, cs := si.GetPoints(), si.GetContractSize()
-		if pts <= 0 || cs <= 0 || mid <= 0 {
-			return 0, false // 换算链缺环——缺席如实
-		}
-		ccyPerLot := swap * pts * cs
-		return ccyPerLot * 365 / (mid * cs) * 10000, true
-	default:
-		return 0, false
-	}
 }

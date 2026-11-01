@@ -26,7 +26,7 @@ func TestD545_T5_ApiKeyGetterPerRequest(t *testing.T) {
 		calls.Add(1)
 		return key.Load().(string)
 	}
-	c := NewTxsCollector("addr", nil, srv.URL, getter, "", nil, 0)
+	c := NewTxsCollector("addr", nil, srv.URL, getter, "", nil, nil)
 
 	if n := c.fetchWithdrawAmount(context.Background(), "tx1"); n != 12345 {
 		t.Fatalf("fetchWithdrawAmount=%d", n)

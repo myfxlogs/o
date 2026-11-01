@@ -45,8 +45,8 @@ func TestXvenuePairAdmit(t *testing.T) {
 		t.Fatal(err)
 	}
 	var eid int64
-	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,verdict,legs,evidence)
-		VALUES('ETH-USDT-SWAP','xvenue-carry','long_perp_short_cfd','proposed','[]','{}') RETURNING id`).Scan(&eid); err != nil {
+	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,net_apr,verdict,legs,evidence)
+		VALUES('ETH-USDT-SWAP','xvenue-carry','long_perp_short_cfd',0.08,'proposed','[]','{}') RETURNING id`).Scan(&eid); err != nil {
 		t.Fatal("评估夹具（0060 direction 枚举扩应放行）:", err)
 	}
 	var pid int64

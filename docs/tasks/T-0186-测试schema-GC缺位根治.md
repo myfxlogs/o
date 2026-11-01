@@ -39,10 +39,40 @@
   （T-0174 施工已入库）
 
 ## 状态
+> 清账定性（`[角色:决策]` @ 2026-11-01，SETTLE-SWEEP/MANAGE-3551）：**已批**——乙案gc_test_schemas.sh生成SQL仍缺分号——DROP批拼永不执行结构性仍在（驳回锚实证未消）；t_*残留+arb_* cron债在
 
-- [x] 立单
-- [ ] 施工
-- [ ] 验收投产
+已批（11-01 清账定性留队·SETTLE-SWEEP）
+审计席：headless @ 2026-10-30
+
+## 判决注记（逐锚对账）
+
+- **锚1（测试跑后 t_* 不残留 / 日拍清零）——证伪**：
+  - 甲案码面已落：`testutil.Pool` 挂 `t.Cleanup` DROP SCHEMA IF EXISTS
+    <t_*> CASCADE（commit 1a383cc，testutil.go:61-66）。但实例实态：
+    `o_test` 现存 t_* schema 8,060 个；按 schema 内最老表文件 mtime
+    断代——pre-merge 残留 7,524 + **post-merge 新建残留 118**
+    （10-27:49/10-28:7/10-29:8/10-30:54，含当日 09:12–09:37Z 新建）
+    +358 个无表文件不可断代。Graceful 路径清了（观测期间计数 8063→8060
+    有落），但被杀进程/超时/吞错路径照积；Cleanup 内 `_, _ =` 吞 DROP
+    错——失败零可见。
+  - 乙案件功能死亡：`gc_test_schemas.sh` 生成 `DROP SCHEMA IF EXISTS
+    <n> CASCADE` 行尾无 `;`，pipe 入 `psql -q` 时多行并入单 query
+    buffer，≥2 候选即 `syntax error at or near "DROP"`——
+    `/opt/o-backups/gc_test_schemas.log` 10-28/10-29 两跑皆此错，**从未
+    drop 任何 schema**。另偏离钦定修法：三重钉只落两钉（t_* 前缀+DSN
+    钉库），缺「创建时间>Nh」——现形态可误杀在跑测试的活动 schema。
+- **锚2（体积增速回正常水位）——方向证伪**：`o_test` 现 23GB，t_*
+  由应急清后 ~7k 净增至 8,060——增速未回落，哨兵长期观察面前提不成立。
+- **锚3（前身 arb_* GC cron 移除或钉死注释）——证伪**：本机
+  `crontab -l` 第 11 行 `45 4 * * * /opt/arb-archive/scripts/
+  test_db_gc.sh --apply >> /opt/arb-backups/test_db_gc.log` 仍为活体——
+  未移除未注释；`/opt/arb-backups/test_db_gc.log` 连日
+  `password authentication failed for user "arb"` 照旧，半死人形态未拆。
+- **禁线核查——未违**：两面 DROP 集均仅 `t_*` 前缀（甲案按自建 schema
+  名、乙案 `nspname LIKE 't\_%'`），`public`/`fin_*`/`md_*` 未入 DROP 集。
+- **重飞指向**：乙案生成行补 `;`（或 `\gexec`/逐行 -c）+补年龄钉；
+  甲案 DROP 错改可见（log/计数）；锚3 摘或注释 arb cron 条目；
+  现存 118+358 残留与 23GB 体积清理归重飞票一并处置。
 
 ## 结果回填
 

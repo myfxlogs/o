@@ -1,6 +1,8 @@
 # T-0143 MT5 swap 点数方言换算件（carry_diff 解锁闸）
 
-## 态：✅ 验收毕投产（态字段欠翻——决策席验收commit在案，10-26清账）
+## 态：作废（superseded——11-01 清账定性·SETTLE-SWEEP）
+> 清账定性（`[角色:决策]` @ 2026-11-01，SETTLE-SWEEP/MANAGE-3551）：**作废**——superseded：mt5_swap信号由projector serve全kind镜像落地（projector_test:502-516）+xvenuepair.go:86快照消费在产
+## 审计席：headless @ 2026-10-30
 ## 领取：zcode-t0143（ZCode 施工席）@ 2026-10-26
 ## 域：桥面蒸馏 / MT5 能力面
 ## 源出：T-0141 验收（carry_diff 缺席根因——venue swap_type=1 点数方言）
@@ -87,3 +89,41 @@ TradeTickValue/TradeTickSize（或 ContractSize）径——mtapi 载荷字段先
 - **消费语义钉**：carry_diff 大**负**值=亮牌（funding 砸负→长 perp 收+空 CFD 零成本组合）；
   正值=funding 正常态非机会读数。下游消费面禁反读。
 - **坑沉淀**：session-scoped-goroutine-ctx 条目入工程经验库（worker 顺带归档）
+
+---
+
+## 判决注记（无头审计 @ 2026-10-30，收口 diff 5d9ca42+4fe1bf6+dc6dd67 逐锚对账）
+
+- **锚① mt5_swap.val 非 NULL+链全携 meta：过**——SG fin.md_signal 实查：
+  BTCUSDm/ETHUSDm val=0 真实零（meta ann_ok=true、swap_short=0 空腿免费合法
+  产出），meta 全携 points=0.01/contract_size=1/tick 双字段/mid/swap raw；
+  SOLUSDm swap_type=0→val=NULL ann_ok=false 非 Points 方言 fail-closed 正确。
+  码面 SwapAnnualBPS InPoints 正典式（points×cs 点值链）与票面一致，
+  -1786.5 点×0.01×1×365/(79842×1)×10⁴≈-816.7bps 量级断与桩断相符。
+- **锚② carry_diff 落行且 ts 鲜：不达（生产实态）**——2 行在（BTC-USDT-SWAP
+  +253.0/ETH-USDT-SWAP +330.2bps），但 ts=2026-10-30 01:13:03Z 实测陈 ~9.9h。
+  根因链实锤：上游 mt5_swap 同刻 01:13Z 后零写，sigdist 8h 鲜门+血缘 ts
+  （xvenue.go）断供=设计内 fail-closed；同 OCI 采集进程 OnQuote 侧 md_ticks
+  venue=mt5 <1s 鲜、xvenue_spread 8.7s 鲜、岗位 beat 4s——进程与会话存活，
+  仅 swapLoop 产出径停摆，跨 ops_face 死阈值（mt5_swap warn5h/dead9h）。
+  停摆因未定（rejects 内存态 OCI 不可达：SymbolParams 拉取无每调 deadline
+  悬挂形与凭据/token 失效形皆可能——ops 注记钦定查 OCI 桥 swapLoop 凭据/
+  gateway），按「不确定→驳回避险」落驳回，重飞/运维先实查 OCI collector。
+- **锚③ 断连重连 swapLoop 零累积：过（码面+桩锚）**——bridgeSession sessCtx
+  派生+defer cancel、OnQuote/swapLoop 同挂（bridge.go:104-133），桩
+  TestSwapLoopStopsWithSession 断言退出+goroutine 计数归位；运行态计数
+  远端不可达，无反证。
+- **附查（报管理席——本票面外事证）**：同刻面 basis_ann 陈 8.2h、
+  funding_view 陈 7.7h——多生产源同窗停摆疑面更大，宜并案排查。
+- **其他对账**：symbols_read_failed 注册+挂载一致（bridge.go:75/174）；
+  bridge.go 295 行≤300；KB 条目 session-scoped-goroutine-ctx 在库；
+  commits 含 T-0144 后续叠加（SwapAnnualBoth/meta 扩），对账以票面锚为准。
+
+---
+
+## 判决注记·复核（无头审计二跑 @ 2026-10-30，收口 diff 5d9ca42/4fe1bf6/dc6dd67 独立逐锚对账）
+
+- **锚① mt5_swap.val 非 NULL+链全携 meta：过（写时达标）**——生产库（隧道 127.0.0.1:5544）实查：BTCUSDm/ETHUSDm val=0 非 NULL（swap_short=0 空腿免费合法零非缺席），meta ann_ok=true 全携 points=0.01/contract_size=1/tick_value=tick_size=0/mid/swap raw，swap_long_ann_bps≈-842/-848bps 量级合理；SOLUSDm swap_type=0→ann_ok=false/val=NULL 非 Points 方言 fail-closed 正确。码面 SwapAnnualBPS InPoints 正典式与二返修 diff 一致，symbols_read_failed 预注册、sessCtx 会话域、KB 条目 session-scoped-goroutine-ctx 均实存。
+- **锚② carry_diff 2 对落行且 ts 鲜：不达**——2 对落行在（BTC-USDT-SWAP +253.0/ETH-USDT-SWAP +330.2bps），但 ts=2026-10-30 01:13:03Z，实测陈 13h10m（票内解锁判据 ≤2×拍=8h 断供）。上游 mt5_swap 同刻停摆；同时刻 md_ticks venue=mt5 BTCUSDm/ETHUSDm 秒鲜、xvenue_spread/depth5 秒鲜——采集进程与 OnQuote 会话存活，独 swapLoop 产出径死。停摆根因本席取证径不可定（rejects 内存态不可达），按「不确定→驳回避险」。
+- **锚③ 断连重连 swapLoop 零累积：码面过/运行态未证**——sessCtx 派生+defer cancel+OnQuote/swapLoop 同挂（bridge.go），桩 TestSwapLoopStopsWithSession 断言在位；但生产 swapLoop 独停~13h 本身即稳定性疑点，无正面实证。
+- **结论**：驳回。重飞/运维先查 OCI 盒 collector swapLoop 停因（SymbolParams 拉取悬挂/凭据失效形皆候选），复拍后锚②自回绿。

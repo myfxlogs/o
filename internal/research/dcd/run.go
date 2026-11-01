@@ -39,7 +39,7 @@ type Runner struct {
 func NewRunner(pool *pgxpool.Pool, cfg *config.Client) *Runner {
 	return &Runner{pool: pool, cfg: cfg, watch: armwatch.New("dcd 枚举"),
 		rej: rejects.New("research", "dcd_missing_params", "dcd_feed_failed",
-			"dcd_registry_read_failed", "dcd_write_err", "dcd_coins_absent")}
+			"dcd_registry_read_failed", "dcd_write_err", "dcd_coins_absent", "dcd_skip_scope_ccy", "dcd_feed_empty", "dcd_scan_timeout")}
 }
 
 // AttachFeed 挂枚举读件（cmd 装配层 REST 签名闭包）。
@@ -93,6 +93,9 @@ func (r *Runner) scan(ctx context.Context) error {
 	r.lastAt = time.Now()
 	r.watch.SetBeat(iv)
 	r.watch.Check(ctx) // T-0117 臂静默判定（业主通道 Alert 一次抑刷屏）
+	sctx, cancel := armwatch.DeadlineCtx(ctx, r.cfg, "research.dcd.scan_timeout_s", 8*time.Minute)
+	defer cancel()
+	ctx = sctx // T-0244 期界包络（挂死径封——N对×调用+退避无总deadline 收口）
 	p, err := r.params()
 	if err != nil {
 		r.rej.Inc("dcd_missing_params")
@@ -113,6 +116,9 @@ func (r *Runner) scan(ctx context.Context) error {
 		}
 		ps, err := r.feed(ctx, s)
 		if err != nil {
+			if ctx.Err() != nil { // 期界触达显形（驳回修①——超时专用计数非通用败）
+				r.rej.Inc("dcd_scan_timeout")
+			}
 			r.rej.Inc("dcd_feed_failed")
 			return fmt.Errorf("面 %s 读败 fail-closed（不造零快照）: %w", s.Surface, err)
 		}
@@ -164,7 +170,12 @@ func (r *Runner) scanSurface(ctx context.Context, s Surface, ps []Product, p Par
 		}
 	}
 	if skipCcy > 0 {
+		r.rej.Inc("dcd_skip_scope_ccy") // T-0243 层①：skip 集黑盒修——计数可见非仅日志
 		log.Printf("[research/dcd] 面 %s skipped_scope_ccy=%d（非 USDT 计价产品枚举期挡——范围硬闸）", s.Surface, skipCcy)
+	}
+	if len(ps) == 0 { // T-0243 层②：feed 空集显形（如实报空非静默零帧——真空/解析落两可皆须可见）
+		r.rej.Inc("dcd_feed_empty")
+		log.Printf("WARN [research/dcd] 面 %s feed 空集（products=0——OKX 面真空或上游断供，如实呈）", s.Surface)
 	}
 	return nil
 }

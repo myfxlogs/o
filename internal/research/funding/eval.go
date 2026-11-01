@@ -7,6 +7,8 @@ import "fmt"
 // Params 五拆判据（全自 app_config 机读——零代码字面量）。
 type Params struct {
 	TakerFeeBps   float64
+	MakerFeeBps   float64
+	MakerFeeSet   bool // T-0247 分层：在册（含 0/负）→真值复合；键缺→双 taker 保守
 	SlippageBps   float64
 	FailCostBps   float64
 	WindowLossBps float64
@@ -47,12 +49,18 @@ func Evaluate(instID string, rate float64, p Params) Eval {
 		floorSrc = "earn"
 	}
 	gross := abs(rate) * p.SettlesPerDay * 365
-	cost := (2*p.TakerFeeBps + p.SlippageBps + p.FailCostBps + p.WindowLossBps) / 1e4
+	// T-0238 分费制：maker_fee_bps 在册=maker 腿×maker 费+降级腿×taker 费
+	// 复合估（一条 maker 一条降级保守面）；缺键=原双 taker 形。
+	feeBps := 2 * p.TakerFeeBps
+	if p.MakerFeeSet { // 在册按真值（0=免 maker 费档，负=返佣计入 cost 负项——哨兵不揉）
+		feeBps = p.TakerFeeBps + p.MakerFeeBps
+	}
+	cost := (feeBps + p.SlippageBps + p.FailCostBps + p.WindowLossBps) / 1e4
 	net := gross - cost
 	e.GrossAPR, e.NetAPR = gross, net
 	e.Evidence = map[string]any{
 		"funding_rate": rate, "settles_per_day": p.SettlesPerDay,
-		"taker_fee_bps": p.TakerFeeBps, "slippage_bps": p.SlippageBps,
+		"fee_bps": feeBps, "taker_fee_bps": p.TakerFeeBps, "maker_fee_bps": p.MakerFeeBps, "maker_fee_set": p.MakerFeeSet, "slippage_bps": p.SlippageBps,
 		"fail_cost_bps": p.FailCostBps, "window_loss_bps": p.WindowLossBps,
 		"min_net_apr": p.MinNetAPR, "floor_apr": floor, "floor_source": floorSrc,
 	}

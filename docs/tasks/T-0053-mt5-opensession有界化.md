@@ -2,12 +2,22 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | 完成 |
+| 状态 | 完成（判过并码在案，11-01清账翻面） |
 | 立项 | `[角色:决策]` @ 2026-10-26（复审席 §11 部署实录移交件：SG 首建 MT5 会话静默悬挂） |
 | 领取 | zcode-glm @ 2026-10-26（worktree /opt/phase-wt/t0053，支 t/0053-mt5-opensession） |
 | 优先级 | 中 |
 | 涉及面 | `internal/mt5/client.go`（Dial/Connect）、`internal/mt5/collector.go`（OpenSession）、`cmd/core/main.go`（装配调用点） |
 | 范围外 | MT5 策略启用、OnOrderProfit 语义、网关侧问题排查 |
+
+审计席：headless @ 2026-10-31
+
+判决注记（逐锚独立对账，收口 commit 12874ac8 全量 diff 亲核+测试实跑）：
+- 锚① Dial+Connect 有死线：**达**——Dial=grpc.NewClient 懒拨号即返（本身不可悬，真实建链发生在首 RPC）；Connect 调用方 ctx 无 Deadline→`connectBudget=30s` WithTimeout 兜底（client.go 新增段亲核），Server(ConnectEx)/Host 双轨同裹派生 ctx；OpenSession 内 WithTimeout(openSessionBudget=30s) 全包=锚钦定形（session.go）。潜态注：调用方 deadline 存在但 >30s 时不钳（存在性检非 min）——现全谱调用方（汇市巡 Run ctx 无死线/OpenSession 30s）皆 ≤30s 无现患。
+- 锚② 分阶段 log：**达（义合）**——成径 dial起→connect起→authed 三行相位界；败径 WARN 携阶段名（dial/connect/creds）+err。严读「每步起讫各一行」未单列 dial讫/connect讫，相位起行兼作前相讫证，悬挂相位定位力（锚意）全具——录注不挡。
+- 锚③ 悬挂可观察：**部分达**——WARN 字面 OpenSession 径实落；原事故径（汇市巡 session）超死线→`connect_failed` 计门 Inc+「会话终止（Xs 后重连）」日志——可见非静默但无 WARN 字面。alerter 子句空置：mt5 Collector/OpenSession 无 alerter 挂载点（struct 七域亲核；平台 alerter 在案仅挂 pgguard/ledger/warden）。**roster 非 active 子句未实装**——roster 纯活性模型（Register 钉 active/Beat 只刷 last_beat，roster.go 全文无非 active 写径），施工如实注记非本票面。**锚设计疑义报管理席裁决**：修后悬挂态灭，重试中工人 active=真实活性，venue 失联显形钦定面=计门+日志（D-652-A）；若钦要花名册映会话健康需另立票建降级态机制——翻 non-active 反谎报活性违数据单源真。
+- 锚④ 黑洞注入断言死线内返错：**达（实测）**——`TestConnectDeadlineBounded` 黑洞址 10.255.255.1:443 双支（300ms 兜底注入/200ms 调用方 budget 继承）断言限时返错；本席实跑 `go test ./internal/mt5/ -run TestConnectDeadlineBounded -count=1` PASS。锚名「OpenSession」字面断在 Connect——Connect=懒拨号首 RPC=悬挂实点，OpenSession 为 readCreds(DB+master key)→Dial→Connect 薄壳，断 Connect=断悬挂机制于实点，义合录注。
+- 锚⑤ 重连语义不伤：**达**——Run 退避环未触（reconMin 2s×2→reconMax 60s），session 返错→stream_dead 计门→日志→退避重试至 ctx 终，有界返错正喂既有重连非一次败永久离线。
+- 宣称件三证齐：session.go 存 43 行/collector 294 行≤300 闸/connectBudget 落码/rejects 键集 connect_failed 在册/merge 623c18c4 在 master。SG 部署后 md_account_events order_profit 回执=票面明记归部署验证面，非本 commit 审计域。
 
 ## 背景（复审席亲证）
 

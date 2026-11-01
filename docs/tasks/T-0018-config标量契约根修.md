@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | 完成 |
+| 状态 | 完成（判过并码在案，11-01清账翻面） |
 | 提出 | `[角色:决策]` 2026-10-23 |
 | 类别 | 缺陷修复（线上实证）+契约钉死 |
 | 依赖 | 无 |
@@ -48,3 +48,14 @@
 - 机检全绿 = **PASS**：build/vet/gofmt/lines/env/migration/import 28/28 边全过；go test 12 包全绿 @5434。
 
 **实测修正**：①迁移种子裸布尔字面量撞 jsonb 42804（boot 实证钉出→改文本字面量 jsonb 解析原生）；②dev 库已存混编码值（invest.* 字符串/risk.* 数字）——宽容读器两形通证裁决成立。
+
+审计席：headless @ 2026-10-31
+
+**审计注记（逐锚对账，收口 commit c0f7d489）**：
+
+- 锚①四读器入库+消费段清零 = **过**：`internal/platform/config/typed.go` GetFloat/GetBool/GetString/GetInt 四件实存；`git grep @c0f7d489` 实证收口时 `internal/` 全域 `var s string` 仅剩 data/okxpriv·okxws 两处 venue 报文解析（非 config 消费，回填已申告），五个已存在域（research/risk/lifecycle/execution/ledger）全走读器，guard 域收口时尚不存在。**注**：master 现态已回生同款禁式两处——`internal/guard/ddline.go:127`（T-0025 引入，risk.kill_switch 手写 `var s string;Unmarshal;=="true"`）与 `internal/mt5/collector.go:90`（mt5.gateway_addr 手写 Unmarshal 散件）——均属收口后新码违约，非本票施工面缺口，但证契约无机检闸自执行，报管理席裁后续。
+- 锚②原生种子+读通+fail-closed 测试锚 = **过**：migrations 0007–0010 改 jsonb 原生字面量（diff 亲证）；`TestTypedReaders` 原生数字/布尔/字符串+字符串残留宽容两形+两拒 fail-closed 锚齐，审计席本机复跑绿（O_TEST_PG_DSN @5434）。
+- 锚③dev 实证 = **过（实质）**：回填宣称的 2 行 verdict 原物不可复验（phase 库已随 PHASE→o 换代不存在）；现 dev 库（5433/o）`fin_opp_eval` 实测 6576 行 verdict（proposed 261/rejected 4609/unevaluable 1706，10-24 至 10-29 连续产出）——「永远评估不了」锁死态确愈；app_config 实测混编码并存（research.*/risk.*=number、invest.lifecycle.*=string 残留），宽容读器必要性获活证。
+- 锚④经验库条目+索引重建 = **过**：条目 `docs/工程经验库/条目/app-config-scalar-encoding-drift.md` 随收口 commit 入库（schema v2 齐）；现行 `索引.md` 含该条目行（索引于后续 commit 重建，非同 commit——锚义按终态满足计）。
+- 锚⑤机检/CI = **附注过**：本机绿链回填可信（typed 测试复跑绿）；然收口 SHA eebcade5 的 CI run 39978118540 `go test ./...` 实态=**failure**——当晚 master 系统性红（多张纯 docs 票同步点同挂 go test，cb7a49f4/d5862abd 同窗落 testutil 包级 schema/同池修正），同码于 624c480b（40 分钟后）CI 转绿——非本 diff 引入之败，如实记档。
+- 附带缺陷（不阻锚，报后续票）：①`GetInt` 注释称「非整拒」而 `int64(f)` 实截断非整数不报错（注释说谎+潜在 fail-open，现有消费方 net.budget_kbps/trx.vote_max_rebal_per_day/calendar.lead_minutes）；②`GetBool` 字符串退路受任意串（"yes"→false 静默）宽于票面「两形」约定。

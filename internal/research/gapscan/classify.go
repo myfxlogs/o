@@ -125,11 +125,15 @@ func (r *Runner) generateCandidate(ctx context.Context, venue, surface, family s
 		direction = "gap_carry"
 	}
 	meta["provenance"] = "surface_gap"
+	// T-0205 重飞：面元数据无 APR 估计——禁 NULL 落 proposed（行级不变量
+	// fin_0094 同维），判词=unevaluable+apr_est_missing 如实缺席态；候选
+	// 起草径不变（fin_proposal 行=面候选功能载体，不依赖评估判词）。
+	meta["reason"] = "apr_est_missing"
 	ev, _ := json.Marshal(meta)
 	var evalID int64
 	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,
 		gross_apr,net_apr,verdict,legs,evidence)
-		VALUES($1,'surface-gap',$2,NULL,NULL,'proposed','{}',$3)
+		VALUES($1,'surface-gap',$2,NULL,NULL,'unevaluable','{}',$3)
 		ON CONFLICT (inst_id,template,direction) DO UPDATE SET ts=now(),
 		verdict=EXCLUDED.verdict,evidence=EXCLUDED.evidence RETURNING id`,
 		instID, direction, ev).Scan(&evalID); err != nil {

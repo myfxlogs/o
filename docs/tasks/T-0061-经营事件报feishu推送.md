@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | 完成 |
+| 状态 | 完成（判过并码在案，11-01清账翻面） |
 | 优先级 | 中 |
 | 涉及面 | `internal/platform/notify` `cmd/core`（新 worker 或挂信使）、`app_config` 键 |
 | 证据日 | 2026-10-24（首仓序试单期里程碑业主侧不可见实证） |
@@ -68,3 +68,18 @@
 - ② **pushFunding 游标播种**：boot 首拍 max(id) 置基——重启→id>0 全史重推病灶根除。
 - ③ **迁移件头注对齐**：0031→0032（文件号与注释同步）。
 - 机检：go test notify 包绿 @5434。
+
+---
+
+## 审计判决（无头单飞）
+
+审计席：headless @ 2026-10-31
+
+逐锚对账（收口 commit 936652be+12fe43b4+dfc8bb91 全量 diff vs 仓面实态）：
+
+- **锚1（单测三态）**：`TestEventPushOffNoSend`（on=false→零发）与 `TestEventPushDedup`（同 `opened:1` 重注入→一推+`[经营事件]`前缀断言）实存并本 session 实跑绿（`go test -run TestEventPush` 2 过）。注记：锚文「三事件注入→三条」未落独立用例——现测覆盖关闸/同键去重/前缀三态机制，三源增推经锚2 实户收实证。
+- **锚2（feishu 实收）**：T-0065 票面载业主原文「ETH-USDT-SWAP notional=$XX 是黑话」——业主逐字引用 `pushOpened` 实发文案=推送实收铁证；fin_cashflow funding_settle 行 id36/37/105/116（2026-10-24~25Z）落部署后试单窗。
+- **锚3（告警径回归）**：T-0061 diff 对 `alert.go` 零触碰；`main.go` alerter 装配原样仅增 `startEventPush` 行；`notify.feishu.events.enabled` 与告警键分离——两径并存成立。
+- **锚4（机检+无周期环）**：本 session 实跑 `go build`/`go vet`（notify/events/cmd-core 三包）零告警；`events.ListenLoop`=PG LISTEN/NOTIFY 事件脊（T-0048 律），本票 diff 零周期原语（event_push.go 内 ticker 为 T-0070 后加且挂 `sched-exempt-ok` 豁免）。
+- **返工三项复核**：①`template_ref` 改 `*string` 扫+`err continue`（events.go L76-83）✓；②`pushFunding` boot 首拍 `COALESCE(max(id),0)` 播种（L87-93）✓；③迁移头注 0032 对齐+`migrate_table.go` {32,fin_0032_event_push.sql} 登记在案（dfc8bb91 补正）✓。
+- 备注（非阻断）：`pushFunding`/`pushClosed` 行级 `_ = rows.Scan` 留形——fin_cashflow.position_ref NULL 行推送文案落「对冲仓#0」级美观残差；`sent` 去重表随推送单调增（长跑内存缓增）。

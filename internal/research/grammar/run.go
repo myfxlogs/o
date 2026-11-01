@@ -18,6 +18,7 @@ import (
 	"o/internal/platform/config"
 	"o/internal/platform/events"
 	"o/internal/platform/rejects"
+	"o/internal/research/armwatch"
 )
 
 // Coins 逐币可动余量读件（vol-sell 实评 notional 闸判据源——dcd.Coins 同型
@@ -61,6 +62,9 @@ func (r *Runner) scan(ctx context.Context) error {
 		return nil
 	}
 	r.lastAt = time.Now()
+	sctx, cancel := armwatch.DeadlineCtx(ctx, r.cfg, "grammar.scan_timeout_s", 8*time.Minute)
+	defer cancel()
+	ctx = sctx // T-0244 期界包络
 
 	// enabled 能力面集（注册即被枚举真源——T-0119 致密化面）。
 	enabled := map[string]bool{}
@@ -160,36 +164,6 @@ func (r *Runner) evaluate(ctx context.Context, fams []Family) error {
 		}
 	}
 	return nil
-}
-
-// writeEval 幂等评估行（同 inst+template+reason 1h 窗不重生——节拍防抖）。
-func (r *Runner) writeEval(ctx context.Context, inst, template, direction, verdict, reason string, ev map[string]any) error {
-	// T-0205①硬闸：proposed 前置 net_apr 存在——无 APR 估计下落 verdict=
-	// unevaluable+apr_est_missing（NULL 参与排序/阈值判=语义炸根修）。
-	if verdict == "proposed" {
-		if _, ok := ev["apr"]; !ok {
-			if _, ok2 := ev["net_apr"]; !ok2 {
-				verdict, reason = "unevaluable", "apr_est_missing"
-			}
-		}
-	}
-	ev["reason"] = reason
-	b, _ := json.Marshal(ev)
-	var n int
-	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_opp_eval
-		WHERE inst_id=$1 AND template=$2 AND evidence->>'reason'=$3
-		AND ts>now()-interval '1 hour'`, inst, template, reason).Scan(&n); err != nil || n > 0 {
-		return nil
-	}
-	_, err := r.pool.Exec(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,verdict,legs,evidence)
-		VALUES($1,$2,$3,$4,'[]',$5)
-		ON CONFLICT (inst_id,template,direction) DO UPDATE SET ts=now(),
-		verdict=EXCLUDED.verdict,legs=EXCLUDED.legs,evidence=EXCLUDED.evidence`,
-		inst, template, direction, verdict, b)
-	if err != nil {
-		r.rej.Inc("eval_write_err")
-	}
-	return err
 }
 
 // evalBasis 季度期货基差评估（future tick−spot tick=年化基差 vs 判据阈；

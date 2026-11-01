@@ -20,7 +20,8 @@ domain: 工程
 | POST /asset/transfer | **ok 真钱往返** | {type:"0",ccy,amt,from,to,**clientId**}——trading↔funding 双向实证（clTId 826xxx 在案） |
 | GET /asset/transfer-state?type&ccy&clientId | **ok** | 按 clientId 定划转真态 success/failed——**真单查证在案** |
 | GET /asset/deposit-history | ok | 充币史 {ccy,amt,state,ts} |
-| GET /asset/withdrawal-history | ok | 提币史同构 |
+| GET /asset/withdrawal-history | ok | 提币史同构——**外向出金全盖（T-0274 真户实证 2026-11-01）**：OKX 内部户转出（chain/txId 空、to=对方手机号）与链上提币皆在册且 state=2 终证；内转双跳（trading↔funding↔earn）天然缺席=行面即外向定性 |
+| GET /asset/bills | ok | funding 户账单 {billId,ccy,balChg,bal,notes,ts,type}——**无 from/to/subType 分辨域（T-0274 真户实证——「funding 户账单带 from/to 户号域」系误传）**；`notes` 字段=动因人读标（"Withdrawal"/"Deposit"/"Transferred to trading account"/"Simple Earn redemption" 等）可读但禁作机器判据；type=1=转入类、type=2=Withdrawal |
 | GET /asset/currencies?ccy | ok | 链信息（USDT-Arbitrum One 等在案） |
 | POST /finance/savings/purchase-redempt | **ok 真钱** | side=`purchase`/`redempt`——赎回 T+0 到 funding；**大额实证 2139 USDT 赎+购全链** |
 | GET /finance/savings/balance | ok | Earn 持仓行 {ccy,amt,earnings,pendingAmt}——**遍历所有行找 ccy**（首行序不定，取首行=漏读坑实证） |

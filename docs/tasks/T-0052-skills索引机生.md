@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | 完成 |
+| 状态 | 完成（判过并码在案，11-01清账翻面） |
 | 立项 | `[角色:决策]` @ 2026-10-26 |
 | 领取 | zcode-glm @ 2026-10-26（worktree /opt/phase-wt/t0052，支 t/0052-kbgen-skills） |
 | 优先级 | 中 |
@@ -58,4 +58,15 @@ build/vet/gofmt/test 全量 / import-direction / migration-contract / lines（kb
 - 验收中发现的闸缺口（坑引列依赖经验库内容、8b 门只查 staged skills/ 面→经验库-only commit 溜漂移）→ 坑条目入库+立 T-0150 修复，不阻本票。
 - 状态翻完成。
 
-### 状态：完成
+### 状态：完成（判过并码在案，11-01清账翻面）
+
+## 无头审计判决（审计席：headless @ 2026-10-30 —— **通过**）
+
+锚实对账（收口 ee2dbd62 差面+验收补件 a45feae2；隔离 worktree 基 origin/master 产物实态三证核验）：
+
+- **锚①覆盖全+stale 红**：在册 SKILL.md 19 件 vs 索引 19 数据行逐域对拍全对；`go run ./tools/kbgen skills --check` 现态 exit 0；改 pg-capacity frontmatter 首句未重建→`skills index out of date` exit 1 红实证。
+- **锚②≤60 行**：索引现 25 行；码内硬顶 `skillsIndexMaxLines=60`（超限生成即报错）。
+- **锚③钩红实证**：staged 改一件 skill 不重建索引→`bash scripts/hooks/pre-commit` 实跑 exit 1（FAIL: skills/索引.md 陈旧）；重建补 staged→exit 0 全钩绿。现行钩为 T-0158 扩面版（触发面 `^skills/|^docs/工程经验库/`），本票原挂点在档（pre-commit:116-128）。
+- **锚④缺描述哨兵**：无 frontmatter 临时件（zz-audtmp）实测→索引行标「缺描述」（与收口态 okx-api-spec 实例同源径）。
+
+残留观察（非锚违例，报管理席裁量）：frontmatter 存在但无 description 键的 skill（zz-audtmp2 实测）覆盖列落**空白格**而非「缺描述」字面——锚文「frontmatter 缺 description」严格口径下该子类未标字（空白格异常可目视、不可机判）；收紧=一行补丁（`perr != nil || fm.Description == ""`→缺描述），立小票可消。另：8b 触发面初版未含经验库依赖面（坑引列派生源）之缺口=票面验收时自发现，坑条目 skills-index-drift-via-cross-face-commit 入库+T-0154/T-0158 修复已在 master，闭环在案不属本票违例。

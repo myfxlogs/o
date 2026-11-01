@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | 完成 |
+| 状态 | 完成（判过并码在案，11-01清账翻面） |
 | 领取 | zcode-c9596 @ 2026-10-25 |
 | 涉及面 | （同窗口两票共用） |
 
@@ -54,3 +54,26 @@ MT5
 - 偏离：①票面 v1 示例「遗留 N 种 ≈$X」与 v2 追改冲突——按 v2 执行零遗留；
   ②MT5 多账号=每真实账号一行（当前凭据=单账号，枚举面就绪）；③Overview
   每调建 MT5 会话（30s budget 死线——读败 WARN+读件缺不悬挂）。
+
+## 判决注记（审计席逐锚对账 @ 9518660+614064c）
+
+- 锚① NAV 同纳 MT5：`service.go` Overview `o.NavTotal += a.Equity` 逐账号
+  净值入合计；对账侧 `venue_readers.go` `out[{mt5,USD}]=AccountSummary` 既存
+  ——两边同纳口径一致；`TestOverviewFundScopeVenueCard` fixture NAV=7428.58
+  断言含 MT5 3247.41。
+- 锚② 两 venue 块+净值现读：proto `MoneyRow` +`venue`(7)/`note`(8)；后端
+  `mt5LiveFor`=OpenSession→AccountFacts(login)→AccountSummary(equity) 现读；
+  前端 venue→分区→行三级、`VSVG` 含 okx/mt5 logo、定序 okx→mt5→其余(99)。
+- 锚③ 读件缺非假零：`mt5Live==nil` 与读败两径均落
+  `{Venue:mt5,Section:户,Label/Note:读件缺}` 行；前端 note 行不显金额且
+  分区合计抑制——非 $0.0 假零；`TestOverviewMissingAccountsZero` 覆盖 nil+
+  err 两形。
+- v2 追改：零遗留落地（`fundCcy` 过滤集外不返不入 NAV、`legacy` 退役恒
+  false 保 wire、前端聚合行撤除）；MT5 户全计。
+- 备查无违：凭据走 `app_secrets` 密文+主机密钥文件（`readCreds` 共源）；
+  触碰文件全 ≤300 行；新增行无定时原语；`internal/earn/residual.go`
+  `valCcyOf` 的 `_ =` 吞 QueryRow 不在 AUDIT_HOT_FILES 清单且失读→0 为
+  失效安全向（估值缺=不扫不动钱）。偏离②单会话实现在当前单凭据下与设计
+  等价，`[]mt5Acct` 行面已备多账号扩展。
+
+审计席：headless @ 2026-10-30

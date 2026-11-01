@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | ✅ 完成 |
+| 状态 | 完成（判过并码在案，11-01清账翻面） |
 | 立项 | `[角色:决策]` @ 2026-10-28（设计档 `docs/handoff/T-0173-最优解设计修订.md` §一.3/§二/§五；票面文件由施工席依决策席 dispatch+设计档原样物化——b46be9d 只落设计档未落票文件，来源留痕交验收核） |
 | 领取 | glm-t0220 @ 2026-10-28 13:01Z |
 | 优先级 | 高 |
@@ -46,3 +46,19 @@ T-0220a 后端推载荷后，前端仍逐卡 refetch 就浪费了。设计令：
 ## 验收注（`[角色:决策]` @ 2026-10-28，接管验收：原验收席 claude 卡住，业主令转本席；收口合并 `050b180`，实现件随 `26bf968` 在 master）
 
 **裁：验收通过，票翻完成。** 票面物化来源追认（b46be9d 只落设计档未落票文件，施工依设计档 §一~§五 原样物化=合规）；回填四件（实现摘要/测试证据/偏离/坑处置）详实；偏离在案均认可；测试证据与生产目检（业主实见新前端）互证。
+
+---
+
+## 审计判决
+
+审计席：headless @ 2026-10-31
+
+逐锚对账（收口面=实现件 `26bf9686`/施工支头 `7879e949`，本票九件网摘 `7e27d777..26bf9686` 全量 diff）：
+
+1. `store.ts` 全局分片 store——**过**。85 行新件实存；subscribe/useSlice/hydrate/set* 四面在件，`useSlice` 走 React 原生 `useSyncExternalStore`（三分片类型重载）。快照身份纪律实锤：`freshView()` 单对象、唯 `setView` 换身份（订阅方两次渲染间 getSnapshot 恒同对象）；hydrate↔推帧竞态=`pushed` 集合推帧优先（迟到回包弃陈）。锚列四件 subscribe/getSnapshot/set/hydrate 按能力面读——getSnapshot 内联于 useSlice 第二参、set 拆类型化 `setHedgeFlow/setClosedPositions/setHostMetrics`，实质满足。
+2. `stream.ts` v2——**过**。`ingest` 按 kind 三分支 `fromJson(XxxSchema, ev.data)` 类型化解析（gen `data?: JsonObject`——Struct→JsonObject 映），零手拼；`if (!ev.data) return` 后 `subs.forEach` 无条件发 topic 信号——无载荷帧信号语义保持；`onLive`/`statusSubs`/`setLive`+`fn(live)` 回放原样未触，断流显形不变。
+3. 三分片消费落位——**过**。`hostMetrics`→HostMetricsCard（useSlice+挂载 hydrate）；`hedgeFlow`→HedgeFlow 默认视图 `home=(src===""&&page===1)` 分片、筛选/翻页 unary+信号重取；`closedPositions`→ClosedPositionsCard 首页（`page===1`）分片、翻页 unary；`PAGE` 10→5 与后端载荷 `watch_payload.go` ev_position `Limit=5` 对拍一致（旁证：ev_cashflow `Limit=10`↔HedgeFlow `PAGE=10` 同律）。
+4. 聚合面迁移零退化——**过**。`useSnap` 零码引用（仅存注释留名）；Overview×2/System×2/Review×3 消费点逐字改名 `useLive`，topics/fetcher/key 参数不动（`${period}:${page}`、`${kind}:${venue}:${page}` 指纹在）；`Live.err`→ErrorState 显形链未动，`useLive` 与旧 `useSnap` 实现逐句等价。
+5. 机检绿+行数——**过**。CI `build-test` success @`7879e949`（`npm run build`=typecheck&&vite build 链）；合并冲突件仅 `docs/handoff/dialogue.md` 非码面；本票九件 85~262 行全 ≤300；origin/master 现行版分片码在册无回退（store.ts 97 行/hostmetrics 112 行持 useSlice+hydrate）。
+
+非锚观察（报知悉，不构驳回）：`ev_cashflow`→topic `"trx"` 映射为 T-0156（e923d590）旧制——Overview/Review 以 `"ev_cashflow"` 为订阅键的聚合卡信号径自彼起即哑（消费方 `"trx"` 订阅实存于 TrxHedgeCard/TrxKpiStrip/TrxYieldRadar）；本票逐字同名迁移未改参数与匹配逻辑，零退化字面成立。建议另立单核修订阅键或映射面，不归本票。
