@@ -1,6 +1,6 @@
 # T-0293 meta派发池化+前端真源合一
 
-- 状态：已批
+- 状态：驳回：追加钦定释件未落——pipeline_face退场谓词未改致作废假在飞/复牌断回显（锚d复牌回显腿未达，余锚全过）
 - 立票：管理 devin（业主令 2026-11-01：「立票给外部处理」）
 - 域：meta（派发环/前端流水源）· /opt/meta + SG meta schema
 - 级：P0——幻影错派烧席（单席让位≈144k tokens）+业主盲视
@@ -53,3 +53,26 @@ c. 票面已完成的票入队：席不 spawn（闸前置）或被领后秒让�
 d. meta_task 每跳相位→前端 ≤10s 可见（含 task_claim/report.sh/手改三路），重复跳不产生重行
 e. 队列空时席待机零 spawn 空转；冷启丢通知场景 ≤1 兜底拍自愈
 f. meta_task.sql 幂等重放含新边+触发器（SG 差=0）
+
+## 审计复审注记（headless 无头单飞 @ 2026-11-01）
+
+审计席：headless @ 2026-11-01
+
+收口 meta@8aa3700 全量 diff+生产/SG 只读实拍独立复证（非引回填/终态字段）：
+
+- **a/b/c/e/f 过**：池席 CAS 领单+票面闸+死席回队+待机自愈与钦定逐项对位；
+  生产实拍 pool-1/2/3 席+dispatcher 在飞；meta_task.sql 幂等构型在码
+  （边 ON CONFLICT/触发器 DROP IF EXISTS/函数 CREATE OR REPLACE）；SG
+  生产实拍 edge/trigger/function 全 1，镜像行已活落（Dev 收口待审、DM
+  审计中 T-0293 在案）
+- **d 镜像腿过/复牌回显腿未达**：表级触发器覆三路写径+末事件判重，生产
+  实证；但追加钦定释件 pipeline_face.go 退场谓词原样未动
+  （cmd/core/pipeline_face.go:87-91 仍 NOT bool_or 存在性判）——作废无
+  退场认词（生产 ops_event 11-01 07:25Z DBP3/T0292-/T0293-派发池化作废
+  行即假在飞实证），「有终态事件即永退」断复牌回显；「正解在码不在账」
+  项整件缺席
+- **协同缝注记（报管理席）**：追加钦定 15:12 落 master 晚于施工领单
+  14:53，分支 t/0293-pool 票面无该段——系飞中改锚未达席，非施工漏读
+- **次要观察（不阻判）**：ack_staged_mail 于 run.sh yield 前置路径下暂存
+  件可 ack 未注入（稀有丢件窗）；spawn_off 闸闭期 pool_reap_dead 同跳——
+  死票滞队至闸复；票面闸未含『在飞』词——靠 run.sh 锁前生代 yield 兜
