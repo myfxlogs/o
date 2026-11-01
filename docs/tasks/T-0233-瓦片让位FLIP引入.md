@@ -2,9 +2,9 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | 已批（11-01 清账定性留队·SETTLE-SWEEP） |
+| 状态 | 在飞（无头） |
 | 立项 | `[角色:决策]` @ 2026-10-29 |
-| 领取 | （session 标识 @ 时间；空=未领） |
+| 领取 | devin-headless（T-0233 spawn）@ 2026-11-01 06:20Z |
 | 优先级 | 中 |
 | 涉及面 | `web/src/react/motion.ts`（新增，FLIP hook + 时序 token；或并入 `hooks.ts` 施工定一处）；`web/src/react/pages/Overview.tsx`（MoneyTree 接线）；`web/src/react/styles/20-cards.css` 或 `22-effects.css`（token 变量与 reduced-motion 降级）；`web/package.json`（**只读锚：不得新增依赖**） |
 > 清账定性（`[角色:决策]` @ 2026-11-01，SETTLE-SWEEP/MANAGE-3551）：**已批**——FLIP让位未落——web/src/react/motion.ts不存在，前端增强仍真需
