@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | 收口待审 |
+| 状态 | 审计通过 |
 | 立项 | `[角色:决策]` @ 2026-10-31（CEO 裁件 MANAGE-1497 转办，源=MANAGE-1392 业主授权；MANAGE-3043 再催——验收锚转写入下） |
 | 领取 | devin-施工席 @ 2026-10-31（DM-3055 派单）；续作 devin-无头施工席 @ 2026-11-01 |
 | 优先级 | 高（急诊——「清道夫-md」beat 自 2026-10-28 21:14Z 断，驾驶舱红灯如实红） |
@@ -101,3 +101,22 @@ WantedBy=default.target
 
 - 断环根因：前席全锚施工+自报收口/移交俱在，唯票面 `收口commit` 留「见尾行」未落实哈希——调度环审计触发字段缺失，支悬置 ~20h 未并；本席续作仅补字段+复核取证，码面零改动、生产零触碰。
 - 复核实拍（全锚仍立）：OCI `is-active`=active/`is-enabled`=enabled，journal 见「[sweeper] PG-md 清道夫起——首拍即时」且 24h 零 Fatal；SG `fin_employee_registry` 清道夫-md beat_age=9s（<2min）；PG-md `fin_data_retention` 的 fin_forward_check（audit_keep）行 last_swept_at=2026-10-31 10:34:54Z=boot 首拍审计行（state/permanent 类不走清窗故仅此行有值；日拍未满 24h 无第二拍属正常）；`md_ticks`>7d=0；三表入账 arch_eval/arch_signal→permanent、md_daily_snapshot→state；dev 三面清零（unit 件无/二进制无/is-enabled=not-found+inactive）。
+
+审计席：headless @ 2026-11-01
+
+**审计注记**（收口链 ea5fa869→27e3ffad→8981e06c 全量 diff 亲核；运行态锚本席四通道独立实拍出账，非引回填）：
+
+- 锚① OCI unit：本席 SSH 盒上实拍 `is-active`=active、`is-enabled`=enabled；journal 见钦定启动行「[sweeper] PG-md 清道夫起——分库账日拍（首拍即时）」，24h Fatal 计数=0；`~/o/sweeper` 二进制与 unit 件在位——**过**
+- 锚② SG beat：本席 SG 库实查 `清道夫-md` beat_age=23s（<2min）、status=active——**过**
+- 锚③ PG-md 审计行：`fin_forward_check`(audit_keep) `last_swept_at`=2026-10-31 10:34:54Z 非 NULL=boot 首拍即时跑——**过**
+- 锚④ md_ticks>7d：实查 count=0——**过**
+- 锚⑤ ops_event：`ticket='T-0275'` 且 note 含清道夫/sweeper 共 3 行在案（10-31 收口行+11-01 续作双行）——**过**
+- 锚⑥ 三表入账：arch_eval=permanent、arch_signal=permanent、md_daily_snapshot=state——**过**
+- 锚⑦ `deploy/o-sweeper.service`：头注装配三步+env 复用说明齐；unit 字面与票面钦定块逐字一致（Description/After/Wants/EnvironmentFile/ExecStart/Restart/RestartSec/WantedBy 全对）——**过**
+- 锚⑧ `oci_bootstrap.sh`：units 安置环含 o-sweeper、臂体校验列 `~/o/sweeper`、env 零新密件注记、enable 令带 o-sweeper、verify 段第 7 条 roster 反向核对（beat↔unit 双向对拍+kb 判据指引）——**过**
+- 锚⑨ `OCI盒档案.md`：服务清单 `o-sweeper.service` 行（用户级·PG-md 清道）+env 件行复用注记——**过**
+- 锚⑩ dev 遗件：本席本机实拍 `is-enabled`=not-found、`is-active`=inactive、`~/.config/systemd/user/o-sweeper.service` 与 `/opt/o-projector/o-sweeper` 均不在——**过**
+- 范围外零越界：diff 仅 4 件（deploy 模板/bootstrap/盒档案/票面），无新密件无 docker 无 SG 改动无 `cmd/sweeper` 码面触碰；零秘钥入仓。journal 所见 `deadTailSweep abort` 为票面自注钦定 fail-safe 行，非缺陷。
+- 瑕疵备案二件（不挡判，后续顺手可清）：bootstrap units 段注释「用户级三 unit」陈置未改四；票面「结果回填」双题头（模板占位残留）。
+
+**判决：审计通过**
