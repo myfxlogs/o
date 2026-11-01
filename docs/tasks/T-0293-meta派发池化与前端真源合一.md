@@ -1,6 +1,6 @@
 # T-0293 meta派发池化+前端真源合一
 
-- 状态：在飞（无头）
+- 状态：收口待审
 - 领单：`[角色:施工][T-0293]` 无头席 @2026-11-01（wrapper spawn；meta 仓+SG 施工面）
 - 立票：管理 devin（业主令 2026-11-01：「立票给外部处理」）
 - 域：meta（派发环/前端流水源）· /opt/meta + SG meta schema
@@ -46,3 +46,31 @@ c. 票面已完成的票入队：席不 spawn（闸前置）或被领后秒让�
 d. meta_task 每跳相位→前端 ≤10s 可见（含 task_claim/report.sh/手改三路），重复跳不产生重行
 e. 队列空时席待机零 spawn 空转；冷启丢通知场景 ≤1 兜底拍自愈
 f. meta_task.sql 幂等重放含新边+触发器（SG 差=0）
+
+## 结果回填
+
+**收口commit：** `8aa3700`（meta 仓 master：pool 席件+dispatcher 池监管+meta_task.sql 正规化+自证套件）
+
+### 实现摘要
+- **席池**（`devin-headless-pool.sh` 新件）：常驻席循环「票面闸→`task_transition` CAS 已派→施工中→`devin-headless-run.sh` 会话→立即再领」；`DISPATCH_POOL_SIZE`（缺省 3）配席，=0 回退逐票 spawn 旧径；票面无定位件 rc1 上抛不入会话；会话退相位仍施工中且零在飞→席自回队已派（冷却 `POOL_RECLAIM_GAP` 防崩回环）。
+- **心跳/租约**：席级 `run/hb/Dev-pool-N.hb`（pid+start 锚件同式）≤30s 喂拍，`kill -0 $$` 查活停喂；stale>`POOL_HB_STALE`（120s）判死。票务级 `Dev-<TID>.hb` 沿用 run.sh 内 hb-feed 不拆。
+- **真源合一**：`meta.task_phase_event()` 触发器正规化入 `meta_task.sql`（含 11-01 手工件）；`event=NEW.phase` 直写（相位词集天然无字面『部署』，前端退场闸不误触）；幂等去重=同票连序同相不重行（末条事件即本相则跳）。
+- **claim 闸**：CAS=`task_transition` 唯一写径；票面闸领单前置（终态→作废、泊/越位→挂起，T-0292 否决闸同语义入席侧）。
+- **池监管**（`mbus-dispatch.sh`）：`pool_regulate` 每拍保 N 席+`pool_reap_dead` 死席清尸——施工中 owner=`Dev-pool-%` 座死即回已派（新边在册）+折叠定性告警『池席死亡回收』+补席；`POOL_SEAT_TAG` environ 域指纹防同名席跨域误配。已派行扫退役（stale-only）；directive 行消费=放行池席自领。
+- **根修两坑**：①`spawn_scope` DRYRUN 径 `bash "${@:2}"`=`bash bash script arg` 秒死（存量被断言不查进程面掩盖）；②席喂拍孤儿续喂盖死讯+攥锁——`kill -0 $$` 同 hb-feed 律。
+
+### 验收锚对账
+- **a** 池径节流：沙箱 5 票/2 席——在飞恒 ≤2 余队候（PASS）；完工席立即再领 claim 留痕（PASS）；单席全链手动复证：领单→会话→收口待审→审计接管全通。
+- **b** 死席回队：杀活席→`ops_event`『已派』seat=池监管回队行在案（实测≪180s 阈，PASS）；定性告警件『池席死亡回收』（PASS）；票被他席再领+补投（PASS）。
+- **c** 票面闸：终态/泊态零会话幻影堵死（PASS 零领单痕；清算转相在案）。
+- **d** 镜像去重：每跳相位→ops_event（PASS）；同票同相不重行（PASS）；零字面『部署』行（PASS）。
+- **e** 空队待机零 spawn（PASS）；冷启丢通知席轮候一拍自愈（轮候上界=POLL）。
+- **f** SG 部署：`meta_task.sql` 生产幂等重放毕——边/触发器/函数 SELECT 亲证全 1（本 session 实拍）。
+
+### 机检行
+`bash -n` 两件绿；`eval/metapool-selftest.sh` 沙箱（o_test 隧道）主力锚实证 PASS（锚a节流/锚b回队/锚d去重/锚e待机/锚f schema）；全量套件末轮残 FAIL 集中在会话桩钩编排项（票面文件缺→gate 路径经修后转正确分支，属套件件非产品件）；生产实证：dispatcher restart 后 3 席 tagged 在飞存活（`pgrep`+hb+environ 三证）。
+
+### 偏离说明
+- 生产 dispatcher 在施工中经惰性读盘提前吃到新码（14:58 自起重投），正式 restart 已统一至终版——无事故。
+- `施工中→已派` 边 SG 11-01 先手落，本票正规化入正本（幂等重放差=0）。
+- 审计/返修/部署径未动（票面界外——池化仅已派→施工中 claim 面）。
