@@ -63,6 +63,13 @@ func Gen(ctx context.Context, pool *pgxpool.Pool, period string, b Bounds) error
 		m["retired"] = retired
 		note = fmt.Sprintf("月净=%.4f 年化=%.4f（基数 %.0f）——赚亏/因/步三行交卷", net, ann, base)
 	}
+	// T-0029 交付物3：weekly/monthly metrics 加期内宏观事件计数（注解面
+	// 顺手件——纯计数零判据触；daily 不补同周理由）。
+	if period == "weekly" || period == "monthly" {
+		var mev int
+		q1(`SELECT count(*) FROM md_macro_event WHERE event_date>=$1 AND event_date<$2`, &mev, b.Start, b.End)
+		m["macro_events"] = mev
+	}
 	m["net"] = net
 	m["cum_nav"] = cumNav
 	m["funding_income"] = funding

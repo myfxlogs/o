@@ -133,3 +133,50 @@ func TestReportCounts(t *testing.T) {
 		t.Fatalf("指标恒 0 返修未愈: proposed=%v rejected=%v", p, r)
 	}
 }
+
+// T-0029 交付物3锚：weekly/monthly metrics.macro_events=期内 md_macro_event
+// 事件计数（fixture 验数非摆拍）；daily 无键。
+func TestReportMacroEventsCount(t *testing.T) {
+	pool := testutil.Pool(t)
+	ctx := context.Background()
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatal(err)
+	}
+	_, _ = pool.Exec(ctx, "DELETE FROM fin_cashflow")
+	_, _ = pool.Exec(ctx, "DELETE FROM fin_report")
+	_, _ = pool.Exec(ctx, "DELETE FROM md_macro_event")
+	defer func() {
+		_, _ = pool.Exec(ctx, "DELETE FROM fin_cashflow")
+		_, _ = pool.Exec(ctx, "DELETE FROM md_macro_event")
+	}()
+	now := time.Now()
+	// weekly 期内两事件+期外一事件（边界验证）
+	b := BoundsOf("weekly", now)
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO md_macro_event(event_date,kind,title) VALUES ($1,'fomc','in-week-1'),($2,'cpi','in-week-2')`, b.Start, b.Start.AddDate(0, 0, 1)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO md_macro_event(event_date,kind,title) VALUES ($1,'nfp','out-of-week')`, b.Start.AddDate(0, 0, -14)); err != nil {
+		t.Fatal(err)
+	}
+	if err := Gen(ctx, pool, "weekly", b); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	if err := pool.QueryRow(ctx,
+		`SELECT (metrics->>'macro_events')::int FROM fin_report WHERE period='weekly'`).Scan(&n); err != nil {
+		t.Fatalf("weekly macro_events 键缺席: %v", err)
+	}
+	if n != 2 {
+		t.Fatalf("weekly macro_events=%d（期望 2——期外事件不计）", n)
+	}
+	// daily 无键
+	if err := Gen(ctx, pool, "daily", BoundsOf("daily", now)); err != nil {
+		t.Fatal(err)
+	}
+	var has bool
+	if err := pool.QueryRow(ctx, `SELECT metrics ? 'macro_events' FROM fin_report WHERE period='daily'`).Scan(&has); err != nil || has {
+		t.Fatalf("daily 不应有 macro_events 键: %v", has)
+	}
+}
