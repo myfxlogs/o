@@ -567,3 +567,9 @@
 - **DBP3b 系复核**：DBP3b=无票面孤儿行→作废（同案由 DBP3b-消费换血承载）；DBP3c=票面候派=ADM 重设计停泊→挂起保复牌边；无陈票应照派。
 - **次生 P1 入册**：词表 DDL 漂移坑条目 meta-task-vocab-ddl-prod-gate…（工程经验库）；泛化律——DDL 演进票验收锚必含生产 SELECT 亲证。
 - **回执**：obl372 原件已 ack（DM 唤径代 ack），总线报 MANAGE=DM-3915。
+
+## 2026-11-01 15:0x 决策席（devin DM session，门2-DM directive obl649 点火——飞书应答代分诊 L8 到点）
+
+- **定性**：升级链 L1-L8（DM-3649/3681/3688/3707/3714/3720/3890）为账面残链非新事——实体早已毕：T-0283 并合@23825ba2 在 master（票面翻完成 dcc80b22，完成事件 14:16 已报，failed/merge 逾期账清）；T-9224 锚1b 沙箱套件跑完 41 PASS/1 FAIL（锚1b-a ext 建行相位断言一败在案），spawn 停于 13:11，沙箱目录隔离 /tmp/dbp3b-quarantine-20261101/，Dev 席桩票停笔处置正确；MANAGE-3606 根件与 14:18 处置回执 DM-3766 均已 ack。
+- **病灶**：前席实体处置+回执投出后未消费自家 inbox 升级件——esc 链每级独立账行，只核上级消费态不核实体，致每 ~30min 滚一级至 L8 唤醒。条目 esc-chain-self-inbox-unacked-snowball 入册。
+- **处置**：链七件全 ack（级联 disarm esc 账），总线报 MANAGE=DM-4039；零码面/零生产面触碰。
