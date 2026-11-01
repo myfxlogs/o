@@ -85,6 +85,9 @@ func (r *Runner) scan(ctx context.Context) error {
 	if err := r.retireStaleDegraded(ctx); err != nil {
 		return err
 	}
+	if err := r.retireStalePaper(ctx); err != nil { // T-0286：paper 墓碑锁解锁——领取前释放同键槽
+		return err
+	}
 	if err := r.admitProposals(ctx, notional, minH, minNet, maxDD); err != nil {
 		return err
 	}

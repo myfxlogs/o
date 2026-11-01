@@ -101,3 +101,46 @@ func (r *Runner) retireStaleArmedStrategies(ctx context.Context, ttl float64) er
 	}
 	return nil
 }
+
+// retireStalePaper paper 沙箱超龄退役（T-0286）：paper 行原无任何退役径
+// ——滞留 paper 永占同键唯一槽（venue,inst_id,direction,template_ref），
+// 上游起草闸「同键无非 retired 策略不起草」+领取端同键吸收径合围=墓碑锁
+// （BTC-USD 季度对儿 3 天 24 提案连环吸收实证；degraded 同病 T-0098 先例
+// 修）。TTL=config lifecycle.paper_ttl_h，键缺/非正=默认 168h（7d——
+// 观测最大毕业龄锚定：286157 paper 滞 139h 后于 11-01 毕业、286894 滞
+// 90.7h 同日毕业，72h 缺省会误杀慢毕业行；7d=21 个 funding 结算窗，
+// 超窗未毕业=经济性证据已足，留行只锁键不产值；不配键不瘫）。纯龄锚
+// 无活动豁免——活动豁免（T-0258 live/probe 径语义）会让「每 8h 一 fill
+// 恒负 carry」行永生，锁键病灶复现。退役走 Transition 留痕
+// （reason=paper_ttl_expired）；
+// paper=沙箱虚拟面，fin_paper_fill 事实行零触、零钱径。
+func (r *Runner) retireStalePaper(ctx context.Context) error {
+	ttl := 168.0
+	if v, err := r.cfg.GetFloat("lifecycle.paper_ttl_h"); err == nil && v > 0 {
+		ttl = v
+	}
+	rows, err := r.pool.Query(ctx, `SELECT id FROM fin_strategy
+		WHERE state='paper' AND entered_at < now() - make_interval(hours => $1)`, ttl)
+	if err != nil {
+		r.rej.Inc("write_err")
+		return err
+	}
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return err
+		}
+		ids = append(ids, id)
+	}
+	rows.Close()
+	for _, id := range ids {
+		if err := Transition(ctx, r.pool, id, "retired", "paper_ttl_expired", false); err != nil {
+			r.rej.Inc("write_err")
+			return err
+		}
+		log.Printf("[lifecycle] #%d paper 超 %.0fh 退役（paper_ttl_expired——沙箱超龄同键槽释放）", id, ttl)
+	}
+	return nil
+}

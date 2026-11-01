@@ -283,3 +283,51 @@ func TestArmedTtlGateRejectedSurvives(t *testing.T) {
 		}
 	}
 }
+
+// T-0286 锚：paper 墓碑锁根修两向——超龄 paper 自动 retired+transition 落
+// 因（paper_ttl_expired）；龄内 paper 零波及（缺省 168h——慢毕业行 139h
+// 实证在案，72h 会误杀）；同键新提案可重开 paper（BTC-USD 季度对儿 24
+// 连环吸收径解锁回放）。
+func TestPaperTtlRetire(t *testing.T) {
+	r := newRig(t)
+	ctx := context.Background()
+	oldID := stratFixture(t, r, "PTTL-USDT-SWAP", "paper", "funding-hedge", "200 hours")
+	youngID := stratFixture(t, r, "PTTL2-USDT-SWAP", "paper", "funding-hedge", "1 hours")
+	if err := r.retireStalePaper(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := stratState(t, r, oldID); got != "retired" {
+		t.Fatalf("超龄 paper 未退役 got %s", got)
+	}
+	var reason string
+	if err := r.pool.QueryRow(ctx, `SELECT reason FROM fin_strategy_transition
+		WHERE strategy_id=$1 AND to_state='retired'`, oldID).Scan(&reason); err != nil || reason != "paper_ttl_expired" {
+		t.Fatalf("退役留痕缺/错 reason=%q err=%v", reason, err)
+	}
+	if got := stratState(t, r, youngID); got != "paper" {
+		t.Fatalf("龄内 paper 被波及 got %s", got)
+	}
+	// 同键重开回放：超龄行退役后，同 inst+direction+template 新提案应开
+	// 新 paper 行（吸收径不再触发——墓碑锁解锁）。
+	var eid int64
+	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,verdict,legs,evidence)
+		VALUES('PTTL-USDT-SWAP','funding-hedge','short_perp_long_spot','proposed','{}','{}') RETURNING id`).Scan(&eid); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.pool.Exec(ctx,
+		"INSERT INTO fin_proposal(eval_id,inst_id,direction,net_apr) VALUES($1,'PTTL-USDT-SWAP','short_perp_long_spot',1.0)", eid); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.scan(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var nid, cnt int64
+	if err := r.pool.QueryRow(ctx, `SELECT id FROM fin_strategy
+		WHERE inst_id='PTTL-USDT-SWAP' AND state='paper'`).Scan(&nid); err != nil {
+		t.Fatalf("同键新提案未开 paper（墓碑锁仍存）: %v", err)
+	}
+	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_strategy
+		WHERE inst_id='PTTL-USDT-SWAP' AND template_ref='funding-hedge'`).Scan(&cnt); err != nil || cnt != 2 {
+		t.Fatalf("同键行数=%d（应=2：retired 旧行+paper 新行）err=%v", cnt, err)
+	}
+}
