@@ -51,7 +51,8 @@
 
 - 三锚全落：venue 口径修上线；armed 退役 996 提案+82 策略（TTL 热启收紧 4h——armed_ttl_h=4 已落 app_config）；拒放 0/3min（原 580/min）
 - RX 4767→2273 kbps 排水进行式（probe/paper 队列 4h 陈化中，趋势向下）
-- 状态：驳回:锚④单测零交付（venue 新口径/armed 超龄退役均无测试落件）；策略退役裸 UPDATE 未写 transition 留痕；op.Open 拒径缺 denyAt 戳（返修B 三径仅落两径）
+- 状态：作废（superseded——11-01 清账定性·SETTLE-SWEEP）
+> 清账定性（`[角色:决策]` @ 2026-11-01，SETTLE-SWEEP/MANAGE-3551）：**作废**——superseded：fin_strategy_transition退役留痕落地（T-0098方案A）+armed_ttl由T-0258根修完成
 - 审计席：headless @ 2026-10-30
 
 ## 审计判决注记（无头单飞——逐锚对账 @0b0bcf45）

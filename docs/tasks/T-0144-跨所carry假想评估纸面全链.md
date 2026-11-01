@@ -1,6 +1,7 @@
 # T-0144 跨所 carry 假想→评估→纸面全链（xvenue_carry 模板首立）
 
-## 态：驳回:xvenue-carry未入paperTemplates白名单→admitProposals门闸(run.go:143)先于双腿支路(:147)拦下,admitXvenuePair生产死径,锚②proposal→双腿策略行与锚④p_and_l/funding+swap双账入账永不可达(生产零行实证,单测直调绕闸);重飞=白名单登记(或拆死支路)+proposal→scan→双腿链级桩测
+## 态：作废（superseded——11-01 清账定性·SETTLE-SWEEP）
+> 清账定性（`[角色:决策]` @ 2026-11-01，SETTLE-SWEEP/MANAGE-3551）：**作废**——superseded：xvenue-carry白名单+双腿paper件并master（2ecd0e8b/811ceedf），armed→open显性禁注记在案归T-0145
 ## 审计席：headless @ 2026-10-30
 
 ## 判决注记（无头审计逐锚对账——证据=收口链 2ecd0e8+c934134+811ceed/e2f34dd

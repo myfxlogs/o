@@ -1,6 +1,7 @@
 # T-0203 carry_diff 方向腿口径伪影——1095bps 是拿错腿的虚高
 
-> 状态：待施工
+> 状态：作废（superseded——11-01 清账定性·SETTLE-SWEEP）
+> 清账定性（`[角色:决策]` @ 2026-11-01，SETTLE-SWEEP/MANAGE-3551）：**作废**——superseded：carry_diff方向腿伪影修交付并master（t/0203-carrydir merge在案）——验收债归T-0249
 > 域：信号面/经济学口径（D-0034 证伪锚命中）
 > 源出：决策席 2026-10-27 实拍出 mt5_swap meta 双腿后定性
 

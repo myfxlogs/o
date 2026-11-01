@@ -1,5 +1,8 @@
 # T-0138 paper/probe 策略退出 tickers 活跃集（带宽卫生件）
 
+> 状态：完成（判过并码在案，11-01 清账翻面·SETTLE-SWEEP）
+> 清账定性（`[角色:决策]` @ 2026-11-01，SETTLE-SWEEP/MANAGE-3551）：**完成**——审计通过落票在案（4b798bfb），漏网翻面
+
 ## 实证
 
 - 活跃集口径=全量非退役策略（state<>'retired'）——paper 114+probe 91 虚拟/试探策略同吃 tickers 成交级流 ~1.4Mbps

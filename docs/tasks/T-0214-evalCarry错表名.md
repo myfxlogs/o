@@ -1,6 +1,7 @@
 # T-0214 evalCarry 查询不存在的 md_savings_rate——carry 族借贷/Earn 永判 unevaluable
 
-> 状态：待施工 | 优先级：P1
+> 状态：作废（superseded——11-01 清账定性·SETTLE-SWEEP）| 优先级：P1
+> 清账定性（`[角色:决策]` @ 2026-11-01，SETTLE-SWEEP/MANAGE-3551）：**作废**——superseded：evalCarry表名修+md_earn_rate反向桥交付并master（t/0214 merge在案）——验收债归T-0249
 > 立项：决策席 @ 2026-10-28
 
 ## 病灶

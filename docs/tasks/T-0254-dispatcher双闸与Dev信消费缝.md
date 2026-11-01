@@ -1,6 +1,7 @@
 # T-0254 dispatcher 双闸补闭——spawn 去重硬锚+Dev 非指令件消费缝（M3 缝二）
 
-> 状态：**完成** | 领取：devin-headless-T-0254 @ 2026-10-30 | 优先级：**高（业主令 MANAGE-100 meta 序次件）**
+> 状态：完成（判过并码在案，11-01 清账翻面·SETTLE-SWEEP）| 领取：devin-headless-T-0254 @ 2026-10-30 | 优先级：**高（业主令 MANAGE-100 meta 序次件）**
+> 清账定性（`[角色:决策]` @ 2026-11-01，SETTLE-SWEEP/MANAGE-3551）：**完成**——完成注记在案（dispatcher双闸Dev信消费缝），判过并码
 > 执行径：**无头** | 收口commit：0448b4dde4c62c5b15137e8a88c609694bc41525
 > （实现件在 /opt/meta 仓支 t/0254-dispatch-gates；本仓仅票面）
 > 立项：决策席 @ 2026-10-30（MANAGE-75 回灌两件：双 spawn 实证+Dev report

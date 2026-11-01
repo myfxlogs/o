@@ -1,5 +1,8 @@
 # T-0042 spot 市价单 tgtCcy 方言根修+APIError 拒码留痕+openfirst 默认策略 sid 漏带
 
+> 状态：作废（superseded——11-01 清账定性·SETTLE-SWEEP）
+> 清账定性（`[角色:决策]` @ 2026-11-01，SETTLE-SWEEP/MANAGE-3551）：**作废**——superseded：tgtCcy方言/APIError分码族/sid漏带三修并master+返修锚绿（8c11e027）——真弹面由真钱链实弹覆盖
+
 ## 病灶（exec_id=3 实弹实证 2026-10-24）
 - leg1 SWAP sell 0.03 **filled**（posSide 修生效）→leg2 BTC-USDT spot buy sz=0.00030914 **failed**→leg1 rolled_back 成真平（平仓语义修生效）。零残仓零损。
 - 真凶甲：OKX **spot 市价买单 sz 默认=计价币（quote ccy）口径**——0.00030914 本意 BTC 数量，被按 USDT 金额解释→低于单笔最小额拒单。修=OrderParams 加 `TgtCcy`，spot 市价买单腿传 `"base_ccy"`（市价卖默认即 base 口径可不带；perp/换腿不受影响）。**禁猜**——改前读 skills/okx-exec+协议面取证卡核证（官方文档/实测响应），修后该方言事实入能力账（D-641 在用中修订钩）。
