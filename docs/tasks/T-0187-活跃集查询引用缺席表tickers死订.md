@@ -63,7 +63,7 @@ domain.tsv 标注 md|bridge 的表（fin_position=fin 域禁引）。
    因无价 fail-closed）；
 5. 普查：md 侧零残余 fin_position 引用。
 
-## 状态：审计通过
+## 状态：完成（判过并码在案，11-01清账翻面）
 
 审计席：headless @ 2026-10-30
 
