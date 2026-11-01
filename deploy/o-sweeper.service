@@ -1,0 +1,19 @@
+# o-sweeper.service —— PG-md 清道夫用户级 unit（T-0169 分库账日拍；T-0275
+# OCI 建制恢复；T-0232 一节点一 env 文件：EnvironmentFile 自
+# %h/o-projector.env 归位 %h/o-sweeper.env——复用期 projector_rw 授权面
+# 越本件所需，独立文件=角色收窄 roster_rw 落地）。
+# 装配：cp 至 ~/.config/systemd/user/ && systemctl --user daemon-reload &&
+#       systemctl --user enable --now o-sweeper
+[Unit]
+Description=o-sweeper PG-md 清道夫（T-0169 分库账日拍）
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+EnvironmentFile=%h/o-sweeper.env
+ExecStart=%h/o/sweeper
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=default.target

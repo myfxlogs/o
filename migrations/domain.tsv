@@ -80,3 +80,4 @@ arch_eval_reject	fin
 ops_event	fin
 ops_headless	fin
 ops_ticket_usage	fin
+fin_verdict_cursor	fin

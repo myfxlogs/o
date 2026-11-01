@@ -1,0 +1,17 @@
+# o-collecto.service —— 采集+sigdist 蒸馏用户级 unit（T-0232 补册——实机
+# 已行此形，模板缺位补齐；env 形=%h/o-collecto.env 与 compose 内嵌形同键）。
+# 装配：cp 至 ~/.config/systemd/user/ && systemctl --user daemon-reload &&
+#       systemctl --user enable --now o-collecto
+[Unit]
+Description=collector 采集器(OCI SG West)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+EnvironmentFile=%h/o-collecto.env
+ExecStart=%h/o/collector
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target

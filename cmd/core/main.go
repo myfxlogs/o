@@ -236,7 +236,7 @@ func run() error {
 	go lr.Run(ctx, errc)
 
 	// T-0165：复盘域随迁开发机（o-research——SG 零研究行）。
-
+	verdictApplyArm(ctx, errc, pool) // T-0232 乙案判行官（verdict_apply.go）
 	// 账本域：司账+核账（入账结算+对账环——消费事实行不触发钱动作）。
 	// T-0165 返修③：report 留 SG（钱径读写面 app_secrets/master key/
 	// fin_cashflow——票面第5条明令只迁纯研究面）。

@@ -31,7 +31,6 @@ SRC_DSN
 DST_DSN
 O_NODE_ROLE
 O_ECONKB_DIR
-SG_PG_DSN
 # PG_DSN=cmd/migrate 一次性执行器入参（T-0167——分域迁移建/补链；与 DB_DSN 同类
 # 引导件，不进 PG 不入常驻 env；票面④的开发机执行载体）。
 PG_DSN

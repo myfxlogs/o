@@ -143,6 +143,7 @@ EOF
 	# env 值面（DSN 口令——escrow 拆件名对齐原位基名；缺件=模板位提示不断链）
 	if [ -f /root/bootstrap-env/o-collecto.env ]; then doit "install -m 600 /root/bootstrap-env/o-collecto.env /home/ubuntu/o-collecto.env"; else echo "  缺 o-collecto.env 值面——escrow 解包补入后手装（模板位见脚注）"; fi
 	if [ -f /root/bootstrap-env/o-projector.env ]; then doit "install -m 600 /root/bootstrap-env/o-projector.env /home/ubuntu/o-projector.env"; else echo "  缺 o-projector.env 值面——同上"; fi
+	if [ -f /root/bootstrap-env/o-sweeper.env ]; then doit "install -m 600 /root/bootstrap-env/o-sweeper.env /home/ubuntu/o-sweeper.env"; else echo "  缺 o-sweeper.env 值面——同上（T-0232 一节点一 env 文件归位件）"; fi
 	if [ -f /root/bootstrap-env/env ]; then doit "install -m 600 /root/bootstrap-env/env /home/ubuntu/o-research/env"; else echo "  缺 o-research/env 值面——同上"; fi
 	doit "chown -R ubuntu:ubuntu /home/ubuntu/.config /home/ubuntu/o /home/ubuntu/o-research /home/ubuntu/o-*.env"
 	doit "systemctl daemon-reload"

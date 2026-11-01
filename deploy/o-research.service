@@ -1,5 +1,7 @@
-# o-research.service —— 研究域节点 systemd 单元（T-0165/D-0029：开发机
+# o-research.service —— 研究域节点 systemd --user 单元（T-0165/D-0029：开发机
 # 算力面——researchArms+review 全族迁此；与 o-collecto 同形）。
+# T-0232：EnvironmentFile 归位 %h/o-research/env（实机用户级单元实读径——
+# T-0169 env 双径病灶根修面：一节点一 env 文件，模板=实机唯一图）。
 # T-0170：readcred 隧道单元随挂（boot 取只读钥——败=降级不炸 boot）。
 [Unit]
 Description=o-research research arms node
@@ -8,11 +10,11 @@ Wants=network-online.target o-collecto-tunnel.service o-readcred-tunnel.service
 
 [Service]
 Type=simple
-EnvironmentFile=/opt/o-research/env
-ExecStart=/opt/o-research/o-research
+EnvironmentFile=%h/o-research/env
+ExecStart=%h/o-research/o-research
 Restart=always
 RestartSec=10
-WorkingDirectory=/opt/o-research
+WorkingDirectory=%h/o-research
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target

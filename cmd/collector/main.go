@@ -1,6 +1,7 @@
 // collector —— 采集面外置开发机蒸馏件（采集器机）（T-0137/D-0020）：dev 跑全宇宙 WS
-// （index-tickers/mark-price/funding-rate 全量），蒸馏态 upsert 直写 SG md_* 表
-// （SSH 隧道径——写权 collector_rw 收窄件）。键域契约：同键 upsert 最新 ts 赢。
+// （index-tickers/mark-price/funding-rate 全量），蒸馏态 upsert 直写本机 PG-md
+// md_* 表（T-0169 分域后 md 正本落本机；T-0232 正名：写面 DSN 键归 MD_PG_DSN）。
+// 键域契约：同键 upsert 最新 ts 赢。
 // T-0171 快照价格全面退役：spot_last/mark_price REST 轮询兜底件全撤——
 // mark/index 行唯一来源=WS 全量订阅（REST 只准条款/目录注册面）。
 package main
@@ -29,18 +30,18 @@ import (
 
 func main() {
 	ctx := context.Background()
-	dsn := os.Getenv("SG_PG_DSN") // env 白名单件（隧道终点 SG PG——开发机出口）
+	dsn := os.Getenv("MD_PG_DSN") // env 白名单件（本机 PG-md——T-0232 正名：SG_PG_DSN 名残指 md 归位）
 	if dsn == "" {
-		log.Fatal("SG_PG_DSN 缺——桥写径无目的地 fail-closed")
+		log.Fatal("MD_PG_DSN 缺——桥写径无目的地 fail-closed")
 	}
 	pcfg, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
-		log.Fatalf("SG PG DSN 解析败: %v", err)
+		log.Fatalf("PG-md DSN 解析败: %v", err)
 	}
 	pgguard.GuardPool(pcfg) // T-0154 事务残留守卫（同源普查——自建池同守）
 	pool, err := pgxpool.NewWithConfig(ctx, pcfg)
 	if err != nil {
-		log.Fatalf("SG PG 连接败: %v", err)
+		log.Fatalf("PG-md 连接败: %v", err)
 	}
 	defer pool.Close()
 	// T-0169 分域：席位台账归 SG 册（fin_employee_registry）——ROSTER_PG_DSN 钉

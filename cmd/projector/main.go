@@ -1,6 +1,7 @@
 // projector —— 投影臂入口（T-0168/D-0030 §四）：PG-md→SG 八桥镜像搬运+
-// fin_proposal 双向回写。双 DSN env 引导（MD_PG_DSN=本机 PG-md；SG_PG_DSN=
-// 隧道径同 collector 接法）；md 链随 boot 幂等迁移（帧源触发器自保障）；
+// fin_proposal 双向回写。双 DSN env 引导（MD_PG_DSN=本机 PG-md；FIN_PG_DSN=
+// 隧道径 SG fin 正本——T-0232 正名：SG_PG_DSN 归 FIN_PG_DSN 名实归位）；
+// md 链随 boot 幂等迁移（帧源触发器自保障）；
 // 败=岗终 fail-closed（systemd 重启→reconciler 自愈）。
 package main
 
@@ -24,9 +25,9 @@ func main() {
 	if mdDSN == "" {
 		log.Fatal("MD_PG_DSN 缺——投影无正本源 fail-closed")
 	}
-	sgDSN := os.Getenv("SG_PG_DSN")
+	sgDSN := os.Getenv("FIN_PG_DSN")
 	if sgDSN == "" {
-		log.Fatal("SG_PG_DSN 缺——投影无镜像地 fail-closed")
+		log.Fatal("FIN_PG_DSN 缺——投影无镜像地 fail-closed")
 	}
 	mdPool, err := pgstore.Connect(ctx, mdDSN)
 	if err != nil {

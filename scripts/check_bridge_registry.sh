@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # check_bridge_registry.sh —— T-0223 桥域对账闸（D-0036 §12.4 前置闸）一体三列：
 #  ①授权列：domain.tsv 桥域表 × SG 实查授权——bridge-reverse 源表 projector_rw
-#    SELECT 必在（T-0214 md_earn_rate 漏配崩环实证）；同表 research_rw SELECT
+#    SELECT 必在（T-0214 md_earn_rate 漏配崩环实证）；同表 research_ro SELECT
+#    （T-0232 四角色收窄——research_rw 撤，读径归 research_ro）
 #    按需钉（研究面隧道读径）；bridge 正向表 projector_rw SELECT 钉（投影镜像
 #    源读）——差即红报表名×角色×权。
 #  ②存在性列：迁移册派生触发器清单（fin_*→SG 侧/md_*→OCI 侧，仅桥域表）×
@@ -29,7 +30,7 @@ oci_f() { timeout 15 ssh -n -o BatchMode=yes -o ConnectTimeout=8 "$MD_HOST" "cat
 mapfile -t rev_tables < <(grep -P '\tbridge-reverse$' migrations/domain.tsv | cut -f1)
 mapfile -t fwd_tables < <(grep -P '\tbridge$' migrations/domain.tsv | cut -f1)
 # 期望授权矩阵（钉死钦定面——扩权不判，缺权红）：
-#  projector_rw:SELECT×全桥表（反向源读+正向源读）；research_rw:SELECT×reverse 表
+#  projector_rw:SELECT×全桥表（反向源读+正向源读）；research_ro:SELECT×reverse 表
 want() { echo "$1"; }
 for t in "${rev_tables[@]}" "${fwd_tables[@]}"; do
 	for g in "projector_rw|SELECT"; do
@@ -39,10 +40,10 @@ for t in "${rev_tables[@]}" "${fwd_tables[@]}"; do
 	done
 done
 for t in "${rev_tables[@]}"; do
-	n=$(sg_q "SELECT count(*) FROM information_schema.role_table_grants WHERE grantee='research_rw' AND table_name='$t' AND privilege_type='SELECT'")
-	[ "$n" = "1" ] || red "授权缺: SG research_rw.SELECT on $t（reverse 源表研究面按需读）"
+	n=$(sg_q "SELECT count(*) FROM information_schema.role_table_grants WHERE grantee='research_ro' AND table_name='$t' AND privilege_type='SELECT'")
+	[ "$n" = "1" ] || red "授权缺: SG research_ro.SELECT on $t（reverse 源表研究面按需读——T-0232 收窄读径归位）"
 done
-echo "OK[bridge-audit] 授权列: $((${#rev_tables[@]}+${#fwd_tables[@]})) 桥表×projector_rw.SELECT + ${#rev_tables[@]} reverse×research_rw.SELECT 齐"
+echo "OK[bridge-audit] 授权列: $((${#rev_tables[@]}+${#fwd_tables[@]})) 桥表×projector_rw.SELECT + ${#rev_tables[@]} reverse×research_ro.SELECT 齐"
 
 # ── ② 触发器存在性列 ─────────────────────────────────────
 # 迁移册派生：TRIGGER <name> ... ON <table>，按文件名链分侧（fin_*→SG，md_*→OCI）。
@@ -79,12 +80,13 @@ dsn_fields() { grep -oE "$2=postgres://[a-z_]+(:[^@\"]*)?@[0-9.]+:[0-9]+" "$1" 2
 env_field() { # $1=remote file $2=key
 	oci_f "$1" | grep -oE "$2=postgres://[a-z_]+(:[^@\"]*)?@[0-9.]+:[0-9]+" \
 	| sed -E "s|$2=postgres://([a-z_]+)(:[^@\"]*)?@([0-9.]+:[0-9]+)|\1@\3|" | head -1; }
-pairs="deploy/o-collecto/compose.yml|SG_PG_DSN|/home/ubuntu/o-collecto.env
-deploy/o-projector.env.example|SG_PG_DSN|/home/ubuntu/o-projector.env
+pairs="deploy/o-collecto/compose.yml|MD_PG_DSN|/home/ubuntu/o-collecto.env
+deploy/o-projector.env.example|FIN_PG_DSN|/home/ubuntu/o-projector.env
 deploy/o-projector.env.example|MD_PG_DSN|/home/ubuntu/o-projector.env
-deploy/o-research.env.example|SG_PG_DSN|/home/ubuntu/o-research/env
+deploy/o-research.env.example|MD_PG_DSN|/home/ubuntu/o-research/env
 deploy/o-research.env.example|ROSTER_PG_DSN|/home/ubuntu/o-research/env
-deploy/o-research.env.example|FIN_PG_DSN|/home/ubuntu/o-research/env"
+deploy/o-research.env.example|FIN_PG_DSN|/home/ubuntu/o-research/env
+deploy/o-sweeper.env.example|ROSTER_PG_DSN|/home/ubuntu/o-sweeper.env"
 # compose 内嵌 DSN 形（SG_PG_DSN: postgres://...）：键分隔符是 ': ' 非 '='。
 tpl_field() { # $1=file $2=key —— env 形 KEY= 与 compose 形 KEY: 双兼容
 	grep -oE "$2[=:] ?postgres://[a-z_]+(:[^@\" ]*)?@[0-9.]+:[0-9]+" "$1" 2>/dev/null \

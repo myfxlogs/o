@@ -1,7 +1,8 @@
 // sweeper —— PG-md 侧清道夫（T-0169 承接段：清道夫双实例配装——SG 钱径账
 // core 自带；PG-md 账=md_1069 在册，本件日拍照账）。席位 beat 走 SG registry
 // （fin_employee_registry 归 fin——PG-md 不另立册）。
-// 用法：MD_PG_DSN=... SG_PG_DSN=... sweeper
+// 用法：MD_PG_DSN=... ROSTER_PG_DSN=... sweeper（T-0232 正名：SG_PG_DSN→
+// ROSTER_PG_DSN——本池唯一用途=席位 beat，与 collector 同形归位）。
 package main
 
 import (
@@ -23,9 +24,9 @@ func main() {
 	if mdDSN == "" {
 		log.Fatal("MD_PG_DSN 缺——清道夫无账面 fail-closed")
 	}
-	sgDSN := os.Getenv("SG_PG_DSN")
+	sgDSN := os.Getenv("ROSTER_PG_DSN")
 	if sgDSN == "" {
-		log.Fatal("SG_PG_DSN 缺——席位 beat 无册 fail-closed")
+		log.Fatal("ROSTER_PG_DSN 缺——席位 beat 无册 fail-closed")
 	}
 	mdPool, err := pgstore.Connect(ctx, mdDSN)
 	if err != nil {
@@ -34,7 +35,7 @@ func main() {
 	defer mdPool.Close()
 	sgPool, err := pgstore.Connect(ctx, sgDSN)
 	if err != nil {
-		log.Fatalf("SG 连接败: %v", err)
+		log.Fatalf("roster 池连接败: %v", err)
 	}
 	defer sgPool.Close()
 	// md 链幂等迁移（保留账 md_1069 随链在位——boot 自保障）。

@@ -17,8 +17,7 @@ func (r *Runner) reviewSettled(ctx context.Context) error {
 			JOIN fin_proposal pr ON pr.id=s.proposal_ref
 			JOIN fin_opp_eval e ON e.id=pr.eval_id
 			WHERE s.id=(SELECT f.strategy_ref FROM fin_execution f WHERE f.id=p.execution_id)
-			ORDER BY e.id DESC LIMIT 1), 0) AS pred_apr,
-		p.execution_id
+			ORDER BY e.id DESC LIMIT 1), 0) AS pred_apr
 		FROM fin_position p
 		WHERE p.settled_at IS NOT NULL AND NOT EXISTS(
 			SELECT 1 FROM fin_review rv WHERE rv.position_ref=p.id)`)
@@ -26,13 +25,13 @@ func (r *Runner) reviewSettled(ctx context.Context) error {
 		return err
 	}
 	type pos struct {
-		id, execID             int64
+		id                     int64
 		net, notional, predApr float64
 	}
 	var ps []pos
 	for rows.Next() {
 		var x pos
-		if err := rows.Scan(&x.id, &x.net, &x.notional, &x.predApr, &x.execID); err != nil {
+		if err := rows.Scan(&x.id, &x.net, &x.notional, &x.predApr); err != nil {
 			rows.Close()
 			return err
 		}
@@ -83,7 +82,6 @@ func (r *Runner) reviewSettled(ctx context.Context) error {
 				0, 0, detail); err != nil {
 				return err
 			}
-			r.recycleFalsified(ctx, x.execID, attrib)
 		}
 	}
 	return nil
@@ -181,43 +179,4 @@ func abs(f float64) float64 {
 		return -f
 	}
 	return f
-}
-
-// recycleFalsified falsified 判决回炉（T-0103 ②）：判决落库即联动策略状态位
-// ——armed 同键提案退役+策略回 degraded 待复盘（live→degraded 合法径），不再
-// 原地待命被同键 armed 续开（#1662 判据分裂振荡病灶）。全钱径面（fin 池——
-// 策略态迁/transition 行=fin 域写权，SG 正本）。
-func (r *Runner) recycleFalsified(ctx context.Context, execID int64, attrib string) {
-	var sid int64
-	var inst, dir string
-	if err := r.fin.QueryRow(ctx, `SELECT s.id,s.inst_id,s.direction FROM fin_strategy s
-		JOIN fin_execution f ON f.strategy_ref=s.id WHERE f.id=$1`,
-		execID).Scan(&sid, &inst, &dir); err != nil {
-		r.rej.Inc("write_err")
-		log.Printf("ALERT [review] falsified 回炉策略行查败（exec=%d）: %v", execID, err)
-		return
-	}
-	if tag, err := r.fin.Exec(ctx, `UPDATE fin_proposal SET state='fin_retired',retire_reason='falsified_回炉',retired_at=now()
-		WHERE inst_id=$1 AND direction=$2 AND state='fin_armed'`, inst, dir); err == nil && tag.RowsAffected() > 0 {
-		log.Printf("[review] falsified 回炉——同键 armed 提案退役 %d 行（%s %s）", tag.RowsAffected(), inst, dir)
-	}
-	// live→degraded 合法径内联迁（review→lifecycle 跨包向禁——D-514）：
-	// state='live' 谓词=只迁 live 行，非 live 行零动不误迁。
-	tag, err := r.fin.Exec(ctx, `UPDATE fin_strategy SET state='degraded',entered_at=now()
-		WHERE id=$1 AND state='live'`, sid)
-	if err != nil {
-		r.rej.Inc("write_err")
-		log.Printf("ALERT [review] 策略 #%d falsified 回炉降级败: %v", sid, err)
-		return
-	}
-	if tag.RowsAffected() == 0 {
-		return // 非 live 态（已退役/降级/未晋）——回炉径天然无事
-	}
-	if _, err := r.fin.Exec(ctx, `INSERT INTO fin_strategy_transition(strategy_id,from_state,to_state,reason)
-		VALUES($1,'live','degraded',$2)`, sid,
-		fmt.Sprintf("falsified 判决回炉（归因=%s）——降级待复盘非原地待命", attrib)); err != nil {
-		r.rej.Inc("write_err")
-		return
-	}
-	log.Printf("[review] 策略 #%d %s falsified（归因=%s）→degraded 回炉", sid, inst, attrib)
 }

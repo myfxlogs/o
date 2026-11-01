@@ -1,6 +1,7 @@
 // research —— 研究域外置节点（T-0165/D-0029：开发机算力面——researchArms
 // 全族+review/report 迁此；roster 席位名不变 beat 换机；
-// SG o-core 撤臂钱径独占）。DSN 经 SG_PG_DSN 隧道径（同 collector 接法）。
+// SG o-core 撤臂钱径独占）。DSN 经 MD_PG_DSN 本机 PG-md（同 collector 接法——
+// T-0232 正名：SG_PG_DSN 名残指 md 归位）。
 // T-0170 认证读面：READCRED_URL 设=只读钥 boot 内存取+401 自重取（径 A）。
 package main
 
@@ -22,13 +23,13 @@ import (
 
 func main() {
 	ctx := context.Background()
-	dsn := os.Getenv("SG_PG_DSN")
+	dsn := os.Getenv("MD_PG_DSN")
 	if dsn == "" {
-		log.Fatal("SG_PG_DSN 缺——研究节点写径无目的地 fail-closed")
+		log.Fatal("MD_PG_DSN 缺——研究节点写径无目的地 fail-closed")
 	}
 	pool, err := pgxpool.New(ctx, dsn)
 	if err != nil {
-		log.Fatalf("SG PG 连接败: %v", err)
+		log.Fatalf("PG-md 连接败: %v", err)
 	}
 	defer pool.Close()
 	// T-0181：boot 背 md 迁移闸——md 链执行者缺位根治（与 SG o-core
