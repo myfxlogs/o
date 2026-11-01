@@ -1,6 +1,7 @@
 # T-0238 funding-hedge maker 径执行面——post_only 限价双腿摩擦砍半
 
-> 状态：驳回：锚③probe仓maker单实发/成交降级实测数据未落票回填+锚②eval分费制桩测收口缺位 | 领取：devin-t0238 @ 2026-10-29 | 优先级：P1（D-0037 主线条）
+> 状态：作废（superseded——11-01 清账定性·SETTLE-SWEEP）| 领取：devin-t0238 @ 2026-10-29 | 优先级：P1（D-0037 主线条）
+> 清账定性（`[角色:决策]` @ 2026-11-01，SETTLE-SWEEP/MANAGE-3551）：**作废**——superseded：maker径post_only+时限降级+分费制eval并master（maker.go/okx.go:68/eval_test TestMakerFeeSetSplit）；probe实证债归T-0237
 > 审计席：headless @ 2026-10-30
 > 立项：决策席 @ 2026-10-29（T-0237 调研报告③裁定的执行面码件）
 > **动真钱径——施工产出=实现+桩测+灰度方案，放量由负责人审后落**

@@ -1,6 +1,7 @@
 # T-0143 MT5 swap 点数方言换算件（carry_diff 解锁闸）
 
-## 态：驳回：锚② ts 鲜不达——mt5_swap 生产停摆~13h（2026-10-30 01:13Z 后零写，tick 侧秒鲜存活），carry_diff 鲜门断供
+## 态：作废（superseded——11-01 清账定性·SETTLE-SWEEP）
+> 清账定性（`[角色:决策]` @ 2026-11-01，SETTLE-SWEEP/MANAGE-3551）：**作废**——superseded：mt5_swap信号由projector serve全kind镜像落地（projector_test:502-516）+xvenuepair.go:86快照消费在产
 ## 审计席：headless @ 2026-10-30
 ## 领取：zcode-t0143（ZCode 施工席）@ 2026-10-26
 ## 域：桥面蒸馏 / MT5 能力面

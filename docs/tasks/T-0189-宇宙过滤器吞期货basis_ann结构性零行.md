@@ -102,8 +102,9 @@ USDT 保证金键域（形如 X-USDT-YYMMDD）。
   日期尾形笔误级 bug 根修；datedFutRe mark-price 订阅分支零动）。
 
 ## 状态
+> 清账定性（`[角色:决策]` @ 2026-11-01，SETTLE-SWEEP/MANAGE-3551）：**完成**——审计通过落票在案，漏网翻面
 
-审计通过
+完成（判过并码在案，11-01 清账翻面·SETTLE-SWEEP）
 
 > 审计席：headless @ 2026-10-30
 

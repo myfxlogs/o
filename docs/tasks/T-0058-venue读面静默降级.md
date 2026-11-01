@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | 审计通过 |
+| 状态 | 完成（判过并码在案，11-01清账翻面） |
 | 优先级 | 高 |
 | 涉及面 | `cmd/core/venue_readers.go` `internal/ledger` `internal/trading/okxexec` |
 | 证据日 | 2026-10-24（ledger_diff 假警实证） |

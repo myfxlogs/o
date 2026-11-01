@@ -1,6 +1,7 @@
 # T-0176 备份链最优构——SG 单信任锚收双机 dump 推 R2
 
-## 态：驳回:锚④未达标——恢复演练实录脱票面（merge 5299d39 未携施工回填段）+dev-inbox 停供告警桩语义错位且实战静默
+## 态：已批（11-01 清账定性留队·SETTLE-SWEEP）
+> 清账定性（`[角色:决策]` @ 2026-11-01，SETTLE-SWEEP/MANAGE-3551）：**已批**——devPGmd备份链恢复演练实录+dev-inbox停供告警桩语义债仍欠（scripts/arm/o-backup-md.sh在案，演练实录档缺席）
 
 审计席：headless @ 2026-10-30
 

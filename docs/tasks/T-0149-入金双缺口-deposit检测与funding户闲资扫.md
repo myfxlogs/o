@@ -1,6 +1,7 @@
 # T-0149 入金双缺口——deposit 自动检测入账 + funding 户闲资停泊扫（D-286 钱不眠）
 
-## 态：驳回:账基线闸 SELECT min `_ =` 吞错读败 fail-open 放全史入账（防史谓词失效）+桩锚『双源闲资合并判阈』未落（两源独立判阈合并档漏扫）
+## 态：作废（superseded——11-01 清账定性·SETTLE-SWEEP）
+> 清账定性（`[角色:决策]` @ 2026-11-01，SETTLE-SWEEP/MANAGE-3551）：**作废**——superseded：deposit-history入金检测径落client.go:237+fin_venue_bill ASSET幂等件在案
 
 审计席：headless @ 2026-10-30
 

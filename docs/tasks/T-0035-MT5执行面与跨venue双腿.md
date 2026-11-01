@@ -2,7 +2,8 @@
 
 [角色:决策] 立 2026-10-24 | 优先级：**高（业主令：周末窗口开仓 BTCUSDm）**
 
-状态：驳回:demo户双腿开→平全周期实证缺位+逐腿venue权益闸未落（锚②④）
+状态：作废（superseded——11-01 清账定性·SETTLE-SWEEP）
+> 清账定性（`[角色:决策]` @ 2026-11-01，SETTLE-SWEEP/MANAGE-3551）：**作废**——superseded：真户EXR3001157 MT5双谱实测在案（mt5-trading-mutating能力账）+策略模板激活T-0099投产，demo双腿实证问已被真户事实覆盖
 
 审计席：headless @ 2026-10-30
 

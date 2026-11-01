@@ -1,6 +1,7 @@
 # T-0213 basis 通用评估器永判 unevaluable——evalBasis 不发 apr，撞 T-0205 硬闸
 
-> 状态：待施工 | 优先级：P1（basis 族评估永不可 proposed，卡链事实死锁）
+> 状态：作废（superseded——11-01 清账定性·SETTLE-SWEEP）| 优先级：P1（basis 族评估永不可 proposed，卡链事实死锁）
+> 清账定性（`[角色:决策]` @ 2026-11-01，SETTLE-SWEEP/MANAGE-3551）：**作废**——superseded：basis评估器apr缺失修交付并master（t/0213-basis-apr merge在案）——验收债归T-0249
 > 立项：决策席 @ 2026-10-28（假想卡 adjudication 取证实证）
 
 ## 病灶

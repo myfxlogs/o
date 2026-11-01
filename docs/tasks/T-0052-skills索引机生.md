@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | 审计通过 |
+| 状态 | 完成（判过并码在案，11-01清账翻面） |
 | 立项 | `[角色:决策]` @ 2026-10-26 |
 | 领取 | zcode-glm @ 2026-10-26（worktree /opt/phase-wt/t0052，支 t/0052-kbgen-skills） |
 | 优先级 | 中 |
@@ -58,7 +58,7 @@ build/vet/gofmt/test 全量 / import-direction / migration-contract / lines（kb
 - 验收中发现的闸缺口（坑引列依赖经验库内容、8b 门只查 staged skills/ 面→经验库-only commit 溜漂移）→ 坑条目入库+立 T-0150 修复，不阻本票。
 - 状态翻完成。
 
-### 状态：审计通过
+### 状态：完成（判过并码在案，11-01清账翻面）
 
 ## 无头审计判决（审计席：headless @ 2026-10-30 —— **通过**）
 

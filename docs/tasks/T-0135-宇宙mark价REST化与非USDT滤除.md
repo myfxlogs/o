@@ -36,7 +36,8 @@
 
 - mark_price REST 507 行/21s 鲜、spot_last 1195/20s、netmeter okxws/mark-price 归零、观测窗 0×1006——**宇宙面完全离线** ✅
 - 带宽锚未达（RX 3258>1500kbps）：残余=活跃集 ~269 策略 inst_id 的 tickers 流 ~3.3Mbps——属 T-0136 armed 幽灵账（armed 超龄退役落地后活跃集自然缩编）
-- 状态：驳回:REST写channel='mark_price'下划线方言分叉——「复用WS原键域mark-price·读面零改无缝衔接」宣称不实,merge时点'mark-price'读面断鲜fail-closed~5h,T-0146归并/T-0171归一方绝;带宽锚自记亦未达(3258>1500kbps,残余归T-0136账)
+- 状态：作废（superseded——11-01 清账定性·SETTLE-SWEEP）
+> 清账定性（`[角色:决策]` @ 2026-11-01，SETTLE-SWEEP/MANAGE-3551）：**作废**——superseded：mark_price方言归并由T-0146+快照价格全面退役T-0171双票收口（审计通过）
 
 审计席：headless @ 2026-10-30
 
