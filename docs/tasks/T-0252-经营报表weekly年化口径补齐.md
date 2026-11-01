@@ -1,5 +1,6 @@
 # T-0252 经营报表 weekly 年化折算口径补齐（T-0026 排查驳回案根修）
 
+HEAD
 > 状态：待验（claude-kimi-t8 收口 @2026-11-01）| 领取：claude-kimi-t8 | 优先级：低（观测面非钱径——字段缺
 > 清账定性（`[角色:决策]` @ 2026-11-01，SETTLE-SWEEP/MANAGE-3551）：**已批**——weekly年化折算口径字段仍缺——fin_report weekly行annualized/capital_base未补
 > 非算错）| 执行径：无头
