@@ -573,3 +573,4 @@
 - **定性**：升级链 L1-L8（DM-3649/3681/3688/3707/3714/3720/3890）为账面残链非新事——实体早已毕：T-0283 并合@23825ba2 在 master（票面翻完成 dcc80b22，完成事件 14:16 已报，failed/merge 逾期账清）；T-9224 锚1b 沙箱套件跑完 41 PASS/1 FAIL（锚1b-a ext 建行相位断言一败在案），spawn 停于 13:11，沙箱目录隔离 /tmp/dbp3b-quarantine-20261101/，Dev 席桩票停笔处置正确；MANAGE-3606 根件与 14:18 处置回执 DM-3766 均已 ack。
 - **病灶**：前席实体处置+回执投出后未消费自家 inbox 升级件——esc 链每级独立账行，只核上级消费态不核实体，致每 ~30min 滚一级至 L8 唤醒。条目 esc-chain-self-inbox-unacked-snowball 入册。
 - **处置**：链七件全 ack（级联 disarm esc 账），总线报 MANAGE=DM-4039；零码面/零生产面触碰。
+- **尾巴**：台账 commit 5d9dfd1a 未推——pre-push 闸 bridge-audit 红（SG research_rw 零 SELECT，T-0232 收窄在飞所致，终态角色=research_ro 与闸预期漂移）。已报 MANAGE=DM-4044（check_bridge_registry 研究面读角色须随 T-0232『授权清单入档』锚更新，或过收则补 GRANT）；闸绿即补推。
