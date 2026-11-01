@@ -240,6 +240,15 @@ func (c *Client) DepositHistory(ctx context.Context) (json.RawMessage, error) {
 	return c.Get(ctx, "/api/v5/asset/deposit-history")
 }
 
+// WithdrawalHistory /asset/withdrawal-history（出金常设径 T-0274——外向出金
+// 唯一在册源：链上提币与 OKX 内部户转出（本案 wdId 440849407 形态——chain/
+// txId 空、to=对方手机号）皆在册且 state=2 完成态终证；内转双跳（trading↔
+// funding↔earn）天然缺席=行面即外向定性。真户探针 2026-11-01 实证——
+// /account/bills type=1 行与 /asset/bills 行均无 from/to 分辨域）。
+func (c *Client) WithdrawalHistory(ctx context.Context) (json.RawMessage, error) {
+	return c.Get(ctx, "/api/v5/asset/withdrawal-history")
+}
+
 // SavingsBalance /finance/savings/balance（earn 活期货产——钦定保留面）。
 func (c *Client) SavingsBalance(ctx context.Context) (json.RawMessage, error) {
 	return c.Get(ctx, "/api/v5/finance/savings/balance")
