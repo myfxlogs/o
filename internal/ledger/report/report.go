@@ -49,15 +49,22 @@ func Gen(ctx context.Context, pool *pgxpool.Pool, period string, b Bounds) error
 	if net == 0 && opened == 0 && closed == 0 {
 		note = "本期无开平/零现金流（缺席≠静默——如实出行）"
 	}
-	if period == "monthly" {
-		var base float64
+	// T-0252：weekly 年化折算补齐——基数口径同 monthly 单源（lifetime fin_cashflow
+	// kind=deposit 累计），同式换系数（×12→×52）；daily 不补（日年化无经济义——裁定注记）。
+	var base, ann float64
+	if period == "weekly" || period == "monthly" {
 		q(`SELECT COALESCE(sum(amount),0) FROM fin_cashflow WHERE kind='deposit'`, &base)
-		ann := 0.0
+		mult := 12.0
+		if period == "weekly" {
+			mult = 52
+		}
 		if base > 0 {
-			ann = net / base * 12
+			ann = net / base * mult
 		}
 		m["annualized"] = ann
 		m["capital_base"] = base
+	}
+	if period == "monthly" {
 		var retired int
 		q1(`SELECT count(*) FROM fin_strategy_transition WHERE to_state='retired' AND ts>=$1 AND ts<$2`, &retired, b.Start, b.End)
 		m["retired"] = retired

@@ -133,3 +133,60 @@ func TestReportCounts(t *testing.T) {
 		t.Fatalf("指标恒 0 返修未愈: proposed=%v rejected=%v", p, r)
 	}
 }
+
+// T-0252 weekly 年化折算锚：周净/资本基数×52——fixture 行验式非摆拍
+// （基数口径同 monthly=lifetime deposit 累计单源）；daily 无年化键（裁定注记）。
+func TestWeeklyAnnualized(t *testing.T) {
+	pool := testutil.Pool(t)
+	ctx := context.Background()
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatal(err)
+	}
+	_, _ = pool.Exec(ctx, "DELETE FROM fin_cashflow")
+	_, _ = pool.Exec(ctx, "DELETE FROM fin_report")
+	defer func() { _, _ = pool.Exec(ctx, "DELETE FROM fin_cashflow") }()
+	now := time.Now()
+	rows := []struct {
+		kind, class string
+		amt         float64
+	}{
+		{"deposit", "transfer", 1000}, {"deposit", "transfer", 500},
+		{"funding_settle", "income", 10}, {"funding_settle", "income", 5},
+	}
+	for i, r := range rows {
+		if _, err := pool.Exec(ctx, `INSERT INTO fin_cashflow(kind,venue,ccy,amount,source_ref,source_table,class,occurred_at)
+			VALUES($1,'okx','USDT',$2,0,'test',$3,$4)`, r.kind, r.amt, r.class, now.Add(-time.Duration(10-i)*time.Minute)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := Gen(ctx, pool, "weekly", BoundsOf("weekly", now)); err != nil {
+		t.Fatal(err)
+	}
+	var ann, base float64
+	if err := pool.QueryRow(ctx, `SELECT (metrics->>'annualized')::float8,(metrics->>'capital_base')::float8
+		FROM fin_report WHERE period='weekly'`).Scan(&ann, &base); err != nil {
+		t.Fatalf("weekly annualized/capital_base 键缺席: %v", err)
+	}
+	if base != 1500 || ann != 15.0/1500*52 {
+		t.Fatalf("weekly 算式漂移: base=%v ann=%v（期望 1500 / %v）", base, ann, 15.0/1500*52)
+	}
+	// monthly ×12 同源对拍（同基数不同系数）
+	if err := Gen(ctx, pool, "monthly", BoundsOf("monthly", now)); err != nil {
+		t.Fatal(err)
+	}
+	var mann float64
+	if err := pool.QueryRow(ctx, `SELECT (metrics->>'annualized')::float8 FROM fin_report WHERE period='monthly'`).Scan(&mann); err != nil {
+		t.Fatal(err)
+	}
+	if mann != 15.0/1500*12 {
+		t.Fatalf("monthly ×12 漂移: %v", mann)
+	}
+	// daily 不补裁定锚：无 annualized 键
+	if err := Gen(ctx, pool, "daily", BoundsOf("daily", now)); err != nil {
+		t.Fatal(err)
+	}
+	var has bool
+	if err := pool.QueryRow(ctx, `SELECT metrics ? 'annualized' FROM fin_report WHERE period='daily'`).Scan(&has); err != nil || has {
+		t.Fatalf("daily 不应有 annualized 键: %v", has)
+	}
+}
