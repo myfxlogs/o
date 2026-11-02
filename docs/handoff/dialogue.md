@@ -606,3 +606,21 @@
 - **协同**：D2/D4 obl666 席独立中弹同修在 dm/1101-bridge-audit-ro（research_ro 随 T-0232）——
   重飞承该支续 D1/D3/D5；模板列真红=T-0232 env 正名在飞（设计行为拦推）。
 - **自报**：report.sh 裁决 T-0223 驳回 已发。
+
+## 2026-11-02 决策席（devin 交互 session @ /opt/o——业主令「把研究员的产出处理了」+质询落库位）
+
+- **队列实查**：研究员卡 #44（mt5/quote mt5_swap_basis）/#45（okx/savings-rate carry）10-26 产，
+  provenance=researcher proposed——**只落 dev 盒本地库 :5433**；OCI-md/SG 双端实查皆无。
+- **裁决**：#45→**adopted**（假想验证——卡指缺口 savings-balance 面已由 T-0119 补在册 enabled，
+  注册三件已在位：模板 #5/#6 candidate+evalCarry 臂+md_earn_rate 数据已供，零新注册工作）；
+  #44→**dismissed**（结构=已实装 xvenue_carry〔T-0144：mt5_cfd±腿在闭集+四件分解评估器+mt5
+  trade-order 缺经 mt5_leg_capability_missing 拒因闸管+T-0145 票跟踪〕，注册 mt5_swap_basis=
+  重复族；OCI-md 自有生产卡 #84 同构在队）。
+- **落库径病灶定性**：`fin_opp_hypothesis`=md 域表，队列正本=OCI 盒 PG-md（生产臂主池实证）；
+  spawn 缺省 DSN=localhost:5433 钉死 dev 本地库=T-0271 移交项悬空→产卡全死信。
+  业主「应该在生产机上才对」方向成立，精确正本=OCI-md 非 SG（SG 侧为分域前遗存）。
+- **处置**：裁决双端落账（dev 原行翻态+OCI-md 迁移录 #1690/#1691 evidence 载裁决注）；
+  立 T-0295 已批（o_researcher 建 OCI-md+spawn DSN 归正+timer enable 锚）；坑条目
+  researcher-dsn-dead-letter-db 入册（泛化：移交项「生产 DSN 换正」未执行=静默死信）。
+- **积压提示**：proposed 队列另有 grammar_enumerate 卡 7 张（三库各一份）+OCI 侧假想官
+  #15/#16/#84 待审——队列盘例职面，非本令范围。
