@@ -21,6 +21,7 @@ import (
 var wake = map[string]string{
 	"ctx":  "o-regime-analyst.service",
 	"econ": "o-econ-verdict.service",
+	"dm":   "o-decision-seat.service", // 第六刀：待裁事件唤醒决策席
 }
 
 func main() {
