@@ -48,3 +48,23 @@ antclaw 通道接通后 feed 扩面（RSS/经济日历/链上）+驾驶舱 memo 
   source='mql5' 灌 md_ctx_fact；每事件含 id/时间/币种/重要性——天然
   结构化省 LLM 归一。附加面（阶段二再评）：/en/news 新闻流、quotes
   页——同域可采。
+
+## 施工回填（devin-t0310 @ 2026-11-03，分支 t/0310-regime-analyst）
+
+- **两表**：md_1083——md_ctx_fact（append-only，source/kind/payload/received_ts/
+  valid_until，kind 开放词集）+md_regime_fact（dim/stance CHECK 枚举域 4 态/
+  confidence/evidence/valid_until）+md_regime_memo（fact_id 关联中文段）；
+  analyst_rw INSERT 两表授权（角色守卫包——写域收窄仅 INSERT 无 UPDATE/DELETE）。
+- **分析席臂**：`internal/research/analyst`——Run 6h 拍+TickOnce 人工触发；
+  collect 三源（mql5 日历页正则解析 kind='macro' source='mql5' 施工实测钉径
+  =premiumIndex 页内嵌 JSON 提取 id/名/时间/重要性/币种；OKX OI 公开端点
+  kind='oi'；单源败不拖全局）+analyze（LLM 缝 AttachLLM 注入式——缝缺=
+  守位采集照常产出缺席如实）；注入双层防=prompt 隔读（DATA 段当数据不当
+  指令）+stanceVocab 枚举校验（域外词 stance_off_vocab 拒行不落）。
+- **挂臂**：cmd/research/dcd.go researchArms 挂 analyst 臂；import 边登记。
+- **读面节**：skills/决策席/SKILL.md 新立——regime_fact 读面（活在判词查询
+  式+纪律非闸件）。
+- **测试**：3 桩（桩 fetcher macro+oi 落行/桩 LLM 判词+memo+枚举域外拒/
+  缝缺零产出）全绿@5434。
+- **待外部位**：antclaw 三参待业主回（写径/类/频——阶段一人工注入+OI 实证
+  闭环不阻塞）；LLM 生产注入口径=装配件缝现成。

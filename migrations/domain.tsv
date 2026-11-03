@@ -82,3 +82,6 @@ ops_headless	fin
 ops_ticket_usage	fin
 fin_venue_candidate	bridge
 md_venue_funding	md
+md_ctx_fact	md
+md_regime_fact	md
+md_regime_memo	md

@@ -21,6 +21,7 @@ import (
 	"o/internal/platform/notify"
 	"o/internal/platform/rejects"
 
+	"o/internal/research/analyst"
 	"o/internal/research/dcd"
 	"o/internal/research/funding"
 	"o/internal/research/gapscan"
@@ -178,6 +179,8 @@ func researchArms(ctx context.Context, errc chan<- error, pool *pgxpool.Pool,
 	go grammar.NewRunner(pool, cfg).AttachCoins(okxCoinsFor(pool, okcli)).Run(ctx, errc) // T-0120 文法枚举臂；T-0215 vol-sell 实评 coins 缝
 	// T-0300 venue scout 骨架臂（公开面零凭据——凭据型端点调用=票级禁线）。
 	go scout.NewRunner(pool, cfg).AttachAlerter(alerter).Run(ctx, errc)
+	// T-0310 regime 分析席臂（mql5/OI 公开面+LLM 缝——缝缺=守位采集照常）。
+	go analyst.NewRunner(pool, cfg).AttachAlerter(alerter).Run(ctx, errc)
 	// 研究员席静默看门（T-0121：短会话岗无臂拍——DB 双源锚 14 天窗，core 代守）
 	sw := researcher.NewSilentWatch(pool)
 	sw.AttachAlerter(alerter)
