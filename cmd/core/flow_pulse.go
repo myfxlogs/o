@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"time"
 
@@ -67,6 +68,8 @@ func (c coreService) GetFlowPulse(ctx context.Context,
 		}
 		resp.Stages = append(resp.Stages, st)
 	}
+	resp.WorkItems = c.workItems(ctx)
+
 	// roster 心跳段（fin_employee_registry——23 岗含盒上臂经隧道写；读败=0 显缺）。
 	var rc int64
 	var minBeat *time.Time
@@ -97,4 +100,75 @@ func StageLamp(key string, lagS int64, ok bool) int32 {
 	default:
 		return 2
 	}
+}
+
+// workItems 钱径工件三类 union（T-0309——proposal→position→venue 序 cap 10；
+// 各查询独立 fail-soft：单类败=该类缺席不炸面；proposal 活态词='fin_proposed'
+// +fin_armed 码面取值域勿猜——fin_0006 CHECK 钉）。
+func (c coreService) workItems(ctx context.Context) []*dashboardv1.WorkItem {
+	out := []*dashboardv1.WorkItem{}
+	// ①proposal 活态（fin_proposed=待开仓 armed；fin_armed=执行中——码面词集）。
+	if rs, err := c.pool.Query(ctx, `SELECT id,inst_id,state,created_at FROM fin_proposal
+		WHERE state IN ('fin_proposed','fin_armed') ORDER BY created_at DESC`); err == nil {
+		for rs.Next() {
+			var id int64
+			var inst, st string
+			var ts time.Time
+			if rs.Scan(&id, &inst, &st, &ts) != nil {
+				break
+			}
+			stage := "执行中"
+			if st == "fin_proposed" {
+				stage = "待开仓"
+			}
+			out = append(out, &dashboardv1.WorkItem{Kind: "proposal",
+				Ref: fmt.Sprintf("#%d %s", id, inst), Stage: stage,
+				SinceTs: timestamppb.New(ts)})
+		}
+		rs.Close()
+	}
+	// ②position 未平。
+	if rs, err := c.pool.Query(ctx, `SELECT inst_id, opened_at FROM fin_position
+		WHERE closed_at IS NULL ORDER BY opened_at DESC`); err == nil {
+		for rs.Next() {
+			var inst string
+			var ts *time.Time
+			if rs.Scan(&inst, &ts) != nil {
+				break
+			}
+			w := &dashboardv1.WorkItem{Kind: "position", Ref: inst, Stage: "持仓中"}
+			if ts != nil {
+				w.SinceTs = timestamppb.New(*ts)
+			}
+			out = append(out, w)
+		}
+		rs.Close()
+	}
+	// ③venue measuring（since=首入度量缺——metrics measured_at 兜底；
+	// progress=X/30d 由采集行数天数计数派生）。
+	if rs, err := c.pool.Query(ctx, `SELECT venue, metrics->>'measured_at',
+		(SELECT count(DISTINCT date_trunc('day',ts)) FROM md_venue_funding f
+		 WHERE f.venue=v.venue AND f.ts>now()-interval '30 days')
+		FROM fin_venue_candidate v WHERE state='measuring' ORDER BY venue`); err == nil {
+		for rs.Next() {
+			var venue, at *string
+			var days int64
+			if rs.Scan(&venue, &at, &days) != nil {
+				break
+			}
+			w := &dashboardv1.WorkItem{Kind: "venue", Ref: *venue, Stage: "度量中",
+				Progress: fmt.Sprintf("%d/30d", days)}
+			if at != nil {
+				if t, err := time.Parse(time.RFC3339, *at); err == nil {
+					w.SinceTs = timestamppb.New(t)
+				}
+			}
+			out = append(out, w)
+		}
+		rs.Close()
+	}
+	if len(out) > 10 {
+		out = out[:10]
+	}
+	return out
 }

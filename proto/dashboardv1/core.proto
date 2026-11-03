@@ -494,9 +494,17 @@ message FlowStage {
   int32 state = 7;               // 段灯色（服务端 StageLamp 派生——阈按臂节拍常量钉）
   int64 expect_s = 8;            // 预期节拍秒（前端 hover 口径同源）
 }
+message WorkItem {                        // T-0309：钱径工件——第一性=钱的工件流
+  string kind = 1;                     // venue|proposal|position（服务端归一）
+  string ref = 2;                      // venue 名|提案 id·inst|持仓 inst
+  string stage = 3;                    // 中文阶段标（服务端派生）
+  google.protobuf.Timestamp since_ts = 4; // 入该态时刻
+  string progress = 5;                 // 「X/30d」类可算进度（不可算=空省字段）
+}
 message GetFlowPulseResponse {
   repeated FlowStage stages = 1;
   int32 roster_count = 2;        // 在岗数（fin_employee_registry 行数）
   int64 roster_worst_lag_s = 3;  // 最坏心跳滞后秒（min(last_beat) 派生——缺=0）
   google.protobuf.Timestamp as_of = 4;
+  repeated WorkItem work_items = 5;    // 钱径工件行（proposal→position→venue 序，cap 10）
 }

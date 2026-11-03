@@ -14,7 +14,7 @@ import { onLive } from "../stream";
 import { applyHeadless, applyPipeline, hydrate, useSlice } from "../store";
 import { Component, type ReactNode } from "react";
 import { Card, EmptyState, Skeleton, StateDot } from "../components/ui";
-import { FlowPulseStrip } from "../components/flowpulse";
+import { FlowPulseStrip, WorkItemsBlock } from "../components/flowpulse";
 import { AGE } from "../components/panel";
 import type {
   GetCockpitResponse,
@@ -78,37 +78,14 @@ function SeatBadge(props: { s: CockpitPipelineStep }) {
 // 一往返，后 ev_pipeline 流推 seq 水印去重；断流复连 unary 回补。行=1 票：
 // 行级灯+票号+标题+步链+已历时；活跃>20 截断「+N more」（服务端 total_active）。
 // 完结（部署上线）票不入 rows——行自动退场即流推帧）。
-function PipelineTile() {
+export function PipelineTile() {
 	const pl = useSlice("pipeline");
 	const extra = pl.data ? <StateDot state={0} breathe title={`${pl.data.rows.length}/${pl.data.totalActive} 在飞 · 水印 ${pl.data.seq}`} /> : undefined;
 	if (!pl.data) return <Card title="③ 工作流管道" extra={extra}>{pl.err ? <p className="dim">该段数据缺（读败）</p> : <Skeleton rows={4} />}</Card>;
-	const rows = pl.data.rows;
-	const more = Number(pl.data.totalActive) - rows.length;
 	return (
 		<Card title="③ 工作流管道" extra={extra}>
 			<FlowPulseStrip />
-			{rows.length === 0 ? <EmptyState title="无在飞票" hint="活跃票（未部署上线）为空——管道空闲" /> :
-				<div className="tile-scroll">{rows.map((r: CockpitPipelineRow) => {
-					const rowHover = `${r.ticket} | ${r.title || "无题"} | 已历时 ${durMin(r.elapsedMin)} | 当前卡在 ${r.currentSeat}（${STEP_RESULT[r.currentState] ?? r.currentState}）`;
-					return (
-						<div className="pipe-row" key={r.ticket} title={rowHover}>
-							<StateDot state={r.state} breathe={r.breathe} title={`行级灯（=当前活动席状态色） · ${rowHover}`} />
-							<span className="pipe-ticket">{r.ticket}</span>
-							{r.title && <span className="pipe-title">{r.title}</span>}
-							<span className="pipe-chain">
-								{r.steps.map((s, i) => (
-									<span key={i} className="pipe-seat">
-										{i > 0 && <span className="pipe-arrow">→</span>}
-										<SeatBadge s={s} />
-									</span>
-								))}
-							</span>
-							<span className="pipe-elapsed">{durMin(r.elapsedMin)}</span>
-						</div>
-					);
-				})}
-				{more > 0 && <p className="dim">+{more} more…</p>}
-				</div>}
+			<WorkItemsBlock />
 		</Card>
 	);
 }

@@ -47,3 +47,54 @@ func TestFlowPulseStages(t *testing.T) {
 		t.Fatal("StageLamp 阈派生错位")
 	}
 }
+
+// 锚：work_items 三类 union——venue measuring 行+proposal 活态+position 未平；
+// 排序 proposal→position→venue；fail-soft 表缺不炸面。
+func TestFlowPulseWorkItems(t *testing.T) {
+	pool := testutil.Pool(t)
+	if err := pgstore.Migrate(context.Background(), pool, "fin"); err != nil {
+		t.Fatal(err)
+	}
+	if err := pgstore.Migrate(context.Background(), pool, "md"); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_opp_eval(id,ts,inst_id,template,direction,verdict,net_apr,legs,evidence)
+		VALUES(9901,now(),'BTC-USDT-SWAP','funding','basis_quarter','proposed',0.1,'[]'::jsonb,'{}'::jsonb)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_proposal(id,eval_id,inst_id,direction,net_apr,state,created_at)
+		VALUES(9901,9901,'BTC-USDT-SWAP','basis_quarter',0.1,'fin_proposed',now())`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_execution(id,inst_id,notional_usd,state)
+		VALUES(9901,'ETH-USDT-SWAP',100,'open')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_position(execution_id,inst_id,notional_usd,opened_at)
+		VALUES(9901,'ETH-USDT-SWAP',100,now())`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE fin_venue_candidate SET state='measuring'
+		WHERE venue='binance-usdm'`); err != nil {
+		t.Fatal(err)
+	}
+	c := coreService{pool: pool}
+	r, err := c.GetFlowPulse(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	kinds := map[string]bool{}
+	for _, w := range r.WorkItems {
+		kinds[w.Kind] = true
+	}
+	for _, k := range []string{"proposal", "position", "venue"} {
+		if !kinds[k] {
+			t.Fatalf("工件类 %s 缺", k)
+		}
+	}
+	// proposal 首序（money 近者先）
+	if r.WorkItems[0].Kind != "proposal" {
+		t.Fatalf("序应 proposal 先: %s", r.WorkItems[0].Kind)
+	}
+}
