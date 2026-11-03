@@ -29,8 +29,9 @@ D-0016 Ⅲ 把「走出去」交给 LLM 研究员读资料，结构上走不出�
   top-N)`。判据行写明 baseline_source（earn|okx_family）进 evidence。
 - **持仓期**：单所 carry 的摊销持仓期键缺省取 OKX `guard.max_hold_hours` 同值
   （跨所各 venue 无 guard，用同一地平线才可横向比）。
-- **表/迁移**：`fin_venue_candidate` 归 fin 链（fin_0097 序取用）、`md_venue_funding`
-  归 md 链（md_1080 序取用）；`scout.recommend_margin_apr`/`scout.persist_ratio`
+- **表/迁移**：`fin_venue_candidate` 归 fin 链（**fin_0098 序取用**——fin_0097/
+  md_1080 已被 T-0298 用讫，决策席 2026-11-03 重排）、`md_venue_funding`
+  归 md 链（**md_1081 序取用**）；`scout.recommend_margin_apr`/`scout.persist_ratio`
   两键随 fin 迁移 seed；`fin_opp_template`/`fin_proposal` 零写（本票只量不动钱）。
 - **proto scoutv1**：骨架票内榜单面允许 stub（读 fin_venue_candidate 直出 top-20），
   codegen 走既有 buf 径；前端表非本票锚。
