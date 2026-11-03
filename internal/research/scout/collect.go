@@ -119,11 +119,28 @@ func f2p(s string) *float64 {
 	return &v
 }
 
-// collectBinance fapi premiumIndex（lastFundingRate+markPrice+indexPrice 全符号一拍）。
+// collectBinance fapi premiumIndex+fundingInfo（T-0304：interval 归真经 fundingInfo join）。
 func collectBinance(ctx context.Context, f Fetcher) ([]row, error) {
 	b, err := f(ctx, "https://fapi.binance.com/fapi/v1/premiumIndex", "")
 	if err != nil {
 		return nil, err
+	}
+	// T-0304：premiumIndex 无 interval 字段——fundingIntervalHours 真源=
+	// fapi/v1/fundingInfo 按 symbol join（公开零凭据；端点挂=venue_down 同径拒）。
+	ivs, err := f(ctx, "https://fapi.binance.com/fapi/v1/fundingInfo", "")
+	if err != nil {
+		return nil, err
+	}
+	var infos []struct {
+		Symbol string `json:"symbol"`
+		IVH    int    `json:"fundingIntervalHours"`
+	}
+	if err := json.Unmarshal(ivs, &infos); err != nil {
+		return nil, err
+	}
+	ivBy := map[string]float64{}
+	for _, x := range infos {
+		ivBy[x.Symbol] = float64(x.IVH)
 	}
 	var xs []struct {
 		Symbol      string `json:"symbol"`
@@ -142,7 +159,7 @@ func collectBinance(ctx context.Context, f Fetcher) ([]row, error) {
 			continue
 		}
 		out = append(out, row{inst: x.Symbol, rate: f2p(x.FundingRate),
-			interval: float64(x.FundingIntH), mark: f2p(x.MarkPrice), index: f2p(x.IndexPrice)})
+			interval: ivBy[x.Symbol], mark: f2p(x.MarkPrice), index: f2p(x.IndexPrice)})
 	}
 	return out, nil
 }

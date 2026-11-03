@@ -7,6 +7,7 @@ import (
 
 	"o/internal/platform/config"
 	"o/internal/platform/testutil"
+	"o/internal/research/funding"
 	"o/internal/store/pgstore"
 )
 
@@ -33,7 +34,9 @@ func TestCollectStub(t *testing.T) {
 	r.fetch = func(ctx context.Context, url, body string) ([]byte, error) {
 		switch {
 		case url == "https://fapi.binance.com/fapi/v1/premiumIndex":
-			return []byte(`[{"symbol":"BTCUSDT","markPrice":"100","indexPrice":"99.9","lastFundingRate":"0.0001","fundingIntervalHours":8},{"symbol":"ETHUSDT","markPrice":"50","indexPrice":"50","lastFundingRate":"0.0003","fundingIntervalHours":8}]`), nil
+			return []byte(`[{"symbol":"BTCUSDT","markPrice":"100","indexPrice":"99.9","lastFundingRate":"0.0001"},{"symbol":"ETHUSDT","markPrice":"50","indexPrice":"50","lastFundingRate":"0.0003"}]`), nil
+		case url == "https://fapi.binance.com/fapi/v1/fundingInfo":
+			return []byte(`[{"symbol":"BTCUSDT","fundingIntervalHours":8},{"symbol":"ETHUSDT","fundingIntervalHours":4}]`), nil
 		case url == "https://api.hyperliquid.xyz/info":
 			return []byte(`[{"universe":[{"name":"BTC"}]},[{"funding":"0.0002","markPx":"100","oraclePx":"100"}]]`), nil
 		default:
@@ -50,6 +53,15 @@ func TestCollectStub(t *testing.T) {
 	}
 	if n < 3 {
 		t.Fatalf("三 venue 采集落行应 ≥3: %d", n)
+	}
+	// fundingInfo join 归真：ETHUSDT interval_h=4（非 premiumIndex 携带）
+	var iv float64
+	if err := r.pool.QueryRow(ctx, `SELECT interval_h::float8 FROM md_venue_funding
+		WHERE venue='binance-usdm' AND inst='ETHUSDT' ORDER BY ts DESC LIMIT 1`).Scan(&iv); err != nil {
+		t.Fatal(err)
+	}
+	if iv != 4 {
+		t.Fatalf("fundingInfo join 应归真 interval_h=4: %v", iv)
 	}
 }
 
@@ -147,5 +159,85 @@ func TestCanonNormalize(t *testing.T) {
 		if got := canon(in); got != want {
 			t.Fatalf("canon(%q)=%q want %q", in, got, want)
 		}
+	}
+}
+
+// 锚⑤settles 分所归真（T-0304）：HL interval=1→24 次/日；binance interval=0→
+// config 回退=3。同 rate 下 HL carry 净应≈8×binance（24/3）。
+func TestSettlesPerVenue(t *testing.T) {
+	ctx, r := setup(t)
+	for _, inst := range []struct {
+		v  string
+		iv *float64
+	}{{"hyperliquid", fp(1)}, {"binance-usdm", nil}} {
+		if _, err := r.pool.Exec(ctx, `INSERT INTO md_venue_funding(ts,venue,inst,funding_rate,interval_h)
+			VALUES(now(),$1,'BTCUSDT',0.001,$2)`, inst.v, inst.iv); err != nil {
+			t.Fatal(err)
+		}
+	}
+	p, err := r.scoutParams()
+	if err != nil {
+		t.Fatal(err)
+	}
+	mid := func(venue string) float64 {
+		rows, err := loadVenue(ctx, r, venue)
+		if err != nil {
+			t.Fatal(err)
+		}
+		settles := func(iv float64) float64 {
+			if iv > 0 {
+				return 24 / iv
+			}
+			return p.SettlesPerDay
+		}
+		ser := dailySeries(rows, 5, func(rate, iv float64) float64 {
+			return abs(rate)*settles(iv)*365 - funding.CostAPR(p)
+		})
+		return med(ser)
+	}
+	hl, bn := mid("hyperliquid"), mid("binance-usdm")
+	if !(hl > 7*bn && bn > 0) {
+		t.Fatalf("HL(24x) 应≈8×binance(3x): hl=%v bn=%v", hl, bn)
+	}
+}
+func fp(v float64) *float64 { return &v }
+
+// 锚⑥跨所差式分列：同符号各带本所结算频次（HL 小时率 vs OKX 8h 率不比同×3）。
+func TestXvenueSplitSettles(t *testing.T) {
+	ctx, r := setup(t)
+	// HL 小时结 rate=0.001×24=0.024/日；OKX 8h rate=0.002×3=0.006/日
+	if _, err := r.pool.Exec(ctx, `INSERT INTO md_venue_funding(ts,venue,inst,funding_rate,interval_h)
+		VALUES(now(),'hyperliquid','BTCUSDT',0.001,1)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.pool.Exec(ctx, `INSERT INTO md_funding(ts,venue,inst_id,funding_rate)
+		VALUES(now(),'okx','BTC-USDT-SWAP',0.002)`); err != nil {
+		t.Fatal(err)
+	}
+	p, err := r.scoutParams()
+	if err != nil {
+		t.Fatal(err)
+	}
+	boards, err := r.boardFor(ctx, "hyperliquid", 5, p, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var xb *board
+	for i := range boards {
+		if boards[i].Family == "xvenue_spread" {
+			xb = &boards[i]
+		}
+	}
+	if xb == nil {
+		t.Fatal("xvenue_spread 榜行缺")
+	}
+	// 手算：|0.001×24−0.002×3|×365=|0.024−0.006|×365=6.57−双腿费年化
+	// takerA(HL 台账)=4.5 + takerB(OKX 台账)=5 →costRt=2*(4.5+5+2*slip)+fail+window
+	want := 0.018 * 365
+	if xb.NetAprMid <= 0 || xb.NetAprMid > want {
+		t.Fatalf("差式分列净 APR 应∈(0,%.1f]: %v", want, xb.NetAprMid)
+	}
+	if xb.BaseSrc != "earn" {
+		t.Fatalf("xvenue 基线应 earn: %s", xb.BaseSrc)
 	}
 }

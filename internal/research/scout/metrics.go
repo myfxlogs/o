@@ -58,7 +58,9 @@ func (r *Runner) measure(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		b, _ := json.Marshal(map[string]any{"boards": boards, "measured_at": r.now()})
+		// T-0304：rejects Door 快照随 metrics 出观察面（venue_down 运行期不盲）。
+		b, _ := json.Marshal(map[string]any{"boards": boards, "measured_at": r.now(),
+			"rejects": r.rej.Snapshot()})
 		if _, err := r.pool.Exec(ctx,
 			"UPDATE fin_venue_candidate SET metrics=$2 WHERE venue=$1", v, b); err != nil {
 			r.rej.Inc("write_err")
@@ -119,11 +121,19 @@ func (r *Runner) boardFor(ctx context.Context, venue string, topN int, p funding
 	}
 	out := []board{}
 
+	// settles 分所归一（T-0304：interval_h>0→24/iv；缺/0→config 回退——
+	// binance 8h→3 恰同回退值；OKX 侧 NULL 回退如实）。
+	settles := func(iv float64) float64 {
+		if iv > 0 {
+			return 24 / iv
+		}
+		return p.SettlesPerDay
+	}
 	// OKX 同族基线（carry 族：md_funding 同式日序列中位——返修③）。
 	var okxMid float64
 	if orows, err := loadVenue(ctx, r, "okx"); err == nil {
-		okxMid = med(dailySeries(orows, topN, func(rate float64) float64 {
-			return abs(rate)*p.SettlesPerDay*365 - costAPR
+		okxMid = med(dailySeries(orows, topN, func(rate, iv float64) float64 {
+			return abs(rate)*settles(iv)*365 - costAPR
 		}))
 	}
 	carryBaseline := earn
@@ -134,8 +144,8 @@ func (r *Runner) boardFor(ctx context.Context, venue string, topN int, p funding
 
 	// ① 单所 carry：逐日净 APR 序列（|rate|×settles×365−cost_apr）。
 	if len(vrows) > 0 {
-		ser := dailySeries(vrows, topN, func(rate float64) float64 {
-			return abs(rate)*p.SettlesPerDay*365 - costAPR
+		ser := dailySeries(vrows, topN, func(rate, iv float64) float64 {
+			return abs(rate)*settles(iv)*365 - costAPR
 		})
 		out = append(out, board{Family: "carry", NetAprMid: med(ser),
 			Persist: fracOver(ser, carryBaseline), Baseline: carryBaseline,
@@ -157,7 +167,8 @@ func (r *Runner) boardFor(ctx context.Context, venue string, topN int, p funding
 		}
 		xCostRt := 2*(vTaker+oTaker+2*p.SlippageBps) + p.FailCostBps + p.WindowLossBps
 		xCostAPR := xCostRt / 1e4 * 365 / p.HoldDays
-		// canon×day join
+		// canon×day join——跨所差式分列（T-0304：rate_v×settles_v−
+		// rate_okx×settles_okx 各带本所结算频次，同×3 错比病灶修）。
 		joined := instRows{}
 		for c, dm := range vrows {
 			om, ok := orows[c]
@@ -170,14 +181,14 @@ func (r *Runner) boardFor(ctx context.Context, venue string, topN int, p funding
 					continue
 				}
 				if joined[c] == nil {
-					joined[c] = map[string]float64{}
+					joined[c] = map[string]dayRow{}
 				}
-				joined[c][d] = abs(vr - or)
+				joined[c][d] = dayRow{rate: abs(vr.rate*settles(vr.iv) - or.rate*settles(or.iv))}
 			}
 		}
 		if len(joined) > 0 {
-			ser := dailySeries(joined, topN, func(diff float64) float64 {
-				return diff*p.SettlesPerDay*365 - xCostAPR
+			ser := dailySeries(joined, topN, func(diff, _ float64) float64 {
+				return diff*365 - xCostAPR
 			})
 			out = append(out, board{Family: "xvenue_spread", NetAprMid: med(ser),
 				Persist: fracOver(ser, earn), Baseline: earn, BaseSrc: "earn", TopN: topN})

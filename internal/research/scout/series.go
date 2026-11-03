@@ -29,8 +29,12 @@ func canon(s string) string {
 	return s[i:]
 }
 
-// instRows (canon,day)→最新 rate 读件。
-type instRows map[string]map[string]float64 // canon → day → rate
+// dayRow (inst,day) 最新采集行——rate+interval 同载（T-0304：settles 分所
+// 归真，interval_h=0/缺→config 回退径）。
+type dayRow struct{ rate, iv float64 }
+
+// instRows (canon,day)→最新行读件。
+type instRows map[string]map[string]dayRow // canon → day → {rate,iv}
 
 func loadVenue(ctx context.Context, r *Runner, venue string) (instRows, error) {
 	out := instRows{}
@@ -41,15 +45,16 @@ func loadVenue(ctx context.Context, r *Runner, venue string) (instRows, error) {
 		Err() error
 	}
 	var err error
-	if venue == "okx" { // 返修②：OKX 基准行读 md_funding 正本（非 scout 自采行）
-		rows, err = r.pool.Query(ctx, `SELECT inst_id, funding_rate, date_trunc('day',ts) FROM
+	if venue == "okx" { // 返修②：OKX 基准行读 md_funding 正本（非 scout 自采行；
+		// md_funding 无 interval 列→NULL→settles config 回退 8h=3 如实）
+		rows, err = r.pool.Query(ctx, `SELECT inst_id, funding_rate, NULL, date_trunc('day',ts) FROM
 			(SELECT DISTINCT ON (inst_id,date_trunc('day',ts)) inst_id,funding_rate,ts
 			 FROM md_funding WHERE funding_rate IS NOT NULL
 			 AND ts>now()-interval '30 days'
 			 ORDER BY inst_id,date_trunc('day',ts),ts DESC) t`)
 	} else {
-		rows, err = r.pool.Query(ctx, `SELECT inst, funding_rate, date_trunc('day',ts) FROM
-			(SELECT DISTINCT ON (inst,date_trunc('day',ts)) inst,funding_rate,ts
+		rows, err = r.pool.Query(ctx, `SELECT inst, funding_rate, interval_h, date_trunc('day',ts) FROM
+			(SELECT DISTINCT ON (inst,date_trunc('day',ts)) inst,funding_rate,interval_h,ts
 			 FROM md_venue_funding WHERE venue=$1 AND funding_rate IS NOT NULL
 			 AND ts>now()-interval '30 days'
 			 ORDER BY inst,date_trunc('day',ts),ts DESC) t`, venue)
@@ -61,25 +66,30 @@ func loadVenue(ctx context.Context, r *Runner, venue string) (instRows, error) {
 	for rows.Next() {
 		var inst string
 		var rate float64
+		var iv *float64
 		var day time.Time
-		if err := rows.Scan(&inst, &rate, &day); err != nil {
+		if err := rows.Scan(&inst, &rate, &iv, &day); err != nil {
 			return nil, err
 		}
 		c := canon(inst)
 		if out[c] == nil {
-			out[c] = map[string]float64{}
+			out[c] = map[string]dayRow{}
 		}
-		out[c][day.Format("2006-01-02")] = rate
+		dr := dayRow{rate: rate}
+		if iv != nil {
+			dr.iv = *iv
+		}
+		out[c][day.Format("2006-01-02")] = dr
 	}
 	return out, rows.Err()
 }
 
 // dailySeries 日值序列：每 day 各 canon 净值→top-N 中位（netFn=rate→net 映射）。
-func dailySeries(m instRows, topN int, netFn func(rate float64) float64) []float64 {
+func dailySeries(m instRows, topN int, netFn func(rate, iv float64) float64) []float64 {
 	days := map[string][]float64{}
 	for _, dm := range m {
-		for d, rate := range dm {
-			days[d] = append(days[d], netFn(rate))
+		for d, rw := range dm {
+			days[d] = append(days[d], netFn(rw.rate, rw.iv))
 		}
 	}
 	var series []float64
