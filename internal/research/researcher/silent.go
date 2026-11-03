@@ -9,6 +9,7 @@ package researcher
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"log"
 	"sync"
 	"time"
@@ -23,12 +24,13 @@ const silentWindow = 14 * 24 * time.Hour
 
 // SilentWatch 研究员席静默判定体。
 type SilentWatch struct {
-	pool    *pgxpool.Pool
-	al      *notify.Alerter
-	boot    time.Time // 双源皆无时的宽限锚（进程 boot 注入）
-	mu      sync.Mutex
-	alerted bool
-	now     func() time.Time // 时钟注入面（测试）——nil=time.Now
+	pool     *pgxpool.Pool
+	al       *notify.Alerter
+	boot     time.Time // 双源皆无时的宽限锚（进程 boot 注入）
+	mu       sync.Mutex
+	alerted  bool
+	lastNote time.Time        // paused info note 日限频锚
+	now      func() time.Time // 时钟注入面（测试）——nil=time.Now
 }
 
 // NewSilentWatch 构造（boot=进程启动时点——宽限窗基准）。
@@ -83,6 +85,15 @@ func (w *SilentWatch) Run(ctx context.Context) {
 // 不判=看门全盲）。任一源读败=fail-closed 不判。
 // 超窗零更新→Alert 一次；锚回新（新卡/新 Beat）→清标再报资格。
 func (w *SilentWatch) Check(ctx context.Context) {
+	if w.paused(ctx) {
+		w.mu.Lock()
+		if w.clock().Sub(w.lastNote) >= 24*time.Hour {
+			w.lastNote = w.clock()
+			log.Printf("[research-silent] 研究员席暂停中（D-0043）——预期静默不告警")
+		}
+		w.mu.Unlock()
+		return
+	}
 	var card, beat sql.NullTime
 	if err := w.pool.QueryRow(ctx,
 		"SELECT max(ts) FROM fin_opp_hypothesis WHERE evidence->>'provenance'='researcher'").Scan(&card); err != nil {
@@ -115,4 +126,19 @@ func (w *SilentWatch) Check(ctx context.Context) {
 	} else {
 		log.Printf("[research_arm_silent] %s", msg)
 	}
+}
+
+// paused 研究员席暂停闸（T-0299/D-0043）：app_config 键
+// research.researcher.paused=true=预期静默——停发 research_arm_silent，
+// 由 Check 改落日限频 info note。键缺/读败=非 paused（fail-open 现
+// 行为——看门是告警面非钱径，缺键不得吞静默）。按次读禁 boot 捕获
+// （热启同律——翻键即恢复，下一拍生效）。
+func (w *SilentWatch) paused(ctx context.Context) bool {
+	var v json.RawMessage
+	if err := w.pool.QueryRow(ctx,
+		"SELECT value FROM app_config WHERE key='research.researcher.paused'").Scan(&v); err != nil {
+		return false
+	}
+	var p bool
+	return json.Unmarshal(v, &p) == nil && p
 }

@@ -32,6 +32,12 @@ func setup(t *testing.T) (context.Context, *SilentWatch) {
 	if err := pgstore.Migrate(context.Background(), pool, "fin"); err != nil {
 		t.Fatal(err)
 	}
+	// T-0299：fin_0095 种 research.researcher.paused=true——告警情须显式
+	// 翻键回非暂停态（暂停面由 TestResearcherSilentPaused 专桩）。
+	if _, err := pool.Exec(context.Background(),
+		"UPDATE app_config SET value='false' WHERE key='research.researcher.paused'"); err != nil {
+		t.Fatal(err)
+	}
 	return context.Background(), NewSilentWatch(pool)
 }
 
@@ -133,6 +139,41 @@ func TestResearcherSilentAnchorDualSource(t *testing.T) {
 	w.Check(ctx)
 	if len(fs.sent) != 1 {
 		t.Fatalf("双源皆陈应告警: %v", fs.sent)
+	}
+}
+
+// paused 闸（T-0299/D-0043 验收锚）：research.researcher.paused=true+锚超窗
+// →零 Alert（预期静默）；翻键回 false→超窗复归告警。
+func TestResearcherSilentPaused(t *testing.T) {
+	ctx, w := setup(t)
+	fs := &capSender{}
+	w.AttachAlerter(notify.NewAlerter(fs, func() string { return "c1" }, func() bool { return true }))
+	base := time.Unix(1700000000, 0)
+	w.SetNow(func() time.Time { return base })
+	w.boot = base.Add(-2 * silentWindow) // 宽限已过——双源皆陈必超窗
+
+	if _, err := w.pool.Exec(ctx,
+		"UPDATE app_config SET value='true' WHERE key='research.researcher.paused'"); err != nil {
+		t.Fatal(err)
+	}
+	beat(t, ctx, w, base.Add(-silentWindow-time.Hour)) // 锚陈
+	w.Check(ctx)
+	if len(fs.sent) != 0 {
+		t.Fatalf("paused=true 超窗不得告警（预期静默）: %v", fs.sent)
+	}
+	base = base.Add(25 * time.Hour) // 跨日 note 限频边界也不得有 Alert
+	w.Check(ctx)
+	if len(fs.sent) != 0 {
+		t.Fatalf("paused 持续不得告警: %v", fs.sent)
+	}
+	// 翻键恢复=看门复原
+	if _, err := w.pool.Exec(ctx,
+		"UPDATE app_config SET value='false' WHERE key='research.researcher.paused'"); err != nil {
+		t.Fatal(err)
+	}
+	w.Check(ctx)
+	if len(fs.sent) != 1 {
+		t.Fatalf("翻键回 false 超窗应复归告警: %v", fs.sent)
 	}
 }
 
