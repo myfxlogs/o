@@ -70,3 +70,13 @@ venue-scout 度量面 10 候选中 6 家 metrics 空（state='candidate' 无 ada
 
 ## 返修①验收（同日）——两件全过：deribit rate 原样+interval=8（年化
 口径配对）；canon 复合尾表收窄+ATOM/DYM 回归用例在测。**裁决：通过**。
+
+## 部署实迹（2026-11-03 14:50 决策席亲验）
+
+- OCI o-research arm64 部署 active；md_1085 六 venue 升 measuring 落。
+- **落行硬迹**：bitget 870/gate 1070/kucoin 717/mexc 1193/dydx 296/
+  deribit 2（BTC+ETH-PERPETUAL——如实 2 件）全 ts=14:50 今日。
+- **boards 硬迹**：六家 metrics.boards 非空——carry 榜 kucoin 11.40%/
+  gate 8.55%/bitget 6.53%/mexc 5.91%；xvenue_spread 全谱落。
+- **观测面**：三所过 APR+margin 线（kucoin/gate/bybit）——persist 待
+  ~18d 窗口集齐裁决；机会面由候选广度决定实证。
