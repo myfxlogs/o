@@ -45,4 +45,11 @@ ON CONFLICT (key) DO NOTHING;
 
 -- T-0302：桥镜像表对投影写者授权（同 fin_opp_eval 权集——漏授则 venue_candidate
 -- 投影每拍 permission denied 静默败，生产实证）。GRANT 幂等。
-GRANT SELECT,INSERT,UPDATE,DELETE ON fin_venue_candidate TO projector_rw;
+-- 写方角色授权（projector_rw=SG 镜像写方；测试库/fresh DB 无该角色时零失败——
+-- T-0303 修裸 GRANT 坑：生产 SG 角色在案，测试库无角色 fail 是 0071 同款坑）。
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'projector_rw') THEN
+    GRANT SELECT,INSERT,UPDATE,DELETE ON fin_venue_candidate TO projector_rw;
+  END IF;
+END $$;

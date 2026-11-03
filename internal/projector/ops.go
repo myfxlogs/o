@@ -15,8 +15,11 @@ import (
 func (r *Runner) mdWake(ctx context.Context, ch string) error {
 	switch ch {
 	case "ev_ticks", "ev_markidx", "ev_funding", "ev_signal", "ev_dcd":
-		if ch == "ev_funding" { // T-0301：台账桥频道顺带（10 行小表全量镜像——ev_funding 帧节拍顺带搬运零成本）
+		if ch == "ev_funding" { // T-0301/T-0303：台账+两幽灵表桥频道顺带（小表全量镜像——ev_funding 帧节拍顺带搬运零成本）
 			if err := r.projectVenueCandidates(ctx); err != nil {
+				return err
+			}
+			if err := r.projectGhostTables(ctx); err != nil {
 				return err
 			}
 		}
@@ -32,6 +35,9 @@ func (r *Runner) mdWake(ctx context.Context, ch string) error {
 			}
 		}
 		if err := r.projectVenueCandidates(ctx); err != nil {
+			return err
+		}
+		if err := r.projectGhostTables(ctx); err != nil {
 			return err
 		}
 		return r.projectEvals(ctx)
