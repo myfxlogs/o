@@ -720,3 +720,13 @@
   metrics.rejects=rej.Snapshot() 出观察面。
 - 部署实拍：binance interval_h avg 4.7（归真）、HL 1.0、bybit 5.9；rejects 六键在 metrics 在场。
 - 30d 窗内修正完毕——后续度量榜的 HL carry 不再 8×低估。
+
+### 2026-11-03 T-0305 复盘面收口（决策席验收+部署）
+
+- 判定四件分两类：周净利 vs Earn+scout 榜=站立面上前端；带宽/自校=一次性锚留票面。
+- 验收：钉式 SQL 与码面逐字对（avg 近 7 snap×最新 rate×7/365）；前端 build 绿；
+  Board 端点 :50051 实响应。net 键顺带改 7-kind 钉式（原按 class='income' 顺带）。
+- 部署坑：镜像内 web-build 选择性 COPY 漏 proto/scoutv1→buf regen 无源、npm build exit2
+  ——本地绿镜像败的「两清单」坑，KB `buf-gen-yaml-new-proto-must-sync-dockerfile-copy` 入库。
+- o-core:d2bd4cc0a3f3 healthy。net_vs_earn 首行 11-09 周界落地（预登记预期值 −0.1956——
+  近 7d 与 Earn 停泊持平微欠，如实）。
