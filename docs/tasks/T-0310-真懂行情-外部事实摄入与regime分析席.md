@@ -115,3 +115,22 @@ antclaw 通道接通后 feed 扩面（RSS/经济日历/链上）+驾驶舱 memo 
 隔读防注入+llm nil 守位+GRANT 角色守卫——分析层骨架合格留。
 **测试桩教训三连犯**（binance interestRate→md_venue_funding 域→本次端点
 假造）——KB api-stub 条目须加「声明 vendored 须附源文件行号」规。
+
+## 决策席审计注记⑦（2026-11-03 二轮驳回——ctx 臂五销，analyst 臂病灶未动+幂等新坑）
+
+**已销（ctx 臂合格）**：mql5 POST+form+六头+PascalCase 字段+Importance 字符串
++FullDate UTC 解析（源行号钉）✓；macro_event 优先级 WHERE（seed/fomc>cpi 序
+防互踩）✓；dedupe_key 部分唯一索引+ON CONFLICT DO NOTHING ✓；FRED 键门
+（cfg.Secret 凭据归 pg 钉径，空=跳源）✓；测试 10 包过。
+
+**驳回三项**：
+R1 返修项④原样未动——analyst/collect.go 整段还在：假正则 mql5EventRe 照跑
+   （GET 页刮 `{"id":...}` 不存之形=每拍死 fetch）；且其写径绕开全部返修
+   ——md_ctx_fact 裸 INSERT 无 dedupe_key、macro_event 裸 upsert 无优先级
+   WHERE（盲覆盖病灶在另一臂还活着）。返修钉「analyst collect 函数全删含
+   OI」= collect/collectMql5/collectOI/mql5EventRe/fetch 缝全删，TickOnce
+   仅 analyze。
+R2 返修项⑥原样未动——collect.go:142 水印仍 `max(id) FROM md_regime_fact`
+   （自身 id 域错比 ctx id=恒重读）。改 max((evidence->>'ctx_max_id')::bigint)。
+R3 幂等新坑——COT ins(...,"cot","",...) dedupe_key='' IS NOT NULL →全 COT
+   行撞同键=历史仅首行落。改 NULL（免键）或真键（COT 报告周 YYYY-WW）。
