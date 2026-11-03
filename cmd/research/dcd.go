@@ -158,7 +158,7 @@ func gapProbeFor(okcli authGetter) gapscan.Probe {
 // researchArms 研究域四臂发射（T-0117：funding/dcd/差扫/假想官静默告警同挂
 // 业主通道——读件缺席=让位 WARN 不炸 boot）。
 func researchArms(ctx context.Context, errc chan<- error, pool *pgxpool.Pool,
-	cfg *config.Client, okcli authGetter, alerter *notify.Alerter, rej *rejects.Door) {
+	cfg *config.Client, finCfg *config.Client, okcli authGetter, alerter *notify.Alerter, rej *rejects.Door) {
 	fr := funding.NewRunner(pool, cfg)
 	fr.AttachAlerter(alerter)
 	// T-0150 起草闸读件：SPOT 目录复用 market/tickers 全量面（零新端点）。
@@ -184,7 +184,7 @@ func researchArms(ctx context.Context, errc chan<- error, pool *pgxpool.Pool,
 	// analyst=LLM 判词缝缺守位；ctx=四源采集事实行）。
 	go analyst.NewRunner(pool, cfg).AttachAlerter(alerter).Run(ctx, errc)
 	var fredKey string
-	if k, err := cfg.Secret(ctx, "fred_api_key"); err == nil { // 凭据归 pg 按次直读
+	if k, err := finCfg.Secret(ctx, "fred_api_key"); err == nil { // SG 池密文径——T-0311②
 		fredKey = string(k)
 	}
 	go ctxcoll.NewRunner(pool).AttachFredKey(fredKey).Run(ctx, errc)

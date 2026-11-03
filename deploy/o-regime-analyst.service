@@ -1,0 +1,12 @@
+# o-regime-analyst.service —— regime 分析席 headless 单发批件（T-0311 注记②
+# 终形：无状态拍——水印在库非会话；cwd=专用 scratch 零仓件接触红线）。
+[Unit]
+Description=o-regime-analyst (regime 分析席 headless 批件)
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/var/tmp/o-regime
+ExecStart=/usr/bin/env mkdir -p /var/tmp/o-regime && devin -p --model swe --respect-workspace-trust false "skills/分析席 runbook 读件拍 regime 判词"
+# 会话级硬隔：scratch cwd 非仓径——agent 零仓件写径（红线事后审计钉）。
+NoNewPrivileges=true

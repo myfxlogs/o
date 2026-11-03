@@ -1,0 +1,12 @@
+# o-regime-analyst.timer —— 6h 拍（密度低日四拍足；激活径：
+# systemctl --user enable --now o-regime-analyst.timer）
+[Unit]
+Description=o-regime-analyst 6h 拍
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=6h
+Persistent=true
+
+[Install]
+WantedBy=timers.target
