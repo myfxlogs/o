@@ -7,7 +7,6 @@ package ctx
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -24,26 +23,41 @@ import (
 // Fetcher HTTP 取件缝（scout 同款——公开零凭据端点）。
 type Fetcher func(ctx context.Context, url string) ([]byte, error)
 
-// h1Client 强制 HTTP/1.1——Go h2 指纹被 FRED 边节点间歇踢流
-// （stream INTERNAL_ERROR 实击，curl 同径不犯；T-0311 返修⑤）。
-var h1Client = &http.Client{
-	Timeout: 30 * time.Second,
-	Transport: &http.Transport{
-		TLSNextProto: map[string]func(string, *tls.Conn) http.RoundTripper{},
-	},
-}
+// ctxClient 30s 总超时——h2 边节点间歇踢流（stream INTERNAL_ERROR 实击：
+// FRED 边池对 Go 指纹按节点异态——重试换节点=最稳解；h1 实试反挂死已弃）。
+var ctxClient = &http.Client{Timeout: 30 * time.Second}
+
+var errTransport = errors.New("transport err") // 可重试类标记（边节点异态踢流换连即换节点）
 
 func httpGet(ctx context.Context, url string) ([]byte, error) {
+	var last error
+	for i := 0; i < 3; i++ { // 传输败三试（T-0311 返修⑤）
+		if i > 0 {
+			time.Sleep(time.Duration(i) * time.Second) // sched-exempt-ok 传输重试退避
+		}
+		b, err := httpTryGet(ctx, url)
+		if err == nil {
+			return b, nil
+		}
+		last = err
+		if !errors.Is(err, errTransport) {
+			break // 非传输层败（status 拒/建请败）不重试
+		}
+	}
+	return nil, last
+}
+
+func httpTryGet(ctx context.Context, url string) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("User-Agent", "o-ctx/1.0")
-	resp, err := h1Client.Do(req)
+	resp, err := ctxClient.Do(req)
 	if err != nil {
 		var ue *neturl.Error
 		if errors.As(err, &ue) {
-			return nil, fmt.Errorf("http get: %w", ue.Err) // 脱 URL——api_key 不落日志
+			return nil, fmt.Errorf("http get: %w: %w", errTransport, ue.Err) // 脱 URL——api_key 不落日志
 		}
 		return nil, err
 	}
