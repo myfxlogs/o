@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -31,10 +32,16 @@ func (s *svc) Watch(ctx context.Context, req *eventv1.WatchRequest,
 	}
 	ch, done := s.h.Watch(resume)
 	defer done()
+	hb := time.NewTicker(15 * time.Second) // sched-exempt-ok 心跳哨兵帧——订阅端活性探针兼隧道保活（流死检测钦定周期件）
+	defer hb.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
+		case <-hb.C:
+			if err := st.Send(&eventv1.DataAdvanced{Source: "__hb__", Ts: timestamppb.Now()}); err != nil {
+				return err
+			}
 		case fr := <-ch:
 			fr.Ts = timestamppb.Now()
 			if err := st.Send(fr); err != nil {
@@ -44,9 +51,17 @@ func (s *svc) Watch(ctx context.Context, req *eventv1.WatchRequest,
 	}
 }
 
-// envDSN 读 env 件径（MD_PG_DSN/FIN_PG_DSN 钦定键——部署件凭据载体；
-// 键缺=该源静默不轮）。
+// envDSN 取 DSN（进程 env 优先——EnvironmentFile 注入径；回退 EVENTBUS_ENV_FILE
+// 或默认 %h/o-research/env 件——键缺=该源静默不轮）。
 func envDSN(key, file string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	if file == "" {
+		if h, err := os.UserHomeDir(); err == nil {
+			file = h + "/o-research/env"
+		}
+	}
 	b, err := os.ReadFile(file)
 	if err != nil {
 		return ""
@@ -63,13 +78,16 @@ func main() {
 	ctx := context.Background()
 	h := eventbus.NewHub()
 	srcs := map[string]eventbus.Source{
-		"a": {Table: "md_ctx_fact", Kind: "ctx", DSN: "md"},
-		"b": {Table: "md_macro_event", Kind: "ctx", DSN: "md"},
-		"c": {Table: "fin_econ_lesson", Kind: "econ", DSN: "fin"},
+		"a": {Table: "md_ctx_fact", Kind: "ctx", DSN: "md",
+			Q: "SELECT COALESCE(max(id),0) FROM md_ctx_fact"},
+		"b": {Table: "md_macro_event", Kind: "ctx", DSN: "md",
+			Q: "SELECT COALESCE(EXTRACT(EPOCH FROM max(event_date))::bigint,0) FROM md_macro_event"},
+		"c": {Table: "fin_econ_lesson", Kind: "econ", DSN: "fin",
+			Q: "SELECT COALESCE(max(id),0) FROM fin_econ_lesson"},
 	}
 	pools := map[string]eventbus.Querier{}
 	for _, kv := range [][2]string{{"md", "MD_PG_DSN"}, {"fin", "FIN_PG_DSN"}} {
-		if d := envDSN(kv[1], "/opt/o-research/env"); d != "" {
+		if d := envDSN(kv[1], ""); d != "" {
 			if p, err := pgxpool.New(ctx, d); err == nil {
 				pools[kv[0]] = p
 			}

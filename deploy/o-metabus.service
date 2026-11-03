@@ -3,7 +3,6 @@
 [Unit]
 Description=o-metabus (dev 事件订阅唤醒件)
 After=o-oci-bus-tunnel.service
-Requires=o-oci-bus-tunnel.service
 
 [Service]
 ExecStart=/opt/o/bin/metabus

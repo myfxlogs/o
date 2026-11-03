@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"os/exec"
@@ -38,7 +39,8 @@ func main() {
 }
 
 func watchOnce(cli eventv1connect.EventBusClient, resume map[string]int64) error {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	var wm []*eventv1.SourceWatermark
 	for s, m := range resume {
 		wm = append(wm, &eventv1.SourceWatermark{Source: s, MaxId: m})
@@ -48,17 +50,47 @@ func watchOnce(cli eventv1connect.EventBusClient, resume map[string]int64) error
 		return err
 	}
 	defer st.Close()
-	for {
-		fr, err := st.Receive()
-		if err != nil {
-			return err
-		}
-		resume[fr.Source] = fr.MaxId // 水位内存册——重启归零补当前帧幂等无害
-		if u, ok := wake[fr.Kind]; ok {
-			log.Printf("[metabus] 帧 %s/%s max=%d →systemctl start %s", fr.Source, fr.Kind, fr.MaxId, u)
-			if err := exec.Command("systemctl", "--user", "start", u).Run(); err != nil {
-				log.Printf("[metabus] 唤醒 %s 败: %v", u, err)
+	type res struct {
+		fr  *eventv1.DataAdvanced
+		err error
+	}
+	rch := make(chan res, 1)
+	go func() { // Receive 串行喂通道——看门狗超时时 cancel 解阻塞
+		for {
+			fr, err := st.Receive()
+			rch <- res{fr, err}
+			if err != nil {
+				return
 			}
+		}
+	}()
+	idle := time.NewTimer(45 * time.Second) // 45s 无帧无 __hb__=流死（半死 TCP/隧道异态自愈闸）
+	for {
+		select {
+		case r := <-rch:
+			if r.err != nil {
+				return r.err
+			}
+			if !idle.Stop() {
+				<-idle.C
+			}
+			idle.Reset(45 * time.Second)
+			fr := r.fr
+			if fr.Source == "__hb__" { // 心跳哨兵——刷活不录不唤
+				continue
+			}
+			resume[fr.Source] = fr.MaxId // 水位内存册——重启归零补当前帧幂等无害
+			u, ok := wake[fr.Kind]
+			log.Printf("[metabus] 帧 %s/%s max=%d →%s", fr.Source, fr.Kind, fr.MaxId,
+				map[bool]string{true: "systemctl start " + u, false: "无映射不唤"}[ok])
+			if ok {
+				if err := exec.Command("systemctl", "--user", "start", u).Run(); err != nil {
+					log.Printf("[metabus] 唤醒 %s 败: %v", u, err)
+				}
+			}
+		case <-idle.C:
+			cancel()
+			return fmt.Errorf("45s 无帧无心跳——判流死重连")
 		}
 	}
 }

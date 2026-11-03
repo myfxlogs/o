@@ -5,8 +5,8 @@ Description=o-eventbus (OCI→dev 事件总线服务端)
 After=network-online.target
 
 [Service]
-EnvironmentFile=/opt/o-research/env
-ExecStart=/opt/o-research/bin/eventbus
+EnvironmentFile=%h/o-research/env
+ExecStart=%h/o-research/bin/eventbus
 Restart=always
 RestartSec=5
 NoNewPrivileges=true
