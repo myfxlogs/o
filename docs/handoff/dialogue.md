@@ -747,3 +747,15 @@
   migrations/fin_0104、scripts/meta/dm_tick.sh、skills/决策席、索引.md、
   T-0312 票面）——非 docs 台账类件须走 worktree 径落 master，留 T-0312 属席
   自理，他人勿代 commit。
+
+### 2026-11-04 T-0312 第六刀裁决通过（决策席——无头决策席全职面落 master）
+
+- merge=9beac3a5（9ea9df5a 收口件）：四件钦定全核——srcs `d` 滤水印+metabus
+  wake dm+dm_tick（verdict_tick 逐字对形）+units+SKILL 裁决协议节。
+- 唤醒径产线实证：metabus `07:43:01 帧 dm max=1357 →start o-decision-seat`——
+  探针插入→起 ~25s≤30s 锚；本 session=被唤物。
+- 解并要点：分支票面含 `>>>>>>>` 冲突残标记+缺第五刀实迹段（坏解），工作树
+  已存正解采之；`eventbus` 19MB 二进制撞禁入闸→merge 剔出入 .gitignore 残渣族。
+- 记档：unit 首启 200/CHDIR（WorkingDirectory 先于 ExecStartPre mkdir）、
+  待裁集事件/票面 desync 恒热烧拍、T-TESTBUS 探针残留——三尾立 T-0315 已批。
+- 票翻完成（六刀全落）；vet master 存量债 scout/metrics.go:224 记档排队。
