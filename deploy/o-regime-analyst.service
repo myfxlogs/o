@@ -1,0 +1,15 @@
+# o-regime-analyst.service —— regime 分析席 headless 单发批件（T-0311 注记②
+# 终形+返修①③：30min 水印闸——md_ctx_fact 新行>regime 水印才 devin -p 否则
+# exit 0；每拍（含空拍/败拍）ops_headless META-REGIME 心跳——无人值守可见性；
+# runbook 绝对路径指件 /opt/o/skills/分析席/SKILL.md；cwd=scratch 零仓件）。
+[Unit]
+Description=o-regime-analyst (regime 分析席 headless 批件)
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/var/tmp/o-regime
+ExecStartPre=/usr/bin/env mkdir -p /var/tmp/o-regime
+ExecStart=/opt/o/scripts/meta/regime_tick.sh
+# 会话级硬隔：scratch cwd 非仓径——agent 零仓件写径（红线事后审计钉）。
+NoNewPrivileges=true

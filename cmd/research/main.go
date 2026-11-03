@@ -61,6 +61,12 @@ func main() {
 	if err := cfg.Load(ctx); err != nil {
 		log.Fatalf("config load: %v", err)
 	}
+	// T-0311②：finCfg 绑 finPool（SG app_secrets 驻 SG——md 池 client 读
+	// app_secrets 必败；FRED 键路等密文面全走此件）。
+	finCfg := config.New(finPool)
+	if err := finCfg.Load(ctx); err != nil {
+		log.Fatalf("fin config load: %v", err)
+	}
 	// T-0170 认证读面（径 A 终裁）：READCRED_URL 设→boot 经隧道（5545）取
 	// venue-map 仅进内存+401 自重取轮换自愈；缺→无凭据读面（dcd/gapscan 私有
 	// 读面 401 fail-closed 让位——桩锚不回归）。T-0174：okx 臂按 venue 提件。
@@ -76,7 +82,7 @@ func main() {
 	}, func() bool { v, _ := cfg.GetBool("notify.feishu.enabled"); return v })
 	errc := make(chan error, 8)
 	rej := rejects.New("research", "dcd_pair_429") // T-0180 对级容错拒因键
-	go researchArms(ctx, errc, pool, cfg, okcli, alerter, rej)
+	go researchArms(ctx, errc, pool, cfg, finCfg, okcli, alerter, rej)
 	go review.NewRunner(pool, finPool).Run(ctx, errc) // 复盘域随迁（钱径臂 SG 小池——T-0172）
 	// T-0165 返修③：report 回 SG（钱径读写面 app_secrets/master key/
 	// fin_cashflow——票面第5条明令只迁纯研究面；review 留此节点）。

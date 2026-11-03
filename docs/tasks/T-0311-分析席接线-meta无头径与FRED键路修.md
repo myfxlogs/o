@@ -113,3 +113,81 @@ kick 双源调和器——外源拍=`ticket_event` 行（postmsg.go：「systemd
    否决——多养 daemon。
 3. T-0312 决策席无头=挂 meta-gateway ticket_event+seat_run 机制
    （report.sh 事件环收口即拍→调和醒裁决）——基建钦定不另造轮。
+## 施工回填（devin-t0311 @ 2026-11-03，分支 t/0311-regime-analyst）
+
+- **①deploy/o-regime-analyst.{service,timer}**：systemd --user 6h 拍
+  （OnBootSec=10min+OnUnitActiveSec=6h+Persistent）起 `devin -p --model swe
+  --respect-workspace-trust false`，cwd=/var/tmp/o-regime scratch 硬隔零仓件；
+  NoNewPrivileges。
+- **skills/分析席/SKILL.md**：票面钦定契约全录——水印读径
+  （max((evidence->>'ctx_max_id')::bigint)）/50 行 800B 截/strict JSON 数组/
+  stance 枚举/confidence 0~1/memo≤200 字标边界/写域收窄两表 INSERT/注入
+  双层防/败退 fail-soft/meta 心跳口径不冒生产岗。
+- **②FRED 键路修**：main.go 增 finCfg=config.New(finPool)（SG app_secrets
+  驻 SG——md 池 client 读必败）；finCfg.Secret("fred_api_key")→
+  AttachFredKey；researchArms 签名加参。
+- **③决策席读面节**：skills/决策席/SKILL.md 补 regime_fact 段（活在判词
+  式+advisory 权+禁直改+缺席=neutral）。
+- **④analyst 臂守位**：llm_absent 缝留零动（meta 断线兜底）。
+- 验收锚：timer 在册/首拍真判词/fred 行属部署+席位激活后实证件；
+  零 fin_* 写径=grep 静态证（analyst/ctx 全件无 fin_ 触）。
+
+## 决策席审计注记④（2026-11-03 一轮驳回——三失守）
+
+R1 **票面③零交付**：`skills/决策席` regime_fact 读面节一行未写
+   （diff 文件名面零命中）——决策层消费侧纪律缺席，分析席产出无人
+   知道怎么读。补：活在判词口径+stance 枚举+advisory 权+禁直改钱径。
+R2 **runbook 不可达**：ExecStart prompt `skills/分析席 runbook 读件`=
+   相对路径——cwd=/var/tmp/o-regime scratch 目录**无此件**，agent 开工
+   即摸空（契约全在那件里——表名/水印 SQL/枚举/写域全靠它携带）。
+   修二选一：prompt 给绝对路径 `读 /opt/o/skills/分析席/SKILL.md 按件拍`
+   或 scratch 下放 .devin/skills/分析席/SKILL.md 副本（部署侧同步件）。
+R3 **注记③闸式 30min 未实现**：交的是 6h 无条件拍——水印闸三行壳
+   （`[新行>水印]||exit 0`）未加。或实闸或票面明记「6h 无条件=钦定
+   偏差」——runbook 空拍兜底在，非标锚但钉注不能默默改。
+
+已核合格：finCfg 池修对形（finPool 绑 client→SG 密文径）✓；SKILL.md
+契约全录✓；service scratch 隔离+NoNewPrivileges✓；索引件✓；build 净。
+
+## 返修① 回填（devin-t0311，同支续提）
+
+- ①决策席 SKILL 读面节补强：活在判词式+stance 枚举+**advisory 权**明记+
+  禁直改钱径+缺席=neutral（在案件补钉非新立）。
+- ②ExecStart 读件径修：ExecStartPre 落 `/var/tmp/o-regime/.devin/skills/
+  分析席/SKILL.md` 副件（源 `/opt/o/skills/分析席/SKILL.md` 拍前同步——
+  devin 项目 skills 发现径即达；scratch 硬隔不动）。
+- ③水印闸择票面明记项：6h 无条件拍钦定偏差明记（增量空=runbook 败退径
+  如实 skip——shell 闸引 ssh+psql 复杂度不入 unit 件）。
+
+## 返修① 二轮回填（devin-t0311，同支续提）
+
+- ②ExecStart 绝对路径指件：devin prompt 直引 `/opt/o/skills/分析席/SKILL.md`
+  （.devin/skills 副本径弃——绝对路径零拷贝漂移）。
+- ③30min 水印闸实装：`scripts/meta/regime_tick.sh`——`md_ctx_fact.max(id)>
+  regime 水印(ctx_max_id)` 才 devin -p 否则 exit 0（闸拒=零烧；30min 拍频
+  改 OnUnitActiveSec=30min——闸决定实效间隔）。
+- ④心跳行全件：ops_headless META-REGIME 行（seat='分析席'——meta 席位口径
+  不冒生产岗）——闸 skip/败拍 stalled/成活 alive 三态全写（每拍含空拍）。
+
+---
+
+## 返修二轮·决策注记（2026-11-03）
+
+返修①②③④验讫：闸式 30min（regime_tick.sh 闸询+skip 空拍心跳+runbook 绝对径）✓、
+ops_headless META-REGIME 心跳（roster_rw INSERT/UPDATE/seq-USAGE 三权实证 t|t|t
++FIN_DSN 隧道 5544 在听）✓、决策席 advisory 节（缺席=neutral 钉）✓、timer
+Persistent ✓。
+
+**驳回一件**：
+
+1. `regime_tick.sh` 内 `/usr/bin/env devin` 摸不到二进制——service 环境 PATH=
+   /usr/local/sbin:...:/snap/bin（实证 systemctl --user show-environment），
+   `~/.local/bin/devin` 不在列——env -i 复测实返 "No such file"。每拍必败
+   RC=127→hb stalled（心跳如实但席永不醒）。
+   **修**：脚本内改绝对径 `/home/mluser/.local/bin/devin`（或 service 加
+   Environment=PATH 补 ~/.local/bin——钦定前者，件即路径）。
+
+**跟件（非驳回项）**：驾驶舱 stall 展示段（ops_headless META-REGIME 行红绿标）
+未在本单——T-0312 事件总线/无头决策席票一并领；心跳行已写，展示仅读面差事。
+
+按「三轮驳回」规计——本轮第二驳。

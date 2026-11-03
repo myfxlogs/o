@@ -1,0 +1,12 @@
+# o-regime-analyst.timer —— 30min 拍（返修①③：水印闸前置——闸拒=零 LLM
+# 烧，过闸=拍件烧；拍频 30min 闸决定实效间隔）。
+[Unit]
+Description=o-regime-analyst 30min 水印闸拍
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=30min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
