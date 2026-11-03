@@ -82,7 +82,7 @@ func httpGet(ctx context.Context, url string) ([]byte, error) {
 // curlGet Go 传输尽后 curl 备用径（单 IP 边节点对 Go TLS 指纹间歇踢流——
 // 同盒 curl 同端点实证通；stdout 出件 stderr 吞防 api_key 落日志）。
 func curlGet(ctx context.Context, url string) ([]byte, error) {
-	out, err := exec.CommandContext(ctx, "curl", "-sfS", "--max-time", "25",
+	out, err := exec.CommandContext(ctx, "curl", "-sfS", "--http1.1", "--max-time", "25",
 		"-A", "o-ctx/1.0", url).Output()
 	if err != nil {
 		return nil, fmt.Errorf("http get: %w: curl", errTransport)
