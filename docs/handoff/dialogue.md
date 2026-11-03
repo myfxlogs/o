@@ -700,3 +700,13 @@
 - 部署径坑：o-research ExecStart=`%h/o-research/o-research`（目录布局）——第一船投错 `~/o/o-research` 旧径白重启一拍。
 - 验证终态：md_venue_funding（binance 896/bybit 3720/hyperliquid 940）、拍败=0、SG 镜像 boards 四所非空（2/2/2/1）。**30 天度量时钟自 05:54 起走**。
 - KB：api-stub-fixture-must-carry-real-field-types（stub 理想形=假绿）；观察面缺口挂后续票（scout rejects Door 无 Snapshot 面、interval_h 归真 fundingInfo）。
+
+### 2026-11-03 T-0303 幽灵表升桥收口（决策席验收+部署）
+
+- 验收独立复跑：16 projector 测试绿、七断言过、SG 幽灵表既有约束与 upsert 冲突键实拍兼容
+  （hypothesis 已有 UNIQUE(venue,surface)、template uq_opp_template_struct 在册）、boot 首拍挂接。
+- 部署：fin_0099 SG 手工幂等应用（parked CHECK 是投影前置——缺则 parked 行插入违例）+
+  o-projector 换臂（%h/o/projector 路径）重启 active。
+- 终锚：SG hypothesis `parked|10`、template `enabled=3`——cockpit 两面板自此读真。
+- 纪律沉淀：桥表升桥三件不可缺——①SG 迁移含 GRANT projector_rw（T-0302 坑已前置）
+  ②冲突键与既有约束实拍核对 ③boot+事件双径挂接。
