@@ -9,8 +9,6 @@ import (
 	"context"
 	"encoding/json"
 	"log"
-	"math"
-	"regexp"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -38,7 +36,7 @@ func NewRunner(pool *pgxpool.Pool, cfg *config.Client) *Runner {
 	return &Runner{pool: pool, cfg: cfg,
 		rej: rejects.New("grammar", "missing_param", "surface_read_failed",
 			"template_write_err", "eval_write_err", "hypothesis_write_err",
-			"proposal_write_err", "coins_absent")}
+			"proposal_write_err", "coins_absent", "earn_rate_degraded")}
 }
 
 // AttachCoins 挂逐币可动余量读件（vol-sell 实评判据源）。
@@ -138,9 +136,6 @@ func (r *Runner) hypothesis(ctx context.Context, f Family) error {
 	return err
 }
 
-// datedFutRe 到期日尾判（-YYMMDD——T-0213 net_apr 年化径到期解析）。
-var datedFutRe = regexp.MustCompile(`^([A-Z0-9]+-[A-Z]+)-([0-9]{6})$`)
-
 // evaluate 三族通用评估器（carry/basis/vol-sell→fin_opp_eval——数据缺=
 // unevaluable/rejected 真因行，禁虚构评分）。
 func (r *Runner) evaluate(ctx context.Context, fams []Family) error {
@@ -162,87 +157,6 @@ func (r *Runner) evaluate(ctx context.Context, fams []Family) error {
 				return err
 			}
 		}
-	}
-	return nil
-}
-
-// evalBasis 季度期货基差评估（future tick−spot tick=年化基差 vs 判据阈；
-// 季度期货 tick 缺席=unevaluable 真因行——数据面诚实）。
-func (r *Runner) evalBasis(ctx context.Context, f Family) error {
-	// T-0132 分级后季度期货只有 mark-price 行——md_ticks∪md_mark_index 同视图读。
-	rows, err := r.pool.Query(ctx, `SELECT t1.inst_id,t1.px,t2.px FROM
-		(SELECT inst_id,px,ts FROM md_mark_index WHERE channel='mark-price' -- T-0171 方言归一：REST 轮询面撤单键域
-		UNION ALL SELECT inst_id,last,ts FROM md_ticks) t1
-		JOIN (SELECT inst_id,px,ts FROM md_mark_index
-		UNION ALL SELECT inst_id,last,ts FROM md_ticks) t2
-		ON t2.inst_id=split_part(t1.inst_id,'-',1)||'-'||split_part(t1.inst_id,'-',2)
-		WHERE t1.inst_id ~ '-[0-9]{6}$' AND t1.ts>now()-interval '15 minutes'
-		AND t2.ts>now()-interval '15 minutes'`)
-	if err != nil {
-		r.rej.Inc("eval_write_err")
-		return err
-	}
-	defer rows.Close()
-	found := false
-	for rows.Next() {
-		var inst string
-		var fut, spot float64
-		if err := rows.Scan(&inst, &fut, &spot); err != nil {
-			return err
-		}
-		found = true
-		// T-0213：net_apr=年化基差补发（basis_pct/距到期天数×365——到期日
-		// 解析自 inst_id -YYMMDD 尾；无到期日解析=不写 proposed——
-		// T-0205 硬闸对齐 funding-hedge 判据维钦定）。
-		m := datedFutRe.FindStringSubmatch(inst)
-		var netApr float64
-		days := 0.0
-		if len(m) == 3 {
-			if exp, perr := time.Parse("060102", m[2]); perr == nil {
-				days = time.Until(exp).Hours() / 24
-			}
-		}
-		basis := (fut - spot) / spot * 100 // 基差百分比
-		if days > 0 {
-			netApr = basis / days * 365 / 100 // 基差%→年化比率（小数口径同 net_apr 域）
-		}
-		verdict, reason := "rejected", "basis_below_min"
-		if days > 0 && math.Abs(netApr) > 0.05 { // 年化 APR 阈（判据维对齐——非裸 basis_pct）
-			verdict, reason = "proposed", ""
-		}
-		if err := r.writeEval(ctx, inst, f.Template, f.Direction, verdict, reason,
-			map[string]any{"fut": fut, "spot": spot, "basis_pct": basis,
-				"net_apr": netApr, "apr": math.Abs(netApr), "days_to_expiry": int(days)}); err != nil {
-			return err
-		}
-		if verdict == "proposed" { // T-0216：proposed→fin_proposal 提案径（executor 在位——同 volsell persistLegEval 幂等形）
-			var evalID int64
-			if err := r.pool.QueryRow(ctx, `SELECT id FROM fin_opp_eval
-				WHERE inst_id=$1 AND template=$2 AND direction=$3`, inst, f.Template, f.Direction).Scan(&evalID); err != nil {
-				return err
-			}
-			// T-0216 返修：预查键对齐 md_1054 闸 (inst_id,direction)+双在途态
-			// （原 inst 单键=跨族误吞——同 inst 双 basis 族互斥；direction 已
-			// 去分叉后键语义归一，闸吞前先自静=「落卡」假日志根除）。
-			var open int
-			if err := r.pool.QueryRow(ctx,
-				"SELECT count(*) FROM fin_proposal WHERE inst_id=$1 AND direction=$2 AND state IN ('fin_proposed','fin_armed')",
-				inst, f.Direction).Scan(&open); err != nil {
-				return err
-			}
-			if open == 0 {
-				if _, err := r.pool.Exec(ctx, `INSERT INTO fin_proposal(eval_id,inst_id,direction,net_apr)
-					VALUES($1,$2,$3,$4)`, evalID, inst, f.Direction, math.Abs(netApr)); err != nil {
-					r.rej.Inc("proposal_write_err")
-					return err
-				}
-				log.Printf("[research/grammar] basis 提案落卡 %s %s net_apr=%.4f", inst, f.Template, netApr)
-			}
-		}
-	}
-	if !found {
-		return r.writeEval(ctx, "-", f.Template, f.Direction, "unevaluable", "quarterly_tick_missing",
-			map[string]any{"kind": f.Kind})
 	}
 	return nil
 }
