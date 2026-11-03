@@ -48,3 +48,20 @@ antclaw 通道接通后 feed 扩面（RSS/经济日历/链上）+驾驶舱 memo 
   source='mql5' 灌 md_ctx_fact；每事件含 id/时间/币种/重要性——天然
   结构化省 LLM 归一。附加面（阶段二再评）：/en/news 新闻流、quotes
   页——同域可采。
+
+
+## 决策注记③（2026-11-03 —— 仓内考古新锚）
+
+`md_macro_event` 第八桥表实存（fin_0067 SG 镜像+md_0020 正本）——
+「宏观高冲击日历事实域」：32 行种子 FOMC/NFP/CPI（source='seed' 至
+2027-10），funding eval `applyMacro` 已在读注 evidence.macro。
+**antclaw 全仓无实体**——env 键幽灵+meta 隧道注册名，采集从未落地。
+
+钉注修订：
+1. **mql5 High 事件直写 md_macro_event**（source='mql5' 替种子——桥
+   镜像/eval 消费链全现成，勿造平行日历域）；中低事件入 md_ctx_fact。
+2. md_ctx_fact 收窄为「广谱上下文」域（news/oi/chain/antclaw/manual）——
+   与 md_macro_event（钦定高冲击事件面）分工不重叠。
+3. 种子行处置：mql5 首采后对重叠事件 source 改 'mql5' upsert；种子行
+   保留为兜底（远端缺席不删——事件存在性以 seed+live 并集为准）。
+4. 业主待供缩为一件：antclaw 写径（接不接都不阻塞）。
