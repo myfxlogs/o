@@ -154,3 +154,26 @@ R3 **注记③闸式 30min 未实现**：交的是 6h 无条件拍——水印�
   改 OnUnitActiveSec=30min——闸决定实效间隔）。
 - ④心跳行全件：ops_headless META-REGIME 行（seat='分析席'——meta 席位口径
   不冒生产岗）——闸 skip/败拍 stalled/成活 alive 三态全写（每拍含空拍）。
+
+---
+
+## 返修二轮·决策注记（2026-11-03）
+
+返修①②③④验讫：闸式 30min（regime_tick.sh 闸询+skip 空拍心跳+runbook 绝对径）✓、
+ops_headless META-REGIME 心跳（roster_rw INSERT/UPDATE/seq-USAGE 三权实证 t|t|t
++FIN_DSN 隧道 5544 在听）✓、决策席 advisory 节（缺席=neutral 钉）✓、timer
+Persistent ✓。
+
+**驳回一件**：
+
+1. `regime_tick.sh` 内 `/usr/bin/env devin` 摸不到二进制——service 环境 PATH=
+   /usr/local/sbin:...:/snap/bin（实证 systemctl --user show-environment），
+   `~/.local/bin/devin` 不在列——env -i 复测实返 "No such file"。每拍必败
+   RC=127→hb stalled（心跳如实但席永不醒）。
+   **修**：脚本内改绝对径 `/home/mluser/.local/bin/devin`（或 service 加
+   Environment=PATH 补 ~/.local/bin——钦定前者，件即路径）。
+
+**跟件（非驳回项）**：驾驶舱 stall 展示段（ops_headless META-REGIME 行红绿标）
+未在本单——T-0312 事件总线/无头决策席票一并领；心跳行已写，展示仅读面差事。
+
+按「三轮驳回」规计——本轮第二驳。
