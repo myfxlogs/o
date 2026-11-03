@@ -22,6 +22,9 @@ func (r *Runner) mdWake(ctx context.Context, ch string) error {
 			if err := r.projectGhostTables(ctx); err != nil {
 				return err
 			}
+			if err := r.projectRegime(ctx); err != nil { // T-0312 第九桥顺带
+				return err
+			}
 		}
 		return r.projectTsTable(ctx, ch)
 	case "ev_eval":
@@ -38,6 +41,9 @@ func (r *Runner) mdWake(ctx context.Context, ch string) error {
 			return err
 		}
 		if err := r.projectGhostTables(ctx); err != nil {
+			return err
+		}
+		if err := r.projectRegime(ctx); err != nil { // T-0312 boot 首拍顺带
 			return err
 		}
 		return r.projectEvals(ctx)
