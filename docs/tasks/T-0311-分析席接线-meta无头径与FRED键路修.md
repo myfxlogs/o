@@ -84,3 +84,17 @@ runbook 即可（同决策席/研究员席位形制）；不牵其他项目、�
   stance 枚举内+ctx_max_id 水印正确。
 - 诚标：agent 席写域=信任+审计制（SKILL 红线+事后审计），非生产码闸；
   活性判据按 meta 席位口径不混生产 KPI。
+
+## 决策注记②（业主令再修——headless 单发，非常驻）
+
+分析席终形钦定：**headless 单发批件非 tmux 常驻**——regime 分析无状态
+（水印在库非会话），常驻会话纯吃状态不解决唤醒。终形三件套：
+1. `deploy/o-regime-analyst.{service,timer}`——systemd --user timer 6h 拍
+   起 `devin -p --model swe --respect-workspace-trust false`，cwd=专用
+   scratch（/var/tmp/o-regime 或同——零仓件接触）；
+2. `skills/分析席/SKILL.md` runbook=prompt 本体（职责/输入径/产出契约/
+   写域收窄/败退口径——agent 按件自主读算写）；
+3. 零包装脚本零 JSON 抽取层——校验写库 agent 自行（写域收窄在 runbook
+   红线+事后审计钉）。
+**决策席无头化另票**：ops_headless 域+relay 基建在册——唤醒模型（收口
+事件触发+周期兜底）+红线三件升业主不动=独立票（T-0312 向）不入本票。
