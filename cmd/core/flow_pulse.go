@@ -20,20 +20,23 @@ var stageThresh = map[string]int64{
 	"exec": 3600, "report": 27 * 3600, "scout": 25 * 3600,
 }
 
-// stageDef 段定义（key/中文标/查询式——last_ts 与 count24h 两参补位）。
+// stageDef 段定义（key/中文标/查询式——last_ts 与 count24h 两参补位；
+// neutral=事件驱动段无周期臂——灯恒中性灰（返修①②：lag 文本照显，节拍阈
+// 只对周期臂有意义，proposal/exec 误报红=假警病灶修）。
 type stageDef struct {
 	key, label string
-	sql        string // SELECT max(ts), count(*) WHERE ts>now()-24h（一参 NULL 兼容式）
+	sql        string
+	neutral    bool
 }
 
 var flowStages = []stageDef{
-	{"collect", "采集", `SELECT max(ts), count(*) FILTER (WHERE ts>now()-interval '24 hours') FROM md_funding`},
-	{"bridge", "投影", `SELECT max(ts), count(*) FILTER (WHERE ts>now()-interval '24 hours') FROM md_ticks`},
-	{"eval", "评估", `SELECT max(ts), count(*) FILTER (WHERE ts>now()-interval '24 hours') FROM fin_opp_eval`},
-	{"proposal", "提案", `SELECT max(created_at), count(*) FILTER (WHERE created_at>now()-interval '24 hours') FROM fin_proposal`},
-	{"exec", "执行", `SELECT max(occurred_at), count(*) FILTER (WHERE occurred_at>now()-interval '24 hours') FROM fin_cashflow`},
-	{"report", "报表", `SELECT max(generated_at), count(*) FILTER (WHERE generated_at>now()-interval '24 hours') FROM fin_report`},
-	{"scout", "侦察", `SELECT max((metrics->>'measured_at')::timestamptz), count(*) FILTER (WHERE (metrics->>'measured_at')::timestamptz>now()-interval '24 hours') FROM fin_venue_candidate WHERE metrics ? 'measured_at'`},
+	{"collect", "采集", `SELECT max(ts), count(*) FILTER (WHERE ts>now()-interval '24 hours') FROM md_funding`, false},
+	{"bridge", "投影", `SELECT max(ts), count(*) FILTER (WHERE ts>now()-interval '24 hours') FROM md_ticks`, false},
+	{"eval", "评估", `SELECT max(ts), count(*) FILTER (WHERE ts>now()-interval '24 hours') FROM fin_opp_eval`, false},
+	{"proposal", "提案", `SELECT max(created_at), count(*) FILTER (WHERE created_at>now()-interval '24 hours') FROM fin_proposal`, true},
+	{"exec", "执行", `SELECT max(occurred_at), count(*) FILTER (WHERE occurred_at>now()-interval '24 hours') FROM fin_cashflow`, true},
+	{"report", "报表", `SELECT max(generated_at), count(*) FILTER (WHERE generated_at>now()-interval '24 hours') FROM fin_report`, false},
+	{"scout", "侦察", `SELECT max((metrics->>'measured_at')::timestamptz), count(*) FILTER (WHERE (metrics->>'measured_at')::timestamptz>now()-interval '24 hours') FROM fin_venue_candidate WHERE metrics ? 'measured_at'`, false},
 }
 
 // GetFlowPulse 活水段快照（unary——各段独立 fail-soft：单段查询败/表缺=
@@ -57,13 +60,16 @@ func (c coreService) GetFlowPulse(ctx context.Context,
 				st.LagS = int64(now.Sub(*ts).Seconds())
 			}
 			st.State = StageLamp(d.key, st.LagS, ts != nil)
+			if d.neutral {
+				st.State = 3 // 恒中性灰——事件驱动段无节拍阈
+			}
 		}
 		resp.Stages = append(resp.Stages, st)
 	}
 	// roster 心跳段（fin_employee_registry——23 岗含盒上臂经隧道写；读败=0 显缺）。
 	var rc int64
 	var minBeat *time.Time
-	if err := c.pool.QueryRow(ctx, `SELECT count(*), min(last_beat) FROM fin_employee_registry`).
+	if err := c.pool.QueryRow(ctx, `SELECT count(*), min(last_beat) FROM fin_employee_registry WHERE status='active'`).
 		Scan(&rc, &minBeat); err != nil {
 		log.Printf("[flow_pulse] roster 查询败（显缺不炸）: %v", err)
 	} else {
