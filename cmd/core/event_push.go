@@ -31,6 +31,15 @@ func startEventPush(ctx context.Context, _ chan<- error, pool *pgxpool.Pool,
 	go events.ListenLoop(ctx, pool, "regime_push",
 		[]string{"ev_regime"}, rg.Scan)
 
+	// T-0312 第二刀④：venue 注册请求 O 群推（recommended 翻牌 ev_venue_req
+	// 帧驱动；(venue,request_at) 锚对 30d 重发各推一次）。
+	vq := notify.NewVenueReq(pool, sender, func() string {
+		v, _ := cfg.GetString("feishu.chat_id")
+		return v
+	}, func() bool { v, _ := cfg.GetBool("notify.feishu.venue_req.enabled"); return v })
+	go events.ListenLoop(ctx, pool, "venue_req_push",
+		[]string{"ev_venue_req"}, vq.Scan)
+
 	// 财经日历事件报（T-0070：[财经日历] 独立开关+幂等去重——高影响级预推）。
 	cal := notify.NewCalendar(pool, sender, func() string {
 		v, _ := cfg.GetString("feishu.chat_id")

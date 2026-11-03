@@ -19,6 +19,7 @@ func (r *Runner) projectVenueCandidates(ctx context.Context) error {
 		return fmt.Errorf("venue_candidate 查询: %w", err)
 	}
 	var batch [][]any
+	var rec int
 	for rows.Next() {
 		var id int64
 		var ts time.Time
@@ -35,10 +36,19 @@ func (r *Runner) projectVenueCandidates(ctx context.Context) error {
 		}
 		batch = append(batch, []any{id, ts, venue, kind, endpoints, maker, taker, minN,
 			kyc, api, wd, metrics, evidence, state, lastReq})
+		if state == "recommended" {
+			rec++
+		}
 	}
 	rows.Close()
 	if err := batchExec(ctx, r.sg, uVenueCand, batch); err != nil {
 		return fmt.Errorf("venue_candidate 投影: %w", err)
+	}
+	// T-0312 第二刀②：recommended>0 唤 ev_venue_req（空批不唤 R2 同款）。
+	if rec > 0 {
+		if _, err := r.sg.Exec(ctx, "SELECT pg_notify('ev_venue_req','')"); err != nil {
+			return fmt.Errorf("venue_req notify: %w", err)
+		}
 	}
 	return nil
 }
