@@ -624,3 +624,11 @@
   researcher-dsn-dead-letter-db 入册（泛化：移交项「生产 DSN 换正」未执行=静默死信）。
 - **积压提示**：proposed 队列另有 grammar_enumerate 卡 7 张（三库各一份）+OCI 侧假想官
   #15/#16/#84 待审——队列盘例职面，非本令范围。
+
+## 2026-11-03 决策席+验收同席（devin 交互 session @ /opt/o——业主令「决策/验收都在本席」）
+
+- **T-0297 会签勘正（SG 生产取证）**：原票三件病灶核实——件①评估器费用未年化**成立**（eval.go:58-59 一次性 19bps 直减年化毛收，且 fee 只计一向两腿）；件②「翻面即平」**不成立**（22 仓全 delta_drift 杀、funding_flip=0、均持仓 1.2h、多数同分钟开平；「1114 单」=failed 689+ambiguous 380+真成交 42）；件③「最短持仓」**不成立且方案属沉没成本谬误**——撤件②③、缓件④（exposure 已封顶）。D-0043 落 CTO 会签注记；KB 条目 `loss-attribution-read-guard-trigger-first`（归因前三查：trigger 分布/execution 分桶/结算行数）。
+- **min_net_apr 0.20 定性**：T-0237 算式本身即按 72h 摊销折算——根修后回 0.06=口径归位非放松；30d 预跑（SG）：pos 观测 7,320，旧口径 pass 511（7.0%）、新口径 pass 259（3.5%）跨 75 inst；过阈榜头部全股权指数永续（无现货腿，spotLegOK 拒）——**新口径下少开仓是如实，真杠杆=持仓期×maker 费**（SG maker_fee_bps 键缺位）。
+- **研究员 skill**（业主令经 CEO 转达）：改事件触发起草员——两触发闭集（T-0300 达阈→注册清单；venue 新品→新族提案附可算收益公式），考核=净正收益实例，禁线/双层防照旧 @2e3eaa11。
+- **T-0299 验收通过** @0b992d10+决策席补落 @14217584：暂停闸（paused 键按次读、true→日限频 note 不进 Alert、缺键 fail-open）、parked 迁移（md_1079 扩 CHECK+存量转 parked）、三分清单（钱径 6/运维健康 15/冷库 16）。验收期两处补落：T-0118 漏判转冷库（D-0043 取代 D-0016 母票）；周报口径重写（施工初版用 fin_ledger_snapshot 净值差分——会吞出入金，改 fin_cashflow 七 kind 实收）。流程注记：收口缺 §8 全件，决策席复跑替核（test 4 绿/迁移七断言/numstat 1:1）。
+- **部署注记**：fin_0095/md_1079 经 SG 镜像 boot 迁移链生效；部署前 paused 键缺=fail-open 照常告警，零风险窗。
