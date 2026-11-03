@@ -30,7 +30,7 @@ fi
 
 # ② devin 批拍（cwd=scratch——零仓件接触；runbook 绝对路径指件）。
 cd /var/tmp/o-regime || exit 1
-/usr/bin/env devin -p --model swe --respect-workspace-trust false \
+/home/mluser/.local/bin/devin -p --model swe --respect-workspace-trust false \
   "读 /opt/o/skills/分析席/SKILL.md runbook 拍 regime 判词"
 RC=$?
 # ③ 每拍心跳全件（成败同写——败拍=stalled 显形非隐）。
