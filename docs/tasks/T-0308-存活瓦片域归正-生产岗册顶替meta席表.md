@@ -2,7 +2,7 @@
 
 ## 状态
 
-**已批（决策立案——业主指认：存活瓦片值域错）**
+**已完成（决策立案——业主指认：存活瓦片值域错）**
 
 ## 背景（生产实证 2026-11-03）
 
@@ -48,3 +48,10 @@ T-0220b-d/T-PROBE 等 dev 会话坟场），非生产岗死亡。生产真名册
 - **顺修**：cockpit_face_test 场景件清基（fin_0097 ops_event 种子行虚增
   tickets_total——同 pipeline 测试隔离件）。
 - 测试：core 全绿@5434；tsc --noEmit 绿；杀服务演验=部署后实证件。
+
+## 决策验收注记（2026-11-03 合 master `7602e4c7` · `o-core:77a3777bdb5f`）
+
+生产实证：rosterActive=23·worstLag=26s·worstSeat=投影官（GetCockpit 实返）；
+活水段七段全非负（collect lag 29s——recv_ts 列换销负滞后+停摆失明；
+proposal/exec 段 s3 中性不报警）。死件链五变量已清，core 11 测绿。
+演验锚（停服转红演示）留运维窗顺手做，非阻塞项。
