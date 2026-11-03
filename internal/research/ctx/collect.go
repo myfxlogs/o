@@ -113,6 +113,13 @@ func macroKind(name string) string {
 var fredSeries = []string{"DGS10", "DGS2", "UNRATE", "CPIAUCSL"}
 
 func (r *Runner) collectFred(c context.Context) error {
+	if r.fredFn != nil {
+		if k, err := r.fredFn(c); err == nil {
+			r.fredKey = k
+		} else {
+			r.rej.Inc("fetch_err")
+		}
+	}
 	if r.fredKey == "" {
 		return nil
 	}

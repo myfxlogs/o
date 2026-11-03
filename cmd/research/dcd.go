@@ -183,11 +183,12 @@ func researchArms(ctx context.Context, errc chan<- error, pool *pgxpool.Pool,
 	// T-0310 regime 分析席臂+ctx 采集臂（mql5/OI/FRED/COT/news 公开面——
 	// analyst=LLM 判词缝缺守位；ctx=四源采集事实行）。
 	go analyst.NewRunner(pool, cfg).AttachAlerter(alerter).Run(ctx, errc)
-	var fredKey string
-	if k, err := finCfg.Secret(ctx, "fred_api_key"); err == nil { // SG 池密文径——T-0311②
-		fredKey = string(k)
-	}
-	go ctxcoll.NewRunner(pool).AttachFredKey(fredKey).Run(ctx, errc)
+	// T-0311 返修⑤：FRED 键每拍自取（AttachFredFn——boot 一次性读瞬败=
+	// 整源哑到重启的实击坑；Secret 按次直读钦定口径本尊）。
+	go ctxcoll.NewRunner(pool).AttachFredFn(func(c context.Context) (string, error) {
+		k, err := finCfg.Secret(c, "fred_api_key")
+		return string(k), err
+	}).Run(ctx, errc)
 	// 研究员席静默看门（T-0121：短会话岗无臂拍——DB 双源锚 14 天窗，core 代守）
 	sw := researcher.NewSilentWatch(pool)
 	sw.AttachAlerter(alerter)
