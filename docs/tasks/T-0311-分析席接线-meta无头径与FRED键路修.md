@@ -222,3 +222,18 @@ regime_tick.sh 端到端**回贴实迹（ops_headless 行+md_regime_fact 是否
     md_regime_fact id1-6 落（6 维判词 stance 全枚举内+ctx_max_id=52 水印+
     valid_until>now()）+md_regime_memo 6 段；ops_headless META-REGIME
     alive 心跳行落（last_activity 实拍）。
+
+## 收口·决策终验（2026-11-03）
+
+返修③验讫合 master @2694c395。端到端实证链：
+- 闸径 ssh OCI（剥参）返真数；施工自跑两拍实迹——首拍 permission-mode
+  缺空拍如实→二拍 `--permission-mode dangerous` 补→md_regime_fact id1-6
+  六维判词落（枚举全内/ctx_max_id=52/valid_until 12h）+memo 6 段。
+- 部署：timer/service 装 dev ~/.config/systemd/user enable --now——
+  真 systemd 上下文首拍闸拒空拍（ctx 无增量不烧=设计正确）+心跳
+  ops_headless alive 实拍。
+- 无人值守三件套齐：产出在表/心跳每拍（含空败）/linger 双盒开。
+
+**T-0311 收口→完成**。后续：①驾驶舱 stall 红绿标读面归 T-0312；
+②FRED 进水待 OCI o-research 重部（finCfg 池修已合，二进制待编译部署）；
+③T-0312=OCI→dev gRPC 事件总线+无头决策席（终态钦定形态在票注记④）。
