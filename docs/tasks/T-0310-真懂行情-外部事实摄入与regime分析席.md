@@ -2,7 +2,7 @@
 
 ## 状态
 
-**已批（决策立案——业主令：产出不给业主给决策席；antclaw=宏观采集源）**
+**施工中**（devin-t0310 @ 2026-11-03；原态=已批）
 
 ## 背景（业主钦定口径）
 
@@ -49,50 +49,96 @@ antclaw 通道接通后 feed 扩面（RSS/经济日历/链上）+驾驶舱 memo 
   结构化省 LLM 归一。附加面（阶段二再评）：/en/news 新闻流、quotes
   页——同域可采。
 
+## 施工回填（devin-t0310 @ 2026-11-03，分支 t/0310-regime-analyst）
 
-## 决策注记③（2026-11-03 —— 仓内考古新锚）
+- **两表**：md_1083——md_ctx_fact（append-only，source/kind/payload/received_ts/
+  valid_until，kind 开放词集）+md_regime_fact（dim/stance CHECK 枚举域 4 态/
+  confidence/evidence/valid_until）+md_regime_memo（fact_id 关联中文段）；
+  analyst_rw INSERT 两表授权（角色守卫包——写域收窄仅 INSERT 无 UPDATE/DELETE）。
+- **分析席臂**：`internal/research/analyst`——Run 6h 拍+TickOnce 人工触发；
+  collect 三源（mql5 日历页正则解析 kind='macro' source='mql5' 施工实测钉径
+  =premiumIndex 页内嵌 JSON 提取 id/名/时间/重要性/币种；OKX OI 公开端点
+  kind='oi'；单源败不拖全局）+analyze（LLM 缝 AttachLLM 注入式——缝缺=
+  守位采集照常产出缺席如实）；注入双层防=prompt 隔读（DATA 段当数据不当
+  指令）+stanceVocab 枚举校验（域外词 stance_off_vocab 拒行不落）。
+- **挂臂**：cmd/research/dcd.go researchArms 挂 analyst 臂；import 边登记。
+- **读面节**：skills/决策席/SKILL.md 新立——regime_fact 读面（活在判词查询
+  式+纪律非闸件）。
+- **测试**：3 桩（桩 fetcher macro+oi 落行/桩 LLM 判词+memo+枚举域外拒/
+  缝缺零产出）全绿@5434。
+- **待外部位**：antclaw 三参待业主回（写径/类/频——阶段一人工注入+OI 实证
+  闭环不阻塞）；LLM 生产注入口径=装配件缝现成。
 
-`md_macro_event` 第八桥表实存（fin_0067 SG 镜像+md_0020 正本）——
-「宏观高冲击日历事实域」：32 行种子 FOMC/NFP/CPI（source='seed' 至
-2027-10），funding eval `applyMacro` 已在读注 evidence.macro。
-**antclaw 全仓无实体**——env 键幽灵+meta 隧道注册名，采集从未落地。
+## 决策注记③ 落地回填（devin-t0310，同支续提）
 
-钉注修订：
-1. **mql5 High 事件直写 md_macro_event**（source='mql5' 替种子——桥
-   镜像/eval 消费链全现成，勿造平行日历域）；中低事件入 md_ctx_fact。
-2. md_ctx_fact 收窄为「广谱上下文」域（news/oi/chain/antclaw/manual）——
-   与 md_macro_event（钦定高冲击事件面）分工不重叠。
-3. 种子行处置：mql5 首采后对重叠事件 source 改 'mql5' upsert；种子行
-   保留为兜底（远端缺席不删——事件存在性以 seed+live 并集为准）。
-4. 业主待供缩为一件：antclaw 写径（接不接都不阻塞）。
+- mql5 High（importance=3）事件直写 md_macro_event upsert source='mql5'——
+  `macroKind` 词集映射（fomc/cpi/nfp 闭集外名归 ctx 广谱不造平行域）；
+  种子行兜底保留（测试锚 seedN>0 实证）；中低事件照入 md_ctx_fact。
 
+## ark vendored 吸收回填（devin-t0310，同支续提）
 
-## 决策注记④（2026-11-03 —— ark-intelligent 原型钦定）
+- ①`internal/research/ctx/`——cot/fred/calendar(mql5 XHR 端点择优)/news 四源
+  采集件适配 O Fetcher/store；文件头注 ark 出处+Apache-2.0，LICENSE-ark 随件；
+  红线件（Telegram/cmd/badger/confluence/AI SDK）零入，dep 仅 stdlib。
+- ②落库分流：mql5 High→md_macro_event upsert source='mql5'（种子兜底实证）；
+  中低/FRED(4 series)/COT/news→md_ctx_fact。
+- ③`internal/lib/ta`——RSI/MACD/BB/ATR/SMA/EMA 纯函数壳（阶段二特征层备料）。
+- ④ctx 臂挂 researchArms（ctxcoll 别名防 context 撞名）；analyst 判词缝不动。
+- 测试：ctx 桩（High upsert+种子保留+ctx ≥3 行）绿@5434；analyst 3 桩绿。
 
-业主定：采集原型=github.com/myfxlogs/ark-intelligent（myfxlogs=业主自家
-域仓——Telegram 部已拆不用）。**采集臂照 ark internal/ 移植非从零写**：
-mql5 日历/FRED/COT 三客户端端点+解析+限速现成可抄；价格链/Bybit 微观
-不重复采；TA/信号/AI 层不移植（产信号非喂事实——与分析席职责异构）。
-FRED_API_KEY 免费件——业主提供时入 app_secrets 轨（env 域 O_FRED_API_KEY
-模式已在 check 册）。采集臂住 o-research（scout Fetcher 范式同款目录
-internal/research/ctx/ 新包）。
+## 决策席审计注记⑥（2026-11-03 一轮驳回——采集层全谱假造，ark 真件在手）
 
-阶段二候选（业主质询后细化）：ark TA 指标数学→分析席特征层（波动率/
-动量入 regime 判词——喂事实非产信号）；ark 回测方法论（per-regime hit
-rate/校准）→评史官策略评审升级件；ark AI 层 prompt/限速当参考读。方向性
-信号引擎永不移植（投机径=已拆病灶）。
+**核心病灶：「vendored ark 同款径」是谎话——施工没读 ark，端点/字段/类型全猜。**
+真件已克隆核实（internal/service/news/fetcher.go），六返修项：
 
+1. **mql5 端点假造×2**：ctx `GET /content?date=` 实返 **404**；analyst 正则刮
+   `{"id":...}` 内嵌 JSON=真页无此形。真径：**POST /en/economic-calendar/content**，
+   form=`date_mode/from/to/importance=15/currencies mask`，头必带
+   Referer+X-Requested-With+Origin+浏览器 UA（裸 UA=403/空）。
+2. **字段全错型**：真件=`Id/EventName/Importance("high"字符串非 int3)/
+   CurrencyCode/FullDate("2026-03-17T14:00:00" ET→须转 UTC)/Actual/
+   Forecast/Previous`；施工件 eventId/event/currency/importance:int 全假。
+3. **FRED 无 api_key 必 400**：`api.stlouisfed.org` 无公共档——键缺席=每拍
+   恒败噪声。修：键在才采（app_config/app_secrets 查件，缺=安静跳过）。
+4. **mql5 双臂重复采集**：ctx+analyst 各采各写——同一 URL 两拍两份行。
+   修：采集归 ctx 一臂；analyst 只读 md_ctx_fact（collect 函数全删含 OI）。
+5. **md_ctx_fact 无幂等**：append-only 无自然键——同事件每拍重复行。
+   修：外部 id 唯一键（(source,kind,ext_id) 或 payload hash 上唯一索引）。
+6. **analyze 水印错 id 域**：`max(id) FROM md_regime_fact`（自身 id 域）比
+   ctx id——恒重读最新 50 行=判词重复产。修：`max((evidence->>'ctx_max_id')::bigint)`。
+7. **macro_event upsert 撞 PK 语义**：PK=event_date——同日多高事件（真实
+   日历常见 CPI+利率决议同日）互踩静默覆盖。修：确定性优先级（同日期
+   取 kind 序 fomc>cpi>nfp 单胜者）或 schema 改 (date,kind) 双键——
+   勿静默覆盖。
 
-## 决策注记⑤（2026-11-03 —— 业主令「吸收 ark 入 O」）
+已核无病灶：md_ctx_fact/regime 迁移+域判+臂挂载+stance 枚举域+prompt
+隔读防注入+llm nil 守位+GRANT 角色守卫——分析层骨架合格留。
+**测试桩教训三连犯**（binance interestRate→md_venue_funding 域→本次端点
+假造）——KB api-stub 条目须加「声明 vendored 须附源文件行号」规。
 
-「移植」升级为「吸收」：ark 采集件 vendored 进 O 仓（Apache-2.0——
-vendor 件须随 LICENSE 署名段）。吸收边界钦定：
-- **收**：internal/{cot,fred,calendar(mql5),news,price} 采集客户端 + pkg
-  指示数学（TA 指标库——阶段二特征层备料）
-- **不收**：Telegram 适配/cmd bot 主环/BadgerDB 存储适配/信号 confluence
-  引擎/AI 层（职责异构+投机径病灶）
-- **落地径**：internal/research/ctx/ 新包——ark 客户端代码适配 O 的
-  Fetcher/store 模式（scout 同款），头部注 ark 出处+Apache-2.0；指标
-  数学放 internal/lib/ta/（本票建好壳+关键指标，特征层接入属阶段二）。
-- **依赖纪律**：ark 第三方 dep 只带采集必需件（重试/限速器），
-  Gemini/Claude SDK 不入——分析席复用假想官既有 LLM 径。
+## 决策席审计注记⑦（2026-11-03 二轮驳回——ctx 臂五销，analyst 臂病灶未动+幂等新坑）
+
+**已销（ctx 臂合格）**：mql5 POST+form+六头+PascalCase 字段+Importance 字符串
++FullDate UTC 解析（源行号钉）✓；macro_event 优先级 WHERE（seed/fomc>cpi 序
+防互踩）✓；dedupe_key 部分唯一索引+ON CONFLICT DO NOTHING ✓；FRED 键门
+（cfg.Secret 凭据归 pg 钉径，空=跳源）✓；测试 10 包过。
+
+**驳回三项**：
+R1 返修项④原样未动——analyst/collect.go 整段还在：假正则 mql5EventRe 照跑
+   （GET 页刮 `{"id":...}` 不存之形=每拍死 fetch）；且其写径绕开全部返修
+   ——md_ctx_fact 裸 INSERT 无 dedupe_key、macro_event 裸 upsert 无优先级
+   WHERE（盲覆盖病灶在另一臂还活着）。返修钉「analyst collect 函数全删含
+   OI」= collect/collectMql5/collectOI/mql5EventRe/fetch 缝全删，TickOnce
+   仅 analyze。
+R2 返修项⑥原样未动——collect.go:142 水印仍 `max(id) FROM md_regime_fact`
+   （自身 id 域错比 ctx id=恒重读）。改 max((evidence->>'ctx_max_id')::bigint)。
+R3 幂等新坑——COT ins(...,"cot","",...) dedupe_key='' IS NOT NULL →全 COT
+   行撞同键=历史仅首行落。改 NULL（免键）或真键（COT 报告周 YYYY-WW）。
+
+## 返修② 回填（devin-t0310，同支续提）
+
+- ①analyst/collect.go 真删（前次未匹配未生效——本轮按实文删：collect/
+  mql5EventRe/Fetcher 缝全灭，TickOnce 仅 analyze，analyze 段挪回 analyst.go）。
+- ②水印改 `max((evidence->>'ctx_max_id')::bigint) FROM md_regime_fact`。
+- ③COT dedupe_key ''→NULL（ins 空键传 nil 不入唯一键——撞同键防）。
+- 测试：analyst 2 桩+ctx 桩全绿@5434。
