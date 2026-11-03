@@ -50,9 +50,15 @@ type row struct {
 // adapters venue→采集函数册（measuring 态 venue 逐位跑；协议面取证纪律——
 // 字段方言以实测响应为准，下「无此面」结论前消息体全文核证）。
 var adapters = map[string]func(ctx context.Context, f Fetcher) ([]row, error){
-	"binance-usdm": collectBinance,
-	"bybit":        collectBybit,
-	"hyperliquid":  collectHyperliquid,
+	"binance-usdm":   collectBinance,
+	"bybit":          collectBybit,
+	"hyperliquid":    collectHyperliquid,
+	"bitget":         collectBitget,
+	"gate":           collectGate,
+	"kucoin-futures": collectKucoin,
+	"mexc":           collectMexc,
+	"dydx-v4":        collectDydx,
+	"deribit":        collectDeribit,
 }
 
 // collectAll 对 state='measuring' 候选行逐个采集落 md_venue_funding。

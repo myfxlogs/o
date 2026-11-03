@@ -30,6 +30,33 @@ venue-scout 度量面 10 候选中 6 家 metrics 空（state='candidate' 无 ada
 - 单 venue 挂不拖全局（venue_down 计数+log 已有制式）
 - gates：check_migrations/check-env-reads/go build/相关 test 全过
 
+## 施工回填（devin-t0313 @ 2026-11-03，分支 t/0313-scout-adapters）
+
+- **六 adapter**（curl 实测响应核字段钉）：
+  - bitget：v2 mix tickers（fundingRate/mark/index 同帧，interval 无档=0 回退）；
+  - gate：v4 usdt tickers（funding_rate 蛇形方言）；
+  - kucoin-futures：contracts/active 换端点（种子单 symbol 弃——fundingFeeRate
+    +currentFundingRateGranularity ms→h per-inst 混合档实取）；
+  - mexc：contract/ticker（fundingRate+fairPrice→mark）；
+  - dydx-v4：indexer perpetualMarkets（nextFundingRate=1h 档钉，oraclePrice=
+    index，mark 无帧如实 nil）；
+  - deribit：get_instruments 六币种筛 -PERPETUAL→逐 ticker（funding_8h/8 等效
+    1h 率如实换算；连续结算 interval=0 走 config 回退——票面钉注③）。
+- **canon 扩**：PERPETUAL 尾+M 尾最外缀剥序（XBTUSDTM→XBT）+XBT→BTC 别名
+  ——用例测试硬门。
+- **md_1085**：六 venue UPDATE measuring（种子原件不改）。
+- **测试**：TestSixAdapters 六桩+canon 三方言用例绿；scout 全包绿@5434。
+- **部署实件**（OCI arm64 六 venue 落行+boards 非空）=部署后实证件。
+
+## 返修① 回填（devin-t0313，同支续提）
+
+- B1：deribit rate=funding_8h 原样+interval=8（年化除 8 低估根修——
+  8h 档率非 1h 率，settles 分所口径随行保真）。
+- B2：canon M 尾收窄复合尾表（USDTM/USDCM/USDM 复合缀才剥 M 露 quote 尾
+  ——裸 M 不剥防 ATOM→ATO/DYM→DY 误伤）；四回归用例钉
+  （XBTUSDTM→BTC/ATOM→ATOM/DYM→DYM/BTC-PERPETUAL→BTC 全绿）。
+
+
 ## 一轮裁决（2026-11-03 决策席）——驳回返修两件
 
 - **B1（硬伤）deribit 年化 8× 低估**：rate=f8h/8 折 1h 率却 interval 缺省
@@ -40,3 +67,6 @@ venue-scout 度量面 10 候选中 6 家 metrics 空（state='candidate' 无 ada
   只准复合尾表（USDTM/USDCM/USDM），附四条回归用例。
 - 余件合格：bitget/gate/kucoin/mexc/dydx 五 adapter 映射+interval 实取
   +混合档如实+测试面齐。
+
+## 返修①验收（同日）——两件全过：deribit rate 原样+interval=8（年化
+口径配对）；canon 复合尾表收窄+ATOM/DYM 回归用例在测。**裁决：通过**。

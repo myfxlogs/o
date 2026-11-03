@@ -2,6 +2,8 @@ package scout
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -239,5 +241,65 @@ func TestXvenueSplitSettles(t *testing.T) {
 	}
 	if xb.BaseSrc != "earn" {
 		t.Fatalf("xvenue 基线应 earn: %s", xb.BaseSrc)
+	}
+}
+
+// 锚 T-0313：六 adapter 桩（url-switch stub 照三先例）+canon 新方言用例。
+func adapterFor(t *testing.T, venue string) func(context.Context, Fetcher) ([]row, error) {
+	t.Helper()
+	fn, ok := adapters[venue]
+	if !ok {
+		t.Fatalf("adapter %s 未注册", venue)
+	}
+	return fn
+}
+
+func TestSixAdapters(t *testing.T) {
+	ctx := context.Background()
+	mk := func(_ string) Fetcher {
+		return func(ctx context.Context, u string, _ string) ([]byte, error) {
+			switch {
+			case strings.Contains(u, "bitget"):
+				return []byte(`{"code":"00000","data":[{"symbol":"BTCUSDT","markPrice":"77000","indexPrice":"77010","fundingRate":"0.0001"},{"symbol":"ETHUSDT","markPrice":"2300","indexPrice":"2301","fundingRate":"-0.0001"}]}`), nil
+			case strings.Contains(u, "gateio"):
+				return []byte(`[{"contract":"BTC_USDT","funding_rate":"0.0002","mark_price":"77000","index_price":"77010"}]`), nil
+			case strings.Contains(u, "kucoin"):
+				return []byte(`{"code":"200000","data":[{"symbol":"XBTUSDTM","markPrice":77000,"indexPrice":77010,"fundingFeeRate":0.0001,"currentFundingRateGranularity":28800000}]}`), nil
+			case strings.Contains(u, "mexc"):
+				return []byte(`{"data":[{"symbol":"BTC_USDT","fundingRate":0.0003,"fairPrice":77000,"indexPrice":77010}]}`), nil
+			case strings.Contains(u, "dydx"):
+				return []byte(`{"markets":{"BTC-USD":{"ticker":"BTC-USD","nextFundingRate":"0.000007","oraclePrice":"77000"}}}`), nil
+			case strings.Contains(u, "get_instruments"):
+				return []byte(`{"result":[{"instrument_name":"BTC-PERPETUAL"},{"instrument_name":"BTC-4NOV26"}]}`), nil
+			case strings.Contains(u, "deribit.com/api/v2/public/ticker"):
+				return []byte(`{"result":{"funding_8h":0.00008,"mark_price":77000,"index_price":77010}}`), nil
+			}
+			return nil, fmt.Errorf("未桩端点: %s", u)
+		}
+	}
+	for _, v := range []struct {
+		venue string
+		want  int
+	}{
+		{"bitget", 2}, {"gate", 1}, {"kucoin-futures", 1},
+		{"mexc", 1}, {"dydx-v4", 1}, {"deribit", 6},
+	} {
+		got, err := adapterFor(t, v.venue)(ctx, mk(v.venue))
+		if err != nil {
+			t.Fatalf("%s: %v", v.venue, err)
+		}
+		if len(got) != v.want {
+			t.Fatalf("%s 行数: %d", v.venue, len(got))
+		}
+	}
+	// canon 新方言用例（PERPETUAL 尾/M 尾/XBT 别名——票面钉）。
+	for _, c := range [][2]string{
+		{"BTC-PERPETUAL", "BTC"}, {"XBTUSDTM", "BTC"}, {"ETH-PERPETUAL", "ETH"},
+		// 返修① B2 四回归：复合尾剥+裸 M 保（ATOM/DYM 不误伤）
+		{"ATOM", "ATOM"}, {"DYM", "DYM"},
+	} {
+		if g := canon(c[0]); g != c[1] {
+			t.Fatalf("canon %s → %s（want %s）", c[0], g, c[1])
+		}
 	}
 }
