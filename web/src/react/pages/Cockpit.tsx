@@ -15,6 +15,7 @@ import { applyHeadless, applyPipeline, hydrate, useSlice } from "../store";
 import { Component, type ReactNode } from "react";
 import { Card, EmptyState, Skeleton, StateDot } from "../components/ui";
 import { FlowPulseStrip, WorkItemsBlock } from "../components/flowpulse";
+import { MetaSeats } from "../components/metaseats";
 import { AGE } from "../components/panel";
 import type {
   GetCockpitResponse,
@@ -193,7 +194,7 @@ export function CockpitPage() {
 		exit: "已退",
 	};
 	const hlL = (s: string) => HL_STATE[s] ?? s;
-	const hlAlive = hlRows.filter((r) => hlL(r.state) === "在飞").length;
+
 	const rosterStale = !miss.has("roster") && Number(d.rosterWorstLagS) > 600; // T-0308：active 岗心跳停滞>10min 钉常量转红
 	const rosterWorstSeat = d.rosterWorstSeat || "";
 	const fmtLagMin = (sec: number) => (sec >= 3600 ? `${(sec / 3600).toFixed(1)}h` : sec >= 60 ? `${(sec / 60).toFixed(0)}m` : `${sec}s`);
@@ -246,9 +247,7 @@ export function CockpitPage() {
 						<div className="kpi-v">{d.rosterActive}<span className="kpi-unit">生产岗在岗</span></div>
 						<div className="kpi-note">最坏心跳滞后 {fmtLagMin(Number(d.rosterWorstLagS))}{rosterStale ? `（${d.rosterWorstSeat} 停滞超 10min）` : ""}</div>
 					</>)}
-					{hl.data && hlAlive > 0 && (
-						<div className="kpi-note">dev 会话 {hlAlive} 在飞（meta 排查面不参警）</div>
-					)}
+					<MetaSeats rows={hlRows} hlL={hlL} fmtLagMin={fmtLagMin} />
 				</Card>
 			</div>
 			{/* —— 次档·答③机器面（v4：三张无头监控卡合一——工作流管道主瓦片，
