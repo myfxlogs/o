@@ -17,20 +17,23 @@ if *b.NetAprMid < *b.Baseline+*b.Margin { continue }
 →`best<0`→**每条推送必走保底文**，富文永不发。测试被 fixture 里塞的
 `"margin":0.05`（生产不存在的字段）掩过去。
 
-**修法（钦定二选一，施工择一并在回填写明所择+理由）**：
+**修法（钦定三案，业主点拨后决策席订——丙案标荐）**：
 
-- **甲（荐）删伪阈**：`state='recommended'` 本身就是达阈认证——推送面不该
-  二次裁决阈值（双真相源风险）。`venueMsg` 删 margin 字段+达阈再检，直接
-  取 `persist` 最高 board 组文。Margin 字段一并删出解析 struct。
-- **乙补真阈**：`board` 结构体加 `Margin float64 json:"margin"` 字段+
-  `measure`/`boardFor` 写值（让载荷自描述）。metrics 每拍重写所以历史行
-  无 margin 无碍——recommended 翻牌那拍必然是新写载荷。若择此，venueMsg
-  保留阈检但测试 fixture 改全真字段形。
+- **丙（荐）共享类型杀漂移根**：`scout.board` 导出为 `scout.Board`（或挪
+  公共 types 位置——依赖方向以编译不环为准），`venue_req.go` 删本地解析
+  struct 改用 `scout.Board`——**生产/消费同一份型，字段漂移编译期炸而非
+  运行时静默降级**。这就是同 module 里的「protobuf 级 schema 保障」零
+  工具链版。消费面仍删 margin 阈（state 已权威）+取 persist 最高组文。
+- **甲删伪阈**：若 import 向有环/PKG 边界争议——`venueMsg` 只删 margin
+  字段+阈检，仍本地解析 struct（漂移根留但本次坑销）。
+- **乙补真阈**：`board` 加 `Margin float64 json:"margin"`+`measure`
+  写值（载荷自描述）——metrics 每拍重写，recommended 那拍必然新载荷，
+  历史行无碍；venueMsg 保留阈检但 fixture 全真形。
 
 **测试修**：`TestVenueReqPush` fixture 改生产真形（`top_n`/`baseline_source`
-带上、margin 不塞——甲案）或带真 margin（乙案），断言富文含实数百分比
-（如 `12` 字样）而非仅「请注册」。补一条「无 margin 字段的 metrics 也出
-富文」（甲案直接覆盖）。
+带上、margin 不塞——丙/甲案）或带真 margin（乙案），断言富文含实数
+百分比而非仅「请注册」。丙案补「scout.Board 字段演变=编译错」隐含
+保障注明（无需测试——编译器即测试）。
 
 ## 验收
 
