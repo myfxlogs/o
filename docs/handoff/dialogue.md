@@ -689,3 +689,14 @@
   但度量全断，钱径无碍。
 - **拓扑教训**：研究域表正本=PG-md（fin_opp_eval/fin_opp_template 同款桥）；
   fin 域=SG o-core 单边。域判勿望表名"fin_"生义。
+
+### 2026-11-03 T-0301 部署后验＋T-0302 急诊（决策席）
+
+**T-0301 桥上线三锚全绿（05:55 UTC 实拍）**
+
+- projector 复活：`~/o-projector.env` 补 `SG_PG_DSN`（=FIN_PG_DSN 同值，用户 projector_rw）→ active，boot 首拍跑投影。
+- 坑①：binance 恒零行无日志——真响应 `interestRate` 是字符串撞 adapter struct 的 int 死字段，整次 unmarshal 恒败→venue_down 静默。盒上探针（同 http.DefaultClient）200/209KB 正常+python type 核对=根因实证。T-0302 删字段急诊合（typo 级，决策席自施），部署一拍 binance-usdm 896 行落库（恰=载荷 USDT 尾数）。
+- 坑②：projector 每拍 `permission denied for table fin_venue_candidate`——fin_0098 漏授 projector_rw。SG 手工补四权+迁移补 GRANT 行。
+- 部署径坑：o-research ExecStart=`%h/o-research/o-research`（目录布局）——第一船投错 `~/o/o-research` 旧径白重启一拍。
+- 验证终态：md_venue_funding（binance 896/bybit 3720/hyperliquid 940）、拍败=0、SG 镜像 boards 四所非空（2/2/2/1）。**30 天度量时钟自 05:54 起走**。
+- KB：api-stub-fixture-must-carry-real-field-types（stub 理想形=假绿）；观察面缺口挂后续票（scout rejects Door 无 Snapshot 面、interval_h 归真 fundingInfo）。
