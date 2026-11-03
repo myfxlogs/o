@@ -43,7 +43,6 @@ type Runner struct {
 	pool    *pgxpool.Pool
 	rej     *rejects.Door
 	fetch   Fetcher
-	post    func(ctx context.Context, url, body string) ([]byte, error) // POST 缝（mql5 件——测试桩）
 	fredKey string
 	now     func() time.Time
 }
@@ -52,12 +51,6 @@ func NewRunner(pool *pgxpool.Pool) *Runner {
 	return &Runner{pool: pool,
 		rej:   rejects.New("ctx", "fetch_err", "write_err", "parse_err"),
 		fetch: httpGet, now: time.Now}
-}
-
-// AttachPost 测试桩缝（mql5 POST 件同形替换——生产 http 真件）。
-func (r *Runner) AttachPost(fn func(ctx context.Context, url, body string) ([]byte, error)) *Runner {
-	r.post = fn
-	return r
 }
 
 // AttachFredKey FRED 键注入口径（键缺=整源跳过——凭据归 pg：装配件
@@ -80,7 +73,7 @@ func (r *Runner) Run(c context.Context, errc chan<- error) {
 
 // TickOnce 四源各拍——单源败=该源缺席不拖全局。
 func (r *Runner) TickOnce(c context.Context) error {
-	for _, fn := range []func(context.Context) error{r.collectMql5, r.collectFred, r.collectCot, r.collectNews} {
+	for _, fn := range []func(context.Context) error{r.collectCalendar, r.collectFred, r.collectCot} {
 		if err := fn(c); err != nil {
 			r.rej.Inc("fetch_err")
 		}

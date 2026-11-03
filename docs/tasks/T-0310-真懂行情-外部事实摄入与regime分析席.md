@@ -142,3 +142,15 @@ R3 幂等新坑——COT ins(...,"cot","",...) dedupe_key='' IS NOT NULL →全 
 - ②水印改 `max((evidence->>'ctx_max_id')::bigint) FROM md_regime_fact`。
 - ③COT dedupe_key ''→NULL（ins 空键传 nil 不入唯一键——撞同键防）。
 - 测试：analyst 2 桩+ctx 桩全绿@5434。
+
+## 返修③ 回填（devin-t0310，同支续提）
+
+- collectCalendar 换源 ffcal XML（GET /ff_calendar_thisweek.xml struct 直
+  unmarshal——mql5 宿主 ASN 403 死源弃）；impact='High'→macroKind→
+  md_macro_event source='ffcal'（优先级 WHERE+种子兜底不动）；余→ctx
+  dedupe_key=url slug。
+- ffDate "MM-DD-YYYY"+"H:MMap" ET→UTC；"All Day"/空/tentative=仅日期；
+  解析败=行跳 parse_err。
+- collectNews 整源删（mql5 同宿主死）；POST 缝/fetchForm/六头/mql5Event/
+  AttachPost/周界换算全撤走 GET 缝。
+- 测试：ctx 桩（ffcal High upsert+种子保留+slug 幂等+ffDate 三档）绿@5434。
