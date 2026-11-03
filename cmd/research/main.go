@@ -62,11 +62,10 @@ func main() {
 		log.Fatalf("config load: %v", err)
 	}
 	// T-0311②：finCfg 绑 finPool（SG app_secrets 驻 SG——md 池 client 读
-	// app_secrets 必败；FRED 键路等密文面全走此件）。
+	// app_secrets 必败；FRED 键路等密文面全走此件）。Secret() 按次直读
+	// app_secrets 不吃快照——禁 Load()：全量拉 app_config 需 review_rw
+	// 越域读面，部署实击 permission denied 起即崩（返修④根修）。
 	finCfg := config.New(finPool)
-	if err := finCfg.Load(ctx); err != nil {
-		log.Fatalf("fin config load: %v", err)
-	}
 	// T-0170 认证读面（径 A 终裁）：READCRED_URL 设→boot 经隧道（5545）取
 	// venue-map 仅进内存+401 自重取轮换自愈；缺→无凭据读面（dcd/gapscan 私有
 	// 读面 401 fail-closed 让位——桩锚不回归）。T-0174：okx 臂按 venue 提件。
