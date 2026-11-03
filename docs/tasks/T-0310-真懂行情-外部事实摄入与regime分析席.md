@@ -76,3 +76,8 @@ mql5 日历/FRED/COT 三客户端端点+解析+限速现成可抄；价格链/By
 FRED_API_KEY 免费件——业主提供时入 app_secrets 轨（env 域 O_FRED_API_KEY
 模式已在 check 册）。采集臂住 o-research（scout Fetcher 范式同款目录
 internal/research/ctx/ 新包）。
+
+阶段二候选（业主质询后细化）：ark TA 指标数学→分析席特征层（波动率/
+动量入 regime 判词——喂事实非产信号）；ark 回测方法论（per-regime hit
+rate/校准）→评史官策略评审升级件；ark AI 层 prompt/限速当参考读。方向性
+信号引擎永不移植（投机径=已拆病灶）。
