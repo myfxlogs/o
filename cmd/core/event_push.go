@@ -22,6 +22,15 @@ func startEventPush(ctx context.Context, _ chan<- error, pool *pgxpool.Pool,
 	go events.ListenLoop(ctx, pool, "event_push",
 		[]string{"ev_position", "ev_cashflow"}, evPush.Scan)
 
+	// T-0312 regime 判词 O 群推（第九桥镜像后 ev_regime 帧驱动——
+	// 非轮询钦定 LISTEN 首选径；md_regime_push 幂等锚不重推）。
+	rg := notify.NewRegime(pool, sender, func() string {
+		v, _ := cfg.GetString("feishu.chat_id")
+		return v
+	}, func() bool { v, _ := cfg.GetBool("notify.feishu.regime.enabled"); return v })
+	go events.ListenLoop(ctx, pool, "regime_push",
+		[]string{"ev_regime"}, rg.Scan)
+
 	// 财经日历事件报（T-0070：[财经日历] 独立开关+幂等去重——高影响级预推）。
 	cal := notify.NewCalendar(pool, sender, func() string {
 		v, _ := cfg.GetString("feishu.chat_id")

@@ -64,7 +64,8 @@ func New(md, sg *pgxpool.Pool, alert *notify.Alerter, mode string) (*Runner, err
 	want := map[string]bool{"fin_opp_eval": true, "fin_proposal": true, "md_dcd_product": true,
 		"md_funding": true, "md_macro_event": true, "md_mark_index": true,
 		"md_signal": true, "md_ticks": true, "fin_venue_candidate": true,
-		"fin_opp_hypothesis": true, "fin_opp_template": true}
+		"fin_opp_hypothesis": true, "fin_opp_template": true,
+		"md_regime_fact": true, "md_regime_memo": true}
 	regSet := map[string]bool{}
 	for _, t := range reg {
 		regSet[t] = true

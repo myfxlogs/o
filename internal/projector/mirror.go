@@ -171,3 +171,13 @@ func batchExec(ctx context.Context, sg *pgxpool.Pool, stmt string, rows [][]any)
 		time.Sleep(time.Duration(300*(retry+1)) * time.Millisecond) // sched-exempt-ok：死锁退避
 	}
 }
+
+// T-0312 第九桥：md_regime_fact/memo append-only 按 id 增量（SG 自对 max(id)
+// 水印径——无 wm 注册面；ON CONFLICT DO NOTHING 幂等）。
+const qRegimeFact = `SELECT id,dim,stance,confidence,evidence,created_ts,valid_until
+	FROM md_regime_fact ORDER BY id`
+const qRegimeMemo = `SELECT id,ts,fact_id,memo FROM md_regime_memo ORDER BY id`
+const uRegimeFact = `INSERT INTO md_regime_fact(id,dim,stance,confidence,evidence,created_ts,valid_until)
+	VALUES($1,$2,$3,$4,$5::jsonb,$6,$7) ON CONFLICT (id) DO NOTHING`
+const uRegimeMemo = `INSERT INTO md_regime_memo(id,ts,fact_id,memo)
+	VALUES($1,$2,$3,$4) ON CONFLICT (id) DO NOTHING`
