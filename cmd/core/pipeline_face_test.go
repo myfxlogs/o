@@ -301,6 +301,11 @@ func TestPipelineExitSemantics(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
+	// fin_0097 台账启用 ops_event 种子行（T-0298 真实审计行）会虚增在飞票——
+	// 场景件清基非改锚（种子行非本锚语义件）。
+	if _, err := pool.Exec(ctx, "DELETE FROM ops_event"); err != nil {
+		t.Fatal(err)
+	}
 	c := coreService{pool: pool, docsRoot: "docs/tasks"}
 	ins := func(agoMin int, seat, event, ticket, note string) {
 		if _, err := pool.Exec(ctx, `INSERT INTO ops_event(ts,seat,event,ticket,note)
