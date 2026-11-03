@@ -32,3 +32,19 @@
 - 不新建 proto/服务（Board 现成）；若前端列宽不够 venue 截断>12 字显示。
 - Earn 基线读 md_earn_rate 经 SG 镜像（桥表已有）；快照缺 7 行=如实降精度
   （metrics 加 `earn_baseline_snaps` 回执快照数）。
+
+## 施工回填（devin-t0305 @ 2026-11-03，分支 t/0305-review-faces）
+
+- **report arm**：net 键改 7-kind 钉式（`kind IN (fee,funding_settle,trade_pnl,
+  rollback_cost,spot_buy,spot_sell,interest)`——class 顺带归属不算数）；
+  weekly/monthly 加 `net_vs_earn`=net−avg(net_usd,okx,USDT,近 N snap)×最新
+  md_earn_rate.rate×N/365（N=7/30——口径文档钉式逐字搬）+`earn_baseline_snaps`
+  回执快照数（缺 7 行=如实降精度）。
+- **前端**：`api.ts` scoutClient.board 同源直连（proto/scoutv1 已在册——
+  buf.gen.web.yaml paths 补 proto/scoutv1）；`Review.tsx` METRIC_NAMES 加
+  net_vs_earn→「净利−Earn基线」/earn_baseline_snaps；新卡「找平台」消费
+  Board——venue×family 行=净APR/持续占比/baseline_src/state/measured_at，
+  measuring 所前排，venue>12 字截断。
+- **测试/验证**：report 8 桩过（TestReportMacroEventsCount 1 桩红=master 同红
+  的日期边界 flake，stash 隔离实证非本票病灶）；web tsc --noEmit 绿。
+- **生产锚**（复盘页周报 tab 对账截图/榜卡 ≥4 所行）属部署后实证件。

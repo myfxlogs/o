@@ -6,6 +6,7 @@ import { useLive } from "../hooks";
 import { Card, EmptyState, ErrorState, Skeleton } from "../components/ui";
 import { LineChart } from "../components/chart";
 import { ClosedPositionsCard } from "../components/flows";
+import { VenueBoardCard } from "../components/venueboard";
 import { fmtUsd, pbDate } from "../components/fmt";
 
 const PERIODS: { k: string; label: string }[] = [
@@ -45,6 +46,8 @@ const METRIC_NAMES: Record<string, string> = {
   annualized: "年化",
   capital_base: "基数",
   retired: "退役",
+  net_vs_earn: "净利−Earn基线",
+  earn_baseline_snaps: "基线快照数",
 };
 
 function ReportsCard() {
@@ -252,6 +255,7 @@ export function ReviewPage() {
   return (
     <div className="page">
       <EquityCard />
+      <VenueBoardCard />
       <div className="duo">
         <ReportsCard />
         <FlowsCard />

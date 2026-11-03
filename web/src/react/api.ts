@@ -14,6 +14,7 @@
 import { createClient, type CallOptions, type Client } from "@connectrpc/connect";
 import { createConnectTransport } from "@connectrpc/connect-web";
 import { CoreService } from "../gen/dashboardv1/core_pb";
+import { ScoutService } from "../gen/scoutv1/scout_pb";
 
 export function errText(e: unknown): string {
   return e instanceof Error ? e.message : String(e)
@@ -70,8 +71,11 @@ function deduped<Req, Res>(name: string, fn: UnaryFn<Req, Res>): UnaryFn<Req, Re
 }
 
 // 同源直连（Connect 协议 POST /o.dashboard.v1.CoreService/<Method>）。
-const raw = createClient(CoreService,
-  createConnectTransport({ baseUrl: window.location.origin }));
+const transport = createConnectTransport({ baseUrl: window.location.origin });
+const raw = createClient(CoreService, transport);
+// T-0305：venue scout 榜单只读面同源直连（scoutv1 Board——找平台卡供数）。
+const rawScout = createClient(ScoutService, transport);
+export const scoutClient = { board: deduped("ScoutBoard", rawScout.board) };
 
 export const client: Client<typeof CoreService> = {
   ...raw,
