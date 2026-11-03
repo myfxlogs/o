@@ -118,4 +118,28 @@ T-0238（maker 径）/ T-0247（maker 键分层）/ T-0111（breakevenOK）/ T-0
 
 ## 结果回填
 
-（施工写）
+施工 devin-t0297 @ 2026-11-03，分支 `t/0297-funding-cost-apr`（本仓无 origin 远端，分支提交即锁据）。
+
+- **往返口径+年化摊销**（`internal/research/funding/eval.go`）：新增导出
+  `RoundTripBps(p)=2×双腿费+2×滑点+失败+窗口`（maker 分层沿 T-0247）与
+  `CostAPR(p)=cost_rt/1e4×365/HoldDays`（HoldDays<=0→+Inf fail-closed）；
+  `net=gross−cost_apr`；`Params.HoldDays` 新字段；evidence 增
+  `cost_rt_bps/hold_days/cost_apr`。
+- **参数键**（`run.go`）：`paramKeys` 增 `guard.max_hold_hours`→`HoldDays=h/24`；
+  键缺=missing_params fail-closed（run_test 锚：`DELETE guard.max_hold_hours`→scan 拒）。
+- **开闸同源**（`opener.go breakevenOK`）：删本地 `4×(taker+slip)` 算式，构
+  `funding.Params` 调 `CostAPR`；判=`gross_apr < cost_apr×safety`；拒因 evidence 改
+  `cost_apr/gross_apr/safety`；新读 `fail_cost_bps/window_loss_bps/settles_per_day`
+  键（缺=missing_param）。新 import 边 `lifecycle→research/funding` 已入
+  `check_import_direction.sh` 白名单（闸过 113 边）。
+- **阈值归位**：`migrations/fin_0096_min_net_apr_floor.sql`——
+  `INSERT ... ON CONFLICT DO UPDATE` 0.20→0.06（显式覆盖 SG 现值）；登记 {96}
+  （95 为 T-0299 在飞支占用，单调位由合并序保）。`check_migrations.sh` 七断言绿。
+- **测试**：`TestRoundTripAmortization` 新增（HoldDays 1/3/30 单调+手算相等
+  1.168/0.3893/0.0389+薄率 net_apr 拒+evidence 三键）；`TestMakerFeeSetSplit`/
+  `TestEvaluateDynamicFloor`/`TestScanEarnFloorE2E` 期望值按新口径改（锚不删，
+  0.06 between 形以 HoldDays=365 复锚）；opener_test 拒卡 `cost_apr` 与
+  `funding.CostAPR` 同值断言。funding 11 桩+lifecycle 30 桩全绿（5434 实例）。
+- **待外部位（非施工面）**：30d 回放 SQL 等决策席出件后跑并补表；paper 7d、
+  SG app_config 实查=0.06、maker 档位 probe（T-0237 债）皆部署后实证件——
+  本分支未含部署动作（部署钦定径 deploy_image.sh 由决策/管理席行）。

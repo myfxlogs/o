@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"o/internal/research/funding"
 )
 
 type fakeOpener struct {
@@ -222,8 +224,9 @@ func TestOpenLifetimePassesHealthy(t *testing.T) {
 	}
 }
 
-// T-0111 ①锚：回本窗判据——funding 0.5bps/72h(9 结)=4.5bps carry <
-// 4 腿×(5+3)bps×1.5=48bps → breakeven_beyond_hold 拒开。
+// T-0111 ①锚（T-0297 同源化）：回本窗判据——毛收年化 0.05475 <
+// 摩擦年化 cost_apr(32bps×365/3=0.3893)×1.5 → breakeven_beyond_hold 拒开；
+// 拒卡 evidence.cost_apr 与 funding.CostAPR 同值（展示/判据同源对拍）。
 func TestOpenBreakevenRejectsThin(t *testing.T) {
 	ctx, r, fo := openerSetup(t)
 	seedFlip(t, ctx, r)
@@ -237,9 +240,13 @@ func TestOpenBreakevenRejectsThin(t *testing.T) {
 	if len(fo.calls) != 0 {
 		t.Fatal("回本窗不满仓被开出")
 	}
-	var n int
-	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_eval_reject
-		WHERE reason='breakeven_beyond_hold'`).Scan(&n); err != nil || n == 0 {
-		t.Fatalf("breakeven_beyond_hold 拒卡未落（n=%d）", n)
+	var costAPR float64
+	if err := r.pool.QueryRow(ctx, `SELECT (evidence->>'cost_apr')::float8 FROM fin_eval_reject
+		WHERE reason='breakeven_beyond_hold'`).Scan(&costAPR); err != nil {
+		t.Fatalf("breakeven_beyond_hold 拒卡未落: %v", err)
+	}
+	want := funding.CostAPR(funding.Params{TakerFeeBps: 5, SlippageBps: 3, FailCostBps: 2, WindowLossBps: 4, HoldDays: 3})
+	if costAPR != want {
+		t.Fatalf("evidence cost_apr=%v 与 funding.CostAPR=%v 异源", costAPR, want)
 	}
 }

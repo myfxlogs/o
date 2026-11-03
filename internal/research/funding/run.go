@@ -25,6 +25,7 @@ var paramKeys = []string{
 	"research.funding.taker_fee_bps", "research.funding.maker_fee_bps", "research.funding.slippage_bps",
 	"research.funding.fail_cost_bps", "research.funding.window_loss_bps",
 	"research.funding.min_net_apr", "research.funding.settles_per_day",
+	"guard.max_hold_hours", // T-0297：费用年化摊销持仓期源（与 opener breakevenOK 同键一源）
 }
 
 // Runner 枚举+评估+闸岗（双员工：探员=枚举面，验证官=评估+提案闸面）。
@@ -97,6 +98,11 @@ func (r *Runner) params() (Params, error) {
 	if p.SettlesPerDay, err = get(paramKeys[6]); err != nil {
 		return p, fmt.Errorf("%s: %w", paramKeys[5], err)
 	}
+	var holdH float64
+	if holdH, err = get(paramKeys[7]); err != nil {
+		return p, fmt.Errorf("%s: %w", paramKeys[7], err)
+	}
+	p.HoldDays = holdH / 24
 	return p, nil
 }
 

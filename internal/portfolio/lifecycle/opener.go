@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"log"
 	"time"
+
+	"o/internal/research/funding" // T-0297：breakevenOK 摩擦/年化同源（白名单边——评估判据一源律）
 )
 
 // OpenSpec live 开仓规格（funding-hedge 模板：direction=short_perp_long_spot）。
@@ -197,27 +199,46 @@ func (r *Runner) lifetimeOK(ctx context.Context, spec OpenSpec) (bool, string) {
 	return true, ""
 }
 
-// breakevenOK 回本窗判据（T-0111 ①）：预期 carry=|funding 率|×结算次数
-// （max_hold 窗内 8h 一结）×名义 ≥ 往返摩擦×安全系数——摩擦=4 腿×
-// （taker+slippage）bps（research.funding.* 键组），安全系数
-// guard.breakeven_safety（缺省 1.5）。键缺/率缺=fail-closed 拒开。
+// breakevenOK 回本窗判据（T-0111 ①；T-0297 同源根修）：毛收年化=
+// funding 率×日结算次数×365 ≥ 往返摩擦年化×安全系数——摩擦/年化摊销
+// 调 funding 包 RoundTripBps/CostAPR 同一函数（评估卡展示值与开闸判据
+// 同源——自检 I），不再本地算式。摩擦含四次成交全谱（2×双腿费+2×滑点+
+// 失败成本+窗口损）；安全系数 guard.breakeven_safety（缺省 1.5）。
+// 键缺/率缺=fail-closed 拒开。
 func (r *Runner) breakevenOK(ctx context.Context, spec OpenSpec) (bool, string) {
-	maxH, err := r.cfg.GetFloat("guard.max_hold_hours")
-	if err != nil {
-		r.rej.Inc("missing_param")
-		return false, "guard.max_hold_hours 判据键缺 fail-closed"
+	p := funding.Params{}
+	var err error
+	get := func(k string) (float64, error) {
+		v, e := r.cfg.GetFloat(k)
+		if e != nil {
+			r.rej.Inc("missing_param")
+			return 0, fmt.Errorf("%s 判据键缺 fail-closed: %w", k, e)
+		}
+		return v, nil
 	}
-	taker, err := r.cfg.GetFloat("research.funding.taker_fee_bps")
-	maker, merr := r.cfg.GetFloat("research.funding.maker_fee_bps") // 软键——缺=双 taker 回退（T-0247 分层）
-	if err != nil {
-		r.rej.Inc("missing_param")
-		return false, "research.funding.taker_fee_bps 判据键缺 fail-closed"
+	if p.TakerFeeBps, err = get("research.funding.taker_fee_bps"); err != nil {
+		return false, err.Error()
 	}
-	slip, err := r.cfg.GetFloat("research.funding.slippage_bps")
-	if err != nil {
-		r.rej.Inc("missing_param")
-		return false, "research.funding.slippage_bps 判据键缺 fail-closed"
+	if v, merr := r.cfg.GetFloat("research.funding.maker_fee_bps"); merr == nil { // 软键——缺=双 taker 回退（T-0247 分层）
+		p.MakerFeeBps, p.MakerFeeSet = v, true
 	}
+	if p.SlippageBps, err = get("research.funding.slippage_bps"); err != nil {
+		return false, err.Error()
+	}
+	if p.FailCostBps, err = get("research.funding.fail_cost_bps"); err != nil {
+		return false, err.Error()
+	}
+	if p.WindowLossBps, err = get("research.funding.window_loss_bps"); err != nil {
+		return false, err.Error()
+	}
+	if p.SettlesPerDay, err = get("research.funding.settles_per_day"); err != nil {
+		return false, err.Error()
+	}
+	var maxH float64
+	if maxH, err = get("guard.max_hold_hours"); err != nil {
+		return false, err.Error()
+	}
+	p.HoldDays = maxH / 24 // 与评估器同一时间地平线一源
 	safety := 1.5
 	if v, err := r.cfg.GetFloat("guard.breakeven_safety"); err == nil && v > 0 {
 		safety = v
@@ -229,21 +250,14 @@ func (r *Runner) breakevenOK(ctx context.Context, spec OpenSpec) (bool, string) 
 		r.rej.Inc("facts_missing")
 		return false, "funding 率行缺 fail-closed"
 	}
-	settles := maxH / 8
-	if settles < 1 {
-		settles = 1 // 不足一窗仍按一次结算计下限
-	}
-	carryBps := *rate * 10000 * settles // 预期 carry（bps）
-	frictionBps := 4 * (taker + slip)   // 4 腿往返摩擦（bps）
-	if merr == nil {                    // T-0247 在册判（merr 非 err——0/负合法值不揉缺键）
-		frictionBps = 2*(maker+slip) + 2*(taker+slip)
-	}
-	if carryBps < frictionBps*safety {
+	grossAPR := *rate * p.SettlesPerDay * 365 // 毛收年化（保留号——负率仍拒）
+	costAPR := funding.CostAPR(p)
+	if grossAPR < costAPR*safety {
 		if n := r.rejectEvalReason(ctx, spec, "breakeven_beyond_hold", map[string]any{
-			"carry_bps": carryBps, "friction_bps": frictionBps, "safety": safety,
-			"funding_rate": *rate, "settles": settles}); !n {
-			return false, fmt.Sprintf("breakeven_beyond_hold:预期 carry %.2fbps<摩擦 %.2fbps×%.1f",
-				carryBps, frictionBps, safety)
+			"cost_apr": costAPR, "gross_apr": grossAPR, "safety": safety,
+			"funding_rate": *rate, "hold_days": p.HoldDays}); !n {
+			return false, fmt.Sprintf("breakeven_beyond_hold:毛收 %.4f<摩擦年化 %.4f×%.1f",
+				grossAPR, costAPR, safety)
 		}
 		return false, "breakeven_beyond_hold"
 	}
