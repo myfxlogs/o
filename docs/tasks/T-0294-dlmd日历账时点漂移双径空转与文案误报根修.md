@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | 收口待审 |
+| 状态 | 完成（决策席验收通过 devin @ 2026-11-04——见「决策席裁决注记」；锚④由业主停服令销非缺陷） |
 | 立项 | `[角色:决策]` @ 2026-11-01（管理席令 `20261101-143704-MANAGE-3948`——L1 滞留→DM-4042→门2-DM 升级唤起 DM-4070） |
 | 领取 | devin-施工席 @ 2026-11-01 |
 | 优先级 | **高**——日历账每日 14:33 错时点误报且文案冒充 L3 升级（噪声喂升级链）；esc 断链=L2→L3 安全网对全角 subject 静默失效 |
@@ -160,4 +160,19 @@
 **坑条目**：`条目/dbp2-cutover-file-ledger-fireq.md` 合记双病灶+伴生坑（kbgen 索引已重建）。
 commit meta @1bab8cb（直落 master 钦定例+bin/dlmd 随 commit）。
 **范围外确认**：/opt/o 码面零动；manage-morning/dlmd.service/enforce.conf/OnCalendar spec/MBUS_DEPTH 语义零动；DM-4071 链另案；digest 合并不建。
+
+## 决策席裁决注记（devin @ 2026-11-04——收口 meta@1bab8cb+o@f3c6ece6 全量亲核）
+
+**裁词：通过。** 逐锚对账（实迹非口报）：
+
+- **锚①门禁**：`/opt/meta-archive/mbusd`（码面与 1bab8cb 同，其上仅 4b9dbf1 注记文档）实跑——build✓ vet✓ test 51 全绿含五新锚（TestSyncCalendarNewObAlignsNextElapse/TestCalendarRearmUsesSpecNotPeriod 月租非30d例/TestOnFireReqEarlyFireKeepsArmed/TestEscalateCJKSubjectBuildsEsc 对抗核/TestIDSlugSanitize）。**违**：gofmt 红——`main_test.go` import 序（path/filepath 与 regexp 倒位），回填「gofmt 全绿」虚报，记档计次。
+- **锚②fireq 桥接**：`mbus.sh:330-336` .ob 存在门+`.tmp.$$`+mv+sync -f 同 .disarm 律在案；产线实证 journal 16:00:52–16:01:18 十五条 `EARLY_FIREQ`（陈旧 transient 标弃、账保 armed）=新闸+消费链实跑，非哑码。
+- **锚③对正实证（三重亲核）**：journal `CALENDAR_ALIGN id=cal:morning-0830 old=1793606027 new=1793579400` + 归档盘 `.ob` fire_at=1793579400 + `date -d` 实核=**2026-11-02 08:30:00 CST**，与 `systemd-analyze calendar` Next elapse 对照一致；kpi-monthly=1796086800=12-01 09:00；`list-timers|grep dlm-cal` **零命中**（edr-cal 正源在）。演进链 15:52→15:53（SPEC_WARN 回退）→15:54（钦定径对正）在 journal 全迹，与回填「weekday+TZ 剥离」迭代吻合。
+- **锚④次日 08:30 文案锚：销——非缺陷**。业主令 2026-11-01 meta 全面停服归档（4b9dbf1 @16:01:41），dlmd 16:01:20 `DLMD_STOP` 未再起；edr-cal unit 11-02/03 两拍皆 203/EXEC（ExecStart 径已入档）。锚所验系统已不存在，协议「production 锚缺不判红」更进一层——验收域随停服令灭失，记档不挂账。日历文案分径码面在案（enforceFire `ob.Kind=="calendar"` 分支零「EDR 升级」字面）。
+- **锚⑤esc 断链**：idSlug（同 unitName 映射律+钳64+空串兜底）落码；单测 WOULD_ESCALATE→WOULD_ARM 全链无「非法 id」——对抗核绿。
+- **锚⑥坑条目**：`条目/T-0294-dbp2-cutover-file-ledger-fireq.md` verified 态+回改点必填+`索引.md` 第 55 行在案。
+
+**范围红线**：o 仓 f3c6ece6 三件全在票面（本票+坑条目+索引）✓；meta 1bab8cb 六件中四件在清单（bin/dlmd、mbus.sh、main.go、main_test.go），**两件台账超域记档**：`docs/管理席交接态.md`+16（并行无头管理席快照脏树搭车——无分支直落 master 径的固有污染）、`docs/施工提示词-外部-T0292-派发池化.md` 删除（已收口票提示词清扫）。台账件非实现码、零功能面——不以此驳，但施工席「全树一锅端 commit」习惯记档；meta 径已停服归档无返修对象。
+
+**裁后注**：meta EDR 域自 11-01 16:01 起由业主令停服，本票修复在停服前 7 分钟窗口产线实证完毕（CALENDAR_ALIGN 对正值+EARLY_FIREQ 闸实跑）——交付质量在窗口内证毕，其后锚灭失归外部令。坑条目「双账切换保双侧写桥」铁律对仍存活系统有效。
 
