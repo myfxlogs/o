@@ -85,6 +85,8 @@ internal/research/scout -> internal/research/funding
 internal/platform/notify -> internal/gen/scoutv1
 internal/research/scout -> internal/gen/scoutv1
 internal/review -> internal/gen/econv1
+internal/eventbus -> internal/gen/eventv1
+internal/gen/eventv1/eventv1connect -> internal/gen/eventv1
 internal/research/analyst -> internal/platform/config
 internal/research/analyst -> internal/platform/notify
 internal/research/analyst -> internal/platform/rejects

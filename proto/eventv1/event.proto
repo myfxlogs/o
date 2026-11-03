@@ -1,0 +1,18 @@
+syntax = "proto3";
+package o.event.v1;
+option go_package = "o/internal/gen/eventv1";
+import "google/protobuf/timestamp.proto";
+
+// T-0312 第五刀：OCI→dev 事件总线（帧=信号非数据——source/kind/max_id/ts
+// 四字段，载荷本体禁入帧；ConnectRPC server-stream；resume 水位补帧）。
+message SourceWatermark { string source = 1; int64 max_id = 2; }
+message WatchRequest { repeated SourceWatermark resume = 1; }
+message DataAdvanced {
+  string source = 1;              // 表名（md_ctx_fact|md_macro_event|fin_econ_lesson）
+  string kind = 2;                // ctx|econ（唤醒映射键）
+  int64 max_id = 3;
+  google.protobuf.Timestamp ts = 4;
+}
+service EventBus {
+  rpc Watch(WatchRequest) returns (stream DataAdvanced) {}
+}

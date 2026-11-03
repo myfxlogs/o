@@ -14,3 +14,4 @@ inputs:
       - proto/dashboardv1
       - proto/scoutv1
       - proto/econv1
+      - proto/eventv1
