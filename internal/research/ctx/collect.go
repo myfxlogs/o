@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"encoding/xml"
+	"log"
 	"strings"
 	"time"
 )
@@ -117,6 +118,7 @@ func (r *Runner) collectFred(c context.Context) error {
 		if k, err := r.fredFn(c); err == nil {
 			r.fredKey = k
 		} else {
+			log.Printf("[ctx] fred 键取败: %v", err) // T-0311 返修⑤——静默吞错坑定位灯
 			r.rej.Inc("fetch_err")
 		}
 	}
@@ -127,6 +129,7 @@ func (r *Runner) collectFred(c context.Context) error {
 		b, err := r.fetch(c, "https://api.stlouisfed.org/fred/series/observations?series_id="+s+
 			"&api_key="+r.fredKey+"&sort_order=desc&limit=2&file_type=json")
 		if err != nil {
+			log.Printf("[ctx] fred %s 拉取败: %v", s, err) // T-0311 返修⑤——静默吞错坑定位灯
 			return err
 		}
 		var resp struct {
