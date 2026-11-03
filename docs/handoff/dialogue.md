@@ -639,3 +639,17 @@
 - **回放关键发现**：新口径 30d pass=259 观测/75 inst，但**按现货目录核零 inst 有腿**——过阈头部全股权指数永续（BWET/SHEIN/ADBE/US100/MSTU）。**新口径+腿闸下当前 regime 可开仓集≈0——如实**。BTC-USDT-SWAP 30d 零观测达阈（中位 ~0.5-1.0bps 远低所需 4.1bps）。第一分钱杠杆=持仓期×maker 费，已记票面。
 - **部署后验项四项**（随 deploy_image.sh 迁移链销）：SG min_net_apr=0.06 实查、evidence cost_apr、paper 7d、maker 档位 probe（T-0237 债）。
 - **部署依赖**：T-0299（fin_0095 paused 键/md_1079 parked）+T-0297（fin_0096 阈值归位）迁移均待 SG 镜像 boot 应用——部署令归管理席。
+
+## 2026-11-03（续）T-0298 验收合 master，T-0300 迁移序重排
+
+- **T-0298 验收通过**：basis 评估器费用摊销完全复用 T-0297 同源件——
+  `funding.CostAPR`/`RoundTripBps` 零第二份算式；`EarnRate` 抽为共用读件
+  （funding 自家 earnRateAPR 改委托）。符号面 `math.Abs` 病灶根修：有符号
+  `net≥floor`，深负基差不再误 proposed；`basis_expiry_soon` 摊销前早退。
+- 域判正确：`fin_opp_template` 归 md 链（UPDATE 落 md_1080）、`ops_event`
+  归 fin 链（落 fin_0097 seed 文件内）。`quarter_basis_short` 保禁不动。
+- 决策席复跑 20 绿（grammar+funding）+build/gofmt/vet/import 边全净；`rg '0\.05' run.go` 零命中。合 master @4eeafd7b。
+- **部署后验项两项**：SG `fin_opp_template` enabled=t 实拍；启用后 7d proposed≥3（armed→strategy 断链归 T-0200，票外）。
+- **T-0300 迁移序重排**：fin_venue_candidate=fin_0098、md_venue_funding=md_1081
+  （原会签钉的 0097/1080 已被 T-0298 用讫）——票面注记已改 @master。
+- 待办队列：T-0300 候派（提示词已出）；T-0297/0298/0299 迁移随下次镜像部署生效。
