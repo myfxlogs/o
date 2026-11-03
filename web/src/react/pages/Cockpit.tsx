@@ -90,6 +90,42 @@ export function PipelineTile() {
 	);
 }
 
+// OrgPipelineTile 工程票组织流卡（T-0309 返修①②——ops_event 组织流挪系统页
+// 消费：票号/标题/步链/灯整体挪位，GetPipeline 端点不删；钱径舱位让 WorkItems）。
+export function OrgPipelineTile() {
+	const pl = useSlice("pipeline");
+	const extra = pl.data ? <StateDot state={0} breathe title={`${pl.data.rows.length}/${pl.data.totalActive} 在飞 · 水印 ${pl.data.seq}`} /> : undefined;
+	if (!pl.data) return <Card title="工程票管道" extra={extra}>{pl.err ? <p className="dim">该段数据缺（读败）</p> : <Skeleton rows={4} />}</Card>;
+	const rows = pl.data.rows;
+	const more = Number(pl.data.totalActive) - rows.length;
+	return (
+		<Card title="工程票管道（组织流）" extra={extra}>
+			{rows.length === 0 ? <EmptyState title="无在飞票" hint="活跃票（未部署上线）为空——管道空闲" /> :
+				<div className="tile-scroll">{rows.map((r: CockpitPipelineRow) => {
+					const rowHover = `${r.ticket} | ${r.title || "无题"} | 已历时 ${durMin(r.elapsedMin)} | 当前卡在 ${r.currentSeat}（${STEP_RESULT[r.currentState] ?? r.currentState}）`;
+					return (
+						<div className="pipe-row" key={r.ticket} title={rowHover}>
+							<StateDot state={r.state} breathe={r.breathe} title={`行级灯（=当前活动席状态色） · ${rowHover}`} />
+							<span className="pipe-ticket">{r.ticket}</span>
+							{r.title && <span className="pipe-title">{r.title}</span>}
+							<span className="pipe-chain">
+								{r.steps.map((s, i) => (
+									<span key={i} className="pipe-seat">
+										{i > 0 && <span className="pipe-arrow">→</span>}
+										<SeatBadge s={s} />
+									</span>
+								))}
+							</span>
+							<span className="pipe-elapsed">{durMin(r.elapsedMin)}</span>
+						</div>
+					);
+				})}
+				{more > 0 && <p className="dim">+{more} more…</p>}
+				</div>}
+		</Card>
+	);
+}
+
 export function CockpitPage() {
 	const [d, setD] = useState<GetCockpitResponse | null>(null);
 	const hl = useSlice("headless");

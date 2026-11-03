@@ -144,20 +144,22 @@ func (c coreService) workItems(ctx context.Context) []*dashboardv1.WorkItem {
 		}
 		rs.Close()
 	}
-	// ③venue measuring（since=首入度量缺——metrics measured_at 兜底；
-	// progress=X/30d 由采集行数天数计数派生）。
+	// ③venue measuring（返修①：md_venue_funding 归 PG-md 不在 SG——原联查
+	// 必败致整类缺席；progress 改读 metrics.boards persist 显「持续 XX%」——
+	// SG 镜像列内数据零外联；since=首入度量缺——metrics measured_at 兜底）。
 	if rs, err := c.pool.Query(ctx, `SELECT venue, metrics->>'measured_at',
-		(SELECT count(DISTINCT date_trunc('day',ts)) FROM md_venue_funding f
-		 WHERE f.venue=v.venue AND f.ts>now()-interval '30 days')
-		FROM fin_venue_candidate v WHERE state='measuring' ORDER BY venue`); err == nil {
+		metrics->'boards'->0->>'persist' FROM fin_venue_candidate v
+		WHERE state='measuring' ORDER BY venue`); err == nil {
 		for rs.Next() {
 			var venue, at *string
-			var days int64
-			if rs.Scan(&venue, &at, &days) != nil {
+			var persist *float64
+			if rs.Scan(&venue, &at, &persist) != nil {
 				break
 			}
-			w := &dashboardv1.WorkItem{Kind: "venue", Ref: *venue, Stage: "度量中",
-				Progress: fmt.Sprintf("%d/30d", days)}
+			w := &dashboardv1.WorkItem{Kind: "venue", Ref: *venue, Stage: "度量中"}
+			if persist != nil {
+				w.Progress = fmt.Sprintf("持续 %.0f%%", *persist*100)
+			}
 			if at != nil {
 				if t, err := time.Parse(time.RFC3339, *at); err == nil {
 					w.SinceTs = timestamppb.New(t)
