@@ -187,9 +187,17 @@ func (r *Runner) addLesson(ctx context.Context, kind, ref string, l *econv1.Econ
 // gate.lesson.cost_diverge_pct 阈默认 20 同族径；无现成 venue_degrade/
 // flip_exit 埋点缓两类票面注明）。
 func (r *Runner) costDiverge(ctx context.Context) error {
+	// 返修① R3：阈改读键（gate.lesson.cost_diverge_pct——值 jsonb numeric
+	// 直取；缺/败=默认 20 同族径）。
+	thresh := 20.0
+	var t float64
+	if err := r.fin.QueryRow(ctx, `SELECT value::float8 FROM app_config
+		WHERE key='gate.lesson.cost_diverge_pct'`).Scan(&t); err == nil && t > 0 {
+		thresh = t
+	}
 	rows, err := r.fin.Query(ctx, `SELECT position_ref,pred_net,actual_net,attribution
 		FROM fin_review WHERE attribution='fee_drift' AND ABS(pred_net)>0.0001
-		  AND ABS(pred_net-actual_net)/ABS(pred_net)>0.2`)
+		  AND ABS(pred_net-actual_net)/ABS(pred_net)>$1/100`, thresh)
 	if err != nil {
 		return err
 	}

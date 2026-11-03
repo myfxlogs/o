@@ -20,7 +20,11 @@ INSERT INTO fin_data_retention(table_name,class,note) VALUES
   ('fin_econ_lesson','state','经济案锚表不删行（T-0314）')
 ON CONFLICT (table_name) DO NOTHING;
 INSERT INTO app_config(key,value) VALUES
-  ('notify.feishu.econ_digest.enabled','true'::jsonb)
+  ('notify.feishu.econ_digest.enabled','true'::jsonb),
+  -- R1：gatefx Apply 「不在插行」防线配键先 seed（两拍分权——seed 立册
+  -- 裁定拍只 UPDATE 不创键）。
+  ('gate.kill.funding_carry','false'::jsonb),
+  ('gate.lesson.cost_diverge_pct','20'::jsonb)
 ON CONFLICT (key) DO NOTHING;
 -- 种案回填（钦定两行 pending——口径边界+Earn 冒充案入库）。
 INSERT INTO fin_econ_lesson(kind,entity_ref,numbers) VALUES

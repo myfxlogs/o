@@ -1,5 +1,6 @@
 // skillgen —— T-0314 语义类消费腿（canon 案→skills/econ-<slug>/SKILL.md
-// 人工裁定后命令行触发；只写 skills/econ-* 越域拒）。
+// 人工裁定后命令行触发；只写 skills/econ-* 越域拒；frontmatter 三行照
+// ctx-sources 形——返修① R2）。
 package main
 
 import (
@@ -39,7 +40,13 @@ func main() {
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		panic(err)
 	}
-	doc := fmt.Sprintf(`# %s —— 经济案 canon（T-0314 裁定生成件）
+	doc := fmt.Sprintf(`---
+name: %s
+description: 经济案 canon（T-0314 裁定生成件）——kind=%s ref=%s
+domain: 经济
+---
+
+# %s —— 经济案 canon（T-0314 裁定生成件）
 
 kind=%s ref=%s
 
@@ -48,7 +55,7 @@ kind=%s ref=%s
 
 ## 裁定回改点
 （决策席裁定后人工补录——翻译器 gatefx 机械类词径或语义条目径。）
-`, slug, kind, ref, nums)
+`, slug, kind, ref, slug, kind, ref, nums)
 	if err := os.WriteFile(dir+"/SKILL.md", []byte(doc), 0644); err != nil {
 		panic(err)
 	}
