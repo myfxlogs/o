@@ -74,3 +74,14 @@ antclaw 通道接通后 feed 扩面（RSS/经济日历/链上）+驾驶舱 memo 
 - mql5 High（importance=3）事件直写 md_macro_event upsert source='mql5'——
   `macroKind` 词集映射（fomc/cpi/nfp 闭集外名归 ctx 广谱不造平行域）；
   种子行兜底保留（测试锚 seedN>0 实证）；中低事件照入 md_ctx_fact。
+
+## ark vendored 吸收回填（devin-t0310，同支续提）
+
+- ①`internal/research/ctx/`——cot/fred/calendar(mql5 XHR 端点择优)/news 四源
+  采集件适配 O Fetcher/store；文件头注 ark 出处+Apache-2.0，LICENSE-ark 随件；
+  红线件（Telegram/cmd/badger/confluence/AI SDK）零入，dep 仅 stdlib。
+- ②落库分流：mql5 High→md_macro_event upsert source='mql5'（种子兜底实证）；
+  中低/FRED(4 series)/COT/news→md_ctx_fact。
+- ③`internal/lib/ta`——RSI/MACD/BB/ATR/SMA/EMA 纯函数壳（阶段二特征层备料）。
+- ④ctx 臂挂 researchArms（ctxcoll 别名防 context 撞名）；analyst 判词缝不动。
+- 测试：ctx 桩（High upsert+种子保留+ctx ≥3 行）绿@5434；analyst 3 桩绿。

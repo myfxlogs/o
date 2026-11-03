@@ -85,6 +85,7 @@ internal/research/scout -> internal/research/funding
 internal/research/analyst -> internal/platform/config
 internal/research/analyst -> internal/platform/notify
 internal/research/analyst -> internal/platform/rejects
+internal/research/ctx -> internal/platform/rejects
 internal/research/dcd -> internal/platform/config
 internal/research/grammar -> internal/platform/config
 internal/research/dcd -> internal/platform/events
