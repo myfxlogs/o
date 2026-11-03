@@ -669,3 +669,23 @@
   达阈请求实证）。
 - D-0043 四票全收口：T-0299/T-0297/T-0298/T-0300 均合 master。部署令归
   管理席——fin_0095-0098+md_1079-1081 六迁移随下次镜像 boot 生效。
+
+## 2026-11-03（续三）业主令部署——双域同落+scout 桥坑实证
+
+- **SG o-core 部署成**（o-core:339082400054 healthy）：fin_0096-0098 落——
+  min_net_apr=0.06、basis 键、scout 键、researcher.paused、fin_venue_candidate
+  台账在 SG。出处闸无 origin——O_DEPLOY_ALLOW_UNPUSHED=1 放行（本仓无远端）。
+- **OCI o-research 换臂**：发现研究臂不在部署链——盒上旧二进制（11-01）跑旧码
+  （阈 0.20 旧式）。交叉编 arm64→scp→restart。首启炸 `SG_PG_DSN 缺`（env 无此键
+  ——名残实指盒 PG-md :5435）：照 env.example 从 MD_PG_DSN 补行（不露值）。
+  重启 active，md_1079/1080/1081 落盒 PG-md。
+- **部署实证全绿**：fin_opp_eval 新式行在产——`net_apr -0.33 < 阈 0.06,
+  cost_apr=0.389, cost_rt_bps=32`（taker 口径当前 regime 全拒=如实）；
+  盒 PG-md fin_opp_template：quarter_basis_long/perp_quarter_spread
+  enabled=t、short 保 f/candidate。
+- **scout 臂一拍败坑**：fin_venue_candidate 钉 fin 域（SG 单边）而 scout 主池
+  =PG-md——relation not exists。立 T-0301 返修（fin→bridge 正本 PG-md+
+  seed 同源+projector 频道），KB 坑条目入库。scout 24h 一拍败一拍——不炸
+  但度量全断，钱径无碍。
+- **拓扑教训**：研究域表正本=PG-md（fin_opp_eval/fin_opp_template 同款桥）；
+  fin 域=SG o-core 单边。域判勿望表名"fin_"生义。
