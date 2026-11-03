@@ -65,3 +65,22 @@ advisory 权——判词是裁决一件输入非指令；严禁据此直接改 a
 - fred_api_key 密文已入 SG app_secrets（决策席 ops 毕 2026-11-03）；
 - O_MASTER_KEY_FILE 已落 OCI o-research env；
 - tools/secput 入库备同类键入件（stdin‖两段零明文径）。
+
+## 决策注记（业主令——席位化简化，取代①原案）
+
+**业主判**：分析席=meta 席位非生产码——一个 tmux 常驻 devin session 领
+runbook 即可（同决策席/研究员席位形制）；不牵其他项目、不造 subprocess
+包装层。**范围①改判**：
+- ~~systemd timer+脚本+devin -p 包装~~ → `skills/分析席/SKILL.md`
+  runbook 件：职责（读 ctx→产 regime 判词）、输入径（ssh OCI psql 读
+  md_ctx_fact 水印增量）、产出契约（strict JSON 数组；stance 枚举；
+  confidence 0~1 数值；evidence 实引 id；memo≤200 字标边界——决策层=AI
+  机器可解析优先）、写域收窄（仅 md_regime_fact/md_regime_memo 两表）、
+  唤醒口径（席位调度/tmux ping 沿用不新建）、心跳语义（meta 席位口径
+  不冒充生产岗 KPI）。
+- ②FRED 键路修=唯一生产码件保留；③决策席读面节保留；④生产 analyst
+  臂守位=永久后备（meta 席断线时的兜底缝已留）。
+- 验收锚改：runbook 入库+席位激活后 24h 内 md_regime_fact ≥1 实产行+
+  stance 枚举内+ctx_max_id 水印正确。
+- 诚标：agent 席写域=信任+审计制（SKILL 红线+事后审计），非生产码闸；
+  活性判据按 meta 席位口径不混生产 KPI。
