@@ -133,6 +133,10 @@ func TestGetCockpitTicketPaging(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
+	// fin_0097 台账启用 ops_event 种子行虚增票数——场景件清基非改锚。
+	if _, err := pool.Exec(ctx, "DELETE FROM ops_event"); err != nil {
+		t.Fatal(err)
+	}
 	c := coreService{pool: pool}
 	const n = 25
 	for i := 0; i < n; i++ {

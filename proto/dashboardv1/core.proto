@@ -423,6 +423,10 @@ message GetCockpitResponse {
   int32 tickets_total = 7;               // ③工单板过滤后总行数（T-0262 分页下推）
   GetHeadlessResponse headless = 8;      // T-0268：无头状态面并入首屏一往返（读败=missing "headless"）
   GetPipelineResponse pipeline = 9;      // 驾驶舱 v4 工作流管道（首屏一往返；读败=missing "pipeline"）
+  // T-0308：①存活瓦片改生产岗册源（fin_employee_registry——meta 席表出业主 KPI 视线）
+  int32 roster_active = 10;              // active 岗数（WHERE status='active'）
+  int64 roster_worst_lag_s = 11;         // 最坏心跳滞后秒（同 GetFlowPulse 口径）
+  string roster_worst_seat = 12;         // 最滞岗名（红警显名——>10min 滞转红）
 }
 
 // —— 工作流管道（驾驶舱 v4 三卡合一——1票1行管道流；ops_event 流水按票
