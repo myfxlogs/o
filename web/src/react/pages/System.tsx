@@ -12,6 +12,7 @@ import { Card, EmptyState, ErrorState, Skeleton, StateDot } from "../components/
 import { AGE, ExchSections, healthRows } from "../components/panel";
 import { pbDate } from "../components/fmt";
 import { HostMetricsCard } from "../components/hostmetrics";
+import { OrgPipelineTile } from "./Cockpit";
 import type { SystemComponent } from "../../gen/dashboardv1/core_pb";
 
 // ProcStrip SG core 采集臂进程观测（并入采集卡 SG 段——组级事实行同构渲染）。
@@ -217,6 +218,10 @@ export function SystemPage() {
           </div>
         )}
       </Card>
+
+      {/* T-0309：工程票组织流管道（挪位消费——出业主驾驶舱钱径舱，
+          ops_event 组织流业主仍可读；GetPipeline 端点不删只挪位）—— */}
+      <OrgPipelineTile />
       </div>
     </div>
   );
