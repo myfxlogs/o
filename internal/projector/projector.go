@@ -63,7 +63,7 @@ func New(md, sg *pgxpool.Pool, alert *notify.Alerter, mode string) (*Runner, err
 	// syncConfig 专径、fin_data_retention 分库独立账不经投影，见 T-0169）。
 	want := map[string]bool{"fin_opp_eval": true, "fin_proposal": true, "md_dcd_product": true,
 		"md_funding": true, "md_macro_event": true, "md_mark_index": true,
-		"md_signal": true, "md_ticks": true}
+		"md_signal": true, "md_ticks": true, "fin_venue_candidate": true}
 	regSet := map[string]bool{}
 	for _, t := range reg {
 		regSet[t] = true

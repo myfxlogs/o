@@ -33,7 +33,8 @@ INSERT INTO fin_venue_candidate(venue,kind,endpoints,maker_bps,taker_bps,kyc_ok,
   ('hyperliquid','dex-perp','{"funding":"https://api.hyperliquid.xyz/info"}',1.5,4.5,true,true,'{"fee_url":"https://hyperliquid.gitbook.io/hyperliquid-docs/trading/fees","fetched":"2026-11-03"}','measuring'),
   ('dydx-v4','dex-perp','{"funding":"https://indexer.dydx.trade/v4/perpetualMarkets"}',0.5,5,true,true,'{"fee_url":"https://docs.dydx.exchange/concepts-trading/rewards_fees_and_parameters","fetched":"2026-11-03"}','candidate'),
   ('deribit','cex-option','{"funding":"https://www.deribit.com/api/v2/public/get_funding_rate_history","instruments":"https://www.deribit.com/api/v2/public/get_instruments"}',0,5,true,true,'{"fee_url":"https://www.deribit.com/pages/information/fees","fetched":"2026-11-03"}','candidate'),
-  ('okx','cex-perp','{"funding":"https://www.okx.com/api/v5/public/funding-rate","instruments":"https://www.okx.com/api/v5/public/instruments"}',2,5,true,true,'{"fee_url":"https://www.okx.com/fees","fetched":"2026-11-03","note":"基准行——同族对照源"}','measuring');
+  ('okx','cex-perp','{"funding":"https://www.okx.com/api/v5/public/funding-rate","instruments":"https://www.okx.com/api/v5/public/instruments"}',2,5,true,true,'{"fee_url":"https://www.okx.com/fees","fetched":"2026-11-03","note":"基准行——同族对照源"}','measuring')
+ON CONFLICT (venue) DO NOTHING; -- T-0301：升桥后 md_1082 种子已落同键行（两链并集态幂等）
 
 INSERT INTO app_config(key,value) VALUES
   ('scout.recommend_margin_apr','0.05'),

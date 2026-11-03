@@ -145,4 +145,5 @@ var migrationTable = []struct {
 	{1079, "md_1079_hypothesis_parked.sql"},
 	{1080, "md_1080_basis_template_enable.sql"},
 	{1081, "md_1081_venue_funding.sql"},
+	{1082, "md_1082_venue_candidate.sql"},
 }
