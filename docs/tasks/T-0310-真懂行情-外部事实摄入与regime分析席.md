@@ -65,3 +65,14 @@ antclaw 通道接通后 feed 扩面（RSS/经济日历/链上）+驾驶舱 memo 
 3. 种子行处置：mql5 首采后对重叠事件 source 改 'mql5' upsert；种子行
    保留为兜底（远端缺席不删——事件存在性以 seed+live 并集为准）。
 4. 业主待供缩为一件：antclaw 写径（接不接都不阻塞）。
+
+
+## 决策注记④（2026-11-03 —— ark-intelligent 原型钦定）
+
+业主定：采集原型=github.com/myfxlogs/ark-intelligent（myfxlogs=业主自家
+域仓——Telegram 部已拆不用）。**采集臂照 ark internal/ 移植非从零写**：
+mql5 日历/FRED/COT 三客户端端点+解析+限速现成可抄；价格链/Bybit 微观
+不重复采；TA/信号/AI 层不移植（产信号非喂事实——与分析席职责异构）。
+FRED_API_KEY 免费件——业主提供时入 app_secrets 轨（env 域 O_FRED_API_KEY
+模式已在 check 册）。采集臂住 o-research（scout Fetcher 范式同款目录
+internal/research/ctx/ 新包）。
