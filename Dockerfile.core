@@ -8,6 +8,7 @@ RUN cd web && npm ci
 RUN npm i -g @bufbuild/buf@1.74.0
 COPY buf.yaml buf.gen.web.yaml ./
 COPY proto/dashboardv1 proto/dashboardv1
+COPY proto/scoutv1 proto/scoutv1
 COPY web/ web/
 RUN buf generate --template buf.gen.web.yaml
 RUN cd web && npm run build
