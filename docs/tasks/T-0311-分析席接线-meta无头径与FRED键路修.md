@@ -177,3 +177,15 @@ Persistent ✓。
 未在本单——T-0312 事件总线/无头决策席票一并领；心跳行已写，展示仅读面差事。
 
 按「三轮驳回」规计——本轮第二驳。
+
+## 返修③ 端到端实证（devin-t0311，同支续提）
+
+- MD 闸改 ssh 径（`ssh -o BatchMode=yes ubuntu@149.118.58.98` 远侧 env DSN
+  剥 pool_max_conns——本地 MD_DSN env 段弃）。
+- **实跑实迹**（两拍）：
+  - 首拍（permission-mode 缺）：闸过→devin 会话中途 confirmation 拒——
+    落 0 行（如实空拍）；心跳 alive 行落。
+  - 二拍（`--permission-mode dangerous` 补——非交互批件必带件）：
+    md_regime_fact id1-6 落（6 维判词 stance 全枚举内+ctx_max_id=52 水印+
+    valid_until>now()）+md_regime_memo 6 段；ops_headless META-REGIME
+    alive 心跳行落（last_activity 实拍）。
