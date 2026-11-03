@@ -222,7 +222,7 @@ func TestXvenueSplitSettles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var xb *board
+	var xb *Board
 	for i := range boards {
 		if boards[i].Family == "xvenue_spread" {
 			xb = &boards[i]

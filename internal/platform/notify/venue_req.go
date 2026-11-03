@@ -12,6 +12,9 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"o/internal/research/scout/board" // 返修①丙案：scout/board.Board 共享导出型——
+	// 字段漂移编译期炸非运行时静默降级（本地解析 struct 删）。
 )
 
 // VenueReq venue 注册请求推送件（sender 复用同装配面——不新造栈）。
@@ -85,33 +88,20 @@ func venueMsg(venue string, mets []byte) string {
 	// state='recommended' 即达阈认证推送面不二次裁决阈=双真相源防；
 	// 直取 persist 最高 board 组文）。struct 字段=scout board 六件真形。
 	var m struct {
-		Boards []struct {
-			Family         string   `json:"family"`
-			NetAprMid      *float64 `json:"net_apr_mid"`
-			Persist        *float64 `json:"persist"`
-			Baseline       *float64 `json:"baseline"`
-			BaselineSource string   `json:"baseline_source"`
-			TopN           *int     `json:"top_n"`
-		} `json:"boards"`
+		Boards []board.Board `json:"boards"`
 	}
 	if err := json.Unmarshal(mets, &m); err != nil || len(m.Boards) == 0 {
 		return fall
 	}
-	best := -1
-	for i, b := range m.Boards {
-		if b.NetAprMid == nil || b.Persist == nil || b.Baseline == nil {
-			continue
-		}
-		if best < 0 || *b.Persist > *m.Boards[best].Persist {
+	best := 0 // persist 最高 board 直取组文（margin 伪阈已删——state 达阈认证）
+	for i := range m.Boards {
+		if m.Boards[i].Persist > m.Boards[best].Persist {
 			best = i
 		}
 	}
-	if best < 0 {
-		return fall
-	}
 	b := m.Boards[best]
 	return fmt.Sprintf("【venue-scout】请注册 %s：%s 30d 实测净年化 %v%% vs 基线 %v%%（持续占比 %v%%）——红线件：新平台注册归业主裁决。凭据到手后落 skills/venue-scout-%s 能力账径。",
-		venue, b.Family, fmtPct(*b.NetAprMid), fmtPct(*b.Baseline), fmtPct(*b.Persist), venue)
+		venue, b.Family, fmtPct(b.NetAprMid), fmtPct(b.Baseline), fmtPct(b.Persist), venue)
 }
 
 func fmtPct(v float64) string { return strings.TrimSuffix(fmt.Sprintf("%.2f", v*100), ".00") }

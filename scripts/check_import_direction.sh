@@ -82,6 +82,8 @@ internal/research/scout -> internal/platform/config
 internal/research/scout -> internal/platform/notify
 internal/research/scout -> internal/platform/rejects
 internal/research/scout -> internal/research/funding
+internal/platform/notify -> internal/research/scout/board
+internal/research/scout -> internal/research/scout/board
 internal/research/analyst -> internal/platform/config
 internal/research/analyst -> internal/platform/notify
 internal/research/analyst -> internal/platform/rejects
