@@ -1,8 +1,13 @@
 // Package funding —— funding 对冲机会枚举+评估卡（研究域首岗；员工 探员/验证官）。
-// 净 APR 五拆：毛收 − 双腿费 − 滑点 − 失败成本 − 窗口损；任一无证据=不可评估禁出卡。
+// 净 APR 五拆：毛收 − 往返摩擦年化摊销（双腿费+滑点+失败成本+窗口损，T-0297
+// 口径根修——一次性费用按 guard.max_hold_hours 持仓期摊年化，与毛收同单位相减）；
+// 任一无证据=不可评估禁出卡。
 package funding
 
-import "fmt"
+import (
+	"fmt"
+	"math"
+)
 
 // Params 五拆判据（全自 app_config 机读——零代码字面量）。
 type Params struct {
@@ -14,6 +19,9 @@ type Params struct {
 	WindowLossBps float64
 	MinNetAPR     float64
 	SettlesPerDay float64
+	// HoldDays 预测持仓期天（guard.max_hold_hours/24——T-0297：与 opener
+	// breakevenOK 同一时间地平线一源，费用年化摊销分母）。
+	HoldDays float64
 	// EarnRateAPR Earn 现率年化（D-0006 动态比较底；nil=缺失/陈旧——降级静态底+告警计数）。
 	EarnRateAPR *float64
 }
@@ -55,13 +63,17 @@ func Evaluate(instID string, rate float64, p Params) Eval {
 	if p.MakerFeeSet { // 在册按真值（0=免 maker 费档，负=返佣计入 cost 负项——哨兵不揉）
 		feeBps = p.TakerFeeBps + p.MakerFeeBps
 	}
-	cost := (feeBps + p.SlippageBps + p.FailCostBps + p.WindowLossBps) / 1e4
-	net := gross - cost
+	// T-0297 费用往返口径＋年化摊销（根修：旧式一次性费用与年化毛收直减
+	// 低估 ~120 倍）——cost_rt_bps=四次成交往返摩擦，cost_apr=按持仓期摊年化。
+	costRtBps := RoundTripBps(p)
+	costAPR := CostAPR(p)
+	net := gross - costAPR
 	e.GrossAPR, e.NetAPR = gross, net
 	e.Evidence = map[string]any{
 		"funding_rate": rate, "settles_per_day": p.SettlesPerDay,
 		"fee_bps": feeBps, "taker_fee_bps": p.TakerFeeBps, "maker_fee_bps": p.MakerFeeBps, "maker_fee_set": p.MakerFeeSet, "slippage_bps": p.SlippageBps,
 		"fail_cost_bps": p.FailCostBps, "window_loss_bps": p.WindowLossBps,
+		"cost_rt_bps": costRtBps, "hold_days": p.HoldDays, "cost_apr": costAPR,
 		"min_net_apr": p.MinNetAPR, "floor_apr": floor, "floor_source": floorSrc,
 	}
 	if p.EarnRateAPR != nil {
@@ -80,6 +92,26 @@ func Evaluate(instID string, rate float64, p Params) Eval {
 	}
 	e.Evidence["reason"] = e.Reason // 拒因入 evidence 落卡（fin_opp_eval 无独立 reason 列——机读面=evidence jsonb）
 	return e
+}
+
+// RoundTripBps 往返摩擦（bps，T-0297 导出——opener breakevenOK 同源调用面）：
+// 四次成交=2×双腿费 + 2×滑点 + 失败成本 + 窗口损。maker 分层沿 T-0247：
+// 在册=taker+maker 复合，缺=2×taker。
+func RoundTripBps(p Params) float64 {
+	feeBps := 2 * p.TakerFeeBps
+	if p.MakerFeeSet {
+		feeBps = p.TakerFeeBps + p.MakerFeeBps
+	}
+	return 2*feeBps + 2*p.SlippageBps + p.FailCostBps + p.WindowLossBps
+}
+
+// CostAPR 往返摩擦年化摊销（比率）=cost_rt_bps/1e4×365/hold_days。
+// HoldDays<=0=判据缺位——+Inf fail-closed（净 APR 必沉底，不虚构放行）。
+func CostAPR(p Params) float64 {
+	if p.HoldDays <= 0 {
+		return math.Inf(1)
+	}
+	return RoundTripBps(p) / 1e4 * 365 / p.HoldDays
 }
 
 func abs(f float64) float64 {

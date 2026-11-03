@@ -26,7 +26,8 @@ func TestScanE2E(t *testing.T) {
 	for k, v := range map[string]string{
 		"research.funding.taker_fee_bps": "5", "research.funding.slippage_bps": "3",
 		"research.funding.fail_cost_bps": "2", "research.funding.window_loss_bps": "4",
-		"research.funding.min_net_apr": "0.05", "research.funding.settles_per_day": "3"} {
+		"research.funding.min_net_apr": "0.05", "research.funding.settles_per_day": "3",
+		"guard.max_hold_hours": "72"} {
 		if _, err := pool.Exec(ctx,
 			"INSERT INTO app_config(key,value) VALUES($1,to_jsonb($2::text)) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value", k, v); err != nil {
 			t.Fatal(err)
@@ -91,6 +92,20 @@ func TestScanE2E(t *testing.T) {
 	if got := r.rej.Snapshot()["research/missing_params"]; got == 0 {
 		t.Fatal("missing_params 门未计")
 	}
+	// T-0297：guard.max_hold_hours 缺=HoldDays 判据缺位——同 fail-closed missing_params
+	if _, err := pool.Exec(ctx,
+		"INSERT INTO app_config(key,value) VALUES('research.funding.min_net_apr','0.05')"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, "DELETE FROM app_config WHERE key='guard.max_hold_hours'"); err != nil {
+		t.Fatal(err)
+	}
+	if err := cfg.Load(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.scan(ctx); err == nil {
+		t.Fatal("guard.max_hold_hours 缺位应 fail-closed（HoldDays=0 判据缺）")
+	}
 }
 
 // TestScanEarnFloorE2E 动态底扫描径三态：Earn 现率新鲜行→below_earn 拒；行缺/陈→
@@ -106,11 +121,13 @@ func TestScanEarnFloorE2E(t *testing.T) {
 	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
 		t.Fatal(err)
 	}
-	// net=0.06 锚定形判据（taker 1500+slip 50bps；rate 0.001×1 settle×365）
+	// net=0.06 锚定形判据（T-0297 新口径：cost_rt=3050bps 按 HoldDays=365 摊→cost_apr=0.305；
+	// rate 0.001×1 settle×365=0.365 毛收−0.305=0.06）
 	for k, v := range map[string]string{
-		"research.funding.taker_fee_bps": "1500", "research.funding.slippage_bps": "50",
+		"research.funding.taker_fee_bps": "750", "research.funding.slippage_bps": "25",
 		"research.funding.fail_cost_bps": "0", "research.funding.window_loss_bps": "0",
 		"research.funding.min_net_apr": "0.05", "research.funding.settles_per_day": "1",
+		"guard.max_hold_hours":      "8760",
 		"research.earn.stale_hours": "2"} {
 		if _, err := pool.Exec(ctx,
 			"INSERT INTO app_config(key,value) VALUES($1,to_jsonb($2::text)) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value", k, v); err != nil {
@@ -264,7 +281,8 @@ func TestActiveStrategyBlocksProposal(t *testing.T) {
 	for k, v := range map[string]string{
 		"research.funding.taker_fee_bps": "5", "research.funding.slippage_bps": "3",
 		"research.funding.fail_cost_bps": "2", "research.funding.window_loss_bps": "4",
-		"research.funding.min_net_apr": "0.05", "research.funding.settles_per_day": "3"} {
+		"research.funding.min_net_apr": "0.05", "research.funding.settles_per_day": "3",
+		"guard.max_hold_hours": "72"} {
 		if _, err := pool.Exec(ctx,
 			"INSERT INTO app_config(key,value) VALUES($1,to_jsonb($2::text)) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value", k, v); err != nil {
 			t.Fatal(err)

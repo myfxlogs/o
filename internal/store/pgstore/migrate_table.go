@@ -102,6 +102,7 @@ var migrationTable = []struct {
 	{93, "fin_0093_ops_headless_six_states.sql"},
 	{94, "fin_0094_eval_proposed_net_apr_gate.sql"},
 	{95, "fin_0095_researcher_paused.sql"},
+	{96, "fin_0096_min_net_apr_floor.sql"},
 
 	// —— md 链（版本链内唯一且单调；md 链版本=历史号+1000 与 fin 键空间全局不相交——跨链并 schema 时 schema_migrations 零撞号，check_migrations 断言①⑤）——
 	{1003, "md_1003_market_facts.sql"},
