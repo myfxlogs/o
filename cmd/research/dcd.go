@@ -27,6 +27,7 @@ import (
 	"o/internal/research/grammar"
 	"o/internal/research/hypothesis"
 	"o/internal/research/researcher"
+	"o/internal/research/scout"
 	"o/internal/research/sigdist"
 	"o/internal/trading/okxexec"
 )
@@ -175,6 +176,8 @@ func researchArms(ctx context.Context, errc chan<- error, pool *pgxpool.Pool,
 	hr.AttachSignals(hypoSignalReader(pool)) // T-0140 信号读闸接线（sig 域→hypothesis 域投影）
 	go hr.Run(ctx, errc)
 	go grammar.NewRunner(pool, cfg).AttachCoins(okxCoinsFor(pool, okcli)).Run(ctx, errc) // T-0120 文法枚举臂；T-0215 vol-sell 实评 coins 缝
+	// T-0300 venue scout 骨架臂（公开面零凭据——凭据型端点调用=票级禁线）。
+	go scout.NewRunner(pool, cfg).AttachAlerter(alerter).Run(ctx, errc)
 	// 研究员席静默看门（T-0121：短会话岗无臂拍——DB 双源锚 14 天窗，core 代守）
 	sw := researcher.NewSilentWatch(pool)
 	sw.AttachAlerter(alerter)

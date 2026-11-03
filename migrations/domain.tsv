@@ -80,3 +80,5 @@ arch_eval_reject	fin
 ops_event	fin
 ops_headless	fin
 ops_ticket_usage	fin
+fin_venue_candidate	fin
+md_venue_funding	md

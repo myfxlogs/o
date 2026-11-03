@@ -101,4 +101,28 @@ D-0043 / D-0016 Ⅱ（文法×能力账——新 venue 登记能力账后自动�
 
 ## 结果回填
 
-（施工写）
+施工 devin-t0300 @ 2026-11-03，分支 `t/0300-venue-scout`（本仓无 origin 远端，分支提交即锁据）。骨架票范围按 CTO 会签钉执行。
+
+- **A 台账**：`fin_0098_venue_scout.sql`——fin_venue_candidate 全列（kind/endpoints/
+  maker/taker/min_notional/kyc_ok/api_ok/withdraw_limit/metrics/evidence/state/
+  last_request_at）+首批 10 行 seed（3 行 measuring：binance-usdm/bybit/hyperliquid；
+  okx 基准行；余 candidate）+scout.{recommend_margin_apr=0.05,persist_ratio=0.6,
+  top_n=5,measure_interval_h=24} seed。
+- **B 采集**：`md_1081_venue_funding.sql`——md_venue_funding hypertable+90d 保留账
+  （audit_keep）；`scout/collect.go` 三 adapter 公开端点（Binance premiumIndex/
+  Bybit v5 linear tickers/Hyperliquid /info metaAndAssetCtxs）——全 USDT 永续一拍，
+  零凭据零头；Fetcher 缝可桩。
+- **C 度量**：`scout/metrics.go`——三族：单所 carry（|funding|×settles×365−
+  funding.CostAPR 同源）；跨所价差 vs OKX（同符号 funding 差×settles×365−
+  显式式 2×(takerA+takerB+slipA+slipB)+fail+window）；basis 族骨架期缺季货行情
+  面=如实缺（board 行不生）。榜行写回 metrics jsonb（family/net_apr_mid/persist/
+  baseline/baseline_source/top_n）。
+- **D 推荐**：maybeRecommend——kyc_ok=false/registered/rejected/30d 重发闸全断；
+  达阈→state=recommended+last_request_at+Alerter 条件请求（费率/KYC/不开提币口径）。
+- **E/F**：研究员触发面属第一分钱后（范围外如实）；proto `scoutv1` Board stub
+  直出 top-20（buf.gen 双模板已含 proto/scoutv1，gen 件在支），
+  `scoutv1connect.RegisterScoutServiceHandler` 挂 mountCore。
+- **挂臂**：`cmd/research/dcd.go` researchArms 挂 scout 臂（公开面零凭据）。
+- **测试**：3 桩（桩 fetcher 三 venue 落行/达阈推荐+30d 不重发/KYC 禁）全绿@5434。
+- **待外部位**：7d 实采行数+带宽实拍、跨所价差 30d 榜单行、OKX 同族 5% 自校、
+  达阈实证——皆部署后实证件（venue 出向在开发机，本机不代产测）。
