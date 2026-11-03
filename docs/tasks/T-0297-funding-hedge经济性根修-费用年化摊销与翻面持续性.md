@@ -116,6 +116,36 @@ T-0238（maker 径）/ T-0247（maker 键分层）/ T-0111（breakevenOK）/ T-0
 （delta_drift 误杀三修）/ `skills/策略评估与仓位` /
 工程经验库 `loss-attribution-read-guard-trigger-first`
 
+## 决策席 30d 回放 SQL 与预跑（验收锚⑤用料——施工部署后 SG 复跑同式贴表）
+
+```sql
+-- 参数出处（SG app_config 现值）：taker 5.0、slip 3.0、fail 2.0、window 4.0、
+-- settles 3、max_hold 72h→hold_days 3、maker 键缺→feeBps=2×taker=10；
+-- cost_rt_bps=2×10+2×3+2+4=32 → cost_apr=0.0032×365/3=0.389333；
+-- 旧口径 cost=19bps 直减、阈 0.20；新口径 floor=max(0.06, Earn 现率)。
+-- 方向面：rate>0 才可开（rate<0=现货做空腿无支撑 rejected），负率不计入 pass。
+SELECT count(*) FILTER (WHERE funding_rate > 0) pos_obs,
+ count(*) FILTER (WHERE funding_rate > 0 AND funding_rate*3*365 - 0.0019 >= 0.20) old_pass_pos,
+ count(*) FILTER (WHERE funding_rate > 0 AND funding_rate*3*365 - 0.389333
+   >= GREATEST(0.06,(SELECT rate FROM md_earn_rate WHERE venue='okx' AND ccy='USDT'
+   ORDER BY ts DESC LIMIT 1))) new_pass_pos,
+ count(DISTINCT inst_id) FILTER (WHERE funding_rate > 0 AND funding_rate*3*365 - 0.389333
+   >= GREATEST(0.06,(SELECT rate FROM md_earn_rate WHERE venue='okx' AND ccy='USDT'
+   ORDER BY ts DESC LIMIT 1))) new_pass_insts
+FROM md_funding WHERE ts > now() - interval '30 days';
+-- 逐 inst 榜：同窗 DISTINCT ON (inst_id) 最新行 × 新口径 net，附 spot 腿核（下文注意项③）
+```
+
+**预跑实数（决策席 2026-11-03 SG，只读）**：30d 12,508 观测中 pos=7,320；
+旧口径 pass=511（7.0%）｜新口径 pass=259（3.5%）跨 75 inst。max 观测 100bps。
+
+**注意项（贴表时同列）**：
+①新口径过阈榜头部是**股权指数永续**（BWET/SHEIN/ADBE/US100…funding 极高但
+  无现货腿）——`spotLegOK` 会拒，回放表须加一列「spot 腿在册？」（对照
+  `fin_venue_untradeable` + OKX instruments SPOT 目录），过阈且有腿才是真候选；
+②观测期正处低 regime（BTC/ETH 中位 ≈0.5–1.0bps）——pass 占比是 regime 函数非口径好坏；
+③`md_funding` 30d 覆盖率依采集面（主流对自 10-30 断流过一次），表注观测窗。
+
 ## 结果回填
 
 （施工写）
