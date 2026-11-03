@@ -68,3 +68,9 @@ antclaw 通道接通后 feed 扩面（RSS/经济日历/链上）+驾驶舱 memo 
   缝缺零产出）全绿@5434。
 - **待外部位**：antclaw 三参待业主回（写径/类/频——阶段一人工注入+OI 实证
   闭环不阻塞）；LLM 生产注入口径=装配件缝现成。
+
+## 决策注记③ 落地回填（devin-t0310，同支续提）
+
+- mql5 High（importance=3）事件直写 md_macro_event upsert source='mql5'——
+  `macroKind` 词集映射（fomc/cpi/nfp 闭集外名归 ctx 广谱不造平行域）；
+  种子行兜底保留（测试锚 seedN>0 实证）；中低事件照入 md_ctx_fact。

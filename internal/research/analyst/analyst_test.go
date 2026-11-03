@@ -30,7 +30,7 @@ func TestCollectStub(t *testing.T) {
 		if url == "https://www.okx.com/api/v5/public/open-interest?instType=SWAP" {
 			return []byte(`{"data":[{"instId":"BTC-USDT-SWAP","oi":"1000","oiCcy":"1000","ts":"1"}]}`), nil
 		}
-		return []byte(`page {"id":123,"name":"CPI","time":"2026-11-05","importance":3,"currency":"USD"} tail`), nil
+		return []byte(`page {"id":123,"name":"CPI y/y","time":"2026-11-05","importance":3,"currency":"USD"},{"id":124,"name":"PMI","time":"2026-11-06","importance":1,"currency":"USD"} tail`), nil
 	}
 	if err := r.collect(ctx); err != nil {
 		t.Fatal(err)
@@ -41,6 +41,22 @@ func TestCollectStub(t *testing.T) {
 	}
 	if n < 2 {
 		t.Fatalf("macro+oi 行应 ≥2: %d", n)
+	}
+	// High=3 CPI→md_macro_event source='mql5' upsert（种子行兜底不删）；PMI 低→ctx
+	var msrc string
+	if err := r.pool.QueryRow(ctx, `SELECT source FROM md_macro_event
+		WHERE kind='cpi' AND title='CPI y/y'`).Scan(&msrc); err != nil {
+		t.Fatal("High 事件未落 md_macro_event:", err)
+	}
+	if msrc != "mql5" {
+		t.Fatalf("source 应 mql5: %s", msrc)
+	}
+	var seedN int
+	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM md_macro_event WHERE source='seed'`).Scan(&seedN); err != nil {
+		t.Fatal(err)
+	}
+	if seedN == 0 {
+		t.Fatal("种子行不得删")
 	}
 }
 

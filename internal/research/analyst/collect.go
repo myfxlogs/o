@@ -51,10 +51,26 @@ func (r *Runner) collectMql5(ctx context.Context) error {
 		return nil // 页面改版/无件——如实空拍
 	}
 	for _, m := range ms {
+		name, imp, ccy := string(m[2]), string(m[4]), string(m[5])
 		payload, _ := json.Marshal(map[string]string{
-			"id": string(m[1]), "name": string(m[2]),
-			"time": string(m[3]), "importance": string(m[4]), "ccy": string(m[5]),
+			"id": string(m[1]), "name": name,
+			"time": string(m[3]), "importance": imp, "ccy": ccy,
 		})
+		// 决策注记③：High（importance=3）事件直写 md_macro_event（source='mql5'
+		// upsert 替种子不删种子——fomc/cpi/nfp 三词集映射，域外名归 ctx 广谱）。
+		if imp == "3" {
+			if kind := macroKind(name); kind != "" {
+				if _, err := r.pool.Exec(ctx, `INSERT INTO md_macro_event(event_date,kind,title,source)
+					VALUES($1::timestamptz::date,$2,$3,'mql5')
+					ON CONFLICT (event_date) DO UPDATE SET kind=EXCLUDED.kind,
+						title=EXCLUDED.title,source=EXCLUDED.source`,
+					string(m[3]), kind, name); err != nil {
+					r.rej.Inc("write_err")
+					return err
+				}
+				continue
+			}
+		}
 		if _, err := r.pool.Exec(ctx, `INSERT INTO md_ctx_fact(source,kind,payload)
 			VALUES('mql5','macro',$1)`, payload); err != nil {
 			r.rej.Inc("write_err")
@@ -62,6 +78,23 @@ func (r *Runner) collectMql5(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+// macroKind mql5 事件名→md_macro_event kind 词集映射（CHECK 闭集 fomc/cpi/nfp——
+// 域外名不落钦定日历面归 ctx 广谱，勿造平行日历域）。
+func macroKind(name string) string {
+	n := strings.ToLower(name)
+	switch {
+	case strings.Contains(n, "fomc") || strings.Contains(n, "fed interest rate") ||
+		strings.Contains(n, "federal funds"):
+		return "fomc"
+	case strings.Contains(n, "cpi") || strings.Contains(n, "consumer price"):
+		return "cpi"
+	case strings.Contains(n, "nonfarm") || strings.Contains(n, "nfp") ||
+		strings.Contains(n, "employment change"):
+		return "nfp"
+	}
+	return ""
 }
 
 // collectOI OKX 公开 OI（/api/v5/public/open-interest?instType=SWAP——全 USDT
