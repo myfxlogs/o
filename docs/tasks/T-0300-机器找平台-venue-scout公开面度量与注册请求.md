@@ -2,9 +2,9 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | **返修中**（决策席一审驳回 2026-11-03——见「决策席审计注记①」；@86e1d47f 骨架合格、度量层四件病灶返修） |
+| 状态 | **完成**（决策席二审验收通过 devin @ 2026-11-03——见「决策席验收注记②」；部署后验项五项随部署链销） |
 | 立项 | `[角色:管理]` devin-cli @ 2026-11-03（D-0043）；会签 `[角色:决策]` devin @ 2026-11-03 |
-| 领取 | （空） |
+| 领取 | devin-t0300 @ 2026-11-03 |
 | 优先级 | 高——骨架现立；放量（加 venue 源、加族）在第一分钱之后 |
 | 涉及面 | 新包 `internal/research/scout/`、新表 `fin_venue_candidate`/`md_venue_funding`（md 面）、新 proto（榜单只读面）、`cmd/core` 挂臂、条件请求出口（现有业主通知径）、`skills/研究员/SKILL.md` 触发面（第一分钱后改） |
 | 业主令原文 | 「我想要机器自己找平台/交易所，我再去注册拿凭证，这才是真正的走出去了」（2026-11-03） |
@@ -102,6 +102,49 @@ D-0043 / D-0016 Ⅱ（文法×能力账——新 venue 登记能力账后自动�
 
 ## 结果回填
 
+施工 devin-t0300 @ 2026-11-03，分支 `t/0300-venue-scout`（本仓无 origin 远端，分支提交即锁据）。骨架票范围按 CTO 会签钉执行。
+
+- **A 台账**：`fin_0098_venue_scout.sql`——fin_venue_candidate 全列（kind/endpoints/
+  maker/taker/min_notional/kyc_ok/api_ok/withdraw_limit/metrics/evidence/state/
+  last_request_at）+首批 10 行 seed（3 行 measuring：binance-usdm/bybit/hyperliquid；
+  okx 基准行；余 candidate）+scout.{recommend_margin_apr=0.05,persist_ratio=0.6,
+  top_n=5,measure_interval_h=24} seed。
+- **B 采集**：`md_1081_venue_funding.sql`——md_venue_funding hypertable+90d 保留账
+  （audit_keep）；`scout/collect.go` 三 adapter 公开端点（Binance premiumIndex/
+  Bybit v5 linear tickers/Hyperliquid /info metaAndAssetCtxs）——全 USDT 永续一拍，
+  零凭据零头；Fetcher 缝可桩。
+- **C 度量**：`scout/metrics.go`——三族：单所 carry（|funding|×settles×365−
+  funding.CostAPR 同源）；跨所价差 vs OKX（同符号 funding 差×settles×365−
+  显式式 2×(takerA+takerB+slipA+slipB)+fail+window）；basis 族骨架期缺季货行情
+  面=如实缺（board 行不生）。榜行写回 metrics jsonb（family/net_apr_mid/persist/
+  baseline/baseline_source/top_n）。
+- **D 推荐**：maybeRecommend——kyc_ok=false/registered/rejected/30d 重发闸全断；
+  达阈→state=recommended+last_request_at+Alerter 条件请求（费率/KYC/不开提币口径）。
+- **E/F**：研究员触发面属第一分钱后（范围外如实）；proto `scoutv1` Board stub
+  直出 top-20（buf.gen 双模板已含 proto/scoutv1，gen 件在支），
+  `scoutv1connect.RegisterScoutServiceHandler` 挂 mountCore。
+- **挂臂**：`cmd/research/dcd.go` researchArms 挂 scout 臂（公开面零凭据）。
+- **测试**：3 桩（桩 fetcher 三 venue 落行/达阈推荐+30d 不重发/KYC 禁）全绿@5434。
+- **待外部位**：7d 实采行数+带宽实拍、跨所价差 30d 榜单行、OKX 同族 5% 自校、
+  达阈实证——皆部署后实证件（venue 出向在开发机，本机不代产测）。
+
+## 返修① 回填（devin-t0300，同支续提）
+
+- **①canon 归一**：`canon()` 剥方言→base ccy（-SWAP/-PERP/分隔符/USDT-USDC-USD
+  尾/1000PEPE 类数量前缀），join 键全走 canon；`TestCanonNormalize` 8 组含
+  1000PEPE 双向锚。
+- **②OKX 榜读正本**：`loadVenue` venue='okx' 分支读 `md_funding`（inst_id 列），
+  非 scout 自采行。
+- **③baseline 实算**：carry 族 `max(Earn(funding.EarnRate 共用读件), OKX 同族
+  30d 日序列中位)`，BaseSrc=earn|okx_family 进榜；xvenue 族=Earn 底。
+- **④persist 真序列**：`dailySeries`——每 (canon,day) 最新行→每 day top-N 中位
+  日值；`NetAprMid`=30d 序列中位；`Persist`=日值>baseline 天数/30（缺测日按未
+  达标计）。xvenue 同构（canon×day 内积 join）。
+- **⑤双腿费读台账**：xvenue cost `2×(taker_A+taker_B+2×slip)+fail+window`——
+  takerA/B 读 fin_venue_candidate.taker_bps（缺/≤0=config taker 回退不虚构）。
+- 测试：scout 4 桩+funding 11 桩全绿@5434；funding.EarnRate 导出委托（与
+  T-0298 支同形，合并无歧义）。
+
 （施工写）
 
 ## 决策席审计注记①（`[角色:决策]` devin @ 2026-11-03——审 @86e1d47f）
@@ -132,3 +175,26 @@ D-0043 / D-0016 Ⅱ（文法×能力账——新 venue 登记能力账后自动�
   interval_h 已采未用，骨架期钉注）；带宽以日拍单拉 ≤8MB 远低于 `net.budget_kbps`，
   归部署实测项。
 - 复跑：scout 3 桩绿、build/gofmt/vet/import 边净、迁移七断言过、域判正确。
+
+## 决策席验收注记②（`[角色:决策]` devin @ 2026-11-03——二审 @e835bab3 返修①）
+
+**裁决：通过**（审计注记①五件全销，复跑 15 绿——scout 4+funding 11）。
+
+- B1 `canon()` 剥方言→base ccy（-SWAP/-PERP/分隔符/quote 尾/数量前缀），join 键全走
+  canon×day 内积——`TestCanonNormalize` 9 组含 `1000PEPE` 双方言锚，钦定要求照做。
+- B2 `loadVenue` okx 分支读 `md_funding` 正本——OKX 基准榜可生，自校锚解锁。
+- B3 carry 基线实算 `max(Earn(funding.EarnRate 共用读件含鲜度闸), OKX 同族 30d 日序列中位)`，
+  `BaseSrc=earn|okx_family` 如实；xvenue 族=Earn 底。
+- B4 `dailySeries` (canon,day)→日 top-N 中位序列：`NetAprMid`=30d 序列中位、
+  `Persist`=日值>baseline 天数/30（缺测日按未达标计——保守向）——持续占比闸回真。
+- B5 `xCostRt=2×(taker_A+taker_B+2×slip)+fail+window`，taker 读台账 taker_bps
+  （缺/≤0=config 回退不虚构）——会签显式式照本。
+- **合并注记**：`funding.EarnRate` 两票同形抽出（本支与 T-0298 支撞注释——并合留
+  双票出处）；迁移注册并留 {97,98}/{1080,1081} 全链。
+- **骨架期钉注（如实，非阻）**：Earn 降级→基线零底靠 margin=0.05 兜（方向偏松，
+  已计数留痕）；carry 族费仍全局 taker（venue 档差 ~1-2bps 量级，B5 钦定域=跨所腿）；
+  `|funding|` 照票面（负费率捕获需 spot-short——榜=筛选用途）；`settles_per_day`
+  全 venue 同值（interval_h 采而未用）；basis 族缺季货行情面=如实缺测。
+- **部署后验项五项**：7d 实采行数+带宽实拍（≤net.budget_kbps）、(OKX,X) 跨所 30d
+  榜行、OKX 自算 vs fin_opp_eval top-5 <5% 自校、达阈条件请求实证（测试键调阈触发后
+  恢复）、fin_venue_candidate seed 实拍。

@@ -16,3 +16,4 @@ inputs:
   - directory: proto
     paths:
       - proto/dashboardv1
+      - proto/scoutv1

@@ -15,6 +15,8 @@ import (
 
 	"o/internal/gen/dashboardv1"
 	"o/internal/gen/dashboardv1/dashboardv1connect"
+	"o/internal/gen/scoutv1/scoutv1connect"
+
 	"o/internal/research/gapscan"
 	"o/internal/trading/okxexec"
 )
@@ -250,6 +252,7 @@ func durHuman(d time.Duration) string {
 func mountCore(mux *http.ServeMux, svc coreService) {
 	server := connect.NewServer()
 	dashboardv1connect.RegisterCoreServiceHandler(server, svc)
+	scoutv1connect.RegisterScoutServiceHandler(server, svc) // T-0300 scout 榜单 stub
 	connecthttp.Mount(mux, server)
 }
 

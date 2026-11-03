@@ -78,6 +78,10 @@ internal/research/funding -> internal/platform/config
 internal/research/funding -> internal/platform/rejects
 internal/research/funding -> internal/platform/roster
 internal/research/funding -> internal/platform/notify
+internal/research/scout -> internal/platform/config
+internal/research/scout -> internal/platform/notify
+internal/research/scout -> internal/platform/rejects
+internal/research/scout -> internal/research/funding
 internal/research/dcd -> internal/platform/config
 internal/research/grammar -> internal/platform/config
 internal/research/dcd -> internal/platform/events
@@ -137,6 +141,7 @@ internal/earn -> internal/platform/roster
 internal/earn -> internal/trading/okxexec
 internal/trading/okxexec -> internal/platform/signutil
 internal/gen/dashboardv1/dashboardv1connect -> internal/gen/dashboardv1
+internal/gen/scoutv1/scoutv1connect -> internal/gen/scoutv1
 EOF
 )
 

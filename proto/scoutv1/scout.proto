@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package o.scout.v1;
+
+import "google/protobuf/struct.proto";
+
+option go_package = "o/internal/gen/scoutv1";
+
+// ScoutService venue scout 榜单只读面（T-0300 骨架——unary 快照直出 top-20）。
+service ScoutService {
+  rpc Board(BoardRequest) returns (BoardResponse) {}
+}
+
+message BoardRequest {}
+
+message VenueRow {
+  string venue = 1;
+  string kind = 2;
+  string state = 3;
+  google.protobuf.Struct metrics = 4;
+}
+
+message BoardResponse {
+  repeated VenueRow rows = 1;
+}

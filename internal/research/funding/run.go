@@ -189,9 +189,9 @@ func (r *Runner) earnRateAPR(ctx context.Context) (*float64, bool, error) {
 	return EarnRate(ctx, r.pool, hours)
 }
 
-// EarnRate Earn 现率共用读件（D-0006 动态比较底——T-0298：grammar basis 族
-// 同底挂同一读件零复制）。staleHours=新鲜度窗；行缺/陈旧=(nil,false) 降级，
-// 调用方各自计数门留痕。
+// EarnRate Earn 现率共用读件（D-0006 动态比较底——T-0298 grammar basis 族/
+// T-0300 scout 族同底挂同一读件零复制）。staleHours=新鲜度窗；行缺/陈旧=
+// (nil,false) 降级，调用方各自计数门留痕。
 func EarnRate(ctx context.Context, pool *pgxpool.Pool, staleHours float64) (*float64, bool, error) {
 	var rate float64
 	var ts time.Time
