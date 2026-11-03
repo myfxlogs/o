@@ -23,3 +23,17 @@ message VenueRow {
 message BoardResponse {
   repeated VenueRow rows = 1;
 }
+
+// T-0312 第二刀返修①丙案：metrics jsonb 载荷申读同型（生产/消费同用生成型
+// ——字段漂移编译期炸非运行时静默降级；protojson UseProtoNames 蛇形出入）。
+message MetricBoard {
+  string family = 1;             // carry|xvenue_spread|basis
+  double net_apr_mid = 2;        // 30d 逐日净 APR 序列中位
+  double persist = 3;            // 逐日净 APR>baseline 天数占比（30d）
+  double baseline = 4;
+  string baseline_source = 5;
+  int32 top_n = 6;
+}
+message VenueMetrics {
+  repeated MetricBoard boards = 1;
+}

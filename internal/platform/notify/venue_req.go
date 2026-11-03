@@ -5,7 +5,6 @@ package notify
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"strings"
@@ -13,8 +12,9 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"o/internal/research/scout/board" // 返修①丙案：scout/board.Board 共享导出型——
-	// 字段漂移编译期炸非运行时静默降级（本地解析 struct 删）。
+	"o/internal/gen/scoutv1" // 返修①丙案：scoutv1.VenueMetrics 生成型——
+	// protojson 同型出入 metrics jsonb（字段漂移编译期炸）。
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 // VenueReq venue 注册请求推送件（sender 复用同装配面——不新造栈）。
@@ -87,10 +87,8 @@ func venueMsg(venue string, mets []byte) string {
 	// 返修①甲案：margin 伪阈删（生产 metrics jsonb 无 margin 字段——
 	// state='recommended' 即达阈认证推送面不二次裁决阈=双真相源防；
 	// 直取 persist 最高 board 组文）。struct 字段=scout board 六件真形。
-	var m struct {
-		Boards []board.Board `json:"boards"`
-	}
-	if err := json.Unmarshal(mets, &m); err != nil || len(m.Boards) == 0 {
+	var m scoutv1.VenueMetrics
+	if err := protojson.Unmarshal(mets, &m); err != nil || len(m.Boards) == 0 {
 		return fall
 	}
 	best := 0 // persist 最高 board 直取组文（margin 伪阈已删——state 达阈认证）

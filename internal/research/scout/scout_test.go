@@ -237,7 +237,7 @@ func TestXvenueSplitSettles(t *testing.T) {
 	if xb.NetAprMid <= 0 || xb.NetAprMid > want {
 		t.Fatalf("差式分列净 APR 应∈(0,%.1f]: %v", want, xb.NetAprMid)
 	}
-	if xb.BaseSrc != "earn" {
-		t.Fatalf("xvenue 基线应 earn: %s", xb.BaseSrc)
+	if xb.BaselineSource != "earn" {
+		t.Fatalf("xvenue 基线应 earn: %s", xb.BaselineSource)
 	}
 }

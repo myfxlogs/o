@@ -7,15 +7,17 @@ import (
 	"log"
 	"time"
 
+	"google.golang.org/protobuf/encoding/protojson"
+	"o/internal/gen/scoutv1"
 	"o/internal/research/funding"
-	"o/internal/research/scout/board"
 )
 
 // board 榜单行（venue×族×top-N 中位净 APR×30d 持续占比——metrics jsonb 写回
 // fin_venue_candidate；baseline_source=earn|okx_family 进 evidence 钉口径）。
-// Board 型别名=scout/board 共享叶子件（notify venue_req 读面直引——
-// 字段漂移编译期炸防）。
-type Board = board.Board
+// Board 型别名=scoutv1.MetricBoard 生成共享型（返修①丙案修订：proto 申
+// protojson 出入 metrics jsonb——生产/消费同用生成型字段漂移编译期炸；
+// scout/board 叶子件退役）。
+type Board = scoutv1.MetricBoard
 
 // measure 日拍度量+推荐判定（返修③：baseline=max(Earn, OKX 同族中位)实算；
 // 跨所族基线=Earn 底——两所同在才存在无 OKX 同族）。
@@ -55,8 +57,17 @@ func (r *Runner) measure(ctx context.Context) error {
 			return err
 		}
 		// T-0304：rejects Door 快照随 metrics 出观察面（venue_down 运行期不盲）。
-		b, _ := json.Marshal(map[string]any{"boards": boards, "measured_at": r.now(),
-			"rejects": r.rej.Snapshot()})
+		var pb []*scoutv1.MetricBoard
+		for i := range boards {
+			pb = append(pb, &boards[i])
+		}
+		vm := &scoutv1.VenueMetrics{Boards: pb}
+		bj, _ := protojson.MarshalOptions{UseProtoNames: true}.Marshal(vm)
+		var merged map[string]any
+		json.Unmarshal(bj, &merged)
+		merged["measured_at"] = r.now()
+		merged["rejects"] = r.rej.Snapshot()
+		b, _ := json.Marshal(merged)
 		if _, err := r.pool.Exec(ctx,
 			"UPDATE fin_venue_candidate SET metrics=$2 WHERE venue=$1", v, b); err != nil {
 			r.rej.Inc("write_err")
@@ -145,7 +156,7 @@ func (r *Runner) boardFor(ctx context.Context, venue string, topN int, p funding
 		})
 		out = append(out, Board{Family: "carry", NetAprMid: med(ser),
 			Persist: fracOver(ser, carryBaseline), Baseline: carryBaseline,
-			BaseSrc: baseSrc, TopN: topN})
+			BaselineSource: baseSrc, TopN: int32(topN)})
 	}
 
 	// ② 跨所价差 vs OKX：同 canon 同日 funding 差×settles×365−双腿费年化
@@ -187,7 +198,7 @@ func (r *Runner) boardFor(ctx context.Context, venue string, topN int, p funding
 				return diff*365 - xCostAPR
 			})
 			out = append(out, Board{Family: "xvenue_spread", NetAprMid: med(ser),
-				Persist: fracOver(ser, earn), Baseline: earn, BaseSrc: "earn", TopN: topN})
+				Persist: fracOver(ser, earn), Baseline: earn, BaselineSource: "earn", TopN: int32(topN)})
 		}
 	}
 	return out, nil
