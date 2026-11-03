@@ -8,7 +8,6 @@ After=network-online.target
 
 [Service]
 Type=oneshot
-WorkingDirectory=/var/tmp/o-regime
 ExecStartPre=/usr/bin/env mkdir -p /var/tmp/o-regime
 ExecStart=/opt/o/scripts/meta/regime_tick.sh
 # 会话级硬隔：scratch cwd 非仓径——agent 零仓件写径（红线事后审计钉）。
