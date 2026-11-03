@@ -186,9 +186,15 @@ func (r *Runner) earnRateAPR(ctx context.Context) (*float64, bool, error) {
 	if err != nil || hours <= 0 {
 		return nil, false, nil // 新鲜度门键缺=不敢当鲜（fail-closed 降级）
 	}
+	return EarnRate(ctx, r.pool, hours)
+}
+
+// EarnRate Earn 现率共用读件（D-0006 动态比较底——T-0300：scout 族同底挂同一
+// 读件零复制）。staleHours=新鲜度窗；行缺/陈旧=(nil,false) 降级，调用方各自计数门。
+func EarnRate(ctx context.Context, pool *pgxpool.Pool, staleHours float64) (*float64, bool, error) {
 	var rate float64
 	var ts time.Time
-	err = r.pool.QueryRow(ctx, `SELECT rate,ts FROM md_earn_rate
+	err := pool.QueryRow(ctx, `SELECT rate,ts FROM md_earn_rate
 		WHERE venue='okx' AND ccy='USDT' ORDER BY ts DESC LIMIT 1`).Scan(&rate, &ts)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, false, nil
@@ -196,7 +202,7 @@ func (r *Runner) earnRateAPR(ctx context.Context) (*float64, bool, error) {
 	if err != nil {
 		return nil, false, err
 	}
-	if time.Since(ts) > time.Duration(hours*float64(time.Hour)) {
+	if time.Since(ts) > time.Duration(staleHours*float64(time.Hour)) {
 		return nil, false, nil
 	}
 	return &rate, true, nil

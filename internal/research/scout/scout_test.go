@@ -134,3 +134,18 @@ func TestKycBlocked(t *testing.T) {
 		t.Fatal("KYC 不可及 venue 不得 recommended")
 	}
 }
+
+// 锚④canon 归一（返修①）：剥方言→base ccy——1000PEPE 类数量前缀同归。
+func TestCanonNormalize(t *testing.T) {
+	cases := map[string]string{
+		"BTCUSDT": "BTC", "BTC-USDT-SWAP": "BTC", "BTCUSD": "BTC",
+		"ETH-USDT-SWAP": "ETH", "SOLUSDT": "SOL",
+		"1000PEPEUSDT": "PEPE", "1000PEPE-USDT-SWAP": "PEPE",
+		"BTC_USDT_PERP": "BTC", "ETHUSDC": "ETH",
+	}
+	for in, want := range cases {
+		if got := canon(in); got != want {
+			t.Fatalf("canon(%q)=%q want %q", in, got, want)
+		}
+	}
+}

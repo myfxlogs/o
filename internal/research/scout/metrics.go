@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"time"
 
-	"log"
 	"o/internal/research/funding"
 )
 
@@ -14,17 +14,15 @@ import (
 // fin_venue_candidate；baseline_source=earn|okx_family 进 evidence 钉口径）。
 type board struct {
 	Family    string  `json:"family"`
-	NetAprMid float64 `json:"net_apr_mid"` // top-N 中位净 APR（30d）
-	Persist   float64 `json:"persist"`     // 净 APR>底线的天数占比（30d）
+	NetAprMid float64 `json:"net_apr_mid"` // 30d 逐日净 APR 序列中位
+	Persist   float64 `json:"persist"`     // 逐日净 APR>baseline 天数占比（30d）
 	Baseline  float64 `json:"baseline"`
 	BaseSrc   string  `json:"baseline_source"`
 	TopN      int     `json:"top_n"`
 }
 
-// measure 日拍度量+推荐判定。三族：①单所 carry（30d 最新 funding 中位→净 APR）；
-// ②跨所 funding 价差 vs OKX（同币对两所最新 funding 差——两所永续腿，无现货腿，
-// cost_rt=2×(takerA+takerB+slipA+slipB)+fail+window 显式式）；③基差（季货 venue，
-// T-0298 同构——骨架期按 mark/index 差近似，季货行情面未全量在案=如实缺测）。
+// measure 日拍度量+推荐判定（返修③：baseline=max(Earn, OKX 同族中位)实算；
+// 跨所族基线=Earn 底——两所同在才存在无 OKX 同族）。
 func (r *Runner) measure(ctx context.Context) error {
 	topN, margin, persistReq := 5, 0.05, 0.6
 	if v, err := r.cfg.GetFloat("scout.top_n"); err == nil && v > 0 {
@@ -41,12 +39,22 @@ func (r *Runner) measure(ctx context.Context) error {
 		r.rej.Inc("missing_param")
 		return fmt.Errorf("scout 判据缺位 fail-closed: %w", err)
 	}
+	// Earn 底共用读件（funding.EarnRate——返修③ 零复制）。
+	var earn float64
+	staleH, herr := r.cfg.GetFloat("research.earn.stale_hours")
+	e, fresh, eerr := funding.EarnRate(ctx, r.pool, staleH)
+	switch {
+	case herr != nil || eerr != nil || !fresh || e == nil:
+		r.rej.Inc("earn_rate_degraded") // 降级=基线退回零底+计数留痕
+	default:
+		earn = *e
+	}
 	venues, err := r.measuringVenues(ctx)
 	if err != nil {
 		return err
 	}
 	for _, v := range venues {
-		boards, err := r.boardFor(ctx, v, topN, p)
+		boards, err := r.boardFor(ctx, v, topN, p, earn)
 		if err != nil {
 			return err
 		}
@@ -63,7 +71,7 @@ func (r *Runner) measure(ctx context.Context) error {
 	return nil
 }
 
-// scoutParams 费用判据（research.funding.* 键复用——同 T-0297 源）+Earn 底+
+// scoutParams 费用判据（research.funding.* 键复用——同 T-0297 源）+
 // hold 地平线（guard.max_hold_hours——跨所各 venue 无 guard 用同一地平线才可比）。
 func (r *Runner) scoutParams() (funding.Params, error) {
 	var p funding.Params
@@ -95,90 +103,87 @@ func (r *Runner) scoutParams() (funding.Params, error) {
 	return p, nil
 }
 
-// boardFor 单 venue 三族榜行（carry=最新 funding top-N 中位；xvenue=对 OKX
-// 同符号 funding 差；basis=mark/index 差族——数据缺=行如实缺）。
-func (r *Runner) boardFor(ctx context.Context, venue string, topN int, p funding.Params) ([]board, error) {
-	// ① 单所 carry：30d 最新行每 inst 中位 |funding|×settles×365−cost_apr，取 top-N 中位。
-	rows, err := r.pool.Query(ctx, `SELECT DISTINCT ON (inst) inst, funding_rate FROM md_venue_funding
-		WHERE venue=$1 AND funding_rate IS NOT NULL AND ts>now()-interval '30 days'
-		ORDER BY inst, ts DESC`, venue)
+// boardFor 单 venue 族榜行（返修② OKX 读 md_funding 正本；返修⑤ 双腿费读
+// fin_venue_candidate.taker_bps——venue 侧无档=config taker 回退）。
+func (r *Runner) boardFor(ctx context.Context, venue string, topN int, p funding.Params, earn float64) ([]board, error) {
+	vrows, err := loadVenue(ctx, r, venue)
 	if err != nil {
 		return nil, err
 	}
-	var nets []float64
-	for rows.Next() {
-		var inst string
-		var rate float64
-		if err := rows.Scan(&inst, &rate); err != nil {
-			return nil, err
-		}
-		gross := abs(rate) * p.SettlesPerDay * 365
-		nets = append(nets, gross-funding.CostAPR(p))
-	}
-	rows.Close()
 	costAPR := funding.CostAPR(p)
-	out := []board{}
-	if len(nets) > 0 {
-		out = append(out, board{Family: "carry", NetAprMid: midTopN(nets, topN),
-			Persist: r.persist(ctx, venue, "carry", costAPR), Baseline: r.baseline(ctx),
-			BaseSrc: "okx_family", TopN: topN})
+	var vTaker float64
+	if err := r.pool.QueryRow(ctx,
+		"SELECT COALESCE(taker_bps,0)::float8 FROM fin_venue_candidate WHERE venue=$1",
+		venue).Scan(&vTaker); err != nil || vTaker <= 0 {
+		vTaker = p.TakerFeeBps // venue 档缺=同费表回退（不虚构费率）
 	}
-	// ② 跨所价差 vs OKX：同符号两所最新 funding 差→gross；双腿皆永续费用=
-	// 2×(takerA+takerB+slipA+slipB)+fail+window（CTO 会签显式式）。
+	out := []board{}
+
+	// OKX 同族基线（carry 族：md_funding 同式日序列中位——返修③）。
+	var okxMid float64
+	if orows, err := loadVenue(ctx, r, "okx"); err == nil {
+		okxMid = med(dailySeries(orows, topN, func(rate float64) float64 {
+			return abs(rate)*p.SettlesPerDay*365 - costAPR
+		}))
+	}
+	carryBaseline := earn
+	baseSrc := "earn"
+	if okxMid > carryBaseline {
+		carryBaseline, baseSrc = okxMid, "okx_family"
+	}
+
+	// ① 单所 carry：逐日净 APR 序列（|rate|×settles×365−cost_apr）。
+	if len(vrows) > 0 {
+		ser := dailySeries(vrows, topN, func(rate float64) float64 {
+			return abs(rate)*p.SettlesPerDay*365 - costAPR
+		})
+		out = append(out, board{Family: "carry", NetAprMid: med(ser),
+			Persist: fracOver(ser, carryBaseline), Baseline: carryBaseline,
+			BaseSrc: baseSrc, TopN: topN})
+	}
+
+	// ② 跨所价差 vs OKX：同 canon 同日 funding 差×settles×365−双腿费年化
+	// （双腿皆永续无现货腿=2×(takerA+takerB+slipA+slipB)+fail+window——返修⑤
+	// takerA=venue 档、takerB=OKX 档读台账）。
 	if venue != "okx" {
-		xrows, err := r.pool.Query(ctx, `SELECT v.inst, v.funding_rate, o.funding_rate FROM
-			(SELECT DISTINCT ON (inst) inst, funding_rate FROM md_venue_funding
-			 WHERE venue=$1 AND funding_rate IS NOT NULL AND ts>now()-interval '30 days'
-			 ORDER BY inst, ts DESC) v
-			JOIN (SELECT DISTINCT ON (inst_id) inst_id, funding_rate FROM md_funding
-			 WHERE ts>now()-interval '30 days' ORDER BY inst_id, ts DESC) o
-			ON o.inst_id = v.inst`, venue)
+		orows, err := loadVenue(ctx, r, "okx")
 		if err != nil {
 			return nil, err
 		}
-		var xnets []float64
-		for xrows.Next() {
-			var inst string
-			var va, vo float64
-			if err := xrows.Scan(&inst, &va, &vo); err != nil {
-				return nil, err
-			}
-			diff := abs(va - vo)
-			gross := diff * p.SettlesPerDay * 365
-			xCostRt := 2*(2*p.TakerFeeBps+2*p.SlippageBps) + p.FailCostBps + p.WindowLossBps
-			xnets = append(xnets, gross-xCostRt/1e4*365/p.HoldDays)
+		var oTaker float64
+		if err := r.pool.QueryRow(ctx,
+			"SELECT COALESCE(taker_bps,0)::float8 FROM fin_venue_candidate WHERE venue='okx'").Scan(&oTaker); err != nil || oTaker <= 0 {
+			oTaker = p.TakerFeeBps
 		}
-		xrows.Close()
-		if len(xnets) > 0 {
-			out = append(out, board{Family: "xvenue_spread", NetAprMid: midTopN(xnets, topN),
-				Persist: 0, Baseline: r.baseline(ctx), BaseSrc: "earn", TopN: topN})
+		xCostRt := 2*(vTaker+oTaker+2*p.SlippageBps) + p.FailCostBps + p.WindowLossBps
+		xCostAPR := xCostRt / 1e4 * 365 / p.HoldDays
+		// canon×day join
+		joined := instRows{}
+		for c, dm := range vrows {
+			om, ok := orows[c]
+			if !ok {
+				continue
+			}
+			for d, vr := range dm {
+				or, ok := om[d]
+				if !ok {
+					continue
+				}
+				if joined[c] == nil {
+					joined[c] = map[string]float64{}
+				}
+				joined[c][d] = abs(vr - or)
+			}
+		}
+		if len(joined) > 0 {
+			ser := dailySeries(joined, topN, func(diff float64) float64 {
+				return diff*p.SettlesPerDay*365 - xCostAPR
+			})
+			out = append(out, board{Family: "xvenue_spread", NetAprMid: med(ser),
+				Persist: fracOver(ser, earn), Baseline: earn, BaseSrc: "earn", TopN: topN})
 		}
 	}
 	return out, nil
-}
-
-// baseline Earn 动态底（单所族基线=max(Earn, OKX 同族 30d 中位 top-N)——骨架
-// 期先取 Earn 底，OKX 同族对照行读 md_funding 同式自算）。
-func (r *Runner) baseline(ctx context.Context) float64 {
-	var e float64
-	if err := r.pool.QueryRow(ctx, `SELECT rate FROM md_earn_rate
-		WHERE venue='okx' AND ccy='USDT' ORDER BY ts DESC LIMIT 1`).Scan(&e); err != nil {
-		r.rej.Inc("earn_rate_degraded")
-		return 0
-	}
-	return e
-}
-
-// persist 30d 内该 venue 该族净 APR>baseline 的天数占比（骨架期按 carry
-// 净>0 的日数粗量——钦定口径迭代位）。
-func (r *Runner) persist(ctx context.Context, venue, family string, costAPR float64) float64 {
-	var ratio float64
-	if err := r.pool.QueryRow(ctx, `SELECT count(DISTINCT date_trunc('day',ts))::float8/30.0
-		FROM md_venue_funding WHERE venue=$1 AND funding_rate IS NOT NULL
-		AND ts>now()-interval '30 days'`, venue).Scan(&ratio); err != nil {
-		return 0
-	}
-	return ratio
 }
 
 // maybeRecommend 达阈→条件请求（30d 内不重发——last_request_at 闸；KYC 不可
@@ -215,30 +220,4 @@ func (r *Runner) maybeRecommend(ctx context.Context, venue string, boards []boar
 		}
 	}
 	return nil
-}
-
-// midTopN top-N 中位（降序取前 N 的中位值——骨架期确定性度量）。
-func midTopN(xs []float64, n int) float64 {
-	if len(xs) == 0 {
-		return 0
-	}
-	s := append([]float64(nil), xs...)
-	for i := 0; i < len(s); i++ {
-		for j := i + 1; j < len(s); j++ {
-			if s[j] > s[i] {
-				s[i], s[j] = s[j], s[i]
-			}
-		}
-	}
-	if len(s) > n {
-		s = s[:n]
-	}
-	return s[len(s)/2]
-}
-
-func abs(f float64) float64 {
-	if f < 0 {
-		return -f
-	}
-	return f
 }

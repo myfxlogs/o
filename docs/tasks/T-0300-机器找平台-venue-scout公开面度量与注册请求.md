@@ -126,3 +126,20 @@ D-0043 / D-0016 Ⅱ（文法×能力账——新 venue 登记能力账后自动�
 - **测试**：3 桩（桩 fetcher 三 venue 落行/达阈推荐+30d 不重发/KYC 禁）全绿@5434。
 - **待外部位**：7d 实采行数+带宽实拍、跨所价差 30d 榜单行、OKX 同族 5% 自校、
   达阈实证——皆部署后实证件（venue 出向在开发机，本机不代产测）。
+
+## 返修① 回填（devin-t0300，同支续提）
+
+- **①canon 归一**：`canon()` 剥方言→base ccy（-SWAP/-PERP/分隔符/USDT-USDC-USD
+  尾/1000PEPE 类数量前缀），join 键全走 canon；`TestCanonNormalize` 8 组含
+  1000PEPE 双向锚。
+- **②OKX 榜读正本**：`loadVenue` venue='okx' 分支读 `md_funding`（inst_id 列），
+  非 scout 自采行。
+- **③baseline 实算**：carry 族 `max(Earn(funding.EarnRate 共用读件), OKX 同族
+  30d 日序列中位)`，BaseSrc=earn|okx_family 进榜；xvenue 族=Earn 底。
+- **④persist 真序列**：`dailySeries`——每 (canon,day) 最新行→每 day top-N 中位
+  日值；`NetAprMid`=30d 序列中位；`Persist`=日值>baseline 天数/30（缺测日按未
+  达标计）。xvenue 同构（canon×day 内积 join）。
+- **⑤双腿费读台账**：xvenue cost `2×(taker_A+taker_B+2×slip)+fail+window`——
+  takerA/B 读 fin_venue_candidate.taker_bps（缺/≤0=config taker 回退不虚构）。
+- 测试：scout 4 桩+funding 11 桩全绿@5434；funding.EarnRate 导出委托（与
+  T-0298 支同形，合并无歧义）。
