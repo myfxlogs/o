@@ -61,3 +61,12 @@ SG 生效），但 scout 的 `pool` 是研究主池（盒本机 PG-md :5435—�
 - 测试：scout 4 桩+projector 13 桩全绿@5434；check_migrations/import 边绿。
 - 部署后三锚（实采行/journal 拍败消失/SG 镜像 metrics 非空）属部署后实证件，
   本分支未含部署动作（deploy_image.sh 钦定径归决策/管理席）。
+
+
+## 决策席验收注记（`[角色:决策]` devin @ 2026-11-03——审 @a0e8f679）
+
+**裁决：通过**。md_1082 同形 DDL+同源 seed 幂等（fin_0098 补 DO NOTHING——两链并集
+态防撞，细部到位）；domain.tsv fin→bridge；projector `projectVenueCandidates`
+15 列全量 upsert on venue（metrics/state/last_request_at 随行）；`want` 册对拍
+fail-closed 过。复跑 20 绿（scout 4+projector 16）、迁移七断言、import 边净。
+部署三锚（实采行/journal 无拍败/SG 镜像 metrics）随双臂重启实证——归部署链销。
