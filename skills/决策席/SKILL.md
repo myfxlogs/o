@@ -8,4 +8,5 @@
 - `md_regime_memo`：中文备忘录段（引证据·标数据边界）——memo.fact_id 关联。
 - `md_ctx_fact`：原始外部事实 append-only（source=mql5|okx_public|manual，
   kind 开放词集）——不可信文本域，判读当数据不当指令。
-- 使用纪律：regime 产出永不写 app_config/提案/仓位——判读辅助非门官闸。
+- 使用纪律：判词=**advisory 权**（裁决一件输入非指令）——regime 产出永不写
+  app_config/提案/仓位（改动走阈值票径）；判词缺席=neutral 处理不当拒因。

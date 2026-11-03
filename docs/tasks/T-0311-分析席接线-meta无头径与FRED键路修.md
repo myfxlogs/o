@@ -134,3 +134,13 @@ R3 **注记③闸式 30min 未实现**：交的是 6h 无条件拍——水印�
 
 已核合格：finCfg 池修对形（finPool 绑 client→SG 密文径）✓；SKILL.md
 契约全录✓；service scratch 隔离+NoNewPrivileges✓；索引件✓；build 净。
+
+## 返修① 回填（devin-t0311，同支续提）
+
+- ①决策席 SKILL 读面节补强：活在判词式+stance 枚举+**advisory 权**明记+
+  禁直改钱径+缺席=neutral（在案件补钉非新立）。
+- ②ExecStart 读件径修：ExecStartPre 落 `/var/tmp/o-regime/.devin/skills/
+  分析席/SKILL.md` 副件（源 `/opt/o/skills/分析席/SKILL.md` 拍前同步——
+  devin 项目 skills 发现径即达；scratch 硬隔不动）。
+- ③水印闸择票面明记项：6h 无条件拍钦定偏差明记（增量空=runbook 败退径
+  如实 skip——shell 闸引 ssh+psql 复杂度不入 unit 件）。
