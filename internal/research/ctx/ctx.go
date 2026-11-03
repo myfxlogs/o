@@ -32,22 +32,25 @@ var rrDial atomic.Uint64
 
 var ctxClient = &http.Client{
 	Timeout: 30 * time.Second,
-	Transport: &http.Transport{
-		DisableKeepAlives: true,
-		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+	Transport: func() *http.Transport {
+		t := http.DefaultTransport.(*http.Transport).Clone() // Clone 保 ForceAttemptHTTP2——手搓 Transport 缺省 h1 在 FRED 边池挂死（返修⑤坑）
+		d := &net.Dialer{Timeout: 10 * time.Second}
+		t.DisableKeepAlives = true
+		t.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
 			host, port, err := net.SplitHostPort(addr)
 			if err != nil {
 				return nil, err
 			}
 			ips, err := net.DefaultResolver.LookupIP(ctx, "ip", host)
 			if err != nil || len(ips) == 0 {
-				return (&net.Dialer{Timeout: 10 * time.Second}).DialContext(ctx, network, addr)
+				return d.DialContext(ctx, network, addr)
 			}
 			n := rrDial.Add(1)
-			return (&net.Dialer{Timeout: 10 * time.Second}).DialContext(ctx, network,
+			return d.DialContext(ctx, network,
 				net.JoinHostPort(ips[n%uint64(len(ips))].String(), port))
-		},
-	},
+		}
+		return t
+	}(),
 }
 
 var errTransport = errors.New("transport err") // 可重试类标记（边节点异态踢流换连即换节点）
