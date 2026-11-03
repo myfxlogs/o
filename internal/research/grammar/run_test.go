@@ -5,6 +5,7 @@ package grammar
 import (
 	"context"
 	"errors"
+	"math"
 	"testing"
 	"time"
 
@@ -148,46 +149,123 @@ func TestProposedNullAprDBGate(t *testing.T) {
 	}
 }
 
-// T-0213 桩锚：evalBasis net_apr 补发——fut/spot 行齐+基差超阈→proposed
-// +evidence 带 net_apr；基差不足→rejected/basis_below_min。
+// T-0213 桩锚（T-0298 新口径重锚）：evalBasis 基差−往返摊销 vs 动态底——
+// 高 APR 过阈→proposed；薄基差→rejected/basis_below_min；到期<7d→
+// basis_expiry_soon 早退；深负基差有符号判→rejected（旧 math.Abs 病灶）。
 func TestEvalBasisNetApr(t *testing.T) {
 	ctx, r := setup(t)
-	// fut=105 spot=100 inst 尾 361231（≈3y 到期→年化小；大额基差补短窗造高
-	// APR：取 26-02-25 尾=~120d，基差 5%/120d×365≈15%APR 过阈）。
+	inst := func(d int) string { return "BTC-USD-" + time.Now().AddDate(0, 0, d).Format("060102") }
+	inst10 := inst(10)
 	if _, err := r.pool.Exec(ctx, `INSERT INTO md_mark_index(ts,inst_id,channel,px) VALUES
-		(now(),'BTC-USD-270225','mark-price',105),
 		(now(),'BTC-USD','index-tickers',100),
-		(now(),'ETH-USD-270225','mark-price',101),
-		(now(),'ETH-USD','index-tickers',100)`); err != nil {
+		(now(),$1,'mark-price',101),
+		(now(),'ETH-USD','index-tickers',100),
+		(now(),$2,'mark-price',101)`, inst10, "ETH-USD-"+time.Now().AddDate(0, 0, 30).Format("060102")); err != nil {
 		t.Fatal(err)
 	}
-	f := Family{Template: "basis_ann", Direction: "gap_carry", Kind: "basis"}
+	f := Family{Template: "quarter_basis_long", Direction: "basis_quarter", Kind: "basis"}
 	if err := r.evalBasis(ctx, f); err != nil {
 		t.Fatal(err)
 	}
+	// basis=1%@~30d：gross≈0.1217−cost(32bps×365/30≈0.0396)≈0.082≥0.06→proposed
 	var verdict string
-	var apr, basisPct float64
+	var apr, costApr float64
 	var colApr *float64
 	if err := r.pool.QueryRow(ctx, `SELECT verdict, (evidence->>'net_apr')::float8,
-		(evidence->>'basis_pct')::float8, net_apr::float8 FROM fin_opp_eval
-		WHERE inst_id='BTC-USD-270225' ORDER BY id DESC LIMIT 1`).Scan(&verdict, &apr, &basisPct, &colApr); err != nil {
+		(evidence->>'cost_apr')::float8, net_apr::float8 FROM fin_opp_eval
+		WHERE inst_id=$1 ORDER BY id DESC LIMIT 1`,
+		"ETH-USD-"+time.Now().AddDate(0, 0, 30).Format("060102")).Scan(&verdict, &apr, &costApr, &colApr); err != nil {
 		t.Fatal("proposed 行未落:", err)
 	}
-	if verdict != "proposed" || apr <= 0.05 {
-		t.Fatalf("大额基差短窗应 proposed 且 net_apr>5%%: %s apr=%v", verdict, apr)
+	if verdict != "proposed" {
+		t.Fatalf("1%%基差30d应 proposed: %s apr=%v", verdict, apr)
 	}
-	if colApr == nil || *colApr != apr { // T-0205 重飞：列与 evidence 同拍同值
+	if colApr == nil || *colApr != apr {
 		t.Fatalf("proposed 行 net_apr 列应同拍落列: %v", colApr)
 	}
-	var verdict2, reason2 string
-	var apr2 *float64
-	if err := r.pool.QueryRow(ctx, `SELECT verdict, evidence->>'reason',
-		(evidence->>'net_apr')::float8 FROM fin_opp_eval
-		WHERE inst_id='ETH-USD-270225' ORDER BY id DESC LIMIT 1`).Scan(&verdict2, &reason2, &apr2); err != nil {
-		t.Fatal("rejected 行未落:", err)
+	wantCost := 32.0 / 1e4 * 365 / 30
+	if math.Abs(costApr-wantCost) > 0.01 {
+		t.Fatalf("cost_apr=%v want≈%v（32bps×365/30d 摊）", costApr, wantCost)
 	}
-	if verdict2 != "rejected" || reason2 != "basis_below_min" {
-		t.Fatalf("小基差应 rejected/basis_below_min: %s/%s", verdict2, reason2)
+	var v10, reason2 string
+	if err := r.pool.QueryRow(ctx, `SELECT verdict, evidence->>'reason' FROM fin_opp_eval
+		WHERE inst_id=$1 ORDER BY id DESC LIMIT 1`, inst10).Scan(&v10, &reason2); err != nil {
+		t.Fatal("10d 行未落:", err)
+	}
+	if v10 != "proposed" {
+		t.Fatalf("10d 1%%基差净≈0.24 应 proposed: %s/%q", v10, reason2)
+	}
+}
+
+// T-0298 验收锚：days=10/30/90 三档 net_apr 手算对齐+days<7 expiry_soon 早退
+// +深负基差有符号拒（旧 math.Abs 误判面）。
+func TestEvalBasisCostAmortization(t *testing.T) {
+	ctx, r := setup(t)
+	day := func(d int) (string, float64) {
+		s := time.Now().AddDate(0, 0, d).Format("060102")
+		e, _ := time.Parse("060102", s)
+		return s, time.Until(e).Hours() / 24
+	}
+	i10, _ := day(10)
+	i30, _ := day(30)
+	i90, d90 := day(90)
+	i3, _ := day(3)
+	if _, err := r.pool.Exec(ctx, `INSERT INTO md_mark_index(ts,inst_id,channel,px) VALUES
+		(now(),'BTC-USD','index-tickers',100),
+		(now(),'SOL-USD','index-tickers',100),
+		(now(),'BTC-USD-'||$1,'mark-price',101),
+		(now(),'BTC-USD-'||$2,'mark-price',101),
+		(now(),'BTC-USD-'||$3,'mark-price',101),
+		(now(),'BTC-USD-'||$4,'mark-price',101),
+		(now(),'SOL-USD-'||$2,'mark-price',99)`, i10, i30, i90, i3); err != nil {
+		t.Fatal(err)
+	}
+	f := Family{Template: "quarter_basis_long", Direction: "basis_quarter", Kind: "basis"}
+	if err := r.evalBasis(ctx, f); err != nil {
+		t.Fatal(err)
+	}
+	get := func(inst string) (string, string, float64, float64, float64) {
+		var v, rs string
+		var net, cost, gross float64
+		if err := r.pool.QueryRow(ctx, `SELECT verdict, evidence->>'reason',
+			(evidence->>'net_apr')::float8, (evidence->>'cost_apr')::float8,
+			(evidence->>'gross_apr')::float8 FROM fin_opp_eval
+			WHERE inst_id=$1 ORDER BY id DESC LIMIT 1`, inst).Scan(&v, &rs, &net, &cost, &gross); err != nil {
+			t.Fatalf("%s eval 行未落: %v", inst, err)
+		}
+		return v, rs, net, cost, gross
+	}
+	// 手算对齐：90d basis=1% → gross=1/d90*365/100；cost=32bps×365/d90；net=gross−cost
+	v, rs, net, cost, gross := get("BTC-USD-" + i90)
+	wantGross := 1.0 / d90 * 365 / 100
+	wantCost := 32.0 / 1e4 * 365 / d90
+	if math.Abs(gross-wantGross) > 0.001 || math.Abs(cost-wantCost) > 0.001 ||
+		math.Abs(net-(gross-cost)) > 1e-6 {
+		t.Fatalf("90d 手算错位: gross=%v(want %v) cost=%v(want %v) net=%v", gross, wantGross, cost, wantCost, net)
+	}
+	if v != "rejected" || rs != "basis_below_min" {
+		t.Fatalf("90d 净≈0.028<0.06 应 basis_below_min: %s/%s", v, rs)
+	}
+	v, _, n30, _, _ := get("BTC-USD-" + i30)
+	if v != "proposed" {
+		t.Fatalf("30d 净≈0.082 应 proposed: %s", v)
+	}
+	v, _, n10, _, _ := get("BTC-USD-" + i10)
+	if v != "proposed" {
+		t.Fatalf("10d 净≈0.24 应 proposed: %s", v)
+	}
+	if !(n10 > n30 && n30 > net) {
+		t.Fatalf("net_apr 非递减: 10d=%v 30d=%v 90d=%v", n10, n30, net)
+	}
+	// days<7=expiry_soon 早退（cost 摊销前）
+	v, rs, _, _, _ = get("BTC-USD-" + i3)
+	if v != "rejected" || rs != "basis_expiry_soon" {
+		t.Fatalf("3d<7d 应 basis_expiry_soon: %s/%s", v, rs)
+	}
+	// 深负基差（fut<spot）有符号判→rejected（旧 math.Abs 会误判 proposed）
+	v, rs, netN, _, _ := get("SOL-USD-" + i30)
+	if v != "rejected" || netN >= 0 {
+		t.Fatalf("深负基差应有符号 rejected: %s/%s net=%v", v, rs, netN)
 	}
 }
 
