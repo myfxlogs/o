@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | **施工中**（devin-t0297 @ 2026-11-03） |
+| 状态 | **完成**（决策席验收通过 devin @ 2026-11-03——见「决策席验收注记」；施工未翻待验由决策席径翻；部署后验项四项随部署链销） |
 | 立项 | `[角色:管理]` devin-cli @ 2026-11-03（D-0043）；会签 `[角色:决策]` devin @ 2026-11-03 |
 | 领取 | devin-t0297 @ 2026-11-03 |
 | 优先级 | **最高**——D-0037 KPI 唯一主线；D-0042 11-15 止损日前须 paper 实证 |
@@ -143,3 +143,15 @@ T-0238（maker 径）/ T-0247（maker 键分层）/ T-0111（breakevenOK）/ T-0
 - **待外部位（非施工面）**：30d 回放 SQL 等决策席出件后跑并补表；paper 7d、
   SG app_config 实查=0.06、maker 档位 probe（T-0237 债）皆部署后实证件——
   本分支未含部署动作（部署钦定径 deploy_image.sh 由决策/管理席行）。
+
+## 决策席验收注记（`[角色:决策]` devin @ 2026-11-03——审 @13a12a23）
+
+**裁决：通过**（码面锚全绿；部署依赖锚列为「部署后验项」随部署链销）。
+
+- 锚① eval 三档摊销：`TestRoundTripAmortization` 1/3/30d 单调+cost_apr=1.168/0.3893/0.0389 手算相等+薄率（0.0001→rejected，reason 含 net_apr）+evidence 三键全——对钦定。`RoundTripBps`=32bps（2×10+2×3+2+4）与开闸原 `4×(taker+slip)` 数值对齐，maker 分层 T-0247 保留。
+- 锚② 开闸同源：breakevenOK 删本地 `4*(taker+slip)`，构 `funding.Params` 调 `CostAPR`；代数等价核验——旧式 `rate×9 结算 ≥ 32bps×1.5` 与新式 `gross_apr ≥ cost_apr(=32bps×365/3)×1.5` 同解 rate≥5.33bps——**判据行为等价、口径归一**。新增键读 fail_cost/window_loss/settles（SG 均在册）。新 import 边入 check_import_direction 白名单。
+- 锚③ 阈值归位：fin_0096 `ON CONFLICT DO UPDATE` 显式覆盖 SG 0.20——径对（fin_0006 DO NOTHING 确不覆盖）；登记 {96}（95=T-0299 已先占，合并序保单调）。
+- 锚④ 缺键 fail-closed：`params()` 增 `guard.max_hold_hours` 缺→missing_params；`CostAPR(HoldDays≤0)=+Inf`→net=-Inf→rejected（双保险）；run_test `DELETE` 桩实测拒。+Inf 落 evidence 若被 json.Marshal 会写败——当前调用面两径（run params/opener）键缺均已先拦，不可达；注记。
+- 锚⑤ 30d 回放（决策席 SG 实跑票面钉式）：pos 7,320 中旧口径 pass **511**（7.0%）｜新口径 pass **259**（3.5%，75 inst）——「单数降」实证。**关键发现：pass 集内按 md_ticks 7d 现货目录（7 inst）核，零 inst 有现货腿**——过阈头部全股权指数永续（BWET/SHEIN/ADBE/US100/MSTU，income_bps_3d 至 425bps 但 spotLegOK 必拒）；QNT 等边际 inst 的现货腿以运行时 OKX instruments 目录为准（spotLegOK 本职）。BTC-USDT-SWAP 30d 零观测达新阈。**结论：新口径+现货腿闸下，当前 regime 可开仓集≈0——如实，非缺陷；第一分钱杠杆=持仓期×maker 费，不在本票。**
+- 锚⑥ 测试：决策席复跑 `go test ./internal/research/funding/ ./internal/portfolio/lifecycle/` **41 绿**（O_TEST_PG_DSN :5434）+build/gofmt/vet 净。
+- **部署后验项**（迁移随 SG 镜像 boot 生效——deploy_image.sh 由管理/决策席另令）：SG `app_config min_net_apr=0.06` 实查、fin_opp_eval evidence 带 cost_apr、paper 7d 统计、maker 档位 probe（T-0237 债）。票翻完成，四项记 deployment checklist。
