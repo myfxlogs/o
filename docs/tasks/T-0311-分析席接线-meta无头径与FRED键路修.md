@@ -237,3 +237,16 @@ regime_tick.sh 端到端**回贴实迹（ops_headless 行+md_regime_fact 是否
 **T-0311 收口→完成**。后续：①驾驶舱 stall 红绿标读面归 T-0312；
 ②FRED 进水待 OCI o-research 重部（finCfg 池修已合，二进制待编译部署）；
 ③T-0312=OCI→dev gRPC 事件总线+无头决策席（终态钦定形态在票注记④）。
+
+## 返修⑤·决策直修链（2026-11-03）——FRED 进水四坑连根修
+
+部署实击四环全断全修：①finCfg.Load() 越域拉 app_config 起即崩→删
+（Secret 按次直读不吃快照；review_rw 补 app_secrets SELECT——SG 已授）；
+②boot 一次性读键+err 吞成空键=整源哑→AttachFredFn 每拍自取自愈；
+③静默吞错零观测→键取/拉取日志灯；④Akamai 单 IP 边池 h2 间歇踢流
+（Go/curl 同踢实证）+手搓 Transport 缺省 h1 挂死→Clone 保 h2 三试+
+curl h1 备径+err 脱 URL（api_key 半键曾落 journal——轮换建议件）。
+
+**部署态**：机制全修部署 active——当前处上游边劣化窗口（h2 全拦/h1 抖
+动实证），fred 行待边恢复自落（6h 拍自试，fail-soft 不炸）。KB 条目：
+docs/工程经验库/条目/fred-akamai-edge-go-transport-reject.md。
