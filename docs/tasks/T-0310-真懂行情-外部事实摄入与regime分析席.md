@@ -41,3 +41,10 @@ antclaw 通道接通后 feed 扩面（RSS/经济日历/链上）+驾驶舱 memo 
   DELETE/fin_* 权——revoke 面进迁移）。
 - 三参待业主回：antclaw 写径（SQL直写|tunnel|file-drop）、可得类、频率——
   阶段一以人工注入+OI公开面实证闭环，antclaw 不接不阻塞。
+- **mql5.com 钉为阶段一宏观主源**（业主指引 2026-11-03+实证可达）：
+  /en/economic-calendar 免凭据服务端渲染——全币种事件 actual/forecast/
+  previous 三值全谱（RBA 决议/ISM/JOLTS/CPI/央行讲话）。采法：盒上采
+  集臂定时拉页解析（或 XHR 端点择优——施工实测钉径），kind='macro'
+  source='mql5' 灌 md_ctx_fact；每事件含 id/时间/币种/重要性——天然
+  结构化省 LLM 归一。附加面（阶段二再评）：/en/news 新闻流、quotes
+  页——同域可采。
