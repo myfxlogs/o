@@ -70,3 +70,10 @@ SG 生效），但 scout 的 `pool` 是研究主池（盒本机 PG-md :5435—�
 15 列全量 upsert on venue（metrics/state/last_request_at 随行）；`want` 册对拍
 fail-closed 过。复跑 20 绿（scout 4+projector 16）、迁移七断言、import 边净。
 部署三锚（实采行/journal 无拍败/SG 镜像 metrics）随双臂重启实证——归部署链销。
+
+
+## 部署后验实拍（2026-11-03，T-0302 顺带达成）
+
+三锚全绿：①md_venue_funding 三所行落（binance 896/bybit 3720/hyperliquid 940）；②scout 拍败=0、
+metrics 刷写；③SG 镜像 metrics.boards 非空（四所 2/2/2/1）。途中起两坑——binance 适配器
+interestRate 类型撞死字段（T-0302 删）、桥表漏 GRANT projector_rw（fin_0098 补行+SG 手工先授）。

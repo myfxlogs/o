@@ -2,7 +2,23 @@
 
 ## 状态
 
-**已批（决策急诊立案）**
+**完成（2026-11-03，决策席急诊自施 typo 级＋合 @bdf7a292）**
+
+## 生产实证（三锚全绿，05:55 UTC 实拍）
+
+| 锚 | 实证 |
+|---|---|
+| binance 行落库 | `md_venue_funding` GROUP BY：binance-usdm=896（恰=真载荷 USDT 尾数 896——协议面互证）、bybit=3720、hyperliquid=940 |
+| 拍败清零 | 重启后 journal grep `拍败`=0；metrics `measured_at=05:54:48` 刷新 |
+| SG 镜像 boards | `jsonb_array_length(metrics->'boards')`：binance=2、bybit=2、hyperliquid=2、okx=1 |
+
+次生发现一并处置：projector 每拍 `permission denied for table fin_venue_candidate`——
+fin_0098 补 `GRANT ... TO projector_rw`（同 fin_opp_eval 权集）已入迁移并手工
+授权 SG 先行（T-0301 锚③由此达成）。二进制部署坑：`ExecStart=%h/o-research/o-research`
+（目录式布局，非 `~/o/` 旧径）——投件照 unit 文准。
+
+待办（出本票面，后续票）：scout rejects Door 无 Snapshot 消费面（venue_down
+运行期不可查）；`interval_h` 归真（fundingInfo 端点）；adapter 测试换实测载荷 fixture。
 
 ## 背景（生产实证，非推断）
 
