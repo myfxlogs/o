@@ -81,3 +81,18 @@ internal/research/ctx/ 新包）。
 动量入 regime 判词——喂事实非产信号）；ark 回测方法论（per-regime hit
 rate/校准）→评史官策略评审升级件；ark AI 层 prompt/限速当参考读。方向性
 信号引擎永不移植（投机径=已拆病灶）。
+
+
+## 决策注记⑤（2026-11-03 —— 业主令「吸收 ark 入 O」）
+
+「移植」升级为「吸收」：ark 采集件 vendored 进 O 仓（Apache-2.0——
+vendor 件须随 LICENSE 署名段）。吸收边界钦定：
+- **收**：internal/{cot,fred,calendar(mql5),news,price} 采集客户端 + pkg
+  指示数学（TA 指标库——阶段二特征层备料）
+- **不收**：Telegram 适配/cmd bot 主环/BadgerDB 存储适配/信号 confluence
+  引擎/AI 层（职责异构+投机径病灶）
+- **落地径**：internal/research/ctx/ 新包——ark 客户端代码适配 O 的
+  Fetcher/store 模式（scout 同款），头部注 ark 出处+Apache-2.0；指标
+  数学放 internal/lib/ta/（本票建好壳+关键指标，特征层接入属阶段二）。
+- **依赖纪律**：ark 第三方 dep 只带采集必需件（重试/限速器），
+  Gemini/Claude SDK 不入——分析席复用假想官既有 LLM 径。
