@@ -163,3 +163,20 @@ R3 幂等新坑——COT ins(...,"cot","",...) dedupe_key='' IS NOT NULL →全 
   进 TickOnce 源列（五件）。
 - 测试：kind macro/oi/cot 各≥1 锚+幂等重拍绿@5434。
 - 注记⑨产证锚（部署后三 kind 行+macro_event ffcal 命中）属部署后实证件。
+
+## 决策席审计注记⑩·收口（2026-11-03 五轮毕——产证锚落二，ffcal 限流窗顺延）
+
+**产证终审**（o-research active @84ba5d9c）：
+- `md_ctx_fact`：cot=50 行（source=cftc）✓、oi=1（okx_public）✓
+- ffcal 日历：端点双盒 200 实证+码路桩测过——首拍连撞 429 系审计期实测
+  连打触发的 IP 窗口，6h 拍自复（非码病灶）；macro_event ffcal 行随
+  下拍落（窗口锚：11-03 晚~11-04 首拍后复核）。
+- FRED：fred_api_key 未入 app_secrets=整源静默跳过（口径内）。
+- analyst 臂：llm_absent 守位运行——全仓无 LLM client 实件（假想官=
+  模板起草席非 LLM）；接线须 provider 选型+凭据=后续项非本票范围。
+- ctx 四源节拍 6h/分析 6h；md_1083/1084 迁移已生效（幂等键在册）。
+
+**收口判**：码面四源真件全谱实证（ffcal XML/6dca-aqww/OKX OI/FRED 键门），
+写径幂等+优先级+fail-soft 全生效。票翻完成——残留三件归后续：
+①FRED_API_KEY 业主供件入 app_secrets ②LLM provider 选型立项（分析席
+接线）③ffcal 首拍落地复核（下拍窗口）。
