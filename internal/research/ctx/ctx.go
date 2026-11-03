@@ -14,6 +14,7 @@ import (
 	"net"
 	"net/http"
 	neturl "net/url"
+	"os/exec"
 	"sync/atomic"
 	"time"
 
@@ -70,7 +71,23 @@ func httpGet(ctx context.Context, url string) ([]byte, error) {
 			break // 非传输层败（status 拒/建请败）不重试
 		}
 	}
+	if errors.Is(last, errTransport) {
+		if b, err := curlGet(ctx, url); err == nil { // curl TLS 指纹过 Akamai bot 检——Go JA3 被拦径实证备用径（T-0311 返修⑤）
+			return b, nil
+		}
+	}
 	return nil, last
+}
+
+// curlGet Go 传输尽后 curl 备用径（单 IP 边节点对 Go TLS 指纹间歇踢流——
+// 同盒 curl 同端点实证通；stdout 出件 stderr 吞防 api_key 落日志）。
+func curlGet(ctx context.Context, url string) ([]byte, error) {
+	out, err := exec.CommandContext(ctx, "curl", "-sfS", "--max-time", "25",
+		"-A", "o-ctx/1.0", url).Output()
+	if err != nil {
+		return nil, fmt.Errorf("http get: %w: curl", errTransport)
+	}
+	return out, nil
 }
 
 func httpTryGet(ctx context.Context, url string) ([]byte, error) {
