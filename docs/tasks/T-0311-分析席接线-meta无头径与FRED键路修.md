@@ -98,3 +98,22 @@ runbook 即可（同决策席/研究员席位形制）；不牵其他项目、�
    红线+事后审计钉）。
 **决策席无头化另票**：ops_headless 域+relay 基建在册——唤醒模型（收口
 事件触发+周期兜底）+红线三件升业主不动=独立票（T-0312 向）不入本票。
+
+## 施工回填（devin-t0311 @ 2026-11-03，分支 t/0311-regime-analyst）
+
+- **①deploy/o-regime-analyst.{service,timer}**：systemd --user 6h 拍
+  （OnBootSec=10min+OnUnitActiveSec=6h+Persistent）起 `devin -p --model swe
+  --respect-workspace-trust false`，cwd=/var/tmp/o-regime scratch 硬隔零仓件；
+  NoNewPrivileges。
+- **skills/分析席/SKILL.md**：票面钦定契约全录——水印读径
+  （max((evidence->>'ctx_max_id')::bigint)）/50 行 800B 截/strict JSON 数组/
+  stance 枚举/confidence 0~1/memo≤200 字标边界/写域收窄两表 INSERT/注入
+  双层防/败退 fail-soft/meta 心跳口径不冒生产岗。
+- **②FRED 键路修**：main.go 增 finCfg=config.New(finPool)（SG app_secrets
+  驻 SG——md 池 client 读必败）；finCfg.Secret("fred_api_key")→
+  AttachFredKey；researchArms 签名加参。
+- **③决策席读面节**：skills/决策席/SKILL.md 补 regime_fact 段（活在判词
+  式+advisory 权+禁直改+缺席=neutral）。
+- **④analyst 臂守位**：llm_absent 缝留零动（meta 断线兜底）。
+- 验收锚：timer 在册/首拍真判词/fred 行属部署+席位激活后实证件；
+  零 fin_* 写径=grep 静态证（analyst/ctx 全件无 fin_ 触）。
