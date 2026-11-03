@@ -83,7 +83,7 @@ func httpGet(ctx context.Context, url string) ([]byte, error) {
 // 同盒 curl 同端点实证通；stdout 出件 stderr 吞防 api_key 落日志）。
 func curlGet(ctx context.Context, url string) ([]byte, error) {
 	out, err := exec.CommandContext(ctx, "curl", "-sfS", "--http1.1", "--max-time", "25",
-		"-A", "o-ctx/1.0", url).Output()
+		"-A", "Mozilla/5.0 (X11; Linux x86_64) o-research/1.0", url).Output()
 	if err != nil {
 		return nil, fmt.Errorf("http get: %w: curl", errTransport)
 	}
@@ -95,7 +95,7 @@ func httpTryGet(ctx context.Context, url string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", "o-ctx/1.0")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) o-research/1.0") // 自造短 UA 被 Akamai bot 检拦（返修⑤坑——指纹型非礼貌型 UA 指定药）
 	resp, err := ctxClient.Do(req)
 	if err != nil {
 		var ue *neturl.Error
