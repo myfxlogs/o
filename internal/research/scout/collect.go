@@ -131,7 +131,6 @@ func collectBinance(ctx context.Context, f Fetcher) ([]row, error) {
 		IndexPrice  string `json:"indexPrice"`
 		FundingRate string `json:"lastFundingRate"`
 		NextTime    int64  `json:"nextFundingTime"`
-		IntervalH   int    `json:"interestRate"`
 		FundingIntH int    `json:"fundingIntervalHours"`
 	}
 	if err := json.Unmarshal(b, &xs); err != nil {
