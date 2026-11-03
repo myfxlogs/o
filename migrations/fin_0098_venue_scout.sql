@@ -42,3 +42,7 @@ INSERT INTO app_config(key,value) VALUES
   ('scout.top_n','5'),
   ('scout.measure_interval_h','24')
 ON CONFLICT (key) DO NOTHING;
+
+-- T-0302：桥镜像表对投影写者授权（同 fin_opp_eval 权集——漏授则 venue_candidate
+-- 投影每拍 permission denied 静默败，生产实证）。GRANT 幂等。
+GRANT SELECT,INSERT,UPDATE,DELETE ON fin_venue_candidate TO projector_rw;
