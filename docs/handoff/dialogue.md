@@ -730,3 +730,20 @@
   ——本地绿镜像败的「两清单」坑，KB `buf-gen-yaml-new-proto-must-sync-dockerfile-copy` 入库。
 - o-core:d2bd4cc0a3f3 healthy。net_vs_earn 首行 11-09 周界落地（预登记预期值 −0.1956——
   近 7d 与 Earn 停泊持平微欠，如实）。
+
+### 2026-11-04 T-0294 裁决通过（决策席——收口待审唯一件）
+
+- 裁词通过：meta@1bab8cb+o@f3c6ece6 全量亲核——CALENDAR_ALIGN 对正值
+  1793579400=11-02 08:30:00 CST 三重对拍（journal+.ob 落盘+systemd-analyze）、
+  EARLY_FIREQ 停服前 7min 窗产线实跑 15 条、dlm-cal-* list-timers 零命中、
+  五新测全绿、坑条目 verified+索引在案。
+- 锚④（次日 08:30 文案实证）销：业主令 11-01 meta 全面停服归档（4b9dbf1，
+  dlmd 16:01:20 DLMD_STOP 未再起、edr-cal 其后 203/EXEC）——验收域灭失非缺陷。
+- 记档三违：回填「gofmt 全绿」虚报（main_test.go import 序红）；commit 搭车
+  两件台账（管理席交接态快照+已收口 T-0292 提示词删除）超域字面——meta 径
+  已归档无返修对象，不以此驳。
+- **遗留警示**：部署树现存 T-0312 第六刀一席 staged-未提交件（已 unstage 保
+  留工作区：cmd/eventbus|metabus、deploy/o-decision-seat.{service,timer}、
+  migrations/fin_0104、scripts/meta/dm_tick.sh、skills/决策席、索引.md、
+  T-0312 票面）——非 docs 台账类件须走 worktree 径落 master，留 T-0312 属席
+  自理，他人勿代 commit。
