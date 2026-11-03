@@ -12,7 +12,8 @@ import (
 	"o/internal/gen/dashboardv1"
 )
 
-// stageThresh 段灯阈（预期周期秒——按各臂真实节拍钉：collect=funding 采集
+// stageThresh 段灯阈（预期周期秒——按各臂真实节拍钉：返修② collect/bridge
+// 改 recv_ts（镜像到达戳——周期边界 ts 负滞后+停摆失明病灶修）。collect=funding 采集
 // ~5m、bridge=投影帧 ~10m、eval=评估拍 ~30m、proposal=提案拍 ~30m、exec=钱流
 // 事件（分钟级）、report=日报 24h+余、scout=日拍 25h、roster=心跳 60s）。
 var stageThresh = map[string]int64{
@@ -30,8 +31,8 @@ type stageDef struct {
 }
 
 var flowStages = []stageDef{
-	{"collect", "采集", `SELECT max(ts), count(*) FILTER (WHERE ts>now()-interval '24 hours') FROM md_funding`, false},
-	{"bridge", "投影", `SELECT max(ts), count(*) FILTER (WHERE ts>now()-interval '24 hours') FROM md_ticks`, false},
+	{"collect", "采集", `SELECT max(recv_ts), count(*) FILTER (WHERE recv_ts>now()-interval '24 hours') FROM md_funding`, false},
+	{"bridge", "投影", `SELECT max(recv_ts), count(*) FILTER (WHERE recv_ts>now()-interval '24 hours') FROM md_ticks`, false},
 	{"eval", "评估", `SELECT max(ts), count(*) FILTER (WHERE ts>now()-interval '24 hours') FROM fin_opp_eval`, false},
 	{"proposal", "提案", `SELECT max(created_at), count(*) FILTER (WHERE created_at>now()-interval '24 hours') FROM fin_proposal`, true},
 	{"exec", "执行", `SELECT max(occurred_at), count(*) FILTER (WHERE occurred_at>now()-interval '24 hours') FROM fin_cashflow`, true},

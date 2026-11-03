@@ -33,3 +33,18 @@ T-0220b-d/T-PROBE 等 dev 会话坟场），非生产岗死亡。生产真名册
   SQL 式即可，roster lag 口径与活水段一致）。
 - ops_seat_latest/ops_headless 不删不改写——meta 面留运维排查用，
   仅出业主 KPI 视线。
+
+
+## 施工回填（devin-t0308 @ 2026-11-03，同支 t/0307 续提）
+
+- **存活瓦片主数**：`fin_employee_registry WHERE status='active'` count——
+  GetCockpit 内查同名 SQL 式（roster_active/worst_lag_s/worst_seat 三字段
+  入 proto field 10-12——与 GetFlowPulse 口径同源勿双写；读败=missing
+  "roster"）。
+- **红警条件**：active 岗 last_beat 停滞>10min（600s 钉常量）→瓦片右上
+  转红显该岗名+滞后；lag 文本照显。ops_headless 尸体不参警。
+- **无头面子行**：改中性「dev 会话 X 在飞（meta 排查面不参警）」——
+  dead/stalled/overdue 尸体出红警径不制红（择中性标项）。
+- **顺修**：cockpit_face_test 场景件清基（fin_0097 ops_event 种子行虚增
+  tickets_total——同 pipeline 测试隔离件）。
+- 测试：core 全绿@5434；tsc --noEmit 绿；杀服务演验=部署后实证件。

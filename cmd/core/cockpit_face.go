@@ -29,6 +29,8 @@ func stageOf(ev string) string {
 func (c coreService) GetCockpit(ctx context.Context,
 	req *dashboardv1.GetCockpitRequest) (*dashboardv1.GetCockpitResponse, error) {
 	r := &dashboardv1.GetCockpitResponse{Money: &dashboardv1.CockpitMoney{}}
+	var minBeat *time.Time
+	var worstSeat *string
 
 	// ①⑤ 存活面+在做什么：每席最新自报→阶段派生
 	rows, err := c.pool.Query(ctx,
@@ -51,6 +53,21 @@ func (c coreService) GetCockpit(ctx context.Context,
 		}
 		if rows.Err() != nil {
 			r.Missing = append(r.Missing, "seats")
+		}
+	}
+
+	// ①⑥ T-0308：①存活瓦片改生产岗册源（fin_employee_registry——meta
+	// ops_seat_latest/ops_headless 出业主 KPI 视线；同 GetFlowPulse 口径
+	// 勿双写——同名 SQL 式内查；读败=missing "roster"）。
+	if err := c.pool.QueryRow(ctx, `SELECT count(*), min(last_beat),
+		(SELECT name FROM fin_employee_registry WHERE status='active' ORDER BY last_beat LIMIT 1)
+		FROM fin_employee_registry WHERE status='active'`).
+		Scan(&r.RosterActive, &minBeat, &worstSeat); err != nil {
+		r.Missing = append(r.Missing, "roster")
+	} else if minBeat != nil {
+		r.RosterWorstLagS = int64(time.Since(*minBeat).Seconds())
+		if worstSeat != nil {
+			r.RosterWorstSeat = *worstSeat
 		}
 	}
 

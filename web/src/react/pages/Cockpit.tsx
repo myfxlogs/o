@@ -172,8 +172,6 @@ export function CockpitPage() {
 	const parked = m ? m.platforms.reduce((a, p) => a + p.parked, 0) : 0;
 	const d30 = m ? m.daily.reduce((a, v) => a + v, 0) : 0;
 	const posDays = m ? m.daily.filter((v) => v > 0).length : 0;
-	let lastSeatTs: { seconds: bigint } | undefined;
-	for (const s of d.seats) if (s.ts && (!lastSeatTs || s.ts.seconds > lastSeatTs.seconds)) lastSeatTs = s.ts;
 	const hlRows = hl.data?.rows ?? [];
 	// 计数双语归一（服务端判态中文标 or pump 原键——HL_STATE 正向映射后按显示
 	// 标判，两径通吃；①存活卡「无头面」注行数据源——分片仍在流推只撤卡面）。
@@ -182,15 +180,14 @@ export function CockpitPage() {
 		exit: "已退",
 	};
 	const hlL = (s: string) => HL_STATE[s] ?? s;
-	const hlBad = hlRows.filter((r) => ["死亡", "停滞", "逾期"].includes(hlL(r.state))).length;
 	const hlAlive = hlRows.filter((r) => hlL(r.state) === "在飞").length;
-	const hlDone = hlRows.filter((r) => hlL(r.state) === "完工").length;
-	const hlExit = hlRows.filter((r) => hlL(r.state) === "已退").length;
+	const rosterStale = !miss.has("roster") && Number(d.rosterWorstLagS) > 600; // T-0308：active 岗心跳停滞>10min 钉常量转红
+	const rosterWorstSeat = d.rosterWorstSeat || "";
+	const fmtLagMin = (sec: number) => (sec >= 3600 ? `${(sec / 3600).toFixed(1)}h` : sec >= 60 ? `${(sec / 60).toFixed(0)}m` : `${sec}s`);
 	// v3 呼吸灯：瓦片右上角状态点统一灯语（绿呼吸=段数据在；红=段缺/异常），
 	// title 携鲜度（快照 asOf / 最近自报——AGE 同 panel 件）。纯显示映射零判据。
 	const asOfD = d.asOf ? new Date(Number(d.asOf.seconds) * 1000) : null;
 	const asOfAge = asOfD ? AGE(asOfD) : "—";
-	const lastSeatAge = lastSeatTs ? AGE(new Date(Number(lastSeatTs.seconds) * 1000)) : "—";
 	return (
 		<div className="page">
 			<div className="health-strip">
@@ -230,14 +227,14 @@ export function CockpitPage() {
 					</>)}
 				</Card>
 				<Card className="kpi" title="① 存活"
-					extra={hl.data ? <StateDot state={hlBad > 0 ? 2 : 0} breathe={hlBad === 0}
-						title={hlBad > 0 ? `无头面 ${hlBad} 单异常（死亡/停滞/逾期）` : "无头面无异响"} /> : undefined}>
-					{sec("seats", <>
-						<div className="kpi-v">{d.seats.length}<span className="kpi-unit">席在册</span></div>
-						<div className="kpi-note">最近自报 {ts(lastSeatTs)}</div>
+					extra={!miss.has("roster") ? <StateDot state={rosterStale ? 2 : 0} breathe={!rosterStale}
+						title={rosterStale ? `岗心跳停滞 ${rosterWorstSeat} ${fmtLagMin(Number(d.rosterWorstLagS))}` : "生产岗心跳正常"} /> : undefined}>
+					{sec("roster", <>
+						<div className="kpi-v">{d.rosterActive}<span className="kpi-unit">生产岗在岗</span></div>
+						<div className="kpi-note">最坏心跳滞后 {fmtLagMin(Number(d.rosterWorstLagS))}{rosterStale ? `（${d.rosterWorstSeat} 停滞超 10min）` : ""}</div>
 					</>)}
-					{hl.data && hlRows.length > 0 && (
-						<div className="kpi-note">无头面 {hlAlive} 在飞 · {hlDone} 完工{hlExit > 0 ? ` · ${hlExit} 已退` : ""}{hlBad > 0 ? ` · ${hlBad} 异常` : ""}</div>
+					{hl.data && hlAlive > 0 && (
+						<div className="kpi-note">dev 会话 {hlAlive} 在飞（meta 排查面不参警）</div>
 					)}
 				</Card>
 			</div>
