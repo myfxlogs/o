@@ -154,3 +154,12 @@ R3 幂等新坑——COT ins(...,"cot","",...) dedupe_key='' IS NOT NULL →全 
 - collectNews 整源删（mql5 同宿主死）；POST 缝/fetchForm/六头/mql5Event/
   AttachPost/周界换算全撤走 GET 缝。
 - 测试：ctx 桩（ffcal High upsert+种子保留+slug 幂等+ffDate 三档）绿@5434。
+
+## 返修④ 回填（devin-t0310，同支续提）
+
+- ①COT 端点 6dca-aqww（ark config.go:120 钉）+$order report_date 倒序+行 id
+  作 dedupe_key。
+- ②collectOI 补回（OKX open-interest SWAP 公开面 kind='oi' dedupe 日戳）
+  进 TickOnce 源列（五件）。
+- 测试：kind macro/oi/cot 各≥1 锚+幂等重拍绿@5434。
+- 注记⑨产证锚（部署后三 kind 行+macro_event ffcal 命中）属部署后实证件。

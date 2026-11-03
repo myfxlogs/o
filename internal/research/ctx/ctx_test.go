@@ -32,6 +32,8 @@ func TestCollectStub(t *testing.T) {
 			return []byte(`[{"market_name":"EURO FX","open_interest":1}]`), nil
 		case strings.Contains(url, "fred"):
 			return []byte(`{"observations":[{"date":"2026-11-01","value":"4.0"}]}`), nil
+		case strings.Contains(url, "open-interest"):
+			return []byte(`{"data":[{"instId":"BTC-USDT-SWAP","oi":"1000","oiCcy":"1000"}]}`), nil
 		}
 		return nil, nil
 	}
@@ -53,8 +55,15 @@ func TestCollectStub(t *testing.T) {
 	if err := pool.QueryRow(c, `SELECT count(*) FROM md_ctx_fact`).Scan(&n); err != nil {
 		t.Fatal(err)
 	}
-	if n < 5 {
-		t.Fatalf("ctx 落行应 ≥5（PMI+FRED×4+COT）: %d", n)
+	if n < 6 {
+		t.Fatalf("ctx 落行应 ≥6（PMI+FRED×4+COT+OI）: %d", n)
+	}
+	// kind 各≥1 锚（注记⑨产证锚对应件）
+	for _, k := range []string{"macro", "oi", "cot"} {
+		var kn int
+		if err := pool.QueryRow(c, `SELECT count(*) FROM md_ctx_fact WHERE kind=$1`, k).Scan(&kn); err != nil || kn < 1 {
+			t.Fatalf("kind %s 行缺: %v", k, err)
+		}
 	}
 	// 幂等锚：重拍不增行（slug dedupe 拒重）
 	if err := r.TickOnce(c); err != nil {
@@ -64,7 +73,7 @@ func TestCollectStub(t *testing.T) {
 	if err := pool.QueryRow(c, `SELECT count(*) FROM md_ctx_fact`).Scan(&n2); err != nil {
 		t.Fatal(err)
 	}
-	if n2 > n+1 { // COT 空键每拍一行容忍
+	if n2 > n+1 { // COT 行 id 键拒重；OI 日戳同键拒重——容 1 漂移
 		t.Fatalf("幂等失守: %d→%d", n, n2)
 	}
 }
