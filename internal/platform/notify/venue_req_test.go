@@ -16,7 +16,9 @@ func TestVenueReqPush(t *testing.T) {
 	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
 		t.Fatal(err)
 	}
-	mets := `{"boards":[{"family":"carry","net_apr_mid":0.12,"persist":0.8,"baseline":0.06,"margin":0.05}]}`
+	// 生产真形 fixture（scout board 六字段 json tag 逐字段对拍——margin 不塞
+	// 即「无 margin 字段的 metrics 也出富文」锚直接覆盖）。
+	mets := `{"boards":[{"family":"carry","net_apr_mid":0.12,"persist":0.8,"baseline":0.06,"baseline_source":"earn","top_n":5}]}`
 	if _, err := pool.Exec(ctx, `UPDATE fin_venue_candidate SET state='recommended',
 		last_request_at=now(),metrics=$1::jsonb WHERE venue='mexc'`, mets); err != nil {
 		t.Fatal(err)
@@ -28,6 +30,9 @@ func TestVenueReqPush(t *testing.T) {
 	}
 	if len(fs.sent) != 1 || !strings.Contains(fs.sent[0], "请注册 mexc") || !strings.Contains(fs.sent[0], "carry") {
 		t.Fatalf("组文不符: %+v", fs.sent)
+	}
+	if !strings.Contains(fs.sent[0], "12") || !strings.Contains(fs.sent[0], "6") {
+		t.Fatalf("富文应含实数百分比: %s", fs.sent[0])
 	}
 	if err := v.Scan(ctx); err != nil {
 		t.Fatal(err)

@@ -81,13 +81,17 @@ func (v *VenueReq) pushOne(ctx context.Context, r struct {
 // 不丢推送——票面禁线）。红线句钉死。
 func venueMsg(venue string, mets []byte) string {
 	fall := fmt.Sprintf("【venue-scout】请注册 %s（state→recommended，度量件查 fin_venue_candidate.metrics）——红线件：新平台注册归业主裁决", venue)
+	// 返修①甲案：margin 伪阈删（生产 metrics jsonb 无 margin 字段——
+	// state='recommended' 即达阈认证推送面不二次裁决阈=双真相源防；
+	// 直取 persist 最高 board 组文）。struct 字段=scout board 六件真形。
 	var m struct {
 		Boards []struct {
-			Family    string   `json:"family"`
-			NetAprMid *float64 `json:"net_apr_mid"`
-			Persist   *float64 `json:"persist"`
-			Baseline  *float64 `json:"baseline"`
-			Margin    *float64 `json:"margin"`
+			Family         string   `json:"family"`
+			NetAprMid      *float64 `json:"net_apr_mid"`
+			Persist        *float64 `json:"persist"`
+			Baseline       *float64 `json:"baseline"`
+			BaselineSource string   `json:"baseline_source"`
+			TopN           *int     `json:"top_n"`
 		} `json:"boards"`
 	}
 	if err := json.Unmarshal(mets, &m); err != nil || len(m.Boards) == 0 {
@@ -95,13 +99,10 @@ func venueMsg(venue string, mets []byte) string {
 	}
 	best := -1
 	for i, b := range m.Boards {
-		if b.NetAprMid == nil || b.Persist == nil || b.Baseline == nil || b.Margin == nil {
+		if b.NetAprMid == nil || b.Persist == nil || b.Baseline == nil {
 			continue
 		}
-		if *b.NetAprMid < *b.Baseline+*b.Margin {
-			continue // 未达阈
-		}
-		if best < 0 || *m.Boards[i].Persist > *m.Boards[best].Persist {
+		if best < 0 || *b.Persist > *m.Boards[best].Persist {
 			best = i
 		}
 	}
