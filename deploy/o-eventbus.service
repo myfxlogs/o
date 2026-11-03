@@ -1,0 +1,15 @@
+# o-eventbus.service —— OCI 事件总线（T-0312 第五刀——127.0.0.1:15436
+# loopback；env=/opt/o-research/env MD/FIN 双 DSN）。
+[Unit]
+Description=o-eventbus (OCI→dev 事件总线服务端)
+After=network-online.target
+
+[Service]
+EnvironmentFile=/opt/o-research/env
+ExecStart=/opt/o-research/bin/eventbus
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

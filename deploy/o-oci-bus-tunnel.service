@@ -1,0 +1,14 @@
+# o-oci-bus-tunnel.service —— dev→OCI 反向隧道 ssh -L 15436（restrict+
+# permitopen 专钥 o_oci_bus——o-sg-tunnel 同形无壳钥）。
+[Unit]
+Description=o-oci-bus-tunnel (localhost:15436→OCI eventbus)
+After=network-online.target
+
+[Service]
+ExecStart=/usr/bin/ssh -N -i %h/.ssh/o_oci_bus -o BatchMode=yes -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -L 15436:localhost:15436 ubuntu@149.118.58.98
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target
