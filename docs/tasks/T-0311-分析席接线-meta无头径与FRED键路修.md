@@ -144,3 +144,13 @@ R3 **注记③闸式 30min 未实现**：交的是 6h 无条件拍——水印�
   devin 项目 skills 发现径即达；scratch 硬隔不动）。
 - ③水印闸择票面明记项：6h 无条件拍钦定偏差明记（增量空=runbook 败退径
   如实 skip——shell 闸引 ssh+psql 复杂度不入 unit 件）。
+
+## 返修① 二轮回填（devin-t0311，同支续提）
+
+- ②ExecStart 绝对路径指件：devin prompt 直引 `/opt/o/skills/分析席/SKILL.md`
+  （.devin/skills 副本径弃——绝对路径零拷贝漂移）。
+- ③30min 水印闸实装：`scripts/meta/regime_tick.sh`——`md_ctx_fact.max(id)>
+  regime 水印(ctx_max_id)` 才 devin -p 否则 exit 0（闸拒=零烧；30min 拍频
+  改 OnUnitActiveSec=30min——闸决定实效间隔）。
+- ④心跳行全件：ops_headless META-REGIME 行（seat='分析席'——meta 席位口径
+  不冒生产岗）——闸 skip/败拍 stalled/成活 alive 三态全写（每拍含空拍）。
