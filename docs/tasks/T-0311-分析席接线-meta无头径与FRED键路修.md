@@ -191,3 +191,23 @@ Persistent ✓。
 未在本单——T-0312 事件总线/无头决策席票一并领；心跳行已写，展示仅读面差事。
 
 按「三轮驳回」规计——本轮第二驳。
+
+## 返修三轮·决策注记（2026-11-03）
+
+合并后实测真机 tick 抓出**静默性死穴**：dev `MD_PG_DSN→127.0.0.1:5435`
+=docker-proxy 本地测试容器（库 o 不存在）——dev 无 OCI PG-md 隧道。
+后果链：闸询每拍失败→GATE=f→hb alive→exit 0——**心跳永报 alive 而
+席永不醒**，stall 检测兜不住（表面健康真空转）。runbook 钦定输入径
+本就是 ssh——agent 走 ssh、闸走本地 DSN=径不自洽；施工未在 dev 端到端
+真跑过一次 tick（跑即露馅）。
+
+**驳回一件**：regime_tick.sh 闸询径改 ssh OCI（决策实证配方已验通——
+`ssh -o BatchMode=yes ubuntu@149.118.58.98` 远侧 `grep MD_PG_DSN
+~/o-research/env` **剥 `&pool_max_conns=` 参数**（psql 裸 URI 不认——
+T-0302 坑）→ psql 闸询；SSH_AUTH_SOCK 在 service 环境有效已验
+`/run/user/1000/gnupg/S.gpg-agent.ssh`）。MD_DSN env 段弃用。
+
+**三轮驳回规触发**（D 序例：熔断/三轮驳回=异常级）——本轮第三驳。
+修法钦定如上（已实证返真数 52|51）；验收锚升级：施工须**自跑一遍
+regime_tick.sh 端到端**回贴实迹（ops_headless 行+md_regime_fact 是否
+落行如实报），零实迹回报不予审。再驳即升管理席定夺票向。
