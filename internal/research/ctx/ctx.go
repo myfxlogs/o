@@ -44,6 +44,7 @@ type Runner struct {
 	rej     *rejects.Door
 	fetch   Fetcher
 	fredKey string
+	fredFn  func(context.Context) (string, error)
 	now     func() time.Time
 }
 
@@ -56,6 +57,13 @@ func NewRunner(pool *pgxpool.Pool) *Runner {
 // AttachFredKey FRED 键注入口径（键缺=整源跳过——凭据归 pg：装配件
 // cfg.Secret("fred_api_key") 按次直读注入，env 直读门禁钉）。
 func (r *Runner) AttachFredKey(k string) *Runner { r.fredKey = k; return r }
+
+// AttachFredFn FRED 键每拍自取缝（T-0311 返修⑤——boot 一次性读键瞬败=
+// 整源哑到下次重启；按次直读=钦定口径本尊，瞬败下拍自愈）。
+func (r *Runner) AttachFredFn(fn func(context.Context) (string, error)) *Runner {
+	r.fredFn = fn
+	return r
+}
 
 // Run 6h 节拍（宏观日历/OI 密度低——日四拍足；analyst 同拍错峰无竞争）。
 func (r *Runner) Run(c context.Context, errc chan<- error) {
