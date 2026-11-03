@@ -134,3 +134,11 @@ R2 返修项⑥原样未动——collect.go:142 水印仍 `max(id) FROM md_regim
    （自身 id 域错比 ctx id=恒重读）。改 max((evidence->>'ctx_max_id')::bigint)。
 R3 幂等新坑——COT ins(...,"cot","",...) dedupe_key='' IS NOT NULL →全 COT
    行撞同键=历史仅首行落。改 NULL（免键）或真键（COT 报告周 YYYY-WW）。
+
+## 返修② 回填（devin-t0310，同支续提）
+
+- ①analyst/collect.go 真删（前次未匹配未生效——本轮按实文删：collect/
+  mql5EventRe/Fetcher 缝全灭，TickOnce 仅 analyze，analyze 段挪回 analyst.go）。
+- ②水印改 `max((evidence->>'ctx_max_id')::bigint) FROM md_regime_fact`。
+- ③COT dedupe_key ''→NULL（ins 空键传 nil 不入唯一键——撞同键防）。
+- 测试：analyst 2 桩+ctx 桩全绿@5434。

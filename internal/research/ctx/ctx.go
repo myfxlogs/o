@@ -90,8 +90,12 @@ func (r *Runner) TickOnce(c context.Context) error {
 
 func (r *Runner) ins(c context.Context, source, kind, key string, payload any) error {
 	b, _ := json.Marshal(payload)
+	var dk any
+	if key != "" {
+		dk = key // ''→NULL 不入唯一键（NOT NULL 撞同键防）
+	}
 	if _, err := r.pool.Exec(c, `INSERT INTO md_ctx_fact(source,kind,payload,dedupe_key)
-		VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING`, source, kind, b, key); err != nil {
+		VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING`, source, kind, b, dk); err != nil {
 		r.rej.Inc("write_err")
 		return err
 	}
