@@ -6,7 +6,7 @@ risk: high
 status: verified
 keywords: [FRED, Akamai, HTTP2, stream INTERNAL_ERROR, Go JA3, curl http1.1, api_key 日志泄露, ASN 歧视, 备用径]
 scope: [research, ctx, OCI, http-transport, 公开面采集]
-summary: api.stlouisfed.org 单 IP Akamai 边池传输层间歇踢流——h2 对 Go/curl 同坏（协议级窗口病非指纹恒定），手搓 Transport 缺省 h1 挂死，唯一稳径=curl --http1.1 备用；err 携 api_key URL 落日志必脱
+summary: 真凶=自造 UA（o-ctx/o-research）被 Akamai 边池拉黑——h1 tarpit 挂死+h2 stream 踢流；四 UA 隔离实证 curl/Go 默认 UA 秒通。「h2 间歇/边池异态」是 UA 病表象；err 携 api_key URL 落日志必脱
 first_seen: 2026-11-03
 last_seen: 2026-11-03
 evidence_refs:
@@ -15,6 +15,20 @@ evidence_refs:
   - type: commit
     ref: t/0311-regime-analyst
 ---
+
+## 定案（四 UA 隔离实验 13:44）
+
+curl 默认 UA / Go 默认 UA（Go-http-client/2.0）= 200 秒通；
+`o-ctx/1.0` / `Mozilla/5.0 ... o-research/1.0` = h1 tarpit 挂死 20s+h2
+stream INTERNAL_ERROR——**拦截对 UA 不对客户端栈**。修法=撤自造 UA
+用栈默认。fred 四序列（DGS10/DGS2/UNRATE/CPIAUCSL）落行实证。
+
+## 误判链实录（防再犯教训件）
+
+初判「Go JA3 指纹」「h2 协议坏」「边节点异态」「单 IP 无轮换空间」——
+全是 UA 病的表象：探针从没设自定义 UA（默认 UA 侥幸全中），把锅甩给
+了传输栈。**隔离变量不够狠=鬼打墙**：客户端栈/协议/节点全排完才轮到
+UA——下次变量矩阵把 UA/请求头排进第一轮。
 
 ## 实击链（2026-11-03 T-0311 部署窗口，OCI 出网）
 
@@ -54,4 +68,4 @@ mql5 整站 403 死源（已弃换 ffcal）；ffcal 对 UA `o-ctx/1.0` 429、cur
 ## 反证条件
 
 - check: 连续三日 fred 行 ts 递增零败
-- falsifies_when: 边池恢复后 Go h2 稳定通——备径退为冷备仍可留
+- falsifies_when: 用默认 UA 仍被拦=UA 假说证伪（当判：默认 UA 全通已证 UA 是根因）
