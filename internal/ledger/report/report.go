@@ -34,7 +34,11 @@ func Gen(ctx context.Context, pool *pgxpool.Pool, period string, b Bounds) error
 	var net, funding, earnBal, cumNav float64
 	var opened, closed, proposed, rejected, active, alerts, capital int
 	// T-0185 三类口径：净额=Σincome（transfer/adjustment 不入盈亏）
-	q(`SELECT COALESCE(sum(amount),0) FROM fin_cashflow WHERE class='income' AND occurred_at>=$1 AND occurred_at<$2`, &net, b.Start, b.End)
+	// T-0305：net 键改 7-kind 钉式（周报口径文档——class 顺带归属不算数，
+	// kind 枚举钉死损益集；deposit/withdraw/earn_*/recon_adjust 不入）。
+	q(`SELECT COALESCE(sum(amount),0) FROM fin_cashflow WHERE kind IN
+		('fee','funding_settle','trade_pnl','rollback_cost','spot_buy','spot_sell','interest')
+		AND occurred_at>=$1 AND occurred_at<$2`, &net, b.Start, b.End)
 	q(`SELECT COALESCE(sum(amount),0) FROM fin_cashflow WHERE kind='funding_settle' AND occurred_at>=$1 AND occurred_at<$2`, &funding, b.Start, b.End)
 	q(`SELECT COALESCE(sum(amount),0) FROM fin_cashflow WHERE class='income'`, &cumNav)
 	q(`SELECT COALESCE(sum(amount),0) FROM fin_holding WHERE kind LIKE 'earn%' AND stale=false`, &earnBal)
@@ -69,6 +73,29 @@ func Gen(ctx context.Context, pool *pgxpool.Pool, period string, b Bounds) error
 		q1(`SELECT count(*) FROM fin_strategy_transition WHERE to_state='retired' AND ts>=$1 AND ts<$2`, &retired, b.Start, b.End)
 		m["retired"] = retired
 		note = fmt.Sprintf("月净=%.4f 年化=%.4f（基数 %.0f）——赚亏/因/步三行交卷", net, ann, base)
+	}
+	// T-0305：net_vs_earn=周净利−Earn 基线（周报口径钉式逐字搬——
+	// avg(net_usd,okx,USDT,近 N snap)×最新 earn rate×N/365；snap 缺=
+	// 如实降精度回执 snaps 数；月度同径 30 窗）。
+	if period == "weekly" || period == "monthly" {
+		var days float64
+		if period == "weekly" {
+			days = 7
+		} else {
+			days = 30
+		}
+		var avgNet, rate float64
+		var snaps int
+		q1(`SELECT count(*) FROM (SELECT net_usd FROM fin_ledger_snapshot -- snapshot-audit-ok：周报口径文档钦定 Earn 基线净值源
+			WHERE venue='okx' AND ccy='USDT' AND snap_date<$2
+			ORDER BY snap_date DESC LIMIT $1) t`, &snaps, int(days), b.End)
+		q(`SELECT COALESCE(avg(net_usd),0) FROM (SELECT net_usd FROM fin_ledger_snapshot -- snapshot-audit-ok：同上钦定源
+			WHERE venue='okx' AND ccy='USDT' AND snap_date<$2
+			ORDER BY snap_date DESC LIMIT $1) t`, &avgNet, int(days), b.End)
+		q(`SELECT COALESCE(rate,0) FROM md_earn_rate WHERE venue='okx' AND ccy='USDT'
+			ORDER BY ts DESC LIMIT 1`, &rate)
+		m["net_vs_earn"] = net - avgNet*rate*days/365
+		m["earn_baseline_snaps"] = snaps
 	}
 	// T-0029 交付物3：weekly/monthly metrics 加期内宏观事件计数（注解面
 	// 顺手件——纯计数零判据触；daily 不补同周理由）。
