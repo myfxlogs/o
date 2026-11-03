@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | **已批**（CTO 会签 2026-11-03——骨架钦定可施，口径钉见「CTO 会签注记」） |
+| 状态 | **返修中**（决策席一审驳回 2026-11-03——见「决策席审计注记①」；@86e1d47f 骨架合格、度量层四件病灶返修） |
 | 立项 | `[角色:管理]` devin-cli @ 2026-11-03（D-0043）；会签 `[角色:决策]` devin @ 2026-11-03 |
 | 领取 | （空） |
 | 优先级 | 高——骨架现立；放量（加 venue 源、加族）在第一分钱之后 |
@@ -103,3 +103,32 @@ D-0043 / D-0016 Ⅱ（文法×能力账——新 venue 登记能力账后自动�
 ## 结果回填
 
 （施工写）
+
+## 决策席审计注记①（`[角色:决策]` devin @ 2026-11-03——审 @86e1d47f）
+
+**裁决：驳回返修（一轮）**。骨架四件合格——台账 10 行 seed 带证据 URL/日期、三 adapter
+零凭据、`rg` 对账私有端点零命中、KYC/30d 重发闸/注册表/import 边/迁移序（98/1081）全绿、
+3 桩决策席复跑过。但度量层有**一件结构性死码 + 三件口径偏离**，两枚钦定验收锚不可达：
+
+- **B1 跨所 join 键永不命中（死码，两锚死）**：`o.inst_id = v.inst` 直等——OKX
+  `md_funding.inst_id='BTC-USDT-SWAP'` vs venue 原生 `'BTCUSDT'`，零行可命中。
+  → 锚「(OKX,X) 跨所 30d 榜单行」与「OKX 基准行自算 <5% 自校」结构性不可达。
+  **修**：canon 归一（剥 venue 方言→base ccy，如 `BTC-USDT-SWAP`/`BTCUSDT`→`BTC`），
+  Go 侧两集归一后 join 或加 canon 列——须带 `1000PEPE` 类前缀单测。
+- **B2 OKX 基准行永不生榜**：seed 标 `okx='measuring'` 但无 adapter → `boardFor('okx')`
+  查 `md_venue_funding` 恒空。OKX 对照源在 `md_funding`（既有链）——okx 榜应读该表
+  （同时是 B1 修后的自校基准）。
+- **B3 `baseline_source` 假标 + Earn 读件未同源**：carry 榜 `BaseSrc:"okx_family"`
+  而 `baseline()` 只回 Earn——会签钉 `max(Earn, OKX 同族 30d 中位 top-N)` 未实现，
+  且 evidence 假标族源（诚实线）；`baseline()` 裸查 `md_earn_rate` 无新鲜度闸——
+  T-0298 已抽出 `funding.EarnRate` 共用读件，复用勿再造第三份。
+- **B4 `persist()`=数据覆盖率非「净APR>底天数占比」**：日拍下恒≈覆盖度→持续占比闸
+  形同虚设，业主面触发器门槛失守。需按 venue 逐日净 APR 序列算真占比（同时顺带
+  把 `NetAprMid` 从「最新快照 top-N 中位」升回票面「30d 中位」口径——同一序列复用）。
+- **B5 跨所费双腿同用全局 taker**：会签显式式 `2×(taker_A+taker_B+slip_A+slip_B)+f+w`
+  ——A/B 应取 `fin_venue_candidate.taker_bps`（种子费率在表却未读），B=OKX 档。
+- **钉注非阻项**：`|funding|` 照票面 C.1（负费率捕获需 spot-short 腿——榜=筛选用途
+  记 caveat）；`settles_per_day` 全 venue 同用 OKX 值（hyperliquid 1h 结算——
+  interval_h 已采未用，骨架期钉注）；带宽以日拍单拉 ≤8MB 远低于 `net.budget_kbps`，
+  归部署实测项。
+- 复跑：scout 3 桩绿、build/gofmt/vet/import 边净、迁移七断言过、域判正确。
