@@ -2,8 +2,8 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | **待办** |
-| 立项 | `[角色:管理]` devin-cli @ 2026-11-03（D-0043；CTO 事后会签） |
+| 状态 | **已批**（CTO 会签 2026-11-03——骨架钦定可施，口径钉见「CTO 会签注记」） |
+| 立项 | `[角色:管理]` devin-cli @ 2026-11-03（D-0043）；会签 `[角色:决策]` devin @ 2026-11-03 |
 | 领取 | （空） |
 | 优先级 | 高——骨架现立；放量（加 venue 源、加族）在第一分钱之后 |
 | 涉及面 | 新包 `internal/research/scout/`、新表 `fin_venue_candidate`/`md_venue_funding`（md 面）、新 proto（榜单只读面）、`cmd/core` 挂臂、条件请求出口（现有业主通知径）、`skills/研究员/SKILL.md` 触发面（第一分钱后改） |
@@ -17,6 +17,24 @@ D-0016 Ⅲ 把「走出去」交给 LLM 研究员读资料，结构上走不出�
 业主实证「单所肥度 OKX 最高」是某时点的人工比对；肥度随 regime 变，且**跨所 funding
 价差**（两所反向永续、零方向敞口、无现货腿）这一族只有两所同在才存在——现无从测。
 本票让机器持续量，业主只在达阈时动手注册。
+
+## CTO 会签注记（2026-11-03）
+
+- **口径钉**：三族净 APR 的费用项一律走 T-0297 同源函数（`funding.RoundTripBps`
+  /`CostAPR`——禁 scout 包自造第三份算式）。跨所 funding 价差族双腿皆永续
+  （无现货腿）：`cost_rt_bps=2×(taker_A+taker_B+slip_A+slip_B)+fail+window`——
+  票面「≈单所 2/3」只是量级示意，实现按显式式子算。
+- **推荐阈基线**：跨所价差族**没有「OKX 同族」可对照**（该族两所同在才存在）
+  ——该族基线=Earn 底；单所 carry/基差两族基线=`max(Earn 底, OKX 同族 30d 中位
+  top-N)`。判据行写明 baseline_source（earn|okx_family）进 evidence。
+- **持仓期**：单所 carry 的摊销持仓期键缺省取 OKX `guard.max_hold_hours` 同值
+  （跨所各 venue 无 guard，用同一地平线才可横向比）。
+- **表/迁移**：`fin_venue_candidate` 归 fin 链（fin_0097 序取用）、`md_venue_funding`
+  归 md 链（md_1080 序取用）；`scout.recommend_margin_apr`/`scout.persist_ratio`
+  两键随 fin 迁移 seed；`fin_opp_template`/`fin_proposal` 零写（本票只量不动钱）。
+- **proto scoutv1**：骨架票内榜单面允许 stub（读 fin_venue_candidate 直出 top-20），
+  codegen 走既有 buf 径；前端表非本票锚。
+- **禁线强调**：任何 venue 私有/需凭据端点调用=立即挂起票；`rg` 对账锚不变。
 
 ## 钦定目标
 
