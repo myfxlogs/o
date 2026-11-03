@@ -148,7 +148,7 @@ func (c coreService) workItems(ctx context.Context) []*dashboardv1.WorkItem {
 	// 必败致整类缺席；progress 改读 metrics.boards persist 显「持续 XX%」——
 	// SG 镜像列内数据零外联；since=首入度量缺——metrics measured_at 兜底）。
 	if rs, err := c.pool.Query(ctx, `SELECT venue, metrics->>'measured_at',
-		metrics->'boards'->0->>'persist' FROM fin_venue_candidate v
+		(metrics->'boards'->0->>'persist')::float8 FROM fin_venue_candidate v
 		WHERE state='measuring' ORDER BY venue`); err == nil {
 		for rs.Next() {
 			var venue, at *string
