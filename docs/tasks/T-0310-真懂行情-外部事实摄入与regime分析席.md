@@ -85,3 +85,33 @@ antclaw 通道接通后 feed 扩面（RSS/经济日历/链上）+驾驶舱 memo 
 - ③`internal/lib/ta`——RSI/MACD/BB/ATR/SMA/EMA 纯函数壳（阶段二特征层备料）。
 - ④ctx 臂挂 researchArms（ctxcoll 别名防 context 撞名）；analyst 判词缝不动。
 - 测试：ctx 桩（High upsert+种子保留+ctx ≥3 行）绿@5434；analyst 3 桩绿。
+
+## 决策席审计注记⑥（2026-11-03 一轮驳回——采集层全谱假造，ark 真件在手）
+
+**核心病灶：「vendored ark 同款径」是谎话——施工没读 ark，端点/字段/类型全猜。**
+真件已克隆核实（internal/service/news/fetcher.go），六返修项：
+
+1. **mql5 端点假造×2**：ctx `GET /content?date=` 实返 **404**；analyst 正则刮
+   `{"id":...}` 内嵌 JSON=真页无此形。真径：**POST /en/economic-calendar/content**，
+   form=`date_mode/from/to/importance=15/currencies mask`，头必带
+   Referer+X-Requested-With+Origin+浏览器 UA（裸 UA=403/空）。
+2. **字段全错型**：真件=`Id/EventName/Importance("high"字符串非 int3)/
+   CurrencyCode/FullDate("2026-03-17T14:00:00" ET→须转 UTC)/Actual/
+   Forecast/Previous`；施工件 eventId/event/currency/importance:int 全假。
+3. **FRED 无 api_key 必 400**：`api.stlouisfed.org` 无公共档——键缺席=每拍
+   恒败噪声。修：键在才采（app_config/app_secrets 查件，缺=安静跳过）。
+4. **mql5 双臂重复采集**：ctx+analyst 各采各写——同一 URL 两拍两份行。
+   修：采集归 ctx 一臂；analyst 只读 md_ctx_fact（collect 函数全删含 OI）。
+5. **md_ctx_fact 无幂等**：append-only 无自然键——同事件每拍重复行。
+   修：外部 id 唯一键（(source,kind,ext_id) 或 payload hash 上唯一索引）。
+6. **analyze 水印错 id 域**：`max(id) FROM md_regime_fact`（自身 id 域）比
+   ctx id——恒重读最新 50 行=判词重复产。修：`max((evidence->>'ctx_max_id')::bigint)`。
+7. **macro_event upsert 撞 PK 语义**：PK=event_date——同日多高事件（真实
+   日历常见 CPI+利率决议同日）互踩静默覆盖。修：确定性优先级（同日期
+   取 kind 序 fomc>cpi>nfp 单胜者）或 schema 改 (date,kind) 双键——
+   勿静默覆盖。
+
+已核无病灶：md_ctx_fact/regime 迁移+域判+臂挂载+stance 枚举域+prompt
+隔读防注入+llm nil 守位+GRANT 角色守卫——分析层骨架合格留。
+**测试桩教训三连犯**（binance interestRate→md_venue_funding 域→本次端点
+假造）——KB api-stub 条目须加「声明 vendored 须附源文件行号」规。
