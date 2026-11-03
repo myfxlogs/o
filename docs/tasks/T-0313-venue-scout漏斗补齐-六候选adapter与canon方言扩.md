@@ -29,3 +29,21 @@ venue-scout 度量面 10 候选中 6 家 metrics 空（state='candidate' 无 ada
 - 下一度量拍后 fin_venue_candidate.metrics 六家非空 boards 实迹
 - 单 venue 挂不拖全局（venue_down 计数+log 已有制式）
 - gates：check_migrations/check-env-reads/go build/相关 test 全过
+
+## 施工回填（devin-t0313 @ 2026-11-03，分支 t/0313-scout-adapters）
+
+- **六 adapter**（curl 实测响应核字段钉）：
+  - bitget：v2 mix tickers（fundingRate/mark/index 同帧，interval 无档=0 回退）；
+  - gate：v4 usdt tickers（funding_rate 蛇形方言）；
+  - kucoin-futures：contracts/active 换端点（种子单 symbol 弃——fundingFeeRate
+    +currentFundingRateGranularity ms→h per-inst 混合档实取）；
+  - mexc：contract/ticker（fundingRate+fairPrice→mark）；
+  - dydx-v4：indexer perpetualMarkets（nextFundingRate=1h 档钉，oraclePrice=
+    index，mark 无帧如实 nil）；
+  - deribit：get_instruments 六币种筛 -PERPETUAL→逐 ticker（funding_8h/8 等效
+    1h 率如实换算；连续结算 interval=0 走 config 回退——票面钉注③）。
+- **canon 扩**：PERPETUAL 尾+M 尾最外缀剥序（XBTUSDTM→XBT）+XBT→BTC 别名
+  ——用例测试硬门。
+- **md_1085**：六 venue UPDATE measuring（种子原件不改）。
+- **测试**：TestSixAdapters 六桩+canon 三方言用例绿；scout 全包绿@5434。
+- **部署实件**（OCI arm64 六 venue 落行+boards 非空）=部署后实证件。

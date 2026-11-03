@@ -12,15 +12,22 @@ import (
 // 1000PEPEUSDT 全归 BTC/PEPE；join 语义键，inst 原值仍随行留）。
 func canon(s string) string {
 	s = strings.ToUpper(s)
-	for _, suf := range []string{"-SWAP", "-PERP", "_PERP", "SWAP", "PERP"} {
+	for _, suf := range []string{"-SWAP", "-PERP", "_PERP", "-PERPETUAL", "SWAP", "PERP"} {
 		s = strings.TrimSuffix(s, suf)
 	}
 	s = strings.NewReplacer("-", "", "_", "").Replace(s)
+	if strings.HasSuffix(s, "M") && len(s) > 1 {
+		s = s[:len(s)-1] // kucoin 永约 M 尾最外缀（XBTUSDTM→XBTUSDT——
+		// quote 在前必剥 M 露尾，剥序钉）
+	}
 	for _, q := range []string{"USDT", "USDC", "USD"} {
 		if strings.HasSuffix(s, q) && len(s) > len(q) {
 			s = s[:len(s)-len(q)]
 			break
 		}
+	}
+	if s == "XBT" {
+		s = "BTC" // XBT→BTC 别名（kucoin/deribit 方言）
 	}
 	i := 0
 	for i < len(s)-1 && s[i] >= '0' && s[i] <= '9' {
