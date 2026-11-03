@@ -710,3 +710,13 @@
 - 终锚：SG hypothesis `parked|10`、template `enabled=3`——cockpit 两面板自此读真。
 - 纪律沉淀：桥表升桥三件不可缺——①SG 迁移含 GRANT projector_rw（T-0302 坑已前置）
   ②冲突键与既有约束实拍核对 ③boot+事件双径挂接。
+
+### 2026-11-03 T-0304 度量校准收口（决策席验收+部署）
+
+- 验收径：盒上建一次性库 o_test_t0304+SSH 隧道跑真实例测试（Migrate 全链 178s/测），
+  五测绿后删库——本机无 PG 实例的解法记录。
+- 码面：settles=24/interval_h（>0）否则 config 回退；跨所差式分列
+  rate_v×settles_v−rate_okx×settles_okx；collectBinance 增 fundingInfo join；
+  metrics.rejects=rej.Snapshot() 出观察面。
+- 部署实拍：binance interval_h avg 4.7（归真）、HL 1.0、bybit 5.9；rejects 六键在 metrics 在场。
+- 30d 窗内修正完毕——后续度量榜的 HL carry 不再 8×低估。
