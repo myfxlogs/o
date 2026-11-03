@@ -155,21 +155,11 @@ R3 幂等新坑——COT ins(...,"cot","",...) dedupe_key='' IS NOT NULL →全 
   AttachPost/周界换算全撤走 GET 缝。
 - 测试：ctx 桩（ffcal High upsert+种子保留+slug 幂等+ffDate 三档）绿@5434。
 
-## 决策席审计注记⑨（2026-11-03 产证续审——COT 端点亦为假造+OI 源脱漏）
+## 返修④ 回填（devin-t0310，同支续提）
 
-**部署实态**：返修③已上线 active。产证三连：
-1. ffcal XML 端点活（首拍撞 IP 限流 429=我们实测连打所致，下拍自复——
-   不属病灶，6h 拍窗口外观察）；
-2. **COT endpoint 假造实锤二**：`jun7-fme8` 实返 404——ark 真件
-   config.go:120 钉 `6dca-aqww`（实测返真 COT 行 wheat-srw 等）。换源：
-   端点改 `6dca-aqww.json`，查询件 `$order=report_date_as_yyyy_mm_dd DESC
-   &$limit=50`（ark fetcher.go L135-137 同款）；dedupe_key=payload.id 字段
-   （Socrata 行自带 id 唯一）。
-3. **OI 源脱漏**：返修②删 analyst.collect 时 OI 采集随灭（原住 analyst 臂），
-   ctx TickOnce 源列=calendar/fred/cot 三件——票面 OI 公开端点项落空。
-   补回：ctx.collectOI（OKX /api/v5/public/open-interest?instType=SWAP——
-   装配件挂真 cli 或 fetch 缝；kind='oi' source='okx_public'；
-   dedupe_key=日戳）。
-4. 验收锚（产证件）：部署后 `md_ctx_fact` 三 kind 行≥1（macro/oi/cot——
-   ffcal 429 窗口顺延下一拍，cot/oi 当拍必落）；`md_macro_event` source=
-   'ffcal' 行本周 NFP/CPI 至少一命中。
+- ①COT 端点 6dca-aqww（ark config.go:120 钉）+$order report_date 倒序+行 id
+  作 dedupe_key。
+- ②collectOI 补回（OKX open-interest SWAP 公开面 kind='oi' dedupe 日戳）
+  进 TickOnce 源列（五件）。
+- 测试：kind macro/oi/cot 各≥1 锚+幂等重拍绿@5434。
+- 注记⑨产证锚（部署后三 kind 行+macro_event ffcal 命中）属部署后实证件。

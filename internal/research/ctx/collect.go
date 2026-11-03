@@ -141,7 +141,10 @@ func (r *Runner) collectFred(c context.Context) error {
 
 // —— COT（CFTC Socrata 公共面免凭据——周频）——
 func (r *Runner) collectCot(c context.Context) error {
-	b, err := r.fetch(c, "https://publicreporting.cftc.gov/resource/jun7-fme8.json?$limit=50")
+	// 端点 ark config.go:120 钉（6dca-aqww——TFF 报告面；$order 报告日倒序
+	// $limit=50；dedupe_key=行 id 字段幂等）。
+	b, err := r.fetch(c, "https://publicreporting.cftc.gov/resource/6dca-aqww.json"+
+		"?$order=report_date_as_yyyy_mm_dd DESC&$limit=50")
 	if err != nil {
 		return err
 	}
@@ -150,5 +153,33 @@ func (r *Runner) collectCot(c context.Context) error {
 		r.rej.Inc("parse_err")
 		return nil
 	}
-	return r.ins(c, "cftc", "cot", "", map[string]any{"rows": rows})
+	for _, row := range rows {
+		key, _ := row["id"].(string) // 行 id 字段=dedupe 键（缺=NULL 不入键）
+		if err := r.ins(c, "cftc", "cot", key, row); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// collectOI OKX 公开 OI（/api/v5/public/open-interest?instType=SWAP 全 USDT
+// 永续一拍 kind='oi' source='okx_public'；dedupe_key=日戳幂等）。
+func (r *Runner) collectOI(c context.Context) error {
+	b, err := r.fetch(c, "https://www.okx.com/api/v5/public/open-interest?instType=SWAP")
+	if err != nil {
+		return err
+	}
+	var resp struct {
+		Data []struct {
+			InstID string `json:"instId"`
+			Oi     string `json:"oi"`
+			OiCcy  string `json:"oiCcy"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(b, &resp); err != nil {
+		r.rej.Inc("parse_err")
+		return nil
+	}
+	return r.ins(c, "okx_public", "oi", r.now().UTC().Format("2006-01-02"),
+		map[string]any{"rows": resp.Data})
 }

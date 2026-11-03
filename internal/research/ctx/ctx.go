@@ -71,9 +71,9 @@ func (r *Runner) Run(c context.Context, errc chan<- error) {
 	}
 }
 
-// TickOnce 四源各拍——单源败=该源缺席不拖全局。
+// TickOnce 四源各拍（OI 补回=四源+OI 五件）——单源败=该源缺席不拖全局。
 func (r *Runner) TickOnce(c context.Context) error {
-	for _, fn := range []func(context.Context) error{r.collectCalendar, r.collectFred, r.collectCot} {
+	for _, fn := range []func(context.Context) error{r.collectCalendar, r.collectFred, r.collectCot, r.collectOI} {
 		if err := fn(c); err != nil {
 			r.rej.Inc("fetch_err")
 		}
