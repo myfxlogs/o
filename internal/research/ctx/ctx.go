@@ -40,10 +40,12 @@ func httpGet(ctx context.Context, url string) ([]byte, error) {
 
 // Runner 采集臂（四源一拍——各源独立 fail-soft）。
 type Runner struct {
-	pool  *pgxpool.Pool
-	rej   *rejects.Door
-	fetch Fetcher
-	now   func() time.Time
+	pool    *pgxpool.Pool
+	rej     *rejects.Door
+	fetch   Fetcher
+	post    func(ctx context.Context, url, body string) ([]byte, error) // POST 缝（mql5 件——测试桩）
+	fredKey string
+	now     func() time.Time
 }
 
 func NewRunner(pool *pgxpool.Pool) *Runner {
@@ -51,6 +53,16 @@ func NewRunner(pool *pgxpool.Pool) *Runner {
 		rej:   rejects.New("ctx", "fetch_err", "write_err", "parse_err"),
 		fetch: httpGet, now: time.Now}
 }
+
+// AttachPost 测试桩缝（mql5 POST 件同形替换——生产 http 真件）。
+func (r *Runner) AttachPost(fn func(ctx context.Context, url, body string) ([]byte, error)) *Runner {
+	r.post = fn
+	return r
+}
+
+// AttachFredKey FRED 键注入口径（键缺=整源跳过——凭据归 pg：装配件
+// cfg.Secret("fred_api_key") 按次直读注入，env 直读门禁钉）。
+func (r *Runner) AttachFredKey(k string) *Runner { r.fredKey = k; return r }
 
 // Run 6h 节拍（宏观日历/OI 密度低——日四拍足；analyst 同拍错峰无竞争）。
 func (r *Runner) Run(c context.Context, errc chan<- error) {
@@ -76,10 +88,10 @@ func (r *Runner) TickOnce(c context.Context) error {
 	return nil
 }
 
-func (r *Runner) ins(c context.Context, source, kind string, payload any) error {
+func (r *Runner) ins(c context.Context, source, kind, key string, payload any) error {
 	b, _ := json.Marshal(payload)
-	if _, err := r.pool.Exec(c, `INSERT INTO md_ctx_fact(source,kind,payload)
-		VALUES($1,$2,$3)`, source, kind, b); err != nil {
+	if _, err := r.pool.Exec(c, `INSERT INTO md_ctx_fact(source,kind,payload,dedupe_key)
+		VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING`, source, kind, b, key); err != nil {
 		r.rej.Inc("write_err")
 		return err
 	}
