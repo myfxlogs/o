@@ -36,3 +36,18 @@
 - 跨所族判据的「双腿费」口径不变；settles 分列只动年化量纲。
 - interval_h 已存历史行照旧（0=回退径兜住）；新采 binance 行起归真值。
 - 测试：分所 settles 桩（HL=1→24、binance=0→3 回退）、跨所差式、fundingInfo join。
+
+## 施工回填（devin-t0304 @ 2026-11-03，分支 t/0304-scout-metrics）
+
+- ①settles 分所：loadVenue 行载 {rate,iv}（dayRow）；settles(iv)=24/iv（iv>0），
+  缺/0→config settles_per_day 回退；carry 用本所 settles，OKX md_funding NULL
+  →回退 8h=3 如实。
+- ②跨所差式分列：canon×day join 后 `|rate_v×settles_v − rate_okx×settles_okx|
+  ×365 − 双腿费年化`——各带本所结算频次，同×3 错比病灶修。
+- ③binance 归真：collectBinance 增拉 fapi/v1/fundingInfo 按 symbol join
+  fundingIntervalHours 落 interval_h；端点挂=同径 venue_down 拒。
+- ④rejects 出观察面：rej.Snapshot() 随 metrics jsonb 写回
+  fin_venue_candidate（择 metrics 面非 Board——票面择一不并增）。
+- 判据/阈键/基线式零动；历史 0 行由回退径兜住。
+- 测试：+2 桩（TestSettlesPerVenue HL=1→24 vs binance=0→3 回退 8× 对照；
+  TestXvenueSplitSettles 分列差式手算锚；fundingInfo join=4 归真）6 桩全绿@5434。
