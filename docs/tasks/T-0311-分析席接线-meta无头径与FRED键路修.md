@@ -117,3 +117,20 @@ runbook 即可（同决策席/研究员席位形制）；不牵其他项目、�
 - **④analyst 臂守位**：llm_absent 缝留零动（meta 断线兜底）。
 - 验收锚：timer 在册/首拍真判词/fred 行属部署+席位激活后实证件；
   零 fin_* 写径=grep 静态证（analyst/ctx 全件无 fin_ 触）。
+
+## 决策席审计注记④（2026-11-03 一轮驳回——三失守）
+
+R1 **票面③零交付**：`skills/决策席` regime_fact 读面节一行未写
+   （diff 文件名面零命中）——决策层消费侧纪律缺席，分析席产出无人
+   知道怎么读。补：活在判词口径+stance 枚举+advisory 权+禁直改钱径。
+R2 **runbook 不可达**：ExecStart prompt `skills/分析席 runbook 读件`=
+   相对路径——cwd=/var/tmp/o-regime scratch 目录**无此件**，agent 开工
+   即摸空（契约全在那件里——表名/水印 SQL/枚举/写域全靠它携带）。
+   修二选一：prompt 给绝对路径 `读 /opt/o/skills/分析席/SKILL.md 按件拍`
+   或 scratch 下放 .devin/skills/分析席/SKILL.md 副本（部署侧同步件）。
+R3 **注记③闸式 30min 未实现**：交的是 6h 无条件拍——水印闸三行壳
+   （`[新行>水印]||exit 0`）未加。或实闸或票面明记「6h 无条件=钦定
+   偏差」——runbook 空拍兜底在，非标锚但钉注不能默默改。
+
+已核合格：finCfg 池修对形（finPool 绑 client→SG 密文径）✓；SKILL.md
+契约全录✓；service scratch 隔离+NoNewPrivileges✓；索引件✓；build 净。
