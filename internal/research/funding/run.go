@@ -53,7 +53,7 @@ func (r *Runner) AttachSpotFeed(fn func(ctx context.Context) ([]byte, error)) *R
 func NewRunner(pool *pgxpool.Pool, cfg *config.Client) *Runner {
 	return &Runner{pool: pool, cfg: cfg, watch: armwatch.New("funding 枚举"),
 		rej: rejects.New("research", "missing_params", "stale_funding", "neg_funding_infeasible",
-			"write_err", "earn_rate_degraded", "no_spot_leg")}
+			"write_err", "earn_rate_degraded", "gate_kill", "no_spot_leg")}
 }
 
 // AttachAlerter 挂业主告警通道（臂静默——T-0117 返修）。
@@ -120,6 +120,12 @@ func (r *Runner) scan(ctx context.Context) error {
 	defer cancel()
 	ctx = sctx
 
+	// T-0314 gate.kill 消费腿：kill_trigger 裁定词落键=true→本族评估全拦
+	// （拒因 gate_kill 计数——评估读面非写入径）。
+	if k, err := r.cfg.GetBool("gate.kill.funding_carry"); err == nil && k {
+		r.rej.Inc("gate_kill")
+		return nil
+	}
 	r.watch.SetBeat(freshnessMax)
 	r.watch.Check(ctx) // 臂静默判定（T-0117——beat=funding 新鲜度窗 25h）
 	p, err := r.params()

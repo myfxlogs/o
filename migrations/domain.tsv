@@ -87,3 +87,4 @@ md_regime_fact	bridge
 md_regime_memo	bridge
 md_regime_push	fin
 md_venue_req_push	fin
+fin_econ_lesson	fin

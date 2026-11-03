@@ -47,3 +47,6 @@ FIN_PG_DSN
 # 与 *_PG_DSN 同类引导件：钥本走 app_secrets 解密直出仅内存，env 只载地址非凭据）。
 READCRED_URL
 COLLECTO_MT5_HOST
+
+# T-0314 消费腿键域（gatefx 裁定回改点——key 不在插行只 UPDATE）
+gate.

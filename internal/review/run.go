@@ -4,8 +4,11 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 	"time"
+
+	"google.golang.org/protobuf/encoding/protojson"
+
+	"o/internal/gen/econv1"
 )
 
 // reviewSettled settled 未复盘仓→判决书（预测 net_apr 自 eval 证据 vs 实际净额；
@@ -77,7 +80,12 @@ func (r *Runner) reviewSettled(ctx context.Context) error {
 				r.rej.Inc("write_err")
 				return err
 			}
-			r.stageLesson(x.id, pred, x.net, attrib)
+			r.stageLesson(ctx, x.id, pred, x.net, attrib)
+			if x.net < 0 { // settled_loss 案（钦定类——同案双 kind 各锚幂等）
+				r.addLesson(ctx, "settled_loss", posRef(x.id), &econv1.EconLesson{
+					Summary:   fmt.Sprintf("settled 净亏 pos#%d：pred=%.4f actual=%.4f", x.id, pred, x.net),
+					AmountUsd: x.net, EvidenceRef: fmt.Sprintf("fin_review:%d", x.id)})
+			}
 			if _, err := r.pool.Exec(ctx, `INSERT INTO fin_template_proposal(template,param_key,cur_val,sug_val,evidence)
 				VALUES('funding-hedge','research.funding.min_net_apr',$1,$2,$3)`,
 				0, 0, detail); err != nil {
@@ -155,25 +163,48 @@ func (r *Runner) judgeDue(ctx context.Context) error {
 	return nil
 }
 
-// stageLesson falsified→待归纳派生镜像（best-effort——T-0066：权威在
-// fin_review_verdict 库表；容器 FS 易失，写败只 log 一次/进程不刷屏）。
-func (r *Runner) stageLesson(posID int64, pred, actual float64, attrib string) {
-	if r.stagingLogged {
-		return // 写败已记过一次——镜像降级静默不刷屏
+// stageLesson falsified→fin_econ_lesson 锚行（T-0314：stagingFile 容器写径
+// 退役——protojson numbers 载荷；fin 池写 SG 面正本；UNIQUE(kind,entity_ref)
+// 幂等同案不重行；写败=write_err 计数不炸）。
+func (r *Runner) stageLesson(ctx context.Context, posID int64, pred, actual float64, attrib string) {
+	r.addLesson(ctx, "falsified_verdict", posRef(posID), &econv1.EconLesson{
+		Summary:   fmt.Sprintf("falsified 复盘 pos#%d：pred_net=%.4f actual_net=%.4f 归因=%s", posID, pred, actual, attrib),
+		AmountUsd: actual, EvidenceRef: fmt.Sprintf("fin_review_verdict:%d", posID)})
+}
+
+func posRef(id int64) string { return fmt.Sprintf("position:%d", id) }
+
+// addLesson 锚行写（econv1 protojson 载荷——手写 map 违例禁）。
+func (r *Runner) addLesson(ctx context.Context, kind, ref string, l *econv1.EconLesson) {
+	b, _ := protojson.MarshalOptions{UseProtoNames: true}.Marshal(l)
+	if _, err := r.fin.Exec(ctx, `INSERT INTO fin_econ_lesson(kind,entity_ref,numbers)
+		VALUES($1,$2,$3::jsonb) ON CONFLICT DO NOTHING`, kind, ref, b); err != nil {
+		r.rej.Inc("write_err")
 	}
-	marker := fmt.Sprintf("<!-- pos:%d -->", posID)
-	f, err := os.OpenFile(stagingFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+}
+
+// costDiverge 日拍案（fin_review 判后偏差归因 fee_drift 且偏差>20%——
+// gate.lesson.cost_diverge_pct 阈默认 20 同族径；无现成 venue_degrade/
+// flip_exit 埋点缓两类票面注明）。
+func (r *Runner) costDiverge(ctx context.Context) error {
+	rows, err := r.fin.Query(ctx, `SELECT position_ref,pred_net,actual_net,attribution
+		FROM fin_review WHERE attribution='fee_drift' AND ABS(pred_net)>0.0001
+		  AND ABS(pred_net-actual_net)/ABS(pred_net)>0.2`)
 	if err != nil {
-		r.stagingLogged = true
-		log.Printf("[review] 待归纳镜像写败（权威在 fin_review_verdict——镜像降级静默）: %v", err)
-		return
+		return err
 	}
-	defer f.Close()
-	if _, err := fmt.Fprintf(f, "%s\n- falsified 复盘 pos#%d：pred_net=%.4f actual_net=%.4f 归因=%s（T-0017 自动行）\n",
-		marker, posID, pred, actual, attrib); err != nil {
-		r.stagingLogged = true
-		log.Printf("[review] 待归纳镜像写败（权威在库——镜像降级静默）: %v", err)
+	defer rows.Close()
+	for rows.Next() {
+		var pos, attr string
+		var pred, act float64
+		if err := rows.Scan(&pos, &pred, &act, &attr); err != nil {
+			return err
+		}
+		r.addLesson(ctx, "cost_diverge", pos, &econv1.EconLesson{
+			Summary:   fmt.Sprintf("成本偏离 %s：pred=%.4f actual=%.4f（fee_drift）", pos, pred, act),
+			AmountUsd: act, EvidenceRef: "fin_review:" + pos})
 	}
+	return nil
 }
 
 func abs(f float64) float64 {

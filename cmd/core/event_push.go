@@ -40,6 +40,26 @@ func startEventPush(ctx context.Context, _ chan<- error, pool *pgxpool.Pool,
 	go events.ListenLoop(ctx, pool, "venue_req_push",
 		[]string{"ev_venue_req"}, vq.Scan)
 
+	// T-0314 经济案 digest（日拍首版不 LISTEN——fin_econ_lesson pending 批推
+	// 【经济案】待裁统计；sched-exempt-ok 日拍节律——同 calendar 先例）。
+	ec := notify.NewEcon(pool, sender, func() string {
+		v, _ := cfg.GetString("feishu.chat_id")
+		return v
+	}, func() bool { v, _ := cfg.GetBool("notify.feishu.econ_digest.enabled"); return v })
+	go func() {
+		tk := time.NewTicker(24 * time.Hour) // sched-exempt-ok 日拍 digest
+		defer tk.Stop()
+		_ = ec.Scan(ctx) // 起拍首扫
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-tk.C:
+				_ = ec.Scan(ctx)
+			}
+		}
+	}()
+
 	// 财经日历事件报（T-0070：[财经日历] 独立开关+幂等去重——高影响级预推）。
 	cal := notify.NewCalendar(pool, sender, func() string {
 		v, _ := cfg.GetString("feishu.chat_id")

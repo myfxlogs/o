@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package o.econ.v1;
+
+option go_package = "o/internal/gen/econv1";
+
+// T-0314：fin_econ_lesson.numbers 载荷契约（proto 唯一源——protojson
+// UseProtoNames 出入生产/消费双端；手写 map=违例）。
+message EconLesson {
+  string summary = 1;
+  string family = 2;
+  string venue = 3;
+  string inst_id = 4;
+  double amount_usd = 5;
+  string evidence_ref = 6;
+  string retro = 7;
+}
