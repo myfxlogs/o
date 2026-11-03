@@ -1,0 +1,12 @@
+# o-decision-seat.service —— 决策席 headless 单发批件（T-0312 第六刀
+# 同构 o-regime-analyst 形；cwd=/var/tmp/o-decision scratch 零仓件）。
+[Unit]
+Description=o-decision-seat (无头决策席裁决批件)
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/var/tmp/o-decision
+ExecStartPre=/usr/bin/env mkdir -p /var/tmp/o-decision
+ExecStart=/opt/o/scripts/meta/dm_tick.sh
+NoNewPrivileges=true
