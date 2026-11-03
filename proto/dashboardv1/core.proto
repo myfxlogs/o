@@ -34,6 +34,7 @@ service CoreService {
   rpc ListClosedPositions(ListClosedPositionsRequest) returns (ListClosedPositionsResponse) {}
   rpc GetHeadless(GetHeadlessRequest) returns (GetHeadlessResponse) {}
   rpc GetPipeline(GetPipelineRequest) returns (GetPipelineResponse) {}
+  rpc GetFlowPulse(GetFlowPulseRequest) returns (GetFlowPulseResponse) {} // T-0307 活水段
 }
 
 message PingRequest {}
@@ -473,4 +474,25 @@ message HeadlessRow {
 message GetHeadlessResponse {
   repeated HeadlessRow rows = 1;
   int64 last_seq = 2;                       // = max(rows.seq)——快照水位（重连 seq 去重补洞锚）
+}
+
+// —— 活水段（T-0307：运行时机器流段链——票=组织流 ops_event 语义不混，
+// 段=机器流采集→投影→评估→提案→执行→报表→侦察+员工心跳；各段 fail-soft
+// 表缺/查询败=该段空行不炸面）——
+message GetFlowPulseRequest {}
+message FlowStage {
+  string key = 1;                // collect|bridge|eval|proposal|exec|report|scout
+  string label = 2;              // 中文段标（服务端归一）
+  google.protobuf.Timestamp last_ts = 3; // 末行时刻（缺=NULL——段显「缺」）
+  int64 lag_s = 4;               // now−last_ts 秒（缺=0）
+  int64 count_24h = 5;           // 24h 行数（无计数义段=0）
+  bool ok = 6;                   // 查询成否（败=false——前端显缺态）
+  int32 state = 7;               // 段灯色（服务端 StageLamp 派生——阈按臂节拍常量钉）
+  int64 expect_s = 8;            // 预期节拍秒（前端 hover 口径同源）
+}
+message GetFlowPulseResponse {
+  repeated FlowStage stages = 1;
+  int32 roster_count = 2;        // 在岗数（fin_employee_registry 行数）
+  int64 roster_worst_lag_s = 3;  // 最坏心跳滞后秒（min(last_beat) 派生——缺=0）
+  google.protobuf.Timestamp as_of = 4;
 }

@@ -14,6 +14,7 @@ import { onLive } from "../stream";
 import { applyHeadless, applyPipeline, hydrate, useSlice } from "../store";
 import { Component, type ReactNode } from "react";
 import { Card, EmptyState, Skeleton, StateDot } from "../components/ui";
+import { FlowPulseStrip } from "../components/flowpulse";
 import { AGE } from "../components/panel";
 import type {
   GetCockpitResponse,
@@ -85,6 +86,7 @@ function PipelineTile() {
 	const more = Number(pl.data.totalActive) - rows.length;
 	return (
 		<Card title="③ 工作流管道" extra={extra}>
+			<FlowPulseStrip />
 			{rows.length === 0 ? <EmptyState title="无在飞票" hint="活跃票（未部署上线）为空——管道空闲" /> :
 				<div className="tile-scroll">{rows.map((r: CockpitPipelineRow) => {
 					const rowHover = `${r.ticket} | ${r.title || "无题"} | 已历时 ${durMin(r.elapsedMin)} | 当前卡在 ${r.currentSeat}（${STEP_RESULT[r.currentState] ?? r.currentState}）`;
