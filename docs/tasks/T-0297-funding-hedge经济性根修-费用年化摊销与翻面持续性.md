@@ -2,9 +2,9 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | **已批**（CTO 会签 2026-11-03——病灶核实后范围修订，见「CTO 会签勘正」；派单序：T-0299 清带宽后派） |
+| 状态 | **施工中**（devin-t0297 @ 2026-11-03） |
 | 立项 | `[角色:管理]` devin-cli @ 2026-11-03（D-0043）；会签 `[角色:决策]` devin @ 2026-11-03 |
-| 领取 | （空） |
+| 领取 | devin-t0297 @ 2026-11-03 |
 | 优先级 | **最高**——D-0037 KPI 唯一主线；D-0042 11-15 止损日前须 paper 实证 |
 | 涉及面 | `internal/research/funding/eval.go`（+`_test`）、`internal/research/funding/run.go`（参数键）、`internal/portfolio/lifecycle/opener.go` breakevenOK（+`_test`）、新 migration（`min_net_apr` seed 改值）、SG `app_config` 改值、o-research/o-core 重部署 |
 | 承接 | T-0237 遗留（maker 径 probe 实证＋真实费率档位）并入本票验收 |
