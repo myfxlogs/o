@@ -46,3 +46,18 @@ SG 生效），但 scout 的 `pool` 是研究主池（盒本机 PG-md :5435—�
 ## 返修注记
 
 施工席回填面含：迁移文件/DDL 对齐核验、projector 频道码、部署后三锚实证。
+
+## 施工回填（devin-t0301 @ 2026-11-03，分支 t/0301-venue-candidate-bridge）
+
+- domain.tsv `fin_venue_candidate` fin→bridge（fin_opp_eval 同位格）。
+- `md_1082_venue_candidate.sql`：同形 DDL（fin_0098 逐字）+同源 10 行 seed
+  `ON CONFLICT (venue) DO NOTHING`；fin_0098 seed 补 DO NOTHING（两链并集态
+  幂等——迁移重放/合并不撞 UNIQUE）。七断言绿。
+- projector：`projectVenueCandidates`——md 正本→SG 镜像 venue 自然键全量
+  upsert（15 列全随行：metrics/state/last_request_at 在列）；挂 ev_funding
+  帧节拍+boot 首拍（10 行小表全量镜像零水印，md_signal 同形）；`want` 册
+  补录 fin_venue_candidate（桥册 fail-closed 对拍过）。
+- scoutv1 Board 零改（SG 镜像原位终表）；scout 臂 pool=PG-md 现可达正本。
+- 测试：scout 4 桩+projector 13 桩全绿@5434；check_migrations/import 边绿。
+- 部署后三锚（实采行/journal 拍败消失/SG 镜像 metrics 非空）属部署后实证件，
+  本分支未含部署动作（deploy_image.sh 钦定径归决策/管理席）。
