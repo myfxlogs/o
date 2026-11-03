@@ -29,3 +29,14 @@ venue-scout 度量面 10 候选中 6 家 metrics 空（state='candidate' 无 ada
 - 下一度量拍后 fin_venue_candidate.metrics 六家非空 boards 实迹
 - 单 venue 挂不拖全局（venue_down 计数+log 已有制式）
 - gates：check_migrations/check-env-reads/go build/相关 test 全过
+
+## 一轮裁决（2026-11-03 决策席）——驳回返修两件
+
+- **B1（硬伤）deribit 年化 8× 低估**：rate=f8h/8 折 1h 率却 interval 缺省
+  →settles 回退 3/天→年化低估 8 倍。修=rate 原样+interval=8（首选）
+  或 1h 率+interval=1 口径配对。
+- **B2（地雷）canon M 尾裸剥**：无 quote 的 M 尾符号被误剥（ATOM-PERP
+  →ATO）——现生产 inst 全带 USDT 尾未现形，结构性地雷同修。修=M 尾
+  只准复合尾表（USDTM/USDCM/USDM），附四条回归用例。
+- 余件合格：bitget/gate/kucoin/mexc/dydx 五 adapter 映射+interval 实取
+  +混合档如实+测试面齐。
