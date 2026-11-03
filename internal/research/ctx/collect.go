@@ -144,7 +144,7 @@ func (r *Runner) collectCot(c context.Context) error {
 	// 端点 ark config.go:120 钉（6dca-aqww——TFF 报告面；$order 报告日倒序
 	// $limit=50；dedupe_key=行 id 字段幂等）。
 	b, err := r.fetch(c, "https://publicreporting.cftc.gov/resource/6dca-aqww.json"+
-		"?$order=report_date_as_yyyy_mm_dd DESC&$limit=50")
+		"?$order=report_date_as_yyyy_mm_dd%20DESC&$limit=50")
 	if err != nil {
 		return err
 	}
