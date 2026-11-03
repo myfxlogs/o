@@ -7,19 +7,17 @@ import (
 	"log"
 	"time"
 
+	"google.golang.org/protobuf/encoding/protojson"
+	"o/internal/gen/scoutv1"
 	"o/internal/research/funding"
 )
 
 // board 榜单行（venue×族×top-N 中位净 APR×30d 持续占比——metrics jsonb 写回
 // fin_venue_candidate；baseline_source=earn|okx_family 进 evidence 钉口径）。
-type board struct {
-	Family    string  `json:"family"`
-	NetAprMid float64 `json:"net_apr_mid"` // 30d 逐日净 APR 序列中位
-	Persist   float64 `json:"persist"`     // 逐日净 APR>baseline 天数占比（30d）
-	Baseline  float64 `json:"baseline"`
-	BaseSrc   string  `json:"baseline_source"`
-	TopN      int     `json:"top_n"`
-}
+// Board 型别名=scoutv1.MetricBoard 生成共享型（返修①丙案修订：proto 申
+// protojson 出入 metrics jsonb——生产/消费同用生成型字段漂移编译期炸；
+// scout/board 叶子件退役）。
+type Board = scoutv1.MetricBoard
 
 // measure 日拍度量+推荐判定（返修③：baseline=max(Earn, OKX 同族中位)实算；
 // 跨所族基线=Earn 底——两所同在才存在无 OKX 同族）。
@@ -59,8 +57,17 @@ func (r *Runner) measure(ctx context.Context) error {
 			return err
 		}
 		// T-0304：rejects Door 快照随 metrics 出观察面（venue_down 运行期不盲）。
-		b, _ := json.Marshal(map[string]any{"boards": boards, "measured_at": r.now(),
-			"rejects": r.rej.Snapshot()})
+		var pb []*scoutv1.MetricBoard
+		for i := range boards {
+			pb = append(pb, &boards[i])
+		}
+		vm := &scoutv1.VenueMetrics{Boards: pb}
+		bj, _ := protojson.MarshalOptions{UseProtoNames: true}.Marshal(vm)
+		var merged map[string]any
+		json.Unmarshal(bj, &merged)
+		merged["measured_at"] = r.now()
+		merged["rejects"] = r.rej.Snapshot()
+		b, _ := json.Marshal(merged)
 		if _, err := r.pool.Exec(ctx,
 			"UPDATE fin_venue_candidate SET metrics=$2 WHERE venue=$1", v, b); err != nil {
 			r.rej.Inc("write_err")
@@ -107,7 +114,7 @@ func (r *Runner) scoutParams() (funding.Params, error) {
 
 // boardFor 单 venue 族榜行（返修② OKX 读 md_funding 正本；返修⑤ 双腿费读
 // fin_venue_candidate.taker_bps——venue 侧无档=config taker 回退）。
-func (r *Runner) boardFor(ctx context.Context, venue string, topN int, p funding.Params, earn float64) ([]board, error) {
+func (r *Runner) boardFor(ctx context.Context, venue string, topN int, p funding.Params, earn float64) ([]Board, error) {
 	vrows, err := loadVenue(ctx, r, venue)
 	if err != nil {
 		return nil, err
@@ -119,7 +126,7 @@ func (r *Runner) boardFor(ctx context.Context, venue string, topN int, p funding
 		venue).Scan(&vTaker); err != nil || vTaker <= 0 {
 		vTaker = p.TakerFeeBps // venue 档缺=同费表回退（不虚构费率）
 	}
-	out := []board{}
+	out := []Board{}
 
 	// settles 分所归一（T-0304：interval_h>0→24/iv；缺/0→config 回退——
 	// binance 8h→3 恰同回退值；OKX 侧 NULL 回退如实）。
@@ -147,9 +154,9 @@ func (r *Runner) boardFor(ctx context.Context, venue string, topN int, p funding
 		ser := dailySeries(vrows, topN, func(rate, iv float64) float64 {
 			return abs(rate)*settles(iv)*365 - costAPR
 		})
-		out = append(out, board{Family: "carry", NetAprMid: med(ser),
+		out = append(out, Board{Family: "carry", NetAprMid: med(ser),
 			Persist: fracOver(ser, carryBaseline), Baseline: carryBaseline,
-			BaseSrc: baseSrc, TopN: topN})
+			BaselineSource: baseSrc, TopN: int32(topN)})
 	}
 
 	// ② 跨所价差 vs OKX：同 canon 同日 funding 差×settles×365−双腿费年化
@@ -190,8 +197,8 @@ func (r *Runner) boardFor(ctx context.Context, venue string, topN int, p funding
 			ser := dailySeries(joined, topN, func(diff, _ float64) float64 {
 				return diff*365 - xCostAPR
 			})
-			out = append(out, board{Family: "xvenue_spread", NetAprMid: med(ser),
-				Persist: fracOver(ser, earn), Baseline: earn, BaseSrc: "earn", TopN: topN})
+			out = append(out, Board{Family: "xvenue_spread", NetAprMid: med(ser),
+				Persist: fracOver(ser, earn), Baseline: earn, BaselineSource: "earn", TopN: int32(topN)})
 		}
 	}
 	return out, nil
@@ -199,7 +206,7 @@ func (r *Runner) boardFor(ctx context.Context, venue string, topN int, p funding
 
 // maybeRecommend 达阈→条件请求（30d 内不重发——last_request_at 闸；KYC 不可
 // 及 venue 永远不进 recommended）。
-func (r *Runner) maybeRecommend(ctx context.Context, venue string, boards []board, margin, persistReq float64) error {
+func (r *Runner) maybeRecommend(ctx context.Context, venue string, boards []Board, margin, persistReq float64) error {
 	var kycOK bool
 	var lastReq *time.Time
 	var state string
