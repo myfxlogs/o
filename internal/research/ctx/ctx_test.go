@@ -9,8 +9,8 @@ import (
 	"o/internal/store/pgstore"
 )
 
-// 锚：四源桩件——mql5 POST High upsert md_macro_event（种子兜底+同日优先级）；
-// 中低+FRED/COT/news→md_ctx_fact dedupe 幂等；FRED 键缺=整源跳过。
+// 锚：FF 周历 XML High→md_macro_event source='ffcal'（种子兜底+优先级）；
+// 中低/FRED/COT→ctx dedupe slug 幂等；FRED 键缺=跳过。
 func TestCollectStub(t *testing.T) {
 	pool := testutil.Pool(t)
 	c := context.Background()
@@ -18,21 +18,20 @@ func TestCollectStub(t *testing.T) {
 		t.Fatal(err)
 	}
 	r := NewRunner(pool).AttachFredKey("k")
-	r.AttachPost(func(ctx context.Context, url, body string) ([]byte, error) {
-		if !strings.Contains(body, "importance=15") {
-			t.Errorf("form 应带 importance=15: %s", body)
-		}
-		return []byte(`[{"Id":1,"EventName":"CPI y/y","Importance":"high","CurrencyCode":"USD","FullDate":"2026-11-05T13:30:00"},
-			{"Id":2,"EventName":"PMI","Importance":"low","CurrencyCode":"USD","FullDate":"2026-11-06T14:00:00"}]`), nil
-	})
 	r.fetch = func(ctx context.Context, url string) ([]byte, error) {
 		switch {
+		case strings.Contains(url, "ff_calendar_thisweek"):
+			return []byte(`<weeklyevents><event>
+				<title>CPI y/y</title><country>USD</country><date>11-05-2026</date>
+				<time>8:30am</time><impact>High</impact><url>/e/cpi</url>
+				</event><event>
+				<title>PMI</title><country>USD</country><date>11-06-2026</date>
+				<time>10:00am</time><impact>Medium</impact><url>/e/pmi</url>
+				</event></weeklyevents>`), nil
 		case strings.Contains(url, "cftc"):
 			return []byte(`[{"market_name":"EURO FX","open_interest":1}]`), nil
 		case strings.Contains(url, "fred"):
 			return []byte(`{"observations":[{"date":"2026-11-01","value":"4.0"}]}`), nil
-		case strings.Contains(url, "mql5.com/en/news"):
-			return []byte(`<div class="news-item__title">Fed speaks about rates outlook today</div>`), nil
 		}
 		return nil, nil
 	}
@@ -43,8 +42,8 @@ func TestCollectStub(t *testing.T) {
 	if err := pool.QueryRow(c, `SELECT source FROM md_macro_event WHERE kind='cpi' AND title='CPI y/y'`).Scan(&src); err != nil {
 		t.Fatal("High 事件未落 md_macro_event:", err)
 	}
-	if src != "mql5" {
-		t.Fatalf("source 应 mql5: %s", src)
+	if src != "ffcal" {
+		t.Fatalf("source 应 ffcal: %s", src)
 	}
 	var seedN int
 	if err := pool.QueryRow(c, `SELECT count(*) FROM md_macro_event WHERE source='seed'`).Scan(&seedN); err != nil || seedN == 0 {
@@ -54,10 +53,10 @@ func TestCollectStub(t *testing.T) {
 	if err := pool.QueryRow(c, `SELECT count(*) FROM md_ctx_fact`).Scan(&n); err != nil {
 		t.Fatal(err)
 	}
-	if n < 4 {
-		t.Fatalf("ctx 落行应 ≥4: %d", n)
+	if n < 5 {
+		t.Fatalf("ctx 落行应 ≥5（PMI+FRED×4+COT）: %d", n)
 	}
-	// 幂等锚：重拍不增行（dedupe_key 唯一键拒重）
+	// 幂等锚：重拍不增行（slug dedupe 拒重）
 	if err := r.TickOnce(c); err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +64,22 @@ func TestCollectStub(t *testing.T) {
 	if err := pool.QueryRow(c, `SELECT count(*) FROM md_ctx_fact`).Scan(&n2); err != nil {
 		t.Fatal(err)
 	}
-	if n2 > n+1 { // news dedupe_key=日戳 同日同键拒重；COT 空键每拍一行容忍
+	if n2 > n+1 { // COT 空键每拍一行容忍
 		t.Fatalf("幂等失守: %d→%d", n, n2)
+	}
+}
+
+// 锚：ffDate——"All Day"=仅日期；解析败=false。
+func TestFFDate(t *testing.T) {
+	if _, ok := ffDate("bad", "8:30am"); ok {
+		t.Fatal("坏日期应 false")
+	}
+	if d, ok := ffDate("11-05-2026", "All Day"); !ok || d.Hour() != 0 {
+		t.Fatal("All Day 应仅日期 0 时")
+	}
+	if d, ok := ffDate("11-05-2026", "8:30am"); !ok {
+		t.Fatal("8:30am 应解析成功")
+	} else if d.Year() != 2026 || d.Month() != 11 || d.Day() != 5 {
+		t.Fatal("日期错")
 	}
 }

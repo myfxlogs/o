@@ -3,152 +3,122 @@ package ctx
 import (
 	"context"
 	"encoding/json"
-	"net/http"
-	"net/url"
-	"strconv"
+	"encoding/xml"
 	"strings"
 	"time"
 )
 
-// —— mql5 经济日历（vendored 真件重写——源 ark-intelligent
-// internal/service/news/fetcher.go：POST /en/economic-calendar/content
-// L243 端点+form L236-241（date_mode/from/to/importance=15 L57-58/currencies
-// =131071 L61）+六头 L248-253（Content-Type/UA/Referer/X-Requested-With/
-// Accept/Origin 缺→403）+字段 Id/EventName/Importance(string)/FullDate
-// L38-48（FullDate 以 UTC 解析——ark L66-70 注释实证 UTC 非 ET，以
-// time.ParseInLocation UTC 钉））——
+// —— 经济日历（返修③换源：mql5 宿主对机房 ASN 整站 403——POST XHR/六头
+// 全失效死源弃；改 ForexFactory 周历 XML nfs.faireconomy.media
+// /ff_calendar_thisweek.xml 免凭据双盒实测 200——GET 直 unmarshal；
+// High→md_macro_event source='ffcal'（优先级 WHERE+种子兜底不动）；
+// 余→md_ctx_fact dedupe_key=url slug）——
 
-const mql5Endpoint = "https://www.mql5.com/en/economic-calendar/content"
-
-type mql5Event struct {
-	ID         int    `json:"Id"`
-	EventName  string `json:"EventName"`
-	Importance string `json:"Importance"`
-	CCY        string `json:"CurrencyCode"`
-	FullDate   string `json:"FullDate"`
-	Actual     string `json:"ActualValue"`
-	Forecast   string `json:"ForecastValue"`
-	Previous   string `json:"PreviousValue"`
+type ffWeek struct {
+	Events []ffEvent `xml:"event"`
+}
+type ffEvent struct {
+	Title    string `xml:"title"`
+	CCY      string `xml:"country"`
+	Date     string `xml:"date"`   // "11-03-2026" MM-DD-YYYY
+	T        string `xml:"time"`   // "3:30am" ET | "All Day"
+	Impact   string `xml:"impact"` // High|Medium|Low|Holiday
+	URL      string `xml:"url"`
+	Forecast string `xml:"forecast"`
+	Previous string `xml:"previous"`
 }
 
-// collectMql5 本周窗拉页（date_mode=1 from/to 本周 UTC——ark getWeekRange
-// L82-97 同款 WIB 周界换算；High→md_macro_event upsert 同日优先级防互踩；
-// 中低/无 kind→md_ctx_fact dedupe_key=eventId）。
-func (r *Runner) collectMql5(c context.Context) error {
-	now := r.now().UTC()
-	for now.Weekday() != time.Monday {
-		now = now.AddDate(0, 0, -1)
-	}
-	from := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
-	to := from.AddDate(0, 0, 7)
-	form := url.Values{}
-	form.Set("date_mode", "1")
-	form.Set("from", from.Format("2006-01-02T15:04:05"))
-	form.Set("to", to.Format("2006-01-02T15:04:05"))
-	form.Set("importance", "15")
-	form.Set("currencies", "131071")
-	raw, err := r.fetchForm(c, mql5Endpoint, form)
+func (r *Runner) collectCalendar(c context.Context) error {
+	b, err := r.fetch(c, "https://nfs.faireconomy.media/ff_calendar_thisweek.xml")
 	if err != nil {
 		return err
 	}
-	var evs []mql5Event
-	if err := json.Unmarshal(raw, &evs); err != nil {
+	var wk ffWeek
+	if err := xml.Unmarshal(b, &wk); err != nil {
 		r.rej.Inc("parse_err")
 		return nil
 	}
-	for _, e := range evs {
-		if strings.EqualFold(e.Importance, "high") {
-			if kind := macroKind(e.EventName); kind != "" {
-				dt, _ := time.ParseInLocation("2006-01-02T15:04:05", e.FullDate, time.UTC)
+	for _, e := range wk.Events {
+		if strings.EqualFold(e.Impact, "High") {
+			if kind := macroKind(e.Title); kind != "" {
+				dt, ok := ffDate(e.Date, e.T)
+				if !ok {
+					r.rej.Inc("parse_err")
+					continue // 解析败=行跳不拖拍
+				}
 				if _, err := r.pool.Exec(c, `INSERT INTO md_macro_event(event_date,kind,title,source)
-					VALUES($1,$2,$3,'mql5')
+					VALUES($1,$2,$3,'ffcal')
 					ON CONFLICT (event_date) DO UPDATE SET kind=EXCLUDED.kind,
 						title=EXCLUDED.title,source=EXCLUDED.source
 					WHERE md_macro_event.source='seed'
 					   OR EXCLUDED.kind='fomc'
 					   OR (EXCLUDED.kind='cpi' AND md_macro_event.kind<>'fomc')`,
-					dt, kind, e.EventName); err != nil {
+					dt, kind, e.Title); err != nil {
 					r.rej.Inc("write_err")
 					return err
 				}
 				continue
 			}
 		}
-		if err := r.ins(c, "mql5", "macro", strconv.Itoa(e.ID), e); err != nil {
+		key := e.URL
+		if i := strings.LastIndex(key, "/"); i >= 0 {
+			key = key[i+1:] // url slug=dedupe 唯一键
+		}
+		if err := r.ins(c, "ffcal", "macro", key, e); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
+// ffDate "11-03-2026"+"3:30am" ET→UTC；"All Day"/空=仅日期落；败=false。
+func ffDate(d, t string) (time.Time, bool) {
+	base, err := time.Parse("01-02-2006", d)
+	if err != nil {
+		return time.Time{}, false
+	}
+	t = strings.TrimSpace(strings.ToLower(t))
+	if t == "" || t == "all day" || t == "tentative" {
+		return base.UTC(), true
+	}
+	et, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		et = time.FixedZone("ET", -5*3600)
+	}
+	tm, err := time.Parse("3:04pm", t)
+	if err != nil {
+		return time.Time{}, false
+	}
+	return time.Date(base.Year(), base.Month(), base.Day(),
+		tm.Hour(), tm.Minute(), 0, 0, et).UTC(), true
+}
+
 func macroKind(name string) string {
 	n := strings.ToLower(name)
 	switch {
 	case strings.Contains(n, "fomc") || strings.Contains(n, "fed interest rate") ||
-		strings.Contains(n, "federal funds"):
+		strings.Contains(n, "federal funds") || strings.Contains(n, "fed funds"):
 		return "fomc"
 	case strings.Contains(n, "cpi") || strings.Contains(n, "consumer price"):
 		return "cpi"
 	case strings.Contains(n, "nonfarm") || strings.Contains(n, "nfp") ||
-		strings.Contains(n, "employment change"):
+		strings.Contains(n, "employment change") || strings.Contains(n, "payroll"):
 		return "nfp"
 	}
 	return ""
 }
 
-// fetchForm POST 表单取件（六头——ark L248-253：免凭据但缺头=403；Fetcher
-// 缝仅 GET 故本径内联 http——测试经 stubClient 同形可桩）。
-func (r *Runner) fetchForm(c context.Context, endpoint string, form url.Values) ([]byte, error) {
-	req, err := http.NewRequestWithContext(c, "POST", endpoint, strings.NewReader(form.Encode()))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
-	req.Header.Set("Referer", "https://www.mql5.com/en/economic-calendar")
-	req.Header.Set("X-Requested-With", "XMLHttpRequest")
-	req.Header.Set("Accept", "application/json, text/javascript, */*; q=0.01")
-	req.Header.Set("Origin", "https://www.mql5.com")
-	if r.post != nil {
-		return r.post(c, endpoint, form.Encode())
-	}
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, &fetchErr{resp.StatusCode}
-	}
-	b := make([]byte, 0)
-	buf := make([]byte, 64<<10)
-	for {
-		n, e := resp.Body.Read(buf)
-		b = append(b, buf[:n]...)
-		if e != nil {
-			break
-		}
-	}
-	return b, nil
-}
-
-type fetchErr struct{ code int }
-
-func (e *fetchErr) Error() string { return "status " + strconv.Itoa(e.code) }
-
-// —— FRED（vendored fetcher.go——api_key 在才采（键缺=整源跳过如实；
-// env FRED_API_KEY 读件）。series 闭集钉）——
+// —— FRED（api_key 在才采——键缺=整源跳过如实；凭据归 pg cfg.Secret 注入）——
 
 var fredSeries = []string{"DGS10", "DGS2", "UNRATE", "CPIAUCSL"}
 
 func (r *Runner) collectFred(c context.Context) error {
-	key := r.fredKey
-	if key == "" {
-		return nil // 键缺=整源跳过如实（免配公共档不冒限速）
+	if r.fredKey == "" {
+		return nil
 	}
 	for _, s := range fredSeries {
 		b, err := r.fetch(c, "https://api.stlouisfed.org/fred/series/observations?series_id="+s+
-			"&api_key="+key+"&sort_order=desc&limit=2&file_type=json")
+			"&api_key="+r.fredKey+"&sort_order=desc&limit=2&file_type=json")
 		if err != nil {
 			return err
 		}
@@ -181,27 +151,4 @@ func (r *Runner) collectCot(c context.Context) error {
 		return nil
 	}
 	return r.ins(c, "cftc", "cot", "", map[string]any{"rows": rows})
-}
-
-// —— 新闻流（mql5 /en/news 页头题段 kind='news'——粗解析零行如实空拍）——
-func (r *Runner) collectNews(c context.Context) error {
-	b, err := r.fetch(c, "https://www.mql5.com/en/news")
-	if err != nil {
-		return err
-	}
-	txt := string(b)
-	var titles []string
-	for _, seg := range strings.Split(txt, "news-item__title") {
-		if i := strings.Index(seg, ">"); i >= 0 {
-			t := strings.TrimSpace(seg[i+1:])
-			if j := strings.Index(t, "<"); j > 0 && len(t[:j]) > 10 && len(titles) < 20 {
-				titles = append(titles, t[:j])
-			}
-		}
-	}
-	if len(titles) == 0 {
-		return nil
-	}
-	return r.ins(c, "mql5", "news", r.now().UTC().Format("2006-01-02"),
-		map[string]any{"titles": titles, "ts": r.now().Format(time.RFC3339)})
 }

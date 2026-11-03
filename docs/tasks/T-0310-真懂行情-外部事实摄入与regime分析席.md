@@ -143,23 +143,14 @@ R3 幂等新坑——COT ins(...,"cot","",...) dedupe_key='' IS NOT NULL →全 
 - ③COT dedupe_key ''→NULL（ins 空键传 nil 不入唯一键——撞同键防）。
 - 测试：analyst 2 桩+ctx 桩全绿@5434。
 
-## 决策席审计注记⑧（2026-11-03 三轮验收补件——mql5 宿主全拒改源）
+## 返修③ 回填（devin-t0310，同支续提）
 
-**产证实况**：返修②代码全合格部署上线（o-research active），但 mql5.com
-宿主对机房 ASN 整站 403（dev+OCI 双实测：GET 页/POST XHR/cookie 罐全拒，
-server=Angie 自研 WAF——ark 六头径当年可用今已失效）。**真件对源死=换源
-不挽代码**。
-
-**换源钦定（双盒实测 200 富料）**：`nfs.faireconomy.media/ff_calendar_thisweek.xml`
-——ForexFactory 周历 XML（免凭据 40KB/115 事件/19 High：RBA 决议/BOE 决议/
-NFP 周五金字塔全在）。返修③钦定：
-1. collectMql5→collectCalendar（XML 解析非 JSON——struct 直 unmarshal；
-   impact='High'→macroKind→md_macro_event source='ffcal'；余→md_ctx_fact
-   kind='macro' source='ffcal'；dedupe_key=url 段唯一 slug）。
-2. date/time 解析：`date` "11-03-2026"+`time` "3:30am" ET——time 为 "All
-   Day"/空=仅日期落；解析败=行跳 parse_err 不拖拍。
-3. collectNews mql5 /en/news 同宿主死——**整源删**（勿留死 fetch 每拍
-   fetch_err 噪声；新闻类待 antclaw/RSS 另源再议）。
-4. POST 缝/mql5Event struct/fetchForm/六头/周界换算全删——GET XML 走
-   现成 r.fetch 缝即可（AttachPost 缝同步撤）。
-5. 种子兜底+优先级 WHERE+幂等键全留——仅源换轨，写径语义不变。
+- collectCalendar 换源 ffcal XML（GET /ff_calendar_thisweek.xml struct 直
+  unmarshal——mql5 宿主 ASN 403 死源弃）；impact='High'→macroKind→
+  md_macro_event source='ffcal'（优先级 WHERE+种子兜底不动）；余→ctx
+  dedupe_key=url slug。
+- ffDate "MM-DD-YYYY"+"H:MMap" ET→UTC；"All Day"/空/tentative=仅日期；
+  解析败=行跳 parse_err。
+- collectNews 整源删（mql5 同宿主死）；POST 缝/fetchForm/六头/mql5Event/
+  AttachPost/周界换算全撤走 GET 缝。
+- 测试：ctx 桩（ffcal High upsert+种子保留+slug 幂等+ffDate 三档）绿@5434。
