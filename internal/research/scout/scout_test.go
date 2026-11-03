@@ -295,6 +295,8 @@ func TestSixAdapters(t *testing.T) {
 	// canon 新方言用例（PERPETUAL 尾/M 尾/XBT 别名——票面钉）。
 	for _, c := range [][2]string{
 		{"BTC-PERPETUAL", "BTC"}, {"XBTUSDTM", "BTC"}, {"ETH-PERPETUAL", "ETH"},
+		// 返修① B2 四回归：复合尾剥+裸 M 保（ATOM/DYM 不误伤）
+		{"ATOM", "ATOM"}, {"DYM", "DYM"},
 	} {
 		if g := canon(c[0]); g != c[1] {
 			t.Fatalf("canon %s → %s（want %s）", c[0], g, c[1])

@@ -47,3 +47,11 @@ venue-scout 度量面 10 候选中 6 家 metrics 空（state='candidate' 无 ada
 - **md_1085**：六 venue UPDATE measuring（种子原件不改）。
 - **测试**：TestSixAdapters 六桩+canon 三方言用例绿；scout 全包绿@5434。
 - **部署实件**（OCI arm64 六 venue 落行+boards 非空）=部署后实证件。
+
+## 返修① 回填（devin-t0313，同支续提）
+
+- B1：deribit rate=funding_8h 原样+interval=8（年化除 8 低估根修——
+  8h 档率非 1h 率，settles 分所口径随行保真）。
+- B2：canon M 尾收窄复合尾表（USDTM/USDCM/USDM 复合缀才剥 M 露 quote 尾
+  ——裸 M 不剥防 ATOM→ATO/DYM→DY 误伤）；四回归用例钉
+  （XBTUSDTM→BTC/ATOM→ATOM/DYM→DYM/BTC-PERPETUAL→BTC 全绿）。

@@ -177,8 +177,9 @@ func collectDeribit(ctx context.Context, f Fetcher) ([]row, error) {
 			if err := json.Unmarshal(tb, &t); err != nil {
 				continue
 			}
-			out = append(out, row{inst: ins.Name, rate: f2f(t.Result.F8H / 8 * 1), // 8h 累积→等效 1h 率如实换算
-				mark: f2f(t.Result.Mark), index: f2f(t.Result.Index)})
+			out = append(out, row{inst: ins.Name, rate: f2f(t.Result.F8H),
+				interval: 8, // 返修① B1：funding_8h=8h 档率原样非年化——除 8 低估根修
+				mark:     f2f(t.Result.Mark), index: f2f(t.Result.Index)})
 		}
 	}
 	if len(out) == 0 {

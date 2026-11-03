@@ -16,9 +16,13 @@ func canon(s string) string {
 		s = strings.TrimSuffix(s, suf)
 	}
 	s = strings.NewReplacer("-", "", "_", "").Replace(s)
-	if strings.HasSuffix(s, "M") && len(s) > 1 {
-		s = s[:len(s)-1] // kucoin 永约 M 尾最外缀（XBTUSDTM→XBTUSDT——
-		// quote 在前必剥 M 露尾，剥序钉）
+	// kucoin 永约 M 复合尾表（返修① B2 收窄——仅 USDTM/USDCM/USDM 复合缀，
+	// 裸 M 尾不剥防 ATOM→ATO/DYM→DY 误伤；复合缀剥 M 后交 quote 段续剥）。
+	for _, q := range []string{"USDTM", "USDCM", "USDM"} {
+		if strings.HasSuffix(s, q) && len(s) > len(q) {
+			s = s[:len(s)-1] // 剥 M 露 USDT/USDC/USD 尾交下段
+			break
+		}
 	}
 	for _, q := range []string{"USDT", "USDC", "USD"} {
 		if strings.HasSuffix(s, q) && len(s) > len(q) {
