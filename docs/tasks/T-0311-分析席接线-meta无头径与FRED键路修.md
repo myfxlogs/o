@@ -211,3 +211,14 @@ T-0302 坑）→ psql 闸询；SSH_AUTH_SOCK 在 service 环境有效已验
 修法钦定如上（已实证返真数 52|51）；验收锚升级：施工须**自跑一遍
 regime_tick.sh 端到端**回贴实迹（ops_headless 行+md_regime_fact 是否
 落行如实报），零实迹回报不予审。再驳即升管理席定夺票向。
+## 返修③ 端到端实证（devin-t0311，同支续提）
+
+- MD 闸改 ssh 径（`ssh -o BatchMode=yes ubuntu@149.118.58.98` 远侧 env DSN
+  剥 pool_max_conns——本地 MD_DSN env 段弃）。
+- **实跑实迹**（两拍）：
+  - 首拍（permission-mode 缺）：闸过→devin 会话中途 confirmation 拒——
+    落 0 行（如实空拍）；心跳 alive 行落。
+  - 二拍（`--permission-mode dangerous` 补——非交互批件必带件）：
+    md_regime_fact id1-6 落（6 维判词 stance 全枚举内+ctx_max_id=52 水印+
+    valid_until>now()）+md_regime_memo 6 段；ops_headless META-REGIME
+    alive 心跳行落（last_activity 实拍）。
