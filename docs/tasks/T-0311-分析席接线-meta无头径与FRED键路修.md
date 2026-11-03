@@ -250,3 +250,11 @@ curl h1 备径+err 脱 URL（api_key 半键曾落 journal——轮换建议件�
 **部署态**：机制全修部署 active——当前处上游边劣化窗口（h2 全拦/h1 抖
 动实证），fred 行待边恢复自落（6h 拍自试，fail-soft 不炸）。KB 条目：
 docs/工程经验库/条目/fred-akamai-edge-go-transport-reject.md。
+
+## 返修⑤终局（2026-11-03 13:44）——真凶=自造 UA 被 Akamai 拉黑
+
+四 UA 隔离实验定案：curl 默认/Go 默认 UA=200 秒通，o-ctx/o-research
+自造 UA=h1 tarpit 挂死+h2 stream 踢流——**指纹拦截对 UA 不对客户端栈**；
+之前「h2 间歇」「边节点异态」全是 UA 病的表象误判（探针默认 UA 侥幸
+全中误导深查）。ffcal 429 同根（同 UA）。
+落行实证：DGS10/DGS2/UNRATE/CPIAUCSL 四序列全进 md_ctx_fact @13:44。
