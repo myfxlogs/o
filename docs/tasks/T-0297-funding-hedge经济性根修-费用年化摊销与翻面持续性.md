@@ -1,66 +1,120 @@
-# T-0297 funding-hedge 经济性根修——费用年化摊销＋翻面持续性＋最短持仓＋仓位数上限
+# T-0297 funding-hedge 经济性根修——费用往返口径＋年化摊销＋开闸同源
 
 | 字段 | 值 |
 |---|---|
-| 状态 | **待办** |
-| 立项 | `[角色:管理]` devin-cli @ 2026-11-03（D-0043；CTO 事后会签） |
+| 状态 | **已批**（CTO 会签 2026-11-03——病灶核实后范围修订，见「CTO 会签勘正」；派单序：T-0299 清带宽后派） |
+| 立项 | `[角色:管理]` devin-cli @ 2026-11-03（D-0043）；会签 `[角色:决策]` devin @ 2026-11-03 |
 | 领取 | （空） |
 | 优先级 | **最高**——D-0037 KPI 唯一主线；D-0042 11-15 止损日前须 paper 实证 |
-| 涉及面 | `internal/research/funding/eval.go`（+`_test`）、`internal/research/funding/run.go`（参数键）、`internal/guard/guard.go`（+`_test`）、`internal/portfolio/lifecycle/opener.go`（开仓数闸）、新 migration（三键 seed）、o-research/o-core 重部署 |
-| 承接 | T-0237 遗留（maker 径 probe 实证债）并入本票验收 |
+| 涉及面 | `internal/research/funding/eval.go`（+`_test`）、`internal/research/funding/run.go`（参数键）、`internal/portfolio/lifecycle/opener.go` breakevenOK（+`_test`）、新 migration（`min_net_apr` seed 改值）、SG `app_config` 改值、o-research/o-core 重部署 |
+| 承接 | T-0237 遗留（maker 径 probe 实证＋真实费率档位）并入本票验收 |
 
-## 病灶（实查在案，勿重复诊断）
+## CTO 会签勘正（2026-11-03，SG 生产取证＋码面亲证——取代原「病灶」段的件②③）
 
-**件① 费用未年化**：`eval.go` `cost := (feeBps+slippage+fail+window)/1e4; net := gross − cost`——
-`gross` 是年化率，`cost` 是**一次性**往返分数，两者直接相减。持仓 1 天的 12bps 往返
-真实成本≈43.8% APR，评估器按 0.12% 计；持仓 3 天≈14.6%。评估器系统性低估成本
-数十倍→阈值形同虚设→开仓即亏费。D-0037 账面「费 3.05 vs 利息 1.08、1114 单」
-即此病灶的表现。10-29 把 `min_net_apr` 抬到 0.20 是在口径错误下的补偿，根修后须回落。
+原票面三件病灶，逐件核实结果：
 
-**件② guard 单次翻面即平**：`guard.go:216-229` 最新 funding 与开仓方向异号且
-|率|>`guard.flip_bps` 即 `funding_flip`。funding 在零附近抖动一次就平仓，再被评估器开回
-——往返费白交。无「最短持仓」概念（`max_hold_hours` 只管超龄）。
-（`funding_flip_preempt` 径已结构性死：OKX `nextFundingRate` 恒 `""`，T-0084 作废裁定留码不启——本票不依赖、不改。）
+**件① 费用未年化——成立（码面亲证）。** `eval.go:58-59`
+`cost := (feeBps+slippage+fail+window)/1e4; net := gross − cost`——`gross` 是年化率，
+`cost` 是一次性分数，直接相减。SG 现值（maker 键缺→双 taker）cost=19bps=0.0019：
+按 3 天持仓真实年化成本 0.0019×365/3=**23.1%**，评估器当 0.19% 算，低估 ~120 倍。
+且 19bps 本身还不是往返：fee 项 `2×taker` 只计一向两腿、slippage 只计一次——
+四次成交（开两腿+平两腿）的往返口径应为 `2×feeBps + 2×slippage + fail + window`
+=32bps（与 opener `breakevenOK` 的 `4×(taker+slip)=32bps` 才对得上）。
 
-**件③ 无 live 仓位数上限**：risk 面有 `max_exposure_usd`/`max_notional_usd`/`max_venue_pct`，
-无并发仓数闸；$10k 本金摊成十几条小仓＝每条都摊不薄固定摩擦。
+**件② 「guard 单次翻面即平→往返费白交」——不成立（生产取证）。** SG
+`fin_position ⋈ fin_guard_close` 全量 22 仓：**trigger_kind 全部=delta_drift，funding_flip=0**。
+`guard.flip_bps=5` 意味着 funding 须低于 −0.05%/8h（≈ −55% 年化）才触发——这不是
+「零附近抖动」。翻面持续性（`flip_persist_n`）解决的是一个从未发生过的问题，**撤出本票**。
 
-## 钦定目标
+**件③ 「无最短持仓→磨损」——不成立，且方案有害。** 22 仓平均持仓 1.2h、21 仓 <1h
+（多数开平同一分钟），全由 delta_drift 杀——根因是 10-24/25 上线期执行面缺陷
+（量纲误读/陈 tick 假失衡/基线缺位，已分别由 T-0064/T-0107/T-0128 根修；开平振荡保险丝
+T-0103 已落）。「最短持仓前禁平」是沉没成本谬误：费已付出，禁止离场收不回费，只会在
+funding 真翻负时多付负 funding。**撤出本票**。风险闸（delta_drift/kill_switch）本就不可让位。
 
-1. **费用年化摊销**：新键 `research.funding.min_hold_days`（seed=3）。
-   `cost_apr = cost_frac × 365 / min_hold_days`；`net = gross − cost_apr`。evidence 加
-   `cost_apr`/`min_hold_days` 两字段。`research.funding.min_net_apr` seed 0.20→**0.06**
-   （静态底；Earn 动态底 D-0006 照旧兜，`floor=max(静态, Earn)`）。
-2. **翻面持续性**：新键 `guard.flip_persist_n`（seed=2）。`funding_flip` 须**连续 N 次
-   已结算** funding 异号且超 `flip_bps` 才触发（读 `md_funding` 近 N 行）。
-3. **最短持仓前禁平（仅限收益类触发）**：持仓年龄 < `min_hold_days` 时跳过 `funding_flip`
-   /`max_hold`；**`delta_drift` 与 risk kill_switch 不受限**（风险闸永不让位）。
-4. **live 仓位数上限**：新键 `risk.max_live_positions`（seed=3）。lifecycle opener 开仓前
-   数 live 态 funding-hedge 仓，≥上限＝拒开（reason `max_live_positions`）。
-5. **开仓时同口径**：`opener.go:118/161` 开时翻面预判改用持续性口径（N 次历史异号），
-   与 guard 对齐。
-6. 判据键缺＝fail-closed 跳过＋计数（沿用 guard 既有纪律）；**零代码字面量**，三键全走 config。
+**「1114 张单磨光钱」——叙事勘正。** `fin_execution` 1114 行=failed 689＋ambiguous 380
+＋closed 42＋其他 3；真实成交只有 42 次执行（≈21 个 $50 往返）。费 3.05 来自这 21 个
+往返，不来自阈值放薄利单——这些仓没活到第一次 funding 结算（funding_settle 全账仅 4 行
++0.002），任何阈值都救不了。1069 次 failed/ambiguous 是 10-24~10-28 执行面故障，零费。
+
+**`min_net_apr` 0.20 的性质。** T-0237 抬阈的算式「20% APR≈5.5bps/日，72h≈16bps>12bps
+摩擦」本身就是按 72h 摊销的往返口径——0.20 不是「错误口径下的硬补」，而是在评估器
+不会摊销的情况下，把摊销后的门槛手工折算进了静态阈。根修后评估器自己摊销，静态阈
+回落到 0.06 是口径归位，不是放松（见下「数字对照」）。
+
+**件④ `risk.max_live_positions`——缓议。** `risk.max_exposure_usd=500` 已把 $50 probe
+封顶 10 仓；无实证表明仓数是病灶。不入本票，留 D-0043 待议。
+
+### 数字对照（SG 30d `md_funding` 12,508 观测/511 inst，Earn 现率 4%）
+
+| 口径 | 开仓所需 funding/8h | 30d 观测占比 |
+|---|---|---|
+| 现状：gross−0.0019 ≥ 0.20 | ≥1.84bps | 4.1%（513） |
+| 现状 opener breakevenOK：9 结算 carry ≥ 32bps×1.5 | ≥5.33bps | 1.7%（208） |
+| 根修后：gross − 32bps×365/3 ≥ 0.06（H=3d） | ≥4.1bps | ~2% |
+
+BTC/ETH/SOL 30d 中位 funding ≈0.7–1.0bps/8h（≈8–11% 年化毛收）。结论：**按 taker 费
+＋3 天持仓期，OKX funding-hedge 在当前 regime 下几乎不该开仓——这是如实，不是缺陷。**
+真正的杠杆是两件：持仓期拉长（guard 已有「trailing 24h 实收>0 免超龄」豁免，H 实际可
+>3d）与 maker 费（T-0238 maker 径已并 master，SG `research.funding.maker_fee_bps` 键
+**缺位**→评估仍按双 taker）。两者都在本票验收锚内度量，不在本票放量。
+
+## 钦定目标（修订后）
+
+1. **费用往返口径＋年化摊销**（`eval.go`）：
+   `cost_rt_bps = 2×feeBps + 2×SlippageBps + FailCostBps + WindowLossBps`（feeBps 沿
+   T-0247 分层：maker 在册=taker+maker，缺=2×taker）；
+   `hold_days = guard.max_hold_hours / 24`（**复用既有键，不新增 `min_hold_days`**——与
+   opener breakevenOK 同一时间地平线，一源）；
+   `cost_apr = cost_rt_bps/1e4 × 365 / hold_days`；`net = gross − cost_apr`。
+   `Params` 加 `HoldDays float64`；`run.go` paramKeys 加 `guard.max_hold_hours`，键缺=
+   fail-closed missing_params（沿用）。evidence 加 `cost_rt_bps`/`hold_days`/`cost_apr`。
+2. **开闸同源**（`opener.go` breakevenOK）：摩擦与年化改调 `funding` 包导出的同一函数
+   （导出 `RoundTripBps(p Params) float64` 与 `CostAPR(p Params) float64`），删 opener
+   内 `4*(taker+slip)` 本地算式；`guard.breakeven_safety`（缺省 1.5）保留作安全系数。
+   拒因 evidence 字段改为 `cost_apr`/`gross_apr`/`safety`。自检 I：提案卡展示的 net_apr
+   与开闸判据取同一函数。
+3. **阈值归位**：`research.funding.min_net_apr` 0.20→**0.06**——新 migration seed
+   `ON CONFLICT DO UPDATE`（现 fin_0006 为 DO NOTHING，SG 现值 0.20 不会被 seed 覆盖，
+   须显式 UPDATE 径）；Earn 动态底 `floor=max(静态, Earn)` 不变。生效径：o-research
+   仅 boot 快照（T-0237 坑）——部署即生效，票面写明重启锚。
+4. **零代码字面量**：所有系数走 config；`hold_days` 由 `guard.max_hold_hours` 派生，
+   不另立键。
 
 ## 验收标准
 
-- [ ] `eval_test`：同 rate/fee 下 `min_hold_days=1/3/30` 三档 net_apr 单调递增且数值＝手算；0.12% 费 1 天持仓 → rejected
-- [ ] `guard_test`：一次异号不平、连续 2 次异号平；最短窗内 flip 不平但 delta_drift 照平
-- [ ] opener 测试：live 仓数=3 时第 4 条拒开，reason 落 evidence
-- [ ] migration seed 三键＋`min_net_apr` 改值，`cfg.Watch` 或重启生效径写明（T-0237 坑：o-research 仅 boot 快照）
-- [ ] **30d 回放**：用 SG `md_funding` 近 30d 数据跑新旧口径对比——新口径下开仓次数、模拟往返费、模拟 funding 实收，表格落票面（目的＝证明「单数降、净利升」，非证明盈利）
-- [ ] paper 7d：proposed→paper 仓最短持仓≥3d 实证，无最短窗内 flip 平仓
-- [ ] maker 径 probe 实证（T-0237 债）：live 执行单 maker 成交比例＋真实 fee_bps 落票面
-- [ ] 动真钱参数（min_net_apr/仓数）变更留前后对照＋出处 D-0043
+- [ ] `eval_test`：固定 rate=0.0003、Params 如 TestMakerFeeSetSplit 基线，`HoldDays`
+      =1/3/30 三档 NetAPR 单调递增且与手算相等（1d：cost_apr=0.0032×365=1.168；
+      3d：0.3893；30d：0.0389）；rate=0.0001（≈11% 毛收）、HoldDays=3 → rejected
+      且 reason 含 `net_apr`；evidence 含 `cost_rt_bps=32`/`hold_days`/`cost_apr`。
+- [ ] `eval_test` 既有 TestMakerFeeSetSplit/TestEvaluateDynamicFloor 按新口径改期望值
+      （不删锚），`HoldDays=0` 为 missing_params（run.go 测试）。
+- [ ] `opener_test`：breakevenOK 对同一 Params 与 `funding.CostAPR` 同值；删本地算式后
+      测试红→绿（对抗性：改 `RoundTripBps` 系数 opener 测试必红）。
+- [ ] migration：`min_net_apr` 0.20→0.06 显式 UPDATE；部署后 SG `app_config` 实查
+      =0.06 且 fin_opp_eval evidence 带 `cost_apr`。
+- [ ] **30d 回放**（SQL 由决策席出，施工只跑）：用 SG `md_funding` 近 30d 逐 inst 逐结算
+      跑新旧口径——新口径 proposed 次数/旧口径 proposed 次数/对应 funding 分位，表格
+      落票面（目的＝证明「口径对了」，不证明盈利）。
+- [ ] paper 7d：新口径下 proposed→paper 仓统计（数量、持仓时长、模拟 funding 实收 vs
+      模拟往返费）——零开仓也是合格结果，如实落票。
+- [ ] maker 径 probe 实证（T-0237 债）：OKX `/account/trade-fee` 真实 taker/maker 档位
+      （spot 与 swap 分列）落票；`research.funding.maker_fee_bps` 是否入册由数据裁。
+- [ ] 动真钱参数变更留前后对照＋出处 D-0043＋本会签段。
 
 ## 范围外
 
+- 不动 guard（翻面持续性/最短持仓两件已撤，理由见会签段）；不加 `risk.max_live_positions`
 - 不动发现面（md_signal 产出）、不碰 dcd/volsell 族；basis 族费用摊销归 T-0298
 - 不改 risk 硬线（max_exposure/kill_switch）
 - 不放量——live 放量由管理席按 paper 7d 实证另裁
 
 ## 参考
 
-D-0043 / D-0037 / D-0006（Earn 动态底）/ T-0237 / T-0238（maker 径已并 master：maker.go、okx.go:68、eval_test TestMakerFeeSetSplit）/ T-0286（低 regime 如实细流）/ `skills/策略评估与仓位`
+D-0043（含 CTO 会签注记）/ D-0037 / D-0006（Earn 动态底）/ T-0237（阈 0.20 算式）/
+T-0238（maker 径）/ T-0247（maker 键分层）/ T-0111（breakevenOK）/ T-0064·T-0107·T-0128
+（delta_drift 误杀三修）/ `skills/策略评估与仓位` /
+工程经验库 `loss-attribution-read-guard-trigger-first`
 
 ## 结果回填
 
