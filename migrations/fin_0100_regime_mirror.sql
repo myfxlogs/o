@@ -37,3 +37,14 @@ ON CONFLICT (table_name) DO NOTHING;
 INSERT INTO app_config(key,value) VALUES
   ('notify.feishu.regime.enabled','true'::jsonb)
 ON CONFLICT (key) DO NOTHING;
+
+-- 返修① R1：projector_rw 四权条件授（照 fin_0098 先例——角色存在才授；
+-- md_regime_push=SG fin 域表写者 o-core 本体池不在授列；显式 id 插入不走
+-- bigserial 默认故序列 USAGE 不授）。
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'projector_rw') THEN
+    GRANT SELECT,INSERT,UPDATE,DELETE ON md_regime_fact TO projector_rw;
+    GRANT SELECT,INSERT,UPDATE,DELETE ON md_regime_memo TO projector_rw;
+  END IF;
+END $$;

@@ -12,6 +12,7 @@ import (
 )
 
 func (r *Runner) projectRegime(ctx context.Context) error {
+	pushed := 0 // R2：两表 batch 合计非空才唤推送（空批次免空跑 Scan）
 	for _, p := range []struct{ table, q, u string }{
 		{"md_regime_fact", qRegimeFact, uRegimeFact},
 		{"md_regime_memo", qRegimeMemo, uRegimeMemo},
@@ -56,8 +57,13 @@ func (r *Runner) projectRegime(ctx context.Context) error {
 		if err := batchExec(ctx, r.sg, p.u, batch); err != nil {
 			return fmt.Errorf("%s 投影: %w", p.table, err)
 		}
+		pushed += len(batch)
 	}
-	// 唤推送面（SG 侧 pg_notify——o-core ListenLoop 'ev_regime' 消费）。
+	// 唤推送面（SG 侧 pg_notify——o-core ListenLoop 'ev_regime' 消费；
+	// 空批次不唤免推送面空跑——返修① R2）。
+	if pushed == 0 {
+		return nil
+	}
 	if _, err := r.sg.Exec(ctx, "SELECT pg_notify('ev_regime','')"); err != nil {
 		return fmt.Errorf("regime notify: %w", err)
 	}
