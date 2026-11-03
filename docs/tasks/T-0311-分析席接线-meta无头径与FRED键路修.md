@@ -98,3 +98,18 @@ runbook 即可（同决策席/研究员席位形制）；不牵其他项目、�
    红线+事后审计钉）。
 **决策席无头化另票**：ops_headless 域+relay 基建在册——唤醒模型（收口
 事件触发+周期兜底）+红线三件升业主不动=独立票（T-0312 向）不入本票。
+
+## 决策注记③（业主问「数据到能否激活」——闸式轮询钦定）
+
+meta-gateway 考古（/opt/meta 独立仓）：seat_run 持久账+60s ticker＋事件
+kick 双源调和器——外源拍=`ticket_event` 行（postmsg.go：「systemd timer
+心跳等外源拍，网内零 cron」）。**席位活性押触发源非会话驻留**。
+
+终形修订（timer 6h→闸式 30min）：
+1. `deploy/o-regime-analyst.{service,timer}`——OnUnitActiveSec=30min，
+   ExecStart=壳件先查水印：`md_ctx_fact` max(id)>regime 水印→
+   `devin -p`；无新行秒退零 session 烧（数据驱动唤醒=采集到才激活）。
+2. 事件推径否决——生产臂写 meta 事件域=跨域污染；PG NOTIFY 听客径
+   否决——多养 daemon。
+3. T-0312 决策席无头=挂 meta-gateway ticket_event+seat_run 机制
+   （report.sh 事件环收口即拍→调和醒裁决）——基建钦定不另造轮。
