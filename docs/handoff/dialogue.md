@@ -653,3 +653,19 @@
 - **T-0300 迁移序重排**：fin_venue_candidate=fin_0098、md_venue_funding=md_1081
   （原会签钉的 0097/1080 已被 T-0298 用讫）——票面注记已改 @master。
 - 待办队列：T-0300 候派（提示词已出）；T-0297/0298/0299 迁移随下次镜像部署生效。
+
+## 2026-11-03（续二）T-0300 一审驳回→返修验收合 master
+
+- **一审驳回**（fe4f6306）：骨架合格但度量层五件——①跨所 join `inst_id=inst`
+  方言直等（'BTC-USDT-SWAP' vs 'BTCUSDT'）恒空=死码，两钦定锚不可达；
+  ②okx 标 measuring 无 adapter 基准榜恒空；③baseline_source 假标
+  okx_family 实为 Earn 裸查；④persist=覆盖率非净APR>底占比=虚闸；
+  ⑤双腿费同用全局 taker。
+- **返修①验收通过**（10fc3edc）：canon() 剥方言（9 组单测含 1000PEPE）、
+  okx 榜读 md_funding 正本、baseline=max(EarnRate 共用读件,OKX 同族中位)、
+  persist=30d 日序列真占比、双腿费读台账。复跑 15 绿+master 24 绿。
+- 合并解两处撞：EarnRate 双票同形抽出留双出处注释；迁移注册 {97,98}/
+  {1080,1081} 全链。部署后验项五项钉票面（7d 实采/带宽/跨所榜行/5% 自校/
+  达阈请求实证）。
+- D-0043 四票全收口：T-0299/T-0297/T-0298/T-0300 均合 master。部署令归
+  管理席——fin_0095-0098+md_1079-1081 六迁移随下次镜像 boot 生效。
