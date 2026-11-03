@@ -632,3 +632,10 @@
 - **研究员 skill**（业主令经 CEO 转达）：改事件触发起草员——两触发闭集（T-0300 达阈→注册清单；venue 新品→新族提案附可算收益公式），考核=净正收益实例，禁线/双层防照旧 @2e3eaa11。
 - **T-0299 验收通过** @0b992d10+决策席补落 @14217584：暂停闸（paused 键按次读、true→日限频 note 不进 Alert、缺键 fail-open）、parked 迁移（md_1079 扩 CHECK+存量转 parked）、三分清单（钱径 6/运维健康 15/冷库 16）。验收期两处补落：T-0118 漏判转冷库（D-0043 取代 D-0016 母票）；周报口径重写（施工初版用 fin_ledger_snapshot 净值差分——会吞出入金，改 fin_cashflow 七 kind 实收）。流程注记：收口缺 §8 全件，决策席复跑替核（test 4 绿/迁移七断言/numstat 1:1）。
 - **部署注记**：fin_0095/md_1079 经 SG 镜像 boot 迁移链生效；部署前 paused 键缺=fail-open 照常告警，零风险窗。
+
+## 2026-11-03（续）T-0297 验收 @13a12a23+88f69d4a，合并 790402c5
+
+- **码面收**：`RoundTripBps`/`CostAPR` 导出一源（32bps 往返×365/hold_days），opener breakevenOK 同源化——代数核验旧式（rate×9 结 ≥32bps×1.5）与新式（gross_apr≥cost_apr×1.5）同解 rate≥5.33bps，判据行为等价。41 测试绿+迁移七断言+缺键 fail-closed 双保险。
+- **回放关键发现**：新口径 30d pass=259 观测/75 inst，但**按现货目录核零 inst 有腿**——过阈头部全股权指数永续（BWET/SHEIN/ADBE/US100/MSTU）。**新口径+腿闸下当前 regime 可开仓集≈0——如实**。BTC-USDT-SWAP 30d 零观测达阈（中位 ~0.5-1.0bps 远低所需 4.1bps）。第一分钱杠杆=持仓期×maker 费，已记票面。
+- **部署后验项四项**（随 deploy_image.sh 迁移链销）：SG min_net_apr=0.06 实查、evidence cost_apr、paper 7d、maker 档位 probe（T-0237 债）。
+- **部署依赖**：T-0299（fin_0095 paused 键/md_1079 parked）+T-0297（fin_0096 阈值归位）迁移均待 SG 镜像 boot 应用——部署令归管理席。
