@@ -18,7 +18,7 @@ md_funding	bridge
 md_mark_index	bridge
 md_account_events	fin
 fin_venue_account_snapshot	fin
-fin_opp_template	md
+fin_opp_template	bridge
 fin_opp_eval	bridge
 fin_proposal	bridge
 fin_paper_fill	fin
@@ -52,7 +52,7 @@ fin_residual_custody	fin
 md_dcd_product	bridge
 fin_capability_surface	md
 fin_surface_gap	md
-fin_opp_hypothesis	md
+fin_opp_hypothesis	bridge
 fin_trx_account	fin
 fin_trx_txs	fin
 fin_trx_cycle_vi	fin

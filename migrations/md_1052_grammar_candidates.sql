@@ -4,6 +4,7 @@
 -- 默认）/candidate=文法枚举候选（无 executor 不落执行径）/retired。
 
 ALTER TABLE fin_opp_template ADD COLUMN IF NOT EXISTS state text NOT NULL DEFAULT 'enabled';
+ALTER TABLE fin_opp_template DROP CONSTRAINT IF EXISTS fin_opp_template_state_check;
 ALTER TABLE fin_opp_template ADD CONSTRAINT fin_opp_template_state_check
   CHECK (state IN ('enabled','candidate','retired'));
 CREATE UNIQUE INDEX IF NOT EXISTS uq_opp_template_struct

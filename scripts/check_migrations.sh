@@ -179,7 +179,7 @@ done < "$EXTRACT"
 # ⑥ 八桥表+反向桥表 DDL 归一化同形：链间形状语句集（create/alter/index/
 # hypertable/retention）相等（T-0172：bridge-reverse 正本在 fin 链、md 链
 # 镜像——同形前提回滚径两向共用）。
-BRIDGE="md_ticks md_mark_index md_signal md_dcd_product md_funding md_macro_event fin_proposal fin_opp_eval fin_strategy fin_venue_untradeable"
+BRIDGE="md_ticks md_mark_index md_signal md_dcd_product md_funding md_macro_event fin_proposal fin_opp_eval fin_strategy fin_venue_untradeable fin_venue_candidate fin_opp_hypothesis fin_opp_template"
 	for bt in $BRIDGE; do
 		if [ "${TD[$bt]:-}" != "bridge" ] && [ "${TD[$bt]:-}" != "bridge-reverse" ]; then
 			echo "FAIL $TSV: 桥表 $bt 未以 bridge|bridge-reverse 入册（同形断言清单对齐）" >&2

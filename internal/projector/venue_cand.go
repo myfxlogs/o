@@ -51,3 +51,62 @@ const uVenueCand = `INSERT INTO fin_venue_candidate(id,ts,venue,kind,endpoints,m
 		kyc_ok=EXCLUDED.kyc_ok,api_ok=EXCLUDED.api_ok,withdraw_limit=EXCLUDED.withdraw_limit,
 		metrics=EXCLUDED.metrics,evidence=EXCLUDED.evidence,state=EXCLUDED.state,
 		last_request_at=EXCLUDED.last_request_at`
+
+// projectGhostTables 两幽灵表升桥投影（T-0303——md 正本→SG 化石表镜像：
+// hypothesis=UNIQUE(venue,surface) 自然键全量 upsert（parked/dismissed 等非
+// proposed 态随行）；template=uq_opp_template_struct 自然键全量 upsert。
+// 均小表全量镜像零水印——venue_cand 同款形）。
+func (r *Runner) projectGhostTables(ctx context.Context) error {
+	rows, err := r.md.Query(ctx, `SELECT id,ts,venue,surface,family,leg_primitives,requirements,state,evidence
+		FROM fin_opp_hypothesis`)
+	if err != nil {
+		return fmt.Errorf("hypothesis 查询: %w", err)
+	}
+	var hb [][]any
+	for rows.Next() {
+		var id int64
+		var ts time.Time
+		var venue, surface, family, state string
+		var legs, reqs, ev []byte
+		if err := rows.Scan(&id, &ts, &venue, &surface, &family, &legs, &reqs, &state, &ev); err != nil {
+			rows.Close()
+			return err
+		}
+		hb = append(hb, []any{id, ts, venue, surface, family, legs, reqs, state, ev})
+	}
+	rows.Close()
+	if err := batchExec(ctx, r.sg, uHypo, hb); err != nil {
+		return fmt.Errorf("hypothesis 投影: %w", err)
+	}
+	rows2, err := r.md.Query(ctx, `SELECT id,template,venue,params,enabled,surface,state
+		FROM fin_opp_template`)
+	if err != nil {
+		return fmt.Errorf("template 查询: %w", err)
+	}
+	var tb [][]any
+	for rows2.Next() {
+		var id int64
+		var template, venue string
+		var params []byte
+		var enabled bool
+		var surface, state *string
+		if err := rows2.Scan(&id, &template, &venue, &params, &enabled, &surface, &state); err != nil {
+			rows2.Close()
+			return err
+		}
+		tb = append(tb, []any{id, template, venue, params, enabled, surface, state})
+	}
+	rows2.Close()
+	return batchExec(ctx, r.sg, uTemplate, tb)
+}
+
+const uHypo = `INSERT INTO fin_opp_hypothesis(id,ts,venue,surface,family,leg_primitives,requirements,state,evidence)
+	VALUES($1,$2::timestamptz,$3,$4,$5,$6::jsonb,$7::jsonb,$8,$9::jsonb)
+	ON CONFLICT (venue,surface) DO UPDATE SET ts=EXCLUDED.ts,family=EXCLUDED.family,
+		leg_primitives=EXCLUDED.leg_primitives,requirements=EXCLUDED.requirements,
+		state=EXCLUDED.state,evidence=EXCLUDED.evidence`
+
+const uTemplate = `INSERT INTO fin_opp_template(id,template,venue,params,enabled,surface,state)
+	VALUES($1,$2,$3,$4::jsonb,$5,$6,$7)
+	ON CONFLICT (template,venue,(COALESCE(surface,''))) DO UPDATE SET params=EXCLUDED.params,
+		enabled=EXCLUDED.enabled,surface=EXCLUDED.surface,state=EXCLUDED.state`
