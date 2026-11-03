@@ -7,10 +7,13 @@ package ctx
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	neturl "net/url"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -21,14 +24,27 @@ import (
 // Fetcher HTTP 取件缝（scout 同款——公开零凭据端点）。
 type Fetcher func(ctx context.Context, url string) ([]byte, error)
 
+// h1Client 强制 HTTP/1.1——Go h2 指纹被 FRED 边节点间歇踢流
+// （stream INTERNAL_ERROR 实击，curl 同径不犯；T-0311 返修⑤）。
+var h1Client = &http.Client{
+	Timeout: 30 * time.Second,
+	Transport: &http.Transport{
+		TLSNextProto: map[string]func(string, *tls.Conn) http.RoundTripper{},
+	},
+}
+
 func httpGet(ctx context.Context, url string) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("User-Agent", "o-ctx/1.0")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := h1Client.Do(req)
 	if err != nil {
+		var ue *neturl.Error
+		if errors.As(err, &ue) {
+			return nil, fmt.Errorf("http get: %w", ue.Err) // 脱 URL——api_key 不落日志
+		}
 		return nil, err
 	}
 	defer resp.Body.Close()
