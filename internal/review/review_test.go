@@ -2,7 +2,6 @@ package review
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
 
@@ -42,9 +41,7 @@ func setup(t *testing.T) (context.Context, *Runner) {
 
 func TestReviewAndForward(t *testing.T) {
 	ctx, r := setup(t)
-	defer os.RemoveAll(stagingFile) // 测试用待归纳件（仓内生成——测后即清不入档）
-	stagingFile = "/tmp/staging_t017.md"
-	defer os.Remove(stagingFile)
+
 	// 造 settled 仓+eval 预测行
 	var eid, pid, sid, execID int64
 	_ = r.pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,net_apr,verdict,legs,evidence)
@@ -75,10 +72,15 @@ func TestReviewAndForward(t *testing.T) {
 		"SELECT count(*) FROM fin_forward_check WHERE obj_kind='position' AND obj_ref=$1", pid).Scan(&n); err != nil || n != 3 {
 		t.Fatalf("远期窗行=%d", n)
 	}
-	// falsified→待归纳行+提案态行
-	b, _ := os.ReadFile(stagingFile)
-	if len(b) == 0 {
-		t.Fatal("falsified 未落待归纳行")
+	// falsified→fin_econ_lesson 锚行（T-0314 双 kind：falsified_verdict+settled_loss）
+	var ln int
+	if err := r.pool.QueryRow(ctx,
+		"SELECT count(*) FROM fin_econ_lesson WHERE kind='falsified_verdict'").Scan(&ln); err != nil || ln != 1 {
+		t.Fatalf("falsified lesson 行=%d", ln)
+	}
+	if err := r.pool.QueryRow(ctx,
+		"SELECT count(*) FROM fin_econ_lesson WHERE kind='settled_loss'").Scan(&ln); err != nil || ln != 1 {
+		t.Fatalf("settled_loss lesson 行=%d", ln)
 	}
 	if err := r.pool.QueryRow(ctx,
 		"SELECT count(*) FROM fin_template_proposal WHERE state='proposed'").Scan(&n); err != nil || n == 0 {
