@@ -47,9 +47,9 @@
   `deploy/o-cos-seat.service`（oneshot）——闸=收件箱三类非空才烧，
   空拍 `hb alive`（ops_headless ticket=`META-COS`）+exit；拍=
   `devin -p --model <swe-2-high|swe-2-medium> --respect-workspace-trust
-  false --permission-mode dangerous -- "读 /opt/o/skills/秘书席/
+  false --permission-mode dangerous -- "读 /opt/o/skills/COS/
   SKILL.md 打包协议 拍待业主裁决件"`。
-- `skills/秘书席/SKILL.md` 新职卡（跑在 COS 席上的协议）：收件箱
+- `skills/COS/SKILL.md` 新职卡（跑在 COS 席上的协议）：收件箱
   三源SQL钦定口径（最新刻集式——照 T-0315② 判法）+打包件模板
   （选项|建议|证据锚|业主裁空位）+写面窄白名单（`COS上行`/`派单`
   ops_event行+通知径；禁钱径/审批/章面）+上行=ops_event行+飞书
