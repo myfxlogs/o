@@ -83,13 +83,14 @@ func TestMigrateChainSurface(t *testing.T) {
 		if err := Migrate(ctx, pool, "fin"); err != nil {
 			t.Fatalf("migrate fin: %v", err)
 		}
-		for _, tbl := range []string{"fin_position", "fin_cashflow", "app_config", "md_ticks", "md_macro_event", "fin_eval_reject", "fin_active_set"} {
+		// fin_opp_hypothesis/fin_opp_template=bridge 域（domain.tsv，fin_0099 起 fin 链同应有）。
+		for _, tbl := range []string{"fin_position", "fin_cashflow", "app_config", "md_ticks", "md_macro_event", "fin_eval_reject", "fin_active_set", "fin_opp_hypothesis", "fin_opp_template"} {
 			if !tableExists(t, pool, tbl) {
 				t.Fatalf("fin 链缺表 %s", tbl)
 			}
 		}
-		if tableExists(t, pool, "fin_opp_hypothesis") {
-			t.Fatal("fin 链不应有 md 域表 fin_opp_hypothesis")
+		if tableExists(t, pool, "md_books5") {
+			t.Fatal("fin 链不应有 md 域表 md_books5")
 		}
 	})
 }
