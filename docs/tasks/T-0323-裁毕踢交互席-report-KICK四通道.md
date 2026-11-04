@@ -27,7 +27,7 @@
   失败静默同现有纪律）。**Enter 键名在 devin TUI 不注册——必须用
   `C-m`**（11-04 双侧实证：Enter 滞留输入行、C-m 真提交）。
   **不设 REPORT_DISPATCH 类第二目标**——派单不走踢径（业主令：
-  派单=ops_event 行→总线帧→无头施工席，T-0324）。
+  派单=ops_event 行同拍 systemd-run 拉起 o-worker 瞬态 run，T-0324）。
 - `dm_tick.sh`：头部两行——`export REPORT_KICK=O-DM` + `export
   O_SEAT=决策席`（顺手销误标实证：O_SEAT 未设时 report.sh 兜底
   「无头施工席」+心跳错打 hb Dev——relay 10:02-10:04 五行在案）。
