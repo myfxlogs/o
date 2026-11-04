@@ -11,3 +11,4 @@ arm_zero_output	断供	sql_ro	SELECT (SELECT count(*) FROM fin_execution WHERE c
 # 构成=fin_condition_gap 新行（凭据/注册/条件请求）+ops_event 'COS上行' 行（升件打包待业主裁），trail 30d；
 # 阈列=6 ⇔ 票面「>5 升件」（tick 判据 v≥阈）；「全替」目标收敛 KPI 本体。
 owner_interruption	淤积	sql_ro	SELECT (SELECT count(*) FROM fin_condition_gap WHERE requested_at>now()-interval '30 days')+(SELECT count(*) FROM ops_event WHERE event='COS上行' AND ts>now()-interval '30 days')	6	业主打断率30d阻断性需求件={v}（{d}）	SELECT 'gap='||(SELECT count(*) FROM fin_condition_gap WHERE requested_at>now()-interval '30 days')||'/上行='||(SELECT count(*) FROM ops_event WHERE event='COS上行' AND ts>now()-interval '30 days')
+stake_carry_eval_zero	断供	sql_ro	SELECT count(*) FROM fin_opp_eval WHERE template='stake-carry' AND ts>now()-interval '24 hours'	-1	stake_carry 评估臂近24h concrete产出={v}（<1=断供——先查bridge-reverse五表镜像行数，再对拍右元cmc持仓量/funding正号面）
