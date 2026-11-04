@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# T-0317 返修①③：收口 commit 自动自报（机制级——漏调案根修）。
+# T-0325：归位生效径——core.hooksPath=scripts/hooks（仓内版本化随仓分发），
+# 此前装于 .git/hooks/ 为死径永不触发（坑 core-hookspath-dead-install-face）。
+SUBJ=$(git log -1 --format=%s 2>/dev/null || true)
+TID=$(echo "$SUBJ" | grep -oE 'T-[0-9]{4}' | head -1)
+[ -n "$TID" ] || exit 0
+echo "$SUBJ" | grep -qE '收口|返修|移交' || exit 0
+SHA=$(git log -1 --format=%h 2>/dev/null || true)
+~/bin/report.sh 收口 "$TID" "auto@$SHA" 2>/dev/null || true
+exit 0
