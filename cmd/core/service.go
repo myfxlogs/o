@@ -33,6 +33,9 @@ type coreService struct {
 	// T-0101：dcd 产品持仓活读件（state=live 枚举——已部署资本第三类别；
 	// nil/读败=卡面显「读件缺」不假零）。
 	dcdLive func(ctx context.Context) ([]okxexec.DcdOrder, error)
+	// T-0327：OKX 账户持仓活读件（/account/positions 全枚举——残仓面 venue
+	// 实拍源；nil=面缺席残仓臂跳过，读败=残仓面显「读件缺」）。
+	posLive func(ctx context.Context) ([]okxexec.Position, error)
 	// T-0156：TRX 自营盘读面同源装配（采集臂单例——读面/刷新踢同源）。
 	trx *trxWiring
 	// T-0170：采集进程内指标源（okxws collector+netmeter 闭包——GetSystemHealth
@@ -115,7 +118,11 @@ func (c coreService) Overview(ctx context.Context, _ *dashboardv1.OverviewReques
 		o.Doing = append(o.Doing, &dashboardv1.DoingItem{Stamp: time.Now().UTC().Format(time.RFC3339),
 			Text: "结构性持仓——读件缺（dcd 活读缺席/读败，不假零）"})
 	}
-	if posN == 0 && ok && len(dcds) == 0 {
+	// T-0327 残仓臂：venue 在持无活策略归属类级入集（策略死/产品活幽灵态
+	// ——臂在 remnant.go；dcd 残仓已由上臂 venue 直读承载不双行）。真空
+	// 判据并吞残仓面（venue 仓未拍全不冒「无开仓」）。
+	remRows := c.doingRemnants(ctx, o)
+	if posN == 0 && ok && len(dcds) == 0 && remRows == 0 {
 		o.Doing = append(o.Doing, &dashboardv1.DoingItem{Text: "静持——无开仓在案"})
 	}
 	rrows, _ := c.pool.Query(ctx, `SELECT ts,kind,amount,coalesce(venue,'') FROM fin_cashflow
@@ -262,10 +269,11 @@ func assemble(pool *pgxpool.Pool,
 	fundingLive func(context.Context) (map[string]float64, error),
 	earnLive func(context.Context) (map[string]float64, error),
 	mt5Live func(context.Context) ([]mt5Acct, error),
-	dcdLive func(context.Context) ([]okxexec.DcdOrder, error), trxW *trxWiring,
+	dcdLive func(context.Context) ([]okxexec.DcdOrder, error),
+	posLive func(context.Context) ([]okxexec.Position, error), trxW *trxWiring,
 	md *mdStats) (coreService, func(context.Context) (float64, error)) {
 	svc := coreService{pool: pool, fundingLive: fundingLive, earnLive: earnLive,
-		mt5Live: mt5Live, dcdLive: dcdLive, trx: trxW, md: md}
+		mt5Live: mt5Live, dcdLive: dcdLive, posLive: posLive, trx: trxW, md: md}
 	return svc, func(ctx context.Context) (float64, error) {
 		o := &dashboardv1.OverviewResponse{}
 		svc.moneyRows(ctx, o)
