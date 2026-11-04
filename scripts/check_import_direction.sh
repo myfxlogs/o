@@ -117,6 +117,7 @@ internal/research/sigdist -> internal/platform/config
 internal/research/funding -> internal/research/armwatch
 internal/research/gapscan -> internal/research/armwatch
 internal/research/hypothesis -> internal/research/armwatch
+internal/research/hypothesis -> internal/research/funding
 internal/research/gapscan -> internal/platform/config
 internal/research/gapscan -> internal/platform/rejects
 internal/research/gapscan -> internal/platform/roster

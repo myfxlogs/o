@@ -9,7 +9,7 @@ var p = Params{TakerFeeBps: 5, SlippageBps: 3, FailCostBps: 2, WindowLossBps: 4,
 
 func TestFiveFold(t *testing.T) {
 	// rate=0.001 → gross=0.001*3*365=1.095；cost_rt=32bps→cost_apr=0.0032*365/3≈0.3893 → net≈0.7057
-	e := Evaluate("BTC-USDT-SWAP", 0.001, p)
+	e := Evaluate("BTC-USDT-SWAP", 0.001, p, Yield{})
 	if e.GrossAPR != 0.001*3*365 {
 		t.Fatalf("gross=%v", e.GrossAPR)
 	}
@@ -19,15 +19,35 @@ func TestFiveFold(t *testing.T) {
 }
 
 func TestBelowThreshold(t *testing.T) {
-	e := Evaluate("X-USDT-SWAP", 0.00001, p)
+	e := Evaluate("X-USDT-SWAP", 0.00001, p, Yield{})
 	if e.Verdict != "rejected" || e.NetAPR >= p.MinNetAPR {
 		t.Fatalf("低率应闸下: %+v", e)
 	}
 }
 
+// T-0320 验收锚①：质押腿入评——short_perp_long_spot 向现货腿质押分量
+// 并入毛收+净收（分量字段非零且入总分）；反向（long_perp_short_spot）
+// 空 spot 腿=分量置零不计（方向闸）。
+func TestSpotLegYield(t *testing.T) {
+	sy := Yield{APR: 0.0333, Source: "trx_onchain"}
+	e := Evaluate("TRX-USDT-SWAP", 0.0001, p, sy)
+	wantGross := 0.0001*3*365 + 0.0333
+	if e.GrossAPR != wantGross || e.NetAPR != wantGross-e.Evidence["cost_apr"].(float64) {
+		t.Fatalf("质押分量未入总分: gross=%v net=%v", e.GrossAPR, e.NetAPR)
+	}
+	if e.Evidence["spot_leg_yield_apr"] != 0.0333 || e.Evidence["spot_yield_source"] != "trx_onchain" {
+		t.Fatalf("分量字段缺席: %v", e.Evidence)
+	}
+	// 负 funding 反向——空 spot 腿分量置零（质押不计空头）。
+	e = Evaluate("TRX-USDT-SWAP", -0.0001, p, sy)
+	if e.Evidence["spot_leg_yield_apr"] != 0.0 || math.Abs(e.GrossAPR-0.0001*3*365) > 1e-9 {
+		t.Fatalf("反向分量未置零: gross=%v ev=%v", e.GrossAPR, e.Evidence["spot_leg_yield_apr"])
+	}
+}
+
 func TestNegativeFunding(t *testing.T) {
 	// 负 funding→long_perp_short_spot——现货做空无支撑=rejected（不可执行非不可评估）
-	e := Evaluate("X-USDT-SWAP", -0.002, p)
+	e := Evaluate("X-USDT-SWAP", -0.002, p, Yield{})
 	if e.Direction != "long_perp_short_spot" || e.Verdict != "rejected" {
 		t.Fatalf("反向处置错: %+v", e)
 	}
@@ -47,7 +67,7 @@ func evalParams(earn *float64) Params {
 func TestEvaluateDynamicFloor(t *testing.T) {
 	// ①between：net=0.06（0.365 毛收−3050bps 往返×365/365 摊=0.305）∈[0.05, 0.08)→below_earn 拒
 	earn := 0.08
-	e := Evaluate("TEST-USDT-SWAP", 0.001, evalParams(&earn))
+	e := Evaluate("TEST-USDT-SWAP", 0.001, evalParams(&earn), Yield{})
 	if e.Verdict != "rejected" || e.Reason[:10] != "below_earn" {
 		t.Fatalf("between 态 verdict=%s reason=%s（应 below_earn 拒）", e.Verdict, e.Reason)
 	}
@@ -55,12 +75,12 @@ func TestEvaluateDynamicFloor(t *testing.T) {
 		t.Fatalf("floor 证据=%v（应 earn/0.08）", e.Evidence)
 	}
 	// ②高于 Earn 底：net=3.345 ≥ 0.08→proposed
-	e = Evaluate("TEST-USDT-SWAP", 0.01, evalParams(&earn))
+	e = Evaluate("TEST-USDT-SWAP", 0.01, evalParams(&earn), Yield{})
 	if e.Verdict != "proposed" {
 		t.Fatalf("高于 Earn 底 verdict=%s（应 proposed）", e.Verdict)
 	}
 	// ③Earn 缺失：floor=静态底 0.05，net=0.06→proposed（降级不拒）
-	e = Evaluate("TEST-USDT-SWAP", 0.001, evalParams(nil))
+	e = Evaluate("TEST-USDT-SWAP", 0.001, evalParams(nil), Yield{})
 	if e.Verdict != "proposed" {
 		t.Fatalf("降级态 verdict=%s（应静态底放行）", e.Verdict)
 	}
@@ -69,7 +89,7 @@ func TestEvaluateDynamicFloor(t *testing.T) {
 	}
 	// ④Earn 底低于静态底：floor 取 max=静态底——below_earn 不误杀（net<0.05 走静态拒因）
 	low := 0.01
-	e = Evaluate("TEST-USDT-SWAP", 0.0005, evalParams(&low)) // net=0.1825-0.305<0→静态拒
+	e = Evaluate("TEST-USDT-SWAP", 0.0005, evalParams(&low), Yield{}) // net=0.1825-0.305<0→静态拒
 	if e.Verdict != "rejected" || e.Reason[:10] == "below_earn" {
 		t.Fatalf("低 Earn 底 verdict=%s reason=%s（应静态拒因）", e.Verdict, e.Reason)
 	}
@@ -92,7 +112,7 @@ func TestMakerFeeSetSplit(t *testing.T) {
 	}
 	for _, c := range cases {
 		p := mk(c.set, c.maker)
-		e := Evaluate("T-USDT-SWAP", 0.0003, p)
+		e := Evaluate("T-USDT-SWAP", 0.0003, p, Yield{})
 		got, ok := e.Evidence["fee_bps"].(float64) // 断真产出非本地重算（返修①）
 		if !ok || got != c.wantFee {
 			t.Fatalf("%s: evidence fee_bps=%v want %v", c.name, got, c.wantFee)
@@ -120,7 +140,7 @@ func TestRoundTripAmortization(t *testing.T) {
 	for i, hd := range []float64{1, 3, 30} {
 		pp := base
 		pp.HoldDays = hd
-		e := Evaluate("T-USDT-SWAP", 0.0003, pp)
+		e := Evaluate("T-USDT-SWAP", 0.0003, pp, Yield{})
 		wantCost := 0.0032 * 365 / hd // 手算锚（1d=1.168/3d≈0.3893/30d≈0.0389）
 		if got := e.Evidence["cost_apr"].(float64); math.Abs(got-wantCost) > 1e-9 {
 			t.Fatalf("hd=%v cost_apr=%v want %v", hd, got, wantCost)
@@ -143,7 +163,7 @@ func TestRoundTripAmortization(t *testing.T) {
 	// 薄率（≈11% 毛收）按 3d 摊→rejected 且 reason 含 net_apr
 	pp := base
 	pp.HoldDays = 3
-	e := Evaluate("T-USDT-SWAP", 0.0001, pp)
+	e := Evaluate("T-USDT-SWAP", 0.0001, pp, Yield{})
 	if e.Verdict != "rejected" || len(e.Reason) < 7 || e.Reason[:7] != "net_apr" {
 		t.Fatalf("薄率 verdict=%s reason=%q（应 net_apr 拒）", e.Verdict, e.Reason)
 	}

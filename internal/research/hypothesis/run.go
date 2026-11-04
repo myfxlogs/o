@@ -35,6 +35,8 @@ var legVocab = map[string][]string{
 	"hedge": {"spot_long", "spot_short", "perp_long", "perp_short", "funding_collect"},
 	// T-0144 跨所族（首个真跨所模板——词汇表闭集扩随票，非运行时）：
 	"xvenue_carry": {"okx_perp_long", "okx_perp_short", "mt5_cfd_short", "mt5_cfd_long"},
+	// T-0320 双头族（质押现货+空单付费——词汇表闭集扩随票）：
+	"stake_carry": {"spot_long_staked", "cfd_short", "perp_short"},
 }
 
 // reqTemplates 需求清单模板（family→evaluator/risk 阈/数据面需求——假想卡是
@@ -54,6 +56,11 @@ var reqTemplates = map[string]map[string]any{
 		"evaluator":       "跨所净年化四件分解（funding_ann/swap_ann/spread 摊销/滑点缓冲）",
 		"risk_thresholds": []string{"min_net_ann_bps", "spread_amort_hold_h", "capacity_usd"},
 		"data_needs":      []string{"carry_diff", "xvenue_spread", "mt5_swap", "depth5", "md_ticks mt5"},
+	},
+	"stake_carry": {
+		"evaluator":       "双头净年化（stake_apr+short_ann−buffer——质押腿+空单付费双腿）",
+		"risk_thresholds": []string{"min_net_ann_bps", "notional_pct", "stake_lock_days"},
+		"data_needs":      []string{"fin_capability_surface staking/swap-carry", "trx_onchain|md_earn_rate", "cmc_realized|mt5_swap|funding_view"},
 	},
 }
 

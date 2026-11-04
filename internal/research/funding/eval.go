@@ -38,9 +38,19 @@ type Eval struct {
 	Reason    string
 }
 
+// Yield 现货腿质押/Earn 收益分量（T-0320 双头 carry 口径根修——short_
+// perp_long_spot 向长现货腿若可质押（能力面 staking 维注册），质押/Earn
+// 年化并入毛收；旧口径裸持=质押分量系统性蒸发，双头结构被按单头算分）。
+// APR=年化小数（0.033=3.3%）；Source=率源（注册行 rate_source 字段）。
+type Yield struct {
+	APR    float64
+	Source string
+}
+
 // Evaluate 净 APR 五拆（funding>0→空永续收租=short_perp_long_spot；
-// funding<0→long_perp_short_spot——现货做空腿当前无支撑=不可执行 rejected）。
-func Evaluate(instID string, rate float64, p Params) Eval {
+// funding<0→long_perp_short_spot——现货做空腿当前无支撑=不可执行 rejected；
+// sy 零值=无质押面/不可质押如实——gross 退化原单头形）。
+func Evaluate(instID string, rate float64, p Params, sy Yield) Eval {
 	e := Eval{InstID: instID, Legs: map[string]any{}, Evidence: map[string]any{}}
 	if rate >= 0 {
 		e.Direction = "short_perp_long_spot"
@@ -48,6 +58,7 @@ func Evaluate(instID string, rate float64, p Params) Eval {
 	} else {
 		e.Direction = "long_perp_short_spot"
 		e.Legs = map[string]any{"perp": "long", "spot": "short"}
+		sy = Yield{} // 现货做空腿无质押分量（方向闸——空 spot 不记收益）
 	}
 	// 动态比较底（D-0006）：floor=max(静态底, Earn 现率)——停泊收益是机会成本底线。
 	floor := p.MinNetAPR
@@ -56,7 +67,7 @@ func Evaluate(instID string, rate float64, p Params) Eval {
 		floor = *p.EarnRateAPR
 		floorSrc = "earn"
 	}
-	gross := abs(rate) * p.SettlesPerDay * 365
+	gross := abs(rate)*p.SettlesPerDay*365 + sy.APR // T-0320：质押腿入总分
 	// T-0238 分费制：maker_fee_bps 在册=maker 腿×maker 费+降级腿×taker 费
 	// 复合估（一条 maker 一条降级保守面）；缺键=原双 taker 形。
 	feeBps := 2 * p.TakerFeeBps
@@ -75,9 +86,13 @@ func Evaluate(instID string, rate float64, p Params) Eval {
 		"fail_cost_bps": p.FailCostBps, "window_loss_bps": p.WindowLossBps,
 		"cost_rt_bps": costRtBps, "hold_days": p.HoldDays, "cost_apr": costAPR,
 		"min_net_apr": p.MinNetAPR, "floor_apr": floor, "floor_source": floorSrc,
+		"spot_leg_yield_apr": sy.APR, // T-0320 分量字段——0=无质押面如实
 	}
 	if p.EarnRateAPR != nil {
 		e.Evidence["earn_rate_apr"] = *p.EarnRateAPR
+	}
+	if sy.Source != "" {
+		e.Evidence["spot_yield_source"] = sy.Source
 	}
 	switch {
 	case rate < 0:
