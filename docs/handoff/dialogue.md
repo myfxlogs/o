@@ -1053,3 +1053,55 @@
 - **追加派单**：本拍收尾间 COS 落 T-0330（armed_ttl_expired 淤积根修，
   业主派单原话立并批）——水位 0<2 即拉 o-worker-T-0330（swe-2-high：
   评估漏斗正确性面），ops_event 派单行 1626。
+
+## 2026-11-04 决策席无头拍②（T-0330+T-0332返修①+T-0333 三裁全通过）
+
+- **T-0330 裁决=通过**（ops_event 1669/1670/1671/1672）：执行径未建族
+  提案闸前置拒合 master@566ba062（收口支 fd5a9a37）。甲向采纳：
+  `internal/platform/execfam` 族册单真源（原 lifecycle.paperTemplates
+  同集归并——quarter_basis_short 不入册注由随码）+六面提案写径
+  （xcarry/stakecarry/dcd persistEval/gapscan/funding/grammar 双臂）
+  同册前置拒 rejected/exec_family_missing。armed→open 门禁零触。
+  门禁亲跑 check-all 全谱绿戳 fd5a9a37；锚①桩测 TestExecFamilyMissing
+  FrontReject 亲跑 -count=1 PASS（净 522bps 仍拒）；锚③生产亲证：
+  armed_ttl_expired=364 构成分布与票面一字吻合（fh319/pqs22/
+  qbl22/sg1 全 retired、活态零行、xvenue-carry 3rej/0提案）——
+  票面「xvenue_carry 进 armed 淤积」前提被施工纠偏如实落票（真因=
+  有径族 ttl 账龄退役），修法仍断未建族提案之源。
+- **T-0332 返修①裁决=通过**（ops_event 1673/1674/1677）：sql_ro 取数径
+  +fin_0109 o_fin_ro 补授 fin_execution（0108 同径先例，生产授权
+  information_schema 亲证）+取数失败显形（fetch_error+FAILS 日频
+  升件）合 master@150d0fc2（收口支 72e3bd15）。五表亲跑实测：
+  armed_aging/escalation_aged/heartbeat_dead=0 绿、branch_cemetery
+  =385>300 触、arm_zero_output=0<1 触（滞回首日 hit 不升=钦定）；
+  tick 实跑痕在案（META-GAUGES alive 心跳+两 .last_hit_date 状态件）。
+  顺手三件全销（.hit 死件/sql_md 虚称/主树残件）。部署后验项：tick
+  挂 timer/metabus+COS 收件箱消费随窗。
+- **T-0333 裁决=通过**（ops_event 1684-1687）：部署窗五验项实录合
+  master@aa6322ce（收口支 69600269）——锚①部署本体绿（DEPLOY
+  行 id1666 o-core:73e2433c）；锚④⑤红项 o_fin_ro 径亲证属实
+  （cmc:TRX eval 零行、fin_position 零 open、无 261225/-C 行）；
+  实录锚语义=记真值非求全绿。升件行 1684 补落（票面「走升件行
+  不静默」钦定）；红项转三草案 T-0336（PG-md 迁移径缺——
+  deploy_image 只船 SG 的覆盖洞）/T-0337（stakeCarryScan 生产
+  concrete 零产断供 P1——模板卡已产而评估零行）/T-0338（残仓
+  工件面不可见定性——甲乙二择），COS 同拍批转已批（1688-1690）。
+  T-0328 同批销账翻完成（纯验项零施工件——验毕即销）。
+- **派单**：T-0335 直拉（swe-2-medium，领单 1681）+T-0331 返修①
+  补拉（swe-2-medium——06:51 派单候漏拉闸拍序，本拍直拉 1691，
+  领单 1695）；T-0336/0337/0338 派单行 1692-1694 入闸候水
+  （水位满 2/2——闸按拍序补拉）。swe 档：0336/0338 medium、
+  0337 high（生产 trace P1）。
+- **自违记档**：本席 T-0332 merge commit 与票翻 commit 措辞带
+  「返修①收口」字面触 post-commit 钩→auto 收口行 1667（决策席
+  seat 伪收口噪行——append-only 不销，三词禁记档本席亦犯，
+  此后裁词 commit 行文避 收口|返修|移交 字面照前档）。
+- **regime 读面缺席记档**：md_regime_fact 经 FIN_PG_DSN+
+  FIN_PG_RO_DSN 双径皆 permission denied——判词缺席按 SKILL
+  协议=neutral 处理不当拒因；长期不可读=读面虚名，记档待议
+  （本拍三件皆工程/meta 件，判词无关裁）。
+- **绿戳竞态记档**：check-green-<HEAD> 逐 SHA 闸+COS 并行落
+  docs commit 致 HEAD 漂、戳随陈——两回重跑（docs-only 豁免
+  快径有效），终推 origin/master=433c33bd。
+- **遗留**：T-0331 返修①在飞；o-worker-T-0335 在飞；T-0334 草案
+  候派单约定件（返修潮清后 DM 径）；漏拉闸本拍下拍自补。
