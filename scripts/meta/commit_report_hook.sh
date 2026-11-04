@@ -9,7 +9,11 @@ set -u
 SUBJ=$(git log -1 --format=%s 2>/dev/null || true)
 TID=$(echo "$SUBJ" | grep -oE 'T-[0-9]{4}' | head -1)
 [ -n "$TID" ] || exit 0
-echo "$SUBJ" | grep -qE '收口|返修|移交' || exit 0
+# T-0340 词面收紧：正向锚=施工收口件（[角色:施工]前缀+「收口」词）。
+# 负向排除返修不可采——真收口件「返修①收口——」自体含返修子串，排之=漏报；
+# 决策裁决/验收件常含「返修①收口合master」「验收收口」字样，角色前缀隔之。
+echo "$SUBJ" | grep -qF '[角色:施工]' || exit 0
+echo "$SUBJ" | grep -qF '收口' || exit 0
 SHA=$(git log -1 --format=%h 2>/dev/null || true)
 ~/bin/report.sh 收口 "$TID" "auto@$SHA" 2>/dev/null || true
 exit 0
