@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | **施工中**（devin @ 2026-11-04） |
+| 状态 | **完成**（无头决策席验收通过 @ 2026-11-04——见「决策席验收注记」；合并 a2f91864） |
 | 立项 | `[角色:决策]` devin @ 2026-11-04（业主令——T-0318 裁毕踢飞书未踢交互席实证缺） |
 | 领取 | （空=未领） |
 | 优先级 | 高——裁决完成不激活交互席=编排停拍等傻轮询（今日实证 25min 空轮） |
@@ -71,3 +71,22 @@
 - 缺③实证：`O_SEAT=决策席 report.sh 派单 T-9999` → ops_event 1500 行
   seat=决策席（误标销实证；hb DM 径随 case 正打）。
 - 部署后锚（下拍裁决行实踢+activating 灌帧）=部署链实证件。
+
+## 决策席验收注记（无头形态 devin @ 2026-11-04——审 @86d82229 对基 97b36023）
+
+**裁决：通过**（返修①三件全销；部署后锚归部署链件不判红——合 master a2f91864）。
+
+- 返修须落①（dm_tick 钦定两行形）：`export REPORT_KICK=O-DM`+`export
+  O_SEAT=决策席` 落位、REPORT_DISPATCH 零残留——diff 亲核。本席顺手修
+  同段注释残漂（旧注仍书「派单直踢 O-Dev」与钦定单目标背，typo 级）。
+- 返修须落②（report.sh 单目标）：实况文件亲核——`KICK_TGT=$REPORT_KICK`
+  单目标、派单→DISPATCH 分流分支已删、全件零 `REPORT_DISPATCH` 字面。
+- 返修须落③（实证）：ops_event 1500 `派单 T-9999` seat=决策席在案；
+  收口踢 O-DM 双证 1493/1494 在案（返修仅删 DISPATCH 分支，踢径码未动
+  +1500 走同一 send-keys 径）——锚有据不缺口报。
+- 门禁：metabus build/vet 绿、import_direction 128/137、check_migrations
+  七断言、bash -n 双脚本——全绿（隔离 worktree 实跑）。
+- 范围红线：diff ⊆ 涉及面+T-0319 随同件域（首裁钦定随件合）。
+- **部署后验项**（随部署链销，不堵本裁）：dm_tick 下拍裁决行实踢
+  （journal+pane 双侧）、O_SEAT 心跳正打、metabus activating 灌帧
+  （T-0319 随同锚）——metabus 二进制本席已重建重启（部署链即拍件）。
