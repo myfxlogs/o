@@ -116,6 +116,7 @@ var migrationTable = []struct {
 	{107, "fin_0107_cos_registry.sql"},
 	{108, "fin_0108_o_fin_ro_condition_gap.sql"},
 	{109, "fin_0109_o_fin_ro_execution.sql"},
+	{110, "fin_0110_ops_precedent.sql"},
 
 	// —— md 链（版本链内唯一且单调；md 链版本=历史号+1000 与 fin 键空间全局不相交——跨链并 schema 时 schema_migrations 零撞号，check_migrations 断言①⑤）——
 	{1003, "md_1003_market_facts.sql"},

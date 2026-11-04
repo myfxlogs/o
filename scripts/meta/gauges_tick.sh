@@ -49,8 +49,12 @@ while IFS=$'\t' read -r name cls qt qry th tpl dq; do
         esac
       fi
       msg=${tpl//'{v}'/$v}; msg=${msg//'{d}'/$d}
-      psql "$FIN_DSN" -qAt -c "INSERT INTO ops_event(seat,event,ticket,note) VALUES('巡检闸','升件','$name','$msg 阈=$th')" >/dev/null 2>&1 || true
-      echo "$today" >> "$ST/${name}.escalated"
+      # 带类升件（esc_class/esc_scope=T-0334 判例匹配键）；列未随迁移落产
+      # 的部署窗期回落无类升件——只许升件实落才记日频标（吞升件>吞类）。
+      if psql "$FIN_DSN" -qAt -c "INSERT INTO ops_event(seat,event,ticket,note,esc_class,esc_scope) VALUES('巡检闸','升件','$name','$msg 阈=$th','$cls','$name')" >/dev/null 2>&1 \
+        || psql "$FIN_DSN" -qAt -c "INSERT INTO ops_event(seat,event,ticket,note) VALUES('巡检闸','升件','$name','$msg 阈=$th')" >/dev/null 2>&1; then
+        echo "$today" >> "$ST/${name}.escalated"
+      fi
     fi
     echo "$today" > "$ST/${name}.last_hit_date"
   else
@@ -59,7 +63,8 @@ while IFS=$'\t' read -r name cls qt qry th tpl dq; do
 done < "${GAUGES_TSV:-/opt/o/scripts/meta/gauges.tsv}"
 # 取数失败显形：失败表名日频上限1升件行（缺席类素材），痕迹另落 $ST/*.fetch_error
 if [ -n "$FAILS" ] && ! grep -qx "$today" "$ST/fetch_fail.escalated" 2>/dev/null; then
-  psql "$FIN_DSN" -qAt -c "INSERT INTO ops_event(seat,event,ticket,note) VALUES('巡检闸','升件','META-GAUGES','量表取数失败（缺席类）：$FAILS —— 详见 /var/tmp/o-gauges/*.fetch_error')" >/dev/null 2>&1 \
+  { psql "$FIN_DSN" -qAt -c "INSERT INTO ops_event(seat,event,ticket,note,esc_class,esc_scope) VALUES('巡检闸','升件','META-GAUGES','量表取数失败（缺席类）：$FAILS —— 详见 /var/tmp/o-gauges/*.fetch_error','取数失败','META-GAUGES')" >/dev/null 2>&1 \
+    || psql "$FIN_DSN" -qAt -c "INSERT INTO ops_event(seat,event,ticket,note) VALUES('巡检闸','升件','META-GAUGES','量表取数失败（缺席类）：$FAILS —— 详见 /var/tmp/o-gauges/*.fetch_error')" >/dev/null 2>&1; } \
     && echo "$today" >> "$ST/fetch_fail.escalated"
 fi
 hb alive

@@ -58,3 +58,20 @@ seat_run 迹——ops_event 裁决行携票号+裁词+理由（票面验收锚�
 - **踢径单目标**：REPORT_KICK=O-DM=通报/升件（非派单链）；
   常径派单不走踢径不走帧——派单行同拍 systemd-run 拉起
   o-worker-<tid> 瞬态 run。交互形态不在岗不阻塞常径。
+
+## 判例面（T-0334——升件裁转机器判例，同类自动裁）
+
+- **登记**：本席 `裁决`/`业主批` 落行同拍，触发器（fin_0110
+  `ops_precedent_trg`）把**同票最新未消化带类升件**判例化入
+  `ops_precedent`（class/scope 取自升件行 esc_class/esc_scope，
+  ruling=裁词，source_row=裁行 id）；同类同域再裁=翻案替活
+  （supersedes 链）。「升级」裁词不登记（升级=再上行非消化）。
+- **闸门**：带类升件插行即查判例——同类同域等值命中→自动裁落
+  `先例适用` 行（note=升件#id 判例#id 源裁#id）；未命中/出界/
+  无类→照常上行。等值精确零 LLM。
+- **红线结构禁**：class 或 scope ∈ {资金扩投,新平台,席位立换,红线}
+  →永不自动裁不登记（貌似同类判例亦不适用）。
+- **带类升件写径**：`scripts/meta/escalate.sh <seat> <ticket>
+  <class> <scope> <note>`；类词参照
+  `scripts/meta/precedent_classes.tsv`。硬触发升件照旧可不带类
+  （无类=永不入判例面照常上行，安全默认）。

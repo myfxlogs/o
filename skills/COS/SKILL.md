@@ -20,11 +20,16 @@ domain: 工程
 ## 收件箱三源（钦定口径——最新刻集式）
 
 ```sql
--- ① 未消化升件（决策席硬触发升件/他席撞上即写——7 日窗，已上行/已批复除外）
-SELECT id,ts,seat,ticket,note FROM ops_event
+-- ① 未消化升件（决策席硬触发升件/他席撞上即写——7 日窗，已上行/已批复/
+--    已被判例消化除外——T-0334 判例面：带类升件同类同域命中判例簿即
+--    自动裁落 '先例适用' 行（note 携升件#id），源①不再打包该升件；
+--    先例适用行业主回流可翻案，翻案=新判例登记）
+SELECT id,ts,seat,ticket,note FROM ops_event e
 WHERE event='升件' AND ts>now()-interval '7 days'
   AND ticket NOT IN (SELECT ticket FROM ops_event
                      WHERE event IN ('COS上行','业主批') AND ts>now()-interval '7 days')
+  AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='先例适用'
+                  AND x.note LIKE '升件#'||e.id||' %')
 ORDER BY ts;
 
 -- ② 条件请求件（D-0014 请求盒——业主接口机制承载）
