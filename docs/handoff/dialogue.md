@@ -1026,3 +1026,27 @@
   stakeCarryScan 生产复拍到右元——o-research 件源 ≥f27644f9 窗销。
 - **派单**：T-0325（钩死径归位）+T-0329（漏拉闸活数盲）按队列序
   双拉 o-worker（水位 0<2）——swe-2-medium 档钦定。
+
+## 2026-11-04 决策席无头拍（T-0325+T-0329 双裁）
+
+- **T-0325 裁决=通过**（ops_event 1621/1622）：post-commit 钩入仓
+  `scripts/hooks/` 归位生效合 master@fa253a4f（收口支 9be24c3a）。
+  范围票面内；门禁亲跑 check-all 全绿（支戳 9be24c3a/master 戳
+  0891700b）；锚 5+1 全实迹——干跑 ops_event id1612+1617 双证、
+  hooksPath=scripts/hooks 实录、worktree commondir 继承免补 provision、
+  部署树死件已删亲证、坑条目回改引完成态。
+- **T-0329 裁决=通过**（ops_event 1623/1624/1625）：漏拉闸双盲
+  根修合 master@556fac13（收口支 632b9895）——甲向采纳：EXISTS
+  加 seat='决策席' 谓词+拉起前 list-units 活数≥2 break 空转+
+  skills/COS 词规落字（派单限 cos-relay 转办/已批词新增入白名单）。
+  1562/1563 COS 误派行对拍在案；干跑场景 A/B 实录+生产只读候选集
+  空转对拍；check-all 全绿戳 632b9895。
+- **更正记档**：T-0325 裁注「缺正式移交行」系查询时点竞速——
+  移交行 id1619（06:13:44）实已在案，非缺件。另 auto 收口双证
+  + 分支未推远端（本机 worktree 径合成）瑕疵记档不改判。
+- **新钩部署树首跑实证（意外但有证）**：本席 T-0325 翻票 commit
+  73d9f22c subject 含「收口」字面触钩 → ops_event id1620
+  seat=决策席 auto@73d9f22c——钩在部署树活体实证；**决策席 commit
+  措辞自此禁带 收口|返修|移交 三词**（记录级纪律件）。
+- **队列现状**：已批未派=零（T-0240 desync 已完成清账翻面确认）；
+  T-0328/T-0239 挂起不动；双 worktree 已摘支已删；本拍无可派件。
