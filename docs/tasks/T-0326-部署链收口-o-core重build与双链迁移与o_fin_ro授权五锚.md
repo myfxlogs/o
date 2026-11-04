@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | 待验 |
+| 状态 | **完成**（无头决策席验收通过 @ 2026-11-04——见「决策席验收注记」） |
 | 立项 | `[角色:COS]` devin @ 2026-11-04（业主令「有个新的，派给DM」——四票部署后验件攒一单全销；锚位含 T-0322 产出，序排在队尾天然就绪） |
 | 领取 | devin-t0326（无头施工席） @ 2026-11-04 |
 | 优先级 | **高**——飞书日历通道至今带病运行（T-0296 码修未部署=病灶仍在线）；0.1283 提案链生产首拍同单销 |
@@ -119,3 +119,36 @@ sent_at=05:09:57.47/05:09:58.13/05:09:58.78/05:09:59.41/05:10:00.04Z
   `git push origin 999589bb:refs/heads/master` 放行实录（戳
   `check-green-999589bb`+形闸过+T-0219 票号对账过三路绿灯）；
   本地 master 后续 docs+T-0327 merge 未并=随下游推流自然销。
+
+## 决策席验收注记（无头 devin @ 2026-11-04）
+
+- **裁词：通过**——合 master@fb6a0e0d（merge 件）；票翻完成。
+- 范围红线：diff=票面回填一件（+85/-10 纯 docs），零码改——部署链
+  收口件本票域内；零钱径写/零凭据/零 venue 注册/零 gate.* 外 app_config。
+- 门禁亲跑全绿：check_all（docs-only 面免 go test 段，build/vet/
+  import/gofmt/env-reads/rejects/migrations/bridge-audit 全谱）戳随
+  本 commit SHA。
+- 锚① 部署实迹亲证：`ssh sg docker inspect o-core`=
+  `o-core:999589bb3739 healthy`；ops_event `部署` 行 id=1592
+  （deploy 999589bb3739 rc=0 @04:55:31Z）在账。镜像不含 T-0327 残仓
+  码=推送时点 origin/master tip，欠账已挂 T-0328 随下部署窗销。
+- 锚② 双链迁移亲证：SG o-postgres `schema_migrations` version
+  104–108 applied_at=2026-11-04 04:54:56Z；OCI o-postgres-md
+  version 1086 applied_at=04:56:15.8Z——与票面逐字合。
+- 锚③ o_fin_ro 三实录亲跑复证（真登录非 SET ROLE）：
+  `SELECT count(*) FROM fin_position`→22 通；
+  `SELECT 1 FROM app_secrets`→permission denied；
+  `INSERT ops_event`→permission denied；白名单 15 表含
+  fin_condition_gap（fin_0108 返修①链销在案）。COS 在册行 meta=
+  `{"form":"pure_interactive","pane":"O-DM","skill":"skills/COS"}`
+  逐字合；口令置件由 ro 真登录可认证间证。
+- 锚④ 首拍对拍亲证：fin_opp_hypothesis id=1796
+  （cmc/stake_carry_template/stake_carry/proposed @04:56:15.88Z）
+  在账；PG-md `to_regclass(fin_trx_vote_apr/fin_cmc_history/
+  fin_cmc_positions)` 三连 NULL——结构性断供断言实锤非口报；
+  差异登记=ops_event 升件 id=1593 在账（补裁见返修①）。
+- 锚⑤ 飞书实达亲证：SG `md_calendar_push` BOE 11-05 五事件
+  sent_at=05:09:57.47/58.13/58.78/59.41/10:00.04Z 逐字合；
+  `app_config calendar.lead_minutes` 已复原 `"60"`（05:12:35 回执）。
+- 部署后验项：无新增（本票即部署链收口；T-0327 残仓复证欠账仍挂
+  T-0328 随下一部署窗）。
