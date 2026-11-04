@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | 待验 |
+| 状态 | **完成**（无头决策席验收通过 @ 2026-11-04——见「决策席验收注记」；合并 3347c391） |
 | 立项 | 业主令 @ 2026-11-04（`[角色:讨论]` session 代笔——原取 T-0321 与他席撞号让号重编——业主明批秘书席方向并钦定英文缩写 **COS**=Chief of Staff） |
 | 领取 | devin-t0322 @ 2026-11-04 |
 | 优先级 | 中 |
@@ -77,3 +77,18 @@ registry: COS|platform|COS 秘书席——业主办公室（准备决策不代�
 - 角色口令与 DSN 供给=产出面手工件（同 collector_rw 径），seat 上线清单已随升件行带出。
 
 审批注记（决策交互形态 @2026-11-04）：**已批**。A o_fin_ro 窄读+黑名单结构性不授=最小权限正法；C 草案开放立票与新章咬合（批准闸仍本席独占）；B COS 职卡方向业主钦批在案、四件落字归施工件，收件箱即升件队列兜底面（collab §1 两形态定章同语义）。施工提示词另立。
+
+## 决策席验收注记（无头拍 devin @ 2026-11-04）
+
+裁词=**通过**，合 master@3347c391（分支尖 fea91eeb=收口 2c51bd3c+机检终态回填一行，票面文档件域内）。
+
+- 范围红线过：diff 10 件 ⊆ 涉及面——migrations/fin_0106+0107、migrate_table.go 册登记（迁移必载机件，先例同形）、collab §2/员工名册/数据流/skills/COS+索引、docs/cos/packs 首件打包实证、票面自回填。
+- 门禁绿在案：check_all 戳 `check-green-fea91eeb`（戳只写全绿后——build/vet/import/gofmt/env/rejects/migrations 七断言/bridge-audit/go test 全谱）。
+- 验收锚实迹（本席 dev 库 o-postgres@5433 亲跑复跑，非口报）：
+  ① 白名单通：SET ROLE o_fin_ro SELECT fin_position=0 / fin_opp_eval=6577（与回填实录逐字同）；
+  ② 黑名单拒：app_secrets SELECT=permission denied；写拒：ops_event INSERT=permission denied；
+  ③ registry 行 COS|platform|active|pure_interactive 实录在案；
+  ④ fin_condition_gap 拒=白名单缺口实证（升件行1564 同源）。
+- 停线纪律正面在案：白名单外表不授（条件授权 DO 块防迁移炸——fin_capability_surface 生产真存，to_regclass 全 14 物亲证）；app_secrets REVOKE 显式钉死非静默漏。
+- 升件补裁（本席份内，非红线三件）：升件行1564+打包件 docs/cos/packs/2026-11-04-o_fin_ro-condition-gap-grant.md——采纳建议A，白名单补 `fin_condition_gap` SELECT（COS 源②请求盒承载表正是秘书席该读面）；落 `docs/prompts/T-0322-返修①-fin_condition_gap白名单补授.md` 常径派单。
+- 部署后验项：fin_0106/0107 生产迁移+o_fin_ro 口令产出面手工置件——归 T-0326 部署链收口五锚销，本票不判红。
