@@ -71,9 +71,10 @@ func (c coreService) GetFlowPulse(ctx context.Context,
 	resp.WorkItems = c.workItems(ctx)
 
 	// roster 心跳段（fin_employee_registry——23 岗含盒上臂经隧道写；读败=0 显缺）。
+	// T-0344：pure_interactive 席形同 GetCockpit 口径豁免（勿双写防两端漂移）。
 	var rc int64
 	var minBeat *time.Time
-	if err := c.pool.QueryRow(ctx, `SELECT count(*), min(last_beat) FROM fin_employee_registry WHERE status='active'`).
+	if err := c.pool.QueryRow(ctx, `SELECT count(*), min(last_beat) FROM fin_employee_registry WHERE status='active' AND meta->>'form' IS DISTINCT FROM 'pure_interactive'`).
 		Scan(&rc, &minBeat); err != nil {
 		log.Printf("[flow_pulse] roster 查询败（显缺不炸）: %v", err)
 	} else {

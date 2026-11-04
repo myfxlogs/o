@@ -59,9 +59,11 @@ func (c coreService) GetCockpit(ctx context.Context,
 	// ①⑥ T-0308：①存活瓦片改生产岗册源（fin_employee_registry——meta
 	// ops_seat_latest/ops_headless 出业主 KPI 视线；同 GetFlowPulse 口径
 	// 勿双写——同名 SQL 式内查；读败=missing "roster"）。
+	// T-0344：pure_interactive 席形（COS——无心跳径，闲=设计态非病态）豁免
+	// worst-lag 与 active 计数；headless 岗 600s 钉红判据零放宽。
 	if err := c.pool.QueryRow(ctx, `SELECT count(*), min(last_beat),
-		(SELECT name FROM fin_employee_registry WHERE status='active' ORDER BY last_beat LIMIT 1)
-		FROM fin_employee_registry WHERE status='active'`).
+		(SELECT name FROM fin_employee_registry WHERE status='active' AND meta->>'form' IS DISTINCT FROM 'pure_interactive' ORDER BY last_beat LIMIT 1)
+		FROM fin_employee_registry WHERE status='active' AND meta->>'form' IS DISTINCT FROM 'pure_interactive'`).
 		Scan(&r.RosterActive, &minBeat, &worstSeat); err != nil {
 		r.Missing = append(r.Missing, "roster")
 	} else if minBeat != nil {

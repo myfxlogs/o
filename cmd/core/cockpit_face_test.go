@@ -298,3 +298,47 @@ func TestCockpitCapitalNet(t *testing.T) {
 		t.Fatalf("本金应 deposit+withdraw 净和=2000: %.1f", r.Money.Capital)
 	}
 }
+
+// T-0344 验收锚：pure_interactive 席形死寂心跳豁免 worst-lag/active 计数
+// （COS=无心跳径闲即设计态）；回归锚=无头岗真停滞仍触判据（零放宽）。
+func TestCockpitRosterPureInteractiveExempt(t *testing.T) {
+	pool := testutil.Pool(t)
+	if err := pgstore.Migrate(context.Background(), pool, "fin"); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	c := coreService{pool: pool}
+	// 桩：交互席死寂 1h + 无头岗新鲜——豁免后 worst=无头岗 lag 小不触红
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_employee_registry(name,dept,title,status,meta,last_beat)
+		VALUES('PI-桩','platform','桩交互席','active','{"form":"pure_interactive"}',now()-interval '1 hour'),
+		      ('HD-桩','platform','桩无头岗','active','{}',now())`); err != nil {
+		t.Fatal("名册桩:", err)
+	}
+	r, err := c.GetCockpit(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.RosterWorstSeat == "PI-桩" || r.RosterWorstLagS > 600 {
+		t.Fatalf("交互席未豁免: seat=%s lag=%d", r.RosterWorstSeat, r.RosterWorstLagS)
+	}
+	// active 计数同口径豁免（fin_0107 种子 COS 亦 pure_interactive 不计）
+	var want int64
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM fin_employee_registry
+		WHERE status='active' AND meta->>'form' IS DISTINCT FROM 'pure_interactive'`).Scan(&want); err != nil {
+		t.Fatal(err)
+	}
+	if int64(r.RosterActive) != want {
+		t.Fatalf("active 计数未豁免: got=%d want=%d", r.RosterActive, want)
+	}
+	// 无头岗真停滞仍触判据——HD-桩调死寂→worst=HD-桩 lag>600 钉红不放宽
+	if _, err := pool.Exec(ctx, `UPDATE fin_employee_registry SET last_beat=now()-interval '1 hour' WHERE name='HD-桩'`); err != nil {
+		t.Fatal(err)
+	}
+	r2, err := c.GetCockpit(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r2.RosterWorstSeat != "HD-桩" || r2.RosterWorstLagS <= 600 {
+		t.Fatalf("无头岗停滞未触判据: seat=%s lag=%d", r2.RosterWorstSeat, r2.RosterWorstLagS)
+	}
+}
