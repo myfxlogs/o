@@ -43,7 +43,8 @@ func count(t *testing.T, ctx context.Context, r *Runner, q string, args ...any) 
 }
 
 // 锚：目录差扫——已注册面（dcd）零差；未注册面（earn-flex）gap 行立→分类
-// carry→候选生成（provenance=surface_gap）走毕业线；幂等重扫不重生。
+// carry→T-0330 前置拒（surface-gap=执行径未建族，候选提案不生）；
+// 幂等重扫不重生。
 func TestGapScanClassifyGenerate(t *testing.T) {
 	ctx, r := setup(t)
 	r.AttachProbe(func(_ context.Context, f ProbeFace) (ProbeResult, error) {
@@ -66,29 +67,29 @@ func TestGapScanClassifyGenerate(t *testing.T) {
 		t.Fatalf("gap 态=%s（应 pending——候选已进毕业线仍待注册裁）", state)
 	}
 	meta := string(metaB)
-	for _, frag := range []string{`"family": "carry"`, `"provenance": "surface_gap"`, `"gen": "candidate"`} {
+	for _, frag := range []string{`"family": "carry"`, `"provenance": "surface_gap"`} {
 		if !strings.Contains(meta, frag) {
 			t.Fatalf("元数据缺 %s: %s", frag, meta)
 		}
 	}
-	// T-0205 重飞：面元数据无 APR 估计——判词=unevaluable+apr_est_missing
-	// （禁 NULL 落 proposed——fin_0094 行级闸同维）；候选提案径不变。
+	// T-0330 前置拒：surface-gap=执行径未建族——判词 rejected+exec_family_
+	// missing（族码归因），候选提案零行不入队；gen 键缺席=未走毕业线。
 	if n := count(t, ctx, r, `SELECT count(*) FROM fin_opp_eval
-		WHERE inst_id='okx/earn-flex' AND direction='gap_carry' AND verdict='unevaluable'
-		AND evidence->>'reason'='apr_est_missing' AND net_apr IS NULL`); n != 1 {
-		t.Fatalf("面候选评估应 1（unevaluable+apr_est_missing 如实缺席态）: %d", n)
+		WHERE inst_id='okx/earn-flex' AND direction='gap_carry' AND verdict='rejected'
+		AND evidence->>'reason'='exec_family_missing'`); n != 1 {
+		t.Fatalf("面候选前置拒评估应 1（rejected+exec_family_missing）: %d", n)
 	}
 	if n := count(t, ctx, r, `SELECT count(*) FROM fin_proposal
-		WHERE inst_id='okx/earn-flex' AND direction='gap_carry' AND state='fin_proposed'`); n != 1 {
-		t.Fatalf("面候选提案应 1: %d", n)
+		WHERE inst_id='okx/earn-flex' AND direction='gap_carry'`); n != 0 {
+		t.Fatalf("未建族提案应零行: %d", n)
 	}
-	// 幂等：重扫不重生（同面候选在途）。
+	// 幂等：重扫不重生（前置拒行同键 upsert——提案始终零）。
 	if err := r.scan(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if n := count(t, ctx, r, `SELECT count(*) FROM fin_proposal
-		WHERE inst_id='okx/earn-flex'`); n != 1 {
-		t.Fatalf("重扫应幂等不重生: %d", n)
+		WHERE inst_id='okx/earn-flex'`); n != 0 {
+		t.Fatalf("重扫提案应仍零: %d", n)
 	}
 	// 卡面露出：待裁计数=1。
 	if n, err := PendingCount(ctx, r.pool); err != nil || n != 1 {

@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+
+	"o/internal/platform/execfam"
 )
 
 // spotLegOK 现货腿存在性预核（起草闸）：短_perp_long_spot 族的 spot 腿
@@ -53,6 +55,12 @@ func (r *Runner) spotLegOK(ctx context.Context, instID string) (bool, string) {
 // persist 评估卡落表；proposed 且无 open 提案→fin_proposal 行（闸后唯一提案径）。
 // tx=拍级合流事务（T-0162——评估/提案写与读一致面同事务，批内 NOTIFY 去重在位）。
 func (r *Runner) persist(ctx context.Context, tx pgx.Tx, e Eval, p Params) error {
+	// T-0330 前置拒：执行径族册出局=proposed 翻 rejected/exec_family_missing
+	// 如实，不进提案队列（族册 execfam 移除本族即自动生效——与其他臂同闸）。
+	if e.Verdict == "proposed" && !execfam.Has("funding-hedge") {
+		e.Verdict = "rejected"
+		e.Evidence["reason"] = "exec_family_missing"
+	}
 	legs, _ := json.Marshal(e.Legs)
 	ev, _ := json.Marshal(e.Evidence)
 	var evalID int64

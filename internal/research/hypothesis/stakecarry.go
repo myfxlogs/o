@@ -12,6 +12,7 @@ import (
 	"log"
 	"time"
 
+	"o/internal/platform/execfam"
 	"o/internal/research/funding"
 )
 
@@ -191,6 +192,12 @@ func (r *Runner) stakeCarryEval(ctx context.Context, venue, ccy string, sy fundi
 					inst, sy.APR*1e4, shortBps, net)
 			}
 		}
+	}
+	// T-0330 前置拒：执行径未建族——executor 缺（假想卡级族）direct
+	// rejected/exec_family_missing 如实，不进提案队列；卡仍立（机会面
+	// 呈决策席——未建族=看见了做不了，非无机会）。
+	if verdict == "proposed" && !execfam.Has("stake-carry") {
+		verdict, reason = "rejected", "exec_family_missing"
 	}
 	legs, _ := json.Marshal(map[string]any{"spot": "long_staked", "short": venue})
 	evj, _ := json.Marshal(map[string]any{

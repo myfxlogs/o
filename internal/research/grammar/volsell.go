@@ -8,6 +8,7 @@ import (
 	"log"
 	"strings"
 
+	"o/internal/platform/execfam"
 	"o/internal/research/dcd"
 )
 
@@ -159,6 +160,11 @@ func (r *Runner) evalLeg(ctx context.Context, pr dcd.Product, coins map[string]f
 // persistLegEval 评估卡落+proposed 且无 open 提案→fin_proposal（dcd
 // persistEval 同径幂等：1h 防抖窗在 writeEval 内）。
 func (r *Runner) persistLegEval(ctx context.Context, e dcd.Eval, f Family, inst string) error {
+	// T-0330 前置拒：执行径未建族 proposed 翻 rejected/exec_family_missing
+	// 如实，不进提案队列（族册 execfam 移除本族即自动生效——各臂同闸）。
+	if e.Verdict == "proposed" && !execfam.Has(f.Template) {
+		e.Verdict, e.Reason = "rejected", "exec_family_missing"
+	}
 	if err := r.writeEval(ctx, inst, f.Template, f.Direction, e.Verdict, e.Reason,
 		e.Evidence()); err != nil {
 		return err

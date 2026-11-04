@@ -11,6 +11,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"o/internal/platform/execfam"
 )
 
 // classifyPending 裁 pending/unclassified 行：元数据→族；命中 carry/hedge→
@@ -128,17 +130,27 @@ func (r *Runner) generateCandidate(ctx context.Context, venue, surface, family s
 	// T-0205 重飞：面元数据无 APR 估计——禁 NULL 落 proposed（行级不变量
 	// fin_0094 同维），判词=unevaluable+apr_est_missing 如实缺席态；候选
 	// 起草径不变（fin_proposal 行=面候选功能载体，不依赖评估判词）。
+	// T-0330 前置拒：surface-gap 执行径未建族——判词让位 rejected/
+	// exec_family_missing（族码归因），候选载体提案不生。
+	verdict := "unevaluable"
 	meta["reason"] = "apr_est_missing"
+	if !execfam.Has("surface-gap") {
+		verdict, meta["reason"] = "rejected", "exec_family_missing"
+	}
 	ev, _ := json.Marshal(meta)
 	var evalID int64
 	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,
 		gross_apr,net_apr,verdict,legs,evidence)
-		VALUES($1,'surface-gap',$2,NULL,NULL,'unevaluable','{}',$3)
+		VALUES($1,'surface-gap',$2,NULL,NULL,$4,'{}',$3)
 		ON CONFLICT (inst_id,template,direction) DO UPDATE SET ts=now(),
 		verdict=EXCLUDED.verdict,evidence=EXCLUDED.evidence RETURNING id`,
-		instID, direction, ev).Scan(&evalID); err != nil {
+		instID, direction, ev, verdict).Scan(&evalID); err != nil {
 		r.rej.Inc("gap_write_err")
 		return false, err
+	}
+	if !execfam.Has("surface-gap") {
+		log.Printf("[gapscan] %s 前置拒——exec_family_missing（执行径未建族候选不起草）", instID)
+		return false, nil
 	}
 	// T-0142 黑名单滤：venue 拒过的 inst 不再起草（同族不再武装——学费一次）。
 	var banned int

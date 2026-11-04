@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"time"
 
+	"o/internal/platform/execfam"
 	"o/internal/research/funding" // T-0298：basis 费用摊销+Earn 底同源（白名单边——禁第二份算式）
 )
 
@@ -133,6 +134,11 @@ func (r *Runner) evalBasis(ctx context.Context, f Family) error {
 		costModel := "roundtrip_taker_x4_conservative"
 		if f.Template == "perp_quarter_spread" {
 			costModel += "+perp_only_legs" // 双腿皆衍生无现货腿——四腿型偏保守
+		}
+		// T-0330 前置拒：执行径未建族（quarter_basis_short 等）proposed 翻
+		// rejected/exec_family_missing 如实，不进提案队列（族码=template 列）。
+		if verdict == "proposed" && !execfam.Has(f.Template) {
+			verdict, reason = "rejected", "exec_family_missing"
 		}
 		if err := r.writeEval(ctx, inst, f.Template, f.Direction, verdict, reason,
 			map[string]any{"fut": fut, "spot": spot, "basis_pct": basis,
