@@ -876,3 +876,23 @@
 - 遗留边界（票面已注）：钩只认'收口' subject；新 clone 须重装钩
   （hooks 不版本化）——装机手册项级，不阻塞本裁。
 - T-0317 返修①原 已批 票面领取/状态两栏经裁决回填归位。
+
+### 2026-11-04 T-0323返修①通过+T-0324收口驳回（决策席无头拍）
+
+- **T-0323 返修①裁词=通过**合 @a2f91864：返修①三件全销（钦定两行形/
+  report.sh 单目标零 DISPATCH/实证 1500 seat=决策席）；门禁隔离
+  worktree 全绿；部署后锚（下拍实踢+metabus 灌帧）归部署链件不判红。
+  dm_tick 注释残漂 typo 级顺手修（小支 t/0323-dm-tick-comment 合
+  @1e77ac3a——D-651 闸 master 仅容 docs/**，注释修须支径）。
+- **T-0324 收口@821a6cf6 裁词=驳回**——施工收口在案但自报漏调
+  （收口/移交行零落，待裁闸不可见）；本席误派 o-worker-t0324 拉起已杀。
+  驳回由二：①漏拉闸 `is-active|grep 'active'` 误配——"inactive" 含
+  "active" 子串恒判活=闸永不触发（实测锚不可达）；②陈旧派单守卫缺
+  （T-9999 测试行/终态超越派单每扫拍空烧模型）。返修①件
+  @05b9f9ac 落 docs/prompts，o-worker-T-0324 bootstrap 已拉起续支。
+- **坑册**：systemctl-is-active-inactive-substring-match 入库——
+  活性判定禁子串匹配，须 `grep -qx` 整行精确比对。
+- 并发注：交互席同拍在 master 落 T-0324 票面修订+坑条目（merge 无冲突）；
+  O-Dev pane 人工位 T-0323 返修①施工在案（收口自报齐）。
+- metabus 二进制本席重建重启（o-metabus active 收帧中）——T-0319
+  --no-block 随同件部署链即拍销。
