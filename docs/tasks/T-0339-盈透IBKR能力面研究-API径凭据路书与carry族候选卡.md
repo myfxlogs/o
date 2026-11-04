@@ -39,3 +39,25 @@ Earn 对标基准。本票只做**能力面枚举**——执行闸不因此松�
 ## 回填
 
 票面+路书/候选卡路径+锚逐项实录。
+
+## 施工回填（devin-t0339 续领收口 @ 2026-11-04，分支 t/0339-ibkr-scout）
+
+- 状态：收口待验
+- **锚①三 API 径对照表** → `docs/venue/ibkr-api-对照.md`（TWS socket / CP
+  Gateway REST+WS / FIX CTCI：鉴权/费用门槛/paper 差/速率面逐项+出处；
+  结论=CP Gateway 读面首选，TWS 补充，FIX 本阶段出局 $1,500/月）
+- **锚②凭据路书** → `docs/venue/ibkr-凭据路书.md`（业主待办四步：paper
+  凭据→Futures-US 权限→CME L1 $1.55/月→gateway 拉起+IB Key；关键事实=
+  CP 径无审批流、要求 funded 户、每日重登、paper 零费验证；FIX/OAuth
+  留档不走）
+- **锚③carry 族枚举 ≥3 族** → `docs/venue/ibkr-carry-族枚举.md`（五族：
+  CME 加密基差 MBT 保证金≈22.6%/全成本≈3.2bps·边；闲置现金息 USD
+  3.38%@NAV≥100k 首 10k 无息=法币 Earn 对标锚；FX carry spot≈3.33% margin
+  美国户 ECP 限；box 融资/SYEP 借券记存在性）
+- **锚④候选卡入册** → `migrations/md_1088_venue_candidate_ibkr.sql`：
+  fin_venue_candidate 插 'ibkr' 行（kind=cfd-broker 四值 CHECK 最近拟；
+  taker/maker=3.16bps MBT 单边全成本折；min_notional=6334；endpoints={}
+  ——无公开免鉴权端点 metrics 注定空，state 留 candidate；evidence 携
+  三产出件路径+抓取日）
+- **自测**：check_migrations 七断言绿 + go build ./... 绿 + go vet
+  pgstore 绿（docs+迁移件，无逻辑码）

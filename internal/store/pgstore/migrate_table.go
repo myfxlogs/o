@@ -164,4 +164,5 @@ var migrationTable = []struct {
 	{1085, "md_1085_venue_measuring.sql"},
 	{1086, "md_1086_stake_carry.sql"},
 	{1087, "md_1087_stake_carry_fin_replica.sql"},
+	{1088, "md_1088_venue_candidate_ibkr.sql"},
 }
