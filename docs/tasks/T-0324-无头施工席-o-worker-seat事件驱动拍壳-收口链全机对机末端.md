@@ -64,6 +64,11 @@ unit 逃逸父 cgroup（oneshot 退出不杀子——10:27 o-worker-probe 实证
   行后同票无 `领单`且无活 `o-worker-<tid>` unit → 以 dev_run.sh
   补拉（幂等——席 run 半路死漏拉的机制兜底，T-0317 漏调案同型
   教训：兜底靠机制不靠记性）。
+- 同段再加**收口对拍闸**（缺席发现器定理——坑条目
+  absence-detector-missing-report-rows）：扫在飞 t/* 分支新
+  commit，票号可提且 ops_event 超 15min 无同票收口行→代录收口行
+  （note 标 `relay@hook-miss`）+踢 O-DM 知会——漏调/钩失配的
+  最后一层兜底，人肉搬运退为第三层。
 - `docs/数据流.md`：链路图加「席派单→o-worker-<tid> 瞬态 run」段
   （同 commit）。
 
