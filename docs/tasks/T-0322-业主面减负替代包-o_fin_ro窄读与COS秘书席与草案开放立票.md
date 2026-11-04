@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | 施工中 |
+| 状态 | 待验 |
 | 立项 | 业主令 @ 2026-11-04（`[角色:讨论]` session 代笔——原取 T-0321 与他席撞号让号重编——业主明批秘书席方向并钦定英文缩写 **COS**=Chief of Staff） |
 | 领取 | devin-t0322 @ 2026-11-04 |
 | 优先级 | 中 |
@@ -55,6 +55,25 @@
 
 ## 结果回填
 
-（施工写：实现摘要 / 测试证据 / 偏离说明）
+**实现摘要**（分支 `t/0322-cos-ro-draft-open`）：
+- A `o_fin_ro`：`migrations/fin_0106_o_fin_ro.sql`——LOGIN 角色（口令产出面手工置，collector_rw 先例）；SELECT 白名单 fin_ledger_snapshot/fin_position/fin_strategy/fin_opp_eval/fin_opp_hypothesis/fin_opp_template/fin_eval_reject/fin_proposal/fin_capability_surface/ops_* 全族（含两视图）；`app_secrets` REVOKE ALL 结构性钉死，写权零授。fin_capability_surface=md 域表（fin 链独立 schema 测面缺席）→条件授权（存在面必授）防迁移炸。
+- B COS：`migrations/fin_0107_cos_registry.sql` 在册行（dept=platform，meta.form=pure_interactive）；`docs/员工名册.md` 新节「公司席」职卡四件齐；`skills/COS/SKILL.md` 职卡（收件箱三源 SQL/打包件模板/写面窄白名单）；`docs/cos/packs/2026-11-04-o_fin_ro-condition-gap-grant.md` 首件打包实证（真实条目——本单新证）。
+- C `docs/collab.md` §2 立票开放段落+生命周期表 `草案→已批` 动作方改 COS（§1 写面判据衔句）；`docs/数据流.md` 凭据面 o_fin_ro 行入；`skills/索引.md` kbgen 重建。
+
+**测试证据**（本机 dev 库 127.0.0.1:5433，SET ROLE o_fin_ro 实录）：
+```
+SET ROLE o_fin_ro; SELECT count(*) FROM fin_position;   -- whitelist-ok | 0（通）
+SET ROLE o_fin_ro; SELECT count(*) FROM fin_opp_eval;   -- opp-ok | 6577（通）
+SET ROLE o_fin_ro; SELECT 1 FROM app_secrets LIMIT 1;   -- ERROR: permission denied（拒）
+SET ROLE o_fin_ro; INSERT INTO ops_event(...) VALUES... -- ERROR: permission denied（写拒）
+SET ROLE o_fin_ro; SELECT 1 FROM fin_condition_gap;     -- ERROR: permission denied（白名单外拒——缺口实证）
+registry: COS|platform|COS 秘书席——业主办公室（准备决策不代拍板）|active|pure_interactive
+```
+机检：`scripts/check_all.sh`——build/vet/import/gofmt/env/rejects/migrations（七断言）/bridge-audit 全绿；go test 首轮 events 包 `TestListenSocketStarvationRootFix` 红（33s 超时敏感受并行载波动），单跑 PASS——本 diff 零涉该面。
+
+**偏离说明**：
+- 批准闸措辞：票面「仍归决策席独占」与 §1 席面分家写面判据（`草案→已批` 只属 COS 交互形态）冲突——按施工提示词钦定句+§1 落 COS 闸（提案开放/批准不开放双写语义不变）。
+- **缺口升件**：`fin_condition_gap`（COS 收件箱源②）不在钦定白名单——停线禁自扩，已落 ops_event `升件` 行（施工席写面）+打包件上呈请决策补裁；SKILL 源② SQL 已按钦定口径落字并注「授权落地前缺席=如实记读面缺」。
+- 角色口令与 DSN 供给=产出面手工件（同 collector_rw 径），seat 上线清单已随升件行带出。
 
 审批注记（决策交互形态 @2026-11-04）：**已批**。A o_fin_ro 窄读+黑名单结构性不授=最小权限正法；C 草案开放立票与新章咬合（批准闸仍本席独占）；B COS 职卡方向业主钦批在案、四件落字归施工件，收件箱即升件队列兜底面（collab §1 两形态定章同语义）。施工提示词另立。
