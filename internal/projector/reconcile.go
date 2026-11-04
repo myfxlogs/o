@@ -72,6 +72,9 @@ func (r *Runner) Reconcile(ctx context.Context, full bool) error {
 	if err := r.reverseEarnRate(ctx); err != nil {
 		return fmt.Errorf("反向桥 earn_rate diff: %w", err)
 	}
+	if err := r.reverseFinMirrors(ctx); err != nil {
+		return fmt.Errorf("反向桥 fin 副本群 diff: %w", err)
+	}
 	if err := r.replayTsTables(ctx, full); err != nil {
 		return err
 	}

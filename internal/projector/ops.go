@@ -62,7 +62,10 @@ func (r *Runner) sgWake(ctx context.Context, ch string) error {
 	case "ev_proposal":
 		return r.repairProposalStates(ctx)
 	case "ev_strategy": // 反向桥帧（fin_0028 在册——策略行变即发，T-0172）
-		return r.reverseStrategies(ctx)
+		if err := r.reverseStrategies(ctx); err != nil {
+			return err
+		}
+		return r.reverseFinMirrors(ctx) // T-0326：五 fin 副本群顺带（小表全表 diff 廉价——无 SG 触发帧随既有帧径+期界兜底）
 	case "config_changed":
 		return r.syncConfig(ctx)
 	case "":
