@@ -1,6 +1,6 @@
 ---
 name: 施工席
-description: 无头施工席拉起式 run 职卡（T-0324——领单四步/施工三禁/收口三步同拍/停挂自报；瞬态 systemd-run 载 o-worker-<tid>）
+description: 无头施工席拉起式 run 职卡（领单四步/施工三禁/收口三步同拍/停挂自报）；瞬态 systemd-run 载 o-worker-<tid>（T-0324）
 domain: 工程
 ---
 

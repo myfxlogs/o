@@ -120,3 +120,36 @@ unit 逃逸父 cgroup（oneshot 退出不杀子——10:27 o-worker-probe 实证
 - 闸件干跑实证：候选 SQL 实查 T-9999 守卫③排+T-0324 误派行最新=派单
   在列（终态词入 filter 集机制——决策席退役行落即排；unit 拉起迹/
   journal 双证=部署后实证件）。
+
+## 返修① 补件回填（无头施工席 devin run @ 2026-11-04——o-worker-T-0324 拉起 run，与 O-Dev 席同票撞车各摊一段）
+
+O-Dev 席先落主修 @d26bf0a1（闸三修+SKILL 删重），本 run 补残余件：
+
+- 顺手项实落①：`skills/索引.md` 施工席行右括号——病灶在 kbgen
+  `firstSentence` 截首句于 `；`，desc 括号未闭被截。改 `skills/施工席/
+  SKILL.md` frontmatter desc 归形（截点移括号外）+`kbgen skills` 重建，
+  `--check` 绿。
+- 顺手项实落②：dm_tick export 段注释归 master 现文（踢径钦定单目标
+  两行——merge 冲突预解）。
+- 守卫集补：`挂起`/`异常` 入 filter 集——派单后即挂票免拉（原集漏
+  停态词，干跑实证补）。
+- **闸件干跑实证随收口交**（/tmp/gate_tail_test.sh=尾段逐字抽件，
+  systemd-run 拉起径因 dev_run.sh 未合 master 指 worktree 副本，余同）：
+  - 落测试派单行 T-0323→闸跑 `PULL`→unit `Started`/`Stopped` transient
+    journal 迹（10:46:02–10:46:08）+ops_event `拉起` 行落账（META-DM
+    @02:46:02）——锚「手工派单行不拉起→闸补拉」**达标**；
+  - 幂等：拉起后重跑 T-0323 零 PULL（latest=拉起自标）；
+  - 挂起超越：T-0323 派单→挂起（异 tx）→零 PULL；
+  - T-9999：候选在列但 `compgen` 无票文件 `SKIP no-file` 每跑均排；
+  - unit 活守：T-0324 测试派单行+本 run unit active→`SKIP unit-active`；
+  - 终态超越：T-0324 收口/移交行后 latest≠派单，候选查询不入选。
+  - 同 tx 同 ts 注记：同事务双行 INSERT 造同 ts 伪撞（实测证）——
+    真实径各事件异 tx 异 ts，闸不受影响（T-0323/T-9999 既有同 ts 对
+    系决策席同事务双写，与闸无关）。
+- 缺③对账：收口/移交自报本 run 必调。钩兜底失配**根因坐实**：
+  `core.hooksPath=scripts/hooks`（/opt/o/.git/config）——钩生效径在
+  仓内 `scripts/hooks/`，而 commit_report_hook.sh 装在
+  `.git/hooks/post-commit`（生效径外=**永不触发**；该目录亦无
+  post-commit 件）。T-0323「返修字样不匹配」=表象非因——钩自始未跑，
+  O-Dev 10:42–43 三行系手动调（relay 在案）。待归一：钩件入
+  scripts/hooks/ 或 hooksPath 指向——**本票范围外**，记档交决策席处置。

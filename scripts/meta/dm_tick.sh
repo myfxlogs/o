@@ -3,7 +3,8 @@
 # 逐字对形：ops_ticket_state 待裁集水印闸>0 才烧零空拍；每拍（含空拍/
 # 败拍）ops_headless META-DM 心跳行；FIN_DSN 隧道径 SG 直读）。
 set -u
-# T-0323：裁毕通报踢 O-DM 交互席+自报 seat=决策席 正标（O_SEAT 误标案销）。
+# T-0323 踢径钦定单目标：一切自报（含派单通报/升件）踢 O-DM 交互席；
+# 派单不踢 O-Dev——常径施工拉起走 systemd-run o-worker-<tid>（T-0324）。
 export REPORT_KICK=O-DM
 export O_SEAT=决策席
 ENVF="${DM_ENV_FILE:-/opt/o-research/env}"
@@ -46,13 +47,15 @@ RC=$?
 # T-0324 漏拉清扫闸（返修①）：ops_event 派单行后同票无领单且无活
 # o-worker-<tid> unit→dev_run.sh 幂等补拉。三守卫钦定——①最新任意事件
 # 恰为派单（终态 收口/移交/裁决/完成/驳回/拉起/领单 超越免拉，T-0324
-# 误派行收口先于派单案在案）②补拉落 `拉起` 行入 filter 集自标幂等
-# ③无票文件免拉（T-9999 类测试行天然排）。is-active 按行精确比对——
-# 'inactive' 字面含 'active' grep 误配恒判活=闸永不补拉病灶根修。
+# 误派行收口先于派单案在案；挂起/异常 停态词同入集——派单后即挂票免拉）
+# ②补拉落 `拉起` 行入 filter 集自标幂等 ③无票文件免拉（T-9999 类测试
+# 行天然排）。is-active 按行精确比对——'inactive' 字面含 'active' grep
+# 误配恒判活=闸永不补拉病灶根修。
 if [ -n "$FIN_DSN" ]; then
   psql "$FIN_DSN" -qAt -c "SELECT ticket FROM (
       SELECT ticket,max(ts) mt FROM ops_event WHERE event IN
-        ('派单','领单','拉起','收口','移交','收口待审','裁决','完成','驳回')
+        ('派单','领单','拉起','收口','移交','收口待审','裁决','完成','驳回',
+         '挂起','异常')
         AND ticket<>'' GROUP BY ticket) l
     WHERE EXISTS (SELECT 1 FROM ops_event e WHERE e.ticket=l.ticket
         AND e.ts=l.mt AND e.event='派单')" 2>/dev/null | while read -r tid; do
