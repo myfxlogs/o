@@ -18,14 +18,27 @@ measuring/recommended 态 venue 的 perp funding 行（9 适配器），**已注
 1. 新哨兵拍 `scripts/meta/venue_watch.sh`（照 `gauges_tick.sh` 零 LLM 纯判据
    对形；env 径读 FIN_DSN；`META-VENUEWATCH` 心跳落 ops_headless）：
    - **数据源①（主）= OKX 公开公告端点** `/api/v5/support/announcements`
-     （零凭据；annType 参数族实探测全）。关键词集滤新品类——词集钉脚本头
-     常量（option/期权/Earn 新品/new product 族——精确词面勿正则地狱），
-     检出项带公告标题+URL 出处。
+     （零凭据）。annType 全型录已实采（`GET /api/v5/support/announcement-types`
+     返回 11 型，fixture `docs/prompts/t0348-assets/ann_types.json`）——探测
+     面钦定四型：`announcements-trading-updates`/`announcements-earn-and-loan`/
+     `announcements-others`/`announcements-new-listings`（新品生命周期实证：
+     `announcements-others` 页一含 "OKX will discontinue Simple Options soon"
+     ——简易期权生命周期事件确实走公告面）。关键词集滤新品类——词集钉脚本
+     头常量（options/期权/Earn/Event Contract/new product 族——精确词面勿
+     正则地狱），检出项带公告标题+URL 出处。
+   - **取数径=走 SG**（业主令「直接走sg」——dev 机对 www.okx.com/aws.okx.com
+     全域 timeout 实证）：脚本以 `ssh root@192.229.85.35 'curl -s <url>'`
+     执行只读 GET 于 SG 回传 JSON——复用既有密钥径、零生产写、零新基建；
+     SG ssh 败=该源 hb fail 显形同径。
    - **数据源②（备）= instruments 目录 diff**：`/api/v5/public/instruments`
-     instType 全集快照 vs 上次水位（seen-set 存 $ST 文件或 PG——施工裁，
-     幂等键=venue+instId/surface）；新 instType/新 surface 类=新品候选。
-     注：简易期权若为 app-only 面 API 不可见，公告面兜——**协议面取证纪律
-     适用：下「API 无此面」结论前消息体全文核证**，不许猜。
+     instType 枚举实采 OPTION→686 件（fixture `inst_option_sample.json`）；
+     快照 vs 上次水位（seen-set 存 $ST 文件或 PG——施工裁，幂等键=
+     venue+annId/instId）；新 instType/新 surface 类=新品候选。简易期权
+     若为 app-only 面 API 不可见，公告面已兜——**协议面取证纪律适用：
+     下「API 无此面」结论前消息体全文核证**，不许猜。
+   - **真响应 fixture 在仓**：`docs/prompts/t0348-assets/`（4 型公告页一
+     + 型录 + OPTION 样例）——脚本解析/词面调优以真件为准，不许虚构
+     响应形状。
    - 检出 → `ops_event` 行 `seat='venue哨兵' event='新品' note=venue:产品:出处`。
      **同品幂等零重发**（seen-set 判重）；事件即研究员触发信号，哨兵职责
      止于事件+心跳（不碰 fin_opp_hypothesis——那是研究员窄门）。
@@ -37,14 +50,14 @@ measuring/recommended 态 venue 的 perp funding 行（9 适配器），**已注
    =部署锚再漏）：`deploy/o-venue-watch.{service,timer}` 正本 +
    `~/.config/systemd/user/` 装机（1h 拍——公告非秒级面；
    OnBootSec=15min Persistent=true 对形）。
-4. 首天然锚=OKX 简易期权：落地首拍应检出（公告面窗口期内）或如实记
-   「API 不可见面」取证结论。
+4. 首天然锚=OKX 简易期权：`announcements-others` 已实测含其生命周期
+   公告——落地首拍应对其（或其窗口期后续新品）检出落行。
 
 ## 验收锚
 
 - [ ] 合成注入干跑：伪公告含期权词→`ops_event` 新品行落账+幂等重放零重复
-- [ ] 真实探测：哨兵对 OKX 简易期权检出（公告或目录面），或协议面取证
-      全核证后如实记「不可见面」结论
+- [ ] 真实探测：首拍对 OKX 公告面四型跑出检出或不检出皆如实落账
+      （hb note 带各型拉取件数——面显形不静默）
 - [ ] 断网干跑 hb fail 显形非绿
 - [ ] timer 装机实证（`list-timers` NEXT/LAST 活）+ deploy/ 正本在仓
 - [ ] `check_all` 绿

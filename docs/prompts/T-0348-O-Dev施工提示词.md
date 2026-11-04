@@ -20,6 +20,23 @@
 
 已替你踩过的点（直接用，勿重摸）：
 
+- **dev 机摸不到 OKX**（www.okx.com/aws.okx.com 全域 timeout 已实证）——
+  **取数径=走 SG**（业主令「直接走sg」）：`ssh root@192.229.85.35 \
+  'curl -s <url>'` 在 SG 执行只读 GET 回传 JSON，本地解析。
+  复用既有密钥径、零生产写。你自己写码/测试时 curl 同样走 SG。
+- **真实响应已代采成 fixture**：`docs/prompts/t0348-assets/`——
+  ① `ann_types.json`（`GET /api/v5/support/announcement-types`，
+  11 型全录）；② 四型公告页一实样（trading-updates/earn-and-loan/
+  others/new-listings——`data[0].details[]` 结构，annType/title/url/
+  pTime/businessPTime 字段，`totalPage` 分页）；③ `inst_option_sample.json`
+  （`instType=OPTION` 实样 686 件）。**解析逻辑对 fixture 写，不许虚构形状。**
+- **探测面钦定**：公告端点只拉四型——trading-updates/earn-and-loan/
+  others/new-listings。**天然锚实证在案**：`announcements-others` 页一
+  现含 "OKX will discontinue Simple Options soon"——简易期权生命周期
+  事件确实走公告面，哨兵落地首拍即应检出它（或其窗口期后续新品）。
+- instruments diff 为备面（instType 枚举 SPOT/MARGIN/SWAP/FUTURES/
+  OPTION 已实证可查），简易期权若 app-only 不可见——公告面已兜；
+  下「无此面」结论前消息体全文核证（协议面取证纪律），不许猜。
 - **对形件**=`scripts/meta/gauges_tick.sh`：env 径读 FIN_DSN、
   `hb()` 写 `ops_headless`（本票心跳键 `META-VENUEWATCH`）、
   `ops_event` INSERT 径、取数败显形——整套抄形。
@@ -28,16 +45,12 @@
   `deploy/o-econ-verdict.*`——**`deploy/` 正本 + `~/.config` 装机同 commit**，
   装完 `enable --now` 后 `list-timers` 截图锚收口（T-0331/0332 孤儿脚本
   教训：脚本不带电的部署锚已漏过一次，本票红线级要求）。
-- **OKX 端点实探再写码**（协议面取证纪律）：先 curl 实测
-  `/api/v5/support/announcements`（annType 参数族逐一试，把返回面摸清）
-  和 `/api/v5/public/instruments`（instType 枚举全集：SPOT/MARGIN/SWAP/
-  FUTURES/OPTION 等），以**真实响应**定探测字段——不许按文档猜。
-  「简易期权」若两端点均不可见，如实记「API 不可见面」+核证过程；
-  可见则首天然锚直接销。
 - **幂等 seen-set**：存 `$ST` 文件（照 gauges_tick 的 /var/tmp 暂存径）
-  或 PG 小表自裁——键=venue+公告 id/instId；同品重放零重复事件。
-- 关键词集钉脚本头常量，新品类词面=期权/options/Earn 新品/新上产品族——
-  **精确词面，勿宽正则**（公告面噪声大，宽匹配=事件刷屏）。
+  或 PG 小表自裁——键=venue+annId/instId；同品重放零重复事件。
+- 关键词集钉脚本头常量，新品类词面=options/期权/Earn/Event Contract/
+  new product 族——**精确词面，勿宽正则**（公告面噪声大，宽匹配=
+  事件刷屏——注意 announcements-others 的 "OKX will discontinue
+  Simple Options soon" 这类也属新品生命周期有效检出，非噪声）。
 
 ## 停止条件
 
@@ -50,7 +63,7 @@
 | # | 查项 | 发现 | 处置 |
 |---|---|---|---|
 | 1 | 依据链 | 业主令原文+票已批在案 | 提示词首段即授权依据 |
-| 2 | 指代歧义 | 「公告端点返回面」未知 | 钉实探先行+禁按文档猜 |
+| 2 | 指代歧义 | 「公告端点返回面」经 SG 实采成 fixture | 真件钉路径+禁虚构形状 |
 | 3 | 范围闭合 | 哨兵职责止于事件——易顺手写提案卡 | 红线明钉不碰 hypothesis 窄门 |
 | 4 | 与票面零冲突 | timer 装机易被当部署外活 | 票面锚④明列装机实证为验收件 |
 | 5 | 停止条件 | 鉴权墙/码面需求/票面误判三态 | 明列停+回报句式 |
