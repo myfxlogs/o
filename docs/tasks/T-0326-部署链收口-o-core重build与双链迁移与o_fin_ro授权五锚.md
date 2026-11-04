@@ -16,10 +16,12 @@
 
 - [ ] **锚①** `o-core` 重 build+SG 部署成功——`{{.Config.Image}}` 自报
   sha=部署票执行时 master tip；`deploy_image.sh` 健康闸绿
-- [ ] **锚②** 双链迁移实落——`fin_0105`（SG PG-fin）+`md_1086`
-  （OCI PG-md）`schema_migrations` 行在账，`check_migrations` 七断言绿
+- [ ] **锚②** 迁移实落——`fin_0105`+`fin_0106`+`fin_0107`
+  （SG PG-fin）+`md_1086`（OCI PG-md）`schema_migrations` 行在账，
+  `check_migrations` 七断言绿
 - [ ] **锚③** T-0322 DB 货落地——`o_fin_ro` 授权三实录（白名单通/
   黑名单拒/写拒）+`fin_employee_registry` COS 在册行 psql 直查
+  +`o_fin_ro` 口令置件落位（T-0322 完成注记点名件）
 - [ ] **锚④** `stakeCarryScan` 生产首拍对拍——首拍产出 vs T-0320 dev
   链 0.1283 提案对账（对拍差>容差则登记差异不静默）
 - [ ] **锚⑤** 飞书实达验证——部署后首个 High 事件（或干跑注入）
