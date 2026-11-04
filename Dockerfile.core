@@ -37,5 +37,9 @@ RUN buf generate --template buf.gen.mtapi.yaml
 RUN go build -o /bin/core ./cmd/core
 
 FROM alpine:3.20
+# T-0296 件③根修——tzdata 进镜像：/usr/share/zoneinfo 缺席时
+# LoadLocation("America/New_York") 兜底 FixedZone(-4h)，冬令(-5h)起日历事件
+# 全错早 1h；notify/calendar+research/ctx 双调用点同罩（apk 整镜像面>embed）。
+RUN apk add --no-cache tzdata
 COPY --from=build /bin/core /bin/core
 ENTRYPOINT ["/bin/core"]
