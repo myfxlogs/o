@@ -6,7 +6,6 @@ After=network-online.target
 
 [Service]
 Type=oneshot
-WorkingDirectory=/var/tmp/o-decision
 ExecStartPre=/usr/bin/env mkdir -p /var/tmp/o-decision
 ExecStart=/opt/o/scripts/meta/dm_tick.sh
 NoNewPrivileges=true

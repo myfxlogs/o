@@ -6,7 +6,6 @@ After=network-online.target
 
 [Service]
 Type=oneshot
-WorkingDirectory=/var/tmp/o-verdict
 ExecStartPre=/usr/bin/env mkdir -p /var/tmp/o-verdict
 ExecStart=/opt/o/scripts/meta/verdict_tick.sh
 NoNewPrivileges=true
