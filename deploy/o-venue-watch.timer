@@ -1,0 +1,13 @@
+# o-venue-watch.timer —— 1h 拍（T-0348 部署锚——公告非秒级面，票面钦定 1h；
+# OnBootSec=15min Persistent=true 对形 gauges 族；激活径：
+# systemctl --user enable --now o-venue-watch.timer）
+[Unit]
+Description=o-venue-watch 1h 拍
+
+[Timer]
+OnBootSec=15min
+OnUnitActiveSec=1h
+Persistent=true
+
+[Install]
+WantedBy=timers.target
