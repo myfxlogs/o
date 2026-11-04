@@ -20,14 +20,22 @@ domain: 工程
 ## 收件箱三源（钦定口径——最新刻集式）
 
 ```sql
--- ① 未消化升件（决策席硬触发升件/他席撞上即写——7 日窗，已上行/已批复/
---    已被判例消化除外——T-0334 判例面：带类升件同类同域命中判例簿即
---    自动裁落 '先例适用' 行（note 携升件#id），源①不再打包该升件；
---    先例适用行业主回流可翻案，翻案=新判例登记）
+-- ① 未消化升件（决策席硬触发升件/他席撞上即写——7 日窗）
+--    消化判定（T-0341 口径扩宽）：升件挂票号上，升件 ts 之后出现任一
+--    处置事件（裁决/已批/派单/完成/移交/COS上行/业主批）即认消化——
+--    处置行必须 d.ts>e.ts（同票升件前的旧处置不吸收新升件）；
+--    强弱两档：处置行 note 引升件#id=强吸收（直证该升件被理），
+--    同票 ts 序处置=弱吸收（存「票裁了但升件没理」过吸收风险——
+--    取舍：宁弱吸收盖漏报，升件残余由打包人工面兜底）；
+--    判例面另径——T-0334：带类升件同类同域命中判例簿即自动裁落
+--    '先例适用' 行（note 携升件#id）消化；先例适用行业主回流可翻案，
+--    翻案=新判例登记）
 SELECT id,ts,seat,ticket,note FROM ops_event e
 WHERE event='升件' AND ts>now()-interval '7 days'
-  AND ticket NOT IN (SELECT ticket FROM ops_event
-                     WHERE event IN ('COS上行','业主批') AND ts>now()-interval '7 days')
+  AND NOT EXISTS (SELECT 1 FROM ops_event d
+                  WHERE d.ticket=e.ticket AND d.ts>e.ts
+                    AND d.event IN ('裁决','已批','派单','完成','移交',
+                                    'COS上行','业主批'))
   AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='先例适用'
                   AND x.note LIKE '升件#'||e.id||' %')
 ORDER BY ts;
