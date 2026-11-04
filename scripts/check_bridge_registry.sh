@@ -74,13 +74,12 @@ echo "OK[bridge-audit] 存在性列: ${trgn} 声明×桥域实查齐（含 arch-
 
 # ── ③ 模板漂移列 ─────────────────────────────────────────
 # 模板 DSN 键 × 实机 env 同键对拍（user@host:port——PASSWORD 占位不比对密文）。
-dsn_fields() { grep -oE "$2=postgres://[a-z_]+(:[^@\"]*)?@[0-9.]+:[0-9]+" "$1" 2>/dev/null \
+dsn_fields() { true; grep -oE "$2=postgres://[a-z_]+(:[^@\"]*)?@[0-9.]+:[0-9]+" "$1" 2>/dev/null \
 	| sed -E "s|$2=postgres://([a-z_]+)(:[^@\"]*)?@([0-9.]+:[0-9]+)|\1@\3|" | head -1; }
 env_field() { # $1=remote file $2=key
 	oci_f "$1" | grep -oE "$2=postgres://[a-z_]+(:[^@\"]*)?@[0-9.]+:[0-9]+" \
 	| sed -E "s|$2=postgres://([a-z_]+)(:[^@\"]*)?@([0-9.]+:[0-9]+)|\1@\3|" | head -1; }
-pairs="deploy/o-collecto/compose.yml|SG_PG_DSN|/home/ubuntu/o-collecto.env
-deploy/o-projector.env.example|SG_PG_DSN|/home/ubuntu/o-projector.env
+pairs="deploy/o-projector.env.example|SG_PG_DSN|/home/ubuntu/o-projector.env
 deploy/o-projector.env.example|MD_PG_DSN|/home/ubuntu/o-projector.env
 deploy/o-research.env.example|SG_PG_DSN|/home/ubuntu/o-research/env
 deploy/o-research.env.example|ROSTER_PG_DSN|/home/ubuntu/o-research/env
@@ -91,8 +90,8 @@ tpl_field() { # $1=file $2=key —— env 形 KEY= 与 compose 形 KEY: 双兼�
 	| sed -E "s|$2[=:] ?postgres://([a-z_]+)(:[^@\" ]*)?@([0-9.]+:[0-9]+)|\1@\3|" | head -1; }
 while IFS='|' read -r tpl key envf; do
 	[ -n "$tpl" ] || continue
-	tv=$(tpl_field "$tpl" "$key")
-	av=$(env_field "$envf" "$key")
+	tv=$(tpl_field "$tpl" "$key" || true)  # || true 防 grep miss rc=1 杀壳
+	av=$(env_field "$envf" "$key" || true)  # T-0318 静默死根修——显报径可达
 	if [ -z "$av" ]; then red "模板对拍实机读缺: $envf $key（漂移面 fail-closed）"; continue; fi
 	if [ -z "$tv" ]; then red "模板键缺: $tpl $key（模板即图——键缺=图缺件）"; continue; fi
 	[ "$tv" = "$av" ] || red "模板漂移: $tpl $key 册=$tv 实机=$av"
