@@ -4,6 +4,8 @@
 # 滞回闸：每表连续2拍触才升+日频上限1——误报刷屏防；零待触=零行空跑如实）。
 # 取数失败显形（T-0332 返修①）：rc≠0/stderr 非空→记 $ST/<name>.fetch_error
 # 并挂 hb note fail 表名——失败自身即缺席类升件素材，绝不静默吞成绿灯。
+# 可选⑦列 dq（T-0335）：升件模板需多源分拆数时填 {d}——升件拍现取现填
+# （qt 同型取数径），dq 缺席/取数败→{d} 落空不阻断升件本体。
 set -u
 ENVF="${GAUGES_ENV_FILE:-/opt/o-research/env}"
 FIN_DSN=$(grep '^FIN_PG_DSN=' "$ENVF" 2>/dev/null | cut -d= -f2- | tr -d '"')
@@ -15,7 +17,7 @@ hb() { [ -n "$FIN_DSN" ] && psql "$FIN_DSN" -qAt -c "INSERT INTO ops_headless(ti
 [ -n "$FIN_DSN" ] || { hb stalled; exit 0; }
 today=$(date +%F)
 FAILS=""
-while IFS=$'\t' read -r name cls qt qry th tpl; do
+while IFS=$'\t' read -r name cls qt qry th tpl dq; do
   [ -n "$name" ] || continue
   errf="$ST/${name}.fetch_error"
   v=""
@@ -39,7 +41,14 @@ while IFS=$'\t' read -r name cls qt qry th tpl; do
     # 滞回闸：昨日也触（连续2拍）且今日未升过→升件行
     if [ -f "$ST/${name}.last_hit_date" ] && grep -qx "$(date -d yesterday +%F 2>/dev/null||echo x)" "$ST/${name}.last_hit_date" \
         && ! grep -qx "$today" "$ST/${name}.escalated" 2>/dev/null; then
-      msg=$(echo "$tpl" | sed "s/{v}/$v/")
+      d=""
+      if [ -n "${dq:-}" ]; then
+        case "$qt" in
+          sql_ro) [ -n "$RO_DSN" ] && d=$(psql "$RO_DSN" -qAt -c "$dq" 2>/dev/null | head -1);;
+          cmd) d=$(eval "$dq" 2>/dev/null | head -1);;
+        esac
+      fi
+      msg=${tpl//'{v}'/$v}; msg=${msg//'{d}'/$d}
       psql "$FIN_DSN" -qAt -c "INSERT INTO ops_event(seat,event,ticket,note) VALUES('巡检闸','升件','$name','$msg 阈=$th')" >/dev/null 2>&1 || true
       echo "$today" >> "$ST/${name}.escalated"
     fi

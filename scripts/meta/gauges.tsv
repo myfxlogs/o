@@ -1,7 +1,13 @@
-# 量表注册表（T-0332 自愈巡检面——量表=确定判据零 LLM；name|class|query_type|query|阈值|升件模板
-# query_type: sql_ro(FIN_PG_RO_DSN=o_fin_ro 窄读白名单)/cmd(shell 出数)；滞回闸=连续2拍触才升+日频上限1/表）
+# 量表注册表（T-0332 自愈巡检面——量表=确定判据零 LLM；name|class|query_type|query|阈值|升件模板|⑦可选detail_query
+# query_type: sql_ro(FIN_PG_RO_DSN=o_fin_ro 窄读白名单)/cmd(shell 出数)；滞回闸=连续2拍触才升+日频上限1/表；
+# ⑦detail_query=升件拍同型取数填模板 {d}——分拆数等多值升件用（T-0335），缺席/取数败→{d}落空不阻断）
 armed_aging	淤积	sql_ro	SELECT count(*) FROM fin_proposal WHERE state='fin_armed' AND created_at<now()-interval '4 hours'	1	armed 提案超 TTL 计数={v}
 escalation_aged	缺席	sql_ro	SELECT count(*) FROM ops_event e WHERE e.event='升件' AND e.ts<now()-interval '24 hours' AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.ticket=e.ticket AND x.event IN ('裁决','完成','驳回') AND x.ts>e.ts)	1	升件行>24h 无裁决跟进={v}
 heartbeat_dead	幽灵	sql_ro	SELECT count(*) FROM (SELECT ticket,max(last_activity) m FROM ops_headless GROUP BY 1) t WHERE m<now()-interval '7 days'	1	ops_headless 死道>7天={v}
 branch_cemetery	淤积	cmd	git -C /opt/o branch --list 't/*' --no-merged master | wc -l	300	t/* 未合枝计数={v}
 arm_zero_output	断供	sql_ro	SELECT (SELECT count(*) FROM fin_execution WHERE created_at>now()-interval '24 hours')+(SELECT count(*) FROM fin_position WHERE opened_at>now()-interval '24 hours')	-1	执行臂近24h产出={v}（<1=断供）
+# owner_interruption 口径（业主裁定 2026-11-04 一字不改）：计阻断性需求件——系统卡住等业主出面才走得动的件；
+# 不计业主在场治理活动（讨论/问进度/授权/巡视——在场≠被需要）。判据=业主离场系统是否停摆。
+# 构成=fin_condition_gap 新行（凭据/注册/条件请求）+ops_event 'COS上行' 行（升件打包待业主裁），trail 30d；
+# 阈列=6 ⇔ 票面「>5 升件」（tick 判据 v≥阈）；「全替」目标收敛 KPI 本体。
+owner_interruption	淤积	sql_ro	SELECT (SELECT count(*) FROM fin_condition_gap WHERE requested_at>now()-interval '30 days')+(SELECT count(*) FROM ops_event WHERE event='COS上行' AND ts>now()-interval '30 days')	6	业主打断率30d阻断性需求件={v}（{d}）	SELECT 'gap='||(SELECT count(*) FROM fin_condition_gap WHERE requested_at>now()-interval '30 days')||'/上行='||(SELECT count(*) FROM ops_event WHERE event='COS上行' AND ts>now()-interval '30 days')
