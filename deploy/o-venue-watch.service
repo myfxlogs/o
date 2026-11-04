@@ -1,0 +1,14 @@
+# o-venue-watch.service —— venue 新品哨兵拍（T-0348；零 LLM 纯判据——照
+# gauges_tick 对形：在册 venue 公告面+产品目录 diff→ops_event '新品' 行→
+# 研究员触发信号；META-VENUEWATCH 心跳；取数败 hb state fail 显形不静默绿）。
+[Unit]
+Description=o-venue-watch (venue 新品哨兵拍)
+After=network-online.target
+
+[Service]
+Type=oneshot
+# 无 WorkingDirectory——脚本自 mkdir ST 全绝对径；cwd 指 ExecStartPre 才建的
+# 目录=冷启动 200/CHDIR 死锁（首拍实证在案——systemd chdir 先于 ExecStartPre）。
+ExecStartPre=/usr/bin/env mkdir -p /var/tmp/o-venuewatch
+ExecStart=/opt/o/scripts/meta/venue_watch.sh
+NoNewPrivileges=true
