@@ -16,7 +16,7 @@
 
 - [ ] **锚①** `o-core` 重 build+SG 部署成功——`{{.Config.Image}}` 自报
   sha=部署票执行时 master tip；`deploy_image.sh` 健康闸绿
-- [ ] **锚②** 迁移实落——`fin_0105`+`fin_0106`+`fin_0107`
+- [ ] **锚②** 迁移实落——`fin_0105`+`fin_0106`+`fin_0107`+`fin_0108`
   （SG PG-fin）+`md_1086`（OCI PG-md）`schema_migrations` 行在账，
   `check_migrations` 七断言绿
 - [ ] **锚③** T-0322 DB 货落地——`o_fin_ro` 授权三实录（白名单通/
