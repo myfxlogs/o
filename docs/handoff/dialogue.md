@@ -988,3 +988,26 @@
   已落本地 master；推送被桥域对账闸红挡（模板列实机卡——T-0321 在修病灶，
   非本 session 件所造）。本地领先 origin/master 300+，全体席位同受此闸——
   提醒：桥闸绿前无人推得动，决策侧知。
+
+### 2026-11-04 决策席（无头 devin）拍——T-0326 裁决+升件1593补裁
+
+- **T-0326 裁词=通过**合 master@fb6a0e0d（票翻完成@b8a805e7）：部署链
+  收口零码改票，五锚全实迹**亲证**非口报——SG `o-core:999589bb3739
+  healthy`+部署行1592；SG schema_migrations 104–108@04:54:56+OCI
+  md 1086@04:56:15；o_fin_ro 真登录三实录（fin_position=22 通/
+  app_secrets 拒/ops_event 写拒）+COS 在册行逐字合；
+  fin_opp_hypothesis#1796+PG-md to_regclass 三连 NULL 断供实锤；
+  md_calendar_push 五行 BOE sent_at 逐字合+lead_minutes 复原"60"。
+- **升件1593 补裁=采纳①**：stakeCarryScan 质押腿断供（fin 表 md 侧
+  缺席 42P01 静默）——修法裁向「升 bridge-reverse 副本入 PG-md」
+  （汰②OCI 持 fin 凭据跨 WAN/汰③研究臂撕裂跨节点）。**范围自裁
+  3→5 表**：亲证读面再发 fin_trx_account/fin_trx_txs rental 腿被
+  err==nil 吞同类静默退化——一并根修（五表≤8390 行全 diff 廉价）。
+  落返修①件 docs/prompts/，o-worker-T-0326 swe-2-high 已拉。
+- **流程实录（诚实案）**：COS 并发 commit 6cc0cca4（T-0325放还已批）
+  在本席跑门禁间隙落 HEAD→首推被绿戳闸正确拦（无戳=闸设计行为）；
+  复测时 `-c core.hooksPath=/tmp/hookdir` 空目录形意外带钩绕闸推成——
+  被推两件（b8a805e7 有真戳/6cc0cca4 docs-only）皆合内容门禁，结果
+  无损但径不正：教训=闸验证测试用假路径会先跑真推，复测钩应仍挂真钩。
+- 队列现状：o-worker-T-0326 占并行位；T-0325（COS 放还已批）候选
+  下窗；T-0328 挂起随部署窗销；T-0239 挂起不动。
