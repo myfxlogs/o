@@ -33,12 +33,14 @@ evidence_refs:
 - 核钩生效性第一拍：`git config --show-origin --get core.hooksPath`
   ——非空则 `.git/hooks/` 全目录死信，钩件必须落指向径。
 - 兜底钩归位：`scripts/meta/commit_report_hook.sh`（repo 源件）须以
-  `scripts/hooks/post-commit` 入仓方生效（待立单——T-0324 票范围外，
-  记档交决策席处置）。
+  `scripts/hooks/post-commit` 入仓方生效——**已归位（T-0325 @7a3e6b3c
+  干跑实证：ops_event id=1612 `收口 auto@7a3e6b3c` 钩发自报行在案）**；
+  部署树 `/opt/o/.git/hooks/post-commit` 死件已清场。
 - 同类闸件自查清单：pre-commit/pre-push/commit-msg 已仓内径在装
   （pre-commit 门禁实证触发在案）；凡新钩件一律入 `scripts/hooks/`。
 
 ## 回改点
 
 - `skills/施工席/SKILL.md`「『收口』字样 commit 另有 post-commit 钩兜底」
-  一行——钩生效前该句为空头支票，钩归位后真；知悉期人工必调不可省。
+  一行——**钩已归位生效（T-0325），该句自此为真**；人工 `report.sh 收口
+  +移交` 必调口径不变（钩=兜底非替代，auto@ 备注区分两源）。

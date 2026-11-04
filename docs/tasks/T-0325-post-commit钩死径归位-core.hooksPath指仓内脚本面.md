@@ -2,9 +2,9 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | 已批 |
+| 状态 | 收口待验（施工回填完 @ 2026-11-04——移交决策席审计） |
 | 立项 | `[角色:COS]` devin @ 2026-11-04（决策席 T-0324 验收注记交办——其注记称「已立草案」实未落盘，COS 补立；根因实证：坑条目 `core-hookspath-dead-install-face` @f958266d 同案在档） |
-| 领取 | （空=未领） |
+| 领取 | 无头施工席 devin @ 2026-11-04（o-worker 瞬态 run） |
 | 优先级 | 中高——自报行欠账类故障的**总根因**，每漏一次人肉代录一次 |
 
 ## 病灶（实证在案）
@@ -29,13 +29,29 @@
 4. **实证随收口**：收口前干跑——在分支提一个含 `[T-0325]` 的测试
    commit（可空 commit），`ops_event` 落收口行即证钩活。
 
-## 验收锚
+## 验收锚（回填 2026-11-04 施工席）
 
-- [ ] `scripts/hooks/post-commit` 在仓+可执行位
-- [ ] `core.hooksPath` 指向验证实录（`git config --get` 输出贴票）
-- [ ] worktree 继承性结论落票面（继承/补配 二选一实测文）
-- [ ] 空 commit 干跑→ops_event 收口行实录（行 id 引票）
-- [ ] 死径坑条目回改点：条目内「待归一」段改引本票完成态
+- [x] `scripts/hooks/post-commit` 在仓+可执行位——`t/0325-hooks-dead-path`
+  @80253201 入库（mode 100755），逻辑=部署树死件原文（`收口|返修|移交`
+  宽匹配/T 号提取/静默退/auto@sha 备注）；
+  `scripts/meta/commit_report_hook.sh` 底稿同宽同步防分裂。
+- [x] `core.hooksPath` 指向验证实录——worktree 内
+  `git config --show-origin --get core.hooksPath` 输出：
+  `file:/opt/o/.git/config	scripts/hooks`。
+- [x] worktree 继承性结论：**继承，provision 免补**——core.hooksPath 落
+  `/opt/o/.git/config`（commondir 共享件，全 worktree 共读）；相对径
+  按各 worktree 顶层解析（t0325 干跑钩发自报实证解析正确）。
+  边界注：早于本票分支的 worktree 树内无 post-commit 件=钩缺省不跑，
+  与归位前行为一致，非回归。
+- [x] 空 commit 干跑→ops_event 收口行实录——空 commit `7a3e6b3c`
+  （subject 含「收口」）→ 钩发 `report.sh 收口 T-0325 auto@7a3e6b3c`；
+  **ops_event id=1612**（seat=施工席,event=收口,note=auto@7a3e6b3c），
+  relay 同行 `[11-04 14:12:07]`。对照组：前置入库 commit 80253201
+  subject 无触发词→零自报行，静默径同证。
+- [x] 死径坑条目回改点：`docs/工程经验库/条目/core-hookspath-dead-install-face.md`
+  修法/回改点两段已改引本票完成态（id=1612 引案）。
+- [x] 部署树 `.git/hooks/post-commit` 死件处置：**已删**（按票面建议——
+  死径误导再装风险清除；`ls /opt/o/.git/hooks/` 仅余 sample 件）。
 
 ## 范围外
 
