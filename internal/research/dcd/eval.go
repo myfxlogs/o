@@ -11,6 +11,8 @@ import (
 	"math"
 	"strings"
 	"time"
+
+	"o/internal/platform/execfam"
 )
 
 // Params 阈闸判据（票面初版数值种 0043——热启可调）。
@@ -208,7 +210,12 @@ func (r *Runner) persistProduct(ctx context.Context, s Surface, p Product, spot 
 }
 
 // persistEval 评估卡落表；proposed 且无 open 同品提案→fin_proposal 行（闸后唯一提案径）。
+// T-0330 前置拒：执行径未建族（dcd_put 等）proposed 翻 rejected/exec_family_
+// missing 如实，不进提案队列（族码=template 列）。
 func (r *Runner) persistEval(ctx context.Context, e Eval) error {
+	if e.Verdict == "proposed" && !execfam.Has(e.Template) {
+		e.Verdict, e.Reason = "rejected", "exec_family_missing"
+	}
 	legs, _ := json.Marshal(e.Legs())
 	ev, _ := json.Marshal(e.Evidence())
 	var evalID int64

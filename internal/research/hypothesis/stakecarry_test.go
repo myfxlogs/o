@@ -1,6 +1,7 @@
 // stakecarry_test.go —— stake_carry 双头臂桩测（T-0320 验收锚③④）：
 // 能力面二维积（staking×swap-carry on ccy）→TRX 同构提案链——
-// staking 注册+cmc 实收+trx 质押率→卡+评估 proposed+fin_proposed；
+// staking 注册+cmc 实收+trx 质押率→卡+评估（T-0330：执行径未建族
+// 前置拒 rejected/exec_family_missing——提案零行不入队）；
 // 质押率缺席/carry 面非正=不枚举如实。
 package hypothesis
 
@@ -41,8 +42,9 @@ func seedStakeCarry(t *testing.T, ctx context.Context, r *Runner) {
 	})
 }
 
-// 锚④：TRX 标定——枚举面自动产出 cmc:TRX 同构提案进 proposed
-// （卡 family=stake_carry+eval proposed+fin_proposed 行）。
+// 锚④：TRX 标定——枚举面自动产出 cmc:TRX 同构评估（卡 family=stake_carry
+// 立+eval 落行；T-0330：stake-carry 未建执行径→前置拒 rejected/
+// exec_family_missing，fin_proposal 零行）。
 func TestStakeCarryTrx(t *testing.T) {
 	ctx, r := xsetup(t)
 	seedStakeCarry(t, ctx, r)
@@ -63,19 +65,18 @@ func TestStakeCarryTrx(t *testing.T) {
 		t.Fatal("cmc:TRX 评估行应落:", err)
 	}
 	// stake≈333bps+cmc≈1000bps−50→≈1283bps≈0.1283。
-	if verdict != "proposed" || net < 0.10 {
-		t.Fatalf("eval verdict/net=%s/%v（应 proposed≈0.13）", verdict, net)
+	// T-0330 前置拒：执行径未建族→rejected/exec_family_missing（净年化
+	// 分量仍如实落 evidence/net_apr 列）。
+	if verdict != "rejected" || ev["reason"] != "exec_family_missing" || net < 0.10 {
+		t.Fatalf("eval verdict/reason/net=%s/%v/%v（应 rejected/exec_family_missing/≈0.13）",
+			verdict, ev["reason"], net)
 	}
 	if ev["stake_apr_bps"].(float64) <= 0 || ev["short_ann_bps"].(float64) <= 0 {
 		t.Fatalf("双腿分量缺: %v", ev)
 	}
-	var dir string
-	if err := r.pool.QueryRow(ctx, `SELECT direction FROM fin_proposal
-		WHERE inst_id='cmc:TRX'`).Scan(&dir); err != nil {
-		t.Fatal("cmc:TRX 提案行应立:", err)
-	}
-	if dir != "stake_carry" {
-		t.Fatalf("提案 direction=%s", dir)
+	if n := count(t, ctx, r, `SELECT count(*) FROM fin_proposal
+		WHERE inst_id='cmc:TRX'`); n != 0 {
+		t.Fatalf("未建族提案应零行: %d", n)
 	}
 }
 

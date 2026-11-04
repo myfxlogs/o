@@ -65,8 +65,9 @@ func count(t *testing.T, ctx context.Context, r *Runner, q string, args ...any) 
 	return n
 }
 
-// 锚链：夹具 products→快照 6 行→评估行 verdict/证据→合格品提案 2 行→
-// 重扫不叠（单 uly 方向闸+提案幂等）。
+// 锚链：夹具 products→快照 6 行→评估行 verdict/证据→合格品提案 1 行
+// （T-0330：dcd_put 执行径未建族前置拒 rejected/exec_family_missing——
+// P 合格品不再进提案队列）→重扫不叠（单 uly 方向闸+提案幂等）。
 func TestDCDEnumerateEvaluatePropose(t *testing.T) {
 	ctx, r := setup(t)
 	if _, err := r.pool.Exec(ctx,
@@ -84,8 +85,15 @@ func TestDCDEnumerateEvaluatePropose(t *testing.T) {
 		t.Fatalf("快照应 6 行: %d", n)
 	}
 	if n := count(t, ctx, r, `SELECT count(*) FROM fin_opp_eval WHERE template LIKE 'dcd_%'
-		AND verdict='proposed'`); n != 2 {
-		t.Fatalf("合格品评估应 2: %d", n)
+		AND verdict='proposed'`); n != 1 {
+		t.Fatalf("合格品评估应 1（dcd_call 独苗——dcd_put 前置拒）: %d", n)
+	}
+	// T-0330 锚：P 合格品（dcd_put=执行径未建族）前置拒——rejected/
+	// exec_family_missing 族码归因落证据。
+	if n := count(t, ctx, r, `SELECT count(*) FROM fin_opp_eval
+		WHERE template='dcd_put' AND verdict='rejected'
+		AND evidence->>'reason'='exec_family_missing'`); n < 1 {
+		t.Fatalf("dcd_put 前置拒行缺: %d", n)
 	}
 	var strike, dist, spot, term float64
 	if err := r.pool.QueryRow(ctx, `SELECT (evidence->>'strike')::numeric,
@@ -104,21 +112,21 @@ func TestDCDEnumerateEvaluatePropose(t *testing.T) {
 		}
 	}
 	if n := count(t, ctx, r, `SELECT count(*) FROM fin_proposal
-		WHERE inst_id LIKE 'BTC-USDT%' AND state='fin_proposed'`); n != 2 {
-		t.Fatalf("提案应恰 2（C+P）: %d", n)
+		WHERE inst_id LIKE 'BTC-USDT%' AND state='fin_proposed'`); n != 1 {
+		t.Fatalf("提案应恰 1（仅 C——P 前置拒不入队）: %d", n)
 	}
-	// 重扫：单 uly 方向不叠+提案幂等——提案仍 2，重评行 rejected。
+	// 重扫：单 uly 方向不叠+提案幂等——提案仍 1，重评行 rejected。
 	// lastAt 重置越节流窗（生产=事件风暴节流，测试=逐拍显式放行）。
 	r.lastAt = time.Time{}
 	if err := r.ScanOnce(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if n := count(t, ctx, r, `SELECT count(*) FROM fin_proposal
-		WHERE inst_id LIKE 'BTC-USDT%' AND state='fin_proposed'`); n != 2 {
-		t.Fatalf("重扫提案应仍 2（不叠）: %d", n)
+		WHERE inst_id LIKE 'BTC-USDT%' AND state='fin_proposed'`); n != 1 {
+		t.Fatalf("重扫提案应仍 1（不叠）: %d", n)
 	}
 	if n := count(t, ctx, r, `SELECT count(*) FROM fin_opp_eval
-		WHERE evidence->>'reason'='duplicate_direction'`); n < 2 {
+		WHERE evidence->>'reason'='duplicate_direction'`); n < 1 {
 		t.Fatalf("重扫应出方向叠拒因: %d", n)
 	}
 }

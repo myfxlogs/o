@@ -17,6 +17,8 @@ import (
 	"encoding/json"
 	"log"
 	"math"
+
+	"o/internal/platform/execfam"
 )
 
 // xvenueCarryScan 信号臂 xvenue_carry 支路（ScanSignals 尾调）：carry_diff
@@ -194,6 +196,12 @@ func (r *Runner) xvenueCarryEval(ctx context.Context, okxInst, dir string, net, 
 		} else if net < 0 {
 			verdict, reason = "rejected", "net_ann_negative"
 		}
+	}
+	// T-0330 前置拒：执行径未建族——xvenue-carry armed→open 显式禁（T-0145
+	// 未派案），全谱过阈也 direct rejected/exec_family_missing 如实，不进
+	// 提案队列淤积等死（族码=本行 template 列）。
+	if verdict == "proposed" && !execfam.Has("xvenue-carry") {
+		verdict, reason = "rejected", "exec_family_missing"
 	}
 	if sErr != nil {
 		spread = 0 // 点差缺席——evidence 零值如实

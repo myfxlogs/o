@@ -11,6 +11,7 @@ import (
 
 	"o/internal/platform/config"
 	"o/internal/platform/events"
+	"o/internal/platform/execfam"
 	"o/internal/platform/rejects"
 	"o/internal/platform/roster"
 )
@@ -108,12 +109,9 @@ func (r *Runner) scan(ctx context.Context) error {
 	return nil
 }
 
-// paperTemplates 有 paper 径的模板族白名单（T-0124 模板门闸——无 executor 的
-// 模板提案不晋升，留 fin_proposed 待 executor 票；扩张新族须在此登记）。
-var paperTemplates = map[string]bool{"funding-hedge": true, "dcd_call": true,
-	"vol_sell_strangle": true, "vol_sell_single_call": true,
-	"quarter_basis_long": true, "perp_quarter_spread": true} // T-0160：dcd_call 接 paper 径；T-0215：vol-sell 两族+T-0216：basis 两族 paper 先行
-// （宪章沙箱段；quarter_basis_short=spot_short 腿缺 margin 能力面——不在白名单）
+// admitProposals 模板门闸读执行径族册——o/internal/platform/execfam 唯一
+// 真源（T-0124 模板门闸——无 executor 的模板提案不晋升，留 fin_proposed 待
+// executor 票；T-0330：册归并 execfam 与评估侧前置拒同读，扩族单点登记）。
 
 // admitProposals 新提案开户（state=paper；criteria 快照入行——判据代次留痕；
 // 模板门闸：join fin_opp_eval 取模板，无 paper 径族拦下不建策略）。
@@ -143,7 +141,7 @@ func (r *Runner) admitProposals(ctx context.Context, notional, minH, minNet, max
 	rows.Close()
 	blocked := map[string]int{}
 	for _, x := range ps {
-		if !paperTemplates[x.tmpl] {
+		if !execfam.Has(x.tmpl) {
 			blocked[x.tmpl]++
 			continue // executor 缺席=看见了做不了——提案留 proposed（模板门闸，T-0124）
 		}
