@@ -69,8 +69,11 @@ case "$SESSION_STATE" in
 	*) echo "Devin session discovery failed; refusing cold restart" >&2; hb stalled; exit 1 ;;
 esac
 
+TRANSCRIPT_FILE=$(mktemp "$SESSION_DIR/.devin-usage.XXXXXX.json")
+chmod 600 "$TRANSCRIPT_FILE"
 set +e
-"$DEVIN_BIN" "${DEVIN_ARGS[@]}" -p --model "$MODEL" \
+
+"$DEVIN_BIN" "${DEVIN_ARGS[@]}" --export "$TRANSCRIPT_FILE" -p --model "$MODEL" \
 	--respect-workspace-trust false --permission-mode dangerous -- "$PROMPT" 2>&1 | tee "$LOG_FILE"
 RC=${PIPESTATUS[0]}
 set -e
@@ -80,6 +83,21 @@ if o_worker_is_rate_limited "$LOG_FILE"; then
 	echo "[worker] free-model rate limit; queued until epoch $quota_reset"
 	"$REPORT_BIN" 挂起 "$TID" "rate-limit:auto until=$quota_reset model=$MODEL" >/dev/null 2>&1 || true
 	RC=1
+fi
+
+USAGE_BIN=${O_WORKER_USAGE_BIN:-$SCRIPT_DIR/ticket_usage.sh}
+if [ -e "$TRANSCRIPT_FILE" ]; then
+	chmod 600 "$TRANSCRIPT_FILE" 2>/dev/null || true
+fi
+if [ -s "$TRANSCRIPT_FILE" ]; then
+	if "$USAGE_BIN" "$TID" run 施工席 "$TRANSCRIPT_FILE" "$FIN_DSN"; then
+		rm -f "$TRANSCRIPT_FILE"
+	else
+		echo "[worker] token usage collection failed; continuing ticket lifecycle; transcript kept=$TRANSCRIPT_FILE" >&2
+	fi
+else
+	echo "[worker] token transcript missing/empty; continuing ticket lifecycle" >&2
+	rm -f "$TRANSCRIPT_FILE"
 fi
 [ $RC -eq 0 ] && hb alive || hb stalled
 exit 0
