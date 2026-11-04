@@ -30,3 +30,10 @@ domain: 工程
 
 ## 域界
 - 瞬态 run 只做一票（票域独占天然隔离）；O-Dev pane 人工位不属本卡。
+
+## 退休纪律（T-0331 钦定——坟场防复发）
+
+- 票翻完成→顺手 `git worktree remove <树>` + `git branch -d <枝>`
+  （合入即删——未合枝保留记档，-d 天然拒删未合）；
+- GC 兜底：`scripts/meta/wt_gc.sh [--dry-run]`——unit 活+树龄双闸
+  禁碰活 run 工树；清场数 ops_event `GC` 行录。
