@@ -35,6 +35,11 @@ service CoreService {
   rpc GetHeadless(GetHeadlessRequest) returns (GetHeadlessResponse) {}
   rpc GetPipeline(GetPipelineRequest) returns (GetPipelineResponse) {}
   rpc GetFlowPulse(GetFlowPulseRequest) returns (GetFlowPulseResponse) {} // T-0307 活水段
+  // —— T-0342 Earn 自动申购停用开关（业主令：前端临时停用自动转入，不赎回
+  // 现有持仓；Set=窄写面——只许写 earn.auto_purchase_enabled 一键，Origin
+  // 同源闸：缺席/跨源=拒）——
+  rpc GetEarnAutoPurchase(GetEarnAutoPurchaseRequest) returns (GetEarnAutoPurchaseResponse) {}
+  rpc SetEarnAutoPurchase(SetEarnAutoPurchaseRequest) returns (SetEarnAutoPurchaseResponse) {}
 }
 
 message PingRequest {}
@@ -507,4 +512,23 @@ message GetFlowPulseResponse {
   int64 roster_worst_lag_s = 3;  // 最坏心跳滞后秒（min(last_beat) 派生——缺=0）
   google.protobuf.Timestamp as_of = 4;
   repeated WorkItem work_items = 5;    // 钱径工件行（proposal→position→venue 序，cap 10）
+}
+
+// —— T-0342 Earn 自动申购停用开关面——
+
+message GetEarnAutoPurchaseRequest {}
+message GetEarnAutoPurchaseResponse {
+  bool enabled = 1;                     // earn.auto_purchase_enabled 真值（缺键=false 停用显形——fail-closed 口径同 worker）
+  google.protobuf.Timestamp updated_at = 2; // 空=键无行
+  string updated_by = 3;                // app_config 审计列
+  string note = 4;                      // 末次翻位理由（ops_event 行；空=无在案）
+}
+message SetEarnAutoPurchaseRequest {
+  bool enabled = 1;
+  string reason = 2;                    // 翻位理由（审计留痕——ops_event 落行）
+}
+message SetEarnAutoPurchaseResponse {
+  bool enabled = 1;                     // 写后真值（库面重读非回显）
+  google.protobuf.Timestamp updated_at = 2;
+  string updated_by = 3;
 }

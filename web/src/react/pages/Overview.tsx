@@ -3,6 +3,7 @@
 import { client } from "../api";
 import { useLive } from "../hooks";
 import { Card, EmptyState, ErrorState, Skeleton, StateDot } from "../components/ui";
+import { EarnToggle } from "../components/EarnToggle";
 import { fmtUsd } from "../components/fmt";
 import { useEffect, useState } from "react";
 import type { MoneyRow } from "../../gen/dashboardv1/core_pb";
@@ -168,6 +169,8 @@ export function OverviewPage() {
         ) : (
           <MoneyTree rows={o.money ?? []} />
         )}
+        {/* T-0342：Earn 自动申购开关——贴 Earn 展示处（钱在哪卡） */}
+        <EarnToggle />
       </Card>
       </div>
     </div>
