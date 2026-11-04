@@ -15,15 +15,28 @@ import (
 	"o/internal/platform/config"
 	"o/internal/trading/okxexec"
 
+	mt5pb "o/internal/gen/mtapi/mt5"
+
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // mt5Acct MT5 户行（T-0096——login=真实账号，equity=净值现读 USD 本位；
-// balance=可用余额附标）。
+// balance=可用余额附标。T-0327：orders=在持定单枚举——残仓面 venue 实拍源，
+// 读败=ordersErr 显形不静默不假零）。
 type mt5Acct struct {
 	Login   string
 	Equity  float64
 	Balance float64
+	// T-0327：venue 在持定单（残仓归属判定源——同会话捎读，零额外线）。
+	Orders    []mt5Ord
+	OrdersErr error
+}
+
+// mt5Ord MT5 在持定单行（残仓展示要素——symbol/ticket/开仓时点）。
+type mt5Ord struct {
+	Symbol string
+	Ticket int64
+	At     time.Time
 }
 
 // mt5 会话单飞+短窗缓存（T-0101 验收修补：mtapi 并发会话读 AccountSummary
@@ -64,7 +77,24 @@ func mt5SummaryOnce(ctx context.Context, pool *pgxpool.Pool, cfg *config.Client,
 		mt5Sum.err = fmt.Errorf("mt5 facts/summary: %v / %v", ferr, aerr)
 		return mt5Sum.acct, mt5Sum.err
 	}
-	mt5Sum.acct = mt5Acct{Login: fmt.Sprintf("%d", login), Equity: eq, Balance: bal}
+	acct := mt5Acct{Login: fmt.Sprintf("%d", login), Equity: eq, Balance: bal}
+	// T-0327：同会话捎读在持定单（残仓面枚举源——并发会话互踩返零坑在案，
+	// 故不另开线；单读败=ordersErr 显形不拖 summary 主读）。
+	if r, oerr := cl.MT5().OpenedOrders(cl.Authed(ctx),
+		&mt5pb.OpenedOrdersRequest{Id: cl.Token()}); oerr != nil {
+		acct.OrdersErr = oerr
+	} else if e := r.GetError(); e != nil {
+		acct.OrdersErr = fmt.Errorf("opened orders: %s", e.GetMessage())
+	} else {
+		for _, o := range r.GetResult() {
+			mo := mt5Ord{Symbol: o.GetSymbol(), Ticket: o.GetTicket()}
+			if t := o.GetOpenTime(); t != nil {
+				mo.At = t.AsTime()
+			}
+			acct.Orders = append(acct.Orders, mo)
+		}
+	}
+	mt5Sum.acct = acct
 	mt5Sum.at, mt5Sum.err = time.Now(), nil
 	return mt5Sum.acct, nil
 }
@@ -122,6 +152,18 @@ func earnLiveFor(okcli *okxexec.Client) func(context.Context) (map[string]float6
 			out[r2.Ccy] += okxexec.ParseF(r2.Amt)
 		}
 		return out, nil
+	}
+}
+
+// posLiveFor OKX 账户持仓活读件（T-0327：/account/positions 全枚举——残仓
+// 面 venue 实拍源；凭据缺席/读败=err 上抛，消费方显「读件缺」不假零。
+// 无缓存——端点非限流敏感（dcd 429 案独属产品族），直读随卡面刷新频度）。
+func posLiveFor(okcli *okxexec.Client) func(context.Context) ([]okxexec.Position, error) {
+	return func(ctx context.Context) ([]okxexec.Position, error) {
+		if okcli == nil {
+			return nil, fmt.Errorf("okx positions 读件缺席（凭据缺）")
+		}
+		return okcli.Positions(ctx)
 	}
 }
 

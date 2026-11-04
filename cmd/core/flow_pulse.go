@@ -127,7 +127,8 @@ func (c coreService) workItems(ctx context.Context) []*dashboardv1.WorkItem {
 		}
 		rs.Close()
 	}
-	// ②position 未平。
+	// ②position 未平+残仓臂（T-0327——venue 在持无活策略归属类级入集：策略
+	// 死/产品活幽灵态在工件面显形；读件缺=显缺行不静默不假零）。
 	if rs, err := c.pool.Query(ctx, `SELECT inst_id, opened_at FROM fin_position
 		WHERE closed_at IS NULL ORDER BY opened_at DESC`); err == nil {
 		for rs.Next() {
@@ -143,6 +144,19 @@ func (c coreService) workItems(ctx context.Context) []*dashboardv1.WorkItem {
 			out = append(out, w)
 		}
 		rs.Close()
+	}
+	if rems, rmiss := c.venueRemnants(ctx); len(rems)+len(rmiss) > 0 {
+		for _, it := range rems {
+			w := &dashboardv1.WorkItem{Kind: "position", Ref: it.ref, Stage: "残仓"}
+			if it.since != nil {
+				w.SinceTs = timestamppb.New(*it.since)
+			}
+			out = append(out, w)
+		}
+		for _, m := range rmiss {
+			out = append(out, &dashboardv1.WorkItem{Kind: "position",
+				Ref: "残仓面 " + m, Stage: "读件缺"})
+		}
 	}
 	// ③venue measuring（返修①：md_venue_funding 归 PG-md 不在 SG——原联查
 	// 必败致整类缺席；progress 改读 metrics.boards persist 显「持续 XX%」——

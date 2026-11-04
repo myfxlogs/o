@@ -244,7 +244,7 @@ func run() error {
 	md := &mdStats{frames: collector.FrameCount, lastFrame: collector.LastFrame,
 		rejects: collector.Stats.Snapshot, netKbps: meter.RateKbps, netChannels: meter.Channels}
 	svc, navFn := assemble(pool, fundingLiveFor(okcli), earnLiveFor(okcli),
-		mt5LiveFor(pool, cfg), dcdLiveFor(okcli), trxW, md)
+		mt5LiveFor(pool, cfg), dcdLiveFor(okcli), posLiveFor(okcli), trxW, md)
 	var pusher *report.Pusher
 	{
 		mk, _ := config.ReadMasterKey()
