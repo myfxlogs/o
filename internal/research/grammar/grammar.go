@@ -18,6 +18,8 @@ const (
 	EarnDeposit     LegPrim = "earn_deposit"
 	EarnTermDeposit LegPrim = "earn_term_deposit"
 	LendingBorrow   LegPrim = "lending_borrow"
+	SpotLongStaked  LegPrim = "spot_long_staked" // T-0320：质押态长现货（非裸持）
+	CfdShort        LegPrim = "cfd_short"        // T-0320：CFD 空单（swap 付费 venue）
 )
 
 // Family 组合律族——模板名+腿原语集+结算原语+所需能力面（venue→面清单，
@@ -83,6 +85,14 @@ func Families() []Family {
 			Legs: []LegPrim{SpotLong}, Settle: "swap_daily",
 			NeedFace:   map[string][]string{"mt5": {"catalog", "symbols"}},
 			PrimaryVen: "mt5", PrimarySurf: "catalog"},
+		// ⑤ stake_carry 双头族（T-0320——质押现货+空单付费双腿同构业主
+		// TRX 自营盘；NeedFace=二维积具体面：质押维注册+空单付费面注册。
+		// executor 缺=假想卡（逐资产实例枚举归假想官 stakeCarryScan 臂）；
+		// Kind 自立词——通用 carry 评估器不覆写（实例级评估归双头臂）。
+		{Template: "stake_carry", Direction: "stake_carry", Kind: "stake_carry",
+			Legs: []LegPrim{SpotLongStaked, CfdShort}, Settle: "swap_daily",
+			NeedFace:   map[string][]string{"tron": {"staking-TRX"}, "cmc": {"swap-carry-TRX"}},
+			PrimaryVen: "cmc", PrimarySurf: "swap-carry-TRX"},
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -40,6 +41,9 @@ type Runner struct {
 	spotFeed func(ctx context.Context) ([]byte, error)
 	spotAt   time.Time
 	spots    map[string]bool
+	// T-0320 质押分量率行新鲜度门（research.stake.stale_hours 热启——
+	// params 拍读一次；<=0=不闸率行龄）。
+	stakeStaleH float64
 }
 
 // AttachSpotFeed 挂 SPOT 目录读件（T-0150 起草闸——market/tickers 全量
@@ -53,7 +57,7 @@ func (r *Runner) AttachSpotFeed(fn func(ctx context.Context) ([]byte, error)) *R
 func NewRunner(pool *pgxpool.Pool, cfg *config.Client) *Runner {
 	return &Runner{pool: pool, cfg: cfg, watch: armwatch.New("funding 枚举"),
 		rej: rejects.New("research", "missing_params", "stale_funding", "neg_funding_infeasible",
-			"write_err", "earn_rate_degraded", "gate_kill", "no_spot_leg")}
+			"write_err", "earn_rate_degraded", "gate_kill", "no_spot_leg", "stake_yield_err")}
 }
 
 // AttachAlerter 挂业主告警通道（臂静默——T-0117 返修）。
@@ -106,6 +110,15 @@ func (r *Runner) params() (Params, error) {
 	return p, nil
 }
 
+// stakeStale 质押分量率行新鲜度门读（research.stake.stale_hours——
+// 缺/坏=0 不闸，慢特征率行如实取；scan 拍内调一次非逐 inst）。
+func (r *Runner) stakeStale() float64 {
+	if v, err := r.cfg.GetFloat("research.stake.stale_hours"); err == nil && v > 0 {
+		return v
+	}
+	return 0
+}
+
 // scan 一拍：Earn 现率→md_funding 最新行/inst_id → 动态底五拆评估 → 落卡 → 阈闸提案。
 // 读评分离+写拍批内合流（T-0162）：先排干 md_funding 快照完成评估（读面零写），
 // 写面整体单事务落卡——同事务空 payload NOTIFY 同值天然去重=全拍至多一醒
@@ -141,7 +154,8 @@ func (r *Runner) scan(ctx context.Context) error {
 		r.rej.Inc("earn_rate_degraded") // 降级不阻断：退回静态底+告警计数（D-0006）
 	}
 	p.EarnRateAPR = earnAPR
-	macro := r.nearestMacro(ctx) // T-0029：产径注解源——一拍一查全拍复用
+	r.stakeStaleH = r.stakeStale() // T-0320：质押分量率行龄门（拍级一次非逐 inst）
+	macro := r.nearestMacro(ctx)   // T-0029：产径注解源——一拍一查全拍复用
 	rows, err := r.pool.Query(ctx, `SELECT DISTINCT ON (inst_id) inst_id, funding_rate, ts
 		FROM md_funding ORDER BY inst_id, ts DESC`)
 	if err != nil {
@@ -160,7 +174,15 @@ func (r *Runner) scan(ctx context.Context) error {
 			r.rej.Inc("stale_funding")
 			continue // 陈数据不评估（快照禁令——陈行非现值）
 		}
-		e := Evaluate(instID, rate, p)
+		// T-0320 质押腿分量：基币质押率源解析（缺席=Yield 零值入评不虚构）。
+		sy, yok, yerr := SpotYield(ctx, r.pool, strings.TrimSuffix(instID, "-USDT-SWAP"), r.stakeStaleH)
+		if yerr != nil {
+			r.rej.Inc("stake_yield_err")
+			sy = Yield{}
+		} else if !yok {
+			sy = Yield{}
+		}
+		e := Evaluate(instID, rate, p, sy)
 		applyMacro(&e, macro) // 近窗事件→evidence.macro（纯注解层）
 		if e.Verdict == "rejected" && rate < 0 {
 			r.rej.Inc("neg_funding_infeasible")

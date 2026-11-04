@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | 施工中 |
+| 状态 | 待验 |
 | 立项 | 业主直令 @ 2026-11-04（`[角色:讨论]` session 代笔——业主明令「直接立票进待办」；草案→已批仍归决策审批） |
 | 领取 | devin-施工 @ 2026-11-04（o-worker t/0320-dual-carry-calib） |
 | 优先级 | 高 |
@@ -43,6 +43,47 @@
 
 ## 结果回填
 
-（施工写：实现摘要 / 测试证据 / 偏离说明）
+**实现摘要**
+
+1. **质押腿入 eval**：`funding.Evaluate` 增 `Yield` 分量（gross=资金费年化+质押 APR）；
+   `spotyield.go` 率源读件——能力面 `product_family='staking'` 注册行（ccy→rate_source）
+   闭集派发：`trx_onchain`（fin_trx_vote_apr 投票+fin_trx_txs/fin_trx_account 租金实收
+   折算）/`md_earn_rate`；域缺席（42P01）/行缺/超龄（research.stake.stale_hours）=缺席
+   如实分量置零不虚构；空 spot 反向腿方向闸置零。
+2. **能力面质押维+空单付费维**（md_1086）：`tron/staking-TRX`（stakable+rate_source）
+   左元；`cmc/okx/mt5 swap-carry-TRX` 右元——二维积=stakable×swap-carry on ccy join；
+   mt5 TRXUSD 实测缺口 enabled=false 关面登记。
+3. **grammar `stake_carry` 族**（LegPrim+`spot_long_staked`/`cfd_short`）→candidate
+   模板+假想卡；**假想官 `stakeCarryScan` 臂**：二维积枚举→双头净年化→
+   卡+评估+提案止 fin_proposed（direction 闭集扩 'stake_carry'，md_1086/fin_0105 双链）。
+4. **率源闭集**：cmc_realized（fin_cmc_history 30d 日均实收÷空腿名义×365）/
+   mt5_swap/funding_view；阈 research.signal.stake_carry_net_bps=300bps+
+   buffer 50bps 热启。
+
+**测试证据**
+
+- `TestSpotLegYield`/`TestScanSpotYieldE2E`：TRX-USDT-SWAP eval 行
+  spot_leg_yield_apr=0.0333 非零入 gross 0.1428（0.1095+0.0333）；反向置零。
+- `TestStakeCarryTrx`：staking×swap-carry 二维积→`cmc/stake_carry-TRX` 卡
+  proposed+eval proposed+fin_proposed 提案链（净≈1283bps）。
+- dev 实证（o-postgres@5433 实数据）：`stakeCarryScan` 产出 cmc:TRX
+  卡+评估 proposed net=0.1283+fin_proposed 提案；grammar 出 `stake_carry`
+  candidate 模板+`stake_carry_template` 假想卡；业主实盘口径 ≈13%/年对拍符。
+- `fin_capability_surface` 4 行实证（staking×1+swap-carry×3）。
+- go build/vet/gofmt/test(`internal/research/...` 全绿)/check_migrations/
+  rejects/import 方向（hypothesis→funding 白名单加边——SpotYield 共用读件
+  同 EarnRate 先例）全过。
+
+**偏离说明**
+
+- **CMC/MT5 实测如实记阻塞**：EXR 3001157（既有 MT5 桥凭据）TRXUSD 在目录但
+  SwapType=SwapNone+TradeMode_Disabled——该 venue TRX swap=0 且不可交易，
+  `carry_diff` 无数据可差（探针实采 2026-11-04，mutating 零触）；缺口
+  以 `mt5/swap-carry-TRX` enabled=false 登记入册。TRX 空单付费实际数据源
+  =CMC 业主盘实收隔夜结算（~10%/年，fin_cmc_history 实数）。
+- dev 库 md_funding 陈 >25h——funding 扫在此库不产出新 eval 行属新鲜度门
+  正常行为；行实证以集成测试锚行+机制在案（生产鲜数下自然带分量）。
+- fin_trx_*/fin_cmc_* 归 fin 域（SG 侧正本）——研究臂在 OCI 盒 PG-md 读不到
+  属域缺席如实（42P01 路径已埋），数据面如需上盒走反向桥扩列另立票。
 
 审批注记（决策交互形态 @2026-11-04）：**已批**。口径修三件锚全可机检（eval分量/能力面维度/枚举实例行实证）；红线零碰（不开live不动钱径）；授权录上限非免检在案；标定判据「系统复生业主已验证机会」=发现层最硬验收式。施工提示词另立。

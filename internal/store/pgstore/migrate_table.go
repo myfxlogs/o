@@ -111,6 +111,7 @@ var migrationTable = []struct {
 	{102, "fin_0102_econ_lesson.sql"},
 	{103, "fin_0103_roster_grants.sql"},
 	{104, "fin_0104_eventbus_grants.sql"},
+	{105, "fin_0105_stake_carry.sql"},
 
 	// —— md 链（版本链内唯一且单调；md 链版本=历史号+1000 与 fin 键空间全局不相交——跨链并 schema 时 schema_migrations 零撞号，check_migrations 断言①⑤）——
 	{1003, "md_1003_market_facts.sql"},
@@ -155,4 +156,5 @@ var migrationTable = []struct {
 	{1083, "md_1083_ctx_regime.sql"},
 	{1084, "md_1084_ctx_dedupe.sql"},
 	{1085, "md_1085_venue_measuring.sql"},
+	{1086, "md_1086_stake_carry.sql"},
 }

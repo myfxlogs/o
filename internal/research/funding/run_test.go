@@ -3,6 +3,7 @@ package funding
 import (
 	"context"
 	"encoding/json"
+	"math"
 	"testing"
 
 	"github.com/jackc/pgx/v5"
@@ -414,5 +415,67 @@ func TestSpotLegPrecheckGate(t *testing.T) {
 	pool.QueryRow(ctx, `SELECT evidence->>'reason' FROM fin_opp_eval WHERE inst_id='TEST-USDT-SWAP'`).Scan(&reason)
 	if reason != "blacklisted" {
 		t.Fatalf("黑名单拒因应 blacklisted got %q", reason)
+	}
+}
+
+// TestScanSpotYieldE2E T-0320 验收锚①行实证：staking 注册+trx 质押率→
+// funding-hedge 评估行 spot_leg_yield_apr 非零且入 gross/net 总分。
+func TestScanSpotYieldE2E(t *testing.T) {
+	pool := testutil.Pool(t)
+	ctx := context.Background()
+	if err := pgstore.Migrate(ctx, pool, "md"); err != nil {
+		t.Fatal(err)
+	}
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatal(err)
+	}
+	for k, v := range map[string]string{
+		"research.funding.taker_fee_bps": "5", "research.funding.slippage_bps": "3",
+		"research.funding.fail_cost_bps": "2", "research.funding.window_loss_bps": "4",
+		"research.funding.min_net_apr": "0.05", "research.funding.settles_per_day": "3",
+		"guard.max_hold_hours": "72", "research.stake.stale_hours": "168"} {
+		if _, err := pool.Exec(ctx,
+			"INSERT INTO app_config(key,value) VALUES($1,to_jsonb($2::text)) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value", k, v); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, q := range []string{
+		`INSERT INTO fin_capability_surface(venue,surface,endpoint_family,product_family,rw_class,cost_attrs,enabled)
+		 VALUES('tron','staking-TRX','tron-chain-staking','staking','read',
+		 '{"ccy":"TRX","stakable":true,"rate_source":"trx_onchain"}',true)
+		 ON CONFLICT (venue,surface) DO NOTHING`,
+		`INSERT INTO fin_trx_vote_apr(fetched_at,current_rate,max_rate,min_rate,spread)
+		 VALUES(now(),3.33,3.35,3.30,0.05)`,
+		`INSERT INTO fin_trx_account(address,votes_total,balance_sun,allowance_sun,energy_delegated,bandwidth_staked,net_limit)
+		 VALUES('TTEST',0,0,0,0,0,0)`,
+		`INSERT INTO md_funding(ts,inst_id,funding_rate) VALUES(now(),'TRX-USDT-SWAP',0.0001)`,
+	} {
+		if _, err := pool.Exec(ctx, q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cfg := config.New(pool)
+	if err := cfg.Load(ctx); err != nil {
+		t.Fatal(err)
+	}
+	r := NewRunner(pool, cfg)
+	if err := r.scan(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var gross, net, yield float64
+	var src string
+	if err := pool.QueryRow(ctx, `SELECT gross_apr,net_apr,
+		(evidence->>'spot_leg_yield_apr')::float8,(evidence->>'spot_yield_source')
+		FROM fin_opp_eval WHERE inst_id='TRX-USDT-SWAP'`).Scan(&gross, &net, &yield, &src); err != nil {
+		t.Fatal("TRX 评估行应落:", err)
+	}
+	// 分量=0.0333（vote 3.33%）；gross=0.0001*3*365+0.0333=0.1428；净=gross−cost_apr。
+	if yield != 0.0333 || src != "trx_onchain" {
+		t.Fatalf("分量/源=%v/%s（应 0.0333/trx_onchain）", yield, src)
+	}
+	// 分量入总分：gross=0.1428（0.1095 资金费+0.0333 质押）；net=gross−cost_apr
+	// （0.3893≈32bps×365/3d——净负如实，质押分量仍 +0.0333 上移）。
+	if math.Abs(gross-0.1428) > 1e-9 || math.Abs(net-(gross-0.0032*365/3)) > 1e-6 {
+		t.Fatalf("质押分量未入总分: gross=%v net=%v", gross, net)
 	}
 }
