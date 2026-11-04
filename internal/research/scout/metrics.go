@@ -221,7 +221,9 @@ func (r *Runner) maybeRecommend(ctx context.Context, venue string, boards []Boar
 	if lastReq != nil && r.now().Sub(*lastReq) < 30*24*time.Hour {
 		return nil // 30d 重发闸
 	}
-	for _, b := range boards {
+	for i := range boards { // T-0316：索引迭代不拷锁（Board=proto 型含
+		// MessageState——值拷贝 vet copylocks 诊；型本身零改）
+		b := &boards[i]
 		if b.NetAprMid >= b.Baseline+margin && b.Persist >= persistReq {
 			if _, err := r.pool.Exec(ctx, `UPDATE fin_venue_candidate
 				SET state='recommended', last_request_at=now() WHERE venue=$1`, venue); err != nil {
