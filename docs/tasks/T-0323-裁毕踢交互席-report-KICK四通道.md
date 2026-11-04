@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | 已批 |
+| 状态 | **施工中**（devin @ 2026-11-04） |
 | 立项 | `[角色:决策]` devin @ 2026-11-04（业主令——T-0318 裁毕踢飞书未踢交互席实证缺） |
 | 领取 | （空=未领） |
 | 优先级 | 高——裁决完成不激活交互席=编排停拍等傻轮询（今日实证 25min 空轮） |
@@ -50,3 +50,16 @@
 - 不动 metabus/eventbus/钩。
 - 席「何时派单」的判据归决策席 SKILL/职卡（队列序+返修子票白名单）——
   本票只管踢径机制与双目标传输。
+
+## 施工回填（devin-t0323 @ 2026-11-04，分支 t/0323-319-wake-relay）
+
+- `~/bin/report.sh`（非仓件直接改）：relay.log 行后加踢径双目标——
+  REPORT_KICK 通报/升件全事件踢（dm_tick 钦定 O-DM）；事件=派单→
+  REPORT_DISPATCH 径（钦定 O-Dev 直踢施工 pane）；C-m 提交钦定
+  （Enter 不注册实证）；不设 env=零回归；失败静默同纪律。
+- `dm_tick.sh` 头两行 export（REPORT_KICK=O-DM+REPORT_DISPATCH=O-Dev）。
+- 实证：`REPORT_KICK=O-DM report.sh 收口 T-9999` 踢行进 pane（ops_event
+  1493/1494 收口+收口待审双行在案）；`REPORT_DISPATCH=O-Dev report.sh
+  派单 T-9999` pane 收行+ops_event `派单` 行 1495 双证；未设 env 行为
+  与今全同。
+- dm_tick 下拍裁决行实踢=部署后实证件。

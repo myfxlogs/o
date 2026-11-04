@@ -85,7 +85,9 @@ func watchOnce(cli eventv1connect.EventBusClient, resume map[string]int64) error
 			log.Printf("[metabus] 帧 %s/%s max=%d →%s", fr.Source, fr.Kind, fr.MaxId,
 				map[bool]string{true: "systemctl start " + u, false: "无映射不唤"}[ok])
 			if ok {
-				if err := exec.Command("systemctl", "--user", "start", u).Run(); err != nil {
+				// T-0319：activating 态同步 start 排队绞死帧循环根修——
+				// --no-block job 入队即返（唤醒=有活即醒非等干完）。
+				if err := exec.Command("systemctl", "--user", "start", "--no-block", u).Run(); err != nil {
 					log.Printf("[metabus] 唤醒 %s 败: %v", u, err)
 				}
 			}
