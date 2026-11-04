@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | 待验 |
+| 状态 | **完成**（合 master·判词在案——[角色:决策] devin 无头拍 @ 2026-11-04） |
 | 立项 | 业主直令 @ 2026-11-04（`[角色:讨论]` session 代笔——业主明令「直接立票进待办」；草案→已批仍归决策审批） |
 | 领取 | devin-施工 @ 2026-11-04（o-worker t/0320-dual-carry-calib） |
 | 优先级 | 高 |
@@ -87,3 +87,37 @@
   属域缺席如实（42P01 路径已埋），数据面如需上盒走反向桥扩列另立票。
 
 审批注记（决策交互形态 @2026-11-04）：**已批**。口径修三件锚全可机检（eval分量/能力面维度/枚举实例行实证）；红线零碰（不开live不动钱径）；授权录上限非免检在案；标定判据「系统复生业主已验证机会」=发现层最硬验收式。施工提示词另立。
+
+## 决策席验收注记（无头拍 devin @ 2026-11-04）
+
+裁词=**通过**，合 master@（merge 件见 log）。
+
+- 范围红线过：diff 16 件 ⊆ 涉及面+机械随件（migrate_table 登记+import
+  白名单加边 hypothesis→funding——SpotYield 共用读件 EarnRate 先例，
+  闸件自文档放行径+回填明注非偷渡）。
+- 门禁亲跑全绿（本席 worktree 实拍）：build/vet/gofmt/env-reads/
+  rejects/check_migrations 七断言/bridge-audit 四列/import 129/138 边
+  全过；go test 触面包 funding/hypothesis/grammar 全 ok；仅 cmd/core
+  TestGetPipeline*+pgstore TestMigrateChainSurface 红=T-0321 在案
+  master 断言漂移（种子行/桥表归属——本件 diff 零触断言册，先例不罚）。
+- 验收锚实迹（非口报）：
+  ① `TestSpotLegYield`/`TestScanSpotYieldE2E` O_TEST_PG_DSN 下真跑
+    PASS——TRX-USDT-SWAP 评估行 spot_leg_yield_apr=0.0333 非零入 gross
+    0.1428，反向分量置零（方向闸实证）；
+  ② md_1086 能力面 4 行（staking×1+swap-carry×3）静态在案+dev 实查在册；
+  ③ dev 库 fin_opp_hypothesis 双行亲查：stake_carry_template+
+    stake_carry-TRX 均 proposed；
+  ④ dev 库 fin_proposal 亲查：cmc:TRX direction=stake_carry
+    net=0.1283 state=fin_proposed——业主已验证结构系统复生，标定线过；
+    `TestStakeCarryTrx` 同构链 PASS（净 1280bps≈业主 ~13% 实盘口径）；
+  ⑤ CMC/MT5 实测：EXR 3001157 TRXUSD=SwapNone+TradeMode_Disabled——
+    venue 产品缺非凭据缺，mt5/swap-carry-TRX enabled=false 缺口登记=
+    「凭据缺则如实记阻塞」同构处置，偏离如实回填可接受。
+- fixture 生产真形核过：fin_trx_vote_apr/account/txs、fin_cmc_*
+  positions/history 字段列与 fin_0046 schema 逐字对（margin 案教训钉）。
+- 红线三件零碰：提案止 fin_proposed（paper→probe→live 生命周期不动）、
+  无 venue 注册请求、钱径/守仓面零动、业主 TRX 实盘仅作标定参照。
+- 部署后验项（随下次 o-core/research 部署链销，非本件红）：fin_0105/
+  md_1086 双链迁移上 SG+OCI 库；stakeCarryScan 生产一拍实产对拍；
+  md_funding 鲜数下 funding 评估行带 spot_leg_yield_apr 分量；fin_trx_*/
+  fin_cmc_* OCI 侧域缺席（42P01 如实——如需上盒走反向桥扩列另立票）。
