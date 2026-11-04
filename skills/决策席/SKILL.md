@@ -46,7 +46,7 @@ seat_run 迹——ops_event 裁决行携票号+裁词+理由（票面验收锚�
 - **本形态独占**：收口裁决 / merge / 票翻 / 自立返修票 / **常径派单**
   ——裁毕按队列序+自产返修子票，`report.sh 派单 T-NNNN "<转发文>"`
   →ops_event 派单行同拍 `systemd-run --user --unit="o-worker-<tid>"
-  --collect dev_run.sh` 直拉无头施工 run（swe-2-high）——机对机，
+  --collect dev_run.sh` 直拉无头施工 run（swe-2-high|medium 二择钦定档）——机对机，
   不等交互形态应答，禁踢 O-Dev pane（T-0324 拉起式钦定）。
 - **本形态不碰**（交互形态独占）：`草案→已批`、collab/名册/decisions
   章面、升件裁断——撞上写 `升件` 行+通报 O-DM，留待不销。
