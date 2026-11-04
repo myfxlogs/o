@@ -3,7 +3,7 @@
 | 字段 | 值 |
 |---|---|
 | 状态 | 已批 |
-| 立项 | `[角色:决策]` devin @ 2026-11-04（业主令——「派单应派无头施工席；席派单时拉起无头 devin（模型 swe-2-high）做施工，完成回交无头决策席审计验收」） |
+| 立项 | `[角色:决策]` devin @ 2026-11-04（业主令——「派单应派无头施工席；席派单时拉起无头 devin（模型 swe-2-high|medium）做施工，完成回交无头决策席审计验收」） |
 | 领取 | （空=未领） |
 | 优先级 | 高——决策席裁毕无机径派单=常径断（今日实证：派单只能靠人 pane 接力） |
 | 涉及面 | `scripts/meta/dev_run.sh`（新）、`skills/施工席/SKILL.md`（新职卡）、`skills/决策席/SKILL.md`（形态域界补拉起式一行）、`scripts/meta/dm_tick.sh`（尾段漏拉清扫闸）、`docs/数据流.md`（链路图同 commit 更新） |
@@ -14,7 +14,7 @@
 收口链现状：收口→裁决全机对机，唯**派单出口仍须踢人 pane**——O-Dev
 是交互 devin 会话（tmux pane），pane 不开=派单无人接。业主令定案：
 施工席无头/交互并存不打架（票域独占天然隔离），常径派单拉起无头
-devin run，模型钦定 `swe-2-high`；交互 O-Dev pane 退为人工观察窗/
+devin run，模型钦定 `swe-2-high` 或 `swe-2-medium`（High|Medium 二择，禁他档）；交互 O-Dev pane 退为人工观察窗/
 手动施工位，退出派单链。
 
 机制底件全实测在案：`systemd-run --user --unit=X --collect` 起瞬态
@@ -28,7 +28,7 @@ unit 逃逸父 cgroup（oneshot 退出不杀子——10:27 o-worker-probe 实证
 席裁毕 → report.sh 派单 T-NNNN（ops_event 派单行落账）
        → 同拍 systemd-run --user --unit=o-worker-<tid> --collect
          dev_run.sh <tid> "<转发文>"
-       → 无头施工 run（swe-2-high）：领单→施工→收口/移交自报
+       → 无头施工 run（swe-2-high|medium）：领单→施工→收口/移交自报
        → dm 帧 → o-decision-seat → 审计验收
 ```
 
@@ -41,8 +41,9 @@ unit 逃逸父 cgroup（oneshot 退出不杀子——10:27 o-worker-probe 实证
     dm_tick.sh 同径读 `REPORT_ENV_FILE`）；
   - `mkdir -p /var/tmp/o-worker && cd` 之（scratch 零仓件——worktree
     由职卡领单步自建）；
-  - `devin -p --model swe-2-high --respect-workspace-trust false
-    --permission-mode dangerous -- "<提示词>"`；
+  - `devin -p --model <档> --respect-workspace-trust false
+    --permission-mode dangerous -- "<提示词>"`——档钦定二择：
+    `swe-2-high`（默认）或 `swe-2-medium`，禁他档；
   - 收尾 ops_headless 心跳行（ticket=`META-Dev-<tid>`、seat=施工席、
     state=alive|stalled——**按票分行**，并行施工 run 互不盖心跳）。
 - `skills/施工席/SKILL.md`：新职卡（无头施工协议）——
