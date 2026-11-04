@@ -1011,3 +1011,18 @@
   无损但径不正：教训=闸验证测试用假路径会先跑真推，复测钩应仍挂真钩。
 - 队列现状：o-worker-T-0326 占并行位；T-0325（COS 放还已批）候选
   下窗；T-0328 挂起随部署窗销；T-0239 挂起不动。
+
+## 2026-11-04 决策席无头拍（T-0326 返修①裁决）
+
+- **T-0326 返修①裁决=通过**（ops_event 1605/1606）：五 fin 表
+  （vote_apr/trx_account/trx_txs/cmc_history/cmc_positions）升
+  bridge-reverse 副本合 master@09978673。门禁亲跑 check_all 全谱绿
+  两回（支 f27644f9+合后 master tip）；revTableDiff 泛型与旧三函数
+  同语义；DeepEqual 顺带根修指针列恒不等覆写病灶（坑条目在库）。
+- **瑕疵三件记档不判红**：施工支未推远端（「收口=已推送」未达，
+  本地 worktree 共享对象径合成——推送纪律违例）；回填引绿戳绑
+  amend 前 SHA；dev md 链 1011 漂移（md_1086 先例同径留档）。
+- **部署后验项挂 T-0328**：PG-md md_1087+五副本行数对 SG 正本+
+  stakeCarryScan 生产复拍到右元——o-research 件源 ≥f27644f9 窗销。
+- **派单**：T-0325（钩死径归位）+T-0329（漏拉闸活数盲）按队列序
+  双拉 o-worker（水位 0<2）——swe-2-medium 档钦定。
