@@ -18,7 +18,8 @@ hb() { # $1=state 心跳行（META-DM——meta 席位口径）
       state=EXCLUDED.state,last_activity=now(),updated_at=now()" >/dev/null 2>&1 || true
 }
 
-# ① 待裁闸：ops_ticket_state 待裁事件>0 才烧——否则 skip（心跳照写）。
+# ① 待裁闸：无待裁时跳过 LLM，但仍运行下方零 LLM 的 worker 派发/续跑闸。
+SKIP_DECISION=0
 if [ -n "$FIN_DSN" ]; then
   # T-0315②：最新刻事件集判定（max(ts) 时刻集含终态词 裁决/完成/驳回
   # 即离集——同 ts 撞族 DISTINCT ON 无序漂移根修；ops_event 唯一真源
@@ -31,47 +32,53 @@ if [ -n "$FIN_DSN" ]; then
         AND e.ts=l.mt AND e.event IN ('裁决','完成','驳回'))" 2>/dev/null || echo 0)
   if [ "$N" = "0" ]; then
     hb alive
-    exit 0
+    SKIP_DECISION=1
   fi
 fi
 
-# ② devin 批拍（cwd=scratch——裁决协议 runbook 绝对路径指件）。
-cd /var/tmp/o-decision || exit 1
-/home/mluser/.local/bin/devin -p --model swe --respect-workspace-trust false \
-  --permission-mode dangerous -- \
-  "读 /opt/o/skills/决策席/SKILL.md 裁决协议节 拍待裁件裁决"
-RC=$?
-# ③ 每拍心跳全件（成败同写——败拍=stalled 显形非隐）。
-[ $RC -eq 0 ] && hb alive || hb stalled
+if [ "$SKIP_DECISION" -eq 0 ]; then
+  # ② devin 批拍（cwd=scratch——裁决协议 runbook 绝对路径指件）。
+  cd /var/tmp/o-decision || exit 1
+  DECISION_DEVIN=${O_DECISION_DEVIN_BIN:-/home/mluser/.local/bin/devin}
+  "$DECISION_DEVIN" -p --model swe --respect-workspace-trust false \
+    --permission-mode dangerous -- \
+    "读 /opt/o/skills/决策席/SKILL.md 裁决协议节 拍待裁件裁决"
+  RC=$?
+  # ③ 每拍心跳全件（成败同写——败拍=stalled 显形非隐）。
+  [ $RC -eq 0 ] && hb alive || hb stalled
+fi
 
-# T-0324 漏拉清扫闸（返修①）+T-0329 甲向补固：ops_event 派单行后同票无领单
-# 且无活 o-worker-<tid> unit→dev_run.sh 幂等补拉。原三守卫照留——①最新
-# 任意事件恰为派单（终态 收口/移交/裁决/完成/驳回/拉起/领单 超越免拉，
-# T-0324 误派行收口先于派单案在案；挂起/异常 停态词同入集——派单后即挂
-# 票免拉）②补拉落 `拉起` 行入 filter 集自标幂等 ③无票文件免拉（T-9999
-# 类测试行天然排）。is-active 按行精确比对——'inactive' 字面含 'active'
-# grep 误配恒判活=闸永不补拉病灶根修。
-# T-0329 补固二件——④派单行须 seat='决策席'：COS cos-relay/批注误词 派单
-#   行永不触闸（2026-11-04 ops_event 1562/1563 误派双工实证——闸不数活数
-#   不分派单源 seat 病灶）；⑤拉起前活数闸：list-units o-worker-*
-#   active/activating 数≥并行上限（=2，决策席职卡/collab §1 钦定）本拍
-#   空转不拉——补拉不占超编。
+# T-0343：常径派单和 rate-limit 挂起续跑共用 dispatch_worker.sh。仅最新
+# 决策席派单或施工席 rate-limit:auto 挂起可补拉；其他挂起/异常不自动重试。
+# 模型档从原派单备注恢复。补拉成功写 `拉起` 行自标幂等；无票文件免拉。
 if [ -n "$FIN_DSN" ]; then
-  psql "$FIN_DSN" -qAt -c "SELECT ticket FROM (
+  DISPATCH_WORKER=${O_WORKER_DISPATCH_SCRIPT:-/opt/o/scripts/meta/dispatch_worker.sh}
+  psql "$FIN_DSN" -qAt -F '|' -c "SELECT l.ticket || '|' || COALESCE((
+      SELECT CASE WHEN e.note ILIKE '%swe-2-medium%' THEN 'swe-2-medium'
+                  ELSE 'swe-2-high' END
+      FROM ops_event e WHERE e.ticket=l.ticket AND e.event='派单'
+      ORDER BY e.ts DESC,e.id DESC LIMIT 1
+    ),'swe-2-high') FROM (
       SELECT ticket,max(ts) mt FROM ops_event WHERE event IN
         ('派单','领单','拉起','收口','移交','收口待审','裁决','完成','驳回',
          '挂起','异常')
         AND ticket<>'' GROUP BY ticket) l
     WHERE EXISTS (SELECT 1 FROM ops_event e WHERE e.ticket=l.ticket
-        AND e.ts=l.mt AND e.event='派单' AND e.seat='决策席')" 2>/dev/null | while read -r tid; do
+        AND e.ts=l.mt AND e.event='派单' AND e.seat='决策席')
+       OR EXISTS (SELECT 1 FROM ops_event e WHERE e.ticket=l.ticket
+        AND e.ts=l.mt AND e.event='挂起' AND e.seat='施工席'
+        AND e.note LIKE 'rate-limit:auto%')" 2>/dev/null | while IFS='|' read -r tid model; do
     compgen -G "/opt/o/docs/tasks/${tid}-*.md" >/dev/null || continue # ③无票免拉
     st=$(systemctl --user is-active "o-worker-$tid.service" 2>/dev/null || true)
     case "$st" in active|activating) continue;; esac # 精确比对误配恒死修
-    act=$(systemctl --user list-units 'o-worker-*' --state=active,activating --no-legend 2>/dev/null | wc -l)
-    [ "$act" -lt 2 ] || break # ⑤活数=上限本拍空转（T-0329——并行上限=2）
-    if systemd-run --user --unit="o-worker-$tid" --collect         /opt/o/scripts/meta/dev_run.sh "$tid"         "读 /opt/o/skills/施工席/SKILL.md 施工协议 领 $tid 施工" >/dev/null 2>&1; then
+    prompt="读 /opt/o/skills/施工席/SKILL.md 施工协议领单/续领 $tid；按票面施工，同票已有 Devin 会话/worktree 时续跑"
+    if "$DISPATCH_WORKER" "$tid" "$model" "$prompt" >/dev/null 2>&1; then
       psql "$FIN_DSN" -qAt -c "INSERT INTO ops_event(seat,event,ticket,note)
-        VALUES('META-DM','拉起','$tid','漏拉闸补拉幂等自标')" >/dev/null 2>&1 || true
+        VALUES('META-DM','拉起','$tid','漏拉/限流补派——session 续跑')" >/dev/null 2>&1 || true
+    else
+      rc=$?
+      [ "$rc" -eq 75 ] && break # 并行水位/额度冷却——队列留待下拍
+      echo "[dm] worker dispatch failed tid=$tid rc=$rc" >&2
     fi
   done
 fi
