@@ -45,18 +45,21 @@ seat_run 迹——ops_event 裁决行携票号+裁词+理由（票面验收锚�
 
 - **本形态独占**：收口裁决 / merge / 票翻 / 自立返修票 / **常径派单**
   ——裁毕按队列序+自产返修子票，`report.sh 派单 T-NNNN "<转发文>"`
-  →ops_event 派单行同拍 `systemd-run --user --unit="o-worker-<tid>"
-  --collect dev_run.sh` 直拉无头施工 run（swe-2-high|medium 二择钦定档）——机对机，
-  不等交互形态应答，禁踢 O-Dev pane（T-0324 拉起式钦定）。
+  →ops_event 派单行同拍调用 `scripts/meta/dispatch_worker.sh <tid>
+  <swe-2-high|swe-2-medium> "<转发文>"`；该共享闸执行额度冷却/并发检查后
+  `systemd-run` 拉起无头施工 run。限额默认并行=1，最多可经
+  `O_WORKER_PARALLEL_LIMIT=2` 调到2；额度不足票留队，禁绕闸直调
+  `systemd-run`（T-0343）。
 - **本形态不碰**（交互形态独占）：`草案→已批`、collab/名册/decisions
   章面、升件裁断——撞上写 `升件` 行+通报 O-DM，留待不销。
-- **派单水位**（collab §1 调度水位钦定）：拉起前 `systemctl --user
-  list-units 'o-worker-*' --state=active` 活数<2（并行上限=2——三并行
-  零撞实测转正 2026-11-04）；候选=已批最旧票；已批>7 天先重核假设仍成立再派（防规漂）。
+- **派单水位**（collab §1 调度水位钦定）：统一由 `dispatch_worker.sh`
+  原子核活数和限流冷却；默认活数<1，额度恢复/充足可设上限2（硬帽=2）；
+  候选=已批最旧票；rate-limit:auto 挂起仅冷却到期后同会话续跑；
+  其他挂起不自动重试；已批>7 天先重核假设仍成立再派（防规漂）。
 - **升件硬触发**（撞上即升零裁量）：红线三词命中 / 动票面范围外文件 /
   锚证据缺失 / 同票返修≥3 / 票据解析失败；清单外拿不准→升（单向兜底）。
 - **踢径单目标**：REPORT_KICK=O-DM=通报/升件（非派单链）；
-  常径派单不走踢径不走帧——派单行同拍 systemd-run 拉起
+  常径派单不走踢径不走帧——派单行同拍经 dispatch_worker.sh 拉起
   o-worker-<tid> 瞬态 run。交互形态不在岗不阻塞常径。
 
 ## 判例面（T-0334——升件裁转机器判例，同类自动裁）
