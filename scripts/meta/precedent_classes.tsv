@@ -1,0 +1,23 @@
+# 判类册（T-0334 判例索引面——升件类词登记表：写者选类参照，匹配=等值非模糊，册不参判）
+# 格式：class<TAB>scope<TAB>kind<TAB>说明；kind=normal|redline（redline=类级黑名单——闸臂结构性永不自动裁不登记）
+# class/scope 为 ops_event.esc_class/esc_scope 取值——新类随写随生，本册追记（防词面漂裂一类多名）
+部署窗	O-Dev	normal	部署窗事项——业主令1652委托直派O-Dev施工不再上行（首判例在簿）
+授权补授	o_fin_ro	normal	窄读白名单缺表请授——先例=迁移补授（fin_0108/0109 同径，首判例在簿）
+选项采纳	修法候选	normal	升件列修法候选+施工注建议——先例=采纳甲向（首判例在簿）
+淤积	<量表名>	normal	巡检闸量表触阈升件（gauges_tick 自动携类——cls 列值+量表名 scope）
+缺席	<量表名>	normal	同上
+幽灵	<量表名>	normal	同上
+断供	<量表名>	normal	同上
+漂移	<量表名>	normal	同上
+静默吞错	<量表名>	normal	同上
+竞态	<量表名>	normal	同上
+虚报	<量表名>	normal	同上
+范围外文件	<票域>	normal	决策席硬触发——diff 动票面范围外文件
+锚缺失	<票域>	normal	决策席硬触发——锚证据缺失
+返修超限	<票域>	normal	决策席硬触发——同票返修≥3 轮
+解析失败	<票域>	normal	决策席硬触发——票据解析失败
+取数失败	META-GAUGES	normal	巡检量表取数失败（缺席类素材——gauges_tick fetch-fail 径）
+资金扩投	*	redline	红线三件①——类级黑名单永不自动裁不登记（命中照常上行）
+新平台	*	redline	红线三件②——同上
+席位立换	*	redline	红线三件③——同上
+红线	*	redline	红线通类（未细分红线升件归此——同永不自动裁）
