@@ -45,12 +45,13 @@ seat_run 迹——ops_event 裁决行携票号+裁词+理由（票面验收锚�
 
 - **本形态独占**：收口裁决 / merge / 票翻 / 自立返修票 / **常径派单**
   ——裁毕按队列序+自产返修子票，`report.sh 派单 T-NNNN "<转发文>"`
-  →ops_event 派单行→eventbus dev 帧→metabus 唤 o-worker-seat
-  （无头施工席）——机对机，不等交互形态应答。
+  →ops_event 派单行同拍 `systemd-run --user --unit="o-worker-<tid>"
+  --collect dev_run.sh` 直拉无头施工 run（swe-2-high）——机对机，
+  不等交互形态应答，禁踢 O-Dev pane（T-0324 拉起式钦定）。
 - **本形态不碰**（交互形态独占）：`草案→已批`、collab/名册/decisions
   章面、升件裁断——撞上写 `升件` 行+通报 O-DM，留待不销。
 - **升件硬触发**（撞上即升零裁量）：红线三词命中 / 动票面范围外文件 /
   锚证据缺失 / 同票返修≥3 / 票据解析失败；清单外拿不准→升（单向兜底）。
 - **踢径单目标**：REPORT_KICK=O-DM=通报/升件（非派单链）；
-  常径派单不走踢径——派单行→总线帧→o-worker-seat。交互形态
-  不在岗不阻塞常径。
+  常径派单不走踢径不走帧——派单行同拍 systemd-run 拉起
+  o-worker-<tid> 瞬态 run。交互形态不在岗不阻塞常径。
