@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | 已批 |
+| 状态 | **完成**（合 master·判词在案——[角色:决策] devin @ 2026-11-04） |
 | 立项 | `[角色:决策]` devin @ 2026-11-04（业主令——「派单应派无头施工席；席派单时拉起无头 devin（模型 swe-2-high|medium）做施工，完成回交无头决策席审计验收」） |
 | 领取 | （空=未领） |
 | 优先级 | 高——决策席裁毕无机径派单=常径断（今日实证：派单只能靠人 pane 接力） |
@@ -89,3 +89,92 @@ unit 逃逸父 cgroup（oneshot 退出不杀子——10:27 o-worker-probe 实证
 - 不动 eventbus/metabus/report.sh 踢径（T-0323 域）；不动 T-0319
   （no-block 修）。
 - 施工席职卡只管无头协议——O-Dev pane 的人工会话不受其约束。
+
+## 施工回填（devin @ 2026-11-04，分支 t/0324-worker-spawn）
+
+- `dev_run.sh`：O_SEAT=施工席正标+FIN_DSN REPORT_ENV_FILE 同径+
+  /var/tmp/o-worker scratch+档钦定二择 swe-2-high 默认（他档弹回）+
+  META-Dev-<tid> 按票分行心跳（并行不盖）。
+- `skills/施工席/SKILL.md`：领单四步/施工三禁/收口三步同拍
+  （漏调案钉+钩兜底）/停挂自报。
+- `skills/决策席` 形态域界补拉起式行（systemd-run o-worker-<tid>+
+  禁踢 O-Dev pane）。
+- `dm_tick.sh` 尾段漏拉清扫闸：ops_event 最新事件=派单且同票无领单
+  +o-worker-<tid> 非 active→dev_run.sh 幂等补拉。
+- `docs/数据流.md` 派单拉起段同 commit 补。
+- T-0323 改单对账（票面改单后重读为准）：report.sh 已撤 DISPATCH
+  分支改 KICK 单目标全事件同踢；dm_tick export=REPORT_KICK=O-DM+
+  O_SEAT=决策席（误标案销——T-0323 侧实证 10:23 pane 收行+O_SEAT
+  出口实测待下拍）。
+- 部署实证（T-9999 拉起瞬态 unit/全生命周期三行/漏拉闸补拉/并行
+  两单互不盖）=部署后实证件。
+
+## 返修① 回填（devin @ 2026-11-04，同支续提）
+
+- 违①根修：is-active 输出按行精确比对 `case "$st" in active|activating)`——
+  'inactive' 字面含 'active' grep 误配恒判活=闸永不补拉病灶灭。
+- 违②三守卫钦定落：①候选=该票最新任意事件恰为派单（终态 收口/移交/
+  裁决/完成/驳回/拉起/领单 filter 集入 SQL——终态超越免拉）②补拉同拍
+  ops_event `拉起` 行自标幂等（下拍最新=拉起即免拉）③`compgen -G` 票文件
+  存在检——无票免拉（T-9999 类测试行天然排：干跑证候选 T-9999/T-0324，
+  T-9999 无票件免拉实证在案）。
+- 缺③：本返修收口三通必调（自报漏调二次犯记档——钩兜底失配「返修」
+  字样锚顺手查在案）。
+- 顺手项：索引右括号补+决策席 SKILL 重复段删余留一（旧段已含拉起式
+  全语——新 append 段删）。
+- 闸件干跑实证：候选 SQL 实查 T-9999 守卫③排+T-0324 误派行最新=派单
+  在列（终态词入 filter 集机制——决策席退役行落即排；unit 拉起迹/
+  journal 双证=部署后实证件）。
+
+## 返修① 补件回填（无头施工席 devin run @ 2026-11-04——o-worker-T-0324 拉起 run，与 O-Dev 席同票撞车各摊一段）
+
+O-Dev 席先落主修 @d26bf0a1（闸三修+SKILL 删重），本 run 补残余件：
+
+- 顺手项实落①：`skills/索引.md` 施工席行右括号——病灶在 kbgen
+  `firstSentence` 截首句于 `；`，desc 括号未闭被截。改 `skills/施工席/
+  SKILL.md` frontmatter desc 归形（截点移括号外）+`kbgen skills` 重建，
+  `--check` 绿。
+- 顺手项实落②：dm_tick export 段注释归 master 现文（踢径钦定单目标
+  两行——merge 冲突预解）。
+- 守卫集补：`挂起`/`异常` 入 filter 集——派单后即挂票免拉（原集漏
+  停态词，干跑实证补）。
+- **闸件干跑实证随收口交**（/tmp/gate_tail_test.sh=尾段逐字抽件，
+  systemd-run 拉起径因 dev_run.sh 未合 master 指 worktree 副本，余同）：
+  - 落测试派单行 T-0323→闸跑 `PULL`→unit `Started`/`Stopped` transient
+    journal 迹（10:46:02–10:46:08）+ops_event `拉起` 行落账（META-DM
+    @02:46:02）——锚「手工派单行不拉起→闸补拉」**达标**；
+  - 幂等：拉起后重跑 T-0323 零 PULL（latest=拉起自标）；
+  - 挂起超越：T-0323 派单→挂起（异 tx）→零 PULL；
+  - T-9999：候选在列但 `compgen` 无票文件 `SKIP no-file` 每跑均排；
+  - unit 活守：T-0324 测试派单行+本 run unit active→`SKIP unit-active`；
+  - 终态超越：T-0324 收口/移交行后 latest≠派单，候选查询不入选。
+  - 同 tx 同 ts 注记：同事务双行 INSERT 造同 ts 伪撞（实测证）——
+    真实径各事件异 tx 异 ts，闸不受影响（T-0323/T-9999 既有同 ts 对
+    系决策席同事务双写，与闸无关）。
+- 缺③对账：收口/移交自报本 run 必调。钩兜底失配**根因坐实**：
+  `core.hooksPath=scripts/hooks`（/opt/o/.git/config）——钩生效径在
+  仓内 `scripts/hooks/`，而 commit_report_hook.sh 装在
+  `.git/hooks/post-commit`（生效径外=**永不触发**；该目录亦无
+  post-commit 件）。T-0323「返修字样不匹配」=表象非因——钩自始未跑，
+  O-Dev 10:42–43 三行系手动调（relay 在案）。待归一：钩件入
+  scripts/hooks/ 或 hooksPath 指向——**本票范围外**，记档交决策席处置。
+
+## 验收注记（决策席无头拍 devin @ 2026-11-04——返修①裁决通过）
+
+- 返修①三件全销：①is-active `case` 整行精确比对（inactive 误配恒死病灶灭）；
+  ②三守卫钦定落——最新=派单候选集（终态+挂起/异常停态词同入集）/拉起行
+  自标幂等/compgen 无票免拉；③收口三通补件落账（ops_event 1521–1524）。
+- 闸件干跑实证随收口交（补件回填+本席亲证）：T-0323 测试派单→PULL→unit
+  Started/Stopped journal 迹+拉起行 1514/1517；幂等重跑零拉；挂起超越/
+  无票文件 T-9999/unit 活守/终态超越四支全过。
+- 顺手项全落：索引右括号实落（kbgen 截句根因修）、决策席 SKILL 重复段删净、
+  export 注归 master 冲突预解；handoff 撞车实录双边保留 merge 净。
+- 根因红利：钩兜底死信坐实（core.hooksPath=scripts/hooks——.git/hooks 件
+  永不触发），坑条目 core-hookspath-dead-install-face 同支入库；
+  钩件归位 scripts/hooks/ 已立 T-0325 草案候 COS 批。
+- 机制级信号记档：一票两施工撞车（o-worker 拉起 vs O-Dev 手动领单无互斥）
+  ——票锁期机制立候选观察，暂不立项。
+- 部署后验项（不判红）：T-9999 全生命周期/并行互不盖/O-Dev 零常径踢——
+  余锚归部署后实证件；漏拉闸部署生效后首拍对拍。
+- 瑕疵注记：票面状态栏施工侧未翻待验（merge 期由本席翻完成）；同 tx 同 ts
+  双事件行伪撞下闸可拉——真实径单事件 INSERT 不可达，接受在案。
