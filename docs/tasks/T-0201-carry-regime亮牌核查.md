@@ -1,6 +1,6 @@
 # T-0201 carry regime 亮牌核查——carry_diff 1095bps 真实性对拍
 
-> 状态：审计通过 | 收口commit：69586c237e8988ca85c3383c818c24efe2e51aed
+> 状态：**完成**（收口已并master·判词在案——desync补翻 [角色:决策] @ 2026-11-04）| 收口commit：69586c237e8988ca85c3383c818c24efe2e51aed
 > 领取：devin-施工席（无头单飞）@ 2026-11-01 06:2xZ
 > 清账定性（`[角色:决策]` @ 2026-11-01，SETTLE-SWEEP/MANAGE-3551）：**已批**——carry-regime亮牌核查——同支半产未并，T-0145升派前置证未产
 > 域：评估面/venue 对拍（D-0034 行动②）
