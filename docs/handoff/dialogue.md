@@ -984,3 +984,7 @@
   T-0322（同日在产：职卡 runbook+skills 落件可见）。
 - 退仓归位：残仓盲区→坑条目 cockpit-remnant-position-invisible+kbgen 重建；
   授权/裁断→本录上文；双轨对账债（票面 vs ops_event 状态漏翻）已交决策席在途。
+- **退仓残余件**：本 session 三 commit（T-0320 草案/T-0322 草案/经验库归位）
+  已落本地 master；推送被桥域对账闸红挡（模板列实机卡——T-0321 在修病灶，
+  非本 session 件所造）。本地领先 origin/master 300+，全体席位同受此闸——
+  提醒：桥闸绿前无人推得动，决策侧知。
