@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | 已批 |
+| 状态 | **施工中**（devin-t0318 @ 2026-11-04） |
 | 立项 | `[角色:决策]` devin @ 2026-11-04（T-0316 裁决门禁对账实证） |
 | 领取 | （空=未领） |
 | 优先级 | 高——check_all bridge-audit 段 master 恒红=全谱闸阻一切后续票 |
@@ -61,3 +61,20 @@ bridge-audit ③模板列 fail-closed 语义保、静默死灭：读败/键缺/�
 - [ ] `git worktree list` 降至在飞集（剩件逐条列名+保留由）。
 - [ ] A 段 prune 数、B 段摘数、跳数三数回填票面。
 - [ ] 零误摘——被摘件必须「净树+分支死/老」双证在案。
+
+## 施工回填（devin-t0318 @ 2026-11-04，分支 t/0318-bridge-audit）
+
+- ①静默死根修：`tpl_field`/`env_field` 调用点加 `|| true`（grep miss rc=1
+  撞 pipefail+set -e 杀壳病灶灭）+`dsn_fields` 头 `true;` 同防——显报径
+  实证：改副件 NOPE_DSN 断一键 `FAIL[bridge-audit] 模板对拍实机读缺`
+  行出非静默。
+- ②漂移三行裁词（图旧实新——迁移册 fin_0103 roster_rw/fin_0104
+  review_rw 在案=实机角色钦定侧）：`.example` ROSTER→roster_rw、
+  FIN→review_rw 改图归实；o-collecto SG_PG_DSN 对拍行退役（实机 env
+  件只持 MD/ROSTER 两键——SG_PG_DSN 嵌 compose.yml 5435 不经 env 件
+  =册面陈件）。③模板列+④水印列实跑绿（四列全绿行贴）。
+- check_all bridge-audit 段转绿（本地实跑 `OK[bridge-audit] 四列全绿`）。
+- ③worktree 坟场：A 段 prune=0（目录俱在无死录）；B 段判死摘 104
+  （净树+merged/>30d 双证）；豁免 242 近动（决策席 audit 系近拍件含）
+  +25 脏树+/opt/o 主树+t/0312-0318 在飞支；剩 273 条。零误摘
+  （remove 全 rc=0 无强摘）。
