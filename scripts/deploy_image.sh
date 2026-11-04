@@ -13,6 +13,8 @@
 #   {{.Config.Image}} 自报所跑源码 commit。
 # ④ 完工投件：EXIT trap 统一发 DEPLOY 事件至 MANAGE 箱（成功/失败/被闸三路
 #   同径；败静默不影响部署 rc；业主令 2026-10-31「事事有应答」）。
+# ⑤ OCI PG-md 迁移随窗（T-0336）：arm64 migrate scp 上盒跑 -domain=md+
+#   水位断言——PG-md 欠账不再靠手补（O_MD_MIGRATE_SKIP=1 跳步哨兵照红）。
 set -euo pipefail
 SG="${O_SG_HOST:-root@192.229.85.35}"
 LOCK_DIR=/opt/o/.deploy-lock
@@ -108,4 +110,34 @@ echo "[deploy_image] o-core 健康态=$st"
 
 # T-0153 船运后镜像自剪——留 72h 回滚余量（SG 盘 76% 实证病灶面治）。
 ssh "$SG" 'docker image prune -f --filter "until=72h" && echo "[deploy_image] prune≤72h done"'
+
+# ── ⑤ OCI PG-md 迁移随窗步（T-0336）──────────────────────────
+# 病灶（T-0333 红②③在案）：本径原只船 SG o-core——PG-md 迁移从不随窗，
+# projector boot 迁移是 OCI 旧件不随 master 进，md_1087+bridge-reverse
+# 五表欠账无人补。此步随锁同窗：arm64 migrate 交叉建→scp 上盒→env 件取
+# MD_PG_DSN 跑 -domain=md→水位断言 live≥登记表（「已合并≠已执行」机检，
+# 同 check_schema_live 判据）。O_MD_MIGRATE_SKIP=1 跳步（OCI 失联/演习——
+# 跳步即欠账，哨兵照样报红）。
+if [ "${O_MD_MIGRATE_SKIP:-0}" = 1 ]; then
+  echo "⚠️  [deploy_image] O_MD_MIGRATE_SKIP=1——PG-md 迁移步跳（欠账哨兵照红）" >&2
+else
+  MD_HOST="${O_MD_HOST:-ubuntu@149.118.58.98}"
+  reg_md=$(grep -oE '\{[0-9]+, "md_[0-9]+' internal/store/pgstore/migrate_table.go \
+    | grep -oE '^\{[0-9]+' | tr -d '{' | sort -n | tail -1)
+  echo "[deploy_image] OCI PG-md 迁移随窗——host=$MD_HOST 登记表水位=$reg_md"
+  GOARCH=arm64 GOOS=linux go build -o "/tmp/o-migrate-md.$$" ./cmd/migrate
+  scp -q -o BatchMode=yes -o ConnectTimeout=10 "/tmp/o-migrate-md.$$" "$MD_HOST:/tmp/o-migrate-md"
+  rm -f "/tmp/o-migrate-md.$$"
+  ssh -o BatchMode=yes -o ConnectTimeout=10 "$MD_HOST" '
+    set -e
+    MD_PG_DSN=$(grep "^MD_PG_DSN=" ~/o-projector.env | cut -d= -f2- | tr -d "\"")
+    [ -n "$MD_PG_DSN" ] || { echo "o-projector.env MD_PG_DSN 缺" >&2; exit 1; }
+    PG_DSN="$MD_PG_DSN" /tmp/o-migrate-md -domain=md'
+  live_md=$(ssh -o BatchMode=yes -o ConnectTimeout=10 "$MD_HOST" \
+    "sudo docker exec o-postgres-md psql -U o -d o -tc 'SELECT COALESCE(max(version),0) FROM schema_migrations'" | tr -d ' ')
+  [ "${live_md:-0}" -ge "$reg_md" ] \
+    || die "PG-md 水位断言红——live=${live_md:-<空>} < 登记表=$reg_md"
+  echo "[deploy_image] PG-md 水位 live=$live_md ≥ 登记表=$reg_md"
+fi
+
 echo "[deploy_image] done→$SG（部署锁 trap 已释）"
