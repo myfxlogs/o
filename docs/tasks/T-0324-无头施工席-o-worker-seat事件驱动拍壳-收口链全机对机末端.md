@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | 已批 |
+| 状态 | **施工中**（devin @ 2026-11-04） |
 | 立项 | `[角色:决策]` devin @ 2026-11-04（业主令——「派单应派无头施工席；席派单时拉起无头 devin（模型 swe-2-high|medium）做施工，完成回交无头决策席审计验收」） |
 | 领取 | （空=未领） |
 | 优先级 | 高——决策席裁毕无机径派单=常径断（今日实证：派单只能靠人 pane 接力） |
@@ -84,3 +84,22 @@ unit 逃逸父 cgroup（oneshot 退出不杀子——10:27 o-worker-probe 实证
 - 不动 eventbus/metabus/report.sh 踢径（T-0323 域）；不动 T-0319
   （no-block 修）。
 - 施工席职卡只管无头协议——O-Dev pane 的人工会话不受其约束。
+
+## 施工回填（devin @ 2026-11-04，分支 t/0324-worker-spawn）
+
+- `dev_run.sh`：O_SEAT=施工席正标+FIN_DSN REPORT_ENV_FILE 同径+
+  /var/tmp/o-worker scratch+档钦定二择 swe-2-high 默认（他档弹回）+
+  META-Dev-<tid> 按票分行心跳（并行不盖）。
+- `skills/施工席/SKILL.md`：领单四步/施工三禁/收口三步同拍
+  （漏调案钉+钩兜底）/停挂自报。
+- `skills/决策席` 形态域界补拉起式行（systemd-run o-worker-<tid>+
+  禁踢 O-Dev pane）。
+- `dm_tick.sh` 尾段漏拉清扫闸：ops_event 最新事件=派单且同票无领单
+  +o-worker-<tid> 非 active→dev_run.sh 幂等补拉。
+- `docs/数据流.md` 派单拉起段同 commit 补。
+- T-0323 改单对账（票面改单后重读为准）：report.sh 已撤 DISPATCH
+  分支改 KICK 单目标全事件同踢；dm_tick export=REPORT_KICK=O-DM+
+  O_SEAT=决策席（误标案销——T-0323 侧实证 10:23 pane 收行+O_SEAT
+  出口实测待下拍）。
+- 部署实证（T-9999 拉起瞬态 unit/全生命周期三行/漏拉闸补拉/并行
+  两单互不盖）=部署后实证件。

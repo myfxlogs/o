@@ -3,6 +3,9 @@
 # 逐字对形：ops_ticket_state 待裁集水印闸>0 才烧零空拍；每拍（含空拍/
 # 败拍）ops_headless META-DM 心跳行；FIN_DSN 隧道径 SG 直读）。
 set -u
+# T-0323：裁毕通报踢 O-DM 交互席+自报 seat=决策席 正标（O_SEAT 误标案销）。
+export REPORT_KICK=O-DM
+export O_SEAT=决策席
 ENVF="${DM_ENV_FILE:-/opt/o-research/env}"
 FIN_DSN=$(grep '^FIN_PG_DSN=' "$ENVF" 2>/dev/null | cut -d= -f2- | tr -d '"')
 
@@ -39,4 +42,19 @@ cd /var/tmp/o-decision || exit 1
 RC=$?
 # ③ 每拍心跳全件（成败同写——败拍=stalled 显形非隐）。
 [ $RC -eq 0 ] && hb alive || hb stalled
+
+# T-0324 漏拉清扫闸：ops_event 派单行后同票无领单且无活 o-worker-<tid>
+# unit→dev_run.sh 幂等补拉（席 run 半路死漏拉机制兜底——T-0317 漏调案
+# 同型教训：兜底靠机制不靠记性）。
+if [ -n "$FIN_DSN" ]; then
+  psql "$FIN_DSN" -qAt -c "SELECT ticket FROM (
+      SELECT ticket,max(ts) mt FROM ops_event WHERE event IN ('派单','领单')
+        AND ticket<>'' GROUP BY ticket) l
+    WHERE EXISTS (SELECT 1 FROM ops_event e WHERE e.ticket=l.ticket
+        AND e.ts=l.mt AND e.event='派单')" 2>/dev/null | while read -r tid; do
+    if ! systemctl --user is-active "o-worker-$tid.service" 2>/dev/null         | grep -q 'active\|activating'; then
+      systemd-run --user --unit="o-worker-$tid" --collect         /opt/o/scripts/meta/dev_run.sh "$tid"         "读 /opt/o/skills/施工席/SKILL.md 施工协议 领 $tid 施工" >/dev/null 2>&1 || true
+    fi
+  done
+fi
 exit 0
