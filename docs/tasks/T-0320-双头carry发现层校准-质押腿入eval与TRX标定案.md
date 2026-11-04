@@ -2,9 +2,9 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | 已批 |
+| 状态 | 施工中 |
 | 立项 | 业主直令 @ 2026-11-04（`[角色:讨论]` session 代笔——业主明令「直接立票进待办」；草案→已批仍归决策审批） |
-| 领取 | |
+| 领取 | devin-施工 @ 2026-11-04（o-worker t/0320-dual-carry-calib） |
 | 优先级 | 高 |
 | 涉及面 | `fin_opp_eval`（评估件）、`fin_opp_template`/grammar 枚举、`fin_capability_surface`（质押维度）、scout/carry_diff 数据面、`docs/数据流.md`（链路动则同 commit 更新） |
 
