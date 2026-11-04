@@ -21,8 +21,10 @@
 
 - `report.sh`：写完 relay.log 行后加——`[ -n "${REPORT_KICK:-}" ] &&
   tmux has-session -t "$REPORT_KICK" 2>/dev/null && tmux send-keys -t
-  "$REPORT_KICK" -l "<自报行全文>" && tmux send-keys -t "$REPORT_KICK"
-  Enter`（失败静默同现有纪律）。
+  "$REPORT_KICK" -l "<自报行全文>" && sleep 1 && tmux send-keys -t
+  "$REPORT_KICK" C-m`（失败静默同现有纪律）。**Enter 键名在 devin
+  TUI 不注册——必须用 `C-m`**（11-04 双侧实证：Enter 滞留输入行、
+  C-m 真提交）。
 - `dm_tick.sh`：头部 `export REPORT_KICK=O-DM`——无头决策席每行自报
   自动踢交互席。
 - 其余席不设默认——谁要踢谁在自己 env 里开（可选径不污染meta席）。
