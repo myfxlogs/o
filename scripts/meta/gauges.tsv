@@ -1,0 +1,7 @@
+# 量表注册表（T-0332 自愈巡检面——量表=确定判据零 LLM；name|class|query_type|query|阈值|升件模板
+# query_type: sql_ro(FIN_PG_RO_DSN=o_fin_ro 窄读白名单)/cmd(shell 出数)；滞回闸=连续2拍触才升+日频上限1/表）
+armed_aging	淤积	sql_ro	SELECT count(*) FROM fin_proposal WHERE state='fin_armed' AND created_at<now()-interval '4 hours'	1	armed 提案超 TTL 计数={v}
+escalation_aged	缺席	sql_ro	SELECT count(*) FROM ops_event e WHERE e.event='升件' AND e.ts<now()-interval '24 hours' AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.ticket=e.ticket AND x.event IN ('裁决','完成','驳回') AND x.ts>e.ts)	1	升件行>24h 无裁决跟进={v}
+heartbeat_dead	幽灵	sql_ro	SELECT count(*) FROM (SELECT ticket,max(last_activity) m FROM ops_headless GROUP BY 1) t WHERE m<now()-interval '7 days'	1	ops_headless 死道>7天={v}
+branch_cemetery	淤积	cmd	git -C /opt/o branch --list 't/*' --no-merged master | wc -l	300	t/* 未合枝计数={v}
+arm_zero_output	断供	sql_ro	SELECT (SELECT count(*) FROM fin_execution WHERE created_at>now()-interval '24 hours')+(SELECT count(*) FROM fin_position WHERE opened_at>now()-interval '24 hours')	-1	执行臂近24h产出={v}（<1=断供）
