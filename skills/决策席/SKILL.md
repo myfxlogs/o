@@ -55,11 +55,3 @@ seat_run 迹——ops_event 裁决行携票号+裁词+理由（票面验收锚�
 - **踢径单目标**：REPORT_KICK=O-DM=通报/升件（非派单链）；
   常径派单不走踢径不走帧——派单行同拍 systemd-run 拉起
   o-worker-<tid> 瞬态 run。交互形态不在岗不阻塞常径。
-
-## 形态域界（T-0324 钦定拉起式——业主令）
-
-派单=ops_event `派单` 行落账**同拍** systemd-run 拉起瞬态施工 run——
-`systemd-run --user --unit="o-worker-<tid>" --collect
- /opt/o/scripts/meta/dev_run.sh <tid> "读 /opt/o/skills/施工席/SKILL.md
-施工协议 领 <tid> 施工"`；**禁踢 O-Dev pane**（派单非通报——pane=人工
-观察窗/手动施工位退出派单链）。档钦定 swe-2-high 默认|swe-2-medium。
