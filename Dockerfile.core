@@ -2,6 +2,10 @@
 # 前置依赖：web/、proto/、cmd/core、go.mod（T-0006 骨架票落位后方可构建）。
 FROM node:24-alpine AS web-build
 WORKDIR /src
+# CN 构建机源面（T-0345 窗实证——npm/golang.org/alpine 三拉点直连挂死，
+# 钉镜像源不随盒迁移：本镜像唯一构建径=本机 deploy_image.sh 船运）。
+RUN npm config set registry https://registry.npmmirror.com && \
+    npm config set replace-registry-host always
 COPY web/package.json web/package-lock.json web/
 RUN cd web && npm ci
 # web/src/gen gitignore——镜像内须 buf regen（buf 钉 1.74.0，与 CI/本地三处同号）
@@ -19,6 +23,7 @@ RUN cd web && mkdir -p dist && if [ ! -s dist/index.html ]; then \
     fi
 
 FROM golang:1.27-alpine AS build
+ENV GOPROXY=https://goproxy.cn,direct
 WORKDIR /src
 COPY . .
 # internal/gen 亦 gitignore 不随 COPY 入镜像——Go 侧同样镜像内 regen（T-0009，与 CI go build 前
@@ -40,6 +45,7 @@ FROM alpine:3.20
 # T-0296 件③根修——tzdata 进镜像：/usr/share/zoneinfo 缺席时
 # LoadLocation("America/New_York") 兜底 FixedZone(-4h)，冬令(-5h)起日历事件
 # 全错早 1h；notify/calendar+research/ctx 双调用点同罩（apk 整镜像面>embed）。
-RUN apk add --no-cache tzdata
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories && \
+    apk add --no-cache tzdata
 COPY --from=build /bin/core /bin/core
 ENTRYPOINT ["/bin/core"]
