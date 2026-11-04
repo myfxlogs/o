@@ -69,7 +69,7 @@ SET ROLE o_fin_ro; INSERT INTO ops_event(...) VALUES... -- ERROR: permission den
 SET ROLE o_fin_ro; SELECT 1 FROM fin_condition_gap;     -- ERROR: permission denied（白名单外拒——缺口实证）
 registry: COS|platform|COS 秘书席——业主办公室（准备决策不代拍板）|active|pure_interactive
 ```
-机检：`scripts/check_all.sh`——build/vet/import/gofmt/env/rejects/migrations（七断言）/bridge-audit 全绿；go test 首轮 events 包 `TestListenSocketStarvationRootFix` 红（33s 超时敏感受并行载波动），单跑 PASS——本 diff 零涉该面。
+机检：`scripts/check_all.sh` 二跑**全谱绿**（戳在案）——build/vet/import/gofmt/env/rejects/migrations（七断言）/bridge-audit/go test；首轮 events 包 `TestListenSocketStarvationRootFix` 曾红（33s 超时敏感受并行载波动），单跑 PASS——本 diff 零涉该面。
 
 **偏离说明**：
 - 批准闸措辞：票面「仍归决策席独占」与 §1 席面分家写面判据（`草案→已批` 只属 COS 交互形态）冲突——按施工提示词钦定句+§1 落 COS 闸（提案开放/批准不开放双写语义不变）。
