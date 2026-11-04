@@ -102,6 +102,11 @@ func TestGetPipelineEndToEnd(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
+	// fin_0097 台账启用 ops_event 种子行（T-0298 真实审计行）会虚增在飞票——
+	// 场景件清基非改锚（种子行非本锚语义件）。
+	if _, err := pool.Exec(ctx, "DELETE FROM ops_event"); err != nil {
+		t.Fatal(err)
+	}
 	c := coreService{pool: pool, docsRoot: "docs/tasks"}
 	// 桩（now() 相对分——测试实例时钟无关）：T-9001 驳回环在飞（带 ops_headless
 	// alive 行）、T-9002 收口等审计、T-9000 已完结（末事件<部署 ts→退场）。
@@ -180,6 +185,11 @@ func TestGetPipelineTruncation(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
+	// fin_0097 台账启用 ops_event 种子行（T-0298 真实审计行）会虚增在飞票——
+	// 场景件清基非改锚（种子行非本锚语义件）。
+	if _, err := pool.Exec(ctx, "DELETE FROM ops_event"); err != nil {
+		t.Fatal(err)
+	}
 	c := coreService{pool: pool}
 	for i := 0; i < 22; i++ {
 		if _, err := pool.Exec(ctx,
@@ -209,6 +219,11 @@ func TestGetPipelinePhantomRowNormalized(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
+	// fin_0097 台账启用 ops_event 种子行（T-0298 真实审计行）会虚增在飞票——
+	// 场景件清基非改锚（种子行非本锚语义件）。
+	if _, err := pool.Exec(ctx, "DELETE FROM ops_event"); err != nil {
+		t.Fatal(err)
+	}
 	c := coreService{pool: pool}
 	ins := func(ticket string, agoMin int) {
 		if _, err := pool.Exec(ctx,
