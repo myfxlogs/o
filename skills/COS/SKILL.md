@@ -30,8 +30,8 @@ ORDER BY ts;
 -- ② 条件请求件（D-0014 请求盒——业主接口机制承载）
 SELECT id,kind,venue,surface,payload,requested_at FROM fin_condition_gap
 WHERE state='pending' ORDER BY requested_at;
--- 注：fin_condition_gap 不在 fin_0106 白名单（T-0322 停线在案）——
--- 授权落地前源②缺席=如实记「读面缺」不绕行不借权。
+-- 注：fin_condition_gap 已由 fin_0108 补授入 o_fin_ro 白名单——
+-- 源②已授，按 SELECT-only 正径直读。
 ```
 
 ```bash
