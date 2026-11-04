@@ -1,7 +1,8 @@
 # T-0346 token 用量采集断供根修——新 worker 径接回 ops_ticket_usage
 
-- 状态：已批（COS 例行代理批——业主问「查看每席用多少 token 的做了吗」，实查断供坐实）
+- 状态：施工中（业主令直派，代 DM）
 - 级别：P2 观测面——额度账全黑=配额决策无据（owner_interruption/预算域食粮）
+- 领取：codex-o-dev-20261104 @ 2026-11-04（worktree `/opt/o-wt/t0346`，branch `t/0346-token-usage`）
 
 ## 病灶（实查在案，勿再诊）
 
