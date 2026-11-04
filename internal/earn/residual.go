@@ -98,6 +98,9 @@ func (w *Worker) sweepResidual(ctx context.Context) error {
 		if w.custodyMarked(ctx, ccy) {
 			continue // T-0100 ④：30 天托管窗内零动零警（拒后空转斩——窗满重试）
 		}
+		if !w.autoPurchaseOn() {
+			continue // T-0342：停用中实际申购前让位——零摆渡零申购（钱留交易户）
+		}
 		if !w.mu.TryLock() {
 			w.rej.Inc("sweep_busy")
 			return nil

@@ -401,3 +401,66 @@ func TestFundingIdleBackoff(t *testing.T) {
 		t.Fatalf("连败两拍第二拍应 sweep_backoff 不重发: %d→%d", n1, len(fake.purchases))
 	}
 }
+
+// T-0342 锚①：earn.auto_purchase_enabled=false→三自动申购径（sweepIdle 闲余回存
+// /depositIdleFunding 直购/sweepResidual 残币归口）零 SavingsPurchase 零摆渡；
+// RedeemToTrading 开仓赎回不经闸照发（票面钦定边界——停开关不误伤开仓可用性）；
+// 缺键=fail-closed 同停用态。
+func TestAutoPurchaseGate(t *testing.T) {
+	ctx, w, fake := setupW(t, &fakeAPI{}, map[string]string{
+		"earn.auto_purchase_enabled": "false",
+		"earn.sweep_min_usd":         "100",
+		"earn.redeem_buffer_bps":     "0",
+	})
+	// 闸下 sweepIdle：funding 500+交易户闲余 800 双源俱在→全段让位零动钱。
+	w.AttachIdleFunding(func(context.Context) (float64, error) { return 500, nil })
+	w.AttachIdle(func(context.Context) (float64, error) { return 800, nil })
+	if err := w.sweepIdle(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if len(fake.purchases) != 0 || len(fake.transfers) != 0 {
+		t.Fatalf("停用中 sweepIdle 应零动: purchases=%v transfers=%v", fake.purchases, fake.transfers)
+	}
+	// 闸下 depositIdleFunding 防线内再闸——绕过 sweepIdle 直调亦不发。
+	if w.depositIdleFunding(ctx, 500) || len(fake.purchases) != 0 {
+		t.Fatalf("停用中直购防线应拒: purchases=%v", fake.purchases)
+	}
+	// 闸下 sweepResidual：残币归口实际申购前让位——零摆渡零申购。
+	residualSetup(t, ctx, w.pool, w.venue)
+	if _, err := w.pool.Exec(ctx,
+		`INSERT INTO md_ticks(ts,inst_id,last) VALUES(now(),'FIL-USDT',5)`); err != nil {
+		t.Fatal(err)
+	}
+	defer w.pool.Exec(ctx, "DELETE FROM md_ticks WHERE inst_id='FIL-USDT'")
+	w.AttachCoins(func(context.Context) (map[string]float64, error) {
+		return map[string]float64{"FIL": 200}, nil
+	})
+	if err := w.sweepResidual(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if len(fake.purchases) != 0 || len(fake.transfers) != 0 {
+		t.Fatalf("停用中残币归口应零动: purchases=%v transfers=%v", fake.purchases, fake.transfers)
+	}
+	// 开仓赎回不经闸——停开关下 RedeemToTrading 仍发 SavingsRedeem+回拢摆渡。
+	if err := w.RedeemToTrading(ctx, 100); err != nil {
+		t.Fatalf("停用中开仓赎回应成: %v", err)
+	}
+	if len(fake.redeems) != 1 || fake.redeems[0] != 100 {
+		t.Fatalf("停用中 redeem 应照发 100: %v", fake.redeems)
+	}
+	// fail-closed 缺键径：删键+热载→同停用态（生产缺键=停申购钦定）。
+	if _, err := w.pool.Exec(ctx,
+		"DELETE FROM app_config WHERE key='earn.auto_purchase_enabled'"); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.cfg.Load(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.sweepIdle(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if len(fake.purchases) != 0 || len(fake.transfers) != 1 {
+		t.Fatalf("缺键应 fail-closed 零购（redeem 摆渡 1 笔非申购）: purchases=%v transfers=%v",
+			fake.purchases, fake.transfers)
+	}
+}

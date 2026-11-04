@@ -98,4 +98,8 @@ export const client: Client<typeof CoreService> = {
   getHeadless: deduped("GetHeadless", raw.getHeadless),
   getPipeline: deduped("GetPipeline", raw.getPipeline),
   getFlowPulse: deduped("GetFlowPulse", raw.getFlowPulse),
+  // T-0342：Earn 自动申购开关——读面入合并窗（低频单点），写径裸调不入窗
+  // （写非幂等——同帧合并会吞掉一次真实翻位）。
+  getEarnAutoPurchase: deduped("GetEarnAutoPurchase", raw.getEarnAutoPurchase),
+  setEarnAutoPurchase: raw.setEarnAutoPurchase,
 };

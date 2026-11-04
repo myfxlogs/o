@@ -243,7 +243,7 @@ func run() error {
 	// 采集观测源束（T-0170——collector/meter 方法值闭包，GetSystemHealth 供数）。
 	md := &mdStats{frames: collector.FrameCount, lastFrame: collector.LastFrame,
 		rejects: collector.Stats.Snapshot, netKbps: meter.RateKbps, netChannels: meter.Channels}
-	svc, navFn := assemble(pool, fundingLiveFor(okcli), earnLiveFor(okcli),
+	svc, navFn := assemble(pool, cfg, fundingLiveFor(okcli), earnLiveFor(okcli),
 		mt5LiveFor(pool, cfg), dcdLiveFor(okcli), posLiveFor(okcli), trxW, md)
 	var pusher *report.Pusher
 	{

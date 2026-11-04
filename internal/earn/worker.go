@@ -41,6 +41,9 @@ const (
 	beatEvery      = 30 * time.Second
 	parkingSrcBoot = "earn_boot" // 快照行 src：boot 首读
 	parkingSrcMove = "earn_move" // 快照行 src：移动后事件锚定刷
+	// keyAutoPurchase T-0342 停用开关键（app_config JSON bool——生产缺键
+	// =fail-closed 停申购；播种默认 true 保持现行为）。
+	keyAutoPurchase = "earn.auto_purchase_enabled"
 )
 
 // VenueAPI venue 停泊面（注入式——earn 不识 venue 方言，产线=okxexec.Client）。
@@ -84,7 +87,7 @@ func NewWorker(pool *pgxpool.Pool, cfg *config.Client) *Worker {
 	return &Worker{pool: pool, cfg: cfg, venue: defaultVenue, ccy: defaultCcy,
 		rej: rejects.New("earn", "rate_fetch_failed", "rate_parse_failed", "missing_param",
 			"idle_missing", "idle_fund_missing", "sweep_skip_inflight", "sweep_busy", "sweep_backoff", "venue_absent",
-			"deposit_failed", "transfer_ambiguous", "compensation_failed",
+			"deposit_failed", "transfer_ambiguous", "compensation_failed", "auto_purchase_off",
 			"snapshot_refresh_failed", "write_err", "custody_marked", "transfer_rejected"),
 		rateFn: func(ctx context.Context) (okxexec.RateSummary, error) {
 			return okxexec.LendingRateSummary(ctx, defaultCcy)
@@ -152,9 +155,25 @@ func (w *Worker) pollRate(ctx context.Context) {
 	}
 }
 
+// autoPurchaseOn T-0342 停用开关热读：earn.auto_purchase_enabled——只闸 O 发起的
+// 自动申购（sweep 回存/funding 直购/残币归口）；开仓赎回 RedeemToTrading 不经
+// 此闸（票面钦定边界——停开关不得误伤开仓资金可用性）。读败/缺键=false
+// fail-closed+计数门。
+func (w *Worker) autoPurchaseOn() bool {
+	on, err := w.cfg.GetBool(keyAutoPurchase)
+	if err != nil || !on {
+		w.rej.Inc("auto_purchase_off")
+		return false
+	}
+	return true
+}
+
 // sweepIdle 闲余>阈值（热启）→回存停泊。判据源：unified 快照行 avail（WS 事件源，
 // 鲜<5min fail-closed 不动钱）；执行在途（state=open）让位防饿腿。
 func (w *Worker) sweepIdle(ctx context.Context) error {
+	if !w.autoPurchaseOn() {
+		return nil // T-0342：自动申购停用中——本拍全段让位（钱留原账户）
+	}
 	thr, err := w.getF("earn.sweep_min_usd")
 	if err != nil {
 		w.rej.Inc("missing_param")
@@ -212,6 +231,9 @@ func (w *Worker) sweepIdle(ctx context.Context) error {
 // 免摆渡；58350 竞态幂等+clientId 幂等键+歧态禁补单 fail-closed 同规——
 // 败=计数+ALERT+同因 5min 退避）。
 func (w *Worker) depositIdleFunding(ctx context.Context, amt float64) bool {
+	if !w.autoPurchaseOn() {
+		return false // T-0342 防线内再闸——停用中直购不发（钱留 funding 户）
+	}
 	// T-0149 返修①：入段前同参 5min 退避闸——lastSweepFailAmt/At 读闸与
 	// 交易户径同构（连败两拍第二拍不重发死锁环根修）。
 	if time.Since(w.lastSweepFailAt) < 5*time.Minute && math.Abs(amt-w.lastSweepFailAmt) < 0.01 {

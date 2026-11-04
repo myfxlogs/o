@@ -16,6 +16,7 @@ import (
 	"o/internal/gen/dashboardv1"
 	"o/internal/gen/dashboardv1/dashboardv1connect"
 	"o/internal/gen/scoutv1/scoutv1connect"
+	"o/internal/platform/config"
 
 	"o/internal/research/gapscan"
 	"o/internal/trading/okxexec"
@@ -23,6 +24,9 @@ import (
 
 type coreService struct {
 	pool *pgxpool.Pool
+	// T-0342：app_config 窄写面（SetEarnAutoPurchase 唯一写径——只许写
+	// earn.auto_purchase_enabled 一键，Origin 同源闸前置）。
+	cfg *config.Client
 	// T-0086 ①④：资金户/Earn 活读件（cmd 装配注入 okxexec——REST 保留面非
 	// 快照；nil/读败=该户 0 不误报）。venue=唯一事实源，零落地。
 	fundingLive func(ctx context.Context) (map[string]float64, error)
@@ -265,14 +269,14 @@ func mountCore(mux *http.ServeMux, svc coreService) {
 
 // assemble 复盘域读面单例装配（T-0170：coreService 一处装配两处消费——
 // CoreService 挂载与 NAV 日拍闭包同源，live 读件不重复造）。
-func assemble(pool *pgxpool.Pool,
+func assemble(pool *pgxpool.Pool, cfg *config.Client,
 	fundingLive func(context.Context) (map[string]float64, error),
 	earnLive func(context.Context) (map[string]float64, error),
 	mt5Live func(context.Context) ([]mt5Acct, error),
 	dcdLive func(context.Context) ([]okxexec.DcdOrder, error),
 	posLive func(context.Context) ([]okxexec.Position, error), trxW *trxWiring,
 	md *mdStats) (coreService, func(context.Context) (float64, error)) {
-	svc := coreService{pool: pool, fundingLive: fundingLive, earnLive: earnLive,
+	svc := coreService{pool: pool, cfg: cfg, fundingLive: fundingLive, earnLive: earnLive,
 		mt5Live: mt5Live, dcdLive: dcdLive, posLive: posLive, trx: trxW, md: md}
 	return svc, func(ctx context.Context) (float64, error) {
 		o := &dashboardv1.OverviewResponse{}
