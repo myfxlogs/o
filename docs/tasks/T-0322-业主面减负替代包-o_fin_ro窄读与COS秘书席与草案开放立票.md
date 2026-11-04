@@ -92,3 +92,16 @@ registry: COS|platform|COS 秘书席——业主办公室（准备决策不代�
 - 停线纪律正面在案：白名单外表不授（条件授权 DO 块防迁移炸——fin_capability_surface 生产真存，to_regclass 全 14 物亲证）；app_secrets REVOKE 显式钉死非静默漏。
 - 升件补裁（本席份内，非红线三件）：升件行1564+打包件 docs/cos/packs/2026-11-04-o_fin_ro-condition-gap-grant.md——采纳建议A，白名单补 `fin_condition_gap` SELECT（COS 源②请求盒承载表正是秘书席该读面）；落 `docs/prompts/T-0322-返修①-fin_condition_gap白名单补授.md` 常径派单。
 - 部署后验项：fin_0106/0107 生产迁移+o_fin_ro 口令产出面手工置件——归 T-0326 部署链收口五锚销，本票不判红。
+
+### 决策席验收注记②——返修①（o_fin_ro 补授 fin_condition_gap，无头拍 devin @ 2026-11-04）
+
+裁词=**通过**，合 master@199c475c（分支 `t/0322-condgap-grant` 尖 02673f7e）。
+
+- 范围红线过：diff 恰 4 件 ⊆ 返修①提示词清单——migrations/fin_0108、migrate_table.go 册登记 {108}（fin 链 107 后 md 链前）、docs/数据流.md 凭据面白名单串、skills/COS/SKILL.md 源②注改「已授」。
+- 门禁绿在案：本席于 worktree t0322r 亲跑 check_all 全链绿——戳落 check-green-02673f7e（build/vet/import 129-138边/gofmt/env 30键/rejects/migrations 七断言/bridge-audit 四列/go test 全谱）。
+- 验收锚实迹（本席 dev 库 o-postgres@5433 亲跑复跑，非口报）：
+  ① schema_migrations 108 在列；SET ROLE o_fin_ro; SELECT count(*) FROM fin_condition_gap=1（通）；
+  ② 回归钉：app_secrets SELECT=permission denied；ops_event INSERT=permission denied——补授不伤黑名单/写禁。
+- 停线纪律正面在案：单行 GRANT SELECT 一表，他表零授；o_fin_ro 写权仍零、凭据域结构性仍拒（②实证）。
+- 瑕疵注记（非判红）：票面未落返修①回填段——锚摘要走 ops_event 收口行（id 1580/1581）可稽，本注记补位。
+- 部署后验项：fin_0108 生产迁移随行——归 T-0326 部署链收口五锚同销，本件不判红。
