@@ -3,7 +3,8 @@
 # 逐字对形：ops_ticket_state 待裁集水印闸>0 才烧零空拍；每拍（含空拍/
 # 败拍）ops_headless META-DM 心跳行；FIN_DSN 隧道径 SG 直读）。
 set -u
-# T-0323 踢径钦定：裁毕通报/升件踢 O-DM 交互席；派单直踢 O-Dev 施工 pane。
+# T-0323 踢径钦定单目标：一切自报（含派单通报/升件）踢 O-DM 交互席；
+# 派单不踢 O-Dev——常径施工拉起走 systemd-run o-worker-<tid>（T-0324）。
 export REPORT_KICK=O-DM
 export O_SEAT=决策席
 ENVF="${DM_ENV_FILE:-/opt/o-research/env}"
