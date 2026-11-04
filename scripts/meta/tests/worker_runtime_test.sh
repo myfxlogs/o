@@ -26,6 +26,23 @@ if [[ ${1:-} == list ]]; then
 	exit 0
 fi
 printf '%s\n' "$*" >> "$DEVIN_CALLS"
+export_file=
+while (($#)); do
+	if [[ $1 == --export ]]; then
+		shift
+		export_file=${1:-}
+		break
+	fi
+	shift
+done
+if [[ -n "$export_file" ]]; then
+	python3 - "$export_file" <<'PY'
+import json,sys
+with open(sys.argv[1],'w') as f:
+ json.dump({'session_id':'mock-session','agent':{'model_name':'SWE-2 Medium'},
+  'final_metrics':{'total_prompt_tokens':120,'total_completion_tokens':7,'total_cached_tokens':80}},f)
+PY
+fi
 touch "$PWD/.mock-session"
 if [[ ${MOCK_RATE_LIMIT:-0} == 1 ]]; then
 	echo "Reached free model rate limit. Your limit will reset in 2 minutes." >&2
@@ -37,19 +54,30 @@ cat > "$TMP/bin/report" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$REPORT_CALLS"
 EOF
-chmod +x "$TMP/bin/devin" "$TMP/bin/report"
+cat > "$TMP/bin/usage" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$USAGE_CALLS"
+[[ ${MOCK_USAGE_FAIL:-0} != 1 ]]
+EOF
+chmod +x "$TMP/bin/devin" "$TMP/bin/report" "$TMP/bin/usage"
 
 DEVIN_CALLS="$TMP/devin-calls"
 REPORT_CALLS="$TMP/report-calls"
-export DEVIN_CALLS REPORT_CALLS
+USAGE_CALLS="$TMP/usage-calls"
+export DEVIN_CALLS REPORT_CALLS USAGE_CALLS
 export O_WORKER_DEVIN_BIN="$TMP/bin/devin"
 export O_WORKER_REPORT_BIN="$TMP/bin/report"
+export O_WORKER_USAGE_BIN="$TMP/bin/usage"
 export REPORT_ENV_FILE="$TMP/no-env"
 export MOCK_RATE_LIMIT=1
+export MOCK_USAGE_FAIL=1
 
-bash "$ROOT/scripts/meta/dev_run.sh" T-9001 "start ticket"
+bash "$ROOT/scripts/meta/dev_run.sh" T-9001 "start ticket" > "$TMP/first-run.log" 2>&1
+grep -q 'token usage collection failed; continuing ticket lifecycle' "$TMP/first-run.log"
 [[ -s "$O_WORKER_RUNTIME_DIR/quota-reset-epoch" ]]
 grep -q '^挂起 T-9001 rate-limit:auto ' "$REPORT_CALLS"
+grep -q '^T-9001 run 施工席 .*\.devin-usage\..*\.json ' "$USAGE_CALLS"
+[[ $(find "$O_WORKER_RUNTIME_DIR/sessions/T-9001" -maxdepth 1 -name '.devin-usage.*.json' | wc -l) -eq 1 ]]
 first_reset=$(cat "$O_WORKER_RUNTIME_DIR/quota-reset-epoch")
 (( first_reset > $(date +%s) + 150 ))
 printf 'temporary network failure\n' > "$TMP/network.log"
@@ -69,8 +97,11 @@ o_worker_record_quota_reset "$TMP/limit.log" >/dev/null
 # ticket's Devin session instead of creating a fresh one.
 printf '0\n' > "$O_WORKER_RUNTIME_DIR/quota-reset-epoch"
 export MOCK_RATE_LIMIT=0
+export MOCK_USAGE_FAIL=0
 bash "$ROOT/scripts/meta/dev_run.sh" T-9001 "resume ticket"
 grep -q '^--continue ' "$DEVIN_CALLS"
+[[ $(wc -l < "$USAGE_CALLS") -eq 2 ]]
+[[ $(find "$O_WORKER_RUNTIME_DIR/sessions/T-9001" -maxdepth 1 -name '.devin-usage.*.json' | wc -l) -eq 1 ]]
 
 # Another ticket gets a separate session directory and cold start.
 bash "$ROOT/scripts/meta/dev_run.sh" T-9002 "other ticket"
