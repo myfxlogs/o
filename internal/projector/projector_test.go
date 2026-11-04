@@ -653,6 +653,72 @@ func TestReverseBridge(t *testing.T) {
 	}
 }
 
+// TestReverseFinMirrors 五 fin 表反向桥（T-0326——stakeCarryScan 质押腿断供
+// 根修）：SG 正本→PG-md 副本全表 diff；行变覆写+幂等零漂移三拍。
+func TestReverseFinMirrors(t *testing.T) {
+	ctx := context.Background()
+	r, md, sg := runner(t)
+	if _, err := sg.Exec(ctx, `INSERT INTO fin_trx_vote_apr(fetched_at,current_rate,current_sr,max_rate,max_sr,spread,min_rate,min_sr)
+		VALUES (now(),0.042,'SR-A',0.05,'SR-B',0.01,0.03,'SR-C')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sg.Exec(ctx, `INSERT INTO fin_trx_account(address,votes_total,sr_address,balance_sun,allowance_sun,
+		energy_delegated,bandwidth_staked,net_limit,unfrozen)
+		VALUES ('TTESTADDR',100,'SR-A',5000000,0,700000,300000,9000000,'{"k":1}')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sg.Exec(ctx, `INSERT INTO fin_trx_txs(tx_id,ts,kind,amount_sun,counterparty)
+		VALUES ('tx001',now(),'rental_income',123456,'TBtvnRBgrVE9zZWkWfPvDSiuo65es55555'),
+		       ('tx002',now(),'vote',0,NULL)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sg.Exec(ctx, `INSERT INTO fin_cmc_history(account_id,transaction_id,transaction_type,amount,balance,currency,order_id,transaction_time)
+		VALUES (38941616,'h001','OVERNIGHT_SETTLEMENT',1.23,100.5,'USD','o1',now()),
+		       (38941616,'h002','DEPOSIT',10,110.5,'USD',NULL,now())`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sg.Exec(ctx, `INSERT INTO fin_cmc_positions(account_id,instrument_id,direction,quantity,entry_price,unrealised_pnl,margin_amount,margin_percentage,evaluation_bid_price,evaluation_ask_price,opened_at,order_id)
+		VALUES (38941616,'X-AFQUL','short',100,0.078,-1.5,7.8,10.0,0.077,0.079,now(),'p1')`); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.reverseFinMirrors(ctx); err != nil {
+		t.Fatal(err)
+	}
+	for tbl, want := range map[string]int{
+		"fin_trx_vote_apr": 1, "fin_trx_account": 1, "fin_trx_txs": 2,
+		"fin_cmc_history": 2, "fin_cmc_positions": 1,
+	} {
+		if n := count(t, md, "SELECT count(*) FROM "+tbl); n != want {
+			t.Fatalf("%s 副本应 %d 行: %d", tbl, want, n)
+		}
+	}
+	var del int64
+	if err := md.QueryRow(ctx, "SELECT energy_delegated FROM fin_trx_account").Scan(&del); err != nil || del != 700000 {
+		t.Fatalf("副本 energy_delegated 应 700000: %d %v", del, err)
+	}
+	// 正本行变→再 diff 副本覆写；零变再 diff 幂等零漂移。
+	if _, err := sg.Exec(ctx, `UPDATE fin_trx_vote_apr SET current_rate=0.055, min_sr=NULL`); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.reverseFinMirrors(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var rate float64
+	var minSR *string
+	if err := md.QueryRow(ctx, "SELECT current_rate, min_sr FROM fin_trx_vote_apr").Scan(&rate, &minSR); err != nil {
+		t.Fatal(err)
+	}
+	if rate != 0.055 || minSR != nil {
+		t.Fatalf("副本应覆写 rate=0.055/min_sr=NULL: %v %v", rate, minSR)
+	}
+	if err := r.reverseFinMirrors(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if n := count(t, md, "SELECT count(*) FROM fin_trx_txs"); n != 2 {
+		t.Fatalf("幂等再 diff 应仍 2 行: %d", n)
+	}
+}
+
 // TestTsPassThrottle T-0193 桩锚：ts 表族过拍最小间隔闸——两连拍第二拍
 // 间隔内跳拍（串行 worker 挤兑根修语义锚；Elapsed 过闸后追平照常）。
 func TestTsPassThrottle(t *testing.T) {

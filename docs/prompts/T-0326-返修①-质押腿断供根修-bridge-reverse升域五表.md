@@ -59,3 +59,75 @@
 - 只这五表升域——他表禁动（`fin_trx_vote_apr_top` 等未读面不入）；
 - 零钱径写/零 venue 注册/零 gate.* 外 app_config/零凭据面；
 - 反向臂勿造新范式——全表 diff 照既有三函数形。
+
+## 结果回填（无头施工席 devin @ 2026-11-04）
+
+### 实现摘要（须落六件+机械随件）
+
+1. `migrations/domain.tsv`——五行 `fin`→`bridge-reverse`：fin_trx_vote_apr/
+   fin_trx_account/fin_trx_txs/fin_cmc_history/fin_cmc_positions；
+   `fin_trx_vote_apr_top` 等未读面留 `fin`（停线守）。
+2. `migrations/md_1087_stake_carry_fin_replica.sql`——五表
+   `CREATE TABLE IF NOT EXISTS`+索引逐字照 fin_0046/fin_0081 正本（断言⑥
+   归一化同形钉）+`fin_data_retention` 五行 class='state'（副本不删行——
+   sweeper 删行与全表 diff 互搏=churn 环，md_1070 同口径）。
+3. `migrate_table.go` 登记 `{1087}`（md 链尾单调）。
+4. `internal/projector/reverse_fin.go`（新件——reverse.go 450 行硬线
+   分拆，同包同 Runner）——五表 reverse 函数共走 `revTableDiff[T]` 泛型
+   双侧全表 diff（行判等 `reflect.DeepEqual`：指针列按所指值比——`h!=s`
+   结构体判等含指针列恒不等=全表恒覆写浪费，坑条目
+   struct-pointer-field-equality-always-diff 同 commit 入库）+
+   `reverseFinMirrors` 汇总径；numeric `::text` 搬运保精度（mirror.go 同律）。
+5. `reconcile.go` `Reconcile` 挂 `reverseFinMirrors`（earn_rate 后）；
+   `ops.go` `ev_strategy` 帧顺带（既有反向桥帧径——五表无 SG 触发帧，
+   期界对账兜底；零新 NOTIFY 触发器）；`projector.go` `New()` 反向
+   搬运面对册清单 3→8。
+6. `docs/数据流.md` 反向桥三处补五表（链路变更同 commit）。
+   机械随件：`check_migrations.sh` 断言⑥ `BRIDGE` 清单 +5 表
+   （验收锚「含⑥五新副本 DDL 同形」的机检载体——不入清单=断言不覆盖）；
+   `projector_test.go` 增 `TestReverseFinMirrors`（五表 diff/覆写/幂等三拍）。
+
+### 验收锚亲跑实录
+
+- [x] **dev 双链迁移落账**：fin 侧 `migrate -domain=fin`→`fin 链应用毕`
+  （基线齐，零新 fin_* 在案）；md 侧 dev@5433 `schema_migrations` 1087=
+  `md_1087_stake_carry_fin_replica.sql` 在账；`to_regclass` 五连=
+  `fin_trx_vote_apr|fin_trx_account|fin_trx_txs|fin_cmc_history|fin_cmc_positions`
+  全非 NULL。**环境注记**：dev 合库 md 链账停 1011 为既有漂移
+  （md_1015 `create_hypertable` 撞非空 md_earn_rate 唯一键——fin 链镜像
+  建的 PK(venue,ccy) 与 ts 分区不兼容），md_1087 走 psql 直落+账行补登
+  同 md_1086 dev 先例（行在账未链销），不改旧迁移不碰他表数据。
+- [x] **副本对账**：dev 合库同表故 md 侧行数=正本行数——
+  vote_apr 225/trx_account 765/trx_txs 784/cmc_history 34/
+  cmc_positions 672（生产正本亲证值 2409/3008/813/39/8390 部署后对拍
+  由生产验证锚兜）；真实 diff 语义证=`TestReverseFinMirrors` PASS
+  （独立 schema 双侧——五表各 fixture 落副本+行变覆写 min_sr NULL+
+  幂等零漂移，`go test -run 'TestReverseFinMirrors|TestReverseBridge'`
+  双 PASS 实录）。
+- [x] **`check_migrations` 七断言绿**（亲跑 `OK: check_migrations`——
+  含⑥五新副本 DDL 归一化语句集相等）；**`bridge-audit` 四列全绿**：
+  `授权列: 23 桥表×projector_rw.SELECT + 8 reverse×research_rw.SELECT 齐`
+  （reverse 表面 3→8 随册动实证）+存在性/模板/水印三列同绿。
+  **SG 生产授权实录**：`GRANT SELECT ON 五表 TO projector_rw,research_rw`
+  →`GRANT` 回执+实查五表×两角色 SELECT 全在（`role_table_grants`
+  分组对拍输出在案——手工补权同 fin_0104 先例，本件零 fin 迁移票面钦定）。
+- [x] **dev 链复跑 stake_carry 到右元**：临时 scanonce-stake 跑一拍
+  `ScanSignals`（用完即删未入库）→`SCAN-OK
+  stake_carry_eval_rows_last_2min=1`；实查 `fin_opp_eval` 新行=
+  `cmc:TRX|stake_carry|proposed|net_apr=0.12833773338730112|
+  legs={"spot":"long_staked","short":"cmc"}`@05:35:55Z——concrete eval
+  行落账=42P01 静默臂消灭（净 1283bps 与 T-0320 标定值 0.1283 逐位合）。
+- [x] **`check_all` 全谱绿**：build/vet/import 129-138 边/gofmt/env-reads/
+  rejects/migrations/bridge-audit 四列/go test 全包 ok——戳落
+  `check-green-11d2541f`（收口 commit SHA 重跑绑定）。
+
+### 偏离说明
+
+- `ops.go ev_strategy` 顺带五表 diff——票面「按既有帧径接」落形（五表
+  无 SG 触发帧，反向桥唯一 SG 帧=ev_strategy；小表全表 diff 廉价顺带，
+  Reconcile 期界仍兜底）。
+- `projector_test.go` 增测试一件+`check_migrations.sh` BRIDGE 清单扩
+  ——验收锚要求的机检覆盖载体，属机械随件非扩域。
+- dev@5433 md 链账停 1011 既有漂移（md_1015 hypertable 冲突）如实报
+  不修——修=改旧迁移/动 dev 表键超票域；md_1087 psql 直落+账行补登
+  与 md_1086 dev 先例同径。
