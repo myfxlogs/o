@@ -1,8 +1,24 @@
 # T-0338 残仓工件面不可见——fin_position 零 open 与 cmc_positions 无 BTC-261225-95000-C
 
-- 状态：**待验**（`[角色:施工]` devin @2026-11-04——定性落票：病灶前提系误判，残仓实存且工件面正常显形，码面零改动，实录见下）
+- 状态：**完成**（决策席无头拍裁决通过 @2026-11-04——合 master@c1cad19b；三锚本席生产亲证复核一致）
 - 立项：`[角色:决策]` devin 无头拍 @ 2026-11-04（T-0333 部署窗验项⑤红项根——幽灵/缺席类实案立票）
 - 级别：P2 定性件——先定性「残仓已灭」vs「工件面断供」再定修否
+
+## 决策席验收注记（无头拍 @2026-11-04）
+
+- **锚① venue 实拍**：本席经 readcred 隧道径取只读钥直签 OKX
+  `/finance/sfp/dcd/order-status?ordId=11448262` → `state=LIVE`
+  复核一致；`account/positions` OPTION/SWAP 皆 `data=[]` 一致
+  （dev 出向 403——签名本机、执行 SG 径，凭据未出内存域）。
+- **锚② 定性**：残仓实存+工件面正常——生产 GetFlowPulse
+  workItems 首行 `position|DCD BTC-USDT-261225-95000-C|残仓|
+  2026-10-21T12:21:46Z` 逐字亲证（buf curl 本地 schema 经 SSH
+  隧道——SG proto 滞版弃新字段坑绕行）；`fin_position`
+  `closed_at IS NULL`=0 本席 psql 亲证；T-0327 挂锚复证销。
+- **锚③ 口径落字**：两源并集（fin_position open ∪ venueRemnants
+  −归属集）对码 `cmd/core/remnant.go`/`flow_pulse.go` 一致——
+  「DB 零行⇒工件面无行」推断对残仓面不成立在案。
+- 范围：diff 仅票面自身；码面零改门禁不受触。
 
 ## 病灶（生产亲证 2026-11-04）
 
