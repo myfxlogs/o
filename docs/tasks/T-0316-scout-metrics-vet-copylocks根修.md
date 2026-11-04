@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | **施工中**（devin-t0316 @ 2026-11-04） |
+| 状态 | **完成**（决策席无头拍裁决通过 @ 2026-11-04——见「决策席验收注记」） |
 | 立项 | `[角色:决策]` devin @ 2026-11-04（T-0315 裁决门禁对账实证） |
 | 领取 | （空=未领） |
 | 优先级 | 高——`go vet` master 恒红=check_all 全谱闸阻一切后续票 |
@@ -43,3 +43,37 @@ google.golang.org/protobuf/runtime/protoimpl.MessageState contains sync.Mutex
   venue_req.go `b:=m.Boards[best]` 指针型拷不触锁）。
 - check_all 全谱：除 bridge-audit 末列 arch 水印对拍红=**生产态闸**（远程
   DB arch×源对拍非码面——本 diff 零涉；env 态红如实记档不归本票修）。
+
+## 决策席验收注记（`[角色:决策]` 无头拍 devin @ 2026-11-04——审 @e41e0857，合 @053036aa）
+
+**裁词：通过**（合 master）。
+
+### 验收锚对账
+
+- 锚①`go vet ./...` 全绿 PASS——决策席亲跑 check_all vet 段绿+单包
+  `go vet ./internal/research/scout/` 绿实证（metrics.go:224 copylocks
+  诊灭）。
+- 锚②check_all 全谱：build/vet/import(128/137 边)/gofmt/env-reads/
+  rejects/migrations **码面七闸全绿**；bridge-audit 红为环境态非码面——
+  **master HEAD(662eab0f) 同诊**亲跑复现（T-0315 先例：master 存量红
+  不罚本件），立 T-0318 追修。
+- 锚③同文件无第二处拷锁 PASS——回填 grep 排查在案+包级 vet 绿机检兜底
+  （vet copylocks 全域覆盖，漏面必红）。
+
+### 范围红线
+
+diff 2 件=metrics.go+本票回填 ⊆ 涉及面（单文件钦定）；Board proto 型
+零改守范围外钦定；`b:=&boards[i]` 下游全字段访问语义不变（diff 通读）。
+
+### bridge-audit 红定性（不罚本件+立件追修——实查三件）
+
+- **闸静默死 bug**：③模板列 `av=$(env_field)` 于 `set -euo pipefail`
+  下——远件 grep 无匹配 rc=1→pipefail→set -e 静默退出，设计意匠的
+  `[ -z "$av" ] && red` 永不到达；真实漂移行被灭口零诊断。
+- **o-collecto.env 缺 SG_PG_DSN 键**（实查：件存在、键无——grep 空即
+  杀死点）。
+- **模板漂移真行**（绕过静默死后逐对拍实查）：o-research/env
+  `ROSTER_PG_DSN` 实=roster_rw vs 模板 research_rw、`FIN_PG_DSN`
+  实=review_rw vs 模板 research_rw。
+- regime 判词读面：md_regime_fact 无活在判词→neutral 处理（协议钦定
+  缺席非拒因）。
