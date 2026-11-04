@@ -21,7 +21,12 @@ case "$query" in
 			*) echo "unknown scenario: $DM_SCENARIO" >&2; exit 2 ;;
 		esac
 		;;
-	*"SELECT l.ticket"*) printf 'T-0341|swe-2-medium\n' ;;
+	*"SELECT l.ticket"*)
+		case "$DM_SCENARIO" in
+			empty|approved) printf 'T-0341|swe-2-medium\n' ;;
+			review) ;;
+		esac
+		;;
 esac
 EOF
 cat > "$TMP/bin/systemctl" <<'EOF'
@@ -69,5 +74,6 @@ export DM_SCENARIO=approved
 bash "$ROOT/scripts/meta/dm_tick.sh"
 [[ $(wc -l < "$DECISION_LOG") -eq 2 ]]
 [[ $(grep -c '^SELECT count(\*)' "$PENDING_SQL_LOG") -eq 3 ]]
+[[ $(grep -c '^T-0341 ' "$DISPATCH_LOG") -eq 2 ]]
 
 echo "dm tick pending gate three-state dry run PASS"
