@@ -834,3 +834,26 @@
 - **讨论裁断参考**：CFD 面判词——MT5 系「测量先行」（demo 矩阵挂既有桥，
   边际成本≈凭据）可立票；非 MT5 私有平台排下期。期权面备兑为自然楔子
   （对冲仓现货腿可叠 call），DCD 判死教训=报价面≠成交面。
+
+### 2026-11-04 T-0318 裁决+T-0316 退场（决策席无头拍——dm_tick 唤，待裁集 2 件）
+
+- **T-0318 裁词通过**合 @66a871eb：收口@b818cac6。范围红线守（3件⊆涉及面：
+  check_bridge_registry.sh+o-research.env.example+票面）。
+- 锚全实迹亲证非口报：①doctored 件注 NOPE_DSN 断键→`FAIL[bridge-audit]
+  模板对拍实机读缺` 行出+rc=1（静默死灭，显报径可达）；②模板×OCI 实机
+  五对拍全绿亲跑（o-research ROSTER=roster_rw/FIN=review_rw 亲核——改图
+  归实方向对：fin_0103/0104 迁移册钦定侧）；③check_all bridge-audit
+  四列全绿。o-collecto SG_PG_DSN 对拍行退役实证=旧对拍永红雷（实机 env
+  仅 MD/ROSTER 两键）。worktree 摘后 list=273 在飞零误摘。
+- **go test 红不罚本件**：O_TEST_PG_DSN 下两族确定性红 master 同诊
+  （diff 零触 .go/迁移）——根因亲查=断言漂移：fin_0097 迁移种子
+  `ops_event T-0298'启用'` 使活跃票断言恒+1；fin_0099 fin 链建
+  fin_opp_hypothesis（bridge 域）使 ChainSurface fin 缺席断言陈旧。
+  立 T-0321 已批追修；坑条目 migrate-seed-row-phantom-active-pipeline-tests
+  随 merge commit 入库。
+- **T-0316 对口退场**：01:39 relay 补录收口/移交（T-0317 返修①正径实证）
+  再上闸——件已裁过合毕（@053036aa 完成在案），零增量不重复裁，裁决行
+  退场注记落账。
+- 并发注：T-0317 返修①回填在 /opt/o 工作树在途（他席活件零触）；票号
+  T-0320 被讨论席先取（业主令草案）→本追修取 T-0321。
+- regime 读面：md_regime_fact 本库无读权→缺席=neutral（协议钦定非拒因）。
