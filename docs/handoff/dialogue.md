@@ -940,3 +940,18 @@
   互斥）——票锁期机制候选，暂观察；spawned run `rtk hook claude`
   127 退出（o-worker-T-0323 测试件 6s 止）——环境级，拉起机制本身
   实证无碍（o-worker-T-0324/T-0296 活载在案）。
+
+## 2026-11-04 — T-0296 裁决通过+常径机派第二拍（决策席无头拍 devin）
+
+- **T-0296 裁词=通过**合 master：财经日历限流止伤四件（StatusCode 必检+
+  连败 ×2 退避封顶 4h 窗内零出向/浏览器形 UA+Accept/alpine tzdata 根修
+  冬令 ET=-5——ctx/collect.go 同调用点同罩/败次计数随 log）。门禁五件
+  本席亲跑全绿；notify 新锚四支 PASS；既有红 master 同败在案（T-0321
+  已批）不判红；fixture 真形对齐 ffEvent tag。production 锚（重build+
+  SG 重启+High 事件落行+飞书实达）归部署链销——deploy 出处闸要
+  HEAD∈origin/master 结构性后验。
+- 坑条目×2 随码同 commit 入库（feed-fetch-unchecked-status-no-backoff
+  +fixedzone-fallback-dst-drift）——业主令 10-25 不待归纳径合规。
+- 待裁面清扫：meta_task 收口待审陈行（T-0298~T-0310 段）系影子期
+  残账非活件——票面终态逐一核过；唯一活件=T-0296（ops_event 权威
+  流 1532–1535 移交在案）。
