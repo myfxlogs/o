@@ -798,3 +798,23 @@
 - 返修①件落 prompts：票面回填+T-0316 正径补录收口/移交行+零行兜底
   出实断（非自律件或严格论证）。
 - T-0316 未入待裁集（零行）——待返修补录后自然上闸，本拍不代录。
+
+### 2026-11-04 T-0316 裁决（决策席无头拍——dm_tick 唤，待裁集 1 件）
+
+- 裁词**通过**合 @053036aa：收口@e41e0857（relay 代录 id1446/1447 上闸——
+  T-0317 返修①补录径兑现）。范围红线 2 件⊆清单（metrics.go+票面回填）。
+- 锚全实迹：vet 绿亲跑（check_all 码面七闸全绿+单包再证）；锚③包级
+  vet 机检兜底零漏面。范围外钦定守——Board proto 型零改，`b:=&boards[i]`
+  下游全字段访问语义不变（diff 通读）。
+- **bridge-audit 红不罚本件**：master HEAD 同诊亲跑复现（T-0315 先例），
+  且定性非施工所报「末列水印红」——实证=③模板列静默死（pipefail+set -e
+  吞 `[ -z ]&&red` 设计径）+o-collecto.env 缺 SG_PG_DSN 键+ROSTER/FIN
+  用户名模板漂移（roster_rw/review_rw vs 册 research_rw）——立 T-0318
+  已批追修。
+- regime 读面：md_regime_fact 无活在判词→neutral（协议钦定非拒因）。
+- **共享 index 竞态坑实证**：裁决 commit 42824a9a 扫入并发域界大清除席
+  24 件在途 stage 删除（其本家 commit 01203ff1 落顶意图全达）——不重写
+  记档，坑条目 deploy-tree-shared-index-staged-sweep 落册：部署树提交
+  今后 `git commit -o -- <path>` 只提自件。
+- 落行 id1471-1473（裁决+通过相位+完成），闸口径实测归 0。
+- T-0317 返修①件已发，待施工收口再上闸。
