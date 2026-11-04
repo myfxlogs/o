@@ -44,13 +44,18 @@ RC=$?
 # ③ 每拍心跳全件（成败同写——败拍=stalled 显形非隐）。
 [ $RC -eq 0 ] && hb alive || hb stalled
 
-# T-0324 漏拉清扫闸（返修①）：ops_event 派单行后同票无领单且无活
-# o-worker-<tid> unit→dev_run.sh 幂等补拉。三守卫钦定——①最新任意事件
-# 恰为派单（终态 收口/移交/裁决/完成/驳回/拉起/领单 超越免拉，T-0324
-# 误派行收口先于派单案在案；挂起/异常 停态词同入集——派单后即挂票免拉）
-# ②补拉落 `拉起` 行入 filter 集自标幂等 ③无票文件免拉（T-9999 类测试
-# 行天然排）。is-active 按行精确比对——'inactive' 字面含 'active' grep
-# 误配恒判活=闸永不补拉病灶根修。
+# T-0324 漏拉清扫闸（返修①）+T-0329 甲向补固：ops_event 派单行后同票无领单
+# 且无活 o-worker-<tid> unit→dev_run.sh 幂等补拉。原三守卫照留——①最新
+# 任意事件恰为派单（终态 收口/移交/裁决/完成/驳回/拉起/领单 超越免拉，
+# T-0324 误派行收口先于派单案在案；挂起/异常 停态词同入集——派单后即挂
+# 票免拉）②补拉落 `拉起` 行入 filter 集自标幂等 ③无票文件免拉（T-9999
+# 类测试行天然排）。is-active 按行精确比对——'inactive' 字面含 'active'
+# grep 误配恒判活=闸永不补拉病灶根修。
+# T-0329 补固二件——④派单行须 seat='决策席'：COS cos-relay/批注误词 派单
+#   行永不触闸（2026-11-04 ops_event 1562/1563 误派双工实证——闸不数活数
+#   不分派单源 seat 病灶）；⑤拉起前活数闸：list-units o-worker-*
+#   active/activating 数≥并行上限（=2，决策席职卡/collab §1 钦定）本拍
+#   空转不拉——补拉不占超编。
 if [ -n "$FIN_DSN" ]; then
   psql "$FIN_DSN" -qAt -c "SELECT ticket FROM (
       SELECT ticket,max(ts) mt FROM ops_event WHERE event IN
@@ -58,10 +63,12 @@ if [ -n "$FIN_DSN" ]; then
          '挂起','异常')
         AND ticket<>'' GROUP BY ticket) l
     WHERE EXISTS (SELECT 1 FROM ops_event e WHERE e.ticket=l.ticket
-        AND e.ts=l.mt AND e.event='派单')" 2>/dev/null | while read -r tid; do
+        AND e.ts=l.mt AND e.event='派单' AND e.seat='决策席')" 2>/dev/null | while read -r tid; do
     compgen -G "/opt/o/docs/tasks/${tid}-*.md" >/dev/null || continue # ③无票免拉
     st=$(systemctl --user is-active "o-worker-$tid.service" 2>/dev/null || true)
     case "$st" in active|activating) continue;; esac # 精确比对误配恒死修
+    act=$(systemctl --user list-units 'o-worker-*' --state=active,activating --no-legend 2>/dev/null | wc -l)
+    [ "$act" -lt 2 ] || break # ⑤活数=上限本拍空转（T-0329——并行上限=2）
     if systemd-run --user --unit="o-worker-$tid" --collect         /opt/o/scripts/meta/dev_run.sh "$tid"         "读 /opt/o/skills/施工席/SKILL.md 施工协议 领 $tid 施工" >/dev/null 2>&1; then
       psql "$FIN_DSN" -qAt -c "INSERT INTO ops_event(seat,event,ticket,note)
         VALUES('META-DM','拉起','$tid','漏拉闸补拉幂等自标')" >/dev/null 2>&1 || true
