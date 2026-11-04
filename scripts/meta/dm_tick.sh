@@ -21,15 +21,23 @@ hb() { # $1=state 心跳行（META-DM——meta 席位口径）
 # ① 待裁闸：无待裁时跳过 LLM，但仍运行下方零 LLM 的 worker 派发/续跑闸。
 SKIP_DECISION=0
 if [ -n "$FIN_DSN" ]; then
-  # T-0315②：最新刻事件集判定（max(ts) 时刻集含终态词 裁决/完成/驳回
-  # 即离集——同 ts 撞族 DISTINCT ON 无序漂移根修；ops_event 唯一真源
-  # 不票面交叉）。
+  # T-0315②/T-0347：最新刻事件集判定。裁决候选仍按收口类+裁决终态；
+  # 已批派单待件独立纳入，且派单/领单/拉起/裁决/完成/驳回/挂起均离集。
+  # max(ts) 同时刻保留整组事件，避免 DISTINCT ON 无序漂移；ops_event 唯一真源。
   N=$(psql "$FIN_DSN" -qAt -c "SELECT count(*) FROM (
       SELECT ticket, max(ts) mt FROM ops_event WHERE ticket<>'' GROUP BY ticket
-    ) l WHERE EXISTS (SELECT 1 FROM ops_event e WHERE e.ticket=l.ticket
-        AND e.ts=l.mt AND e.event IN ('收口','移交','收口待审'))
-      AND NOT EXISTS (SELECT 1 FROM ops_event e WHERE e.ticket=l.ticket
-        AND e.ts=l.mt AND e.event IN ('裁决','完成','驳回'))" 2>/dev/null || echo 0)
+    ) l WHERE (
+      (EXISTS (SELECT 1 FROM ops_event e WHERE e.ticket=l.ticket
+          AND e.ts=l.mt AND e.event IN ('收口','移交','收口待审'))
+       AND NOT EXISTS (SELECT 1 FROM ops_event e WHERE e.ticket=l.ticket
+          AND e.ts=l.mt AND e.event IN ('裁决','完成','驳回')))
+      OR
+      (EXISTS (SELECT 1 FROM ops_event e WHERE e.ticket=l.ticket
+          AND e.ts=l.mt AND e.event='已批')
+       AND NOT EXISTS (SELECT 1 FROM ops_event e WHERE e.ticket=l.ticket
+          AND e.ts=l.mt AND e.event IN
+            ('派单','领单','拉起','裁决','完成','驳回','挂起')))
+    )" 2>/dev/null || echo 0)
   if [ "$N" = "0" ]; then
     hb alive
     SKIP_DECISION=1
