@@ -63,3 +63,12 @@
   派单 T-9999` pane 收行+ops_event `派单` 行 1495 双证；未设 env 行为
   与今全同。
 - dm_tick 下拍裁决行实踢=部署后实证件。
+## 返修① 回填（devin @ 2026-11-04，同支续提——规漂非责案）
+
+- 违①销：`export REPORT_DISPATCH=O-Dev` 撤→钦定两行形（REPORT_KICK
+  =O-DM 保留+O_SEAT=决策席——误标实证销）。
+- 违②销：`~/bin/report.sh` 派单→DISPATCH 分流分支删（T-0324 支已同
+  改）——KICK_TGT=$REPORT_KICK 单目标一切事件同踢 O-DM 通报。
+- 缺③实证：`O_SEAT=决策席 report.sh 派单 T-9999` → ops_event 1500 行
+  seat=决策席（误标销实证；hb DM 径随 case 正打）。
+- 部署后锚（下拍裁决行实踢+activating 灌帧）=部署链实证件。
