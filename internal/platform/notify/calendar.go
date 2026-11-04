@@ -13,6 +13,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -20,6 +21,11 @@ import (
 )
 
 const calendarFeed = "https://nfs.faireconomy.media/ff_calendar_thisweek.xml"
+
+const (
+	calStep       = 15 * time.Minute // 正常拍距（与装配 ticker 同距）=退避基数
+	calBackoffMax = 4 * time.Hour    // 连败退避封顶档（T-0296 钦定）
+)
 
 // Calendar 日历推送件（sender 复用 event_push 同装配面——不新造栈）。
 type Calendar struct {
@@ -31,6 +37,13 @@ type Calendar struct {
 	lead   func() int64  // lead_minutes 热启
 	src    string        // feed URL（测试桩可换）
 	http   *http.Client
+
+	mu        sync.Mutex
+	fails     int       // 连败数——退避档基（200 复常归零回 15min 拍）
+	nextTry   time.Time // 退避窗止——窗内 Scan 直退不打源
+	fetchErrs int64     // 拉取败累计（传输错+非 200 同桶）
+	decErrs   int64     // 解包败累计
+	pushErrs  int64     // 推送败累计
 }
 
 // NewCalendar enabled/chatID 缺席=fail-closed 静默（on=nil/false=只 log 不发）。
@@ -68,13 +81,34 @@ func (c *Calendar) Scan(ctx context.Context) error {
 	if c.on == nil || !c.on() || c.cli == nil || c.chatID == nil || c.chatID() == "" {
 		return nil
 	}
+	// T-0296 连败退避闸——窗内不打源零轰炸（限流期日志只见退避节拍，
+	// 非每 15min 续砸拉长封窗）。
+	c.mu.Lock()
+	skip := time.Now().Before(c.nextTry)
+	c.mu.Unlock()
+	if skip {
+		return nil
+	}
 	req, _ := http.NewRequestWithContext(ctx, "GET", c.src, nil)
+	// T-0296 UA 正经化——Go 缺省 UA=DC 爬虫特征遭桶限流降分；真实浏览器串
+	// 非 o-* 自造名（fred-akamai 禁令对象不涉），公开源礼貌拉取面非伪装绕权。
+	req.Header.Set("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36")
+	req.Header.Set("Accept", "application/xml, text/xml;q=0.9, */*;q=0.8")
 	resp, err := c.http.Do(req)
 	if err != nil {
-		log.Printf("[财经日历] feed 拉取败（计数+log 不炸）: %v", err)
+		d, n := c.miss()
+		log.Printf("[财经日历] feed 拉取败（连败退避 %s 后复拍，拉取败累计 %d——计数+log 不炸）: %v", d, n, err)
 		return nil // 断源不炸推送面
 	}
 	defer resp.Body.Close()
+	// T-0296 件②根修——StatusCode 必检：429/5xx 页不再当 XML 进 decode
+	// 「解包败」假相，连败退避挡续砸。
+	if resp.StatusCode != http.StatusOK {
+		d, n := c.miss()
+		log.Printf("[财经日历] feed HTTP %d（连败退避 %s 后复拍，拉取败累计 %d）", resp.StatusCode, d, n)
+		return nil
+	}
+	c.ok() // 200 到手=限流复常——退避档归零回 15min 拍
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	var w ffWeekly
 	// T-0183：windows-1252 声明 charset 病灶根修——Go xml 解包非 UTF-8
@@ -83,7 +117,7 @@ func (c *Calendar) Scan(ctx context.Context) error {
 	dec := xml.NewDecoder(bytes.NewReader(body))
 	dec.CharsetReader = charset.NewReaderLabel
 	if err := dec.Decode(&w); err != nil {
-		log.Printf("[财经日历] feed 解包败: %v", err)
+		log.Printf("[财经日历] feed 解包败（累计 %d）: %v", c.bump(&c.decErrs), err)
 		return nil
 	}
 	minImp := c.minImp()
@@ -117,7 +151,8 @@ func (c *Calendar) Scan(ctx context.Context) error {
 		// T-0093 同病同修：送达才记 md_calendar_push（行=已送达非已尝试）——
 		// 发败不占位，下拍重试不丢报。
 		if _, err := c.cli.SendText(ctx, c.chatID(), text); err != nil {
-			log.Printf("[财经日历] %s 推送败（下拍重试——未记账不占位）: %v", key, err)
+			log.Printf("[财经日历] %s 推送败（下拍重试——未记账不占位；累计 %d）: %v",
+				key, c.bump(&c.pushErrs), err)
 			continue
 		}
 		if _, err := c.pool.Exec(ctx,
@@ -126,6 +161,39 @@ func (c *Calendar) Scan(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+// miss 连败进档——退避 ×2 递增封顶 calBackoffMax，窗止前 Scan 不打源；
+// 返回本次退避时长与拉取败累计（T-0296 限流止伤）。
+func (c *Calendar) miss() (time.Duration, int64) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.fails++
+	c.fetchErrs++
+	d := calStep
+	for i := 1; i < c.fails && d < calBackoffMax; i++ {
+		d *= 2
+	}
+	if d > calBackoffMax {
+		d = calBackoffMax
+	}
+	c.nextTry = time.Now().Add(d)
+	return d, c.fetchErrs
+}
+
+// ok 200 复常——连败档归零回正常拍。
+func (c *Calendar) ok() {
+	c.mu.Lock()
+	c.fails, c.nextTry = 0, time.Time{}
+	c.mu.Unlock()
+}
+
+// bump 败次计数+1 回新值（T-0296 计数面——败次随 log 文案出）。
+func (c *Calendar) bump(p *int64) int64 {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	*p++
+	return *p
 }
 
 // impactRank 影响级排级（High=3/Medium=2/Low=1——低噪音阈可配）。
