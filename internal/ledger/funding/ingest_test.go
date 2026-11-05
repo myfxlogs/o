@@ -155,3 +155,37 @@ func TestIngestDcdSubTypes(t *testing.T) {
 		t.Fatalf("earn_out=%v earn_in=%v 应 -100/103", out, in)
 	}
 }
+
+// T-0364 锚：dcd 账单命中业主域册（inst_id=产品单号主链键；账单 instId
+// 缺位→raw.ordId 备链键）→owner_in/owner_out 归因=业主资产收/支非策略线
+// （class=transfer 由 trigger 册载）；未命中行=earn_* 常径不变（上测已锚）。
+func TestIngestDcdOwnerDomain(t *testing.T) {
+	ctx, pool := setup(t)
+	nowMs := time.Now().UnixMilli()
+	// 迁移 0115 域册行在架（0043 种子凭据 ordId=11448262 收归标记——
+	// inst_id='BTC-USDT-261225-95000-C'/ord_id='11448262' 双链键）。
+	bills := []Bill{
+		{BillID: "o161", SubType: "161", InstID: "BTC-USDT-261225-95000-C", InstType: "ASSET",
+			Ccy: "USDT", TsMs: nowMs, BalChg: 1966.5, Raw: []byte(`{}`)},
+		{BillID: "o162", SubType: "162", InstType: "ASSET",
+			Ccy: "USDT", TsMs: nowMs + 1, BalChg: 40, Raw: []byte(`{"ordId":"11448262"}`)},
+		{BillID: "o160", SubType: "160", InstID: "BTC-USDT-261225-95000-C", InstType: "ASSET",
+			Ccy: "USDT", TsMs: nowMs + 2, BalChg: -1966.5, Raw: []byte(`{}`)},
+	}
+	ing := NewIngester(pool, fakeSrc{pages: map[string][]Bill{"": bills}})
+	n, err := ing.Ingest(ctx)
+	if err != nil || n != 3 {
+		t.Fatalf("业主域三行应入账 n=%d err=%v", n, err)
+	}
+	var in, out float64
+	_ = pool.QueryRow(ctx, "SELECT COALESCE(sum(amount),0) FROM fin_cashflow WHERE kind='owner_in'").Scan(&in)
+	_ = pool.QueryRow(ctx, "SELECT COALESCE(sum(amount),0) FROM fin_cashflow WHERE kind='owner_out'").Scan(&out)
+	if in != 2006.5 || out != -1966.5 {
+		t.Fatalf("owner_in=%v owner_out=%v 应 2006.5/-1966.5", in, out)
+	}
+	var cls string
+	if err := pool.QueryRow(ctx,
+		"SELECT class FROM fin_cashflow WHERE kind='owner_in' LIMIT 1").Scan(&cls); err != nil || cls != "transfer" {
+		t.Fatalf("owner_in class=%q err=%v 应 transfer（非策略线）", cls, err)
+	}
+}

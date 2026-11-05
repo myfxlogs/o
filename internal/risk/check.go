@@ -140,7 +140,8 @@ func (g *Gate) Check(ctx context.Context, in Intent) Decision {
 		// 统一持仓读面 fin_position_view kind='dcd' 同径，币量→USD 估值同
 		// cockpit 径。闸面 fail-closed：估不出敞口（视图读败/无 tick/非正价）
 		// =拒放——不取显示面「无 tick=0 不虚计」口径（闸面保守取钉票语义）。
-		// exec 仓原径零动。
+		// T-0364：kind='dcd'=策略域——业主域凭据视图分流 kind='dcd_owner'
+		// 天然不入敞口分子（业主独立仓 venue 托管不变）。exec 仓原径零动。
 		dcdUSD, ok := g.dcdExposureUSD(ctx)
 		if !ok {
 			return g.deny(ctx, in, "exposure_cap")
@@ -154,7 +155,8 @@ func (g *Gate) Check(ctx context.Context, in Intent) Decision {
 }
 
 // dcdExposureUSD 产品仓敞口 USD 估值（T-0355）：fin_position_view kind='dcd'
-// 行逐行 Σamt×价——USDT/USD 名义直入，余币按 ccy-USDT 最新 tick 折算
+// （策略域——T-0364 业主域凭据分流 kind='dcd_owner' 不入分子）行逐行
+// Σamt×价——USDT/USD 名义直入，余币按 ccy-USDT 最新 tick 折算
 // （md_ticks/md_mark_index 双源 UNION 取最新，同 cockpit_face 径）。
 // ok=false=任一不可估（视图读败/扫描败/无 tick 行/NULL 或非正价），
 // 调用方按 fail-closed 拒放——闸面不许「估不出按零计」。

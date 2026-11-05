@@ -110,6 +110,8 @@ func (c coreService) GetCockpit(ctx context.Context,
 	// 凭据 Σamt 估值（USDT/USD 直入，余按最新 tick；无 tick=0 不虚计，valCcy
 	// 同径）。deny 凭据行不入（未执行拒单）。风险闸写径（risk/check.go）仍
 	// fin_position 单账——闸面口径对齐归决策另裁，本票只动读面。
+	// T-0364：kind='dcd'=策略域——业主域凭据视图分流 kind='dcd_owner'
+	// 剔出敞口分子（业主独立仓收归，显示面最简隐；闸面同源）。
 	if err := c.pool.QueryRow(ctx, `SELECT COALESCE(
 		  (SELECT sum(notional) FROM fin_position_view WHERE kind='exec' AND closed_at IS NULL),0)
 		+ COALESCE((SELECT sum(v.notional*CASE WHEN v.ccy IN ('USDT','USD') THEN 1

@@ -23,6 +23,10 @@ var kinds = map[string]bool{
 	// T-0083 腿级现金流对称：spot_buy=现货腿买入流出毛额（负）、spot_sell=
 	// 卖出流入毛额（正）——两腿各记净额自然=真价差；损益派生读面不单写。
 	"spot_buy": true, "spot_sell": true,
+	// T-0364：owner_in/owner_out=业主域资产收/支（dcd 收归独立仓——venue
+	// 共户托管账面归口；class=transfer 非策略线，earn_* 排除面不含=照入
+	// venue 净额对拍）。
+	"owner_in": true, "owner_out": true,
 }
 var ccys = map[string]bool{"USDT": true, "USD": true}
 

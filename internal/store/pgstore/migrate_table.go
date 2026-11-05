@@ -121,6 +121,7 @@ var migrationTable = []struct {
 	{112, "fin_0112_position_view.sql"},
 	{113, "fin_0113_middle_band_thresholds.sql"},
 	{114, "fin_0114_volsell_revival.sql"},
+	{115, "fin_0115_dcd_owner_domain.sql"},
 
 	// —— md 链（版本链内唯一且单调；md 链版本=历史号+1000 与 fin 键空间全局不相交——跨链并 schema 时 schema_migrations 零撞号，check_migrations 断言①⑤）——
 	{1003, "md_1003_market_facts.sql"},
