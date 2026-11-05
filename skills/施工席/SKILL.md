@@ -10,7 +10,10 @@ domain: 工程
 1. `report.sh 领单 T-NNNN`（自报落账=领据）；
 2. `cd /opt/o && git pull`；
 3. `git worktree add /opt/o-wt/tNNNN -b t/NNNN-<slug>`；
-4. `cd /opt/o-wt/tNNNN && bash /opt/o/scripts/provision_worktree.sh`。
+4. `cd /opt/o-wt/tNNNN && bash /opt/o/scripts/bootstrap_worktree.sh`——
+   **新 wt 先 bootstrap**（T-0375 件②）：buf 正径再生 gen（mtapi 模板
+   裸 wt 即产；全谱 buf 须先 `npm ci`），buf 缺席/面缺降级 rsync 部署
+   树快照（明示非静默）；dist=快照仅供闸/dev。
 
 ## 施工
 - 票面自含读单勿再诊；diff ⊆ 票面涉及面；
