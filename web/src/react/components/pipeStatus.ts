@@ -35,6 +35,29 @@ function reasonToPlain(short: string): PlainReason {
 export interface PlainStatus {
 	short: string; // 可见面（态标位）人话短句
 	detail: string; // 悬停人话详述（可读句+数值）
+	idle: boolean; // 无在途事项：大格只显「闲」，详述仍保留在悬停
+}
+
+export interface FlowStageCopy {
+	what: string;
+	cadence: string;
+	unit: string;
+	eventDriven: boolean;
+}
+
+// 活水段语义由票面权威表钉定，避免依赖服务端机器 key/秒数翻译。
+const flowStageCopies: Record<string, FlowStageCopy> = {
+	collect: { what: "OKX 资金费率行情采集臂", cadence: "约每 5 分钟一次", unit: "条行情数据", eventDriven: false },
+	bridge: { what: "行情投影入账桥（开发环境到生产镜像）", cadence: "约每 10 分钟一次", unit: "帧", eventDriven: false },
+	eval: { what: "策略机会评估臂（净年化过放行线才出提案）", cadence: "约每 30 分钟一次", unit: "次评估", eventDriven: false },
+	proposal: { what: "已放行提案（待开仓或执行中）", cadence: "", unit: "个提案", eventDriven: true },
+	exec: { what: "真金白银流水（成交、利息、费用）", cadence: "", unit: "笔流水", eventDriven: true },
+	report: { what: "每日结算报表", cadence: "约每天一次", unit: "份报表", eventDriven: false },
+	scout: { what: "全球交易所进水口侦察度量", cadence: "约每天一次", unit: "个交易所", eventDriven: false },
+};
+
+export function flowStageCopy(stageKey: string): FlowStageCopy {
+	return flowStageCopies[stageKey] ?? { what: "运行数据处理", cadence: "", unit: "条记录", eventDriven: false };
 }
 
 // humanStatus 态标串→人话二态。evalCount=评估段 24h 行数（提案段详述带
@@ -42,7 +65,7 @@ export interface PlainStatus {
 // 经 machineLeft 哨兵二次兜底。
 export function humanStatus(stageKey: string, status: string, evalCount: number): PlainStatus {
 	let s = status.trim();
-	if (s === "") return { short: "", detail: "" };
+	if (s === "") return { short: "", detail: "", idle: false };
 
 	// ①拒因尾标「（末因 <短标>）」剥离先翻——短标为机器归一词必翻不照传。
 	let reason: PlainReason | undefined;
@@ -81,5 +104,5 @@ export function humanStatus(stageKey: string, status: string, evalCount: number)
 	if (machineLeft.test(s)) s = "评估未放行";
 	const short = reason ? `${s}（${reason.short}）` : s;
 	if (machineLeft.test(detail)) detail = "评估判据未放行";
-	return { short, detail };
+	return { short, detail, idle: /^闲(?:·|$)/.test(s) };
 }

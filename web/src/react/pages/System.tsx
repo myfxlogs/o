@@ -164,7 +164,7 @@ export function SystemPage() {
               <StateDot
                 state={Math.max(0, ...devRows.map((r) => r.state))}
                 breathe={devRows.some((r) => r.state !== 2)}
-                title={devOldest ? `最陈行 ${devOldest}` : "无鲜度行"}
+                title={devOldest ? `最久未更新：${devOldest}` : "暂无更新记录"}
               />
             </span>
           }
@@ -190,7 +190,7 @@ export function SystemPage() {
             <StateDot
               state={Math.max(0, ...(ov.data?.staff ?? []).map((s) => s.state))}
               breathe={(ov.data?.staff ?? []).some((s) => s.state !== 2)}
-              title={`${(ov.data?.staff ?? []).length} 席在册——红=beat 陈>5min${
+              title={`${(ov.data?.staff ?? []).length} 席在册——红=心跳延迟超过 5 分钟${
                 (ov.data?.staff ?? []).filter((s) => s.state === 2).length
                   ? ` · 陈席: ${(ov.data?.staff ?? [])
                       .filter((s) => s.state === 2)
@@ -210,7 +210,7 @@ export function SystemPage() {
               <span
                 key={s.name}
                 className="chip"
-                title={`${s.duty}——红=beat 陈>5min（查进程与册）`}
+                title={`${s.duty}——红=心跳延迟超过 5 分钟（检查进程与花名册）`}
               >
                 <StateDot state={s.state} breathe={s.state !== 2} /> {s.name}
               </span>

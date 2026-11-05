@@ -48,7 +48,7 @@ let fail = 0, n = 0;
 const check = (name, cond) => { n++; console.log(`${cond ? "PASS" : "FAIL"} ${name}`); if (!cond) fail++; };
 
 // —— 全活场景：7 段全绿 ——
-const labels = ["采集", "桥接", "评估", "提案", "执行", "报表", "侦察"];
+const labels = ["采集", "投影", "评估", "提案", "执行", "报表", "侦察"];
 const keys = ["collect", "bridge", "eval", "proposal", "exec", "report", "scout"];
 const allGreen = keys.map((k, i) => stage(k, labels[i], 0, 30, 12 + i));
 const htmlOk = render(allGreen);
@@ -64,7 +64,7 @@ check("②态点全绿 breathe", (htmlOk.match(/dot s0 breathe/g) || []).length 
 // —— 断点场景：灰中性段跳过，首个红段定位，前段名带出 ——
 const broken = [
 	stage("collect", "采集", 0, 30, 100),
-	stage("bridge", "桥接", 3, 30, 0),          // 灰中性——跳过不算断点本身
+	stage("bridge", "投影", 3, 30, 0),          // 灰中性——跳过不算断点本身
 	stage("eval", "评估", 2, 7200, 0),
 	stage("proposal", "提案", 3, 30, 0),
 	stage("exec", "执行", 3, 30, 0),
@@ -72,12 +72,12 @@ const broken = [
 	stage("scout", "侦察", 3, -1, 0, { status: "扫描中" }),
 ];
 const htmlBad = render(broken);
-check("③断点定位=首个红段(桥接→评估)", htmlBad.includes('class="pipe-verdict s2"') && htmlBad.includes("断在 桥接→评估"));
+check("③断点定位=首个红段(投影→评估)", htmlBad.includes('class="pipe-verdict s2"') && htmlBad.includes("断在 投影→评估"));
 check("③红段卡态点 s2 在案", htmlBad.includes("dot s2"));
 check("③黄段卡态点 s1 在案", htmlBad.includes("dot s1"));
 check("③灰中性卡态点 s3 在案", htmlBad.includes("dot s3"));
 check("③7200s→2小时前(无裸露小数)", htmlBad.includes("2小时前") && !htmlBad.includes("2.0h"));
-check("③无行段→status 摘要显形", htmlBad.includes("扫描中") && htmlBad.includes("无行"));
+check("③无数据状态点人话", htmlBad.includes("扫描中") && htmlBad.includes("暂无数据"));
 
 // —— 饿殍期：全绿/灰但 eval 带态标 ——
 const famine = keys.map((k, i) =>
@@ -89,13 +89,13 @@ check("④判词 s0 中性色", htmlFam.includes('class="pipe-verdict s0"'));
 // —— 读败段：ok=false → 缺/查询败 ——
 const dead = [stage("collect", "采集", 0, 30, 5, { ok: false })];
 const htmlDead = render(dead);
-check("⑤查询败段→缺+查询败", htmlDead.includes('pipe-card-num">缺') && htmlDead.includes("查询败"));
+check("⑤查询败段→缺+读取失败", htmlDead.includes('pipe-card-num">缺') && htmlDead.includes("读取失败"));
 
 // —— 拒因人话面（T-0366：可见面短句人话/悬停人话详述带数值/机器原文
 // 禁入渲染树任何层含 title/aria——net_apr|阈|armed|snake_case 断言）——
 const rejected = [
 	stage("collect", "采集", 0, 30, 100),
-	stage("bridge", "桥接", 0, 60, 60),
+	stage("bridge", "投影", 0, 60, 60),
 	stage("eval", "评估", 0, 120, 47),
 	stage("proposal", "提案", 3, 30, 0, { status: "闲·评估全拒（末因 net_apr<阈）" }),
 	stage("exec", "执行", 3, 30, 0, { status: "闲·无 armed" }),
@@ -103,12 +103,12 @@ const rejected = [
 	stage("scout", "侦察", 0, 400, 2),
 ];
 const htmlRej = render(rejected);
-check("⑥可见面人话短句=评估全拒（无达标机会）", htmlRej.includes("闲·评估全拒（无达标机会）"));
+check("⑥闲态大格单显闲且走饿色档", /pipe-card-num pipe-card-num-hungry">闲<\/div>/.test(htmlRej));
 check("⑥机器原文禁入渲染树任何层(net_apr/阈/armed)",
 	!/(net_apr|阈|armed|below_earn|basis_below|apr_est)/.test(htmlRej));
 check("⑥悬停人话详述带数值(评估47个机会)",
 	htmlRej.includes("评估 47 个机会全部未过放行线") && htmlRej.includes("测算净年化低于放行线"));
-check("⑥执行段态词人话化=无真执行流水", htmlRej.includes("闲·无真执行流水"));
+check("⑥闲态详述留在悬停", htmlRej.includes("测算净年化低于放行线") && htmlRej.includes("近 24 小时无成交/持仓类真金白银流水"));
 const armed = keys.map((k, i) =>
 	stage(k, labels[i], 0, 30, k === "proposal" ? 0 : 5, k === "proposal" ? { status: "活跃·3 armed" } : {}));
 const htmlArm = render(armed);
@@ -126,6 +126,26 @@ check("⑥七段等宽:pipe-card flex:1 1 0+min-width:0",
 	/flex:\s*1\s+1\s+0/.test(cardRule) && /min-width:\s*0/.test(cardRule));
 check("⑥态标截断:pipe-card-num ellipsis",
 	/text-overflow:\s*ellipsis/.test(numRule) && /white-space:\s*nowrap/.test(numRule));
+
+// T-0371：七段 tooltip 全谱采用语义表人话、事件驱动不贴固定节拍。
+const expectedHover = [
+	"OKX 资金费率行情采集臂；约每 5 分钟一次", "条行情数据",
+	"行情投影入账桥（开发环境到生产镜像）；约每 10 分钟一次", "帧",
+	"策略机会评估臂（净年化过放行线才出提案）；约每 30 分钟一次", "次评估",
+	"已放行提案（待开仓或执行中）；事件驱动，无固定节奏", "个提案",
+	"真金白银流水（成交、利息、费用）；事件驱动，无固定节奏", "笔流水",
+	"每日结算报表；约每天一次", "份报表",
+	"全球交易所进水口侦察度量；约每天一次", "个交易所",
+];
+check("⑦七段悬停含段义/人话节奏/计数单位", expectedHover.every((s) => htmlOk.includes(s)));
+check("⑦事件驱动段不显示周期或最近写入",
+	!htmlOk.includes("预期节拍")
+	&& !htmlOk.includes("已放行提案（待开仓或执行中）；事件驱动，无固定节奏，最近一次写入")
+	&& !htmlOk.includes("真金白银流水（成交、利息、费用）；事件驱动，无固定节奏，最近一次写入"));
+check("⑦状态点悬停用最近一次写入/暂无数据/读取失败人话",
+	htmlOk.includes("最近一次写入刚刚") && !/(末行|无行|查询败显缺)/.test(htmlOk));
+check("⑦查询败悬停说明该段显示为缺", htmlDead.includes("读取失败——该段显示为缺"));
+check("⑦闲态拒因详述仍可悬停查看", htmlRej.includes("测算净年化低于放行线"));
 
 console.log(`\n${n - fail}/${n} PASS${fail ? ` —— ${fail} FAIL` : ""}`);
 process.exit(fail ? 1 : 0);
