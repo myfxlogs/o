@@ -36,6 +36,9 @@ func setup(t *testing.T) (context.Context, *Warden, *fakeExec) {
 		`DELETE FROM fin_execution WHERE strategy_ref IN
 		   (SELECT id FROM fin_strategy WHERE template_ref='guard-test')`,
 		"DELETE FROM fin_strategy WHERE template_ref='guard-test'",
+		// T-0355：迁移种子 dcd_baseline 入 exposure_cap 闸后须配价——本包
+		// 测面不涉产品仓，清场免无价 fail-closed 干扰闸语义断言。
+		`DELETE FROM fin_risk_decision WHERE intent->>'op'='dcd_baseline'`,
 	} {
 		if _, err := pool.Exec(ctx, stmt); err != nil {
 			t.Fatal(err)
