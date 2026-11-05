@@ -11,9 +11,8 @@ package execfam
 var set = map[string]bool{
 	"funding-hedge": true, "dcd_call": true, "dcd_put": true,
 	"vol_sell_strangle": true, "vol_sell_single_call": true,
-	"quarter_basis_long": true, "perp_quarter_spread": true} // T-0160/T-0215/T-0216 历次落位同集（原 lifecycle.paperTemplates 册归并——quarter_basis_short=spot_short 腿缺 margin 能力面不在册）；dcd_put=T-0353 件②④复役登记（USDT 计价腿=基金钱常径——executor DcdQuote/DcdTrade 方向无关、paper 摊提同式、open 派发同 case，全链贯通验证在案）
-// xvenue-carry：T-0145 执行径未派案在档（armed→open 显式禁）——不在册；
-// 建径票落=本表登记即全链通，提案面/门闸面无需再改。
+	"quarter_basis_long": true, "perp_quarter_spread": true,
+	"xvenue-carry": true} // T-0160/T-0215/T-0216 历次落位同集（原 lifecycle.paperTemplates 册归并——quarter_basis_short=spot_short 腿缺 margin 能力面不在册）；dcd_put=T-0353 件②④复役登记（USDT 计价腿=基金钱常径——executor DcdQuote/DcdTrade 方向无关、paper 摊提同式、open 派发同 case，全链贯通验证在案）；xvenue-carry=T-0377 paper 径贯通登记（T-0144 双腿开户全链可达：评估前置拒/模板门闸双闸开）——open 派发仍 opener 永拒显式禁（T-0144 armed→open 钉死，T-0145 真执行另票），登记语义=paper 结算域贯通非真单径
 
 // Has 模板族执行径在册否。
 func Has(template string) bool { return set[template] }

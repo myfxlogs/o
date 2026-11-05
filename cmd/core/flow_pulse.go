@@ -15,11 +15,12 @@ import (
 
 // stageThresh 段灯阈（预期周期秒——按各臂真实节拍钉：返修② collect/bridge
 // 改 recv_ts（镜像到达戳——周期边界 ts 负滞后+停摆失明病灶修）。collect=funding 采集
-// ~5m、bridge=投影帧 ~10m、eval=评估拍 ~30m、proposal=提案拍 ~30m、exec=钱流
-// 事件（分钟级）、report=日报 24h+余、scout=日拍 25h、roster=心跳 60s）。
+// ~5m、bridge=投影帧 ~10m、eval=评估拍 ~30m、proposal=提案拍 ~30m、strategy=纸面户
+// 迁移事件（小时级——事件驱动中性灯）、exec=钱流事件（分钟级）、report=日报 24h+余、
+// scout=日拍 25h、roster=心跳 60s）。
 var stageThresh = map[string]int64{
 	"collect": 300, "bridge": 600, "eval": 1800, "proposal": 1800,
-	"exec": 3600, "report": 27 * 3600, "scout": 25 * 3600,
+	"strategy": 3600, "exec": 3600, "report": 27 * 3600, "scout": 25 * 3600,
 }
 
 // stageDef 段定义（key/中文标/查询式——last_ts 与 count24h 两参补位；
@@ -36,6 +37,9 @@ var flowStages = []stageDef{
 	{"bridge", "投影", `SELECT max(recv_ts), count(*) FILTER (WHERE recv_ts>now()-interval '24 hours') FROM md_ticks`, false},
 	{"eval", "评估", `SELECT max(ts), count(*) FILTER (WHERE ts>now()-interval '24 hours') FROM fin_opp_eval`, false},
 	{"proposal", "提案", `SELECT max(created_at), count(*) FILTER (WHERE created_at>now()-interval '24 hours') FROM fin_proposal`, true},
+	// T-0377 观察面：paper 户状态迁移段（开户/晋升/退役——事件驱动中性灯；
+	// xvenue paper 双腿开户在此显流）。
+	{"strategy", "策略", `SELECT max(ts), count(*) FILTER (WHERE ts>now()-interval '24 hours') FROM fin_strategy_transition`, true},
 	{"exec", "执行", `SELECT max(occurred_at), count(*) FILTER (WHERE occurred_at>now()-interval '24 hours') FROM fin_cashflow`, true},
 	{"report", "报表", `SELECT max(generated_at), count(*) FILTER (WHERE generated_at>now()-interval '24 hours') FROM fin_report`, false},
 	{"scout", "侦察", `SELECT max((metrics->>'measured_at')::timestamptz), count(*) FILTER (WHERE (metrics->>'measured_at')::timestamptz>now()-interval '24 hours') FROM fin_venue_candidate WHERE metrics ? 'measured_at'`, false},

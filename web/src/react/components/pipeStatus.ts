@@ -51,6 +51,7 @@ const flowStageCopies: Record<string, FlowStageCopy> = {
 	bridge: { what: "行情投影入账桥（开发环境到生产镜像）", cadence: "约每 10 分钟一次", unit: "帧", eventDriven: false },
 	eval: { what: "策略机会评估臂（净年化过放行线才出提案）", cadence: "约每 30 分钟一次", unit: "次评估", eventDriven: false },
 	proposal: { what: "已放行提案（待开仓或执行中）", cadence: "", unit: "个提案", eventDriven: true },
+	strategy: { what: "策略沙箱开户与晋升（纸面户开平、判据晋升、退役）", cadence: "", unit: "次状态迁移", eventDriven: true },
 	exec: { what: "真金白银流水（成交、利息、费用）", cadence: "", unit: "笔流水", eventDriven: true },
 	report: { what: "每日结算报表", cadence: "约每天一次", unit: "份报表", eventDriven: false },
 	scout: { what: "全球交易所进水口侦察度量", cadence: "约每天一次", unit: "个交易所", eventDriven: false },

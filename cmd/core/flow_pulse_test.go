@@ -1,4 +1,5 @@
-// flow_pulse_test.go —— 活水段桩（T-0307：七段+心跳行+fail-soft 显缺不炸）。
+// flow_pulse_test.go —— 活水段桩（T-0307：七段+心跳行+fail-soft 显缺不炸；
+// T-0377 增策略段=八段）。
 package main
 
 import (
@@ -26,8 +27,8 @@ func TestFlowPulseStages(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(r.Stages) != 7 {
-		t.Fatalf("七段应齐: %d", len(r.Stages))
+	if len(r.Stages) != 8 {
+		t.Fatalf("八段应齐: %d", len(r.Stages))
 	}
 	keys := map[string]bool{}
 	for _, st := range r.Stages {
@@ -36,7 +37,7 @@ func TestFlowPulseStages(t *testing.T) {
 			t.Fatalf("段 %s 缺标/阈: %+v", st.Key, st)
 		}
 	}
-	for _, k := range []string{"collect", "bridge", "eval", "proposal", "exec", "report", "scout"} {
+	for _, k := range []string{"collect", "bridge", "eval", "proposal", "strategy", "exec", "report", "scout"} {
 		if !keys[k] {
 			t.Fatalf("段 %s 缺", k)
 		}

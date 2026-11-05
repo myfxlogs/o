@@ -9,10 +9,12 @@ import (
 
 // paperAccounting paper 态策略吃 md_funding 新行虚拟记账（空跑=对真事实行结算，
 // 不碰真单径）。funding 收入=rate×notional（short_perp 收正租；long_perp 付正租——
-// 本票 funding-hedge 模板 direction=short_perp_long_spot）。
+// 本票 funding-hedge 模板 direction=short_perp_long_spot）。T-0377 方向符号根修：
+// perp 腿方向由 direction 首段判——long_perp 正 rate 付租（符号取反），不再
+// 恒按 short_perp 记（xvenue long_perp_short_cfd 案实证伪账风险）。
 func (r *Runner) paperAccounting(ctx context.Context) error {
 	// 每策略记 last_fill_ts 于 detail 简化为：取 md_funding 行 ts > 最近 funding fill ts。
-	rows, err := r.pool.Query(ctx, `SELECT s.id, s.inst_id, s.notional_usd,
+	rows, err := r.pool.Query(ctx, `SELECT s.id, s.inst_id, s.direction, s.notional_usd,
 		COALESCE((SELECT max(ts) FROM fin_paper_fill f WHERE f.strategy_id=s.id AND f.kind='funding'), s.entered_at)
 		FROM fin_strategy s WHERE s.state='paper'`)
 	if err != nil {
@@ -21,13 +23,14 @@ func (r *Runner) paperAccounting(ctx context.Context) error {
 	type st struct {
 		id       int64
 		inst     string
+		dir      string
 		notional float64
 		last     time.Time
 	}
 	var sts []st
 	for rows.Next() {
 		var x st
-		if err := rows.Scan(&x.id, &x.inst, &x.notional, &x.last); err != nil {
+		if err := rows.Scan(&x.id, &x.inst, &x.dir, &x.notional, &x.last); err != nil {
 			rows.Close()
 			return err
 		}
@@ -35,6 +38,10 @@ func (r *Runner) paperAccounting(ctx context.Context) error {
 	}
 	rows.Close()
 	for _, x := range sts {
+		sign := 1.0
+		if len(x.dir) >= 9 && x.dir[:9] == "long_perp" { // long_perp 付正租——符号取反
+			sign = -1.0
+		}
 		frows, err := r.pool.Query(ctx, `SELECT ts, funding_rate FROM md_funding
 			WHERE inst_id=$1 AND ts>$2 ORDER BY ts`, x.inst, x.last)
 		if err != nil {
@@ -47,7 +54,7 @@ func (r *Runner) paperAccounting(ctx context.Context) error {
 				frows.Close()
 				return err
 			}
-			amt := rate * x.notional
+			amt := sign * rate * x.notional
 			if _, err := r.pool.Exec(ctx, `INSERT INTO fin_paper_fill(strategy_id,kind,inst_id,amount_usd,detail,ts)
 				VALUES($1,'funding',$2,$3,$4,$5)`,
 				x.id, x.inst, amt, []byte(`{"rate":`+ftoa(rate)+`}`), ts); err != nil {
