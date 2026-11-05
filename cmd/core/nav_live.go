@@ -1,6 +1,8 @@
 // nav_live.go —— NAV 三户活读件（T-0086 ①④：资金户/Earn REST 保留面——
 // 零快照零落地，venue 唯一事实源；自主文件拆分，行数棘轮）。
 // T-0096：+MT5 户活读件（AccountSummary 现读——每真实账号一行）。
+// T-0352：+venue 现读辅助三件（自 venue_readers.go 拆出——棘轮 300 行顶线：
+// okxAvailFromEvents/ctValReader/okxFundingAvailUSDT，纯搬移零语义改）。
 package main
 
 import (
@@ -8,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -207,4 +210,84 @@ func msDay(ms string) string {
 		return ms
 	}
 	return time.UnixMilli(v).UTC().Format("2006-01-02")
+}
+
+// okxAvailFromEvents 交易户可用额=md_account_events 最新帧 details availBal
+// （T-0048 返修③：depositIdle 自 AcctTrading 摆钱——资金户=错户已纠；
+// push-on-change 帧龄不判陈，陈度归 WS 活性件管）。
+func okxAvailFromEvents(ctx context.Context, pool *pgxpool.Pool, okcli *okxexec.Client) (float64, error) {
+	var data json.RawMessage
+	if err := pool.QueryRow(ctx, `SELECT data FROM md_account_events
+		WHERE channel='account' ORDER BY ts DESC LIMIT 1`).Scan(&data); err != nil {
+		if okcli == nil {
+			return 0, err
+		}
+		return okcli.TradingAvailBal(ctx, "USDT") // 帧缺→REST 兜底（T-0058）
+	}
+	var top struct {
+		Details []struct {
+			Ccy      string `json:"ccy"`
+			AvailBal string `json:"availBal"`
+		} `json:"details"`
+	}
+	if err := json.Unmarshal(data, &top); err != nil {
+		return 0, err
+	}
+	for _, d := range top.Details {
+		if d.Ccy == "USDT" {
+			return parseNum(d.AvailBal), nil
+		}
+	}
+	if okcli != nil {
+		return okcli.TradingAvailBal(ctx, "USDT") // USDT 行缺=REST 兜底
+	}
+	return 0, fmt.Errorf("USDT 行缺席")
+}
+
+// ctValReader 合约面值现读件（T-0046①——T-0048 三令后 facts 表废，改 okx
+// instruments 决策时点现读；静态乐器属性 10min TTL 缓存：guard 逐 tick 事件评
+// 估，无缓存=限速自杀。读败/零值=false fail-closed 漂移判据跳过不误判）。
+func ctValReader(okcli *okxexec.Client) func(ctx context.Context, venue, instID string) (float64, bool) {
+	var mu sync.Mutex
+	type ent struct {
+		v  float64
+		at time.Time
+	}
+	cache := map[string]ent{}
+	return func(ctx context.Context, venue, instID string) (float64, bool) {
+		if okcli == nil || venue != "okx" || !strings.HasSuffix(instID, "-SWAP") {
+			return 0, false
+		}
+		mu.Lock()
+		e, ok := cache[instID]
+		mu.Unlock()
+		if ok && time.Since(e.at) < 10*time.Minute {
+			return e.v, e.v > 0
+		}
+		m, err := okcli.InstrumentMeta(ctx, "SWAP", instID)
+		if err != nil || m.CtVal <= 0 {
+			return 0, false
+		}
+		mu.Lock()
+		cache[instID] = ent{m.CtVal, time.Now()}
+		mu.Unlock()
+		return m.CtVal, true
+	}
+}
+
+// okxFundingAvailUSDT funding 户 USDT 闲余（T-0149 ②——/asset/balances REST
+// 低频件；入金天然落 funding 面钦定补漏；无行=0 不误报）。
+func okxFundingAvailUSDT(ctx context.Context, okcli *okxexec.Client) (float64, error) {
+	rows, err := okcli.AssetBalances(ctx)
+	if err != nil {
+		return 0, err
+	}
+	for _, r := range rows {
+		if r.Ccy == "USDT" {
+			var v float64
+			fmt.Sscanf(r.AvailBal, "%f", &v)
+			return v, nil
+		}
+	}
+	return 0, nil
 }
