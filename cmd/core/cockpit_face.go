@@ -80,8 +80,13 @@ func (c coreService) GetCockpit(ctx context.Context,
 		 WHERE ts>date_trunc('month',now()) AND kind IN ('interest','funding_settle','fee','spot_buy','spot_sell')`).Scan(&r.Money.NetMonth); err != nil {
 		moneyErr = true
 	}
+	// T-0363 分母钉义：crypto 已入=cashflow deposit+withdraw 净+recon_adjust
+	// （对账真钱属本金），滤 venue 出 mt5——mt5 deposit 基行走 mt5Live equity
+	// 入账，不滤=同一笔 MT5 本金双计（病灶①）；recon_adjust 漏计（病灶③）。
+	var cryptoIn float64
 	if err := c.pool.QueryRow(ctx,
-		`SELECT COALESCE(sum(amount),0) FROM fin_cashflow WHERE kind IN ('deposit','withdraw')`).Scan(&r.Money.Capital); err != nil {
+		`SELECT COALESCE(sum(amount),0) FROM fin_cashflow
+		 WHERE kind IN ('deposit','withdraw','recon_adjust') AND venue<>'mt5'`).Scan(&cryptoIn); err != nil {
 		moneyErr = true
 	}
 	dr, err := c.pool.Query(ctx,
@@ -123,7 +128,8 @@ func (c coreService) GetCockpit(ctx context.Context,
 	}
 	// 平台分列（T-0241 D-0038⑤升维——承诺/已入/停泊/敞口×平台+合计；
 	// committed=配置键 cockpit.committed_<plat>（归属业主候答——键面留位）；
-	// crypto=fin_cashflow deposit/earn 净+未平名义；MT5=mt5Live equity 现读）。
+	// crypto=fin_cashflow 已入净（deposit+withdraw+recon_adjust 滤 mt5）；
+	// MT5=mt5Live equity 现读）。
 	// ②committed 键缺席显缺非吞零（驳回修②——三律③同口径）：键缺
 	// =missing 名段+该行 committed 字段置 -1 哨兵（前端显「未设」非 0）。
 	var commC, commM float64
@@ -140,7 +146,7 @@ func (c coreService) GetCockpit(ctx context.Context,
 	_ = c.pool.QueryRow(ctx, `SELECT COALESCE(sum(amount),0) FROM fin_cashflow
 		WHERE kind IN ('earn_in','earn_out')`).Scan(&parked)
 	crow := &dashboardv1.CockpitPlatformRow{Platform: "crypto", Committed: commC,
-		Deposited: r.Money.Capital, Parked: parked, Exposure: r.Money.Exposure}
+		Deposited: cryptoIn, Parked: parked, Exposure: r.Money.Exposure}
 	r.Money.Platforms = append(r.Money.Platforms, crow)
 	mrow := &dashboardv1.CockpitPlatformRow{Platform: "MT5", Committed: commM}
 	if c.mt5Live != nil {
@@ -158,7 +164,9 @@ func (c coreService) GetCockpit(ctx context.Context,
 		Parked: crow.Parked + mrow.Parked, Exposure: crow.Exposure + mrow.Exposure}
 	r.Money.Platforms = append(r.Money.Platforms, tot)
 	// ①敞口分母=跨平台已入合计（D-0038 帽按全平台本金非 crypto 单口径——
-	// 驳回修①：MT5 equity 3.2K 入分母防假红）。
+	// 驳回修①：MT5 equity 3.2K 入分母防假红）。T-0363：本金水位 Capital
+	// 同钉此口径（跨平台已入合计——对拍业主实数 okx+mt5）。
+	r.Money.Capital = tot.Deposited
 	r.Money.ExposureLimit = tot.Deposited * 0.10
 	if r.Money.ExposureLimit > 0 {
 		switch ratio := tot.Exposure / r.Money.ExposureLimit; {
