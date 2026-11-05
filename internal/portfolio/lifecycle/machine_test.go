@@ -231,20 +231,19 @@ func TestDegradedTTLRetire(t *testing.T) {
 	}
 }
 
-// T-0124 锚：模板门闸——无 paper 径模板族（dcd_put）提案不建策略行、留
-// fin_proposed 待 executor 票；SG 实证 748 DCD 提案被建成 funding-hedge
-// paper 的盲晋升不得再演。
+// T-0124 锚：模板门闸——无 executor 径模板提案不建策略行、留 fin_proposed；
+// dcd_put 已在 T-0353 登记执行族，不能再拿它冒充未支持模板。
 func TestTemplateGateBlocksNonPaper(t *testing.T) {
 	ctx, pool, cfg := setup(t)
 	r := NewRunner(pool, cfg)
 	var eid int64
 	if err := pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,net_apr,verdict,legs,evidence)
-		VALUES('BTC-USDT-261101-68000-P','dcd_put','dcd_put',0.08,'proposed','{}','{}') RETURNING id`).Scan(&eid); err != nil {
+		VALUES('TEST-UNSUPPORTED','unsupported-template','short_perp_long_spot',0.08,'proposed','{}','{}') RETURNING id`).Scan(&eid); err != nil {
 		t.Fatal(err)
 	}
 	var pid int64
 	if err := pool.QueryRow(ctx, `INSERT INTO fin_proposal(eval_id,inst_id,direction,net_apr)
-		VALUES($1,'BTC-USDT-261101-68000-P','dcd_put',0.11) RETURNING id`, eid).Scan(&pid); err != nil {
+		VALUES($1,'TEST-UNSUPPORTED','short_perp_long_spot',0.11) RETURNING id`, eid).Scan(&pid); err != nil {
 		t.Fatal(err)
 	}
 	if err := r.scan(ctx); err != nil {
@@ -252,13 +251,63 @@ func TestTemplateGateBlocksNonPaper(t *testing.T) {
 	}
 	var n int
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM fin_strategy
-		WHERE inst_id='BTC-USDT-261101-68000-P'`).Scan(&n); err != nil || n != 0 {
-		t.Fatalf("dcd 提案不应建策略行 n=%d err=%v", n, err)
+		WHERE inst_id='TEST-UNSUPPORTED'`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("未支持模板不应建策略行 n=%d err=%v", n, err)
 	}
 	var st string
 	if err := pool.QueryRow(ctx,
 		"SELECT state FROM fin_proposal WHERE id=$1", pid).Scan(&st); err != nil || st != "fin_proposed" {
 		t.Fatalf("无 executor 提案应留 fin_proposed: %s %v", st, err)
+	}
+}
+
+// T-0353 件②：USDT 腿 dcd_put 走执行族常径，提案→paper，不能被 BTC-call
+// 业主资产域条件请求错误阻断。
+func TestDcdPutAdmitGate(t *testing.T) {
+	ctx, pool, cfg := setup(t)
+	_, _ = pool.Exec(ctx, `INSERT INTO md_dcd_product(ts,venue,surface,uly,product_id,direction,
+		strike,expiry,annualized_yield,spot,raw)
+		VALUES(now(),'okx','products','BTC-USDT','BTC-USDT-261225-68000-P','P',68000,
+		now()+interval '30 days',0.15,88000,'{"quoteCcy":"USDT","notionalCcy":"USDT"}')`)
+	if _, err := pool.Exec(ctx, `INSERT INTO md_ticks(ts,inst_id,last,bid,ask)
+		VALUES(now(),'BTC-USDT',88000,87990,88010)`); err != nil {
+		t.Fatal(err)
+	}
+	var eid int64
+	if err := pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,net_apr,verdict,legs,evidence)
+		VALUES('BTC-USDT-261225-68000-P','dcd_put','dcd_put',0.08,'proposed','{}','{}') RETURNING id`).Scan(&eid); err != nil {
+		t.Fatal(err)
+	}
+	var pid int64
+	if err := pool.QueryRow(ctx, `INSERT INTO fin_proposal(eval_id,inst_id,direction,net_apr)
+		VALUES($1,'BTC-USDT-261225-68000-P','dcd_put',0.15) RETURNING id`, eid).Scan(&pid); err != nil {
+		t.Fatal(err)
+	}
+	r := NewRunner(pool, cfg)
+	if err := r.scan(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var state string
+	if err := pool.QueryRow(ctx, `SELECT state FROM fin_strategy WHERE proposal_ref=$1`, pid).Scan(&state); err != nil || state != "paper" {
+		t.Fatalf("dcd_put 应进 paper，state=%s err=%v", state, err)
+	}
+	if err := pool.QueryRow(ctx, `SELECT state FROM fin_proposal WHERE id=$1`, pid).Scan(&state); err != nil || state != "fin_armed" {
+		t.Fatalf("dcd_put paper admission 后提案应 armed，state=%s err=%v", state, err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE fin_strategy SET entered_at=now()-interval '2 days'
+		WHERE proposal_ref=$1`, pid); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.scan(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(ctx, `SELECT state FROM fin_strategy WHERE proposal_ref=$1`, pid).Scan(&state); err != nil || state != "probe" {
+		t.Fatalf("dcd_put 应经纸面结算晋级 probe，state=%s err=%v", state, err)
+	}
+	var fills int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM fin_paper_fill WHERE strategy_id=(
+		SELECT id FROM fin_strategy WHERE proposal_ref=$1) AND kind='funding'`, pid).Scan(&fills); err != nil || fills == 0 {
+		t.Fatalf("dcd_put paper 应按声明 APR 摊出 fill，fills=%d err=%v", fills, err)
 	}
 }
 

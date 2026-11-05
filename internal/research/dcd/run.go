@@ -31,15 +31,22 @@ type Runner struct {
 	rej    *rejects.Door
 	feed   Feed
 	coins  Coins
+	fin    *pgxpool.Pool // T-0353 件③④：SG fin 正本池（条件请求+升件行写径）
+	alert  *notify.Alerter
 	lastAt time.Time // 最小间隔节流（T-0102 修补7——ev_account 每 ~5s 触发曾
 	// 致产品面 429 风暴；research.dcd.scan_interval_min 热启，缺=30min 底）。
-	watch *armwatch.Watch // 臂活性看门（T-0117 返修——四臂共用件非 dcd 独份）
+	watch      *armwatch.Watch // 臂活性看门（T-0117 返修——四臂共用件非 dcd 独份）
+	failStreak int             // T-0353 件③：连败计数（成功扫描拍清零）
+	lastOK     time.Time       // 节流空拍不冒充成功；只用真实完成的扫描拍清连败
+	retired    bool            // 条件请求盒持久闸命中（待业主明确 fulfilled 才复扫）
 }
 
 func NewRunner(pool *pgxpool.Pool, cfg *config.Client) *Runner {
 	return &Runner{pool: pool, cfg: cfg, watch: armwatch.New("dcd 枚举"),
 		rej: rejects.New("research", "dcd_missing_params", "dcd_feed_failed",
-			"dcd_registry_read_failed", "dcd_write_err", "dcd_coins_absent", "dcd_skip_scope_ccy", "dcd_feed_empty", "dcd_scan_timeout")}
+			"dcd_registry_read_failed", "dcd_write_err", "dcd_coins_absent", "dcd_skip_scope_ccy", "dcd_feed_empty", "dcd_scan_timeout",
+			"owner_domain_gap", "gap_write_err", "gap_writer_missing", "dcd_fail_streak_retire",
+			"dcd_retire_state_read_err", "dcd_retire_writer_missing")}
 }
 
 // AttachFeed 挂枚举读件（cmd 装配层 REST 签名闭包）。
@@ -48,13 +55,23 @@ func (r *Runner) AttachFeed(fn Feed) *Runner { r.feed = fn; return r }
 // AttachCoins 挂逐币可动余量读件（notional 闸判据源）。
 func (r *Runner) AttachCoins(fn Coins) *Runner { r.coins = fn; return r }
 
-// AttachAlerter 挂业主告警通道（臂静默——T-0117 返修：走 Alert() 非 log 前缀）。
-func (r *Runner) AttachAlerter(a *notify.Alerter) *Runner { r.watch.AttachAlerter(a); return r }
+// AttachFin 挂 fin 正本池（SG——fin_condition_gap/ops_event 写径；
+// nil=分流与升件写径缺，fail-closed 显形不静默）。
+func (r *Runner) AttachFin(pool *pgxpool.Pool) *Runner { r.fin = pool; return r }
+
+// AttachAlerter 挂业主告警通道（臂静默——T-0117 返修：走 Alert() 非 log 前缀；
+// T-0353 件③自停告警同径留 ref）。
+func (r *Runner) AttachAlerter(a *notify.Alerter) *Runner {
+	r.alert = a
+	r.watch.AttachAlerter(a)
+	return r
+}
 
 // Run 枚举臂在岗（funding 同构事件化——T-0048 周期环拆：ev_account/ev_funding
-// 帧驱动评估一拍；产品在架面无推送事件，账户/结算帧=节拍源，D-0008-B 轮询禁）。
+// 帧驱动评估一拍；产品在架面无推送事件，账户/结算帧=节拍源，D-0008-B 轮询禁；
+// T-0353 件③连败机判经 scanTracked 壳）。
 func (r *Runner) Run(ctx context.Context, errc chan<- error) {
-	events.ListenLoop(ctx, r.pool, "research-dcd", []string{"ev_account", "ev_funding"}, r.scan)
+	events.ListenLoop(ctx, r.pool, "research-dcd", []string{"ev_account", "ev_funding"}, r.scanTracked)
 }
 
 // surfaces 枚举面读表（注册表×模板适用声明 join——「注册+声明=探员即枚举」
@@ -129,6 +146,7 @@ func (r *Runner) scan(ctx context.Context) error {
 	if len(ss) > 0 {
 		r.watch.OK() // 成功产出拍（恢复清标——再静默可再报）
 	}
+	r.lastOK = time.Now()
 	return nil
 }
 

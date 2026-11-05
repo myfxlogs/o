@@ -22,6 +22,7 @@ import (
 	"o/internal/platform/rejects"
 
 	"o/internal/research/analyst"
+	"o/internal/research/band"
 	ctxcoll "o/internal/research/ctx"
 	"o/internal/research/dcd"
 	"o/internal/research/funding"
@@ -157,8 +158,15 @@ func gapProbeFor(okcli authGetter) gapscan.Probe {
 
 // researchArms 研究域四臂发射（T-0117：funding/dcd/差扫/假想官静默告警同挂
 // 业主通道——读件缺席=让位 WARN 不炸 boot）。
+// T-0353：finPool 贯通（件④业主资产域分流+件③升件行写径）；boot 族级阈
+// 两级档红线审计（band.Audit——白名单外族<0.06/近确定族<0.04=漂移 Alert）。
 func researchArms(ctx context.Context, errc chan<- error, pool *pgxpool.Pool,
-	cfg *config.Client, finCfg *config.Client, okcli authGetter, alerter *notify.Alerter, rej *rejects.Door) {
+	cfg *config.Client, finPool *pgxpool.Pool, finCfg *config.Client, okcli authGetter, alerter *notify.Alerter, rej *rejects.Door) {
+	if bad := band.Audit(cfg.GetFloat); len(bad) > 0 {
+		msg := fmt.Sprintf("族级阈两级档漂移（近确定族<0.04 或白名单外族<0.06——禁静默）: %v", bad)
+		log.Printf("WARN [o-research] %s", msg)
+		alerter.Alert(ctx, "band_audit_drift", msg)
+	}
 	fr := funding.NewRunner(pool, cfg)
 	fr.AttachAlerter(alerter)
 	// T-0150 起草闸读件：SPOT 目录复用 market/tickers 全量面（零新端点）。
@@ -170,7 +178,7 @@ func researchArms(ctx context.Context, errc chan<- error, pool *pgxpool.Pool,
 		log.Printf("[o-research] dcd 枚举臂退役（research.dcd.enabled=false——D-0037 退场）")
 	} else {
 		go dcd.NewRunner(pool, cfg).AttachFeed(dcdFeedFor(okcli, rej)).
-			AttachCoins(okxCoinsFor(pool, okcli)).AttachAlerter(alerter).Run(ctx, errc)
+			AttachCoins(okxCoinsFor(pool, okcli)).AttachFin(finPool).AttachAlerter(alerter).Run(ctx, errc)
 	}
 	go gapscan.NewRunner(pool, cfg).AttachProbe(gapProbeFor(okcli)).AttachAlerter(alerter).Run(ctx, errc)
 	hr := hypothesis.NewRunner(pool, cfg)

@@ -1,4 +1,4 @@
-// run_test.go —— dcd 臂桩测（T-0102 判据锚）：夹具 products→评估行→提案落库+
+// run_test.go —— dcd 臂桩测（T-0102 判据锚）：夹具 products→评估行→提案/条件请求+
 // 阈拒因；读败 fail-closed 不造零快照；「注册即被枚举」扩张自证（关态面可见
 // 不真探）；单 uly 方向不叠。
 package dcd
@@ -32,7 +32,7 @@ func setup(t *testing.T) (context.Context, *Runner) {
 	if err := cfg.Load(ctx); err != nil {
 		t.Fatal(err)
 	}
-	return ctx, NewRunner(pool, cfg)
+	return ctx, NewRunner(pool, cfg).AttachFin(pool)
 }
 
 // fixtureProducts 合格品两（C/P）+越界品四（dist_thin/apr_thin/term_over/
@@ -56,6 +56,23 @@ func fixtureProducts() []Product {
 	}
 }
 
+// T-0353 件①：DCD put 的 4.84% 收益在近确定族 4% 档通过，低于 4% 仍拒。
+func TestNearCertainAPRThreshold(t *testing.T) {
+	p := Product{ProductID: "BTC-USDT-261225-70000-P", Uly: "BTC-USDT", QuoteCcy: "USDT",
+		Direction: "P", Strike: 70000, Expiry: time.Now().Add(10 * 24 * time.Hour),
+		AnnualizedYield: 0.0484, MinSize: 100}
+	params := Params{MinDistPct: 8, MaxTermDays: 30, MinAPR: 0.04, NotionalPct: 20}
+	e := Evaluate(p, 80000, 1000, params)
+	if e.Template != "dcd_put" || e.Verdict != "proposed" {
+		t.Fatalf("4.84%% DCD put 应通过 4%% 档: %+v", e)
+	}
+	p.AnnualizedYield = 0.0399
+	e = Evaluate(p, 80000, 1000, params)
+	if e.Verdict != "rejected" || e.Reason != "apr_thin" {
+		t.Fatalf("低于 4%% 应被阈拒: %+v", e)
+	}
+}
+
 func count(t *testing.T, ctx context.Context, r *Runner, q string, args ...any) int {
 	t.Helper()
 	var n int
@@ -65,9 +82,8 @@ func count(t *testing.T, ctx context.Context, r *Runner, q string, args ...any) 
 	return n
 }
 
-// 锚链：夹具 products→快照 6 行→评估行 verdict/证据→合格品提案 1 行
-// （T-0330：dcd_put 执行径未建族前置拒 rejected/exec_family_missing——
-// P 合格品不再进提案队列）→重扫不叠（单 uly 方向闸+提案幂等）。
+// 锚链：夹具 products→快照 6 行→评估行 verdict/证据→BTC call 条件请求+
+// USDT put 常径提案 1 行→重扫不叠（单 uly 方向闸+提案幂等）。
 func TestDCDEnumerateEvaluatePropose(t *testing.T) {
 	ctx, r := setup(t)
 	if _, err := r.pool.Exec(ctx,
@@ -85,15 +101,16 @@ func TestDCDEnumerateEvaluatePropose(t *testing.T) {
 		t.Fatalf("快照应 6 行: %d", n)
 	}
 	if n := count(t, ctx, r, `SELECT count(*) FROM fin_opp_eval WHERE template LIKE 'dcd_%'
-		AND verdict='proposed'`); n != 1 {
-		t.Fatalf("合格品评估应 1（dcd_call 独苗——dcd_put 前置拒）: %d", n)
+		AND verdict='proposed'`); n != 2 {
+		t.Fatalf("合格品评估应 2（call 业主域条件请求+put USDT 常径）: %d", n)
 	}
-	// T-0330 锚：P 合格品（dcd_put=执行径未建族）前置拒——rejected/
-	// exec_family_missing 族码归因落证据。
 	if n := count(t, ctx, r, `SELECT count(*) FROM fin_opp_eval
-		WHERE template='dcd_put' AND verdict='rejected'
-		AND evidence->>'reason'='exec_family_missing'`); n < 1 {
-		t.Fatalf("dcd_put 前置拒行缺: %d", n)
+		WHERE template='dcd_call' AND evidence->>'proposal_path'='condition_gap_owner_domain'`); n != 1 {
+		t.Fatalf("BTC call 应分流业主资产域条件请求: %d", n)
+	}
+	if n := count(t, ctx, r, `SELECT count(*) FROM fin_condition_gap
+		WHERE kind='holding' AND venue='okx' AND surface='dcd' AND state='pending'`); n != 1 {
+		t.Fatalf("BTC call 应有一条待处理条件请求: %d", n)
 	}
 	var strike, dist, spot, term float64
 	if err := r.pool.QueryRow(ctx, `SELECT (evidence->>'strike')::numeric,
@@ -113,7 +130,7 @@ func TestDCDEnumerateEvaluatePropose(t *testing.T) {
 	}
 	if n := count(t, ctx, r, `SELECT count(*) FROM fin_proposal
 		WHERE inst_id LIKE 'BTC-USDT%' AND state='fin_proposed'`); n != 1 {
-		t.Fatalf("提案应恰 1（仅 C——P 前置拒不入队）: %d", n)
+		t.Fatalf("提案应恰 1（USDT put 常径；BTC call 只进条件请求）: %d", n)
 	}
 	// 重扫：单 uly 方向不叠+提案幂等——提案仍 1，重评行 rejected。
 	// lastAt 重置越节流窗（生产=事件风暴节流，测试=逐拍显式放行）。

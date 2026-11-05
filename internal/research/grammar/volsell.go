@@ -118,7 +118,10 @@ func (r *Runner) evalVolSell(ctx context.Context, f Family) error {
 	return nil
 }
 
-// volParams 判据键复用 research.dcd.* 阈域（任一缺=fail-closed）。
+// volParams 判据键（T-0353 件①解耦：min_apr 自持 research.volsell.min_apr
+// 归 Default 档——dcd 族降 0.04 中间档不再连带卖权族，directional 不进中间
+// 档红线；dist/term/notional 三键无档位漂移仍复用 research.dcd.*。任一缺
+// =fail-closed）。
 func (r *Runner) volParams(ctx context.Context) (dcd.Params, error) {
 	var p dcd.Params
 	for _, kv := range []struct {
@@ -127,7 +130,7 @@ func (r *Runner) volParams(ctx context.Context) (dcd.Params, error) {
 	}{
 		{"research.dcd.min_dist_pct", &p.MinDistPct},
 		{"research.dcd.max_term_days", &p.MaxTermDays},
-		{"research.dcd.min_apr", &p.MinAPR},
+		{"research.volsell.min_apr", &p.MinAPR},
 		{"research.dcd.notional_pct", &p.NotionalPct},
 	} {
 		v, err := r.cfg.GetFloat(kv.k)
