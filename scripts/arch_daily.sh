@@ -10,6 +10,20 @@ set -euo pipefail
 CT="${ARCH_CT:-o-postgres-md}"
 BACKUP_DIR="${BACKUP_DIR:-/opt/o-backups-md}"
 q() { sudo docker exec "$CT" psql -U o -d o -Atc "$1"; }
+# T-0372 容错自报（OCI 单件部署面无 scripts/meta 树——内联 ops_esc.sh
+# 同式：FIN_PG_DSN 隧道径→ops_event 升件+note 前缀 24h 去重；写径末环
+# 败=静默退结构性限度在案）。
+esc() { # $1=prefix $2=detail
+	local dsn="" ef
+	for ef in "${OPS_ESC_ENV_FILE:-}" /home/ubuntu/o-research/env /opt/o-research/env; do
+		[ -f "$ef" ] || continue
+		dsn=$(grep '^FIN_PG_DSN=' "$ef" 2>/dev/null | cut -d= -f2- | tr -d '"' || true) # tolerate: env 探测——件缺/键缺=跳过本候选非吞败（自报径自身降级面）
+		[ -n "$dsn" ] && break
+	done
+	[ -n "$dsn" ] || return 0
+	psql "$dsn" -qAt -c "SELECT 1 FROM ops_event WHERE event='升件' AND note LIKE '$1%' AND ts>now()-interval '24 hours' LIMIT 1" 2>/dev/null | grep -qx 1 && return 0
+	psql "$dsn" -qAt -c "INSERT INTO ops_event(seat,event,ticket,note) VALUES('OCI-CRON','升件','','$1——$2')" >/dev/null 2>&1 || true # tolerate: 自报末环——INSERT 败静默退（结构性限度在案）
+}
 ts="$(date -u +%Y%m%dT%H%M%SZ)"
 
 # ① 日快照（UNIQUE(snap_date,inst_id,src) 幂等——同日重跑覆盖不叠）
@@ -27,7 +41,7 @@ echo "[$ts] snapshot OK"
 keep=$(q "SELECT COALESCE((SELECT value::float FROM app_config WHERE key='arch_keep_days'),180)" | tr -d ' ')
 keep=${keep%.*}; [ -n "$keep" ] || keep=180
 for t in arch_eval arch_signal; do
-	q "DELETE FROM $t WHERE arch_ts<now()-make_interval(days=>$keep)" >/dev/null || true
+	q "DELETE FROM $t WHERE arch_ts<now()-make_interval(days=>$keep)" >/dev/null || esc "arch 保留期清扫败" "表=$t keep=${keep}d——arch_* 淤积增长无人知"
 done
 echo "[$ts] retention OK keep=${keep}d"
 

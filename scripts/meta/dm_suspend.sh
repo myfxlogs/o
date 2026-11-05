@@ -32,7 +32,7 @@ FROM (
     ('派单','领单','开工','拉起','收口','移交','收口待审','裁决','完成','驳回','挂起','异常','升件')
   ORDER BY ticket,ts DESC,id DESC
 ) l
-WHERE event='挂起' AND NOT (seat='施工席' AND note LIKE 'rate-limit:auto%')" 2>/dev/null) || exit 0
+WHERE event='挂起' AND NOT (seat='施工席' AND note LIKE 'rate-limit:auto%')" 2>/dev/null) || exit 1 # T-0372：扫描败≠空集——非零由消费面 dm_tick 升件显报
 [ -n "$ROWS" ] || exit 0
 
 printf '%s\n' "$ROWS" | while IFS=$'\x1f' read -r tid note seat age; do
