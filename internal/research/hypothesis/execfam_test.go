@@ -1,23 +1,25 @@
 package hypothesis
 
-// execfam_test.go —— T-0330 提案闸前置拒桩测（验收锚①②）：执行径未建族
-// 全谱过阈也 direct eval rejected/exec_family_missing——提案零行不入队列
-// 淤积（族码归因=template 列+reason 机读）。
+// execfam_test.go —— 提案闸族册桩测：T-0330 前置拒语义（未建族=eval direct
+// rejected/exec_family_missing，提案零行不入队列）+T-0377 登记翻转（xvenue-carry
+// 建族=paper 径贯通——全闸开时链进至提案 fin_proposed，不再淤积拒）。
 import (
 	"testing"
 )
 
-func TestExecFamilyMissingFrontReject(t *testing.T) {
+// T-0377 翻转锚：xvenue-carry 入 execfam 册（T-0144 双腿开户链可达）——
+// 能力面/容量/黑名单/净年化全闸开 → verdict=proposed+提案立（不再
+// exec_family_missing 前置拒）；真单径仍 opener 永拒兜底（lifecycle 域测试钉）。
+func TestExecFamilyRegisteredChainProceeds(t *testing.T) {
 	ctx, r := xsetup(t)
 	xseed(t, ctx, r, map[string]string{"research.signal.xvenue_carry_diff_bps": "300"})
-	// mt5 执行面在册 enabled——全谱闸开（能力面在≠前置拒豁免；锚定「拒因=
-	// 执行径缺」而非能力面缺）。
+	// mt5 执行面在册 enabled——全谱闸开。
 	if _, err := r.pool.Exec(ctx, `INSERT INTO fin_capability_surface
 		(venue,surface,endpoint_family,product_family,rw_class,enabled)
 		VALUES('mt5','trade-order','trade-order','cfd','write',true)`); err != nil {
 		t.Fatal(err)
 	}
-	// 信号三件套同 TestXvenueCarryChain（diff=-532 负 funding 亮牌→净年化过阈）。
+	// 信号三件套（diff=-532 负 funding 亮牌→净年化过阈）。
 	for _, q := range []string{
 		`INSERT INTO md_signal(kind,key,val,meta,ts) VALUES('carry_diff','ETH-USDT-SWAP',-532,
 			'{"funding_ann_bps":-1095,"mt5_swap_ann_bps":0,"mt5_symbol":"ETHUSDm","contract_size":1,"max_volume":100}',now())`,
@@ -30,19 +32,22 @@ func TestExecFamilyMissingFrontReject(t *testing.T) {
 		}
 	}
 	r.xvenueCarryScan(ctx)
-	// 锚①：eval 前置拒——rejected/exec_family_missing（族码=template 列归因）。
-	var verdict, reason string
-	if err := r.pool.QueryRow(ctx, `SELECT verdict, evidence->>'reason' FROM fin_opp_eval
-		WHERE inst_id='ETH-USDT-SWAP' AND template='xvenue-carry'`).Scan(&verdict, &reason); err != nil {
-		t.Fatal("前置拒评估行应落:", err)
+	// 锚①：族册在——评估不前置拒（proposed）。
+	var verdict string
+	if err := r.pool.QueryRow(ctx, `SELECT verdict FROM fin_opp_eval
+		WHERE inst_id='ETH-USDT-SWAP' AND template='xvenue-carry'`).Scan(&verdict); err != nil {
+		t.Fatal("评估行应落:", err)
 	}
-	if verdict != "rejected" || reason != "exec_family_missing" {
-		t.Fatalf("verdict/reason=%s/%s（执行径未建族应前置拒）", verdict, reason)
+	if verdict != "proposed" {
+		t.Fatalf("族册在应放行 got %s（exec_family_missing=登记回退信号）", verdict)
 	}
-	// 锚②：提案零行——不进 fin_proposed/fin_armed 队列（淤积断源）。
+	// 锚②：提案立（fin_proposed 入队列——lifecycle 双腿开户消费）。
 	var n int
-	r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_proposal`).Scan(&n)
-	if n != 0 {
-		t.Fatalf("未建族提案应零行 got %d", n)
+	var dir *string
+	if err := r.pool.QueryRow(ctx, `SELECT count(*), max(direction) FROM fin_proposal`).Scan(&n, &dir); err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 || dir == nil || *dir != "long_perp_short_cfd" {
+		t.Fatalf("建族后提案应立 1 行 long_perp_short_cfd got %d/%v rej=%v", n, dir, r.rej.Snapshot())
 	}
 }

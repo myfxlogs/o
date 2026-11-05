@@ -101,6 +101,9 @@ func (r *Runner) scan(ctx context.Context) error {
 	if err := r.paperAccounting(ctx); err != nil {
 		return err
 	}
+	if err := r.xvenueSwapAccounting(ctx); err != nil {
+		log.Printf("[lifecycle] xvenue mt5 腿 swap 记账败: %v", err) // T-0377：记账败不拖开户/晋升拍（basis 同款非致命位）
+	}
 	if err := r.promote(ctx, minH, minNet, maxDD, liveSw); err != nil {
 		return err
 	}

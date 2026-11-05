@@ -225,8 +225,14 @@ func (r *Runner) xvenueCarryEval(ctx context.Context, okxInst, dir string, net, 
 	}
 	if verdict == "proposed" {
 		var n int
+		// T-0377 断链根修⑥：count 查询声明 $1 却未传参（pgx expected 1 got 0）——
+		// err≠nil 静默跳过提案 INSERT，xvenue-carry 提案永零（登记前被前置拒
+		// 掩护不可见）。补传 evalID 恢复提案径；err 面显式留痕不再吞。
 		if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_proposal
-			WHERE eval_id=$1`).Scan(&n); err == nil && n == 0 {
+			WHERE eval_id=$1`, evalID).Scan(&n); err != nil {
+			r.rej.Inc("hypo_write_err")
+			log.Printf("[research/hypo] xvenue_carry 提案幂等查败: %v", err)
+		} else if n == 0 {
 			if _, err := r.pool.Exec(ctx, `INSERT INTO fin_proposal(eval_id,inst_id,direction,net_apr)
 				VALUES($1,$2,$3,$4)`, evalID, okxInst, dir, net/10000); err != nil {
 				r.rej.Inc("hypo_write_err")
