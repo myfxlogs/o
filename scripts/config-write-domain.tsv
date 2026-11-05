@@ -1,0 +1,52 @@
+# config-write-domain.tsv —— app_config 写域二分册（T-0376 业主令：money
+# 「如何去赚」全参数域归机器自主——放行线/评估阈/模板族启停/仓位重组判定/
+# 退役闸/paper→probe→live 判据值；业主面=注册/凭证/KYC/加本金——DM 写径
+# 不可达）。collab.md 写面判据节引本册为单源。
+# Go 径=internal/platform/config/dmwrite.go（dmWritableGlobs/ownerKeyGlobs
+# 同集镜像——漂移=闸红）；机检闸=scripts/check_config_write_domain.sh
+# （入 check_all：集同/凭证形硬拒/键宇宙覆盖棘轮三断言）。
+# 格式：`pattern<TAB>类<TAB>注`；pattern=* 通配（path.Match 语义）。
+# 判定序=凭证形 regex 硬拒（先于一切）→owner 行→dm 行→未命中 fail-closed
+# 归 owner（新键须入册，缺册=DM 不可写）。
+# 类语义：
+#   dm    = DM/系统全权——每次自调必落 ops_event `参数调整` 行
+#           （参数/旧值/新值/判据证据锚必携——自主≠无账，周评审 T-0360 对账复核）；
+#   owner = 业主面——DM 写径物理不可达（锚④静态断言；guard/代码自动写径不受此限）。
+# —— dm 类（「如何去赚」参数域）——
+research.*	dm	评估阈/族参数/扫描族启停（funding 费率滑点窗损最小净APR/信号/假设族/gap/grammar/volsell/dcd/stale_hours）
+guard.*	dm	守仓参数（flip_bps/breakeven_safety/max_hold_hours——交易执行域）
+invest.lifecycle.*	dm	放行线（live_switch）+paper→probe→live 判据值（min_hours/min_net/max_dd）
+invest.paper.*	dm	paper 仓位判定（notional_usd）
+scout.*	dm	venue 测榜参数（top_n/persist/margin/interval）
+lifecycle.*	dm	生命周期 TTL/冷却族（armed/paper/proposal_stale/reject_cooldown）
+strategy.*	dm	降级 TTL 族（degraded_ttl_hours）
+gate.kill.*	dm	族级风险停机闸（退役闸族——决策席 T-0312 既有白名单续认）
+exec.*	dm	执行参数（探针仓位/超时/重开冷却/tick 时限/cfd_map）
+funding.scan_timeout_s	dm	funding 扫描超时
+gapscan.scan_timeout_s	dm	gap 扫描超时
+dm.hunger.*	dm	饥饿响应自参数（检测窗 N——票面 T-0376 种 3 天）
+earn.auto_purchase_enabled	dm	闲置金 Earn 自动转入（资金运用重排）
+trx.floor_pct	dm	Tron 质押保底率（Earn 族参数）
+trx.vote_enabled	dm	Tron 投票开关（Earn 族）
+trx.vote_max_rebal_per_day	dm	Tron 再平衡频次（Earn 族）
+trx.poll_seconds	dm	Tron 轮询间隔（Earn 族）
+# —— owner 类（业主面——DM 写径不可达，锚④硬界）——
+risk.max_notional_usd	owner	资金上限（锚④硬界——单仓名义帽归业主）
+risk.kill_switch	owner	舰队停机总闸（guard 自动翻位径不受限——非 DM 自主域）
+ledger.recon_tol_usd	owner	对账容差（红线三：对账三通道不可动）
+feishu.chat_id	owner	业主通知通道
+notify.*	owner	通知投递面（fail-closed 非钱径）
+trx.stake_address	owner	资金去向地址
+trx.rental_payers	owner	资金对手方注册表
+bridge.*	owner	采集基建面（fail-closed）
+calendar.*	owner	宏观日历面（fail-closed）
+cmc.ws_disabled	owner	采集基建面（fail-closed）
+net.budget_kbps	owner	带宽预算（基建面）
+mt5.gateway_addr	owner	网关拓扑（基建面）
+trx.grpc_endpoint	owner	Tron RPC 拓扑（基建面）
+okx.symbols	owner	采集宇宙清单（GetStringList 数组键——基建面）
+mt5.symbols	owner	采集宇宙清单（GetStringList 数组键——基建面）
+readcred.entitlement	owner	读凭据权限白名单（访问控制面——fail-closed）
+# 凭证形键（*_api_key/*secret*/*token*/*passphrase/*password/*account_id/
+# *private_key）不须入册——dmwrite.go credentialRE 先于一切硬拒归 owner
+# （trx.trongrid_api_key/cmc.account_id 实证在案）。

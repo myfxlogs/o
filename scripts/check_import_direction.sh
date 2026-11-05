@@ -58,6 +58,8 @@ internal/mt5 -> internal/platform/netmeter
 internal/ledger/report -> internal/platform/roster
 internal/ledger -> internal/platform/roster
 internal/portfolio/lifecycle -> internal/platform/config
+internal/portfolio/hunger -> internal/platform/config
+internal/portfolio/hunger -> internal/platform/condreq
 internal/risk -> internal/platform/config
 internal/trading/execution -> internal/platform/config
 internal/trading/execution -> internal/platform/rejects

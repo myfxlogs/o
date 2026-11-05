@@ -20,6 +20,7 @@ UNFMT=$(gofmt -l . 2>/dev/null || true)
 [ -z "$UNFMT" ] || fail "gofmt 未格式件: $UNFMT"
 step "env-reads";   bash scripts/check-env-reads.sh             || fail "env 门禁红"
 step "rejects";     bash scripts/check_rejects_keys.sh          || fail "rejects 键红"
+step "config-write-domain"; bash scripts/check_config_write_domain.sh || fail "config 写域闸红"
 step "migrations";  bash scripts/check_migrations.sh            || fail "迁移机检红"
 step "bridge-audit"; bash scripts/check_bridge_registry.sh         || fail "桥域对账闸红"
 step "tolerate-report"; bash scripts/check_tolerate_report.sh      || fail "容错必报 lint 红"

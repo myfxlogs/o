@@ -54,6 +54,12 @@ domain: 经济
 - **统计输出继承测量 bug**：解释任何统计量前先核结算语义（KB `exit-formula-leg-order-inversion` 先例：胜率≈0 实为腿序颠倒非策略烂）——未核口径就引用统计量 = 违规
 - **kill 扳机数学化**：统计判据当前只武装证据字段（D-180），直接拿置信界当 disable 条件 = 越权即停
 
+## 盈亏自治写域（T-0376 业主令 2026-11-05——「如何去赚是机器和 LLM 的事情，全权作主」）
+
+- **判据值调整径**：本卡统计判据产出的阈调/启停/放行线结论可**带内直执**——唯一径=`tools/dmconfig`（config.DMSet 域闸）+ops_event `参数调整` 行（参数/旧值/新值/判据证据锚必携）；分册单源 `scripts/config-write-domain.tsv`（dm/owner 二分，check_config_write_domain.sh 入 check_all）。
+- **饥饿响应径**（internal/portfolio/hunger）：机读定义=连续 N 天零 fin_proposal 新行（dm.hunger.zero_proposal_days，种 3）∨paper 池空 →四步序列：放行线检校（零写）→休眠模板族再评估（窗口内 verdict='proposed' 评估=复活证据，带证据直启+参数调整行）→低产 live 重组候选（advisory 列行）→venue 候选推进到凭据边界（fin_condition_gap 条件请求盒出件——注册/凭证=业主面）；每步 ops_event `饥饿响应` 行落账，入口 `tools/hungertick`。
+- **硬界（业主面残留——写径物理不可达）**：凭证类键（regex 硬拒）、资金上限（risk.max_notional_usd）、舰队停机总闸（risk.kill_switch）、对账三通道（ledger.recon_tol_usd）、资金去向（trx.stake_address 等）；资本总额=balance 天然约束、加本金=业主令。**本节硬停止条（不定阈值/kill 扳机数学化）继续有效**——「带内直执」放行的是证据充分的参数自调，非拿统计判据当机器闸。
+
 ## 验证证据
 
 - 引用的公式编号 + zh.md 节位（对拍一致性=公式编号直查原书）
