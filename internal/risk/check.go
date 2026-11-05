@@ -136,11 +136,61 @@ func (g *Gate) Check(ctx context.Context, in Intent) Decision {
 		if eq > 0 && (vExp+in.NotionalUSD) > eq*maxPct {
 			return g.deny(ctx, in, "venue_concentration")
 		}
+		// T-0355 读面根修：产品仓（dcd_baseline 凭据族）计入总敞口——取数走
+		// 统一持仓读面 fin_position_view kind='dcd' 同径，币量→USD 估值同
+		// cockpit 径。闸面 fail-closed：估不出敞口（视图读败/无 tick/非正价）
+		// =拒放——不取显示面「无 tick=0 不虚计」口径（闸面保守取钉票语义）。
+		// exec 仓原径零动。
+		dcdUSD, ok := g.dcdExposureUSD(ctx)
+		if !ok {
+			return g.deny(ctx, in, "exposure_cap")
+		}
+		tExp += dcdUSD
 		if (tExp + in.NotionalUSD) > maxExp {
 			return g.deny(ctx, in, "exposure_cap")
 		}
 	}
 	return g.allow(ctx, in, int64(ttl))
+}
+
+// dcdExposureUSD 产品仓敞口 USD 估值（T-0355）：fin_position_view kind='dcd'
+// 行逐行 Σamt×价——USDT/USD 名义直入，余币按 ccy-USDT 最新 tick 折算
+// （md_ticks/md_mark_index 双源 UNION 取最新，同 cockpit_face 径）。
+// ok=false=任一不可估（视图读败/扫描败/无 tick 行/NULL 或非正价），
+// 调用方按 fail-closed 拒放——闸面不许「估不出按零计」。
+func (g *Gate) dcdExposureUSD(ctx context.Context) (float64, bool) {
+	rows, err := g.pool.Query(ctx,
+		`SELECT ccy,notional FROM fin_position_view WHERE kind='dcd'`)
+	if err != nil {
+		return 0, false
+	}
+	defer rows.Close()
+	var usd float64
+	for rows.Next() {
+		var ccy string
+		var amt float64
+		if err := rows.Scan(&ccy, &amt); err != nil {
+			return 0, false
+		}
+		px := 1.0
+		if ccy != "USDT" && ccy != "USD" {
+			var p *float64
+			err := g.pool.QueryRow(ctx, `SELECT p FROM (
+			      SELECT ts,last AS p FROM md_ticks WHERE inst_id=$1||'-USDT'
+			      UNION ALL
+			      SELECT ts,px AS p FROM md_mark_index WHERE inst_id=$1||'-USDT'
+			    ) u ORDER BY ts DESC LIMIT 1`, ccy).Scan(&p)
+			if err != nil || p == nil || *p <= 0 {
+				return 0, false
+			}
+			px = *p
+		}
+		usd += amt * px
+	}
+	if err := rows.Err(); err != nil {
+		return 0, false
+	}
+	return usd, true
 }
 
 // deny 留痕+计数+返回（fail-closed 统一径）。

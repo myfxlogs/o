@@ -52,6 +52,19 @@ func dcdRejectFixture(t *testing.T, productID string, stub stubDcdVenue) (contex
 		VALUES(now(),'okx','dcd','BTC-USDT',$1,'C','{"notionalCcy":"BTC"}')`, productID); err != nil {
 		t.Fatal(err)
 	}
+	// T-0355：迁移种子 dcd_baseline（BTC）入闸须有价——BTC-USDT tick fixture
+	// 供 exposure_cap 估值径（quote 成功径会走到 gate.Check）；敞口阈同步
+	// 放宽——本桩面只验持久化非闸判据，种子值 1000 会被 dcd 估值顶破。
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO md_ticks(ts,venue,inst_id,last) VALUES(now(),'okx','BTC-USDT',100000)
+		 ON CONFLICT(venue,inst_id) DO UPDATE SET ts=EXCLUDED.ts,last=EXCLUDED.last`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO app_config(key,value) VALUES('risk.max_exposure_usd',to_jsonb('1000000000'::text))
+		 ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value`); err != nil {
+		t.Fatal(err)
+	}
 	cfg := config.New(pool)
 	if err := cfg.Load(ctx); err != nil {
 		t.Fatal(err)
