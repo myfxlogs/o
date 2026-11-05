@@ -26,6 +26,13 @@ func setup(t *testing.T) (context.Context, *Gate) {
 			t.Fatal(err)
 		}
 	}
+	// T-0355：迁移种子 dcd_baseline（BTC 0.0207）入闸后须有价——BTC-USDT
+	// tick fixture 供估值径（幂等 upsert；risk 包测不涉其他 md_* 行）。
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO md_ticks(ts,venue,inst_id,last) VALUES(now(),'okx','BTC-USDT',100000)
+		 ON CONFLICT(venue,inst_id) DO UPDATE SET ts=EXCLUDED.ts,last=EXCLUDED.last`); err != nil {
+		t.Fatal(err)
+	}
 	for k, v := range map[string]string{
 		"risk.kill_switch": "false", "risk.max_notional_usd": "500",
 		"risk.max_venue_pct": "0.95", "risk.max_exposure_usd": "1000000000",
