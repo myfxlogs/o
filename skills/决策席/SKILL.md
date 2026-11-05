@@ -65,6 +65,11 @@ seat_run 迹——ops_event 裁决行携票号+裁词+理由（票面验收锚�
   `systemd-run` 拉起无头施工 run。限额默认并行=1，最多可经
   `O_WORKER_PARALLEL_LIMIT=2` 调到2；额度不足票留队，禁绕闸直调
   `systemd-run`（T-0343）。
+- **取号唯一径**（collab §2 取号仲裁条，T-0373 钉死）：立票/返修子票
+  取号=`scripts/next_ticket.sh <席位名>`（fetch 后扫 origin/master
+  最大号+1，远端为准）——**禁本地视野 `ls docs/tasks/` 扫描取号**
+  （双席并行猜号=撞号根因 T-0217 实证；存量仲裁件 T-0163 双闸+
+  T-0219 本件在案，件在而席不知=机制白建）；号烧即废不回收。
 - **本形态不碰**（交互形态独占）：`草案→已批`、collab/名册/decisions
   章面、升件裁断——撞上写 `升件` 行+通报 O-DM，留待不销。
 - **派单水位**（collab §1 调度水位钦定）：统一由 `dispatch_worker.sh`
