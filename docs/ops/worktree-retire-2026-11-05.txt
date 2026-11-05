@@ -1,0 +1,694 @@
+# worktree/分支批删档案 —— 2026-11-05 业主令「批删」
+# 格式: worktree_path SHA [branch]
+# SHA 留档=事后可凭 git cat-file/branch 复活
+
+/opt/o                       575a6712 [master]
+/opt/o-wt/audit-t-0001       f8c30897 [t/dec-t-0001-audit]
+/opt/o-wt/audit-t-0004       44fa8674 [t/dec-t-0004-audit]
+/opt/o-wt/audit-t-0006       63814f76 [t/dec-t-0006-audit]
+/opt/o-wt/audit-t-0008       4e4c3f81 [t/dec-t-0008-audit]
+/opt/o-wt/audit-t-0009       86cd439d [t/dec-t-0009-audit]
+/opt/o-wt/audit-t-0011       ab55e92c [t/dec-t-0011-audit]
+/opt/o-wt/audit-t-0013       956bcb7f [t/dec-t-0013-audit]
+/opt/o-wt/audit-t-0016       8a8521db [t/dec-t-0016-audit]
+/opt/o-wt/audit-t-0018       61d821fd [t/dec-t-0018-audit]
+/opt/o-wt/audit-t-0019       ddefb3b0 [t/dec-t-0019-audit]
+/opt/o-wt/audit-t-0020       984e99c4 [t/dec-t-0020-audit]
+/opt/o-wt/audit-t-0022       aff41305 [t/dec-t-0022-audit]
+/opt/o-wt/audit-t-0023       7a6b3e3b [t/dec-t-0023-audit]
+/opt/o-wt/audit-t-0024       4c0c0690 [t/dec-t-0024-audit]
+/opt/o-wt/audit-t-0026       9eef4f07 [t/dec-t-0026-audit]
+/opt/o-wt/audit-t-0028       92aa8f48 [t/dec-t-0028-audit]
+/opt/o-wt/audit-t-0031       e2204db3 [t/dec-t-0031-audit]
+/opt/o-wt/audit-t-0033       e76369e6 [t/dec-t-0033-audit]
+/opt/o-wt/audit-t-0035       8ffe235c [t/dec-t-0035-audit]
+/opt/o-wt/audit-t-0036       9152c235 [t/dec-t-0036-audit]
+/opt/o-wt/audit-t-0037       bb804691 [t/dec-t-0037-audit]
+/opt/o-wt/audit-t-0038       f4629cfa [t/dec-t-0038-audit]
+/opt/o-wt/audit-t-0039       e1aeca9a [t/dec-t-0039-audit]
+/opt/o-wt/audit-t-0040       852fdb7f [t/dec-t-0040-audit]
+/opt/o-wt/audit-t-0041       4a4b6ff4 [t/dec-t-0041-audit]
+/opt/o-wt/audit-t-0044       1e4a824d [t/dec-t-0044-audit]
+/opt/o-wt/audit-t-0045       66c8060c [t/dec-t-0045-audit]
+/opt/o-wt/audit-t-0046       b8161ed6 [t/dec-t-0046-audit]
+/opt/o-wt/audit-t-0048       53f388da [t/dec-t-0048-audit]
+/opt/o-wt/audit-t-0049       ec466e89 [t/dec-t-0049-audit]
+/opt/o-wt/audit-t-0050       ba08a069 [t/dec-t-0050-audit]
+/opt/o-wt/audit-t-0051       05165705 [t/dec-t-0051-audit]
+/opt/o-wt/audit-t-0052       5367d034 [t/dec-t-0052-audit]
+/opt/o-wt/audit-t-0053       b80e5000 [t/dec-t-0053-audit]
+/opt/o-wt/audit-t-0054       a97cd32c [t/dec-t-0054-audit]
+/opt/o-wt/audit-t-0055       2842c7ba [t/dec-t-0055-audit]
+/opt/o-wt/audit-t-0056       51492c5a [t/dec-t-0056-audit]
+/opt/o-wt/audit-t-0057       cccea3f7 [t/dec-t-0057-audit]
+/opt/o-wt/audit-t-0058       1f711c79 [t/dec-t-0058-audit]
+/opt/o-wt/audit-t-0059       e3aa4f60 [t/dec-t-0059-audit]
+/opt/o-wt/audit-t-0060       77813322 [t/dec-t-0060-audit]
+/opt/o-wt/audit-t-0061       46228959 [t/dec-t-0061-audit]
+/opt/o-wt/audit-t-0062       8705c522 [t/dec-t-0062-audit]
+/opt/o-wt/audit-t-0063       61c758a2 [t/dec-t-0063-audit]
+/opt/o-wt/audit-t-0064       701bf33b [t/dec-t-0064-audit]
+/opt/o-wt/audit-t-0065       5c7059ed [t/dec-t-0065-audit]
+/opt/o-wt/audit-t-0066       8f83a598 [t/dec-t-0066-audit]
+/opt/o-wt/audit-t-0067       cb622110 [t/dec-t-0067-audit]
+/opt/o-wt/audit-t-0068       0d9d9d29 [t/dec-t-0068-audit]
+/opt/o-wt/audit-t-0069       ff7a45ba [t/dec-t-0069-audit]
+/opt/o-wt/audit-t-0070       f6c56230 [t/dec-t-0070-audit]
+/opt/o-wt/audit-t-0071       cba3d818 [t/dec-t-0071-audit]
+/opt/o-wt/audit-t-0072       fe12a98d [t/dec-t-0072-audit]
+/opt/o-wt/audit-t-0073       ac0e9828 [t/dec-t-0073-audit]
+/opt/o-wt/audit-t-0074       6244d405 [t/dec-t-0074-audit]
+/opt/o-wt/audit-t-0075       f9cd6598 [t/dec-t-0075-audit]
+/opt/o-wt/audit-t-0076       97c5b8b9 [t/dec-t-0076-audit]
+/opt/o-wt/audit-t-0077       72036fb3 [t/dec-t-0077-audit]
+/opt/o-wt/audit-t-0078       63f921bd [t/dec-t-0078-audit]
+/opt/o-wt/audit-t-0080       8eaf721c [t/dec-t-0080-audit]
+/opt/o-wt/audit-t-0081       8e8d84dc [t/dec-t-0081-audit]
+/opt/o-wt/audit-t-0082       7a391c4f [t/dec-t-0082-audit]
+/opt/o-wt/audit-t-0083       99ab80a1 [t/dec-t-0083-audit]
+/opt/o-wt/audit-t-0084       b6d06224 [t/dec-t-0084-audit]
+/opt/o-wt/audit-t-0085       83832657 [t/dec-t-0085-audit]
+/opt/o-wt/audit-t-0086       56c33416 [t/dec-t-0086-audit]
+/opt/o-wt/audit-t-0087       bb3db135 [t/dec-t-0087-audit]
+/opt/o-wt/audit-t-0088       b020ffb2 [t/dec-t-0088-audit]
+/opt/o-wt/audit-t-0089       ee819398 [t/dec-t-0089-audit]
+/opt/o-wt/audit-t-0090       4633386c [t/dec-t-0090-audit]
+/opt/o-wt/audit-t-0091       90cc4be9 [t/dec-t-0091-audit]
+/opt/o-wt/audit-t-0092       ba7ca18e [t/dec-t-0092-audit]
+/opt/o-wt/audit-t-0093       f9bde42a [t/dec-t-0093-audit]
+/opt/o-wt/audit-t-0094       7ab0bfbe [t/dec-t-0094-audit]
+/opt/o-wt/audit-t-0095       41553683 [t/dec-t-0095-audit]
+/opt/o-wt/audit-t-0096       042672d8 [t/dec-t-0096-audit]
+/opt/o-wt/audit-t-0098       0267d458 [t/dec-t-0098-audit]
+/opt/o-wt/audit-t-0099       3f21abd9 [t/dec-t-0099-audit]
+/opt/o-wt/audit-t-0100       ed94d3ed [t/dec-t-0100-audit]
+/opt/o-wt/audit-t-0101       126a9be2 [t/dec-t-0101-audit]
+/opt/o-wt/audit-t-0102       812f1314 [t/dec-t-0102-audit]
+/opt/o-wt/audit-t-0103       81ee7a3f [t/dec-t-0103-audit]
+/opt/o-wt/audit-t-0104       55c62fe9 [t/dec-t-0104-audit]
+/opt/o-wt/audit-t-0105       b6c7f3ca [t/dec-t-0105-audit]
+/opt/o-wt/audit-t-0106       9791dffd [t/dec-t-0106-audit]
+/opt/o-wt/audit-t-0107       3db2d57d [t/dec-t-0107-audit]
+/opt/o-wt/audit-t-0108       43e245f2 [t/dec-t-0108-audit]
+/opt/o-wt/audit-t-0109       f49171fd [t/dec-t-0109-audit]
+/opt/o-wt/audit-t-0110       a398631e [t/dec-t-0110-audit]
+/opt/o-wt/audit-t-0111       e0858149 [t/dec-t-0111-audit]
+/opt/o-wt/audit-t-0112       35e003f7 [t/dec-t-0112-audit]
+/opt/o-wt/audit-t-0113       7a6af78e [t/dec-t-0113-audit]
+/opt/o-wt/audit-t-0114       48ff7d0f [t/dec-t-0114-audit]
+/opt/o-wt/audit-t-0115       688f4ab5 [t/dec-t-0115-audit]
+/opt/o-wt/audit-t-0116       953326b4 [t/dec-t-0116-audit]
+/opt/o-wt/audit-t-0117       7017e313 [t/dec-t-0117-audit]
+/opt/o-wt/audit-t-0119       0438b605 [t/dec-t-0119-audit]
+/opt/o-wt/audit-t-0120       e8d08ed6 [t/dec-t-0120-audit]
+/opt/o-wt/audit-t-0122       e7139a87 [t/dec-t-0122-audit]
+/opt/o-wt/audit-t-0123       8e9ff582 [t/dec-t-0123-audit]
+/opt/o-wt/audit-t-0124       d2a86ebe [t/dec-t-0124-audit]
+/opt/o-wt/audit-t-0125       4b31b6ac [t/dec-t-0125-audit]
+/opt/o-wt/audit-t-0126       2523dbf2 [t/dec-t-0126-audit]
+/opt/o-wt/audit-t-0127       39e808e8 [t/dec-t-0127-audit]
+/opt/o-wt/audit-t-0129       52ca0ef3 [t/dec-t-0129-audit]
+/opt/o-wt/audit-t-0130       d0693b81 [t/dec-t-0130-audit]
+/opt/o-wt/audit-t-0131       27da1449 [t/dec-t-0131-audit]
+/opt/o-wt/audit-t-0132       9c7add5a [t/dec-t-0132-audit]
+/opt/o-wt/audit-t-0133       cc846e31 [t/dec-t-0133-audit]
+/opt/o-wt/audit-t-0134       57b90325 [t/dec-t-0134-audit]
+/opt/o-wt/audit-t-0135       60376784 [t/dec-t-0135-audit]
+/opt/o-wt/audit-t-0136       929eee92 [t/dec-t-0136-audit]
+/opt/o-wt/audit-t-0137       1789894b [t/dec-t-0137-audit]
+/opt/o-wt/audit-t-0138       1f8202f8 [t/dec-t-0138-audit]
+/opt/o-wt/audit-t-0139       65c912e1 [t/dec-t-0139-audit]
+/opt/o-wt/audit-t-0140       08b7d4b6 [t/dec-t-0140-audit]
+/opt/o-wt/audit-t-0141       d8ace87a [t/dec-t-0141-audit]
+/opt/o-wt/audit-t-0142       a9e05422 [t/dec-t-0142-audit]
+/opt/o-wt/audit-t-0143       27dbe853 [t/dec-t-0143-audit]
+/opt/o-wt/audit-t-0144       8a4f2b61 [t/dec-t-0144-audit]
+/opt/o-wt/audit-t-0146       8a3f5998 [t/dec-t-0146-audit]
+/opt/o-wt/audit-t-0147       42102571 [t/dec-t-0147-audit]
+/opt/o-wt/audit-t-0148       a84156fb [t/dec-t-0148-audit]
+/opt/o-wt/audit-t-0149       ef0c6660 [t/dec-t-0149-audit]
+/opt/o-wt/audit-t-0150       9db5edc8 [t/dec-t-0150-audit]
+/opt/o-wt/audit-t-0151       9e17704d [t/dec-t-0151-audit]
+/opt/o-wt/audit-t-0152       a3d811f8 [t/dec-t-0152-audit]
+/opt/o-wt/audit-t-0153       d7c19158 [t/dec-t-0153-audit]
+/opt/o-wt/audit-t-0155       c05d1de0 [t/dec-t-0155-audit]
+/opt/o-wt/audit-t-0156       c6305b35 [t/dec-t-0156-audit]
+/opt/o-wt/audit-t-0157       c9aa770d [t/dec-t-0157-audit]
+/opt/o-wt/audit-t-0159       ed70768f [t/dec-t-0159-audit]
+/opt/o-wt/audit-t-0160       082e6138 [t/dec-t-0160-audit]
+/opt/o-wt/audit-t-0161       3a67ecf1 [t/dec-t-0161-audit]
+/opt/o-wt/audit-t-0162       203f9537 [t/dec-t-0162-audit]
+/opt/o-wt/audit-t-0163       7e877147 [t/dec-t-0163-audit]
+/opt/o-wt/audit-t-0164       a6ac4ae1 [t/dec-t-0164-audit]
+/opt/o-wt/audit-t-0165       28f3bfcc [t/dec-t-0165-audit]
+/opt/o-wt/audit-t-0167       a104af26 [t/dec-t-0167-audit]
+/opt/o-wt/audit-t-0168       c9bb5332 [t/dec-t-0168-audit]
+/opt/o-wt/audit-t-0171       291a4755 [t/dec-t-0171-audit]
+/opt/o-wt/audit-t-0172       c6a7b4b0 [t/dec-t-0172-audit]
+/opt/o-wt/audit-t-0173       f4d1016a [t/dec-t-0173-audit]
+/opt/o-wt/audit-t-0174       c2951f34 [t/dec-t-0174-audit]
+/opt/o-wt/audit-t-0175       b82e44ed [t/dec-t-0175-audit]
+/opt/o-wt/audit-t-0176       d83cb6da [t/dec-t-0176-audit]
+/opt/o-wt/audit-t-0177       32476c14 [t/dec-t-0177-audit]
+/opt/o-wt/audit-t-0178       8ad75134 [t/dec-t-0178-audit]
+/opt/o-wt/audit-t-0179       538432f2 [t/dec-t-0179-audit]
+/opt/o-wt/audit-t-0180       a82558c2 [t/dec-t-0180-audit]
+/opt/o-wt/audit-t-0181       587671bf [t/dec-t-0181-audit]
+/opt/o-wt/audit-t-0183       a99fb9ec [t/dec-t-0183-audit]
+/opt/o-wt/audit-t-0184       ebcc1ed2 [t/dec-t-0184-audit]
+/opt/o-wt/audit-t-0186       b94def9b [t/dec-t-0186-audit]
+/opt/o-wt/audit-t-0187       fccc65b1 [t/dec-t-0187-audit]
+/opt/o-wt/audit-t-0188       f0d99193 [t/dec-t-0188-audit]
+/opt/o-wt/audit-t-0189       1135e31f [t/dec-t-0189-audit]
+/opt/o-wt/audit-t-0190       0031111d [t/dec-t-0190-audit]
+/opt/o-wt/audit-t-0191       f2fc3c24 [t/dec-t-0191-audit]
+/opt/o-wt/audit-t-0193       af638823 [t/dec-t-0193-audit]
+/opt/o-wt/audit-t-0202       aeea840c [t/dec-t-0202-audit]
+/opt/o-wt/audit-t-0205       db36414e [t/dec-t-0205-audit]
+/opt/o-wt/audit-t-0209       0b88c4fc [t/dec-t-0209-audit]
+/opt/o-wt/audit-t-0220       ca44bb22 [t/dec-t-0220-audit]
+/opt/o-wt/audit-t-0220b      108efb96 [t/dec-t-0220b-audit]
+/opt/o-wt/audit-t-0220c      2e1e7639 [t/dec-t-0220c-audit]
+/opt/o-wt/audit-t-0220d      4dfde1c6 [t/dec-t-0220d-audit]
+/opt/o-wt/audit-t-0221       27b75c6b [t/dec-t-0221-audit]
+/opt/o-wt/audit-t-0222       7bc644b4 [t/dec-t-0222-audit]
+/opt/o-wt/audit-t-0224       40f90265 [t/dec-t-0224-audit]
+/opt/o-wt/audit-t-0225       fd9e92b9 [t/dec-t-0225-audit]
+/opt/o-wt/audit-t-0227       340a52ef [t/dec-t-0227-audit]
+/opt/o-wt/audit-t-0228       e8df71ca [t/dec-t-0228-audit]
+/opt/o-wt/audit-t-0229       65c953c7 [t/dec-t-0229-audit]
+/opt/o-wt/audit-t-0234       b6f8a721 [t/dec-t-0234-audit]
+/opt/o-wt/audit-t-0235       0d6900f6 [t/dec-t-0235-audit]
+/opt/o-wt/audit-t-0238       090fc7d6 [t/dec-t-0238-audit]
+/opt/o-wt/audit-t-0239       d547ac59 [t/dec-t-0239-audit]
+/opt/o-wt/audit-t-0241       cef22e8c [t/dec-t-0241-audit]
+/opt/o-wt/audit-t-0243       909466e2 [t/dec-t-0243-audit]
+/opt/o-wt/audit-t-0244       89b76515 [t/dec-t-0244-audit]
+/opt/o-wt/audit-t-0245       239cd2b3 [t/dec-t-0245-audit]
+/opt/o-wt/audit-t-0246       1433d97b [t/dec-t-0246-audit]
+/opt/o-wt/audit-t-0248       6e142df7 [t/dec-t-0248-audit]
+/opt/o-wt/audit-t-0265       1da11764 [t/dec-t-0265-audit]
+/opt/o-wt/ceo-allowlist      40e6907f [fix/ceo-approval-allowlist]
+/opt/o-wt/dec-t0250-audit    7b0b986f [t/dec-t0250-audit]
+/opt/o-wt/dm-bridge-ro       015c6c57 [dm/1101-bridge-audit-ro]
+/opt/o-wt/dockerignore       0473ea6e [t/dockerignore-gen]
+/opt/o-wt/feat-earn          ff9db71f [t/feat-earn-autopark]
+/opt/o-wt/headless-fastbeat  3b89aebe [fix/headless-fastbeat]
+/opt/o-wt/hotfix-mux         e984f657 [hotfix/mux-root]
+/opt/o-wt/kb-pred            c88284cb [docs/kb-bridge-predicate]
+/opt/o-wt/man3310            d9a51ce2 [t/man3310-deploy-gate]
+/opt/o-wt/msig1030           2ca9cce6 [manage/sig-kimi-1030]
+/opt/o-wt/pipefix-deploy     d22219ed [t/pipefix-deploy-superset]
+/opt/o-wt/seat-sig           d4cc46ae [manage/seat-signature-20261030]
+/opt/o-wt/secput-tmp         8855c8cd (detached HEAD)
+/opt/o-wt/t-0226             3f60cfdf [t/0226-sg-deploy-hardening]
+/opt/o-wt/t-0231             5ec02c58 [t/0231-bridge-outbox]
+/opt/o-wt/t0001              15994f28 [t/0001-zonggang-reconcile]
+/opt/o-wt/t0015              60c848df [t/0015-guard-close]
+/opt/o-wt/t0025              50a76021 [t/0025-dd-hardline]
+/opt/o-wt/t0043              acbcce66 [t/0043-close-semantics]
+/opt/o-wt/t0058              4ca01bb8 [t/0058-venue-read-fc]
+/opt/o-wt/t0061              6606c75f [t/0061-event-push]
+/opt/o-wt/t0068              2ecada3f [t/0068-ui-root]
+/opt/o-wt/t0071              996b0174 [t/0071-recon-caliber]
+/opt/o-wt/t0076              784c90c7 [t/0076-mtm]
+/opt/o-wt/t0079-v2           90b0f068 [t/0079-v2]
+/opt/o-wt/t0083-rw           12b8e080 [t/0083-rw]
+/opt/o-wt/t0083-vfy          3dc701e1 [t/0083-vfy]
+/opt/o-wt/t0084-forensic     9a818271 [t/0084-forensic]
+/opt/o-wt/t0085-vfy          b27b71ea [t/0085-vfy]
+/opt/o-wt/t0088-fix          03092e7d [t/0088-fix]
+/opt/o-wt/t0088-rest         8c6aef07 [t/0088-rest]
+/opt/o-wt/t0088-v2           cfbdc1ad [t/0088-v2]
+/opt/o-wt/t0088-vfy          a64ec851 [t/0088-vfy]
+/opt/o-wt/t0099              e19b137a (detached HEAD)
+/opt/o-wt/t0118              8951e06b [t/0118-decomp-sweep2]
+/opt/o-wt/t0153-ci-fix       44ead676 [t/0153-ci-fix]
+/opt/o-wt/t0160-fixup        b396ff93 (detached HEAD)
+/opt/o-wt/t0160-nav          1de518ca [t/0160-nav-shell-unify]
+/opt/o-wt/t0160r-verify      1d24d7a4 (detached HEAD)
+/opt/o-wt/t0161-verify       72610be0 (detached HEAD)
+/opt/o-wt/t0165-rel          f03693c9 (detached HEAD)
+/opt/o-wt/t0186              dcc60815 [t/0186-schemagc]
+/opt/o-wt/t0200              21a92b13 [t/0200-0201-audit]
+/opt/o-wt/t0201              06256667 [t/0201-carry-verdict]
+/opt/o-wt/t0232              1ae91344 [t/0232-verdict-apply-roles]
+/opt/o-wt/t0233-flip         5d4a7084 [t/0233-flip]
+/opt/o-wt/t0237              2d82e226 [t/0237-fee-econ]
+/opt/o-wt/t0240              9c85036a [t/0240-kb-lookup]
+/opt/o-wt/t0250              b7d8b4fb [t/0250-projector-activeset]
+/opt/o-wt/t0255              9000719b [t/0255-exec-1028-recon]
+/opt/o-wt/t0270              122f1adb [t/0270-回投链三修]
+/opt/o-wt/t0275              2b7621c1 [t/0275-sweeper-oci]
+/opt/o-wt/t0277              9225b5a5 [t/0277-cockpit-v41]
+/opt/o-wt/t0278              2c2f33ce [t/0278-pipeline-v41]
+/opt/o-wt/t0279              ecf94325 [t/0279-dlmd-lease]
+/opt/o-wt/t0282              ab96f8c0 [t/0282-image-ancestor-gate]
+/opt/o-wt/t0311              ff93b48b [t/0311-regime-analyst]
+/opt/o-wt/t0312              9ea9df5a [t/0312-regime-push]
+/opt/o-wt/t0343              15c3db57 [t/0343-worker-resume-quota]
+/opt/o-wt/t0351              16a5b34b [t/kb-storm-yield]
+
+=== 分支 SHA 清单 ===
+accept/cockpit-v2 3dc688069f1c4f252be62f3ae20c4ed57f9003be 
+chore/checkall-docs-only 1617f108f414805f46078622e37811b5b0fb644b 
+ci-tmp db54fc73acb6645c2e80ccda4da7b10d063b9366 
+ci/macro-seed-leak ed96b537dac7489c83ff0365395bfc4157cf8f9b 
+ci/vet-trxpolldiag 7b5e3e63d2f705f05f42a02c543266229470acf0 
+claude-glm/d0036-cc-inflight b1327d49676f1462530ac3c1e46a5aa6ccd8a779 
+dec/copy-plain 8faff6437ef792858b204e4c4c1eef32f2b4acc9 
+dm/1030-cockpit-needs 70d774b7990ce0917f8850fcd9096deef3a13178 
+dm/1030-kb-closeout 3b898d0f5e0e043afd998e4e3b21d5eccc6311af 
+dm/1030-manage151 1e1cbbc9232808002d6eb6c69bd0240e191d2213 
+dm/1030-t0265-merge 632c08512152409690b32e14ed24dc8d59b5422a 
+dm/1030-t0269 3ffb1c86f134e7f05c6c0bee8c50fb3d28584c68 
+dm/1030-t0270 f50281c5a21ed409c2773455e24925b9f767e564 
+dm/1030-tail 9f4ec6f6249bd350846f95bf0c606d009ae179a6 
+dm/1101-bridge-audit-ro 015c6c57e05a242c9308818d894a0eda1eea2f3b 
+docs/collab-bus-spec 7b4ed97abf8d5bb6b100b940eca3456056e915d5 
+docs/kb-bridge-predicate c88284cbd20d9088a0763cfd1ccea76899c3f20b 
+feat/cockpit-v3 a625a62ebca0493f36b1fb01bc2aa4fb7323d850 
+fix/ceo-approval-allowlist 40e6907f68c7071204f0db99e1d232239a7b4d80 
+fix/cmc-pos-tombstone b3e68c2152177cbc0317cd385f4e08a712d5e197 
+fix/headless-fastbeat 3b89aebe9988f919da74d68ed07d729d781e1683 
+fix/mt5-swap-outage 21af2788861daffef8f1cbee5aea8ef7d793d48d 
+fix/open-import 558d80d3e3c217f4c59d6caf40e727179eee6113 
+hooks/prepush-gate fff2375f9afdda59b5f42d71f3664987a2141e71 
+hotfix/mux-root e984f6571a82ae4170fcae03c7154b57bce719bf 
+manage/ceo-charter-1030 1513935da1ccf07c601b532f115b5362b15c21b3 
+manage/seat-signature-20261030 d4cc46aed88b5052a21df68276c3a29355bdf5a7 
+manage/sig-kimi-1030 2ca9cce6255ca19e95b4677213190b394b99f1cc 
+manage/trx-scope-note 457eea5652ff5d080411234ff893e68175461c39 
+master 575a6712b63801629c37da5e354c41bda8df2937 
+merge-review b086f27398ce34f782fc9db067cde83fe68a0fe9 
+merge-review2 7e292c5ead7ba679857bed37703dac33cc9247cb 
+mgmt/seat-check-discipline f7c21705bf15fbee3295164f85baf1d607cccf34 
+t/0001-zonggang-reconcile 15994f286a05978c6bde5504744dd8b59295ff1f 
+t/0015-guard-close 60c848dfdc1b6338914bf9b55756a3eceb3327ae 
+t/0025-dd-hardline 50a76021664b8d699a18a46a3100ea012619429b 
+t/0043-close-semantics acbcce662f30ae407f1f21a976a5f489a9ec1b5f 
+t/0054-deploychain 1e872efa9e4670acffa02e00f55a66025a951121 
+t/0058-venue-read-fc 4ca01bb86aaa5d36573dc7327df3a96528d71269 
+t/0061-event-push 6606c75f92e5a3e00f104c08a5c7631a21fc1955 
+t/0063-spot-fee 7aa8964aea20fb54311d49337853c34afe7cb408 
+t/0068-ui-root 2ecada3f38c4fcb998e66b3da249a101206069a9 
+t/0071-recon-caliber 996b0174fe932e607e6acc5cc501388c00a55d71 
+t/0076-mtm 784c90c77885beb191850815f72c018948c4377a 
+t/0079-v2 90b0f06833369a59b11613046288cdde613e7d0d 
+t/0083-rw 12b8e0805bdb33fc3087341c4908efa53f953441 
+t/0083-vfy 3dc701e1e63029d0c863bef1dd3bea9cb7947c66 
+t/0084-forensic 9a81827138db222a6dcfe39fdee4237f299dc03f 
+t/0085-vfy b27b71ea22f1824468f53c43240b527b299c41a4 
+t/0088-fix 03092e7da74892ed1d8141fc2bd871232382d5d1 
+t/0088-rest 8c6aef074c4b3c5e8946678523c4785d45fedfab 
+t/0088-v2 cfbdc1ad3ce08ef1cfb982ac04d5844160df3c21 
+t/0088-vfy a64ec851d5a2832da180ddcaed78f94125d7a445 
+t/0108-trx-selfoperated b3400843ee62cfb404554e4f88568a5b002715c5 
+t/0117-dcd-arm-revive bec53fcf608a80413c4e61ba426fcc2c62daefe1 
+t/0118-decomp-sweep2 8951e06b929df1f0aa4822d4437ed81356cd9d14 
+t/0153-ci-fix 44ead67677ccd577039eb9c223e83251c9624994 
+t/0160-dcd-exec 8430f46852cacbf8ba60fc390535b598315706b1 
+t/0160-nav-shell-unify 1de518ca1cf29d9245846a91e630635f223fa6a1 
+t/0176-pgmd-backup ea14436211fb6d26ab46fef62961bd7fd3fb0bd1 
+t/0186-schemagc dcc60815a9199f15ec115b79fc5d4c06cfea7043 
+t/0200-0201-audit 21a92b13a41c4187b94eb0932f7ac97b7876ba24 
+t/0201-carry-verdict 0625666748e4ecef4428572e494e353ff83b2701 
+t/0223-bridge-audit 287a3e90fae6bcd53a196c2c4982b4492c4637c3 
+t/0225-ci-incr f2c5980c5464320cd0d7eac82bf916e793e2430e 
+t/0226-sg-deploy-hardening 3f60cfdf8d80328c468d2e1a495786797a84bf99 
+t/0227-egress 0d99743dff867cf9b59c29d062c2cf8dfb292302 
+t/0230-arch 2d34d9eee3ea36ce41c3db7ca76310b3dab4164a 
+t/0231-bridge-outbox 5ec02c58a558338235e4314139a4292da554f5a6 
+t/0232-verdict-apply-roles 1ae91344f72b36e71f48274dc23e6ca4a938e430 
+t/0233-flip 5d4a7084416080683b69cc26a1028ab1d4e75155 
+t/0237-fee-econ 2d82e2264d0ced29c5e7449884cfe52f3eecafda 
+t/0238-maker 4ae0255ab207c72a3e1c737840b7d6036b72611e 
+t/0239-cockpit a48eb2e2adb94103b5202f8d1df64dc67c36b6ea 
+t/0240-kb-lookup 9c85036ab814c5917329c953be62763cb5219dac 
+t/0241-exposure fe5aeaaebbb577bf04bd7faae10b766f9fd17115 
+t/0243-deadarm 1297042b983188861cf3b0f12ce54611b73fa2f9 
+t/0244-feedtimeout 3ae9cf64ee58ef25c7230e4c32315c772a2cca76 
+t/0245-evalkb 19c2e1bc80be8f9ec2933ec66fb4b0e09e036c1b 
+t/0246-dispatch 6ae280526f4f5ecdd1bed794fd8ff09b2a52e1d3 
+t/0247-makersentinel 339b94de5662190e7ad57670d35d064ce93402f6 
+t/0248-cockpitfix 1fb815e9cfb65842e4c15b709081979487432f9a 
+t/0250-projector-activeset b7d8b4fb17ccd038c996433f78d51f8dd1b46186 
+t/0255-exec-1028-recon 9000719b1876f248c26469d5dff9a289e1577e21 
+t/0270-回投链三修 122f1adb8398a5354207fe75be6c935430c511e2 
+t/0275-sweeper-oci 2b7621c152b4df1d4dfe14e777730e6b4f857413 
+t/0276-deploy-superset 871ddbeecc963d6708aca051115d91ac4a8a6b3b 
+t/0277-cockpit-v41 9225b5a5462e860fab1b98fcf538b14351fe9119 
+t/0278-pipeline-v41 2c2f33ceaffd230d65be67abb0907d3136b21dda 
+t/0279-dlmd-lease ecf943258a68898b4912e774b771c039ecb82ca6 
+t/0282-image-ancestor-gate ab96f8c01b7cc9a59304bdedb68ec4d135421844 
+t/0311-regime-analyst ff93b48b088e19bdd1ccc83fcd3076a0c18e3cde 
+t/0312-regime-push 9ea9df5a63b30d35c7610134eb7a6afc9a8c1764 
+t/0334-precedent-index 69139685d2304f028ac803210a23fd4189abdb8b [ahead 1]
+t/0343-worker-resume-quota 15c3db57ffa9772e7ae603cd7a398c906b92a6bf 
+t/0374-done-archive-scan 6b52425cf768b534472de24a42ba9a54fcbdc087 [behind 5]
+t/dec-ci-econ a42b22daf5bd188e97d5222e51c1b7e578c38fd0 
+t/dec-t-0001-audit f8c30897037904f8e54745644554406a9cb9db76 
+t/dec-t-0004-audit 44fa8674b1235474a0f6624f2076b3937e6acfe6 
+t/dec-t-0006-audit 63814f7679c28e744172155872f3a300d2ed8434 
+t/dec-t-0008-audit 4e4c3f81e410b306a818c719ec22ca7174342d20 
+t/dec-t-0009-audit 86cd439d45139a4e8ae90a551f06768e8f8902d3 
+t/dec-t-0011-audit ab55e92c75f94b9e8e978ff1fd578642ff462d56 
+t/dec-t-0013-audit 956bcb7ff70f049a4a8e9ffcc5ab340145302629 
+t/dec-t-0016-audit 8a8521db979bcbae1cfcfeab419953f7215abaf1 
+t/dec-t-0018-audit 61d821fddb93082de332759c104562f3b2ef48bb 
+t/dec-t-0019-audit ddefb3b091e9f7fb2a67bcdce0d974a4d455b2fc 
+t/dec-t-0020-audit 984e99c41055103a35e0e2979c48f7cfe7c87f7c 
+t/dec-t-0022-audit aff413054c94dd93992f9b7f8302f11073a23ef9 
+t/dec-t-0023-audit 7a6b3e3b1ae5bd1f57151349897515eb8efc748e 
+t/dec-t-0024-audit 4c0c06907022ae9bd8fa4236f72478e8831590fe 
+t/dec-t-0026-audit 9eef4f07648b04b28d63fc051c3f181aec879cf5 
+t/dec-t-0028-audit 92aa8f4840bb432720f33d489ebe080ac28845ce 
+t/dec-t-0031-audit e2204db3e8bcf8cc7b97379f058c208c357ace8e 
+t/dec-t-0033-audit e76369e69243b011ea5a5a174f134738f1e166c1 
+t/dec-t-0035-audit 8ffe235c2173b54a5bdf0bc90792fb6dd5af3120 
+t/dec-t-0036-audit 9152c2351cbf9d15bc786b066e74c09033636b01 
+t/dec-t-0037-audit bb804691e4d52dcab6c5fa4e94f6eee532ae0c0e 
+t/dec-t-0038-audit f4629cfa2b4fced9699fb931b25181b5b5d1f6f4 
+t/dec-t-0039-audit e1aeca9a945480f476342a8c40b71b647f86d664 
+t/dec-t-0040-audit 852fdb7f263c5f4cb7683b4624aaf517dcf0893d 
+t/dec-t-0041-audit 4a4b6ff45e40b46572fe4b0f3ec57adcb9e1238a 
+t/dec-t-0044-audit 1e4a824d1a78fbd029c6426b1f1c0f7c56f2c86e 
+t/dec-t-0045-audit 66c8060c502bdaafdb570133659672f1dc63911f 
+t/dec-t-0046-audit b8161ed69e961e29eb7ad23f5f7a00dfd542805d 
+t/dec-t-0048-audit 53f388dadc0bb66fd33d597b852ff0fd34af3ea4 
+t/dec-t-0049-audit ec466e89e25e976601cced749b68b7cf78ba6d07 
+t/dec-t-0050-audit ba08a0699c92d4dab0ceafa37523a7f00f8cfc80 
+t/dec-t-0051-audit 051657051c97c3a75fcbe3115f0c5109c875a970 
+t/dec-t-0052-audit 5367d0346f4d6f8b06ae6c7eee0103edde08507f 
+t/dec-t-0053-audit b80e5000a5c3edb7444ff56e787dcc0d70fce13e 
+t/dec-t-0054-audit a97cd32c47530e70e0136e3ef2bcc41d921ef53d 
+t/dec-t-0055-audit 2842c7ba44b35ba9b9c6f19aa5aa3d1d6aff1fec 
+t/dec-t-0056-audit 51492c5a97b9793a16358a584766427420acabf9 
+t/dec-t-0057-audit cccea3f71f63dc48c121f7a16e0d484f3a77a46a 
+t/dec-t-0058-audit 1f711c79854d9a1a9f8503df318d44c79e1771cd 
+t/dec-t-0059-audit e3aa4f6056709b5ff52afa6a1214fdd9db86d150 
+t/dec-t-0060-audit 7781332201ff96f7f6bddefc89b4a305cdbc30d8 
+t/dec-t-0061-audit 462289595d5e1af6737faa3a1812b76a1e455b43 
+t/dec-t-0062-audit 8705c522c1addb621e90c88047ca371154781402 
+t/dec-t-0063-audit 61c758a205f518926cb4166c1b7e1228c367ea42 
+t/dec-t-0064-audit 701bf33b6d0ab3ccfe4edbfc53599ba1c4b942de 
+t/dec-t-0065-audit 5c7059ed5a9dbc3f7c1d0eecf88a9beb90571e84 
+t/dec-t-0066-audit 8f83a5988faabfe1317c5074a9a5450bc7f5776a 
+t/dec-t-0067-audit cb62211070fe862396b099181eb5e0c92a0b41e8 
+t/dec-t-0068-audit 0d9d9d29170fc813895f3b2dd12d87ef3b42bd6f 
+t/dec-t-0069-audit ff7a45bab4a04295d4c097255dc0570ec54de785 
+t/dec-t-0070-audit f6c56230ad6d1423daa85fd6d4757370a64ef658 
+t/dec-t-0071-audit cba3d81824e6e3c194a27dacfd65d29d77f0f3df 
+t/dec-t-0072-audit fe12a98de13896701812d0c441aede5606d8b06b 
+t/dec-t-0073-audit ac0e9828991b741d47103a6b4e3e3443b5013b96 
+t/dec-t-0074-audit 6244d405977be22eb7d52e339f5181bb602e7931 
+t/dec-t-0075-audit f9cd659810ae0817e1222f9e3d50557c3fa91184 
+t/dec-t-0076-audit 97c5b8b9b1fea1dc6b8bdf6018b6d39085db314d 
+t/dec-t-0077-audit 72036fb35f5b6e31a6e6c1757d45ea1c71765d20 
+t/dec-t-0078-audit 63f921bd55754464372ac2ebc7c144070286e4ba 
+t/dec-t-0080-audit 8eaf721c323da63d4927bdac5768feedc37341c0 
+t/dec-t-0081-audit 8e8d84dcedda08645e76e1e532e13de235b48b34 
+t/dec-t-0082-audit 7a391c4fb5f8c4fdf3512181ab08eca857560f39 
+t/dec-t-0083-audit 99ab80a1c802f3e1ea898b4c97f6e75a82253a6b 
+t/dec-t-0084-audit b6d0622468a562f8cb74efcee3a6dd1bfd6e91d8 
+t/dec-t-0085-audit 83832657a0f6654f8bbbd75c95a75864368acc68 
+t/dec-t-0086-audit 56c334163a3d1b0f31614c5e737139476f557344 
+t/dec-t-0087-audit bb3db135da1b82df0acb908e267fc95bf49e7720 
+t/dec-t-0088-audit b020ffb23c9b20c65e50acc945279f4326573a58 
+t/dec-t-0089-audit ee81939826eb5d281422b65208852c27ba82efc7 
+t/dec-t-0090-audit 4633386cb01ba6b78e31f4f3914039b4c245a915 
+t/dec-t-0091-audit 90cc4be9bd18b695f59802d25a86ed59980e6226 
+t/dec-t-0092-audit ba7ca18e1ecfe4c35628b3584ecdbc63487188bf 
+t/dec-t-0093-audit f9bde42a315497dd32c0a7bb29c04a8799042551 
+t/dec-t-0094-audit 7ab0bfbe241b3007ee57cfac7d36fe0653f12641 
+t/dec-t-0095-audit 41553683a3fab17012b85ea603ddff0393aeaf5f 
+t/dec-t-0096-audit 042672d88dd21776e5b986d0972be209f04d06f0 
+t/dec-t-0098-audit 0267d458ac7362f100e6c52211020e7001c4688a 
+t/dec-t-0099-audit 3f21abd9ddfed493cbe5369655509b7bf89ed6d8 
+t/dec-t-0100-audit ed94d3ed9581ad22cc9619e203650213bac181c9 
+t/dec-t-0101-audit 126a9be243e856156589ddfecd1e931a8e61cdee 
+t/dec-t-0102-audit 812f1314a68c2446917dce7f6a55fbb3922bd8d8 
+t/dec-t-0103-audit 81ee7a3f75be67f385e96ebe1592c4e472d7c976 
+t/dec-t-0104-audit 55c62fe9eb738e9131928dd827f409c5e7231df7 
+t/dec-t-0105-audit b6c7f3ca976f4991d6e1a7d70ddce1289847c3d2 
+t/dec-t-0106-audit 9791dffda35b6d915b8add0558dac6bd82eb234c 
+t/dec-t-0107-audit 3db2d57d2c3e6f98778a9e2c70b167c6174f2897 
+t/dec-t-0108-audit 43e245f2134fabcba78143b75d5a1ddf9774b1cd 
+t/dec-t-0109-audit f49171fd32aeeae1ea8eb2dc8d1389f535a78c9c 
+t/dec-t-0110-audit a398631ed4573a0f0378d56b3dedbf53ce184a12 
+t/dec-t-0111-audit e0858149754bb0d7bd7c69bde2801124d66a7f86 
+t/dec-t-0112-audit 35e003f7bbdfbf7d6b02f50356b92dd63e6ca6ee 
+t/dec-t-0113-audit 7a6af78e2d20e23425ed07a4752788a418055b25 
+t/dec-t-0114-audit 48ff7d0fe2f6fc8045ac584a0fb99c0d730f07b1 
+t/dec-t-0115-audit 688f4ab5050d8ab53a17e0c8521b03a57571e05f 
+t/dec-t-0116-audit 953326b45ea9c091e6cab65baacdc5145d188dc9 
+t/dec-t-0117-audit 7017e31349a3e1d5bd0e8fb1abf96c573f5eabc5 
+t/dec-t-0119-audit 0438b605c1909d66f21abccfae9aa039f7a4d51b 
+t/dec-t-0120-audit e8d08ed6f61bc9477977fedd691907073b9e248a 
+t/dec-t-0122-audit e7139a876f952f9c8eb861acfec43859c2886458 
+t/dec-t-0123-audit 8e9ff58207b058664d9edcb1b9c9801c2fe645ff 
+t/dec-t-0124-audit d2a86ebea9f7ebb52f0f093031d5cc21c1496065 
+t/dec-t-0125-audit 4b31b6acc32272870d15e43d903814ce21893f82 
+t/dec-t-0126-audit 2523dbf25cdedd51c6ccf42ab5198a538264c6ce 
+t/dec-t-0127-audit 39e808e8380223ae40e5796f4d104638dad61168 
+t/dec-t-0129-audit 52ca0ef3774f9b852ea58f0a1a5e8571991fb596 
+t/dec-t-0130-audit d0693b812ab0d15e923d92d45e457f2055346a4d 
+t/dec-t-0131-audit 27da144909a09fb57e23ec4bfb6a44900a4669c2 
+t/dec-t-0132-audit 9c7add5aa3c8111613179e18dcdb734247341fa7 
+t/dec-t-0133-audit cc846e31076aaf6b453720cfa692c2679122dfcc 
+t/dec-t-0134-audit 57b903255378933d659241dd6d2364485b3fd24f 
+t/dec-t-0135-audit 603767848aaba7db046cf658808dac57797da6e1 
+t/dec-t-0136-audit 929eee92b9b2179f962c0000e563df82f3177067 
+t/dec-t-0137-audit 1789894b8f9e2eae4926921b0754412c6919eb19 
+t/dec-t-0138-audit 1f8202f8f5b1c56b18fc5df05f1ee3db878d4bea 
+t/dec-t-0139-audit 65c912e191e26e5fb0c3e273ab6f13d0614f0d93 
+t/dec-t-0140-audit 08b7d4b64871e40f0ce77cf091c4f453e1d5e0d3 
+t/dec-t-0141-audit d8ace87a9078441009d6837cb26e57a7191421ce 
+t/dec-t-0142-audit a9e054220c9500ef6ee1f95b55c660a65d257f5a 
+t/dec-t-0143-audit 27dbe853e472a9ee4bb5b1325923ba089342d659 
+t/dec-t-0144-audit 8a4f2b61c8903fa517971411afcc19855518f323 
+t/dec-t-0146-audit 8a3f59983ea02c1f3aa4d656dd91b8c7d1621d17 
+t/dec-t-0147-audit 421025712d307dcad7a24ff8da4f09139a6d5e17 
+t/dec-t-0148-audit a84156fb929034a3efa375d4d9ce539aca10a092 
+t/dec-t-0149-audit ef0c66604401a78db22144fa50f195cff14013f4 
+t/dec-t-0150-audit 9db5edc8f1ac09299a92cc6563328285a74d5597 
+t/dec-t-0151-audit 9e17704d3769ea4263b4a789217ffe9a8608558b 
+t/dec-t-0152-audit a3d811f8b9a51a7d3762856850674950ec27c46f 
+t/dec-t-0153-audit d7c191583afe51210137dd8463f354953c160219 
+t/dec-t-0155-audit c05d1de0a8d868783ebe7acfb87f090185d44f86 
+t/dec-t-0156-audit c6305b351f38841440899e198b871df59507c107 
+t/dec-t-0157-audit c9aa770d8236100d9def38fd6f30a73d6ab5cccf 
+t/dec-t-0159-audit ed70768f5e17981eaba36fbac0d01e25f2d65476 
+t/dec-t-0160-audit 082e6138465bd06e722acc7f47fab5cf0f6527e7 
+t/dec-t-0161-audit 3a67ecf139a02d27120a359e0524424b32bca36c 
+t/dec-t-0162-audit 203f9537983661606b50f39837b55d69d70eb340 
+t/dec-t-0163-audit 7e87714790ec7c1c7a6cf8d5035cb26263e0cd15 
+t/dec-t-0164-audit a6ac4ae111356d07d9dbbb27188b41198764f195 
+t/dec-t-0165-audit 28f3bfcc5bab1206ecd4b67aeaa90441575e93b8 
+t/dec-t-0167-audit a104af26d556b732e599d7d45813422d424d3f1d 
+t/dec-t-0168-audit c9bb53322984a2741fb4728a70441b916615f27e 
+t/dec-t-0171-audit 291a475527e8df2e25dcaa22688b552bc9596199 
+t/dec-t-0172-audit c6a7b4b006ee2cf237fa54e711065659925ccac1 
+t/dec-t-0173-audit f4d1016a1987c555f9ffaff0b28310b9b051ddae 
+t/dec-t-0174-audit c2951f341b129102cc8f254e3fa80e66ea6c543b 
+t/dec-t-0175-audit b82e44ed16aaa8af2ba6064c42d592c72110d47a 
+t/dec-t-0176-audit d83cb6da4f9964fbdfe655d06fba960e75b62b1e 
+t/dec-t-0177-audit 32476c147f6cf382780fa333e4a55ac503bebff5 
+t/dec-t-0178-audit 8ad7513433682a48d3f333f8351fed7211218112 
+t/dec-t-0179-audit 538432f214ccdd3771309db46bbbb1f9287a9eb6 
+t/dec-t-0180-audit a82558c2492f2187e5d1544146d3777e36fff29a 
+t/dec-t-0181-audit 587671bfd606db79fcd5d645fab3d4f5674a8bbb 
+t/dec-t-0183-audit a99fb9ec44ea63d14f8049d4bf7123a4eb156def 
+t/dec-t-0184-audit ebcc1ed22f417d7c9df88555c51256e15bcaeb9b 
+t/dec-t-0186-audit b94def9bd3e2bb7e8de536e2de5fb89f898abc5e 
+t/dec-t-0187-audit fccc65b1890125fda0df8480caf4090fc1687bba 
+t/dec-t-0188-audit f0d99193200366dfd6990aa704f01fe9f411bf3a 
+t/dec-t-0189-audit 1135e31f05324869236379c2e2dd530f43d50d28 
+t/dec-t-0190-audit 0031111d507129d038f8e042afb8287aa8a0bed4 
+t/dec-t-0191-audit f2fc3c24f6dee38a141647eca34a8538049f6acc 
+t/dec-t-0193-audit af638823550d2b5875b25e42087dbc991945f989 
+t/dec-t-0202-audit aeea840c295a5bf975bf9bd46e60affd5e98a3c1 
+t/dec-t-0205-audit db36414e74994a1a7f661d52c3c8a01123f9b239 
+t/dec-t-0209-audit 0b88c4fc5e16669e3f4dbd6390d0d192f17b6f6c 
+t/dec-t-0220-audit ca44bb22723c91296cca654ca4cca48726db8964 
+t/dec-t-0220b-audit 108efb96c79821341ea0eee1dc62bb70421c414b 
+t/dec-t-0220c-audit 2e1e76397a9bb79a8990e4fc0330d00f8ff7f4b0 
+t/dec-t-0220d-audit 4dfde1c67091113a9c72b4694c45d29a8c67d2bb 
+t/dec-t-0221-audit 27b75c6ba4ef6c247a56b1ff9d583ac890da3bf0 
+t/dec-t-0222-audit 7bc644b42b7a77bd3c0ab3fe0c4e9cb7661efd42 
+t/dec-t-0224-audit 40f902655ac95d11757628624207c5d41429d2f7 
+t/dec-t-0225-audit fd9e92b96cea8ee0e6ee90a36cfd7babd8516959 
+t/dec-t-0227-audit 340a52ef221859b765c05c11c0503dc533028a79 
+t/dec-t-0228-audit e8df71ca43bf40a3fb78d5f50d6e28b9095b5ee3 
+t/dec-t-0229-audit 65c953c7147b65a0adedf94c3ae7043c4d3a3463 
+t/dec-t-0234-audit b6f8a721da380278e1581fbf40140a8403be42c1 
+t/dec-t-0235-audit 0d6900f6acd0e99831aa4cd4f6257174d332a59e 
+t/dec-t-0238-audit 090fc7d60464251a5952ee82e7dd28303f3c8ee6 
+t/dec-t-0239-audit d547ac59ade36bcddd9a0b2ae7bc12942cb6cff1 
+t/dec-t-0241-audit cef22e8c3dc71be995226cc4734937b13b7c2b8a 
+t/dec-t-0243-audit 909466e29cfd362a131ded361ae535e222e7c7c3 
+t/dec-t-0244-audit 89b765154e5c2869b20e95027fc323a59a09045b 
+t/dec-t-0245-audit 239cd2b368bf9b789e0621910d917bae8948354d 
+t/dec-t-0246-audit 1433d97b29a7c076374c3750adab74001d2f25f2 
+t/dec-t-0248-audit 6e142df7175031bf0622cc151af04fec935f4fd7 
+t/dec-t-0265-audit 1da1176445eae1a52c7b033559f0268aff10a146 
+t/dec-t0043-audit 131bd0829316f45bdd33bdbbe947b10567b46d88 
+t/dec-t0250-audit 7b0b986f529775153b73b6b0a18e577da6c8583c 
+t/dockerignore-gen 0473ea6e7a9ffcd5b29cfda19731baf9f74c2f57 
+t/feat-earn-autopark ff9db71f72b7c9e7b9bfdbb33ab72de7f2e702cc 
+t/kb-storm-yield 16a5b34b9d7f7c6f45b9fda649ffd1b1bb7a0da4 [ahead 1, behind 134]
+t/man3310-deploy-gate d9a51ce2242185e02ba6bb2e68344792965c2fd8 
+t/pipefix-deploy-superset d22219ed9b4a7dde71292c3c0d20ad0675da57a7 
+t/sweep-land-000047 517ae0af775488e2a3381ff922b899b54c797172 
+t/sweep-land-000711 6063b9497971b8ed5850ddc2f60affc2681df157 
+t/sweep-land-001308 1328e76c9759c15d836d465a6d246490e994f91e 
+t/sweep-land-001930 321432805225e92b587895474845088b12a189da 
+t/sweep-land-002606 e3d236a2b03b62e023017fb45b48a78b76cb44e5 
+t/sweep-land-003235 01d099f62f9f3f91afbcef0a29d3cf91639539d9 
+t/sweep-land-003912 d6c7c83f4750fa8c4c90828eb21b6302845ec741 
+t/sweep-land-004522 f78526be39e7b548bc284f71852ca446d14e4f41 
+t/sweep-land-005146 e8a56bef0cab84a8365f1b3650dec8189c56aa40 
+t/sweep-land-005830 c1c69268014860449ac29a232f5ee8dd5bbf67ca 
+t/sweep-land-010522 0ecd4c787d63f56721ac0910ef3f58362e3f58c8 
+t/sweep-land-011214 0495a5104ab7cc4a2e9d9e2fc52555294f119c03 
+t/sweep-land-011908 ec7c673f0b82c38ebdfa4cdccc2c081411fe697f 
+t/sweep-land-012553 156130ef3af659a809e88918c4485814464adf5e 
+t/sweep-land-013240 21cc0e4fecf293c2fe0cf0a6f3b8ab3db2dbba3d 
+t/sweep-land-013935 85f6d6f055a48ab570c9f015dffffb5d3dae1e9c 
+t/sweep-land-014638 4edd778d0dda01183f056bf3a1fcf8974f6e6801 
+t/sweep-land-015345 a764e1a702fd1beac66c05af562f46540c45ccbf 
+t/sweep-land-020051 b9b6c5b6647d0d86de741d01b872f50045524284 
+t/sweep-land-020803 a2d48db48de3c171602b85804b71c6cd9c0f239a 
+t/sweep-land-021511 a309afb6bd661a0ee8d07d9df1f08c434c39c423 
+t/sweep-land-022227 fe49ee1f2bffc0d561f58383002e014de2ad19fe 
+t/sweep-land-022957 1f825c8a326e94aeca3214b4327dae7778fc2898 
+t/sweep-land-023726 e05fed83c753824d626fa380a75bafbb88f3828a 
+t/sweep-land-024454 c5dc40ac2efc2024d7c290286e5f7e181e215798 
+t/sweep-land-025255 b0377a698e6c13152a638982ddb2af599859c1f2 
+t/sweep-land-030043 66d682e4cd6ccc21bea28937ffdc8be15f559175 
+t/sweep-land-030847 4fe81a795f625b10c6fc11bfd7235d7af451fb49 
+t/sweep-land-031654 dc687dd0080b98466c96b8aa5784d94712ace2b4 
+t/sweep-land-032512 e08f62b978bfa30c68a3379b15fd71322d2396e1 
+t/sweep-land-033346 fb041942063ad17d7ae042bb355504a5075df27a 
+t/sweep-land-034219 1fadc59fc3fc5207c91638967327b832a924bead 
+t/sweep-land-035058 f5f1e1e75751679f41d3c87ad596366c035c45bc 
+t/sweep-land-035935 708eeea814265dbca41edda1387db62fa2c37ba9 
+t/sweep-land-040806 f06a861106e30cf59dcb59077cf704ce055efc60 
+t/sweep-land-041634 247cc7104667dc80bfbcab66fddacdb2b0d96191 
+t/sweep-land-042509 b42ce24b026123bffb322673782c02a3f7d25233 
+t/sweep-land-043340 0767eefdbdaa2b4c5ce8098c01612796c0aa3877 
+t/sweep-land-044211 9e98df40bc1bf61f34ca1eab0dea36e37c01e547 
+t/sweep-land-045041 92eb7dad607bfab9dbd66c45c94b1596c1bfefb0 
+t/sweep-land-045915 bf567a2ac9dbe964710913a8b767e722926b36c1 
+t/sweep-land-050750 857ee5b0979d89ed66232bd7bb68e0fc38c7fb28 
+t/sweep-land-051617 058334bc2941401d38a796d0e3703882eff7130c 
+t/sweep-land-052443 a7ea48f054ce42f9ef396a6e8ae64e64148d4ea9 
+t/sweep-land-053315 7c5f7774fb069f9d92ae272bdfc679a9397f0fb4 
+t/sweep-land-054149 581e43b8eeffc3a87af3c3a4f79e566be525088f 
+t/sweep-land-055034 75ae303be2869723afec56b497dab75414360a91 
+t/sweep-land-055906 a279e3d8f24a3dcc2463366c3d4594805f5c5d44 
+t/sweep-land-060738 5be6d4e79a55987abcb6ef378b64b698f6c801f7 
+t/sweep-land-061610 1d0374086b344b2bc7db1111d06053ba558436e0 
+t/sweep-land-062437 662c2a9db22ad1f11296f367d45824a705bd9cde 
+t/sweep-land-063311 bf52ed376c3a41f8b518887748efc3f4ace7700c 
+t/sweep-land-064138 9145cd593d2966f938af805fd347bdc2b15725a3 
+t/sweep-land-064947 9e067486cdcac086ee253ceeddffc5892cebb7a8 
+t/sweep-land-065653 74db6e46eb276d04fec963eb17241db5d3b9871f 
+t/sweep-land-070523 acda881422d4c0adb016164eedc563f48c8028c4 
+t/sweep-land-071957 35e6494fe0c669648d64152c1f6f3f75b7dcec78 
+t/sweep-land-072638 9c654a9592e4c587fe0c9e0aa5fb727f1995b288 
+t/sweep-land-073315 bb890aa2e163a46a510dc3e30d5e70790fd453c2 
+t/sweep-land-074802 319faec040e2dbf826c6ea8d25cfe49a13a8a677 
+t/sweep-land-151835 92031bf8744f55bb11b7fcd771e35af5e068bfe7 
+t/sweep-land-151849 209caf4a32dc1f4ef357b4119620c6b586c66757 
+t/sweep-land-151952 6349a23daa597b214e37727ddbad196fe15407d8 
+t/sweep-land-152006 8c2aeb7a3ce63f55ccb893a405d3719a471d7926 
+t/sweep-land-152137 eb70e7c4f986015d931a6fd24402a4d8acb2bc8d 
+t/sweep-land-153227 d0bfbdc0a371f1edfc3132bd597db1c538714666 
+t/sweep-land-153542 a73bac8a75738830b809eac38047e6fcce418090 
+t/sweep-land-153943 7fad2731229d5b96dacbb4b96e663269f11fb3eb 
+t/sweep-land-154355 a78f75f18ba8a1fb81e68477a416100c7fcb2e22 
+t/sweep-land-160312 fbf1a4c9b94b17254ace81c4667159a7edba695c 
+t/sweep-land-160729 5a50742e3ebd9c3d21af3f9ba9fcbd71d450b37e 
+t/sweep-land-161137 a4aad313a1d41cd09b7b3e5e5725edddd88bbb65 
+t/sweep-land-161551 56e4ce282c824dad1168be9e35a368b5af0243ff 
+t/sweep-land-162002 c0090ea6c9e5f0d25d8ff5c07ae2fce645797426 
+t/sweep-land-162412 474d538b66324135701e9ae499fa4beed068804d 
+t/sweep-land-162823 0daa7d511599598fe4cd26274569939086bf699a 
+t/sweep-land-163237 3d80efd555923d41e6be13398e804383196907e9 
+t/sweep-land-163644 a3846cad7ed6b17d1915cc39d84d584f37039156 
+t/sweep-land-164102 1ddaf7ba06db28f42d327f50aa345e37f3fb163e 
+t/sweep-land-164518 0ec2c8a3c22ee71754028060bf478f695ef1ebd9 
+t/sweep-land-164935 819aaa6d93074b0dcc81e6bfad40ff3d5587079a 
+t/sweep-land-172600 a27eec5b1a1f324867ff2744318925b05969191c 
+t/sweep-land-174125 e3b264328e6917f9013047d6fd5b4d70bf39d961 
+t/sweep-land-174601 8635e7d8e350cd743f87f2cbfc7091187a8d7763 
+t/sweep-land-175036 948a82af247e5d04fb99e4ca756c2bd455562611 
+t/sweep-land-175518 f659e9d18a2f0ed0e8b1e55a3eeb35170e3cfaca 
+t/sweep-land-180008 b041991188d669025ec7bcb5f0f63b42519e146e 
+t/sweep-land-180330 3c0f5cfd277ca39a78c123f2a90e004ff29c90d3 
+t/sweep-land-180821 73072b00bac8f3bf8ded9476d58e6574378674db 
+t/sweep-land-181331 3229695e9d444b82d5b80518e865e380218d962c 
+t/sweep-land-181823 8ec1e73dceb269a0d692e07eed2aaa9cd43416c7 
+t/sweep-land-182322 9f0e0828f6c53221d68ad746d83db434f5756852 
+t/sweep-land-182823 88a2b8c120176ed8a7fe756f5a8788995bb90734 
+t/sweep-land-183312 5afb06f8743e05d11853ea80a0b6a8235f4e12a1 
+t/sweep-land-183804 9e1fd4708846a07445e69dbc6cf8b9b5dc17765d 
+t/sweep-land-184300 103dc3d6e47184fcad140d37a4b9d568bdff1457 
+t/sweep-land-184804 a5a0c62c7ab4f237b6302715773f4df5c86ddb9c 
+t/sweep-land-185311 d6e49b64610cec549e5027112b3708d49c15f880 
+t/sweep-land-185824 ca89cb5073cb6172ca829b4230ba8bf052c3c52e 
+t/sweep-land-190345 641b9b62955848ee27fc187d539ccc6fd332de76 
+t/sweep-land-190902 78069f96ad8faa62e369bcd54db002eb0a29a35a 
+t/sweep-land-191425 86687db26ce5df5e5853a7effc6bb1cc3f5cc38c 
+t/sweep-land-191950 69ad6915e9035498492dccb28d689406790c0e2f 
+t/sweep-land-192513 e93b9bde529204630ea583e8526d5232e2ec8ec2 
+t/sweep-land-193036 5892facba0ee9ceb2abe26e3d880e71928c97d8e 
+t/sweep-land-193601 d76f4d5cee4962f726e4735ccdc3ac0cc5bb1b35 
+t/sweep-land-194143 068f6772a3b3333d40a7206addcac17ddaa79e7b 
+t/sweep-land-194705 f6c279727ffb452f0ad928e0d71e736de0f0d03c 
+t/sweep-land-195239 46d21666c3e9297410bc71fe6599fff54a345f83 
+t/sweep-land-195822 2ea8e02378b926a1e3c4155d5148040d6e78a373 
+t/sweep-land-200404 f3d39361a68c21b971d969ac6318b949fc42af2d 
+t/sweep-land-200941 7aa02b2e2d101970dbcec005a8243340170b9183 
+t/sweep-land-201526 260981a45e63e152cddeea5c2ac115493d572ba4 
+t/sweep-land-202102 60e5271b50dbb2e0c240f084c70bbb30f0da68e4 
+t/sweep-land-202649 089d49e887fd67a532ef47363ba4f55014d1d94b 
+t/sweep-land-203233 d17f2c9fba52f5c77620d4930881a3b4e2b46295 
+t/sweep-land-203814 6180200bf363e892e646f24fb1bbc574e88522db 
+t/sweep-land-204406 584f45ce43397d26b2ccf4b475a0a0b8957f0405 
+t/sweep-land-204932 ab3c0af7803600c6651650d92c8aeef023e59e1e 
+t/sweep-land-205459 dd68c5e5c73237fc36a935b7f6d805557579d171 
+t/sweep-land-210048 ddcfeda996d52622d18f76b24a4fc0c4347def42 
+t/sweep-land-210641 0e8d1c3912c276f5367dee7fa1153d347154aae3 
+t/sweep-land-211235 387895b67e4319e697f26537f89a0ca8653ba4f3 
+t/sweep-land-211820 9a481a5572dfca453d079755de3f9c72f34a444e 
+t/sweep-land-212409 fde337586f3bbda834446051bcb1c4f366785305 
+t/sweep-land-213005 5a6547e7ccdfcf4c50bce0b1eaf44b03c00ca929 
+t/sweep-land-213558 7acdec1e827d38ce593bb1e67125432f6093a31f 
+t/sweep-land-214146 b79f17a9146be697644e53f66a485b02a506359b 
+t/sweep-land-214730 75ff3054dd4eb1d6f2d488ac2bf9860071a70bc8 
+t/sweep-land-215317 78de6581de6374b2372acd29c2b39143366bdf68 
+t/sweep-land-215845 85ddf46e99ec8eb1fcb8596d07a69ebcf6e334ba 
+t/sweep-land-220444 6aa39479c9c7dfd24790f0f0dc99c3bbbde88247 
+t/sweep-land-221044 616e137c912ef68f09b7bb825588ca983546ce35 
+t/sweep-land-221652 be19ec14c4856284d6290732239d50b7f7170de0 
+t/sweep-land-222325 97348eef4b4ea02f940e101dc602bc5867da43e8 
+t/sweep-land-222957 08ccdef4e13f62324566bcaca5eae29588acae09 
+t/sweep-land-223607 e87e82a3d14073367d425bc9d33c05c326d4c01b 
+t/sweep-land-224149 7c68db06b8a6eef0adadfc67acdd4b5103ac4505 
+t/sweep-land-224747 efdac8c8928fd85fb8609592d5162e16bc7ba0c3 
+t/sweep-land-225353 9c01d6f8003718ed6032eea704160da5c54ca033 
+t/sweep-land-225953 a75546d42f615ac893ebfe91be987bce2c35957b 
+t/sweep-land-230550 a46604baf9b4869fa313c4af1c4b14fe8c20acaf 
+t/sweep-land-231139 c5c7a6ad37546c0b2b32ac59bd7ba9ead0807b60 
+t/sweep-land-231746 964a46615b75b7f69041f2df1395c22a7dd89629 
+t/sweep-land-232329 35057730c6653edfe802b40fa706b44dda887a12 
+t/sweep-land-232927 1d59f0cc146925c23179e19ff48e13a8a6df008f 
+t/sweep-land-233541 c49496ae3593ca9370b9dcdc4341c1f480a3babf 
+t/sweep-land-234152 ee1074936998bc32344ac0e28d2ada8243f5be52 
+t/sweep-land-234744 4874910be9b1f713bbba42d8ad81bb98d8da6de7 
+t/sweep-land-235424 857c57ec67763717273f038bd2cfaaaf5cd9dffa 
+t0011-claim fd57c1dec76603d1f7b8561c03d8d39be2f88af2 
+t0235-feishu-notify 87c9d9f8a0215b806764cfdc279c2b053c847311 
+vfy/0103 59a9c92b250fdff1b9ad1077e994b1aafd3ac52e 
