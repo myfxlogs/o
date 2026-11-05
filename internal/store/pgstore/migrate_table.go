@@ -120,6 +120,7 @@ var migrationTable = []struct {
 	{111, "fin_0111_ops_precedent.sql"},
 	{112, "fin_0112_position_view.sql"},
 	{113, "fin_0113_middle_band_thresholds.sql"},
+	{114, "fin_0114_volsell_revival.sql"},
 
 	// —— md 链（版本链内唯一且单调；md 链版本=历史号+1000 与 fin 键空间全局不相交——跨链并 schema 时 schema_migrations 零撞号，check_migrations 断言①⑤）——
 	{1003, "md_1003_market_facts.sql"},
@@ -167,4 +168,5 @@ var migrationTable = []struct {
 	{1086, "md_1086_stake_carry.sql"},
 	{1087, "md_1087_stake_carry_fin_replica.sql"},
 	{1088, "md_1088_venue_candidate_ibkr.sql"},
+	{1089, "md_1089_volsell_capability_reenable.sql"},
 }

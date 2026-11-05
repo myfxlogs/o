@@ -25,11 +25,13 @@ func (r *Runner) evalVolSell(ctx context.Context, f Family) error {
 	var n int
 	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM md_dcd_product
 		WHERE ts>now()-interval '2 days' AND expiry>now()`).Scan(&n); err != nil || n == 0 {
+		r.markVolSellFailure(fmt.Errorf("option product snapshot missing: rows=%d err=%v", n, err))
 		return r.writeEval(ctx, "-", f.Template, f.Direction, "unevaluable", "product_rows_missing",
 			map[string]any{"kind": f.Kind})
 	}
 	p, err := r.volParams(ctx)
 	if err != nil {
+		r.markVolSellFailure(err)
 		r.rej.Inc("missing_param")
 		return r.writeEval(ctx, "-", f.Template, f.Direction, "unevaluable", "missing_param",
 			map[string]any{"kind": f.Kind, "err": err.Error()})
@@ -38,6 +40,7 @@ func (r *Runner) evalVolSell(ctx context.Context, f Family) error {
 		expiry,COALESCE(annualized_yield,0),COALESCE(min_size,0),COALESCE(max_size,0),raw->>'quoteCcy'
 		FROM md_dcd_product WHERE ts>now()-interval '2 days' AND expiry>now()`)
 	if err != nil {
+		r.markVolSellFailure(err)
 		return err
 	}
 	var prods []dcd.Product
@@ -47,6 +50,7 @@ func (r *Runner) evalVolSell(ctx context.Context, f Family) error {
 		if err := rows.Scan(&pr.ProductID, &pr.Uly, &pr.Direction, &pr.Strike,
 			&pr.Expiry, &pr.AnnualizedYield, &pr.MinSize, &pr.MaxSize, &qccy); err != nil {
 			rows.Close()
+			r.markVolSellFailure(err)
 			return err
 		}
 		if qccy != nil {
@@ -58,19 +62,30 @@ func (r *Runner) evalVolSell(ctx context.Context, f Family) error {
 	var coins map[string]float64
 	if r.coins != nil {
 		if coins, err = r.coins(ctx); err != nil {
+			r.markVolSellFailure(err)
 			r.rej.Inc("coins_absent")
 			coins = nil // 读件败=闸缺位——Evaluate avail<0 判 unevaluable
 		}
 	}
 	if f.Template == "vol_sell_single_call" {
+		calls := 0
 		for _, pr := range prods {
 			if pr.Direction != "C" {
 				continue // single_call 单腿=C（LockedCcyCall）
 			}
+			calls++
 			e := r.evalLeg(ctx, pr, coins, p)
+			if e.Verdict == "unevaluable" {
+				r.markVolSellFailure(fmt.Errorf("%s: %s", pr.ProductID, e.Reason))
+			}
 			if err := r.persistLegEval(ctx, e, f, pr.ProductID); err != nil {
+				r.markVolSellFailure(err)
 				return err
 			}
+		}
+		if calls == 0 {
+			r.markVolSellFailure(fmt.Errorf("option call side absent"))
+			return r.writeEval(ctx, "-", f.Template, f.Direction, "unevaluable", "option_call_rows_missing", map[string]any{"kind": f.Kind})
 		}
 		return nil
 	}
@@ -80,6 +95,7 @@ func (r *Runner) evalVolSell(ctx context.Context, f Family) error {
 	for _, pr := range prods {
 		byKey[pr.Uly+"|"+pr.Expiry.Format("2006-01-02")] = append(byKey[pr.Uly+"|"+pr.Expiry.Format("2006-01-02")], pr)
 	}
+	pairs := 0
 	for _, grp := range byKey {
 		var call, put *dcd.Product
 		for i := range grp {
@@ -93,8 +109,15 @@ func (r *Runner) evalVolSell(ctx context.Context, f Family) error {
 		if call == nil || put == nil {
 			continue // 单侧无腿=对不成——该组不评（下一组续）
 		}
+		pairs++
 		ec := r.evalLeg(ctx, *call, coins, p)
 		ep := r.evalLeg(ctx, *put, coins, p)
+		if ec.Verdict == "unevaluable" {
+			r.markVolSellFailure(fmt.Errorf("%s call: %s", call.ProductID, ec.Reason))
+		}
+		if ep.Verdict == "unevaluable" {
+			r.markVolSellFailure(fmt.Errorf("%s put: %s", put.ProductID, ep.Reason))
+		}
 		inst := call.ProductID + "+" + put.ProductID
 		verdict, reason := "proposed", ""
 		apr := (ec.APR + ep.APR) / 2 // 双腿等权名义合并 APR
@@ -112,8 +135,13 @@ func (r *Runner) evalVolSell(ctx context.Context, f Family) error {
 		}
 		if err := r.persistLegEval(ctx, dcd.Eval{Product: *call, APR: apr, Verdict: verdict, Reason: reason},
 			f, inst); err != nil {
+			r.markVolSellFailure(err)
 			return err
 		}
+	}
+	if pairs == 0 {
+		r.markVolSellFailure(fmt.Errorf("option call/put pair absent"))
+		return r.writeEval(ctx, "-", f.Template, f.Direction, "unevaluable", "option_pair_missing", map[string]any{"kind": f.Kind})
 	}
 	return nil
 }
@@ -168,12 +196,21 @@ func (r *Runner) persistLegEval(ctx context.Context, e dcd.Eval, f Family, inst 
 	if e.Verdict == "proposed" && !execfam.Has(f.Template) {
 		e.Verdict, e.Reason = "rejected", "exec_family_missing"
 	}
+	owner := e.Verdict == "proposed" && dcd.OwnerDomain(e)
+	ev := e.Evidence()
+	if owner {
+		e.Template = f.Template
+		ev["proposal_path"] = "condition_gap_owner_domain"
+	}
 	if err := r.writeEval(ctx, inst, f.Template, f.Direction, e.Verdict, e.Reason,
-		e.Evidence()); err != nil {
+		ev); err != nil {
 		return err
 	}
 	if e.Verdict != "proposed" {
 		return nil
+	}
+	if owner {
+		return dcd.RequestOwnerDomain(ctx, r.fin, e, r.rej, "research/grammar")
 	}
 	var evalID int64
 	if err := r.pool.QueryRow(ctx, `SELECT id FROM fin_opp_eval
