@@ -1,4 +1,4 @@
--- 0112 T-0353 件①中间档产线阈两级化（业主裁 B——打包件
+-- 0113 T-0353 件①中间档产线阈两级化（业主裁 B——打包件
 -- docs/cos/packs/2026-11-05-middle-band-production-line.md 附钉①）：
 --   近确定 carry 族（quarter_basis_long/perp_quarter_spread/dcd_call/dcd_put）
 --   降档 0.04（4.84% 期差基差 net_apr 被纯阈错杀根修）；funding-hedge 及
@@ -11,10 +11,11 @@
 --   research_rw（T-0177 设计本义「各臂写请求行」——research 节点分迁后
 --   授权漏项，件④业主资产域分流写径前置件；限列授予请求刷新和复役状态读取，
 --   不授 state 更新权，业主处置仍走既有窄写面）。
-UPDATE app_config SET value='0.04',updated_at=now(),updated_by='fin_0112'
-  WHERE key='research.basis.min_net_apr';
-UPDATE app_config SET value='0.04',updated_at=now(),updated_by='fin_0112'
-  WHERE key='research.dcd.min_apr';
+INSERT INTO app_config(key,value,updated_at,updated_by) VALUES
+  ('research.basis.min_net_apr','0.04',now(),'fin_0113'),
+  ('research.dcd.min_apr','0.04',now(),'fin_0113')
+ON CONFLICT (key) DO UPDATE SET
+  value=EXCLUDED.value,updated_at=EXCLUDED.updated_at,updated_by=EXCLUDED.updated_by;
 
 INSERT INTO app_config(key,value) VALUES
   ('research.volsell.min_apr', '0.06'),
