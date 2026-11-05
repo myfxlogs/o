@@ -11,6 +11,7 @@ cat > "$TMP/bin/psql" <<'EOF'
 set -euo pipefail
 query=${*: -1}
 case "$query" in
+	"-qAt") echo t ;; # T-0354 advisory-lock holder 桩（无 -c=锁会话形，答 t 放行）
 	*"SELECT count(*)"*) echo "$DM_PENDING_COUNT" ;;
 	*"SELECT l.ticket FROM ("*"COALESCE"*) ;;
 	*"SELECT l.ticket FROM ("*) printf '%s\n' "$DM_PENDING_TICKETS" ;;

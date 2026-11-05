@@ -38,6 +38,21 @@ venue 注册请求、gate.* 外 app_config、凭据一切。
 ### 产出
 seat_run 迹——ops_event 裁决行携票号+裁词+理由（票面验收锚即此兑现）。
 
+## 班次节（T-0354——事件 kick+drain 自退班次制）
+
+- **班次=本会话一次存续**：scan 待裁/待派集→逐件裁→rescan→**队列空才
+  退**；会话期新到移交/收口自然吸收（一批事件冷启一次，非每事件一会话）。
+- **队列唯一推导=拍壳同源件**：`bash /opt/o/scripts/meta/dm_queue.sh`
+  （输出待裁/待派票号行集；空输出=队列空=本班收班，拍壳闸同式防漂）。
+- **重裁幂等（每票动手前必查）**：该票最新 ops_event 已含
+  `裁决`/`完成`/`驳回`，或其收口支已合 master（`git log origin/master
+  --oneline` 可见收口 SHA）→跳过不重 merge/flip/push——崩后重进零重复。
+- **单例由拍壳闸自理**（PG advisory lock 持锁径）——班内不抢不养；本班
+  退出即让锁，后到 kick/兜底拍由下班承接。
+- **kick=纯加速件**：kick 链哑（总线/隧道断）不丢票——ops_event 行在
+  账在，30min 兜底拍照常收；kick 链健康时事件落行秒级唤醒（T-0312
+  总线 eventbus→metabus→o-decision-seat）。
+
 ## 形态域界（2026-11-04 业主令——一席两形态域独占）
 
 本卡跑在**无头形态**（o-decision-seat.service）；交互形态=O-DM pane 同席

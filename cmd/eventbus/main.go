@@ -85,7 +85,9 @@ func main() {
 		"c": {Table: "fin_econ_lesson", Kind: "econ", DSN: "fin",
 			Q: "SELECT COALESCE(max(id),0) FROM fin_econ_lesson"},
 		"d": {Table: "ops_event_wip", Kind: "dm", DSN: "fin",
-			Q: "SELECT COALESCE(max(id),0) FROM ops_event WHERE event IN ('收口','移交','收口待审')"},
+			// T-0354 件①：升件入 kick 白名单——升件行亦唤醒决策席
+			//（拍壳待裁闸自挡空拍零 LLM；队列为空=心跳即退）。
+			Q: "SELECT COALESCE(max(id),0) FROM ops_event WHERE event IN ('收口','移交','收口待审','升件')"},
 	}
 	pools := map[string]eventbus.Querier{}
 	for _, kv := range [][2]string{{"md", "MD_PG_DSN"}, {"fin", "FIN_PG_DSN"}} {
