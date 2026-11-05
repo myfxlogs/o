@@ -387,7 +387,7 @@ message CockpitSeat {                    // 席存活面+⑤在做什么合并�
 }
 message CockpitMoney {                   // ②钱面（D-0037 口径纯读聚合）
   double net_month = 1;                  // 月净利=interest+funding_settle+平仓盈亏近似（recon/earn 项不计）
-  double capital = 2;                    // 本金水位=deposit−withdraw 净额
+  double capital = 2;                    // 本金水位=跨平台已入合计（crypto cashflow deposit+withdraw+recon_adjust 滤 mt5 + MT5 equity 现读——T-0363）
   repeated double daily = 3;             // 近30d 日净现金流序列（fee+interest+settle+spot 净）
   double exposure = 4;                   // 部署敞口现值（未平仓名义合计 USD——fin_position 未平行）
   double exposure_limit = 5;             // 硬上限=本金×10%（D-0038 阶梯束）
@@ -397,7 +397,7 @@ message CockpitMoney {                   // ②钱面（D-0037 口径纯读聚�
 message CockpitPlatformRow {
   string platform = 1;                   // crypto|MT5|future
   double committed = 2;                  // 承诺本金（配置键 cockpit.committed_<plat>——归属业主候答留键）
-  double deposited = 3;                  // 已入（crypto=deposit 累计；MT5=equity 现读）
+  double deposited = 3;                  // 已入（crypto=cashflow 入金净+recon_adjust 滤 mt5；MT5=equity 现读）
   double parked = 4;                     // 停泊（crypto=earn 净额；MT5 无 Earn 面=0）
   double exposure = 5;                   // 敞口（未平名义按 venue 分）
 }

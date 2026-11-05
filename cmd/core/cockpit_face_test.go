@@ -273,8 +273,9 @@ func TestGetCockpitMissingDegrade(t *testing.T) {
 	}
 }
 
-// T-0277 件①：本金=deposit+withdraw 净和（负号出金已带号——禁 ABS 禁再乘 -1）。
+// T-0277 件①：本金=crypto 已入净（负号出金已带号——禁 ABS 禁再乘 -1）。
 // 布景 +2000/+10000 deposit + -10000 withdraw → Capital=2000。
+// T-0363 口径升：Capital=跨平台已入合计（crypto 净+recon_adjust+MT5 equity）。
 func TestCockpitCapitalNet(t *testing.T) {
 	pool := testutil.Pool(t)
 	if err := pgstore.Migrate(context.Background(), pool, "fin"); err != nil {
@@ -296,6 +297,66 @@ func TestCockpitCapitalNet(t *testing.T) {
 	}
 	if r.Money.Capital != 2000 {
 		t.Fatalf("本金应 deposit+withdraw 净和=2000: %.1f", r.Money.Capital)
+	}
+}
+
+// T-0363 三病灶锚：分母=crypto(deposit+withdraw+recon_adjust 滤 mt5)+MT5 live
+// equity——①mt5 cashflow deposit 基线不入（双计消除）③recon_adjust 入本金
+// ②MT5 侧只认 mt5Live equity 现读（fin_cmc_account_summary 为 CMC CFD 户
+// 另 venue 钱非本径——判词落票面）。布景：okx +10000/-3000/+132.24 recon +
+// mt5 deposit 3247.41 滤出 + 桩 equity 3247.59 → crypto=7132.24 total=10379.83。
+func TestCockpitCapitalCrossPlatform(t *testing.T) {
+	pool := testutil.Pool(t)
+	if err := pgstore.Migrate(context.Background(), pool, "fin"); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	c := coreService{pool: pool,
+		mt5Live: func(context.Context) ([]mt5Acct, error) {
+			return []mt5Acct{{Login: "3001157", Equity: 3247.59, Balance: 3200}}, nil
+		}}
+	for _, row := range []struct {
+		kind, venue string
+		amt         float64
+	}{
+		{"deposit", "okx", 10000}, {"withdraw", "okx", -3000},
+		{"recon_adjust", "okx", 132.24}, {"deposit", "mt5", 3247.41},
+	} {
+		if _, err := c.pool.Exec(ctx, `INSERT INTO fin_cashflow(kind,venue,ccy,amount,position_ref,source_ref,source_table,occurred_at,class)
+			VALUES($1,$2,'USDT',$3,NULL,0,'manual',now(),'equity')`, row.kind, row.venue, row.amt); err != nil {
+			t.Fatal("金桩:", err)
+		}
+	}
+	r, err := c.GetCockpit(ctx, nil)
+	if err != nil || r.Money == nil {
+		t.Fatal(err)
+	}
+	var cr, mr, tot *dashboardv1.CockpitPlatformRow
+	for _, pr := range r.Money.Platforms {
+		switch pr.Platform {
+		case "crypto":
+			cr = pr
+		case "MT5":
+			mr = pr
+		case "total":
+			tot = pr
+		}
+	}
+	if cr == nil || mr == nil || tot == nil {
+		t.Fatalf("平台行缺: %+v", r.Money.Platforms)
+	}
+	near := func(got, want float64) bool { return got > want-0.01 && got < want+0.01 }
+	if !near(cr.Deposited, 7132.24) {
+		t.Fatalf("crypto 已入应 10000-3000+132.24=7132.24（recon 入+mt5 滤）: %.2f", cr.Deposited)
+	}
+	if !near(mr.Deposited, 3247.59) {
+		t.Fatalf("MT5 已入应=live equity 3247.59: %.2f", mr.Deposited)
+	}
+	if !near(tot.Deposited, 10379.83) || r.Money.Capital != tot.Deposited {
+		t.Fatalf("跨平台分母错（双计未消/recon 漏）: tot=%.2f cap=%.2f", tot.Deposited, r.Money.Capital)
+	}
+	if r.Money.ExposureLimit != tot.Deposited*0.10 {
+		t.Fatalf("敞口帽未随分母: %.2f", r.Money.ExposureLimit)
 	}
 }
 
