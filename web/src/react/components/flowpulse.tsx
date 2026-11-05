@@ -18,7 +18,9 @@ export function FlowPulseStrip() {
 						<StateDot state={st.state} breathe={st.state === 0}
 							title={`${st.label}：${st.ok ? (st.lastTs ? `末行 ${fmtLag(Number(st.lagS))} 前` : "无行") : "查询败显缺"}`} />
 						{st.label}
-						{st.ok && st.lastTs ? <span className="ink-3">·{fmtLag(Number(st.lagS))}</span> : <span className="ink-3">·缺</span>}
+						{/* T-0350 需求驱动段态标非龄——服务端 status 非空即渲态（空=周期段/exec 活态，龄渲沿用） */}
+						{st.ok && st.status ? <span className="ink-3">·{st.status}</span>
+							: st.ok && st.lastTs ? <span className="ink-3">·{fmtLag(Number(st.lagS))}</span> : <span className="ink-3">·缺</span>}
 					</span>
 				))}
 			</div>

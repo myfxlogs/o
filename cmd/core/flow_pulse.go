@@ -64,6 +64,12 @@ func (c coreService) GetFlowPulse(ctx context.Context,
 			st.State = StageLamp(d.key, st.LagS, ts != nil)
 			if d.neutral {
 				st.State = 3 // 恒中性灰——事件驱动段无节拍阈
+				switch d.key {
+				case "proposal":
+					st.Status = c.proposalStatus(ctx) // T-0350 态标非龄
+				case "exec":
+					st.Status = c.execStatus(ctx)
+				}
 			}
 		}
 		resp.Stages = append(resp.Stages, st)
