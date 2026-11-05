@@ -26,6 +26,7 @@ fin_strategy	bridge-reverse
 fin_strategy_transition	fin
 fin_risk_decision	fin
 fin_risk_token	fin
+fin_position_domain	fin
 fin_execution	fin
 fin_order_leg	fin
 fin_position	fin

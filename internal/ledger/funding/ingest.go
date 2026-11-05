@@ -144,16 +144,46 @@ func (i *Ingester) record(ctx context.Context, b Bill) (int, error) {
 			amt = b.Pnl // 个性口径兜底：资金费行 balChg 空→pnl 查询总额口径（官方口径注）
 		}
 		return 1, i.post(ctx, "funding_settle", amt, b, ccy, srcID, occurred)
-	case subDcdDebit: // 申购扣款=earn_out（balChg 负号原生——如实进账）
-		return 1, i.post(ctx, "earn_out", b.BalChg, b, ccy, srcID, occurred)
-	case subDcdSettle, subDcdYield, subDcdRefund: // 回款/收益/退款=earn_in
-		return 1, i.post(ctx, "earn_in", b.BalChg, b, ccy, srcID, occurred)
+	case subDcdDebit: // 申购扣款=earn_out（balChg 负号原生——如实进账）；T-0364 业主域=owner_out
+		kind := "earn_out"
+		if i.ownerDcd(ctx, b) {
+			kind = "owner_out"
+		}
+		return 1, i.post(ctx, kind, b.BalChg, b, ccy, srcID, occurred)
+	case subDcdSettle, subDcdYield, subDcdRefund: // 回款/收益/退款=earn_in；T-0364 业主域=owner_in（业主资产收入非策略线）
+		kind := "earn_in"
+		if i.ownerDcd(ctx, b) {
+			kind = "owner_in"
+		}
+		return 1, i.post(ctx, kind, b.BalChg, b, ccy, srcID, occurred)
 	default:
 		if b.Fee != 0 { // 交易费/返佣（开平仓 taker 费入 fee kind）
 			return 1, i.post(ctx, "fee", b.Fee, b, ccy, srcID, occurred)
 		}
 	}
 	return 0, nil
+}
+
+// ownerDcd 业主域 dcd 单判定（T-0364）：账单对 fin_position_domain 域册——
+// inst_id=产品单号主链键，raw.ordId=备链键（账单 instId 缺位方言兜底）。
+// 判不出=归常径 earn_*（读败不冒归 owner——域归属显形靠域册非猜）。
+func (i *Ingester) ownerDcd(ctx context.Context, b Bill) bool {
+	var ord string
+	if len(b.Raw) > 0 {
+		var r struct {
+			OrdID string `json:"ordId"`
+		}
+		if json.Unmarshal(b.Raw, &r) == nil {
+			ord = r.OrdID
+		}
+	}
+	var hit bool
+	if err := i.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM fin_position_domain
+		WHERE domain='owner' AND ((inst_id<>'' AND inst_id=$1) OR (ord_id<>'' AND ord_id=$2)))`,
+		b.InstID, ord).Scan(&hit); err != nil {
+		return false
+	}
+	return hit
 }
 
 // post 入账（kind/闭集校验在 ledger.Post——此处只装配）。position_ref=按

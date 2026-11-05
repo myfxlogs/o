@@ -79,6 +79,49 @@ func TestDcdBaselineCountsTowardExposureCap(t *testing.T) {
 	}
 }
 
+// T-0364 验收锚②③④：业主域凭据剔出策略敞口——域册标记行视图分流
+// kind='dcd_owner' 证据行可查，闸面分子=0 放行；视图读败 fail-closed 仍拒。
+func TestDcdOwnerDomainExcluded(t *testing.T) {
+	ctx, g := setup(t)
+	// 迁移面锚：0043 种子凭据（ordId=11448262）=本票收归对象——0115 域册
+	// 已标记落册；视图行 kind='dcd_owner' 在账可查（业主域标记证据行）。
+	var kind string
+	if err := g.pool.QueryRow(ctx, `SELECT kind FROM fin_position_view
+		WHERE kind LIKE 'dcd%'`).Scan(&kind); err != nil || kind != "dcd_owner" {
+		t.Fatalf("业主域行 kind=%q err=%v 应 dcd_owner", kind, err)
+	}
+	// 敞口分子剔出：估值=0（业主域行连 tick 估值径都不入）+闸面放行。
+	if usd, ok := g.dcdExposureUSD(ctx); !ok || usd != 0 {
+		t.Fatalf("业主域剔出后 dcdExposureUSD=%v ok=%v want 0", usd, ok)
+	}
+	if d := g.Check(ctx, intent); !d.Allow {
+		t.Fatalf("业主域剔出应放行: %+v", d)
+	}
+	// 对照：同币策略域凭据 1 BTC 照计分子（域册无行=strategy 缺省——证明
+	// 剔出来源=域册标记非 dcd 全免）。setup tick BTC-USDT=100000。
+	if _, err := g.pool.Exec(ctx, `INSERT INTO fin_risk_decision(intent,decision,reason,config_gen)
+		VALUES('{"kind":"transfer","op":"dcd_baseline","venue":"okx","ccy":"BTC","amt":1}','allow','transfer',1)`); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		g.pool.Exec(ctx, `DELETE FROM fin_risk_decision
+			WHERE intent->>'op'='dcd_baseline' AND intent->>'amt'='1'`)
+	}()
+	if usd, ok := g.dcdExposureUSD(ctx); !ok || usd != 100000 {
+		t.Fatalf("策略域应计 dcdExposureUSD=%v ok=%v want 100000", usd, ok)
+	}
+	// fail-closed 回归锚：视图读败仍拒放（rename 遮视图合成读败径）。
+	if _, err := g.pool.Exec(ctx, `ALTER VIEW fin_position_view RENAME TO fin_position_view_bak`); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		g.pool.Exec(ctx, `ALTER VIEW fin_position_view_bak RENAME TO fin_position_view`)
+	}()
+	if d := g.Check(ctx, intent); d.Allow || d.Reason != "exposure_cap" {
+		t.Fatalf("视图读败应 fail-closed 拒放: %+v", d)
+	}
+}
+
 // T-0355 验收锚②：tick 缺价=fail-closed——估不出敞口拒放（非零计放行），
 // 与显示面「无 tick=0」口径相反为钦定语义。
 func TestDcdBaselineUnpricedFailsClosed(t *testing.T) {

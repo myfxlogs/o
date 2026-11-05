@@ -220,8 +220,12 @@ func TestEvalBasisNetApr(t *testing.T) {
 func TestEvalBasisMiddleBand(t *testing.T) {
 	ctx, r := setup(t)
 	inst := "BTC-USD-" + time.Now().AddDate(0, 0, 30).Format("060102")
-	// 30d 基差取值使 net_apr≈4.84%：basis=(0.0032 + .0484*30/365)。
-	fut := 100 * (1 + 0.0032 + 0.0484*30/365)
+	// 30d 基差取值使 net_apr≈4.84%：basis=(0.0032 + .0484*days/365)——days
+	// 按 evalBasis 同式 time.Until 实算（钉死 30=日内漂移出界 flake 实证，
+	// cost 摊销同分母相消后 net 恒落 0.0484）。
+	exp, _ := time.Parse("060102", inst[len(inst)-6:])
+	days := time.Until(exp).Hours() / 24
+	fut := 100 * (1 + 0.0032 + 0.0484*days/365)
 	if _, err := r.pool.Exec(ctx, `INSERT INTO md_mark_index(ts,inst_id,channel,px) VALUES
 		(now(),'BTC-USD','index-tickers',100),(now(),$1,'mark-price',$2)`, inst, fut); err != nil {
 		t.Fatal(err)
