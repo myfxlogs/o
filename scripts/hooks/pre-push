@@ -41,6 +41,10 @@ while read -r local_ref local_sha remote_ref remote_sha; do
         +*|*:*|refs/tags/*) fail "master 禁 force/refspec/tag/映射形" ;;
     esac
     [ "$repo_root" = "/opt/o" ] || fail "master 只许从部署树 /opt/o 推（当前: $repo_root）"
+    # T-0370 件①：master first-parent 链施工前缀闸——部署树直推缝机检面
+    # （T-0367 abe3fd1a 实证：绿戳过形闸直推 master 绕 §9；合支径施工
+    # commit 居 merge 第二亲不入 first-parent=正当径不受阻）。
+    scripts/check_master_direct.sh "$local_sha" "$remote_sha" || exit 1
 done
 
 # C. 票号远端对账闸（T-0219——T-0217 撞实证：本地 index 视野陈时 --staged
