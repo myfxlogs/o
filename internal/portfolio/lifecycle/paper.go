@@ -149,13 +149,15 @@ func ftoa(f float64) string {
 // （COALESCE(spot,0) 消费撤）；鲜度闸同 T-0128 语义（exec.tick_max_age_s
 // 缺省 120s，陈=fill 让位 fail-closed 不记账）。活跃集订阅面含 dcd 现货腿
 // （subscribe.go activeSet——SG 本地 tickers 供价，T-0171 裁本地订阅径）。
+// T-0353 件②：dcd_put 复役入册——权利金摊提公式方向无关（declared APR
+// 按日摊，C/P 同式），模板列表补词即通。
 func (r *Runner) dcdPaperAccounting(ctx context.Context) error {
 	// T-0215：vol-sell 两族同径记账——single_call 单腿键；strangle 复合键
 	// 「Cprod+Pprod」拆双腿各摊半名义（构型=双边权利金等权名义合并收割）。
 	rows, err := r.pool.Query(ctx, `SELECT s.id, s.inst_id, s.notional_usd,
 		COALESCE((SELECT max(ts) FROM fin_paper_fill f WHERE f.strategy_id=s.id), s.entered_at)
 		FROM fin_strategy s WHERE s.state='paper' AND s.template_ref IN
-		('dcd_call','vol_sell_single_call','vol_sell_strangle')`)
+		('dcd_call','dcd_put','vol_sell_single_call','vol_sell_strangle')`)
 	if err != nil {
 		return err
 	}

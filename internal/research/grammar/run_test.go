@@ -197,6 +197,32 @@ func TestEvalBasisNetApr(t *testing.T) {
 	}
 }
 
+// T-0353 件①锚：4.84% 近确定基差落在 4% 中间档，应过阈；旧 6% 一刀切会错杀。
+func TestEvalBasisMiddleBand(t *testing.T) {
+	ctx, r := setup(t)
+	inst := "BTC-USD-" + time.Now().AddDate(0, 0, 30).Format("060102")
+	// 30d 基差取值使 net_apr≈4.84%：basis=(0.0032 + .0484*30/365)。
+	fut := 100 * (1 + 0.0032 + 0.0484*30/365)
+	if _, err := r.pool.Exec(ctx, `INSERT INTO md_mark_index(ts,inst_id,channel,px) VALUES
+		(now(),'BTC-USD','index-tickers',100),(now(),$1,'mark-price',$2)`, inst, fut); err != nil {
+		t.Fatal(err)
+	}
+	f := Family{Template: "quarter_basis_long", Direction: "basis_quarter", Kind: "basis"}
+	if err := r.evalBasis(ctx, f); err != nil {
+		t.Fatal(err)
+	}
+	var verdict, reason string
+	var net float64
+	if err := r.pool.QueryRow(ctx, `SELECT verdict,evidence->>'reason',
+		(evidence->>'net_apr')::float8 FROM fin_opp_eval WHERE inst_id=$1`, inst).
+		Scan(&verdict, &reason, &net); err != nil {
+		t.Fatal(err)
+	}
+	if net < 0.048 || net > 0.049 || verdict != "proposed" {
+		t.Fatalf("4.84%% basis 应在 4%% 档 proposed；got verdict=%s reason=%s net=%v", verdict, reason, net)
+	}
+}
+
 // T-0298 验收锚：days=10/30/90 三档 net_apr 手算对齐+days<7 expiry_soon 早退
 // +深负基差有符号拒（旧 math.Abs 误判面）。
 func TestEvalBasisCostAmortization(t *testing.T) {

@@ -1,7 +1,4 @@
-// open.go —— live 开仓装配缝（T-0050 首仓序④）：lifecycle.Opener 适配——
-// risk.Gate.Check（唯一交易前闸）→execution.BuildLegs（perp 短+现货长，乐器
-// 元数据决策时点 instruments 现读）→Runner.Execute（token/对冲带/Earn 赎回/
-// 双腿原子——与 openfirst 同码径，事件驱自动径）。
+// open.go —— live 开仓装配缝：lifecycle.Opener→风控闸→腿构→原子执行。
 package main
 
 import (
@@ -35,10 +32,10 @@ type hedgeOpener struct {
 // （lifecycle 计数续试——ev_strategy 事件驱非热环）。
 func (h hedgeOpener) Open(ctx context.Context, spec lifecycle.OpenSpec) (int64, error) {
 	switch spec.Template {
-	case "dcd_call", "vol_sell_single_call":
-		// T-0160 DCD 执行面分派（产品买非双腿原子径）；T-0215
-		// vol_sell_single_call=同型单腿 executor（假想卡 id=7 钦定名
-		// vol_sell_single_call_executor）。
+	case "dcd_call", "dcd_put", "vol_sell_single_call":
+		// T-0160 DCD 产品单腿执行；T-0215 vol_sell_single_call 同型。
+		// dcd_put=T-0353 复役同径（quote/trade 方向无关，notionalCcy
+		// 从产品 raw 锁仓币回填 fail-closed；USDT 计价腿走基金钱常径）。
 		return h.dcdOpen(ctx, spec)
 	case "quarter_basis_long", "perp_quarter_spread":
 		// T-0216 basis executor（quarter_basis_long_executor/perp_quarter_spread_
@@ -202,9 +199,14 @@ func (h hedgeOpener) dcdOpen(ctx context.Context, spec lifecycle.OpenSpec) (int6
 		h.dcdQuoteReject(ctx, spec, vc, vm)
 		return 0, fmt.Errorf("dcd quote 失效弃权（陈旧提案不盲执）: %w", err)
 	}
-	// 风控过闸同 carry 仓（notional/exposure 谓词现行；Legs 记 dcd 单腿形）。
+	// 风控过闸同 carry 仓（notional/exposure 谓词现行；Legs 记 dcd 单腿形——
+	// T-0353：put=卖权收权利金腿标如实分记）。
+	legLabel := "dcd_call_buy"
+	if spec.Template == "dcd_put" {
+		legLabel = "dcd_put_sell"
+	}
 	dec := h.gate.Check(ctx, risk.Intent{StrategyRef: spec.StrategyRef, Venue: spec.Venue,
-		InstID: spec.InstID, Legs: []string{"dcd_call_buy"},
+		InstID: spec.InstID, Legs: []string{legLabel},
 		NotionalUSD: spec.NotionalUSD, Leverage: 1, Kind: "open"})
 	if !dec.Allow {
 		return 0, fmt.Errorf("闸拒: %s", dec.Reason)

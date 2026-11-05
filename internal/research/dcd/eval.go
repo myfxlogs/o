@@ -212,12 +212,19 @@ func (r *Runner) persistProduct(ctx context.Context, s Surface, p Product, spot 
 // persistEval 评估卡落表；proposed 且无 open 同品提案→fin_proposal 行（闸后唯一提案径）。
 // T-0330 前置拒：执行径未建族（dcd_put 等）proposed 翻 rejected/exec_family_
 // missing 如实，不进提案队列（族码=template 列）。
+// T-0353 件④业主资产域闸：锁仓币≠USDT 的 proposed 分流 fin_condition_gap
+// （评估卡如实留 proposed+evidence.proposal_path 自释「proposed 而无提案」）。
 func (r *Runner) persistEval(ctx context.Context, e Eval) error {
 	if e.Verdict == "proposed" && !execfam.Has(e.Template) {
 		e.Verdict, e.Reason = "rejected", "exec_family_missing"
 	}
+	owner := e.Verdict == "proposed" && OwnerDomain(e)
+	ev := e.Evidence()
+	if owner {
+		ev["proposal_path"] = "condition_gap_owner_domain"
+	}
 	legs, _ := json.Marshal(e.Legs())
-	ev, _ := json.Marshal(e.Evidence())
+	evb, _ := json.Marshal(ev)
 	var evalID int64
 	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,
 		gross_apr,net_apr,verdict,legs,evidence)
@@ -226,7 +233,7 @@ func (r *Runner) persistEval(ctx context.Context, e Eval) error {
 		gross_apr=EXCLUDED.gross_apr,net_apr=EXCLUDED.net_apr,verdict=EXCLUDED.verdict,
 		legs=EXCLUDED.legs,evidence=EXCLUDED.evidence RETURNING id`,
 		e.Product.ProductID, e.Template, e.Template, nullF(e.APR), nullF(e.APR),
-		e.Verdict, legs, ev).Scan(&evalID); err != nil {
+		e.Verdict, legs, evb).Scan(&evalID); err != nil {
 		return err
 	}
 	if e.Verdict != "proposed" {
@@ -234,6 +241,9 @@ func (r *Runner) persistEval(ctx context.Context, e Eval) error {
 			log.Printf("[research/dcd] %s 闸拒 %s（%s）", e.Product.ProductID, e.Verdict, e.Reason)
 		}
 		return nil
+	}
+	if owner {
+		return RequestOwnerDomain(ctx, r.fin, e, r.rej, "research/dcd")
 	}
 	var open int
 	if err := r.pool.QueryRow(ctx,
