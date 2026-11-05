@@ -265,7 +265,7 @@ func run() error {
 	if closeSizer != nil {
 		wd.AttachSizer(closeSizer) // T-0046②：平仓量现读件
 	}
-	wd.AttachCtVal(ctValReader(okcli)) // T-0046①：面值现读件（venue_readers.go）
+	wd.AttachCtVal(ctValReader(okcli)) // T-0046①：面值现读件（nav_live.go）
 	wd.AttachAlerter(alerter)
 	// venue 现读件（T-0048：快照行全域出局——venue_readers.go 装配）。
 	attachVenueReaders(riskGate, wd, ledgerR, pool, okcli,

@@ -3,8 +3,11 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 
+	"o/internal/gen/dashboardv1"
 	"o/internal/platform/testutil"
 	"o/internal/store/pgstore"
 )
@@ -96,5 +99,108 @@ func TestFlowPulseWorkItems(t *testing.T) {
 	// proposal 首序（money 近者先）
 	if r.WorkItems[0].Kind != "proposal" {
 		t.Fatalf("序应 proposal 先: %s", r.WorkItems[0].Kind)
+	}
+}
+
+// 锚：需求驱动段态标（T-0350——提案/渲态非龄，饿/饱两态+全拒带因+被动行
+// 剔出+真执行回退龄渲；定时拍段零动归 StageLamp 既有锚）。
+func TestDemandStageStatus(t *testing.T) {
+	pool := testutil.Pool(t)
+	if err := pgstore.Migrate(context.Background(), pool, "fin"); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	stage := func(r *dashboardv1.GetFlowPulseResponse, key string) *dashboardv1.FlowStage {
+		for _, st := range r.Stages {
+			if st.Key == key {
+				return st
+			}
+		}
+		t.Fatalf("段 %s 缺", key)
+		return nil
+	}
+	snap := func() *dashboardv1.GetFlowPulseResponse {
+		r, err := (coreService{pool: pool}).GetFlowPulse(ctx, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return r
+	}
+	// ① 全空库：两需求段=闲·无 armed（评估零行不称「全拒」——不虚构因）
+	if st := stage(snap(), "proposal").Status; st != "闲·无 armed" {
+		t.Fatalf("空库提案段态标: %q", st)
+	}
+	if st := stage(snap(), "exec").Status; st != "闲·无 armed" {
+		t.Fatalf("空库执行段态标: %q", st)
+	}
+	// ② 窗外旧拒不计数（24h 窗语义）
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_opp_eval(id,ts,inst_id,template,direction,verdict,legs,evidence)
+		VALUES(9902,now()-interval '48 hours','T0350A-USDT-SWAP','funding','basis_quarter','rejected','[]'::jsonb,
+		'{"reason":"net_apr -0.9 < 阈 0.0600"}'::jsonb)`); err != nil {
+		t.Fatal(err)
+	}
+	if st := stage(snap(), "proposal").Status; st != "闲·无 armed" {
+		t.Fatalf("仅窗外旧拒应仍闲: %q", st)
+	}
+	// ③ 近窗全拒→带 dominant 短标（数字归一聚 2+1 碎片为同一拒因）
+	for i, raw := range []string{"net_apr -0.3346 < 阈 0.0600", "net_apr -0.2798 < 阈 0.0600", "net_apr -0.2878 < 阈 0.0600"} {
+		if _, err := pool.Exec(ctx, `INSERT INTO fin_opp_eval(id,ts,inst_id,template,direction,verdict,legs,evidence)
+			VALUES($1,now(),$2,'funding','basis_quarter','rejected','[]'::jsonb,jsonb_build_object('reason',$3::text))`,
+			int64(9903+i), fmt.Sprintf("T0350R%d-USDT-SWAP", i), raw); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if st := stage(snap(), "proposal").Status; st != "闲·评估全拒（末因 net_apr<阈）" {
+		t.Fatalf("全拒态标: %q", st)
+	}
+	// ④ 混入 unevaluable 不称「全拒」
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_opp_eval(id,ts,inst_id,template,direction,verdict,legs,evidence)
+		VALUES(9906,now(),'T0350B-USDT-SWAP','funding','basis_quarter','unevaluable','[]'::jsonb,
+		'{"reason":"apr_est_missing"}'::jsonb)`); err != nil {
+		t.Fatal(err)
+	}
+	if st := stage(snap(), "proposal").Status; st != "闲·无 armed" {
+		t.Fatalf("混行态标: %q", st)
+	}
+	// ⑤ armed 活态→活跃（饱态）
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_proposal(id,eval_id,inst_id,direction,net_apr,state,created_at)
+		VALUES(9902,9903,'T0350C-USDT-SWAP','basis_quarter',0.1,'fin_proposed',now())`); err != nil {
+		t.Fatal(err)
+	}
+	if st := stage(snap(), "proposal").Status; st != "活跃·1 armed" {
+		t.Fatalf("活态态标: %q", st)
+	}
+	// ⑥ 执行段被动行剔出：interest 在窗仍闲（票面钦定非真执行类）
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_cashflow(kind,venue,ccy,amount,source_ref,source_table,occurred_at)
+		VALUES('interest','okx','USDT',0.01,9902,'fin_x',now())`); err != nil {
+		t.Fatal(err)
+	}
+	if st := stage(snap(), "exec").Status; st != "闲·无 armed" {
+		t.Fatalf("被动行态标: %q", st)
+	}
+	// ⑦ 真执行类在窗→空标回退龄渲（沿态）
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_cashflow(kind,venue,ccy,amount,source_ref,source_table,occurred_at)
+		VALUES('trade_pnl','okx','USDT',1.0,9902,'fin_x',now())`); err != nil {
+		t.Fatal(err)
+	}
+	if st := stage(snap(), "exec").Status; st != "" {
+		t.Fatalf("真执行应空标回退龄渲: %q", st)
+	}
+}
+
+// 锚：拒因短标——数字归一+空白剔净+超长截断（数字=快照瞬值不入短标）。
+func TestReasonShort(t *testing.T) {
+	for raw, want := range map[string]string{
+		"net_apr -0.3346 < 阈 0.0600":                          "net_apr<阈",
+		"below_earn: net_apr -0.12 < Earn 底 0.03（静态底 0.05 过）": "below_earn:net_apr<Earn底（静态底过）",
+		"basis_below_min": "basis_below_min",
+	} {
+		if got := reasonShort(raw); got != want {
+			t.Fatalf("reasonShort(%q)=%q want %q", raw, got, want)
+		}
+	}
+	long := strings.Repeat("长", 32)
+	if got := reasonShort(long); got != strings.Repeat("长", 30)+"…" {
+		t.Fatalf("截短: %q", got)
 	}
 }

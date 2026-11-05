@@ -95,8 +95,8 @@ func (c coreService) Overview(ctx context.Context, _ *dashboardv1.OverviewReques
 	// （所见即所得——DCD 是基金第二大资产块却不在「持仓中」=业主令病灶）；
 	// 展示引用不重复入 NAV（钱卡 dcdRows 已计值）。静持空态判据=基金真空
 	// 持仓（无 open 仓且无 DCD live 单）；DCD 读件缺显形不静默（不假零）。
-	prow, _ := c.pool.Query(ctx, `SELECT id,inst_id,opened_at FROM fin_position
-		WHERE closed_at IS NULL ORDER BY id DESC LIMIT 5`)
+	prow, _ := c.pool.Query(ctx, `SELECT position_id,inst_id,ts FROM fin_position_view
+		WHERE kind='exec' AND closed_at IS NULL ORDER BY position_id DESC LIMIT 5`)
 	posN := 0
 	for prow.Next() {
 		var id int64

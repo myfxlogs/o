@@ -9,7 +9,7 @@ import (
 
 func TestRetirementRequiresMoreThanNFailuresAndSurvivesRestart(t *testing.T) {
 	ctx, r := setup(t)
-	// fin_0112 seeds N=3. Exactly N failures do not retire the arm.
+	// fin_0113 seeds N=3. Exactly N failures do not retire the arm.
 	r.failStreak = 3
 	if err := r.maybeAutoRetire(ctx, errors.New("read failure")); err != nil {
 		t.Fatal(err)

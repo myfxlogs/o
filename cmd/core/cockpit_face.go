@@ -101,8 +101,21 @@ func (c coreService) GetCockpit(ctx context.Context,
 	}
 	// 敞口段（T-0241 D-0038 标尺）：未平名义合计 vs 本金×10% 硬上限——
 	// 三态服务端判（<90%绿 顶格黄 越限红）；查询败=missing 显缺非冒零。
-	if err := c.pool.QueryRow(ctx,
-		`SELECT COALESCE(sum(notional_usd),0) FROM fin_position WHERE closed_at IS NULL`).Scan(&r.Money.Exposure); err != nil {
+	// T-0351 双账合一：敞口改读统一持仓读面——执行仓未平 USD + 产品仓 dcd
+	// 凭据 Σamt 估值（USDT/USD 直入，余按最新 tick；无 tick=0 不虚计，valCcy
+	// 同径）。deny 凭据行不入（未执行拒单）。风险闸写径（risk/check.go）仍
+	// fin_position 单账——闸面口径对齐归决策另裁，本票只动读面。
+	if err := c.pool.QueryRow(ctx, `SELECT COALESCE(
+		  (SELECT sum(notional) FROM fin_position_view WHERE kind='exec' AND closed_at IS NULL),0)
+		+ COALESCE((SELECT sum(v.notional*CASE WHEN v.ccy IN ('USDT','USD') THEN 1
+			ELSE COALESCE(px.p,0) END)
+		  FROM fin_position_view v
+		  LEFT JOIN LATERAL (SELECT p FROM (
+		      SELECT ts,last AS p FROM md_ticks WHERE inst_id=v.ccy||'-USDT'
+		      UNION ALL
+		      SELECT ts,px AS p FROM md_mark_index WHERE inst_id=v.ccy||'-USDT'
+		    ) u ORDER BY ts DESC LIMIT 1) px ON true
+		  WHERE v.kind='dcd'),0)`).Scan(&r.Money.Exposure); err != nil {
 		moneyErr = true
 	}
 	if moneyErr {

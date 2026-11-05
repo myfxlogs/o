@@ -5,9 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"strings"
-	"sync"
-	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -27,6 +24,7 @@ import (
 // 凭据缺席=boot 明示 WARN 不静默缺岗；各闭包判 nil 不 panic。
 func attachVenueReaders(riskGate *risk.Gate, wd *guard.Warden, ledgerR *ledger.Runner,
 	pool *pgxpool.Pool, okcli *okxexec.Client, openMt5 func(ctx context.Context) (*mt5.Client, error)) {
+	vg := newVenueFailGate(pool) // T-0352 venue 读败连败升件闸（观测面——不改读径）
 	// frameVals 事件帧现读（okx 交易户同源读，REST 非判据源——帧龄不判陈）。
 	frameVals := func(ctx context.Context) (eq, avail float64, err error) {
 		if pool == nil {
@@ -81,7 +79,7 @@ func attachVenueReaders(riskGate *risk.Gate, wd *guard.Warden, ledgerR *ledger.R
 	}
 	// tradingVals 帧先 REST 兜底读件（T-0058 根修+T-0071 全币求和——帧败/
 	// eq=0→/account/balance 兜底；兜底再败=err 上抛 fail-closed 禁部分聚合）。
-	tradingVals := func(ctx context.Context) (eq, avail float64, err error) {
+	tradingValsRaw := func(ctx context.Context) (eq, avail float64, err error) {
 		if eq, avail, err = frameVals(ctx); err == nil && eq != 0 {
 			return eq, avail, nil
 		}
@@ -110,6 +108,16 @@ func attachVenueReaders(riskGate *risk.Gate, wd *guard.Warden, ledgerR *ledger.R
 		}
 		return eq, avail, nil
 	}
+	// T-0352 闸接线：okx 权益读面（risk 硬线+wd 守卫共享源——venue 级跨面计数）。
+	tradingVals := func(ctx context.Context) (float64, float64, error) {
+		eq, avail, err := tradingValsRaw(ctx)
+		if err != nil {
+			vg.fail(ctx, "okx", err)
+		} else {
+			vg.ok("okx")
+		}
+		return eq, avail, err
+	}
 	if okcli == nil {
 		log.Printf("WARN: venue 现读件未挂接（okx 凭据缺席）——risk equity/dd 硬线/对账 fail-closed 让位")
 		return
@@ -122,10 +130,15 @@ func attachVenueReaders(riskGate *risk.Gate, wd *guard.Warden, ledgerR *ledger.R
 	riskGate.WithEquity(func(ctx context.Context, venue string) (float64, error) {
 		if venue == "mt5" {
 			if openMt5 == nil {
-				return 0, fmt.Errorf("mt5 权益件缺席")
+				return 0, fmt.Errorf("mt5 权益件缺席") // 件缺席≠读败——boot WARN 显缺径，不入闸
 			}
 			a, err := mt5SummaryOnce(ctx, pool, nil, openMt5)
-			return a.Equity, err
+			if err != nil {
+				vg.fail(ctx, "mt5", err) // T-0352：风控权益面读败入闸
+				return 0, err
+			}
+			vg.ok("mt5")
+			return a.Equity, nil
 		}
 		if venue != "okx" {
 			return 0, fmt.Errorf("venue 无权益件: %s", venue)
@@ -140,8 +153,10 @@ func attachVenueReaders(riskGate *risk.Gate, wd *guard.Warden, ledgerR *ledger.R
 		}
 		fs := map[[2]string]float64{}
 		if err := fundSaveBalances(ctx, pool, okcli, fs, true); err != nil {
+			vg.fail(ctx, "okx", err) // T-0352：风控权益面 funding/savings/dcd 读败入闸（与对账面同源计数）
 			return 0, err
 		}
+		vg.ok("okx")
 		for _, v := range fs {
 			eq += v
 		}
@@ -180,19 +195,25 @@ func attachVenueReaders(riskGate *risk.Gate, wd *guard.Warden, ledgerR *ledger.R
 		out := map[[2]string]float64{}
 		eq, err := tradingFundEq(ctx, pool, okcli)
 		if err != nil {
+			vg.fail(ctx, "okx", err) // T-0352：对账面读败入闸（生产病灶拍——5s 连败刷日志零升件）
 			return nil, fmt.Errorf("trading 读败: %w", err)
 		}
+		vg.ok("okx")
 		out[[2]string{"okx", "USDT"}] += eq
 		// T-0100 ③：对拍径 usd=false 原币量入键——ledger 侧非本位键按币量
 		// 建键（ParkedAmt 台账），venue/ledger 单位同径不错配。
 		if err := fundSaveBalances(ctx, pool, okcli, out, false); err != nil {
+			vg.fail(ctx, "okx", err)
 			return nil, err
 		}
+		vg.ok("okx")
 		if openMt5 != nil {
 			a, cerr := mt5SummaryOnce(ctx, pool, nil, openMt5)
 			if cerr != nil {
+				vg.fail(ctx, "mt5", cerr) // T-0352：对账面 mt5 读败入闸（票面病灶实查径）
 				return nil, fmt.Errorf("mt5 读败: %w", cerr)
 			}
+			vg.ok("mt5")
 			out[[2]string{"mt5", "USD"}] = a.Equity
 		}
 		return out, nil
@@ -203,84 +224,4 @@ func parseNum(s string) float64 {
 	var v float64
 	_, _ = fmt.Sscanf(s, "%f", &v)
 	return v
-}
-
-// okxAvailFromEvents 交易户可用额=md_account_events 最新帧 details availBal
-// （T-0048 返修③：depositIdle 自 AcctTrading 摆钱——资金户=错户已纠；
-// push-on-change 帧龄不判陈，陈度归 WS 活性件管）。
-func okxAvailFromEvents(ctx context.Context, pool *pgxpool.Pool, okcli *okxexec.Client) (float64, error) {
-	var data json.RawMessage
-	if err := pool.QueryRow(ctx, `SELECT data FROM md_account_events
-		WHERE channel='account' ORDER BY ts DESC LIMIT 1`).Scan(&data); err != nil {
-		if okcli == nil {
-			return 0, err
-		}
-		return okcli.TradingAvailBal(ctx, "USDT") // 帧缺→REST 兜底（T-0058）
-	}
-	var top struct {
-		Details []struct {
-			Ccy      string `json:"ccy"`
-			AvailBal string `json:"availBal"`
-		} `json:"details"`
-	}
-	if err := json.Unmarshal(data, &top); err != nil {
-		return 0, err
-	}
-	for _, d := range top.Details {
-		if d.Ccy == "USDT" {
-			return parseNum(d.AvailBal), nil
-		}
-	}
-	if okcli != nil {
-		return okcli.TradingAvailBal(ctx, "USDT") // USDT 行缺=REST 兜底
-	}
-	return 0, fmt.Errorf("USDT 行缺席")
-}
-
-// ctValReader 合约面值现读件（T-0046①——T-0048 三令后 facts 表废，改 okx
-// instruments 决策时点现读；静态乐器属性 10min TTL 缓存：guard 逐 tick 事件评
-// 估，无缓存=限速自杀。读败/零值=false fail-closed 漂移判据跳过不误判）。
-func ctValReader(okcli *okxexec.Client) func(ctx context.Context, venue, instID string) (float64, bool) {
-	var mu sync.Mutex
-	type ent struct {
-		v  float64
-		at time.Time
-	}
-	cache := map[string]ent{}
-	return func(ctx context.Context, venue, instID string) (float64, bool) {
-		if okcli == nil || venue != "okx" || !strings.HasSuffix(instID, "-SWAP") {
-			return 0, false
-		}
-		mu.Lock()
-		e, ok := cache[instID]
-		mu.Unlock()
-		if ok && time.Since(e.at) < 10*time.Minute {
-			return e.v, e.v > 0
-		}
-		m, err := okcli.InstrumentMeta(ctx, "SWAP", instID)
-		if err != nil || m.CtVal <= 0 {
-			return 0, false
-		}
-		mu.Lock()
-		cache[instID] = ent{m.CtVal, time.Now()}
-		mu.Unlock()
-		return m.CtVal, true
-	}
-}
-
-// okxFundingAvailUSDT funding 户 USDT 闲余（T-0149 ②——/asset/balances REST
-// 低频件；入金天然落 funding 面钦定补漏；无行=0 不误报）。
-func okxFundingAvailUSDT(ctx context.Context, okcli *okxexec.Client) (float64, error) {
-	rows, err := okcli.AssetBalances(ctx)
-	if err != nil {
-		return 0, err
-	}
-	for _, r := range rows {
-		if r.Ccy == "USDT" {
-			var v float64
-			fmt.Sscanf(r.AvailBal, "%f", &v)
-			return v, nil
-		}
-	}
-	return 0, nil
 }

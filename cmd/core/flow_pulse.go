@@ -64,6 +64,12 @@ func (c coreService) GetFlowPulse(ctx context.Context,
 			st.State = StageLamp(d.key, st.LagS, ts != nil)
 			if d.neutral {
 				st.State = 3 // 恒中性灰——事件驱动段无节拍阈
+				switch d.key {
+				case "proposal":
+					st.Status = c.proposalStatus(ctx) // T-0350 态标非龄
+				case "exec":
+					st.Status = c.execStatus(ctx)
+				}
 			}
 		}
 		resp.Stages = append(resp.Stages, st)
@@ -130,8 +136,8 @@ func (c coreService) workItems(ctx context.Context) []*dashboardv1.WorkItem {
 	}
 	// ②position 未平+残仓臂（T-0327——venue 在持无活策略归属类级入集：策略
 	// 死/产品活幽灵态在工件面显形；读件缺=显缺行不静默不假零）。
-	if rs, err := c.pool.Query(ctx, `SELECT inst_id, opened_at FROM fin_position
-		WHERE closed_at IS NULL ORDER BY opened_at DESC`); err == nil {
+	if rs, err := c.pool.Query(ctx, `SELECT inst_id, ts FROM fin_position_view
+		WHERE kind='exec' AND closed_at IS NULL ORDER BY ts DESC`); err == nil {
 		for rs.Next() {
 			var inst string
 			var ts *time.Time
