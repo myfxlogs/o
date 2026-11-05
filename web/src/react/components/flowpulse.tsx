@@ -45,7 +45,7 @@ export function WorkItemsBlock() {
 		const s = Math.floor((Date.now() - Number(t.seconds) * 1000) / 1000);
 		return s >= 3600 ? `${(s / 3600).toFixed(1)}h` : s >= 60 ? `${(s / 60).toFixed(0)}m` : `${s}s`;
 	};
-	const KIND: Record<string, string> = { proposal: "提案", position: "持仓", venue: "找平台" };
+	const KIND: Record<string, string> = { proposal: "提案", position: "持仓", venue: "侦察" };
 	return (
 		<div className="tile-scroll">
 			{items.map((w) => (
