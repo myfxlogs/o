@@ -1265,3 +1265,20 @@
   远端同文 R100），两推分离=标准径（本班实撞 3 拒后取证）。
 - 本拍待裁/待派闸清零；T-0377 在飞施工中（外派件收口回 DM 常径，
   下班承接）；无升件。
+
+## 2026-11-05 决策席班次（T-0377 返修1 裁过+发窗清零部署）
+
+- **T-0377 裁决=通过**（返修1 收口 fc54263a）：迁移 fin_0116→0117
+  重号解 hunger_window 撞号+migrate_table 同序+头注/票面同步，
+  首裁过审码面六件零碰。check_all 全链绿本席亲跑对口 fc54263a
+  （migrations 七断言含原红闸过）。两推分离过 T-0219 闸：
+  merge@9f6598e0+票翻@b5094f50 推①，归done/@eb15f1e9 推②；
+  ops_event 裁决#2294/完成#2295 走 report.sh 双写径零重行。
+- **注意账**：返修1 收口 SHA 仅在本地支（wt /opt/o-wt/t0377r，
+  远端支仍滞留 d2fe02bd）——merge 自本地 SHA 照常，master 合入即
+  远端可达；下班幂等查支以 origin/master 含收口 SHA 为准仍成立。
+- **发窗**：T-0377 清堵=阻塞集清零，T-0376+T-0377 同窗部署
+  o-core:eb15f1e98514 →SG healthy；fin 链水位 117 亲证（SG
+  o-postgres schema_migrations），md 链 1089 随窗齐。xvenue-carry
+  首案激活=部署后 ev_strategy/ev_eval 有机触发（票面禁绕径手建）。
+- 本拍 rescan 队列空；无升件、无返修新票。
