@@ -1,7 +1,15 @@
 # T-0356 volsell 族复役——期权卖权限已开
 
-- 状态：已批（COS 例行代理批——业主令「期权的权限已打开」+「出维修
-  提示词我外派」定案）
+- 状态：完成（决策席无头拍裁决通过 @2026-11-05——合 master；
+  收口支 tip=51a2cd0c，check_all 本席 verify 树复跑全链绿戳对口
+  （专 DSN 5437 避 5434 并行挤兑——events 时敏测假红=在案负载
+  flake）；merge-tree 零冲突；根因=okx/dcd 目录面 disabled 连坐
+  vol_sell NeedFace 不枚举（SG 只读实证）；担保腿非 USDT 域走
+  fin_condition_gap 条件盒零 armed；enabled 键本次保 false——
+  部署后验项：fin_0114/md_1089 随新 binary 落库生效后，按
+  docs/runbooks/T-0356-volsell-revival.md 四步序翻 SG 正本
+  enabled→vol_sell 新 eval 实出+担保提案落盒非 armed｜原状态：已批）
+- 领取：无头施工席 @ 2026-11-05（业主令外派）
 - 级别：P2 产线残缺——评估空转族：vol_sell_single_call/strangle
   模板在册 grammar 臂枚举不停，而 fin_opp_eval 行止于 10-30，
   8.6k 模板零评估产出=枚举烧算力零收益面
