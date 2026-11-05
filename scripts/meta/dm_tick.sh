@@ -158,4 +158,13 @@ if [ -n "$FIN_DSN" ]; then
     fi
   done
 fi
+
+# T-0365 挂起黑洞看门狗消费窗（零 LLM 段尾——消费面≠状态机：挂起不迁
+# 相位，只多开一扇扫描窗）。未消化挂起行机械二择：await=绿窗 档复跑
+# 测试已消→dispatch_worker 续跑（note「挂起续跑」）；未消且>4h→升件
+# 呈业主。rate-limit:auto 挂起归上段既有窗不重复消费。
+if [ -n "$FIN_DSN" ]; then
+  DM_SUSPEND_SH=${O_DM_SUSPEND_SH:-"$SCRIPT_DIR/dm_suspend.sh"}
+  "$DM_SUSPEND_SH" || true
+fi
 exit 0
