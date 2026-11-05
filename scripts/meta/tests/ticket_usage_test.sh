@@ -24,6 +24,7 @@ while (($#)); do
 	esac
 	shift
 done
+[[ -n "$sql" ]] || sql=$(cat)
 grep -Fq 'pg_advisory_xact_lock' <<<"$sql"
 grep -Fq "source='devin-cli'" <<<"$sql"
 grep -Fq "(regexp_match(note, '^session=([^;]+);'))[1] = :'session'" <<<"$sql"

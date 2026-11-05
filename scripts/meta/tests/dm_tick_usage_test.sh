@@ -10,6 +10,7 @@ cat > "$TMP/bin/psql" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 query=${*: -1}
+[[ $query == "-" ]] && query=$(cat)
 case "$query" in
 	"-qAt") echo t ;; # T-0354 advisory-lock holder 桩（无 -c=锁会话形，答 t 放行）
 	*"SELECT count(*)"*) echo "$DM_PENDING_COUNT" ;;
@@ -18,7 +19,7 @@ case "$query" in
 	*"WITH lock AS MATERIALIZED"*)
 		grep -Fq "source='devin-cli'" <<<"$query"
 		[[ ${DM_USAGE_FAIL:-0} != 1 ]] || exit 1
-		printf '%s\n' "$*" >> "$USAGE_INSERTS"
+		printf '%s\n%s\n' "$*" "$query" >> "$USAGE_INSERTS"
 		echo inserted
 		;;
 	*"INSERT INTO ops_headless"*) ;;

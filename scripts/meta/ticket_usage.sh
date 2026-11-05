@@ -106,7 +106,7 @@ SQL
 if ! RESULT=$(psql "$DSN" -XqAt -v ON_ERROR_STOP=1 \
 	-v "ticket=$TICKET" -v "kind=$KIND" -v "model=$MODEL" \
 	-v "session=$SESSION" -v "prompt=$PROMPT" -v "completion=$COMPLETION" \
-	-v "cached=$CACHED" -v "note=$NOTE" -c "$SQL"); then
+	-v "cached=$CACHED" -v "note=$NOTE" -f - <<<"$SQL"); then
 	echo "[usage] ops_ticket_usage write failed for $TICKET/$SESSION" >&2
 	exit 1
 fi
