@@ -17,6 +17,7 @@ ENVF="${DM_ENV_FILE:-/opt/o-research/env}"
 FIN_DSN=$(grep '^FIN_PG_DSN=' "$ENVF" 2>/dev/null | cut -d= -f2- | tr -d '"')
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 DM_QUEUE_SH=${O_DM_QUEUE_SH:-"$SCRIPT_DIR/dm_queue.sh"}
+ESCALATE_SH=${O_DM_ESCALATE_SH:-"$SCRIPT_DIR/escalate.sh"}
 
 hb() { # $1=state 心跳行（META-DM——meta 席位口径）
   [ -n "$FIN_DSN" ] || return 0
@@ -24,6 +25,19 @@ hb() { # $1=state 心跳行（META-DM——meta 席位口径）
     VALUES('META-DM','决策席','$1',now())
     ON CONFLICT (ticket) DO UPDATE SET seat=EXCLUDED.seat,
       state=EXCLUDED.state,last_activity=now(),updated_at=now()" >/dev/null 2>&1 || true
+}
+
+# T-0369 容错必报首用（立法后第一改造面）：usage 采集面败→ops_event
+# 升件行自报（禁只打 stderr）。同窗去重防事件暴——note 前缀为键 24h
+# 内至多一行；dedup 查询自身败=空答→照常升（报侧 fail-open 不吞讯）。
+# $1=归属票（META-DM 或单票） $2=败情一句话。
+usage_esc() {
+  [ -n "$FIN_DSN" ] || return 0
+  psql "$FIN_DSN" -qAt -c "SELECT 1 FROM ops_event WHERE event='升件'
+    AND note LIKE 'usage 采集败%' AND ts>now()-interval '24 hours'
+    LIMIT 1" 2>/dev/null | grep -qx 1 && return 0
+  "$ESCALATE_SH" META-DM "$1" 写败 META-DM-USAGE \
+    "usage 采集败——$2" || true # tolerate: 升件写径末环——败=结构性静默，对拍面兜底
 }
 
 # —— T-0354 件③ 单例闸：PG advisory lock（int8 专键）。holder=psql 连接
@@ -108,9 +122,11 @@ if [ "$SKIP_DECISION" -eq 0 ]; then
       rm -rf -- "$USAGE_DIR"
     else
       echo "[dm] token usage collection failed; continuing decision lifecycle; transcript kept=$USAGE_DIR" >&2
+      usage_esc "$USAGE_TICKET" "写径败 transcript kept=$USAGE_DIR"
     fi
   else
     echo "[dm] token transcript missing/empty; continuing decision lifecycle" >&2
+    usage_esc "$USAGE_TICKET" "transcript 缺/空——export 未产"
     rm -rf -- "$USAGE_DIR"
   fi
   # ⑤ 每拍心跳全件（成败同写——败拍=stalled 显形非隐）。
