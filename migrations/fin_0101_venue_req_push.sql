@@ -13,6 +13,7 @@ INSERT INTO fin_data_retention(table_name,class,note) VALUES
   ('md_venue_req_push','state','推送幂等锚不重推（T-0312）')
 ON CONFLICT (table_name) DO NOTHING;
 -- O 群 venue 注册请求推送开关（默认开——业主钦定要收）。
+-- 钱径通知开关：venue_req 注册请求归钱径列，键值及投递行为不变。
 INSERT INTO app_config(key,value) VALUES
   ('notify.feishu.venue_req.enabled','true'::jsonb)
 ON CONFLICT (key) DO NOTHING;

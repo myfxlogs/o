@@ -19,6 +19,7 @@ COMMENT ON TABLE fin_econ_lesson IS
 INSERT INTO fin_data_retention(table_name,class,note) VALUES
   ('fin_econ_lesson','state','经济案锚表不删行（T-0314）')
 ON CONFLICT (table_name) DO NOTHING;
+-- 信息面非钱径通知开关：econ_digest 仅发经验案摘要，不代表资金事件。
 INSERT INTO app_config(key,value) VALUES
   ('notify.feishu.econ_digest.enabled','true'::jsonb),
   -- R1：gatefx Apply 「不在插行」防线配键先 seed（两拍分权——seed 立册

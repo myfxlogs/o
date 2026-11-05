@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS md_calendar_push (
     event_key  text PRIMARY KEY,  -- title|date|time 组合键（同事件幂等锚）
     sent_at    timestamptz NOT NULL DEFAULT now()
 );
+-- 信息面非钱径通知开关：只控制日历提醒，不产生或代表资金事件。
 INSERT INTO app_config(key,value) VALUES
   ('notify.feishu.calendar.enabled','"false"'),
   ('calendar.min_impact','"High"'),
