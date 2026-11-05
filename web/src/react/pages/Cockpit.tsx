@@ -76,12 +76,12 @@ function SeatBadge(props: { s: CockpitPipelineStep }) {
 }
 
 // PipelineTile 工作流管道（v4 主瓦片——pipeline 分片：首帧 getCockpit.pipeline
-// 一往返，后 ev_pipeline 流推 seq 水印去重；断流复连 unary 回补。行=1 票：
+// 一往返，后 ev_pipeline 流推 seq 序号去重；断流复连 unary 回补。行=1 票：
 // 行级灯+票号+标题+步链+已历时；活跃>20 截断「+N more」（服务端 total_active）。
 // 完结（部署上线）票不入 rows——行自动退场即流推帧）。
 export function PipelineTile() {
 	const pl = useSlice("pipeline");
-	const extra = pl.data ? <StateDot state={0} breathe title={`${pl.data.rows.length}/${pl.data.totalActive} 在飞 · 水印 ${pl.data.seq}`} /> : undefined;
+	const extra = pl.data ? <StateDot state={0} breathe title={`${pl.data.rows.length}/${pl.data.totalActive} 在飞 · 序号 ${pl.data.seq}`} /> : undefined;
 	if (!pl.data) return <Card title="③ 工作流管道" extra={extra}>{pl.err ? <p className="dim">该段数据缺（读败）</p> : <Skeleton rows={4} />}</Card>;
 	return (
 		<Card title="③ 工作流管道" extra={extra}>
@@ -95,7 +95,7 @@ export function PipelineTile() {
 // 消费：票号/标题/步链/灯整体挪位，GetPipeline 端点不删；钱径舱位让 WorkItems）。
 export function OrgPipelineTile() {
 	const pl = useSlice("pipeline");
-	const extra = pl.data ? <StateDot state={0} breathe title={`${pl.data.rows.length}/${pl.data.totalActive} 在飞 · 水印 ${pl.data.seq}`} /> : undefined;
+	const extra = pl.data ? <StateDot state={0} breathe title={`${pl.data.rows.length}/${pl.data.totalActive} 在飞 · 序号 ${pl.data.seq}`} /> : undefined;
 	if (!pl.data) return <Card title="工程票管道" extra={extra}>{pl.err ? <p className="dim">该段数据缺（读败）</p> : <Skeleton rows={4} />}</Card>;
 	const rows = pl.data.rows;
 	const more = Number(pl.data.totalActive) - rows.length;
@@ -171,7 +171,7 @@ export function CockpitPage() {
 			</div>
 			<Card title="③ 工作流管道"><Skeleton rows={4} /></Card>
 			<div className="duo">
-				<Card title="④ 待开仓（armed）"><Skeleton rows={3} /></Card>
+				<Card title="④ 待开仓"><Skeleton rows={3} /></Card>
 				<Card title="①② 钱面平台明细"><Skeleton rows={4} /></Card>
 			</div>
 		</div>
@@ -255,9 +255,9 @@ export function CockpitPage() {
 			<PipelineTile />
 			{/* —— 底档·④要我动的（armed）+①②平台明细（v3.2 同档保留卡不动）—— */}
 			<div className="duo">
-				<Card title="④ 待开仓（armed）"
+				<Card title="④ 待开仓"
 					extra={<StateDot state={miss.has("armed") ? 2 : 0} breathe={!miss.has("armed")} title={`${d.armed.length} 单 · 更新 ${asOfAge}`} />}>{sec("armed",
-					d.armed.length === 0 ? <EmptyState title="无待开仓" hint="armed 队列为空——无待动事项" /> :
+						d.armed.length === 0 ? <EmptyState title="无待开仓" hint="待开仓队列为空——当前没有待处理事项" /> :
 						<div className="tile-scroll"><table className="tile-table"><thead><tr><th>#</th><th>标的</th><th>方向</th><th>建时</th><th>TTL余(h)</th></tr></thead>
 							<tbody>{d.armed.map((a: CockpitArmed) => <tr key={a.id}><td>{a.id}</td><td>{a.instId}</td>
 								<td>{a.direction}</td><td>{ts(a.created)}</td><td>{a.ttlHoursLeft.toFixed(1)}</td></tr>)}</tbody></table></div>)}

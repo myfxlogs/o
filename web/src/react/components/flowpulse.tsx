@@ -5,7 +5,7 @@ import { client } from "../api";
 import { useLive } from "../hooks";
 import type { FlowStage } from "../../gen/dashboardv1/core_pb";
 import { EmptyState, StateDot } from "./ui";
-import { humanStatus } from "./pipeStatus";
+import { flowStageCopy, humanStatus } from "./pipeStatus";
 
 // 活水段（T-0307：运行时机器流段链——票=组织流语义不混，
 // 段=机器流；灯色服务端 StageLamp 派生——阈按各臂节拍常量钉）。
@@ -18,7 +18,6 @@ export function FlowPulseStrip() {
 
 // FlowPulseView 纯渲染件（hook 外置——DOM 断言可直注合成态）。
 export function FlowPulseView(props: { stages: FlowStage[]; rosterCount: number; rosterWorstLagS: bigint }) {
-	const fmtLag = (s: number) => (s >= 3600 ? `${(s / 3600).toFixed(1)}h` : s >= 60 ? `${(s / 60).toFixed(0)}m` : `${s}s`);
 	const ago = (s: number) => (s < 60 ? "刚刚" : s < 3600 ? `${Math.floor(s / 60)}分钟前` : s < 86400 ? `${Math.floor(s / 3600)}小时前` : `${Math.floor(s / 86400)}天前`);
 	const stages = props.stages;
 	// 判词机械派生：首个黄/红段=断点（灰中性段跳过）；全绿灰而 eval 段带
@@ -36,9 +35,21 @@ export function FlowPulseView(props: { stages: FlowStage[]; rosterCount: number;
 			: "活水正常";
 	const vcls = bad >= 0 ? (stages[bad].state === 2 ? "s2" : "s1") : "s0";
 	const mid = (st: FlowStage) =>
-		!st.ok ? "缺" : Number(st.count24h) > 0 ? String(st.count24h) : plain(st).short || "—";
+		!st.ok ? "缺" : plain(st).idle ? "闲" : Number(st.count24h) > 0 ? String(st.count24h) : plain(st).short || "—";
 	const lagText = (st: FlowStage) =>
-		!st.ok ? "查询败" : !st.lastTs ? "无行" : ago(Number(st.lagS));
+		!st.ok ? "读取失败" : !st.lastTs ? "暂无数据" : ago(Number(st.lagS));
+	const cardTitle = (st: FlowStage) => {
+		const copy = flowStageCopy(st.key);
+		const cadence = copy.eventDriven ? "事件驱动，无固定节奏" : copy.cadence;
+		const recent = copy.eventDriven ? "" : st.ok
+			? `，最近一次写入${st.lastTs ? ago(Number(st.lagS)) : "暂无数据"}`
+			: "，最近一次写入读取失败，该段显示为缺";
+		const count = st.ok
+			? `近 24 小时 ${st.count24h} ${copy.unit}`
+			: "近 24 小时数据读取失败";
+		const detail = plain(st).detail;
+		return `${st.label}——${copy.what}；${cadence}${recent}；${count}${detail ? `；${detail}` : ""}`;
+	};
 	return (
 		<div className="pulse-strip">
 			<div className={`pipe-verdict ${vcls}`}>{verdict}</div>
@@ -52,13 +63,13 @@ export function FlowPulseView(props: { stages: FlowStage[]; rosterCount: number;
 									<span className="pipe-line" />▸
 								</span>
 							)}
-							<div className="pipe-card" title={`${st.label}${p.detail ? ` · ${p.detail}` : ""} · 预期节拍 ${fmtLag(Number(st.expectS))} · 24h ${st.count24h} 行`}>
+							<div className="pipe-card" title={cardTitle(st)}>
 								<div className="pipe-card-top">
 									<StateDot state={st.state} breathe={st.state === 0}
-										title={`${st.label}：${st.ok ? (st.lastTs ? `末行 ${ago(Number(st.lagS))}` : "无行") : "查询败显缺"}`} />
+										title={`${st.label}：${!st.ok ? "读取失败——该段显示为缺" : !st.lastTs ? "暂无数据" : `最近一次写入${ago(Number(st.lagS))}`}`} />
 									{st.label}
 								</div>
-								<div className="pipe-card-num">{mid(st)}</div>
+								<div className={`pipe-card-num${p.idle ? " pipe-card-num-hungry" : ""}`}>{mid(st)}</div>
 								<div className="pipe-card-lag">{lagText(st)}</div>
 							</div>
 						</Fragment>
@@ -80,7 +91,7 @@ export function WorkItemsBlock() {
 	const fp = useLive(["ev_funding", "ev_eval", "ev_proposal", "ev_position"], () => client.getFlowPulse({}));
 	if (!fp.data) return fp.err ? <p className="dim">工件行数据缺（读败）</p> : null;
 	const items = fp.data.workItems ?? [];
-	if (items.length === 0) return <EmptyState title="无在飞工件" hint="钱径工件（提案/持仓/venue 度量）为零" />;
+	if (items.length === 0) return <EmptyState title="无在飞工件" hint="钱径工件（提案、持仓、交易所度量）为零" />;
 	const ago = (t?: { seconds: bigint }) => {
 		if (!t) return "—";
 		const s = Math.floor((Date.now() - Number(t.seconds) * 1000) / 1000);

@@ -139,6 +139,9 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.pipe-card-num-hungry {
+	color: #d88924; /* 饿/等是暖色；与告警黄分档，也不借用缺态灰。 */
+}
 .pipe-card-lag {
   font-size: 11.5px;
   color: var(--ink-3, #8a8f98);

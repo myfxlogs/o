@@ -31,8 +31,11 @@ export function MetaSeats({ rows, hlL, fmtLagMin }: {
 		const a = age(r);
 		const color = st === "停滞" || st === "死亡" || st === "逾期" ? "u-bad"
 			: st === "完工" ? "dim" : "u-good";
-		return <div className="kpi-note" key={r.ticket} title={`${r.ticket} 态=${r.state}`}>
-			<StateDot state={color === "u-bad" ? 2 : color === "dim" ? 3 : 0} breathe={st === "在飞"} /> {r.seat || r.ticket} · {st} · {fmtLagMin(a)}
+		const seatName = r.seat
+			? r.seat.replace(/venuewatch/gi, "交易所侦察").replace(/venue/gi, "交易所")
+			: r.ticket === "META-VENUEWATCH" ? "交易所哨兵" : "行情分析席";
+		return <div className="kpi-note" key={r.ticket} title={`${seatName}当前状态：${st}`}>
+			<StateDot state={color === "u-bad" ? 2 : color === "dim" ? 3 : 0} breathe={st === "在飞"} /> {seatName} · {st} · {fmtLagMin(a)}
 		</div>;
 	})}</>);
 }

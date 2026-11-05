@@ -82,7 +82,7 @@ export function VenueBoardCard() {
       ) : r.err && !r.data ? (
         <ErrorState msg={r.err} onRetry={r.reload} />
       ) : rows.length === 0 ? (
-        <EmptyState title="scout 榜空" hint="venue 度量臂日拍后出行" />
+        <EmptyState title="侦察榜暂无数据" hint="交易所度量每日更新后展示" />
       ) : (
         <details className="vboard">
           <summary>

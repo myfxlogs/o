@@ -47,13 +47,13 @@ const render = (rows) => renderToStaticMarkup(h(MetaSeats, { rows, hlL, fmtLagMi
 let fail = 0, n = 0;
 const check = (name, cond) => { n++; console.log(`${cond ? "PASS" : "FAIL"} ${name}`); if (!cond) fail++; };
 
-// ① 白名单阳性——两业务席鲜行全渲（真表现形：REGIME=分析席/VENUEWATCH=venue哨兵）
+// ① 白名单阳性——两业务席鲜行全渲（面向读者显示分析席/交易所哨兵）。
 const base = render([
 	row("META-REGIME", "分析席", "在飞", 120),
-	row("META-VENUEWATCH", "venue哨兵", "在飞", 600),
+	row("META-VENUEWATCH", "交易所哨兵", "在飞", 600),
 ]);
-check("白名单阳性:REGIME 渲", base.includes("META-REGIME"));
-check("白名单阳性:VENUEWATCH 渲", base.includes("META-VENUEWATCH"));
+check("白名单阳性:REGIME 渲且状态悬停人话", base.includes("分析席当前状态：在飞"));
+check("白名单阳性:VENUEWATCH 渲且状态悬停人话", base.includes("交易所哨兵当前状态：在飞"));
 check("白名单阳性:恰好两注行", (base.match(/kpi-note/g) || []).length === 2);
 
 // ② 工程席零现——DM/VERDICT/GAUGES/GC/Dev-T-* 全不渲（真表僵尸样本 T-0329 对形）
@@ -71,7 +71,7 @@ check("工程席零现:注行数为零", (eng.match(/kpi-note/g) || []).length =
 //    输出若现 u-bad 即标红径残留）
 const over = render([
 	row("META-REGIME", "分析席", "在飞", 3600), // >1800s 超龄
-	row("META-VENUEWATCH", "venue哨兵", "在飞", 600),
+	row("META-VENUEWATCH", "交易所哨兵", "在飞", 600),
 ]);
 check("超龄剔行:REGIME 超龄行不渲", !over.includes("META-REGIME"));
 check("超龄剔行:剔行非标红（零 u-bad）", !over.includes("u-bad"));
@@ -79,21 +79,23 @@ check("超龄剔行:余 VENUEWATCH 一行", (over.match(/kpi-note/g) || []).leng
 
 // ④ 龄闸边界——恰等 cadence（3600=3600）不超不剔；超 1s 即剔
 const edge = render([
-	row("META-VENUEWATCH", "venue哨兵", "在飞", 3600),
+	row("META-VENUEWATCH", "交易所哨兵", "在飞", 3600),
 ]);
-check("龄闸边界:恰等 cadence 渲", edge.includes("META-VENUEWATCH"));
+check("龄闸边界:恰等 cadence 渲", edge.includes("交易所哨兵"));
 const edge1 = render([
-	row("META-VENUEWATCH", "venue哨兵", "在飞", 3601),
+	row("META-VENUEWATCH", "交易所哨兵", "在飞", 3601),
 ]);
-check("龄闸边界:超 1s 即剔", !edge1.includes("META-VENUEWATCH"));
+check("龄闸边界:超 1s 即剔", !edge1.includes("交易所哨兵"));
 
 // ⑤ 白名单外默认不显——非 META 票与无 lastActivity 白名单行各对拍
 const misc = render([
 	row("BASESWP", "Dev", "在飞", 10),          // 非 META 票
 	row("META-REGIME", "分析席", "在飞", 0, false), // 白名单缺时间戳=age0 渲（承旧语义）
+	row("META-VENUEWATCH", "", "在飞", 0, false), // 座席名缺失时也显示人话名
 ]);
 check("白名单外:非 META 票不渲", !misc.includes("BASESWP"));
-check("缺时间戳:白名单行 age0 渲", misc.includes("META-REGIME"));
+check("缺时间戳:白名单行 age0 渲", misc.includes("分析席"));
+check("座席名缺失仍给人话名", misc.includes("交易所哨兵") && !misc.includes("META-VENUEWATCH"));
 
 console.log(fail === 0 ? `DOM-ASSERT 全绿 ${n}/${n}` : `DOM-ASSERT 红 ${n - fail}/${n} 失败`);
 process.exit(fail === 0 ? 0 : 1);
