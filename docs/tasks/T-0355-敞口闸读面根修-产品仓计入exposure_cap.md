@@ -1,6 +1,10 @@
 # T-0355 敞口闸读面根修——产品仓计入 exposure_cap
 
-- 状态：待验
+- 状态：完成（决策席无头拍裁决通过 @2026-11-05——合
+  master@132fe760；收口支 tip=d6212c59，check_all 本席 verify 树
+  复跑全链绿戳对口（专 DSN 5437）；票面 add/add 冲突取收口支
+  完工回填版；三码面锚本席复跑实见；部署后验=首张 open intent
+  的 fin_risk_decision 留痕见 dcdUSD 入 tExp｜原状态：待验）
 - 领取：devin-t0355 @ 2026-11-05（业主令外派复工 run）
 - 级别：P2 风控语义——闸漏看真仓位：DCD 0.0207 BTC（~$2.2k）在
   exposure_cap 判据里零计，新单压线时闸会按欠账放行=超真敞口
