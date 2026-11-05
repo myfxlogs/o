@@ -5,6 +5,7 @@ import { client } from "../api";
 import { useLive } from "../hooks";
 import type { FlowStage } from "../../gen/dashboardv1/core_pb";
 import { EmptyState, StateDot } from "./ui";
+import { humanStatus } from "./pipeStatus";
 
 // 活水段（T-0307：运行时机器流段链——票=组织流语义不混，
 // 段=机器流；灯色服务端 StageLamp 派生——阈按各臂节拍常量钉）。
@@ -23,39 +24,46 @@ export function FlowPulseView(props: { stages: FlowStage[]; rosterCount: number;
 	// 判词机械派生：首个黄/红段=断点（灰中性段跳过）；全绿灰而 eval 段带
 	// 态标=饿殍期（阈未达类）；余=活水正常。不造神谕。
 	const bad = stages.findIndex((st) => st.state === 1 || st.state === 2);
-	const evalStatus = bad < 0 ? stages.find((st) => st.key === "eval" && st.status)?.status : undefined;
+	// T-0366 人话面：态标一律过 humanStatus——机器原文（net_apr/阈/armed 等）
+	// 禁入前端任何层；可见面=人话短句，悬停=人话详述带数值（评估实数同源）。
+	const evalCount = Number(stages.find((st) => st.key === "eval")?.count24h ?? 0);
+	const plain = (st: FlowStage) => humanStatus(st.key, st.status, evalCount);
+	const evalStatus = bad < 0 ? stages.find((st) => st.key === "eval" && st.status) : undefined;
 	const verdict = bad >= 0
 		? `断在 ${bad > 0 ? stages[bad - 1].label + "→" : ""}${stages[bad].label}`
 		: evalStatus
-			? `饿殍期·${evalStatus}`
+			? `饿殍期·${plain(evalStatus).short}`
 			: "活水正常";
 	const vcls = bad >= 0 ? (stages[bad].state === 2 ? "s2" : "s1") : "s0";
 	const mid = (st: FlowStage) =>
-		!st.ok ? "缺" : Number(st.count24h) > 0 ? String(st.count24h) : st.status || "—";
+		!st.ok ? "缺" : Number(st.count24h) > 0 ? String(st.count24h) : plain(st).short || "—";
 	const lagText = (st: FlowStage) =>
 		!st.ok ? "查询败" : !st.lastTs ? "无行" : ago(Number(st.lagS));
 	return (
 		<div className="pulse-strip">
 			<div className={`pipe-verdict ${vcls}`}>{verdict}</div>
 			<div className="pipe-flow">
-				{stages.map((st, i) => (
-					<Fragment key={st.key}>
-						{i > 0 && (
-							<span className="pipe-link" aria-hidden>
-								<span className="pipe-line" />▸
-							</span>
-						)}
-						<div className="pipe-card" title={`${st.label} · 预期节拍 ${fmtLag(Number(st.expectS))} · 24h ${st.count24h} 行`}>
-							<div className="pipe-card-top">
-								<StateDot state={st.state} breathe={st.state === 0}
-									title={`${st.label}：${st.ok ? (st.lastTs ? `末行 ${ago(Number(st.lagS))}` : "无行") : "查询败显缺"}`} />
-								{st.label}
+				{stages.map((st, i) => {
+					const p = plain(st);
+					return (
+						<Fragment key={st.key}>
+							{i > 0 && (
+								<span className="pipe-link" aria-hidden>
+									<span className="pipe-line" />▸
+								</span>
+							)}
+							<div className="pipe-card" title={`${st.label}${p.detail ? ` · ${p.detail}` : ""} · 预期节拍 ${fmtLag(Number(st.expectS))} · 24h ${st.count24h} 行`}>
+								<div className="pipe-card-top">
+									<StateDot state={st.state} breathe={st.state === 0}
+										title={`${st.label}：${st.ok ? (st.lastTs ? `末行 ${ago(Number(st.lagS))}` : "无行") : "查询败显缺"}`} />
+									{st.label}
+								</div>
+								<div className="pipe-card-num">{mid(st)}</div>
+								<div className="pipe-card-lag">{lagText(st)}</div>
 							</div>
-							<div className="pipe-card-num">{mid(st)}</div>
-							<div className="pipe-card-lag">{lagText(st)}</div>
-						</div>
-					</Fragment>
-				))}
+						</Fragment>
+					);
+				})}
 			</div>
 			<div className="ink-3" style={{ marginTop: 6 }}>
 				{props.rosterCount} 岗在岗 · 最坏滞后 {ago(Number(props.rosterWorstLagS))}

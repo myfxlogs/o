@@ -2,10 +2,11 @@
 // metaseats-domtest.mjs：renderToStaticMarkup+esbuild 捆扎，零新依赖）。
 // 断言锚：①管道形（pipe-link 连接线+▸ 箭头数=段数−1，态点四色 s0~s3 齐档）；
 // ②滞后全人话档（无裸 m/h 小数）；③判词行实出且断点定位正确（灰中性段跳过）；
-// ④饿殍期分支（eval 态标派生）；⑤数据零新增（只渲 FlowStage 现字段）。
+// ④饿殍期分支（eval 态标派生）；⑤数据零新增（只渲 FlowStage 现字段）；
+// ⑥拒因人话面（T-0366——可见短句+悬停详述带数值，机器原文禁入渲染树任何层）。
 // 运行：node scripts/flowpulse-domtest.mjs（web/ 下）。
 import { build } from "esbuild";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -82,13 +83,49 @@ check("③无行段→status 摘要显形", htmlBad.includes("扫描中") && htm
 const famine = keys.map((k, i) =>
 	stage(k, labels[i], i === 6 ? 3 : 0, 60, 0, i === 2 ? { status: "评估连续全拒（阈未达）" } : {}));
 const htmlFam = render(famine);
-check("④判词行=饿殍期·eval态标", htmlFam.includes("饿殍期·评估连续全拒（阈未达）"));
+check("④判词行=饿殍期·eval态标(人话化)", htmlFam.includes("饿殍期·评估连续全拒（未过放行线）") && !htmlFam.includes("阈"));
 check("④判词 s0 中性色", htmlFam.includes('class="pipe-verdict s0"'));
 
 // —— 读败段：ok=false → 缺/查询败 ——
 const dead = [stage("collect", "采集", 0, 30, 5, { ok: false })];
 const htmlDead = render(dead);
 check("⑤查询败段→缺+查询败", htmlDead.includes('pipe-card-num">缺') && htmlDead.includes("查询败"));
+
+// —— 拒因人话面（T-0366：可见面短句人话/悬停人话详述带数值/机器原文
+// 禁入渲染树任何层含 title/aria——net_apr|阈|armed|snake_case 断言）——
+const rejected = [
+	stage("collect", "采集", 0, 30, 100),
+	stage("bridge", "桥接", 0, 60, 60),
+	stage("eval", "评估", 0, 120, 47),
+	stage("proposal", "提案", 3, 30, 0, { status: "闲·评估全拒（末因 net_apr<阈）" }),
+	stage("exec", "执行", 3, 30, 0, { status: "闲·无 armed" }),
+	stage("report", "报表", 0, 300, 4),
+	stage("scout", "侦察", 0, 400, 2),
+];
+const htmlRej = render(rejected);
+check("⑥可见面人话短句=评估全拒（无达标机会）", htmlRej.includes("闲·评估全拒（无达标机会）"));
+check("⑥机器原文禁入渲染树任何层(net_apr/阈/armed)",
+	!/(net_apr|阈|armed|below_earn|basis_below|apr_est)/.test(htmlRej));
+check("⑥悬停人话详述带数值(评估47个机会)",
+	htmlRej.includes("评估 47 个机会全部未过放行线") && htmlRej.includes("测算净年化低于放行线"));
+check("⑥执行段态词人话化=无真执行流水", htmlRej.includes("闲·无真执行流水"));
+const armed = keys.map((k, i) =>
+	stage(k, labels[i], 0, 30, k === "proposal" ? 0 : 5, k === "proposal" ? { status: "活跃·3 armed" } : {}));
+const htmlArm = render(armed);
+check("⑥活态人话=3 个在飞提案+详述", htmlArm.includes("活跃·3 个在飞提案")
+	&& htmlArm.includes("3 个提案已放行") && !/armed/.test(htmlArm));
+const unknown = keys.map((k, i) =>
+	stage(k, labels[i], 0, 30, 5, k === "proposal" ? { status: "闲·评估全拒（末因 exotic_new_reason_v2）" } : {}));
+const htmlUnk = render(unknown);
+check("⑥未识拒因→人话兜底不露原文", htmlUnk.includes("未过放行线") && !/exotic_new_reason_v2/.test(htmlUnk));
+// 等宽锚：pipe-card flex 等分+态标截断规则在案（CSS 静态断言——布局契约随码走）。
+const css = readFileSync(join(webRoot, "src/react/styles/20-cards.css"), "utf8");
+const cardRule = css.match(/\.pipe-card\s*\{[^}]+\}/s)?.[0] ?? "";
+const numRule = css.match(/\.pipe-card-num\s*\{[^}]+\}/s)?.[0] ?? "";
+check("⑥七段等宽:pipe-card flex:1 1 0+min-width:0",
+	/flex:\s*1\s+1\s+0/.test(cardRule) && /min-width:\s*0/.test(cardRule));
+check("⑥态标截断:pipe-card-num ellipsis",
+	/text-overflow:\s*ellipsis/.test(numRule) && /white-space:\s*nowrap/.test(numRule));
 
 console.log(`\n${n - fail}/${n} PASS${fail ? ` —— ${fail} FAIL` : ""}`);
 process.exit(fail ? 1 : 0);

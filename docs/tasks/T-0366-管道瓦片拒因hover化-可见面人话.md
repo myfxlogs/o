@@ -1,8 +1,7 @@
 # T-0366 管道瓦片拒因 hover 化——可见面人话
 
-- 状态：已批（业主令 2026-11-05 直件——「括号黑话看不懂还
-  拉错位，鼠标放上去才显示具体原因」；纯渲染件无红线）
-- 领取：（待派）
+- 状态：收口待验（2026-11-05 施工收口——支 t/0366-reject-hover-plain）
+- 领取：o-worker-T-0366（2026-11-05 领单，worktree /opt/o-wt/t0366）
 - 级别：P3 显示面修缮——T-0362 骨架反馈件
 
 ## 事实
@@ -48,3 +47,29 @@
   （业主令「cockpit 可见面=人话面，机器原文不入前端任何
   层」原则入册——部署树 D-651 禁 skills/索引写故归本票
   worktree 径，kbgen gen+skills 双索引重建同收口）。
+
+## 施工回填（2026-11-05 收口）
+
+- **面**：web/src/react/components/pipeStatus.ts（新——humanStatus
+  单一翻译闸：态标串→{可见短句,悬停详述}；rejectPlain 静态映射
+  net_apr→无达标机会/below_earn→不及保底收益/basis_below_min→
+  基差未过线/apr_est_missing|missing→缺数据/stale→数据陈旧/
+  liquidity→深度不足/unprofitable→算不过账；armed→在飞提案、
+  （阈未达）→（未过放行线）；machineLeft 哨兵=snake_case+armed+阈
+  残留即整句兜底「评估未放行/评估判据未放行」——未识词不露原文）；
+  flowpulse.tsx（mid/verdict/title 三面过闸，evalCount=评估段
+  count24h 同源进详述「评估 N 个机会全部未过放行线」——数据源
+  现字段零新增）；20-cards.css（pipe-card flex:1 1 0+min-width:0
+  七段等分，num/lag ellipsis+nowrap 长串截断全文走悬停）；
+  flowpulse-domtest.mjs（⑥人话面 7 锚——可见短句/机器原文禁入
+  渲染树任何层/悬停详述带数值/执行段态词/活态/未识兜底/等宽截断，
+  ④饿殍期判词预期随人话化改「未过放行线」）。
+- **顺手件**：docs/工程经验库/条目/cockpit-owner-face-plain-
+  language.md（invariant——哨兵兜底原则+边界注 DB/日志面不受束）；
+  kbgen gen 重建索引.md 落行（skills 索引已当前零漂移）。
+- **自测**：web npm test 23/23 PASS（flowpulse-domtest 全锚+metaseats
+  12/12）；tsc --noEmit 绿；vite build 绿。
+- **红线**：纯渲染层——proto/RPC/查询/映射数据源/七段结构/状态点/
+  判词行派生语义零动；映射表静态钉死不接 LLM；机器原文只留 DB/日志。
+- **观察项**：服务端态标词集扩展时 rejectPlain/machineLeft 词表须
+  同票同步扩（KB 条目反证条件注记）。
