@@ -1,8 +1,12 @@
 # T-0359 IBKR 凭据读面 adapter——paper 先行
 
-- 状态：已批（COS 例行代理 @2026-11-05——venue 引入方向业主已裁，
-  paper 凭据已封 app_secrets `ibkr.paper_*` 三键；读面-only 无红线件）
-- 领取：（待派）
+- 状态：**暂缓**（业主裁 @2026-11-05——「先跑通赚到第 1 分钱再扩」
+  钦定序：IBKR 日重登 2FA 税+主价值面被 Futures-US 冷静期锁，
+  收敛期不付扩面成本。凭据封账不丢/本票+提示词留档/
+  Futures-US 请求照跑冷静期。**重开判据**：既有 venue 面跑满
+  仍饿（dcd_put 部署后仍缺面/跨所差缺第二腿）即重开｜
+  原状态：已批——COS 例行代理 @2026-11-05）
+- 领取：（暂缓——不入派单队列）
 - 级别：P2 进水口扩面——`fin_venue_candidate ibkr state='candidate'`
   卡凭据闸；凭据已落地，接读面即升 `credentialed`，CME 基差族
   （docs/venue/ibkr-carry-族枚举.md 枚举在案）才有评估前提
