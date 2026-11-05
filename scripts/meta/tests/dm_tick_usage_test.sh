@@ -25,6 +25,8 @@ case "$query" in
 	*"SELECT 1 FROM ops_event WHERE event='升件'"*)
 		# T-0369 同窗去重——升件落账即去重凭据（账行在=窗内已报）
 		[ -s "$ESC_INSERTS" ] && echo 1 ;;
+	*"DISTINCT ON (ticket)"*) ;; # T-0372：dm_suspend 扫描桩——无挂起行空集（看门狗不误报）
+	*"l.ticket ||"*) ;; # T-0372：派单查询桩——空集（旧桩落 *) exit2=静默败被管道吞的活标本）
 	*"INSERT INTO ops_event"*) printf '%s\n' "$query" >> "$ESC_INSERTS" ;;
 	*"INSERT INTO ops_headless"*) ;;
 	*) echo "unexpected psql query: $query" >&2; exit 2 ;;

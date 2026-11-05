@@ -17,7 +17,7 @@ ENVF="${DM_ENV_FILE:-/opt/o-research/env}"
 FIN_DSN=$(grep '^FIN_PG_DSN=' "$ENVF" 2>/dev/null | cut -d= -f2- | tr -d '"')
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 DM_QUEUE_SH=${O_DM_QUEUE_SH:-"$SCRIPT_DIR/dm_queue.sh"}
-ESCALATE_SH=${O_DM_ESCALATE_SH:-"$SCRIPT_DIR/escalate.sh"}
+OPS_ESC_SH=${O_OPS_ESC_SH:-"$SCRIPT_DIR/ops_esc.sh"}
 
 hb() { # $1=state 心跳行（META-DM——meta 席位口径）
   [ -n "$FIN_DSN" ] || return 0
@@ -27,17 +27,18 @@ hb() { # $1=state 心跳行（META-DM——meta 席位口径）
       state=EXCLUDED.state,last_activity=now(),updated_at=now()" >/dev/null 2>&1 || true
 }
 
-# T-0369 容错必报首用（立法后第一改造面）：usage 采集面败→ops_event
-# 升件行自报（禁只打 stderr）。同窗去重防事件暴——note 前缀为键 24h
-# 内至多一行；dedup 查询自身败=空答→照常升（报侧 fail-open 不吞讯）。
-# $1=归属票（META-DM 或单票） $2=败情一句话。
+# T-0369 容错必报首用（立法后第一改造面）；T-0372 usage_esc 同式提
+# 共享件 ops_esc.sh（dm_tick/dev_run/deploy_sync 同消费面复用，禁新
+# 通知栈）——usage 采集面败→ops_event 升件行自报（禁只打 stderr）。
+# 同窗去重防事件暴——note 前缀为键 24h 内至多一行；dedup 查询自身败
+# =空答→照常升（报侧 fail-open 不吞讯）。$1=归属票 $2=败情一句话。
 usage_esc() {
-  [ -n "$FIN_DSN" ] || return 0
-  psql "$FIN_DSN" -qAt -c "SELECT 1 FROM ops_event WHERE event='升件'
-    AND note LIKE 'usage 采集败%' AND ts>now()-interval '24 hours'
-    LIMIT 1" 2>/dev/null | grep -qx 1 && return 0
-  "$ESCALATE_SH" META-DM "$1" 写败 META-DM-USAGE \
-    "usage 采集败——$2" || true # tolerate: 升件写径末环——败=结构性静默，对拍面兜底
+  "$OPS_ESC_SH" META-DM "$1" 写败 META-DM-USAGE "usage 采集败" "$2" || true # tolerate: 自报末环——ops_esc 写径败静默退（结构性限度在案）
+}
+# T-0372 静默组同式接报：dm 内部件败（队列推导/派单查询/看门狗本体）
+# →无类升件行（永不入判例面照常上行）——容错语义零动，败了仍滑行只加报。
+dm_esc() {
+  "$OPS_ESC_SH" META-DM "" "" "" "$1" "$2" || true # tolerate: 自报末环——ops_esc 写径败静默退（结构性限度在案）
 }
 
 # —— T-0354 件③ 单例闸：PG advisory lock（int8 专键）。holder=psql 连接
@@ -84,7 +85,9 @@ PENDING_TICKETS=
 if [ -n "$FIN_DSN" ]; then
   # T-0315②/T-0347 判据原文单源 dm_queue.sh——拍壳闸与会话班内 rescan
   # 同式（判据细则见该件头注：收口类最新刻无终态裁决，或已批未进派单链）。
-  PENDING_TICKETS=$("$DM_QUEUE_SH" 2>/dev/null || true)
+  QRC=0
+  PENDING_TICKETS=$("$DM_QUEUE_SH" 2>/dev/null) || QRC=$?
+  [ "$QRC" -ne 0 ] && dm_esc "队列推导败" "rc=$QRC 待裁集不可知按空集滑行"
   N=$(printf '%s\n' "$PENDING_TICKETS" | awk 'NF {n++} END {print n+0}')
   if [ "$N" -eq 0 ]; then
     hb alive
@@ -133,7 +136,10 @@ if [ "$SKIP_DECISION" -eq 0 ]; then
   #    T-0354 收班判：RC=0 且班后队列空=班次干净自退→state=exit（fin_0093
   #    六态词表正常终态）；队列仍非空=本班未尽，留 alive 待下班（kick/
   #    兜底拍续班）。
-  if [ $RC -eq 0 ] && [ -z "$("$DM_QUEUE_SH" 2>/dev/null || true)" ]; then
+  QRC2=0; QRECHECK=
+  if [ $RC -eq 0 ]; then QRECHECK=$("$DM_QUEUE_SH" 2>/dev/null) || QRC2=$?; fi
+  [ "$QRC2" -ne 0 ] && dm_esc "队列推导败" "rc=$QRC2 drain复核败——班后队列不可知按空集判退（容错语义不动）"
+  if [ $RC -eq 0 ] && [ -z "$QRECHECK" ]; then
     hb exit
   else
     [ $RC -eq 0 ] && hb alive || hb stalled
@@ -145,7 +151,8 @@ fi
 # 模型档从原派单备注恢复。补拉成功写 `拉起` 行自标幂等；无票文件免拉。
 if [ -n "$FIN_DSN" ]; then
   DISPATCH_WORKER=${O_WORKER_DISPATCH_SCRIPT:-/opt/o/scripts/meta/dispatch_worker.sh}
-  psql "$FIN_DSN" -qAt -F '|' -c "SELECT l.ticket || '|' || COALESCE((
+  DRC=0
+  DISPATCH_ROWS=$(psql "$FIN_DSN" -qAt -F '|' -c "SELECT l.ticket || '|' || COALESCE((
       SELECT CASE WHEN e.note ILIKE '%swe-2-medium%' THEN 'swe-2-medium'
                   ELSE 'swe-2-high' END
       FROM ops_event e WHERE e.ticket=l.ticket AND e.event='派单'
@@ -159,7 +166,9 @@ if [ -n "$FIN_DSN" ]; then
         AND e.ts=l.mt AND e.event='派单' AND e.seat='决策席')
        OR EXISTS (SELECT 1 FROM ops_event e WHERE e.ticket=l.ticket
         AND e.ts=l.mt AND e.event='挂起' AND e.seat='施工席'
-        AND e.note LIKE 'rate-limit:auto%')" 2>/dev/null | while IFS='|' read -r tid model; do
+        AND e.note LIKE 'rate-limit:auto%')" 2>/dev/null) || DRC=$?
+  [ "$DRC" -ne 0 ] && dm_esc "派单查询败" "rc=$DRC 派单/续跑候选集不可知按空集滑行"
+  printf '%s\n' "$DISPATCH_ROWS" | while IFS='|' read -r tid model; do
     compgen -G "/opt/o/docs/tasks/${tid}-*.md" >/dev/null || continue # ③无票免拉
     st=$(systemctl --user is-active "o-worker-$tid.service" 2>/dev/null || true)
     case "$st" in active|activating) continue;; esac # 精确比对误配恒死修
@@ -181,6 +190,8 @@ fi
 # 呈业主。rate-limit:auto 挂起归上段既有窗不重复消费。
 if [ -n "$FIN_DSN" ]; then
   DM_SUSPEND_SH=${O_DM_SUSPEND_SH:-"$SCRIPT_DIR/dm_suspend.sh"}
-  "$DM_SUSPEND_SH" || true
+  SRC=0
+  "$DM_SUSPEND_SH" || SRC=$?
+  [ "$SRC" -ne 0 ] && dm_esc "看门狗本体败" "rc=$SRC dm_suspend 消费窗未跑净——挂起行消化停摆"
 fi
 exit 0

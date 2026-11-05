@@ -18,6 +18,7 @@ export O_SEAT=施工席
 ENVF="${REPORT_ENV_FILE:-/opt/o-research/env}"
 FIN_DSN=$(grep '^FIN_PG_DSN=' "$ENVF" 2>/dev/null | cut -d= -f2- | tr -d '"')
 REPORT_BIN=${O_WORKER_REPORT_BIN:-$HOME/bin/report.sh}
+OPS_ESC_SH=${O_WORKER_OPS_ESC_SH:-$SCRIPT_DIR/ops_esc.sh}
 
 hb() { # $1=state——按票分行心跳（META-Dev-<tid> 并行施工互不盖）
   [ -n "$FIN_DSN" ] || return 0
@@ -94,9 +95,13 @@ if [ -s "$TRANSCRIPT_FILE" ]; then
 		rm -f "$TRANSCRIPT_FILE"
 	else
 		echo "[worker] token usage collection failed; continuing ticket lifecycle; transcript kept=$TRANSCRIPT_FILE" >&2
+		OPS_ESC_ENV_FILE="$ENVF" "$OPS_ESC_SH" 施工席 "$TID" 写败 META-DEV-USAGE \
+			"usage 采集败" "写径败 transcript kept=$TRANSCRIPT_FILE" || true # tolerate: 自报末环——ops_esc 写径败静默退（结构性限度在案）
 	fi
 else
 	echo "[worker] token transcript missing/empty; continuing ticket lifecycle" >&2
+	OPS_ESC_ENV_FILE="$ENVF" "$OPS_ESC_SH" 施工席 "$TID" 写败 META-DEV-USAGE \
+		"usage 采集败" "transcript 缺/空——export 未产" || true # tolerate: 自报末环——ops_esc 写径败静默退（结构性限度在案）
 	rm -f "$TRANSCRIPT_FILE"
 fi
 [ $RC -eq 0 ] && hb alive || hb stalled
