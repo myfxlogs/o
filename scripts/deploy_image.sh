@@ -11,8 +11,11 @@
 # ③ SHA tag 留痕：o-core:<sha12> 主 tag + o-core:latest 同层别名双 ref 齐运，
 #   compose image: ${O_CORE_IMAGE:-o-core:latest} 环境可覆写，容器
 #   {{.Config.Image}} 自报所跑源码 commit。
-# ④ 完工投件：EXIT trap 统一发 DEPLOY 事件至 MANAGE 箱（成功/失败/被闸三路
-#   同径；败静默不影响部署 rc；业主令 2026-10-31「事事有应答」）。
+# ④ 完工投件：EXIT trap 统一发完工回执（feishu 直推——mbus 邮箱总线
+#   2026-11-05 前后清档退役：/opt/meta/mbus.sh→archive+箱面尽撤，悬空径
+#   每窗「回执缺」实证 devin-relay#8618+；T-0375 件③修通改活通知面）。
+#   成功/失败/被闸三路同径；败静默不影响部署 rc；业主令 2026-10-31
+#   「事事有应答」。
 # ⑤ OCI PG-md 迁移随窗（T-0336）：arm64 migrate scp 上盒跑 -domain=md+
 #   水位断言——PG-md 欠账不再靠手补（O_MD_MIGRATE_SKIP=1 跳步哨兵照红）。
 set -euo pipefail
@@ -33,8 +36,12 @@ release_lock() {
 }
 deploy_event() {
   local rc=$1 sha=${SHA:-$(git rev-parse --short=12 HEAD 2>/dev/null || echo unknown)}
-  MBUS_FROM=MANAGE timeout 15 /opt/meta/mbus.sh send MANAGE notice "DEPLOY-$sha" \
-    "via=DEPLOY deploy $sha rc=$rc image=o-core:$sha" >>"$HOME/devin-relay.log" 2>&1 \
+  # 回执径（T-0375 件③修通）：mbus 邮箱总线清档退役（脚本→archive、
+  # /opt/meta/mail 箱面尽撤——复活即逆清档令），改 feishu-notify 直推
+  # （同 report.sh 自报径的活通知面；实活验证 rc=0）。
+  echo "[deploy_image] 完工回执 deploy $sha rc=$rc image=o-core:$sha" >>"$HOME/devin-relay.log" 2>/dev/null || true # tolerate: relay 留痕行 best-effort——回执本体 feishu 推送败已显报（下行回执缺 echo）
+  timeout 15 /opt/meta/scripts/feishu-notify.sh \
+    "[部署回执] deploy $sha rc=$rc image=o-core:$sha" >>"$HOME/devin-relay.log" 2>&1 \
     || echo "[deploy_image] 完工投件败（回执缺，不影响部署 rc=$rc）" >&2
   # 驾驶舱 v4 完结线（设计稿钉：完结=部署上线）：部署事件落 ops_event
   # （event=部署,ticket=''——管道按部署 ts≥票末事件退场判，fin_0092 触发器

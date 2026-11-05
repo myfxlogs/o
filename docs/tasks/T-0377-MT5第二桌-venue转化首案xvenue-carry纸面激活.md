@@ -73,7 +73,7 @@
   （零日志零拒因）。前置拒掩护下不可见，登记即现。根修=补传 evalID+err 显式留痕。
 - BP-4 记账｜mt5 腿 swap 持续账零径。根修=xvenueSwapAccounting 新件（md_signal
   mt5_swap 新行 ts 门驱动、方向腿年化取键 long_cfd↔swap_long_ann_bps/short_cfd↔
-  swap_short_ann_bps、Δh 摊提、ann 缺/零跳过如实）+fin_0116 kind CHECK 扩 'swap'；
+  swap_short_ann_bps、Δh 摊提、ann 缺/零跳过如实）+fin_0117 kind CHECK 扩 'swap'；
   同拍 paperAccounting 方向符号根修（long_perp 正 rate 付租取负——原恒按
   short_perp 记=伪账风险）。
 - BP-5 观察面｜舱面/榜单零 paper 策略显示位。补=flow_pulse「策略」段
@@ -104,7 +104,7 @@
 交付=代码面六件+配置杠杆+runbook，测试面全绿如下。
 
 **测试证据**：
-- go build+vet 绿、gofmt 零漂、check_migrations 七断言过（fin_0116=116 链内唯一）；
+- go build+vet 绿、gofmt 零漂、check_migrations 七断言过（fin_0117=117 链内唯一）；
 - lifecycle 包 30.4s 绿：TestXvenueSwapAccrualLongCfd（摊提手算对拍
   −794.336bps×100USD×1h/8760≈−0.009067+ts 门防重摊+新行续摊）、
   TestXvenueSwapShortCfdAndSkips（short_cfd 正账+ann 零/非副腿向零账）、
@@ -121,3 +121,11 @@
 - BP-6 按 T-0164 钦定语义不动只报；SG md_mark_index 桥面残留陈行（10-30）为
   FIX-02 同族现象（ projector 真源律），诊断中已核非本链断点——蒸馏器真源在
   OCI 盒本机 PG-md（mark 鲜），SG 侧 carry_diff/spread 行由 o-research 直写鲜行。
+
+**返修1偏离说明（基线漂移重号案——非施工责）**：
+- 原收口基 29e61702 在 T-0376 合入前；T-0376 落 master 已载
+  fin_0116_hunger_window.sql（migrate_table {116}），本支
+  fin_0116_xvenue_swap_fill.sql 同号→fin 链双 116 违 check_migrations
+  链内唯一单调断言，裁决驳回。返修=merge origin/master 重戳基线+
+  本支迁移重号 fin_0117（置 116 行后），文件名/头注/票面提法同步；
+  码面六件语义零碰（仅迁移号面+引用同步），不合并不部署照旧。
