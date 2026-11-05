@@ -1,7 +1,7 @@
 -- 0100 T-0312 md_regime 桥升域 SG 镜像两表+推送幂等锚（照 md_macro_event 先例）。
 -- ①md_regime_fact/memo 同形镜像（MD 正本 md_1083——SG 侧零写径只加 SELECT 读面）；
 -- ②md_regime_push 幂等去重面（同判词批重启/重推不重推）；
--- ③开关 notify.feishu.regime.enabled 默认开（业主钦定要收——照 fin_0019/0035 先例）。
+-- ③信息面非钱径通知开关 notify.feishu.regime.enabled 默认开（业主钦定要收——照 fin_0019/0035 先例）。
 CREATE TABLE IF NOT EXISTS md_regime_fact (
     id         bigserial PRIMARY KEY,
     dim        text NOT NULL,
