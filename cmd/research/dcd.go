@@ -185,7 +185,12 @@ func researchArms(ctx context.Context, errc chan<- error, pool *pgxpool.Pool,
 	hr.AttachAlerter(alerter)
 	hr.AttachSignals(hypoSignalReader(pool)) // T-0140 信号读闸接线（sig 域→hypothesis 域投影）
 	go hr.Run(ctx, errc)
-	go grammar.NewRunner(pool, cfg).AttachCoins(okxCoinsFor(pool, okcli)).Run(ctx, errc) // T-0120 文法枚举臂；T-0215 vol-sell 实评 coins 缝
+	gr := grammar.NewRunner(pool, cfg).AttachCoins(okxCoinsFor(pool, okcli)).
+		AttachFin(finPool).AttachAlerter(alerter)
+	if err := gr.ConfigureVolSell(); err != nil {
+		log.Printf("WARN [o-research] vol-sell 复役闸未开启（fail-closed）: %v", err)
+	}
+	go gr.Run(ctx, errc) // T-0120 文法枚举臂；T-0215 vol-sell 实评 coins 缝；T-0356 SG enabled/连败闸
 	// T-0300 venue scout 骨架臂（公开面零凭据——凭据型端点调用=票级禁线）。
 	go scout.NewRunner(pool, cfg).AttachAlerter(alerter).Run(ctx, errc)
 	// T-0310 regime 分析席臂+ctx 采集臂（mql5/OI/FRED/COT/news 公开面——

@@ -13,6 +13,7 @@ import (
 
 	"o/internal/platform/config"
 	"o/internal/platform/testutil"
+	"o/internal/research/dcd"
 	"o/internal/store/pgstore"
 )
 
@@ -84,6 +85,24 @@ func TestDisabledFaceNoFamily(t *testing.T) {
 	}
 	if nH < 2 {
 		t.Fatalf("缺 executor 假想卡应 ≥2 族（lending/earn——T-0215/0216 executor 落位后 vol_sell/quarter_basis 族不再产卡；basis_short 面关不枚举）: %d", nH)
+	}
+}
+
+func TestDCDDirectoryFaceControlsVolSellEnumeration(t *testing.T) {
+	for _, tc := range []struct {
+		enabled bool
+		want    int
+	}{{false, 0}, {true, 2}} {
+		families := Enumerate(map[string]bool{"okx/dcd": tc.enabled})
+		got := 0
+		for _, f := range families {
+			if f.Template == "vol_sell_single_call" || f.Template == "vol_sell_strangle" {
+				got++
+			}
+		}
+		if got != tc.want {
+			t.Fatalf("okx/dcd enabled=%t volsell families=%d want=%d", tc.enabled, got, tc.want)
+		}
 	}
 }
 
@@ -316,10 +335,10 @@ func TestEvalCarryEarnRate(t *testing.T) {
 	}
 }
 
-// 锚⑤：vol-sell 实评（T-0215）——single_call 单腿 proposed 提案落+strangle
-// C×P 同 uly/expiry 配对复合键提案（executor_missing 钉已撤）。
+// vol-sell 实评：非 USDT 担保 call/strangle 只落条件盒；USDT 担保 put 走提案常径。
 func TestEvalVolSellReal(t *testing.T) {
 	ctx, r := setup(t)
+	r.AttachFin(r.pool)
 	r.AttachCoins(func(context.Context) (map[string]float64, error) {
 		return map[string]float64{"BTC": 2.0, "USDT": 100000}, nil
 	})
@@ -356,8 +375,13 @@ func TestEvalVolSellReal(t *testing.T) {
 	}
 	var n int
 	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_proposal
-		WHERE inst_id='BTC-C-150' AND state='fin_proposed'`).Scan(&n); err != nil || n != 1 {
-		t.Fatalf("single_call 提案应 1 行: %d %v", n, err)
+		WHERE inst_id='BTC-C-150' AND state='fin_proposed'`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("BTC 担保 call 不得 armed: %d %v", n, err)
+	}
+	var path string
+	if err := r.pool.QueryRow(ctx, `SELECT evidence->>'proposal_path' FROM fin_opp_eval
+		WHERE inst_id='BTC-C-150' AND template='vol_sell_single_call'`).Scan(&path); err != nil || path != "condition_gap_owner_domain" {
+		t.Fatalf("BTC call eval 应标条件盒路径: %s %v", path, err)
 	}
 	var sverdict, sreason string
 	if err := r.pool.QueryRow(ctx, `SELECT verdict,evidence->>'reason' FROM fin_opp_eval
@@ -368,7 +392,24 @@ func TestEvalVolSellReal(t *testing.T) {
 		t.Fatalf("strangle 应 proposed: %s/%s", sverdict, sreason)
 	}
 	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_proposal
-		WHERE inst_id='BTC-C-150+BTC-P-60' AND state='fin_proposed'`).Scan(&n); err != nil || n != 1 {
-		t.Fatalf("strangle 提案应复合键高 APR P 腿: %d %v", n, err)
+		WHERE inst_id='BTC-C-150+BTC-P-60' AND state='fin_proposed'`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("BTC 担保 strangle 不得 armed: %d %v", n, err)
+	}
+	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_condition_gap
+		WHERE kind='holding' AND venue='okx' AND surface='dcd' AND state='pending'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("owner-domain 提案应去重落一个条件请求: %d %v", n, err)
+	}
+	// USDT 担保腿留基金常径：不落业主资产域条件请求，正常生成提案。
+	put := dcd.Product{ProductID: "USDT-P-90000", Uly: "USDT-USD", Direction: "P", QuoteCcy: "USDT",
+		Strike: 90000, Expiry: exp, AnnualizedYield: .18, MinSize: .01}
+	pe := dcd.Evaluate(put, 100000, 100000, dcd.Params{MinDistPct: 8, MaxTermDays: 30, MinAPR: .06, NotionalPct: 20})
+	if pe.Verdict != "proposed" {
+		t.Fatalf("USDT put fixture should propose: %s/%s", pe.Verdict, pe.Reason)
+	}
+	if err := r.persistLegEval(ctx, pe, Family{Template: "vol_sell_strangle", Direction: "vol_sell"}, put.ProductID); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_proposal WHERE inst_id='USDT-P-90000' AND state='fin_proposed'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("USDT 担保腿应走基金提案常径: %d %v", n, err)
 	}
 }

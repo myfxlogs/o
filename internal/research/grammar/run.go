@@ -8,6 +8,7 @@ package grammar
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"time"
 
@@ -25,27 +26,76 @@ type Coins func(ctx context.Context) (map[string]float64, error)
 
 // Runner 文法枚举臂。
 type Runner struct {
-	pool   *pgxpool.Pool
-	cfg    *config.Client
-	rej    *rejects.Door
-	coins  Coins // T-0215：vol-sell 实评锁仓币余量读件
-	lastAt time.Time
+	pool              *pgxpool.Pool
+	fin               *pgxpool.Pool
+	cfg               *config.Client
+	rej               *rejects.Door
+	coins             Coins // T-0215：vol-sell 实评锁仓币余量读件
+	alert             AlertFunc
+	volSellEnabled    bool // T-0356：boot 配置快照——SG fin 键复制至 md 后重启生效
+	volSellFailN      int
+	volSellStreak     int
+	volSellAttempted  bool
+	volSellFailed     bool
+	volSellSkip       bool
+	volSellWasRetired bool
+	volSellLastErr    string
+	lastAt            time.Time
+}
+
+// AlertFunc 复役熔断升件告警窄接口（避免研究文法包反向依赖 notify）。
+type AlertFunc interface {
+	Alert(context.Context, string, string)
 }
 
 func NewRunner(pool *pgxpool.Pool, cfg *config.Client) *Runner {
 	return &Runner{pool: pool, cfg: cfg,
 		rej: rejects.New("grammar", "missing_param", "surface_read_failed",
 			"template_write_err", "eval_write_err", "hypothesis_write_err",
-			"proposal_write_err", "coins_absent", "earn_rate_degraded")}
+			"proposal_write_err", "coins_absent", "earn_rate_degraded",
+			"owner_domain_gap", "gap_write_err", "gap_writer_missing",
+			"volsell_enabled_key_missing", "volsell_fail_n_missing",
+			"volsell_retire_state_read_err", "volsell_retire_writer_missing",
+			"volsell_fail_streak_retire", "volsell_directory_face_missing")}
 }
 
 // AttachCoins 挂逐币可动余量读件（vol-sell 实评判据源）。
 func (r *Runner) AttachCoins(fn Coins) *Runner { r.coins = fn; return r }
 
+// AttachFin SG fin 正本写池（条件请求/复役状态/升件）；缺席则 vol-sell fail-closed。
+func (r *Runner) AttachFin(pool *pgxpool.Pool) *Runner { r.fin = pool; return r }
+
+func (r *Runner) AttachAlerter(a AlertFunc) *Runner { r.alert = a; return r }
+
+// ConfigureVolSell 在 boot 快照上读 SG 正本经第九桥复制的开关/阈值；缺键或
+// 非法 N 均保持停用。enabled 翻键后须重启 research 使 MD config.Load 取新快照。
+func (r *Runner) ConfigureVolSell() error {
+	enabled, err := r.cfg.GetBool("research.volsell.enabled")
+	if err != nil {
+		r.rej.Inc("volsell_enabled_key_missing")
+		return fmt.Errorf("volsell disabled: research.volsell.enabled: %w", err)
+	}
+	if !enabled {
+		log.Printf("[research/grammar] vol-sell 闸关闭（research.volsell.enabled=false）")
+		return nil
+	}
+	if r.fin == nil {
+		return fmt.Errorf("volsell disabled: SG fin writer missing")
+	}
+	n, err := r.cfg.GetFloat("research.volsell.fail_streak_n")
+	if err != nil || n <= 0 || n != float64(int(n)) {
+		r.rej.Inc("volsell_fail_n_missing")
+		return fmt.Errorf("volsell disabled: invalid fail_streak_n=%v err=%v", n, err)
+	}
+	r.volSellEnabled, r.volSellFailN = true, int(n)
+	log.Printf("[research/grammar] vol-sell 复役闸已装配（enabled=true fail_streak_n=%d）", r.volSellFailN)
+	return nil
+}
+
 // Run 在岗（事件化——行情/账户帧驱动节流拍）。
 func (r *Runner) Run(ctx context.Context, errc chan<- error) {
 	events.ListenLoop(ctx, r.pool, "research-grammar",
-		[]string{"ev_ticks", "ev_account", "ev_funding"}, r.scan)
+		[]string{"ev_ticks", "ev_account", "ev_funding"}, r.scanTracked)
 }
 
 // ScanOnce 单拍壳（实证件消费）。
@@ -68,6 +118,10 @@ func (r *Runner) scan(ctx context.Context) error {
 	enabled := map[string]bool{}
 	rows, err := r.pool.Query(ctx, `SELECT venue||'/'||surface FROM fin_capability_surface WHERE enabled`)
 	if err != nil {
+		if r.volSellEnabled {
+			r.volSellAttempted = true
+			r.markVolSellFailure(fmt.Errorf("capability directory read: %w", err))
+		}
 		r.rej.Inc("surface_read_failed")
 		return err
 	}
@@ -75,11 +129,20 @@ func (r *Runner) scan(ctx context.Context) error {
 		var k string
 		if err := rows.Scan(&k); err != nil {
 			rows.Close()
+			if r.volSellEnabled {
+				r.volSellAttempted = true
+				r.markVolSellFailure(fmt.Errorf("capability directory scan: %w", err))
+			}
 			return err
 		}
 		enabled[k] = true
 	}
 	rows.Close()
+	if r.volSellEnabled && !enabled["okx/dcd"] {
+		r.volSellAttempted = true
+		r.markVolSellFailure(fmt.Errorf("目录面 okx/dcd disabled——vol-sell NeedFace 未满足"))
+		r.rej.Inc("volsell_directory_face_missing")
+	}
 
 	fams := Enumerate(enabled)
 	var cand, hypo int
@@ -153,7 +216,12 @@ func (r *Runner) evaluate(ctx context.Context, fams []Family) error {
 				return err
 			}
 		case "vol-sell":
+			if !r.volSellEnabled || r.volSellSkip {
+				continue
+			}
+			r.volSellAttempted = true
 			if err := r.evalVolSell(ctx, f); err != nil {
+				r.markVolSellFailure(err)
 				return err
 			}
 		}
