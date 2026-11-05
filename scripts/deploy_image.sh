@@ -39,7 +39,7 @@ deploy_event() {
   # 回执径（T-0375 件③修通）：mbus 邮箱总线清档退役（脚本→archive、
   # /opt/meta/mail 箱面尽撤——复活即逆清档令），改 feishu-notify 直推
   # （同 report.sh 自报径的活通知面；实活验证 rc=0）。
-  echo "[deploy_image] 完工回执 deploy $sha rc=$rc image=o-core:$sha" >>"$HOME/devin-relay.log" 2>/dev/null || true
+  echo "[deploy_image] 完工回执 deploy $sha rc=$rc image=o-core:$sha" >>"$HOME/devin-relay.log" 2>/dev/null || true # tolerate: relay 留痕行 best-effort——回执本体 feishu 推送败已显报（下行回执缺 echo）
   timeout 15 /opt/meta/scripts/feishu-notify.sh \
     "[部署回执] deploy $sha rc=$rc image=o-core:$sha" >>"$HOME/devin-relay.log" 2>&1 \
     || echo "[deploy_image] 完工投件败（回执缺，不影响部署 rc=$rc）" >&2
