@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "npm run typecheck && vite build",
     "typecheck": "tsc --noEmit",
-    "test": "node scripts/metaseats-domtest.mjs"
+    "test": "node scripts/metaseats-domtest.mjs && node scripts/flowpulse-domtest.mjs"
   },
   "devDependencies": {
     "@bufbuild/protoc-gen-es": "2.16.0",
