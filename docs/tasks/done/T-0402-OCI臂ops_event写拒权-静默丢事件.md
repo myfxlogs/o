@@ -1,9 +1,6 @@
 # T-0402 OCI 臂 ops_event 写拒权——静默丢事件
 
-- 状态：已批（2026-11-06 业主令——部署窗实证日志：
-  o-research `[onboard] mt5 推进败: ERROR: permission
-  denied for table ops_event (SQLSTATE 42501)`——OCI 侧
-  事件行静默丢，业主可见性面漏）
+- 状态：完成（决策席裁决通过 merge 37482f8a——全链绿戳对口，fin_0124→0125 让号）
 - 领取：待验（2026-11-06 施工收口——check_all 全链绿戳对口）
 - 优先级：P1——事件账完整性（静默数据丢失类）
 - 收口移交归：决策席
