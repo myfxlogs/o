@@ -81,6 +81,34 @@ if [ "$DRY" != 1 ]; then
   done
 fi
 
+# ExecStart systemd specifier 远端语境展（T-0418——%h→该 ssh 户 $HOME/
+# %u→属主名/%s→unit 名（去 .service 尾）；%%=字面 %。未识别 specifier/
+# 包装形（env/bash -c/timeout 等）/多命令（; & |）=保守 die 报原值不猜——
+# 与脚本 fail-closed 风同调）。RHOME/RUSER 懒取缓存。
+RHOME=""; RUSER=""
+expand_exec() { # expand_exec <raw ExecStart 值> <unit> → stdout=解析后绝对路径
+  local raw=$1 unit=$2 tok
+  if [[ "$raw" == *%* ]]; then
+    [ -n "$RHOME" ] || RHOME=$($SSH $SSHOPT "$OCI" 'echo $HOME')
+    [ -n "$RUSER" ] || RUSER=$($SSH $SSHOPT "$OCI" 'id -un')
+    raw=${raw//%%/$'\x01'}; raw=${raw//%h/$RHOME}
+    raw=${raw//%u/$RUSER}; raw=${raw//%s/${unit%.service}}
+    if [[ "$raw" =~ (%[%a-zA-Z]) ]]; then
+      die "$unit ExecStart 未识别 specifier ${BASH_REMATCH[1]}——保守拒猜（原值: $1）"
+    fi
+    raw=${raw//$'\x01'/%}
+  fi
+  [[ "$raw" == *[';&|']* ]] && die "$unit ExecStart 多命令/管道形——保守拒猜（原值: $1）"
+  read -r tok _ <<<"$raw"
+  while [[ "$tok" == [-+!@:]* ]]; do tok=${tok:1}; done # systemd 前缀修饰（-/+/!/@/:）剥
+  [[ "$tok" == /* ]] || die "$unit ExecStart 解析非绝对路径——保守拒猜（原值: $1）"
+  case "/$(basename "$tok")" in
+    */env|*/bash|*/sh|*/dash|*/zsh|*/ksh|*/nice|*/ionice|*/timeout|*/setsid|*/chrt|*/systemd-cat|*/exec)
+      die "$unit ExecStart 包装形 $(basename "$tok")——保守拒猜（原值: $1）";;
+  esac
+  printf '%s\n' "$tok"
+}
+
 # ── ④ 环约对账（远端实读——unit Environment/EnvironmentFiles 键集）──
 # dry-run 亦执行（只读面=预检真值）。缺 req=1 键→拒换指路凭据域。
 ENV_OK=1
@@ -88,8 +116,9 @@ declare -A EXECPATH
 for a in "${ARMS[@]}"; do u="${UNIT[$a]}"
   frag=$($SSH $SSHOPT "$OCI" "systemctl --user show $u -p FragmentPath --value 2>/dev/null" || true) # tolerate: 读败=空值落下行 die 显报——失败面非静默吞
   [ -n "$frag" ] || die "$u 单元不在（盒面查 systemctl --user list-unit-files）"
-  EXECPATH[$a]=$($SSH $SSHOPT "$OCI" "grep -m1 '^ExecStart=' '$frag' | sed 's/^ExecStart=//' | tr ' ' '\n' | sed 's/^-*//' | grep '^/' | head -1")
-  [ -n "${EXECPATH[$a]}" ] || die "$u ExecStart 解析空（$frag 手核）"
+  raw_exec=$($SSH $SSHOPT "$OCI" "grep -m1 '^ExecStart=' '$frag' | sed 's/^ExecStart=//'" || true) # tolerate: grep 空=ExecStart 行缺——下行 die 显报，失败面非静默吞
+  [ -n "$raw_exec" ] || die "$u ExecStart 解析空（$frag 手核）"
+  EXECPATH[$a]=$(expand_exec "$raw_exec" "$u")
   envkeys=$($SSH $SSHOPT "$OCI" "{ systemctl --user show $u -p Environment --value | tr ' ' '\n'; systemctl --user show $u -p EnvironmentFiles --value | tr ' ' '\n' | while read -r f; do [ -n \"\$f\" ] && sed -n 's/^[[:space:]]*\([A-Za-z_][A-Za-z_0-9]*\)=.*/\1/p' \"\$f\" 2>/dev/null; done; } | sed 's/=.*//' | grep -E '^[A-Za-z_]' | sort -u" || true) # tolerate: 键集读败=空集→全键判缺 fail-closed 拒换方向保守
   miss_req="" miss_opt=""
   while IFS=$'\t' read -r tu key req; do
