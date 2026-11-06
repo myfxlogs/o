@@ -32,6 +32,14 @@ case "$query" in
 	*) echo "unexpected psql query: $query" >&2; exit 2 ;;
 esac
 EOF
+cat > "$TMP/bin/depgate" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+cat > "$TMP/bin/go" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
 cat > "$TMP/bin/devin" <<'EOF'
 #!/usr/bin/env bash
 export_file=
@@ -48,13 +56,14 @@ with open(sys.argv[1],'w') as f:
 PY
 echo decision-call >> "$DECISION_CALLS"
 EOF
-chmod +x "$TMP/bin/psql" "$TMP/bin/devin"
+chmod +x "$TMP/bin/psql" "$TMP/bin/devin" "$TMP/bin/depgate" "$TMP/bin/go"
 printf 'FIN_PG_DSN=fake-dsn\n' > "$TMP/env"
 export PATH="$TMP/bin:$PATH"
 export DM_ENV_FILE="$TMP/env"
 export O_DECISION_WORKDIR="$TMP/decision"
 mkdir -p "$O_DECISION_WORKDIR"
 export O_DECISION_DEVIN_BIN="$TMP/bin/devin"
+export O_DM_DEPGATE_SH="$TMP/bin/depgate"
 export O_WORKER_USAGE_BIN="$ROOT/scripts/meta/ticket_usage.sh"
 export DECISION_CALLS="$TMP/decision-calls"
 export USAGE_INSERTS="$TMP/usage-inserts"

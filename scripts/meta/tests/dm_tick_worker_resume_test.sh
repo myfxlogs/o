@@ -4,7 +4,8 @@ set -euo pipefail
 ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd)
 TMP=$(mktemp -d)
 trap 'rm -rf -- "$TMP"' EXIT
-mkdir -p "$TMP/bin"
+mkdir -p "$TMP/bin" "$TMP/tasks"
+touch "$TMP/tasks/T-0341-resume-test.md"
 
 cat > "$TMP/bin/psql" <<'EOF'
 #!/usr/bin/env bash
@@ -60,6 +61,10 @@ cat > "$TMP/bin/decision-devin" <<'EOF'
 #!/usr/bin/env bash
 echo called >> "$DECISION_LOG"
 EOF
+cat > "$TMP/bin/depgate" <<'EOF'
+#!/usr/bin/env bash
+echo called >> "$DEPGATE_LOG"
+EOF
 chmod +x "$TMP/bin/"*
 
 printf 'FIN_PG_DSN=fake\n' > "$TMP/env"
@@ -70,8 +75,11 @@ export DECISION_LOG="$TMP/decision.log"
 export PENDING_SQL_LOG="$TMP/pending.sql.log"
 export HB_LOG="$TMP/hb.log"
 export DRAIN_MARK="$TMP/drain.mark"
+export DEPGATE_LOG="$TMP/depgate.log"
 export O_WORKER_DISPATCH_SCRIPT="$TMP/bin/dispatch-worker"
+export O_WORKER_TASK_DIR="$TMP/tasks"
 export O_DECISION_DEVIN_BIN="$TMP/bin/decision-devin"
+export O_DM_DEPGATE_SH="$TMP/bin/depgate"
 
 # Pure-empty queue stays zero-LLM but still resumes a rate-limited worker.
 export DM_SCENARIO=empty DM_LOCK_RESULT=t
@@ -95,8 +103,10 @@ bash "$ROOT/scripts/meta/dm_tick.sh"
 # T-0354 件③：锁拒=后到即退（kick 连发/兜底拍撞车同款）——零决策零派单零心跳。
 export DM_SCENARIO=locked DM_LOCK_RESULT=f
 : > "$HB_LOG"
+: > "$DEPGATE_LOG"
 bash "$ROOT/scripts/meta/dm_tick.sh" > "$TMP/locked.log" 2>&1
 grep -q '班次闸未得' "$TMP/locked.log"
+[[ $(wc -l < "$DEPGATE_LOG") -eq 1 ]] # T-0413：锁前依赖闸仍跑——kick 撞班不误零交集快派
 [[ $(wc -l < "$DECISION_LOG") -eq 2 ]]
 [[ ! -s "$HB_LOG" ]]
 

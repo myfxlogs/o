@@ -17,6 +17,7 @@ ENVF="${DM_ENV_FILE:-/opt/o-research/env}"
 FIN_DSN=$(grep '^FIN_PG_DSN=' "$ENVF" 2>/dev/null | cut -d= -f2- | tr -d '"')
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 DM_QUEUE_SH=${O_DM_QUEUE_SH:-"$SCRIPT_DIR/dm_queue.sh"}
+DM_DEPGATE_SH=${O_DM_DEPGATE_SH:-"$SCRIPT_DIR/dm_depgate.sh"}
 OPS_ESC_SH=${O_OPS_ESC_SH:-"$SCRIPT_DIR/ops_esc.sh"}
 
 hb() { # $1=state 心跳行（META-DM——meta 席位口径）
@@ -40,6 +41,14 @@ usage_esc() {
 dm_esc() {
   "$OPS_ESC_SH" META-DM "" "" "" "$1" "$2" || true # tolerate: 自报末环——ops_esc 写径败静默退（结构性限度在案）
 }
+
+# T-0413 派单依赖闸必须在班次锁前跑：kick 撞在飞班次时，零交集已批件
+# 仍可直派；交集/不可判件不进派单链，锁拒后照常留班内排队等裁决。
+if [ -n "$FIN_DSN" ]; then
+  DEPGATE_RC=0
+  "$DM_DEPGATE_SH" || DEPGATE_RC=$?
+  [ "$DEPGATE_RC" -ne 0 ] && dm_esc "派单依赖闸败" "rc=$DEPGATE_RC 已批快派面不可知按常径排队"
+fi
 
 # —— T-0354 件③ 单例闸：PG advisory lock（int8 专键）。holder=psql 连接
 # 挂 FIFO：fd8=O_RDWR 自持写端永不 EOF（锁随脚本生死）；psql stdin 走
@@ -151,6 +160,7 @@ fi
 # 模型档从原派单备注恢复。补拉成功写 `拉起` 行自标幂等；无票文件免拉。
 if [ -n "$FIN_DSN" ]; then
   DISPATCH_WORKER=${O_WORKER_DISPATCH_SCRIPT:-/opt/o/scripts/meta/dispatch_worker.sh}
+  DISPATCH_TASK_DIR=${O_WORKER_TASK_DIR:-/opt/o/docs/tasks}
   DRC=0
   DISPATCH_ROWS=$(psql "$FIN_DSN" -qAt -F '|' -c "SELECT l.ticket || '|' || COALESCE((
       SELECT CASE WHEN e.note ILIKE '%swe-2-medium%' THEN 'swe-2-medium'
@@ -169,7 +179,7 @@ if [ -n "$FIN_DSN" ]; then
         AND e.note LIKE 'rate-limit:auto%')" 2>/dev/null) || DRC=$?
   [ "$DRC" -ne 0 ] && dm_esc "派单查询败" "rc=$DRC 派单/续跑候选集不可知按空集滑行"
   printf '%s\n' "$DISPATCH_ROWS" | while IFS='|' read -r tid model; do
-    compgen -G "/opt/o/docs/tasks/${tid}-*.md" >/dev/null || continue # ③无票免拉
+    compgen -G "$DISPATCH_TASK_DIR/${tid}-*.md" >/dev/null || continue # ③无票免拉
     st=$(systemctl --user is-active "o-worker-$tid.service" 2>/dev/null || true)
     case "$st" in active|activating) continue;; esac # 精确比对误配恒死修
     prompt="读 /opt/o/skills/施工席/SKILL.md 施工协议领单/续领 $tid；按票面施工，同票已有 Devin 会话/worktree 时续跑"
