@@ -1,8 +1,9 @@
 # T-0385 教训矿工拍——事件账自动挖工程案 pending
 
-- 状态：已批（2026-11-06 业主令——cursor continual-learning
-  参照：记忆从人推动改周期自产；「发现了没修」案结构性对治）
-- 领取：常径待派（DM 常径机派）
+- 状态：施工中（2026-11-06 无头施工 run 领单）
+- 领取：devin-o-worker-t0385 @ 2026-11-06（常径机派施工席；提示词
+  docs/prompts/T-0385-O-Dev施工提示词.md；wt=/opt/o-wt/t0385
+  支 t/0385-lesson-miner，bootstrap 降级径起步——rsync gen/dist 快照）
 - 优先级：P1——自我迭代第⑤段（记忆）补盲
 - 收口移交归：决策席
 
