@@ -30,12 +30,14 @@ type stubSensor struct {
 	mineN    int
 	draftN   int
 	ferr     error
+	depErr   error
 	detects  int
 	responds int
 	probes   int
 	covers   int
 	mines    int
 	drafts   int
+	deps     int
 }
 
 func (s *stubSensor) Detect(context.Context) (*hunger.Report, error) {
@@ -62,6 +64,11 @@ func (s *stubSensor) ProbeFamilies(context.Context) error {
 func (s *stubSensor) ProbeLegCoverage(context.Context) error {
 	s.covers++
 	return s.cerr
+}
+
+func (s *stubSensor) ProbeDeps(context.Context) error {
+	s.deps++
+	return s.depErr
 }
 
 func (s *stubSensor) MineLessons(context.Context) (int, error) {

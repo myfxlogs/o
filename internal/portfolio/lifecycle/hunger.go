@@ -21,11 +21,13 @@ import (
 // T-0384：ProbeFamilies 族级沉默探针同缝入拍（Detect 同槽省协程）。
 // T-0385：MineLessons 教训矿工同缝——独立 minerLoop 12h 慢拍槽。
 // T-0392：ProbeLegCoverage 腿-行情覆盖探针同缝——探针族同槽入拍。
+// T-0394：ProbeDeps 依赖对活性枚举探针同缝——探针族同槽入拍。
 type hungerSensor interface {
 	Detect(ctx context.Context) (*hunger.Report, error)
 	Respond(ctx context.Context, rep *hunger.Report) ([]hunger.StepResult, error)
 	ProbeFamilies(ctx context.Context) error
 	ProbeLegCoverage(ctx context.Context) error
+	ProbeDeps(ctx context.Context) error
 	MineLessons(ctx context.Context) (int, error)
 	DraftTickets(ctx context.Context) (int, error)
 }
@@ -66,7 +68,8 @@ func (r *Runner) hungerLoop(ctx context.Context) {
 
 // hungerTick 单拍：验链拍（T-0386——先于一切每拍全链重算，断链/伪戳
 // →账链断+升件自报）→族沉默探针（T-0384——先于 Detect 每拍皆测，饥饿与否
-// 无关；败情自报不拖主拍）→腿覆盖探针（T-0392——同款隔离位）→Detect→
+// 无关；败情自报不拖主拍）→腿覆盖探针（T-0392——同款隔离位）→依赖对
+// 枚举探针（T-0394——同款隔离位）→起草拍（T-0393）→Detect→
 // 触发即落 `饥饿` 行（拍壳同构——触发形+证据落账）→Respond 一步响应。
 // 败情不上抛——本拍自身终结。
 func (r *Runner) hungerTick(ctx context.Context) {
@@ -93,6 +96,12 @@ func (r *Runner) hungerTick(ctx context.Context) {
 	if err := r.sensor.ProbeLegCoverage(ctx); err != nil {
 		log.Printf("[lifecycle] hungertick 腿覆盖探针败: %v", err)
 		r.hungerEscalate(ctx, "legcover_probe", err)
+	}
+	// T-0394 依赖对枚举探针同槽（ProbeFamilies 同款败情隔离位——败情
+	// 让位不阻主拍；枚举空集=探针自身败升件自报非静默）。
+	if err := r.sensor.ProbeDeps(ctx); err != nil {
+		log.Printf("[lifecycle] hungertick 依赖对探针败: %v", err)
+		r.hungerEscalate(ctx, "depblind_probe", err)
 	}
 	// T-0393 起草拍同槽：探针升件行→候选草案 pending（败情让位同款
 	// 隔离位——起草拍自身终结不拖主拍）。
