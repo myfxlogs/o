@@ -47,6 +47,7 @@ var dmWritableGlobs = []string{
 	"trx.vote_enabled",           // Tron 投票开关（Earn 族）
 	"trx.vote_max_rebal_per_day", // Tron 再平衡频次（Earn 族）
 	"trx.poll_seconds",           // Tron 轮询间隔（Earn 族）
+	"okxws.tick_scan_s",          // 粗扫节拍秒（T-0401 两级采集制——60s 钦定值覆写键）
 }
 
 // ownerKeyGlobs —— 业主面键（分册 owner 行同集镜像；与 dm 集不交——交叠=闸红）。

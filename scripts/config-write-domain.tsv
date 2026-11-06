@@ -50,3 +50,4 @@ readcred.entitlement	owner	读凭据权限白名单（访问控制面——fail-
 # 凭证形键（*_api_key/*secret*/*token*/*passphrase/*password/*account_id/
 # *private_key）不须入册——dmwrite.go credentialRE 先于一切硬拒归 owner
 # （trx.trongrid_api_key/cmc.account_id 实证在案）。
+okxws.tick_scan_s	dm	粗扫节拍秒（T-0401——60s 钦定值覆写键，采集域参数）

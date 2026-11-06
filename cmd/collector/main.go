@@ -69,6 +69,9 @@ func main() {
 	c.AttachCTV(ctvFeed(cli)) // T-0139 depth5 USD 额换算（instruments SWAP ctVal 实读）
 	errc := make(chan error, 4)
 	go c.Run(ctx, errc)
+	// T-0401 粗扫层：REST tickers 60s 全谱→md_tick_scan（两级采集制①——
+	// 筛选精度层钦定例外件；执行精度仍归 WS tickers 流）。
+	go okxws.NewScanPoller(pool, cfg, cli.PublicGet).Run(ctx, errc)
 	sd := sigdist.New(pool)
 	sd.AttachConfig(cfg)
 	go sd.Run(ctx, errc) // 桥二期信号蒸馏拍（basis_ann/funding_view/xvenue→md_signal）

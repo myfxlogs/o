@@ -67,7 +67,8 @@ func New(md, sg *pgxpool.Pool, alert *notify.Alerter, mode string) (*Runner, err
 		"md_funding": true, "md_macro_event": true, "md_mark_index": true,
 		"md_signal": true, "md_ticks": true, "fin_venue_candidate": true,
 		"fin_opp_hypothesis": true, "fin_opp_template": true,
-		"md_regime_fact": true, "md_regime_memo": true}
+		"md_regime_fact": true, "md_regime_memo": true,
+		"md_tick_scan": true, "fin_sub_request": true} // T-0401 两级采集制桥面对
 	regSet := map[string]bool{}
 	for _, t := range reg {
 		regSet[t] = true
@@ -133,13 +134,15 @@ func (r *Runner) Run(ctx context.Context, errc chan<- error) {
 // md_dcd_product（fin_0049/md_1049 同形——桥面对应物）JOIN 取 uly 剥
 // -USD(G)→-USDT；funding-hedge 族 inst_id 剥 -SWAP 尾→现货对——现货腿价
 // =md_ticks 本地行（T-0171/T-0216 记账价源），不入集=现货 tick 被谓词
-// 滤在桥外（T-0392 失明病灶同位）。
+// 滤在桥外（T-0392 失明病灶同位）。T-0401 晋级臂（fin_sub_request open）
+// 同入集——提名符 tick 过桥供 SG 侧消费面（拒请退订即出）。
 func (r *Runner) refreshSets(ctx context.Context) error {
 	rows, err := r.sg.Query(ctx, `SELECT inst_id FROM fin_position WHERE closed_at IS NULL
 		UNION SELECT inst_id FROM fin_strategy WHERE state<>'retired'
 		UNION `+legset.BasisSpotArm(`s.state<>'retired'`)+`
 		UNION `+legset.DCDSpotArm(`s.state<>'retired'`)+`
-		UNION `+legset.FundingHedgeSpotArm(`s.state<>'retired'`))
+		UNION `+legset.FundingHedgeSpotArm(`s.state<>'retired'`)+`
+		UNION `+legset.SubRequestArm)
 	if err != nil {
 		return fmt.Errorf("活跃集自算: %w", err)
 	}

@@ -113,8 +113,11 @@ func (s *Sensor) probeDep(ctx context.Context, p depPair) error {
 		return err
 	}
 	blind := prodN > 0 && (p.consumerAbsent || consN == 0)
-	if p.family == "leg" {
-		blind = prodN == 0 // 腿对=产者（行情行）死而消费者需求在册=失明
+	switch p.family {
+	case "leg", "scan":
+		blind = prodN == 0 // 产者死（行情行/粗扫行零新鲜）而需求在册=失明
+	case "subreq":
+		blind = prodN > 0 && consN == 0 // 请求超龄在册而同键 tick 零新鲜=晋级滞留
 	}
 	if !blind {
 		return nil
@@ -136,7 +139,7 @@ func (s *Sensor) probeDep(ctx context.Context, p depPair) error {
 		consNStr = "缺席"
 	}
 	win := fmt.Sprintf("%dd", depblindSignalDays)
-	if p.family == "leg" {
+	if p.family == "leg" || p.family == "scan" || p.family == "subreq" {
 		win = fmt.Sprintf("%dmin", depblindLegFreshMin)
 	}
 	note := fmt.Sprintf("kind=dep_blind key=%s family=%s 产者=%s 产者窗内行=%d 消费者=%s 消费者窗内行=%s 窗=%s",
@@ -195,6 +198,24 @@ func (s *Sensor) depCounts(ctx context.Context, p depPair) (prodN, consN int, er
 			return 0, 0, fmt.Errorf("产者行情行数读败: %w", err)
 		}
 		consN = 1 // 消费者在册恒真（枚举本体=需求方）
+	case "scan": // T-0401③粗扫活性——产者=md_tick_scan 全谱新鲜行数
+		if err = s.pool.QueryRow(ctx, `SELECT count(*) FROM md_tick_scan
+			WHERE ts>now()-make_interval(mins=>$1)`,
+			depblindLegFreshMin).Scan(&prodN); err != nil {
+			return 0, 0, fmt.Errorf("产者粗扫行数读败: %w", err)
+		}
+		consN = 1
+	case "subreq": // T-0401③晋级滞留——产者=超龄 open 请求在册，消费者=同键新鲜 tick
+		if err = s.pool.QueryRow(ctx, `SELECT count(*) FROM fin_sub_request
+			WHERE inst_id=$1 AND state='open' AND ts<now()-make_interval(mins=>$2)`,
+			p.producer, depblindLegFreshMin).Scan(&prodN); err != nil {
+			return 0, 0, fmt.Errorf("产者晋级请求读败: %w", err)
+		}
+		if err = s.pool.QueryRow(ctx, `SELECT count(*) FROM md_ticks
+			WHERE inst_id=$1 AND ts>now()-make_interval(mins=>$2)`,
+			p.consumer, depblindLegFreshMin).Scan(&consN); err != nil {
+			return 0, 0, fmt.Errorf("消费者晋级 tick 读败: %w", err)
+		}
 	default:
 		return 0, 0, fmt.Errorf("未知依赖对族: %s", p.family)
 	}
