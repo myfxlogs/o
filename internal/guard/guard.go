@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"math"
 	"o/internal/platform/events"
 	"time"
 
@@ -53,16 +52,17 @@ func (missingExecutor) ExecuteClose(context.Context, CloseSpec) (int64, error) {
 
 // Warden 员工「仓巡」——常驻哨戒循环。
 type Warden struct {
-	pool   *pgxpool.Pool
-	cfg    *config.Client
-	gate   *risk.Gate
-	ex     Executor
-	sizer  VenueSizer
-	ctVal  func(ctx context.Context, venue, instID string) (float64, bool) // 合约面值现读件（T-0046①——T-0048 后 facts 表废，cmd 注入 venue 现读）
-	rej    *rejects.Door
-	al     *notify.Alerter
-	notes  map[string]time.Time                       // skip 态限频日志时间戳（键级 10min 节流）
-	equity func(ctx context.Context) (float64, error) // 净权益现读件（dd 硬线判定时点实读）
+	pool    *pgxpool.Pool
+	cfg     *config.Client
+	gate    *risk.Gate
+	ex      Executor
+	sizer   VenueSizer
+	ctVal   func(ctx context.Context, venue, instID string) (float64, bool) // 合约面值现读件（T-0046①——T-0048 后 facts 表废，cmd 注入 venue 现读）
+	rej     *rejects.Door
+	al      *notify.Alerter
+	notes   map[string]time.Time                       // skip 态限频日志时间戳（键级 10min 节流）
+	equity  func(ctx context.Context) (float64, error) // 净权益现读件（dd 硬线判定时点实读）
+	ddFacts map[string]any                             // 本拍回撤实况载荷（dd/阈/peak/cur——T-0415 平仓决策行携实况）
 }
 
 // AttachSizer 挂平仓量 venue 现读面（cmd 装配注入——未挂=平仓 fail-closed）。
@@ -155,19 +155,19 @@ func (w *Warden) scanOnce(ctx context.Context) error {
 }
 
 // tend 单仓看护：按既定触发（evaluate 判得或 dd_30d 强制）→标 closing（节拍账
-// attempts+1）→闸→反向双腿执行→状态迁移。trig 空=无触发零动作。
-func (w *Warden) tend(ctx context.Context, p posRow, maxAtt int64, trig string) {
+// attempts+1）→闸→反向双腿执行→状态迁移。trig.kind 空=无触发零动作。
+func (w *Warden) tend(ctx context.Context, p posRow, maxAtt int64, trig closeTrig) {
 	legs := w.legs(ctx, p.execID)
-	if trig == "" {
+	if trig.kind == "" {
 		return
 	}
 	// 腿形态契约外（缺腿/>2 腿）无法反向原子平——升级留痕不盲发畸形 intent。
 	if legs.one {
 		w.rej.Inc("leg_anomaly")
-		log.Printf("[guard] WARN 仓 %d 触发 %s 但腿形态异常——不可反向平，人工介入", p.id, trig)
+		log.Printf("[guard] WARN 仓 %d 触发 %s 但腿形态异常——不可反向平，人工介入", p.id, trig.kind)
 		return
 	}
-	if err := w.markClosing(ctx, p.id, trig); err != nil {
+	if err := w.markClosing(ctx, p.id, trig.kind); err != nil {
 		return
 	}
 	in := risk.Intent{
@@ -178,7 +178,7 @@ func (w *Warden) tend(ctx context.Context, p posRow, maxAtt int64, trig string) 
 	if !dec.Allow {
 		w.rej.Inc("close_denied")
 		w.markFailed(ctx, p.id)
-		log.Printf("[guard] WARN 仓 %d 平仓被闸拒（%s/%s）——升级留痕", p.id, trig, dec.Reason)
+		log.Printf("[guard] WARN 仓 %d 平仓被闸拒（%s/%s）——升级留痕", p.id, trig.kind, dec.Reason)
 		return
 	}
 	cls, ok := w.sizedCloseLegs(ctx, legs.reverse())
@@ -197,78 +197,17 @@ func (w *Warden) tend(ctx context.Context, p posRow, maxAtt int64, trig string) 
 		if p.attempts+1 >= maxAtt {
 			w.rej.Inc("close_gave_up")
 			w.al.Alert(ctx, "close_gave_up", "平仓重试耗尽——人工介入")
-			log.Printf("[guard] ERROR 仓 %d 平仓重试耗尽（%s，%d 次）——人工介入", p.id, trig, p.attempts+1)
+			log.Printf("[guard] ERROR 仓 %d 平仓重试耗尽（%s，%d 次）——人工介入", p.id, trig.kind, p.attempts+1)
 			return
 		}
-		log.Printf("[guard] WARN 仓 %d 平仓败（%s：%v）——按节拍重试", p.id, trig, err)
+		log.Printf("[guard] WARN 仓 %d 平仓败（%s：%v）——按节拍重试", p.id, trig.kind, err)
 		return
 	}
-	if err := w.markClosed(ctx, p.id, execID); err != nil {
+	if err := w.markClosed(ctx, p, execID, trig); err != nil {
 		log.Printf("[guard] WARN 仓 %d 平仓成交但态迁写败：%v", p.id, err)
 		return
 	}
-	log.Printf("[guard] 仓 %d 已平（触发=%s，decision=%d，close_exec=%d）", p.id, trig, dec.DecisionID, execID)
-}
-
-// evaluate 触发判序（单仓单触发，先到先平）：funding 翻面→delta 漂移→持仓超龄
-// →策略降级/退役联动。判据键缺=fail-closed 跳过+计数；事实行缺=计数不误判。
-func (w *Warden) evaluate(ctx context.Context, p posRow, legs legSet) string {
-	// ① funding 翻面：最新 funding 与开仓方向异号且超 guard.flip_bps。
-	if flipBps, err := w.getF("guard.flip_bps"); err != nil {
-		w.rej.Inc("missing_param")
-		w.note("missing_param:flip", fmt.Sprintf("仓 %d guard.flip_bps 读败——判据链跳过: %v", p.id, err))
-	} else if rate, ok := w.latestFunding(ctx, p.inst); !ok {
-		w.rej.Inc("facts_missing")
-		w.note("facts_missing:funding", fmt.Sprintf("仓 %d 无 funding 事实行——翻面判据跳过", p.id))
-	} else if sign, ok := perpSign(legs, p.inst); !ok {
-		w.rej.Inc("leg_anomaly")
-		w.note("leg_anomaly:perpSign", fmt.Sprintf("仓 %d perp 侧不可辨——翻面判据跳过", p.id))
-	} else if rate*sign < 0 && math.Abs(rate)*10000 > flipBps {
-		return "funding_flip"
-	} else if nr, ok := w.nextFunding(ctx, p.inst); ok && nr*sign < 0 && math.Abs(nr)*10000 > flipBps {
-		return "funding_flip_preempt" // T-0084：预测负值前置平——不等实收先交一刀
-	}
-	// ② delta 漂移（T-0064 语义正名）：漂移=对**开时基线**的偏移非绝对失衡——
-	// |imb_now − imb_open| > band（出生粒度残差不杀，canon
-	// lotsz-granularity-vs-hedge-band 裁决案）；双闸：imb_now>500bps 绝对
-	// 兜底（防 sizer 失守放裸腿级失衡）。基线=NULL=首拍实算落列（0033 列）。
-	if bandBps, err := w.getF("exec.hedge_band_bps"); err != nil {
-		w.rej.Inc("missing_param")
-		w.note("missing_param:band", fmt.Sprintf("仓 %d exec.hedge_band_bps 读败——漂移判据链跳过: %v", p.id, err))
-	} else if legs.one {
-		w.rej.Inc("leg_anomaly")
-		w.note("leg_anomaly:legs", fmt.Sprintf("仓 %d 腿形态异常——漂移判据跳过", p.id))
-	} else if n1, ok1 := w.notionalNow(ctx, legs.a); !ok1 {
-		w.rej.Inc("facts_missing")
-		w.note("facts_missing:notional", fmt.Sprintf("仓 %d 腿 %s 名义读败（tick/ctVal 缺）——漂移判据跳过", p.id, legs.a.inst))
-	} else if n2, ok2 := w.notionalNow(ctx, legs.b); !ok2 {
-		w.rej.Inc("facts_missing")
-		w.note("facts_missing:notional", fmt.Sprintf("仓 %d 腿 %s 名义读败（tick/ctVal 缺）——漂移判据跳过", p.id, legs.b.inst))
-	} else if avg := (n1 + n2) / 2; avg > 0 && w.driftTriggered(ctx, p.id, (n1-n2)/avg*10000, bandBps) {
-		return "delta_drift"
-	}
-	// ③ 持仓超龄：age > guard.max_hold_hours（T-0111：收益失效判——live 且
-	// trailing 24h 实收 funding>0 的仓免超龄闸；无收入仓保留年龄闸——僵尸
-	// 杀手机制不丢，盈利 carry 仓不再制度性误杀）。
-	if maxH, err := w.getF("guard.max_hold_hours"); err != nil {
-		w.rej.Inc("missing_param")
-		w.note("missing_param:maxhold", fmt.Sprintf("仓 %d guard.max_hold_hours 读败——超龄判据跳过: %v", p.id, err))
-	} else if time.Since(p.opened) > time.Duration(maxH*float64(time.Hour)) {
-		if w.trailingIncomePositive(ctx, p.id) {
-			w.note("max_hold_exempt", fmt.Sprintf("仓 %d 超龄但 trailing 24h 实收>0——收益失效判豁免", p.id))
-		} else {
-			return "max_hold"
-		}
-	}
-	// ④ 策略降级/退役联动（状态机事实直读，无键面——degraded/retired 必平）。
-	switch p.stratState {
-	case "degraded":
-		return "strategy_degraded"
-	case "retired":
-		return "strategy_retired"
-	}
-	w.note("no_trigger", fmt.Sprintf("仓 %d 全判据无触发——无触发也是决策（可观测）", p.id))
-	return ""
+	log.Printf("[guard] 仓 %d 已平（触发=%s，decision=%d，close_exec=%d）", p.id, trig.kind, dec.DecisionID, execID)
 }
 
 // trailingIncomePositive 收益失效判实读（T-0111）：fin_cashflow 归仓行

@@ -7,8 +7,11 @@ package lifecycle
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"o/internal/platform/decision"
 )
 
 var legal = map[string][]string{
@@ -55,5 +58,22 @@ func Transition(ctx context.Context, pool *pgxpool.Pool, strategyID int64, to, r
 		VALUES($1,$2,$3,$4)`, strategyID, from, to, reason); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	// T-0415：ops_decision 记忆行继事实行落账（退役=close 墓志铭——触发因携
+	// reason，载荷 expected_net_apr/realized_usd 实现的vs期望的；余迁=adjust）。
+	// 记忆写不阻钱径——写败走升件自报禁静默（decision 写径纪律②）。
+	act := "adjust"
+	if to == "retired" {
+		act = "close"
+	}
+	payload := map[string]any{"from": from, "to": to}
+	for k, v := range decision.MoneyFacts(ctx, pool, strategyID, 0) {
+		payload[k] = v
+	}
+	decision.WriteEsc(ctx, pool, decision.Row{
+		Domain: "fin", Actor: "lifecycle", RefID: strconv.FormatInt(strategyID, 10),
+		Action: act, Reason: reason, Payload: payload})
+	return nil
 }

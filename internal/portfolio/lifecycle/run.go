@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"o/internal/platform/config"
+	"o/internal/platform/decision"
 	"o/internal/platform/events"
 	"o/internal/platform/execfam"
 	"o/internal/platform/opschain"
@@ -128,7 +130,7 @@ func (r *Runner) scan(ctx context.Context) error {
 // admitProposals 新提案开户（state=paper；criteria 快照入行——判据代次留痕；
 // 模板门闸：join fin_opp_eval 取模板，无 paper 径族拦下不建策略）。
 func (r *Runner) admitProposals(ctx context.Context, notional, minH, minNet, maxDD float64) error {
-	rows, err := r.pool.Query(ctx, `SELECT p.id,p.inst_id,p.direction,e.template FROM fin_proposal p
+	rows, err := r.pool.Query(ctx, `SELECT p.id,p.inst_id,p.direction,e.template,p.eval_id,p.net_apr FROM fin_proposal p
 		JOIN fin_opp_eval e ON e.id=p.eval_id
 		WHERE p.state='fin_proposed' AND NOT EXISTS(
 			SELECT 1 FROM fin_strategy s WHERE s.proposal_ref=p.id)`)
@@ -136,15 +138,16 @@ func (r *Runner) admitProposals(ctx context.Context, notional, minH, minNet, max
 		return err
 	}
 	type prop struct {
-		id   int64
-		inst string
-		dir  string
-		tmpl string
+		id, evalID int64
+		inst       string
+		dir        string
+		tmpl       string
+		netApr     float64
 	}
 	var ps []prop
 	for rows.Next() {
 		var x prop
-		if err := rows.Scan(&x.id, &x.inst, &x.dir, &x.tmpl); err != nil {
+		if err := rows.Scan(&x.id, &x.inst, &x.dir, &x.tmpl, &x.evalID, &x.netApr); err != nil {
 			rows.Close()
 			return err
 		}
@@ -193,6 +196,17 @@ func (r *Runner) admitProposals(ctx context.Context, notional, minH, minNet, max
 			"UPDATE fin_proposal SET state='fin_armed' WHERE id=$1", x.id); err != nil {
 			return err
 		}
+		// T-0415：paper 开户=open 决策行（为什么开——提案/eval 锚+期望 carry
+		// +判据快照；继事实行写，写败升件不阻钱径）。
+		decision.WriteEsc(ctx, r.pool, decision.Row{
+			Domain: "fin", Actor: "lifecycle", RefID: strconv.FormatInt(sid, 10),
+			Action: "open",
+			Reason: fmt.Sprintf("提案过阈→paper 开户（proposal=#%d eval=#%d 期望 net_apr=%.4f）",
+				x.id, x.evalID, x.netApr),
+			Payload: map[string]any{
+				"proposal_id": x.id, "eval_id": x.evalID, "net_apr": x.netApr,
+				"template": x.tmpl, "direction": x.dir, "inst_id": x.inst,
+				"notional_usd": notional, "criteria": json.RawMessage(crit)}})
 		log.Printf("[lifecycle] #%d %s paper 开户 notional=%.0f", sid, x.inst, notional)
 	}
 	if len(blocked) > 0 {

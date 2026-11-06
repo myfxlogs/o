@@ -59,6 +59,9 @@ check_all），**直写 SQL 绕 DMSet=违例**。
 
 ### 产出
 seat_run 迹——ops_event 裁决行携票号+裁词+理由（票面验收锚即此兑现）。
+ops_event `裁决`/`驳回`/`参数调整` 行同拍自动镜像 ops_decision seat 行
+（T-0415 库内触发器——裁词行 note 裸词（通过/驳回/升级孤词、空 note）
+即 RAISE 整行不入账：判词摘要是机械必携非倡议）。
 
 ## 班次节（T-0354——事件 kick+drain 自退班次制；T-0414 收窄为判断轨）
 
