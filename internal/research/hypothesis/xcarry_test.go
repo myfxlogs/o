@@ -102,6 +102,40 @@ func TestXvenueCarryChain(t *testing.T) {
 	}
 }
 
+// T-0383 翻转断言桩锚：carry_diff 陈行（ts=2h 前——mt5_swap 4h 拍血统戳
+// 常态）消费臂应见+评估落行（修前 120s 闸恒零行）；超界行（ts=9h>8h 源
+// 节拍界）仍视缺席——闸收窄非拆。
+func TestXvenueCarryStaleVisible(t *testing.T) {
+	ctx, r := xsetup(t)
+	xseed(t, ctx, r, map[string]string{"research.signal.xvenue_carry_diff_bps": "300"})
+	for _, q := range []string{
+		`INSERT INTO md_signal(kind,key,val,meta,ts) VALUES('carry_diff','ETH-USDT-SWAP',-532,
+			'{"funding_ann_bps":-1095,"mt5_swap_ann_bps":0,"mt5_symbol":"ETHUSDm","contract_size":1,"max_volume":100}',
+			now()-interval '2 hours')`,
+		`INSERT INTO md_signal(kind,key,val,meta,ts) VALUES('carry_diff','SOL-USDT-SWAP',-532,
+			'{"funding_ann_bps":-1095,"mt5_swap_ann_bps":0,"mt5_symbol":"SOLUSDm","contract_size":1,"max_volume":100}',
+			now()-interval '9 hours')`,
+	} {
+		if _, err := r.pool.Exec(ctx, q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	r.xvenueCarryScan(ctx)
+	var verdict string
+	if err := r.pool.QueryRow(ctx, `SELECT verdict FROM fin_opp_eval
+		WHERE inst_id='ETH-USDT-SWAP' AND template='xvenue-carry'`).Scan(&verdict); err != nil {
+		t.Fatal("2h 陈行消费臂应见+评估落行（修前 120s 闸恒零行）:", err)
+	}
+	var n int
+	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_opp_eval
+		WHERE inst_id='SOL-USDT-SWAP' AND template='xvenue-carry'`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Fatalf("9h 超界行应仍视缺席 got %d 评估行", n)
+	}
+}
+
 // T-0144 返修③④锚：正 diff 径经济学归正——
 //
 //	diff>0+funding<|swap_long_ann|→net<0→评估 rejected/net_ann_economics

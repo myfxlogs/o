@@ -123,10 +123,11 @@ func TestXvenueMarkStale(t *testing.T) {
 	}
 }
 
-// T-0164 血统闸桩锚（派单钦定：上游陈→派生行即陈→评估面视缺席）：
+// T-0164 血统闸桩锚（派单钦定：上游陈→派生行即陈）：
 // swap 观测 2h 陈（8h 推导窗内）+funding 鲜→carry_diff 行落但 ts=swap 观测
-// ts（2h 前，非写拍 now）→Fresh 120s 消费闸读=缺席——行存在而消费不可见，
-// 禁合成面自盖章冒充鲜。spread 同律（ts=最旧边 tick 观测 30s 前）。
+// ts（2h 前，非写拍 now）——禁合成面自盖章冒充鲜；T-0383 翻转：消费闸
+// 改源节拍界 8h（最慢源拍×2），2h 陈行=源拍内当值→消费面可见，超界
+// （9h>8h）仍视缺席——闸收窄非拆。spread 同律（ts=最旧边 tick 观测 30s 前）。
 func TestXvenueLineage(t *testing.T) {
 	ctx, r := setup(t)
 	if err := r.AttachConfigForTest(ctx, map[string]any{
@@ -161,8 +162,16 @@ func TestXvenueLineage(t *testing.T) {
 	if age := time.Since(carryTs); age < 110*time.Minute {
 		t.Fatalf("carry ts 应=swap 观测（2h 前）got age=%v", age)
 	}
-	// 桩锚：行存在而评估面（Fresh 120s 闸）视缺席。
+	// T-0383 翻转桩锚：2h 陈行=源节拍界（8h）内当值→消费面可见（修前统一
+	// 120s 闸恒视缺席）；超界 9h 仍视缺席——闸未拆。
+	if _, ok, _ := Fresh(ctx, r.pool, "carry_diff", "ETH-USDT-SWAP"); !ok {
+		t.Fatal("swap 上游陈 2h（8h 界内）→carry_diff 消费面应可见（T-0383 源节拍界）")
+	}
+	if _, err := r.pool.Exec(ctx, `UPDATE md_signal SET ts=now()-interval '9 hours'
+		WHERE kind='carry_diff' AND key='ETH-USDT-SWAP'`); err != nil {
+		t.Fatal(err)
+	}
 	if _, ok, _ := Fresh(ctx, r.pool, "carry_diff", "ETH-USDT-SWAP"); ok {
-		t.Fatal("swap 上游陈（2h）→carry_diff 消费面应视缺席（血统层禁自盖章）")
+		t.Fatal("carry_diff 9h 超源节拍界（8h）应视缺席——闸未拆")
 	}
 }

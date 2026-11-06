@@ -1,6 +1,6 @@
 # T-0383 carry_diff 消费闸 120s 失明——xvenue 臂 DOA 根修
 
-- 状态：施工中（2026-11-06 devin-t0383 领）
+- 状态：待验（2026-11-06 devin-t0383 收口移交决策席）
 - 领取：常径机派；实工领取=devin-t0383 @ 2026-11-06（worktree /opt/o-wt/t0383）
 - 优先级：**P0 钱径**——评估臂对现有信号失明=觅食面直接断粮
 - 收口移交归：决策席
@@ -52,4 +52,66 @@
 
 ## 结果回填
 
-（施工写：实现摘要 / 测试证据 / 偏离说明）
+实现摘要（devin-t0383 @ 2026-11-06，分支 t/0383-xcarry-gate-cadence）：
+
+- **消费闸源节拍感知化**（范围①）：
+  - `hypothesis/xcarry.go` xvenueCarryScan carry_diff 闸 `120s→8h`——
+    界=最慢源 mt5_swap 4h 拍（`mt5/bridge.go swapEvery`）×2 安全边，
+    与读侧闸同根对齐（`sigdist/xvenue.go` mt5_swap 8h 闸、
+    `stakecarry.go` 同、`cmd/core/ops_face.go` 巡检 warn5h/dead9h
+    在案）——派生径注释引证，非魔法数；
+  - `sigdist/run.go` `Fresh`/`freshByKind` 种类自适闸扩
+    `carry_diff→8h`（CASE kind 派生——T-0199 funding_view 三巡
+    同形制四巡；同一信号两种鲜度标准的口径矛盾根修）；
+- **写侧零动**（范围②/红线）：carry_diff ts 仍=least(fundingTs,swapTs)
+  ——改的是消费判据非写侧戳；xvenue.go 写侧注释更新为现状语义；
+- `docs/数据流.md` 消费闸口径同步（链路语义变更票同 commit）；
+- 残险注释随行（红线）：swap 年化材料最陈≈4h 源拍固有——评估读源
+  快照非决策刻现值，注释钉于 xcarry.go 闸上。
+
+测试证据：
+
+- **翻转断言** `TestXvenueCarryStaleVisible`（xcarry_test.go）：
+  carry_diff ts=2h 陈行→xvenueCarryScan→fin_opp_eval 落行
+  （rejected/capacity_missing 如实）；ts=9h 超界行→零评估行（闸未拆）。
+  修前 120s 闸对 2h 陈行恒滤=零行——翻转成立（锚①）；
+- `TestXvenueLineage` 尾锚翻转：`Fresh(carry_diff@2h)` 现可见、
+  `@9h` 缺席；血统戳断言（ts=最旧上游 2h 前）原样保留 PASS（锚③）；
+- `go test ./internal/research/sigdist ./internal/research/hypothesis`
+  全绿（TestXvenue*/TestFresh*/TestStakeCarry*/TestXvenueCarry*）；
+- check_all 全链绿戳对口（收口 commit 同拍，锚④）。
+
+全仓 `interval '120 seconds'` 消费闸审计清单（锚②——逐一对源拍）：
+
+| 闸位 | 信号 | 源拍 | 处置 |
+|---|---|---|---|
+| hypothesis/xcarry.go carry_diff 扫描闸 | carry_diff | ts=最旧上游，最慢源 mt5_swap **4h** | **同病→修 8h** |
+| sigdist/run.go Fresh 通用闸 | 全 kind | carry_diff 经此可达（桩测实达；SurfaceSignals 映射当前不入该 kind） | **同病→CASE 自适 8h** |
+| sigdist/run.go freshByKind 通用闸 | 全 kind | 同上（闸面同源病） | **同修——与 Fresh 同闸语义** |
+| hypothesis/xcarry.go spreadAmortBPS/spreadVal | xvenue_spread | ts=最旧上游（mark/tick 皆秒级流，且写侧双 120s 闸内才产） | 不配——120s 即「上游活」判据 |
+| hypothesis/xcarry.go 容量 depth5 读 | depth5 | okxws books5 WS 秒级帧 | 不配 |
+| hypothesis/signals.go ScanSignals | depth5 / funding_view | depth5 秒级；funding_view 已当值期自适 | 不配 |
+| sigdist/xvenue.go mark/tick 读 | md_mark_index / md_ticks mt5 | okxws WS / mt5 OnQuote 皆秒级流 | 不配（写侧上游闸，语义正确） |
+| projector_test.go:460 | 夹具字面 | n/a | 不动 |
+| 文档面（done/T-0199 票文/本票） | n/a | n/a | 不动 |
+
+派生信号侧复：basis_ann（ts=最旧上游 mark/index-tickers 秒级 WS）/
+xvenue_spread（同上）/funding_view（当值期自适）——源拍皆≤闸值，
+唯 carry_diff 慢源同病，已修。
+
+偏离说明：
+
+- Fresh/freshByKind 产线径当前无 carry_diff 路由（SurfaceSignals 面→
+  kind 映射不含该 kind）——同修属同病灶根治+口径矛盾钦定项（「同一
+  信号两种鲜度标准」），非范围外扩；
+- 「meta ann_ok/cadence 机读派生」未取：mt5_swap meta 无 cadence 字段
+  （ann_ok 仅表换算成败），采票面主建议=读侧 8h 对齐；
+- 审计观察项（未动，备决策席知）：xcarry.go 容量件 `md_ticks mt5` mid
+  读无 ts 闸——非 120s 字面闸，秒级流残险低；
+- 红线全守：阈 250/300bps 未动、写侧 ts 语义未动、真单径未碰；
+- 坑处置随行：新坑条目 `条目/signal-fresh-gate-source-cadence.md`
+  入库+kbgen 重建索引；伴生量表 `xvenue_carry_eval_zero`（断供类）
+  注册 scripts/meta/gauges.tsv（照 stake_carry_eval_zero 同形——
+  评估臂再失明自动升件）；
+- 锚⑤ 移交注记：镜像面件（Go 码）入发窗由决策席按阻塞集判据合并；
+  合并后 xvenue 提案若出，lifecycle admitXvenuePair 既有径自动开纸面户。
