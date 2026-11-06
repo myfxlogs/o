@@ -12,7 +12,7 @@ import { Card, Cols, EmptyState, ErrorState, Skeleton, StateDot } from "../compo
 import { AGE, ExchSections, healthRows } from "../components/panel";
 import { pbDate } from "../components/fmt";
 import { HostMetricsCard } from "../components/hostmetrics";
-import { OrgPipelineTile } from "./Cockpit";
+import { OrgPipelineTile } from "../components/pipeline";
 import type { SystemComponent } from "../../gen/dashboardv1/core_pb";
 
 // ProcStrip SG core 采集臂进程观测（并入采集卡 SG 段——组级事实行同构渲染）。

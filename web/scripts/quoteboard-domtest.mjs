@@ -89,13 +89,19 @@ check("②裸态键禁入可见面", !html.includes(">active<") && !html.include
 check("②备注入悬停", html.includes("空单观察"));
 // ③无行情行显缺不假零
 check("③无行情显缺", html.includes("暂无行情") && !html.includes(">0<"));
-// ④表单：symbol=可过滤输入（input+datalist——非裸 select）+翻位钮
-check("④symbol=可过滤输入 datalist", html.includes('name="symbol"') && html.includes('list="alert-symbols"')
-	&& html.includes("<datalist") && !html.includes('<select name="symbol"'));
-check("④零成员时候选=全在采", (html.match(/<datalist[\s\S]*?<\/datalist>/)?.[0].match(/<option/g) || []).length === 3);
+// ④表单：symbol=可过滤输入+玻璃候选浮层（T-0411 交互②——datalist 升
+// 玻璃搜索浮层：压暗+blur8+实时过滤+高亮匹配段；FormData 语义零改动）
+check("④symbol=可过滤输入（受控 input 非裸 select 无 datalist）",
+	html.includes('name="symbol"') && !html.includes('<select name="symbol"') && !html.includes("<datalist"));
 check("④方向双选+目标价输入", html.includes('name="direction"') && html.includes('name="target"'));
 check("④停用钮在 active 行", html.includes("停用"));
 check("④恢复钮在 disabled 行", html.includes("恢复"));
+// ④T-0411：symbol 候选=玻璃搜索浮层（共享壳卡外兄弟渲+零成员时候选全在采）
+const phtml = render(rows, allSyms, { pickOpen: true });
+check("④候选浮层=玻璃壳（压暗 blur8+卡外兄弟）", phtml.includes("glass-overlay")
+	&& phtml.includes("glass-modal") && phtml.indexOf("glass-overlay") > phtml.indexOf("</section>"));
+check("④零成员时候选=全在采", (phtml.match(/watchlist-candidate-item/g) || []).length === 3);
+check("④浮层含过滤输入+选品种面", phtml.includes('aria-label="品种过滤"') && phtml.includes("选品种"));
 
 // ⑤自选瓦片面（成员价渲/零行情显缺/非成员不建瓦片——零成员态上行已断缺态文案）
 check("⑤零成员缺态文案", html.includes("未设自选品种") && html.includes("自选✎"));
@@ -113,9 +119,13 @@ check("⑧提醒表买一绿卖一红", whtml.includes('<td class="u-good">60,99
 check("⑤成员零行情显缺", whtml.includes('class="quote-tile"') && whtml.includes("暂无行情"));
 // 非成员不建瓦片：瓦片区只含两成员符号各一次（表体行另含 ETH——计数 quote-tile 数=成员数）
 check("⑤非成员不建瓦片", (whtml.match(/quote-tile/g) || []).length === 2);
-// ⑦提醒表单候选=watchlist 成员优先（成员在→候选=成员集，非全在采）
-const dl = whtml.match(/<datalist[\s\S]*?<\/datalist>/)?.[0] ?? "";
-check("⑦表单候选=成员集", (dl.match(/<option/g) || []).length === 2 && dl.includes("TRX-USDT-SWAP") && !dl.includes("ETH-USDT-SWAP"));
+// ⑦提醒表单候选=watchlist 成员优先（成员在→候选=成员集，非全在采；
+// T-0411 起候选面=玻璃搜索浮层 watchlist-candidate-item 计数——断言框定
+// 浮层段，提醒表格行里的 ETH 不入判）
+const phtml2 = render(rows, allSyms, { watchRows, pickOpen: true });
+const pickSeg = phtml2.slice(phtml2.indexOf('aria-label="提醒品种候选"'));
+check("⑦表单候选=成员集", (pickSeg.match(/watchlist-candidate-item/g) || []).length === 2
+	&& pickSeg.includes("TRX-USDT-SWAP") && !pickSeg.includes("ETH-USDT-SWAP"));
 
 // ⑥浮层面（WatchEditView 受控渲——query='trx' 子串过滤大小写不敏）
 const ehtml = renderToStaticMarkup(h(WatchEditView, {
@@ -123,7 +133,10 @@ const ehtml = renderToStaticMarkup(h(WatchEditView, {
 	onQuery: () => {}, onAdd: () => {}, onMove: () => {}, onRemove: () => {},
 	onSave: () => {}, onCancel: () => {},
 }));
-check("⑥搜索 trx→候选含 TRX", ehtml.includes("TRX-USDT-SWAP"));
+// T-0411 交互②：高亮匹配段（<mark class="glass-hl"> 包裹命中子串——
+// 大小写不敏定位，query='trx' → TRX 段高亮）
+check("⑥搜索 trx→候选含 TRX（命中段高亮）", ehtml.includes('<mark class="glass-hl">TRX</mark>')
+	&& ehtml.includes("-USDT-SWAP"));
 check("⑥搜索 trx→BTC 已选剔候选+ETH 不匹配不入", !ehtml.includes("ETH-USDT-SWAP"));
 check("⑥已选行+排序删件", ehtml.includes("已选（1）") && ehtml.includes("↑") && ehtml.includes("↓") && ehtml.includes("✕"));
 check("⑥保存=全量替换文案", ehtml.includes("保存（全量替换生效）"));

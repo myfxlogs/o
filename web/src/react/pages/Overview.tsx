@@ -118,9 +118,10 @@ export function OverviewPage() {
         <span className="ink-3">›</span>
       </a>
 
-      {/* 三问之二——仓什么状态（业主①：总览同上瀑布错落——hero/健康条保全宽） */}
+      {/* 三问之二——仓什么状态（业主①：总览同上瀑布错落——hero/健康条保全宽；
+          T-0411 在持=持仓行高频刷新件——实色卡禁玻璃底（稿内性能红线）） */}
       <div className="masonry">
-      <Card title="在持">
+      <Card className="card-solid" title="在持">
         {ov.err ? <ErrorState msg={ov.err} onRetry={ov.reload} /> : null}
         {doing.length === 0 ? (
           <EmptyState title="静持——无开仓在案" hint="系统在等下一个入场信号，来了这里会亮行" />
