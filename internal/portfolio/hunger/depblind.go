@@ -17,8 +17,13 @@
 //	  legset.ActiveSetUnion 同源表达式（订阅集/镜像谓词同串，禁自造
 //	  第二套归一链）∩订阅宇宙（okx.symbols+IsUSDTInst 闸——虚构键
 //	  宇宙外不求供价不炸）。
-//	③表读写对/④配置对：票面钦可标 deferred——本件枚举器面预留
-//	  （deferred 落地，界碑见票面结果回填）。
+//	③表读写对（T-0405 启用）：depTablePairs 钉定谱——产表窗内有写而
+//	  消表窗内零行=表读写失明（首谱 paper→fill/ops_event→链/eval→
+//	  proposal 三对）。
+//	④配置对（T-0405 启用）：app_config 键域×depConfigReaders 读面册——
+//	  册外域=产而活零读死键 orphan 升件；册内域=常对留账恒不盲。
+//	面清单快照 diff（T-0405 同件）：每拍机器可列面落批+上拍 diff，
+//	  新面=升件行（facesnap.go）。
 //
 // 枚举器自身 fail-closed：全谱扫零对=报错升件不静默（扫不到对=枚举
 // 面病灶非「零失明」）。
@@ -50,15 +55,21 @@ const (
 	depblindEscClass = "观测盲"
 	// depblindTicket 探针归属票号（例行行携环票号同 T-0384 例）。
 	depblindTicket = "T-0394"
+	// depblindTableDays 表读写对窗（天）——③族产/消同窗口径（信号对同款
+	// 7d：paper→fill/eval→proposal 链周节奏同窗；ops_event→链对写频高
+	// 同窗足够显形链死）。
+	depblindTableDays = 7
 )
 
 // depPair 依赖对（枚举器产物——产者↔消费者活性断言对象）。
 type depPair struct {
 	sig            string // 对签名（dep_blind key/esc_scope——逐对唯一）
-	family         string // 枚举族（signal|leg——③④ deferred 未入）
-	producer       string // 产者键（kind/inst）
-	consumer       string // 消费者键（template/inst）
-	consumerAbsent bool   // 消费册缺席形（orphan kind——产而活零读）
+	family         string // 枚举族（signal|leg|table|config）
+	producer       string // 产者键（kind/inst/表键/键域）
+	consumer       string // 消费者键（template/inst/表键/读者标签）
+	consumerAbsent bool   // 消费册缺席形（orphan kind/死键域——产而活零读）
+	prodSQL        string // ③族产者窗内行数 SQL（钉定谱常量——余族空）
+	consSQL        string // ③族消费者窗内行数 SQL
 }
 
 // depBlindWhitelist 注册式豁免面——合法「产而未读」基线落位点：首跑全谱
@@ -99,6 +110,11 @@ func (s *Sensor) ProbeDeps(ctx context.Context) error {
 			errs = append(errs, fmt.Errorf("%s: %w", p.sig, err))
 		}
 	}
+	// T-0405 面清单快照 diff 同拍（facesnap.go——「该建未建」类残余：
+	// 每拍机器可列面落批+上拍 diff，新面=升件行；败情并入拍级错非静默）。
+	if err := s.probeFaceDiff(ctx, pairs); err != nil {
+		errs = append(errs, fmt.Errorf("面清单diff: %w", err))
+	}
 	return errors.Join(errs...)
 }
 
@@ -136,8 +152,13 @@ func (s *Sensor) probeDep(ctx context.Context, p depPair) error {
 		consNStr = "缺席"
 	}
 	win := fmt.Sprintf("%dd", depblindSignalDays)
-	if p.family == "leg" {
+	switch p.family {
+	case "leg":
 		win = fmt.Sprintf("%dmin", depblindLegFreshMin)
+	case "table":
+		win = fmt.Sprintf("%dd", depblindTableDays)
+	case "config":
+		win = "在册"
 	}
 	note := fmt.Sprintf("kind=dep_blind key=%s family=%s 产者=%s 产者窗内行=%d 消费者=%s 消费者窗内行=%s 窗=%s",
 		p.sig, p.family, p.producer, prodN, cons, consNStr, win)
@@ -195,6 +216,23 @@ func (s *Sensor) depCounts(ctx context.Context, p depPair) (prodN, consN int, er
 			return 0, 0, fmt.Errorf("产者行情行数读败: %w", err)
 		}
 		consN = 1 // 消费者在册恒真（枚举本体=需求方）
+	case "table":
+		if err = s.pool.QueryRow(ctx, p.prodSQL, depblindTableDays).Scan(&prodN); err != nil {
+			return 0, 0, fmt.Errorf("产者表行数读败: %w", err)
+		}
+		if err = s.pool.QueryRow(ctx, p.consSQL, depblindTableDays).Scan(&consN); err != nil {
+			return 0, 0, fmt.Errorf("消费者表行数读败: %w", err)
+		}
+	case "config":
+		if err = s.pool.QueryRow(ctx, `SELECT count(*) FROM app_config
+			WHERE split_part(key,'.',1)=$1`,
+			p.producer).Scan(&prodN); err != nil {
+			return 0, 0, fmt.Errorf("配置键域行数读败: %w", err)
+		}
+		if p.consumerAbsent {
+			return prodN, -1, nil
+		}
+		consN = 1 // 册载读者在册恒真（读面册=需求方登记）
 	default:
 		return 0, 0, fmt.Errorf("未知依赖对族: %s", p.family)
 	}

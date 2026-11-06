@@ -129,6 +129,12 @@ func TestProbeDepsRealPairsNoFalsePositive(t *testing.T) {
 	seedSignal(t, pool, "dead_kind", "BTC-USDT-SWAP", 200*24*time.Hour) // 死源
 	seedDepStrategy(t, pool, "ETH-USDT", "funding-hedge", "live")
 	seedDepTick(t, pool, "ETH-USDT", 0) // 腿有鲜 tick
+	// ③族钉定谱零误报位：窗内 eval 有产须配提案消费（缺=eval→proposal 失明）；
+	// ops_event→链对=探针自写行链覆写在即天然有消。
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_proposal(eval_id,inst_id,direction,net_apr)
+		SELECT id,inst_id,direction,0 FROM fin_opp_eval`); err != nil {
+		t.Fatal(err)
+	}
 	if err := s.ProbeDeps(ctx); err != nil {
 		t.Fatalf("probe: %v", err)
 	}
@@ -143,13 +149,36 @@ func TestProbeDepsRealPairsNoFalsePositive(t *testing.T) {
 	}
 }
 
-// TestProbeDepsEmptyEnumFailClosed 锚③：枚举器空集=fail-closed——净库
-// 零信号/零模板/零策略腿→ProbeDeps 报错（扫不到对=枚举面病灶非零失明，
-// 上抛归 hungerTick 升件自报位）。
+// TestProbeDepsEmptyEnumFailClosed 锚③（T-0405 语义重钉）：③④族启用后
+// 枚举地板=钉定表对+app_config 键域对——净库零信号/零腿仍有 ③④对，
+// 全谱空集结构性不可达（len(pairs)==0 闸仍守）；改为断言净库枚举谱=
+// 钉定表对+键域对两族齐入列（config 域皆读面册内=册外零盲）。
 func TestProbeDepsEmptyEnumFailClosed(t *testing.T) {
 	s, _ := depFixture(t)
-	if err := s.ProbeDeps(context.Background()); err == nil {
-		t.Fatal("空集未 fail-closed——枚举器静默绿=病灶")
+	pairs, err := s.enumerateDeps(context.Background())
+	if err != nil {
+		t.Fatalf("enumerate: %v", err)
+	}
+	have := map[string]bool{}
+	for _, p := range pairs {
+		have[p.sig] = true
+	}
+	for _, spec := range depTablePairs {
+		if !have[spec.sig] {
+			t.Fatalf("③族钉定对缺席: %s", spec.sig)
+		}
+	}
+	var cfgPairs int
+	for _, p := range pairs {
+		if p.family == "config" {
+			cfgPairs++
+			if p.consumerAbsent {
+				t.Fatalf("种键域读面册外误标 orphan: %s", p.sig)
+			}
+		}
+	}
+	if cfgPairs == 0 {
+		t.Fatal("④族键域对缺席——app_config 键域枚举未入列")
 	}
 }
 
@@ -232,5 +261,138 @@ func TestProbeDepsCensusStableNoDup(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
 		WHERE event='依赖对清单'`).Scan(&n); err != nil || n != 1 {
 		t.Fatalf("清单重复落行: n=%d", n)
+	}
+}
+
+// —— T-0405 ③④族+面清单 diff 桩测（票面钦④桩测：③族 paper 零 fill 检出/
+//   合法未读白名单豁/面清单新增行升件三态）——
+
+// TestProbeDepsTablePairPaperZeroFill ③族钉定对检出：paper 策略在册逾窗
+// （entered_at>7d——应产 paper 记账）而 fin_paper_fill 窗内零行→
+// table:fin_strategy[paper]→fin_paper_fill 失明行+观测盲升件。同窗新生
+// paper（entered_at<窗）不构产者——误报闸位断言。
+func TestProbeDepsTablePairPaperZeroFill(t *testing.T) {
+	s, pool := depFixture(t)
+	ctx := context.Background()
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_strategy
+		(inst_id,template_ref,state,notional_usd,entered_at)
+		VALUES('BTC-USDT','funding-hedge','paper',100,now()-interval '10 days')`); err != nil {
+		t.Fatal(err)
+	}
+	seedDepStrategy(t, pool, "ETH-USDT", "funding-hedge", "paper") // 新生 paper 不构产者
+	seedDepTick(t, pool, "BTC-USDT", 0)                            // 腿对有供——隔③族单点断言
+	seedDepTick(t, pool, "ETH-USDT", 0)
+	if err := s.ProbeDeps(ctx); err != nil {
+		t.Fatalf("probe: %v", err)
+	}
+	var n int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='依赖对失明' AND note LIKE '%key=table:fin_strategy[paper]→fin_paper_fill %'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("③族失明行缺: n=%d err=%v", n, err)
+	}
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='升件' AND esc_class='观测盲' AND esc_scope='table:fin_strategy[paper]→fin_paper_fill'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("③族升件缺: n=%d err=%v", n, err)
+	}
+}
+
+// TestProbeDepsTablePairWhitelistExempt ③族白名单豁：合法「产而未读」对
+// 注册豁免→失明/升件零行+「依赖对豁免」行携理由键（豁面照旧机制）。
+func TestProbeDepsTablePairWhitelistExempt(t *testing.T) {
+	s, pool := depFixture(t)
+	ctx := context.Background()
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_strategy
+		(inst_id,template_ref,state,notional_usd,entered_at)
+		VALUES('BTC-USDT','funding-hedge','paper',100,now()-interval '10 days')`); err != nil {
+		t.Fatal(err)
+	}
+	seedDepTick(t, pool, "BTC-USDT", 0) // 腿对行情有供——隔③族单点断言
+	old := depBlindWhitelist
+	depBlindWhitelist = map[string]string{
+		"table:fin_strategy[paper]→fin_paper_fill": "paper 记账面待建——人工基线"}
+	defer func() { depBlindWhitelist = old }()
+	if err := s.ProbeDeps(ctx); err != nil {
+		t.Fatalf("probe: %v", err)
+	}
+	blind, esc := depRows(t, pool)
+	if blind != 0 || esc != 0 {
+		t.Fatalf("豁免对误报: 失明=%d 升件=%d", blind, esc)
+	}
+	var n int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='依赖对豁免' AND note LIKE 'key=table:fin_strategy%'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("豁免行缺: n=%d err=%v", n, err)
+	}
+}
+
+// TestProbeDepsConfigOrphanDomain ④族死键检出：app_config 册外域键在册
+// （产者已写）而读面册外→config:<域>→∅ orphan 失明行+升件；册内域恒不盲。
+func TestProbeDepsConfigOrphanDomain(t *testing.T) {
+	s, pool := depFixture(t)
+	ctx := context.Background()
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO app_config(key,value) VALUES('zzdead.foo','1')`); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ProbeDeps(ctx); err != nil {
+		t.Fatalf("probe: %v", err)
+	}
+	var n int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='依赖对失明' AND note LIKE '%key=config:zzdead→∅ %'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("④族死键失明行缺: n=%d err=%v", n, err)
+	}
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='升件' AND esc_class='观测盲' AND esc_scope='config:zzdead→∅'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("④族死键升件缺: n=%d err=%v", n, err)
+	}
+}
+
+// TestProbeFaceDiffNewFaceEscalation 面清单 diff 三态：首拍=基线建册零
+// 升件→新键域入册后二拍=新面行+观测盲升件（gate_domain+dep_pair 两形
+// 同新）→三拍谱稳=零新增（差集空+同窗去重双闸）；快照仅留最近两拍批。
+func TestProbeFaceDiffNewFaceEscalation(t *testing.T) {
+	s, pool := depFixture(t)
+	ctx := context.Background()
+	// 一拍=基线（零新面升件）
+	if err := s.ProbeDeps(ctx); err != nil {
+		t.Fatalf("probe1: %v", err)
+	}
+	var n int
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM ops_event WHERE event='面清单新面'`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("基线拍误升新面: n=%d err=%v", n, err)
+	}
+	if err := pool.QueryRow(ctx,
+		`SELECT count(DISTINCT batch) FROM ops_face_snapshot`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("基线批缺: n=%d err=%v", n, err)
+	}
+	// 新面入册（gate_domain:newdom+dep_pair:config:newdom→∅ 两形同新）
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO app_config(key,value) VALUES('newdom.x','1')`); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ProbeDeps(ctx); err != nil {
+		t.Fatalf("probe2: %v", err)
+	}
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM ops_event WHERE event='面清单新面'`).Scan(&n); err != nil || n != 2 {
+		t.Fatalf("新面行数错位: n=%d err=%v", n, err)
+	}
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='升件' AND esc_class='观测盲' AND esc_scope='face:gate_domain:newdom'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("gate_domain 新面升件缺: n=%d err=%v", n, err)
+	}
+	// 三拍谱稳：差集空零新增（同窗去重同吸）；快照批≤2
+	if err := s.ProbeDeps(ctx); err != nil {
+		t.Fatalf("probe3: %v", err)
+	}
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM ops_event WHERE event='面清单新面'`).Scan(&n); err != nil || n != 2 {
+		t.Fatalf("谱稳拍误升: n=%d err=%v", n, err)
+	}
+	if err := pool.QueryRow(ctx,
+		`SELECT count(DISTINCT batch) FROM ops_face_snapshot`).Scan(&n); err != nil || n > 2 {
+		t.Fatalf("快照批超留: n=%d err=%v", n, err)
 	}
 }
