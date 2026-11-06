@@ -734,11 +734,24 @@ details.rep summary {
   }
 }
 
-/* —— 面板 2 行 2 列（业主⑬）：行1 生产机|采集，行2 主机资源|席位；
-   ≥1100px 生效，窄屏回落单列堆叠；v3 解挤间距 20→24px 同 .duo —— */
-.quad {
+/* —— 独立列容器（T-0389 列联动解耦——钦定语义=各列瓦片独立排布零联动：
+   每列独立 flex 上下文，列内 gap 恒定 24px 不随他列几何变；一卡展开只增
+   本卡高，不撑他列间距不推他列下坠。替代 grid 同行行高耦合旧构）—— */
+.cols {
   display: flex;
   flex-direction: column;
+}
+.cols-col {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  min-width: 0;
+}
+
+/* —— 面板双列（原 2 行 2 列 grid——业主⑬ 位序沿用：列1=生产机|主机资源|
+   管道，列2=采集|席位）：T-0389 改 Cols 独立列容器，≥1100px 双列并排，
+   窄屏回落单列堆叠；v3 解挤间距 20→24px 同 .duo —— */
+.quad {
   gap: 24px;
 }
 @media (min-width: 1100px) {
