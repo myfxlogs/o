@@ -5,6 +5,8 @@
 // 方言不可年化）=carry_diff 该对缺席如实。
 // T-0164 血统闸：合成面禁 now() 自盖章——行 ts=最旧上游观测 ts，上游陈→
 // 行即陈→消费 Fresh 闸视缺席（D-0022「信号陈=不存在」钉到血统层）。
+// T-0408 抽件：okxMark/mt5TickMid/writeSpread/writeCarry=真/影共享数学
+// （影子臂 xshadow.go 同件——防冗余断言禁第二套评估数学）。
 package sigdist
 
 import (
@@ -47,6 +49,8 @@ func (r *Runner) xvenueMap(ctx context.Context) (map[string]string, error) {
 }
 
 // Xvenue 跨所族一拍（Distill 第三族组——映射缺/坏=让位 fail-closed 不虚构）。
+// map 内对产真行（xvenue_spread/carry_diff）；拍尾 T-0408 影子域扩拍
+// （map 外候选对→xvenue_shadow_* 独立 kind——真评估/真开闸径零触）。
 func (r *Runner) Xvenue(ctx context.Context) error {
 	xm, err := r.xvenueMap(ctx)
 	if err != nil {
@@ -57,90 +61,124 @@ func (r *Runner) Xvenue(ctx context.Context) error {
 	// funding_view / mt5_swap——任一单边陈/缺=该对跳过如实。
 	// T-0171 频道方言归一：REST 轮询面撤，'mark-price' 单键域唯一。
 	for okxInst, mt5Sym := range xm {
-		var okxMark, mt5Mid float64
-		var markTs, midTs time.Time
-		err := r.pool.QueryRow(ctx, `SELECT px, ts FROM (
-				SELECT px, ts FROM md_mark_index
-				WHERE channel='mark-price' AND inst_id=$1
-				  AND ts > now()-interval '120 seconds'
-				ORDER BY ts DESC LIMIT 1) t`,
-			okxInst).Scan(&okxMark, &markTs)
-		if err != nil {
+		okxMark, markTs, ok := r.okxMark(ctx, okxInst)
+		if !ok {
 			continue // okx 单边陈/缺
 		}
-		err = r.pool.QueryRow(ctx, `SELECT (bid+ask)/2, ts FROM md_ticks
-			WHERE venue='mt5' AND inst_id=$1 AND ask>0 AND bid>0 AND ts > now()-interval '120 seconds'`,
-			mt5Sym).Scan(&mt5Mid, &midTs)
-		if err != nil || mt5Mid == 0 {
+		mt5Mid, midTs, ok := r.mt5TickMid(ctx, mt5Sym)
+		if !ok {
 			continue // mt5 单边陈/缺/坏价
 		}
-		bps := (okxMark - mt5Mid) / mt5Mid * 10000
-		meta, _ := json.Marshal(map[string]any{
-			"mt5_symbol": mt5Sym, "okx_mark": okxMark, "mt5_mid": mt5Mid})
-		// T-0164 血统闸：ts=最旧上游观测（mark/tick 任一陈→行随陈，非写拍自盖章）。
-		if _, err := r.pool.Exec(ctx, `INSERT INTO md_signal(kind,key,val,meta,ts)
-			VALUES('xvenue_spread',$1,$2,$3::jsonb,$4)
-			ON CONFLICT (kind,key) DO UPDATE SET val=EXCLUDED.val,
-			meta=EXCLUDED.meta, ts=EXCLUDED.ts`, okxInst, bps, string(meta), leastTs(markTs, midTs)); err != nil {
+		if err := r.writeSpread(ctx, "xvenue_spread", okxInst, mt5Sym,
+			okxMark, mt5Mid, leastTs(markTs, midTs), nil); err != nil {
 			return err
 		}
 		// carry_diff：funding 年化（8h 期×3×365）− MT5 空腿 swap 年化（bps）。
-		var funding, swapAnn float64
-		var fundingTs, swapTs time.Time
-		// T-0199 二巡：当值期判据（阶梯序列鲜=值仍当值——next_funding_ts>now() 钦定）
-		fErr := r.pool.QueryRow(ctx, `SELECT val, ts FROM md_signal
-			WHERE kind='funding_view' AND key=$1
-				AND (meta->>'next_funding_ts')::timestamptz > now()`,
-			okxInst).Scan(&funding, &fundingTs)
-		sErr := r.pool.QueryRow(ctx, `SELECT val, ts FROM md_signal
-			WHERE kind='mt5_swap' AND key=$1 AND val IS NOT NULL AND ts > now()-interval '8 hours'`,
-			mt5Sym).Scan(&swapAnn, &swapTs)
-		if fErr != nil || sErr != nil {
-			continue // 换算缺件/单边陈——缺席如实（mt5_swap val=NULL 单位方言不可年化）
-		}
-		fundingAnn := funding * 3 * 365 * 10000 // 8h 期→年化 bps
-		// T-0203 方向腿自洽：funding>0=short perp 收 funding+long CFD 付
-		// swap_long；funding<0=long perp 付 funding+short CFD 付 swap_short——
-		// 错腿当成本=虚高伪影根治（钦定甲案：最优方向净 carry+方向钉）。
-		var swapMeta map[string]any
-		_ = r.pool.QueryRow(ctx, `SELECT meta FROM md_signal
-			WHERE kind='mt5_swap' AND key=$1 ORDER BY ts DESC LIMIT 1`, mt5Sym).Scan(&swapMeta)
-		sl := f64any(swapMeta["swap_long_ann_bps"])
-		ss := f64any(swapMeta["swap_short_ann_bps"])
-		var diff float64
-		var dir string
-		if fundingAnn > 0 {
-			dir = "short_perp_long_cfd"
-			diff = fundingAnn + sl // swap_long_ann 负值=成本相加即净
-		} else {
-			dir = "long_perp_short_cfd"
-			diff = -fundingAnn + ss // |funding|−|swap_short| 同构
-		}
-		// T-0144 返修②：双腿年化随行（val 语义不动=仍 funding−short 端；
-		// swap_long 成本端/容量件全携——正 funding 径经济学归正源）。
-		meta2 := map[string]any{
-			"mt5_symbol": mt5Sym, "funding_ann_bps": fundingAnn, "mt5_swap_ann_bps": swapAnn,
-			"direction": dir, "swap_long_ann_bps": sl, "swap_short_ann_bps": ss}
-		for _, k := range []string{"swap_long_ann_bps", "swap_short_ann_bps", "ann_ok",
-			"contract_size", "max_volume", "initial_margin"} {
-			if v, ok := swapMeta[k]; ok {
-				meta2[k] = v
-			}
-		}
-		metaB2, _ := json.Marshal(meta2)
-		// T-0164 血统闸：ts=最旧上游观测——mt5_swap 4h 拍面陈→carry_diff 行
-		// 随陈（mt5_swap 陈=carry_diff 陈，派单钦定——写侧语义不动）；消费侧
-		// 判据=源节拍感知 8h（T-0383——Fresh/xvenueCarryScan 同界，原统一
-		// 120s 对 4h 源恒陈失明根修）。
-		if _, err := r.pool.Exec(ctx, `INSERT INTO md_signal(kind,key,val,meta,ts)
-			VALUES('carry_diff',$1,$2,$3::jsonb,$4)
-			ON CONFLICT (kind,key) DO UPDATE SET val=EXCLUDED.val,
-			meta=EXCLUDED.meta, ts=EXCLUDED.ts`, okxInst, diff, string(metaB2), leastTs(fundingTs, swapTs)); err != nil {
+		if err := r.writeCarry(ctx, "carry_diff", okxInst, mt5Sym, nil); err != nil {
 			return err
 		}
 	}
 	log.Printf("[sigdist] xvenue 拍：%d 对（xvenue_spread/carry_diff）", len(xm))
-	return nil
+	return r.xvenueShadow(ctx, xm)
+}
+
+// okxMark mark-price 最新行（120s 帧龄闸——单边陈/缺=not ok 缺席如实）。
+func (r *Runner) okxMark(ctx context.Context, okxInst string) (px float64, ts time.Time, ok bool) {
+	err := r.pool.QueryRow(ctx, `SELECT px, ts FROM (
+			SELECT px, ts FROM md_mark_index
+			WHERE channel='mark-price' AND inst_id=$1
+			  AND ts > now()-interval '120 seconds'
+			ORDER BY ts DESC LIMIT 1) t`,
+		okxInst).Scan(&px, &ts)
+	return px, ts, err == nil
+}
+
+// mt5TickMid mt5 tick 鲜中点（120s 帧龄闸——venue='mt5' md_ticks 行；
+// 陈/缺/坏价=not ok 缺席如实）。
+func (r *Runner) mt5TickMid(ctx context.Context, mt5Sym string) (mid float64, ts time.Time, ok bool) {
+	err := r.pool.QueryRow(ctx, `SELECT (bid+ask)/2, ts FROM md_ticks
+		WHERE venue='mt5' AND inst_id=$1 AND ask>0 AND bid>0 AND ts > now()-interval '120 seconds'`,
+		mt5Sym).Scan(&mid, &ts)
+	return mid, ts, err == nil && mid != 0
+}
+
+// writeSpread 价差行 upsert（真/影同数学——kind 区分域；T-0164 血统闸
+// ts=最旧上游观测由调用方给；extra 附 meta 域）。
+func (r *Runner) writeSpread(ctx context.Context, kind, okxInst, mt5Sym string,
+	okxMark, mt5Mid float64, ts time.Time, extra map[string]any) error {
+	bps := (okxMark - mt5Mid) / mt5Mid * 10000
+	meta := map[string]any{
+		"mt5_symbol": mt5Sym, "okx_mark": okxMark, "mt5_mid": mt5Mid}
+	for k, v := range extra {
+		meta[k] = v
+	}
+	metaB, _ := json.Marshal(meta)
+	_, err := r.pool.Exec(ctx, `INSERT INTO md_signal(kind,key,val,meta,ts)
+		VALUES($1,$2,$3,$4::jsonb,$5)
+		ON CONFLICT (kind,key) DO UPDATE SET val=EXCLUDED.val,
+		meta=EXCLUDED.meta, ts=EXCLUDED.ts`, kind, okxInst, bps, string(metaB), ts)
+	return err
+}
+
+// writeCarry carry 行 upsert（真/影同数学——funding_view 当值期×mt5_swap
+// 8h 鲜→方向腿净 carry；单边陈/缺/换算缺件=缺席如实行不写；T-0164 血统
+// 闸 ts=最旧上游观测）。T-0203 方向腿自洽：funding>0=short perp 收
+// funding+long CFD 付 swap_long；funding<0=long perp 付 funding+short
+// CFD 付 swap_short——错腿当成本=虚高伪影根治（钦定甲案：最优方向净
+// carry+方向钉）。
+func (r *Runner) writeCarry(ctx context.Context, kind, okxInst, mt5Sym string, extra map[string]any) error {
+	var funding, swapAnn float64
+	var fundingTs, swapTs time.Time
+	// T-0199 二巡：当值期判据（阶梯序列鲜=值仍当值——next_funding_ts>now() 钦定）
+	fErr := r.pool.QueryRow(ctx, `SELECT val, ts FROM md_signal
+		WHERE kind='funding_view' AND key=$1
+			AND (meta->>'next_funding_ts')::timestamptz > now()`,
+		okxInst).Scan(&funding, &fundingTs)
+	sErr := r.pool.QueryRow(ctx, `SELECT val, ts FROM md_signal
+		WHERE kind='mt5_swap' AND key=$1 AND val IS NOT NULL AND ts > now()-interval '8 hours'`,
+		mt5Sym).Scan(&swapAnn, &swapTs)
+	if fErr != nil || sErr != nil {
+		return nil // 换算缺件/单边陈——缺席如实（mt5_swap val=NULL 单位方言不可年化）
+	}
+	fundingAnn := funding * 3 * 365 * 10000 // 8h 期→年化 bps
+	var swapMeta map[string]any
+	_ = r.pool.QueryRow(ctx, `SELECT meta FROM md_signal
+		WHERE kind='mt5_swap' AND key=$1 ORDER BY ts DESC LIMIT 1`, mt5Sym).Scan(&swapMeta)
+	sl := f64any(swapMeta["swap_long_ann_bps"])
+	ss := f64any(swapMeta["swap_short_ann_bps"])
+	var diff float64
+	var dir string
+	if fundingAnn > 0 {
+		dir = "short_perp_long_cfd"
+		diff = fundingAnn + sl // swap_long_ann 负值=成本相加即净
+	} else {
+		dir = "long_perp_short_cfd"
+		diff = -fundingAnn + ss // |funding|−|swap_short| 同构
+	}
+	// T-0144 返修②：双腿年化随行（val 语义不动=仍 funding−short 端；
+	// swap_long 成本端/容量件全携——正 funding 径经济学归正源）。
+	meta2 := map[string]any{
+		"mt5_symbol": mt5Sym, "funding_ann_bps": fundingAnn, "mt5_swap_ann_bps": swapAnn,
+		"direction": dir, "swap_long_ann_bps": sl, "swap_short_ann_bps": ss}
+	for _, k := range []string{"swap_long_ann_bps", "swap_short_ann_bps", "ann_ok",
+		"contract_size", "max_volume", "initial_margin", "mid"} {
+		if v, ok := swapMeta[k]; ok {
+			meta2[k] = v
+		}
+	}
+	for k, v := range extra {
+		meta2[k] = v
+	}
+	metaB2, _ := json.Marshal(meta2)
+	// T-0164 血统闸：ts=最旧上游观测——mt5_swap 4h 拍面陈→carry 行随陈
+	// （mt5_swap 陈=carry 陈，派单钦定——写侧语义不动）；消费侧判据=源节拍
+	// 感知 8h（T-0383——Fresh/xvenueCarryScan 同界，原统一 120s 对 4h 源
+	// 恒陈失明根修）。
+	_, err := r.pool.Exec(ctx, `INSERT INTO md_signal(kind,key,val,meta,ts)
+		VALUES($1,$2,$3,$4::jsonb,$5)
+		ON CONFLICT (kind,key) DO UPDATE SET val=EXCLUDED.val,
+		meta=EXCLUDED.meta, ts=EXCLUDED.ts`, kind, okxInst, diff, string(metaB2), leastTs(fundingTs, swapTs))
+	return err
 }
 
 // SurfaceAdapter 装配侧信号读闸出口（T-0140 接线件——core 假想官

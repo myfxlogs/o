@@ -67,6 +67,7 @@ var reqTemplates = map[string]map[string]any{
 // Runner 假想官在岗体（enroll 注册+心跳；ev_gap 事件驱动——D-0008-B 正解）。
 type Runner struct {
 	pool  *pgxpool.Pool
+	fin   *pgxpool.Pool // T-0408 影域呈批径（fin_condition_gap 请求盒正本池——nil=影呈让位留评估行）
 	cfg   *config.Client
 	rej   *rejects.Door
 	watch *armwatch.Watch // 臂活性看门（T-0117——四臂共用件）
@@ -88,6 +89,10 @@ type Sig struct {
 
 // AttachSignals 挂信号读面（T-0139 消费闸——装配层传 sigdist.Fresh 适配）。
 func (r *Runner) AttachSignals(fn SignalReader) *Runner { r.sigs = fn; return r }
+
+// AttachFin 挂 fin 正本池（SG——fin_condition_gap 请求盒写径；dcd 同件同形，
+// T-0408 影子评估 proposed→condreq 呈批径）。
+func (r *Runner) AttachFin(pool *pgxpool.Pool) *Runner { r.fin = pool; return r }
 
 func NewRunner(pool *pgxpool.Pool, cfg *config.Client) *Runner {
 	return &Runner{pool: pool, cfg: cfg, watch: armwatch.New("假想官"),
