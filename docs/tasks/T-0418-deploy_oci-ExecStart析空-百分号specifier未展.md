@@ -1,6 +1,6 @@
 # T-0418 deploy_oci ExecStart 解析空——%h 等 systemd specifier 未展开
 
-- 状态：已批（决策席直批 2026-11-07——T-0416 部署实证病灶）
+- 状态：待验（施工收口 2026-11-07——桩测⑥全绿；实盒干跑见下）
 - 优先级：P2——deploy_oci.sh 预检死径（环约闸名存实亡绕不过）
 - 收口移交归：决策席
 
@@ -36,6 +36,19 @@ deploy_oci.sh 对 %h 形单元**结构性不可用**（T-0416 部署实证——
 
 - 桩测谱绿；o-collecto %h 单元解析出 `/home/ubuntu/o/collector`；
 - 未知 specifier fail-closed die 显报不静默。
+
+## 施工回填（2026-11-07）
+
+- `scripts/deploy_oci.sh`：新增 `expand_exec()`——%h→ssh 户 $HOME、%u→`id -un`
+  属主名、%s→unit 名（去 .service）、%%→字面 %；未识别 specifier/包装形
+  （env|bash|sh|timeout 等壳件）/多命令（; & |）/非绝对路径=保守 die 报原值；
+  systemd 前缀修饰（-/+/!/@/:）剥。EXECPATH 解析改走本函数。
+- 桩测 `scripts/meta/tests/deploy_oci_execstart_test.sh` ⑥面全绿：
+  %h/%u 展、未知 specifier %t die 报原值、字面路径回归、env 包装 die、%% 不误伤
+  （O_OCI_SSH 桩远端 cmd eval 落 TMP fixture，不碰真盒）。
+- 实盒干跑：`DRY_RUN=1 O_DEPLOY_ALLOW_UNPUSHED=1 scripts/deploy_oci.sh collecto`
+  → o-collecto `ExecStart=%h/o/collector` 展至 `/home/ubuntu/o/collector`，
+  环约对账绿过预检段（未并 HEAD 拦阻走钦定放行环，部署面未触）。
 
 ## 备注
 
