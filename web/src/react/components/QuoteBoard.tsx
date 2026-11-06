@@ -9,9 +9,9 @@
 //     （排序全后端禁前端 sort）；零成员/成员零行情如实缺态不假零；
 //   · 「自选✎」浮层：搜索框子串过滤候选（大小写不敏）→点选加入→↑↓排序
 //     +✕删→保存=全量替换即生效；候选域=md_ticks 在采品种（有行情才可选）；
-//   · 建提醒表单收口：symbol=可过滤输入（input+datalist——敲子串即筛；
-//     业主 11-06 三令「缺少搜索功能」），候选=watchlist 成员优先（成员空
-//     则退回全候选——不 fail-closed 卡死建单）；
+//   · 建提醒表单收口：symbol=可过滤输入（input+玻璃搜索浮层——敲子串
+//     即筛；业主 11-06 三令「缺少搜索功能」），候选=watchlist 成员优先
+//     （成员空则退回全候选——不 fail-closed 卡死建单）；
 //   · 报价面=提醒行 symbol 集一单两用——行=fin_price_alert 同 symbol 渲
 //     染；预设表单/停用恢复语义同 T-0382（单向告警非条件单——文案不暗示
 //     下单；裸态键禁入可见面）。
@@ -21,6 +21,7 @@ import { client, errText } from "../api";
 import { useLive } from "../hooks";
 import { Card, EmptyState, Skeleton, StateDot } from "./ui";
 import { WatchEditHost } from "./QuoteWatch";
+import { GlassSearchShell, HighlightMatch, filterCands } from "./glasssearch";
 import type { PriceAlertRow, QuoteWatchRow } from "../../gen/dashboardv1/core_pb";
 
 // 人话字典（纯显示映射非判据——态派生在服务端/迁移 CHECK）。
@@ -50,7 +51,7 @@ export type AlertForm = {
 };
 
 // QuoteBoardView 纯渲件（DOM 桩测面——容器喂行+回调；浮层开合=纯 UI 态；
-// 浮层件=QuoteWatch.tsx WatchEditHost/WatchEditView）。
+// 浮层件=QuoteWatch.tsx WatchEditHost/WatchEditView+glasssearch 共享壳）。
 export function QuoteBoardView(props: {
 	rows: PriceAlertRow[];
 	symbols: string[];
@@ -60,12 +61,18 @@ export function QuoteBoardView(props: {
 	err?: string | null;
 	busy?: boolean;
 	editOpen?: boolean; // 浮层初态注入（DOM 桩测面——交互开合仍走 useState）
+	pickOpen?: boolean; // 建提醒 symbol 候选浮层初态注入（同上）
 	onCreate?: (f: AlertForm) => void;
 	onToggle?: (id: bigint, state: "active" | "disabled") => void;
 	onSaveWatch?: (symbols: string[]) => Promise<unknown>;
 }) {
 	const [edit, setEdit] = useState(props.editOpen ?? false);
 	const pending = new Set(props.pendingSyms ?? []);
+	// 建提醒 symbol 候选浮层（T-0411 交互②消费面：datalist 升玻璃搜索浮层
+	// ——输入实时过滤+高亮匹配段；表单 FormData 语义零改动：input 仍
+	// name="symbol" 受控可敲，浮层点选回填）。
+	const [pick, setPick] = useState(props.pickOpen ?? false);
+	const [symbol, setSymbol] = useState("");
 	const submit = (e: FormEvent<HTMLFormElement>) => {
 		e.preventDefault();
 		if (!props.onCreate) return;
@@ -77,13 +84,15 @@ export function QuoteBoardView(props: {
 			note: String(f.get("note") ?? ""),
 		});
 		e.currentTarget.reset();
+		setSymbol("");
 	};
 	// 建提醒候选=watchlist 成员优先（成员空退回全候选——不 fail-closed 卡死建单）。
 	const formSyms = props.watchRows.length > 0
 		? props.watchRows.map((r) => r.symbol)
 		: props.symbols;
+	const pickCands = filterCands(formSyms, symbol);
 	return (<>
-		<Card title="行情·价格提醒"
+		<Card className="card-solid" title="行情·价格提醒"
 			extra={<StateDot state={0} breathe title="报价行=提醒单品种集——行情帧到即刷新" />}>
 			{/* —— T-0391 自选报价条段（成员序后端 ord 直渲；零成员如实缺态） —— */}
 			<div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
@@ -155,14 +164,13 @@ export function QuoteBoardView(props: {
 			)}
 			{props.onCreate && (
 				<form onSubmit={submit} style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }}>
-					<input name="symbol" className="modal-input" list="alert-symbols"
+					<input name="symbol" className="modal-input"
 						required autoComplete="off" style={{ width: 200 }}
+						value={symbol}
+						onChange={(e) => setSymbol(e.target.value)}
+						onFocus={() => setPick(true)}
 						placeholder="品种——敲子串筛选"
-						title="提醒品种——候选=自选成员（未设自选退回全部在采品种）" />
-					<datalist id="alert-symbols">
-						{formSyms.map((s) => <option key={s} value={s}
-							label={pending.has(s) ? `${s} · 晋升中（选建即提名订阅）` : undefined} />)}
-					</datalist>
+						title="提醒品种——候选=自选成员（未设自选退回全部在采品种）；聚焦弹玻璃搜索浮层" />
 					<select name="direction" className="modal-input" title="命中方向">
 						<option value=">=">涨到 ≥</option>
 						<option value="<=">跌破 ≤</option>
@@ -176,6 +184,32 @@ export function QuoteBoardView(props: {
 			)}
 			{props.err && <p className="dim">操作未成：{props.err}</p>}
 		</Card>
+		{/* T-0411 交互②：建提醒 symbol 候选=玻璃搜索浮层（共享壳 GlassSearchShell
+		    ——压暗+blur(8px)+实时过滤+高亮匹配；卡外兄弟节点渲=避开 .card
+		    backdrop-filter fixed 包含块阱，同 T-0406 径）。 */}
+		{pick && props.onCreate && (
+			<GlassSearchShell ariaLabel="提醒品种候选" onClose={() => setPick(false)}>
+				<h2>选品种</h2>
+				<input className="modal-input" placeholder="搜索品种——敲子串筛选"
+					value={symbol} onChange={(e) => setSymbol(e.target.value)}
+					autoFocus aria-label="品种过滤" />
+				<div className="watchlist-candidates">
+					<b>候选（{pickCands.length}）</b>
+					<div className="watchlist-candidate-scroll">
+						{pickCands.map((s) => (
+							<button key={s} className="btn-ghost watchlist-candidate-item"
+								title={pending.has(s) ? "未订阅目录符——选建即提名订阅晋升，报价稍后接通" : undefined}
+								onClick={() => { setSymbol(s); setPick(false); }}>
+								<HighlightMatch text={s} query={symbol} />
+								{pending.has(s) && <span className="dim">·晋升中</span>}＋
+							</button>
+						))}
+						{pickCands.length === 0 &&
+							<span className="dim">无匹配候选——候选域=在采行情品种</span>}
+					</div>
+				</div>
+			</GlassSearchShell>
+		)}
 		{/* T-0406 弹窗出卡：.card backdrop-filter 使卡成 fixed 包含块+叠层阱——
 		    overlay 在卡内渲即被卡界截尾、后续平铺卡盖上（保存钮不可点病灶）；
 		    浮层作卡外兄弟节点渲，position:fixed 归视口 z:200 置顶。 */}
@@ -211,11 +245,11 @@ export function QuoteBoard() {
 			.finally(() => setBusy(false));
 	};
 	if (live.loading && !live.data) {
-		return <Card title="行情·价格提醒"><Skeleton rows={3} /></Card>;
+		return <Card className="card-solid" title="行情·价格提醒"><Skeleton rows={3} /></Card>;
 	}
 	if (!live.data) {
 		return (
-			<Card title="行情·价格提醒">
+			<Card className="card-solid" title="行情·价格提醒">
 				<p className="dim">该段数据缺（读败{live.err ? `：${live.err}` : ""}）</p>
 			</Card>
 		);

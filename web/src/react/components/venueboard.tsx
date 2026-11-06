@@ -76,7 +76,8 @@ export function VenueBoardCard() {
   const view = flat.slice(safePage * PAGE, safePage * PAGE + PAGE);
 
   return (
-    <Card title="侦察（进水口）">
+    <Card className="card-solid" title="侦察（进水口）">
+      {/* T-0411 榜单卡=色板实底卡（稿内视觉规格——榜卡不玻璃不写死 hex） */}
       {r.loading && !r.data ? (
         <Skeleton rows={3} />
       ) : r.err && !r.data ? (
