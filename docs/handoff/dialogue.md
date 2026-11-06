@@ -1307,3 +1307,35 @@
   ——KB 条目 deploy-tree-commit-dir-pathspec-sweeps-others-staged
   入册：pathspec 精确到文件、rename 双径、commit 前核他席 staged。
 - 本拍 rescan 队列空；T-0379 施工中（下班接收口常径裁）。
+
+## 2026-11-06 决策席班次（T-0380+T-0379+T-0381 三裁过+T-0382 派工+同窗发窗）
+
+- **T-0380 裁决=通过**：dm_queue 外派排除 latest 事件语义修（外派→
+  已批=回待派 T-0379 复现/外派→领单=不入/纯已批=入/同刻批写按
+  外派向保守排除；收口→DM 待裁分支零动红线守住）。桩测 9/9+
+  check_all 全链绿本席亲跑对口 f3f5ebfa；merge@7178b57c+票翻
+  @70a45ce4+归done@2fbf5d31 分段推；裁决/完成行在账。
+- **机制坑·并发 pull --rebase 摊平 merge**：merge c4e14d1c 立后
+  被并发席摊平→施工 commit 落 first-parent 撞 master-direct 闸+
+  翻改后归 done 件撞 T-0219 他票占用——修=O_ALLOW_NONFF=1 重
+  merge+分段推（翻改先推「无新立票」闸免/归 done R 同 blob 豁免）。
+  KB 条目 headless-dm-merge-flattened-concurrent-rebase-segmented-
+  push 入册；COS 对摊平期落的升件行随修复自解。
+- **T-0379 裁决=通过**：onboard 臂四拍全链（凭据族枚举只读→探测→
+  草案 condreq 推 O 群→map 闸硬校验→paper 声明复用 admitXvenuePair
+  有机径）+fin_venue_candidate 三态迁移（md_1090+fin_0118 同形）+
+  三败径 fail-closed esc=接入败自报。桩测 5/5 uncached 亲跑+
+  check_all 对口 bdf774a3；merge@741ca651+票翻@697ab08d+归done
+  @31d48526；锚②EXR 3001157 干跑=部署锚留待（runbook：臂部署后
+  自跑或 mtonboard -venue mt5 -beats 2 手动截拍）。判类册追记接入败
+  行本班补齐（原裁注 nit）。
+- **T-0381 裁决=通过**：hungerLoop ticker 前 hungerTick 首侦（3 行
+  微件——饿 8 天不等 6h）——新桩测锚+regression 5/5 亲跑绿+
+  check_all 对口 a2b65509；merge@80c815da+票翻@889dc3e9+归done
+  @3a6ba257。
+- **发窗**：T-0379+T-0381 镜像面件同窗——阻塞集清零（T-0382 已批
+  未动非阻塞）→deploy_image.sh o-core:3a6ba257c325 构建/发运。
+- **T-0382 派工**：前端报价卡+fin_price_alert+提醒拍（业主观测面
+  feature，P1）——dispatch_worker 过闸 o-worker-T-0382 swe-2-high。
+- **regime 读面**：MD 库 127.0.0.1:5435 库 o 缺席→判词缺席=neutral
+  处理非拒因（meta/机制件不涉域）。
