@@ -128,8 +128,10 @@ func (r *Runner) Xvenue(ctx context.Context) error {
 			}
 		}
 		metaB2, _ := json.Marshal(meta2)
-		// T-0164 血统闸：ts=最旧上游观测——mt5_swap 4h 拍面陈（>120s）→carry_diff
-		// 行随陈→消费 Fresh 120s 闸视缺席（mt5_swap 陈=carry_diff 陈，派单钦定）。
+		// T-0164 血统闸：ts=最旧上游观测——mt5_swap 4h 拍面陈→carry_diff 行
+		// 随陈（mt5_swap 陈=carry_diff 陈，派单钦定——写侧语义不动）；消费侧
+		// 判据=源节拍感知 8h（T-0383——Fresh/xvenueCarryScan 同界，原统一
+		// 120s 对 4h 源恒陈失明根修）。
 		if _, err := r.pool.Exec(ctx, `INSERT INTO md_signal(kind,key,val,meta,ts)
 			VALUES('carry_diff',$1,$2,$3::jsonb,$4)
 			ON CONFLICT (kind,key) DO UPDATE SET val=EXCLUDED.val,

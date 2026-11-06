@@ -28,8 +28,16 @@ func (r *Runner) xvenueCarryScan(ctx context.Context) {
 	if v, err := r.cfg.GetFloat("research.signal.xvenue_carry_diff_bps"); err == nil && v > 0 {
 		th = v
 	}
+	// T-0383 消费闸根修：carry_diff 鲜度界=源节拍感知非统一 120s——行 ts=
+	// 最旧上游观测（T-0164 血统闸语义不动，改的是消费判据非写侧戳），
+	// 最慢源=mt5_swap 4h 拍（internal/mt5/bridge.go swapEvery），界=拍×2
+	// 安全边=8h，与读侧闸同根对齐（sigdist/xvenue.go mt5_swap 8h 闸、
+	// stakecarry.go 同、ops_face 巡检 warn5h/dead9h 在案）——派生径如此
+	// 非魔法数。原 120s 对 4h 源=恒陈视缺席（全史 3 评皆撞运气窗实证）。
+	// 残险随行：swap 年化材料最陈≈4h（源拍固有——评估读源快照非决策刻
+	// 现值；提速须动源拍非闸值，净阈判据容此陈险）。
 	rows, err := r.pool.Query(ctx, `SELECT key, val, meta FROM md_signal
-		WHERE kind='carry_diff' AND ts > now()-interval '120 seconds'`)
+		WHERE kind='carry_diff' AND ts > now()-interval '8 hours'`)
 	if err != nil {
 		r.rej.Inc("hypo_write_err")
 		return
