@@ -124,6 +124,7 @@ var migrationTable = []struct {
 	{115, "fin_0115_dcd_owner_domain.sql"},
 	{116, "fin_0116_hunger_window.sql"},
 	{117, "fin_0117_xvenue_swap_fill.sql"},
+	{118, "fin_0118_venue_onboard_states.sql"},
 
 	// —— md 链（版本链内唯一且单调；md 链版本=历史号+1000 与 fin 键空间全局不相交——跨链并 schema 时 schema_migrations 零撞号，check_migrations 断言①⑤）——
 	{1003, "md_1003_market_facts.sql"},
@@ -172,4 +173,5 @@ var migrationTable = []struct {
 	{1087, "md_1087_stake_carry_fin_replica.sql"},
 	{1088, "md_1088_venue_candidate_ibkr.sql"},
 	{1089, "md_1089_volsell_capability_reenable.sql"},
+	{1090, "md_1090_venue_onboard_states.sql"},
 }

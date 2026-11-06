@@ -142,6 +142,19 @@ func (c *Client) SymbolConfirm(ctx context.Context, candidates []string) []strin
 	return out
 }
 
+// SymbolList venue 符号自报表（SymbolList RPC——broker 接入探测源：
+// 名字一律 venue 实读禁猜，符号方言硬坑锚）。
+func (c *Client) SymbolList(ctx context.Context) ([]string, error) {
+	r, err := c.mt5.SymbolList(c.authed(ctx), &mt5pb.SymbolListRequest{Id: c.token})
+	if err != nil {
+		return nil, err
+	}
+	if r.Error != nil {
+		return nil, fmt.Errorf("symbolList: %s", r.Error.Message)
+	}
+	return r.Result, nil
+}
+
 // Subscribe 行情订阅（幂等——会话订阅状态在网关侧）。
 func (c *Client) Subscribe(ctx context.Context, symbol string) error {
 	r, err := c.subs.Subscribe(c.authed(ctx), &mt5pb.SubscribeRequest{Id: c.token, Symbol: symbol})
