@@ -8,6 +8,9 @@
 - 收口移交归：决策席
 - 参照真源：/opt/nox/web/src/components/QuoteStrip.tsx+
   WatchlistModal.tsx（语义复刻，数据源/栈换 O 形）
+- **形态决策（业主 11-06 二令）：实现的是 NOX 的功能，前端
+  用 O 的前端**——QuoteStrip/WatchlistModal 仅作语义参照，
+  视觉/组件/样式零拷贝，全走 O 现有 Card/Modal/表单件系
 
 ## 钦定语义（NOX 一比一）
 
