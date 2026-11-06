@@ -50,6 +50,21 @@ func TestFlowPulseStages(t *testing.T) {
 	if StageLamp("collect", 0, true) != 0 || StageLamp("collect", 2000, true) != 2 {
 		t.Fatal("StageLamp 阈派生错位")
 	}
+	// T-0406 呼吸派生（饿≠死）：空库下中性段 ok=灰待命（state=3 且呼吸），
+	// 周期段缺数据=死红（state=2 不呼）——两态可辨，判态全服务端。
+	neutrals := map[string]bool{"proposal": true, "strategy": true, "exec": true}
+	for _, st := range r.Stages {
+		if neutrals[st.Key] {
+			if !st.Ok || st.State != 3 || !st.Breathe {
+				t.Fatalf("中性段 %s 应灰呼吸待命: ok=%v state=%d breathe=%v", st.Key, st.Ok, st.State, st.Breathe)
+			}
+		} else if st.Ok && st.Breathe != (st.State == 0) {
+			t.Fatalf("周期段 %s 呼吸应与绿灯同: state=%d breathe=%v", st.Key, st.State, st.Breathe)
+		}
+		if !st.Ok && (st.Breathe || st.State != 2) {
+			t.Fatalf("缺段 %s 应死红不呼: ok=%v state=%d breathe=%v", st.Key, st.Ok, st.State, st.Breathe)
+		}
+	}
 }
 
 // 锚：work_items 三类 union——venue measuring 行+proposal 活态+position 未平；

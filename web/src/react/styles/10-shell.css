@@ -310,6 +310,31 @@
   transform: none;
   box-shadow: none;
 }
+/* 中性灰呼吸 s3（T-0406 饿≠死：事件驱动段零事件=活着待命——灰珠缓息脉动，
+   与绿活同包络异色（ink-3 中性墨灰）、与死红（静止）节奏可辨；服务端
+   breathe 派生，ok 中性段才携 .breathe。） */
+.dot.breathe.s3 {
+  animation: breatheIdle 2.4s ease-in-out infinite;
+}
+@keyframes breatheIdle {
+  0%,
+  100% {
+    filter: brightness(1) saturate(1);
+    box-shadow:
+      0 0 0 1.5px color-mix(in srgb, var(--ink) 25%, transparent),
+      inset 0 -1px 1.5px color-mix(in srgb, #000000 38%, transparent),
+      0 1px 1px color-mix(in srgb, var(--ink) 16%, transparent),
+      0 0 2px 0.5px color-mix(in srgb, var(--ink-3, #8a8f98) 47%, transparent);
+  }
+  50% {
+    filter: brightness(1.35) saturate(1.1);
+    box-shadow:
+      0 0 0 1.5px color-mix(in srgb, var(--ink) 25%, transparent),
+      inset 0 -1px 1.5px color-mix(in srgb, #000000 38%, transparent),
+      0 1px 1px color-mix(in srgb, var(--ink) 16%, transparent),
+      0 0 2px 0.5px color-mix(in srgb, var(--ink-3, #8a8f98) 32%, transparent);
+  }
+}
 
 /* 静止珠（T-0222：呼吸=活性语言，降级态不装活——WS 断流 REST 兜底等挂
    still 钳住 .dot.s1 的 1.6s 自息；珠体/描环仍在册，只是不动。） */

@@ -24,7 +24,8 @@ var stageThresh = map[string]int64{
 }
 
 // stageDef 段定义（key/中文标/查询式——last_ts 与 count24h 两参补位；
-// neutral=事件驱动段无周期臂——灯恒中性灰（返修①②：lag 文本照显，节拍阈
+// neutral=事件驱动段无周期臂——灯中性灰但呼吸（T-0406 饿≠死：零事件=活着
+// 待命非死态；breathe 服务端派生前端零判据。返修①②：lag 文本照显，节拍阈
 // 只对周期臂有意义，proposal/exec 误报红=假警病灶修）。
 type stageDef struct {
 	key, label string
@@ -58,6 +59,7 @@ func (c coreService) GetFlowPulse(ctx context.Context,
 		if err := c.pool.QueryRow(ctx, d.sql).Scan(&ts, &n); err != nil {
 			log.Printf("[flow_pulse] %s 段查询败（显缺不炸）: %v", d.key, err)
 			st.Ok = false
+			st.State = 2 // 死红——查询败=真缺态与待命中性可辨（T-0406）
 		} else {
 			st.Ok = true
 			st.Count_24H = n
@@ -67,7 +69,7 @@ func (c coreService) GetFlowPulse(ctx context.Context,
 			}
 			st.State = StageLamp(d.key, st.LagS, ts != nil)
 			if d.neutral {
-				st.State = 3 // 恒中性灰——事件驱动段无节拍阈
+				st.State = 3 // 中性灰——事件驱动段无节拍阈
 				switch d.key {
 				case "proposal":
 					st.Status = c.proposalStatus(ctx) // T-0350 态标非龄
@@ -76,6 +78,9 @@ func (c coreService) GetFlowPulse(ctx context.Context,
 				}
 			}
 		}
+		// T-0406 呼吸派生（饿≠死）：活绿/中性待命=呼吸灯活着，死态不呼——
+		// 判态全服务端，前端只渲 st.Breathe 不新造判据。
+		st.Breathe = st.Ok && (d.neutral || st.State == 0)
 		resp.Stages = append(resp.Stages, st)
 	}
 	resp.WorkItems = c.workItems(ctx)

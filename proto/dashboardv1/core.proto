@@ -511,6 +511,7 @@ message FlowStage {
   int32 state = 7;               // 段灯色（服务端 StageLamp 派生——阈按臂节拍常量钉）
   int64 expect_s = 8;            // 预期节拍秒（前端 hover 口径同源）
   string status = 9;             // 态标（T-0350 需求驱动段——非空=渲态非龄；周期段恒空）
+  bool breathe = 10;             // 段灯呼吸否（T-0406 服务端派生——绿活/中性待命呼吸，死态不呼）
 }
 message WorkItem {                        // T-0309：钱径工件——第一性=钱的工件流
   string kind = 1;                     // venue|proposal|position（服务端归一）
