@@ -52,3 +52,25 @@ SG，随后逐项执行验项并实录。
 - 生产面只读验——禁动执行径/持仓/配置（Earn toggle 切位=票面钦定
   验项例内）
 - 验项实录真值，验不出记实录不许编绿；结构性发现走升件行不静默
+
+## 结果回填（决策席验收官 @2026-11-06）
+
+- **①镜像**：SG `docker inspect o-core`=`o-core:9e5ff5ad2bc6`（=部署时
+  master tip 9e5ff5ad）healthy；ops_event DEPLOY 行 `deploy 9e5ff5ad2bc6
+  rc=0` 在案——批次经 deploy_image.sh/deploy_oci.sh 唯一径多窗销毕
+  （本批 58+ 件含全部囤验项已随历次窗尽落）。
+- **②fin 迁移**：SG PG `max(schema_migrations<1000)=123`（≥fin_0111）；
+  `ops_precedent` 表实存（count=1 行在）。
+- **③Earn 开关**：`earn.auto_purchase_enabled` 生产值 true→本席实切
+  false（UPDATE 1 回读 false）→观察窗 130s 零 SavingsPurchase/零 earn
+  事件（**如实注**：当期无 idle 余额候选，闸生效为缺省可证形非反证形
+  ——hot-read 码径 worker.go:158-165 同读 app_config 30s 拍）→切回 true
+  恢复；Earn 余额 venue 侧（SG 无本仓持仓表）配置写径天然不触；前端
+  开关=T-0342 随批落的 Get/SetEarnAutoPurchase RPC 面。
+- **④md_1088**：OCI PG-md `fin_venue_candidate` 含 'ibkr' 行（count=1）。
+- **⑤T-0330**：生产 `fin_opp_eval` rejected 行 evidence 含
+  `exec_family_missing` 近 7 天 1 行可观测（合规实录）。
+- **偏离说明**：票面锚①原意「本席一窗全销当时 tip」——实际经多窗
+  常径销毕（T-0398 部署窗触发律接管排程），验项对现行部署实测全中；
+  锚③ idle 缺省使「拒购反证」不可得，取「配置切位+零事件+码径同读」
+  三证合记。
