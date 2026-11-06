@@ -2,10 +2,10 @@
 // 状态/系统活着没；hero 大数字+在持+健康汇总+最近动作，数据全走 Connect）。
 import { client } from "../api";
 import { useLive } from "../hooks";
-import { Card, EmptyState, ErrorState, Skeleton, StateDot } from "../components/ui";
+import { Card, EmptyState, ErrorState, Skeleton, StateDot, UtcClock } from "../components/ui";
 import { EarnToggle } from "../components/EarnToggle";
 import { fmtUsd } from "../components/fmt";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { MoneyRow } from "../../gen/dashboardv1/core_pb";
 
 const money = (v: number) =>
@@ -57,20 +57,6 @@ function MoneyTree(props: { rows: MoneyRow[] }) {
         );
       })}
     </div>
-  );
-}
-
-// UtcClock 卡角 UTC 钟（业主回单：最近动作右上角 UTC 时间）。
-function UtcClock() {
-  const [now, setNow] = useState(() => new Date());
-  useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(t);
-  }, []);
-  return (
-    <span className="ink-3 mono" style={{ fontSize: 12 }}>
-      {now.toISOString().slice(11, 19)} UTC
-    </span>
   );
 }
 

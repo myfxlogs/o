@@ -13,7 +13,7 @@ import { client } from "../api";
 import { onLive } from "../stream";
 import { applyHeadless, applyPipeline, hydrate, useSlice } from "../store";
 import { Component, type ReactNode } from "react";
-import { Card, EmptyState, Skeleton, StateDot } from "../components/ui";
+import { Card, EmptyState, Skeleton, StateDot, UtcClock } from "../components/ui";
 import { FlowPulseStrip, WorkItemsBlock } from "../components/flowpulse";
 import { MetaSeats } from "../components/metaseats";
 import { QuoteBoard } from "../components/QuoteBoard";
@@ -259,7 +259,10 @@ export function CockpitPage() {
 			{/* —— 底档·④要我动的（armed）+①②平台明细（v3.2 同档保留卡不动）—— */}
 			<div className="duo">
 				<Card title="④ 待开仓"
-					extra={<StateDot state={miss.has("armed") ? 2 : 0} breathe={!miss.has("armed")} title={`${d.armed.length} 单 · 更新 ${asOfAge}`} />}>{sec("armed",
+					extra={<span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+						<UtcClock />
+						<StateDot state={miss.has("armed") ? 2 : 0} breathe={!miss.has("armed")} title={`${d.armed.length} 单 · 更新 ${asOfAge}`} />
+					</span>}>{sec("armed",
 						d.armed.length === 0 ? <EmptyState title="无待开仓" hint="待开仓队列为空——当前没有待处理事项" /> :
 						<div className="tile-scroll"><table className="tile-table"><thead><tr><th>#</th><th>标的</th><th>方向</th><th>建时</th><th>TTL余(h)</th></tr></thead>
 							<tbody>{d.armed.map((a: CockpitArmed) => <tr key={a.id}><td>{a.id}</td><td>{a.instId}</td>

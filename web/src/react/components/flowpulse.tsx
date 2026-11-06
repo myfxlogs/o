@@ -65,7 +65,7 @@ export function FlowPulseView(props: { stages: FlowStage[]; rosterCount: number;
 							)}
 							<div className="pipe-card" title={cardTitle(st)}>
 								<div className="pipe-card-top">
-									<StateDot state={st.state} breathe={st.state === 0}
+									<StateDot state={st.state} breathe={st.breathe}
 										title={`${st.label}：${!st.ok ? "读取失败——该段显示为缺" : !st.lastTs ? "暂无数据" : `最近一次写入${ago(Number(st.lagS))}`}`} />
 									{st.label}
 								</div>

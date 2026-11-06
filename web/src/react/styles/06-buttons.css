@@ -141,6 +141,25 @@ button.btn-close {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  /* T-0406 弹窗任意列高下保存键恒可达：窗高封顶 90vh，中段列表区
+     min-height:0 可缩（自身 overflow-y 滚），首尾操作区不缩。 */
+  max-height: 90vh;
+  overflow: hidden;
+}
+.modal > * {
+  flex: none;
+}
+.modal > .watchlist-current,
+.modal > .watchlist-candidates {
+  flex: 0 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.modal > .watchlist-current > .watchlist-candidate-scroll,
+.modal > .watchlist-candidates > .watchlist-candidate-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .modal h2 {

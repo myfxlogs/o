@@ -4,9 +4,9 @@
 // 定义，要支持搜索；NOX归档总览页就有，我要的是这个效果，前端要适合现有
 // 前端」——NOX QuoteStrip/WatchlistModal 语义移植，视觉/组件零拷贝全走
 // O 现有 Card/Modal/样式件系）：
-//   · 自选报价条段：tiles 显 watchlist 成员的实时 last/bid/ask+鲜度（龄
-//     服务端派生——前端零判据）；成员序=后端 ord 保存序直渲（排序全后端
-//     禁前端 sort）；零成员/成员零行情如实缺态不假零；
+//   · 自选报价条段：tiles 显 watchlist 成员的 bid/ask+鲜度（T-0406 业主令
+//     去 last；龄服务端派生——前端零判据）；成员序=后端 ord 保存序直渲
+//     （排序全后端禁前端 sort）；零成员/成员零行情如实缺态不假零；
 //   · 「自选✎」浮层：搜索框子串过滤候选（大小写不敏）→点选加入→↑↓排序
 //     +✕删→保存=全量替换即生效；候选域=md_ticks 在采品种（有行情才可选）；
 //   · 建提醒表单收口：symbol=可过滤输入（input+datalist——敲子串即筛；
@@ -58,11 +58,12 @@ export function QuoteBoardView(props: {
 	watchCands: string[];
 	err?: string | null;
 	busy?: boolean;
+	editOpen?: boolean; // 浮层初态注入（DOM 桩测面——交互开合仍走 useState）
 	onCreate?: (f: AlertForm) => void;
 	onToggle?: (id: bigint, state: "active" | "disabled") => void;
 	onSaveWatch?: (symbols: string[]) => Promise<unknown>;
 }) {
-	const [edit, setEdit] = useState(false);
+	const [edit, setEdit] = useState(props.editOpen ?? false);
 	const submit = (e: FormEvent<HTMLFormElement>) => {
 		e.preventDefault();
 		if (!props.onCreate) return;
@@ -79,7 +80,7 @@ export function QuoteBoardView(props: {
 	const formSyms = props.watchRows.length > 0
 		? props.watchRows.map((r) => r.symbol)
 		: props.symbols;
-	return (
+	return (<>
 		<Card title="行情·价格提醒"
 			extra={<StateDot state={0} breathe title="报价行=提醒单品种集——行情帧到即刷新" />}>
 			{/* —— T-0391 自选报价条段（成员序后端 ord 直渲；零成员如实缺态） —— */}
@@ -96,10 +97,9 @@ export function QuoteBoardView(props: {
 						}}>
 							<b>{r.symbol}</b>
 							{r.hasQuote ? (<>
-								<span className="num" title="最新价">{px(r.last)}</span>
-								<span className="num dim" title="买一/卖一">
-									{px(r.bid)}/{px(r.ask)}
-								</span>
+								<span className="num u-good" title="买一">{px(r.bid)}</span>
+								<span className="num dim">/</span>
+								<span className="num u-bad" title="卖一">{px(r.ask)}</span>
 								<span className="dim" title="距最新行情写入的时长">{ageTxt(r.quoteAgeS)}</span>
 							</>) : (
 								<span className="dim">暂无行情</span>
@@ -111,14 +111,6 @@ export function QuoteBoardView(props: {
 					<button className="btn-ghost" style={{ marginLeft: "auto" }}
 						title="自选报价条编辑" onClick={() => setEdit(true)}>自选✎</button>}
 			</div>
-			{edit && props.onSaveWatch && (
-				<WatchEditHost
-					members={props.watchRows.map((r) => r.symbol)}
-					candidates={props.watchCands}
-					onSave={props.onSaveWatch}
-					onClose={() => setEdit(false)}
-				/>
-			)}
 			{props.rows.length === 0 ? (
 				<EmptyState title="暂无价格提醒"
 					hint="下方预设品种+目标价——现价命中即飞书通知" />
@@ -131,8 +123,8 @@ export function QuoteBoardView(props: {
 							<td>{r.symbol}</td>
 							{r.hasQuote ? (<>
 								<td>{px(r.last)}</td>
-								<td>{px(r.bid)}</td>
-								<td>{px(r.ask)}</td>
+								<td className="u-good">{px(r.bid)}</td>
+								<td className="u-bad">{px(r.ask)}</td>
 								<td title="距最新行情写入的时长">{ageTxt(r.quoteAgeS)}</td>
 							</>) : (
 								<td colSpan={4} className="dim">暂无行情——该品种暂未采集到报价</td>
@@ -177,7 +169,18 @@ export function QuoteBoardView(props: {
 			)}
 			{props.err && <p className="dim">操作未成：{props.err}</p>}
 		</Card>
-	);
+		{/* T-0406 弹窗出卡：.card backdrop-filter 使卡成 fixed 包含块+叠层阱——
+		    overlay 在卡内渲即被卡界截尾、后续平铺卡盖上（保存钮不可点病灶）；
+		    浮层作卡外兄弟节点渲，position:fixed 归视口 z:200 置顶。 */}
+		{edit && props.onSaveWatch && (
+			<WatchEditHost
+				members={props.watchRows.map((r) => r.symbol)}
+				candidates={props.watchCands}
+				onSave={props.onSaveWatch}
+				onClose={() => setEdit(false)}
+			/>
+		)}
+	</>);
 }
 
 // QuoteBoard 容器件（取数+写径装配——ev_ticks 帧重取；写后真值重读由服务端

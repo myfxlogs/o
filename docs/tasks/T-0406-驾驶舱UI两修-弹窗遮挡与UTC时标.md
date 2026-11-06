@@ -1,6 +1,6 @@
 # T-0406 驾驶舱 UI 五修——弹窗遮挡与 UTC 时标
 
-- 状态：施工中（2026-11-06 业主实测令——「自选报价弹窗尾部
+- 状态：待验（2026-11-06 业主实测令——「自选报价弹窗尾部
   被待开仓挡住无法点保存」「待开仓瓦片右上角加 UTC 时间」）
 - 领取：o-worker-t0406 @ 2026-11-06（worktree `/opt/o-wt/t0406`，branch `t/0406-cockpit-ui-fixes`）
 - 优先级：P2——前端可用性（业主实测病灶）
@@ -68,4 +68,43 @@
 
 ## 结果回填
 
-（施工写：实现摘要 / 测试证据 / 偏离说明）
+**实现摘要**（五件全落 + 先红桩实证）：
+
+① 弹窗遮挡根修——`.card` 的 `backdrop-filter` 使卡成 `position:fixed`
+   包含块+叠层上下文阱（`.modal-overlay` 在卡内渲则 inset:0 只覆卡界、
+   z-index:200 被困卡叠层内，后续平铺卡盖尾=保存键不可点病灶）。修径=
+   WatchEditHost 改作 Card **外兄弟节点**渲（QuoteBoardView 返回 `<>`），
+   overlay fixed 归视口 z:200 置顶；`.modal` 补 `max-height:90vh`+列表区
+   `min-height:0` 列内滚（任意列高下保存键恒可达）。新增坑条目
+   `docs/工程经验库/条目/card-backdrop-filter-traps-fixed-modal.md`。
+② 待开仓卡右上 UTC 时标——`UtcClock` 原语升 `components/ui.tsx` 共享件
+   （原 Overview「最近动作」卡角样式：`ink-3 mono` HH:MM:SS UTC 1s 拍），
+   Cockpit ④ 卡 extra 挂 UtcClock+StateDot 并置；Overview 本地件去重改共享。
+③ 活水段饿≠死——`FlowStage` proto +`bool breathe=10`（同 pipeline 件
+   `step.breathe` 先例）；`flow_pulse.go` 服务端派生
+   `breathe=ok&&(neutral||state==0)`，查询败段补 `state=2` 死红（原默认
+   0=绿呼=死段装活同根修）；前端 `breathe={st.breathe}` 零判据；
+   `.dot.breathe.s3`+`breatheIdle` 灰珠缓息脉动（2.4s 同绿活包络异色），
+   死态（s2 红/ok=false 缺）静止可辨。
+④ 自选瓦片去 `last`——只渲 bid/ask 两价+鲜度行（诚实标注不动）。
+⑤ bid/ask 双色——瓦片 `num u-good`/`num u-bad` 分跨；提醒表 买一/卖一
+   td 加 `u-good`/`u-bad`（CEX 定调买绿卖红，两处一致零新色值）。
+
+**测试证据**：
+
+- 先红桩（病灶存在断言）：修复件 stash 回退跑新断言——
+  flowpulse FAIL×2（中性段无呼吸=死态视觉、ok=false 段仍呼=死段装活）、
+  quoteboard FAIL×5（瓦片含 last/表无双色/浮层困卡内/保存键缺席/modal 无封顶）。
+- 修后绿：`web npm test` 85/85 PASS（flowpulse 30/30、quoteboard 31/31、
+  metaseats/quadcols 全谱）；`tsc --noEmit` 净；
+  `go test ./cmd/core -run TestFlowPulse|TestDemandStage|TestReasonShort` 4/4 PASS
+  （TestFlowPulseStages 增呼吸派生锚：空库中性段 ok=state3+呼、周期段呼吸与绿灯同、
+  缺段死红不呼）；`scripts/check_all.sh` 全链绿戳对口。
+
+**偏离说明**：
+
+- Overview.tsx 本地 UtcClock 去重改共享件（复用径的自然归位——票面
+  「查现有时标件复用样式」的落法，零视觉差）。
+- 服务端查询败段 `state` 由默认 0 改 2——票面「真死态 state=2 红可辨」
+  的语义对齐（修前查询败段渲绿呼=死段装活），domtest stub 喂态不受影响。
+- 未推 master——分支 `t/0406-cockpit-ui-fixes` 待决策席验收合流。

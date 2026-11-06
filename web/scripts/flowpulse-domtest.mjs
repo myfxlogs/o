@@ -36,8 +36,11 @@ writeFileSync(outFile, res.outputFiles[0].text);
 const { renderToStaticMarkup, h, FlowPulseView } = await import(pathToFileURL(outFile).href);
 
 const nowS = Math.floor(Date.now() / 1000);
-const stage = (key, label, state, lagS, count24h, { ok = true, status = "", expectS = 60 } = {}) => ({
+// stub breathe 默认镜像服务端派生（T-0406）：ok 且（事件驱动中性段|绿灯）即呼。
+const NEUTRAL_KEYS = new Set(["proposal", "strategy", "exec"]);
+const stage = (key, label, state, lagS, count24h, { ok = true, status = "", expectS = 60, breathe } = {}) => ({
 	key, label, state, ok, status,
+	breathe: breathe ?? (ok && (NEUTRAL_KEYS.has(key) || state === 0)),
 	lagS: BigInt(lagS), count24h: BigInt(count24h), expectS: BigInt(expectS),
 	lastTs: lagS >= 0 ? { seconds: BigInt(nowS - lagS) } : undefined,
 });
@@ -76,6 +79,9 @@ check("③断点定位=首个红段(投影→评估)", htmlBad.includes('class="
 check("③红段卡态点 s2 在案", htmlBad.includes("dot s2"));
 check("③黄段卡态点 s1 在案", htmlBad.includes("dot s1"));
 check("③灰中性卡态点 s3 在案", htmlBad.includes("dot s3"));
+// T-0406 饿≠死：中性段零事件=呼吸待命（dot s3 breathe——活着的灰脉动），
+// 与真死态（s2 静止/ok=false 缺）节奏可辨。
+check("③中性待命=呼吸灰(dot s3 breathe)", (htmlBad.match(/dot s3 breathe/g) || []).length >= 2);
 check("③7200s→2小时前(无裸露小数)", htmlBad.includes("2小时前") && !htmlBad.includes("2.0h"));
 check("③无数据状态点人话", htmlBad.includes("扫描中") && htmlBad.includes("暂无数据"));
 
@@ -90,6 +96,8 @@ check("④判词 s0 中性色", htmlFam.includes('class="pipe-verdict s0"'));
 const dead = [stage("collect", "采集", 0, 30, 5, { ok: false })];
 const htmlDead = render(dead);
 check("⑤查询败段→缺+读取失败", htmlDead.includes('pipe-card-num">缺') && htmlDead.includes("读取失败"));
+// T-0406：死态不呼——查询败段态点静止（服务端 breathe=false）。
+check("⑤死态不呼(无 breathe 类)", !htmlDead.includes("breathe"));
 
 // —— 拒因人话面（T-0366：可见面短句人话/悬停人话详述带数值/机器原文
 // 禁入渲染树任何层含 title/aria——net_apr|阈|armed|snake_case 断言）——

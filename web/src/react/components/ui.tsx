@@ -1,6 +1,6 @@
 // ui.tsx —— 卡面原语（T-0170：Card/骨架/错误态/状态点——诚实空态律：
 // 错误显文案+重试钮，禁假零；骨架=卡面独立不整页灰）。
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 export function Card(props: {
   title: ReactNode;
@@ -53,6 +53,21 @@ export function StateDot(props: { state: number; title?: string; breathe?: boole
 
 export function EmptyRow(props: { text: string }) {
   return <div className="empty-row">{props.text}</div>;
+}
+
+// UtcClock 卡角 UTC 钟（T-0406 共享化——原 Overview「最近动作」卡角样式：
+// ink-3 mono 小字 HH:MM:SS UTC，1s 一拍；卡 extra 位复用件）。
+export function UtcClock() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <span className="ink-3 mono" style={{ fontSize: 12 }}>
+      {now.toISOString().slice(11, 19)} UTC
+    </span>
+  );
 }
 
 // Cols 独立列容器（T-0389 列联动解耦——钦定语义=各列瓦片独立排布零联动：
