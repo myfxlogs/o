@@ -75,6 +75,29 @@ seat_run 迹——ops_event 裁决行携票号+裁词+理由（票面验收锚�
   账在，30min 兜底拍照常收；kick 链健康时事件落行秒级唤醒（T-0312
   总线 eventbus→metabus→o-decision-seat）。
 
+## 部署窗节（T-0398——攒批变职责，业主令「走1吧」）
+
+- **每班一查**：班次 scan/drain 同拍跑
+  `bash /opt/o/scripts/meta/deploy_window_due.sh`——机读三态
+  （`state=应发|有挡|批空`+reason 行；exit 0/11/10/78/1），不靠感觉不靠
+  票面状态行。
+- **应发判据（两条件同时成立→当班发窗，非可选项）**：
+  ①批非空——origin/master 与生产部署 SHA（deploy_image.sh 写的
+    `o-core:<sha12>` tag）间 diff 含镜像面路径非空（镜像面=入镜像
+    路径——cmd/internal/proto/web/migrations/Dockerfile* 等非
+    docs/**,skills/**,*.md 件；判据机读不自猜，清单钉在壳头注）；
+  ②无挡件——在飞 o-worker 码件=0 且待裁/收口待审面含码件/迁移件=0
+    （docs/研究件不挡窗；待裁面=dm_queue.sh 同源推导，面不可知
+    fail-closed 按有挡计）。
+- **兜底节拍**：批积首件起 ≥24h 未发→无论条件②发窗并升件报（壳自落
+  DEPLOY-WINDOW-OVERRUN 升件行，24h 同窗去重）。
+- **发窗动作**：`state=应发`→当班跑 `scripts/deploy_image.sh`（部署唯一
+  合法径——壳只判窗不碰部署机制/SHA tag/推戳闸）；发毕 ops_event 部署
+  行携批件清单（票号集——壳 reason `batch=` 行取，seat=发窗席）。
+- **三态语义**：`批空`=零差/docs-only 批不压窗（docs 批永不触发）；
+  `有挡`=批待清窗压（挡件明列 reason）；`环境缺`/`查询败`=升件自报
+  不滥发。
+
 ## 形态域界（2026-11-04 业主令——一席两形态域独占）
 
 本卡跑在**无头形态**（o-decision-seat.service）；交互形态=O-DM pane 同席
