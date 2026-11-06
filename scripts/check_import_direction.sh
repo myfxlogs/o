@@ -73,6 +73,7 @@ internal/guard -> internal/platform/roster
 internal/guard -> internal/risk
 internal/portfolio/lifecycle -> internal/platform/rejects
 internal/portfolio/lifecycle -> internal/platform/roster
+internal/portfolio/lifecycle -> internal/portfolio/hunger
 internal/portfolio/lifecycle -> internal/research/funding
 internal/review -> internal/platform/rejects
 internal/review -> internal/platform/roster
