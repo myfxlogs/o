@@ -21,6 +21,12 @@
 - 门禁绿：build+vet+test+check_migrations+import_direction 全过；
 - 验收锚有实迹非口报（production 锚缺=留待部署件不判红）；
 - 测试 fixture 生产真形（margin 案教训钉：禁生产不存在字段）。
+- **先红桩闸**（T-0388 工程纪律款同槽）：题面带修复信号（fix|修复|根修|
+  bug|hotfix|回归|病灶|patch|revert）票，收口先跑
+  `scripts/meta/check_fix_red_first.sh <票件>`——检出无先红断言（病灶
+  存在断言修前红+同断言修后绿）=**驳回条件**；豁免只限新功能/纯文档
+  票面注明，扩豁免=升件不裁。断言存在性机检出、断言是否咬中病灶
+  人对 diff+红日志裁。
 
 ### 裁词闭集
 `通过`（合 master+按需部署）/`驳回`（返修件落 docs/prompts/T-XXXX-返修N.md
