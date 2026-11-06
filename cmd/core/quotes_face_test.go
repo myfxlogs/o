@@ -266,6 +266,86 @@ func TestAlertFreshnessGate(t *testing.T) {
 	}
 }
 
+// —— T-0412 意图晋级径桩测（票锚：目录符建单→sub_request 行落+候选域并集
+// +pending 标+域外拒——端到端前半段 SG 侧）——
+
+// TestIntentPromotePath 目录未订阅符建单→晋升提名同事务落+选符域两域并集
+// +pending 标+域外/陈目录仍拒（typo 闸不放松）。
+func TestIntentPromotePath(t *testing.T) {
+	mux, pool, ctx := quotesFaceMux(t)
+	// 活符 BTC（在采）+目录符 TRX（粗扫在谱零 tick——僵尸病灶原型）+陈目录
+	// DEAD（休拍收缩防陈目录放提名）+域外 NOPE（两域皆无）
+	if _, err := pool.Exec(ctx, `INSERT INTO md_ticks(ts,venue,inst_id,last,bid,ask,recv_ts)
+		VALUES(now(),'okx','BTC-USDT-SWAP',65000,64999,65001,now())`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO md_tick_scan(ts,venue,inst_id,last,bid,ask,recv_ts) VALUES
+		(now(),'okx','TRX-USDT-SWAP',0.15,0.149,0.151,now()),
+		(now()-interval '2 hours','okx','DEAD-USDT-SWAP',1,1,1,now()-interval '2 hours')`); err != nil {
+		t.Fatal(err)
+	}
+	// ① 目录符建单=收+同事务提名行（user_intent/open——僵尸不再）
+	code, body := watchCall(t, mux, "CreatePriceAlert",
+		`{"symbol":"trx-usdt-swap","direction":">=","target":0.2}`, true)
+	if code != http.StatusOK {
+		t.Fatalf("目录符建单应 200: code=%d body=%v", code, body)
+	}
+	var requester, state, reason string
+	if err := pool.QueryRow(ctx, `SELECT requester,state,reason FROM fin_sub_request
+		WHERE inst_id='TRX-USDT-SWAP'`).Scan(&requester, &state, &reason); err != nil {
+		t.Fatalf("晋升提名行缺（同事务未落）: %v", err)
+	}
+	if requester != "user_intent" || state != "open" || !strings.Contains(reason, "price_alert#") {
+		t.Fatalf("提名行载荷错: requester=%s state=%s reason=%s", requester, state, reason)
+	}
+	if row, _ := body["row"].(map[string]any); row["symbol"] != "TRX-USDT-SWAP" {
+		t.Fatalf("canon 键落库错（小写入应归一原键）: %v", body)
+	}
+	// ② 候选域两域并集+pending 标（TRX pending、BTC 活符非、DEAD 陈目录不入域）
+	_, body = listPriceAlerts(t, mux)
+	got := map[string]bool{}
+	for _, s := range body["symbols"].([]any) {
+		got[s.(string)] = true
+	}
+	if !got["BTC-USDT-SWAP"] || !got["TRX-USDT-SWAP"] || got["DEAD-USDT-SWAP"] {
+		t.Fatalf("候选域并集错: %v", body["symbols"])
+	}
+	pgot := map[string]bool{}
+	for _, s := range body["pendingSymbols"].([]any) {
+		pgot[s.(string)] = true
+	}
+	if !pgot["TRX-USDT-SWAP"] || pgot["BTC-USDT-SWAP"] || pgot["DEAD-USDT-SWAP"] {
+		t.Fatalf("pending 标错: %v", body["pendingSymbols"])
+	}
+	// ③ 域外符仍拒+陈目录符拒（闸没放松到裸奔）
+	code, _ = watchCall(t, mux, "CreatePriceAlert",
+		`{"symbol":"NOPE-USDT","direction":">=","target":1}`, true)
+	if code == http.StatusOK {
+		t.Fatal("域外 typo 符应拒")
+	}
+	code, _ = watchCall(t, mux, "CreatePriceAlert",
+		`{"symbol":"DEAD-USDT-SWAP","direction":">=","target":1}`, true)
+	if code == http.StatusOK {
+		t.Fatal("陈目录符应拒（目录休拍收缩）")
+	}
+	// ④ 自选目录符=收+提名同径（upsert 同键幂等——TRX 已有 alert 提名不重生）
+	code, body = watchCall(t, mux, "SetQuoteWatchlist", `{"symbols":["TRX-USDT-SWAP"]}`, true)
+	if code != http.StatusOK {
+		t.Fatalf("自选目录符应 200: %v", body)
+	}
+	var n int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM fin_sub_request
+		WHERE inst_id='TRX-USDT-SWAP' AND requester='user_intent' AND state='open'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("自选提名行应恰 1（同键幂等）: n=%d err=%v", n, err)
+	}
+	// ⑤ GetQuoteWatchlist pending 同径携标
+	_, body = watchCall(t, mux, "GetQuoteWatchlist", `{}`, false)
+	pends, _ := body["pendingSymbols"].([]any)
+	if len(pends) != 1 || pends[0] != "TRX-USDT-SWAP" {
+		t.Fatalf("watch pending 应恰含 TRX: %v", body)
+	}
+}
+
 // TestAlertFreshnessBoundary 边界=阈（票锚桩测三件③）：okx 阈内 14min 过、
 // 阈外 16min 拒——谓词窗边缘两贴不漂。
 func TestAlertFreshnessBoundary(t *testing.T) {

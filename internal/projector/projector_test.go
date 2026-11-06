@@ -825,3 +825,57 @@ func TestActiveSetNormalizedLegs(t *testing.T) {
 		t.Fatalf("retired 现货腿 tick 零投影: %d", n)
 	}
 }
+
+// TestReverseSubRequests T-0412 意图晋级反向桥：SG 正本 user_intent 行→md
+// 副本（collector SubRequestArm 拾取域）；正向桥豁免 user_intent 防双源互
+// 覆——研究提名行照旧 md→SG 正向；幂等重拍零重写。
+func TestReverseSubRequests(t *testing.T) {
+	ctx := context.Background()
+	r, md, sg := runner(t)
+	if _, err := sg.Exec(ctx, `INSERT INTO fin_sub_request(venue,inst_id,requester,state,reason)
+		VALUES('okx','TRX-USDT-SWAP','user_intent','open','price_alert#1')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := md.Exec(ctx, `INSERT INTO fin_sub_request(venue,inst_id,requester,state,reason)
+		VALUES('okx','DOGE-USDT-SWAP','xvenue-carry','open','carry_diff_threshold')`); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.reverseSubRequests(ctx); err != nil {
+		t.Fatalf("reverseSubRequests: %v", err)
+	}
+	if n := count(t, md, `SELECT count(*) FROM fin_sub_request
+		WHERE inst_id='TRX-USDT-SWAP' AND requester='user_intent' AND state='open'`); n != 1 {
+		t.Fatalf("md 副本 user_intent 行应 1: %d", n)
+	}
+	if n := count(t, md, `SELECT count(*) FROM fin_sub_request
+		WHERE inst_id='TRX-USDT-SWAP' AND requester='user_intent' AND reason='price_alert#1'`); n != 1 {
+		t.Fatal("md 副本 reason 应随正本")
+	}
+	if err := r.reverseSubRequests(ctx); err != nil { // 幂等重拍
+		t.Fatal(err)
+	}
+	// 正向桥：研究提名 md→SG 投；user_intent md 副本不回写 SG（SG 正本保原值）
+	if err := r.projectSubRequests(ctx); err != nil {
+		t.Fatalf("projectSubRequests: %v", err)
+	}
+	if n := count(t, sg, `SELECT count(*) FROM fin_sub_request
+		WHERE inst_id='DOGE-USDT-SWAP' AND requester='xvenue-carry'`); n != 1 {
+		t.Fatalf("SG 镜像研究提名行应 1: %d", n)
+	}
+	var reason string
+	if err := sg.QueryRow(ctx, `SELECT reason FROM fin_sub_request
+		WHERE inst_id='TRX-USDT-SWAP' AND requester='user_intent'`).Scan(&reason); err != nil || reason != "price_alert#1" {
+		t.Fatalf("SG 正本行应保持原值（正向豁免）: reason=%q err=%v", reason, err)
+	}
+	// 谓词集纳新提名符（refreshSets SubRequestArm 臂——tick 过桥前提）
+	if err := r.refreshSets(ctx); err != nil {
+		t.Fatal(err)
+	}
+	have := map[string]bool{}
+	for _, s := range r.activeList() {
+		have[s] = true
+	}
+	if !have["TRX-USDT-SWAP"] {
+		t.Fatal("活跃集谓词应纳 user_intent 提名符")
+	}
+}

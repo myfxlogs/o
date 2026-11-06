@@ -3,7 +3,7 @@
 // （临时订阅请求——collector syncActiveSet 经 legset.SubRequestArm UNION
 // 拾取流式采）；评估判词出：过=提案臂接管常驻（提案/策略面在集→扫尾闭
 // 请），拒=闭请退订。扫尾面 reconcileSubs 防订阅泄漏（超龄未转常驻亦闭
-// ——滞留另有 0394 探针族升件）。
+// ——滞留另有 0394 探针族升件；T-0412 user_intent 常驻意图行豁免扫尾）。
 package hypothesis
 
 import (
@@ -52,13 +52,16 @@ const permSet = `SELECT inst_id FROM fin_proposal WHERE state IN ('fin_proposed'
 //	①常驻已就位：inst 入 permSet（提案/策略面接管）→闭请——「过=经提案常驻」；
 //	②判词拒：inst 最新评估行 verdict='rejected'→闭请——「拒=退订」；
 //	③超龄未转：open>max_age_hours→闭请防订阅泄漏（滞留由探针升件非本面修）。
+//
+// T-0412 豁免：requester='user_intent' 常驻意图行不扫尾——用户亲手要的符
+// 非评估判词可裁，生命周期归用户面（滞留由 0394 subreq 探针升件同径罩）。
 func (r *Runner) reconcileSubs(ctx context.Context) {
 	ageH := subReqAgeHours
 	if v, err := r.cfg.GetFloat("research.subreq.max_age_hours"); err == nil && v > 0 {
 		ageH = v
 	}
 	tag, err := r.pool.Exec(ctx, `UPDATE fin_sub_request q SET state='closed',recv_ts=now()
-		WHERE q.state='open' AND (
+		WHERE q.state='open' AND q.requester<>'user_intent' AND (
 			EXISTS (SELECT 1 FROM (`+permSet+`) t WHERE t.inst_id=q.inst_id)
 			OR EXISTS (SELECT 1 FROM fin_opp_eval e WHERE e.inst_id=q.inst_id
 				AND e.verdict='rejected' AND e.ts>now()-interval '1 day')

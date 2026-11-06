@@ -149,6 +149,22 @@ check("⑧overlay fixed 视口置顶", /position:\s*fixed/.test(overlayRule)
 check("⑧modal 90vh 封顶+列内滚可缩", /max-height:\s*90vh/.test(modalRule)
 	&& /min-height:\s*0/.test(btnCss));
 
+// ⑨T-0412 未订阅候选「晋升中」标（pendingSyms→行/瓦片/表单/浮层四面——
+// 用户该知道此符报价要稍后接通，禁伪装有行情）。
+const phtml = render(rows, allSyms, {
+	watchRows: [wrow("DOGE-USDT-SWAP", undefined)],
+	pendingSyms: ["ETH-USDT-SWAP", "DOGE-USDT-SWAP"],
+});
+check("⑨提醒行未订阅=晋升中显", phtml.includes("晋升中——订阅已提名，报价接通后可评估"));
+check("⑨瓦片未订阅=晋升中显", phtml.includes("晋升中…") && !phtml.includes(">0<"));
+check("⑨表单候选 label 携晋升标", phtml.includes("晋升中（选建即提名订阅）"));
+const pehtml = renderToStaticMarkup(h(WatchEditView, {
+	items: [], candidates: allSyms, pending: new Set(["ETH-USDT-SWAP"]), query: "",
+	onSave: () => {}, onCancel: () => {},
+}));
+check("⑨浮层候选·晋升中标（仅未订阅员）", pehtml.includes("ETH-USDT-SWAP") && pehtml.includes("·晋升中")
+	&& !/BTC-USDT-SWAP[^<]*·晋升中/.test(pehtml));
+
 // ⑧T-0406②：UtcClock 共享件渲 UTC 时标+Cockpit 待开仓卡接线在案。
 const ck = renderToStaticMarkup(h(UtcClock));
 check("⑧UtcClock 渲 HH:MM:SS UTC", /\d{2}:\d{2}:\d{2} UTC/.test(ck));
