@@ -56,4 +56,41 @@
 
 ## 结果回填
 
-（施工写：实现摘要 / 测试证据 / 偏离说明）
+- 实现摘要：`scripts/check_all.sh` 单件两刀——①入口同
+  checkout 互斥锁：`flock` fd9 落 `/tmp/o-check_all-
+  <toplevel-realpath sha256[:16]>.lock`，语义=阻塞等锁+
+  超时上界 1800s（入者即时报「等锁 holder pid」非静默
+  睡死；超时 fail 报 holder 不假绿不自杀；拿锁后才毁旧
+  戳——等锁期不碰在途跑戳面）；锁键=路径哈希故 wt 与主树
+  不同锁互不串、同 wt 并发才互斥（非全机锁）。②测谱
+  分级：变更面沿用 docs-only 同径收集（merge-base…HEAD
+  ∪porcelain 净路径，不复制判据）——docs-only 既有语义
+  不动；变更面全 .go（混 docs 白名单允许）→scoped=变更
+  包+反向依赖闭包（go list 全谱 Imports/TestImports/
+  XTestImports 建图 python BFS 反向）+恒测册五域
+  （risk/ledger/trading/guard/lifecycle 实址核实=12 包）；
+  变更面含任何非 .go 非 docs 码件或包映射任一步不确定
+  →回退 full fail-safe。STAMP.mode 三档留痕（scoped 附
+  实测包集清单逐行）。
+- 测试证据（scratch wt /tmp/wt-t0409-scope 新脚本直跑）：
+  ①锁——同 wt 并发第二跑即时报「等锁 holder pid=[3817203
+  3829922]（锁=/tmp/o-check_all-cd6ccda….lock；上界
+  1800s）」后阻塞等锁，timeout 60 证非睡死非假绿；
+  ②scoped——tools/okxverify 探针件→mode=scoped 绿，
+  包集=13（变更包+恒测册 12），.mode 附全清单；
+  ③full 回退——internal/data/*.proto 未跟踪件→mode=full
+  全谱跑通；④docs-only——docs/*.md 件→免测档秒绿
+  mode=docs-only；⑤本件自身 diff 含 .sh→末跑 full 档
+  全谱实证（验收锚⑤）。
+- 时长对照：docs-only=闸段 ~2min 即绿；scoped 实测
+  ~5min（恒测册 12 包主导——guard160s/lifecycle181s/
+  execution150s 并行段，ledger 族 cached）；full≈15min。
+  「秒级~2min」目标由 docs-only 档达成；scoped 地板=
+  恒测册谱（钦定册不动即此成本）。
+- 偏离说明：①锚③「改 docs 也跑 risk/ledger」按验收②
+  「docs-only 现行行为保持」+红线「不动 docs-only 既有
+  语义」裁读=恒测册在 scoped/full 档不论 diff 恒在列
+  （docs-only 档免测语义不动）；②锁 holder pid 报
+  fuser 开档进程集（含锁持有者子进程）如实列不裁；
+  ③scoped 档 go test 保留 -timeout=1800s 与 PG DSN
+  docker 探测同式。
