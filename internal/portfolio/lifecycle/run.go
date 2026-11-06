@@ -14,6 +14,7 @@ import (
 	"o/internal/platform/execfam"
 	"o/internal/platform/rejects"
 	"o/internal/platform/roster"
+	"o/internal/portfolio/hunger"
 )
 
 var critKeys = []string{
@@ -22,20 +23,23 @@ var critKeys = []string{
 	"invest.paper.notional_usd",
 }
 
-// Runner 命官岗：提案→paper 开户→虚拟结算→判据晋升→live 开仓消费（T-0050）。
+// Runner 命官岗：提案→paper 开户→虚拟结算→判据晋升→live 开仓消费（T-0050）
+// +饥饿感知拍（T-0378——T-0376 自治环末件入岗）。
 type Runner struct {
 	pool   *pgxpool.Pool
 	denyAt map[int64]time.Time // T-0136 ③拒放冷窗（策略→最近拒放戳）
 
-	cfg *config.Client
-	op  Opener
-	rej *rejects.Door
+	cfg    *config.Client
+	op     Opener
+	rej    *rejects.Door
+	sensor hungerSensor // 饥饿感知器（hunger.go 缝定义——默认实件，桩测面覆写）
 }
 
 func NewRunner(pool *pgxpool.Pool, cfg *config.Client) *Runner {
 	return &Runner{pool: pool, denyAt: map[int64]time.Time{}, cfg: cfg,
 		rej: rejects.New("lifecycle", "illegal_transition", "missing_criteria", "write_err", "live_switch_off", "open_failed", "template_blocked", "xvenue_open_forbidden", "blacklist_retire",
-			"facts_missing", "missing_param", "oscillation_fuse", "dcd_quote_missing", "dcd_spot_stale", "basis_mark_stale")}
+			"facts_missing", "missing_param", "oscillation_fuse", "dcd_quote_missing", "dcd_spot_stale", "basis_mark_stale"),
+		sensor: hunger.New(pool, cfg)}
 }
 
 func (r *Runner) Run(ctx context.Context, errc chan<- error) {
@@ -44,6 +48,7 @@ func (r *Runner) Run(ctx context.Context, errc chan<- error) {
 		return
 	}
 	go roster.BeatLoop(ctx, r.pool, "命官", 30*time.Second, errc)
+	go r.hungerLoop(ctx) // T-0378：饥饿感知拍（BeatLoop 同款 ctx 界内协程——非野径）
 	// 事件化（T-0048：周期环拆——策略/评估卡行变 ev_strategy/ev_eval 驱动）。
 	events.ListenLoop(ctx, r.pool, "lifecycle",
 		[]string{"ev_strategy", "ev_eval"}, r.scan)

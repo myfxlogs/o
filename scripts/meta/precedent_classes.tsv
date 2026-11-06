@@ -24,3 +24,4 @@
 读败	<venue>	normal	venue 读败连败升件（o-core 读面连败闸 T-0352——venueFailGate 自动画：滞回复零+日限1，scope=venue 键）
 写败	META-DM-USAGE	normal	dm_tick token 用量采集写径败升件（容错必报 T-0369 首用——note 前缀同窗 24h 去重）
 写败	META-DEV-USAGE	normal	dev_run token 用量采集写径败升件（容错必报 T-0372 扩面——note 前缀同窗 24h 去重）
+写败	LIFECYCLE-HUNGER	normal	lifecycle 饥饿拍 detect/respond 败自报（T-0378 接线——容错必报 T-0369，note 前缀同窗 24h 去重）
