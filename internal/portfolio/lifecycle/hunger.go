@@ -18,10 +18,12 @@ import (
 
 // hungerSensor 饥饿感知缝（T-0378——签名对形 hunger.Sensor；桩测覆写锚）。
 // T-0384：ProbeFamilies 族级沉默探针同缝入拍（Detect 同槽省协程）。
+// T-0385：MineLessons 教训矿工同缝——独立 minerLoop 12h 慢拍槽。
 type hungerSensor interface {
 	Detect(ctx context.Context) (*hunger.Report, error)
 	Respond(ctx context.Context, rep *hunger.Report) ([]hunger.StepResult, error)
 	ProbeFamilies(ctx context.Context) error
+	MineLessons(ctx context.Context) (int, error)
 }
 
 // hunger 拍行席别/环票号（internal/portfolio/hunger 同款口径——DM 执行环=

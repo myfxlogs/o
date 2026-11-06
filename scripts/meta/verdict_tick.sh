@@ -15,9 +15,14 @@ hb() { # $1=state 心跳行（ops_headless META-VERDICT——meta 席位口径�
       state=EXCLUDED.state,last_activity=now(),updated_at=now()" >/dev/null 2>&1 || true
 }
 
-# ① 水印闸：fin_econ_lesson pending>0 才烧——否则 skip（空拍心跳照写）。
+# ① 水印闸：econ+eng 两案 pending 合>0 才烧——否则 skip（空拍心跳照写）。
+# T-0385 裁域扩：fin_eng_lesson（工程案矿工 pending）同径入裁；表缺
+# （未部署窗）第二查询败=echo 0 兜底不炸。
 if [ -n "$FIN_DSN" ]; then
   N=$(psql "$FIN_DSN" -qAt -c "SELECT count(*) FROM fin_econ_lesson WHERE status='pending'" 2>/dev/null || echo 0)
+  E=$(psql "$FIN_DSN" -qAt -c "SELECT count(*) FROM fin_eng_lesson WHERE status='pending'" 2>/dev/null || echo 0)
+  [ "$E" -eq "$E" ] 2>/dev/null || E=0
+  N=$((N + E))
   if [ "$N" = "0" ]; then
     hb alive
     exit 0
@@ -25,10 +30,11 @@ if [ -n "$FIN_DSN" ]; then
 fi
 
 # ② devin 批拍（cwd=scratch——零仓件接触；runbook 绝对路径指件）。
+# DEVIN_BIN=桩测覆写位（生产默认钦定径不动——T-0385 水印闸桩测面）。
 cd /var/tmp/o-verdict || exit 1
-/home/mluser/.local/bin/devin -p --model swe --respect-workspace-trust false \
+"${DEVIN_BIN:-/home/mluser/.local/bin/devin}" -p --model swe --respect-workspace-trust false \
   --permission-mode dangerous -- \
-  "读 /opt/o/skills/裁定席/SKILL.md runbook 拍经济案裁定"
+  "读 /opt/o/skills/裁定席/SKILL.md runbook 拍经济案+工程案裁定"
 RC=$?
 # ③ 每拍心跳全件（成败同写——败拍=stalled 显形非隐）。
 [ $RC -eq 0 ] && hb alive || hb stalled
