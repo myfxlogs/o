@@ -1,7 +1,6 @@
 # T-0381 hungerLoop 部署即首侦——饿 8 天不等 6h
 
-- 状态：已批（2026-11-06 业主令——「已经饿了这么久了，为
-  什么还要等6h，这不合理」）
+- 状态：待验（2026-11-06 施工收口——锚①②③全绿，移交决策席）
 - 领取：常径待派（DM 常径机派——钱径件优先）
 - 优先级：P0 微件——饥饿环首响延迟修正
 - 收口移交归：决策席
@@ -34,4 +33,16 @@ T-0378 落地的 hungerLoop 用 `time.NewTicker(6h)`——首拍也
 
 ## 结果回填
 
-（施工写：实现摘要 / 测试证据 / 偏离说明）
+- 实现摘要：`internal/portfolio/lifecycle/hunger.go` hungerLoop
+  进 ticker 前先跑一次 `r.hungerTick(ctx)`（部署即首侦），之后照旧
+  `hungerBeatEvery`=6h 复拍——常量未动，Detect/Respond 语义未动，
+  hunger 包本体未触；改幅 = 注释 2 行 + 调用 1 行。
+- 测试证据：新桩测 `TestHungerLoopFirstDetectOnStart`——长拍隔
+  (1h) 下拉起 hungerLoop，2s 界内 Detect 被调恰 1 次、Respond 零
+  误响、ctx 净退（ticker 未到拍不再响，首侦≠改节拍）。
+  `go test ./internal/portfolio/lifecycle/ -run Hunger`：
+  2 PASS + 3 SKIP（DB 面 O_TEST_PG_DSN 未设，与基线同）；
+  `scripts/check_all.sh` 全链绿，戳落
+  `check-green-d116235bc4388ce0c8bff7eacefaae65f7fde376`。
+- 偏离说明：无——diff ⊆ 票面涉及面（hunger.go + hunger_test.go
+  + 本票回填）。

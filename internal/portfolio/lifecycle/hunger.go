@@ -33,9 +33,12 @@ const (
 var hungerBeatEvery = 6 * time.Hour
 
 // hungerLoop 饥饿感知拍：BeatLoop 同款 ctx 界内协程（Run 拉起——非野径）。
+// 进 ticker 前先跑一次 hungerTick——部署即首侦（T-0381：生产已饿 ~8 天，
+// 首拍再等 +6h 是起表副作用非设计意图）；之后照旧 hungerBeatEvery 复拍。
 func (r *Runner) hungerLoop(ctx context.Context) {
 	t := time.NewTicker(hungerBeatEvery) // sched-exempt-ok 看门判定节拍（饥饿态即事件静默态——事件径结构性失明，检测器兜底非轮询拉取）
 	defer t.Stop()
+	r.hungerTick(ctx)
 	for {
 		select {
 		case <-ctx.Done():
