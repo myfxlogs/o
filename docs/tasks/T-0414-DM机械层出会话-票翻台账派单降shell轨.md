@@ -1,6 +1,6 @@
 # T-0414 DM机械层出会话——票翻/台账/派单降 shell 轨
 
-- 状态：已批（业主令直批 2026-11-06——「机械层烧Token=浪费钱」）
+- 状态：待验（施工收口 2026-11-07——移交决策席审计；调试事故全披露见下）
 - 领取：t/0414-dm-shell-lane @ /opt/o-wt/t0414
 - 优先级：P1——持续成本件（每班都烧，省的是token+上下文窗）
 - 收口移交归：决策席
@@ -52,3 +52,41 @@ T-0084/0089/0103/0189/0190 五连「台账早已闭」补登、派单行
   前缀——查账能分谁写的）；
 - 竞态桩：shell 写与会话写并发→互斥生效无双写；
 - 绿戳对口+全链。
+
+## 结果回填
+
+实现摘要：
+
+- **机械轨件 `scripts/meta/dm_ledger.sh`**（新）——两互补收敛规则：
+  A 台账→文件（票翻）：latest=完成 或 裁决/通过且收口已证并 master
+  （收口类 note SHA∪票支 tip∪wt HEAD∪merge commit 四层取证）→mv 入
+  done/+状态行机械模板翻完成+`[角色:决策]` 机械串 commit+check_all
+  绿戳+git_push；裁决未证并=压下拍，龄>2h→升件。B 文件→台账（补登）：
+  done/ 票+收口类事件史+无完成行+latest 非负词→补 META-DM 完成行
+  （机械轨 actor 可辨，advisory xact+行内重查防重）。状态行识别三形
+  （`- 状态：`/`> 状态：`/`## 状态`+**词**）；作废/废弃/取消态不翻字。
+- **写径锁 `scripts/meta/dm_repolock.sh`**（新）——部署锁型 mkdir 原子
+  +holder+陈锁抢（rc0/3/6），锁目=`git-common-dir`/dm-repo.lock——
+  壳轨票翻与会话 merge/push 同台互斥；忙=让位，抢陈锁/脏树/冲突/
+  推败→升件不静默。
+- **dm_tick.sh 收窄**：会话开班闸由 `dm_queue.sh`（all 面）改 `review`
+  面（判断件）；班后收班判同改 review；尾窗挂 dm_ledger 每拍自跑
+  （kick 直驱不走会话——ops_event 新行→shell 件即办）。
+- **文档**：决策席 SKILL 班次节=判断轨口径+机械轨禁做清单+写径锁规；
+  collab.md 席面分家=判断轨/机械轨分轨+dm_repolock 互斥口径。
+- **桩测**：`dm_ledger_test.sh` 五景（B补登同拍翻/A-完成归档/A-裁决
+  证并归档/未证升件/锁忙零写）+`dm_repolock_test.sh` 五态；dm_tick
+  三测试接 O_DM_LEDGER_SH 桩全绿。
+
+**调试事故全披露（诚实记账）**：施工中 dm_ledger 未合并码两次裸跑
+（env 覆写漏带）——done_file 空判恒真病灶（`cmd|head` 管道 rc 恒 0）
+致 B 面越 done/ 铁证误落完成行 35：无档键/活票误登 10 行已按 id
+精删（BASESWP/DBP3a/DEPLOYNF/DOOR4/GATEFIX/PIPEFIX/T-0249/T-0264/
+T-0266/T-0409），余 25 行属票面钦定补登语义保留；作废态 6 件翻字
+已回滚。补偿行：T-0409 落「移交」复队回待裁，9 无档票落「异常」
+作废声明，T-0414 落「异常」事故自报行——台账在案。
+根修三钉：①done_file 判存在验串非空不凭 rc；②B 面加 T-NNNN 格式
+闸；③状态翻加 terminal-alt（作废/废弃/取消）守。
+
+测试证据：meta 桩测 16/16 全绿（dm_ledger 五景+repolock 五态+
+dm_tick 三谱+depgate/suspend/queue 等回归）。

@@ -15,18 +15,24 @@ case "$query" in
 	"-qAt") [ "${DM_LOCK_RESULT:-t}" = f ] && echo f || echo t ;;
 	# T-0354：队列判据单源 dm_queue.sh——stub 按场景回票号行集；
 	# drain 场景=闸内首查有件/班后复查空（DRAIN_MARK 幂等翻转）→收班 exit。
+	# T-0414：会话闸=review 面——按 SQL 形分面回集（approved 场景 review 面
+	# 空集=不开班，机械轨补拉窗同拍自验）。
 	*"SELECT l.ticket FROM ("*)
 		printf '%s\n' "$query" >> "$PENDING_SQL_LOG"
-		# T-0315②/T-0347 判据谓词钉（判据本体已单源 dm_queue.sh——此处验 SQL 形）
-		grep -Fq "e.event IN ('收口','移交','收口待审')" <<<"$query"
-		grep -Fq "e.event='已批'" <<<"$query"
-		grep -Fq "('派单','领单','拉起','裁决','完成','驳回','挂起')" <<<"$query"
+		if grep -Fq "e.event='已批'" <<<"$query"; then
+			# approved/all 形——派单链终态集谓词钉（depgate 走面，本测不触）
+			grep -Fq "('派单','领单','拉起','裁决','完成','驳回','挂起')" <<<"$query"
+		else
+			# review 形——收口类+终态裁决谓词钉
+			grep -Fq "e.event IN ('收口','移交','收口待审')" <<<"$query"
+			grep -Fq "('裁决','完成','驳回')" <<<"$query"
+		fi
 		case "$DM_SCENARIO" in
-			empty) ;;
+			empty|approved) ;;
 			drain)
 				if [ ! -e "$DRAIN_MARK" ]; then touch "$DRAIN_MARK"; printf 'T-9001\n'; fi
 				;;
-			review|approved) printf 'T-9001\n' ;;
+			review) printf 'T-9001\n' ;;
 			*) echo "unknown scenario: $DM_SCENARIO" >&2; exit 2 ;;
 		esac
 		;;
@@ -80,6 +86,7 @@ export O_WORKER_DISPATCH_SCRIPT="$TMP/bin/dispatch-worker"
 export O_WORKER_TASK_DIR="$TMP/tasks"
 export O_DECISION_DEVIN_BIN="$TMP/bin/decision-devin"
 export O_DM_DEPGATE_SH="$TMP/bin/depgate"
+export O_DM_LEDGER_SH=/bin/true # T-0414：机械轨件单测——tick 接线面桩掉防真 git/psql
 
 # Pure-empty queue stays zero-LLM but still resumes a rate-limited worker.
 export DM_SCENARIO=empty DM_LOCK_RESULT=t
@@ -87,17 +94,16 @@ bash "$ROOT/scripts/meta/dm_tick.sh"
 [[ ! -e "$DECISION_LOG" ]]
 grep -q '^T-0341 swe-2-medium ' "$DISPATCH_LOG"
 
-# Review-close pending and approved-dispatch pending both enter the decision
-# model gate. The stub checks the SQL carries both predicates and the complete
-# approved-ticket terminal set before returning each synthetic row count.
+# T-0414 会话面收窄：闸=review 面——review 待裁→开班；approved-only 待派
+# 不开班（机械轨补拉窗同拍自验 T-0341 照拉）。
 export DM_SCENARIO=review
 bash "$ROOT/scripts/meta/dm_tick.sh"
 export DM_SCENARIO=approved
 bash "$ROOT/scripts/meta/dm_tick.sh"
-[[ $(wc -l < "$DECISION_LOG") -eq 2 ]]
-# T-0354：队列推导单源 dm_queue.sh——empty 1 拍（闸查即空跳过）+review/approved
-# 各 2 拍（闸查+班后复查）=5 次 SQL 落账。
-[[ $(grep -c '^SELECT l\.ticket FROM (' "$PENDING_SQL_LOG") -eq 5 ]]
+[[ $(wc -l < "$DECISION_LOG") -eq 1 ]] # 仅 review 拍开班——approved 拍零会话
+# T-0354：队列推导单源 dm_queue.sh——empty/approved 各 1 拍（闸查即空跳过）
+# +review 2 拍（闸查+班后复查）=4 次 SQL 落账。
+[[ $(grep -c '^SELECT l\.ticket FROM (' "$PENDING_SQL_LOG") -eq 4 ]]
 [[ $(grep -c '^T-0341 ' "$DISPATCH_LOG") -eq 2 ]]
 
 # T-0354 件③：锁拒=后到即退（kick 连发/兜底拍撞车同款）——零决策零派单零心跳。
@@ -107,7 +113,7 @@ export DM_SCENARIO=locked DM_LOCK_RESULT=f
 bash "$ROOT/scripts/meta/dm_tick.sh" > "$TMP/locked.log" 2>&1
 grep -q '班次闸未得' "$TMP/locked.log"
 [[ $(wc -l < "$DEPGATE_LOG") -eq 1 ]] # T-0413：锁前依赖闸仍跑——kick 撞班不误零交集快派
-[[ $(wc -l < "$DECISION_LOG") -eq 2 ]]
+[[ $(wc -l < "$DECISION_LOG") -eq 1 ]]
 [[ ! -s "$HB_LOG" ]]
 
 # T-0354 件②收班判：闸内有件→班后队列空→心跳 state=exit（六态正常终态）。
@@ -115,7 +121,7 @@ export DM_SCENARIO=drain DM_LOCK_RESULT=t
 rm -f "$DRAIN_MARK"
 : > "$HB_LOG"
 bash "$ROOT/scripts/meta/dm_tick.sh" >/dev/null
-[[ $(wc -l < "$DECISION_LOG") -eq 3 ]]
+[[ $(wc -l < "$DECISION_LOG") -eq 2 ]]
 grep -qF "决策席','exit'" "$HB_LOG"
 
 echo "dm tick pending gate three-state dry run PASS"
