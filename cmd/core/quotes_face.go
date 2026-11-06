@@ -109,7 +109,10 @@ func (c coreService) ListPriceAlerts(ctx context.Context,
 		}
 		res.Symbols = append(res.Symbols, s)
 	}
-	return res, connect.NewError(connect.CodeInternal, srows.Err().Error())
+	if err := srows.Err(); err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err.Error())
+	}
+	return res, nil
 }
 
 // CreatePriceAlert 建行（同源闸→校验→插行→真值重读；审计行 seat=dashboard-ui）。
