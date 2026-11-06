@@ -17,9 +17,11 @@ import (
 )
 
 // hungerSensor 饥饿感知缝（T-0378——签名对形 hunger.Sensor；桩测覆写锚）。
+// T-0384：ProbeFamilies 族级沉默探针同缝入拍（Detect 同槽省协程）。
 type hungerSensor interface {
 	Detect(ctx context.Context) (*hunger.Report, error)
 	Respond(ctx context.Context, rep *hunger.Report) ([]hunger.StepResult, error)
+	ProbeFamilies(ctx context.Context) error
 }
 
 // hunger 拍行席别/环票号（internal/portfolio/hunger 同款口径——DM 执行环=
@@ -49,9 +51,14 @@ func (r *Runner) hungerLoop(ctx context.Context) {
 	}
 }
 
-// hungerTick 单拍：Detect→触发即落 `饥饿` 行（拍壳同构——触发形+证据
-// 落账）→Respond 一步响应。败情不上抛——本拍自身终结。
+// hungerTick 单拍：族沉默探针（T-0384——先于 Detect 每拍皆测，饥饿与否
+// 无关；败情自报不拖主拍）→Detect→触发即落 `饥饿` 行（拍壳同构——触发
+// 形+证据落账）→Respond 一步响应。败情不上抛——本拍自身终结。
 func (r *Runner) hungerTick(ctx context.Context) {
+	if err := r.sensor.ProbeFamilies(ctx); err != nil {
+		log.Printf("[lifecycle] hungertick 族沉默探针败: %v", err)
+		r.hungerEscalate(ctx, "silence_probe", err)
+	}
 	rep, err := r.sensor.Detect(ctx)
 	if err != nil {
 		log.Printf("[lifecycle] hungertick detect 败: %v", err)
