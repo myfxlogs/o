@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"o/internal/platform/opschain"
 	"o/internal/portfolio/hunger"
 )
 
@@ -24,6 +25,13 @@ type hungerSensor interface {
 	Respond(ctx context.Context, rep *hunger.Report) ([]hunger.StepResult, error)
 	ProbeFamilies(ctx context.Context) error
 	MineLessons(ctx context.Context) (int, error)
+}
+
+// opsChainVerifier 验链缝（T-0386——ops_event 防篡改账验链拍挂饥饿同槽；
+// 桩测覆写锚，置零=跳验链拍——桩测无池 Runner 合法同例）。
+type opsChainVerifier interface {
+	Verify(ctx context.Context) (*opschain.Report, error)
+	ReportBreak(ctx context.Context, rep *opschain.Report) error
 }
 
 // hunger 拍行席别/环票号（internal/portfolio/hunger 同款口径——DM 执行环=
@@ -53,10 +61,25 @@ func (r *Runner) hungerLoop(ctx context.Context) {
 	}
 }
 
-// hungerTick 单拍：族沉默探针（T-0384——先于 Detect 每拍皆测，饥饿与否
+// hungerTick 单拍：验链拍（T-0386——先于一切每拍全链重算，断链/伪戳
+// →账链断+升件自报）→族沉默探针（T-0384——先于 Detect 每拍皆测，饥饿与否
 // 无关；败情自报不拖主拍）→Detect→触发即落 `饥饿` 行（拍壳同构——触发
 // 形+证据落账）→Respond 一步响应。败情不上抛——本拍自身终结。
 func (r *Runner) hungerTick(ctx context.Context) {
+	// T-0386 验链拍同槽：全链重算纯读，断链/伪戳→账链断+升件自报；
+	// 败情让位不阻主拍（ProbeFamilies 同款隔离位）。
+	if r.chainV != nil {
+		if rep, err := r.chainV.Verify(ctx); err != nil {
+			log.Printf("[lifecycle] hungertick 验链拍败: %v", err)
+			r.hungerEscalate(ctx, "opschain", err)
+		} else if !rep.OK() {
+			log.Printf("[lifecycle] hungertick 账链断 检出=%d 首处=%s@#%d",
+				len(rep.Findings), rep.Findings[0].Kind, rep.Findings[0].ID)
+			if err := r.chainV.ReportBreak(ctx, rep); err != nil {
+				log.Printf("[lifecycle] hungertick 账链断自报落败（结构性限度静默退）: %v", err)
+			}
+		}
+	}
 	if err := r.sensor.ProbeFamilies(ctx); err != nil {
 		log.Printf("[lifecycle] hungertick 族沉默探针败: %v", err)
 		r.hungerEscalate(ctx, "silence_probe", err)

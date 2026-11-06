@@ -24,6 +24,7 @@ step "config-write-domain"; bash scripts/check_config_write_domain.sh || fail "c
 step "migrations";  bash scripts/check_migrations.sh            || fail "迁移机检红"
 step "bridge-audit"; bash scripts/check_bridge_registry.sh         || fail "桥域对账闸红"
 step "tolerate-report"; bash scripts/check_tolerate_report.sh      || fail "容错必报 lint 红"
+step "ops-chain";   bash scripts/check_ops_chain.sh                || fail "ops 账链闸红"
 # docs-only 豁免（业主令 2026-10-31）：diff 面=已提交面（merge-base...HEAD）
 # ∪工作树面（status --porcelain 含 untracked），全中白名单（docs/**、*.md
 # 任意层、skills/**）→免 go test 段，其余门禁照跑。CHECK_ALL_FORCE_FULL=1

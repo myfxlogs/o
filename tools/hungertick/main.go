@@ -17,6 +17,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"o/internal/platform/config"
+	"o/internal/platform/opschain"
 	"o/internal/portfolio/hunger"
 )
 
@@ -39,6 +40,17 @@ func main() {
 		os.Exit(1)
 	}
 	s := hunger.New(pool, cfg)
+	// T-0386 验链拍同槽——全链重算纯读；断链/伪戳→账链断+升件自报；败情让位不阻 Detect
+	cv := opschain.New(pool)
+	if rep, err := cv.Verify(ctx); err != nil {
+		fmt.Fprintf(os.Stderr, "hungertick: 验链拍败（让位不阻 Detect）: %v\n", err)
+	} else if !rep.OK() {
+		fmt.Fprintf(os.Stderr, "hungertick: 账链断 检出=%d 首处=%s@#%d——自报双行\n",
+			len(rep.Findings), rep.Findings[0].Kind, rep.Findings[0].ID)
+		if err := cv.ReportBreak(ctx, rep); err != nil {
+			fmt.Fprintf(os.Stderr, "hungertick: 账链断自报落败: %v\n", err)
+		}
+	}
 	if err := s.ProbeFamilies(ctx); err != nil { // T-0384 族沉默探针同槽一拍——败情让位不阻断 Detect 主拍
 		fmt.Fprintf(os.Stderr, "hungertick: 族沉默探针败（让位不阻 Detect）: %v\n", err)
 	}

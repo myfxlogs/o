@@ -12,6 +12,7 @@ import (
 	"o/internal/platform/config"
 	"o/internal/platform/events"
 	"o/internal/platform/execfam"
+	"o/internal/platform/opschain"
 	"o/internal/platform/rejects"
 	"o/internal/platform/roster"
 	"o/internal/portfolio/hunger"
@@ -32,14 +33,16 @@ type Runner struct {
 	cfg    *config.Client
 	op     Opener
 	rej    *rejects.Door
-	sensor hungerSensor // 饥饿感知器（hunger.go 缝定义——默认实件，桩测面覆写）
+	sensor hungerSensor     // 饥饿感知器（hunger.go 缝定义——默认实件，桩测面覆写）
+	chainV opsChainVerifier // 验链器（hunger.go 缝定义——T-0386 同槽拍，桩测面覆写/置零即跳）
 }
 
 func NewRunner(pool *pgxpool.Pool, cfg *config.Client) *Runner {
 	return &Runner{pool: pool, denyAt: map[int64]time.Time{}, cfg: cfg,
 		rej: rejects.New("lifecycle", "illegal_transition", "missing_criteria", "write_err", "live_switch_off", "open_failed", "template_blocked", "xvenue_open_forbidden", "blacklist_retire",
 			"facts_missing", "missing_param", "oscillation_fuse", "dcd_quote_missing", "dcd_spot_stale", "basis_mark_stale"),
-		sensor: hunger.New(pool, cfg)}
+		sensor: hunger.New(pool, cfg),
+		chainV: opschain.New(pool)}
 }
 
 func (r *Runner) Run(ctx context.Context, errc chan<- error) {
