@@ -19,6 +19,13 @@ func TestPriceAlertFireOnce(t *testing.T) {
 	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
 		t.Fatal(err)
 	}
+	// 种键断言（返修1钉——fixture on()=true 桩与生产真形键缺=false 分歧案；
+	// Migrate 全链跑 fin_0119 自携种，键缺/值歪=生产 DOA 同病灶再现）。
+	var seed string
+	if err := pool.QueryRow(ctx, `SELECT value::text FROM app_config
+		WHERE key='notify.feishu.price_alert.enabled'`).Scan(&seed); err != nil || seed != "true" {
+		t.Fatalf("开关键种应='true': %q err=%v", seed, err)
+	}
 	if _, err := pool.Exec(ctx, `INSERT INTO md_ticks(ts,venue,inst_id,last,bid,ask)
 		VALUES(now(),'okx','BTC-USDT-SWAP',61000,60999,61001)`); err != nil {
 		t.Fatal(err)
