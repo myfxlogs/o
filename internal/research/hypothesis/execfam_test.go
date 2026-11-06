@@ -19,10 +19,11 @@ func TestExecFamilyRegisteredChainProceeds(t *testing.T) {
 		VALUES('mt5','trade-order','trade-order','cfd','write',true)`); err != nil {
 		t.Fatal(err)
 	}
-	// 信号三件套（diff=-532 负 funding 亮牌→净年化过阈）。
+	// 信号三件套（diff=+532 方向净 carry 亮牌→净年化过阈——T-0408 新约定
+	// val=当值方向净 carry（正=好）+meta.direction 钉，非旧约 funding−swap 差）。
 	for _, q := range []string{
-		`INSERT INTO md_signal(kind,key,val,meta,ts) VALUES('carry_diff','ETH-USDT-SWAP',-532,
-			'{"funding_ann_bps":-1095,"mt5_swap_ann_bps":0,"mt5_symbol":"ETHUSDm","contract_size":1,"max_volume":100}',now())`,
+		`INSERT INTO md_signal(kind,key,val,meta,ts) VALUES('carry_diff','ETH-USDT-SWAP',532,
+			'{"funding_ann_bps":-1095,"mt5_swap_ann_bps":0,"mt5_symbol":"ETHUSDm","direction":"long_perp_short_cfd","contract_size":1,"max_volume":100}',now())`,
 		`INSERT INTO md_signal(kind,key,val,meta,ts) VALUES('xvenue_spread','ETH-USDT-SWAP',20,'{"mt5_symbol":"ETHUSDm"}',now())`,
 		`INSERT INTO md_signal(kind,key,val,meta,ts) VALUES('depth5','ETH-USDT-SWAP',5,'{"bid_usd":[50000,40000,30000,20000,10000]}',now())`,
 		`INSERT INTO md_ticks(ts,venue,inst_id,bid,ask) VALUES(now(),'mt5','ETHUSDm',2990,2992)`,

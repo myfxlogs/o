@@ -65,7 +65,7 @@ func (r *Runner) beatProbe(ctx context.Context, b credFamily, ob map[string]any)
 		return fail("符号表空（SymbolList 零行——venue 侧缺陷 fail-closed）")
 	}
 	params := map[string]any{}
-	for _, s := range matchedSymbols(syms, r.okxUniverse(ctx)) {
+	for _, s := range mt5.MatchedSymbols(syms, r.okxUniverse(ctx)) {
 		if f, err := sess.SymbolFacts(pctx, s); err == nil {
 			params[s] = f
 		}

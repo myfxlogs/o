@@ -121,6 +121,7 @@ internal/projector -> internal/platform/notify
 internal/projector -> internal/platform/roster
 internal/research/sigdist -> internal/platform/roster
 internal/research/sigdist -> internal/platform/config
+internal/research/sigdist -> internal/mt5
 internal/research/funding -> internal/research/armwatch
 internal/research/gapscan -> internal/research/armwatch
 internal/research/hypothesis -> internal/research/armwatch
@@ -166,6 +167,7 @@ internal/research/funding -> internal/platform/execfam
 internal/research/gapscan -> internal/platform/execfam
 internal/research/grammar -> internal/platform/execfam
 internal/research/hypothesis -> internal/platform/execfam
+internal/research/hypothesis -> internal/platform/condreq
 # T-0379 venue 接入臂（凭据发现[app_secrets+master key+condreq 盒]→mtapi 探测
 # →映射闸→paper 态——o-research 臂边集形：platform 面+mt5 只读会话件）。
 internal/venue/onboard -> internal/mt5

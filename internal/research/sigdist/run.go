@@ -188,6 +188,8 @@ func Fresh(ctx context.Context, pool *pgxpool.Pool, kind, key string) (Sig, bool
 			(kind='funding_view' AND (meta->>'next_funding_ts')::timestamptz > now())
 			OR (kind<>'funding_view' AND ts > now()-CASE kind
 				WHEN 'carry_diff' THEN interval '8 hours'
+				WHEN 'xvenue_shadow_carry' THEN interval '8 hours'
+				WHEN 'xvenue_shadow_spread' THEN interval '8 hours'
 				ELSE interval '120 seconds' END))`,
 		kind, key).Scan(&s.Val, &metaB, new(time.Time))
 	if err != nil {
@@ -212,6 +214,8 @@ func (r *Runner) freshByKind(ctx context.Context, kind string) (map[string]Sig, 
 			(kind='funding_view' AND (meta->>'next_funding_ts')::timestamptz > now())
 			OR (kind<>'funding_view' AND ts > now()-CASE kind
 				WHEN 'carry_diff' THEN interval '8 hours'
+				WHEN 'xvenue_shadow_carry' THEN interval '8 hours'
+				WHEN 'xvenue_shadow_spread' THEN interval '8 hours'
 				ELSE interval '120 seconds' END))`, kind)
 	if err != nil {
 		return nil, err

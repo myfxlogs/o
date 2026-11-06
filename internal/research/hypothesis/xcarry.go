@@ -17,8 +17,6 @@ import (
 	"encoding/json"
 	"log"
 	"math"
-
-	"o/internal/platform/execfam"
 )
 
 // xvenueCarryScan 信号臂 xvenue_carry 支路（ScanSignals 尾调）：carry_diff
@@ -77,41 +75,46 @@ func (r *Runner) xvenueCarryScan(ctx context.Context) {
 	}
 }
 
-// xvenueCarryNet 方向感知净年化（返修③分径）：返 (direction, net, feasible)。
-//
-//	diff<0（正主）：net=−diff−spreadAmort−buffer（恒可行——负 diff 即正收入端）；
-//	diff>0：net=+fundingAnn−|swap_long_ann|−spreadAmort−buffer——swap_long
-//	  年化缺（meta 无双腿年化源=桥旧版）=不可判 false；<0=经济学不通 false。
+// xvenueCarryNet 方向感知净年化（真域径——spread kind=真行）。返
+// (direction, net, feasible)。T-0408 约定漂移根修：T-0203 产者口径已翻
+// 「当值方向净 carry（正=好）+meta.direction 钉」，消费侧旧约「diff<0=
+// 正收入端」随漂——funding<0 主径判词整体反置（赢对 reject/输对可
+// proposed 活 bug，fixture 手植旧约行自洽掩护）。新约：dir=meta.direction
+// （产者钉）；net=diff−spreadAmort−buffer（val 已含本腿 swap 成本——禁
+// 双重计）；feasible=false=方向钉缺/diff<0 经济学不通。
 func (r *Runner) xvenueCarryNet(ctx context.Context, okxInst string, diff float64, meta map[string]any) (string, float64, bool) {
-	spreadAmort := r.spreadAmortBPS(ctx, okxInst)
+	return r.carryNetK(ctx, okxInst, diff, meta, "xvenue_spread")
+}
+
+// carryNetK 方向感知净年化核（真/影同数学——spread kind 区分域）。
+func (r *Runner) carryNetK(ctx context.Context, okxInst string, diff float64, meta map[string]any, spreadKind string) (string, float64, bool) {
+	spreadAmort := r.spreadAmortBPSK(ctx, okxInst, spreadKind)
 	buffer := r.slippageBufferBPS()
+	dir, _ := meta["direction"].(string)
+	switch dir {
+	case "long_perp_short_cfd", "short_perp_long_cfd":
+	default:
+		return dir, 0, false // 方向钉缺（产者口径前行/形坏）——不可判如实
+	}
+	net := diff - spreadAmort - buffer
 	if diff < 0 {
-		return "long_perp_short_cfd", -diff - spreadAmort - buffer, true
-	}
-	dir := "short_perp_long_cfd"
-	fa := numMeta(meta, "funding_ann_bps")
-	lraw, has := meta["swap_long_ann_bps"]
-	if !has {
-		return dir, 0, false // 双腿年化源缺——不可判如实
-	}
-	longAnn, _ := lraw.(float64)
-	net := fa - math.Abs(longAnn) - spreadAmort - buffer
-	if net < 0 {
-		return dir, net, false
+		return dir, net, false // 方向净 carry 已含本腿成本——负=经济学不通
 	}
 	return dir, net, true
 }
 
-// spreadAmortBPS 进出双边点差按持有窗年化占比摊销（max_hold 热启）；
-// 点差缺席=摊销零（evidence spread_bps 缺席如实——非成本低估面）。
-func (r *Runner) spreadAmortBPS(ctx context.Context, okxInst string) float64 {
+// spreadAmortBPSK 点差摊销核（max_hold 热启；kind 区分真/影域——点差
+// 缺席=摊销零（evidence spread_bps 缺席如实——非成本低估面））。
+func (r *Runner) spreadAmortBPSK(ctx context.Context, okxInst, kind string) float64 {
 	holdH := 72.0
 	if v, err := r.cfg.GetFloat("guard.max_hold_hours"); err == nil && v > 0 {
 		holdH = v
 	}
 	var spread float64
 	if err := r.pool.QueryRow(ctx, `SELECT val FROM md_signal
-		WHERE kind='xvenue_spread' AND key=$1 AND ts > now()-interval '120 seconds'`, okxInst).Scan(&spread); err != nil {
+		WHERE kind=$1 AND key=$2 AND ts > now()-CASE $1
+			WHEN 'xvenue_spread' THEN interval '120 seconds'
+			ELSE interval '8 hours' END`, kind, okxInst).Scan(&spread); err != nil {
 		return 0
 	}
 	return math.Abs(spread) * 2 * (holdH / (365 * 24))
@@ -162,61 +165,13 @@ func (r *Runner) xvenueCarryCard(ctx context.Context, okxInst string, diff float
 // verdict 闸序 = 经济学可行→容量三件（okx depth5 顶档×0.5 / mt5 contract_size
 // ×max_volume 名义）→okx 腿黑名单→MT5 腿 trade-order 面在册→净负；
 // feasible=false（经济学不通）=rejected/net_ann_economics 如实。
+// 判词核=carryVerdict（xshadow.go——真/影同一评估器防冗余）。
 func (r *Runner) xvenueCarryEval(ctx context.Context, okxInst, dir string, net, diff float64, meta map[string]any, feasible bool) {
 	fa := numMeta(meta, "funding_ann_bps")
 	sa := numMeta(meta, "mt5_swap_ann_bps")
 	mt5Sym, _ := meta["mt5_symbol"].(string)
-	spread, sErr := r.spreadVal(ctx, okxInst)
-	spreadAmort := r.spreadAmortBPS(ctx, okxInst)
-	buffer := r.slippageBufferBPS()
-	// 容量三件。
-	capacity := 0.0
-	var depthTop float64
-	if err := r.pool.QueryRow(ctx, `SELECT meta->'bid_usd'->>0 FROM md_signal
-		WHERE kind='depth5' AND key=$1 AND ts > now()-interval '120 seconds'`, okxInst).Scan(&depthTop); err == nil && depthTop > 0 {
-		capacity = depthTop * 0.5 // 顶档可吸保守折半
-	}
-	cs := numMeta(meta, "contract_size")
-	mv := numMeta(meta, "max_volume")
-	if cs > 0 && mv > 0 {
-		var mid float64
-		if e := r.pool.QueryRow(ctx, `SELECT (bid+ask)/2 FROM md_ticks
-			WHERE venue='mt5' AND inst_id=$1 AND bid>0 AND ask>0`, mt5Sym).Scan(&mid); e == nil && mid > 0 {
-			capacity = minCapacity(capacity, mid*cs*mv) // MT5 名义上限
-		}
-	}
-	// verdict 闸序。
-	verdict, reason := "proposed", ""
-	switch {
-	case !feasible:
-		verdict, reason = "rejected", "net_ann_economics"
-	case capacity <= 0:
-		verdict, reason = "rejected", "capacity_missing"
-	default:
-		var banned int
-		if e := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_venue_untradeable
-			WHERE inst_id=$1`, okxInst).Scan(&banned); e == nil && banned > 0 {
-			verdict, reason = "rejected", "okx_leg_untradeable"
-		}
-	}
-	if verdict == "proposed" {
-		var mt5Exec int
-		if e := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_capability_surface
-			WHERE venue='mt5' AND surface='trade-order' AND enabled`).Scan(&mt5Exec); e != nil || mt5Exec == 0 {
-			verdict, reason = "rejected", "mt5_leg_capability_missing"
-		} else if net < 0 {
-			verdict, reason = "rejected", "net_ann_negative"
-		}
-	}
-	// T-0330 前置拒：执行径未建族——xvenue-carry armed→open 显式禁（T-0145
-	// 未派案），全谱过阈也 direct rejected/exec_family_missing 如实，不进
-	// 提案队列淤积等死（族码=本行 template 列）。
-	if verdict == "proposed" && !execfam.Has("xvenue-carry") {
-		verdict, reason = "rejected", "exec_family_missing"
-	}
-	if sErr != nil {
-		spread = 0 // 点差缺席——evidence 零值如实
-	}
+	verdict, reason, capacity, spread, spreadAmort, buffer := r.carryVerdict(
+		ctx, okxInst, dir, net, meta, feasible, "xvenue_spread", 0, false)
 	ev, _ := json.Marshal(map[string]any{
 		"funding_ann_bps": fa, "swap_ann_bps": sa,
 		"swap_long_ann_bps": numMeta(meta, "swap_long_ann_bps"),
@@ -261,11 +216,13 @@ func (r *Runner) xvenueCarryEval(ctx context.Context, okxInst, dir string, net, 
 	}
 }
 
-// spreadVal 点差现值鲜读（评估 evidence 逐环实值）。
-func (r *Runner) spreadVal(ctx context.Context, okxInst string) (float64, error) {
+// spreadValK 点差现值鲜读核（kind 区分真/影域——影域帧龄界 8h 源节拍同根）。
+func (r *Runner) spreadValK(ctx context.Context, okxInst, kind string) (float64, error) {
 	var v float64
 	err := r.pool.QueryRow(ctx, `SELECT val FROM md_signal
-		WHERE kind='xvenue_spread' AND key=$1 AND ts > now()-interval '120 seconds'`, okxInst).Scan(&v)
+		WHERE kind=$1 AND key=$2 AND ts > now()-CASE $1
+			WHEN 'xvenue_spread' THEN interval '120 seconds'
+			ELSE interval '8 hours' END`, kind, okxInst).Scan(&v)
 	return v, err
 }
 

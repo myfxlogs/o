@@ -29,14 +29,16 @@ import (
 
 // BridgeCollector MT5 桥腿在岗体（quote-only）。
 type BridgeCollector struct {
-	pool     *pgxpool.Pool
-	cfg      *config.Client
-	meter    *netmeter.Meter
-	rej      *rejects.Door
-	addr     string
-	cr       Credentials
-	dial     func(addr string) (*Client, error)                                                  // 测试注入面
-	symFetch func(ctx context.Context, cl *Client, sym string) (*mt5pb.SymbolParamsReply, error) // 测试注入面（FIX-02 消哑失败形态 fixture 缝——nil=生产径）
+	pool      *pgxpool.Pool
+	cfg       *config.Client
+	meter     *netmeter.Meter
+	rej       *rejects.Door
+	addr      string
+	cr        Credentials
+	dial      func(addr string) (*Client, error)                                                  // 测试注入面
+	symFetch  func(ctx context.Context, cl *Client, sym string) (*mt5pb.SymbolParamsReply, error) // 测试注入面（FIX-02 消哑失败形态 fixture 缝——nil=生产径）
+	symList   func(ctx context.Context, cl *Client) ([]string, error)                             // 目录粗扫缝（T-0408——nil=SymbolList 正径）
+	quoteMany func(ctx context.Context, cl *Client, syms []string) map[string]float64             // 目录 mid 快照缝（nil=GetQuoteMany 正径）
 }
 
 // NewBridgeCollector env 凭据装配（缺件=fail-closed 上抛——桥腿缺席不拖 OKX 面，
@@ -132,6 +134,9 @@ func (c *BridgeCollector) bridgeSession(ctx context.Context, dial func(string) (
 	}
 	// swap 率面低频拍（≤1/4h——SymbolParams 域，日级变量；sched-exempt-ok 慢特征节拍）。
 	go c.swapLoop(sessCtx, cl)
+	// T-0408①：全目录粗扫拍（366 符 SymbolParams 步进限速+GetQuoteMany mid
+	// 快照——低频 RPC 非流，影子评估层事实源；同会话止）。
+	go c.catalogLoop(sessCtx, cl)
 	for {
 		f, err := stream.Recv()
 		if c.meter != nil && f != nil {
@@ -200,66 +205,6 @@ func (c *BridgeCollector) pollSwap(ctx context.Context, cl *Client, syms []strin
 		}
 	}
 	return okN, sample
-}
-
-// fetchSwap 单 sym SymbolParams 读→裁定→换算→md_signal 落行。空返=落行成；
-// 非空=败因样本。FIX-02 消哑分键：transport err/in-band err/Result nil→
-// symbols_read_failed；SymbolGroup nil→symbol_group_nil（原 177 行静默
-// continue 第二哑径——独立键留痕）；写败→tick_write_err（既有键）。
-func (c *BridgeCollector) fetchSwap(ctx context.Context, cl *Client, sym string) string {
-	fetch := c.symFetch
-	if fetch == nil {
-		fetch = func(ctx context.Context, cl *Client, sym string) (*mt5pb.SymbolParamsReply, error) {
-			return cl.MT5().SymbolParams(cl.Authed(ctx), &mt5pb.SymbolParamsRequest{Id: cl.Token(), Symbol: sym})
-		}
-	}
-	r, err := fetch(ctx, cl, sym)
-	switch {
-	case err != nil:
-		c.rej.Inc("symbols_read_failed")
-		return sym + ": " + err.Error()
-	case r.GetError() != nil:
-		c.rej.Inc("symbols_read_failed")
-		return fmt.Sprintf("%s: mtapi err %d %q", sym, r.GetError().GetCode(), r.GetError().GetMessage())
-	case r.Result == nil:
-		c.rej.Inc("symbols_read_failed")
-		return sym + ": Result nil"
-	}
-	sg := r.Result.SymbolGroup
-	if sg == nil {
-		c.rej.Inc("symbol_group_nil")
-		return sym + ": SymbolGroup nil"
-	}
-	// 换算链全携 meta（票面钦定——点数→bps 链逐环可查）
-	si := r.Result.SymbolInfo
-	ann, ok := SwapAnnualBPS(si, sg, c.midOf(sym))
-	longAnn, shortAnn, ok2 := SwapAnnualBoth(si, sg, c.midOf(sym)) // 返修①双腿年化
-	meta, _ := json.Marshal(map[string]any{
-		"swap_long": sg.GetSwapLong(), "swap_short": sg.GetSwapShort(),
-		"swap_type": int32(sg.GetSwapType())})
-	if si != nil {
-		meta, _ = json.Marshal(map[string]any{
-			"swap_long": sg.GetSwapLong(), "swap_short": sg.GetSwapShort(),
-			"swap_type":  int32(sg.GetSwapType()),
-			"tick_value": si.GetTickValue(), "tick_size": si.GetTickSize(),
-			"points": si.GetPoints(), "contract_size": si.GetContractSize(),
-			"max_volume": float64(sg.GetMaxVolume()), "initial_margin": sg.GetInitialMargin(),
-			// T-0144 返修①：双腿年化随 meta（正 funding 径 swap_long 成本端入账源）。
-			"swap_long_ann_bps": longAnn, "swap_short_ann_bps": shortAnn, "ann_ok": ok2,
-			"mid": c.midOf(sym)})
-	}
-	var val any // NULL=单位方言不可年化（缺换算件缺席如实）
-	if ok {
-		val = ann // 空腿年化 bps（负 funding 对冲径正主）
-	}
-	if _, err := c.pool.Exec(ctx, `INSERT INTO md_signal(kind,key,val,meta,ts)
-		VALUES('mt5_swap',$1,$2,$3::jsonb,now())
-		ON CONFLICT (kind,key) DO UPDATE SET val=EXCLUDED.val,
-		meta=EXCLUDED.meta, ts=EXCLUDED.ts`, sym, val, string(meta)); err != nil {
-		c.rej.Inc("tick_write_err")
-		return sym + ": write " + err.Error()
-	}
-	return ""
 }
 
 // symbols 标的集（bridge.mt5.symbols 热启——首集 BTCUSDm/ETHUSDm 与 SG 钱径

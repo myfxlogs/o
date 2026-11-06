@@ -182,7 +182,7 @@ func researchArms(ctx context.Context, errc chan<- error, pool *pgxpool.Pool,
 			AttachCoins(okxCoinsFor(pool, okcli)).AttachFin(finPool).AttachAlerter(alerter).Run(ctx, errc)
 	}
 	go gapscan.NewRunner(pool, cfg).AttachProbe(gapProbeFor(okcli)).AttachAlerter(alerter).Run(ctx, errc)
-	hr := hypothesis.NewRunner(pool, cfg)
+	hr := hypothesis.NewRunner(pool, cfg).AttachFin(finPool) // T-0408 影域呈批径 fin 池
 	hr.AttachAlerter(alerter)
 	hr.AttachSignals(hypoSignalReader(pool)) // T-0140 信号读闸接线（sig 域→hypothesis 域投影）
 	go hr.Run(ctx, errc)

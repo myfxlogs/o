@@ -35,10 +35,11 @@ func xseed(t *testing.T, ctx context.Context, r *Runner, kv map[string]string) {
 func TestXvenueCarryChain(t *testing.T) {
 	ctx, r := xsetup(t)
 	xseed(t, ctx, r, map[string]string{"research.signal.xvenue_carry_diff_bps": "300"})
-	// 信号三件套（carry_diff 携 T-0141 meta+spread 鲜+depth5 容量鲜）。
+	// 信号三件套（carry_diff 携 T-0141 meta+spread 鲜+depth5 容量鲜；
+	// T-0408 新约定 val=方向净 carry 正=好+direction 钉）。
 	for _, q := range []string{
-		`INSERT INTO md_signal(kind,key,val,meta,ts) VALUES('carry_diff','ETH-USDT-SWAP',-532,
-			'{"funding_ann_bps":-1095,"mt5_swap_ann_bps":0,"mt5_symbol":"ETHUSDm","contract_size":1,"max_volume":100}',now())`,
+		`INSERT INTO md_signal(kind,key,val,meta,ts) VALUES('carry_diff','ETH-USDT-SWAP',532,
+			'{"funding_ann_bps":-1095,"mt5_swap_ann_bps":0,"mt5_symbol":"ETHUSDm","direction":"long_perp_short_cfd","contract_size":1,"max_volume":100}',now())`,
 		`INSERT INTO md_signal(kind,key,val,meta,ts) VALUES('xvenue_spread','ETH-USDT-SWAP',20,'{"mt5_symbol":"ETHUSDm"}',now())`,
 		`INSERT INTO md_signal(kind,key,val,meta,ts) VALUES('depth5','ETH-USDT-SWAP',5,'{"bid_usd":[50000,40000,30000,20000,10000]}',now())`,
 		`INSERT INTO md_ticks(ts,venue,inst_id,bid,ask) VALUES(now(),'mt5','ETHUSDm',2990,2992)`,
@@ -87,7 +88,7 @@ func TestXvenueCarryChain(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := r.pool.Exec(ctx, `INSERT INTO md_signal(kind,key,val,meta,ts)
-		VALUES('carry_diff','BTC-USDT-SWAP',100,'{"funding_ann_bps":100,"mt5_swap_ann_bps":0,"mt5_symbol":"BTCUSDm"}',now())
+		VALUES('carry_diff','BTC-USDT-SWAP',100,'{"funding_ann_bps":100,"mt5_swap_ann_bps":0,"mt5_symbol":"BTCUSDm","direction":"short_perp_long_cfd"}',now())
 		ON CONFLICT (kind,key) DO UPDATE SET val=EXCLUDED.val`); err != nil {
 		t.Fatal(err)
 	}
@@ -109,11 +110,11 @@ func TestXvenueCarryStaleVisible(t *testing.T) {
 	ctx, r := xsetup(t)
 	xseed(t, ctx, r, map[string]string{"research.signal.xvenue_carry_diff_bps": "300"})
 	for _, q := range []string{
-		`INSERT INTO md_signal(kind,key,val,meta,ts) VALUES('carry_diff','ETH-USDT-SWAP',-532,
-			'{"funding_ann_bps":-1095,"mt5_swap_ann_bps":0,"mt5_symbol":"ETHUSDm","contract_size":1,"max_volume":100}',
+		`INSERT INTO md_signal(kind,key,val,meta,ts) VALUES('carry_diff','ETH-USDT-SWAP',532,
+			'{"funding_ann_bps":-1095,"mt5_swap_ann_bps":0,"mt5_symbol":"ETHUSDm","direction":"long_perp_short_cfd","contract_size":1,"max_volume":100}',
 			now()-interval '2 hours')`,
-		`INSERT INTO md_signal(kind,key,val,meta,ts) VALUES('carry_diff','SOL-USDT-SWAP',-532,
-			'{"funding_ann_bps":-1095,"mt5_swap_ann_bps":0,"mt5_symbol":"SOLUSDm","contract_size":1,"max_volume":100}',
+		`INSERT INTO md_signal(kind,key,val,meta,ts) VALUES('carry_diff','SOL-USDT-SWAP',532,
+			'{"funding_ann_bps":-1095,"mt5_swap_ann_bps":0,"mt5_symbol":"SOLUSDm","direction":"long_perp_short_cfd","contract_size":1,"max_volume":100}',
 			now()-interval '9 hours')`,
 	} {
 		if _, err := r.pool.Exec(ctx, q); err != nil {
@@ -136,19 +137,20 @@ func TestXvenueCarryStaleVisible(t *testing.T) {
 	}
 }
 
-// T-0144 返修③④锚：正 diff 径经济学归正——
+// T-0144 返修③④锚：正 diff 径经济学归正（T-0408 约定漂移根修后锚迁移——
+// 产者 val=当值方向净 carry 正=好，fixture 携 direction 钉同产者形）：
 //
-//	diff>0+funding<|swap_long_ann|→net<0→评估 rejected/net_ann_economics
+//	diff<0（方向净 carry 负）→feasible=false→评估 rejected/net_ann_economics
 //	如实（不撞哑）+卡不起草；
-//	diff>0+funding>|swap_long_ann|→proposed 双腿向反（short_perp_long_cfd）。
+//	diff>0+净过阈→proposed 双腿向随 direction 钉（short_perp_long_cfd）。
 func TestXvenueCarryPositiveDiff(t *testing.T) {
 	ctx, r := xsetup(t)
 	xseed(t, ctx, r, map[string]string{"research.signal.xvenue_carry_diff_bps": "300"})
-	seedSig := func(inst string, diff, fa, longAnn float64) {
+	seedSig := func(inst string, diff, fa, longAnn float64, dir string) {
 		t.Helper()
 		meta, _ := json.Marshal(map[string]any{
 			"funding_ann_bps": fa, "swap_long_ann_bps": longAnn,
-			"mt5_swap_ann_bps": 0, "mt5_symbol": "ETHUSDm",
+			"mt5_swap_ann_bps": 0, "mt5_symbol": "ETHUSDm", "direction": dir,
 			"contract_size": 1, "max_volume": 100})
 		if _, err := r.pool.Exec(ctx, `INSERT INTO md_signal(kind,key,val,meta,ts)
 			VALUES('carry_diff',$1,$2,$3::jsonb,now())
@@ -157,8 +159,9 @@ func TestXvenueCarryPositiveDiff(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	// 幕1：funding=200 < |long_ann|=816 → rejected/net_ann_economics+零卡（不撞哑）。
-	seedSig("BTC-USDT-SWAP", 532, 200, -816)
+	// 幕1：funding=200 < |long_ann|=816 → 产者 diff=200−816=−616（方向净负）
+	// →rejected/net_ann_economics+零卡（不撞哑）。
+	seedSig("BTC-USDT-SWAP", -616, 200, -816, "short_perp_long_cfd")
 	r.xvenueCarryScan(ctx)
 	var verdict, reason string
 	if err := r.pool.QueryRow(ctx, `SELECT verdict, evidence->>'reason' FROM fin_opp_eval
@@ -174,8 +177,9 @@ func TestXvenueCarryPositiveDiff(t *testing.T) {
 	if n != 0 {
 		t.Fatalf("经济学不通应零卡 got %d", n)
 	}
-	// 幕2：funding=2000 > |long_ann|=816 → proposed+双腿向反 short_perp_long_cfd。
-	seedSig("BTC-USDT-SWAP", 532, 2000, -816)
+	// 幕2：funding=2000 > |long_ann|=816 → 产者 diff=+1184（方向净正）
+	// →proposed 双腿向随钉 short_perp_long_cfd。
+	seedSig("BTC-USDT-SWAP", 1184, 2000, -816, "short_perp_long_cfd")
 	r.xvenueCarryScan(ctx)
 	var dir string
 	if err := r.pool.QueryRow(ctx, `SELECT evidence->>'direction' FROM fin_opp_hypothesis

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"o/internal/mt5"
 	"o/internal/platform/condreq"
 )
 
@@ -25,7 +26,7 @@ func (r *Runner) beatDraft(ctx context.Context, b credFamily, ob map[string]any)
 	var unmatched []string
 	for _, inst := range universe {
 		base := strings.SplitN(inst, "-", 2)[0]
-		if s := matchSymbol(syms, base); s != "" {
+		if s := mt5.MatchSymbol(syms, base); s != "" {
 			pairs[inst] = s
 		} else {
 			unmatched = append(unmatched, inst)
