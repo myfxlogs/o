@@ -11,6 +11,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"o/internal/platform/legset"
 	"o/internal/platform/rejects"
 )
 
@@ -28,20 +29,22 @@ func New(pool *pgxpool.Pool, alert func(ctx context.Context, msg string)) *Sweep
 
 // Sweep 日拍一拍：①未入账表报缺 fail-closed；②audit_keep 账照窗删；
 // ③体积哨兵（库>5GB/单表月增>1GB 告警）。
-// deadTailSweep 离集陈键自净（T-0197④：状态表行「ts 超龄 AND 键不在
-// fin_active_set」→删；谓词读败 fail-safe 不删——防 active_set 读败成
-// 全表清空病灶）。
+// deadTailSweep 离集陈键自净（T-0197④ 立件/T-0404 谓词升正：状态表行
+// 「ts 超龄 AND 键不在活跃集 UNION」→删——活跃集=legset.ActiveSetUnion
+// 唯一真源反查（提案∪策略∪三族派生腿∪sub_request open，订阅集/镜像谓词
+// 同链）；fin_active_set 窄表仅仓∪策略且 md 链缺席=化石残表/恒 abort
+// 病灶同根修）；谓词读败 fail-safe 不删——防活跃集读败成全表清空病灶。
 func (s *Sweeper) deadTailSweep(ctx context.Context) error {
 	// 谓词读败即整扫 abort（fail-safe 钦定——不拿半读谓词下删刀）
-	if _, err := s.pool.Exec(ctx, `SELECT 1 FROM fin_active_set LIMIT 1`); err != nil {
-		log.Printf("[retention] deadTailSweep abort：fin_active_set 谓词读败 %v（fail-safe 不删）", err)
+	if _, err := s.pool.Exec(ctx, `SELECT 1 FROM (`+legset.ActiveSetUnion+`) t LIMIT 1`); err != nil {
+		log.Printf("[retention] deadTailSweep abort：活跃集 UNION 谓词读败 %v（fail-safe 不删）", err)
 		return nil // 谓词读败=abort 整扫（fail-safe 不删）
 	}
 	for _, spec := range []struct{ table, tsCol, keyCol string }{
 		{"md_ticks", "ts", "inst_id"}, {"md_mark_index", "ts", "inst_id"},
 	} {
-		tag, err := s.pool.Exec(ctx, fmt.Sprintf(`DELETE FROM %s WHERE %s < now()-interval '7 days'
-			AND %s NOT IN (SELECT inst_id FROM fin_active_set)`, spec.table, spec.tsCol, spec.keyCol))
+		tag, err := s.pool.Exec(ctx, `DELETE FROM `+spec.table+` WHERE `+spec.tsCol+
+			` < now()-interval '7 days' AND `+spec.keyCol+` NOT IN (`+legset.ActiveSetUnion+`)`)
 		if err != nil {
 			continue // 逐表隔离不 abort 整扫
 		}

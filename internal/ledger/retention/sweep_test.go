@@ -65,6 +65,65 @@ func TestUnregisteredReported(t *testing.T) {
 	}
 }
 
+// 锚④（T-0404 验收①）：死符清源三态——陈+非活跃删/陈+活跃留（UNION 臂
+// 含 fin_active_set 窄表外的 sub_request open 臂）/新行留；md_mark_index
+// 同式面顺带。
+func TestDeadTailSweep(t *testing.T) {
+	pool := testutil.Pool(t)
+	ctx := context.Background()
+	if err := pgstore.Migrate(ctx, pool, "md"); err != nil {
+		t.Fatal(err)
+	}
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatal(err)
+	}
+	for _, q := range []string{
+		"DELETE FROM md_ticks", "DELETE FROM md_mark_index", "DELETE FROM fin_sub_request",
+		"DELETE FROM fin_strategy", "DELETE FROM fin_active_set",
+		`INSERT INTO md_ticks(ts,inst_id,last) VALUES
+			(now()-interval '8 days','DEAD-USDT',1),
+			(now()-interval '8 days','SUB-USDT',2),
+			(now()-interval '8 days','LIVE-USDT',3),
+			(now(),'FRESH-USDT',4)`,
+		`INSERT INTO md_mark_index(ts,inst_id,channel,px) VALUES
+			(now()-interval '8 days','DEADMK-USDT','mark_price',1)`,
+		`INSERT INTO fin_sub_request(inst_id,requester) VALUES('SUB-USDT','test')`,
+		`INSERT INTO fin_strategy(inst_id,template_ref,state,notional_usd) VALUES('LIVE-USDT','noop_x','live',0)`,
+	} {
+		if _, err := pool.Exec(ctx, q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	sw := New(pool, nil)
+	if err := sw.deadTailSweep(ctx); err != nil {
+		t.Fatal(err)
+	}
+	cnt := func(table, inst string) int {
+		t.Helper()
+		var n int
+		if err := pool.QueryRow(ctx, `SELECT count(*) FROM `+table+` WHERE inst_id=$1`, inst).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	if n := cnt("md_ticks", "DEAD-USDT"); n != 0 {
+		t.Fatalf("md_ticks 陈+离集应删 留 %d", n)
+	}
+	if n := cnt("md_mark_index", "DEADMK-USDT"); n != 0 {
+		t.Fatalf("md_mark_index 陈+离集应删 留 %d", n)
+	}
+	// sub_request open 臂在集——旧 fin_active_set 窄谓词误删面（T-0404 根修点）。
+	if n := cnt("md_ticks", "SUB-USDT"); n != 1 {
+		t.Fatalf("md_ticks 陈+活跃（sub_request 臂）应留 %d", n)
+	}
+	if n := cnt("md_ticks", "LIVE-USDT"); n != 1 {
+		t.Fatalf("md_ticks 陈+活跃（live 策略臂）应留 %d", n)
+	}
+	if n := cnt("md_ticks", "FRESH-USDT"); n != 1 {
+		t.Fatalf("md_ticks 新行应留 %d", n)
+	}
+}
+
 // 锚③：体积哨兵越阈告警真发（库体积>阈→alert 件回调在案）。
 func TestSizeSentinelFires(t *testing.T) {
 	pool := testutil.Pool(t)
