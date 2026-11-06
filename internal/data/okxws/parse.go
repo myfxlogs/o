@@ -3,8 +3,9 @@ package okxws
 import (
 	"encoding/json"
 	"strconv"
-	"strings"
 	"time"
+
+	"o/internal/platform/legset"
 )
 
 // wsMsg OKX v5 推送帧头+载荷（arg.channel 分流；data[]=频道载荷行）。
@@ -52,16 +53,9 @@ func tsms(d map[string]json.RawMessage, k string) time.Time {
 	return time.UnixMilli(ms).UTC()
 }
 
-// isUSDTInst USDT 计价闸（业主令：杂币不采不用不计——instId 形如 X-USDT[-SWAP]）。
-func isUSDTInst(instID string) bool {
-	// T-0189：USD 指数键（BTC-USD——index-tickers uly 键域）+到期期货
-	// 形（-\d{6}$ 尾——BTC-USD-261225）放行豁免——「杂币不采」禁的是
-	// 杂计价币面，USD 指数/币本位期货系 basis 域钦定数据源非杂币。
-	if strings.HasSuffix(instID, "-USD") || datedFutRe.MatchString(instID) {
-		return true
-	}
-	return strings.Contains(instID, "-USDT")
-}
+// isUSDTInst USDT 计价闸——T-0394 归并 legset.IsUSDTInst 唯一真源
+// （订阅闸/依赖对枚举探针/腿派生同判据，本件=包内薄壳委托）。
+func isUSDTInst(instID string) bool { return legset.IsUSDTInst(instID) }
 
 // parseTickers → tickRow（last/bid/ask 零值=无效帧拒入）。
 func parseTickers(instID string, d map[string]json.RawMessage) *tickRow {

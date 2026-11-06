@@ -20,6 +20,7 @@ internal/data/okxpriv -> internal/platform/rejects
 internal/data/okxpriv -> internal/platform/roster
 internal/data/okxpriv -> internal/platform/signutil
 internal/data/okxws -> internal/platform/config
+internal/data/okxws -> internal/platform/legset
 internal/data/okxws -> internal/platform/notify
 internal/ledger -> internal/platform/config
 internal/ledger -> internal/platform/rejects
@@ -60,6 +61,7 @@ internal/ledger -> internal/platform/roster
 internal/portfolio/lifecycle -> internal/platform/config
 internal/portfolio/hunger -> internal/platform/config
 internal/portfolio/hunger -> internal/platform/condreq
+internal/portfolio/hunger -> internal/platform/legset
 internal/risk -> internal/platform/config
 internal/trading/execution -> internal/platform/config
 internal/trading/execution -> internal/platform/rejects
@@ -114,6 +116,7 @@ internal/research/sigdist -> internal/platform/rejects
 # T-0168 projector 投影臂（桥面搬运工——events 听脊+notify 告警+roster 席位，
 # 同 research 臂边集形）。
 internal/projector -> internal/platform/events
+internal/projector -> internal/platform/legset
 internal/projector -> internal/platform/notify
 internal/projector -> internal/platform/roster
 internal/research/sigdist -> internal/platform/roster
