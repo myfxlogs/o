@@ -26,3 +26,4 @@
 写败	META-DEV-USAGE	normal	dev_run token 用量采集写径败升件（容错必报 T-0372 扩面——note 前缀同窗 24h 去重）
 写败	LIFECYCLE-HUNGER	normal	lifecycle 饥饿拍 detect/respond 败自报（T-0378 接线——容错必报 T-0369，note 前缀同窗 24h 去重）
 观测盲	<template族>	normal	T-0384 族沉默探针——源信号 md_signal 鲜行>0 而 fin_opp_eval 同族 7d 行=0（scope=template 名；探针只报不修，修归常票/饥饿响应）
+账链断	ops_event	normal	ops_event hash 链验断（T-0386 验链拍自报——创世锚/伪戳/断链/裸行四类；scope=表名 ops_event；链断未修同窗 24h 去重）

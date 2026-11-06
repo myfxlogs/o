@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"o/internal/platform/config"
+	"o/internal/platform/opschain"
 	"o/internal/platform/testutil"
 	"o/internal/portfolio/hunger"
 	"o/internal/store/pgstore"
@@ -48,6 +49,60 @@ func (s *stubSensor) Respond(context.Context, *hunger.Report) ([]hunger.StepResu
 func (s *stubSensor) ProbeFamilies(context.Context) error {
 	s.probes++
 	return s.perr
+}
+
+// stubVerifier 验链缝桩（T-0386——Verify/ReportBreak 计数接线实证）。
+type stubVerifier struct {
+	rep      *opschain.Report
+	verr     error
+	verifies int
+	reports  int
+}
+
+func (s *stubVerifier) Verify(context.Context) (*opschain.Report, error) {
+	s.verifies++
+	if s.verr != nil {
+		return nil, s.verr
+	}
+	return s.rep, nil
+}
+
+func (s *stubVerifier) ReportBreak(context.Context, *opschain.Report) error {
+	s.reports++
+	return nil
+}
+
+// TestHungerTickChainVerifySameSlot 锚（T-0386）：验链拍挂饥饿同槽——
+// 每拍全链重算先调；断链检出→ReportBreak 自报+Detect 照常（败情隔离）；
+// 验链假败→升件自报行落（写败/LIFECYCLE-HUNGER）+ReportBreak 零误响。
+func TestHungerTickChainVerifySameSlot(t *testing.T) {
+	pool := testutil.Pool(t)
+	ctx := context.Background()
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatal(err)
+	}
+	stub := &stubSensor{rep: &hunger.Report{Triggered: false, WindowDays: 3}}
+	cv := &stubVerifier{rep: &opschain.Report{Findings: []opschain.Finding{
+		{ID: 7, Kind: "伪戳", Detail: "桩断"}}}}
+	r := &Runner{pool: pool, sensor: stub, chainV: cv}
+	r.hungerTick(ctx)
+	if cv.verifies != 1 || cv.reports != 1 {
+		t.Fatalf("验链同槽拍不齐: verifies=%d reports=%d", cv.verifies, cv.reports)
+	}
+	if stub.detects != 1 {
+		t.Fatalf("断链检出后 Detect 未照常: detects=%d", stub.detects)
+	}
+	cv2 := &stubVerifier{verr: errors.New("假败——验链函数缺位")}
+	r2 := &Runner{pool: pool, sensor: stub, chainV: cv2}
+	r2.hungerTick(ctx)
+	if cv2.verifies != 1 || cv2.reports != 0 {
+		t.Fatalf("验链败径错位: verifies=%d reports=%d", cv2.verifies, cv2.reports)
+	}
+	var n int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='升件' AND esc_scope='LIFECYCLE-HUNGER' AND note LIKE 'hungertick opschain 败%'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("验链败自报行缺: n=%d err=%v", n, err)
+	}
 }
 
 // TestHungerLoopDetectEveryBeat 锚①：独立节拍逐拍调 Detect；非触发拍
