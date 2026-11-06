@@ -256,7 +256,10 @@ func (w *Warden) markFailed(ctx context.Context, posID int64) {
 }
 
 // markClosed 平仓成交态迁移（同 tx：原仓+反向腿衍生仓行一并 closed——衍生行不关 =哨戒自触发循环；guard 子面记录收官）。
-func (w *Warden) markClosed(ctx context.Context, posID, closeExecID int64) error {
+// T-0415 红桩①：态迁提交后续写 ops_decision close 行——触发判据+实况（reason）
+// +实现的vs期望的（payload expected_net_apr/realized_usd/expected_carry_usd），
+// 「为什么平」从此可问；记忆写不阻钱径（写败升件自报非回滚已平事实）。
+func (w *Warden) markClosed(ctx context.Context, p posRow, closeExecID int64, trig closeTrig) error {
 	tx, err := w.pool.Begin(ctx)
 	if err != nil {
 		w.rej.Inc("write_err")
@@ -265,12 +268,12 @@ func (w *Warden) markClosed(ctx context.Context, posID, closeExecID int64) error
 	defer tx.Rollback(ctx)
 	if _, err := tx.Exec(ctx,
 		`UPDATE fin_position SET closed_at=now() WHERE (id=$1 OR execution_id=$2) AND closed_at IS NULL`,
-		posID, closeExecID); err != nil {
+		p.id, closeExecID); err != nil {
 		w.rej.Inc("write_err")
 		return err
 	}
 	if _, err := tx.Exec(ctx,
-		`UPDATE fin_guard_close SET state='closed',closed_at=now(),updated_at=now() WHERE position_id=$1`, posID); err != nil {
+		`UPDATE fin_guard_close SET state='closed',closed_at=now(),updated_at=now() WHERE position_id=$1`, p.id); err != nil {
 		w.rej.Inc("write_err")
 		return err
 	}
@@ -278,7 +281,7 @@ func (w *Warden) markClosed(ctx context.Context, posID, closeExecID int64) error
 	//（不关=earn sweepIdle 的 inFlight 闸永堵——首仓事故实证副作用）。
 	if _, err := tx.Exec(ctx, `UPDATE fin_execution SET state='closed'
 		WHERE state IN ('open','legged')
-		  AND (id=$2 OR id IN (SELECT execution_id FROM fin_position WHERE id=$1))`, posID, closeExecID); err != nil {
+		  AND (id=$2 OR id IN (SELECT execution_id FROM fin_position WHERE id=$1))`, p.id, closeExecID); err != nil {
 		w.rej.Inc("write_err")
 		return err
 	}
@@ -286,5 +289,6 @@ func (w *Warden) markClosed(ctx context.Context, posID, closeExecID int64) error
 		w.rej.Inc("write_err")
 		return err
 	}
+	w.writeCloseDecision(ctx, p, closeExecID, trig) // T-0415 红桩①平仓决策行
 	return nil
 }

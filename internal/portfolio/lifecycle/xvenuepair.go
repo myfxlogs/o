@@ -11,6 +11,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strconv"
+
+	"o/internal/platform/decision"
 )
 
 // admitXvenuePair 主从双腿开户（主 okx perp+副 mt5 CFD）。
@@ -95,6 +98,21 @@ func (r *Runner) admitXvenuePair(ctx context.Context, proposalID int64, inst, di
 	if _, err := r.pool.Exec(ctx,
 		"UPDATE fin_proposal SET state='fin_armed' WHERE id=$1", proposalID); err != nil {
 		return err
+	}
+	// T-0415：双腿 paper 开户=open 决策行（同提案双腿各落一行 ref_id=腿策略
+	// 行号——单腿退役/平仓对拍口径一致；写败升件不阻钱径）。
+	for _, leg := range []struct {
+		id    int64
+		v, ii string
+	}{{mainID, "okx", inst}, {cfdID, "mt5", cfd}} {
+		decision.WriteEsc(ctx, r.pool, decision.Row{
+			Domain: "fin", Actor: "lifecycle", RefID: strconv.FormatInt(leg.id, 10),
+			Action: "open",
+			Reason: fmt.Sprintf("跨所 carry 提案过阈→%s 腿 paper 开户（proposal=#%d）", leg.v, proposalID),
+			Payload: map[string]any{
+				"proposal_id": proposalID, "pair_leg": leg.v, "inst_id": leg.ii,
+				"template": "xvenue-carry", "notional_usd": notional,
+				"criteria": json.RawMessage(crit)}})
 	}
 	log.Printf("[lifecycle] xvenue_carry 双腿 paper 开户 #%d（okx %s + mt5 %s——armed 止，真执行 T-0145）",
 		proposalID, inst, cfd)

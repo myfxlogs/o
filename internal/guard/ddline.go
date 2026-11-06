@@ -60,6 +60,8 @@ func (w *Warden) ddScan(ctx context.Context) {
 	if dd < thr {
 		return // 未触线零动作（测试锚：阈下不误触）
 	}
+	// T-0415：触线实况载荷留仓行决策素材（ddResume→tend→平仓行 payload 携实况）。
+	w.ddFacts = map[string]any{"dd": dd, "dd_threshold": thr, "dd_peak": peak, "dd_current": cur}
 	// 触线：kill_switch 先落闸（封新开）→全平→升级留痕。
 	if _, err := w.pool.Exec(ctx,
 		"UPDATE app_config SET value='true' WHERE key='risk.kill_switch'"); err != nil {
@@ -183,6 +185,8 @@ func (w *Warden) ddResume(ctx context.Context) {
 	}
 	rows.Close()
 	for _, p := range batch {
-		w.tend(ctx, p, maxAtt, ddTrigger)
+		w.tend(ctx, p, maxAtt, closeTrig{kind: ddTrigger,
+			reason: "dd_30d：回撤硬线触线——kill_switch 落闸逐仓全平",
+			facts:  w.ddFacts})
 	}
 }

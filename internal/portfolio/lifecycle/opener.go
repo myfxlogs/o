@@ -148,6 +148,7 @@ func (r *Runner) openLive(ctx context.Context) {
 			log.Printf("[lifecycle] WARN 策略 %d 开仓败（%v exec_id=%d）——事件续试", c.spec.StrategyRef, err, eid)
 			continue
 		}
+		r.noteLiveOpen(ctx, c.spec, eid) // T-0415：live 开仓=open 决策行（decide.go）
 		log.Printf("[lifecycle] 策略 %d %s live 开仓成 exec_id=%d notional=%.2f",
 			c.spec.StrategyRef, c.spec.InstID, eid, c.spec.NotionalUSD)
 	}

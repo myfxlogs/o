@@ -62,7 +62,9 @@ SG psql（FIN_DSN env 径）：
    - 矿工/LLM 不直改 skills/**——canon 写域本席独占，skillpatch
      工具径=唯一落件门（直编文件绕闸=违例）；
 4. 两表同径收尾：`UPDATE <表> SET status='verdicted',verdict_ref=
-   '<verdict>:<词>:<理由一句话>' WHERE id=<n>`。
+   '<verdict>:<词>:<理由一句话>' WHERE id=<n>`（status→verdicted 同拍
+   ops_decision seat 行自动镜像（T-0415）——verdict_ref 空/裸词即
+   UPDATE 整行败退：判词机械必携）。
 
 ## 升不裁
 kind 不熟/理由写不出/涉红线（资金/新平台/席位）→ops_headless stalled 行

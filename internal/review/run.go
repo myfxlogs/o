@@ -4,16 +4,21 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strconv"
 	"time"
 
 	"google.golang.org/protobuf/encoding/protojson"
 
 	"o/internal/gen/econv1"
+	"o/internal/platform/decision"
 )
 
 // reviewSettled settled 未复盘仓→判决书（预测 net_apr 自 eval 证据 vs 实际净额；
 // 同期排 8h/24h/72h 远期窗；falsified→经验库待归纳+模板修正提案行）。
 // 仓扫+判决写=钱径面（fin 池）；远期窗/模板提案排期=md 面（pool 池）。
+// T-0415 消费预留：ops_decision domain='fin' close 行携平仓触发判据+期望vs
+// 实现——strategy-review 定时器读口即本拍（本票不接消费件，先让记忆积起来；
+// 接读后判决归因可引平仓判词对拍——read 口预留注释仅此）。
 func (r *Runner) reviewSettled(ctx context.Context) error {
 	rows, err := r.fin.Query(ctx, `SELECT p.id, p.settled_amount, p.notional_usd,
 		COALESCE((SELECT e.net_apr FROM fin_strategy s
@@ -258,5 +263,16 @@ func (r *Runner) recycleFalsified(ctx context.Context, execID int64, attrib stri
 		r.rej.Inc("write_err")
 		return
 	}
+	// T-0415：回炉降级=adjust 决策行（为什么降——falsified 归因判词；
+	// lifecycle 迁移写径同源，跨包向禁下本地补记；写败升件不阻钱径）。
+	payload := map[string]any{"from": "live", "to": "degraded", "attribution": attrib, "exec_id": execID}
+	for k, v := range decision.MoneyFacts(ctx, r.fin, sid, 0) {
+		payload[k] = v
+	}
+	decision.WriteEsc(ctx, r.fin, decision.Row{
+		Domain: "fin", Actor: "review", RefID: strconv.FormatInt(sid, 10),
+		Action:  "adjust",
+		Reason:  fmt.Sprintf("falsified 判决回炉（归因=%s）——live→degraded 降级待复盘", attrib),
+		Payload: payload})
 	log.Printf("[review] 策略 #%d %s falsified（归因=%s）→degraded 回炉", sid, inst, attrib)
 }

@@ -125,7 +125,7 @@ func TestGetPipelineEndToEnd(t *testing.T) {
 	ins(30, "Dev", "领单", "T-9002", "")
 	ins(20, "Dev", "收口", "T-9002", "")
 	ins(150, "Dev", "领单", "T-9000", "")
-	ins(130, "DM", "裁决", "T-9000", "通过")
+	ins(130, "DM", "裁决", "T-9000", "通过：验收锚齐（T-0415 裁词禁裸词桩随行）")
 	ins(120, "DEPLOY", "部署", "", "deploy 桩")
 	if _, err := pool.Exec(ctx, `INSERT INTO ops_headless(ticket,seat,model,state,last_activity)
 		VALUES('T-9001','Dev','桩模','alive',now())`); err != nil {
