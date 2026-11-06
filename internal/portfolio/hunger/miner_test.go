@@ -265,6 +265,96 @@ func TestMinerCloseDeviation(t *testing.T) {
 	}
 }
 
+// TestMinerReproHintSeedKey T-0388 锚③：可机判病灶类→pending 载荷携
+// repro_hint 建议文（0382 种键案真行复刻——note「漏种…键」命中种键缺类；
+// 建议文非可编译码，工人据以写真桩）。
+func TestMinerReproHintSeedKey(t *testing.T) {
+	s, pool := minerFixture(t)
+	ctx := context.Background()
+	note := "驳回——收口支t/0382-price-alert-notify@c3c94930全谱过审——但漏种notify.feishu.pri键返修"
+	seedOps(t, pool, "决策席", "驳回", "T-0382", note, "", "")
+	n, err := s.MineLessons(ctx)
+	if err != nil {
+		t.Fatalf("mine: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("种键案未产: n=%d", n)
+	}
+	var num []byte
+	if err := pool.QueryRow(ctx, `SELECT numbers FROM fin_eng_lesson
+		WHERE signature='驳回:T-0382'`).Scan(&num); err != nil {
+		t.Fatalf("pending 缺: %v", err)
+	}
+	var p minerPayload
+	if err := json.Unmarshal(num, &p); err != nil {
+		t.Fatalf("numbers 非机读: %v", err)
+	}
+	if !strings.Contains(p.ReproHint, "种键缺") {
+		t.Fatalf("repro_hint 缺种键缺建议文: %+v", p)
+	}
+}
+
+// TestMinerReproHintFreshDomain 鲜度闸/域拒两类各自命中——升件 note 词面
+// 驱动（鲜度词→鲜度闸建议；域拒词→域拒建议）。
+func TestMinerReproHintFreshDomain(t *testing.T) {
+	s, pool := minerFixture(t)
+	ctx := context.Background()
+	seedOps(t, pool, "决策席", "异常", "T-9101", "md_ticks 鲜度闸连拒：陈行超阈未愈", "", "")
+	seedOps(t, pool, "决策席", "异常", "T-9102", "dmconfig 写径域拒：owner 类键 DMSet 拒", "", "")
+	n, err := s.MineLessons(ctx)
+	if err != nil {
+		t.Fatalf("mine: %v", err)
+	}
+	if n != 2 {
+		t.Fatalf("两案未全产: n=%d", n)
+	}
+	hints := map[string]string{}
+	rows, err := pool.Query(ctx, `SELECT signature,numbers FROM fin_eng_lesson`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var sig string
+		var num []byte
+		if err := rows.Scan(&sig, &num); err != nil {
+			t.Fatal(err)
+		}
+		var p minerPayload
+		if err := json.Unmarshal(num, &p); err != nil {
+			t.Fatalf("numbers 非机读: %v", err)
+		}
+		hints[sig] = p.ReproHint
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(hints["异常:T-9101"], "鲜度闸") {
+		t.Fatalf("鲜度闸建议缺: %s", hints["异常:T-9101"])
+	}
+	if !strings.Contains(hints["异常:T-9102"], "域拒") {
+		t.Fatalf("域拒建议缺: %s", hints["异常:T-9102"])
+	}
+}
+
+// TestMinerReproHintAbsent 非机判类零载——无类词行 repro_hint 缺席不硬塞
+// （omitempty：载荷面零假阳性域）。
+func TestMinerReproHintAbsent(t *testing.T) {
+	s, pool := minerFixture(t)
+	ctx := context.Background()
+	seedOps(t, pool, "COS", "升件", "T-0380", "合并走ff径违§9——闸拒推", "", "")
+	if n, err := s.MineLessons(ctx); err != nil || n != 1 {
+		t.Fatalf("mine: n=%d err=%v", n, err)
+	}
+	var num []byte
+	if err := pool.QueryRow(ctx, `SELECT numbers FROM fin_eng_lesson`).Scan(&num); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(num), "repro_hint") {
+		t.Fatalf("非机判类误携 repro_hint: %s", num)
+	}
+}
+
 // TestMinerSilentNoSignal benny 沉默律：窗内零签名集行=零产零行。
 func TestMinerSilentNoSignal(t *testing.T) {
 	s, pool := minerFixture(t)

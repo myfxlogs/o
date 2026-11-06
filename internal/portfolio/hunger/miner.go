@@ -196,6 +196,8 @@ func (s *Sensor) minerDup(ctx context.Context, sig string) (bool, error) {
 
 // minerPayload 起草载荷机读五件（票面钦：签名=列/证据锚 ops_event id 列/
 // 定性草案/建议条目名/验证态——验证态为列，本件载其余三件+归类辅证）。
+// T-0388 扩第六件 repro_hint：可机判病灶类附桩建议文（非可编译码——工人
+// 据以写真桩；omitempty 非机判类零载不硬塞）。
 type minerPayload struct {
 	Event          string   `json:"event"`
 	Key            string   `json:"key"`
@@ -203,6 +205,7 @@ type minerPayload struct {
 	Tickets        []string `json:"tickets"`
 	Draft          string   `json:"draft"`
 	SuggestedEntry string   `json:"suggested_entry"`
+	ReproHint      string   `json:"repro_hint,omitempty"`
 }
 
 // minerDraft pending 行落库（verify_state=ai_evaluated——机器聚类稿带实证
@@ -234,6 +237,7 @@ func (s *Sensor) minerDraft(ctx context.Context, c *mineCluster) error {
 	p.Draft = fmt.Sprintf("事件账同窗(%dh)%s×%d —— 首行: %s",
 		minerWindowHours, c.sig, len(c.rows), note)
 	p.SuggestedEntry = engEntrySlug(p.Key, c.sig)
+	p.ReproHint = minerReproHint(c)
 	b, err := json.Marshal(p)
 	if err != nil {
 		return fmt.Errorf("矿工载荷序列化: %w", err)
