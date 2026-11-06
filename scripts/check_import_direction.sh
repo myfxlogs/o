@@ -161,6 +161,15 @@ internal/research/funding -> internal/platform/execfam
 internal/research/gapscan -> internal/platform/execfam
 internal/research/grammar -> internal/platform/execfam
 internal/research/hypothesis -> internal/platform/execfam
+# T-0379 venue 接入臂（凭据发现[app_secrets+master key+condreq 盒]→mtapi 探测
+# →映射闸→paper 态——o-research 臂边集形：platform 面+mt5 只读会话件）。
+internal/venue/onboard -> internal/mt5
+internal/venue/onboard -> internal/platform/condreq
+internal/venue/onboard -> internal/platform/config
+internal/venue/onboard -> internal/platform/cryptoutil
+internal/venue/onboard -> internal/platform/events
+internal/venue/onboard -> internal/platform/rejects
+internal/venue/onboard -> internal/platform/roster
 EOF
 )
 

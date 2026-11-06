@@ -33,6 +33,7 @@ import (
 	"o/internal/research/scout"
 	"o/internal/research/sigdist"
 	"o/internal/trading/okxexec"
+	"o/internal/venue/onboard"
 )
 
 // dcdFeedFor 双币赢枚举 REST 面（<endpoint_family>/currency-pair → products?uly=
@@ -193,6 +194,9 @@ func researchArms(ctx context.Context, errc chan<- error, pool *pgxpool.Pool,
 	go gr.Run(ctx, errc) // T-0120 文法枚举臂；T-0215 vol-sell 实评 coins 缝；T-0356 SG enabled/连败闸
 	// T-0300 venue scout 骨架臂（公开面零凭据——凭据型端点调用=票级禁线）。
 	go scout.NewRunner(pool, cfg).AttachAlerter(alerter).Run(ctx, errc)
+	// T-0379 MT5 族 broker 接入标准径臂（凭据发现→探测→映射闸→paper 态——
+	// md=候选正本池/fin=凭据+ops_event+请求盒正本池；凭据域只读）。
+	go onboard.New(pool, finPool, cfg).Run(ctx, errc)
 	// T-0310 regime 分析席臂+ctx 采集臂（mql5/OI/FRED/COT/news 公开面——
 	// analyst=LLM 判词缝缺守位；ctx=四源采集事实行）。
 	go analyst.NewRunner(pool, cfg).AttachAlerter(alerter).Run(ctx, errc)
