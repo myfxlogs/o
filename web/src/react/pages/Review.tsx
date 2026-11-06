@@ -7,6 +7,7 @@ import { Card, EmptyState, ErrorState, Skeleton } from "../components/ui";
 import { LineChart } from "../components/chart";
 import { ClosedPositionsCard } from "../components/flows";
 import { VenueBoardCard } from "../components/venueboard";
+import { BrokerOnboardCard } from "../components/brokerboard";
 import { fmtUsd, pbDate } from "../components/fmt";
 
 const PERIODS: { k: string; label: string }[] = [
@@ -256,6 +257,7 @@ export function ReviewPage() {
     <div className="page">
       <EquityCard />
       <VenueBoardCard />
+      <BrokerOnboardCard />
       <div className="duo">
         <ReportsCard />
         <FlowsCard />
