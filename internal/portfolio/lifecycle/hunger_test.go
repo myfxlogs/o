@@ -23,8 +23,10 @@ type stubSensor struct {
 	rep      *hunger.Report
 	derr     error
 	rerr     error
+	perr     error
 	detects  int
 	responds int
+	probes   int
 }
 
 func (s *stubSensor) Detect(context.Context) (*hunger.Report, error) {
@@ -41,6 +43,11 @@ func (s *stubSensor) Respond(context.Context, *hunger.Report) ([]hunger.StepResu
 		return nil, s.rerr
 	}
 	return nil, nil
+}
+
+func (s *stubSensor) ProbeFamilies(context.Context) error {
+	s.probes++
+	return s.perr
 }
 
 // TestHungerLoopDetectEveryBeat 锚①：独立节拍逐拍调 Detect；非触发拍
@@ -184,6 +191,28 @@ func TestHungerTickDetectFailIsolatedSelfReported(t *testing.T) {
 	r.hungerTick(ctx) // 同窗再败
 	if err := pool.QueryRow(ctx, esc).Scan(&n); err != nil || n != 1 {
 		t.Fatalf("同窗去重失效: n=%d err=%v", n, err)
+	}
+}
+
+// TestHungerTickProbeEveryBeat 锚（T-0384）：族沉默探针与 Detect 同槽——
+// 每拍先探（饥饿与否无关）；探针假败→升件自报行落+Detect 照常（败情隔离）。
+func TestHungerTickProbeEveryBeat(t *testing.T) {
+	pool := testutil.Pool(t)
+	ctx := context.Background()
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatal(err)
+	}
+	stub := &stubSensor{rep: &hunger.Report{Triggered: false, WindowDays: 3},
+		perr: errors.New("假败——kind 谱读败")}
+	r := &Runner{pool: pool, sensor: stub}
+	r.hungerTick(ctx)
+	if stub.probes != 1 || stub.detects != 1 {
+		t.Fatalf("探针/Detect 同槽拍不齐: probes=%d detects=%d", stub.probes, stub.detects)
+	}
+	var n int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='升件' AND esc_scope='LIFECYCLE-HUNGER' AND note LIKE 'hungertick silence_probe 败%'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("探针败情自报行缺: n=%d err=%v", n, err)
 	}
 }
 
