@@ -160,9 +160,12 @@ if [ "$MODE" != "reconcile" ]; then
 				continue
 			fi
 		fi
-		# 已收敛票不进动作集（df 在且状态已完成=零活——防每拍全终态集进锁）
-		if [ -z "$tf" ] && status_done "$df"; then
-			continue
+		# 已收敛票不进动作集（df 在且状态已完成=零活——防每拍全终态集进锁）：
+		# rc1=确认识别非终态才入集；rc2 未识别形视同不属本轨翻面责任直接跳
+		# （T-0417 钦定判 A——古票异形态恒入集吃批帽饿殍病灶根修，识不得的形不碰）
+		if [ -z "$tf" ]; then
+			src=0; status_done "$df" || src=$?
+			[ "$src" -eq 1 ] || continue
 		fi
 		if [ "$ev" = "完成" ]; then
 			tmpl="ops_event 完成行 $vdate 在案——机械轨票翻"

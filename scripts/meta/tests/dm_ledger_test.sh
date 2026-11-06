@@ -5,7 +5,9 @@
 #     （「补登+票翻」同拍）；
 #   ②A-完成面：latest=完成 票在 tasks/→归档 done/+翻状态+commit+push；
 #   ③A-裁决面：裁决通过+收口 SHA 证并→归档；④裁决未证并+龄超→升件不翻；
-#   ⑤写径锁忙→零 mv 零 commit（竞态互斥桩）。
+#   ⑤写径锁忙→零 mv 零 commit（竞态互斥桩）；
+#   ⑥饿殍面（T-0417）：40 件 rc2 古票吃满批帽→新完成票仍入集翻页，
+#     rc2 票零写零翻。
 set -euo pipefail
 ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd)
 TMP=$(mktemp -d)
@@ -36,6 +38,16 @@ cat > "$REPO/docs/tasks/T-9005-锁忙待翻件.md" <<'EOF'
 
 - 状态：待验
 EOF
+cat > "$REPO/docs/tasks/T-9100-饿殍新票件.md" <<'EOF'
+# T-9100 s
+
+- 状态：待验
+EOF
+# 饿殍景桩：40 件 done/ 古票 rc2 异形态（| 状态 | 表形——status_done 不
+# 识）恒入动作集吃满批帽 MAX_BATCH=40，升序排在新完成票前→新票永不进集
+for i in $(seq -w 1 40); do
+	printf '# T-00%s 古票\n\n| 状态 | 完成 |\n' "$i" > "$REPO/docs/tasks/done/T-00$i-古票rc2件.md"
+done
 cat > "$REPO/docs/tasks/done/T-9001-台账漂移件.md" <<'EOF'
 # T-9001 w
 
@@ -67,6 +79,8 @@ case "$query" in
 	*"SELECT DISTINCT ON (l.ticket)"*)
 		case "${LEDGER_SCENARIO:-empty}" in
 			adone) printf 'T-9002\x1f完成\x1f2026-11-07\x1f100\n' ;;
+			starve) for i in $(seq -w 1 40); do printf 'T-00%s\x1f完成\x1f2026-11-01\x1f99999\n' "$i"; done
+				printf 'T-9100\x1f完成\x1f2026-11-07\x1f100\n' ;;
 			verdict) printf 'T-9003\x1f裁决\x1f2026-11-07\x1f100\n' ;;
 			stale) printf 'T-9004\x1f裁决\x1f2026-11-01\x1f99999\n' ;;
 			lockbusy) printf 'T-9005\x1f完成\x1f2026-11-07\x1f100\n' ;;
@@ -151,4 +165,19 @@ run lockbusy
 [ "$(wc -l <"$PUSH_LOG")" = "$PUSH_BEFORE" ]
 grep -q '写径锁忙' "$TMP/out.lockbusy"
 
-echo "dm ledger flip/reconcile/lock five-scene dry run PASS"
+# ⑥饿殍面（T-0417 钦定判 A 桩）：40 rc2 古票吃满批帽下新完成票仍入集
+# 翻页；rc2 票零写零翻（不识形不碰——异形态史录原样保）
+rm -rf "$TMP/dm-repo.lock" # ⑤ 桩锁清场——复自由写径
+PUSH_BEFORE=$(wc -l <"$PUSH_LOG"); CHECKALL_BEFORE=$(wc -l <"$CHECKALL_LOG")
+run starve
+[ -f "$REPO/docs/tasks/done/T-9100-饿殍新票件.md" ]
+[ ! -f "$REPO/docs/tasks/T-9100-饿殍新票件.md" ]
+grep -qF '状态：完成（ops_event 完成行 2026-11-07 在案' "$REPO/docs/tasks/done/T-9100-饿殍新票件.md"
+! grep -q '批帽' "$TMP/out.starve"
+git -C "$REPO" log --format=%s -1 | grep -q 'T-9100'
+git -C "$REPO" show --name-only --format='' HEAD | grep -q 'T-9100'
+! git -C "$REPO" show --name-only --format='' HEAD | grep -q 'T-00'
+grep -qF '| 状态 | 完成 |' "$REPO/docs/tasks/done/T-0001-古票rc2件.md"
+[ "$(wc -l <"$PUSH_LOG")" -gt "$PUSH_BEFORE" ] && [ "$(wc -l <"$CHECKALL_LOG")" -gt "$CHECKALL_BEFORE" ]
+
+echo "dm ledger flip/reconcile/lock/starve six-scene dry run PASS"
