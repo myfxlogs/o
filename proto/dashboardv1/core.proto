@@ -46,6 +46,12 @@ service CoreService {
   rpc ListPriceAlerts(ListPriceAlertsRequest) returns (ListPriceAlertsResponse) {}
   rpc CreatePriceAlert(CreatePriceAlertRequest) returns (CreatePriceAlertResponse) {}
   rpc SetPriceAlertState(SetPriceAlertStateRequest) returns (SetPriceAlertStateResponse) {}
+
+  // —— T-0391 自选报价条（NOX QuoteStrip/WatchlistModal 语义移植——fin_quote_
+  //   watchlist 成员集×md_ticks 最新价；Set=全量替换同源闸窄写。纯展示面：
+  //   不喂判定/策略，候选域=md_ticks 在采品种不开任意输入）——
+  rpc GetQuoteWatchlist(GetQuoteWatchlistRequest) returns (GetQuoteWatchlistResponse) {}
+  rpc SetQuoteWatchlist(SetQuoteWatchlistRequest) returns (SetQuoteWatchlistResponse) {}
 }
 
 message PingRequest {}
@@ -578,3 +584,29 @@ message SetPriceAlertStateRequest {
   string state = 2;                       // active|disabled（fired 终态禁手翻——一发即锁语义）
 }
 message SetPriceAlertStateResponse { PriceAlertRow row = 1; } // 翻位后真值重读
+
+// —— T-0391 自选报价条面（fin_quote_watchlist 成员序×md_ticks 最新行——
+// 零成员/零行情如实缺态；成员序即保存序（Set 全量替换写序=展示序，
+// 排序全后端禁前端 sort——NOX F5 钉同规））——
+
+message GetQuoteWatchlistRequest {}
+message QuoteWatchRow {
+  string symbol = 1;                      // inst_id（md_ticks 同键——OKX 方言原值）
+  bool has_quote = 2;                     // md_ticks 无该 symbol 行=false——显缺不假零
+  double last = 3;
+  double bid = 4;
+  double ask = 5;
+  google.protobuf.Timestamp quote_ts = 6;
+  int64 quote_age_s = 7;                  // 鲜度龄秒（服务端派生——前端零判据）
+}
+message GetQuoteWatchlistResponse {
+  repeated QuoteWatchRow rows = 1;        // 成员行（ord 升序）
+  repeated string symbols = 2;            // 候选域=md_ticks DISTINCT inst_id（有行情才可选）
+  google.protobuf.Timestamp as_of = 3;
+}
+message SetQuoteWatchlistRequest {
+  repeated string symbols = 1;            // 全量替换——序即 ord；每员须在采（md_ticks 有行）
+}
+message SetQuoteWatchlistResponse {
+  repeated string symbols = 1;            // 写后真值重读（库面非回显）
+}

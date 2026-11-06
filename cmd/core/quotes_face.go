@@ -193,3 +193,5 @@ func (c coreService) SetPriceAlertState(ctx context.Context,
 	}
 	return &dashboardv1.SetPriceAlertStateResponse{Row: row}, nil
 }
+
+// —— T-0391 自选报价条面见 quotes_watch_face.go（NOX QuoteStrip 语义移植）——

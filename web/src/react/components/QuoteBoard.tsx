@@ -1,18 +1,27 @@
 // QuoteBoard.tsx —— T-0382 行情·价格提醒卡（业主令：「想看到 BTCUSDT/
-// TRXUSDT 实时报价，并想预设一个价格，飞书通知我」）：
+// TRXUSDT 实时报价，并想预设一个价格，飞书通知我」）+ T-0391 自选报价条
+// （业主令 2026-11-06：「订阅某1个symbol的实时报价，这个symbol需要我来
+// 定义，要支持搜索；NOX归档总览页就有，我要的是这个效果，前端要适合现有
+// 前端」——NOX QuoteStrip/WatchlistModal 语义移植，视觉/组件零拷贝全走
+// O 现有 Card/Modal/样式件系）：
+//   · 自选报价条段：tiles 显 watchlist 成员的实时 last/bid/ask+鲜度（龄
+//     服务端派生——前端零判据）；成员序=后端 ord 保存序直渲（排序全后端
+//     禁前端 sort）；零成员/成员零行情如实缺态不假零；
+//   · 「自选✎」浮层：搜索框子串过滤候选（大小写不敏）→点选加入→↑↓排序
+//     +✕删→保存=全量替换即生效；候选域=md_ticks 在采品种（有行情才可选）；
+//   · 建提醒表单收口：symbol=可过滤输入（input+datalist——敲子串即筛；
+//     业主 11-06 三令「缺少搜索功能」），候选=watchlist 成员优先（成员空
+//     则退回全候选——不 fail-closed 卡死建单）；
 //   · 报价面=提醒行 symbol 集一单两用——行=fin_price_alert 同 symbol 渲
-//     染；最新/买一/卖一+报价鲜度（龄由服务端派生——前端零判据）；无行情
-//     行=「暂无行情」显缺不假零；
-//   · 预设表单：品种（在采枚举下拉）+条件（涨到 ≥/跌破 ≤）+目标价+备注；
-//   · 停用/恢复=active↔disabled 翻位；已提醒=终态标无操作；
-//   · 单向告警非条件单——文案不暗示下单；人话面照 T-0371 规（裸态键
-//     active/fired/disabled 禁入可见面）。
+//     染；预设表单/停用恢复语义同 T-0382（单向告警非条件单——文案不暗示
+//     下单；裸态键禁入可见面）。
 // 刷新=ev_ticks 信号帧（useLive 事件径零定时器）；写径裸调不入合并窗。
 import { useState, type FormEvent } from "react";
 import { client, errText } from "../api";
 import { useLive } from "../hooks";
 import { Card, EmptyState, Skeleton, StateDot } from "./ui";
-import type { PriceAlertRow } from "../../gen/dashboardv1/core_pb";
+import { WatchEditHost } from "./QuoteWatch";
+import type { PriceAlertRow, QuoteWatchRow } from "../../gen/dashboardv1/core_pb";
 
 // 人话字典（纯显示映射非判据——态派生在服务端/迁移 CHECK）。
 const DIR_TXT: Record<string, string> = { ">=": "涨到 ≥", "<=": "跌破 ≤" };
@@ -40,15 +49,20 @@ export type AlertForm = {
 	note: string;
 };
 
-// QuoteBoardView 纯渲件（DOM 桩测面——零取数零副作用；容器喂行+回调）。
+// QuoteBoardView 纯渲件（DOM 桩测面——容器喂行+回调；浮层开合=纯 UI 态；
+// 浮层件=QuoteWatch.tsx WatchEditHost/WatchEditView）。
 export function QuoteBoardView(props: {
 	rows: PriceAlertRow[];
 	symbols: string[];
+	watchRows: QuoteWatchRow[];
+	watchCands: string[];
 	err?: string | null;
 	busy?: boolean;
 	onCreate?: (f: AlertForm) => void;
 	onToggle?: (id: bigint, state: "active" | "disabled") => void;
+	onSaveWatch?: (symbols: string[]) => Promise<unknown>;
 }) {
+	const [edit, setEdit] = useState(false);
 	const submit = (e: FormEvent<HTMLFormElement>) => {
 		e.preventDefault();
 		if (!props.onCreate) return;
@@ -61,9 +75,50 @@ export function QuoteBoardView(props: {
 		});
 		e.currentTarget.reset();
 	};
+	// 建提醒候选=watchlist 成员优先（成员空退回全候选——不 fail-closed 卡死建单）。
+	const formSyms = props.watchRows.length > 0
+		? props.watchRows.map((r) => r.symbol)
+		: props.symbols;
 	return (
 		<Card title="行情·价格提醒"
 			extra={<StateDot state={0} breathe title="报价行=提醒单品种集——行情帧到即刷新" />}>
+			{/* —— T-0391 自选报价条段（成员序后端 ord 直渲；零成员如实缺态） —— */}
+			<div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
+				<span className="dim">自选报价</span>
+				{props.watchRows.length === 0 ? (
+					<span className="dim">未设自选品种——点「自选✎」搜索加入</span>
+				) : (
+					props.watchRows.map((r) => (
+						<span key={r.symbol} className="quote-tile" style={{
+							border: "1px solid var(--ring)", borderRadius: 6,
+							padding: "3px 10px", display: "inline-flex", gap: 8,
+							alignItems: "baseline",
+						}}>
+							<b>{r.symbol}</b>
+							{r.hasQuote ? (<>
+								<span className="num" title="最新价">{px(r.last)}</span>
+								<span className="num dim" title="买一/卖一">
+									{px(r.bid)}/{px(r.ask)}
+								</span>
+								<span className="dim" title="距最新行情写入的时长">{ageTxt(r.quoteAgeS)}</span>
+							</>) : (
+								<span className="dim">暂无行情</span>
+							)}
+						</span>
+					))
+				)}
+				{props.onSaveWatch &&
+					<button className="btn-ghost" style={{ marginLeft: "auto" }}
+						title="自选报价条编辑" onClick={() => setEdit(true)}>自选✎</button>}
+			</div>
+			{edit && props.onSaveWatch && (
+				<WatchEditHost
+					members={props.watchRows.map((r) => r.symbol)}
+					candidates={props.watchCands}
+					onSave={props.onSaveWatch}
+					onClose={() => setEdit(false)}
+				/>
+			)}
 			{props.rows.length === 0 ? (
 				<EmptyState title="暂无价格提醒"
 					hint="下方预设品种+目标价——现价命中即飞书通知" />
@@ -102,10 +157,13 @@ export function QuoteBoardView(props: {
 			)}
 			{props.onCreate && (
 				<form onSubmit={submit} style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }}>
-					<select name="symbol" className="modal-input" required
-						title="提醒品种——当前在采集的行情品种">
-						{props.symbols.map((s) => <option key={s} value={s}>{s}</option>)}
-					</select>
+					<input name="symbol" className="modal-input" list="alert-symbols"
+						required autoComplete="off" style={{ width: 200 }}
+						placeholder="品种——敲子串筛选"
+						title="提醒品种——候选=自选成员（未设自选退回全部在采品种）" />
+					<datalist id="alert-symbols">
+						{formSyms.map((s) => <option key={s} value={s} />)}
+					</datalist>
 					<select name="direction" className="modal-input" title="命中方向">
 						<option value=">=">涨到 ≥</option>
 						<option value="<=">跌破 ≤</option>
@@ -125,15 +183,20 @@ export function QuoteBoardView(props: {
 // QuoteBoard 容器件（取数+写径装配——ev_ticks 帧重取；写后真值重读由服务端
 // 返行+reload 双径对齐）。
 export function QuoteBoard() {
-	const live = useLive(["ev_ticks"], () => client.listPriceAlerts({}));
+	const live = useLive(["ev_ticks"], () =>
+		Promise.all([client.listPriceAlerts({}), client.getQuoteWatchlist({})])
+			.then(([alerts, watch]) => ({ alerts, watch })));
 	const [busy, setBusy] = useState(false);
 	const [err, setErr] = useState<string | null>(null);
 	const run = (fn: () => Promise<unknown>) => {
 		setBusy(true);
 		setErr(null);
-		fn()
+		return fn()
 			.then(() => live.reload())
-			.catch((e: unknown) => setErr(errText(e)))
+			.catch((e: unknown) => {
+				setErr(errText(e));
+				throw e;
+			})
 			.finally(() => setBusy(false));
 	};
 	if (live.loading && !live.data) {
@@ -148,12 +211,15 @@ export function QuoteBoard() {
 	}
 	return (
 		<QuoteBoardView
-			rows={live.data.rows}
-			symbols={live.data.symbols}
+			rows={live.data.alerts.rows}
+			symbols={live.data.alerts.symbols}
+			watchRows={live.data.watch.rows}
+			watchCands={live.data.watch.symbols}
 			err={err}
 			busy={busy}
-			onCreate={(f) => run(() => client.createPriceAlert(f))}
-			onToggle={(id, state) => run(() => client.setPriceAlertState({ id, state }))}
+			onCreate={(f) => void run(() => client.createPriceAlert(f))}
+			onToggle={(id, state) => void run(() => client.setPriceAlertState({ id, state }))}
+			onSaveWatch={(symbols) => run(() => client.setQuoteWatchlist({ symbols }))}
 		/>
 	);
 }

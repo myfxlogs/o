@@ -1,9 +1,13 @@
 // quoteboard-domtest.mjs —— T-0382 报价卡 DOM 断言（范式同
-// flowpulse-domtest.mjs：renderToStaticMarkup+esbuild 捆扎，零新依赖）。
+// flowpulse-domtest.mjs：renderToStaticMarkup+esbuild 捆扎，零新依赖）
+// + T-0391 自选报价条断言（NOX QuoteStrip/WatchlistModal 语义移植）。
 // 断言锚：①last/bid/ask 渲染+鲜度标（服务端派生龄直译人话）；②人话
 // 面（涨到/跌破/盯梢中/已提醒——裸态键 active/fired 禁入可见面）；③
-// 无行情行=「暂无行情」显缺不假零；④预设表单（品种下拉+方向+目标价）
-// +停用/恢复翻位钮。
+// 无行情行=「暂无行情」显缺不假零；④预设表单 symbol=可过滤输入
+// （input+datalist——业主令「缺少搜索功能」）+停用/恢复翻位钮；
+// ⑤自选瓦片：成员价渲+零成员缺态+成员零行情显缺；⑥浮层：搜索「trx」
+// 子串过滤候选（大小写不敏）/已选剔出候选/↑↓✕件/保存全量替换文案；
+// ⑦提醒表单候选=watchlist 成员优先（成员空退回全候选）。
 // 运行：node scripts/quoteboard-domtest.mjs（web/ 下）。
 import { build } from "esbuild";
 import { mkdtempSync, writeFileSync } from "node:fs";
@@ -13,12 +17,14 @@ import { pathToFileURL, fileURLToPath } from "node:url";
 
 const webRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const comp = join(webRoot, "src", "react", "components", "QuoteBoard.tsx").replaceAll("\\", "/");
+const wcomp = join(webRoot, "src", "react", "components", "QuoteWatch.tsx").replaceAll("\\", "/");
 
 const entry = `
 import { renderToStaticMarkup } from "react-dom/server";
 import { createElement as h } from "react";
 import { QuoteBoardView } from "${comp}";
-export { renderToStaticMarkup, h, QuoteBoardView };
+import { WatchEditView } from "${wcomp}";
+export { renderToStaticMarkup, h, QuoteBoardView, WatchEditView };
 `;
 
 const res = await build({
@@ -30,7 +36,7 @@ const res = await build({
 const tmp = mkdtempSync(join(tmpdir(), "qbdt-"));
 const outFile = join(tmp, "entry.mjs");
 writeFileSync(outFile, res.outputFiles[0].text);
-const { renderToStaticMarkup, h, QuoteBoardView } = await import(pathToFileURL(outFile).href);
+const { renderToStaticMarkup, h, QuoteBoardView, WatchEditView } = await import(pathToFileURL(outFile).href);
 
 const nowS = Math.floor(Date.now() / 1000);
 const row = (id, symbol, dir, target, state, { last, bid, ask, ageS, firedAtS, note = "" } = {}) => ({
@@ -42,8 +48,19 @@ const row = (id, symbol, dir, target, state, { last, bid, ask, ageS, firedAtS, n
 	quoteTs: last !== undefined ? { seconds: BigInt(nowS - (ageS ?? 0)) } : undefined,
 	quoteAgeS: BigInt(ageS ?? 0),
 });
+const wrow = (symbol, q) => ({
+	symbol,
+	hasQuote: q !== undefined,
+	last: q?.last ?? 0, bid: q?.bid ?? 0, ask: q?.ask ?? 0,
+	quoteTs: q ? { seconds: BigInt(nowS - (q.ageS ?? 0)) } : undefined,
+	quoteAgeS: BigInt(q?.ageS ?? 0),
+});
 const render = (rows, symbols, extra = {}) =>
-	renderToStaticMarkup(h(QuoteBoardView, { rows, symbols, onCreate: () => {}, onToggle: () => {}, ...extra }));
+	renderToStaticMarkup(h(QuoteBoardView, {
+		rows, symbols, watchRows: [], watchCands: symbols,
+		onCreate: () => {}, onToggle: () => {}, onSaveWatch: async () => {},
+		...extra,
+	}));
 
 let fail = 0, n = 0;
 const check = (name, cond) => { n++; console.log(`${cond ? "PASS" : "FAIL"} ${name}`); if (!cond) fail++; };
@@ -53,7 +70,8 @@ const rows = [
 	row(2, "TRX-USDT-SWAP", "<=", 0.2, "fired", { last: 0.28, bid: 0.279, ask: 0.281, ageS: 90, firedAtS: 300, note: "空单观察" }),
 	row(3, "ETH-USDT-SWAP", ">=", 4000, "disabled", {}),
 ];
-const html = render(rows, ["BTC-USDT-SWAP", "ETH-USDT-SWAP", "TRX-USDT-SWAP"]);
+const allSyms = ["BTC-USDT-SWAP", "ETH-USDT-SWAP", "TRX-USDT-SWAP"];
+const html = render(rows, allSyms);
 
 // ①报价渲+鲜度标
 check("①last/bid/ask 渲出", html.includes("61,000.5") && html.includes("60,999") && html.includes("61,001"));
@@ -66,11 +84,44 @@ check("②裸态键禁入可见面", !html.includes(">active<") && !html.include
 check("②备注入悬停", html.includes("空单观察"));
 // ③无行情行显缺不假零
 check("③无行情显缺", html.includes("暂无行情") && !html.includes(">0<"));
-// ④表单+翻位钮
-check("④品种下拉在采集", (html.match(/<option/g) || []).length >= 5);
+// ④表单：symbol=可过滤输入（input+datalist——非裸 select）+翻位钮
+check("④symbol=可过滤输入 datalist", html.includes('name="symbol"') && html.includes('list="alert-symbols"')
+	&& html.includes("<datalist") && !html.includes('<select name="symbol"'));
+check("④零成员时候选=全在采", (html.match(/<datalist[\s\S]*?<\/datalist>/)?.[0].match(/<option/g) || []).length === 3);
 check("④方向双选+目标价输入", html.includes('name="direction"') && html.includes('name="target"'));
 check("④停用钮在 active 行", html.includes("停用"));
 check("④恢复钮在 disabled 行", html.includes("恢复"));
+
+// ⑤自选瓦片面（成员价渲/零行情显缺/非成员不建瓦片——零成员态上行已断缺态文案）
+check("⑤零成员缺态文案", html.includes("未设自选品种") && html.includes("自选✎"));
+const watchRows = [
+	wrow("TRX-USDT-SWAP", { last: 0.1505, bid: 0.15, ask: 0.151, ageS: 3 }),
+	wrow("BTC-USDT-SWAP", undefined), // 成员零行情——显缺不假零
+];
+const whtml = render(rows, allSyms, { watchRows });
+check("⑤成员 tile 渲价", whtml.includes("0.1505") && whtml.includes("0.15/0.151"));
+check("⑤成员零行情显缺", whtml.includes('class="quote-tile"') && whtml.includes("暂无行情"));
+// 非成员不建瓦片：瓦片区只含两成员符号各一次（表体行另含 ETH——计数 quote-tile 数=成员数）
+check("⑤非成员不建瓦片", (whtml.match(/quote-tile/g) || []).length === 2);
+// ⑦提醒表单候选=watchlist 成员优先（成员在→候选=成员集，非全在采）
+const dl = whtml.match(/<datalist[\s\S]*?<\/datalist>/)?.[0] ?? "";
+check("⑦表单候选=成员集", (dl.match(/<option/g) || []).length === 2 && dl.includes("TRX-USDT-SWAP") && !dl.includes("ETH-USDT-SWAP"));
+
+// ⑥浮层面（WatchEditView 受控渲——query='trx' 子串过滤大小写不敏）
+const ehtml = renderToStaticMarkup(h(WatchEditView, {
+	items: ["BTC-USDT-SWAP"], candidates: allSyms, query: "trx",
+	onQuery: () => {}, onAdd: () => {}, onMove: () => {}, onRemove: () => {},
+	onSave: () => {}, onCancel: () => {},
+}));
+check("⑥搜索 trx→候选含 TRX", ehtml.includes("TRX-USDT-SWAP"));
+check("⑥搜索 trx→BTC 已选剔候选+ETH 不匹配不入", !ehtml.includes("ETH-USDT-SWAP"));
+check("⑥已选行+排序删件", ehtml.includes("已选（1）") && ehtml.includes("↑") && ehtml.includes("↓") && ehtml.includes("✕"));
+check("⑥保存=全量替换文案", ehtml.includes("保存（全量替换生效）"));
+const ehtml2 = renderToStaticMarkup(h(WatchEditView, {
+	items: [], candidates: allSyms, query: "",
+	onSave: () => {}, onCancel: () => {},
+}));
+check("⑥零已选缺态+全候选", ehtml2.includes("未选品种") && ehtml2.includes("ETH-USDT-SWAP"));
 
 console.log(`\n${n - fail}/${n} PASS`);
 process.exit(fail ? 1 : 0);

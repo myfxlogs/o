@@ -3,7 +3,7 @@
 - 状态：已批（2026-11-06 业主令——「订阅某1个symbol的实时报价，
   这个symbol需要我来定义，要支持搜索；NOX归档总览页就有，
   我要的是这个效果，前端要适合现有前端」）
-  → 施工中（2026-11-06 devin-t0391 领单翻）
+  → 施工中（2026-11-06 devin-t0391 领单翻）→ 待验（收口同拍）
 - 领取：devin-t0391 @ 2026-11-06
 - 优先级：P1——业主点名功能面
 - 收口移交归：决策席
@@ -56,4 +56,50 @@
 
 ## 结果回填
 
-（施工写：实现摘要 / 测试证据 / 偏离说明）
+实现摘要：
+- 迁移 `fin_0122_quote_watchlist.sql`（fin 域正本：symbol PK/ord/
+  created_by/created_at——ord=全量替换写序即展示序）+domain.tsv 册行+
+  migrate_table.go {122} 登记；
+- proto：GetQuoteWatchlist/SetQuoteWatchlist+QuoteWatchRow（成员×最新价
+  携 has_quote/last/bid/ask/quote_ts/quote_age_s；候选域=md_ticks
+  DISTINCT inst_id 并入响应 symbols）——buf 全谱正径再生（npm ci 后
+  buf generate，非快照）；
+- 后端 cmd/core/quotes_face.go：Get=成员 ord 序 LEFT JOIN md_ticks
+  最新行（DISTINCT ON 同 alertRowSQL 口径；零成员/零行情如实缺态）；
+  Set=earnOriginGate 同源闸→归一（大写 trim）去重→逐员在采校验（非
+  在采=InvalidArgument 拒——候选域闸不开任意输入）→单事务 DELETE+
+  INSERT ord=数组序→ops_event 审计行 seat=dashboard-ui event=
+  quote_watchlist_set→真值重读返回（回显禁）；
+- 前端 web/src/react/components/QuoteBoard.tsx：卡首「自选报价」段
+  tiles（成员价/鲜度服务端派生龄直译；零成员/成员零行情如实缺态；
+  成员序后端 ord 直渲零前端 sort；非成员不建瓦片）+「自选✎」浮层
+  （.modal-overlay/.modal+watchlist-* 既有 CSS 件系——搜索子串过滤
+  大小写不敏/点选加入/↑↓排序/✕删/保存=全量替换生效）+建提醒表单
+  symbol 收口=可过滤输入 input+datalist（候选=watchlist 成员优先，
+  成员空退回全在采——不 fail-closed）；
+- 容器双取 listPriceAlerts+getQuoteWatchlist 合 useLive ev_ticks 帧
+  重取（合并窗内——零定时器）。
+
+测试证据：
+- Go 桩测 TestQuoteWatchlistSetGetAudit（cmd/core/quotes_face_test.go）：
+  零成员 rows 空+候选域=在采 2 员/Set 全量替换 ord 序真值重读/成员×
+  最新价投影/审计行 seat=dashboard-ui/二次 Set 全量覆盖/非在采拒/
+  Origin 缺席拒——PASS；
+- DOM 桩测 quoteboard-domtest.mjs 23/23 PASS（搜索「trx」→候选含
+  TRX-USDT-SWAP+已选剔出；瓦片渲价/零行情显缺/非成员不建瓦片；表单
+  datalist 候选=成员集/零成员退回全在采；排序删件+全量替换文案）；
+- check_all 全链绿戳 4dd3a894b1275a50fb4c58eaa58fbfa86212e5ac
+  （go build/vet/gofmt/migrations 七断言/ops-chain/go test 全谱/npm
+  typecheck+domtest 全绿）。
+
+偏离说明：
+- 票面钦 `fin_0121_quote_watchlist.sql` 挂 {121}——0121 已被
+  fin_0121_ops_event_chain.sql 占（T-0390 后 master 现状），顺延
+  fin_0122/{122}（check_migrations 链内唯一律强制，非自选）；
+- 候选域未并入 ListPriceAlerts.symbols 而并入 GetQuoteWatchlist.
+  symbols（票面「可并入……既有字段零新增」为可选径——浮层数据源
+  本就是 GetQuoteWatchlist，候选随成员同帧刷新零新增 RPC）；提醒表单
+  datalist 候选仍用 ListPriceAlerts.symbols 既有字段零改动；
+- 瓦片无 venue 维（O md_ticks inst_id 单源——NOX venue 组语义天然
+  不适用，语义等价=成员 tile 直列）；
+- ✎ 浮层零 venue chips 子集（同上——md_ticks 无 venue 概念面）。
