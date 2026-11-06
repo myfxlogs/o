@@ -198,3 +198,91 @@ func TestQuoteWatchlistSetGetAudit(t *testing.T) {
 		t.Fatal("Origin 缺席应拒")
 	}
 }
+
+// —— T-0399 提醒径鲜度闸桩测（票锚①②：活符过/270h 孤行拒/候选死符消失+
+// 边界=阈——先红后绿 T-0388 纪律）——
+
+// TestAlertFreshnessGate 活/死符建单+候选滤活（含 mt5 源节拍自适——72h 界
+// 汇市周末静默非死源：20h 陈 mt5 行过、270h mt5 行拒）。
+func TestAlertFreshnessGate(t *testing.T) {
+	mux, pool, ctx := quotesFaceMux(t)
+	if _, err := pool.Exec(ctx, `INSERT INTO md_ticks(ts,venue,inst_id,last,bid,ask,recv_ts) VALUES
+		(now(),'okx','BTC-USDT-SWAP',65000,64999,65001,now()),
+		(now()-interval '270 hours','okx','TRX-USDT-SWAP',0.15,0.149,0.151,now()-interval '270 hours'),
+		(now()-interval '20 hours','mt5','EURUSDm',1.08,1.079,1.081,now()-interval '20 hours'),
+		(now()-interval '270 hours','mt5','DEADJPYm',150,149,151,now()-interval '270 hours')`); err != nil {
+		t.Fatal(err)
+	}
+	// ① 活符建单通
+	code, body := watchCall(t, mux, "CreatePriceAlert",
+		`{"symbol":"BTC-USDT-SWAP","direction":">=","target":70000}`, true)
+	if code != http.StatusOK {
+		t.Fatalf("活符建单应 200: code=%d body=%v", code, body)
+	}
+	// 270h 孤行拒建（业主实证锚）
+	code, _ = watchCall(t, mux, "CreatePriceAlert",
+		`{"symbol":"TRX-USDT-SWAP","direction":">=","target":1}`, true)
+	if code == http.StatusOK {
+		t.Fatal("270h 孤行陈符应拒建")
+	}
+	// mt5 20h 陈行=源节拍内（周末静默非死）——过；canon 键落库大小写方言不打坏
+	code, body = watchCall(t, mux, "CreatePriceAlert",
+		`{"symbol":"EURUSDm","direction":"<=","target":1.0}`, true)
+	if code != http.StatusOK {
+		t.Fatalf("mt5 源节拍内建单应 200: code=%d", code)
+	}
+	if row, _ := body["row"].(map[string]any); row["symbol"] != "EURUSDm" {
+		t.Fatalf("canon inst_id 落库错（大小写方言）: %v", body)
+	}
+	// mt5 270h 超源节拍界=死符——拒
+	code, _ = watchCall(t, mux, "CreatePriceAlert",
+		`{"symbol":"DEADJPYm","direction":">=","target":200}`, true)
+	if code == http.StatusOK {
+		t.Fatal("mt5 270h 死符应拒建")
+	}
+	// ② 候选列表死符消失（ListPriceAlerts+GetQuoteWatchlist 双候选域同口径）
+	_, body = listPriceAlerts(t, mux)
+	syms, _ := body["symbols"].([]any)
+	got := map[string]bool{}
+	for _, s := range syms {
+		got[s.(string)] = true
+	}
+	if !got["BTC-USDT-SWAP"] || !got["EURUSDm"] || got["TRX-USDT-SWAP"] || got["DEADJPYm"] {
+		t.Fatalf("List 候选域滤活错: %v", syms)
+	}
+	_, body = watchCall(t, mux, "GetQuoteWatchlist", `{}`, false)
+	syms, _ = body["symbols"].([]any)
+	got = map[string]bool{}
+	for _, s := range syms {
+		got[s.(string)] = true
+	}
+	if !got["BTC-USDT-SWAP"] || !got["EURUSDm"] || got["TRX-USDT-SWAP"] || got["DEADJPYm"] {
+		t.Fatalf("Watchlist 候选域滤活错: %v", syms)
+	}
+	// 自选写闸同口径——陈符拒入集
+	code, _ = watchCall(t, mux, "SetQuoteWatchlist", `{"symbols":["TRX-USDT-SWAP"]}`, true)
+	if code == http.StatusOK {
+		t.Fatal("自选面陈符应拒入集")
+	}
+}
+
+// TestAlertFreshnessBoundary 边界=阈（票锚桩测三件③）：okx 阈内 14min 过、
+// 阈外 16min 拒——谓词窗边缘两贴不漂。
+func TestAlertFreshnessBoundary(t *testing.T) {
+	mux, pool, ctx := quotesFaceMux(t)
+	if _, err := pool.Exec(ctx, `INSERT INTO md_ticks(ts,inst_id,last,bid,ask,recv_ts) VALUES
+		(now()-interval '14 minutes','EDGE-FRESH',1,1,1,now()-interval '14 minutes'),
+		(now()-interval '16 minutes','EDGE-DEAD',1,1,1,now()-interval '16 minutes')`); err != nil {
+		t.Fatal(err)
+	}
+	code, _ := watchCall(t, mux, "CreatePriceAlert",
+		`{"symbol":"EDGE-FRESH","direction":">=","target":2}`, true)
+	if code != http.StatusOK {
+		t.Fatalf("阈内 14min 应过: code=%d", code)
+	}
+	code, _ = watchCall(t, mux, "CreatePriceAlert",
+		`{"symbol":"EDGE-DEAD","direction":">=","target":2}`, true)
+	if code == http.StatusOK {
+		t.Fatal("阈外 16min 应拒")
+	}
+}

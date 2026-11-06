@@ -13,12 +13,15 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"math"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 
 	connect "connectrpc.com/connect/v2"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -39,6 +42,15 @@ const (
 	alertEventBuild = "price_alert_build"
 	alertEventState = "price_alert_state"
 )
+
+// tickFreshSQL 提醒径鲜度谓词（T-0399——freshByKind 族「源节拍自适」同构
+// 不新造档；判据=末 tick recv_ts 落库时刻非 ts 戳，防时钟偏移假象——
+// alertRowSQL 鲜度龄同源）：快源钦定 15min 界（对齐动态数据闸口径）；
+// mt5 流推源汇市周末 ~49h 休市静默非死源——界=72h（周末窗+边，15min
+// 一刀切误伤防=票面红线）。扩 venue 源按其节拍补 CASE 不另开闸件。
+const tickFreshSQL = `recv_ts > now()-CASE venue
+	WHEN 'mt5' THEN interval '72 hours'
+	ELSE interval '15 minutes' END`
 
 // alertRowSQL 提醒行×最新价投影（建/翻后真值重读与列表同口径单源）：
 // DISTINCT ON 取每 symbol 最新 tick（venue 扩面防重行）；无 tick 行=
@@ -97,7 +109,9 @@ func (c coreService) ListPriceAlerts(ctx context.Context,
 	if err := rows.Err(); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err.Error())
 	}
-	srows, err := c.pool.Query(ctx, `SELECT DISTINCT inst_id FROM md_ticks ORDER BY inst_id`)
+	// 候选域同闸滤活（T-0399——死符不入下拉，孤行陈符不再过候选闸）
+	srows, err := c.pool.Query(ctx, `SELECT DISTINCT inst_id FROM md_ticks
+		WHERE `+tickFreshSQL+` ORDER BY inst_id`)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err.Error())
 	}
@@ -133,14 +147,16 @@ func (c coreService) CreatePriceAlert(ctx context.Context,
 	if math.IsNaN(tgt) || math.IsInf(tgt, 0) || tgt <= 0 {
 		return nil, connect.NewError(connect.CodeInvalidArgument, "目标价须为正数")
 	}
-	var have bool
-	if err := c.pool.QueryRow(ctx,
-		`SELECT EXISTS(SELECT 1 FROM md_ticks WHERE inst_id=$1)`, sym).Scan(&have); err != nil {
+	// T-0399 鲜度闸同口径——EXISTS 孤行不再放行（270h 陈价过建单闸实证根修），
+	// 死符拒建返可读错；upper 匹配取回 canon inst_id 落库——mt5 符号大小写方
+	// 言（EURUSDm）不被归一打坏（rows join/提醒拍皆按原键对得上）。
+	if err := c.pool.QueryRow(ctx, `SELECT inst_id FROM md_ticks
+		WHERE upper(inst_id)=$1 AND `+tickFreshSQL+` LIMIT 1`, sym).Scan(&sym); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, connect.NewError(connect.CodeInvalidArgument,
+				fmt.Sprintf("「%s」行情已陈或未在采——预设面只收活符品种", sym))
+		}
 		return nil, connect.NewError(connect.CodeInternal, err.Error())
-	}
-	if !have {
-		return nil, connect.NewError(connect.CodeInvalidArgument,
-			fmt.Sprintf("「%s」暂无行情采集——预设面只收在采品种", sym))
 	}
 	var id int64
 	if err := c.pool.QueryRow(ctx, `INSERT INTO fin_price_alert(symbol,direction,target,note,created_by)
