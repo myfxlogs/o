@@ -107,4 +107,8 @@ export const client: Client<typeof CoreService> = {
   listPriceAlerts: deduped("ListPriceAlerts", raw.listPriceAlerts),
   createPriceAlert: raw.createPriceAlert,
   setPriceAlertState: raw.setPriceAlertState,
+  // T-0407：broker 接入面——读面入合并窗（ev_pipeline 帧重取同源节流），
+  // 凭据提交裸调不入窗（写非幂等——合并会吞真实提交）。
+  listBrokerOnboard: deduped("ListBrokerOnboard", raw.listBrokerOnboard),
+  submitBrokerCred: raw.submitBrokerCred,
 };

@@ -52,6 +52,13 @@ service CoreService {
   //   不喂判定/策略，候选域=md_ticks 在采品种不开任意输入）——
   rpc GetQuoteWatchlist(GetQuoteWatchlistRequest) returns (GetQuoteWatchlistResponse) {}
   rpc SetQuoteWatchlist(SetQuoteWatchlistRequest) returns (SetQuoteWatchlistResponse) {}
+
+  // —— T-0407 座舱 broker 接入人机径（凭据表单→readcred 钦定 app_secrets
+  //   <broker>.mt5.*/.mt4.* 键形——前端禁直写凭据域走本 RPC 同源闸窄写；
+  //   config_changed 触发器原生唤 T-0379 四拍链零改；读面=在册 broker 列表
+  //   +接入态+败因只读呈——凭据唯一出面字段=login，password 永不出面）——
+  rpc ListBrokerOnboard(ListBrokerOnboardRequest) returns (ListBrokerOnboardResponse) {}
+  rpc SubmitBrokerCred(SubmitBrokerCredRequest) returns (SubmitBrokerCredResponse) {}
 }
 
 message PingRequest {}
@@ -609,4 +616,35 @@ message SetQuoteWatchlistRequest {
 }
 message SetQuoteWatchlistResponse {
   repeated string symbols = 1;            // 写后真值重读（库面非回显）
+}
+
+// —— T-0407 座舱 broker 接入面（凭据表单→app_secrets <broker>.<proto>.*
+// 族；接入态=fin_venue_candidate 镜像+ops_event「venue接入」末拍注记——
+// 判态服务端派生，前端纯渲染零判据）——
+
+message ListBrokerOnboardRequest {}
+message BrokerOnboardRow {
+  string venue = 1;                       // 凭据族前缀 token（<broker>——venue 台账键）
+  string proto = 2;                       // mt5|mt4（凭据族命名空间直出；mt4=接入链未接如实显形）
+  string login = 3;                       // login 件服务端解密出面（凭据域唯一出面字段）；空=件缺/未在册
+  string state = 4;                       // fin_venue_candidate.state（空=台账未建——凭据在册候发现拍）
+  string beat_note = 5;                   // 末拍 ops_event「venue接入」注记/败因（空=无拍行）
+  google.protobuf.Timestamp last_beat_at = 6; // 末拍时刻（空=无拍行）
+  bool beat_failed = 7;                   // 末拍 esc_class 非空=败径显形
+  int64 strategies = 8;                   // fin_strategy 非 retired 行数（在跑策略数）
+}
+message ListBrokerOnboardResponse {
+  repeated BrokerOnboardRow rows = 1;     // venue 升序（服务端排序——前端禁 sort）
+}
+message SubmitBrokerCredRequest {
+  string venue = 1;                       // broker token——凭据键前缀（[a-z0-9_-]+ 同 credscan 形闸）
+  string proto = 2;                       // mt5|mt4（缺省 mt5；mt4 族在册候 MT4 臂——链限如实注）
+  string login = 3;                       // 数字（MT 户号——同 checkCredShape 形闸）
+  string password = 4;                    // 明文只进请求体——响应/审计/日志零回显
+  string server = 5;                      // broker 服务器名（<broker>.<proto>.server 件）
+  string note = 6;                        // 备注→ops_event 审计行（凭据外字段——非密文面）
+}
+message SubmitBrokerCredResponse {
+  string venue = 1;
+  int32 fields_written = 2;               // 本拍 upsert 件数（login/password/server=3）
 }
