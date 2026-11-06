@@ -1,8 +1,11 @@
 # T-0387 skill 自修环——矿工产 skill 补丁草案裁定入册
 
-- 状态：已批（2026-11-06 业主令——Memento/agent-os 技能
-  自修环移植：canon 从只加不修变活件）
-- 领取：常径待派（DM 常径机派）
+- 状态：施工中（2026-11-06 devin-o-worker-t0387 领——
+  DM 常径机派；wt=/opt/o-wt/t0387 支
+  t/0387-skill-patch-miner，bootstrap 降级径起步——
+  rsync gen/dist 快照）
+- 领取：devin-o-worker-t0387 @ 2026-11-06（常径机派施工席；
+  提示词 docs/prompts/T-0387-O-Dev施工提示词.md）
 - 优先级：P1——自我迭代加固族②；依 T-0385 矿工产出物
 - 收口移交归：决策席
 
