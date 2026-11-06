@@ -74,6 +74,40 @@ func TestHungerLoopDetectEveryBeat(t *testing.T) {
 	}
 }
 
+// TestHungerLoopFirstDetectOnStart 锚（T-0381）：Run 拉起即首侦——Detect
+// 不等首拍 ticker 立调一次；ticker 未到拍前不再响（首侦≠改节拍）。
+func TestHungerLoopFirstDetectOnStart(t *testing.T) {
+	stub := &stubSensor{rep: &hunger.Report{Triggered: false, WindowDays: 3}}
+	r := &Runner{sensor: stub}
+	old := hungerBeatEvery
+	hungerBeatEvery = time.Hour // 长拍隔——首侦若等 ticker 必超时
+	defer func() { hungerBeatEvery = old }()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan struct{})
+	go func() { r.hungerLoop(ctx); close(done) }()
+	deadline := time.After(2 * time.Second) // sched-exempt-ok 桩测期界等待（测试面拍锚非生产调度）
+	for stub.detects < 1 {
+		select {
+		case <-deadline:
+			t.Fatalf("拉起未即首侦: n=%d", stub.detects)
+		case <-time.After(10 * time.Millisecond): // sched-exempt-ok 桩测期界等待（测试面拍锚非生产调度）
+		}
+	}
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(time.Second): // sched-exempt-ok 桩测期界等待（净退界非生产调度）
+		t.Fatal("hungerLoop 未随 ctx 净退")
+	}
+	if stub.detects != 1 {
+		t.Fatalf("ticker 未到拍误响: detects=%d", stub.detects)
+	}
+	if stub.responds != 0 {
+		t.Fatalf("非触发首侦 respond 误响: %d", stub.responds)
+	}
+}
+
 // hungerWireFixture 接线桩测库景（machine_test 同款——独立实例+fin 迁移）。
 func hungerWireFixture(t *testing.T) (*Runner, *pgxpool.Pool) {
 	t.Helper()
