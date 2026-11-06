@@ -54,6 +54,9 @@ func main() {
 	if err := s.ProbeFamilies(ctx); err != nil { // T-0384 族沉默探针同槽一拍——败情让位不阻断 Detect 主拍
 		fmt.Fprintf(os.Stderr, "hungertick: 族沉默探针败（让位不阻 Detect）: %v\n", err)
 	}
+	if err := s.ProbeFeedStale(ctx); err != nil { // T-0410 feed 死闸同槽一拍——败情让位不阻断 Detect 主拍
+		fmt.Fprintf(os.Stderr, "hungertick: feed死闸探针败（让位不阻 Detect）: %v\n", err)
+	}
 	rep, err := s.Detect(ctx)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "hungertick: detect: %v\n", err)

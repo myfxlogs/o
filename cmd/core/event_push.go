@@ -70,6 +70,27 @@ func startEventPush(ctx context.Context, _ chan<- error, pool *pgxpool.Pool,
 		}
 	}()
 
+	// T-0410 宏观事件提醒日拍（md_macro_event 今/明日行→飞书提醒——seed
+	// 转提醒件；sched-exempt-ok 日拍节律同 econ_digest 先例，起拍首扫=
+	// 部署即补当窗提醒）。
+	mr := notify.NewMacroRemind(pool, sender, func() string {
+		v, _ := cfg.GetString("feishu.chat_id")
+		return v
+	}, func() bool { v, _ := cfg.GetBool("notify.feishu.macro_remind.enabled"); return v })
+	go func() {
+		tk := time.NewTicker(24 * time.Hour) // sched-exempt-ok 日拍提醒
+		defer tk.Stop()
+		_ = mr.Scan(ctx) // 起拍首扫
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-tk.C:
+				_ = mr.Scan(ctx)
+			}
+		}
+	}()
+
 	// 财经日历事件报（T-0070：[财经日历] 独立开关+幂等去重——高影响级预推）。
 	cal := notify.NewCalendar(pool, sender, func() string {
 		v, _ := cfg.GetString("feishu.chat_id")
