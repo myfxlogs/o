@@ -7,10 +7,12 @@
 # （拍壳退化径自理）；psql 败=exit 1（T-0372：原管道 awk rc 恒 0——
 # 查询败=空集静默位根修，败≠空集由消费面 dm_tick 升件显报）。
 # T-0375 件① 外派豁免（返修1——86efad3b 业主令新规）：外派件收口回 DM
-# 常径裁（收口面零排除，自入待裁）；豁免只盖「已批」分支——外派件不被
-# DM 机派（防「外派后重批 latest=已批」缘案机派双发），票级历史排除
-# （外派恒早于领单/收口落行、不在最新刻——排除须查全史，@max 排除集
-# 盖不住）。两分支判定结构与最新刻事件面比对不变形；非外派件推导零变。
+# 常径裁（收口面零排除，自入待裁）；豁免只盖「已批」分支。
+# T-0380 判据事件化（T-0379 实证——业主令撤外派改内循环新已批落行,
+# 仍因票史有外派行被永排出待派集）：排除由「票史存在外派行」改查
+# 「外派行后无再批」——外派 ts 后有已批新行=外派被撤票回常径待派
+# （外派→已批=入）；外派后接领单 latest=领单,已批分支首条件自败=
+# 不入；同刻 已批+外派 批写仍按外派向排除。非外派件推导零变。
 set -u
 ENVF="${DM_ENV_FILE:-/opt/o-research/env}"
 FIN_DSN=$(grep '^FIN_PG_DSN=' "$ENVF" 2>/dev/null | cut -d= -f2- | tr -d '"')
@@ -29,7 +31,9 @@ RAW=$(psql "$FIN_DSN" -qAt -c "SELECT l.ticket FROM (
         AND e.ts=l.mt AND e.event IN
           ('派单','领单','拉起','裁决','完成','驳回','挂起'))
      AND NOT EXISTS (SELECT 1 FROM ops_event w WHERE w.ticket=l.ticket
-        AND w.event='外派'))
+        AND w.event='外派' AND NOT EXISTS
+          (SELECT 1 FROM ops_event a WHERE a.ticket=l.ticket
+            AND a.event='已批' AND a.ts>w.ts)))
   )
   ORDER BY l.ticket" 2>/dev/null) || exit 1
 printf '%s\n' "$RAW" | awk 'NF && !seen[$0]++'
