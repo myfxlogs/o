@@ -1,6 +1,6 @@
 # T-0385 教训矿工拍——事件账自动挖工程案 pending
 
-- 状态：待验（收口移交决策席——不合并不部署）
+- 状态：完成（2026-11-06 决策席裁决通过——收口 3715ef9c 合 master 4e3e648e）
 - 领取：devin-o-worker-t0385 @ 2026-11-06（常径机派施工席；提示词
   docs/prompts/T-0385-O-Dev施工提示词.md；wt=/opt/o-wt/t0385
   支 t/0385-lesson-miner，bootstrap 降级径起步——rsync gen/dist 快照）
