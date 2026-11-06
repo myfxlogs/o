@@ -34,6 +34,10 @@ type ScanPoller struct {
 	cfg  *config.Client
 	rej  *rejects.Door
 	get  ScanGet
+	// Catalog 粗扫谱域=宇宙扩件目录（T-0416——探针与扫臂同一供给件同读：
+	// tickers 行须∈SWAP 目录全集才落表，目录读败=fail-closed 本拍让位不
+	// 虚构谱域；nil=谱域闸缺席——桩测/兼容面，生产装配必挂）。
+	Catalog func(ctx context.Context) (map[string]bool, error)
 }
 
 // NewScanPoller 装配（get=nil 拒装——零凭据公开面读件仍须显式挂线）。
@@ -68,6 +72,14 @@ func (p *ScanPoller) Run(ctx context.Context, errc chan<- error) {
 // ScanOnce 单拍：REST 全谱拉取→解析→单事务批量 upsert（同键最新赢——
 // EXCLUDED.ts>现 ts 守卫同 uTicks 形，回戳帧不覆新）。
 func (p *ScanPoller) ScanOnce(ctx context.Context) error {
+	var cat map[string]bool
+	if p.Catalog != nil {
+		var err error
+		if cat, err = p.Catalog(ctx); err != nil {
+			p.rej.Inc("scan_fetch_err")
+			return fmt.Errorf("宇宙目录读败——fail-closed 不虚构谱域: %w", err)
+		}
+	}
 	raw, err := p.get(ctx, "/api/v5/market/tickers?instType=SWAP")
 	if err != nil {
 		p.rej.Inc("scan_fetch_err")
@@ -84,6 +96,9 @@ func (p *ScanPoller) ScanOnce(ctx context.Context) error {
 	}
 	b := &pgx.Batch{}
 	for _, r := range rows {
+		if cat != nil && !cat[r.instID] {
+			continue // 目录全集外——谱域闸滤除（tickers 回包非目录员不落表）
+		}
 		b.Queue(`INSERT INTO md_tick_scan(ts,inst_id,last,bid,ask) VALUES($1,$2,$3,$4,$5)
 			ON CONFLICT (venue,inst_id) DO UPDATE SET ts=EXCLUDED.ts,last=EXCLUDED.last,
 			bid=EXCLUDED.bid,ask=EXCLUDED.ask,recv_ts=now()

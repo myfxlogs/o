@@ -17,6 +17,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"o/internal/data/okxws"
 	"o/internal/platform/config"
 	"o/internal/platform/notify"
 	"o/internal/platform/rejects"
@@ -185,6 +186,9 @@ func researchArms(ctx context.Context, errc chan<- error, pool *pgxpool.Pool,
 	hr := hypothesis.NewRunner(pool, cfg).AttachFin(finPool) // T-0408 影域呈批径 fin 池
 	hr.AttachAlerter(alerter)
 	hr.AttachSignals(hypoSignalReader(pool)) // T-0140 信号读闸接线（sig 域→hypothesis 域投影）
+	// T-0416 提名 catalog 闸：宇宙扩件同一供给件（venue 目录实读+TTL 缓存）
+	// ——MUU 型假符（目录外 inst）进 fin_sub_request 前拒掉。
+	hr.AttachCatalog(okxws.NewUniverseCatalog(okcli.Get, okxws.UniverseTTL).Set)
 	go hr.Run(ctx, errc)
 	gr := grammar.NewRunner(pool, cfg).AttachCoins(okxCoinsFor(pool, okcli)).
 		AttachFin(finPool).AttachAlerter(alerter)

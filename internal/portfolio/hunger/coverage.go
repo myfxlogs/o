@@ -34,11 +34,18 @@ const (
 	coverTicket = "T-0392"
 )
 
+// AttachUniverse 挂宇宙扩件供给件（T-0416——探针读宇宙挂点；与
+// collector ExpandSymbols/粗扫臂谱域同一供给件同读）。
+func (s *Sensor) AttachUniverse(fn func(ctx context.Context) ([]string, error)) *Sensor {
+	s.expandUniverse = fn
+	return s
+}
+
 // ProbeLegCoverage 腿-行情覆盖探针一拍：腿键集×md_ticks 新鲜行对拍→
 // 缺行情腿逐键落 `覆盖失明` 行+观测盲升件。读败=上抛（hungerTick 败情
 // 自报位）非静默。
 func (s *Sensor) ProbeLegCoverage(ctx context.Context) error {
-	universe, err := s.legUniverse()
+	universe, err := s.subUniverse(ctx)
 	if err != nil {
 		return fmt.Errorf("腿覆盖探针 宇宙读败: %w", err)
 	}
@@ -74,9 +81,10 @@ func (s *Sensor) ProbeLegCoverage(ctx context.Context) error {
 	return nil
 }
 
-// legUniverse 订阅宇宙（okx.symbols 名单——collector 同款键；* 放形
-// fail-closed 让位：宇宙扩件=venue REST 实读闭包，本探针不挂不虚构）。
-func (s *Sensor) legUniverse() (map[string]bool, error) {
+// subUniverse 订阅宇宙（okx.symbols 名单——collector 同款键；腿覆盖探针
+// 与依赖对枚举同读禁第二套）。 "*" 放形=宇宙扩件供给件实读
+// （AttachUniverse 挂线——未挂/读败=fail-closed 让位不虚构标的集）。
+func (s *Sensor) subUniverse(ctx context.Context) (map[string]bool, error) {
 	raw, err := s.cfg.Get("okx.symbols")
 	if err != nil {
 		return nil, err
@@ -88,7 +96,17 @@ func (s *Sensor) legUniverse() (map[string]bool, error) {
 	out := make(map[string]bool, len(all))
 	for _, sym := range all {
 		if sym == "*" {
-			return nil, errors.New("okx.symbols=* 宇宙扩件探针未挂——fail-closed 不虚构标的集")
+			if s.expandUniverse == nil {
+				return nil, errors.New("okx.symbols=* 宇宙扩件探针未挂——fail-closed 不虚构标的集")
+			}
+			exp, err := s.expandUniverse(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("宇宙扩读败（fail-closed 不虚构标的集）: %w", err)
+			}
+			for _, e := range exp {
+				out[e] = true
+			}
+			continue
 		}
 		out[sym] = true
 	}

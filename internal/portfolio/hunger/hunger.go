@@ -33,6 +33,11 @@ type Sensor struct {
 	pool *pgxpool.Pool
 	cfg  *config.Client
 	now  func() time.Time // 测试注桩
+	// expandUniverse 宇宙扩件供给件（T-0416——okx.symbols 含 "*" 时订阅
+	// 宇宙实读径；装配层挂 okxws.UniverseCatalog.Symbols——探针与
+	// collector/粗扫臂同一供给件。nil=扩件未挂：* 形 fail-closed 让位
+	// 不虚构标的集）。
+	expandUniverse func(ctx context.Context) ([]string, error)
 }
 
 // New 装配（now 缺省=time.Now）。

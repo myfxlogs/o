@@ -13,8 +13,6 @@ package hunger
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -128,32 +126,12 @@ func (s *Sensor) enumerateDeps(ctx context.Context) ([]depPair, error) {
 	return pairs, nil
 }
 
-// depUniverse 订阅宇宙（okx.symbols 名单——腿对所需键的合法性边界；
-// '*' 放形 fail-closed 让位：宇宙扩件=venue REST 实读闭包，本探针不虚构）。
-func (s *Sensor) depUniverse() (map[string]bool, error) {
-	raw, err := s.cfg.Get("okx.symbols")
-	if err != nil {
-		return nil, err
-	}
-	var all []string
-	if err := json.Unmarshal(raw, &all); err != nil {
-		return nil, fmt.Errorf("okx.symbols JSON 解析: %w", err)
-	}
-	out := make(map[string]bool, len(all))
-	for _, sym := range all {
-		if sym == "*" {
-			return nil, errors.New("okx.symbols=* 宇宙扩件探针未挂——fail-closed 不虚构标的集")
-		}
-		out[sym] = true
-	}
-	return out, nil
-}
-
 // depLegKeys 腿-行情对所需键集（归一链=legset.ActiveSetUnion 同源表达式
 // ——订阅集/镜像谓词同串禁第二套；∩订阅宇宙+IsUSDTInst 闸=派生合法性滤，
-// 虚构键宇宙外不入所需集——同 syncActiveSet 加订闸判据语义）。
+// 虚构键宇宙外不入所需集——同 syncActiveSet 加订闸判据语义。宇宙读=
+// subUniverse 供给件挂点同腿覆盖探针——T-0416 归一禁第二套）。
 func (s *Sensor) depLegKeys(ctx context.Context) ([]string, error) {
-	universe, err := s.depUniverse()
+	universe, err := s.subUniverse(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("宇宙读败: %w", err)
 	}

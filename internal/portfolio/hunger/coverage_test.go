@@ -5,6 +5,7 @@ package hunger
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -141,6 +142,57 @@ func TestProbeLegCoverageStaleTick(t *testing.T) {
 	}
 	if cover, esc := coverRows(t, pool); cover != 1 || esc != 1 {
 		t.Fatalf("陈行失明未捕: 覆盖失明=%d 升件=%d", cover, esc)
+	}
+}
+
+// TestProbeLegCoverageStarExpanded T-0416 宇宙扩件接线锚：okx.symbols=["*"]
+// +供给件挂线→订阅宇宙实读探针复电（病灶形=生产连刷「宇宙扩件探针未挂」；
+// 修后同形①判词一致——宇宙外滤除判据不动）。
+func TestProbeLegCoverageStarExpanded(t *testing.T) {
+	s, pool := coverFixture(t)
+	ctx := context.Background()
+	if _, err := pool.Exec(ctx, `UPDATE app_config SET value='["*"]' WHERE key='okx.symbols'`); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.cfg.Load(ctx); err != nil {
+		t.Fatal(err)
+	}
+	// 红桩断言（病灶存在复刻）：未挂供给件=* 形 fail-closed。
+	if err := s.ProbeLegCoverage(ctx); err == nil ||
+		!strings.Contains(err.Error(), "宇宙扩件探针未挂") {
+		t.Fatalf("未挂供给件应 fail-closed: %v", err)
+	}
+	// 挂线实读→探针复电——目录员腿照常判。
+	s.AttachUniverse(func(context.Context) ([]string, error) {
+		return []string{"BTC-USDT-SWAP", "BTC-USDT"}, nil
+	})
+	seedCoverStrategy(t, pool, "BTC-USDT-SWAP", "funding-hedge", "live")
+	seedTick(t, pool, "BTC-USDT-SWAP", 0)
+	if err := s.ProbeLegCoverage(ctx); err != nil {
+		t.Fatalf("供给件挂线后应复电: %v", err)
+	}
+	if cover, esc := coverRows(t, pool); cover != 1 || esc != 1 {
+		t.Fatalf("复电后失明腿未捕: 覆盖失明=%d 升件=%d", cover, esc)
+	}
+}
+
+// TestSubUniverseStarFailClosed 供给件读败=fail-closed 升件不虚构（探针
+// 哲学不动——修后语义保留锚）。
+func TestSubUniverseStarFailClosed(t *testing.T) {
+	s, pool := coverFixture(t)
+	ctx := context.Background()
+	if _, err := pool.Exec(ctx, `UPDATE app_config SET value='["*"]' WHERE key='okx.symbols'`); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.cfg.Load(ctx); err != nil {
+		t.Fatal(err)
+	}
+	s.AttachUniverse(func(context.Context) ([]string, error) {
+		return nil, errors.New("instruments 面断")
+	})
+	if _, err := s.subUniverse(ctx); err == nil ||
+		!strings.Contains(err.Error(), "宇宙扩读败") {
+		t.Fatalf("供给件读败应 fail-closed: %v", err)
 	}
 }
 

@@ -95,8 +95,9 @@ func run() error {
 	// alerter 声明后置位——闭包延迟调 nil 安全）。
 	var meter *netmeter.Meter
 	var okcli *okxexec.Client
+	uni, expand := universeWire(func() *okxexec.Client { return okcli }, pool) // T-0416 供给件单源——订阅扩件与 hunger 探针同读
 	collector := attachLocalWritePred(ctx, okxws.NewCollector(pool, cfg), pool)
-	collector.ExpandSymbols = universeExpander(func() *okxexec.Client { return okcli }, pool)
+	collector.ExpandSymbols = expand
 	go collector.Run(ctx, errc)
 
 	// 私流守：OKX 私有 WS（凭据自 app_secrets 密文列解；缺件 fail-closed
@@ -229,10 +230,9 @@ func run() error {
 	trxW := trxArms(ctx, errc, pool, cfg) // T-0110 TRX/CMC 采集臂+读面装配（trx.go）
 
 	// 投资域首岗：命官——paper→probe→live 开仓消费（T-0050 Opener 缝）。
-	lr := lifecycle.NewRunner(pool, cfg)
-	if liveOpener != nil {
-		lr.AttachOpener(liveOpener)
-	}
+	lr := lifecycle.NewRunner(pool, cfg).
+		AttachUniverse(uni.Symbols). // T-0416 探针读宇宙挂点——同一供给件（不滤黑名单=探针宽谱判据）
+		AttachOpener(liveOpener)     // nil=缝缺席让位（openLive 自闸——原 if 守同语义）
 	go lr.Run(ctx, errc)
 
 	// T-0165：复盘域随迁开发机（o-research——SG 零研究行）。
