@@ -7,10 +7,25 @@ set -uo pipefail
 cd "$(git rev-parse --show-toplevel)"
 GITDIR=$(git rev-parse --git-dir)
 STAMP="$GITDIR/check-green-$(git rev-parse HEAD)"
-rm -f "$STAMP" "$STAMP.mode"   # 重跑先毁旧戳（含 mode 痕）——中途败不留残戳
 
 fail() { echo "❌ [check-all] $1——绿了才推" >&2; exit 1; }
 step() { echo "── $1" >&2; }
+
+# T-0409 刀①：同 checkout 全局互斥锁——锁键=git toplevel 真实路径
+# 哈希（wt 与主树不同锁互不串；锁域=同一 checkout 内并发互斥，
+# 非全机锁——各 wt 并发跑合法）。语义=阻塞等锁+超时上界 1800s：
+# 入者即时报「等锁 holder pid」非静默睡死；超时 fail 报 holder
+# 不报假绿不自杀。拿锁后才毁旧戳——等锁期不碰在途跑的戳面。
+TOPKEY=$(pwd -P | sha256sum | cut -c1-16)
+LOCK="/tmp/o-check_all-${TOPKEY}.lock"
+exec 9>"$LOCK"
+if ! flock -n 9 2>/dev/null; then
+  HOLDER=$(fuser "$LOCK" 2>/dev/null | tr -s ' ' '\n' | grep -v "^$$\$" | head -3 | tr '\n' ' ' || true) # tolerate: fuser 败/空集=holder 未知如实报 ?
+  echo "⏳ [check-all] 等锁——另一跑在途 holder pid=[${HOLDER:-?}]（锁=$LOCK；阻塞等锁上界 1800s，超时 fail 不假绿）" >&2
+  flock -w 1800 9 || fail "等锁超时 1800s——holder pid=[${HOLDER:-?}]（锁=$LOCK）；前跑仍在途或锁泄漏，ps 核查后重试"
+  echo "✅ [check-all] 锁到手（前跑已退）——续跑" >&2
+fi
+rm -f "$STAMP" "$STAMP.mode"   # 重跑先毁旧戳（含 mode 痕）——中途败不留残戳
 
 step "go build";    go build ./...                              || fail "go build 红"
 step "go vet";      go vet ./...                                || fail "go vet 红"
@@ -25,11 +40,21 @@ step "migrations";  bash scripts/check_migrations.sh            || fail "迁移�
 step "bridge-audit"; bash scripts/check_bridge_registry.sh         || fail "桥域对账闸红"
 step "tolerate-report"; bash scripts/check_tolerate_report.sh      || fail "容错必报 lint 红"
 step "ops-chain";   bash scripts/check_ops_chain.sh                || fail "ops 账链闸红"
-# docs-only 豁免（业主令 2026-10-31）：diff 面=已提交面（merge-base...HEAD）
-# ∪工作树面（status --porcelain 含 untracked），全中白名单（docs/**、*.md
-# 任意层、skills/**）→免 go test 段，其余门禁照跑。CHECK_ALL_FORCE_FULL=1
-# 无条件全谱；merge-base/命令败 fail-closed 走全谱；跳过时戳旁落 .mode=docs-only。
-DOCS_ONLY=0; MB=""; NCOM=0; NWT=0
+# 测谱分级（T-0409 刀②+④）：变更面=已提交面（merge-base...HEAD）∪
+# 工作树面（status --porcelain 含 untracked），与 docs-only 豁免同径
+# 收集不复制判据。三档——
+#   docs-only：变更面全中白名单（docs/**、*.md 任意层、skills/**）→
+#     免 go test 段（业主令 2026-10-31 既有语义不动）；
+#   scoped：变更面全 .go（混 docs 白名单允许）→「变更包+反向依赖
+#     闭包+恒测册」定向谱（钱径/风控册不论 diff 恒测）；
+#   full：变更面含任何非 .go 非 docs 码件（proto/migration/sql/sh/
+#     compose/Dockerfile/yaml/json 等）或包映射任何一步不确定
+#     →回退全谱 fail-safe 不 fail-open。
+# CHECK_ALL_FORCE_FULL=1 无条件全谱；merge-base/命令败 fail-closed
+# 走全谱。戳旁 .mode 三档留痕（scoped 附实测包集清单——T-0397
+# 三档审裁读戳面）。
+MODE=full; NCOM=0; NWT=0; MB=""; TEST_PKGS=""
+ALWAYS_PKGS="o/internal/risk/... o/internal/ledger/... o/internal/trading/... o/internal/guard o/internal/portfolio/lifecycle/..."
 if [ "${CHECK_ALL_FORCE_FULL:-}" != "1" ]; then
   MB=$(git merge-base HEAD origin/master 2>/dev/null) \
     || MB=$(git merge-base HEAD master 2>/dev/null) \
@@ -37,25 +62,91 @@ if [ "${CHECK_ALL_FORCE_FULL:-}" != "1" ]; then
   if [ -n "$MB" ] \
     && CFILES=$(git diff --name-only "$MB"...HEAD 2>/dev/null) \
     && WLIST=$(git status --porcelain 2>/dev/null); then
-    DOCS_ONLY=1
+    # 净路径集=已提交面∪工作树面（porcelain 前 3 列状态剥除；rename 取新名）
+    CHANGED=$( { printf '%s\n' "$CFILES"
+                printf '%s\n' "$WLIST" | while IFS= read -r l; do
+                  [ -n "$l" ] || continue
+                  p=${l:3}
+                  [[ "$p" == *" -> "* ]] && p=${p##* -> }
+                  printf '%s\n' "$p"
+                done; } | grep -v '^$' | sort -u ) # tolerate: 空集=零变更合法径
+    NCOM=$(printf '%s\n' "$CFILES" | grep -c . || true) # tolerate: 空集=零已提交变更合法径
+    NWT=$(printf '%s\n' "$WLIST" | grep -c . || true)  # tolerate: 空集=净工作树合法径
+    ALL_DOCS=1; HAS_GO=0; HAS_OTHER=0
     while IFS= read -r p; do
-      [ -n "$p" ] || continue; NCOM=$((NCOM+1))
-      case "$p" in docs/*|skills/*|*.md) ;; *) DOCS_ONLY=0; break ;; esac
-    done <<< "$CFILES"
-    while [ "$DOCS_ONLY" = 1 ] && IFS= read -r p; do
-      [ -n "$p" ] || continue; p=${p:3}; NWT=$((NWT+1))
-      if [[ "$p" == *" -> "* ]]; then
-        case "${p%% -> *}" in docs/*|skills/*|*.md) ;; *) DOCS_ONLY=0; break ;; esac
-        p=${p##* -> }
+      [ -n "$p" ] || continue
+      case "$p" in
+        docs/*|skills/*|*.md) ;;
+        *.go) HAS_GO=1; ALL_DOCS=0 ;;
+        *)   HAS_OTHER=1; ALL_DOCS=0 ;;
+      esac
+    done <<< "$CHANGED"
+    if [ "$ALL_DOCS" = 1 ]; then
+      MODE=docs-only
+    elif [ "$HAS_OTHER" = 0 ] && [ "$HAS_GO" = 1 ]; then
+      # scoped 候选——包映射+反向依赖闭包+恒测册；任一步不确定回退 full
+      SCOPE_OK=1; SEEDS=""
+      while IFS= read -r f; do
+        [ -n "$f" ] || continue
+        pkg=$(go list "./$(dirname "$f")" 2>/dev/null) \
+          || { SCOPE_OK=0; break; }
+        SEEDS="$SEEDS $pkg"
+      done <<< "$(printf '%s\n' "$CHANGED" | grep '\.go$' || true)" # tolerate: 空集不可能（HAS_GO=1 已断）
+      if [ "$SCOPE_OK" = 1 ]; then
+        IG=$(mktemp) || SCOPE_OK=0
+        if [ "$SCOPE_OK" = 1 ]; then
+          go list -f '{{.ImportPath}}|{{join .Imports ","}}|{{join .TestImports ","}}|{{join .XTestImports ","}}' ./... > "$IG" 2>/dev/null \
+            || SCOPE_OK=0
+        fi
+        if [ "$SCOPE_OK" = 1 ]; then
+          CLOSURE=$(python3 - "$IG" $SEEDS 2>/dev/null <<'PY'
+import sys
+ig, seeds = sys.argv[1], set(sys.argv[2:])
+rev = {}
+for line in open(ig):
+    parts = line.rstrip("\n").split("|")
+    if len(parts) < 4:
+        continue
+    for d in parts[1].split(",") + parts[2].split(",") + parts[3].split(","):
+        if d:
+            rev.setdefault(d, set()).add(parts[0])
+seen, stack = set(seeds), list(seeds)
+while stack:
+    for imp in rev.get(stack.pop(), ()):
+        if imp not in seen:
+            seen.add(imp); stack.append(imp)
+print(" ".join(sorted(seen)))
+PY
+) && [ -n "$CLOSURE" ] || SCOPE_OK=0
+        fi
+        [ -n "${IG:-}" ] && rm -f "$IG"
       fi
-      case "$p" in docs/*|skills/*|*.md) ;; *) DOCS_ONLY=0; break ;; esac
-    done <<< "$WLIST"
+      if [ "$SCOPE_OK" = 1 ]; then
+        # 恒测册包集展开（败=回退 full——册内包消失=结构变了不猜）
+        AP=$(go list $ALWAYS_PKGS 2>/dev/null) || SCOPE_OK=0
+        if [ "$SCOPE_OK" = 1 ]; then
+          MODE=scoped
+          TEST_PKGS=$(printf '%s\n%s\n' "$CLOSURE" "$AP" | tr ' ' '\n' | grep -v '^$' | sort -u | tr '\n' ' ')
+        fi
+      fi
+      [ "$SCOPE_OK" = 1 ] || MODE=full
+    fi
   fi
 fi
-if [ "$DOCS_ONLY" = 1 ]; then
+
+if [ "$MODE" = docs-only ]; then
   echo "── go test 全谱：docs-only 豁免跳过——已提交面 ${NCOM} 件+工作树面 ${NWT} 件全中白名单（docs/**、*.md、skills/**），merge-base=$MB；CHECK_ALL_FORCE_FULL=1 压过" >&2
   echo "docs-only" > "$STAMP.mode"
+elif [ "$MODE" = scoped ]; then
+  echo "── go test：scoped 定向谱——变更面全 .go，跑变更包+反向依赖闭包+恒测册（risk/ledger/trading/guard/lifecycle）；包集: $TEST_PKGS" >&2
+  { echo "scoped"; printf '%s\n' $TEST_PKGS; } > "$STAMP.mode"
+  if [ -z "${O_TEST_PG_DSN:-}" ] &&
+     docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^o-postgres-test$'; then
+    export O_TEST_PG_DSN="postgres://o:o@localhost:5434/o_test?sslmode=disable"
+  fi
+  go test $TEST_PKGS -timeout=1800s                        || fail "go test 红（scoped）"
 else
+  echo "full" > "$STAMP.mode"
   step "go test 全谱"
   if [ -z "${O_TEST_PG_DSN:-}" ] &&
      docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^o-postgres-test$'; then
@@ -68,4 +159,4 @@ else
 fi
 
 date -Is > "$STAMP"
-echo "✅ [check-all] 全链绿——戳落 $STAMP" >&2
+echo "✅ [check-all] 全链绿（mode=$MODE）——戳落 $STAMP" >&2
