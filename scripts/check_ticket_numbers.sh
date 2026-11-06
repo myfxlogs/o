@@ -21,6 +21,22 @@ TICKET_RE='^docs/tasks/(done/)?T-[0-9]{4,}[[:alpha:]]?(-|\.md$)'
 
 ticket_key() { sed -E 's#^docs/tasks/(done/)?(T-[0-9]{4,}[[:alpha:]]?)(-|\.md$).*#\2#'; }
 ticket_num() { sed -E 's#^docs/tasks/(done/)?T-([0-9]{4,})[[:alpha:]]?(-|\.md$).*#\2#'; }
+# 票面对比体（T-0403 头闸放宽件）——剥钦定豁免两面后供同票判：
+#   ① 状态行字段整体（首行+缩进续行——归档翻态把多行字段收成一行属
+#      字段内改写仍豁；前缀容 > / - / | 同查队列径；遇 0 列新行即止，
+#      越字段差照比）
+#   ② 「## 结果回填」节后内容（节头行本身照比——头异=不豁）
+# 正文/验收锚/领取行等其余行差照算分叉，豁面不蔓。
+ticket_norm() {
+  awk '
+    /^##[[:space:]]/ { fill = ($0 ~ /^##[[:space:]]+结果回填/) }
+    fill && $0 !~ /^##[[:space:]]/ { next }
+    stc && /^[[:space:]]+\S/ { next }
+    stc { stc = 0 }
+    !st && /^[[:space:]]*(>[[:space:]]*)?(-[[:space:]]*)?(\|[[:space:]]*)?状态[[:space:]]*[:：|]/ { st = 1; stc = 1; next }
+    { print }
+  '
+}
 ticket_files() { # $1=路径树，返回树根与完成归档下全部票
   git -c core.quotepath=off ls-files -- "$1/T-*.md" "$1/done/T-*.md"
 }
@@ -38,14 +54,25 @@ staged_archive_move() { # 同内容根目录→done/改名不是新增票，不�
   [[ -n "$old" ]] || return 1
   [[ "$(git rev-parse "HEAD:$old")" == "$(git rev-parse ":$path")" ]]
 }
-head_archive_move() { # origin/master→HEAD 同内容归档改名不是新票号
-  local base=$1 path=$2
-  [[ "$path" == docs/tasks/done/T-* ]] || return 1
-  local old
-  old=$(git diff --name-status -M "$base" HEAD \
-    | awk -F '\t' -v p="$path" '$1 ~ /^R/ && $3 == p { print $2; exit }')
+head_archive_move() { # origin/master→HEAD 同票身份改名不是新票号（T-0403
+  # 放宽——0392/0397 归档带状态行改误判占用/0395 同目录改名误判双实证）。
+  # 判法：R 检出 → 豁免径闸（同目录改名或 tasks/→done/ 归档移，皆须同号）
+  # → blob 同=纯改名直放；异则剥豁免两面（ticket_norm）比对——剥后同=
+  # 仅状态行/回填节差=同票；剥后仍异=正文分叉判非纯移，回落撞号判不豁。
+  local base=$1 path=$2 old bnorm hnorm
+  [[ -n "$base" ]] || return 1
+  old=$(git -c core.quotepath=off diff --name-status -M "$base" HEAD 2>/dev/null \
+    | awk -F '\t' -v p="$path" '$1 ~ /^R/ && $3 == p { print $2; exit }' || true) # tolerate: base 不可解/R 缺席=空 old 落非纯移判——fail-closed 回落撞号判非静默吞
   [[ -n "$old" ]] || return 1
-  [[ "$(git rev-parse "$base:$old")" == "$(git rev-parse "HEAD:$path")" ]]
+  if [ "$(dirname -- "$old")" != "$(dirname -- "$path")" ]; then
+    # 跨目录唯豁径=归档移（tasks/→done/）——done/→tasks/ 反归档等他徙不豁
+    [[ "$path" == docs/tasks/done/T-* && "$old" == docs/tasks/T-* ]] || return 1
+  fi
+  [[ "$(printf '%s' "$old" | ticket_key)" == "$(printf '%s' "$path" | ticket_key)" ]] || return 1
+  [[ "$(git rev-parse "$base:$old" 2>/dev/null)" == "$(git rev-parse "HEAD:$path" 2>/dev/null)" ]] && return 0
+  bnorm=$(git show "$base:$old" 2>/dev/null | ticket_norm || true) # tolerate: base 件缺=空体——与下 hnorm 异即 fail-closed 拦，空-空假同由 -n 闸先挡
+  hnorm=$(git show "HEAD:$path" 2>/dev/null | ticket_norm || true) # tolerate: HEAD 件缺=空体——bnorm 非空则异拦，双空由 -n 闸先挡
+  [[ -n "$bnorm" && "$bnorm" == "$hnorm" ]]
 }
 
 if [ "${1:-}" = "--staged" ]; then
@@ -93,7 +120,7 @@ if [ "${1:-}" = "--remote" ]; then
     echo "WARN(T-0219): git fetch 败——远端对账降级放行（离线推送不受阻）" >&2
     exit 0
   fi
-  remote_files=$(git ls-tree -r --name-only origin/master -- docs/tasks/ 2>/dev/null || true)
+  remote_files=$(git -c core.quotepath=off ls-tree -r --name-only origin/master -- docs/tasks/ 2>/dev/null || true) # tolerate: ls-tree 败=空集——远端树不可读对账面全空落既有降级径（fetch 败已先 WARN 放）
   remote_keys=$(printf '%s\n' "$remote_files" | grep -E "$TICKET_RE" | ticket_key | sort -u || true)
   remote_nums=$(printf '%s\n' "$remote_files" | grep -E "$TICKET_RE" | ticket_num | sort -n | uniq || true)
   rmax=$(printf '%s\n' "$remote_nums" | tail -1)
@@ -112,7 +139,7 @@ if [ "${1:-}" = "--remote" ]; then
   while IFS= read -r p; do
     [ -z "$p" ] && continue
     if staged_archive_move "$p" || head_archive_move "$mb" "$p"; then
-      echo "NOTE(T-0219): $p 为 origin/master 已有票归档改名，票号身份未变" >&2
+      echo "NOTE(T-0219): $p 为 origin/master 已有票改名/归档移，票号身份未变" >&2
       continue
     fi
     key=$(printf '%s' "$p" | ticket_key)
