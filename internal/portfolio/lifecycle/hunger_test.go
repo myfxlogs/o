@@ -25,11 +25,13 @@ type stubSensor struct {
 	derr     error
 	rerr     error
 	perr     error
+	cerr     error
 	merr     error
 	mineN    int
 	detects  int
 	responds int
 	probes   int
+	covers   int
 	mines    int
 }
 
@@ -52,6 +54,11 @@ func (s *stubSensor) Respond(context.Context, *hunger.Report) ([]hunger.StepResu
 func (s *stubSensor) ProbeFamilies(context.Context) error {
 	s.probes++
 	return s.perr
+}
+
+func (s *stubSensor) ProbeLegCoverage(context.Context) error {
+	s.covers++
+	return s.cerr
 }
 
 func (s *stubSensor) MineLessons(context.Context) (int, error) {
@@ -276,6 +283,28 @@ func TestHungerTickProbeEveryBeat(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
 		WHERE event='升件' AND esc_scope='LIFECYCLE-HUNGER' AND note LIKE 'hungertick silence_probe 败%'`).Scan(&n); err != nil || n != 1 {
 		t.Fatalf("探针败情自报行缺: n=%d err=%v", n, err)
+	}
+}
+
+// TestHungerTickLegCoverEveryBeat 锚（T-0392）：腿-行情覆盖探针与 Detect
+// 同槽——每拍先探；探针假败→升件自报行落+Detect 照常（败情隔离）。
+func TestHungerTickLegCoverEveryBeat(t *testing.T) {
+	pool := testutil.Pool(t)
+	ctx := context.Background()
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatal(err)
+	}
+	stub := &stubSensor{rep: &hunger.Report{Triggered: false, WindowDays: 3},
+		cerr: errors.New("假败——宇宙读缺")}
+	r := &Runner{pool: pool, sensor: stub}
+	r.hungerTick(ctx)
+	if stub.covers != 1 || stub.detects != 1 {
+		t.Fatalf("覆盖探针/Detect 同槽拍不齐: covers=%d detects=%d", stub.covers, stub.detects)
+	}
+	var n int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='升件' AND esc_scope='LIFECYCLE-HUNGER' AND note LIKE 'hungertick legcover_probe 败%'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("覆盖探针败情自报行缺: n=%d err=%v", n, err)
 	}
 }
 

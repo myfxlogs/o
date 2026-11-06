@@ -7,6 +7,8 @@ package lifecycle
 import (
 	"context"
 	"log"
+
+	"o/internal/platform/execfam"
 )
 
 // retireEvalRejected eval 翻拒联动退位（T-0161 施工项①）：eval verdict=
@@ -64,10 +66,7 @@ func (r *Runner) retireStaleProposed(ctx context.Context) error {
 // 留痕②：退役逐行走 Transition（degraded 超龄径同例——原裸 UPDATE 零
 // transition 行=T-0255 取证断点根修），reason=armed_ttl_expired 同因续用。
 func (r *Runner) retireStaleArmedStrategies(ctx context.Context, ttl float64) error {
-	var fam []string
-	for k := range fundingHedgeFamily {
-		fam = append(fam, k)
-	}
+	fam := execfam.FundingHedgeList() // T-0392：闸域族集=execfam 册同源（原 fundingHedgeFamily 本地册归并）
 	rows, err := r.pool.Query(ctx, `SELECT s.id FROM fin_strategy s
 		WHERE s.state IN ('live','probe') AND NOT EXISTS(
 			SELECT 1 FROM fin_position p WHERE p.strategy_ref=s.id AND p.closed_at IS NULL)
