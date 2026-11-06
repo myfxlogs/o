@@ -28,7 +28,7 @@ var (
 )
 
 const (
-	maxLines    = 320    // 索引行数硬顶（~300 条容量，触顶再上浮——grep 检索面预算）
+	maxLines    = 360    // 索引行数硬顶（~300 条容量，触顶再上浮——grep 检索面预算；T-0416 321 触顶上浮 320→360）
 	maxBytes    = 131072 // 索引字节硬顶（<128KB grep 廉价面）
 	maxKeywords = 5
 )
