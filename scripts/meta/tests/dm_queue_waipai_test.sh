@@ -102,6 +102,20 @@ has   T-9012 "F 纯已批→有行（对照）"
 lacks T-9013 "G 收口+裁决→零行（对照收敛）"
 lacks T-9014 "H 已批+派单→零行（对照排除）"
 
+review_out=$(bash "$ROOT/scripts/meta/dm_queue.sh" review)
+approved_out=$(bash "$ROOT/scripts/meta/dm_queue.sh" approved)
+if [ "$review_out" = $'T-9001\nT-9002\nT-9011' ]; then
+  echo "PASS review 分面=收口待裁集"; pass=$((pass+1))
+else
+  echo "FAIL review 分面实出:[$review_out]"; fail=$((fail+1))
+fi
+# approved 面按最近已批 ts 升序：T-9012(10:00) 先于 T-9004(10:05)。
+if [ "$approved_out" = $'T-9012\nT-9004' ]; then
+  echo "PASS approved 分面=待派集按已批龄升序"; pass=$((pass+1))
+else
+  echo "FAIL approved 分面实出:[$approved_out]"; fail=$((fail+1))
+fi
+
 echo "─────"
 if [ "$fail" = 0 ]; then echo "✅ dm_queue 外派豁免桩测 $pass/$((pass+fail)) 全绿"; exit 0
 else echo "❌ 桩测红：$fail 败/$((pass+fail))"; exit 1; fi
