@@ -1339,3 +1339,32 @@
   feature，P1）——dispatch_worker 过闸 o-worker-T-0382 swe-2-high。
 - **regime 读面**：MD 库 127.0.0.1:5435 库 o 缺席→判词缺席=neutral
   处理非拒因（meta/机制件不涉域）。
+
+## 2026-11-06 决策席班次（T-0382 驳回→返修过+部署+T-0383 派工）
+
+- **T-0382 首裁=驳回**：收口 c3c94930 全谱过审（报价卡 DOM 12/12+
+  提醒拍四桩测 uncached+check_migrations 七断言本席亲跑绿、diff
+  15 件 ⊆ 票面零越域），唯 fin_0119 漏种
+  `notify.feishu.price_alert.enabled`——生产键缺 on()=false→
+  命中「不发只翻位」静默吞提醒 DOA（兄弟键 fin_0100/0101/0102
+  皆自迁移种 'true'，owner 类 DM 写径不可达）；桩测 on()=true
+  与生产真形分歧正中 fixture 钉。返修件 docs/prompts/T-0382-返修1.md
+  @1dc628ae，裁决/驳回双行+派单 dispatch_worker 拉起。
+- **T-0382 返修裁=通过**：返修1 176c1a5b（补种 'true'::jsonb+
+  种键断言钉+merge master 零撞+worker 同 commit KB 条目
+  notify-enable-seed-missing-doa 入册）。merge@af88d1e4+票翻
+  @4f3b3afe+归done@aa2e63ca 分段推；部署窗阻塞集清零→
+  deploy_image.sh o-core:aa2e63ca45cc 健康闸过；产证锚：生产
+  fin_price_alert 表在+键值=true（原 DOA 病灶根修实证）。
+- **机制坑·merge 后部署树 go build 炸**：gen 不入库——merge 把新
+  proto/RPC 带进树而 internal/gen 陈于旧 proto；修=
+  `bash scripts/bootstrap_worktree.sh /opt/o` buf 双模板正径再生
+  （KB gen-stale 族同根不同面，不另立条目）。
+- **T-0383 派工**：COS 立 P0 钱径——carry_diff 消费闸 120s 对
+  mt5_swap 4h 源恒陈失明（xvenue 臂 DOA；BTC-515/ETH+455bps 在桌
+  看不见）；源节拍感知界+全仓 120s 闸审计清单+翻转断言。
+  dispatch_worker 过闸 o-worker-T-0383 swe-2-high；本班收班，
+  收口由 kick/兜底拍下班承接。
+- **重裁幂等执行**：T-0382 首裁前核 ops_event 无终态+支未合 master
+  →动；返修裁前同核。班内 0377 式外派件判据（latest 事件非票史）
+  未撞。
