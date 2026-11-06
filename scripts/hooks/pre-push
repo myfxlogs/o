@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# pre-push — 双闸合一（业主令 2026-10-27：绿了才推）：
+# pre-push — 三闸合一（业主令 2026-10-27：绿了才推）：
 #
 # A. 推形闸：远端名 origin / master 只许 /opt/o 部署树 / 禁删禁force禁映射。
 # B. 绿戳闸：每个被推 head(local_sha) 须持 scripts/check_all.sh 鲜戳
+#    （合流闸 C0 先于戳闸——非快进先合流，合流改 sha 必重戳）。
 #    .git/check-green-<SHA>（6h 窗）——全链独立跑不在钩内（钩内跑全谱=
 #    持 git 连接数分钟，GitHub 掐空闲连接实证 10-27；拆戳=闸仍强制连接短促）。
 #
@@ -33,6 +34,17 @@ stamp_ok() {
 
 while read -r local_ref local_sha remote_ref remote_sha; do
     [ -n "$remote_ref" ] || continue
+    # T-0403 件② C0 合流闸：部署树共享 master 双席并推——远端先行即
+    # 自动 rebase 合流（本地 commit 零丢失）再报重戳，防 reset 甩件
+    # （0397 f4c050a4 dangling 案）。非法推形/非部署树径让位下闸拦。
+    if [ "$remote_ref" = "refs/heads/master" ] \
+        && [ "$local_sha" != "0000000000000000000000000000000000000000" ] \
+        && [ "$repo_root" = "/opt/o" ]; then
+        case "$local_ref" in
+            +*|*:*|refs/tags/*) ;;
+            *) scripts/master_push_converge.sh "$local_sha" || exit 1 ;;
+        esac
+    fi
     stamp_ok "$local_sha" "$remote_ref"
     [ "$remote_ref" = "refs/heads/master" ] || continue
     [ "$local_sha" = "0000000000000000000000000000000000000000" ] \
