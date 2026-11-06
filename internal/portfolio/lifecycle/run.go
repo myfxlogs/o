@@ -49,6 +49,7 @@ func (r *Runner) Run(ctx context.Context, errc chan<- error) {
 	}
 	go roster.BeatLoop(ctx, r.pool, "命官", 30*time.Second, errc)
 	go r.hungerLoop(ctx) // T-0378：饥饿感知拍（BeatLoop 同款 ctx 界内协程——非野径）
+	go r.minerLoop(ctx)  // T-0385：教训矿工拍（同正径——12h 慢拍独立槽）
 	// 事件化（T-0048：周期环拆——策略/评估卡行变 ev_strategy/ev_eval 驱动）。
 	events.ListenLoop(ctx, r.pool, "lifecycle",
 		[]string{"ev_strategy", "ev_eval"}, r.scan)

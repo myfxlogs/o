@@ -126,6 +126,7 @@ var migrationTable = []struct {
 	{117, "fin_0117_xvenue_swap_fill.sql"},
 	{118, "fin_0118_venue_onboard_states.sql"},
 	{119, "fin_0119_price_alert.sql"},
+	{120, "fin_0120_eng_lesson.sql"},
 
 	// —— md 链（版本链内唯一且单调；md 链版本=历史号+1000 与 fin 键空间全局不相交——跨链并 schema 时 schema_migrations 零撞号，check_migrations 断言①⑤）——
 	{1003, "md_1003_market_facts.sql"},
