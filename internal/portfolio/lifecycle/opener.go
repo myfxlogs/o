@@ -12,6 +12,7 @@ import (
 	"log"
 	"time"
 
+	"o/internal/platform/execfam"
 	"o/internal/research/funding" // T-0297：breakevenOK 摩擦/年化同源（白名单边——评估判据一源律）
 )
 
@@ -28,14 +29,6 @@ type OpenSpec struct {
 // Opener 开仓执行缝（未接线=nil fail-closed 不开——禁无闸直开）。
 type Opener interface {
 	Open(ctx context.Context, spec OpenSpec) (execID int64, err error)
-}
-
-// fundingHedgeFamily 模板→funding 闸域映射（T-0202：lifetimeOK/
-// breakevenOK 钦定=funding-hedge 系专属——无 funding 腿模板跳闸）。
-// funding-hedge=perp 空+现货多家族；dcd_call=DCD 结构化产品买入
-// （无 funding 腿可判——闸域越界根修）。
-var fundingHedgeFamily = map[string]bool{
-	"funding-hedge": true, "xvenue-carry": true,
 }
 
 // AttachOpener 挂开仓缝（cmd 装配层接线）。
@@ -115,7 +108,9 @@ func (r *Runner) openLive(ctx context.Context) {
 		// T-0202：funding 闸按模板域生效——lifetimeOK/breakevenOK 钦定语义
 		// =funding-hedge 系（perp 空+现货多家族）专属；dcd_call 等无 funding
 		// 腿模板跳闸（模板域错配=全谱 live 零开仓病灶根治）。
-		if fundingHedgeFamily[c.spec.Template] {
+		// T-0392：族属判据归并 execfam.FundingHedge 唯一真源（行情腿派生臂
+		// /覆盖探针同册——本地清单删除防双源漂移）。
+		if execfam.FundingHedge(c.spec.Template) {
 			// T-0103 ①开平判据对偶化：开仓评估含「预测持仓寿命 ≥ 最短窗」——
 			// 平闸 funding 翻面判据（latest+next 双口径）开时同测：开即翻=
 			// 寿命低于一个结算窗=开闸拒，fin_opp_eval 落 rejected/lifetime_below_min。

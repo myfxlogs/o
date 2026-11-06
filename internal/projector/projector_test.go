@@ -765,6 +765,8 @@ func TestActiveSetNormalizedLegs(t *testing.T) {
 		('ETH-USD-270626','perp_quarter_spread','live',1000),
 		('SOL-USD-270626','quarter_basis_long','retired',1000),
 		('XRP-USD-270626','funding-hedge','live',1000),
+		('DOGE-USDT-SWAP','funding-hedge','live',1000),
+		('ADA-USDT-SWAP','funding-hedge','retired',1000),
 		('DCD-AVAX-1','dcd_call','paper',500),
 		('DCD-LTC-2','dcd_put','live',500),
 		('DCD-DOT-3','dcd_call','retired',500)`); err != nil {
@@ -790,12 +792,14 @@ func TestActiveSetNormalizedLegs(t *testing.T) {
 	for _, s := range r.activeList() {
 		have[s] = true
 	}
-	for _, want := range []string{"BTC-USDT", "ETH-USDT", "AVAX-USDT", "LTC-USDT", "XRP-USD-270626"} {
+	for _, want := range []string{"BTC-USDT", "ETH-USDT", "AVAX-USDT", "LTC-USDT", "XRP-USD-270626",
+		"DOGE-USDT"} { // T-0392：funding-hedge SWAP 键剥尾派生现货腿入镜像谓词
 		if !have[want] {
 			t.Fatalf("归一臂入集缺 %s", want)
 		}
 	}
-	for _, reject := range []string{"SOL-USDT", "SOL-USD-270626", "XRP-USDT", "DOT-USDT"} {
+	for _, reject := range []string{"SOL-USDT", "SOL-USD-270626", "XRP-USDT", "DOT-USDT",
+		"ADA-USDT"} { // T-0392：retired funding-hedge 现货腿零投影
 		if have[reject] {
 			t.Fatalf("离集键误入 %s", reject)
 		}

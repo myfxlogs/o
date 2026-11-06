@@ -8,7 +8,7 @@ keywords: [活跃集, 投影谓词, 归一腿, 桥外滤除, 静默断流, 订�
 scope: [采集订阅, 桥投影, md_ticks, 派生键谓词, basis/dcd 现货腿]
 summary: 采集端订阅活跃集与桥端投影活跃集是两处独立谓词，派生键（现货腿归一、uly 方言剥尾）补丁只补采集端=桥端仍按裸 inst_id 滤行，生产面「订到了但过不了桥」静默断流——采集日志零错、桥侧零拒，唯记账面鲜度闸拒因显形。凡派生键归一新增族腿，订阅集与镜像集双臂必须同源同改。
 first_seen: 2026-10-30
-last_verified: 2026-10-30
+last_verified: 2026-11-06
 skills: []
 evidence_refs:
   - type: task
@@ -17,6 +17,8 @@ evidence_refs:
     ref: internal/okxws/subscribe.go activeSet（basis 现货腿归一第四 UNION 臂）vs internal/projector/projector.go refreshSets（裸 inst_id 无归一臂）
   - type: server_fact
     ref: OCI md_ticks BTC-USDT 17:13Z 起流 vs SG 同键滞留 10-25 陈行——serve 谓词滤除实证；切 -mode=dualwrite 后 17:19Z 桥通、286990 首 fill 17:18:55Z 落
+  - type: task
+    ref: T-0392（2026-11-06）funding-hedge 臂同病灶复发实证+legset 归并——订阅集/镜像谓词/覆盖探针三面同读 internal/platform/legset 派生臂唯一真源，双臂同改律升格为单源结构闸
 ---
 
 ## 事实/症状
@@ -58,3 +60,8 @@ T-0216 返修把 basis 两族现货腿归一臂补进 collector 订阅活跃集
 3. 临时径：projector `-mode=dualwrite` 无谓词全量旁写可通水救急
    （本实例即用其抢通），但旁写泵非正形——根修部署后必须切回 serve；
 4. 经验律：报「断流」先分三段实拍（源行/桥行/消费行），段段定位再修。
+5. T-0392 升格：funding-hedge 现货腿臂同病灶复发（订阅集臂缺致新开非
+   BTC/ETH 币腿零 tickers）——「双臂同改」人律不够，本票把三处归一链
+   归并 `internal/platform/legset` 派生臂唯一真源（订阅 UNION/镜像谓词
+   /腿覆盖探针同串），族册归并 `execfam.FundingHedge`——结构防漂移替代
+   纪律防漂移。

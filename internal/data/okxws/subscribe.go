@@ -7,15 +7,13 @@ package okxws
 import (
 	"context"
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
-)
 
-// datedFutRe 季度期货形（'-' 尾 6 位到期日——mark-price 适用无 funding）。
-var datedFutRe = regexp.MustCompile(`-[0-9]{6}$`)
+	"o/internal/platform/legset"
+)
 
 // subscribeArgs 宇宙低频订阅面（T-0132 分级；tickers 退出宇宙订活跃集
 // 动态补：funding-rate 仅 SWAP instId 合法）。
@@ -27,7 +25,7 @@ func subscribeArgs(syms []string) []map[string]string {
 		switch {
 		case strings.HasSuffix(s, "-SWAP"):
 			args = append(args, map[string]string{"channel": "funding-rate", "instId": s})
-		case datedFutRe.MatchString(s): // 季度期货=SG 瘦身面零订（桥面 mark-price 供）
+		case legset.DatedFutRe.MatchString(s): // 季度期货=SG 瘦身面零订（桥面 mark-price 供）
 			continue
 		default: // 现货形=宇宙内零订（活跃集 tickers 动态补——T-0171 唯一现货价源）
 		}
@@ -68,19 +66,16 @@ func subscribeAll(conn *websocket.Conn, args []map[string]string) error {
 // T-0216 返修：basis 两族 paper/live 策略现货腿并入集（基差期货键剥 -YYMMDD
 // 尾→剥 -USD 尾→-USDT 现货对，同 dcd 归一链）——basisPaperAccounting 记账
 // 现货腿价源（期货腿价=md_mark_index mark-price 桥面行，不占本地订）。
+// T-0392：第四臂 funding-hedge 族（fundingHedgeFamily 属——short_perp_long_
+// spot/long_perp_short_spot 向）非 retired 策略 inst_id 剥 -SWAP 尾派生
+// 现货对——新开在非 BTC/ETH 币的现货腿零 tickers 失明根修；UNION 全谱归并
+// legset.ActiveSetUnion 唯一真源（projector 镜像谓词/腿覆盖探针同链）。
 func (c *Collector) activeSet(ctx context.Context) (map[string]bool, error) {
 	// T-0187：fin_position 项删——PG-md 无此表（fin 域禁引；持仓标的
 	// 由 live/degraded 策略项覆盖=冗余项）。md 侧查询只许引 domain.tsv
 	// 标 md|bridge 表（fin 域表禁引——relation does not exist 病灶根修）。
-	rows, err := c.pool.Query(ctx, `SELECT DISTINCT inst_id FROM (
-		SELECT inst_id FROM fin_proposal WHERE state IN ('fin_proposed','fin_armed')
-		UNION SELECT inst_id FROM fin_strategy WHERE state IN ('live','degraded')
-		UNION SELECT regexp_replace(d.uly, '-USD(G)?$', '-USDT') FROM fin_strategy s
-			JOIN md_dcd_product d ON d.product_id=s.inst_id
-			WHERE s.state<>'retired' AND s.template_ref LIKE 'dcd%'
-		UNION SELECT regexp_replace(regexp_replace(s.inst_id,'-[0-9]{6}$',''),'-USD$','-USDT')
-			FROM fin_strategy s WHERE s.state IN ('paper','live','degraded')
-			AND s.template_ref IN ('quarter_basis_long','perp_quarter_spread')) t`)
+	rows, err := c.pool.Query(ctx,
+		`SELECT DISTINCT inst_id FROM (`+legset.ActiveSetUnion+`) t`)
 	if err != nil {
 		return nil, err
 	}
@@ -94,6 +89,12 @@ func (c *Collector) activeSet(ctx context.Context) (map[string]bool, error) {
 		set[s] = true
 	}
 	return set, rows.Err()
+}
+
+// tickGate 加订闸谓词（T-0392 提取可测面——桩测直接对拍同款滤除语义）：
+// 未订且 USDT 键域且宇宙内且非拒集才发 tickers 帧。
+func tickGate(inst string, valid, refused, subTick map[string]bool) bool {
+	return !subTick[inst] && isUSDTInst(inst) && valid[inst] && !refused[inst]
 }
 
 // syncActiveSet 活跃集动态重订（T-0132 面；T-0133 三修——①幽灵标的滤除：
@@ -113,7 +114,7 @@ func (c *Collector) syncActiveSet(ctx context.Context, conn *websocket.Conn,
 	}
 	var adds []map[string]string
 	for inst := range set {
-		if subTick[inst] || !isUSDTInst(inst) || !valid[inst] || refused[inst] {
+		if !tickGate(inst, valid, refused, subTick) {
 			continue
 		}
 		adds = append(adds, map[string]string{"channel": "tickers", "instId": inst})
@@ -144,7 +145,7 @@ func subscribeArgsFull(syms []string) []map[string]string {
 			args = append(args,
 				map[string]string{"channel": "funding-rate", "instId": s},
 				map[string]string{"channel": "mark-price", "instId": s})
-		case datedFutRe.MatchString(s):
+		case legset.DatedFutRe.MatchString(s):
 			args = append(args, map[string]string{"channel": "mark-price", "instId": s})
 		default:
 			args = append(args, map[string]string{"channel": "index-tickers", "instId": s})

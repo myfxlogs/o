@@ -17,6 +17,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"o/internal/platform/events"
+	"o/internal/platform/legset"
 	"o/internal/platform/notify"
 	"o/internal/platform/roster"
 	"o/migrations"
@@ -39,7 +40,8 @@ type Runner struct {
 
 	mu     sync.Mutex
 	active map[string]bool // 活跃集（SG fin_position 未平仓 ∪ fin_strategy 非 retired
-	//   ∪ basis 现货腿/dcd uly 归一双臂——T-0250 对齐 collector subscribe.go activeSet ③④）
+	//   ∪ basis 现货腿/dcd uly/funding-hedge 现货腿归一三臂——T-0250/T-0392
+	//   legset 派生臂同源对齐 collector subscribe.go activeSet）
 	dcd []string // dcd% 族活策略 product_id（=fin_strategy.inst_id；镜像覆盖面=JOIN 臂谓词域）
 
 	wmMu       sync.Mutex
@@ -125,20 +127,19 @@ func (r *Runner) Run(ctx context.Context, errc chan<- error) {
 // mdWake/sgWake 帧分派面在 ops.go（执行域同居——projector.go 只留主环/装配）。
 
 // refreshSets 谓词自算（SG 源表现读——不赖 fin_active_set 种子；D-0032 裁，
-// 同径兼治 0069 无回填）。归一双臂对齐 collector subscribe.go activeSet ③④
-// （T-0250）：basis 策略期货键剥 -YYMMDD→剥 -USD→-USDT 现货腿；dcd 策略经
-// SG 镜像 md_dcd_product（fin_0049/md_1049 同形——桥面对应物）JOIN 取 uly
-// 剥 -USD(G)→-USDT——现货腿价=md_ticks 本地行（T-0171/T-0216 记账价源），
-// 不入集=现货 tick 被谓词滤在桥外。
+// 同径兼治 0069 无回填）。归一臂对齐 collector subscribe.go activeSet 派生面
+// （T-0250 basis/dcd；T-0392 funding-hedge 补臂——legset 同源表达式）：
+// basis 策略期货键剥 -YYMMDD→剥 -USD→-USDT 现货腿；dcd 策略经 SG 镜像
+// md_dcd_product（fin_0049/md_1049 同形——桥面对应物）JOIN 取 uly 剥
+// -USD(G)→-USDT；funding-hedge 族 inst_id 剥 -SWAP 尾→现货对——现货腿价
+// =md_ticks 本地行（T-0171/T-0216 记账价源），不入集=现货 tick 被谓词
+// 滤在桥外（T-0392 失明病灶同位）。
 func (r *Runner) refreshSets(ctx context.Context) error {
 	rows, err := r.sg.Query(ctx, `SELECT inst_id FROM fin_position WHERE closed_at IS NULL
 		UNION SELECT inst_id FROM fin_strategy WHERE state<>'retired'
-		UNION SELECT regexp_replace(regexp_replace(inst_id,'-[0-9]{6}$',''),'-USD$','-USDT')
-			FROM fin_strategy WHERE state<>'retired'
-			AND template_ref IN ('quarter_basis_long','perp_quarter_spread')
-		UNION SELECT regexp_replace(d.uly,'-USD(G)?$','-USDT') FROM fin_strategy s
-			JOIN md_dcd_product d ON d.product_id=s.inst_id
-			WHERE s.state<>'retired' AND s.template_ref LIKE 'dcd%'`)
+		UNION `+legset.BasisSpotArm(`s.state<>'retired'`)+`
+		UNION `+legset.DCDSpotArm(`s.state<>'retired'`)+`
+		UNION `+legset.FundingHedgeSpotArm(`s.state<>'retired'`))
 	if err != nil {
 		return fmt.Errorf("活跃集自算: %w", err)
 	}

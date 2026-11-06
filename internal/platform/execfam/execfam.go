@@ -8,6 +8,8 @@
 //	登记，评估/生命周期双侧零漂移。
 package execfam
 
+import "sort"
+
 var set = map[string]bool{
 	"funding-hedge": true, "dcd_call": true, "dcd_put": true,
 	"vol_sell_strangle": true, "vol_sell_single_call": true,
@@ -16,3 +18,24 @@ var set = map[string]bool{
 
 // Has 模板族执行径在册否。
 func Has(template string) bool { return set[template] }
+
+// fundingHedge funding-hedge 族册（perp 空+现货多家族——T-0392 自 lifecycle
+// opener.fundingHedgeFamily 归并：族属判据唯一真源，开仓 funding 闸域/
+// 行情腿派生臂/覆盖探针三面同源，禁各处自造清单）。
+var fundingHedge = map[string]bool{
+	"funding-hedge": true, "xvenue-carry": true,
+}
+
+// FundingHedge 模板属 funding-hedge 族否（short_perp_long_spot/
+// long_perp_short_spot 向——funding 闸域与现货腿派生同判据）。
+func FundingHedge(template string) bool { return fundingHedge[template] }
+
+// FundingHedgeList 族键序（SQL IN 表/桩测面——序定排防断言漂移）。
+func FundingHedgeList() []string {
+	out := make([]string, 0, len(fundingHedge))
+	for t := range fundingHedge {
+		out = append(out, t)
+	}
+	sort.Strings(out)
+	return out
+}
