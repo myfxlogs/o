@@ -238,5 +238,16 @@ func (r *Runner) trans(ctx context.Context, venue, login, state, beat string, ob
 	_, err := r.fin.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note,esc_class,esc_scope)
 		VALUES($1,$2,$3,$4,$5,$6)`, seatName, eventName, ticketID,
 		fmt.Sprintf("beat=%s %s=%s %s", beat, "key", scope, note), esc, scope)
+	if err != nil {
+		// T-0402：写败不静默——WARN 留痕+rej 计数+升件兜底（拒权时兜底同败，
+		// WARN 仍出；闸面 tolerate 式吞错=本件病灶禁再犯）。
+		log.Printf("WARN [onboard] ops_event 写败 venue=%s beat=%s（事件行丢——拒权/库败类不静默）: %v", venue, beat, err)
+		r.rej.Inc("write_err")
+		_, _ = r.fin.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note,esc_class,esc_scope)
+			SELECT $1,'升件',$2,$3,'写败',$4
+			WHERE NOT EXISTS (SELECT 1 FROM ops_event
+				WHERE event='升件' AND ticket=$2 AND esc_scope=$4)`, seatName, ticketID,
+			fmt.Sprintf("venue接入事件行写败: %v", err), scope)
+	}
 	return err
 }
