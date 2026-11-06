@@ -22,7 +22,9 @@
    加入→↑↓排序+✕删→保存=全量替换即生效；
 3. **候选域**=md_ticks DISTINCT inst_id（有行情才可选——NOX
    ListLatestQuotes 同义）；
-4. **建提醒表单收口**：symbol 下拉候选=watchlist 成员优先
+4. **建提醒表单收口**：symbol 选择件=**可过滤输入**（input+
+   datalist 式——敲子串即筛,几百品种裸 select 不可用——业主
+   11-06 三令「缺少搜索功能」）；候选=watchlist 成员优先
    （成员空则退回全候选——不 fail-closed 卡死建单）。
 
 ## 范围
