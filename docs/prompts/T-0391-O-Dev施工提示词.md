@@ -14,7 +14,7 @@
    · cmd/core/quotes_face.go（RPC 同位+fin_price_alert 审计式）
    · migrations/fin_0119_price_alert.sql（迁移范式+域钉）
 
-要点轴：fin_0120 建表+Get/Set RPC（origin 闸+审计行）+报价条
+要点轴：fin_0121 建表+Get/Set RPC（origin 闸+审计行）+报价条
 段+浮层（搜索/点选/排序/全量替换保存）+提醒表单候选收口。
 零成员/零行情如实缺；tile 形随现有 Card/Modal 件系。
 

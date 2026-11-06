@@ -29,9 +29,9 @@
 
 ## 范围
 
-1. 迁移 `fin_0120_quote_watchlist.sql`：fin_quote_watchlist
+1. 迁移 `fin_0121_quote_watchlist.sql`：fin_quote_watchlist
    (symbol text PK, ord int, created_by, created_at)——fin 域
-   正本（同 fin_price_alert 域钉）；migrate_table 挂 {120}；
+   正本（同 fin_price_alert 域钉）；migrate_table 挂 {121}；
 2. RPC：GetQuoteWatchlist/SetQuoteWatchlist（origin 闸+seat=
    dashboard-ui 审计同 CreatePriceAlert 式；Set=全量替换）；
    候选面可并入 ListPriceAlerts.symbols 既有字段零新增；
