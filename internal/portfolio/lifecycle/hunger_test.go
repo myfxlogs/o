@@ -27,10 +27,13 @@ type stubSensor struct {
 	perr     error
 	merr     error
 	mineN    int
+	draftN   int
+	ferr     error
 	detects  int
 	responds int
 	probes   int
 	mines    int
+	drafts   int
 }
 
 func (s *stubSensor) Detect(context.Context) (*hunger.Report, error) {
@@ -57,6 +60,11 @@ func (s *stubSensor) ProbeFamilies(context.Context) error {
 func (s *stubSensor) MineLessons(context.Context) (int, error) {
 	s.mines++
 	return s.mineN, s.merr
+}
+
+func (s *stubSensor) DraftTickets(context.Context) (int, error) {
+	s.drafts++
+	return s.draftN, s.ferr
 }
 
 // stubVerifier 验链缝桩（T-0386——Verify/ReportBreak 计数接线实证）。
@@ -295,5 +303,28 @@ func TestHungerTickRespondFailSelfReported(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
 		WHERE event='升件' AND esc_scope='LIFECYCLE-HUNGER' AND note LIKE 'hungertick respond 败%'`).Scan(&n); err != nil || n != 1 {
 		t.Fatalf("respond 自报行缺: n=%d err=%v", n, err)
+	}
+}
+
+// TestHungerTickDrafterSameSlot 锚（T-0393）：起草拍挂 hungerTick 同槽——
+// 探针后 Detect 前每拍皆起（饥饿与否无关）；假败→升件自报行落+Detect
+// 照常（败情让位同款隔离位）。
+func TestHungerTickDrafterSameSlot(t *testing.T) {
+	pool := testutil.Pool(t)
+	ctx := context.Background()
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatal(err)
+	}
+	stub := &stubSensor{rep: &hunger.Report{Triggered: false, WindowDays: 3},
+		draftN: 2, ferr: errors.New("假败——draft 表读败")}
+	r := &Runner{pool: pool, sensor: stub}
+	r.hungerTick(ctx)
+	if stub.drafts != 1 || stub.detects != 1 {
+		t.Fatalf("起草拍/Detect 同槽拍不齐: drafts=%d detects=%d", stub.drafts, stub.detects)
+	}
+	var n int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='升件' AND esc_scope='LIFECYCLE-HUNGER' AND note LIKE 'hungertick drafter 败%'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("起草拍败情自报行缺: n=%d err=%v", n, err)
 	}
 }

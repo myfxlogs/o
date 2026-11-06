@@ -194,4 +194,13 @@ if [ -n "$FIN_DSN" ]; then
   "$DM_SUSPEND_SH" || SRC=$?
   [ "$SRC" -ne 0 ] && dm_esc "看门狗本体败" "rc=$SRC dm_suspend 消费窗未跑净——挂起行消化停摆"
 fi
+
+# T-0393 候选票草案物料化窗（零 LLM 段尾——fin_ticket_draft pending→
+# docs/tasks 候选票件+起草行；写径只落候选态零自派，批准权=COS/DM）。
+# 败=升件自报（写败/META-DRAFT——类册面不入起草拍签名域防自起草回环）。
+if [ -n "$FIN_DSN" ]; then
+  TRC=0
+  (cd /opt/o && FIN_PG_DSN="$FIN_DSN" go run ./tools/ticketdraft -repo /opt/o >/dev/null 2>&1) || TRC=$?
+  [ "$TRC" -ne 0 ] && dm_esc "物料化径败" "rc=$TRC ticketdraft 未跑净——pending 草案滞留（升件面工具内自报，本行=拍壳兜底）"
+fi
 exit 0

@@ -25,6 +25,7 @@ type hungerSensor interface {
 	Respond(ctx context.Context, rep *hunger.Report) ([]hunger.StepResult, error)
 	ProbeFamilies(ctx context.Context) error
 	MineLessons(ctx context.Context) (int, error)
+	DraftTickets(ctx context.Context) (int, error)
 }
 
 // opsChainVerifier 验链缝（T-0386——ops_event 防篡改账验链拍挂饥饿同槽；
@@ -83,6 +84,14 @@ func (r *Runner) hungerTick(ctx context.Context) {
 	if err := r.sensor.ProbeFamilies(ctx); err != nil {
 		log.Printf("[lifecycle] hungertick 族沉默探针败: %v", err)
 		r.hungerEscalate(ctx, "silence_probe", err)
+	}
+	// T-0393 起草拍同槽：探针升件行→候选草案 pending（败情让位同款
+	// 隔离位——起草拍自身终结不拖主拍）。
+	if n, err := r.sensor.DraftTickets(ctx); err != nil {
+		log.Printf("[lifecycle] hungertick 起草拍败: %v", err)
+		r.hungerEscalate(ctx, "drafter", err)
+	} else if n > 0 {
+		log.Printf("[lifecycle] hungertick 起草拍候选草案 ×%d", n)
 	}
 	rep, err := r.sensor.Detect(ctx)
 	if err != nil {
