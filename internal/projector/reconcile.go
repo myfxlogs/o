@@ -75,6 +75,9 @@ func (r *Runner) Reconcile(ctx context.Context, full bool) error {
 	if err := r.reverseFinMirrors(ctx); err != nil {
 		return fmt.Errorf("反向桥 fin 副本群 diff: %w", err)
 	}
+	if err := r.projectTwoTier(ctx); err != nil { // T-0401 两级采集制桥面对（活性对账顺带）
+		return fmt.Errorf("两级采集制桥面对: %w", err)
+	}
 	if err := r.replayTsTables(ctx, full); err != nil {
 		return err
 	}

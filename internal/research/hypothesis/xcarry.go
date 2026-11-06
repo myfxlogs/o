@@ -68,6 +68,9 @@ func (r *Runner) xvenueCarryScan(ctx context.Context) {
 			// 如实不撞哑，卡不起草（返修④）。
 			r.xvenueCarryEval(ctx, x.key, dir, net, x.val, x.meta, false)
 		case math.Abs(net) >= th:
+			// T-0401 晋级径：过阈候选符 ∉ activeSet→临时订阅请求（流式 tick
+			// 拾取供确认级评估/下游记账；判词出闭请退订或提案常驻接管）。
+			r.nominateSub(ctx, x.key, "xvenue-carry", "carry_diff_threshold")
 			r.xvenueCarryCard(ctx, x.key, x.val, x.meta, dir, net)
 		default: // 阈内零动作
 		}
@@ -252,6 +255,9 @@ func (r *Runner) xvenueCarryEval(ctx context.Context, okxInst, dir string, net, 
 	} else {
 		log.Printf("[research/hypo] xvenue_carry 评估 %s=%s/%s（净 %.0fbps 容量≈%.0fUSD——无机会/做不了如实）",
 			okxInst, verdict, reason, net, capacity)
+	}
+	if verdict == "rejected" {
+		r.closeSub(ctx, okxInst, "xvenue-carry") // T-0401：判词拒=退订
 	}
 }
 

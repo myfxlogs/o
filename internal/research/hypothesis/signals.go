@@ -77,6 +77,7 @@ func (r *Runner) ScanSignals(ctx context.Context) error {
 	}
 	r.xvenueCarryScan(ctx) // T-0144 跨所 carry 臂（carry_diff 亮牌→卡+评估+提案止 fin_proposed）
 	r.stakeCarryScan(ctx)  // T-0320 双头 carry 臂（staking×swap-carry 二维积枚举→同链止 fin_proposed）
+	r.reconcileSubs(ctx)   // T-0401 晋级请求面扫尾（常驻/判拒/超龄三闭请件）
 	return nil
 }
 

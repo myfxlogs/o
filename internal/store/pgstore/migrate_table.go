@@ -130,6 +130,7 @@ var migrationTable = []struct {
 	{121, "fin_0121_ops_event_chain.sql"},
 	{122, "fin_0122_quote_watchlist.sql"},
 	{123, "fin_0123_ticket_draft.sql"},
+	{124, "fin_0124_two_tier_collect.sql"},
 
 	// —— md 链（版本链内唯一且单调；md 链版本=历史号+1000 与 fin 键空间全局不相交——跨链并 schema 时 schema_migrations 零撞号，check_migrations 断言①⑤）——
 	{1003, "md_1003_market_facts.sql"},
@@ -179,4 +180,5 @@ var migrationTable = []struct {
 	{1088, "md_1088_venue_candidate_ibkr.sql"},
 	{1089, "md_1089_volsell_capability_reenable.sql"},
 	{1090, "md_1090_venue_onboard_states.sql"},
+	{1091, "md_1091_two_tier_collect.sql"},
 }

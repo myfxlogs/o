@@ -56,14 +56,21 @@ func FundingHedgeSpotArm(pred string) string {
 		WHERE ` + pred + ` AND s.template_ref IN (` + fundingHedgeIN + `)`
 }
 
+// SubRequestArm 晋级临时订阅臂（T-0401 两级采集制②——评估臂提名候选符的
+// 临时行情请求；fin_sub_request.state='open' 行入集=collector 流式采，
+// 评估判词出闭请行退订，提案常驻=提案臂接管）。谓词自带无外参。
+var SubRequestArm = `SELECT inst_id FROM fin_sub_request WHERE state='open'`
+
 // ActiveSetUnion 活跃集腿行情键 UNION（订阅集与覆盖探针同式——inst 本键
-// 提案/策略面+三族派生现货腿全谱；T-0392 票面钦「归一链复用 activeSet
-// 同源表达式」即本串，禁第二套）。
+// 提案/策略面+三族派生现货腿全谱+晋级临时订阅臂；T-0392 票面钦「归一链
+// 复用 activeSet 同源表达式」即本串，禁第二套）。
 // 谓词面：提案=fin_proposed/fin_armed；策略 inst=live/degraded；dcd 臂=
 // 非 retired；basis 臂=paper/live/degraded；funding-hedge 臂=非 retired
-// （票面「在仓/在途/live」——paper/probe/proposed 同含，退役即出）。
+// （票面「在仓/在途/live」——paper/probe/proposed 同含，退役即出）；
+// 晋级臂=fin_sub_request open（T-0401——UNION 加臂非改旧臂，红线不动）。
 var ActiveSetUnion = `SELECT inst_id FROM fin_proposal WHERE state IN ('fin_proposed','fin_armed')
 	UNION SELECT inst_id FROM fin_strategy WHERE state IN ('live','degraded')
 	UNION ` + DCDSpotArm(`s.state<>'retired'`) + `
 	UNION ` + BasisSpotArm(`s.state IN ('paper','live','degraded')`) + `
-	UNION ` + FundingHedgeSpotArm(`s.state<>'retired'`)
+	UNION ` + FundingHedgeSpotArm(`s.state<>'retired'`) + `
+	UNION ` + SubRequestArm

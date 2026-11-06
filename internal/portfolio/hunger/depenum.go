@@ -66,7 +66,33 @@ func (s *Sensor) enumerateDeps(ctx context.Context) ([]depPair, error) {
 			sig: "leg:" + inst, family: "leg",
 			producer: inst, consumer: inst})
 	}
-	return pairs, nil
+	// T-0401③粗扫活性对：md_tick_scan 产者（60s REST 粗扫臂）↔发现面消费——
+	// 产者死=全谱筛选层失明（单对代表整面，consumer='discovery' 占位语义）。
+	// 哨兵附挂=枚举非空才入（空集 fail-closed 语义不动——系统全盲时先升枚举面病灶）。
+	if len(pairs) > 0 {
+		pairs = append(pairs, depPair{
+			sig: "scan:md_tick_scan→discovery", family: "scan",
+			producer: "md_tick_scan", consumer: "discovery"})
+	}
+	// T-0401③晋级滞留对：fin_sub_request open 行（评估臂提名）↔md_ticks
+	// 同键新鲜行——请求超龄未采=晋级径断点（订阅面/镜像谓词待查）。
+	reqs, err := s.pool.Query(ctx,
+		`SELECT inst_id,requester FROM fin_sub_request WHERE state='open'`)
+	if err != nil {
+		return nil, fmt.Errorf("晋级请求集读败: %w", err)
+	}
+	for reqs.Next() {
+		var inst, requester string
+		if err := reqs.Scan(&inst, &requester); err != nil {
+			reqs.Close()
+			return nil, err
+		}
+		pairs = append(pairs, depPair{
+			sig: "subreq:" + requester + ":" + inst, family: "subreq",
+			producer: inst, consumer: inst})
+	}
+	reqs.Close()
+	return pairs, reqs.Err()
 }
 
 // depUniverse 订阅宇宙（okx.symbols 名单——腿对所需键的合法性边界；

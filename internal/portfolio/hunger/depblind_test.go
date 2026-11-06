@@ -56,6 +56,18 @@ func seedDepTick(t *testing.T, pool *pgxpool.Pool, inst string, age time.Duratio
 	}
 }
 
+// seedDepScan 粗扫行定龄（T-0401③——scan 哨兵对素材；age=0 鲜行=粗扫臂活，
+// 不种=scan 对失明形）。
+func seedDepScan(t *testing.T, pool *pgxpool.Pool, age time.Duration) {
+	t.Helper()
+	if _, err := pool.Exec(context.Background(), `INSERT INTO md_tick_scan(ts,inst_id,last,bid,ask)
+		VALUES(now()-make_interval(secs=>$1),'ZZZ-SCAN-USDT-SWAP',1,1,1)
+		ON CONFLICT (venue,inst_id) DO UPDATE SET ts=EXCLUDED.ts`,
+		age.Seconds()); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // depRows 探针行数（失明行/升件行——断言公共面；esc_scope 限定本件签名域）。
 func depRows(t *testing.T, pool *pgxpool.Pool) (blind, esc int) {
 	t.Helper()
@@ -90,15 +102,17 @@ func TestProbeDepsBlindPairs(t *testing.T) {
 	seedSignal(t, pool, "carry_diff", "BTC-USDT-SWAP", 0)
 	seedSignal(t, pool, "orphan_k", "BTC-USDT-SWAP", 0)
 	seedDepStrategy(t, pool, "BTC-USDT", "funding-hedge", "live")
+	// T-0401③：粗扫表不种=scan 哨兵对失明（第四形——粗扫产者死=筛选层全盲）。
 	if err := s.ProbeDeps(ctx); err != nil {
 		t.Fatalf("probe: %v", err)
 	}
 	blind, esc := depRows(t, pool)
-	if blind != 3 || esc != 3 {
+	if blind != 4 || esc != 4 {
 		t.Fatalf("失明行/升件数不齐: 失明=%d 升件=%d", blind, esc)
 	}
 	for _, sig := range []string{
-		"signal:carry_diff→xvenue-carry", "signal:orphan_k→∅", "leg:BTC-USDT"} {
+		"signal:carry_diff→xvenue-carry", "signal:orphan_k→∅", "leg:BTC-USDT",
+		"scan:md_tick_scan→discovery"} {
 		var n int
 		if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
 			WHERE event='依赖对失明' AND note LIKE '%key='||$1||' %'`,
@@ -129,6 +143,7 @@ func TestProbeDepsRealPairsNoFalsePositive(t *testing.T) {
 	seedSignal(t, pool, "dead_kind", "BTC-USDT-SWAP", 200*24*time.Hour) // 死源
 	seedDepStrategy(t, pool, "ETH-USDT", "funding-hedge", "live")
 	seedDepTick(t, pool, "ETH-USDT", 0) // 腿有鲜 tick
+	seedDepScan(t, pool, 0)             // T-0401③：粗扫臂活（不种=scan 对失明误报）
 	if err := s.ProbeDeps(ctx); err != nil {
 		t.Fatalf("probe: %v", err)
 	}
@@ -163,6 +178,7 @@ func TestProbeDepsDedupAbsorbsSibling(t *testing.T) {
 	seedEvalAt(t, pool, "xvenue-carry", 10*24*time.Hour)
 	seedSignal(t, pool, "carry_diff", "BTC-USDT-SWAP", 0)
 	seedDepStrategy(t, pool, "BTC-USDT", "funding-hedge", "live")
+	seedDepScan(t, pool, 0) // T-0401③：粗扫臂活
 	// 特例探针同窗报（0384 族沉默=esc_scope template；0392 腿覆盖=esc_scope inst）
 	for _, scope := range []string{"xvenue-carry", "BTC-USDT"} {
 		if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note,esc_class,esc_scope)
@@ -186,6 +202,7 @@ func TestProbeDepsWhitelistExemptNotSilent(t *testing.T) {
 	s, pool := depFixture(t)
 	ctx := context.Background()
 	seedSignal(t, pool, "orphan_k", "BTC-USDT-SWAP", 0)
+	seedDepScan(t, pool, 0) // T-0401③：粗扫臂活
 	old := depBlindWhitelist
 	depBlindWhitelist = map[string]string{"signal:orphan_k→∅": "纯展示面预留——人工基线"}
 	defer func() { depBlindWhitelist = old }()
@@ -213,6 +230,47 @@ func TestProbeDepsWhitelistExemptNotSilent(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
 		WHERE event='依赖对豁免'`).Scan(&n); err != nil || n != 1 {
 		t.Fatalf("豁免同窗重复落行: n=%d", n)
+	}
+}
+
+// TestProbeDepsSubreqStale 晋级滞留形（T-0401③）：open 请求超龄（>10min）
+// 而同键 md_ticks 零新鲜→subreq 对失明+升件；同键鲜 tick 在/请求未超龄/
+// closed 三形均不报（提名正常在采/未到期/已退订）。
+func TestProbeDepsSubreqStale(t *testing.T) {
+	s, pool := depFixture(t)
+	ctx := context.Background()
+	seedDepScan(t, pool, 0)
+	for _, x := range []struct {
+		inst string
+		age  time.Duration
+	}{
+		{"QQQ-USDT-SWAP", 20 * time.Minute}, // 超龄未采→滞留盲
+		{"WWW-USDT-SWAP", 20 * time.Minute}, // 超龄但有鲜 tick→不报
+		{"EEE-USDT-SWAP", 1 * time.Minute},  // 未超龄→不报（拾取在途期）
+	} {
+		if _, err := pool.Exec(ctx, `INSERT INTO fin_sub_request(venue,inst_id,requester,state,ts)
+			VALUES('okx',$1,'xvenue-carry','open',now()-make_interval(secs=>$2))`,
+			x.inst, x.age.Seconds()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	seedDepTick(t, pool, "WWW-USDT-SWAP", 0)
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_sub_request(venue,inst_id,requester,state,ts)
+		VALUES('okx','RRR-USDT-SWAP','xvenue-carry','closed',now()-interval '1 hour')`); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ProbeDeps(ctx); err != nil {
+		t.Fatalf("probe: %v", err)
+	}
+	var n int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='依赖对失明' AND note LIKE '%key=subreq:%'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("滞留失明行数错位（应恰 1=QQQ）: n=%d err=%v", n, err)
+	}
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='升件' AND esc_class='观测盲'
+		AND esc_scope='subreq:xvenue-carry:QQQ-USDT-SWAP'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("滞留升件缺/scope 错位: n=%d err=%v", n, err)
 	}
 }
 
