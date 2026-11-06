@@ -15,10 +15,13 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 
 	connect "connectrpc.com/connect/v2"
 
@@ -91,7 +94,9 @@ func (c coreService) GetQuoteWatchlist(ctx context.Context,
 	if err := rows.Err(); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err.Error())
 	}
-	srows, err := c.pool.Query(ctx, `SELECT DISTINCT inst_id FROM md_ticks ORDER BY inst_id`)
+	// 候选域同闸滤活（T-0399——与 ListPriceAlerts 同谓词单源，死符不可选）
+	srows, err := c.pool.Query(ctx, `SELECT DISTINCT inst_id FROM md_ticks
+		WHERE `+tickFreshSQL+` ORDER BY inst_id`)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err.Error())
 	}
@@ -126,15 +131,16 @@ func (c coreService) SetQuoteWatchlist(ctx context.Context,
 		seen[s] = true
 		syms = append(syms, s)
 	}
-	for _, s := range syms {
-		var have bool
-		if err := c.pool.QueryRow(ctx,
-			`SELECT EXISTS(SELECT 1 FROM md_ticks WHERE inst_id=$1)`, s).Scan(&have); err != nil {
+	// T-0399 鲜度闸同口径——逐员活符校验（陈符拒入集，与候选域同谓词）；
+	// upper 匹配取回 canon inst_id——mt5 大小写方言不打坏（CreatePriceAlert 同款）。
+	for i, s := range syms {
+		if err := c.pool.QueryRow(ctx, `SELECT inst_id FROM md_ticks
+			WHERE upper(inst_id)=$1 AND `+tickFreshSQL+` LIMIT 1`, s).Scan(&syms[i]); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return nil, connect.NewError(connect.CodeInvalidArgument,
+					fmt.Sprintf("「%s」行情已陈或未在采——自选面只收活符品种", s))
+			}
 			return nil, connect.NewError(connect.CodeInternal, err.Error())
-		}
-		if !have {
-			return nil, connect.NewError(connect.CodeInvalidArgument,
-				fmt.Sprintf("「%s」暂无行情采集——自选面只收在采品种", s))
 		}
 	}
 	tx, err := c.pool.Begin(ctx)
