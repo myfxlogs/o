@@ -32,7 +32,7 @@ export DEVIN_CALLS="$TMP/calls" DEVIN_BIN="$TMP/bin/devin"
 VT="$ROOT/scripts/meta/verdict_tick.sh"
 run() { # $1=econ $2=eng $3=eng_fail
 	ECON_N="$1" ENG_N="$2" ENG_FAIL="${3:-0}" PATH="$TMP/bin:$PATH" \
-		VERDICT_ENV_FILE="$TMP/env" "$VT" >/dev/null 2>&1 || true
+		VERDICT_ENV_FILE="$TMP/env" "$VT" >/dev/null 2>&1 || true # tolerate: 测试桩——被测件 hb/查询败径自身在断言面，壳层 rc 不碍断言
 }
 
 # ① 双零=skip 不烧（空拍心跳照写）。
