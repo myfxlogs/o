@@ -1,9 +1,7 @@
 # T-0387 skill 自修环——矿工产 skill 补丁草案裁定入册
 
-- 状态：待验（2026-11-06 devin-o-worker-t0387 收口——
-  DM 常径机派；wt=/opt/o-wt/t0387 支
-  t/0387-skill-patch-miner，bootstrap 降级径起步——
-  rsync gen/dist 快照）
+- 状态：完成（决策席裁决通过 merge 9e31bc93——
+  T-0388 repro_hint 并入载荷 union 解；全链绿戳对口）
 - 领取：devin-o-worker-t0387 @ 2026-11-06（常径机派施工席；
   提示词 docs/prompts/T-0387-O-Dev施工提示词.md）
 - 优先级：P1——自我迭代加固族②；依 T-0385 矿工产出物
