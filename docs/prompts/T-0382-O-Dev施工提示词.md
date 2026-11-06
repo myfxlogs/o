@@ -13,8 +13,9 @@
    .tsx（T-0371 人话语义范式）
 
 要点轴：md_ticks 已在采 BBO 全谱——数据面零新增，做报价卡
-（符号自选）+fin_price_alert 表+前端设置点+o-core 提醒拍
-（命中→飞书→fired 锁）。单向告警非条件单。
+（**展示面=fin_price_alert 的 symbol 集**——建了提醒的符号
+才上报价卡,业主口径一单两用）+fin_price_alert 表+前端设置
+点+o-core 提醒拍（命中→飞书→fired 锁）。单向告警非条件单。
 
 硬要求：新 worktree /opt/o-wt/t0382 + bootstrap 先跑→
 check_all 绿戳对口收口 SHA→收口模板移交决策席；迁移号查

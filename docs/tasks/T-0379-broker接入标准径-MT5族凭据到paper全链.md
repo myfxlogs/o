@@ -1,7 +1,7 @@
 # T-0379 broker 接入标准径——MT5 族凭据到 paper 全链
 
-- 状态：待验（2026-11-06 业主令——「系统还缺少1个重要部件：
-  添加broker」；MT5 skills 在册同族可通用化）
+- 状态：完成（2026-11-06 决策席裁决通过——收口支
+  t/0379-mt5-broker-onboard@bdf774a3 合 master）
 - 领取：devin-o-worker-t0379 @ 2026-11-06（常径机派施工席；提示词
   docs/prompts/T-0379-O-Dev施工提示词.md）
 - 优先级：P0 旁支——venue 转化首案 T-0377 是单点，本件把
