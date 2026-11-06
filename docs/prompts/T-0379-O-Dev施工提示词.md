@@ -1,12 +1,19 @@
 # T-0379 施工提示词——broker 接入标准径（MT5 族）
 
-你是[角色:施工]。领单授权=业主手动外派；收口回决策席常径裁。
+你是[角色:施工]。领单授权=DM 常径机派（业主令 2026-11-06 内循环）；收口回决策席常径裁。
 
 按序读：
 1. /opt/o/AGENTS.md + docs/collab.md + skills/施工席/SKILL.md
 2. 票面唯一权威范围：/opt/o/docs/tasks/T-0379-broker接入标准径-MT5族凭据到paper全链.md
-3. 能力账必读：skills/mt5-gateway-admin + skills/mt5-account +
-   skills/mt5-quotes-history（探测照 canon 不猜端点）
+3. 能力账必读——**双层**：
+   a) 能力面全谱（能做什么）：skills/mt-gateway（proto mt4 43RPC/
+      mt5 57RPC×7 域 references 全档）+ skills/mt-accounts（账户
+      生命周期判例——**验证通过才入库/状态机五态/SearchBroker
+      RPC/IsInvestor 只读鉴别/session 就绪事件驱动零轮询**——
+      接入拍设计直接抄这四件判例）；
+   b) O 实测能力账（O 验过什么）：skills/mt5-gateway-admin +
+      skills/mt5-account + skills/mt5-quotes-history +
+      skills/mt5-orders-streams + skills/mt5-trading-mutating
 4. 参照件：internal/portfolio/lifecycle/xvenuepair.go（激活复
    用径）+ internal/platform/notify/venue_req.go（推送面同款）
    + internal/research/scout/collect.go（registered 态消费面）
