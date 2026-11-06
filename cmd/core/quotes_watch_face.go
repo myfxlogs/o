@@ -4,11 +4,12 @@
 //
 //	· GetQuoteWatchlist：fin_quote_watchlist 成员（ord 保存序——排序全
 //	  后端禁前端 sort）LEFT JOIN md_ticks 最新行携价+鲜度龄服务端派生；
-//	  候选域=md_ticks DISTINCT inst_id（有行情才可选——NOX
-//	  ListLatestQuotes 同义）；零成员/零行情如实缺态不假零；
+//	  候选域=活符∪目录符+pending 未订阅标（T-0412——NOX ListLatestQuotes
+//	  义扩到粗扫谱）；零成员/零行情如实缺态不假零；
 //	· SetQuoteWatchlist：同源闸窄写（earnOriginGate 同规）→归一去重→
-//	  逐员在采校验（候选域闸不开任意 symbol 输入）→单事务全量替换
-//	  （DELETE+INSERT ord=数组序）→ops_event 审计行 seat=dashboard-ui
+//	  逐员选符域校验（活符收/目录符收+待晋升/域外拒——T-0412 两域闸）
+//	  →单事务全量替换+目录符晋升提名（DELETE+INSERT ord=数组序+user_intent
+//	  行同生共死）→ops_event 审计行 seat=dashboard-ui
 //	  →真值重读返回（回显禁）；
 //	· 红线：纯展示面——不喂判定/策略/采集域零动。
 package main
@@ -20,8 +21,6 @@ import (
 	"log"
 	"strings"
 	"time"
-
-	"github.com/jackc/pgx/v5"
 
 	connect "connectrpc.com/connect/v2"
 
@@ -75,7 +74,7 @@ func (c coreService) watchSymbols(ctx context.Context) ([]string, error) {
 }
 
 // GetQuoteWatchlist 报价条成员×最新价+候选域（读径合并窗内——ev_ticks 帧重取；
-// 零成员 rows 空如实缺态，候选域=md_ticks DISTINCT inst_id 有行情才可选）。
+// 零成员 rows 空如实缺态，候选域=活符∪目录符携 pending 标——T-0412）。
 func (c coreService) GetQuoteWatchlist(ctx context.Context,
 	_ *dashboardv1.GetQuoteWatchlistRequest) (*dashboardv1.GetQuoteWatchlistResponse, error) {
 	res := &dashboardv1.GetQuoteWatchlistResponse{AsOf: tsProto(time.Now())}
@@ -94,23 +93,13 @@ func (c coreService) GetQuoteWatchlist(ctx context.Context,
 	if err := rows.Err(); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err.Error())
 	}
-	// 候选域同闸滤活（T-0399——与 ListPriceAlerts 同谓词单源，死符不可选）
-	srows, err := c.pool.Query(ctx, `SELECT DISTINCT inst_id FROM md_ticks
-		WHERE `+tickFreshSQL+` ORDER BY inst_id`)
+	// 候选域=活符∪目录符（T-0412——与 ListPriceAlerts 同谓词单源；目录符
+	// 携 pending 未订阅标——选入即晋升提名）
+	syms, pending, err := c.candSets(ctx)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err.Error())
 	}
-	defer srows.Close()
-	for srows.Next() {
-		var s string
-		if err := srows.Scan(&s); err != nil {
-			return nil, connect.NewError(connect.CodeInternal, err.Error())
-		}
-		res.Symbols = append(res.Symbols, s)
-	}
-	if err := srows.Err(); err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err.Error())
-	}
+	res.Symbols, res.PendingSymbols = syms, pending
 	return res, nil
 }
 
@@ -131,16 +120,22 @@ func (c coreService) SetQuoteWatchlist(ctx context.Context,
 		seen[s] = true
 		syms = append(syms, s)
 	}
-	// T-0399 鲜度闸同口径——逐员活符校验（陈符拒入集，与候选域同谓词）；
-	// upper 匹配取回 canon inst_id——mt5 大小写方言不打坏（CreatePriceAlert 同款）。
+	// T-0412 两域闸同口径（T-0399 改判——与 CreatePriceAlert 同谓词单源）：
+	// 逐员活符=收；目录符=收+待晋升（同事务提名 user_intent）；域外=拒。
+	// canon 原键落库——mt5 大小写方言不打坏。
+	promotes := map[string]string{} // canon→venue（目录符待晋升集）
 	for i, s := range syms {
-		if err := c.pool.QueryRow(ctx, `SELECT inst_id FROM md_ticks
-			WHERE upper(inst_id)=$1 AND `+tickFreshSQL+` LIMIT 1`, s).Scan(&syms[i]); err != nil {
-			if errors.Is(err, pgx.ErrNoRows) {
-				return nil, connect.NewError(connect.CodeInvalidArgument,
-					fmt.Sprintf("「%s」行情已陈或未在采——自选面只收活符品种", s))
-			}
+		canon, venue, pending, err := c.symDomain(ctx, s)
+		if errors.Is(err, errNoDomain) {
+			return nil, connect.NewError(connect.CodeInvalidArgument,
+				fmt.Sprintf("「%s」不在行情目录——自选面收在采/目录内品种", s))
+		}
+		if err != nil {
 			return nil, connect.NewError(connect.CodeInternal, err.Error())
+		}
+		syms[i] = canon
+		if pending {
+			promotes[canon] = venue
 		}
 	}
 	tx, err := c.pool.Begin(ctx)
@@ -154,6 +149,11 @@ func (c coreService) SetQuoteWatchlist(ctx context.Context,
 	for i, s := range syms {
 		if _, err := tx.Exec(ctx, `INSERT INTO fin_quote_watchlist(symbol,ord,created_by)
 			VALUES($1,$2,$3)`, s, i, alertSeatDash); err != nil {
+			return nil, connect.NewError(connect.CodeInternal, err.Error())
+		}
+	}
+	for canon, venue := range promotes { // 目录符提名晋升——与成员行同事务原子落
+		if _, err := tx.Exec(ctx, promoteSQL, venue, canon, "quote_watchlist"); err != nil {
 			return nil, connect.NewError(connect.CodeInternal, err.Error())
 		}
 	}

@@ -54,6 +54,7 @@ export type AlertForm = {
 export function QuoteBoardView(props: {
 	rows: PriceAlertRow[];
 	symbols: string[];
+	pendingSyms?: string[]; // T-0412 未订阅候选（目录符非活——选建单即提名晋升）
 	watchRows: QuoteWatchRow[];
 	watchCands: string[];
 	err?: string | null;
@@ -64,6 +65,7 @@ export function QuoteBoardView(props: {
 	onSaveWatch?: (symbols: string[]) => Promise<unknown>;
 }) {
 	const [edit, setEdit] = useState(props.editOpen ?? false);
+	const pending = new Set(props.pendingSyms ?? []);
 	const submit = (e: FormEvent<HTMLFormElement>) => {
 		e.preventDefault();
 		if (!props.onCreate) return;
@@ -101,7 +103,9 @@ export function QuoteBoardView(props: {
 								<span className="num dim">/</span>
 								<span className="num u-bad" title="卖一">{px(r.ask)}</span>
 								<span className="dim" title="距最新行情写入的时长">{ageTxt(r.quoteAgeS)}</span>
-							</>) : (
+							</>) : pending.has(r.symbol) ? (
+								<span className="dim" title="订阅晋升已提名——报价接通中">晋升中…</span>
+							) : (
 								<span className="dim">暂无行情</span>
 							)}
 						</span>
@@ -126,7 +130,9 @@ export function QuoteBoardView(props: {
 								<td className="u-good">{px(r.bid)}</td>
 								<td className="u-bad">{px(r.ask)}</td>
 								<td title="距最新行情写入的时长">{ageTxt(r.quoteAgeS)}</td>
-							</>) : (
+							</>) : pending.has(r.symbol) ? (
+								<td colSpan={4} className="dim">晋升中——订阅已提名，报价接通后可评估</td>
+							) : (
 								<td colSpan={4} className="dim">暂无行情——该品种暂未采集到报价</td>
 							)}
 							<td title={`目标价 ${px(r.target)}${r.note ? " · " + r.note : ""}`}>
@@ -154,7 +160,8 @@ export function QuoteBoardView(props: {
 						placeholder="品种——敲子串筛选"
 						title="提醒品种——候选=自选成员（未设自选退回全部在采品种）" />
 					<datalist id="alert-symbols">
-						{formSyms.map((s) => <option key={s} value={s} />)}
+						{formSyms.map((s) => <option key={s} value={s}
+							label={pending.has(s) ? `${s} · 晋升中（选建即提名订阅）` : undefined} />)}
 					</datalist>
 					<select name="direction" className="modal-input" title="命中方向">
 						<option value=">=">涨到 ≥</option>
@@ -176,6 +183,7 @@ export function QuoteBoardView(props: {
 			<WatchEditHost
 				members={props.watchRows.map((r) => r.symbol)}
 				candidates={props.watchCands}
+				pending={pending}
 				onSave={props.onSaveWatch}
 				onClose={() => setEdit(false)}
 			/>
@@ -216,6 +224,7 @@ export function QuoteBoard() {
 		<QuoteBoardView
 			rows={live.data.alerts.rows}
 			symbols={live.data.alerts.symbols}
+			pendingSyms={[...live.data.alerts.pendingSymbols, ...live.data.watch.pendingSymbols]}
 			watchRows={live.data.watch.rows}
 			watchCands={live.data.watch.symbols}
 			err={err}

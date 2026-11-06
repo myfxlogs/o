@@ -46,9 +46,11 @@ func (r *Runner) projectTickScan(ctx context.Context) error {
 
 // projectSubRequests 晋级请求盒全量 upsert（(venue,inst_id,requester) 自然
 // 键——state 开闭翻转随行：open→closed 退订语义靠列搬运非行删）。
+// T-0412：user_intent 行 SG 正本（dashboard 建单径写）——正向镜像豁免免
+// 双源互覆；其 md 副本=reverseSubRequests 反向桥产出非本面搬运域。
 func (r *Runner) projectSubRequests(ctx context.Context) error {
 	rows, err := r.md.Query(ctx, `SELECT ts,venue,inst_id,requester,state,reason,recv_ts
-		FROM fin_sub_request`)
+		FROM fin_sub_request WHERE requester<>'user_intent'`)
 	if err != nil {
 		return fmt.Errorf("sub_request 查询: %w", err)
 	}

@@ -150,6 +150,59 @@ func (r *Runner) reverseUntradeable(ctx context.Context) error {
 	return batchExec(ctx, r.md, uUntradeableMirror, batch)
 }
 
+// reverseSubRequests 用户意图晋升请求正本→副本全表 diff（T-0412 意图晋级
+// 径——dashboard 建单（提醒/自选）在目录未订阅符同事务落 fin_sub_request
+// requester='user_intent' SG 正本；ev_subreq 帧（fin_0128 触发器）即发+
+// Reconcile 期界兜底→md 副本→collector SubRequestArm UNION 拾取流式采）。
+// requester 域切写权：'user_intent'=SG 正本（本臂唯一 md 写者——正向桥
+// projectSubRequests 同域豁免防双源互覆）；余 requester=md 正本照旧正向。
+func (r *Runner) reverseSubRequests(ctx context.Context) error {
+	type row struct {
+		venue, inst, requester, state, reason string
+		ts, recv                              time.Time
+	}
+	fetch := func(pool *pgxpool.Pool) (map[[2]string]row, error) {
+		rows, err := pool.Query(ctx, `SELECT venue,inst_id,requester,state,reason,ts,recv_ts
+			FROM fin_sub_request WHERE requester='user_intent'`)
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+		out := map[[2]string]row{}
+		for rows.Next() {
+			var x row
+			if err := rows.Scan(&x.venue, &x.inst, &x.requester, &x.state,
+				&x.reason, &x.ts, &x.recv); err != nil {
+				return nil, err
+			}
+			out[[2]string{x.venue, x.inst}] = x
+		}
+		return out, rows.Err()
+	}
+	want, err := fetch(r.sg)
+	if err != nil {
+		return fmt.Errorf("sub_request 正本读: %w", err)
+	}
+	have, err := fetch(r.md)
+	if err != nil {
+		return fmt.Errorf("sub_request 副本读: %w", err)
+	}
+	var batch [][]any
+	for k, x := range want {
+		if h, ok := have[k]; !ok || h.state != x.state || h.reason != x.reason ||
+			!h.ts.Equal(x.ts) || !h.recv.Equal(x.recv) {
+			batch = append(batch, []any{x.ts, x.venue, x.inst, x.requester,
+				x.state, x.reason, x.recv})
+		}
+	}
+	return batchExec(ctx, r.md, uSubReqMirror, batch)
+}
+
+const uSubReqMirror = `INSERT INTO fin_sub_request(ts,venue,inst_id,requester,state,reason,recv_ts)
+	VALUES($1::timestamptz,$2,$3,$4,$5,$6,$7::timestamptz)
+	ON CONFLICT (venue,inst_id,requester) DO UPDATE SET ts=EXCLUDED.ts,
+		state=EXCLUDED.state,reason=EXCLUDED.reason,recv_ts=EXCLUDED.recv_ts`
+
 // reverseEarnRate Earn 现率正本→副本全表 diff（T-0214——低频小表，期界对账
 // 兜底足够；evalCarry 盒侧利率事实行自此非空集）。
 func (r *Runner) reverseEarnRate(ctx context.Context) error {

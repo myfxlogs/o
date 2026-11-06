@@ -12,6 +12,7 @@ import { errText } from "../api";
 export function WatchEditView(props: {
 	items: string[];
 	candidates: string[];
+	pending?: Set<string>; // T-0412 未订阅候选（目录符非活——选入即提名晋升）
 	query: string;
 	busy?: boolean;
 	err?: string | null;
@@ -56,10 +57,14 @@ export function WatchEditView(props: {
 					<div className="watchlist-candidate-scroll">
 						{cands.map((s) => (
 							<button key={s} className="btn-ghost watchlist-candidate-item"
-								onClick={() => props.onAdd?.(s)}>{s}＋</button>
+								title={props.pending?.has(s) ? "未订阅目录符——选入即提名订阅晋升，报价稍后接通" : undefined}
+								onClick={() => props.onAdd?.(s)}>
+								{s}{props.pending?.has(s) &&
+									<span className="dim">·晋升中</span>}＋
+							</button>
 						))}
 						{cands.length === 0 &&
-							<span className="dim">无匹配候选——候选域=在采行情品种</span>}
+							<span className="dim">无匹配候选——候选域=在采行情∪目录品种</span>}
 					</div>
 				</div>
 				<div className="modal-actions">
@@ -77,6 +82,7 @@ export function WatchEditView(props: {
 export function WatchEditHost(props: {
 	members: string[];
 	candidates: string[];
+	pending?: Set<string>;
 	onSave: (symbols: string[]) => Promise<unknown>;
 	onClose: () => void;
 }) {
@@ -102,7 +108,7 @@ export function WatchEditHost(props: {
 	};
 	return (
 		<WatchEditView
-			items={items} candidates={props.candidates} query={query}
+			items={items} candidates={props.candidates} pending={props.pending} query={query}
 			busy={busy} err={err}
 			onQuery={setQuery}
 			onAdd={(s) => setItems((l) => (l.includes(s) ? l : [...l, s]))}

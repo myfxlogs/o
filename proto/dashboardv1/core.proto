@@ -577,11 +577,12 @@ message PriceAlertRow {
 }
 message ListPriceAlertsResponse {
   repeated PriceAlertRow rows = 1;
-  repeated string symbols = 2;            // 在采 symbol 枚举（md_ticks inst_id——表单下拉面）
+  repeated string symbols = 2;            // 选符域=md_ticks 活符∪md_tick_scan 目录符（T-0412）
   google.protobuf.Timestamp as_of = 3;
+  repeated string pending_symbols = 4;    // 未订阅候选（目录符非活——选建单即提名晋升）
 }
 message CreatePriceAlertRequest {
-  string symbol = 1;                      // 须在采（md_ticks 有行）——死提醒禁建行
+  string symbol = 1;                      // 须选符域内（活符=收/目录符=收+晋升/域外拒——T-0412）
   string direction = 2;                   // ">=" | "<="
   double target = 3;                      // >0
   string note = 4;
@@ -609,11 +610,12 @@ message QuoteWatchRow {
 }
 message GetQuoteWatchlistResponse {
   repeated QuoteWatchRow rows = 1;        // 成员行（ord 升序）
-  repeated string symbols = 2;            // 候选域=md_ticks DISTINCT inst_id（有行情才可选）
+  repeated string symbols = 2;            // 候选域=md_ticks 活符∪md_tick_scan 目录符（T-0412）
   google.protobuf.Timestamp as_of = 3;
+  repeated string pending_symbols = 4;    // 未订阅候选（目录符非活——选入即提名晋升）
 }
 message SetQuoteWatchlistRequest {
-  repeated string symbols = 1;            // 全量替换——序即 ord；每员须在采（md_ticks 有行）
+  repeated string symbols = 1;            // 全量替换——序即 ord；每员须选符域内（目录符=收+晋升——T-0412）
 }
 message SetQuoteWatchlistResponse {
   repeated string symbols = 1;            // 写后真值重读（库面非回显）

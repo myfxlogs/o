@@ -118,7 +118,7 @@ func (r *Runner) Run(ctx context.Context, errc chan<- error) {
 	log.Printf("[projector] 对账毕——活跃集 %d inst、dcd 活策略 %d 品", r.activeCount(), len(r.dcdSet()))
 
 	mdCh := []string{"ev_ticks", "ev_markidx", "ev_funding", "ev_signal", "ev_eval", "ev_proposal", "ev_dcd"}
-	sgCh := []string{"ev_active_set", "ev_proposal", "ev_strategy", "config_changed"}
+	sgCh := []string{"ev_active_set", "ev_proposal", "ev_strategy", "ev_subreq", "config_changed"}
 	go events.ListenLoopChan(ctx, r.md, "projector-md", mdCh, r.mdWake)
 	go events.ListenLoopChan(ctx, r.sg, "projector-sg", sgCh, r.sgWake)
 	go r.beatLoop(ctx, errc)

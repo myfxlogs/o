@@ -67,6 +67,11 @@ func (r *Runner) sgWake(ctx context.Context, ch string) error {
 		return r.projectMacro(ctx) // ~30 行全表 diff——廉价顺带（事件级表无独立写帧）
 	case "ev_proposal":
 		return r.repairProposalStates(ctx)
+	case "ev_subreq": // T-0412 意图晋级帧（fin_0128 触发器——user_intent 行变即发）
+		if err := r.refreshSets(ctx); err != nil { // 谓词集先纳新提名符——其后 tick 即过桥
+			return err
+		}
+		return r.reverseSubRequests(ctx)
 	case "ev_strategy": // 反向桥帧（fin_0028 在册——策略行变即发，T-0172）
 		if err := r.reverseStrategies(ctx); err != nil {
 			return err

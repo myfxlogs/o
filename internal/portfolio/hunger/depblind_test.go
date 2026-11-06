@@ -285,7 +285,8 @@ func TestProbeDepsSubreqStale(t *testing.T) {
 	}
 	seedDepTick(t, pool, "WWW-USDT-SWAP", 0)
 	if _, err := pool.Exec(ctx, `INSERT INTO fin_sub_request(venue,inst_id,requester,state,ts)
-		VALUES('okx','RRR-USDT-SWAP','xvenue-carry','closed',now()-interval '1 hour')`); err != nil {
+		VALUES('okx','RRR-USDT-SWAP','xvenue-carry','closed',now()-interval '1 hour'),
+		      ('okx','TTT-USDT-SWAP','user_intent','open',now()-interval '20 minutes')`); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.ProbeDeps(ctx); err != nil {
@@ -293,13 +294,16 @@ func TestProbeDepsSubreqStale(t *testing.T) {
 	}
 	var n int
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
-		WHERE event='依赖对失明' AND note LIKE '%key=subreq:%'`).Scan(&n); err != nil || n != 1 {
-		t.Fatalf("滞留失明行数错位（应恰 1=QQQ）: n=%d err=%v", n, err)
+		WHERE event='依赖对失明' AND note LIKE '%key=subreq:%'`).Scan(&n); err != nil || n != 2 {
+		t.Fatalf("滞留失明行数错位（应恰 2=QQQ+TTT）: n=%d err=%v", n, err)
 	}
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
-		WHERE event='升件' AND esc_class='观测盲'
-		AND esc_scope='subreq:xvenue-carry:QQQ-USDT-SWAP'`).Scan(&n); err != nil || n != 1 {
-		t.Fatalf("滞留升件缺/scope 错位: n=%d err=%v", n, err)
+	for _, scope := range []string{"subreq:xvenue-carry:QQQ-USDT-SWAP",
+		"subreq:user_intent:TTT-USDT-SWAP"} { // T-0412 用户意图滞留同枚举面罩
+		if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+			WHERE event='升件' AND esc_class='观测盲'
+			AND esc_scope=$1`, scope).Scan(&n); err != nil || n != 1 {
+			t.Fatalf("滞留升件缺/scope 错位 %s: n=%d err=%v", scope, n, err)
+		}
 	}
 }
 
