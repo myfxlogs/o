@@ -204,7 +204,9 @@ func (c coreService) Watch(ctx context.Context, _ *dashboardv1.WatchRequest,
 		return err
 	}
 	defer conn.Release()
-	for _, ch := range []string{"ev_position", "ev_cashflow", "ev_account", "ev_strategy", "ev_hostmetrics", "ev_headless", "ev_pipeline"} {
+	// T-0382：ev_ticks 入听列——报价卡鲜度源（纯信号帧无载荷；合并窗
+	// MERGE_MS 天然节流前端重取）。
+	for _, ch := range []string{"ev_position", "ev_cashflow", "ev_account", "ev_strategy", "ev_hostmetrics", "ev_headless", "ev_pipeline", "ev_ticks"} {
 		if _, err := conn.Exec(ctx, "LISTEN "+ch); err != nil {
 			return err
 		}
