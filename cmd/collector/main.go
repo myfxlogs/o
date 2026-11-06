@@ -10,9 +10,7 @@ import (
 	"encoding/json"
 	"log"
 	"os"
-	"regexp"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -60,18 +58,22 @@ func main() {
 		log.Fatalf("config load: %v", err)
 	}
 	cli := okxexec.NewClient(okxexec.Credentials{}, false) // 公开面零凭据
+	// T-0416 宇宙扩件=单一供给件（目录实读+TTL 常驻缓存）——订阅扩件与
+	// 粗扫臂谱域同一供给件同读（原 universe() 桥面复制件归一）。
+	uni := okxws.NewUniverseCatalog(cli.PublicGet, okxws.UniverseTTL)
 	c := okxws.NewCollector(pool, cfg)
 	c.FullSub = true             // 桥面=全量订阅（不受 SG 瘦身口径）
 	c.AlertKind = "bridge_stale" // 面死告警 kind 覆写（T-0137 设计钉）
-	c.ExpandSymbols = func(ctx context.Context) ([]string, error) {
-		return universe(ctx, cli) // 宇宙扩件同 SG universeExpander 径
-	}
+	c.ExpandSymbols = uni.Symbols
 	c.AttachCTV(ctvFeed(cli)) // T-0139 depth5 USD 额换算（instruments SWAP ctVal 实读）
 	errc := make(chan error, 4)
 	go c.Run(ctx, errc)
 	// T-0401 粗扫层：REST tickers 60s 全谱→md_tick_scan（两级采集制①——
-	// 筛选精度层钦定例外件；执行精度仍归 WS tickers 流）。
-	go okxws.NewScanPoller(pool, cfg, cli.PublicGet).Run(ctx, errc)
+	// 筛选精度层钦定例外件；执行精度仍归 WS tickers 流）。T-0416：谱域=
+	// 宇宙扩件 SWAP 目录全集（目录读败 fail-closed 不虚构谱域）。
+	sp := okxws.NewScanPoller(pool, cfg, cli.PublicGet)
+	sp.Catalog = uni.SwapSet
+	go sp.Run(ctx, errc)
 	sd := sigdist.New(pool)
 	sd.AttachConfig(cfg)
 	go sd.Run(ctx, errc) // 桥二期信号蒸馏拍（basis_ann/funding_view/xvenue→md_signal）
@@ -92,58 +94,6 @@ func main() {
 			return
 		}
 	}
-}
-
-// universe 全宇宙标的（instruments 实读——SWAP live+季度期货+基币现货对，
-// 与 cmd/core/universe.go 同语义桥面复制件）。
-func universe(ctx context.Context, cli *okxexec.Client) ([]string, error) {
-	raw, err := cli.PublicGet(ctx, "/api/v5/public/instruments?instType=SWAP")
-	if err != nil {
-		return nil, err
-	}
-	var swap []struct {
-		InstID string `json:"instId"`
-		State  string `json:"state"`
-	}
-	if err := json.Unmarshal(raw, &swap); err != nil {
-		return nil, err
-	}
-	var out []string
-	seen := map[string]bool{}
-	for _, i := range swap {
-		if i.State == "live" && strings.HasSuffix(i.InstID, "-USDT-SWAP") {
-			out = append(out, i.InstID)
-			base := strings.TrimSuffix(i.InstID, "-USDT-SWAP") + "-USDT"
-			if !seen[base] {
-				seen[base] = true
-				out = append(out, base)
-			}
-		}
-	}
-	raw, err = cli.PublicGet(ctx, "/api/v5/public/instruments?instType=FUTURES")
-	if err != nil {
-		return out, nil
-	}
-	var fut []struct {
-		InstID string `json:"instId"`
-		Alias  string `json:"alias"`
-		Uly    string `json:"uly"`
-		State  string `json:"state"`
-	}
-	if err := json.Unmarshal(raw, &fut); err == nil {
-		datedRe := regexp.MustCompile(`-\d{6}$`)
-		for _, i := range fut {
-			// T-0189 返修：quarter 到期期货全收（-\d{6}$ 尾判——OKX 实挂
-			// 全 -USD- 币本位，-USDT- 保证金判=空集误诊）；uly 剥离键
-			//（BTC-USD-261225→BTC-USD）并入集——index-tickers USD 指数行
-			// 覆盖（basisAnn JOIN 键）。
-			if i.State == "live" && i.Alias == "quarter" && datedRe.MatchString(i.InstID) {
-				out = append(out, i.InstID)
-				out = append(out, i.Uly) // T-0189 返修③：uly 载荷字段=钦定指数键（_UM 变体剥串错源根治）
-			}
-		}
-	}
-	return out, nil
 }
 
 // ctvFeed SWAP 合约面值实读（instruments SWAP——ctVal 币数/张；depth5 USD

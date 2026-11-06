@@ -459,3 +459,36 @@ func TestProbeFaceDiffNewFaceEscalation(t *testing.T) {
 		t.Fatalf("快照批超留: n=%d err=%v", n, err)
 	}
 }
+
+// TestDepLegKeysStarExpanded T-0416 依赖对探针宇宙接线锚：okx.symbols=["*"]
+// +供给件挂线→depLegKeys 实读目录员腿入集（病灶形=生产「宇宙读败:
+// 宇宙扩件探针未挂」依赖对探针瞎——修后复电同判据）。
+func TestDepLegKeysStarExpanded(t *testing.T) {
+	s, pool := depFixture(t)
+	ctx := context.Background()
+	if _, err := pool.Exec(ctx, `UPDATE app_config SET value='["*"]' WHERE key='okx.symbols'`); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.cfg.Load(ctx); err != nil {
+		t.Fatal(err)
+	}
+	// 红桩（未挂=* 形 fail-closed——两探针同根病灶复刻）。
+	if _, err := s.depLegKeys(ctx); err == nil {
+		t.Fatal("未挂供给件应 fail-closed")
+	}
+	s.AttachUniverse(func(context.Context) ([]string, error) {
+		return []string{"AAA-USDT-SWAP", "AAA-USDT", "BTC-USDT-SWAP"}, nil
+	})
+	seedDepStrategy(t, pool, "AAA-USDT-SWAP", "funding-hedge", "live")
+	keys, err := s.depLegKeys(ctx)
+	if err != nil {
+		t.Fatalf("供给件挂线后应复电: %v", err)
+	}
+	got := map[string]bool{}
+	for _, k := range keys {
+		got[k] = true
+	}
+	if !got["AAA-USDT-SWAP"] || !got["AAA-USDT"] {
+		t.Fatalf("目录员腿应入所需集: %v", keys)
+	}
+}

@@ -41,6 +41,16 @@ type opsChainVerifier interface {
 	ReportBreak(ctx context.Context, rep *opschain.Report) error
 }
 
+// AttachUniverse 宇宙扩件供给件注 hunger 探针（T-0416——探针读宇宙挂点：
+// 与 collector ExpandSymbols/粗扫臂谱域同一供给件同读；桩 sensor 置位=
+// 静默让位——桩测无实件零炸）。
+func (r *Runner) AttachUniverse(fn func(ctx context.Context) ([]string, error)) *Runner {
+	if s, ok := r.sensor.(*hunger.Sensor); ok {
+		s.AttachUniverse(fn)
+	}
+	return r
+}
+
 // hunger 拍行席别/环票号（internal/portfolio/hunger 同款口径——DM 执行环=
 // 决策席，例行行携常设环票号 T-0360 同例）。
 const (

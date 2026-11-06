@@ -15,9 +15,30 @@ import (
 // max_age_hours 热启，缺=24h 保守（提名是增益面非常驻权）。
 const subReqAgeHours = 24.0
 
+// AttachCatalog 挂宇宙扩件目录存在性闸（T-0416 顺手闸——MUU 型假符进盒
+// 前拒掉：inst ∉ 宇宙目录不提名；目录读败=提名让位 fail-closed 不虚构）。
+func (r *Runner) AttachCatalog(fn func(ctx context.Context) (map[string]bool, error)) *Runner {
+	r.cat = fn
+	return r
+}
+
 // nominateSub 评估臂提名：inst ∉ activeSet→open 请求行（幂等同键复开）；
 // 已在集=零动作（提案/策略/派生臂已常驻——提名是增益面非阻断面，读败让位）。
+// T-0416 catalog 闸：挂线后 inst ∉ 宇宙目录=拒提名（venue 不存在符订阅
+// error 帧洪泛病灶闸——提名面未核 catalog 根修）。
 func (r *Runner) nominateSub(ctx context.Context, inst, requester, reason string) {
+	if r.cat != nil {
+		uni, err := r.cat(ctx)
+		if err != nil {
+			log.Printf("[research/hypo] 晋级提名 %s 让位——宇宙目录读败（fail-closed 不虚构）: %v", inst, err)
+			return
+		}
+		if !uni[inst] {
+			r.rej.Inc("nom_offcatalog")
+			log.Printf("[research/hypo] 晋级提名 %s 拒——inst 宇宙目录外（假符进盒前闸）", inst)
+			return
+		}
+	}
 	var n int
 	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM (`+permSet+`) t
 		WHERE t.inst_id=$1`, inst).Scan(&n); err != nil || n > 0 {

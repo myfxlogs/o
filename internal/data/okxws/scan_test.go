@@ -6,6 +6,7 @@ package okxws
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
@@ -89,5 +90,44 @@ func TestScanUpsertAndSubArm(t *testing.T) {
 	}
 	if set["RRR-USDT-SWAP"] {
 		t.Fatal("closed 请求行误留集——退订语义断")
+	}
+}
+
+// TestScanCatalogGate T-0416 谱域闸桩：Catalog 挂线后 tickers 行须∈目录
+// 全集才落表（目录外滤除）；目录读败=fail-closed 本拍让位零行落表。
+func TestScanCatalogGate(t *testing.T) {
+	pool := testutil.Pool(t)
+	ctx := context.Background()
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatal(err)
+	}
+	p := NewScanPoller(pool, nil, func(context.Context, string) (json.RawMessage, error) {
+		return json.RawMessage(`[
+			{"instId":"ZZZ-USDT-SWAP","last":"3","bidPx":"2.9","askPx":"3.1","ts":"1700000000000"},
+			{"instId":"YYY-USDT-SWAP","last":"5","bidPx":"5","askPx":"5","ts":"1700000000000"}]`), nil
+	})
+	// 目录全集={ZZZ}——YYY 目录外滤除不落表。
+	p.Catalog = func(context.Context) (map[string]bool, error) {
+		return map[string]bool{"ZZZ-USDT-SWAP": true}, nil
+	}
+	if err := p.ScanOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM md_tick_scan`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Fatalf("目录外行应滤除留 1 行: %d", n)
+	}
+	// 目录读败=fail-closed——tickers 有行也零落表。
+	p.Catalog = func(context.Context) (map[string]bool, error) {
+		return nil, errors.New("instruments 面断")
+	}
+	if err := p.ScanOnce(ctx); err == nil {
+		t.Fatal("目录读败应 fail-closed 让位")
+	}
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM md_tick_scan`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("目录败拍应零落表（存量不动）: %v n=%d", err, n)
 	}
 }

@@ -70,8 +70,9 @@ type Runner struct {
 	fin   *pgxpool.Pool // T-0408 影域呈批径（fin_condition_gap 请求盒正本池——nil=影呈让位留评估行）
 	cfg   *config.Client
 	rej   *rejects.Door
-	watch *armwatch.Watch // 臂活性看门（T-0117——四臂共用件）
-	sigs  SignalReader    // 桥二期信号读面（T-0139——可选；nil=信号缺席面）
+	watch *armwatch.Watch                                    // 臂活性看门（T-0117——四臂共用件）
+	sigs  SignalReader                                       // 桥二期信号读面（T-0139——可选；nil=信号缺席面）
+	cat   func(ctx context.Context) (map[string]bool, error) // T-0416 提名 catalog 闸（宇宙目录存在性——nil=闸缺席）
 }
 
 // SignalReader 信号读闸出口（T-0140 键域修正：gap surface 域→信号绑定按
@@ -97,7 +98,7 @@ func (r *Runner) AttachFin(pool *pgxpool.Pool) *Runner { r.fin = pool; return r 
 func NewRunner(pool *pgxpool.Pool, cfg *config.Client) *Runner {
 	return &Runner{pool: pool, cfg: cfg, watch: armwatch.New("假想官"),
 		rej: rejects.New("research", "hypo_missing_params", "hypo_write_err",
-			"sig_missing_params", "sig_write_err")}
+			"sig_missing_params", "sig_write_err", "nom_offcatalog")}
 }
 
 // enroll 花名册落位（T-0078 判据：名单岗必须 runtime 在行——编制册研究域

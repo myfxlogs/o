@@ -1,89 +1,66 @@
-// universe.go —— T-0122 宇宙放开件：okx.symbols 含 "*"=全 USDT-SWAP live+
-// 季度期货（alias=quarter/USDT 尾——instruments 面实读；凭据缺席期公开面
-// 无凭据 PublicGet 直读降级，凭据件只读客同通）。
+// universe.go —— 宇宙扩件装配适配（T-0416 归一：目录实读/TTL 缓存归
+// okxws.UniverseCatalog 单一供给件——cmd/collector 复制件同归，禁第二套
+// 归一链）。本件只剩两适配：懒客取件（凭据缺席期公开面无凭据 PublicGet
+// 直读降级——T-0122 原语义）+venue 黑名单滤（T-0142——venue_untradeable
+// venue 拒过的 inst 不进订阅面）。
 package main
 
 import (
 	"context"
 	"encoding/json"
-	"regexp"
-	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"o/internal/data/okxws"
 	"o/internal/trading/okxexec"
 )
 
-func universeExpander(getCli func() *okxexec.Client, pool *pgxpool.Pool) func(ctx context.Context) ([]string, error) {
-	return func(ctx context.Context) ([]string, error) {
+// universeWire 宇宙扩件接线（T-0416——供给件单源+订阅扩件闭包同出：
+// uni 供 hunger 探针/他消费面同读，expand 供 collector.ExpandSymbols
+// 内嵌 fin_venue_untradeable 黑名单滤——T-0142 语义随件）。
+func universeWire(getCli func() *okxexec.Client, pool *pgxpool.Pool) (*okxws.UniverseCatalog, func(ctx context.Context) ([]string, error)) {
+	uni := okxws.NewUniverseCatalog(universeGet(getCli), okxws.UniverseTTL)
+	return uni, func(ctx context.Context) ([]string, error) {
+		syms, err := uni.Symbols(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return dropUntradeable(ctx, pool, syms), nil
+	}
+}
+
+// universeGet 懒客 REST 公开读件（okcli 凭据件后至——每拍自取；nil=无凭据
+// 公开面直读降级）。
+func universeGet(getCli func() *okxexec.Client) okxws.ScanGet {
+	return func(ctx context.Context, pathWithQuery string) (json.RawMessage, error) {
 		cli := getCli()
 		if cli == nil {
 			cli = okxexec.NewClient(okxexec.Credentials{}, false)
 		}
-		raw, err := cli.PublicGet(ctx, "/api/v5/public/instruments?instType=SWAP")
-		if err != nil {
-			return nil, err
-		}
-		var swap []struct {
-			InstID string `json:"instId"`
-			State  string `json:"state"`
-		}
-		if err := json.Unmarshal(raw, &swap); err != nil {
-			return nil, err
-		}
-		var out []string
-		seenSpot := map[string]bool{}
-		for _, i := range swap {
-			if i.State == "live" && strings.HasSuffix(i.InstID, "-USDT-SWAP") {
-				out = append(out, i.InstID)
-				// T-0129 根修：宇宙放开须含现货腿面——SWAP 基币现货对
-				// 同入订阅集（对冲腿现价源非指数价——index-tickers 不可代）。
-				base := strings.TrimSuffix(i.InstID, "-USDT-SWAP") + "-USDT"
-				if !seenSpot[base] {
-					seenSpot[base] = true
-					out = append(out, base)
-				}
-			}
-		}
-		raw, err = cli.PublicGet(ctx, "/api/v5/public/instruments?instType=FUTURES")
-		if err != nil {
-			return out, nil // SWAP 全集已得——期货面缺=降级不连带让位
-		}
-		var fut []struct {
-			InstID string `json:"instId"`
-			Alias  string `json:"alias"`
-			State  string `json:"state"`
-			Uly    string `json:"uly"`
-		}
-		if err := json.Unmarshal(raw, &fut); err == nil {
-			datedRe := regexp.MustCompile(`-\d{6}$`)
-			for _, i := range fut {
-				// T-0189 返修：quarter 到期期货全收（-\d{6}$ 尾判）+uly
-				// 剥离键并入集（index-tickers USD 指数行覆盖——basisAnn JOIN 键）。
-				if i.State == "live" && i.Alias == "quarter" && datedRe.MatchString(i.InstID) {
-					out = append(out, i.InstID)
-					out = append(out, i.Uly) // T-0189 返修③：uly 载荷字段=钦定指数键（_UM 变体剥串错源根治）
-				}
-			}
-		}
-		// T-0142 黑名单滤（venue_untradeable——venue 拒过的 inst 不进订阅/评估）。
-		if bl, qerr := pool.Query(ctx, `SELECT inst_id FROM fin_venue_untradeable`); qerr == nil {
-			banned := map[string]bool{}
-			for bl.Next() {
-				var b string
-				if bl.Scan(&b) == nil {
-					banned[b] = true
-				}
-			}
-			bl.Close()
-			var kept []string
-			for _, sy := range out {
-				if !banned[sy] {
-					kept = append(kept, sy)
-				}
-			}
-			out = kept
-		}
-		return out, nil
+		return cli.PublicGet(ctx, pathWithQuery)
 	}
+}
+
+// dropUntradeable venue 黑名单滤（T-0142——venue_untradeable 行=venue 拒过
+// 的 inst 不进订阅/评估；表读败=原集放行不连坐——滤是增益面非阻断面）。
+func dropUntradeable(ctx context.Context, pool *pgxpool.Pool, syms []string) []string {
+	bl, err := pool.Query(ctx, `SELECT inst_id FROM fin_venue_untradeable`)
+	if err != nil {
+		return syms
+	}
+	defer bl.Close()
+	banned := map[string]bool{}
+	for bl.Next() {
+		var b string
+		if bl.Scan(&b) == nil {
+			banned[b] = true
+		}
+	}
+	var kept []string
+	for _, sy := range syms {
+		if !banned[sy] {
+			kept = append(kept, sy)
+		}
+	}
+	return kept
 }
