@@ -16,6 +16,7 @@ import { Component, type ReactNode } from "react";
 import { Card, EmptyState, Skeleton, StateDot } from "../components/ui";
 import { FlowPulseStrip, WorkItemsBlock } from "../components/flowpulse";
 import { MetaSeats } from "../components/metaseats";
+import { QuoteBoard } from "../components/QuoteBoard";
 import { AGE } from "../components/panel";
 import type {
   GetCockpitResponse,
@@ -253,6 +254,8 @@ export function CockpitPage() {
 			{/* —— 次档·答③机器面（v4：三张无头监控卡合一——工作流管道主瓦片，
 			    1 票 1 行管道流，ev_pipeline 流推秒级到屏）—— */}
 			<PipelineTile />
+			{/* —— T-0382 行情·价格提醒（观测面——单向飞书告警非条件单）—— */}
+			<QuoteBoard />
 			{/* —— 底档·④要我动的（armed）+①②平台明细（v3.2 同档保留卡不动）—— */}
 			<div className="duo">
 				<Card title="④ 待开仓"

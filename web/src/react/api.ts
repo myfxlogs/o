@@ -102,4 +102,9 @@ export const client: Client<typeof CoreService> = {
   // （写非幂等——同帧合并会吞掉一次真实翻位）。
   getEarnAutoPurchase: deduped("GetEarnAutoPurchase", raw.getEarnAutoPurchase),
   setEarnAutoPurchase: raw.setEarnAutoPurchase,
+  // T-0382：报价点+价格提醒——读面入合并窗（ev_ticks 帧重取同源节流），
+  // 写径裸调不入窗（建/翻非幂等——合并会吞真实操作）。
+  listPriceAlerts: deduped("ListPriceAlerts", raw.listPriceAlerts),
+  createPriceAlert: raw.createPriceAlert,
+  setPriceAlertState: raw.setPriceAlertState,
 };

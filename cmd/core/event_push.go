@@ -40,6 +40,16 @@ func startEventPush(ctx context.Context, _ chan<- error, pool *pgxpool.Pool,
 	go events.ListenLoop(ctx, pool, "venue_req_push",
 		[]string{"ev_venue_req"}, vq.Scan)
 
+	// T-0382 价格提醒拍（fin_price_alert active 行×md_ticks 最新价命中→
+	// 飞书推→fired 翻位+ops_event——ev_ticks 帧驱动钦定事件径非轮询；
+	// UPDATE ... WHERE state='active' 一发即锁防重响）。
+	pa := notify.NewPriceAlert(pool, sender, func() string {
+		v, _ := cfg.GetString("feishu.chat_id")
+		return v
+	}, func() bool { v, _ := cfg.GetBool("notify.feishu.price_alert.enabled"); return v })
+	go events.ListenLoop(ctx, pool, "price_alert",
+		[]string{"ev_ticks"}, pa.Scan)
+
 	// T-0314 经济案 digest（日拍首版不 LISTEN——fin_econ_lesson pending 批推
 	// 【经济案】待裁统计；sched-exempt-ok 日拍节律——同 calendar 先例）。
 	ec := notify.NewEcon(pool, sender, func() string {
