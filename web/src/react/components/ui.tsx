@@ -55,6 +55,23 @@ export function EmptyRow(props: { text: string }) {
   return <div className="empty-row">{props.text}</div>;
 }
 
+// Cols 独立列容器（T-0389 列联动解耦——钦定语义=各列瓦片独立排布零联动：
+// 每列一个 flex 列容器，列内 gap 恒定不随他列几何变化；替代 grid 同行行高
+// 耦合旧构（一卡展开撑高整行→他列瓦片被下推、短列卡间撑出大空白病灶）。
+// children 按列分组传——第 i 个子节点=第 i 列全部内容。列数/断点/列距
+// 由 className 携的面定（如 quad=桌面双列 ≥1100px），本件只管结构。
+export function Cols(props: { className?: string; children: ReactNode[] }) {
+  return (
+    <div className={"cols" + (props.className ? " " + props.className : "")}>
+      {props.children.map((c, i) => (
+        <div key={i} className="cols-col">
+          {c}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // EmptyState 空态（业主八条⑧：插画+引导，禁白板——插画=抽象线稿随主题墨色）。
 export function EmptyState(props: { title: string; hint?: string; children?: ReactNode }) {
   return (

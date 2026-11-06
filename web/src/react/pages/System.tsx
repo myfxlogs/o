@@ -8,7 +8,7 @@
 import { useEffect, useState } from "react";
 import { client } from "../api";
 import { useLive } from "../hooks";
-import { Card, EmptyState, ErrorState, Skeleton, StateDot } from "../components/ui";
+import { Card, Cols, EmptyState, ErrorState, Skeleton, StateDot } from "../components/ui";
 import { AGE, ExchSections, healthRows } from "../components/panel";
 import { pbDate } from "../components/fmt";
 import { HostMetricsCard } from "../components/hostmetrics";
@@ -123,8 +123,11 @@ export function SystemPage() {
         </div>
       )}
 
-      {/* ②④ 2 行 2 列（业主⑬）：行1=生产机|采集，行2=主机资源|席位 */}
-      <div className="quad">
+      {/* ②④ 双列独立（业主⑬ 位序沿用：列1=生产机|主机资源|管道，
+          列2=采集|席位——T-0389 列联动解耦：Cols 独立列容器，各列瓦片
+          独立排布零联动，exch-head 展开只增本卡高不推他列） */}
+      <Cols className="quad">
+      <>
       {/* ② 交易（生产）第一——钱径面永远先于管道面 */}
       {h.data ? (
         <Card
@@ -151,6 +154,14 @@ export function SystemPage() {
         </Card>
       ) : null}
 
+      {/* ④ 主机资源（列1 次卡） */}
+      <HostMetricsCard />
+
+      {/* T-0309：工程票组织流管道（挪位消费——出业主驾驶舱钱径舱，
+          ops_event 组织流业主仍可读；GetPipeline 端点不删只挪位）—— */}
+      <OrgPipelineTile />
+      </>
+      <>
       {/* ③ 采集——管道面（含 SG 采集臂进程观测组） */}
       {h.data ? (
         <Card
@@ -179,9 +190,6 @@ export function SystemPage() {
           )}
         </Card>
       ) : null}
-
-      {/* ④ 主机资源（行2 左） */}
-      <HostMetricsCard />
 
       <Card
         title="席位在册"
@@ -219,10 +227,8 @@ export function SystemPage() {
         )}
       </Card>
 
-      {/* T-0309：工程票组织流管道（挪位消费——出业主驾驶舱钱径舱，
-          ops_event 组织流业主仍可读；GetPipeline 端点不删只挪位）—— */}
-      <OrgPipelineTile />
-      </div>
+      </>
+      </Cols>
     </div>
   );
 }
