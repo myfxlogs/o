@@ -4,15 +4,14 @@
 // 偏离签名每天在账里产，无矿工拍=高信号教训随账沉没（T-0164 式「注释自白
 // 盲区」案）。只挖不裁不修——矿工零 KB 直写，判词归裁定席；不引外部服务，
 // 纯 PG 账内聚类；签名去重+日额防灌+无高信号零产（benny 沉默律）。
+// T-0387 扩：载荷 target 域（lesson|skill_patch）——skill 签名命中簇产
+// skill_patch 型 pending（产线/名册见 miner_skill.go）。
 package hunger
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"hash/crc32"
 	"sort"
-	"strings"
 )
 
 // 票面钦定值（T-0385 范围①④——慢拍窗/聚类阈/日额/签名冷却全票面给定，
@@ -136,7 +135,20 @@ func (s *Sensor) MineLessons(ctx context.Context) (int, error) {
 		if dup {
 			continue // 同签名重扫=去重不产
 		}
-		if err := s.minerDraft(ctx, c); err != nil {
+		// T-0387 产线分流：skill 签名命中→skill_patch 型（日额 ≤2——
+		// canon 高权文本面更严闸；额尽降级 lesson 不丢信号）。
+		target := "lesson"
+		skill, hits := matchSkillSig(c)
+		if skill != "" {
+			pok, err := s.minerPatchCapLeft(ctx)
+			if err != nil {
+				return produced, err
+			}
+			if pok {
+				target = "skill_patch"
+			}
+		}
+		if err := s.minerDraft(ctx, c, target, skill, hits); err != nil {
 			return produced, err
 		}
 		produced++
@@ -192,104 +204,4 @@ func (s *Sensor) minerDup(ctx context.Context, sig string) (bool, error) {
 		return false, fmt.Errorf("矿工签名去重读败: %w", err)
 	}
 	return n > 0, nil
-}
-
-// minerPayload 起草载荷机读五件（票面钦：签名=列/证据锚 ops_event id 列/
-// 定性草案/建议条目名/验证态——验证态为列，本件载其余三件+归类辅证）。
-// T-0388 扩第六件 repro_hint：可机判病灶类附桩建议文（非可编译码——工人
-// 据以写真桩；omitempty 非机判类零载不硬塞）。
-type minerPayload struct {
-	Event          string   `json:"event"`
-	Key            string   `json:"key"`
-	EvidenceIDs    []int64  `json:"evidence_ids"`
-	Tickets        []string `json:"tickets"`
-	Draft          string   `json:"draft"`
-	SuggestedEntry string   `json:"suggested_entry"`
-	ReproHint      string   `json:"repro_hint,omitempty"`
-}
-
-// minerDraft pending 行落库（verify_state=ai_evaluated——机器聚类稿带实证
-// 锚非 unverified；同拍 ops_event 教训矿工行留账=自主≠无账，行不在矿工
-// 签名集内零自指）。
-func (s *Sensor) minerDraft(ctx context.Context, c *mineCluster) error {
-	p := minerPayload{Event: c.rows[0].lessonClass()}
-	tset := map[string]bool{}
-	for _, r := range c.rows {
-		p.EvidenceIDs = append(p.EvidenceIDs, r.id)
-		if r.ticket != "" && !tset[r.ticket] {
-			tset[r.ticket] = true
-			p.Tickets = append(p.Tickets, r.ticket)
-		}
-	}
-	first := c.rows[0]
-	sort.Strings(p.Tickets)
-	p.Key = first.ticket
-	if p.Key == "" {
-		p.Key = first.seat
-	}
-	if p.Event == "升件" && first.escClass != "" {
-		p.Key = first.escClass + ":" + first.escScope
-	}
-	note := first.note
-	if len([]rune(note)) > 140 {
-		note = string([]rune(note)[:140]) + "…"
-	}
-	p.Draft = fmt.Sprintf("事件账同窗(%dh)%s×%d —— 首行: %s",
-		minerWindowHours, c.sig, len(c.rows), note)
-	p.SuggestedEntry = engEntrySlug(p.Key, c.sig)
-	p.ReproHint = minerReproHint(c)
-	b, err := json.Marshal(p)
-	if err != nil {
-		return fmt.Errorf("矿工载荷序列化: %w", err)
-	}
-	var id int64
-	err = s.pool.QueryRow(ctx, `INSERT INTO fin_eng_lesson(signature,cluster_n,verify_state,numbers)
-		VALUES($1,$2,'ai_evaluated',$3::jsonb) RETURNING id`,
-		c.sig, len(c.rows), b).Scan(&id)
-	if err != nil {
-		return fmt.Errorf("矿工 pending 落库 signature=%s: %w", c.sig, err)
-	}
-	if _, err := s.pool.Exec(ctx,
-		`INSERT INTO ops_event(seat,event,ticket,note) VALUES($1,'教训矿工',$2,$3)`,
-		minerSeat, minerTicket,
-		fmt.Sprintf("pending#%d signature=%s n=%d evidence=#%s",
-			id, c.sig, len(c.rows), joinIDs(p.EvidenceIDs))); err != nil {
-		return fmt.Errorf("矿工留账行: %w", err)
-	}
-	return nil
-}
-
-// engEntrySlug 建议条目名（工程经验库 id=ASCII kebab——非 ASCII/空白折叠
-// 横线，零词元退 crc32 指纹兜底保唯一可读位）。
-func engEntrySlug(key, sig string) string {
-	var b strings.Builder
-	for _, r := range strings.ToLower(key) {
-		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
-			b.WriteRune(r)
-		} else {
-			b.WriteByte('-')
-		}
-	}
-	slug := strings.Trim(b.String(), "-")
-	for strings.Contains(slug, "--") {
-		slug = strings.ReplaceAll(slug, "--", "-")
-	}
-	if slug == "" {
-		slug = fmt.Sprintf("sig-%08x", crc32.ChecksumIEEE([]byte(sig)))
-	}
-	if len(slug) > 40 {
-		slug = strings.Trim(slug[:40], "-")
-	}
-	return "eng-" + slug
-}
-
-func joinIDs(ids []int64) string {
-	var b strings.Builder
-	for i, id := range ids {
-		if i > 0 {
-			b.WriteByte(',')
-		}
-		fmt.Fprintf(&b, "%d", id)
-	}
-	return b.String()
 }
