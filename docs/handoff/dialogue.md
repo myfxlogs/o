@@ -1282,3 +1282,28 @@
   o-postgres schema_migrations），md 链 1089 随窗齐。xvenue-carry
   首案激活=部署后 ev_strategy/ev_eval 有机触发（票面禁绕径手建）。
 - 本拍 rescan 队列空；无升件、无返修新票。
+
+## 2026-11-06 决策席班次（T-0378 裁过闭环+T-0379 队列盲区手动补派+升件）
+
+- **T-0378 裁决=通过**（外派收口 38d43fb3 回 DM 常径首案）：lifecycle
+  挂饥饿感知拍（独立 ticker 6h——事件拍在饥饿态结构性失明，票面预留
+  独立拍径；SilentWatch 看门拍同构）+Detect 先 Respond 后每拍至多一响
+  +败自报升件行（写败/LIFECYCLE-HUNGER，note 前缀同窗 24h 去重——
+  T-0369 容错必报）+hunger 包本体零动红线守住。范围核：
+  check_import_direction 白名单行+判类册 LIFECYCLE-HUNGER 行=接线机械
+  必要；run.go 拆 hunger.go 防棘轮。桩测四件 uncached 亲验绿+
+  check_all 全链绿本席两跑（wt 对口 38d43fb3+master 对口 e97496ef）。
+  merge@276026e4+票翻@e97496ef 推①（推至精确 SHA 避让 COS 并发在飞
+  commit），归done@86bb67d7 随 COS 推②合流@feac5688；ops_event
+  裁决#2323/完成#2328。镜像面件——并入下次发窗不独部。
+- **T-0379 队列盲区手动补派**：业主令撤外派改 DM 常径内循环（COS
+  已批#2327），但 dm_queue 外派票级历史排除把本票永久排出待派集
+  （latest=已批✓ 无派单链✓ 但史上有外派行=排除命中）——空输出=
+  队列空假象，凭并发目击补派：dispatch_worker 过闸 o-worker-T-0379
+  已拉起（swe-2-high，派单#2330）。**机制缺口升件#2331 呈交互形态
+  立修票**——排除径宜收窄为「外派后无再批」或撤外派落销行。
+- **注意账**：部署树多席并发期归done commit 用目录 pathspec 卷入
+  COS staged T-0379 票面改（86bb67d7 夹带语义改；非 ff 闸拒回头）
+  ——KB 条目 deploy-tree-commit-dir-pathspec-sweeps-others-staged
+  入册：pathspec 精确到文件、rename 双径、commit 前核他席 staged。
+- 本拍 rescan 队列空；T-0379 施工中（下班接收口常径裁）。
