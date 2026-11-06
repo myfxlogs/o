@@ -60,15 +60,27 @@ check_all），**直写 SQL 绕 DMSet=违例**。
 ### 产出
 seat_run 迹——ops_event 裁决行携票号+裁词+理由（票面验收锚即此兑现）。
 
-## 班次节（T-0354——事件 kick+drain 自退班次制）
+## 班次节（T-0354——事件 kick+drain 自退班次制；T-0414 收窄为判断轨）
 
-- **班次=本会话一次存续**：scan 待裁/待派集→逐件裁→rescan→**队列空才
-  退**；会话期新到移交/收口自然吸收（一批事件冷启一次，非每事件一会话）。
-- **队列唯一推导=拍壳同源件**：`bash /opt/o/scripts/meta/dm_queue.sh`
-  （输出待裁/待派票号行集；空输出=队列空=本班收班，拍壳闸同式防漂）。
+- **班次=本会话一次存续**：scan **待裁集**→逐件裁→rescan→**待裁集空才
+  退**；会话期新到移交/收口自然吸收。班=判断才烧——机械集空时零烧空拍。
+- **队列唯一推导=拍壳同源件**：`bash /opt/o/scripts/meta/dm_queue.sh review`
+  （T-0414：会话只接 review 面=收口类待裁；approved 待派面全归壳轨——
+  dm_depgate 零交集即派 + dm_tick 补拉窗，会话不手派、不扫派单面）。
+- **机械轨出会话**（T-0414——「机械层烧Token=浪费钱」业主令）：以下动作
+  一律归壳 `scripts/meta/dm_ledger.sh`（dm_tick 每拍尾窗自跑），会话
+  **禁再做**：票翻（票件 mv 入 done/+状态行翻完成+[角色:决策]机械串
+  commit+push）、台账补登（done/ 票无完成行→机械补登）、完成行落账
+  （壳轨 seat=META-DM 同拍写——会话裁毕留裁决行即走，票翻面台账面
+  壳轨同拍自理）。会话余业=判断件：审计裁词/敌意回放/merge 裁决文/
+  驳回意见/升件。
+- **写径互斥**（T-0414 件④）：在 `/opt/o` 部署树上跑任何 git 写
+  （merge/commit/push）前必须 `bash /opt/o/scripts/meta/dm_repolock.sh
+  acquire 决策席-<tid> 120`（rc3=壳轨持锁→sleep 30 重试；rc6=抢陈锁
+  得须升件显报），写毕 `release <token>`——壳轨票翻同锁互斥防双写。
 - **重裁幂等（每票动手前必查）**：该票最新 ops_event 已含
   `裁决`/`完成`/`驳回`，或其收口支已合 master（`git log origin/master
-  --oneline` 可见收口 SHA）→跳过不重 merge/flip/push——崩后重进零重复。
+  --oneline` 可见收口 SHA）→跳过不重 merge/push——崩后重进零重复。
 - **单例由拍壳闸自理**（PG advisory lock 持锁径）——班内不抢不养；本班
   退出即让锁，后到 kick/兜底拍由下班承接。
 - **kick=纯加速件**：kick 链哑（总线/隧道断）不丢票——ops_event 行在
@@ -103,11 +115,12 @@ seat_run 迹——ops_event 裁决行携票号+裁词+理由（票面验收锚�
 本卡跑在**无头形态**（o-decision-seat.service）；交互形态=O-DM pane 同席
 同人，域互不重叠——越界即违例。
 
-- **本形态独占**：收口裁决 / merge / 票翻 / 自立返修票 / **常径派单**
-  ——裁毕按队列序+自产返修子票，`report.sh 派单 T-NNNN "<转发文>"`
-  →ops_event 派单行同拍调用 `scripts/meta/dispatch_worker.sh <tid>
-  <swe-2-high|swe-2-medium> "<转发文>"`；该共享闸执行额度冷却/并发检查后
-  `systemd-run` 拉起无头施工 run。限额默认并行=1，最多可经
+- **本形态独占**：收口裁决 / merge / 自立返修票 / **常径派单**（票翻、
+  台账补登、完成行落账自 T-0414 起归壳轨 dm_ledger.sh——会话裁毕留
+  裁决行即走）——裁毕按队列序+自产返修子票，`report.sh 派单 T-NNNN
+  "<转发文>"`→ops_event 派单行同拍调用 `scripts/meta/dispatch_worker.sh
+  <tid> <swe-2-high|swe-2-medium> "<转发文>"`；该共享闸执行额度冷却/并发
+  检查后 `systemd-run` 拉起无头施工 run。限额默认并行=1，最多可经
   `O_WORKER_PARALLEL_LIMIT=2` 调到2；额度不足票留队，禁绕闸直调
   `systemd-run`（T-0343）。
 - **取号唯一径**（collab §2 取号仲裁条，T-0373 钉死）：立票/返修子票

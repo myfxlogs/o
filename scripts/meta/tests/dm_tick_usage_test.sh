@@ -65,6 +65,7 @@ mkdir -p "$O_DECISION_WORKDIR"
 export O_DECISION_DEVIN_BIN="$TMP/bin/devin"
 export O_DM_DEPGATE_SH="$TMP/bin/depgate"
 export O_WORKER_USAGE_BIN="$ROOT/scripts/meta/ticket_usage.sh"
+export O_DM_LEDGER_SH=/bin/true # T-0414：机械轨件单测——tick 接线面桩掉防真 git/psql
 export DECISION_CALLS="$TMP/decision-calls"
 export USAGE_INSERTS="$TMP/usage-inserts"
 export ESC_INSERTS="$TMP/esc-inserts"

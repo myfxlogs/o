@@ -90,6 +90,7 @@ export O_DECISION_WORKDIR="$TMP/decision" O_WORKER_RUNTIME_DIR="$TMP/rt"
 export O_OPS_ESC_SH="$TMP/bin/ops_esc_log" O_WORKER_OPS_ESC_SH="$TMP/bin/ops_esc_log"
 export O_WORKER_REPORT_BIN="$TMP/bin/report-stub"
 export O_DM_QUEUE_SH="$TMP/bin/dm-queue-empty" O_DM_SUSPEND_SH="$TMP/bin/dm-suspend-ok"
+export O_DM_LEDGER_SH=/bin/true # T-0414：机械轨件单测——tick 接线面桩掉防真 git/psql
 export ESC_PSQL_LOG="$TMP/esc-psql" ESC_LOG="$TMP/esc-log"
 : > "$ESC_LOG"; : > "$ESC_PSQL_LOG"
 

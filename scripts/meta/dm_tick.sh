@@ -89,13 +89,15 @@ if [ -n "$FIN_DSN" ]; then
 fi
 
 # ① 待裁闸：无待裁时跳过 LLM，但仍运行下方零 LLM 的 worker 派发/续跑闸。
+# T-0414 会话面收窄：开班判据=review 面（判断件——收口类待裁），已批待派面
+# 全归壳轨（dm_depgate 零交集即派/补拉窗/dm_ledger 票翻补登）不烧会话。
 SKIP_DECISION=0
 PENDING_TICKETS=
 if [ -n "$FIN_DSN" ]; then
   # T-0315②/T-0347 判据原文单源 dm_queue.sh——拍壳闸与会话班内 rescan
   # 同式（判据细则见该件头注：收口类最新刻无终态裁决，或已批未进派单链）。
   QRC=0
-  PENDING_TICKETS=$("$DM_QUEUE_SH" 2>/dev/null) || QRC=$?
+  PENDING_TICKETS=$("$DM_QUEUE_SH" review 2>/dev/null) || QRC=$?
   [ "$QRC" -ne 0 ] && dm_esc "队列推导败" "rc=$QRC 待裁集不可知按空集滑行"
   N=$(printf '%s\n' "$PENDING_TICKETS" | awk 'NF {n++} END {print n+0}')
   if [ "$N" -eq 0 ]; then
@@ -146,7 +148,7 @@ if [ "$SKIP_DECISION" -eq 0 ]; then
   #    六态词表正常终态）；队列仍非空=本班未尽，留 alive 待下班（kick/
   #    兜底拍续班）。
   QRC2=0; QRECHECK=
-  if [ $RC -eq 0 ]; then QRECHECK=$("$DM_QUEUE_SH" 2>/dev/null) || QRC2=$?; fi
+  if [ $RC -eq 0 ]; then QRECHECK=$("$DM_QUEUE_SH" review 2>/dev/null) || QRC2=$?; fi
   [ "$QRC2" -ne 0 ] && dm_esc "队列推导败" "rc=$QRC2 drain复核败——班后队列不可知按空集判退（容错语义不动）"
   if [ $RC -eq 0 ] && [ -z "$QRECHECK" ]; then
     hb exit
@@ -212,5 +214,15 @@ if [ -n "$FIN_DSN" ]; then
   TRC=0
   (cd /opt/o && FIN_PG_DSN="$FIN_DSN" go run ./tools/ticketdraft -repo /opt/o >/dev/null 2>&1) || TRC=$?
   [ "$TRC" -ne 0 ] && dm_esc "物料化径败" "rc=$TRC ticketdraft 未跑净——pending 草案滞留（升件面工具内自报，本行=拍壳兜底）"
+fi
+
+# T-0414 机械轨尾窗（零 LLM 段尾——票翻/台账补登壳轨件：dm_ledger.sh）。
+# 位置义：kick 直驱不走会话——ops_event 新行即办机械活；会话判词刚落的
+# 票在同拍尾窗即归档补登（零会话等候）。败=升件自报不静默。
+if [ -n "$FIN_DSN" ]; then
+  DM_LEDGER_SH=${O_DM_LEDGER_SH:-"$SCRIPT_DIR/dm_ledger.sh"}
+  LRC=0
+  "$DM_LEDGER_SH" || LRC=$?
+  [ "$LRC" -ne 0 ] && dm_esc "机械轨本体败" "rc=$LRC dm_ledger 未跑净——票翻/台账补登滑行"
 fi
 exit 0
