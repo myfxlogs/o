@@ -96,3 +96,4 @@ fin_quote_watchlist	fin
 fin_ticket_draft	fin
 md_tick_scan	bridge
 fin_sub_request	bridge
+ops_face_snapshot	fin
