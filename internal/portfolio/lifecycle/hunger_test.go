@@ -31,6 +31,7 @@ type stubSensor struct {
 	draftN   int
 	ferr     error
 	depErr   error
+	fserr    error
 	detects  int
 	responds int
 	probes   int
@@ -38,6 +39,7 @@ type stubSensor struct {
 	mines    int
 	drafts   int
 	deps     int
+	fstales  int
 }
 
 func (s *stubSensor) Detect(context.Context) (*hunger.Report, error) {
@@ -69,6 +71,11 @@ func (s *stubSensor) ProbeLegCoverage(context.Context) error {
 func (s *stubSensor) ProbeDeps(context.Context) error {
 	s.deps++
 	return s.depErr
+}
+
+func (s *stubSensor) ProbeFeedStale(context.Context) error {
+	s.fstales++
+	return s.fserr
 }
 
 func (s *stubSensor) MineLessons(context.Context) (int, error) {
@@ -362,5 +369,27 @@ func TestHungerTickDrafterSameSlot(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
 		WHERE event='升件' AND esc_scope='LIFECYCLE-HUNGER' AND note LIKE 'hungertick drafter 败%'`).Scan(&n); err != nil || n != 1 {
 		t.Fatalf("起草拍败情自报行缺: n=%d err=%v", n, err)
+	}
+}
+
+// TestHungerTickFeedStaleEveryBeat 锚（T-0410）：feed 死闸与 Detect 同槽——
+// 每拍先探（饥饿与否无关）；探针假败→升件自报行落+Detect 照常（败情隔离）。
+func TestHungerTickFeedStaleEveryBeat(t *testing.T) {
+	pool := testutil.Pool(t)
+	ctx := context.Background()
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatal(err)
+	}
+	stub := &stubSensor{rep: &hunger.Report{Triggered: false, WindowDays: 3},
+		fserr: errors.New("假败——行龄读败")}
+	r := &Runner{pool: pool, sensor: stub}
+	r.hungerTick(ctx)
+	if stub.fstales != 1 || stub.detects != 1 {
+		t.Fatalf("feed死闸/Detect 同槽拍不齐: fstales=%d detects=%d", stub.fstales, stub.detects)
+	}
+	var n int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='升件' AND esc_scope='LIFECYCLE-HUNGER' AND note LIKE 'hungertick feedstale_probe 败%'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("feed死闸败情自报行缺: n=%d err=%v", n, err)
 	}
 }

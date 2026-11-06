@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -98,7 +99,8 @@ func (c *Calendar) Scan(ctx context.Context) error {
 	if err != nil {
 		d, n := c.miss()
 		log.Printf("[财经日历] feed 拉取败（连败退避 %s 后复拍，拉取败累计 %d——计数+log 不炸）: %v", d, n, err)
-		return nil // 断源不炸推送面
+		c.escalate(ctx, "拉取", err) // T-0410 零静默——败=升件非仅计数
+		return nil                 // 断源不炸推送面
 	}
 	defer resp.Body.Close()
 	// T-0296 件②根修——StatusCode 必检：429/5xx 页不再当 XML 进 decode
@@ -106,6 +108,7 @@ func (c *Calendar) Scan(ctx context.Context) error {
 	if resp.StatusCode != http.StatusOK {
 		d, n := c.miss()
 		log.Printf("[财经日历] feed HTTP %d（连败退避 %s 后复拍，拉取败累计 %d）", resp.StatusCode, d, n)
+		c.escalate(ctx, "HTTP", fmt.Errorf("feed HTTP %d", resp.StatusCode))
 		return nil
 	}
 	c.ok() // 200 到手=限流复常——退避档归零回 15min 拍
@@ -118,6 +121,14 @@ func (c *Calendar) Scan(ctx context.Context) error {
 	dec.CharsetReader = charset.NewReaderLabel
 	if err := dec.Decode(&w); err != nil {
 		log.Printf("[财经日历] feed 解包败（累计 %d）: %v", c.bump(&c.decErrs), err)
+		c.escalate(ctx, "解包", err)
+		return nil
+	}
+	// T-0410 零静默件②：200 但零事件行=空返升件（上游周历空返=断更前兆
+	// 对拍锚落账非静默滑过——同窗 24h 去重不暴）。
+	if len(w.Events) == 0 {
+		log.Printf("[财经日历] feed 空返（200 零事件行——升件对拍锚）")
+		c.escalate(ctx, "空返", errors.New("feed 200 空事件集"))
 		return nil
 	}
 	minImp := c.minImp()
@@ -194,6 +205,31 @@ func (c *Calendar) bump(p *int64) int64 {
 	defer c.mu.Unlock()
 	*p++
 	return *p
+}
+
+// 升件行席别/环票号/判例域（price_alert/hungerEscalate 同构口径——
+// esc_scope='CALENDAR-FEED' 与 feedstale 探针观测盲升件同域不同 class 不撞窗）。
+const (
+	calendarSeat   = "提醒拍"
+	calendarTicket = "T-0410"
+)
+
+// escalate 败情自报升件行（T-0410 零静默事实律——拉取败/空返/解包败=升件
+// 不静默，原仅计数+log 断更两日零升件病灶根修）：读败/CALENDAR-FEED 判例
+// 键，note 前缀同窗 24h 至多一行不暴（hungerEscalate 同构去重）；自报行
+// 自身写败/pool 缺席（桩测面）=静默退（升件不能再升——T-0369 结构性限度）。
+func (c *Calendar) escalate(ctx context.Context, phase string, cause error) {
+	if c.pool == nil {
+		return
+	}
+	prefix := "calendar " + phase + " 败"
+	if _, err := c.pool.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note,esc_class,esc_scope)
+		SELECT $1,'升件',$2,$3,'读败','CALENDAR-FEED'
+		WHERE NOT EXISTS (SELECT 1 FROM ops_event
+			WHERE event='升件' AND note LIKE $4 AND ts>now()-interval '24 hours')`,
+		calendarSeat, calendarTicket, fmt.Sprintf("%s: %v", prefix, cause), prefix+"%"); err != nil {
+		log.Printf("[财经日历] 自报行落败（结构性限度静默退）: %v（原败: %v）", err, cause)
+	}
 }
 
 // impactRank 影响级排级（High=3/Medium=2/Low=1——低噪音阈可配）。
