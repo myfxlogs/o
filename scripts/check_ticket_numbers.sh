@@ -156,11 +156,11 @@ if [ "${1:-}" = "--remote" ]; then
       # （T-0219 语义缺口实证 2026-11-07：tasks/→done/ 内容异档判不了 R 形，
       #   落 key 撞误拦——删加对=归档移身份未变；删除集查 staged∪推送区间，
       #   D 行与 R 源行皆算删）
-      same_key_remote=$(printf '%s\n' "$remote_files" | grep -E "/${key}(-|\.md$)" | head -1 || true)
+      same_key_remote=$(printf '%s\n' "$remote_files" | grep -E "/${key}(-|\.md$)" | head -1 || true) # tolerate: 同key原档缺=空same_key落撞号判——豁免仅免档删时，缺席回落既有FAIL径非静默吞
       del_paths=$( {
         git -c core.quotepath=off diff --cached --name-status 2>/dev/null
         [ -n "$mb" ] && git -c core.quotepath=off diff --name-status "$mb" HEAD 2>/dev/null
-      } | awk -F'\t' '$1=="D"{print $2} $1 ~ /^R/{print $2}' | sort -u || true)
+      } | awk -F'\t' '$1=="D"{print $2} $1 ~ /^R/{print $2}' | sort -u || true) # tolerate: diff败=空del集——删档缺席则豁免不触发落撞号判，fail-closed 非静默吞
       if [ -n "$same_key_remote" ] && printf '%s\n' "$del_paths" | grep -x "$same_key_remote" >/dev/null; then
         echo "NOTE(T-0219): $p 远端同key原档同push删除——归档移放行" >&2
       else
