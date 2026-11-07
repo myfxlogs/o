@@ -100,3 +100,4 @@ ops_face_snapshot	fin
 ops_decision	fin
 fin_symbol_dialect	fin
 fin_exec_drill	fin
+fin_guard_suspend	fin
