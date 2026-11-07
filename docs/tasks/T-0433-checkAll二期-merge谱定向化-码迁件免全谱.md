@@ -46,3 +46,56 @@ T-0409 三档已生效（docs-only/scoped 实证两推豁免），但**merge 场
 
 二期只做闸耗时——DM 串行单点本体是另一结构性议题
 （决策席并行化/裁决分席），另案挂不混票。
+
+## 结果回填
+
+- 实现摘要：`scripts/check_all.sh` 四档制——scoped 与 full
+  间插 merge-scoped 档。分类面扩三旗标 HAS_MIG
+  （migrations/*.sql）/HAS_PROTO（proto/*）/安全基建件
+  （scripts/*、.github/* 不入 HAS_OTHER 不入 CODE_SEEN）；
+  CODE_SEEN=.go|mig|proto 任一→定向谱候选（scoped/
+  merge-scoped 同构统一分支——scoped=无附加种子特例零回归）。
+  附加种子：迁移→`o/internal/store/pgstore`（migrate 测+
+  反向闭包受影响包；check_migrations 闸门禁位恒跑不动）；
+  proto→`o/internal/gen/<dir>` 逐文件映射+`buf build`
+  proto 闸（buf 缺席/编译败→判不准回退 full）。闭包+恒测册
+  五域 12 包+AP 展开失败回退全谱照旧；.mode 四档留痕
+  （merge-scoped 附实测包集清单同形）。
+- 测试证据（scratch wt 新脚本直跑三档+一兜底）：
+  ①merge-scoped——proto/dashboardv1 探针+.go+scripts 件→
+  mode=merge-scoped，包集=19 含 gen/dashboardv1+
+  dashboardv1connect 种子+反向闭包（cmd/core、hlprobe、
+  overviewprobe=dashboard 消费者实证）+恒测册 12 全在列
+  （恒测册零漏=红桩断言成立——任意 diff 下五域必在谱）；
+  ②scoped 回归——.go+scripts 件→mode=scoped 包集=13
+  无 gen/pgstore 混入（T-0409 语义零回归实证）；
+  ③fail-closed——proto/o/explorer 探针（internal/gen/o/
+  explorer 无映射包）→go list 败→mode=full 全谱兜底；
+  ④docs-only 分支代码面零动（ALL_DOCS 判据逐字未改）。
+- 时长对照：merge-scoped 实测判定+包集瞬时（分类段
+  go list×N+python 闭包 <5s）；谱宽由 diff 面决定——
+  dashboard proto→19 包（含 cmd/core 重包）vs 全谱 ~90
+  包；典型迁移+叶码 merge→pgstore 闭包+恒测册≈15-25 包
+  量级（预期 20min→分钟级）。
+- 偏离说明：①「proto 再生闸」裁读=buf build 编译校验
+  （只读零写面）——gen 再生新鲜度归 bootstrap/deploy 径
+  （check_all 全谱旧制同限不自再生，merge-scoped 不劣化）；
+  ②merge 提交形非必需——分类按内容面不按 commit 形
+  （同文件集分支推送同享定向谱，安全面等价）；
+  ③迁移桩测件未能实跑——孤儿迁记 gate 先拒（探针迁移
+  无登记行），pgstore 种子径与 .go 种子同构代码面可证；
+  ④「已知安全基建件」白名单取最小集 scripts/*+.github/*
+  ——web/tools 非 go/yaml/json/go.mod 全落 full 保守向。
+- 坑处置①（自查发现 fail-open 已修）：基建件分支
+  `scripts/*|.github/*) ;;` 首版漏清 ALL_DOCS——docs+scripts
+  面误判 docs-only 免测（绿戳落在改了 check_all.sh 本体的
+  commit 上=活标本）。已修=`ALL_DOCS=0`（基建件=中性：
+  独现/伴 docs 落 full 不免测，伴码件入 merge-scoped）。
+  红桩回归=scripts/meta/tests/check_all_scope_test.sh 场景①
+  七场景全绿（docs-only/scoped/merge-scoped/full 四档+
+  恒测册 13 包逐包断言+映射败/闭包败/go.mod 混入三路
+  fail-closed）。
+- 坑处置②（必读条目落地）：pipefail-grep-q-early-exit-
+  false-negative——`docker ps|grep -q` 两处改
+  `PG_NAMES=$(docker ps …||true)`+`grep -q <<<"$PG_NAMES"`
+  herestring 同式（T-0409 遗留面同批根修，非新增）。
