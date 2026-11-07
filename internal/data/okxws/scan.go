@@ -23,6 +23,7 @@ import (
 
 	"o/internal/platform/config"
 	"o/internal/platform/rejects"
+	"o/internal/platform/scanwm"
 )
 
 // scanPollS 钦定节拍（秒）——票面「60s 一拍」钉死值，config 覆写仅限调优。
@@ -36,9 +37,18 @@ type ScanGet func(ctx context.Context, pathWithQuery string) (json.RawMessage, e
 // 同供给件同 TTL 同 fail-closed）。
 type ScanGate func(ctx context.Context) (map[string]bool, error)
 
+// venueOKX 本面 venue 域（md_tick_scan.venue 列默认值——水位闸判例域锚）。
+const venueOKX = "okx"
+
+// famReg 族注册行（scanFams 册行形——instType=OKX 原词；col=md_tick_scan
+// 族标小写归一）。
+type famReg struct{ instType, col string }
+
 // scanFams 扫族册（T-0427——instType=OKX 原词按序各一发；col=md_tick_scan.
 // inst_type 族标小写归一；OPTION/MARGIN 票面不收——无消费面）。
-var scanFams = []struct{ instType, col string }{
+// T-0440：本册=scan 注册面正本——水位闸期望族集唯一派生源（非闸内写死；
+// 新族注册即自动入闸域）。
+var scanFams = []famReg{
 	{"SWAP", "swap"}, {"SPOT", "spot"}, {"FUTURES", "futures"},
 }
 
@@ -52,12 +62,41 @@ type ScanPoller struct {
 	// 缺席=该族 fail-closed 让位不虚构；全域 nil=谱域闸缺席——桩测/兼容
 	// 面，行直落不拦，生产装配必挂）。
 	Gates map[string]ScanGate
+	// fams 注册面=本 venue 应扫族集（T-0440——唯一期望源，装配时定）。
+	fams []famReg
+	// WM 族谱水位闸（T-0440③——注册面派生自动挂线；nil=守位桩测面）。
+	WM *scanwm.Gate
 }
 
 // NewScanPoller 装配（get=nil 拒装——零凭据公开面读件仍须显式挂线）。
+// T-0440：水位闸随装配自动入闸域（期望集=本册注册面派生——闸体零 venue
+// 硬编码；pool 缺=守位 nil 闸）。
 func NewScanPoller(pool *pgxpool.Pool, cfg *config.Client, get ScanGet) *ScanPoller {
-	return &ScanPoller{pool: pool, cfg: cfg, get: get,
+	p := &ScanPoller{pool: pool, cfg: cfg, get: get, fams: scanFams,
 		rej: rejects.New("okxscan", "scan_fetch_err", "scan_write_err", "scan_empty")}
+	p.WM = newWatermark(pool, p.fams)
+	return p
+}
+
+// newWatermark 族谱水位闸装配（T-0440③a）：期望集=注册面派生；实落读缝=
+// md_tick_scan 逐族 recv_ts 水位（鲜落族每拍前进——龄超阈=零鲜落持续实证）；
+// 升件面=ops_event 同池。
+func newWatermark(pool *pgxpool.Pool, fams []famReg) *scanwm.Gate {
+	if pool == nil {
+		return nil // 守位——桩测/缺池面
+	}
+	cols := make([]string, len(fams))
+	for i, f := range fams {
+		cols[i] = f.col
+	}
+	return scanwm.New(pool, "okxscan", "T-0440", venueOKX, cols,
+		func(ctx context.Context, fam string) (*time.Time, error) {
+			var wm *time.Time
+			err := pool.QueryRow(ctx,
+				`SELECT max(recv_ts) FROM md_tick_scan WHERE venue=$1 AND inst_type=$2`,
+				venueOKX, fam).Scan(&wm)
+			return wm, err
+		})
 }
 
 // Run 60s 拍环（起即首拍——不等首 tick 消盲区）。败=上抛 errc 岗终。
@@ -88,9 +127,9 @@ func (p *ScanPoller) Run(ctx context.Context, errc chan<- error) {
 // 族败让位他族照常（fail-closed 粒度到族）；全族败=本拍 loud 上抛岗终。
 func (p *ScanPoller) ScanOnce(ctx context.Context) error {
 	b := &pgx.Batch{}
-	counts := make(map[string]int, len(scanFams))
+	counts := make(map[string]int, len(p.fams))
 	var famErrs []error
-	for _, f := range scanFams {
+	for _, f := range p.fams {
 		n, err := p.scanFam(ctx, f.instType, f.col, b)
 		if err != nil {
 			famErrs = append(famErrs, fmt.Errorf("%s 族: %w", f.instType, err))
@@ -98,7 +137,7 @@ func (p *ScanPoller) ScanOnce(ctx context.Context) error {
 		}
 		counts[f.instType] = n
 	}
-	if len(famErrs) == len(scanFams) {
+	if len(famErrs) == len(p.fams) {
 		return errors.Join(famErrs...) // 全族败=面病灶——同原 loud 形
 	}
 	for _, e := range famErrs {
@@ -111,6 +150,7 @@ func (p *ScanPoller) ScanOnce(ctx context.Context) error {
 	}
 	log.Printf("[okxscan] 粗扫拍 swap=%d spot=%d futures=%d upsert md_tick_scan",
 		counts["SWAP"], counts["SPOT"], counts["FUTURES"])
+	p.WM.Beat(ctx) // 族谱水位闸拍（T-0440——观测面零侵入：nil 守位/败 WARN 不拖扫径）
 	return nil
 }
 

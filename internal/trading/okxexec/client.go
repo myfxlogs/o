@@ -10,13 +10,13 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"strconv"
 	"sync"
 	"time"
 
+	"o/internal/platform/httpread"
 	"o/internal/platform/signutil"
 )
 
@@ -119,7 +119,8 @@ func (c *Client) doOnce(ctx context.Context, method, pathWithQuery string, body 
 		return nil, fmt.Errorf("httpStatusError: %w", err) // 传输败≠业务拒——clOrdId 定态径消费
 	}
 	defer resp.Body.Close()
-	b, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	// T-0440①②：帽 1MB→8MB（PublicCap——SPOT instruments 2026-11-07 实测 1.31MB 增长中，旧帽截断→SPOT 族 fail-closed 每拍让位）+超帽 ErrOverCap 显式错（不再以 JSON 语法错伪装）。
+	b, err := httpread.Body(resp.Body, httpread.PublicCap)
 	if err != nil {
 		return nil, err
 	}
