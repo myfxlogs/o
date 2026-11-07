@@ -90,6 +90,89 @@ ops_event `裁决`/`驳回`/`参数调整` 行同拍自动镜像 ops_decision se
   账在，30min 兜底拍照常收；kick 链健康时事件落行秒级唤醒（T-0312
   总线 eventbus→metabus→o-decision-seat）。
 
+### 批merge盖顶（T-0436——洪峰期连合一戳）
+
+治面：旧径逐件「审→merge→check_all→推」在待裁洪峰日=N 个串行戳，
+且中间戳随下一 merge 落地即作废（戳绑 HEAD——坑条目
+`check-all-stamp-binds-head-sha`），N-1 个戳纯废功。批径=**审裁零批化、
+戳推合一戳**（洪峰理论下界 1 戳/批）。纯协议节零闸脚本改动——全程由
+既有件拼装：check_all 档位自定 / pre-push 验戳 / dm_repolock 互斥 /
+dm_queue 推导。**判据不中=班次行为与本节立票前逐字等价（单件旧径零回归）**。
+
+- **① 洪峰判据（开批前置断言，逐条机对，任一不满足=不开批）**：
+  1. `dm_queue.sh review` 待裁集 ≥2；
+  2. 剔除不可批件后剩 **≥2**：禁批面件（见④）与 docs-only 直推件不入批
+     （docs 件 docs-only 快档已秒级，批之无益且混面拉高盖顶档位）；
+     面判径=票支 diff 名单机对——`git diff --name-only
+     origin/master...t/NNNN-slug` 逐行对④清单；剔后剩 1=该件走件件戳
+     旧径，不强行批；
+  3. 开批基线断言：`git fetch origin` 后 `git rev-parse HEAD` =
+     `origin/master`（批在基线顶连合；基线漂了=先 rebaseline 重判批）。
+- **② 批序（绿径，步序写死）**——整批持
+  `dm_repolock.sh acquire 决策席-<tid> 120`（merge×N+盖顶+推+裁记落纸
+  全程一锁，毕 release——批原子性：锁外插写=戳绑 HEAD 错位重蹈坑条目）：
+  1. 逐件审+裁：判照一件件出（敌意回放/验收锚对账/先红桩闸照旧），每件
+     `裁决` 行即时落（通过/驳回）——**批的只是 merge/戳/推，不是判断**；
+     驳回件当场出局；审裁毕可批件 <2→余件转旧径；
+  2. 过件连合：按队列序 `git merge --no-ff t/NNNN-slug`（merge commit
+     消息照现行 `Merge t/NNNN-slug（T-NNNN 摘要）`）；**中间不跑
+     check_all**（中间戳必废——戳绑 SHA）；
+  3. 盖顶：末件合完跑一次 `bash scripts/check_all.sh`（档位随批面变更
+     自定）——戳落批顶 HEAD；红→进③ bisect 步序；
+  4. 推：推前断言 `git rev-parse HEAD`=盖顶戳 SHA（不一致=锁外插写
+     ——**升件不推不弃**，批在本地保全候查），一致→`git push origin
+     master`（pre-push 验顶戳放行）；
+  5. 裁记落纸：每批件票面加裁记行 `批径N件盖顶@<批顶sha>`（N=该戳实盖
+     件数）——一拍 docs commit（`[角色:决策] 批径裁记：T-A/T-B/…`）→
+     docs-only 快档补戳（秒级）→再推。**此拍必在步④推毕之后**（戳绑
+     HEAD——插在盖顶与推之间=顶戳作废，坑条目病灶重蹈）；docs/prompts
+     返修件落笔同拍搭车；
+  6. 翻归宗：票翻/台账/完成行=壳轨同拍自理（班内不手翻，T-0414 不变）。
+- **③ 批戳红处置（bisect 步序写死禁临机发挥）**——顶戳红=批内两件相碰
+  （各件自带工人绿戳在手，「码对不对」不在本步判域，只判「哪两件相碰」）：
+  1. 清册：`git log --reverse --merges origin/master..HEAD` 读批内件序
+     M₁..Mₙ（merge 消息携 T-NNNN 对票；对不上票=升件不裁）；
+  2. 对半切：lo=0（基线=origin/master 顶，推时绿戳在案=已知绿）、n=批末
+     （顶跑红=已知红）；k=lo+⌈(n−lo)/2⌉ → `git reset --hard M_k` →
+     `CHECK_ALL_FORCE_FULL=1 bash scripts/check_all.sh`（判色=exit code，
+     整跑红=红，禁读日志挑读翻案；全谱强制防档位漂移误判）；红因属
+     gen/buf 编译错位类（非测试断言红、非门禁红）=环境错位非撞车
+     →升件不裁，禁临机补救；
+  3. 推进：绿→lo=k；红→n=k；n−lo>1 回③步②（对半切）；n−lo=1 →
+     肇事件=M_n（不变式：M_lo 已实测绿、M_n 已实测红，收敛点=首红件，
+     免加验跑）；
+  4. 处置：`git reset --hard origin/master` → 依清册原序 re-merge 非肇
+     事件 → 步②3–5 重演（盖顶/推/裁记落纸）；肇事件退件回施工：
+     `驳回` 行+返修提示词 `docs/prompts/T-NNNN-返修N.md`（证据=顶跑红
+     日志撞车段+相碰对象判语）→派单径照常；重盖顶再红=回③步①对余批
+     重 bisect（每轮至少剔一件，终止有界）；批剔空仍红=升件不裁
+     （病灶在主干基线，非批径域）；
+  5. 全程纪律：bisect 含 reset 全程持锁不放（与壳轨互斥）；期间禁 push
+     禁部署（红态禁出仓）。
+- **④ 钱径件禁批（协议违例项写死）**：含以下任一面件**禁入批**，永远
+  件件戳旧径——`migrations/*.sql`（迁移危险面）/ `internal/risk/`、
+  `internal/guard/`（风控）/ `internal/ledger/`（账本=唯一钱账）/
+  `internal/trading/`、`internal/venue/`、`internal/mt5/`（交易执行面）/
+  凭证形件（路径含 `*secret*`/`*credential*`/`*token*`）；清单外拿不准
+  →按禁批计（单向兜底）。**钱径件混入批径=协议违例入案（伪戳同级）**。
+  `scripts/**`（闸件面）可进批但裁记标注意——它把 check_all 顶去 full 谱
+  （决定全谱时长），盖顶慢属预期非卡死。
+- **⑤ 复核对账**：审裁复拍取票面 @sha → `check-green-<sha>` 戳+`.mode`
+  档位痕在案=对得上（T-0397 读戳面同形）；批件各自工人绿戳仍归各收口支
+  （批顶戳不替代件戳，双戳各证各面）。
+- **⑥ 幂等复入**：班中崩→重进先 `git log --reverse --merges
+  origin/master..HEAD` 读现存已合序=已裁已合件跳过不重审不重合（重裁幂等
+  节同款）；未合件重走判据（ops_event 已落驳回者不重裁）；顶戳在案且
+  HEAD=戳 SHA→直接推。
+- **桩例（伪件重演样例——步序歧义自检锚）**：批={T-A(lib),T-B(data),
+  T-C(web)}，基线 S₀。判据：待裁=3≥2、无禁批面、剔后 3≥2→开批持锁；
+  逐件裁全过；merge 得 S₁,S₂,S₃（中间零 check_all）；盖顶 S₃ 红
+  （T-B×T-C 撞）→bisect：k=0+⌈3/2⌉=2 → reset S₂ 判色→绿→lo=2→n−lo=1
+  →肇事件=M₃(T-C)→reset S₀→re-merge T-A,T-B→盖顶绿→推毕→裁记落纸
+  （T-A/T-B 票面「批径2件盖顶@<新批顶sha>」+T-C 返修件同 commit）→
+  docs-only 快档补戳→推→壳轨翻归宗→release；T-C 驳回行+返修提示词落
+  派单径。
+
 ## 部署窗节（T-0398——攒批变职责，业主令「走1吧」）
 
 - **每班一查**：班次 scan/drain 同拍跑
