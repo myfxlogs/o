@@ -206,10 +206,12 @@ func researchArms(ctx context.Context, errc chan<- error, pool *pgxpool.Pool,
 	go analyst.NewRunner(pool, cfg).AttachAlerter(alerter).Run(ctx, errc)
 	// T-0311 返修⑤：FRED 键每拍自取（AttachFredFn——boot 一次性读瞬败=
 	// 整源哑到重启的实击坑；Secret 按次直读钦定口径本尊）。
+	// T-0429：断供探针升件写径挂 fin 池（ops_event 驻 fin 域——md 池无
+	// ops_event 面；FIN_PG_DSN role=review_rw 持 ops_event INSERT 实证）。
 	go ctxcoll.NewRunner(pool).AttachFredFn(func(c context.Context) (string, error) {
 		k, err := finCfg.Secret(c, "fred_api_key")
 		return string(k), err
-	}).Run(ctx, errc)
+	}).AttachEscPool(finPool).Run(ctx, errc)
 	// 研究员席静默看门（T-0121：短会话岗无臂拍——DB 双源锚 14 天窗，core 代守）
 	sw := researcher.NewSilentWatch(pool)
 	sw.AttachAlerter(alerter)
