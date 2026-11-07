@@ -915,3 +915,85 @@ func TestBareBagSurfaced(t *testing.T) {
 		t.Fatalf("碎尘残量不应挂账: %v", *qty2)
 	}
 }
+
+// T-0428 红桩：守卫连败→last_error 逐次覆盖为最新败因（两次不同败因留最新值）；
+// last_attempt_at=attempt 递增同拍落；平成不清（重试仓「为什么败」的记忆锚）。
+// 败因类对取 venue 期败与计划期败（close 径 kill_switch 不拦——risk/check.go
+// 契约，闸拒非 close 可复现败类）。
+func TestCloseFailReasonOverwrites(t *testing.T) {
+	ctx, w, fx := setup(t)
+	seedFacts(t, ctx, w, -0.001)
+	posID := mkPosition(t, ctx, w, "live", 1, time.Now())
+	// 第一拍：venue 执行败→venue: 败因（venue 期败——返回码）
+	fx.fail = errors.New("venue 返回码 51009")
+	if err := w.scanOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var lastErr string
+	var lastAt *time.Time
+	if err := w.pool.QueryRow(ctx,
+		"SELECT last_error,last_attempt_at FROM fin_guard_close WHERE position_id=$1", posID).Scan(&lastErr, &lastAt); err != nil {
+		t.Fatal(err)
+	}
+	if lastErr != "venue:venue 返回码 51009" {
+		t.Fatalf("首败败因应 venue: 前缀，got %q", lastErr)
+	}
+	if lastAt == nil {
+		t.Fatal("last_attempt_at 应随 attempt 递增同拍落")
+	}
+	// 第二拍：sizer 现读败→plan:sizer: 覆盖（计划期败——Earn 收走余额类）
+	fx.fail = nil
+	w.sizer = fakeSizer{errOn: "BTC-USDT-SWAP"}
+	if err := w.scanOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.pool.QueryRow(ctx,
+		"SELECT last_error FROM fin_guard_close WHERE position_id=$1", posID).Scan(&lastErr); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(lastErr, "plan:sizer:") {
+		t.Fatalf("连败应覆盖为最新败因（plan:sizer:），got %q", lastErr)
+	}
+	// 第三拍：sizer 复位重试成功→last_error 保留（平成不清——attempts>1 的仓靠它记败因）
+	w.sizer = fakeSizer{}
+	if err := w.scanOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	closed, state, _ := posClosed(t, ctx, w, posID)
+	if !closed || state != "closed" {
+		t.Fatalf("重试应 closed，got closed=%v state=%q", closed, state)
+	}
+	if err := w.pool.QueryRow(ctx,
+		"SELECT last_error FROM fin_guard_close WHERE position_id=$1", posID).Scan(&lastErr); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(lastErr, "plan:sizer:") {
+		t.Fatalf("平成不清——重试记忆应保留，got %q", lastErr)
+	}
+}
+
+// T-0428：sizer 败径（Earn 收走余额类计划期败）——state 不迁按节拍重试，
+// 败因落 last_error（plan:sizer 前缀）。
+func TestCloseSizerFailReasonLogged(t *testing.T) {
+	ctx, w, fx := setup(t)
+	seedFacts(t, ctx, w, -0.001)
+	posID := mkPosition(t, ctx, w, "live", 1, time.Now())
+	w.sizer = fakeSizer{errOn: "BTC-USDT-SWAP"}
+	if err := w.scanOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if len(fx.calls) != 0 {
+		t.Fatalf("sizer 败不得发 intent，got %d 次", len(fx.calls))
+	}
+	var state, lastErr string
+	if err := w.pool.QueryRow(ctx,
+		"SELECT state::text,COALESCE(last_error,'') FROM fin_guard_close WHERE position_id=$1", posID).Scan(&state, &lastErr); err != nil {
+		t.Fatal(err)
+	}
+	if state != "closing" {
+		t.Fatalf("sizer 败 state 不迁（保持 closing 待重试），got %q", state)
+	}
+	if !strings.HasPrefix(lastErr, "plan:sizer:") {
+		t.Fatalf("败因应 plan:sizer: 前缀（余额不可定=计划期败），got %q", lastErr)
+	}
+}
