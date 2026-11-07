@@ -1,8 +1,10 @@
 package lifecycle
 
 // xvenuepair_test.go —— 跨所双腿 paper 桩测（T-0144 验收锚）：proposal→主从
-// 双腿策略行（venue 各正/proposal_ref 同引/CFD 反查）+swap 快照锁存；
-// armed→open 对 xvenue-carry 显式禁。
+// 双腿策略行（venue 各正/proposal_ref 同引/CFD 反查）+swap 快照锁存。
+// T-0145 翻案注：armed→open「显式禁」锚已随真执行裁定翻案——主行落缝
+// （暗发闸 exec.xvenue_open 在 cmd 层），mt5 副腿行永跳过；新锚见
+// xvenue_open_test.go。
 import (
 	"context"
 	"testing"
@@ -91,31 +93,51 @@ func TestXvenuePairAdmit(t *testing.T) {
 	}
 }
 
-// 锚②：armed→open 对 xvenue-carry 显式拒（openLive 零 Opener 消费——钉死日志径）。
-func TestXvenueOpenForbidden(t *testing.T) {
+// 锚②（T-0145 翻案）：xvenue-carry 主行（venue='okx'）判据过径落 Opener 缝
+// ——真执行暗发闸挪 cmd 层（exec.xvenue_open 键）；lifecycle 面不再显式拒。
+// mt5 副腿行永跳过（xvenue_sub_leg 计数——双腿原子序主行独驱）。
+func TestXvenueOpenRouted(t *testing.T) {
 	ctx, r := xsetup(t)
-	var sid int64
-	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_strategy(inst_id,template_ref,proposal_ref,state,notional_usd,criteria,direction,venue)
-		VALUES('ETH-USDT-SWAP','xvenue-carry',0,'live',100,'{}','long_perp_short_cfd','okx') RETURNING id`).Scan(&sid); err != nil {
+	if _, err := r.pool.Exec(ctx, `INSERT INTO app_config(key,value)
+		VALUES('guard.flip_bps',to_jsonb('5'::text)) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value`); err != nil {
 		t.Fatal(err)
 	}
-	// stub Opener（openLive 有 op 才进消费循环——禁断言=零调用+拒计数）。
+	if err := r.cfg.Load(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var eid int64
+	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,net_apr,verdict,legs,evidence)
+		VALUES('ETH-USDT-SWAP','xvenue-carry','long_perp_short_cfd',0.08,'proposed','[]','{}') RETURNING id`).Scan(&eid); err != nil {
+		t.Fatal(err)
+	}
+	var pid int64
+	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_proposal(eval_id,inst_id,direction,state,net_apr)
+		VALUES($1,'ETH-USDT-SWAP','long_perp_short_cfd','fin_armed',0) RETURNING id`, eid).Scan(&pid); err != nil {
+		t.Fatal(err)
+	}
+	var sid int64
+	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_strategy(inst_id,template_ref,proposal_ref,state,notional_usd,criteria,direction,venue)
+		VALUES('ETH-USDT-SWAP','xvenue-carry',$1,'live',100,'{}','long_perp_short_cfd','okx') RETURNING id`, pid).Scan(&sid); err != nil {
+		t.Fatal(err)
+	}
+	var mate int64
+	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_strategy(inst_id,template_ref,proposal_ref,state,notional_usd,criteria,direction,venue)
+		VALUES('ETHUSDm','xvenue-carry',$1,'live',100,'{}','short_cfd','mt5') RETURNING id`, pid).Scan(&mate); err != nil {
+		t.Fatal(err)
+	}
+	// long_perp 收负租径——负 funding=健康（非翻面）。
+	if _, err := r.pool.Exec(ctx, `INSERT INTO md_funding(ts,inst_id,funding_rate,next_funding_rate)
+		VALUES(now(),'ETH-USDT-SWAP',-0.0006,-0.0004)`); err != nil {
+		t.Fatal(err)
+	}
 	calls := 0
 	r.AttachOpener(stubOpener{fn: func() { calls++ }})
-	before := rejCount(t, r, "xvenue_open_forbidden")
 	r.openLive(ctx)
-	after := rejCount(t, r, "xvenue_open_forbidden")
-	if after != before+1 {
-		t.Fatalf("xvenue-carry live 行应被显式拒（计数 %d→%d）", before, after)
+	if calls != 1 {
+		t.Fatalf("xvenue 主行判据过径应落缝（暗发闸在 cmd 层非 lifecycle）got %d", calls)
 	}
-	if calls != 0 {
-		t.Fatalf("禁下应零 Opener 调用 got %d", calls)
-	}
-	// 无 open 持仓行产出（零真执行）。
-	var opens int
-	r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_position WHERE strategy_ref=$1`, sid).Scan(&opens)
-	if opens != 0 {
-		t.Fatalf("禁下应零开仓 got %d", opens)
+	if rejCount(t, r, "xvenue_sub_leg") != 1 {
+		t.Fatalf("mt5 副腿行应跳过计数 got %d", rejCount(t, r, "xvenue_sub_leg"))
 	}
 }
 

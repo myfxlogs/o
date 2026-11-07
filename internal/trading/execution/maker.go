@@ -54,7 +54,7 @@ func (r *Runner) makerAttempt(ctx context.Context, execID int64, no int, leg Leg
 	for {
 		res, err := r.exec.Resolve(ctx, ml, clOrdID)
 		if err == nil && res.State == "filled" {
-			legID := r.legPx(ctx, execID, no, ml, clOrdID, "filled", "", "", res.FillPx, res.FillSz, "post_only")
+			legID := r.legPx(ctx, execID, no, ml, clOrdID, "filled", "", "", res.FillPx, res.FillSz, "post_only", res.FillTicket)
 			r.legCash(ctx, legID, ml, res.FillPx, res.FillSz, posRef)
 			return res, true
 		}
@@ -66,7 +66,7 @@ func (r *Runner) makerAttempt(ctx context.Context, execID int64, no int, leg Leg
 	_ = r.exec.Cancel(ctx, ml, clOrdID) // 撤果不判——定态只看 Resolve
 	res, err := r.exec.Resolve(ctx, ml, clOrdID)
 	if err == nil && res.State == "filled" { // 撤窗竞态成交
-		legID := r.legPx(ctx, execID, no, ml, clOrdID, "filled", "", "", res.FillPx, res.FillSz, "post_only")
+		legID := r.legPx(ctx, execID, no, ml, clOrdID, "filled", "", "", res.FillPx, res.FillSz, "post_only", res.FillTicket)
 		r.legCash(ctx, legID, ml, res.FillPx, res.FillSz, posRef)
 		return res, true
 	}
@@ -74,11 +74,11 @@ func (r *Runner) makerAttempt(ctx context.Context, execID int64, no int, leg Leg
 	// 行+legCash 入账，State="partial" 回上级做余量降级（记 0 量补全=裸腿
 	// 碎仓+台账吞量实证坑）。
 	if res.FillSz > 0 {
-		legID := r.legPx(ctx, execID, no, ml, clOrdID, "filled", "", "", res.FillPx, res.FillSz, "post_only")
+		legID := r.legPx(ctx, execID, no, ml, clOrdID, "filled", "", "", res.FillPx, res.FillSz, "post_only", res.FillTicket)
 		r.legCash(ctx, legID, ml, res.FillPx, res.FillSz, posRef)
 		return OrderResult{ClOrdID: clOrdID, State: "partial", FillPx: res.FillPx, FillSz: res.FillSz}, true
 	}
-	r.legPx(ctx, execID, no, ml, clOrdID, "failed", "", "", 0, 0, "post_only")
+	r.legPx(ctx, execID, no, ml, clOrdID, "failed", "", "", 0, 0, "post_only", 0)
 	return OrderResult{}, false
 }
 

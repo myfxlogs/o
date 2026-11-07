@@ -71,12 +71,24 @@ func (r *Runner) Execute(ctx context.Context, in Intent) (int64, error) {
 	// ④leg1
 	res1, err := r.placeAndResolve(ctx, execID, 1, l1, posRef)
 	if err != nil {
+		// T-0145：leg1 歧态势（传输败/live/部分成→Resolve 定不了真态）——
+		// venue 可能已成仓（裸腿残留）=告警升件人查，禁静默当败。
+		if res1.State == "unknown" || res1.State == "live" || res1.State == "partially_filled" {
+			r.alert(ctx, "leg1_ambiguous",
+				fmt.Sprintf("exec#%d leg1 %s@%s 歧态势（state=%s）——venue 可能已成仓，残留敞口人查", execID, l1.InstID, l1.Venue, res1.State))
+		}
 		r.setState(ctx, execID, "failed")
 		return execID, fmt.Errorf("leg1: %w", err)
 	}
 	// ⑤leg2——败/歧义=LEGGED→自动回滚 leg1（不留半成品敞口）。
 	res2, err := r.placeAndResolve(ctx, execID, 2, l2, posRef)
 	if err != nil || res2.State == "ambiguous" {
+		// T-0145：leg2 歧义（回滚 leg1 时 leg2 真态未定——两腿可能同存=
+		// 双敞口事故）=告警升件人查定真态。
+		if res2.State == "unknown" || res2.State == "live" || res2.State == "partially_filled" {
+			r.alert(ctx, "leg2_ambiguous",
+				fmt.Sprintf("exec#%d leg2 %s@%s 歧态势（state=%s）——回滚 leg1 后 leg2 实存须人查", execID, l2.InstID, l2.Venue, res2.State))
+		}
 		r.setState(ctx, execID, "legged")
 		r.rollback(ctx, execID, l1, res1)
 		return execID, fmt.Errorf("leg2 败/歧义→LEGGED 回滚 leg1")
@@ -137,7 +149,7 @@ func (r *Runner) placeAndResolve(ctx context.Context, execID int64, no int, leg 
 	}
 	switch res.State {
 	case "filled":
-		legID := r.legPx(ctx, execID, no, leg, clOrdID, "filled", vc, vm, res.FillPx, res.FillSz, "market")
+		legID := r.legPx(ctx, execID, no, leg, clOrdID, "filled", vc, vm, res.FillPx, res.FillSz, "market", res.FillTicket)
 		r.legCash(ctx, legID, leg, res.FillPx, res.FillSz, posRef)
 		return res, nil
 	case "live", "partially_filled":
@@ -159,62 +171,33 @@ func orVal(a, b string) string {
 	return b
 }
 
-// rollback leg1 对向平仓腿（LEGGED 处置）；回滚败=rollback_failed 升级留痕。
-func (r *Runner) rollback(ctx context.Context, execID int64, leg Leg, res OrderResult) {
-	rev := leg
-	if leg.Side == "buy" {
-		rev.Side = "sell"
-	} else {
-		rev.Side = "buy"
-	}
-	// 回滚方向律（T-0046 ③根修，canon rollback-close-direction）：rev.Close 随原腿
-	// 反置——开腿回滚=平（T-0036 语义）；平腿回滚=重开（恒 true=reduceOnly 打空仓
-	// 拒单→歧态势，exec5 实证）。语义位按 Intent 上下文派生非恒定值。
-	rev.Close = !leg.Close
-	rev.Ticket = res.FillTicket
-	clOrdID := fmt.Sprintf("ph%drb%d", execID, time.Now().UnixNano()%1e6)
-	rb, err := r.exec.Place(ctx, rev, clOrdID)
-	// 回滚径拒码留痕（T-0046 ⑤：任何 Place/Resolve 败径都带拒码——envelope 业务拒
-	// 先抽码，透传失败面 leg 行）。
-	var rvc, rvm string
-	var rae *okxexec.APIError
-	if errors.As(err, &rae) {
-		rvc, rvm = rae.Code, rae.Msg
-	}
-	if err != nil {
-		rb, err = r.exec.Resolve(ctx, rev, clOrdID)
-	}
-	if err != nil || (rb.State != "filled" && rb.State != "live" && rb.State != "partially_filled") {
-		r.setState(ctx, execID, "rollback_failed")
-		r.rej.Inc("rollback_failed")
-		r.al.Alert(ctx, "rollback_failed", "LEGGED 回滚败——人工介入")
-		log.Printf("ALERT [execution] #%d 回滚败——残留 leg1 敞口须人工升级处置（err=%v）", execID, err)
-		r.leg(ctx, execID, 1, leg, clOrdID, "ambiguous", rvc, rvm)
-		return
-	}
-	legID := r.legPx(ctx, execID, 1, leg, clOrdID, "rolled_back", "", "", 0, rb.FillSz, "market")
-	// 回滚腿=真实现金事件（买回即卖出）——spot 腿同径记账（rev.Side 定向，px 缺=名义锚）。
-	r.legCash(ctx, legID, rev, rb.FillPx, rb.FillSz, nil)
-	r.setState(ctx, execID, "rolled_back")
-	log.Printf("[execution] #%d LEGGED→leg1 回滚成", execID)
-}
-
 func (r *Runner) leg(ctx context.Context, execID int64, no int, leg Leg, clOrdID, state, venueCode, venueMsg string) {
-	r.legPx(ctx, execID, no, leg, clOrdID, state, venueCode, venueMsg, 0, 0, "market")
+	r.legPx(ctx, execID, no, leg, clOrdID, state, venueCode, venueMsg, 0, 0, "market", 0)
 }
 
 // legPx 腿行落库携成交价+量纲消歧（T-0107：sz_unit=腿 sz 语义位——SWAP=contract/
-// spot quote_ccy 委托=quote/余=base；qty_base=venue 实填币量（accFillSz）唯一
-// 真源——请求量禁当成交记，fill 缺=NULL 消费面 fail-closed 禁猜）。
-// px=NULL 旧调用面保值守。返腿行 id（cashflow source_ref 锚用）。
-func (r *Runner) legPx(ctx context.Context, execID int64, no int, leg Leg, clOrdID, state, venueCode, venueMsg string, px, fillSz float64, ordType string) int64 {
+// mt5 cfd=lot/spot quote_ccy 委托=quote/余=base；qty_base=venue 实填币量
+// （accFillSz）唯一真源——请求量禁当成交记，fill 缺=NULL 消费面 fail-closed
+// 禁猜；mt5 腿 qty_base=fillSz×CtVal 面值换算）。px=NULL 旧调用面保值守；
+// ticket=venue 仓凭据（MT5——平仓必携；okx=0 落 NULL 略）。返腿行 id。
+func (r *Runner) legPx(ctx context.Context, execID int64, no int, leg Leg, clOrdID, state, venueCode, venueMsg string, px, fillSz float64, ordType string, ticket int64) int64 {
 	var pxArg *float64
 	if px > 0 {
 		pxArg = &px
 	}
+	var tkArg *int64
+	if ticket > 0 {
+		tkArg = &ticket
+	}
 	szUnit := "base"
 	var qtyBase *float64
 	switch {
+	case leg.Venue == "mt5":
+		szUnit = "lot"
+		if fillSz > 0 && leg.CtVal > 0 {
+			qb := fillSz * leg.CtVal
+			qtyBase = &qb
+		}
 	case strings.HasSuffix(leg.InstID, "-SWAP"):
 		szUnit = "contract"
 	case leg.TgtQuote:
@@ -228,9 +211,9 @@ func (r *Runner) legPx(ctx context.Context, execID int64, no int, leg Leg, clOrd
 		}
 	}
 	var id int64
-	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_order_leg(execution_id,leg_no,cl_ord_id,venue,side,inst_id,sz,state,venue_err_code,venue_err_msg,px,sz_unit,qty_base,ord_type)
-		VALUES($1,$2,$3,$4,$5,$6,$7,$8,NULLIF($9,''),NULLIF($10,''),$11,$12,$13,$14) RETURNING id`,
-		execID, no, clOrdID, leg.Venue, leg.Side, leg.InstID, leg.Sz, state, venueCode, venueMsg, pxArg, szUnit, qtyBase, ordType).Scan(&id); err != nil {
+	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_order_leg(execution_id,leg_no,cl_ord_id,venue,side,inst_id,sz,state,venue_err_code,venue_err_msg,px,sz_unit,qty_base,ord_type,venue_ticket)
+		VALUES($1,$2,$3,$4,$5,$6,$7,$8,NULLIF($9,''),NULLIF($10,''),$11,$12,$13,$14,$15) RETURNING id`,
+		execID, no, clOrdID, leg.Venue, leg.Side, leg.InstID, leg.Sz, state, venueCode, venueMsg, pxArg, szUnit, qtyBase, ordType, tkArg).Scan(&id); err != nil {
 		r.rej.Inc("write_err")
 	}
 	return id

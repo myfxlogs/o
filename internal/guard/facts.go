@@ -20,8 +20,9 @@ type legSet struct {
 type leg struct {
 	inst, side, venue string
 	sz                float64
-	szUnit            string  // T-0107 量纲语义位：base/quote/contract；空=历史未消歧
+	szUnit            string  // T-0107 量纲语义位：base/quote/contract/lot（T-0145 mt5 手数）；空=历史未消歧
 	qtyBase           float64 // venue 实填币量（accFillSz）——spot 盯市唯一真源
+	ticket            int64   // T-0145：venue 仓凭据（MT5 ticket——hedge 户 OrderClose 必携；无票 venue=0）
 }
 
 func (ls legSet) labels() []string {
@@ -42,7 +43,10 @@ func (ls legSet) reverse() [2]CloseLeg {
 	}
 	mk := func(l leg) CloseLeg {
 		want, ok := l.closeWant()
-		return CloseLeg{Venue: ls.venue, InstID: l.inst, Side: flip(l.side), Sz: want, SzKnown: ok}
+		// T-0145 根修：venue 按腿取非父腿抄送（跨 venue 双腿——mt5 腿抄 okx
+		// venue=平仓路由错 venue 病灶）；ticket 透传 venue 仓凭据（mt5 平
+		// 仓 OrderClose 必携——无票=failure 禁反向单）。
+		return CloseLeg{Venue: l.venue, InstID: l.inst, Side: flip(l.side), Sz: want, SzKnown: ok, Ticket: l.ticket}
 	}
 	return [2]CloseLeg{mk(ls.a), mk(ls.b)}
 }
@@ -75,7 +79,7 @@ func (ls legSet) of(inst string) (leg, bool) {
 
 func (w *Warden) legs(ctx context.Context, execID int64) legSet {
 	rows, err := w.pool.Query(ctx,
-		`SELECT inst_id, side, sz, venue, sz_unit, qty_base FROM fin_order_leg WHERE execution_id=$1 ORDER BY leg_no`, execID)
+		`SELECT inst_id, side, sz, venue, sz_unit, qty_base, venue_ticket FROM fin_order_leg WHERE execution_id=$1 ORDER BY leg_no`, execID)
 	if err != nil {
 		w.rej.Inc("facts_missing")
 		return legSet{one: true}
@@ -86,7 +90,8 @@ func (w *Warden) legs(ctx context.Context, execID int64) legSet {
 		var l leg
 		var su *string
 		var qb *float64
-		if err := rows.Scan(&l.inst, &l.side, &l.sz, &l.venue, &su, &qb); err != nil {
+		var tk *int64
+		if err := rows.Scan(&l.inst, &l.side, &l.sz, &l.venue, &su, &qb, &tk); err != nil {
 			w.rej.Inc("facts_missing")
 			return legSet{one: true}
 		}
@@ -95,6 +100,9 @@ func (w *Warden) legs(ctx context.Context, execID int64) legSet {
 		}
 		if qb != nil {
 			l.qtyBase = *qb
+		}
+		if tk != nil {
+			l.ticket = *tk
 		}
 		ls.venue = l.venue
 		if ls.a.inst == "" {

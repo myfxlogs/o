@@ -11,21 +11,26 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"o/internal/mt5"
 	"o/internal/platform/config"
 	"o/internal/portfolio/lifecycle"
 	"o/internal/risk"
 	"o/internal/trading/execution"
+	"o/internal/trading/mtexec"
 	"o/internal/trading/okxexec"
 )
 
 // hedgeOpener funding-hedge 开仓适配（cmd 组合根——投资域不反向依赖交易/风控域）。
 type hedgeOpener struct {
-	pool *pgxpool.Pool
-	cfg  *config.Client
-	gate *risk.Gate
-	r    *execution.Runner
-	cli  *okxexec.Client
-	dcd  dcdVenue // T-0259 桩测注伪缝——nil=cli 产线形
+	pool  *pgxpool.Pool
+	cfg   *config.Client
+	gate  *risk.Gate
+	r     *execution.Runner
+	cli   *okxexec.Client
+	dcd   dcdVenue          // T-0259 桩测注伪缝——nil=cli 产线形
+	xcli  *mt5LazyCli       // T-0145：mt5 懒连会话件（xvenue-carry 执行/方言/现读同件）
+	xdial mtexec.Dialect    // T-0145：方言译件（官名→venue 符号唯一天）
+	xds   *mt5.DialectStore // T-0145：方言行仓（ct_val/min_sz/lot_step 基线读）
 }
 
 // Open live 策略开仓：双帽取小→闸→腿构→原子执行。任一环败=err 上抛
@@ -46,6 +51,10 @@ func (h hedgeOpener) Open(ctx context.Context, spec lifecycle.OpenSpec) (int64, 
 		// T-0215 strangle 双腿 executor（假想卡 id=6 钦定名
 		// vol_sell_strangle_executor——Cprod+Pprod 复合键拆腿序贯买）。
 		return h.volSellStrangle(ctx, spec)
+	case "xvenue-carry":
+		// T-0145 跨所 carry 真执行——mt5 cfd 腿先行+okx perp 腿双腿原子序
+		// （DM 裁定钦定面——xvenue.go）。
+		return h.xvenueOpen(ctx, spec)
 	}
 	notional := spec.NotionalUSD
 	// 双帽取小（openfirst 同径：probe_notional/max_notional——缺键 fail-closed）。
@@ -142,27 +151,6 @@ func (h hedgeOpener) untradeable(ctx context.Context, spec lifecycle.OpenSpec, x
 	log.Printf("ALERT [open] 终局拒 %s（%s %s）——显式迁移先于入册+trigger 续扫余量",
 		spec.InstID, code, msg)
 	return nil
-}
-
-// reopenCooldownBlocked 再开冷却窗判定（T-0107）：同策略同标的存在冷却窗内
-// guard 平仓记录（updated_at=任一 guard 态变时点）→true。判据=config 快照件
-// GetFloat（缺键 fail-closed true——宁可冻结不再开也不裸奔连绞）；0=显式关闭。
-func reopenCooldownBlocked(ctx context.Context, cfg *config.Client, pool *pgxpool.Pool,
-	strategyRef int64, instID string) (bool, error) {
-	sec, err := cfg.GetFloat("exec.reopen_cooldown_sec")
-	if err != nil {
-		return true, fmt.Errorf("exec.reopen_cooldown_sec: %w", err)
-	}
-	if sec <= 0 {
-		return false, nil // 冷却显式关闭（0=运维豁免位）
-	}
-	var blocked bool
-	err = pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM fin_guard_close g
-		JOIN fin_position p ON p.id=g.position_id
-		WHERE p.strategy_ref=$1 AND p.inst_id=$2
-		  AND g.updated_at > now()-make_interval(secs=>$3))`,
-		strategyRef, instID, sec).Scan(&blocked)
-	return blocked, err
 }
 
 // loadMeta 乐器元数据现读（/public/instruments——SPOT/SWAP 按后缀分派）。
