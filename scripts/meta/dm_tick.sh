@@ -221,6 +221,15 @@ if [ -n "$FIN_DSN" ]; then
   [ "$TRC" -ne 0 ] && dm_esc "物料化径败" "rc=$TRC ticketdraft 未跑净——pending 草案滞留（升件面工具内自报，本行=拍壳兜底）"
 fi
 
+# T-0455 机批类册窗（零 LLM 段尾——物料化落件的候选票同拍过机批闸：
+# 册内签名→CEO seat 已批行+范围钦定；册外/人工径→零批滞留 24h 升件呈
+# DM；驳回行=账面撤销）。败=升件自报。
+if [ -n "$FIN_DSN" ]; then
+  AA_RC=0
+  REPO=/opt/o FIN_DSN="$FIN_DSN" "$SCRIPT_DIR/dm_autoapprove.sh" || AA_RC=$?
+  [ "$AA_RC" -ne 0 ] && dm_esc "机批闸径败" "rc=$AA_RC dm_autoapprove 未跑净——候选批准面滞留"
+fi
+
 # T-0414 机械轨尾窗（零 LLM 段尾——票翻/台账补登壳轨件：dm_ledger.sh）。
 # 位置义：kick 直驱不走会话——ops_event 新行即办机械活；会话判词刚落的
 # 票在同拍尾窗即归档补登（零会话等候）。败=升件自报不静默。
