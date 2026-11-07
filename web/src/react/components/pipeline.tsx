@@ -1,10 +1,10 @@
-// pipeline.tsx —— 座舱管道卡件族（T-0411 自 Cockpit.tsx 拆出——行数棘轮
-// D-588：卡件族自持，Cockpit 页只留页装配。PipelineTile=工作流管道主瓦片
+// pipeline.tsx —— 座舱管道卡件族（T-0411 自 Cockpit.tsx 拆出；T-0421 回退
+// 玻璃视觉面时按钉①保留拆分骨架——本件=0411 前原组件体纯搬移零逻辑改动，
+// 消费面 Cockpit/System import 同步）。PipelineTile=工作流管道主瓦片
 // （v4 三张无头监控卡合一：1 票 1 行管道流，走过显/未到隐，在干席 spinner、
 // 已移交席呼吸灯、行首行级灯、驳回环标注；判态全服务端派生
 // pipeline_face.go，前端纯渲染零判据）；OrgPipelineTile=工程票组织流卡
 // （T-0309 返修——ops_event 组织流挪系统页消费）；LiveBadge=流连接角标。
-// 拆分为纯搬移零逻辑改动——消费面 System.tsx import 同步改道。）
 import { useEffect, useState } from "react";
 import { onLive } from "../stream";
 import { useSlice } from "../store";

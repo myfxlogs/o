@@ -8,20 +8,20 @@
 // 降级语义原样保全（T-0248：sec/SecBoundary/missing 显缺不冒零）；流连接
 // 角标+asOf 快照戳常显；headless 分片保留=① 存活卡「无头面」注行数据源
 // （分片仍在流推，只撤其独立卡面）。
-import { useEffect, useState, Component, type ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { client } from "../api";
 import { onLive } from "../stream";
 import { applyHeadless, applyPipeline, hydrate, useSlice } from "../store";
+import { Component, type ReactNode } from "react";
 import { Card, EmptyState, Skeleton, StateDot, UtcClock } from "../components/ui";
 import { LiveBadge, PipelineTile } from "../components/pipeline";
 import { MetaSeats } from "../components/metaseats";
 import { QuoteBoard } from "../components/QuoteBoard";
-import { ModuleDeck, type DeckModule } from "../components/moduledeck";
 import { AGE } from "../components/panel";
 import type {
-	GetCockpitResponse,
-	CockpitPlatformRow,
-	CockpitArmed,
+  GetCockpitResponse,
+  CockpitPlatformRow,
+  CockpitArmed,
 } from "../../gen/dashboardv1/core_pb";
 
 const ts = (t?: { seconds: bigint }) =>
@@ -102,96 +102,6 @@ export function CockpitPage() {
 	// title 携鲜度（快照 asOf / 最近自报——AGE 同 panel 件）。纯显示映射零判据。
 	const asOfD = d.asOf ? new Date(Number(d.asOf.seconds) * 1000) : null;
 	const asOfAge = asOfD ? AGE(asOfD) : "—";
-	// T-0411 液态玻璃皮肤：座舱 8 模块入 deck（等大格+点按放大+缩略条+拖拽
-	// 重排，序持久化 localStorage）——卡面 JSX 原样搬移零改写，数据语义/
-	// 布局结构（静止形态）/交互逻辑零改动，纯壳层增强。
-	const modules: DeckModule[] = [
-		{
-			id: "safe", title: "① 钱安全吗",
-			el: <Card className="kpi" title="① 钱安全吗"
-				extra={m ? <StateDot state={expSt} breathe={expSt === 0} title={`敞口硬线判态（服务端派生）· 更新 ${asOfAge}`} /> : undefined}>
-				{sec("money", !m ? <p className="dim">该段数据缺</p> : <>
-					<div className={"kpi-v " + (expSt === 0 ? "u-good" : expSt === 2 ? "u-bad" : "")}>
-						{{ 0: "合规绿", 1: "顶格黄", 2: "越限红" }[expSt] ?? "—"}
-					</div>
-					<div className="kpi-note">敞口 ${m.exposure.toFixed(0)} / 上限 ${m.exposureLimit.toFixed(0)}（10% 硬线）</div>
-					<div className="kpi-note">停泊 ${parked.toFixed(0)}（闲资默认活期/Earn——见执行面件）</div>
-				</>)}
-			</Card>,
-		},
-		{
-			id: "mtd", title: "② 赚了多少（MTD）",
-			el: <Card className="kpi" title="② 赚了多少（MTD）"
-				extra={<StateDot state={miss.has("money") ? 2 : 0} breathe={!miss.has("money")} title={`更新 ${asOfAge}`} />}>
-				{sec("money", !m ? <p className="dim">该段数据缺</p> : <>
-					<div className={"kpi-v " + (m.netMonth >= 0 ? "u-good" : "u-bad")}>
-						{m.netMonth >= 0 ? "+" : "-"}${Math.abs(m.netMonth).toFixed(2)}
-					</div>
-					<div className="kpi-note">本金水位 ${m.capital.toFixed(2)}</div>
-				</>)}
-			</Card>,
-		},
-		{
-			id: "d30", title: "② 近 30 天",
-			el: <Card className="kpi" title="② 近 30 天"
-				extra={<StateDot state={miss.has("money") ? 2 : 0} breathe={!miss.has("money")} title={`更新 ${asOfAge}`} />}>
-				{sec("money", !m ? <p className="dim">该段数据缺</p> : <>
-					<div className={"kpi-v " + (d30 >= 0 ? "u-good" : "u-bad")}>
-						{d30 >= 0 ? "+" : "-"}${Math.abs(d30).toFixed(2)}
-					</div>
-					<div className="kpi-note">日净 {posDays} 正 / {m.daily.length - posDays} 负</div>
-				</>)}
-			</Card>,
-		},
-		{
-			id: "alive", title: "① 存活",
-			el: <Card className="kpi" title="① 存活"
-				extra={!miss.has("roster") ? <StateDot state={rosterStale ? 2 : 0} breathe={!rosterStale}
-					title={rosterStale ? `岗心跳停滞 ${rosterWorstSeat} ${fmtLagMin(Number(d.rosterWorstLagS))}` : "生产岗心跳正常"} /> : undefined}>
-				{sec("roster", <>
-					<div className="kpi-v">{d.rosterActive}<span className="kpi-unit">生产岗在岗</span></div>
-					<div className="kpi-note">最坏心跳滞后 {fmtLagMin(Number(d.rosterWorstLagS))}{rosterStale ? `（${d.rosterWorstSeat} 停滞超 10min）` : ""}</div>
-				</>)}
-				<MetaSeats rows={hlRows} hlL={hlL} fmtLagMin={fmtLagMin} />
-			</Card>,
-		},
-		{
-			// —— 次档·答③机器面（v4：三张无头监控卡合一——工作流管道主瓦片，
-			// 1 票 1 行管道流，ev_pipeline 流推秒级到屏）——
-			id: "pipeline", title: "③ 工作流管道", el: <PipelineTile />,
-		},
-		{
-			// —— T-0382 行情·价格提醒（观测面——单向飞书告警非条件单）——
-			id: "quotes", title: "行情·价格提醒", el: <QuoteBoard />,
-		},
-		{
-			// —— 底档·④要我动的（armed）——
-			id: "armed", title: "④ 待开仓",
-			el: <Card title="④ 待开仓"
-				extra={<span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-					<UtcClock />
-					<StateDot state={miss.has("armed") ? 2 : 0} breathe={!miss.has("armed")} title={`${d.armed.length} 单 · 更新 ${asOfAge}`} />
-				</span>}>{sec("armed",
-					d.armed.length === 0 ? <EmptyState title="无待开仓" hint="待开仓队列为空——当前没有待处理事项" /> :
-					<div className="tile-scroll"><table className="tile-table"><thead><tr><th>#</th><th>标的</th><th>方向</th><th>建时</th><th>TTL余(h)</th></tr></thead>
-						<tbody>{d.armed.map((a: CockpitArmed) => <tr key={a.id}><td>{a.id}</td><td>{a.instId}</td>
-							<td>{a.direction}</td><td>{ts(a.created)}</td><td>{a.ttlHoursLeft.toFixed(1)}</td></tr>)}</tbody></table></div>)}
-			</Card>,
-		},
-		{
-			// —— 底档·①②平台明细（v3.2 同档保留卡不动）——
-			id: "money", title: "①② 钱面平台明细",
-			el: <Card title="①② 钱面平台明细"
-				extra={<StateDot state={miss.has("money") ? 2 : 0} breathe={!miss.has("money")} title={`${m?.platforms.length ?? 0} 平台 · 更新 ${asOfAge}`} />}>{sec("money", !m ? <p className="dim">该段数据缺</p> : <>
-				<table className="tile-table"><thead><tr><th>平台</th><th>承诺</th><th>已入</th><th>停泊</th><th>敞口</th></tr></thead>
-					<tbody>{m.platforms.map((p: CockpitPlatformRow) => <tr key={p.platform}><td>{p.platform}</td><td>{p.committed < 0 ? "未设" : p.committed.toFixed(0)}</td>
-						<td>{p.platform === "MT5" && miss.has("mt5") ? "数据缺" : p.deposited.toFixed(0)}</td><td>{p.parked.toFixed(0)}</td><td>{p.exposure.toFixed(0)}</td></tr>)}</tbody></table>
-				{miss.has("mt5") && <p className="dim">MT5 平台已入段数据缺（mt5Live 读败——合计行为不含 MT5 部分口径，非真 0）</p>}
-				<p className="dim fact">近30d 日净：{m.daily.map((v) => v.toFixed(1)).join(" · ")}</p>
-			</>)}
-			</Card>,
-		},
-	];
 	return (
 		<div className="page">
 			<div className="health-strip">
@@ -200,9 +110,73 @@ export function CockpitPage() {
 				<span className="ink-3">更新 {ts(d.asOf)}</span>
 			</div>
 			{/* —— 首档·答①②置顶放大（业主第一性四问重排——人话结论大字居首，
-			    数字第二层）；T-0411 起 8 模块入 deck 等大格（首档四问仍居前排——
-			    默认序即业主阅读序，deck 只供放大/重排不改默认视觉层级）—— */}
-			<ModuleDeck storageKey="o_cockpit_modules" modules={modules} />
+			    数字第二层；trx-kpi-strip=TRX 首档同源件，零新 CSS）—— */}
+			<div className="trx-kpi-strip">
+				<Card className="kpi" title="① 钱安全吗"
+					extra={m ? <StateDot state={expSt} breathe={expSt === 0} title={`敞口硬线判态（服务端派生）· 更新 ${asOfAge}`} /> : undefined}>
+					{sec("money", !m ? <p className="dim">该段数据缺</p> : <>
+						<div className={"kpi-v " + (expSt === 0 ? "u-good" : expSt === 2 ? "u-bad" : "")}>
+							{{ 0: "合规绿", 1: "顶格黄", 2: "越限红" }[expSt] ?? "—"}
+						</div>
+						<div className="kpi-note">敞口 ${m.exposure.toFixed(0)} / 上限 ${m.exposureLimit.toFixed(0)}（10% 硬线）</div>
+						<div className="kpi-note">停泊 ${parked.toFixed(0)}（闲资默认活期/Earn——见执行面件）</div>
+					</>)}
+				</Card>
+				<Card className="kpi" title="② 赚了多少（MTD）"
+					extra={<StateDot state={miss.has("money") ? 2 : 0} breathe={!miss.has("money")} title={`更新 ${asOfAge}`} />}>
+					{sec("money", !m ? <p className="dim">该段数据缺</p> : <>
+						<div className={"kpi-v " + (m.netMonth >= 0 ? "u-good" : "u-bad")}>
+							{m.netMonth >= 0 ? "+" : "-"}${Math.abs(m.netMonth).toFixed(2)}
+						</div>
+						<div className="kpi-note">本金水位 ${m.capital.toFixed(2)}</div>
+					</>)}
+				</Card>
+				<Card className="kpi" title="② 近 30 天"
+					extra={<StateDot state={miss.has("money") ? 2 : 0} breathe={!miss.has("money")} title={`更新 ${asOfAge}`} />}>
+					{sec("money", !m ? <p className="dim">该段数据缺</p> : <>
+						<div className={"kpi-v " + (d30 >= 0 ? "u-good" : "u-bad")}>
+							{d30 >= 0 ? "+" : "-"}${Math.abs(d30).toFixed(2)}
+						</div>
+						<div className="kpi-note">日净 {posDays} 正 / {m.daily.length - posDays} 负</div>
+					</>)}
+				</Card>
+				<Card className="kpi" title="① 存活"
+					extra={!miss.has("roster") ? <StateDot state={rosterStale ? 2 : 0} breathe={!rosterStale}
+						title={rosterStale ? `岗心跳停滞 ${rosterWorstSeat} ${fmtLagMin(Number(d.rosterWorstLagS))}` : "生产岗心跳正常"} /> : undefined}>
+					{sec("roster", <>
+						<div className="kpi-v">{d.rosterActive}<span className="kpi-unit">生产岗在岗</span></div>
+						<div className="kpi-note">最坏心跳滞后 {fmtLagMin(Number(d.rosterWorstLagS))}{rosterStale ? `（${d.rosterWorstSeat} 停滞超 10min）` : ""}</div>
+					</>)}
+					<MetaSeats rows={hlRows} hlL={hlL} fmtLagMin={fmtLagMin} />
+				</Card>
+			</div>
+			{/* —— 次档·答③机器面（v4：三张无头监控卡合一——工作流管道主瓦片，
+			    1 票 1 行管道流，ev_pipeline 流推秒级到屏）—— */}
+			<PipelineTile />
+			{/* —— T-0382 行情·价格提醒（观测面——单向飞书告警非条件单）—— */}
+			<QuoteBoard />
+			{/* —— 底档·④要我动的（armed）+①②平台明细（v3.2 同档保留卡不动）—— */}
+			<div className="duo">
+				<Card title="④ 待开仓"
+					extra={<span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+						<UtcClock />
+						<StateDot state={miss.has("armed") ? 2 : 0} breathe={!miss.has("armed")} title={`${d.armed.length} 单 · 更新 ${asOfAge}`} />
+					</span>}>{sec("armed",
+						d.armed.length === 0 ? <EmptyState title="无待开仓" hint="待开仓队列为空——当前没有待处理事项" /> :
+						<div className="tile-scroll"><table className="tile-table"><thead><tr><th>#</th><th>标的</th><th>方向</th><th>建时</th><th>TTL余(h)</th></tr></thead>
+							<tbody>{d.armed.map((a: CockpitArmed) => <tr key={a.id}><td>{a.id}</td><td>{a.instId}</td>
+								<td>{a.direction}</td><td>{ts(a.created)}</td><td>{a.ttlHoursLeft.toFixed(1)}</td></tr>)}</tbody></table></div>)}
+				</Card>
+				<Card title="①② 钱面平台明细"
+					extra={<StateDot state={miss.has("money") ? 2 : 0} breathe={!miss.has("money")} title={`${m?.platforms.length ?? 0} 平台 · 更新 ${asOfAge}`} />}>{sec("money", !m ? <p className="dim">该段数据缺</p> : <>
+					<table className="tile-table"><thead><tr><th>平台</th><th>承诺</th><th>已入</th><th>停泊</th><th>敞口</th></tr></thead>
+						<tbody>{m.platforms.map((p: CockpitPlatformRow) => <tr key={p.platform}><td>{p.platform}</td><td>{p.committed < 0 ? "未设" : p.committed.toFixed(0)}</td>
+							<td>{p.platform === "MT5" && miss.has("mt5") ? "数据缺" : p.deposited.toFixed(0)}</td><td>{p.parked.toFixed(0)}</td><td>{p.exposure.toFixed(0)}</td></tr>)}</tbody></table>
+					{miss.has("mt5") && <p className="dim">MT5 平台已入段数据缺（mt5Live 读败——合计行为不含 MT5 部分口径，非真 0）</p>}
+					<p className="dim fact">近30d 日净：{m.daily.map((v) => v.toFixed(1)).join(" · ")}</p>
+				</>)}
+				</Card>
+			</div>
 		</div>
 	);
 }

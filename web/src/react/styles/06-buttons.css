@@ -120,10 +120,7 @@ button.btn-close {
 }
 
 
-/* —— 模态（T-0411 v2 稿：.glass-overlay=候选搜索浮层玻璃壳——背景压暗
-   +blur(8px)，整页模糊全站唯此一处低频用；.glass-modal=玻璃面弹窗
-   blur(28px) saturate(140%)+圆角 24px+半透明白描边，色值全走现有令牌
-   与 T-0221 白高光常量。基类几何/90vh 契约不动——domtest CSS 锚在案。）—— */
+/* —— 模态 —— */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -132,12 +129,6 @@ button.btn-close {
   align-items: center;
   justify-content: center;
   z-index: 200;
-}
-
-.modal-overlay.glass-overlay {
-  background: rgba(0, 0, 0, 0.32);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
 }
 
 .modal {
@@ -154,18 +145,6 @@ button.btn-close {
      min-height:0 可缩（自身 overflow-y 滚），首尾操作区不缩。 */
   max-height: 90vh;
   overflow: hidden;
-}
-
-.modal.glass-modal {
-  background: color-mix(in srgb, var(--surface) 55%, transparent);
-  border: 1px solid color-mix(in srgb, #ffffff 30%, transparent);
-  border-radius: 24px;
-  backdrop-filter: blur(28px) saturate(140%);
-  -webkit-backdrop-filter: blur(28px) saturate(140%);
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, #ffffff 42%, transparent),
-    0 1px 2px rgba(0, 0, 0, 0.06),
-    0 12px 40px rgba(0, 0, 0, 0.12);
 }
 .modal > * {
   flex: none;
