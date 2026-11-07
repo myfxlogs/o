@@ -40,19 +40,23 @@ step "migrations";  bash scripts/check_migrations.sh            || fail "迁移�
 step "bridge-audit"; bash scripts/check_bridge_registry.sh         || fail "桥域对账闸红"
 step "tolerate-report"; bash scripts/check_tolerate_report.sh      || fail "容错必报 lint 红"
 step "ops-chain";   bash scripts/check_ops_chain.sh                || fail "ops 账链闸红"
-# 测谱分级（T-0409 刀②+④）：变更面=已提交面（merge-base...HEAD）∪
-# 工作树面（status --porcelain 含 untracked），与 docs-only 豁免同径
-# 收集不复制判据。三档——
+# 测谱分级（T-0409 刀②+④；T-0433 二期插 merge-scoped 档）：变更面=
+# 已提交面（merge-base...HEAD）∪工作树面（status --porcelain 含
+# untracked），与 docs-only 豁免同径收集不复制判据。四档——
 #   docs-only：变更面全中白名单（docs/**、*.md 任意层、skills/**）→
 #     免 go test 段（业主令 2026-10-31 既有语义不动）；
-#   scoped：变更面全 .go（混 docs 白名单允许）→「变更包+反向依赖
-#     闭包+恒测册」定向谱（钱径/风控册不论 diff 恒测）；
-#   full：变更面含任何非 .go 非 docs 码件（proto/migration/sql/sh/
-#     compose/Dockerfile/yaml/json 等）或包映射任何一步不确定
-#     →回退全谱 fail-safe 不 fail-open。
+#   scoped：变更面=.go+docs/infra（无 mig/proto）→「变更包+反向
+#     依赖闭包+恒测册」定向谱（T-0409 语义零回归）；
+#   merge-scoped（T-0433）：变更面=.go+migrations/*.sql+proto/*+
+#     安全基建件（scripts/**、.github/**）→同 scoped 谱+迁移附加
+#     种子 pgstore+proto 附加种子 internal/gen/<dir> 映射包+
+#     buf build proto 闸——码迁件免全谱（merge 场景实证病灶）；
+#   full：变更面含任何清单外码件（go.mod/sum、web/、Dockerfile、
+#     yaml/json、tools 非 go 等）或包映射/闭包/恒测册展开任一步
+#     不确定→回退全谱 fail-safe 不 fail-open。
 # CHECK_ALL_FORCE_FULL=1 无条件全谱；merge-base/命令败 fail-closed
-# 走全谱。戳旁 .mode 三档留痕（scoped 附实测包集清单——T-0397
-# 三档审裁读戳面）。
+# 走全谱。戳旁 .mode 四档留痕（scoped/merge-scoped 附实测包集清单
+# ——T-0397 三档审裁读戳面同形）。
 MODE=full; NCOM=0; NWT=0; MB=""; TEST_PKGS=""
 ALWAYS_PKGS="o/internal/risk/... o/internal/ledger/... o/internal/trading/... o/internal/guard o/internal/portfolio/lifecycle/..."
 if [ "${CHECK_ALL_FORCE_FULL:-}" != "1" ]; then
@@ -72,26 +76,55 @@ if [ "${CHECK_ALL_FORCE_FULL:-}" != "1" ]; then
                 done; } | grep -v '^$' | sort -u ) # tolerate: 空集=零变更合法径
     NCOM=$(printf '%s\n' "$CFILES" | grep -c . || true) # tolerate: 空集=零已提交变更合法径
     NWT=$(printf '%s\n' "$WLIST" | grep -c . || true)  # tolerate: 空集=净工作树合法径
-    ALL_DOCS=1; HAS_GO=0; HAS_OTHER=0
+    ALL_DOCS=1; HAS_GO=0; HAS_MIG=0; HAS_PROTO=0; HAS_OTHER=0
+    CODE_SEEN=0
     while IFS= read -r p; do
       [ -n "$p" ] || continue
       case "$p" in
         docs/*|skills/*|*.md) ;;
-        *.go) HAS_GO=1; ALL_DOCS=0 ;;
+        *.go)             HAS_GO=1;    CODE_SEEN=1; ALL_DOCS=0 ;;
+        migrations/*.sql) HAS_MIG=1;   CODE_SEEN=1; ALL_DOCS=0 ;;
+        proto/*)          HAS_PROTO=1; CODE_SEEN=1; ALL_DOCS=0 ;;
+        # 安全基建件=中性：不算 docs（ALL_DOCS=0——独现/伴 docs 落
+        # full 不免测）不算清单外（HAS_OTHER 不置——伴码件入
+        # merge-scoped 定向谱）。T-0433 首版漏清 ALL_DOCS 致
+        # docs+scripts 面误判 docs-only 免测=fail-open，红桩锚在
+        # scripts/meta/tests/check_all_scope_test.sh 场景①。
+        scripts/*|.github/*) ALL_DOCS=0 ;;
         *)   HAS_OTHER=1; ALL_DOCS=0 ;;
       esac
     done <<< "$CHANGED"
     if [ "$ALL_DOCS" = 1 ]; then
       MODE=docs-only
-    elif [ "$HAS_OTHER" = 0 ] && [ "$HAS_GO" = 1 ]; then
-      # scoped 候选——包映射+反向依赖闭包+恒测册；任一步不确定回退 full
+    elif [ "$HAS_OTHER" = 0 ] && [ "$CODE_SEEN" = 1 ]; then
+      # 定向谱候选（scoped/merge-scoped 同构）：种子=.go 包映射+
+      # 迁移→pgstore+proto→gen 包映射；闭包+恒测册同式；任一步不确定回退 full
       SCOPE_OK=1; SEEDS=""
       while IFS= read -r f; do
         [ -n "$f" ] || continue
         pkg=$(go list "./$(dirname "$f")" 2>/dev/null) \
           || { SCOPE_OK=0; break; }
         SEEDS="$SEEDS $pkg"
-      done <<< "$(printf '%s\n' "$CHANGED" | grep '\.go$' || true)" # tolerate: 空集不可能（HAS_GO=1 已断）
+      done <<< "$(printf '%s\n' "$CHANGED" | grep '\.go$' || true)" # tolerate: 空集合法（mig/proto-only 面）
+      # 迁移面定向（T-0433③）：fin_/md_ 迁移→pgstore migrate 测+受影响包
+      # （check_migrations 闸在上段门禁位已恒跑）
+      if [ "$SCOPE_OK" = 1 ] && [ "$HAS_MIG" = 1 ]; then
+        pkg=$(go list ./internal/store/pgstore 2>/dev/null) \
+          || SCOPE_OK=0
+        [ "$SCOPE_OK" = 1 ] && SEEDS="$SEEDS $pkg"
+      fi
+      # proto 面定向：proto/<dir>/*→o/internal/gen/<dir> 包映射+buf build 闸
+      if [ "$SCOPE_OK" = 1 ] && [ "$HAS_PROTO" = 1 ]; then
+        command -v buf >/dev/null 2>&1 && buf build >/dev/null 2>&1 \
+          || SCOPE_OK=0   # proto 闸：buf 缺席/编译败=判不准→full
+        while IFS= read -r f; do
+          [ -n "$f" ] || continue
+          d=${f#proto/}; d=${d%/*}
+          pkg=$(go list "./internal/gen/$d" 2>/dev/null) \
+            || { SCOPE_OK=0; break; }
+          SEEDS="$SEEDS $pkg"
+        done <<< "$(printf '%s\n' "$CHANGED" | grep '^proto/' || true)" # tolerate: 空集合法
+      fi
       if [ "$SCOPE_OK" = 1 ]; then
         IG=$(mktemp) || SCOPE_OK=0
         if [ "$SCOPE_OK" = 1 ]; then
@@ -125,7 +158,11 @@ PY
         # 恒测册包集展开（败=回退 full——册内包消失=结构变了不猜）
         AP=$(go list $ALWAYS_PKGS 2>/dev/null) || SCOPE_OK=0
         if [ "$SCOPE_OK" = 1 ]; then
-          MODE=scoped
+          if [ "$HAS_MIG" = 1 ] || [ "$HAS_PROTO" = 1 ]; then
+            MODE=merge-scoped
+          else
+            MODE=scoped
+          fi
           TEST_PKGS=$(printf '%s\n%s\n' "$CLOSURE" "$AP" | tr ' ' '\n' | grep -v '^$' | sort -u | tr '\n' ' ')
         fi
       fi
@@ -134,22 +171,25 @@ PY
   fi
 fi
 
+# 坑处置（条目 pipefail-grep-q-early-exit-false-negative）：pipefail
+# 下 producer|grep -q 早退收 SIGPIPE=141 假阴——docker ps 先收变量
+# 再 herestring 判，两处消费面同式。
+PG_NAMES=$(docker ps --format '{{.Names}}' 2>/dev/null || true) # tolerate: docker 缺席/查询败=按无 test PG 处理（DSN 不注入）
+
 if [ "$MODE" = docs-only ]; then
   echo "── go test 全谱：docs-only 豁免跳过——已提交面 ${NCOM} 件+工作树面 ${NWT} 件全中白名单（docs/**、*.md、skills/**），merge-base=$MB；CHECK_ALL_FORCE_FULL=1 压过" >&2
   echo "docs-only" > "$STAMP.mode"
-elif [ "$MODE" = scoped ]; then
-  echo "── go test：scoped 定向谱——变更面全 .go，跑变更包+反向依赖闭包+恒测册（risk/ledger/trading/guard/lifecycle）；包集: $TEST_PKGS" >&2
-  { echo "scoped"; printf '%s\n' $TEST_PKGS; } > "$STAMP.mode"
-  if [ -z "${O_TEST_PG_DSN:-}" ] &&
-     docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^o-postgres-test$'; then
+elif [ "$MODE" = scoped ] || [ "$MODE" = merge-scoped ]; then
+  echo "── go test：$MODE 定向谱——变更包+反向依赖闭包+恒测册（risk/ledger/trading/guard/lifecycle）$( [ "$MODE" = merge-scoped ] && echo '+迁移pgstore/proto-gen附加种子' )；包集: $TEST_PKGS" >&2
+  { echo "$MODE"; printf '%s\n' $TEST_PKGS; } > "$STAMP.mode"
+  if [ -z "${O_TEST_PG_DSN:-}" ] && grep -q '^o-postgres-test$' <<< "$PG_NAMES"; then
     export O_TEST_PG_DSN="postgres://o:o@localhost:5434/o_test?sslmode=disable"
   fi
-  go test $TEST_PKGS -timeout=1800s                        || fail "go test 红（scoped）"
+  go test $TEST_PKGS -timeout=1800s                        || fail "go test 红（$MODE）"
 else
   echo "full" > "$STAMP.mode"
   step "go test 全谱"
-  if [ -z "${O_TEST_PG_DSN:-}" ] &&
-     docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^o-postgres-test$'; then
+  if [ -z "${O_TEST_PG_DSN:-}" ] && grep -q '^o-postgres-test$' <<< "$PG_NAMES"; then
     export O_TEST_PG_DSN="postgres://o:o@localhost:5434/o_test?sslmode=disable"
   fi
   # T-0212：去 -count=1 放行 Go 测试缓存——同 tree 复测近零本（业主令：全量
