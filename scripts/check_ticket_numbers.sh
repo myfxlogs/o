@@ -144,18 +144,38 @@ if [ "${1:-}" = "--remote" ]; then
     fi
     key=$(printf '%s' "$p" | ticket_key)
     n=$(printf '%s' "$p" | ticket_num)
-    if printf '%s\n' "$remote_files" | grep -qx "$p"; then
+    if printf '%s\n' "$remote_files" | grep -x "$p" >/dev/null; then
       if git diff --quiet origin/master HEAD -- "$p" 2>/dev/null; then
         echo "NOTE(T-0219): $p 远端同票同文——幂等放行" >&2
       else
         echo "FAIL(T-0219): $p 远端同号同径但内容异——同票分叉，先合流 origin/master 再推" >&2
         status=1
       fi
-    elif printf '%s\n' "$remote_keys" | grep -Fxq "$key"; then
-      echo "FAIL(T-0219): 票号 $key 远端已被他票占用（双席取号竞态——让号重编）:" >&2
-      printf '%s\n' "$remote_files" | grep -E "/${key}(-|\.md$)" | sed 's/^/  /' >&2
-      status=1
+    elif printf '%s\n' "$remote_keys" | grep -Fx "$key" >/dev/null; then
+      # 归档移豁免：同 key 的远端原档若在本推送内被删=票改名/归档非占用
+      # （T-0219 语义缺口实证 2026-11-07：tasks/→done/ 内容异档判不了 R 形，
+      #   落 key 撞误拦——删加对=归档移身份未变；删除集查 staged∪推送区间，
+      #   D 行与 R 源行皆算删）
+      same_key_remote=$(printf '%s\n' "$remote_files" | grep -E "/${key}(-|\.md$)" | head -1 || true)
+      del_paths=$( {
+        git -c core.quotepath=off diff --cached --name-status 2>/dev/null
+        [ -n "$mb" ] && git -c core.quotepath=off diff --name-status "$mb" HEAD 2>/dev/null
+      } | awk -F'\t' '$1=="D"{print $2} $1 ~ /^R/{print $2}' | sort -u || true)
+      if [ -n "$same_key_remote" ] && printf '%s\n' "$del_paths" | grep -x "$same_key_remote" >/dev/null; then
+        echo "NOTE(T-0219): $p 远端同key原档同push删除——归档移放行" >&2
+      else
+        echo "FAIL(T-0219): 票号 $key 远端已被他票占用（双席取号竞态——让号重编）:" >&2
+        printf '%s\n' "$remote_files" | grep -E "/${key}(-|\.md$)" | sed 's/^/  /' >&2
+        status=1
+      fi
     elif [ -n "$rmax" ] && [ "$((10#$n))" -le "$((10#$rmax))" ]; then
+      # 补档豁免：号已被远端历史消费（merge/commit 文引 T-$n）→票件迟到
+      # 属台账补档非新立（T-0219 语义缺口实证：T-0419~0427 码先票后误拦）
+      if grep -qE "T-0*${n}([^0-9]|\$)" <<< "$(git log origin/master --format='%s %b' 2>/dev/null)"; then
+        # (herestring 非管道——pipefail 下 grep -q 早退 SIGPIPE 会假阴性，实证 2026-11-07)
+        echo "NOTE(T-0219): $p 票号 T-$n 远端历史已消费——补档放行" >&2
+        continue
+      fi
       on_branch=0
       while IFS= read -r ref; do
         git cat-file -e "$ref:$p" 2>/dev/null && { on_branch=1; break; }
