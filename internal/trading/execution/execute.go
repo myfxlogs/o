@@ -33,13 +33,14 @@ type Leg struct {
 
 // OrderResult venue 回报（filled/live/absent/ambiguous 归一为 leg 状态机值）。
 type OrderResult struct {
-	ClOrdID    string
-	State      string // filled|live|partially_filled|absent|unknown
-	FillPx     float64
-	FillSz     float64
-	FillTicket int64  // venue 仓凭据（MT5 ticket——hedge 户平仓 OrderClose 必携；okx=0 略）
-	VenueCode  string // venue 业务拒码（okx sCode≠0——留痕 fin_order_leg，T-0040）
-	VenueMsg   string
+	ClOrdID      string
+	State        string // filled|live|partially_filled|absent|unknown
+	FillPx       float64
+	FillSz       float64
+	FillTicket   int64  // venue 仓凭据（MT5 ticket——hedge 户平仓 OrderClose 必携；okx=0 略）
+	VenueCode    string // venue 业务拒码（okx sCode≠0——留痕 fin_order_leg，T-0040）
+	VenueMsg     string
+	RulesVersion string // 规则集指纹（T-0426 仿真域携——真 venue 留空；审计可验「哪套规则判的」）
 }
 
 // Executor venue 下单面（测试注入 fake——产线=okxexec 包装）。
