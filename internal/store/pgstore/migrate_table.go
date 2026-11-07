@@ -148,6 +148,7 @@ var migrationTable = []struct {
 	{139, "fin_0139_verdict_deliver_grant.sql"},
 	{140, "fin_0140_earn_sweep_whitelist.sql"},
 	{141, "fin_0141_quote_watchlist_venues.sql"},
+	{142, "fin_0142_xvenue_exec.sql"},
 
 	// —— md 链（版本链内唯一且单调；md 链版本=历史号+1000 与 fin 键空间全局不相交——跨链并 schema 时 schema_migrations 零撞号，check_migrations 断言①⑤）——
 	{1003, "md_1003_market_facts.sql"},

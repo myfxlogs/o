@@ -32,10 +32,12 @@ func CloseIntent(spec guard.CloseSpec) execution.Intent {
 	}
 }
 
-// CloseLegOf 平仓腿装配——Close=true 必置（T-0043 根修）。
+// CloseLegOf 平仓腿装配——Close=true 必置（T-0043 根修）；Ticket 透传 venue
+// 仓凭据（T-0145——mt5 腿 OrderClose 必携 ticket，无票=执行面 fail-closed
+// 禁反向单）。
 func CloseLegOf(spec guard.CloseSpec, l guard.CloseLeg) execution.Leg {
 	return execution.Leg{Venue: l.Venue, InstID: l.InstID, Side: l.Side, Close: true,
-		Sz: strconv.FormatFloat(l.Sz, 'f', -1, 64), Notional: spec.NotionalUSD / 2}
+		Sz: strconv.FormatFloat(l.Sz, 'f', -1, 64), Notional: spec.NotionalUSD / 2, Ticket: l.Ticket}
 }
 
 // OkxSizer guard.VenueSizer okx 适配（T-0046 ②——平仓量决策时点 venue 现读：

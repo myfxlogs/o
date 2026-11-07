@@ -32,13 +32,15 @@ type CloseSpec struct {
 	Legs        [2]CloseLeg
 }
 
-// CloseLeg 反向腿规格（side=平仓侧；sz=下单方言目标量——SWAP 张数/spot 币量，
-// T-0419 量纲消歧后沿腿实得 qty_base 非开腿 sz 额；SzKnown=false=腿账不可定
-// →venue 余额实查备源）。
+// CloseLeg 反向腿规格（side=平仓侧；sz=下单方言目标量——SWAP 张数/spot 币量
+// /mt5 手数，T-0419 量纲消歧后沿腿实得 qty_base 非开腿 sz 额；SzKnown=false=
+// 腿账不可定→venue 余额实查备源；Ticket=T-0145 venue 仓凭据——mt5 平仓
+// OrderClose 必携）。
 type CloseLeg struct {
 	Venue, InstID, Side string
 	Sz                  float64
 	SzKnown             bool
+	Ticket              int64
 }
 
 // Executor 平仓执行缝——G7 执行件（internal/trading/execution.Runner）由装配层
@@ -60,6 +62,7 @@ type Warden struct {
 	gate    *risk.Gate
 	ex      Executor
 	sizer   VenueSizer
+	sizers  map[string]VenueSizer                                           // T-0145：venue 路由现读面（跨 venue 双腿——mt5 腿须 mt5 sizer；缺 venue 路由=fail-closed 不开）
 	ctVal   func(ctx context.Context, venue, instID string) (float64, bool) // 合约面值现读件（T-0046①——T-0048 后 facts 表废，cmd 注入 venue 现读）
 	rej     *rejects.Door
 	al      *notify.Alerter
@@ -70,6 +73,28 @@ type Warden struct {
 
 // AttachSizer 挂平仓量 venue 现读面（cmd 装配注入——未挂=平仓 fail-closed）。
 func (w *Warden) AttachSizer(s VenueSizer) { w.sizer = s }
+
+// AttachVenueSizer 挂 venue 路由现读面（T-0145——跨 venue 双腿按腿 venue 分派；
+// 同 venue 重复挂=后覆前幂等）。w.sizer=okx 默认兜底（未挂路由的 venue）。
+func (w *Warden) AttachVenueSizer(venue string, s VenueSizer) {
+	if w.sizers == nil {
+		w.sizers = map[string]VenueSizer{}
+	}
+	w.sizers[venue] = s
+}
+
+// sizerFor 腿 venue 路由现读件（T-0145）：venue 路由在册=专用件；okx/空=
+// 默认 w.sizer 兜底（单 venue 仓不变行为）；外 venue 无专用件=nil
+// fail-closed（错 venue 件=错读量——binance 腿抄 okx sizer=异 venue 误读）。
+func (w *Warden) sizerFor(venue string) VenueSizer {
+	if s, ok := w.sizers[venue]; ok && s != nil {
+		return s
+	}
+	if venue == "okx" || venue == "" {
+		return w.sizer
+	}
+	return nil
+}
 
 // AttachCtVal 挂合约面值现读面（T-0046①——未挂=SWAP 腿名义读不到 fail-closed）。
 func (w *Warden) AttachCtVal(f func(ctx context.Context, venue, instID string) (float64, bool)) {

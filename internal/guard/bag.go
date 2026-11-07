@@ -61,7 +61,8 @@ func (w *Warden) bareBags(ctx context.Context, p posRow, legs legSet, cls [2]Clo
 			log.Printf("WARN [guard] 仓 %d 平腿 %s 行缺——残袋对拍本腿跳过", p.id, cl.InstID)
 			continue
 		}
-		if strings.HasSuffix(cl.InstID, "-SWAP") {
+		if cl.Venue == "mt5" || strings.HasSuffix(cl.InstID, "-SWAP") {
+			// T-0145：mt5 CFD 残仓同 SWAP 律——合约残仓=敞口事故升件非资产挂账
 			w.bareBagSwap(ctx, p, cl)
 			continue
 		}
@@ -70,8 +71,15 @@ func (w *Warden) bareBags(ctx context.Context, p posRow, legs legSet, cls [2]Clo
 }
 
 // bareBagSwap 合约残仓显形——venue 净仓>0=平未净敞口事故（非资产不挂账）。
+// T-0145：sizer 按腿 venue 路由（mt5 腿=Mt5Sizer；路由缺=显形让位计数）。
 func (w *Warden) bareBagSwap(ctx context.Context, p posRow, cl CloseLeg) {
-	resid, err := w.sizer.ContractPos(ctx, cl.InstID)
+	szr := w.sizerFor(cl.Venue)
+	if szr == nil {
+		w.rej.Inc("facts_missing")
+		log.Printf("WARN [guard] 仓 %d %s venue=%s 现读面缺——残仓显形让位", p.id, cl.InstID, cl.Venue)
+		return
+	}
+	resid, err := szr.ContractPos(ctx, cl.InstID)
 	if err != nil {
 		w.rej.Inc("facts_missing")
 		log.Printf("WARN [guard] 仓 %d %s 合约残仓现读败——本腿显形让位: %v", p.id, cl.InstID, err)
@@ -91,7 +99,13 @@ func (w *Warden) bareBagSwap(ctx context.Context, p posRow, cl CloseLeg) {
 // 事件行+台账标；碎尘（估<阈）不挂账但同式查——lotSz 粒度残量免噪。
 func (w *Warden) bareBagSpot(ctx context.Context, p posRow, legs legSet, cl CloseLeg, soldQty, minUSD float64) {
 	ccy := strings.SplitN(cl.InstID, "-", 2)[0]
-	avail, err := w.sizer.SpotAvailBal(ctx, cl.InstID)
+	szr := w.sizerFor(cl.Venue)
+	if szr == nil {
+		w.rej.Inc("facts_missing")
+		log.Printf("WARN [guard] 仓 %d %s venue=%s 现读面缺——残袋显形让位", p.id, ccy, cl.Venue)
+		return
+	}
+	avail, err := szr.SpotAvailBal(ctx, cl.InstID)
 	if err != nil {
 		w.rej.Inc("facts_missing")
 		log.Printf("WARN [guard] 仓 %d %s 现货实余现读败——本腿显形让位: %v", p.id, ccy, err)

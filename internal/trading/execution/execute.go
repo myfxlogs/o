@@ -29,6 +29,7 @@ type Leg struct {
 	Ticket   int64   // MT5 平仓凭据（leg1 回报 ticket——hedge 户 OrderClose 必携）
 	Maker    bool    // T-0238：post_only 限价腿位（runner 挂价装配位——buy→best bid/sell→best ask）
 	LimitPx  float64 // post_only 挂价（Maker=true 必带——零=市价径）
+	CtVal    float64 // T-0145：sz 单位的币量面值（mt5=contract_size——qty_base=fillSz×CtVal 落账；okx 腿=0 略，SWAP 名义径走 ctValReader）
 }
 
 // OrderResult venue 回报（filled/live/absent/ambiguous 归一为 leg 状态机值）。

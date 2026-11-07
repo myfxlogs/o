@@ -138,8 +138,9 @@ func run() error {
 	if !ro {
 		go earnW.Run(ctx, errc)
 	}
-	var closeSizer guard.VenueSizer // 平仓量现读面（priv 域接线 T-0046②）
-	var liveOpener lifecycle.Opener // live 开仓缝（priv 域接线 T-0050）
+	var closeSizer guard.VenueSizer              // 平仓量现读面（priv 域接线 T-0046②）
+	var liveOpener lifecycle.Opener              // live 开仓缝（priv 域接线 T-0050）
+	xcli, xds, xdial := newXvenueDeps(pool, cfg) // T-0145 mt5 三面同件（懒连——凭据缺=取用点 err）
 	if priv, err := okxpriv.NewCollector(ctx, pool, false); err != nil {
 		log.Printf("WARN: 私流守缺席（%v）——凭据落位后重启即上岗", err)
 	} else {
@@ -157,14 +158,13 @@ func run() error {
 			earnW.AttachIdleFunding(func(ctx context.Context) (float64, error) { return okxFundingAvailUSDT(ctx, okcli) }) // T-0149 ②
 			earnW.AttachCoins(okxCoinsFor(pool, okcli))                                                                    // T-0439 残币处置判据源
 			earnW.AttachClearer(okxClearer{&execution.OkxExecutor{C: okxexec.NewClient(priv.Credentials(), false)}})       // T-0439 杂币清仓缝
-			// 交易域首岗：执事（Executor=okxexec 唯一 venue 径——凭据与私流守同源解出）。
-			execR := execution.NewRunner(pool, cfg,
-				&execution.OkxExecutor{C: okxexec.NewClient(priv.Credentials(), false)}).WithEarn(earnW).WithAlerter(alerter)
+			// 交易域首岗：执事（Executor=RouterExecutor 双腿路由——okx 原径+T-0145 mt5 懒连件）。
+			execR := newExecRunner(pool, cfg, priv.Credentials(), xcli, xdial).WithEarn(earnW).WithAlerter(alerter)
 			go execution.Run(ctx, errc, execR)
 			closer = execwiring.CloseExec{R: execR}
-			// live 开仓缝（T-0050——gate+执事+元数据件同源接线）。
+			// live 开仓缝（T-0050——gate+执事+元数据件同源接线；T-0145 xvenue 面同件）。
 			liveOpener = hedgeOpener{pool: pool, cfg: cfg, gate: riskGate, r: execR, // T-0050
-				cli: newCli(priv.Credentials())}
+				cli: newCli(priv.Credentials()), xcli: xcli, xdial: xdial, xds: xds}
 		} // !ro mutating 接线域收
 		// 读径面（只读镜像全通）：boot 首读播种+平仓量现读+funding 记账+私流守。
 		creds := priv.Credentials()
@@ -264,7 +264,8 @@ func run() error {
 	if closeSizer != nil {
 		wd.AttachSizer(closeSizer) // T-0046②：平仓量现读件
 	}
-	wd.AttachCtVal(ctValReader(okcli)) // T-0046①：面值现读件（nav_live.go）
+	wd.AttachVenueSizer("mt5", Mt5Sizer{C: xcli, X: xdial, D: xds}) // T-0145 mt5 腿路由现读件（OpenedOrders 手数）
+	wd.AttachCtVal(ctValReader(okcli))                              // T-0046①：面值现读件（nav_live.go）
 	wd.AttachAlerter(alerter)
 	// venue 现读件（T-0048：快照行全域出局——venue_readers.go 装配）。
 	attachVenueReaders(riskGate, wd, ledgerR, pool, okcli,

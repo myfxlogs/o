@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"o/internal/platform/execfam"
@@ -71,12 +72,10 @@ func (r *Runner) openLive(ctx context.Context) {
 			case <-time.After(1 * time.Second): // sched-exempt-ok：venue 限速节流等待（非轮询——429 洪泛根修）
 			}
 		}
-		// T-0144 armed→open 显式禁：xvenue_carry 执行原子性语义未建（两腿序+
-		// 败一腿处置缺——T-0145 另票），抢跑=裸腿风险。永拒非瞬态（钉死）。
-		if c.spec.Template == "xvenue-carry" {
-			r.rej.Inc("xvenue_open_forbidden")
-			log.Printf("ALERT [lifecycle] 策略 %d %s armed→open 显式禁（xvenue-carry 双腿执行径未建——T-0145 另票）",
-				c.spec.StrategyRef, c.spec.InstID)
+		// T-0145：xvenue-carry 副腿行（venue='mt5'）永不独立开仓——同仓由主行
+		// 一次建成（独立开=裸腿事故源）；跳过计数静默非异常。主行落缝。
+		if c.spec.Template == "xvenue-carry" && c.spec.Venue != "okx" {
+			r.rej.Inc("xvenue_sub_leg")
 			continue
 		}
 		// T-0103 ③同键振荡保险丝：1h 内开平轮次 ≥3=判据分裂振荡兜底——
@@ -122,10 +121,14 @@ func (r *Runner) openLive(ctx context.Context) {
 			// T-0111 ①回本窗判据：预期 carry（持有上限内）≥ 往返摩擦×1.5 不满足
 			// =拒开（fin_opp_eval rejected/breakeven_beyond_hold——「72h 开闸制
 			// 度性亏损」根修；T-0103 对偶同位判）。
-			if ok, why := r.breakevenOK(ctx, c.spec); !ok {
-				r.denyAt[c.spec.StrategyRef] = time.Now()
-				log.Printf("[lifecycle] 策略 %d %s 开闸拒——%s", c.spec.StrategyRef, c.spec.InstID, why)
-				continue
+			// T-0145 豁免：xvenue-carry 跳本闸——成本模型=okx 双腿专用，跨所
+			// eval 已四件分解过阈，重复闸=双计成本误杀；funding 翻面判仍守。
+			if c.spec.Template != "xvenue-carry" {
+				if ok, why := r.breakevenOK(ctx, c.spec); !ok {
+					r.denyAt[c.spec.StrategyRef] = time.Now()
+					log.Printf("[lifecycle] 策略 %d %s 开闸拒——%s", c.spec.StrategyRef, c.spec.InstID, why)
+					continue
+				}
 			}
 		}
 		eid, err := r.op.Open(ctx, c.spec)
@@ -166,7 +169,9 @@ func (r *Runner) lifetimeOK(ctx context.Context, spec OpenSpec) (bool, string) {
 		return false, "guard.flip_bps 判据键缺 fail-closed"
 	}
 	sign := 1.0
-	if spec.Direction == "long_perp_short_spot" {
+	// T-0145：向位前缀判（long_perp_* 含 cfd 变体——perp 多=收负 funding 方
+	// sign=-1；等值串判=cfd 向位漏判=符号反置错拒/错放）。
+	if strings.HasPrefix(spec.Direction, "long_perp") {
 		sign = -1
 	}
 	col := func(c string) (float64, bool) {

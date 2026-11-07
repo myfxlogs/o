@@ -11,12 +11,17 @@ import (
 // sz_unit 漂移〔quote=美元额〕，裸拷当 base 发=错平——生产实证 24.99 美元额
 // 只清 1.3% 币量）：
 //
-//	SWAP=sz 张数；qty_base>0=venue 实填币量（唯一真源）；sz_unit=base=sz；
-//	quote 腿 qty_base 缺/量纲未消歧=(0,false)——sizedCloseLegs 备源 venue
-//	余额实查（钦定「读腿/读持仓余额」双径），美元额禁当 base 卖。
+//	SWAP=sz 张数；sz_unit=lot=sz 手数（T-0145 mt5——qty_base 是币量面值
+//	换算非下单方言，禁当手数发）；qty_base>0=venue 实填币量（唯一真源）；
+//	sz_unit=base=sz；quote 腿 qty_base 缺/量纲未消歧=(0,false)——
+//	sizedCloseLegs 备源 venue 余额实查（钦定「读腿/读持仓余额」双径），
+//	美元额禁当 base 卖。
 func (l leg) closeWant() (float64, bool) {
 	if strings.HasSuffix(l.inst, "-SWAP") {
 		return l.sz, true
+	}
+	if l.szUnit == "lot" {
+		return l.sz, true // T-0145：mt5 手数量纲——sz=下单手数=平仓手数同方言
 	}
 	if l.qtyBase > 0 {
 		return l.qtyBase, true
@@ -49,22 +54,25 @@ func alignCloseSz(want, avail, lotSz float64) (float64, bool) {
 }
 
 // sizedCloseLegs 反向腿 venue 实读定量（T-0046 ②根修）——任一腿读败/对齐零= false（fail-closed：不构 intent 不发半仓平仓）。
+// T-0145 venue 路由：腿按 Venue 分派现读件（跨 venue 双腿——mt5 腿走
+// Mt5Sizer OpenedOrders 实读手数；venue 无路由=fail 不开非默认错 venue 件）。
 func (w *Warden) sizedCloseLegs(ctx context.Context, cls [2]CloseLeg) ([2]CloseLeg, bool) {
-	if w.sizer == nil {
-		return cls, false // 未接线=禁发（现读面缺席——腿行推导禁线）
-	}
 	for i, cl := range cls {
+		szr := w.sizerFor(cl.Venue)
+		if szr == nil {
+			return cls, false // venue 现读面缺席=禁发（跨 venue 无兜底——错 venue 件=错读量）
+		}
 		var avail float64
 		var err error
-		if strings.HasSuffix(cl.InstID, "-SWAP") {
-			avail, err = w.sizer.ContractPos(ctx, cl.InstID)
+		if cl.Venue == "mt5" || strings.HasSuffix(cl.InstID, "-SWAP") {
+			avail, err = szr.ContractPos(ctx, cl.InstID)
 		} else {
-			avail, err = w.sizer.SpotAvailBal(ctx, cl.InstID)
+			avail, err = szr.SpotAvailBal(ctx, cl.InstID)
 		}
 		if err != nil {
 			return cls, false
 		}
-		lot, err := w.sizer.LotSz(ctx, cl.InstID)
+		lot, err := szr.LotSz(ctx, cl.InstID)
 		if err != nil {
 			return cls, false
 		}
