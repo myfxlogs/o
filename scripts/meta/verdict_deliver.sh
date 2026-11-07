@@ -20,8 +20,11 @@
 #   state='pending' DO UPDATE（condreq.Request 同构——pending 撞键=刷新
 #   requested_at+payload 非重行；结案后重转=新 pending 行，condreq 同律）。
 #   venue=<票号> surface=verdict——per-票 per-kind 一 pending 行，同票连裁
-#   刷同行不刷屏，异票异行不互撞。BOX_DSN 默认 META_PG_DSN（role o 箱全权
-#   ——FIN_PG_DSN/roster_rw 对箱零授权实勘；迁移免依赖即插即用）。
+#   刷同行不刷屏，异票异行不互撞。BOX_DSN=FIN_DSN 单源（roster_rw 对箱柱级
+#   授权=fin_0139，fin_0113 research_rw 同形——state/resolve 柱不授=业主裁
+#   域零触碰；迁移未落产窗=箱写败 rc3 下拍重试+升件自报，零半途假送达）。
+#   送达次序=箱成→推送→标记：箱写败不推送不标记（箱=业主唯一动作视图，
+#   只推不落箱=半途断链违票面义——宁滞留重试显形于升件）。
 # 推送径：feishu-notify 现成载（deploy_image.sh/deploy_oci.sh 同式直调），
 #   文案票面③钉死「⚠ 需业主：<票号> <判词一行>」——败=best-effort 下拍重试。
 # rc: 0=空集/全闭环；1=DSN 缺；2=扫描写径败；3=有未闭环件（下拍重试）。
@@ -29,9 +32,8 @@ set -u
 ENVF="${VERDICT_DELIVER_ENV_FILE:-${DM_ENV_FILE:-/opt/o-research/env}}"
 FIN_DSN=$(grep '^FIN_PG_DSN=' "$ENVF" 2>/dev/null | cut -d= -f2- | tr -d '"')
 [ -n "$FIN_DSN" ] || exit 1
-BOX_DSN=${O_VERDICT_BOX_DSN:-}
-[ -n "$BOX_DSN" ] || BOX_DSN=$(grep '^META_PG_DSN=' "$ENVF" 2>/dev/null | cut -d= -f2- | tr -d '"')
-[ -n "$BOX_DSN" ] || { echo "[verdict-deliver] 箱写 DSN 缺（META_PG_DSN/O_VERDICT_BOX_DSN）——未闭环" >&2; exit 1; }
+BOX_DSN=${O_VERDICT_BOX_DSN:-$FIN_DSN} # 单源——roster_rw 柱级授权 fin_0139（覆写位=桩测面）
+[ -n "$BOX_DSN" ] || { echo "[verdict-deliver] 箱写 DSN 缺——未闭环" >&2; exit 1; }
 NOTIFY_SH=${O_VERDICT_NOTIFY_SH:-/opt/meta/scripts/feishu-notify.sh}
 NOTIFY_TIMEOUT=${O_VERDICT_NOTIFY_TIMEOUT:-15}
 WINDOW=${O_VERDICT_WINDOW:-14 days}
@@ -96,29 +98,26 @@ WITH up AS (
 SELECT id FROM up;
 SQL
   ) && [ -n "$GAP" ] || GAP=
+  # ②' 箱写=送达前置闸：败=零推送零标记（箱=业主唯一动作视图，只推不落箱
+  #    =半途断链违票面义——宁滞留下拍重试，rc≠0 升件显形）。
+  if [ -z "$GAP" ]; then
+    UNDELIVERED=$((UNDELIVERED + 1))
+    echo "[verdict-deliver] $tk 判词#$rid 箱写败——零推送零标记下拍重试" >&2
+    continue
+  fi
   # ③ 推送（feishu-notify 现成载——deploy 脚本同式 best-effort）
   PUSHRC=0
   timeout "$NOTIFY_TIMEOUT" "$NOTIFY_SH" "⚠ 需业主：$tk $exc160" >/dev/null 2>&1 || PUSHRC=$?
-  if [ -n "$GAP" ] && [ "$PUSHRC" = 0 ]; then
+  if [ "$PUSHRC" = 0 ]; then
     # ④ 幂等标记（双成才落——note 前缀 ref=<id>| 即幂等键；ticket=''零票态污染）
     NOTE=$(printf 'ref=%s|gap=%s|push=ok|%s|%s 判词送达(T-0438)' "$rid" "$GAP" "$tk" "$kd")
     psql "$FIN_DSN" -qAt -c "INSERT INTO ops_event(seat,event,ticket,note)
       VALUES('META-DM','送达','','$(printf '%s' "$NOTE" | sed "s/'/''/g")')" >/dev/null 2>&1 \
       || true # tolerate: 标记末环败静默——下拍重转=箱刷新+重推一行，幂等键自愈不刷屏
     echo "[verdict-deliver] $tk 判词#$rid 已送达（gap=$GAP push=ok kind=$kd）" >&2
-  elif [ -n "$GAP" ]; then
-    UNDELIVERED=$((UNDELIVERED + 1)) # 箱已落推送败——下拍重试推送（箱 upsert 刷新无害）
-    echo "[verdict-deliver] $tk 判词#$rid 推送败 rc=$PUSHRC——下拍重试" >&2
-  elif [ "$PUSHRC" = 0 ]; then
-    UNDELIVERED=$((UNDELIVERED + 1)) # 推送已出箱写败——不重推；标记留痕+rc 显形升件
-    NOTE=$(printf 'ref=%s|gap=none|push=ok|%s|%s 箱写败留痕(T-0438)' "$rid" "$tk" "$kd")
-    psql "$FIN_DSN" -qAt -c "INSERT INTO ops_event(seat,event,ticket,note)
-      VALUES('META-DM','送达','','$(printf '%s' "$NOTE" | sed "s/'/''/g")')" >/dev/null 2>&1 \
-      || true # tolerate: 标记末环败静默——升件面 rc≠0 已显形（T-0369 限度）
-    echo "[verdict-deliver] $tk 判词#$rid 箱写败（推送已出）——gap=none 留痕" >&2
   else
-    UNDELIVERED=$((UNDELIVERED + 1)) # 箱/推送双败——零标记下拍双重试
-    echo "[verdict-deliver] $tk 判词#$rid 箱写+推送双败——下拍重试" >&2
+    UNDELIVERED=$((UNDELIVERED + 1)) # 箱已落推送败——零标记下拍重试（箱 upsert 刷新无害）
+    echo "[verdict-deliver] $tk 判词#$rid 推送败 rc=$PUSHRC——下拍重试" >&2
   fi
 done <<< "$CANDS"
 

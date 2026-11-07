@@ -10,6 +10,7 @@
 #   ④ 裁决+通过成对双行（同票同 note，T-0424 实据形态）→单转写单推送；
 #   ⑤ 凭据缺口词→kind=credential；
 #   ⑥ 推送败=零标记+rc≠0；恢复后单送达（箱 upsert 刷新零重行）；
+#   ⑨ 箱写败=零推送零标记 rc≠0（半途假送达禁——前置闸）；
 #   ⑦ 已有标记行=永跳（历史件不重送）；
 #   ⑧ manual_lane_check 单测：rc0 人工径票/rc1 可派/rc2 票件缺/rc3 用法错。
 set -euo pipefail
@@ -131,6 +132,19 @@ cat "$TMP/fail.log"
 [ "$(mark_count)" = 4 ]
 [ "$(wc -l < "$NOTIFY_LOG")" = 1 ]
 
+# ⑨ 箱写败=零推送零标记 rc≠0（半途假送达禁——前置闸断言；新种子未标记件走箱败径）
+psql "$TDSN" -qAt -c "INSERT INTO ops_event(seat,event,ticket,note)
+  VALUES('决策席','裁决','T-9006','执行=人工径(业主在场)——箱败径测试件')" >/dev/null
+: > "$NOTIFY_LOG"
+BEFORE_BOX=$(box_count); BEFORE_MARK=$(mark_count)
+O_VERDICT_BOX_DSN="postgres://nobody:nobody@localhost:1/none" "$VD" >"$TMP/boxfail.log" 2>&1 \
+  && { echo "FAIL: 箱写败应 rc≠0"; exit 1; } || RC=$?
+cat "$TMP/boxfail.log"
+[ "$RC" -eq 3 ]
+[ "$(box_count)" = "$BEFORE_BOX" ]
+[ "$(mark_count)" = "$BEFORE_MARK" ]
+[ "$(wc -l < "$NOTIFY_LOG")" = 0 ]
+
 # ⑧ manual_lane_check 单测（真文件判据；位置参票目录——零部署树耦合）
 ML="$ROOT/scripts/meta/manual_lane_check.sh"
 TD="$TMP/lane"; mkdir -p "$TD"
@@ -142,4 +156,4 @@ bash "$ML" T-8001 "$TD"
 RC=0; bash "$ML" >/dev/null 2>&1 || RC=$?
 [ "$RC" -eq 3 ] # rc3 用法错
 
-echo "✅ verdict_deliver_test 全场景过（①②③④⑤⑥⑦⑧）"
+echo "✅ verdict_deliver_test 全场景过（①②③④⑤⑥⑦⑧⑨）"
