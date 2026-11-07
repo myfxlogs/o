@@ -87,7 +87,9 @@ func main() {
 		"d": {Table: "ops_event_wip", Kind: "dm", DSN: "fin",
 			// T-0354 件①：升件入 kick 白名单——升件行亦唤醒决策席
 			//（拍壳待裁闸自挡空拍零 LLM；队列为空=心跳即退）。
-			Q: "SELECT COALESCE(max(id),0) FROM ops_event WHERE event IN ('收口','移交','收口待审','升件')"},
+			// T-0431：诊断草案行入白名单——草案落位即唤醒决策席裁决
+			//（判词归流头段；status='drafted' 不入裁定席水印不回烧）。
+			Q: "SELECT COALESCE(max(id),0) FROM ops_event WHERE event IN ('收口','移交','收口待审','升件','诊断草案')"},
 	}
 	pools := map[string]eventbus.Querier{}
 	for _, kv := range [][2]string{{"md", "MD_PG_DSN"}, {"fin", "FIN_PG_DSN"}} {

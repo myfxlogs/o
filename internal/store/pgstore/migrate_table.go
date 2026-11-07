@@ -140,6 +140,7 @@ var migrationTable = []struct {
 	{131, "fin_0131_trade_postmortem.sql"},
 	{132, "fin_0132_close_memory.sql"},
 	{133, "fin_0133_pnl_caliber.sql"},
+	{134, "fin_0134_rootcause_diag.sql"},
 
 	// —— md 链（版本链内唯一且单调；md 链版本=历史号+1000 与 fin 键空间全局不相交——跨链并 schema 时 schema_migrations 零撞号，check_migrations 断言①⑤）——
 	{1003, "md_1003_market_facts.sql"},
