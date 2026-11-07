@@ -8,10 +8,12 @@ keywords: [check_all, go test, O_TEST_PG_DSN, o-postgres-test, 共享测试库, 
 scope: [工程面, scripts/check_all.sh, o-postgres-test 容器, internal/platform/testutil]
 summary: 多 worktree 并行 check_all 时共用 o-postgres-test 容器的 o_test 库——并发 pgstore.Migrate 互持锁致 go test 挂死撞 1800s 闸；开专库 o_test_<wt>+export O_TEST_PG_DSN 隔离即绿
 first_seen: 2026-11-06
-last_seen: 2026-11-06
+last_seen: 2026-11-07
 evidence_refs:
   - type: ticket
     ref: T-0403
+  - type: ticket
+    ref: T-0427
   - type: doc
     ref: scripts/check_all.sh
   - type: doc

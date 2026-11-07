@@ -20,22 +20,23 @@ func (r *Runner) projectTwoTier(ctx context.Context) error {
 }
 
 // projectTickScan 粗扫表全量 upsert（(venue,inst_id) 自然键——扫描臂写正本
-// 每 60s 一拍，镜像新鲜度=本拍顺带；行宽固定无列膨胀）。
+// 每 60s 一拍，镜像新鲜度=本拍顺带；行宽固定无列膨胀）。T-0427：inst_type
+// 族标随行镜像（SG 选符域同列归位——零谓词改动自动见新族符）。
 func (r *Runner) projectTickScan(ctx context.Context) error {
-	rows, err := r.md.Query(ctx, `SELECT ts,venue,inst_id,last,bid,ask,recv_ts FROM md_tick_scan`)
+	rows, err := r.md.Query(ctx, `SELECT ts,venue,inst_id,inst_type,last,bid,ask,recv_ts FROM md_tick_scan`)
 	if err != nil {
 		return fmt.Errorf("tick_scan 查询: %w", err)
 	}
 	var batch [][]any
 	for rows.Next() {
 		var ts, recv time.Time
-		var venue, inst string
+		var venue, inst, fam string
 		var last, bid, ask *string
-		if err := rows.Scan(&ts, &venue, &inst, &last, &bid, &ask, &recv); err != nil {
+		if err := rows.Scan(&ts, &venue, &inst, &fam, &last, &bid, &ask, &recv); err != nil {
 			rows.Close()
 			return err
 		}
-		batch = append(batch, []any{ts, venue, inst, last, bid, ask, recv})
+		batch = append(batch, []any{ts, venue, inst, fam, last, bid, ask, recv})
 	}
 	rows.Close()
 	if err := batchExec(ctx, r.sg, uTickScan, batch); err != nil {
@@ -71,10 +72,10 @@ func (r *Runner) projectSubRequests(ctx context.Context) error {
 	return nil
 }
 
-const uTickScan = `INSERT INTO md_tick_scan(ts,venue,inst_id,last,bid,ask,recv_ts)
-	VALUES($1::timestamptz,$2,$3,$4::numeric,$5::numeric,$6::numeric,$7::timestamptz)
+const uTickScan = `INSERT INTO md_tick_scan(ts,venue,inst_id,inst_type,last,bid,ask,recv_ts)
+	VALUES($1::timestamptz,$2,$3,$4,$5::numeric,$6::numeric,$7::numeric,$8::timestamptz)
 	ON CONFLICT (venue,inst_id) DO UPDATE SET ts=EXCLUDED.ts,last=EXCLUDED.last,
-		bid=EXCLUDED.bid,ask=EXCLUDED.ask,recv_ts=EXCLUDED.recv_ts
+		bid=EXCLUDED.bid,ask=EXCLUDED.ask,inst_type=EXCLUDED.inst_type,recv_ts=EXCLUDED.recv_ts
 	WHERE EXCLUDED.ts > md_tick_scan.ts`
 
 const uSubRequest = `INSERT INTO fin_sub_request(ts,venue,inst_id,requester,state,reason,recv_ts)

@@ -143,6 +143,7 @@ var migrationTable = []struct {
 	{134, "fin_0134_rootcause_diag.sql"},
 	{135, "fin_0135_symbol_dialect.sql"},
 	{136, "fin_0136_exec_drill.sql"},
+	{137, "fin_0137_scan_universe.sql"},
 
 	// —— md 链（版本链内唯一且单调；md 链版本=历史号+1000 与 fin 键空间全局不相交——跨链并 schema 时 schema_migrations 零撞号，check_migrations 断言①⑤）——
 	{1003, "md_1003_market_facts.sql"},
@@ -193,4 +194,5 @@ var migrationTable = []struct {
 	{1089, "md_1089_volsell_capability_reenable.sql"},
 	{1090, "md_1090_venue_onboard_states.sql"},
 	{1091, "md_1091_two_tier_collect.sql"},
+	{1092, "md_1092_scan_universe.sql"},
 }

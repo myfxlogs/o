@@ -37,6 +37,29 @@ func TestParseScanTickers(t *testing.T) {
 	}
 }
 
+// tickersStub 按 instType 查参分派 tickers 载荷（族感知——非册族回空集）。
+func tickersStub(fam map[string]json.RawMessage) ScanGet {
+	return func(_ context.Context, path string) (json.RawMessage, error) {
+		for f, raw := range fam {
+			if path == "/api/v5/market/tickers?instType="+f {
+				return raw, nil
+			}
+		}
+		return json.RawMessage(`[]`), nil
+	}
+}
+
+// staticGate 族谱域闸桩（定集全集;零参=合法空集）。
+func staticGate(keys ...string) ScanGate {
+	return func(context.Context) (map[string]bool, error) {
+		m := make(map[string]bool, len(keys))
+		for _, k := range keys {
+			m[k] = true
+		}
+		return m, nil
+	}
+}
+
 // TestScanUpsertAndSubArm 锚②桩：ScanOnce upsert md_tick_scan 最新赢
 // （回戳帧不覆新）+fin_sub_request open 行经 ActiveSetUnion 入集、
 // closed 行出集（晋级径 UNIÓN 臂谓词语义）。
@@ -50,11 +73,11 @@ func TestScanUpsertAndSubArm(t *testing.T) {
 	if err := pool.QueryRow(ctx, "SELECT count(*) FROM md_tick_scan").Scan(&n); err != nil {
 		t.Fatalf("md_tick_scan 应随 fin_0124 落表: %v", err)
 	}
-	p := NewScanPoller(pool, nil, func(context.Context, string) (json.RawMessage, error) {
-		return json.RawMessage(`[
+	p := NewScanPoller(pool, nil, tickersStub(map[string]json.RawMessage{
+		"SWAP": json.RawMessage(`[
 			{"instId":"ZZZ-USDT-SWAP","last":"3","bidPx":"2.9","askPx":"3.1","ts":"1700000000000"},
-			{"instId":"YYY-USDT-SWAP","last":"5","bidPx":"5","askPx":"5","ts":"1700000000000"}]`), nil
-	})
+			{"instId":"YYY-USDT-SWAP","last":"5","bidPx":"5","askPx":"5","ts":"1700000000000"}]`),
+	}))
 	if err := p.ScanOnce(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -64,9 +87,9 @@ func TestScanUpsertAndSubArm(t *testing.T) {
 		t.Fatalf("粗扫行未落: %v last=%v", err, last)
 	}
 	// 回戳帧不覆新（EXCLUDED.ts>现 ts 守卫）。
-	p.get = func(context.Context, string) (json.RawMessage, error) {
-		return json.RawMessage(`[{"instId":"ZZZ-USDT-SWAP","last":"99","bidPx":"9","askPx":"9","ts":"1600000000000"}]`), nil
-	}
+	p.get = tickersStub(map[string]json.RawMessage{
+		"SWAP": json.RawMessage(`[{"instId":"ZZZ-USDT-SWAP","last":"99","bidPx":"9","askPx":"9","ts":"1600000000000"}]`),
+	})
 	if err := p.ScanOnce(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -93,22 +116,27 @@ func TestScanUpsertAndSubArm(t *testing.T) {
 	}
 }
 
-// TestScanCatalogGate T-0416 谱域闸桩：Catalog 挂线后 tickers 行须∈目录
-// 全集才落表（目录外滤除）；目录读败=fail-closed 本拍让位零行落表。
+// TestScanCatalogGate T-0416 谱域闸桩（T-0427 改族制）：Gates 挂线后各族
+// tickers 行须∈该族目录全集才落表（目录外滤除）；族目录读败=该族让位
+// 零行落表、他族照常（fail-closed 粒度到族）；合法空族集=零行非病。
 func TestScanCatalogGate(t *testing.T) {
 	pool := testutil.Pool(t)
 	ctx := context.Background()
 	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
 		t.Fatal(err)
 	}
-	p := NewScanPoller(pool, nil, func(context.Context, string) (json.RawMessage, error) {
-		return json.RawMessage(`[
+	p := NewScanPoller(pool, nil, tickersStub(map[string]json.RawMessage{
+		"SWAP": json.RawMessage(`[
 			{"instId":"ZZZ-USDT-SWAP","last":"3","bidPx":"2.9","askPx":"3.1","ts":"1700000000000"},
-			{"instId":"YYY-USDT-SWAP","last":"5","bidPx":"5","askPx":"5","ts":"1700000000000"}]`), nil
-	})
-	// 目录全集={ZZZ}——YYY 目录外滤除不落表。
-	p.Catalog = func(context.Context) (map[string]bool, error) {
-		return map[string]bool{"ZZZ-USDT-SWAP": true}, nil
+			{"instId":"YYY-USDT-SWAP","last":"5","bidPx":"5","askPx":"5","ts":"1700000000000"}]`),
+		"SPOT":    json.RawMessage(`[]`),
+		"FUTURES": json.RawMessage(`[]`),
+	}))
+	// SWAP 目录全集={ZZZ}——YYY 目录外滤除不落表;空族集=合法零行。
+	p.Gates = map[string]ScanGate{
+		"SWAP":    staticGate("ZZZ-USDT-SWAP"),
+		"SPOT":    staticGate(),
+		"FUTURES": staticGate(),
 	}
 	if err := p.ScanOnce(ctx); err != nil {
 		t.Fatal(err)
@@ -120,14 +148,100 @@ func TestScanCatalogGate(t *testing.T) {
 	if n != 1 {
 		t.Fatalf("目录外行应滤除留 1 行: %d", n)
 	}
-	// 目录读败=fail-closed——tickers 有行也零落表。
-	p.Catalog = func(context.Context) (map[string]bool, error) {
+	// SWAP 目录读败=该族让位零落表（存量不动）;他族照常（FUTURES 行落）。
+	p.Gates["SWAP"] = func(context.Context) (map[string]bool, error) {
 		return nil, errors.New("instruments 面断")
 	}
-	if err := p.ScanOnce(ctx); err == nil {
-		t.Fatal("目录读败应 fail-closed 让位")
+	p.Gates["FUTURES"] = staticGate("QQQ-USD-260327")
+	p.get = tickersStub(map[string]json.RawMessage{
+		"SWAP": json.RawMessage(`[
+			{"instId":"ZZZ-USDT-SWAP","last":"3","bidPx":"2.9","askPx":"3.1","ts":"1700000001000"}`),
+		"SPOT":    json.RawMessage(`[]`),
+		"FUTURES": json.RawMessage(`[{"instId":"QQQ-USD-260327","last":"7","bidPx":"7","askPx":"7","ts":"1700000001000"}]`),
+	})
+	if err := p.ScanOnce(ctx); err != nil {
+		t.Fatalf("单族读败不应全拍炸: %v", err)
 	}
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM md_tick_scan`).Scan(&n); err != nil || n != 1 {
-		t.Fatalf("目录败拍应零落表（存量不动）: %v n=%d", err, n)
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM md_tick_scan WHERE inst_id LIKE 'ZZZ%'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("族败拍 SWAP 应零落表（存量不动）: %v n=%d", err, n)
+	}
+	var fam string
+	if err := pool.QueryRow(ctx, `SELECT inst_type FROM md_tick_scan
+		WHERE inst_id='QQQ-USD-260327'`).Scan(&fam); err != nil || fam != "futures" {
+		t.Fatalf("他族应照常落行: %v fam=%q", err, fam)
+	}
+}
+
+// TestScanFamiliesLand T-0427 红桩①：三族 tickers fixture→md_tick_scan
+// 携 inst_type 落行（显式族标>inst_id 键内隐式——防族判散落正则复制件）。
+func TestScanFamiliesLand(t *testing.T) {
+	pool := testutil.Pool(t)
+	ctx := context.Background()
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatal(err)
+	}
+	p := NewScanPoller(pool, nil, tickersStub(map[string]json.RawMessage{
+		"SWAP":    json.RawMessage(`[{"instId":"ZZZ-USDT-SWAP","last":"3","bidPx":"2.9","askPx":"3.1","ts":"1700000000000"}]`),
+		"SPOT":    json.RawMessage(`[{"instId":"ZZZ-USDT","last":"2.9","bidPx":"2.8","askPx":"3.0","ts":"1700000001000"}]`),
+		"FUTURES": json.RawMessage(`[{"instId":"ZZZ-USD-260327","last":"3.1","bidPx":"3.0","askPx":"3.2","ts":"1700000002000"}]`),
+	}))
+	p.Gates = map[string]ScanGate{
+		"SWAP":    staticGate("ZZZ-USDT-SWAP"),
+		"SPOT":    staticGate("ZZZ-USDT"),
+		"FUTURES": staticGate("ZZZ-USD-260327"),
+	}
+	if err := p.ScanOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct{ inst, fam string }{
+		{"ZZZ-USDT-SWAP", "swap"}, {"ZZZ-USDT", "spot"}, {"ZZZ-USD-260327", "futures"},
+	} {
+		var fam string
+		if err := pool.QueryRow(ctx, `SELECT inst_type FROM md_tick_scan
+			WHERE inst_id=$1`, tc.inst).Scan(&fam); err != nil || fam != tc.fam {
+			t.Fatalf("族标错位 %s: %v fam=%q want %q", tc.inst, err, fam, tc.fam)
+		}
+	}
+}
+
+// TestScanFamilyFailClosed T-0427 红桩②：某族目录读败=该族零行他族不受
+// 影响（fail-closed 粒度到族——拍不炸不虚构）;全族败=本拍 loud 岗终。
+func TestScanFamilyFailClosed(t *testing.T) {
+	pool := testutil.Pool(t)
+	ctx := context.Background()
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatal(err)
+	}
+	p := NewScanPoller(pool, nil, tickersStub(map[string]json.RawMessage{
+		"SWAP":    json.RawMessage(`[{"instId":"ZZZ-USDT-SWAP","last":"3","bidPx":"2.9","askPx":"3.1","ts":"1700000000000"}]`),
+		"SPOT":    json.RawMessage(`[{"instId":"ZZZ-USDT","last":"2.9","bidPx":"2.8","askPx":"3.0","ts":"1700000001000"}]`),
+		"FUTURES": json.RawMessage(`[{"instId":"ZZZ-USD-260327","last":"3.1","bidPx":"3.0","askPx":"3.2","ts":"1700000002000"}]`),
+	}))
+	p.Gates = map[string]ScanGate{
+		"SWAP":    staticGate("ZZZ-USDT-SWAP"),
+		"SPOT":    func(context.Context) (map[string]bool, error) { return nil, errors.New("spot 目录断") },
+		"FUTURES": staticGate("ZZZ-USD-260327"),
+	}
+	if err := p.ScanOnce(ctx); err != nil {
+		t.Fatalf("SPOT 族读败不应全拍炸: %v", err)
+	}
+	var n int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM md_tick_scan WHERE inst_type='spot'`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("族读败该族应零行: %v n=%d", err, n)
+	}
+	for _, keep := range []string{"ZZZ-USDT-SWAP", "ZZZ-USD-260327"} {
+		if err := pool.QueryRow(ctx, `SELECT count(*) FROM md_tick_scan
+			WHERE inst_id=$1`, keep).Scan(&n); err != nil || n != 1 {
+			t.Fatalf("他族不受影响 %s: %v n=%d", keep, err, n)
+		}
+	}
+	// 全族败=面病灶——本拍 loud 上抛（同原 fail-closed 形）。
+	p.Gates = map[string]ScanGate{
+		"SWAP":    func(context.Context) (map[string]bool, error) { return nil, errors.New("swap 断") },
+		"SPOT":    func(context.Context) (map[string]bool, error) { return nil, errors.New("spot 断") },
+		"FUTURES": func(context.Context) (map[string]bool, error) { return nil, errors.New("futures 断") },
+	}
+	if err := p.ScanOnce(ctx); err == nil {
+		t.Fatal("全族败应 loud 上抛岗终")
 	}
 }
