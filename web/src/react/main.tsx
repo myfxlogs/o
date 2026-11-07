@@ -17,7 +17,6 @@ import "./styles/03-table-chip.css";
 import "./styles/06-buttons.css";
 import "./styles/20-semantic.css";
 import "./styles/22-effects.css";
-import "./styles/30-glass-skin.css";
 
 const ROUTES: RouteDef[] = [
   { path: "/", label: "总览", el: <OverviewPage /> },

@@ -3,18 +3,14 @@
 .shell {
   min-height: 100vh;
 }
-/* T-0411 v2 稿：菜单=静态低频面→玻璃壳（backdrop-filter 白名单面之一）；
-   底色半透随主题（surface 折算 45-60% 区间），描边随玻璃面白描边族。 */
 .side {
   position: fixed;
   inset: 0 auto 0 0;
   width: 180px;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid color-mix(in srgb, #ffffff 18%, transparent);
-  background: color-mix(in srgb, var(--surface) 55%, transparent);
-  backdrop-filter: blur(28px) saturate(140%);
-  -webkit-backdrop-filter: blur(28px) saturate(140%);
+  border-right: 1px solid var(--line);
+  background: var(--surface);
   padding: 16px 12px;
   gap: 12px;
   z-index: 10;
@@ -29,7 +25,6 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  position: relative;
 }
 .side nav a {
   display: block;
@@ -40,40 +35,13 @@
 }
 .side nav a:hover {
   text-decoration: none;
+  background: var(--page);
   color: var(--ink);
 }
 .side nav a.on {
+  background: var(--page);
   color: var(--ink);
   font-weight: 700;
-}
-/* —— 菜单胶囊（T-0411 交互③：当前项=半透明玻璃胶囊底；切换时胶囊滑向
-   新位，移动中沿方向拉长 10-15%，到位弹性回弹（轻快不超调）；1px 半透
-   高光描边。位置由 Shell.tsx NavCapsule 实测锚位驱动——纯呈现层，导航
-   语义零改动。弹性=临界阻尼族贝塞尔（有弹性观感无过冲）。）—— */
-.nav-capsule {
-  position: absolute;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--surface) 62%, transparent);
-  border: 1px solid color-mix(in srgb, #ffffff 38%, transparent);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, #ffffff 45%, transparent);
-  pointer-events: none;
-  transition:
-    top 0.3s cubic-bezier(0.22, 1, 0.36, 1),
-    left 0.3s cubic-bezier(0.22, 1, 0.36, 1),
-    width 0.3s cubic-bezier(0.22, 1, 0.36, 1),
-    height 0.3s cubic-bezier(0.22, 1, 0.36, 1),
-    transform 0.3s ease;
-}
-.nav-capsule.is-moving.side-capsule {
-  transform: scaleY(1.13);
-}
-.nav-capsule.is-moving.tab-capsule {
-  transform: scaleX(1.13);
-}
-@media (prefers-reduced-motion: reduce) {
-  .nav-capsule {
-    transition: none;
-  }
 }
 .side-f {
   margin-top: auto;
@@ -136,10 +104,8 @@
     inset: auto 0 0 0;
     height: 56px;
     display: flex;
-    background: color-mix(in srgb, var(--surface) 55%, transparent);
-    backdrop-filter: blur(28px) saturate(140%);
-    -webkit-backdrop-filter: blur(28px) saturate(140%);
-    border-top: 1px solid color-mix(in srgb, #ffffff 18%, transparent);
+    background: var(--surface);
+    border-top: 1px solid var(--line);
     z-index: 10;
     padding-bottom: env(safe-area-inset-bottom);
   }
@@ -151,8 +117,6 @@
     color: var(--ink-3);
     font-size: 13px;
     font-weight: 500;
-    position: relative;
-    z-index: 1;
   }
   .tabbar a.on {
     color: var(--ink);

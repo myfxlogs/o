@@ -55,15 +55,16 @@
    箭头随退役——折行后箭头语义已破，边框色+icon+序位载状态足够。 */
 .pipe-flow .pipe-card {
   position: relative; border: 1px solid color-mix(in srgb, var(--line) 42%, transparent);
-  border-radius: 8px; background: color-mix(in srgb, var(--surface) 88%, transparent); padding: 8px 10px;
+  border-radius: 8px; background: color-mix(in srgb, var(--surface) 46%, transparent); padding: 8px 10px;
   box-sizing: border-box;
-  /* T-0411 层级律：主面板一层玻璃，内嵌模块不再叠玻璃（多层玻璃嵌套=
-     透明度叠加发灰）——本卡嵌于管道/工序玻璃卡内，降实色低透底，
-     backdrop-filter 撤（原 T-0221 同材质段随层级律退役）；状态边色规则
-     随其后覆写不受扰。 */
+  /* Liquid Glass 瓦片同材质（T-0221 业主令：液态玻璃通用面——工序卡与
+     玻璃卡同语言：透底折射+顶部镜面亮边+双层投影；状态边色规则随其后覆写不受扰）。 */
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
   box-shadow:
-    inset 0 1px 0 color-mix(in srgb, #ffffff 20%, transparent),
-    0 1px 2px rgba(0, 0, 0, 0.05);
+    inset 0 1px 0 color-mix(in srgb, #ffffff 42%, transparent),
+    0 1px 2px rgba(0, 0, 0, 0.05),
+    0 6px 16px rgba(0, 0, 0, 0.08);
   /* 实时卡防抖（业主批 10-17）：①卡高钉死——流推帧文字变长不顶页面；
      ④contain:layout——卡内重排不外溢传播。全文兜底=hover title+点卡 Modal。 */
   height: 70px; contain: layout; cursor: pointer;
