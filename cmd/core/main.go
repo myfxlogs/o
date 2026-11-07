@@ -154,10 +154,9 @@ func run() error {
 			earnW.AttachIdle(func(ctx context.Context) (float64, error) {
 				return okxAvailFromEvents(ctx, pool, okcli)
 			})
-			earnW.AttachIdleFunding(func(ctx context.Context) (float64, error) { // T-0149 ②
-				return okxFundingAvailUSDT(ctx, okcli)
-			})
-			earnW.AttachCoins(okxCoinsFor(pool, okcli)) // T-0095 v3 残币归口判据源
+			earnW.AttachIdleFunding(func(ctx context.Context) (float64, error) { return okxFundingAvailUSDT(ctx, okcli) }) // T-0149 ②
+			earnW.AttachCoins(okxCoinsFor(pool, okcli))                                                                    // T-0439 残币处置判据源
+			earnW.AttachClearer(okxClearer{&execution.OkxExecutor{C: okxexec.NewClient(priv.Credentials(), false)}})       // T-0439 杂币清仓缝
 			// 交易域首岗：执事（Executor=okxexec 唯一 venue 径——凭据与私流守同源解出）。
 			execR := execution.NewRunner(pool, cfg,
 				&execution.OkxExecutor{C: okxexec.NewClient(priv.Credentials(), false)}).WithEarn(earnW).WithAlerter(alerter)

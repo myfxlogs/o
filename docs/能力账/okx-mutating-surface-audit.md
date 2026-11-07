@@ -2,7 +2,7 @@
 
 | mutating 面 | 代码径 | venue 端点 | 双跑后果 | 幂等/竞态判 | 裁 |
 |---|---|---|---|---|---|
-| **残币归口** | `earn.sweepResidual`→transfer+SavingsPurchase | POST /asset/transfer、/finance/savings/purchase-redempt | **断腿级实爆**（2026-10-25 盲库搬 #23 活仓 ETH 腿→裸腿+对账假差+平仓径险炸） | 判据源=本节点库 FundCcy——分账部署下必盲 | **禁双跑**（已裁） |
+| **残币处置** | `earn.sweepResidual`→白名单币 transfer+SavingsPurchase；白名单外 clearResidual→execution Place/Resolve | POST /asset/transfer、/finance/savings/purchase-redempt、POST /trade/order（T-0439 清仓径新增） | **断腿级实爆**（2026-10-25 盲库搬 #23 活仓 ETH 腿→裸腿+对账假差+平仓径险炸）；清仓双跑=同币双卖/双升件 | 判据源=本节点库 FundCcy——分账部署下必盲；升件行 note 同键幂等但 Place 非幂等 | **禁双跑**（已裁） |
 | 闲资停泊 | `earn.sweepIdle`→transfer+purchase | 同上 | 同余量双读双摆——后者不足额拒重试（良性但双倍打 venue+在途窗互扰） | 幂等近真但双倍 REST | 禁双跑（只读端撤岗） |
 | **执行双腿** | `execution.Runner.Execute`→PlaceOrder ×2 | POST /trade/order | **双开仓=双倍敞口**——armed 提案同键双端各开一份 | 非幂等（clOrdId 各自生） | 禁双跑 |
 | 平仓 | `closeExec.ExecuteClose`→PlaceOrder | POST /trade/order | 双端评同仓各自平——第二平单空向或超卖 | 非幂等 | 禁双跑 |

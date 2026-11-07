@@ -51,3 +51,79 @@
 「杂币拿=亏」不是收益判断是授权判断——系统没有持有任何
 非白名单币的授权面，持仓即越权。粉尘级（阈下）残留挂账
 归并另案不混本票。
+
+## 结果（施工回填——待验）
+
+四面钦定全落（earn 臂 sweepResidual 行为改写，DM 径施工）：
+
+- ① 扫袋白名单：`earn.sweep_whitelist` jsonb 数组键播种
+  `["USDT"]`（fin_0140；USDC 待议不入）；`sweepWhitelist()`
+  热读集含 w.ccy 兜底——白名单外币种一律不进 Earn 停泊，
+  白名单内非本位币走 T-0095 v3 旧停泊径（摆渡→申购→拒=回摆
+  +托管标）零回归；
+- ② 杂币实存即清：白名单外余量估值≥`earn.residual_clear_min_usd`
+  （fin_0140 播 "1"；0<usd<阈=粉尘托管标挂账待归并）→
+  `Clearer` 缝（`AttachClearer`，产线=与执事同一
+  `execution.OkxExecutor`——Place/Resolve 定真态三分支复用，
+  零新造下单码）市价卖 ccy-USDT（Leg{sell,Close=true,Sz=币量}）；
+  成交留痕=decision(op=residual_clear,reason=transfer)+
+  `spot_sell` USDT 现金流行（FillSz×FillPx 成交额锚，缺=估值
+  兜底+gross_fallback 显形）；败/歧态（unknown/live/partial/
+  absent 非终拒）=「杂币清仓」升件不补单；
+- ③ 豁免面激活：venue 终拒 51001/51003（标的不可交易=
+  未上市/停售）→ `fin_known_residual` 落行（venue/ccy/
+  amount_usd/reason 携拒码/ticket_ref=T-0439/expires_at=30 天
+  窗幂等——窗满复检非永久盖布）；`residualExempted` 判读
+  置最前——扫袋与清仓双径同读跳过；册行=审计锚（死家具
+  首行激活件，ledger diff 豁免额同径受益）；
+- ④ 升件面：白名单外非粉尘敞口检出→ops_event「杂币敞口」行
+  （seat=配管 ticket=T-0439；note 前缀 venue+ccy 同键幂等——
+  周期复扫不连鸣）+Alert；「杂币清仓」升件行同键节流=
+  败/歧态后同币清仓径让位（升件不补单律——人工处置前
+  不再自动重发，T-0142 拒绝风暴同族防御）。
+
+验收锚对账：
+
+- 桩测断言全落（internal/earn 11 锚绿）：非白名单币注入→
+  清仓 Place 卖腿断言（CORE-USDT sell Close=true）+Earn 扫袋
+  零钱动+豁免册行跳过+升件行落+spot_sell 现金流行对账；
+  白名单币（FIL 入册/USDT 本位）停泊/扫袋旧行为零回归；
+- 自测绿戳：go build ./... + go vet ./... +
+  go test ./internal/earn ./cmd/core ./internal/store/pgstore
+  ./internal/trading/execution ./internal/ledger ./internal/guard
+  全绿（测试库租约 5434）+check_migrations 七断言过；
+- 实机 T-0424 回演留产线验证（本票收口即部署后自然回演——
+  CORE 再入袋径=「杂币敞口」升件→清仓/豁免非 Earn）。
+
+偏离/口径明注：
+
+- usd=0（无 tick 不可估值）杂币=敞口不可证小→保守侧走升件+
+  清仓径（不拿估值缺席当粉尘藏）；
+- 「升件不补单」节流面=同键永久让位至人工处置（非时限退避——
+  升件即人工接管语义，与 T-0424 人工径处置链闭合）；
+- 清仓不经 earn.auto_purchase_enabled 闸——处置=风险收回非
+  申购（同 close 免 live_switch 律）；
+- 在册杂币 Earn 存量（savings 内）非本票面——现货余量面钦定
+  （T-0424 人工处置轨已结同类）。
+
+范围（文件清单）：
+
+- `internal/earn/residual.go`——处置面改写（白名单闸/分类拍/
+  停泊径/托管标/豁免册+升件键判读）；
+- `internal/earn/residual_clear.go`——清仓执行面（清仓径/
+  豁免册落行/升件行落——行数棘轮 300 线拆分件）；
+- `internal/earn/worker.go`——Clearer 缝+AttachClearer+计数门
+  扩+包注释同步；
+- `cmd/core/main.go`——清仓缝接线（okxClearer 挂
+  AttachClearer——300 线棘轮内净零行）；
+- `cmd/core/earnclear.go`——earn.Clearer←execution.OkxExecutor
+  组合根翻译件（D-514 方向闸零边——earn 不 import execution，
+  execwiring 装配缝同例）；
+- `migrations/fin_0140_earn_sweep_whitelist.sql`——两判据键播种；
+- `internal/store/pgstore/migrate_table.go`——140 登记；
+- `internal/earn/residual_test.go`——桩测 11 锚重写；
+- `internal/earn/earn_test.go`——T-0342 锚白名单化适配；
+- `docs/能力账/okx-mutating-surface-audit.md`——mutating 面
+  canon 同步（清仓径 trade/order 写面入册——在用中证错必修）。
+
+收口：施工席 run（t/0439-earn-whitelist）→ 移交决策席审计。

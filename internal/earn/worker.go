@@ -6,9 +6,11 @@
 //     →EarnTransfer(deposit) 回存；失败=告警计数+下拍重试（不静默）。
 //  3. 开仓前置赎回 RedeemToTrading：执行链 leg1 前调用（EarnTransfer(redeem,
 //     notional+buffer)）；赎回/划转败=fail-closed 不开仓。
-//  4. 腿平残币活期归口（T-0095 v3）：在持腿基币之外的交易户非 USDT 余量——
-//     够起投=交易户→资金户→savings purchase 零换手停泊；业务拒=回摆+托管
-//     如实标（业主令禁兑换径）。ev_position 腿平主触发+ev_account 巡检兜底。
+//  4. 残币处置（T-0439 钱径风控面——原 T-0095 v3 杂币归口下线）：扫袋白名单
+//     外交易户余量=未授权敞口——阈上走执行径市价清 USDT（复用 execution
+//     缝 Place/Resolve 不新造下单码），终拒不可卖入 fin_known_residual 豁免册，
+//     败/歧态升件不补单；白名单内（计价币）残币仍零换手停泊旧径；
+//     ev_position 腿平主触发+ev_account 巡检兜底。
 //
 // 留痕：每次钱动落 fin_risk_decision（reason=transfer——内部移动不走敞口判）；
 // earn_in/earn_out 现金流行自 T-0060 停写（venue 内部划转 NAV 零影响，单边
@@ -72,8 +74,11 @@ type Worker struct {
 	// idleFund funding 户闲余现读件（T-0149 ②：入金天然落 funding 户——
 	// 钱到即闲而原扫面只看交易户=真缺口；/asset/balances REST 低频件）。
 	idleFund func(ctx context.Context) (float64, error)
-	// coins 交易户逐币可动余量现读件（T-0095 v3 残币归口判据源；nil=归口让位）。
-	coins  func(ctx context.Context) (map[string]float64, error)
+	// coins 交易户逐币可动余量现读件（残币处置判据源；nil=处置让位）。
+	coins func(ctx context.Context) (map[string]float64, error)
+	// clr 杂币清仓执行缝（T-0439——产线=execution.OkxExecutor；nil=清仓径
+	// 让位，检出升件照发）。
+	clr    Clearer
 	rateFn func(ctx context.Context) (okxexec.RateSummary, error)
 	mu     sync.Mutex // 单飞锁：redeem 持锁必进（开仓不排队），sweep TryLock 让位
 	// T-0059 同因退避：上一拍 sweep 败（amt 近似+时点）——同因 5min 内不再发
@@ -88,7 +93,9 @@ func NewWorker(pool *pgxpool.Pool, cfg *config.Client) *Worker {
 		rej: rejects.New("earn", "rate_fetch_failed", "rate_parse_failed", "missing_param",
 			"idle_missing", "idle_fund_missing", "sweep_skip_inflight", "sweep_busy", "sweep_backoff", "venue_absent",
 			"deposit_failed", "transfer_ambiguous", "compensation_failed", "auto_purchase_off",
-			"snapshot_refresh_failed", "write_err", "custody_marked", "transfer_rejected"),
+			"snapshot_refresh_failed", "write_err", "custody_marked", "transfer_rejected",
+			"residual_exposure", "residual_clear_failed", "residual_exempted",
+			"clearer_absent", "gross_fallback"),
 		rateFn: func(ctx context.Context) (okxexec.RateSummary, error) {
 			return okxexec.LendingRateSummary(ctx, defaultCcy)
 		}}
@@ -107,7 +114,7 @@ func (w *Worker) AttachIdle(fn func(ctx context.Context) (float64, error)) { w.i
 // 闲资面；装配层=AssetBalances 找 USDT availBal）。
 func (w *Worker) AttachIdleFunding(fn func(ctx context.Context) (float64, error)) { w.idleFund = fn }
 
-// AttachCoins 挂交易户逐币可动余量现读件（T-0095 v3 残币归口判据源）。
+// AttachCoins 挂交易户逐币可动余量现读件（T-0439 残币处置判据源）。
 func (w *Worker) AttachCoins(fn func(ctx context.Context) (map[string]float64, error)) { w.coins = fn }
 
 // Run 配管上岗（Register+BeatLoop 30s+扫描循环；boot 首读刷停泊快照——事件锚定形）。

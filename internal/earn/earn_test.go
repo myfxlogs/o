@@ -403,14 +403,15 @@ func TestFundingIdleBackoff(t *testing.T) {
 }
 
 // T-0342 锚①：earn.auto_purchase_enabled=false→三自动申购径（sweepIdle 闲余回存
-// /depositIdleFunding 直购/sweepResidual 残币归口）零 SavingsPurchase 零摆渡；
+// /depositIdleFunding 直购/sweepResidual 白名单残币停泊）零 SavingsPurchase 零摆渡；
 // RedeemToTrading 开仓赎回不经闸照发（票面钦定边界——停开关不误伤开仓可用性）；
 // 缺键=fail-closed 同停用态。
 func TestAutoPurchaseGate(t *testing.T) {
 	ctx, w, fake := setupW(t, &fakeAPI{}, map[string]string{
-		"earn.auto_purchase_enabled": "false",
-		"earn.sweep_min_usd":         "100",
-		"earn.redeem_buffer_bps":     "0",
+		"earn.auto_purchase_enabled":  "false",
+		"earn.sweep_min_usd":          "100",
+		"earn.redeem_buffer_bps":      "0",
+		"earn.residual_clear_min_usd": "1",
 	})
 	// 闸下 sweepIdle：funding 500+交易户闲余 800 双源俱在→全段让位零动钱。
 	w.AttachIdleFunding(func(context.Context) (float64, error) { return 500, nil })
@@ -425,8 +426,10 @@ func TestAutoPurchaseGate(t *testing.T) {
 	if w.depositIdleFunding(ctx, 500) || len(fake.purchases) != 0 {
 		t.Fatalf("停用中直购防线应拒: purchases=%v", fake.purchases)
 	}
-	// 闸下 sweepResidual：残币归口实际申购前让位——零摆渡零申购。
+	// 闸下 sweepResidual：白名单残币停泊实际申购前让位——零摆渡零申购。
+	// （T-0439：FIL 入白名单测停泊径闸——非白名单走清仓径不经本闸。）
 	residualSetup(t, ctx, w.pool, w.venue)
+	seedWhitelist(t, ctx, w, `["USDT","FIL"]`)
 	if _, err := w.pool.Exec(ctx,
 		`INSERT INTO md_ticks(ts,inst_id,last) VALUES(now(),'FIL-USDT',5)`); err != nil {
 		t.Fatal(err)
@@ -439,7 +442,7 @@ func TestAutoPurchaseGate(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(fake.purchases) != 0 || len(fake.transfers) != 0 {
-		t.Fatalf("停用中残币归口应零动: purchases=%v transfers=%v", fake.purchases, fake.transfers)
+		t.Fatalf("停用中残币停泊应零动: purchases=%v transfers=%v", fake.purchases, fake.transfers)
 	}
 	// 开仓赎回不经闸——停开关下 RedeemToTrading 仍发 SavingsRedeem+回拢摆渡。
 	if err := w.RedeemToTrading(ctx, 100); err != nil {
