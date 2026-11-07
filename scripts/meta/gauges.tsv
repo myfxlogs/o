@@ -1,8 +1,17 @@
-# 量表注册表（T-0332 自愈巡检面——量表=确定判据零 LLM；name|class|query_type|query|阈值|升件模板|⑦可选detail_query
+# 量表注册表（T-0332 自愈巡检面——量表=确定判据零 LLM；name|class|query_type|query|阈值|升件模板|⑦可选detail_query|⑧可选mode
 # query_type: sql_ro(FIN_PG_RO_DSN=o_fin_ro 窄读白名单)/cmd(shell 出数)；滞回闸=连续2拍触才升+日频上限1/表；
-# ⑦detail_query=升件拍同型取数填模板 {d}——分拆数等多值升件用（T-0335），缺席/取数败→{d}落空不阻断）
+# ⑦detail_query=升件拍同型取数填模板 {d}——分拆数等多值升件用（T-0335），缺席/取数败→{d}落空不阻断；
+# ⑧mode=连鸣（T-0437 首用）：阈上每拍必落行——跳滞回闸与日频上限（冻结/老化类钦定「阈上必须持续发声」），缺席=旧律不变）
 armed_aging	淤积	sql_ro	SELECT count(*) FROM fin_proposal WHERE state='fin_armed' AND created_at<now()-interval '4 hours'	1	armed 提案超 TTL 计数={v}
 escalation_aged	缺席	sql_ro	SELECT count(*) FROM ops_event e WHERE e.event='升件' AND e.ts<now()-interval '24 hours' AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.ticket=e.ticket AND x.event IN ('裁决','完成','驳回') AND x.ts>e.ts) AND NOT EXISTS (SELECT 1 FROM ops_event y WHERE y.event='先例适用' AND y.note LIKE '升件#'||e.id||' %')	1	升件行>24h 无裁决跟进={v}
+# escalation_unclaimed（T-0437 升件老化探针——⑧mode=连鸣 首用）：升件行挂起>30min
+# 无席领计数；阈内静默阈上连鸣（冻结必须持续发声——静默死锁家族 T-0434 同族快档）。
+# 「领」判据=同票后随 裁决/完成/驳回/挂起 行（escalation_aged 同式+挂起——挂起行
+# =席领了在办），或任后行 note 引证 升件#<id>（regex 尾随非数字防 #17 吞 #170
+# ——票空升件行〔如半截部署〕的领票手势=先例适用同形引证径）。
+# 本探针自鸣行（note 前缀 升件老化）不计——防自激（鸣行积账令计数永不落零）。
+# 阈=30 minutes 票面钦定可调（改本行 interval 即调；拍周期 30min——首鸣粒度≤2拍）。
+escalation_unclaimed	缺席	sql_ro	SELECT count(*) FROM ops_event e WHERE e.event='升件' AND e.note NOT LIKE '升件老化%' AND e.ts<now()-interval '30 minutes' AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.ts>e.ts AND ((e.ticket<>'' AND x.ticket=e.ticket AND x.event IN ('裁决','完成','驳回','挂起')) OR x.note ~ ('升件#' || e.id::text || '([^0-9]|$)')))	1	升件老化 count={v}——冻结持续发声，处置落行携 升件#id 引证即停鸣（{d}）	SELECT string_agg(e.id::text,',' ORDER BY e.id) FROM ops_event e WHERE e.event='升件' AND e.note NOT LIKE '升件老化%' AND e.ts<now()-interval '30 minutes' AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.ts>e.ts AND ((e.ticket<>'' AND x.ticket=e.ticket AND x.event IN ('裁决','完成','驳回','挂起')) OR x.note ~ ('升件#' || e.id::text || '([^0-9]|$)')))	连鸣
 heartbeat_dead	幽灵	sql_ro	SELECT count(*) FROM (SELECT ticket,max(last_activity) m FROM ops_headless GROUP BY 1) t WHERE m<now()-interval '7 days'	1	ops_headless 死道>7天={v}
 branch_cemetery	淤积	cmd	git -C /opt/o branch --list 't/*' --no-merged master | wc -l	300	t/* 未合枝计数={v}
 arm_zero_output	断供	sql_ro	SELECT (SELECT count(*) FROM fin_execution WHERE created_at>now()-interval '24 hours')+(SELECT count(*) FROM fin_position WHERE opened_at>now()-interval '24 hours')	-1	执行臂近24h产出={v}（<1=断供）

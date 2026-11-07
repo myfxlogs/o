@@ -35,9 +35,14 @@
 #       件缺=否列空全面双发）。OCI 基线三源：env→盒上三臂 $ep.sha
 #       最老件→ops_event deploy-oci 行；三源皆败/谱系岔=面不可判
 #       →OCI 面按非空保守计（发 deploy_oci 自检径兜——不可判不静默）。
-#   ②无挡件: 在飞 o-worker 码件=0 ∧ 待裁/收口待审面含码件/迁移件=0
-#     （docs/研究件不挡窗）。码件判定=票支 diff∪wt 脏面碰镜像面；
-#     支树皆不可定→保守按码件计；已批未派件无支=未动工不挡。
+#   ②无挡件（T-0437 分面判据——挡件挂面，争议面冻结、无争议面照发）:
+#     挡件按部署面挂标——票支 diff∪wt 脏面分类：碰 OCI 构建源（进镜像∧
+#     进 OCI 臂构建）=双面挡(img+oci)；仅碰镜像专属面（deploy-faces.tsv
+#     image_only 否列）=img 面挡；非部署面=不挡；支树皆不可定/待裁面
+#     查询败/dsn 缺=面不可判→保守双挡（现行语义不退化）。
+#     应发面集减被挡面=净发窗面集（faces= 行）；净集空=有挡（exit 11），
+#     净集非空=应发（仅发净面——reason 携面标：挡件清单+冻结面+放行面）；
+#     挡件零=判据②过。已批未派件无支=未动工不挡。
 #   兜底节拍: 批积首件（最老部署面 commit——镜像∪OCI 批并集）起
 #     ≥24h 未发→无论条件②发窗并升件报。
 #   半截升件: 两基线谱系可序时陈面范围碰陈面=发了一半——
@@ -121,25 +126,62 @@ ticket_refs() { # $1=T-NNNN → 支名集
   git -C "$REPO" branch -r --list "origin/t/$num" "origin/t/$num-*" \
     --format='%(refname:short)'
 }
-# 票号→码件判定：支 diff∪wt 脏面碰镜像=码件；支树皆不可定=保守码件
-ticket_is_code() { # $1=T-NNNN → rc=0 码件（或不可定保守计）
-  local num=${1#T-} ref saw=0
+# ── 票挡面判定（T-0437 分面判据）：支 diff∪wt 脏面按部署面分类——
+#   碰 OCI 构建源=双面挡（进镜像∧进 OCI 臂构建）；仅碰镜像专属面=img
+#   单面挡；非部署面=不挡；支树皆不可定=unknown（保守双挡——现行语义
+#   不退化）。diff 源败=空面（现行同律）；支/树至少一面可定即有判。──
+diff_block_faces() { # stdin=路径集 → none|img|both（both 吸收——遇 OCI 源即收）
+  local cls=none p
+  while IFS= read -r p; do
+    [ -n "$p" ] || continue
+    p=${p##* -> } # rename 形取新名
+    if is_oci_path "$p"; then printf 'both\n'; return 0
+    elif is_image_path "$p"; then cls=img
+    fi
+  done
+  printf '%s\n' "$cls"
+}
+merge_block_faces() { # $1 $2 ∈ none|img|both|unknown → 归并（both>img>none，unknown 只在票级 arise）
+  case "$1 $2" in
+    *both*) printf 'both\n' ;;
+    *unknown*) printf 'unknown\n' ;;
+    *img*) printf 'img\n' ;;
+    *) printf 'none\n' ;;
+  esac
+}
+ticket_block_faces() { # $1=T-NNNN → none|img|both|unknown（stdout）
+  local num=${1#T-} ref saw=0 out=none f
   while read -r ref; do
     [ -n "$ref" ] || continue
     saw=1
-    git -C "$REPO" diff --name-only "$MASTER_REF...$ref" 2>/dev/null | touches_image \
-      && return 0
+    f=$(git -C "$REPO" diff --name-only "$MASTER_REF...$ref" 2>/dev/null | diff_block_faces)
+    out=$(merge_block_faces "$out" "$f")
   done < <(ticket_refs "$1")
   local wtd=/opt/o-wt/t$num
   if [ -d "$wtd" ] && [ -e "$wtd/.git" ]; then
     saw=1
     # wt 未提交脏面+wt 内未推 commit 面并查
-    { git -C "$wtd" status --porcelain 2>/dev/null | sed 's/^...//'
-      git -C "$wtd" diff --name-only "$MASTER_REF...HEAD" 2>/dev/null
-    } | touches_image && return 0
+    f=$({ git -C "$wtd" status --porcelain 2>/dev/null | sed 's/^...//'
+          git -C "$wtd" diff --name-only "$MASTER_REF...HEAD" 2>/dev/null
+        } | diff_block_faces)
+    out=$(merge_block_faces "$out" "$f")
   fi
-  [ "$saw" -eq 1 ] && return 1 # 支/树可定且镜像面零碰=非码件
-  return 0 # 支树皆不可定→保守码件
+  [ "$saw" -eq 1 ] && { printf '%s\n' "$out"; return 0; }
+  printf 'unknown\n' # 支树皆不可定→保守双挡（现行语义不退化）
+}
+face_tag() { # $1=faces 类 → reason 可读面标
+  case "$1" in
+    img) printf '(img)' ;;
+    both) printf '(img+oci)' ;;
+    unknown) printf '(不可判→双挡)' ;;
+    *) printf '' ;;
+  esac
+}
+mark_blocked() { # $1=faces 类 → 置面挡位（unknown=双挡保守）
+  case "$1" in
+    img) BLOCKED_IMG=1 ;;
+    both|unknown) BLOCKED_IMG=1; BLOCKED_OCI=1 ;;
+  esac
 }
 
 # ── 部署 SHA 双源：SG docker inspect（权威实拍）→ ops_event 末次
@@ -285,38 +327,37 @@ TICKETS=$(printf '%s\n' "$BATCH_COMMITS" | grep -oE 'T-[0-9]{4}' | sort -u | pas
 AGE=$(( NOW - EARLIEST ))
 reason "批非空 commits=$NBATCH tickets=${TICKETS:-无号} img=$DEPLOYED(src=$DEPLOYED_SRC) oci=${OCI_DEPLOYED:-不可判}(src=$OCI_SRC stat=$OCI_STAT) 批首件龄=${AGE}s"
 
-# ── 判据②挡件集 ──────────────────────────────────────────────
-BLOCKERS=""
-# ②a 在飞 o-worker 码件（systemd 实态）
+# ── 判据②挡件集（T-0437 分面——挡件挂面标，同拍置 BLOCKED_IMG/OCI 位）─
+BLOCKERS=""; BLOCKED_IMG=0; BLOCKED_OCI=0
+# ②a 在飞 o-worker 码件（systemd 实态）——面分类：none=非码件不挡；
+# unborn（支树俱无）=在飞实态不可见→保守 unknown 双挡（现行同律）
 while read -r unit _rest; do
   case "$unit" in o-worker-T-*.service) ;; *) continue ;; esac
   tid=${unit#o-worker-}; tid=${tid%.service}
-  ticket_is_code "$tid" && BLOCKERS="$BLOCKERS 在飞:$tid"
+  f=$(ticket_block_faces "$tid")
+  case "$f" in none) continue ;; unborn) f=unknown ;; esac
+  mark_blocked "$f"
+  BLOCKERS="$BLOCKERS 在飞:$tid$(face_tag "$f")"
 done < <(systemctl --user list-units 'o-worker-*' --state=active,activating \
   --no-legend 2>/dev/null)
 # ②b 待裁/收口待审面含码件（dm_queue.sh 同源推导；dsn缺/查询败=
-# 面不可知 fail-closed 有挡）。已批未派件无支=未动工不挡（挡它
-# =永锁窗），有支再判 diff。
+# 面不可知 fail-closed 双挡——现行语义不退化）。已批未派件无支=
+# 未动工不挡（挡它=永锁窗，unborn 跳过），有支再判 diff 面标。
 if [ -n "$FIN_DSN" ]; then
   QRC=0; PENDING=$("$DM_QUEUE_SH" 2>/dev/null) || QRC=$?
   if [ "$QRC" -ne 0 ]; then
-    BLOCKERS="$BLOCKERS 待裁面查询败rc=$QRC"
+    BLOCKERS="$BLOCKERS 待裁面查询败rc=$QRC(不可判→双挡)"
+    BLOCKED_IMG=1; BLOCKED_OCI=1
   else
     while read -r tid; do
       [ -n "$tid" ] || continue
-      code=0; saw=0
-      while read -r ref; do
-        [ -n "$ref" ] || continue
-        saw=1
-        git -C "$REPO" diff --name-only "$MASTER_REF...$ref" 2>/dev/null | touches_image \
-          && { code=1; break; }
-      done < <(ticket_refs "$tid")
-      # 已批未派件无支=未动工不挡（挡它=永锁窗），有支再判 diff
-      [ "$saw" -eq 1 ] && [ "$code" -eq 1 ] && BLOCKERS="$BLOCKERS 待裁:$tid"
+      f=$(ticket_block_faces "$tid")
+      [ "$f" = none ] || [ "$f" = unborn ] || { mark_blocked "$f"; BLOCKERS="$BLOCKERS 待裁:$tid$(face_tag "$f")"; }
     done <<< "$PENDING"
   fi
 else
-  BLOCKERS="$BLOCKERS 待裁面不可知(dsn缺)"
+  BLOCKERS="$BLOCKERS 待裁面不可知(dsn缺)(不可判→双挡)"
+  BLOCKED_IMG=1; BLOCKED_OCI=1
 fi
 
 # ── 兜底节拍：批首件龄 ≥24h → 无论条件②发窗并升件报 ────────────
@@ -334,14 +375,35 @@ if [ "$EARLIEST" -gt 0 ] && [ "$AGE" -ge 86400 ]; then
   exit 0
 fi
 
-if [ "$BL" != "无" ]; then
+# ── 分面净集（T-0437）：应发面集减被挡面——争议面冻结、无争议面照发；
+# 面不可判=双挡（保守不退化）。净集空=有挡（应发面集全冻结）；
+# 净集=应发面集∧挡件零=原判据两条件齐分支逐字保持；
+# 净集⊂应发面集=分面放行（faces=行=净面集——发窗面各径各发各的）。
+NET_FACES=""; FROZEN=""
+case ",$FACES," in
+  *,image,*)
+    if [ "$BLOCKED_IMG" -eq 1 ]; then FROZEN="${FROZEN:+$FROZEN,}image"; else NET_FACES=image; fi ;;
+esac
+case ",$FACES," in
+  *,oci,*)
+    if [ "$BLOCKED_OCI" -eq 1 ]; then FROZEN="${FROZEN:+$FROZEN,}oci"; else NET_FACES="${NET_FACES:+$NET_FACES,}oci"; fi ;;
+esac
+
+if [ -z "$NET_FACES" ]; then
   emit 有挡
   printf 'faces=%s\n' "$FACES"
-  reason "挡件未清: $BL——批待清窗压（docs/研究件不挡）"
+  reason "挡件未清: $BL——应发面集($FACES)全被挡(冻结面=$FROZEN)批待清窗压（docs/研究件不挡）"
   exit 11
 fi
 
+if [ -z "$BLOCKERS" ]; then
+  emit 应发
+  printf 'faces=%s\n' "$FACES"
+  reason "判据两条件齐——批非空(tickets=${TICKETS:-无号})∧挡件零→当班发窗，faces=$FACES 各面各径（image→deploy_image.sh oci→deploy_oci.sh）"
+  exit 0
+fi
+
 emit 应发
-printf 'faces=%s\n' "$FACES"
-reason "判据两条件齐——批非空(tickets=${TICKETS:-无号})∧挡件零→当班发窗，faces=$FACES 各面各径（image→deploy_image.sh oci→deploy_oci.sh）"
+printf 'faces=%s\n' "$NET_FACES"
+reason "分面发窗——放行面=$NET_FACES 冻结面=$FROZEN（挡件:$BL）——争议面冻结无争议面照发；发窗面各径（image→deploy_image.sh oci→deploy_oci.sh）"
 exit 0
