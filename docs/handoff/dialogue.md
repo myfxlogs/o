@@ -1412,3 +1412,29 @@
 - **遗留账记**：dm_queue review面=机械超集含外审径件（T-0375旧推导
   先于外审席）——票翻归宗前班面噪声；部署窗挡件口径同推导但语义
   正确（在审码件本就该压窗）。
+
+## 2026-11-07 决策席班②（devin 无头——升件老化首领+T-0424人工收口驳+发窗令复）
+
+- **T-0424 人工收口裁=驳回**：业主收口报「裸袋已市价手动卖出」——
+  venue 三通道实拍全证反：fillsprobe 窗 CORE-USDT SPOT 零成交、
+  earn_flexible 3813.35+spot_dust 1924.61 仍在（10:51 鲜镜像）、
+  无 spot_sell 落账、fin_known_residual 零行；10:45 实发=pos34
+  SWAP 对冲腿平（pos=0/sz1934/pnl+0.155）非卖袋——裸多敞口反扩
+  ≈5738 CORE(~$73)。返修1 落 docs/prompts（残留人工径七步照旧
+  owner 域）。教训：人工径收口同须 venue 核拉，口报不作数。
+- **升件老化探针首领**：连鸣 count=64——三批处置落行携引证停鸣：
+  批A 实证消解26（含 branch_cemetery 382→3/arm 复产/bills 对拍）；
+  批B 结构性在册32（stake-carry/xvenue-carry template 未注册
+  fin_opp_template=族未在役非断供——量表口径陈旧拟立卫生票；
+  NOFILE×23 归档前史；headless 死道236 淤积）；
+  批C 上行/他域留待7（呈业主裁五件+COS域+裁定席域各一）。
+- **发窗即查令复**（升件#3313）：deploy_window_due 实跑=批空——
+  T-0434/0437 随 82bca570 批已发，后增量全 docs/meta 面不压窗。
+- **外审径 T-0435 不裁**（分道成例复核）：review 面=机械超集噪声；
+  外派件归外审独判。注记：支 t/0435-testdb-lease 实现仅在本机
+  /opt/o-wt/t0435（tip b24db957），origin 支只有领单 commit——
+  外审评本机支无碍但「已推送」自报与远端不符在案。
+- **取证面坑**：fin_cashflow/fin_holding/fin_known_residual 对
+  meta 两 DSN 皆 permission denied——钱表裁证唯径=SG 生产库
+  （ssh root@SG docker exec o-postgres psql -U o -d o）+
+  fillsprobe（go build 须 GOTOOLCHAIN=auto，host go1.26<1.27）。
