@@ -33,14 +33,13 @@ func Gen(ctx context.Context, pool *pgxpool.Pool, period string, b Bounds) error
 	}
 	var net, funding, earnBal, cumNav float64
 	var opened, closed, proposed, rejected, active, alerts, capital int
-	// T-0185 三类口径：净额=Σincome（transfer/adjustment 不入盈亏）
-	// T-0305：net 键改 7-kind 钉式（周报口径文档——class 顺带归属不算数，
-	// kind 枚举钉死损益集；deposit/withdraw/earn_*/recon_adjust 不入）。
-	q(`SELECT COALESCE(sum(amount),0) FROM fin_cashflow WHERE kind IN
-		('fee','funding_settle','trade_pnl','rollback_cost','spot_buy','spot_sell','interest')
-		AND occurred_at>=$1 AND occurred_at<$2`, &net, b.Start, b.End)
+	// T-0422 统一实现盈亏口径（caliber.go 单源——三面同读一式）：
+	// net=期内实现盈亏（现金钉式按 occurred_at+腿/袋按 closed_at 归属）；
+	// cum_nav=累计实现盈亏（全史至 b.End——旧版 class='income' 无上界
+	// 吞未来行+开仓腿当亏双病灶根修）。
+	net, _ = Realized(ctx, pool, b.Start, b.End)
+	cumNav, _ = Realized(ctx, pool, time.Time{}, b.End)
 	q(`SELECT COALESCE(sum(amount),0) FROM fin_cashflow WHERE kind='funding_settle' AND occurred_at>=$1 AND occurred_at<$2`, &funding, b.Start, b.End)
-	q(`SELECT COALESCE(sum(amount),0) FROM fin_cashflow WHERE class='income'`, &cumNav)
 	q(`SELECT COALESCE(sum(amount),0) FROM fin_holding WHERE kind LIKE 'earn%' AND stale=false`, &earnBal)
 	q1(`SELECT count(*) FROM fin_strategy WHERE entered_at>=$1 AND entered_at<$2`, &opened, b.Start, b.End)
 	q1(`SELECT count(*) FROM fin_position WHERE closed_at IS NOT NULL AND closed_at>=$1 AND closed_at<$2`, &closed, b.Start, b.End)

@@ -34,7 +34,7 @@ const VENUE_CN: Record<string, string> = { okx: "OKX", mt5: "MT5" };
 
 const METRIC_NAMES: Record<string, string> = {
   net: "净额",
-  cum_nav: "累计净值",
+  cum_nav: "累计实现盈亏",
   funding_income: "资金费收入",
   earn_balance: "Earn 停泊",
   opened: "开仓",

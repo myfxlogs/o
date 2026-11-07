@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"o/internal/gen/dashboardv1"
+	"o/internal/ledger/report"
 )
 
 // stageOf 事件→阶段派生（钦定映射：领单=施工/收口·移交=等审计/挂起=挂起/
@@ -73,12 +74,17 @@ func (c coreService) GetCockpit(ctx context.Context,
 		}
 	}
 
-	// ② 钱面：D-0037 口径月净利+本金水位+近30d 日净序列
+	// ② 钱面：月净利+本金水位+近30d 日净序列——T-0422 统一实现盈亏口径
+	// （report.Realized 单源四面同读；旧 5-kind 全腿径把开仓置换流出当亏
+	// =月净假红病灶根修。UTC 月界 Go 侧钉死）。
 	moneyErr := false
-	if err := c.pool.QueryRow(ctx,
-		`SELECT COALESCE(sum(amount),0) FROM fin_cashflow
-		 WHERE ts>date_trunc('month',now()) AND kind IN ('interest','funding_settle','fee','spot_buy','spot_sell')`).Scan(&r.Money.NetMonth); err != nil {
+	mnow := time.Now()
+	my, mm, _ := mnow.UTC().Date()
+	if v, err := report.Realized(ctx, c.pool,
+		time.Date(my, mm, 1, 0, 0, 0, 0, time.UTC), mnow); err != nil {
 		moneyErr = true
+	} else {
+		r.Money.NetMonth = v
 	}
 	// T-0363 分母钉义：crypto 已入=cashflow deposit+withdraw 净+recon_adjust
 	// （对账真钱属本金），滤 venue 出 mt5——mt5 deposit 基行走 mt5Live equity
@@ -89,18 +95,9 @@ func (c coreService) GetCockpit(ctx context.Context,
 		 WHERE kind IN ('deposit','withdraw','recon_adjust') AND venue<>'mt5'`).Scan(&cryptoIn); err != nil {
 		moneyErr = true
 	}
-	dr, err := c.pool.Query(ctx,
-		`SELECT COALESCE(sum(amount),0) FROM fin_cashflow
-		 WHERE ts>now()-interval '30 days' AND kind IN ('interest','funding_settle','fee','spot_buy','spot_sell')
-		 GROUP BY ts::date ORDER BY ts::date`)
-	if err == nil {
-		defer dr.Close()
-		for dr.Next() {
-			var v float64
-			if dr.Scan(&v) == nil {
-				r.Money.Daily = append(r.Money.Daily, v)
-			}
-		}
+	if ds, derr := report.RealizedDaily(ctx, c.pool,
+		mnow.Add(-30*24*time.Hour)); derr == nil {
+		r.Money.Daily = append(r.Money.Daily, ds...)
 	} else {
 		moneyErr = true
 	}
