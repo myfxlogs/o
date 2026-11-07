@@ -52,7 +52,7 @@ _testdb_lease_queue() {
 # _testdb_lease_holder <port> —— 锁 holder 报告（fuser 败/空集=如实 ?）
 _testdb_lease_holder() {
   fuser "$TESTDB_LEASE_LOCKDIR/o-testdb-lease-$1.lock" 2>/dev/null \
-    | tr -s ' ' '\n' | grep -v "^$$\$" | head -3 | tr '\n' ' ' || true
+    | tr -s ' ' '\n' | grep -v "^$$\$" | head -3 | tr '\n' ' ' || true # tolerate: fuser 败/空集=holder 未知如实报 ?（check_all 树锁同形）
 }
 
 # testdb_lease_acquire <PG_NAMES> —— 主入口：租约+DSN 单源导出。

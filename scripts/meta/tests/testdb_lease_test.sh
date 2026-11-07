@@ -33,7 +33,7 @@ _acq() {
     testdb_lease_acquire "$1" 2>"'"$TMP"'/acq.err"; rc=$?
     port=NONE
     [[ "${O_TEST_PG_DSN:-}" =~ :([0-9]+)/ ]] && port="${BASH_REMATCH[1]}"
-    warns=$(grep -c "⚠️\|❌" "'"$TMP"'/acq.err" 2>/dev/null || true)
+    warns=$(grep -c "⚠️\|❌" "'"$TMP"'/acq.err" 2>/dev/null)
     echo "${port:-NONE}|${warns:-0}|$rc"
   ' _ "$names"
 }
