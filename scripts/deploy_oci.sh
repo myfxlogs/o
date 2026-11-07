@@ -141,7 +141,7 @@ tick_probe() { # tick_probe <arm> —— 写流断言 max(ts) 推进；0=推进 
   local a=$1 u=${UNIT[$1]} q t0 t1
   case "${PROBE[$u]}" in
     md_ticks) q="docker exec o-postgres-md psql -U o -d o -tAc \"select coalesce(max(ts),'epoch'::timestamptz) from md_ticks\"";;
-    sg_ticks) q="docker exec o-postgres-md psql \"\$(grep '^SG_PG_DSN=' ~/o-projector.env|cut -d= -f2-|tr -d '\\\"')\" -tAc \"select coalesce(max(ts),'epoch'::timestamptz) from md_ticks\"";;
+    sg_ticks) q="psql \"\$(grep '^SG_PG_DSN=' ~/o-projector.env|cut -d= -f2-|tr -d '\\\"')\" -tAc \"select coalesce(max(ts),'epoch'::timestamptz) from md_ticks\"";;
     *) return 0;;
   esac
   t0=$($SSH $SSHOPT "$OCI" "$q" 2>/dev/null || echo 0)
