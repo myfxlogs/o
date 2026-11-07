@@ -182,6 +182,11 @@ if [ -n "$FIN_DSN" ]; then
   [ "$DRC" -ne 0 ] && dm_esc "派单查询败" "rc=$DRC 派单/续跑候选集不可知按空集滑行"
   printf '%s\n' "$DISPATCH_ROWS" | while IFS='|' read -r tid model; do
     compgen -G "$DISPATCH_TASK_DIR/${tid}-*.md" >/dev/null || continue # ③无票免拉
+    # T-0438 件⑥ 人工径滤（坑条目 real-money-ticket-machine-dispatch-waste
+    # 律②——补派件把它踢出候选语义同域：票面「执行=人工径」出生行=机器
+    # 永不可为，补拉窗不续派（不派不挂起不计漏拉））。
+    MANUAL_LANE_SH=${O_MANUAL_LANE_SH:-"$SCRIPT_DIR/manual_lane_check.sh"}
+    if "$MANUAL_LANE_SH" "$tid" "$DISPATCH_TASK_DIR"; then continue; fi # rc0=人工径票滤除；rc1/2=照旧
     st=$(systemctl --user is-active "o-worker-$tid.service" 2>/dev/null || true)
     case "$st" in active|activating) continue;; esac # 精确比对误配恒死修
     prompt="读 /opt/o/skills/施工席/SKILL.md 施工协议领单/续领 $tid；按票面施工，同票已有 Devin 会话/worktree 时续跑"
@@ -224,5 +229,16 @@ if [ -n "$FIN_DSN" ]; then
   LRC=0
   "$DM_LEDGER_SH" || LRC=$?
   [ "$LRC" -ne 0 ] && dm_esc "机械轨本体败" "rc=$LRC dm_ledger 未跑净——票翻/台账补登滑行"
+fi
+
+# T-0438 判词送达尾窗（零 LLM 段尾——verdict_deliver.sh：需业主动作判词
+# 同拍转 fin_condition_gap 请求箱+feishu 推送；坑条目 real-money-ticket-
+# machine-dispatch-waste 律④「裁了≠送到了」机内化——会话判词刚落的票
+# 同拍尾窗即送达零等候）。败=升件自报不静默（rc3=有未闭环件下拍重试）。
+if [ -n "$FIN_DSN" ]; then
+  VERDICT_DELIVER_SH=${O_VERDICT_DELIVER_SH:-"$SCRIPT_DIR/verdict_deliver.sh"}
+  VDRC=0
+  "$VERDICT_DELIVER_SH" || VDRC=$?
+  [ "$VDRC" -ne 0 ] && dm_esc "判词送达闸败" "rc=$VDRC 需业主动作判词滞留未闭环（未闭环件下拍重试）"
 fi
 exit 0

@@ -87,6 +87,8 @@ export O_WORKER_TASK_DIR="$TMP/tasks"
 export O_DECISION_DEVIN_BIN="$TMP/bin/decision-devin"
 export O_DM_DEPGATE_SH="$TMP/bin/depgate"
 export O_DM_LEDGER_SH=/bin/true # T-0414：机械轨件单测——tick 接线面桩掉防真 git/psql
+export O_VERDICT_DELIVER_SH=/bin/true # T-0438：送达闸单测另件——tick 接线面桩掉防真 psql
+export O_MANUAL_LANE_TASK_DIR="$TMP/tasks" # T-0438：人工径判别票目录桩测隔离（零部署树读）
 
 # Pure-empty queue stays zero-LLM but still resumes a rate-limited worker.
 export DM_SCENARIO=empty DM_LOCK_RESULT=t
@@ -123,5 +125,13 @@ rm -f "$DRAIN_MARK"
 bash "$ROOT/scripts/meta/dm_tick.sh" >/dev/null
 [[ $(wc -l < "$DECISION_LOG") -eq 2 ]]
 grep -qF "决策席','exit'" "$HB_LOG"
+
+# T-0438 件⑥：人工径滤——补拉窗候选票面「执行=人工径」出生行不续派
+# （不派不挂起不计漏拉——坑条目 real-money-ticket-machine-dispatch-waste 律②）。
+printf '# T-0341 x\n- 执行=人工径（业主在场）\n' > "$TMP/tasks/T-0341-resume-test.md"
+: > "$DISPATCH_LOG"
+export DM_SCENARIO=empty DM_LOCK_RESULT=t
+bash "$ROOT/scripts/meta/dm_tick.sh" >/dev/null
+[[ ! -s "$DISPATCH_LOG" ]]
 
 echo "dm tick pending gate three-state dry run PASS"
