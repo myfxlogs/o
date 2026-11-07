@@ -93,6 +93,13 @@ mk_ticket T-9013 candidate <<'EOF'
 ## 范围外
 1. scripts/check_all.sh 只写禁区不算范围清单。
 EOF
+mk_ticket T-9014 candidate <<'EOF'
+# T-9014 candidate
+
+- 执行=人工径（业主在场）——真钱 venue 写票出生行（坑条目律①）
+## 范围
+1. web/src/react/ 呈现层。
+EOF
 
 cat > "$TMP/bin/dm-queue" <<'EOF'
 #!/usr/bin/env bash
@@ -143,7 +150,7 @@ export EVENT_SQL_LOG="$TMP/event.sql.log"
 export ESC_LOG="$TMP/esc.log"
 
 printf 'T-9001\nT-9007\n' > "$REVIEW_LIST"
-printf 'T-9002\nT-9003\nT-9004\nT-9005\nT-9006\nT-9008\nT-9013\n' > "$APPROVED_LIST"
+printf 'T-9002\nT-9003\nT-9004\nT-9005\nT-9006\nT-9008\nT-9013\nT-9014\n' > "$APPROVED_LIST"
 : > "$DISPATCH_LOG"; : > "$EVENT_SQL_LOG"; : > "$ESC_LOG"
 bash "$ROOT/scripts/meta/dm_depgate.sh" >"$TMP/out.log" 2>&1
 
@@ -154,13 +161,16 @@ grep -q '^T-9008 swe-2-high ' "$DISPATCH_LOG"
 ! grep -q '^T-9005 ' "$DISPATCH_LOG"
 ! grep -q '^T-9006 ' "$DISPATCH_LOG"
 ! grep -q '^T-9013 ' "$DISPATCH_LOG"
+! grep -q '^T-9014 ' "$DISPATCH_LOG" # T-0438 件⑥：人工径票不派不挂起不计漏拉
 grep -q "ticket='T-9002'" "$EVENT_SQL_LOG"
 grep -q "ticket='T-9008'" "$EVENT_SQL_LOG"
 ! grep -q "ticket='T-9003'" "$EVENT_SQL_LOG"
 ! grep -q "ticket='T-9013'" "$EVENT_SQL_LOG"
+! grep -q "ticket='T-9014'" "$EVENT_SQL_LOG" # 人工径票零派单行零升件行
 grep -q 'DEPGATE-SCOPE-EMPTY-T-9005' "$ESC_LOG"
 grep -q '范围∩在审diff非空' "$TMP/out.log"
 grep -q '缺文件清单' "$TMP/out.log"
+grep -q '人工径票' "$TMP/out.log"
 
 # 水位/额度满：派单行已落但 dispatch rc=75——留常径补拉，后续候选不继续烧闸。
 printf 'T-9010\nT-9011\n' > "$APPROVED_LIST"

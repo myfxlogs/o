@@ -19,6 +19,7 @@ SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 DM_QUEUE_SH=${O_DM_QUEUE_SH:-"$SCRIPT_DIR/dm_queue.sh"}
 DISPATCH_WORKER=${O_WORKER_DISPATCH_SCRIPT:-/opt/o/scripts/meta/dispatch_worker.sh}
 OPS_ESC_SH=${O_DEPGATE_ESC_SH:-"$SCRIPT_DIR/ops_esc.sh"}
+MANUAL_LANE_SH=${O_MANUAL_LANE_SH:-"$SCRIPT_DIR/manual_lane_check.sh"} # T-0438 件⑥人工径滤
 REPO=${O_DEPGATE_REPO:-/opt/o}
 TASK_DIR=${O_DEPGATE_TASK_DIR:-$REPO/docs/tasks}
 WT_ROOT=${O_DEPGATE_WT_ROOT:-/opt/o-wt}
@@ -206,6 +207,13 @@ while IFS= read -r tid; do
 		2) esc "$tid" "DEPGATE-CANDIDATE-FAIL-$tid" "候选票件缺失/不可读——排队"; continue ;;
 		4) esc "$tid" "DEPGATE-SCOPE-EMPTY-$tid" "票面范围节零路径词（空读）——排队"; continue ;;
 	esac
+	# T-0438 件⑥ 人工径滤（坑条目 real-money-ticket-machine-dispatch-waste 律②：
+	# 票面「执行=人工径」出生行=机器永不可为——候选即滤，不派不挂起不计漏拉；
+	# rc2 票件缺不在此判（上方 src_rc=2 径已自报）——滤除只认 rc0）。
+	if "$MANUAL_LANE_SH" "$tid" "$TASK_DIR"; then
+		echo "[dm-depgate] $tid queued——人工径票（执行=人工径）不进派单链" >&2
+		continue
+	fi
 	if [ ! -s "$paths.scope" ]; then
 		echo "[dm-depgate] $tid queued——票面范围节缺文件清单" >&2
 		continue
