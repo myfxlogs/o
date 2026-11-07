@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	neturl "net/url"
@@ -112,9 +113,10 @@ func httpTryGet(ctx context.Context, url string) ([]byte, error) {
 	return io.ReadAll(io.LimitReader(resp.Body, 8<<20))
 }
 
-// Runner 采集臂（四源一拍——各源独立 fail-soft）。
+// Runner 采集臂（五源一拍——各源独立 fail-soft）。
 type Runner struct {
 	pool    *pgxpool.Pool
+	escPool *pgxpool.Pool // ops_event 升件写径（fin 域——md 池无 ops_event 面）
 	rej     *rejects.Door
 	fetch   Fetcher
 	fredKey string
@@ -124,9 +126,13 @@ type Runner struct {
 
 func NewRunner(pool *pgxpool.Pool) *Runner {
 	return &Runner{pool: pool,
-		rej:   rejects.New("ctx", "fetch_err", "write_err", "parse_err"),
+		rej:   rejects.New("ctx", "fetch_err", "write_err", "parse_err", "probe_err"),
 		fetch: httpGet, now: time.Now}
 }
+
+// AttachEscPool 断供探针升件写径挂接（ops_event 驻 fin 域——研究节点 FIN_PG_DSN
+// 小池；未挂=探针守位不探，采集照常）。
+func (r *Runner) AttachEscPool(p *pgxpool.Pool) *Runner { r.escPool = p; return r }
 
 // AttachFredKey FRED 键注入口径（键缺=整源跳过——凭据归 pg：装配件
 // cfg.Secret("fred_api_key") 按次直读注入，env 直读门禁钉）。
@@ -153,12 +159,17 @@ func (r *Runner) Run(c context.Context, errc chan<- error) {
 	}
 }
 
-// TickOnce 四源各拍（OI 补回=四源+OI 五件）——单源败=该源缺席不拖全局。
+// TickOnce 五源各拍+断供探针尾槽（OI 补回=五源+探针六件）——单源败=该源
+// 缺席不拖全局；探针败=log 自报（errc=岗终径，观测臂不拖崩采集臂）。
 func (r *Runner) TickOnce(c context.Context) error {
-	for _, fn := range []func(context.Context) error{r.collectCalendar, r.collectFred, r.collectCot, r.collectOI} {
+	for _, fn := range []func(context.Context) error{r.collectCalendar, r.collectFred, r.collectFx, r.collectCot, r.collectOI} {
 		if err := fn(c); err != nil {
 			r.rej.Inc("fetch_err")
 		}
+	}
+	if err := r.ProbeStale(c); err != nil {
+		log.Printf("[ctx] 断供探针拍败（下拍续试）: %v", err)
+		r.rej.Inc("probe_err")
 	}
 	return nil
 }

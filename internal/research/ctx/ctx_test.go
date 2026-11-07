@@ -32,6 +32,8 @@ func TestCollectStub(t *testing.T) {
 			return []byte(`[{"market_name":"EURO FX","open_interest":1}]`), nil
 		case strings.Contains(url, "fred"):
 			return []byte(`{"observations":[{"date":"2026-11-01","value":"4.0"}]}`), nil
+		case strings.Contains(url, "frankfurter"):
+			return []byte(`{"amount":1.0,"base":"USD","date":"2026-11-06","rates":{"EUR":0.89}}`), nil
 		case strings.Contains(url, "open-interest"):
 			return []byte(`{"data":[{"instId":"BTC-USDT-SWAP","oi":"1000","oiCcy":"1000"}]}`), nil
 		}
@@ -58,8 +60,8 @@ func TestCollectStub(t *testing.T) {
 	if n < 6 {
 		t.Fatalf("ctx 落行应 ≥6（PMI+FRED×4+COT+OI）: %d", n)
 	}
-	// kind 各≥1 锚（注记⑨产证锚对应件）
-	for _, k := range []string{"macro", "oi", "cot"} {
+	// kind 各≥1 锚（注记⑨产证锚对应件；T-0429 扩面 fx/equity/commodity 补维）
+	for _, k := range []string{"macro", "oi", "cot", "fx", "equity", "commodity"} {
 		var kn int
 		if err := pool.QueryRow(c, `SELECT count(*) FROM md_ctx_fact WHERE kind=$1`, k).Scan(&kn); err != nil || kn < 1 {
 			t.Fatalf("kind %s 行缺: %v", k, err)
@@ -90,5 +92,106 @@ func TestFFDate(t *testing.T) {
 		t.Fatal("8:30am 应解析成功")
 	} else if d.Year() != 2026 || d.Month() != 11 || d.Day() != 5 {
 		t.Fatal("日期错")
+	}
+}
+
+// T-0429 红桩①：ffcal 周历 XML 声明 windows-1252（ForexFactory 实测头）+
+// 高位字节 0xE9（é）——Go xml 无 CharsetReader 拒读=病灶断言（修前红：
+// parse_err 静默零行；修后绿：High→md_macro_event、Medium→ctx_fact 落行）。
+func TestFFCharset1252(t *testing.T) {
+	pool := testutil.Pool(t)
+	c := context.Background()
+	if err := pgstore.Migrate(c, pool, "md"); err != nil {
+		t.Fatal(err)
+	}
+	r := NewRunner(pool)
+	r.fetch = func(ctx context.Context, url string) ([]byte, error) {
+		if strings.Contains(url, "ff_calendar_thisweek") {
+			// 0xE9=windows-1252 "é"——解码败则标题形变/整拒。
+			return []byte("<?xml version=\"1.0\" encoding=\"windows-1252\"?>\n<weeklyevents><event>\n" +
+				"\t<title><![CDATA[CPI y/y]]></title><country>USD</country><date>11-05-2026</date>\n" +
+				"\t<time>8:30am</time><impact>High</impact><url>/e/cpi</url>\n" +
+				"\t</event><event>\n" +
+				"\t<title><![CDATA[PMI r\xe9vis\xe9]]></title><country>USD</country><date>11-06-2026</date>\n" +
+				"\t<time>10:00am</time><impact>Medium</impact><url>/e/pmi-revise</url>\n" +
+				"\t</event></weeklyevents>"), nil
+		}
+		return nil, nil
+	}
+	if err := r.collectCalendar(c); err != nil {
+		t.Fatal(err)
+	}
+	var src string
+	if err := pool.QueryRow(c, `SELECT source FROM md_macro_event WHERE kind='cpi' AND title='CPI y/y'`).Scan(&src); err != nil {
+		t.Fatal("windows-1252 周历 High 事件未落 md_macro_event（charset 拒读形）:", err)
+	}
+	if src != "ffcal" {
+		t.Fatalf("source 应 ffcal: %s", src)
+	}
+	var n int
+	if err := pool.QueryRow(c, `SELECT count(*) FROM md_ctx_fact WHERE source='ffcal' AND dedupe_key='pmi-revise'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("windows-1252 Medium 事件未落 ctx_fact（n=%d err=%v）", n, err)
+	}
+}
+
+// T-0429 红桩②：FRED dedupe 键=序列:最新观察日——新观察日=新键=新行。
+// 修前红：键=序列名，二拍同序列 ON CONFLICT DO NOTHING 恒静默（「断供」主
+// 病灶——成功也零新行）；修后绿：换观察日即落新行。
+func TestFredDedupeNewObsDate(t *testing.T) {
+	pool := testutil.Pool(t)
+	c := context.Background()
+	if err := pgstore.Migrate(c, pool, "md"); err != nil {
+		t.Fatal(err)
+	}
+	r := NewRunner(pool).AttachFredKey("k")
+	obsDate := "2026-11-05"
+	r.fetch = func(ctx context.Context, url string) ([]byte, error) {
+		if strings.Contains(url, "fred") {
+			return []byte(`{"observations":[{"date":"` + obsDate + `","value":"4.0"}]}`), nil
+		}
+		return nil, nil
+	}
+	if err := r.collectFred(c); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	if err := pool.QueryRow(c, `SELECT count(*) FROM md_ctx_fact WHERE source='fred' AND dedupe_key=$1`, "DGS10:"+obsDate).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("dedupe_key 应含观察日（DGS10:%s）: n=%d err=%v", obsDate, n, err)
+	}
+	obsDate = "2026-11-06" // FRED 新观察日发布——下一拍
+	if err := r.collectFred(c); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(c, `SELECT count(*) FROM md_ctx_fact WHERE source='fred' AND dedupe_key=$1`, "DGS10:2026-11-06").Scan(&n); err != nil || n != 1 {
+		t.Fatalf("新观察日应落新行: n=%d err=%v", n, err)
+	}
+}
+
+// T-0429 锚③：frankfurter fx 源——日率行 dedupe=base:date 幂等。
+func TestFxCollect(t *testing.T) {
+	pool := testutil.Pool(t)
+	c := context.Background()
+	if err := pgstore.Migrate(c, pool, "md"); err != nil {
+		t.Fatal(err)
+	}
+	r := NewRunner(pool)
+	r.fetch = func(ctx context.Context, url string) ([]byte, error) {
+		if strings.Contains(url, "frankfurter") {
+			return []byte(`{"amount":1.0,"base":"USD","date":"2026-11-06","rates":{"EUR":0.89,"JPY":158.3}}`), nil
+		}
+		return nil, nil
+	}
+	if err := r.collectFx(c); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	if err := pool.QueryRow(c, `SELECT count(*) FROM md_ctx_fact WHERE source='frankfurter' AND kind='fx' AND dedupe_key='USD:2026-11-06'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("fx 行缺: n=%d err=%v", n, err)
+	}
+	if err := r.collectFx(c); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(c, `SELECT count(*) FROM md_ctx_fact WHERE source='frankfurter'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("fx 重拍幂等失守: n=%d", n)
 	}
 }
