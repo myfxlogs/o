@@ -1,8 +1,11 @@
 # T-0434 hostmetrics 监控自监——写器死活根修 + 前端陈旧硬闸
 
-- 状态：已批（业主令 2026-11-07——「外派，外审，外部署」；
-  前置判词「前端不能展示真实数据，这是很大的一个灾难呀」）
-- 领取：外派施工（O-Dev 径——观测面修复不占 DM 钱径额度）
+- 状态：施工中
+- 领取：claude-t0434 @ 2026-11-07（外派施工 O-Dev 径，worktree
+  /opt/o-wt/t0434 支 t/0434-hostmetrics-selfprobe——基于
+  origin/master 落 7461c873 后并入本地 master 9675dab1 使票面
+  commit 成祖，偏离说明：origin/master 未含立票 commit，不并
+  无法翻转票面，已核实 9675dab1 为 docs-only）
 - 优先级：P1——system 页渲染 8 天前尸体数据（fin_host_metrics
   'sg' 行冻结 2026-10-30 04:18，df 实拍 97% vs 页面假数）；
   观测面撒谎=运维决策基于尸体
