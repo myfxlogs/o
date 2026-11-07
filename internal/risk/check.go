@@ -67,7 +67,8 @@ func NewGate(pool *pgxpool.Pool, cfg *config.Client) *Gate {
 	return &Gate{pool: pool, cfg: cfg,
 		rej: rejects.New("risk", "kill_switch", "missing_param", "intent_incomplete", "equity_missing",
 			"notional_cap", "venue_concentration", "exposure_cap",
-			"token_missing", "token_expired", "token_used", "write_err")}
+			"token_missing", "token_expired", "token_used", "write_err",
+			"guard_suspended", "suspend_read_err")}
 }
 
 func (g *Gate) getF(k string) (float64, error) { return g.cfg.GetFloat(k) }
@@ -88,6 +89,18 @@ func (g *Gate) Check(ctx context.Context, in Intent) Decision {
 	}
 	if in.StrategyRef == 0 || in.Venue == "" || in.InstID == "" || len(in.Legs) == 0 || in.NotionalUSD <= 0 {
 		return g.deny(ctx, in, "intent_incomplete")
+	}
+	// T-0423 守卫熔断挂起（open 径专属判据——close 径不查：敞口只减不增，
+	// 平仓权保留=只出不进）。挂起面读败=fail-closed 拒开（不知挂否=不裸放）。
+	if kind != "close" {
+		var susp int
+		if err := g.pool.QueryRow(ctx, `SELECT count(*) FROM fin_guard_suspend
+			WHERE strategy_ref=$1 AND lifted_at IS NULL`, in.StrategyRef).Scan(&susp); err != nil {
+			return g.deny(ctx, in, "suspend_read_err")
+		}
+		if susp > 0 {
+			return g.deny(ctx, in, "guard_suspended")
+		}
 	}
 	ttl, errTTL := g.getF("risk.token_ttl_seconds")
 	if errTTL != nil {

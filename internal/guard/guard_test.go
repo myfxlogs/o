@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"o/internal/platform/config"
+	"o/internal/platform/notify"
 	"o/internal/platform/testutil"
 	"o/internal/risk"
 	"o/internal/store/pgstore"
@@ -997,3 +998,159 @@ func TestCloseSizerFailReasonLogged(t *testing.T) {
 		t.Fatalf("败因应 plan:sizer: 前缀（余额不可定=计划期败），got %q", lastErr)
 	}
 }
+
+// fakeAlertSender 告警假件（T-0423——录推送文，loop 升件断言用）。
+type fakeAlertSender struct{ sent []string }
+
+func (f *fakeAlertSender) SendText(_ context.Context, _, text string) (string, error) {
+	f.sent = append(f.sent, text)
+	return "ok", nil
+}
+
+func attachFakeAlerter(w *Warden) *fakeAlertSender {
+	fs := &fakeAlertSender{}
+	w.AttachAlerter(notify.NewAlerter(fs, func() string { return "c1" }, func() bool { return true }))
+	return fs
+}
+
+// mkLoopFixture 造 closing 滞留 fixture（T-0423 红桩——直建 fin_guard_close
+// 行不重演 tend 路径：探针只管「行滞留」事实）。
+func mkLoopFixture(t *testing.T, ctx context.Context, w *Warden, attempts int, lastTry *time.Time) (posID, stratID int64) {
+	t.Helper()
+	posID = mkPosition(t, ctx, w, "live", 1, time.Now())
+	if err := w.pool.QueryRow(ctx,
+		"SELECT strategy_ref FROM fin_position WHERE id=$1", posID).Scan(&stratID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.pool.Exec(ctx, `INSERT INTO fin_guard_close(position_id,state,trigger_kind,attempts,last_try_at,last_attempt_at,updated_at)
+		VALUES($1,'closing','delta_drift',$2,$3,$3,now())`, posID, attempts, lastTry); err != nil {
+		t.Fatal(err)
+	}
+	return posID, stratID
+}
+
+func openIntent(stratID int64, kind string) risk.Intent {
+	return risk.Intent{StrategyRef: stratID, Venue: "okx", InstID: "BTC-USDT-SWAP",
+		Legs: []string{"perp_short", "spot_long"}, NotionalUSD: 100, Kind: kind}
+}
+
+// T-0423 红桩①：closing attempts≥阈（fixture attempts=4>阈3）→探针行落戳+
+// 升件行+Alert+熔断挂起四迹；同窗重拍节流不连刷；同策略新开仓拒/平仓放行；
+// 解冻（裁定席判词径）后开仓权恢复。
+func TestLoopProbeAttemptsEscalate(t *testing.T) {
+	ctx, w, _ := setup(t)
+	posID, stratID := mkLoopFixture(t, ctx, w, 4, ptrTime(time.Now()))
+	fs := attachFakeAlerter(w)
+	if err := w.scanOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	if err := w.pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='升件' AND esc_class='守卫环' AND esc_scope='fin_guard_close'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("守卫环升件行=1 期望，got %d err=%v", n, err)
+	}
+	if err := w.pool.QueryRow(ctx, `SELECT count(*) FROM ops_event WHERE event='开仓挂起'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("开仓挂起行=1 期望，got %d err=%v", n, err)
+	}
+	var alerted *time.Time
+	if err := w.pool.QueryRow(ctx,
+		"SELECT loop_alerted_at FROM fin_guard_close WHERE position_id=$1", posID).Scan(&alerted); err != nil {
+		t.Fatal(err)
+	}
+	if alerted == nil {
+		t.Fatal("探针行 loop_alerted_at 应落戳")
+	}
+	if err := w.pool.QueryRow(ctx, `SELECT count(*) FROM fin_guard_suspend
+		WHERE strategy_ref=$1 AND lifted_at IS NULL`, stratID).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("熔断挂起行=1 期望，got %d err=%v", n, err)
+	}
+	if len(fs.sent) != 1 || !strings.Contains(fs.sent[0], "平仓循环自残") {
+		t.Fatalf("Alert 应推 1 条平仓循环自残，got %v", fs.sent)
+	}
+	// 熔断桩：同策略新开仓拒（guard_suspended），平仓径放行（只出不进）。
+	if dec := w.gate.Check(ctx, openIntent(stratID, "open")); dec.Allow || dec.Reason != "guard_suspended" {
+		t.Fatalf("在挂策略新开仓应拒 guard_suspended，got allow=%v reason=%q", dec.Allow, dec.Reason)
+	}
+	if dec := w.gate.Check(ctx, openIntent(stratID, "close")); !dec.Allow {
+		t.Fatalf("平仓径应放行（只出不进），got reason=%q", dec.Reason)
+	}
+	// 节流锚：同窗二拍升件/挂起行不连刷。
+	if err := w.scanOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='升件' AND esc_class='守卫环'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("同窗重拍升件应节流=1，got %d", n)
+	}
+	// 解冻唯一径=裁定席判词/业主令；解冻后开仓权恢复+解冻行落账。
+	if err := LiftSuspend(ctx, w.pool, stratID, "仓巡", "席自解"); err == nil {
+		t.Fatal("非裁定席/业主解冻应拒（唯一径机械守）")
+	}
+	if err := LiftSuspend(ctx, w.pool, stratID, "裁定席", "判词：环绞定性非策略病灶——恢复开仓权"); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.pool.QueryRow(ctx, `SELECT count(*) FROM ops_event WHERE event='开仓解冻'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("开仓解冻行=1 期望，got %d", n)
+	}
+	if dec := w.gate.Check(ctx, openIntent(stratID, "open")); !dec.Allow {
+		t.Fatalf("解冻后开仓权应恢复，got reason=%q", dec.Reason)
+	}
+}
+
+// T-0423 红桩②：closing 滞留>阈（attempts=1<3 但 last_try_at=3h>2h）——
+// 滞留形同样升件+熔断（两形各断言升件迹）。
+func TestLoopProbeStaleEscalate(t *testing.T) {
+	ctx, w, _ := setup(t)
+	stale := time.Now().Add(-3 * time.Hour)
+	posID, stratID := mkLoopFixture(t, ctx, w, 1, ptrTime(stale))
+	fs := attachFakeAlerter(w)
+	if err := w.scanOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	if err := w.pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='升件' AND esc_class='守卫环'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("滞留形升件行=1 期望，got %d err=%v", n, err)
+	}
+	if err := w.pool.QueryRow(ctx, `SELECT count(*) FROM fin_guard_suspend
+		WHERE strategy_ref=$1 AND position_id=$2 AND lifted_at IS NULL`, stratID, posID).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("滞留形挂起行=1 期望，got %d", n)
+	}
+	if len(fs.sent) != 1 {
+		t.Fatalf("滞留形 Alert 应推 1 条，got %d", len(fs.sent))
+	}
+}
+
+// T-0423 反向锚：attempts<阈且未滞留=零告警零挂起（不误报不误熔）。
+func TestLoopProbeUnderThresholdSilent(t *testing.T) {
+	ctx, w, _ := setup(t)
+	_, stratID := mkLoopFixture(t, ctx, w, 1, ptrTime(time.Now()))
+	fs := attachFakeAlerter(w)
+	if err := w.scanOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	if err := w.pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event IN ('升件','开仓挂起') AND (esc_class='守卫环' OR note LIKE '%守卫环%')`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("阈下应零升件迹，got %d", n)
+	}
+	if err := w.pool.QueryRow(ctx, `SELECT count(*) FROM fin_guard_suspend
+		WHERE strategy_ref=$1`, stratID).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("阈下应零挂起，got %d", n)
+	}
+	if len(fs.sent) != 0 {
+		t.Fatalf("阈下应零推送，got %d", len(fs.sent))
+	}
+	if dec := w.gate.Check(ctx, openIntent(stratID, "open")); !dec.Allow {
+		t.Fatalf("未挂策略开仓应放行，got reason=%q", dec.Reason)
+	}
+	// 阈键经 app_config 可调（迁移种子值机读——dmconfig 写域 guard.* 已册）。
+	if v, err := w.getF("guard.loop_alert_attempts"); err != nil || v != 3 {
+		t.Fatalf("loop_alert_attempts 种子=3 期望，got %v err=%v", v, err)
+	}
+	if v, err := w.getF("guard.loop_alert_hours"); err != nil || v != 2 {
+		t.Fatalf("loop_alert_hours 种子=2 期望，got %v err=%v", v, err)
+	}
+}
+
+func ptrTime(t time.Time) *time.Time { return &t }

@@ -13,6 +13,7 @@ var kindSpec = map[string]struct {
 	"ledger_diff_alert":      {"账实差超限", true, "未定性——需排查"},
 	"rollback_failed":        {"平仓回滚败", false, "残留敞口人工升级"},
 	"close_gave_up":          {"平仓放弃", false, "仓残人工处置"},
+	"guard_close_loop":       {"平仓循环自残", false, "守卫环熔断——同策略开仓已挂起（T-0423），解冻归裁定席判词/业主令"},
 	"dd_hardline_tripped":    {"净值硬线触停", true, "风险停手已自动执行"},
 	"dd_close_exhausted":     {"触停平仓耗尽", false, "仓残人工处置"},
 	"kill_switch":            {"急停开关", true, "系统停手状态变化"},

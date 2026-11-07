@@ -144,6 +144,7 @@ var migrationTable = []struct {
 	{135, "fin_0135_symbol_dialect.sql"},
 	{136, "fin_0136_exec_drill.sql"},
 	{137, "fin_0137_scan_universe.sql"},
+	{138, "fin_0138_guard_loop_suspend.sql"},
 
 	// —— md 链（版本链内唯一且单调；md 链版本=历史号+1000 与 fin 键空间全局不相交——跨链并 schema 时 schema_migrations 零撞号，check_migrations 断言①⑤）——
 	{1003, "md_1003_market_facts.sql"},
