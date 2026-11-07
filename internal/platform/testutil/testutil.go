@@ -58,6 +58,14 @@ func Pool(t *testing.T) *pgxpool.Pool {
 	if _, err := pool.Exec(ctx, "CREATE SCHEMA IF NOT EXISTS "+schema); err != nil {
 		t.Fatalf("schema: %v", err)
 	}
+	// T-0435：GC 出生标——gc_test_schemas.sh 扫②按 _gc_born.ts 判孤儿
+	// （标新鲜 <24h=在租豁免；无标历史件走 T-0186 原语义日清）。
+	if _, err := pool.Exec(ctx, "CREATE TABLE IF NOT EXISTS "+schema+"._gc_born(ts timestamptz NOT NULL)"); err != nil {
+		t.Fatalf("gc born mark: %v", err)
+	}
+	if _, err := pool.Exec(ctx, "INSERT INTO "+schema+"._gc_born(ts) VALUES (now())"); err != nil {
+		t.Fatalf("gc born mark: %v", err)
+	}
 	t.Cleanup(func() { // T-0186：schema GC——用后清（实例窒息根治）
 		ctx2, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()

@@ -176,26 +176,49 @@ fi
 # 再 herestring 判，两处消费面同式。
 PG_NAMES=$(docker ps --format '{{.Names}}' 2>/dev/null || true) # tolerate: docker 缺席/查询败=按无 test PG 处理（DSN 不注入）
 
+# T-0435 件②：测试库租约——非 docs-only 才占库（字母族池化独占领取，
+# DSN 注入与租约同源禁租A注B；池空不猜不占 skip 径；详见 testdb_lease.sh 头注）。
+# 老双注入块（grep -q herestring 判 5434 直注）在此归并入租约件单点。
+if [ "$MODE" != "docs-only" ]; then
+  source "$(pwd -P)/scripts/testdb_lease.sh"
+  testdb_lease_acquire "$PG_NAMES" || fail "测试库租约败——见上方 holder 行"
+fi
+
+# T-0435 件③：go test 红转判定——超时败（panic: test timed out）且栈卡
+# DB（jackc/pgx 帧）→$STAMP.mode 附 env-contention 标（假红可区分于码红，
+# 审裁读戳面 T-0397 同形；不禁真超时断言——非 pgx 栈的超时不标）。
+# 输出经 tee 全吞落盘（KB pipefail-grep-q 修法②同形：下游不早退上游 rc
+# 真传；标判 grep 走文件输入无管道无 SIGPIPE 雷）。
+run_go_test() { # $1=fail-msg $2..=go test 参数（包集/./...）
+  local msg="$1" out rc=0
+  shift # fail-msg 出参数表——go test 实参从 $2 起（混入=malformed import path 假红）
+  out=$(mktemp) || fail "mktemp 败——测试输出无处落"
+  go test "$@" -timeout=1800s 8>&- 2>&1 | tee "$out" >&2 || rc=$? # 8>&-：租约 fd 不传子进程（泄漏测试进程不得持库锁）
+  if [ "$rc" -ne 0 ]; then
+    if grep -q 'panic: test timed out' "$out" && grep -q 'jackc/pgx' "$out"; then
+      printf 'env-contention\n' >> "$STAMP.mode"
+      echo "⚠️ [check-all] env-contention：go test 超时且栈卡 DB（pgx 帧）——假红标已附 .mode（重跑处置；DB 归属争议时对上方 testdb-lease 行）" >&2
+    fi
+    rm -f "$out"
+    fail "$msg"
+  fi
+  rm -f "$out"
+}
+
 if [ "$MODE" = docs-only ]; then
   echo "── go test 全谱：docs-only 豁免跳过——已提交面 ${NCOM} 件+工作树面 ${NWT} 件全中白名单（docs/**、*.md、skills/**），merge-base=$MB；CHECK_ALL_FORCE_FULL=1 压过" >&2
   echo "docs-only" > "$STAMP.mode"
 elif [ "$MODE" = scoped ] || [ "$MODE" = merge-scoped ]; then
   echo "── go test：$MODE 定向谱——变更包+反向依赖闭包+恒测册（risk/ledger/trading/guard/lifecycle）$( [ "$MODE" = merge-scoped ] && echo '+迁移pgstore/proto-gen附加种子' )；包集: $TEST_PKGS" >&2
   { echo "$MODE"; printf '%s\n' $TEST_PKGS; } > "$STAMP.mode"
-  if [ -z "${O_TEST_PG_DSN:-}" ] && grep -q '^o-postgres-test$' <<< "$PG_NAMES"; then
-    export O_TEST_PG_DSN="postgres://o:o@localhost:5434/o_test?sslmode=disable"
-  fi
-  go test $TEST_PKGS -timeout=1800s                        || fail "go test 红（$MODE）"
+  run_go_test "go test 红（$MODE）" $TEST_PKGS
 else
   echo "full" > "$STAMP.mode"
   step "go test 全谱"
-  if [ -z "${O_TEST_PG_DSN:-}" ] && grep -q '^o-postgres-test$' <<< "$PG_NAMES"; then
-    export O_TEST_PG_DSN="postgres://o:o@localhost:5434/o_test?sslmode=disable"
-  fi
   # T-0212：去 -count=1 放行 Go 测试缓存——同 tree 复测近零本（业主令：全量
   # uncached 25-40min/次太贵）。缓存键=文件+依赖指纹非 git 态——外部依赖型
   # （真实 PG/venue）陈判窗口钦定放行（CI 服务端仍全谱 uncached 兜真伪）。
-  go test ./... -timeout=1800s                                  || fail "go test 红"
+  run_go_test "go test 红" ./...
 fi
 
 date -Is > "$STAMP"

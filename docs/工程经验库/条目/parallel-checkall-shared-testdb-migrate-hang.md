@@ -50,8 +50,14 @@ bash scripts/check_all.sh
 
 - check_all 对已设 `O_TEST_PG_DSN` 不覆盖（`-z` 闸）——专库零改机制。
 - 时敏包重跑窗收窄=flaky 自愈（go test 缓存使全谱重跑只补红包）。
-- 清场：`DROP DATABASE o_test_<wt号>` 随 wt 退役顺手清（或在
-  gc_test_schemas.sh 同径扩库级清面——未立票，记此备忘）。
+- 清场：`DROP DATABASE o_test_<wt号>` 随 wt 退役顺手清。
+- **根修在案（T-0435，2026-11-07）**：本条目手工专库径与「gc 同径扩库级
+  清面——未立票」备忘已兑现为机制——check_all 起时 `scripts/testdb_lease.sh`
+  字母族池化租约（flock 端口锁文件，DSN 与租约同源禁租A注B，全忙排队
+  非互踩，池空 fail-closed 不猜不占）；手工专库形保留为外部 DSN 径
+  （锁随 DSN 端口补租，不重指）。`gc_test_schemas.sh` 升级四扫：陈旧
+  事务 terminate/孤儿 schema（`_gc_born` 出生标+24h 豁免）/死元组
+  VACUUM/遗留 `o_test_*` 库零连接回收——cron 05:23 契约不变。
 
 ## 证据
 
