@@ -1368,3 +1368,15 @@
 - **重裁幂等执行**：T-0382 首裁前核 ops_event 无终态+支未合 master
   →动；返修裁前同核。班内 0377 式外派件判据（latest 事件非票史）
   未撞。
+
+## 2026-11-07 T-0426 执行径仿真层（zcode-t0426 施工班）
+
+- **无业主对话**——外派件全径自治执行（票面+提示词为锚），零授权级裁量。
+- **共享测试库处置（跨席影响面——留档）**：o-postgres-test 有 4 天陈旧事务
+  持 advisory lock 860223（全谱 go test 假红根因，master 基线对拍定责）——
+  施工班 `pg_terminate_backend` 杀之+清 228 个遗留 t_* schema+VACUUM FULL
+  （10GB→15MB）；非本票病灶但动的是共享基建，DM 复审知悉。坑条目
+  testdb-stale-advisory-lock-timeout-fanout 同 commit 在案（预防巡检另票建议）。
+- **设计裁断（票面内实现级）**：cmd/core 装配缝拆立 execwiring 单源
+  （复制装配径=影子缝漂移源——演习失真即验收失真）；RulesVersion 承载位=
+  OrderResult 加法性字段（真 venue 留空）。详见票面结果回填偏离说明。
