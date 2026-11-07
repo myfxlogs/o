@@ -32,10 +32,13 @@ type CloseSpec struct {
 	Legs        [2]CloseLeg
 }
 
-// CloseLeg 反向腿规格（side=平仓侧；sz 沿原仓腿量——venue 方言换算归执行缝）。
+// CloseLeg 反向腿规格（side=平仓侧；sz=下单方言目标量——SWAP 张数/spot 币量，
+// T-0419 量纲消歧后沿腿实得 qty_base 非开腿 sz 额；SzKnown=false=腿账不可定
+// →venue 余额实查备源）。
 type CloseLeg struct {
 	Venue, InstID, Side string
 	Sz                  float64
+	SzKnown             bool
 }
 
 // Executor 平仓执行缝——G7 执行件（internal/trading/execution.Runner）由装配层
@@ -86,7 +89,8 @@ func NewWarden(pool *pgxpool.Pool, cfg *config.Client, gate *risk.Gate, ex Execu
 	return &Warden{pool: pool, cfg: cfg, gate: gate, ex: ex,
 		rej: rejects.New("guard", "missing_param", "facts_missing", "leg_anomaly",
 			"close_denied", "close_failed", "close_gave_up", "write_err",
-			"dd_missing_param", "equity_missing", "equity_stale", "dd_no_base", "dd_hardline_tripped", "dd_close_exhausted")}
+			"dd_missing_param", "equity_missing", "equity_stale", "dd_no_base", "dd_hardline_tripped", "dd_close_exhausted",
+			"bare_bag")}
 }
 
 // Run 在岗登记+心跳+哨戒循环（产出窗=fin_guard_close 行/fin_position.closed_at 迁移
@@ -203,6 +207,8 @@ func (w *Warden) tend(ctx context.Context, p posRow, maxAtt int64, trig closeTri
 		log.Printf("[guard] WARN 仓 %d 平仓败（%s：%v）——按节拍重试", p.id, trig.kind, err)
 		return
 	}
+	// T-0419 ②③：残袋显形对拍——markClosed 前落（settle 见挂账列=实现额非全损）。
+	w.bareBags(ctx, p, legs, cls, execID)
 	if err := w.markClosed(ctx, p, execID, trig); err != nil {
 		log.Printf("[guard] WARN 仓 %d 平仓成交但态迁写败：%v", p.id, err)
 		return

@@ -446,9 +446,9 @@ func TestNotionalCtValDispatch(t *testing.T) {
 // T-0046 ②锚：平仓量 venue 实读对齐——avail<腿记录取 avail 落网格；读败=fail-closed。
 func TestSizedCloseLegs(t *testing.T) {
 	ctx, w, _ := setup(t)
-	cls := [2]CloseLeg{
-		{Venue: "okx", InstID: "BTC-USDT", Side: "sell", Sz: 0.00030897},
-		{Venue: "okx", InstID: "BTC-USDT-SWAP", Side: "buy", Sz: 3}}
+	cls := [2]CloseLeg{ // SzKnown=腿账已定量字面量（T-0419 位——false=venue 备源径）
+		{Venue: "okx", InstID: "BTC-USDT", Side: "sell", Sz: 0.00030897, SzKnown: true},
+		{Venue: "okx", InstID: "BTC-USDT-SWAP", Side: "buy", Sz: 3, SzKnown: true}}
 	// avail=0.00030866（taker 费内扣实持）、lot=0.0000001——0.00030897→0.0003086。
 	w.AttachSizer(fakeSizer{avail: 0.00030866, contract: 1e9, lot: 0.0000001})
 	got, ok := w.sizedCloseLegs(ctx, cls)
@@ -760,5 +760,158 @@ func TestFreshTickRealDriftKills(t *testing.T) {
 	_, state, trig := posClosed(t, ctx, w, posID)
 	if state != "closed" || trig != "delta_drift" {
 		t.Fatalf("真失衡仓应 closed/delta_drift，got %s/%s", state, trig)
+	}
+}
+
+// mkPositionQuoteLeg 造一仓（CORE quote 腿+perp 合约腿）——T-0419 单位错配
+// 红桩料：spot 开腿 sz=25 美元额 sz_unit=quote、qty_base=实得币量（0=NULL
+// 腿账不可定形）；触发走 strategy_degraded（免喂 funding/tick 判据链）。
+func mkPositionQuoteLeg(t *testing.T, ctx context.Context, w *Warden, stratState string,
+	spotQtyBase, perpSz float64) int64 {
+	t.Helper()
+	var stratID, execID, posID int64
+	if err := w.pool.QueryRow(ctx,
+		`INSERT INTO fin_strategy(inst_id,template_ref,state,notional_usd,venue) VALUES('CORE-USDT-SWAP','guard-test',$1,50,'okx') RETURNING id`,
+		stratState).Scan(&stratID); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.pool.QueryRow(ctx,
+		`INSERT INTO fin_execution(strategy_ref,inst_id,notional_usd,state) VALUES($1,'CORE-USDT-SWAP',50,'open') RETURNING id`,
+		stratID).Scan(&execID); err != nil {
+		t.Fatal(err)
+	}
+	for i, lg := range []struct {
+		inst, side, unit string
+		sz, qty          float64
+	}{
+		{"CORE-USDT", "buy", "quote", 25, spotQtyBase},
+		{"CORE-USDT-SWAP", "sell", "contract", perpSz, 0}} {
+		if _, err := w.pool.Exec(ctx,
+			`INSERT INTO fin_order_leg(execution_id,leg_no,cl_ord_id,venue,side,inst_id,sz,state,sz_unit,qty_base)
+			VALUES($1,$2,$3,'okx',$4,$5,$6,'filled',$7,NULLIF($8::numeric,0))`,
+			execID, i+1, fmt.Sprintf("cl-%d-%s", execID, lg.inst), lg.side, lg.inst, lg.sz, lg.unit, lg.qty); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := w.pool.QueryRow(ctx,
+		`INSERT INTO fin_position(execution_id,strategy_ref,inst_id,notional_usd)
+		VALUES($1,$2,'CORE-USDT-SWAP',50) RETURNING id`, execID, stratID).Scan(&posID); err != nil {
+		t.Fatal(err)
+	}
+	return posID
+}
+
+// T-0419 锚①红桩：平仓腿单位错配——spot 开腿 sz_unit=quote（sz=美元额）时
+// 平仓腿目标量必须=腿实得 qty_base 币量；修前裸拷 sz 美元额当 base 发
+// （生产实证仓#33：25→只清 1.3% 留 1890 CORE 裸袋）。
+func TestCloseLegUnitMismatch(t *testing.T) {
+	ctx, w, fx := setup(t)
+	mkPositionQuoteLeg(t, ctx, w, "degraded", 1915.63, 1)
+	if err := w.scanOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if len(fx.calls) != 1 {
+		t.Fatalf("期望一次平仓执行，got %d", len(fx.calls))
+	}
+	spot, perp := fx.calls[0].Legs[0], fx.calls[0].Legs[1]
+	if spot.InstID != "CORE-USDT" || spot.Side != "sell" || perp.Side != "buy" {
+		t.Fatalf("反向腿规格不符: %+v", fx.calls[0].Legs)
+	}
+	if math.Abs(spot.Sz-1915.63) > 1e-6 {
+		t.Fatalf("平仓量应=腿实得 qty_base 1915.63 非美元额 25（错平病灶）: %v", spot.Sz)
+	}
+	if perp.Sz != 1 {
+		t.Fatalf("合约平仓量应=张数 1: %v", perp.Sz)
+	}
+}
+
+// T-0419 锚①备源桩：quote 腿 qty_base 缺（腿账不可定）→平仓量备源=venue
+// 余额实查（钦定「读持仓余额」径）——美元额仍绝不当 base 发。
+func TestCloseLegQuoteMissingQtyFallbackAvail(t *testing.T) {
+	ctx, w, fx := setup(t)
+	mkPositionQuoteLeg(t, ctx, w, "degraded", 0, 1) // qty_base NULL=腿账不可定
+	w.AttachSizer(fakeSizer{avail: 777})
+	if err := w.scanOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if len(fx.calls) != 1 {
+		t.Fatalf("期望一次平仓执行，got %d", len(fx.calls))
+	}
+	if fx.calls[0].Legs[0].Sz != 777 {
+		t.Fatalf("腿账不可定应备源 venue 实余 777 非美元额 25: %v", fx.calls[0].Legs[0].Sz)
+	}
+}
+
+// T-0419 锚②③红桩：平仓后残袋显形+挂账——venue 实余×腿账差对拍出残袋→
+// fin_position.bare_bag_* 挂账+ops_event「裸袋」行+fin_holding 显形；
+// 未回资产记挂账非实现损（「closed 了但货还在」静默背离禁线）。
+func TestBareBagSurfaced(t *testing.T) {
+	ctx, w, fx := setup(t)
+	posID := mkPositionQuoteLeg(t, ctx, w, "degraded", 1915.63, 1)
+	w.AttachSizer(fakeSizer{avail: 1800}) //  venue 实余（卖出后仍残 1800 CORE）
+	// 平腿真源行（fakeExec 不落腿行——fixture 补 exec 999 平腿账）：
+	// spot 卖出 qty_base=1800（实卖），swap 买回 1 张。
+	if _, err := w.pool.Exec(ctx,
+		`INSERT INTO fin_execution(id,inst_id,notional_usd,state) VALUES(999,'CORE-USDT-SWAP',50,'closed')
+		 ON CONFLICT(id) DO NOTHING`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.pool.Exec(ctx,
+		`INSERT INTO fin_order_leg(execution_id,leg_no,cl_ord_id,venue,side,inst_id,sz,state,sz_unit,qty_base,px)
+		VALUES (999,1,'cl-999-s','okx','sell','CORE-USDT',1800,'filled','base',1800,0.013),
+		       (999,2,'cl-999-p','okx','buy','CORE-USDT-SWAP',1,'filled','contract',NULL,NULL)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.pool.Exec(ctx,
+		`INSERT INTO md_ticks(ts,venue,inst_id,last) VALUES(now(),'okx','CORE-USDT',0.013)`); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.scanOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if len(fx.calls) != 1 {
+		t.Fatalf("期望一次平仓执行，got %d", len(fx.calls))
+	}
+	// 残袋=min(venue 实余 1800, 腿账差 1915.63−1800=115.63) →115.63 CORE≈$1.50≥阈。
+	var ccy *string
+	var qty, usd *float64
+	if err := w.pool.QueryRow(ctx,
+		`SELECT bare_bag_ccy,bare_bag_qty,bare_bag_usd FROM fin_position WHERE id=$1`, posID).
+		Scan(&ccy, &qty, &usd); err != nil {
+		t.Fatal(err)
+	}
+	if ccy == nil || *ccy != "CORE" || qty == nil || math.Abs(*qty-115.63) > 0.01 ||
+		usd == nil || math.Abs(*usd-1.503) > 0.01 {
+		t.Fatalf("裸袋挂账列不符: ccy=%v qty=%v usd=%v", ccy, qty, usd)
+	}
+	var n int
+	if err := w.pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='裸袋' AND note LIKE '仓#'||$1||' CORE-USDT %'`,
+		fmt.Sprintf("%d", posID)).Scan(&n); err != nil || n == 0 {
+		t.Fatalf("裸袋事件行缺: n=%d err=%v", n, err)
+	}
+	if err := w.pool.QueryRow(ctx, `SELECT count(*) FROM fin_holding
+		WHERE kind='spot_dust' AND ccy='CORE'`).Scan(&n); err != nil || n == 0 {
+		t.Fatalf("holding 标缺: n=%d err=%v", n, err)
+	}
+	// 反向锚：残袋 USD<阈=碎尘不挂账（lotSz 粒度残量免噪）。
+	if _, err := w.pool.Exec(ctx, `UPDATE md_ticks SET last=1e-6 WHERE inst_id='CORE-USDT'`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.pool.Exec(ctx, `UPDATE fin_strategy SET state='retired'
+		WHERE id=(SELECT strategy_ref FROM fin_position WHERE id=$1)`, posID); err != nil {
+		t.Fatal(err) // dedupe 闸让位——同 inst 第二仓fixture
+	}
+	posID2 := mkPositionQuoteLeg(t, ctx, w, "degraded", 1915.63, 1)
+	if err := w.scanOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var qty2 *float64
+	if err := w.pool.QueryRow(ctx,
+		`SELECT bare_bag_qty FROM fin_position WHERE id=$1`, posID2).Scan(&qty2); err != nil {
+		t.Fatal(err)
+	}
+	if qty2 != nil {
+		t.Fatalf("碎尘残量不应挂账: %v", *qty2)
 	}
 }

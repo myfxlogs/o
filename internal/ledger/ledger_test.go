@@ -460,3 +460,40 @@ func TestReconcileDcdBaseline(t *testing.T) {
 		t.Fatal("基线 venue 缺席漏报")
 	}
 }
+
+// T-0419 锚③：settled 语义——裸袋挂账（平仓未回资产）计入实现额非实现损。
+// 仓#33 病灶复刻：现金净 −24.67（买 24.999 卖回 0.33）+1890 CORE 挂账
+// $24.5→settled=−0.17 真实现损；修前 −24.67 全损=假亏。
+func TestSettleBareBagSuspense(t *testing.T) {
+	ctx, r := setup(t)
+	var xid, pid int64
+	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_execution(inst_id,notional_usd,state)
+		VALUES('CORE-USDT-SWAP',50,'closed') RETURNING id`).Scan(&xid); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_position(execution_id,inst_id,notional_usd,
+		closed_at,bare_bag_ccy,bare_bag_qty,bare_bag_usd)
+		VALUES($1,'CORE-USDT-SWAP',50,now(),'CORE',1890.64,24.5) RETURNING id`, xid).Scan(&pid); err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range []Entry{
+		{Kind: "spot_buy", Venue: "okx", Ccy: "USDT", Amount: -24.999, PositionRef: &pid, SourceRef: 1, SourceTable: "fin_order_leg"},
+		{Kind: "spot_sell", Venue: "okx", Ccy: "USDT", Amount: 0.33, PositionRef: &pid, SourceRef: 2, SourceTable: "fin_order_leg"},
+	} {
+		if _, err := Post(ctx, r.pool, e); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := r.settle(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var amt float64
+	if err := r.pool.QueryRow(ctx,
+		"SELECT settled_amount FROM fin_position WHERE id=$1", pid).Scan(&amt); err != nil {
+		t.Fatal(err)
+	}
+	// 实现额=现金净 −24.669+挂账 24.5=−0.169（真实现损）；−24.669 全损=假亏病灶。
+	if amt < -0.5 || amt > 0.5 {
+		t.Fatalf("settled 应≈−0.169（挂账非实现损）got %.4f", amt)
+	}
+}
