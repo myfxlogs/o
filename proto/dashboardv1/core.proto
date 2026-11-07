@@ -42,7 +42,10 @@ service CoreService {
   rpc SetEarnAutoPurchase(SetEarnAutoPurchaseRequest) returns (SetEarnAutoPurchaseResponse) {}
 
   // —— T-0382 报价点+价格提醒（报价面=提醒行 symbol 集一单两用；写径同
-  // 源闸窄写——单向告警非条件单，禁下单语义）——
+  //   源闸窄写——单向告警非条件单，禁下单语义）——
+  // T-0442 件②：CreatePriceAlert 升一品种双阈形制——上限(>=)/下限(<=)各
+  //   可空，双空=禁建；落行层仍按 direction 逐行写（零 schema 破），单事务
+  //   1-2 行原子落。件①：删除=软删 disabled 留痕（SetPriceAlertState 翻位）。
   rpc ListPriceAlerts(ListPriceAlertsRequest) returns (ListPriceAlertsResponse) {}
   rpc CreatePriceAlert(CreatePriceAlertRequest) returns (CreatePriceAlertResponse) {}
   rpc SetPriceAlertState(SetPriceAlertStateRequest) returns (SetPriceAlertStateResponse) {}
@@ -50,6 +53,9 @@ service CoreService {
   // —— T-0391 自选报价条（NOX QuoteStrip/WatchlistModal 语义移植——fin_quote_
   //   watchlist 成员集×md_ticks 最新价；Set=全量替换同源闸窄写。纯展示面：
   //   不喂判定/策略，候选域=md_ticks 在采品种不开任意输入）——
+  // T-0442 件③：成员携 venue 源约束集（Nox chip 形制引进——空=全部源；
+  //   候选源=md_ticks 实采∪md_tick_scan 实扫派生零硬编码词表），报价行取价
+  //   与订阅晋升按所选源过滤。
   rpc GetQuoteWatchlist(GetQuoteWatchlistRequest) returns (GetQuoteWatchlistResponse) {}
   rpc SetQuoteWatchlist(SetQuoteWatchlistRequest) returns (SetQuoteWatchlistResponse) {}
 
@@ -594,11 +600,14 @@ message ListPriceAlertsResponse {
 }
 message CreatePriceAlertRequest {
   string symbol = 1;                      // 须选符域内（活符=收/目录符=收+晋升/域外拒——T-0412）
-  string direction = 2;                   // ">=" | "<="
-  double target = 3;                      // >0
+  reserved 2, 3;                          // T-0442 件②：旧单阈 direction/target 形制退场
   string note = 4;
+  bool has_upper = 5;                     // 上限在位标（proto3 标量无 presence——双空=禁建判据）
+  double upper_target = 6;                // 涨到 ≥（>0）
+  bool has_lower = 7;                     // 下限在位标
+  double lower_target = 8;                // 跌破 ≤（>0）
 }
-message CreatePriceAlertResponse { PriceAlertRow row = 1; } // 建行后真值重读
+message CreatePriceAlertResponse { repeated PriceAlertRow rows = 1; } // 建 1-2 行后真值重读
 message SetPriceAlertStateRequest {
   int64 id = 1;
   string state = 2;                       // active|disabled（fired 终态禁手翻——一发即锁语义）
@@ -612,21 +621,34 @@ message SetPriceAlertStateResponse { PriceAlertRow row = 1; } // 翻位后真值
 message GetQuoteWatchlistRequest {}
 message QuoteWatchRow {
   string symbol = 1;                      // inst_id（md_ticks 同键——OKX 方言原值）
-  bool has_quote = 2;                     // md_ticks 无该 symbol 行=false——显缺不假零
+  bool has_quote = 2;                     // 约束源集内无该 symbol tick=false——显缺不假零
   double last = 3;
   double bid = 4;
   double ask = 5;
   google.protobuf.Timestamp quote_ts = 6;
   int64 quote_age_s = 7;                  // 鲜度龄秒（服务端派生——前端零判据）
+  repeated string venues = 8;             // T-0442 源约束集（裸 venue 值——空=全部源）
+  string quote_venue = 9;                 // 所显报价来源 venue（空=无价——④「只显所选源」实证面）
+  bool pending = 10;                      // 源感知晋升中标（服务端派生——约束集内源在谱待采）
+}
+message QuoteSrcSet {
+  string symbol = 1;                      // inst_id
+  repeated string venues = 2;             // 可选源集=md_ticks 实采∪md_tick_scan 实扫派生（零硬编码词表）
 }
 message GetQuoteWatchlistResponse {
   repeated QuoteWatchRow rows = 1;        // 成员行（ord 升序）
   repeated string symbols = 2;            // 候选域=md_ticks 活符∪md_tick_scan 目录符（T-0412）
   google.protobuf.Timestamp as_of = 3;
   repeated string pending_symbols = 4;    // 未订阅候选（目录符非活——选入即提名晋升）
+  repeated QuoteSrcSet src_sets = 5;      // T-0442 各符可选源集（chip 候选=实采/实扫派生）
+}
+message QuoteWatchItem {
+  string symbol = 1;
+  repeated string venues = 2;             // 源约束集（空=全部源——Nox chip 语义）
 }
 message SetQuoteWatchlistRequest {
-  repeated string symbols = 1;            // 全量替换——序即 ord；每员须选符域内（目录符=收+晋升——T-0412）
+  reserved 1;                             // T-0442 件③：裸 symbol 形制退场——成员携源约束
+  repeated QuoteWatchItem items = 2;      // 全量替换——序即 ord；每员须选符域内（目录符=收+晋升——T-0412）
 }
 message SetQuoteWatchlistResponse {
   repeated string symbols = 1;            // 写后真值重读（库面非回显）
