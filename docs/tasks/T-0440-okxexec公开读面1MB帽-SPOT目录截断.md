@@ -21,13 +21,18 @@
 ② 截断语义补强（可选同件）：`io.ReadAll(io.LimitReader(r, N))` 截断静默——
    读满帽仍 parse 败才报错，建议在帽处改 `LimitReader(N+1)`+len>N 显式「响应超帽」错，
    让下次同类病不再以 JSON 语法错伪装；
-③ 族谱水位闸（业主令 11-07「新加CEX还是这问题」钦定同票治）：
-   md_tick_scan 逐族 inst_type 行数+recv_ts 鲜度断言——
-   任一注册族（swap/spot/futures）连续 N 拍=0 行或 recv_ts 陈
-   →escalation 行升件（载位复用 gauges_tick 探针册/ops_event 同款，
-   「让位常态化」必须有声；fail-closed 防虚构防不了永远让位）；
-   阈钉死票面不猜：族行数=0 且持续 ≥10min→升件（swap 基线 528/
-   futures 6/spot 0——0 即病态非低水位，阈按=0 判不按比）；
+③ 族谱水位闸·通用形制（业主令 11-07 双令——「新加CEX还是这问题」
+   「要有通用性不可能一个cex/broker又重写一次」同票治）：
+   a) 期望集=注册面派生非写死——scan 注册面（ScanPoller/venue 侧
+      声明的「本 venue 应扫族集」）为唯一期望源；闸读「应扫集∪实落集
+      对差」=0 行且持续 ≥10min→escalation 升件（载位 gauges_tick
+      探针册/ops_event 同款）。**新 venue 注册即自动纳入闸域，
+      闸码零 venue 硬编码**——okx 的 swap/spot/futures 只是当前
+      注册实例非白名单；注册面缺席=闸自身 fail-closed 升「不可判」；
+   b) 截断帽模式抽共享件——PublicGet 的「容量帽+截断显式错」提升为
+      venue 客户端共享读件（internal/venue 或 platform/httpread 层），
+      okxexec 改消费共享件；新 venue 客户端造轮子即继承同构防御，
+      禁各抄一份 LimitReader（抄=病跟着抄）；
 ④ 验收四断言：check_all 绿戳对口 + OCI collecto 日志 `粗扫拍 spot=N>0` 实证 +
    `md_tick_scan` spot>0 且含 `XRP-USDT` + 水位闸桩测（族=0 升件行落）；
    前端自选搜索 XRP 出现现货候选为终验。
