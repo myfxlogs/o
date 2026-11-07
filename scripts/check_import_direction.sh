@@ -179,10 +179,12 @@ internal/venue/onboard -> internal/platform/events
 internal/venue/onboard -> internal/platform/rejects
 internal/venue/onboard -> internal/platform/roster
 # T-0415 ops_decision 写径（platform 基础件——guard/lifecycle/review 三域机件
-# 决策记忆写面；seat 域裁词走库内镜像触发器不经本包）。
+# 决策记忆写面；seat 域裁词走库内镜像触发器不经本包）。T-0420 扩 ledger
+# 边——结案判定机 outcome 判词同径（同族 platform 消费边非新方向类）。
 internal/guard -> internal/platform/decision
 internal/portfolio/lifecycle -> internal/platform/decision
 internal/review -> internal/platform/decision
+internal/ledger -> internal/platform/decision
 EOF
 )
 

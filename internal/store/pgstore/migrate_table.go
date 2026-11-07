@@ -137,6 +137,7 @@ var migrationTable = []struct {
 	{128, "fin_0128_subreq_user_intent.sql"},
 	{129, "fin_0129_ops_decision.sql"},
 	{130, "fin_0130_bare_bag_suspense.sql"},
+	{131, "fin_0131_trade_postmortem.sql"},
 
 	// —— md 链（版本链内唯一且单调；md 链版本=历史号+1000 与 fin 键空间全局不相交——跨链并 schema 时 schema_migrations 零撞号，check_migrations 断言①⑤）——
 	{1003, "md_1003_market_facts.sql"},

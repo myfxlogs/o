@@ -66,6 +66,31 @@ SG psql（FIN_DSN env 径）：
    ops_decision seat 行自动镜像（T-0415）——verdict_ref 空/裸词即
    UPDATE 整行败退：判词机械必携）。
 
+## 平仓监察案受理节（kind=trade_postmortem——T-0420 案源）
+- 案源：ledger 结案判定机（settle 同槽每平必审）——异常结案落
+  `fin_econ_lesson` kind='trade_postmortem' entity_ref=`position#<id>`
+  （一仓一案 UNIQUE 幂等）。numbers 机读件：`position_id/strategy_ref/
+  inst_id/execution_id/trigger/hold_minutes/settled_usd/settled_pct/
+  notional_usd/bare_bag_qty/bare_bag_usd/anomalies/detail/close_reason/
+  decision_row_found/summary`。
+- 裁前先读：numbers.anomalies 码集（`fast_close` 秒级开平/
+  `settled_over` 结算幅超阈/`trigger_unknown` 认知集外触发/
+  `bare_bag` 残袋>0）+numbers.close_reason（ops_decision 平仓理由行
+  ——「为什么平」锚；decision_row_found=false=记忆面缺口本身在案）。
+- verdict 词集（kind 专属三分支——勿与通用 econ 词混用）：
+  - **bug 实证**（机器误判/执行缺陷——量纲错配/判据破洞/残袋机制失守类）
+    →`canon` 词 `ticket:<slug>`——升件立票：ops_event 升件行携案锚
+    （`fin_econ_lesson#<id>`）+定性草案一句话，DM 派工面消化（本席不
+    直写 docs/tasks/——落面白名单不含票域）；
+  - **市况使然**（判据正常触发但触阈——市况波动/预期内了结非病）
+    →`dismiss` 词 `market`——归档不立案（理由一句话市况定性）；
+  - **章程件**（处置须新章——裸袋处置/钱径语义裁定类非 bug 非市况）
+    →升不裁径：ops_headless stalled 行+留 pending 不强裁——涉红线
+    （裸袋处置动钱径归业主）升业主打包。
+- 裁词回 ops_decision：status→verdicted 镜像触发器同径（通用机制
+  不另设）——「为什么平（close 行）×判得如何（outcome 行/裁词行）」
+  双账闭环；正常结案（expected）无案——判定机拍内零烧，有案才耗本席。
+
 ## 升不裁
 kind 不熟/理由写不出/涉红线（资金/新平台/席位）→ops_headless stalled 行
 +**留 pending 不强裁**——裁定席只裁能裁的（dismiss 也须一句话理由）。
