@@ -26,10 +26,10 @@ func TestMinerLoopFirstMineOnStartAndEveryBeat(t *testing.T) {
 	done := make(chan struct{})
 	go func() { r.minerLoop(ctx); close(done) }()
 	deadline := time.After(2 * time.Second) // sched-exempt-ok 桩测期界等待（测试面拍锚非生产调度）
-	for stub.mines < 3 {
+	for stub.mines.Load() < 3 {
 		select {
 		case <-deadline:
-			t.Fatalf("MineLessons 未逐拍连调（含拉起首挖）: n=%d", stub.mines)
+			t.Fatalf("MineLessons 未逐拍连调（含拉起首挖）: n=%d", stub.mines.Load())
 		case <-time.After(10 * time.Millisecond): // sched-exempt-ok 桩测期界等待（测试面拍锚非生产调度）
 		}
 	}

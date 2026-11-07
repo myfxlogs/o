@@ -3,6 +3,7 @@ package lifecycle
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -32,18 +33,18 @@ type stubSensor struct {
 	ferr     error
 	depErr   error
 	fserr    error
-	detects  int
-	responds int
-	probes   int
-	covers   int
-	mines    int
-	drafts   int
-	deps     int
-	fstales  int
+	detects  atomic.Int64
+	responds atomic.Int64
+	probes   atomic.Int64
+	covers   atomic.Int64
+	mines    atomic.Int64
+	drafts   atomic.Int64
+	deps     atomic.Int64
+	fstales  atomic.Int64
 }
 
 func (s *stubSensor) Detect(context.Context) (*hunger.Report, error) {
-	s.detects++
+	s.detects.Add(1)
 	if s.derr != nil {
 		return nil, s.derr
 	}
@@ -51,7 +52,7 @@ func (s *stubSensor) Detect(context.Context) (*hunger.Report, error) {
 }
 
 func (s *stubSensor) Respond(context.Context, *hunger.Report) ([]hunger.StepResult, error) {
-	s.responds++
+	s.responds.Add(1)
 	if s.rerr != nil {
 		return nil, s.rerr
 	}
@@ -59,32 +60,32 @@ func (s *stubSensor) Respond(context.Context, *hunger.Report) ([]hunger.StepResu
 }
 
 func (s *stubSensor) ProbeFamilies(context.Context) error {
-	s.probes++
+	s.probes.Add(1)
 	return s.perr
 }
 
 func (s *stubSensor) ProbeLegCoverage(context.Context) error {
-	s.covers++
+	s.covers.Add(1)
 	return s.cerr
 }
 
 func (s *stubSensor) ProbeDeps(context.Context) error {
-	s.deps++
+	s.deps.Add(1)
 	return s.depErr
 }
 
 func (s *stubSensor) ProbeFeedStale(context.Context) error {
-	s.fstales++
+	s.fstales.Add(1)
 	return s.fserr
 }
 
 func (s *stubSensor) MineLessons(context.Context) (int, error) {
-	s.mines++
+	s.mines.Add(1)
 	return s.mineN, s.merr
 }
 
 func (s *stubSensor) DraftTickets(context.Context) (int, error) {
-	s.drafts++
+	s.drafts.Add(1)
 	return s.draftN, s.ferr
 }
 
@@ -126,8 +127,8 @@ func TestHungerTickChainVerifySameSlot(t *testing.T) {
 	if cv.verifies != 1 || cv.reports != 1 {
 		t.Fatalf("验链同槽拍不齐: verifies=%d reports=%d", cv.verifies, cv.reports)
 	}
-	if stub.detects != 1 {
-		t.Fatalf("断链检出后 Detect 未照常: detects=%d", stub.detects)
+	if stub.detects.Load() != 1 {
+		t.Fatalf("断链检出后 Detect 未照常: detects=%d", stub.detects.Load())
 	}
 	cv2 := &stubVerifier{verr: errors.New("假败——验链函数缺位")}
 	r2 := &Runner{pool: pool, sensor: stub, chainV: cv2}
@@ -155,10 +156,10 @@ func TestHungerLoopDetectEveryBeat(t *testing.T) {
 	done := make(chan struct{})
 	go func() { r.hungerLoop(ctx); close(done) }()
 	deadline := time.After(2 * time.Second) // sched-exempt-ok 桩测期界等待（测试面拍锚非生产调度）
-	for stub.detects < 3 {
+	for stub.detects.Load() < 3 {
 		select {
 		case <-deadline:
-			t.Fatalf("Detect 每拍未连调: n=%d", stub.detects)
+			t.Fatalf("Detect 每拍未连调: n=%d", stub.detects.Load())
 		case <-time.After(10 * time.Millisecond): // sched-exempt-ok 桩测期界等待（测试面拍锚非生产调度）
 		}
 	}
@@ -168,8 +169,8 @@ func TestHungerLoopDetectEveryBeat(t *testing.T) {
 	case <-time.After(time.Second): // sched-exempt-ok 桩测期界等待（净退界非生产调度）
 		t.Fatal("hungerLoop 未随 ctx 净退")
 	}
-	if stub.responds != 0 {
-		t.Fatalf("非触发拍 respond 误响: %d", stub.responds)
+	if stub.responds.Load() != 0 {
+		t.Fatalf("非触发拍 respond 误响: %d", stub.responds.Load())
 	}
 }
 
@@ -186,10 +187,10 @@ func TestHungerLoopFirstDetectOnStart(t *testing.T) {
 	done := make(chan struct{})
 	go func() { r.hungerLoop(ctx); close(done) }()
 	deadline := time.After(2 * time.Second) // sched-exempt-ok 桩测期界等待（测试面拍锚非生产调度）
-	for stub.detects < 1 {
+	for stub.detects.Load() < 1 {
 		select {
 		case <-deadline:
-			t.Fatalf("拉起未即首侦: n=%d", stub.detects)
+			t.Fatalf("拉起未即首侦: n=%d", stub.detects.Load())
 		case <-time.After(10 * time.Millisecond): // sched-exempt-ok 桩测期界等待（测试面拍锚非生产调度）
 		}
 	}
@@ -199,11 +200,11 @@ func TestHungerLoopFirstDetectOnStart(t *testing.T) {
 	case <-time.After(time.Second): // sched-exempt-ok 桩测期界等待（净退界非生产调度）
 		t.Fatal("hungerLoop 未随 ctx 净退")
 	}
-	if stub.detects != 1 {
-		t.Fatalf("ticker 未到拍误响: detects=%d", stub.detects)
+	if stub.detects.Load() != 1 {
+		t.Fatalf("ticker 未到拍误响: detects=%d", stub.detects.Load())
 	}
-	if stub.responds != 0 {
-		t.Fatalf("非触发首侦 respond 误响: %d", stub.responds)
+	if stub.responds.Load() != 0 {
+		t.Fatalf("非触发首侦 respond 误响: %d", stub.responds.Load())
 	}
 }
 
@@ -271,8 +272,8 @@ func TestHungerTickDetectFailIsolatedSelfReported(t *testing.T) {
 	stub := &stubSensor{derr: errors.New("假败——窗键不可读")}
 	r := &Runner{pool: pool, sensor: stub}
 	r.hungerTick(ctx)
-	if stub.responds != 0 {
-		t.Fatalf("detect 败后 respond 误响: %d", stub.responds)
+	if stub.responds.Load() != 0 {
+		t.Fatalf("detect 败后 respond 误响: %d", stub.responds.Load())
 	}
 	const esc = `SELECT count(*) FROM ops_event
 		WHERE event='升件' AND esc_scope='LIFECYCLE-HUNGER' AND note LIKE 'hungertick detect 败%'`
@@ -298,8 +299,8 @@ func TestHungerTickProbeEveryBeat(t *testing.T) {
 		perr: errors.New("假败——kind 谱读败")}
 	r := &Runner{pool: pool, sensor: stub}
 	r.hungerTick(ctx)
-	if stub.probes != 1 || stub.detects != 1 {
-		t.Fatalf("探针/Detect 同槽拍不齐: probes=%d detects=%d", stub.probes, stub.detects)
+	if stub.probes.Load() != 1 || stub.detects.Load() != 1 {
+		t.Fatalf("探针/Detect 同槽拍不齐: probes=%d detects=%d", stub.probes.Load(), stub.detects.Load())
 	}
 	var n int
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
@@ -320,8 +321,8 @@ func TestHungerTickLegCoverEveryBeat(t *testing.T) {
 		cerr: errors.New("假败——宇宙读缺")}
 	r := &Runner{pool: pool, sensor: stub}
 	r.hungerTick(ctx)
-	if stub.covers != 1 || stub.detects != 1 {
-		t.Fatalf("覆盖探针/Detect 同槽拍不齐: covers=%d detects=%d", stub.covers, stub.detects)
+	if stub.covers.Load() != 1 || stub.detects.Load() != 1 {
+		t.Fatalf("覆盖探针/Detect 同槽拍不齐: covers=%d detects=%d", stub.covers.Load(), stub.detects.Load())
 	}
 	var n int
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
@@ -362,8 +363,8 @@ func TestHungerTickDrafterSameSlot(t *testing.T) {
 		draftN: 2, ferr: errors.New("假败——draft 表读败")}
 	r := &Runner{pool: pool, sensor: stub}
 	r.hungerTick(ctx)
-	if stub.drafts != 1 || stub.detects != 1 {
-		t.Fatalf("起草拍/Detect 同槽拍不齐: drafts=%d detects=%d", stub.drafts, stub.detects)
+	if stub.drafts.Load() != 1 || stub.detects.Load() != 1 {
+		t.Fatalf("起草拍/Detect 同槽拍不齐: drafts=%d detects=%d", stub.drafts.Load(), stub.detects.Load())
 	}
 	var n int
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
@@ -384,8 +385,8 @@ func TestHungerTickFeedStaleEveryBeat(t *testing.T) {
 		fserr: errors.New("假败——行龄读败")}
 	r := &Runner{pool: pool, sensor: stub}
 	r.hungerTick(ctx)
-	if stub.fstales != 1 || stub.detects != 1 {
-		t.Fatalf("feed死闸/Detect 同槽拍不齐: fstales=%d detects=%d", stub.fstales, stub.detects)
+	if stub.fstales.Load() != 1 || stub.detects.Load() != 1 {
+		t.Fatalf("feed死闸/Detect 同槽拍不齐: fstales=%d detects=%d", stub.fstales.Load(), stub.detects.Load())
 	}
 	var n int
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
