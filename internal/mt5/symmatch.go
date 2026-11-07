@@ -10,6 +10,10 @@ import "strings"
 // 方言含——长先剥）。
 var quoteSuffixes = []string{"USDTM", "USDM", "USDT", "USDCM", "USDC", "USDZ", "USDD", "USD", "PERP", ".P"}
 
+// QuoteSuffixes 后缀谱只读出件（T-0432 候选机造剥后缀复用——禁平行第二套
+// 后缀表漂移）。
+func QuoteSuffixes() []string { return quoteSuffixes }
+
 // MatchSymbol broker 符号表寻 base 对应名（方言剥后缀比基——venue 自报表内寻，
 // 禁猜名）。多命中取首（自报表序）。
 func MatchSymbol(syms []string, base string) string {

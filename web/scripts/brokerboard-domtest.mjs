@@ -116,6 +116,19 @@ check("⑥步3 CEX api 三件掩码", s3cex.includes("••••••") &&
 	!s3cex.includes("ak-桩") && !s3cex.includes("as-桩") && !s3cex.includes("pp-桩"));
 check("⑥步2 password input type=password", /type="password"/.test(s2mt5));
 
+// ⑨步④符号映射（T-0432——映射=确认件：官名下拉+候选表+挑定钮；CEX 无步④）
+const s4 = render(rows, {
+	initialStep: 4,
+	initialDraft: { venue: "exness", proto: "mt5", login: "3001157", canonical: "BTC-USDT-SWAP", venueSymbol: "BTCUSDm" },
+});
+check("⑨步④步序 chip 在（④符号映射）", s4.includes("④符号映射"));
+check("⑨步④硬验落行钮在", s4.includes("硬验并落行"));
+check("⑨步④官名下拉在（—选官名—）", s4.includes("—选官名—"));
+check("⑨步④确认件文案（确认件非推断件）", s4.includes("确认件非推断件"));
+check("⑨步④凭证掩码件不存（映射面零凭据）", !s4.includes('placeholder="密码"'));
+const s4cex = render(rows, { initialStep: 4, initialDraft: { venue: "okx", proto: "cex" } });
+check("⑨CEX 无映射面（生产不可达态——步进帽 3，越界注面零映射件）", !s4cex.includes("硬验并落行") && !s4cex.includes("—选官名—"));
+
 // ⑧空态
 const empty = render([]);
 check("⑧空态=在册 broker 空", empty.includes("在册 broker 空"));

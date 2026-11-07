@@ -111,4 +111,9 @@ export const client: Client<typeof CoreService> = {
   // 凭据提交裸调不入窗（写非幂等——合并会吞真实提交）。
   listBrokerOnboard: deduped("ListBrokerOnboard", raw.listBrokerOnboard),
   submitBrokerCred: raw.submitBrokerCred,
+  // T-0432：方言对表面——官名清单读面入合并窗（低频枚举）；候选查询/
+  // 映射落行裸调不入窗（verify 实测面非幂等——合并会吞真实挑定）。
+  listCanonicalUniverse: deduped("ListCanonicalUniverse", raw.listCanonicalUniverse),
+  listSymbolCandidates: raw.listSymbolCandidates,
+  submitSymbolMapping: raw.submitSymbolMapping,
 };

@@ -71,6 +71,10 @@ type Runner struct {
 	dial    func(addr string) (Session, error)
 	rej     *rejects.Door
 	now     func() time.Time
+	// T-0432⑤ 漂移探针缝（nil=生产径——探针会话拨号/方言行仓读；桩测注假
+	// 禁桩真 venue 同律）。
+	dialProbeFn   func(addr string) (probeSession, error)
+	dialectRowsFn func(ctx context.Context, venue, login string) ([]mt5.DialectRow, error)
 }
 
 // New 装配（mk/dial 缺省=生产径；桩测覆写）。
@@ -132,6 +136,9 @@ func (r *Runner) scan(ctx context.Context) error {
 			log.Printf("[onboard] %s mapped 闸检测败: %v", v, err)
 		}
 	}
+	// ⑤漂移探针（T-0432——监测面：dialect 行全谱指纹对拍+探活，败不上抛
+	// 不阻主链；升件去重见 probe.go）。
+	r.probePass(ctx, brokers)
 	return nil
 }
 

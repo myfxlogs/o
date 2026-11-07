@@ -54,6 +54,10 @@ type coreService struct {
 	// 面，禁桩真 venue）。
 	dialSession func(addr string) (mt5VerifySession, error)
 	cexBalance  func(ctx context.Context, creds signutil.Credentials) (map[string]float64, error)
+	// T-0432 方言对表面缝（nil=生产径——dialect 会话拨号/官名语义源；桩测
+	// 注假面，禁桩真 venue 同律）。
+	dialDialect func(addr string) (dialectSession, error)
+	dialectMeta dialectMeta
 }
 
 // mdStats 采集观测源束（方法值闭包——collector/meter 单例由 main.go 装配注入）。
