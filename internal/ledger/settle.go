@@ -49,6 +49,7 @@ func (r *Runner) settle(ctx context.Context) error {
 		} else {
 			log.Printf("[ledger] 仓 #%d 结算落位 net=%.4f USDT", x.id, net)
 		}
+		r.postmortem(ctx, x.id) // T-0420 结案判定机——settled 落位同槽每平必审
 	}
 	return nil
 }

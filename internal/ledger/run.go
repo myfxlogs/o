@@ -57,7 +57,7 @@ func (r *Runner) WithMTM(fn func(ctx context.Context) (map[[2]string]float64, er
 func NewRunner(pool *pgxpool.Pool, cfg *config.Client) *Runner {
 	return &Runner{pool: pool, cfg: cfg,
 		rej: rejects.New("ledger", "diff_alert", "missing_param", "bal_missing", "write_err",
-			"recon_probe_failed")}
+			"recon_probe_failed", "postmortem_anomaly")}
 }
 
 func (r *Runner) Run(ctx context.Context, errc chan<- error) {
