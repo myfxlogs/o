@@ -7,11 +7,14 @@
 # 缺省 '席位未名'）。分配成功顺手写 ops_event '领号' 行（谁取了几号可溯
 # ——台账审计件非硬依赖：DSN 缺席/写败静默退不阻断取号，|| true+# tolerate:
 # 锚照容错必报律）。
+# 本地并扫（T-0443 撞号实证）：批物料化一推多件时本地已 commit 未推号
+# 在远端不可见——只扫 origin 会同批重号；取 max(本地树,远端树)+1 兜底。
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 git fetch origin master --quiet 2>/dev/null \
   || echo "WARN: git fetch 败——按本地 origin/master 快照取号（推送前 --remote 闸复核）" >&2
-max=$(git ls-tree -r --name-only origin/master -- docs/tasks/ 2>/dev/null \
+max=$( { git ls-tree -r --name-only origin/master -- docs/tasks/ 2>/dev/null; \
+         git ls-tree -r --name-only HEAD -- docs/tasks/ 2>/dev/null; } \
   | grep -E '^docs/tasks/(done/)?T-[0-9]{4,}[[:alpha:]]?-' \
   | grep -oE 'T-[0-9]{4,}' | sed 's/^T-//' | sort -n | tail -1)
 TID=$(printf 'T-%04d\n' "$((10#${max:-0} + 1))")
