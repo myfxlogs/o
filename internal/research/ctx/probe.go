@@ -9,12 +9,16 @@
 // 断供极端形同报（源死在出生时可见——feedstale 形④同例）。断供形含
 // 「节律窗内无新件」两可如实标（feedstale note 同款——对拍归人肉/上游
 // 活性面）。消费归裁定席 ops_event 既有径，禁孤儿 sink；探针只报不修。
+// T-0434：判/去重/升件四拍归 selfprobe 公共模子（第三实例成族抽取）——
+// 本件只剩源节律阈表+读缝。
 package ctx
 
 import (
 	"context"
 	"fmt"
 	"time"
+
+	"o/internal/platform/selfprobe"
 )
 
 const (
@@ -22,10 +26,6 @@ const (
 	probeSeat = "research/ctx"
 	// probeTicket 探针归属票号。
 	probeTicket = "T-0429"
-	// probeEscClass 升件类（判类册登记词——观测盲区类探针同族先例）。
-	probeEscClass = "观测盲"
-	// probeDedupHours 同窗去重（feedstale 同例——同面 24h 至多一报）。
-	probeDedupHours = 24
 )
 
 // staleRule 源节律阈规则（scope=判例域单键——升件按源独立不撞窗）。
@@ -33,16 +33,34 @@ type staleRule struct {
 	source string
 	scope  string
 	maxAge time.Duration
+	thr    string // 阈人读形（note 锚）
 	rhythm string // 节律词（升件 note 如实标——阈判据锚）
 }
 
 // staleRules 进水口源节律阈表（新源入列同拍——源与探针同生同账）。
 var staleRules = []staleRule{
-	{"ffcal", "CTX-FFCAL", 10 * 24 * time.Hour, "周历滚动（新事件 slug 周级）"},
-	{"fred", "CTX-FRED", 96 * time.Hour, "营业日级（周末缺口 72h 富余）"},
-	{"frankfurter", "CTX-FX", 96 * time.Hour, "ECB 营业日"},
-	{"cftc", "CTX-COT", 9 * 24 * time.Hour, "周五周报（缺席一周+2d 富余）"},
-	{"okx_public", "CTX-OI", 48 * time.Hour, "日戳行（缺一日即报）"},
+	{"ffcal", "CTX-FFCAL", 10 * 24 * time.Hour, "240h", "周历滚动（新事件 slug 周级）"},
+	{"fred", "CTX-FRED", 96 * time.Hour, "96h", "营业日级（周末缺口 72h 富余）"},
+	{"frankfurter", "CTX-FX", 96 * time.Hour, "96h", "ECB 营业日"},
+	{"cftc", "CTX-COT", 9 * 24 * time.Hour, "216h", "周五周报（缺席一周+2d 富余）"},
+	{"okx_public", "CTX-OI", 48 * time.Hour, "48h", "日戳行（缺一日即报）"},
+}
+
+// ruleSpec 源规格→公共模子形。
+func ruleSpec(r staleRule) selfprobe.Spec {
+	return selfprobe.Spec{
+		Site:     probeSeat,
+		Ticket:   probeTicket,
+		Scope:    r.scope,
+		Label:    fmt.Sprintf("ctx 源 %s", r.source),
+		Verb:     "断供",
+		TsCol:    "received_ts",
+		MaxAge:   r.maxAge,
+		Thresh:   r.thr,
+		Rhythm:   r.rhythm,
+		ZeroWord: "零行史",
+		Ditto:    "断供形含「节律窗内无新件」两可如实标，对拍归人肉/上游活性面",
+	}
 }
 
 // ProbeStale 断供探针一拍：每源 md_ctx_fact 末行龄超阈/零行史→病灶行+升件。
@@ -53,46 +71,17 @@ func (r *Runner) ProbeStale(c context.Context) error {
 		return nil // 守位
 	}
 	for _, rule := range staleRules {
-		var last *time.Time
-		if err := r.pool.QueryRow(c,
-			`SELECT max(received_ts) FROM md_ctx_fact WHERE source=$1`, rule.source).Scan(&last); err != nil {
-			return fmt.Errorf("断供探针 %s 行龄读败: %w", rule.source, err)
+		source := rule.source
+		face := func(ctx context.Context) (*time.Time, error) {
+			var last *time.Time
+			if err := r.pool.QueryRow(ctx,
+				`SELECT max(received_ts) FROM md_ctx_fact WHERE source=$1`, source).Scan(&last); err != nil {
+				return nil, err
+			}
+			return last, nil
 		}
-		var ageStr string
-		if last == nil {
-			ageStr = "零行史"
-		} else if age := r.now().Sub(*last); age > rule.maxAge {
-			ageStr = fmt.Sprintf("末行 received_ts=%s 龄=%.1fh",
-				last.UTC().Format("2006-01-02 15:04Z"), age.Hours())
-		} else {
-			continue // 末行鲜——源在拍零病灶
-		}
-		// 同窗去重（feedstale 同例——同面 24h 至多一报）。
-		var dup int
-		if err := r.escPool.QueryRow(c, `SELECT count(*) FROM ops_event
-			WHERE event='升件' AND esc_class=$1 AND esc_scope=$2
-			AND ts>now()-make_interval(hours=>$3)`,
-			probeEscClass, rule.scope, probeDedupHours).Scan(&dup); err != nil {
-			return fmt.Errorf("断供探针 %s 同窗去重读败: %w", rule.source, err)
-		}
-		if dup > 0 {
-			continue
-		}
-		note := fmt.Sprintf("阈=%dh %s", int(rule.maxAge.Hours()), ageStr)
-		if _, err := r.escPool.Exec(c,
-			`INSERT INTO ops_event(seat,event,ticket,note) VALUES($1,'feed断更',$2,$3)`,
-			probeSeat, probeTicket,
-			fmt.Sprintf("%s %s", rule.scope, note)); err != nil {
-			return fmt.Errorf("feed断更行 %s: %w", rule.source, err)
-		}
-		if _, err := r.escPool.Exec(c,
-			`INSERT INTO ops_event(seat,event,ticket,note,esc_class,esc_scope)
-			VALUES($1,'升件',$2,$3,$4,$5)`,
-			probeSeat, probeTicket,
-			fmt.Sprintf("ctx 源 %s 断供：%s（节律=%s——断供形含「节律窗内无新件」两可如实标，对拍归人肉/上游活性面；探针只报不修）",
-				rule.source, note, rule.rhythm),
-			probeEscClass, rule.scope); err != nil {
-			return fmt.Errorf("升件行 %s: %w", rule.source, err)
+		if _, err := selfprobe.Probe(c, r.escPool, face, ruleSpec(rule), r.now); err != nil {
+			return err
 		}
 	}
 	return nil

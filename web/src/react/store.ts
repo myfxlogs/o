@@ -43,6 +43,7 @@ export function subscribe(name: SliceName, fn: () => void): () => void {
 }
 
 // useSlice 分片订阅钩（React 18 原生 useSyncExternalStore——零依赖零样板）。
+// 第三参 server 快照=同函数（快照纯读——SSR/静态渲取同一态，T-0434 domtest 径）。
 export function useSlice(name: "hedgeFlow"): SliceView<ListHedgeFlowResponse>;
 export function useSlice(name: "closedPositions"): SliceView<ListClosedPositionsResponse>;
 export function useSlice(name: "hostMetrics"): SliceView<GetHostMetricsResponse>;
@@ -51,6 +52,7 @@ export function useSlice(name: "pipeline"): SliceView<GetPipelineResponse>;
 export function useSlice(name: SliceName): SliceView<unknown> {
   return useSyncExternalStore(
     (cb) => subscribe(name, cb),
+    () => slices[name].snap,
     () => slices[name].snap
   );
 }

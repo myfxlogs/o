@@ -49,8 +49,8 @@ func main() {
 			log.Fatalf("roster 池连接败: %v", err)
 		}
 		defer rpool.Close()
-		// T-0173 主机资源自报（与席位 beat 同频同径——30s 拍 upsert dev 行）。
-		go hostmetrics.Run(ctx, rpool, "dev", "/", 30*time.Second)
+		// T-0173 主机自报 30s 拍；T-0434 一体装配对机停拍探针（o-core 死本侧代吼）。
+		go hostmetrics.Start(ctx, rpool, "dev", "/", 30*time.Second)
 		roster.SetRegistryPool(rpool)
 	}
 	cfg := config.New(pool)

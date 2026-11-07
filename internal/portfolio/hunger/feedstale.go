@@ -8,27 +8,41 @@
 // 24h 同窗去重）。开关关态=feed 应停非病灶不探；零推送行史（max=NULL）=
 // 断更极端形同报。行龄断≠fetch 死（无高冲击事件窗同形陈——note 如实两可，
 // 对拍归人肉/上游活性面）。只报不修——修归常票。
+// T-0434：判/去重/升件四拍归 selfprobe 公共模子（第三实例成族抽取）——
+// 本件只剩开关位+读缝+规格。
 package hunger
 
 import (
 	"context"
 	"fmt"
 	"time"
+
+	"o/internal/platform/selfprobe"
 )
 
 const (
 	// feedStaleHours 行龄阈（票面钦建议 24h——feed 本应日更）。
-	feedStaleHours = 24
-	// feedStaleDedupHours 同窗去重（silenceDedupHours 同例——同面至多一报）。
-	feedStaleDedupHours = 24
-	// feedStaleEscClass 升件类（判类册登记词——观测盲区类升件同 silence 族）。
-	feedStaleEscClass = "观测盲"
+	feedStaleHours = 24 * time.Hour
 	// feedStaleScope 判例域（feed 面单键——与 calendar.go 读败升件同 scope
 	// 不同 class 不撞窗）。
 	feedStaleScope = "CALENDAR-FEED"
 	// feedStaleTicket 探针归属票号。
 	feedStaleTicket = "T-0410"
 )
+
+// feedSpec feed 面巡检规格（自报表陈旧→升件公共模子形）。
+var feedSpec = selfprobe.Spec{
+	Site:     hungerSeat,
+	Ticket:   feedStaleTicket,
+	Scope:    feedStaleScope,
+	Label:    "日历 feed",
+	Verb:     "断更",
+	TsCol:    "sent_at",
+	MaxAge:   feedStaleHours,
+	Thresh:   "24h",
+	ZeroWord: "零推送行史",
+	Ditto:    "断更形含「无高冲击事件窗」两可如实标，对拍归人肉/上游活性面",
+}
 
 // ProbeFeedStale feed 死闸一拍：开关开+末行龄超阈/零行史→病灶行+升件。
 // 败=上抛归 hungerTick 自报位非静默。
@@ -40,44 +54,14 @@ func (s *Sensor) ProbeFeedStale(ctx context.Context) error {
 	if !on {
 		return nil // 关态=feed 应停——非病灶域不探
 	}
-	var last *time.Time
-	if err := s.pool.QueryRow(ctx,
-		`SELECT max(sent_at) FROM md_calendar_push`).Scan(&last); err != nil {
-		return fmt.Errorf("feed死闸 行龄读败: %w", err)
+	face := func(ctx context.Context) (*time.Time, error) {
+		var last *time.Time
+		if err := s.pool.QueryRow(ctx,
+			`SELECT max(sent_at) FROM md_calendar_push`).Scan(&last); err != nil {
+			return nil, err
+		}
+		return last, nil
 	}
-	var ageStr string
-	if last == nil {
-		ageStr = "零推送行史"
-	} else if age := s.now().Sub(*last); age > feedStaleHours*time.Hour {
-		ageStr = fmt.Sprintf("末行 sent_at=%s 龄=%.1fh",
-			last.UTC().Format("2006-01-02 15:04Z"), age.Hours())
-	} else {
-		return nil // 末行鲜——feed 在拍零病灶
-	}
-	var dup int
-	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
-		WHERE event='升件' AND esc_class=$1 AND esc_scope=$2
-		AND ts>now()-make_interval(hours=>$3)`,
-		feedStaleEscClass, feedStaleScope, feedStaleDedupHours).Scan(&dup); err != nil {
-		return fmt.Errorf("feed死闸 同窗去重读败: %w", err)
-	}
-	if dup > 0 {
-		return nil // 同窗已报——24h 内同面至多一报
-	}
-	if _, err := s.pool.Exec(ctx,
-		`INSERT INTO ops_event(seat,event,ticket,note) VALUES($1,'feed断更',$2,$3)`,
-		hungerSeat, feedStaleTicket,
-		fmt.Sprintf("阈=%dh %s", feedStaleHours, ageStr)); err != nil {
-		return fmt.Errorf("feed断更行: %w", err)
-	}
-	if _, err := s.pool.Exec(ctx,
-		`INSERT INTO ops_event(seat,event,ticket,note,esc_class,esc_scope)
-		VALUES($1,'升件',$2,$3,$4,$5)`,
-		hungerSeat, feedStaleTicket,
-		fmt.Sprintf("日历 feed 断更：%s（阈%dh——断更形含「无高冲击事件窗」两可如实标，对拍归人肉/上游活性面；探针只报不修）",
-			ageStr, feedStaleHours),
-		feedStaleEscClass, feedStaleScope); err != nil {
-		return fmt.Errorf("升件行: %w", err)
-	}
-	return nil
+	_, err = selfprobe.Probe(ctx, s.pool, face, feedSpec, s.now)
+	return err
 }

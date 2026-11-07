@@ -2,6 +2,10 @@
 // 网络）。/proc 直读（docker 容器内默认透传宿主值）；每机一行 upsert 进
 // fin_host_metrics（D-0018 有界态——30s 拍覆写零增长）；写方=各机进程自报
 // （SG core 写 sg / dev collector 经 ROSTER 池写 dev——与席位 beat 同频同径）。
+// T-0434 写器死活根修：pool 未就绪不永退（惰性取池+退避重试环直到首拍
+// 成功）、Upsert 连败阈→ops_event 升件（写不进库=观测断供一等事件非
+// log 噪音）、停拍探针（本表 ts 陈旧→升件——selfprobe 公共模子第三实例，
+// 对机互探：写者进程死=对机活者代吼，「盯人的探头没人盯」根治）。
 package hostmetrics
 
 import (
@@ -14,7 +18,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // Sample 单拍资源快照。
@@ -36,6 +41,12 @@ var (
 	lastNet  map[string][2]uint64
 	haveLast bool
 )
+
+// DB 写/读面最小缝（*pgxpool.Pool 同形——桩测注入连败/恢复形）。
+type DB interface {
+	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
 
 // procUptime 宿主运行秒。
 func procUptime() int64 {
@@ -192,7 +203,7 @@ func Take(diskPath string, interval time.Duration) Sample {
 }
 
 // Upsert 单拍入册（host 一行覆写——D-0018 有界态）。
-func Upsert(ctx context.Context, pool *pgxpool.Pool, host string, s Sample) error {
+func Upsert(ctx context.Context, pool DB, host string, s Sample) error {
 	_, err := pool.Exec(ctx, `INSERT INTO fin_host_metrics
 		(host,ts,cores,cpu_pct,mem_total_mb,mem_used_mb,disk_total_gb,disk_used_gb,net_rx_kbps,net_tx_kbps,uptime_s)
 		VALUES ($1,now(),$2,$3,$4,$5,$6,$7,$8,$9,$10)
@@ -203,13 +214,29 @@ func Upsert(ctx context.Context, pool *pgxpool.Pool, host string, s Sample) erro
 	return err
 }
 
-// Run 常驻自报循环（interval 拍；失败 log 不炸——观测面缺不拖业务面）。
-func Run(ctx context.Context, pool *pgxpool.Pool, host, diskPath string, interval time.Duration) {
-	if pool == nil {
-		return
+// Run 常驻自报循环（interval 拍）。poolFn 惰性取池——nil=未就绪不永退，
+// 退避重试环直到取到（T-0434 死因根修①：原 pool==nil→return 一次永退=
+// 启动时序抖动即观测断供无感）；Upsert 连败阈→ops_event 升件（根修②：
+// 原失败仅 log=静默死）。观测面缺不拖业务面——环只 log 不炸进程。
+func Run(ctx context.Context, poolFn func() DB, host, diskPath string, interval time.Duration) {
+	pool := poolFn()
+	backoff := interval
+	for pool == nil { // 未就绪退避环——interval 起步封顶 10×interval
+		log.Printf("[hostmetrics] %s pool 未就绪——退避重试", host)
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(backoff): // sched-exempt-ok：pool 未就绪退避重试（期界等待非轮询拉取——首拍取到即止，D-0008-B 豁免径）
+		}
+		if backoff < 10*interval {
+			backoff *= 2
+		}
+		pool = poolFn()
 	}
 	prev := Take(diskPath, interval) // 首拍建立差分基线
+	fails := 0
 	if err := Upsert(ctx, pool, host, prev); err != nil {
+		fails++
 		log.Printf("[hostmetrics] %s 首拍写败: %v", host, err)
 	}
 	t := time.NewTicker(interval) // sched-exempt-ok：主机自报心跳拍（30s 有界态 upsert——心跳/退避语义非轮询拉取，D-0008-B 豁免径）
@@ -221,8 +248,14 @@ func Run(ctx context.Context, pool *pgxpool.Pool, host, diskPath string, interva
 		case <-t.C:
 			s := Take(diskPath, interval)
 			if err := Upsert(ctx, pool, host, s); err != nil {
+				fails++
 				log.Printf("[hostmetrics] %s 写败: %v", host, err)
+				if fails >= failEscAfter {
+					escWriteFail(ctx, pool, host, fails)
+				}
+				continue
 			}
+			fails = 0
 		}
 	}
 }
