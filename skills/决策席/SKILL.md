@@ -97,18 +97,28 @@ ops_event `裁决`/`驳回`/`参数调整` 行同拍自动镜像 ops_decision se
   （`state=应发|有挡|批空`+reason 行；exit 0/11/10/78/1），不靠感觉不靠
   票面状态行。
 - **应发判据（两条件同时成立→当班发窗，非可选项）**：
-  ①批非空——origin/master 与生产部署 SHA（deploy_image.sh 写的
+  ①批非空（T-0425 两半部署制——批面二分，任一面非空=批非空）——
+    镜像面：origin/master 与生产部署 SHA（deploy_image.sh 写的
     `o-core:<sha12>` tag）间 diff 含镜像面路径非空（镜像面=入镜像
     路径——cmd/internal/proto/web/migrations/Dockerfile* 等非
     docs/**,skills/**,*.md 件；判据机读不自猜，清单钉在壳头注）；
+    OCI 二进制面：origin/master 与盒上三臂部署 SHA（$ep.sha 留痕件）
+    间 diff 碰 OCI 构建源（谱系钉 deploy/deploy-faces.tsv——镜像面
+    ∧¬镜像专属面；未列名=面不可判保守按双发，基线三源皆败同按
+    非空计发 deploy_oci 自检径兜）；
   ②无挡件——在飞 o-worker 码件=0 且待裁/收口待审面含码件/迁移件=0
     （docs/研究件不挡窗；待裁面=dm_queue.sh 同源推导，面不可知
     fail-closed 按有挡计）。
 - **兜底节拍**：批积首件起 ≥24h 未发→无论条件②发窗并升件报（壳自落
   DEPLOY-WINDOW-OVERRUN 升件行，24h 同窗去重）。
-- **发窗动作**：`state=应发`→当班跑 `scripts/deploy_image.sh`（部署唯一
-  合法径——壳只判窗不碰部署机制/SHA tag/推戳闸）；发毕 ops_event 部署
-  行携批件清单（票号集——壳 reason `batch=` 行取，seat=发窗席）。
+- **发窗动作（T-0425 两半部署制）**：`state=应发`→读壳 `faces=` 行，
+  各非空面各发各的——`image`→`scripts/deploy_image.sh`、
+  `oci`→`scripts/deploy_oci.sh`（两径锁域分离可并行；deploy_oci 谱系
+  自检幂等——臂级 diff 证空即跳零烧，O_DEPLOY_FORCE=1 压过）。
+  **一面应发而未发/发败→必落 ops_event「半截部署」升件**（壳对
+  可序基线自落同前缀升件行——禁静默半部署，T-0425 半截在产实证）；
+  发毕 ops_event 部署行携批件清单（票号集——壳 reason `batch=` 行取，
+  seat=发窗席）。
 - **三态语义**：`批空`=零差/docs-only 批不压窗（docs 批永不触发）；
   `有挡`=批待清窗压（挡件明列 reason）；`环境缺`/`查询败`=升件自报
   不滥发。

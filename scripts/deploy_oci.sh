@@ -28,6 +28,7 @@ declare -A CMD=(  [collecto]=./cmd/collector [projector]=./cmd/projector [resear
 # psql 客端打隧道侧同断言；none=仅单元活性闸。
 declare -A PROBE=( [o-collecto]=md_ticks [o-projector]=sg_ticks [o-research]=none )
 ARMS=("$@"); [ ${#ARMS[@]} -gt 0 ] || ARMS=(collecto projector research)
+SWAP_HAPPENED=0; SWAPPED=()
 for a in "${ARMS[@]}"; do [ -n "${UNIT[$a]:-}" ] || die "未知臂 $a（合法: collecto|projector|research）"; done
 
 # ── ① 出处闸（同 deploy_image.sh）─────────────────────────────
@@ -40,6 +41,74 @@ fi
 SHA=$(git rev-parse --short=12 HEAD); FULLSHA=$(git rev-parse HEAD)
 SEAT="${O_DEPLOY_SEAT:-$(whoami)}@$(hostname -s 2>/dev/null || hostname)"
 TOKEN="$SEAT-$$-$(date +%s)"; TS="$(date +%Y%m%d-%H%M%S)"
+
+# ── ①b 谱系自检（T-0425 件③——两半部署制幂等径）：臂级构建源
+# diff 证空=跳臂零烧。判式：diff(merge-base(臂部署SHA,HEAD)..HEAD)
+# 碰本臂谱系行或不可判面→该臂照换；全件证外→跳过。谱系正本=
+# deploy/deploy-faces.tsv（nondeploy/image_only/<arm> 三词表同源
+# ——件缺=全面不可判全臂照换，滥换方向不省错方向）。臂部署 SHA=
+# 盒上 $ep.sha 留痕件——不可读/谱系岔/diff 败=不可证空照换。
+# O_DEPLOY_FORCE=1 压过自检（强制件不省——修件/热补径）。──
+FACES_TSV="$(dirname "$0")/../deploy/deploy-faces.tsv"
+faces_rows() { grep -v '^#' "$FACES_TSV" 2>/dev/null || true; } # tolerate: 件缺=否列空→全面不可判全臂照换（滥换方向不省错方向）
+in_class() { # in_class <path> <class> → rc=0 路径属该类行
+	local p=$1 want=$2 c g
+	while IFS=$'\t' read -r c g; do
+		{ [ "$c" = "$want" ] && [ -n "$g" ]; } || continue
+		case "$p" in $g) return 0;; esac
+	done < <(faces_rows)
+	return 1
+}
+in_any_arm() { # in_any_arm <path> → rc=0 属任一 OCI 谱系行
+	local p=$1 c g
+	while IFS=$'\t' read -r c g; do
+		case "$c" in collecto|projector|research|eventbus|sweeper) ;; *) continue;; esac
+		case "$p" in $g) return 0;; esac
+	done < <(faces_rows)
+	return 1
+}
+arm_provably_clean() { # arm_provably_clean <arm> <path> → rc=0 证该件不改本臂
+	local a=$1 p=$2
+	in_class "$p" nondeploy && return 0
+	in_class "$p" image_only && return 0
+	in_any_arm "$p" && ! in_class "$p" "$a" && return 0
+	return 1
+}
+arm_deployed_sha() { # arm_deployed_sha <unit> → stdout=臂部署 SHA（不可读=空）
+	$SSH $SSHOPT "$OCI" "u=$1
+f=\$(systemctl --user show \"\$u\" -p FragmentPath --value 2>/dev/null)
+[ -n \"\$f\" ] || exit 0
+e=\$(grep -m1 '^ExecStart=' \"\$f\" 2>/dev/null | sed 's/^ExecStart=//' | cut -d' ' -f1)
+[ -n \"\$e\" ] || exit 0
+e=\${e//%h/\$HOME}; e=\${e//%u/\$(id -un)}; e=\${e//%s/\${u%.service}}; e=\${e//%%/%}
+sed -n 's/^sha=//p' \"\$e.sha\" 2>/dev/null | head -1" 2>/dev/null | head -1 || true # tolerate: ssh断/件缺=空→不可证空该臂照换（跳件只发证空面）
+}
+arm_stale() { # arm_stale <arm> <base> → rc=0 有件须换（diff 败=不可证空保守换）
+	local a=$1 base=$2 p files
+	files=$(git diff --name-only "$base..HEAD" 2>/dev/null) || return 0
+	while IFS= read -r p; do
+		[ -n "$p" ] || continue
+		p=${p##* -> } # rename 形取新名
+		arm_provably_clean "$a" "$p" || return 0
+	done <<< "$files"
+	return 1
+}
+if [ "${O_DEPLOY_FORCE:-0}" != 1 ]; then
+	KEPT=()
+	for a in "${ARMS[@]}"; do u="${UNIT[$a]}"
+		s=$(arm_deployed_sha "$u")
+		base=""
+		[ -n "$s" ] && base=$(git merge-base "$s" HEAD 2>/dev/null || true) # tolerate: mb 败=谱系岔不可证空→该臂照换非静默省
+		if [ -n "$base" ] && ! arm_stale "$a" "$base"; then
+			echo "[deploy_oci] $u 谱系 diff 证空（部署 ${s:0:12} 起本臂构建源零动）——跳臂"
+		else
+			KEPT+=("$a")
+		fi
+	done
+	ARMS=("${KEPT[@]}")
+	[ ${#ARMS[@]} -gt 0 ] || { echo "[deploy_oci] 全臂谱系 diff 证空——幂等快退零烧"; exit 0; }
+	echo "[deploy_oci] 谱系自检后待换臂: ${ARMS[*]}"
+fi
 
 # ── ② OCI 部署锁（盒上 mkdir 原子互斥——三臂同锁防双臂并发换件）──
 LOCK_HELD=0
@@ -62,7 +131,30 @@ if [ "$DRY" != 1 ]; then
 fi
 
 # ── ③ arm64 build + SHA 留痕件 → staging scp + sha256 对拍 ─────
-STAGE_DIR="/tmp/o-oci-stage.$$"; mkdir -p "$STAGE_DIR"; trap 'rm -rf "$STAGE_DIR"; release_lock' EXIT
+# 完工回执（两半部署制 OCI 面同径——deploy_image deploy_event 同式）：
+# feishu 直推+relay 留痕+ops_event 部署行。note 前缀 deploy-oci 与镜像
+# 面 'deploy %' 行式互斥——窗面双源各取各不串味；SWAP_HAPPENED 闸
+# 防谱系快退/纯预检退误落部署行。
+oci_deploy_event() {
+	local rc=$1
+	[ "${SWAP_HAPPENED:-0}" = 1 ] || return 0
+	local arms="${SWAPPED[*]:-}"
+	echo "[deploy_oci] 完工回执 deploy-oci $SHA rc=$rc arms=$arms" >>"$HOME/devin-relay.log" 2>/dev/null || true # tolerate: relay 留痕行 best-effort
+	timeout 15 /opt/meta/scripts/feishu-notify.sh \
+		"[部署回执] deploy-oci $SHA rc=$rc arms=$arms" >>"$HOME/devin-relay.log" 2>&1 \
+		|| echo "[deploy_oci] 完工投件败（回执缺，不影响部署 rc=$rc）" >&2
+	local dsn
+	dsn=$(grep '^FIN_PG_DSN=' /opt/o-research/env 2>/dev/null | cut -d= -f2- | tr -d '"')
+	if [ -n "$dsn" ]; then
+		timeout 15 psql "$dsn" -Atc \
+			"INSERT INTO ops_event(seat,event,ticket,note) VALUES('DEPLOY','部署','','deploy-oci $SHA rc=$rc arms=$arms')" \
+			>/dev/null 2>&1 \
+			|| echo "[deploy_oci] ops_event 部署事件落簿败（不影响部署 rc=$rc）" >&2
+	fi
+	return 0
+}
+STAGE_DIR="/tmp/o-oci-stage.$$"; mkdir -p "$STAGE_DIR"
+trap 'rc=$?; oci_deploy_event "$rc"; rm -rf "$STAGE_DIR"; release_lock' EXIT
 declare -A STAGED
 for a in "${ARMS[@]}"; do
   bin="$STAGE_DIR/${UNIT[$a]}"
@@ -173,6 +265,7 @@ for a in "${ARMS[@]}"; do u="${UNIT[$a]}" ep="${EXECPATH[$a]}"
     echo "❌ [deploy_oci] $u 健康闸红——${PROBE[$u]} max(ts) 90s 未推进（断流面复现）" >&2
     rollback "$a"; die "$u 写流闸败已回滚"
   fi
+  SWAP_HAPPENED=1; SWAPPED+=("$a")
   echo "[deploy_oci] $u 换件绿——ActiveState=$st 旧件备份 $ep.bak.$TS"
 done
 echo "[deploy_oci] done→$OCI（臂: ${ARMS[*]} sha=$SHA）"
