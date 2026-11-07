@@ -38,7 +38,14 @@ pos34:   滞留 open 的平衡对冲对(attempts 耗尽 gave_up 已火)——
    禁对不存在的列写 SQL；
 4. pos34 复核处置+结论落行；
 5. 全链路账实对拍：处置后 fin_holding CORE 残尘<阈 vs venue
-   实拍一致（earn+spot 两户）。
+   实拍一致（earn+spot 两户）；
+6. **定性豁免落表（业主令 11-07 补——豁免死件救活）**：
+   处置执行同拍把本案残差写 `fin_known_residual`
+   （venue/ccy/amount_usd=处置前残差实值/reason=案卷
+   指针/ticket_ref=T-0424/expires_at=处置完成时刻）——
+   `fin_known_residual` 零行实证死件，本案为其首行
+   激活例；ledger_diff_alert 自此显示「已定性豁免」
+   非恒「未定性」。
 
 ## 验收
 
@@ -46,6 +53,8 @@ pos34:   滞留 open 的平衡对冲对(attempts 耗尽 gave_up 已火)——
   与 cashflow 落账一致（对拍误差不超手续费用度）；
 - #33 settled 重结=真实现损（非 -24.67 假亏亦非 0）；
 - pos34 处置结论落票面+事件行；
+- `fin_known_residual` 首行落（reason 携案卷指针）——
+  处置完成后告警回显「已定性豁免」；
 - 绿戳对口+全链（涉 venue 写的桩以 fakeExec/DRY 锚——真单不桩）。
 
 ## 结果回填
