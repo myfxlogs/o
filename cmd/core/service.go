@@ -16,6 +16,7 @@ import (
 	"o/internal/gen/dashboardv1"
 	"o/internal/gen/dashboardv1/dashboardv1connect"
 	"o/internal/gen/scoutv1/scoutv1connect"
+	"o/internal/ledger/report"
 	"o/internal/platform/config"
 
 	"o/internal/research/gapscan"
@@ -67,25 +68,17 @@ func (c coreService) Overview(ctx context.Context, _ *dashboardv1.OverviewReques
 	// 钱卡+NAV 组装迁 money_card.go（行数棘轮——T-0100/0096/0101 三区历史在彼）。
 	c.moneyRows(ctx, o)
 
-	// 盈亏=经营性四件（interest/funding_settle/trade_pnl/fee）——
-	// deposit/withdraw/earn_*/recon_adjust 全出局（口径正名锚）。
-	const opKinds = "('interest','funding_settle','trade_pnl','fee')"
-	_ = c.pool.QueryRow(ctx, `SELECT COALESCE(sum(amount),0) FROM fin_cashflow
-		WHERE occurred_at::date=CURRENT_DATE AND kind IN `+opKinds).Scan(&o.PnlToday)
-	_ = c.pool.QueryRow(ctx, `SELECT COALESCE(sum(amount),0) FROM fin_cashflow
-		WHERE kind IN `+opKinds).Scan(&o.PnlCum)
-	// T-0083：平仓仓现货腿净额=真价差入盈亏（持仓期买腿流出=资产置换非亏损
-	// ——只计已平仓仓腿行，防置换流出当亏）。
-	var legToday, legCum float64
-	_ = c.pool.QueryRow(ctx, `SELECT COALESCE(sum(c.amount),0) FROM fin_cashflow c
-		JOIN fin_position p ON p.id=c.position_ref
-		WHERE c.occurred_at::date=CURRENT_DATE AND c.kind IN ('spot_buy','spot_sell')
-		  AND p.closed_at IS NOT NULL`).Scan(&legToday)
-	_ = c.pool.QueryRow(ctx, `SELECT COALESCE(sum(c.amount),0) FROM fin_cashflow c
-		JOIN fin_position p ON p.id=c.position_ref
-		WHERE c.kind IN ('spot_buy','spot_sell') AND p.closed_at IS NOT NULL`).Scan(&legCum)
-	o.PnlToday += legToday
-	o.PnlCum += legCum
+	// T-0422 盈亏=统一实现盈亏口径（report.Realized 单源——三面对齐同读；
+	// UTC 日界 Go 侧钉死无会话时区歧）。读败=0 沿用旧面容错语义。
+	now := time.Now()
+	y, m, d := now.UTC().Date()
+	if v, err := report.Realized(ctx, c.pool,
+		time.Date(y, m, d, 0, 0, 0, 0, time.UTC), now); err == nil {
+		o.PnlToday = v
+	}
+	if v, err := report.Realized(ctx, c.pool, time.Time{}, now); err == nil {
+		o.PnlCum = v
+	}
 	// T-0102 v3：面差待裁计数露一行（业主可见「系统发现了几件还没裁的事」）。
 	if n, gerr := gapscan.PendingCount(ctx, c.pool); gerr == nil && n > 0 {
 		o.Doing = append(o.Doing, &dashboardv1.DoingItem{Stamp: time.Now().UTC().Format(time.RFC3339),

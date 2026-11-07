@@ -68,7 +68,8 @@ func (p *Pusher) MaybePush(ctx context.Context, period string, m map[string]any,
 		p.rej.Inc("push_degraded")
 		return "", false
 	}
-	text := fmt.Sprintf("【O %s 报】%s\n净额 %s / 累计净值 %s\n开 %s 平 %s / 评 %s 过 %s 拒\nEarn 停泊 %s\n%s",
+	// T-0422 标签正名：cum_nav=累计实现盈亏（非 NAV 净值——净值面另见 hero 总览）。
+	text := fmt.Sprintf("【O %s 报】%s\n净额 %s / 累计实现盈亏 %s\n开 %s 平 %s / 评 %s 过 %s 拒\nEarn 停泊 %s\n%s",
 		map[string]string{"daily": "日", "weekly": "周", "monthly": "月"}[period],
 		boundsLabel(period),
 		fmt.Sprint(m["net"]), fmt.Sprint(m["cum_nav"]),
