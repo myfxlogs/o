@@ -116,6 +116,12 @@ func TestProbeToLivePromotion(t *testing.T) {
 		"UPDATE app_config SET value='\"true\"' WHERE key='invest.lifecycle.live_switch'"); err != nil {
 		t.Fatal(err)
 	}
+	// T-0426 毕业闸：判据链新增「执行径演习通过」——绿凭据补种（缺/败
+	// fail-closed，专项锚=execdrill_test）。
+	if _, err := r.pool.Exec(ctx, `INSERT INTO fin_exec_drill(strategy_ref,inst_id,verdict,rules_version,detail)
+		VALUES($1,'OP-USDT-SWAP','pass','simvenue/1','T-0050 锚③测试凭据')`, sid); err != nil {
+		t.Fatal(err)
+	}
 	if err := r.cfg.Load(ctx); err != nil {
 		t.Fatal(err)
 	}
