@@ -17,6 +17,7 @@ import (
 	"o/internal/gen/dashboardv1/dashboardv1connect"
 	"o/internal/gen/scoutv1/scoutv1connect"
 	"o/internal/platform/config"
+	"o/internal/platform/signutil"
 
 	"o/internal/research/gapscan"
 	"o/internal/trading/okxexec"
@@ -47,6 +48,11 @@ type coreService struct {
 	md *mdStats
 	// 驾驶舱 v4：票标题扫面根（docs/tasks——注入缝，测试钉绝对径；零值=自寻）。
 	docsRoot string
+	// T-0430 verify-then-write 验连缝（nil=生产径——mt5=mtapi Session 实测
+	// connect+AccountSummary，cex=okx 只读端 /account/balance 实测；桩测注假
+	// 面，禁桩真 venue）。
+	dialSession func(addr string) (mt5VerifySession, error)
+	cexBalance  func(ctx context.Context, creds signutil.Credentials) (map[string]float64, error)
 }
 
 // mdStats 采集观测源束（方法值闭包——collector/meter 单例由 main.go 装配注入）。

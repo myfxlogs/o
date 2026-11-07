@@ -1,52 +1,28 @@
-// broker_face.go —— T-0407 座舱 broker 接入人机径（票面：凭据表单入
-// T-0379 机件链——凭据落 readcred 钦定 app_secrets <broker>.<proto>.*
-// 键形，config_changed 触发器原生唤链零改；前端禁直写凭据域——提交走
-// 本 RPC 同源闸窄写）。
-//
-//	· 写面：Origin 同源闸同 earn 件→形闸（venue token/proto/login/密码/
-//	  服务器全必携）→master key Seal→单事务三键 upsert（族原子落——半族
-//	  =形坏凭据 fail-closed 病灶防）→ops_event 审计行（seat=dashboard-ui
-//	  同 earn 件口径；note 携 venue/proto/login/server/备注——password
-//	  永禁入注入日志入响应）。
-//	· proto 命名空间：mt5 族=T-0379 链接管域（credscan '.mt5.' 族锚）；
-//	  mt4 族=同构 .mt4. 在册——接入链 MT5 族限不接管，列表如实显形不
-//	  假冒接入态（票面协议下拉落账非死件）。
-//	· 读面：在册 broker=凭据族∪台账并集；login=凭据域唯一出面字段
-//	  （服务端单件解密——票面「在册 broker 列表 login 列」钦定）；
-//	  接入态=fin_venue_candidate 镜像+ops_event「venue接入」末拍注记
-//	  +败径标；在跑策略数=fin_strategy 非 retired 行数。
+// broker_face.go —— T-0407/T-0430 座舱 broker 接入读面（在册 broker 列表
+// 五源并集——凭据族枚举+MT5 login 单件解密出面+台账态+末拍注记+提交审计
+// +策略数；接入态 phase=三源派生服务端单源——末拍败径>管道态>提交审计行，
+// cex 落库即 verified 构造保证，前端纯渲染零判据）。凭据族=readcred 钦定
+// app_secrets <broker>.mt5.*|<venue>.cex.* 键形+单例 mt5.*+存量 okx.* 无中
+// 缀三键（首户遗留并入 cex 族）+存量 .mt4.（链未接如实显形）；login=MT5
+// 凭据唯一出面字段（cex 凭据零出面）。写面/verify-then-write 见
+// broker_submit.go。
 package main
 
 import (
 	"context"
 	"fmt"
-	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
-
-	connect "connectrpc.com/connect/v2"
 
 	"o/internal/gen/dashboardv1"
 	"o/internal/platform/config"
 	"o/internal/platform/cryptoutil"
 )
 
-// brokerCredEvent 凭据提交审计事件名（ops_event seat=dashboard-ui 同 earn
-// 件口径——机件链「venue接入」行域不混）。
-const (
-	brokerCredEvent  = "venue凭据提交"
-	brokerCredTicket = "T-0407"
-	brokerCredActor  = "dashboard-ui"
-)
-
-// brokerVenueRE venue token 形闸（同 credscan credKeySplit 字符集——小写
-// 数线横；冒号/空白/点禁入台账键域）。
-var brokerVenueRE = regexp.MustCompile(`^[a-z0-9_-]{1,32}$`)
-
-// ListBrokerOnboard 在册 broker 列表读面（只读——凭据族枚举+login 单件解密
-// 出面+台账态+末拍注记+在跑策略数四源并集）。
+// ListBrokerOnboard 在册 broker 列表读面（只读——凭据族枚举+MT5 login 单件
+// 解密出面+台账态+末拍注记+提交审计+策略数五源并集；phase 服务端派生——
+// 前端纯渲染零判据）。
 func (c coreService) ListBrokerOnboard(ctx context.Context,
 	_ *dashboardv1.ListBrokerOnboardRequest) (*dashboardv1.ListBrokerOnboardResponse, error) {
 	venues := map[string]*dashboardv1.BrokerOnboardRow{}
@@ -58,10 +34,11 @@ func (c coreService) ListBrokerOnboard(ctx context.Context,
 		}
 		return r
 	}
-	// ① 凭据族（app_secrets <broker>.<proto>.* 键形+单例 mt5.*；login 件
-	// 解密出面——password/server 密文不解）。
+	// ① 凭据族（app_secrets <broker>.<proto>.* 键形+单例 mt5.*+存量 okx.*
+	// 无中缀三键首户遗留；MT5 login 件解密出面——password/密文余件不解）。
 	rows, err := c.pool.Query(ctx, `SELECT key,ciphertext FROM app_secrets
-		WHERE key LIKE 'mt5.%' OR strpos(key,'.mt5.')>0 OR strpos(key,'.mt4.')>0`)
+		WHERE key LIKE 'mt5.%' OR strpos(key,'.mt5.')>0 OR strpos(key,'.mt4.')>0
+		OR strpos(key,'.cex.')>0 OR key IN ('okx.api_key','okx.api_secret','okx.passphrase')`)
 	if err != nil {
 		return nil, fmt.Errorf("凭据族枚举: %w", err)
 	}
@@ -79,8 +56,8 @@ func (c coreService) ListBrokerOnboard(ctx context.Context,
 		}
 		r := rowOf(venue)
 		r.Proto = proto // 同 venue 跨族=后写盖前（实态一族一户——形坏共存如实盖）
-		if field != "login" {
-			continue
+		if proto != "mt5" || field != "login" {
+			continue // cex 凭据零出面（api_key 永不解密出）
 		}
 		if mk == nil {
 			if mk, err = config.ReadMasterKey(); err != nil {
@@ -139,133 +116,111 @@ func (c coreService) ListBrokerOnboard(ctx context.Context,
 	if err := brows.Err(); err != nil {
 		return nil, err
 	}
-	// ④ 在跑策略数（fin_strategy 非 retired 行×venue）。
-	srows, err := c.pool.Query(ctx, `SELECT venue,count(*) FROM fin_strategy
-		WHERE state<>'retired' GROUP BY venue`)
+	// ④ 提交审计面（T-0430 verify-then-write：esc_scope=venue 行存在=提交
+	// 验连过闸凭据落库——验败提交零行零审计即回，故审计行只证 verified）。
+	submitted := map[string]bool{}
+	srows, err := c.pool.Query(ctx, `SELECT DISTINCT esc_scope FROM ops_event
+		WHERE event='venue凭据提交' AND esc_scope IS NOT NULL`)
 	if err != nil {
-		return nil, fmt.Errorf("策略数读: %w", err)
+		return nil, fmt.Errorf("提交审计读: %w", err)
 	}
 	for srows.Next() {
 		var v string
-		var n int64
-		if err := srows.Scan(&v, &n); err != nil {
+		if err := srows.Scan(&v); err != nil {
 			srows.Close()
 			return nil, err
 		}
-		rowOf(v).Strategies = n
+		submitted[v] = true
 	}
 	srows.Close()
 	if err := srows.Err(); err != nil {
 		return nil, err
 	}
+	// ⑤ 在跑策略数（fin_strategy 非 retired 行×venue）。
+	frows, err := c.pool.Query(ctx, `SELECT venue,count(*) FROM fin_strategy
+		WHERE state<>'retired' GROUP BY venue`)
+	if err != nil {
+		return nil, fmt.Errorf("策略数读: %w", err)
+	}
+	for frows.Next() {
+		var v string
+		var n int64
+		if err := frows.Scan(&v, &n); err != nil {
+			frows.Close()
+			return nil, err
+		}
+		rowOf(v).Strategies = n
+	}
+	frows.Close()
+	if err := frows.Err(); err != nil {
+		return nil, err
+	}
 	resp := &dashboardv1.ListBrokerOnboardResponse{}
 	for _, r := range venues {
+		r.Phase = brokerPhase(r, submitted)
 		resp.Rows = append(resp.Rows, r)
 	}
 	sort.Slice(resp.Rows, func(i, j int) bool { return resp.Rows[i].Venue < resp.Rows[j].Venue })
 	return resp, nil
 }
 
-// SubmitBrokerCred 凭据提交窄写面（同源闸→形闸→Seal→单事务族 upsert+
-// 审计行；config_changed 触发器原生唤 T-0379 链——本件零链触码）。
-func (c coreService) SubmitBrokerCred(ctx context.Context,
-	req *dashboardv1.SubmitBrokerCredRequest) (*dashboardv1.SubmitBrokerCredResponse, error) {
-	if err := earnOriginGate(ctx); err != nil {
-		return nil, err
+// brokerPhase 接入态派生（T-0430 registered→connecting→verified/failed——
+// 判态服务端单源）：mt4 遗留=空（链未接如实显形）；末拍败径=failed；
+// 管道已过探测拍（probed/mapped/paper）∨提交审计在册=verified；台账
+// registered 探测在途=connecting；余=registered（候发现拍）。cex 落库即
+// verified（提交门禁构造保证——验败凭据零落表）。
+func brokerPhase(r *dashboardv1.BrokerOnboardRow, submitted map[string]bool) string {
+	if r.Proto == "" || r.Proto == "mt4" {
+		return "" // 无凭据族行/mt4 遗留——raw 台账态如实显形（前端 STATE_CN 直译）
 	}
-	venue := req.GetVenue()
-	if !brokerVenueRE.MatchString(venue) {
-		return nil, connect.NewError(connect.CodeInvalidArgument,
-			"venue 形拒——[a-z0-9_-]{1,32} 小写数线横 token（凭据键前缀同 credscan 形闸）")
+	if r.BeatFailed {
+		return "failed"
 	}
-	proto := req.GetProto()
-	if proto == "" {
-		proto = "mt5"
+	if r.Proto == "cex" {
+		return "verified"
 	}
-	if proto != "mt5" && proto != "mt4" {
-		return nil, connect.NewError(connect.CodeInvalidArgument,
-			"proto 形拒——mt5|mt4 二值")
+	switch r.State {
+	case "probed", "mapped", "paper":
+		return "verified"
 	}
-	if _, err := strconv.ParseUint(req.GetLogin(), 10, 64); err != nil {
-		return nil, connect.NewError(connect.CodeInvalidArgument,
-			"login 形拒——MT 户号须纯数字（同 checkCredShape 形闸）")
+	if submitted[r.Venue] {
+		return "verified"
 	}
-	if req.GetPassword() == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, "password 空——凭据必备件")
+	if r.State == "registered" {
+		return "connecting"
 	}
-	server := strings.TrimSpace(req.GetServer())
-	if server == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, "server 空——凭据必备件")
-	}
-	mk, err := config.ReadMasterKey()
-	if err != nil {
-		return nil, connect.NewError(connect.CodeUnavailable, "master key 缺——凭据写径不可用")
-	}
-	tx, err := c.pool.Begin(ctx)
-	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, "tx: "+err.Error())
-	}
-	defer tx.Rollback(ctx)
-	fields := map[string]string{
-		"login":    req.GetLogin(),
-		"password": req.GetPassword(),
-		"server":   server,
-	}
-	n := 0
-	for f, p := range fields {
-		ct, err := cryptoutil.Seal(mk, p)
-		if err != nil {
-			return nil, connect.NewError(connect.CodeInternal, "seal: "+err.Error())
-		}
-		if _, err := tx.Exec(ctx, `INSERT INTO app_secrets(key,ciphertext) VALUES($1,$2)
-			ON CONFLICT (key) DO UPDATE SET ciphertext=EXCLUDED.ciphertext`,
-			venue+"."+proto+"."+f, ct); err != nil {
-			return nil, connect.NewError(connect.CodeInternal, "凭据写: "+err.Error())
-		}
-		n++
-	}
-	note := fmt.Sprintf("venue=%s proto=%s login=%s server=%s", venue, proto, req.GetLogin(), server)
-	if proto == "mt4" {
-		note += "（MT4 族凭据在册——接入链 MT5 族限，候 MT4 臂）"
-	}
-	if nb := strings.TrimSpace(req.GetNote()); nb != "" {
-		note += " 备注=" + nb
-	}
-	if _, err := tx.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note)
-		VALUES($1,$2,$3,$4)`, brokerCredActor, brokerCredEvent, brokerCredTicket, note); err != nil {
-		return nil, connect.NewError(connect.CodeInternal, "审计行写: "+err.Error())
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return nil, connect.NewError(connect.CodeInternal, "tx commit: "+err.Error())
-	}
-	return &dashboardv1.SubmitBrokerCredResponse{Venue: venue, FieldsWritten: int32(n)}, nil
+	return "registered"
 }
 
 // brokerCredKeySplit 凭据键→(venue,proto,field)：单例 mt5.<field>→('mt5',
-// 'mt5',field)；<broker>.mt5.<field>/<broker>.mt4.<field>→(broker,proto,
-// field)。venue token 形闸同 credscan（小写数线横——冒号/空白禁入）。
+// 'mt5',field)；<broker>.mt5.<field>→(broker,'mt5',field)；<venue>.cex.
+// <field>→(venue,'cex',field)；<broker>.mt4.<field>→(broker,'mt4',field)
+// （存量读面兼容）；存量 okx.api_key|api_secret|passphrase（无中缀首户
+// 遗留）→('okx','cex',field)。venue token 形闸同 credscan（小写数线横——
+// 冒号/空白禁入台账键域）。
 func brokerCredKeySplit(k string) (string, string, string, bool) {
 	if strings.HasPrefix(k, "mt5.") {
 		return "mt5", "mt5", k[4:], true
 	}
-	var v, f string
-	var ok bool
-	if v, f, ok = strings.Cut(k, ".mt5."); !ok {
-		if v, f, ok = strings.Cut(k, ".mt4."); !ok {
-			return "", "", "", false
+	for _, f := range []string{"api_key", "api_secret", "passphrase"} {
+		if k == "okx."+f {
+			return "okx", "cex", f, true
 		}
 	}
-	if v == "" || f == "" {
-		return "", "", "", false
-	}
-	for _, c := range v {
-		if !(c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '-' || c == '_') {
-			return "", "", "", false
+	for _, ns := range []struct{ sep, proto string }{
+		{".mt5.", "mt5"}, {".cex.", "cex"}, {".mt4.", "mt4"},
+	} {
+		if v, f, ok := strings.Cut(k, ns.sep); ok {
+			if v == "" || f == "" {
+				return "", "", "", false
+			}
+			for _, c := range v {
+				if !(c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '-' || c == '_') {
+					return "", "", "", false
+				}
+			}
+			return v, ns.proto, f, true
 		}
 	}
-	proto := "mt5"
-	if strings.Contains(k, ".mt4.") {
-		proto = "mt4"
-	}
-	return v, proto, f, true
+	return "", "", "", false
 }
