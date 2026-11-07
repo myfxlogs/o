@@ -202,9 +202,10 @@ func render(tpl string, p payload, tid, draftID string) string {
 func materialize(repo, tpl string, id int64, p payload) (string, error) {
 	if m, _ := filepath.Glob(filepath.Join(repo, "docs/tasks/T-*-"+p.Slug+".md")); len(m) > 0 {
 		base := filepath.Base(m[0])
-		if i := strings.Index(base, "-"); i > 0 {
+		parts := strings.SplitN(base, "-", 3) // T-0443-slug.md → tid=T-0443
+		if len(parts) == 3 {
 			if out, err := exec.Command("git", "-C", repo, "log", "-1", "--format=%h", "--", "docs/tasks/"+base).CombinedOutput(); err == nil && strings.TrimSpace(string(out)) != "" {
-				return base[:i], nil
+				return parts[0] + "-" + parts[1], nil
 			}
 		}
 	}
