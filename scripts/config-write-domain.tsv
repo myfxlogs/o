@@ -26,6 +26,8 @@ funding.scan_timeout_s	dm	funding 扫描超时
 gapscan.scan_timeout_s	dm	gap 扫描超时
 dm.hunger.*	dm	饥饿响应自参数（检测窗 N——票面 T-0376 种 3 天）
 earn.auto_purchase_enabled	dm	闲置金 Earn 自动转入（资金运用重排）
+earn.sweep_whitelist	dm	Earn 扫袋白名单（T-0439 计价币放行线——USDT 首版，USDC 待议 DM 径可扩）
+earn.residual_clear_min_usd	dm	杂币实存即清粉尘阈（T-0439 闸值族——阈下挂账待归并）
 trx.floor_pct	dm	Tron 质押保底率（Earn 族参数）
 trx.vote_enabled	dm	Tron 投票开关（Earn 族）
 trx.vote_max_rebal_per_day	dm	Tron 再平衡频次（Earn 族）

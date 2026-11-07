@@ -30,24 +30,26 @@ const dmActor = "决策席-DM写径"
 // dmWritableGlobs —— dm 类通配（分册 dm 行同集镜像；顺序无关——凭证形
 // regex 前置硬拒、owner 行次之，本集末查）。
 var dmWritableGlobs = []string{
-	"research.*",                 // 评估阈/族参数/扫描族启停
-	"guard.*",                    // 守仓参数（flip/breakeven/max_hold——执行域）
-	"invest.lifecycle.*",         // 放行线+paper→probe→live 判据值
-	"invest.paper.*",             // paper 仓位判定
-	"scout.*",                    // venue 测榜参数
-	"lifecycle.*",                // 生命周期 TTL/冷却族
-	"strategy.*",                 // 降级 TTL 族
-	"gate.kill.*",                // 族级风险停机闸（退役闸族——T-0312 白名单续认）
-	"exec.*",                     // 执行参数（探针仓位/超时/冷却/cfd_map）
-	"funding.scan_timeout_s",     // funding 扫描超时
-	"gapscan.scan_timeout_s",     // gap 扫描超时
-	"dm.hunger.*",                // 饥饿响应自参数（检测窗）
-	"earn.auto_purchase_enabled", // 闲置金 Earn 自动转入（资金运用重排）
-	"trx.floor_pct",              // Tron 质押保底率（Earn 族）
-	"trx.vote_enabled",           // Tron 投票开关（Earn 族）
-	"trx.vote_max_rebal_per_day", // Tron 再平衡频次（Earn 族）
-	"trx.poll_seconds",           // Tron 轮询间隔（Earn 族）
-	"okxws.tick_scan_s",          // 粗扫节拍秒（T-0401 两级采集制——60s 钦定值覆写键）
+	"research.*",                  // 评估阈/族参数/扫描族启停
+	"guard.*",                     // 守仓参数（flip/breakeven/max_hold——执行域）
+	"invest.lifecycle.*",          // 放行线+paper→probe→live 判据值
+	"invest.paper.*",              // paper 仓位判定
+	"scout.*",                     // venue 测榜参数
+	"lifecycle.*",                 // 生命周期 TTL/冷却族
+	"strategy.*",                  // 降级 TTL 族
+	"gate.kill.*",                 // 族级风险停机闸（退役闸族——T-0312 白名单续认）
+	"exec.*",                      // 执行参数（探针仓位/超时/冷却/cfd_map）
+	"funding.scan_timeout_s",      // funding 扫描超时
+	"gapscan.scan_timeout_s",      // gap 扫描超时
+	"dm.hunger.*",                 // 饥饿响应自参数（检测窗）
+	"earn.auto_purchase_enabled",  // 闲置金 Earn 自动转入（资金运用重排）
+	"earn.sweep_whitelist",        // Earn 扫袋白名单（T-0439 计价币放行线）
+	"earn.residual_clear_min_usd", // 杂币实存即清粉尘阈（T-0439 闸值族）
+	"trx.floor_pct",               // Tron 质押保底率（Earn 族）
+	"trx.vote_enabled",            // Tron 投票开关（Earn 族）
+	"trx.vote_max_rebal_per_day",  // Tron 再平衡频次（Earn 族）
+	"trx.poll_seconds",            // Tron 轮询间隔（Earn 族）
+	"okxws.tick_scan_s",           // 粗扫节拍秒（T-0401 两级采集制——60s 钦定值覆写键）
 }
 
 // ownerKeyGlobs —— 业主面键（分册 owner 行同集镜像；与 dm 集不交——交叠=闸红）。
