@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log"
 	"math"
-	"strings"
 	"time"
 )
 
@@ -33,7 +32,7 @@ func (ls legSet) labels() []string {
 	return out
 }
 
-// reverse 双腿反向（平仓语义：side 取反、inst/sz 沿原仓）。
+// reverse 双腿反向（平仓语义：side 取反、inst 沿原仓、量按 closeWant 消歧）。
 func (ls legSet) reverse() [2]CloseLeg {
 	flip := func(side string) string {
 		if side == "buy" || side == "long" {
@@ -41,10 +40,11 @@ func (ls legSet) reverse() [2]CloseLeg {
 		}
 		return "buy"
 	}
-	return [2]CloseLeg{
-		{Venue: ls.venue, InstID: ls.a.inst, Side: flip(ls.a.side), Sz: ls.a.sz},
-		{Venue: ls.venue, InstID: ls.b.inst, Side: flip(ls.b.side), Sz: ls.b.sz},
+	mk := func(l leg) CloseLeg {
+		want, ok := l.closeWant()
+		return CloseLeg{Venue: ls.venue, InstID: l.inst, Side: flip(l.side), Sz: want, SzKnown: ok}
 	}
+	return [2]CloseLeg{mk(ls.a), mk(ls.b)}
 }
 
 // perpSign funding 收付向：position inst 的腿 short/sell=+1（正 funding 收方）、
@@ -163,56 +163,6 @@ func (w *Warden) driftTriggered(ctx context.Context, posID int64, imbNow, bandBp
 func (w *Warden) getF(k string) (float64, error) {
 	// T-0046 ④根修：单型 string 解读废裸数字键（canon config-json-type-fragility） ——改走平台双型读器（number|string 两形皆收）。
 	return w.cfg.GetFloat(k)
-}
-
-// VenueSizer 平仓量 venue 现读面（cmd 装配注入——guard 不识 venue 方言）。
-// D-0008 钦定径（canon cex-close-sz-fee-in-base）：再操作量从 venue 实况推
-// ——现货平仓量=availBal（taker 费基准币内扣致实持<委托）、合约=posCcy 张数； 禁抄腿行委托量。读败=fail-closed 不构平仓腿。
-type VenueSizer interface {
-	SpotAvailBal(ctx context.Context, instID string) (float64, error)
-	ContractPos(ctx context.Context, instID string) (float64, error) // 净持仓张数 abs
-	LotSz(ctx context.Context, instID string) (float64, error)       // 数量步长
-}
-
-// alignCloseSz 平仓量对齐：min(腿记录, venue 实读) 按 lotSz 网格向下取整； 对齐后≤0=false（fail-closed 不发残量单）。
-func alignCloseSz(want, avail, lotSz float64) (float64, bool) {
-	sz := math.Min(want, avail)
-	if lotSz > 0 {
-		sz = math.Floor(sz/lotSz+1e-9) * lotSz
-	}
-	if sz <= 0 {
-		return 0, false
-	}
-	return sz, true
-}
-
-// sizedCloseLegs 反向腿 venue 实读定量（T-0046 ②根修）——任一腿读败/对齐零= false（fail-closed：不构 intent 不发半仓平仓）。
-func (w *Warden) sizedCloseLegs(ctx context.Context, cls [2]CloseLeg) ([2]CloseLeg, bool) {
-	if w.sizer == nil {
-		return cls, false // 未接线=禁发（现读面缺席——腿行推导禁线）
-	}
-	for i, cl := range cls {
-		var avail float64
-		var err error
-		if strings.HasSuffix(cl.InstID, "-SWAP") {
-			avail, err = w.sizer.ContractPos(ctx, cl.InstID)
-		} else {
-			avail, err = w.sizer.SpotAvailBal(ctx, cl.InstID)
-		}
-		if err != nil {
-			return cls, false
-		}
-		lot, err := w.sizer.LotSz(ctx, cl.InstID)
-		if err != nil {
-			return cls, false
-		}
-		sz, ok := alignCloseSz(cl.Sz, avail, lot)
-		if !ok {
-			return cls, false
-		}
-		cls[i].Sz = sz
-	}
-	return cls, true
 }
 
 // note skip 态限频结构化日志（T-0046 ④c——无触发也是决策必须可观测； 计数器有可见出口，10min 键级节流防噪音——alert 级噪音禁线）。

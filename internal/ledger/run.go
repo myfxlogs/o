@@ -88,39 +88,6 @@ func (r *Runner) scan(ctx context.Context) error {
 	return r.daySnapshot(ctx)
 }
 
-// settle closed 未结算仓：净额=Σcashflow（position_ref 过滤）落 settled_*。
-func (r *Runner) settle(ctx context.Context) error {
-	rows, err := r.pool.Query(ctx, `SELECT id FROM fin_position
-		WHERE closed_at IS NOT NULL AND settled_at IS NULL`)
-	if err != nil {
-		return err
-	}
-	var ids []int64
-	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
-			rows.Close()
-			return err
-		}
-		ids = append(ids, id)
-	}
-	rows.Close()
-	for _, id := range ids {
-		var net float64
-		if err := r.pool.QueryRow(ctx,
-			"SELECT COALESCE(sum(amount),0) FROM fin_cashflow WHERE position_ref=$1 AND kind NOT IN ('earn_in','earn_out')", id).Scan(&net); err != nil {
-			return err
-		}
-		if _, err := r.pool.Exec(ctx,
-			"UPDATE fin_position SET settled_amount=$2,settled_ccy='USDT',settled_at=now() WHERE id=$1", id, net); err != nil {
-			r.rej.Inc("write_err")
-			return err
-		}
-		log.Printf("[ledger] 仓 #%d 结算落位 net=%.4f USDT", id, net)
-	}
-	return nil
-}
-
 // reconcile 快照 equity vs 账本净额（venue×ccy 配对；容差热启，差即 diff_alert 计门——
 // 快照陈>5min 不判〔okx-private-ws 契约：静户零事件≠WS 死，陈=fail-closed 不单边判〕）。
 func (r *Runner) reconcile(ctx context.Context) error {
