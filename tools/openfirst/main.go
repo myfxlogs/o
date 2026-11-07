@@ -124,14 +124,19 @@ func main() {
 	var legs [2]execution.Leg
 	var spotInst string
 	if *structure == "cfd_perp" {
-		// cfd_perp：leg1=okx SWAP 卖（ctVal 系）+leg2=mt5 cfd 买（lot 换算
-		// SymbolParams→CfdMeta——venue 元数据缺=fail-closed）。
-		mt := mtConnect(ctx, pool, cfg, mk)
-		cfdInst, err := cfg.GetString("exec.cfd_map." + instID)
+		// cfd_perp：leg1=okx SWAP 卖（ctVal 系）+leg2=mt5 cfd 买（lot 换算）。
+		// T-0432④：腿携官名，方言查表（fin_symbol_dialect——映射=确认件非
+		// 推断件：向导第④步席位挑+硬验在案才落行）缝内译 venue 名；查无映射
+		// =fail-closed 拒（升件在案）——exec.cfd_map 手配径已废，禁静默 fallback。
+		mt, login := mtConnect(ctx, pool, cfg, mk)
+		dx := mt5.VenueTranslator{S: mt5.NewDialectStore(pool), Venue: "mt5",
+			Account: fmt.Sprint(login), Seat: "openfirst"}
+		drow, err := mt5.NewDialectStore(pool).Lookup(ctx, "mt5", fmt.Sprint(login), instID)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "exec.cfd_map 无映射 fail-closed:", instID)
+			fmt.Fprintln(os.Stderr, "方言查无映射 fail-closed（先走座舱向导第④步挑定+硬验）:", err)
 			os.Exit(1)
 		}
+		cfdInst := drow.VenueSymbol
 		pm, err := cli.InstrumentMeta(ctx, "SWAP", instID)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "perp 元数据:", err)
@@ -142,16 +147,18 @@ func main() {
 			fmt.Fprintln(os.Stderr, "cfd 元数据:", err)
 			os.Exit(1)
 		}
-		sgi, sg := sp.GetResult().GetSymbolInfo(), sp.GetResult().GetSymbolGroup()
+		sg := sp.GetResult().GetSymbolGroup()
 		px, err := execution.LatestPx(ctx, pool, spotInstCached(instID))
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "px:", err)
 			os.Exit(1)
 		}
-		fmt.Printf("cfd %s trade_mode=%d（FullAccess=4——下单时点实读留痕 T-0039）\n", cfdInst, sg.GetTradeMode())
-		legs, spotInst, err = execution.BuildCfdLegs(instID, cfdInst, notional,
-			execution.CfdMeta{ContractSize: sgi.GetContractSize(),
-				MinLot: sg.GetMinLots(), LotStep: sg.GetLotsStep(),
+		fmt.Printf("cfd %s（官名 %s）trade_mode=%d（FullAccess=4——下单时点实读留痕 T-0039）\n",
+			cfdInst, instID, sg.GetTradeMode())
+		// cfd 腿携官名（官话唯一天——fin_order_leg 台账零方言），mtexec 缝内译。
+		legs, spotInst, err = execution.BuildCfdLegs(instID, instID, notional,
+			execution.CfdMeta{ContractSize: drow.CtVal,
+				MinLot: drow.MinSz, LotStep: drow.LotStep,
 				TradeMode: int32(sg.GetTradeMode())}, px, pm.CtVal)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "legs:", err)
@@ -159,7 +166,7 @@ func main() {
 		}
 		execR = execution.NewRunner(pool, cfg, execution.RouterExecutor{
 			"okx": &execution.OkxExecutor{C: cli},
-			"mt5": mtexec.Executor{C: mt},
+			"mt5": mtexec.Executor{C: mt, X: dx},
 		}).WithEarn(earnW)
 	} else {
 		execR = execution.NewRunner(pool, cfg, &execution.OkxExecutor{C: cli}).WithEarn(earnW)
@@ -196,7 +203,7 @@ func spotInstCached(instID string) string {
 
 // mtConnect mt5 真户会话接线（凭据自 app_secrets mt5.*；gateway_addr=config 键；
 // 凭据缺=fail-closed——未连成功不构腿）。
-func mtConnect(ctx context.Context, pool *pgxpool.Pool, cfg *config.Client, mk []byte) *mt5.Client {
+func mtConnect(ctx context.Context, pool *pgxpool.Pool, cfg *config.Client, mk []byte) (*mt5.Client, uint64) {
 	get := func(k string) string {
 		var ct []byte
 		if err := pool.QueryRow(ctx, "SELECT ciphertext FROM app_secrets WHERE key=$1", k).Scan(&ct); err != nil {
@@ -226,7 +233,7 @@ func mtConnect(ctx context.Context, pool *pgxpool.Pool, cfg *config.Client, mk [
 		fmt.Fprintln(os.Stderr, "mt5 connect:", err)
 		os.Exit(1)
 	}
-	return cli
+	return cli, login
 }
 
 // resolveStrategy 策略行解析：sid>0 显式行；sid=0 取最新 probe/live 行并回赋 sid

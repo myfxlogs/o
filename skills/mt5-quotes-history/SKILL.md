@@ -9,7 +9,7 @@ domain: 工程
 | RPC | 功能 | ICR | EXR | XMR | 关键坑 |
 |---|---|---|---|---|---|
 | Symbols/SymbolList | 全符号表（ContractSize/方言名源） | ok | ok | ok | Symbols 15032313 慢（4.8s）——批量径限频 |
-| SymbolParams(Many) | 单符号规格（points/CS/trade_mode/swap） | err（XAUUSD not exist） | err（XAUUSDm 才有） | ok | **硬坑：符号方言**——每 broker 后缀不同（EXR=m 尾实拍），symbol 名一律 venue SymbolList 实读禁猜；生产径走 symMap 原生名 |
+| SymbolParams(Many) | 单符号规格（points/CS/trade_mode/swap） | err（XAUUSD not exist） | err（XAUUSDm 才有） | ok | **硬坑：符号方言**——每 broker 后缀不同（EXR=m 尾实拍），symbol 名一律 venue SymbolList 实读禁猜；生产径走 symMap 原生名。**后缀两层剥（T-0432 实勘）**：m 尾=mini 手数标非报价（USDM=USD+m——族判剥 m 见 quote 族；USDTM/USDCM 同构），.pro=账户档位标（XAUUSD.pro=base XAUUSD+quote USD+标 .pro——票面「同金多名」实例）——剥序=marker 层（.pro/.P/PERP）先、quote 层（长先）后；谱单源=internal/mt5 quoteSuffixes 禁平行第二套 |
 | GetQuote/GetQuoteMany | 点价 | err（XAUUSD not exist） | **2026-10-24 复测 ok**（BTCUSDm bid/ask 实回） | ok | 同会话 Subscribe 后活价实返；未订阅孤立径未单测 |
 | PriceHistory / PriceHistoryEx / PriceHistoryMany | K 线史 | ok | **2026-10-24 复测 ok**（M1 20 帧） | ok | TimeFrame 枚举 16408=M1；Ex 族用 NumBars 非 To |
 | PriceHistoryToday(+Many) / PriceHistoryMonth(+Many) | K 线史 | ok | **2026-10-24 复测 apierr**——「Unable to cast List`1[Bar] to type…」**网关序列化回归**（EXR+demo 双户同现——venue 侧缺陷非方言） | ok（旧） | 族内分面——base/Ex 仍 ok，Today/Month 断；用 Ex/HighLow 绕行 |

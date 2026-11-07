@@ -62,6 +62,14 @@ service CoreService {
   //   api_key/api_secret/passphrase 永不出面）——
   rpc ListBrokerOnboard(ListBrokerOnboardRequest) returns (ListBrokerOnboardResponse) {}
   rpc SubmitBrokerCred(SubmitBrokerCredRequest) returns (SubmitBrokerCredResponse) {}
+
+  // —— T-0432 方言对表面（向导第④步——映射=确认件非推断件：候选清单机造
+  //   只省翻页不做决定+席位挑+机器硬验（SymbolParams 对拍官名语义全过才落
+  //   行，语义不符=拒收非警告零落表）——落 fin_symbol_dialect 运行时译缝
+  //   单源；官名清单=okx.symbols owner 册实读）——
+  rpc ListSymbolCandidates(ListSymbolCandidatesRequest) returns (ListSymbolCandidatesResponse) {}
+  rpc SubmitSymbolMapping(SubmitSymbolMappingRequest) returns (SubmitSymbolMappingResponse) {}
+  rpc ListCanonicalUniverse(ListCanonicalUniverseRequest) returns (ListCanonicalUniverseResponse) {}
 }
 
 message PingRequest {}
@@ -662,4 +670,57 @@ message SubmitBrokerCredResponse {
   int32 fields_written = 2;               // 本拍 upsert 件数（mt5=3+host 选填；cex=3）
   bool verified = 3;                      // 恒 true（verify-then-write——败=拒写即回不产响应体）
   string verify_note = 4;                 // 验连摘要（eq/totalEq 面——凭据零回显）
+}
+
+// ── T-0432 方言对表面（向导第④步——映射=确认件非推断件）────────────────
+
+message ListSymbolCandidatesRequest {
+  string venue = 1;                       // broker venue token（凭据族前缀）
+  string login = 2;                       // MT 户号（多账户粒度 <venue>:<login>）
+  string canonical = 3;                   // 官名 inst_id（OKX 形——base 提取源）
+  int32 limit = 4;                        // 下拉上限（0=缺省 20——实盘符号逐只挑）
+}
+message SymbolCandidate {
+  string venue_symbol = 1;                // broker 方言名（SymbolList 自报实读——禁猜）
+  string base = 2;                        // 剥后缀基（机造排序键——seat 判真身）
+  string suffix = 3;                      // 报价后缀方言（m/USDT/.P——Exness=m 尾实拍）
+  double contract_size = 4;               // ctVal=1 手 base 币量（SymbolParams 实返）
+  double tick_sz = 5;                     // TickSize>0 实值否则 Points（T-0143 判据）
+  double min_sz = 6;                      // SymGroup.MinLots
+  double lot_step = 7;                    // SymGroup.LotsStep
+  int32 digits = 8;                       // 报价位数
+  int32 trade_mode = 9;                   // SymGroup.TradeMode（4=FullAccess）
+  int32 spread = 10;                      // SymbolInfo.Spread（点）
+  int32 score = 11;                       // 相似度排序分（机造只排序不决定）
+}
+message ListSymbolCandidatesResponse {
+  repeated SymbolCandidate rows = 1;      // score 降序（服务端排序——前端禁 sort）
+  int32 scanned = 2;                      // venue 自报目录全量（枚举面如实）
+}
+message SymbolVerifyEvidence {
+  double bid = 1;                         // GetQuote 实拍（探活证——bid/ask>0）
+  double ask = 2;
+  double mid = 3;
+  double spread_bps = 4;                  // 点差快照（合理性在案——硬验面）
+  double ct_val = 5;                      // venue ContractSize
+  double canonical_ct_val = 6;            // 官名 ctVal（OKX /public/instruments 实返）
+  string quote_ccy = 7;                   // venue ProfitCurrency（美元锚定族对拍）
+  int32 digits = 8;
+  int32 trade_mode = 9;
+  string spec_hash = 10;                  // 语义指纹（漂移探针⑤基线——落行同存）
+}
+message SubmitSymbolMappingRequest {
+  string venue = 1;
+  string login = 2;
+  string canonical = 3;                   // 官名
+  string venue_symbol = 4;                // 席位挑定（下拉候选——非机选非推断）
+  string note = 5;                        // 备注→ops_event 审计行
+}
+message SubmitSymbolMappingResponse {
+  bool verified = 1;                      // 恒 true（硬验拒收=拒写即回不产响应体）
+  SymbolVerifyEvidence evidence = 2;      // 硬验在案（quote_snapshot jsonb 同型 protojson）
+}
+message ListCanonicalUniverseRequest {}
+message ListCanonicalUniverseResponse {
+  repeated string insts = 1;              // okx.symbols owner 册实读（升序）
 }

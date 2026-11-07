@@ -1,5 +1,6 @@
-// brokerboard.tsx —— T-0407/T-0430 座舱 broker 接入卡（票面：三步向导
-// verify-then-write——mt-accounts skill 钦定形：①venue ②凭据 ③确认验连）：
+// brokerboard.tsx —— T-0407/T-0430/T-0432 座舱 broker 接入卡（票面：三步向导
+// verify-then-write——mt-accounts skill 钦定形：①venue ②凭据 ③确认验连；
+// T-0432 扩步④符号映射——映射=确认件非推断件）：
 //   · 列表=ListBrokerOnboard 并集行（venue/协议/login/接入态 phase/在跑
 //     策略数/末拍·败因——phase 判态服务端派生 registered→connecting→
 //     verified/failed，前端零判据纯渲染）；
@@ -7,7 +8,9 @@
 //     venue（MT5 手填+「搜索面待补」注记；CEX=okx 首档枚举）；步2=凭据
 //     （MT5：login/password/server+host 选填双轨；CEX：api_key/api_secret/
 //     passphrase）；步3=预览（凭据掩码不回显）+提交——后端验连成功才落库
-//     （败=即回原因零落表，本卡显败因留步返改）；
+//     （败=即回原因零落表，本卡显败因留步返改）；步④=符号映射（MT5 专有
+//     ——官名清单→候选机造下拉（score 排序服务端出）→席位挑→硬验落行
+//     （拒收即回零落行），CEX 无此步；
 //   · 凭据明文只进请求体（type=password 不回显不持久，提交成功即弃；
 //     localStorage/console/URL 零触碰——domtest 钉）；
 //   · 提交=SubmitBrokerCred 窄写 RPC——verify-then-write 过闸凭据落
@@ -20,35 +23,10 @@ import { useState, type FormEvent, type ChangeEvent } from "react";
 import { client, errText } from "../api";
 import { useLive } from "../hooks";
 import { Card, EmptyState, ErrorState, Skeleton } from "./ui";
+import { BrokerOnboardList } from "./brokeronboardlist";
+import { SymbolMappingStep, type MappingQuery, type MappingSubmit } from "./brokermap";
+import type { SymbolCandidate } from "../../gen/dashboardv1/core_pb";
 import type { BrokerOnboardRow } from "../../gen/dashboardv1/core_pb";
-
-// 人话字典（纯显示映射非判据——phase/台账态键→中文直译；未知值原样透出不吞）。
-const PHASE_CN: Record<string, string> = {
-	registered: "已注册·候验连",
-	connecting: "验连中",
-	verified: "已验证",
-	failed: "接入败",
-};
-const STATE_CN: Record<string, string> = {
-	registered: "已注册·候探测",
-	probed: "已探测",
-	mapped: "映射就绪",
-	paper: "paper 激活",
-	candidate: "候选",
-	measuring: "度量中",
-	recommended: "建议注册",
-	rejected: "已拒",
-	kyc_blocked: "KYC受限",
-	adopted: "已采纳",
-	dismissed: "已驳回",
-	parked: "已停放",
-};
-const phaseTxt = (r: BrokerOnboardRow): string => {
-	if (r.phase) return PHASE_CN[r.phase] ?? r.phase;
-	if (r.proto === "mt4" && !r.state) return "凭据在册·MT4 链未接";
-	if (!r.state) return "凭据在册·候发现";
-	return STATE_CN[r.state] ?? r.state;
-};
 
 // 掩码显示（凭据预览钉——长度可见值不可见，raw 值零渲染）。
 const mask = (v?: string) => (v ? "••••••（" + v.length + " 位）" : "—");
@@ -64,19 +42,25 @@ export type BrokerForm = {
 	apiKey: string;
 	apiSecret: string;
 	passphrase: string;
+	canonical: string; // 步④符号映射面（官名——席位挑定件）
+	venueSymbol: string; // 步④席位挑定（候选下拉——非机选）
 };
 
-const STEP_CN = ["①venue", "②凭据", "③确认"];
+const STEP_CN = ["①venue", "②凭据", "③确认", "④符号映射"];
 const CEX_VENUES = ["okx"]; // 首档枚举（他所见 venue 册再扩——后端册闸同源）
 
 // BrokerOnboardView 纯渲件（DOM 桩测面——容器喂行+回调；向导步进=纯 UI 态，
-// initial* 三 props=domtest 注面——生产调用零携带）。
+// initial* props=domtest 注面——生产调用零携带）。
 export function BrokerOnboardView(props: {
 	rows: BrokerOnboardRow[];
 	onSubmit?: (f: BrokerForm) => Promise<void> | void;
 	initialStep?: number;
 	initialDraft?: Partial<BrokerForm>;
 	initialErr?: string | null;
+	// T-0432 步④符号映射回调（容器装配 RPC——View 纯选转零直连）。
+	loadUniverse?: () => Promise<string[]>;
+	onMappingQuery?: (f: MappingQuery) => Promise<{ rows: SymbolCandidate[]; scanned: number }>;
+	onSubmitMapping?: (f: MappingSubmit) => Promise<void>;
 }) {
 	const [step, setStep] = useState(props.initialStep ?? 1);
 	const [draft, setDraft] = useState<Partial<BrokerForm>>(props.initialDraft ?? {});
@@ -96,6 +80,7 @@ export function BrokerOnboardView(props: {
 					? Boolean(draft.login && draft.password && draft.server)
 					: Boolean(draft.apiKey && draft.apiSecret && draft.passphrase)
 				: true;
+	const maxStep = kind === "mt5" ? 4 : 3;
 	const submit = async (e: FormEvent<HTMLFormElement>) => {
 		e.preventDefault();
 		if (!props.onSubmit || busy) return;
@@ -113,17 +98,20 @@ export function BrokerOnboardView(props: {
 				apiKey: draft.apiKey ?? "",
 				apiSecret: draft.apiSecret ?? "",
 				passphrase: draft.passphrase ?? "",
+				canonical: "",
+				venueSymbol: "",
 			});
-			// 凭据字段提交成功即弃——回步1清草稿，DOM/状态零驻留。
-			setDraft({});
-			setStep(1);
+			// 凭据字段提交成功即弃（DOM/状态零驻留——domtest 钉）；MT5 进位步④
+			// 符号映射（venue/login 件保留——映射 RPC 必携），CEX 回步1。
+			setDraft(kind === "mt5" ? (d) => ({ venue: d.venue, proto: d.proto, login: d.login }) : {});
+			setStep(kind === "mt5" ? 4 : 1);
 		} catch (er) {
 			setSubErr(errText(er)); // 败因即回显形——留步3可返步改（凭据未落库）
 		} finally {
 			setBusy(false);
 		}
 	};
-	const next = () => stepFull && setStep(Math.min(3, step + 1));
+	const next = () => stepFull && setStep(Math.min(maxStep, step + 1));
 	const back = () => setStep(Math.max(1, step - 1));
 	return (
 		<Card title="broker 接入">
@@ -131,35 +119,11 @@ export function BrokerOnboardView(props: {
 				<EmptyState title="在册 broker 空"
 					hint="下方向导提交凭据——验连成功才落库，MT5 族落库即接入链自动接管" />
 			) : (
-				<table className="rows">
-					<thead>
-						<tr><th>broker</th><th>协议</th><th>login</th><th>接入态</th><th>在跑策略</th><th>末拍/败因</th></tr>
-					</thead>
-					<tbody>
-						{props.rows.map((r) => (
-							<tr key={r.venue}>
-								<td>{r.venue}</td>
-								<td className="ink-3">{(r.proto || "—").toUpperCase()}</td>
-								<td className="mono">{r.login || "—"}</td>
-								<td>
-									{r.phase === "failed" || r.beatFailed
-										? <span className="chip chip-critical">接入败</span>
-										: phaseTxt(r)}
-								</td>
-								<td className="num mono">{String(r.strategies)}</td>
-								<td className="ink-3" title={r.lastBeatAt
-									? new Date(Number(r.lastBeatAt.seconds) * 1000).toLocaleString("zh-CN", { hour12: false })
-									: undefined}>
-									{r.beatNote || "—"}
-								</td>
-							</tr>
-						))}
-					</tbody>
-				</table>
+				<BrokerOnboardList rows={props.rows} />
 			)}
 			{props.onSubmit && (
-				<details open style={{ marginTop: 10 }}>
-					<summary className="dim" style={{ cursor: "pointer" }}>添加 broker（三步向导——验连成功才落库）</summary>
+					<details open style={{ marginTop: 10 }}>
+						<summary className="dim" style={{ cursor: "pointer" }}>添加 broker（三步向导——验连成功才落库；MT5 续步④符号映射）</summary>
 					<form onSubmit={submit} style={{ marginTop: 10 }}>
 						<div style={{ marginBottom: 8 }}>
 							{STEP_CN.map((s, i) => (
@@ -249,7 +213,7 @@ export function BrokerOnboardView(props: {
 						)}
 						<div style={{ display: "flex", gap: 6, marginTop: 8 }}>
 							{step > 1 && <button type="button" className="btn" onClick={back}>上一步</button>}
-							{step < 3 && (
+							{step < maxStep && step !== 3 && (
 								<button type="button" className="btn" onClick={next} disabled={!stepFull}>
 									下一步
 								</button>
@@ -259,6 +223,14 @@ export function BrokerOnboardView(props: {
 							)}
 						</div>
 					</form>
+					{step === 4 && kind === "mt5" && (
+						<div style={{ marginTop: 10 }}>
+							<SymbolMappingStep venue={draft.venue ?? ""} login={draft.login ?? ""}
+								loadUniverse={props.loadUniverse}
+								onMappingQuery={props.onMappingQuery}
+								onSubmitMapping={props.onSubmitMapping} />
+						</div>
+					)}
 				</details>
 			)}
 			{subErr && <p className="dim">操作未成：{subErr}</p>}
@@ -285,6 +257,15 @@ export function BrokerOnboardCard() {
 			rows={live.data.rows}
 			onSubmit={async (f) => {
 				await client.submitBrokerCred(f);
+				await live.reload();
+			}}
+			loadUniverse={async () => (await client.listCanonicalUniverse({})).insts}
+			onMappingQuery={async (q) => {
+				const r = await client.listSymbolCandidates(q);
+				return { rows: r.rows, scanned: r.scanned };
+			}}
+			onSubmitMapping={async (m) => {
+				await client.submitSymbolMapping(m);
 				await live.reload();
 			}}
 		/>
