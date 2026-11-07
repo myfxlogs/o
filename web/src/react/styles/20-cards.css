@@ -702,6 +702,24 @@ details.rep summary {
   background: var(--accent);
   transition: width 0.4s ease;
 }
+/* —— T-0434 陈旧硬闸（渲染契约）：stale 行禁正常渲染——数值区整块置灰
+   （数值可留但视觉层级压到一眼识破是尸体）+红标「数据陈旧·非实时」满强度
+   醒目（红标在头部不随数值区置灰衰减）；badge 配色=status-badge 失败族同款 —— */
+.hm-stale-body {
+  opacity: 0.45;
+  filter: grayscale(0.85);
+}
+.hm-stale-badge {
+  margin-left: auto;
+  flex: none;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  background: #fee;
+  color: #c33;
+  border: 1px solid #f3c2c2;
+}
 
 /* —— 灯可见性硬化（玻璃底/浅底不洗白——暗色细环兜住轮廓）+ T-0222 3D
    恒驻件：底部内影（inset 内凹感）+环境接触微影（落影贴珠底）。呼吸帧

@@ -63,6 +63,8 @@ internal/portfolio/lifecycle -> internal/platform/config
 internal/portfolio/hunger -> internal/platform/config
 internal/portfolio/hunger -> internal/platform/condreq
 internal/portfolio/hunger -> internal/platform/legset
+internal/portfolio/hunger -> internal/platform/selfprobe
+internal/research/ctx -> internal/platform/selfprobe
 internal/risk -> internal/platform/config
 internal/trading/execution -> internal/platform/config
 internal/trading/execution -> internal/platform/rejects
@@ -90,6 +92,7 @@ internal/research/scout -> internal/platform/notify
 internal/research/scout -> internal/platform/rejects
 internal/research/scout -> internal/research/funding
 internal/platform/notify -> internal/gen/scoutv1
+internal/platform/hostmetrics -> internal/platform/selfprobe
 internal/research/scout -> internal/gen/scoutv1
 internal/review -> internal/gen/econv1
 internal/eventbus -> internal/gen/eventv1
