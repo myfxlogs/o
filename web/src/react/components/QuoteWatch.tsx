@@ -4,14 +4,21 @@
 //   →↑↓排序+✕删→保存=SetQuoteWatchlist 全量替换即生效（顺序即 ord——排序
 //   全后端禁前端 sort）；候选域=md_ticks 在采品种（有行情才可选，不开任意
 //   symbol 输入）；已选剔出候选；保存败留层显错不吞，成则关层。
+//   T-0442 件③ 源约束（Nox WatchlistModal chip 形制引进）：成员行携 venue
+//   chip 集（srcSets=实采∪实扫派生零硬编码词表）——chip 亮=含该源/暗=不含，
+//   空集=「全部源」（最新跨源现语义零破坏）；候选行携源集文本预览。
 import { useState } from "react";
 import { errText } from "../api";
+
+// 成员形制（源约束随行——保存全量替换携 venues）
+export type WatchItem = { symbol: string; venues: string[] };
 
 // WatchEditView 自选浮层纯渲件（DOM 桩测面——items/candidates/query 全受控，
 // 过滤在渲染内完成：候选=候选域−已选，子串过滤大小写不敏）。
 export function WatchEditView(props: {
-	items: string[];
+	items: WatchItem[];
 	candidates: string[];
+	srcSets?: Record<string, string[]>; // T-0442 各符可选源集（实采∪实扫派生）
 	pending?: Set<string>; // T-0412 未订阅候选（目录符非活——选入即提名晋升）
 	query: string;
 	busy?: boolean;
@@ -20,10 +27,11 @@ export function WatchEditView(props: {
 	onAdd?: (symbol: string) => void;
 	onMove?: (i: number, d: -1 | 1) => void;
 	onRemove?: (i: number) => void;
+	onToggleVenue?: (i: number, venue: string) => void; // T-0442 chip 切换含/不含
 	onSave?: () => void;
 	onCancel?: () => void;
 }) {
-	const picked = new Set(props.items);
+	const picked = new Set(props.items.map((it) => it.symbol));
 	const q = props.query.trim().toLowerCase();
 	const cands = props.candidates
 		.filter((s) => !picked.has(s))
@@ -39,9 +47,24 @@ export function WatchEditView(props: {
 				<div className="watchlist-current">
 					<b>已选（{props.items.length}）</b>
 					<ul className="watchlist-order watchlist-candidate-scroll">
-						{props.items.map((s, i) => (
-							<li key={s}>
-								<span className="watchlist-sym">{s}</span>
+						{props.items.map((it, i) => (
+							<li key={it.symbol}>
+								<span className="watchlist-sym">{it.symbol}</span>
+								<span className="watchlist-chips">
+									{(props.srcSets?.[it.symbol] ?? []).map((v) => (
+										<span key={v}
+											className={"chip" + (it.venues.includes(v) ? " chip-active" : "")}
+											title={it.venues.includes(v)
+												? `限定源 ${v}——点选取消（空集=全部源）`
+												: `点选限定源 ${v}`}
+											onClick={() => props.onToggleVenue?.(i, v)}>{v}</span>
+									))}
+									{(props.srcSets?.[it.symbol]?.length ?? 0) === 0 &&
+										<span className="dim">源集待实采</span>}
+								</span>
+								<span className="dim" style={{ flex: "none" }}>
+									{it.venues.length === 0 ? "全部源" : it.venues.join("/")}
+								</span>
 								<span style={{ flex: 1 }} />
 								<button className="btn-ghost" onClick={() => props.onMove?.(i, -1)}>↑</button>
 								<button className="btn-ghost" onClick={() => props.onMove?.(i, 1)}>↓</button>
@@ -60,7 +83,9 @@ export function WatchEditView(props: {
 								title={props.pending?.has(s) ? "未订阅目录符——选入即提名订阅晋升，报价稍后接通" : undefined}
 								onClick={() => props.onAdd?.(s)}>
 								{s}{props.pending?.has(s) &&
-									<span className="dim">·晋升中</span>}＋
+									<span className="dim">·晋升中</span>}
+								{(props.srcSets?.[s]?.length ?? 0) > 0 &&
+									<span className="dim"> · 源 {props.srcSets![s].join(" ")}</span>}＋
 							</button>
 						))}
 						{cands.length === 0 &&
@@ -77,16 +102,17 @@ export function WatchEditView(props: {
 	);
 }
 
-// WatchEditHost 浮层容器（items/query 编辑态自持——初始=后端成员序快照；
-// 保存败留层显错不吞，成则关层）。
+// WatchEditHost 浮层容器（items/query 编辑态自持——初始=后端成员序快照携
+// 源约束；chip 切换=含/不含翻转；保存败留层显错不吞，成则关层）。
 export function WatchEditHost(props: {
-	members: string[];
+	members: WatchItem[];
 	candidates: string[];
+	srcSets?: Record<string, string[]>;
 	pending?: Set<string>;
-	onSave: (symbols: string[]) => Promise<unknown>;
+	onSave: (items: WatchItem[]) => Promise<unknown>;
 	onClose: () => void;
 }) {
-	const [items, setItems] = useState<string[]>(props.members);
+	const [items, setItems] = useState<WatchItem[]>(props.members);
 	const [query, setQuery] = useState("");
 	const [err, setErr] = useState<string | null>(null);
 	const [busy, setBusy] = useState(false);
@@ -108,12 +134,22 @@ export function WatchEditHost(props: {
 	};
 	return (
 		<WatchEditView
-			items={items} candidates={props.candidates} pending={props.pending} query={query}
+			items={items} candidates={props.candidates} srcSets={props.srcSets}
+			pending={props.pending} query={query}
 			busy={busy} err={err}
 			onQuery={setQuery}
-			onAdd={(s) => setItems((l) => (l.includes(s) ? l : [...l, s]))}
+			onAdd={(s) => setItems((l) => (l.some((it) => it.symbol === s) ? l : [...l, { symbol: s, venues: [] }]))}
 			onMove={move}
 			onRemove={(i) => setItems((l) => l.filter((_, j) => j !== i))}
+			onToggleVenue={(i, v) =>
+				setItems((l) => {
+					const n = [...l];
+					const cur = n[i].venues.includes(v)
+						? n[i].venues.filter((x) => x !== v)
+						: [...n[i].venues, v];
+					n[i] = { ...n[i], venues: cur };
+					return n;
+				})}
 			onSave={save}
 			onCancel={props.onClose}
 		/>
