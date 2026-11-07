@@ -175,7 +175,7 @@ func materialize(ctx context.Context, pool *pgxpool.Pool, repo, tpl string, id i
 	}
 	msg := fmt.Sprintf("[角色:决策][%s] 探针升件自动起草——%s（签名 %s，draft#%d，T-0393 起草拍件）",
 		tid, p.Title, p.Signature, id)
-	if out, err := exec.Command("git", "-C", repo, "commit", "-o", "--", rel, "-m", msg).CombinedOutput(); err != nil {
+	if out, err := exec.Command("git", "-C", repo, "commit", "-o", "-m", msg, "--", rel).CombinedOutput(); err != nil {
 		return fmt.Errorf("git commit: %w: %s", err, out)
 	}
 	if out, err := exec.Command("bash", filepath.Join(repo, "scripts/git_push.sh")).CombinedOutput(); err != nil {
