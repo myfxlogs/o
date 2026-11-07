@@ -53,9 +53,10 @@ printf '#!/usr/bin/env bash\nexit 0\n' > "$BIN/buf"
 printf '#!/usr/bin/env bash\nexit 0\n' > "$BIN/docker"
 chmod +x "$BIN"/*
 
-# ── 仓内脚本面：真 check_all.sh + 八门禁桩 ──
+# ── 仓内脚本面：真 check_all.sh（含 T-0435 source 的 testdb_lease.sh）+ 八门禁桩 ──
 mkdir -p scripts
 cp "$ROOT/scripts/check_all.sh" scripts/check_all.sh
+cp "$ROOT/scripts/testdb_lease.sh" scripts/testdb_lease.sh
 for g in check_import_direction check-env-reads check_rejects_keys \
          check_config_write_domain check_migrations check_bridge_registry \
          check_tolerate_report check_ops_chain; do
