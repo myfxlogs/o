@@ -6,22 +6,23 @@ risk: high
 status: verified
 keywords: [迁移序号撞号, migrate_table, worktree 并行, 合并时序, duplicate version]
 scope: [migrations/, internal/store/pgstore/migrate_table.go, 并行施工流程]
-summary: 施工分支基于旧 master 立迁移号，并行票先合占位→后到者同号双注册（version 无 DB 级唯一约束）——四犯实证；立号前必查远端最新号，合并验收必核登记唯一性
+summary: 施工分支基于旧 master 立迁移号，并行票先合占位→后到者同号双注册（version 无 DB 级唯一约束）——五犯实证；立号前必查远端最新号，合并验收必核登记唯一性
 first_seen: 2026-10-25
-last_verified: 2026-10-30
+last_verified: 2026-11-07
 skills: [code-audit]
 evidence_refs:
   - type: git_fact
-    ref: T-0040/T-0041 撞 0025（merge 6cac7f8 改 0026）；T-0044 撞 0026 改 0027；T-0107/T-0108 撞 0046（T-0108 先合占位，T-0107 续编 0047 处置 f5fc216）；T-0259/T-0263 撞 0088（0263 ops_headless 先合，0259 并码时改 0089+票面/条目文引同修——dm/1030-t0259-merge）
+    ref: T-0040/T-0041 撞 0025（merge 6cac7f8 改 0026）；T-0044 撞 0026 改 0027；T-0107/T-0108 撞 0046（T-0108 先合占位，T-0107 续编 0047 处置 f5fc216）；T-0259/T-0263 撞 0088（0263 ops_headless 先合，0259 并码时改 0089+票面/条目文引同修——dm/1030-t0259-merge）；T-0442/T-0439 撞 fin_0140（0439 earn_sweep_whitelist 先合，0442 merge-tree 干跑实证必冲突——驳回返修 docs/prompts/T-0442-返修1.md 改 0141）
 ---
 
-## 实案（四犯=系统性）
+## 实案（五犯=系统性）
 
 | 犯 | 撞 | 处置 |
 |---|---|---|
 | T-0040 vs T-0041 | 0025 | merge 6cac7f8 改号 0026 |
 | T-0044 | 0026 | 改号 0027 |
 | T-0107 vs T-0108 | 0046 | T-0108 先合占位；T-0107 决策席续编 0047（f5fc216） |
+| T-0442 vs T-0439 | fin_0140 | T-0439 先合占位；T-0442 驳回返修改 0141（merge-tree 干跑判色——内容冲突+并合双登记双杀） |
 
 共性：施工立号时点是分支起点，合并时点才是占位时点——并行票在途期间
 master 序号面已前移，原立号=陈号。schema_migrations.version 无唯一约束，
