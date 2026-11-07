@@ -70,9 +70,15 @@ func main() {
 	go c.Run(ctx, errc)
 	// T-0401 粗扫层：REST tickers 60s 全谱→md_tick_scan（两级采集制①——
 	// 筛选精度层钦定例外件；执行精度仍归 WS tickers 流）。T-0416：谱域=
-	// 宇宙扩件 SWAP 目录全集（目录读败 fail-closed 不虚构谱域）。
+	// 宇宙扩件目录全集（目录读败 fail-closed 不虚构谱域）。T-0427 粗扫
+	// 扩全宇宙：三族各一发各判——族读败该族让位他族照常（同供给件
+	// FamSet 逐族挂线，fail-closed 粒度到族）。
 	sp := okxws.NewScanPoller(pool, cfg, cli.PublicGet)
-	sp.Catalog = uni.SwapSet
+	sp.Gates = map[string]okxws.ScanGate{
+		"SWAP":    uni.FamSet("SWAP"),
+		"SPOT":    uni.FamSet("SPOT"),
+		"FUTURES": uni.FamSet("FUTURES"),
+	}
 	go sp.Run(ctx, errc)
 	sd := sigdist.New(pool)
 	sd.AttachConfig(cfg)

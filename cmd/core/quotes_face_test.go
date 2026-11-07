@@ -366,3 +366,39 @@ func TestAlertFreshnessBoundary(t *testing.T) {
 		t.Fatal("阈外 16min 应拒")
 	}
 }
+
+// TestIntentPromoteFamilySpot T-0427 粗扫扩全宇宙消费面对拍：SPOT/FUTURES
+// 族符落 md_tick_scan 后，选符域谓词（candDomainSQL/symDomain）零改动自动
+// 见新族符；现货目录符建单同事务提名晋升（SubRequestArm 族兼容前半段——
+// 现货腿 tickers WS 通道生产已实证：dcd 现货腿 T-0171 同源）。
+func TestIntentPromoteFamilySpot(t *testing.T) {
+	mux, pool, ctx := quotesFaceMux(t)
+	if _, err := pool.Exec(ctx, `INSERT INTO md_tick_scan(ts,venue,inst_id,inst_type,last,bid,ask,recv_ts) VALUES
+		(now(),'okx','ETH-USDT','spot',3000,2999,3001,now()),
+		(now(),'okx','QQQ-USD-260327','futures',7,7,7,now())`); err != nil {
+		t.Fatal(err)
+	}
+	// ① 候选域零改动见新族符（SPOT/FUTURES 都入域——谓词无族过滤）
+	_, body := listPriceAlerts(t, mux)
+	got := map[string]bool{}
+	for _, s := range body["symbols"].([]any) {
+		got[s.(string)] = true
+	}
+	if !got["ETH-USDT"] || !got["QQQ-USD-260327"] {
+		t.Fatalf("族符应零改动入选符域: %v", body["symbols"])
+	}
+	// ② 现货目录符建单=收+同事务提名晋升（user_intent/open）
+	code, body := watchCall(t, mux, "CreatePriceAlert",
+		`{"symbol":"eth-usdt","direction":">=","target":3200}`, true)
+	if code != http.StatusOK {
+		t.Fatalf("现货目录符建单应 200: code=%d body=%v", code, body)
+	}
+	var requester, state string
+	if err := pool.QueryRow(ctx, `SELECT requester,state FROM fin_sub_request
+		WHERE inst_id='ETH-USDT'`).Scan(&requester, &state); err != nil {
+		t.Fatalf("现货符晋升提名行缺: %v", err)
+	}
+	if requester != "user_intent" || state != "open" {
+		t.Fatalf("提名行载荷错: requester=%s state=%s", requester, state)
+	}
+}
