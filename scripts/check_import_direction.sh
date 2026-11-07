@@ -22,6 +22,8 @@ internal/data/okxpriv -> internal/platform/signutil
 internal/data/okxws -> internal/platform/config
 internal/data/okxws -> internal/platform/legset
 internal/data/okxws -> internal/platform/notify
+internal/data/okxws -> internal/platform/scanwm
+internal/trading/okxexec -> internal/platform/httpread
 internal/ledger -> internal/platform/config
 internal/ledger -> internal/platform/rejects
 internal/ledger/holding -> internal/platform/rejects
