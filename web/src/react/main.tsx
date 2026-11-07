@@ -10,6 +10,7 @@ import { SystemPage } from "./pages/System";
 import { CockpitPage } from "./pages/Cockpit";
 import { TrxPage } from "./pages/Trx";
 import { ReviewPage } from "./pages/Review";
+import { OnboardPage } from "./pages/Onboard";
 import "./styles/00-base.css";
 import "./styles/10-shell.css";
 import "./styles/20-cards.css";
@@ -24,6 +25,7 @@ const ROUTES: RouteDef[] = [
   { path: "/system", label: "系统", el: <SystemPage /> },
   { path: "/trx", label: "TRX", el: <TrxPage /> },
   { path: "/review", label: "复盘", el: <ReviewPage /> },
+  { path: "/onboard", label: "接入", el: <OnboardPage /> },
 ];
 
 function App() {
