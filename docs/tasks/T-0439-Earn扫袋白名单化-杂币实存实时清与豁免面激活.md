@@ -127,3 +127,12 @@
   canon 同步（清仓径 trade/order 写面入册——在用中证错必修）。
 
 收口：施工席 run（t/0439-earn-whitelist）→ 移交决策席审计。
+
+返修1（决策席驳回件——config 写域分册未登记，照修）：
+`earn.sweep_whitelist`+`earn.residual_clear_min_usd` 两键入册
+dm 类——scripts/config-write-domain.tsv 两行 +
+internal/platform/config/dmwrite.go dmWritableGlobs 同集镜像
+（扫袋白名单=放行线族，USDC 待议 DM 径可扩；粉尘阈=闸值族）；
+顺带 fin_0140 `'\"1\"'` 双编码改 `'1'` 原生数字形（T-0018
+标量契约合契）。check_all 全谱绿（mode=merge-scoped，
+写域闸三断言绿 dm=20/owner=16/universe=79）@绿戳在案。

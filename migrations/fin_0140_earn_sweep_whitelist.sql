@@ -7,5 +7,5 @@
 
 INSERT INTO app_config(key,value) VALUES
   ('earn.sweep_whitelist',        '["USDT"]'),
-  ('earn.residual_clear_min_usd', '"1"')
+  ('earn.residual_clear_min_usd', '1')
 ON CONFLICT (key) DO NOTHING;
