@@ -45,4 +45,41 @@
 
 ## 结果回填
 
-- 状态：待派（外派径——DM 不占派工额度）
+- 状态：待验（外派径收口——回 DM 裁决，不占派工额度）
+- 实现（2026-11-07 claude-t0428，支 t/0428-close-memory）：
+  - 迁移 `fin_0132_close_memory.sql`（真号实查 0132——origin/master 尾
+    fin_0131；migrate_table.go 登记 {132}）：fin_guard_close 增
+    `last_error`/`last_attempt_at`、fin_position 增 `trigger_verdict`，
+    全可空零默认零回填（禁回填律遵票面）；幂等 ADD COLUMN IF NOT EXISTS。
+  - 守卫写点（internal/guard/facts.go+guard.go）：`markClosing` attempt
+    递增同槽落 `last_attempt_at`；败因落表带分类前缀——闸拒
+    `plan:gate:<reason>`、sizer 现读败/对齐零 `plan:sizer:平仓量现读败/
+    对齐零`（=Earn 收走余额类计划期败，state 不迁按节拍原样重试）、
+    venue 执行败 `venue:<err>`（venue 期败返回码）；`last_error` 逐次
+    覆盖为最新败因，平成不清（attempts>1 仓的记忆锚）。零新拍——全接
+    现有 attempts 递增/markFailed 槽。
+  - postmortem 判词回写（internal/ledger/postmortem.go settle 同槽）：
+    正常件 `trigger_verdict='confirmed'`（复核确认原判）；异常件=机械
+    修正码集（fast_close/settled_over/trigger_unknown/bare_bag 逗点连）；
+    trigger_kind 原字段零触碰（审计链）；写败计数+log 不阻钱径（与监察
+    案写同律）。裁定席语义修正（unit_mismatch_hallucination 类）为该列
+    钦定后手写者——本票只接判定机槽（票面写点单列），裁定席覆写径另案。
+  - 数据流.md 守仓节同 commit 补「平仓记忆（T-0428）」行（链路变更同拍）。
+- 测试证据：
+  - 红桩①（守卫连败覆盖）`TestCloseFailReasonOverwrites`：venue 败→
+    `venue:venue 返回码 51009` 落表+last_attempt_at 非 NULL；sizer 败→
+    覆盖为 `plan:sizer:`；平成后 last_error 保留——三拍全绿。
+  - 红桩②（sizer 败径）`TestCloseSizerFailReasonLogged`：state 不迁
+    （closing 待重试）+`plan:sizer:` 落表——绿。
+  - 判词回写桩 `TestPostmortemTriggerVerdictWriteback`：异常件
+    verdict=含 fast_close+settled_over 码集且 trigger_kind='funding_flip'
+    原值不动（双存）；正常件 verdict='confirmed'——绿。
+  - 实测（O_TEST_PG_DSN 5434 o-postgres-test）：guard 包败径四测全绿、
+    ledger 全包 58.7s 绿、build/vet/gofmt 净。
+- 偏离说明：
+  - 票面红桩设想的「闸拒首败」不可复现——risk/check.go:22 契约 close 径
+    kill_switch/上限不拦（拦平仓=存风险）；计划期败代表改取 sizer 败径
+    （正是 pos34「Earn 收走余额→计划即败」的实体路径）。
+  - 「异常件=修正名」在机械判定机的可落形=修正码集（语义修正名需裁定席
+    认知——列注释+数据流行均记其覆写权，回写径另案不越单）。
+- 机检：check_all full 档绿戳（迁移入变更面自动 full）——commit 后对口贴出。

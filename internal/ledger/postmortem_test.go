@@ -204,3 +204,40 @@ func TestPostmortemMissingParamFailClosed(t *testing.T) {
 		t.Fatal("键缺未计 missing_param")
 	}
 }
+
+// T-0428 判词回写桩：异常结案→trigger_verdict 落机械修正码集，trigger_kind
+// 原值不动（双存断言——原貌=审计链）；正常件→'confirmed' 复核确认原判。
+func TestPostmortemTriggerVerdictWriteback(t *testing.T) {
+	ctx, r := setup(t)
+	now := time.Now()
+	// 异常件：funding_flip 触发+秒级平+超阈损——verdict=修正码集（fast_close,settled_over）
+	pid1 := pmPos(t, ctx, r, 100, now.Add(-15*time.Second), now)
+	pmGuardClose(t, ctx, r, pid1, "funding_flip")
+	pmCash(t, ctx, r, pid1, -49)
+	// 正常件：10h 持+小赚判据内——verdict=confirmed
+	pid2 := pmPos(t, ctx, r, 100, now.Add(-10*time.Hour), now)
+	pmGuardClose(t, ctx, r, pid2, "funding_flip")
+	pmCash(t, ctx, r, pid2, 1.2)
+	if err := r.settle(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var kind1, verdict1 string
+	if err := r.pool.QueryRow(ctx, `SELECT COALESCE(g.trigger_kind,''),COALESCE(p.trigger_verdict,'')
+		FROM fin_position p LEFT JOIN fin_guard_close g ON g.position_id=p.id AND g.state='closed'
+		WHERE p.id=$1`, pid1).Scan(&kind1, &verdict1); err != nil {
+		t.Fatal(err)
+	}
+	if kind1 != "funding_flip" {
+		t.Fatalf("trigger_kind 原值不动（审计链），got %q", kind1)
+	}
+	if !strings.Contains(verdict1, "fast_close") || !strings.Contains(verdict1, "settled_over") {
+		t.Fatalf("异常件 verdict 应落修正码集，got %q", verdict1)
+	}
+	var verdict2 string
+	if err := r.pool.QueryRow(ctx, `SELECT COALESCE(trigger_verdict,'') FROM fin_position WHERE id=$1`, pid2).Scan(&verdict2); err != nil {
+		t.Fatal(err)
+	}
+	if verdict2 != "confirmed" {
+		t.Fatalf("正常件 verdict=confirmed，got %q", verdict2)
+	}
+}

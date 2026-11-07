@@ -27,6 +27,11 @@
 // pending 入裁（UNIQUE(kind,entity_ref) 幂等——一仓一案；写败计数+log
 // 不阻钱径，与记忆写面纪律②同式）。量低期零烧——判在拍内，有案才耗
 // 裁定席会话（verdict_tick 水印闸 pending>0 自醒）。
+//
+// 判词回写（T-0428）：fin_position.trigger_verdict 拍内同槽落——正常件
+// 'confirmed'（复核确认原判）、异常件=机械修正码集（fast_close/settled_over/
+// trigger_unknown/bare_bag）；trigger_kind 原貌不动=审计链，裁定席语义修正
+// （unit_mismatch_hallucination 类）可后覆写。
 package ledger
 
 import (
@@ -129,6 +134,18 @@ func (r *Runner) postmortem(ctx context.Context, posID int64) {
 	refID := fmt.Sprintf("position#%d", posID)
 	if stratRef > 0 {
 		refID = strconv.FormatInt(stratRef, 10)
+	}
+	// T-0428 判词回写（trigger_verdict——trigger_kind 原貌不动为审计链）：
+	// 正常件=复核确认原判；异常件=机械修正码集（裁定席语义修正可后覆写）。
+	// 记忆写不阻钱径：写败计数留痕不回滚结算事实（与监察案写同律）。
+	verdict := strings.Join(codes, ",")
+	if len(codes) == 0 {
+		verdict = "confirmed"
+	}
+	if _, err := r.pool.Exec(ctx,
+		`UPDATE fin_position SET trigger_verdict=$2 WHERE id=$1`, posID, verdict); err != nil {
+		r.rej.Inc("write_err")
+		log.Printf("WARN [ledger] 仓 #%d 判词回写败（trigger_verdict=%s）: %v", posID, verdict, err)
 	}
 	if len(codes) == 0 {
 		// 正常件：expected 判词落 ops_decision——记忆×结果对照案闭环
