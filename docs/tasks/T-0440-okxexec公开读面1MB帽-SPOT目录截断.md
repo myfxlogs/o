@@ -21,10 +21,20 @@
 ② 截断语义补强（可选同件）：`io.ReadAll(io.LimitReader(r, N))` 截断静默——
    读满帽仍 parse 败才报错，建议在帽处改 `LimitReader(N+1)`+len>N 显式「响应超帽」错，
    让下次同类病不再以 JSON 语法错伪装；
-③ 验收三断言：check_all 绿戳对口 + OCI collecto 日志 `粗扫拍 spot=N>0` 实证 +
-   `md_tick_scan` spot>0 且含 `XRP-USDT`；前端自选搜索 XRP 出现现货候选为终验。
+③ 族谱水位闸（业主令 11-07「新加CEX还是这问题」钦定同票治）：
+   md_tick_scan 逐族 inst_type 行数+recv_ts 鲜度断言——
+   任一注册族（swap/spot/futures）连续 N 拍=0 行或 recv_ts 陈
+   →escalation 行升件（载位复用 gauges_tick 探针册/ops_event 同款，
+   「让位常态化」必须有声；fail-closed 防虚构防不了永远让位）；
+   阈钉死票面不猜：族行数=0 且持续 ≥10min→升件（swap 基线 528/
+   futures 6/spot 0——0 即病态非低水位，阈按=0 判不按比）；
+④ 验收四断言：check_all 绿戳对口 + OCI collecto 日志 `粗扫拍 spot=N>0` 实证 +
+   `md_tick_scan` spot>0 且含 `XRP-USDT` + 水位闸桩测（族=0 升件行落）；
+   前端自选搜索 XRP 出现现货候选为终验。
 
 ## 顺手账（写票面回填）
 
 - `internal/platform/notify/calendar.go:115` 同款 1MB 帽——经济日历响应远小暂不炸，
   不扩面；只在坑条目记「LimitReader 截断静默」模式。
+- venue 向导彩排补一条进工程经验库：新 CEX 上线前逐族验「目录进得了
+  scan 表」——不只连接通，要数据落得了表（条目化归施工顺手件）。
