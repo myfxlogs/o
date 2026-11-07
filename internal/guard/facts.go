@@ -188,19 +188,29 @@ func (w *Warden) retryKeys() (backoff, maxAtt int64, err error) {
 }
 
 func (w *Warden) markClosing(ctx context.Context, posID int64, trig string) error {
-	_, err := w.pool.Exec(ctx, `INSERT INTO fin_guard_close(position_id,state,trigger_kind,attempts,last_try_at,updated_at)
-		VALUES($1,'closing',$2,1,now(),now())
+	_, err := w.pool.Exec(ctx, `INSERT INTO fin_guard_close(position_id,state,trigger_kind,attempts,last_try_at,last_attempt_at,updated_at)
+		VALUES($1,'closing',$2,1,now(),now(),now())
 		ON CONFLICT(position_id) DO UPDATE SET state='closing',trigger_kind=$2,
-		  attempts=fin_guard_close.attempts+1,last_try_at=now(),updated_at=now()`, posID, trig)
+		  attempts=fin_guard_close.attempts+1,last_try_at=now(),last_attempt_at=now(),updated_at=now()`, posID, trig)
 	if err != nil {
 		w.rej.Inc("write_err")
 	}
 	return err
 }
 
-func (w *Warden) markFailed(ctx context.Context, posID int64) {
+func (w *Warden) markFailed(ctx context.Context, posID int64, reason string) {
 	if _, err := w.pool.Exec(ctx,
-		`UPDATE fin_guard_close SET state='close_failed',updated_at=now() WHERE position_id=$1`, posID); err != nil {
+		`UPDATE fin_guard_close SET state='close_failed',last_error=$2,updated_at=now() WHERE position_id=$1`, posID, reason); err != nil {
+		w.rej.Inc("write_err")
+	}
+}
+
+// noteAttemptFail 平仓尝试败因落表（T-0428）——state 不迁（sizer 败径按节拍
+// 原样重试，状态机语义不动）；last_error 逐次覆盖为最新败因，平成不清（
+// attempts>1 的仓靠它记「为什么重试过」——清了记忆即断）。
+func (w *Warden) noteAttemptFail(ctx context.Context, posID int64, reason string) {
+	if _, err := w.pool.Exec(ctx,
+		`UPDATE fin_guard_close SET last_error=$2,updated_at=now() WHERE position_id=$1`, posID, reason); err != nil {
 		w.rej.Inc("write_err")
 	}
 }

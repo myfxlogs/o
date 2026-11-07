@@ -181,13 +181,14 @@ func (w *Warden) tend(ctx context.Context, p posRow, maxAtt int64, trig closeTri
 	dec := w.gate.Check(ctx, in)
 	if !dec.Allow {
 		w.rej.Inc("close_denied")
-		w.markFailed(ctx, p.id)
+		w.markFailed(ctx, p.id, "plan:gate:"+dec.Reason) // T-0428 败因落表——闸拒=计划期败
 		log.Printf("[guard] WARN 仓 %d 平仓被闸拒（%s/%s）——升级留痕", p.id, trig.kind, dec.Reason)
 		return
 	}
 	cls, ok := w.sizedCloseLegs(ctx, legs.reverse())
 	if !ok {
 		w.rej.Inc("facts_missing")
+		w.noteAttemptFail(ctx, p.id, "plan:sizer:平仓量现读败/对齐零") // T-0428——Earn 收走余额类计划期败
 		w.note("sizer_fail", fmt.Sprintf("仓 %d 平仓量 venue 现读败/对齐零——fail-closed 不发 intent", p.id))
 		return
 	}
@@ -197,7 +198,7 @@ func (w *Warden) tend(ctx context.Context, p posRow, maxAtt int64, trig closeTri
 	})
 	if err != nil {
 		w.rej.Inc("close_failed")
-		w.markFailed(ctx, p.id)
+		w.markFailed(ctx, p.id, "venue:"+err.Error()) // T-0428——venue 期败返回码落表
 		if p.attempts+1 >= maxAtt {
 			w.rej.Inc("close_gave_up")
 			w.al.Alert(ctx, "close_gave_up", "平仓重试耗尽——人工介入")
