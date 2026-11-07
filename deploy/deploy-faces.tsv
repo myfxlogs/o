@@ -1,0 +1,76 @@
+# deploy-faces.tsv —— 两半部署制路径分类正本（T-0425，钦定「机制与票面锚
+# 从此同源」）。两半=镜像面（deploy_image.sh→SG o-core 镜像）与 OCI 二进制
+# 面（deploy_oci.sh→盒上裸二进制 systemd 臂）各持部署基线各判各发。
+#
+# 消费面：
+#   scripts/meta/deploy_window_due.sh —— image_only 行（镜像专属否列：
+#     OCI 面=镜像面∧¬本列；未列名 deployable 面=不可判→保守按双发，
+#     件缺=否列空全面双发——滥发方向不盲发向）。
+#   scripts/deploy_oci.sh —— 全类消费（臂级跳件证谓：diff 全件证外=
+#     谱系证空跳臂；nondeploy/image_only/他臂行=证外，未列名=不可判
+#     不证空保守换）。
+#
+# class 词表：
+#   nondeploy   两部署面皆否（检出即生效/docs/工具面——与
+#               deploy_window_due.sh is_image_path 白名单同源钉列，改单双同步）
+#   image_only  镜像专属（进 o-core 镜像/非 OCI 主件——web 前端/Docker 件/
+#               cmd 下非 OCI 二进制主件）
+#   collecto|projector|research|eventbus|sweeper
+#               OCI 二进制构建谱系（go list -deps ./cmd/<arm> 实测 2026-11-07
+#               +钦定补列）。eventbus/sweeper 属 OCI 面钦定谱系但现无
+#               deploy_oci 臂位——窗面发窗、臂级自检全臂证空即跳（其部署
+#               另径归另票，本表只钉「构建源属谁」事实层）。
+#
+# go.mod/go.sum/proto/*/buf*.y*ml 不钉行：proto→internal/gen、mod→全臂
+# 依赖面——未列名落不可判面，窗面双发+臂级不证空全换，方向保守不列。
+class	glob
+nondeploy	docs/*
+nondeploy	skills/*
+nondeploy	*.md
+nondeploy	scripts/*
+nondeploy	.github/*
+nondeploy	.devin/*
+nondeploy	tools/*
+nondeploy	deploy/*
+image_only	web/*
+image_only	Dockerfile*
+image_only	docker-compose*
+image_only	.dockerignore
+image_only	cmd/core/*
+image_only	cmd/migrate/*
+image_only	cmd/feishu-notify/*
+image_only	cmd/metabus/*
+image_only	cmd/headlesspump/*
+image_only	cmd/trxpolldiag/*
+collecto	cmd/collector/*
+collecto	internal/data/*
+collecto	internal/gen/*
+collecto	internal/mt5/*
+collecto	internal/platform/*
+collecto	internal/research/*
+collecto	internal/trading/*
+projector	cmd/projector/*
+projector	internal/gen/*
+projector	internal/platform/*
+projector	internal/projector/*
+projector	internal/store/*
+projector	migrations/*
+research	cmd/research/*
+research	internal/data/*
+research	internal/gen/*
+research	internal/mt5/*
+research	internal/platform/*
+research	internal/research/*
+research	internal/review/*
+research	internal/store/*
+research	internal/trading/*
+research	internal/venue/*
+research	migrations/*
+eventbus	cmd/eventbus/*
+eventbus	internal/eventbus/*
+eventbus	internal/gen/*
+sweeper	cmd/sweeper/*
+sweeper	internal/ledger/*
+sweeper	internal/platform/*
+sweeper	internal/store/*
+sweeper	migrations/*
