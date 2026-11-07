@@ -2,9 +2,11 @@
 // pending→docs/tasks/<TID>-<slug>.md 候选态票件。确定性模板填充
 // （docs/templates/ticket-draft.md 槽位←payload 机读件——LLM 不入安全径）；
 // 取号唯一径 scripts/next_ticket.sh（领号台账行自带）；落件即 git commit
-// （-o -- 单件面禁裸 -A）+git_push.sh——写径只落候选草案态零自派
-// （批准权=COS/DM，派发权=DM，权序红线 T-0376）。败=ops_event 升件自报
-// （写败/META-DRAFT——类册面不入起草拍签名域防自起草回环）。
+// （-o -m msg -- 单件面禁裸 -A——参数序教训 git-commit-dashdash-before-flags；
+// push 批末单次+前置 check_all 绿戳——pre-push 按 HEAD SHA 核戳,逐票推必败）。
+// 写径只落候选草案态零自派（批准权=COS/DM，派发权=DM，权序红线 T-0376）。
+// 败=ops_event 升件自报（写败/META-DRAFT——类册面不入起草拍签名域防自起草回环）。
+// 重试幂等：slug 票件已存在+已入 git=沿用其号不重立（推送中断重跑防撞号）。
 //
 // 用法（dm_tick.sh 零 LLM 尾段同拍；手动同径）：
 //
@@ -101,13 +103,55 @@ func run(ctx context.Context, pool *pgxpool.Pool, repo string, dry bool) error {
 	if err != nil {
 		return fmt.Errorf("模板件读败: %w", err)
 	}
+	type done struct {
+		id  int64
+		p   payload
+		tid string
+	}
+	var ds2 []done
 	for _, d := range ds {
-		if err := materialize(ctx, pool, repo, string(tpl), d.id, d.p); err != nil {
+		tid, err := materialize(repo, string(tpl), d.id, d.p)
+		if err != nil {
 			return fmt.Errorf("draft#%d %s: %w", d.id, d.p.Signature, err)
 		}
-		fmt.Printf("[ticketdraft] draft#%d 物料化落件——signature=%s\n", d.id, d.p.Signature)
+		ds2 = append(ds2, done{d.id, d.p, tid})
+		fmt.Printf("[ticketdraft] draft#%d 物料化落件 %s——signature=%s\n", d.id, tid, d.p.Signature)
+	}
+	if len(ds2) == 0 {
+		return nil
+	}
+	// 推送=批末单次：pre-push 按 HEAD SHA 核绿戳,前置 check_all 一次盖顶
+	// （逐票推=首票外全数无戳必败——draft 面已实证）。
+	if out, err := exec.Command("bash", filepath.Join(repo, "scripts/check_all.sh")).CombinedOutput(); err != nil {
+		return fmt.Errorf("check_all（推送前置绿戳）: %w: %s", err, tail(string(out), 1200))
+	}
+	if out, err := exec.Command("bash", filepath.Join(repo, "scripts/git_push.sh")).CombinedOutput(); err != nil {
+		return fmt.Errorf("git push: %w: %s", err, tail(string(out), 1200))
+	}
+	for _, d := range ds2 {
+		rel := fmt.Sprintf("docs/tasks/%s-%s.md", d.tid, d.p.Slug)
+		if _, err := pool.Exec(ctx, `UPDATE fin_ticket_draft
+			SET status='materialized',ticket=$2,materialized_at=now() WHERE id=$1`,
+			d.id, d.tid); err != nil {
+			return fmt.Errorf("行翻 materialized: %w", err)
+		}
+		if _, err := pool.Exec(ctx,
+			`INSERT INTO ops_event(seat,event,ticket,note) VALUES($1,'起草',$2,$3)`,
+			ticketSeat, d.tid,
+			fmt.Sprintf("自动起草落件 %s——签名 %s（draft#%d 物料化，候选态零自派，批准权=COS/DM）",
+				rel, d.p.Signature, d.id)); err != nil {
+			return fmt.Errorf("起草行: %w", err)
+		}
 	}
 	return nil
+}
+
+// tail 截长输出尾段（升件 note 面可读）。
+func tail(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return "…" + s[len(s)-n:]
 }
 
 // readTemplate 模板件读径（repo 缺省 /opt/o——桩测面仓根相对径回落
@@ -153,47 +197,40 @@ func render(tpl string, p payload, tid, draftID string) string {
 	return out
 }
 
-// materialize 单件物料化：取号→模板填充→落件→commit+push→行翻
-// materialized+起草行携新票号（串链——draft#↔TID 双向可溯）。
-func materialize(ctx context.Context, pool *pgxpool.Pool, repo, tpl string, id int64, p payload) error {
+// materialize 单件物料化：取号→模板填充→落件→commit。返回票号。
+// 幂等：slug 票件已存在且已入 git=沿用其号返回（推送中断重跑不再立件）。
+func materialize(repo, tpl string, id int64, p payload) (string, error) {
+	if m, _ := filepath.Glob(filepath.Join(repo, "docs/tasks/T-*-"+p.Slug+".md")); len(m) > 0 {
+		base := filepath.Base(m[0])
+		if i := strings.Index(base, "-"); i > 0 {
+			if out, err := exec.Command("git", "-C", repo, "log", "-1", "--format=%h", "--", "docs/tasks/"+base).CombinedOutput(); err == nil && strings.TrimSpace(string(out)) != "" {
+				return base[:i], nil
+			}
+		}
+	}
 	tidb, err := exec.Command("bash", filepath.Join(repo, "scripts/next_ticket.sh"), "起草拍").Output()
 	if err != nil {
-		return fmt.Errorf("取号败: %w", err)
+		return "", fmt.Errorf("取号败: %w", err)
 	}
 	tid := strings.TrimSpace(string(tidb))
 	rel := fmt.Sprintf("docs/tasks/%s-%s.md", tid, p.Slug)
 	abs := filepath.Join(repo, rel)
 	if _, err := os.Stat(abs); err == nil {
-		return fmt.Errorf("票件已存在（撞号面——取号闸漏）: %s", rel)
+		return "", fmt.Errorf("票件已存在（撞号面——取号闸漏）: %s", rel)
 	}
 	body := render(tpl, p, tid, fmt.Sprintf("%d", id))
 	if err := os.WriteFile(abs, []byte(body), 0o644); err != nil {
-		return fmt.Errorf("票件写败: %w", err)
+		return "", fmt.Errorf("票件写败: %w", err)
 	}
 	if out, err := exec.Command("git", "-C", repo, "add", "--", rel).CombinedOutput(); err != nil {
-		return fmt.Errorf("git add: %w: %s", err, out)
+		return "", fmt.Errorf("git add: %w: %s", err, out)
 	}
 	msg := fmt.Sprintf("[角色:决策][%s] 探针升件自动起草——%s（签名 %s，draft#%d，T-0393 起草拍件）",
 		tid, p.Title, p.Signature, id)
 	if out, err := exec.Command("git", "-C", repo, "commit", "-o", "-m", msg, "--", rel).CombinedOutput(); err != nil {
-		return fmt.Errorf("git commit: %w: %s", err, out)
+		return "", fmt.Errorf("git commit: %w: %s", err, out)
 	}
-	if out, err := exec.Command("bash", filepath.Join(repo, "scripts/git_push.sh")).CombinedOutput(); err != nil {
-		return fmt.Errorf("git push: %w: %s", err, out)
-	}
-	if _, err := pool.Exec(ctx, `UPDATE fin_ticket_draft
-		SET status='materialized',ticket=$2,materialized_at=now() WHERE id=$1`,
-		id, tid); err != nil {
-		return fmt.Errorf("行翻 materialized: %w", err)
-	}
-	if _, err := pool.Exec(ctx,
-		`INSERT INTO ops_event(seat,event,ticket,note) VALUES($1,'起草',$2,$3)`,
-		ticketSeat, tid,
-		fmt.Sprintf("自动起草落件 %s——签名 %s（draft#%d 物料化，候选态零自派，批准权=COS/DM）",
-			rel, p.Signature, id)); err != nil {
-		return fmt.Errorf("起草行: %w", err)
-	}
-	return nil
+	return tid, nil
 }
 
 // esc 物料化径败自报升件（写败/META-DRAFT——note 前缀同窗 24h 至多一行；
