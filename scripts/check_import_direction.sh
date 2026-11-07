@@ -185,6 +185,21 @@ internal/guard -> internal/platform/decision
 internal/portfolio/lifecycle -> internal/platform/decision
 internal/review -> internal/platform/decision
 internal/ledger -> internal/platform/decision
+# T-0426 执行径仿真层（纸面跑 venue 语义——simvenue 只替 IO 缝实现 execution
+# Executor+Sizer 双面；simdrill 演习 harness=跨消费域组合根边集同 cmd 形；
+# execwiring 装配缝单源自 cmd/core 拆立——guard×execution×okxexec 组合根，
+# cmd 与演习同槽消费防影子缝）。
+internal/trading/simvenue -> internal/trading/execution
+internal/trading/execwiring -> internal/guard
+internal/trading/execwiring -> internal/trading/execution
+internal/trading/execwiring -> internal/trading/okxexec
+internal/trading/simdrill -> internal/guard
+internal/trading/simdrill -> internal/ledger
+internal/trading/simdrill -> internal/platform/config
+internal/trading/simdrill -> internal/risk
+internal/trading/simdrill -> internal/trading/execution
+internal/trading/simdrill -> internal/trading/execwiring
+internal/trading/simdrill -> internal/trading/simvenue
 EOF
 )
 

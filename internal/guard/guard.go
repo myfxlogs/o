@@ -106,6 +106,10 @@ func (w *Warden) Run(ctx context.Context, errc chan<- error) {
 		[]string{"ev_ticks", "ev_funding", "ev_position"}, w.scanOnce)
 }
 
+// ScanOnce 一拍哨戒的外部驱动缝（T-0426 执行径演习——simdrill 跨包驱动同一
+// 哨戒拍跑产线判定/平仓径；产线路径 Run/ListenLoop 不变）。
+func (w *Warden) ScanOnce(ctx context.Context) error { return w.scanOnce(ctx) }
+
 type posRow struct {
 	id, execID, stratRef int64
 	inst                 string

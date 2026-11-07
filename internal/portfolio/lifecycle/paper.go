@@ -2,6 +2,7 @@ package lifecycle
 
 import (
 	"context"
+	"log"
 	"strconv"
 	"strings"
 	"time"
@@ -136,13 +137,40 @@ func (r *Runner) promote(ctx context.Context, minH, minNet, maxDD float64, liveS
 		if c.hours < minH || c.net < minNet {
 			continue
 		}
+		// T-0426 执行径演习闸（业主令 2026-11-07「每策略毕业前就该检查订单
+		// 会不会出错」）：probe→live 判据增「执行径演习通过」——该策略型的
+		// 开→平→对账全径仿真跑绿才准 live；判据件缺/演习败=fail-closed 不晋
+		// （同经济判据待遇——simdrill 演习绿落凭据后自解）。
+		pass, drilled, err := r.execDrillPass(ctx, c.id)
+		if err != nil || !drilled {
+			r.rej.Inc("exec_drill_missing")
+			log.Printf("[lifecycle] #%d probe→live 拦：执行径演习凭据缺（fail-closed——跑演习落凭据后自解）", c.id)
+			continue
+		}
+		if !pass {
+			r.rej.Inc("exec_drill_failed")
+			log.Printf("[lifecycle] #%d probe→live 拦：执行径演习败（fail-closed——修病灶重演习）", c.id)
+			continue
+		}
 		if err := Transition(ctx, r.pool, c.id, "live",
-			"probe 观察窗满+净回报续优+委员会开关 true→live 真钱开仓岗", liveSw); err != nil {
+			"probe 观察窗满+净回报续优+执行径演习绿+委员会开关 true→live 真钱开仓岗", liveSw); err != nil {
 			r.rej.Inc("illegal_transition")
 			return err
 		}
 	}
 	return nil
+}
+
+// execDrillPass 执行径演习凭据判（T-0426）：fin_exec_drill latest 行
+// verdict='pass' 才真；drilled=false=判据件缺（无行——fail-closed 同经济
+// 判据缺位待遇）；verdict='fail'=演习败。读败=err 上抛 fail-closed。
+func (r *Runner) execDrillPass(ctx context.Context, strategyID int64) (pass, drilled bool, err error) {
+	var verdict string
+	if err := r.pool.QueryRow(ctx, `SELECT verdict FROM fin_exec_drill
+		WHERE strategy_ref=$1 ORDER BY ts DESC, id DESC LIMIT 1`, strategyID).Scan(&verdict); err != nil {
+		return false, false, nil // 无行=判据件缺（非库错——fail-closed 不晋）
+	}
+	return verdict == "pass", true, nil
 }
 
 func ftoa(f float64) string {

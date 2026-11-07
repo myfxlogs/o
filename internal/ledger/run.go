@@ -60,6 +60,10 @@ func NewRunner(pool *pgxpool.Pool, cfg *config.Client) *Runner {
 			"recon_probe_failed", "postmortem_anomaly", "diag_task_err")}
 }
 
+// ScanOnce 一拍账务的外部驱动缝（T-0426 执行径演习——simdrill 跨包驱动
+// 同一结算拍跑产线 settle/对账径；产线路径 Run/ListenLoop 不变）。
+func (r *Runner) ScanOnce(ctx context.Context) error { return r.scan(ctx) }
+
 func (r *Runner) Run(ctx context.Context, errc chan<- error) {
 	for _, e := range [][3]string{{"司账", "ledger", "入账+结算岗"}, {"核账", "ledger", "对账环岗"}} {
 		if err := roster.Register(ctx, r.pool, e[0], e[1], e[2], nil); err != nil {

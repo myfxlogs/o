@@ -33,6 +33,7 @@ import (
 	"o/internal/risk"
 	"o/internal/store/pgstore"
 	"o/internal/trading/execution"
+	"o/internal/trading/execwiring"
 	"o/internal/trading/okxexec"
 )
 
@@ -53,7 +54,6 @@ func main() {
 func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
-
 	dsn := os.Getenv("DB_DSN")
 	if dsn == "" {
 		return errors.New("DB_DSN 未设（唯一 bootstrap env——缺件 fail-closed）")
@@ -162,7 +162,7 @@ func run() error {
 			execR := execution.NewRunner(pool, cfg,
 				&execution.OkxExecutor{C: okxexec.NewClient(priv.Credentials(), false)}).WithEarn(earnW).WithAlerter(alerter)
 			go execution.Run(ctx, errc, execR)
-			closer = closeExec{r: execR}
+			closer = execwiring.CloseExec{R: execR}
 			// live 开仓缝（T-0050——gate+执事+元数据件同源接线）。
 			liveOpener = hedgeOpener{pool: pool, cfg: cfg, gate: riskGate, r: execR, // T-0050
 				cli: newCli(priv.Credentials())}
@@ -173,7 +173,7 @@ func run() error {
 			return okxexec.BalanceEquity(ctx, creds, false)
 		})
 		// 平仓量现读面（T-0046 ②——priv 凭据域内接线）。
-		closeSizer = okxSizer{newCli(priv.Credentials())}
+		closeSizer = execwiring.OkxSizer{C: newCli(priv.Credentials())}
 		// funding 记账（T-0044）：余额帧事件驱动 bills→fin_cashflow（bills.go）。
 		priv.SetBillsHook(ledgerHook(pool, func() *okxexec.Client { return newCli(priv.Credentials()) }))
 		go priv.Run(ctx, errc)
