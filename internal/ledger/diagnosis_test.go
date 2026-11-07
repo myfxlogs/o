@@ -1,0 +1,289 @@
+// diagnosis_test.go —— T-0431 红桩+禁线断言：
+//
+//	红桩（票面钦定）：pos34 案卷 fixture（attempts=5+bare_bag+假失衡证据锚）
+//	→诊断草案命中「单位语义错配」族假设（非必点名同词——族命中即可，
+//	判据=matchDiagFamilyText 词谱机读形写进桩）；
+//	禁线（票面钦定）：诊断席零 venue/fin 写径——代码面核（Go 本件 import
+//	面+写径语句面+裁定席 SKILL 第四分支落面白名单三重机检）。
+package ledger
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
+	"testing"
+	"time"
+)
+
+// pos34Facts 案卷 fixture（票面钦定三件：attempts=5+bare_bag+假失衡证据锚
+// ——数字=pos34 生产实证形：CORE 袋 5737.95 枚≈$74.89、settled −24.67/50
+// 名义=−49%、delta_drift 幻觉杀环）。
+func pos34Facts() diagCaseFacts {
+	return diagCaseFacts{
+		PosID: 34, ExecID: 9001, InstID: "CORE-USDT-SWAP",
+		Anomalies:  []string{"fast_close", "settled_over", "bare_bag"},
+		BareBagUSD: 74.89, BareBagQty: 5737.95,
+		Attempts: 5, Trigger: "delta_drift", SettledPct: -49.34,
+	}
+}
+
+// 红桩：pos34 案卷重放→单位语义错配族命中（族命中判据写进桩）。
+func TestDiagFamilySeed_pos34Replay(t *testing.T) {
+	f := pos34Facts()
+	if !diagnosisWorthy(f) {
+		t.Fatal("pos34 案卷未过诊断闸（三案卷源应齐命中）")
+	}
+	fams := matchDiagFamilies(f)
+	if len(fams) != 1 || fams[0].ID != "unit_mismatch" {
+		t.Fatalf("族谱命中=%v（应恰 unit_mismatch）", famIDs(fams))
+	}
+	nums := buildDiagTaskNumbers(f, json.RawMessage(`{"anomalies":["fast_close","settled_over","bare_bag"]}`))
+	seeds, err := json.Marshal(nums["seeds"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ss []diagSeed
+	if err := json.Unmarshal(seeds, &ss); err != nil {
+		t.Fatal(err)
+	}
+	if len(ss) != 1 || ss[0].Family != "unit_mismatch" {
+		t.Fatalf("种子族=%+v（应 unit_mismatch）", ss)
+	}
+	// 族命中判据（票面「非必点名同词——族命中即可」的机读形）：草案文本
+	// 过词谱即族命中——种子假设+修法面拼文过 matchDiagFamilyText。
+	draft := ss[0].Hypothesis + " " + ss[0].FixSurface
+	if got := matchDiagFamilyText(draft); len(got) == 0 || got[0] != "unit_mismatch" {
+		t.Fatalf("草案文本族命中=%v（应 unit_mismatch）", got)
+	}
+	// 非必点名同词实证：换述草案（不含族名/族名词）仍词谱命中。
+	if got := matchDiagFamilyText("开腿美元额被当币量发单——sz_unit 两义混用，quote 与 base 不分，平仓只清零头"); len(got) == 0 || got[0] != "unit_mismatch" {
+		t.Fatalf("换述草案族命中=%v（应 unit_mismatch——非必点名同词）", got)
+	}
+	// 证据锚三件齐：腿对拍/守卫环/账实残袋（假失衡证据锚入任务）。
+	// 占位符已实化（裁定席会话可直接执行——非模板裸文）。
+	for _, w := range []string{"fin_order_leg", "fin_guard_close", "fin_holding"} {
+		hit := false
+		for _, q := range ss[0].Evidence {
+			if strings.Contains(q, w) {
+				hit = true
+			}
+			if strings.Contains(q, "{pos}") || strings.Contains(q, "{exec}") || strings.Contains(q, "{inst}") {
+				t.Fatalf("证据锚占位未实化: %s", q)
+			}
+		}
+		if !hit {
+			t.Fatalf("证据锚缺 %s", w)
+		}
+	}
+	// 案卷源两件（pos34 触发类 delta_drift 在认知集——trigger_unknown 不
+	// 触发；账实差+守卫环双源在案）+案卷原貌直通。
+	srcs, _ := nums["sources"].([]string)
+	if len(srcs) != 2 {
+		t.Fatalf("案卷源=%v（应两件）", srcs)
+	}
+	for _, w := range []string{"账实差", "守卫环"} {
+		if !strings.Contains(strings.Join(srcs, "×"), w) {
+			t.Fatalf("案卷源缺 %s: %v", w, srcs)
+		}
+	}
+	if string(nums["case"].(json.RawMessage)) != `{"anomalies":["fast_close","settled_over","bare_bag"]}` {
+		t.Fatalf("案卷原貌未直通: %v", nums["case"])
+	}
+}
+
+func famIDs(fs []diagFamily) []string {
+	var out []string
+	for _, f := range fs {
+		out = append(out, f.ID)
+	}
+	return out
+}
+
+// 市况形不产诊断任务（纯幅超阈/秒级开平——裁定席三分支消化，不烧诊断额度）。
+func TestDiagNotWorthy_pureMarket(t *testing.T) {
+	market := diagCaseFacts{PosID: 1, ExecID: 2, InstID: "BTC-USDT-SWAP",
+		Anomalies: []string{"settled_over"}, SettledPct: -30, Attempts: 0}
+	if diagnosisWorthy(market) {
+		t.Fatal("纯市况案过诊断闸（应不生成）")
+	}
+	if fams := matchDiagFamilies(market); len(fams) != 0 {
+		t.Fatalf("纯市况案族命中=%v（应空）", famIDs(fams))
+	}
+}
+
+// 族词谱匹配器单元（红桩判据机读形本体）。
+func TestDiagFamilyTextMatcher(t *testing.T) {
+	cases := []struct {
+		text string
+		want bool
+	}{
+		{"sz_unit=quote 的 leg.sz 被当 base 币量消费", true},
+		{"开仓金额被当成币量发出——quote/base 两义混用", true},
+		{"双制量字段消费面不认制", true},
+		{"行情暴跌触发止损，市况使然", false},
+		{"残袋被 Earn 收息——归置决策待裁", false},
+		{"", false},
+	}
+	for i, c := range cases {
+		if got := len(matchDiagFamilyText(c.text)) > 0; got != c.want {
+			t.Fatalf("case %d %q: 族命中=%v（应 %v）", i, c.text, got, c.want)
+		}
+	}
+}
+
+// 全链锚：pos34 形仓 settle 同拍——监察案+诊断任务双落账，种子族命中。
+func TestPostmortemEmitsDiagTask_pos34Replay(t *testing.T) {
+	ctx, r := setup(t)
+	now := time.Now()
+	pid := pmPos(t, ctx, r, 50, now.Add(-15*time.Second), now)
+	if _, err := r.pool.Exec(ctx, `INSERT INTO fin_guard_close(position_id,state,trigger_kind,attempts,closed_at)
+		VALUES($1,'closed','delta_drift',5,now())`, pid); err != nil {
+		t.Fatal(err)
+	}
+	pmDecisionClose(t, ctx, r, pid, "delta_drift", "delta_drift：notionalNow 漂移超阈——守卫平")
+	pmCash(t, ctx, r, pid, -24.67)
+	if _, err := r.pool.Exec(ctx, `UPDATE fin_position SET bare_bag_ccy='CORE',
+		bare_bag_qty=5737.95,bare_bag_usd=74.89 WHERE id=$1`, pid); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.settle(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if n := pmLessonCount(t, ctx, r, pid); n != 1 {
+		t.Fatalf("监察案行=%d（应 1 pending）", n)
+	}
+	var nums string
+	if err := r.pool.QueryRow(ctx, `SELECT numbers::text FROM fin_econ_lesson
+		WHERE kind='rootcause_diag' AND entity_ref=$1 AND status='pending'`,
+		fmt.Sprintf("position#%d", pid)).Scan(&nums); err != nil {
+		t.Fatalf("诊断任务行缺席: %v", err)
+	}
+	var m map[string]any
+	if err := json.Unmarshal([]byte(nums), &m); err != nil {
+		t.Fatal(err)
+	}
+	seeds, _ := json.Marshal(m["seeds"])
+	var ss []diagSeed
+	if err := json.Unmarshal(seeds, &ss); err != nil {
+		t.Fatal(err)
+	}
+	if len(ss) != 1 || ss[0].Family != "unit_mismatch" {
+		t.Fatalf("诊断任务种子族=%+v（应 unit_mismatch）", ss)
+	}
+	if srcs, _ := json.Marshal(m["sources"]); !strings.Contains(string(srcs), "守卫环") {
+		t.Fatalf("案卷源缺守卫环: %s", srcs)
+	}
+	// 幂等：settle 重放不重行（UNIQUE(kind,entity_ref)）。
+	if err := r.settle(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_econ_lesson
+		WHERE kind='rootcause_diag' AND entity_ref=$1`,
+		fmt.Sprintf("position#%d", pid)).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Fatalf("诊断任务重放重行（n=%d）", n)
+	}
+}
+
+// 市况形全链反锚：幅超阈单发（无残袋/无守卫环/认知集内）——监察案照立、
+// 诊断任务零产。
+func TestPostmortemNoDiagTask_marketShape(t *testing.T) {
+	ctx, r := setup(t)
+	now := time.Now()
+	pid := pmPos(t, ctx, r, 100, now.Add(-2*time.Hour), now)
+	pmGuardClose(t, ctx, r, pid, "funding_flip")
+	pmCash(t, ctx, r, pid, -30)
+	if err := r.settle(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if n := pmLessonCount(t, ctx, r, pid); n != 1 {
+		t.Fatalf("监察案行=%d（市况异常案应立）", n)
+	}
+	var n int
+	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_econ_lesson
+		WHERE kind='rootcause_diag' AND entity_ref=$1`,
+		fmt.Sprintf("position#%d", pid)).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Fatalf("市况形产诊断任务（n=%d，应 0）", n)
+	}
+}
+
+// 禁线断言（票面钦定——诊断席零 venue/fin 写径，代码面核）：
+// A. Go 本件 import 面=安全闭集+写径语句面（仅 INSERT fin_econ_lesson）；
+// B. 裁定席 SKILL 第四分支落面白名单（草案落位+归流两窄面，禁线句在案，
+//
+//	钱径表 UPDATE 零）。
+func TestDiagSeatZeroMoneyPathWrites(t *testing.T) {
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Skip("caller 路径不可知——代码面核跳")
+	}
+	dir := filepath.Dir(file)
+	root := filepath.Dir(filepath.Dir(dir)) // internal/ledger → 仓根
+
+	// A. Go 本件。
+	src, err := os.ReadFile(filepath.Join(dir, "diagnosis.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(src)
+	if strings.Contains(s, "UPDATE ") || strings.Contains(s, "DELETE ") {
+		t.Fatal("diagnosis.go 含 UPDATE/DELETE 写径（诊断面禁）")
+	}
+	if n := strings.Count(s, "INSERT INTO"); n != 1 || !strings.Contains(s, "INSERT INTO fin_econ_lesson") {
+		t.Fatalf("diagnosis.go INSERT 语句面=%d（应恰 1 且靶=fin_econ_lesson 案卷锚表）", n)
+	}
+	impStart := strings.Index(s, "import (")
+	impEnd := strings.Index(s, ")")
+	if impStart < 0 || impEnd < impStart {
+		t.Fatal("import 块定位败")
+	}
+	imp := s[impStart:impEnd]
+	for _, banned := range []string{"o/internal/trading", "o/internal/guard", "o/internal/data", "o/internal/portfolio", "net/http"} {
+		if strings.Contains(imp, banned) {
+			t.Fatalf("diagnosis.go import 含禁面 %s（venue/交易/守卫写径载体）", banned)
+		}
+	}
+
+	// B. 裁定席 SKILL 第四分支。
+	skill, err := os.ReadFile(filepath.Join(root, "skills", "裁定席", "SKILL.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ss := string(skill)
+	start := strings.Index(ss, "## 根因诊断案受理节")
+	if start < 0 {
+		t.Fatal("裁定席 SKILL 缺根因诊断案受理节")
+	}
+	sec := ss[start:]
+	if next := strings.Index(sec[len("## 根因诊断案受理节"):], "\n## "); next >= 0 {
+		sec = sec[:next+len("## 根因诊断案受理节")]
+	}
+	for _, must := range []string{
+		"禁 venue 写禁 fin_* 写", "禁自批", "status='drafted'", "fin_econ_lesson",
+		"fin_position", "fin_order", "fin_holding", "fin_guard_close", // 禁线句点名钱径表
+		"归流执行", // DM 既裁执行段在案
+	} {
+		if !strings.Contains(sec, must) {
+			t.Fatalf("受理节缺禁线/白名单件 %q", must)
+		}
+	}
+	for _, banned := range []string{
+		"UPDATE fin_position", "UPDATE fin_order", "UPDATE fin_holding",
+		"UPDATE fin_guard_close", "UPDATE fin_cashflow", "UPDATE fin_ledger",
+		"INSERT INTO fin_position", "INSERT INTO fin_order", "INSERT INTO fin_holding",
+		"INSERT INTO app_config",
+	} {
+		if strings.Contains(sec, banned) {
+			t.Fatalf("受理节含钱径写径形 %q（诊断席禁）", banned)
+		}
+	}
+}

@@ -74,15 +74,16 @@ func (r *Runner) postmortem(ctx context.Context, posID int64) {
 		notional, settled, bagQty, bagUSD float64
 		opened, closed                    time.Time
 		guardTrig                         string
+		guardAttempts                     int
 	)
 	if err := r.pool.QueryRow(ctx, `SELECT p.execution_id,COALESCE(p.strategy_ref,0),
 		p.inst_id,p.notional_usd,p.settled_amount,
 		COALESCE(p.bare_bag_qty,0),COALESCE(p.bare_bag_usd,0),
-		p.opened_at,p.closed_at,COALESCE(g.trigger_kind,'')
+		p.opened_at,p.closed_at,COALESCE(g.trigger_kind,''),COALESCE(g.attempts,0)
 		FROM fin_position p
 		LEFT JOIN fin_guard_close g ON g.position_id=p.id AND g.state='closed'
 		WHERE p.id=$1`, posID).Scan(&execID, &stratRef, &inst, &notional, &settled,
-		&bagQty, &bagUSD, &opened, &closed, &guardTrig); err != nil {
+		&bagQty, &bagUSD, &opened, &closed, &guardTrig, &guardAttempts); err != nil {
 		r.rej.Inc("write_err")
 		log.Printf("WARN [ledger] 仓 #%d 结案事实读败——本仓跳判: %v", posID, err)
 		return
@@ -179,4 +180,13 @@ func (r *Runner) postmortem(ctx context.Context, posID int64) {
 		return
 	}
 	log.Printf("[ledger] 仓 #%d 结案异常（%s）——监察案 trade_postmortem 入裁定席 pending", posID, strings.Join(codes, ","))
+	// T-0431 根因诊断案同拍生成：bug 形异常（账实差未定性/认知集外触发/
+	// 守卫环——三案卷源任一）自动生成诊断任务（根因案型）——纯市况案不生成
+	// （裁定席既有三分支消化，诊断额度不烧市况案）。
+	facts := diagCaseFacts{PosID: posID, ExecID: execID, InstID: inst,
+		Anomalies: codes, BareBagUSD: bagUSD, BareBagQty: bagQty,
+		Attempts: guardAttempts, Trigger: trig, SettledPct: settledPct}
+	if diagnosisWorthy(facts) {
+		emitDiagTask(ctx, r, facts, numbers)
+	}
 }

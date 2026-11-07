@@ -1,6 +1,6 @@
 ---
 name: 裁定席
-description: 经济案+工程案无头裁定席（T-0312 经济案/T-0385 工程案矿工/T-0387 skill_patch canon 写径——pending 逐案裁 verdict+回改点窄白名单+升不裁红线）
+description: 经济案+工程案无头裁定席（T-0312 经济案/T-0385 工程案矿工/T-0387 skill_patch canon 写径/T-0431 根因诊断第四分支——pending 逐案裁 verdict+回改点窄白名单+升不裁红线）
 domain: 经济
 ---
 
@@ -9,6 +9,9 @@ domain: 经济
 ## 职责
 两表 pending 逐案裁——verdict∈{canon,dismiss,merge}+理由一句话+回改点词。
 - `fin_econ_lesson` 经济案——venue 注册/资金/席位立换归业主撞即升；
+- `fin_econ_lesson` kind='rootcause_diag' 根因诊断案（T-0431 受理节第四
+  分支）——开放考古产草案（草案=假设非判词，禁自批）+归流执行（DM 既裁：
+  裁过起修法票草稿/并入在飞票判词，裁驳错因入案卷再诊断）；
 - `fin_eng_lesson` 工程案（T-0385 事件账矿工起草——升件/驳回/异常/
   返修/收口偏离签名聚类）——判词径照旧三态，KB 落 docs/工程经验库。
 
@@ -90,6 +93,70 @@ SG psql（FIN_DSN env 径）：
 - 裁词回 ops_decision：status→verdicted 镜像触发器同径（通用机制
   不另设）——「为什么平（close 行）×判得如何（outcome 行/裁词行）」
   双账闭环；正常结案（expected）无案——判定机拍内零烧，有案才耗本席。
+
+## 根因诊断案受理节（kind=rootcause_diag——T-0431 案源·受理节第四分支）
+
+- 案源：ledger 结案判定机（postmortem 同拍）——bug 形异常（账实差未定性
+  残袋挂账/认知集外触发/守卫环 attempts≥2）自动生成 `fin_econ_lesson`
+  kind='rootcause_diag' entity_ref=`position#<id>`（与 trade_postmortem
+  同 ref 并行，UNIQUE 幂等一仓一案；纯市况案不生成——三分支消化）。
+- numbers 机读件：`case`=案卷原貌（postmortem 异常码+守卫环+账实差）/
+  `sources`=案卷源标签/`seeds`=假说族种子（先例谱确定性匹配——族先验
+  非判词）/`target_output`=产出契约。
+- **受理=开放考古排班**（草案段——status='pending' 行）：
+  1. 读案卷+跑 seeds/证据查询锚（只读 SQL——FIN_DSN 径）；
+  2. **开放考古**：/opt/o 代码仓只读（Read/grep 证据锚指径上下文——
+     禁写禁 git 操作禁任何落盘）；
+  3. 产出诊断草案：`最可能根因+证据链（锚列）+建议修法面`——族标=
+     seeds 命中族（词谱匹配）或 `novel:<一句定性>`（谱外可立新族，
+     开放考古不受谱限）；
+  4. 落位（**草案是唯一产出——禁线**）：
+     `UPDATE fin_econ_lesson SET numbers=numbers||'<草案>'::jsonb,
+     status='drafted' WHERE id=<n> AND kind='rootcause_diag'`
+     ——草案 jsonb=`diagnosis`{hypothesis/family/evidence[]/fix_surface/
+     drafted_at/duration_ms}（duration_ms=案卷 ts→草案落位实测时长，
+     T-0431 时长锚）；同拍 ops_event `诊断草案` 行（seat=裁定席，
+     ticket=T-0431 环票号，note=`诊断草案 fin_econ_lesson#<id>
+     family=<族> 假设:<一句话> 修法面:<一句话>`）——DM 可读判词行
+     +eventbus dm 白名单唤醒决策席；
+  5. **禁 venue 写禁 fin_* 写**（诊断席零钱径——代码面核在案）：
+     fin_position/fin_order/fin_order_leg/fin_holding/fin_guard_close/
+     fin_ledger/fin_cashflow 写径零、app_config 写零、docs/tasks/与
+     skills/ 与工程经验库写零（KB 判词径归裁过归流后既有面）、
+     trigger_verdict 覆写零（判词归流后另径）；**禁自批**——status 只到
+     'drafted'（草案=假设非判词，verdict 归 DM）。
+- **归流执行段**（同拍收尾——执行 DM 既裁，非自裁）：扫未归流裁决
+  `SELECT id,event,note FROM ops_event WHERE event IN ('裁决','驳回')
+  AND note LIKE '诊断草案 fin_econ_lesson#%' ORDER BY id`，对每行查
+  `SELECT 1 FROM ops_event WHERE event='归流' AND note LIKE 'ruling#<该行id> %'`
+  无在才行（幂等键）：
+  - **裁决（通过）**：读案行 numbers.diagnosis.family——
+    ①并入判：`SELECT ticket FROM fin_ticket_draft WHERE signature=
+    'rootcause:'||<family> AND status='materialized' ORDER BY ts DESC
+    LIMIT 1` 在飞（该票 latest ops_event 非完成/作废）→只翻案
+    `UPDATE ... SET status='verdicted', verdict_ref='diag:<family>:
+    DM裁#<rid>:并入在飞票<ticket>'`（并入既有案判词）；
+    ②否则修法票自动草稿（携根因+建议面）：`INSERT INTO fin_ticket_draft
+    (signature,kind,lesion_key,payload) VALUES('rootcause:<family>',
+    'rootcause_diag',entity_ref,'{slug:rootcause-<family>-<仓号>,title:
+    根因诊断修法票:<假设一句话>,signature:rootcause:<family>,kind:
+    rootcause_diag,lesion_key:position#<id>,evidence_ids:[诊断草案证据
+    ops_event 行],evidence_note:<根因+证据链>,evidence_query:<主证据
+    查询>,domain_hint:<建议修法面>}')`——物料化归 dm_tick 既有
+    ticketdraft 尾段（候选态零自派，批准权=COS/DM）→翻案
+    `verdict_ref='diag:<family>:DM裁#<rid>:修法票草稿draft#<id>'`；
+  - **驳回**：错因入案卷（草案质量自学习）——`UPDATE ... SET
+    status='pending', numbers=numbers||jsonb_build_object('diag_state',
+    'rejected','reject_reason','<错因>','diag_attempts',COALESCE((
+    numbers->>'diag_attempts')::int,0)+1)`——再诊断携驳回因（考古先读
+    reject_reason 不重蹈）；diag_attempts≥3→`status='verdicted',
+    verdict_ref='diag:驳回超限:<错因>'`+ops_event 无类升件行（escalate.sh
+    类 scope 传空——诊断草案面永不入判例自动裁，人机分界防自批回环）；
+  - 同拍 ops_event `归流` 行留账（note=`ruling#<rid> fin_econ_lesson#<id>
+    <动作一句话>`）——幂等键+审计链；status→verdicted 同拍 ops_decision
+    镜像照旧（通用机制不另设）。
+- 升不裁：案卷证据锚全跑不出/代码考古无从下锚→ops_headless stalled 行
+  +留 pending 不强裁（裁定席只裁能裁的）。
 
 ## 升不裁
 kind 不熟/理由写不出/涉红线（资金/新平台/席位）→ops_headless stalled 行
