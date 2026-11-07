@@ -40,6 +40,7 @@ step "migrations";  bash scripts/check_migrations.sh            || fail "迁移�
 step "bridge-audit"; bash scripts/check_bridge_registry.sh         || fail "桥域对账闸红"
 step "tolerate-report"; bash scripts/check_tolerate_report.sh      || fail "容错必报 lint 红"
 step "ops-chain";   bash scripts/check_ops_chain.sh                || fail "ops 账链闸红"
+step "seat-writes"; bash scripts/check_seat_writes.sh              || fail "席位写域闸红"
 # 测谱分级（T-0409 刀②+④；T-0433 二期插 merge-scoped 档）：变更面=
 # 已提交面（merge-base...HEAD）∪工作树面（status --porcelain 含
 # untracked），与 docs-only 豁免同径收集不复制判据。四档——
