@@ -775,3 +775,24 @@ func TestFaceBaselineServiceCOS上行Registered(t *testing.T) {
 		t.Fatalf("%s 理由键空——注册式不静默（depblind 豁免同律）", scope)
 	}
 }
+
+// TestFaceBaselineDepPairConfigMetaDMRegistered T-0490 先红桩（T-0388 修复
+// 类律——病灶存在断言修前红+同断言修后绿）：签名面
+// face:dep_pair:config:meta→DM 机批闸册 必须在人工基线册。根因锚：meta
+// app_config 键域=fin_0143 迁移种 meta.autoapprove.registry（T-0455 册本体）
+// 在册即面，读者=depConfigReaders["meta"] 册载「DM 机批闸册」（T-0448 补册
+// ——dm_autoapprove.sh 实读同键，签名→钦定文件径白名单=候选票批权径在案；
+// 本票自身即 #4373 机批实证）；枚举对=depenum ④族 app_config 键域×读面册
+// 本体零硬编码——域在册恒产非产消断，册外窗摆/重种回摆重复升件炸起草拍
+// （T-0393 链，生产实证升件源 #4037→draft#28→#4361 起草→#4373 已批）。
+// 修前未登记=红；入册后同断言绿且理由键非空（注册式不静默）。
+func TestFaceBaselineDepPairConfigMetaDMRegistered(t *testing.T) {
+	scope := "face:dep_pair:config:meta→DM 机批闸册"
+	reason, ok := faceBaselineExempt(scope)
+	if !ok {
+		t.Fatalf("病灶存在：%s 未入人工基线册——窗摆回将重复升件（T-0490）", scope)
+	}
+	if strings.TrimSpace(reason) == "" {
+		t.Fatalf("%s 理由键空——注册式不静默（depblind 豁免同律）", scope)
+	}
+}

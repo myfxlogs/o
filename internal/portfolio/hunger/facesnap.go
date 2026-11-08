@@ -81,6 +81,14 @@ var faceBaselineWhitelist = map[string]string{
 	// 罩位），静默 >7d 出集再活跃=再现新面再升件再起草循环（T-0393
 	// 链，T-0471 CEO 同型先例）。
 	"face:service:席O-COS": "T-0474 入册——席O-COS=COS 秘书席交互席位（业主令 2026-11-04）：O-COS tmux 会话 report.sh 回退径自报（无 O_SEAT/映射表无 席O-COS→COS 条目），ops_event 写径合法；队空零写间歇面窗摆登记不重复升；生产亲证 2026-11-08 00:18Z 首行 49 行（ops_event #3931 升件源）",
+	// T-0490：config:meta→DM 机批闸册 配对面——meta app_config 键域
+	// =fin_0143 迁移种 meta.autoapprove.registry（T-0455 册本体，签名→
+	// 钦定文件径白名单）在册即面；读者=depConfigReaders["meta"] 册载
+	// 「DM 机批闸册」（T-0448 补册——dm_autoapprove.sh 实读同键=候选
+	// 票批权径，本票自身 #4373 机批实证）；枚举对=depenum ④族键域×
+	// 读面册本体零硬编码，域在册恒产非产消断——册外/重种回摆重复
+	// 升件炸起草拍（T-0393 链，升件源 #4037）。
+	"face:dep_pair:config:meta→DM 机批闸册": "T-0490 入册——meta 键域=fin_0143 种 meta.autoapprove.registry（T-0455 机批册本体）在册即面，读者册载 DM 机批闸册（dm_autoapprove.sh 实读同键，批权径在案）；枚举对 depConfigReaders 册内合法新面登记不重复升；生产亲证 app_config meta.autoapprove.registry 在册+升件源 ops_event #4037（机批已批 #4373）",
 }
 
 // faceRow 单面行（kind=面类五键，face=面键——同拍批内 kind+face 唯一）。
