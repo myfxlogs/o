@@ -1567,3 +1567,21 @@
   C3=9a7c80aa5，基于 master@f7fd69559）；票面 §八回填+判据预证+偏离说明；
   数据流.md 机械轨批派段链图同 commit。merge+部署归 COS 同席（GW-001 例外
   授权面），迁移 fin_0148 随发窗生效。
+
+## 2026-11-09 GW-001 段D 外派施工（业主单行令→施工席）
+
+- **授权**：业主逐段转发制——段D 诊断前段四件（D1 fast_close 复发闸/D2
+  平仓监察 bug 支 draft 直落/D3 dm_queue 伪键诊断支/D4 verdict_reflow
+  归流剥离），串行勿 merge 勿部署，完报证据移交 COS 复审。
+- **基座裁断**（施工席裁量，报 COS 对账）：分支基座取**本地 master**
+  非 origin/master——origin 无段B/段C 线，段D3 的 review 面以段B1 版
+  dm_queue 为准；施工中 master 两度前进（events 洪泛件/T-0485/段C），
+  两度 rebase 收编（换基实录：段C candidate 面并入 dm_queue 冲突三处
+  手合+DIAG_JOIN set -u 未绑补默认初始化）。
+- **迁移号让位**：fin_0148 被 T-0485 eval_pulse 占、fin_0149 被段C
+  autoapprove_family 占（并入序在先）——段D 迁移重编 fin_0150，DDL 零改。
+- **范围外发现不擅动**（交付备注面）：段C2 族↔册对账桩
+  TestDiagFamiliesRegisteredInAutoapproveRegistry 仍读
+  migrations/fin_0148_autoapprove_family.sql——段C 并入迁号 fin_0149 后
+  路径失配恒 skip（master 同款在案，非段D 新增）；修法=桩内路径改
+  fin_0149，归 COS/段C 责任面裁决。
