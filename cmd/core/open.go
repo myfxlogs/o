@@ -27,10 +27,11 @@ type hedgeOpener struct {
 	gate  *risk.Gate
 	r     *execution.Runner
 	cli   *okxexec.Client
-	dcd   dcdVenue          // T-0259 桩测注伪缝——nil=cli 产线形
-	xcli  *mt5LazyCli       // T-0145：mt5 懒连会话件（xvenue-carry 执行/方言/现读同件）
-	xdial mtexec.Dialect    // T-0145：方言译件（官名→venue 符号唯一天）
-	xds   *mt5.DialectStore // T-0145：方言行仓（ct_val/min_sz/lot_step 基线读）
+	dcd   dcdVenue             // T-0259 桩测注伪缝——nil=cli 产线形
+	xcli  xvenueSess           // T-0145：mt5 懒连会话件（xvenue-carry 执行/方言/现读同件——窄面桩测注假）
+	xdial mtexec.Dialect       // T-0145：方言译件（官名→venue 符号唯一天）
+	xds   *mt5.DialectStore    // T-0145：方言行仓（ct_val/min_sz/lot_step 基线读）
+	xmeta execution.MetaLoader // T-0145 返修①桩测缝——nil=h.loadMeta 产线形（xvenue e2e 桩绕 venue 活读）
 }
 
 // Open live 策略开仓：双帽取小→闸→腿构→原子执行。任一环败=err 上抛

@@ -8,15 +8,18 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+
+	"o/internal/trading/okxexec"
 )
 
 // xvFake 分 venue 记录桩（调用序共享指针——双腿序断言）。
 type xvFake struct {
-	seq    *[]string
-	name   string
-	fail   bool // Place 传输败→Resolve unknown=歧义（假 absent 病灶径）
-	ticket int64
-	legs   []Leg
+	seq       *[]string
+	name      string
+	fail      bool              // Place 传输败→Resolve unknown=歧义（假 absent 病灶径）
+	apiReject *okxexec.APIError // envelope 业务拒（返修①终局透传锚）
+	ticket    int64
+	legs      []Leg
 }
 
 func (f *xvFake) Cancel(_ context.Context, _ Leg, _ string) error { return nil }
@@ -27,6 +30,9 @@ func (f *xvFake) Place(_ context.Context, leg Leg, clOrdID string) (OrderResult,
 		tag = fmt.Sprintf("%s:close:t%d", f.name, leg.Ticket)
 	}
 	*f.seq = append(*f.seq, tag)
+	if f.apiReject != nil {
+		return OrderResult{ClOrdID: clOrdID, State: "absent"}, f.apiReject
+	}
 	if f.fail {
 		return OrderResult{ClOrdID: clOrdID, State: "unknown"}, errors.New("transport down")
 	}
@@ -110,6 +116,42 @@ func TestXvenueLeg2FailRollback(t *testing.T) {
 	var n int
 	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_position WHERE execution_id=$1`, eid).Scan(&n); err != nil || n != 0 {
 		t.Fatalf("回滚后仓行=%d", n)
+	}
+}
+
+// 返修①端到端锚：Execute leg2 终局 APIError %w 透传——wiring 全链断言
+// （venue 拒→placeAndResolve→Execute→err 链 errors.As 可达 TerminalInstErr）。
+// 旧径 leg2 出口裸 fmt.Errorf 无 %w 全吞=okx 终局联动死径（delist/停盘拒→
+// 不入册→策略不退→armed 每拍 leg1 真开+leg2 拒+OrderClose 真平=开平 churn
+// 烧真钱）。本锚堵「handler 过线径断」测试缺口——分类判据在 Execute 边界可判。
+func TestXvenueLeg2TerminalPassthrough(t *testing.T) {
+	var seq []string
+	m5 := &xvFake{seq: &seq, name: "mt5", ticket: 777}
+	ok := &xvFake{seq: &seq, name: "okx",
+		apiReject: &okxexec.APIError{Code: "51001", Msg: "Instrument ID doesn't exist"}}
+	ctx, r := setup(t, RouterExecutor{"mt5": m5, "okx": ok})
+	did := mkToken(t, ctx, r, false, false, "allow")
+	in := mkIntent(did)
+	in.Legs = xvLegs()
+	eid, err := r.Execute(ctx, in)
+	if err == nil {
+		t.Fatal("leg2 终局拒应 LEGGED")
+	}
+	if !okxexec.TerminalInstErr(err) {
+		t.Fatalf("终局 APIError 被吞——%%w 透传断链（untradeable 联动死径）: %v", err)
+	}
+	var state string
+	if err := r.pool.QueryRow(ctx, `SELECT state FROM fin_execution WHERE id=$1`, eid).Scan(&state); err != nil || state != "rolled_back" {
+		t.Fatalf("state=%s（应 rolled_back）", state)
+	}
+	var rbSeen bool
+	for _, s := range seq {
+		if s == "mt5:close:t777" {
+			rbSeen = true
+		}
+	}
+	if !rbSeen {
+		t.Fatalf("mt5 回滚未携 ticket=777 OrderClose: %v", seq)
 	}
 }
 

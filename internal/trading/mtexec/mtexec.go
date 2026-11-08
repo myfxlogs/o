@@ -33,6 +33,8 @@ import (
 
 // Cli mt5 会话件（authed ctx 携 token——executor 侧不持凭据）。
 // 产线=cmd 懒连会话件：可选实现 Suspecter——RPC 传输败标失效下拍重连。
+// T-0145 返修②取用点契约：会话未建 Conn() 返 nil、MT5() 返 nil——executor
+// 取用点 nil 守 err 上浮（nil conn/nil interface 调方法=panic 禁径）。
 type Cli interface {
 	Authed(ctx context.Context) context.Context
 	Conn() *grpc.ClientConn
@@ -52,63 +54,40 @@ type Dialect interface {
 	Escalate(ctx context.Context, canonical, reason string)
 }
 
-// APIError venue 业务拒（mtapi Error 载荷——Code=mt5pb 枚举串、Msg=venue
-// 拒文；TerminalInst=inst 级终局位——T-0145 untradeable 联动分类锚）。
-type APIError struct {
-	Code         string
-	Msg          string
-	TerminalInst bool
-}
+// errNoConn 会话未建取用点统一 err（T-0145 返修②——懒连败 Conn=nil/MT5=nil：
+// grpc nil conn 调方法=cc.dopts nil deref panic、nil interface 即炸——取用点
+// err 上浮走歧态/定态径 fail-closed，非炸进程崩循环）。
+var errNoConn = errors.New("mt5 会话未建（懒连败 conn=nil）fail-closed")
 
-func (e *APIError) Error() string { return fmt.Sprintf("mt5 %s: %s", e.Code, e.Msg) }
-
-// TerminalInstErr mt5 腿 inst 级终局判定（T-0145——SYMBOL_NOT_FOUND/
-// INVALID_SYMBOL/TRADE_DISABLED 三码钦定入册锚；瞬态族（MARKET_CLOSED/
-// REQUOTE/REQUEST_ERROR 等）/参数族（INVALID_VOLUME/STOPS/PRICE）/资金族
-// （NO_MONEY）皆禁入册——市闭=会话复开非永拒，参数=我方病灶非 venue 事实）。
-func TerminalInstErr(err error) bool {
-	var ae *APIError
-	return errors.As(err, &ae) && ae.TerminalInst
-}
-
-// ambiguousCodes 歧义/瞬态码集——OrderSend 回报此族=单或已建未定态→
-// State=unknown 走 Resolve 双面查定真态（真户实证族：REQUEST_ERROR=
-// MarketOpenWaiterAsync 网关确认超时栈——退避重试即过，实未成交；但
-// 超时窗内可能已成交=歧态势，Resolve 仲裁唯一正径）。价漂/重报族
-// （REQUOTE*/PRICE_CHANGED）同归歧义——拒因是价非单，旧码躺 absent
-// 吞歧义=裸腿险。
-var ambiguousCodes = map[mt5pb.ErrorCode]bool{
-	mt5pb.ErrorCode_REQUEST_ERROR: true, mt5pb.ErrorCode_REQUEST_TIMEOUT: true,
-	mt5pb.ErrorCode_REQUEST_ACCEPTED: true, mt5pb.ErrorCode_REQUEST_ON_WAY: true,
-	mt5pb.ErrorCode_REQUEST_RETURNED_IN_QUEUE:           true,
-	mt5pb.ErrorCode_REQUEST_REJECTED_TO_ABSENCE_CONNECT: true,
-	mt5pb.ErrorCode_REQUOTE:                             true, mt5pb.ErrorCode_REQUOTE_EX: true,
-	mt5pb.ErrorCode_PRICE_CHANGED: true, mt5pb.ErrorCode_NO_PRICES: true,
-	mt5pb.ErrorCode_TIMEOUT: true, mt5pb.ErrorCode_SERVER_BUSY: true,
-	mt5pb.ErrorCode_ANOTHER_PROCESS_IN_PROGRESS: true,
-	mt5pb.ErrorCode_NO_CONNECTION:               true, mt5pb.ErrorCode_CONNECTION_NOT_PERMITTED: true,
-}
-
-// terminalInstCodes inst 级终局码集（untradeable 入册锚——三码钦定：
-// 符号不存在/非法=目录终局；TRADE_DISABLED=broker 关停非瞬态市闭）。
-var terminalInstCodes = map[mt5pb.ErrorCode]bool{
-	mt5pb.ErrorCode_SYMBOL_NOT_FOUND: true, mt5pb.ErrorCode_INVALID_SYMBOL: true,
-	mt5pb.ErrorCode_TRADE_DISABLED: true,
-}
-
-// apiErr mtapi Error 载荷→APIError（终局位/歧义判定同源——Code.String()
-// 枚举串为唯一语义载体，禁字符串匹配拒文）。
-func apiErr(ge *mt5pb.Error) *APIError {
-	code := ge.GetCode()
-	return &APIError{Code: code.String(), Msg: ge.GetMessage(),
-		TerminalInst: terminalInstCodes[code]}
-}
-
-func (e Executor) trading() mt5pb.TradingClient {
+func (e Executor) trading() (mt5pb.TradingClient, error) {
 	if e.T != nil {
-		return e.T
+		return e.T, nil
 	}
-	return mt5pb.NewTradingClient(e.C.Conn())
+	if e.C != nil {
+		if cc := e.C.Conn(); cc != nil {
+			return mt5pb.NewTradingClient(cc), nil
+		}
+	}
+	return nil, errNoConn
+}
+
+// mt5Cli 取用点 nil 守（MT5()=nil=会话未建——Cli 契约面；懒连败径
+// NewMT5Client(nil) 调用=panic 病灶根修）。
+func (e Executor) mt5Cli() (mt5pb.MT5Client, error) {
+	if e.C != nil {
+		if c := e.C.MT5(); c != nil {
+			return c, nil
+		}
+	}
+	return nil, errNoConn
+}
+
+// authed 取用点 nil 守（Cli 缺/懒连败=无 token ctx——取用点 err 已先行守）。
+func (e Executor) authed(ctx context.Context) context.Context {
+	if e.C == nil {
+		return ctx
+	}
+	return e.C.Authed(ctx)
 }
 
 // suspect 会话失效标记（RPC 传输败径调用——懒连会话件下拍重连自愈；
@@ -162,7 +141,11 @@ func (e Executor) Place(ctx context.Context, leg execution.Leg, clOrdID string) 
 		op = mt5pb.OrderType_OrderType_Sell
 	}
 	vol, _ := strconv.ParseFloat(leg.Sz, 64)
-	r, err := e.trading().OrderSend(e.C.Authed(ctx), &mt5pb.OrderSendRequest{
+	tc, terr := e.trading()
+	if terr != nil {
+		return execution.OrderResult{ClOrdID: clOrdID, State: "unknown"}, terr
+	}
+	r, err := tc.OrderSend(e.authed(ctx), &mt5pb.OrderSendRequest{
 		Symbol: sym, Operation: op, Volume: vol, Comment: &clOrdID})
 	if err != nil {
 		e.suspect() // 传输败=会话疑似失效——懒连件下拍重连自愈
@@ -193,7 +176,11 @@ func (e Executor) placeClose(ctx context.Context, leg execution.Leg, clOrdID str
 			fmt.Errorf("mt5 平仓缺 ticket——fail-closed 禁反向单")
 	}
 	vol, _ := strconv.ParseFloat(leg.Sz, 64)
-	r, err := e.trading().OrderClose(e.C.Authed(ctx), &mt5pb.OrderCloseRequest{
+	tc, terr := e.trading()
+	if terr != nil {
+		return execution.OrderResult{ClOrdID: clOrdID, State: "unknown"}, terr
+	}
+	r, err := tc.OrderClose(e.authed(ctx), &mt5pb.OrderCloseRequest{
 		Ticket: leg.Ticket, Lots: &vol})
 	if err != nil {
 		e.suspect()
@@ -219,7 +206,11 @@ func (e Executor) Resolve(ctx context.Context, leg execution.Leg, clOrdID string
 	if leg.Close {
 		return e.resolveClose(ctx, leg, clOrdID)
 	}
-	or, err := e.C.MT5().OpenedOrders(e.C.Authed(ctx), &mt5pb.OpenedOrdersRequest{})
+	mc, merr := e.mt5Cli()
+	if merr != nil {
+		return execution.OrderResult{ClOrdID: clOrdID, State: "unknown"}, merr
+	}
+	or, err := mc.OpenedOrders(e.authed(ctx), &mt5pb.OpenedOrdersRequest{})
 	if err != nil {
 		e.suspect()
 		return execution.OrderResult{ClOrdID: clOrdID, State: "unknown"}, err
@@ -230,7 +221,7 @@ func (e Executor) Resolve(ctx context.Context, leg execution.Leg, clOrdID string
 				FillPx: o.GetOpenPrice(), FillSz: o.GetLots(), FillTicket: o.GetTicket()}, nil
 		}
 	}
-	hr, err := e.C.MT5().OrderHistory(e.C.Authed(ctx), &mt5pb.OrderHistoryRequest{})
+	hr, err := mc.OrderHistory(e.authed(ctx), &mt5pb.OrderHistoryRequest{})
 	if err != nil {
 		e.suspect()
 		return execution.OrderResult{ClOrdID: clOrdID, State: "unknown"}, err
@@ -248,7 +239,11 @@ func (e Executor) Resolve(ctx context.Context, leg execution.Leg, clOrdID string
 // 未落 live；票消=close 已成 filled）。comment 幂等键不可靠（OrderClose
 // 回报注释域非委托键——T-0145 实证面：ticket 唯一锚）。
 func (e Executor) resolveClose(ctx context.Context, leg execution.Leg, clOrdID string) (execution.OrderResult, error) {
-	or, err := e.C.MT5().OpenedOrders(e.C.Authed(ctx), &mt5pb.OpenedOrdersRequest{})
+	mc, merr := e.mt5Cli()
+	if merr != nil {
+		return execution.OrderResult{ClOrdID: clOrdID, State: "unknown"}, merr
+	}
+	or, err := mc.OpenedOrders(e.authed(ctx), &mt5pb.OpenedOrdersRequest{})
 	if err != nil {
 		e.suspect()
 		return execution.OrderResult{ClOrdID: clOrdID, State: "unknown"}, err

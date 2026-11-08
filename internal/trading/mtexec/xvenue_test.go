@@ -127,6 +127,56 @@ func TestResolveOpenTwoFaced(t *testing.T) {
 	}
 }
 
+// deadCli ensure 恒败会话桩（懒连败形态——Conn()=nil/MT5()=nil；grpc v1.84
+// nil conn 调方法=cc.dopts nil deref panic 实证、nil interface 即炸）。
+type deadCli struct{}
+
+func (deadCli) Authed(ctx context.Context) context.Context { return ctx }
+func (deadCli) Conn() *grpc.ClientConn                     { return nil }
+func (deadCli) MT5() mt5pb.MT5Client                       { return nil }
+
+// mustUnknownErrNoPanic nil-conn 取用点断言壳（返修②——recover 钉死「返 err
+// 非 panic」：重连败径 err 上浮走歧态/定态径=自愈钦定，炸进程=o-core 崩循环
+// systemd 拉起→腿在案再试→再 panic 违例）。
+func mustUnknownErrNoPanic(t *testing.T, what string, fn func() (execution.OrderResult, error)) {
+	t.Helper()
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("%s nil-conn 取用 panic（应 unknown+err 上浮非炸进程）: %v", what, r)
+		}
+	}()
+	res, err := fn()
+	if err == nil || res.State != "unknown" {
+		t.Fatalf("%s 应 unknown+err: %+v %v", what, res, err)
+	}
+}
+
+// 返修②锚：Cli ensure 恒败→Place/PlaceClose/Resolve/ResolveClose/Cli 本体缺
+// 全取用点返 err 非 panic。
+func TestNilConnUsePointErrNotPanic(t *testing.T) {
+	ctx := context.Background()
+	e := Executor{C: deadCli{}, X: dxIdentity()}
+	mustUnknownErrNoPanic(t, "Place", func() (execution.OrderResult, error) {
+		return e.Place(ctx, xvLeg, "ph1")
+	})
+	mustUnknownErrNoPanic(t, "PlaceClose", func() (execution.OrderResult, error) {
+		return e.Place(ctx, execution.Leg{Venue: "mt5", InstID: "BTCUSDm",
+			Close: true, Ticket: 777, Sz: "0.5"}, "ph2")
+	})
+	mustUnknownErrNoPanic(t, "Resolve", func() (execution.OrderResult, error) {
+		return e.Resolve(ctx, xvLeg, "ph1")
+	})
+	mustUnknownErrNoPanic(t, "ResolveClose", func() (execution.OrderResult, error) {
+		return e.Resolve(ctx, execution.Leg{Venue: "mt5", InstID: "BTCUSDm",
+			Close: true, Ticket: 777, Sz: "0.5"}, "rb1")
+	})
+	// Cli 本体缺（装配缺）=同守不炸
+	e2 := Executor{X: dxIdentity()}
+	mustUnknownErrNoPanic(t, "NilCli/Place", func() (execution.OrderResult, error) {
+		return e2.Place(ctx, xvLeg, "ph3")
+	})
+}
+
 // 锚⑦d：resolveClose 平腿——OpenedOrders 按 ticket 判：票在=close 未落
 // live；票消=平成 filled（comment 幂等键不可靠——T-0145 实证 ticket 唯一锚）。
 func TestResolveCloseByTicket(t *testing.T) {

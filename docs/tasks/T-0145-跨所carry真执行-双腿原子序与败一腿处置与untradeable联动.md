@@ -1,6 +1,6 @@
 # T-0145 跨所 carry 真执行——双腿原子序+败一腿处置+untradeable 联动
 
-- 状态：已批（业主令 2026-11-07「嗯，交给DM去处理」+「踢DM起来，立派验收部署」）
+- 状态：待验（返修1 收口——docs/prompts/T-0145-返修1.md 两缺陷修复完，全谱绿戳）
 - 归口：钱径（真钱 venue 写面——DM 裁域）
 - 领取：内联（执行=人工径——DM 裁域件，depgate/机器施工禁派）
 - 号源：T-0145——T-0144/T-0330 引用在档的「另票」真身
@@ -97,3 +97,39 @@ internal/trading/mtexec/mtexec.go；internal/trading/execution/
 internal/trading/execwiring/execwiring.go；
 internal/portfolio/lifecycle/opener.go；cmd/core/{main,open}.go+
 新 xvenue.go；各面 _test.go。
+
+## 返修1 结果回填（[角色:施工] devin 2026-11-08——docs/prompts/T-0145-返修1.md 两缺陷钦定面）
+
+### 缺陷① okx 腿终局吞码（untradeable 联动死径）
+
+| 面 | 修 |
+|---|---|
+| flow.go Execute leg2 | 败径 `%w` 透传（`leg2 败/歧义→LEGGED 回滚 leg1: %w`）——venue APIError 上浮至 TerminalInstErr 可判；err==nil 纯歧义分支保原文 |
+| flow.go placeAndResolve | 同型漏面根修：Place 原 err 存 `perr`，Resolve=absent 兜底径 `state=%s: %w` 透传——mtexec.APIError（leg1 mt5 终局）/非 51 envelope 拒不再被吞；51 族判取内层真码（envelope code=1 壳+data[0].sCode=真因→vc 取 SCode，leg 留痕同真因） |
+| okxexec.TerminalInstErr | 内层 SCode 同判（51001/51003）——/trade/order 终局拒实返 code=1 壳形，只看信封码=结构性永假 |
+| cmd/core xvenueOpen | `xvenueErr` 终局分类件+`cerr` 闭包盖**全 err 出口**（非仅 Execute xerr——loadMeta/腿构/价/方言/闸拒等 Execute 前 okx/mt5 面 err 同走分类；okx→okx inst、mt5→cfd canonical 各入各册，双腿+提案退役共件）；SymbolParams `GetError` payload 拒 err 化（`mtexec.PbAPIError`）同走分类 |
+
+### 缺陷② mt5LazyCli nil-conn panic（自愈钦定违例）
+
+| 面 | 修 |
+|---|---|
+| mt5LazyCli.MT5() | 懒连败返 nil（原 NewMT5Client(nil)——调用即 nil deref panic）；Conn() 注释订正（nil conn 调用=panic 非「错误上浮」） |
+| mtexec.Executor | `trading()`/`mt5Cli()`/`authed()` 取用点 nil 守→`OrderResult{State:"unknown"}+errNoConn` 上浮走歧态/定态径——Place/PlaceClose/Resolve/ResolveClose 全覆盖；Cli 契约注释钉 nil 语义 |
+| cmd/core xvenueOpen/Mt5Sizer | SymbolParams/ContractPos 取用点 `mc==nil` 守 err 上浮；hedgeOpener.xcli/Mt5Sizer.C 窄面化 `xvenueSess`（桩测注假缝——dcd 注伪缝同款）；open.go 增 `xmeta` 桩测缝（nil=h.loadMeta 产线形） |
+
+### 桩测（三件必修全落）
+
+| 桩 | 断言 |
+|---|---|
+| `TestXvenueLeg2TerminalPassthrough`（execution） | 穿 Execute 端到端——leg2 fake 终局 APIError→err 链 `okxexec.TerminalInstErr` 可判+rolled_back+mt5:close:t777 回滚留痕 |
+| `TestXvenueOpenE2EOkxTerminal`（cmd/core） | 穿 xvenueOpen→Execute 全真径——fin_venue_untradeable(BTC-USDT-SWAP,51001) 落行+双腿退役+提案退役三件全落（堵「handler 过线径断」缺口） |
+| `TestNilConnUsePointErrNotPanic`（mtexec）+`TestMt5SizerDeadSessErrNotPanic`（cmd/core） | ensure 恒败→Place/PlaceClose/Resolve/ResolveClose/ContractPos 返 err 非 panic（recover 断言） |
+
+### 机检
+
+build✓ vet✓ gofmt✓ import✓ env✓ rejects✓ config-write-domain✓ migrations✓ bridge-audit✓ tolerate-report✓ ops-chain✓ go test 全谱绿（`bash scripts/check_all.sh` mode=merge-scoped 戳在案——含迁移种子 pgstore+proto 附加）。
+
+### 备注（超票面观察，留裁）
+
+- 返修①顺带根修三处同型漏面（51 族内层码判、SCode 终局判、SymbolParams payload err 化）——皆「终局分类死径」同病灶族，diff 仍在票面施工面邻域；okxexec/order.go 超字面施工面（返修①实现必需——信封壳形实返证）。
+- venue 语义彩排前置/exec.xvenue_open=false 闸位/迁移 fin_0142/既有七锚桩测全未动（返修票面「不动」清单守）。

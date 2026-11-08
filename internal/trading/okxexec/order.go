@@ -147,9 +147,13 @@ func TerminalInstErr(err error) bool {
 	if !errorsAs(err, &ae) {
 		return false
 	}
-	switch ae.Code {
-	case "51001", "51003":
-		return true
+	// 内层真码同判（T-0145 返修①——/trade/order 终局拒信封 code=1「All
+	// operations failed」壳+data[0].sCode=51001 真因；只看信封码=结构性永假）。
+	for _, c := range []string{ae.Code, ae.SCode} {
+		switch c {
+		case "51001", "51003":
+			return true
+		}
 	}
 	return false
 }

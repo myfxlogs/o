@@ -91,6 +91,12 @@ func (r *Runner) Execute(ctx context.Context, in Intent) (int64, error) {
 		}
 		r.setState(ctx, execID, "legged")
 		r.rollback(ctx, execID, l1, res1)
+		// T-0145 返修①：败径 %w 透传——venue APIError（okx/mtexec 终局码）吞不得，
+		// xvenue 终局分类靠 errors.As 判（无 %w=untradeable 联动死径，armed 重试
+		// 开平 churn 烧真钱）；err==nil 纯歧义分支保原文（无码可透）。
+		if err != nil {
+			return execID, fmt.Errorf("leg2 败/歧义→LEGGED 回滚 leg1: %w", err)
+		}
 		return execID, fmt.Errorf("leg2 败/歧义→LEGGED 回滚 leg1")
 	}
 	// ⑥仓行（delta 中性标——funding 对冲天然）——仅 open 径建（T-0083 返修①：
@@ -133,11 +139,17 @@ func (r *Runner) placeAndResolve(ctx context.Context, execID int64, no int, leg 
 	var ae *okxexec.APIError
 	if errors.As(err, &ae) {
 		vc, vm = ae.Code, ae.Msg
-		if strings.HasPrefix(ae.Code, "51") {
+		if ae.SCode != "" {
+			// 内层真码优先（envelope code=1「All operations failed」壳+data[0]
+			// sCode=真因——T-0145 返修①：51 族判与 leg 留痕同取内层码）。
+			vc, vm = ae.SCode, orVal(ae.SMsg, ae.Msg)
+		}
+		if strings.HasPrefix(vc, "51") {
 			r.leg(ctx, execID, no, leg, clOrdID, "failed", vc, vm)
 			return OrderResult{ClOrdID: clOrdID, State: "absent"}, fmt.Errorf("venue 拒: %w", err)
 		}
 	}
+	perr := err // Place 原 err 留存——Resolve 重赋后兜底透传（venue APIError 禁吞）
 	if err != nil {
 		// 传输败/非族 envelope 拒→clOrdId 定态三分支；查询亦败=ambiguous 禁补单
 		//（拒码 vc/vm 透传留痕——禁走 err 径丢码）。
@@ -159,6 +171,11 @@ func (r *Runner) placeAndResolve(ctx context.Context, execID int64, no int, leg 
 		// T-0046 ⑤：envelope 拒码兜底——Resolve 后 absent 态 res 无码（Resolve 不产
 		// 拒码），先 Place 已抽的 vc/vm 顶上，禁留空吞真拒因。
 		r.leg(ctx, execID, no, leg, clOrdID, "failed", orVal(res.VenueCode, vc), orVal(res.VenueMsg, vm))
+		// T-0145 返修①：Place 原 err %w 透传——mtexec.APIError/非 51 envelope 拒走
+		// Resolve=absent 径原码吞不得（终局分类靠 err 链 errors.As 判）。
+		if perr != nil {
+			return res, fmt.Errorf("state=%s: %w", res.State, perr)
+		}
 		return res, fmt.Errorf("state=%s", res.State)
 	}
 }

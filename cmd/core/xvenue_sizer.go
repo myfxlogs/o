@@ -5,17 +5,29 @@ import (
 	"context"
 	"fmt"
 
+	"google.golang.org/grpc"
+
 	mt5pb "o/internal/gen/mtapi/mt5"
 	"o/internal/mt5"
 	"o/internal/trading/mtexec"
 )
+
+// xvenueSess mt5 会话窄面（xvenueOpen/Mt5Sizer 取用缝——产线=*mt5LazyCli；
+// T-0145 返修②：桩测可注假，nil-conn 取用点守契约随面走）。
+type xvenueSess interface {
+	account(ctx context.Context) (string, error)
+	Authed(ctx context.Context) context.Context
+	Conn() *grpc.ClientConn
+	MT5() mt5pb.MT5Client
+	Suspect()
+}
 
 // Mt5Sizer mt5 腿平仓量现读面（guard.VenueSizer——T-0145 venue 路由专用件：
 // ContractPos=OpenedOrders 实读手数（我方仓筛 comment 'ph' 幂等前缀——
 // 他席/手工仓不混读）；LotSz=方言行 lot_step（台账基线——SymbolParams
 // 活读预检在开仓径另位）；SpotAvailBal=CFD 无现货腿恒拒）。
 type Mt5Sizer struct {
-	C *mt5LazyCli
+	C xvenueSess
 	X mtexec.Dialect
 	D *mt5.DialectStore
 }
@@ -25,7 +37,13 @@ func (s Mt5Sizer) ContractPos(ctx context.Context, canonical string) (float64, e
 	if err != nil {
 		return 0, err
 	}
-	or, err := s.C.MT5().OpenedOrders(s.C.Authed(ctx), &mt5pb.OpenedOrdersRequest{})
+	// T-0145 返修②：MT5()=nil=会话未建——nil 守 err 上浮（OpenedOrders
+	// 实读径懒连败=panic 病灶根修，guard 现读面同案）。
+	mc := s.C.MT5()
+	if mc == nil {
+		return 0, fmt.Errorf("mt5 会话未建（懒连败）fail-closed——ContractPos 现读不可得")
+	}
+	or, err := mc.OpenedOrders(s.C.Authed(ctx), &mt5pb.OpenedOrdersRequest{})
 	if err != nil {
 		s.C.Suspect()
 		return 0, err
