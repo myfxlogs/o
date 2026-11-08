@@ -114,4 +114,16 @@ var faceBaselineWhitelist = map[string]string{
 	// 罩位，T-0449/0453/0454/0491 同族先例），册外窗摆回重复升件炸
 	// 起草拍（T-0393 链，升件源 #4467）。
 	"face:dep_pair:leg:BTC-USDT-SWAP": "T-0494 入册——BTC-USDT-SWAP 本键腿面：fin_strategy live/degraded 臂在册（ActiveSetUnion 枚举本体），生产亲证 simdrill matrix ephemeral 格行 T-0480 @2026-11-08 09:35:53Z（degraded 设计态+24h TTL 自退役=间歇面窗摆形）；乐器=OKX 主流永续订阅宇宙内实键，腿覆盖供给无虞；册外窗摆回重复升件炸起草拍断（升件源 ops_event #4467）",
+	// T-0497：md_eval_pulse 表面——fin_0148 迁移建 public 基表（T-0485
+	// eval 活动脉冲桥：md fin_opp_eval per-template 聚合派生，projector
+	// serve 拍尾+活性对账写 SG；domain.tsv bridge 入册，fin_0147→0148
+	// 改号在案；SG 侧表+projector_rw SIUD/o_fin_ro SELECT 授权 T-0488
+	// 直放对拍在案）在册即面；写径=projector refreshEvalPulse upsert
+	// （internal/projector/pulse.go projector_rw 授权在案），读径=
+	// hunger 族沉默探针 pulseTemplates+flow_pulse eval 段灯（o_fin_ro
+	// SELECT 授权在案）；table 类面=information_schema BASE TABLE 枚举
+	// 本体零硬编码——建表落地即面，表重建/快照册重置回摆重复升件炸起草
+	// 拍（T-0393 链，升件源 #4759/新面行 #4758/快照批 14/15 在册；CEO
+	// 终态裁 #4768 明载=部署落地合法新面，机批已批 #4784）。
+	"face:table:md_eval_pulse": "T-0497 入册——md_eval_pulse=fin_0148 迁移建 public 基表（T-0485 eval 活动脉冲桥 per-template 聚合派生，domain.tsv bridge 入册；SG 表+授权 T-0488 直放对拍在案）；写径 projector refreshEvalPulse/读径 族沉默探针+eval 段灯授权在案；table 类面 information_schema BASE TABLE 枚举本体零硬编码，建表落地即面；生产亲证 public 基表在册+快照批 14/15 在册（ops_event #4759 升件源，CEO 终态裁 #4768 合法新面，机批已批 #4784）",
 }
