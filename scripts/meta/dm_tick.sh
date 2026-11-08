@@ -133,7 +133,7 @@ if [ "$SKIP_DECISION" -eq 0 ]; then
   "$DECISION_DEVIN" --export "$USAGE_TRANSCRIPT" "${RESUME_FLAG[@]}" \
   -p --model swe --respect-workspace-trust false \
     --permission-mode dangerous -- \
-    "读 /opt/o/skills/CTO席/SKILL.md 裁决协议节+班次节 班次开工——scan 待裁/待派集→逐件裁→rescan→队列空才退；每票动手前查重裁幂等"
+    "读 /opt/o/skills/CTO席/SKILL.md 裁决协议节与班次节——你是CTO无头席,本班开始:扫描待裁决/待派工队列,逐件处理;你的活是裁决与派工,实现代码一律派给施工席,绝不自己写(含merge票内实现件);每办结一件重新扫队列,队列空才退出;动手前查该票是否已有裁决,防重复裁"
   RC=$?
   # ④ 用量采集旁路；失败只告警，不阻断裁决和事件链。
   [ ! -e "$USAGE_TRANSCRIPT" ] || chmod 600 "$USAGE_TRANSCRIPT" 2>/dev/null || true
@@ -196,7 +196,7 @@ if [ -n "$FIN_DSN" ]; then
     if "$MANUAL_LANE_SH" "$tid" "$DISPATCH_TASK_DIR"; then continue; fi # rc0=人工径票滤除；rc1/2=照旧
     st=$(systemctl --user is-active "o-worker-$tid.service" 2>/dev/null || true)
     case "$st" in active|activating) continue;; esac # 精确比对误配恒死修
-    prompt="读 /opt/o/skills/施工席/SKILL.md 施工协议领单/续领 $tid；按票面施工，同票已有 Devin 会话/worktree 时续跑"
+    prompt="读 /opt/o/skills/施工席/SKILL.md 领单 $tid:只做工单范围内的事——写实现码/测试/提交/回填;范围外发现的问题不自己动手,写进交付备注;同票已有 Devin 会话或 worktree 时续跑不新开"
     if "$DISPATCH_WORKER" "$tid" "$model" "$prompt" >/dev/null 2>&1; then
       psql "$FIN_DSN" -qAt -c "INSERT INTO ops_event(seat,event,ticket,note)
         VALUES('CTO','拉起','$tid','漏拉/限流补派——session 续跑')" >/dev/null 2>&1 || true
