@@ -64,11 +64,23 @@ CANDIDATE_ANTI="NOT EXISTS (SELECT 1 FROM ops_event x
     WHERE x.ticket=ops_ticket_phase.ticket
       AND x.ts=ops_ticket_phase.latest_ts
       AND x.event IN ('已批','派单','领单','拉起','裁决','完成','驳回','挂起'))"
+# GW-001 段D3 诊断支（review/all 面）：rootcause_diag 草案落位待裁案
+# 逐案入队——伪键 DIAG-<lesson_id>（COS 评审 P2 修补：不坍缩到环票号
+# T-0431，逐案一键，幂等天然——status='drafted' 唯一性即队列唯一性）。
+# 伪键只在 dm_queue 输出域显形——票册消费者面零污染验明：不建票件不进
+# docs/tasks（next_ticket/票翻/物料化全不识，mech 补拉 compgen 票件
+# 闸结构性滤除）；伪键裁决/归流行落 ops_event 后 phase 投影面 latest=
+# 裁决/归流非收口族——不入 review 谓词回环（裁毕即出队），approved/
+# dispatched 谓词（已批/派单族）结构性不相交。approved/dispatched 面
+# 不扩（草案案无派单相，判据面正交）。
+DIAG_SQL="SELECT 'DIAG-'||id FROM fin_econ_lesson
+  WHERE kind='rootcause_diag' AND status='drafted'"
 if psql "$FIN_DSN" -qAt -c "SELECT 1 FROM ops_ticket_phase LIMIT 0" >/dev/null 2>&1; then
   case "$MODE" in
-    review)     VSQL="SELECT ticket FROM ops_ticket_phase
-      WHERE latest_event IN ('收口','移交','收口待审') AND $REVIEW_ANTI
-      ORDER BY ticket" ;;
+    review)     VSQL="SELECT ticket FROM (
+      SELECT ticket FROM ops_ticket_phase
+        WHERE latest_event IN ('收口','移交','收口待审') AND $REVIEW_ANTI
+      UNION ALL $DIAG_SQL) u ORDER BY ticket" ;;
     approved)   VSQL="SELECT ticket FROM ops_ticket_phase
       WHERE latest_event='已批' AND $APPROVED_ANTI AND $WAIPAI_HIST
       ORDER BY latest_ts,ticket" ;;
@@ -80,10 +92,11 @@ if psql "$FIN_DSN" -qAt -c "SELECT 1 FROM ops_ticket_phase LIMIT 0" >/dev/null 2
     candidate)  VSQL="SELECT ticket FROM ops_ticket_phase
       WHERE latest_event='起草' AND $CANDIDATE_ANTI
       ORDER BY latest_ts,ticket" ;; # GW-001 段C3 水位机检面——候选=起草未批（同刻并列反词同族）
-    *)          VSQL="SELECT ticket FROM ops_ticket_phase
-      WHERE (latest_event IN ('收口','移交','收口待审') AND $REVIEW_ANTI)
+    *)          VSQL="SELECT ticket FROM (
+      SELECT ticket FROM ops_ticket_phase
+        WHERE (latest_event IN ('收口','移交','收口待审') AND $REVIEW_ANTI)
          OR (latest_event='已批' AND $APPROVED_ANTI AND $WAIPAI_HIST)
-      ORDER BY ticket" ;;
+      UNION ALL $DIAG_SQL) u ORDER BY ticket" ;;
   esac
   RAW=$(psql "$FIN_DSN" -qAt -c "$VSQL" 2>/dev/null) || exit 1
 else
@@ -113,21 +126,27 @@ else
           AND e.ts=l.mt AND e.event IN
             ('已批','派单','领单','拉起','裁决','完成','驳回','挂起'))"
   case "$MODE" in
-    review)     PRED="($REVIEW_PRED)"; ORDER="l.ticket"
+    review)     PRED="($REVIEW_PRED)"; ORDER="l.ticket"; DIAG_JOIN=1
                 LSQL="SELECT ticket,max(ts) mt FROM ops_event WHERE ticket<>'' GROUP BY ticket" ;;
-    approved)   PRED="($APPROVED_PRED)"; ORDER="l.mt,l.ticket"
+    approved)   PRED="($APPROVED_PRED)"; ORDER="l.mt,l.ticket"; DIAG_JOIN=
                 LSQL="SELECT ticket,max(ts) mt FROM ops_event WHERE ticket<>'' GROUP BY ticket" ;;
-    dispatched) PRED="($DISPATCH_PRED)"; ORDER="l.mt,l.ticket"
+    dispatched) PRED="($DISPATCH_PRED)"; ORDER="l.mt,l.ticket"; DIAG_JOIN=
                 LSQL="SELECT ticket,max(ts) mt FROM ops_event WHERE event IN
       ('派单','领单','拉起','收口','移交','收口待审','裁决','完成','驳回',
        '挂起','异常') AND ticket<>'' GROUP BY ticket" ;;
     candidate)  PRED="($CANDIDATE_PRED)"; ORDER="l.mt,l.ticket"
                 LSQL="SELECT ticket,max(ts) mt FROM ops_event WHERE ticket<>'' GROUP BY ticket" ;;
-    *)          PRED="(($REVIEW_PRED) OR ($APPROVED_PRED))"; ORDER="l.ticket"
+    *)          PRED="(($REVIEW_PRED) OR ($APPROVED_PRED))"; ORDER="l.ticket"; DIAG_JOIN=1
                 LSQL="SELECT ticket,max(ts) mt FROM ops_event WHERE ticket<>'' GROUP BY ticket" ;;
   esac
-  RAW=$(psql "$FIN_DSN" -qAt -c "SELECT l.ticket FROM (
+  if [ -n "$DIAG_JOIN" ]; then
+    RAW=$(psql "$FIN_DSN" -qAt -c "SELECT ticket FROM (
+      SELECT l.ticket FROM ($LSQL) l WHERE $PRED
+      UNION ALL $DIAG_SQL) u ORDER BY ticket" 2>/dev/null) || exit 1
+  else
+    RAW=$(psql "$FIN_DSN" -qAt -c "SELECT l.ticket FROM (
       $LSQL) l WHERE $PRED
       ORDER BY $ORDER" 2>/dev/null) || exit 1
+  fi
 fi
 printf '%s\n' "$RAW" | awk 'NF && !seen[$0]++'

@@ -50,6 +50,9 @@ python3 - "$OPS_EV_DB" <<'PY'
 import sqlite3, sys
 con = sqlite3.connect(sys.argv[1])
 con.execute("CREATE TABLE ops_event(seat text, event text, ticket text, note text, ts text)")
+# GW-001 段D3 诊断支面表（空表起步——段D3 场景行在其后断言节灌入，
+# 既有 review/approved 精确等值断言不被伪键行扰动）
+con.execute("CREATE TABLE fin_econ_lesson(id integer primary key, kind text, status text)")
 rows = [
     # A 外派+收口（锚①）
     ("COS","外派","T-9001","","2026-01-01 10:00:00.000000+00"),
@@ -272,6 +275,54 @@ for t in T-9061 T-9062 T-9064; do
   ! grep -Fxq "$t" <<<"$cand_view" && { echo "PASS view candidate 排 $t"; pass=$((pass+1)); } \
     || { echo "FAIL view candidate 误含 $t"; fail=$((fail+1)); }
 done
+
+# ══ GW-001 段D3：诊断支伪键（review/all 面扩——legacy+view 双径同断言） ════
+# fixture 灌入（drafted 两案=两并发草案；pending/verdicted=态外；
+# trade_postmortem=kind 外）——运行在既有精确等值断言之后不扰前证。
+python3 - "$OPS_EV_DB" <<'PY'
+import sqlite3, sys
+con = sqlite3.connect(sys.argv[1])
+con.executemany("INSERT INTO fin_econ_lesson(id,kind,status) VALUES(?,?,?)", [
+    (701, "rootcause_diag", "drafted"),
+    (702, "rootcause_diag", "drafted"),
+    (703, "rootcause_diag", "pending"),
+    (704, "rootcause_diag", "verdicted"),
+    (705, "trade_postmortem", "drafted"),
+])
+con.commit()
+PY
+
+ev_before=$(python3 -c "import sqlite3,sys;print(sqlite3.connect(sys.argv[1]).execute('SELECT count(*) FROM ops_event').fetchone()[0])" "$OPS_EV_DB")
+d3_rev=$(bash "$ROOT/scripts/meta/dm_queue.sh" review)
+d3_all=$(bash "$ROOT/scripts/meta/dm_queue.sh")
+d3_app=$(bash "$ROOT/scripts/meta/dm_queue.sh" approved)
+d3_disp=$(bash "$ROOT/scripts/meta/dm_queue.sh" dispatched)
+ev_after=$(python3 -c "import sqlite3,sys;print(sqlite3.connect(sys.argv[1]).execute('SELECT count(*) FROM ops_event').fetchone()[0])" "$OPS_EV_DB")
+
+# 判据② 两并发草案各得独立伪键（逐案一键不坍缩到环票号）
+for k in DIAG-701 DIAG-702; do
+  grep -Fxq "$k" <<<"$d3_rev" && { echo "PASS review 诊断支伪键 $k 在队"; pass=$((pass+1)); } \
+    || { echo "FAIL review 诊断支伪键 $k 缺（实出:[$d3_rev]）"; fail=$((fail+1)); }
+done
+# 伪键只在输出域：review+all 面 IN；approved/dispatched 结构性不相交
+for k in DIAG-701 DIAG-702; do
+  grep -Fxq "$k" <<<"$d3_all" && { echo "PASS all 面含 $k"; pass=$((pass+1)); } \
+    || { echo "FAIL all 面缺 $k"; fail=$((fail+1)); }
+  ! grep -Fxq "$k" <<<"$d3_app" && { echo "PASS approved 面不含 $k（判据面正交）"; pass=$((pass+1)); } \
+    || { echo "FAIL approved 面误含 $k"; fail=$((fail+1)); }
+  ! grep -Fxq "$k" <<<"$d3_disp" && { echo "PASS dispatched 面不含 $k（判据面正交）"; pass=$((pass+1)); } \
+    || { echo "FAIL dispatched 面误含 $k"; fail=$((fail+1)); }
+done
+# 态外/kind 外零入队（status='drafted'∧kind='rootcause_diag' 双闸）
+for k in DIAG-703 DIAG-704 DIAG-705; do
+  ! grep -Fxq "$k" <<<"$d3_rev" && { echo "PASS 诊断支排态外/外 kind $k"; pass=$((pass+1)); } \
+    || { echo "FAIL 诊断支误含 $k"; fail=$((fail+1)); }
+done
+# 伪键零污染票册消费者面（输出域隔离实证）：dm_queue 只读——桩库
+# ops_event 行数零增（无票件建无事件写；伪键不落任何持久面）
+[ "$ev_before" = "$ev_after" ] \
+  && { echo "PASS 诊断支零写径（ops_event 行数 $ev_before 前后不变——伪键只在输出域）"; pass=$((pass+1)); } \
+  || { echo "FAIL 诊断支有写径（ops_event $ev_before→$ev_after）"; fail=$((fail+1)); }
 
 echo "─────"
 if [ "$fail" = 0 ]; then echo "✅ dm_queue 外派豁免桩测 $pass/$((pass+fail)) 全绿"; exit 0
