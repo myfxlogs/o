@@ -5,9 +5,9 @@ set -u
 TID=${1:?usage: dev_run.sh <T-编号> [提示文]}
 PROMPT=${2:-"读 /opt/o/skills/施工席/SKILL.md 施工协议 领 $TID 施工"}
 [[ "$TID" =~ ^T-[0-9]{4}$ ]] || { echo "TID must be T-NNNN" >&2; exit 2; }
-# 钦定二择档：swe-2-high 默认|swe-2-medium——禁他档（业主令）。
-MODEL=${DEV_RUN_MODEL:-swe-2-high}
-case "$MODEL" in swe-2-high|swe-2-medium) ;; *) MODEL=swe-2-high;; esac
+# 施工席模=swe-2-flash-high（业主令2026-11-08）；白名单留 high/medium 兼容历史派单行。
+MODEL=${DEV_RUN_MODEL:-swe-2-flash-high}
+case "$MODEL" in swe-2-high|swe-2-medium|swe-2-flash-high) ;; *) MODEL=swe-2-flash-high;; esac
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 source "${O_WORKER_RUNTIME_LIB:-$SCRIPT_DIR/worker_runtime.sh}"

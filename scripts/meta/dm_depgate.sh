@@ -24,7 +24,7 @@ REPO=${O_DEPGATE_REPO:-/opt/o}
 TASK_DIR=${O_DEPGATE_TASK_DIR:-$REPO/docs/tasks}
 WT_ROOT=${O_DEPGATE_WT_ROOT:-/opt/o-wt}
 MASTER_REF=${O_DEPGATE_MASTER_REF:-origin/master}
-MODEL=${O_DEPGATE_MODEL:-swe-2-high}
+MODEL=${O_DEPGATE_MODEL:-swe-2-flash-high}
 TMPD=$(mktemp -d "${TMPDIR:-/tmp}/o-dm-depgate.XXXXXX") || exit 1
 trap 'rm -rf -- "$TMPD"' EXIT
 

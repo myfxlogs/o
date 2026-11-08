@@ -3,10 +3,10 @@
 set -u
 
 TID=${1:-}
-MODEL=${2:-swe-2-high}
+MODEL=${2:-swe-2-flash-high}
 PROMPT=${3:-"读 /opt/o/skills/施工席/SKILL.md 施工协议 领 $TID 施工"}
 [[ "$TID" =~ ^T-[0-9]{4}$ ]] || { echo "TID must be T-NNNN" >&2; exit 2; }
-case "$MODEL" in swe-2-high|swe-2-medium) ;; *) echo "unsupported worker model: $MODEL" >&2; exit 2 ;; esac
+case "$MODEL" in swe-2-high|swe-2-medium|swe-2-flash-high) ;; *) echo "unsupported worker model: $MODEL" >&2; exit 2 ;; esac
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 source "$SCRIPT_DIR/worker_runtime.sh"
