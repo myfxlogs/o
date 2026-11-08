@@ -1553,3 +1553,17 @@
   测红非本件红），T-0467 跑步机死局机制层旁证。判红先问「跑中
   HEAD 动否」防误裁。
 - **部署态**：闸件检出即效（scripts/ 不入镜像），无部署面。
+
+## 2026-11-08 — GW-001 段C 外派施工（业主逐段转发一行提示词）
+
+- **授权**：业主令转发段C批派段施工行——C1 dispatch_worker ExecStopPost 唤
+  o-mech+rc75 续试不 break；C2 机批册按族入册（rootcause:<family>/postmortem:*）
+  +负目录落码断言（internal/exec/ledger写径/venue下单面永不入册）+滞留阈
+  24h→2h；C3 水位机检≥5 留 pending 不占号+同族 24h 并票+已批 7 天回候选+
+  派单序(优先级,已批ts)族映射。四判据逐条留证；重点「半成品窗」评估在飞
+  worker 退场不唤 mech 的窗口；负目录必机检断言非散文；dm_queue dispatched
+  已上线语义勿回改；串行勿 merge 勿部署；完成报证据移交 COS 席复审。
+- **落点**：分支 gw/001-mech-segC 三 commit（C1=8355f6cfe/C2=ac74a94c3/
+  C3=9a7c80aa5，基于 master@f7fd69559）；票面 §八回填+判据预证+偏离说明；
+  数据流.md 机械轨批派段链图同 commit。merge+部署归 COS 同席（GW-001 例外
+  授权面），迁移 fin_0148 随发窗生效。
