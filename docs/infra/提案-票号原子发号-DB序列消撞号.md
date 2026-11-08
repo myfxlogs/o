@@ -14,7 +14,7 @@ done/ 撞号被 pre-commit 闸拒收。现行 `scripts/next_ticket.sh` 扫
 
 ## 二、建造面
 
-1. **序列**：migration `fin_0150_ticket_seq.sql`——
+1. **序列**：migration `fin_0151_ticket_seq.sql`——
    `CREATE SEQUENCE fin_ticket_seq` 种子=现仓最大票号+1
    （含 tasks/ 与 done/ 两面）；
 2. **消费径**：`scripts/next_ticket.sh` 优先 `SELECT nextval(
