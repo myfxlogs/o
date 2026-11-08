@@ -1,4 +1,7 @@
 # o-mirror-push.service —— T-0467 镜面推单发（推已绿 sha 非 HEAD）。
+# GW-001 段A：ExecStartPost 唤 o-mech——推成→origin/master 前进→
+# mech 收敛窗下拍即见（镜面推与部署收敛事件链闭环；`-` 前缀=单元
+# 未装期不炸本服务）。
 [Unit]
 Description=o-mirror-push (镜面推已绿sha)
 After=network-online.target
@@ -6,4 +9,5 @@ After=network-online.target
 [Service]
 Type=oneshot
 ExecStart=/opt/o/scripts/mirror_push.sh
+ExecStartPost=-/usr/bin/systemctl --user start --no-block o-mech.service
 NoNewPrivileges=true

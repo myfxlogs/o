@@ -19,11 +19,14 @@ import (
 )
 
 // wake 映射（kind→units——钦定两席 ctx/econ 各唤一;dm 帧双唤
-// T-0456 双无头席——CEO/CTO 各自滤队,队空即退零烧）。
+// T-0456 双无头席——CEO/CTO 各自滤队,队空即退零烧;
+// GW-001 A4 mech 帧唤机械轨 o-mech——已批/派单/裁决/处置/部署/起草
+// 落账即拍,不被判断会话锁挡）。
 var wake = map[string][]string{
 	"ctx":  {"o-regime-analyst.service"},
 	"econ": {"o-econ-verdict.service"},
 	"dm":   {"o-cto-seat.service", "o-ceo-seat.service"},
+	"mech": {"o-mech.service"},
 }
 
 func main() {

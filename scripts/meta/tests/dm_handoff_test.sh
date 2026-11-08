@@ -5,7 +5,8 @@
 # 复跑零重（evergreen——桩按查询内 LIKE 字面对写径日志判重，壳写词形与
 # SQL 查词形不自洽即炸）④终态票零报（终态杀票谓词钉）⑤词表命中零报
 # ⑥龄未超阈零报（壳侧双检）。外围：扫描败=本体败 exit1（T-0372）/配对表
-# 缺=exit1/FIN_DSN 缺=静默退/混合多交行同拍各一报/全表 7 对各查一拍。
+# 缺=exit1/FIN_DSN 缺=静默退/混合多交行同拍各一报/全表 9 对各查一拍
+# （GW-001 A5 +诊断草案/+拉起 两行——票面派单行被在案超集覆盖不另立）。
 set -euo pipefail
 
 ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd)
@@ -131,10 +132,11 @@ HANDOFF_ROWS='派单\x1f71\x1fT-9104\x1f决策席\x1f派单 T-9104\x1f4000\n移�
 grep -Fq "'升件','T-9104'" "$ESC_SQL_LOG"
 grep -Fq "'升件','T-9105'" "$ESC_SQL_LOG"
 
-# ⑪ 全表 7 对各查一拍（配对表 CTO 裁定行数钉——表变本面随改）
+# ⑪ 全表 9 对各查一拍（配对表 CTO 裁定行数钉——表变本面随改；
+#    GW-001 A5 +诊断草案/+拉起 崩径僵尸票哨兵两行）
 reset_logs
 HANDOFF_ROWS='' bash "$DM_SH"
-[[ $(wc -l < "$SCAN_EV_LOG") -eq 7 ]]
-for ev in 派单 移交 收口 收口待审 呈批 已批 外派; do grep -Fqx "$ev" "$SCAN_EV_LOG"; done
+[[ $(wc -l < "$SCAN_EV_LOG") -eq 9 ]]
+for ev in 派单 移交 收口 收口待审 呈批 已批 外派 诊断草案 拉起; do grep -Fqx "$ev" "$SCAN_EV_LOG"; done
 
 echo "dm handoff sentinel scenarios PASS"

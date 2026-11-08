@@ -4,11 +4,14 @@
 # 被测 sha 非 HEAD，check_all 跑期 HEAD 移动不废戳；跑期新落
 # commit 归下趟镜面，不冻不废——业主令「推已绿 sha」钦定面①）。
 #
-# 选择口径（裁填钉死）：戳面 mtime 新→旧遍历，首个三断言全过者
+# 选择口径（裁填钉死）：戳面 mtime 新→旧遍历，首个四断言全过者
 #   ①戳龄 ≤21600s（与 pre-push stamp_ok 同 6h 窗）；
 #   ②sha 未被 origin/master 含（已合入=无新件跳过）；
 #   ③origin/master 是 sha 祖先（ff 可推——远端已前进/分叉=跳过，
-#     非快进仍归 pre-push 合流闸管不在此抢）。
+#     非快进仍归 pre-push 合流闸管不在此抢）；
+#   ④GW-001 A3 HEAD 包含闸：sha 是本树 HEAD 祖先——分支戳（绿验
+#     在非部署线 commit 上）不推 master，防 worktree/支线绿戳
+#     越线污染镜面。
 # 全灭=镜面空窗合法 exit 0 零动作（不为推而推）。
 #
 # 并存关系（裁填钉死=包非替）：git_push.sh 重试包装复用；
@@ -23,7 +26,7 @@ REPO=${O_MIRROR_REPO:-/opt/o}
 PUSH_SH=${O_MIRROR_PUSH_SH:-"$REPO/scripts/git_push.sh"}
 NOW=${O_MIRROR_NOW:-$(date +%s)}
 cd "$REPO" 2>/dev/null || { echo "❌ [mirror_push] repo 不可达 $REPO" >&2; exit 1; }
-GITDIR=$(git rev-parse --git-dir) || { echo "❌ [mirror_push] 非 git 树 $REPO" >&2; exit 1; }
+GITDIR=$(git rev-parse --git-common-dir) || { echo "❌ [mirror_push] 非 git 树 $REPO" >&2; exit 1; }
 
 # 远端快照对齐（败=按本地 origin/master 判——推时非快进远端自拒兜底，
 # 与 deploy_image.sh fetch 败降级同式）。
@@ -44,6 +47,9 @@ while IFS= read -r stamp; do
   [ "$age" -le 21600 ] || continue
   git merge-base --is-ancestor "$sha" origin/master 2>/dev/null && continue
   git merge-base --is-ancestor origin/master "$sha" 2>/dev/null || continue
+  # GW-001 A3 ④HEAD 包含闸：绿戳 sha 须在本树 HEAD 祖先链——支线/
+  # worktree 戳（sha 不在部署线历史）即便新鲜也不推 master。
+  git merge-base --is-ancestor "$sha" HEAD 2>/dev/null || continue
   echo "▶ [mirror_push] 绿戳候选 sha=${sha:0:12}（戳龄 ${age}s）→ origin ${sha}:master"
   if "$PUSH_SH" origin "$sha:master"; then
     pushed=1

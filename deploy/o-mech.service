@@ -1,0 +1,10 @@
+# o-mech.service —— GW-001 段A 机械轨单发（dm_tick 零 LLM 尾段承接+
+# 部署收敛窗——机械动作唯一执行者；事件帧/mech timer/ExecStartPost 三径唤）。
+[Unit]
+Description=o-mech (机械轨拍——派单/票翻/收敛窗)
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/o/scripts/meta/mech_tick.sh
+NoNewPrivileges=true

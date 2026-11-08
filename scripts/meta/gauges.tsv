@@ -37,3 +37,10 @@ dispatch_aged_water	淤积	sql_ro	SELECT count(*) FROM (SELECT DISTINCT ON (tick
 rootfs_highwater	淤积	cmd	df -P / | awk 'NR==2{gsub(/%/,"",$5);print $5}'	86	根分区利用率={v}%（>85% 高水位连鸣——deploy构建产物/check_all撞盘前哨；保洁面=wt_gc --disk+镜像留痕窗）		连鸣
 checkall_inflight	竞态	cmd	n=0; for f in /tmp/o-check_all-*.lock; do fuser "$f" >/dev/null 2>&1 && n=$((n+1)); done; echo $n	4	在持锁 check_all 跑数={v}（≥4=共享test-PG advisory herd 预警——T-0466⑧首版监控不互斥，拿数据再裁错峰）		
 checkall_envcontention_24h	竞态	cmd	find /opt/o/.git -name 'check-green-*.mode' -mmin -1440 2>/dev/null | xargs -r grep -l env-contention 2>/dev/null | wc -l	2	近24h check_all 戳面 env-contention（pgx超时假红标）计数={v}——≥2=测试库争用 herd 实证（T-0466⑧）		
+# GW-001 A5 机械轨观测两行：mech_hb=MECH 心跳停鸣>15min（票面钦定阈；
+# ticket='MECH' 单道行——ops_headless ON CONFLICT(ticket) 单行，缺席
+# 行 COALESCE -infinity=从未活也算停鸣如实升）；loop_latency=案→部署
+# 中位延迟 KPI（阈 72h 可调——案锚=票级 draft/首事件代理段A口径，
+# 段E案卷回写后换 fin_econ_lesson 真锚）。
+mech_hb	断供	sql_ro	SELECT CASE WHEN COALESCE(max(last_activity),'-infinity'::timestamptz)<now()-interval '15 minutes' THEN 1 ELSE 0 END FROM ops_headless WHERE ticket='MECH'	1	MECH 机械轨心跳停鸣>15min={v}（o-mech.service/timer/path 三径皆死——查 mech_tick 锁与单元装配）		
+loop_latency	淤积	cmd	bash /opt/o/scripts/meta/loop_latency.sh	259200	内循环案→部署中位延迟={v}s（>72h=环滞——案锚=票级代理段A口径，段E案卷回写后换真锚）		

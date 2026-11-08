@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # t0467_deploy_converge_test.sh —— T-0467 三面桩测：
-#   A. mirror_push.sh 选择口径——最新鲜绿戳+ff可推+未合入 三断言
-#      （HEAD 移动不影响选戳=跑步机根修实证；分叉/已合入/戳陈全灭
-#      =镜面空窗合法）；
+#   A. mirror_push.sh 选择口径——最新鲜绿戳+ff可推+未合入+HEAD包含
+#      四断言（HEAD 移动不影响选戳=跑步机根修实证；分叉/已合入/戳陈
+#      全灭=镜面空窗合法；GW-001 A3④支线戳不入 HEAD 祖先链不推=判据⑥）；
 #   B. pre-push stamp_ok 读被推 sha 非 HEAD——戳在 P1、HEAD 已到
 #      P2，推 P1:t/probe 过闸（件①机制实证）；
 #   C. check_deploy_commit_seat.sh 部署树闸判件——施工前缀拒/
@@ -71,12 +71,25 @@ git checkout -q "$DEF"
 MP >/dev/null 2>&1   # origin/master=C3：C1/C3 已合入跳、CS 非 ff 跳 → 空窗
 { [ ! -s "$PUSHLOG" ]; } && ok "A4 分叉戳（非 origin/master 后代）跳过=空窗" \
   || bad "A4 分叉戳竟推: [$(cat "$PUSHLOG")]"
-# A5: origin/master 复位 B0 → CS 变可推且最新→中选（选戳不问支名）
+# A5 GW-001 A3④HEAD包含闸（段A判据⑥分支戳不推必验）：origin/master 复位
+# B0→CS 新鲜+ff 可推（B0 是 CS 祖先）俱备、戳龄最新在列，唯 CS 在 sideA
+# 支不在本树 HEAD（master@C3）祖先链→被闸跳过；合法戳 C3（=HEAD 自身
+# 祖先）照常中选——选择性实证：分支戳不推≠镜面停摆。
 git update-ref refs/remotes/origin/master "$B0"
+touch -d '7 hours ago' ".git/check-green-$C1" # C1 戳陈化出列——候选=C3/CS
+: > "$PUSHLOG"
+MP >/dev/null 2>&1
+[ "$(cat "$PUSHLOG")" = "origin $C3:master" ] \
+  && ok "A5 分支戳 CS 被 HEAD闸跳过，合法戳 C3 中选（判据⑥）" \
+  || bad "A5 pushlog=[$(cat "$PUSHLOG")] want origin $C3:master（CS 不得到）"
+# A6 对照：支合入 master→CS 入 HEAD 祖先链→恢复可推中选（闸=包含非支名——
+# 戳绑 sha 语义不变，支线绿码 merge 后镜面径照通）。
+git merge -q sideA -m 'merge sideA' >/dev/null 2>&1
+: > "$PUSHLOG"
 MP >/dev/null 2>&1
 [ "$(cat "$PUSHLOG")" = "origin $CS:master" ] \
-  && ok "A5 远端回退后 CS 成最新可推戳中选" \
-  || bad "A5 pushlog=[$(cat "$PUSHLOG")] want origin $CS:master"
+  && ok "A6 支合入后 CS 入 HEAD 祖先链=恢复中选推送" \
+  || bad "A6 pushlog=[$(cat "$PUSHLOG")] want origin $CS:master"
 
 # ══ B. pre-push 戳绑被推 sha（件①机制实证）══
 cd "$TMP" && git init -q --bare origin.git

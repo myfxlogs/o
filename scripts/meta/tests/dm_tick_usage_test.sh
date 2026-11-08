@@ -60,8 +60,9 @@ chmod +x "$TMP/bin/psql" "$TMP/bin/devin" "$TMP/bin/depgate" "$TMP/bin/go"
 printf 'FIN_PG_DSN=fake-dsn\n' > "$TMP/env"
 export PATH="$TMP/bin:$PATH"
 export DM_ENV_FILE="$TMP/env"
-export O_DECISION_WORKDIR="$TMP/decision"
-mkdir -p "$O_DECISION_WORKDIR"
+export O_CTO_WORKDIR="$TMP/decision" # dm_tick 班次目=O_CTO_WORKDIR（原测 O_DECISION_WORKDIR 系失配死变量——usage.* 断言恒空）
+mkdir -p "$O_CTO_WORKDIR"
+export O_MECH_SYSTEMCTL=/bin/true # GW-001 A2：尾段唤 o-mech 桩掉——零真 systemctl 调用
 export O_DECISION_DEVIN_BIN="$TMP/bin/devin"
 export O_DM_DEPGATE_SH="$TMP/bin/depgate"
 export O_WORKER_USAGE_BIN="$ROOT/scripts/meta/ticket_usage.sh"
@@ -80,25 +81,26 @@ bash "$ROOT/scripts/meta/dm_tick.sh" >/dev/null
 export DM_PENDING_COUNT=1 DM_PENDING_TICKETS=T-9001
 bash "$ROOT/scripts/meta/dm_tick.sh" >/dev/null
 grep -q -- "-v ticket=T-9001 -v kind=audit -v model=SWE-2 Max" "$USAGE_INSERTS"
-grep -q 'note=session=decision-session;seat=决策席;wm_prompt=90;wm_completion=8;wm_cached=30;batch=tickets=T-9001' "$USAGE_INSERTS"
+grep -q 'note=session=decision-session;seat=CTO;wm_prompt=90;wm_completion=8;wm_cached=30;batch=tickets=T-9001' "$USAGE_INSERTS" # seat=CTO——O_SEAT 现值（原测「决策席」字面系席位更名前陈账）
 
 export DM_PENDING_COUNT=2 DM_PENDING_TICKETS=$'T-9001\nT-9002'
 bash "$ROOT/scripts/meta/dm_tick.sh" >/dev/null
-grep -q -- "-v ticket=META-DM -v kind=audit" "$USAGE_INSERTS"
+grep -q -- "-v ticket=CTO -v kind=audit" "$USAGE_INSERTS" # 聚合键=CTO（原测 META-DM 系席位更名前陈账——dm_tick USAGE_TICKET 现值）
 grep -q 'batch=tickets=T-9001,T-9002' "$USAGE_INSERTS"
 [[ $(wc -l < "$DECISION_CALLS") -eq 2 ]]
 [[ $(grep -c 'WITH lock AS MATERIALIZED' "$USAGE_INSERTS") -eq 2 ]]
-[[ $(find "$O_DECISION_WORKDIR" -mindepth 1 -maxdepth 1 -type d -name 'usage.*' | wc -l) -eq 0 ]]
+[[ $(find "$O_CTO_WORKDIR" -mindepth 1 -maxdepth 1 -type d -name 'usage.*' | wc -l) -eq 0 ]]
 
 export DM_PENDING_COUNT=1 DM_PENDING_TICKETS=T-9002 DM_USAGE_FAIL=1
 bash "$ROOT/scripts/meta/dm_tick.sh" > "$TMP/usage-failure.log" 2>&1
 grep -q 'token usage collection failed; continuing decision lifecycle' "$TMP/usage-failure.log"
-# T-0369 容错必报：写径败→带类升件行落账（写败/META-DM-USAGE，note 前缀键）
+# T-0369 容错必报：写径败→带类升件行落账（写败/CTO-USAGE，note 前缀键——
+# 原测 META-DM/META-DM-USAGE 系席位更名前陈账，usage_esc 现传 seat=CTO scope=CTO-USAGE）
 grep -q "INSERT INTO ops_event(seat,event,ticket,note,esc_class,esc_scope)" "$ESC_INSERTS"
-grep -q "VALUES('META-DM','升件','T-9002','usage 采集败——写径败" "$ESC_INSERTS"
-grep -q "'写败','META-DM-USAGE'" "$ESC_INSERTS"
+grep -q "VALUES('CTO','升件','T-9002','usage 采集败——写径败" "$ESC_INSERTS"
+grep -q "'写败','CTO-USAGE'" "$ESC_INSERTS"
 [[ $(wc -l < "$DECISION_CALLS") -eq 3 ]]
-[[ $(find "$O_DECISION_WORKDIR" -mindepth 1 -maxdepth 1 -type d -name 'usage.*' | wc -l) -eq 1 ]]
+[[ $(find "$O_CTO_WORKDIR" -mindepth 1 -maxdepth 1 -type d -name 'usage.*' | wc -l) -eq 1 ]]
 
 # 同窗去重：再拍同败→dedup 见账行不再重报（防事件暴）
 bash "$ROOT/scripts/meta/dm_tick.sh" > "$TMP/usage-failure2.log" 2>&1

@@ -21,7 +21,10 @@ SHA_ARG=${1:?用法: deploy_at_sha.sh <sha>}
 shift || true # tolerate: 无参尾=合法——deploy_image.sh 无必收参数
 REPO=${O_DEPLOY_AT_REPO:-/opt/o}
 cd "$REPO" || { echo "❌ [deploy_at_sha] repo 不可达 $REPO" >&2; exit 1; }
-GITDIR=$(git rev-parse --git-dir)
+# GW-001 A3 戳位归一：戳读 git-common-dir——与 check_all/mirror_push/
+# pre-push 同域（O_DEPLOY_AT_REPO 指 linked worktree 时 --git-dir 私有
+# 读不到公共戳面）。
+GITDIR=$(git rev-parse --git-common-dir)
 
 die() { echo "❌ [deploy_at_sha] $1" >&2; exit 1; }
 

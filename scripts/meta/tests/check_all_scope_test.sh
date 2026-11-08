@@ -59,7 +59,7 @@ cp "$ROOT/scripts/check_all.sh" scripts/check_all.sh
 cp "$ROOT/scripts/testdb_lease.sh" scripts/testdb_lease.sh
 for g in check_import_direction check-env-reads check_rejects_keys \
          check_config_write_domain check_migrations check_bridge_registry \
-         check_tolerate_report check_ops_chain; do
+         check_tolerate_report check_ops_chain check_seat_writes; do
   printf '#!/usr/bin/env bash\nexit 0\n' > "scripts/$g.sh"
 done
 # go list ./dir 桩按目录实存判——gen/pgstore 预置目录=已登记映射

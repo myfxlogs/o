@@ -1,10 +1,17 @@
 #!/usr/bin/env bash
+# dm_tick_worker_resume_test.sh —— GW-001 A2 瘦身判据（原 worker 补拉面
+# 整体迁 mech_tick.sh——本测改钉「判断壳零机械调用+尾段唤 o-mech」）：
+#   ①empty 队零会话+唤 mech ②review 队开班+唤 mech ③approved-only 零会话
+#     +唤 mech（已批待派面归机械轨不烧会话）④锁拒即退零唤零心跳
+#   ⑤drain 收班判 exit 心跳 ⑥禁双轨——depgate/补拉查询/suspend/handoff/
+#     ledger/verdict/autoapprove/ticketdraft(systemctl 唤 mech 除外)
+#     桩件零调用=机械唯一执行者 o-mech 实证。
 set -euo pipefail
 
 ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd)
 TMP=$(mktemp -d)
 trap 'rm -rf -- "$TMP"' EXIT
-mkdir -p "$TMP/bin" "$TMP/tasks"
+mkdir -p "$TMP/bin" "$TMP/tasks" "$TMP/cto"
 touch "$TMP/tasks/T-0341-resume-test.md"
 
 cat > "$TMP/bin/psql" <<'EOF'
@@ -16,7 +23,7 @@ case "$query" in
 	# T-0354：队列判据单源 dm_queue.sh——stub 按场景回票号行集；
 	# drain 场景=闸内首查有件/班后复查空（DRAIN_MARK 幂等翻转）→收班 exit。
 	# T-0414：会话闸=review 面——按 SQL 形分面回集（approved 场景 review 面
-	# 空集=不开班，机械轨补拉窗同拍自验）。
+	# 空集=不开班，机械轨补拉窗归 mech_tick 本测不触）。
 	*"SELECT l.ticket FROM ("*)
 		printf '%s\n' "$query" >> "$PENDING_SQL_LOG"
 		if grep -Fq "e.event='已批'" <<<"$query"; then
@@ -36,20 +43,20 @@ case "$query" in
 			*) echo "unknown scenario: $DM_SCENARIO" >&2; exit 2 ;;
 		esac
 		;;
-	*"SELECT l.ticket ||"*)
-		case "$DM_SCENARIO" in
-			empty|approved) printf 'T-0341|swe-2-medium\n' ;;
-			review|drain|locked) ;;
-			*) echo "unknown scenario: $DM_SCENARIO" >&2; exit 2 ;;
-		esac
-		;;
+	# GW-001 A2 禁双轨探针：补拉候选集查询已迁 mech_tick——dm_tick 再发
+	# 此查询=双轨实证，落 BAD_LOG 终判炸。
+	*"SELECT l.ticket ||"*) printf 'DISPATCH-QUERY-FIRED\n' >> "$BAD_LOG" ;;
 	*"INSERT INTO ops_headless"*)
 		printf '%s\n' "$query" >> "$HB_LOG"
+		;;
+	*"INSERT INTO ops_event"*)
+		printf 'OPS-EVENT-WRITE\n' >> "$BAD_LOG" # dm_tick 不再直写事件（自报走 ops_esc 桩）
 		;;
 esac
 EOF
 cat > "$TMP/bin/systemctl" <<'EOF'
 #!/usr/bin/env bash
+printf '%s\n' "$*" >> "$SYSTEMCTL_LOG"
 if [[ ${2:-} == is-active ]]; then
 	echo inactive
 	exit 3
@@ -57,47 +64,55 @@ fi
 if [[ ${2:-} == list-units ]]; then
 	exit 0
 fi
-exit 2
-EOF
-cat > "$TMP/bin/dispatch-worker" <<'EOF'
-#!/usr/bin/env bash
-printf '%s\n' "$*" >> "$DISPATCH_LOG"
+exit 0
 EOF
 cat > "$TMP/bin/decision-devin" <<'EOF'
 #!/usr/bin/env bash
 echo called >> "$DECISION_LOG"
 EOF
-cat > "$TMP/bin/depgate" <<'EOF'
+# 机械子件桩——GW-001 A2 后 dm_tick 不得再调（迁 mech_tick）
+for n in depgate suspend handoff ledger verdict autoapprove dispatch-worker go; do
+	cat > "$TMP/bin/$n" <<EOF
 #!/usr/bin/env bash
-echo called >> "$DEPGATE_LOG"
+echo "$n" >> "\$COMP_LOG"
+exit 0
 EOF
+done
 chmod +x "$TMP/bin/"*
 
 printf 'FIN_PG_DSN=fake\n' > "$TMP/env"
 export PATH="$TMP/bin:$PATH"
 export DM_ENV_FILE="$TMP/env"
-export DISPATCH_LOG="$TMP/dispatch.log"
+export O_CTO_WORKDIR="$TMP/cto"
+export O_WORKER_USAGE_BIN=/bin/true
+export O_OPS_ESC_SH="$TMP/bin/opsesc-stub"
+cat > "$TMP/bin/opsesc-stub" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+chmod +x "$TMP/bin/opsesc-stub"
+export SYSTEMCTL_LOG="$TMP/systemctl.log"; : > "$SYSTEMCTL_LOG"
+export COMP_LOG="$TMP/comp.log"; : > "$COMP_LOG"
+export BAD_LOG="$TMP/bad.log"; : > "$BAD_LOG"
 export DECISION_LOG="$TMP/decision.log"
-export PENDING_SQL_LOG="$TMP/pending.sql.log"
-export HB_LOG="$TMP/hb.log"
+export PENDING_SQL_LOG="$TMP/pending.sql.log"; : > "$PENDING_SQL_LOG"
+export HB_LOG="$TMP/hb.log"; : > "$HB_LOG"
 export DRAIN_MARK="$TMP/drain.mark"
-export DEPGATE_LOG="$TMP/depgate.log"
-export O_WORKER_DISPATCH_SCRIPT="$TMP/bin/dispatch-worker"
-export O_WORKER_TASK_DIR="$TMP/tasks"
 export O_DECISION_DEVIN_BIN="$TMP/bin/decision-devin"
-export O_DM_DEPGATE_SH="$TMP/bin/depgate"
-export O_DM_LEDGER_SH=/bin/true # T-0414：机械轨件单测——tick 接线面桩掉防真 git/psql
-export O_VERDICT_DELIVER_SH=/bin/true # T-0438：送达闸单测另件——tick 接线面桩掉防真 psql
-export O_MANUAL_LANE_TASK_DIR="$TMP/tasks" # T-0438：人工径判别票目录桩测隔离（零部署树读）
+export O_MECH_SYSTEMCTL="$TMP/bin/systemctl" # 唤机械轨桩——落 SYSTEMCTL_LOG 可验
 
-# Pure-empty queue stays zero-LLM but still resumes a rate-limited worker.
+mech_kicked() { grep -qF -- '--user start --no-block o-mech.service' "$SYSTEMCTL_LOG"; }
+no_mech() { ! grep -q 'o-mech' "$SYSTEMCTL_LOG"; }
+
+# Pure-empty queue stays zero-LLM but still kicks the mechanical track.
 export DM_SCENARIO=empty DM_LOCK_RESULT=t
 bash "$ROOT/scripts/meta/dm_tick.sh"
 [[ ! -e "$DECISION_LOG" ]]
-grep -q '^T-0341 swe-2-medium ' "$DISPATCH_LOG"
+mech_kicked || { echo "FAIL empty 拍未唤 o-mech"; cat "$SYSTEMCTL_LOG"; exit 1; }
+grep -q 'alive' "$HB_LOG"
 
 # T-0414 会话面收窄：闸=review 面——review 待裁→开班；approved-only 待派
-# 不开班（机械轨补拉窗同拍自验 T-0341 照拉）。
+# 不开班（机械面归 mech 轨——本壳零会话零机械调用）。
 export DM_SCENARIO=review
 bash "$ROOT/scripts/meta/dm_tick.sh"
 export DM_SCENARIO=approved
@@ -106,15 +121,14 @@ bash "$ROOT/scripts/meta/dm_tick.sh"
 # T-0354：队列推导单源 dm_queue.sh——empty/approved 各 1 拍（闸查即空跳过）
 # +review 2 拍（闸查+班后复查）=4 次 SQL 落账。
 [[ $(grep -c '^SELECT l\.ticket FROM (' "$PENDING_SQL_LOG") -eq 4 ]]
-[[ $(grep -c '^T-0341 ' "$DISPATCH_LOG") -eq 2 ]]
+mech_kicked
 
-# T-0354 件③：锁拒=后到即退（kick 连发/兜底拍撞车同款）——零决策零派单零心跳。
+# T-0354 件③：锁拒=后到即退（kick 连发/兜底拍撞车同款）——零决策零唤零心跳。
 export DM_SCENARIO=locked DM_LOCK_RESULT=f
-: > "$HB_LOG"
-: > "$DEPGATE_LOG"
+: > "$HB_LOG"; : > "$SYSTEMCTL_LOG"
 bash "$ROOT/scripts/meta/dm_tick.sh" > "$TMP/locked.log" 2>&1
 grep -q '班次闸未得' "$TMP/locked.log"
-[[ $(wc -l < "$DEPGATE_LOG") -eq 1 ]] # T-0413：锁前依赖闸仍跑——kick 撞班不误零交集快派
+no_mech || { echo "FAIL 锁拒拍仍唤 o-mech"; cat "$SYSTEMCTL_LOG"; exit 1; }
 [[ $(wc -l < "$DECISION_LOG") -eq 1 ]]
 [[ ! -s "$HB_LOG" ]]
 
@@ -124,14 +138,11 @@ rm -f "$DRAIN_MARK"
 : > "$HB_LOG"
 bash "$ROOT/scripts/meta/dm_tick.sh" >/dev/null
 [[ $(wc -l < "$DECISION_LOG") -eq 2 ]]
-grep -qF "决策席','exit'" "$HB_LOG"
+grep -qF "'CTO','CTO','exit'" "$HB_LOG" # hb 行形=VALUES('CTO','CTO','<state>')——原测「决策席」字面本就失配（前置断言先炸未暴露的潜伏错）
+mech_kicked
 
-# T-0438 件⑥：人工径滤——补拉窗候选票面「执行=人工径」出生行不续派
-# （不派不挂起不计漏拉——坑条目 real-money-ticket-machine-dispatch-waste 律②）。
-printf '# T-0341 x\n- 执行=人工径（业主在场）\n' > "$TMP/tasks/T-0341-resume-test.md"
-: > "$DISPATCH_LOG"
-export DM_SCENARIO=empty DM_LOCK_RESULT=t
-bash "$ROOT/scripts/meta/dm_tick.sh" >/dev/null
-[[ ! -s "$DISPATCH_LOG" ]]
+# GW-001 A2 禁双轨终判：全程机械子件/补拉查询/事件直写零调用。
+[[ ! -s "$COMP_LOG" ]] || { echo "FAIL dm_tick 调了机械子件:"; cat "$COMP_LOG"; exit 1; }
+[[ ! -s "$BAD_LOG" ]] || { echo "FAIL dm_tick 发机械面查询/事件:"; cat "$BAD_LOG"; exit 1; }
 
-echo "dm tick pending gate three-state dry run PASS"
+echo "dm tick slim-shell scenarios PASS"
