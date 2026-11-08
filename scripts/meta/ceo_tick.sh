@@ -20,7 +20,7 @@ hb() { # 心跳行——ops_headless seat=CEO 拍迹
   [ -n "$FIN_DSN" ] || return 0
   psql "$FIN_DSN" -qAt -c \
     "INSERT INTO ops_headless(seat,state,note) VALUES('CEO','$1','$2')" \
-    >/dev/null 2>&1 || true
+    >/dev/null 2>&1 || true # tolerate: 心跳落账尽力而为—败不阻锁拍
 }
 
 # 单例闸（PG advisory——kick 连发撞车后到即退）
@@ -30,17 +30,17 @@ LOCKED=$(psql "$FIN_DSN" -qAt -c \
   "SELECT pg_try_advisory_lock($LOCK_KEY)" 2>/dev/null) || LOCKRC=$?
 [ "$LOCKRC" -ne 0 ] && { hb err "锁探败 rc=$LOCKRC 按有主退"; exit 0; }
 [ "$LOCKED" != "t" ] && exit 0  # 有班在飞——后到即退
-trap 'psql "$FIN_DSN" -qAt -c "SELECT pg_advisory_unlock($LOCK_KEY)" >/dev/null 2>&1 || true' EXIT
+trap 'psql "$FIN_DSN" -qAt -c "SELECT pg_advisory_unlock($LOCK_KEY)" >/dev/null 2>&1 || true' EXIT # tolerate: trap解锁尽力而为—锁已释或会话断合法径
 
 # 队列闸——空集=心跳即退零烧会话
-PENDING=$(FIN_DSN="$FIN_DSN" "$CEO_QUEUE_SH" 2>/dev/null || true)
+PENDING=$(FIN_DSN="$FIN_DSN" "$CEO_QUEUE_SH" 2>/dev/null || true) # tolerate: 队列脚本败=队空视同,开班照判
 N=$(printf '%s\n' "$PENDING" | awk 'NF {n++} END {print n+0}')
 if [ "$N" -eq 0 ]; then
   hb alive "空拍——CEO 队列空"
   exit 0
 fi
 # 开班即响——纯通知腿不落账（同 dm_tick 口径）。
-"/opt/meta/scripts/feishu-notify.sh" "[调度环] CEO 开班 队列${N}件:${PENDING//$'\n'/,}——已领待裁" >/dev/null 2>&1 || true
+"/opt/meta/scripts/feishu-notify.sh" "[调度环] CEO 开班 队列${N}件:${PENDING//$'\n'/,}——已领待裁" >/dev/null 2>&1 || true # tolerate: 开班铃尽力而为—铃败不阻开班
 
 # 开班——续跑式：transcript 在案则 -c 续同 session（新席首班自然无档全启）
 mkdir -p "$CEO_DIR" || exit 1
@@ -49,18 +49,18 @@ USAGE_TRANSCRIPT="$USAGE_DIR/transcript.json"
 cd "$CEO_DIR" || exit 1
 DEVIN_BIN=${O_DECISION_DEVIN_BIN:-/home/mluser/.local/bin/devin}
 RESUME_FLAG=()
-last=$(ls -t "$CEO_DIR"/usage.*/transcript.json 2>/dev/null | grep -v "$USAGE_TRANSCRIPT" | head -1 || true)
+last=$(ls -t "$CEO_DIR"/usage.*/transcript.json 2>/dev/null | grep -v "$USAGE_TRANSCRIPT" | head -1 || true) # tolerate: 无旧transcript=首班合法径
 [ -n "$last" ] && [ -s "$last" ] && RESUME_FLAG=(-c)
 BATCH="tickets=$(printf '%s\n' "$PENDING" | paste -sd, -)"
 "$DEVIN_BIN" --export "$USAGE_TRANSCRIPT" "${RESUME_FLAG[@]}" \
   -p --model swe --respect-workspace-trust false \
   --permission-mode dangerous -- \
   "读 /opt/o/skills/CEO席/SKILL.md——你是CEO无头席,本班开始:扫描CEO队列($BATCH)逐件处理;方向/批准类件直接裁决并落 ops_event 行(seat=CEO);机械/执行类一律写移交事件转CTO,不要代办;超出职权或红线类写呈批升级给业主,不要自行裁;全部办完后重扫一次队列,空了才退出" \
-  >/dev/null 2>&1 || true
+  >/dev/null 2>&1 || true # tolerate: 会话rc不取—输出已落transcript
 
 # usage 落账（dm_tick 同径）
 if [ -s "$USAGE_TRANSCRIPT" ] && [ -x "$USAGE_BIN" ]; then
   UT=META-CEO; [ "$N" -eq 1 ] && UT=$(printf '%s\n' "$PENDING" | head -1)
-  "$USAGE_BIN" "$UT" audit "$USAGE_TRANSCRIPT" "seat=CEO;$BATCH" >/dev/null 2>&1 || true
+  "$USAGE_BIN" "$UT" audit "$USAGE_TRANSCRIPT" "seat=CEO;$BATCH" >/dev/null 2>&1 || true # tolerate: usage审计旁路尽力而为—不阻裁决
 fi
 hb alive "收班——本班集 $BATCH"

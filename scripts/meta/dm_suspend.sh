@@ -75,7 +75,7 @@ printf '%s\n' "$ROWS" | while IFS=$'\x1f' read -r tid note seat age; do
     prompt="读 /opt/o/skills/施工席/SKILL.md 施工协议领单/续领 $tid；按票面施工，同票已有 Devin 会话/worktree 时续跑；本次=挂起续跑（await=${spec:-无} 阻塞已消）"
     if "$DISPATCH_WORKER" "$tid" "$model" "$prompt" >/dev/null 2>&1; then
       NMSG="挂起续跑——await=${spec} 阻塞消解，dispatch_worker 续跑派工"
-      psql "$FIN_DSN" -qAt -c "INSERT INTO ops_event(seat,event,ticket,note) VALUES('CTO','拉起','$(QC "$tid")','$(QC "$NMSG")')" >/dev/null 2>&1 || true
+      psql "$FIN_DSN" -qAt -c "INSERT INTO ops_event(seat,event,ticket,note) VALUES('CTO','拉起','$(QC "$tid")','$(QC "$NMSG")')" >/dev/null 2>&1 || true # tolerate: 拉起行落账尽力而为—事件败不阻哨兵巡
     else
       rc=$?
       [ "$rc" -eq 75 ] && break # 并行水位/额度冷却——挂起行仍在，下拍续判
@@ -87,7 +87,7 @@ printf '%s\n' "$ROWS" | while IFS=$'\x1f' read -r tid note seat age; do
   # 未消：挂起龄超阈→升件呈业主（升件行入消化词表——下拍不重扫）。
   if [ "$age" -gt "$AGE_LIMIT" ]; then
     "$ESCALATE_SH" "CTO" "$tid" "" "" \
-      "挂起超时未消（龄>${AGE_LIMIT}s）——await=${spec:-无} 原挂起note=${note:0:160}——呈业主裁" || true
+      "挂起超时未消（龄>${AGE_LIMIT}s）——await=${spec:-无} 原挂起note=${note:0:160}——呈业主裁" || true # tolerate: 升件尽力而为—败不阻挂起超时哨兵巡
   fi
 done
 exit 0
