@@ -78,3 +78,24 @@
   /opt/meta/bin/dm-spawn.sh 在仓外——拼接伪键最后产源径不在本票
   scripts/meta 域界；写面闸+视图守卫已使其产物不产生相位行，
   是否补仓外闸件由决策席裁。
+
+## 返修1·先红双点证据（check_fix_red_first 驳回件补位）
+
+- **修前红点**（对照 `origin/master=878e70032` 旧态真跑重放，非捏造）：
+  - W 写面闸缺席径：旧 `escalate.sh`@origin/master（无闸）+psql 桩，
+    伪键 `$'T-9020\nT-9021'` 入参→`rc=0` 且
+    `INSERT INTO ops_event(seat,event,ticket,note,esc_class,esc_scope)`
+    落库行在案=**FAIL（伪键落库无拒）**；
+  - V 视图守卫缺席径：旧 `ops_ticket_phase`（fin_0147 版 DDL 原样
+    抽取应用）+C 段同种子（3 合法+4 伪键形）→三条「伪键零相位行」
+    断言全红：`空白族漏行=2`、`多票号漏行=4`、`chr(10) 漏行=1`、
+    `相位行总数=7`（伪键 4 行全成相位：`T-9020\nT-9021→pulled`、
+    `T-9022 T-9023→dispatched`、`T-9024,T-9025→pulled`、
+    `T-9026|T-9027→pulled`）——修后同断言=0/0/0/总数 3。
+- **修后绿点**：本支 `875004fb9`（rebase 后修复 commit）同断言桩测
+  `ticket_key_gate_test.sh` 全绿 `PASS=23 FAIL=0`（A 闸 12+B 接线 3+
+  C 真库视图 7，testdb_lease 真 PG 实证）——红绿同断言同种子双点在案。
+- **域界呈裁结论**（决策席已裁，回填在案）：report.sh（~/bin）与
+  /opt/meta/bin/dm-spawn.sh 仓外产源径**不立票补闸**——fin_0153
+  投影守卫结构性兜住一切写源伪键（不产生相位行），域外补闸收益
+  边际；观察项记入残留面（上节）即可。
