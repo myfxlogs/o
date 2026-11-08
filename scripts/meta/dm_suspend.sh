@@ -14,6 +14,7 @@ FIN_DSN=$(grep '^FIN_PG_DSN=' "$ENVF" 2>/dev/null | cut -d= -f2- | tr -d '"')
 [ -n "$FIN_DSN" ] || exit 0
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 DISPATCH_WORKER=${O_WORKER_DISPATCH_SCRIPT:-/opt/o/scripts/meta/dispatch_worker.sh}
+KEY_GATE=${O_KEY_GATE_SH:-"$SCRIPT_DIR/ops_event_key_gate.sh"} # T-0499 键卫生闸（缺席 fail-open）
 ESCALATE_SH=${O_SUSPEND_ESCALATE_SCRIPT:-"$SCRIPT_DIR/escalate.sh"}
 REPO_DIR=${O_SUSPEND_REPO_DIR:-/opt/o}
 AGE_LIMIT=${O_SUSPEND_AGE_LIMIT:-14400}
@@ -75,6 +76,9 @@ printf '%s\n' "$ROWS" | while IFS=$'\x1f' read -r tid note seat age; do
     prompt="读 /opt/o/skills/施工席/SKILL.md 施工协议领单/续领 $tid；按票面施工，同票已有 Devin 会话/worktree 时续跑；本次=挂起续跑（await=${spec:-无} 阻塞已消）"
     if "$DISPATCH_WORKER" "$tid" "$model" "$prompt" >/dev/null 2>&1; then
       NMSG="挂起续跑——await=${spec} 阻塞消解，dispatch_worker 续跑派工"
+      # T-0499 键卫生闸：拉起行 ticket 落库前拒伪键（loud 在闸内；
+      # 字符集校验下本闸恒过=双保险，闸缺席 fail-open）。
+      [ ! -x "$KEY_GATE" ] || "$KEY_GATE" "$tid" "event=拉起" || continue
       psql "$FIN_DSN" -qAt -c "INSERT INTO ops_event(seat,event,ticket,note) VALUES('CTO','拉起','$(QC "$tid")','$(QC "$NMSG")')" >/dev/null 2>&1 || true # tolerate: 拉起行落账尽力而为—事件败不阻哨兵巡
     else
       rc=$?

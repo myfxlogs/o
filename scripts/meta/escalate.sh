@@ -13,6 +13,13 @@ SEAT=$1; TID=$2; CLS=$3; SCP=$4; NOTE=$5
 ENVF="${ESCALATE_ENV_FILE:-/opt/o-research/env}"
 DSN=$(grep '^FIN_PG_DSN=' "$ENVF" 2>/dev/null | cut -d= -f2- | tr -d '"')
 [ -n "$DSN" ] || exit 0
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+# T-0499 ticket 键卫生闸：伪键（空白/逗号拼接/多票号）loud 拒写——闸在
+# 拒写事实已落升件行故本件静默退；闸缺席 fail-open（OCI 单件部署无
+# 兄弟件先例在案——卫生面非链环不阻升件本体）。
+if [ -x "${O_KEY_GATE_SH:-$SCRIPT_DIR/ops_event_key_gate.sh}" ]; then
+  "${O_KEY_GATE_SH:-$SCRIPT_DIR/ops_event_key_gate.sh}" "$TID" "event=升件" "$SEAT" || exit 0
+fi
 QC(){ printf '%s' "${1:-}" | sed "s/'/''/g"; }
 CCLS="NULL"; CSCP="NULL"
 [ -n "$CLS" ] && CCLS="'$(QC "$CLS")'"

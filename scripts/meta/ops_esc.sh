@@ -26,6 +26,13 @@ done
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 QC(){ printf '%s' "${1:-}" | sed "s/'/''/g"; }
 
+# T-0499 ticket 键卫生闸：伪键 ticket loud 拒写——本闸先于去重查询/
+# escalate 委托/直落 INSERT 全写径（含 escalate.sh 在场径——escalate
+# 本体同闸双保险）；闸缺席 fail-open（OCI 单件部署无兄弟件先例在案）。
+if [ -x "${O_KEY_GATE_SH:-$SCRIPT_DIR/ops_event_key_gate.sh}" ]; then
+	"${O_KEY_GATE_SH:-$SCRIPT_DIR/ops_event_key_gate.sh}" "$TICKET" "event=升件" "$SEAT" || exit 0
+fi
+
 # 同窗去重：note 前缀 24h 内已有升件行=本窗已报（跨消费面同键共享——
 # 同根因多面齐发只报一行防事件暴）。
 psql "$FIN_DSN" -qAt -c "SELECT 1 FROM ops_event WHERE event='升件'

@@ -1,6 +1,6 @@
 # T-0499 dm 事件写面 ticket 键卫生——多行拼接伪键根修
 
-- 状态：已批（业主授权 COS 代位裁——积压清账逮出的写面病灶）
+- 状态：待验（原批：业主授权 COS 代位裁——积压清账逮出的写面病灶）
 - 级别：P3 机械轨卫生面
 
 ## 病灶（实证在案）
@@ -40,3 +40,41 @@
 - 不碰钱径；不改相位映射语义本身（映射表是钦定面）；
 - 拼接键的历史账已作废销——本票只修写面+投影守卫，
   不做批量 UPDATE 改写历史行（台账不可篡改面）。
+
+## 结果回填
+
+- 状态：待验
+- 实现摘要：
+  1. **写面共享闸** `scripts/meta/ops_event_key_gate.sh`（新件）——
+     伪键判据=含空白/逗号族（空格/\n/\t/，/）或 T-NNNN 形态≥2；
+     rc0 净放行（空键合法）/rc1 loud 拒写（stderr+ops_event 升件行
+     ticket='' 落账，note 前缀「ticket键卫生拒写 <ctx> h=<md5-8>」
+     24h 同键去重防刷屏）。闸自身写径全尽力而为不反噬调用面；
+     调用面 `-x` 判空 fail-open（OCI 单件部署无兄弟件先例在案）。
+  2. **接线面**（diff ⊆ 票面涉及面——scripts/meta 一切可变 ticket
+     写径）：escalate.sh/ops_esc.sh 双漏斗（覆盖全部 esc() 调用族）、
+     gauges_tick 量表名、dm_autoapprove 候选集+批件保鲜（stale
+     INSERT...SELECT 改「预扫票列过闸→IN 表原子重估」保相位竞态
+     语义）、dm_depgate 在审/候选双集+insert_dispatch_event、
+     dm_ledger 补登、dm_suspend/mech_tick/dispatch_water 拉起候水、
+     verdict_reflow 归流标记、case_writeback 归流行。字面票键写径
+     （''/'T-0466'/'META-*'）不在可变面未接。
+  3. **投影面守卫** `migrations/fin_0153_ops_ticket_phase_key_guard.sql`
+     ——ops_ticket_phase 视图 CREATE OR REPLACE 重建，fin_0147 词集/
+     相位映射一字不动，内层 WHERE 加 `ticket !~ '[[:space:],，]'`
+     +`ticket !~ 'T-[0-9]{4}.*T-[0-9]{4}'`（chr(10)⊂[[:space:]]
+     尸源全覆盖）；条件 GRANT 块同 fin_0147 幂等重列；
+     migrate_table.go 登记 {153}。
+  4. **桩测** `scripts/meta/tests/ticket_key_gate_test.sh`——A 闸单测
+     12 断言（六形伪键拒+loud+去重/净键零写）、B escalate 接线抽查
+     3 断言、C 真库视图守卫 7 断言（testdb_lease 径池空 skip）——
+     全 23 断言绿。
+- 自测：bash -n 全改动件绿；新桩测 23/23 绿（含真 PG 视图实证）；
+  邻面回归 ops_esc/dm_autoapprove/dm_depgate/dispatch_water/
+  mech_tick/verdict_reflow/case_writeback/gauges_sounding/
+  dm_suspend/dm_ledger/dm_ledger_lineage 十件全 PASS；
+  check_migrations 七断言绿、check_tolerate_report 绿、gofmt 净。
+- 残留面（票外未动，呈决策裁）：report.sh（~/bin）与
+  /opt/meta/bin/dm-spawn.sh 在仓外——拼接伪键最后产源径不在本票
+  scripts/meta 域界；写面闸+视图守卫已使其产物不产生相位行，
+  是否补仓外闸件由决策席裁。

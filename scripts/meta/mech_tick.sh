@@ -34,6 +34,7 @@ DM_LEDGER_SH=${O_DM_LEDGER_SH:-"$SCRIPT_DIR/dm_ledger.sh"}
 VERDICT_DELIVER_SH=${O_VERDICT_DELIVER_SH:-"$SCRIPT_DIR/verdict_deliver.sh"}
 AUTOAPPROVE_SH=${O_AUTOAPPROVE_SH:-"$SCRIPT_DIR/dm_autoapprove.sh"}
 DM_QUEUE_SH=${O_DM_QUEUE_SH:-"$SCRIPT_DIR/dm_queue.sh"} # GW-001 段B1：队列判据单源（dispatched 模式）
+KEY_GATE=${O_KEY_GATE_SH:-"$SCRIPT_DIR/ops_event_key_gate.sh"} # T-0499 键卫生闸（缺席 fail-open）
 
 hb() { # $1=state 心跳行（seat=MECH——机械轨活性锚，mech_hb 量表读面）
   [ -n "$FIN_DSN" ] || return 0
@@ -127,6 +128,9 @@ if [ -n "$FIN_DSN" ]; then
     [ -n "$model" ] || model=swe-2-flash-high
     prompt="读 /opt/o/skills/施工席/SKILL.md 领单 $tid:只做工单范围内的事——写实现码/测试/提交/回填;范围外发现的问题不自己动手,写进交付备注;同票已有 Devin 会话或 worktree 时续跑不新开"
     if "$DISPATCH_WORKER" "$tid" "$model" "$prompt" >/dev/null 2>&1; then
+      # T-0499 键卫生闸：拉起行 ticket 落库前拒伪键（loud 在闸内——
+      # dispatch_worker T-形校验下恒过=双保险，闸缺席 fail-open）。
+      [ ! -x "$KEY_GATE" ] || "$KEY_GATE" "$tid" "event=拉起" || continue
       psql "$FIN_DSN" -qAt -c "INSERT INTO ops_event(seat,event,ticket,note)
         VALUES('CTO','拉起','$tid','漏拉/限流补派——session 续跑')" >/dev/null 2>&1 || true # tolerate: 拉起行落账尽力而为—事件败不阻补派
     else

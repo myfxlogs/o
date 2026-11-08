@@ -46,6 +46,7 @@ FIN_DSN=$(grep '^FIN_PG_DSN=' "$ENVF" 2>/dev/null | cut -d= -f2- | tr -d '"')
 [ -n "$FIN_DSN" ] || exit 78
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 OPS_ESC_SH=${O_OPS_ESC_SH:-"$SCRIPT_DIR/ops_esc.sh"}
+KEY_GATE=${O_KEY_GATE_SH:-"$SCRIPT_DIR/ops_event_key_gate.sh"} # T-0499 键卫生闸（缺席 fail-open）
 
 QRC=0
 q() { # $1=SQL → stdout；QRC=psql 退码（查败≠空集——调用面分径）
@@ -65,6 +66,9 @@ N_ACT=0; N_SKIP=0; N_YIELD=0; N_MALF=0
 
 # 归流收尾标记（$1=rid $2=ruling ticket $3=lid $4=动作一句话）
 mark_reflow() {
+	# T-0499 键卫生闸：ruling ticket 出自 ops_event 列——拼接伪键 loud
+	# 拒写跳过本标记（闸缺席 fail-open；标记行缺席下拍断点续账重补）。
+	[ ! -x "$KEY_GATE" ] || "$KEY_GATE" "$2" "event=归流" || return 0
 	q "INSERT INTO ops_event(seat,event,ticket,note)
 		VALUES('MECH','归流','$(sq "$2")','ruling#${1} fin_econ_lesson#${3} $(sq "$4")')" >/dev/null
 	[ "$QRC" -eq 0 ] || echo "[reflow] ruling#${1} 归流行落败 rc=$QRC——下拍断点续账重补" >&2
