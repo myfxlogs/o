@@ -1,0 +1,42 @@
+# deploy/manifest.tsv —— GW-001 段F1 期望态声明（GitOps：repo 件=唯一真源，
+# live 件=被对账面；探针 scripts/meta/drift_probe.sh 只读采集，机修分级
+# scripts/meta/drift_converge.sh）。「一行一类」四类：
+#   unit      name=unit 名           repo=deploy 件路径        expect=sync
+#   timer     name=timer 名          repo=deploy 件路径        expect=enabled
+#             （内容 sync + UnitFileState enabled + ActiveState active 三面）
+#   binary    name=live 绝对路径     repo=cmd 构建路径         expect=green
+#             （go version -m vcs.revision 对 HEAD 构建源；无嵌入=sha 不可考）
+#   migration name=域(fin|md)        repo=migrate_table 路径   expect=max
+#             （live schema_migrations max vs 登记链最大号）
+#
+# 范围=dev 本机 user systemd 件。OCI 盒三臂 unit/二进制归 deploy_oci 臂级
+# sha 账（deploy/deploy-faces.tsv 谱系 + $ep.sha 留痕），不入本表；本机
+# live-only 无 repo 真源件（o-wt-gc/o-gauges-tick/o-strategy-review 等）
+# 无真源可对，不入表（另票补 repo 件后再入册）。OCI 臂 unit 的 dev 遗留
+# 副本（o-projector/o-research）非本机期望态，不入表。
+# 新 unit/二进制上线须同 commit 补行；下线先删行再删 live 件（否则报
+# missing）。带 drop-in 的单元不入表（cat 多片段对 repo 单件恒不等）。
+kind	name	repo	expect
+unit	o-ceo-seat.service	deploy/o-ceo-seat.service	sync
+unit	o-cto-seat.service	deploy/o-cto-seat.service	sync
+unit	o-econ-verdict.service	deploy/o-econ-verdict.service	sync
+unit	o-mech.service	deploy/o-mech.service	sync
+unit	o-metabus.service	deploy/o-metabus.service	sync
+unit	o-mirror-push.service	deploy/o-mirror-push.service	sync
+unit	o-oci-bus-tunnel.service	deploy/o-oci-bus-tunnel.service	sync
+unit	o-readcred-tunnel.service	deploy/o-readcred-tunnel.service	sync
+unit	o-regime-analyst.service	deploy/o-regime-analyst.service	sync
+unit	o-venue-watch.service	deploy/o-venue-watch.service	sync
+unit	o-green-stamp.path	deploy/o-green-stamp.path	sync
+timer	o-ceo-seat.timer	deploy/o-ceo-seat.timer	enabled
+timer	o-cto-seat.timer	deploy/o-cto-seat.timer	enabled
+timer	o-econ-verdict.timer	deploy/o-econ-verdict.timer	enabled
+timer	o-mech.timer	deploy/o-mech.timer	enabled
+timer	o-mirror-push.timer	deploy/o-mirror-push.timer	enabled
+timer	o-regime-analyst.timer	deploy/o-regime-analyst.timer	enabled
+timer	o-venue-watch.timer	deploy/o-venue-watch.timer	enabled
+binary	/opt/o/bin/metabus	./cmd/metabus	green
+binary	/opt/o/bin/headlesspump	./cmd/headlesspump	green
+binary	~/bin/feishu-notify	./cmd/feishu-notify	green
+migration	fin	internal/store/pgstore/migrate_table.go	max
+migration	md	internal/store/pgstore/migrate_table.go	max

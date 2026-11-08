@@ -90,6 +90,17 @@ cat > "$TMP/bin/water" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$1" >> "$WATER_LOG"
 EOF
+# 漂移探针/自收敛桩（GW-001 段F：落名+rc 可控）
+cat > "$TMP/bin/drift-probe.sh" <<'EOF'
+#!/usr/bin/env bash
+printf 'probe\n' >> "$DRIFT_LOG"
+exit "${DRIFT_PROBE_RC:-0}"
+EOF
+cat > "$TMP/bin/drift-converge.sh" <<'EOF'
+#!/usr/bin/env bash
+printf 'converge\n' >> "$DRIFT_LOG"
+exit "${DRIFT_CONVERGE_RC:-0}"
+EOF
 cat > "$TMP/bin/systemctl" <<'EOF'
 #!/usr/bin/env bash
 if [[ ${2:-} == is-active ]]; then echo inactive; exit 3; fi
@@ -121,6 +132,9 @@ export O_DEPLOY_OCI_SH="$TMP/bin/deploy_oci_stub.sh"
 export O_WORKER_DISPATCH_SCRIPT="$TMP/bin/dispatch-worker"
 export O_DISPATCH_WATER_SH="$TMP/bin/water"
 export O_DM_QUEUE_SH="$TMP/bin/dm-queue"
+export O_DRIFT_PROBE_SH="$TMP/bin/drift-probe.sh"
+export O_DRIFT_CONVERGE_SH="$TMP/bin/drift-converge.sh"
+export O_DRIFT_STATE_DIR="$TMP/drift"
 export O_WORKER_TASK_DIR="$TMP/tasks"
 export O_MANUAL_LANE_SH=/bin/false
 export COMP_LOG="$TMP/comp.log"; : > "$COMP_LOG"
@@ -131,10 +145,11 @@ export DEPLOY_LOG="$TMP/deploy.log"; : > "$DEPLOY_LOG"
 export ESC_LOG="$TMP/esc.log"; : > "$ESC_LOG"
 export DISPATCH_LOG="$TMP/dispatch.log"; : > "$DISPATCH_LOG"
 export WATER_LOG="$TMP/water.log"; : > "$WATER_LOG"
+export DRIFT_LOG="$TMP/drift.log"; : > "$DRIFT_LOG"
 export DISPATCH_RC_SEQ="$TMP/rc.seq"; : > "$DISPATCH_RC_SEQ"
 
 MECH="$ROOT/scripts/meta/mech_tick.sh"
-reset_logs() { : > "$COMP_LOG"; : > "$GO_LOG"; : > "$HB_LOG"; : > "$PULL_LOG"; : > "$DEPLOY_LOG"; : > "$ESC_LOG"; : > "$DISPATCH_LOG"; : > "$WATER_LOG"; }
+reset_logs() { : > "$COMP_LOG"; : > "$GO_LOG"; : > "$HB_LOG"; : > "$PULL_LOG"; : > "$DEPLOY_LOG"; : > "$ESC_LOG"; : > "$DISPATCH_LOG"; : > "$WATER_LOG"; : > "$DRIFT_LOG"; }
 
 # ── ① 承接面全件+心跳+批空窗零部署 ──
 reset_logs
@@ -247,5 +262,32 @@ T-9002' bash "$MECH" 2>/dev/null
 head -1 "$DISPATCH_LOG" | grep -q '^T-9002 swe-2-flash-high' \
   || { echo "FAIL ⑩派单序未过 dispatch_order（首派=$(head -1 "$DISPATCH_LOG")）"; cat "$DISPATCH_LOG"; exit 1; }
 echo "ok ⑩补拉候选派单序重排（postmortem 族先于输入序首派）"
+
+# ── ⑪ 漂移对账窗默认半成品态：每拍只跑探针，执行器不启 ──────
+reset_logs
+MECH_LOCK_RESULT=t WINDOW_STATE=批空 DISPATCH_TIDS='' bash "$MECH" 2>/dev/null
+grep -qx 'probe' "$DRIFT_LOG" \
+  || { echo "FAIL ⑪漂移探针未每拍跑"; cat "$DRIFT_LOG"; exit 1; }
+! grep -qx 'converge' "$DRIFT_LOG" \
+  || { echo "FAIL ⑪默认却跑了自收敛（半成品窗破）"; cat "$DRIFT_LOG"; exit 1; }
+echo "ok ⑪默认每拍只跑漂移探针（执行器显式开关）"
+
+# ── ⑫ O_DRIFT_FIX_ENABLE=1→探针+自收敛同拍 ─────────────────
+reset_logs
+MECH_LOCK_RESULT=t WINDOW_STATE=批空 DISPATCH_TIDS='' O_DRIFT_FIX_ENABLE=1 bash "$MECH" 2>/dev/null
+grep -qx 'probe' "$DRIFT_LOG" && grep -qx 'converge' "$DRIFT_LOG" \
+  || { echo "FAIL ⑫开关后探针+收敛未同拍"; cat "$DRIFT_LOG"; exit 1; }
+echo "ok ⑫O_DRIFT_FIX_ENABLE=1 探针+自收敛同拍"
+
+# ── ⑬ fix_enable 件开写径；探针败升件不阻拍 ─────────────────
+mkdir -p "$O_DRIFT_STATE_DIR"; : > "$O_DRIFT_STATE_DIR/fix_enable"
+reset_logs
+MECH_LOCK_RESULT=t WINDOW_STATE=批空 DISPATCH_TIDS='' DRIFT_PROBE_RC=1 bash "$MECH" 2>/dev/null
+grep -qx 'converge' "$DRIFT_LOG" \
+  || { echo "FAIL ⑬fix_enable 件未开写径"; cat "$DRIFT_LOG"; exit 1; }
+grep -qF '漂移探针败' "$ESC_LOG" \
+  || { echo "FAIL ⑬探针败未升件"; cat "$ESC_LOG"; exit 1; }
+rm -f "$O_DRIFT_STATE_DIR/fix_enable"
+echo "ok ⑬fix_enable 件开写径+探针败升件不阻拍"
 
 echo "mech tick scenarios PASS"
