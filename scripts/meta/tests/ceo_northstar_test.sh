@@ -159,7 +159,7 @@ chmod +x "$D/bin/psql"
 printf 'FIN_PG_DSN=fake\n' > "$D/env"
 : > "$D/queue.sql.log"
 DM_ENV_FILE="$D/env" FIN_DSN=fake PATH="$D/bin:$PATH" \
-  QUEUE_SQL_LOG="$D/queue.sql.log" bash "$META/ceo_queue.sh" || true
+  QUEUE_SQL_LOG="$D/queue.sql.log" bash "$META/ceo_queue.sh" || true # tolerate: 桩面收证零败因语义——SQL 落证为断言面，rc 非本断言面（psql 桩恒 rc0）
 # 议题 UNION 面钉——seat=CEO event=议题 出列词形/引证 regex 边界/排序面
 SQL=$(cat "$D/queue.sql.log")
 grep -Fq "SELECT '议题#'||e.id::text FROM ops_event e" <<< "$SQL"
@@ -201,7 +201,7 @@ env -i PATH="$E/bin:$PATH" HOME="$HOME" DM_ENV_FILE="$E/env" \
   O_CEO_WORKDIR="$E/ceo" O_CEO_NORTHSTAR_SH="$E/bin/northstar-stub.sh" \
   O_CEO_QUEUE_SH="$E/bin/queue-stub.sh" O_DECISION_DEVIN_BIN="$E/bin/devin-stub" \
   O_WORKER_USAGE_BIN=/bin/false ORDER_LOG="$E/order.log" \
-  bash "$META/ceo_tick.sh" >/dev/null 2>&1 || true
+  bash "$META/ceo_tick.sh" >/dev/null 2>&1 || true # tolerate: 桩面收证零败因语义——order.log 落证为断言面，rc 非本断言面（心跳/会话桩路径）
 # 空队拍：northstar 先扫→queue 闸空→心跳退——会话件零调
 [[ "$(cat "$E/order.log")" == $'northstar\nqueue' ]]
 ! grep -q DEVIN-CALLED "$E/order.log"
