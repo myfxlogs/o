@@ -22,7 +22,7 @@ STALE_S=${O_AUTOAPPROVE_STALE_S:-86400}
 FIN_DSN=${FIN_DSN:-${FIN_PG_DSN:-}}
 [ -n "$FIN_DSN" ] || exit 0
 
-esc() { "$OPS_ESC_SH" CTO "${3:-}" "" "" "$1" "$2" || true; }
+esc() { "$OPS_ESC_SH" CTO "${3:-}" "" "" "$1" "$2" || true; } # tolerate: 升件尽力而为—升件败不阻机批主径
 
 # 册读径（fail-closed：键缺/行空→零批静默退；键存值坏 json=psql 败→rc1 升件）。
 REG_KEYS=$(psql "$FIN_DSN" -qAt -c \

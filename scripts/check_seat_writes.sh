@@ -22,20 +22,20 @@ while read -r sha; do
   subj=$(git log -1 --format=%s "$sha")
   author=$(git log -1 --format=%ae "$sha")
   case "$subj|$author" in *"角色:决策"*|*"角色:CTO"*|*"claude-glm@local"*) ;; *) continue;; esac
-  bad=$(git diff-tree --no-commit-id --name-only -r "$sha" | grep -vE "$WL" || true)
+  bad=$(git diff-tree --no-commit-id --name-only -r "$sha" | grep -vE "$WL" || true) # tolerate: grep空集=无非白名单件合法径
   [ -z "$bad" ] && continue
   echo "FAIL: 决策席直commit越白名单 $sha ${subj:0:40}:"; echo "$bad" | sed 's/^/      /'
   viol=1
 done < <(git rev-list "$RANGE" --no-merges 2>/dev/null)
 while read -r sha; do
   # 支侧 commit 全谱: 若每件都是决策席自产→查其触件;含他席即放行
-  side=$(git rev-list "$sha" --not "$sha^1" 2>/dev/null || true)
+  side=$(git rev-list "$sha" --not "$sha^1" 2>/dev/null || true) # tolerate: 根commit或单父sha无^1—side空合法径
   [ -z "$side" ] && continue
   allmine=1; nonwl=
   for s in $side; do
     subj=$(git log -1 --format=%s "$s"); author=$(git log -1 --format=%ae "$s")
     case "$subj|$author" in *"角色:决策"*|*"角色:CTO"*|*"claude-glm@local"*)
-      nonwl="$nonwl$(git diff-tree --no-commit-id --name-only -r "$s" | grep -vE "$WL" || true)" ;;
+      nonwl="$nonwl$(git diff-tree --no-commit-id --name-only -r "$s" | grep -vE "$WL" || true)" ;; # tolerate: grep空集=无非白名单件合法径
     *) allmine=0;; esac
   done
   [ "$allmine" = 1 ] && [ -n "$nonwl" ] && {
