@@ -19,6 +19,33 @@ import (
 	"o/internal/trading/okxexec"
 )
 
+// xvenueErr 全 err 出口终局分类（T-0145 返修①——venue 终局拒任一出口皆
+// 入册联动，非仅 Execute xerr；mtexec/okxexec 双判各入各册在案码径：
+// okx 终局→okx inst 入册，mt5 终局→cfd canonical 入册——双腿+提案退役
+// 三件共 xvenueUntradeable）。非终局/入册锚缺席（cfd 未对位）=原 err 透传。
+func (h hedgeOpener) xvenueErr(ctx context.Context, spec lifecycle.OpenSpec,
+	mateID int64, cfd string, err error) error {
+	if err == nil {
+		return nil
+	}
+	var inst string
+	switch {
+	case okxexec.TerminalInstErr(err):
+		inst = spec.InstID
+	case mtexec.TerminalInstErr(err):
+		inst = cfd
+	default:
+		return err
+	}
+	if inst == "" {
+		return err
+	}
+	if herr := h.xvenueUntradeable(ctx, spec, mateID, inst, err); herr != nil {
+		return fmt.Errorf("终局处置败（须人查）: %w", herr)
+	}
+	return fmt.Errorf("venue_untradeable: %w", err)
+}
+
 // xvenuePair cfd 官名+副腿行 id 对位（提案双行同 proposal_ref 配对——
 // xvenuepair.go 建序钦定）；pair 行未落期兜底 bridge.xvenue.map 同映射源
 // （双无=fail-closed 不构单腿）。
