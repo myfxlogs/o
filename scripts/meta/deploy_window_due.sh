@@ -35,11 +35,14 @@
 #       件缺=否列空全面双发）。OCI 基线三源：env→盒上三臂 $ep.sha
 #       最老件→ops_event deploy-oci 行；三源皆败/谱系岔=面不可判
 #       →OCI 面按非空保守计（发 deploy_oci 自检径兜——不可判不静默）。
-#   ②无挡件（T-0437 分面判据——挡件挂面，争议面冻结、无争议面照发）:
+#   ②无挡件（T-0437 分面判据——挡件挂面，争议面冻结、无争议面照发;
+#     T-0498 票面自证补支——支/树皆无时票文件涉及路径全非部署面=none
+#     不挡,涉部署面按标挡,票件缺/路径不可抽=unknown 保守双挡不退化;
+#     非 T 前缀票支式/工位推导显式不可定不误拼 t/<id>*):
 #     挡件按部署面挂标——票支 diff∪wt 脏面分类：碰 OCI 构建源（进镜像∧
 #     进 OCI 臂构建）=双面挡(img+oci)；仅碰镜像专属面（deploy-faces.tsv
-#     image_only 否列）=img 面挡；非部署面=不挡；支树皆不可定/待裁面
-#     查询败/dsn 缺=面不可判→保守双挡（现行语义不退化）。
+#     image_only 否列）=img 面挡；非部署面=不挡；支树皆不可定且票面
+#     亦不可判/待裁面查询败/dsn 缺=面不可判→保守双挡（现行语义不退化）。
 #     应发面集减被挡面=净发窗面集（faces= 行）；净集空=有挡（exit 11），
 #     净集非空=应发（仅发净面——reason 携面标：挡件清单+冻结面+放行面）；
 #     挡件零=判据②过。已批未派件无支=未动工不挡。
@@ -149,25 +152,65 @@ merge_block_faces() { # $1 $2 ∈ none|img|both|unknown → 归并（both>img>no
     *) printf 'none\n' ;;
   esac
 }
-ticket_block_faces() { # $1=T-NNNN → none|img|both|unknown（stdout）
-  local num=${1#T-} ref saw=0 out=none f
-  while read -r ref; do
-    [ -n "$ref" ] || continue
-    saw=1
-    f=$(git -C "$REPO" diff --name-only "$MASTER_REF...$ref" 2>/dev/null | diff_block_faces)
-    out=$(merge_block_faces "$out" "$f")
-  done < <(ticket_refs "$1")
-  local wtd=/opt/o-wt/t$num
-  if [ -d "$wtd" ] && [ -e "$wtd/.git" ]; then
-    saw=1
-    # wt 未提交脏面+wt 内未推 commit 面并查
-    f=$({ git -C "$wtd" status --porcelain 2>/dev/null | sed 's/^...//'
-          git -C "$wtd" diff --name-only "$MASTER_REF...HEAD" 2>/dev/null
-        } | diff_block_faces)
-    out=$(merge_block_faces "$out" "$f")
+# ── 票面自证判据（T-0498）：支/树皆无时唯一证源=票文件涉及路径——
+#   路径集全非部署面=none 不挡（票面自证零部署面出保守双挡域）；涉
+#   部署面=按面标挡（img/both 与支 diff 同谱）；票件缺席或路径 token
+#   不可抽=unknown 保守双挡现行语义不退化。非 T 前缀票（GW-001/伪键
+#   族）支式/工位推导显式不可定——不误拼 t/<id>*（字面错拼语义钉死）。
+ticket_doc() { # $1=ticket → 票面件路径（tasks→done→infra 序首配；空=无件/不可定）
+  local t=$1 pat m
+  case "$t" in *[\*\?\[]*) return 0 ;; esac # glob 元字符票=不可定防过配
+  for pat in "$REPO/docs/tasks/$t.md" "$REPO/docs/tasks/$t-*.md" \
+             "$REPO/docs/tasks/done/$t.md" "$REPO/docs/tasks/done/$t-*.md" \
+             "$REPO/docs/infra/$t.md" "$REPO/docs/infra/$t-*.md"; do
+    m=$(compgen -G "$pat" 2>/dev/null | head -1)
+    [ -n "$m" ] && { printf '%s\n' "$m"; return 0; }
+  done
+  return 0
+}
+ticket_doc_faces() { # $1=ticket → none|img|both|unknown（票面自证判据）
+  local doc paths
+  doc=$(ticket_doc "$1")
+  { [ -n "$doc" ] && [ -f "$doc" ]; } || { printf 'unknown\n'; return 0; }
+  # 归一仓根引用（/opt/o[/wt/<树>]/→o/）后抽路径 token：slash-token
+  # 首段须落仓顶层目录（剥 o/、./ 引用前缀）+根级部署件名单补抽。
+  paths=$(sed -E -e 's#/opt/o-wt/[A-Za-z0-9_-]+/#o/#g' \
+                    -e 's#/opt/o/#o/#g' "$doc" \
+    | { grep -oE '[A-Za-z0-9_.,:{}*~+%@-]+(/[A-Za-z0-9_.,:{}*~+%@-]+)+' \
+        | sed -E -e 's#^o/##' -e 's#^\./##' \
+        | awk -F/ 'BEGIN{split("cmd deploy docs internal migrations proto scripts skills tools web .github .devin",T," ")} {ok=0; for(i=1;i<=length(T);i++) if($1==T[i]) ok=1; if(ok) print}'
+      grep -oE '\b(Dockerfile[^/ ]*|docker-compose[^/ ]*|\.dockerignore|go\.mod|go\.sum|buf[^/ ]*\.ya?ml)\b'
+    } | sort -u)
+  [ -n "$paths" ] || { printf 'unknown\n'; return 0; }
+  printf '%s\n' "$paths" | diff_block_faces
+}
+ticket_block_faces() { # $1=ticket → none|img|both|unknown（stdout）
+  local num="" ref saw=0 out=none f wtd=""
+  # 支/工位推导仅 T-NNNN 规整形（≥4 位数字+可选字母后缀，同
+  # check_ticket_numbers 字母后缀形）；非 T 前缀与异形 id=显式不可定
+  case "$1" in
+    T-[0-9]*) case "${1#T-}" in
+      *[!0-9a-zA-Z]*) ;; [0-9][0-9][0-9][0-9]*) num=${1#T-} ;; esac ;;
+  esac
+  if [ -n "$num" ]; then
+    while read -r ref; do
+      [ -n "$ref" ] || continue
+      saw=1
+      f=$(git -C "$REPO" diff --name-only "$MASTER_REF...$ref" 2>/dev/null | diff_block_faces)
+      out=$(merge_block_faces "$out" "$f")
+    done < <(ticket_refs "$1")
+    wtd=/opt/o-wt/t$num
+    if [ -d "$wtd" ] && [ -e "$wtd/.git" ]; then
+      saw=1
+      # wt 未提交脏面+wt 内未推 commit 面并查
+      f=$({ git -C "$wtd" status --porcelain 2>/dev/null | sed 's/^...//'
+            git -C "$wtd" diff --name-only "$MASTER_REF...HEAD" 2>/dev/null
+          } | diff_block_faces)
+      out=$(merge_block_faces "$out" "$f")
+    fi
   fi
   [ "$saw" -eq 1 ] && { printf '%s\n' "$out"; return 0; }
-  printf 'unknown\n' # 支树皆不可定→保守双挡（现行语义不退化）
+  ticket_doc_faces "$1" # 支树皆不可定→票面自证（T-0498）
 }
 face_tag() { # $1=faces 类 → reason 可读面标
   case "$1" in

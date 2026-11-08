@@ -25,7 +25,22 @@ echo x > "$REPO/web/w.ts"; G add -A; G commit -qm "c2 [T-0002]"; C2=$(G rev-pars
 G checkout -qb t/0900 master; echo y > "$REPO/web/w2.ts"; G add -A; G commit -qm "t0900 web"
 G checkout -qb t/0901 master; echo z > "$REPO/internal/projector/extra.go"; G add -A; G commit -qm "t0901 internal"
 G checkout -qb t/0903 master; echo w > "$REPO/web/w3.ts"; G add -A; G commit -qm "t0903 web"
+# T-0498 桩支：t/0907=internal 件（支分类优先于票面 docs-only 自证）
+G checkout -qb t/0907 master; echo q > "$REPO/internal/projector/t0907.go"; G add -A; G commit -qm "t0907 internal"
 G checkout -q master
+
+# T-0498 票面自证桩票（支/树皆无时唯一证源）：
+# T-0904=docs-only 涉及→none 不挡；T-0905=无票件→unknown 双挡；
+# T-0906=票件无路径 token→unknown 双挡；T-0907=docs-only 票面但有支→支赢；
+# GW-900=非T docs-only(infra 域)→none 不挡；GW-901=非T 涉 internal→both 挡；
+# T-0908=docs-only 票面涉 web/→img 单面挡（oci 净面照发）
+mkdir -p "$REPO/docs/tasks" "$REPO/docs/infra"
+printf '# T-0904 桩票\n| 涉及面 | docs/tasks/T-0904-桩票.md、docs/infra/ |\n' > "$REPO/docs/tasks/T-0904-桩票.md"
+printf '# T-0906 桩票\n本票纯文字说明——无任何仓内路径涉及面。\n' > "$REPO/docs/tasks/T-0906-桩票.md"
+printf '# T-0907 桩票\n| 涉及面 | docs/tasks/T-0907-桩票.md |\n' > "$REPO/docs/tasks/T-0907-桩票.md"
+printf '# T-0908 桩票\n| 涉及面 | web/src/桩件.ts、docs/tasks/T-0908-桩票.md |\n' > "$REPO/docs/tasks/T-0908-桩票.md"
+printf '# GW-900 跟踪票\n| 涉及面 | docs/infra/GW-900-跟踪票.md、docs/tasks/ |\n' > "$REPO/docs/infra/GW-900-跟踪票.md"
+printf '# GW-901 跟踪票\n| 涉及面 | internal/projector/tick.go、docs/infra/GW-901-跟踪票.md |\n' > "$REPO/docs/infra/GW-901-跟踪票.md"
 
 # ── 桩面 ─────────────────────────────────────────────────
 echo 'FIN_PG_DSN=postgres://127.0.0.1:1/x' > "$TMP/env"
@@ -148,5 +163,46 @@ rc=0; out=$(run "$C0" "$C0") || rc=$?
 [ "$rc" -eq 0 ] || fail "⑩rc=$rc≠0: $out"
 [ "$(faces "$out")" = oci ] || fail "⑩faces≠oci: $out"
 grep -q "待裁:T-0903(img)" <<<"$out" || fail "⑩reason 缺待裁面标: $out"
+
+# ── T-0498 票面自证判据：支/树皆无→票文件涉及路径分类 ──────────
+# ⑪红桩——pending docs-only 票不挡窗：T-0904（tasks 件）+GW-900
+#   （非T 前缀+infra 域件）票面涉及全非部署面→none 跳过→双面全发。
+: > "$UNIT_CTL"; : > "$ESC_CALLS"; printf 'T-0904\nGW-900\n' > "$DMQ_CTRL"
+rc=0; out=$(run "$C0" "$C0") || rc=$?
+[ "$rc" -eq 0 ] || fail "⑪rc=$rc≠0: $out"
+[ "$(state "$out")" = 应发 ] || fail "⑪state≠应发: $out"
+[ "$(faces "$out")" = image,oci ] || fail "⑪faces≠image,oci（docs-only 票误挡）: $out"
+grep -q "待裁:T-0904" <<<"$out" && fail "⑪docs-only T-0904 竟入挡件"
+grep -q "待裁:GW-900" <<<"$out" && fail "⑪docs-only GW-900 竟入挡件"
+
+# ⑫红桩——票面不可判仍双挡（保守不松）：T-0905 无票件+T-0906 票件
+#   无路径 token→unknown→双面全挡 exit11，面标 (不可判→双挡)。
+: > "$ESC_CALLS"; printf 'T-0905\nT-0906\n' > "$DMQ_CTRL"
+rc=0; out=$(run "$C0" "$C0") || rc=$?
+[ "$rc" -eq 11 ] || fail "⑫rc=$rc≠11: $out"
+grep -q "待裁:T-0905(不可判→双挡)" <<<"$out" || fail "⑫reason 缺 T-0905 不可判标: $out"
+grep -q "待裁:T-0906(不可判→双挡)" <<<"$out" || fail "⑫reason 缺 T-0906 不可判标: $out"
+
+# ⑬红桩——非T 票涉部署面按标挡：GW-901 票面涉 internal/→both
+#   双面挡 exit11（非T 不再永 unknown 误拼 t/GW-901*，票面自证生效）。
+: > "$ESC_CALLS"; printf 'GW-901\n' > "$DMQ_CTRL"
+rc=0; out=$(run "$C0" "$C0") || rc=$?
+[ "$rc" -eq 11 ] || fail "⑬rc=$rc≠11: $out"
+grep -q "待裁:GW-901(img+oci)" <<<"$out" || fail "⑬reason 缺 GW-901 双面挡标: $out"
+
+# ⑭红桩——票面涉镜像专属面=img 单面挡：T-0908 票面涉 web/→oci 净面照发。
+: > "$ESC_CALLS"; printf 'T-0908\n' > "$DMQ_CTRL"
+rc=0; out=$(run "$C0" "$C0") || rc=$?
+[ "$rc" -eq 0 ] || fail "⑭rc=$rc≠0: $out"
+[ "$(faces "$out")" = oci ] || fail "⑭faces≠oci（img 挡件漏挂面）: $out"
+grep -q "待裁:T-0908(img)" <<<"$out" || fail "⑭reason 缺待裁面标: $out"
+grep -q "冻结面=image" <<<"$out" || fail "⑭reason 缺冻结面: $out"
+
+# ⑮红桩——支分类优先于票面自证（零回改）：T-0907 票面 docs-only
+#   但有 t/0907 支碰 internal/→支 diff 判 both 双挡（saw=1 不走票面）。
+: > "$ESC_CALLS"; printf 'T-0907\n' > "$DMQ_CTRL"
+rc=0; out=$(run "$C0" "$C0") || rc=$?
+[ "$rc" -eq 11 ] || fail "⑮rc=$rc≠11: $out"
+grep -q "待裁:T-0907(img+oci)" <<<"$out" || fail "⑮reason 缺 T-0907 双面挡标（支分类被票面覆盖）: $out"
 
 echo "deploy_window_faces_test 全绿"
