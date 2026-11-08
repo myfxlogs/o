@@ -904,3 +904,27 @@ func TestFaceBaselineLegBTCUSDTSwapRegistered(t *testing.T) {
 		t.Fatalf("%s 理由键空——注册式不静默（depblind 豁免同律）", scope)
 	}
 }
+
+// TestFaceBaselineTableMdEvalPulseRegistered T-0497 先红桩（T-0388 修复类律
+// ——病灶存在断言修前红+同断言修后绿）：签名面 face:table:md_eval_pulse 必须
+// 在人工基线册。根因锚：md_eval_pulse=fin_0148 迁移建 public 基表（T-0485
+// eval 活动脉冲桥——md fin_opp_eval per-template 聚合派生，projector serve
+// 拍尾+活性对账写 SG；domain.tsv bridge 入册，fin_0147→0148 改号在案；SG
+// 侧表+授权 T-0488 直放对拍在案）；写径=projector refreshEvalPulse upsert
+// （internal/projector/pulse.go），读径=hunger 族沉默探针 pulseTemplates+
+// flow_pulse eval 段灯（o_fin_ro SELECT 授权在案）；table 类面=
+// information_schema 全量 BASE TABLE 枚举本体零硬编码——建表落地即面，
+// 表重建/快照册重置回摆重复升件炸起草拍（T-0393 链，升件源 ops_event
+// #4759、面清单新面行 #4758、快照批 14/15 在册；CEO 终态裁 #4768 明载
+// table:md_eval_pulse=T-0485 eval脉冲桥落地表=部署落地合法新面，机批已批
+// #4784）。修前未登记=红；入册后同断言绿且理由键非空（注册式不静默）。
+func TestFaceBaselineTableMdEvalPulseRegistered(t *testing.T) {
+	scope := "face:table:md_eval_pulse"
+	reason, ok := faceBaselineExempt(scope)
+	if !ok {
+		t.Fatalf("病灶存在：%s 未入人工基线册——回摆将重复升件（T-0497）", scope)
+	}
+	if strings.TrimSpace(reason) == "" {
+		t.Fatalf("%s 理由键空——注册式不静默（depblind 豁免同律）", scope)
+	}
+}
