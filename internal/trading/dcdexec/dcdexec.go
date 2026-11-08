@@ -20,6 +20,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"o/internal/platform/findom"
 	"o/internal/risk"
 	"o/internal/trading/okxexec"
 )
@@ -41,14 +42,19 @@ type Spec struct {
 	NotionalUSD float64
 }
 
-// Deps 开仓依赖面（pool=台账/gate=风控闸——产线装配同位注入）。
+// Deps 开仓依赖面（pool=台账/gate=风控闸/Dom=仓账写域——产线装配同位注入；
+// Dom 零值 fail-closed 拒跑——未声明域=写径歧义禁默认真户）。
 type Deps struct {
 	Pool *pgxpool.Pool
 	Gate *risk.Gate
+	Dom  findom.Domain
 }
 
 // Open dcd 产品开仓全径（产线 dcdOpen 原码搬迁——行为零漂移）。
 func Open(ctx context.Context, d Deps, v Venue, spec Spec) (int64, error) {
+	if d.Dom != findom.Live && d.Dom != findom.Sim {
+		return 0, fmt.Errorf("dcdexec: 仓账写域未声明（Deps.Dom 零值 fail-closed——歧义禁默认真户）")
+	}
 	// T-0207：notionalCcy=产品锁定币（md_dcd_product.raw 回填勿猜——
 	// quote 真径三参；缺件 fail-closed 不臆造）。
 	var notionalCcy string
@@ -79,8 +85,8 @@ func Open(ctx context.Context, d Deps, v Venue, spec Spec) (int64, error) {
 		return 0, fmt.Errorf("闸拒: %s", dec.Reason)
 	}
 	var execID int64
-	if err := d.Pool.QueryRow(ctx, `INSERT INTO fin_execution(strategy_ref,decision_id,inst_id,notional_usd,state)
-		VALUES($1,$2,$3,$4,'open') RETURNING id`,
+	if err := d.Pool.QueryRow(ctx, fmt.Sprintf(`INSERT INTO %s(strategy_ref,decision_id,inst_id,notional_usd,state)
+		VALUES($1,$2,$3,$4,'open') RETURNING id`, d.Dom.Execution()),
 		spec.StrategyRef, dec.DecisionID, spec.InstID, spec.NotionalUSD).Scan(&execID); err != nil {
 		return 0, err
 	}
@@ -91,11 +97,11 @@ func Open(ctx context.Context, d Deps, v Venue, spec Spec) (int64, error) {
 		// T-0208②：429=未执行定态分流（venue 限速拒非歧态势——trade 未
 		// 落即拒可退避重试；真歧态势=请求已入未定才 ambiguous）。
 		if strings.Contains(err.Error(), "429") {
-			Mark(ctx, d.Pool, execID, "failed", err)
+			Mark(ctx, d.Pool, d.Dom, execID, "failed", err)
 			return execID, fmt.Errorf("dcd trade 429 限速退避（exec_id=%d）: %w", execID, err)
 		}
 		// 传输/超时败=歧态势：禁补单——exec 行待人工/读件定真态（okx-exec 纪律）。
-		Mark(ctx, d.Pool, execID, "ambiguous", err)
+		Mark(ctx, d.Pool, d.Dom, execID, "ambiguous", err)
 		return execID, fmt.Errorf("dcd trade 歧态势禁补单（exec_id=%d）: %w", execID, err)
 	}
 	var rows []struct {
@@ -107,11 +113,11 @@ func Open(ctx context.Context, d Deps, v Venue, spec Spec) (int64, error) {
 		if uerr == nil {
 			uerr = fmt.Errorf("data 空集")
 		}
-		Mark(ctx, d.Pool, execID, "ambiguous", uerr)
+		Mark(ctx, d.Pool, d.Dom, execID, "ambiguous", uerr)
 		return execID, fmt.Errorf("dcd trade 响应解析败（歧态势禁补单）: %v", uerr)
 	}
 	if rows[0].SCode != "0" {
-		MarkVE(ctx, d.Pool, execID, "failed", rows[0].SCode, rows[0].SMsg)
+		MarkVE(ctx, d.Pool, d.Dom, execID, "failed", rows[0].SCode, rows[0].SMsg)
 		return execID, fmt.Errorf("dcd 业务拒 %s: %s", rows[0].SCode, rows[0].SMsg)
 	}
 	// order-status 对拍定真态（T-0160 返修①：读败/空态→ambiguous 禁默认
@@ -130,7 +136,7 @@ func Open(ctx context.Context, d Deps, v Venue, spec Spec) (int64, error) {
 		if serr == nil {
 			serr = fmt.Errorf("order-status 空态无行")
 		}
-		Mark(ctx, d.Pool, execID, "ambiguous", serr)
+		Mark(ctx, d.Pool, d.Dom, execID, "ambiguous", serr)
 		return execID, fmt.Errorf("order-status 读败/空态（歧态势禁补单——exec_id=%d 待查证非默认 LIVE 造仓）: %w", execID, serr)
 	}
 	// T-0160 返修⑤：exec 状态更新+position 落位同事务（position 写败→
@@ -140,21 +146,21 @@ func Open(ctx context.Context, d Deps, v Venue, spec Spec) (int64, error) {
 		return execID, err
 	}
 	var pid int64
-	if err := tx.QueryRow(ctx, `INSERT INTO fin_position(execution_id,strategy_ref,inst_id,notional_usd,opened_at)
-		VALUES($1,$2,$3,$4,now()) RETURNING id`, execID, spec.StrategyRef, spec.InstID, spec.NotionalUSD).Scan(&pid); err != nil {
+	if err := tx.QueryRow(ctx, fmt.Sprintf(`INSERT INTO %s(execution_id,strategy_ref,inst_id,notional_usd,opened_at)
+		VALUES($1,$2,$3,$4,now()) RETURNING id`, d.Dom.Position()), execID, spec.StrategyRef, spec.InstID, spec.NotionalUSD).Scan(&pid); err != nil {
 		_ = tx.Rollback(ctx)
 		// T-0259 顺手根修：state='orphan' 越 0082 CHECK 集——写永静默败、行留
 		// 'open' 幻影敞口；'ambiguous'=同语义合法态（exec 在仓行缺=查证面不吞）。
-		Mark(ctx, d.Pool, execID, "ambiguous", err)
+		Mark(ctx, d.Pool, d.Dom, execID, "ambiguous", err)
 		return execID, fmt.Errorf("position 落位败（exec ambiguous 标——orphan 越 CHECK 静默败已修）: %w", err)
 	}
 	estate := ExecState(state)
 	if estate == "" {
 		_ = tx.Rollback(ctx)
-		Mark(ctx, d.Pool, execID, "ambiguous", fmt.Errorf("order-status 态 %q 未载映射表", state))
+		Mark(ctx, d.Pool, d.Dom, execID, "ambiguous", fmt.Errorf("order-status 态 %q 未载映射表", state))
 		return execID, fmt.Errorf("order-status 态 %q 未载映射表（禁默认 open 造仓——歧态势）", state)
 	}
-	if _, err := tx.Exec(ctx, "UPDATE fin_execution SET state=$1 WHERE id=$2", estate, execID); err != nil {
+	if _, err := tx.Exec(ctx, fmt.Sprintf("UPDATE %s SET state=$1 WHERE id=$2", d.Dom.Execution()), estate, execID); err != nil {
 		_ = tx.Rollback(ctx)
 		return execID, err
 	}
@@ -187,15 +193,15 @@ func VenueErr(err error) (code, msg string) {
 
 // Mark exec 失败标定+拒因同 UPDATE（同语句=同原子写——乱序重建不丢证）；
 // 写败显形非吞（拒因落库败=取证面再毁）。err 径供 APIError/传输败复用。
-func Mark(ctx context.Context, pool *pgxpool.Pool, execID int64, state string, err error) {
+func Mark(ctx context.Context, pool *pgxpool.Pool, dom findom.Domain, execID int64, state string, err error) {
 	vc, vm := VenueErr(err)
-	MarkVE(ctx, pool, execID, state, vc, vm)
+	MarkVE(ctx, pool, dom, execID, state, vc, vm)
 }
 
 // MarkVE 显式码文版（venue 响应行 sCode/sMsg 等非 error 形拒因直落）。
-func MarkVE(ctx context.Context, pool *pgxpool.Pool, execID int64, state, vc, vm string) {
-	if _, err := pool.Exec(ctx, `UPDATE fin_execution SET state=$2,
-		venue_err_code=NULLIF($3,''), venue_err_msg=NULLIF($4,'') WHERE id=$1`,
+func MarkVE(ctx context.Context, pool *pgxpool.Pool, dom findom.Domain, execID int64, state, vc, vm string) {
+	if _, err := pool.Exec(ctx, fmt.Sprintf(`UPDATE %s SET state=$2,
+		venue_err_code=NULLIF($3,''), venue_err_msg=NULLIF($4,'') WHERE id=$1`, dom.Execution()),
 		execID, state, vc, vm); err != nil {
 		log.Printf("ALERT [dcdexec] exec %d 标定败（state=%s——拒因落库丢证风险）: %v", execID, state, err)
 	}

@@ -79,7 +79,7 @@ func (ls legSet) of(inst string) (leg, bool) {
 
 func (w *Warden) legs(ctx context.Context, execID int64) legSet {
 	rows, err := w.pool.Query(ctx,
-		`SELECT inst_id, side, sz, venue, sz_unit, qty_base, venue_ticket FROM fin_order_leg WHERE execution_id=$1 ORDER BY leg_no`, execID)
+		fmt.Sprintf(`SELECT inst_id, side, sz, venue, sz_unit, qty_base, venue_ticket FROM %s WHERE execution_id=$1 ORDER BY leg_no`, w.dom.OrderLeg()), execID)
 	if err != nil {
 		w.rej.Inc("facts_missing")
 		return legSet{one: true}
@@ -157,10 +157,10 @@ func (w *Warden) driftTriggered(ctx context.Context, posID int64, imbNow, bandBp
 	}
 	var open *float64
 	if err := w.pool.QueryRow(ctx,
-		"SELECT open_imbalance_bps FROM fin_position WHERE id=$1", posID).Scan(&open); err != nil || open == nil {
+		fmt.Sprintf("SELECT open_imbalance_bps FROM %s WHERE id=$1", w.dom.Position()), posID).Scan(&open); err != nil || open == nil {
 		// 基线播种：首拍实算落列，本拍零杀（出生残差入基线）。
 		if _, err := w.pool.Exec(ctx,
-			"UPDATE fin_position SET open_imbalance_bps=$2 WHERE id=$1 AND open_imbalance_bps IS NULL", posID, imbNow); err != nil {
+			fmt.Sprintf("UPDATE %s SET open_imbalance_bps=$2 WHERE id=$1 AND open_imbalance_bps IS NULL", w.dom.Position()), posID, imbNow); err != nil {
 			w.rej.Inc("write_err")
 		}
 		return false
@@ -196,10 +196,10 @@ func (w *Warden) retryKeys() (backoff, maxAtt int64, err error) {
 }
 
 func (w *Warden) markClosing(ctx context.Context, posID int64, trig string) error {
-	_, err := w.pool.Exec(ctx, `INSERT INTO fin_guard_close(position_id,state,trigger_kind,attempts,last_try_at,last_attempt_at,updated_at)
+	_, err := w.pool.Exec(ctx, fmt.Sprintf(`INSERT INTO %s(position_id,state,trigger_kind,attempts,last_try_at,last_attempt_at,updated_at)
 		VALUES($1,'closing',$2,1,now(),now(),now())
 		ON CONFLICT(position_id) DO UPDATE SET state='closing',trigger_kind=$2,
-		  attempts=fin_guard_close.attempts+1,last_try_at=now(),last_attempt_at=now(),updated_at=now()`, posID, trig)
+		  attempts=%[1]s.attempts+1,last_try_at=now(),last_attempt_at=now(),updated_at=now()`, w.dom.GuardClose()), posID, trig)
 	if err != nil {
 		w.rej.Inc("write_err")
 	}
@@ -208,7 +208,7 @@ func (w *Warden) markClosing(ctx context.Context, posID int64, trig string) erro
 
 func (w *Warden) markFailed(ctx context.Context, posID int64, reason string) {
 	if _, err := w.pool.Exec(ctx,
-		`UPDATE fin_guard_close SET state='close_failed',last_error=$2,updated_at=now() WHERE position_id=$1`, posID, reason); err != nil {
+		fmt.Sprintf(`UPDATE %s SET state='close_failed',last_error=$2,updated_at=now() WHERE position_id=$1`, w.dom.GuardClose()), posID, reason); err != nil {
 		w.rej.Inc("write_err")
 	}
 }
@@ -218,7 +218,7 @@ func (w *Warden) markFailed(ctx context.Context, posID int64, reason string) {
 // attempts>1 的仓靠它记「为什么重试过」——清了记忆即断）。
 func (w *Warden) noteAttemptFail(ctx context.Context, posID int64, reason string) {
 	if _, err := w.pool.Exec(ctx,
-		`UPDATE fin_guard_close SET last_error=$2,updated_at=now() WHERE position_id=$1`, posID, reason); err != nil {
+		fmt.Sprintf(`UPDATE %s SET last_error=$2,updated_at=now() WHERE position_id=$1`, w.dom.GuardClose()), posID, reason); err != nil {
 		w.rej.Inc("write_err")
 	}
 }
@@ -235,21 +235,21 @@ func (w *Warden) markClosed(ctx context.Context, p posRow, closeExecID int64, tr
 	}
 	defer tx.Rollback(ctx)
 	if _, err := tx.Exec(ctx,
-		`UPDATE fin_position SET closed_at=now() WHERE (id=$1 OR execution_id=$2) AND closed_at IS NULL`,
+		fmt.Sprintf(`UPDATE %s SET closed_at=now() WHERE (id=$1 OR execution_id=$2) AND closed_at IS NULL`, w.dom.Position()),
 		p.id, closeExecID); err != nil {
 		w.rej.Inc("write_err")
 		return err
 	}
 	if _, err := tx.Exec(ctx,
-		`UPDATE fin_guard_close SET state='closed',closed_at=now(),updated_at=now() WHERE position_id=$1`, p.id); err != nil {
+		fmt.Sprintf(`UPDATE %s SET state='closed',closed_at=now(),updated_at=now() WHERE position_id=$1`, w.dom.GuardClose()), p.id); err != nil {
 		w.rej.Inc("write_err")
 		return err
 	}
 	// T-0046 ⑥：exec 态闭环——原仓 exec 行（open 挂账）+平仓 exec 行一并 closed
 	//（不关=earn sweepIdle 的 inFlight 闸永堵——首仓事故实证副作用）。
-	if _, err := tx.Exec(ctx, `UPDATE fin_execution SET state='closed'
+	if _, err := tx.Exec(ctx, fmt.Sprintf(`UPDATE %s SET state='closed'
 		WHERE state IN ('open','legged')
-		  AND (id=$2 OR id IN (SELECT execution_id FROM fin_position WHERE id=$1))`, p.id, closeExecID); err != nil {
+		  AND (id=$2 OR id IN (SELECT execution_id FROM %[2]s WHERE id=$1))`, w.dom.Execution(), w.dom.Position()), p.id, closeExecID); err != nil {
 		w.rej.Inc("write_err")
 		return err
 	}

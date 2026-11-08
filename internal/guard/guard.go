@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"o/internal/platform/config"
+	"o/internal/platform/findom"
 	"o/internal/platform/notify"
 	"o/internal/platform/rejects"
 	"o/internal/platform/roster"
@@ -69,6 +70,7 @@ type Warden struct {
 	notes   map[string]time.Time                       // skip 态限频日志时间戳（键级 10min 节流）
 	equity  func(ctx context.Context) (float64, error) // 净权益现读件（dd 硬线判定时点实读）
 	ddFacts map[string]any                             // 本拍回撤实况载荷（dd/阈/peak/cur——T-0415 平仓决策行携实况）
+	dom     findom.Domain                              // T-0489：仓账写域（live=fin_*|sim=sim_*）
 }
 
 // AttachSizer 挂平仓量 venue 现读面（cmd 装配注入——未挂=平仓 fail-closed）。
@@ -107,11 +109,13 @@ func (w *Warden) AttachAlerter(a *notify.Alerter) { w.al = a }
 // AttachEquity 挂净权益现读件（装配层接线——dd 硬线判定时点 balances 实读）。
 func (w *Warden) AttachEquity(fn func(ctx context.Context) (float64, error)) { w.equity = fn }
 
-func NewWarden(pool *pgxpool.Pool, cfg *config.Client, gate *risk.Gate, ex Executor) *Warden {
+// NewWarden dom=仓账写域显式声明（T-0489 径A——live=fin_* 正本|sim=sim_* 域表；
+// 闭集外 panic 禁静默归真户域）。
+func NewWarden(pool *pgxpool.Pool, cfg *config.Client, gate *risk.Gate, ex Executor, dom findom.Domain) *Warden {
 	if ex == nil {
 		ex = missingExecutor{}
 	}
-	return &Warden{pool: pool, cfg: cfg, gate: gate, ex: ex,
+	return &Warden{pool: pool, cfg: cfg, gate: gate, ex: ex, dom: dom.Must(),
 		rej: rejects.New("guard", "missing_param", "facts_missing", "leg_anomaly",
 			"close_denied", "close_failed", "close_gave_up", "write_err", "loop_alert",
 			"dd_missing_param", "equity_missing", "equity_stale", "dd_no_base", "dd_hardline_tripped", "dd_close_exhausted",
@@ -154,16 +158,17 @@ func (w *Warden) scanOnce(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	rows, err := w.pool.Query(ctx, `
+	rows, err := w.pool.Query(ctx, fmt.Sprintf(`
 		SELECT p.id, p.execution_id, p.strategy_ref, p.inst_id, p.notional_usd, p.opened_at,
 		       COALESCE(g.attempts,0), COALESCE(s.state,'')
-		FROM fin_position p
-		LEFT JOIN fin_guard_close g ON g.position_id = p.id
+		FROM %s p
+		LEFT JOIN %s g ON g.position_id = p.id
 		LEFT JOIN fin_strategy s ON s.id = p.strategy_ref
 		WHERE p.closed_at IS NULL
 		  AND COALESCE(g.state,'open') <> 'closed'
 		  AND COALESCE(g.attempts,0) < $1
 		  AND (g.last_try_at IS NULL OR now() - g.last_try_at >= make_interval(secs => $2))`,
+		w.dom.Position(), w.dom.GuardClose()),
 		maxAtt, backoff)
 	if err != nil {
 		return fmt.Errorf("scan query: %w", err)
@@ -252,8 +257,8 @@ func (w *Warden) tend(ctx context.Context, p posRow, maxAtt int64, trig closeTri
 // 保守侧（证据缺不豁免——fail-closed 回年龄判据）。
 func (w *Warden) trailingIncomePositive(ctx context.Context, posID int64) bool {
 	var sum float64
-	if err := w.pool.QueryRow(ctx, `SELECT COALESCE(SUM(amount),0) FROM fin_cashflow
-		WHERE position_ref=$1 AND kind='funding_settle' AND occurred_at>now()-interval '24 hours'`,
+	if err := w.pool.QueryRow(ctx, fmt.Sprintf(`SELECT COALESCE(SUM(amount),0) FROM %s
+		WHERE position_ref=$1 AND kind='funding_settle' AND occurred_at>now()-interval '24 hours'`, w.dom.Cashflow()),
 		posID).Scan(&sum); err != nil {
 		log.Printf("WARN [guard] 仓 %d trailing 实收读败（豁免判据回退年龄闸）: %v", posID, err)
 		return false

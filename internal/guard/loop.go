@@ -42,13 +42,14 @@ func (w *Warden) loopProbe(ctx context.Context) {
 		w.note("missing_param:loop", fmt.Sprintf("loop_alert 阈键读败——自残探针跳过: %v/%v", err1, err2))
 		return
 	}
-	rows, err := w.pool.Query(ctx, `
+	rows, err := w.pool.Query(ctx, fmt.Sprintf(`
 		SELECT g.position_id, p.strategy_ref, g.attempts,
 		       COALESCE(g.last_try_at,p.opened_at), g.loop_alerted_at
-		FROM fin_guard_close g JOIN fin_position p ON p.id=g.position_id
+		FROM %s g JOIN %s p ON p.id=g.position_id
 		WHERE g.state='closing'
 		  AND (g.attempts >= $1
 		       OR now()-COALESCE(g.last_try_at,p.opened_at) > make_interval(secs => $2*3600))`,
+		w.dom.GuardClose(), w.dom.Position()),
 		int64(maxAtt), maxHrs)
 	if err != nil {
 		w.rej.Inc("facts_missing")
@@ -110,14 +111,14 @@ func (w *Warden) suspendOpen(ctx context.Context, s loopStuck) bool {
 func (w *Warden) loopEscalate(ctx context.Context, s loopStuck, maxAtt, maxHrs float64) {
 	stuckH := time.Since(s.since).Hours()
 	if _, err := w.pool.Exec(ctx,
-		`UPDATE fin_guard_close SET loop_alerted_at=now() WHERE position_id=$1`, s.posID); err != nil {
+		fmt.Sprintf(`UPDATE %s SET loop_alerted_at=now() WHERE position_id=$1`, w.dom.GuardClose()), s.posID); err != nil {
 		w.rej.Inc("write_err")
 	}
 	w.rej.Inc("loop_alert")
 	note := fmt.Sprintf("仓#%d 策略#%d closing 滞留：attempts=%d（阈 %d）滞留 %.1fh（阈 %.0fh）——平仓循环本身是事故不等耗尽；同策略开仓权已挂起，解冻唯一径=裁定席判词/业主令",
 		s.posID, s.stratRef, s.attempts, int64(maxAtt), stuckH, maxHrs)
 	if _, err := w.pool.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note,esc_class,esc_scope)
-		VALUES('仓巡','升件','',$1,'守卫环','fin_guard_close')`, note); err != nil {
+		VALUES('仓巡','升件','',$1,'守卫环',$2)`, note, w.dom.GuardClose()); err != nil {
 		w.rej.Inc("write_err")
 	}
 	w.al.Alert(ctx, "guard_close_loop", note)

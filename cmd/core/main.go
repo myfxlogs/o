@@ -24,6 +24,7 @@ import (
 	"o/internal/ledger/report"
 	"o/internal/mt5"
 	"o/internal/platform/config"
+	"o/internal/platform/findom"
 	"o/internal/platform/hostmetrics"
 	"o/internal/platform/netmeter"
 	"o/internal/platform/notify"
@@ -250,15 +251,14 @@ func run() error {
 		pusher = report.NewPusher(pool, cfg, mk)
 		go report.NewRunner(pool, pusher).WithConfig(cfg).WithNav(navFn).Run(ctx, errc)
 	}
-	ledgerR := ledger.NewRunner(pool, cfg).WithAlerter(alerter)
+	ledgerR := ledger.NewRunner(pool, cfg, findom.Live).WithAlerter(alerter)
 	go ledgerR.Run(ctx, errc)
 
 	// 风控域首岗：门官——唯一交易前闸，只认放行令牌。
 	go risk.Run(ctx, errc, riskGate)
 
-	// 看护域首岗：仓巡（G8）——三触发+联动，close 免拦径，双腿平走 G7
-	//（凭据缺席=缝降级 stub 拒执 fail-closed）。
-	wd := guard.NewWarden(pool, cfg, riskGate, closer)
+	// 看护域首岗：仓巡（G8）——三触发+联动，close 免拦径，双腿平走 G7（凭据缺席=缝降级 stub 拒执 fail-closed）。
+	wd := guard.NewWarden(pool, cfg, riskGate, closer, findom.Live)
 	// 平仓量 venue 现读面（T-0046 ②——availBal/positions 实读，禁抄腿行委托量；
 	// 凭据缺席=不挂=平仓 fail-closed 不假量）。
 	if closeSizer != nil {

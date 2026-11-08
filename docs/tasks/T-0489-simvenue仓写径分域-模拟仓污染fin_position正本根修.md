@@ -1,6 +1,6 @@
 # T-0489 simvenue 仓写径分域——模拟仓污染 fin_position 正本根修
 
-- 状态：施工中（CTO 裁=径A，2026-11-08 20:23 relay 在案）
+- 状态：待验（CTO 裁=径A，2026-11-08 20:23 relay 在案）
 - 领取：devin-施工@t0489 @ 2026-11-08
 - 归口：钱径域·账本写径（simdrill/simvenue 侧）
 
@@ -52,3 +52,27 @@ strategy_ref 287285-287291 连号，生命周期 8~112ms，全 `fast_close`）�
 
 - 禁动真户历史行；禁改 postmortem 判词语义；
 - 禁把 sim 仓标成 live 交付对账。
+
+## 结果（devin-施工@t0489 回填）
+
+径 A 全径落地：
+
+- **域钉**：`internal/platform/findom` 新件——Domain 闭集 live|sim，
+  白名五表映射（execution/position/order_leg/cashflow/guard_close），
+  `Must()` 闭集外 panic（禁静默归真户=本病灶同型防）。
+- **写径分域**：execution.Runner/guard.Warden/ledger.Runner 构造签名
+  强制域参（编译期漏接=错）；dcdexec.Deps.Dom 零值 fail-closed。
+  simdrill 演习/矩阵全径接 `findom.Sim`（venue 缝不变——产线同码保）。
+- **sim 仓五表镜像**（迁移 fin_0147）：sim_execution/sim_position/
+  sim_order_leg/sim_cashflow/sim_guard_close——LIKE 正本全形，
+  id 与 fin 同序列全域唯一不撞；FK 域内闭合 sim_execution。
+- **ledger sim 拍=只 settle**：对账环/日切/postmortem 立案=真户聚合面
+  天然不入（诊断空烧/判据腐蚀同根除）。
+- **经营事件推送**：EventPush 双域选读——live 件标 `[live]`、sim 件标
+  `[sim]`，去重键带域（业主肉眼可分）。
+- **红桩**：`simdrill/domain_test.go`（fin 五面零新增+sim 五表行齐+
+  postmortem 零立案——修前实证红 fin_execution 2 行+fast_close 立案）
+  + `TestEventPushDomainTag`（修前红 sim 仓无推送）。
+
+机检：build✓ vet✓ test✓（simdrill/notify/guard/execution/ledger/cmd-core 全绿）
+偏离：无（范围外不动——postmortem 判词语义/真户历史行零触）

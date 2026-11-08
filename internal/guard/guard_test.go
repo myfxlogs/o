@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"o/internal/platform/config"
+	"o/internal/platform/findom"
 	"o/internal/platform/notify"
 	"o/internal/platform/testutil"
 	"o/internal/risk"
@@ -65,7 +66,7 @@ func setup(t *testing.T) (context.Context, *Warden, *fakeExec) {
 	instrCtVal["BTC-USDT-SWAP"] = 1 // 面值假件全局表复位（跨测渗漏实证——
 	// 前测 seedInstr 改值后豁免测被假失衡误杀）
 	fx := &fakeExec{}
-	w := NewWarden(pool, cfg, risk.NewGate(pool, cfg).WithEquity(func(ctx context.Context, v string) (float64, error) { return 1000, nil }), fx)
+	w := NewWarden(pool, cfg, risk.NewGate(pool, cfg).WithEquity(func(ctx context.Context, v string) (float64, error) { return 1000, nil }), fx, findom.Live)
 	w.AttachSizer(fakeSizer{}) // T-0046 ②：现读面必接（缺=平仓 fail-closed）——默认直通量
 	return ctx, w, fx
 }
@@ -405,7 +406,7 @@ func TestNotionalCtValDispatch(t *testing.T) {
 	instrCtVal["BTC-USDT-SWAP"] = 1 // 面值假件全局表复位（跨测渗漏实证——
 	// 前测 seedInstr 改值后豁免测被假失衡误杀）
 	fx := &fakeExec{}
-	w2 := NewWarden(w.pool, w.cfg, w.gate, fx)
+	w2 := NewWarden(w.pool, w.cfg, w.gate, fx, findom.Live)
 	w2.AttachSizer(fakeSizer{})
 	var stratID, execID, posID int64
 	if err := w.pool.QueryRow(ctx,

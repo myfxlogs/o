@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"o/internal/platform/config"
+	"o/internal/platform/findom"
 	"o/internal/platform/notify"
 	"o/internal/platform/rejects"
 	"o/internal/platform/roster"
@@ -30,6 +31,7 @@ type Runner struct {
 	pool     *pgxpool.Pool
 	cfg      *config.Client
 	rej      *rejects.Door
+	dom      findom.Domain
 }
 
 // WithAlerter 挂告警器（nil=静默降级）。
@@ -54,8 +56,10 @@ func (r *Runner) WithMTM(fn func(ctx context.Context) (map[[2]string]float64, er
 	return r
 }
 
-func NewRunner(pool *pgxpool.Pool, cfg *config.Client) *Runner {
-	return &Runner{pool: pool, cfg: cfg,
+// NewRunner dom=仓账写域显式声明（T-0489 径A——live=fin_* 正本|sim=sim_* 域表；
+// sim 域拍=仓行结算单职（对账环/日切/postmortem 立案皆真户聚合面天然不入）。
+func NewRunner(pool *pgxpool.Pool, cfg *config.Client, dom findom.Domain) *Runner {
+	return &Runner{pool: pool, cfg: cfg, dom: dom.Must(),
 		rej: rejects.New("ledger", "diff_alert", "missing_param", "bal_missing", "write_err",
 			"recon_probe_failed", "postmortem_anomaly", "diag_task_err")}
 }
@@ -82,9 +86,14 @@ func (r *Runner) tol(ctx context.Context) (float64, error) {
 }
 
 // scan 一拍：①closed 仓结算落位 ②对账环（快照 vs 净额，差即计门）③日切快照。
+// T-0489 径A：sim 域拍=仓行结算单职——对账环/日切快照=真户聚合面（venue 实读
+// 对拍 NAV/快照账），postmortem 立案同真户队列，sim 域天然不入不跑。
 func (r *Runner) scan(ctx context.Context) error {
 	if err := r.settle(ctx); err != nil {
 		return err
+	}
+	if r.dom == findom.Sim {
+		return nil
 	}
 	if err := r.reconcile(ctx); err != nil {
 		return err

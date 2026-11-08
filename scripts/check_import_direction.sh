@@ -217,6 +217,13 @@ internal/trading/simdrill -> internal/platform/excell
 internal/trading/simdrill -> internal/trading/dcdexec
 internal/trading/simdrill -> internal/trading/mt5sim
 internal/trading/simdrill -> internal/trading/mtexec
+# T-0489 径A 仓账写域分域（findom=platform 叶件 Domain 五表白名——执行/守卫/
+# 账本/dcd/演习五写径各持显式域声明；域闭集外构造面炸禁静默归真户）。
+internal/trading/execution -> internal/platform/findom
+internal/guard -> internal/platform/findom
+internal/ledger -> internal/platform/findom
+internal/trading/dcdexec -> internal/platform/findom
+internal/trading/simdrill -> internal/platform/findom
 EOF
 )
 

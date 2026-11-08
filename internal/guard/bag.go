@@ -36,7 +36,7 @@ func (w *Warden) bareBags(ctx context.Context, p posRow, legs legSet, cls [2]Clo
 	sold := map[string]float64{}
 	filled := map[string]bool{}
 	rows, err := w.pool.Query(ctx,
-		`SELECT inst_id,COALESCE(qty_base,0),state FROM fin_order_leg WHERE execution_id=$1`, closeExecID)
+		fmt.Sprintf(`SELECT inst_id,COALESCE(qty_base,0),state FROM %s WHERE execution_id=$1`, w.dom.OrderLeg()), closeExecID)
 	if err != nil {
 		w.rej.Inc("facts_missing")
 		return
@@ -139,7 +139,7 @@ func (w *Warden) bareBagSpot(ctx context.Context, p posRow, legs legSet, cl Clos
 		usdArg = &usd
 	}
 	if _, err := w.pool.Exec(ctx,
-		`UPDATE fin_position SET bare_bag_ccy=$2,bare_bag_qty=$3,bare_bag_usd=$4 WHERE id=$1`,
+		fmt.Sprintf(`UPDATE %s SET bare_bag_ccy=$2,bare_bag_qty=$3,bare_bag_usd=$4 WHERE id=$1`, w.dom.Position()),
 		p.id, ccy, bag, usdArg); err != nil {
 		w.rej.Inc("write_err")
 	}

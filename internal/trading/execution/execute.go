@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"o/internal/platform/config"
+	"o/internal/platform/findom"
 	"o/internal/platform/notify"
 	"o/internal/platform/rejects"
 )
@@ -81,10 +82,13 @@ type Runner struct {
 	earn EarnMover
 	rej  *rejects.Door
 	al   *notify.Alerter
+	dom  findom.Domain
 }
 
-func NewRunner(pool *pgxpool.Pool, cfg *config.Client, exec Executor) *Runner {
-	return &Runner{pool: pool, cfg: cfg, exec: exec,
+// NewRunner dom=仓账写域显式声明（T-0489 径A——live=fin_* 正本|sim=sim_* 域
+// 表；闭集外 panic 禁静默归真户域）。
+func NewRunner(pool *pgxpool.Pool, cfg *config.Client, exec Executor, dom findom.Domain) *Runner {
+	return &Runner{pool: pool, cfg: cfg, exec: exec, dom: dom.Must(),
 		rej: rejects.New("execution", "token_missing", "token_expired", "token_used",
 			"token_not_allow", "live_switch_off", "missing_param",
 			"hedge_band", "rollback_failed", "earn_redeem_failed", "write_err", "gross_fallback")}

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"o/internal/platform/config"
+	"o/internal/platform/findom"
 	"o/internal/platform/rejects"
 	"o/internal/platform/testutil"
 	"o/internal/store/pgstore"
@@ -31,7 +32,7 @@ func setup(t *testing.T) (context.Context, *Runner) {
 		WHERE intent->>'op'='dcd_baseline'`); err != nil {
 		t.Fatal(err)
 	}
-	return ctx, NewRunner(pool, cfg)
+	return ctx, NewRunner(pool, cfg, findom.Live)
 }
 
 func TestPostGuards(t *testing.T) {
@@ -110,7 +111,7 @@ func TestReconcileDiffAlert(t *testing.T) {
 		t.Fatal("造差未告警计门")
 	}
 	// venue 现读件缺席=对账让位不炸锚
-	r2 := NewRunner(r.pool, r.cfg)
+	r2 := NewRunner(r.pool, r.cfg, findom.Live)
 	before := r2.rej.Snapshot()["ledger/diff_alert"]
 	if err := r2.reconcile(ctx); err != nil {
 		t.Fatal(err)
@@ -161,7 +162,7 @@ func TestPostInterest(t *testing.T) {
 	if _, err := pool.Exec(ctx, "DELETE FROM md_account_events WHERE channel='earn_interest'"); err != nil {
 		t.Fatal(err)
 	}
-	r := NewRunner(pool, config.New(pool))
+	r := NewRunner(pool, config.New(pool), findom.Live)
 	ens := map[string]float64{"USDT": 72.22}
 	r.earnings = func(ctx context.Context) (map[string]float64, error) { return ens, nil }
 	r.postInterest(ctx) // bootstrap：播种事件行零入账

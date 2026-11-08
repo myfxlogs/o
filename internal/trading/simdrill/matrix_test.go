@@ -77,11 +77,17 @@ func setupMatrix(t *testing.T) (context.Context, *Matrix) {
 	for _, stmt := range []string{
 		`DELETE FROM fin_strategy_transition`,
 		`DELETE FROM fin_paper_fill`,
-		`DELETE FROM fin_guard_close WHERE position_id IN (SELECT id FROM fin_position)`,
-		`DELETE FROM fin_cashflow WHERE position_ref IN (SELECT id FROM fin_position)`,
-		`DELETE FROM fin_position`,
-		`DELETE FROM fin_order_leg WHERE execution_id IN (SELECT id FROM fin_execution)`,
-		`DELETE FROM fin_execution`,
+		`DELETE FROM fin_guard_close WHERE position_id IN (SELECT id FROM sim_position)`,
+		`DELETE FROM fin_cashflow WHERE position_ref IN (SELECT id FROM sim_position)`,
+		`DELETE FROM sim_position`,
+		`DELETE FROM sim_order_leg WHERE execution_id IN (SELECT id FROM sim_execution)`,
+		`DELETE FROM sim_execution`,
+		`DELETE FROM sim_guard_close`,
+		`DELETE FROM sim_cashflow`,
+		`DELETE FROM sim_position`,
+		`DELETE FROM sim_order_leg`,
+		`DELETE FROM sim_execution`,
+		`DELETE FROM fin_econ_lesson WHERE kind='trade_postmortem'`,
 		`DELETE FROM fin_exec_drill`,
 		`DELETE FROM fin_strategy`,
 		`DELETE FROM md_dcd_product WHERE venue='sim'`,
@@ -215,7 +221,7 @@ func TestMatrixDcdLifecycle(t *testing.T) {
 		var estate string
 		var closed bool
 		if err := m.Pool.QueryRow(ctx, `SELECT e.state::text,p.closed_at IS NOT NULL
-			FROM fin_execution e JOIN fin_position p ON p.execution_id=e.id
+			FROM sim_execution e JOIN sim_position p ON p.execution_id=e.id
 			WHERE e.id=$1`, res.OpenExecID).Scan(&estate, &closed); err != nil {
 			t.Fatal(err)
 		}

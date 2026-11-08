@@ -24,6 +24,7 @@ import (
 	"o/internal/guard"
 	"o/internal/ledger"
 	"o/internal/platform/config"
+	"o/internal/platform/findom"
 	"o/internal/risk"
 	"o/internal/trading/execution"
 	"o/internal/trading/execwiring"
@@ -97,7 +98,7 @@ func (d *Drill) Run(ctx context.Context, strategyRef int64) (Result, error) {
 	// ops_event/fin_exec_drill。
 	defer func() {
 		_, _ = d.Pool.Exec(ctx,
-			`UPDATE fin_position SET closed_at=now() WHERE strategy_ref=$1 AND closed_at IS NULL`, drillStrat)
+			`UPDATE sim_position SET closed_at=now() WHERE strategy_ref=$1 AND closed_at IS NULL`, drillStrat)
 	}()
 	// ④ 合成腿（quote 买现货腿+SWAP 反向腿——量落 lotSz 网格，名义对半）。
 	half := notional / 2
@@ -113,7 +114,7 @@ func (d *Drill) Run(ctx context.Context, strategyRef int64) (Result, error) {
 			Sz: trimFloat(contracts), Notional: half},
 	}
 	// ⑤ 开仓（产线径：Gate 闸→Runner 双腿原子——live_switch 闸自验）。
-	runner := execution.NewRunner(d.Pool, d.Cfg, d.Venue)
+	runner := execution.NewRunner(d.Pool, d.Cfg, d.Venue, findom.Sim)
 	dec := d.Gate.Check(ctx, risk.Intent{StrategyRef: drillStrat, Venue: "okx", InstID: inst,
 		Legs: []string{"spot_long", "perp_short"}, NotionalUSD: notional, Leverage: 1, Kind: "open"})
 	if !dec.Allow {
@@ -127,14 +128,14 @@ func (d *Drill) Run(ctx context.Context, strategyRef int64) (Result, error) {
 	res.OpenExecID = openExecID
 	var posID int64
 	if err := d.Pool.QueryRow(ctx,
-		`SELECT id FROM fin_position WHERE execution_id=$1 ORDER BY id DESC LIMIT 1`, openExecID).
+		`SELECT id FROM sim_position WHERE execution_id=$1 ORDER BY id DESC LIMIT 1`, openExecID).
 		Scan(&posID); err != nil || posID == 0 {
 		return res, fmt.Errorf("演习仓行缺（开仓事实不可读）: %v", err)
 	}
 	// ⑥ 开仓后 venue 真相快照（drift 假报检测锚——平仓前时点均衡判）。
 	openBalanced := d.balanced(spotInst, swapInst)
 	// ⑦ 哨戒平仓（产线径：Warden→execwiring 装配缝→Runner——sizer=venue 现读）。
-	w := guard.NewWarden(d.Pool, d.Cfg, d.Gate, execwiring.CloseExec{R: runner})
+	w := guard.NewWarden(d.Pool, d.Cfg, d.Gate, execwiring.CloseExec{R: runner}, findom.Sim)
 	w.AttachSizer(d.Venue)
 	w.AttachCtVal(func(_ context.Context, _, instID string) (float64, bool) {
 		return d.Venue.CtValOf(instID)
@@ -143,12 +144,12 @@ func (d *Drill) Run(ctx context.Context, strategyRef int64) (Result, error) {
 		return res, fmt.Errorf("演习哨戒拍败: %w", err)
 	}
 	res.CloseExecID = closeExecIDOf(ctx, d.Pool, drillStrat)
-	_ = d.Pool.QueryRow(ctx, `SELECT COALESCE(trigger_kind::text,'') FROM fin_guard_close
+	_ = d.Pool.QueryRow(ctx, `SELECT COALESCE(trigger_kind::text,'') FROM sim_guard_close
 		WHERE position_id=$1`, posID).Scan(&res.Trigger)
 	// ⑧ 费流水入账（bills 钩同径——开+平全fills 一次归仓；USDT 域同 ingest）。
 	d.postSimFees(ctx, posID)
 	// ⑨ 结算对账（产线径：settle 落位+postmortem 判）。
-	if err := ledger.NewRunner(d.Pool, d.Cfg).ScanOnce(ctx); err != nil {
+	if err := ledger.NewRunner(d.Pool, d.Cfg, findom.Sim).ScanOnce(ctx); err != nil {
 		return res, fmt.Errorf("演习结算拍败: %w", err)
 	}
 	// ⑩ 账实对拍四锚（venue 真相×台账——任一锚破=fail+升件）。
@@ -165,7 +166,7 @@ func (d *Drill) Run(ctx context.Context, strategyRef int64) (Result, error) {
 func (d *Drill) recon(ctx context.Context, res Result, spot, swap simvenue.Instrument, openBalanced bool) (string, string) {
 	var closed bool
 	var posID int64
-	if err := d.Pool.QueryRow(ctx, `SELECT id,closed_at IS NOT NULL FROM fin_position
+	if err := d.Pool.QueryRow(ctx, `SELECT id,closed_at IS NOT NULL FROM sim_position
 		WHERE execution_id=$1 ORDER BY id DESC LIMIT 1`, res.OpenExecID).Scan(&posID, &closed); err != nil {
 		return d.fail(ctx, res, "演习仓行缺（开仓事实不可读）"), "fail"
 	}
@@ -181,7 +182,7 @@ func (d *Drill) recon(ctx context.Context, res Result, spot, swap simvenue.Instr
 	}
 	// 锚②残袋非零：仓关而 venue 货在且未挂账（挂账=账实同步显形非盲）。
 	var bagQty float64
-	_ = d.Pool.QueryRow(ctx, `SELECT COALESCE(bare_bag_qty,0) FROM fin_position
+	_ = d.Pool.QueryRow(ctx, `SELECT COALESCE(bare_bag_qty,0) FROM sim_position
 		WHERE id=$1`, posID).Scan(&bagQty)
 	resid := d.Venue.Balance(baseOf(spot))
 	dust := math.Max(spot.LotSz, 1e-9)
@@ -194,12 +195,12 @@ func (d *Drill) recon(ctx context.Context, res Result, spot, swap simvenue.Instr
 		return d.fail(ctx, res,
 			fmt.Sprintf("合约残仓 %.8g 张——平未净敞口", d.Venue.Position(swap.InstID))), "fail"
 	}
-	// 锚④现金对平：venue USDT 流水 Δ==Σfin_cashflow（费行入账后——口径差
+	// 锚④现金对平：venue USDT 流水 Δ==Σsim_cashflow（费行入账后——口径差
 	// >分位=账实背离升件）。
 	var sum float64
-	if err := d.Pool.QueryRow(ctx, `SELECT COALESCE(sum(amount),0) FROM fin_cashflow
+	if err := d.Pool.QueryRow(ctx, `SELECT COALESCE(sum(amount),0) FROM sim_cashflow
 		WHERE position_ref=$1 AND kind NOT IN ('earn_in','earn_out')`, posID).Scan(&sum); err != nil {
-		return d.fail(ctx, res, fmt.Sprintf("fin_cashflow 归仓和读败: %v", err)), "fail"
+		return d.fail(ctx, res, fmt.Sprintf("sim_cashflow 归仓和读败: %v", err)), "fail"
 	}
 	var venueSum float64
 	for _, f := range d.Venue.Fills() {
@@ -231,7 +232,7 @@ func (d *Drill) postSimFees(ctx context.Context, posID int64) {
 		if f.Fee <= 0 || f.FeeCcy != "USDT" {
 			continue
 		}
-		if _, err := d.Pool.Exec(ctx, `INSERT INTO fin_cashflow
+		if _, err := d.Pool.Exec(ctx, `INSERT INTO sim_cashflow
 			(kind,venue,ccy,amount,position_ref,source_ref,source_table,occurred_at)
 			VALUES('fee','sim','USDT',$1,$2,0,'simvenue',$3)`, -f.Fee, posID, f.Ts); err != nil {
 			log.Printf("WARN [simdrill] 费流水落账败（对平锚④将破——升件面）: %v", err)
@@ -243,7 +244,7 @@ func (d *Drill) postSimFees(ctx context.Context, posID int64) {
 // 的 exec 行=id 最大者，演练证据链）。
 func closeExecIDOf(ctx context.Context, pool *pgxpool.Pool, drillStrat int64) int64 {
 	var id int64
-	_ = pool.QueryRow(ctx, `SELECT id FROM fin_execution WHERE strategy_ref=$1
+	_ = pool.QueryRow(ctx, `SELECT id FROM sim_execution WHERE strategy_ref=$1
 		ORDER BY id DESC LIMIT 1`, drillStrat).Scan(&id)
 	return id
 }

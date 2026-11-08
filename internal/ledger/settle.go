@@ -4,15 +4,18 @@ package ledger
 
 import (
 	"context"
+	"fmt"
 	"log"
+
+	"o/internal/platform/findom"
 )
 
 // settle closed 未结算仓：实现额=Σcashflow+裸袋挂账（position_ref 过滤）落
 // settled_*——T-0419 账实根修：平仓未回资产=bare_bag_usd 挂账非实现损
 // （「closed 了但货还在」静默背离禁线；挂账 NULL=无袋按纯现金净）。
 func (r *Runner) settle(ctx context.Context) error {
-	rows, err := r.pool.Query(ctx, `SELECT id,COALESCE(bare_bag_usd,0) FROM fin_position
-		WHERE closed_at IS NOT NULL AND settled_at IS NULL`)
+	rows, err := r.pool.Query(ctx, fmt.Sprintf(`SELECT id,COALESCE(bare_bag_usd,0) FROM %s
+		WHERE closed_at IS NOT NULL AND settled_at IS NULL`, r.dom.Position()))
 	if err != nil {
 		return err
 	}
@@ -35,12 +38,12 @@ func (r *Runner) settle(ctx context.Context) error {
 	for _, x := range ids {
 		var net float64
 		if err := r.pool.QueryRow(ctx,
-			"SELECT COALESCE(sum(amount),0) FROM fin_cashflow WHERE position_ref=$1 AND kind NOT IN ('earn_in','earn_out')", x.id).Scan(&net); err != nil {
+			fmt.Sprintf("SELECT COALESCE(sum(amount),0) FROM %s WHERE position_ref=$1 AND kind NOT IN ('earn_in','earn_out')", r.dom.Cashflow()), x.id).Scan(&net); err != nil {
 			return err
 		}
 		net += x.bag
 		if _, err := r.pool.Exec(ctx,
-			"UPDATE fin_position SET settled_amount=$2,settled_ccy='USDT',settled_at=now() WHERE id=$1", x.id, net); err != nil {
+			fmt.Sprintf("UPDATE %s SET settled_amount=$2,settled_ccy='USDT',settled_at=now() WHERE id=$1", r.dom.Position()), x.id, net); err != nil {
 			r.rej.Inc("write_err")
 			return err
 		}
@@ -49,7 +52,9 @@ func (r *Runner) settle(ctx context.Context) error {
 		} else {
 			log.Printf("[ledger] 仓 #%d 结算落位 net=%.4f USDT", x.id, net)
 		}
-		r.postmortem(ctx, x.id) // T-0420 结案判定机——settled 落位同槽每平必审
+		if r.dom == findom.Live {
+			r.postmortem(ctx, x.id) // T-0420 结案判定机——settled 落位同槽每平必审
+		} // T-0489：sim 域零立案——postmortem 队列天然对 sim 不入（诊断额度空烧根修）
 	}
 	return nil
 }

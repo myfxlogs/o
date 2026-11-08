@@ -18,6 +18,7 @@ import (
 	"o/internal/mt5"
 	"o/internal/platform/config"
 	"o/internal/platform/cryptoutil"
+	"o/internal/platform/findom"
 	"o/internal/risk"
 	"o/internal/trading/execution"
 	"o/internal/trading/mtexec"
@@ -167,9 +168,9 @@ func main() {
 		execR = execution.NewRunner(pool, cfg, execution.RouterExecutor{
 			"okx": &execution.OkxExecutor{C: cli},
 			"mt5": mtexec.Executor{C: mt, X: dx},
-		}).WithEarn(earnW)
+		}, findom.Live).WithEarn(earnW)
 	} else {
-		execR = execution.NewRunner(pool, cfg, &execution.OkxExecutor{C: cli}).WithEarn(earnW)
+		execR = execution.NewRunner(pool, cfg, &execution.OkxExecutor{C: cli}, findom.Live).WithEarn(earnW)
 		// 双腿乐器派生+sz 换算（leg1 SWAP 卖/leg2 派生现货买；minSz 闸 fail-closed）。
 		var lerr error
 		legs, spotInst, lerr = execution.BuildLegs(ctx, pool, func(ctx context.Context, iid string) (execution.InstMeta, error) {

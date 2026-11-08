@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"o/internal/platform/config"
+	"o/internal/platform/findom"
 	"o/internal/platform/rejects"
 	"o/internal/platform/testutil"
 	"o/internal/store/pgstore"
@@ -100,7 +101,7 @@ func setup(t *testing.T, fv Executor) (context.Context, *Runner) {
 	if err := cfg.Load(ctx); err != nil {
 		t.Fatal(err)
 	}
-	return ctx, NewRunner(pool, cfg, fv)
+	return ctx, NewRunner(pool, cfg, fv, findom.Live)
 }
 
 // mkToken 产 allow 决策+令牌（直连 fin_risk_*——execution 不 import risk）。

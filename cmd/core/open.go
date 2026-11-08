@@ -12,6 +12,7 @@ import (
 
 	"o/internal/mt5"
 	"o/internal/platform/config"
+	"o/internal/platform/findom"
 	"o/internal/portfolio/lifecycle"
 	"o/internal/risk"
 	"o/internal/trading/dcdexec"
@@ -171,7 +172,7 @@ func (h hedgeOpener) loadMeta(ctx context.Context, iid string) (execution.InstMe
 // dcdexec 单源——产线与 simvenue 矩阵 DCD 演习格同径消费，venue 三步缝
 // 注入式全产线同码；cmd 侧仅规格映射）。
 func (h hedgeOpener) dcdOpen(ctx context.Context, spec lifecycle.OpenSpec) (int64, error) {
-	return dcdexec.Open(ctx, dcdexec.Deps{Pool: h.pool, Gate: h.gate}, h.dcdCli(),
+	return dcdexec.Open(ctx, dcdexec.Deps{Pool: h.pool, Gate: h.gate, Dom: findom.Live}, h.dcdCli(),
 		dcdexec.Spec{StrategyRef: spec.StrategyRef, Venue: spec.Venue, InstID: spec.InstID,
 			Direction: spec.Direction, Template: spec.Template, NotionalUSD: spec.NotionalUSD})
 }

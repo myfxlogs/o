@@ -25,6 +25,7 @@ import (
 	mt5pb "o/internal/gen/mtapi/mt5"
 	"o/internal/mt5"
 	"o/internal/platform/config"
+	"o/internal/platform/findom"
 	"o/internal/portfolio/lifecycle"
 	"o/internal/risk"
 	"o/internal/trading/execution"
@@ -290,5 +291,5 @@ func newExecRunner(pool *pgxpool.Pool, cfg *config.Client, creds okxexec.Credent
 	return execution.NewRunner(pool, cfg, execution.RouterExecutor{
 		"okx": &execution.OkxExecutor{C: okxexec.NewClient(creds, false)},
 		"mt5": mtexec.Executor{C: xcli, X: xdial},
-	})
+	}, findom.Live)
 }

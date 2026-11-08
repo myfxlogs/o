@@ -146,9 +146,9 @@ func (w *Warden) ddResume(ctx context.Context) {
 	}
 	// 耗尽仓持续告警（在仓行 attempts≥上限=平不掉——每拍声张，禁静默漂移）。
 	var stuck int
-	if err := w.pool.QueryRow(ctx, `SELECT count(*) FROM fin_position p
-		LEFT JOIN fin_guard_close g ON g.position_id = p.id
-		WHERE p.closed_at IS NULL AND COALESCE(g.attempts,0) >= $1`, maxAtt).Scan(&stuck); err != nil {
+	if err := w.pool.QueryRow(ctx, fmt.Sprintf(`SELECT count(*) FROM %s p
+		LEFT JOIN %s g ON g.position_id = p.id
+		WHERE p.closed_at IS NULL AND COALESCE(g.attempts,0) >= $1`, w.dom.Position(), w.dom.GuardClose()), maxAtt).Scan(&stuck); err != nil {
 		w.rej.Inc("write_err")
 		return
 	}
@@ -158,14 +158,15 @@ func (w *Warden) ddResume(ctx context.Context) {
 		log.Printf("ALERT [guard] ERROR 回撤触线平仓重试耗尽——%d 仓敞口仍开，人工介入", stuck)
 	}
 	// 仍可平仓（节拍窗内）续平。
-	rows, err := w.pool.Query(ctx, `SELECT p.id, p.execution_id, p.strategy_ref, p.inst_id,
+	rows, err := w.pool.Query(ctx, fmt.Sprintf(`SELECT p.id, p.execution_id, p.strategy_ref, p.inst_id,
 		p.notional_usd, p.opened_at, COALESCE(g.attempts,0), COALESCE(s.state,'')
-		FROM fin_position p
-		LEFT JOIN fin_guard_close g ON g.position_id = p.id
+		FROM %s p
+		LEFT JOIN %s g ON g.position_id = p.id
 		LEFT JOIN fin_strategy s ON s.id = p.strategy_ref
 		WHERE p.closed_at IS NULL AND COALESCE(g.state,'open') <> 'closed'
 		  AND COALESCE(g.attempts,0) < $1
 		  AND (g.last_try_at IS NULL OR now() - g.last_try_at >= make_interval(secs => $2))`,
+		w.dom.Position(), w.dom.GuardClose()),
 		maxAtt, backoff)
 	if err != nil {
 		w.rej.Inc("write_err")

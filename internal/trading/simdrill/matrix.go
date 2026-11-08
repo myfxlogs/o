@@ -149,7 +149,7 @@ func (m *Matrix) runCell(ctx context.Context, c excell.Cell, t excell.Tier, shap
 	// 夭折防护同 Drill.Run——演习未平仓位即时关账防产线仓巡拾取。
 	defer func() {
 		_, _ = m.Pool.Exec(ctx,
-			`UPDATE fin_position SET closed_at=now() WHERE strategy_ref=$1 AND closed_at IS NULL`, stratID)
+			`UPDATE sim_position SET closed_at=now() WHERE strategy_ref=$1 AND closed_at IS NULL`, stratID)
 	}()
 
 	if shape == shapeDCD {

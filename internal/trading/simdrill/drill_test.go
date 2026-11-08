@@ -36,18 +36,24 @@ func setup(t *testing.T) (context.Context, *Drill) {
 	// 测试面隔离：只清本包自有面（template_ref 打标级联——同 guard-test 律）。
 	for _, stmt := range []string{
 		`DELETE FROM fin_guard_close WHERE position_id IN
-		   (SELECT id FROM fin_position WHERE strategy_ref IN
+		   (SELECT id FROM sim_position WHERE strategy_ref IN
 		     (SELECT id FROM fin_strategy WHERE template_ref IN ('simdrill','simdrill-gate')))`,
 		`DELETE FROM fin_cashflow WHERE position_ref IN
-		   (SELECT id FROM fin_position WHERE strategy_ref IN
+		   (SELECT id FROM sim_position WHERE strategy_ref IN
 		     (SELECT id FROM fin_strategy WHERE template_ref IN ('simdrill','simdrill-gate')))`,
-		`DELETE FROM fin_position WHERE strategy_ref IN
+		`DELETE FROM sim_position WHERE strategy_ref IN
 		   (SELECT id FROM fin_strategy WHERE template_ref IN ('simdrill','simdrill-gate'))`,
-		`DELETE FROM fin_order_leg WHERE execution_id IN
-		   (SELECT id FROM fin_execution WHERE strategy_ref IN
+		`DELETE FROM sim_order_leg WHERE execution_id IN
+		   (SELECT id FROM sim_execution WHERE strategy_ref IN
 		     (SELECT id FROM fin_strategy WHERE template_ref IN ('simdrill','simdrill-gate')))`,
-		`DELETE FROM fin_execution WHERE strategy_ref IN
+		`DELETE FROM sim_execution WHERE strategy_ref IN
 		   (SELECT id FROM fin_strategy WHERE template_ref IN ('simdrill','simdrill-gate'))`,
+		`DELETE FROM sim_guard_close`,
+		`DELETE FROM sim_cashflow`,
+		`DELETE FROM sim_position`,
+		`DELETE FROM sim_order_leg`,
+		`DELETE FROM sim_execution`,
+		`DELETE FROM fin_econ_lesson WHERE kind='trade_postmortem'`,
 		`DELETE FROM fin_exec_drill WHERE strategy_ref IN
 		   (SELECT id FROM fin_strategy WHERE template_ref IN ('simdrill','simdrill-gate'))`,
 		"DELETE FROM fin_strategy WHERE template_ref IN ('simdrill','simdrill-gate')",
@@ -119,7 +125,7 @@ func TestDrillQuoteUnitFullPath(t *testing.T) {
 	var szUnit string
 	var qtyBase float64
 	if err := d.Pool.QueryRow(ctx,
-		`SELECT sz_unit,qty_base FROM fin_order_leg WHERE execution_id=$1 AND inst_id='CORE-USDT'`,
+		`SELECT sz_unit,qty_base FROM sim_order_leg WHERE execution_id=$1 AND inst_id='CORE-USDT'`,
 		res.OpenExecID).Scan(&szUnit, &qtyBase); err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +135,7 @@ func TestDrillQuoteUnitFullPath(t *testing.T) {
 	// 红桩主断言：平仓腿量=腿实得币量 1998（修前=美元额 25——错平病灶）。
 	var closeSz float64
 	if err := d.Pool.QueryRow(ctx,
-		`SELECT sz FROM fin_order_leg WHERE execution_id=$1 AND inst_id='CORE-USDT'`,
+		`SELECT sz FROM sim_order_leg WHERE execution_id=$1 AND inst_id='CORE-USDT'`,
 		res.CloseExecID).Scan(&closeSz); err != nil {
 		t.Fatal(err)
 	}
@@ -148,7 +154,7 @@ func TestDrillQuoteUnitFullPath(t *testing.T) {
 	var bag *float64
 	var settled *float64
 	if err := d.Pool.QueryRow(ctx,
-		`SELECT closed_at IS NOT NULL,bare_bag_qty,settled_amount FROM fin_position
+		`SELECT closed_at IS NOT NULL,bare_bag_qty,settled_amount FROM sim_position
 		WHERE execution_id=$1 ORDER BY id DESC LIMIT 1`, res.OpenExecID).
 		Scan(&closed, &bag, &settled); err != nil {
 		t.Fatal(err)
@@ -221,7 +227,7 @@ func TestDrillCloseRejectedEscalation(t *testing.T) {
 	}
 	// 拒单/部分态一等事件：close 腿行 ack 态留痕（venue 态机×产线消费缝）。
 	var legState string
-	if err := d.Pool.QueryRow(ctx, `SELECT state FROM fin_order_leg
+	if err := d.Pool.QueryRow(ctx, `SELECT state FROM sim_order_leg
 		WHERE execution_id=$1 AND inst_id='CORE-USDT-SWAP'`, res.CloseExecID).
 		Scan(&legState); err != nil || legState != "ack" {
 		t.Fatalf("close 腿应 ack 态留痕: %q err=%v", legState, err)
@@ -247,8 +253,8 @@ func TestDrillPartialFillOpenAck(t *testing.T) {
 	}
 	// 腿 ack 行留痕（T-0107 live 确认轨语义——venue 态机经产线缝可重放）。
 	var legState, execState string
-	if err := d.Pool.QueryRow(ctx, `SELECT l.state,e.state::text FROM fin_order_leg l
-		JOIN fin_execution e ON e.id=l.execution_id
+	if err := d.Pool.QueryRow(ctx, `SELECT l.state,e.state::text FROM sim_order_leg l
+		JOIN sim_execution e ON e.id=l.execution_id
 		WHERE e.strategy_ref=(SELECT id FROM fin_strategy WHERE template_ref='simdrill' LIMIT 1)
 		AND l.inst_id='CORE-USDT' ORDER BY l.id DESC LIMIT 1`).
 		Scan(&legState, &execState); err != nil || legState != "ack" || execState != "failed" {
@@ -276,8 +282,8 @@ func TestDrillOpenRejectedLegReceipt(t *testing.T) {
 	}
 	// 拒码入 leg 行（venue_err_code 禁吞——回执一等事件）。
 	var code string
-	if err := d.Pool.QueryRow(ctx, `SELECT l.venue_err_code FROM fin_order_leg l
-		JOIN fin_execution e ON e.id=l.execution_id
+	if err := d.Pool.QueryRow(ctx, `SELECT l.venue_err_code FROM sim_order_leg l
+		JOIN sim_execution e ON e.id=l.execution_id
 		WHERE e.strategy_ref=(SELECT id FROM fin_strategy WHERE template_ref='simdrill' LIMIT 1)
 		AND l.inst_id='CORE-USDT' ORDER BY l.id DESC LIMIT 1`).
 		Scan(&code); err != nil || code != simvenue.RejOffGrid {

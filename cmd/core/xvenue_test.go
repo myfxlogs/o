@@ -15,6 +15,7 @@ import (
 
 	mt5pb "o/internal/gen/mtapi/mt5"
 	"o/internal/mt5"
+	"o/internal/platform/findom"
 	"o/internal/portfolio/lifecycle"
 	"o/internal/risk"
 	"o/internal/trading/execution"
@@ -233,7 +234,7 @@ func TestXvenueOpenE2EOkxTerminal(t *testing.T) {
 		"mt5": &xvExecFake{seq: &seq, name: "mt5", ticket: 777},
 		"okx": &xvExecFake{seq: &seq, name: "okx",
 			reject: &okxexec.APIError{Code: "51001", Msg: "Instrument ID doesn't exist"}},
-	})
+	}, findom.Live)
 	gate := risk.NewGate(pool, cfg).WithEquity(func(context.Context, string) (float64, error) {
 		return 1e6, nil
 	})

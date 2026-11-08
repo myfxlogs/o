@@ -60,10 +60,17 @@ func (e *EventPush) push(ctx context.Context, key, text string) {
 	e.sent[key] = true
 }
 
+// pushOpened 开仓推——双域选读（T-0489：fin_position=live 真户、sim_position=
+// sim 演习仓；推送带域标业主肉眼可分，去重键带域防跨域撞号）。
 func (e *EventPush) pushOpened(ctx context.Context) {
-	rows, err := e.pool.Query(ctx, `SELECT p.id,p.inst_id,p.notional_usd,p.opened_at,
-		s.template_ref FROM fin_position p LEFT JOIN fin_strategy s ON s.id=p.strategy_ref
-		WHERE p.opened_at > now()-interval '10 minutes' ORDER BY p.id`)
+	e.pushOpenedDom(ctx, "live", "fin_position")
+	e.pushOpenedDom(ctx, "sim", "sim_position")
+}
+
+func (e *EventPush) pushOpenedDom(ctx context.Context, dom, table string) {
+	rows, err := e.pool.Query(ctx, fmt.Sprintf(`SELECT p.id,p.inst_id,p.notional_usd,p.opened_at,
+		s.template_ref FROM %s p LEFT JOIN fin_strategy s ON s.id=p.strategy_ref
+		WHERE p.opened_at > now()-interval '10 minutes' ORDER BY p.id`, table))
 	if err != nil {
 		return
 	}
@@ -77,22 +84,28 @@ func (e *EventPush) pushOpened(ctx context.Context) {
 		if err := rows.Scan(&id, &inst, &notional, &at, &_tmpl); err != nil {
 			continue // 扫行败跳过非吞——行级病灶不阻余行
 		}
-		e.push(ctx, fmt.Sprintf("opened:%d", id),
-			fmt.Sprintf("开仓：%s，投入本金 $%.2f（现货买入+永续卖出对冲）",
-				hedgeName(inst), notional))
+		e.push(ctx, fmt.Sprintf("opened:%s:%d", dom, id),
+			fmt.Sprintf("开仓[%s]：%s，投入本金 $%.2f（现货买入+永续卖出对冲）",
+				dom, hedgeName(inst), notional))
 	}
 }
 
 func (e *EventPush) pushFunding(ctx context.Context) {
-	if _, ok := e.cursor["funding"]; !ok {
+	e.pushFundingDom(ctx, "live", "fin_cashflow")
+	e.pushFundingDom(ctx, "sim", "sim_cashflow")
+}
+
+func (e *EventPush) pushFundingDom(ctx context.Context, dom, table string) {
+	key := "funding:" + dom
+	if _, ok := e.cursor[key]; !ok {
 		var maxID int64
-		if err := e.pool.QueryRow(ctx,
-			"SELECT COALESCE(max(id),0) FROM fin_cashflow WHERE kind='funding_settle'").Scan(&maxID); err == nil {
-			e.cursor["funding"] = maxID // boot 播种基线——历史行不重推（重启防护）
+		if err := e.pool.QueryRow(ctx, fmt.Sprintf(
+			"SELECT COALESCE(max(id),0) FROM %s WHERE kind='funding_settle'", table)).Scan(&maxID); err == nil {
+			e.cursor[key] = maxID // boot 播种基线——历史行不重推（重启防护）
 		}
 	}
-	rows, err := e.pool.Query(ctx, `SELECT id,ccy,amount,position_ref FROM fin_cashflow
-		WHERE kind='funding_settle' AND id>$1 ORDER BY id`, e.cursor["funding"])
+	rows, err := e.pool.Query(ctx, fmt.Sprintf(`SELECT id,ccy,amount,position_ref FROM %s
+		WHERE kind='funding_settle' AND id>$1 ORDER BY id`, table), e.cursor[key])
 	if err != nil {
 		return
 	}
@@ -102,16 +115,21 @@ func (e *EventPush) pushFunding(ctx context.Context) {
 		var ccy string
 		var amt float64
 		_ = rows.Scan(&id, &ccy, &amt, &posRef)
-		e.cursor["funding"] = id
-		e.push(ctx, fmt.Sprintf("funding:%d", id),
-			fmt.Sprintf("资金费到账：%.4f %s（对冲仓#%d）", amt, ccy, posRef))
+		e.cursor[key] = id
+		e.push(ctx, fmt.Sprintf("funding:%s:%d", dom, id),
+			fmt.Sprintf("资金费到账[%s]：%.4f %s（对冲仓#%d）", dom, amt, ccy, posRef))
 	}
 }
 
 func (e *EventPush) pushClosed(ctx context.Context) {
-	rows, err := e.pool.Query(ctx, `SELECT p.id,p.inst_id,p.notional_usd,
-		COALESCE(p.settled_amount,0),COALESCE(p.settled_ccy,'USD') FROM fin_position p
-		WHERE p.closed_at IS NOT NULL AND p.closed_at > now()-interval '10 minutes' ORDER BY p.id`)
+	e.pushClosedDom(ctx, "live", "fin_position")
+	e.pushClosedDom(ctx, "sim", "sim_position")
+}
+
+func (e *EventPush) pushClosedDom(ctx context.Context, dom, table string) {
+	rows, err := e.pool.Query(ctx, fmt.Sprintf(`SELECT p.id,p.inst_id,p.notional_usd,
+		COALESCE(p.settled_amount,0),COALESCE(p.settled_ccy,'USD') FROM %s p
+		WHERE p.closed_at IS NOT NULL AND p.closed_at > now()-interval '10 minutes' ORDER BY p.id`, table))
 	if err != nil {
 		return
 	}
@@ -126,8 +144,8 @@ func (e *EventPush) pushClosed(ctx context.Context) {
 		if pnl < 0 {
 			sign = "-"
 		}
-		e.push(ctx, fmt.Sprintf("closed:%d", id),
-			fmt.Sprintf("平仓：%s，本轮净盈亏 %s%.4f %s", hedgeName(inst), sign, absf(pnl), ccy))
+		e.push(ctx, fmt.Sprintf("closed:%s:%d", dom, id),
+			fmt.Sprintf("平仓[%s]：%s，本轮净盈亏 %s%.4f %s", dom, hedgeName(inst), sign, absf(pnl), ccy))
 	}
 }
 

@@ -42,8 +42,8 @@ func (r *Runner) Execute(ctx context.Context, in Intent) (int64, error) {
 		return 0, fmt.Errorf("hedge_band: 双腿名义差 %.4f > %.4f", diff, band/1e4)
 	}
 	var execID int64
-	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_execution(strategy_ref,decision_id,token_id,inst_id,notional_usd,state)
-		VALUES($1,$2,$3,$4,$5,'open') RETURNING id`,
+	if err := r.pool.QueryRow(ctx, fmt.Sprintf(`INSERT INTO %s(strategy_ref,decision_id,token_id,inst_id,notional_usd,state)
+		VALUES($1,$2,$3,$4,$5,'open') RETURNING id`, r.dom.Execution()),
 		in.StrategyRef, in.DecisionID, tok, in.InstID, in.NotionalUSD).Scan(&execID); err != nil {
 		r.rej.Inc("write_err")
 		return 0, err
@@ -53,8 +53,8 @@ func (r *Runner) Execute(ctx context.Context, in Intent) (int64, error) {
 	var posRef *int64
 	if in.Kind == "close" {
 		var pid int64
-		if err := r.pool.QueryRow(ctx, `SELECT id FROM fin_position
-			WHERE inst_id=$1 AND closed_at IS NULL ORDER BY id DESC LIMIT 1`,
+		if err := r.pool.QueryRow(ctx, fmt.Sprintf(`SELECT id FROM %s
+			WHERE inst_id=$1 AND closed_at IS NULL ORDER BY id DESC LIMIT 1`, r.dom.Position()),
 			in.InstID).Scan(&pid); err == nil {
 			posRef = &pid
 		}
@@ -105,8 +105,8 @@ func (r *Runner) Execute(ctx context.Context, in Intent) (int64, error) {
 	// close 腿 posRef 已按开仓仓现读对，execution_id 回溯会错绑本 exec 壳行）。
 	if in.Kind != "close" {
 		var posID int64
-		if err := r.pool.QueryRow(ctx, `INSERT INTO fin_position(execution_id,strategy_ref,inst_id,notional_usd)
-			VALUES($1,$2,$3,$4) RETURNING id`,
+		if err := r.pool.QueryRow(ctx, fmt.Sprintf(`INSERT INTO %s(execution_id,strategy_ref,inst_id,notional_usd)
+			VALUES($1,$2,$3,$4) RETURNING id`, r.dom.Position()),
 			execID, in.StrategyRef, in.InstID, in.NotionalUSD).Scan(&posID); err != nil {
 			r.rej.Inc("write_err")
 		} else {
@@ -233,8 +233,8 @@ func (r *Runner) legPx(ctx context.Context, execID int64, no int, leg Leg, clOrd
 		}
 	}
 	var id int64
-	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_order_leg(execution_id,leg_no,cl_ord_id,venue,side,inst_id,sz,state,venue_err_code,venue_err_msg,px,sz_unit,qty_base,ord_type,venue_ticket)
-		VALUES($1,$2,$3,$4,$5,$6,$7,$8,NULLIF($9,''),NULLIF($10,''),$11,$12,$13,$14,$15) RETURNING id`,
+	if err := r.pool.QueryRow(ctx, fmt.Sprintf(`INSERT INTO %s(execution_id,leg_no,cl_ord_id,venue,side,inst_id,sz,state,venue_err_code,venue_err_msg,px,sz_unit,qty_base,ord_type,venue_ticket)
+		VALUES($1,$2,$3,$4,$5,$6,$7,$8,NULLIF($9,''),NULLIF($10,''),$11,$12,$13,$14,$15) RETURNING id`, r.dom.OrderLeg()),
 		execID, no, clOrdID, leg.Venue, leg.Side, leg.InstID, leg.Sz, state, venueCode, venueMsg, pxArg, szUnit, qtyBase, ordType, tkArg).Scan(&id); err != nil {
 		r.rej.Inc("write_err")
 	}
@@ -252,9 +252,9 @@ func (r *Runner) legCash(ctx context.Context, legID int64, leg Leg, px, fillSz f
 	if leg.Side == "sell" {
 		kind, sign = "spot_sell", 1.0
 	}
-	if _, err := r.pool.Exec(ctx, `INSERT INTO fin_cashflow
+	if _, err := r.pool.Exec(ctx, fmt.Sprintf(`INSERT INTO %s
 		(kind,venue,ccy,amount,position_ref,source_ref,source_table,occurred_at)
-		VALUES($1,$2,'USDT',$3,$4,$5,'fin_order_leg',now())`,
+		VALUES($1,$2,'USDT',$3,$4,$5,'%s',now())`, r.dom.Cashflow(), r.dom.OrderLeg()),
 		kind, leg.Venue, sign*r.legGross(leg, px, fillSz), posRef, legID); err != nil {
 		r.rej.Inc("write_err")
 	}
@@ -285,15 +285,16 @@ func (r *Runner) legGross(leg Leg, px, fillSz float64) float64 {
 // linkLegCash open 径仓行建后补挂 position_ref（腿行 source_ref 锚回溯——
 // 下单时仓未生 position_ref 暂 NULL，此处补链不丢归仓）。
 func (r *Runner) linkLegCash(ctx context.Context, execID, posID int64) {
-	if _, err := r.pool.Exec(ctx, `UPDATE fin_cashflow c SET position_ref=$2
-		FROM fin_order_leg l WHERE c.source_table='fin_order_leg'
+	if _, err := r.pool.Exec(ctx, fmt.Sprintf(`UPDATE %s c SET position_ref=$2
+		FROM %s l WHERE c.source_table='%[2]s'
 		AND c.source_ref=l.id AND l.execution_id=$1 AND c.position_ref IS NULL`,
+		r.dom.Cashflow(), r.dom.OrderLeg()),
 		execID, posID); err != nil {
 		r.rej.Inc("write_err")
 	}
 }
 func (r *Runner) setState(ctx context.Context, execID int64, state string) {
-	if _, err := r.pool.Exec(ctx, "UPDATE fin_execution SET state=$2 WHERE id=$1", execID, state); err != nil {
+	if _, err := r.pool.Exec(ctx, fmt.Sprintf("UPDATE %s SET state=$2 WHERE id=$1", r.dom.Execution()), execID, state); err != nil {
 		r.rej.Inc("write_err")
 	}
 }
