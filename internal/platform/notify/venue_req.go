@@ -83,7 +83,7 @@ func (v *VenueReq) pushOne(ctx context.Context, r struct {
 // venueMsg 组文（metrics.boards 取达阈族 persist 最高者；解析败/空→保底文
 // 不丢推送——票面禁线）。红线句钉死。
 func venueMsg(venue string, mets []byte) string {
-	fall := fmt.Sprintf("【venue-scout】请注册 %s（state→recommended，度量件查 fin_venue_candidate.metrics）——红线件：新平台注册归业主裁决", venue)
+	fall := fmt.Sprintf("【新交易所申请】请注册 %s——度量达标件在系统台账；注册属重大事项归业主裁决", venue)
 	// 返修①甲案：margin 伪阈删（生产 metrics jsonb 无 margin 字段——
 	// state='recommended' 即达阈认证推送面不二次裁决阈=双真相源防；
 	// 直取 persist 最高 board 组文）。struct 字段=scout board 六件真形。
@@ -98,8 +98,22 @@ func venueMsg(venue string, mets []byte) string {
 		}
 	}
 	b := m.Boards[best]
-	return fmt.Sprintf("【venue-scout】请注册 %s：%s 30d 实测净年化 %v%% vs 基线 %v%%（持续占比 %v%%）——红线件：新平台注册归业主裁决。凭据到手后落 skills/venue-scout-%s 能力账径。",
-		venue, b.Family, fmtPct(b.NetAprMid), fmtPct(b.Baseline), fmtPct(b.Persist), venue)
+	return fmt.Sprintf("【新交易所申请】请注册 %s：%s家族近30天实测净年化 %s%%，对照基线 %s%%（持续达标占比 %s%%）——注册属重大事项归业主裁决；凭据到位后按交易所接入流程办理。",
+		venue, scoutFamily(b.Family), fmtPct(b.NetAprMid), fmtPct(b.Baseline), fmtPct(b.Persist))
 }
 
 func fmtPct(v float64) string { return strings.TrimSuffix(fmt.Sprintf("%.2f", v*100), ".00") }
+
+// scoutFamily 侦察家族机读键人话（carry/xvenue_spread/basis——T-0441 白话令；
+// 未知族原样透出不吞）。
+func scoutFamily(f string) string {
+	switch f {
+	case "carry":
+		return "单所息差"
+	case "xvenue_spread":
+		return "跨所价差"
+	case "basis":
+		return "基差"
+	}
+	return f
+}

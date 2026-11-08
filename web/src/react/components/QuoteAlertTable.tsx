@@ -7,12 +7,12 @@
 //     收起不占主列表，区行「恢复」钮可逆；
 //   · 晋升中/暂无行情显缺不假零（T-0412/T-0399 语义直译）。
 import type { PriceAlertRow } from "../../gen/dashboardv1/core_pb";
+import { ALERT_DIR_CN, ALERT_STATE_CN } from "./labels";
 
 // 人话字典（纯显示映射非判据——态派生在服务端/迁移 CHECK）。
-const DIR_TXT: Record<string, string> = { ">=": "涨到 ≥", "<=": "跌破 ≤" };
-const STATE_TXT: Record<string, string> = {
-	active: "盯梢中", fired: "已提醒", disabled: "已停用",
-};
+// T-0441：direction/state 词表归一 labels.ts（未知值人话兜底不裸出）。
+const dirTxt = (v: string) => ALERT_DIR_CN[v] ?? "未识别方向";
+const stateTxt = (v: string) => ALERT_STATE_CN[v] ?? "未识别态";
 
 // 鲜度人话（秒龄→可读串——服务端派生龄直译非判据；瓦片段同源共用）。
 export const ageTxt = (s: bigint) => {
@@ -57,7 +57,7 @@ export function QuoteAlertTable(props: {
 }) {
 	const pending = new Set(props.pendingSyms ?? []);
 	const condTxt = (r: PriceAlertRow) =>
-		`${DIR_TXT[r.direction] ?? r.direction} ${px(r.target)}`;
+		`${dirTxt(r.direction)} ${px(r.target)}`;
 	// 件② 分组：主表=active+fired（fired 史行只读）；disabled→已停用折叠区
 	const groups = alertGroups(props.rows.filter((r) => r.state !== "disabled"));
 	const disabledRows = props.rows.filter((r) => r.state === "disabled");
@@ -89,7 +89,7 @@ export function QuoteAlertTable(props: {
 							<td title={r.note ? `备注 ${r.note}` : undefined}>{condTxt(r)}</td>
 							<td title={r.firedAt
 								? `已于 ${new Date(Number(r.firedAt.seconds) * 1000).toLocaleString("zh-CN", { hour12: false })} 推送`
-								: undefined}>{STATE_TXT[r.state] ?? r.state}</td>
+								: undefined}>{stateTxt(r.state)}</td>
 							<td>
 								{/* 件① 删除=软删 disabled 留痕（fired 史行无删——禁删禁改） */}
 								{r.state === "active" && props.onToggle &&
@@ -111,7 +111,7 @@ export function QuoteAlertTable(props: {
 						<tr key={String(r.id)}>
 							<td>{r.symbol}</td>
 							<td>{condTxt(r)}</td>
-							<td>{STATE_TXT[r.state] ?? r.state}</td>
+							<td>{stateTxt(r.state)}</td>
 							<td>{props.onToggle &&
 								<button className="btn-ghost" disabled={props.busy}
 									onClick={() => props.onToggle!(r.id, "active")}>恢复</button>}</td>

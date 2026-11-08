@@ -84,8 +84,8 @@ func (p *PriceAlert) Scan(ctx context.Context) error {
 // fire 单行命中：推（关态/凭据缺=不发）→条件翻位 fired→ops_event 行。
 // 推送败=自报+不翻位（票不丢——下帧重试）；翻位零行=并发/重拍已锁（不重响）。
 func (p *PriceAlert) fire(ctx context.Context, h alertHit) {
-	msg := fmt.Sprintf("【价格提醒】%s 现价 %s %s 目标价 %s",
-		h.symbol, numStr(h.last), h.dir, numStr(h.target))
+	msg := fmt.Sprintf("【价格提醒】%s 现价 %s，%s %s",
+		h.symbol, numStr(h.last), alertDir(h.dir), numStr(h.target))
 	pushed := false
 	if p.cli == nil || p.on == nil || !p.on() {
 		log.Printf("[price_alert] 推送关/凭据缺——%s 命中（不发只翻位）", h.symbol)
@@ -105,8 +105,8 @@ func (p *PriceAlert) fire(ctx context.Context, h alertHit) {
 	if tag.RowsAffected() == 0 {
 		return // 并发先响/手翻——一发即锁语义不重复落行
 	}
-	note := fmt.Sprintf("#%d %s 现价 %s %s 目标价 %s——%s",
-		h.id, h.symbol, numStr(h.last), h.dir, numStr(h.target),
+	note := fmt.Sprintf("#%d %s 现价 %s，%s %s——%s",
+		h.id, h.symbol, numStr(h.last), alertDir(h.dir), numStr(h.target),
 		map[bool]string{true: "已推送", false: "推送关只翻位"}[pushed])
 	if _, err := p.pool.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note)
 		VALUES($1,$2,$3,$4)`, priceAlertSeat, priceAlertEvent, priceAlertTicket, note); err != nil {
@@ -126,6 +126,17 @@ func (p *PriceAlert) escalate(ctx context.Context, phase string, cause error) {
 		priceAlertSeat, priceAlertTicket, fmt.Sprintf("%s: %v", prefix, cause), prefix+"%"); err != nil {
 		log.Printf("[price_alert] 自报行落败（结构性限度静默退）: %v（原败: %v）", err, cause)
 	}
+}
+
+// alertDir 方向机读符人话（">="→涨到、"<="→跌破——业主文案零符号黑话）。
+func alertDir(d string) string {
+	if d == ">=" {
+		return "涨到 ≥"
+	}
+	if d == "<=" {
+		return "跌破 ≤"
+	}
+	return "触及"
 }
 
 // numStr 价格人串（整数去尾零、小数保精度——拒科学计数法黑话）。

@@ -8,6 +8,7 @@ import { LineChart } from "../components/chart";
 import { ClosedPositionsCard } from "../components/flows";
 import { VenueBoardCard } from "../components/venueboard";
 import { fmtUsd, pbDate } from "../components/fmt";
+import { CASHFLOW_KIND_CN, KIND_FALLBACK, METRIC_CN, METRIC_FALLBACK, VENUE_CN, cn } from "../components/labels";
 
 const PERIODS: { k: string; label: string }[] = [
   { k: "daily", label: "日报" },
@@ -15,40 +16,10 @@ const PERIODS: { k: string; label: string }[] = [
   { k: "monthly", label: "月报" },
 ];
 
-const KIND_CN: Record<string, string> = {
-  interest: "活期利息",
-  funding_settle: "资金费",
-  trade_pnl: "平仓盈亏",
-  fee: "交易成本",
-  deposit: "入金",
-  withdraw: "出金",
-  spot_buy: "现货买入",
-  spot_sell: "现货卖出",
-  recon_adjust: "校账调整",
-  rollback_cost: "回滚成本",
-  earn_in: "Earn 转入",
-  earn_out: "Earn 转出",
-};
-const VENUE_CN: Record<string, string> = { okx: "OKX", mt5: "MT5" };
-
-const METRIC_NAMES: Record<string, string> = {
-  net: "净额",
-  cum_nav: "累计实现盈亏",
-  funding_income: "资金费收入",
-  earn_balance: "Earn 停泊",
-  opened: "开仓",
-  closed: "平仓",
-  proposed: "评",
-  rejected: "拒",
-  active: "在册策略",
-  alerts: "风控拒",
-  capital_flows: "资金流",
-  annualized: "年化",
-  capital_base: "基数",
-  retired: "退役",
-  net_vs_earn: "净利−Earn基线",
-  earn_baseline_snaps: "基线快照数",
-};
+// T-0441：指标/类目/平台词表归一 labels.ts——未知键人话兜底不裸出机读枚举。
+const metricTxt = (k: string) => cn(METRIC_CN, k, METRIC_FALLBACK);
+const kindTxt = (k: string) => cn(CASHFLOW_KIND_CN, k, KIND_FALLBACK);
+const venueTxt = (v: string) => cn(VENUE_CN, v, "其他");
 
 function ReportsCard() {
   const [period, setPeriod] = useState("daily");
@@ -102,7 +73,7 @@ function ReportsCard() {
                 <tbody>
                   {rep.metrics.map((m) => (
                     <tr key={m.k}>
-                      <td>{METRIC_NAMES[m.k] ?? m.k}</td>
+                      <td title={m.k}>{metricTxt(m.k)}</td>
                       <td className="num mono">{m.v.toLocaleString("zh-CN", { maximumFractionDigits: 4 })}</td>
                     </tr>
                   ))}
@@ -224,12 +195,12 @@ function FlowsCard() {
               {(f.data?.rows ?? []).map((row) => (
                 <tr key={row.id}>
                   <td className="mono">{(pbDate(row.occurredAt)?.toISOString().slice(5, 16).replace("T", " ") ?? '—')}</td>
-                  <td>{KIND_CN[row.kind] ?? row.kind}</td>
+                  <td>{kindTxt(row.kind)}</td>
                   <td className={"num mono " + (row.amount >= 0 ? "u-good" : "u-bad")}>
                     {row.amount >= 0 ? "+" : ""}
                     {row.amount.toFixed(4)} {row.ccy}
                   </td>
-                  <td className="ink-3">{VENUE_CN[row.venue] || row.venue || "—"}</td>
+                  <td className="ink-3">{venueTxt(row.venue)}</td>
                 </tr>
               ))}
             </tbody>
