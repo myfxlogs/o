@@ -75,16 +75,35 @@ SG psql（FIN_DSN env 径）：
   （一仓一案 UNIQUE 幂等）。numbers 机读件：`position_id/strategy_ref/
   inst_id/execution_id/trigger/hold_minutes/settled_usd/settled_pct/
   notional_usd/bare_bag_qty/bare_bag_usd/anomalies/detail/close_reason/
-  decision_row_found/summary`。
+  decision_row_found/summary`+`diag_gate`（GW-001 段D1——fast_close
+  单次未入诊断闸时在案：未入因+去向写明，裁面照读不误诊缺件）。
 - 裁前先读：numbers.anomalies 码集（`fast_close` 秒级开平/
   `settled_over` 结算幅超阈/`trigger_unknown` 认知集外触发/
   `bare_bag` 残袋>0）+numbers.close_reason（ops_decision 平仓理由行
   ——「为什么平」锚；decision_row_found=false=记忆面缺口本身在案）。
 - verdict 词集（kind 专属三分支——勿与通用 econ 词混用）：
   - **bug 实证**（机器误判/执行缺陷——量纲错配/判据破洞/残袋机制失守类）
-    →`canon` 词 `ticket:<slug>`——升件立票：ops_event 升件行携案锚
-    （`fin_econ_lesson#<id>`）+定性草案一句话，DM 派工面消化（本席不
-    直写 docs/tasks/——落面白名单不含票域）；
+    →`canon` 词 `ticket:<slug>`——修法票草案直落（GW-001 段D2：升件行
+    →draft 进 fin_ticket_draft，物料化归 ticketdraft 既有尾段——候选态
+    零自派批准权=COS/DM；本席不直写 docs/tasks/——落面白名单不含
+    票域，draft 锚表≠票域）。执行序：
+    ①在飞查重——`SELECT id,ticket FROM fin_ticket_draft WHERE
+    signature='postmortem:<anomaly>' AND status='pending' LIMIT 1`
+    在，或同签名 materialized 票 latest ops_event 非完成/作废→**只落
+    升件行携在飞 `draft#<id>`/`ticket#<ticket>` 不另立 draft**（并入
+    在飞案——防同族草案重复出票）；
+    ②无在飞→`INSERT INTO fin_ticket_draft(signature,kind,lesion_key,
+    payload) VALUES('postmortem:<anomaly>','trade_postmortem',
+    entity_ref,'{slug:postmortem-<anomaly>-<仓号>,title:平仓监察修法票:
+    <定性草案一句话>,signature:postmortem:<anomaly>,kind:
+    trade_postmortem,lesion_key:position#<id>,evidence_ids:[本席考古
+    证据 ops_event 行],evidence_note:案锚 fin_econ_lesson#<id>——<定性
+    草案一句话>,evidence_query:<本席主证据查询>,domain_hint:<建议修法
+    面>}') RETURNING id`——签名 `<anomaly>`=numbers.anomalies 首码
+    （主导码；机批册 postmortem:* 同域 GW-001 段C2）；
+    ③升件行照落：ops_event 升件行携案锚（`fin_econ_lesson#<id>`）+
+    定性草案一句话+`draft#<id>`（升件=显形径 draft=执行径，两账同拍
+    ——DM 面可见，ticketdraft 尾段同拍物料化）。
   - **市况使然**（判据正常触发但触阈——市况波动/预期内了结非病）
     →`dismiss` 词 `market`——归档不立案（理由一句话市况定性）；
   - **章程件**（处置须新章——裸袋处置/钱径语义裁定类非 bug 非市况）
