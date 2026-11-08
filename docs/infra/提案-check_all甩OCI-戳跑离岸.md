@@ -44,7 +44,12 @@ x86 绿**——时序敏感测试（events 族刚踩过的竞态类）可能架�
 - ARM 绿 x86 红的分歧案一旦发生→升件+档 A/B 复审；
 - OCI runner 缺席→fail-open 回本盒现径不炸。
 
-## 五、前置
+## 五、前置（机位已勘 2026-11-08 实测 @149.118.58.98）
 
-OCI 侧需：go toolchain+docker（测试 PG 容器族）+仓库 clone
-+scratch remote——评估件里核 OCI 机位余量（ARM OCPU/内存）。
+- 机位：aarch64 4 OCPU / 23GB 内存（19 可用）/ 25GB 余盘——
+  免费层重机位，跑 check_all 够格；
+- 已在：docker、git、o-postgres-md 容器（MD 域先例在跑）；
+- 缺：go toolchain、o-postgres-test 族容器（fin 测试库）、
+  仓库 clone+scratch remote、SSH push 通道（隧道径现成）；
+- **业主令：本件加急**——四件引进中唯一「建完立刻省墙钟」
+  的，优先级建议提 CTO 评审序首（提案呈批 2026-11-08 在队）。
