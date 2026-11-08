@@ -52,7 +52,7 @@
 
 - 状态：待验
 - 施工回填（2026-11-08 无头施工席 @ wt /opt/o-wt/t0485 枝 t/0485-eval-pulse）：
-  - 范围①`migrations/fin_0147_eval_pulse.sql`：md_eval_pulse 建表
+  - 范围①`migrations/fin_0148_eval_pulse.sql`：md_eval_pulse 建表
     （template PK/last_eval_ts/eval_n_24h/refreshed_at——票面列集钦定）+
     projector_rw SIUD、o_fin_ro SELECT 条件授权（fin_0099/0100 同径）；
     domain.tsv 以 bridge 入册（fin 链独表——md 侧无写者/读者不落正表，
@@ -85,3 +85,23 @@
   - 部署滞后预期（如实报非缺陷）：check_bridge_registry ①授权列实机
     审计——fin_0147 未上 SG 前报「SG projector_rw.SELECT on
     md_eval_pulse 缺」，迁移应用+授权落即自绿（T-0214 同型部署序在案）。
+
+## 返修记档（2026-11-08）
+
+- 返修1——迁移号让位 fin_0148：GW-001 段B `fin_0147_ops_ticket_phase`
+  先占 147 号（master 在案），本票迁移改名 fin_0148_eval_pulse.sql+
+  登记 {148}+文件注释号同步；DDL/授权/探针/量表语义零改。留案同步：
+  SG 已由 T-0488 按同 DDL 直放（md_eval_pulse 表+projector_rw SIUD+
+  o_fin_ro SELECT 在案，schema_migrations v147 撞号留案决策席）——
+  改名后 fin_0148 落库时 CREATE IF NOT EXISTS+条件 GRANT 幂等零副作用。
+- 返修1 验证（枝 rebase 落 f7fd69559 上，merge 文本撞点已消）：
+  check_migrations 七断言过（链唯一单调 {147,ops}+{148,eval}）；
+  check-lines/build/vet 过；check_bridge_registry 四列全绿
+  （授权列 26 桥表×projector_rw.SELECT 齐——md_eval_pulse 授权
+  T-0488 在案即验锚绿）；
+  check_all 全谱单跑至 go test 档两件红皆证非本支：
+  ①cmd/core trx_test 卡 Migrate tx（pgx 帧 herd 争用——check_all
+  自附 env-contention 标，同件单跑 5s 绿）；②events
+  TestListenSocketStarvationRootFix 负载敏 flaky（本支同库
+  两跑一绿一红、master 单跑一绿——本包 diff 零触）；
+  本支触面包（projector/hunger/pgstore/flow_pulse）全绿在案。

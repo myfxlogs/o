@@ -1,4 +1,4 @@
--- 0147 T-0485 eval 活动脉冲桥——per-template 新鲜度派生表（T-0479 裁量径②）。
+-- 0148 T-0485 eval 活动脉冲桥——per-template 新鲜度派生表（T-0479 裁量径②）。
 -- 病灶：SG fin_opp_eval 镜像谓词=仅被 fin_proposal 引用行（D-0030 §三承重
 -- 墙，PG-md ~93upd/s 体量闸不可全量镜像）→rejected-only 族 SG 侧结构性恒零
 -- →族沉默探针+eval_zero 量表日频误报（六案同签名）；病灶=观测域错位非评估
