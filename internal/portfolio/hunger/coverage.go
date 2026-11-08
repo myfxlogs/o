@@ -16,6 +16,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"time"
 
 	"o/internal/platform/legset"
 )
@@ -28,6 +29,12 @@ const (
 	// coverDedupHours 同窗去重——同键 24h 至多一报（esc_class+esc_scope
 	// 等值键，结构性限度同族沉默探针先例）。
 	coverDedupHours = 24
+	// coverNewGraceMin 新挂腿键宽限（分钟）——腿键入所需集→订阅→采集→
+	// 桥投影→SG 落行全链延迟上界（actTick 30s×2 端+反向桥+OKX 首推+
+	// 写批+投影≈分钟级，部署重启面另计）。宽限内判盲=结构性假阳
+	// （T-0451 ZEC-USDT 病灶：策略立仓 0.9s 后探针拍即报）；宽限过
+	// 仍盲=照报不误。
+	coverNewGraceMin = 15
 	// coverEscClass 升件类（判类册登记词——观测盲区类升件，族沉默同款）。
 	coverEscClass = "观测盲"
 	// coverTicket 探针归属票号（T-0392 立件——例行行携环票号同 T-0384 例）。
@@ -66,12 +73,24 @@ func (s *Sensor) ProbeLegCoverage(ctx context.Context) error {
 	for _, k := range freshList {
 		fresh[k] = true
 	}
+	// T-0451 新挂腿宽限：键入所需集→订阅→采集→桥投影→SG 落行全链延迟
+	// 上界内不判盲（首见戳册——键离集即除册复入重计；hungerTick 单协程
+	// 串行免锁）。宽限过仍盲照报不误——判据本体零动。
+	now := s.now()
+	seen := make(map[string]time.Time, len(required))
 	var blind []string
 	for _, k := range required {
-		if !fresh[k] {
-			blind = append(blind, k)
+		first, ok := s.coverSeen[k]
+		if !ok {
+			first = now
 		}
+		seen[k] = first
+		if fresh[k] || now.Sub(first) < coverNewGraceMin*time.Minute {
+			continue
+		}
+		blind = append(blind, k)
 	}
+	s.coverSeen = seen
 	sort.Strings(blind)
 	for _, k := range blind {
 		if err := s.reportBlindLeg(ctx, k); err != nil {
