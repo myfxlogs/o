@@ -23,7 +23,7 @@ import (
 var wake = map[string][]string{
 	"ctx":  {"o-regime-analyst.service"},
 	"econ": {"o-econ-verdict.service"},
-	"dm":   {"o-decision-seat.service", "o-ceo-seat.service"},
+	"dm":   {"o-cto-seat.service", "o-ceo-seat.service"},
 }
 
 func main() {

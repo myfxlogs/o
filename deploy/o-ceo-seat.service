@@ -1,5 +1,5 @@
 # o-ceo-seat.service —— CEO 席无头班次件（T-0456 业主令双无头建席；
-# 同构 o-decision-seat；cwd=/var/tmp/o-ceo scratch 续跑面）。
+# 同构 o-cto-seat；cwd=/var/tmp/o-ceo scratch 续跑面）。
 [Unit]
 Description=o-ceo-seat (无头CEO席方向批件)
 After=network-online.target

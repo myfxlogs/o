@@ -1,4 +1,4 @@
-# 管理席（CEO）SKILL——O 公司管理/营运/方向决策中枢（D-0040）
+# CEO席 SKILL——O 公司管理/营运/方向决策中枢（D-0040）
 
 > 移植自 `/opt/meta/roles/CEO.md`（业主令 2026-11-06：只移卡暂不建无头），
 > 职权根=O 钦定层 `AGENTS.md` 管理行+D-0040，非 meta 要求流卡。
@@ -75,7 +75,7 @@
 卡面职权与禁线对无头形态同义生效。四件钦定：
 
 - **收件箱改投**：`scripts/meta/ceo_queue.sh`——席位上行件
-  （seat∈COS上行/决策席/META-DM/裁定席/施工席/外审席的升件·呈批，
+  （seat∈COS上行/决策席/META-DM/CTO/裁定席/施工席/外审席的升件·呈批，
   无终态者）；探针/壳轨机械升件留 CTO 壳轨不串味。
 - **唤径**：metabus dm 帧双唤（o-ceo-seat.service 与 o-decision-seat
   同帧各自滤队，队空即退零烧）+30min 兜底拍 o-ceo-seat.timer。

@@ -10,7 +10,7 @@
 #     →升件不静默。
 #   B 文件→台账（补登）：票在 done/ + 有收口类事件史（收口/移交/
 #     收口待审/审计中——管道期票）+ 无完成行 + 最新事件非负词
-#     （驳回/异常/挂起）→ 补 ops_event 完成行（seat=META-DM 机械轨
+#     （驳回/异常/挂起）→ 补 ops_event 完成行（seat=CTO 机械轨
 #     可辨，note 前缀「机械轨」；advisory xact 锁+行内重查双防重）。
 #   git 写径=dm_repolock.sh 同台互斥（会话 merge/push 同锁——忙即本拍
 #   让位不抢写；抢陈锁/冲突/脏树/推败→升件不静默）。
@@ -44,7 +44,7 @@ LOCK_WAIT=${O_LEDGER_LOCK_WAIT:-90}
 
 QC() { printf '%s' "${1:-}" | sed "s/'/''/g"; }
 esc() { # $1=ticket $2=prefix $3=detail —— 升件自报末环败静默退（结构性限度在案）
-	"$OPS_ESC_SH" META-DM "$1" "" "" "$2" "$3" || true # tolerate: 升件自报末环——ops_esc 写径败静默退（结构性限度在案）
+	"$OPS_ESC_SH" CTO "$1" "" "" "$2" "$3" || true # tolerate: 升件自报末环——ops_esc 写径败静默退（结构性限度在案）
 }
 task_file()  { compgen -G "$TASK_DIR/$1-*.md" 2>/dev/null | head -1; }
 done_file()  { compgen -G "$DONE_DIR/$1-*.md" 2>/dev/null | head -1; }
@@ -211,7 +211,7 @@ git -C "$REPO" status --porcelain -- docs/tasks 2>/dev/null | grep -q . && NEED_
 push_needed && NEED_GIT=1
 if [ "$NEED_GIT" -eq 1 ]; then
 	LOCK_RC=0 TOKEN=
-	TOKEN=$("$LOCK_SH" acquire "META-DM-ledger" "$LOCK_WAIT" 2>/dev/null) || LOCK_RC=$?
+	TOKEN=$("$LOCK_SH" acquire "CTO-ledger" "$LOCK_WAIT" 2>/dev/null) || LOCK_RC=$?
 	if [ "$LOCK_RC" -eq 6 ]; then
 		TOKEN=$(printf '%s\n' "$TOKEN" | head -1)
 		esc "" "REPO-LOCK-STEAL" "写径锁抢陈锁——前持锁者陈死（holder 件 stolen= 行在案）"
@@ -307,7 +307,7 @@ BEGIN;
 SELECT pg_advisory_xact_lock(hashtext('dm_ledger:$(QC "$tid")'));
 WITH ins AS (
   INSERT INTO ops_event(seat,event,ticket,note)
-  SELECT 'META-DM','完成','$(QC "$tid")','$(QC "$note")'
+  SELECT 'CTO','完成','$(QC "$tid")','$(QC "$note")'
   WHERE NOT EXISTS (SELECT 1 FROM ops_event WHERE ticket='$(QC "$tid")' AND event='完成')
   RETURNING ticket)
 SELECT ticket FROM ins;

@@ -58,7 +58,7 @@ if [ -z "$FIN_DSN" ]; then
 fi
 QNOTE=$(printf '%s' "$NOTE" | sed "s/'/''/g")
 if ! "$PSQL_BIN" "$FIN_DSN" -qAt -c "INSERT INTO ops_event(seat,event,ticket,note)
-  VALUES('决策席','退班','','$QNOTE')" >/dev/null 2>&1; then
+  VALUES('CTO','退班','','$QNOTE')" >/dev/null 2>&1; then
   echo "[shiftend] 退班理由行写径败——升件自报禁静默退" >&2
   exit 1
 fi

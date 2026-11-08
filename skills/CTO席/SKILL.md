@@ -1,4 +1,4 @@
-# 决策席 SKILL——裁决面读径（T-0310 补 regime_fact 读面节）
+# CTO席 SKILL——裁决面读径（T-0310 补 regime_fact 读面节）
 
 ## regime_fact 读面（裁决前读，非闸件）
 
@@ -76,12 +76,12 @@ ops_event `裁决`/`驳回`/`参数调整` 行同拍自动镜像 ops_decision se
   一律归壳 `scripts/meta/dm_ledger.sh`（dm_tick 每拍尾窗自跑），会话
   **禁再做**：票翻（票件 mv 入 done/+状态行翻完成+[角色:决策]机械串
   commit+push）、台账补登（done/ 票无完成行→机械补登）、完成行落账
-  （壳轨 seat=META-DM 同拍写——会话裁毕留裁决行即走，票翻面台账面
+  （壳轨 seat=CTO 同拍写——会话裁毕留裁决行即走，票翻面台账面
   壳轨同拍自理）。会话余业=判断件：审计裁词/敌意回放/merge 裁决文/
   驳回意见/升件。
 - **写径互斥**（T-0414 件④）：在 `/opt/o` 部署树上跑任何 git 写
   （merge/commit/push）前必须 `bash /opt/o/scripts/meta/dm_repolock.sh
-  acquire 决策席-<tid> 120`（rc3=壳轨持锁→sleep 30 重试；rc6=抢陈锁
+  acquire CTO-<tid> 120`（rc3=壳轨持锁→sleep 30 重试；rc6=抢陈锁
   得须升件显报），写毕 `release <token>`——壳轨票翻同锁互斥防双写。
 - **重裁幂等（每票动手前必查）**：该票最新 ops_event 已含
   `裁决`/`完成`/`驳回`，或其收口支已合 master（`git log origin/master
@@ -111,7 +111,7 @@ dm_queue 推导。**判据不中=班次行为与本节立票前逐字等价（�
   3. 开批基线断言：`git fetch origin` 后 `git rev-parse HEAD` =
      `origin/master`（批在基线顶连合；基线漂了=先 rebaseline 重判批）。
 - **② 批序（绿径，步序写死）**——整批持
-  `dm_repolock.sh acquire 决策席-<tid> 120`（merge×N+盖顶+推+裁记落纸
+  `dm_repolock.sh acquire CTO-<tid> 120`（merge×N+盖顶+推+裁记落纸
   全程一锁，毕 release——批原子性：锁外插写=戳绑 HEAD 错位重蹈坑条目）：
   1. 逐件审+裁：判照一件件出（敌意回放/验收锚对账/先红桩闸照旧），每件
      `裁决` 行即时落（通过/驳回）——**批的只是 merge/戳/推，不是判断**；
@@ -193,7 +193,7 @@ dm_queue 推导。**判据不中=班次行为与本节立票前逐字等价（�
      `report.sh 派单 T-NNNN "<转发文>"`；交集/缺清单件按 T-0413 闸
      留队不硬派——派毕重跑闸（派单行落账=approved 判据自清，
      重跑输出即降）；
-  2. 闸终局非空→理由行已落 ops_event（`event=退班,seat=决策席,
+  2. 闸终局非空→理由行已落 ops_event（`event=退班,seat=CTO,
      ticket=''`），note 三字段必携（缺字段=行不合规=半退班）：
      `谁挡=`<已批未领清单/有挡项面标>/`等什么=`<派单条件或清窗条件
      ——闸按源面机械生成>/`下一拍谁接=`<dm_tick 30min 兜底拍
@@ -273,7 +273,7 @@ dm_queue 推导。**判据不中=班次行为与本节立票前逐字等价（�
   已批>7 天先重核假设仍成立再派（防规漂）。
 - **派单依赖闸**（T-0413）：`dm_depgate.sh` 在班次锁前先跑——候选票
   「范围」路径清单∪票支 diff，对在审票同式路径集；零交集→机械落
-  决策席 `派单` 行并经 `dispatch_worker.sh` 即拉。仍在待派队=交集/
+  CTO `派单` 行并经 `dispatch_worker.sh` 即拉。仍在待派队=交集/
   缺清单/在审面不可判，**本班不得手派**，留在审裁决后下拍重判；
   范围节空读/对拍败由闸落升件。
 - **升件硬触发**（撞上即升零裁量）：红线三词命中 / 动票面范围外文件 /

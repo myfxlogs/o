@@ -11,7 +11,7 @@
 # 对行防连推：决策席同判词「裁决+通过/驳回」成对双行（同票同 note，T-0424
 #   实据 90/101）——(ticket,note) 首现行（rn=1）唯一转写，对行零双推。
 # 幂等（票面④）：同 ops_event 行只转一次——幂等键=ops_event 送达标记行
-#   （event=送达，seat=META-DM，ticket=''零票态污染——队列推导/工作台视图
+#   （event=送达，seat=CTO，ticket=''零票态污染——队列推导/工作台视图
 #   按 ticket 取 latest，带票号会藏收口行，故标记行落空票号、票号在 note），
 #   note 前缀 ref=<event_id>|。箱写+推送双成才落标记；推送败=不落标记下拍
 #   重试（箱 upsert 刷新语义重入无害）；箱写败推送已出=标记 gap=none 留痕
@@ -70,7 +70,7 @@ SELECT c.id,c.ticket,c.kind,c.exc160,c.exc300 FROM (
     row_number() OVER (PARTITION BY ticket,note ORDER BY id) AS rn,
     ts
   FROM ops_event
-  WHERE seat='决策席' AND event IN ('裁决','通过','驳回') AND ticket<>''
+  WHERE seat IN ('决策席','CTO') AND event IN ('裁决','通过','驳回') AND ticket<>''
     AND ($KW_SQL)
 ) c
 WHERE c.rn=1 AND c.ts>now()-interval '$WINDOW'
@@ -112,7 +112,7 @@ SQL
     # ④ 幂等标记（双成才落——note 前缀 ref=<id>| 即幂等键；ticket=''零票态污染）
     NOTE=$(printf 'ref=%s|gap=%s|push=ok|%s|%s 判词送达(T-0438)' "$rid" "$GAP" "$tk" "$kd")
     psql "$FIN_DSN" -qAt -c "INSERT INTO ops_event(seat,event,ticket,note)
-      VALUES('META-DM','送达','','$(printf '%s' "$NOTE" | sed "s/'/''/g")')" >/dev/null 2>&1 \
+      VALUES('CTO','送达','','$(printf '%s' "$NOTE" | sed "s/'/''/g")')" >/dev/null 2>&1 \
       || true # tolerate: 标记末环败静默——下拍重转=箱刷新+重推一行，幂等键自愈不刷屏
     echo "[verdict-deliver] $tk 判词#$rid 已送达（gap=$GAP push=ok kind=$kd）" >&2
   else

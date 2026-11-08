@@ -13,7 +13,7 @@
 //   - 裁定席第四分支（skills/裁定席，LLM）：领任务+代码仓只读开放考古——
 //     证伪/证实/扩族→诊断草案落位（numbers.diagnosis+status='drafted'）
 //     +ops_event 诊断草案行（DM 可读判词行）；
-//   - DM 裁（skills/决策席）：裁决/驳回行——裁过→修法票自动草稿（归流执行
+//   - DM 裁（skills/CTO席）：裁决/驳回行——裁过→修法票自动草稿（归流执行
 //     段走裁定席窄面，复用 fin_ticket_draft→ticketdraft 物料化链）或并入
 //     在飞票判词；裁驳→驳回因入案卷（diag_state='rejected'——再诊断携错因
 //     =草案质量自学习），三轮驳回升不裁。

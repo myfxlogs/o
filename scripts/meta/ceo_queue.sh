@@ -11,7 +11,7 @@ FIN_DSN="${FIN_DSN:-$(grep '^FIN_PG_DSN=' "${DM_ENV_FILE:-/opt/o-research/env}" 
 psql "$FIN_DSN" -qAt <<'SQL'
 SELECT DISTINCT e.ticket FROM ops_event e
 WHERE e.event IN ('升件','呈批')
-  AND e.seat IN ('COS上行','COS','O-Dev交互席','决策席','META-DM',
+  AND e.seat IN ('COS上行','COS','O-Dev交互席','决策席','META-DM','CTO','CEO',
                  '裁定席','施工席','外审席','CEO上行','管理席')
   AND NOT EXISTS (
     SELECT 1 FROM ops_event t

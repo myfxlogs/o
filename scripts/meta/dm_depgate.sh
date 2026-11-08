@@ -30,7 +30,7 @@ trap 'rm -rf -- "$TMPD"' EXIT
 
 QC() { printf '%s' "${1:-}" | sed "s/'/''/g"; }
 esc() { # $1=ticket $2=prefix $3=detail —— 自报末环败静默退（ops_esc 结构性限度在案）
-	"$OPS_ESC_SH" META-DM "$1" "" "" "$2" "$3" || true # tolerate: 升件写径败不能再升件——静默退
+	"$OPS_ESC_SH" CTO "$1" "" "" "$2" "$3" || true # tolerate: 升件写径败不能再升件——静默退
 }
 
 norm_path() {
@@ -153,7 +153,7 @@ WITH cur AS (
   ORDER BY ts DESC,id DESC LIMIT 1
 ), ins AS (
   INSERT INTO ops_event(seat,event,ticket,note)
-  SELECT '决策席','派单','$(QC "$tid")','$(QC "$note")'
+  SELECT 'CTO','派单','$(QC "$tid")','$(QC "$note")'
   WHERE EXISTS (SELECT 1 FROM cur WHERE event='已批')
   RETURNING ticket
 )
