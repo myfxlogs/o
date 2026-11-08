@@ -52,6 +52,14 @@ var faceBaselineWhitelist = map[string]string{
 	// basis 族活性对账在册，非「该建未建」残余）。
 	"face:dep_pair:signal:basis_ann→quarter_basis_long":  "T-0447 basis_ann 钉定消费册登记对——depSignalFamilies 族消费补位合法新面（活性对账在册）",
 	"face:dep_pair:signal:basis_ann→perp_quarter_spread": "T-0447 basis_ann 钉定消费册登记对——depSignalFamilies 族消费补位合法新面（活性对账在册）",
+	// T-0471：CEO 无头班次席面——管理席席位（T-0456 业主令「CEO走无头」
+	// 建席+T-0465 北极星账钦定面）非幽灵；ops_event 写径=ceo_tick.sh
+	// O_SEAT=CEO→report.sh 并轨+ceo_northstar.sh 北极星账/议题行直插
+	// （生产实证 2026-11-08 首行 00:25Z 起 169 行/日，ops_event #3925
+	// 升件源）；班次驱动间歇写（kick+30min 兜底拍，队空=心跳即退零
+	// ops_event 写）=间歇面形（T-0448 册语义罩位），静默 >7d 出集再
+	// 活跃=再现新面再升件再起草循环（T-0393 链）。
+	"face:service:CEO": "T-0471 入册——CEO 无头班次席（管理席，T-0456 业主令建席）：ceo_tick.sh O_SEAT=CEO→report.sh+ceo_northstar.sh 北极星账/议题行双写径合法，班次驱动间歇写 7d 活跃窗摆动登记不重复升；生产亲证 2026-11-08 首行 00:25Z 起 169 行/日（ops_event #3925 升件源）",
 }
 
 // faceRow 单面行（kind=面类五键，face=面键——同拍批内 kind+face 唯一）。

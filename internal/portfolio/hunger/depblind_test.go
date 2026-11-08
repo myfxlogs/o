@@ -683,3 +683,23 @@ func TestFaceBaselineLegBTCUSD270326Registered(t *testing.T) {
 		t.Fatalf("%s 理由键空——注册式不静默（depblind 豁免同律）", scope)
 	}
 }
+
+// TestFaceBaselineServiceCEORegistered T-0471 先红桩（T-0388 修复类律——
+// 病灶存在断言修前红+同断言修后绿）：签名面 face:service:CEO 必须在人工
+// 基线册。根因锚：CEO=管理席无头班次席（T-0456 业主令「CEO走无头」建席
+// +T-0465 北极星账钦定面）——ops_event 写径=ceo_tick.sh O_SEAT=CEO→
+// report.sh 并轨+ceo_northstar.sh 北极星账/议题行直插 seat='CEO'（生产
+// 实证 2026-11-08 首行 00:25Z 起 169 行/日，#3925 升件源）；班次驱动
+// 间歇写（kick+30min 兜底拍，队空=心跳即退零 ops_event 写）——静默
+// >7d 出集再活跃=再现新面再升件再起草循环（T-0448 同型病灶）。修前未
+// 登记=红；入册后同断言绿且理由键非空（注册式不静默）。
+func TestFaceBaselineServiceCEORegistered(t *testing.T) {
+	scope := "face:service:CEO"
+	reason, ok := faceBaselineExempt(scope)
+	if !ok {
+		t.Fatalf("病灶存在：%s 未入人工基线册——窗摆回将重复升件（T-0471）", scope)
+	}
+	if strings.TrimSpace(reason) == "" {
+		t.Fatalf("%s 理由键空——注册式不静默（depblind 豁免同律）", scope)
+	}
+}
