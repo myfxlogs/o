@@ -715,3 +715,22 @@ func TestFaceBaselineServiceCEORegistered(t *testing.T) {
 		t.Fatalf("%s 理由键空——注册式不静默（depblind 豁免同律）", scope)
 	}
 }
+
+// TestFaceBaselineLegTRXUSDTSwapRegistered T-0449 先红桩（T-0388 修复类律
+// ——病灶存在断言修前红+同断言修后绿）：签名面 face:dep_pair:leg:TRX-USDT-SWAP
+// 必须在人工基线册。根因锚：TRX-USDT-SWAP 本键腿=fin_sub_request open 行经
+// SubRequestArm 入 ActiveSetUnion（depenum 枚举本体零硬编码——与 T-0450 册内
+// subreq:user_intent:TRX-USDT-SWAP 同一 open 行 user_intent/quote_watchlist
+// @2026-11-07 12:43Z 生产亲证仍 open）——请求闭/开摆动=间歇面形（T-0448 册
+// 语义罩位），册外面窗摆回重复升件炸起草拍（T-0393 链，升件源 #3406）。
+// 修前未登记=红；入册后同断言绿且理由键非空（注册式不静默）。
+func TestFaceBaselineLegTRXUSDTSwapRegistered(t *testing.T) {
+	scope := "face:dep_pair:leg:TRX-USDT-SWAP"
+	reason, ok := faceBaselineExempt(scope)
+	if !ok {
+		t.Fatalf("病灶存在：%s 未入人工基线册——窗摆回将重复升件（T-0449）", scope)
+	}
+	if strings.TrimSpace(reason) == "" {
+		t.Fatalf("%s 理由键空——注册式不静默（depblind 豁免同律）", scope)
+	}
+}
