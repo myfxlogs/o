@@ -538,3 +538,21 @@ func TestDepLegKeysStarExpanded(t *testing.T) {
 		t.Fatalf("目录员腿应入所需集: %v", keys)
 	}
 }
+
+// TestFaceBaselineLegZECUSDTSwapRegistered T-0454 先红桩（T-0388 修复类律
+// ——病灶存在断言修前红+同断言修后绿）：签名面 face:dep_pair:leg:ZEC-USDT-SWAP
+// 必须在人工基线册。根因锚：ZEC-USDT-SWAP 本键腿=提案 fin_proposed/fin_armed
+// 窗在册（ActiveSetUnion 提案臂枚举本体，零硬编码）——提案退役/probe 态期
+// 摆出、活性期摆回=纯间歇面形（T-0448 册语义罩位正例：生产实证 b9 在册→
+// b10 摆出），册外面窗摆回重复升件炸起草拍（#3456）。修前未登记=红；入册
+// 后同断言绿且理由键非空（注册式不静默）。
+func TestFaceBaselineLegZECUSDTSwapRegistered(t *testing.T) {
+	scope := "face:dep_pair:leg:ZEC-USDT-SWAP"
+	reason, ok := faceBaselineExempt(scope)
+	if !ok {
+		t.Fatalf("病灶存在：%s 未入人工基线册——窗摆回将重复升件（T-0454）", scope)
+	}
+	if strings.TrimSpace(reason) == "" {
+		t.Fatalf("%s 理由键空——注册式不静默（depblind 豁免同律）", scope)
+	}
+}
