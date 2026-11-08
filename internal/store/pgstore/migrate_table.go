@@ -154,6 +154,7 @@ var migrationTable = []struct {
 	{145, "fin_0145_ops_seat_card.sql"},
 	{146, "fin_0146_why_chain.sql"},
 	{147, "fin_0147_ops_ticket_phase.sql"},
+	{148, "fin_0148_eval_pulse.sql"},
 
 	// —— md 链（版本链内唯一且单调；md 链版本=历史号+1000 与 fin 键空间全局不相交——跨链并 schema 时 schema_migrations 零撞号，check_migrations 断言①⑤）——
 	{1003, "md_1003_market_facts.sql"},

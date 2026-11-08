@@ -41,13 +41,18 @@ func seedSignal(t *testing.T, pool *pgxpool.Pool, kind, key string, age time.Dur
 	}
 }
 
-// seedEvalAt 评估行定龄（age=0 窗内行；>7d 窗外行——族在全集但近窗零）。
-func seedEvalAt(t *testing.T, pool *pgxpool.Pool, template string, age time.Duration) {
+// seedPulseAt 脉冲行定龄（T-0485 改读面：age=0 窗内活脉冲；>7d 脉冲陈——
+// 族在全集但窗内死。fin_opp_eval 镜像行不再播——SG 恒零谱形即本桩底）。
+func seedPulseAt(t *testing.T, pool *pgxpool.Pool, template string, age time.Duration) {
 	t.Helper()
+	n24 := 0
+	if age < 24*time.Hour {
+		n24 = 1
+	}
 	if _, err := pool.Exec(context.Background(),
-		`INSERT INTO fin_opp_eval(inst_id,template,direction,verdict,legs,evidence,ts)
-		VALUES($3,$1,'long_perp_short_cfd','rejected','[]','{}',now()-make_interval(secs=>$2))`,
-		template, age.Seconds(), "inst-"+template); err != nil {
+		`INSERT INTO md_eval_pulse(template,last_eval_ts,eval_n_24h,refreshed_at)
+		VALUES($1,now()-make_interval(secs=>$2),$3,now())`,
+		template, age.Seconds(), n24); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -86,7 +91,7 @@ func TestProbeFamiliesLesionOnLiveSignalZeroEval(t *testing.T) {
 	ctx := context.Background()
 	seedHypoNeeds(t, pool, "xvenue-carry", "xvenue_carry",
 		[]string{"carry_diff", "xvenue_spread", "mt5_swap", "depth5", "md_ticks mt5"})
-	seedEvalAt(t, pool, "xvenue-carry", 10*24*time.Hour) // 全集在列、近窗零
+	seedPulseAt(t, pool, "xvenue-carry", 10*24*time.Hour) // 全集在列、近窗零
 	seedSignal(t, pool, "carry_diff", "BTC-USDT-SWAP", 0)
 	seedSignal(t, pool, "carry_diff", "ETH-USDT-SWAP", 0)
 	seedSignal(t, pool, "xvenue_spread", "BTC-USDT-SWAP", 0)
@@ -128,16 +133,43 @@ func TestProbeFamiliesLesionOnLiveSignalZeroEval(t *testing.T) {
 
 // TestProbeFamiliesQuietOnFreshEval 形②：信号活+评估有=零行
 // （funding-hedge 命名规约链→funding_view 实谱零误报）。
+// T-0485 钦定桩：rejected-only 谱形=SG fin_opp_eval 镜像恒零+脉冲行新鲜
+// →探针静默（修前红=观测盲日频误报六案同签名形，修后绿）。
 func TestProbeFamiliesQuietOnFreshEval(t *testing.T) {
 	s, pool := silenceFixture(t)
 	ctx := context.Background()
-	seedEvalAt(t, pool, "funding-hedge", 0)                 // 窗内活
+	seedPulseAt(t, pool, "funding-hedge", 0)                // 脉冲窗内活
 	seedSignal(t, pool, "funding_view", "BTC-USDT-SWAP", 0) // 源活
+	// rejected-only 谱形断言：SG 镜像恒零（本桩零播种即谓词域外景）。
+	var mirrorN int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM fin_opp_eval
+		WHERE template='funding-hedge'`).Scan(&mirrorN); err != nil {
+		t.Fatal(err)
+	}
+	if mirrorN != 0 {
+		t.Fatalf("rejected-only 谱形不成立（镜像行=%d 应 0）", mirrorN)
+	}
 	if err := s.ProbeFamilies(ctx); err != nil {
 		t.Fatalf("probe: %v", err)
 	}
 	if silence, esc := lesionRows(t, pool); silence != 0 || esc != 0 {
 		t.Fatalf("活族误报: 族沉默=%d 升件=%d", silence, esc)
+	}
+}
+
+// TestProbeFamiliesLesionOnPulseStale 真死面保留（T-0485 验收锚③）：
+// 脉冲行陈旧=真死可报——rejected-only 族 eval 链死探测能力不因改读失明。
+func TestProbeFamiliesLesionOnPulseStale(t *testing.T) {
+	s, pool := silenceFixture(t)
+	ctx := context.Background()
+	seedHypoNeeds(t, pool, "xvenue-carry", "xvenue_carry", []string{"carry_diff"})
+	seedPulseAt(t, pool, "xvenue-carry", 10*24*time.Hour) // 脉冲陈=窗内零
+	seedSignal(t, pool, "carry_diff", "BTC-USDT-SWAP", 0)
+	if err := s.ProbeFamilies(ctx); err != nil {
+		t.Fatalf("probe: %v", err)
+	}
+	if silence, esc := lesionRows(t, pool); silence != 1 || esc != 1 {
+		t.Fatalf("真死病灶行缺失: 族沉默=%d 升件=%d", silence, esc)
 	}
 }
 
@@ -148,7 +180,7 @@ func TestProbeFamiliesSilentOnDeadSignal(t *testing.T) {
 	ctx := context.Background()
 	seedHypoNeeds(t, pool, "xvenue-carry", "xvenue_carry",
 		[]string{"carry_diff", "xvenue_spread"})
-	seedEvalAt(t, pool, "xvenue-carry", 10*24*time.Hour)
+	seedPulseAt(t, pool, "xvenue-carry", 10*24*time.Hour)
 	seedSignal(t, pool, "carry_diff", "BTC-USDT-SWAP", 10*24*time.Hour) // 驱动陈>7d
 	seedSignal(t, pool, "xvenue_spread", "BTC-USDT-SWAP", 0)            // 从件鲜——不翻判
 	if err := s.ProbeFamilies(ctx); err != nil {
@@ -164,7 +196,7 @@ func TestProbeFamiliesDedup24h(t *testing.T) {
 	s, pool := silenceFixture(t)
 	ctx := context.Background()
 	seedHypoNeeds(t, pool, "xvenue-carry", "xvenue_carry", []string{"carry_diff"})
-	seedEvalAt(t, pool, "xvenue-carry", 10*24*time.Hour)
+	seedPulseAt(t, pool, "xvenue-carry", 10*24*time.Hour)
 	seedSignal(t, pool, "carry_diff", "BTC-USDT-SWAP", 0)
 	for i := 0; i < 2; i++ {
 		if err := s.ProbeFamilies(ctx); err != nil {
@@ -188,13 +220,13 @@ func TestProbeFamiliesProdLandscapeZeroFalsePositive(t *testing.T) {
 		[]string{"carry_diff", "xvenue_spread", "mt5_swap", "depth5", "md_ticks mt5"})
 	// 活族窗内行（funding-hedge/quarter_basis_long/perp_quarter_spread）。
 	for _, tm := range []string{"funding-hedge", "quarter_basis_long", "perp_quarter_spread"} {
-		seedEvalAt(t, pool, tm, 0)
+		seedPulseAt(t, pool, tm, 0)
 	}
 	// 窗内零行族（xvenue-carry 病灶 + 非信号源族出域静默）。
 	for _, tm := range []string{"xvenue-carry", "quarter_basis_short", "dcd_call",
 		"dcd_put", "vol_sell_strangle", "vol_sell_single_call",
 		"earn_term_spread", "lending_spread", "surface-gap"} {
-		seedEvalAt(t, pool, tm, 10*24*time.Hour)
+		seedPulseAt(t, pool, tm, 10*24*time.Hour)
 	}
 	// 信号谱全鲜（生产实态六 kind）。
 	for _, k := range []struct{ kind, key string }{

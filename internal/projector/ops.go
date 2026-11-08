@@ -89,7 +89,8 @@ func (r *Runner) sgWake(ctx context.Context, ch string) error {
 }
 
 // projectEvals 评估桥投影（serve 谓词=仅被 fin_proposal 引用的行——D-0030 §三；
-// dualwrite=全量旁写）。
+// dualwrite=全量旁写）。拍尾顺带刷新 eval 脉冲（T-0485——谓词承重墙零触，
+// 活性派生面走正本聚合）。
 func (r *Runner) projectEvals(ctx context.Context) error {
 	wm := r.getWm("fin_opp_eval")
 	q := qEvalFresh
@@ -108,7 +109,7 @@ func (r *Runner) projectEvals(ctx context.Context) error {
 		return fmt.Errorf("eval 投影: %w", err)
 	}
 	r.bumpWm("fin_opp_eval", max)
-	return nil
+	return r.refreshEvalPulse(ctx)
 }
 
 func scanEvals(rows pgx.Rows) ([][]any, time.Time, error) {

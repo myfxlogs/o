@@ -879,3 +879,40 @@ func TestReverseSubRequests(t *testing.T) {
 		t.Fatal("活跃集谓词应纳 user_intent 提名符")
 	}
 }
+
+// TestEvalPulseBridge T-0485 验收锚：md 正本 fin_opp_eval per-template 聚合
+// →SG md_eval_pulse（rejected-only 谱形——镜像谓词域 SG fin_opp_eval 恒零
+// 而脉冲行新鲜=族活，谓词域外活性判据面）。last_eval_ts/eval_n_24h 口径
+// 钉 md 正本；对账顺带径同拍刷新。
+func TestEvalPulseBridge(t *testing.T) {
+	ctx := context.Background()
+	r, md, sg := runner(t)
+	// md 正本 rejected-only 族：窗内 1 行+窗外 1 行（谓词下全不过桥）。
+	if _, err := md.Exec(ctx, `INSERT INTO fin_opp_eval(id,ts,inst_id,template,direction,verdict,legs,evidence)
+		VALUES (5001,now(),'BTC-USDT-SWAP','xvenue-carry','long_perp_short_cfd','rejected','[]','{}'),
+		       (5002,now()-interval '48 hours','ETH-USDT-SWAP','xvenue-carry','long_perp_short_cfd','rejected','[]','{}'),
+		       (5003,now(),'SOL-USDT-SWAP','funding-hedge','short_perp_long_spot','rejected','[]','{}')`); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Reconcile(ctx, true); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if n := count(t, sg, "SELECT count(*) FROM fin_opp_eval"); n != 0 {
+		t.Fatalf("rejected-only 谱形镜像应恒零: %d", n)
+	}
+	var last time.Time
+	var n24 int
+	if err := sg.QueryRow(ctx, `SELECT last_eval_ts,eval_n_24h FROM md_eval_pulse
+		WHERE template='xvenue-carry'`).Scan(&last, &n24); err != nil {
+		t.Fatalf("xvenue-carry 脉冲行缺: %v", err)
+	}
+	if n24 != 1 {
+		t.Fatalf("eval_n_24h 应=1（48h 行窗外）: %d", n24)
+	}
+	if time.Since(last) > time.Minute {
+		t.Fatalf("last_eval_ts 应=md max(ts) 窗内值: %v", last)
+	}
+	if n := count(t, sg, "SELECT count(*) FROM md_eval_pulse WHERE template='funding-hedge'"); n != 1 {
+		t.Fatalf("funding-hedge 脉冲行缺: %d", n)
+	}
+}
