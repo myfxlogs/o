@@ -1,0 +1,14 @@
+# o-disk-hygiene.timer —— 30min 保洁扫拍（T-0466：孤儿锁盲区消——
+# 父死孤儿持 fd9 锁新跑傻等实证；周拍=mark>7d 内建节流非独立频）。
+# 激活径：systemctl --user enable --now o-disk-hygiene.timer
+# （落仓不启用——启用=部署面动作归外审/部署径）。
+[Unit]
+Description=o-disk-hygiene 30min 保洁拍
+
+[Timer]
+OnBootSec=15min
+OnUnitActiveSec=30min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

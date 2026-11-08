@@ -34,3 +34,6 @@ xvenue_carry_eval_zero	断供	sql_ro	SELECT count(*) FROM fin_opp_eval WHERE tem
 # 即脱态不计——已解候票不误鸣；幂等闸（dispatch_water.sh）保证连续候水
 # 期内仅一行，行龄=连续候水时长。阈=4h 票面钦定可调（改 interval 即调）。
 dispatch_aged_water	淤积	sql_ro	SELECT count(*) FROM (SELECT DISTINCT ON (ticket) ticket,event,ts FROM ops_event WHERE ticket<>'' ORDER BY ticket,ts DESC,id DESC) t WHERE t.event='候水' AND t.ts<now()-interval '4 hours'	1	派单候水老龄 count={v}——水位/额度持续满>4h=容量不足信号，查并行闸/额度冷却（{d}）	SELECT string_agg(ticket,',' ORDER BY ticket) FROM (SELECT DISTINCT ON (ticket) ticket,event,ts FROM ops_event WHERE ticket<>'' ORDER BY ticket,ts DESC,id DESC) t WHERE t.event='候水' AND t.ts<now()-interval '4 hours'	连鸣
+rootfs_highwater	淤积	cmd	df -P / | awk 'NR==2{gsub(/%/,"",$5);print $5}'	86	根分区利用率={v}%（>85% 高水位连鸣——deploy构建产物/check_all撞盘前哨；保洁面=wt_gc --disk+镜像留痕窗）		连鸣
+checkall_inflight	竞态	cmd	n=0; for f in /tmp/o-check_all-*.lock; do fuser "$f" >/dev/null 2>&1 && n=$((n+1)); done; echo $n	4	在持锁 check_all 跑数={v}（≥4=共享test-PG advisory herd 预警——T-0466⑧首版监控不互斥，拿数据再裁错峰）		
+checkall_envcontention_24h	竞态	cmd	find /opt/o/.git -name 'check-green-*.mode' -mmin -1440 2>/dev/null | xargs -r grep -l env-contention 2>/dev/null | wc -l	2	近24h check_all 戳面 env-contention（pgx超时假红标）计数={v}——≥2=测试库争用 herd 实证（T-0466⑧）		

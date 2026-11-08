@@ -1,0 +1,12 @@
+# o-disk-hygiene.service —— T-0466 磁盘保洁拍（wt_gc.sh --disk：
+# 孤儿锁扫杀+builder prune 双触发+go clean 周拍+GOCACHE 孤儿目录清；
+# o-wt-gc 同款瞬态载——30min 扫频，周拍语义由 mark 节流内建）。
+[Unit]
+Description=o-disk-hygiene (磁盘保洁拍)
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/o
+ExecStart=/opt/o/scripts/meta/wt_gc.sh --disk
+NoNewPrivileges=true

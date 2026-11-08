@@ -17,12 +17,36 @@ step() { echo "── $1" >&2; }
 # 入者即时报「等锁 holder pid」非静默睡死；超时 fail 报 holder
 # 不报假绿不自杀。拿锁后才毁旧戳——等锁期不碰在途跑的戳面。
 TOPKEY=$(pwd -P | sha256sum | cut -c1-16)
+# T-0466 件⑦：GOCACHE 按 checkout 分家——并发跑互逐「非码面红」
+# （T-0458 外审裁记实证）绝种；代价=各 wt 独立缓存目录，孤儿目录
+# 由 wt_gc.sh 保洁面按「wt 已删+锁未持+龄>24h」三闸清。
+export GOCACHE=${GOCACHE:-/tmp/gocache-${TOPKEY}}
+mkdir -p "$GOCACHE" 2>/dev/null || true # tolerate: 建败=go 自建/报错——缓存目录非硬依赖
 LOCK="/tmp/o-check_all-${TOPKEY}.lock"
+
+# T-0466 件⑤：等锁面可观测——入等锁/锁到手/等锁超时各落 ops_event
+# 行（seat=跑席按票面钦定；note=锁 key+holder+锁龄）。无头席撞锁
+# 不再「败了重试→再撞」傻等不可见。DSN 缺席静默退（审计件非硬闸）。
+oe_lock() { # $1=note
+  local dsn
+  dsn=$(grep '^FIN_PG_DSN=' /opt/o-research/env 2>/dev/null | cut -d= -f2- | tr -d '"')
+  [ -n "$dsn" ] && psql "$dsn" -qAt -c \
+    "INSERT INTO ops_event(seat,event,ticket,note) VALUES('跑席','等锁','T-0466','$1')" \
+    >/dev/null 2>&1 || true # tolerate: 等锁行写败不阻断跑——审计件非硬闸（同 wt_gc GC 行式）
+}
+
 exec 9>"$LOCK"
 if ! flock -n 9 2>/dev/null; then
   HOLDER=$(fuser "$LOCK" 2>/dev/null | tr -s ' ' '\n' | grep -v "^$$\$" | head -3 | tr '\n' ' ' || true) # tolerate: fuser 败/空集=holder 未知如实报 ?
+  HPID=$(printf '%s' "$HOLDER" | awk '{print $1}') # tolerate: holder 空集=?——etimes 取空落 ? 如实报
+  LOCK_AGE=$(ps -o etimes= -p "$HPID" 2>/dev/null | tr -d ' ' || true) # tolerate: holder 已退/ps 败=空串落 ?
   echo "⏳ [check-all] 等锁——另一跑在途 holder pid=[${HOLDER:-?}]（锁=$LOCK；阻塞等锁上界 1800s，超时 fail 不假绿）" >&2
-  flock -w 1800 9 || fail "等锁超时 1800s——holder pid=[${HOLDER:-?}]（锁=$LOCK）；前跑仍在途或锁泄漏，ps 核查后重试"
+  oe_lock "check_all 等锁 key=${TOPKEY} holder=[${HOLDER:-?}] 锁龄=${LOCK_AGE:-?}s"
+  if ! flock -w 1800 9; then
+    oe_lock "check_all 等锁超时 key=${TOPKEY} holder=[${HOLDER:-?}] 锁龄=${LOCK_AGE:-?}s"
+    fail "等锁超时 1800s——holder pid=[${HOLDER:-?}]（锁=$LOCK）；前跑仍在途或锁泄漏，ps 核查后重试"
+  fi
+  oe_lock "check_all 锁到手 key=${TOPKEY}（前跑已退续跑）"
   echo "✅ [check-all] 锁到手（前跑已退）——续跑" >&2
 fi
 rm -f "$STAMP" "$STAMP.mode"   # 重跑先毁旧戳（含 mode 痕）——中途败不留残戳

@@ -8,7 +8,8 @@
 # 带 wt 支与 RETIRE_D 内支不动）。GC_REPO 覆写=桩测径（默认 /opt/o）。
 set -u
 REPO="${GC_REPO:-/opt/o}"
-DRY=0; [ "${1:-}" = "--dry-run" ] && DRY=1
+DRY=0; DISK=0
+for a in "$@"; do case "$a" in --dry-run) DRY=1;; --disk) DISK=1;; esac; done
 ENVF="${GC_ENV_FILE:-/opt/o-research/env}"
 FIN_DSN=$(grep '^FIN_PG_DSN=' "$ENVF" 2>/dev/null | cut -d= -f2- | tr -d '"')
 AGE_D=7
@@ -27,6 +28,121 @@ tid_norm() {
   d=$(basename "$1" | tr 'A-Z' 'a-z' | grep -oE '[0-9]+' | head -1)
   [ -n "$d" ] && printf 'T-%04d' "$((10#$d))"
 }
+
+# ── T-0466 保洁面（裁域①③⑥——deploy 构建产物出径+孤儿锁+GOCACHE 界）──
+# 三件：⑤孤儿锁扫杀（/tmp/o-check_all-*.lock 持fd者=父死孤儿
+#   →杀进程树+ops_event 报行——实证：kill wrapper 后 go test 树孤儿
+#   持 fd9 锁 15min+ 新跑傻等。父死判据=ppid=1 或父comm=systemd
+#   ——本机 user systemd(1275) 是 subreaper，o-worker/tmux 孵化孤儿
+#   reparent 到它而非 pid1，字面 ppid=1 恒假漏杀）；①builder prune 双触发（周拍 marker
+#   >7d 常规 -f／根分区>80% 高水位 -af——141.5G 实证 -af 才放得动）；
+# ③go clean -cache 周拍+GOCACHE 分家目录清（/tmp/gocache-<topkey>
+#   三闸：wt 已删∧锁未持∧龄>24h——锁文件绝不删，删了双 inode 锁
+#   互斥破）。桩测面：GC_LOCK_GLOB/GC_GOCACHE_GLOB/GC_ROOTFS_PCT/
+#   GC_ROOTFS_HIGH_PCT/GC_GOCACHE_AGE_S/GC_OPS_SINK/GC_PRUNE_MARK/
+#   GC_GOCLEAN_MARK 覆写；GC_HYGIENE=0 整段关（他测实跑 wt_gc 防
+#   真 prune/杀真进程侧效）。
+disk_hygiene() {
+  local orphank=0 prune_hit=0 gclean=0 gck=0 pct week_hit
+  LOCK_GLOB="${GC_LOCK_GLOB:-/tmp/o-check_all-*.lock}"
+  GOCACHE_GLOB="${GC_GOCACHE_GLOB:-/tmp/gocache-*}"
+  PRUNE_MARK="${GC_PRUNE_MARK:-/var/tmp/o-wt-gc.last_prune}"
+  GCLEAN_MARK="${GC_GOCLEAN_MARK:-/var/tmp/o-wt-gc.last_goclean}"
+  GC_AGE_S="${GC_GOCACHE_AGE_S:-86400}"
+
+  ops_evt() { # $1=note——GC 域 ops_event 行（GC_OPS_SINK 桩测面优先）
+    if [ -n "${GC_OPS_SINK:-}" ]; then printf '%s\n' "$1" >> "$GC_OPS_SINK"; return 0; fi
+    [ -n "$FIN_DSN" ] && psql "$FIN_DSN" -qAt -c \
+      "INSERT INTO ops_event(seat,event,ticket,note) VALUES('META-GC','GC','T-0466','$1')" \
+      >/dev/null 2>&1 || true # tolerate: 保洁报行写败不阻断——审计件非硬闸
+  }
+  rootfs_pct() {
+    if [ -n "${GC_ROOTFS_PCT:-}" ]; then printf '%s' "$GC_ROOTFS_PCT"; return; fi
+    df -P / 2>/dev/null | awk 'NR==2{gsub(/%/,"",$5);print $5}'
+  }
+  descendants() { local p=$1 c; for c in $(pgrep -P "$p" 2>/dev/null); do echo "$c"; descendants "$c"; done; }
+  # 父死判定：ppid=1（经典 reparent-to-init）或父comm=systemd（user
+  # systemd subreaper 形态——本机实证孤儿 reparent 到 pid1275 非 1；
+  # check_all 合法律 ppid=跑席 pid 非 reaper，不误杀）。
+  orph_ppid() { local pp
+    pp=$(ps -o ppid= -p "$1" 2>/dev/null | tr -d ' ')
+    [ "$pp" = "1" ] || [ "$(ps -o comm= -p "${pp:-0}" 2>/dev/null | tr -d ' ')" = "systemd" ]
+  }
+
+  # ⑤孤儿锁扫杀：fuser 持fd集逐 pid 判父死→杀子孙+本体
+  for lock in $LOCK_GLOB; do
+    [ -e "$lock" ] || continue
+    for pid in $(fuser "$lock" 2>/dev/null | tr -s ' ' '\n'); do
+      [ -n "$pid" ] && [ "$pid" != "$$" ] || continue
+      orph_ppid "$pid" || continue
+      kd=0
+      if [ $DRY = 0 ]; then
+        for c in $(descendants "$pid"); do kill "$c" 2>/dev/null && kd=$((kd+1)); done
+        kill "$pid" 2>/dev/null && kd=$((kd+1))
+      fi
+      orphank=$((orphank+kd))
+      echo "孤儿锁清扫$( [ "$DRY" = 1 ] && echo '[DRY]' ): $(basename "$lock") holder_pid=$pid（ppid=1 父死）killed=$kd"
+      [ $DRY = 0 ] && ops_evt "孤儿锁清扫 lock=$(basename "$lock") holder_pid=$pid killed=$kd"
+    done
+  done
+
+  # ①builder prune 双触发：周拍（mark>7d 或缺席——缺席按到期引导周律，
+  # 不缺席永不触发=死闸）常规 -f；高水位（>80%）激进 -af 优先（双触同窗
+  # 仍走 -af——高水位才是病灶档）。
+  pct=$(rootfs_pct); pct=${pct:-0}
+  week_hit=0
+  [ $(( now - $(stat -c %Y "$PRUNE_MARK" 2>/dev/null || echo 0) )) -ge 604800 ] && week_hit=1
+  if [ "$week_hit" = 1 ] || [ "$pct" -ge "${GC_ROOTFS_HIGH_PCT:-80}" ]; then
+    prune_hit=1
+    echo "builder prune 触发（week=$week_hit rootfs=${pct}% mark=$(basename "$PRUNE_MARK")）"
+    if [ $DRY = 0 ]; then
+      if [ "$pct" -ge "${GC_ROOTFS_HIGH_PCT:-80}" ]; then
+        docker builder prune -af >/dev/null 2>&1 && echo "builder prune -af（高水位档）done" \
+          || echo "⚠️ builder prune -af 败" >&2 # tolerate: prune 败=缓存残留下轮再收——保洁尽力件
+      else
+        docker builder prune -f >/dev/null 2>&1 && echo "builder prune -f（周拍档）done" \
+          || echo "⚠️ builder prune -f 败" >&2 # tolerate: 同上
+      fi
+      touch "$PRUNE_MARK" 2>/dev/null || true # tolerate: mark 写败=下拍重触——幂等无害
+    fi
+  fi
+
+  # ③go clean -cache 周拍（GCLEAN_MARK>7d 或缺席首跑；分家目录走下段三闸清）
+  gclean_age=$(( now - $(stat -c %Y "$GCLEAN_MARK" 2>/dev/null || echo 0) ))
+  if [ "$week_hit" = 1 ] || [ "$gclean_age" -ge 604800 ]; then
+    gclean=1
+    echo "go clean -cache 触发（周拍）"
+    if [ $DRY = 0 ]; then
+      go clean -cache >/dev/null 2>&1 || echo "⚠️ go clean -cache 败" >&2 # tolerate: clean 败=缓存续长下轮再清——保洁尽力件
+      touch "$GCLEAN_MARK" 2>/dev/null || true # tolerate: mark 写败=下拍重触——幂等无害
+    fi
+  fi
+
+  # ⑦GOCACHE 分家目录清（每拍）：活 checkout topkey 集外+对应锁未持+龄>GC_AGE_S
+  LIVE_KEYS=$( { git -C "$REPO" worktree list --porcelain 2>/dev/null | awk '/^worktree/{print $2}'; printf '%s\n' "$REPO"; } \
+    | while IFS= read -r w; do printf '%s\n' "$(realpath "$w" 2>/dev/null)" | sha256sum | cut -c1-16; done | sort -u )
+  for d in $GOCACHE_GLOB; do
+    [ -d "$d" ] || continue
+    key=${d##*gocache-}
+    printf '%s' "$key" | grep -qE '^[0-9a-f]{16}$' || continue # tolerate: 非键形目录不碰（gocache-m 类他物）
+    printf '%s\n' "$LIVE_KEYS" | grep -qx "$key" && continue
+    lk="/tmp/o-check_all-${key}.lock"
+    [ -f "$lk" ] && [ -n "$(fuser "$lk" 2>/dev/null)" ] && continue
+    [ $(( now - $(stat -c %Y "$d" 2>/dev/null || echo 0) )) -ge "$GC_AGE_S" ] || continue
+    sz=$(du -sm "$d" 2>/dev/null | cut -f1)
+    echo "GOCACHE 孤儿目录清: $d (${sz:-?}MB key=$key)"
+    if [ $DRY = 0 ]; then rm -rf "$d" || continue; fi
+    gck=$((gck+1))
+  done
+  HYNOTE="保洁拍 orphank=$orphank prune=$prune_hit goclean=$gclean gocache_rm=$gck rootfs=${pct}%"
+  if [ "${1:-row}" = "fold" ]; then HYNOTE_FOLD="$HYNOTE"; else
+    [ "$DRY" = 1 ] && echo "DRY-RUN 完 $HYNOTE" || ops_evt "$HYNOTE"
+  fi
+}
+
+# --disk=只跑保洁面（deploy/o-disk-hygiene 30min 拍专用——工树/枝 GC
+# 仍归日拍默认径）；默认径=工树 GC+保洁面 fold 进同一 GC 行。
+if [ "$DISK" = 1 ]; then [ "${GC_HYGIENE:-1}" = 1 ] && disk_hygiene row; exit 0; fi
 
 # ①工树扫：净树+(枝已合 master|mtime>AGE_D 天) 且 unit 非活→摘
 while IFS='|' read -r w b; do
@@ -91,7 +207,8 @@ for b in $(git -C "$REPO" branch --list 'audit-*' 'dec-t-*' --format='%(refname:
   fi
 done
 
-NOTE="wt_gc 清场拍 trees=$rm_tree branches=$rm_branch retire=$retire orphan=$orphan skip_active=$skip_active skip_dirty=$skip_dirty keep=$keep retire_keep=$retire_keep"
+[ "${GC_HYGIENE:-1}" = 1 ] && disk_hygiene fold   # T-0466：日拍默认径同挂保洁面（计数 fold 进本行）
+NOTE="wt_gc 清场拍 trees=$rm_tree branches=$rm_branch retire=$retire orphan=$orphan skip_active=$skip_active skip_dirty=$skip_dirty keep=$keep retire_keep=$retire_keep ${HYNOTE_FOLD:-}"
 [ "$DRY" = 1 ] && echo "DRY-RUN 完 $NOTE" || {
   [ -n "$FIN_DSN" ] && psql "$FIN_DSN" -qAt -c "INSERT INTO ops_event(seat,event,ticket,note) VALUES('META-GC','GC','T-0331','$NOTE')" >/dev/null 2>&1 || true
 }
