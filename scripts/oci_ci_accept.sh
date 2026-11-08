@@ -63,7 +63,7 @@ case "$R_EXIT" in
   75) echo "ℹ [oci-ci-accept] OCI 未跑（note=$R_NOTE）——本盒现径接手" >&2; exit 75 ;;
   *)
     echo "❌ [oci-ci-accept] OCI 报红 exit=$R_EXIT mode=${R_MODE:-?}——不落戳（日志尾）:" >&2
-    tail -30 "$LOG" >&2 2>/dev/null || true
+    tail -30 "$LOG" >&2 2>/dev/null || true # tolerate: 日志尾仅证据展示，读败不改红判定
     exit 1 ;;
 esac
 case "$R_MODE" in
@@ -76,7 +76,7 @@ case "$R_PKGS" in *[!A-Za-z0-9_./\ -]*) echo "❌ [oci-ci-accept] 包清单字�
 [ "$R_FAIL" = 0 ] || { echo "❌ [oci-ci-accept] exit=0 但 fail=$R_FAIL 自相矛盾——不可核" >&2; exit 2; }
 
 ACT_HASH=$(sha256sum "$LOG" 2>/dev/null | cut -d' ' -f1 || true) # tolerate: 读败=空→下面拒
-ACT_BYTES=$(wc -c < "$LOG" 2>/dev/null | tr -d ' ' || true)
+ACT_BYTES=$(wc -c < "$LOG" 2>/dev/null | tr -d ' ' || true) # tolerate: 读败=空串——下面字节比对拒「不可核」
 if [ -z "$R_HASH" ] || [ "${ACT_HASH,,}" != "${R_HASH,,}" ]; then
   echo "❌ [oci-ci-accept] 输出哈希不符（报 $R_HASH / 实 ${ACT_HASH:-?}）——不可核（防伪造面）" >&2
   exit 2
@@ -125,7 +125,7 @@ oci_report_write "$SIDE" \
   "started=$R_START" "finished=$R_FIN" "log_sha256=${ACT_HASH:-}" "log_bytes=${ACT_BYTES:-0}" \
   "report_fetched=$(date -Is)" "stamp=$STAMP_STATE" "note=$R_NOTE" || exit 2
 
-NPKG=$(printf '%s\n' $R_PKGS | grep -c . || true)
+NPKG=$(printf '%s\n' $R_PKGS | grep -c . || true) # tolerate: 空包集已在上面拒；此处仅供摘要展示
 echo "✅ [oci-ci-accept] sha=${SHA:0:12} mode=$R_MODE pkgs=$NPKG RUN=$R_RUN FAIL=0 SKIP=$R_SKIP arch=$R_ARCH" >&2
 echo "   戳=$STAMP（$STAMP_STATE） 输出哈希=${ACT_HASH:0:12}… 来源侧档=$SIDE" >&2
 exit 0

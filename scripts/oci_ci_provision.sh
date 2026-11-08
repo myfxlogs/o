@@ -39,12 +39,12 @@ case "$ARCH" in
 esac
 srun 'command -v docker >/dev/null && command -v git >/dev/null && command -v python3 >/dev/null && command -v curl >/dev/null' \
   || die "OCI 缺 docker/git/python3/curl"
-AVAIL_G=$(srun "df -Pk '$CI_ROOT' 2>/dev/null | tail -1 | awk '{print \$4}'" 2>/dev/null || true)
+AVAIL_G=$(srun "df -Pk '$CI_ROOT' 2>/dev/null | tail -1 | awk '{print \$4}'" 2>/dev/null || true) # tolerate: df 败=空值——下面 [ -z ] 跳过盘检不阻断
 [ -z "$AVAIL_G" ] || [ "${AVAIL_G:-0}" -gt 5000000 ] || die "OCI 盘余 <5GB"
 
 # ── Go 工具链 ──
 GO_SHA=$(curl -fsSL --max-time 30 https://go.dev/dl/?mode=json 2>/dev/null \
-  | python3 -c "import json,sys; print(next((f['sha256'] for r in json.load(sys.stdin) for f in r['files'] if f['filename']=='go${GO_VER}.linux-${GOARCH}.tar.gz'),''))" 2>/dev/null || true)
+  | python3 -c "import json,sys; print(next((f['sha256'] for r in json.load(sys.stdin) for f in r['files'] if f['filename']=='go${GO_VER}.linux-${GOARCH}.tar.gz'),''))" 2>/dev/null || true) # tolerate: 拉取/解析败=空 sha——下面 [ -n ] die 显式失败
 [ -n "$GO_SHA" ] || die "go $GO_VER checksum 拉取败"
 
 say "go $GO_VER.linux-$GOARCH"
@@ -75,7 +75,7 @@ if [ -x "$CI/bin/buf" ] && "$CI/bin/buf" --version 2>/dev/null | grep -qx "$BUF_
 else
   base="https://github.com/bufbuild/buf/releases/download/v${BUF_VER}"
   curl -fsSL --retry 3 -o /tmp/o-ci-buf "$base/buf-Linux-${BUFARCH}" || { echo "  buf 下载败" >&2; exit 1; }
-  want=$(curl -fsSL --retry 3 "$base/sha256.txt" | awk -v n="buf-Linux-${BUFARCH}" '$2==n{print $1}') || true
+  want=$(curl -fsSL --retry 3 "$base/sha256.txt" | awk -v n="buf-Linux-${BUFARCH}" '$2==n{print $1}') || true # tolerate: sha 表拉败=空值——下面走「无本条明示」分支不静默
   if [ -n "$want" ]; then
     echo "$want  /tmp/o-ci-buf" | sha256sum -c - >/dev/null || { echo "  buf checksum 不符" >&2; rm -f /tmp/o-ci-buf; exit 1; }
   else
@@ -115,7 +115,7 @@ fi
 run_pg() { # $1=name $2=port $3=volume
   local name="$1" port="$2" vol="$3"
   if docker inspect "$name" >/dev/null 2>&1; then
-    docker start "$name" >/dev/null 2>&1 || true
+    docker start "$name" >/dev/null 2>&1 || true # tolerate: start 败=下面 health 轮询兜底显式失败
     echo "  $name 已在（start 触发）"
   else
     docker run -d --name "$name" --restart unless-stopped \
@@ -151,6 +151,7 @@ set -uo pipefail
 [ -d "$CI/work/.git" ] || git clone -q "$CI/scratch.git" "$CI/work" || exit 1
 git -C "$CI/work" config user.email o-ci@oci.local
 git -C "$CI/work" config user.name o-ci
+git -C "$CI/work" config core.quotepath off # 中文/非 ASCII 路径不转义——check_all scope 分类与本地部署树同径（否则 docs/工程经验库/* 落 HAS_OTHER=full）
 echo "  bare+work 在（$(git -C "$CI/scratch.git" rev-parse --is-bare-repository)）"
 EOS
 [ $? = 0 ] || die "裸仓/clone 装败"

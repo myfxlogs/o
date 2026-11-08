@@ -23,7 +23,7 @@ SSH_TARGET=${OCI_CI_SSH:-ubuntu@149.118.58.98}
 CI_ROOT=${OCI_CI_ROOT:-/home/ubuntu/o-ci}
 WAIT=${OCI_CI_TIMEOUT:-3600}
 POLL=${OCI_CI_POLL:-5}
-BRANCH=${1:-$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)}
+BRANCH=${1:-$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)} # tolerate: 分离 HEAD=空——下面 [ -n ] 拦用法错
 
 local_check() { # $1=交回本盒理由
   echo "⚠️ [oci-ci] $1——fail-open 本盒现径（scripts/check_all.sh）" >&2

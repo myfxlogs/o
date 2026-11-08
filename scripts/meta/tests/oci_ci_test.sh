@@ -99,6 +99,16 @@ oci_report_write "$TMP/lib.report" "sha=$C1" "exit=0" "note=g r e e n"
   && [ "$(oci_report_get "$TMP/lib.report" note)" = "g r e e n" ] \
   && ok "A7 report_lib 写读往返（值含空格安全）" || bad "A7 report_lib 往返败"
 
+# A7b 定向谱预判与 check_all 同判（scripts-only/docs-only=full；码种子=scoped；
+# 清单外件=full）——防 OCI 跑完整全谱后 mode=full 白烧（返修2 e2e 面）。
+CL1=$(printf 'scripts/x.sh\ndocs/工程经验库/a.md\n' | oci_ci_classify_surface)
+CL2=$(printf 'scripts/x.sh\ninternal/lib/x.go\n' | oci_ci_classify_surface)
+CL3=$(printf 'proto/eventv1/e.proto\nscripts/x.sh\n' | oci_ci_classify_surface)
+CL4=$(printf 'web/src/app.tsx\ninternal/lib/x.go\n' | oci_ci_classify_surface)
+{ [ "$CL1" = full ] && [ "$CL2" = scoped ] && [ "$CL3" = scoped ] && [ "$CL4" = full ]; } \
+  && ok "A7b surface 预判同 check_all（scripts-only=full / go+proto=scoped / 清单外=full）" \
+  || bad "A7b classify=$CL1/$CL2/$CL3/$CL4"
+
 # A8 延后闸 netgates=local:bridge-audit——本盒同 sha 净树补跑（绿落戳/红不落）
 mkdir -p "$REPO/scripts"
 cat > "$REPO/scripts/check_bridge_registry.sh" <<'EOF'

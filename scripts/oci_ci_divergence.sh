@@ -10,13 +10,13 @@
 # 测试缝：O_CI_LOCAL_ARCH 覆写本盒架构；O_OPS_ESC_SH 替换升件写件。
 set -uo pipefail
 
-SHA=${1:-$(git rev-parse HEAD 2>/dev/null || true)}
+SHA=${1:-$(git rev-parse HEAD 2>/dev/null || true)} # tolerate: 无 HEAD=空 sha——下面 [ -n ] 静默退
 [ -n "$SHA" ] || exit 3
 GITDIR=$(git rev-parse --git-common-dir 2>/dev/null) || exit 3
 GITDIR=$(cd "$GITDIR" 2>/dev/null && pwd -P) || exit 3
 SIDE="$GITDIR/oci-report-$SHA"
 [ -f "$SIDE" ] || exit 3
-OARCH=$(grep -m1 '^arch=' "$SIDE" 2>/dev/null | cut -d= -f2-) || true
+OARCH=$(grep -m1 '^arch=' "$SIDE" 2>/dev/null | cut -d= -f2-) || true # tolerate: 侧档读败=空 arch→下面 [ -n ] 判不可判静默退
 [ -n "$OARCH" ] || exit 3
 
 norm() { case "$1" in arm64) echo aarch64 ;; amd64) echo x86_64 ;; *) echo "$1" ;; esac; }

@@ -36,7 +36,7 @@ NETGATES=full
 write_report() { # $1=exit $2=mode $3=pkgs $4=run $5=fail $6=skip $7=note
   local h b
   h=$(sha256sum "$LOG" 2>/dev/null | cut -d' ' -f1 || true) # tolerate: 空 log 也给空哈希（读侧会拒）
-  b=$(wc -c < "$LOG" 2>/dev/null | tr -d ' ' || true)
+  b=$(wc -c < "$LOG" 2>/dev/null | tr -d ' ' || true) # tolerate: 空 log=空字节——读侧会拒不可核
   oci_report_write "$REPORT" \
     "sha=$SHA" "exit=$1" "mode=$2" "pkgs=$3" "run=$4" "fail=$5" "skip=$6" \
     "arch=$(uname -m)" "baseline=$BASE" "host=$(hostname)" "netgates=$NETGATES" \
@@ -51,6 +51,7 @@ not_run() { # $1=note
 }
 
 cd "$WORK" 2>/dev/null || not_run "work-clone-missing"
+git config core.quotepath off 2>/dev/null || true # tolerate: 旧装 clone 补配；写败无碍（预判面另用 -c 兜底）
 
 # 串行锁：多实例排队；超时不跑交本盒 fail-open（不并发抢测试库/CPU）。
 exec 9>"$LOCK" || not_run "lock-open-fail"
@@ -61,22 +62,18 @@ fi
 # 基线=scratch master（本盒 oci_ci_push.sh 随支推出，scope 与本盒同径）。
 git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*' >>"$LOG" 2>&1 \
   || not_run "git-fetch-fail"
-BASE=$(git rev-parse --verify -q origin/master || true)
+BASE=$(git rev-parse --verify -q origin/master || true) # tolerate: 无基线=空——下面 [ -n ] not_run 显式
 [ -n "$BASE" ] || not_run "no-origin-master-baseline"
 git cat-file -e "$SHA^{commit}" 2>/dev/null || not_run "sha-not-in-scratch"
 
-# 定向谱预判（与 check_all 分类同集）：含集外件=full→OCI 不烧全谱。
-MB=$(git merge-base "$SHA" "$BASE" 2>/dev/null || true)
+# 定向谱预判（report_lib.oci_ci_classify_surface 与 check_all 同判）：含集外
+# 件或无码种子面=full→OCI 不烧全谱（scripts-only/docs-only 档 A 归本盒终盖）。
+MB=$(git merge-base "$SHA" "$BASE" 2>/dev/null || true) # tolerate: 无 merge-base=空——下面 [ -n ] not_run 显式
 [ -n "$MB" ] || not_run "merge-base-fail"
-FULL=0
-while IFS= read -r p; do
-  [ -n "$p" ] || continue
-  case "$p" in
-    docs/*|skills/*|*.md|*.go|migrations/*.sql|proto/*|scripts/*|.github/*) ;;
-    *) FULL=1 ;;
-  esac
-done <<< "$(git diff --name-only "$MB...$SHA" 2>/dev/null || true)"
-[ "$FULL" = 0 ] || not_run "surface-full"
+SURFACE=$(git -c core.quotepath=off diff --name-only "$MB...$SHA" 2>/dev/null || true) # tolerate: diff 败=空集——下面空面 not_run 显式
+[ -n "$SURFACE" ] || not_run "surface-empty"
+SURF_CLASS=$(printf '%s\n' "$SURFACE" | oci_ci_classify_surface)
+[ "$SURF_CLASS" = scoped ] || not_run "surface-$SURF_CLASS"
 
 # 工作树归位：ignored 件（gen/dist）保留——bootstrap 快照径同本盒语义。
 git checkout --force --detach "$SHA" >>"$LOG" 2>&1 || not_run "git-checkout-fail"
@@ -138,9 +135,9 @@ JSON="$REPORTS/$SHA.json"
 if ! go test -json $PKGS >"$JSON" 2>>"$LOG"; then
   not_run "counts-json-fail"
 fi
-RUNN=$(grep -c '"Action":"run".*"Test":"' "$JSON" || true)
-FAILN=$(grep -c '"Action":"fail".*"Test":"' "$JSON" || true)
-SKIPN=$(grep -c '"Action":"skip".*"Test":"' "$JSON" || true)
+RUNN=$(grep -c '"Action":"run".*"Test":"' "$JSON" || true) # tolerate: 空 JSON=0 计数——fail 数兜底判不可核
+FAILN=$(grep -c '"Action":"fail".*"Test":"' "$JSON" || true) # tolerate: 空 JSON=0——下面 [ "$FAILN" = 0 ] 拒
+SKIPN=$(grep -c '"Action":"skip".*"Test":"' "$JSON" || true) # tolerate: 空 JSON=0 计数——仅供回报摘要
 [ "$FAILN" = 0 ] || not_run "counts-json-red"
 
 write_report 0 "$MODE" "$PKGS" "$RUNN" "$FAILN" "$SKIPN" "green"
