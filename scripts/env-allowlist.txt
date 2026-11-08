@@ -50,3 +50,10 @@ COLLECTO_MT5_HOST
 
 # T-0314 消费腿键域（gatefx 裁定回改点——key 不在插行只 UPDATE）
 gate.
+# FEISHU_MANAGE_*=席位活卡出站三键（T-0458 CTO 裁定②钦定——凭据复用
+# feishu-notify.sh 同径同 chat 不新引凭据；值在 env 件
+# /opt/meta-archive/feishu-manage.env，unit EnvironmentFile 注入——文本
+# 推送同权既有径，密不进码不进册）。
+FEISHU_MANAGE_APP_ID
+FEISHU_MANAGE_APP_SECRET
+FEISHU_MANAGE_CHAT_ID
