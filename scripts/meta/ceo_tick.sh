@@ -39,6 +39,8 @@ if [ "$N" -eq 0 ]; then
   hb alive "空拍——CEO 队列空"
   exit 0
 fi
+# 开班即响——纯通知腿不落账（同 dm_tick 口径）。
+"/opt/meta/scripts/feishu-notify.sh" "[调度环] CEO 开班 队列${N}件:${PENDING//$'\n'/,}——已领待裁" >/dev/null 2>&1 || true
 
 # 开班——续跑式：transcript 在案则 -c 续同 session（新席首班自然无档全启）
 mkdir -p "$CEO_DIR" || exit 1
