@@ -41,10 +41,25 @@ var faceBaselineWhitelist = map[string]string{
 	// =纯间歇面形（T-0448 册语义罩位），册外窗摆回重复升件炸起草拍
 	// （T-0393 链）。
 	"face:dep_pair:leg:ZEC-USDT-SWAP": "T-0454 入册——ZEC-USDT-SWAP 本键腿面：提案 fin_proposed/fin_armed 窗在册（提案臂枚举本体），退役/probe 态期摆出活性期摆回=纯间歇面窗摆形；生产亲证提案 2026-11-07 16:00Z 建/20:00Z retired（b9 在册→b10 摆出，ops_event #3456 升件源）",
+	// T-0491：BTC-USD-270326 定日腿面——fin_proposal basis 族
+	// （basis_quarter/perp_quarter_spread）fin_armed 窗在册（提案臂枚举
+	// 本体零硬编码；legset.IsUSDTInst 定日形 -\d{6}$ 尾豁免=basis 域钦定
+	// 数据源），armed_ttl_expired 周期 ~2h 间隙摆出摆回=间歇面窗摆形
+	// （T-0448 册语义罩位），册外窗摆回重复升件炸起草拍（T-0393 链）。
+	// CEO 裁 #4058：定日BTC腿新面合法性归草案基线审=本件。
+	"face:dep_pair:leg:BTC-USD-270326": "T-0491 入册——BTC-USD-270326 定日腿面：basis 族提案 fin_armed 窗在册（ActiveSetUnion 提案臂枚举本体），armed_ttl_expired 周期间隙摆出摆回=间歇面形；生产亲证 52 提案循环 @2026-10-30 起+census 摆动 #3498 缺→#4035 回（ops_event #4039 升件源，CEO 裁 #4058 归本册基线审）",
 	// T-0447 depSignalFamilies 钉定消费册登记对——合法新面（basis_ann→
 	// basis 族活性对账在册，非「该建未建」残余）。
 	"face:dep_pair:signal:basis_ann→quarter_basis_long":  "T-0447 basis_ann 钉定消费册登记对——depSignalFamilies 族消费补位合法新面（活性对账在册）",
 	"face:dep_pair:signal:basis_ann→perp_quarter_spread": "T-0447 basis_ann 钉定消费册登记对——depSignalFamilies 族消费补位合法新面（活性对账在册）",
+	// T-0471：CEO 无头班次席面——管理席席位（T-0456 业主令「CEO走无头」
+	// 建席+T-0465 北极星账钦定面）非幽灵；ops_event 写径=ceo_tick.sh
+	// O_SEAT=CEO→report.sh 并轨+ceo_northstar.sh 北极星账/议题行直插
+	// （生产实证 2026-11-08 首行 00:25Z 起 169 行/日，ops_event #3925
+	// 升件源）；班次驱动间歇写（kick+30min 兜底拍，队空=心跳即退零
+	// ops_event 写）=间歇面形（T-0448 册语义罩位），静默 >7d 出集再
+	// 活跃=再现新面再升件再起草循环（T-0393 链）。
+	"face:service:CEO": "T-0471 入册——CEO 无头班次席（管理席，T-0456 业主令建席）：ceo_tick.sh O_SEAT=CEO→report.sh+ceo_northstar.sh 北极星账/议题行双写径合法，班次驱动间歇写 7d 活跃窗摆动登记不重复升；生产亲证 2026-11-08 首行 00:25Z 起 169 行/日（ops_event #3925 升件源）",
 }
 
 // faceRow 单面行（kind=面类五键，face=面键——同拍批内 kind+face 唯一）。
