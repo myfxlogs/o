@@ -29,6 +29,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
 	"strings"
 )
 
@@ -122,6 +123,72 @@ func matchDiagFamilyText(text string) []string {
 // 诊断额度不烧市况案）。
 func diagnosisWorthy(f diagCaseFacts) bool {
 	return f.BareBagUSD > 0 || f.hasAnomaly("trigger_unknown") || f.Attempts >= 2
+}
+
+// attrFacts 单仓盈亏归因锚面（T-0464——机判序输入；锚=确定性读数非判词，
+// 读败锚=零值回落 unattributed 不虚构归因）。
+type attrFacts struct {
+	BugShaped    bool    // 病形码件（bare_bag/trigger_unknown/守卫环——diagnosisWorthy 同源）
+	LegErrs      int     // fin_order_leg 错因行（failed/ambiguous/venue_err——拒因异常）
+	OpsDisrupt   int     // 窗内 ops_event 断链/断供/凭据/部署停滞/ENOSPC/网络行
+	GuardVenueEr bool    // fin_guard_close.last_error 'venue:' 前缀（venue 期败=断供邻域）
+	MktTrigger   bool    // 市场生命周期触发（funding_flip*/delta_drift——窗口闭合/对手价动）
+	FundingNet   float64 // Σfunding_settle 净额（费率不利/有利锚）
+	Settled      float64 // settled_amount（符号对齐判据）
+}
+
+// marketTriggers 市场生命周期触发集（窗口闭合/对手价动——max_hold/dd_30d/
+// strategy_*/manual 不入：时间止损/风控闸/生命周期中性面不归市场锚）。
+var marketTriggers = map[string]bool{
+	"funding_flip": true, "funding_flip_preempt": true, "delta_drift": true,
+}
+
+// attributePnl 四值机判序（T-0464 钦定序：code→ops→market→unattributed——
+// 零锚=unattributed 显式判词非沉默；人裁可改判，机判原值留案卷/decision 行）。
+func attributePnl(f attrFacts) string {
+	switch {
+	case f.BugShaped || f.LegErrs > 0:
+		return "code"
+	case f.OpsDisrupt > 0 || f.GuardVenueEr:
+		return "ops"
+	case f.MktTrigger || fundingDominant(f.FundingNet, f.Settled):
+		return "market"
+	default:
+		return "unattributed"
+	}
+}
+
+// fundingDominant 费率锚（费率净额与结算结果同向且占结果半值以上=费率不利/
+// 有利是盈亏主因——反向/微量不锚，防 funding carry 常态流量误吞归因）。
+func fundingDominant(fundingNet, settled float64) bool {
+	if fundingNet == 0 || settled == 0 || (fundingNet > 0) != (settled > 0) {
+		return false
+	}
+	return math.Abs(fundingNet) >= math.Abs(settled)/2
+}
+
+// hits 机判锚命中集（判词留痕面——outcome payload/案卷/日志同源）。
+func (f attrFacts) hits() []string {
+	var out []string
+	if f.BugShaped {
+		out = append(out, "bug_shape")
+	}
+	if f.LegErrs > 0 {
+		out = append(out, fmt.Sprintf("leg_errs=%d", f.LegErrs))
+	}
+	if f.OpsDisrupt > 0 {
+		out = append(out, fmt.Sprintf("ops_disrupt=%d", f.OpsDisrupt))
+	}
+	if f.GuardVenueEr {
+		out = append(out, "guard_venue_err")
+	}
+	if f.MktTrigger {
+		out = append(out, "mkt_trigger")
+	}
+	if fundingDominant(f.FundingNet, f.Settled) {
+		out = append(out, fmt.Sprintf("funding_net=%.4f", f.FundingNet))
+	}
+	return out
 }
 
 // diagSeed 种子（族谱命中→草案种子载荷——LLM 开放考古的排班起点）。

@@ -287,3 +287,32 @@ func TestDiagSeatZeroMoneyPathWrites(t *testing.T) {
 		}
 	}
 }
+
+// T-0464 红桩：四值机判序（code→ops→market→unattributed 显式位——零锚
+// 不沉默；锚命中序钉死：code 优先于 ops 优先于 market）。
+func TestAttributePnlFourValues(t *testing.T) {
+	cases := []struct {
+		name string
+		f    attrFacts
+		want string
+	}{
+		{"零锚=unattributed 显式判词", attrFacts{}, "unattributed"},
+		{"病形码件=code", attrFacts{BugShaped: true}, "code"},
+		{"腿错因=code", attrFacts{LegErrs: 2}, "code"},
+		{"code 压 ops（判序钉死）", attrFacts{BugShaped: true, OpsDisrupt: 3, MktTrigger: true}, "code"},
+		{"ops 断供锚=ops", attrFacts{OpsDisrupt: 1}, "ops"},
+		{"守卫 venue 期败=ops", attrFacts{GuardVenueEr: true}, "ops"},
+		{"ops 压 market（判序钉死）", attrFacts{OpsDisrupt: 1, MktTrigger: true}, "ops"},
+		{"市场触发=market", attrFacts{MktTrigger: true}, "market"},
+		{"费率不利主因=market", attrFacts{FundingNet: -6, Settled: -10}, "market"},
+		{"费率有利主因=market", attrFacts{FundingNet: 8, Settled: 10}, "market"},
+		{"费率反向不锚=unattributed", attrFacts{FundingNet: -6, Settled: 10}, "unattributed"},
+		{"费率微量不锚=unattributed", attrFacts{FundingNet: -1, Settled: -10}, "unattributed"},
+		{"settled=0 无符号对齐=unattributed", attrFacts{FundingNet: -6, Settled: 0}, "unattributed"},
+	}
+	for _, c := range cases {
+		if got := attributePnl(c.f); got != c.want {
+			t.Fatalf("%s: attributePnl=%q want %q", c.name, got, c.want)
+		}
+	}
+}

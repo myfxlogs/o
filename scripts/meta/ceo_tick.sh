@@ -32,6 +32,11 @@ LOCKED=$(psql "$FIN_DSN" -qAt -c \
 [ "$LOCKED" != "t" ] && exit 0  # 有班在飞——后到即退
 trap 'psql "$FIN_DSN" -qAt -c "SELECT pg_advisory_unlock($LOCK_KEY)" >/dev/null 2>&1 || true' EXIT # tolerate: trap解锁尽力而为—锁已释或会话断合法径
 
+# T-0464 问链兜底扫——北极星背离漏面周期补（事件驱主径=T-0465 议题行→
+# why_chain_scan 自含背离判据；零背离=静默零烧；队列闸前置=空队拍也扫，
+# 背离不随 CEO 队空而漏）。败不阻班拍。
+"$SCRIPT_DIR/why_chain_scan.sh" >/dev/null 2>&1 || true # tolerate: 问链扫败=下拍重试（24h 案卷去重防重）
+
 # 队列闸——空集=心跳即退零烧会话
 PENDING=$(FIN_DSN="$FIN_DSN" "$CEO_QUEUE_SH" 2>/dev/null || true) # tolerate: 队列脚本败=队空视同,开班照判
 N=$(printf '%s\n' "$PENDING" | awk 'NF {n++} END {print n+0}')
