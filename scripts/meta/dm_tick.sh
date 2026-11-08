@@ -124,7 +124,14 @@ if [ "$SKIP_DECISION" -eq 0 ]; then
   USAGE_TRANSCRIPT="$USAGE_DIR/transcript.json"
   cd "$DECISION_DIR" || exit 1
   DECISION_DEVIN=${O_DECISION_DEVIN_BIN:-/home/mluser/.local/bin/devin}
-  "$DECISION_DEVIN" --export "$USAGE_TRANSCRIPT" -p --model swe --respect-workspace-trust false \
+  # T-0456 续跑式常驻：transcript 在案则 -c 续同 session——跨班
+  # 上下文续命省冷启重读（压实丢精度险=ops_event 单源账对冲）。
+  RESUME_FLAG=()
+  last=$(ls -t "$DECISION_DIR"/usage.*/transcript.json 2>/dev/null \
+    | grep -v "$USAGE_TRANSCRIPT" | head -1 || true)
+  [ -n "$last" ] && [ -s "$last" ] && RESUME_FLAG=(-c)
+  "$DECISION_DEVIN" --export "$USAGE_TRANSCRIPT" "${RESUME_FLAG[@]}" \
+  -p --model swe --respect-workspace-trust false \
     --permission-mode dangerous -- \
     "读 /opt/o/skills/决策席/SKILL.md 裁决协议节+班次节 班次开工——scan 待裁/待派集→逐件裁→rescan→队列空才退；每票动手前查重裁幂等"
   RC=$?

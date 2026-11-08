@@ -70,7 +70,19 @@
 - **写域**：ops_event 仅 seat=管理+event=管理令/升件/呈批；
   `docs/decisions/` 方向级档；票面字段不越席（票归 DM 域）
 
-## 无头形态（未建·启用另议）
+## 无头形态（T-0456 业主令启用——四件钦定落案）
 
-卡面职权与禁线对无头形态同义生效；启用须另议：收件箱改投、
-决策记忆落库面、无头自证径、超域升业主径——四件先定再点火。
+卡面职权与禁线对无头形态同义生效。四件钦定：
+
+- **收件箱改投**：`scripts/meta/ceo_queue.sh`——席位上行件
+  （seat∈COS上行/决策席/META-DM/裁定席/施工席/外审席的升件·呈批，
+  无终态者）；探针/壳轨机械升件留 CTO 壳轨不串味。
+- **唤径**：metabus dm 帧双唤（o-ceo-seat.service 与 o-decision-seat
+  同帧各自滤队，队空即退零烧）+30min 兜底拍 o-ceo-seat.timer。
+- **班次制**：`scripts/meta/ceo_tick.sh`——PG advisory 单例闸+
+  队列闸（空集心跳即退）+班内 rescan→队空才退（drain 自退）。
+  **续跑式常驻**：devin -c 钉 /var/tmp/o-ceo 同 session 跨班续
+  上下文；压实丢精度险=ops_event 单源账对冲（半飞义务即落账）。
+- **写域**：ops_event(seat='管理席',event=管理令/呈批/移交)+
+  docs/decisions/ 方向级档——裁毕必留痕；机械/执行面件
+  移交 CTO 不代办，超域呈批升业主（宁升不裁不变）。

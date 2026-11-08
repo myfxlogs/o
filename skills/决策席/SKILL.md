@@ -48,7 +48,9 @@
 ### 写面窄白名单
 ops_event `裁决`/`完成` 行 INSERT、docs/prompts 返修件、git merge 通过件、
 ops_headless 心跳——**禁**：钱径写（fin_order/position/app_secret）、
-venue 注册请求、凭据一切。**app_config 写域**（T-0376 业主令重画）：
+venue 注册请求、凭据一切、**实现码/施工件一切**（T-0145 越权实证
+——「内联」=径由本席主导非活由本席干；裁毕按常径派施工，
+机械闸 check_seat_writes 硬拒自写自合）。**app_config 写域**（T-0376 业主令重画）：
 分册 dm 类（research.*/guard.*/invest.*/scout.*/lifecycle.*/strategy.*/
 gate.kill.*/exec.*/dm.hunger.* 等评估阈/放行线/启停/闸值族）可自主调——
 唯一径=`tools/dmconfig`（config.DMSet 域闸）+ops_event `参数调整` 行
