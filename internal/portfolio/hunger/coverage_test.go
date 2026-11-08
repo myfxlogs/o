@@ -76,6 +76,13 @@ func TestProbeLegCoverageBlindLeg(t *testing.T) {
 	ctx := context.Background()
 	seedCoverStrategy(t, pool, "BTC-USDT-SWAP", "funding-hedge", "live")
 	seedTick(t, pool, "BTC-USDT-SWAP", 0) // 本键有供——独现货腿盲
+	now := time.Now()
+	s.now = func() time.Time { return now }
+	// T-0451 新挂腿宽限：首拍键龄未熟不判盲——宽限外复拍照报。
+	if err := s.ProbeLegCoverage(ctx); err != nil {
+		t.Fatalf("probe prime: %v", err)
+	}
+	now = now.Add(coverNewGraceMin*time.Minute + time.Minute)
 	if err := s.ProbeLegCoverage(ctx); err != nil {
 		t.Fatalf("probe: %v", err)
 	}
@@ -137,6 +144,12 @@ func TestProbeLegCoverageStaleTick(t *testing.T) {
 	seedCoverStrategy(t, pool, "BTC-USDT-SWAP", "funding-hedge", "live")
 	seedTick(t, pool, "BTC-USDT-SWAP", 0)
 	seedTick(t, pool, "BTC-USDT", 30*time.Minute)
+	now := time.Now()
+	s.now = func() time.Time { return now }
+	if err := s.ProbeLegCoverage(ctx); err != nil {
+		t.Fatalf("probe prime: %v", err)
+	}
+	now = now.Add(coverNewGraceMin*time.Minute + time.Minute)
 	if err := s.ProbeLegCoverage(ctx); err != nil {
 		t.Fatalf("probe: %v", err)
 	}
@@ -168,6 +181,12 @@ func TestProbeLegCoverageStarExpanded(t *testing.T) {
 	})
 	seedCoverStrategy(t, pool, "BTC-USDT-SWAP", "funding-hedge", "live")
 	seedTick(t, pool, "BTC-USDT-SWAP", 0)
+	now := time.Now()
+	s.now = func() time.Time { return now }
+	if err := s.ProbeLegCoverage(ctx); err != nil {
+		t.Fatalf("供给件挂线后应复电: %v", err)
+	}
+	now = now.Add(coverNewGraceMin*time.Minute + time.Minute)
 	if err := s.ProbeLegCoverage(ctx); err != nil {
 		t.Fatalf("供给件挂线后应复电: %v", err)
 	}
@@ -196,12 +215,46 @@ func TestSubUniverseStarFailClosed(t *testing.T) {
 	}
 }
 
+// TestProbeLegCoverageNewLegGrace T-0451 病灶钉死：腿键新入所需集
+// （策略立仓同拍级——ZEC-USDT 升件原型：fin_strategy created 16:24:12.08、
+// 探针拍 16:24:12.98 即报）——订阅→采集→桥投影→SG 落行全链延迟内判盲
+// =结构性假阳。宽限内零报；宽限过仍盲照报不误。
+func TestProbeLegCoverageNewLegGrace(t *testing.T) {
+	s, pool := coverFixture(t)
+	ctx := context.Background()
+	seedCoverStrategy(t, pool, "BTC-USDT-SWAP", "funding-hedge", "live")
+	seedTick(t, pool, "BTC-USDT-SWAP", 0) // 本键有供——独现货腿盲
+	now := time.Now()
+	s.now = func() time.Time { return now }
+	// 首拍：BTC-USDT 新入所需集——宽限内不判盲（修前红：即报覆盖失明+升件）。
+	if err := s.ProbeLegCoverage(ctx); err != nil {
+		t.Fatalf("probe prime: %v", err)
+	}
+	if cover, esc := coverRows(t, pool); cover != 0 || esc != 0 {
+		t.Fatalf("新挂腿宽限内误报: 覆盖失明=%d 升件=%d", cover, esc)
+	}
+	// 宽限过仍盲——照报不误。
+	now = now.Add(coverNewGraceMin*time.Minute + time.Minute)
+	if err := s.ProbeLegCoverage(ctx); err != nil {
+		t.Fatalf("probe past grace: %v", err)
+	}
+	if cover, esc := coverRows(t, pool); cover != 1 || esc != 1 {
+		t.Fatalf("宽限过仍盲未捕: 覆盖失明=%d 升件=%d", cover, esc)
+	}
+}
+
 // TestProbeLegCoverageDedup24h 同窗去重：同盲键再拍——24h 内至多一报。
 func TestProbeLegCoverageDedup24h(t *testing.T) {
 	s, pool := coverFixture(t)
 	ctx := context.Background()
 	seedCoverStrategy(t, pool, "BTC-USDT-SWAP", "funding-hedge", "live")
 	seedTick(t, pool, "BTC-USDT-SWAP", 0)
+	now := time.Now()
+	s.now = func() time.Time { return now }
+	if err := s.ProbeLegCoverage(ctx); err != nil {
+		t.Fatalf("probe prime: %v", err)
+	}
+	now = now.Add(coverNewGraceMin*time.Minute + time.Minute)
 	for i := 0; i < 2; i++ {
 		if err := s.ProbeLegCoverage(ctx); err != nil {
 			t.Fatalf("probe %d: %v", i, err)

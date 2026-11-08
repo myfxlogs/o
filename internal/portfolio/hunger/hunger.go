@@ -38,6 +38,9 @@ type Sensor struct {
 	// collector/粗扫臂同一供给件。nil=扩件未挂：* 形 fail-closed 让位
 	// 不虚构标的集）。
 	expandUniverse func(ctx context.Context) ([]string, error)
+	// coverSeen 腿键首见戳册（T-0451 新挂腿宽限——键入所需集时刻探针
+	// 不判盲；hungerTick 单协程串行访问免锁，重启清零=全键重计宽限）。
+	coverSeen map[string]time.Time
 }
 
 // New 装配（now 缺省=time.Now）。
