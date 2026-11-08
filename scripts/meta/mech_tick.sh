@@ -127,7 +127,7 @@ if [ -n "$FIN_DSN" ]; then
       rc=$?
       if [ "$rc" -eq 75 ]; then
         "$DISPATCH_WATER_SH" "$tid" # T-0463：候水标记行（自含尽力而为——写败静默退下拍 rc75 自然重落）
-        break # 并行水位/额度冷却——候选留队下拍重试
+        continue # GW-001 段C1：本票候水续试下一票——rc75 不 break 全队（候水逐票落痕账态扶正；worker 退场 ExecStopPost 唤下拍秒级重试）
       fi
       echo "[mech] worker dispatch failed tid=$tid rc=$rc" >&2
     fi

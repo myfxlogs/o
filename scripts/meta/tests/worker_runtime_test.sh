@@ -165,6 +165,8 @@ fi
 bash "$ROOT/scripts/meta/dispatch_worker.sh" T-9001 swe-2-medium "queued"
 [[ $(wc -l < "$LAUNCHES") -eq 1 ]]
 grep -q -- '--setenv=DEV_RUN_MODEL=swe-2-medium' "$LAUNCHES"
+# GW-001 段C1：退场唤轨钩随单元出生——ExecStopPost 属性在 systemd-run 面。
+grep -q -- '--property=ExecStopPost=-/usr/bin/systemctl --user start --no-block o-mech.service' "$LAUNCHES"
 
 # An already-active ticket is idempotent even at the one-worker limit.
 printf 'o-worker-T-9001.service\n' > "$ACTIVE_UNITS"

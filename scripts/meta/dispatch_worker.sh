@@ -53,7 +53,14 @@ if (( ACTIVE >= LIMIT )); then
 	exit 75
 fi
 
+# GW-001 段C1：worker 退场即唤机械轨（ExecStopPost 单元出生即附——拉起
+# 链闭环：本票收工→o-mech 起拍→补拉窗秒级续派下张）。半成品窗：属性只罩
+# 本改动后新拉起的单元，改码瞬间在飞 worker 退场无此钩——由 o-mech.timer
+# 5min 兜底拍吸收（候队留 dispatched 账不留断链，最多迟一拍不丢派）。
+# `-` 前缀=唤轨败不炸本单元（worker 成败语义不被尾钩污染）；命令行字面
+# 实证 systemd 255 --property=Exec* 整串拆 argv（o-c1probe 探针在案）。
 if "$SYSTEMD_RUN" --user --unit="o-worker-$TID" --collect \
+	--property="ExecStopPost=-/usr/bin/systemctl --user start --no-block o-mech.service" \
 	--setenv="DEV_RUN_MODEL=$MODEL" \
 	"$DEV_RUN_SCRIPT" "$TID" "$PROMPT"; then
 	flock -u 9
