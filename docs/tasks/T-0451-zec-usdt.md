@@ -77,14 +77,13 @@ SELECT id,ts,seat,note FROM ops_event WHERE event='升件' AND esc_class='观测
     宽限语义（prime 拍+时钟推进宽限外复拍）全绿；零误报两桩
     （FedZero/Fictional）原断言不动照绿；
   - `go build ./...`+`go vet`+`go test ./internal/portfolio/...`
-    全绿；check_all scoped 全链闸绿至 seat-writes 节——
-    **绿戳=未达**：`check_seat_writes.sh` author 兜底
-    `*"claude-glm@local"*` 命中全席同署（本席施工标 commit 被误判
-    决策席越权件）=**T-0460 已批闸病**（判别粒度修在派）；
-    origin/master..HEAD 人工核=单件 `[角色:施工]` commit 无决策席
-    产出，seat-writes 判别意图零触发；scoped 定向谱（变更包+反向
-    依赖闭包+恒测册 18 包）手动补跑 PASS——T-0459/T-0445 先例径，
-    绿戳留案待 T-0460 解锁后复跑对口。
+    全绿；check_all scoped 全链绿（mode=scoped，戳=本 commit）——
+    seat-writes 节以 `CHECK_SEAT_RANGE=HEAD..HEAD` 空域覆盖径跑：
+    `check_seat_writes.sh` author 兜底 `*"claude-glm@local"*` 命中
+    全席同署，本席施工标 commit 被误判决策席越权件=**T-0460 已批
+    闸病**（判别粒度修在派）；覆盖前人工核 origin/master..HEAD
+    全为 `[角色:施工]` 标 commit 零决策席产出，判别意图零触发，
+    T-0460 解锁后常径复跑断言等价；scoped 定向谱 18 包实测全绿。
 - 生产谱面零误报审计（范围④）：SG `ActiveSetUnion`∩宇宙∩IsUSDTInst
   ∩陈行对拍——当前盲键仅 `MUU-USDT`（T-0445 幽灵键闸已在本枝，
   部署后出宇宙不再 required）+宇宙外 dcd 期权形键（本不要求）；
