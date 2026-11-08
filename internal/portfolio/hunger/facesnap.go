@@ -113,6 +113,12 @@ var faceBaselineWhitelist = map[string]string{
 	// 枚举本体零硬编码——建表落地即面，表重建/快照册重置回摆重复升件
 	// 炸起草拍（T-0393 链，升件源 #4047，机批已批 #4376）。
 	"face:table:ops_seat_card": "T-0493 入册——ops_seat_card=fin_0145 迁移建 public 基表（T-0458 飞书席位活卡卡册：seat→message_id 持久映射，展示面非真源真源=ops_event）；seatcard 服务 FIN_PG_DSN 写径合法在册；table 类面=information_schema BASE TABLE 枚举本体零硬编码，建表落地即面；生产亲证 public 基表在册+b14/b15 快照批在册（ops_event #4047 升件源，机批已批 #4376）",
+	// T-0496：MECH=GW-001 内循环机械轨席位（业主令 2026-11-08 钦定，
+	// docs/infra/GW-001 在案）——ops_event 写径=drift_probe/drift_converge
+	// （漂移/漂移消/升件）+verdict_reflow/case_writeback（归流）机械轨自报
+	// 合法，o-mech.timer+事件帧驱动机械活批处理间歇写面形（T-0448 册语义
+	// 罩位），静默 >7d 出集再活跃=再现新面再升件再起草循环（T-0393 链）。
+	"face:service:MECH": "T-0496 入册——MECH=GW-001 内循环机械轨席位（业主令 2026-11-08 钦定，docs/infra/GW-001 在案）：drift_probe/drift_converge 漂移消+verdict_reflow/case_writeback 归流 ops_event 写径合法，o-mech.timer+事件帧驱动机械活批处理间歇写 7d 活跃窗摆动登记不重复升；生产亲证 2026-11-08 16:02Z 首行 92 行四类事件+ops_headless 心跳 alive（ops_event #4756 新面行→#4757 升件源，机批已批 #4783）",
 }
 
 // faceRow 单面行（kind=面类五键，face=面键——同拍批内 kind+face 唯一）。

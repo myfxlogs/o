@@ -859,3 +859,25 @@ func TestFaceBaselineService外审席Registered(t *testing.T) {
 		t.Fatalf("%s 理由键空——注册式不静默（depblind 豁免同律）", scope)
 	}
 }
+
+// TestFaceBaselineServiceMECHRegistered T-0496 先红桩（T-0388 修复类律——
+// 病灶存在断言修前红+同断言修后绿）：签名面 face:service:MECH 必须在人工
+// 基线册。根因锚：MECH=GW-001 内循环机械轨席位（业主令 2026-11-08 钦定
+// 席位与例外授权，docs/infra/GW-001-内循环机械轨-o-mech.md 在案）——
+// ops_event 写径=drift_probe/drift_converge（漂移/漂移消/升件）+
+// verdict_reflow/case_writeback（归流）机械轨自报合法，o-mech.timer
+// 5min 兜底拍+事件帧双径驱动=机械活批处理间歇写面形（T-0448 册语义罩位），
+// 静默 >7d 出集再活跃=再现新面再升件再起草循环（T-0393 链）；生产亲证
+// 2026-11-08 16:02Z 首行 92 行四类事件+ops_headless 心跳 alive
+// （ops_event #4756 新面行→#4757 升件源，机批已批 #4783）。修前未登记
+// =红；入册后同断言绿且理由键非空（注册式不静默）。
+func TestFaceBaselineServiceMECHRegistered(t *testing.T) {
+	scope := "face:service:MECH"
+	reason, ok := faceBaselineExempt(scope)
+	if !ok {
+		t.Fatalf("病灶存在：%s 未入人工基线册——窗摆回将重复升件（T-0496）", scope)
+	}
+	if strings.TrimSpace(reason) == "" {
+		t.Fatalf("%s 理由键空——注册式不静默（depblind 豁免同律）", scope)
+	}
+}
