@@ -5,6 +5,7 @@
 # 承接面（子件不改，原 dm_tick.sh 尾段逐字搬位）：
 #   dm_depgate.sh 依赖闸即派 → 派单补拉窗（dispatch_worker.sh 共用闸）
 #   → dm_suspend.sh 挂起看门狗 → dm_handoff.sh 交接哨兵
+#   → verdict_reflow.sh 诊断判词归流（GW-001 段D4 新窗）
 #   → ticketdraft 物料化 → dm_autoapprove.sh 机批闸 → dm_ledger.sh 票翻
 #   → verdict_deliver.sh 判词送达。
 # 追加收敛窗（唯一新逻辑）：deploy_window_due.sh state=应发→faces= 执行
@@ -154,6 +155,19 @@ if [ -n "$FIN_DSN" ]; then
   HRC=0
   "$DM_HANDOFF_SH" || HRC=$?
   [ "$HRC" -ne 0 ] && mech_esc "交接哨兵本体败" "rc=$HRC dm_handoff 消费窗未跑净——断链扫描停摆"
+fi
+
+# GW-001 段D4 诊断判词归流窗（verdict_reflow.sh——归流执行从裁定席会话
+# 剥离的确定性脚本：扫未归流裁决/驳回诊断草案行→翻案/INSERT draft/
+# 三轮升件，幂等键 ruling#<rid> 归流行留账）。位序=物料化窗前——归流产
+# pending draft 同拍 ticketdraft 物料化出票（案→草案→裁→draft→票同拍
+# 打通）；幂等键+pending 防重索引（fin_0148）防双归流（并存期在飞裁定
+# 席旧会话交叠面详见该件头注）。
+if [ -n "$FIN_DSN" ]; then
+  REFLOW_SH=${O_VERDICT_REFLOW_SH:-"$SCRIPT_DIR/verdict_reflow.sh"}
+  RFRC=0
+  "$REFLOW_SH" || RFRC=$?
+  [ "$RFRC" -ne 0 ] && mech_esc "归流径败" "rc=$RFRC verdict_reflow 未跑净——诊断判词归流滑行（未归流裁决下拍重扫）"
 fi
 
 # T-0393 候选票草案物料化窗（fin_ticket_draft pending→docs/tasks 候选票件
