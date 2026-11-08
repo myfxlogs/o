@@ -53,4 +53,36 @@ SELECT id,ts,seat,note FROM ops_event WHERE event='升件' AND esc_class='观测
 
 ## 结果回填
 
-（施工写：实现摘要 / 测试证据 / 偏离说明）
+### 挂起诊断（2026-11-08 无头施工席——await=裁量：修域裁定）
+
+**票面前提证伪**：评估环并非零消费——xvenue-carry 评估行在 PG-md
+（OCI 5435 正本）持续产出且新鲜（2026-11-08 10:24 实测 rejected/
+net_ann_economics——MT5 swap 成本腿 ~833-852bps 吃光 funding
+365-565bps，判词正确）。o-research journal 同步实证评估臂逐拍在跑。
+
+**真病灶=观测域错位（结构性，非码 bug）**：
+- projector `-mode=serve` 在役——`qEvalFresh`（mirror.go:39）eval
+  镜像谓词=**仅被 fin_proposal 引用行**（D-0030 §六写权矩阵钦定，
+  lifecycle admit join 需要 ~20 行）；PG-md fin_opp_eval 实测
+  ~93 upd/sec（n_tup_upd 60s 增量 5561）——全量镜像物理不可行，
+  谓词是承重墙非可松件。
+- xvenue-carry 评估全 rejected→零提案→SG 镜像恒零（SG 侧末行
+  2026-10-30，系 dualwrite 时代/提案路径化石）。
+- 族沉默探针（hunger Sensor→lifecycle.hungerTick，o-core@SG）与
+  gauges.tsv `xvenue_carry_eval_zero`/`stake_carry_eval_zero` 同读
+  SG fin_opp_eval——rejected-only 族结构性恒零→日频误报在案
+  （ops_event #3226/#2450、#3446/#3445、#2869/#2868）。
+- 探针族覆盖本身即化石依赖：SG fin_opp_eval 模板集缺 stake-carry
+  （PG-md 有）——无化石行的族根本不入探针域。
+
+**修域三径（皆出本票 diff 面，呈裁量）**：
+①探针/量表测量面改判（hunger/silence.go+gauges.tsv——「eval 因
+  谓词不可见」与「eval 链死」分域，代价=rejected-only 族 eval 死
+  亦失明）；
+②新增轻量 eval 活动脉冲桥（projector 派生 per-template max(ts)
+  →SG 小表，探针/量表改读——新表=migration+桥册+canon，架构案级）；
+③接受噪声+判词归档（族经济学本不成立，观测盲如实=无机会非断供）。
+
+**域内核实零改动**：hypothesis/xcarry.go 消费闸（8h 源节拍界
+T-0383 后正确）、sigdist/xvenue.go 产出谱形（direction 钉+双腿
+年化 meta 全）、evalmap.go 提案译码面——三段逐项对拍无病灶。
