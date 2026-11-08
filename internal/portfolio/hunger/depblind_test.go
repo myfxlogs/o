@@ -663,3 +663,23 @@ func TestFaceBaselineLegZECUSDTSwapRegistered(t *testing.T) {
 		t.Fatalf("%s 理由键空——注册式不静默（depblind 豁免同律）", scope)
 	}
 }
+
+// TestFaceBaselineLegBTCUSD270326Registered T-0491 先红桩（T-0388 修复类律
+// ——病灶存在断言修前红+同断言修后绿）：签名面 face:dep_pair:leg:BTC-USD-270326
+// 必须在人工基线册。根因锚：BTC-USD-270326 定日腿=fin_proposal basis 族
+// （basis_quarter/perp_quarter_spread）fin_armed 窗在册（ActiveSetUnion 提案臂
+// 枚举本体零硬编码；legset.IsUSDTInst 定日形 -\d{6}$ 尾豁免=basis 域钦定
+// 数据源）——armed_ttl_expired 周期 ~2h 间隙摆出摆回=间歇面形（T-0448 册语义
+// 罩位），册外面窗摆回重复升件炸起草拍（T-0393 链，生产实证 census 摆动
+// #3498 缺→#4035 回、升件源 #4039；CEO 裁 #4058 定日BTC腿新面合法性归
+// 草案基线审=本件）。修前未登记=红；入册后同断言绿且理由键非空（注册式不静默）。
+func TestFaceBaselineLegBTCUSD270326Registered(t *testing.T) {
+	scope := "face:dep_pair:leg:BTC-USD-270326"
+	reason, ok := faceBaselineExempt(scope)
+	if !ok {
+		t.Fatalf("病灶存在：%s 未入人工基线册——窗摆回将重复升件（T-0491）", scope)
+	}
+	if strings.TrimSpace(reason) == "" {
+		t.Fatalf("%s 理由键空——注册式不静默（depblind 豁免同律）", scope)
+	}
+}
