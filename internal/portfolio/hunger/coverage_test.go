@@ -243,6 +243,64 @@ func TestProbeLegCoverageNewLegGrace(t *testing.T) {
 	}
 }
 
+// TestProbeLegCoverageSwapLegNewGrace T-0452 病灶钉死：-USDT-SWAP inst
+// 本键新入所需集同宽限——观测盲:ZEC-USDT-SWAP 升件原型（ops_event #3451：
+// fin_strategy ZEC-USDT-SWAP funding-hedge created 16:24:12.08、探针拍
+// 16:24:12.98 与派生现货腿 ZEC-USDT #3449 齐报——本键/现货腿双键同判）。
+// 宽限内双键零报；宽限过仍盲照报不误（esc_scope 钉死 -SWAP 本键签名面）。
+func TestProbeLegCoverageSwapLegNewGrace(t *testing.T) {
+	s, pool := coverFixture(t)
+	ctx := context.Background()
+	// fixture 宇宙=BTC/ETH 四键——ZEC 双键显式入册（生产 okx.symbols="*"
+	// 实读目录同效：双键皆 OKX live 在册）。
+	if _, err := pool.Exec(ctx, `UPDATE app_config SET value=
+		'["BTC-USDT-SWAP","ETH-USDT-SWAP","BTC-USDT","ETH-USDT","ZEC-USDT-SWAP","ZEC-USDT"]'
+		WHERE key='okx.symbols'`); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.cfg.Load(ctx); err != nil {
+		t.Fatal(err)
+	}
+	seedCoverStrategy(t, pool, "ZEC-USDT-SWAP", "funding-hedge", "live")
+	now := time.Now()
+	s.now = func() time.Time { return now }
+	// 首拍：-SWAP 本键+派生现货腿双新入所需集零 tick——宽限内零报
+	//（修前红：即报 覆盖失明×2+升件×2，esc_scope 含 ZEC-USDT-SWAP）。
+	if err := s.ProbeLegCoverage(ctx); err != nil {
+		t.Fatalf("probe prime: %v", err)
+	}
+	if cover, esc := coverRows(t, pool); cover != 0 || esc != 0 {
+		t.Fatalf("新挂腿宽限内误报: 覆盖失明=%d 升件=%d", cover, esc)
+	}
+	// 宽限过仍盲——双键照报不误。
+	now = now.Add(coverNewGraceMin*time.Minute + time.Minute)
+	if err := s.ProbeLegCoverage(ctx); err != nil {
+		t.Fatalf("probe past grace: %v", err)
+	}
+	if cover, esc := coverRows(t, pool); cover != 2 || esc != 2 {
+		t.Fatalf("宽限过仍盲未捕: 覆盖失明=%d 升件=%d", cover, esc)
+	}
+	rows, err := pool.Query(ctx, `SELECT esc_scope FROM ops_event
+		WHERE event='升件' AND esc_class='观测盲'`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	scopes := map[string]bool{}
+	for rows.Next() {
+		var sc string
+		if err := rows.Scan(&sc); err != nil {
+			t.Fatal(err)
+		}
+		scopes[sc] = true
+	}
+	for _, want := range []string{"ZEC-USDT-SWAP", "ZEC-USDT"} {
+		if !scopes[want] {
+			t.Fatalf("升件 esc_scope 缺 %s: %v", want, scopes)
+		}
+	}
+}
+
 // TestProbeLegCoverageDedup24h 同窗去重：同盲键再拍——24h 内至多一报。
 func TestProbeLegCoverageDedup24h(t *testing.T) {
 	s, pool := coverFixture(t)
