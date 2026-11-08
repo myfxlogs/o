@@ -64,6 +64,7 @@ func (r *Runner) openLive(ctx context.Context) {
 		cs = append(cs, c)
 	}
 	rows.Close()
+	gate := r.loadCellGate(ctx) // T-0461 armed→open 格凭据闸（判位=r.op.Open 前）
 	for i, c := range cs {
 		if i > 0 { // T-0208②：venue 限速节流——quote+trade 双调用扇出 1s/策略拍（429 洪泛根修；sched-exempt-ok 执行节流非轮询）
 			select {
@@ -130,6 +131,9 @@ func (r *Runner) openLive(ctx context.Context) {
 					continue
 				}
 			}
+		}
+		if !gate.allow(r, c.spec) { // T-0461 格凭据未绿 hold
+			continue
 		}
 		eid, err := r.op.Open(ctx, c.spec)
 		if err != nil {

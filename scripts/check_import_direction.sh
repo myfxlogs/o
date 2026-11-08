@@ -205,6 +205,18 @@ internal/trading/simdrill -> internal/risk
 internal/trading/simdrill -> internal/trading/execution
 internal/trading/simdrill -> internal/trading/execwiring
 internal/trading/simdrill -> internal/trading/simvenue
+# T-0461 矩阵演习层（excell=格集唯一真源 platform 件；dcdexec=DCD 执行径
+# 抽立单源（产线+演习同缝）；mt5sim=MT5 CFD 仿真 venue（gen 码+mtexec
+# 缝同消费）；simdrill 矩阵径=跨消费域组合根边集同 cmd 形）。
+internal/platform/excell -> internal/platform/execfam
+internal/portfolio/lifecycle -> internal/platform/excell
+internal/trading/dcdexec -> internal/risk
+internal/trading/dcdexec -> internal/trading/okxexec
+internal/trading/mt5sim -> internal/gen/mtapi/mt5
+internal/trading/simdrill -> internal/platform/excell
+internal/trading/simdrill -> internal/trading/dcdexec
+internal/trading/simdrill -> internal/trading/mt5sim
+internal/trading/simdrill -> internal/trading/mtexec
 EOF
 )
 

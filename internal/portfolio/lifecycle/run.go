@@ -43,7 +43,7 @@ func NewRunner(pool *pgxpool.Pool, cfg *config.Client) *Runner {
 	return &Runner{pool: pool, denyAt: map[int64]time.Time{}, cfg: cfg,
 		rej: rejects.New("lifecycle", "illegal_transition", "missing_criteria", "write_err", "live_switch_off", "open_failed", "template_blocked", "xvenue_open_forbidden", "xvenue_sub_leg", "blacklist_retire",
 			"facts_missing", "missing_param", "oscillation_fuse", "dcd_quote_missing", "dcd_spot_stale", "basis_mark_stale",
-			"exec_drill_missing", "exec_drill_failed"), // T-0426 执行径演习闸拒因
+			"exec_drill_missing", "exec_drill_failed", "exec_cell_hold"), // T-0426 执行径演习闸拒因+T-0461 矩阵格凭据闸 hold 计数
 		sensor: hunger.New(pool, cfg),
 		chainV: opschain.New(pool)}
 }

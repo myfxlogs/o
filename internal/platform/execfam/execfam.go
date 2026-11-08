@@ -19,6 +19,16 @@ var set = map[string]bool{
 // Has 模板族执行径在册否。
 func Has(template string) bool { return set[template] }
 
+// All 执行径族册全量（序定排——excell 词表零占免演登记消费面）。
+func All() []string {
+	out := make([]string, 0, len(set))
+	for t := range set {
+		out = append(out, t)
+	}
+	sort.Strings(out)
+	return out
+}
+
 // fundingHedge funding-hedge 族册（perp 空+现货多家族——T-0392 自 lifecycle
 // opener.fundingHedgeFamily 归并：族属判据唯一真源，开仓 funding 闸域/
 // 行情腿派生臂/覆盖探针三面同源，禁各处自造清单）。

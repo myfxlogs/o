@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"o/internal/platform/excell"
 	"o/internal/research/funding"
 )
 
@@ -38,6 +39,38 @@ func openerSetup(t *testing.T) (context.Context, *Runner, *fakeOpener) {
 	return ctx, NewRunner(pool, cfg).AttachOpener(fo), fo
 }
 
+// seedAllCellsGreen T-0461 armed→open 格凭据闸测试凭据——excell 现查格集
+// 全档 latest=pass 补种（strategy_ref=0 非策略行——凭据归属锚测试域）。
+func seedAllCellsGreen(t *testing.T, ctx context.Context, r *Runner) {
+	t.Helper()
+	cells, err := excell.Enumerate(ctx, r.pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range cells {
+		if c.Exempt {
+			continue
+		}
+		for _, k := range c.Keys() {
+			if _, err := r.pool.Exec(ctx, `INSERT INTO fin_exec_drill
+				(strategy_ref,inst_id,verdict,rules_version,detail,cell_key)
+				VALUES(0,$1,'pass','test','T-0461 测试格凭据',$1)`, k); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+}
+
+// seedCellKey 单格凭据补种（cell_key 显式——闸 fail-closed 专项锚用）。
+func seedCellKey(t *testing.T, ctx context.Context, r *Runner, key, verdict string) {
+	t.Helper()
+	if _, err := r.pool.Exec(ctx, `INSERT INTO fin_exec_drill
+		(strategy_ref,inst_id,verdict,rules_version,detail,cell_key)
+		VALUES(0,$1,$2,'test','T-0461 闸锚',$1)`, key, verdict); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func mkStrategy(t *testing.T, ctx context.Context, r *Runner, state string, openedAgo time.Duration) int64 {
 	t.Helper()
 	var sid int64
@@ -55,6 +88,7 @@ func TestOpenLiveFiresOnce(t *testing.T) {
 	seedFlip(t, ctx, r)
 	seedFunding(t, ctx, r)
 	sid := mkStrategy(t, ctx, r, "live", time.Hour)
+	seedAllCellsGreen(t, ctx, r) // T-0461 格凭据闸——绿凭据补种后放行
 	r.openLive(ctx)
 	if len(fo.calls) != 1 || fo.calls[0].StrategyRef != sid || fo.calls[0].NotionalUSD != 100 ||
 		fo.calls[0].InstID != "OP-USDT-SWAP" || fo.calls[0].Direction != "short_perp_long_spot" {
@@ -125,6 +159,7 @@ func TestProbeToLivePromotion(t *testing.T) {
 	if err := r.cfg.Load(ctx); err != nil {
 		t.Fatal(err)
 	}
+	seedAllCellsGreen(t, ctx, r) // T-0461 格凭据闸——晋 live 后开仓须格绿
 	if err := r.scan(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -224,9 +259,57 @@ func TestOpenLifetimePassesHealthy(t *testing.T) {
 		VALUES(now(),'OP-USDT-SWAP',0.0006,0.0004)`); err != nil {
 		t.Fatal(err)
 	}
+	seedAllCellsGreen(t, ctx, r) // T-0461 格凭据闸
 	r.openLive(ctx)
 	if len(fo.calls) != 1 {
 		t.Fatalf("健康仓被误拒: %+v", fo.calls)
+	}
+}
+
+// T-0461 锚：armed→open 格凭据闸 fail-closed——无 cell_key 凭据=hold
+// 不开仓+exec_cell_hold 计数；fail 凭据=hold；pass 凭据=放行落缝。
+func TestExecCellHoldGate(t *testing.T) {
+	ctx, r, fo := openerSetup(t)
+	seedFlip(t, ctx, r)
+	seedFunding(t, ctx, r)
+	mkStrategy(t, ctx, r, "live", time.Hour)
+	// ① 无凭据=hold（fail-closed——矩阵未跑不放行）。
+	r.openLive(ctx)
+	if len(fo.calls) != 0 {
+		t.Fatalf("无格凭据仍开仓: %+v", fo.calls)
+	}
+	if n := int(r.rej.Snapshot()["lifecycle/exec_cell_hold"]); n != 1 {
+		t.Fatalf("exec_cell_hold 计数=%d want 1", n)
+	}
+	var st string
+	if err := r.pool.QueryRow(ctx, `SELECT state FROM fin_strategy WHERE inst_id='OP-USDT-SWAP'`).Scan(&st); err != nil || st != "live" {
+		t.Fatalf("hold 应留 live 不开仓非降级: %s", st)
+	}
+	// ② fail 凭据=hold 续（latest=fail 不放行）。
+	cells, err := excell.Enumerate(ctx, r.pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cellKey string
+	for _, c := range cells {
+		if excell.CoordKey(c.Template, c.VenuePair, c.Direction) ==
+			excell.CoordKey("funding-hedge", "okx", "short_perp_long_spot") && !c.Exempt {
+			cellKey = c.Keys()[0]
+		}
+	}
+	if cellKey == "" {
+		t.Fatal("funding-hedge/short_perp_long_spot 格未枚举到")
+	}
+	seedCellKey(t, ctx, r, cellKey, "fail")
+	r.openLive(ctx)
+	if len(fo.calls) != 0 {
+		t.Fatalf("fail 凭据仍开仓: %+v", fo.calls)
+	}
+	// ③ pass 凭据=放行（latest=pass 翻绿自解）。
+	seedCellKey(t, ctx, r, cellKey, "pass")
+	r.openLive(ctx)
+	if len(fo.calls) != 1 {
+		t.Fatalf("pass 凭据未放行: %+v", fo.calls)
 	}
 }
 

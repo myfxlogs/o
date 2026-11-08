@@ -29,6 +29,7 @@ func TestXvenueSubLegNeverOpens(t *testing.T) {
 	// 同 proposal 双行——副腿行先于主行入册（序位覆盖）。
 	mkXvenueStrategy(t, ctx, r, "BTCUSDm", "mt5", "long_perp_short_cfd", 77, "live")
 	mainID := mkXvenueStrategy(t, ctx, r, "BTC-USDT-SWAP", "okx", "long_perp_short_cfd", 77, "live")
+	seedAllCellsGreen(t, ctx, r) // T-0461 格凭据闸——xvenue 格绿补种
 	// long_perp 收负租径——负 funding=健康（非翻面）。
 	if _, err := r.pool.Exec(ctx, `INSERT INTO md_funding(ts,inst_id,funding_rate,next_funding_rate)
 		VALUES(now(),'BTC-USDT-SWAP',-0.0006,-0.0004)`); err != nil {
@@ -73,6 +74,7 @@ func TestXvenueBreakevenExempt(t *testing.T) {
 	ctx, r, fo := openerSetup(t)
 	seedFlip(t, ctx, r)
 	mainID := mkXvenueStrategy(t, ctx, r, "BTC-USDT-SWAP", "okx", "short_perp_long_cfd", 77, "live")
+	seedAllCellsGreen(t, ctx, r) // T-0461 格凭据闸
 	// 薄 funding 0.00005 正率——funding-hedge 径 breakevenOK 必拒域；
 	// xvenue 豁免=仍落缝（short_perp 收正租 lifetimeOK 过）。
 	if _, err := r.pool.Exec(ctx, `INSERT INTO md_funding(ts,inst_id,funding_rate,next_funding_rate)
