@@ -26,7 +26,7 @@ SELECT id,ts,seat,note FROM ops_event WHERE event='升件' AND esc_class='观测
 
 ## 范围（起草骨架——DM 裁时可改判，起草非诊断）
 
-1. 明确文件路径或目录清单（批准前必填——T-0413 派单依赖闸据此对拍）；
+1. 机批类册钦定文件径：internal/research/sigdist internal/portfolio/hunger——签名 观测盲:face:service:席O-COS（T-0455 册内候选，DM 裁时可改判）；
 2. 病灶根因定位与根修（签名面病灶本体——不超签名外衍）；
 3. 桩测钉死断言（病灶存在断言修前红+同断言修后绿——T-0388 修复类先红桩律）；
 4. 生产谱面零误报审计。
