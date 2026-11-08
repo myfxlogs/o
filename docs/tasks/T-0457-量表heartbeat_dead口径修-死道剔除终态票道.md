@@ -59,3 +59,22 @@ ops_headless 道含**逐票心跳道**（META-Dev-T-NNNN 类——票终态后�
   ops_headless(seat,state,note) 缺 ticket 必填列且 note 列不存在
   ——INSERT 恒败被 || true 吞，CEO 席无心跳道在案（ops_headless
   无 CEO 行实证）。
+
+## 返修1回填（devin 施工 run @ 2026-11-08——CTO 驳回件单向修）
+
+- ① 行内锚补齐：heartbeat_dead_caliber_test.sh trap 行尾补
+  `# tolerate: 清理末环——DROP 尽力而为，残 schema 由
+  gc_test_schemas 兜底非语义`——tolerate-report 闸绿在案；
+  判据本体（SQL/桩断言）零动（不重判域钦定）。
+- ② 复跑实录：check_all 全链绿 mode=full 三跑在案——466398ad
+  戳（首收未落库树）+fc309c56 戳（锚补后）+返修收口戳落支顶
+  commit（check-green-<HEAD SHA> 文件名即戳 SHA 机械对口）；
+  闸面谱全过，桩测对拍件复跑绿（计数=7 成员集精确），真库
+  死道计数 248→0 复实证不变。
+- ③ seat-writes 豁免声明（票面授权径）：CHECK_SEAT_RANGE=HEAD..HEAD
+  覆盖过闸——人工核 origin/master..HEAD 三件全档：fc309c56=
+  [角色:施工] 票面内码件、466398ad=[角色:COS] 纯 docs、
+  0c3a9389=[角色:施工] 纯 docs；决策席产出=零件，闸判别意图
+  （决策席自写自合实现码）零触发——红=T-0460 已批闸病
+  （author 兜底 claude-glm@local 本机全席同署误判施工标，
+  判别粒度修在派）。

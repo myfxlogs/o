@@ -15,7 +15,7 @@ SCH=o_gauge_hbdead_caliber
 fail() { echo "❌ $*" >&2; exit 1; }
 
 psql "$DSN" -qAt -c "DROP SCHEMA IF EXISTS $SCH CASCADE; CREATE SCHEMA $SCH" >/dev/null
-trap 'psql "$DSN" -qAt -c "DROP SCHEMA IF EXISTS '"$SCH"' CASCADE" >/dev/null 2>&1 || true' EXIT
+trap 'psql "$DSN" -qAt -c "DROP SCHEMA IF EXISTS '"$SCH"' CASCADE" >/dev/null 2>&1 || true' EXIT # tolerate: 清理末环——DROP 尽力而为，残 schema 由 gc_test_schemas 兜底非语义（同族规 ops_esc 自报末环例）
 
 psql "$DSN" -qAt -v ON_ERROR_STOP=1 >/dev/null <<'SQL'
 SET search_path = o_gauge_hbdead_caliber;
