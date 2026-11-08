@@ -3,7 +3,7 @@
 # 钦定：seat='CEO' 已批行=CEO 无头本体）。dm_tick 物料化窗后同拍消费：
 # 最新 ops_event='起草' 的候选票逐件判——
 #   ①人工径票（manual_lane_check rc0）→跳过，起草滞留>24h→升件（人工径
-#     死锁消化径：滞留即上行呈 DM，不再等会话拍）；
+#     死锁消化径：滞留即上行呈 CEO，不再等会话拍）；
 #   ②病灶签名命中 meta.autoapprove.registry 册→范围节钦定类册径+
 #     commit+ops_event seat='CEO' '已批' 行（机批=批权归 CEO 席域）；
 #   ③册外签名→零机批；起草滞留>24h→升件呈 DM（类册外件永等 DM/COS 裁，
@@ -43,7 +43,7 @@ escalate_stale() {
   dup=$(psql "$FIN_DSN" -qAt -c \
     "SELECT 1 FROM ops_event WHERE ticket='$tid' AND event='升件'
      AND note LIKE '候选滞留:$tid%' LIMIT 1" 2>/dev/null)
-  [ -z "$dup" ] && esc "候选滞留:$tid" "$why——起草滞留>${STALE_S}s 零消化，上行呈 DM（T-0455 滞留消化径）" "$tid"
+  [ -z "$dup" ] && esc "候选滞留:$tid" "$why——起草滞留>${STALE_S}s 零消化，上行呈 CEO（T-0455 滞留消化径）" "$tid"
   return 0
 }
 
@@ -80,7 +80,7 @@ RC=0
 while IFS= read -r TID; do
   [ -n "$TID" ] || continue
   FILE=$(compgen -G "$REPO/docs/tasks/$TID-*.md" | head -1)
-  [ -n "$FILE" ] && [ -r "$FILE" ] || { esc "候选滞留:$TID" "起草票件不可读——上行呈 DM" "$TID"; continue; }
+  [ -n "$FILE" ] && [ -r "$FILE" ] || { esc "候选滞留:$TID" "起草票件不可读——上行呈 CEO" "$TID"; continue; }
 
   bash "$SCRIPT_DIR/manual_lane_check.sh" "$TID" "$REPO/docs/tasks" && {
     escalate_stale "$TID" "人工径票（manual_lane_check 字面命中）"; continue; }
