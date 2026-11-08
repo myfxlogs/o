@@ -116,6 +116,9 @@ if [ "$SKIP_DECISION" -eq 0 ]; then
   fi
   BATCH_NOTE="tickets=$(printf '%s\n' "$PENDING_TICKETS" | paste -sd, -)"
   [ "$PENDING_COUNT" -ne 0 ] || BATCH_NOTE="tickets=unresolved"
+  # 开班即响（纯通知腿不落账——report.sh会写ops_event领单行污染
+  # 队列态;直调feishu只响铃）。移交方闭环=移交铃+开班铃两响。
+  "/opt/meta/scripts/feishu-notify.sh" "[调度环] CTO 开班 队列${PENDING_COUNT}件:${PENDING_TICKETS//$'\n'/,}——已领待裁" >/dev/null 2>&1 || true
 
   # ③ Devin 批拍（cwd=scratch——裁决协议 runbook 绝对路径指件）。
   mkdir -p "$CTO_DIR" || exit 1
