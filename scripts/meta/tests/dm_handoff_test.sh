@@ -73,11 +73,11 @@ HANDOFF_ROWS='派单\x1f77\x1fT-9101\x1f决策席\x1f派单 T-9101 读票面施�
 grep -Fq "VALUES('CTO','升件','T-9101','断链:派单:T-9101——交行#77 决策席 「派单 T-9101 读票面施工」龄66m>阈30m'" "$ESC_SQL_LOG"
 
 # ② 接行落零报：接行谓词已钉（同刻 id 大者序后）——空集场景零升件；
-#    派单行接行集按表落 SQL（首两 token 字面钉）
+#    派单行接行集按表落 SQL（接行集字面钉）
 reset_logs
 HANDOFF_ROWS='' bash "$DM_SH"
 [[ $(esc_count) -eq 0 ]]
-grep -Fq "r.event IN ('领单','拉起','驳回','挂起','作废','完成','处置')" "$SCAN_SQL_LOG"
+grep -Fq "r.event IN ('领单','拉起','候水','驳回','挂起','作废','完成','处置')" "$SCAN_SQL_LOG" # T-0463：候水入派单接行集
 
 # ③ 同交行复跑零重（evergreen）：收口行 9000s>阈 7200s 首跑一报；
 #    复跑同交行——桩按 SQL 查词形对已落账词形判重=零再报
