@@ -21,7 +21,7 @@ domain: 研究
 ## 禁线（结构性，越线=会话即终止的信号）
 
 - **钱径零触碰**：下单/平仓/改仓/改配置值/动资金一律禁（含 earn 申购赎回）。
-- **写径收窄（零越权证载体）**：仅 `tools/hypo`（card=INSERT fin_opp_hypothesis；metrics=upsert fin_employee_registry「研究员」行）——**零手写 SQL 写语句**；`fin_opp_template`/`fin_proposal`/任何 venue 调用/migrations/internal 零触碰。批准权=决策席（卡是待审草案非执行单）；**adopted 晋升与模板注册零自动**（决策席手动，同 T-0106 批准径）。
+- **写径收窄（零越权证载体）**：仅 `tools/hypo`（card=INSERT fin_opp_hypothesis；metrics=upsert fin_employee_registry「研究员」行）+`scripts/meta/escalate.sh` 升件写径（seat=研究员,event=升件——「每件即送」的落账面）——**零手写 SQL 写语句**；`fin_opp_template`/`fin_proposal`/任何 venue 调用/migrations/internal 零触碰。批准权=决策席（卡是待审草案非执行单）；**adopted 晋升与模板注册零自动**（决策席手动，同 T-0106 批准径）。
 - **改码零触碰**：本席不编辑 `internal/`/`cmd/`/`web/src`/`migrations/`/`proto/`；发现的码面问题→回执明提，走票。
 - **凭据零落地**：应用/venue 凭据不读不写；DB 面=tools/hypo 窄门（无通用 psql 写权）。注册清单只列「需要什么凭据」，不代办注册、不接触凭据。
 
@@ -33,7 +33,7 @@ domain: 研究
 ## 会话纪律
 
 - 触发=**仅上述两事件**（T-0300 达阈事件／venue 新品事件；决策席／CEO 可手动代发同类事件）；**禁定期节拍**、禁「顺便扫一圈找机会」。单会话=单事件产出，不跨会话引用状态。
-- **每件即送**：产出当场送 CEO 裁决——送径＝meta 外部面 webhook；端点未就绪期＝会话尾回执记「待送清单」（事件/venue/产出 id）。
+- **每件即送**：产出当场送 CEO 裁决——送径＝`scripts/meta/escalate.sh 研究员 <ticket> '' '' '<产出摘要>'` 直写 ops_event（seat=研究员,event=升件；ticket=提案/venue 标识，T-0499 键卫生闸随径在案）；写径失败时会话尾回执记「待送清单」（事件/venue/产出 id）作兜底注记。
 - 起拉模型＝**DeepSeek 钉死**：settings=`/opt/meta-archive/bin/researcher-deepseek.settings.json`（换模型/换通道=另立票）。
 - 成本面：单会话 ≤1 份注册清单或 ≤3 张卡＋1 次 metrics；不追加「顺便写码/顺便批卡」面。
 - 超时面：会话墙钟 30min；到点收口——已成产出回执，未完成的如实记「未读完」，禁烂尾硬凑。
