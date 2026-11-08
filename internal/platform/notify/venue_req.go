@@ -64,20 +64,68 @@ func (v *VenueReq) Scan(ctx context.Context) error {
 }
 
 // pushOne 单件组文+推+锚（组文败=保底文不丢推送——票面禁线）。
+// T-0504：推送实发=研究员触发①（达阈）事件落账——锚与触发行同事务
+// 双 INSERT（发败/锚败=整单回滚下拍重推不双写；推送关态只锚不发=
+// 不触发——钦定语义「已向业主发请注册条件请求时」）。
 func (v *VenueReq) pushOne(ctx context.Context, r struct {
 	venue string
 	at    time.Time
 	mets  []byte
 }) error {
 	msg := venueMsg(r.venue, r.mets)
+	sent := false
 	if v.on == nil || !v.on() {
 		log.Printf("[venue_req] 推送关——%s 待推（不发只锚）", r.venue)
 	} else if _, err := v.cli.SendText(ctx, v.chatID(), msg); err != nil {
 		return err // 发败=上抛不落锚（下拍重试）
+	} else {
+		sent = true
 	}
-	_, err := v.pool.Exec(ctx, `INSERT INTO md_venue_req_push(venue,request_at)
-		VALUES($1,$2) ON CONFLICT DO NOTHING`, r.venue, r.at)
-	return err
+	tx, err := v.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx) // tolerate: 回滚尽力而为——提交成败已定，败=连接断合法径
+	if _, err := tx.Exec(ctx, `INSERT INTO md_venue_req_push(venue,request_at)
+		VALUES($1,$2) ON CONFLICT DO NOTHING`, r.venue, r.at); err != nil {
+		return err
+	}
+	if sent {
+		if _, err := tx.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note)
+			VALUES('venue哨兵','达阈','META-VENUEWATCH',$1)`, venueTriggerNote(r.venue, r.at, r.mets)); err != nil {
+			return err
+		}
+	}
+	return tx.Commit(ctx)
+}
+
+// venueTriggerNote 达阈触发行 note（研究员会话 payload——venue/family/
+// 实测净年化/persist/基线/request_at；metrics 解析败=venue+request_at
+// 保底形不丢事件）。
+func venueTriggerNote(venue string, at time.Time, mets []byte) string {
+	b := bestBoard(mets)
+	if b == nil {
+		return fmt.Sprintf("venue=%s request_at=%s", venue, at.UTC().Format(time.RFC3339))
+	}
+	return fmt.Sprintf("venue=%s family=%s net_apr_mid=%s persist=%s baseline=%s request_at=%s",
+		venue, b.Family, fmtPct(b.NetAprMid), fmtPct(b.Persist),
+		fmtPct(b.Baseline), at.UTC().Format(time.RFC3339))
+}
+
+// bestBoard metrics.boards 取 persist 最高者（venueMsg 组文同判据——
+// 解析败/空 boards=nil）。
+func bestBoard(mets []byte) *scoutv1.MetricBoard {
+	var m scoutv1.VenueMetrics
+	if err := protojson.Unmarshal(mets, &m); err != nil || len(m.Boards) == 0 {
+		return nil
+	}
+	best := 0
+	for i := range m.Boards {
+		if m.Boards[i].Persist > m.Boards[best].Persist {
+			best = i
+		}
+	}
+	return m.Boards[best]
 }
 
 // venueMsg 组文（metrics.boards 取达阈族 persist 最高者；解析败/空→保底文
@@ -87,17 +135,10 @@ func venueMsg(venue string, mets []byte) string {
 	// 返修①甲案：margin 伪阈删（生产 metrics jsonb 无 margin 字段——
 	// state='recommended' 即达阈认证推送面不二次裁决阈=双真相源防；
 	// 直取 persist 最高 board 组文）。struct 字段=scout board 六件真形。
-	var m scoutv1.VenueMetrics
-	if err := protojson.Unmarshal(mets, &m); err != nil || len(m.Boards) == 0 {
+	b := bestBoard(mets)
+	if b == nil {
 		return fall
 	}
-	best := 0 // persist 最高 board 直取组文（margin 伪阈已删——state 达阈认证）
-	for i := range m.Boards {
-		if m.Boards[i].Persist > m.Boards[best].Persist {
-			best = i
-		}
-	}
-	b := m.Boards[best]
 	return fmt.Sprintf("【新交易所申请】请注册 %s：%s家族近30天实测净年化 %s%%，对照基线 %s%%（持续达标占比 %s%%）——注册属重大事项归业主裁决；凭据到位后按交易所接入流程办理。",
 		venue, scoutFamily(b.Family), fmtPct(b.NetAprMid), fmtPct(b.Baseline), fmtPct(b.Persist))
 }

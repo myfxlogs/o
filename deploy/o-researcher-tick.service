@@ -1,0 +1,15 @@
+# o-researcher-tick.service —— 研究员触发消费拍（T-0504 方案A：
+# ops_event venue哨兵 新品/达阈 未终态行→paused 闸→systemd-run
+# o-researcher-evt-* 瞬态拉起 researcher_run.sh→逐事件落消行；
+# META-RESEARCHER 心跳；拉起败 hb fail:launch 显形不静默绿）。
+[Unit]
+Description=o-researcher-tick (研究员触发消费拍)
+After=network-online.target
+
+[Service]
+Type=oneshot
+# 无 WorkingDirectory——脚本全绝对径；cwd 指 ExecStartPre 才建的
+# 目录=冷启动 200/CHDIR 死锁（venue_watch 首拍实证在案同型）。
+ExecStartPre=/usr/bin/env mkdir -p /var/tmp/o-researcher-tick
+ExecStart=/opt/o/scripts/meta/researcher_tick.sh
+NoNewPrivileges=true
