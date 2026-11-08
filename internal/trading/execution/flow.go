@@ -192,10 +192,10 @@ func (r *Runner) leg(ctx context.Context, execID int64, no int, leg Leg, clOrdID
 	r.legPx(ctx, execID, no, leg, clOrdID, state, venueCode, venueMsg, 0, 0, "market", 0)
 }
 
-// legPx 腿行落库携成交价+量纲消歧（T-0107：sz_unit=腿 sz 语义位——SWAP=contract/
-// mt5 cfd=lot/spot quote_ccy 委托=quote/余=base；qty_base=venue 实填币量
+// legPx 腿行落库携成交价+量纲消歧（T-0107：sz_unit=腿 sz 语义位——合约域
+// (SWAP/datedFUT,T-0483)=contract/mt5 cfd=lot/spot quote_ccy 委托=quote/余=base；qty_base=venue 实填量
 // （accFillSz）唯一真源——请求量禁当成交记，fill 缺=NULL 消费面 fail-closed
-// 禁猜；mt5 腿 qty_base=fillSz×CtVal 面值换算）。px=NULL 旧调用面保值守；
+// 禁猜；datedFUT=实填张数（T-0483）；mt5 腿 qty_base=fillSz×CtVal 面值换算）。px=NULL 旧调用面保值守；
 // ticket=venue 仓凭据（MT5——平仓必携；okx=0 落 NULL 略）。返腿行 id。
 func (r *Runner) legPx(ctx context.Context, execID int64, no int, leg Leg, clOrdID, state, venueCode, venueMsg string, px, fillSz float64, ordType string, ticket int64) int64 {
 	var pxArg *float64
@@ -214,6 +214,11 @@ func (r *Runner) legPx(ctx context.Context, execID int64, no int, leg Leg, clOrd
 		if fillSz > 0 && leg.CtVal > 0 {
 			qb := fillSz * leg.CtVal
 			qtyBase = &qb
+		}
+	case datedFUTRe.MatchString(leg.InstID):
+		szUnit = "contract"
+		if fillSz > 0 {
+			qtyBase = &fillSz // T-0483 钦定：datedFUT 实填张数落 qty_base（消费锚=guard closeWant qtyBase>0 径——SWAP 域 NULL 不同形）
 		}
 	case strings.HasSuffix(leg.InstID, "-SWAP"):
 		szUnit = "contract"
@@ -236,11 +241,11 @@ func (r *Runner) legPx(ctx context.Context, execID int64, no int, leg Leg, clOrd
 	return id
 }
 
-// legCash 腿级现金行（T-0083 对称记账）：okx 现货腿（非 SWAP）买=流出毛额负、
-// 卖=流入毛额正——两腿各记净额自然=真价差；合约腿无名义现金（结算走 bills/fee）。
+// legCash 腿级现金行（T-0083 对称记账）：okx 现货腿（非合约域 SWAP/datedFUT——
+// T-0483）买=流出毛额负、卖=流入毛额正——两腿各记净额自然=真价差；合约腿无名义现金（结算走 bills/fee）。
 // source_ref=腿行 id（幂等溯源锚）；perp/CFD/杂 venue 不触现径。
 func (r *Runner) legCash(ctx context.Context, legID int64, leg Leg, px, fillSz float64, posRef *int64) {
-	if legID == 0 || leg.Venue != "okx" || strings.HasSuffix(leg.InstID, "-SWAP") {
+	if legID == 0 || leg.Venue != "okx" || contractInst(leg.InstID) {
 		return
 	}
 	kind, sign := "spot_buy", -1.0

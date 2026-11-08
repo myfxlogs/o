@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -53,6 +54,16 @@ func DeriveSpotInst(instID string) (string, error) {
 		return "", fmt.Errorf("派生现货败: %s", instID)
 	}
 	return spot, nil
+}
+
+// datedFUTRe 到期日期货键（-YYMMDD 尾——okxws/simdrill 同形）。
+var datedFUTRe = regexp.MustCompile(`-\d{6}$`)
+
+// contractInst 合约域乐器判据（SWAP 永续+datedFUT 到期期货——腿 sz 语义=
+// 张数域，T-0483：legCash/legPx 旧判只排 -SWAP，datedFUT 误落 base 域产
+// phantom spot_* 现金行+qty_base 张数误标币量）。
+func contractInst(instID string) bool {
+	return strings.HasSuffix(instID, "-SWAP") || datedFUTRe.MatchString(instID)
 }
 
 // LatestPx 最新价（md_ticks∪md_mark_index 末帧就近取——T-0132 分级后非活跃

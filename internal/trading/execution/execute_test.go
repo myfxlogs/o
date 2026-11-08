@@ -805,3 +805,48 @@ func TestBuildBasisLegs(t *testing.T) {
 		t.Fatalf("perp 多腿应 1.23 张: %+v", legs2[1])
 	}
 }
+
+// T-0483 锚：datedFUT（-YYMMDD 到期期货）腿=合约域——sz_unit=contract+
+// qty_base=实填张数（票面钦定：张数入 qty_base 供 guard closeWant 消费锚，
+// 与 SWAP 域 NULL 不同形）；cashflow 开平全生命周期零增（phantom spot_*
+// 不生——产线 #757/#758 phantom spot_sell 病灶实证）。
+func TestDatedFutLegContractDomain(t *testing.T) {
+	ctx, r := setup(t, &fakeVenue{})
+	// 开：datedFUT 空腿+现货多腿
+	did := mkToken(t, ctx, r, false, false, "allow")
+	eid, err := r.Execute(ctx, Intent{DecisionID: did, StrategyRef: 1, InstID: "BTC-USDT-251226", NotionalUSD: 100,
+		Legs: [2]Leg{
+			{Venue: "okx", InstID: "BTC-USDT-251226", Side: "sell", Sz: "10", Notional: 100},
+			{Venue: "okx", InstID: "BTC-USDT", Side: "buy", Sz: "100", Notional: 100, TgtQuote: true},
+		}})
+	if err != nil {
+		t.Fatalf("datedFUT 开仓: %v", err)
+	}
+	var unit string
+	var qty *float64
+	if err := r.pool.QueryRow(ctx, `SELECT sz_unit,qty_base FROM fin_order_leg
+		WHERE execution_id=$1 AND leg_no=1`, eid).Scan(&unit, &qty); err != nil {
+		t.Fatal(err)
+	}
+	if unit != "contract" || qty == nil || *qty != 100 {
+		t.Fatalf("datedFUT 腿应 contract+实填张数 100: sz_unit=%s qty_base=%v", unit, qty)
+	}
+	// 平：datedFUT 买腿 Close——phantom spot_* 同样禁生
+	did2 := mkToken(t, ctx, r, false, false, "allow")
+	if _, err := r.Execute(ctx, Intent{Kind: "close", DecisionID: did2, InstID: "BTC-USDT-251226", NotionalUSD: 100,
+		Legs: [2]Leg{
+			{Venue: "okx", InstID: "BTC-USDT-251226", Side: "buy", Sz: "10", Notional: 100, Close: true},
+			{Venue: "okx", InstID: "BTC-USDT", Side: "sell", Sz: "0.02", Notional: 100, Close: true},
+		}}); err != nil {
+		t.Fatalf("datedFUT 平仓: %v", err)
+	}
+	var n int
+	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_cashflow c
+		JOIN fin_order_leg l ON c.source_ref=l.id AND c.source_table='fin_order_leg'
+		WHERE l.inst_id ~ '-[0-9]{6}$'`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Fatalf("datedFUT 腿 phantom 现金行=%d（应 0——合约腿不触现径）", n)
+	}
+}
