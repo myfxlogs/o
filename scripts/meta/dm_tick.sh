@@ -222,6 +222,16 @@ if [ -n "$FIN_DSN" ]; then
   [ "$SRC" -ne 0 ] && dm_esc "看门狗本体败" "rc=$SRC dm_suspend 消费窗未跑净——挂起行消化停摆"
 fi
 
+# T-0459 交接对账哨兵消费窗（零 LLM 段尾——业主令「事事有交接，事事有回应」：
+# 交行龄>阈∧同票无接行=断链升件，配对表 handoff_pairs.tsv 单源。在案不双哨：
+# 升件→escalation_unclaimed 量表、挂起→上段 dm_suspend 看门狗，本件不扫）。
+if [ -n "$FIN_DSN" ]; then
+  DM_HANDOFF_SH=${O_DM_HANDOFF_SH:-"$SCRIPT_DIR/dm_handoff.sh"}
+  HRC=0
+  "$DM_HANDOFF_SH" || HRC=$?
+  [ "$HRC" -ne 0 ] && dm_esc "交接哨兵本体败" "rc=$HRC dm_handoff 消费窗未跑净——断链扫描停摆"
+fi
+
 # T-0393 候选票草案物料化窗（零 LLM 段尾——fin_ticket_draft pending→
 # docs/tasks 候选票件+起草行；写径只落候选态零自派，批准权=COS/DM）。
 # 败=升件自报（写败/META-DRAFT——类册面不入起草拍签名域防自起草回环）。
