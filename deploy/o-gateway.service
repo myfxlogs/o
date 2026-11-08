@@ -1,0 +1,22 @@
+# o-gateway.service —— T-0469 总协调网关常驻单发（事件驱席权/路由/
+# 收敛/升件一本账——机械调度唯一执行面；判据件原位不动只调用）。
+# Type=simple 常驻进程（gatewayd.sh 主循环）；Restart=always 崩了自起
+# （崩溃安全=域子件幂等键在库重扫即续）；OnFailure=终败升件告警。
+# kill switch=stop+disable 本单元即回席位自扫描兜底制（dm_tick/mech/
+# 席位班扫原样不动——降级安全钉死面）。
+# 勿启用注记：本单元施工席交付态=未 enable——启用/部署归外审席+部署径。
+[Unit]
+Description=o-gateway (总协调网关——事件驱机械调度)
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/opt/o/scripts/meta/gatewayd.sh
+Restart=always
+RestartSec=5
+Environment=O_WORKER_PARALLEL_LIMIT=2
+NoNewPrivileges=true
+OnFailure=o-gateway-fail.service
+
+[Install]
+WantedBy=default.target
