@@ -1447,6 +1447,41 @@
 - **隔离实证台**（独立 HOME+repo+claude -p 2.1.270，禁拿真会话试闸）：热径 20/20 真执行（FETCH_HEAD mtime/journal restart 事件=地面真值）；危险 6/6 拦；rtk hook 在场 force push 仍拒。
 - **禁线守**：无头席配置/user 级 settings/glm 选型零触；rtk 配置零触（deny 压得住 hook，无需动）。
 
+## 2026-11-08 — 施工席（zcode-t0459）：T-0459 交接对账哨兵（业主手动外派）
+
+- **授权**：业主 session 当面外派 T-0459 全票面施工（含六面桩测、串行勿部署、
+  完成报证据移交外审席复审）——领取行已标「业主手动外派」在票面。
+- **交付**：四件套落 t/0459-handoff-sentinel@本地 a81f01b0（领单 commit 78c02539
+  已推=锁单在远端）；六面桩测全绿+真库干跑 9 断链（escalate 换日志桩零写径）。
+- **阻塞留案**：push 被 pre-push 绿戳闸挡——check_seat_writes author 兜底
+  （claude-glm@local）误判 [角色:施工] commit 为决策席越权；T-0460 已批钦定
+  修法（角色标 commit 出判别集）未实施，本票不越单修闸。按 T-0445 先例：
+  决策席可经 /opt/o 共享 git dir 直 merge 本地枝，推送待闸消后补。
+- **观察上行**（票面结果回填节）：T-0359 干跑命中暴露「业主批（暂缓）」表外词
+  空隙；已并码 15 行生产在案而码面零写径。
+
+## 2026-11-08 — 施工席（zcode-facepair）：T-0450/T-0453/T-0454 face-dep-pair 三连（业主手动外派）
+
+- **授权**：业主 session 当面外派三票号序串行施工（勿部署，逐票完成报证据
+  移交外审席复审）——三票领取行已标「业主手动外派」在票面。
+- **根因定谳**（三票同构，非码缺陷）：facesnap 探针按设计检出合法新面超出
+  上拍快照册——#3408 user_intent 晋级请求 open 行（SubRequestArm 枚举本体）、
+  #3454/#3456 ZEC 提案/策略活性窗腿面（FundingHedgeSpotArm/提案臂派生）；
+  危害面=窗摆回重复升件炸 T-0393 起草拍。修法全按 DM 钦定「新面核+入册」
+  =faceBaselineWhitelist 注册（T-0448 册语义罩位），一票一登记一红桩。
+- **交付**：三枝各自 2f302586 独立（t/0450-face-dep-pair-subreq-user-intent-trx-usdt-swap
+  @impl b3f376d4+回填 0ca0a554；t/0453-face-dep-pair-leg-zec-usdt@impl 495c4eb9+
+  回填 0f1ed402；t/0454-face-dep-pair-leg-zec-usdt-swap@impl 63a4f4e9+回填
+  f775cdf7）——三锁 commit 已推远端，impl/回填本地留案。红/绿双点+全谱
+  go test 63 包 ok 逐票在票面回填段。
+- **阻塞留案**（同 T-0459 判）：push 被 pre-push 绿戳闸挡——T-0460 已批闸病
+  （seat_writes author 兜底误判施工标），非本票范围不修闸。T-0445/T-0459
+  先例径+**本 session 内 T-0459 已被外审复审通过并 merge（da2a411b）实证
+  同径可行**：外审可经共享 git dir 直评本地枝，三枝建议按号序串行 merge
+  （facesnap.go map 尾插三登记=文本冲突保留全部三条）。
+- **零误报审计底账**（票面各载）：生产 dep_pair 全谱面清单 b10 亲读在案，
+  三面外无其他可疑新面；三登记=精确面键非通配（拒误伤未来新面）。
+
 ## 2026-11-08 — 施工席 o-seatcard-cons：T-0458 席位活卡（业主外派单行指针）
 
 - **授权面**：业主单行指针令（2026-11-08）——读 T-0458 票面 @2f302586
