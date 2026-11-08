@@ -129,8 +129,54 @@ func TestFFCharset1252(t *testing.T) {
 		t.Fatalf("source 应 ffcal: %s", src)
 	}
 	var n int
-	if err := pool.QueryRow(c, `SELECT count(*) FROM md_ctx_fact WHERE source='ffcal' AND dedupe_key='pmi-revise'`).Scan(&n); err != nil || n != 1 {
+	if err := pool.QueryRow(c, `SELECT count(*) FROM md_ctx_fact WHERE source='ffcal' AND dedupe_key='pmi-revise:11-06-2026'`).Scan(&n); err != nil || n != 1 {
 		t.Fatalf("windows-1252 Medium 事件未落 ctx_fact（n=%d err=%v）", n, err)
+	}
+}
+
+// T-0444 红桩：ffcal dedupe 键=slug:事件日期——FF url slug 无日期位
+// （11-us-unemployment-claims 类周/月循环事件同键恒存），修前红：次周
+// 同 slug 新发生撞 ON CONFLICT DO NOTHING 静默吞行（「断更」病灶——
+// 生产实证 11-us-unemployment-claims 冻结在 11-05-2026 行）；修后绿：
+// 新日期=新键=新行，同日重拍仍幂等。
+func TestFFCalDedupeNewDate(t *testing.T) {
+	pool := testutil.Pool(t)
+	c := context.Background()
+	if err := pgstore.Migrate(c, pool, "md"); err != nil {
+		t.Fatal(err)
+	}
+	r := NewRunner(pool)
+	feedDate := "11-05-2026"
+	r.fetch = func(ctx context.Context, url string) ([]byte, error) {
+		if strings.Contains(url, "ff_calendar_thisweek") {
+			return []byte(`<?xml version="1.0" encoding="windows-1252"?>
+<weeklyevents><event>
+	<title><![CDATA[Unemployment Claims]]></title><country>USD</country><date>` + feedDate + `</date>
+	<time>1:30pm</time><impact>Medium</impact><url>/e/claims</url>
+	</event></weeklyevents>`), nil
+		}
+		return nil, nil
+	}
+	if err := r.collectCalendar(c); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	if err := pool.QueryRow(c, `SELECT count(*) FROM md_ctx_fact WHERE source='ffcal' AND dedupe_key='claims:11-05-2026'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("dedupe_key 应含事件日期（claims:11-05-2026）: n=%d err=%v", n, err)
+	}
+	feedDate = "11-12-2026" // 次周同 slug 新发生——周循环事件
+	if err := r.collectCalendar(c); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(c, `SELECT count(*) FROM md_ctx_fact WHERE source='ffcal' AND dedupe_key='claims:11-12-2026'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("新日期应落新行: n=%d err=%v", n, err)
+	}
+	feedDate = "11-05-2026" // 回本周重拍——同键幂等不增行
+	if err := r.collectCalendar(c); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(c, `SELECT count(*) FROM md_ctx_fact WHERE source='ffcal' AND dedupe_key LIKE 'claims:%'`).Scan(&n); err != nil || n != 2 {
+		t.Fatalf("同键重拍幂等失守: n=%d err=%v", n, err)
 	}
 }
 

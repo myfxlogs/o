@@ -74,7 +74,17 @@ func (r *Runner) collectCalendar(c context.Context) error {
 		}
 		key := e.URL
 		if i := strings.LastIndex(key, "/"); i >= 0 {
-			key = key[i+1:] // url slug=dedupe 唯一键
+			key = key[i+1:] // url slug=事件身份
+		}
+		// T-0444 版本位律（T-0429 fred/frankfurter 同族根修——KB
+		// dedupe-key-missing-version-bit-silent-stall）：FF url slug 无日期位，
+		// 周/月循环事件（Unemployment Claims/CPI/PPI 类）次周同键撞
+		// ON CONFLICT DO NOTHING 恒静默吞新发生——生产实证
+		// 11-us-unemployment-claims 冻结 11-05-2026 行。键=slug:事件日期，
+		// 新日期=新键=新行；同日重拍仍幂等。slug 空=键空=NULL 不入键
+		// （ins 既有径——urlless 事件不互撞）。
+		if key != "" {
+			key += ":" + e.Date
 		}
 		if err := r.ins(c, "ffcal", "macro", key, e); err != nil {
 			return err
