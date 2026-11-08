@@ -160,7 +160,8 @@ if [ -n "$FIN_DSN" ]; then
 fi
 
 # T-0455 机批类册窗（物料化落件的候选票同拍过机批闸：册内签名→CEO seat
-# 已批行+范围钦定；册外/人工径→零批滞留 24h 升件呈 DM；驳回行=账面撤销）。
+# 已批行+范围钦定；册外/人工径→零批滞留 2h 升件呈 DM（阈 24h→2h=GW-001
+# 段C2）；负目录断言面+已批保鲜回候选律在本件内；驳回行=账面撤销）。
 if [ -n "$FIN_DSN" ]; then
   AA_RC=0
   REPO="$REPO" FIN_DSN="$FIN_DSN" "$AUTOAPPROVE_SH" || AA_RC=$?

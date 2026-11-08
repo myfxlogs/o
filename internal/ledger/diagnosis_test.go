@@ -316,3 +316,27 @@ func TestAttributePnlFourValues(t *testing.T) {
 		}
 	}
 }
+
+// GW-001 段C2 族↔册机械对账桩：diagFamilies 每族 ID 必有同拍机批册键
+// rootcause:<ID>（fin_0148 按族入册——新族扩谱必同拍补册，漏补=本桩红，
+// 族误映射/册漂防在码面非散文）。负目录面同锚：族册值径永不入钱径
+// （scripts/meta/autoapprove_negative_catalog.tsv——dm_autoapprove 扫描闸
+// 同源表，此处静态复证表面在+族册值不含执行/ledger/venue 面）。
+func TestDiagFamiliesRegisteredInAutoapproveRegistry(t *testing.T) {
+	// 族册键断言（cwd=包目录 internal/ledger——仓根=../..，readTemplate 同径式）：
+	// 迁移件读不到=测试环境形态缺（Skip 非绿——按族入册锚在 fin_0148 实存件）。
+	b, err := os.ReadFile(filepath.Join("..", "..", "migrations", "fin_0148_autoapprove_family.sql"))
+	if err != nil {
+		t.Skipf("fin_0148 迁移件相对径不可达（非仓根跑）: %v", err)
+	}
+	for _, fam := range diagFamilies {
+		key := "rootcause:" + fam.ID
+		if !strings.Contains(string(b), `"`+key+`"`) {
+			t.Fatalf("族 %s 无机批册键 %s——按族入册缺（fin_0148 补册后本桩绿）", fam.ID, key)
+		}
+	}
+	ngb, err := os.ReadFile(filepath.Join("..", "..", "scripts", "meta", "autoapprove_negative_catalog.tsv"))
+	if err != nil || len(strings.TrimSpace(string(ngb))) == 0 {
+		t.Fatalf("负目录表缺/空——机批断言面不可判（fail-closed 源头在册）")
+	}
+}
