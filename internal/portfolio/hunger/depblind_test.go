@@ -881,3 +881,26 @@ func TestFaceBaselineServiceMECHRegistered(t *testing.T) {
 		t.Fatalf("%s 理由键空——注册式不静默（depblind 豁免同律）", scope)
 	}
 }
+
+// TestFaceBaselineLegBTCUSDTSwapRegistered T-0494 先红桩（T-0388 修复类律
+// ——病灶存在断言修前红+同断言修后绿）：签名面 face:dep_pair:leg:BTC-USDT-SWAP
+// 必须在人工基线册。根因锚：BTC-USDT-SWAP 本键腿=fin_strategy
+// state IN ('live','degraded') 臂在册（ActiveSetUnion 策略臂枚举本体
+// 零硬编码；depLegKeys ∩IsUSDTInst∩宇宙闸）——生产亲证 simdrill matrix
+// 产跑 ephemeral 格行（T-0480，template_ref='simdrill:cell:xvenue-carry@
+// mt5xokx/*#usd=50'，state='degraded' 哨戒降级联动设计态，fin_exec_drill
+// 凭据在案）@2026-11-08 09:35:53Z 入集；degraded_ttl_hours 默认 24h
+// 自退役（run.go retireStaleDegraded T-0098）→出集摆回=间歇面窗摆形
+// （T-0448 册语义罩位，T-0449/0453/0454/0491 同族先例），册外窗摆回
+// 重复升件炸起草拍（T-0393 链，升件源 #4467）。修前未登记=红；入册后
+// 同断言绿且理由键非空（注册式不静默）。
+func TestFaceBaselineLegBTCUSDTSwapRegistered(t *testing.T) {
+	scope := "face:dep_pair:leg:BTC-USDT-SWAP"
+	reason, ok := faceBaselineExempt(scope)
+	if !ok {
+		t.Fatalf("病灶存在：%s 未入人工基线册——窗摆回将重复升件（T-0494）", scope)
+	}
+	if strings.TrimSpace(reason) == "" {
+		t.Fatalf("%s 理由键空——注册式不静默（depblind 豁免同律）", scope)
+	}
+}
