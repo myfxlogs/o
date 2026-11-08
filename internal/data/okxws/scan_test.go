@@ -7,9 +7,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"o/internal/platform/config"
 	"o/internal/platform/testutil"
 	"o/internal/store/pgstore"
 )
@@ -243,5 +245,60 @@ func TestScanFamilyFailClosed(t *testing.T) {
 	}
 	if err := p.ScanOnce(ctx); err == nil {
 		t.Fatal("全族败应 loud 上抛岗终")
+	}
+}
+
+// TestScanRunBeatFailYields T-0446 病灶本体桩（观测盲:scan:md_tick_scan→
+// discovery 产者死径）：ScanOnce 全族败拍=让位下拍续试不拖死采集主
+// 进程——Run 拍败 errc 零发+瞬断自愈落行（修前=errc 岗终全臂死——
+// 先红断言 errc 空+行落双证）。
+func TestScanRunBeatFailYields(t *testing.T) {
+	pool := testutil.Pool(t)
+	ctx := context.Background()
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO app_config(key,value) VALUES('okxws.tick_scan_s',to_jsonb(0.05))`); err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.New(pool)
+	if err := cfg.Load(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var calls atomic.Int32
+	okGet := tickersStub(map[string]json.RawMessage{
+		"SWAP": json.RawMessage(`[{"instId":"ZZZ-USDT-SWAP","last":"3","bidPx":"2.9","askPx":"3.1","ts":"1700000000000"}]`),
+	})
+	get := func(ctx context.Context, path string) (json.RawMessage, error) {
+		if calls.Add(1) <= 6 { // 前两拍全族瞬断（每拍三族各一发）
+			return nil, errors.New("tickers 面瞬断")
+		}
+		return okGet(ctx, path)
+	}
+	p := NewScanPoller(pool, cfg, get)
+	errc := make(chan error, 4)
+	rctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	done := make(chan struct{})
+	go func() { p.Run(rctx, errc); close(done) }()
+	deadline := time.Now().Add(2500 * time.Millisecond)
+	for {
+		var n int
+		if err := pool.QueryRow(ctx, `SELECT count(*) FROM md_tick_scan`).Scan(&n); err == nil && n > 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("瞬断拍后未自愈落行——Run 拍败径断")
+		}
+		time.Sleep(20 * time.Millisecond) // sched-exempt-ok（桩断言轮询期界——等自愈拍落行非调度件）
+	}
+	cancel()
+	select {
+	case err := <-errc:
+		t.Fatalf("拍败上抛 errc=全臂死病灶复现: %v", err)
+	case <-done:
+	case <-time.After(2 * time.Second): // sched-exempt-ok（桩收摊期界锚——Run 应随 ctx 即退）
+		t.Fatal("Run 未随 ctx 收摊")
 	}
 }

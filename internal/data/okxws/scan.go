@@ -99,7 +99,10 @@ func newWatermark(pool *pgxpool.Pool, fams []famReg) *scanwm.Gate {
 		})
 }
 
-// Run 60s 拍环（起即首拍——不等首 tick 消盲区）。败=上抛 errc 岗终。
+// Run 60s 拍环（起即首拍——不等首 tick 消盲区）。拍败=让位记拍下拍续试
+// 不拖死采集主进程（T-0446：errc 岗终=全臂死——同进程 WS tick/sigdist
+// 姊妹臂陪葬；瞬断自愈，真死由 scanwm 族谱水位闸+depblind 观测盲探针
+// 升件收口，拒计数拍内已记）。
 func (p *ScanPoller) Run(ctx context.Context, errc chan<- error) {
 	iv := scanPollS
 	if p.cfg != nil {
@@ -111,8 +114,7 @@ func (p *ScanPoller) Run(ctx context.Context, errc chan<- error) {
 	defer t.Stop()
 	for {
 		if err := p.ScanOnce(ctx); err != nil {
-			errc <- fmt.Errorf("[okxscan] 粗扫拍: %w", err)
-			return
+			log.Printf("[okxscan] 粗扫拍让位: %v", err)
 		}
 		select {
 		case <-ctx.Done():
