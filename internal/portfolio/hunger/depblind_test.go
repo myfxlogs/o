@@ -734,3 +734,23 @@ func TestFaceBaselineLegTRXUSDTSwapRegistered(t *testing.T) {
 		t.Fatalf("%s 理由键空——注册式不静默（depblind 豁免同律）", scope)
 	}
 }
+
+// TestFaceBaselineServiceCOS上行Registered T-0472 先红桩（T-0388 修复类律
+// ——病灶存在断言修前红+同断言修后绿）：签名面 face:service:COS上行 必须在
+// 人工基线册。根因锚：COS上行=COS 秘书席上行写径席位身份——O-DM pane 业主
+// 在席处置窗 ops_event 写径（呈批/移交/领号/升件/挂起/收口待审等；T-0456
+// 双无头席建置 ceo_queue.sh 钦定席位集含 'COS上行'——席上行件归 CEO 方向
+// 层设计在案），业主在才有秘书之义=间歇写面形（T-0448 册语义罩位），静默
+// >7d 出集再活跃=再现新面再升件再起草循环（T-0393 链）；生产亲证
+// 2026-11-07 23:05Z→11-08 01:07Z 26 行五类事件（ops_event #3927 升件源）。
+// 修前未登记=红；入册后同断言绿且理由键非空（注册式不静默）。
+func TestFaceBaselineServiceCOS上行Registered(t *testing.T) {
+	scope := "face:service:COS上行"
+	reason, ok := faceBaselineExempt(scope)
+	if !ok {
+		t.Fatalf("病灶存在：%s 未入人工基线册——窗摆回将重复升件（T-0472）", scope)
+	}
+	if strings.TrimSpace(reason) == "" {
+		t.Fatalf("%s 理由键空——注册式不静默（depblind 豁免同律）", scope)
+	}
+}
