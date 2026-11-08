@@ -1446,3 +1446,19 @@
 - **交付**（/opt/o/.claude/settings.local.json，备份 bak-1793405182）：宽配×3 撤（ssh 裸根形×2+`Bash(rtk *)` 任执行洞）→13 条内命令形精确只读 ssh 规则；gh pr checks/diff 补；journalctl 补；deny 三键（git push force/f 全位形）；危险面（rm -rf/sudo/凭据/curl/未知二进制）零入表=弃权径保留。
 - **隔离实证台**（独立 HOME+repo+claude -p 2.1.270，禁拿真会话试闸）：热径 20/20 真执行（FETCH_HEAD mtime/journal restart 事件=地面真值）；危险 6/6 拦；rtk hook 在场 force push 仍拒。
 - **禁线守**：无头席配置/user 级 settings/glm 选型零触；rtk 配置零触（deny 压得住 hook，无需动）。
+
+## 2026-11-08 — 施工席 o-seatcard-cons：T-0458 席位活卡（业主外派单行指针）
+
+- **授权面**：业主单行指针令（2026-11-08）——读 T-0458 票面 @2f302586
+  全票面施工（ops_seat_card 迁移+watcher+哈希闸，dry-run 渲染先绿），
+  **串行勿部署勿开 live 闸**，完成报证据移交外审席复审。
+- **施工中闸径裁定**（施工席自裁三件，非方向级）：fin_0144 被 T-0461 占
+  →让号 fin_0145；state.go 336 行超 check-lines 棘轮→拆 store.go；
+  D-0008-B 拦 15s 兜底拍→行内 sched-exempt-ok 锚（理由=dm 帧白名单外
+  落账面刷新非业务轮询）。
+- **施工发现上行面**（票面「关键补面」节在案）：dm 帧白名单缝隙
+  （领单/裁决/完成/派单/退班/挂起/异常行不产帧）——兜底拍补位，
+  扩帧与否归决策席（成本面=每帧双席唤醒）。
+- **推程豁免**：seat-writes 伪阳性（T-0460 在飞——本机全席同署
+  claude-glm@local），按 #3569 令 O_SEAT_WRITE_ALLOW=1 豁免径推，
+  WARN 留痕。
