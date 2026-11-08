@@ -39,13 +39,21 @@ func (s *Sensor) enumerateDeps(ctx context.Context) ([]depPair, error) {
 		return nil, fmt.Errorf("信号对模板全集读败: %w", err)
 	}
 	claimed := map[string]bool{}
+	derived := map[string]bool{}
 	for _, t := range templates {
 		for _, k := range deriveKinds(t, kindSet, needs) {
 			claimed[k] = true
+			derived["signal:"+k+"→"+t] = true
 			pairs = append(pairs, depPair{
 				sig: "signal:" + k + "→" + t, family: "signal",
 				producer: k, consumer: t})
 		}
+	}
+	// T-0447 钉定消费册补位（depsigfam.go——两链派生零命中但语义消费
+	// 在册的 kind→族模板登记；撞签名跳过/族零在册照旧 orphan 如实）。
+	pairs, err = s.appendSignalFamilyPairs(ctx, kindSet, templates, claimed, derived, pairs)
+	if err != nil {
+		return nil, fmt.Errorf("信号消费册族模板读败: %w", err)
 	}
 	var orphans []string
 	for k := range kindSet {
