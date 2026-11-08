@@ -36,6 +36,11 @@ var faceBaselineWhitelist = map[string]string{
 	// 本体），提案/策略活性期进出=间歇面形（T-0448 册语义罩位），册外
 	// 窗摆回重复升件炸起草拍（T-0393 链）。
 	"face:dep_pair:leg:ZEC-USDT": "T-0453 入册——ZEC 现货腿面：fin_strategy funding-hedge probe 行（state<>'retired'）落 FundingHedgeSpotArm 谓词派生，提案/策略活性期进出=间歇面窗摆形；生产亲证 probe 行 @2026-11-08 00:13Z + b9/b10 快照批在册（ops_event #3454 升件源）",
+	// T-0454：ZEC-USDT-SWAP 本键腿面——提案 fin_proposed/fin_armed 窗在册
+	// （ActiveSetUnion 提案臂枚举本体），退役/probe 态期摆出、活性期摆回
+	// =纯间歇面形（T-0448 册语义罩位），册外窗摆回重复升件炸起草拍
+	// （T-0393 链）。
+	"face:dep_pair:leg:ZEC-USDT-SWAP": "T-0454 入册——ZEC-USDT-SWAP 本键腿面：提案 fin_proposed/fin_armed 窗在册（提案臂枚举本体），退役/probe 态期摆出活性期摆回=纯间歇面窗摆形；生产亲证提案 2026-11-07 16:00Z 建/20:00Z retired（b9 在册→b10 摆出，ops_event #3456 升件源）",
 }
 
 // faceRow 单面行（kind=面类五键，face=面键——同拍批内 kind+face 唯一）。
