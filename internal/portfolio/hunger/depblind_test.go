@@ -716,6 +716,27 @@ func TestFaceBaselineServiceCEORegistered(t *testing.T) {
 	}
 }
 
+// TestFaceBaselineServiceSeatOCOSRegistered T-0474 先红桩（T-0388 修复类律——
+// 病灶存在断言修前红+同断言修后绿）：签名面 face:service:席O-COS 必须在人工
+// 基线册。根因锚：席O-COS=COS 秘书席（业主令 2026-11-04 立席，纯交互席）在
+// O-COS tmux 会话内 report.sh tmux 回退径自报（无 O_SEAT、映射表无
+// 席O-COS→COS 条目→seat='席O-COS'）——ops_event 写径=report.sh 并轨，事件谱
+// 移交/审计中/外派/呈批/收口/裁决/通过/处置/派单/完成十类（生产实证
+// 2026-11-08 00:18Z 首行 49 行，#3930 新面行→#3931 升件源）；交互席队空零写
+// 静默 >7d 出集再活跃=再现新面再升件再起草循环（T-0448 同型间歇面形，
+// T-0471 CEO 先例同径）。修前未登记=红；入册后同断言绿且理由键非空
+// （注册式不静默）。
+func TestFaceBaselineServiceSeatOCOSRegistered(t *testing.T) {
+	scope := "face:service:席O-COS"
+	reason, ok := faceBaselineExempt(scope)
+	if !ok {
+		t.Fatalf("病灶存在：%s 未入人工基线册——窗摆回将重复升件（T-0474）", scope)
+	}
+	if strings.TrimSpace(reason) == "" {
+		t.Fatalf("%s 理由键空——注册式不静默（depblind 豁免同律）", scope)
+	}
+}
+
 // TestFaceBaselineLegTRXUSDTSwapRegistered T-0449 先红桩（T-0388 修复类律
 // ——病灶存在断言修前红+同断言修后绿）：签名面 face:dep_pair:leg:TRX-USDT-SWAP
 // 必须在人工基线册。根因锚：TRX-USDT-SWAP 本键腿=fin_sub_request open 行经

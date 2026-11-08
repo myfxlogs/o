@@ -66,6 +66,15 @@ var faceBaselineWhitelist = map[string]string{
 	// ops_event 写）=间歇面形（T-0448 册语义罩位），静默 >7d 出集再
 	// 活跃=再现新面再升件再起草循环（T-0393 链）。
 	"face:service:CEO": "T-0471 入册——CEO 无头班次席（管理席，T-0456 业主令建席）：ceo_tick.sh O_SEAT=CEO→report.sh+ceo_northstar.sh 北极星账/议题行双写径合法，班次驱动间歇写 7d 活跃窗摆动登记不重复升；生产亲证 2026-11-08 首行 00:25Z 起 169 行/日（ops_event #3925 升件源）",
+	// T-0474：席O-COS 面——COS 秘书席（业主令 2026-11-04 立席，纯交互席
+	// O-COS tmux 会话）在会话内 report.sh tmux 回退径自报（无 O_SEAT、
+	// 映射表无 席O-COS→COS 条目→seat='席O-COS'）；ops_event 写径=
+	// report.sh 并轨合法（移交/审计中/外派/呈批/收口/裁决/通过/处置/
+	// 派单/完成十类事件，生产实证 2026-11-08 00:18Z 首行 49 行，
+	// ops_event #3931 升件源）；交互席队空零写=间歇面形（T-0448 册语义
+	// 罩位），静默 >7d 出集再活跃=再现新面再升件再起草循环（T-0393
+	// 链，T-0471 CEO 同型先例）。
+	"face:service:席O-COS": "T-0474 入册——席O-COS=COS 秘书席交互席位（业主令 2026-11-04）：O-COS tmux 会话 report.sh 回退径自报（无 O_SEAT/映射表无 席O-COS→COS 条目），ops_event 写径合法；队空零写间歇面窗摆登记不重复升；生产亲证 2026-11-08 00:18Z 首行 49 行（ops_event #3931 升件源）",
 }
 
 // faceRow 单面行（kind=面类五键，face=面键——同拍批内 kind+face 唯一）。
