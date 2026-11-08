@@ -27,6 +27,10 @@ const faceTicket = "T-0405"
 // 拒册=不登记——可疑新面照升件等人工判。depBlindWhitelist 同式先例。
 var faceBaselineWhitelist = map[string]string{
 	"face:service:仓巡": "仓巡=guard Warden 在册员工（risk 域 fin_employee_registry active）——T-0419 裸袋/T-0423 守卫环自残探针 ops_event 写径合法面；间歇写席 7d 活跃窗摆动登记不重复升",
+	// T-0447 depSignalFamilies 钉定消费册登记对——合法新面（basis_ann→
+	// basis 族活性对账在册，非「该建未建」残余）。
+	"face:dep_pair:signal:basis_ann→quarter_basis_long":  "T-0447 basis_ann 钉定消费册登记对——depSignalFamilies 族消费补位合法新面（活性对账在册）",
+	"face:dep_pair:signal:basis_ann→perp_quarter_spread": "T-0447 basis_ann 钉定消费册登记对——depSignalFamilies 族消费补位合法新面（活性对账在册）",
 }
 
 // faceRow 单面行（kind=面类五键，face=面键——同拍批内 kind+face 唯一）。

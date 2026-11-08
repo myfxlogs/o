@@ -68,6 +68,19 @@ func seedDepScan(t *testing.T, pool *pgxpool.Pool, age time.Duration) {
 	}
 }
 
+// seedDepTemplate fin_opp_template 行（depSignalFamilies 解析面素材——
+// params.kind=族 kind；enabled/state 控活性消费册资格）。
+func seedDepTemplate(t *testing.T, pool *pgxpool.Pool, tmpl, kind string, enabled bool, state string) {
+	t.Helper()
+	params := `{"kind":"` + kind + `","legs":[],"settle":"expiry","grammar":true}`
+	if _, err := pool.Exec(context.Background(), `INSERT INTO fin_opp_template
+		(template,venue,surface,params,enabled,state)
+		VALUES($1,'okx','market-instruments',$2::jsonb,$3,$4)`,
+		tmpl, params, enabled, state); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // depRows 探针行数（失明行/升件行——断言公共面；esc_scope 限定本件签名域）。
 func depRows(t *testing.T, pool *pgxpool.Pool) (blind, esc int) {
 	t.Helper()
@@ -503,6 +516,64 @@ func TestProbeFaceDiffBaselineExempt(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
 		WHERE event='升件' AND esc_scope='face:service:badsvc'`).Scan(&n); err != nil || n != 1 {
 		t.Fatalf("册外面升件缺: n=%d err=%v", n, err)
+	}
+}
+
+// TestProbeDepsSignalFamilyRegistry T-0447 病灶本体桩（观测盲:
+// signal:basis_ann→∅）：basis_ann 两链派生零命中（模板名不派生+
+// 假想卡无 data_needs）→depSignalFamilies 钉定消费册补位——kind→
+// 族 kind 解析 enabled∩评估全集模板入对，orphan→∅ 消、登记对活性
+// 对账零误报（禁用模板不入册=非活消费不登记）。
+func TestProbeDepsSignalFamilyRegistry(t *testing.T) {
+	s, pool := depFixture(t)
+	ctx := context.Background()
+	// 生产谱面复刻：basis 族三模板（两启封一保禁——T-0298 封印归位
+	// 同构）+basis_ann 鲜行+评估全集三模板行。
+	seedDepTemplate(t, pool, "quarter_basis_long", "basis", true, "enabled")
+	seedDepTemplate(t, pool, "perp_quarter_spread", "basis", true, "enabled")
+	seedDepTemplate(t, pool, "quarter_basis_short", "basis", false, "candidate")
+	for _, tm := range []string{"quarter_basis_long", "perp_quarter_spread", "quarter_basis_short"} {
+		seedEvalAt(t, pool, tm, 0) // 窗内活——consN>0 登记对不盲
+	}
+	seedSignal(t, pool, "basis_ann", "BTC-USD-261226", 0)
+	seedDepScan(t, pool, 0) // 粗扫臂活——隔 scan 哨兵对
+	// ③族 eval→proposal 消费配平（隔表对失明——本测钉信号消费册单点）。
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_proposal(eval_id,inst_id,direction,net_apr)
+		SELECT id,inst_id,direction,0 FROM fin_opp_eval`); err != nil {
+		t.Fatal(err)
+	}
+	pairs, err := s.enumerateDeps(ctx)
+	if err != nil {
+		t.Fatalf("enumerate: %v", err)
+	}
+	have := map[string]bool{}
+	for _, p := range pairs {
+		have[p.sig] = true
+	}
+	for _, sig := range []string{
+		"signal:basis_ann→quarter_basis_long", "signal:basis_ann→perp_quarter_spread"} {
+		if !have[sig] {
+			t.Fatalf("钉定消费册登记对缺席: %s", sig)
+		}
+	}
+	for _, sig := range []string{
+		"signal:basis_ann→∅", "signal:basis_ann→quarter_basis_short"} {
+		if have[sig] {
+			t.Fatalf("非登记对误入列: %s", sig)
+		}
+	}
+	if err := s.ProbeDeps(ctx); err != nil {
+		t.Fatalf("probe: %v", err)
+	}
+	// 病灶签名域零失明零升件（orphan 消+登记对活性对账不盲）。
+	var n int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='依赖对失明' AND note LIKE '%key=signal:basis_ann%'`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("basis_ann 域失明行误报: n=%d err=%v", n, err)
+	}
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='升件' AND esc_scope LIKE 'signal:basis_ann%'`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("basis_ann 域升件误报: n=%d err=%v", n, err)
 	}
 }
 
