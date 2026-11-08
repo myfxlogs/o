@@ -208,7 +208,10 @@ verdict_reflow 产 draft→ticketdraft 出票；两并发草案各得独立伪�
   merge d6b7b90，部署期逮 roster_rw 漏授已补——半成品窗实证）
 - [x] COS 段 C 验收：通过（五套桩测全绿+负目录落码实证；merge af9b4e5，
   merge 侧迁号 fin_0148→fin_0149 避让 t0485）
-- [ ] COS 段 D 验收：＿＿
+- [x] COS 段 D 验收：通过（verdict_reflow 真库 10/10+waipai 55/55+
+  ledger 桩+mech_tick 段D案全绿；merge e733db5，master 侧并集迁表
+  fin_0150+152 双号位共存，尾窗 reflow/drift/casewb 三窗并集；
+  戳跑期逮桩锚灌速负载缺陷——并发修 ce5e819 先行落案）
 - [x] COS 段 E 验收：通过（case_writeback_test 13/13+mech_tick 段E案全绿；
   merge 8cee48f，merge 侧迁号 fin_0149→fin_0152 避让段C，尾窗
   drift/casewb 两窗并集——并集桩测 15 案全绿；fin 链迁毕=152，
