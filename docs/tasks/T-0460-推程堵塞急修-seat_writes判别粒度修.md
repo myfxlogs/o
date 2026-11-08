@@ -47,4 +47,17 @@
 
 ## 结果回填
 
-（施工写：实现摘要 / 测试证据 / 偏离说明）
+- 实现摘要：check_seat_writes.sh 判别收窄——抽 `is_decision(subj,author)`
+  单判件两消费面（直 commit 环+merge 支侧环同式）：①subj 含
+  角色:决策/角色:CTO 标→决策席产出（域一字不动）；②subj 含任意
+  「角色:」他席标→出判别集（author 同署不误计——本机各席同署
+  claude-glm@local 伪阳性根修）；③subj 无角色标→author 含
+  claude-glm@local 才计（无头签名兜底保留）。registry 机读块/
+  anchor/豁免径/check_all 步序零动。
+- 测试证据：scripts/meta/tests/seat_writes_granularity_test.sh
+  五场景——修前红桩实证 S1 施工标触码面/S4 merge支侧施工标
+  伪阳性 FAIL（author 兜底命中），修后全绿：S1/S4 PASS、
+  S2 决策标触码 FAIL、S3 无标glm触码 FAIL、S5 merge支侧决策标
+  触码 FAIL（自写自合硬拒不动）。
+- 偏离说明：零——票面范围两点全执行（判别收窄+三桩测，merge 面
+  同判件顺带同修=票面「merge 检查同理」原文要求）。
