@@ -70,5 +70,38 @@ func (s *Syncer) sync(ctx context.Context) error {
 			s.rej.Inc("write_err")
 		}
 	}
+	// 缺席即删（T-0478 钦定）：成功拍收尾——fetch 覆盖域（venue='okx'×本拍
+	// 返回 (kind,venue_ref) 对）内 source='api' 存量行不在返回集→DELETE；
+	// 镜像=venue 实存真源非审计留痕（审计痕在 venue bills/ops_event 另存）。
+	// 护线：bag.go 显形行 kind='spot_dust' 但 venue_ref='' 出覆盖对域、
+	// 手工行 source='owner_declared'、structured_order 非 fetch 域天然不收；
+	// 本拍未覆盖的 (kind,venue_ref) 对不动（半拍不核销——earn 面单独缺席
+	// 不连坐 spot 域）。fetch 败拍走上方早退全标 stale 不删。
+	if len(rows) > 0 {
+		seen := map[[3]string]bool{}
+		pairSeen := map[[2]string]bool{}
+		var pk, pv, kk, kc, kv []string
+		for _, r := range rows {
+			if k := [3]string{r.Kind, r.Ccy, r.VenueRef}; !seen[k] {
+				seen[k] = true
+				kk = append(kk, r.Kind)
+				kc = append(kc, r.Ccy)
+				kv = append(kv, r.VenueRef)
+			}
+			if p := [2]string{r.Kind, r.VenueRef}; !pairSeen[p] {
+				pairSeen[p] = true
+				pk = append(pk, r.Kind)
+				pv = append(pv, r.VenueRef)
+			}
+		}
+		if _, err := s.pool.Exec(ctx, `DELETE FROM fin_holding h
+			WHERE h.venue='okx' AND h.source='api'
+			  AND (h.kind,h.venue_ref) IN (SELECT t.k,t.v FROM unnest($1::text[],$2::text[]) AS t(k,v))
+			  AND NOT EXISTS (SELECT 1 FROM unnest($3::text[],$4::text[],$5::text[]) AS t(k,c,v)
+			                  WHERE t.k=h.kind AND t.c=h.ccy AND t.v=h.venue_ref)`,
+			pk, pv, kk, kc, kv); err != nil {
+			s.rej.Inc("write_err")
+		}
+	}
 	return nil
 }
