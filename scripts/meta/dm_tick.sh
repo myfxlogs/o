@@ -172,6 +172,7 @@ fi
 # 模型档从原派单备注恢复。补拉成功写 `拉起` 行自标幂等；无票文件免拉。
 if [ -n "$FIN_DSN" ]; then
   DISPATCH_WORKER=${O_WORKER_DISPATCH_SCRIPT:-/opt/o/scripts/meta/dispatch_worker.sh}
+  DISPATCH_WATER_SH=${O_DISPATCH_WATER_SH:-"$SCRIPT_DIR/dispatch_water.sh"} # T-0463 rc75 候水行唯一 emit 口径
   DISPATCH_TASK_DIR=${O_WORKER_TASK_DIR:-/opt/o/docs/tasks}
   DRC=0
   DISPATCH_ROWS=$(psql "$FIN_DSN" -qAt -F '|' -c "SELECT l.ticket || '|' || COALESCE((
@@ -205,7 +206,10 @@ if [ -n "$FIN_DSN" ]; then
         VALUES('CTO','拉起','$tid','漏拉/限流补派——session 续跑')" >/dev/null 2>&1 || true # tolerate: 拉起行落账尽力而为—事件败不阻补派
     else
       rc=$?
-      [ "$rc" -eq 75 ] && break # 并行水位/额度冷却——队列留待下拍
+      if [ "$rc" -eq 75 ]; then
+        "$DISPATCH_WATER_SH" "$tid" # T-0463：候水标记行（自含尽力而为——写败静默退下拍 rc75 自然重落）
+        break # 并行水位/额度冷却——候选留队下拍重试
+      fi
       echo "[dm] worker dispatch failed tid=$tid rc=$rc" >&2
     fi
   done

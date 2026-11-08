@@ -7,9 +7,9 @@
 #   - 范围节在但读不出路径（空读）/票件缺失/对拍败=升件自报；
 #   - 任一在审件范围不可判=全体候选保守排队（未知面可能撞任意候选）。
 # 环境覆写（测试/对拍面）：DM_ENV_FILE、O_DM_QUEUE_SH、
-# O_WORKER_DISPATCH_SCRIPT、O_DEPGATE_ESC_SH、O_DEPGATE_REPO、
-# O_DEPGATE_TASK_DIR、O_DEPGATE_WT_ROOT、O_DEPGATE_MASTER_REF、
-# O_DEPGATE_MODEL。
+# O_WORKER_DISPATCH_SCRIPT、O_DISPATCH_WATER_SH、O_DEPGATE_ESC_SH、
+# O_DEPGATE_REPO、O_DEPGATE_TASK_DIR、O_DEPGATE_WT_ROOT、
+# O_DEPGATE_MASTER_REF、O_DEPGATE_MODEL。
 set -u
 ENVF="${DM_ENV_FILE:-/opt/o-research/env}"
 FIN_DSN=$(grep '^FIN_PG_DSN=' "$ENVF" 2>/dev/null | cut -d= -f2- | tr -d '"')
@@ -18,6 +18,7 @@ FIN_DSN=$(grep '^FIN_PG_DSN=' "$ENVF" 2>/dev/null | cut -d= -f2- | tr -d '"')
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 DM_QUEUE_SH=${O_DM_QUEUE_SH:-"$SCRIPT_DIR/dm_queue.sh"}
 DISPATCH_WORKER=${O_WORKER_DISPATCH_SCRIPT:-/opt/o/scripts/meta/dispatch_worker.sh}
+DISPATCH_WATER=${O_DISPATCH_WATER_SH:-"$SCRIPT_DIR/dispatch_water.sh"} # T-0463 rc75 候水行唯一 emit 口径
 OPS_ESC_SH=${O_DEPGATE_ESC_SH:-"$SCRIPT_DIR/ops_esc.sh"}
 MANUAL_LANE_SH=${O_MANUAL_LANE_SH:-"$SCRIPT_DIR/manual_lane_check.sh"} # T-0438 件⑥人工径滤
 REPO=${O_DEPGATE_REPO:-/opt/o}
@@ -239,7 +240,8 @@ while IFS= read -r tid; do
 		continue
 	fi
 	if [ "$rc" -eq 75 ]; then
-		echo "[dm-depgate] worker water/quota full——$tid 派单行已落，留常径补拉" >&2
+		"$DISPATCH_WATER" "$tid" # T-0463：候水标记行（自含尽力而为——写败静默退下拍补拉窗自然重落）
+		echo "[dm-depgate] worker water/quota full——$tid 派单行已落，候水标记尽力落账，留常径补拉" >&2
 		break
 	fi
 	esc "$tid" "DEPGATE-DISPATCH-FAIL-$tid" "dispatch_worker rc=$rc——派单行已落，留常径补拉"
