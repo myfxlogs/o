@@ -62,8 +62,9 @@ func hasAll(t *testing.T, got []string, want ...string) {
 // TestUniverseCatalogParse 目录枚举语义：live -USDT-SWAP 入 swap∪all；
 // 非 live/币本位 SWAP 滤除；SPOT 族 live -USDT 对入 spot∪all（T-0427——
 // 非 SWAP 基币现货对 ZZZ-USDT 经族并集入宇宙，USDC/挂起滤除）；基币现货
-// 派生兜底入 all 不入 spot；quarter 期货+uly 指数键入 all；非 quarter/
-// preopen 期货滤除。
+// 派生键须 SPOT 目录实证（T-0445——BBB-USDT 幽灵键滤除，实证在者如
+// AAA-USDT 经族并集入 all 不入 spot）；quarter 期货+uly 指数键入 all；
+// 非 quarter/preopen 期货滤除。
 func TestUniverseCatalogParse(t *testing.T) {
 	var calls int
 	cat := NewUniverseCatalog(stubGet(t, &calls, swapCatRaw, spotCatRaw, futCatRaw, nil), 0)
@@ -73,9 +74,9 @@ func TestUniverseCatalogParse(t *testing.T) {
 		t.Fatal(err)
 	}
 	hasAll(t, all, "AAA-USDT-SWAP", "BBB-USDT-SWAP", "AAA-USDT", "ZZZ-USDT",
-		"BBB-USDT", "AAA-USD-261225", "AAA-USD")
+		"AAA-USD-261225", "AAA-USD")
 	for _, bad := range []string{"OLD-USDT-SWAP", "CCC-USD-SWAP", "EEE-USDC",
-		"OLD-USDT", "BBB-USD-261226", "DDD-USD-260627"} {
+		"OLD-USDT", "BBB-USD-261226", "DDD-USD-260627", "BBB-USDT"} {
 		for _, s := range all {
 			if s == bad {
 				t.Fatalf("滤除键混入宇宙: %s", bad)
@@ -163,6 +164,38 @@ func TestUniverseCatalogFamFail(t *testing.T) {
 	for _, s := range all {
 		if s == "ZZZ-USDT" {
 			t.Fatal("SPOT 族败日族符不应虚构入宇宙")
+		}
+	}
+}
+
+// TestUniverseCatalogGhostSpotGate T-0445 锚（观测盲:MUU-USDT 病灶根修）：
+// SPOT 族读成=live 目录真值闸——SWAP 基币派生键仅当实证存在于 SPOT
+// 目录才入集；MUU-USDT 型幽灵键（MUU-USDT-SWAP 实挂、现货实为
+// XMUU-USDT 异基币币——派生 -SWAP 剥尾产出宇宙外虚构键）滤除；
+// SWAP 本键/实证现货/他族键不受影响。
+func TestUniverseCatalogGhostSpotGate(t *testing.T) {
+	ctx := context.Background()
+	swapRaw := json.RawMessage(`[
+		{"instId":"MUU-USDT-SWAP","state":"live"},
+		{"instId":"BTC-USDT-SWAP","state":"live"}]`)
+	spotRaw := json.RawMessage(`[
+		{"instId":"BTC-USDT","state":"live"},
+		{"instId":"XMUU-USDT","state":"live"}]`)
+	cat := NewUniverseCatalog(stubGet(t, new(int), swapRaw, spotRaw, futCatRaw, nil), 0)
+	all, err := cat.Symbols(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	set := map[string]bool{}
+	for _, s := range all {
+		set[s] = true
+	}
+	if set["MUU-USDT"] {
+		t.Fatal("幽灵派生键 MUU-USDT 入宇宙——观测盲假必报+订阅 error 帧病灶在")
+	}
+	for _, want := range []string{"MUU-USDT-SWAP", "BTC-USDT-SWAP", "BTC-USDT", "XMUU-USDT"} {
+		if !set[want] {
+			t.Fatalf("宇宙缺 %s: %v", want, all)
 		}
 	}
 }
