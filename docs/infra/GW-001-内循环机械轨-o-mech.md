@@ -182,3 +182,61 @@ verdict_reflow 产 draft→ticketdraft 出票；两并发草案各得独立伪�
 - [ ] COS 段 C 验收：＿＿
 - [ ] COS 段 D 验收：＿＿
 - [ ] COS 段 E 验收：＿＿
+
+## 八、段C 施工结果（回填 2026-11-08 施工席——外派施工，待 COS 独立复审）
+
+分支 `gw/001-mech-segC`（基于 master@f7fd69559；串行三 commit：C1/C2/C3；
+未 merge 未部署——merge+部署归 COS 同席，迁移 fin_0148 随发窗生效）。
+
+**C1 退场唤轨**：dispatch_worker.sh systemd-run 加
+`--property=ExecStopPost=-/usr/bin/systemctl --user start --no-block o-mech.service`
+（字面实证 systemd 255 整串拆 argv——o-c1probe 探针 `systemctl show -p
+ExecStopPost` argv[] 五参齐+ignore_errors=yes 在案）。**半成品窗评估**：
+属性只罩改码后新拉起单元；改码瞬间在飞 worker（实证 T-0488/T-0489）退场
+无此钩——由 o-mech.timer 5min 兜底拍吸收，候队留 dispatched 账不留断链
+（最多迟一拍不丢派；窗随在飞单元自然退场闭合，无需人工迁移）。补拉循环
+rc75 break→continue（本票候水续试下一票；dm_depgate 即派循环 break 语义
+不动——票面钦定「补拉循环」为限，depgate 派单行先落+补拉窗承接）。
+
+**C2 按族入册+负目录**：fin_0148 registry 增键 `rootcause:unit_mismatch`
+（diagFamilies 全仓唯一族）+`postmortem:*`，值=经验库条目录（诊断/复盘类
+安全面）；族↔册对账桩（diagnosis_test）——新族漏补册=测试红。负目录落码
+`scripts/meta/autoapprove_negative_catalog.tsv`（internal/exec 字面+
+internal/trading 全谱+internal/venue+internal/ledger 全包 fail-closed），
+dm_autoapprove 开拍全册扫描，值径命中=册坏级零批 rc1 升件（判据③机检
+断言）。滞留阈 86400→7200。已批 7 天未动→回候选+升件（批件保鲜律）。
+
+**C3 水位机检+派单序**：dm_queue.sh 加 `candidate` 面（view+legacy 双径，
+同刻并列反词同族）；tools/ticketdraft 物料化前查 approved+candidate≥5
+（O_TICKETDRAFT_WIP_MAX）→留 pending 不占号+「水位闸:」升件（拥塞/
+TICKETDRAFT-WIP，24h 去重；计数败同律 fail-closed）；同签名族 24h 并票
+（status='merged'+ticket 载吸收票号+「并票」说明类行，批内内存镜防同拍
+双物料化）；派单序单源 `scripts/meta/dispatch_order.sh`（(优先级rank,
+已批ts,票号)——P0/P1/P3 显式覆写，P2=族映射档；postmortem:*/rootcause:*=
+0>写败:*/账链断:*=1>观测盲:*=2>其余=3；已批ts 查败 fail-open），mech_tick
+补拉窗+dm_depgate 即派面双消费。dm_queue dispatched 语义零回改（只增
+candidate 面）。
+
+**桩测账**：mech_tick_test ①–⑩（⑨rc75 续试/⑩派单序过链）、
+worker_runtime_test（ExecStopPost 属性断言）、dm_autoapprove_test 六场景
+（负目录命中零批/表缺同律/2h 阈边界/7天回候选+升件一次/扫描败滑行）、
+dispatch_order_test 七场景、dm_queue_waipai_test 43 断言（candidate 双径+
+同刻并列）、dm_depgate_test（+派单序场景；**随手修**：fbfc39e22 模换
+swe-2-flash-high 未同切本测试三处字面 grep——在用中证错必修，master 上
+本测试先于本票已红）、ledger 包族↔册对账桩、ticketdraft go test（闸纯
+函数+wipCount 壳测+并票/闸 SQL 面）。
+
+**判据四条预证**（COS 复跑为准）：①首张退场→次张拉起：ExecStopPost 链
+机检在案（worker_runtime 断言+o-c1probe 实证），时延链=worker 退场→
+ExecStopPost 即起 o-mech→补拉窗秒级续派（live 复跑归 COS）；②rc75 不阻
+断次票：mech_tick_test ⑨；③负目录签名人造草案→机批断言拒：
+dm_autoapprove_test ②（册值径 internal/trading/okxexec→零批 rc1 升件）；
+④WIP 闸到 5 停出票：ticketdraft TestWipBlocked（5=true 边界）+TestWipCount
+（双面计数单源）。
+
+**偏离说明**：①段C2「已批 7 天回候选」落在 dm_autoapprove.sh（批生命周期
+管家件）非 ticketdraft——回候选是批面动作，起草物料化件不辖批后生命周期；
+②registry 新族键值=经验库条目录（诊断类安全面）——若段D 修法票沿用
+rootcause:* 签名，其钦定径将由 DM 裁时改判（模板行语义保留），负目录断言
+兜底防钱径误映射；③dm_depgate 即派面同受派单序（「派单序」钦定覆盖两派
+径，仅补拉面排序=死信面）。

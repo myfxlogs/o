@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # dm_queue.sh —— DM 班次队列唯一推导（T-0354 件②：拍壳闸与会话班内 rescan
 # 同源同式——两处各写一份 SQL 必漂，故单源出此）。输出=待裁/待派票号
-# （一行一个）；可选 mode=review|approved|dispatched 分面（T-0413 依赖闸
-# /GW-001 段B1 补拉窗同源），默认 all=review∪approved 保原序；approved/
-# dispatched 面按最新相位 ts 升序供最旧候选先派。FIN_DSN 缺=exit 78
-# （拍壳退化径自理）；psql 败=exit 1（T-0372：原管道 awk rc 恒 0——
-# 查询败=空集静默位根修，败≠空集由消费面 dm_tick 升件显报）。
+# （一行一个）；可选 mode=review|approved|dispatched|candidate 分面
+# （T-0413 依赖闸/GW-001 段B1 补拉窗/段C3 水位机检同源），默认
+# all=review∪approved 保原序；approved/dispatched/candidate 面按最新相位
+# ts 升序供最旧候选先派（面内序仅兜底——派单序=dispatch_order.sh 单源
+# 重排）。FIN_DSN 缺=exit 78（拍壳退化径自理）；psql 败=exit 1（T-0372：
+# 原管道 awk rc 恒 0——查询败=空集静默位根修，败≠空集由消费面 dm_tick
+# 升件显报）。
 #
 # GW-001 段B1 相位投影：判据底座=ops_ticket_phase VIEW（fin_0147——
 # 生命周期词集过滤：正词 起草→已批→派单→拉起/领单→收口/移交/收口待审
@@ -30,8 +32,8 @@
 # 不入；同刻 已批+外派 批写仍按外派向排除。非外派件推导零变。
 set -u
 MODE=${1:-all}
-case "$MODE" in all|review|approved|dispatched) ;; *)
-  echo "usage: dm_queue.sh [all|review|approved|dispatched]" >&2
+case "$MODE" in all|review|approved|dispatched|candidate) ;; *)
+  echo "usage: dm_queue.sh [all|review|approved|dispatched|candidate]" >&2
   exit 2
 esac
 ENVF="${DM_ENV_FILE:-/opt/o-research/env}"
@@ -58,6 +60,10 @@ APPROVED_ANTI="NOT EXISTS (SELECT 1 FROM ops_event x
     WHERE x.ticket=ops_ticket_phase.ticket
       AND x.ts=ops_ticket_phase.latest_ts
       AND x.event IN ('派单','领单','拉起','裁决','完成','驳回','挂起'))"
+CANDIDATE_ANTI="NOT EXISTS (SELECT 1 FROM ops_event x
+    WHERE x.ticket=ops_ticket_phase.ticket
+      AND x.ts=ops_ticket_phase.latest_ts
+      AND x.event IN ('已批','派单','领单','拉起','裁决','完成','驳回','挂起'))"
 if psql "$FIN_DSN" -qAt -c "SELECT 1 FROM ops_ticket_phase LIMIT 0" >/dev/null 2>&1; then
   case "$MODE" in
     review)     VSQL="SELECT ticket FROM ops_ticket_phase
@@ -71,6 +77,9 @@ if psql "$FIN_DSN" -qAt -c "SELECT 1 FROM ops_ticket_phase LIMIT 0" >/dev/null 2
          OR (latest_event='挂起' AND latest_seat='施工席'
              AND latest_note LIKE 'rate-limit:auto%')
       ORDER BY latest_ts,ticket" ;;
+    candidate)  VSQL="SELECT ticket FROM ops_ticket_phase
+      WHERE latest_event='起草' AND $CANDIDATE_ANTI
+      ORDER BY latest_ts,ticket" ;; # GW-001 段C3 水位机检面——候选=起草未批（同刻并列反词同族）
     *)          VSQL="SELECT ticket FROM ops_ticket_phase
       WHERE (latest_event IN ('收口','移交','收口待审') AND $REVIEW_ANTI)
          OR (latest_event='已批' AND $APPROVED_ANTI AND $WAIPAI_HIST)
@@ -98,6 +107,11 @@ else
        OR EXISTS (SELECT 1 FROM ops_event e WHERE e.ticket=l.ticket
           AND e.ts=l.mt AND e.event='挂起' AND e.seat='施工席'
           AND e.note LIKE 'rate-limit:auto%')"
+  CANDIDATE_PRED="EXISTS (SELECT 1 FROM ops_event e WHERE e.ticket=l.ticket
+          AND e.ts=l.mt AND e.event='起草')
+       AND NOT EXISTS (SELECT 1 FROM ops_event e WHERE e.ticket=l.ticket
+          AND e.ts=l.mt AND e.event IN
+            ('已批','派单','领单','拉起','裁决','完成','驳回','挂起'))"
   case "$MODE" in
     review)     PRED="($REVIEW_PRED)"; ORDER="l.ticket"
                 LSQL="SELECT ticket,max(ts) mt FROM ops_event WHERE ticket<>'' GROUP BY ticket" ;;
@@ -107,6 +121,8 @@ else
                 LSQL="SELECT ticket,max(ts) mt FROM ops_event WHERE event IN
       ('派单','领单','拉起','收口','移交','收口待审','裁决','完成','驳回',
        '挂起','异常') AND ticket<>'' GROUP BY ticket" ;;
+    candidate)  PRED="($CANDIDATE_PRED)"; ORDER="l.mt,l.ticket"
+                LSQL="SELECT ticket,max(ts) mt FROM ops_event WHERE ticket<>'' GROUP BY ticket" ;;
     *)          PRED="(($REVIEW_PRED) OR ($APPROVED_PRED))"; ORDER="l.ticket"
                 LSQL="SELECT ticket,max(ts) mt FROM ops_event WHERE ticket<>'' GROUP BY ticket" ;;
   esac

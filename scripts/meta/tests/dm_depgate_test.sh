@@ -154,8 +154,8 @@ printf 'T-9002\nT-9003\nT-9004\nT-9005\nT-9006\nT-9008\nT-9013\nT-9014\n' > "$AP
 : > "$DISPATCH_LOG"; : > "$EVENT_SQL_LOG"; : > "$ESC_LOG"
 bash "$ROOT/scripts/meta/dm_depgate.sh" >"$TMP/out.log" 2>&1
 
-grep -q '^T-9002 swe-2-high ' "$DISPATCH_LOG"
-grep -q '^T-9008 swe-2-high ' "$DISPATCH_LOG"
+grep -q '^T-9002 swe-2-flash-high ' "$DISPATCH_LOG"
+grep -q '^T-9008 swe-2-flash-high ' "$DISPATCH_LOG"
 ! grep -q '^T-9003 ' "$DISPATCH_LOG"
 ! grep -q '^T-9004 ' "$DISPATCH_LOG"
 ! grep -q '^T-9005 ' "$DISPATCH_LOG"
@@ -176,7 +176,7 @@ grep -q '人工径票' "$TMP/out.log"
 printf 'T-9010\nT-9011\n' > "$APPROVED_LIST"
 : > "$DISPATCH_LOG"; : > "$EVENT_SQL_LOG"; : > "$ESC_LOG"
 DISPATCH_RC=75 bash "$ROOT/scripts/meta/dm_depgate.sh" >"$TMP/out75.log" 2>&1
-grep -q '^T-9010 swe-2-high ' "$DISPATCH_LOG"
+grep -q '^T-9010 swe-2-flash-high ' "$DISPATCH_LOG"
 ! grep -q '^T-9011 ' "$DISPATCH_LOG"
 grep -q "ticket='T-9010'" "$EVENT_SQL_LOG"
 ! grep -q "ticket='T-9011'" "$EVENT_SQL_LOG"
@@ -192,5 +192,28 @@ bash "$ROOT/scripts/meta/dm_depgate.sh" >"$TMP/out-unknown.log" 2>&1
 [[ ! -s "$EVENT_SQL_LOG" ]]
 grep -q 'DEPGATE-REVIEW-UNKNOWN-T-9099' "$ESC_LOG"
 grep -q '保守陪绑' "$TMP/out-unknown.log"
+
+# GW-001 段C3 派单序：即派面同过 dispatch_order——postmortem 族候选先派
+# （输入序在后者跳前；psql 桩 -c 形空答=已批ts 0，rank 判序）。
+mk_ticket T-9015 ord-blind <<'EOF'
+# T-9015 观测盲桩票
+## 范围
+1. web/src/react/ 呈现层。
+
+病灶签名：`观测盲:face:z`（桩）
+EOF
+mk_ticket T-9016 ord-pm <<'EOF'
+# T-9016 postmortem 桩票
+## 范围
+1. web/src/react/ 呈现层。
+
+病灶签名：`postmortem:guard_loop`（桩）
+EOF
+printf 'T-9001\n' > "$REVIEW_LIST" # 可判在审面（scripts/check_all.sh——候选零交集）
+printf 'T-9015\nT-9016\n' > "$APPROVED_LIST"
+: > "$DISPATCH_LOG"; : > "$EVENT_SQL_LOG"; : > "$ESC_LOG"
+bash "$ROOT/scripts/meta/dm_depgate.sh" >"$TMP/out-order.log" 2>&1
+head -1 "$DISPATCH_LOG" | grep -q '^T-9016 swe-2-flash-high '
+grep -q '^T-9015 swe-2-flash-high ' "$DISPATCH_LOG"
 
 echo "dm depgate path-overlap tests PASS"

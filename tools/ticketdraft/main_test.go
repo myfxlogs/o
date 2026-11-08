@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -55,5 +57,78 @@ func TestRenderFullTemplate(t *testing.T) {
 	}
 	if strings.Contains(out, "{{") {
 		t.Fatalf("槽位残留未填:\n%s", out)
+	}
+}
+
+// GW-001 段C3 水位闸纯函数桩：判据④「WIP 闸到 5 停出票」机检形——
+// 已批未领+候选 ≥5 → 草案留 pending 不占号（物料化不发生=取号不发生）。
+func TestWipBlocked(t *testing.T) {
+	cases := []struct {
+		wip, max int
+		want     bool
+	}{
+		{0, 5, false}, {4, 5, false}, {5, 5, true}, {6, 5, true}, {3, 3, true},
+	}
+	for _, c := range cases {
+		if got := wipBlocked(c.wip, c.max); got != c.want {
+			t.Fatalf("wipBlocked(%d,%d)=%v want %v", c.wip, c.max, got, c.want)
+		}
+	}
+}
+
+// 水位闸上限：缺省 5（collab 调度水位律）+env 覆写解析（非数/非正=缺省）。
+func TestWipGateMax(t *testing.T) {
+	t.Setenv("O_TICKETDRAFT_WIP_MAX", "")
+	if got := wipGateMax(); got != 5 {
+		t.Fatalf("缺省上限=%d want 5", got)
+	}
+	t.Setenv("O_TICKETDRAFT_WIP_MAX", "3")
+	if got := wipGateMax(); got != 3 {
+		t.Fatalf("覆写上限=%d want 3", got)
+	}
+	for _, bad := range []string{"abc", "0", "-2"} {
+		t.Setenv("O_TICKETDRAFT_WIP_MAX", bad)
+		if got := wipGateMax(); got != 5 {
+			t.Fatalf("坏覆写 %q 回落=%d want 5", bad, got)
+		}
+	}
+}
+
+// 水位计数行解析：空行/空白行不计。
+func TestCountLines(t *testing.T) {
+	if got := countLines([]byte("T-9001\n\nT-9002\n  \n")); got != 2 {
+		t.Fatalf("countLines=%d want 2", got)
+	}
+	if got := countLines(nil); got != 0 {
+		t.Fatalf("countLines(nil)=%d want 0", got)
+	}
+}
+
+// wipCount 桩测：dm_queue.sh 双面行数和（approved+candidate）——计数单源
+// 不复制队列判据（假 dm_queue.sh 喂面；DM_ENV_FILE 假 env 走壳）。
+func TestWipCount(t *testing.T) {
+	dir := t.TempDir()
+	qdir := filepath.Join(dir, "scripts", "meta")
+	if err := os.MkdirAll(qdir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	fake := "#!/usr/bin/env bash\ncase \"${1:-}\" in\n  approved) printf 'T-9001\\nT-9002\\n' ;;\n  candidate) printf 'T-9003\\n' ;;\n  *) exit 2 ;;\nesac\n"
+	if err := os.WriteFile(filepath.Join(qdir, "dm_queue.sh"), []byte(fake), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("DM_ENV_FILE", filepath.Join(dir, "no-env"))
+	n, err := wipCount(dir)
+	if err != nil {
+		t.Fatalf("wipCount: %v", err)
+	}
+	if n != 3 {
+		t.Fatalf("wipCount=%d want 3（approved 2+candidate 1）", n)
+	}
+	// 查败→err（fail-closed 留 pending 面）
+	if err := os.WriteFile(filepath.Join(qdir, "dm_queue.sh"), []byte("#!/usr/bin/env bash\nexit 1\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := wipCount(dir); err == nil {
+		t.Fatal("dm_queue 败应 err（fail-closed）")
 	}
 }

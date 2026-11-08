@@ -167,8 +167,19 @@ SQL
 
 REVIEW_TIDS=$TMPD/review.tids
 APPROVED_TIDS=$TMPD/approved.tids
+DISPATCH_ORDER=${O_DISPATCH_ORDER_SH:-"$SCRIPT_DIR/dispatch_order.sh"} # GW-001 段C3 派单序单源
 "$DM_QUEUE_SH" review >"$REVIEW_TIDS" || exit 1
 "$DM_QUEUE_SH" approved >"$APPROVED_TIDS" || exit 1
+# 派单序重排（GW-001 段C3：(优先级rank,已批ts) 单源——即派面同序，先批
+# 先派、急族先行；helper fail-open 败=dm_queue 原序滑行不阻依赖闸；票件
+# 读面=依赖闸同 TASK_DIR——env 前缀单发免 export 面）。
+if ! O_DISPATCH_ORDER_TASK_DIR="$TASK_DIR" \
+	"$DISPATCH_ORDER" <"$APPROVED_TIDS" >"$APPROVED_TIDS.ord" 2>/dev/null; then
+	echo "[dm-depgate] 派单序重排败——原序滑行（fail-open）" >&2
+else
+	mv "$APPROVED_TIDS.ord" "$APPROVED_TIDS"
+fi
+rm -f "$APPROVED_TIDS.ord"
 [ -s "$APPROVED_TIDS" ] || exit 0
 
 REVIEW_PATHS=$TMPD/review.paths

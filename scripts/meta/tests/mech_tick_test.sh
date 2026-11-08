@@ -238,4 +238,14 @@ grep -q "T-9002.*拉起" "$PULL_LOG" || grep -q "'拉起'" "$PULL_LOG" \
   || { echo "FAIL ⑨次票拉起行未落"; cat "$PULL_LOG"; exit 1; }
 echo "ok ⑨rc75 候水续试——首票候水次票拉起，全队不断"
 
+# ── ⑩ GW-001 段C3 派单序：补拉候选过 dispatch_order 重排——postmortem 族先派 ──
+reset_logs
+printf '病灶签名：`postmortem:fast_close`（桩）\n' >> "$TMP/tasks/T-9002-resume.md"
+MECH_LOCK_RESULT=t WINDOW_STATE=批空 \
+  DISPATCH_TIDS='T-9001
+T-9002' bash "$MECH" 2>/dev/null
+head -1 "$DISPATCH_LOG" | grep -q '^T-9002 swe-2-flash-high' \
+  || { echo "FAIL ⑩派单序未过 dispatch_order（首派=$(head -1 "$DISPATCH_LOG")）"; cat "$DISPATCH_LOG"; exit 1; }
+echo "ok ⑩补拉候选派单序重排（postmortem 族先于输入序首派）"
+
 echo "mech tick scenarios PASS"

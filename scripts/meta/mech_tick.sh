@@ -101,10 +101,15 @@ fi
 if [ -n "$FIN_DSN" ]; then
   DISPATCH_WORKER=${O_WORKER_DISPATCH_SCRIPT:-/opt/o/scripts/meta/dispatch_worker.sh}
   DISPATCH_WATER_SH=${O_DISPATCH_WATER_SH:-"$SCRIPT_DIR/dispatch_water.sh"} # T-0463 rc75 候水行唯一 emit 口径
+  DISPATCH_ORDER_SH=${O_DISPATCH_ORDER_SH:-"$SCRIPT_DIR/dispatch_order.sh"} # GW-001 段C3 派单序单源 (优先级rank,已批ts)
   DISPATCH_TASK_DIR=${O_WORKER_TASK_DIR:-/opt/o/docs/tasks}
+  export O_DISPATCH_ORDER_TASK_DIR="$DISPATCH_TASK_DIR" # 派单序单源同票件面（签名/优先级读面）
   DRC=0
   DISPATCH_TIDS=$("$DM_QUEUE_SH" dispatched 2>/dev/null) || DRC=$?
   [ "$DRC" -ne 0 ] && mech_esc "派单查询败" "rc=$DRC 派单/续跑候选集不可知按空集滑行"
+  # 派单序重排（GW-001 段C3：postmortem/rootcause > 写败/账链断 > 观测盲
+  # >其余，同 rank 先批先派；helper fail-open 原序保底不阻补拉）。
+  DISPATCH_TIDS=$(printf '%s\n' "$DISPATCH_TIDS" | "$DISPATCH_ORDER_SH" 2>/dev/null) || true # tolerate: 序重排败=原序滑行（fail-open 非链环）
   printf '%s\n' "$DISPATCH_TIDS" | while IFS= read -r tid; do
     [ -n "$tid" ] || continue
     compgen -G "$DISPATCH_TASK_DIR/${tid}-*.md" >/dev/null || continue # ③无票免拉
