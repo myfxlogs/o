@@ -21,7 +21,7 @@ query="${*: -1}"
 case "$query" in
   "-qAt") echo "${MECH_LOCK_RESULT:-t}" ;; # advisory-lock holder 桩
   *"INSERT INTO ops_headless"*) printf '%s\n' "$query" >> "$HB_LOG" ;;
-  *"SELECT l.ticket ||"*) printf '%s\n' "${DISPATCH_ROWS:-}" ;;
+  *"AND event='派单'"*"LIMIT 1"*) printf '%s\n' "${MODEL_ROW:-swe-2-flash-high}" ;; # 模型档恢复票级查询（GW-001 段B1 收编后形态）
   *"DEPLOY-FIRE-FAIL"*) printf '%s\n' "${FREEZE_RESULT:-}" ;; # 冻结态查询
   *"substring(note from"*) printf '%s\n' "${IDEM_RESULT:-}" ;; # 部署行幂等查询
   *"INSERT INTO ops_event"*) printf '%s\n' "$query" >> "$PULL_LOG" ;; # 拉起行
@@ -54,6 +54,12 @@ case "${WINDOW_STATE:-批空}" in
   *)     printf 'state=批空\nfaces=\nreason=stub-empty\n'; exit 10 ;;
 esac
 EOF
+# dm_queue 桩（GW-001 段B1：补拉候选集收编 dm_queue dispatched 单源）
+cat > "$TMP/bin/dm-queue" <<'EOF'
+#!/usr/bin/env bash
+[ "${1:-}" = dispatched ] && printf '%b\n' "${DISPATCH_TIDS:-}"
+EOF
+chmod +x "$TMP/bin/dm-queue"
 # 部署件桩：落名+rc 可控
 cat > "$TMP/bin/deploy_image_stub.sh" <<'EOF'
 #!/usr/bin/env bash
@@ -105,6 +111,7 @@ export O_DEPLOY_IMAGE_SH="$TMP/bin/deploy_image_stub.sh"
 export O_DEPLOY_OCI_SH="$TMP/bin/deploy_oci_stub.sh"
 export O_WORKER_DISPATCH_SCRIPT="$TMP/bin/dispatch-worker"
 export O_DISPATCH_WATER_SH=/bin/true
+export O_DM_QUEUE_SH="$TMP/bin/dm-queue"
 export O_WORKER_TASK_DIR="$TMP/tasks"
 export O_MANUAL_LANE_SH=/bin/false
 export COMP_LOG="$TMP/comp.log"; : > "$COMP_LOG"
@@ -120,7 +127,7 @@ reset_logs() { : > "$COMP_LOG"; : > "$GO_LOG"; : > "$HB_LOG"; : > "$PULL_LOG"; :
 
 # ── ① 承接面全件+心跳+批空窗零部署 ──
 reset_logs
-MECH_LOCK_RESULT=t DISPATCH_ROWS='' WINDOW_STATE=批空 bash "$MECH" 2>"$TMP/m1.err"
+MECH_LOCK_RESULT=t DISPATCH_TIDS='' WINDOW_STATE=批空 bash "$MECH" 2>"$TMP/m1.err"
 for c in depgate suspend handoff autoapprove ledger verdict; do
   grep -qx "$c" "$COMP_LOG" || { echo "FAIL ①缺子件 $c"; cat "$COMP_LOG"; exit 1; }
 done
@@ -131,12 +138,12 @@ echo "ok ①承接面六子件+ticketdraft+心跳，批空窗零部署"
 
 # ── ② 应发 image→deploy_image 发；oci→deploy_oci 发 ──
 reset_logs
-MECH_LOCK_RESULT=t DISPATCH_ROWS='' WINDOW_STATE=应发 WINDOW_FACES=image \
+MECH_LOCK_RESULT=t DISPATCH_TIDS='' WINDOW_STATE=应发 WINDOW_FACES=image \
   IDEM_RESULT='' FREEZE_RESULT='' DEPLOY_IMAGE_RC=0 bash "$MECH" 2>/dev/null
 grep -qx 'image' "$DEPLOY_LOG" && [ ! -s "$ESC_LOG" ] \
   || { echo "FAIL ②image 应发未发或误升件"; cat "$DEPLOY_LOG" "$ESC_LOG"; exit 1; }
 reset_logs
-MECH_LOCK_RESULT=t DISPATCH_ROWS='' WINDOW_STATE=应发 WINDOW_FACES=oci \
+MECH_LOCK_RESULT=t DISPATCH_TIDS='' WINDOW_STATE=应发 WINDOW_FACES=oci \
   IDEM_RESULT='' FREEZE_RESULT='' DEPLOY_OCI_RC=0 bash "$MECH" 2>/dev/null
 grep -qx 'oci' "$DEPLOY_LOG" && [ ! -s "$ESC_LOG" ] \
   || { echo "FAIL ②oci 应发未发或误升件"; cat "$DEPLOY_LOG" "$ESC_LOG"; exit 1; }
@@ -144,7 +151,7 @@ echo "ok ②应发窗 image/oci 各发其件零升件"
 
 # ── ③ 部署行幂等：同 sha 已有 rc=0 行→跳过不发 ──
 reset_logs
-MECH_LOCK_RESULT=t DISPATCH_ROWS='' WINDOW_STATE=应发 WINDOW_FACES=image \
+MECH_LOCK_RESULT=t DISPATCH_TIDS='' WINDOW_STATE=应发 WINDOW_FACES=image \
   IDEM_RESULT=1 FREEZE_RESULT='' bash "$MECH" 2>/dev/null
 [ ! -s "$DEPLOY_LOG" ] && [ ! -s "$ESC_LOG" ] \
   || { echo "FAIL ③幂等命中仍发"; cat "$DEPLOY_LOG" "$ESC_LOG"; exit 1; }
@@ -152,13 +159,13 @@ echo "ok ③部署行幂等——已发 sha 重触零重发"
 
 # ── ④ rc≠0→DEPLOY-FIRE-FAIL 升件+冻结期不重试 ──
 reset_logs
-MECH_LOCK_RESULT=t DISPATCH_ROWS='' WINDOW_STATE=应发 WINDOW_FACES=image \
+MECH_LOCK_RESULT=t DISPATCH_TIDS='' WINDOW_STATE=应发 WINDOW_FACES=image \
   IDEM_RESULT='' FREEZE_RESULT='' DEPLOY_IMAGE_RC=1 bash "$MECH" 2>/dev/null
 grep -qF "DEPLOY-FIRE-FAIL:$SHA12:image" "$ESC_LOG" \
   || { echo "FAIL ④败未升件"; cat "$ESC_LOG"; exit 1; }
 # 冻结窗内重触：FREEZE_RESULT=1→不发不升（去重键面冻结）
 reset_logs
-MECH_LOCK_RESULT=t DISPATCH_ROWS='' WINDOW_STATE=应发 WINDOW_FACES=image \
+MECH_LOCK_RESULT=t DISPATCH_TIDS='' WINDOW_STATE=应发 WINDOW_FACES=image \
   IDEM_RESULT='' FREEZE_RESULT=1 DEPLOY_IMAGE_RC=1 bash "$MECH" 2>/dev/null
 [ ! -s "$DEPLOY_LOG" ] && [ ! -s "$ESC_LOG" ] \
   || { echo "FAIL ④冻结期仍发/再升"; cat "$DEPLOY_LOG" "$ESC_LOG"; exit 1; }
@@ -167,7 +174,7 @@ echo "ok ④败升件+24h 冻结不重试"
 # ── ⑤ HEAD≠origin/master 未收敛→跳过不发 ──
 echo y >> "$REPO/f" && git -C "$REPO" add f && git -C "$REPO" commit -qm ahead
 reset_logs
-MECH_LOCK_RESULT=t DISPATCH_ROWS='' WINDOW_STATE=应发 WINDOW_FACES=image \
+MECH_LOCK_RESULT=t DISPATCH_TIDS='' WINDOW_STATE=应发 WINDOW_FACES=image \
   IDEM_RESULT='' FREEZE_RESULT='' bash "$MECH" 2>"$TMP/m5.err"
 git -C "$REPO" reset -q --hard HEAD~1
 [ ! -s "$DEPLOY_LOG" ] && [ ! -s "$ESC_LOG" ] \
@@ -177,18 +184,18 @@ echo "ok ⑤HEAD≠origin/master 未收敛跳过"
 
 # ── ⑥ 有挡/查询败窗零部署 ──
 reset_logs
-MECH_LOCK_RESULT=t DISPATCH_ROWS='' WINDOW_STATE=有挡 bash "$MECH" 2>/dev/null
+MECH_LOCK_RESULT=t DISPATCH_TIDS='' WINDOW_STATE=有挡 bash "$MECH" 2>/dev/null
 [ ! -s "$DEPLOY_LOG" ] && [ ! -s "$ESC_LOG" ] \
   || { echo "FAIL ⑥有挡窗仍发"; cat "$DEPLOY_LOG" "$ESC_LOG"; exit 1; }
 reset_logs
-MECH_LOCK_RESULT=t DISPATCH_ROWS='' WINDOW_STATE=查询败 bash "$MECH" 2>/dev/null
+MECH_LOCK_RESULT=t DISPATCH_TIDS='' WINDOW_STATE=查询败 bash "$MECH" 2>/dev/null
 [ ! -s "$DEPLOY_LOG" ] \
   || { echo "FAIL ⑥查询败窗仍发"; cat "$DEPLOY_LOG"; exit 1; }
 echo "ok ⑥有挡/查询败窗零部署动作"
 
 # ── ⑦ 锁拒即退：零子件零心跳零部署 ──
 reset_logs
-MECH_LOCK_RESULT=f DISPATCH_ROWS='' WINDOW_STATE=应发 bash "$MECH" 2>"$TMP/m7.err"
+MECH_LOCK_RESULT=f DISPATCH_TIDS='' WINDOW_STATE=应发 bash "$MECH" 2>"$TMP/m7.err"
 grep -q '机械轨闸未得' "$TMP/m7.err" || { echo "FAIL ⑦缺锁拒日志"; cat "$TMP/m7.err"; exit 1; }
 [ ! -s "$COMP_LOG" ] && [ ! -s "$HB_LOG" ] && [ ! -s "$DEPLOY_LOG" ] && [ ! -s "$ESC_LOG" ] \
   || { echo "FAIL ⑦锁拒仍有副作用"; cat "$COMP_LOG" "$HB_LOG" "$DEPLOY_LOG"; exit 1; }
@@ -197,7 +204,7 @@ echo "ok ⑦锁拒即退零副作用"
 # ── ⑧ 派单补拉窗承接：候选票+票件在→dispatch_worker 拉起+拉起行 ──
 reset_logs
 MECH_LOCK_RESULT=t WINDOW_STATE=批空 \
-  DISPATCH_ROWS='T-9001|swe-2-medium' bash "$MECH" 2>/dev/null
+  DISPATCH_TIDS='T-9001' MODEL_ROW='swe-2-medium' bash "$MECH" 2>/dev/null
 grep -q 'T-9001 swe-2-medium' "$DISPATCH_LOG" \
   || { echo "FAIL ⑧补拉未派"; cat "$DISPATCH_LOG"; exit 1; }
 grep -q "'拉起'" "$PULL_LOG" \

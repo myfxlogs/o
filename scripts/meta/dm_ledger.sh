@@ -132,6 +132,41 @@ merged_proof() {
 	return 1
 }
 
+# GW-001 段B3(a)：裁决执行件——裁决通过但交付物=判词本身（诊断/评审/
+# 裁决执行件类）：无票支（本地+远端 t/<num>* refs 零在案）∧范围节在且
+# 全档皆文档类（零码件路径词——范围节口径同 depgate scope_paths 族；
+# 篇内 .md/.txt 等文档档不计码件，含 / 或 . 的非文档档词=码件在案即否）。
+# 范围节缺席=不可判不翻（保守——识不得的形不碰，T-0417 同律）。
+verdict_exec_proof() {
+	local tid=$1 f=$2 num=${1#T-} sect tok
+	[ -z "$(git -C "$REPO" for-each-ref --format='%(refname)' \
+		"refs/heads/t/$num" "refs/heads/t/$num-*" \
+		"refs/remotes/origin/t/$num" "refs/remotes/origin/t/$num-*" 2>/dev/null)" ] || return 1
+	sect=$(awk '/^##[[:space:]]*范围/{f=1;next} f&&/^##[[:space:]]/{exit} f{print}' "$f")
+	[ -n "$sect" ] || return 1
+	# 序号/项目符（1. 2、 - *）先滤——序号点非路径词（T-9007 桩实证教训）
+	tok=$(printf '%s\n' "$sect" | tr '[:space:]' '\n' \
+		| grep -vE '^[0-9]+[.、:：]?$|^[-*•·]+$' \
+		| grep -E '[./]' | grep -vE '\.(md|markdown|txt|csv|tsv|png|jpe?g|gif|svg|pdf)$' | head -1)
+	[ -z "$tok" ] || return 1
+	return 0
+}
+
+# GW-001 段B3(b)：外审归宗——票面「外审裁过归宗@<sha>」标记（外审席回填
+# 归宗锚）∧sha∈origin/master（merge-base 祖先实证）→外审 merge 证据成立。
+waipai_merge_proof() {
+	local f=$1 sha
+	[ -f "$f" ] || return 1
+	WAIPAI_PROVEN_SHA=""
+	while IFS= read -r sha; do
+		[ -n "$sha" ] || continue
+		if git -C "$REPO" merge-base --is-ancestor "$sha" "$MASTER_REF" 2>/dev/null; then
+			WAIPAI_PROVEN_SHA=$sha; return 0
+		fi
+	done < <(grep -oE '外审裁过归宗@[0-9a-fA-F]{7,40}' "$f" | grep -oE '[0-9a-fA-F]{7,40}')
+	return 1
+}
+
 # ── A 面扫描（读径）：定票翻动作集——mv/翻面在锁内才真动手 ────────────
 ACT_T=(); ACT_TF=(); ACT_TMPL=()
 if [ "$MODE" != "reconcile" ]; then
@@ -155,8 +190,18 @@ if [ "$MODE" != "reconcile" ]; then
 		fi
 		[ -n "$tf" ] || [ -n "$df" ] || { esc_once "$tid" "LEDGER-NOFILE-$tid" "终态票无票件（tasks/done 双缺）——票翻不可为"; continue; }
 		# 裁决通过面归档前先证收口已并 master；完成行面台账即权威直接翻。
+		# GW-001 段B3 两源扩证（积压速效——17 张欠账大部清账面）：merged_proof
+		# 不中→(a) 裁决执行件（无票支∧范围节无码件→判词即交付物）
+		# /(b) 外审归宗（票面「外审裁过归宗@<sha>」∧sha∈origin/master）。
+		# proof_tag 逐票留证——翻面模板+stderr 清单双载（首拍清账列清单不静默）。
+		proof_tag="收口并master"
 		if [ "$ev" != "完成" ] && [ -n "$tf" ]; then
-			if ! merged_proof "$tid"; then
+			if merged_proof "$tid"; then :
+			elif verdict_exec_proof "$tid" "$tf"; then
+				proof_tag="裁决执行件:无票支∧范围节无码件"
+			elif waipai_merge_proof "$tf"; then
+				proof_tag="外审归宗$WAIPAI_PROVEN_SHA∈master"
+			else
 				if [ "${age:-0}" -gt "$VERDICT_STALE" ]; then
 					esc "$tid" "LEDGER-MERGE-UNPROVEN-$tid" "裁决通过龄>${VERDICT_STALE}s 仍收口未并 master 不可证——票翻压住呈裁"
 				else
@@ -175,7 +220,7 @@ if [ "$MODE" != "reconcile" ]; then
 		if [ "$ev" = "完成" ]; then
 			tmpl="ops_event 完成行 $vdate 在案——机械轨票翻"
 		else
-			tmpl="决策席裁决通过 $vdate——判词在案·机械轨票翻"
+			tmpl="决策席裁决通过 $vdate——判词在案·取证=$proof_tag·机械轨票翻"
 		fi
 		ACT_T+=("$tid"); ACT_TF+=("$tf"); ACT_TMPL+=("$tmpl")
 	done <<< "$ROWS"
@@ -212,6 +257,9 @@ push_needed() {
 }
 NEED_GIT=0
 [ "${#ACT_T[@]}" -gt 0 ] && NEED_GIT=1
+# GW-001 段B3：票翻动作集先列清单留证（首拍清账不静默翻——stderr+journal
+# 可对账，票面状态行逐票载取证面）。
+[ "${#ACT_T[@]}" -gt 0 ] && echo "[dm-ledger] 票翻动作集 ${#ACT_T[@]} 件：${ACT_T[*]}" >&2
 git -C "$REPO" status --porcelain -- docs/tasks 2>/dev/null | grep -q . && NEED_GIT=1
 push_needed && NEED_GIT=1
 if [ "$NEED_GIT" -eq 1 ]; then
@@ -257,7 +305,7 @@ if [ "$NEED_GIT" -eq 1 ]; then
 					fi
 					[ -n "$target" ] || { esc "$tid" "LEDGER-MV-FAIL-$tid" "票件 mv 入 done/ 败且 done/ 亦无件——票翻半途压住"; continue; }
 					fsrc=0; flip_status "$target" "$tmpl" || fsrc=$?
-					[ "$moved" -eq 1 ] || [ "$fsrc" -eq 0 ] && DONE_TS+=("$tid")
+					[ "$moved" -eq 1 ] || [ "$fsrc" -eq 0 ] && { DONE_TS+=("$tid"); echo "[dm-ledger] 票翻 $tid——$tmpl" >&2; }
 				done
 			fi
 			if [ -n "$(git -C "$REPO" status --porcelain -- docs/tasks 2>/dev/null)" ]; then
