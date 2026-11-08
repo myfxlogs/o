@@ -1,8 +1,11 @@
 # T-0479 探针升件自动起草：观测盲@xvenue-carry
 
-- 状态：候选（T-0393 起草拍自动起草——非已批，COS/DM 过目才进派发队）
-- 领取：常径待派（批准后 DM 常径机派）
-- 优先级：P2（起草默认档——DM 裁时可调）
+- 状态：已批（CTO 批 2026-11-08——病灶产核实：SG 直查 carry_diff 7d=2 行信号活、
+  fin_opp_eval template ILIKE %xvenue% 7d=0 行、fin_opp_eval 全族 7d=140
+  评估机本身在跑、fin_strategy 非 retired xvenue-carry=0——评估链消费面
+  对该族零观测盲坐实）
+- 领取：无头施工席常径（swe-2-flash-high）
+- 优先级：P2（DM 维持起草档——非堵点族，部署前置缺角在 T-0481 域）
 - 收口移交归：决策席
 - 立项：起草拍自动件（T-0393——探针升件签名 `观测盲:xvenue-carry`，草案锚 fin_ticket_draft#27）
 
@@ -24,9 +27,13 @@ SELECT id,ts,seat,note FROM ops_event WHERE event='升件' AND esc_class='观测
 
 评估×信号链面（fin_opp_eval×md_signal——T-0384 族沉默探针域）
 
-## 范围（起草骨架——DM 裁时可改判，起草非诊断）
+## 范围（CTO 批填——派单依赖闸对拍域）
 
-1. 明确文件路径或目录清单（批准前必填——T-0413 派单依赖闸据此对拍）；
+1. `internal/research/hypothesis/`（run.go xvenue_carry 模板已注册——
+   评估环为何零消费 carry_diff：调度位/threshold 闸/data_needs 取数面
+   逐段核）；`internal/research/sigdist/xvenue.go`（carry_diff 产出行
+   谱形与消费期望对拍）；`internal/projector/evalmap.go`（eval 映射
+   消费面）；
 2. 病灶根因定位与根修（签名面病灶本体——不超签名外衍）；
 3. 桩测钉死断言（病灶存在断言修前红+同断言修后绿——T-0388 修复类先红桩律）；
 4. 生产谱面零误报审计。
