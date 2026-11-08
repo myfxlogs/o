@@ -22,6 +22,11 @@ domain: 工程
 - 自测 `go build+vet+test+check_migrations` 全绿才收口。
 
 ## 收口三步同拍
+0. **收口前置（GW-001 E2 戳复用轨）**：`git fetch origin && git rebase
+   master` 先归并到**集成顶**（本地 master 常领先 origin/master——
+   ff 判定对的是将合目标非远端名；枝落后则 rebase 变 SHA），再跑
+   `scripts/check_all.sh` 盖戳——戳绑 rebase 后 HEAD，外审席 ff-only
+   合入时戳复用零复跑；rebase/补丁在戳后再动=戳作废须重盖；
 1. 票面回填翻待验；
 2. `git commit -o -- <路径>`（共享 index 坑在案——禁裸 -A 跨 worktree）；
 3. `report.sh 收口`+`report.sh 移交` **必调**——漏调断链案 T-0317 在案

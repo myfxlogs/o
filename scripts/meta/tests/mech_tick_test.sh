@@ -137,6 +137,14 @@ export O_DRIFT_CONVERGE_SH="$TMP/bin/drift-converge.sh"
 export O_DRIFT_STATE_DIR="$TMP/drift"
 export O_WORKER_TASK_DIR="$TMP/tasks"
 export O_MANUAL_LANE_SH=/bin/false
+# GW-001 段E1 案卷回写唤件桩——尾块独立挂点实证（断言见⑨）
+cat > "$TMP/bin/casewb.sh" <<'EOF'
+#!/usr/bin/env bash
+echo "casewb" >> "$CASEWB_LOG"
+EOF
+chmod +x "$TMP/bin/casewb.sh"
+export O_CASE_WRITEBACK_SH="$TMP/bin/casewb.sh"
+export CASEWB_LOG="$TMP/casewb.log"; : > "$CASEWB_LOG"
 export COMP_LOG="$TMP/comp.log"; : > "$COMP_LOG"
 export GO_LOG="$TMP/go.log"; : > "$GO_LOG"
 export HB_LOG="$TMP/hb.log"; : > "$HB_LOG"
@@ -289,5 +297,19 @@ grep -qF '漂移探针败' "$ESC_LOG" \
   || { echo "FAIL ⑬探针败未升件"; cat "$ESC_LOG"; exit 1; }
 rm -f "$O_DRIFT_STATE_DIR/fix_enable"
 echo "ok ⑬fix_enable 件开写径+探针败升件不阻拍"
+# ── ⑭ GW-001 段E1 案卷回写尾块唤件——每拍恰唤一次（幂等扫在件内）──
+: > "$CASEWB_LOG"
+MECH_LOCK_RESULT=t DISPATCH_TIDS='' WINDOW_STATE=批空 bash "$MECH" 2>/dev/null
+[ "$(grep -c '^casewb$' "$CASEWB_LOG")" = "1" ] \
+  && echo "ok ⑭案卷回写尾块恰唤一次" || { echo "FAIL ⑭唤件计数=[$(cat "$CASEWB_LOG")]"; exit 1; }
+# 败径 fail-soft：唤件 rc≠0 不挡机械轨 exit 0
+cat > "$TMP/bin/casewb-fail.sh" <<'EOF'
+#!/usr/bin/env bash
+exit 1
+EOF
+chmod +x "$TMP/bin/casewb-fail.sh"
+O_CASE_WRITEBACK_SH="$TMP/bin/casewb-fail.sh" \
+  MECH_LOCK_RESULT=t DISPATCH_TIDS='' WINDOW_STATE=批空 bash "$MECH" 2>/dev/null
+[ "$?" -eq 0 ] && echo "ok ⑮案卷回写败=fail-soft 零挡" || { echo "FAIL ⑮fail-soft 破"; exit 1; }
 
 echo "mech tick scenarios PASS"
