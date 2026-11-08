@@ -21,6 +21,12 @@ esac
 ENVF="${DM_ENV_FILE:-/opt/o-research/env}"
 FIN_DSN=$(grep '^FIN_PG_DSN=' "$ENVF" 2>/dev/null | cut -d= -f2- | tr -d '"')
 [ -n "$FIN_DSN" ] || exit 0
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+KEY_GATE=${O_KEY_GATE_SH:-"$SCRIPT_DIR/ops_event_key_gate.sh"} # T-0499 键卫生闸（缺席 fail-open）
+
+# T-0499 键卫生闸：候水行 ticket 落库前拒伪键（字符集校验下恒过=
+# 双保险；闸缺席 fail-open）。
+[ ! -x "$KEY_GATE" ] || "$KEY_GATE" "$TID" "event=候水" || exit 0
 
 # 钦定词形（T-0463 裁定①）：seat=写席（壳轨=CTO 同派单/拉起行口径），
 # event=候水，note 字面一字不动——读面（handoff_pairs 接行集/gauges

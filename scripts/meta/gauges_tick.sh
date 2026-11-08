@@ -12,6 +12,8 @@ set -u
 ENVF="${GAUGES_ENV_FILE:-/opt/o-research/env}"
 FIN_DSN=$(grep '^FIN_PG_DSN=' "$ENVF" 2>/dev/null | cut -d= -f2- | tr -d '"')
 RO_DSN=$(grep '^FIN_PG_RO_DSN=' "$ENVF" 2>/dev/null | cut -d= -f2- | tr -d '"')
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+KEY_GATE=${O_KEY_GATE_SH:-"$SCRIPT_DIR/ops_event_key_gate.sh"} # T-0499 键卫生闸（缺席 fail-open）
 ST=${O_GAUGES_ST:-/var/tmp/o-gauges}; mkdir -p "$ST" # 覆写位=桩测对拍面（默认产径不变）
 
 hb() { [ -n "$FIN_DSN" ] && psql "$FIN_DSN" -qAt -c "INSERT INTO ops_headless(ticket,seat,state,last_activity) VALUES('META-GAUGES','巡检闸','$1',now()) ON CONFLICT (ticket) DO UPDATE SET seat=EXCLUDED.seat,state=EXCLUDED.state,last_activity=now(),updated_at=now()" >/dev/null 2>&1 || true; }
@@ -21,6 +23,9 @@ today=$(date +%F)
 FAILS=""
 while IFS=$'\t' read -r name cls qt qry th tpl dq mode; do
   [ -n "$name" ] || continue
+  # T-0499 键卫生闸：量表名兼作 ticket 键+状态文件名——伪键（空白/逗号/
+  # 多票号）loud 拒写整轮跳过（闸缺席 fail-open）。
+  [ ! -x "$KEY_GATE" ] || "$KEY_GATE" "$name" "event=升件" "巡检闸" || continue
   errf="$ST/${name}.fetch_error"
   v=""
   case "$qt" in

@@ -23,6 +23,8 @@
 # 覆写位）——他段挂尾窗时本件独立块不覆盖。
 set -u
 REPO=${O_CASE_REPO:-/opt/o}
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+KEY_GATE=${O_KEY_GATE_SH:-"$SCRIPT_DIR/ops_event_key_gate.sh"} # T-0499 键卫生闸（缺席 fail-open）
 ENVF="${DM_ENV_FILE:-/opt/o-research/env}"
 FIN_DSN=$(grep '^FIN_PG_DSN=' "$ENVF" 2>/dev/null | cut -d= -f2- | tr -d '"')
 [ -n "$FIN_DSN" ] || exit 0 # tolerate: 无 DSN=静默零行（部署主径不受影响）
@@ -58,6 +60,9 @@ for ((i=1; i<${#SHAS[@]}; i++)); do
   SEG_MATCHED=0
   while IFS= read -r tid; do
     [ -n "$tid" ] || continue
+    # T-0499 键卫生闸：归流行 ticket 落库前拒伪键（git 提取面恒净=
+    # 双保险；闸缺席 fail-open——跳过本案下拍重扫幂等无害）。
+    [ ! -x "$KEY_GATE" ] || "$KEY_GATE" "$tid" "event=归流" || continue
     # draft→lesson 谱系：票→draft id 集→verdict_ref 两锚查 lesson
     # （draft#<id> 边界用正则防 draft#1 命中 draft#12；并入在飞票锚
     # 票级独立——并入既有在飞票的案无 draft 行也须命中，故无 draft

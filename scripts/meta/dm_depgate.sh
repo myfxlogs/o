@@ -20,6 +20,7 @@ DM_QUEUE_SH=${O_DM_QUEUE_SH:-"$SCRIPT_DIR/dm_queue.sh"}
 DISPATCH_WORKER=${O_WORKER_DISPATCH_SCRIPT:-/opt/o/scripts/meta/dispatch_worker.sh}
 DISPATCH_WATER=${O_DISPATCH_WATER_SH:-"$SCRIPT_DIR/dispatch_water.sh"} # T-0463 rc75 候水行唯一 emit 口径
 OPS_ESC_SH=${O_DEPGATE_ESC_SH:-"$SCRIPT_DIR/ops_esc.sh"}
+KEY_GATE=${O_KEY_GATE_SH:-"$SCRIPT_DIR/ops_event_key_gate.sh"} # T-0499 键卫生闸（缺席 fail-open）
 MANUAL_LANE_SH=${O_MANUAL_LANE_SH:-"$SCRIPT_DIR/manual_lane_check.sh"} # T-0438 件⑥人工径滤
 REPO=${O_DEPGATE_REPO:-/opt/o}
 TASK_DIR=${O_DEPGATE_TASK_DIR:-$REPO/docs/tasks}
@@ -146,6 +147,9 @@ paths_overlap() { # $1=candidate paths file $2=review paths file；0=有交集 1
 
 insert_dispatch_event() { # 0=本拍落派单行；1=票态已竞态前移；5=写径败
 	local tid=$1 note=$2 sqlf=$TMPD/ins-$tid.sql out
+	# T-0499 键卫生闸：派单行 ticket 落库前拒伪键（loud 在闸内——按
+	# 写径败 rc5 上抛让调用面 esc 自报；闸缺席 fail-open）。
+	[ ! -x "$KEY_GATE" ] || "$KEY_GATE" "$tid" "event=派单" || return 5
 	cat >"$sqlf" <<SQL
 BEGIN;
 SELECT pg_advisory_xact_lock(hashtext('dm_depgate:$(QC "$tid")'));
@@ -187,6 +191,9 @@ REVIEW_PATHS=$TMPD/review.paths
 review_unknown=0
 while IFS= read -r tid; do
 	[ -n "$tid" ] || continue
+	# T-0499 键卫生闸：在审集 ticket 出自 ops_event 推导——拼接伪键
+	# loud 拒写跳过（闸缺席 fail-open；尸键不入对拍面防全队保守陪绑）。
+	[ ! -x "$KEY_GATE" ] || "$KEY_GATE" "$tid" "event=审计中" || continue
 	paths=$TMPD/review-$tid.paths
 	if ! ticket_paths "$tid" "$paths"; then
 		esc "$tid" "DEPGATE-REVIEW-FAIL-$tid" "在审分支 diff/工树面对拍败——候选票保守排队"
@@ -209,6 +216,9 @@ fi
 
 while IFS= read -r tid; do
 	[ -n "$tid" ] || continue
+	# T-0499 键卫生闸：候选集 ticket 出自 ops_event 推导——拼接伪键
+	# loud 拒写跳过（闸缺席 fail-open；insert_dispatch_event 内同闸双保险）。
+	[ ! -x "$KEY_GATE" ] || "$KEY_GATE" "$tid" "event=派单" || continue
 	paths=$TMPD/candidate-$tid.paths
 	if ! ticket_paths "$tid" "$paths"; then
 		esc "$tid" "DEPGATE-CANDIDATE-FAIL-$tid" "候选票分支/工树面对拍败——排队"

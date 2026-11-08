@@ -27,6 +27,7 @@ set -u
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO=${REPO:-/opt/o}
 OPS_ESC_SH=${OPS_ESC_SH:-"$SCRIPT_DIR/ops_esc.sh"}
+KEY_GATE=${O_KEY_GATE_SH:-"$SCRIPT_DIR/ops_event_key_gate.sh"} # T-0499 键卫生闸（缺席 fail-open）
 STALE_S=${O_AUTOAPPROVE_STALE_S:-7200}
 NEGCAT=${O_AUTOAPPROVE_NEGCAT:-"$SCRIPT_DIR/autoapprove_negative_catalog.tsv"}
 BATCH_STALE_S=${O_AUTOAPPROVE_BATCH_STALE_S:-604800}
@@ -34,6 +35,7 @@ FIN_DSN=${FIN_DSN:-${FIN_PG_DSN:-}}
 [ -n "$FIN_DSN" ] || exit 0
 
 esc() { "$OPS_ESC_SH" CTO "${3:-}" "" "" "$1" "$2" || true; } # tolerate: 升件尽力而为—升件败不阻机批主径
+QC() { printf '%s' "${1:-}" | sed "s/'/''/g"; }
 
 # 册读径（fail-closed：键缺/行空→零批静默退；键存值坏 json=psql 败→rc1 升件）。
 REG_KEYS=$(psql "$FIN_DSN" -qAt -c \
@@ -120,6 +122,9 @@ RC=0
 while IFS= read -r TID; do
   [ -n "$CANDS" ] || break
   [ -n "$TID" ] || continue
+  # T-0499 键卫生闸：候选集 ticket 出自 ops_event GROUP BY——拼接伪键
+  # （换行/空格/逗号串）loud 拒写整票跳过（闸缺席 fail-open）。
+  [ ! -x "$KEY_GATE" ] || "$KEY_GATE" "$TID" "event=已批" || continue
   FILE=$(compgen -G "$REPO/docs/tasks/$TID-*.md" | head -1)
   [ -n "$FILE" ] && [ -r "$FILE" ] || { esc "候选滞留:$TID" "起草票件不可读——上行呈 CEO" "$TID"; continue; }
 
@@ -154,22 +159,38 @@ done <<< "$CANDS"
 # 签名仍命中，册外件等 DM 重裁）+逐票升件呈 CEO（同票一次去重）。批件超期
 # =重核假设仍成立（collab 批件保鲜 7 天律机检化——防规漂）。
 if [ "$BATCH_STALE_S" -gt 0 ] 2>/dev/null; then
-  STALES=$(psql "$FIN_DSN" -qAt -c \
-    "WITH stale AS (
+  # T-0499 键卫生闸：stale 集 ticket 出自 ops_event GROUP BY——先取票列
+  # 过闸（伪键 loud 拒写不入 IN 表），INSERT...SELECT 内嵌 stale 条件
+  # 原子重估（相位竞态语义与原单句同——只多一道键过滤不拆事务）。
+  STALE_CTE="WITH stale AS (
       SELECT l.ticket, l.mt FROM (
         SELECT ticket,max(ts) mt FROM ops_event WHERE ticket<>'' GROUP BY ticket) l
       WHERE EXISTS (SELECT 1 FROM ops_event e WHERE e.ticket=l.ticket
         AND e.ts=l.mt AND e.event='已批')
         AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.ticket=l.ticket
           AND x.ts=l.mt AND x.event IN ('派单','领单','拉起','裁决','完成','驳回','挂起'))
-        AND l.mt < now()-($BATCH_STALE_S * interval '1 second')
-    ) INSERT INTO ops_event(seat,event,ticket,note)
+        AND l.mt < now()-($BATCH_STALE_S * interval '1 second'))"
+  STALE_TIDS=$(psql "$FIN_DSN" -qAt -c \
+    "$STALE_CTE SELECT s.ticket FROM stale s ORDER BY s.ticket" 2>/dev/null) || STALE_RC=$?
+  if [ "${STALE_RC:-0}" -eq 0 ]; then
+    CLEAN_IN=""
+    while IFS= read -r st; do
+      [ -n "$st" ] || continue
+      [ ! -x "$KEY_GATE" ] || "$KEY_GATE" "$st" "event=草案" || continue
+      CLEAN_IN="${CLEAN_IN:+$CLEAN_IN,}'$(QC "$st")'"
+    done <<< "$STALE_TIDS"
+    if [ -n "$CLEAN_IN" ]; then
+      STALES=$(psql "$FIN_DSN" -qAt -c \
+        "$STALE_CTE INSERT INTO ops_event(seat,event,ticket,note)
     SELECT 'CTO','草案',s.ticket,
       '批件保鲜超期回候选——已批 未动超阈，重核假设后重批（GW-001 段C3 批件保鲜律；册内件下拍机械重批，册外件呈 DM 重裁）'
-    FROM stale s RETURNING ticket" 2>/dev/null) || STALES_RC=$?
-  if [ "${STALES_RC:-0}" -ne 0 ]; then
+    FROM stale s WHERE s.ticket IN ($CLEAN_IN) RETURNING ticket" 2>/dev/null) || STALE_RC=$?
+    fi
+  fi
+  if [ "${STALE_RC:-0}" -ne 0 ]; then
     esc "批件保鲜扫描败" "已批超期扫描/回候选写径败——保鲜律本拍滑行（下拍重试）"
   fi
+  STALES=${STALES:-} # 净键集空/扫描败=未插行——下方升件循环空转合法径
   while IFS= read -r TID; do
     [ -n "$TID" ] || continue
     dup=$(psql "$FIN_DSN" -qAt -c \

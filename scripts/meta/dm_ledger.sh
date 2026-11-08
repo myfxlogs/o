@@ -41,6 +41,7 @@ LOCK_SH=${O_LEDGER_LOCK_SH:-"$SCRIPT_DIR/dm_repolock.sh"}
 CHECK_ALL=${O_LEDGER_CHECK_ALL:-$REPO/scripts/check_all.sh}
 GIT_PUSH=${O_LEDGER_GIT_PUSH:-$REPO/scripts/git_push.sh}
 OPS_ESC_SH=${O_LEDGER_OPS_ESC:-"$SCRIPT_DIR/ops_esc.sh"}
+KEY_GATE=${O_KEY_GATE_SH:-"$SCRIPT_DIR/ops_event_key_gate.sh"} # T-0499 键卫生闸（缺席 fail-open）
 MAX_BATCH=${O_LEDGER_MAX_BATCH:-40}
 VERDICT_STALE=${O_LEDGER_VERDICT_STALE:-7200}
 LOCK_WAIT=${O_LEDGER_LOCK_WAIT:-90}
@@ -465,6 +466,9 @@ if [ "$MODE" != "flip" ]; then
 	ORDER BY l.ticket, e.id DESC" 2>/dev/null) || { esc "" "LEDGER-BSCAN-FAIL" "补登面推导查询败——本拍滑行"; exit 1; }
 	printf '%s\n' "$BROWS" | while IFS=$'\x1f' read -r tid lev; do
 		[ -n "$tid" ] || continue
+		# T-0499 键卫生闸：补登集 ticket 出自 ops_event GROUP BY——拼接
+		# 伪键 loud 拒写跳过（闸缺席 fail-open；T-形校验下本闸恒过=双保险）。
+		[ ! -x "$KEY_GATE" ] || "$KEY_GATE" "$tid" "event=完成" || continue
 		case "$tid" in T-[0-9][0-9][0-9][0-9]) ;; *) continue ;; esac # 非票键不补（0414 事故钉——无档键误登在案）
 		df=$(done_file "$tid")
 		[ -n "$df" ] || continue # 文件未归档不补——B 面只认 done/ 铁证（判存在须验串非空不可凭 rc——head 恒 0 教训在案）
