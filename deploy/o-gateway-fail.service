@@ -1,0 +1,11 @@
+# o-gateway-fail.service —— T-0469 o-gateway OnFailure 升件告警单发
+# （Restart 穷尽/崩溃面——ops_esc 24h 前缀去重自带防报警暴；席位自扫描
+# 兜底不瘫，活性主看门=gateway_hb 量表）。
+[Unit]
+Description=o-gateway OnFailure 升件告警
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/o/scripts/meta/ops_esc.sh gateway GATEWAY "" "" GATEWAY-DOWN gatewayd 失败退出（Restart 穷尽/崩溃面——查 journalctl --user -u o-gateway；席位班扫兜底不瘫）
+NoNewPrivileges=true

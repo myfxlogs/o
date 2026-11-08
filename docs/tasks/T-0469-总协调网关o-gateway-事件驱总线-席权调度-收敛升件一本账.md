@@ -1,8 +1,8 @@
 # T-0469 总协调网关 o-gateway——事件驱总线 + 席权调度 + 收敛/升件一本账
 
-- 状态：呈批（设计方案呈 CEO 裁决——业主令 2026-11-08：「直接上 V2，1 步到位」「meta 的模式，网关做总协调，谁起谁退谁做什么都由网关调拨」「网关改造全部走外派外审，不用无头」）
-- 归口：呈批→CEO 裁后，外派施工+外审裁决径
-- **前置义务**：施工前先查 /opt/meta 弃养死因（目录已空）——死因结论落票面，约束条款随案走，防同死法
+- 状态：已施工待外审（实现+桩测八组全绿+check_all 全链绿——外派收口移交外审席裁决；勿 merge 勿部署勿启用 service）
+- 归口：外审席裁决径
+- **前置义务已结**：/opt/meta 弃养死因查毕——结论见文末「施工回填」节
 
 ## 病灶（2026-11-08 全日实证）
 
@@ -109,5 +109,85 @@ IDLE → SENSE(事件+采集) → CLASSIFY(席权|路由|收敛|升件) →
       不裁优先级；升件=路由归口不裁定性）
 - [ ] 降级安全认可（gateway 死=席位自扫描兜底不瘫，双轨共存期认可）
 - [ ] mirror_push.timer 功能并入 gateway 认可
-- [ ] meta 弃养死因前置查为施工首步认可
-- [ ] 外派施工+外审裁决径遵令确认
+- [x] meta 弃养死因前置查为施工首步认可
+- [x] 外派施工+外审裁决径遵令确认
+
+## 施工回填（T-0469 施工席 2026-11-09）
+
+### /opt/meta 弃养死因结论（前置义务）
+
+**非崩溃死=组织换代弃养**。实证：
+
+- `meta-gateway.service`/`meta-caster.service` 均 disabled+inactive；
+  gateway.log 末行 2026-11-01 20:37「meta: 收信号 terminated」=干净
+  SIGTERM 人为停，非崩溃——此后从未重启、单元留 disabled。
+- 2026-11-02 06:25 留 `.meta-gateway.migrated` 标记+`meta-pre-surgery.db`
+  快照=迁移手术当日执行，旧栈状态已搬走。
+- 仓非空：meta.db WAL 仍活跃（11-06）、meta.sock 在、run/ 工件新——
+  废弃的是**服务面**非仓本体；git 有未提交 T55 半成品
+  （ceo.go/dispatch.go/gateway.textproto+t_t55_test.go）=施工中止在案。
+- 死因定性：席位体系从 meta socket 席换代为 /opt/o 无头席
+  （ops_event+o-worker+dm_* 壳群），旧网关随换代退役未启用新岗。
+- **约束条款随案走（防同死法）**：本票 o-gateway.service 同样交付态
+  =未 enable——启用归外审/部署径；disabled 单元文件残留属正常退役
+  态。残留风险登记=meta 仓 T55 半成品未提交（范围外不动，见交付备注）。
+
+### 实现面（全部新增，禁动件零改动）
+
+- `scripts/meta/gatewayd.sh`：常驻主循环 IDLE→SENSE→CLASSIFY→ACT→IDLE。
+  LISTEN ev_pipeline 持久 psql coproc（piggyback keepalive 冲刷 NOTIFY——
+  实测非 tty 下通知随下一命令落地）；ops_event.id 水位+脏位域标记+
+  `.git/check-green-*` 戳签名三通道驱动；域全量拍兜底（60/60/300/120s）；
+  事件拉近最小间隔（10/10/45/30s）防抖；psql 会话断=自动重建+降级轮询；
+  advisory lock 42540356 单例（拒锁 sleep 重试=failover 等待）；ops_headless
+  GATEWAY 心跳+ops_event 低频心跳行。
+- `scripts/meta/gateway/common.sh`：DSN 解析链（GW_ENV→DM_ENV→
+  REPORT_ENV 同 ops_esc 式）、gw_q/gw_sql/gw_ledger/gw_esc/gw_state_*。
+- `gateway/seatauth.sh`：dm_depgate 直调（已批快派）+dm_queue 队扫+
+  死席道龄（ops_headless last_activity）→systemctl start 唤起
+  o-cto/o-ceo-seat.service（600s 冷却幂等）+败自报升件。
+- `gateway/route.sh`：dm_queue dispatched 补拉——dispatch_order 保序+
+  人工径滤+票文件存查+活单元跳+模型回取（最新派单行）→dispatch_worker
+  拉起（rc75→dispatch_water 候水）+dm_handoff 对账；零动作不落汇总账。
+- `gateway/converge.sh`：deploy_window_due 判据直调（不自裁）→应发则
+  mirror_push→deploy_image/deploy_oci 按 faces 发射；升件未决冻结
+  （gateway 自写升件路由行排除防自冻）+面级 DEPLOY-FIRE-FAIL 冻 24h+
+  部署行 sha:face 幂等查重+VERIFY 部署行验活；败升件不自愈重试。
+- `gateway/escalate.sh`：未认领超龄升件扫描（认领判据量表同式+
+  gateway 自行排除）→升件#id 级幂等+级冷却阶梯 L1归口→L2 CTO→
+  L3 CEO→L4 业主（COS上行+feishu 尽力推）。
+- `deploy/o-gateway.service`：Type=simple+Restart=always+OnFailure=
+  o-gateway-fail.service（ops_esc 升件告警 oneshot）。
+- `deploy/o-gateway-fail.service`：OnFailure 升件告警 oneshot。
+- `scripts/meta/gauges.tsv`：+`gateway_hb`（ops_headless GATEWAY 停鸣
+  >15min=1，断供档）。
+- `deploy/o-mirror-push.timer`：退役注记（功能并入收敛账本，双轨
+  兜底期保留，停用归部署/验收径施工席不动）。
+- `scripts/meta/tests/gateway_test.sh`：八组桩测全绿（见下）。
+
+### 测试实证
+
+`bash scripts/meta/tests/gateway_test.sh` → **gateway scenarios PASS**：
+①事件 notify→脏位→域即评/水位续位零重脏/绿戳 stamp 档即评；
+②席权 depgate 调用+死席唤醒+冷却幂等+depgate 败升件；
+③路由 补拉/活单元跳/rc75 候水/零动作不落账；
+④⑤收敛 应发全链 PLAN→FIRE→VERIFY+冻结全面零动作+面冻按面隔离；
+⑥幂等 部署行查重+升件路由级幂等/冷却/阶梯 L1→L4 COS上行；
+⑦降级 无 DSN 域件自含退出+daemon 轮询兜底存活；
+⑧崩溃 kill -9→重启水位/域拍续位零重复动作。
+
+`scripts/check_all.sh` mode=full 全链绿（build/vet/import/gofmt/env/
+rejects/migrations/ops-chain/seat-writes/ticket-seq/go test 全谱），
+绿戳落 check-green-<sha>。
+
+### 交付备注（范围外发现，不动只记）
+
+- `/opt/meta` 仓有未提交 T55 半成品（internal/gateway/ceo.go、
+  dispatch.go、config/gateway.textproto、t_t55_test.go）——前任施工
+  中止遗留，归 meta 域处置席，本票不越权清理。
+- `meta-gateway.service`/`meta-caster.service` 单元文件仍 disabled
+  残留于 ~/.config/systemd/user——退役常态，无动作。
+- psql LISTEN/NOTIFY 非 tty 管道下为 piggyback 语义（通知随下一条
+  SQL 命令冲刷）——gatewayd 以 keepalive SELECT 1 周期冲刷兜底，
+  真库联调时若有延迟观测可调 O_GATEWAY_KEEPALIVE_SEC。
+- gateway 域子件 env 覆写面（O_GW_*）为桩测面，生产默认值即票面钉值。
