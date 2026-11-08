@@ -1,8 +1,8 @@
 // kbgen —— O 经验库索引生成器（nox tools/noxkb gen 面的迁移件；induct/LLM
 // 归纳管线不搬——O 分期再议）。子命令：
 //
-//	kbgen gen            生成 索引.md+技能清单.md（幂等：相同不写）
-//	kbgen gen --check    只校验不落盘——索引陈旧 exit 1（机检门禁用）
+//	kbgen gen            生成 索引.md+技能清单.md+检索物料.tsv（幂等：相同不写）
+//	kbgen gen --check    只校验不落盘——索引/检索物料陈旧 exit 1（机检门禁用）
 //	kbgen read <id>      读条目全文到 stdout
 //
 // 路径：自 cwd 上溯锚定 docs/<lib>/条目（repo root 标记——错 cwd 显式报错非静默
@@ -25,6 +25,7 @@ var (
 	entriesDir      string
 	indexFile       string
 	skillsIndexFile string
+	materialFile    string
 )
 
 const (
@@ -117,37 +118,6 @@ func render(entries []*Entry) []byte {
 	return buf.Bytes()
 }
 
-// renderSkillsIndex 按条目 skills: 标签生成关联清单（指针式——条目唯一真相源）。
-func renderSkillsIndex(entries []*Entry) []byte {
-	groups := map[string][]*Entry{}
-	var tags []string
-	for _, e := range entries {
-		for _, s := range e.Skills {
-			if s = strings.TrimSpace(s); s == "" {
-				continue
-			}
-			if _, ok := groups[s]; !ok {
-				tags = append(tags, s)
-			}
-			groups[s] = append(groups[s], e)
-		}
-	}
-	sort.Strings(tags)
-	var buf bytes.Buffer
-	buf.WriteString("# 技能关联条目清单（kbgen gen 生成，勿手编）\n\n")
-	buf.WriteString("> 按条目 frontmatter `skills:` 标签归组——清单是指针，条目全文见 条目/<id>.md。\n\n")
-	for _, tag := range tags {
-		buf.WriteString("## " + sanitize(tag) + "\n\n| id | summary |\n|----|---------|\n")
-		es := groups[tag]
-		sort.Slice(es, func(i, j int) bool { return es[i].ID < es[j].ID })
-		for _, e := range es {
-			buf.WriteString(fmt.Sprintf("| %s | %s |\n", sanitize(e.ID), sanitize(e.Summary)))
-		}
-		buf.WriteByte('\n')
-	}
-	return buf.Bytes()
-}
-
 // loadEntries 扫描条目目录（顶层 .md——前身-nox/ 参考区不进索引）。
 func loadEntries(dir string) ([]*Entry, error) {
 	matches, err := filepath.Glob(filepath.Join(dir, "*.md"))
@@ -179,13 +149,6 @@ func checkBudget(output []byte) error {
 	return nil
 }
 
-func writeIfChanged(path string, out []byte) error {
-	if ex, err := os.ReadFile(path); err == nil && bytes.Equal(ex, out) {
-		return nil
-	}
-	return os.WriteFile(path, out, 0644)
-}
-
 func gen(check bool) error {
 	entries, err := loadEntries(entriesDir)
 	if err != nil {
@@ -195,6 +158,7 @@ func gen(check bool) error {
 	if err := checkBudget(out); err != nil {
 		return err
 	}
+	material := renderMaterial(entries)
 	if check {
 		if ex, err := os.ReadFile(indexFile); err != nil || !bytes.Equal(ex, out) {
 			return fmt.Errorf("index out of date")
@@ -203,12 +167,20 @@ func gen(check bool) error {
 			!bytes.Equal(ex, renderSkillsIndex(entries)) {
 			return fmt.Errorf("skills index out of date")
 		}
+		// 检索物料=gitignored 再生物——在则须鲜（与索引同律），缺席合法
+		// （kb_recall.sh 自愈径兜底重生，fail-open 召回不依赖它先在场）。
+		if ex, err := os.ReadFile(materialFile); err == nil && !bytes.Equal(ex, material) {
+			return fmt.Errorf("retrieval material out of date")
+		}
 		return nil
 	}
 	if err := writeIfChanged(indexFile, out); err != nil {
 		return err
 	}
-	return writeIfChanged(skillsIndexFile, renderSkillsIndex(entries))
+	if err := writeIfChanged(skillsIndexFile, renderSkillsIndex(entries)); err != nil {
+		return err
+	}
+	return writeIfChanged(materialFile, material)
 }
 
 // resolvePaths repo root 锚定：上溯找 docs/<lib>/条目 目录；O_KB_DIR 优先。
@@ -217,6 +189,7 @@ func resolvePaths(lib string) error {
 		entriesDir = filepath.Join(v, "条目")
 		indexFile = filepath.Join(v, "索引.md")
 		skillsIndexFile = filepath.Join(v, "技能清单.md")
+		materialFile = filepath.Join(v, "检索物料.tsv")
 		return nil
 	}
 	dir, err := os.Getwd()
@@ -229,6 +202,7 @@ func resolvePaths(lib string) error {
 			entriesDir = filepath.Join(base, "条目")
 			indexFile = filepath.Join(base, "索引.md")
 			skillsIndexFile = filepath.Join(base, "技能清单.md")
+			materialFile = filepath.Join(base, "检索物料.tsv")
 			return nil
 		}
 		if parent := filepath.Dir(dir); parent == dir {

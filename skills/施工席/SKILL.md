@@ -15,6 +15,15 @@ domain: 工程
    裸 wt 即产；全谱 buf 须先 `npm ci`），buf 缺席/面缺降级 rsync 部署
    树快照（明示非静默）；dist=快照仅供闸/dev。
 
+## 领单即召回（提案-KB向量检索-经验库召回面 首阶）
+
+领单后在本树跑 `bash scripts/meta/kb_recall.sh docs/tasks/T-NNNN-*.md`
+（worktree 优先——票面以本枝版为准）——输出 top-K 经验库条目摘要
+（eng+econ 双库机械匹配），对号读 `docs/*/经验库/条目/` 正文；
+召回件/物料缺席=零输出照跑（fail-open 增强非闸件）。无头派单
+提示词已由 dispatch_worker.sh 注入同段——本步=人工位/会话席
+同径补齐，别跳过。
+
 ## 施工
 - 票面自含读单勿再诊；diff ⊆ 票面涉及面；
 - **三禁**：红线三件（资金扩投/新平台/席位立换）、凭据域（app_secret/
