@@ -13,9 +13,10 @@
 //   - 裁定席第四分支（skills/裁定席，LLM）：领任务+代码仓只读开放考古——
 //     证伪/证实/扩族→诊断草案落位（numbers.diagnosis+status='drafted'）
 //     +ops_event 诊断草案行（DM 可读判词行）；
-//   - DM 裁（skills/CTO席）：裁决/驳回行——裁过→修法票自动草稿（归流执行
-//     段走裁定席窄面，复用 fin_ticket_draft→ticketdraft 物料化链）或并入
-//     在飞票判词；裁驳→驳回因入案卷（diag_state='rejected'——再诊断携错因
+//   - DM 裁（skills/CTO席）：裁决/驳回行——裁过→修法票自动草稿（GW-001
+//     段D4 起归流执行=机械轨 scripts/meta/verdict_reflow.sh 确定性脚本，
+//     复用 fin_ticket_draft→ticketdraft 物料化链）或并入在飞票判词；
+//     裁驳→驳回因入案卷（diag_state='rejected'——再诊断携错因
 //     =草案质量自学习），三轮驳回升不裁。
 //
 // 禁线（诊断面零钱径）：本件只写 fin_econ_lesson（案卷锚表）+rejects 计数
@@ -44,6 +45,10 @@ type diagCaseFacts struct {
 	Attempts   int     // 守卫平仓尝试数（≥2=守卫环）
 	Trigger    string  // 触发类（原貌）
 	SettledPct float64 // 结算幅 %
+	// GW-001 段D1 fast_close 复发闸入参（postmortem 调用面装配——
+	// 单次秒平不烧诊断额度，复发∨亏损才入闸）：
+	SettledUSD      float64 // 结算额原值（<0=秒平亏损单次即立案）
+	FastCloseRepeat bool    // 复发实断（7d 窗同 strategy_ref∨inst_id 含本仓共 ≥N 次）
 }
 
 // hasAnomaly 码集命中。
@@ -118,11 +123,20 @@ func matchDiagFamilyText(text string) []string {
 	return out
 }
 
+// fastCloseWorthy fast_close 复发闸（GW-001 段D1——单次秒平不烧诊断
+// 额度：复发实断（7d 窗同 strategy_ref∨inst_id 含本仓共 ≥N 次，
+// N=热启键 guard.postmortem.fast_close_repeat_n）∨秒平亏损（settled<0）
+// 二者任一才入闸；复发实断由 postmortem 调用面装配进 facts——本件保持
+// 纯函数零 DB 依赖）。
+func (f diagCaseFacts) fastCloseWorthy() bool {
+	return f.hasAnomaly("fast_close") && (f.FastCloseRepeat || f.SettledUSD < 0)
+}
+
 // diagnosisWorthy 诊断任务生成闸（三案卷源任一——账实差未定性/认知集外
-// 触发/守卫环；纯市况幅超阈/秒级开平不生成——裁定席既有三分支消化，
-// 诊断额度不烧市况案）。
+// 触发/守卫环——外加 GW-001 段D1 fast_close 复发闸；纯市况幅超阈/单次
+// 秒平不生成——裁定席既有三分支消化，诊断额度不烧市况案）。
 func diagnosisWorthy(f diagCaseFacts) bool {
-	return f.BareBagUSD > 0 || f.hasAnomaly("trigger_unknown") || f.Attempts >= 2
+	return f.BareBagUSD > 0 || f.hasAnomaly("trigger_unknown") || f.Attempts >= 2 || f.fastCloseWorthy()
 }
 
 // attrFacts 单仓盈亏归因锚面（T-0464——机判序输入；锚=确定性读数非判词，
@@ -200,7 +214,7 @@ type diagSeed struct {
 	FixSurface string   `json:"fix_surface"`
 }
 
-// diagSources 诊断源标签（案卷三源——任务载荷+log 同源）。
+// diagSources 诊断源标签（案卷源集——任务载荷+log 同源）。
 func diagSources(f diagCaseFacts) []string {
 	var out []string
 	if f.BareBagUSD > 0 {
@@ -211,6 +225,16 @@ func diagSources(f diagCaseFacts) []string {
 	}
 	if f.Attempts >= 2 {
 		out = append(out, "守卫环（平仓重试循环）")
+	}
+	// GW-001 段D1：fast_close 复发闸两入径标签（复发实断/秒平亏损——
+	// 单次秒平盈利不入闸故无标签）。
+	if f.hasAnomaly("fast_close") {
+		if f.FastCloseRepeat {
+			out = append(out, "秒平复发（7d 窗同 strategy_ref∨inst_id ≥N 次）")
+		}
+		if f.SettledUSD < 0 {
+			out = append(out, "秒平亏损（settled<0）")
+		}
 	}
 	return out
 }

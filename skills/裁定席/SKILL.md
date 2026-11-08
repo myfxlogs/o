@@ -10,8 +10,9 @@ domain: 经济
 两表 pending 逐案裁——verdict∈{canon,dismiss,merge}+理由一句话+回改点词。
 - `fin_econ_lesson` 经济案——venue 注册/资金/席位立换归业主撞即升；
 - `fin_econ_lesson` kind='rootcause_diag' 根因诊断案（T-0431 受理节第四
-  分支）——开放考古产草案（草案=假设非判词，禁自批）+归流执行（DM 既裁：
-  裁过起修法票草稿/并入在飞票判词，裁驳错因入案卷再诊断）；
+  分支）——开放考古产草案（草案=假设非判词，禁自批）；归流执行归机械轨
+  （GW-001 段D4 起 verdict_reflow.sh 确定性执行，会话零归流动作——
+  DM 既裁：裁过起修法票草稿/并入在飞票判词，裁驳错因入案卷再诊断）；
 - `fin_eng_lesson` 工程案（T-0385 事件账矿工起草——升件/驳回/异常/
   返修/收口偏离签名聚类）——判词径照旧三态，KB 落 docs/工程经验库。
 
@@ -75,16 +76,35 @@ SG psql（FIN_DSN env 径）：
   （一仓一案 UNIQUE 幂等）。numbers 机读件：`position_id/strategy_ref/
   inst_id/execution_id/trigger/hold_minutes/settled_usd/settled_pct/
   notional_usd/bare_bag_qty/bare_bag_usd/anomalies/detail/close_reason/
-  decision_row_found/summary`。
+  decision_row_found/summary`+`diag_gate`（GW-001 段D1——fast_close
+  单次未入诊断闸时在案：未入因+去向写明，裁面照读不误诊缺件）。
 - 裁前先读：numbers.anomalies 码集（`fast_close` 秒级开平/
   `settled_over` 结算幅超阈/`trigger_unknown` 认知集外触发/
   `bare_bag` 残袋>0）+numbers.close_reason（ops_decision 平仓理由行
   ——「为什么平」锚；decision_row_found=false=记忆面缺口本身在案）。
 - verdict 词集（kind 专属三分支——勿与通用 econ 词混用）：
   - **bug 实证**（机器误判/执行缺陷——量纲错配/判据破洞/残袋机制失守类）
-    →`canon` 词 `ticket:<slug>`——升件立票：ops_event 升件行携案锚
-    （`fin_econ_lesson#<id>`）+定性草案一句话，DM 派工面消化（本席不
-    直写 docs/tasks/——落面白名单不含票域）；
+    →`canon` 词 `ticket:<slug>`——修法票草案直落（GW-001 段D2：升件行
+    →draft 进 fin_ticket_draft，物料化归 ticketdraft 既有尾段——候选态
+    零自派批准权=COS/DM；本席不直写 docs/tasks/——落面白名单不含
+    票域，draft 锚表≠票域）。执行序：
+    ①在飞查重——`SELECT id,ticket FROM fin_ticket_draft WHERE
+    signature='postmortem:<anomaly>' AND status='pending' LIMIT 1`
+    在，或同签名 materialized 票 latest ops_event 非完成/作废→**只落
+    升件行携在飞 `draft#<id>`/`ticket#<ticket>` 不另立 draft**（并入
+    在飞案——防同族草案重复出票）；
+    ②无在飞→`INSERT INTO fin_ticket_draft(signature,kind,lesion_key,
+    payload) VALUES('postmortem:<anomaly>','trade_postmortem',
+    entity_ref,'{slug:postmortem-<anomaly>-<仓号>,title:平仓监察修法票:
+    <定性草案一句话>,signature:postmortem:<anomaly>,kind:
+    trade_postmortem,lesion_key:position#<id>,evidence_ids:[本席考古
+    证据 ops_event 行],evidence_note:案锚 fin_econ_lesson#<id>——<定性
+    草案一句话>,evidence_query:<本席主证据查询>,domain_hint:<建议修法
+    面>}') RETURNING id`——签名 `<anomaly>`=numbers.anomalies 首码
+    （主导码；机批册 postmortem:* 同域 GW-001 段C2）；
+    ③升件行照落：ops_event 升件行携案锚（`fin_econ_lesson#<id>`）+
+    定性草案一句话+`draft#<id>`（升件=显形径 draft=执行径，两账同拍
+    ——DM 面可见，ticketdraft 尾段同拍物料化）。
   - **市况使然**（判据正常触发但触阈——市况波动/预期内了结非病）
     →`dismiss` 词 `market`——归档不立案（理由一句话市况定性）；
   - **章程件**（处置须新章——裸袋处置/钱径语义裁定类非 bug 非市况）
@@ -125,36 +145,18 @@ SG psql（FIN_DSN env 径）：
      skills/ 与工程经验库写零（KB 判词径归裁过归流后既有面）、
      trigger_verdict 覆写零（判词归流后另径）；**禁自批**——status 只到
      'drafted'（草案=假设非判词，verdict 归 DM）。
-- **归流执行段**（同拍收尾——执行 DM 既裁，非自裁）：扫未归流裁决
-  `SELECT id,event,note FROM ops_event WHERE event IN ('裁决','驳回')
-  AND note LIKE '诊断草案 fin_econ_lesson#%' ORDER BY id`，对每行查
-  `SELECT 1 FROM ops_event WHERE event='归流' AND note LIKE 'ruling#<该行id> %'`
-  无在才行（幂等键）：
-  - **裁决（通过）**：读案行 numbers.diagnosis.family——
-    ①并入判：`SELECT ticket FROM fin_ticket_draft WHERE signature=
-    'rootcause:'||<family> AND status='materialized' ORDER BY ts DESC
-    LIMIT 1` 在飞（该票 latest ops_event 非完成/作废）→只翻案
-    `UPDATE ... SET status='verdicted', verdict_ref='diag:<family>:
-    DM裁#<rid>:并入在飞票<ticket>'`（并入既有案判词）；
-    ②否则修法票自动草稿（携根因+建议面）：`INSERT INTO fin_ticket_draft
-    (signature,kind,lesion_key,payload) VALUES('rootcause:<family>',
-    'rootcause_diag',entity_ref,'{slug:rootcause-<family>-<仓号>,title:
-    根因诊断修法票:<假设一句话>,signature:rootcause:<family>,kind:
-    rootcause_diag,lesion_key:position#<id>,evidence_ids:[诊断草案证据
-    ops_event 行],evidence_note:<根因+证据链>,evidence_query:<主证据
-    查询>,domain_hint:<建议修法面>}')`——物料化归 dm_tick 既有
-    ticketdraft 尾段（候选态零自派，批准权=COS/DM）→翻案
-    `verdict_ref='diag:<family>:DM裁#<rid>:修法票草稿draft#<id>'`；
-  - **驳回**：错因入案卷（草案质量自学习）——`UPDATE ... SET
-    status='pending', numbers=numbers||jsonb_build_object('diag_state',
-    'rejected','reject_reason','<错因>','diag_attempts',COALESCE((
-    numbers->>'diag_attempts')::int,0)+1)`——再诊断携驳回因（考古先读
-    reject_reason 不重蹈）；diag_attempts≥3→`status='verdicted',
-    verdict_ref='diag:驳回超限:<错因>'`+ops_event 无类升件行（escalate.sh
-    类 scope 传空——诊断草案面永不入判例自动裁，人机分界防自批回环）；
-  - 同拍 ops_event `归流` 行留账（note=`ruling#<rid> fin_econ_lesson#<id>
-    <动作一句话>`）——幂等键+审计链；status→verdicted 同拍 ops_decision
-    镜像照旧（通用机制不另设）。
+- **归流执行段——退役（GW-001 段D4）**：归流执行剥离为确定性脚本
+  `scripts/meta/verdict_reflow.sh`（机械轨 o-mech 尾窗每拍扫未归流
+  裁决/驳回诊断草案行→翻案/INSERT draft/三轮升件；幂等键
+  `ruling#<rid>` 归流行留账；判据语义逐字承接本段原文——并入判/
+  draft 模板/驳回入卷/超限升件全在脚本内）。本席会话**零归流动作**
+  ——裁词落（裁决/驳回行）即收，禁再执行本段原径（双执行者禁线：
+  翻案/INSERT draft/归流行全归机械轨）。**在飞会话交叠面**（本修订
+  前已开班、仍按旧段执行归流者）：其动作与本脚本幂等键同形
+  （`ruling#<rid>` 归流行=消费标记先到先得，后到按「已归流跳过」退），
+  draft 重复另有 fin_ticket_draft pending 防重唯一索引（fin_0148）
+  DB 级硬闸+翻案 status='drafted' CAS 兜底——并存期零重复零丢失
+  （实证=tests/verdict_reflow_test.sh 并存场景）。
 - 升不裁：案卷证据锚全跑不出/代码考古无从下锚→ops_headless stalled 行
   +留 pending 不强裁（裁定席只裁能裁的）。
 

@@ -30,8 +30,8 @@ esac
 EOF
 chmod +x "$TMP/bin/psql"
 
-# ── 子件桩：六机械子件+autoapprove 各落名 ──
-for n in depgate suspend handoff ledger verdict autoapprove; do
+# ── 子件桩：七机械子件+autoapprove 各落名（GW-001 段D4 +reflow）──
+for n in depgate suspend handoff reflow ledger verdict autoapprove; do
   cat > "$TMP/bin/$n.sh" <<EOF
 #!/usr/bin/env bash
 echo $n >> "\$COMP_LOG"
@@ -123,6 +123,7 @@ export O_OPS_ESC_SH="$TMP/bin/opsesc.sh"
 export O_DM_DEPGATE_SH="$TMP/bin/depgate.sh"
 export O_DM_SUSPEND_SH="$TMP/bin/suspend.sh"
 export O_DM_HANDOFF_SH="$TMP/bin/handoff.sh"
+export O_VERDICT_REFLOW_SH="$TMP/bin/reflow.sh" # GW-001 段D4 归流窗桩
 export O_DM_LEDGER_SH="$TMP/bin/ledger.sh"
 export O_VERDICT_DELIVER_SH="$TMP/bin/verdict.sh"
 export O_AUTOAPPROVE_SH="$TMP/bin/autoapprove.sh"
@@ -162,7 +163,7 @@ reset_logs() { : > "$COMP_LOG"; : > "$GO_LOG"; : > "$HB_LOG"; : > "$PULL_LOG"; :
 # ── ① 承接面全件+心跳+批空窗零部署 ──
 reset_logs
 MECH_LOCK_RESULT=t DISPATCH_TIDS='' WINDOW_STATE=批空 bash "$MECH" 2>"$TMP/m1.err"
-for c in depgate suspend handoff autoapprove ledger verdict; do
+for c in depgate suspend handoff reflow autoapprove ledger verdict; do
   grep -qx "$c" "$COMP_LOG" || { echo "FAIL ①缺子件 $c"; cat "$COMP_LOG"; exit 1; }
 done
 grep -q 'ticketdraft' "$GO_LOG" || { echo "FAIL ①缺 ticketdraft"; exit 1; }

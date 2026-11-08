@@ -301,8 +301,9 @@ dm_queue 推导。**判据不中=班次行为与本节立票前逐字等价（�
 
 ## 诊断草案受理节（T-0431 判词归流——机器提假设 DM 裁）
 
-- **读面**（班次 scan 同拍——诊断草案行已入 eventbus dm 踢径白名单，
-  落行即唤醒）：`SELECT id,entity_ref,ts,numbers FROM fin_econ_lesson
+- **读面**（班次 scan 同拍——诊断草案案已入 dm_queue review 诊断支
+  GW-001 段D3，伪键 DIAG-<lesson_id> 逐案入队落行即开班）：
+  `SELECT id,entity_ref,ts,numbers FROM fin_econ_lesson
   WHERE kind='rootcause_diag' AND status='drafted' ORDER BY id`
   （status='drafted'=裁定席诊断草案落位待裁；numbers.diagnosis=
   hypothesis/family/evidence/fix_surface，numbers.case=案卷原貌）。
@@ -311,15 +312,19 @@ dm_queue 推导。**判据不中=班次行为与本节立票前逐字等价（�
   ①根因假设是否被证据链支撑（证据锚亲证：evidence 查询跑得回、锚行
   与假设对得上）；②修法面是否对准根域（非症状面补丁）；③族标合理
   （seeds 命中族词谱/novel 定性成立）。裁词二值：
-  - 通过→ops_event `裁决` 行（ticket=T-0431 环票号），
+  - 通过→ops_event `裁决` 行（ticket=**伪键 `DIAG-<lesson_id>`**——
+    GW-001 段D3 对案不对票：裁词落案键非环票号；存量 T-0431 行历史
+    在案不改写，归流扫按 note 案锚不按 ticket——两形通认），
     note=`诊断草案 fin_econ_lesson#<id> 通过：<理由一句话>`；
-  - 驳回→ops_event `驳回` 行（同 ticket），
+  - 驳回→ops_event `驳回` 行（同 ticket=伪键），
     note=`诊断草案 fin_econ_lesson#<id> 驳回：<错因一句话——入案卷
     供再诊断自学习>`。
-  note 案锚首词=机读形（裁定席归流执行段按此扫）；禁裸词
+  note 案锚首词=机读形（归流执行机按此扫——GW-001 段D4 起=
+  scripts/meta/verdict_reflow.sh 确定性归流）；禁裸词
   （ops_decision 写口守）。
-- **归流执行不归本席**：翻案行/修法票草稿 INSERT=裁定席既有窄面执行
-  （本席只落裁决/驳回行——机器提假设、DM 裁、机器执行既裁三段分立，
-  禁一手包）；本节裁决行不触判例登记（event 非升件，判例闸结构性
-  不触——诊断草案面永不自动裁，防机器自批回环）。
+- **归流执行不归本席**：翻案行/修法票草稿 INSERT=归流执行机
+  （GW-001 段D4 起机械轨 verdict_reflow.sh 确定性执行，原裁定席
+  SKILL 归流段退役——本席只落裁决/驳回行——机器提假设、DM 裁、
+  机器执行既裁三段分立，禁一手包）；本节裁决行不触判例登记（event
+  非升件，判例闸结构性不触——诊断草案面永不自动裁，防机器自批回环）。
 - **红线照旧**：草案涉资金扩投/新平台/席位立换→升业主不裁。

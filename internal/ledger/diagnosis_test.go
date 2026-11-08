@@ -8,6 +8,7 @@
 package ledger
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -338,5 +339,186 @@ func TestDiagFamiliesRegisteredInAutoapproveRegistry(t *testing.T) {
 	ngb, err := os.ReadFile(filepath.Join("..", "..", "scripts", "meta", "autoapprove_negative_catalog.tsv"))
 	if err != nil || len(strings.TrimSpace(string(ngb))) == 0 {
 		t.Fatalf("负目录表缺/空——机批断言面不可判（fail-closed 源头在册）")
+	}
+}
+
+// —— GW-001 段D1 fast_close 复发闸 ——
+
+// 纯函数三形：单次秒平盈利不入闸（不烧诊断额度）；复发实断/秒平亏损
+// 二径入闸；源标签随入径落（复用 diagSources 载荷面同源）。
+func TestDiagWorthy_fastCloseRepeatGate(t *testing.T) {
+	single := diagCaseFacts{PosID: 1, ExecID: 2, InstID: "BTC-USDT-SWAP",
+		Anomalies: []string{"fast_close"}, SettledPct: -0.4, SettledUSD: 0.5}
+	if diagnosisWorthy(single) {
+		t.Fatal("单次秒平盈利过诊断闸（应不烧额度）")
+	}
+	if s := diagSources(single); len(s) != 0 {
+		t.Fatalf("单次秒平盈利源标签=%v（应空——未入闸无源）", s)
+	}
+	repeat := single
+	repeat.FastCloseRepeat = true
+	if !diagnosisWorthy(repeat) {
+		t.Fatal("复发实断秒平未入闸（应生成）")
+	}
+	loss := single
+	loss.SettledUSD = -3.5
+	if !diagnosisWorthy(loss) {
+		t.Fatal("秒平亏损未入闸（应生成）")
+	}
+	if s := diagSources(loss); len(s) != 1 || !strings.Contains(s[0], "秒平亏损") {
+		t.Fatalf("秒平亏损源标签=%v（应含秒平亏损径）", s)
+	}
+}
+
+// pmPosFC 段D1 链测仓 fixture（pmPos 变体——inst 可指定：复发键域=
+// strategy_ref∨inst_id，同 inst 即同复发集，跨用例隔离靠独占 inst）。
+func pmPosFC(t *testing.T, ctx context.Context, r *Runner, inst string,
+	notional float64, opened, closed time.Time) int64 {
+	t.Helper()
+	var xid, pid int64
+	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_execution(inst_id,notional_usd,state)
+		VALUES($1,$2,'closed') RETURNING id`, inst, notional).Scan(&xid); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_position(execution_id,inst_id,notional_usd,opened_at,closed_at)
+		VALUES($1,$2,$3,$4,$5) RETURNING id`, xid, inst, notional, opened, closed).Scan(&pid); err != nil {
+		t.Fatal(err)
+	}
+	return pid
+}
+
+// fcInstCleanup 段D1 链测隔离面：独占 inst 域清场（lesson→position 序——
+// 引用向；跨用例残留防串扰，inst 域即复发键域）。
+func fcInstCleanup(t *testing.T, ctx context.Context, r *Runner, inst string) {
+	t.Helper()
+	if _, err := r.pool.Exec(ctx, `DELETE FROM fin_econ_lesson WHERE entity_ref IN (
+		SELECT 'position#'||id FROM fin_position WHERE inst_id=$1)`, inst); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.pool.Exec(ctx, `DELETE FROM fin_position WHERE inst_id=$1`, inst); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// fcPinRepeatN 段D1 链测键钉：N 键显式重钉+快照重载（迁移种子默认 2
+// ——显式钉防漂）；t.Cleanup 还原种子值+重载（键域共享防漏）。
+func fcPinRepeatN(t *testing.T, ctx context.Context, r *Runner, n string) {
+	t.Helper()
+	if _, err := r.pool.Exec(ctx, `INSERT INTO app_config(key,value)
+		VALUES('guard.postmortem.fast_close_repeat_n',$1::jsonb)
+		ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value`, n); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_, _ = r.pool.Exec(ctx, `INSERT INTO app_config(key,value)
+			VALUES('guard.postmortem.fast_close_repeat_n','2')
+			ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value`)
+		_ = r.cfg.Load(ctx)
+	})
+	if err := r.cfg.Load(ctx); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// 全链锚（复发径）：单次秒平盈利——监察案立（案不丢）、诊断任务零产
+// （不烧额度）、diag_gate 去向字段在案（半成品窗去向写明）；同 inst
+// 7d 窗第二例——含本仓共 2≥N=2=复发，诊断任务产+源标签带复发径。
+func TestPostmortemFastCloseRepeatGate(t *testing.T) {
+	ctx, r := setup(t)
+	inst := "FC-REPEAT-GATE-TEST"
+	fcInstCleanup(t, ctx, r, inst)
+	fcPinRepeatN(t, ctx, r, "2")
+	now := time.Now()
+	pid1 := pmPosFC(t, ctx, r, inst, 50, now.Add(-15*time.Second), now)
+	pmCash(t, ctx, r, pid1, 1.23)
+	if err := r.settle(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if n := pmLessonCount(t, ctx, r, pid1); n != 1 {
+		t.Fatalf("单次秒平监察案行=%d（应 1——案不丢）", n)
+	}
+	var gate string
+	if err := r.pool.QueryRow(ctx, `SELECT COALESCE(numbers->>'diag_gate','')
+		FROM fin_econ_lesson WHERE kind='trade_postmortem' AND entity_ref=$1`,
+		fmt.Sprintf("position#%d", pid1)).Scan(&gate); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(gate, "复发未达") || !strings.Contains(gate, "去向=监察案") {
+		t.Fatalf("单次秒平 diag_gate 去向字段缺/形不对: %q", gate)
+	}
+	var nd int
+	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_econ_lesson
+		WHERE kind='rootcause_diag' AND entity_ref=$1`,
+		fmt.Sprintf("position#%d", pid1)).Scan(&nd); err != nil {
+		t.Fatal(err)
+	}
+	if nd != 0 {
+		t.Fatalf("单次秒平产诊断任务（n=%d，应 0——不烧额度）", nd)
+	}
+	pid2 := pmPosFC(t, ctx, r, inst, 50, now.Add(-15*time.Second), now)
+	pmCash(t, ctx, r, pid2, 0.88)
+	if err := r.settle(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if n := pmLessonCount(t, ctx, r, pid2); n != 1 {
+		t.Fatalf("复发秒平监察案行=%d（应 1）", n)
+	}
+	var nums2 string
+	if err := r.pool.QueryRow(ctx, `SELECT numbers::text FROM fin_econ_lesson
+		WHERE kind='rootcause_diag' AND entity_ref=$1`,
+		fmt.Sprintf("position#%d", pid2)).Scan(&nums2); err != nil {
+		t.Fatalf("复发秒平诊断任务缺席: %v", err)
+	}
+	if !strings.Contains(nums2, "秒平复发") {
+		t.Fatalf("复发诊断任务源标签缺秒平复发径: %s", nums2)
+	}
+}
+
+// 全链锚（键缺席形——半成品窗反向）：复发键未设=复发支不激活（单次
+// 秒平不入闸现制），监察案照立+diag_gate 写明键未设去向（案不丢；
+// N 键缺不 fail-closed 整链——判据三键缺才跳全链）。
+func TestPostmortemFastCloseKeyMissing(t *testing.T) {
+	ctx, r := setup(t)
+	inst := "FC-NOKEY-TEST"
+	fcInstCleanup(t, ctx, r, inst)
+	if _, err := r.pool.Exec(ctx, `DELETE FROM app_config
+		WHERE key='guard.postmortem.fast_close_repeat_n'`); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_, _ = r.pool.Exec(ctx, `INSERT INTO app_config(key,value)
+			VALUES('guard.postmortem.fast_close_repeat_n','2')
+			ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value`)
+		_ = r.cfg.Load(ctx)
+	})
+	if err := r.cfg.Load(ctx); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	pid := pmPosFC(t, ctx, r, inst, 50, now.Add(-15*time.Second), now)
+	pmCash(t, ctx, r, pid, 1.0)
+	if err := r.settle(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if n := pmLessonCount(t, ctx, r, pid); n != 1 {
+		t.Fatalf("键缺席监察案行=%d（应 1——案不丢）", n)
+	}
+	var gate string
+	if err := r.pool.QueryRow(ctx, `SELECT COALESCE(numbers->>'diag_gate','')
+		FROM fin_econ_lesson WHERE kind='trade_postmortem' AND entity_ref=$1`,
+		fmt.Sprintf("position#%d", pid)).Scan(&gate); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(gate, "未设") || !strings.Contains(gate, "去向=监察案") {
+		t.Fatalf("键缺席 diag_gate 去向字段缺/形不对: %q", gate)
+	}
+	var nd int
+	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_econ_lesson
+		WHERE kind='rootcause_diag' AND entity_ref=$1`,
+		fmt.Sprintf("position#%d", pid)).Scan(&nd); err != nil {
+		t.Fatal(err)
+	}
+	if nd != 0 {
+		t.Fatalf("键缺席产诊断任务（n=%d，应 0——复发支不激活）", nd)
 	}
 }
