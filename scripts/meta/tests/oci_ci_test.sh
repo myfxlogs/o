@@ -18,7 +18,7 @@ FAIL=0
 ok()  { echo "  ✅ $1"; }
 bad() { echo "  ❌ $1"; FAIL=1; }
 
-report() { # $1=file $2=sha $3=exit $4=mode $5=pkgs $6=hash $7=bytes [arch]
+report() { # $1=file $2=sha $3=exit $4=mode $5=pkgs $6=hash $7=bytes [arch] [netgates]
   cat > "$1" <<EOF
 sha=$2
 exit=$3
@@ -30,6 +30,7 @@ skip=3
 arch=${8:-aarch64}
 baseline=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 host=oci-test
+netgates=${9:-full}
 started=2026-11-09T00:00:00+08:00
 finished=2026-11-09T00:10:00+08:00
 log_sha256=$6
@@ -97,6 +98,38 @@ oci_report_write "$TMP/lib.report" "sha=$C1" "exit=0" "note=g r e e n"
 [ "$(oci_report_get "$TMP/lib.report" sha)" = "$C1" ] \
   && [ "$(oci_report_get "$TMP/lib.report" note)" = "g r e e n" ] \
   && ok "A7 report_lib 写读往返（值含空格安全）" || bad "A7 report_lib 往返败"
+
+# A8 延后闸 netgates=local:bridge-audit——本盒同 sha 净树补跑（绿落戳/红不落）
+mkdir -p "$REPO/scripts"
+cat > "$REPO/scripts/check_bridge_registry.sh" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+chmod +x "$REPO/scripts/check_bridge_registry.sh"
+git add scripts/check_bridge_registry.sh && git commit -qm bridge-stub
+D1=$(git rev-parse HEAD)
+printf 'ok\n' > "$LOG"
+report "$TMP/a8.report" "$D1" 0 scoped "o/internal/risk" "$(hashof "$LOG")" "$(bytesof "$LOG")" aarch64 local:bridge-audit
+set +e; ACC "$TMP/a8.report" "$LOG" "$D1" >/dev/null 2>&1; RC=$?; set -e
+[ "$RC" = 0 ] && grep -qx 'netgates=local:bridge-audit' "$REPO/.git/oci-report-$D1" \
+  && ok "A8 延后闸本盒补跑绿→落戳（侧档记 netgates）" || bad "A8 rc=$RC"
+printf '#!/usr/bin/env bash\nexit 1\n' > "$REPO/scripts/check_bridge_registry.sh"
+git commit -qam bridge-stub-red
+D2=$(git rev-parse HEAD)
+report "$TMP/a9.report" "$D2" 0 scoped "o/internal/risk" "$(hashof "$LOG")" "$(bytesof "$LOG")" aarch64 local:bridge-audit
+set +e; ACC "$TMP/a9.report" "$LOG" "$D2" >/dev/null 2>&1; RC=$?; set -e
+[ "$RC" = 1 ] && [ ! -f "$REPO/.git/check-green-$D2" ] \
+  && ok "A9 延后闸本盒红→不落戳（判据③闸面完整）" || bad "A9 rc=$RC"
+printf 'dirty\n' >> "$REPO/scripts/check_bridge_registry.sh"
+report "$TMP/a10.report" "$D2" 0 scoped "o/internal/risk" "$(hashof "$LOG")" "$(bytesof "$LOG")" aarch64 local:bridge-audit
+set +e; ACC "$TMP/a10.report" "$LOG" "$D2" >/dev/null 2>&1; RC=$?; set -e
+[ "$RC" = 2 ] && ok "A10 工作树不净→不可核（本盒现径）" || bad "A10 rc=$RC"
+git checkout -q -- scripts/check_bridge_registry.sh
+report "$TMP/a11.report" "$D2" 0 scoped "o/internal/risk" "$(hashof "$LOG")" "$(bytesof "$LOG")" aarch64 bogus
+set +e; ACC "$TMP/a11.report" "$LOG" "$D2" >/dev/null 2>&1; RC=$?; set -e
+[ "$RC" = 2 ] && ok "A11 netgates 面不可认→不可核" || bad "A11 rc=$RC"
+git checkout -q -- scripts/check_bridge_registry.sh
+rm -f "$REPO/.git/check-green-"* "$REPO/.git/oci-report-"*
 
 # ══ B. ARM↔x86 分歧探针 ══
 ESC_LOG="$TMP/esc.log"

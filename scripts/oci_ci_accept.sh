@@ -55,7 +55,7 @@ get() { oci_report_get "$REPORT" "$1"; }
 R_SHA=$(get sha); R_EXIT=$(get exit); R_MODE=$(get mode); R_PKGS=$(get pkgs)
 R_RUN=$(get run); R_FAIL=$(get fail); R_SKIP=$(get skip); R_ARCH=$(get arch)
 R_BASE=$(get baseline); R_HOST=$(get host); R_START=$(get started); R_FIN=$(get finished)
-R_HASH=$(get log_sha256); R_BYTES=$(get log_bytes); R_NOTE=$(get note)
+R_HASH=$(get log_sha256); R_BYTES=$(get log_bytes); R_NOTE=$(get note); R_NETGATES=$(get netgates)
 
 [ "$R_SHA" = "$SHA" ] || { echo "❌ [oci-ci-accept] 报告 sha 不符（$R_SHA≠$SHA）——不可核" >&2; exit 2; }
 case "$R_EXIT" in
@@ -86,6 +86,25 @@ if [ -n "$R_BYTES" ] && [ "$R_BYTES" != "$ACT_BYTES" ]; then
   exit 2
 fi
 
+# 闸面完整性：OCI 面 SG 内容凭据窄（restrict 隧道键）→ bridge-audit 延后；
+# 本盒必须对**同一 sha 净树**补跑该闸，绿才落戳（延后径本身不产戳=不绕闸）。
+case "$R_NETGATES" in
+  full) ;;
+  local:bridge-audit)
+    [ "$(git rev-parse HEAD 2>/dev/null)" = "$SHA" ] \
+      || { echo "❌ [oci-ci-accept] 延后闸补跑需 HEAD==被核 sha（当前 $(git rev-parse HEAD 2>/dev/null)）——不可核" >&2; exit 2; }
+    [ -z "$(git status --porcelain 2>/dev/null)" ] \
+      || { echo "❌ [oci-ci-accept] 延后闸补跑需净树（工作树有改动）——不可核，本盒现径" >&2; exit 2; }
+    echo "▶ [oci-ci-accept] 本盒补跑延后闸 bridge-audit（同 sha 净树；SG/OCI 凭据在本盒）…" >&2
+    if ! bash "$ROOT/scripts/check_bridge_registry.sh" >&2; then
+      echo "❌ [oci-ci-accept] 延后闸 bridge-audit 本盒红——不落戳" >&2
+      exit 1
+    fi ;;
+  *)
+    echo "❌ [oci-ci-accept] netgates=${R_NETGATES:-?} 不可认——不可核" >&2
+    exit 2 ;;
+esac
+
 STAMP_STATE=written
 if [ -f "$STAMP" ]; then
   AGE=$(( $(date +%s) - $(date -r "$STAMP" +%s) ))
@@ -102,6 +121,7 @@ fi
 oci_report_write "$SIDE" \
   "sha=$SHA" "arch=$R_ARCH" "local_arch=$(uname -m)" "mode=$R_MODE" "pkgs=$R_PKGS" \
   "run=$R_RUN" "fail=$R_FAIL" "skip=$R_SKIP" "baseline=$R_BASE" "host=$R_HOST" \
+  "netgates=$R_NETGATES" \
   "started=$R_START" "finished=$R_FIN" "log_sha256=${ACT_HASH:-}" "log_bytes=${ACT_BYTES:-0}" \
   "report_fetched=$(date -Is)" "stamp=$STAMP_STATE" "note=$R_NOTE" || exit 2
 

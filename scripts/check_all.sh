@@ -17,6 +17,7 @@ fail() {
   bash "$(pwd -P)/scripts/oci_ci_divergence.sh" "$(git rev-parse HEAD 2>/dev/null || true)" || true # tolerate: 分歧探针末环（无侧档=静默退）
   exit 1
 }
+BRIDGE_DEFERRED=0
 step() { echo "── $1" >&2; }
 
 # T-0409 刀①：同 checkout 全局互斥锁——锁键=git toplevel 真实路径
@@ -57,7 +58,7 @@ if ! flock -n 9 2>/dev/null; then
   oe_lock "check_all 锁到手 key=${TOPKEY}（前跑已退续跑）"
   echo "✅ [check-all] 锁到手（前跑已退）——续跑" >&2
 fi
-rm -f "$STAMP" "$STAMP.mode"   # 重跑先毁旧戳（含 mode 痕）——中途败不留残戳
+rm -f "$STAMP" "$STAMP.mode" "$STAMP.deferred"   # 重跑先毁旧戳/延后标（含 mode 痕）——中途败不留残戳
 
 step "go build";    go build ./...                              || fail "go build 红"
 step "go vet";      go vet ./...                                || fail "go vet 红"
@@ -69,7 +70,16 @@ step "env-reads";   bash scripts/check-env-reads.sh             || fail "env 门
 step "rejects";     bash scripts/check_rejects_keys.sh          || fail "rejects 键红"
 step "config-write-domain"; bash scripts/check_config_write_domain.sh || fail "config 写域闸红"
 step "migrations";  bash scripts/check_migrations.sh            || fail "迁移机检红"
-step "bridge-audit"; bash scripts/check_bridge_registry.sh         || fail "桥域对账闸红"
+step "bridge-audit"
+if [ "${CHECK_ALL_DEFER_BRIDGE:-}" = 1 ]; then
+  # 提案-check_all甩OCI：OCI 面 SG 内容凭据窄（隧道键 restrict 仅 15433）——
+  # 本闸延后到本盒 accept 补跑同 sha 树（绿才落戳；延后跑本身不落戳，
+  # 故本环境不可用于绕闸产戳）。本地部署树正常跑不设此 env=全量。
+  BRIDGE_DEFERRED=1
+  echo "⏸ [check-all] bridge-audit 延后（CHECK_ALL_DEFER_BRIDGE=1——本机无 SG 内容面凭据；本盒 accept 补跑后方落戳）" >&2
+else
+  bash scripts/check_bridge_registry.sh         || fail "桥域对账闸红"
+fi
 step "tolerate-report"; bash scripts/check_tolerate_report.sh      || fail "容错必报 lint 红"
 step "ops-chain";   bash scripts/check_ops_chain.sh                || fail "ops 账链闸红"
 step "seat-writes"; bash scripts/check_seat_writes.sh              || fail "席位写域闸红"
@@ -254,5 +264,10 @@ else
   run_go_test "go test 红" ./...
 fi
 
+if [ "$BRIDGE_DEFERRED" = 1 ]; then
+  printf 'bridge-audit-deferred\n' > "$STAMP.deferred"
+  echo "⏸ [check-all] 全链绿（bridge-audit 延后未验）——不落 check-green 戳；本盒 accept 补跑该闸绿后落" >&2
+  exit 0
+fi
 date -Is > "$STAMP"
 echo "✅ [check-all] 全链绿（mode=$MODE）——戳落 $STAMP" >&2

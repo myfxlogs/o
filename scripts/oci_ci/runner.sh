@@ -28,6 +28,7 @@ mkdir -p "$REPORTS" "$GOMODCACHE" || exit 1
 : > "$LOG" || exit 1
 STARTED=$(date -Is)
 BASE=""
+NETGATES=full
 
 # shellcheck source=report_lib.sh
 . "$(dirname -- "${BASH_SOURCE[0]}")/report_lib.sh" || exit 1
@@ -38,7 +39,7 @@ write_report() { # $1=exit $2=mode $3=pkgs $4=run $5=fail $6=skip $7=note
   b=$(wc -c < "$LOG" 2>/dev/null | tr -d ' ' || true)
   oci_report_write "$REPORT" \
     "sha=$SHA" "exit=$1" "mode=$2" "pkgs=$3" "run=$4" "fail=$5" "skip=$6" \
-    "arch=$(uname -m)" "baseline=$BASE" "host=$(hostname)" \
+    "arch=$(uname -m)" "baseline=$BASE" "host=$(hostname)" "netgates=$NETGATES" \
     "started=$STARTED" "finished=$(date -Is)" \
     "log_sha256=${h:-}" "log_bytes=${b:-0}" "note=$7"
 }
@@ -97,7 +98,10 @@ go mod download >>"$LOG" 2>&1 || not_run "go-mod-download-fail"
 git checkout -- go.mod go.sum 2>/dev/null || true # tolerate: 无改亦可
 
 # 跑 check_all（全链同本盒；scoped 档内测试库租约由 o-postgres-test 族供给）。
-timeout "${OCI_CI_RUN_TIMEOUT:-5400}" bash scripts/check_all.sh >>"$LOG" 2>&1
+# bridge-audit 延后：OCI 面 SG 凭据=restrict 隧道键（仅 15433 端口转发，不能
+# 跑远端 psql）——本闸交本盒 accept 在**同 sha 净树**补跑，绿才落戳；延后
+# 径本身不落 check-green（check_all 写 .deferred 标），故不构成绕闸产戳面。
+CHECK_ALL_DEFER_BRIDGE=1 timeout "${OCI_CI_RUN_TIMEOUT:-5400}" bash scripts/check_all.sh >>"$LOG" 2>&1
 RC=$?
 
 MODE=""; PKGS=""
@@ -120,6 +124,13 @@ case "$MODE" in
   *) not_run "mode-${MODE:-unknown}-not-oci" ;;
 esac
 [ -n "$PKGS" ] || not_run "empty-pkg-list"
+if [ -f "$WORK/.git/check-green-$SHA" ]; then
+  NETGATES=full
+elif [ -f "$WORK/.git/check-green-$SHA.deferred" ]; then
+  NETGATES=local:bridge-audit
+else
+  not_run "green-marker-missing"
+fi
 
 # RUN/FAIL/SKIP 计数：同 GOCACHE 二次 go test -json 走缓存重放（毫秒级；
 # 与 check_all 同缓存键，不重跑测试）。计数败=不核签交本盒终盖。

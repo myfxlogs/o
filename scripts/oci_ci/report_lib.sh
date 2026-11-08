@@ -9,6 +9,8 @@
 #   run/fail/skip  go test -json 计数（含子测试）
 #   arch       跑侧 uname -m（aarch64=ARM；分歧探针据此比本盒）
 #   baseline   跑侧 origin/master（scope 对拍基线）
+#   netgates   闸面完整性：full=全闸在跑侧过；local:bridge-audit=桥域闸延后
+#              本盒补跑（accept 必须同 sha 净树补跑绿后才落戳）
 #   host/started/finished
 #   log_sha256/log_bytes  整跑输出哈希（本盒拉 log 复算防伪造面）
 #   note       人读备注（无换行）
