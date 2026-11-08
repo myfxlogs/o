@@ -775,3 +775,23 @@ func TestFaceBaselineServiceCOS上行Registered(t *testing.T) {
 		t.Fatalf("%s 理由键空——注册式不静默（depblind 豁免同律）", scope)
 	}
 }
+
+// TestFaceBaselineGateDomainMetaRegistered T-0492 先红桩（T-0388 修复类律
+// ——病灶存在断言修前红+同断言修后绿）：签名面 face:gate_domain:meta 必须
+// 在人工基线册。根因锚：meta 键域=fin_0143 迁移种 meta.autoapprove.registry
+// （T-0455 机批册本体——签名→钦定文件径白名单，dm_autoapprove.sh 实读同键
+// =候选票批权径在案；写域册外 fail-closed 归 owner=类册面钦定判据设计
+// 在案）在册即面——gate_domain 枚举=split_part(key,'.',1) 本体零硬编码，
+// 域在册恒产非产消断；重种/库重建回摆重复升件炸起草拍（T-0393 链，
+// 生产实证升件源 #4043、面清单新面行 #4042、快照批 14/15 在册）。
+// 修前未登记=红；入册后同断言绿且理由键非空（注册式不静默）。
+func TestFaceBaselineGateDomainMetaRegistered(t *testing.T) {
+	scope := "face:gate_domain:meta"
+	reason, ok := faceBaselineExempt(scope)
+	if !ok {
+		t.Fatalf("病灶存在：%s 未入人工基线册——窗摆回将重复升件（T-0492）", scope)
+	}
+	if strings.TrimSpace(reason) == "" {
+		t.Fatalf("%s 理由键空——注册式不静默（depblind 豁免同律）", scope)
+	}
+}

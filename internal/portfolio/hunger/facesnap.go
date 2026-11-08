@@ -81,6 +81,14 @@ var faceBaselineWhitelist = map[string]string{
 	// 罩位），静默 >7d 出集再活跃=再现新面再升件再起草循环（T-0393
 	// 链，T-0471 CEO 同型先例）。
 	"face:service:席O-COS": "T-0474 入册——席O-COS=COS 秘书席交互席位（业主令 2026-11-04）：O-COS tmux 会话 report.sh 回退径自报（无 O_SEAT/映射表无 席O-COS→COS 条目），ops_event 写径合法；队空零写间歇面窗摆登记不重复升；生产亲证 2026-11-08 00:18Z 首行 49 行（ops_event #3931 升件源）",
+	// T-0492：gate_domain:meta 面——meta app_config 键域=fin_0143 迁移种
+	// meta.autoapprove.registry（T-0455 机批册本体在册即面；读者=
+	// depConfigReaders["meta"] 册载「DM 机批闸册」T-0448 补册，
+	// dm_autoapprove.sh 实读同键=候选票批权径本票自身 #4373 机批实证）；
+	// gate_domain 枚举=split_part(key,'.',1) 本体零硬编码，域在册恒产
+	// 非产消断——重种/库重建回摆重复升件炸起草拍（T-0393 链，升件源
+	// #4043；姊妹面 dep_pair:config:meta→DM 机批闸册=T-0490 同根另册）。
+	"face:gate_domain:meta": "T-0492 入册——meta 键域=fin_0143 种 meta.autoapprove.registry（T-0455 机批册本体）在册即面，读者册载 DM 机批闸册（dm_autoapprove.sh 实读同键批权径在案，写域册外 fail-closed 归 owner=类册面钦定判据设计在案）；枚举谓词 split_part 本体零硬编码合法新面登记不重复升；生产亲证 app_config meta.autoapprove.registry 在册+升件源 ops_event #4043（快照批 14/15 在册）",
 }
 
 // faceRow 单面行（kind=面类五键，face=面键——同拍批内 kind+face 唯一）。
