@@ -130,6 +130,7 @@ func TestXvenueOpenRouted(t *testing.T) {
 		VALUES(now(),'ETH-USDT-SWAP',-0.0006,-0.0004)`); err != nil {
 		t.Fatal(err)
 	}
+	seedAllCellsGreen(t, ctx, r) // T-0461 格凭据闸——xvenue 格绿补种
 	calls := 0
 	r.AttachOpener(stubOpener{fn: func() { calls++ }})
 	r.openLive(ctx)

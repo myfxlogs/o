@@ -90,4 +90,63 @@
 
 ## 结果回填
 
-（施工写：实现摘要 / 测试证据 / 偏离说明）
+### 实现摘要（施工 2026-11-08）
+
+- **格集枚举器** `internal/platform/excell`：机枚举唯一真源——
+  fin_strategy 占用格 ∪ execfam 词表零占免演登记 ∪ xvenue-carry
+  双向钦定格（mt5xokx，空格 $50 单档）；占用格两档=min+median
+  active notional 去重；`CellKey` 唯一编码
+  `template@venuepair/direction#usd=N`；`Normalize` 副腿坐标归并；
+  `GreenKeys`/`CellGreen` latest verdict fail-closed 全档齐绿判。
+- **execfam.All()** 词表导出（零占免演登记消费面+矩阵全覆盖断言锚）。
+- **mt5sim** `internal/trading/mt5sim`：CFD 仿真 venue——
+  OrderSend/OrderClose/OpenedOrders/OrderHistory/SymbolParams/
+  OrderModify/Cli/Dialect/Meta/ContractPos/LotSz/SpotAvailBal 全缝；
+  ticket 序列 700001+、TradeMode=4、拒序=乐器缺→交易态→量纲→
+  平仓票缺；方言/拒码=mtexec 实约族同形（禁拍编律守）。
+- **simdrill matrix 模式**（`cmd/simdrill -matrix`）：模板→腿形
+  注册表 `legShapeOf`（funding/basis→okx_two_leg、xvenue-carry→
+  xvenue、dcd_*→dcd；未登记=显式 fail 凭据不静默漏）；每格每档
+  ephemeral 策略行（template_ref=`simdrill:cell:<cell_key>` 防
+  dedupe 撞）→开→持→哨戒强平→结算→venue 残留=0 对拍→凭据落
+  `fin_exec_drill.cell_key`；任一格 fail=ops_event 升件+Failed 计数。
+- **xvenue 腿构**直用 `execution.BuildXvenueLegs` 产线同径（mt5 腿
+  先 okx 腿后钉死）；execTwoLeg 走 `execution.Runner`+`RouterExecutor`
+  venue 分派+`mtexec.Executor` ticket 全周期+`Warden` 哨戒 venue 路由。
+- **DCD 抽立** `internal/trading/dcdexec`：cmd/core dcdOpen 产线同码
+  单源（quote→risk→intent→trade→status→exec/position 态迁；venue
+  三步缝注入式；cmd 侧仅规格映射+缝别名）。
+- **迁移** `fin_0144_exec_drill_cell.sql`：`fin_exec_drill.cell_key`
+  可空列+migrate_table.go {144} 登记。
+- **armed→open 格凭据闸** `internal/portfolio/lifecycle/cellgate.go`：
+  openLive 拍首装载格集+latest 判词，候选格归一坐标→CellGreen 全档
+  齐绿才放行；缺/败=hold+`exec_cell_hold` 计数（rejects 注册表登记）；
+  xvenue 副腿行豁免；读败 fail-closed 全 hold。
+- **import direction** 白名单 9 边登记（excell/execfam、lifecycle→
+  excell、dcdexec→risk+okxexec、mt5sim→gen/mtapi/mt5、simdrill→
+  excell+dcdexec+mt5sim+mtexec）。
+
+### 测试证据
+
+- `go build ./...`、`go vet ./...` 全绿。
+- `go test -count=1 ./internal/trading/simdrill` 绿——矩阵全径：
+  funding 两档/basis/DCD/xvenue+残留=0+凭据落账断言。
+- `go test ./internal/portfolio/lifecycle` 绿——格闸 hold→fail-hold→
+  pass 放行三段断言+既有诊断闸序回归（TestXvenueLifetimeDirectionSign
+  等）。
+- `go test ./internal/trading/mt5sim ./internal/platform/excell
+  ./internal/trading/dcdexec` 绿——ticket 生命周期/拒序/枚举/态映射。
+- `check_migrations` 七断言过；`check_import_direction` 182/203 边 OK；
+  `check-lines` 全绿（行数棘轮拆件：matrix.go→matrix_exec/legs/
+  venue.go、opener.go→cellgate.go、mt5sim.go→mt5sim_seam.go）。
+
+### 偏离说明
+
+- `fin_exec_drill.inst_id` 列载本格代表乐器（`cell_key` 列载机读格键
+  ——语义分记不混）。
+- 格闸判位=r.op.Open 前（诊断闸序不变）而非候选前置过滤——保
+  lifetime/breakeven/振荡诊断与 fin_eval_reject 落账面不变；
+  TestXvenueLifetimeDirectionSign 序回归实证。
+- 验收锚「六格全谱跑绿凭据在案」：桩测断言凭据落账机制在案；真库
+  全谱跑批=部署前置运维动作（`simdrill -matrix` 一键产凭据）。
+- 范围外发现：无（勘察期未见须另立票病灶）。
