@@ -18,6 +18,13 @@ webhook；端点未就绪期＝会话尾回执记『待送清单』」。实测�
 3. **ops_event 零条 seat=研究员 行**——两触发（T-0300 达阈/venue 新品）
    历史零触发，双断面从未爆雷=断线一直没被看见。
 
+## 范围（CTO 钦定回填——depgate 缺清单补位）
+
+1. `scripts/meta/ceo_queue.sh`——seat 白名单补 `'研究员'`；
+2. `skills/CEO席/SKILL.md`——收件面 seat 记述同步更新；
+3. `skills/研究员/SKILL.md`——送径 webhook 退役改 ops_event 直写；
+4. `scripts/meta/tests/`——ceo_queue 出队桩测新件（升件入队/终态消队两断言）。
+
 ## 判据
 
 1. `ceo_queue.sh` seat 白名单补 `'研究员'`（skills/CEO席/SKILL.md
