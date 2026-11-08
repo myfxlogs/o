@@ -15,15 +15,18 @@
 #   git 写径=dm_repolock.sh 同台互斥（会话 merge/push 同锁——忙即本拍
 #   让位不抢写；抢陈锁/冲突/脏树/推败→升件不静默）。
 #   用法: dm_ledger.sh [all|flip|reconcile]（缺省 all=A 后 B；
-#   flip=只票翻面，reconcile=只补登面）。
+#   flip=只票翻面，reconcile=只补登面）；
+#   dm_ledger.sh --lineage T-XXXX（DGM 谱系投影只读面——提案-DGM变异
+#   档案取子集②：ops_event 票链+docs/prompts 返修件聚合 v1..vN，
+#   零写零锁零新表——谱系=投影非存储）。
 # env 覆写: DM_ENV_FILE O_LEDGER_REPO O_LEDGER_TASK_DIR O_LEDGER_DONE_DIR
 #   O_LEDGER_WT_ROOT O_LEDGER_MASTER_REF O_LEDGER_LOCK_SH O_LEDGER_CHECK_ALL
 #   O_LEDGER_GIT_PUSH O_LEDGER_MAX_BATCH O_LEDGER_VERDICT_STALE
 #   O_LEDGER_LOCK_WAIT O_LEDGER_OPS_ESC
 set -u
 MODE=${1:-all}
-case "$MODE" in all|flip|reconcile) ;; *)
-	echo "用法: dm_ledger.sh [all|flip|reconcile]" >&2; exit 2 ;;
+case "$MODE" in all|flip|reconcile|--lineage) ;; *)
+	echo "用法: dm_ledger.sh [all|flip|reconcile|--lineage T-XXXX]" >&2; exit 2 ;;
 esac
 ENVF="${DM_ENV_FILE:-/opt/o-research/env}"
 FIN_DSN=$(grep '^FIN_PG_DSN=' "$ENVF" 2>/dev/null | cut -d= -f2- | tr -d '"')
@@ -167,7 +170,122 @@ waipai_merge_proof() {
 	return 1
 }
 
+# ── DGM 谱系投影（提案-DGM变异档案取子集②；--lineage 只读面）────────
+# 票链 v1..vN：驳回=段界（杀前段）；段内首个开工词（领单/派单/拉起）
+# =起点、末个收口/移交/裁决/通过/完成=讫点。三量口径只记不发明综合分：
+#   驳回定性类=死法类 token（码面/判据面/环境面——驳回行〔变体差量〕
+#     尾段或返修件回填，缺=未记不臆断）；
+#   复跑墙钟=驳回.ts→下版首个收口.ts（投影现算非存储）+本程墙钟；
+#   断言增减=返修件/驳回行 token（缺=未量）。
+# 字段面（零新表——note 尾段 token+返修件节，格式钉见 CTO席 SKILL.md）：
+#   驳回行 note：〔变体差量〕死法类=<类>；死因=<定性一句>；改法=<一句>；
+#     断言=<+N/-M|未量>（字段间全角；分隔——值内空格安全）
+#   返修件 docs/prompts/T-NNNN-返修N.md：## 变体差量 节三行
+#     （上案死法/本案改法/断言增减）——返修N=v(N+1)。
+vd_get() { # $1=文本 $2=键 → token 值（缺=空）
+	printf '%s' "$1" | grep -oE "${2}=[^；]*" | head -1 | cut -d= -f2- \
+		| sed 's/[[:space:]]*$//;s/^[[:space:]]*//'
+}
+fmt_dur() { # $1=秒 → XmYs/XhYm 可读
+	local s=${1:-0} h m
+	[ "$s" -lt 0 ] 2>/dev/null && s=0
+	h=$(( s / 3600 )); m=$(( (s % 3600) / 60 )); s=$(( s % 60 ))
+	if [ "$h" -gt 0 ]; then printf '%dh%dm' "$h" "$m"
+	elif [ "$m" -gt 0 ]; then printf '%dm%ds' "$m" "$s"
+	else printf '%ds' "$s"; fi
+}
+run_lineage() {
+	local tid=${1:-}
+	case "$tid" in T-[0-9][0-9][0-9][0-9]) ;; *)
+		echo "用法: dm_ledger.sh --lineage T-XXXX" >&2; return 2 ;;
+	esac
+	local rows num=${tid#T-}
+	rows=$(psql "$FIN_DSN" -qAt -F $'\x1f' -c \
+		"SELECT to_char(ts,'YYYY-MM-DD HH24:MI:SS'), event, note FROM ops_event WHERE ticket='$(QC "$tid")' ORDER BY ts,id" 2>/dev/null) \
+		|| { echo "❌ [dm-ledger] --lineage 票链查询败" >&2; return 1; }
+	[ -n "$rows" ] || { echo "ℹ [dm-ledger] $tid ops_event 零行——谱系空" >&2; return 0; }
+
+	# 分段状态机：驳回=段界杀前段；段内首个开工词=起点（后续开工词不重置），
+	# 末个收口类/裁决类=讫点。段数组平行：open_t/open_e/end_t/end_e/die_t/die_n
+	local -a o_t=() o_e=() e_t=() e_e=() d_t=() d_n=()
+	local ts ev nt opened=0 ver=0
+	while IFS=$'\x1f' read -r ts ev nt; do
+		[ -n "$ts" ] || continue
+		if [ "$ev" = "驳回" ]; then
+			d_t[$ver]=$ts; d_n[$ver]=$nt
+			ver=$((ver+1)); opened=0
+			continue
+		fi
+		if [ "$opened" = 0 ]; then
+			case "$ev" in
+				领单|派单|拉起|开工) o_t[$ver]=$ts; o_e[$ver]=$ev; opened=1 ;;
+			esac
+		fi
+		case "$ev" in
+			收口|移交|裁决|通过|完成|处置) e_t[$ver]=$ts; e_e[$ver]=$ev ;;
+		esac
+	done <<< "$rows"
+	local nv=$((ver+1)) k
+
+	# 返修件差量面：返修N 落地 v(N+1)——fields 备查（rf_*[N]）
+	local -A rf_dief=() rf_fix=() rf_cls=() rf_asm=()
+	local f n fd ff fc fa
+	for f in "$REPO"/docs/prompts/"T-$num"-返修*.md; do
+		[ -f "$f" ] || continue
+		n=$(basename "$f" | sed -n 's/.*返修\([0-9][0-9]*\)\.md/\1/p')
+		[ -n "$n" ] || continue
+		fd=$(grep -m1 '上案死法' "$f" 2>/dev/null | sed 's/.*上案死法[：:][[:space:]]*//')
+		ff=$(grep -m1 '本案改法' "$f" 2>/dev/null | sed 's/.*本案改法[：:][[:space:]]*//')
+		fc=$(vd_get "$fd" 死法类)
+		fa=$(grep -m1 '断言增减' "$f" 2>/dev/null | sed 's/.*断言增减[：:][[:space:]]*//')
+		rf_dief[$n]=$fd; rf_fix[$n]=$ff; rf_cls[$n]=$fc; rf_asm[$n]=$fa
+	done
+
+	echo "$tid 谱系 v1..v$nv（投影=ops_event 票链+docs/prompts 返修件——零存储）"
+	local next_co
+	for ((k=0;k<nv;k++)); do
+		local vt="v$((k+1))" ot=${o_t[$k]:-} oe=${o_e[$k]:-} et=${e_t[$k]:-} ee=${e_e[$k]:-}
+		local dt=${d_t[$k]:-} dn=${d_n[$k]:-}
+		local span=""
+		[ -n "$ot" ] && span="$oe@${ot:5}"
+		[ -n "$et" ] && span="$span → $ee@${et:5}"
+		[ -z "$span" ] && span="（无开工/讫点行）"
+		[ -n "$dt" ] && span="$span → 死@驳回 ${dt:5}"
+		[ -z "$dt" ] && [ -z "$et" ] && span="$span（在飞）"
+		# 返修件回填面：本版 v(k+1) 由返修k 落地——rf_*[k] 即本版差量声明
+		local rn=$k rnote=""
+		if [ -n "${rf_dief[$rn]:-}${rf_fix[$rn]:-}${rf_asm[$rn]:-}" ]; then
+			rnote="｜返修$rn 件: 上案死法=${rf_dief[$rn]:-未记} 本案改法=${rf_fix[$rn]:-未记} 断言增减=${rf_asm[$rn]:-未量}"
+		fi
+		echo "$vt $span$rnote"
+		if [ -n "$dt" ]; then
+			local dc dd dg da
+			dc=$(vd_get "$dn" 死法类); dd=$(vd_get "$dn" 死因); dg=$(vd_get "$dn" 改法); da=$(vd_get "$dn" 断言增减)
+			# 死法类缺 token→返修(k+1) 件「上案死法」记的正是本版死法——其死法类兜底
+			[ -n "$dc" ] || dc=${rf_cls[$((k+1))]:-未记}
+			echo "   死法类=${dc:-未记}｜死因=${dd:-未记}｜改法=${dg:-未记}｜断言增减=${da:-未量}"
+			# 复跑墙钟=本版驳回→下版末个收口类/裁决类行（投影现算非存储）
+			if [ $((k+1)) -lt "$nv" ]; then
+				next_co=${e_t[$((k+1))]:-}
+				if [ -n "$next_co" ]; then
+					local s1 s2 so se
+					s1=$(date -d "$dt" +%s 2>/dev/null); s2=$(date -d "$next_co" +%s 2>/dev/null)
+					so=$(date -d "$ot" +%s 2>/dev/null); se=$(date -d "${e_t[$k]:-$dt}" +%s 2>/dev/null)
+					[ -n "$s1" ] && [ -n "$s2" ] && [ -n "$so" ] && [ -n "$se" ] \
+						&& echo "   本程墙钟=$(fmt_dur $((se-so)))｜复跑墙钟(驳回→v$((k+2))讫)=$(fmt_dur $((s2-s1)))"
+				else
+					echo "   复跑墙钟=在飞未讫（v$((k+2)) 尚无收口/裁决行）"
+				fi
+			fi
+		fi
+	done
+	return 0
+}
+
 # ── A 面扫描（读径）：定票翻动作集——mv/翻面在锁内才真动手 ────────────
+# --lineage 只读投影：env 已解（FIN_DSN/REPO），零写零锁零 fetch——
+# 读径即出，不进翻面/补登/git 写链。
+[ "$MODE" = "--lineage" ] && { run_lineage "${2:-}"; exit $?; }
 ACT_T=(); ACT_TF=(); ACT_TMPL=()
 if [ "$MODE" != "reconcile" ]; then
 	# 远端先行判据面——先 fetch 再取证（读径不进写锁）

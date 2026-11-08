@@ -18,13 +18,13 @@ bad(){ echo "FAIL $1"; fail=$((fail+1)); }
 
 # ── ① scratch PG（test-pg 池——o_test_s* 分片同池，独立库名隔离）──
 BASE_DSN="${O_TEST_PG_DSN:-postgres://o:o@localhost:5438/o_test?sslmode=disable}"
-ADMIN_DSN=$(printf '%s' "$BASE_DSN" | sed 's|/o_test?|/postgres?|;s|/o_test$|/postgres|')
+ADMIN_DSN=$(printf '%s' "$BASE_DSN" | sed -E 's#(postgres(ql)?://[^/]+/)[^/?]+#\1postgres#')
 DBN="o_tseq_t$$"
 psql "$ADMIN_DSN" -qAtc "DROP DATABASE IF EXISTS $DBN WITH (FORCE)" >/dev/null 2>&1
 psql "$ADMIN_DSN" -qAtc "CREATE DATABASE $DBN" >/dev/null 2>&1 \
   || { echo "SKIP: test-pg 不可达（$BASE_DSN）——票号序列桩测跳过"; exit 0; }
 trap 'timeout 60 psql "'"$ADMIN_DSN"'" -qAtc "DROP DATABASE IF EXISTS '"$DBN"' WITH (FORCE)" >/dev/null 2>&1; rm -rf "$TMP"' EXIT
-DSN=$(printf '%s' "$BASE_DSN" | sed "s|/o_test?|/$DBN?|")
+DSN=$(printf '%s' "$BASE_DSN" | sed -E "s#(postgres(ql)?://[^/]+/)[^/?]+#\1$DBN#")
 psql "$DSN" -qAt <<'SQL' >/dev/null
 CREATE TABLE ops_event(id bigserial PRIMARY KEY, ts timestamptz NOT NULL DEFAULT now(),
   seat text NOT NULL, event text NOT NULL, ticket text NOT NULL DEFAULT '', note text NOT NULL DEFAULT '');
