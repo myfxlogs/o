@@ -194,6 +194,41 @@ if [ "${1:-}" = "--remote" ]; then
   exit "$status"
 fi
 
+if [ "${1:-}" = "--seq" ]; then
+  # 序列对账模（票号原子发号 fin_0151）：fin_ticket_seq.last_value
+  # 须 ≥ 现存票号最大号——序回跳=红（防分支带旧序列文件/种子漂移
+  # 造成号码回跳重发）。半成品窗 fail-open：DSN 缺席/序列未迁移
+  # （查询败）=NOTE 跳过不拦——迁移未应用环境无序可核。
+  FIN_DSN=
+  for ef in "${OPS_ESC_ENV_FILE:-}" "${DM_ENV_FILE:-}" "${REPORT_ENV_FILE:-}" \
+            /opt/o-research/env /home/ubuntu/o-research/env; do
+    [ -n "$ef" ] && [ -f "$ef" ] || continue
+    FIN_DSN=$(grep '^FIN_PG_DSN=' "$ef" 2>/dev/null | cut -d= -f2- | tr -d '"')
+    [ -n "$FIN_DSN" ] && break
+  done
+  if [ -z "$FIN_DSN" ]; then
+    echo "NOTE(T-0219/seq): FIN_PG_DSN 缺席——序列对账跳过（半成品窗 fail-open）" >&2
+    exit 0
+  fi
+  last=$(psql "$FIN_DSN" -qAt -c "SELECT last_value FROM fin_ticket_seq" 2>/dev/null) || last=
+  if ! [[ "$last" =~ ^[0-9]+$ ]]; then
+    echo "NOTE(T-0219/seq): fin_ticket_seq 不可达（迁移未应用）——对账跳过" >&2
+    exit 0
+  fi
+  # 现存票号最大号=next_ticket.sh 同口径（origin/master+HEAD 两面并扫）
+  smax=$( { git ls-tree -r --name-only origin/master -- docs/tasks/ 2>/dev/null; \
+           git ls-tree -r --name-only HEAD -- docs/tasks/ 2>/dev/null; } \
+    | grep -E '^docs/tasks/(done/)?T-[0-9]{4,}[[:alpha:]]?-' \
+    | grep -oE 'T-[0-9]{4,}' | sed 's/^T-//' | sort -n | tail -1)
+  smax=${smax:-0}
+  if [ "$((10#$last))" -lt "$((10#$smax))" ]; then
+    echo "FAIL(T-0219/seq): fin_ticket_seq.last_value=$last < 现存最大票号 T-$smax——序列回跳/种子漂移，nextval 将重发在案票号；setval 抬升或查迁移种子" >&2
+    exit 1
+  fi
+  echo "OK(T-0219/seq): fin_ticket_seq.last_value=$last ≥ 现存最大票号 T-$smax" >&2
+  exit 0
+fi
+
 # 无参：存量查重——exit 1=存在同号共存；存量处置归决策，本模式只出清单不拦入链
 all_ticket_paths=$(ticket_files docs/tasks)
 ticket_count=$(printf '%s\n' "$all_ticket_paths" | grep -c . || true)

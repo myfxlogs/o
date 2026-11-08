@@ -156,6 +156,7 @@ var migrationTable = []struct {
 	{147, "fin_0147_ops_ticket_phase.sql"},
 	{148, "fin_0148_eval_pulse.sql"},
 	{149, "fin_0149_autoapprove_family.sql"},
+	{151, "fin_0151_ticket_seq.sql"},
 	{152, "fin_0152_case_writeback_grants.sql"},
 
 	// —— md 链（版本链内唯一且单调；md 链版本=历史号+1000 与 fin 键空间全局不相交——跨链并 schema 时 schema_migrations 零撞号，check_migrations 断言①⑤）——
