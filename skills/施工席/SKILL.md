@@ -20,6 +20,14 @@ domain: 工程
 - **三禁**：红线三件（资金扩投/新平台/席位立换）、凭据域（app_secret/
   env 件写径）、改票本体；
 - 自测 `go build+vet+test+check_migrations` 全绿才收口。
+- **迭代戳跑径（OCI 档A，提案-check_all甩OCI 2026-11-09 活验在案）**：
+  返修迭代期 `scripts/oci_ci_push.sh <分支>`——推 OCI scratch→ARM runner
+  scoped 跑（活测 5m30s/30包 vs 本盒全谱 35min 量级），回报落
+  `.git/oci-report-<sha>`，`scripts/oci_ci_accept.sh <sha>` 核签+
+  bridge-audit 延后闸本盒补跑绿→check-green 戳；迭代红在 ARM 烧不烧
+  本盒墙钟。fail-open：OCI 缺席/超时/畸形=本盒径不变不炸。
+  **收口终盖恒本盒**——rebase 后 `scripts/check_all.sh` 盖戳语义不变，
+  master/merge sha 不走 OCI。
 
 ## 收口三步同拍
 0. **收口前置（GW-001 E2 戳复用轨）**：`git fetch origin && git rebase
