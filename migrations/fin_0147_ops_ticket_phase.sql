@@ -59,4 +59,7 @@ BEGIN
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'o_fin_ro') THEN
     EXECUTE 'GRANT SELECT ON ops_ticket_phase TO o_fin_ro';
   END IF;
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'roster_rw') THEN
+    EXECUTE 'GRANT SELECT ON ops_ticket_phase TO roster_rw';
+  END IF;
 END $$;
