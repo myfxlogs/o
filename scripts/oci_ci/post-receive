@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# o-ci 裸仓 post-receive —— 推入分支 ref → 起 o-ci-runner@<sha>（档 A 输送径）。
+#
+# - refs/heads/master=scope 基线（本盒已检），不跑；
+# - 同 sha 已有报告=幂等跳过（人工重跑先删 reports/<sha>.report）；
+# - XDG_RUNTIME_DIR 显式给——ssh 裸环境调 systemctl --user 必需（linger 已开）。
+set -u
+CI_ROOT=${CI_ROOT:-$HOME/o-ci}
+export XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
+
+while read -r old new ref; do
+  [ "${new:-}" = "0000000000000000000000000000000000000000" ] && continue
+  case "$ref" in
+    refs/heads/master) continue ;;
+    refs/heads/*) ;;
+    *) continue ;;
+  esac
+  [ -f "$CI_ROOT/reports/$new.report" ] && continue
+  systemctl --user start --no-block "o-ci-runner@$new.service" \
+    || echo "post-receive: runner 启动败 sha=$new（查 systemd --user/loginctl linger）" >&2
+done
+exit 0

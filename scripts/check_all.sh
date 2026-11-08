@@ -11,7 +11,12 @@ cd "$(git rev-parse --show-toplevel)"
 GITDIR=$(git rev-parse --git-common-dir)
 STAMP="$GITDIR/check-green-$(git rev-parse HEAD)"
 
-fail() { echo "❌ [check-all] $1——绿了才推" >&2; exit 1; }
+fail() {
+  echo "❌ [check-all] $1——绿了才推" >&2
+  # 提案-check_all甩OCI 判据③：同 sha OCI(ARM) 绿而本盒红=分歧→升件+档复审禁静默。
+  bash "$(pwd -P)/scripts/oci_ci_divergence.sh" "$(git rev-parse HEAD 2>/dev/null || true)" || true # tolerate: 分歧探针末环（无侧档=静默退）
+  exit 1
+}
 step() { echo "── $1" >&2; }
 
 # T-0409 刀①：同 checkout 全局互斥锁——锁键=git toplevel 真实路径
