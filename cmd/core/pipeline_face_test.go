@@ -286,6 +286,7 @@ func TestGetCockpitPipelineMerged(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	cfg.ConnConfig.Database = testutil.ShardDatabase() // T-0468：与上方 Pool 同分库——schema 在分库不在基库
 	cfg.AfterConnect = func(ctx context.Context, cc *pgx.Conn) error {
 		_, err := cc.Exec(ctx, "SET search_path TO "+schema)
 		return err

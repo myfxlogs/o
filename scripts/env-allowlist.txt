@@ -11,6 +11,7 @@ O_ECONKB_DIR
 O_KB_DIR
 # —— 测试基建（internal/platform/testutil 域；鸡生蛋——被测库不能装自己的地址）——
 O_TEST_PG_DSN
+O_TEST_SHARDS
 O_TEST_PG_SERVICE_DSN
 O_EXEC_TEST_PG_DSN
 O_RECONCILE_TEST_PG_DSN

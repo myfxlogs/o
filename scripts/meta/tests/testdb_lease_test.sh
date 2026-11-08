@@ -146,7 +146,7 @@ printf '#!/usr/bin/env bash\nexit 0\n' > "$BIN/docker"
 printf '#!/usr/bin/env bash\nexit 0\n' > "$BIN/gofmt"
 for g in check_import_direction check-env-reads check_rejects_keys \
          check_config_write_domain check_migrations check_bridge_registry \
-         check_tolerate_report check_ops_chain; do
+         check_tolerate_report check_ops_chain check_seat_writes; do
   printf '#!/usr/bin/env bash\nexit 0\n' > "$REPO/scripts/$g.sh"
 done
 cp "$ROOT/scripts/check_all.sh" "$REPO/scripts/check_all.sh"

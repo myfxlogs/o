@@ -59,6 +59,15 @@ _testdb_lease_holder() {
 # rc0=租到或合法不占；rc1=排队超时（调用方 fail）。
 testdb_lease_acquire() {
   local names="${1:-}" dsn="${O_TEST_PG_DSN:-}" port rc
+  # T-0468 族内分库：端口分租之后库内再分片——O_TEST_SHARDS=K 时
+  # testutil 按调用方包目录散列落 o_test_s1..sK（pg advisory 锁域
+  # 按库隔离=跨库并发 Migrate 互不排队，herd 消）；K=1/缺省=现行
+  # 单库语义。分库由 testutil 首调自确保（CREATE DATABASE 败落
+  # 基库 o_test=只慢不语义错），本件不直接建库。
+  # 缺省 16：go test -p≈GOMAXPROCS(12) 并发包各得一库余量——
+  # A/B 实测 K=8→16 五包墙钟 4m30→2m16（-59% vs 单库基线），
+  # 再高无收益（并发上限封顶）只增建库面。
+  export O_TEST_SHARDS="${O_TEST_SHARDS:-16}"
   # ── 外部 DSN 径（人工择闲，KB checkall-parallel-load-flaky-timing 惯例）：
   #    锁随 DSN 端口走——注什么锁什么，租A注A。
   if [ -n "$dsn" ]; then

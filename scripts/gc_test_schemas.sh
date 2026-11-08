@@ -13,11 +13,15 @@
 #        VACUUM (ANALYZE)（在线形，无锁升级；VACUUM FULL=一次性手术
 #        不周期化——T-0426 10GB→15MB 那种深膨胀留人工径）。
 #   扫④ 遗留库：o_test_<后缀>（KB parallel-checkall 专库隔离径遗留件）
-#        零活连接→DROP；有连接跳过（宁可漏）。
+#        零活连接→DROP；有连接跳过（宁可漏）。**o_test_s<数字> 分库
+#        （T-0468 族内分片）豁免本扫**——持久基建非遗留 junk。
 # 目标=字母族测试实例（o-postgres-test + -b..-e，端口 5434-5438 白名单，
 # 或 GC_DSN 单指测试族实例）——**生产面禁越界**：端口出白名单/db 非
-# o_test 即拒不连（fail-closed rc2）；public schema 永不进清面（relic
-# 处置=决策/管理席运维待办，条目 test-instance-public-relic-shadow）。
+# o_test 族（o_test|o_test_s<数字>）即拒不连（fail-closed rc2）；
+# public schema 永不进清面（relic 处置=决策/管理席运维待办，条目
+# test-instance-public-relic-shadow）。T-0468：扫①②③ 覆盖面扩到
+# 分库（枚举 pg_database o_test 族逐库扫——分库内孤儿 schema 同权
+# 回收，卫生语义不因分库降级）。
 # 行为留痕：stdout 结构化行 `[gc-testdb] <ts> ...`（cron 重定向
 # /opt/o-backups/gc_test_schemas.log——票面「ops_event 或日志戳」取日志戳，
 # 不写生产 ops_event 面）。
@@ -43,18 +47,29 @@ declare -a DSNS=()
 if [ -n "${GC_DSN:-}" ]; then
   DSNS+=("$GC_DSN")
 else
-  for p in $FAMILY_PORTS; do DSNS+=("postgres://o:o@localhost:$p/o_test?sslmode=disable"); done
+  for p in $FAMILY_PORTS; do
+    # T-0468：库内枚举——o_test 族（基库+o_test_s<N> 分库）逐库成 DSN；
+    # 维护库 postgres 连接枚举，败/空=退 o_test 单库（现行语义宁可漏）。
+    dbs=$(psql "postgres://o:o@localhost:$p/postgres?sslmode=disable" -Atqc \
+      "SELECT datname FROM pg_database WHERE datname ~ '^o_test(_s[0-9]+)?$' ORDER BY datname" \
+      2>/dev/null || true) # tolerate: 实例缺席/枚举败=退基库单库（下方连通性检查统一 skip）
+    [ -n "$dbs" ] || dbs="o_test"
+    while IFS= read -r db; do
+      [ -n "$db" ] && DSNS+=("postgres://o:o@localhost:$p/$db?sslmode=disable")
+    done <<< "$dbs"
+  done
 fi
 [ "${#DSNS[@]}" -gt 0 ] || { echo "❌ [gc-testdb] 目标集空（GC_FAMILY_PORTS/GC_DSN 均未定）" >&2; exit 2; }
 
-# ── 守卫：端口白名单 + db=o_test（生产禁越界 fail-closed，票面钦定）──
+# ── 守卫：端口白名单 + db=o_test 族（生产禁越界 fail-closed，票面钦定；
+#    T-0468 放宽至 o_test_s<数字> 分库——仍测试族命名域）──
 for dsn in "${DSNS[@]}"; do
   port=""; db=""
   [[ "$dsn" =~ :([0-9]+)/ ]] && port="${BASH_REMATCH[1]}"
   [[ "$dsn" =~ /([A-Za-z0-9_]+)(\?|$) ]] && db="${BASH_REMATCH[1]}"
   ok=0
   for p in $FAMILY_PORTS; do [ "$port" = "$p" ] && ok=1; done
-  if [ "$ok" != 1 ] || [ "$db" != "o_test" ]; then
+  if [ "$ok" != 1 ] || ! [[ "$db" =~ ^o_test$|^o_test_s[0-9]+$ ]]; then
     echo "❌ [gc-testdb] 守卫拒：DSN 出测试族白名单（port=$port db=$db）——生产面禁越界" >&2
     exit 2
   fi
@@ -63,7 +78,9 @@ done
 # ── 逐实例三扫 ──
 alive=0
 for dsn in "${DSNS[@]}"; do
-  port=""; [[ "$dsn" =~ :([0-9]+)/ ]] && port="${BASH_REMATCH[1]}"
+  port=""; db=""
+  [[ "$dsn" =~ :([0-9]+)/ ]] && port="${BASH_REMATCH[1]}"
+  [[ "$dsn" =~ /([A-Za-z0-9_]+)(\?|$) ]] && db="${BASH_REMATCH[1]}"
   if ! psql "$dsn" -Atqc 'SELECT 1' >/dev/null 2>&1; then
     log "inst:$port 连不上（容器缺席/未起）——skip（宁可漏）"
     continue
@@ -126,9 +143,13 @@ for dsn in "${DSNS[@]}"; do
     fi
   fi
 
-  # 扫④ 遗留库（o_test_<后缀> 专库径遗留；零活连接才收）
+  # 扫④ 遗留库（o_test_<后缀> 专库径遗留；零活连接才收）——
+  # 只在基库 DSN 跑一遍（pg_database 是实例级目录，分库 DSN 重跑
+  # 同一枚举=重复劳动；T-0468 分库豁免见循环内判名）。
+  if [ "$db" = "o_test" ]; then
   while IFS= read -r dbn; do
     [ -n "$dbn" ] || continue
+    [[ "$dbn" =~ ^o_test_s[0-9]+$ ]] && continue # T-0468 分库=持久基建非遗留 junk
     conns=$(q "SELECT count(*) FROM pg_stat_activity WHERE datname='$dbn' AND pid<>pg_backend_pid()")
     case "$conns" in ''|*[!0-9]*) conns=9 ;; esac # 判不准=按有连接保守
     if [ "$conns" = 0 ]; then
@@ -138,10 +159,11 @@ for dsn in "${DSNS[@]}"; do
       log "inst:$port 库 $dbn 有 $conns 活连接——跳过（宁可漏）"
     fi
   done < <(q "SELECT datname FROM pg_database WHERE datname ~ '^o_test_[a-z0-9_]+$'")
+  fi
 done
 
 if [ "$alive" = 0 ]; then
   log "全实例不可达——本轮零清扫（rc1 可观测）"
   exit 1
 fi
-log "done（实例 $alive/${#DSNS[@]}；dry=$DRY）"
+log "done（库面 $alive/${#DSNS[@]} 可达——T-0468 分库后按库计；dry=$DRY）"
