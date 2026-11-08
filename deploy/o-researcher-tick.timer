@@ -1,0 +1,14 @@
+# o-researcher-tick.timer —— 30min 拍（T-0504 钦定④：事件稀疏、
+# tick 空拍=一次 psql+advisory 即退零烧；OnBootSec=10min
+# Persistent=true 对形 venue_watch/gauges 族；激活径：
+# systemctl --user enable --now o-researcher-tick.timer）。
+[Unit]
+Description=o-researcher-tick 30min 拍
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=30min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

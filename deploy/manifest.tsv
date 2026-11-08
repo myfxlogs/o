@@ -26,6 +26,7 @@ unit	o-mirror-push.service	deploy/o-mirror-push.service	sync
 unit	o-oci-bus-tunnel.service	deploy/o-oci-bus-tunnel.service	sync
 unit	o-readcred-tunnel.service	deploy/o-readcred-tunnel.service	sync
 unit	o-regime-analyst.service	deploy/o-regime-analyst.service	sync
+unit	o-researcher-tick.service	deploy/o-researcher-tick.service	sync
 unit	o-venue-watch.service	deploy/o-venue-watch.service	sync
 unit	o-green-stamp.path	deploy/o-green-stamp.path	sync
 timer	o-ceo-seat.timer	deploy/o-ceo-seat.timer	enabled
@@ -34,6 +35,7 @@ timer	o-econ-verdict.timer	deploy/o-econ-verdict.timer	enabled
 timer	o-mech.timer	deploy/o-mech.timer	enabled
 timer	o-mirror-push.timer	deploy/o-mirror-push.timer	enabled
 timer	o-regime-analyst.timer	deploy/o-regime-analyst.timer	enabled
+timer	o-researcher-tick.timer	deploy/o-researcher-tick.timer	enabled
 timer	o-venue-watch.timer	deploy/o-venue-watch.timer	enabled
 binary	/opt/o/bin/metabus	./cmd/metabus	green
 binary	/opt/o/bin/headlesspump	./cmd/headlesspump	green

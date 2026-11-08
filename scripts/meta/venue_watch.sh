@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # venue_watch.sh —— T-0348 venue 新品哨兵拍（零 LLM 纯判据——照 gauges_tick 对形；
 # 在册 venue 公告面+产品目录 diff → ops_event '新品' 行（seat=venue哨兵）→ 研究员
-# 触发信号。哨兵职责止于事件+心跳：不碰 fin_opp_hypothesis/fin_surface_gap/模板面
-# （研究员窄门——票面红线）。
+# 触发事件①。消费径=T-0504 钦定：scripts/meta/researcher_tick.sh 滤队
+# （o-researcher-tick.timer 30min）→systemd-run o-researcher-evt-* 瞬态拉起
+# researcher_run.sh；哨兵职责止于事件+心跳：不碰 fin_opp_hypothesis/fin_surface_gap/
+# 模板面（研究员窄门——票面红线）。
 #
 # 端点实探记录（2026-11-04 www.okx.com 公开面，协议面取证纪律——真实响应定字段）：
 #   公告 GET /api/v5/support/announcements → code=0，data[0].details 恒 20 条，
