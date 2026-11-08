@@ -13,6 +13,7 @@ query=${*: -1}
 [[ $query == "-" ]] && query=$(cat)
 case "$query" in
 	"-qAt") echo t ;; # T-0354 advisory-lock holder 桩（无 -c=锁会话形，答 t 放行）
+	*"ops_ticket_phase"*) exit 1 ;; # GW-001 段B1：VIEW 未迁移=legacy 桥面
 	*"SELECT count(*)"*) echo "$DM_PENDING_COUNT" ;;
 	*"SELECT l.ticket FROM ("*"COALESCE"*) ;;
 	*"SELECT l.ticket FROM ("*) printf '%s\n' "$DM_PENDING_TICKETS" ;;

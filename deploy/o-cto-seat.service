@@ -8,4 +8,5 @@ After=network-online.target
 Type=oneshot
 ExecStartPre=/usr/bin/env mkdir -p /var/tmp/o-cto
 ExecStart=/opt/o/scripts/meta/dm_tick.sh
+Environment=O_WORKER_PARALLEL_LIMIT=2
 NoNewPrivileges=true

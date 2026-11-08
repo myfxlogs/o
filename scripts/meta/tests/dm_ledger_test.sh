@@ -7,7 +7,10 @@
 #   ③A-裁决面：裁决通过+收口 SHA 证并→归档；④裁决未证并+龄超→升件不翻；
 #   ⑤写径锁忙→零 mv 零 commit（竞态互斥桩）；
 #   ⑥饿殍面（T-0417）：40 件 rc2 古票吃满批帽→新完成票仍入集翻页，
-#     rc2 票零写零翻。
+#     rc2 票零写零翻；
+#   ⑦GW-001 段B3 两源扩证：裁决执行件（无票支∧范围节无码件）与外审归宗
+#     （票面「外审裁过归宗@<sha>」∧sha∈master）翻完成+清单留证；
+#     有票支/有码件负例不翻。
 set -euo pipefail
 ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd)
 TMP=$(mktemp -d)
@@ -42,6 +45,29 @@ cat > "$REPO/docs/tasks/T-9100-饿殍新票件.md" <<'EOF'
 # T-9100 s
 
 - 状态：待验
+EOF
+# 段B3(a)：裁决执行件——范围节在且全档皆文档（零码件路径词）
+cat > "$REPO/docs/tasks/T-9007-裁决执行件.md" <<'EOF'
+# T-9007 e
+
+- 状态：待验
+
+## 范围
+
+1. 纯诊断定性——产出判词文档 docs/reports/t9007-verdict.md 备查
+2. 零码件零票支——交付物=裁决判词本身
+EOF
+# 段B3(b)：外审归宗件——票面标记 sha 在 init commit 后回填（base-ref 祖先实证）
+# 段B3 负例：范围节含码件路径+票支在案→两源皆不中不翻
+cat > "$REPO/docs/tasks/T-9009-有支有码件.md" <<'EOF'
+# T-9009 n
+
+- 状态：待验
+
+## 范围
+
+1. 改 scripts/meta/dm_ledger.sh 补证逻辑
+2. 范围外发现不自修
 EOF
 # 饿殍景桩：40 件 done/ 古票 rc2 异形态（| 状态 | 表形——status_done 不
 # 识）恒入动作集吃满批帽 MAX_BATCH=40，升序排在新完成票前→新票永不进集
@@ -84,6 +110,9 @@ case "$query" in
 			verdict) printf 'T-9003\x1f裁决\x1f2026-11-07\x1f100\n' ;;
 			stale) printf 'T-9004\x1f裁决\x1f2026-11-01\x1f99999\n' ;;
 			lockbusy) printf 'T-9005\x1f完成\x1f2026-11-07\x1f100\n' ;;
+			execproof) printf 'T-9007\x1f裁决\x1f2026-11-07\x1f100\n' ;;
+			waiproof) printf 'T-9008\x1f裁决\x1f2026-11-07\x1f100\n' ;;
+			execfail) printf 'T-9009\x1f裁决\x1f2026-11-07\x1f100\n' ;;
 		esac ;;
 	*"SELECT note FROM ops_event"*)
 		case "${LEDGER_SCENARIO:-empty}" in
@@ -127,7 +156,7 @@ run() { LEDGER_SCENARIO=$1 bash "$ROOT/scripts/meta/dm_ledger.sh" >"$TMP/out.$1"
 
 # ①B 补登：done/ 票无完成行+状态未翻→补登行+状态翻+commit+push 同拍
 run brecon
-grep -qF "SELECT 'META-DM','完成','T-9001','机械轨——台账对账补登" "$LEDGER_SQL_LOG"
+grep -qF "SELECT 'CTO','完成','T-9001','机械轨——台账对账补登" "$LEDGER_SQL_LOG"
 grep -q 'pg_advisory_xact_lock' "$LEDGER_SQL_LOG"
 grep -qF '**完成**（机械轨台账对账补登' "$REPO/docs/tasks/done/T-9001-台账漂移件.md"
 git -C "$REPO" log --format=%s -1 | grep -q '票翻完成'
@@ -153,6 +182,47 @@ grep -qF '状态：完成（决策席裁决通过 2026-11-07' "$REPO/docs/tasks/
 run stale
 [ -f "$REPO/docs/tasks/T-9004-裁决未并件.md" ] # 票未动
 grep -q 'LEDGER-MERGE-UNPROVEN' "$ESC_LOG"
+
+# ⑦a 段B3 裁决执行件：无票支∧范围节全档皆文档→判词即交付物翻完成
+run execproof
+[ -f "$REPO/docs/tasks/done/T-9007-裁决执行件.md" ]
+[ ! -f "$REPO/docs/tasks/T-9007-裁决执行件.md" ]
+grep -qF '取证=裁决执行件:无票支∧范围节无码件' "$REPO/docs/tasks/done/T-9007-裁决执行件.md"
+grep -q '票翻动作集' "$TMP/out.execproof" # 首拍清单留证——不静默翻
+grep -q '票翻 T-9007' "$TMP/out.execproof"
+
+# ⑦b 段B3 外审归宗：票面「外审裁过归宗@<sha>」∧sha∈base-ref→merge 证据翻完成
+# （范围节含码件路径→exec 证先否落 waipai 证；标记置回填节全文 grep 面）
+cat > "$REPO/docs/tasks/T-9008-外审归宗件.md" <<EOF
+# T-9008 w
+
+- 状态：待验
+
+## 范围
+
+1. 外审件归宗——merge 证据回填
+2. 码件面 scripts/meta/dm_ledger.sh
+
+## 回填
+
+外审裁过归宗@${SHA_CLOSE}——归宗锚在案
+EOF
+git -C "$REPO" add docs/tasks/T-9008-外审归宗件.md && git -C "$REPO" commit -qm t9008-fixture
+run waiproof
+[ -f "$REPO/docs/tasks/done/T-9008-外审归宗件.md" ]
+grep -qF '取证=外审归宗' "$REPO/docs/tasks/done/T-9008-外审归宗件.md"
+grep -q '∈master' "$REPO/docs/tasks/done/T-9008-外审归宗件.md"
+grep -q '票翻 T-9008' "$TMP/out.waiproof"
+
+# ⑦c 段B3 负例：票支在案+范围节有码件→两源皆不中不翻（龄新压下拍续）
+git -C "$REPO" checkout -qb t/9009-side
+printf 'side\n' > "$REPO/side.txt"; git -C "$REPO" add side.txt; git -C "$REPO" commit -qm side
+git -C "$REPO" checkout -q -
+: > "$ESC_LOG" # stale 升件行清场——execfail 断言只看本场景
+run execfail
+[ -f "$REPO/docs/tasks/T-9009-有支有码件.md" ] # 不翻——证不出票支+码件双否
+! grep -q '票翻 T-9009' "$TMP/out.execfail"
+! grep -q 'LEDGER-MERGE-UNPROVEN' "$ESC_LOG" # 龄新非 stale——压下拍续不升件
 
 # ⑤写径锁忙→零 mv 零 commit 零 push（竞态互斥桩：会话写轨持锁中）
 mkdir "$TMP/dm-repo.lock"
