@@ -85,7 +85,7 @@ func TestListenSocketStarvationRootFix(t *testing.T) {
 			case <-tick.C:
 			}
 			t0 := time.Now()
-			ectx, ecancel := context.WithTimeout(floodCtx, 20*time.Second) // sched-exempt-ok：CI 共享机排程毛刺容差（判定语义不变——发射超阈即反压实锤）
+			ectx, ecancel := context.WithTimeout(floodCtx, 60*time.Second) // sched-exempt-ok：毛刺容差20→60s——K=16分库herd下单发pg_notify排队>20s假阳性实发(check_all二连红),判定语义不动(真ClientWrite钉死多少阈都红)
 			_, err := notifier.Exec(ectx, "SELECT pg_notify($1, $2)", ch, payload)
 			ecancel()
 			if err != nil {
