@@ -15,12 +15,16 @@
 //	理由行  ops_decision 本仓最近 close 行 reason（监察案载荷——裁席可读
 //	        「为什么平」；行缺=decision_row_found=false 载案不虚构）。
 //
-// 判据集（guard.postmortem.* 热启键三件，任一键缺=fail-closed 本仓跳判+
-// missing_param 计数——判据不虚构与 guard 判据链同律）：
+// 判据集（guard.postmortem.* 热启键，前三件任一键缺=fail-closed 本仓跳判+
+// missing_param 计数——判据不虚构与 guard 判据链同律；第四件缺只降新增
+// 复发支不跳全链，GW-001 段D1）：
 //
 //	min_hold_minutes    秒级开平阈（T-0419 实证 15s 类）；
 //	settled_anomaly_pct 结算幅阈 %（|settled|>notional×阈——-49% 实证类）；
-//	known_triggers      触发认知集（guard 触发词谱+manual——集外=异常）。
+//	known_triggers      触发认知集（guard 触发词谱+manual——集外=异常）；
+//	fast_close_repeat_n fast_close 复发闸 N（7d 窗同 strategy_ref∨inst_id
+//	                    含本仓共 ≥N 次∨settled<0 才入诊断闸——单次秒平
+//	                    不烧诊断额度）。
 //
 // 异常件（任一）：秒级开平 / 结算幅超阈 / 触发类不在认知集 / 残袋>0
 // →fin_econ_lesson kind='trade_postmortem' entity_ref=position#<id>
@@ -67,6 +71,15 @@ func (r *Runner) postmortem(ctx context.Context, posID int64) {
 		r.rej.Inc("missing_param")
 		log.Printf("WARN [ledger] 仓 #%d guard.postmortem.known_triggers 缺——结案判据链跳过", posID)
 		return
+	}
+	// GW-001 段D1 fast_close 复发闸 N 键（热启）。缺键/读败=复发支不激活
+	// （单次秒平维持不入闸现制）——不 fail-closed 整链：判据三键缺才跳
+	// 全链，本键只盖新增支，WARN 留痕待 DM 补键。
+	repeatN := int64(0)
+	if v, err := r.cfg.GetInt("guard.postmortem.fast_close_repeat_n"); err != nil {
+		log.Printf("WARN [ledger] 仓 #%d guard.postmortem.fast_close_repeat_n 读败——fast_close 复发支不激活（单次秒平不入诊断额度）: %v", posID, err)
+	} else {
+		repeatN = v
 	}
 	var (
 		execID, stratRef                  int64
@@ -134,13 +147,30 @@ func (r *Runner) postmortem(ctx context.Context, posID int64) {
 		codes = append(codes, "bare_bag")
 		detail = append(detail, fmt.Sprintf("残袋 %.8f≈$%.2f", bagQty, bagUSD))
 	}
+	// GW-001 段D1 fast_close 复发实断：仅 fast_close 单码案需要查询
+	// （他码在案=三源已入闸，复发与否不改变判）；7d 窗同 strategy_ref∨
+	// inst_id 前序 fast_close 计数，含本仓共 ≥N 次=复发。计数读败=复发
+	// 不可判按不复发（宁少烧诊断额度，与判据读败同向）。
+	priorFC := -1
+	if len(codes) == 1 && codes[0] == "fast_close" && repeatN > 0 {
+		if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_position
+			WHERE id<>$1 AND trigger_verdict LIKE '%fast_close%'
+			  AND closed_at>=now()-interval '7 days'
+			  AND (($2::bigint>0 AND strategy_ref=$2) OR inst_id=$3)`,
+			posID, stratRef, inst).Scan(&priorFC); err != nil {
+			priorFC = -1
+			log.Printf("WARN [ledger] 仓 #%d fast_close 复发计数读败——按单次案处置: %v", posID, err)
+		}
+	}
 	refID := fmt.Sprintf("position#%d", posID)
 	if stratRef > 0 {
 		refID = strconv.FormatInt(stratRef, 10)
 	}
 	facts := diagCaseFacts{PosID: posID, ExecID: execID, InstID: inst,
 		Anomalies: codes, BareBagUSD: bagUSD, BareBagQty: bagQty,
-		Attempts: guardAttempts, Trigger: trig, SettledPct: settledPct}
+		Attempts: guardAttempts, Trigger: trig, SettledPct: settledPct,
+		SettledUSD:      settled,
+		FastCloseRepeat: repeatN > 0 && priorFC >= 0 && int64(priorFC+1) >= repeatN}
 	// T-0464 盈亏归因三分——机判序 code→ops→market→unattributed（判词面
 	// fin_position.pnl_attribution 与 trigger_verdict 怎么坏轴并存两轴；
 	// 人裁可改判，机判原值+锚命中留 outcome payload/案卷审计链）。
@@ -177,7 +207,7 @@ func (r *Runner) postmortem(ctx context.Context, posID int64) {
 	}
 	// 异常件：监察案入裁定席 pending 集（UNIQUE(kind,entity_ref) 幂等一仓一案）。
 	r.rej.Inc("postmortem_anomaly")
-	numbers, _ := json.Marshal(map[string]any{
+	numMap := map[string]any{
 		"position_id": posID, "strategy_ref": stratRef, "inst_id": inst,
 		"execution_id": execID, "trigger": trig, "hold_minutes": holdMin,
 		"settled_usd": settled, "settled_pct": settledPct, "notional_usd": notional,
@@ -186,7 +216,20 @@ func (r *Runner) postmortem(ctx context.Context, posID int64) {
 		"close_reason": closeReason, "decision_row_found": closeReason != "",
 		"pnl_attribution": attr, "attr_hits": attrF.hits(),
 		"summary": fmt.Sprintf("仓#%d %s 结案异常（%s）——trigger=%s hold=%.1fmin settled=%.2f(%.1f%%) 归因=%s",
-			posID, inst, strings.Join(codes, ","), trig, holdMin, settled, settledPct, attr)})
+			posID, inst, strings.Join(codes, ","), trig, holdMin, settled, settledPct, attr)}
+	// GW-001 段D1 半成品窗去向写明：fast_close 单码案未入诊断闸=单次秒平
+	// （复发键未设∨复发未达且盈利）——案不丢：监察案本行照落，裁定席
+	// 平仓监察案分支照消化；diag_gate 字段机读留证去向与未入闸因。
+	if len(codes) == 1 && codes[0] == "fast_close" && !diagnosisWorthy(facts) {
+		if repeatN <= 0 {
+			numMap["diag_gate"] = "fast_close 单次未入诊断闸——复发键 guard.postmortem.fast_close_repeat_n 未设（复发支不激活）；" +
+				"去向=监察案 trade_postmortem（本行）裁定席平仓监察案分支消化"
+		} else {
+			numMap["diag_gate"] = fmt.Sprintf("fast_close 单次未入诊断闸——复发未达（N=%d，7d 窗同 strategy_ref/inst_id 前序 %d 次+本仓共 %d<N）且 settled=%.2f≥0；"+
+				"去向=监察案 trade_postmortem（本行）裁定席平仓监察案分支消化", repeatN, priorFC, priorFC+1, settled)
+		}
+	}
+	numbers, _ := json.Marshal(numMap)
 	if _, err := r.pool.Exec(ctx, `INSERT INTO fin_econ_lesson(kind,entity_ref,numbers)
 		VALUES('trade_postmortem',$1,$2::jsonb) ON CONFLICT(kind,entity_ref) DO NOTHING`,
 		fmt.Sprintf("position#%d", posID), string(numbers)); err != nil {
