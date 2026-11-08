@@ -21,17 +21,35 @@ OLPH="$TMP/locks/o-check_all-deadbeef00000001.lock"; mkdir -p "$TMP/locks"
 NOLPH="$TMP/locks/o-check_all-feedface00000002.lock"
 : > "$OLPH"; : > "$NOLPH"
 
-# 孤儿持fd者：父进程即退→reparent pid1（双fork实证径）
+# docker/go 命令桩——wt_gc 保洁段覆写面未到二进制级，PATH 桩防真
+# prune/clean 侧效兼作双触发断言（周拍=-f／高水位=-af）。
+mkdir -p "$TMP/bin"; STUBLOG="$TMP/stub.log"; : > "$STUBLOG"
+cat > "$TMP/bin/docker" <<'EOF'
+#!/usr/bin/env bash
+echo "docker $*" >> "$STUBLOG"; exit 0
+EOF
+cat > "$TMP/bin/go" <<'EOF'
+#!/usr/bin/env bash
+echo "go $*" >> "$STUBLOG"; exit 0
+EOF
+chmod +x "$TMP/bin/docker" "$TMP/bin/go"; export STUBLOG
+
+# 孤儿持fd者：父进程即退→reparent reaper（本机=pid1 或 user systemd
+# subreaper——判据两形同 wt_gc.orph_ppid）
 cat > "$TMP/holder.sh" <<'EOF'
 #!/usr/bin/env bash
 exec 9>"$1"; exec sleep 300
 EOF
 chmod +x "$TMP/holder.sh"
 bash -c '"$0" "$1" >/dev/null 2>&1 &' "$TMP/holder.sh" "$OLPH"   # 父即退→孤儿
-OPID=""
+OPID=""; REAPERED=0
 for i in $(seq 1 50); do
   OPID=$(fuser "$OLPH" 2>/dev/null | tr -s ' ' '\n' | grep -m1 '[0-9]')
-  [ -n "$OPID" ] && [ "$(ps -o ppid= -p "$OPID" 2>/dev/null | tr -d ' ')" = "1" ] && break
+  if [ -n "$OPID" ]; then
+    OPP=$(ps -o ppid= -p "$OPID" 2>/dev/null | tr -d ' ')
+    OPC=$(ps -o comm= -p "${OPP:-0}" 2>/dev/null | tr -d ' ')
+    { [ "$OPP" = "1" ] || [ "$OPC" = "systemd" ]; } && { REAPERED=1; break; }
+  fi
   sleep 0.1
 done
 # 活跑对照：ppid=本测试pid≠1
@@ -39,15 +57,16 @@ bash -c 'exec 9>"$1"; exec sleep 300' _ "$NOLPH" & NPID=$!
 sleep 0.3
 
 GC_OPS_SINK="$TMP/gcops.txt"; : > "$GC_OPS_SINK"
-GC_REPO="$SCRATCH" GC_ENV_FILE=/nonexistent \
+PATH="$TMP/bin:$PATH" GC_REPO="$SCRATCH" GC_ENV_FILE=/nonexistent \
 GC_LOCK_GLOB="$TMP/locks/o-check_all-*.lock" \
 GC_GOCACHE_GLOB="$TMP/dh-gocache-*" \
 GC_OPS_SINK="$GC_OPS_SINK" GC_PRUNE_MARK="$TMP/pm" GC_GOCLEAN_MARK="$TMP/gm" \
 GC_ROOTFS_PCT=54 GC_GOCACHE_AGE_S=0 \
 bash "$ROOT/scripts/meta/wt_gc.sh" --disk > "$TMP/disk.out" 2>&1
 
+[ "$REAPERED" = 1 ] || bad "A0 fixture 孤儿未 reparent（OPID=${OPID:-无} pp=${OPP:-?}）"
 if [ -n "$OPID" ] && ! kill -0 "$OPID" 2>/dev/null; then
-  ok "A1 孤儿持fd者 pid=$OPID（ppid=1）被杀"
+  ok "A1 孤儿持fd者 pid=$OPID（reapered pp=${OPP:-?}/$OPC）被杀"
 else
   bad "A1 孤儿未清（OPID=${OPID:-未捕获}）——out: $(tail -3 "$TMP/disk.out")"
 fi
@@ -69,8 +88,8 @@ touch "$GD/gocache-$DEAD3"   # 新鲜→龄闸留
 LK="/tmp/o-check_all-${LOCKED}.lock"; : > "$LK"
 bash -c 'exec 9>"$1"; exec sleep 60' _ "$LK" & LHPID=$!
 sleep 0.3
-: > "$GC_OPS_SINK"
-GC_REPO="$SCRATCH" GC_ENV_FILE=/nonexistent \
+: > "$GC_OPS_SINK"; : > "$STUBLOG"
+PATH="$TMP/bin:$PATH" GC_REPO="$SCRATCH" GC_ENV_FILE=/nonexistent \
 GC_LOCK_GLOB="$TMP/locks/o-check_all-*.lock" \
 GC_GOCACHE_GLOB="$GD/gocache-*" \
 GC_OPS_SINK="$GC_OPS_SINK" GC_PRUNE_MARK="$TMP/pm2" GC_GOCLEAN_MARK="$TMP/gm2" \
@@ -86,6 +105,21 @@ kill "$LHPID" 2>/dev/null
 grep -q 'gocache_rm=2' "$GC_OPS_SINK" \
   && ok "B6 报行计数 gocache_rm=2（DEAD1+DEAD2 双死键实删）" \
   || bad "B6 计数异常: $(grep 保洁拍 "$GC_OPS_SINK")"
+
+# ── B2. prune 双触发档级断言（docker 桩录参）──
+# B 段跑时 pm2 缺席→周拍档=builder prune -f
+grep -q 'docker builder prune -f' "$STUBLOG" \
+  && ok "B7 周拍档 builder prune -f 桩录" || bad "B7 周拍 prune 未调: $(cat "$STUBLOG")"
+grep -q 'docker builder prune -af' "$STUBLOG" && bad "B8 54% 水位竟走 -af" || ok "B8 常水位不走 -af"
+# 高水位拍：pct=85+fresh mark→-af（mark 新鲜仍触=水位独立径实证）
+touch "$TMP/pm3" "$TMP/gm3"; : > "$STUBLOG"
+PATH="$TMP/bin:$PATH" GC_REPO="$SCRATCH" GC_ENV_FILE=/nonexistent \
+GC_LOCK_GLOB="$TMP/nolocks-*" GC_GOCACHE_GLOB="$TMP/nogc-*" \
+GC_OPS_SINK="$GC_OPS_SINK" GC_PRUNE_MARK="$TMP/pm3" GC_GOCLEAN_MARK="$TMP/gm3" \
+GC_ROOTFS_PCT=85 GC_GOCACHE_AGE_S=86400 \
+bash "$ROOT/scripts/meta/wt_gc.sh" --disk >/dev/null 2>&1
+grep -q 'docker builder prune -af' "$STUBLOG" \
+  && ok "B9 高水位档 builder prune -af（mark 新鲜照触）" || bad "B9 高水位未走 -af: $(cat "$STUBLOG")"
 
 # ── C. image_tag_gc 保留窗 ──
 mkdir -p "$TMP/bin"

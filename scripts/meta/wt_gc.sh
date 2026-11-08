@@ -30,9 +30,11 @@ tid_norm() {
 }
 
 # ── T-0466 保洁面（裁域①③⑥——deploy 构建产物出径+孤儿锁+GOCACHE 界）──
-# 三件：⑤孤儿锁扫杀（/tmp/o-check_all-*.lock 持fd者 ppid=1=父死孤儿
+# 三件：⑤孤儿锁扫杀（/tmp/o-check_all-*.lock 持fd者=父死孤儿
 #   →杀进程树+ops_event 报行——实证：kill wrapper 后 go test 树孤儿
-#   持 fd9 锁 15min+ 新跑傻等）；①builder prune 双触发（周拍 marker
+#   持 fd9 锁 15min+ 新跑傻等。父死判据=ppid=1 或父comm=systemd
+#   ——本机 user systemd(1275) 是 subreaper，o-worker/tmux 孵化孤儿
+#   reparent 到它而非 pid1，字面 ppid=1 恒假漏杀）；①builder prune 双触发（周拍 marker
 #   >7d 常规 -f／根分区>80% 高水位 -af——141.5G 实证 -af 才放得动）；
 # ③go clean -cache 周拍+GOCACHE 分家目录清（/tmp/gocache-<topkey>
 #   三闸：wt 已删∧锁未持∧龄>24h——锁文件绝不删，删了双 inode 锁
@@ -59,13 +61,20 @@ disk_hygiene() {
     df -P / 2>/dev/null | awk 'NR==2{gsub(/%/,"",$5);print $5}'
   }
   descendants() { local p=$1 c; for c in $(pgrep -P "$p" 2>/dev/null); do echo "$c"; descendants "$c"; done; }
+  # 父死判定：ppid=1（经典 reparent-to-init）或父comm=systemd（user
+  # systemd subreaper 形态——本机实证孤儿 reparent 到 pid1275 非 1；
+  # check_all 合法律 ppid=跑席 pid 非 reaper，不误杀）。
+  orph_ppid() { local pp
+    pp=$(ps -o ppid= -p "$1" 2>/dev/null | tr -d ' ')
+    [ "$pp" = "1" ] || [ "$(ps -o comm= -p "${pp:-0}" 2>/dev/null | tr -d ' ')" = "systemd" ]
+  }
 
-  # ⑤孤儿锁扫杀：fuser 持fd集逐 pid 判 ppid=1（父死孤儿）→杀子孙+本体
+  # ⑤孤儿锁扫杀：fuser 持fd集逐 pid 判父死→杀子孙+本体
   for lock in $LOCK_GLOB; do
     [ -e "$lock" ] || continue
     for pid in $(fuser "$lock" 2>/dev/null | tr -s ' ' '\n'); do
       [ -n "$pid" ] && [ "$pid" != "$$" ] || continue
-      [ "$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ')" = "1" ] || continue
+      orph_ppid "$pid" || continue
       kd=0
       if [ $DRY = 0 ]; then
         for c in $(descendants "$pid"); do kill "$c" 2>/dev/null && kd=$((kd+1)); done
