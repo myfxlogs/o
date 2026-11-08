@@ -8,10 +8,12 @@ keywords: [dedupe_key, ON CONFLICT DO NOTHING, 幂等, 版本位, 观察日, FRE
 scope: [research, ctx, 数据面幂等设计, 增量消费]
 summary: dedupe_key 不带数据版本位（观察日/行 id）时，append-only 表对同一逻辑对象恒首拍占坑——后续采集成功也全走 ON CONFLICT DO NOTHING 零新行，下游 id 水印增量消费恒枯竭=「断供」假象且零日志不可辨（transport 死与结构静默同形）
 first_seen: 2026-11-07
-last_seen: 2026-11-07
+last_seen: 2026-11-09
 evidence_refs:
   - type: ticket
     ref: T-0429
+  - type: ticket
+    ref: T-0444
   - type: commit
     ref: t/0429-ctx-inlet
 ---
@@ -32,6 +34,9 @@ append-only+增量水印消费的表，dedupe_key 必须含**数据版本位**�
 - 时序数据 → 版本位=数据自身日期（FRED 现形 `序列:观察日`）
 - 批报告 → 版本位=上游行 id（CFTC 现形，本就正确）
 - 快照日更 → 版本位=日戳（OKX OI 现形，本就正确）
+- 循环日历事件 → 版本位=事件日期（ffcal 现形 `slug:MM-DD-YYYY`——
+  FF url slug 天生无日期位，周/月循环事件同键恒存；T-0444 第二实例
+  实证 `11-us-unemployment-claims` 冻结 11-05 行）
 
 版本位缺=首拍占坑恒静默——「幂等」做成「只此一拍」。
 
