@@ -460,6 +460,52 @@ func TestProbeFaceDiffNewFaceEscalation(t *testing.T) {
 	}
 }
 
+// TestProbeFaceDiffBaselineExempt 面清单基线册豁免面（T-0448）：合法新面
+// 人工过基线登记 faceBaselineWhitelist——册内面差集照落「面清单新面」
+// 行（携基线册理由键留账）但升件免（间歇写席 ops_event 7d 活跃窗出入
+// 摆动不重复炸票/起草）；册外新面照升件（拒册=不登记等人工判——对照
+// 面同拍断言豁免不误伤）。
+func TestProbeFaceDiffBaselineExempt(t *testing.T) {
+	s, pool := depFixture(t)
+	ctx := context.Background()
+	if err := s.ProbeDeps(ctx); err != nil {
+		t.Fatalf("probe1 基线拍: %v", err)
+	}
+	// 新席 ops_event 自报行=service 面新面素材（whsvc 册内/badsvc 册外对照）
+	for _, seat := range []string{"whsvc", "badsvc"} {
+		if _, err := pool.Exec(ctx,
+			`INSERT INTO ops_event(seat,event,ticket,note) VALUES($1,'自报','T-0448','桩')`, seat); err != nil {
+			t.Fatal(err)
+		}
+	}
+	old := faceBaselineWhitelist
+	faceBaselineWhitelist = map[string]string{
+		"face:service:whsvc": "桩基线——合法新面登记（T-0448 同式）"}
+	defer func() { faceBaselineWhitelist = old }()
+	if err := s.ProbeDeps(ctx); err != nil {
+		t.Fatalf("probe2: %v", err)
+	}
+	var n int
+	// 册内面：新面行照落留账+升件零（豁免生效——修前红位）
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='面清单新面' AND note LIKE '%key=face:service:whsvc%'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("册内新面行缺: n=%d err=%v", n, err)
+	}
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='面清单新面' AND note LIKE '%基线册=%'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("册内新面行缺基线册理由键: n=%d err=%v", n, err)
+	}
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='升件' AND esc_scope='face:service:whsvc'`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("册内面升件未免: n=%d err=%v", n, err)
+	}
+	// 册外面对照：新面行+升件齐（豁免不误伤）
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='升件' AND esc_scope='face:service:badsvc'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("册外面升件缺: n=%d err=%v", n, err)
+	}
+}
+
 // TestDepLegKeysStarExpanded T-0416 依赖对探针宇宙接线锚：okx.symbols=["*"]
 // +供给件挂线→depLegKeys 实读目录员腿入集（病灶形=生产「宇宙读败:
 // 宇宙扩件探针未挂」依赖对探针瞎——修后复电同判据）。

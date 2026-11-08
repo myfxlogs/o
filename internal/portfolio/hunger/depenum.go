@@ -246,6 +246,9 @@ var depConfigReaders = map[string]string{
 	"readcred": "读凭据权限面",
 	// —— 册外运行期种键域（迁移种键在案——读者=对应清道夫/采拍面）——
 	"data": "数据保留/陈阈面",
+	// T-0455 fin_0143 种键：meta.autoapprove.registry 读者=dm_autoapprove.sh
+	// 机批闸（签名→钦定文件径白名单——候选票批权径）。
+	"meta": "DM 机批闸册",
 }
 
 // configDomains app_config 键域谱（首段域枚举——④族枚举源；
