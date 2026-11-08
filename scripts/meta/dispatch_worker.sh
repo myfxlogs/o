@@ -29,7 +29,8 @@ SYSTEMCTL=${O_WORKER_SYSTEMCTL:-systemctl}
 SYSTEMD_RUN=${O_WORKER_SYSTEMD_RUN:-systemd-run}
 DEV_RUN_SCRIPT=${O_WORKER_DEV_RUN_SCRIPT:-/opt/o/scripts/meta/dev_run.sh}
 TASK_DIR=${O_WORKER_TASK_DIR:-/opt/o/docs/tasks}
-compgen -G "$TASK_DIR/$TID-*.md" >/dev/null || { echo "ticket file missing: $TID" >&2; exit 2; }
+TICKET_FILE=$(compgen -G "$TASK_DIR/$TID-*.md" | head -n1)
+[ -n "$TICKET_FILE" ] || { echo "ticket file missing: $TID" >&2; exit 2; }
 STATE=$("$SYSTEMCTL" --user is-active "$UNIT" 2>/dev/null || true)
 case "$STATE" in active|activating) exit 0 ;; esac
 
@@ -51,6 +52,15 @@ ACTIVE=$(printf '%s\n' "$UNITS" | awk 'NF { n++ } END { print n+0 }')
 if (( ACTIVE >= LIMIT )); then
 	echo "worker queue held: active=$ACTIVE limit=$LIMIT" >&2
 	exit 75
+fi
+
+# 提案-KB向量检索-经验库召回面 首阶③：票面→kb_recall top-K 摘要注入提示词
+# 「相关经验」段——mech_tick/dm_depgate/dm_suspend 一切派单径同经本装配面
+# 同径得召回；物料缺席/零命中=跳过该段照发（fail-open 增强非闸件，
+# 与 dispatch_order 同律）。召回行=读物指针非施工细节（单行指针律豁免面）。
+KB_HITS=$("$SCRIPT_DIR/kb_recall.sh" "$TICKET_FILE" 2>/dev/null || true) # tolerate: 召回件缺席/败=零段 fail-open
+if [ -n "$KB_HITS" ]; then
+	PROMPT="$PROMPT"$'\n\n'"【相关经验·经验库召回】施工前对号读条目正文（docs/*/经验库/条目/，读物非执行件）："$'\n'"$KB_HITS"
 fi
 
 # GW-001 段C1：worker 退场即唤机械轨（ExecStopPost 单元出生即附——拉起

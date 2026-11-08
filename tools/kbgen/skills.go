@@ -174,3 +174,34 @@ func firstSentence(s string) string {
 	}
 	return s
 }
+
+// renderSkillsIndex 按条目 skills: 标签生成关联清单（指针式——条目唯一真相源）。
+func renderSkillsIndex(entries []*Entry) []byte {
+	groups := map[string][]*Entry{}
+	var tags []string
+	for _, e := range entries {
+		for _, s := range e.Skills {
+			if s = strings.TrimSpace(s); s == "" {
+				continue
+			}
+			if _, ok := groups[s]; !ok {
+				tags = append(tags, s)
+			}
+			groups[s] = append(groups[s], e)
+		}
+	}
+	sort.Strings(tags)
+	var buf bytes.Buffer
+	buf.WriteString("# 技能关联条目清单（kbgen gen 生成，勿手编）\n\n")
+	buf.WriteString("> 按条目 frontmatter `skills:` 标签归组——清单是指针，条目全文见 条目/<id>.md。\n\n")
+	for _, tag := range tags {
+		buf.WriteString("## " + sanitize(tag) + "\n\n| id | summary |\n|----|---------|\n")
+		es := groups[tag]
+		sort.Slice(es, func(i, j int) bool { return es[i].ID < es[j].ID })
+		for _, e := range es {
+			buf.WriteString(fmt.Sprintf("| %s | %s |\n", sanitize(e.ID), sanitize(e.Summary)))
+		}
+		buf.WriteByte('\n')
+	}
+	return buf.Bytes()
+}

@@ -13,6 +13,10 @@ internal/data/adapter/gen
 # go build 落仓根二进制残渣族（openfirst/billsaudit 实证两犯——工具二进制禁入库）
 /mt5ordstream
 /kbgen
+# kbgen 检索物料再生物（提案-KB向量检索-经验库召回面 首阶①——gitignored
+# 再生物与索引同律：kb_recall.sh 缺席时自愈径 go run gen 重生，禁手编）
+docs/工程经验库/检索物料.tsv
+docs/经济经验库/检索物料.tsv
 /openfirst
 /billsaudit
 /okxlev
