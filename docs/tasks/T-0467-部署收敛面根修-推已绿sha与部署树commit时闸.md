@@ -1,5 +1,7 @@
 # T-0467 部署收敛面根修——推已绿 sha + 部署树 commit 时闸
 
+- 状态：完成（2026-11-08 外审裁过归宗——外派件走外审径，实裁=外审席）
+
 立项：2026-11-08 业主令「用外部手术刀根修内联问题，拒绝内耗」+「镜面任务完成后统一部署」形制钦定。**外派件**——T-0409/0460 同径，归宗裁=外审席。
 
 ## 病灶（11-08 全天实证）
@@ -116,3 +118,27 @@
 - T-0370 push 时 first-parent 闸原位保留=纵深防御不撤。
 - KB 条目 deploy-stamp-sha-not-head-treadmill 同 commit 入册
   +kbgen 索引重建。
+
+## 裁记
+
+- [外审裁:T-0467] 过 @7f3190256 | 断言对拍 3/3：①推已绿
+  sha 径=支 wt check_all 独立复跑全链绿（mode=full，戳
+  @7de44489a）+master 径真 pre-push 干跑实证（戳在 P3、HEAD
+  走至 c4，推 P3:master 过戳闸止于 repo_root 沙盒界——戳绑被
+  推 sha 非 HEAD 钉死；无戳 HEAD 对照死戳闸）+hook stdin 实证
+  local_ref=<sha>本体不触「*:* 禁映射形」判+C0 合流闸对 ff
+  sha 天然直通（rebase 副作用仅非快进竞态时——钦定合流语义）；
+  ②commit 时闸=判件桩测独立复跑 13 场景全绿+/opt/o 生产树
+  commit-msg e2e 实证（[角色:施工] subj on master rc=1 拒——
+  §9 前移成立；决策标/无标/非 master/非部署树/MERGE_HEAD 直通
+  六态齐）+D-651 相容（内容闸 pre-commit 前置+席位闸 commit-msg
+  后置双层互补，subject 词形 pre-commit 物理不可见——偏离说明
+  语义等价成立）；③既有闸零破=pre-push 三闸/git_push 重试/
+  converge/first-parent/check_all 档制一字未动（diff 核读），
+  mirror_push 包非替可弃回旧径 | 戳 7f3190256（merge-sha
+  check-green，/opt/o 复跑 mode=full 绿）| 部署态=闸件检出即
+  效（commit-msg 闸随 merge 已活；o-mirror-push.timer 落仓未
+  enable——启用=部署面动作归部署径钦定，deploy_at_sha.sh 同；
+  「串行勿部署」在案）| 旁证：全角冒号 subject（[角色：施工]
+  形）可绕 commit-msg 与 check_master_direct 同源前缀盲区——
+  生态一致非本票回归，全域前缀闸统一加宽归另票
