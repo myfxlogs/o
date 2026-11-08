@@ -27,6 +27,11 @@ const faceTicket = "T-0405"
 // 拒册=不登记——可疑新面照升件等人工判。depBlindWhitelist 同式先例。
 var faceBaselineWhitelist = map[string]string{
 	"face:service:仓巡": "仓巡=guard Warden 在册员工（risk 域 fin_employee_registry active）——T-0419 裸袋/T-0423 守卫环自残探针 ops_event 写径合法面；间歇写席 7d 活跃窗摆动登记不重复升",
+	// T-0453：ZEC 现货腿面——fin_strategy funding-hedge probe 行派生
+	// （state<>'retired' 落 FundingHedgeSpotArm 谓词=ActiveSetUnion 枚举
+	// 本体），提案/策略活性期进出=间歇面形（T-0448 册语义罩位），册外
+	// 窗摆回重复升件炸起草拍（T-0393 链）。
+	"face:dep_pair:leg:ZEC-USDT": "T-0453 入册——ZEC 现货腿面：fin_strategy funding-hedge probe 行（state<>'retired'）落 FundingHedgeSpotArm 谓词派生，提案/策略活性期进出=间歇面窗摆形；生产亲证 probe 行 @2026-11-08 00:13Z + b9/b10 快照批在册（ops_event #3454 升件源）",
 }
 
 // faceRow 单面行（kind=面类五键，face=面键——同拍批内 kind+face 唯一）。
