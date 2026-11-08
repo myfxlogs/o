@@ -97,6 +97,14 @@ var faceBaselineWhitelist = map[string]string{
 	// 非产消断——重种/库重建回摆重复升件炸起草拍（T-0393 链，升件源
 	// #4043；姊妹面 dep_pair:config:meta→DM 机批闸册=T-0490 同根另册）。
 	"face:gate_domain:meta": "T-0492 入册——meta 键域=fin_0143 种 meta.autoapprove.registry（T-0455 机批册本体）在册即面，读者册载 DM 机批闸册（dm_autoapprove.sh 实读同键批权径在案，写域册外 fail-closed 归 owner=类册面钦定判据设计在案）；枚举谓词 split_part 本体零硬编码合法新面登记不重复升；生产亲证 app_config meta.autoapprove.registry 在册+升件源 ops_event #4043（快照批 14/15 在册）",
+	// T-0493：ops_seat_card 表面——fin_0145 迁移建 public 基表（T-0458
+	// 飞书席位活卡：seat→message_id+chat_id 卡册持久映射，展示面非真源
+	// 真源=ops_event 链账）在册即面；写径=seatcard 服务 FIN_PG_DSN 同
+	// roster_rw 写册角色（internal/ops/seatcard+cmd/seatcard 在册，
+	// fin_0121 同族授权）；table 类面=information_schema 全量 BASE TABLE
+	// 枚举本体零硬编码——建表落地即面，表重建/快照册重置回摆重复升件
+	// 炸起草拍（T-0393 链，升件源 #4047，机批已批 #4376）。
+	"face:table:ops_seat_card": "T-0493 入册——ops_seat_card=fin_0145 迁移建 public 基表（T-0458 飞书席位活卡卡册：seat→message_id 持久映射，展示面非真源真源=ops_event）；seatcard 服务 FIN_PG_DSN 写径合法在册；table 类面=information_schema BASE TABLE 枚举本体零硬编码，建表落地即面；生产亲证 public 基表在册+b14/b15 快照批在册（ops_event #4047 升件源，机批已批 #4376）",
 }
 
 // faceRow 单面行（kind=面类五键，face=面键——同拍批内 kind+face 唯一）。

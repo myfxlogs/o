@@ -816,3 +816,24 @@ func TestFaceBaselineGateDomainMetaRegistered(t *testing.T) {
 		t.Fatalf("%s 理由键空——注册式不静默（depblind 豁免同律）", scope)
 	}
 }
+
+// TestFaceBaselineTableOpsSeatCardRegistered T-0493 先红桩（T-0388 修复
+// 类律——病灶存在断言修前红+同断言修后绿）：签名面 face:table:ops_seat_card
+// 必须在人工基线册。根因锚：ops_seat_card=fin_0145 迁移建 public 基表
+// （T-0458 飞书席位活卡——seat→message_id+chat_id 卡册持久映射，展示面
+// 非真源真源=ops_event）；写径=seatcard 服务 FIN_PG_DSN 同 roster_rw
+// 写册角色（internal/ops/seatcard+cmd/seatcard 在册）；table 类面=
+// information_schema 全量 BASE TABLE 枚举本体零硬编码——建表落地即面，
+// 表回摆/快照册重建回摆重复升件炸起草拍（T-0393 链，升件源 #4047，
+// 机批已批 #4376）。修前未登记=红；入册后同断言绿且理由键非空
+// （注册式不静默）。
+func TestFaceBaselineTableOpsSeatCardRegistered(t *testing.T) {
+	scope := "face:table:ops_seat_card"
+	reason, ok := faceBaselineExempt(scope)
+	if !ok {
+		t.Fatalf("病灶存在：%s 未入人工基线册——回摆将重复升件（T-0493）", scope)
+	}
+	if strings.TrimSpace(reason) == "" {
+		t.Fatalf("%s 理由键空——注册式不静默（depblind 豁免同律）", scope)
+	}
+}
