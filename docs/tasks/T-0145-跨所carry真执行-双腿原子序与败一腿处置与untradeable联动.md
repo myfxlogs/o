@@ -148,3 +148,43 @@ build✓ vet✓ gofmt✓ import✓ env✓ rejects✓ config-write-domain✓ migr
   - 凭据落点（`fin_exec_drill` verdict 行复用还是新凭据面）；
   - 存量排雷范围（现挂 13 张 armed 提案是否同矩阵先过一遍）；
   - 实现归属（立施工票还是 145 返修续件）。
+
+### CTO 裁定（2026-11-08 无头裁——四件钦定回填，实现票 T-0461）
+
+① **演习矩阵**（格=template×venue对×direction，面值=格内两档）——
+必演格=生产实占格枚举∪xvenue-carry 双向钦定格共 6 格：
+
+| 格 | direction/腿形 | 在产占用 |
+|---|---|---|
+| funding-hedge@okx | short_perp_long_spot（现货多+perp空） | live34+probe1 |
+| dcd_put@okx | dcd_put（产品申购非双腿径 T-0160） | paper43+armed11 |
+| quarter_basis_long@okx | basis_quarter（BuildBasisLegs 双腿） | paper1+armed1 |
+| perp_quarter_spread@okx | perp_quarter_spread（spread 双腿） | paper1+armed1 |
+| xvenue-carry@mt5×okx | long_perp_short_cfd（mt5卖+okx买） | T-0145 新开 |
+| xvenue-carry@mt5×okx | short_perp_long_cfd（mt5买+okx卖） | T-0145 新开 |
+
+格集机器枚举禁手编：fin_strategy(live|paper|probe|degraded)
+∪fin_proposal(fin_proposed|fin_armed) template×venue×direction 去重
+∪xvenue 双向钦定格——词表零占格=免演登记（新增格自动入谱）。
+面值档：每格两档=格内最小在产名义+中位名义（粒度/单位错配咬
+pos33/34 类）；零占用格=首单规模钦定 $50 单档。
+判据：双腿族=open→hold→哨戒平→对账全径+venue 双腿残留=0+现金
+对平；DCD 族=申购→到期结算→账实平+锁仓余额=0（残留定义随腿形）。
+
+② **凭据落点**：复用 fin_exec_drill 同表+加 `cell_key` 可空列
+（迁移）——格键='template@venue对/direction#面值档'机读；
+strategy_ref=演习 ephemeral 策略 id；毕业闸读径零影响；部署闸
+读径=格集 latest verdict=pass 全覆盖。不立新表。
+
+③ **存量排雷**：格级非提案级——13 张 armed 分属 dcd_put/
+perp_quarter_spread/basis_quarter 三格全在矩阵内，格绿即排雷毕；
+armed→open 消费格凭据 latest=pass 同构毕业闸 fail-closed——
+格凭据未绿格内提案 hold 不放行+计数。
+
+④ **实现归属**：立新施工票 **T-0461**（非返修续件——返修=缺陷
+修复语义，本件=演习基建新功能独立验收面：simdrill 格集扩+mt5
+侧 sim+凭据列+格凭据闸）。T-0145 票体收口闭合。
+
+**部署令序**：矩阵凭据全绿（fin_exec_drill cell_key 各行 pass）
+→exec.xvenue_open 真户微额彩排（原判据不动——sim 闸不替真户
+彩排）→部署令。
