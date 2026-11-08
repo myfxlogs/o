@@ -170,7 +170,8 @@ func (c coreService) Overview(ctx context.Context, _ *dashboardv1.OverviewReques
 	// T-0078：列名正名 duty→title（旧列缺席=静默空集病灶——Scan 败必 log
 	// 一次不静默吞）。
 	srows, err := c.pool.Query(ctx, `SELECT name,title,last_beat FROM fin_employee_registry
-		WHERE status='active' ORDER BY name`)
+		WHERE status='active'
+		AND meta->>'form' IS DISTINCT FROM 'pure_interactive' ORDER BY name`)
 	if err != nil {
 		log.Printf("staff 花名册查询败: %v", err)
 		return o, nil // 花名册读败=staff 卡藏如实（不炸总览）
