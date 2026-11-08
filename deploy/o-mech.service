@@ -6,5 +6,6 @@ After=network-online.target
 
 [Service]
 Type=oneshot
+Environment=O_WORKER_PARALLEL_LIMIT=2
 ExecStart=/opt/o/scripts/meta/mech_tick.sh
 NoNewPrivileges=true
