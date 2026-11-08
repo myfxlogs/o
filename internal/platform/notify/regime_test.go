@@ -34,7 +34,7 @@ func TestRegimePush(t *testing.T) {
 	if err := r.Scan(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if len(fs.sent) != 1 || !strings.Contains(fs.sent[0], "risk_off") || !strings.Contains(fs.sent[0], "加密偏谨慎") {
+	if len(fs.sent) != 1 || !strings.Contains(fs.sent[0], "风险偏好下行") || !strings.Contains(fs.sent[0], "加密偏谨慎") {
 		t.Fatalf("推送文不符: %+v", fs.sent)
 	}
 	// 重扫零推（幂等锚已落）
