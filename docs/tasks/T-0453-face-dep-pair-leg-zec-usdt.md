@@ -1,6 +1,6 @@
 # T-0453 探针升件自动起草：观测盲@face:dep_pair:leg:ZEC-USDT
 
-- 状态：待验（业主手动外派 2026-11-08——号序串行 T-0450→0453→0454；证据移交外审席复审）
+- 状态：完成（2026-11-08 外审裁过归宗——合 master @6eb4a00b）
 - 领取：zcode-facepair @ 2026-11-08（业主手动外派令——窄口豁免径，收口照常回决策席）
 - 优先级：P2（起草默认档——DM 裁时可调）
 - 收口移交归：决策席
@@ -76,3 +76,13 @@ A 复用现有册件零新造（faceBaselineWhitelist=T-0448 既有登记位）�
 分支: t/0453-face-dep-pair-leg-zec-usdt（领单锁已推；impl/回填本地留案——闸病 T-0460 上锚③）
 移交: 决策席（业主令：证据报外审席复审）
 [施工收口:T-0453] @495c4eb9
+
+## 收口段（裁决裁记）
+
+- `[外审裁:T-0453] 过 @6eb4a00b | 断言对拍 3/3 | 戳sha=check-green-0f1ed402（scoped,净库5438） | 部署态=o-core镜像面件随发窗批`
+  - 断言① 桩测红/绿双点：过——本席独立复现：impl 前态（495c4eb9^ facesnap）下 `TestFaceBaselineLegZECUSDTRegistered` FAIL `depblind_test.go:553 病灶存在…未入人工基线册`，impl 态同断言 PASS（scratch wt 双态亲跑）。
+  - 断言② 探针同窗不再报同签名病灶：过（机制+生产双证）——豁免径源码核证（faceBaselineExempt→reportNewFace，facesnap.go:155-197）；SG 亲读：`fin_strategy` ZEC-USDT-SWAP funding-hedge **probe** 行在案（state<>'retired'→FundingHedgeSpotArm 剥 -SWAP=ZEC-USDT 现货腿，ActiveSetUnion 枚举本体同源）、`ops_face_snapshot` b9+b10 面在册、升件源 #3454 实存。
+  - 断言③ check_all 绿戳对口：过——本席独立复跑 @0f1ed402 全链绿 mode=scoped（11 闸绿+seat-writes WARN 豁免=T-0460 他票病+定向谱 20 包全 ok）；「并入发窗批」=镜像面件随窗。
+  - diff 审：`faceBaselineWhitelist` +1 登记（T-0448 既有册件复用零新造）+先红桩 +1；范围 ⊆ 钦定两文件，探针阈/签名面/类册零动，钱径凭据零碰。
+  - merge 冲突面：facesnap/depblind_test 同锚尾插文本撞 T-0450——解=登记/先红桩全保（merge-tree 语义对拍+合后三测试共跑过）。
+  - 推程留案（非本件断言、归推程道）：同 T-0450——枝 non-ff 并轨（远端领单 commit 不在本枝谱系，merge 携全内容归宗）；master 推程存量双堵（check_master_direct 咬存量施工直 commit 零豁免+seat-writes T-0460 病）修票在飞。
