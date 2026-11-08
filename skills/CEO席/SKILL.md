@@ -75,8 +75,9 @@
 卡面职权与禁线对无头形态同义生效。四件钦定：
 
 - **收件箱改投**：`scripts/meta/ceo_queue.sh`——席位上行件
-  （seat∈COS上行/决策席/META-DM/CTO/裁定席/施工席/外审席的升件·呈批，
-  无终态者）；探针/壳轨机械升件留 CTO 壳轨不串味。
+  （seat∈COS上行/COS/O-Dev交互席/决策席/META-DM/CTO/CEO/裁定席/施工席/
+  外审席/CEO上行/管理席/研究员的升件·呈批，无终态者）；探针/壳轨机械
+  升件留 CTO 壳轨不串味。
 - **唤径**：metabus dm 帧双唤（o-ceo-seat.service 与 o-decision-seat
   同帧各自滤队，队空即退零烧）+30min 兜底拍 o-ceo-seat.timer。
 - **班次制**：`scripts/meta/ceo_tick.sh`——PG advisory 单例闸+
