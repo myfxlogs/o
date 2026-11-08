@@ -7,9 +7,14 @@ package testutil
 import (
 	"context"
 	"fmt"
+	"hash/fnv"
 	"os"
+	"path"
+	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -18,6 +23,106 @@ import (
 
 	"o/internal/platform/pgguard"
 )
+
+// T-0468 族内分库：O_TEST_SHARDS>1 时按「调用方包目录」确定性散列分库
+// （o_test_s1..sK）——pg_advisory_lock 锁域按库隔离（pg_locks 锁标含
+// databaseOid），跨库并发 Migrate 不再互抢 860223 全库锁=herd 消。
+// 语义钉死：包间零共享态由包级 schema 隔离结构性保证（每测试独 schema），
+// 任意确定性划分不拆语义耦；cluster 级对象（o_fin_ro 角色等）在租约实例
+// 上已存在/幂等，跨库同库名对象互不干扰。K<=1 或分库确保败=落基库
+// o_test=现行语义（fail-open 退化不语义错）。
+const shardDBPrefix = "o_test_s"
+
+var shardDBRe = regexp.MustCompile(`^o_test_s[0-9]+$`)
+
+// shardCount 读 O_TEST_SHARDS（非法/缺省=1=现行单库语义）。
+func shardCount() int {
+	k, err := strconv.Atoi(strings.TrimSpace(os.Getenv("O_TEST_SHARDS")))
+	if err != nil || k < 1 {
+		return 1
+	}
+	return k
+}
+
+// callerFileDir 取 skip 层外调用方文件所在目录（=包目录）。
+// 公共面（Pool/ShardDatabase）各自以 skip=1 直取测试文件——helper
+// 不内嵌取帧（深度漂移坑：多一层包装取帧即错位）。
+func callerFileDir(skip int) string {
+	_, file, _, ok := runtime.Caller(skip + 1)
+	if !ok {
+		return ""
+	}
+	return path.Dir(file)
+}
+
+// shardForDir 包目录→库名：fnv32a 散列 mod K（K=1 恒基库 o_test；
+// K>1 → o_test_s<1..K>）。同目录必同库（确定性），异目录散列分布。
+func shardForDir(dir string) string {
+	k := shardCount()
+	if k <= 1 || dir == "" {
+		return "o_test"
+	}
+	h := fnv.New32a()
+	h.Write([]byte(dir))
+	return fmt.Sprintf("%s%d", shardDBPrefix, int(h.Sum32()%uint32(k))+1)
+}
+
+// ShardDatabase 返回「本调用方包」测试解析到的库名（o_test 或
+// o_test_s<N>）。裸 DSN 消费面（第二池/异用户连）与 testutil.Pool 配对
+// 时必须把 cfg.ConnConfig.Database 置为本值——否则池落基库而 schema
+// 在分库=断言必败（writefail/pipeline_face T-0468 根修点）。
+// 契约：须由测试文件直接调用（Caller 取帧=测试文件目录）；须先有
+// testutil.Pool 或等价确保（分库不存在时裸连败——正常序 fixture 先行）。
+func ShardDatabase() string {
+	return shardForDir(callerFileDir(1))
+}
+
+var (
+	shardEnsureMu sync.Mutex
+	shardEnsured  = map[string]bool{}
+)
+
+// ensureShardDB 确保分库存在（每测试二进制至多一次/库——成败同记，
+// 败不重试风暴；跨包并发 CREATE 撞 duplicate_database 时复查存在性
+// 放行）。败=返回 false，调用方落基库（语义不变只慢）。
+func ensureShardDB(ctx context.Context, base *pgx.ConnConfig, dbname string) bool {
+	if !shardDBRe.MatchString(dbname) {
+		return dbname == "o_test"
+	}
+	shardEnsureMu.Lock()
+	defer shardEnsureMu.Unlock()
+	if ok, seen := shardEnsured[dbname]; seen {
+		return ok
+	}
+	ok := false
+	defer func() { shardEnsured[dbname] = ok }()
+	cfg := base.Copy()
+	cfg.Database = "postgres" // 维护库——CREATE DATABASE 须在库外交互
+	conn, err := pgx.ConnectConfig(ctx, cfg)
+	if err != nil {
+		return false
+	}
+	defer conn.Close(ctx)
+	var exists bool
+	if err := conn.QueryRow(ctx,
+		"SELECT EXISTS(SELECT 1 FROM pg_database WHERE datname=$1)", dbname,
+	).Scan(&exists); err != nil {
+		return false
+	}
+	if !exists {
+		// 库名由 shardForDir 内部生成（o_test_s+数字）——注入面零外部输入
+		if _, err := conn.Exec(ctx, "CREATE DATABASE "+dbname); err != nil {
+			// 并发首建撞车：复查存在性——在则视为成
+			if err2 := conn.QueryRow(ctx,
+				"SELECT EXISTS(SELECT 1 FROM pg_database WHERE datname=$1)", dbname,
+			).Scan(&exists); err2 != nil || !exists {
+				return false
+			}
+		}
+	}
+	ok = true
+	return true
+}
 
 // Pool 接 O_TEST_PG_DSN 独立测试实例+包级 schema 隔离；
 // 未设 DSN=Skip（CI 5434/本机覆写端口同一口径）。
@@ -44,6 +149,18 @@ func Pool(t *testing.T) *pgxpool.Pool {
 	cfg, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
 		t.Fatalf("dsn parse: %v", err)
+	}
+	// T-0468 分库：包目录散列→o_test_s<N>（K=1 恒 o_test 现行语义）；
+	// 分库确保败落基库=只慢不语义错。Database 置位先于 GuardPool/
+	// NewWithConfig——ConnConfig.Database 即连接目标库。
+	dbname := shardForDir(callerFileDir(1))
+	if dbname != "o_test" {
+		ctx0 := context.Background()
+		if ensureShardDB(ctx0, cfg.ConnConfig, dbname) {
+			cfg.ConnConfig.Database = dbname
+		} else {
+			t.Logf("testutil: 分库 %s 确保败——落基库 o_test（语义不变只慢）", dbname)
+		}
 	}
 	cfg.AfterConnect = func(ctx context.Context, c *pgx.Conn) error {
 		_, err := c.Exec(ctx, "SET search_path TO "+schema+",public")

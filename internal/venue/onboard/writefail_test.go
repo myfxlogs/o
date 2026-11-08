@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"o/internal/platform/rejects"
+	"o/internal/platform/testutil"
 )
 
 func TestOpsEventWriteDeniedWarns(t *testing.T) {
@@ -44,6 +45,7 @@ func TestOpsEventWriteDeniedWarns(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	cfg.ConnConfig.Database = testutil.ShardDatabase() // T-0468：deny 池与 fixturePool 同分库——schema/授权在分库
 	cfg.ConnConfig.User = role
 	cfg.ConnConfig.Password = "t0402"
 	cfg.AfterConnect = func(c context.Context, conn *pgx.Conn) error {
