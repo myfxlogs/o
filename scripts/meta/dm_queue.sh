@@ -125,6 +125,7 @@ else
        AND NOT EXISTS (SELECT 1 FROM ops_event e WHERE e.ticket=l.ticket
           AND e.ts=l.mt AND e.event IN
             ('已批','派单','领单','拉起','裁决','完成','驳回','挂起'))"
+  DIAG_JOIN= # 段D3 诊断支并入默认关（review/all 显式开——段C candidate 面无此量 set -u 防未绑）
   case "$MODE" in
     review)     PRED="($REVIEW_PRED)"; ORDER="l.ticket"; DIAG_JOIN=1
                 LSQL="SELECT ticket,max(ts) mt FROM ops_event WHERE ticket<>'' GROUP BY ticket" ;;
