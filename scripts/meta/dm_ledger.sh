@@ -46,6 +46,11 @@ QC() { printf '%s' "${1:-}" | sed "s/'/''/g"; }
 esc() { # $1=ticket $2=prefix $3=detail —— 升件自报末环败静默退（结构性限度在案）
 	"$OPS_ESC_SH" CTO "$1" "" "" "$2" "$3" || true # tolerate: 升件自报末环——ops_esc 写径败静默退（结构性限度在案）
 }
+esc_once() { # $1=ticket $2=prefix $3=detail —— 恒态件升件一次永记(已升过同前缀免鸣——T-9999销号票打地鼠病灶修;查败视同未升=保守鸣)
+	local seen
+	seen=$(psql "$FIN_DSN" -qAt -c "SELECT 1 FROM ops_event WHERE event='升件' AND note LIKE '$(QC "$2")%' LIMIT 1" 2>/dev/null || true) # tolerate: 查败=视同未升保守鸣
+	[ "$seen" = "1" ] || esc "$@"
+}
 task_file()  { compgen -G "$TASK_DIR/$1-*.md" 2>/dev/null | head -1; }
 done_file()  { compgen -G "$DONE_DIR/$1-*.md" 2>/dev/null | head -1; }
 now_date()   { date +%F; }
@@ -145,10 +150,10 @@ if [ "$MODE" != "reconcile" ]; then
 		[ "${#ACT_T[@]}" -lt "$MAX_BATCH" ] || { echo "[dm-ledger] 批帽 $MAX_BATCH 到——余票下拍续" >&2; break; }
 		tf=$(task_file "$tid") df=$(done_file "$tid")
 		if [ -n "$tf" ] && [ -n "$df" ]; then
-			esc "$tid" "LEDGER-DUP-$tid" "票件双存（tasks/ 与 done/ 同票两档）——取 done/ 面，存根待人工清"
+			esc_once "$tid" "LEDGER-DUP-$tid" "票件双存（tasks/ 与 done/ 同票两档）——取 done/ 面，存根待人工清"
 			tf=
 		fi
-		[ -n "$tf" ] || [ -n "$df" ] || { esc "$tid" "LEDGER-NOFILE-$tid" "终态票无票件（tasks/done 双缺）——票翻不可为"; continue; }
+		[ -n "$tf" ] || [ -n "$df" ] || { esc_once "$tid" "LEDGER-NOFILE-$tid" "终态票无票件（tasks/done 双缺）——票翻不可为"; continue; }
 		# 裁决通过面归档前先证收口已并 master；完成行面台账即权威直接翻。
 		if [ "$ev" != "完成" ] && [ -n "$tf" ]; then
 			if ! merged_proof "$tid"; then
