@@ -1,0 +1,13 @@
+# o-mirror-push.timer —— 15min 镜面发窗拍（T-0467：绿了即推已绿
+# sha——check_all 20-40min 节奏下 15min 拍足够紧凑；空窗零动作
+# 零成本，拍壳即判件）。
+[Unit]
+Description=o-mirror-push 15min 镜面拍
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=15min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -7,6 +7,16 @@
 MSG_FILE="$1"
 MSG=$(cat "$MSG_FILE" 2>/dev/null || true)
 
+# T-0467 件③：部署树 master commit 时闸（§9 前移）——subject 词形
+# 本阶段才可见（pre-commit 判别面不存在），判件独立脚本供桩测。
+# 非部署树/非 master/merge 在途/他 subject 形=直通零干预。
+ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+BR=$(git branch --show-current 2>/dev/null || true) # tolerate: detached=空 br——判件内非 master 直通
+SUBJ=$(head -1 "$MSG_FILE" 2>/dev/null || true)    # tolerate: 空件=判件 SUBJ 空串直通
+if [ -x scripts/check_deploy_commit_seat.sh ]; then
+  scripts/check_deploy_commit_seat.sh "$ROOT" "$BR" "$SUBJ" || exit 1
+fi
+
 printf '%s' "$MSG" | grep -qiE 'fix|修复|修|bug|bugfix|hotfix|regression|回归|病灶|坑|patch|revert' || exit 0
 
 STAGED=$(git -c core.quotepath=off diff --cached --name-only)

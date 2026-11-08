@@ -1,0 +1,9 @@
+# o-mirror-push.service —— T-0467 镜面推单发（推已绿 sha 非 HEAD）。
+[Unit]
+Description=o-mirror-push (镜面推已绿sha)
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/o/scripts/mirror_push.sh
+NoNewPrivileges=true
