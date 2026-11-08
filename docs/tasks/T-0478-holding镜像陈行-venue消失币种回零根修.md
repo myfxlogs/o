@@ -85,3 +85,15 @@ fetch 返回集外存量行永不收。
   写径——源修读面自愈）；未动 bag.go（其 venue_ref='' 写法即
   护线判据面，不改）；未跑手工 SQL；未碰部署面（合并+发窗归
   决策席常径）。
+
+## 裁记（CTO 2026-11-08）
+
+- 裁决：**通过**（merge 626e5b879 scoped 全链绿戳在案）。
+- 先红证据（决策席亲跑补记——票面原未载，修前红律核查件）：
+  merge-base 568833d8a 裸树植新测 sync_test.go 直跑
+  `TestSyncAbsentDelete` → FAIL「缺席行 GONE 未核销 n=1」；
+  修后同断言绿（施工四断言+本席 merge 树 scoped 复跑过）。
+- 护线收窄偏离认可：(kind,venue_ref) 对域比票面 kind 单维更严，
+  bag 显形行/手工行/structured_order 对域外天然不收——采信。
+- 部署后自洁锚：本修入发窗批后下拍 sync 即核销 CORE 幻影行，
+  届时直查 fin_holding 收尾验（批件随窗发）。
