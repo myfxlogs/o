@@ -78,7 +78,7 @@ func (e *EventPush) pushOpened(ctx context.Context) {
 			continue // 扫行败跳过非吞——行级病灶不阻余行
 		}
 		e.push(ctx, fmt.Sprintf("opened:%d", id),
-			fmt.Sprintf("开仓：%s，投入本金 %.2f USDT（现货买入+永续卖出对冲）",
+			fmt.Sprintf("开仓：%s，投入本金 $%.2f（现货买入+永续卖出对冲）",
 				hedgeName(inst), notional))
 	}
 }
@@ -104,13 +104,13 @@ func (e *EventPush) pushFunding(ctx context.Context) {
 		_ = rows.Scan(&id, &ccy, &amt, &posRef)
 		e.cursor["funding"] = id
 		e.push(ctx, fmt.Sprintf("funding:%d", id),
-			fmt.Sprintf("资金费到账：%.4f USDT（对冲仓#%d）", amt, posRef))
+			fmt.Sprintf("资金费到账：%.4f %s（对冲仓#%d）", amt, ccy, posRef))
 	}
 }
 
 func (e *EventPush) pushClosed(ctx context.Context) {
 	rows, err := e.pool.Query(ctx, `SELECT p.id,p.inst_id,p.notional_usd,
-		COALESCE(p.settled_amount,0) FROM fin_position p
+		COALESCE(p.settled_amount,0),COALESCE(p.settled_ccy,'USD') FROM fin_position p
 		WHERE p.closed_at IS NOT NULL AND p.closed_at > now()-interval '10 minutes' ORDER BY p.id`)
 	if err != nil {
 		return
@@ -120,13 +120,14 @@ func (e *EventPush) pushClosed(ctx context.Context) {
 		var id int64
 		var inst string
 		var notional, pnl float64
-		_ = rows.Scan(&id, &inst, &notional, &pnl)
+		var ccy string
+		_ = rows.Scan(&id, &inst, &notional, &pnl, &ccy)
 		sign := "+"
 		if pnl < 0 {
 			sign = "-"
 		}
 		e.push(ctx, fmt.Sprintf("closed:%d", id),
-			fmt.Sprintf("平仓：%s，本轮净盈亏 %s%.4f USDT", hedgeName(inst), sign, absf(pnl)))
+			fmt.Sprintf("平仓：%s，本轮净盈亏 %s%.4f %s", hedgeName(inst), sign, absf(pnl), ccy))
 	}
 }
 

@@ -18,6 +18,7 @@ import { LiveBadge, PipelineTile } from "../components/pipeline";
 import { MetaSeats } from "../components/metaseats";
 import { QuoteBoard } from "../components/QuoteBoard";
 import { AGE } from "../components/panel";
+import { DIRECTION_CN, HEADLESS_STATE_CN, PLATFORM_CN, cn } from "../components/labels";
 import type {
   GetCockpitResponse,
   CockpitPlatformRow,
@@ -87,13 +88,9 @@ export function CockpitPage() {
 	const d30 = m ? m.daily.reduce((a, v) => a + v, 0) : 0;
 	const posDays = m ? m.daily.filter((v) => v > 0).length : 0;
 	const hlRows = hl.data?.rows ?? [];
-	// 计数双语归一（服务端判态中文标 or pump 原键——HL_STATE 正向映射后按显示
-	// 标判，两径通吃；①存活卡「无头面」注行数据源——分片仍在流推只撤卡面）。
-	const HL_STATE: Record<string, string> = {
-		alive: "在飞", done: "完工", dead: "死亡", stalled: "停滞", overdue: "逾期",
-		exit: "已退",
-	};
-	const hlL = (s: string) => HL_STATE[s] ?? s;
+	// 计数双语归一（服务端判态中文标 or pump 原键——HEADLESS_STATE_CN 正向
+	// 映射后按显示标判，两径通吃；词表归一 labels.ts T-0441）。
+	const hlL = (s: string) => cn(HEADLESS_STATE_CN, s, s);
 
 	const rosterStale = !miss.has("roster") && Number(d.rosterWorstLagS) > 600; // T-0308：active 岗心跳停滞>10min 钉常量转红
 	const rosterWorstSeat = d.rosterWorstSeat || "";
@@ -165,12 +162,12 @@ export function CockpitPage() {
 						d.armed.length === 0 ? <EmptyState title="无待开仓" hint="待开仓队列为空——当前没有待处理事项" /> :
 						<div className="tile-scroll"><table className="tile-table"><thead><tr><th>#</th><th>标的</th><th>方向</th><th>建时</th><th>TTL余(h)</th></tr></thead>
 							<tbody>{d.armed.map((a: CockpitArmed) => <tr key={a.id}><td>{a.id}</td><td>{a.instId}</td>
-								<td>{a.direction}</td><td>{ts(a.created)}</td><td>{a.ttlHoursLeft.toFixed(1)}</td></tr>)}</tbody></table></div>)}
+								<td title={a.direction}>{cn(DIRECTION_CN, a.direction, "对冲方向未识别")}</td><td>{ts(a.created)}</td><td>{a.ttlHoursLeft.toFixed(1)}</td></tr>)}</tbody></table></div>)}
 				</Card>
 				<Card title="①② 钱面平台明细"
 					extra={<StateDot state={miss.has("money") ? 2 : 0} breathe={!miss.has("money")} title={`${m?.platforms.length ?? 0} 平台 · 更新 ${asOfAge}`} />}>{sec("money", !m ? <p className="dim">该段数据缺</p> : <>
 					<table className="tile-table"><thead><tr><th>平台</th><th>承诺</th><th>已入</th><th>停泊</th><th>敞口</th></tr></thead>
-						<tbody>{m.platforms.map((p: CockpitPlatformRow) => <tr key={p.platform}><td>{p.platform}</td><td>{p.committed < 0 ? "未设" : p.committed.toFixed(0)}</td>
+						<tbody>{m.platforms.map((p: CockpitPlatformRow) => <tr key={p.platform}><td>{cn(PLATFORM_CN, p.platform, "未识别平台")}</td><td>{p.committed < 0 ? "未设" : p.committed.toFixed(0)}</td>
 							<td>{p.platform === "MT5" && miss.has("mt5") ? "数据缺" : p.deposited.toFixed(0)}</td><td>{p.parked.toFixed(0)}</td><td>{p.exposure.toFixed(0)}</td></tr>)}</tbody></table>
 					{miss.has("mt5") && <p className="dim">MT5 平台已入段数据缺（mt5Live 读败——合计行为不含 MT5 部分口径，非真 0）</p>}
 					<p className="dim fact">近30d 日净：{m.daily.map((v) => v.toFixed(1)).join(" · ")}</p>

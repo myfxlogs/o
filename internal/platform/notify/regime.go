@@ -58,13 +58,13 @@ func (g *Regime) Scan(ctx context.Context) error {
 		return nil
 	}
 	var b strings.Builder
-	b.WriteString("[Regime] 判词 " + fmt.Sprint(len(out)) + " 条\n")
+	b.WriteString("[市场判词] " + fmt.Sprint(len(out)) + " 条\n")
 	for _, r := range out {
 		conf := "—"
 		if r.conf != nil {
 			conf = fmt.Sprintf("%.2f", *r.conf)
 		}
-		b.WriteString(fmt.Sprintf("· %s：%s(%s)", r.dim, r.stance, conf))
+		b.WriteString(fmt.Sprintf("· %s：%s(%s)", r.dim, regimeStance(r.stance), conf))
 		if r.memo != nil && *r.memo != "" {
 			b.WriteString("——" + *r.memo)
 		}
@@ -83,4 +83,20 @@ func (g *Regime) Scan(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+// regimeStance 判词立场机读枚举人话（risk_on/off/neutral/uncertain——
+// T-0441 白话令；未知值原样透出不吞）。
+func regimeStance(s string) string {
+	switch s {
+	case "risk_on":
+		return "风险偏好上行"
+	case "risk_off":
+		return "风险偏好下行"
+	case "neutral":
+		return "中性"
+	case "uncertain":
+		return "不确定"
+	}
+	return s
 }
