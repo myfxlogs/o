@@ -1,6 +1,6 @@
 # T-0450 探针升件自动起草：观测盲@face:dep_pair:subreq:user_intent:TRX-USDT-SWAP
 
-- 状态：待验（业主手动外派 2026-11-08——号序串行 T-0450→0453→0454；证据移交外审席复审）
+- 状态：完成（2026-11-08 外审裁过归宗——合 master @752e2a14）
 - 领取：zcode-facepair @ 2026-11-08（业主手动外派令——窄口豁免径，收口照常回决策席）
 - 优先级：P2（起草默认档——DM 裁时可调）
 - 收口移交归：决策席
@@ -76,3 +76,12 @@ A 复用现有册件零新造（faceBaselineWhitelist=T-0448 既有登记位）�
 分支: t/0450-face-dep-pair-subreq-user-intent-trx-usdt-swap（领单锁已推；impl/回填本地留案——闸病 T-0460 上锚③）
 移交: 决策席（业主令：证据报外审席复审）
 [施工收口:T-0450] @b3f376d4
+
+## 收口段（裁决裁记）
+
+- `[外审裁:T-0450] 过 @752e2a14 | 断言对拍 3/3 | 戳sha=check-green-0ca0a554（scoped,净库5437） | 部署态=o-core镜像面件随发窗批`
+  - 断言① 桩测红/绿双点：过——本席独立复现：impl 前态（b3f376d4^ facesnap）下 `TestFaceBaselineSubreqUserIntentTRXRegistered` FAIL `depblind_test.go:553 病灶存在…未入人工基线册`，impl 态同断言 PASS（scratch wt 双态亲跑）。
+  - 断言② 探针同窗不再报同签名病灶：过（机制+生产双证）——豁免径源码核证（faceBaselineExempt→reportNewFace，facesnap.go:155-197：册内面新面行照落携理由键、升件免）；SG 亲读：`fin_sub_request` open 行 TRX-USDT-SWAP/user_intent 在案、`ops_face_snapshot` b9+b10 两批面在册、升件源 #3408 实存（@2026-11-07 13:48Z）。
+  - 断言③ check_all 绿戳对口：过——本席独立复跑 @0ca0a554 全链绿 mode=scoped（11 闸绿+seat-writes WARN 豁免=T-0460 他票病+定向谱 20 包全 ok）；「并入发窗批」=镜像面件随窗。插曲在案：同谱于测试库 5436 两跑确定性红 cmd/core cockpit 两测+risk TestDcdOwnerDomainExcluded——亲证系 o-postgres-test-c 库残留态依赖（同三测 5434/5435/5437/5438 全过、5436 独红；整包单跑全过），与本 diff 零交集非本票病。
+  - diff 审：`faceBaselineWhitelist` +1 登记（T-0448 既有册件复用零新造）+先红桩 +1（T-0388 律红/绿钉）；范围 ⊆ 钦定两文件，探针阈/签名面/类册零动，钱径凭据零碰；理由键非空携生产亲证锚。
+  - 推程留案（非本件断言、归推程道）：①枝推 non-ff——远端领单 commit a9182dde 不在本枝谱系（施工直起 master 基线并轨），merge 已携全内容归宗；②master 推程存量双堵——绿戳闸下 check_master_direct 咬 0c3a9389/9108c52d `[角色:施工]` 会话尾直 commit（first-parent 零豁免，T-0459 裁记同记录在案）+seat-writes T-0460 病——修票 T-0460 在飞；repolock 陈锁 STOLEN 显报（前持 CTO-T0451 锁龄 1802s 被抢）。
