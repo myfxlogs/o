@@ -141,6 +141,7 @@ func (u *UniverseCatalog) refresh(ctx context.Context) error {
 	var swap, spot, fut, all []string
 	famErr := map[string]error{}
 	seenSpot := map[string]bool{}
+	var derivedSpot []string // T-0445：基币现货派生键暂存——入集权归 SPOT 族读成与否定夺
 	for _, i := range sw {
 		if i.State != "live" || !strings.HasSuffix(i.InstID, "-USDT-SWAP") {
 			continue
@@ -150,11 +151,13 @@ func (u *UniverseCatalog) refresh(ctx context.Context) error {
 		// T-0129 根修沿用：宇宙放开须含现货腿面——SWAP 基币现货对同入
 		// 订阅集（对冲腿现价源非指数价——index-tickers 不可代）。T-0427
 		// SPOT 族并集为主、本派生臂保留兜底（SPOT 族读败日基币现货腿
-		// 不失明）。
+		// 不失明）。T-0445：派生键暂存不直入——SPOT 族读成=live 目录真值
+		// 闸（MUU-USDT 型 SWAP 基币≠现货基币币的幽灵键=虚构键宇宙外，
+		// 入集=订阅 error 帧+腿覆盖探针假必报病灶本体）。
 		base := strings.TrimSuffix(i.InstID, "-SWAP")
 		if !seenSpot[base] {
 			seenSpot[base] = true
-			all = append(all, base)
+			derivedSpot = append(derivedSpot, base)
 		}
 	}
 	if len(swap) == 0 {
@@ -182,6 +185,12 @@ func (u *UniverseCatalog) refresh(ctx context.Context) error {
 				famErr["SPOT"] = fmt.Errorf("instruments SPOT live 零行——族面病灶 fail-closed")
 			}
 		}
+	}
+	// T-0445 派生键入集裁：SPOT 族读成=live 目录真值已并集入 all——实证
+	// 在的派生键经族环同键覆盖（不重不漏），族外派生键=幽灵滤除；SPOT
+	// 族读败=兜底径全量派生照旧（现货腿不失明——族级降级语义不动）。
+	if famErr["SPOT"] != nil {
+		all = append(all, derivedSpot...)
 	}
 	// FUTURES 族（T-0189 形沿用）：quarter 到期期货全收+uly 剥离键并入集
 	//（index-tickers USD 指数行覆盖——basisAnn JOIN 键）；族败=记账降级
