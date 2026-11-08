@@ -41,3 +41,11 @@ Exec 推过 20s——断言假阳性，check_all 两连红；同测隔离跑 K=1
   隔离三连绿；
 - result: 阈 20→60s 后单测绿（语义面未动）；
 - ref: GW-001 段A 部署期 2026-11-08 实发。
+
+## 补记（第二形态——竞态型）
+
+同测试第三连红实证：floodStop() 取消 floodCtx 时若 Exec 恰在飞
+（herd 下排队发>0 概率高），Exec 返回 context.Canceled 被误当反压
+实锤——放大阈值治标不治本。修法：err 后查 floodCtx.Err()!=nil→
+停灌拍取消在飞发=clean exit；自发 DeadlineExceeded 才是实锤。
+判法增补：「停拍边界红」先查取消与在飞操作的竞态，再考虑放大阈。
