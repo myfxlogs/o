@@ -60,5 +60,5 @@ systemd oneshot/timer unit 族；WorkingDirectory 指向运行期才存在的路
 
 - gauge_name: heartbeat_dead（既有——unit 永败=META 行 stale，>7d 幽灵闸兜底显形）
 - class: 幽灵
-- query: SELECT count(*) FROM (SELECT ticket,max(last_activity) m FROM ops_headless GROUP BY 1) t WHERE m<now()-interval '7 days'
+- query: SELECT count(*) FROM (SELECT ticket,seat,max(last_activity) m,regexp_replace(ticket,'^META-Dev-','') tno FROM ops_headless GROUP BY ticket,seat) t WHERE m<now()-interval '7 days' AND ((ticket LIKE 'META-%' AND ticket NOT LIKE 'META-Dev-%') OR ticket LIKE 'o-%' OR ticket=seat OR (tno<>'' AND NOT EXISTS (SELECT 1 FROM ops_event e WHERE e.ticket=t.tno AND e.event IN ('裁决','完成','驳回')) AND EXISTS (SELECT 1 FROM ops_event e WHERE e.ticket=t.tno AND e.ts>now()-interval '7 days')))
 - threshold: 1
