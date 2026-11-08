@@ -52,7 +52,7 @@ run_scan() { # env 覆写经环境注入
 	env "$@" WHYCHAIN_ENV_FILE="$TMP/env" O_WHYCHAIN_FILE_SH="$VT" \
 		VERDICT_ENV_FILE="$TMP/env" "$SCAN" >/dev/null 2>&1 || true # tolerate: 桩测壳层 rc 不碍断言
 }
-files() { grep -c 'INSERT INTO fin_econ_lesson' "$PSQL_LOG" || true; }
+files() { grep -c 'INSERT INTO fin_econ_lesson' "$PSQL_LOG" || true; } # tolerate: grep -c 零命中 rc=1=合法零计数非败
 reset_log() { : > "$PSQL_LOG"; }
 
 # ① 全绿=零立案（兜底拍零烧——无 INSERT）。
