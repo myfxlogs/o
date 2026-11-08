@@ -2,33 +2,14 @@
 // D-077/D-588——纯渲染：人话字典+phase 判态+并集行表；phase 判据全服务端
 // 派生，前端零判据纯渲染）。
 import type { BrokerOnboardRow } from "../../gen/dashboardv1/core_pb";
+import { BROKER_PHASE_CN, BROKER_STATE_CN, cn } from "./labels";
 
-// 人话字典（纯显示映射非判据——phase/台账态键→中文直译；未知值原样透出不吞）。
-const PHASE_CN: Record<string, string> = {
-	registered: "已注册·候验连",
-	connecting: "验连中",
-	verified: "已验证",
-	failed: "接入败",
-};
-const STATE_CN: Record<string, string> = {
-	registered: "已注册·候探测",
-	probed: "已探测",
-	mapped: "映射就绪",
-	paper: "paper 激活",
-	candidate: "候选",
-	measuring: "度量中",
-	recommended: "建议注册",
-	rejected: "已拒",
-	kyc_blocked: "KYC受限",
-	adopted: "已采纳",
-	dismissed: "已驳回",
-	parked: "已停放",
-};
+// 人话字典归一 labels.ts（T-0441）——未知值人话兜底不裸出机读枚举。
 const phaseTxt = (r: BrokerOnboardRow): string => {
-	if (r.phase) return PHASE_CN[r.phase] ?? r.phase;
+	if (r.phase) return cn(BROKER_PHASE_CN, r.phase, "未识别态");
 	if (r.proto === "mt4" && !r.state) return "凭据在册·MT4 链未接";
 	if (!r.state) return "凭据在册·候发现";
-	return STATE_CN[r.state] ?? r.state;
+	return cn(BROKER_STATE_CN, r.state, "未识别态");
 };
 
 

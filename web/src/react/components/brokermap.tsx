@@ -77,7 +77,7 @@ export function SymbolMappingStep(props: {
 			</div>
 			{rows.length > 0 && (
 				<table className="rows" style={{ maxWidth: 620, marginTop: 6 }}>
-					<thead><tr><th></th><th>候选方言名</th><th>ctVal</th><th>minSz</th><th>lotStep</th><th>digits</th><th>spread</th><th>分</th></tr></thead>
+					<thead><tr><th></th><th>候选方言名</th><th>合约面值</th><th>最小数量</th><th>最小步进</th><th>价格位数</th><th>买卖价差</th><th>匹配分</th></tr></thead>
 					<tbody>
 						{rows.map((c) => (
 							<tr key={c.venueSymbol}>

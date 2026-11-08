@@ -28,7 +28,7 @@ func TestVenueReqPush(t *testing.T) {
 	if err := v.Scan(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if len(fs.sent) != 1 || !strings.Contains(fs.sent[0], "请注册 mexc") || !strings.Contains(fs.sent[0], "carry") {
+	if len(fs.sent) != 1 || !strings.Contains(fs.sent[0], "请注册 mexc") || !strings.Contains(fs.sent[0], "单所息差") {
 		t.Fatalf("组文不符: %+v", fs.sent)
 	}
 	if !strings.Contains(fs.sent[0], "12") || !strings.Contains(fs.sent[0], "6") {

@@ -10,6 +10,7 @@ import { TrxVoteEngineRows } from "./TrxVoteEngine";
 import { Skeleton } from "./ui";
 import type { HedgeStructure } from "../../gen/dashboardv1/core_pb";
 import { fmtUsd, fmtNum, fmtPrice, fmtThr, pnlClass, fmtSigned } from "./fmt";
+import { PLATFORM_ALERT_CN } from "./labels";
 
 export function TrxHedgeCard() {
   const [structure, setStructure] = useState<HedgeStructure | null>(null);
@@ -55,7 +56,7 @@ export function TrxHedgeCard() {
           </span>
         </span>
         {ready && structure!.platformAlertState && structure!.platformAlertState !== "normal" && (
-          <span className="ws-dot-wrap" title={`平台预警: ${structure!.platformAlertState}`}>
+          <span className="ws-dot-wrap" title={`平台预警: ${PLATFORM_ALERT_CN[structure!.platformAlertState] ?? "未识别"}`}>
             <span className="ws-dot ws-dot-warn" />
             <span className="muted">{structure!.platformAlertState === "breach" ? "平台强平触碰" : "平台预警"}</span>
           </span>

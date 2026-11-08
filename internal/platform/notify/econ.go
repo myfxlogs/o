@@ -41,17 +41,36 @@ func (e *Econ) Scan(ctx context.Context) error {
 		if err := rows.Scan(&k, &n); err != nil {
 			return err
 		}
-		parts = append(parts, fmt.Sprintf("%s=%d", k, n))
+		parts = append(parts, fmt.Sprintf("%s=%d", econKind(k), n))
 		total += n
 	}
 	if total == 0 {
 		return nil
 	}
-	msg := fmt.Sprintf("【经济案】%d 件待裁——%s（fin_econ_lesson 读径——裁定走决策席）",
+	msg := fmt.Sprintf("【经济案】%d 件待裁——%s（经济案台账——裁定走决策席）",
 		total, strings.Join(parts, " "))
 	if e.on == nil || !e.on() {
 		return nil
 	}
 	_, err = e.cli.SendText(ctx, e.chatID(), msg)
 	return err
+}
+
+// econKind 经济案类机读键人话（T-0441——未知类原样透出不吞）。
+func econKind(k string) string {
+	switch k {
+	case "rootcause_diag":
+		return "根因诊断"
+	case "trade_postmortem":
+		return "交易复盘"
+	case "settled_loss":
+		return "结算亏损"
+	case "falsified_verdict":
+		return "证伪判定"
+	case "cost_diverge":
+		return "成本偏离"
+	case "semantic_caliber":
+		return "口径定义"
+	}
+	return k
 }

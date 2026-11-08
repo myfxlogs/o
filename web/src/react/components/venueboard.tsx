@@ -7,26 +7,12 @@ import { useState } from "react";
 import { scoutClient } from "../api";
 import { useLive } from "../hooks";
 import { Card, EmptyState, ErrorState, Skeleton } from "./ui";
+import { SCOUT_BASE_SRC_CN, SCOUT_FAMILY_CN, SCOUT_STATE_CN, cn } from "./labels";
 
-// T-0306：裸值归中文映射（未知值原样透出不吞——家族/状态/基线源三表）。
-const FAMILY_CN: Record<string, string> = {
-  carry: "单所息差",
-  xvenue_spread: "跨所价差",
-  basis: "基差",
-};
-const STATE_CN: Record<string, string> = {
-  measuring: "度量中",
-  candidate: "候选",
-  recommended: "建议注册",
-  registered: "已注册",
-  rejected: "已拒",
-  kyc_blocked: "KYC受限",
-  adopted: "已采纳",
-  dismissed: "已驳回",
-  parked: "已停放",
-};
-const BASE_SRC_CN: Record<string, string> = { earn: "Earn", okx_family: "OKX同族" };
-const cn = (m: Record<string, string>, v?: string) => (v ? m[v] ?? v : "—");
+// T-0306/T-0441：裸值归中文映射归一 labels.ts——未知值人话兜底不吞不裸出。
+const famTxt = (v?: string) => cn(SCOUT_FAMILY_CN, v, "未识别族");
+const stateTxt = (v?: string) => cn(SCOUT_STATE_CN, v, "未识别态");
+const baseSrcTxt = (v?: string) => cn(SCOUT_BASE_SRC_CN, v, "未识别源");
 
 // T-0361：业主关心序——建议注册>候选>度量中>其余。
 const STATE_RANK = (s?: string) =>
@@ -95,7 +81,7 @@ export function VenueBoardCard() {
               ) : (
                 <span key={s}>
                   {i > 0 ? " · " : ""}
-                  {cn(STATE_CN, s)} {n}
+                  {stateTxt(s)} {n}
                 </span>
               )
             )}
@@ -108,11 +94,11 @@ export function VenueBoardCard() {
               {view.map(({ v, vn, at, b }) => (
                 <tr key={v.venue + ":" + (b?.family ?? "")}>
                   <td>{vn}</td>
-                  <td>{cn(FAMILY_CN, b?.family)}</td>
+                  <td>{famTxt(b?.family)}</td>
                   <td className="num mono">{b?.net_apr_mid !== undefined ? (b.net_apr_mid * 100).toFixed(2) + "%" : "—"}</td>
                   <td className="num mono">{b?.persist !== undefined ? (b.persist * 100).toFixed(0) + "%" : "—"}</td>
-                  <td className="ink-3">{cn(BASE_SRC_CN, b?.baseline_source)}</td>
-                  <td className="ink-3">{cn(STATE_CN, v.state)}</td>
+                  <td className="ink-3">{baseSrcTxt(b?.baseline_source)}</td>
+                  <td className="ink-3">{stateTxt(v.state)}</td>
                   <td className="ink-3">{at}</td>
                 </tr>
               ))}

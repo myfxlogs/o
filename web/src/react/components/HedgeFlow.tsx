@@ -10,34 +10,16 @@ import { client, errText } from "../api";
 import { hydrate, useSlice } from "../store";
 import { onData } from "../stream";
 import { fmtNum, fmtUsd } from "./fmt";
+import { CASHFLOW_KIND_CN, KIND_FALLBACK, VENUE_CN } from "./labels";
 import type { HedgeFlowItem } from "../../gen/dashboardv1/core_pb";
 
 const PAGE = 10;
 
-// kindText 中文映射统一（arb 逐字集——设计文档 §2 口径+D-279 五新类+CMC 专类）。
-const kindText = (k: string): string => {
-  switch (k) {
-    case "rental_income": return "租金收入";
-    case "vote_claim": return "奖励提取";
-    case "deposit": return "入金";
-    case "withdraw": return "出金";
-    case "stake": return "质押";
-    case "unstake": return "解押";
-    case "overnight": return "隔夜息";
-    case "permission_update": return "权限变更";
-    case "unstake_cancel": return "取消解冻";
-    case "vote": return "投票";
-    case "delegate": return "委托资源";
-    case "undelegate": return "收回委托";
-    case "close_trade": return "平仓";
-    case "sell_order": return "卖出委托";
-    case "order_cancelled": return "撤单";
-    default: return "其他";
-  }
-};
+// T-0441：kind/source 词表归一 labels.ts（CASHFLOW_KIND_CN 双族并集——
+// 未知类落「其他」不裸出枚举；source 域 trx|cmc 闭集）。
+const kindText = (k: string): string => CASHFLOW_KIND_CN[k] ?? KIND_FALLBACK;
 
-// sourceText 中文映射（arb 逐字）。
-const sourceText = (s: string): string => (s === "trx" ? "TRX" : s === "cmc" ? "CMC" : s);
+const sourceText = (s: string): string => VENUE_CN[s] ?? s;
 
 // flowDirection 收支方向判定（D-280 业主裁定口径逐字借形）：
 // CMC 按金额正负（正=收入绿+，负=支出红-，零=中性蓝——金额直表资金增减）；
