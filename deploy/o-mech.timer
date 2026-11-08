@@ -1,0 +1,12 @@
+# o-mech.timer —— 5min 机械轨兜底拍（GW-001 段A：事件帧/mech kind/
+# ExecStartPost 主驱，本拍兜事件漏缝——空跑零成本，拍壳即判件）。
+[Unit]
+Description=o-mech 5min 机械轨兜底拍
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

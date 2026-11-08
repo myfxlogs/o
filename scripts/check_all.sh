@@ -3,9 +3,12 @@
 # import→gofmt→env→rejects→migrations→go test 全谱，绿后盖鲜戳
 # .git/check-green-<SHA>（pre-push 验戳放行；无戳/陈戳=拒）。
 # worktree 缺 gen/dist 件先跑 scripts/provision_worktree.sh。
+# GW-001 A3 戳位归一：戳落 git-common-dir——linked worktree 的 --git-dir
+# 是私有目录（.git/worktrees/<n>），戳须落公共仓戳面供 pre-push/mirror
+# 读（worktree 盖戳与主树推/镜同域）。
 set -uo pipefail
 cd "$(git rev-parse --show-toplevel)"
-GITDIR=$(git rev-parse --git-dir)
+GITDIR=$(git rev-parse --git-common-dir)
 STAMP="$GITDIR/check-green-$(git rev-parse HEAD)"
 
 fail() { echo "❌ [check-all] $1——绿了才推" >&2; exit 1; }

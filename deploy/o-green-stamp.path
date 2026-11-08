@@ -1,0 +1,15 @@
+# o-green-stamp.path —— GW-001 段A 绿戳文件事件件：check_all 盖戳
+# （scripts/check_all.sh→git-common-dir/check-green-<SHA>）落件即触发
+# o-mirror-push.service——镜面推主径由 15min timer 改事件驱动
+# （timer 留作漏缝兜底）。PathExistsGlob 实测语义（systemd 255）：
+# 仅「新匹配件出现」触发——.git 常规 churn（index/FETCH_HEAD 等非
+# 匹配件）不误触；戳龄/HEAD包含/ff 三闸仍在 mirror_push 内裁。
+[Unit]
+Description=o-green-stamp 绿戳落件触发镜面推
+
+[Path]
+PathExistsGlob=/opt/o/.git/check-green-*
+Unit=o-mirror-push.service
+
+[Install]
+WantedBy=paths.target

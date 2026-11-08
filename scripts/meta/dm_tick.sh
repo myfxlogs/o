@@ -7,6 +7,12 @@
 #              scan→裁→rescan→队列空才退）+收班判（班后队列空=
 #              state=exit 正常终态）；队列推导单源 dm_queue.sh（闸与
 #              班内 rescan 同式防漂）。
+#              GW-001 段A 瘦身：本壳=纯判断会话面（锁闸+队闸+devin+hb）；
+#              零 LLM 机械尾段（depgate/补拉/suspend/handoff/ticketdraft/
+#              autoapprove/ledger/verdict_deliver/部署收敛）整体迁
+#              mech_tick.sh——机械动作唯一执行者=o-mech，禁双轨；
+#              尾段一行唤 o-mech.service（锁分离——本锁只管会话班次，
+#              机械轨自有 advisory 锁不被本锁挡）。
 set -u
 CTO_DIR=${O_CTO_WORKDIR:-/var/tmp/o-cto}
 # T-0323 踢径钦定单目标：一切自报（含派单通报/升件）踢 O-DM 交互席；
@@ -17,7 +23,6 @@ ENVF="${DM_ENV_FILE:-/opt/o-research/env}"
 FIN_DSN=$(grep '^FIN_PG_DSN=' "$ENVF" 2>/dev/null | cut -d= -f2- | tr -d '"')
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 DM_QUEUE_SH=${O_DM_QUEUE_SH:-"$SCRIPT_DIR/dm_queue.sh"}
-DM_DEPGATE_SH=${O_DM_DEPGATE_SH:-"$SCRIPT_DIR/dm_depgate.sh"}
 OPS_ESC_SH=${O_OPS_ESC_SH:-"$SCRIPT_DIR/ops_esc.sh"}
 
 hb() { # $1=state 心跳行（META-DM——meta 席位口径）
@@ -41,14 +46,6 @@ usage_esc() {
 dm_esc() {
   "$OPS_ESC_SH" CTO "" "" "" "$1" "$2" || true # tolerate: 自报末环——ops_esc 写径败静默退（结构性限度在案）
 }
-
-# T-0413 派单依赖闸必须在班次锁前跑：kick 撞在飞班次时，零交集已批件
-# 仍可直派；交集/不可判件不进派单链，锁拒后照常留班内排队等裁决。
-if [ -n "$FIN_DSN" ]; then
-  DEPGATE_RC=0
-  "$DM_DEPGATE_SH" || DEPGATE_RC=$?
-  [ "$DEPGATE_RC" -ne 0 ] && dm_esc "派单依赖闸败" "rc=$DEPGATE_RC 已批快派面不可知按常径排队"
-fi
 
 # —— T-0354 件③ 单例闸：PG advisory lock（int8 专键）。holder=psql 连接
 # 挂 FIFO：fd8=O_RDWR 自持写端永不 EOF（锁随脚本生死）；psql stdin 走
@@ -88,9 +85,10 @@ if [ -n "$FIN_DSN" ]; then
   trap dm_gate_release EXIT
 fi
 
-# ① 待裁闸：无待裁时跳过 LLM，但仍运行下方零 LLM 的 worker 派发/续跑闸。
+# ① 待裁闸：无待裁时跳过 LLM。零 LLM 机械面（派发/续跑/票翻/收敛窗）
+# GW-001 段A 起整体归 mech_tick 轨——本壳仅在有待裁时烧会话。
 # T-0414 会话面收窄：开班判据=review 面（判断件——收口类待裁），已批待派面
-# 全归壳轨（dm_depgate 零交集即派/补拉窗/dm_ledger 票翻补登）不烧会话。
+# 全归机械轨（mech_tick 内 depgate 零交集即派/补拉窗/dm_ledger 票翻补登）不烧会话。
 SKIP_DECISION=0
 PENDING_TICKETS=
 if [ -n "$FIN_DSN" ]; then
@@ -167,111 +165,10 @@ if [ "$SKIP_DECISION" -eq 0 ]; then
   fi
 fi
 
-# T-0343：常径派单和 rate-limit 挂起续跑共用 dispatch_worker.sh。仅最新
-# 决策席派单或施工席 rate-limit:auto 挂起可补拉；其他挂起/异常不自动重试。
-# 模型档从原派单备注恢复。补拉成功写 `拉起` 行自标幂等；无票文件免拉。
-if [ -n "$FIN_DSN" ]; then
-  DISPATCH_WORKER=${O_WORKER_DISPATCH_SCRIPT:-/opt/o/scripts/meta/dispatch_worker.sh}
-  DISPATCH_WATER_SH=${O_DISPATCH_WATER_SH:-"$SCRIPT_DIR/dispatch_water.sh"} # T-0463 rc75 候水行唯一 emit 口径
-  DISPATCH_TASK_DIR=${O_WORKER_TASK_DIR:-/opt/o/docs/tasks}
-  DRC=0
-  DISPATCH_ROWS=$(psql "$FIN_DSN" -qAt -F '|' -c "SELECT l.ticket || '|' || COALESCE((
-      SELECT CASE WHEN e.note ILIKE '%swe-2-flash-high%' THEN 'swe-2-flash-high' WHEN e.note ILIKE '%swe-2-medium%' THEN 'swe-2-medium'
-                  ELSE 'swe-2-flash-high' END
-      FROM ops_event e WHERE e.ticket=l.ticket AND e.event='派单'
-      ORDER BY e.ts DESC,e.id DESC LIMIT 1
-    ),'swe-2-flash-high') FROM (
-      SELECT ticket,max(ts) mt FROM ops_event WHERE event IN
-        ('派单','领单','拉起','收口','移交','收口待审','裁决','完成','驳回',
-         '挂起','异常')
-        AND ticket<>'' GROUP BY ticket) l
-    WHERE EXISTS (SELECT 1 FROM ops_event e WHERE e.ticket=l.ticket
-        AND e.ts=l.mt AND e.event='派单' AND e.seat IN ('决策席','CTO'))
-       OR EXISTS (SELECT 1 FROM ops_event e WHERE e.ticket=l.ticket
-        AND e.ts=l.mt AND e.event='挂起' AND e.seat='施工席'
-        AND e.note LIKE 'rate-limit:auto%')" 2>/dev/null) || DRC=$?
-  [ "$DRC" -ne 0 ] && dm_esc "派单查询败" "rc=$DRC 派单/续跑候选集不可知按空集滑行"
-  printf '%s\n' "$DISPATCH_ROWS" | while IFS='|' read -r tid model; do
-    compgen -G "$DISPATCH_TASK_DIR/${tid}-*.md" >/dev/null || continue # ③无票免拉
-    # T-0438 件⑥ 人工径滤（坑条目 real-money-ticket-machine-dispatch-waste
-    # 律②——补派件把它踢出候选语义同域：票面「执行=人工径」出生行=机器
-    # 永不可为，补拉窗不续派（不派不挂起不计漏拉））。
-    MANUAL_LANE_SH=${O_MANUAL_LANE_SH:-"$SCRIPT_DIR/manual_lane_check.sh"}
-    if "$MANUAL_LANE_SH" "$tid" "$DISPATCH_TASK_DIR"; then continue; fi # rc0=人工径票滤除；rc1/2=照旧
-    st=$(systemctl --user is-active "o-worker-$tid.service" 2>/dev/null || true) # tolerate: is-active查败=态未知视同可拉
-    case "$st" in active|activating) continue;; esac # 精确比对误配恒死修
-    prompt="读 /opt/o/skills/施工席/SKILL.md 领单 $tid:只做工单范围内的事——写实现码/测试/提交/回填;范围外发现的问题不自己动手,写进交付备注;同票已有 Devin 会话或 worktree 时续跑不新开"
-    if "$DISPATCH_WORKER" "$tid" "$model" "$prompt" >/dev/null 2>&1; then
-      psql "$FIN_DSN" -qAt -c "INSERT INTO ops_event(seat,event,ticket,note)
-        VALUES('CTO','拉起','$tid','漏拉/限流补派——session 续跑')" >/dev/null 2>&1 || true # tolerate: 拉起行落账尽力而为—事件败不阻补派
-    else
-      rc=$?
-      if [ "$rc" -eq 75 ]; then
-        "$DISPATCH_WATER_SH" "$tid" # T-0463：候水标记行（自含尽力而为——写败静默退下拍 rc75 自然重落）
-        break # 并行水位/额度冷却——候选留队下拍重试
-      fi
-      echo "[dm] worker dispatch failed tid=$tid rc=$rc" >&2
-    fi
-  done
-fi
-
-# T-0365 挂起黑洞看门狗消费窗（零 LLM 段尾——消费面≠状态机：挂起不迁
-# 相位，只多开一扇扫描窗）。未消化挂起行机械二择：await=绿窗 档复跑
-# 测试已消→dispatch_worker 续跑（note「挂起续跑」）；未消且>4h→升件
-# 呈业主。rate-limit:auto 挂起归上段既有窗不重复消费。
-if [ -n "$FIN_DSN" ]; then
-  DM_SUSPEND_SH=${O_DM_SUSPEND_SH:-"$SCRIPT_DIR/dm_suspend.sh"}
-  SRC=0
-  "$DM_SUSPEND_SH" || SRC=$?
-  [ "$SRC" -ne 0 ] && dm_esc "看门狗本体败" "rc=$SRC dm_suspend 消费窗未跑净——挂起行消化停摆"
-fi
-
-# T-0459 交接对账哨兵消费窗（零 LLM 段尾——业主令「事事有交接，事事有回应」：
-# 交行龄>阈∧同票无接行=断链升件，配对表 handoff_pairs.tsv 单源。在案不双哨：
-# 升件→escalation_unclaimed 量表、挂起→上段 dm_suspend 看门狗，本件不扫）。
-if [ -n "$FIN_DSN" ]; then
-  DM_HANDOFF_SH=${O_DM_HANDOFF_SH:-"$SCRIPT_DIR/dm_handoff.sh"}
-  HRC=0
-  "$DM_HANDOFF_SH" || HRC=$?
-  [ "$HRC" -ne 0 ] && dm_esc "交接哨兵本体败" "rc=$HRC dm_handoff 消费窗未跑净——断链扫描停摆"
-fi
-
-# T-0393 候选票草案物料化窗（零 LLM 段尾——fin_ticket_draft pending→
-# docs/tasks 候选票件+起草行；写径只落候选态零自派，批准权=COS/DM）。
-# 败=升件自报（写败/META-DRAFT——类册面不入起草拍签名域防自起草回环）。
-if [ -n "$FIN_DSN" ]; then
-  TRC=0
-  (cd /opt/o && FIN_PG_DSN="$FIN_DSN" go run ./tools/ticketdraft -repo /opt/o >/dev/null 2>&1) || TRC=$?
-  [ "$TRC" -ne 0 ] && dm_esc "物料化径败" "rc=$TRC ticketdraft 未跑净——pending 草案滞留（升件面工具内自报，本行=拍壳兜底）"
-fi
-
-# T-0455 机批类册窗（零 LLM 段尾——物料化落件的候选票同拍过机批闸：
-# 册内签名→CEO seat 已批行+范围钦定；册外/人工径→零批滞留 24h 升件呈
-# DM；驳回行=账面撤销）。败=升件自报。
-if [ -n "$FIN_DSN" ]; then
-  AA_RC=0
-  REPO=/opt/o FIN_DSN="$FIN_DSN" "$SCRIPT_DIR/dm_autoapprove.sh" || AA_RC=$?
-  [ "$AA_RC" -ne 0 ] && dm_esc "机批闸径败" "rc=$AA_RC dm_autoapprove 未跑净——候选批准面滞留"
-fi
-
-# T-0414 机械轨尾窗（零 LLM 段尾——票翻/台账补登壳轨件：dm_ledger.sh）。
-# 位置义：kick 直驱不走会话——ops_event 新行即办机械活；会话判词刚落的
-# 票在同拍尾窗即归档补登（零会话等候）。败=升件自报不静默。
-if [ -n "$FIN_DSN" ]; then
-  DM_LEDGER_SH=${O_DM_LEDGER_SH:-"$SCRIPT_DIR/dm_ledger.sh"}
-  LRC=0
-  "$DM_LEDGER_SH" || LRC=$?
-  [ "$LRC" -ne 0 ] && dm_esc "机械轨本体败" "rc=$LRC dm_ledger 未跑净——票翻/台账补登滑行"
-fi
-
-# T-0438 判词送达尾窗（零 LLM 段尾——verdict_deliver.sh：需业主动作判词
-# 同拍转 fin_condition_gap 请求箱+feishu 推送；坑条目 real-money-ticket-
-# machine-dispatch-waste 律④「裁了≠送到了」机内化——会话判词刚落的票
-# 同拍尾窗即送达零等候）。败=升件自报不静默（rc3=有未闭环件下拍重试）。
-if [ -n "$FIN_DSN" ]; then
-  VERDICT_DELIVER_SH=${O_VERDICT_DELIVER_SH:-"$SCRIPT_DIR/verdict_deliver.sh"}
-  VDRC=0
-  "$VERDICT_DELIVER_SH" || VDRC=$?
-  [ "$VDRC" -ne 0 ] && dm_esc "判词送达闸败" "rc=$VDRC 需业主动作判词滞留未闭环（未闭环件下拍重试）"
-fi
+# GW-001 段A：零 LLM 机械尾段整体迁 mech_tick.sh（单轨——spawn/补拉/
+# 票翻/推/发唯一执行者=o-mech，本壳不再具备任何机械执行能力，禁双轨）。
+# 尾段一行唤机械轨：o-mech 自有 advisory 锁与本班次锁分离——本锁只管
+# 判断会话，机械轨不被会话 drain 挡；唤醒失败静默（o-mech.timer 5min
+# 兜底拍+事件帧双径自愈，非静默病灶）。
+${O_MECH_SYSTEMCTL:-systemctl} --user start --no-block o-mech.service >/dev/null 2>&1 || true # tolerate: 唤醒尽力而为——o-mech.timer 5min 兜底拍+事件帧双径自愈，唤败不阻本壳（非静默病灶）
 exit 0

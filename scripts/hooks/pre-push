@@ -17,7 +17,10 @@ case "$remote" in
     *) echo "FAIL: 推送远端必须是 origin（O 仓唯一钦定远端），收到: ${remote:-<空>}" >&2; exit 1 ;;
 esac
 
-GITDIR=$(git rev-parse --git-dir)
+# GW-001 A3 戳位归一：戳读 git-common-dir——linked worktree 推送时
+# --git-dir 是私有目录读不到公共戳面，common-dir 与 check_all/
+# mirror_push 同域。
+GITDIR=$(git rev-parse --git-common-dir)
 repo_root=$(git rev-parse --show-toplevel)
 
 fail() { echo "❌ [pre-push] $1" >&2; exit 1; }

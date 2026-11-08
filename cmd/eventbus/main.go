@@ -90,6 +90,11 @@ func main() {
 			// T-0431：诊断草案行入白名单——草案落位即唤醒决策席裁决
 			//（判词归流头段；status='drafted' 不入裁定席水印不回烧）。
 			Q: "SELECT COALESCE(max(id),0) FROM ops_event WHERE event IN ('收口','移交','收口待审','升件','诊断草案')"},
+		// GW-001 A4：机械类事件独立源 kind=mech——与 d 源同表双水位
+		// 各自独立（判断/机械帧不混），已批/派单/裁决/处置/部署/起草
+		// 落账即唤 o-mech 机械轨；判断类仍走 d 源 dm 帧双唤 CTO/CEO。
+		"e": {Table: "ops_event_wip", Kind: "mech", DSN: "fin",
+			Q: "SELECT COALESCE(max(id),0) FROM ops_event WHERE event IN ('已批','派单','裁决','处置','部署','起草')"},
 	}
 	pools := map[string]eventbus.Querier{}
 	for _, kv := range [][2]string{{"md", "MD_PG_DSN"}, {"fin", "FIN_PG_DSN"}} {
