@@ -126,4 +126,17 @@ var faceBaselineWhitelist = map[string]string{
 	// 拍（T-0393 链，升件源 #4759/新面行 #4758/快照批 14/15 在册；CEO
 	// 终态裁 #4768 明载=部署落地合法新面，机批已批 #4784）。
 	"face:table:md_eval_pulse": "T-0497 入册——md_eval_pulse=fin_0148 迁移建 public 基表（T-0485 eval 活动脉冲桥 per-template 聚合派生，domain.tsv bridge 入册；SG 表+授权 T-0488 直放对拍在案）；写径 projector refreshEvalPulse/读径 族沉默探针+eval 段灯授权在案；table 类面 information_schema BASE TABLE 枚举本体零硬编码，建表落地即面；生产亲证 public 基表在册+快照批 14/15 在册（ops_event #4759 升件源，CEO 终态裁 #4768 合法新面，机批已批 #4784）",
+	// T-0503：TEST=键卫生闸实弹验证标记席——T-0499 ticket键卫生根修
+	// 施工 run（ops_event #4990 领单→#5078 驳回返修1 在案）对
+	// ops_event_key_gate.sh 伪键拒写径做生产实测，第三参 SEAT 显式
+	// 传 'TEST' 标记件（伴生 #5005-#5008 同 burst 四连 MECH 默认席
+	// 拒写行 @2026-11-08 20:05:33-39Z，ctx=event=领单 key=T-9001\nT-9002
+	// h=95204335）——非在册席位=测试件产物面非幽灵席；service 面=
+	// ops_event 近 7d DISTINCT seat 活跃投影（写者席即服务面投影，
+	// facesnap.go 设计口径）入集→上拍批册外→面清单新面行 #5222→
+	// 观测盲升件 #5223→draft#42→本票（机批已批 #5252）；TEST 行龄
+	// 出 7d 活跃窗摆出，任一键闸复测再写 seat='TEST' 即再现新面
+	// 再升件再起草循环（T-0393 链，T-0448 册语义罩位，T-0496 留案
+	// face:service:--take 同族键卫生测试产物面先例在案）。
+	"face:service:TEST": "T-0503 入册——TEST=T-0499 键卫生闸实弹验证标记席（ops_event_key_gate.sh SEAT 参显式传值，施工 run #4990-#5078 在案）：升件行 #5004 单发+伴生 #5005-#5008 四连拒写 @2026-11-08 20:05Z 测试件产物面非幽灵席；service 面 7d 活跃窗摆出摆回登记不重复升；生产亲证升件源 ops_event #5223（面清单新面行 #5222，机批已批 #5252）",
 }

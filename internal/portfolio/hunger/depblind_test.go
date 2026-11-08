@@ -928,3 +928,26 @@ func TestFaceBaselineTableMdEvalPulseRegistered(t *testing.T) {
 		t.Fatalf("%s 理由键空——注册式不静默（depblind 豁免同律）", scope)
 	}
 }
+
+// TestFaceBaselineServiceTESTRegistered T-0503 先红桩（T-0388 修复类律——
+// 病灶存在断言修前红+同断言修后绿）：签名面 face:service:TEST 必须在人工
+// 基线册。根因锚：TEST=T-0499 ticket键卫生根修施工 run 实弹验证标记席——
+// ops_event_key_gate.sh 第三参 SEAT 显式传 'TEST' 验伪键拒写径，落
+// 升件行 #5004（ctx=event=领单 key=T-9001\nT-9002，伴生 #5005-#5008
+// 同 burst 四连 MECH 默认席拒写 @2026-11-08 20:05:33-39Z）——非在册席位=测试
+// 件产物面；service 面=ops_event 近 7d DISTINCT seat 活跃投影（写者席
+// 即服务面投影，facesnap.go 设计口径），TEST 入集→上拍批册外→面清单
+// 新面行→观测盲升件 #5223 源→draft#42→本票；TEST 行龄出 7d 活跃窗后
+// 摆出，任一键闸复测再写 seat='TEST' 即再现新面再升件再起草循环
+// （T-0393 链，T-0448 册语义罩位）。修前未登记=红；入册后同断言绿且
+// 理由键非空（注册式不静默）。
+func TestFaceBaselineServiceTESTRegistered(t *testing.T) {
+	scope := "face:service:TEST"
+	reason, ok := faceBaselineExempt(scope)
+	if !ok {
+		t.Fatalf("病灶存在：%s 未入人工基线册——窗摆回将重复升件（T-0503）", scope)
+	}
+	if strings.TrimSpace(reason) == "" {
+		t.Fatalf("%s 理由键空——注册式不静默（depblind 豁免同律）", scope)
+	}
+}
