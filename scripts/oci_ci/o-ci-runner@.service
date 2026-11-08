@@ -1,0 +1,16 @@
+# o-ci-runner@.service —— OCI 侧 check_all scoped 单 sha 跑（提案「check_all 甩 OCI」档 A）。
+# 实例名=被测 sha（post-receive 起）。串行由 runner.sh 内 flock 保证；oneshot
+# 不自动重启（失败报告由 runner 落盘，本盒读面判）。
+[Unit]
+Description=o-ci runner: check_all scoped for %i (OCI offload)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=CI_ROOT=%h/o-ci
+Environment=PATH=%h/o-ci/go/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=%h/o-ci/bin/o-ci-run-once.sh %i
+TimeoutStartSec=5400
+Nice=10
+IOSchedulingClass=idle
