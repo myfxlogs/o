@@ -53,7 +53,7 @@ BATCH="tickets=$(printf '%s\n' "$PENDING" | paste -sd, -)"
 "$DEVIN_BIN" --export "$USAGE_TRANSCRIPT" "${RESUME_FLAG[@]}" \
   -p --model swe --respect-workspace-trust false \
   --permission-mode dangerous -- \
-  "读 /opt/o/skills/CEO席/SKILL.md——CEO 无头班次开工:scan CEO 队列($BATCH)→逐件裁或呈业主→rescan→队空才退;机械/执行面件移交 CTO 不代办;方向级件裁毕落 ops_event seat=CEO 行;拿不准=呈批升级不裁" \
+  "读 /opt/o/skills/CEO席/SKILL.md——你是CEO无头席,本班开始:扫描CEO队列($BATCH)逐件处理;方向/批准类件直接裁决并落 ops_event 行(seat=CEO);机械/执行类一律写移交事件转CTO,不要代办;超出职权或红线类写呈批升级给业主,不要自行裁;全部办完后重扫一次队列,空了才退出" \
   >/dev/null 2>&1 || true
 
 # usage 落账（dm_tick 同径）
