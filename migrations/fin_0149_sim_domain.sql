@@ -1,4 +1,4 @@
--- 0147 T-0489 径A：simvenue 仓写径分域——仓行落 sim_ 命名域表，fin_* 正本只纳真户。
+-- 0149 T-0489 径A：simvenue 仓写径分域——仓行落 sim_ 命名域表，fin_* 正本只纳真户。
 --
 -- 病灶：simdrill 矩阵/演习产跑的 simvenue 仓直写 fin_position/fin_execution 正本
 -- （fin_position #35-39 实证——业主 OKX 对账扑空、postmortem/D1 对 sim 立案空烧

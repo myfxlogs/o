@@ -63,7 +63,7 @@ strategy_ref 287285-287291 连号，生命周期 8~112ms，全 `fast_close`）�
 - **写径分域**：execution.Runner/guard.Warden/ledger.Runner 构造签名
   强制域参（编译期漏接=错）；dcdexec.Deps.Dom 零值 fail-closed。
   simdrill 演习/矩阵全径接 `findom.Sim`（venue 缝不变——产线同码保）。
-- **sim 仓五表镜像**（迁移 fin_0147）：sim_execution/sim_position/
+- **sim 仓五表镜像**（迁移 fin_0149）：sim_execution/sim_position/
   sim_order_leg/sim_cashflow/sim_guard_close——LIKE 正本全形，
   id 与 fin 同序列全域唯一不撞；FK 域内闭合 sim_execution。
 - **ledger sim 拍=只 settle**：对账环/日切/postmortem 立案=真户聚合面
