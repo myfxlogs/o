@@ -2,7 +2,9 @@
 # check_seat_writes.sh —— 席位写域机械闸（T-0145 越权实证立法）：
 # 无头决策席会话产出对 diff 白名单——自写自合实现码硬拒。
 # 判据:
-#   直 commit（标 [角色:决策] 或 author=claude-glm@local 无头签名）:
+#   直 commit（subj 标 [角色:决策]/[角色:CTO]，或 subj 无任何「角色:」标
+#     且 author=claude-glm@local 无头签名——T-0460 收窄：本机各席同署，
+#     他席标 commit 不再被 author 兜底误计）:
 #     diff 件集 ⊆ {docs/, skills/, *.md} ——判词/返修件/卡面=决策席白名单
 #   merge commit: 支侧 commit 若全为决策席自产且触非白名单=自写自合硬拒;
 #     支侧含他席痕（施工/外审/COS 任一）=放行
@@ -17,11 +19,21 @@ fi
 cd "$(git rev-parse --show-toplevel)"
 RANGE=${CHECK_SEAT_RANGE:-origin/master..HEAD}
 WL='^(docs/|skills/|[^/]*\.md$)'
+# T-0460 判别粒度修：author 兜底仅「subj 无角色:标」生效——
+# [角色:决策]/[角色:CTO] 标域一字不动；他席标（施工/COS/外审等）
+# 出判别集，author 同署不再误计决策席产出。
+is_decision() { # $1=subj $2=author
+  case "$1" in
+    *"角色:决策"*|*"角色:CTO"*) return 0 ;;
+    *"角色:"*) return 1 ;;
+  esac
+  case "$2" in *claude-glm@local*) return 0 ;; *) return 1 ;; esac
+}
 viol=0
 while read -r sha; do
   subj=$(git log -1 --format=%s "$sha")
   author=$(git log -1 --format=%ae "$sha")
-  case "$subj|$author" in *"角色:决策"*|*"角色:CTO"*|*"claude-glm@local"*) ;; *) continue;; esac
+  is_decision "$subj" "$author" || continue
   bad=$(git diff-tree --no-commit-id --name-only -r "$sha" | grep -vE "$WL" || true) # tolerate: grep空集=无非白名单件合法径
   [ -z "$bad" ] && continue
   echo "FAIL: 决策席直commit越白名单 $sha ${subj:0:40}:"; echo "$bad" | sed 's/^/      /'
@@ -34,9 +46,9 @@ while read -r sha; do
   allmine=1; nonwl=
   for s in $side; do
     subj=$(git log -1 --format=%s "$s"); author=$(git log -1 --format=%ae "$s")
-    case "$subj|$author" in *"角色:决策"*|*"角色:CTO"*|*"claude-glm@local"*)
-      nonwl="$nonwl$(git diff-tree --no-commit-id --name-only -r "$s" | grep -vE "$WL" || true)" ;; # tolerate: grep空集=无非白名单件合法径
-    *) allmine=0;; esac
+    if is_decision "$subj" "$author"; then
+      nonwl="$nonwl$(git diff-tree --no-commit-id --name-only -r "$s" | grep -vE "$WL" || true)" # tolerate: grep空集=无非白名单件合法径
+    else allmine=0; fi
   done
   [ "$allmine" = 1 ] && [ -n "$nonwl" ] && {
     echo "FAIL: 决策席自写自合越权 merge $sha:"; echo "$nonwl" | sort -u | sed 's/^/      /'; viol=1; }
