@@ -86,3 +86,31 @@ net_ann_economics——MT5 swap 成本腿 ~833-852bps 吃光 funding
 **域内核实零改动**：hypothesis/xcarry.go 消费闸（8h 源节拍界
 T-0383 后正确）、sigdist/xvenue.go 产出谱形（direction 钉+双腿
 年化 meta 全）、evalmap.go 提案译码面——三段逐项对拍无病灶。
+
+### 施工回填（2026-11-09 无头施工席 @ wt /opt/o-wt/t0479 枝
+t/0479-xvenue-carry——验收锚②部署后实证，diff=票面回填单件）
+
+- 状态：待验
+- 验收锚②「探针同窗不再报同签名病灶」部署后实证（T-0485 裁量径②
+  merge 0f6b6e14→o-core:e642ef9b55eb 在役，git merge-base 实证含）：
+  - `md_eval_pulse`@SG 在产：13 模板行全量，xvenue-carry
+    last_eval_ts=2026-11-08 23:48:06/eval_n_24h=2——与 PG-md
+    fin_opp_eval max(ts)=23:48:09 逐族对拍 3s 桥滞内全符；
+    rejected-only 族脉冲行新鲜=活，evalN>0 判据成立；
+  - 探针判据链实证（silence.go@e642ef9b5）：pulseTemplates 改读
+    md_eval_pulse 全集（stake-carry 入探针域=化石失明根修），
+    probeFamily 活性判据 `last_eval_ts>7d`——xvenue-carry evalN=1
+    →early return，去重判之前已短路=结构性不可报；
+  - o-core 容器 e642ef9b55eb 23:31 UTC 重启，hungertick
+    23:31:35「饱食·窗=3天零触发」；
+  - 升件面：同签名末次=#4463（11-08 12:48，部署前）；部署后零新增。
+    24h 去重窗 ~11-09 12:48 UTC 届满后码路仍 evalN>0 先于去重短路。
+- 生产谱面零误报审计（范围④）：13 脉冲行↔PG-md max(ts) 全符；
+  surface-gap/quarter_basis_short 脉冲陈 273-280h=正本 eval 同陈
+  ——真死族可报=真阳性非误报。
+- 范围外发现（交付备注，不动手）：quarter_basis_short 驱动 kind
+  或涉 basis_ann（SG md_signal 7d 鲜行在）——脉冲陈+信号活组合下
+  探针部署后或对其首报真病灶（eval 链 10-28 起真死），系探针正确
+  检出非本票签名病灶，归常票域。
+- check_all：本票 diff=票面回填单件零码改动（诊断已并 master
+  0d396e4f7；码面验证随 T-0485 收口戳在案）。
