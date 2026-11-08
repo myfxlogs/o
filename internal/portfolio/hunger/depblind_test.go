@@ -538,3 +538,21 @@ func TestDepLegKeysStarExpanded(t *testing.T) {
 		t.Fatalf("目录员腿应入所需集: %v", keys)
 	}
 }
+
+// TestFaceBaselineSubreqUserIntentTRXRegistered T-0450 先红桩（T-0388 修复类
+// 律——病灶存在断言修前红+同断言修后绿）：签名面
+// face:dep_pair:subreq:user_intent:TRX-USDT-SWAP 必须在人工基线册。
+// 根因锚：fin_sub_request open 行在册即面（depenum SubRequestArm 枚举本体，
+// 零硬编码）——请求闭/开摆动=间歇面形（T-0448 册语义罩位），册外面窗摆回
+// 重复升件炸起草拍（T-0393 drafter 链，生产实证 #3408）。修前未登记=红；
+// 入册后同断言绿且理由键非空（注册式不静默）。
+func TestFaceBaselineSubreqUserIntentTRXRegistered(t *testing.T) {
+	scope := "face:dep_pair:subreq:user_intent:TRX-USDT-SWAP"
+	reason, ok := faceBaselineExempt(scope)
+	if !ok {
+		t.Fatalf("病灶存在：%s 未入人工基线册——窗摆回将重复升件（T-0450）", scope)
+	}
+	if strings.TrimSpace(reason) == "" {
+		t.Fatalf("%s 理由键空——注册式不静默（depblind 豁免同律）", scope)
+	}
+}
