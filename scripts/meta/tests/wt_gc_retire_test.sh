@@ -47,6 +47,13 @@ git -C "$TMP/gc.git" worktree add -q "$TMP/wt-dec" dec-t-9004
 export GC_REPO="$TMP/gc.git"
 printf 'NO_FIN_DSN_HERE\n' > "$TMP/env"
 export GC_ENV_FILE="$TMP/env"
+export GC_HYGIENE=0   # T-0466：保洁段关——本测实跑 wt_gc，防真 docker prune/go clean/杀真进程侧效
+# T-0466 保洁面隔离——退役口径桩测不触真保洁径（锁扫/GOCACHE清/
+# builder prune/go clean 全桩面置空集或中性值）
+export GC_LOCK_GLOB="$TMP/no-locks-*" GC_GOCACHE_GLOB="$TMP/no-gocache-*"
+export GC_PRUNE_MARK="$TMP/pm-fresh" GC_GOCLEAN_MARK="$TMP/gm-fresh"
+touch "$TMP/pm-fresh" "$TMP/gm-fresh"
+export GC_ROOTFS_PCT=0
 
 branches(){ git -C "$TMP/gc.git" branch --format='%(refname:short)' | sort; }
 

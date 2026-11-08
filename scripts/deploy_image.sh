@@ -147,4 +147,9 @@ else
   echo "[deploy_image] PG-md 水位 live=$live_md ≥ 登记表=$reg_md"
 fi
 
+# ── ⑥ 本机构建面 tag 保留窗（T-0466 件②）────────────────────
+# 一 commit 一 tag 永不删=镜像堆单调增长病灶（66 tag≈5G 实证）；
+# 留近 5 个 sha tag+latest 保回滚径。保洁件尽力——败不翻部署结果。
+bash scripts/meta/image_tag_gc.sh || echo "⚠️ [deploy_image] image_tag_gc 败（不阻断部署收口）" >&2 # tolerate: 保洁尽力件——tag 残留下轮 deploy 再收，部署成败不绑保洁
+
 echo "[deploy_image] done→$SG（部署锁 trap 已释）"
