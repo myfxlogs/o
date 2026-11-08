@@ -1462,3 +1462,35 @@
 - **推程豁免**：seat-writes 伪阳性（T-0460 在飞——本机全席同署
   claude-glm@local），按 #3569 令 O_SEAT_WRITE_ALLOW=1 豁免径推，
   WARN 留痕。
+
+## 2026-11-08 — 外审席 o-waishen-facedep：face-dep-pair 族三外派件归宗裁（业主令单行指针）
+
+- **授权面**：业主令单行指针（2026-11-08）——外审席按号序逐裁
+  T-0450→0453→0454，四步序（断言列全→审diff→check_all 独立复跑
+  不采信工人戳→过则 merge+git_push+票翻归宗+ops_event 裁决行，
+  退则附断言序号）；seat-writes 若红=T-0460 他票病不卡。
+- **裁决结果**：三件全过（断言对拍各 3/3）——merge 752e2a14/
+  6eb4a00b/7ab0353b 号序串行落本地 master；票翻完成+裁记落票
+  （ab2f4165/2b6653b1/ff99122f）；ops_event 裁决行三件在案。
+  后两 merge 同锚尾插文本撞——冲突解=三条登记+三先红桩全保，
+  合后 TestFaceBaseline×3 共跑过。
+- **独立验证增量**（超工人自述面）：①先红桩双点 scratch wt 双态
+  亲跑复现（impl 前态 FAIL 病灶存在断言→impl 态 PASS）×3；②SG
+  生产亲证三面根因（fin_sub_request open 行/funding-hedge probe
+  行/提案 retired 窗+b9→b10 摆出实证）+三升件源 #3408/#3454/#3456
+  实存；③check_all 自跑绿戳×3（scoped，净库择 DSN）。
+- **环境病灶亲证两条**（归工程经验库 testdb-residue-deterministic-red）：
+  ①o-postgres-test-c(5436) 库残留态致 cockpit/dcd 三测确定性红
+  ——异库异果指纹坐实，「flaky」判词前先排库残留；②并发风暴期
+  根分区 100% 瞬爆 ENOSPC 红 cmd/core 迁移族（T-0460 工同刻中招
+  在案）——两型皆环境病灶与本族 diff 零交集。
+- **推程留案上行**（非本族断言、归推程道）：master 推程双堵——
+  check_master_direct 咬存量两枚 [角色:施工] 会话尾 dialogue 直
+  commit（0c3a9389/9108c52d，first-parent 零豁免闸；9108c52d 即
+  本族工人自己的会话尾落账直写部署树=§9 违例实证，自塞推程）+
+  seat-writes T-0460 伪阳病——修票 T-0460 在飞；枝 non-ff 并轨
+  （远端领单 commit 不在本地枝谱系，merge 携全内容归宗）。
+- **repolock-STEAL 显报**：取锁时前持 CTO-T0451 锁龄 1802s 陈
+  被抢（锁语义允许径），CEO 队列已处置在案。
+- **部署态**：facesnap.go=o-core 镜像面件三件随发窗批（阻塞集判据
+  归 DM 发窗序），本席未跑任何部署径。
