@@ -12,7 +12,7 @@ ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd)
 TMP=$(mktemp -d)
 trap 'rm -rf -- "$TMP"' EXIT
 mkdir -p "$TMP/bin" "$TMP/tasks"
-touch "$TMP/tasks/T-9001-resume.md"
+touch "$TMP/tasks/T-9001-resume.md" "$TMP/tasks/T-9002-resume.md"
 
 # ── psql 桩：锁会话/-qAt 形回 MECH_LOCK_RESULT；查询按词形分流 ──
 cat > "$TMP/bin/psql" <<'EOF'
@@ -76,10 +76,19 @@ cat > "$TMP/bin/opsesc.sh" <<'EOF'
 #!/usr/bin/env bash
 printf '%s|%s\n' "$5" "$6" >> "$ESC_LOG"
 EOF
-# 补拉件桩
+# 补拉件桩（DISPATCH_RC_SEQ=前 N 次调用 rc75 序列——GW-001 段C1 续试喂法）
 cat > "$TMP/bin/dispatch-worker" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$DISPATCH_LOG"
+if [ -f "$DISPATCH_RC_SEQ" ] && [ "$(cat "$DISPATCH_RC_SEQ" 2>/dev/null)" -gt 0 ] 2>/dev/null; then
+  echo $(( $(cat "$DISPATCH_RC_SEQ") - 1 )) > "$DISPATCH_RC_SEQ"
+  exit 75
+fi
+exit "${DISPATCH_RC:-0}"
+EOF
+cat > "$TMP/bin/water" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$1" >> "$WATER_LOG"
 EOF
 cat > "$TMP/bin/systemctl" <<'EOF'
 #!/usr/bin/env bash
@@ -110,7 +119,7 @@ export O_DEPLOY_WINDOW_SH="$TMP/bin/win.sh"
 export O_DEPLOY_IMAGE_SH="$TMP/bin/deploy_image_stub.sh"
 export O_DEPLOY_OCI_SH="$TMP/bin/deploy_oci_stub.sh"
 export O_WORKER_DISPATCH_SCRIPT="$TMP/bin/dispatch-worker"
-export O_DISPATCH_WATER_SH=/bin/true
+export O_DISPATCH_WATER_SH="$TMP/bin/water"
 export O_DM_QUEUE_SH="$TMP/bin/dm-queue"
 export O_WORKER_TASK_DIR="$TMP/tasks"
 export O_MANUAL_LANE_SH=/bin/false
@@ -121,9 +130,11 @@ export PULL_LOG="$TMP/pull.log"; : > "$PULL_LOG"
 export DEPLOY_LOG="$TMP/deploy.log"; : > "$DEPLOY_LOG"
 export ESC_LOG="$TMP/esc.log"; : > "$ESC_LOG"
 export DISPATCH_LOG="$TMP/dispatch.log"; : > "$DISPATCH_LOG"
+export WATER_LOG="$TMP/water.log"; : > "$WATER_LOG"
+export DISPATCH_RC_SEQ="$TMP/rc.seq"; : > "$DISPATCH_RC_SEQ"
 
 MECH="$ROOT/scripts/meta/mech_tick.sh"
-reset_logs() { : > "$COMP_LOG"; : > "$GO_LOG"; : > "$HB_LOG"; : > "$PULL_LOG"; : > "$DEPLOY_LOG"; : > "$ESC_LOG"; : > "$DISPATCH_LOG"; }
+reset_logs() { : > "$COMP_LOG"; : > "$GO_LOG"; : > "$HB_LOG"; : > "$PULL_LOG"; : > "$DEPLOY_LOG"; : > "$ESC_LOG"; : > "$DISPATCH_LOG"; : > "$WATER_LOG"; }
 
 # ── ① 承接面全件+心跳+批空窗零部署 ──
 reset_logs
@@ -210,5 +221,31 @@ grep -q 'T-9001 swe-2-medium' "$DISPATCH_LOG" \
 grep -q "'拉起'" "$PULL_LOG" \
   || { echo "FAIL ⑧拉起行未落"; cat "$PULL_LOG"; exit 1; }
 echo "ok ⑧派单补拉窗承接实证（dispatch_worker+拉起行）"
+
+# ── ⑨ GW-001 段C1：rc75 候水续试下一票不 break——首票候水，次票仍拉起 ──
+reset_logs
+printf '1\n' > "$DISPATCH_RC_SEQ" # 首次调用 rc75，其后 rc0
+MECH_LOCK_RESULT=t WINDOW_STATE=批空 \
+  DISPATCH_TIDS='T-9001
+T-9002' bash "$MECH" 2>/dev/null
+[ "$(grep -c . "$DISPATCH_LOG")" -eq 2 ] \
+  || { echo "FAIL ⑨rc75 阻断次票（补拉循环未续试）"; cat "$DISPATCH_LOG"; exit 1; }
+grep -qx 'T-9001' "$WATER_LOG" \
+  || { echo "FAIL ⑨首票候水标记未落"; cat "$WATER_LOG"; exit 1; }
+! grep -q 'T-9002' "$WATER_LOG" \
+  || { echo "FAIL ⑨次票误标候水"; cat "$WATER_LOG"; exit 1; }
+grep -q "T-9002.*拉起" "$PULL_LOG" || grep -q "'拉起'" "$PULL_LOG" \
+  || { echo "FAIL ⑨次票拉起行未落"; cat "$PULL_LOG"; exit 1; }
+echo "ok ⑨rc75 候水续试——首票候水次票拉起，全队不断"
+
+# ── ⑩ GW-001 段C3 派单序：补拉候选过 dispatch_order 重排——postmortem 族先派 ──
+reset_logs
+printf '病灶签名：`postmortem:fast_close`（桩）\n' >> "$TMP/tasks/T-9002-resume.md"
+MECH_LOCK_RESULT=t WINDOW_STATE=批空 \
+  DISPATCH_TIDS='T-9001
+T-9002' bash "$MECH" 2>/dev/null
+head -1 "$DISPATCH_LOG" | grep -q '^T-9002 swe-2-flash-high' \
+  || { echo "FAIL ⑩派单序未过 dispatch_order（首派=$(head -1 "$DISPATCH_LOG")）"; cat "$DISPATCH_LOG"; exit 1; }
+echo "ok ⑩补拉候选派单序重排（postmortem 族先于输入序首派）"
 
 echo "mech tick scenarios PASS"

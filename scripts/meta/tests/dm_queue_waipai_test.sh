@@ -200,6 +200,28 @@ done
 ! grep -Fxq T-9023 <<<"$leg_app" && { echo "PASS legacy approved 踢 T-9023（病灶实证）"; pass=$((pass+1)); } \
   || { echo "FAIL legacy approved 未踢 T-9023"; fail=$((fail+1)); }
 
+# ══ GW-001 段C3：candidate 分面 legacy 径（view 建立前跑——真 legacy 面） ══════════════
+python3 - "$OPS_EV_DB" <<'PY'
+import sqlite3, sys
+con = sqlite3.connect(sys.argv[1])
+add = [
+    ("CTO","起草","T-9060","","2026-01-03 10:00:00.000000+00"),   # 纯起草→candidate IN
+    ("CTO","起草","T-9061","","2026-01-03 10:01:00.000000+00"),
+    ("COS","已批","T-9061","","2026-01-03 10:02:00.000000+00"),   # 起草→已批→OUT
+    ("CTO","起草","T-9062","","2026-01-03 10:03:00.000000+00"),
+    ("COS","驳回","T-9062","","2026-01-03 10:04:00.000000+00"),   # 起草→驳回→OUT
+    ("CTO","起草","T-9063","","2026-01-03 10:05:00.000000+00"),
+    ("CTO","升件","T-9063","候选滞留说明类","2026-01-03 10:06:00.000000+00"), # 说明类尾随：legacy 踢/view 回队
+    ("CTO","起草","T-9064","","2026-01-03 10:07:00.000000+00"),
+    ("COS","已批","T-9064","","2026-01-03 10:07:00.000000+00"),   # 同刻并列 起草+已批→反词 OUT
+]
+con.executemany("INSERT INTO ops_event VALUES(?,?,?,?,?)", add)
+con.commit()
+PY
+cand_legacy=$(bash "$ROOT/scripts/meta/dm_queue.sh" candidate)
+[ "$cand_legacy" = "T-9060" ] && { echo "PASS legacy candidate=起草未批集（已批/驳回/说明类尾随/同刻并列皆 OUT）"; pass=$((pass+1)); } \
+  || { echo "FAIL legacy candidate 实出:[$cand_legacy]"; fail=$((fail+1)); }
+
 # view 面：迁移 SQL 实建 VIEW（抽取 CREATE VIEW 体——测真迁移件非复写）
 awk '/CREATE OR REPLACE VIEW ops_ticket_phase/,/;$/' \
   "$ROOT/migrations/fin_0147_ops_ticket_phase.sql" \
@@ -224,8 +246,8 @@ fi
   && { echo "PASS view review 排并列反词 T-9051"; pass=$((pass+1)); } \
   || { echo "FAIL view review 误含并列反词 T-9051"; fail=$((fail+1)); }
 view_app=$(bash "$ROOT/scripts/meta/dm_queue.sh" approved)
-if [ "$view_app" = $'T-9012\nT-9004\nT-9023' ]; then
-  echo "PASS view approved=待派集+被踢票回队（T-9023）按相位龄升序"; pass=$((pass+1))
+if [ "$view_app" = $'T-9012\nT-9004\nT-9023\nT-9061\nT-9064' ]; then
+  echo "PASS view approved=待派集+被踢票回队（T-9023）+段C3 起草已批票（T-9061/同刻并列 T-9064——反词只拦前向事件）按相位龄升序"; pass=$((pass+1))
 else
   echo "FAIL view approved 实出:[$view_app]"; fail=$((fail+1))
 fi
@@ -241,6 +263,15 @@ done
 grep -q 'CREATE OR REPLACE VIEW ops_ticket_state' "$ROOT/migrations/fin_0086_ops_event.sql" \
   && { echo "PASS ops_ticket_state 旧 VIEW 定义原样在案（零误伤）"; pass=$((pass+1)); } \
   || { echo "FAIL ops_ticket_state 定义缺席"; fail=$((fail+1)); }
+
+# ══ GW-001 段C3：candidate 分面 view 径（说明类回队——起草候选不被滞留升件踢出） ══════════════
+cand_view=$(bash "$ROOT/scripts/meta/dm_queue.sh" candidate)
+[ "$cand_view" = $'T-9060\nT-9063' ] && { echo "PASS view candidate=起草未批集+说明类回队（T-9063）"; pass=$((pass+1)); } \
+  || { echo "FAIL view candidate 实出:[$cand_view]"; fail=$((fail+1)); }
+for t in T-9061 T-9062 T-9064; do
+  ! grep -Fxq "$t" <<<"$cand_view" && { echo "PASS view candidate 排 $t"; pass=$((pass+1)); } \
+    || { echo "FAIL view candidate 误含 $t"; fail=$((fail+1)); }
+done
 
 echo "─────"
 if [ "$fail" = 0 ]; then echo "✅ dm_queue 外派豁免桩测 $pass/$((pass+fail)) 全绿"; exit 0

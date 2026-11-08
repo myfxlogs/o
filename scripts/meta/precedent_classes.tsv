@@ -32,3 +32,4 @@
 观测盲	CTX-<源>	normal	T-0429 ctx 进水口断供探针——md_ctx_fact 源末行龄超阈/零行史（feedstale 钦定形；scope=CTX-FFCAL/CTX-FRED/CTX-FX/CTX-COT/CTX-OI；探针只报不修）
 谱域缺行	<venue>:<族>	normal	族谱水位闸——注册面派生期望族集零鲜落持续超阈（T-0440 scanwm）
 谱域不可判	<venue>	normal	族谱水位闸注册面缺席——闸自身 fail-closed 升「不可判」（T-0440 scanwm）
+拥塞	TICKETDRAFT-WIP	normal	ticketdraft 水位闸升件——WIP 饱和/队列不可判草案留 pending 不占号（GW-001 段C3 水位机检；note 前缀「水位闸:」24h 去重；类册面不入 hunger 探针册防自指草案）

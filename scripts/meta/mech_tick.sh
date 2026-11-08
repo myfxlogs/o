@@ -101,10 +101,15 @@ fi
 if [ -n "$FIN_DSN" ]; then
   DISPATCH_WORKER=${O_WORKER_DISPATCH_SCRIPT:-/opt/o/scripts/meta/dispatch_worker.sh}
   DISPATCH_WATER_SH=${O_DISPATCH_WATER_SH:-"$SCRIPT_DIR/dispatch_water.sh"} # T-0463 rc75 候水行唯一 emit 口径
+  DISPATCH_ORDER_SH=${O_DISPATCH_ORDER_SH:-"$SCRIPT_DIR/dispatch_order.sh"} # GW-001 段C3 派单序单源 (优先级rank,已批ts)
   DISPATCH_TASK_DIR=${O_WORKER_TASK_DIR:-/opt/o/docs/tasks}
+  export O_DISPATCH_ORDER_TASK_DIR="$DISPATCH_TASK_DIR" # 派单序单源同票件面（签名/优先级读面）
   DRC=0
   DISPATCH_TIDS=$("$DM_QUEUE_SH" dispatched 2>/dev/null) || DRC=$?
   [ "$DRC" -ne 0 ] && mech_esc "派单查询败" "rc=$DRC 派单/续跑候选集不可知按空集滑行"
+  # 派单序重排（GW-001 段C3：postmortem/rootcause > 写败/账链断 > 观测盲
+  # >其余，同 rank 先批先派；helper fail-open 原序保底不阻补拉）。
+  DISPATCH_TIDS=$(printf '%s\n' "$DISPATCH_TIDS" | "$DISPATCH_ORDER_SH" 2>/dev/null) || true # tolerate: 序重排败=原序滑行（fail-open 非链环）
   printf '%s\n' "$DISPATCH_TIDS" | while IFS= read -r tid; do
     [ -n "$tid" ] || continue
     compgen -G "$DISPATCH_TASK_DIR/${tid}-*.md" >/dev/null || continue # ③无票免拉
@@ -127,7 +132,7 @@ if [ -n "$FIN_DSN" ]; then
       rc=$?
       if [ "$rc" -eq 75 ]; then
         "$DISPATCH_WATER_SH" "$tid" # T-0463：候水标记行（自含尽力而为——写败静默退下拍 rc75 自然重落）
-        break # 并行水位/额度冷却——候选留队下拍重试
+        continue # GW-001 段C1：本票候水续试下一票——rc75 不 break 全队（候水逐票落痕账态扶正；worker 退场 ExecStopPost 唤下拍秒级重试）
       fi
       echo "[mech] worker dispatch failed tid=$tid rc=$rc" >&2
     fi
@@ -160,7 +165,8 @@ if [ -n "$FIN_DSN" ]; then
 fi
 
 # T-0455 机批类册窗（物料化落件的候选票同拍过机批闸：册内签名→CEO seat
-# 已批行+范围钦定；册外/人工径→零批滞留 24h 升件呈 DM；驳回行=账面撤销）。
+# 已批行+范围钦定；册外/人工径→零批滞留 2h 升件呈 DM（阈 24h→2h=GW-001
+# 段C2）；负目录断言面+已批保鲜回候选律在本件内；驳回行=账面撤销）。
 if [ -n "$FIN_DSN" ]; then
   AA_RC=0
   REPO="$REPO" FIN_DSN="$FIN_DSN" "$AUTOAPPROVE_SH" || AA_RC=$?

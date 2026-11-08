@@ -103,17 +103,52 @@ func run(ctx context.Context, pool *pgxpool.Pool, repo string, dry bool) error {
 	if err != nil {
 		return fmt.Errorf("模板件读败: %w", err)
 	}
+	// GW-001 段C3 水位机检（物料化前查——批件保鲜/队列拥塞律机检化）：
+	// 已批未领+候选 ≥ 上限（缺省 5，collab 调度水位律「已批未派积压上限=5」）
+	// →草案留 pending 不占票号（取号不发生，号不烧）；计数败=队列态不可判
+	// →同律 fail-closed 留 pending。两态升件一次（24h 去重同窗），下拍重试。
+	wipMax := wipGateMax()
+	wip, werr := wipCount(repo)
+	if werr != nil {
+		escWip(ctx, pool, fmt.Sprintf("不可判 WIP 队列（%v）", werr))
+		return nil
+	}
+	if wipBlocked(wip, wipMax) {
+		escWip(ctx, pool, fmt.Sprintf("饱和 WIP=%d≥上限%d", wip, wipMax))
+		fmt.Printf("[ticketdraft] 水位闸 WIP=%d≥%d——pending 草案留队不占号\n", wip, wipMax)
+		return nil
+	}
 	type done struct {
 		id  int64
 		p   payload
 		tid string
 	}
 	var ds2 []done
+	batched := map[string]string{} // 批内同签名首件票号——同拍多份同签名草案并入首件（库内态本拍末才翻，内存镜防双物料化）
 	for _, d := range ds {
+		if tid, ok := batched[d.p.Signature]; ok {
+			if err := mergeDraft(ctx, pool, d.id, d.p.Signature, tid); err != nil {
+				return err
+			}
+			continue
+		}
+		// 同签名族 24h 并票：库内近 24h 同签名已物料化→本草案并入其票
+		// （不取号不立件——复发病灶一个窗一票，升件原文各归其票并票行）。
+		absorb, err := absorbTicket(ctx, pool, d.p.Signature)
+		if err != nil {
+			return fmt.Errorf("draft#%d 并票查败: %w", d.id, err)
+		}
+		if absorb != "" {
+			if err := mergeDraft(ctx, pool, d.id, d.p.Signature, absorb); err != nil {
+				return err
+			}
+			continue
+		}
 		tid, err := materialize(repo, string(tpl), d.id, d.p)
 		if err != nil {
 			return fmt.Errorf("draft#%d %s: %w", d.id, d.p.Signature, err)
 		}
+		batched[d.p.Signature] = tid
 		ds2 = append(ds2, done{d.id, d.p, tid})
 		fmt.Printf("[ticketdraft] draft#%d 物料化落件 %s——signature=%s\n", d.id, tid, d.p.Signature)
 	}
@@ -246,3 +281,5 @@ func esc(ctx context.Context, pool *pgxpool.Pool, cause error) {
 			WHERE event='升件' AND note LIKE $3 AND ts>now()-interval '24 hours')`,
 		ticketSeat, fmt.Sprintf("%s: %v", prefix, cause), prefix+"%")
 }
+
+// wipGateMax 水位闸上限（O_TICKETDRAFT_WIP_MAX 覆写；缺省 5=collab 调度
