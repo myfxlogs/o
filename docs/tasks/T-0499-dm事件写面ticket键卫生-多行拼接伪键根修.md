@@ -16,6 +16,14 @@
 - 同类隐患面：凡以空格/换行/逗号拼接写 ticket 的径同受此病——
   写面该在落库前拒，不该靠下游各自防。
 
+## 范围（CTO 钦定回填——depgate 缺清单补位）
+
+1. `scripts/meta/`——ops_event INSERT 写面键卫生闸（dm_ledger/dm_queue/
+   dm-wake 族一切写径入口共享闸件，宜单一 helper 收口非逐件散改）；
+2. `migrations/`——新迁移件给 ops_ticket_phase 视图 WHERE 加 chr(10)
+   守卫（投影面清尸——只加新迁移不改存量件）；
+3. `scripts/meta/tests/`——键卫生桩测（拼接伪键拒写 loud+合法单键不受影响）。
+
 ## 判据
 
 1. `ops_event` 写径（dm_ledger/dm_queue/dm-wake 族一切 INSERT 面）对
