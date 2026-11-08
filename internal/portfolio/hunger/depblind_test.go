@@ -951,3 +951,29 @@ func TestFaceBaselineServiceTESTRegistered(t *testing.T) {
 		t.Fatalf("%s 理由键空——注册式不静默（depblind 豁免同律）", scope)
 	}
 }
+
+// TestFaceBaselineService研究员哨兵Registered T-0505 先红桩（T-0388 修复类
+// 律——病灶存在断言修前红+同断言修后绿）：签名面 face:service:研究员哨兵
+// 必须在人工基线册。根因锚：研究员哨兵=研究员触发消费拍席位（T-0504
+// 方案A CTO 钦定，scripts/meta/researcher_tick.sh 滤队消费+瞬态拉起
+// o-researcher-evt-*+消行落账+o-researcher-tick 部署件在案）——ops_event
+// 写径=venue哨兵 新品/达阈 触发消费落账 消行 seat='研究员哨兵'
+// （note=触发#<id> 已拉起 unit=…）合法；service 面=ops_event 近 7d
+// DISTINCT seat 活跃投影（写者席即服务面投影，facesnap.go 设计口径），
+// 消费拍间歇写（pending 空拍=hb ops_headless 零 ops_event 写）静默
+// >7d 出集再活跃=再现新面再升件再起草循环（T-0393 链，T-0448 册语义
+// 罩位，T-0496 MECH/T-0503 TEST 同型先例）。生产亲证 2026-11-08
+// 22:57:46Z 首行 2 行 T-0504 收口合成演练清场消行（ops_event
+// #5345/#5346→面清单新面行 #5356→升件 #5357→draft#43→本票，CEO
+// 机批已批 #5368）。修前未登记=红；入册后同断言绿且理由键非空
+// （注册式不静默）。
+func TestFaceBaselineService研究员哨兵Registered(t *testing.T) {
+	scope := "face:service:研究员哨兵"
+	reason, ok := faceBaselineExempt(scope)
+	if !ok {
+		t.Fatalf("病灶存在：%s 未入人工基线册——窗摆回将重复升件（T-0505）", scope)
+	}
+	if strings.TrimSpace(reason) == "" {
+		t.Fatalf("%s 理由键空——注册式不静默（depblind 豁免同律）", scope)
+	}
+}

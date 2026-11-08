@@ -139,4 +139,16 @@ var faceBaselineWhitelist = map[string]string{
 	// 再升件再起草循环（T-0393 链，T-0448 册语义罩位，T-0496 留案
 	// face:service:--take 同族键卫生测试产物面先例在案）。
 	"face:service:TEST": "T-0503 入册——TEST=T-0499 键卫生闸实弹验证标记席（ops_event_key_gate.sh SEAT 参显式传值，施工 run #4990-#5078 在案）：升件行 #5004 单发+伴生 #5005-#5008 四连拒写 @2026-11-08 20:05Z 测试件产物面非幽灵席；service 面 7d 活跃窗摆出摆回登记不重复升；生产亲证升件源 ops_event #5223（面清单新面行 #5222，机批已批 #5252）",
+	// T-0505：研究员哨兵=研究员触发消费拍席位（T-0504 方案A CTO 钦定
+	// ——scripts/meta/researcher_tick.sh 滤队消费 venue哨兵 新品/达阈
+	// 触发→瞬态拉起 o-researcher-evt-*→rc=0 逐事件落 消行
+	// seat='研究员哨兵' note='触发#<id> 已拉起 unit=…'+deploy/
+	// o-researcher-tick.service 部署件在案）——ops_event 写径=触发
+	// 消费落账合法非幽灵席；service 面=ops_event 近 7d DISTINCT seat
+	// 活跃投影（写者席即服务面投影，facesnap.go 设计口径）入集→上拍
+	// 批册外→面清单新面行→观测盲升件；消费拍间歇写（pending 空拍=
+	// hb ops_headless 零 ops_event 写，venue_watch 空拍同构）静默
+	// >7d 出集再活跃=再现新面再升件再起草循环（T-0393 链，T-0448
+	// 册语义罩位，T-0496 MECH/T-0503 TEST 同型先例）。
+	"face:service:研究员哨兵": "T-0505 入册——研究员哨兵=研究员触发消费拍席位（T-0504 方案A CTO 钦定，researcher_tick.sh 消费落账+o-researcher-tick 部署件在案）：venue哨兵 新品/达阈 触发滤队消费落 ops_event 消行 seat='研究员哨兵' 写径合法；消费拍间歇写（空拍零 ops_event 写）7d 活跃窗摆动登记不重复升；生产亲证 2026-11-08 22:57:46Z 首行 2 行 T-0504 收口合成演练清场消行（ops_event #5345/#5346→面清单新面行 #5356→升件 #5357，CEO 机批已批 #5368）",
 }
