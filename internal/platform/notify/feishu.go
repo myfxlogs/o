@@ -109,6 +109,67 @@ func (c *FeishuClient) SendText(ctx context.Context, chatID, text string) (strin
 	return sr.Data.MessageID, nil
 }
 
+// CreateInteractive 向 chat_id 发 interactive 卡（msg_type=interactive，
+// content=卡 JSON），返回 message_id——席位活卡懒建径（T-0458；meta
+// larkCreateCard 同 API 面 REST 直调）。
+func (c *FeishuClient) CreateInteractive(ctx context.Context, chatID, content string) (string, error) {
+	if chatID == "" {
+		return "", fmt.Errorf("feishu create card: empty chat_id")
+	}
+	body, _ := json.Marshal(map[string]string{
+		"receive_id": chatID,
+		"msg_type":   "interactive",
+		"content":    content,
+	})
+	return c.postCard(ctx, http.MethodPost, "/im/v1/messages?receive_id_type=chat_id", body)
+}
+
+// PatchCard 原地刷新 interactive 卡（im/v1 PATCH——message_id 定点，
+// 仅 interactive 型可 PATCH），无 message_id 返回值。
+func (c *FeishuClient) PatchCard(ctx context.Context, messageID, content string) error {
+	if messageID == "" {
+		return fmt.Errorf("feishu patch card: empty message_id")
+	}
+	body, _ := json.Marshal(map[string]string{"content": content})
+	if _, err := c.postCard(ctx, http.MethodPatch, "/im/v1/messages/"+messageID, body); err != nil {
+		return err
+	}
+	return nil
+}
+
+// postCard 出站共用（token 头+发+code 判+message_id 解）。
+func (c *FeishuClient) postCard(ctx context.Context, method, path string, body []byte) (string, error) {
+	tok, err := c.getToken(ctx)
+	if err != nil {
+		return "", err
+	}
+	req, err := http.NewRequestWithContext(ctx, method, feishuBase+path, bytes.NewReader(body))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Authorization", "Bearer "+tok)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.hc.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("feishu card: %w", err)
+	}
+	defer resp.Body.Close()
+	var sr struct {
+		Code int    `json:"code"`
+		Msg  string `json:"msg"`
+		Data struct {
+			MessageID string `json:"message_id"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&sr); err != nil {
+		return "", fmt.Errorf("feishu card decode: %w", err)
+	}
+	if sr.Code != 0 {
+		return "", fmt.Errorf("feishu card: code=%d msg=%s", sr.Code, sr.Msg)
+	}
+	return sr.Data.MessageID, nil
+}
+
 // ListChats 机器人在群清单（chat_id 自动发现径——业主免手工查 id）。
 func (c *FeishuClient) ListChats(ctx context.Context) ([]struct{ ID, Name string }, error) {
 	tok, err := c.getToken(ctx)
