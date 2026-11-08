@@ -81,6 +81,14 @@ var faceBaselineWhitelist = map[string]string{
 	// 罩位），静默 >7d 出集再活跃=再现新面再升件再起草循环（T-0393
 	// 链，T-0471 CEO 同型先例）。
 	"face:service:席O-COS": "T-0474 入册——席O-COS=COS 秘书席交互席位（业主令 2026-11-04）：O-COS tmux 会话 report.sh 回退径自报（无 O_SEAT/映射表无 席O-COS→COS 条目），ops_event 写径合法；队空零写间歇面窗摆登记不重复升；生产亲证 2026-11-08 00:18Z 首行 49 行（ops_event #3931 升件源）",
+	// T-0473：外审席=外派件归宗裁决道席位——业主令 2026-11-07「外派外审
+	// 外部署，不去给DM做积压」成例（.devin/skills/外审席/SKILL.md 职卡在案；
+	// ceo_queue.sh 钦定席位集含 '外审席'——席上行件非探针自产设计在案）；
+	// ops_event 写径=归宗裁决/通过自报合法；班次形=瞬态 systemd-run
+	// o-review-ext 扫到有件才拉起队列空即退无件不常驻=间歇写面形（T-0448
+	// 册语义罩位），静默 >7d 出集再活跃=再现新面再升件再起草循环（T-0393
+	// 链）。
+	"face:service:外审席": "T-0473 入册——外审席=外派件归宗裁决道席位（业主令 2026-11-07 成例，职卡+ceo_queue.sh 钦定席位集在案）：瞬态 systemd-run o-review-ext 有件才拉起无件不常驻，归宗裁决/通过 ops_event 自报径合法；间歇写面 7d 活跃窗摆动登记不重复升；生产亲证 2026-11-08 02:36Z→04:55Z 9 行五件归宗裁决（ops_event #3929 升件源，CEO 裁 #3946 合法性终态在案）",
 	// T-0490：config:meta→DM 机批闸册 配对面——meta app_config 键域
 	// =fin_0143 迁移种 meta.autoapprove.registry（T-0455 册本体，签名→
 	// 钦定文件径白名单）在册即面；读者=depConfigReaders["meta"] 册载

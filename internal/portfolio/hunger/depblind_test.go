@@ -837,3 +837,25 @@ func TestFaceBaselineTableOpsSeatCardRegistered(t *testing.T) {
 		t.Fatalf("%s 理由键空——注册式不静默（depblind 豁免同律）", scope)
 	}
 }
+
+// TestFaceBaselineService外审席Registered T-0473 先红桩（T-0388 修复类律
+// ——病灶存在断言修前红+同断言修后绿）：签名面 face:service:外审席 必须在
+// 人工基线册。根因锚：外审席=外派件归宗裁决道席位（业主令 2026-11-07「外派
+// 外审外部署，不去给DM做积压」成例，.devin/skills/外审席/SKILL.md 职卡在案；
+// ceo_queue.sh 钦定席位集含 '外审席'——席上行件非探针自产设计在案）——ops_event
+// 写径=归宗裁决/通过自报（生产实证 2026-11-08 02:36Z→04:55Z 9 行五件外派件
+// 归宗裁决对，ops_event #3928 新面行→#3929 升件源→draft#24）；班次形=瞬态
+// systemd-run o-review-ext 扫到有件才拉起队列空即退无件不常驻=间歇写面形
+// （T-0448 册语义罩位），静默 >7d 出集再活跃=再现新面再升件再起草循环
+// （T-0393 链，CEO 裁 #3946 五面合法性终态在案）。修前未登记=红；入册后同
+// 断言绿且理由键非空（注册式不静默）。
+func TestFaceBaselineService外审席Registered(t *testing.T) {
+	scope := "face:service:外审席"
+	reason, ok := faceBaselineExempt(scope)
+	if !ok {
+		t.Fatalf("病灶存在：%s 未入人工基线册——窗摆回将重复升件（T-0473）", scope)
+	}
+	if strings.TrimSpace(reason) == "" {
+		t.Fatalf("%s 理由键空——注册式不静默（depblind 豁免同律）", scope)
+	}
+}
