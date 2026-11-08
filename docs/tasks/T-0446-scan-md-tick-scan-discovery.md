@@ -47,4 +47,62 @@ SELECT id,ts,seat,note FROM ops_event WHERE event='升件' AND esc_class='观测
 
 ## 结果回填
 
-（施工写：实现摘要 / 测试证据 / 偏离说明）
+### 实现摘要
+
+签名 `观测盲:scan:md_tick_scan→discovery` 的产者面=md_tick_scan 写入臂
+`ScanPoller`（`internal/data/okxws/scan.go`，cmd/collector 进程内 60s
+粗扫拍）。根修一行径：`Run` 拍败由「errc 上抛→cmd/collector
+`log.Fatalf`→采集主进程全臂死」改为「让位记拍下拍续试」——对齐
+sigdist/scout 姊妹臂拍败惯例。`ScanOnce` 本体零改动：族粒度
+fail-closed、全族败 loud、空集拒收、upsert 最新赢全保留；持久真死
+仍由 scanwm 族谱水位闸+depblind 探针升件收口，观测面不削弱、不造假
+行。桩测 `TestScanRunBeatFailYields` 钉死病灶断言。
+
+### 根因定位
+
+- 钦定路径 `internal/research/` 全谱 grep 零 `md_tick_scan` 引用——
+  产者面本体不在钦定目录，实际落点 `internal/data/okxws/scan.go`
+  （偏离明示见下）。
+- 升件当次（2026-11-06 18:31，ops_event #3012）病灶=部署错位窗：
+  T-0401 projector twotier 桥未随部署上线，SG 侧 md_tick_scan 镜像
+  空约 31h，探针按设计正确报出；后续部署自愈，生产实证同签名停报。
+- 残留代码级根因（本票根修对象）：`ScanPoller.Run` 拍败径——任一拍
+  败（全族 REST/目录瞬断、写败）即 errc 岗终，经 cmd/collector
+  `log.Fatalf` 杀死整个采集进程，WS tick/sigdist/mt5 姊妹臂陪葬，
+  md_tick_scan 产者停→同签名复发。全仓仅此臂拍败即进程死，属签名
+  实体唯一残留代码病灶。
+
+### 测试证据
+
+- 红（修前）：`TestScanRunBeatFailYields`——前两拍全族瞬断后 Run
+  errc 岗终退出，恢复拍永不到，`瞬断拍后未自愈落行` FAIL
+  （5.51s，O_TEST_PG_DSN=localhost:5434 独立测试库）。
+- 绿（修后）：同断言 PASS（3.72s）——拍败让位日志×2、第三拍
+  `swap=1 spot=0 futures=0 upsert md_tick_scan` 自愈落行、errc 零发、
+  Run 随 ctx 正常收摊。
+- 回归：`go test ./internal/data/okxws/` 全包 ok（34.3s）；
+  `go build ./...`+`go vet`（触改域）净；check_all 戳见收口行。
+
+### 生产谱面零误报审计
+
+- OCI `o-collecto.service` active running，粗扫拍日志每分钟
+  `[okxscan] 粗扫拍 ... upsert md_tick_scan`；SG md_tick_scan
+  窗内新鲜行 swap=528/spot=466/futures=6（2026-11-08 18:54 实测），
+  depblind 同窗 prodN>0——签名不再报。
+- 族粒度审计：单族目录/REST 败只让位该族（scanFam fail-closed 粒度
+  到族），不拖死他族与主进程；空集仍拒收非真空；本修不放大任何单族
+  缺席为全族失明，无误报面。
+- 持久全族死径不变：拍败让位≠吞错——scanwm 水位闸按族升件、
+  depblind 10min 零行窗照常报同签名（该签名本就是为此设计的探针）。
+
+### 偏离说明（范围外发现——不修，呈决策席）
+
+1. 钦定路径偏离：`internal/research/` 内无 md_tick_scan 产者/消费
+   码（dep_pair 册消费面在 `internal/portfolio/hunger/` 已核——探针
+   只报不修本票不动）；病灶本体落点 `internal/data/okxws/scan.go`，
+   按「签名面病灶本体根修」施工并在此明示。
+2. 面级设计观察（不修）：cmd/collector errc→`log.Fatalf` 的全臂死
+   架构仍在——本票只收 ScanPoller 单臂让位；姊妹臂同型拍败上 errc
+   脆弱面如需统一治理，另立单呈决策席。
+3. 历史已知项（非本签名面）：MUU-USDT 无效订阅报错在案，与本票
+   观测盲签名无因果，不动。
