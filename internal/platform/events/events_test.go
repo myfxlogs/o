@@ -89,6 +89,10 @@ func TestListenSocketStarvationRootFix(t *testing.T) {
 			_, err := notifier.Exec(ectx, "SELECT pg_notify($1, $2)", ch, payload)
 			ecancel()
 			if err != nil {
+				if floodCtx.Err() != nil { // 停灌拍取消在飞 Exec≠反压——floodStop 与在飞 Exec 竞态（herd 下排队发必撞），只认自发超时为实锤
+					floodErr <- nil
+					return
+				}
 				floodErr <- fmt.Errorf("通知发射被反压（套接字未被排空→服务端交付 ClientWrite 钉死实锤）: %w", err)
 				return
 			}
