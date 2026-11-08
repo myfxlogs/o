@@ -251,4 +251,15 @@ if [ -n "$FIN_DSN" ]; then
     fi
   fi
 fi
+
+# ── GW-001 段E1 案卷回写：部署成功后案卷闭环（判据全在
+# case_writeback.sh——本窗只唤不判）。每拍幂等扫（deploy-close 面戳
+# 查重）——非仅本窗发射后跑：他径部署/上拍漏跑皆由下拍续收。
+# fail-soft：件败/查询败=零行不挡机械轨（段C/D 并行期 D 归流件未上线
+# 时真实案静默零命中——半成品窗律在案）。挂点独立块——他段挂尾窗
+# 时本件不覆盖（段E避让错位钉）。
+if [ -n "$FIN_DSN" ]; then
+  CASE_WRITEBACK_SH=${O_CASE_WRITEBACK_SH:-"$SCRIPT_DIR/case_writeback.sh"}
+  bash "$CASE_WRITEBACK_SH" || echo "[mech] case_writeback 退败——案卷回写下拍续（fail-soft）" >&2
+fi
 exit 0

@@ -114,6 +114,14 @@ export O_DISPATCH_WATER_SH=/bin/true
 export O_DM_QUEUE_SH="$TMP/bin/dm-queue"
 export O_WORKER_TASK_DIR="$TMP/tasks"
 export O_MANUAL_LANE_SH=/bin/false
+# GW-001 段E1 案卷回写唤件桩——尾块独立挂点实证（断言见⑨）
+cat > "$TMP/bin/casewb.sh" <<'EOF'
+#!/usr/bin/env bash
+echo "casewb" >> "$CASEWB_LOG"
+EOF
+chmod +x "$TMP/bin/casewb.sh"
+export O_CASE_WRITEBACK_SH="$TMP/bin/casewb.sh"
+export CASEWB_LOG="$TMP/casewb.log"; : > "$CASEWB_LOG"
 export COMP_LOG="$TMP/comp.log"; : > "$COMP_LOG"
 export GO_LOG="$TMP/go.log"; : > "$GO_LOG"
 export HB_LOG="$TMP/hb.log"; : > "$HB_LOG"
@@ -210,5 +218,20 @@ grep -q 'T-9001 swe-2-medium' "$DISPATCH_LOG" \
 grep -q "'拉起'" "$PULL_LOG" \
   || { echo "FAIL ⑧拉起行未落"; cat "$PULL_LOG"; exit 1; }
 echo "ok ⑧派单补拉窗承接实证（dispatch_worker+拉起行）"
+
+# ── ⑨ GW-001 段E1 案卷回写尾块唤件——每拍恰唤一次（幂等扫在件内）──
+: > "$CASEWB_LOG"
+MECH_LOCK_RESULT=t DISPATCH_TIDS='' WINDOW_STATE=批空 bash "$MECH" 2>/dev/null
+[ "$(grep -c '^casewb$' "$CASEWB_LOG")" = "1" ] \
+  && echo "ok ⑨案卷回写尾块恰唤一次" || { echo "FAIL ⑨唤件计数=[$(cat "$CASEWB_LOG")]"; exit 1; }
+# 败径 fail-soft：唤件 rc≠0 不挡机械轨 exit 0
+cat > "$TMP/bin/casewb-fail.sh" <<'EOF'
+#!/usr/bin/env bash
+exit 1
+EOF
+chmod +x "$TMP/bin/casewb-fail.sh"
+O_CASE_WRITEBACK_SH="$TMP/bin/casewb-fail.sh" \
+  MECH_LOCK_RESULT=t DISPATCH_TIDS='' WINDOW_STATE=批空 bash "$MECH" 2>/dev/null
+[ "$?" -eq 0 ] && echo "ok ⑩案卷回写败=fail-soft 零挡" || { echo "FAIL ⑩fail-soft 破"; exit 1; }
 
 echo "mech tick scenarios PASS"

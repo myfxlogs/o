@@ -22,12 +22,19 @@ merge 物理串行照旧（check_all 锁+master 单树——手串行，脑不�
 1. **读票**：票面验收断言=裁的对拍锚，先列全再动手；
 2. **审diff**：通读分支 diff——最优解审计同座（重造已有/
    死码/半实现/硬编码该进表的=偷工退回）；
-3. **复跑机查**：独立复跑 check_all（不采信工人自述戳——
-   戳绑 SHA 竞态坑在案，见工程经验库
-   check-all-stamp-binds-head-sha）；
+3. **机查**：ff-only 戳复用判定（GW-001 E2，前置=A3 戳位归一
+   git-common-dir 已生效）——`git merge-base --is-ancestor
+   master <枝HEAD>`（集成顶=本地 master，常领先 origin/master——
+   判 ff 对的是将合目标）∧ 公共 gitdir `check-green-<枝HEAD-sha>`
+   戳在案 → **复用零复跑**（merge --ff-only 后 merge SHA=戳 SHA，
+   pre-push 闸自见）；非 ff（master 顶不在枝祖先链）/戳缺/戳 SHA≠
+   merge SHA → 退旧轨**独立复跑 check_all**（戳绑 SHA 竞态坑在案，
+   见戳不采信——只认公共 gitdir 实物对 merge SHA）。并行期双轨
+   判定：能 ff 且戳实证=新轨复用，其余一律复跑不降级；
 4. **裁**：
-   - 过 → merge master → 复跑戳 → `git_push` → 票行翻归宗
-     + **外部署**：涉运行面件（服务/闸/守护件）按部署件
+   - 过 → `git merge --ff-only`（ff 成立=复用实证落账；ff 拒绝=
+     非 ff 路径回③复跑盖戳后 merge-commit 走旧轨）→ `git_push` →
+     票行翻归宗 + **外部署**：涉运行面件（服务/闸/守护件）按部署件
      钦定落（o-core 重启窗/deploy_oci 等），部署后运行态
      实拍回填票行；
    - 退 → 附清单退回施工席（**不改工人码**——同复审铁律），

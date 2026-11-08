@@ -173,6 +173,7 @@ export DM_ENV_FILE="$C/env" PATH="$C/bin:$PATH" \
 	O_DM_LEDGER_SH=/bin/true O_VERDICT_DELIVER_SH=/bin/true \
 	O_AUTOAPPROVE_SH=/bin/true O_DEPLOY_WINDOW_SH=/bin/true O_OPS_ESC_SH="$C/bin/opsevc" \
 	O_DM_QUEUE_SH="$C/bin/dm-queue" O_MANUAL_LANE_SH=/bin/false \
+	O_CASE_WRITEBACK_SH=/bin/true \
 	DISPATCH_LOG="$C/dispatch.log" WATER_LOG="$C/water.log" EVENT_SQL_LOG="$C/event.sql.log" \
 	DM_LOCK_RESULT=t
 : > "$DISPATCH_LOG"; : > "$WATER_LOG"; : > "$EVENT_SQL_LOG"
