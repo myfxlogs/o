@@ -14,10 +14,20 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 )
 
 // faceTicket 面清单 diff 归属票号（T-0405 立件——例行行携环票号同 T-0394 例）。
 const faceTicket = "T-0405"
+
+// faceBaselineWhitelist 面清单人工基线册——合法新面登记位（注册式：
+// key=面键 'face:<kind>:<face>'=esc_scope 同键，'*' 尾=前缀通配；value=
+// 理由键）。册内面快照差集照落「面清单新面」行携理由键留账但升件免——
+// 间歇写席（ops_event 7d 活跃窗出入摆动）窗摆回不重复炸票/起草；
+// 拒册=不登记——可疑新面照升件等人工判。depBlindWhitelist 同式先例。
+var faceBaselineWhitelist = map[string]string{
+	"face:service:仓巡": "仓巡=guard Warden 在册员工（risk 域 fin_employee_registry active）——T-0419 裸袋/T-0423 守卫环自残探针 ops_event 写径合法面；间歇写席 7d 活跃窗摆动登记不重复升",
+}
 
 // faceRow 单面行（kind=面类五键，face=面键——同拍批内 kind+face 唯一）。
 type faceRow struct {
@@ -142,9 +152,24 @@ func (s *Sensor) probeFaceDiff(ctx context.Context, pairs []depPair) error {
 	return nil
 }
 
+// faceBaselineExempt 基线册豁免判定（depBlindExempt 同式——精确面键
+// 优先，'*' 尾前缀通配次；理由键随新面行留账）。
+func faceBaselineExempt(scope string) (string, bool) {
+	if r, ok := faceBaselineWhitelist[scope]; ok {
+		return r, true
+	}
+	for k, r := range faceBaselineWhitelist {
+		if strings.HasSuffix(k, "*") && strings.HasPrefix(scope, k[:len(k)-1]) {
+			return r, true
+		}
+	}
+	return "", false
+}
+
 // reportNewFace 单新面落账：「面清单新面」行+观测盲升件（esc_scope=
 // face:<kind>:<face>，同窗 24h 至多一报——depblind 同款去重口径：
-// 新面持续新于基线批只报一次，基线批前移后仍同窗吸）。
+// 新面持续新于基线批只报一次，基线批前移后仍同窗吸）。基线册内面
+// 新面行照落携理由键但升件免——人工过基线合法面窗摆不重复炸票。
 func (s *Sensor) reportNewFace(ctx context.Context, r faceRow) error {
 	scope := fmt.Sprintf("face:%s:%s", r.kind, r.face)
 	var dup int
@@ -157,11 +182,18 @@ func (s *Sensor) reportNewFace(ctx context.Context, r faceRow) error {
 	if dup > 0 {
 		return nil
 	}
+	reason, exempt := faceBaselineExempt(scope)
+	note := fmt.Sprintf("kind=face_diff key=%s kind=%s face=%s", scope, r.kind, r.face)
+	if exempt {
+		note += " 基线册=" + reason
+	}
 	if _, err := s.pool.Exec(ctx,
 		`INSERT INTO ops_event(seat,event,ticket,note) VALUES($1,'面清单新面',$2,$3)`,
-		hungerSeat, faceTicket,
-		fmt.Sprintf("kind=face_diff key=%s kind=%s face=%s", scope, r.kind, r.face)); err != nil {
+		hungerSeat, faceTicket, note); err != nil {
 		return fmt.Errorf("新面行: %w", err)
+	}
+	if exempt {
+		return nil
 	}
 	if _, err := s.pool.Exec(ctx,
 		`INSERT INTO ops_event(seat,event,ticket,note,esc_class,esc_scope)
