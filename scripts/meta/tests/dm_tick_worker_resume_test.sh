@@ -20,6 +20,8 @@ query="${*: -1}"
 case "$query" in
 	# T-0354 advisory-lock holder 桩（无 -c=锁会话形）——DM_LOCK_RESULT=f 复现锁拒
 	"-qAt") [ "${DM_LOCK_RESULT:-t}" = f ] && echo f || echo t ;;
+	# GW-001 段B1：ops_ticket_phase 探针败=legacy 桥面（桩场景钉旧推导逐字）
+	*"ops_ticket_phase"*) exit 1 ;;
 	# T-0354：队列判据单源 dm_queue.sh——stub 按场景回票号行集；
 	# drain 场景=闸内首查有件/班后复查空（DRAIN_MARK 幂等翻转）→收班 exit。
 	# T-0414：会话闸=review 面——按 SQL 形分面回集（approved 场景 review 面

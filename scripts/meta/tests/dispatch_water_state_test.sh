@@ -123,7 +123,7 @@ grep -q 'DEPGATE-DISPATCH-FAIL-T-9601' "$ESC_LOG"
 DISPATCH_RC=0 bash "$META/dm_depgate.sh" >"$B/out0.log" 2>&1
 [[ ! -s "$WATER_LOG" ]]
 
-# ══ C. dm_tick 补拉窗 rc75 写点 ═════════════════════════════════════
+# ══ C. mech_tick 补拉窗 rc75 写点（GW-001 段A 迁轨——原 dm_tick 尾段） ══
 C="$TMP/c"; mkdir -p "$C/bin" "$C/tasks"
 touch "$C/tasks/T-9601-resume.md" "$C/tasks/T-9602-resume.md"
 cat > "$C/bin/psql" <<'EOF'
@@ -131,11 +131,19 @@ cat > "$C/bin/psql" <<'EOF'
 query="${*: -1}"
 case "$query" in
 	"-qAt") echo "${DM_LOCK_RESULT:-t}" ;; # 班次锁 holder 桩
-	*"SELECT l.ticket FROM ("*) ;;           # dm_queue review 面——空集=不开班
-	*"SELECT l.ticket ||"*) printf '%b\n' "$DISPATCH_ROWS_OUT" ;;
+	*"AND event='派单'"*"LIMIT 1"*) echo swe-2-medium ;; # 模型档恢复票级查询（段B1 收编后形态）
 	*"INSERT INTO ops_event"*) printf '%s\n' "$query" >> "$EVENT_SQL_LOG" ;;
 	*"INSERT INTO ops_headless"*) : ;;
 esac
+EOF
+# dm_queue 桩（段B1：补拉候选集=dm_queue dispatched 单源）
+cat > "$C/bin/dm-queue" <<'EOF'
+#!/usr/bin/env bash
+[ "${1:-}" = dispatched ] && printf 'T-9601\nT-9602\n'
+EOF
+cat > "$C/bin/opsevc" <<'EOF'
+#!/usr/bin/env bash
+exit 0
 EOF
 cat > "$C/bin/systemctl" <<'EOF'
 #!/usr/bin/env bash
@@ -163,12 +171,14 @@ export DM_ENV_FILE="$C/env" PATH="$C/bin:$PATH" \
 	O_WORKER_TASK_DIR="$C/tasks" O_DECISION_DEVIN_BIN=/bin/true \
 	O_DM_DEPGATE_SH=/bin/true O_DM_SUSPEND_SH=/bin/true O_DM_HANDOFF_SH=/bin/true \
 	O_DM_LEDGER_SH=/bin/true O_VERDICT_DELIVER_SH=/bin/true \
+	O_AUTOAPPROVE_SH=/bin/true O_DEPLOY_WINDOW_SH=/bin/true O_OPS_ESC_SH="$C/bin/opsevc" \
+	O_DM_QUEUE_SH="$C/bin/dm-queue" O_MANUAL_LANE_SH=/bin/false \
 	DISPATCH_LOG="$C/dispatch.log" WATER_LOG="$C/water.log" EVENT_SQL_LOG="$C/event.sql.log" \
-	DISPATCH_ROWS_OUT='T-9601|swe-2-medium\nT-9602|swe-2-high' DM_LOCK_RESULT=t
+	DM_LOCK_RESULT=t
 : > "$DISPATCH_LOG"; : > "$WATER_LOG"; : > "$EVENT_SQL_LOG"
 
 # C① rc75：首候选候水+break——次候选不烧闸；拉起行零落
-DISPATCH_RC=75 bash "$META/dm_tick.sh" >/dev/null 2>&1
+DISPATCH_RC=75 bash "$META/mech_tick.sh" >/dev/null 2>&1
 grep -q '^T-9601 swe-2-medium ' "$DISPATCH_LOG"
 ! grep -q 'T-9602' "$DISPATCH_LOG"
 grep -qx 'T-9601' "$WATER_LOG"
@@ -177,14 +187,14 @@ grep -qx 'T-9601' "$WATER_LOG"
 
 # C② rc0：补拉成=拉起行落账，候水零调
 : > "$DISPATCH_LOG"; : > "$WATER_LOG"; : > "$EVENT_SQL_LOG"
-DISPATCH_RC=0 bash "$META/dm_tick.sh" >/dev/null 2>&1
+DISPATCH_RC=0 bash "$META/mech_tick.sh" >/dev/null 2>&1
 [[ ! -s "$WATER_LOG" ]]
 grep -q "'拉起','T-9601'" "$EVENT_SQL_LOG"
 grep -q "'拉起','T-9602'" "$EVENT_SQL_LOG"
 
 # C③ rc1：非水位败=报错径续试——候水零调
 : > "$DISPATCH_LOG"; : > "$WATER_LOG"; : > "$EVENT_SQL_LOG"
-DISPATCH_RC=1 bash "$META/dm_tick.sh" >/dev/null 2>&1
+DISPATCH_RC=1 bash "$META/mech_tick.sh" >/dev/null 2>&1
 [[ ! -s "$WATER_LOG" ]]
 grep -q 'T-9602' "$DISPATCH_LOG" # rc1 不 break——次候选照试
 

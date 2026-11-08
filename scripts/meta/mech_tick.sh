@@ -32,6 +32,7 @@ DM_HANDOFF_SH=${O_DM_HANDOFF_SH:-"$SCRIPT_DIR/dm_handoff.sh"}
 DM_LEDGER_SH=${O_DM_LEDGER_SH:-"$SCRIPT_DIR/dm_ledger.sh"}
 VERDICT_DELIVER_SH=${O_VERDICT_DELIVER_SH:-"$SCRIPT_DIR/verdict_deliver.sh"}
 AUTOAPPROVE_SH=${O_AUTOAPPROVE_SH:-"$SCRIPT_DIR/dm_autoapprove.sh"}
+DM_QUEUE_SH=${O_DM_QUEUE_SH:-"$SCRIPT_DIR/dm_queue.sh"} # GW-001 段B1：队列判据单源（dispatched 模式）
 
 hb() { # $1=state 心跳行（seat=MECH——机械轨活性锚，mech_hb 量表读面）
   [ -n "$FIN_DSN" ] || return 0
@@ -93,29 +94,19 @@ fi
 
 # T-0343：常径派单和 rate-limit 挂起续跑共用 dispatch_worker.sh。仅最新
 # 决策席派单或施工席 rate-limit:auto 挂起可补拉；其他挂起/异常不自动重试。
-# 模型档从原派单备注恢复。补拉成功写 `拉起` 行自标幂等；无票文件免拉。
+# GW-001 段B1：候选集推导收编 dm_queue.sh dispatched 单源（原内联 SQL 删——
+# 队列判据与 dm_tick/depgate 同视图，禁双轨）；模型档从原派单备注恢复
+# （票级子查询非队列推导，保留在本窗）。补拉成功写 `拉起` 行自标幂等；
+# 无票文件免拉。
 if [ -n "$FIN_DSN" ]; then
   DISPATCH_WORKER=${O_WORKER_DISPATCH_SCRIPT:-/opt/o/scripts/meta/dispatch_worker.sh}
   DISPATCH_WATER_SH=${O_DISPATCH_WATER_SH:-"$SCRIPT_DIR/dispatch_water.sh"} # T-0463 rc75 候水行唯一 emit 口径
   DISPATCH_TASK_DIR=${O_WORKER_TASK_DIR:-/opt/o/docs/tasks}
   DRC=0
-  DISPATCH_ROWS=$(psql "$FIN_DSN" -qAt -F '|' -c "SELECT l.ticket || '|' || COALESCE((
-      SELECT CASE WHEN e.note ILIKE '%swe-2-flash-high%' THEN 'swe-2-flash-high' WHEN e.note ILIKE '%swe-2-medium%' THEN 'swe-2-medium'
-                  ELSE 'swe-2-flash-high' END
-      FROM ops_event e WHERE e.ticket=l.ticket AND e.event='派单'
-      ORDER BY e.ts DESC,e.id DESC LIMIT 1
-    ),'swe-2-flash-high') FROM (
-      SELECT ticket,max(ts) mt FROM ops_event WHERE event IN
-        ('派单','领单','拉起','收口','移交','收口待审','裁决','完成','驳回',
-         '挂起','异常')
-        AND ticket<>'' GROUP BY ticket) l
-    WHERE EXISTS (SELECT 1 FROM ops_event e WHERE e.ticket=l.ticket
-        AND e.ts=l.mt AND e.event='派单' AND e.seat IN ('决策席','CTO'))
-       OR EXISTS (SELECT 1 FROM ops_event e WHERE e.ticket=l.ticket
-        AND e.ts=l.mt AND e.event='挂起' AND e.seat='施工席'
-        AND e.note LIKE 'rate-limit:auto%')" 2>/dev/null) || DRC=$?
+  DISPATCH_TIDS=$("$DM_QUEUE_SH" dispatched 2>/dev/null) || DRC=$?
   [ "$DRC" -ne 0 ] && mech_esc "派单查询败" "rc=$DRC 派单/续跑候选集不可知按空集滑行"
-  printf '%s\n' "$DISPATCH_ROWS" | while IFS='|' read -r tid model; do
+  printf '%s\n' "$DISPATCH_TIDS" | while IFS= read -r tid; do
+    [ -n "$tid" ] || continue
     compgen -G "$DISPATCH_TASK_DIR/${tid}-*.md" >/dev/null || continue # ③无票免拉
     # T-0438 件⑥ 人工径滤（坑条目 real-money-ticket-machine-dispatch-waste
     # 律②——补派件把它踢出候选语义同域：票面「执行=人工径」出生行=机器
@@ -124,6 +115,10 @@ if [ -n "$FIN_DSN" ]; then
     if "$MANUAL_LANE_SH" "$tid" "$DISPATCH_TASK_DIR"; then continue; fi # rc0=人工径票滤除；rc1/2=照旧
     st=$(systemctl --user is-active "o-worker-$tid.service" 2>/dev/null || true) # tolerate: is-active查败=态未知视同可拉
     case "$st" in active|activating) continue;; esac # 精确比对误配恒死修
+    # 模型档恢复——原派单备注 ILIKE（原内联 SQL 同式票级子查询；
+    # 查败/无派单行=默认档，COALESCE 语义逐字保持）
+    model=$(psql "$FIN_DSN" -qAt -c "SELECT CASE WHEN note ILIKE '%swe-2-flash-high%' THEN 'swe-2-flash-high' WHEN note ILIKE '%swe-2-medium%' THEN 'swe-2-medium' ELSE 'swe-2-flash-high' END FROM ops_event WHERE ticket='$(printf '%s' "$tid" | sed "s/'/''/g")' AND event='派单' ORDER BY ts DESC,id DESC LIMIT 1" 2>/dev/null) # tolerate: 模型备注查败=空串→下方默认档兜底
+    [ -n "$model" ] || model=swe-2-flash-high
     prompt="读 /opt/o/skills/施工席/SKILL.md 领单 $tid:只做工单范围内的事——写实现码/测试/提交/回填;范围外发现的问题不自己动手,写进交付备注;同票已有 Devin 会话或 worktree 时续跑不新开"
     if "$DISPATCH_WORKER" "$tid" "$model" "$prompt" >/dev/null 2>&1; then
       psql "$FIN_DSN" -qAt -c "INSERT INTO ops_event(seat,event,ticket,note)
