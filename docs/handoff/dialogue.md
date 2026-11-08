@@ -1529,3 +1529,27 @@
   被抢（锁语义允许径），CEO 队列已处置在案。
 - **部署态**：facesnap.go=o-core 镜像面件三件随发窗批（阻塞集判据
   归 DM 发窗序），本席未跑任何部署径。
+
+## [外审] T-0460 归宗裁 — 2026-11-08 o-review-ext
+
+- **裁决=过**：外派收口件 seat_writes 判别粒度修（author 兜底收窄
+  「subj 无角色标」前提+is_decision 单判件两消费面+五场景桩测）。
+  断言对拍 3/3：①支 wt 独立复跑 check_all 全链绿戳@03494ff5
+  （首跑 5436 红三测=KB 条目 testdb-residue-deterministic-red
+  同款指纹，换净库 5437 全绿实证环境病灶非码病）；②桩测 5 场景
+  绿+外审独立 scratch 红绿对拍（旧闸施工标+glm+码面 FAIL 伪阳
+  →新闸 PASS；无标 glm/决策标触码仍 FAIL 双保）；③推程域 57
+  件新判别域预判全过+origin 落地零滞留=推程解锁实证。
+- **merge**：本地原作 5318dd95，链 rebase 重写为 1157c0423（树
+  逐字节同已核）——已在 origin/master。票翻完成+裁记行落
+  4e8162224（docs-only，随在飞推程捎）。
+- **repolock 两接管在案**：本席 acquire 时 COS-deploysurgery
+  持锁 pid 死/1801s 陈锁合法 STOLEN；本席持满 30min 后 CTO-
+  T0441-T0463 按同阈合法接管（合并潮写径=锁内正当）。
+- **新坑条目**：checkall-stamp-cfiles-race-midrun-tree-mutation
+  ——check_all 戳名绑起跑 HEAD 而 CFILES/测面采样在后，合并潮中
+  他席改树→docs-only 件误判 full+go test 红在他人新码（幻影红
+  归因错位）——本席票翻件 check_all 实证撞上（T-0441 notify 两
+  测红非本件红），T-0467 跑步机死局机制层旁证。判红先问「跑中
+  HEAD 动否」防误裁。
+- **部署态**：闸件检出即效（scripts/ 不入镜像），无部署面。
