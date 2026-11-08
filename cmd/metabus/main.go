@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os/exec"
+	"strings"
 	"time"
 
 	connect "connectrpc.com/connect/v2"
@@ -17,11 +18,12 @@ import (
 	"o/internal/gen/eventv1/eventv1connect"
 )
 
-// wake 映射（kind→unit——钦定两席 ctx/econ 各唤一）。
-var wake = map[string]string{
-	"ctx":  "o-regime-analyst.service",
-	"econ": "o-econ-verdict.service",
-	"dm":   "o-decision-seat.service", // 第六刀：待裁事件唤醒决策席
+// wake 映射（kind→units——钦定两席 ctx/econ 各唤一;dm 帧双唤
+// T-0456 双无头席——CEO/CTO 各自滤队,队空即退零烧）。
+var wake = map[string][]string{
+	"ctx":  {"o-regime-analyst.service"},
+	"econ": {"o-econ-verdict.service"},
+	"dm":   {"o-decision-seat.service", "o-ceo-seat.service"},
 }
 
 func main() {
@@ -81,14 +83,16 @@ func watchOnce(cli eventv1connect.EventBusClient, resume map[string]int64) error
 				continue
 			}
 			resume[fr.Source] = fr.MaxId // 水位内存册——重启归零补当前帧幂等无害
-			u, ok := wake[fr.Kind]
+			units, ok := wake[fr.Kind]
 			log.Printf("[metabus] 帧 %s/%s max=%d →%s", fr.Source, fr.Kind, fr.MaxId,
-				map[bool]string{true: "systemctl start " + u, false: "无映射不唤"}[ok])
+				map[bool]string{true: "systemctl start " + strings.Join(units, "+"), false: "无映射不唤"}[ok])
 			if ok {
-				// T-0319：activating 态同步 start 排队绞死帧循环根修——
-				// --no-block job 入队即返（唤醒=有活即醒非等干完）。
-				if err := exec.Command("systemctl", "--user", "start", "--no-block", u).Run(); err != nil {
-					log.Printf("[metabus] 唤醒 %s 败: %v", u, err)
+				for _, u := range units {
+					// T-0319：activating 态同步 start 排队绞死帧循环根修——
+					// --no-block job 入队即返（唤醒=有活即醒非等干完）。
+					if err := exec.Command("systemctl", "--user", "start", "--no-block", u).Run(); err != nil {
+						log.Printf("[metabus] 唤醒 %s 败: %v", u, err)
+					}
 				}
 			}
 		case <-idle.C:
