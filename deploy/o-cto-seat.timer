@@ -1,7 +1,7 @@
-# o-decision-seat.timer —— 30min 兜底拍（票面「周期扫描兜底」钦定；
+# o-cto-seat.timer —— 30min 兜底拍（票面「周期扫描兜底」钦定；
 # 事件唤醒=主径——拍壳闸自挡空拍零烧）。
 [Unit]
-Description=o-decision-seat 30min 兜底拍
+Description=o-cto-seat 30min 兜底拍
 
 [Timer]
 OnBootSec=20min

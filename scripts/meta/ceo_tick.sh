@@ -8,7 +8,7 @@
 set -u
 CEO_DIR=${O_CEO_WORKDIR:-/var/tmp/o-ceo}
 export REPORT_KICK=O-DM
-export O_SEAT=管理席
+export O_SEAT=CEO
 ENVF="${DM_ENV_FILE:-/opt/o-research/env}"
 FIN_DSN=$(grep '^FIN_PG_DSN=' "$ENVF" 2>/dev/null | cut -d= -f2- | tr -d '"')
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
@@ -53,12 +53,12 @@ BATCH="tickets=$(printf '%s\n' "$PENDING" | paste -sd, -)"
 "$DEVIN_BIN" --export "$USAGE_TRANSCRIPT" "${RESUME_FLAG[@]}" \
   -p --model swe --respect-workspace-trust false \
   --permission-mode dangerous -- \
-  "读 /opt/o/skills/管理席/SKILL.md——CEO 无头班次开工:scan CEO 队列($BATCH)→逐件裁或呈业主→rescan→队空才退;机械/执行面件移交 CTO 不代办;方向级件裁毕落 ops_event seat=管理席 行;拿不准=呈批升级不裁" \
+  "读 /opt/o/skills/CEO席/SKILL.md——CEO 无头班次开工:scan CEO 队列($BATCH)→逐件裁或呈业主→rescan→队空才退;机械/执行面件移交 CTO 不代办;方向级件裁毕落 ops_event seat=CEO 行;拿不准=呈批升级不裁" \
   >/dev/null 2>&1 || true
 
 # usage 落账（dm_tick 同径）
 if [ -s "$USAGE_TRANSCRIPT" ] && [ -x "$USAGE_BIN" ]; then
   UT=META-CEO; [ "$N" -eq 1 ] && UT=$(printf '%s\n' "$PENDING" | head -1)
-  "$USAGE_BIN" "$UT" audit "$USAGE_TRANSCRIPT" "seat=管理席;$BATCH" >/dev/null 2>&1 || true
+  "$USAGE_BIN" "$UT" audit "$USAGE_TRANSCRIPT" "seat=CEO;$BATCH" >/dev/null 2>&1 || true
 fi
 hb alive "收班——本班集 $BATCH"

@@ -272,7 +272,7 @@ if [ -n "$OCI_DEPLOYED" ] \
   fi
 fi
 if [ -n "$HALF" ]; then
-  "${OPS_ESC_SH:-$SCRIPT_DIR/ops_esc.sh}" META-DM "" "" "" "半截部署" \
+  "${OPS_ESC_SH:-$SCRIPT_DIR/ops_esc.sh}" CTO "" "" "" "半截部署" \
     "$HALF——两半部署制发窗补发同拍" \
     || true # tolerate: 升件末环败静默退（发窗判据不受影响）
   reason "半截部署升件——$HALF"
@@ -368,7 +368,7 @@ if [ "$EARLIEST" -gt 0 ] && [ "$AGE" -ge 86400 ]; then
   printf 'faces=%s\n' "$FACES"
   reason "兜底节拍压过——批积首件龄 ${AGE}s≥86400s，无论条件②发窗（挡件=$BL）"
   reason "batch=${TICKETS:-无号} deployed=$DEPLOYED oci=${OCI_DEPLOYED:-不可判}"
-  "${OPS_ESC_SH:-$SCRIPT_DIR/ops_esc.sh}" META-DM "" "" "" \
+  "${OPS_ESC_SH:-$SCRIPT_DIR/ops_esc.sh}" CTO "" "" "" \
     "DEPLOY-WINDOW-OVERRUN" \
     "批积首件龄${AGE}s≥24h——无论挡件发窗 tickets=${TICKETS:-无号} blockers=$BL faces=$FACES" \
     || true # tolerate: 升件末环败静默退（发窗判据不受影响）

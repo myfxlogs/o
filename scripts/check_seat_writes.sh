@@ -21,7 +21,7 @@ viol=0
 while read -r sha; do
   subj=$(git log -1 --format=%s "$sha")
   author=$(git log -1 --format=%ae "$sha")
-  case "$subj|$author" in *"角色:决策"*|*"claude-glm@local"*) ;; *) continue;; esac
+  case "$subj|$author" in *"角色:决策"*|*"角色:CTO"*|*"claude-glm@local"*) ;; *) continue;; esac
   bad=$(git diff-tree --no-commit-id --name-only -r "$sha" | grep -vE "$WL" || true)
   [ -z "$bad" ] && continue
   echo "FAIL: 决策席直commit越白名单 $sha ${subj:0:40}:"; echo "$bad" | sed 's/^/      /'
@@ -34,7 +34,7 @@ while read -r sha; do
   allmine=1; nonwl=
   for s in $side; do
     subj=$(git log -1 --format=%s "$s"); author=$(git log -1 --format=%ae "$s")
-    case "$subj|$author" in *"角色:决策"*|*"claude-glm@local"*)
+    case "$subj|$author" in *"角色:决策"*|*"角色:CTO"*|*"claude-glm@local"*)
       nonwl="$nonwl$(git diff-tree --no-commit-id --name-only -r "$s" | grep -vE "$WL" || true)" ;;
     *) allmine=0;; esac
   done

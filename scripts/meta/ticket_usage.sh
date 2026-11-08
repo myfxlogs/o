@@ -9,9 +9,9 @@ TRANSCRIPT=${4:-}
 DSN=${5:-}
 BATCH=${6:-}
 
-[[ "$TICKET" =~ ^(T-[0-9]{4}|META-DM)$ ]] || { echo "usage: $0 T-NNNN|META-DM run|audit seat transcript dsn [batch]" >&2; exit 2; }
+[[ "$TICKET" =~ ^(T-[0-9]{4}|META-DM|CTO)$ ]] || { echo "usage: $0 T-NNNN|META-DM|CTO run|audit seat transcript dsn [batch]" >&2; exit 2; }
 [[ "$KIND" == run || "$KIND" == audit ]] || { echo "invalid usage kind: $KIND" >&2; exit 2; }
-[[ "$SEAT" == 施工席 || "$SEAT" == 决策席 ]] || { echo "invalid usage seat: $SEAT" >&2; exit 2; }
+[[ "$SEAT" == 施工席 || "$SEAT" == CTO || "$SEAT" == 决策席 ]] || { echo "invalid usage seat: $SEAT" >&2; exit 2; }
 [[ -r "$TRANSCRIPT" ]] || { echo "[usage] transcript unavailable: $TRANSCRIPT" >&2; exit 1; }
 [[ -n "$DSN" ]] || { echo "[usage] FIN_PG_DSN unavailable" >&2; exit 1; }
 

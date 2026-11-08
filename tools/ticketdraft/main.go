@@ -27,8 +27,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// ticketSeat 物料化落账席别（DM 执行环=决策席同 drafterSeat 口径）。
-const ticketSeat = "决策席"
+// ticketSeat 物料化落账席别（DM 执行环=CTO同 drafterSeat 口径）。
+const ticketSeat = "CTO"
 
 func main() {
 	repo := flag.String("repo", "/opt/o", "物料化落件仓根（master 检出面）")

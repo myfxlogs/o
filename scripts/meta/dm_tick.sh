@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
 # dm_tick.sh —— 决策席待裁批件拍壳（T-0312 第六刀——照 verdict_tick.sh
 # 逐字对形：ops_ticket_state 待裁集水印闸>0 才烧零空拍；每拍（含空拍/
-# 败拍）ops_headless META-DM 心跳行；FIN_DSN 隧道径 SG 直读）。
+# 败拍）ops_headless CTO 心跳行；FIN_DSN 隧道径 SG 直读）。
 #              T-0354 班次制三件：单例闸（PG advisory lock——kick 连发/
 #              兜底拍撞车后到即退）+班次 drain（会话读 SKILL 班次节
 #              scan→裁→rescan→队列空才退）+收班判（班后队列空=
 #              state=exit 正常终态）；队列推导单源 dm_queue.sh（闸与
 #              班内 rescan 同式防漂）。
 set -u
-DECISION_DIR=${O_DECISION_WORKDIR:-/var/tmp/o-decision}
+CTO_DIR=${O_CTO_WORKDIR:-/var/tmp/o-cto}
 # T-0323 踢径钦定单目标：一切自报（含派单通报/升件）踢 O-DM 交互席；
 # 派单不踢 O-Dev——常径施工拉起走 systemd-run o-worker-<tid>（T-0324）。
 export REPORT_KICK=O-DM
-export O_SEAT=决策席
+export O_SEAT=CTO
 ENVF="${DM_ENV_FILE:-/opt/o-research/env}"
 FIN_DSN=$(grep '^FIN_PG_DSN=' "$ENVF" 2>/dev/null | cut -d= -f2- | tr -d '"')
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
@@ -23,7 +23,7 @@ OPS_ESC_SH=${O_OPS_ESC_SH:-"$SCRIPT_DIR/ops_esc.sh"}
 hb() { # $1=state 心跳行（META-DM——meta 席位口径）
   [ -n "$FIN_DSN" ] || return 0
   psql "$FIN_DSN" -qAt -c "INSERT INTO ops_headless(ticket,seat,state,last_activity)
-    VALUES('META-DM','决策席','$1',now())
+    VALUES('CTO','CTO','$1',now())
     ON CONFLICT (ticket) DO UPDATE SET seat=EXCLUDED.seat,
       state=EXCLUDED.state,last_activity=now(),updated_at=now()" >/dev/null 2>&1 || true
 }
@@ -34,12 +34,12 @@ hb() { # $1=state 心跳行（META-DM——meta 席位口径）
 # 同窗去重防事件暴——note 前缀为键 24h 内至多一行；dedup 查询自身败
 # =空答→照常升（报侧 fail-open 不吞讯）。$1=归属票 $2=败情一句话。
 usage_esc() {
-  "$OPS_ESC_SH" META-DM "$1" 写败 META-DM-USAGE "usage 采集败" "$2" || true # tolerate: 自报末环——ops_esc 写径败静默退（结构性限度在案）
+  "$OPS_ESC_SH" CTO "$1" 写败 CTO-USAGE "usage 采集败" "$2" || true # tolerate: 自报末环——ops_esc 写径败静默退（结构性限度在案）
 }
 # T-0372 静默组同式接报：dm 内部件败（队列推导/派单查询/看门狗本体）
 # →无类升件行（永不入判例面照常上行）——容错语义零动，败了仍滑行只加报。
 dm_esc() {
-  "$OPS_ESC_SH" META-DM "" "" "" "$1" "$2" || true # tolerate: 自报末环——ops_esc 写径败静默退（结构性限度在案）
+  "$OPS_ESC_SH" CTO "" "" "" "$1" "$2" || true # tolerate: 自报末环——ops_esc 写径败静默退（结构性限度在案）
 }
 
 # T-0413 派单依赖闸必须在班次锁前跑：kick 撞在飞班次时，零交集已批件
@@ -108,9 +108,9 @@ fi
 
 if [ "$SKIP_DECISION" -eq 0 ]; then
   # ② 固定本拍票集供 token 行归属（dm_queue.sh 已去重——多票一批记
-  # META-DM 聚合行，不伪分摊）。
+  # CTO 聚合行，不伪分摊）。
   PENDING_COUNT=$(printf '%s\n' "$PENDING_TICKETS" | awk 'NF {n++} END {print n+0}')
-  USAGE_TICKET=META-DM
+  USAGE_TICKET=CTO
   if [ "$PENDING_COUNT" -eq 1 ]; then
     USAGE_TICKET=$(printf '%s\n' "$PENDING_TICKETS" | head -1)
   fi
@@ -118,28 +118,28 @@ if [ "$SKIP_DECISION" -eq 0 ]; then
   [ "$PENDING_COUNT" -ne 0 ] || BATCH_NOTE="tickets=unresolved"
 
   # ③ Devin 批拍（cwd=scratch——裁决协议 runbook 绝对路径指件）。
-  mkdir -p "$DECISION_DIR" || exit 1
-  USAGE_DIR=$(mktemp -d "$DECISION_DIR/usage.XXXXXX")
+  mkdir -p "$CTO_DIR" || exit 1
+  USAGE_DIR=$(mktemp -d "$CTO_DIR/usage.XXXXXX")
   chmod 700 "$USAGE_DIR"
   USAGE_TRANSCRIPT="$USAGE_DIR/transcript.json"
-  cd "$DECISION_DIR" || exit 1
+  cd "$CTO_DIR" || exit 1
   DECISION_DEVIN=${O_DECISION_DEVIN_BIN:-/home/mluser/.local/bin/devin}
   # T-0456 续跑式常驻：transcript 在案则 -c 续同 session——跨班
   # 上下文续命省冷启重读（压实丢精度险=ops_event 单源账对冲）。
   RESUME_FLAG=()
-  last=$(ls -t "$DECISION_DIR"/usage.*/transcript.json 2>/dev/null \
+  last=$(ls -t "$CTO_DIR"/usage.*/transcript.json 2>/dev/null \
     | grep -v "$USAGE_TRANSCRIPT" | head -1 || true)
   [ -n "$last" ] && [ -s "$last" ] && RESUME_FLAG=(-c)
   "$DECISION_DEVIN" --export "$USAGE_TRANSCRIPT" "${RESUME_FLAG[@]}" \
   -p --model swe --respect-workspace-trust false \
     --permission-mode dangerous -- \
-    "读 /opt/o/skills/决策席/SKILL.md 裁决协议节+班次节 班次开工——scan 待裁/待派集→逐件裁→rescan→队列空才退；每票动手前查重裁幂等"
+    "读 /opt/o/skills/CTO席/SKILL.md 裁决协议节+班次节 班次开工——scan 待裁/待派集→逐件裁→rescan→队列空才退；每票动手前查重裁幂等"
   RC=$?
   # ④ 用量采集旁路；失败只告警，不阻断裁决和事件链。
   [ ! -e "$USAGE_TRANSCRIPT" ] || chmod 600 "$USAGE_TRANSCRIPT" 2>/dev/null || true
   USAGE_BIN=${O_WORKER_USAGE_BIN:-/opt/o/scripts/meta/ticket_usage.sh}
   if [ -s "$USAGE_TRANSCRIPT" ]; then
-    if "$USAGE_BIN" "$USAGE_TICKET" audit 决策席 "$USAGE_TRANSCRIPT" "$FIN_DSN" "$BATCH_NOTE"; then
+    if "$USAGE_BIN" "$USAGE_TICKET" audit CTO "$USAGE_TRANSCRIPT" "$FIN_DSN" "$BATCH_NOTE"; then
       rm -rf -- "$USAGE_DIR"
     else
       echo "[dm] token usage collection failed; continuing decision lifecycle; transcript kept=$USAGE_DIR" >&2
@@ -182,7 +182,7 @@ if [ -n "$FIN_DSN" ]; then
          '挂起','异常')
         AND ticket<>'' GROUP BY ticket) l
     WHERE EXISTS (SELECT 1 FROM ops_event e WHERE e.ticket=l.ticket
-        AND e.ts=l.mt AND e.event='派单' AND e.seat='决策席')
+        AND e.ts=l.mt AND e.event='派单' AND e.seat IN ('决策席','CTO'))
        OR EXISTS (SELECT 1 FROM ops_event e WHERE e.ticket=l.ticket
         AND e.ts=l.mt AND e.event='挂起' AND e.seat='施工席'
         AND e.note LIKE 'rate-limit:auto%')" 2>/dev/null) || DRC=$?
@@ -199,7 +199,7 @@ if [ -n "$FIN_DSN" ]; then
     prompt="读 /opt/o/skills/施工席/SKILL.md 施工协议领单/续领 $tid；按票面施工，同票已有 Devin 会话/worktree 时续跑"
     if "$DISPATCH_WORKER" "$tid" "$model" "$prompt" >/dev/null 2>&1; then
       psql "$FIN_DSN" -qAt -c "INSERT INTO ops_event(seat,event,ticket,note)
-        VALUES('META-DM','拉起','$tid','漏拉/限流补派——session 续跑')" >/dev/null 2>&1 || true
+        VALUES('CTO','拉起','$tid','漏拉/限流补派——session 续跑')" >/dev/null 2>&1 || true
     else
       rc=$?
       [ "$rc" -eq 75 ] && break # 并行水位/额度冷却——队列留待下拍
