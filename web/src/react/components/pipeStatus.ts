@@ -50,7 +50,7 @@ const flowStageCopies: Record<string, FlowStageCopy> = {
 	collect: { what: "OKX 资金费率行情采集臂", cadence: "约每 5 分钟一次", unit: "条行情数据", eventDriven: false },
 	bridge: { what: "行情投影入账桥（开发环境到生产镜像）", cadence: "约每 10 分钟一次", unit: "帧", eventDriven: false },
 	eval: { what: "策略机会评估臂（净年化过放行线才出提案）", cadence: "约每 30 分钟一次", unit: "次评估", eventDriven: false },
-	proposal: { what: "已放行提案（待开仓或执行中）", cadence: "", unit: "个提案", eventDriven: true },
+	proposal: { what: "已放行提案（待开仓或候选就绪待触发）", cadence: "", unit: "个提案", eventDriven: true },
 	strategy: { what: "策略沙箱开户与晋升（纸面户开平、判据晋升、退役）", cadence: "", unit: "次状态迁移", eventDriven: true },
 	exec: { what: "真金白银流水（成交、利息、费用）", cadence: "", unit: "笔流水", eventDriven: true },
 	report: { what: "每日结算报表", cadence: "约每天一次", unit: "份报表", eventDriven: false },
@@ -92,7 +92,7 @@ export function humanStatus(stageKey: string, status: string, evalCount: number)
 			: `评估全拒；主因：${reason.detail}`;
 	} else if (/^活跃·(\d+) 个在飞提案/.test(s)) {
 		const n = s.match(/^活跃·(\d+)/)?.[1];
-		detail = `${n} 个提案已放行，待开仓或执行中`;
+		detail = `${n} 个提案已放行，待开仓或候选就绪待触发`;
 	} else if (s === "闲·无真执行流水") {
 		detail = "近 24 小时无成交/持仓类真金白银流水";
 	} else if (s === "闲·无在飞提案") {

@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from "react";
 import { client } from "../api";
 import { onData } from "../stream";
 import { StateDot } from "./ui";
+import { PLATFORM_ALERT_CN } from "./labels";
 
 type KpiState = {
   annualized7d: number;
@@ -119,7 +120,7 @@ export function TrxKpiStrip() {
         value={kpi.distPct != null ? `${kpi.distPct.toFixed(1)}%` : "—"}
         cls={kpi.distPct != null && kpi.distPct <= 0 ? "u-bad" : ""}
         dot={{ state: alertState, breathe: alertState !== 2 }}
-        dotTitle={`平台预警态：${kpi.alert}`}
+        dotTitle={`平台预警态：${PLATFORM_ALERT_CN[kpi.alert] ?? "未识别"}`}
       />
     </div>
   );

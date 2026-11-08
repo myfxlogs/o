@@ -6,6 +6,7 @@ import { useLive } from "../hooks";
 import type { FlowStage } from "../../gen/dashboardv1/core_pb";
 import { EmptyState, StateDot } from "./ui";
 import { flowStageCopy, humanStatus } from "./pipeStatus";
+import { WORK_KIND_CN, WORK_STAGE_CN, cn } from "./labels";
 
 // 活水段（T-0307：运行时机器流段链——票=组织流语义不混，
 // 段=机器流；灯色服务端 StageLamp 派生——阈按各臂节拍常量钉）。
@@ -97,14 +98,18 @@ export function WorkItemsBlock() {
 		const s = Math.floor((Date.now() - Number(t.seconds) * 1000) / 1000);
 		return s >= 3600 ? `${(s / 3600).toFixed(1)}h` : s >= 60 ? `${(s / 60).toFixed(0)}m` : `${s}s`;
 	};
-	const KIND: Record<string, string> = { proposal: "提案", position: "持仓", venue: "侦察" };
+	// T-0441：kind/stage 过词表——提案域 stage「执行中」=fin_armed 武装候选
+	// （持仓=0 待触发非真执行——后端 cmd/core/flow_pulse.go 根因清单外落账，
+	// 显示层按真态词表校正）；未知值人话兜底不裸出。
+	const stageText = (kind: string, stage: string) =>
+		kind === "proposal" ? cn(WORK_STAGE_CN, stage, "候选就绪·待触发") : cn(WORK_STAGE_CN, stage, "处理中");
 	return (
 		<div className="tile-scroll">
 			{items.map((w) => (
 				<div className="pipe-row" key={w.kind + ":" + w.ref}>
-					<span className="pipe-ticket">{KIND[w.kind] ?? w.kind}</span>
+					<span className="pipe-ticket">{cn(WORK_KIND_CN, w.kind, "工件")}</span>
 					<span className="pipe-title">{w.ref}</span>
-					<span className="pipe-seat">{w.stage}</span>
+					<span className="pipe-seat">{stageText(w.kind, w.stage)}</span>
 					{w.progress && <span className="pipe-seat">{w.progress}</span>}
 					<span className="pipe-elapsed">{ago(w.sinceTs)}</span>
 				</div>
