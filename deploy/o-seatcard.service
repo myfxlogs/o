@@ -1,0 +1,22 @@
+# o-seatcard.service —— 飞书席位活卡消费件（T-0458 业主令件——eventbus
+# dm 帧+15s 兜底拍→全席重渲→内容哈希闸→live 时懒建/PATCH。o-metabus 同形
+# 独立进程：卡败落 ops_event seatcard_err 行不吞账不拖累唤醒径）。
+# 灰度序（CTO 裁定⑥）：上线默认 dry-run（exec.seatcard_live 缺席=false，
+# 只渲不发日志验渲染一周期）→ dmconfig 翻 true 开真 PATCH。
+# env：FIN_PG_DSN=%h/o-research/env（ops_event 读+ops_seat_card 卡册写）；
+# FEISHU_MANAGE_*=/opt/meta-archive/feishu-manage.env（feishu-notify.sh
+# 同径同 chat——不新引凭据）。
+[Unit]
+Description=o-seatcard (飞书席位活卡消费件——席位活性流式可视)
+After=o-oci-bus-tunnel.service
+
+[Service]
+EnvironmentFile=%h/o-research/env
+EnvironmentFile=/opt/meta-archive/feishu-manage.env
+ExecStart=/opt/o/bin/seatcard
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target
