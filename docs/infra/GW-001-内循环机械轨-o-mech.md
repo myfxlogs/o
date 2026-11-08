@@ -158,6 +158,31 @@ verdict_reflow 产 draft→ticketdraft 出票；两并发草案各得独立伪�
 **段 E 判据**：ff merge 后 push 零复跑过闸（A3 闸下戳可见）；
 案卷行含 deployed: 后缀；非 ff 路径仍走复跑不降级。
 
+### 段 F 漂移对账（业主令 2026-11-08 增段——GitOps 式期望态/实态
+### 对账；依赖 A 的 o-mech 尾窗）
+
+> 病灶实证：unit 文件 6/20 漂、二进制无 sha 查询面、迁移链 145 vs
+> 树 147 靠撞发现——drift 五类各散各域无一本账。
+
+- **F1 期望态声明**：`deploy/manifest.tsv`——一行一类：unit 名→repo
+  件路径 / binary 名→cmd 构建路径 / 迁移域→migrate_table 期望版 /
+  timer→应 enabled 态。repo 件=唯一真源，live 件=被对账面。
+- **F2 只读探针**：`scripts/meta/drift_probe.sh`——实态采集零写径：
+  `systemctl --user cat` 哈希 vs repo 件哈希；`go version -m` 取
+  二进制 vcs.sha vs 构建期 sha（无嵌入=drift 类「sha 不可考」）；
+  `schema_migrations` max vs 登记表 max；unit/timer active+enabled
+  实态 vs 期望。drift 行→`gauges.tsv`+ops_event 观测行（说明类词
+  形——不进票相位，段 B1 先例）；挂 o-mech 尾窗每拍跑。
+- **F3 自收敛分级**：安全类（unit 文件按 repo sync、二进制按已并入
+  HEAD 的绿戳 sha 重建）可机修——执行+留账+回探转绿才算闭环；
+  非安全类（迁移欠账、master↔origin 落差、sha 不可考、钱径域任何
+  文件）**只升件不碰**——持续漂移 ≥2 拍→升件行（接段 D 案→票管）。
+  机修须双拍确认 drift 仍在才动手（探针误报不得触发写动作）。
+
+**段 F 判据**：①人造 unit 漂移（改 live 件一字）→探针下拍报出含
+该单元 drift 行；②人造迁移欠账→报；③机修类收敛留执行账+回探
+转绿；④钱径域人造漂移→只有升件行零写动作实证。
+
 ## 五、判据总则
 
 - 每段桩测新件随码落（mech_tick_test/dm_queue_phase_test/
@@ -177,11 +202,15 @@ verdict_reflow 产 draft→ticketdraft 出票；两并发草案各得独立伪�
 
 ## 七、裁决记录
 
-- [ ] COS 段 A 验收：＿＿
-- [ ] COS 段 B 验收：＿＿
-- [ ] COS 段 C 验收：＿＿
+- [x] COS 段 A 验收：通过（桩测全绿+判据六条实证；merge eb4c3e6，单元
+  装起，HEAD 包含闸现役）
+- [x] COS 段 B 验收：通过（桩测 38/38+ledger/mech/dispatch 四套全绿；
+  merge d6b7b90，部署期逮 roster_rw 漏授已补——半成品窗实证）
+- [x] COS 段 C 验收：通过（五套桩测全绿+负目录落码实证；merge af9b4e5，
+  merge 侧迁号 fin_0148→fin_0149 避让 t0485）
 - [ ] COS 段 D 验收：＿＿
 - [ ] COS 段 E 验收：＿＿
+- [ ] COS 段 F 验收：＿＿
 
 ## 八、段C 施工结果（回填 2026-11-08 施工席——外派施工，待 COS 独立复审）
 
