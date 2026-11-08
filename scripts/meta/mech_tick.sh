@@ -257,4 +257,20 @@ if [ -n "$FIN_DSN" ]; then
     fi
   fi
 fi
+
+# ── 漂移对账窗（GW-001 段F：F2 探针每拍只读采集；F3 自收敛执行器后启——
+# 半成品窗：探针先行零写径，执行器须显式开关（O_DRIFT_FIX_ENABLE=1 或
+# $ST/fix_enable 件）才开写径；机修双拍确认在 drift_converge 内判 streak≥2，
+# 探针误报不得触发写动作。探针败=升件不阻拍（对账面不可知=盲区显形）。──
+DRIFT_PROBE_SH=${O_DRIFT_PROBE_SH:-"$SCRIPT_DIR/drift_probe.sh"}
+DRIFT_CONVERGE_SH=${O_DRIFT_CONVERGE_SH:-"$SCRIPT_DIR/drift_converge.sh"}
+DRIFT_ST=${O_DRIFT_STATE_DIR:-/var/tmp/o-drift}
+PRC=0
+O_DRIFT_REPO="$REPO" O_DRIFT_STATE_DIR="$DRIFT_ST" "$DRIFT_PROBE_SH" >/dev/null 2>&1 || PRC=$?
+[ "$PRC" -ne 0 ] && mech_esc "漂移探针败" "rc=$PRC drift_probe 未跑净——期望态/实态对账面不可知"
+if [ "${O_DRIFT_FIX_ENABLE:-0}" = 1 ] || [ -f "$DRIFT_ST/fix_enable" ]; then
+  FRC=0
+  O_DRIFT_REPO="$REPO" O_DRIFT_STATE_DIR="$DRIFT_ST" "$DRIFT_CONVERGE_SH" >/dev/null 2>&1 || FRC=$?
+  [ "$FRC" -ne 0 ] && mech_esc "漂移自收敛败" "rc=$FRC drift_converge 未跑净——机修窗滑行（下拍按快照续判）"
+fi
 exit 0

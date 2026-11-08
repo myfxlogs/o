@@ -269,3 +269,90 @@ dm_autoapprove_test ②（册值径 internal/trading/okxexec→零批 rc1 升件
 rootcause:* 签名，其钦定径将由 DM 裁时改判（模板行语义保留），负目录断言
 兜底防钱径误映射；③dm_depgate 即派面同受派单序（「派单序」钦定覆盖两派
 径，仅补拉面排序=死信面）。
+
+## 九、段F 施工结果（回填 2026-11-08 施工席——外派施工，待 COS 独立复审）
+
+分支 `gw/001-mech-segF`（基于 master@04a2c84a3；**未 merge 未部署**——merge+
+部署归 COS 同席；段F 为新增面，无迁移随发）。
+
+**F1 期望态声明** `deploy/manifest.tsv`（23 行数据）：10 unit（含
+o-green-stamp.path）+7 timer+3 binary（metabus/headlesspump/feishu-notify）
++fin/md 两迁移域。范围=dev 本机 repo-backed 期望态；OCI 臂 unit/二进制归
+deploy_oci 臂级 sha 账不入表；live-only 无 repo 真源件（o-wt-gc/
+o-gauges-tick/o-strategy-review）与带 drop-in 单元（systemctl cat 多片段对
+repo 单件恒不等）不入表，另票补真源后再入册；表头注释写明增删行纪律。
+
+**F2 只读探针** `scripts/meta/drift_probe.sh`：unit/timer 以 `systemctl
+--user cat` 去 systemd 头行后哈希对 repo 件哈希（timer 另查 enabled+
+active）；binary 以 `go version -m` 取 vcs.revision 对 HEAD：非祖先=
+sha-unmerged，无嵌入/仓内不可解=sha-unrecoverable，deps 含
+`o/internal/{exec,trading,venue,ledger}`=money-path，`go list -deps` 败=
+dep-unknown，仅当 `git diff <bin sha>..HEAD -- <deps 路径> go.mod go.sum`
+前进才判 stale（deps 未前进不报）；migration 以 live `schema_migrations`
+max 对 `migrate_table.go` 登记链最大号（欠账/超登记/读败三态）。零写径：
+写面仅 `$ST/drift.tsv`+`last.ts` 快照与 ops_event `漂移`/`漂移消` 说明类
+观测行（24h 前缀去重、不进票相位），不触 live unit/binary/DB。streak=
+同键连续拍数，上拍龄>`O_DRIFT_STREAK_WINDOW`（默认 1800s）不续；快照先
+落新拍再发观测行（观测行败不丢对账面）。mech_tick 尾窗每拍调用；探针
+rc≠0=「漂移探针败」升件不阻拍。`gauges.tsv` 增 `drift_open`（cmd 读
+`--count`，{d}=`--keys`）随既有滞回兜底观测。
+
+**F3 自收敛分级** `scripts/meta/drift_converge.sh`：**半成品窗默认不启**
+——须 `O_DRIFT_FIX_ENABLE=1` 或 `$ST/fix_enable` 件才由 mech_tick 调用。
+硬闸：`streak>=2` 才动手（探针误报不得触发写）；flock 单例；失败落
+`$ST/fix-fail-<hash>` 24h 冻结不重试。安全类（fixable=1）：unit/timer/path
+内容或缺件→repo 件原子换件+daemon-reload（timer/path 另 restart 排程面，
+服务不 restart 在飞实例）；timer disabled/inactive→enable --now；binary
+stale/missing→仅当 HEAD==origin/master∧HEAD 有 check-green 戳∧树净∧deps
+证不含钱径包，按 HEAD 重建、嵌入 sha 核等、换件后 restart 原活跃属主、
+败即回滚旧件；每件成功留 ops_event「机修」执行账并回探（哈希/enabled/
+active/嵌入 sha）转绿才算闭环。非安全类（fixable=0：迁移欠账/超登记、
+master 落差、sha 不可考/未并、钱径 deps、构建依赖不可证）双拍后只走
+`ops_esc.sh` 升件（`DRIFT:<key>` 前缀 24h 去重）；观测盲（fixable=-：DB/
+探针读面败）只报不升。
+
+**桩测账**（全绿）：`drift_probe_test.sh` ①–⑨（基线零漂/内容漂移 streak
+累加+观测行去重+回绿漂移消/缺件/timer disabled+inactive/迁移欠账超登记
+读败/binary 七态/master 落差与 origin 不可解/streak 断窗归1/manifest 缺
+席 rc1+用法错 rc2）；`drift_converge_test.sh` ①–⑬含 ④b（streak1 零动作/
+unit sync+daemon-reload+机修执行账/timer enable --now/timer+path sync+
+restart/binary 绿戳重建+属主 restart+回探+执行账/无绿戳拒修升件+冻结/
+冻结窗不重试/钱径行零 build 零写只升件/迁移欠账零写只升件/观测盲零动作/
+快照缺席零动作/repo 路径越界拒修/HEAD≠origin/master 拒重建）；
+`mech_tick_test.sh` ⑪–⑬（默认每拍只探针、开关后探针+收敛同拍、
+fix_enable 件开写径+探针败升件不阻拍）。
+
+**判据四条实证**（真机沙箱面，生产件零写；COS 可复跑）：①人造 unit 漂移：
+临时 user 单元 `o-drift-evidence.service` 基线 count=0，live 件改一字
+（v1→v2）下拍报 `unit:o-drift-evidence.service … content … fixable=1
+streak=1`；②人造迁移欠账：`O_DRIFT_SCHEMA_CMD` 喂 fin=148/md=1091，探针
+报 `migration:fin debt live=148 登记=149` 与 `migration:md debt
+live=1091 登记=1092`（均 fixable=0 只升件）；③机修闭环：沙箱 unit 漂移
+streak=2→converge 同步 live（真 daemon-reload）、留执行账
+`机修 unit:o-drift-evidence.service … 回探=绿`、再探 count=0；④钱径域：
+临时 cmd 依赖 `o/internal/trading`+旧 sha 二进制，探针报 `money-path …
+fixable=0 streak=2`，converge 仅出 `DRIFT:binary:…` 升件行，go build 与
+systemctl 调用数=0、二进制 sha 前后同（57bad7…）——零写实证。
+
+**真机只读首探**（未写态）：3 unit 内容漂（o-cto-seat/o-econ-verdict/
+o-regime-analyst）、2 binary stale（headlesspump d6fda54…/feishu-notify
+eebdcb4…，deps 已前进）、repo master-gap ahead=13 behind=0（master 领先
+origin，段C merge 未推）；迁移 fin=149/md=1092 与登记链一致零报。
+
+**半成品窗评估**：merge+部署后首拍起探针自然跑；master-gap 会因「master
+领先 origin」持续存在至下次 push（非安全类双拍升件，前缀去重）。若届时
+开 fix_enable，三件 unit 内容漂会在第 2 拍被机修（按 repo 件覆盖 live）
+——COS 复核时须先确认「live 件差异是否本应回灌 repo」（若 live 是人工
+热修，覆盖即丢；建议先 diff 三件再决定开闸）。二进制 stale 两件需
+HEAD==origin/master∧HEAD 绿戳才重建；merge 后若未推 origin，both 拒修
+升件是预期安全行为。
+
+**偏离说明**：①binary 判定把 `sha==HEAD` 短路提前到 deps/money 扫描前
+——构建源已是 HEAD 即无漂移，否则「deps 含钱径包但当前件就是最新」会
+恒报假漂移；money/不可考/未并只对「落后件」有意义。②`o-green-stamp.path`
+按 unit 内容面入表（不查 enabled/active）；timer 才查状态三面。③迁移 live
+查询每拍 SSH（timeout 8/10s），读败=观测盲只报不升；后续可换
+check_schema_live 缓存径（另票，不在本段扩）。④mech_tick 尾窗显式传
+`O_DRIFT_REPO`/`O_DRIFT_STATE_DIR`（探针/执行器输入面即此二名），不靠
+REPO 变量名巧合。⑤执行器对 `.path` 单元同步后同 timer 律 restart（排程
+面配置下拍生效），服务类 unit 不 restart 在飞实例。
