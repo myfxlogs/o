@@ -556,3 +556,21 @@ func TestFaceBaselineSubreqUserIntentTRXRegistered(t *testing.T) {
 		t.Fatalf("%s 理由键空——注册式不静默（depblind 豁免同律）", scope)
 	}
 }
+
+// TestFaceBaselineLegZECUSDTRegistered T-0453 先红桩（T-0388 修复类律——
+// 病灶存在断言修前红+同断言修后绿）：签名面 face:dep_pair:leg:ZEC-USDT
+// 必须在人工基线册。根因锚：ZEC-USDT 现货腿=fin_strategy funding-hedge
+// probe 行派生（state<>'retired' 落 FundingHedgeSpotArm 谓词——ActiveSetUnion
+// 同源表达式枚举本体，零硬编码）；提案/策略活性期进出=间歇面形（T-0448 册
+// 语义罩位），册外面窗摆回重复升件炸起草拍（生产实证 #3454）。修前未登记
+// =红；入册后同断言绿且理由键非空（注册式不静默）。
+func TestFaceBaselineLegZECUSDTRegistered(t *testing.T) {
+	scope := "face:dep_pair:leg:ZEC-USDT"
+	reason, ok := faceBaselineExempt(scope)
+	if !ok {
+		t.Fatalf("病灶存在：%s 未入人工基线册——窗摆回将重复升件（T-0453）", scope)
+	}
+	if strings.TrimSpace(reason) == "" {
+		t.Fatalf("%s 理由键空——注册式不静默（depblind 豁免同律）", scope)
+	}
+}
