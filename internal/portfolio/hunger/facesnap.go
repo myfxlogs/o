@@ -66,6 +66,12 @@ var faceBaselineWhitelist = map[string]string{
 	// ops_event 写）=间歇面形（T-0448 册语义罩位），静默 >7d 出集再
 	// 活跃=再现新面再升件再起草循环（T-0393 链）。
 	"face:service:CEO": "T-0471 入册——CEO 无头班次席（管理席，T-0456 业主令建席）：ceo_tick.sh O_SEAT=CEO→report.sh+ceo_northstar.sh 北极星账/议题行双写径合法，班次驱动间歇写 7d 活跃窗摆动登记不重复升；生产亲证 2026-11-08 首行 00:25Z 起 169 行/日（ops_event #3925 升件源）",
+	// T-0472：COS上行=秘书席上行写径席位身份——O-DM pane 业主在席处置窗
+	// ops_event 写径（呈批/移交/领号/升件/挂起/收口待审等；T-0456 双无头
+	// 席建置 ceo_queue.sh 钦定席位集含 'COS上行'——席上行件归 CEO 方向层
+	// 设计在案）；业主在才有秘书之义=间歇写面形（T-0448 册语义罩位），
+	// 静默 >7d 出集再活跃=再现新面再升件再起草循环（T-0393 链）。
+	"face:service:COS上行": "T-0472 入册——COS上行=COS 秘书席上行写径席位身份（O-DM pane 业主在席处置窗 ops_event 写径呈批/移交/领号/升件等；ceo_queue.sh T-0456 钦定席位集含 'COS上行' 席上行件归 CEO 方向层设计在案）；业主在才有秘书之义=间歇写面 7d 活跃窗摆动登记不重复升；生产亲证 2026-11-07 23:05Z→11-08 01:07Z 26 行五类事件（ops_event #3927 升件源）",
 }
 
 // faceRow 单面行（kind=面类五键，face=面键——同拍批内 kind+face 唯一）。
