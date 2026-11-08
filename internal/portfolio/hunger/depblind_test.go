@@ -19,6 +19,18 @@ import (
 // fail-closed 报错（扫不到对=病灶非零失明）。补面：清单落账谱变才重落；
 // 注册豁免落「依赖对豁免」行非暗吞；签名去重吸收特例探针同窗报。
 
+// seedEvalAt 评估镜像行定龄（depblind 消费侧行数面仍读 fin_opp_eval——
+// 活性改读域外的同谱残面；age=0 窗内行；>7d 窗外行——族在全集但近窗零）。
+func seedEvalAt(t *testing.T, pool *pgxpool.Pool, template string, age time.Duration) {
+	t.Helper()
+	if _, err := pool.Exec(context.Background(),
+		`INSERT INTO fin_opp_eval(inst_id,template,direction,verdict,legs,evidence,ts)
+		VALUES($3,$1,'long_perp_short_cfd','rejected','[]','{}',now()-make_interval(secs=>$2))`,
+		template, age.Seconds(), "inst-"+template); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // depFixture 探针桩景（fin 迁移——okx.symbols 种 BTC/ETH 现货+SWAP 四键
 // 宇宙 fin_0004 在册；seed 助手复用 silence_test 同包件）。
 func depFixture(t *testing.T) (*Sensor, *pgxpool.Pool) {

@@ -3,8 +3,10 @@
 // N 天零行——上游活性监控（ops_face 分件节拍 warn/dead）测「上游活不活」、
 // 饥饿 Detect 测「提案/paper 零不零」，中间断档「模板族源信号鲜而评估零」
 // 两不测。探针挂饥饿拍同槽（Detect 同拍省协程）：对每模板族
-// （fin_opp_eval.template 全集）两数对拍——其源信号 md_signal 对应 kind
-// 近窗鲜行数 × fin_opp_eval 该 template 近窗行数；信号行>0 且评估行=0
+// （md_eval_pulse.template 全集——T-0485 脉冲桥：SG fin_opp_eval 镜像谓词=
+// 仅 proposal 引用行，rejected-only 族镜像结构性恒零，活性判据改读 md 正本
+// 派生脉冲表）两数对拍——其源信号 md_signal 对应 kind 近窗鲜行数 ×
+// 该 template 脉冲行 7d 新鲜度；信号行>0 且脉冲陈/缺=评估窗内零
 // → 沉默病灶（ops_event `族沉默` 行 + 观测盲升件，24h 同窗去重）。
 // 只报不修——探针升件不自动修（修归常票/饥饿响应）；不重造监控——
 // 复用本拍窗/去重面，信号死非本探针域（源死归 ops_face 活性面）。
@@ -53,7 +55,7 @@ func (s *Sensor) ProbeFamilies(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("族沉默探针 假想卡需求读败: %w", err)
 	}
-	templates, err := s.evalTemplates(ctx)
+	templates, err := s.pulseTemplates(ctx)
 	if err != nil {
 		return fmt.Errorf("族沉默探针 模板全集读败: %w", err)
 	}
@@ -117,8 +119,33 @@ func (s *Sensor) hypothesisNeeds(ctx context.Context) (map[string][]string, erro
 	return out, rows.Err()
 }
 
+// pulseTemplates 探针模板全集（T-0485——md_eval_pulse.template 全集：md 正本
+// fin_opp_eval per-template 派生行，rejected-only 族在列；T-0485 前读 SG 镜像
+// DISTINCT，镜像谓词域致全拒族根本不入探针域的化石失明——T-0479 定案）。
+// fin_opp_template 候选册不入（未产评估行的族零基线）。
+// evalTemplates 镜像全集原件保留给 depenum 枚举面（同谱残面——depblind
+// 计数面仍读镜像行数，两读同源才内洽；改脉冲域归另票裁量）。
+func (s *Sensor) pulseTemplates(ctx context.Context) ([]string, error) {
+	rows, err := s.pool.Query(ctx, `SELECT template FROM md_eval_pulse ORDER BY 1`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var t string
+		if err := rows.Scan(&t); err != nil {
+			return nil, err
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
 // evalTemplates 模板全集（票面钦 fin_opp_eval.template 全集——评估留痕族
 // 才是观测对象；fin_opp_template 候选册不入（未产评估行的族零基线））。
+// depenum 枚举面专用（depblind 计数面同读镜像行数——两读同源内洽，
+// 脉冲域改读归另票裁量，见 pulseTemplates 注）。
 func (s *Sensor) evalTemplates(ctx context.Context) ([]string, error) {
 	rows, err := s.pool.Query(ctx, `SELECT DISTINCT template FROM fin_opp_eval ORDER BY 1`)
 	if err != nil {
@@ -195,7 +222,7 @@ func deriveKinds(template string, kindSet map[string]bool, needs map[string][]st
 	return out
 }
 
-// probeFamily 单族两数对拍：驱动 kind 近窗鲜行>0 且同族评估行=0→病灶。
+// probeFamily 单族两数对拍：驱动 kind 近窗鲜行>0 且同族脉冲陈/缺=0→病灶。
 // 病灶行+升件同窗去重（esc_class+esc_scope 等值键——同族 24h 至多一报）。
 func (s *Sensor) probeFamily(ctx context.Context, template string, kinds []string) error {
 	driver := kinds[0]
@@ -205,10 +232,10 @@ func (s *Sensor) probeFamily(ctx context.Context, template string, kinds []strin
 		driver, silenceWindowDays).Scan(&sigN); err != nil {
 		return fmt.Errorf("信号行数读败: %w", err)
 	}
-	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM fin_opp_eval
-		WHERE template=$1 AND ts>now()-make_interval(days=>$2)`,
+	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM md_eval_pulse
+		WHERE template=$1 AND last_eval_ts>now()-make_interval(days=>$2)`,
 		template, silenceWindowDays).Scan(&evalN); err != nil {
-		return fmt.Errorf("评估行数读败: %w", err)
+		return fmt.Errorf("评估活性读败: %w", err)
 	}
 	if sigN == 0 || evalN > 0 {
 		return nil // 信号死（源死归活性面非本域）/ 评估有——零病灶

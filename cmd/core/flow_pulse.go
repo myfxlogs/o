@@ -36,7 +36,9 @@ type stageDef struct {
 var flowStages = []stageDef{
 	{"collect", "采集", `SELECT max(recv_ts), count(*) FILTER (WHERE recv_ts>now()-interval '24 hours') FROM md_funding`, false},
 	{"bridge", "投影", `SELECT max(recv_ts), count(*) FILTER (WHERE recv_ts>now()-interval '24 hours') FROM md_ticks`, false},
-	{"eval", "评估", `SELECT max(ts), count(*) FILTER (WHERE ts>now()-interval '24 hours') FROM fin_opp_eval`, false},
+	// T-0485：eval 段改读脉冲表——fin_opp_eval 镜像谓词=仅 proposal 引用行，
+	// rejected-only 族镜像恒零致活性假死；md_eval_pulse=md 正本派生新鲜度。
+	{"eval", "评估", `SELECT max(last_eval_ts), COALESCE(sum(eval_n_24h),0) FROM md_eval_pulse`, false},
 	{"proposal", "提案", `SELECT max(created_at), count(*) FILTER (WHERE created_at>now()-interval '24 hours') FROM fin_proposal`, true},
 	// T-0377 观察面：paper 户状态迁移段（开户/晋升/退役——事件驱动中性灯；
 	// xvenue paper 双腿开户在此显流）。

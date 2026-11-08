@@ -102,3 +102,6 @@ fin_symbol_dialect	fin
 fin_exec_drill	fin
 fin_guard_suspend	fin
 ops_seat_card	fin
+# md_eval_pulse 以 bridge 入册（T-0485——md 域数据过桥语义面；fin 链独表：
+# md 侧无写者/读者不落正表，断言⑥ 同形硬清单不在列）
+md_eval_pulse	bridge

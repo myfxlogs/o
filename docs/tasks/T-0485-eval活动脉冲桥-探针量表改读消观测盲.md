@@ -47,3 +47,41 @@
 - 探针阈/签名面/类册禁改；
 - 不动真径执行/钱径码位；
 - 先红桩律适用。
+
+## 结果回填
+
+- 状态：待验
+- 施工回填（2026-11-08 无头施工席 @ wt /opt/o-wt/t0485 枝 t/0485-eval-pulse）：
+  - 范围①`migrations/fin_0147_eval_pulse.sql`：md_eval_pulse 建表
+    （template PK/last_eval_ts/eval_n_24h/refreshed_at——票面列集钦定）+
+    projector_rw SIUD、o_fin_ro SELECT 条件授权（fin_0099/0100 同径）；
+    domain.tsv 以 bridge 入册（fin 链独表——md 侧无写者/读者不落正表，
+    断言⑥ 同形硬清单不在列）；migrate_table 登记 {147}。
+  - 范围②`internal/projector/pulse.go` 新件（行数闸拆分——ops.go 撞
+    300 棘轮）：qEvalPulse md 正本 per-template 聚合（谓词城外全量面——
+    承重墙零触）+uEvalPulse 同键 upsert+refreshEvalPulse；挂点=
+    projectEvals 拍尾（serve/dualwrite 双模同径）+Reconcile 顺带
+    （eval 链死期 ev_eval 无帧，10min 活性对账兜底 eval_n_24h 不漂）；
+    New() want 册补 md_eval_pulse（搬运面 ⊆ 桥册 fail-closed 对拍）。
+  - 范围③silence.go：ProbeFamilies 枚举改 pulseTemplates（md_eval_pulse
+    全集——全拒族入探针域化石失明根修）；probeFamily 活性判据改
+    `last_eval_ts>窗`（镜像行数不再作判据）；evalTemplates 原件保留给
+    depenum（depblind 计数面同读镜像=两读同源内洽，票域外残面见下）。
+    gauges.tsv 两 eval_zero 行+flow_pulse eval 段灯改读脉冲表
+    （探针阈/签名面/类册/量表名零动——仅 query 列换源）。
+  - 范围④domain.tsv 册行+数据流.md 桥面 canon 行同 commit 落。
+  - 范围⑤桩测：silence_test seedPulseAt 脉冲播种（SG fin_opp_eval 恒零
+    谱形即桩底）；形②加镜像恒零断言=rejected-only 修前红谱形+修后绿；
+    新 TestProbeFamiliesLesionOnPulseStale=真死面保留断言（验收锚③）；
+    projector_test 新 TestEvalPulseBridge=md 全量聚合→SG 脉冲行
+    （镜像恒零下脉冲新鲜）+eval_n_24h 窗口径断言。
+  - 自测绿谱：check_migrations 七断言过；check-lines 过（pulse.go 拆分后）；
+    go build+vet 过；O_TEST_PG_DSN 实库测——projector 包全绿（含新桩）、
+    hunger 包全绿（92s 全谱）、cmd/core flow_pulse 两测绿、pgstore 绿。
+  - 已知残面（票域外如实记档，归 CTO 裁量另票）：depblind depCounts
+    consN/depenum evalTemplates/facesnap DISTINCT 三面同谱读镜像行数——
+    枚举+计数同源自洽不新增误报（改单边才会引入新假阳），全拒族对
+    depblind 仍不可见=欠报向残面；depblind_test seedEvalAt 收编回本件。
+  - 部署滞后预期（如实报非缺陷）：check_bridge_registry ①授权列实机
+    审计——fin_0147 未上 SG 前报「SG projector_rw.SELECT on
+    md_eval_pulse 缺」，迁移应用+授权落即自绿（T-0214 同型部署序在案）。

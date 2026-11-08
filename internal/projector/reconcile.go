@@ -57,6 +57,9 @@ func (r *Runner) Reconcile(ctx context.Context, full bool) error {
 	if err := r.repairForwardGap(ctx, full); err != nil {
 		return fmt.Errorf("正向缺口: %w", err)
 	}
+	if err := r.refreshEvalPulse(ctx); err != nil { // T-0485 脉冲期界兜底（eval 链死期无 ev_eval 帧）
+		return fmt.Errorf("eval 脉冲刷新: %w", err)
+	}
 	if err := r.projectMacro(ctx); err != nil {
 		return fmt.Errorf("macro diff: %w", err)
 	}
