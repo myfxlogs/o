@@ -69,39 +69,53 @@ func TestListenSocketStarvationRootFix(t *testing.T) {
 		time.Sleep(50 * time.Millisecond) // sched-exempt-ok 桩测注册轮询（夹具非生产调度）
 	}
 
-	// 灌通知（独立连接独占——与采样连接分离防并发用连）。
+	// 灌通知（三机位并发各持一池连——单机位灌速=Exec 延时，herd 负载下
+	// ~100ms/发→29s 采样窗仅 ~270 发 < 500 锚量不可达实发（segD 戳跑红案）；
+	// 并发语义不降反升：真 ClientWrite 钉死则全机位 Exec 同超时=实锤依旧）。
 	payload := strings.Repeat("x", 7000)
 	var sent, maxLatencyMs atomic.Int64
 	floodCtx, floodStop := context.WithCancel(ctx)
-	floodErr := make(chan error, 1)
-	go func() {
-		tick := time.NewTicker(15 * time.Millisecond) // sched-exempt-ok 桩测灌装节拍（夹具非生产调度）
-		defer tick.Stop()
-		for {
-			select {
-			case <-floodCtx.Done():
-				floodErr <- nil
-				return
-			case <-tick.C:
-			}
-			t0 := time.Now()
-			ectx, ecancel := context.WithTimeout(floodCtx, 60*time.Second) // sched-exempt-ok：毛刺容差20→60s——K=16分库herd下单发pg_notify排队>20s假阳性实发(check_all二连红),判定语义不动(真ClientWrite钉死多少阈都红)
-			_, err := notifier.Exec(ectx, "SELECT pg_notify($1, $2)", ch, payload)
-			ecancel()
+	floodErr := make(chan error, 3)
+	for fi := 0; fi < 3; fi++ {
+		go func() {
+			fconn, err := pool.Acquire(floodCtx)
 			if err != nil {
-				if floodCtx.Err() != nil { // 停灌拍取消在飞 Exec≠反压——floodStop 与在飞 Exec 竞态（herd 下排队发必撞），只认自发超时为实锤
+				if floodCtx.Err() != nil {
 					floodErr <- nil
 					return
 				}
-				floodErr <- fmt.Errorf("通知发射被反压（套接字未被排空→服务端交付 ClientWrite 钉死实锤）: %w", err)
+				floodErr <- fmt.Errorf("灌发机位取连败: %w", err)
 				return
 			}
-			if d := time.Since(t0).Milliseconds(); d > maxLatencyMs.Load() {
-				maxLatencyMs.Store(d)
+			defer fconn.Release()
+			tick := time.NewTicker(15 * time.Millisecond) // sched-exempt-ok 桩测灌装节拍（夹具非生产调度）
+			defer tick.Stop()
+			for {
+				select {
+				case <-floodCtx.Done():
+					floodErr <- nil
+					return
+				case <-tick.C:
+				}
+				t0 := time.Now()
+				ectx, ecancel := context.WithTimeout(floodCtx, 60*time.Second) // sched-exempt-ok：毛刺容差20→60s——K=16分库herd下单发pg_notify排队>20s假阳性实发(check_all二连红),判定语义不动(真ClientWrite钉死多少阈都红)
+				_, err := fconn.Exec(ectx, "SELECT pg_notify($1, $2)", ch, payload)
+				ecancel()
+				if err != nil {
+					if floodCtx.Err() != nil { // 停灌拍取消在飞 Exec≠反压——floodStop 与在飞 Exec 竞态（herd 下排队发必撞），只认自发超时为实锤
+						floodErr <- nil
+						return
+					}
+					floodErr <- fmt.Errorf("通知发射被反压（套接字未被排空→服务端交付 ClientWrite 钉死实锤）: %w", err)
+					return
+				}
+				if d := time.Since(t0).Milliseconds(); d > maxLatencyMs.Load() {
+					maxLatencyMs.Store(d)
+				}
+				sent.Add(1)
 			}
-			sent.Add(1)
-		}
-	}()
+		}()
+	}
 
 	// 首拍起（首通知唤醒 fn 卡 gate）。
 	for t0 := time.Now(); ticks.Load() == 0; {
@@ -147,8 +161,10 @@ func TestListenSocketStarvationRootFix(t *testing.T) {
 
 	// 停灌→排残→放行长拍：积压塌陷=额外恰一拍。
 	floodStop()
-	if err := <-floodErr; err != nil {
-		t.Fatal(err)
+	for fi := 0; fi < 3; fi++ { // 每机位退前恰发一值——读满即全退（首个非nil即实锤）
+		if err := <-floodErr; err != nil {
+			t.Fatal(err)
+		}
 	}
 	if n := sent.Load(); n < 500 {
 		t.Fatalf("灌通知量 %d 不足 500——灌装面失效，锚不成立", n)
