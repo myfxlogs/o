@@ -209,8 +209,13 @@ verdict_reflow 产 draft→ticketdraft 出票；两并发草案各得独立伪�
 - [x] COS 段 C 验收：通过（五套桩测全绿+负目录落码实证；merge af9b4e5，
   merge 侧迁号 fin_0148→fin_0149 避让 t0485）
 - [ ] COS 段 D 验收：＿＿
-- [ ] COS 段 E 验收：＿＿
-- [ ] COS 段 F 验收：＿＿
+- [x] COS 段 E 验收：通过（case_writeback_test 13/13+mech_tick 段E案全绿；
+  merge 8cee48f，merge 侧迁号 fin_0149→fin_0152 避让段C，尾窗
+  drift/casewb 两窗并集——并集桩测 15 案全绿；fin 链迁毕=152，
+  首拍真机扫 fail-soft 实证：不可解/非祖先段不落戳待下拍）
+- [x] COS 段 F 验收：通过（drift_probe ①–⑨+drift_converge ①–⑬+
+  mech_tick ⑪–⑬ 全绿；merge 86aade1，探针首拍即逮实漂 6 行——
+  unit×3/binary×2/master-gap×1，streak 窗+双拍闸按票面运转）
 
 ## 八、段C 施工结果（回填 2026-11-08 施工席——外派施工，待 COS 独立复审）
 
