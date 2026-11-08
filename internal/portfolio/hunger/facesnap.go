@@ -89,6 +89,14 @@ var faceBaselineWhitelist = map[string]string{
 	// 读面册本体零硬编码，域在册恒产非产消断——册外/重种回摆重复
 	// 升件炸起草拍（T-0393 链，升件源 #4037）。
 	"face:dep_pair:config:meta→DM 机批闸册": "T-0490 入册——meta 键域=fin_0143 种 meta.autoapprove.registry（T-0455 机批册本体）在册即面，读者册载 DM 机批闸册（dm_autoapprove.sh 实读同键，批权径在案）；枚举对 depConfigReaders 册内合法新面登记不重复升；生产亲证 app_config meta.autoapprove.registry 在册+升件源 ops_event #4037（机批已批 #4373）",
+	// T-0492：gate_domain:meta 面——meta app_config 键域=fin_0143 迁移种
+	// meta.autoapprove.registry（T-0455 机批册本体在册即面；读者=
+	// depConfigReaders["meta"] 册载「DM 机批闸册」T-0448 补册，
+	// dm_autoapprove.sh 实读同键=候选票批权径本票自身 #4373 机批实证）；
+	// gate_domain 枚举=split_part(key,'.',1) 本体零硬编码，域在册恒产
+	// 非产消断——重种/库重建回摆重复升件炸起草拍（T-0393 链，升件源
+	// #4043；姊妹面 dep_pair:config:meta→DM 机批闸册=T-0490 同根另册）。
+	"face:gate_domain:meta": "T-0492 入册——meta 键域=fin_0143 种 meta.autoapprove.registry（T-0455 机批册本体）在册即面，读者册载 DM 机批闸册（dm_autoapprove.sh 实读同键批权径在案，写域册外 fail-closed 归 owner=类册面钦定判据设计在案）；枚举谓词 split_part 本体零硬编码合法新面登记不重复升；生产亲证 app_config meta.autoapprove.registry 在册+升件源 ops_event #4043（快照批 14/15 在册）",
 }
 
 // faceRow 单面行（kind=面类五键，face=面键——同拍批内 kind+face 唯一）。
