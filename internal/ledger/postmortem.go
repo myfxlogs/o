@@ -75,15 +75,17 @@ func (r *Runner) postmortem(ctx context.Context, posID int64) {
 		opened, closed                    time.Time
 		guardTrig                         string
 		guardAttempts                     int
+		guardLastErr                      string
 	)
 	if err := r.pool.QueryRow(ctx, `SELECT p.execution_id,COALESCE(p.strategy_ref,0),
 		p.inst_id,p.notional_usd,p.settled_amount,
 		COALESCE(p.bare_bag_qty,0),COALESCE(p.bare_bag_usd,0),
-		p.opened_at,p.closed_at,COALESCE(g.trigger_kind,''),COALESCE(g.attempts,0)
+		p.opened_at,p.closed_at,COALESCE(g.trigger_kind,''),COALESCE(g.attempts,0),
+		COALESCE(g.last_error,'')
 		FROM fin_position p
 		LEFT JOIN fin_guard_close g ON g.position_id=p.id AND g.state='closed'
 		WHERE p.id=$1`, posID).Scan(&execID, &stratRef, &inst, &notional, &settled,
-		&bagQty, &bagUSD, &opened, &closed, &guardTrig, &guardAttempts); err != nil {
+		&bagQty, &bagUSD, &opened, &closed, &guardTrig, &guardAttempts, &guardLastErr); err != nil {
 		r.rej.Inc("write_err")
 		log.Printf("WARN [ledger] 仓 #%d 结案事实读败——本仓跳判: %v", posID, err)
 		return
@@ -136,6 +138,15 @@ func (r *Runner) postmortem(ctx context.Context, posID int64) {
 	if stratRef > 0 {
 		refID = strconv.FormatInt(stratRef, 10)
 	}
+	facts := diagCaseFacts{PosID: posID, ExecID: execID, InstID: inst,
+		Anomalies: codes, BareBagUSD: bagUSD, BareBagQty: bagQty,
+		Attempts: guardAttempts, Trigger: trig, SettledPct: settledPct}
+	// T-0464 盈亏归因三分——机判序 code→ops→market→unattributed（判词面
+	// fin_position.pnl_attribution 与 trigger_verdict 怎么坏轴并存两轴；
+	// 人裁可改判，机判原值+锚命中留 outcome payload/案卷审计链）。
+	attrF := r.attrAnchors(ctx, posID, execID, opened, closed, settled, trig,
+		diagnosisWorthy(facts), strings.HasPrefix(guardLastErr, "venue:"))
+	attr := attributePnl(attrF)
 	// T-0428 判词回写（trigger_verdict——trigger_kind 原貌不动为审计链）：
 	// 正常件=复核确认原判；异常件=机械修正码集（裁定席语义修正可后覆写）。
 	// 记忆写不阻钱径：写败计数留痕不回滚结算事实（与监察案写同律）。
@@ -144,21 +155,24 @@ func (r *Runner) postmortem(ctx context.Context, posID int64) {
 		verdict = "confirmed"
 	}
 	if _, err := r.pool.Exec(ctx,
-		`UPDATE fin_position SET trigger_verdict=$2 WHERE id=$1`, posID, verdict); err != nil {
+		`UPDATE fin_position SET trigger_verdict=$2, pnl_attribution=$3 WHERE id=$1`,
+		posID, verdict, attr); err != nil {
 		r.rej.Inc("write_err")
-		log.Printf("WARN [ledger] 仓 #%d 判词回写败（trigger_verdict=%s）: %v", posID, verdict, err)
+		log.Printf("WARN [ledger] 仓 #%d 判词回写败（trigger_verdict=%s pnl_attribution=%s）: %v",
+			posID, verdict, attr, err)
 	}
 	if len(codes) == 0 {
 		// 正常件：expected 判词落 ops_decision——记忆×结果对照案闭环
 		// （WriteEsc 写败升件自报不阻钱径）。
 		decision.WriteEsc(ctx, r.pool, decision.Row{
 			Domain: "fin", Actor: "postmortem", RefID: refID, Action: "outcome",
-			Reason: fmt.Sprintf("expected：结案判据内——trig=%s hold=%.1fmin settled=%.2f（%.1f%%）",
-				trig, holdMin, settled, settledPct),
+			Reason: fmt.Sprintf("expected：结案判据内——trig=%s hold=%.1fmin settled=%.2f（%.1f%%） 归因=%s",
+				trig, holdMin, settled, settledPct, attr),
 			Payload: map[string]any{
 				"position_id": posID, "verdict": "expected", "trigger": trig,
 				"hold_minutes": holdMin, "settled_usd": settled, "settled_pct": settledPct,
-				"notional_usd": notional, "bare_bag_qty": bagQty}})
+				"notional_usd": notional, "bare_bag_qty": bagQty,
+				"pnl_attribution": attr, "attr_hits": attrF.hits()}})
 		return
 	}
 	// 异常件：监察案入裁定席 pending 集（UNIQUE(kind,entity_ref) 幂等一仓一案）。
@@ -170,8 +184,9 @@ func (r *Runner) postmortem(ctx context.Context, posID int64) {
 		"bare_bag_qty": bagQty, "bare_bag_usd": bagUSD,
 		"anomalies": codes, "detail": strings.Join(detail, "；"),
 		"close_reason": closeReason, "decision_row_found": closeReason != "",
-		"summary": fmt.Sprintf("仓#%d %s 结案异常（%s）——trigger=%s hold=%.1fmin settled=%.2f(%.1f%%)",
-			posID, inst, strings.Join(codes, ","), trig, holdMin, settled, settledPct)})
+		"pnl_attribution": attr, "attr_hits": attrF.hits(),
+		"summary": fmt.Sprintf("仓#%d %s 结案异常（%s）——trigger=%s hold=%.1fmin settled=%.2f(%.1f%%) 归因=%s",
+			posID, inst, strings.Join(codes, ","), trig, holdMin, settled, settledPct, attr)})
 	if _, err := r.pool.Exec(ctx, `INSERT INTO fin_econ_lesson(kind,entity_ref,numbers)
 		VALUES('trade_postmortem',$1,$2::jsonb) ON CONFLICT(kind,entity_ref) DO NOTHING`,
 		fmt.Sprintf("position#%d", posID), string(numbers)); err != nil {
@@ -179,14 +194,38 @@ func (r *Runner) postmortem(ctx context.Context, posID int64) {
 		log.Printf("WARN [ledger] 仓 #%d 监察案落账败——结案异常失显形: %v", posID, err)
 		return
 	}
-	log.Printf("[ledger] 仓 #%d 结案异常（%s）——监察案 trade_postmortem 入裁定席 pending", posID, strings.Join(codes, ","))
+	log.Printf("[ledger] 仓 #%d 结案异常（%s）归因=%s——监察案 trade_postmortem 入裁定席 pending",
+		posID, strings.Join(codes, ","), attr)
 	// T-0431 根因诊断案同拍生成：bug 形异常（账实差未定性/认知集外触发/
 	// 守卫环——三案卷源任一）自动生成诊断任务（根因案型）——纯市况案不生成
 	// （裁定席既有三分支消化，诊断额度不烧市况案）。
-	facts := diagCaseFacts{PosID: posID, ExecID: execID, InstID: inst,
-		Anomalies: codes, BareBagUSD: bagUSD, BareBagQty: bagQty,
-		Attempts: guardAttempts, Trigger: trig, SettledPct: settledPct}
 	if diagnosisWorthy(facts) {
 		emitDiagTask(ctx, r, facts, numbers)
 	}
+}
+
+// attrAnchors 归因锚取证（T-0464——机判序输入面；读败锚=零值回落
+// unattributed 不虚构归因——判词宁缺毋假与判据链同律）。
+func (r *Runner) attrAnchors(ctx context.Context, posID, execID int64,
+	opened, closed time.Time, settled float64, trig string,
+	bugShaped, guardVenueEr bool) attrFacts {
+	f := attrFacts{BugShaped: bugShaped, GuardVenueEr: guardVenueEr,
+		MktTrigger: marketTriggers[trig], Settled: settled}
+	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_order_leg
+		WHERE execution_id=$1 AND (state IN ('failed','ambiguous')
+			OR venue_err_code IS NOT NULL OR venue_err_msg IS NOT NULL)`,
+		execID).Scan(&f.LegErrs); err != nil {
+		log.Printf("WARN [ledger] 仓 #%d 归因锚腿错因读败（按零锚）: %v", posID, err)
+	}
+	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE ts>=$1 AND ts<=$2 AND (note LIKE '%断链%' OR note LIKE '%断供%'
+			OR note LIKE '%凭据%' OR note LIKE '%部署停滞%' OR note LIKE '%ENOSPC%'
+			OR note LIKE '%网络%')`, opened, closed).Scan(&f.OpsDisrupt); err != nil {
+		log.Printf("WARN [ledger] 仓 #%d 归因锚 ops 断供读败（按零锚）: %v", posID, err)
+	}
+	if err := r.pool.QueryRow(ctx, `SELECT COALESCE(sum(amount),0) FROM fin_cashflow
+		WHERE position_ref=$1 AND kind='funding_settle'`, posID).Scan(&f.FundingNet); err != nil {
+		log.Printf("WARN [ledger] 仓 #%d 归因锚 funding 净额读败（按零锚）: %v", posID, err)
+	}
+	return f
 }

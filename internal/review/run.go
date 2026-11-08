@@ -78,10 +78,20 @@ func (r *Runner) reviewSettled(ctx context.Context) error {
 			}
 		}
 		if verdict == "falsified" {
+			// T-0464：判词面 attribution=单仓盈亏归因四值（market/code/ops/
+			// unattributed——fin_position.pnl_attribution 机判值消费；列空=
+			// unattributed 显式判词非沉默。旧偏差归因谱仍在 fin_review.
+			// attribution 同仓可对拍，本列不混轴）。
+			var pnlAttr string
+			if err := r.fin.QueryRow(ctx,
+				`SELECT COALESCE(pnl_attribution,'') FROM fin_position WHERE id=$1`,
+				x.id).Scan(&pnlAttr); err != nil || pnlAttr == "" {
+				pnlAttr = "unattributed"
+			}
 			if _, err := r.fin.Exec(ctx, `INSERT INTO fin_review_verdict
 				(position_ref,verdict,pred_apr,actual_pnl,attribution)
 				VALUES($1,$2,$3,$4,$5) ON CONFLICT (position_ref) DO NOTHING`,
-				x.id, verdict, pred, x.net, attrib); err != nil {
+				x.id, verdict, pred, x.net, pnlAttr); err != nil {
 				r.rej.Inc("write_err")
 				return err
 			}

@@ -241,3 +241,51 @@ func TestPostmortemTriggerVerdictWriteback(t *testing.T) {
 		t.Fatalf("正常件 verdict=confirmed，got %q", verdict2)
 	}
 }
+
+// T-0464 判词回写桩：结案判定机同槽落 pnl_attribution 四值——
+// 病形件=code（bare_bag 账实差未定性）、ops 断供窗=ops、市况触发+费率
+// 主因=market、判据内零锚=unattributed 显式（非沉默——列必有值）。
+func TestPostmortemPnlAttributionWriteback(t *testing.T) {
+	ctx, r := setup(t)
+	now := time.Now()
+	attrOf := func(pid int64) string {
+		t.Helper()
+		var a string
+		if err := r.pool.QueryRow(ctx,
+			`SELECT COALESCE(pnl_attribution,'') FROM fin_position WHERE id=$1`, pid).Scan(&a); err != nil {
+			t.Fatal(err)
+		}
+		return a
+	}
+	// ① 病形件（残袋挂账=账实差未定性——diagnosisWorthy 同源 code 锚）
+	pid1 := pmPos(t, ctx, r, 100, now.Add(-2*time.Hour), now)
+	if _, err := r.pool.Exec(ctx, `UPDATE fin_position SET bare_bag_qty=10,bare_bag_usd=5 WHERE id=$1`, pid1); err != nil {
+		t.Fatal(err)
+	}
+	pmCash(t, ctx, r, pid1, -0.5)
+	// ② ops 断供窗（持仓期内 ops_event 断链行——code 锚缺席下 ops 锚命中；
+	//    事件时点=now-1h——pid3/pid4 平于 now-5h 窗外不染）
+	pid2 := pmPos(t, ctx, r, 100, now.Add(-2*time.Hour), now)
+	if _, err := r.pool.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note,ts)
+		VALUES('测试','挂起','','断链——交行无接行',now()-interval '1 hour')`); err != nil {
+		t.Fatal(err)
+	}
+	pmCash(t, ctx, r, pid2, 0.5)
+	// ③ 市场件（funding_flip 触发+判据内——市场生命周期锚；平于 now-5h
+	//    使断供事件落窗外——ops 锚不命中归市场判）
+	pid3 := pmPos(t, ctx, r, 100, now.Add(-10*time.Hour), now.Add(-5*time.Hour))
+	pmGuardClose(t, ctx, r, pid3, "funding_flip")
+	pmDecisionClose(t, ctx, r, pid3, "funding_flip", "funding_flip：latest=-0.01")
+	pmCash(t, ctx, r, pid3, -3)
+	// ④ 零锚正常件（manual 触发+判据内——unattributed 显式判词）
+	pid4 := pmPos(t, ctx, r, 100, now.Add(-10*time.Hour), now.Add(-5*time.Hour))
+	pmCash(t, ctx, r, pid4, 1.2)
+	if err := r.settle(ctx); err != nil {
+		t.Fatal(err)
+	}
+	for pid, want := range map[int64]string{pid1: "code", pid2: "ops", pid3: "market", pid4: "unattributed"} {
+		if got := attrOf(pid); got != want {
+			t.Fatalf("仓 #%d pnl_attribution=%q want %q", pid, got, want)
+		}
+	}
+}
