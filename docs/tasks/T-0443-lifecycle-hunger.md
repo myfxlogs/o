@@ -1,6 +1,6 @@
 # T-0443 探针升件自动起草：写败@LIFECYCLE-HUNGER
 
-- 状态：候选（T-0393 起草拍自动起草——非已批，COS/DM 过目才进派发队）
+- 状态：已批（DM 裁 2026-11-08——范围节钦定回填，签名面病灶成立候选过基线）
 - 领取：常径待派（批准后 DM 常径机派）
 - 优先级：P2（起草默认档——DM 裁时可调）
 - 收口移交归：决策席
@@ -24,9 +24,10 @@ SELECT id,ts,seat,note FROM ops_event WHERE event='升件' AND esc_class='写败
 
 lifecycle 饥饿拍写径（hungerEscalate 自报面）
 
-## 范围（起草骨架——DM 裁时可改判，起草非诊断）
+## 范围（DM 钦定回填）
 
-1. 明确文件路径或目录清单（批准前必填——T-0413 派单依赖闸据此对拍）；
+1. 文件路径钦定：internal/portfolio/hunger/（depblind_probe 宇宙扩件探针挂接面——okx.symbols=* 扩件缺挂 fail-closed 根域）
+   tools/hungertick/（hunger 拍写径面）；
 2. 病灶根因定位与根修（签名面病灶本体——不超签名外衍）；
 3. 桩测钉死断言（病灶存在断言修前红+同断言修后绿——T-0388 修复类先红桩律）；
 4. 生产谱面零误报审计。
