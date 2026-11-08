@@ -25,18 +25,6 @@ var kindSpec = map[string]struct {
 	"retention_volume_alert": {"体积哨兵告警", false, "库/单表体积超阈——新无底洞查证（T-0153）"},
 	"okxws_face_dead":        {"行情面断流", false, "订阅标的行情全冻——系统面故障（T-0129）"},
 	"bridge_stale":           {"采集桥断链", false, "dev 蒸馏写径超时——SG REST 兜底自动接管（T-0137）"},
-	// T-0441 补录：全谱告警 kind 归一（前漏 11 件——裸 kind 名曾作标题出组）。
-	"bare_bag":              {"平仓残袋挂账", false, "平仓未回资产已挂账待处置"},
-	"band_audit_drift":      {"收益档阈漂移", false, "族级阈两级档漂移——观测面待查"},
-	"close_residual_perp":   {"合约残仓未平", false, "平仓未净敞口人工介入"},
-	"dcd_auto_retire":       {"策略连败自动退役", false, "策略连败退役留痕——复盘归裁定席"},
-	"notify_queue_usage":    {"通知队列水位告警", false, "PG 通知队列水位超阈——供方洪泛先兆"},
-	"pool_tx_residue":       {"长事务钉住数据库", false, "会话事务超时钉死清理水位——先报不杀"},
-	"projector_silent":      {"数据镜像断流", false, "SG 镜像写入停滞——投影臂待查"},
-	"residual_clear_failed": {"杂币清仓失败", false, "白名单外持仓清仓败——升件不补单"},
-	"residual_exposure":     {"杂币未授权持仓", false, "白名单外持仓清仓径处置中"},
-	"scout_recommend":       {"新交易所注册建议", true, "注册属重大事项——业主裁决"},
-	"volsell_auto_retire":   {"波动卖出策略退役", false, "策略连败退役留痕——复盘归裁定席"},
 }
 
 // HumanText 人话载荷装配（三段式——业主零黑话）。
@@ -47,7 +35,7 @@ func HumanText(kind, msg string) (text string, actable bool) {
 			title    string
 			actable  bool
 			relation string
-		}{"未定性系统事件", false, "未定性——需排查"}
+		}{kind + " 事件", false, "未定性——需排查"}
 	}
 	act := "无需操作"
 	if spec.actable {

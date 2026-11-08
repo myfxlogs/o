@@ -11,7 +11,6 @@ import { useLive } from "../hooks";
 import { Card, Cols, EmptyState, ErrorState, Skeleton, StateDot } from "../components/ui";
 import { AGE, ExchSections, healthRows } from "../components/panel";
 import { pbDate } from "../components/fmt";
-import { REJECT_CN } from "../components/labels";
 import { HostMetricsCard } from "../components/hostmetrics";
 import { OrgPipelineTile } from "../components/pipeline";
 import type { SystemComponent } from "../../gen/dashboardv1/core_pb";
@@ -25,23 +24,21 @@ function ProcStrip(props: {
     const t = pbDate(d.lastFrame);
     return t ? AGE(t) : "—";
   })();
-  // T-0441：拒因 snake_case 键过 REJECT_CN 词表——已知键人话、未知键归并
-  // 「其他拒因」不逐键裸出；同键多值只计一次。
   const rejects = Object.entries(d.rejects ?? {}).filter(([, v]) => v > 0);
-  const rejectTxt = rejects.map(([k, v]) =>
-    `${REJECT_CN[k] ?? "其他拒因"}:${v}`).join(" ");
   const state = rejects.length > 0 ? 1 : 0;
   return (
     <div className="exch-sec">
       <div className="exch-label ink-3">进程观测</div>
       <div className="comp-row">
-        <StateDot state={state} breathe title="OKX 采集臂进程计数" />
+        <StateDot state={state} breathe title="okxws 采集臂进程计数" />
         <div className="comp-main">
-          <span>OKX 采集臂</span>
+          <span>okxws 采集臂</span>
           <div className="ink-3 comp-note">
             帧 {d.frames.toLocaleString("zh-CN")} · 末帧 {stale} · 带宽{" "}
             {d.netKbps.toFixed(0)} kbps
-            {rejects.length > 0 ? " · 拒因 " + rejectTxt : ""}
+            {rejects.length > 0
+              ? " · 拒因 " + rejects.map(([k, v]) => `${k}:${v}`).join(" ")
+              : ""}
           </div>
         </div>
       </div>

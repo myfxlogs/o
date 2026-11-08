@@ -10,12 +10,13 @@ import { onLive } from "../stream";
 import { useSlice } from "../store";
 import { Card, EmptyState, Skeleton, StateDot } from "./ui";
 import { FlowPulseStrip, WorkItemsBlock } from "./flowpulse";
-import { STEP_RESULT_CN, STEP_RESULT_FALLBACK, cn } from "./labels";
 import type { CockpitPipelineRow, CockpitPipelineStep } from "../../gen/dashboardv1/core_pb";
 
-// 步/行结果人话映射（T-0441 归一 labels.ts——waiting_audit 补录；
-// 未识值人话兜底不裸出机器枚举）。
-const stepResult = (v: string) => cn(STEP_RESULT_CN, v, STEP_RESULT_FALLBACK);
+// 步/行结果人话字典（纯显示映射非判据——终态派生在服务端 pipeline_face.go）。
+const STEP_RESULT: Record<string, string> = {
+	working: "在干", closed: "完成移交", passed: "通过",
+	rejected: "驳回", blocked: "挂起", error: "异常",
+};
 
 // 耗时格式（ms/min → 人话：45s / 32m / 2h6m）。
 const durMs = (ms: bigint) => {
@@ -51,7 +52,7 @@ export function LiveBadge() {
 // 服务端派生 state/breathe，前端零判据）；title=席位级四要素悬停）。
 function SeatBadge(props: { s: CockpitPipelineStep }) {
 	const s = props.s;
-	const hover = `${s.seat} | 进:${s.enter || "—"} | 出:${s.exit || "在干"} | ${stepResult(s.result)} | 耗时 ${durMs(s.ms)}`;
+	const hover = `${s.seat} | 进:${s.enter || "—"} | 出:${s.exit || "在干"} | ${STEP_RESULT[s.result] ?? s.result} | 耗时 ${durMs(s.ms)}`;
 	if (s.active && s.spin) {
 		return <span className="pipe-seat" title={hover}><span className="dot spin" />{s.seat}</span>;
 	}
@@ -86,7 +87,7 @@ export function OrgPipelineTile() {
 		<Card title="工程票管道（组织流）" extra={extra}>
 			{rows.length === 0 ? <EmptyState title="无在飞票" hint="活跃票（未部署上线）为空——管道空闲" /> :
 				<div className="tile-scroll">{rows.map((r: CockpitPipelineRow) => {
-					const rowHover = `${r.ticket} | ${r.title || "无题"} | 已历时 ${durMin(r.elapsedMin)} | 当前卡在 ${r.currentSeat}（${stepResult(r.currentState)}）`;
+					const rowHover = `${r.ticket} | ${r.title || "无题"} | 已历时 ${durMin(r.elapsedMin)} | 当前卡在 ${r.currentSeat}（${STEP_RESULT[r.currentState] ?? r.currentState}）`;
 					return (
 						<div className="pipe-row" key={r.ticket} title={rowHover}>
 							<StateDot state={r.state} breathe={r.breathe} title={`行级灯（=当前活动席状态色） · ${rowHover}`} />

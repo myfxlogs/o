@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { StateDot } from "./ui";
 import { pbDate } from "./fmt";
-import { COMPONENT_CN, cn } from "./labels";
 import type { SystemComponent } from "../../gen/dashboardv1/core_pb";
 
 export const AGE = (ts: Date) => {
@@ -164,16 +163,13 @@ export function ExchSections(props: { rows: Row[] }) {
 }
 
 // health 组件→行（exch 挂行上供分组）。
-// T-0441：组件实名过 COMPONENT_CN 词表（信号 kind 机读尾缀剥人话，
-// 未知名原样透传——实名=运维锚非枚举态）；fix=黄/红处理建议上屏
-// （proto 有字段未用=审计发现项，本票补显不改语义）。
 export function healthRows(comps: SystemComponent[]): Row[] {
   return comps.map((c) => ({
     key: c.component,
-    name: cn(COMPONENT_CN, c.component, c.component),
+    name: c.component,
     state: c.state,
     ageIso: pbDate(c.lastWrite)?.toISOString() ?? null,
-    note: [c.note, c.state !== 0 && c.fix ? c.fix : ""].filter(Boolean).join(" · ") || undefined,
+    note: c.note || undefined,
     title: c.fact,
     exch: c.exch || "OKX",
   }));

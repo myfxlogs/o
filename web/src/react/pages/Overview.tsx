@@ -7,7 +7,6 @@ import { EarnToggle } from "../components/EarnToggle";
 import { fmtUsd } from "../components/fmt";
 import { useState } from "react";
 import type { MoneyRow } from "../../gen/dashboardv1/core_pb";
-import { VENUE_CN } from "../components/labels";
 
 const money = (v: number) =>
   "$" +
@@ -37,7 +36,7 @@ function MoneyTree(props: { rows: MoneyRow[] }) {
               aria-expanded={isOpen}
             >
               <span className={"caret" + (isOpen ? " open" : "")}>▸</span>
-              <span className="tree-name">{VENUE_CN[venue] ?? venue}</span>
+              <span className="tree-name">{venue}</span>
               <span className="ink-3 tree-n">{rs.length} 行</span>
               <span className="num mono tree-total">{fmtUsd(total)}</span>
             </button>

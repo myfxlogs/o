@@ -62,7 +62,7 @@ func TestAlertBackoffLadder(t *testing.T) {
 	if len(f.sent) != 1 {
 		t.Fatal("首报应即时")
 	}
-	fp := fnvOf("k|未定性系统事件")
+	fp := fnvOf("k|k 事件")
 	for i, want := range []time.Duration{5, 10, 20, 40, 60, 60} {
 		n := i + 2 // 第 n 推
 		a.mu.Lock()
