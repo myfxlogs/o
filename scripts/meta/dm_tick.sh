@@ -172,11 +172,11 @@ if [ -n "$FIN_DSN" ]; then
   DISPATCH_TASK_DIR=${O_WORKER_TASK_DIR:-/opt/o/docs/tasks}
   DRC=0
   DISPATCH_ROWS=$(psql "$FIN_DSN" -qAt -F '|' -c "SELECT l.ticket || '|' || COALESCE((
-      SELECT CASE WHEN e.note ILIKE '%swe-2-medium%' THEN 'swe-2-medium'
-                  ELSE 'swe-2-high' END
+      SELECT CASE WHEN e.note ILIKE '%swe-2-flash-high%' THEN 'swe-2-flash-high' WHEN e.note ILIKE '%swe-2-medium%' THEN 'swe-2-medium'
+                  ELSE 'swe-2-flash-high' END
       FROM ops_event e WHERE e.ticket=l.ticket AND e.event='派单'
       ORDER BY e.ts DESC,e.id DESC LIMIT 1
-    ),'swe-2-high') FROM (
+    ),'swe-2-flash-high') FROM (
       SELECT ticket,max(ts) mt FROM ops_event WHERE event IN
         ('派单','领单','拉起','收口','移交','收口待审','裁决','完成','驳回',
          '挂起','异常')

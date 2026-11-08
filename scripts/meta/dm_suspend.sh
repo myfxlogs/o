@@ -70,8 +70,8 @@ printf '%s\n' "$ROWS" | while IFS=$'\x1f' read -r tid note seat age; do
 
   if [ "$resolved" -eq 1 ]; then
     # 模型档从原派单备注恢复（与 dm_tick 尾段同式）。
-    model=$(psql "$FIN_DSN" -qAt -c "SELECT CASE WHEN e.note ILIKE '%swe-2-medium%' THEN 'swe-2-medium' ELSE 'swe-2-high' END FROM ops_event e WHERE e.ticket='$(QC "$tid")' AND e.event='派单' ORDER BY e.ts DESC,e.id DESC LIMIT 1" 2>/dev/null)
-    [ -n "$model" ] || model=swe-2-high
+    model=$(psql "$FIN_DSN" -qAt -c "SELECT CASE WHEN e.note ILIKE '%swe-2-flash-high%' THEN 'swe-2-flash-high' WHEN e.note ILIKE '%swe-2-medium%' THEN 'swe-2-medium' ELSE 'swe-2-flash-high' END FROM ops_event e WHERE e.ticket='$(QC "$tid")' AND e.event='派单' ORDER BY e.ts DESC,e.id DESC LIMIT 1" 2>/dev/null)
+    [ -n "$model" ] || model=swe-2-flash-high
     prompt="读 /opt/o/skills/施工席/SKILL.md 施工协议领单/续领 $tid；按票面施工，同票已有 Devin 会话/worktree 时续跑；本次=挂起续跑（await=${spec:-无} 阻塞已消）"
     if "$DISPATCH_WORKER" "$tid" "$model" "$prompt" >/dev/null 2>&1; then
       NMSG="挂起续跑——await=${spec} 阻塞消解，dispatch_worker 续跑派工"
