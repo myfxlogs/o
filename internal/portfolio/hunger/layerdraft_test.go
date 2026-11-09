@@ -2,6 +2,7 @@ package hunger
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -194,7 +195,7 @@ func TestLayerScanFailClosed(t *testing.T) {
 func TestLayerScanProbePathIsolation(t *testing.T) {
 	s, ctx := drafterFixture(t)
 	seedEsc(t, s, ctx, "观测盲", "xvenue-carry", "族沉默 xvenue-carry")
-	seedLayerEsc(t, s, ctx, "T-9004", "层扫定性幽灵票件:T-9004——相位在案票件两处皆无")
+	seedLayerEsc(t, s, ctx, "T-9004", "层扫定性draft-滞留:T-9004——相位draft 龄9d>阈7d")
 	n, err := s.DraftTickets(ctx)
 	if err != nil {
 		t.Fatalf("draft: %v", err)
@@ -208,10 +209,62 @@ func TestLayerScanProbePathIsolation(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := s.pool.QueryRow(ctx, `SELECT kind FROM fin_ticket_draft
-		WHERE signature='层扫:幽灵票件:T-9004'`).Scan(&layerKind); err != nil {
+		WHERE signature='层扫:draft-滞留:T-9004'`).Scan(&layerKind); err != nil {
 		t.Fatal(err)
 	}
 	if probeKind != "观测盲" || layerKind != "diagnosis" {
 		t.Fatalf("双径 kind 串味: probe=%s layer=%s", probeKind, layerKind)
+	}
+}
+
+// TestLayerScanSelfDisposeSkip T-0672 断源①：归领自销类目
+// （done-翻漏/幽灵票件/无籍行/done-无收口链）升件不产草案——
+// 机械可证类归领当场自销不起票，进水口零号耗。
+func TestLayerScanSelfDisposeSkip(t *testing.T) {
+	s, ctx := drafterFixture(t)
+	for i, cat := range []string{"done-翻漏", "幽灵票件", "无籍行", "done-无收口链"} {
+		seedLayerEsc(t, s, ctx, fmt.Sprintf("T-9%03d", i),
+			fmt.Sprintf("层扫定性%s:T-9%03d——机械自销类样件", cat, i))
+	}
+	if n, err := s.DraftTickets(ctx); err != nil || n != 0 {
+		t.Fatalf("自销类应零起草: n=%d err=%v", n, err)
+	}
+	var c int
+	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM fin_ticket_draft`).Scan(&c); err != nil || c != 0 {
+		t.Fatalf("自销类草案漏产: c=%d err=%v", c, err)
+	}
+	// 非自销类照常产（对照——断源不误杀语义类）。
+	seedLayerEsc(t, s, ctx, "T-9100", "层扫定性draft-滞留:T-9100——相位draft 龄9d")
+	if n, err := s.DraftTickets(ctx); err != nil || n != 1 {
+		t.Fatalf("语义类应产: n=%d err=%v", n, err)
+	}
+}
+
+// TestLayerScanClaimedSkip T-0672 断源②：已认领升件不进起草口——
+// 后随 note 引「升件#id」处置行=归领已销；未销对照照常产。
+func TestLayerScanClaimedSkip(t *testing.T) {
+	s, ctx := drafterFixture(t)
+	eid := seedLayerEsc(t, s, ctx, "T-9200", "层扫定性draft-滞留:T-9200——相位draft 龄9d")
+	seedLayerEsc(t, s, ctx, "T-9201", "层扫定性draft-滞留:T-9201——相位draft 龄9d")
+	// 销 T-9200 的升件（处置 note 引升件#id=归领认领径同契）。
+	if _, err := s.pool.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note)
+		VALUES('处置席','处置','T-9200',$1)`,
+		fmt.Sprintf("升件#%d 销——样件处置", eid)); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := s.DraftTickets(ctx); err != nil || n != 1 {
+		t.Fatalf("只未销件应产: n=%d err=%v", n, err)
+	}
+	var c9200, c9201 int
+	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM fin_ticket_draft
+		WHERE signature='层扫:draft-滞留:T-9200'`).Scan(&c9200); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM fin_ticket_draft
+		WHERE signature='层扫:draft-滞留:T-9201'`).Scan(&c9201); err != nil {
+		t.Fatal(err)
+	}
+	if c9200 != 0 || c9201 != 1 {
+		t.Fatalf("认领豁免失效: T-9200草案=%d T-9201草案=%d", c9200, c9201)
 	}
 }

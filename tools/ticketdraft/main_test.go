@@ -94,6 +94,28 @@ func TestWipGateMax(t *testing.T) {
 	}
 }
 
+// TestAttachTicketOf 附体判纯函数断言（T-0672）：层扫签名 T 对象→
+// 原票号附体；非层扫/非 T 对象/残缺对→空串常径。
+func TestAttachTicketOf(t *testing.T) {
+	cases := []struct {
+		sig, key, want string
+	}{
+		{"层扫:draft-滞留:T-0484", "draft-滞留:T-0484", "T-0484"},
+		{"层扫:done-无收口链:T-0002", "done-无收口链:T-0002", "T-0002"},
+		{"层扫:端点失健:dashboard", "端点失健:dashboard", ""},
+		{"层扫:观测盲:face:service:hostmetrics", "观测盲:face:service:hostmetrics", ""},
+		{"观测盲:xvenue-carry", "xvenue-carry", ""},
+		{"层扫:无对象", "无对象", ""},
+		{"层扫:x:", "x:", ""},
+		{"层扫:x:GW-001", "x:GW-001", ""},
+	}
+	for _, c := range cases {
+		if got := attachTicketOf(payload{Signature: c.sig, LesionKey: c.key}); got != c.want {
+			t.Fatalf("attachTicketOf(%q,%q)=%q want %q", c.sig, c.key, got, c.want)
+		}
+	}
+}
+
 // 水位计数行解析：空行/空白行不计。
 func TestCountLines(t *testing.T) {
 	if got := countLines([]byte("T-9001\n\nT-9002\n  \n")); got != 2 {

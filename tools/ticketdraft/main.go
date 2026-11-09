@@ -144,6 +144,16 @@ func run(ctx context.Context, pool *pgxpool.Pool, repo string, dry bool) error {
 			}
 			continue
 		}
+		// T 对象附体径（T-0672 业主令「使用原来的号」）——层扫签名对象是
+		// 票号 → 物料化=归并原票链（draft.ticket=原号+处置注记行），
+		// 不取号不立件不翻相；非 T 对象（面键/伪键）=新实体照常取号落件。
+		if atid := attachTicketOf(d.p); atid != "" {
+			if err := attachDraft(ctx, pool, d.id, atid, d.p); err != nil {
+				return fmt.Errorf("draft#%d %s: %w", d.id, d.p.Signature, err)
+			}
+			batched[d.p.Signature] = atid
+			continue
+		}
 		tid, err := materialize(repo, string(tpl), d.id, d.p)
 		if err != nil {
 			return fmt.Errorf("draft#%d %s: %w", d.id, d.p.Signature, err)
