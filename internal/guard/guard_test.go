@@ -1153,4 +1153,44 @@ func TestLoopProbeUnderThresholdSilent(t *testing.T) {
 	}
 }
 
+// T-0511 红桩：position 已 closed 的 'closing' 行=带外闭环僵尸（drill 清扫
+// 径实证——scanOnce 按 closed_at 滤仓永不再试，探针不收=对死行升假升件）。
+// reconcile 先扫落 'closed'，零升件零挂起零推送；last_error 落 reconcile 源记。
+func TestLoopProbeReconcileClosedPos(t *testing.T) {
+	ctx, w, _ := setup(t)
+	posID, stratID := mkLoopFixture(t, ctx, w, 4, ptrTime(time.Now()))
+	if _, err := w.pool.Exec(ctx,
+		"UPDATE fin_position SET closed_at=now() WHERE id=$1", posID); err != nil {
+		t.Fatal(err)
+	}
+	fs := attachFakeAlerter(w)
+	if err := w.scanOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var state, lastErr string
+	if err := w.pool.QueryRow(ctx,
+		"SELECT state,COALESCE(last_error,'') FROM fin_guard_close WHERE position_id=$1", posID).
+		Scan(&state, &lastErr); err != nil {
+		t.Fatal(err)
+	}
+	if state != "closed" {
+		t.Fatalf("僵尸行应 reconcile 落 closed，got state=%q", state)
+	}
+	if !strings.Contains(lastErr, "reconcile:") {
+		t.Fatalf("reconcile 源记落 last_error，got %q", lastErr)
+	}
+	var n int
+	if err := w.pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event IN ('升件','开仓挂起') AND (esc_class='守卫环' OR note LIKE '%守卫环%')`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("僵尸行应零升件迹，got %d", n)
+	}
+	if err := w.pool.QueryRow(ctx, `SELECT count(*) FROM fin_guard_suspend
+		WHERE strategy_ref=$1`, stratID).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("僵尸行应零挂起，got %d", n)
+	}
+	if len(fs.sent) != 0 {
+		t.Fatalf("僵尸行应零推送，got %d", len(fs.sent))
+	}
+}
+
 func ptrTime(t time.Time) *time.Time { return &t }

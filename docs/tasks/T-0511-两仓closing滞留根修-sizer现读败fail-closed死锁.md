@@ -69,4 +69,33 @@
 
 ## 结果回填
 
-（施工写：实现摘要 / 腿级根因实证 / 测试证据 / 偏离说明）
+**腿级根因实证（三通道——SG 生产库+venue 实况 RPC+日志）**：
+两仓**全为 `fin_exec_drill` 演练件**（verdict=pass，非真仓）——
+drill ⑦步跑产线 `Warden.ScanOnce`：delta_drift 触发→`markClosing`
+落 'closing' 行→sizer 对真 venue 读合成腿→MUU 系乐器已改名 XMUU
+（ccy 缺席=读败）/mt5 OpenedOrders=0/两 SWAP ContractPos=0→
+`plan:sizer:` 败；drill 清扫只写 `position.closed_at` **不关
+guard_close 行**→scanOnce 按 `closed_at IS NULL` 滤仓永不再试，
+而 loopProbe 无此滤→对死行每 2h 升假 P1+熔断挂起演练策略。
+
+**实现摘要**：
+- `internal/guard/loop.go` loopProbe 首行加 reconcile 先扫——
+  position 已 closed 的 'closing' 行落 'closed'（last_error 记
+  reconcile 源），阈键缺件也照扫；告警查询补 `p.closed_at IS NULL`
+  纵深；
+- `internal/trading/simdrill/{drill,matrix}.go` 清扫径同关
+  guard_close（源头防生——夭折防护原注释本义补齐）；
+- 生产两行已手动 reconcile（业主令，ops_event 处置行在案）。
+
+**测试证据**：`TestLoopProbeReconcileClosedPos` 新桩（僵尸行→closed+
+零升件零挂起零推送）红→绿；guard+simdrill 两包 52 tests 全绿。
+
+**偏离说明**：
+- 票面「腿级独立推进」方向**证伪后改道**——venue 实拍四腿全平，
+  无需推进任何腿，病灶=演练件账面僵尸而非真平仓卡死；
+- suspend 行（两演练策略）留置不解——演练策略本无开仓权语义，
+  挂起与 degraded 同义无害，解冻结走常径。
+
+**坑**：`reconcile:drill-cleanup-misses-guard-close`——
+带外关账径（drill/人工）漏关 guard_close=僵尸假升件；
+探针查询缺 `closed_at` 滤=死行升件放大器。条目同 commit 入库。
