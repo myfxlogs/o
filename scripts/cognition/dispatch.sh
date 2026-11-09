@@ -33,8 +33,11 @@ TRIGGER=""
 [ -z "$TRIGGER" ] && [ "$N" -ge "$MIN_N" ] && [ "$AGE" -ge "$MIN_AGE" ] && TRIGGER="aged:N=$N age=${AGE}s"
 [ -n "$TRIGGER" ] || exit 0
 
-# 单飞闸: o-cognition-* active 即退(串行认知)。
-if systemctl --user list-units 'o-cognition-*' --state=active,activating --no-legend --plain 2>/dev/null | grep -q .; then
+# 单飞闸: o-cognition-<epoch> 会话件 active 即退(串行认知)。
+# 闸面剔自身——dispatch unit 名也在 o-cognition-* glob 下,不剔=自锁死
+# (首拍实证:dispatcher 把自己算进在飞会话即退,2026-11-09)。
+if systemctl --user list-units 'o-cognition-*' --state=active,activating --no-legend --plain 2>/dev/null \
+	| grep -vE 'o-cognition-dispatch\.service' | grep -q .; then
 	exit 0
 fi
 
