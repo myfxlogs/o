@@ -41,8 +41,11 @@ psql "$FIN_DSN" -c "SELECT id,signature,cluster_n,numbers FROM fin_eng_lesson
 
 ### ③ 教训矿
 `fin_eng_lesson` 候选逐条判：可归纳→写 `docs/工程经验库/条目/<id>.md`
-+`go run ./tools/kbgen gen` 索引重建（随码修同 commit）；
-判弃→`UPDATE fin_eng_lesson SET verify_state='dismissed'`。
++`go run ./tools/kbgen gen` 索引重建（随码修同 commit），落
+`UPDATE fin_eng_lesson SET status='canon', verdict_ref='canon:<条目id>'`；
+判弃→`UPDATE fin_eng_lesson SET status='verdicted',
+verdict_ref='弃——<理由>'`（触发器自动落裁定席行——勿写
+verify_state='dismissed'，CHECK 约束不收此值）。
 
 ### ④ 收口
 每个摸过的升件都有处置行（销/修/条件请求三态其一）；
