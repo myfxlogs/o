@@ -173,3 +173,22 @@
   a–f，标题「五片」为修订前旧称）；阈值全常量带出处注钉死；
   ceo_queue 入队走事件级白名单非 seat 集扩列（票面「施工按现行
   词表钦定」授权径）。
+- 返修2（rebase 和解 T-0509 白名单动作面，prompt 钦定逐条）：
+  master 已含 T-0509 三文件同窗/同队冲突——和解径=
+  ①`ceo_queue.sh` 主支 seat 集不收 MECH，MECH 收窄为
+  `event='呈批'` 独立支（`ticket<>''` 保留）；T-0507
+  `event='层扫' AND seat='MECH'` 例外支叠加共存；MECH+升件
+  仍拒留 CTO 壳轨；T-0509 `呈批#id`/`议题#id` 两 union 支与
+  note 引证终态原样保留；
+  ②`mech_tick.sh` 层扫窗与白名单动作窗相邻分立两唤段（层扫在
+  前、白名单在后），各自 fail-soft 不合并逻辑；
+  ③`ceo_queue_test.sh` 双侧断言全保留（T-0509 场景③④⑤ +
+  T-0507 层扫 digest 场景⑥⑦⑧，真 PG 全绿 10/10）；
+  `git merge-tree --write-tree HEAD master` 零冲突。
+  复跑证据：layer_scan_test 15 场景绿、mech_tick_test 全绿、
+  ceo_queue_test 10/10；go build/vet/check_migrations 绿；
+  **check_all 全链绿出戳**
+  `check-green-c5c51a41a65031cfae94e2e2a5ecf55b35f7e48b`
+  （此前拦阻件 TestReportMacroEventsCount 已由 master 上
+  T-0510 修复，本 rebase 后全谱复绿——前述预存量病灶在案
+  闭环）。
