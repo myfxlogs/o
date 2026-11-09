@@ -43,6 +43,17 @@ const (
 	layerDraftMaxNote = 400         // 末行原文截长（drafterInsert 同阈）
 )
 
+// layerSelfDisposeCats 归领自销类目（gateway/escalate.sh 分类归领
+// case 同源——机械可证类升件归领当场自销不起票；进水口不再产草案=
+// 物料化不占号不烧号，T-0672 断源钉。两表须同扩——归领新增机械
+// 自销类目时本表同步）。
+var layerSelfDisposeCats = map[string]bool{
+	"done-翻漏":   true,
+	"幽灵票件":      true,
+	"无籍行":       true,
+	"done-无收口链": true,
+}
+
 // layerScanRow 层扫升件窗行（升件行载荷四元组——id 留证据引、
 // ts 留首报时间、note 拆 signature、ticket 原样留证不入签名）。
 type layerScanRow struct {
@@ -82,12 +93,17 @@ func parseLayerScanNote(id int64, ts time.Time, ticket, note string) (*layerScan
 
 // layerScanRows 层扫升件窗行（seat=MECH+event=升件+note 前缀钉死——
 // 非本契约行一律不入本径；esc_class/esc_scope 空=探针起草径结构性
-// 不相交，双向零串味）。
+// 不相交，双向零串味）。已认领升件不进起草口（后随同票终态词
+// {裁决,完成,驳回,挂起,作废}或 note 引「升件#id」处置行=归领已销——
+// 已销签名再起草=白烧号，T-0672 断源钉）。
 func (s *Sensor) layerScanRows(ctx context.Context) ([]layerScanRow, error) {
-	rows, err := s.pool.Query(ctx, `SELECT id,ts,note,ticket FROM ops_event
-		WHERE seat=$1 AND event='升件' AND note LIKE $2||'%'
-		  AND ts>now()-make_interval(hours=>$3)
-		ORDER BY id`,
+	rows, err := s.pool.Query(ctx, `SELECT e.id,e.ts,e.note,e.ticket FROM ops_event e
+		WHERE e.seat=$1 AND e.event='升件' AND e.note LIKE $2||'%'
+		  AND e.ts>now()-make_interval(hours=>$3)
+		  AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.ts>e.ts AND x.seat<>'gateway'
+		    AND ((x.ticket=e.ticket AND e.ticket<>'' AND x.event IN ('裁决','完成','驳回','挂起','作废'))
+		      OR x.note ~ ('升件#'||e.id::text||'([^0-9]|$)')))
+		ORDER BY e.id`,
 		layerScanSeat, layerScanPrefix, layerScanWindowH)
 	if err != nil {
 		return nil, err
@@ -128,6 +144,9 @@ func (s *Sensor) draftLayerScans(ctx context.Context) (int, error) {
 	produced := 0
 	var errs []error
 	for _, sig := range sigs {
+		if layerSelfDisposeCats[clusters[sig][0].cat] {
+			continue // 归领自销类——当场销不起票不进草案（T-0672 号耗断源）
+		}
 		skip, skipto, err := s.layerDedup(ctx, sig)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("%s 层扫去重: %w", sig, err))

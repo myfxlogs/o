@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -87,6 +88,45 @@ func mergeDraft(ctx context.Context, pool *pgxpool.Pool, id int64, sig, absorbTI
 		return fmt.Errorf("draft#%d 并票行: %w", id, err)
 	}
 	fmt.Printf("[ticketdraft] draft#%d 并票 %s——signature=%s（同签名族 24h 合并）\n", id, absorbTID, sig)
+	return nil
+}
+
+// attachTKeyRE 附体判票号形（T-\d+——层扫对象真票键）。
+var attachTKeyRE = regexp.MustCompile(`^T-[0-9]+$`)
+
+// attachTicketOf 附体判：signature=「层扫:<类目>:<对象>」且对象=T-\d+
+// →返回原票号（附体径）；否则空串=常径取号落件。
+func attachTicketOf(p payload) string {
+	if !strings.HasPrefix(p.Signature, "层扫:") {
+		return ""
+	}
+	i := strings.Index(p.LesionKey, ":")
+	if i <= 0 || i == len(p.LesionKey)-1 {
+		return ""
+	}
+	obj := p.LesionKey[i+1:]
+	if !attachTKeyRE.MatchString(obj) {
+		return ""
+	}
+	return obj
+}
+
+// attachDraft 附体物料化：draft.ticket=原票号翻 materialized+处置注记行
+// 附着原票链（非生命周期词零相位扰动——归并=诊断入原票史；不占新号
+// 不立件不入 git）。seat=处置席=归领处置写席同径。
+func attachDraft(ctx context.Context, pool *pgxpool.Pool, id int64, tid string, p payload) error {
+	if _, err := pool.Exec(ctx, `UPDATE fin_ticket_draft
+		SET status='materialized',ticket=$2,materialized_at=now() WHERE id=$1`,
+		id, tid); err != nil {
+		return fmt.Errorf("附体翻行: %w", err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note)
+		VALUES('处置席','处置',$1,$2)`, tid,
+		fmt.Sprintf("层扫诊断归并%s——signature=%s（附体原票不占新号，draft#%d；T-0672）",
+			tid, p.Signature, id)); err != nil {
+		return fmt.Errorf("附体注记行: %w", err)
+	}
+	fmt.Printf("[ticketdraft] draft#%d 附体原票 %s——signature=%s\n", id, tid, p.Signature)
 	return nil
 }
 
