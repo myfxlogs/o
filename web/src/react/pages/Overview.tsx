@@ -4,6 +4,7 @@ import { client } from "../api";
 import { useLive } from "../hooks";
 import { Card, EmptyState, ErrorState, Skeleton, StateDot, UtcClock } from "../components/ui";
 import { EarnToggle } from "../components/EarnToggle";
+import { OpenPositionsCard } from "../components/flows";
 import { fmtUsd } from "../components/fmt";
 import { useState } from "react";
 import type { MoneyRow } from "../../gen/dashboardv1/core_pb";
@@ -135,6 +136,9 @@ export function OverviewPage() {
           </div>
         )}
       </Card>
+
+      {/* 持仓订单明细（业主令——在持卡是简讯行，本卡=结构化订单面） */}
+      <OpenPositionsCard />
 
       <Card title="最近动作" extra={<UtcClock />}>
         {(o.recent ?? []).length === 0 ? (
