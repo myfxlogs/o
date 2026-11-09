@@ -1,6 +1,10 @@
 # o-mirror-push.timer —— 15min 镜面发窗拍（T-0467：绿了即推已绿
 # sha——check_all 20-40min 节奏下 15min 拍足够紧凑；空窗零动作
 # 零成本，拍壳即判件）。
+# 退役注记（T-0469）：镜面推功能并入 o-gateway 收敛账（绿戳事件→
+# converge.sh→mirror_push.sh 原样调用）——本 timer + o-green-stamp.path
+# 留作双轨共存期兜底不删件；o-gateway.service 启用验收后由部署径
+# disable 本 timer（幂等键=推 sha，双跑零重复动作）。
 [Unit]
 Description=o-mirror-push 15min 镜面拍
 

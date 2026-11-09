@@ -43,6 +43,12 @@ checkall_envcontention_24h	竞态	cmd	find /opt/o/.git -name 'check-green-*.mode
 # 中位延迟 KPI（阈 72h 可调——案锚=票级 draft/首事件代理段A口径，
 # 段E案卷回写后换 fin_econ_lesson 真锚）。
 mech_hb	断供	sql_ro	SELECT CASE WHEN COALESCE(max(last_activity),'-infinity'::timestamptz)<now()-interval '15 minutes' THEN 1 ELSE 0 END FROM ops_headless WHERE ticket='MECH'	1	MECH 机械轨心跳停鸣>15min={v}（o-mech.service/timer/path 三径皆死——查 mech_tick 锁与单元装配）		
+# T-0469 gateway_hb：o-gateway 常驻心跳停鸣>15min（ops_headless
+# ticket='GATEWAY' 单道行同 mech_hb 式；停鸣=网关死——降级=席位班扫
+# 兜底不瘫，查 gatewayd 锁/单元装配）。启用序注记：本行随单元启用同拍
+# 方有意义——service 未 enable 期缺席行按停鸣计会误升，部署径启用
+# o-gateway 后首拍 30s 内道行自愈。
+gateway_hb	断供	sql_ro	SELECT CASE WHEN COALESCE(max(last_activity),'-infinity'::timestamptz)<now()-interval '15 minutes' THEN 1 ELSE 0 END FROM ops_headless WHERE ticket='GATEWAY'	1	GATEWAY 总协调网关心跳停鸣>15min={v}（o-gateway.service 死——降级=席位自扫描兜底不瘫，查 gatewayd 单例锁/单元装配）		
 loop_latency	淤积	cmd	bash /opt/o/scripts/meta/loop_latency.sh	259200	内循环案→部署中位延迟={v}s（>72h=环滞——案锚=票级代理段A口径，段E案卷回写后换真锚）		
 # GW-001 段F2 漂移对账面：drift_open=drift_probe 快照行数（探针随 o-mech
 # 每拍只读采集并落 /var/tmp/o-drift/drift.tsv；本量表只读快照零再采集）。
