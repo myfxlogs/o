@@ -282,3 +282,48 @@ func TestListClosedPositions(t *testing.T) {
 		t.Fatalf("应闭仓倒序: %+v", r.Positions[0])
 	}
 }
+
+// 锚⑧：在持订单面——open 持仓带腿明细；live 无仓=armed 出列；live 有仓
+// 不落 armed（不双行）；DCD 类零腿仓=legs 空集如实。
+func TestListOpenPositions(t *testing.T) {
+	c := opsSetup(t)
+	ctx := context.Background()
+	var sid, xid int64
+	if err := c.pool.QueryRow(ctx, `INSERT INTO fin_strategy(inst_id,template_ref,state,notional_usd,direction)
+		VALUES('ETH-USDT-SWAP','funding-hedge','live',50,'short_perp_long_spot') RETURNING id`).Scan(&sid); err != nil {
+		t.Skipf("fin_strategy 形不符跳过: %v", err)
+	}
+	if err := c.pool.QueryRow(ctx, `INSERT INTO fin_execution(inst_id,notional_usd,state)
+		VALUES('ETH-USDT-SWAP',50,'open') RETURNING id`).Scan(&xid); err != nil {
+		t.Skipf("fin_execution 形不符跳过: %v", err)
+	}
+	if _, err := c.pool.Exec(ctx, `INSERT INTO fin_position(execution_id,strategy_ref,inst_id,notional_usd)
+		VALUES($1,$2,'ETH-USDT-SWAP',50)`, xid, sid); err != nil {
+		t.Skipf("fin_position 形不符跳过: %v", err)
+	}
+	if _, err := c.pool.Exec(ctx, `INSERT INTO fin_order_leg(execution_id,leg_no,cl_ord_id,venue,side,inst_id,sz,px,state,ord_type,venue_ticket)
+		VALUES($1,1,'cl-x','okx','sell','ETH-USDT-SWAP',2,3100.5,'filled','limit',88001)`, xid); err != nil {
+		t.Skipf("fin_order_leg 形不符跳过: %v", err)
+	}
+	if _, err := c.pool.Exec(ctx, `INSERT INTO fin_strategy(inst_id,template_ref,state,notional_usd)
+		VALUES('SOL-USDT-SWAP','funding-hedge','live',50)`); err != nil {
+		t.Skipf("armed seed 形不符: %v", err)
+	}
+	r, err := c.ListOpenPositions(ctx, &dashboardv1.ListOpenPositionsRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(r.Positions) != 1 {
+		t.Fatalf("open 持仓应=1: %+v", r.Positions)
+	}
+	p := r.Positions[0]
+	if p.Template != "funding-hedge" || p.Direction != "short_perp_long_spot" || p.InstId != "ETH-USDT-SWAP" {
+		t.Fatalf("持仓面字段不对: %+v", p)
+	}
+	if len(p.Legs) != 1 || p.Legs[0].VenueTicket != 88001 || p.Legs[0].State != "filled" {
+		t.Fatalf("腿明细不对: %+v", p.Legs)
+	}
+	if len(r.Armed) != 1 || r.Armed[0].InstId != "SOL-USDT-SWAP" {
+		t.Fatalf("armed 应只载无仓 live: %+v", r.Armed)
+	}
+}

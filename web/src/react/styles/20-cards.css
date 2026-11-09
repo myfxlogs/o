@@ -538,6 +538,26 @@ details.rep summary {
 .tree-head .caret.open {
   transform: rotate(90deg);
 }
+/* 持仓订单面——腿明细展开行/副表（T-0173 rows 表族同族） */
+.rowlink {
+  cursor: pointer;
+}
+.rowlink:hover {
+  background: var(--page);
+}
+.rows.sub {
+  margin: 4px 0 4px 12px;
+  font-size: 0.92em;
+}
+.rows.sub th {
+  font-weight: 500;
+  color: var(--ink-3);
+}
+.armed {
+  margin-top: 8px;
+  border-top: 1px dashed var(--line, rgba(128, 128, 128, 0.3));
+  padding-top: 6px;
+}
 .tree-name {
   text-transform: uppercase;
   letter-spacing: 0.04em;

@@ -32,6 +32,7 @@ service CoreService {
   rpc GetEquityCurve(GetEquityCurveRequest) returns (GetEquityCurveResponse) {}
   rpc ListCashflows(ListCashflowsRequest) returns (ListCashflowsResponse) {}
   rpc ListClosedPositions(ListClosedPositionsRequest) returns (ListClosedPositionsResponse) {}
+  rpc ListOpenPositions(ListOpenPositionsRequest) returns (ListOpenPositionsResponse) {}
   rpc GetHeadless(GetHeadlessRequest) returns (GetHeadlessResponse) {}
   rpc GetPipeline(GetPipelineRequest) returns (GetPipelineResponse) {}
   rpc GetFlowPulse(GetFlowPulseRequest) returns (GetFlowPulseResponse) {} // T-0307 活水段
@@ -358,6 +359,46 @@ message ClosedPosition {
 message ListClosedPositionsResponse {
   int32 total = 1;
   repeated ClosedPosition positions = 2;
+}
+
+// —— 在持面（业主令「看到持了哪些订单+详细内容」）：open 持仓+订单腿明细
+// +live 待命部署（无仓非僵尸——armed 如实注）。——
+
+message ListOpenPositionsRequest {}
+message OpenLeg {
+  string venue = 1;
+  string side = 2;
+  string inst_id = 3;
+  double sz = 4;
+  double px = 5;                     // 0=未成交（挂单/排队态）
+  string state = 6;
+  string ord_type = 7;
+  int64 venue_ticket = 8;            // 0=无 venue 单号
+  google.protobuf.Timestamp ts = 9;
+}
+message OpenPosition {
+  int64 id = 1;
+  int64 execution_id = 2;
+  string template = 3;               // 策略族（缺=''——无策略归属的结构仓）
+  string venue = 4;
+  string inst_id = 5;
+  string direction = 6;
+  double notional_usd = 7;
+  google.protobuf.Timestamp opened_at = 8;
+  repeated OpenLeg legs = 9;         // 订单腿明细（DCD 类产品仓零腿=空集如实）
+}
+message ArmedStrategy {
+  int64 id = 1;
+  string template = 2;
+  string venue = 3;
+  string inst_id = 4;
+  double notional_usd = 5;
+  string state = 6;
+  google.protobuf.Timestamp entered_at = 7;
+}
+message ListOpenPositionsResponse {
+  repeated OpenPosition positions = 1;
+  repeated ArmedStrategy armed = 2;  // live 且无 open 持仓（待信号——非僵尸）
 }
 
 // —— 复盘面（fin_report 直出——metrics jsonb 服务端解为键值对，前端零解析）——

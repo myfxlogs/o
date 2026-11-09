@@ -2,11 +2,14 @@
 // T-0220b：历史订单首页=ev_position 推帧分片订阅（一跳零重拉；载荷粒度
 // 5 行/页——原 10 行翻页粒度同票对齐）；翻页视图=unary 参数取（页参数=
 // 视图态，非推送面）。
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
+import type { Timestamp } from "@bufbuild/protobuf/wkt";
 import { client } from "../api";
 import { hydrate, useSlice } from "../store";
-import { Card, EmptyState, ErrorState, Skeleton } from "./ui";
+import { useLive } from "../hooks";
+import { Card, EmptyState, ErrorState, Skeleton, UtcClock } from "./ui";
 import { pbDate } from "./fmt";
+import { DIRECTION_CN } from "./labels";
 import type { ListClosedPositionsResponse } from "../../gen/dashboardv1/core_pb";
 
 const PAGE = 5;
@@ -120,3 +123,142 @@ export function ClosedPositionsCard() {
   );
 }
 
+
+// OpenPositionsCard 在持订单卡（业主令「持仓订单+详细内容」）：open 持仓
+// 表+腿明细展开行（DCD 类零腿=「产品仓无订单腿」如实注）+live 待命部署
+// 折行（无仓非僵尸）。ev_position/ev_strategy 信号驱动重取零轮询。
+export function OpenPositionsCard() {
+  const lv = useLive(["ev_position", "ev_strategy"], () =>
+    client.listOpenPositions({})
+  );
+  const [open, setOpen] = useState<Record<number, boolean>>({});
+  const [armedOpen, setArmedOpen] = useState(false);
+  const ps = lv.data?.positions ?? [];
+  const armed = lv.data?.armed ?? [];
+  const fmtTs = (t?: Timestamp) =>
+    pbDate(t)?.toISOString().slice(5, 16).replace("T", " ") ?? "—";
+  return (
+    <Card title="持仓订单" extra={<UtcClock />}>
+      {lv.loading && !lv.data ? (
+        <Skeleton rows={4} />
+      ) : lv.err && !lv.data ? (
+        <ErrorState msg={lv.err} onRetry={lv.reload} />
+      ) : (
+        <>
+          {ps.length === 0 ? (
+            <EmptyState title="无在持仓位" hint="开仓后此处逐行立账——腿明细点开即看" />
+          ) : (
+            <table className="rows">
+              <thead>
+                <tr>
+                  <th>合约</th>
+                  <th>族</th>
+                  <th>方向</th>
+                  <th className="num">名义</th>
+                  <th>开仓</th>
+                  <th className="num">腿</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ps.map((p) => (
+                  <Fragment key={p.id}>
+                    <tr
+                      className="rowlink"
+                      onClick={() => setOpen((o) => ({ ...o, [Number(p.id)]: !o[Number(p.id)] }))}
+                    >
+                      <td>{p.instId}</td>
+                      <td className="ink-3">{p.template || "—"}</td>
+                      <td>{DIRECTION_CN[p.direction] ?? (p.direction || "—")}</td>
+                      <td className="num mono">
+                        ${p.notionalUsd.toLocaleString("zh-CN", { maximumFractionDigits: 2 })}
+                      </td>
+                      <td className="mono">{fmtTs(p.openedAt)}</td>
+                      <td className="num mono">
+                        {p.legs.length === 0 ? "—" : `${open[Number(p.id)] ? "▾" : "▸"}${p.legs.length}`}
+                      </td>
+                    </tr>
+                    {open[Number(p.id)] &&
+                      (p.legs.length === 0 ? (
+                        <tr key={String(p.id) + ":e"}>
+                          <td colSpan={6} className="ink-3">
+                            产品仓无订单腿（DCD/结构仓——订阅明细走 venue 产品面）
+                          </td>
+                        </tr>
+                      ) : (
+                        <tr key={String(p.id) + ":l"}>
+                          <td colSpan={6}>
+                            <table className="rows sub">
+                              <thead>
+                                <tr>
+                                  <th>腿向</th>
+                                  <th>合约</th>
+                                  <th className="num">量</th>
+                                  <th className="num">价</th>
+                                  <th>态</th>
+                                  <th>venue 单号</th>
+                                  <th>时</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {p.legs.map((l, i) => (
+                                  <tr key={i}>
+                                    <td>{l.side}</td>
+                                    <td>{l.instId}</td>
+                                    <td className="num mono">{l.sz}</td>
+                                    <td className="num mono">{l.px === 0 ? "—" : l.px}</td>
+                                    <td className="ink-3">{l.state}</td>
+                                    <td className="mono">{l.venueTicket === 0n ? "—" : String(l.venueTicket)}</td>
+                                    <td className="mono">{fmtTs(l.ts)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </td>
+                        </tr>
+                      ))}
+                  </Fragment>
+                ))}
+              </tbody>
+            </table>
+          )}
+          {armed.length > 0 && (
+            <div className="armed">
+              <button
+                className="btn tree-head"
+                onClick={() => setArmedOpen((v) => !v)}
+                aria-expanded={armedOpen}
+              >
+                <span className={"caret" + (armedOpen ? " open" : "")}>▸</span>
+                待命部署 {armed.length} 件（live 待信号——非僵尸）
+              </button>
+              {armedOpen && (
+                <table className="rows sub">
+                  <thead>
+                    <tr>
+                      <th>族</th>
+                      <th>合约</th>
+                      <th className="num">名义</th>
+                      <th>入场</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {armed.map((a) => (
+                      <tr key={a.id}>
+                        <td>{a.template}</td>
+                        <td>{a.instId}</td>
+                        <td className="num mono">
+                          ${a.notionalUsd.toLocaleString("zh-CN", { maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="mono">{fmtTs(a.enteredAt)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </Card>
+  );
+}
