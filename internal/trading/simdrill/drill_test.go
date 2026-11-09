@@ -171,6 +171,58 @@ func TestDrillQuoteUnitFullPath(t *testing.T) {
 	}
 }
 
+// DCD 域全径（毕业闸凭据同待遇——probe dcd_put 器械撞 SWAP-only 闸史重放：
+// 演习面扩 dcd_put/dcd_call 后全径绿+凭据落账；SETTLED=平仓语义
+// ——到期结算即平，无哨戒段）。
+func TestDrillDCDPutFullPath(t *testing.T) {
+	ctx, d := setup(t)
+	inst := "BTC-USDT-261204-66000-P"
+	var stratID int64
+	if err := d.Pool.QueryRow(ctx,
+		`INSERT INTO fin_strategy(inst_id,template_ref,state,notional_usd,venue)
+		VALUES($1,'dcd_put','probe',50,'okx') RETURNING id`, inst).Scan(&stratID); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { // 手术级清场（本测试自有行——不扩 template 清面防撞 herd 邻包夹具）。
+		for _, stmt := range []string{
+			`DELETE FROM fin_exec_drill WHERE strategy_ref=$1`,
+			`DELETE FROM fin_strategy WHERE id=$1`,
+			`DELETE FROM md_dcd_product WHERE venue='sim' AND product_id=$2`,
+		} {
+			_, _ = d.Pool.Exec(context.Background(), stmt, stratID, inst) // tolerate: 清场末力
+		}
+	})
+	res, err := d.Run(ctx, stratID)
+	if err != nil {
+		t.Fatalf("演习机械败: %v", err)
+	}
+	if res.Verdict != "pass" {
+		t.Fatalf("dcd_put 全径应绿: verdict=%s detail=%s", res.Verdict, res.Detail)
+	}
+	// 结算态迁（SETTLED→closed）+仓行闭环。
+	var estate string
+	var closed bool
+	if err := d.Pool.QueryRow(ctx,
+		`SELECT e.state,p.closed_at IS NOT NULL FROM fin_execution e
+		 JOIN fin_position p ON p.execution_id=e.id WHERE e.id=$1`, res.OpenExecID).
+		Scan(&estate, &closed); err != nil {
+		t.Fatal(err)
+	}
+	if estate != "closed" || !closed {
+		t.Fatalf("结算态迁: exec=%s closed=%v（want closed/true）", estate, closed)
+	}
+	// 凭据落账（毕业闸消费面——probe→live 通行证）。
+	var verdict, rv string
+	if err := d.Pool.QueryRow(ctx,
+		`SELECT verdict,rules_version FROM fin_exec_drill WHERE strategy_ref=$1 ORDER BY id DESC LIMIT 1`,
+		stratID).Scan(&verdict, &rv); err != nil {
+		t.Fatal(err)
+	}
+	if verdict != "pass" || rv != simvenue.RulesVersion {
+		t.Fatalf("凭据: verdict=%s rules=%s", verdict, rv)
+	}
+}
+
 // 异常升件径（禁静默红）：venue 残余>挂账=「closed 了但货还在」盲区重放
 // ——锚②破→ops_event 升件行+verdict fail（毕业闸 fail-closed 消费）。
 func TestDrillResidueEscalation(t *testing.T) {
