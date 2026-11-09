@@ -27,11 +27,19 @@ DSN=$(gw_dsn); [ -n "$DSN" ] || exit 0
 #   （完成/作废同票生命周期词归各行本体席成例;处置=名域中立销词）。
 #   层扫类目签名=「层扫定性<类目>:<对象>——…」机读；其余签名让梯。
 res_ins() { # $1=seat $2=event $3=ticket $4=note——销件行写径（gw_ledger seat 钉死 gateway 不可用）
-	psql "$DSN" -qAt >/dev/null 2>&1 <<SQL
+	#   写败不吞——stderr 留样落 write_fail.log（KB heredoc-sql-unquoted-
+	#   silent-swallow 教训②：哑写死径不可再静默；容错口径=不留证即虚写）
+	local out
+	out=$(psql "$DSN" -qAt 2>&1 <<SQL
 INSERT INTO ops_event(seat,event,ticket,note)
 VALUES('$(gw_qc "$1")','$(gw_qc "$2")','$(gw_qc "$3")','$(gw_qc "$4")');
 SQL
+	) || printf '%s res_ins写败 %s/%s/%s — %s\n' "$(date -u +%FT%TZ)" "$1" "$2" "$3" \
+		"$out" >> "${GW_STATE_DIR:-/var/tmp/o-gateway}/write_fail.log" 2>/dev/null || true # tolerate: 失败上报径自身兜底——写日志再败不可炸归领循环,降级为静默(该行即失败证据面)
 	return 0
+}
+phase_void() { # $1=ticket——无籍行/墓碑化翻相（ops_ticket_phase=视图,翻相唯一径=作废事件行→void;相位行=层扫签名源,翻void=签名永死）
+	res_ins 'COS' '作废' "$1" "无籍行墓碑化——相位行翻void(归领处置签名源断)"
 }
 
 UNCLAIMED_SQL="SELECT e.id, COALESCE(e.ticket,''),
@@ -67,15 +75,19 @@ for row in "${CLS_ROWS[@]}"; do
 		*层扫定性无籍行:*)
 			case "$etid" in
 				T-9[0-9][0-9][0-9]|SELFTEST-*)
-					res_ins '处置席' '处置' '' "升件#$eid 销——无籍行测试/夹具名域（$etid；侦测豁免域议归层扫票面）"
+					phase_void "$etid"
+					res_ins '处置席' '处置' '' "升件#$eid 销——无籍行测试/夹具名域（$etid；相位翻void墓碑化签名永死）"
 					resolved=$((resolved+1)) ;;
 				T-[0-9][0-9][0-9][0-9]|T-[0-9][0-9][0-9][0-9]R)
-					# 终相无件=历史债记档（作废已终相不重复——处置记档即销）
-					res_ins '处置席' '处置' '' "升件#$eid 销——$etid 无籍行（终相/伪号票件双无实证记档）"
+					# 终相无件=历史债记档——翻void墓碑化签名永死（done+无件
+					# 亦翻:无件之 done=墓碑非实证成件,churn 环断此）
+					phase_void "$etid"
+					res_ins '处置席' '处置' '' "升件#$eid 销——$etid 无籍行（终相/伪号票件双无实证记档+相位翻void墓碑化）"
 					resolved=$((resolved+1)) ;;
 				'') : ;; # 无 ticket 的无籍行=系统件——让梯归席
-				*)  # 非T伪键=工作流/提案/名域标签（GW-001/DBP*/提案-*等）——豁免归侦测票面另案,升件本体销
-					res_ins '处置席' '处置' '' "升件#$eid 销——无籍行非票名域($etid;伪键豁免表议归层扫票面另案)"
+				*)  # 非T伪键=工作流/提案/名域标签（GW-001/DBP*/提案-*等）——翻void墓碑化（伪键相位行=签名源）
+					phase_void "$etid"
+					res_ins '处置席' '处置' '' "升件#$eid 销——无籍行非票名域($etid;相位翻void墓碑化签名永死)"
 					resolved=$((resolved+1)) ;;
 			esac ;;
 		*层扫定性done-无收口链:*)
