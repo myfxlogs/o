@@ -41,16 +41,21 @@ func pxOf(inst string) float64 {
 	return 100 + float64(h.Sum32()%9900)
 }
 
-// newOKXVenue 本格 OKX 仿真 venue（乐器册按格 inst 派生——现货/SWAP/
-// 本格合约全量入册；SWAP+基键-SWAP 双登幂等；钱域 USDT 1e7 播种）。
+// newOKXVenue 本格 OKX 仿真 venue（乐器册按格 inst 派生——derived spot
+// 仅当 OKX 实有面在册才登记（T-0482 实有面校真）；SWAP/本格合约全量入册；
+// SWAP+基键-SWAP 双登幂等；钱域 USDT 1e7 播种）。
 func newOKXVenue(inst string) *simvenue.SimVenue {
 	base, quote := instPair(inst)
 	px := pxOf(inst)
 	v := simvenue.New().WithBalance("USDT", 1e7)
 	spotID := base + "-" + quote
 	swapID := spotID + "-SWAP"
-	v.WithInstrument(simvenue.Instrument{InstID: spotID, InstType: "SPOT",
-		LotSz: 0.0001, MinSz: 0.0001, TickSz: 0.0001, TakerFee: 0.001, Px: px})
+	// 实有面无此对不登记——腿构「现货乐器不在册」fail 机理对齐产线
+	// loadMeta instruments 空 rows fail-closed（T-0481 判词 sim 缺陷根修）。
+	if okxSpotLive(spotID) {
+		v.WithInstrument(simvenue.Instrument{InstID: spotID, InstType: "SPOT",
+			LotSz: 0.0001, MinSz: 0.0001, TickSz: 0.0001, TakerFee: 0.001, Px: px})
+	}
 	// 本格合约乐器（SWAP 常规键 / FUTURES=-YYMMDD 期货键——basis_open.go 同域）。
 	itype := "SWAP"
 	if datedFutRe.MatchString(inst) {

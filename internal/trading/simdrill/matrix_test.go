@@ -165,10 +165,12 @@ func TestMatrixXvenueCells(t *testing.T) {
 
 // 锚④：funding-hedge 占用格两档全周期——min+中位档各跑一遍；凭据
 // cell_key=模板@okx/方向#usd=<档>；venue 残留归零（flatFn 内断）。
+// T-0482 实有面校真后 derived spot 仅实有面在册才登记——夹具乐器键
+// 必用 OKX 实有面（FOO/BAR 虚构对现货腿不再入册会 fail-closed）。
 func TestMatrixFundingCellTwoTiers(t *testing.T) {
 	ctx, m := setupMatrix(t)
-	mkOcc(t, ctx, m, "FOO-USDT-SWAP", "funding-hedge", "short_perp_long_spot", "okx", 40)
-	mkOcc(t, ctx, m, "BAR-USDT-SWAP", "funding-hedge", "short_perp_long_spot", "okx", 80)
+	mkOcc(t, ctx, m, "BTC-USDT-SWAP", "funding-hedge", "short_perp_long_spot", "okx", 40)
+	mkOcc(t, ctx, m, "ETH-USDT-SWAP", "funding-hedge", "short_perp_long_spot", "okx", 80)
 	cells, err := excell.Enumerate(ctx, m.Pool)
 	if err != nil {
 		t.Fatal(err)
@@ -251,12 +253,46 @@ func TestMatrixBasisCells(t *testing.T) {
 	}
 }
 
+// 锚⑥b：USD 计价族覆盖锚（T-0482）——BTC-USD-YYMMDD derived spot
+// BTC-USD OKX 实有面无此对（survey 在案：USD 计价现货仅 USDT-USD 一对）
+// →不登记→basis 腿构 fail-closed「现货乐器不在册 BTC-USD」机理同真径
+// loadMeta 空 rows；凭据 verdict=fail 落账=正确稳态禁冲绿（T-0481
+// 钦定锚——生产同格 usd=50 实案同键族）。
+func TestMatrixBasisUSDQuoteCell(t *testing.T) {
+	ctx, m := setupMatrix(t)
+	mkOcc(t, ctx, m, "BTC-USD-270326", "quarter_basis_long", "basis_quarter", "okx", 50)
+	cells, err := excell.Enumerate(ctx, m.Pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	idx := excell.IndexByCoord(cells)
+	c := idx[excell.CoordKey("quarter_basis_long", "okx", "basis_quarter")]
+	if c == nil {
+		t.Fatal("quarter_basis_long 格未枚举")
+	}
+	res := m.runCell(ctx, *c, c.Tiers[0], shapeOKXTwoLeg)
+	if res.Verdict != "fail" {
+		t.Fatalf("USD 计价族应 fail-closed: %+v", res)
+	}
+	if !strings.Contains(res.Detail, "现货乐器不在册 BTC-USD") {
+		t.Fatalf("fail 机理应=现货乐器不在册（同真径 loadMeta）: %s", res.Detail)
+	}
+	var verdict string
+	if err := m.Pool.QueryRow(ctx, `SELECT verdict FROM fin_exec_drill
+		WHERE cell_key=$1 ORDER BY id DESC LIMIT 1`, res.CellKey).Scan(&verdict); err != nil {
+		t.Fatal(err)
+	}
+	if verdict != "fail" {
+		t.Fatalf("凭据应 fail（正确稳态禁冲绿）: %s", verdict)
+	}
+}
+
 // 锚⑦：Run 批跑入口全谱——免演格跳过不产凭据+占用格全档跑+汇总
 // Failed=0+凭据行数=跑过格档数（格病=verdict fail 不炸批——批跑机
 // 语义锚；单格径细节锚②~⑥）。
 func TestMatrixRunBatch(t *testing.T) {
 	ctx, m := setupMatrix(t)
-	mkOcc(t, ctx, m, "BATCH-USDT-SWAP", "funding-hedge", "short_perp_long_spot", "okx", 55)
+	mkOcc(t, ctx, m, "SOL-USDT-SWAP", "funding-hedge", "short_perp_long_spot", "okx", 55)
 	res, err := m.Run(ctx)
 	if err != nil {
 		t.Fatalf("批跑机械败: %v", err)
