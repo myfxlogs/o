@@ -1,0 +1,36 @@
+# immune_paths.txt —— 免疫件写域清单（纪元3评估器隔离——check_immune 消费）。
+# 语义：本单内件=裁判面（评估/闸/凭据产能/追加账本约束）——触件 commit
+# 必须携「免疫件:」trailer 宣告,否则 check_all 硬拒;宣告仍落 ops_event
+# 审计轨。钱径执行件（execution/venue 适配/dcdexec/earn 等）不在此单——
+# 它们是被判对象非裁判本体,改错有闸拦有账追。
+#
+# 判据来源：DGM 判例——RSI 系统的首要作弊面=改自己的裁判;
+#           fin_exec_drill 凭据产能件同列（弱化演习=凭据失义）。
+# 清单自身在单内——改清单=触免疫面（自指闸）。
+#
+# 每行一 pathspec（git 原生 fnmatch；目录尾 / =前缀面）：
+
+# ── 机检闸本体 ──
+scripts/check_all.sh
+scripts/check_*.sh
+scripts/testdb_lease.sh
+hooks/
+
+# ── 部署/推送闸 ──
+scripts/mirror_push.sh
+scripts/deploy_image.sh
+scripts/deploy_oci.sh
+
+# ── 风控/哨戒（开仓/平仓判据本体）──
+internal/risk/
+internal/guard/
+
+# ── 凭据产能件（毕业闸消费源）──
+internal/trading/simdrill/
+cmd/simdrill/
+
+# ── 账面约束（append-only/语义闸 DDL 载体）──
+migrations/
+
+# ── 自指 ──
+deploy/immune_paths.txt

@@ -81,6 +81,7 @@ step "gofmt"
 UNFMT=$(gofmt -l . 2>/dev/null || true)
 [ -z "$UNFMT" ] || fail "gofmt 未格式件: $UNFMT"
 step "env-reads";   bash scripts/check-env-reads.sh             || fail "env 门禁红"
+step "immune";      bash scripts/check_immune.sh                || fail "免疫件闸红"
 step "rejects";     bash scripts/check_rejects_keys.sh          || fail "rejects 键红"
 step "config-write-domain"; bash scripts/check_config_write_domain.sh || fail "config 写域闸红"
 step "migrations";  bash scripts/check_migrations.sh            || fail "迁移机检红"
