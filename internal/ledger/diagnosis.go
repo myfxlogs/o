@@ -10,10 +10,10 @@
 //     +账实差未定性）自动生成 fin_econ_lesson kind='rootcause_diag' 诊断任务行
 //     （与 trade_postmortem 同 ref 并行，UNIQUE 幂等一仓一案）：载荷=案卷+
 //     证据查询锚集+假说族种子（先例谱确定性匹配——排班「先挖什么」）；
-//   - 裁定席第四分支（skills/裁定席，LLM）：领任务+代码仓只读开放考古——
+//   - 裁定席第四分支（docs/纪元2归档/席位卡/裁定席，LLM）：领任务+代码仓只读开放考古——
 //     证伪/证实/扩族→诊断草案落位（numbers.diagnosis+status='drafted'）
 //     +ops_event 诊断草案行（DM 可读判词行）；
-//   - DM 裁（skills/CTO席）：裁决/驳回行——裁过→修法票自动草稿（GW-001
+//   - DM 裁（docs/纪元2归档/席位卡/CTO席）：裁决/驳回行——裁过→修法票自动草稿（GW-001
 //     段D4 起归流执行=机械轨 scripts/meta/verdict_reflow.sh 确定性脚本，
 //     复用 fin_ticket_draft→ticketdraft 物料化链）或并入在飞票判词；
 //     裁驳→驳回因入案卷（diag_state='rejected'——再诊断携错因
