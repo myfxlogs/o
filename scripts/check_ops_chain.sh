@@ -27,8 +27,8 @@ grep -q 'internal/platform/opschain' internal/portfolio/lifecycle/run.go \
 	|| { echo "FAIL lifecycle/run.go: opschain 未入装配（验链拍未挂饥饿同槽）" >&2; fail=1; }
 grep -q 'chainV.Verify' internal/portfolio/lifecycle/hunger.go \
 	|| { echo "FAIL lifecycle/hunger.go: hungerTick 未调验链拍" >&2; fail=1; }
-grep -q 'internal/platform/opschain' tools/hungertick/main.go \
-	|| { echo "FAIL tools/hungertick: 验链拍未挂拍壳同径" >&2; fail=1; }
+# 纪元3：tools/hungertick 随工程径裁撤（D-0045）——验链拍唯一在案
+# 挂点=lifecycle hungerTick 同槽（上行断言即径）。
 
 # ④ LIVE 段——DSN 在且函数已落地才验（迁移未发窗=跳过不炸）。
 DSN=${OPS_CHAIN_DSN:-${FIN_PG_DSN:-}}
