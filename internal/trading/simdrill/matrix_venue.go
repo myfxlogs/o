@@ -126,6 +126,21 @@ func (s *dcdSim) DcdOrderStatus(_ context.Context, ordID string) (json.RawMessag
 	return json.RawMessage(fmt.Sprintf(`[{"ordId":%q,"state":%q}]`, ordID, s.state)), nil
 }
 
+// 钱径摆渡缝三桩——仿真域恒满仓（funding 余=名义额全覆盖,摆渡径
+// 天然跳过;桩签名保 Venue 接口满实现）。
+
+func (s *dcdSim) FundingAvail(_ context.Context, _ string) (float64, error) {
+	return s.notional, nil
+}
+
+func (s *dcdSim) AssetTransfer(_ context.Context, _ string, _ float64, _, _ string) (string, string, error) {
+	return "", "", nil
+}
+
+func (s *dcdSim) AssetTransferState(_ context.Context, _, _ string) (string, error) {
+	return "success", nil
+}
+
 // Settle 到期结算（强平径——venue 侧态迁 SETTLED）。
 func (s *dcdSim) Settle() { s.state = "SETTLED"; s.settled = true }
 

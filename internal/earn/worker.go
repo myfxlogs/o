@@ -186,6 +186,19 @@ func (w *Worker) sweepIdle(ctx context.Context) error {
 		w.rej.Inc("missing_param")
 		return fmt.Errorf("earn.sweep_min_usd: %w", err)
 	}
+	// 在途让位先判（T-0462——dcd 摆渡款落 funding 即属在途单预备金；
+	// 先扫 funding 段会把渡款抢去 Earn=ping-pong 病灶。原序=funding 段
+	// 裸奔无此闸——交易户段同款闸上移罩全域）。
+	var inFlight int
+	if err := w.pool.QueryRow(ctx,
+		"SELECT count(*) FROM fin_execution WHERE state='open'").Scan(&inFlight); err != nil {
+		w.rej.Inc("write_err")
+		return err
+	}
+	if inFlight > 0 {
+		w.rej.Inc("sweep_skip_inflight")
+		return nil
+	}
 	// T-0149 ②funding 户闲资先扫（入金落 funding 天然闲——直购 Earn 免
 	// 摆渡单跳；读件缺=让位不误报非阻断径）。
 	if w.idleFund != nil {
@@ -205,16 +218,6 @@ func (w *Worker) sweepIdle(ctx context.Context) error {
 		return nil // 计数门已挂（snapshot_stale）——陈快照 fail-closed 不动钱
 	}
 	if idle <= thr {
-		return nil
-	}
-	var inFlight int
-	if err := w.pool.QueryRow(ctx,
-		"SELECT count(*) FROM fin_execution WHERE state='open'").Scan(&inFlight); err != nil {
-		w.rej.Inc("write_err")
-		return err
-	}
-	if inFlight > 0 {
-		w.rej.Inc("sweep_skip_inflight")
 		return nil
 	}
 	if time.Since(w.lastSweepFailAt) < 5*time.Minute && math.Abs(idle-w.lastSweepFailAmt) < 0.01 {
