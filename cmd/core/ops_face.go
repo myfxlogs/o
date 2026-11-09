@@ -65,7 +65,7 @@ func healthComps() []compBeat {
 			query:     `SELECT max(ts) FROM md_signal WHERE kind='mt5_swap'`,
 			zeroState: 0, zeroNote: "4h 慢拍设计（SymbolParams 日级变量）"},
 		{name: "MT5 桥行情", host: "oci", exch: "MT5", cat: "collect", fact: "md_ticks venue=mt5", warn: 30 * time.Second, dead: 2 * time.Minute,
-			fix:   "查 OCI COLLECTO_MT5_* env 与 MT5 gateway 进程连通",
+			fix:   "查 OCI 桥会话（app_config bridge.mt5.*/gateway 址链）与 MT5 gateway 连通",
 			query: `SELECT max(ts) FROM md_ticks WHERE venue='mt5'`},
 		{name: "MT5 利润流", host: "sg", exch: "MT5", cat: "trade", fact: "md_account_events order_profit", warn: 5 * time.Minute, dead: 30 * time.Minute,
 			fix:       "查 SG o-core mt5 会话（OnOrderProfit 推送流）",

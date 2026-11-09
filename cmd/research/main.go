@@ -1,7 +1,7 @@
 // research —— 研究域外置节点（T-0165/D-0029：开发机算力面——researchArms
 // 全族+review/report 迁此；roster 席位名不变 beat 换机；
 // SG o-core 撤臂钱径独占）。DSN 经 SG_PG_DSN 隧道径（同 collector 接法）。
-// T-0170 认证读面：READCRED_URL 设=只读钥 boot 内存取+401 自重取（径 A）。
+// T-0170 认证读面：research.readcred_url 设=只读钥 boot 内存取+401 自重取（径 A）。
 package main
 
 import (
@@ -61,17 +61,22 @@ func main() {
 	if err := cfg.Load(ctx); err != nil {
 		log.Fatalf("config load: %v", err)
 	}
+	go func() { // 快照热载（D-0005 参数归 PG 钦定——readcred_url 等热更免重启）
+		if err := cfg.Watch(ctx); err != nil && ctx.Err() == nil {
+			log.Printf("[research] config watch 终: %v", err)
+		}
+	}()
 	// T-0311②：finCfg 绑 finPool（SG app_secrets 驻 SG——md 池 client 读
 	// app_secrets 必败；FRED 键路等密文面全走此件）。Secret() 按次直读
 	// app_secrets 不吃快照——禁 Load()：全量拉 app_config 需 review_rw
 	// 越域读面，部署实击 permission denied 起即崩（返修④根修）。
 	finCfg := config.New(finPool)
-	// T-0170 认证读面（径 A 终裁）：READCRED_URL 设→boot 经隧道（5545）取
+	// T-0170 认证读面（径 A 终裁）：research.readcred_url 设→boot 经隧道取
 	// venue-map 仅进内存+401 自重取轮换自愈；缺→无凭据读面（dcd/gapscan 私有
 	// 读面 401 fail-closed 让位——桩锚不回归）。T-0174：okx 臂按 venue 提件。
 	var okcli authGetter = okxexec.NewClient(okxexec.Credentials{}, false)
 	rcMode := "无凭据公开读"
-	if url := os.Getenv("READCRED_URL"); url != "" {
+	if url, _ := cfg.GetString("research.readcred_url"); url != "" {
 		okcli = newAuthClient(url, "okx")
 		rcMode = "readcred 认证读（只读钥内存取）"
 	}

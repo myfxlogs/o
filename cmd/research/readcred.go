@@ -1,5 +1,5 @@
 // readcred.go —— T-0170 认证读面 dev 端（径 A 终裁）/ T-0174 venue 束：
-// boot 经隧道取 venue-map（READCRED_URL——仅内存零磁盘副本）+ 401 自重取
+// boot 经隧道取 venue-map（址面=app_config research.readcred_url——仅内存零磁盘副本）+ 401 自重取
 // （轮换自愈零值守——venue 认证拒→readcred 重取一次→按本臂 venue 提件换件
 // 重试；再败=原错上抛 fail-closed 与无凭据现态同形让位）。map 级粒度：一束
 // HTTP 取全所，臂按 venue 各提各件——哪个 venue 401 重取哪件。凭据客户端=

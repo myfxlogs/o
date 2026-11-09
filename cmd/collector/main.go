@@ -57,6 +57,11 @@ func main() {
 	if err := cfg.Load(ctx); err != nil {
 		log.Fatalf("config load: %v", err)
 	}
+	go func() { // 快照热载（config_changed 重载——凭据/址链/符号集热更免重启）
+		if err := cfg.Watch(ctx); err != nil && ctx.Err() == nil {
+			log.Printf("[collector] config watch 终: %v", err)
+		}
+	}()
 	cli := okxexec.NewClient(okxexec.Credentials{}, false) // 公开面零凭据
 	// T-0416 宇宙扩件=单一供给件（目录实读+TTL 常驻缓存）——订阅扩件与
 	// 粗扫臂谱域同一供给件同读（原 universe() 桥面复制件归一）。
@@ -83,9 +88,10 @@ func main() {
 	sd := sigdist.New(pool)
 	sd.AttachConfig(cfg)
 	go sd.Run(ctx, errc) // 桥二期信号蒸馏拍（basis_ann/funding_view/xvenue→md_signal）
-	// T-0141 MT5 quote-only 桥腿（env 凭据本地注入；缺件=让位 WARN 不拖 OKX 面）
+	// T-0141 MT5 quote-only 桥腿（凭据/址链全归 app_config bridge.mt5.*+mt5.gateway_*
+	// 会话重读；缺件=桥会话返错退避——让位 WARN 不拖 OKX 面）
 	if bc, err := mt5.NewBridgeCollector(pool, cfg); err != nil {
-		log.Printf("[collector] MT5 桥腿缺席（凭据 env 未注入——跨所族停摆非全桥）: %v", err)
+		log.Printf("[collector] MT5 桥腿装配败（跨所族停摆非全桥）: %v", err)
 	} else {
 		go bc.Run(ctx, errc)
 	}

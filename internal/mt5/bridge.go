@@ -1,7 +1,8 @@
 // bridge.go —— MT5 quote-only 桥腿（T-0141 P2b/D-0022）：跨所信号的 MT5
-// 行情物理层。凭据契约（决策席钉死）：dev 桥零 app_secrets 读权——env 本地
-// 注入 COLLECTO_MT5_{LOGIN,PASSWORD,SERVER,HOST,GATEWAY_ADDR}（ops 件已办，
-// 读取契约仅此径禁 DB 径）。零账户面：不 snapshot 不 profit 流——collector_rw
+// 行情物理层。凭据/址链归 app_config 会话重读（业主令 env 只留 PG 连接件——
+// bridge.mt5.{login,password,server,host}+mt5.gateway_{addr,fallbacks}，
+// dev 桥仍零 app_secrets 读权；原 env 注入径 T-0141 契约已退役）。
+// 零账户面：不 snapshot 不 profit 流——collector_rw
 // 零 fin_* 写权，账户帧撞权限墙（票面钦定 quote-only）；零 mutating（mt5
 // trading 面零触）。quote 流→md_ticks venue='mt5'——与 SG 汇市巡同键共写
 // （D-0018 共写语义：同键最新 ts 赢，桥写与 SG 本地采集零冲突）。
@@ -12,9 +13,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"os"
-	"strconv"
-	"strings"
 	"time"
 
 	"google.golang.org/protobuf/proto"
@@ -34,7 +32,6 @@ type BridgeCollector struct {
 	cfg       *config.Client
 	meter     *netmeter.Meter
 	rej       *rejects.Door
-	addrs     []string
 	cr        Credentials
 	dial      func(addr string) (*Client, error)                                                  // 测试注入面
 	symFetch  func(ctx context.Context, cl *Client, sym string) (*mt5pb.SymbolParamsReply, error) // 测试注入面（FIX-02 消哑失败形态 fixture 缝——nil=生产径）
@@ -42,50 +39,32 @@ type BridgeCollector struct {
 	quoteMany func(ctx context.Context, cl *Client, syms []string) map[string]float64             // 目录 mid 快照缝（nil=GetQuoteMany 正径）
 }
 
-// NewBridgeCollector env 凭据装配（缺件=fail-closed 上抛——桥腿缺席不拖 OKX 面，
-// 装配层 WARN 放行余桥）。
+// NewBridgeCollector 装配（凭据/址链全归 app_config 会话重读——env 凭据径退役；
+// 本件不再 fail-closed 于凭据缺，缺件=bridgeSession 返错退避重试同址链缺径）。
 func NewBridgeCollector(pool *pgxpool.Pool, cfg *config.Client) (*BridgeCollector, error) {
-	env := func(k string) (string, error) {
-		v := os.Getenv("COLLECTO_MT5_" + k)
-		if v == "" {
-			return "", fmt.Errorf("COLLECTO_MT5_%s 缺——桥腿凭据不齐", k)
-		}
-		return v, nil
-	}
-	loginS, err := env("LOGIN")
-	if err != nil {
-		return nil, err
-	}
-	login, err := strconv.ParseUint(loginS, 10, 64)
-	if err != nil {
-		return nil, fmt.Errorf("COLLECTO_MT5_LOGIN 非数字: %w", err)
-	}
-	pass, err := env("PASSWORD")
-	if err != nil {
-		return nil, err
-	}
-	server, err := env("SERVER")
-	if err != nil {
-		return nil, err
-	}
-	host := os.Getenv("COLLECTO_MT5_HOST") // 可空（server 径户 host 空串合法）
-	rawAddr, err := env("GATEWAY_ADDR")
-	if err != nil {
-		return nil, err
-	}
-	var addrs []string
-	for _, a := range strings.Split(rawAddr, ",") {
-		if a = strings.TrimSpace(a); a != "" {
-			addrs = append(addrs, a)
-		}
-	}
-	if len(addrs) == 0 {
-		return nil, fmt.Errorf("COLLECTO_MT5_GATEWAY_ADDR 全空")
-	}
-	return &BridgeCollector{pool: pool, cfg: cfg, addrs: addrs,
-		cr: Credentials{Login: login, Password: pass, Server: server, Host: host},
+	return &BridgeCollector{pool: pool, cfg: cfg,
 		rej: rejects.New("mt5bridge", "connect_failed", "subscribe_failed",
 			"symbols_missing", "tick_write_err", "symbols_read_failed", "symbol_group_nil")}, nil
+}
+
+// bridgeAuth 桥腿凭据读——app_config bridge.mt5.{login,password,server,host}
+// （凭据归 PG 热更径，D-0005 env 只留 DSN 钦定收口；dev 桥仍零 app_secrets
+// 读权——app_config≠密册）。host 可空缺省（server 径户 host 空串合法）。
+func bridgeAuth(cfg *config.Client) (Credentials, error) {
+	var cr Credentials
+	login, err := cfg.GetInt("bridge.mt5.login")
+	if err != nil {
+		return cr, fmt.Errorf("bridge.mt5.login: %w", err)
+	}
+	cr.Login = uint64(login)
+	if cr.Password, err = cfg.GetString("bridge.mt5.password"); err != nil {
+		return cr, fmt.Errorf("bridge.mt5.password: %w", err)
+	}
+	if cr.Server, err = cfg.GetString("bridge.mt5.server"); err != nil {
+		return cr, fmt.Errorf("bridge.mt5.server: %w", err)
+	}
+	cr.Host, _ = cfg.GetString("bridge.mt5.host")
+	return cr, nil
 }
 
 // Run 上岗（无 roster 注册——桥面工序岗属采集器机延伸，编制册零新卡；
@@ -122,9 +101,18 @@ func (c *BridgeCollector) bridgeSession(ctx context.Context, dial func(string) (
 	if len(syms) == 0 {
 		return fmt.Errorf("bridge.mt5.symbols 缺/空——fail-closed 不虚构标的集")
 	}
+	cr, err := bridgeAuth(c.cfg)
+	if err != nil {
+		return err
+	}
+	c.cr = cr
+	addrs, err := gatewayAddrs(c.cfg)
+	if err != nil {
+		return err
+	}
 	var cl *Client
 	var lastErr error
-	for _, a := range c.addrs {
+	for _, a := range addrs {
 		cand, derr := dial(a)
 		if derr != nil {
 			lastErr = derr
