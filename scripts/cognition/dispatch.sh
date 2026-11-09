@@ -14,6 +14,9 @@ ENVF="${REPORT_ENV_FILE:-/opt/o-research/env}"
 DSN=$(grep '^FIN_PG_DSN=' "$ENVF" 2>/dev/null | cut -d= -f2- | tr -d '"')
 [ -n "$DSN" ] || { echo "[dispatch] FIN_PG_DSN 读不出($ENVF)——fail-closed不猜" >&2; exit 1; }
 
+# 提案半产件:先挖档案产改进提案升件,后扫描面含新件同拍判。
+"$SCRIPT_DIR/mine.sh" || true # tolerate: 矿工败=本拍无新提案,存量信号面处置照跑
+
 MIN_N=${COG_MIN_N:-1}; MIN_AGE=${COG_MIN_AGE:-600}; BURST_N=${COG_BURST_N:-5}
 
 # 未决升件: 后随 ops_event 无 note 引「升件#<id>」处置行=未处置。

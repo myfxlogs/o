@@ -25,6 +25,9 @@ psql "$FIN_DSN" -c "SELECT id,signature,cluster_n,numbers FROM fin_eng_lesson
 
 ### ② 逐件处置（三档判）
 
+- **改进提案**（seat=改进矿工 esc_class=改进提案 的升件）→
+  先评估判据成立否：成立→变体改码径（同「要码修」）；已修/不成立
+  →销+note 引证据。判据永远核现况不核历史（提案 note 是快照）。
 - **机械可证**（相位/账本/文件/端点事实可核）→ 修或销，落：
   ```sql
   INSERT INTO ops_event(seat,event,ticket,note)
