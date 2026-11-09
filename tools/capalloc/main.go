@@ -18,11 +18,11 @@ package main
 import (
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"log"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -111,17 +111,26 @@ func run(ctx context.Context, s allocStore, key string, val float64, evidence st
 }
 
 func main() {
-	evidence := flag.String("evidence", "", "判词证据锚（必填——无账调闸=违例）")
-	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "用法: capalloc set <key> <value> --evidence \"<锚>\"\n白名单: risk.max_exposure_usd|risk.max_notional_usd|invest.paper.notional_usd\n")
-		flag.PrintDefaults()
+	// 手工取参——flag.Parse 遇首个位置参即停（set <k> <v> --evidence
+	// 自然序会漏读旗标）,窄门参数面小,扫串自取。
+	var evidence string
+	var pos []string
+	for i := 1; i < len(os.Args); i++ {
+		a := os.Args[i]
+		if a == "--evidence" && i+1 < len(os.Args) {
+			i++
+			evidence = os.Args[i]
+		} else if v, ok := strings.CutPrefix(a, "--evidence="); ok {
+			evidence = v
+		} else {
+			pos = append(pos, a)
+		}
 	}
-	flag.Parse()
-	if flag.NArg() != 3 || flag.Arg(0) != "set" {
-		flag.Usage()
+	if len(pos) != 3 || pos[0] != "set" {
+		fmt.Fprintf(os.Stderr, "用法: capalloc set <key> <value> --evidence \"<锚>\"\n白名单: risk.max_exposure_usd|risk.max_notional_usd|invest.paper.notional_usd\n")
 		os.Exit(2)
 	}
-	key, raw := flag.Arg(1), flag.Arg(2)
+	key, raw := pos[1], pos[2]
 	val, err := strconv.ParseFloat(raw, 64)
 	if err != nil || val <= 0 {
 		log.Fatalf("值形败 %q", raw)
@@ -136,7 +145,7 @@ func main() {
 		log.Fatalf("连库败: %v", err)
 	}
 	defer pool.Close()
-	if err := run(ctx, poolStore{pool}, key, val, *evidence); err != nil {
+	if err := run(ctx, poolStore{pool}, key, val, evidence); err != nil {
 		log.Fatalf("%v", err)
 	}
 	log.Printf("[capalloc] %s→%.0f", key, val)
