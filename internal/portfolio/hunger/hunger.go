@@ -22,11 +22,11 @@ import (
 	"o/internal/platform/config"
 )
 
-// hungerSeat 事件行席别（DM 执行环=决策席——collab 写面判据口径）。
-const hungerSeat = "决策席"
+// hungerSeat 事件行席别（纪元3=探测席——探针族事件行写面判据口径）。
+const hungerSeat = "探测席"
 
 // hungerTicket 常设环归属票号（评审拍 T-0360 同例——例行行携环票号）。
-const hungerTicket = "T-0376"
+const hungerTicket = ""
 
 // Sensor 饥饿感知器（fin 池=SG 钱径面；cfg=app_config 热读）。
 type Sensor struct {

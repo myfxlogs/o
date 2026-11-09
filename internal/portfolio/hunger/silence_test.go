@@ -74,7 +74,7 @@ func lesionRows(t *testing.T, pool *pgxpool.Pool) (silence, esc int) {
 	t.Helper()
 	ctx := context.Background()
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
-		WHERE event='族沉默' AND ticket='T-0384'`).Scan(&silence); err != nil {
+		WHERE event='族沉默' AND ticket=''`).Scan(&silence); err != nil {
 		t.Fatal(err)
 	}
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event

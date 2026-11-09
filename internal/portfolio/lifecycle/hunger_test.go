@@ -232,11 +232,11 @@ func TestHungerTickTriggeredRunsRespondWithRows(t *testing.T) {
 	r.hungerTick(ctx)
 	var n int
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
-		WHERE event='饥饿' AND seat='决策席' AND ticket='T-0376'`).Scan(&n); err != nil || n != 1 {
+		WHERE event='饥饿' AND seat='探测席' AND ticket=''`).Scan(&n); err != nil || n != 1 {
 		t.Fatalf("饥饿行缺: n=%d err=%v", n, err)
 	}
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
-		WHERE event='饥饿响应' AND ticket='T-0376' AND note LIKE 'step=%'`).Scan(&n); err != nil || n != 4 {
+		WHERE event='饥饿响应' AND ticket='' AND note LIKE 'step=%'`).Scan(&n); err != nil || n != 4 {
 		t.Fatalf("四步响应行: n=%d err=%v", n, err)
 	}
 	var en bool
@@ -247,7 +247,7 @@ func TestHungerTickTriggeredRunsRespondWithRows(t *testing.T) {
 		t.Fatalf("休眠族未复活: en=%v st=%s err=%v", en, st, err)
 	}
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
-		WHERE event='参数调整' AND ticket='T-0376' AND note LIKE 'target=fin_opp_template%'`).Scan(&n); err != nil || n != 1 {
+		WHERE event='参数调整' AND ticket='' AND note LIKE 'target=fin_opp_template%'`).Scan(&n); err != nil || n != 1 {
 		t.Fatalf("参数调整行缺: n=%d err=%v", n, err)
 	}
 }

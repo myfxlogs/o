@@ -112,7 +112,7 @@ func TestMinerClusterThresholdProducesPending(t *testing.T) {
 	// 留账行（自主≠无账）。
 	var m int
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
-		WHERE event='教训矿工' AND ticket='T-0385' AND note LIKE 'pending#%'`).Scan(&m); err != nil || m != 1 {
+		WHERE event='教训矿工' AND ticket='' AND note LIKE 'pending#%'`).Scan(&m); err != nil || m != 1 {
 		t.Fatalf("留账行缺: m=%d err=%v", m, err)
 	}
 }

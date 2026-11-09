@@ -17,7 +17,7 @@ rsync -az "${EXTRA[@]}" --files-from=<(git -c core.quotepath=false ls-files) ./ 
 git -c core.quotepath=off ls-files '*.go' 'migrations/*.sql' > /tmp/o-sync-tracked.$$
 # T-0372：ssh 取数败≠空集——败=SG 陈旧清单不可知（stale 静默漏清），
 # 同式升件显报；容错语义不动（仍按空集差集判不删活件）。
-OPS_ESC_SH="${O_OPS_ESC_SH:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/meta/ops_esc.sh}"
+OPS_ESC_SH="${O_OPS_ESC_SH:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/cognition/escalate.sh}"
 ssh_rc=0
 ssh "$SG" "cd $DEST 2>/dev/null && find . \\( -name '*.go' -o -name '*.sql' -path './migrations/*' \\) -type f -not -path './internal/gen/*'" 2>/dev/null | sed 's|^\./||' | sort > /tmp/o-sync-sg.$$ || ssh_rc=$?
 if [ "$ssh_rc" -ne 0 ]; then

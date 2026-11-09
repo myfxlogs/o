@@ -39,8 +39,6 @@ image_only	.dockerignore
 image_only	cmd/core/*
 image_only	cmd/migrate/*
 image_only	cmd/feishu-notify/*
-image_only	cmd/metabus/*
-image_only	cmd/headlesspump/*
 image_only	cmd/trxpolldiag/*
 collecto	cmd/collector/*
 collecto	internal/data/*

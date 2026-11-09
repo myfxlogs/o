@@ -17,12 +17,12 @@ import (
 // 票面钦定值（T-0385 范围①④——慢拍窗/聚类阈/日额/签名冷却全票面给定，
 // 不配键：键缺 fail-closed 语义非矿工域，常量在案同 silence.go 例）。
 const (
-	minerWindowHours = 12       // 慢拍扫窗（票面建议 12h——记忆面非急诊）
-	minerClusterMin  = 2        // 聚类阈——同窗同签名≥2 起稿
-	minerDailyCap    = 5        // 防灌日额——当日 pending 草案 ≤5
-	minerDedupDays   = 7        // 签名冷却——同签名案 7d 内不重挖（pending 恒挡）
-	minerTicket      = "T-0385" // 矿工归属票号（例行行携环票号同 T-0376 例）
-	minerSeat        = "决策席"    // 矿工行席别（DM 执行环=决策席同 hungerSeat）
+	minerWindowHours = 12    // 慢拍扫窗（票面建议 12h——记忆面非急诊）
+	minerClusterMin  = 2     // 聚类阈——同窗同签名≥2 起稿
+	minerDailyCap    = 5     // 防灌日额——当日 pending 草案 ≤5
+	minerDedupDays   = 7     // 签名冷却——同签名案 7d 内不重挖（pending 恒挡）
+	minerTicket      = ""    // 矿工归属对象（纪元3票面亡——置空）
+	minerSeat        = "探测席" // 矿工行席别（纪元3=探测席同 hungerSeat）
 )
 
 // minerRedSet 红线类级集（fin_0111 ops_precedent_trg 同款黑名单——class 或
