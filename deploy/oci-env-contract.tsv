@@ -4,14 +4,8 @@
 # 同步改本表——deploy_oci.sh 环约对账即读此表（缺 req=1 键预检拒换）。
 o-collecto	SG_PG_DSN	1
 o-collecto	ROSTER_PG_DSN	0
-o-collecto	COLLECTO_MT5_LOGIN	0
-o-collecto	COLLECTO_MT5_PASSWORD	0
-o-collecto	COLLECTO_MT5_SERVER	0
-o-collecto	COLLECTO_MT5_HOST	0
-o-collecto	COLLECTO_MT5_GATEWAY_ADDR	0
 o-projector	MD_PG_DSN	1
 o-projector	SG_PG_DSN	1
 o-research	SG_PG_DSN	1
 o-research	FIN_PG_DSN	1
 o-research	ROSTER_PG_DSN	0
-o-research	READCRED_URL	0

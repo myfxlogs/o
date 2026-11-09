@@ -51,13 +51,31 @@ func OpenSession(ctx context.Context, pool *pgxpool.Pool, cfg *config.Client) (*
 	return nil, fmt.Errorf("阶段=connect: %w", lastErr)
 }
 
-// endpoints 网关址链读——mt5.gateway_addr 主址+mt5.gateway_fallbacks JSON
-// 字符串列备用址（缺/坏=仅主址；备用址空=单端点旧行为）。每调重读=
-// app_config 端点热更免重启（collector 启动缓存坑根修面）。
+// endpoints 网关址链+凭据读（SG 侧会话径）。址链=gatewayAddrs 同件——
+// OCI 桥腿（env 凭据）与本件（密文凭据）共享同一址源，端点热更两桥同愈。
 func endpoints(ctx context.Context, pool *pgxpool.Pool, cfg *config.Client) ([]string, Credentials, error) {
-	addr, cr, err := readCreds(ctx, pool, cfg)
+	addrs, err := gatewayAddrs(cfg)
 	if err != nil {
 		return nil, Credentials{}, err
+	}
+	_, cr, err := readCreds(ctx, pool, cfg)
+	if err != nil {
+		return nil, Credentials{}, err
+	}
+	return addrs, cr, nil
+}
+
+// gatewayAddrs 网关址链读——mt5.gateway_addr 主址+mt5.gateway_fallbacks JSON
+// 字符串列备用址（缺/坏=仅主址；备用址空=单端点旧行为）。每调重读=
+// app_config 端点热更免重启（collector 启动缓存坑根修面）。
+func gatewayAddrs(cfg *config.Client) ([]string, error) {
+	raw, err := cfg.Get("mt5.gateway_addr")
+	if err != nil {
+		return nil, fmt.Errorf("mt5.gateway_addr: %w", err)
+	}
+	var addr string
+	if err := json.Unmarshal(raw, &addr); err != nil {
+		return nil, err
 	}
 	addrs := []string{addr}
 	if raw, err := cfg.Get("mt5.gateway_fallbacks"); err == nil {
@@ -70,7 +88,7 @@ func endpoints(ctx context.Context, pool *pgxpool.Pool, cfg *config.Client) ([]s
 			}
 		}
 	}
-	return addrs, cr, nil
+	return addrs, nil
 }
 
 // session 一次会话生命周期：Connect→boot（账户快照+符号面+订阅）→OnQuote 流消费。
