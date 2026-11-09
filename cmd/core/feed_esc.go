@@ -1,8 +1,12 @@
-// feed_esc.go —— 鲜度死升件环（业主令「探针只上 UI 不落 ops_event=病灶
-// 本体——后端对前端零信任」）：ops_face 同源 healthComps() 注册表 60s 拍评
-// dead 态——转死=ops_event 升件进唤知环（esc_class=断流/esc_scope=组件名/
-// 24h 同窗去重防重启风暴）；复绿=恢复行携升件#id 自闭（处置席核现况
-// 零会话开销——唤知环 dedup 视引证行为已处置）。
+// feed_esc.go —— ops_event 升件环（业主令「探针只上 UI 不落 ops_event=病灶
+// 本体——后端对前端零信任」+「资金分配决策权整体下放 RSI/system」）：
+// 60s 拍评两类信号面——
+//
+//	①鲜度死：ops_face 同源 healthComps 注册表 dead 态→升件 esc_class=断流
+//	②部署缺口：净值/闸值/族需额对拍→升件 esc_class=资金闸
+//
+// 转死=升件（esc_scope=键,24h 同窗去重防重启风暴）；复绿=恢复行携升件#id
+// 自闭（唤知环 dedup 视引证=已处置,自愈案例零认知开销）。
 package main
 
 import (
@@ -12,97 +16,153 @@ import (
 	"time"
 )
 
-// feedEscEvery 升件拍节（ops_face dead 阈最小 2min——60s 拍保证死不超拍
-// 级误报又不过频；sched-exempt-ok 期界等待非业务轮询）。
-const feedEscEvery = 60 * time.Second
+// escEvery 升件拍节（dead 阈最小 2min——60s 拍保证死不超拍级误报又不过频）。
+const escEvery = 60 * time.Second
 
-// feedEscDedupHours 同窗去重——同键死 24h 至多一报（进程重启后 DB 同窗
+// escDedupHours 同窗去重——同键 24h 至多一报（进程重启后 DB 同窗
 // 兜底内存面丢忆；覆盖失明探针同契）。
-const feedEscDedupHours = 24
+const escDedupHours = 24
 
-// feedEscLoop 常驻拍（o-core 装配环起——面死/复绿状态机在内存，
+// escLoop 常驻拍（o-core 装配环起——转死/复绿状态机在内存,
 // 24h 同窗 dedup 在库）。ctx 终=进程退。
-func (c coreService) feedEscLoop(ctx context.Context) {
-	t := time.NewTicker(feedEscEvery) // sched-exempt-ok：鲜度判定期界（dead 阈最小 2min,60s 拍非业务轮询）
+func (c coreService) escLoop(ctx context.Context) {
+	t := time.NewTicker(escEvery) // sched-exempt-ok：信号判定期界非业务轮询
 	defer t.Stop()
-	deadSince := map[string]time.Time{} // comp → 本次死起始（恢复行注死窗）
+	deadSince := map[string]time.Time{} // scope → 本次死起始（恢复行注死窗）
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-t.C:
 		}
-		for _, b := range healthComps() {
-			var ts *time.Time
-			if err := c.pool.QueryRow(ctx, b.query).Scan(&ts); err != nil {
-				continue // 读件败本拍让位——非死证据不误报
-			}
-			isDead := false
-			if ts == nil {
-				isDead = b.zeroNote == "" // 语义空态面（zeroNote 在案）零行非死
-			} else {
-				isDead = time.Since(*ts) > b.dead
-			}
-			if isDead {
-				if _, ok := deadSince[b.name]; !ok {
-					deadSince[b.name] = time.Now()
-					c.feedEscalate(ctx, b, ts)
-				}
-			} else if since, ok := deadSince[b.name]; ok {
-				delete(deadSince, b.name)
-				c.feedRecover(ctx, b, since)
-			}
-		}
+		c.feedEscCheck(ctx, deadSince)
+		c.deployEscCheck(ctx, deadSince)
 	}
 }
 
-// feedEscalate 转死升件：同窗 24h dedup 后落 ops_event 升件
-// （esc_class=断流 esc_scope=组件名——处置席判类册可辨；
-// note=面死定性+fix runbook 指针+末鲜 ts 证据）。
-func (c coreService) feedEscalate(ctx context.Context, b compBeat, last *time.Time) {
+// feedEscCheck 鲜度面逐件判——面死转升件/复绿转自闭。
+func (c coreService) feedEscCheck(ctx context.Context, deadSince map[string]time.Time) {
+	for _, b := range healthComps() {
+		var ts *time.Time
+		if err := c.pool.QueryRow(ctx, b.query).Scan(&ts); err != nil {
+			continue // 读件败本拍让位——非死证据不误报
+		}
+		isDead := false
+		if ts == nil {
+			isDead = b.zeroNote == "" // 语义空态面（zeroNote 在案）零行非死
+		} else {
+			isDead = time.Since(*ts) > b.dead
+		}
+		c.escEdge(ctx, deadSince, "断流", b.name, isDead, func() string {
+			lastTxt := "零行"
+			if ts != nil {
+				lastTxt = fmt.Sprintf("末鲜 %s（陈 %s）", ts.UTC().Format("01-02 15:04Z"), time.Since(*ts).Round(time.Second))
+			}
+			return fmt.Sprintf("面断流 %s：%s——超 dead 阈 %s。%s", b.name, lastTxt, b.dead, b.fix)
+		})
+	}
+}
+
+// deployEscCheck 部署面缺口探（业主令「资金分配归 RSI 决」进水口）：
+// ①cap_hit——live+probe 族需额 ≥90% 敞口闸（闸到顶=事实非判词）
+// ②idle_capital——需额 <25% 净值 ∧ live 族在册（资本闲置=事实非判词）
+// 判词归唤知会话（runbook 资金闸档）——探针只述实数不带结论。
+func (c coreService) deployEscCheck(ctx context.Context, deadSince map[string]time.Time) {
+	var eq *float64
+	if err := c.pool.QueryRow(ctx, `SELECT equity FROM md_equity_curve
+		WHERE ccy='NAV' ORDER BY ts DESC LIMIT 1`).Scan(&eq); err != nil || eq == nil || *eq <= 0 {
+		return // 净值读件缺=不判（禁假证据升件）
+	}
+	var demand float64
+	if err := c.pool.QueryRow(ctx, `SELECT coalesce(sum(notional_usd),0)
+		FROM fin_strategy WHERE state IN ('live','probe')`).Scan(&demand); err != nil {
+		return
+	}
+	var liveN int
+	_ = c.pool.QueryRow(ctx, `SELECT count(*) FROM fin_strategy WHERE state='live'`).Scan(&liveN)
+	exp := c.cfgF("risk.max_exposure_usd")
+	notional := c.cfgF("risk.max_notional_usd")
+	facts := fmt.Sprintf("净值=%.0f 需额=%.0f(live×%d+probe) 敞口闸=%.0f 单笔闸=%.0f 利用率=%.0f%%",
+		*eq, demand, liveN, exp, notional, 100*demand/maxf(exp, 1))
+	c.escEdge(ctx, deadSince, "资金闸", "cap_hit",
+		exp > 0 && demand >= 0.9*exp, func() string {
+			return fmt.Sprintf("敞口闸到顶：%s——live/probe 族需额已贴闸（部署面事实，阈值判词归唤知会话）", facts)
+		})
+	c.escEdge(ctx, deadSince, "资金闸", "idle_capital",
+		liveN > 0 && eq != nil && demand < 0.25**eq, func() string {
+			return fmt.Sprintf("资本闲置：%s——已证族在册而部署不足净值 1/4（部署面事实，是否真缺口归唤知会话裁）", facts)
+		})
+}
+
+// cfgF 闸值浮点读（缺席/坏件=0——0 值天然不满足触发式,fail-safe）。
+func (c coreService) cfgF(key string) float64 {
+	v, err := c.cfg.GetFloat(key)
+	if err != nil {
+		return 0
+	}
+	return v
+}
+
+func maxf(a, b float64) float64 {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+// escEdge 沿触发——非死→死=升件(同窗 dedup)；死→非死=恢复行自闭。
+func (c coreService) escEdge(ctx context.Context, deadSince map[string]time.Time,
+	class, scope string, dead bool, note func() string) {
+	key := class + "/" + scope
+	if dead {
+		if _, ok := deadSince[key]; !ok {
+			deadSince[key] = time.Now()
+			c.escalate(ctx, class, scope, note())
+		}
+		return
+	}
+	if since, ok := deadSince[key]; ok {
+		delete(deadSince, key)
+		c.recoverNote(ctx, class, scope, since)
+	}
+}
+
+// escalate 转死升件：同窗 24h dedup 后落 ops_event 升件。
+func (c coreService) escalate(ctx context.Context, class, scope, note string) {
 	var dup int
 	if err := c.pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
 		WHERE event='升件' AND esc_class=$1 AND esc_scope=$2
 		AND ts>now()-make_interval(hours=>$3)`,
-		"断流", b.name, feedEscDedupHours).Scan(&dup); err != nil || dup > 0 {
+		class, scope, escDedupHours).Scan(&dup); err != nil || dup > 0 {
 		return // 读败静默下拍再试；同窗有报不暴
 	}
-	lastTxt := "零行"
-	if last != nil {
-		lastTxt = fmt.Sprintf("末鲜 %s（陈 %s）", last.UTC().Format("01-02 15:04Z"), time.Since(*last).Round(time.Second))
-	}
-	note := fmt.Sprintf("面断流 %s：%s——超 dead 阈 %s。%s",
-		b.name, lastTxt, b.dead, b.fix)
 	if _, err := c.pool.Exec(ctx,
 		`INSERT INTO ops_event(seat,event,ticket,note,esc_class,esc_scope)
-		VALUES('探测席','升件','',$1,'断流',$2)`,
-		note, b.name); err != nil {
-		log.Printf("[feedesc] 升件写败 %s: %v", b.name, err)
+		VALUES('探测席','升件','',$1,$2,$3)`,
+		note, class, scope); err != nil {
+		log.Printf("[esc] 升件写败 %s/%s: %v", class, scope, err)
 		return
 	}
-	log.Printf("[feedesc] 面死升件 %s——%s", b.name, lastTxt)
+	log.Printf("[esc] 升件 %s/%s——%s", class, scope, note)
 }
 
-// feedRecover 复绿恢复行：引 升件#<最近同窗未销 id> 自闭（唤知环 dedup
-// 视引证=已处置——自愈案例零认知开销；无同窗升件=静默不留废行）。
-func (c coreService) feedRecover(ctx context.Context, b compBeat, since time.Time) {
+// recoverNote 复绿恢复行：引 升件#<最近同窗未销 id> 自闭。
+func (c coreService) recoverNote(ctx context.Context, class, scope string, since time.Time) {
 	var id int64
 	if err := c.pool.QueryRow(ctx, `SELECT e.id FROM ops_event e
-		WHERE e.event='升件' AND e.esc_class='断流' AND e.esc_scope=$1
-		AND e.ts>now()-make_interval(hours=>$2)
+		WHERE e.event='升件' AND e.esc_class=$1 AND e.esc_scope=$2
+		AND e.ts>now()-make_interval(hours=>$3)
 		AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.ts>e.ts
 			AND x.note ~ ('升件#'||e.id::text||'([^0-9]|$)'))
 		ORDER BY e.id DESC LIMIT 1`,
-		b.name, feedEscDedupHours).Scan(&id); err != nil {
-		return // 无在案升件（同窗外/已销）=静默
+		class, scope, escDedupHours).Scan(&id); err != nil {
+		return // 无在案升件=静默
 	}
-	note := fmt.Sprintf("升件#%d 复绿——%s 恢复新鲜（死窗 %s 内自愈/重启/人工介入；处置席按 repair 日志与 unit 重启痕定性销账）",
-		id, b.name, time.Since(since).Round(time.Second))
+	note := fmt.Sprintf("升件#%d 复绿——%s/%s 恢复（死窗 %s 内自愈/重启/处置；处置席按 repair/配置账定性销账）",
+		id, class, scope, time.Since(since).Round(time.Second))
 	if _, err := c.pool.Exec(ctx,
 		`INSERT INTO ops_event(seat,event,ticket,note)
 		VALUES('探测席','恢复','',$1)`, note); err != nil {
-		log.Printf("[feedesc] 恢复写败 %s: %v", b.name, err)
-		return
+		log.Printf("[esc] 恢复写败 %s/%s: %v", class, scope, err)
 	}
-	log.Printf("[feedesc] 面复绿 %s（升件#%d 自闭）", b.name, id)
 }
