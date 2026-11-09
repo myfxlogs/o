@@ -53,8 +53,8 @@ func (r *Runner) AttachUniverse(fn func(ctx context.Context) ([]string, error)) 
 // hunger 拍行席别/环票号（internal/portfolio/hunger 同款口径——DM 执行环=
 // 决策席，例行行携常设环票号 T-0360 同例）。
 const (
-	hungerSeat   = "决策席"
-	hungerTicket = "T-0376"
+	hungerSeat   = "探测席"
+	hungerTicket = ""
 )
 
 // hungerBeatEvery 饥饿拍周期（var=测试面覆写锚——生产值钦定不动）。

@@ -33,7 +33,7 @@ const silenceDedupHours = 24
 const silenceEscClass = "观测盲"
 
 // silenceTicket 探针归属票号（T-0384 立件——例行行携环票号同 T-0376 例）。
-const silenceTicket = "T-0384"
+const silenceTicket = ""
 
 // ProbeFamilies 族级沉默探针一拍：模板全集两数对拍→病灶行+升件。
 // kind↔template 映射零硬编码——票面钦「现成语义链优先」两链派生：

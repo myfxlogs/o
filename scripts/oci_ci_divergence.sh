@@ -26,7 +26,7 @@ LARCH=${O_CI_LOCAL_ARCH:-$(uname -m)}
 echo "🚨 [check-all] ARM↔x86 分歧：sha=${SHA:0:12} OCI($OARCH) 绿、本盒($LARCH) 红——提案判据③升件+档A/B复审，禁静默" >&2
 printf 'diverged %s oci=%s local=%s\n' "$(date -Is)" "$OARCH" "$LARCH" > "$SIDE.diverged" 2>/dev/null || true # tolerate: 痕写败不阻断升件
 
-ESC=${O_OPS_ESC_SH:-"$(dirname -- "${BASH_SOURCE[0]}")/meta/ops_esc.sh"}
+ESC=${O_OPS_ESC_SH:-"$(dirname -- "${BASH_SOURCE[0]}")/cognition/escalate.sh"}
 [ -x "$ESC" ] && "$ESC" '跑席' '' '' '' "OCI-ARM-X86-DIVERGENCE:${SHA:0:12}" \
   "同 sha OCI($OARCH) 绿、本盒($LARCH) 红——提案判据③升件+档A/B复审（禁静默）" \
   >/dev/null 2>&1 || true # tolerate: 升件末环写败静默退（结构性限度在案）

@@ -126,7 +126,7 @@ func TestRespondSequenceRunsAllStepsWithRows(t *testing.T) {
 	}
 	var note string
 	if err := pool.QueryRow(ctx, `SELECT note FROM ops_event
-		WHERE event='参数调整' AND ticket='T-0376' ORDER BY id DESC LIMIT 1`).Scan(&note); err != nil {
+		WHERE event='参数调整' AND ticket='' ORDER BY id DESC LIMIT 1`).Scan(&note); err != nil {
 		t.Fatal(err)
 	}
 	for _, frag := range []string{"target=fin_opp_template", "旧=enabled=false/state=retired",
@@ -145,7 +145,7 @@ func TestRespondSequenceRunsAllStepsWithRows(t *testing.T) {
 	// 每步事件行落账（四步齐）。
 	var evn int
 	if err := pool.QueryRow(ctx,
-		`SELECT count(DISTINCT note) FROM ops_event WHERE event='饥饿响应' AND ticket='T-0376'`,
+		`SELECT count(DISTINCT note) FROM ops_event WHERE event='饥饿响应' AND ticket=''`,
 	).Scan(&evn); err != nil || evn < 4 {
 		t.Fatalf("步事件行不齐: %d", evn)
 	}

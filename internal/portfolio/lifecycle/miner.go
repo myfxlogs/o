@@ -52,7 +52,7 @@ func (r *Runner) minerEscalate(ctx context.Context, cause error) {
 		SELECT $1,'升件',$2,$3,'写败','LIFECYCLE-MINER'
 		WHERE NOT EXISTS (SELECT 1 FROM ops_event
 			WHERE event='升件' AND note LIKE $4 AND ts>now()-interval '24 hours')`,
-		hungerSeat, "T-0385", fmt.Sprintf("minertick 败: %v", cause),
+		hungerSeat, "", fmt.Sprintf("minertick 败: %v", cause),
 		"minertick 败%"); err != nil {
 		log.Printf("[lifecycle] minertick 自报行落败（结构性限度静默退）: %v（原败: %v）", err, cause)
 	}
