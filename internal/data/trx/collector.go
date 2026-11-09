@@ -153,8 +153,10 @@ func (c *TxsCollector) Poll(ctx context.Context) ([]fact.Fact, error) {
 					rec.AmountSun = amt
 				}
 			}
-			if err := c.store.UpsertTRXTx(ctx, rec); err != nil {
-				return nil, fmt.Errorf("trx txs upsert: %w", err)
+			// 自营账（业主令 2026-11-09：TRX=自营盘只记账不入公司盈亏）——
+			// UpsertTRXTxBooked 同 tx 原子：新行才记,鲜价缺席整写回滚下拍重采。
+			if err := c.store.UpsertTRXTxBooked(ctx, rec); err != nil {
+				return nil, fmt.Errorf("trx txs upsert booked: %w", err)
 			}
 			fetched++
 		}
