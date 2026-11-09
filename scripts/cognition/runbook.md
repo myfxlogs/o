@@ -21,6 +21,8 @@ WHERE event='升件' AND ts>now()-interval '7 days'
 ORDER BY id"
 psql "$FIN_DSN" -c "SELECT id,signature,cluster_n,numbers FROM fin_eng_lesson
   WHERE verify_state='ai_evaluated' AND status='pending' ORDER BY id LIMIT 20"
+psql "$FIN_DSN" -c "SELECT id,kind,entity_ref,numbers FROM fin_econ_lesson
+  WHERE status='pending' ORDER BY id LIMIT 20"
 ```
 
 ### ①½ 生成面（信号面净时——「探未知」常驻径）
@@ -90,6 +92,14 @@ psql "$FIN_DSN" -c "SELECT id,signature,cluster_n,numbers FROM fin_eng_lesson
 判弃→`UPDATE fin_eng_lesson SET status='verdicted',
 verdict_ref='弃——<理由>'`（触发器自动落裁定席行——勿写
 verify_state='dismissed'，CHECK 约束不收此值）。
+
+`fin_econ_lesson` pending 同判（SG-5544 表——诊断/结案监察案产线：
+rootcause_diag/trade_postmortem/semantic_caliber 等）。表无
+verify_state 列，裁定语义全在 verdict_ref 前缀：
+`canon:<条目id或口径文>`（可归纳→同走经济经验库条目径）、
+`merge:ticket:<同案票>`（同窗病灶并案）、`弃——<理由>`；
+status 一律落 `'verdicted'`——触发器 ops_decision_econ_trg
+只认此值自动落裁定席行，勿写 'canon' 状态值。
 
 ### ④ 收口
 每个摸过的升件都有处置行（销/修/条件请求三态其一）；
