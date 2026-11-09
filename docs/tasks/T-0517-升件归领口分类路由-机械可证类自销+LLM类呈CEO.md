@@ -24,3 +24,13 @@
 - 实现：`common.sh` gw_ledger 三值包引（修前 `VALUES('gateway',裸值,...)` 语法错静默吞——四域账本行自启用零落实证，桩测断言 `,收敛,` 恰编码 bug 格式已同步改 `,'收敛',`）；`escalate.sh` 阶梯前段加分类归领 pass——done-翻漏（done/件实证→完成翻）、幽灵票件（T形双无→作废+处置）、无籍行（T-9xxx/SELFTEST→处置销；非T伪键→处置销豁免议）、done-无收口链（史债记档销）、升件失领（母件全销→二阶自销，自引排除 e.id<>eid）；裁断/LLM 判断类零动作让梯（业主令「报 CEO 分类指派」=梯 L3→CEO 既有径）。
 - 证据：gateway_test 新场景⑥b 五类断（自销=4+让梯+母未销不自销）+存量八场景全绿；手工实证=gw_ledger 修后 '升件路由' 行落库（修前三试零落）。
 - 坑处置：KB 条目 heredoc-sql-unquoted-silent-swallow 同 commit。
+
+## 归宗裁记（外审席）
+
+[外审裁:T-0517] 过 @ebbd8b29b09eafd288283c26033708ccae119f08 | 断言对拍5/5 | 戳c203409cf21b8b9c50d2f1b482a38f27aa8181c1（推径=stamped-sha:master——HEAD 起草拍连移不废戳 T-0467 钦定径） | 部署态=文件面随 merge 即活（gatewayd 每拍 bash 子件读新径），首拍实证：分类归领自销=313 行落账（升件路由汇总行 #7469）+裁断类让梯 L1→CTO 路由行在飞（#7477+）
+
+外审裁过归宗@ebbd8b29b09eafd288283c26033708ccae119f08
+
+- 独立复验：check_all scoped 复跑绿（戳面 7b0f07d 绑 SHA 在案）；gateway_test 八场景+⑥b 全绿；gw_ledger 修前形 EXPLAIN 实证语法错（column "升件路由" does not exist）修后形 plan 过+产侧直测落行 #7297。
+- 产侧首拍对拍：merge 03:18:53Z→escalate 拍 03:21Z 分类前段自销 313（处置席/CTO/COS 销行 seat≠gateway——done翻漏完成翻/幽灵作废/无籍处置/史链记档/失领自销全类实证）→梯段裁断类 L1→CTO 机械路由 gw_ledger 落行。
+- 范围外发现（立案归他票，不阻裁）：①层扫 24h dedup 窗内底层病灶仍在——无籍行/史链类升件下拍重升再销=慢性环（码内注「豁免归层扫票面另案」在案）；②起草拍对本类签名逐签立票（T-0622~T-0661+ 观测中）——销件不消已立票，draft-拍与归领口的签名消费序另案议；③res_ins/gw_ledger 仍 >/dev/null 2>&1 全吞——KB 教训②「写败留样」未落实（本件断言不含，记档）。
