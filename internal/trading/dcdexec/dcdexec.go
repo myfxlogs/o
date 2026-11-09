@@ -157,9 +157,16 @@ func Open(ctx context.Context, d Deps, v Venue, spec Spec) (int64, error) {
 		Mark(ctx, d.Pool, execID, "ambiguous", uerr)
 		return execID, fmt.Errorf("dcd trade 响应解析败（歧态势禁补单）: %v", uerr)
 	}
-	if rows[0].SCode != "0" {
-		MarkVE(ctx, d.Pool, execID, "failed", rows[0].SCode, rows[0].SMsg)
-		return execID, fmt.Errorf("dcd 业务拒 %s: %s", rows[0].SCode, rows[0].SMsg)
+	// T-0462 响应方言实证：成单返回 ordId 而 sCode 缺席（""≠"0"误走业务拒
+	// 支=幻影敞口根——台账 failed 但 venue LIVE 仓真开）。拒=显式非零 sCode；
+	// sCode 缺席放行由 order-status 定真态（同 T-0160 歧态势律）。
+	if sc := rows[0].SCode; sc != "" && sc != "0" {
+		MarkVE(ctx, d.Pool, execID, "failed", sc, rows[0].SMsg)
+		return execID, fmt.Errorf("dcd 业务拒 %s: %s", sc, rows[0].SMsg)
+	}
+	if rows[0].OrdID == "" {
+		Mark(ctx, d.Pool, execID, "ambiguous", fmt.Errorf("ordId+sCode 双缺"))
+		return execID, fmt.Errorf("dcd trade 响应 ordId 缺（歧态势禁补单——exec_id=%d 待查证）", execID)
 	}
 	// order-status 对拍定真态（T-0160 返修①：读败/空态→ambiguous 禁默认
 	// LIVE 造仓——歧态势禁补单纪律同 clOrdId 律；exec 行待查证非吞）。
