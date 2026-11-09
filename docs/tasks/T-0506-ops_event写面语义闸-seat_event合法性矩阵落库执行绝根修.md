@@ -14,6 +14,16 @@
   (seat,event) 组合合法性；裸 psql INSERT 更是一切闸全绕；
 - 经验条目在案：dispatch-seat-whitelist-phase-lie。
 
+## 范围（depgate 清单）
+
+1. `migrations/`——新迁移件建 (seat,event) 白名单约束/trigger
+   （只加新迁移不改存量件）；
+2. `internal/store/pgstore/migrate_table.go`——登记新迁移号；
+3. `scripts/meta/`——写径接入面（闸若有 helper 调用点的接线，
+   以及存量组合枚举对拍桩）；
+4. `scripts/meta/tests/`——语义闸桩测新件（拒写/放行/说明类
+   宽容/存量组合全覆盖断言）。
+
 ## 判据
 
 1. **合法性矩阵落库执行**：新迁移建 (seat,event) 白名单约束面——
