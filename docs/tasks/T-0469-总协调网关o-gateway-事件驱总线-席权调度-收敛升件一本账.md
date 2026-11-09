@@ -191,3 +191,25 @@ rejects/migrations/ops-chain/seat-writes/ticket-seq/go test 全谱），
   SQL 命令冲刷）——gatewayd 以 keepalive SELECT 1 周期冲刷兜底，
   真库联调时若有延迟观测可调 O_GATEWAY_KEEPALIVE_SEC。
 - gateway 域子件 env 覆写面（O_GW_*）为桩测面，生产默认值即票面钉值。
+
+### 外审裁段（外审席 2026-11-09）
+
+`[外审裁:T-0469] 过 @merge=626140363 | 断言对拍 8/8 | 戳=check-green-626140363(独立复跑 mode=full 全绿) | 部署态=滞留待戳`
+
+- **读票**：判据八条全列——事件驱/席权/交接/收敛/冻结/幂等/降级/崩溃。
+- **审diff**：1210 行通读——边界红线实证守住：判据零发明全调钦定原件
+  （depgate/dm_queue/dispatch_worker/dm_handoff/mirror_push/deploy_window_due
+  /deploy_*），route 补拉与 mech_tick:102-141 逐字同源对拍实证；新事件词
+  （席权/路由/收敛/升件路由/网关/心跳）相位投影 ELSE→NULL 不扰态，'拉起'
+  有意进词；自写行 seat=gateway 自滤防回环；冻结断言复用
+  escalation_unclaimed 量表同口径；部署幂等 sha:face 与 mech 同账共享；
+  OnFailure 单元在件；meta 弃养死因查毕结论在案（非崩溃死=换代弃养——
+  「交付未启用」同死法条款随案走，启用归本裁后部署径）。
+- **机查**：本席独立复跑 scripts/check_all.sh mode=full 全链绿
+  （不采信工人自述戳；rebase 后 HEAD=ac123c9e3 全绿→merge=626140363
+  再跑全绿——两戳实证，非单戳移植）。
+- **部署态注记**：merge commit 626140363 已上本地 master，推送滞留——
+  绿戳闸当前被外因红 TestReportMacroEventsCount（ledger/report 周一边界，
+  T-0484 挂起同锚，与本票零码面关系）所拒；check_all 并发同 SHA 互噬
+  实证一发（并跑先毁旧戳后红=戳没——坑已升件）；红消后 check_all
+  落戳即推，o-gateway.service 启用+实拍随推径后行。
