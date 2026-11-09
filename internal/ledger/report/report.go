@@ -100,7 +100,17 @@ func Gen(ctx context.Context, pool *pgxpool.Pool, period string, b Bounds) error
 	// 顺手件——纯计数零判据触；daily 不补同周理由）。
 	if period == "weekly" || period == "monthly" {
 		var mev int
-		q1(`SELECT count(*) FROM md_macro_event WHERE event_date>=$1 AND event_date<$2`, &mev, b.Start, b.End)
+		// 期首日界截断根修（2026-11-09 周一红实证）：event_date=DATE
+		// 对 timestamptz 界，PG 把界截回 date——「End=今天」时窗内行
+		// 全排（周一 weekly/月1日 monthly 恒 0）。宏事件表=日程表，
+		// 口径取全日历期：周=Start起 7 天、月=Start起整月。
+		span := "7 days"
+		if period == "monthly" {
+			span = "1 month"
+		}
+		q1(`SELECT count(*) FROM md_macro_event
+		    WHERE event_date>=$1::date AND event_date<($1::date+$2::interval)::date`,
+			&mev, b.Start, span)
 		m["macro_events"] = mev
 	}
 	m["net"] = net
