@@ -2,10 +2,17 @@
 # ceo_queue.sh —— CEO 席无头待裁队列推导（T-0456 业主令双无头建席
 # 配套）：席位上行件归 CEO 方向层；探针/壳轨机械升件留 CTO 壳轨。
 # 判据: event ∈ {升件,呈批} 且 seat ∈ 席位集(COS上行/COS/O-Dev交互席/
-#   决策席/META-DM/裁定席/施工席/外审席/研究员/MECH——T-0509 白名单
-#   呈批作者实写；探针/壳轨机械升件留 CTO 壳轨 seat=CTO 同列)
+#   决策席/META-DM/裁定席/施工席/外审席/研究员——席上行的件非探针自产)
 #   且 ticket<>'' 且其后零终态(裁决/完成/驳回/消/处置/挂起/领单)
 #   ——输出 ticket 一行一个。
+# MECH 席入队语义=T-0507/0509 和解收窄（返修2 钦定逐条）：主支收窄为
+#   event='呈批'（白名单呈批作者实写——票外 ticket='' 呈批走下方
+#   「呈批#id」union 支不经此门，主支 MECH+呈批+ticket<>'' 为保守
+#   覆盖面）；MECH+升件 仍不入 CEO 队=机械升件留 CTO 壳轨不串味
+#   （T-0507 钦定「席集 MECH 对呈批本非必需，收窄零功能损失」）。
+#   T-0507 例外支：seat=MECH ∧ event='层扫' digest 行入队——
+#   digest ticket='层扫' 伪键=单槽最新体检行，终态行 ticket='层扫'
+#   出队后新 digest 再入队。
 # 票外呈批行（T-0509：seat=MECH event=呈批 ticket='' 为票外件不入
 #   相位投影的钉死形）——以「呈批#<ops_event.id>」合成行入队
 #   （议题#id 同构），出队=其后终态事件 note 引证「呈批#id」。
@@ -19,10 +26,12 @@ FIN_DSN="${FIN_DSN:-$(grep '^FIN_PG_DSN=' "${DM_ENV_FILE:-/opt/o-research/env}" 
 psql "$FIN_DSN" -qAt <<'SQL'
 SELECT * FROM (
   SELECT DISTINCT e.ticket AS ticket FROM ops_event e
-  WHERE e.event IN ('升件','呈批')
+  WHERE ((e.event IN ('升件','呈批')
+        AND e.seat IN ('COS上行','COS','O-Dev交互席','决策席','META-DM','CTO','CEO',
+                       '裁定席','施工席','外审席','CEO上行','管理席','研究员'))
+       OR (e.event='呈批' AND e.seat='MECH')
+       OR (e.event='层扫' AND e.seat='MECH'))
     AND e.ticket <> ''
-    AND e.seat IN ('COS上行','COS','O-Dev交互席','决策席','META-DM','CTO','CEO',
-                   '裁定席','施工席','外审席','CEO上行','管理席','研究员','MECH')
     AND NOT EXISTS (
       SELECT 1 FROM ops_event t
       WHERE t.ticket=e.ticket AND t.ts>e.ts

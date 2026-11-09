@@ -101,6 +101,12 @@ cat > "$TMP/bin/drift-converge.sh" <<'EOF'
 printf 'converge\n' >> "$DRIFT_LOG"
 exit "${DRIFT_CONVERGE_RC:-0}"
 EOF
+# 层扫窗桩（T-0507：落名+rc 可控——本体败→mech_esc 升件实证面）
+cat > "$TMP/bin/layer-scan.sh" <<'EOF'
+#!/usr/bin/env bash
+printf 'layer_scan\n' >> "$LSCAN_LOG"
+exit "${LSCAN_RC:-0}"
+EOF
 cat > "$TMP/bin/systemctl" <<'EOF'
 #!/usr/bin/env bash
 if [[ ${2:-} == is-active ]]; then echo inactive; exit 3; fi
@@ -135,6 +141,7 @@ export O_DISPATCH_WATER_SH="$TMP/bin/water"
 export O_DM_QUEUE_SH="$TMP/bin/dm-queue"
 export O_DRIFT_PROBE_SH="$TMP/bin/drift-probe.sh"
 export O_DRIFT_CONVERGE_SH="$TMP/bin/drift-converge.sh"
+export O_LAYER_SCAN_SH="$TMP/bin/layer-scan.sh"
 export O_DRIFT_STATE_DIR="$TMP/drift"
 export O_WORKER_TASK_DIR="$TMP/tasks"
 export O_MANUAL_LANE_SH=/bin/false
@@ -155,10 +162,11 @@ export ESC_LOG="$TMP/esc.log"; : > "$ESC_LOG"
 export DISPATCH_LOG="$TMP/dispatch.log"; : > "$DISPATCH_LOG"
 export WATER_LOG="$TMP/water.log"; : > "$WATER_LOG"
 export DRIFT_LOG="$TMP/drift.log"; : > "$DRIFT_LOG"
+export LSCAN_LOG="$TMP/lscan.log"; : > "$LSCAN_LOG"
 export DISPATCH_RC_SEQ="$TMP/rc.seq"; : > "$DISPATCH_RC_SEQ"
 
 MECH="$ROOT/scripts/meta/mech_tick.sh"
-reset_logs() { : > "$COMP_LOG"; : > "$GO_LOG"; : > "$HB_LOG"; : > "$PULL_LOG"; : > "$DEPLOY_LOG"; : > "$ESC_LOG"; : > "$DISPATCH_LOG"; : > "$WATER_LOG"; : > "$DRIFT_LOG"; }
+reset_logs() { : > "$COMP_LOG"; : > "$GO_LOG"; : > "$HB_LOG"; : > "$PULL_LOG"; : > "$DEPLOY_LOG"; : > "$ESC_LOG"; : > "$DISPATCH_LOG"; : > "$WATER_LOG"; : > "$DRIFT_LOG"; : > "$LSCAN_LOG"; }
 
 # ── ① 承接面全件+心跳+批空窗零部署 ──
 reset_logs
@@ -168,8 +176,9 @@ for c in depgate suspend handoff reflow autoapprove ledger verdict; do
 done
 grep -q 'ticketdraft' "$GO_LOG" || { echo "FAIL ①缺 ticketdraft"; exit 1; }
 grep -q 'ops_headless' "$HB_LOG" || { echo "FAIL ①缺 MECH 心跳"; exit 1; }
+grep -qx 'layer_scan' "$LSCAN_LOG" || { echo "FAIL ①缺层扫窗唤件"; cat "$LSCAN_LOG"; exit 1; }
 [ ! -s "$DEPLOY_LOG" ] && [ ! -s "$ESC_LOG" ] || { echo "FAIL ①批空窗却有部署/升件"; exit 1; }
-echo "ok ①承接面六子件+ticketdraft+心跳，批空窗零部署"
+echo "ok ①承接面六子件+ticketdraft+心跳+层扫窗，批空窗零部署"
 
 # ── ② 应发 image→deploy_image 发；oci→deploy_oci 发 ──
 reset_logs

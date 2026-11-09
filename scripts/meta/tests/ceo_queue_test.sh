@@ -2,7 +2,12 @@
 # ceo_queue_test.sh —— T-0502 CEO 滤队白名单补席桩测：真 PG scratch
 # 库（test-pg 池端口）+自造 ops_event 最小表——全真 SQL 语义非桩面：
 #   ① seat=研究员 升件入队（白名单补席生效）；非白名单席升件仍拒；
-#   ② 裁决行落库（ts 更晚）→ 终态消队语义不破。
+#   ② 裁决行落库（ts 更晚）→ 终态消队语义不破；
+#   ③ T-0509：seat=MECH 票外呈批 ticket='' 以「呈批#<id>」入队；
+#     引证裁决消队；非 MECH 票外呈批不入队。
+#   ⑥ T-0507（返修2 和解后）：MECH+层扫 digest 入队（事件级白名单
+#     收窄——MECH 席集仅呈批）；MECH+升件 仍拒（机械升件留 CTO 壳轨）；
+#     处置 ticket='层扫' 终态消队；新 digest 再入队。
 set -u
 ROOT=$(cd "$(dirname "$0")/../../.." && pwd)
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
@@ -67,6 +72,29 @@ sqlq "INSERT INTO ops_event(seat,event,ticket,note,ts) VALUES
 Q5=$(runq)
 [ -z "$(printf '%s' "$Q5" | tr -d '[:space:]')" ] \
   && ok "非 MECH 票外呈批不入队（席域未放开）" || bad "非 MECH 呈批误入队: $(printf '%s' "$Q5" | tr '\n' ',')"
+
+# ── 场景⑥（T-0507）：MECH+层扫 digest 入队；MECH+升件 仍拒 ─────────
+# （返修2 和解后 MECH 席集收窄=仅呈批——层扫例外支叠加共存）
+sqlq "INSERT INTO ops_event(seat,event,ticket,note,ts) VALUES
+  ('MECH','层扫','层扫','层扫 draft=0 approved=0 dispatched=0 pulled=0 working=0 review=0 verdicted=0 done=0 rejected=0 suspended=0 external=0 error=0 __tie__=0｜异常 queue=0 entity=0 capacity=0 ledger=0 external=0｜unit=ok cap=ok ledger_face=ok tie=0','2026-01-01 00:05:00'),
+  ('MECH','升件','T-9999','层扫定性dispatched-无拉:T-9999——相位dispatched 龄66m','2026-01-01 00:05:00')" >/dev/null
+Q6=$(runq)
+grep -qxF '层扫' <<< "$Q6" \
+  && ok "MECH+层扫 digest 入 CEO 队" || bad "层扫 digest 未入队（T-0507 白名单支破?）: $(printf '%s' "$Q6" | tr '\n' ',')"
+grep -qxF 'T-9999' <<< "$Q6" \
+  && bad "MECH+升件误入 CEO 队（和解收窄后事件级白名单放开过度?）" || ok "MECH+升件仍留 CTO 壳轨"
+
+# ── 场景⑦：处置 ticket='层扫' → digest 终态消队；新 digest 再入队 ──
+sqlq "INSERT INTO ops_event(seat,event,ticket,note,ts) VALUES
+  ('CEO','处置','层扫','体检读毕——全绿','2026-01-01 00:06:00')" >/dev/null
+Q7=$(runq)
+grep -qxF '层扫' <<< "$Q7" \
+  && bad "处置落库后层扫 digest 仍滞留（终态消队破?）" || ok "处置落库 digest 终态消队"
+sqlq "INSERT INTO ops_event(seat,event,ticket,note,ts) VALUES
+  ('MECH','层扫','层扫','层扫 draft=0 approved=0 dispatched=0 pulled=0 working=0 review=0 verdicted=0 done=0 rejected=0 suspended=0 external=0 error=0 __tie__=0｜异常 queue=1 entity=0 capacity=0 ledger=0 external=0｜unit=ok cap=ok ledger_face=ok tie=0','2026-01-01 00:07:00')" >/dev/null
+Q8=$(runq)
+grep -qxF '层扫' <<< "$Q8" \
+  && ok "新 digest 再入队（单槽最新体检行语义）" || bad "新 digest 未再入队: $(printf '%s' "$Q8" | tr '\n' ',')"
 
 echo "ceo_queue scenarios: $pass pass / $fail fail"
 [ "$fail" = 0 ]
