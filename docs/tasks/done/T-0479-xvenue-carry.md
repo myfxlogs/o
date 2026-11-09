@@ -1,6 +1,6 @@
 # T-0479 探针升件自动起草：观测盲@xvenue-carry
 
-- 状态：已批（CTO 批 2026-11-08——病灶产核实：SG 直查 carry_diff 7d=2 行信号活、
+- 状态：完成（决策席裁决通过 2026-11-09——判词在案·取证=收口并master·机械轨票翻）
   fin_opp_eval template ILIKE %xvenue% 7d=0 行、fin_opp_eval 全族 7d=140
   评估机本身在跑、fin_strategy 非 retired xvenue-carry=0——评估链消费面
   对该族零观测盲坐实）
