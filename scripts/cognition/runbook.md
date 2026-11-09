@@ -60,6 +60,20 @@ psql "$FIN_DSN" -c "SELECT id,signature,cluster_n,numbers FROM fin_eng_lesson
   - 设计态缺席（单边陈=该对缺席如实/语义空态面）→销+定性。
   注意：复绿时升件环已落「升件#id 复绿」自闭行者不在未决面——
   摸到即已销，勿重复处置。
+- **资金闸**（seat=探测席 esc_class=资金闸 的升件——o-core 部署缺口探产物，
+  业主令「资金分配决策权整体下放 RSI/system」执行面）→
+  note 已载实数（净值/需额/闸值/利用率）。判词三态：
+  - 加闸→调 `tools/capalloc`（窄门，白名单三键+净值比例包络在码面）：
+    ```bash
+    FIN_PG_DSN=$FIN_PG_DSN go run ./tools/capalloc \
+      set risk.max_exposure_usd <v> --evidence "<判据锚：族实绩+利用率>"
+    ```
+    证据=判词成立的可核锚（live 族净正窗口/需额超闸/pending 提案队列），
+    空锚=工具硬拒；界外值=工具硬拒（无需你裁——门替你裁）。
+  - 减闸→同径（族绩劣化/回撤触线→缩 exposure 或缩单笔——减也是自决）。
+  - 持闸→销+note 写「现配置恰配——<一句定性>」（闲置是对的是保守也是判词）。
+  - 白名单外需求（kill_switch/凭据/新 venue/包络外金额）→ 走「要业主」
+    条件请求——窄门不是万能钥匙，够不着的归业主域。
 - **要码修** → `git worktree add /opt/o-wt/<名>` → `bash scripts/bootstrap_worktree.sh`
   → 改 → `bash scripts/check_all.sh` → 支推 origin → 部署树 merge --no-ff
   （戳落 mirror_push 自推，勿手动推 master——单写者律）
