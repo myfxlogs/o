@@ -68,7 +68,7 @@ type Runner struct {
 	pool   *pgxpool.Pool
 	pusher *Pusher
 	cfg    *config.Client
-	nav    func(ctx context.Context) (float64, error) // T-0170 NAV 日拍源（live 组装闭包；nil=不拍）
+	nav    func(ctx context.Context) (map[string]float64, error) // T-0170 NAV 日拍源——按币原生量（业主令 2026-11-09：各币计各币不折换；nil=不拍）
 }
 
 func NewRunner(pool *pgxpool.Pool, pusher *Pusher) *Runner {
@@ -80,7 +80,7 @@ func (r *Runner) WithConfig(cfg *config.Client) *Runner { r.cfg = cfg; return r 
 
 // WithNav NAV 日拍源接线（T-0170——闭包装配在 cmd/core：live 读件与
 // CoreService 同源，净值口径一处算定。nil=不拍，曲线零行如实）。
-func (r *Runner) WithNav(nav func(ctx context.Context) (float64, error)) *Runner {
+func (r *Runner) WithNav(nav func(ctx context.Context) (map[string]float64, error)) *Runner {
 	r.nav = nav
 	return r
 }
@@ -113,21 +113,24 @@ func (r *Runner) cycle(ctx context.Context) {
 	r.macroDailyPush(ctx, now)
 }
 
-// navSnapshot NAV 日拍入 md_equity_curve（ccy='NAV' 行——append-only 统计面，
-// 曲线读侧按日桶取末值聚，同日多拍（重启补推顺拍）天然幂等收敛）。
+// navSnapshot 资金日拍入 md_equity_curve（venue='ledger' 按币分行——
+// 业主令 2026-11-09：各币计各币不折换，USDT=USDT、USD=USD、BTC=BTC；
+// append-only 统计面，同日多拍天然幂等收敛）。
 func (r *Runner) navSnapshot(ctx context.Context, now time.Time) {
 	if r.nav == nil {
 		return // 未接线=不拍（曲线零行如实，非假零）
 	}
 	nav, err := r.nav(ctx)
 	if err != nil {
-		log.Printf("[report] NAV 日拍读败: %v", err)
+		log.Printf("[report] 资金日拍读败: %v", err)
 		return
 	}
-	if _, err := r.pool.Exec(ctx,
-		`INSERT INTO md_equity_curve(ts,venue,ccy,equity,src)
-		 VALUES (now(),'ledger','NAV',$1,'report_daily')`, nav); err != nil {
-		log.Printf("[report] NAV 日拍写败: %v", err)
+	for ccy, amt := range nav {
+		if _, err := r.pool.Exec(ctx,
+			`INSERT INTO md_equity_curve(ts,venue,ccy,equity,src)
+			 VALUES (now(),'ledger',$1,$2,'report_daily')`, ccy, amt); err != nil {
+			log.Printf("[report] 资金日拍写败 %s: %v", ccy, err)
+		}
 	}
 }
 
