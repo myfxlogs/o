@@ -14,6 +14,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"google.golang.org/protobuf/proto"
@@ -33,7 +34,7 @@ type BridgeCollector struct {
 	cfg       *config.Client
 	meter     *netmeter.Meter
 	rej       *rejects.Door
-	addr      string
+	addrs     []string
 	cr        Credentials
 	dial      func(addr string) (*Client, error)                                                  // 测试注入面
 	symFetch  func(ctx context.Context, cl *Client, sym string) (*mt5pb.SymbolParamsReply, error) // 测试注入面（FIX-02 消哑失败形态 fixture 缝——nil=生产径）
@@ -68,11 +69,20 @@ func NewBridgeCollector(pool *pgxpool.Pool, cfg *config.Client) (*BridgeCollecto
 		return nil, err
 	}
 	host := os.Getenv("COLLECTO_MT5_HOST") // 可空（server 径户 host 空串合法）
-	addr, err := env("GATEWAY_ADDR")
+	rawAddr, err := env("GATEWAY_ADDR")
 	if err != nil {
 		return nil, err
 	}
-	return &BridgeCollector{pool: pool, cfg: cfg, addr: addr,
+	var addrs []string
+	for _, a := range strings.Split(rawAddr, ",") {
+		if a = strings.TrimSpace(a); a != "" {
+			addrs = append(addrs, a)
+		}
+	}
+	if len(addrs) == 0 {
+		return nil, fmt.Errorf("COLLECTO_MT5_GATEWAY_ADDR 全空")
+	}
+	return &BridgeCollector{pool: pool, cfg: cfg, addrs: addrs,
 		cr: Credentials{Login: login, Password: pass, Server: server, Host: host},
 		rej: rejects.New("mt5bridge", "connect_failed", "subscribe_failed",
 			"symbols_missing", "tick_write_err", "symbols_read_failed", "symbol_group_nil")}, nil
@@ -112,14 +122,26 @@ func (c *BridgeCollector) bridgeSession(ctx context.Context, dial func(string) (
 	if len(syms) == 0 {
 		return fmt.Errorf("bridge.mt5.symbols 缺/空——fail-closed 不虚构标的集")
 	}
-	cl, err := dial(c.addr)
-	if err != nil {
-		return err
+	var cl *Client
+	var lastErr error
+	for _, a := range c.addrs {
+		cand, derr := dial(a)
+		if derr != nil {
+			lastErr = derr
+			continue
+		}
+		if cerr := cand.Connect(ctx, c.cr); cerr != nil {
+			cand.Close()
+			lastErr = cerr
+			continue
+		}
+		cl = cand
+		break
+	}
+	if cl == nil {
+		return lastErr
 	}
 	defer cl.Close()
-	if err := cl.Connect(ctx, c.cr); err != nil {
-		return err
-	}
 	defer cl.Disconnect(context.Background())
 	for _, s := range syms {
 		if err := cl.Subscribe(ctx, s); err != nil {
