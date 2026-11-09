@@ -15,6 +15,14 @@ o_worker_ensure_runtime_dir() {
 }
 
 o_worker_parallel_limit() {
+	# T-0509 白名单动作面：界内微调覆写档优先（whitelist_actions.sh
+	# 规则#5 写；有效值 1|2 才采信——坏档/缺档回落 env 缺省律）。
+	local ovf ov
+	ovf="$(o_worker_runtime_dir)/parallel-limit-override"
+	if [ -r "$ovf" ]; then
+		ov=$(head -n1 "$ovf" 2>/dev/null | tr -d '[:space:]')
+		case "$ov" in 1|2) printf '%s\n' "$ov"; return 0 ;; esac
+	fi
 	local limit=${O_WORKER_PARALLEL_LIMIT:-1}
 	case "$limit" in
 		1|2) printf '%s\n' "$limit" ;;

@@ -207,6 +207,16 @@ if [ -n "$FIN_DSN" ]; then
   [ "$VDRC" -ne 0 ] && mech_esc "判词送达闸败" "rc=$VDRC 需业主动作判词滞留未闭环（未闭环件下拍重试）"
 fi
 
+# T-0509 白名单动作面窗（CEO自运感知票C：表内自决/表外呈批——检测五类
+# 触发+whitelist_actions.tsv status 判定+动作执行/呈批/升件三层；判据
+# 全在 whitelist_actions.sh 本件，窗只唤不判）。
+if [ -n "$FIN_DSN" ]; then
+  WL_SH=${O_WHITELIST_SH:-"$SCRIPT_DIR/whitelist_actions.sh"}
+  WLC=0
+  "$WL_SH" || WLC=$?
+  [ "$WLC" -ne 0 ] && mech_esc "白名单动作面败" "rc=$WLC whitelist_actions 未跑净——表内自决/表外呈批滑行（下拍重扫）"
+fi
+
 # ── 收敛窗（GW-001 段A 唯一新逻辑≈40 行）：deploy_window_due 判据→
 # faces 执行。判据全在 deploy_window_due（裁「该不该发」）；本窗只读
 # state=应发 执行 faces= 面集（image→deploy_image.sh / oci→
