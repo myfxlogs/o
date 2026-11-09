@@ -58,7 +58,21 @@ if ! flock -n 9 2>/dev/null; then
   oe_lock "check_all 锁到手 key=${TOPKEY}（前跑已退续跑）"
   echo "✅ [check-all] 锁到手（前跑已退）——续跑" >&2
 fi
-rm -f "$STAMP" "$STAMP.mode" "$STAMP.deferred"   # 重跑先毁旧戳/延后标（含 mode 痕）——中途败不留残戳
+# 同SHA戳域串行闸（纪元3根修——跨树同SHA并发跑互抹戳实证 2026-11-09）:
+# TOPKEY锁按树串行(缓存域),戳域按SHA全局串行(公共gitdir同域)。
+# 锁内复用:前跑同SHA已绿=同码同结果→命中即退不重跑;
+# 强重跑留径 CHECK_ALL_FORCE=1(重验env/闸自身)。
+STAMP_LOCK="/tmp/o-check-green-$(git rev-parse HEAD).lock"
+exec 8>"$STAMP_LOCK"
+if ! flock -n 8 2>/dev/null; then
+  echo "⏳ [check-all] 同SHA戳域等锁——前跑在途,候其绿戳(上界2400s)" >&2
+  flock -w 2400 8 || fail "同SHA戳域锁等锁超时2400s——前跑在途过或锁泄漏,ps核查后重试"
+fi
+if [ -f "$STAMP" ] && [ "${CHECK_ALL_FORCE:-0}" != "1" ]; then
+  echo "✅ [check-all] 同SHA绿戳已在（前跑刚盖或残戳仍有效）——复用不重跑；强重跑 CHECK_ALL_FORCE=1" >&2
+  exit 0
+fi
+rm -f "$STAMP" "$STAMP.mode" "$STAMP.deferred"   # 戳域锁内毁旧戳/延后标（含 mode 痕）——中途败不留残戳；并发互抹已随锁根修
 
 step "go build";    go build ./...                              || fail "go build 红"
 step "go vet";      go vet ./...                                || fail "go vet 红"
@@ -268,5 +282,5 @@ if [ "$BRIDGE_DEFERRED" = 1 ]; then
   echo "⏸ [check-all] 全链绿（bridge-audit 延后未验）——不落 check-green 戳；本盒 accept 补跑该闸绿后落" >&2
   exit 0
 fi
-date -Is > "$STAMP"
+date -Is > "$STAMP.tmp.$$" && mv -f "$STAMP.tmp.$$" "$STAMP"   # 原子发布——tmp写毕rename,mirror_push/pre-push 永不见半戳
 echo "✅ [check-all] 全链绿（mode=$MODE）——戳落 $STAMP" >&2
