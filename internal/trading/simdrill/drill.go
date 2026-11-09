@@ -63,17 +63,22 @@ type Drill struct {
 // （判据/事实读不到——病面走 verdict 不走 error，升件行为准）。
 func (d *Drill) Run(ctx context.Context, strategyRef int64) (Result, error) {
 	res := Result{StrategyRef: strategyRef, Verdict: "pass"}
-	// ① 策略型事实（inst/notional——演习对型跑）。
-	var inst string
+	// ① 策略型事实（inst/notional/template——演习对型跑）。
+	var inst, templateRef string
 	var notional float64
 	if err := d.Pool.QueryRow(ctx,
-		`SELECT inst_id,notional_usd FROM fin_strategy WHERE id=$1`, strategyRef).
-		Scan(&inst, &notional); err != nil {
+		`SELECT inst_id,notional_usd,template_ref FROM fin_strategy WHERE id=$1`, strategyRef).
+		Scan(&inst, &notional, &templateRef); err != nil {
 		return res, fmt.Errorf("策略型事实读败: %w", err)
 	}
 	res.InstID = inst
 	if !strings.HasSuffix(inst, "-SWAP") {
-		return res, fmt.Errorf("演习面限 SWAP 键策略（funding-hedge 毕业域）: %s", inst)
+		// DCD 产品域（dcd_put/dcd_call 毕业闸同凭据——probe→live 闸
+		// 全策略同待遇,T-0426 判据不偏爱 funding-hedge）。
+		if templateRef == "dcd_put" || templateRef == "dcd_call" {
+			return d.runDCDDrill(ctx, res, inst, templateRef, notional)
+		}
+		return res, fmt.Errorf("演习面限 SWAP/dcd 键策略（funding-hedge+dcd 毕业域）: %s template=%s", inst, templateRef)
 	}
 	// ② 乐器面（venue 册直取——T-0427 品种主档前同径，不落表；SWAP 键剥尾
 	// 即现货腿对键——CORE-USDT-SWAP→CORE-USDT）。
@@ -160,11 +165,7 @@ func (d *Drill) Run(ctx context.Context, strategyRef int64) (Result, error) {
 	// ⑩ 账实对拍四锚（venue 真相×台账——任一锚破=fail+升件）。
 	res.Detail, res.Verdict = d.recon(ctx, res, spotInst, swapInst, openBalanced)
 	// ⑪ 凭据落账（毕业闸消费面——fail 亦落：闸可读败因）。
-	if _, err := d.Pool.Exec(ctx, `INSERT INTO fin_exec_drill(strategy_ref,inst_id,verdict,rules_version,detail)
-		VALUES($1,$2,$3,$4,$5)`, strategyRef, inst, res.Verdict, simvenue.RulesVersion, res.Detail); err != nil {
-		return res, fmt.Errorf("演习凭据落账败: %w", err)
-	}
-	return res, nil
+	return d.writeDrill(ctx, res)
 }
 
 // recon 账实对拍四锚（detail=人读结论；verdict=fail=病面已升件）。
