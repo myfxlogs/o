@@ -71,6 +71,8 @@ var ownerKeyGlobs = []string{
 	"okx.symbols",           // 采集宇宙清单（GetStringList 数组键——基建面）
 	"mt5.symbols",           // 采集宇宙清单（GetStringList 数组键——基建面）
 	"readcred.entitlement",  // 读凭据权限白名单（访问控制面——fail-closed）
+	"repair.feeds",          // 采集臂修复注册表（基建自愈面——白名单在码面）
+	"repair.guard",          // 修复环闸参数（配额闸防风暴）
 }
 
 // credentialRE 凭证形键硬拒（先于一切通配——任何键形含凭证词即 owner；

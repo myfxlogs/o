@@ -51,6 +51,15 @@ psql "$FIN_DSN" -c "SELECT id,signature,cluster_n,numbers FROM fin_eng_lesson
   INSERT INTO ops_event(seat,event,ticket,note)
   VALUES('处置席','处置','<对象>','升件#<id> 销——<一句定性+证据>')
   ```
+- **断流**（seat=探测席 esc_class=断流 的升件——o-core 鲜度死升件环产物）→
+  先核面现况（同名 healthComps 查询直查）：
+  - 已复绿→销+note 引「自愈/重启窗」证据——OCI 侧 `md_repair_log`（修复环账）
+    +unit `systemctl --user status <unit>` 重启痕二证其一；
+  - 仍死→查 OCI `md_repair_log`：修复环已重启仍死/配额尽（quota_burned）
+    =venue/网关侧病灶→要码修径；修复环无记录=注册面未载/臂缺→要码修径；
+  - 设计态缺席（单边陈=该对缺席如实/语义空态面）→销+定性。
+  注意：复绿时升件环已落「升件#id 复绿」自闭行者不在未决面——
+  摸到即已销，勿重复处置。
 - **要码修** → `git worktree add /opt/o-wt/<名>` → `bash scripts/bootstrap_worktree.sh`
   → 改 → `bash scripts/check_all.sh` → 支推 origin → 部署树 merge --no-ff
   （戳落 mirror_push 自推，勿手动推 master——单写者律）
