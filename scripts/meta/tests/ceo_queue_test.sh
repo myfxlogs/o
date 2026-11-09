@@ -46,5 +46,27 @@ Q2=$(runq)
 grep -qxF 'VENUE-ALPHA' <<< "$Q2" \
   && bad "裁决落库后仍滞留 CEO 队（终态消队破?）" || ok "裁决落库终态消队"
 
+# ── 场景③：T-0509 白名单呈批——seat=MECH 呈批 ticket='' 票外件以
+#    「呈批#<id>」合成行入队（席位集补席+票外呈批可见性生效）──
+RID=$(sqlq "INSERT INTO ops_event(seat,event,ticket,note,ts) VALUES
+  ('MECH','呈批','','表外动作呈批：规则#1:T-0500——白名单表外触发呈裁','2026-01-01 00:02:00') RETURNING id")
+Q3=$(runq)
+grep -qxF "呈批#$RID" <<< "$Q3" \
+  && ok "seat=MECH 票外呈批以呈批#id 入 CEO 队" || bad "MECH 呈批未入队（席位集/票外呈批分支漏?）: $(printf '%s' "$Q3" | tr '\n' ',')"
+
+# ── 场景④：裁决行 note 引证「呈批#id」→ 终态消队 ──────────────────
+sqlq "INSERT INTO ops_event(seat,event,ticket,note,ts) VALUES
+  ('CEO','裁决','','呈批#$RID 批准——规则#1 翻生效走表更径','2026-01-01 00:03:00')" >/dev/null
+Q4=$(runq)
+grep -qxF "呈批#$RID" <<< "$Q4" \
+  && bad "引证裁决落库后呈批仍滞留（呈批#id 消队破?）" || ok "呈批#id 引证裁决消队"
+
+# ── 场景⑤：非 MECH 席票外呈批不入队（合成分支席域钉死）────────────
+sqlq "INSERT INTO ops_event(seat,event,ticket,note,ts) VALUES
+  ('CEO','呈批','','业主呈批——非白名单呈批对照','2026-01-01 00:04:00')" >/dev/null
+Q5=$(runq)
+[ -z "$(printf '%s' "$Q5" | tr -d '[:space:]')" ] \
+  && ok "非 MECH 票外呈批不入队（席域未放开）" || bad "非 MECH 呈批误入队: $(printf '%s' "$Q5" | tr '\n' ',')"
+
 echo "ceo_queue scenarios: $pass pass / $fail fail"
 [ "$fail" = 0 ]

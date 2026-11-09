@@ -1,0 +1,19 @@
+# whitelist_actions.tsv —— T-0509 CEO自运感知·票C 白名单动作面（表内自决/表外呈批）
+# 判据：CEO 附条件一——条目逐项呈裁后才生效；status=「生效」才执行，
+#   待裁/停用/缺席=表外呈批（判定层不读 note 列——note 为呈裁留档面）。
+# 判据：附条件二——条目变更走呈裁径（本文件 commit 即呈裁面），禁表内自扩。
+# 判据：附条件三——动作执行失败落升件行等裁，禁自动重试/降级（执行器
+#   「白名单动作败：规则#N:<对象>」升件在案且其后无 lift 事件=零重试）。
+# 红线：资金扩投/新平台/席位立换 永不入表（票面明文重申）。
+# 格式：rule_id<TAB>action<TAB>param<TAB>bound<TAB>status<TAB>note
+#   空字段一律 '-' 占位（bash read 折叠连续 tab 会丢位错列——判据
+#   件实证）；param=;分隔 k=v（seat_kick units=unit:stall_s,…;
+#   cooldown_s=N；config_set key=/domain=）；bound/note=呈裁留档面
+#   （界/说明——判定不读，机读界在执行器常量与 param 内）。
+# 初版五条=票面表初版全文（判据①随票呈裁——决策席逐项批注后才翻
+#   status=生效；未批项不入表=不生效）。
+1	redispatch	-	同票24h≤1次防循环	生效	pulled尸（无存活unit龄>600s）→dispatch_worker重派+拉起行引证规则#1
+2	void	-	不可判升件不猜	生效	error相位伪键/无票件双查可判→作废归档；真票有件/DIAG键=升件不猜
+3	resume	-	锚判定机械可证	生效	suspended非rate-limit且await=绿窗复跑绿→续跑；锚未至/不可判=零动作
+4	seat_kick	units=o-cto-seat.service:2400,o-ceo-seat.service:2400,o-econ-verdict.service:15000;cooldown_s=3600	单例闸现成	生效	oneshot席stall（非活∧末次活跃龄>stall_s）且队列非空→start --no-block
+5	config_set	key=O_WORKER_PARALLEL_LIMIT;domain=1,2	界内微调超界呈批	生效	候水24h≥3且limit=域上限→步降；候水24h=0且limit=域下限→回上限；覆写档parallel-limit-override

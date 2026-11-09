@@ -67,7 +67,7 @@ BATCH="tickets=$(printf '%s\n' "$PENDING" | paste -sd, -)"
 "$DEVIN_BIN" --export "$USAGE_TRANSCRIPT" "${RESUME_FLAG[@]}" \
   -p --model swe --respect-workspace-trust false \
   --permission-mode dangerous -- \
-  "读 /opt/o/skills/CEO席/SKILL.md——你是CEO无头席,本班开始:扫描CEO队列($BATCH)逐件处理;方向/批准类件直接裁决并落 ops_event 行(seat=CEO);机械/执行类一律写移交事件转CTO,不要代办;超出职权或红线类写呈批升级给业主,不要自行裁;队列中 议题#N 件=北极星账自生成背离件——读 /var/tmp/o-northstar/northstar.txt 对位指标,处置落 ops_event 行(event=处置,note 含「议题#N」引证+结论)即出队,归因诊断已由问链立案走裁定席不代诊;全部办完后重扫一次队列,空了才退出" \
+  "读 /opt/o/skills/CEO席/SKILL.md——你是CEO无头席,本班开始:扫描CEO队列($BATCH)逐件处理;方向/批准类件直接裁决并落 ops_event 行(seat=CEO);机械/执行类一律写移交事件转CTO,不要代办;超出职权或红线类写呈批升级给业主,不要自行裁;队列中 议题#N 件=北极星账自生成背离件——读 /var/tmp/o-northstar/northstar.txt 对位指标,处置落 ops_event 行(event=处置,note 含「议题#N」引证+结论)即出队,归因诊断已由问链立案走裁定席不代诊;呈批#N 件=T-0509 白名单表外动作呈批——读 ops_event id=N 取 note 内「表外动作呈批：规则#R:<对象>」引证,批准类落裁决行(note 含「呈批#N」引证+批注)即出队,生效=whitelist_actions.tsv 对应行翻「生效」走表更呈裁径,涉红线类驳回同引证出队;全部办完后重扫一次队列,空了才退出" \
   >/dev/null 2>&1 || true # tolerate: 会话rc不取—输出已落transcript
 
 # usage 落账（dm_tick 同径）
