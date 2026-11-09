@@ -1,0 +1,10 @@
+[Unit]
+Description=o-cognition.timer 唤知机拍（纪元3——15min 扫信号面达阈唤会话）
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=15min
+Unit=o-cognition-dispatch.service
+
+[Install]
+WantedBy=timers.target
