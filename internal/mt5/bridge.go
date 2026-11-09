@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"sync/atomic"
 	"time"
 
 	"google.golang.org/protobuf/proto"
@@ -147,6 +148,28 @@ func (c *BridgeCollector) bridgeSession(ctx context.Context, dial func(string) (
 	// T-0408①：全目录粗扫拍（366 符 SymbolParams 步进限速+GetQuoteMany mid
 	// 快照——低频 RPC 非流，影子评估层事实源；同会话止）。
 	go c.catalogLoop(sessCtx, cl)
+	// 推流静默死看门狗（11-09 三符同窗断帧实证——venue 订阅侧哑但流不返
+	// err，Recv 永阻塞；RPC 面 SymbolParams 同会话照常=非连接死）。
+	// 真帧超阈零至=cancel sessCtx→Recv 返 err→Run 退避重连重订自愈；
+	// 阈对齐下游 xvenue 120s 帧龄闸+余量（ops_face warn=10min 内复）。
+	var lastQuote atomic.Int64
+	lastQuote.Store(time.Now().UnixNano())
+	go func() {
+		t := time.NewTicker(15 * time.Second) // sched-exempt-ok 静默死期界巡查（非业务轮询——venue 推流哑侦测，同退避期界等待族）
+		defer t.Stop()
+		for {
+			select {
+			case <-sessCtx.Done():
+				return
+			case <-t.C:
+				if quiet := time.Since(time.Unix(0, lastQuote.Load())); quiet > tickSilentAfter {
+					log.Printf("[mt5bridge] WARN 推流静默死（%.0fs 零真帧）——收尸重订", quiet.Seconds())
+					cancel()
+					return
+				}
+			}
+		}
+	}()
 	for {
 		f, err := stream.Recv()
 		if c.meter != nil && f != nil {
@@ -162,6 +185,7 @@ func (c *BridgeCollector) bridgeSession(ctx context.Context, dial func(string) (
 		if q.Symbol == "" || (q.Bid == 0 && q.Ask == 0) {
 			continue // 空帧（心跳形）不落表
 		}
+		lastQuote.Store(time.Now().UnixNano())
 		if _, err := c.pool.Exec(ctx,
 			`INSERT INTO md_ticks(ts,venue,inst_id,last,bid,ask) VALUES(now(),'mt5',$1,$2,$3,$4)
 			ON CONFLICT (venue,inst_id) DO UPDATE SET ts=EXCLUDED.ts,last=EXCLUDED.last,
@@ -233,6 +257,10 @@ func (c *BridgeCollector) symbols() []string {
 
 // swap 节拍（SymbolParams 率面——≤1/4h 拍，日级变量）。
 const swapEvery = 4 * time.Hour
+
+// tickSilentAfter 推流静默死阈——真帧零至超此即按 venue 订阅哑收尸
+// （对齐下游 xvenue 120s 帧龄闸+余量；重订代价仅退避重连一拍）。
+const tickSilentAfter = 150 * time.Second
 
 // midOf sym 现价中点（md_ticks venue='mt5' 最新行——换算名义基准；缺=0 不可年化）。
 func (c *BridgeCollector) midOf(sym string) float64 {

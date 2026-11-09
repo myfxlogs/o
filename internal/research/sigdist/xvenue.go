@@ -60,6 +60,7 @@ func (r *Runner) Xvenue(ctx context.Context) error {
 	// okx mark（mark-price WS 行）/mt5 mid（md_ticks venue='mt5'）/
 	// funding_view / mt5_swap——任一单边陈/缺=该对跳过如实。
 	// T-0171 频道方言归一：REST 轮询面撤，'mark-price' 单键域唯一。
+	wrote := 0
 	for okxInst, mt5Sym := range xm {
 		okxMark, markTs, ok := r.okxMark(ctx, okxInst)
 		if !ok {
@@ -77,8 +78,11 @@ func (r *Runner) Xvenue(ctx context.Context) error {
 		if err := r.writeCarry(ctx, "carry_diff", okxInst, mt5Sym, nil); err != nil {
 			return err
 		}
+		wrote++
 	}
-	log.Printf("[sigdist] xvenue 拍：%d 对（xvenue_spread/carry_diff）", len(xm))
+	// 落行数/评估数双记（单边陈缺席如实但须可见——「拍 N 对」曾把全跳期
+	// 印成健康拍，静默死窗 60min 漏检教训在案）。
+	log.Printf("[sigdist] xvenue 拍：%d/%d 对落行（xvenue_spread/carry_diff）", wrote, len(xm))
 	return r.xvenueShadow(ctx, xm)
 }
 
