@@ -20,7 +20,7 @@ WHERE event='升件' AND ts>now()-interval '7 days'
     AND x.note ~ ('升件#'||e.id::text||'([^0-9]|$)'))
 ORDER BY id"
 psql "$FIN_DSN" -c "SELECT id,signature,cluster_n,numbers FROM fin_eng_lesson
-  WHERE verify_state='ai_evaluated' ORDER BY id LIMIT 20"
+  WHERE verify_state='ai_evaluated' AND status='pending' ORDER BY id LIMIT 20"
 ```
 
 ### ② 逐件处置（三档判）
