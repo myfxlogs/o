@@ -36,13 +36,18 @@ gw_sql() {
 }
 
 # gw_ledger <event> <ticket> <note> —— 账本先行行：seat=gateway 机械词表。
-# 写败静默退（账面补充非链环——动作判据不依赖本行存在）。
+# 写败容错退但留样（write_fail.log——哑写死径不可再静默：裸值语法错
+# 四域零落实证 KB heredoc-sql-unquoted-silent-swallow；账面补充非链环，
+# 动作判据仍不依赖本行存在）。
 gw_ledger() {
 	local dsn; dsn=$(gw_dsn); [ -n "$dsn" ] || return 0
-	psql "$dsn" -qAt >/dev/null 2>&1 <<SQL
+	local out
+	out=$(psql "$dsn" -qAt 2>&1 <<SQL
 INSERT INTO ops_event(seat,event,ticket,note)
 VALUES('gateway','$(gw_qc "$1")','$(gw_qc "$2")','$(gw_qc "$3")');
 SQL
+	) || printf '%s gw_ledger写败 %s/%s — %s\n' "$(date -u +%FT%TZ)" "$1" "$2" \
+		"$out" >> "${GW_STATE_DIR:-/var/tmp/o-gateway}/write_fail.log" 2>/dev/null || true
 	return 0
 }
 

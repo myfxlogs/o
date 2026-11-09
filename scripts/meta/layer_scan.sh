@@ -228,7 +228,9 @@ DONECHAIN=$(psql "$FIN_DSN" -qAt -c "/*ls:donechain*/
 SELECT p.ticket FROM ops_ticket_phase p
 WHERE p.phase='done' AND p.latest_ts > now()-interval '$((DONE_CHAIN_WINDOW_S/86400)) days'
   AND NOT EXISTS (SELECT 1 FROM ops_event e WHERE e.ticket=p.ticket
-    AND e.event IN ('收口','移交','收口待审','审计中'))" 2>/dev/null) || DONECHAIN="" # tolerate: 查询败=空集跳过本面（相位图主面仍在——digest 不载本面细账）
+    AND e.event IN ('收口','移交','收口待审','审计中'))
+  AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='处置'
+    AND x.note ~ (p.ticket||'([^0-9A-Za-z]|$)'))" 2>/dev/null) || DONECHAIN="" # tolerate: 查询败=空集跳过本面（相位图主面仍在——digest 不载本面细账；处置销过=史债记档在案豁免不 churn）
 while IFS= read -r t; do
   [ -n "$t" ] || continue
   case "$t" in *[!A-Za-z0-9_-]*) continue ;; esac
@@ -242,13 +244,15 @@ done <<< "$DONECHAIN"
 for t in "${!PHASE_OF[@]}"; do
   ph=${PHASE_OF[$t]}
   [ "$ph" = "__tie__" ] && continue
+  [ "$ph" = "void" ] && continue # void墓碑=归领处置过终相——签名源死不再报（churn 环断点）
   compgen -G "$TASK_DIR/$t-*.md" >/dev/null && continue
   compgen -G "$DONE_DIR/$t-*.md" >/dev/null && continue
   case "$t" in
     T-[0-8][0-9][0-9][0-9])
       case " $TERMINAL_PHASES " in *" $ph "*) ;; *) continue ;; esac # 非终相合法域=b①已判不重复
       report_find "无籍行" "$t" "$t" "相位$ph（终相）在案而 docs/tasks[/done] 票件两处皆无" ;;
-    *) report_find "无籍行" "$t" "$t" "相位行在案而 docs/tasks[/done] 票件两处皆无——成因族=session id撞票号域（T-9xxx夹具段）/键闸过形不过实伪键" ;;
+    *) case " $TERMINAL_PHASES " in *" $ph "*) continue ;; esac # 终相伪键（done/void名域行）=已处置——豁免
+      report_find "无籍行" "$t" "$t" "相位行在案而 docs/tasks[/done] 票件两处皆无——成因族=session id撞票号域（T-9xxx夹具段）/键闸过形不过实伪键" ;;
   esac
 done
 
