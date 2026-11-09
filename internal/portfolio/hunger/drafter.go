@@ -76,9 +76,21 @@ type draftPayload struct {
 	DomainHint    string  `json:"domain_hint"`
 }
 
-// DraftTickets 起草拍一拍：扫窗聚类→签名去重→pending 草案+起草行。
-// 返回本拍起草数（零产即零，benny 沉默律不落空行）。
+// DraftTickets 起草拍一拍编排面（T-0508 双径）：探针升件径
+// （draftProbeTickets——esc_class/scope 类册面）+层扫升件径
+// （draftLayerScans——seat=MECH 层扫定性行→诊断型草案，票B 进水口）。
+// 两径签名域不相交（层扫行 esc 两列恒空探针径结构性滤除；探针行
+// note 前缀非「层扫定性」层扫径结构性滤除）——合并计数上报，
+// 败情各径独立 errors.Join 不互阻。
 func (s *Sensor) DraftTickets(ctx context.Context) (int, error) {
+	n, err := s.draftProbeTickets(ctx)
+	ln, lerr := s.draftLayerScans(ctx)
+	return n + ln, errors.Join(err, lerr)
+}
+
+// draftProbeTickets 探针升件径一拍：扫窗聚类→签名去重→pending 草案+起草行。
+// 返回本拍起草数（零产即零，benny 沉默律不落空行）。
+func (s *Sensor) draftProbeTickets(ctx context.Context) (int, error) {
 	rows, err := s.drafterScan(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("起草拍扫窗: %w", err)
