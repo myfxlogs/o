@@ -41,7 +41,7 @@ gw_ledger() {
 	local dsn; dsn=$(gw_dsn); [ -n "$dsn" ] || return 0
 	psql "$dsn" -qAt >/dev/null 2>&1 <<SQL
 INSERT INTO ops_event(seat,event,ticket,note)
-VALUES('gateway',$(gw_qc "$1"),$(gw_qc "$2"),$(gw_qc "$3"));
+VALUES('gateway','$(gw_qc "$1")','$(gw_qc "$2")','$(gw_qc "$3")');
 SQL
 	return 0
 }
