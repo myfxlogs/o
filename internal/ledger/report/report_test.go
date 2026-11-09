@@ -44,36 +44,38 @@ func TestReportGen(t *testing.T) {
 	}
 }
 
-// NAV 日拍锚（T-0170）：WithNav 接线→cycle 落 ccy='NAV' 行；nil 接线→零行
-// 如实（不假拍）；append-only 语义（同日多拍=多行，读侧日桶取末收敛）。
+// 资金日拍锚（T-0170+业主令 2026-11-09 各币计各币不折换）：WithNav 接线→
+// cycle 按币落行；nil 接线→零行如实；append-only（同日多拍读侧日桶收敛）。
 func TestNavSnapshot(t *testing.T) {
 	pool := testutil.Pool(t)
 	ctx := context.Background()
 	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
 		t.Fatal(err)
 	}
-	_, _ = pool.Exec(ctx, "DELETE FROM md_equity_curve WHERE ccy='NAV'")
+	_, _ = pool.Exec(ctx, "DELETE FROM md_equity_curve WHERE src='report_daily'")
 	// nil 接线=不拍
 	NewRunner(pool, nil).cycle(ctx)
 	var n int
 	if err := pool.QueryRow(ctx,
-		"SELECT count(*) FROM md_equity_curve WHERE ccy='NAV'").Scan(&n); err != nil || n != 0 {
+		"SELECT count(*) FROM md_equity_curve WHERE src='report_daily'").Scan(&n); err != nil || n != 0 {
 		t.Fatalf("未接线不应拍: n=%d err=%v", n, err)
 	}
-	// 接线=落行，NAV 值如实透传
-	r := NewRunner(pool, nil).WithNav(func(context.Context) (float64, error) {
-		return 12345.5, nil
+	// 接线=按币落行，原生量如实透传（USDT=USDT、BTC=BTC 不折）
+	r := NewRunner(pool, nil).WithNav(func(context.Context) (map[string]float64, error) {
+		return map[string]float64{"USDT": 12345.5, "BTC": 0.0207}, nil
 	})
 	r.cycle(ctx)
-	var eq float64
-	if err := pool.QueryRow(ctx, `SELECT equity FROM md_equity_curve
-		WHERE ccy='NAV' AND src='report_daily' ORDER BY ts DESC LIMIT 1`).Scan(&eq); err != nil || eq != 12345.5 {
-		t.Fatalf("NAV 日拍缺席/错值: eq=%v err=%v", eq, err)
+	for ccy, want := range map[string]float64{"USDT": 12345.5, "BTC": 0.0207} {
+		var eq float64
+		if err := pool.QueryRow(ctx, `SELECT equity FROM md_equity_curve
+			WHERE ccy=$1 AND src='report_daily' ORDER BY ts DESC LIMIT 1`, ccy).Scan(&eq); err != nil || eq != want {
+			t.Fatalf("%s 日拍缺席/错值: eq=%v err=%v", ccy, eq, err)
+		}
 	}
 	// 二拍=追加非覆盖（读侧日桶收敛语义）
 	r.cycle(ctx)
 	if err := pool.QueryRow(ctx,
-		"SELECT count(*) FROM md_equity_curve WHERE ccy='NAV'").Scan(&n); err != nil || n != 2 {
+		"SELECT count(*) FROM md_equity_curve WHERE src='report_daily'").Scan(&n); err != nil || n != 4 {
 		t.Fatalf("append-only 语义破: n=%d", n)
 	}
 }

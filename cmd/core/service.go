@@ -281,13 +281,19 @@ func assemble(pool *pgxpool.Pool, cfg *config.Client,
 	mt5Live func(context.Context) ([]mt5Acct, error),
 	dcdLive func(context.Context) ([]okxexec.DcdOrder, error),
 	posLive func(context.Context) ([]okxexec.Position, error), trxW *trxWiring,
-	md *mdStats) (coreService, func(context.Context) (float64, error)) {
+	md *mdStats) (coreService, func(context.Context) (map[string]float64, error)) {
 	svc := coreService{pool: pool, cfg: cfg, fundingLive: fundingLive, earnLive: earnLive,
 		mt5Live: mt5Live, dcdLive: dcdLive, posLive: posLive, trx: trxW, md: md}
-	return svc, func(ctx context.Context) (float64, error) {
+	return svc, func(ctx context.Context) (map[string]float64, error) {
 		o := &dashboardv1.OverviewResponse{}
 		svc.moneyRows(ctx, o)
-		return o.NavTotal, nil
+		by := map[string]float64{}
+		for _, m := range o.Money {
+			if m.GetCcy() != "" && m.GetNote() == "" {
+				by[m.GetCcy()] += m.GetAmount()
+			}
+		}
+		return by, nil
 	}
 }
 
