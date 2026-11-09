@@ -45,6 +45,7 @@ calendar.*	owner	宏观日历面（fail-closed）
 cmc.ws_disabled	owner	采集基建面（fail-closed）
 net.budget_kbps	owner	带宽预算（基建面）
 mt5.gateway_addr	owner	网关拓扑（基建面）
+mt5.gateway_fallbacks	owner	网关备用址链（基建面——JSON 字符串列,主址死自动切）
 trx.grpc_endpoint	owner	Tron RPC 拓扑（基建面）
 okx.symbols	owner	采集宇宙清单（GetStringList 数组键——基建面）
 mt5.symbols	owner	采集宇宙清单（GetStringList 数组键——基建面）

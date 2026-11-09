@@ -66,6 +66,7 @@ var ownerKeyGlobs = []string{
 	"cmc.ws_disabled",       // 采集基建面（fail-closed）
 	"net.budget_kbps",       // 带宽预算（基建面）
 	"mt5.gateway_addr",      // 网关拓扑（基建面）
+	"mt5.gateway_fallbacks", // 网关备用址链（基建面——JSON 字符串列）
 	"trx.grpc_endpoint",     // Tron RPC 拓扑（基建面）
 	"okx.symbols",           // 采集宇宙清单（GetStringList 数组键——基建面）
 	"mt5.symbols",           // 采集宇宙清单（GetStringList 数组键——基建面）
