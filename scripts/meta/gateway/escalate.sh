@@ -20,6 +20,88 @@ MAX_LEVEL=4                                   # 归口→CTO→CEO→业主
 FEISHU_SH=${O_GW_FEISHU_SH:-/opt/meta/scripts/feishu-notify.sh}
 DSN=$(gw_dsn); [ -n "$DSN" ] || exit 0
 
+# ── ⓪ 分类归领前段：机械可证类自动销（T-0517 业主令「gateway 分类
+#   处理派发席位，需 LLM 的报 CEO」——机械可证账面差本件自销零龄阈
+#   直接销；裁断/LLM 判断类零动作让梯顺流到 CEO/业主级=派发语义）。
+#   销件行 seat=处置席/CTO/COS——认领判据 seat<>'gateway' 防自激钉死
+#   （完成/作废同票生命周期词归各行本体席成例;处置=名域中立销词）。
+#   层扫类目签名=「层扫定性<类目>:<对象>——…」机读；其余签名让梯。
+res_ins() { # $1=seat $2=event $3=ticket $4=note——销件行写径（gw_ledger seat 钉死 gateway 不可用）
+	psql "$DSN" -qAt >/dev/null 2>&1 <<SQL
+INSERT INTO ops_event(seat,event,ticket,note)
+VALUES('$(gw_qc "$1")','$(gw_qc "$2")','$(gw_qc "$3")','$(gw_qc "$4")');
+SQL
+	return 0
+}
+
+UNCLAIMED_SQL="SELECT e.id, COALESCE(e.ticket,''),
+    COALESCE(replace(substring(e.note from 1 for 120),'|','/'),'')
+  FROM ops_event e WHERE e.event='升件' AND e.note NOT LIKE '升件老化%'
+    AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.ts>e.ts AND x.seat<>'gateway' AND
+      ((e.ticket<>'' AND x.ticket=e.ticket AND x.event IN ('裁决','完成','驳回','挂起'))
+       OR x.note ~ ('升件#' || e.id::text || '([^0-9]|$)')))
+  ORDER BY e.id"
+mapfile -t CLS_ROWS < <(gw_sql "$UNCLAIMED_SQL")
+resolved=0
+for row in "${CLS_ROWS[@]}"; do
+	IFS='|' read -r eid etid enote <<< "$row"
+	[ -n "$eid" ] || continue
+	case "$enote" in
+		*层扫定性done-翻漏:*)
+			# 票件 done/ 实证=账面差可机证——'完成'同票行=相位补翻+销件同拍
+			if [ -n "$etid" ] && compgen -G "$GW_REPO/docs/tasks/done/${etid}-*.md" >/dev/null; then
+				res_ins 'CTO' '完成' "$etid" "层扫归位——done-翻漏机械补翻（票件done/在案实证;销升件#$eid；dm_ledger补登同语义）"
+				resolved=$((resolved+1))
+			fi ;;
+		*层扫定性幽灵票件:*)
+			# T-NNNN 相位在案而票件双无=真幽灵——作废归 void（T-9001式）+销件
+			case "$etid" in
+				T-[0-9][0-9][0-9][0-9]|T-[0-9][0-9][0-9][0-9]R)
+					if ! compgen -G "$GW_REPO/docs/tasks/${etid}-*.md" >/dev/null \
+					  && ! compgen -G "$GW_REPO/docs/tasks/done/${etid}-*.md" >/dev/null; then
+						res_ins 'COS' '作废' "$etid" "层扫幽灵票件作废——相位行在而票件双无实证（T-9001式;销升件#$eid）"
+						res_ins '处置席' '处置' '' "升件#$eid 销——$etid 幽灵作废在案"
+						resolved=$((resolved+1))
+					fi ;;
+			esac ;;
+		*层扫定性无籍行:*)
+			case "$etid" in
+				T-9[0-9][0-9][0-9]|SELFTEST-*)
+					res_ins '处置席' '处置' '' "升件#$eid 销——无籍行测试/夹具名域（$etid；侦测豁免域议归层扫票面）"
+					resolved=$((resolved+1)) ;;
+				T-[0-9][0-9][0-9][0-9]|T-[0-9][0-9][0-9][0-9]R)
+					# 终相无件=历史债记档（作废已终相不重复——处置记档即销）
+					res_ins '处置席' '处置' '' "升件#$eid 销——$etid 无籍行（终相/伪号票件双无实证记档）"
+					resolved=$((resolved+1)) ;;
+				'') : ;; # 无 ticket 的无籍行=系统件——让梯归席
+				*)  # 非T伪键=工作流/提案/名域标签（GW-001/DBP*/提案-*等）——豁免归侦测票面另案,升件本体销
+					res_ins '处置席' '处置' '' "升件#$eid 销——无籍行非票名域($etid;伪键豁免表议归层扫票面另案)"
+					resolved=$((resolved+1)) ;;
+			esac ;;
+		*层扫定性done-无收口链:*)
+			# 终相票史链缺=历史债不可伪造——记档即销（补链造史禁）
+			res_ins '处置席' '处置' '' "升件#$eid 销——done-无收口链史债记档（终相票缺收口族链;不可伪造记档即销）"
+			resolved=$((resolved+1)) ;;
+		*层扫定性升件失领:*)
+			# 二阶件:母升件全销则自销——母件还有未销=信号活着让梯
+			if [ -n "$etid" ]; then
+				popen=$(gw_sql "SELECT count(*) FROM ops_event e WHERE e.event='升件'
+				  AND e.note NOT LIKE '升件老化%' AND e.note NOT LIKE '层扫定性升件失领%'
+				  AND e.id<>$eid
+				  AND (e.ticket='$(gw_qc "$etid")' OR e.esc_scope='$(gw_qc "$etid")')
+				  AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.ts>e.ts AND x.seat<>'gateway'
+				    AND ((e.ticket<>'' AND x.ticket=e.ticket AND x.event IN ('裁决','完成','驳回','挂起'))
+				      OR x.note ~ ('升件#' || e.id::text || '([^0-9]|$)')))")
+				if [ "${popen:-1}" = "0" ]; then
+					res_ins '处置席' '处置' '' "升件#$eid 销——升件失领母件已全销（二阶件自销）"
+					resolved=$((resolved+1))
+				fi
+			fi ;;
+		*) : ;; # 裁断/LLM 判断类零动作——让梯归席定性（本件不碰）
+	esac
+done
+[ "${resolved:-0}" -gt 0 ] && gw_ledger 升件路由 GATEWAY "分类归领自销=$resolved（机械可证类——done翻漏/幽灵/无籍/史链/二阶失领;裁断类让梯不变）"
+
 # 席→唤起单元映射（钉死有无头形态者；无单元席=只落账靠量表连鸣）
 seat_unit() {
 	case "$1" in

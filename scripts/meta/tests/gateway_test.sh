@@ -48,6 +48,7 @@ dispatch() {
       eid=$(printf '%s' "$q" | sed -n "s/.*升件#\([0-9][0-9]*\).*/\1/p" | head -1)
       { [ -n "$eid" ] && [ -f "${GW_ROUTES_DIR:-/nonexistent}/$eid" ]; } && cat "${GW_ROUTES_DIR}/$eid" || printf '0|0\n'
       return 0;;
+    *"e.event='升件'"*"升件失领%"*"ORDER BY"*|*"升件失领%"*"NOT EXISTS"*) printf '%s\n' "${GW_POPEN:-1}"; return 0;;
     *"e.event='升件'"*"ORDER BY e.id"*) [ -f "${GW_ESC_ROWS:-/nonexistent}" ] && cat "$GW_ESC_ROWS"; return 0;;
     *"86400 seconds"*) printf '%s\n' "${GW_FREEZE_N:-0}"; return 0;;
     *"SELECT 1;"*)
@@ -292,7 +293,7 @@ GW_FREEZE_N=0 GW_WINDOW_STATE=应发 GW_WINDOW_FACES='image,oci' \
 grep -q '^mirror$' "$MIRROR_LOG" || { echo "FAIL ④mirror_push 未调"; exit 1; }
 grep -qx 'image' "$DEPLOY_LOG" && grep -qx 'oci' "$DEPLOY_LOG" \
   || { echo "FAIL ④faces 未全发"; cat "$DEPLOY_LOG"; exit 1; }
-grep -q ',收敛,' "$LEDGER_LOG" && grep -q 'PLAN' "$LEDGER_LOG" \
+grep -q ",'收敛'," "$LEDGER_LOG" && grep -q 'PLAN' "$LEDGER_LOG" \
   && grep -q 'FIRE' "$LEDGER_LOG" && grep -q 'VERIFY' "$LEDGER_LOG" \
   || { echo "FAIL ④收敛账链缺"; cat "$LEDGER_LOG"; exit 1; }
 # ⑤ 冻结：升件未决→全面零动作+冻结账
@@ -338,9 +339,36 @@ grep -q "升件#101 L2" "$LEDGER_LOG" || { echo "FAIL ⑥未升 L2"; cat "$LEDGE
 printf '3|%s\n' "$(( $(date +%s) - 8000 ))" > "$TMP/routes/101"
 reset_logs
 bash "$ESCAL" 2>/dev/null
-grep -q ',COS上行,' "$LEDGER_LOG" && grep -q '升件#101' "$FEISHU_LOG" \
+grep -q ",'COS上行'," "$LEDGER_LOG" && grep -q '升件#101' "$FEISHU_LOG" \
   || { echo "FAIL ⑥业主级未上行"; cat "$LEDGER_LOG" "$FEISHU_LOG"; exit 1; }
 echo "ok ⑥幂等：部署行查重+升件路由级幂等/阶梯"
+
+# ══ ⑥b 分类归领（T-0517）：机械可证类自销+裁断类让梯 ══
+# 桩行=5段形 id|ticket|scope|note|ts（ladder 查询同桩兼容）
+mkdir -p "$REPO/docs/tasks/done"; : > "$REPO/docs/tasks/done/T-0002-x.md"
+cat > "$GW_ESC_ROWS" <<EOF
+201|T-0002||层扫定性done-翻漏:T-0002——票件已入 done/ 而相位=verdicted|1700000000
+202|SELFTEST-DBP3a-CLS-1||层扫定性无籍行:SELFTEST-DBP3a-CLS-1——相位行在案而两处皆无|1700000000
+203|T-0242||层扫定性幽灵票件:T-0242——相位verdicted 在案而两处皆无|1700000000
+204|dispatch_aged_water||层扫定性升件失领:dispatch_aged_water——升件行3件超4h无认领|1700000000
+205|T-7777||CHECKALL-RACE-STAMP-EAT:check_all并发同SHA互噬|1700000000
+EOF
+reset_logs
+# popen=0（失领母件全销）→204 自销；205 非层扫签名→让梯 L1 唤起
+GW_POPEN=0 GW_UNIT_STATE=inactive bash "$ESCAL" 2>/dev/null
+grep -q ",'完成','T-0002'" "$LEDGER_LOG" || { echo "FAIL ⑥b done-翻漏未自销翻"; cat "$LEDGER_LOG"; exit 1; }
+grep -q ",'处置','','升件#202" "$LEDGER_LOG" || { echo "FAIL ⑥b 无籍测试域未销"; cat "$LEDGER_LOG"; exit 1; }
+grep -q ",'作废','T-0242'" "$LEDGER_LOG" && grep -q ",'处置','','升件#203" "$LEDGER_LOG" \
+  || { echo "FAIL ⑥b 幽灵作废双行缺"; cat "$LEDGER_LOG"; exit 1; }
+grep -q ",'处置','','升件#204" "$LEDGER_LOG" || { echo "FAIL ⑥b 失领母销未自销"; cat "$LEDGER_LOG"; exit 1; }
+grep -q "分类归领自销=4" "$LEDGER_LOG" || { echo "FAIL ⑥b 归领汇总账缺"; cat "$LEDGER_LOG"; exit 1; }
+grep -q "升件#205 L1" "$LEDGER_LOG" || { echo "FAIL ⑥b 裁断类未让梯"; cat "$LEDGER_LOG"; exit 1; }
+# popen>0（失领母件未销）→204 让梯不进自销
+reset_logs
+GW_POPEN=3 GW_UNIT_STATE=inactive bash "$ESCAL" 2>/dev/null
+! grep -q "升件#204 销" "$LEDGER_LOG" || { echo "FAIL ⑥b 母件未销仍自销"; cat "$LEDGER_LOG"; exit 1; }
+rm -rf "$REPO/docs"
+echo "ok ⑥b分类归领：done翻漏完成翻/测试域处置销/幽灵作废双行/失领母销自销/裁断让梯+gw_ledger引号修复实证（汇总账落）"
 
 # ══ ⑦ 降级：无 DSN→轮询模式域脚本自含退出不炸；网关死=席位自扫不受损 ══
 reset_logs
