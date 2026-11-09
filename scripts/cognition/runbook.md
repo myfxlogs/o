@@ -23,6 +23,24 @@ psql "$FIN_DSN" -c "SELECT id,signature,cluster_n,numbers FROM fin_eng_lesson
   WHERE verify_state='ai_evaluated' AND status='pending' ORDER BY id LIMIT 20"
 ```
 
+### ①½ 生成面（信号面净时——「探未知」常驻径）
+
+未决升件=0 且近 7d 无 seat='研究员' event='能力面扫描' 行→本拍做
+一次能力面扫描（业主令 2026-11-09 立项——「机器自己找策略」生成径）：
+
+1. **venue 能力面枚举**：OKX instruments/DCD 新品/Earn 产品族 +
+   MT5 SymbolList（grpc2 会话——mt5wrap/mt5verify 径）。
+2. **对已注册族**：`fin_opp_template` 全集——差集=未覆盖的
+   venue 能力（新乐器类型/新产品结构/新费率形态）。
+3. **起草新族假想卡**：每候选族一段——结构（腿组合）+
+   收益公式（必须可算：资金费/基差/权利金/利息哪个进钱）+
+   风险边界+paper 判据。卡落 ops_event（seat='研究员'
+   event='能力面扫描' note=假想卡正文），升件进常规处置流
+   ——会话自己只起草不部署（部署走要码修径）。
+4. MT5 为首靶：venue 已通（grpc2 读写双证，#8931/#8941）
+   但模板注册表 mt5 行=零——XAUUSDm 贵金属族/swap-carry/
+   跨 venue arb 三族候选 11-06 盘点在案，先啃这块。
+
 ### ② 逐件处置（三档判）
 
 - **改进提案**（seat=改进矿工 esc_class=改进提案 的升件）→
