@@ -76,7 +76,16 @@ type depPair struct {
 // 人工过一次后，合法未读对在此登记。key=对签名（'…*' 尾=前缀通配——如
 // 'signal:macro_*→∅' 一族）；value=理由键（每豁免附理由——注册式不静默：
 // 豁免对同窗落「依赖对豁免」行留账，非暗吞）。
-var depBlindWhitelist = map[string]string{}
+var depBlindWhitelist = map[string]string{
+	// xvenue-carry 族=exec.xvenue_open 暗发闸关（fin_0142 默认 false，
+	// 裁决#3630 钦定——钱径新径灰度铁律，彩排过前 eval 零产=闸后预期态
+	// 非断供）：四对产者在产而消费者零视野属合法产而未读，注册豁免
+	// （升件#8982/84/86/88 同根，处置证据=app_config 实测+族沉默销例#8846）。
+	"signal:carry_diff→xvenue-carry":    "xvenue_open_gate",
+	"signal:xvenue_spread→xvenue-carry": "xvenue_open_gate",
+	"signal:mt5_swap→xvenue-carry":      "xvenue_open_gate",
+	"signal:depth5→xvenue-carry":        "xvenue_open_gate",
+}
 
 // depBlindExempt 豁免判定（精确签名优先，'*' 尾前缀通配次——理由键随行）。
 func depBlindExempt(sig string) (string, bool) {

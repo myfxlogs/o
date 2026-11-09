@@ -35,6 +35,11 @@ func seedEvalAt(t *testing.T, pool *pgxpool.Pool, template string, age time.Dura
 // 宇宙 fin_0004 在册；seed 助手复用 silence_test 同包件）。
 func depFixture(t *testing.T) (*Sensor, *pgxpool.Pool) {
 	t.Helper()
+	// 白名单隔离：生产注册豁免（xvenue_open_gate 等）不泄入桩测——机制
+	// 验证须见全谱对，豁免语义由专案（depBlindWhitelist 自换）覆盖。
+	oldWL := depBlindWhitelist
+	depBlindWhitelist = map[string]string{}
+	t.Cleanup(func() { depBlindWhitelist = oldWL })
 	pool := testutil.Pool(t)
 	ctx := context.Background()
 	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
