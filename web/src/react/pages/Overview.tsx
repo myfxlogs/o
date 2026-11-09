@@ -125,7 +125,9 @@ export function OverviewPage() {
       {ov.err ? <ErrorState msg={ov.err} onRetry={ov.reload} /> : null}
       <OpenPositionsCard doing={doing} />
 
-      <div className="masonry">
+      {/* 最近动作+钱在哪同行双列（业主令：两卡同排不拆行——duo 栅格强制并排，
+          窄屏回落单列） */}
+      <div className="duo">
       <Card title="最近动作" extra={<UtcClock />}>
         {(o.recent ?? []).length === 0 ? (
           <EmptyState title="账面平静" hint="现金流落地后在此亮行" />
