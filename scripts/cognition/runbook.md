@@ -54,9 +54,11 @@ verify_state='dismissed'，CHECK 约束不收此值）。
 
 ## 禁线（硬）
 
-- **免疫件在写域外**：不改 `scripts/check_all.sh`/`hooks/`/
-  `internal/{risk,execution,ledger,trading}` 风控面——
-  要改先落条件请求给业主（DGM 关掉自己幻觉检查的判例在前）。
+- **免疫件在写域外（已物理化）**：裁判面清单=
+  `deploy/immune_paths.txt`（闸件/hooks/部署闸/risk/guard/
+  simdrill/migrations/清单自指）——触件 commit 缺
+  `免疫件:` trailer 即 check_all 硬拒；真需修裁判=trailer
+  宣告+业主可审 ops_event 轨，慎改（DGM 判例在前）。
 - **不碰钱径直改**：开仓/平仓/参数/仓位一律走钱径码面过全谱闸。
 - **不发明簿记**：无票、无相位、无席位、无草案——
   ops_event 行+KB+D档就是全部记录面。
