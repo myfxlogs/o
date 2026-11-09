@@ -1,0 +1,7 @@
+[Unit]
+Description=o-cognition-dispatch 唤知机触发拍（纪元3 D-0045——未决信号达阈→单飞唤知会话）
+
+[Service]
+Type=oneshot
+ExecStart=/opt/o/scripts/cognition/dispatch.sh
+NoNewPrivileges=true
