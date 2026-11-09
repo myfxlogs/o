@@ -207,6 +207,16 @@ if [ -n "$FIN_DSN" ]; then
   [ "$VDRC" -ne 0 ] && mech_esc "判词送达闸败" "rc=$VDRC 需业主动作判词滞留未闭环（未闭环件下拍重试）"
 fi
 
+# ── T-0507 CEO自运感知票A 层扫窗：五片不变量机械扫→升件行+层扫digest
+# （提案①感知面——只报不判类目级定性；判据/阈值/dedup 全在 layer_scan.sh
+# 内，本窗只唤不判同 drift 先例；零新守护件零新 unit）。
+if [ -n "$FIN_DSN" ]; then
+  LSCAN_SH=${O_LAYER_SCAN_SH:-"$SCRIPT_DIR/layer_scan.sh"}
+  LSRC=0
+  "$LSCAN_SH" || LSRC=$?
+  [ "$LSRC" -ne 0 ] && mech_esc "层扫本体败" "rc=$LSRC layer_scan 未跑净——五片不变量扫描停摆"
+fi
+
 # T-0509 白名单动作面窗（CEO自运感知票C：表内自决/表外呈批——检测五类
 # 触发+whitelist_actions.tsv status 判定+动作执行/呈批/升件三层；判据
 # 全在 whitelist_actions.sh 本件，窗只唤不判）。
