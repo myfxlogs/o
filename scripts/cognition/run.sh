@@ -3,8 +3,8 @@
 # 载本壳；脱自纪元2 dev_run.sh——票机件全剔,保留配额/心跳/usage三件）。
 # 用法: run.sh ——runbook 固定取 scripts/cognition/runbook.md（版本化正本）。
 set -u
-MODEL=${COG_RUN_MODEL:-swe-2-flash-high}
-case "$MODEL" in swe-2-high|swe-2-medium|swe-2-flash-high) ;; *) MODEL=swe-2-flash-high;; esac
+MODEL=${COG_RUN_MODEL:-swe-2-max}
+case "$MODEL" in swe-2-max|swe-2-high|swe-2-medium|swe-2-flash-high) ;; *) MODEL=swe-2-max;; esac
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 source "${O_WORKER_RUNTIME_LIB:-$SCRIPT_DIR/worker_runtime.sh}"
