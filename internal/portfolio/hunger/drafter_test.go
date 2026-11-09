@@ -113,11 +113,15 @@ func TestDraftTicketsInflightDedup(t *testing.T) {
 		WHERE signature='观测盲:BTC-USDT'`); err != nil {
 		t.Fatal(err)
 	}
-	for _, ev := range []string{"已批", "派单", "领单"} {
+	for _, ev := range []string{"已批", "派单"} {
 		if _, err := s.pool.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note)
 			VALUES('决策席',$1,'T-9001','')`, ev); err != nil {
 			t.Fatal(err)
 		}
+	}
+	if _, err := s.pool.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note)
+		VALUES('施工席','领单','T-9001','')`); err != nil {
+		t.Fatal(err)
 	}
 	seedEsc(t, s, ctx, "观测盲", "BTC-USDT", "覆盖失明 BTC-USDT 再升")
 	if n, err := s.DraftTickets(ctx); err != nil || n != 0 {

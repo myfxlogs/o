@@ -31,7 +31,7 @@ func TestOpsPrecedentFace(t *testing.T) {
 	rule := func(ticket, event, note string) int64 {
 		var id int64
 		if err := pool.QueryRow(ctx, `INSERT INTO ops_event(seat,event,ticket,note)
-			VALUES('桩裁',$2,$1,$3) RETURNING id`, ticket, event, note).Scan(&id); err != nil {
+			VALUES('决策席',$2,$1,$3) RETURNING id`, ticket, event, note).Scan(&id); err != nil {
 			t.Fatal("裁行桩:", err)
 		}
 		return id

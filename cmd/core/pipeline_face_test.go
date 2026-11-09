@@ -117,15 +117,15 @@ func TestGetPipelineEndToEnd(t *testing.T) {
 		}
 	}
 	ins(90, "席MANAGE", "领单", "T-9001", "")
-	ins(89, "决策席", "领单", "T-9001", "派单")
-	ins(85, "Dev", "领单", "T-9001", "")
+	ins(89, "决策席", "派单", "T-9001", "")
+	ins(85, "施工席", "领单", "T-9001", "")
 	ins(60, "Dev", "收口", "T-9001", "")
-	ins(59, "DM", "裁决", "T-9001", "驳回:桩")
-	ins(58, "Dev", "领单", "T-9001", "返修")
-	ins(30, "Dev", "领单", "T-9002", "")
+	ins(59, "审计席", "裁决", "T-9001", "驳回:桩")
+	ins(58, "施工席", "领单", "T-9001", "返修")
+	ins(30, "施工席", "领单", "T-9002", "")
 	ins(20, "Dev", "收口", "T-9002", "")
-	ins(150, "Dev", "领单", "T-9000", "")
-	ins(130, "DM", "裁决", "T-9000", "通过：验收锚齐（T-0415 裁词禁裸词桩随行）")
+	ins(150, "施工席", "领单", "T-9000", "")
+	ins(130, "审计席", "裁决", "T-9000", "通过：验收锚齐（T-0415 裁词禁裸词桩随行）")
 	ins(120, "DEPLOY", "部署", "", "deploy 桩")
 	if _, err := pool.Exec(ctx, `INSERT INTO ops_headless(ticket,seat,model,state,last_activity)
 		VALUES('T-9001','Dev','桩模','alive',now())`); err != nil {
@@ -193,7 +193,7 @@ func TestGetPipelineTruncation(t *testing.T) {
 	c := coreService{pool: pool}
 	for i := 0; i < 22; i++ {
 		if _, err := pool.Exec(ctx,
-			`INSERT INTO ops_event(seat,event,ticket,note,ts) VALUES('Dev','领单',$1,'桩',now()-$2*interval '1 minute')`,
+			`INSERT INTO ops_event(seat,event,ticket,note,ts) VALUES('施工席','领单',$1,'桩',now()-$2*interval '1 minute')`,
 			fmt.Sprintf("T-%04d", 9100+i), 30-i); err != nil {
 			t.Fatal("桩:", err)
 		}
@@ -330,22 +330,22 @@ func TestPipelineExitSemantics(t *testing.T) {
 		}
 	}
 	// 部署线 180min：其后事件皆新于水位——退场唯完结谓词管。
-	ins(200, "Dev", "领单", "T-7006", "")
+	ins(200, "施工席", "领单", "T-7006", "")
 	ins(180, "DEPLOY", "部署", "", "deploy 桩")
 	// T-7001 判结+诈尸杂讯（唤径「领单」后至——存在性判定不复活）。
-	ins(120, "Dev", "领单", "T-7001", "")
-	ins(110, "DM", "裁决", "T-7001", "审计通过→完成")
-	ins(100, "Dev", "领单", "T-7001", "CTO 接件杂讯")
+	ins(120, "施工席", "领单", "T-7001", "")
+	ins(110, "审计席", "裁决", "T-7001", "审计通过→完成")
+	ins(100, "施工席", "领单", "T-7001", "CTO 接件杂讯")
 	// T-7007 「完成」钦定信号直结。
-	ins(90, "Dev", "领单", "T-7007", "")
+	ins(90, "施工席", "领单", "T-7007", "")
 	ins(80, "DM", "完成", "T-7007", "翻完成落行")
 	// T-7004 决策系收口直结（T-0282 型）。
-	ins(70, "Dev", "领单", "T-7004", "")
+	ins(70, "施工席", "领单", "T-7004", "")
 	ins(60, "DM", "收口", "T-7004", "决策直结补报")
 	// T-7002 驳回在飞；T-7003 Dev 收口未审在飞。
-	ins(50, "Dev", "领单", "T-7002", "")
-	ins(40, "DM", "裁决", "T-7002", "驳回:锚失守")
-	ins(30, "Dev", "领单", "T-7003", "")
+	ins(50, "施工席", "领单", "T-7002", "")
+	ins(40, "审计席", "裁决", "T-7002", "驳回:锚失守")
+	ins(30, "施工席", "领单", "T-7003", "")
 	ins(20, "Dev", "收口", "T-7003", "施工收口候审")
 
 	r, err := c.GetPipeline(ctx, nil)

@@ -24,7 +24,7 @@ func TestGetCockpitBlocks(t *testing.T) {
 	c := coreService{pool: pool}
 	// 桩数据：ops_event 一行 + armed 提案一行（fin_opp_eval+fin_proposal 夹具同族）
 	if _, err := c.pool.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note)
-		VALUES('席桩','领单','T-9999','桩')`); err != nil {
+		VALUES('施工席','领单','T-9999','桩')`); err != nil {
 		t.Fatal("ops_event 桩:", err)
 	}
 	var eid int64
@@ -141,7 +141,7 @@ func TestGetCockpitTicketPaging(t *testing.T) {
 	const n = 25
 	for i := 0; i < n; i++ {
 		if _, err := pool.Exec(ctx,
-			`INSERT INTO ops_event(seat,event,ticket,note,ts) VALUES('席桩','领单',$1,'桩',now()-$2*interval '1 second')`,
+			`INSERT INTO ops_event(seat,event,ticket,note,ts) VALUES('施工席','领单',$1,'桩',now()-$2*interval '1 second')`,
 			fmt.Sprintf("T-%04d", 9000+i), n-i); err != nil {
 			t.Fatal("工单桩:", err)
 		}
@@ -149,7 +149,7 @@ func TestGetCockpitTicketPaging(t *testing.T) {
 	// 同戳对：决胜键 ticket DESC 实证（同 ts 序仍确定）
 	for _, tk := range []string{"T-8ZZZ", "T-8AAA"} {
 		if _, err := pool.Exec(ctx,
-			`INSERT INTO ops_event(seat,event,ticket,note,ts) VALUES('席桩','领单',$1,'桩','2026-10-30 00:00:00+00')`, tk); err != nil {
+			`INSERT INTO ops_event(seat,event,ticket,note,ts) VALUES('施工席','领单',$1,'桩','2026-10-30 00:00:00+00')`, tk); err != nil {
 			t.Fatal("同戳桩:", err)
 		}
 	}

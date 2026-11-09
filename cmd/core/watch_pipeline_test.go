@@ -47,7 +47,7 @@ func TestWatchPipelineFrame(t *testing.T) {
 	// 锚 d：新票派发→新行入顶。NOTIFY→载荷帧时延 ≤10s（设计稿钉）。
 	t0 := time.Now()
 	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(ts,seat,event,ticket,note)
-		VALUES(now(),'Dev','领单','T-9601','流推桩')`); err != nil {
+		VALUES(now(),'施工席','领单','T-9601','流推桩')`); err != nil {
 		t.Fatal("事件桩:", err)
 	}
 	frame := waitPipelineFrame(t, stream)
