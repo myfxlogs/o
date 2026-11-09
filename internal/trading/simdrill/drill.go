@@ -98,6 +98,12 @@ func (d *Drill) Run(ctx context.Context, strategyRef int64) (Result, error) {
 	defer func() {
 		_, _ = d.Pool.Exec(ctx,
 			`UPDATE fin_position SET closed_at=now() WHERE strategy_ref=$1 AND closed_at IS NULL`, drillStrat)
+		// T-0511：position 关账后残 'closing' 行=僵尸（探针假升件）——
+		// 清扫径同关 guard_close。
+		_, _ = d.Pool.Exec(ctx,
+			`UPDATE fin_guard_close SET state='closed',closed_at=now(),updated_at=now(),
+			 last_error='reconcile:drill_cleanup' WHERE state='closing'
+			 AND position_id IN (SELECT id FROM fin_position WHERE strategy_ref=$1)`, drillStrat)
 	}()
 	// ④ 合成腿（quote 买现货腿+SWAP 反向腿——量落 lotSz 网格，名义对半）。
 	half := notional / 2

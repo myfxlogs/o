@@ -150,6 +150,12 @@ func (m *Matrix) runCell(ctx context.Context, c excell.Cell, t excell.Tier, shap
 	defer func() {
 		_, _ = m.Pool.Exec(ctx,
 			`UPDATE fin_position SET closed_at=now() WHERE strategy_ref=$1 AND closed_at IS NULL`, stratID)
+		// T-0511：position 关账后残 'closing' 行=僵尸（探针假升件）——
+		// 清扫径同关 guard_close。
+		_, _ = m.Pool.Exec(ctx,
+			`UPDATE fin_guard_close SET state='closed',closed_at=now(),updated_at=now(),
+			 last_error='reconcile:drill_cleanup' WHERE state='closing'
+			 AND position_id IN (SELECT id FROM fin_position WHERE strategy_ref=$1)`, stratID)
 	}()
 
 	if shape == shapeDCD {

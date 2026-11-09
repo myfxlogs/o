@@ -35,6 +35,17 @@ type loopStuck struct {
 // loopProbe 自残探针一拍（scanOnce 内挂——闸径独立阈键，读败/缺键=探针
 // 本面跳过不影响主扫描）。
 func (w *Warden) loopProbe(ctx context.Context) {
+	// reconcile 先扫（T-0511 僵尸行实证）：position 已 closed 的 'closing'
+	// 行=带外闭环（drill 清扫径/人工径写 position.closed_at 未走
+	// markClosed 双写）——scanOnce 按 closed_at 滤仓永不再碰，探针
+	// 不收它就是对死行每阈升假升件。落 'closed' 免报；阈键缺件也照扫。
+	if _, err := w.pool.Exec(ctx, `UPDATE fin_guard_close g
+		SET state='closed',closed_at=now(),updated_at=now(),
+		    last_error='reconcile:position_closed_outside_guard'
+		FROM fin_position p
+		WHERE g.position_id=p.id AND g.state='closing' AND p.closed_at IS NOT NULL`); err != nil {
+		w.rej.Inc("write_err")
+	}
 	maxAtt, err1 := w.getF("guard.loop_alert_attempts")
 	maxHrs, err2 := w.getF("guard.loop_alert_hours")
 	if err1 != nil || err2 != nil {
@@ -46,7 +57,7 @@ func (w *Warden) loopProbe(ctx context.Context) {
 		SELECT g.position_id, p.strategy_ref, g.attempts,
 		       COALESCE(g.last_try_at,p.opened_at), g.loop_alerted_at
 		FROM fin_guard_close g JOIN fin_position p ON p.id=g.position_id
-		WHERE g.state='closing'
+		WHERE g.state='closing' AND p.closed_at IS NULL
 		  AND (g.attempts >= $1
 		       OR now()-COALESCE(g.last_try_at,p.opened_at) > make_interval(secs => $2*3600))`,
 		int64(maxAtt), maxHrs)
