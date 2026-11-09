@@ -50,6 +50,8 @@ trx.grpc_endpoint	owner	Tron RPC 拓扑（基建面）
 okx.symbols	owner	采集宇宙清单（GetStringList 数组键——基建面）
 mt5.symbols	owner	采集宇宙清单（GetStringList 数组键——基建面）
 readcred.entitlement	owner	读凭据权限白名单（访问控制面——fail-closed）
+repair.feeds	owner	采集臂修复注册表（JSON 面列:unit/table/where/dead_sec——基建自愈面）
+repair.guard	owner	修复环闸参数（JSON:restart_gap_sec/grace_sec/max_per_day——配额闸防风暴）
 # 凭证形键（*_api_key/*secret*/*token*/*passphrase/*password/*account_id/
 # *private_key）不须入册——dmwrite.go credentialRE 先于一切硬拒归 owner
 # （trx.trongrid_api_key/cmc.account_id 实证在案）。

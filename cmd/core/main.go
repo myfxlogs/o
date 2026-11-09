@@ -280,7 +280,7 @@ func run() error {
 	// T-0096：MT5 户活读件同注（OpenSession 现读——凭据缺席=读件缺不假零）。
 	// T-0110：TRX 自营盘读面同 server 注册（trxW 同源单例）。
 	mountCore(mux, svc)
-
+	go svc.feedEscLoop(ctx) // 鲜度死升件环（件=feed_esc.go——面死→ops_event 升件,UI 零信任）
 	// T-0170 readcred 专口：只读钥解密端点（:8095 loopback——dev 隧道 5545
 	// boot 取；缺件 503 fail-closed）。T-0174：/v1/readcred venue-map 回包。
 	startReadcred(ctx, errc, pool, cfg)
