@@ -10,7 +10,7 @@ import { useLive } from "../hooks";
 import { Card, EmptyState, ErrorState, Skeleton, UtcClock } from "./ui";
 import { pbDate } from "./fmt";
 import { DIRECTION_CN } from "./labels";
-import type { ListClosedPositionsResponse } from "../../gen/dashboardv1/core_pb";
+import type { DoingItem, ListClosedPositionsResponse } from "../../gen/dashboardv1/core_pb";
 
 const PAGE = 5;
 
@@ -127,7 +127,7 @@ export function ClosedPositionsCard() {
 // OpenPositionsCard 在持订单卡（业主令「持仓订单+详细内容」）：open 持仓
 // 表+腿明细展开行（DCD 类零腿=「产品仓无订单腿」如实注）+live 待命部署
 // 折行（无仓非僵尸）。ev_position/ev_strategy 信号驱动重取零轮询。
-export function OpenPositionsCard() {
+export function OpenPositionsCard({ doing }: { doing?: DoingItem[] }) {
   const lv = useLive(["ev_position", "ev_strategy"], () =>
     client.listOpenPositions({})
   );
@@ -135,19 +135,32 @@ export function OpenPositionsCard() {
   const [armedOpen, setArmedOpen] = useState(false);
   const ps = lv.data?.positions ?? [];
   const armed = lv.data?.armed ?? [];
+  // 补充在持行：venue 直读面（DCD 产品仓/残仓/缺口件）——exec 行已归结构表，
+  // 与持仓行同 product id 的 venue 行滤掉防一仓双显（业主令两瓦片合一）。
+  const extra = (doing ?? []).filter(
+    (d) => !ps.some((p) => p.instId && d.text.includes(p.instId))
+  );
   const fmtTs = (t?: Timestamp) =>
     pbDate(t)?.toISOString().slice(5, 16).replace("T", " ") ?? "—";
+  const held = (t?: Timestamp) => {
+    const d = pbDate(t);
+    if (!d) return "—";
+    const m = Math.max(0, Math.floor((Date.now() - d.getTime()) / 60000));
+    return m < 60 ? `${m}m` : m < 1440 ? `${Math.floor(m / 60)}h${m % 60}m` : `${Math.floor(m / 1440)}d${Math.floor((m % 1440) / 60)}h`;
+  };
   return (
-    <Card title="持仓订单" extra={<UtcClock />}>
+    <Card title="在持订单" extra={<UtcClock />}>
       {lv.loading && !lv.data ? (
         <Skeleton rows={4} />
       ) : lv.err && !lv.data ? (
         <ErrorState msg={lv.err} onRetry={lv.reload} />
       ) : (
         <>
-          {ps.length === 0 ? (
-            <EmptyState title="无在持仓位" hint="开仓后此处逐行立账——腿明细点开即看" />
+          {ps.length === 0 && extra.length === 0 ? (
+            <EmptyState title="静持——无开仓在案" hint="系统在等下一个入场信号，来了这里会亮行" />
           ) : (
+            <>
+              {ps.length > 0 && (
             <table className="rows">
               <thead>
                 <tr>
@@ -156,6 +169,7 @@ export function OpenPositionsCard() {
                   <th>方向</th>
                   <th className="num">名义</th>
                   <th>开仓</th>
+                  <th>已持</th>
                   <th className="num">腿</th>
                 </tr>
               </thead>
@@ -173,6 +187,7 @@ export function OpenPositionsCard() {
                         ${p.notionalUsd.toLocaleString("zh-CN", { maximumFractionDigits: 2 })}
                       </td>
                       <td className="mono">{fmtTs(p.openedAt)}</td>
+                      <td className="mono">{held(p.openedAt)}</td>
                       <td className="num mono">
                         {p.legs.length === 0 ? "—" : `${open[Number(p.id)] ? "▾" : "▸"}${p.legs.length}`}
                       </td>
@@ -180,13 +195,13 @@ export function OpenPositionsCard() {
                     {open[Number(p.id)] &&
                       (p.legs.length === 0 ? (
                         <tr key={String(p.id) + ":e"}>
-                          <td colSpan={6} className="ink-3">
+                          <td colSpan={7} className="ink-3">
                             产品仓无订单腿（DCD/结构仓——订阅明细走 venue 产品面）
                           </td>
                         </tr>
                       ) : (
                         <tr key={String(p.id) + ":l"}>
-                          <td colSpan={6}>
+                          <td colSpan={7}>
                             <table className="rows sub">
                               <thead>
                                 <tr>
@@ -220,6 +235,17 @@ export function OpenPositionsCard() {
                 ))}
               </tbody>
             </table>
+              )}
+              {extra.length > 0 && (
+                <div className="feed">
+                  {extra.map((d, i) => (
+                    <div key={i} className="feed-row">
+                      <span>{d.text}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
           )}
           {armed.length > 0 && (
             <div className="armed">
