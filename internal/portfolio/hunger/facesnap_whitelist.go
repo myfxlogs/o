@@ -164,4 +164,16 @@ var faceBaselineWhitelist = map[string]string{
 	"face:service:gateway":            "纪元3 入册——gateway=meta 网关席（升件路由40/心跳10/收敛9/席权2 写在案——纪元3 无头派发基建合法写面）；生产亲证 面清单新面行 #6436→升件 #6437",
 	"face:service:hostmetrics":        "纪元3 入册——hostmetrics=宿主机量表探针写者（feed断更+升件 写在案——采集观测源宿主机面合法）；生产亲证 面清单新面行 #7703→升件 #7704",
 	"face:table:ops_event_sem_matrix": "纪元3 入册——ops_event_sem_matrix=fin_0154 迁移建表（T-0506 ops_event (seat,event) 合法性矩阵白名单册，domain.tsv bridge 入册行在案）；建表落地即面；生产亲证 面清单新面行 #5759→升件 #5760",
+	// ===== 纪元3 会话补册（2026-11-09 唤知会话处置面——同批语义）=====
+	// repair 键域=app_config repair.feeds/repair.guard（采集臂修复注册表+
+	// 闸参数，internal/repair/watch.go 实读）——depConfigReaders 册载
+	// 「采集臂修复环」补位后枚举对=合法册内面；gate_domain 面=键域谱面
+	// 本体零硬编码，域在册恒产非产消断（T-0490/0492 meta 同型先例）。
+	"face:dep_pair:config:repair→采集臂修复环": "2026-11-09 入册——repair 键域=app_config repair.feeds/repair.guard 在册即面，读者册载采集臂修复环（internal/repair/watch.go cfg.Get 实读两键，修复环配额闸+md_repair_log 落账径在案）；depConfigReaders 补册后枚举对合法新面登记不重复升；生产亲证 app_config 两键在册+升件源 ops_event #9011",
+	"face:gate_domain:repair":            "2026-11-09 入册——repair app_config 键域=采集臂修复注册表/闸参数在册即面（写域册 dm 类基建自愈面，读者=采集臂修复环实读在案）；gate_domain 枚举=split_part 本体零硬编码合法新面登记不重复升；生产亲证 app_config repair.feeds+repair.guard 在册+升件源 ops_event #9015",
+	// 研究员=能力面扫描机件席位（D-0045①½立项产出——capability scan
+	// 假想卡 ops_event 写径合法）；扫描拍间歇写（信号面净+7d 无扫描才
+	// 触发）静默 >7d 出集再活跃=再现新面再升件再起草循环（T-0393 链，
+	// T-0448 册语义罩位，纪元3 批同型先例）。
+	"face:service:研究员": "2026-11-09 入册——研究员=能力面扫描机件席位（D-0045①½立项，唤知会话代行产出 cap-scan+hypo 卡 ops_event 写径合法）：扫描拍间歇写 7d 活跃窗摆动登记不重复升；生产亲证 2026-11-09 cap-scan-2026-11-09+三假想卡行 #8975-8976（面清单新面行→升件 #8990）",
 }
