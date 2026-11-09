@@ -173,6 +173,18 @@ func runMutatingReal(ctx context.Context, mutSym string) {
 		return st, r.GetError().GetMessage()
 	})
 	if !tradeOK {
+		// SymbolParams 桥崩（"Value cannot be null"——mtapi 序列化坑,
+		// XAUUSDm 实证）降级径：IsTradeSession=在交易时段=可交易旁证。
+		market(fmt.Sprintf("降级: IsTradeSession(%s)", mutSym), "ok", func(c context.Context) (string, string) {
+			r, err := mt5c.IsTradeSession(c, &mt5pb.IsTradeSessionRequest{Id: token, Symbol: mutSym})
+			st, _ := status(err, r.GetError(), false)
+			if r.GetResult() {
+				tradeOK = true
+			}
+			return st, fmt.Sprintf("inSession=%v", r.GetResult())
+		})
+	}
+	if !tradeOK {
 		fmt.Println("REJECT: 隔离符号非 FullAccess——mutating 谱止")
 		return
 	}
