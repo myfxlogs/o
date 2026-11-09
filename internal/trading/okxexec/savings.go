@@ -105,6 +105,21 @@ func (c *Client) savingsMove(ctx context.Context, ccy string, amt float64, side 
 // SavingsBalance /finance/savings/balance 持仓查询已落 client.go（raw 返回，T-holding
 // 钦定保留面）；ccy 语义封装（过滤+pendingAmt 计入）在 internal/earn 消费侧。
 
+// FundingAvail funding 户某币可用余（/asset/balances 明细——无行=0 不误报；
+// dcd 摆渡缺额判据+earn IdleFunding 同源语义）。
+func (c *Client) FundingAvail(ctx context.Context, ccy string) (float64, error) {
+	rows, err := c.AssetBalances(ctx)
+	if err != nil {
+		return 0, err
+	}
+	for _, r := range rows {
+		if r.Ccy == ccy {
+			return ParseF(r.AvailBal), nil
+		}
+	}
+	return 0, nil
+}
+
 // AssetTransfer 账户内划转（type=0，funding↔trading）——携幂等键（POST 体字段名=
 // clientId；查询侧 GET transfer-state 参名同为 clientId——实测 2026-10-24：写
 // clTId 被静默吞）。T-0059：clientId=字母前缀混合（全数字在产查态被 58129 拒——

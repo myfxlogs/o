@@ -38,6 +38,15 @@ func (s stubDcdVenue) DcdTrade(context.Context, string) (json.RawMessage, error)
 func (s stubDcdVenue) DcdOrderStatus(context.Context, string) (json.RawMessage, error) {
 	return s.sraw, s.serr
 }
+func (s stubDcdVenue) FundingAvail(context.Context, string) (float64, error) {
+	return 1e9, nil // 恒满仓——摆渡径天然跳过（本桩面只验拒因持久化非钱径）
+}
+func (s stubDcdVenue) AssetTransfer(context.Context, string, float64, string, string) (string, string, error) {
+	return "", "", nil
+}
+func (s stubDcdVenue) AssetTransferState(context.Context, string, string) (string, error) {
+	return "success", nil
+}
 
 // dcdRejectFixture 迁移+产品行+闸放行装配（risk.* 键=0008 迁移种值，equity
 // 现读件注入大额放行——本桩面只验持久化非闸判据）。

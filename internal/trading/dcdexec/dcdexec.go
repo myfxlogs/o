@@ -24,12 +24,24 @@ import (
 	"o/internal/trading/okxexec"
 )
 
-// Venue dcd 执行三步缝（产线=*okxexec.Client 同签名实现；仿真=dcdsim 桩）。
+// Venue dcd 执行三步缝（产线=*okxexec.Client 同签名实现；仿真=dcdsim 桩）
+// +钱径摆渡缝三件（sfp/dcd=finance 产品——扣款源=funding 户,缺额自
+// trading 幂等摆渡,T-0059 三态仲裁律；仿真桩=恒满仓径过）。
 type Venue interface {
 	DcdQuote(ctx context.Context, productID, notionalSz, notionalCcy string) (string, error)
 	DcdTrade(ctx context.Context, quoteID string) (json.RawMessage, error)
 	DcdOrderStatus(ctx context.Context, ordID string) (json.RawMessage, error)
+	FundingAvail(ctx context.Context, ccy string) (float64, error)
+	AssetTransfer(ctx context.Context, ccy string, amt float64, from, to string) (clTID, transID string, err error)
+	AssetTransferState(ctx context.Context, ccy, clTID string) (string, error)
 }
+
+// 户编码（venue 方言——OKX: 6=funding 资金户/18=trading 交易户；
+// finance 产品申购扣款源恒=funding 户,交易户持币须摆渡）。
+const (
+	AcctFunding = okxexec.AcctFunding
+	AcctTrading = okxexec.AcctTrading
+)
 
 // Spec dcd 开仓规格（自持型——不引 lifecycle.OpenSpec 防域反向依赖）。
 type Spec struct {
@@ -83,6 +95,41 @@ func Open(ctx context.Context, d Deps, v Venue, spec Spec) (int64, error) {
 		VALUES($1,$2,$3,$4,'open') RETURNING id`,
 		spec.StrategyRef, dec.DecisionID, spec.InstID, spec.NotionalUSD).Scan(&execID); err != nil {
 		return 0, err
+	}
+	// 钱径摆渡（T-0462——sfp/dcd 扣款源=funding 户实证 51736:交易户持币
+	// 不够数。缺额 trading→funding 幂等摆渡；exec 行先落='open'=earn
+	// 在途让位闸锚——防 sweepIdle 抢渡款买 Earn 的 ping-pong 病灶。
+	// 歧态势 fail-closed：下拍重读 funding 余按新缺额自愈,禁盲动。
+	// 域界：摆渡只覆 USDT 锁仓——非 USDT 锁仓币直通交 venue 仲裁
+	// （ccy 计价尺度换算另票,禁拿 NotionalUSD 当异币额充数）。
+	if notionalCcy == "USDT" {
+		avail, aerr := v.FundingAvail(ctx, "USDT")
+		if aerr != nil {
+			Mark(ctx, d.Pool, execID, "failed", aerr)
+			return execID, fmt.Errorf("funding 户余读败 fail-closed: %w", aerr)
+		}
+		if deficit := spec.NotionalUSD - avail; deficit > 0 {
+			clTID, transID, terr := v.AssetTransfer(ctx, "USDT", deficit, AcctTrading, AcctFunding)
+			switch {
+			case terr == nil:
+				log.Printf("[dcdexec] 摆渡成 clTId=%s transId=%s 缺额=%.4f USDT", clTID, transID, deficit)
+			case isVenueReject(terr): // venue 业务终拒→禁补,如实败（581xx/5xxxx 族）
+				MarkVE(ctx, d.Pool, execID, "failed", "", terr.Error())
+				return execID, fmt.Errorf("摆渡终拒（clTId=%s）: %w", clTID, terr)
+			default: // 传输名败→transfer-state 仲裁定真态
+				st, qerr := v.AssetTransferState(ctx, "USDT", clTID)
+				switch {
+				case qerr == nil && st == "success":
+					log.Printf("[dcdexec] 摆渡传输败实成 clTId=%s", clTID)
+				case qerr == nil && st == "failed":
+					Mark(ctx, d.Pool, execID, "failed", terr)
+					return execID, fmt.Errorf("摆渡 state=failed（clTId=%s）: %w", clTID, terr)
+				default:
+					Mark(ctx, d.Pool, execID, "ambiguous", terr)
+					return execID, fmt.Errorf("摆渡歧态势禁盲动（clTId=%s）: %w / %v", clTID, terr, qerr)
+				}
+			}
+		}
 	}
 	// T-0207：venue trade 无 clOrdId 幂等键——fin_execution intent 行承幂等
 	// 径照旧；歧态势=order-status?ordId/order-history 反查真态禁盲补。
@@ -163,6 +210,13 @@ func Open(ctx context.Context, d Deps, v Venue, spec Spec) (int64, error) {
 	}
 	log.Printf("[dcdexec] DCD 开仓 exec=%d pos=%d ordId=%s state=%s", execID, pid, rows[0].OrdID, state)
 	return execID, nil
+}
+
+// isVenueReject venue 业务终拒分型（*APIError=拒绝态非传输态——
+// earn transfer 同律:终拒禁补单禁仲裁,如实败）。
+func isVenueReject(err error) bool {
+	var ae *okxexec.APIError
+	return errors.As(err, &ae)
 }
 
 // VenueErr venue 拒因双层抽取（T-0259：内层 sCode 在且≠0=真实拒因优先——
