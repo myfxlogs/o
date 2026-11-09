@@ -11,7 +11,9 @@ import (
 	"time"
 
 	"o/internal/ledger/retention"
+	"o/internal/platform/config"
 	"o/internal/platform/roster"
+	"o/internal/repair"
 	"o/internal/store/pgstore"
 )
 
@@ -47,11 +49,23 @@ func main() {
 	sw := retention.New(mdPool, func(ctx context.Context, msg string) {
 		log.Printf("ALERT [retention-md] %s", msg) // dev 侧 log 面告警（feishu 凭据归 SG）
 	})
+	// 采集臂修复环同载（业主令——白名单三件静默死自动重启;
+	// repair.* 族 app_config 热更,md 侧投影面零 env 涉）。
+	cfg := config.New(mdPool)
+	if err := cfg.Load(ctx); err != nil {
+		log.Fatalf("[sweeper] repair 配置载: %v", err)
+	}
+	go func() {
+		if err := cfg.Watch(ctx); err != nil && ctx.Err() == nil {
+			log.Printf("WARN: [sweeper] repair 配置 watch: %v", err)
+		}
+	}()
+	go repair.Watch(ctx, mdPool, cfg)
 	tick := time.NewTicker(24 * time.Hour) // sched-exempt-ok：日拍清道（保留账巡面非业务轮询——同 cmd/core/retention.go 豁免形）
 	defer tick.Stop()
 	errc := make(chan error, 4)
 	go roster.BeatLoop(ctx, sgPool, seatName, 30*time.Second, errc)
-	log.Printf("[sweeper] PG-md 清道夫起——分库账日拍（首拍即时）")
+	log.Printf("[sweeper] PG-md 清道夫起——分库账日拍+采集臂修复环（首拍即时）")
 	if err := sw.Sweep(ctx); err != nil {
 		log.Fatalf("[sweeper] 首拍: %v", err)
 	}
