@@ -169,3 +169,49 @@ func TestDcdTradeRejectPersist(t *testing.T) {
 }
 
 func strPtr(s string) *string { return &s }
+
+// T-0462 响应方言回归：成单返回 ordId 而 sCode 缺席——""≠"0"误走业务拒
+// 支曾产幻影敞口（venue LIVE 台账 failed）。放行径=order-status 定真态
+// →exec open+position 落位同产线成功形。
+func TestDcdTradeNoSCodeSuccessDialect(t *testing.T) {
+	pid := "BTC-USDT-261225-95000-C"
+	stub := stubDcdVenue{qid: "q-ok",
+		traw: json.RawMessage(`[{"ordId":"ORD-11594773"}]`),
+		sraw: json.RawMessage(`[{"ordId":"ORD-11594773","state":"LIVE"}]`)}
+	ctx, pool, h := dcdRejectFixture(t, pid, stub)
+	eid, err := h.dcdOpen(ctx, dcdSpec(pid))
+	if err != nil || eid == 0 {
+		t.Fatalf("sCode 缺席成单应放行: eid=%d err=%v", eid, err)
+	}
+	var state string
+	var posID int64
+	if err := pool.QueryRow(ctx, `SELECT e.state,p.id FROM fin_execution e
+		JOIN fin_position p ON p.execution_id=e.id WHERE e.id=$1`, eid).
+		Scan(&state, &posID); err != nil {
+		t.Fatalf("exec open+position 应落位: %v", err)
+	}
+	if state != "open" || posID == 0 {
+		t.Fatalf("成功方言落位错位: state=%s pos=%d", state, posID)
+	}
+}
+
+// T-0462 反向锚：sCode+ordId 双缺=不可定态→ambiguous 禁补单（禁默认
+// 成功造仓——幻影敞口同源防）。
+func TestDcdTradeDoubleMissingAmbiguous(t *testing.T) {
+	pid := "BTC-USDT-261225-95000-C"
+	stub := stubDcdVenue{qid: "q-ok",
+		traw: json.RawMessage(`[{}]`)}
+	ctx, pool, h := dcdRejectFixture(t, pid, stub)
+	eid, err := h.dcdOpen(ctx, dcdSpec(pid))
+	if err == nil || eid == 0 {
+		t.Fatalf("双缺应 ambiguous 上抛: eid=%d err=%v", eid, err)
+	}
+	var state string
+	if err := pool.QueryRow(ctx, `SELECT state FROM fin_execution WHERE id=$1`, eid).
+		Scan(&state); err != nil {
+		t.Fatal(err)
+	}
+	if state != "ambiguous" {
+		t.Fatalf("双缺态应 ambiguous: %s", state)
+	}
+}
