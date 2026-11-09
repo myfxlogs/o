@@ -254,8 +254,10 @@ func TestDiagSeatZeroMoneyPathWrites(t *testing.T) {
 		}
 	}
 
-	// B. 裁定席 SKILL 第四分支。
-	skill, err := os.ReadFile(filepath.Join(root, "skills", "裁定席", "SKILL.md"))
+	// B. 裁定席 SKILL 第四分支（纪元3：席位卡封存 docs/纪元2归档/席位卡/
+	// ——受理节契约文本以归档件为准；诊断案产线仍在产，消费席待认领，
+	// 契约断言保留防契约档丢失）。
+	skill, err := os.ReadFile(filepath.Join(root, "docs", "纪元2归档", "席位卡", "裁定席", "SKILL.md"))
 	if err != nil {
 		t.Fatal(err)
 	}

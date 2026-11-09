@@ -846,7 +846,7 @@ func TestFaceBaselineTableOpsSeatCardRegistered(t *testing.T) {
 // TestFaceBaselineService外审席Registered T-0473 先红桩（T-0388 修复类律
 // ——病灶存在断言修前红+同断言修后绿）：签名面 face:service:外审席 必须在
 // 人工基线册。根因锚：外审席=外派件归宗裁决道席位（业主令 2026-11-07「外派
-// 外审外部署，不去给DM做积压」成例，.devin/skills/外审席/SKILL.md 职卡在案；
+// 外审外部署，不去给DM做积压」成例，docs/纪元2归档/席位卡/外审席/SKILL.md 职卡在案；
 // ceo_queue.sh 钦定席位集含 '外审席'——席上行件非探针自产设计在案）——ops_event
 // 写径=归宗裁决/通过自报（生产实证 2026-11-08 02:36Z→04:55Z 9 行五件外派件
 // 归宗裁决对，ops_event #3928 新面行→#3929 升件源→draft#24）；班次形=瞬态
