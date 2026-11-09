@@ -33,5 +33,9 @@ domain: 工程
 - **双轨寻址**（实证）：`Server` 非空→`ConnectEx{User,Password,Server,Id}`〔server 名=MT 终端所见名〕；否则 `Host`→`Connect{User,Password,Host,Port,Id}`——Host 为**逗号分隔多候选**逐个试〔broker_search 搜得的 Access 列表直接灌〕，`splitHostPort` 末 `:` 剥端口、缺省 **443**。
 - **id/token 双层**（坑密集面，2026-10-24 修正）：Connect 前先以 metadata `id=<临时 sid>` 发起；Connect 返回的 token 回填**两处**——metadata header `id` **且** 请求体 `Id` 字段（**双位同填，缺一即拒**——EXR 3001157 实拍：仅体域无 header=「Id header is required」unary/stream 同病）。**另轨**：流/订阅类调用可能还须 `authorization: Bearer <MtapiToken>`——MtapiToken 空=免费公共端点轨省发（公共端点不校验 Bearer 实拍），付费/私有端点必须带。
 - **dial 参数**（ant 实证集）：TLS1.2+、`MaxCallMsgSize 16MB`、keepalive `30s/20s/PermitWithoutStream`（**长流必须**，无则被中间件静默割）。
+- **端点活性实证（2026-11-09，EXR 3001157）**：`mt5grpc3` ConnectThread 出口被 Exness **拒连**——60 台 server 全谱扫同死法「socket opened → send login → 券商即断」（产线实测约 10% 间歇成功率）；`mt5grpc2` 同参首试 CONNECTED+52 PASS 只读谱零断。`mt5grpc1/4` 在 SG 网段被 ingress 劫持（TLS 证书=ingress.local）**不可作 fallback**。生产 `app_config.mt5.gateway_addr` 已切 grpc2（ops_event #8931）。**逃生门**：官方 proto `rpc ConnectProxy`——broker 连接走自备 SOCKS5 而非 mtapi 出口，若出口 IP 再被封=券商只见我方 IP。
+- **坑：collector 长会话 addr 启动缓存**——`internal/mt5/collector.go` `NewCollector` 读一次 `mt5.gateway_addr` 存 `c.addr`，重连环 `dial(c.addr)` 永不重读 config——换端点须重启进程才生效（`OpenSession` 每拍重读无此坑）。
+- **`send login (:<login>)` 死法判读**：ConnectThread 报文尾段=「socket opened → send login → 断」=**券商拒 mtapi 出口**（凭据/服务器名无辜——MT 客户端同参可登即为证）;若报文停在 connecting 前=寻址死,停 authed 后=凭据死。
+
 - **Disconnect 排水窗**：Disconnect RPC 后等 ~200ms 再 `cc.Close`——让在飞 Recv 观察到取消，防级联重连（ant QUOTE-RECONNECT-LOOP 实证）。
 - **Ping**=`CheckConnect{Id}`；**登出纪律**：Disconnect 只应由持有方 actor 发起。
