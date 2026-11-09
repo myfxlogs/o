@@ -120,26 +120,12 @@ export function OverviewPage() {
         <span className="ink-3">›</span>
       </a>
 
-      {/* 三问之二——仓什么状态（业主①：总览同上瀑布错落——hero/健康条保全宽） */}
+      {/* 三问之二——在持订单卡（业主令两瓦片合一+全宽：exec 持仓结构表+腿明细
+          +venue 直读补充行+待命部署折行；腿表九列要全宽，出瀑布单列） */}
+      {ov.err ? <ErrorState msg={ov.err} onRetry={ov.reload} /> : null}
+      <OpenPositionsCard doing={doing} />
+
       <div className="masonry">
-      <Card title="在持">
-        {ov.err ? <ErrorState msg={ov.err} onRetry={ov.reload} /> : null}
-        {doing.length === 0 ? (
-          <EmptyState title="静持——无开仓在案" hint="系统在等下一个入场信号，来了这里会亮行" />
-        ) : (
-          <div className="feed">
-            {doing.map((d, i) => (
-              <div key={i} className="feed-row">
-                <span>{d.text}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
-
-      {/* 持仓订单明细（业主令——在持卡是简讯行，本卡=结构化订单面） */}
-      <OpenPositionsCard />
-
       <Card title="最近动作" extra={<UtcClock />}>
         {(o.recent ?? []).length === 0 ? (
           <EmptyState title="账面平静" hint="现金流落地后在此亮行" />

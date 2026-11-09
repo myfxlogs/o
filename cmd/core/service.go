@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"strings"
 	"time"
 
 	connect "connectrpc.com/connect/v2"
@@ -98,19 +97,15 @@ func (c coreService) Overview(ctx context.Context, _ *dashboardv1.OverviewReques
 	// （所见即所得——DCD 是基金第二大资产块却不在「持仓中」=业主令病灶）；
 	// 展示引用不重复入 NAV（钱卡 dcdRows 已计值）。静持空态判据=基金真空
 	// 持仓（无 open 仓且无 DCD live 单）；DCD 读件缺显形不静默（不假零）。
-	prow, _ := c.pool.Query(ctx, `SELECT position_id,inst_id,ts FROM fin_position_view
-		WHERE kind='exec' AND closed_at IS NULL ORDER BY position_id DESC LIMIT 5`)
+	// exec 持仓简讯行撤——同页在持订单卡 ListOpenPositions 结构化行承载
+	// （业主令两瓦片合一；本段仅留 posN 供静持空态判据）。
+	prow, _ := c.pool.Query(ctx, `SELECT position_id FROM fin_position_view
+		WHERE kind='exec' AND closed_at IS NULL LIMIT 5`)
 	posN := 0
 	for prow.Next() {
 		var id int64
-		var inst string
-		var at time.Time
-		_ = prow.Scan(&id, &inst, &at)
+		_ = prow.Scan(&id)
 		posN++
-		base := strings.SplitN(inst, "-", 2)[0]
-		o.Doing = append(o.Doing, &dashboardv1.DoingItem{
-			Text:  fmt.Sprintf("%s 对冲仓 #%d — 持仓中，已持 %s", base, id, durHuman(time.Since(at))),
-			Stamp: at.UTC().Format(time.RFC3339)})
 	}
 	prow.Close()
 	dcds, ok := c.dcdOrds(ctx)

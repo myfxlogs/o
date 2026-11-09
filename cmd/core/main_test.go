@@ -183,7 +183,8 @@ func doingTexts(o *dashboardv1.OverviewResponse) string {
 }
 
 // T-0105 锚：在干列表全集化——①无仓有 DCD→DCD 行无静持（展示引用不重复
-// 入 NAV）②双有→两行 ③全空→静持 ④DCD 读件缺→显形非静默非假静持。
+// 入 NAV）②双有→DCD 行在列、exec 仓归结构表不入简讯（两瓦片合一后口径）
+// ③全空→静持 ④DCD 读件缺→显形非静默非假静持。
 func TestOverviewDoingFullCoverage(t *testing.T) {
 	ctx := context.Background()
 	pool := testutil.Pool(t)
@@ -244,8 +245,10 @@ func TestOverviewDoingFullCoverage(t *testing.T) {
 		t.Fatal(err)
 	}
 	tx2 := doingTexts(o2)
-	if !strings.Contains(tx2, "ETH 对冲仓") || !strings.Contains(tx2, "DCD BTC-USDT") {
-		t.Fatalf("双有应两源入列: %q", tx2)
+	// exec 仓简讯行已撤——归同页 ListOpenPositions 结构表（业主令两瓦片合一）；
+	// 简讯面只剩 venue 直读臂（DCD/残仓/缺口件）。
+	if !strings.Contains(tx2, "DCD BTC-USDT") || strings.Contains(tx2, "对冲仓") {
+		t.Fatalf("exec 仓应归结构表、DCD 行仍入列: %q", tx2)
 	}
 	if strings.Contains(tx2, "静持") {
 		t.Fatalf("双有不得显静持: %q", tx2)
