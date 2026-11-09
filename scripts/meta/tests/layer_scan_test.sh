@@ -39,6 +39,7 @@ case "$query" in
   *"/*ls:water*/"*)       printf '%b\n' "${WATER_ROWS:-}" ;;
   *"/*ls:pulls*/"*)       printf '%s\n' "${PULLS_N:-0}" ;;
   *"/*ls:endpoint*/"*)    printf '%s\n' "${DEPLOY_TS_ROWS:-}" ;;
+  *"/*ls:unclaimed*/"*)   printf '%b\n' "${UNCLAIMED_ROWS:-}" ;;
   *"note LIKE '"*"24 hours"*)
     # ops_esc 24h 前缀去重——LIKE 字面对升件写径日志判（壳写=SQL 查同形）
     prefix=$(sed -nE "s/.*note LIKE '([^']*)%'.*/\1/p" <<<"$query")
@@ -107,9 +108,10 @@ reset_logs() { : > "$ESC_SQL_LOG"; : > "$DIGEST_SQL_LOG"; rm -f "$TMP/state/laye
 # ══ ① 回放三病灶：dispatched-无拉 / pulled-无unit(+worker-无收口同源)
 #    / 幽灵票件 —— 各对应升件行落账；digest 同窗落 ══════════════════
 reset_logs
-PHASE_ROWS='T-9001\x1fdispatched\x1f派单\x1f4000\nT-9010\x1fpulled\x1f领单\x1f4000\nT-9040\x1fapproved\x1f批件\x1f100'
+PHASE_ROWS='T-9001\x1fdispatched\x1f派单\x1f4000\nT-9010\x1fpulled\x1f领单\x1f4000\nT-0040\x1fapproved\x1f批件\x1f100'
 MACHEV_ROWS='T-9010'
-# 票件补齐——T-9001/T-9010 有件（幽灵检不误伤）；T-9040 故意无件=幽灵
+# 票件补齐——T-9001/T-9010 有件（幽灵检不误伤）；T-0040 故意无件=幽灵
+# （合法号域 T-[0-8]xxx——T-9xxx 无件归 g 无籍行非 b①）
 printf '# T-9001\n' > "$O_LAYER_SCAN_TASK_DIR/T-9001-x.md"
 printf '# T-9010\n' > "$O_LAYER_SCAN_TASK_DIR/T-9010-x.md"
 PHASE_ROWS="$PHASE_ROWS" MACHEV_ROWS="$MACHEV_ROWS" bash "$LSCAN"
@@ -119,8 +121,10 @@ esc_grep 'pulled-无unit:T-9010' >/dev/null \
   || { echo "FAIL ① pulled-无unit未报"; cat "$ESC_SQL_LOG"; exit 1; }
 esc_grep 'worker-无收口:T-9010' >/dev/null \
   || { echo "FAIL ① worker-无收口未报（pulled 滞留同源面）"; cat "$ESC_SQL_LOG"; exit 1; }
-esc_grep '幽灵票件:T-9040' >/dev/null \
+esc_grep '幽灵票件:T-0040' >/dev/null \
   || { echo "FAIL ① 幽灵票件未报"; cat "$ESC_SQL_LOG"; exit 1; }
+! esc_grep '无籍行:T-0040' | grep -q . \
+  || { echo "FAIL ① 合法域幽灵误报无籍行"; cat "$ESC_SQL_LOG"; exit 1; }
 grep -q "VALUES('MECH','层扫','层扫'" "$DIGEST_SQL_LOG" \
   || { echo "FAIL ① digest 行未落"; cat "$DIGEST_SQL_LOG"; exit 1; }
 grep -q 'queue=[1-9]' "$DIGEST_SQL_LOG" || grep -q 'entity=[1-9]' "$DIGEST_SQL_LOG" \
@@ -300,5 +304,43 @@ grep -q 'cap=skip' "$DIGEST_SQL_LOG" || { echo "FAIL ⑪d digest 未载 cap=skip
 grep -q 'streak=2' "$TMP/state/layer_scan.state" \
   || { echo "FAIL ⑪d streak 态被清（未知≠空集破）"; cat "$TMP/state/layer_scan.state"; exit 1; }
 echo "ok ⑪d dm_queue 败=streak 保留+cap=skip"
+
+# ══ ⑫ g 无籍相位行 + h 升件失领（返修1 补面——T-9001 幻影/失领
+#    38h 实证业主令）═══════════════════════════════════════════
+reset_logs
+# g① T-9xxx 夹具段无件=无籍行（非幽灵票件——两族对象域分判钉）
+PHASE_ROWS='T-9015\x1fdispatched\x1f派单\x1f4000\nBAD-KEY-9\x1fworking\x1f开工\x1f9000\nT-0044\x1fdone\x1f完成\x1f90000\nT-9016\x1fdispatched\x1f派单\x1f4000'
+printf '# T-9016\n' > "$O_LAYER_SCAN_TASK_DIR/T-9016-x.md" # T-9xxx 有件=不判
+PHASE_ROWS="$PHASE_ROWS" bash "$LSCAN"
+esc_grep '无籍行:T-9015' >/dev/null \
+  || { echo "FAIL ⑫ T-9xxx 无件未报无籍行"; cat "$ESC_SQL_LOG"; exit 1; }
+! esc_grep '幽灵票件:T-9015' | grep -q . \
+  || { echo "FAIL ⑫ T-9xxx 错报幽灵票件（对象域混）"; cat "$ESC_SQL_LOG"; exit 1; }
+esc_grep '无籍行:BAD-KEY-9' >/dev/null \
+  || { echo "FAIL ⑫ 非T票形伪键未报"; cat "$ESC_SQL_LOG"; exit 1; }
+esc_grep '无籍行:T-0044' >/dev/null \
+  || { echo "FAIL ⑫ 合法域终相无件未报"; cat "$ESC_SQL_LOG"; exit 1; }
+! esc_grep '无籍行:T-9016' | grep -q . \
+  || { echo "FAIL ⑫ T-9xxx 有件误报"; cat "$ESC_SQL_LOG"; exit 1; }
+# g② dedup：同对象同类目 24h 一行
+N1=$(esc_count)
+PHASE_ROWS="$PHASE_ROWS" bash "$LSCAN"
+[ "$(esc_count)" = "$N1" ] || { echo "FAIL ⑫ g dedup 破"; cat "$ESC_SQL_LOG"; exit 1; }
+# h① 失领升件分组报出+认领后零报+dedup
+reset_logs
+PHASE_ROWS='' UNCLAIMED_ROWS='T-7777\x1f2\x1f14400\nT-7778\x1f1\x1f20000' bash "$LSCAN"
+esc_grep '升件失领:T-7777' >/dev/null \
+  || { echo "FAIL ⑫ 失领未报 T-7777"; cat "$ESC_SQL_LOG"; exit 1; }
+esc_grep '升件失领:T-7778' >/dev/null \
+  || { echo "FAIL ⑫ 失领未报 T-7778"; cat "$ESC_SQL_LOG"; exit 1; }
+N2=$(esc_count)
+PHASE_ROWS='' UNCLAIMED_ROWS='T-7777\x1f2\x1f14400' bash "$LSCAN"
+[ "$(esc_count)" = "$N2" ] || { echo "FAIL ⑫ h dedup 破"; cat "$ESC_SQL_LOG"; exit 1; }
+reset_logs
+PHASE_ROWS='' UNCLAIMED_ROWS='' bash "$LSCAN"
+! esc_grep '升件失领' | grep -q . \
+  || { echo "FAIL ⑫ 认领后零报破"; cat "$ESC_SQL_LOG"; exit 1; }
+rm -f "$O_LAYER_SCAN_TASK_DIR/T-9016-x.md"
+echo "ok ⑫ g无籍行四域分判+h失领报出/认领零报/dedup"
 
 echo "layer scan scenarios PASS"

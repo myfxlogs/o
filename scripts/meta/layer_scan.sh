@@ -30,6 +30,16 @@
 #     期望码 200 对拍；部署窗豁免——ops_event event='部署' 行龄≤5min
 #     内端点红=image 重启瞬断不报，仍红>5min 或无部署行而红=升件
 #     「端点失健」。端点清单初期=dashboard 一处（票面钦定，扩面另立）。
+#   g 无籍相位行（票面修订补面——T-9001 幻影实证业主令）：
+#     ops_ticket_phase 存在行而 docs/tasks(+done/) 两处无票件=
+#     「无籍行」——与 b① 幽灵票件分工：b①=合法号域（T-[0-8]xxx）
+#     非终相位无件；g=b① 补域全键——T-9xxx 夹具段（session id
+#     撞票号域成因族钦定）/非 T-票形键（键闸过形不过实伪键）/
+#     合法域终相位无件。真票缺失不自动补造。
+#   h 升件失领（票面修订补面——管道面板 escalation_unclaimed
+#     38h19m 实证业主令）：ops_event 升件行超 4h 无同 ticket 后续
+#     处置/认领消费行（处置/裁决/完成/驳回/消/挂起——ceo_queue
+#     终态词表同源）=「升件失领」二次升件进裁队；面板挂行≠闭环。
 #
 # 升件行：seat=MECH event=升件 note=「层扫定性<类目>:<对象>——<详情>」
 #   ——走 ops_esc.sh 24h 前缀去重（同对象同类目 24h 一行不刷屏=票面
@@ -77,6 +87,8 @@ DEPLOY_BATCH_AGE_S=43200   # 票面e②：deploy 批龄>12h（钦定——deploy
 EMPTY_PULL_BEATS=2         # 票面c②：候选集非空拉起=0 升件拍数（「超2拍」阶梯下档）
 FAIL_BEATS=3               # 票面c①：连续 spawn 败拍数（「连续3拍」阶梯上档）
 ENDPOINT_DEPLOY_GRACE_S=300 # 票面f：「重启后仍红>5min」阈——部署行后 5min 内端点红=重启瞬断豁免
+ESC_UNCLAIMED_S=14400       # 票面h：升件超4h无处置/认领消费行（钦定阈——管道面板 escalation_unclaimed 38h19m 实证）
+CLAIM_EVENTS="'处置','裁决','完成','驳回','消','挂起'" # 票面h钦定认领词集——ceo_queue 终态词表同源单源取
 TERMINAL_PHASES="done rejected void" # 终相位集——b①非终判据（error=异常非终在列）
 
 QC() { printf '%s' "${1:-}" | sed "s/'/''/g"; }
@@ -85,8 +97,8 @@ mkdir -p "$STATE_DIR" 2>/dev/null || true # tolerate: 态目录建败=容量面�
 # 异常计数器（digest 五面分项——面界=票面五片）
 N_QUEUE=0; N_ENTITY=0; N_CAPACITY=0; N_LEDGER=0; N_EXTERNAL=0
 report_find() { # $1=类目 $2=对象(稳定dedup键) $3=ticket字段 $4=详情
-  case "$1" in dispatched-无拉|pulled-无unit|review-老化|approval-老化|draft-滞留) N_QUEUE=$((N_QUEUE+1));;
-    幽灵票件|done-翻漏|done-无收口链) N_ENTITY=$((N_ENTITY+1));;
+  case "$1" in dispatched-无拉|pulled-无unit|review-老化|approval-老化|draft-滞留|升件失领) N_QUEUE=$((N_QUEUE+1));; # 升件失领=裁队队列项积压同族归 queue
+    幽灵票件|done-翻漏|done-无收口链|无籍行) N_ENTITY=$((N_ENTITY+1));; # 无籍行=相位↔实体不一致同族归 entity
     spawn-连败|拉起-空转|worker-无收口) N_CAPACITY=$((N_CAPACITY+1));;
     账本-commit不可解|账本-回填缺席) N_LEDGER=$((N_LEDGER+1));;
     origin-落后|deploy-批龄|端点失健) N_EXTERNAL=$((N_EXTERNAL+1));; esac
@@ -154,7 +166,7 @@ machev() { printf '%s\n' "$MACHEV_TIDS" | grep -qxF "$1"; }
 for t in "${!PHASE_OF[@]}"; do
   ph=${PHASE_OF[$t]}; age=${AGE_OF[$t]:-0}
   [ "$ph" = "__tie__" ] && continue
-  case "$t" in T-[0-9][0-9][0-9][0-9]) TID_OK=1;; *) TID_OK=0;; esac
+  case "$t" in T-[0-8][0-9][0-9][0-9]) TID_OK=1;; *) TID_OK=0;; esac # 合法号域=T-[0-8]xxx——T-9xxx 夹具段归 g 无籍行非 b①
   # a① dispatched-无拉：相位已含「派单后零拉起」；unit 在飞=spawn 实了跳过；
   # 人工径票机器永不可为不算断链（depgate/mech 补拉同滤）。
   if [ "$ph" = "dispatched" ] && [ "$age" -gt "$DISPATCH_STALE_S" ] && [ "$UNIT_OK" = 1 ]; then
@@ -222,6 +234,38 @@ while IFS= read -r t; do
   case "$t" in *[!A-Za-z0-9_-]*) continue ;; esac
   report_find "done-无收口链" "$t" "$t" "相位done 在 7d 窗内而票史无收口/移交/收口待审/审计中事件"
 done <<< "$DONECHAIN"
+
+# ── g 无籍相位行（票面修订补面——T-9001 幻影实证业主令）：相位行在而
+#    票件两处皆无，b①（合法号域非终相）补域全键——T-9xxx 夹具段
+#    （session id 撞票号域）/非 T-票形伪键（闸过形不过实）/合法域终相
+#    无件（done 件亡实体面同族）。真票缺失不补造，dedup=同对象 24h。──
+for t in "${!PHASE_OF[@]}"; do
+  ph=${PHASE_OF[$t]}
+  [ "$ph" = "__tie__" ] && continue
+  compgen -G "$TASK_DIR/$t-*.md" >/dev/null && continue
+  compgen -G "$DONE_DIR/$t-*.md" >/dev/null && continue
+  case "$t" in
+    T-[0-8][0-9][0-9][0-9])
+      case " $TERMINAL_PHASES " in *" $ph "*) ;; *) continue ;; esac # 非终相合法域=b①已判不重复
+      report_find "无籍行" "$t" "$t" "相位$ph（终相）在案而 docs/tasks[/done] 票件两处皆无" ;;
+    *) report_find "无籍行" "$t" "$t" "相位行在案而 docs/tasks[/done] 票件两处皆无——成因族=session id撞票号域（T-9xxx夹具段）/键闸过形不过实伪键" ;;
+  esac
+done
+
+# ── h 升件失领（票面修订补面——escalation_unclaimed 38h19m 实证业主
+#    令）：升件行超 4h 无同 ticket 后续认领词行（处置/裁决/完成/驳回/消/
+#    挂起）=面板挂行≠闭环——二次升件进裁队；同 ticket 分组计件+最老龄。
+UNCLAIMED=$(psql "$FIN_DSN" -qAt -F $'\x1f' -c "/*ls:unclaimed*/
+SELECT e.ticket,count(*),extract(epoch from now()-min(e.ts))::bigint
+FROM ops_event e WHERE e.event='升件' AND e.ts < now()-interval '$((ESC_UNCLAIMED_S/3600)) hours'
+  AND NOT EXISTS (SELECT 1 FROM ops_event c WHERE c.ticket=e.ticket
+    AND c.ts>e.ts AND c.event IN ($CLAIM_EVENTS))
+GROUP BY e.ticket" 2>/dev/null) || UNCLAIMED="" # tolerate: 失领查询败=空集跳过本面（fail-closed 向静默——相位图主面不受累）
+while IFS=$'\x1f' read -r t n oldest; do
+  [ -n "$oldest" ] || continue # 空行/畸形行跳（查询败径同——败≠空集在壳侧）
+  obj=${t:-无票键} # 空 ticket 升件=系统面对象——组键稳字面（票面「同 ticket」含空集同值径）
+  report_find "升件失领" "$obj" "$t" "升件行${n}件超4h无认领词行（最老龄$((oldest/3600))h——处置/裁决/完成/驳回/消/挂起皆无）"
+done <<< "$UNCLAIMED"
 
 # ── d 账本真值（抽查非全量）：最近 SPOT_N 张 done 相位票双查 ────────
 DONE5=$(psql "$FIN_DSN" -qAt -c "/*ls:done5*/

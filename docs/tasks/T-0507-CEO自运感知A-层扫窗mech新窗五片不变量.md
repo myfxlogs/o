@@ -101,6 +101,23 @@
         瞬断不报，仍红>5min 或无部署行而红=「端点失健:dashboard」
         （初期清单 dashboard 一处钦定，扩面另立）；部署行查询败
         按无部署行判=fail-closed 向报不向隐。
+     g. 无籍相位行（票面修订补面——T-9001 幻影实证业主令，返修1
+        落）——ops_ticket_phase 行在而 docs/tasks(+done/) 两处无
+        票件=「无籍行」，与 b① 幽灵票件对象域分判钉死：b①=合法
+        号域 T-[0-8]xxx 非终相位无件（既有实现 T-[0-9] 收窄至
+        T-[0-8]）；g=b① 补域全键——T-9xxx 夹具段（session id
+        撞票号域成因族）/非 T-票形伪键（闸过形不过实）/合法域
+        终相位无件；真票缺失不补造。归口 entity 面（相位↔实体
+        不一致同族）。
+     h. 升件失领（票面修订补面——escalation_unclaimed 38h19m
+        实证业主令，返修1 落）——ops_event 升件行超 4h（常量
+        ESC_UNCLAIMED_S=14400 钦定阈带出处注）无同 ticket 后续
+        认领词行（处置/裁决/完成/驳回/消/挂起——ceo_queue 终态
+        词表同源）=「升件失领」同 ticket 分组计件+最老龄二次
+        升件进裁队；空 ticket 系统面升件对象键=「无票键」稳字
+        面（票面「同 ticket」含空集同值径）；查询败=空集跳过
+        本面 fail-closed 向静默。归口 queue 面（裁队队列项积压
+        同族）。
   3. **升件径**：每破例→ops_esc.sh（seat=MECH，
      note=「层扫定性<类目>:<对象>——<详情>」）24h 前缀去重=同
      对象同类目 24h 一行不刷屏；类目/对象稳定字面供 T-0508
@@ -117,7 +134,7 @@
      面不可判 digest 载 unit=unk 不误报无 unit；dm_queue 败=
      cap=skip streak 保留不清；时间回拨=保 streak 不评窗。
 - 测试证据：
-  - `scripts/meta/tests/layer_scan_test.sh` 新件 11 场景全绿——
+  - `scripts/meta/tests/layer_scan_test.sh` 新件 12 场景全绿——
     ①回放三病灶（dispatched-无拉/pulled-无unit/幽灵票件）各报+
     digest 同窗落；②24h dedup 同对象同类目一行不刷屏；③零报面
     （unit 在飞/人工径/龄未超/无机器证）；④老化三类目正报+龄
@@ -127,7 +144,9 @@
     （绿/无部署行红/Ping 独红/部署行≤5min 瞬断豁免/>5min 仍红
     报）；⑩全绿态零升件+digest 照落；⑪降级面四态（FIN_DSN 缺
     静默退/相位查询败 exit1/systemctl 败 unit=unk/dm_queue 败
-    streak 保留 cap=skip）。
+    streak 保留 cap=skip）；⑫返修1补面——g无籍行四域分判（T-9xxx
+    夹具段/非T伪键/合法域终相无件/T-9xxx有件不误报）+幽灵vs无籍
+    对象域分判钉+h失领分组报出/认领零报/dedup。
   - `mech_tick_test.sh` 扩——层扫窗唤起断言+本体败→层扫本体败
     升件行不挡后续窗，全绿。
   - `ceo_queue_test.sh` 7/7——MECH+层扫 digest 入队、MECH+升件
