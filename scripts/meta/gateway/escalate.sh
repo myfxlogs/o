@@ -35,18 +35,11 @@ INSERT INTO ops_event(seat,event,ticket,note)
 VALUES('$(gw_qc "$1")','$(gw_qc "$2")','$(gw_qc "$3")','$(gw_qc "$4")');
 SQL
 	) || printf '%s res_ins写败 %s/%s/%s — %s\n' "$(date -u +%FT%TZ)" "$1" "$2" "$3" \
-		"$out" >> "${GW_STATE_DIR:-/var/tmp/o-gateway}/write_fail.log" 2>/dev/null || true
+		"$out" >> "${GW_STATE_DIR:-/var/tmp/o-gateway}/write_fail.log" 2>/dev/null || true # tolerate: 失败上报径自身兜底——写日志再败不可炸归领循环,降级为静默(该行即失败证据面)
 	return 0
 }
-phase_void() { # $1=ticket——无籍行/墓碑化直翻（相位行=层扫签名源,翻 void=签名永死）
-	local out
-	out=$(psql "$DSN" -qAt 2>&1 <<SQL
-UPDATE ops_ticket_phase SET phase='void', latest_ts=now()
- WHERE ticket='$(gw_qc "$1")' AND phase<>'void';
-SQL
-	) || printf '%s phase_void写败 %s — %s\n' "$(date -u +%FT%TZ)" "$1" \
-		"$out" >> "${GW_STATE_DIR:-/var/tmp/o-gateway}/write_fail.log" 2>/dev/null || true
-	return 0
+phase_void() { # $1=ticket——无籍行/墓碑化翻相（ops_ticket_phase=视图,翻相唯一径=作废事件行→void;相位行=层扫签名源,翻void=签名永死）
+	res_ins 'COS' '作废' "$1" "无籍行墓碑化——相位行翻void(归领处置签名源断)"
 }
 
 UNCLAIMED_SQL="SELECT e.id, COALESCE(e.ticket,''),

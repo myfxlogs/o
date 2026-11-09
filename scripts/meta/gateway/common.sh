@@ -47,7 +47,7 @@ INSERT INTO ops_event(seat,event,ticket,note)
 VALUES('gateway','$(gw_qc "$1")','$(gw_qc "$2")','$(gw_qc "$3")');
 SQL
 	) || printf '%s gw_ledger写败 %s/%s — %s\n' "$(date -u +%FT%TZ)" "$1" "$2" \
-		"$out" >> "${GW_STATE_DIR:-/var/tmp/o-gateway}/write_fail.log" 2>/dev/null || true
+		"$out" >> "${GW_STATE_DIR:-/var/tmp/o-gateway}/write_fail.log" 2>/dev/null || true # tolerate: 失败上报径自身兜底——写日志再败不可炸归领循环,降级为静默(该行即失败证据面)
 	return 0
 }
 
