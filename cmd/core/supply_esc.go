@@ -103,7 +103,9 @@ func (c coreService) lessonBacklogEscCheck(ctx context.Context, deadSince map[st
 // 复审不审词,审「宣称的事实」——两类宣称都可被状态戳穿。
 // 销类处置复燃不在此面（误发/同判词销=对判词不对状态,条件存续
 // 复火属正常流转;定性销无状态宣称=本探针域外,归审计抽查面）。
-// 判据:7d 内 ∃升件 e1,其后处置行载修愈类词∧同 scope 又火 e2。
+// 判据:7d 内 ∃升件 e1,其后处置行载完成态宣称词∧同 scope 又火 e2。
+// 词表钉完成态(已修/已部署/上岸…非裸「修」——「要码修/待修」
+// 是待办非宣称,裸词误中曾滚出 13 代自指链 2026-11-10 夜)。
 // 2026-11-10 业主令:机器卡壳不自知是常事,复审要机械可证伪。
 func (c coreService) stuckEscCheck(ctx context.Context, deadSince map[string]time.Time) {
 	rows, err := c.pool.Query(ctx, `SELECT e2.esc_scope, e1.id, e2.id FROM ops_event e1
@@ -113,7 +115,7 @@ func (c coreService) stuckEscCheck(ctx context.Context, deadSince map[string]tim
 		AND EXISTS (SELECT 1 FROM ops_event d WHERE d.event='处置'
 			AND d.id>e1.id AND d.id<e2.id
 			AND d.note ~ ('升件#'||e1.id||'([^0-9]|$)')
-			AND d.note ~ '(修|已修|部署|落成|修复|已愈|自愈|恢复|复绿)')
+			AND d.note ~ '(已修|已部署|已落成|已修复|已愈|自愈|已恢复|复绿|上岸)')
 		ORDER BY e2.id DESC LIMIT 10`)
 	if err != nil {
 		return // 读件败本拍让位

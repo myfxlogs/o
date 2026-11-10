@@ -187,7 +187,15 @@ func TestStuckEsc(t *testing.T) {
 		t.Fatalf("disp3: %v", err)
 	}
 	mk("t-stuck-heal")
-	// e4: 无处置连续火——不该火
+	// e4: 「要码修」待办语处置后复燃——不该火(待修非已修宣称;
+	// 裸「修」误中曾滚出 13 代自指链 2026-11-10 夜)
+	e4 := mk("t-stuck-todo")
+	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,note)
+		VALUES('处置席','处置',$1)`, fmt.Sprintf("升件#%d 销——探针修要码修在案", e4)); err != nil {
+		t.Fatalf("disp4: %v", err)
+	}
+	mk("t-stuck-todo")
+	// e5: 无处置连续火——不该火
 	mk("t-stuck-open")
 	mk("t-stuck-open")
 	svc := coreService{pool: pool}
@@ -198,7 +206,7 @@ func TestStuckEsc(t *testing.T) {
 		WHERE event='升件' AND esc_scope='stuck_esc'`).Scan(&note); err != nil {
 		t.Fatalf("卡壳升件未落: %v", err)
 	}
-	if !strings.Contains(note, "t-stuck-fix") || !strings.Contains(note, "t-stuck-heal") || strings.Contains(note, "t-stuck-dismiss") || strings.Contains(note, "t-stuck-open") {
+	if !strings.Contains(note, "t-stuck-fix") || !strings.Contains(note, "t-stuck-heal") || strings.Contains(note, "t-stuck-dismiss") || strings.Contains(note, "t-stuck-todo") || strings.Contains(note, "t-stuck-open") {
 		t.Fatalf("升件 note 谱错: %s", note)
 	}
 }
