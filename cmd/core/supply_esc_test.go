@@ -138,6 +138,62 @@ func TestLiveDudEsc(t *testing.T) {
 	}
 }
 
+// TestStuckEsc 卡壳探——「修」类处置后同 scope 复燃=升件;
+// 销类处置复燃/无处置连续火不误发。
+func TestStuckEsc(t *testing.T) {
+	ctx := context.Background()
+	pool := testutil.Pool(t)
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM ops_event WHERE esc_scope LIKE 't-stuck%'`); err != nil {
+		t.Fatalf("clean: %v", err)
+	}
+	mk := func(scope string) int64 {
+		var id int64
+		if err := pool.QueryRow(ctx, `INSERT INTO ops_event(seat,event,esc_class,esc_scope,note)
+			VALUES('探测席','升件','测试',$1,'probe') RETURNING id`, scope).Scan(&id); err != nil {
+			t.Fatalf("esc: %v", err)
+		}
+		return id
+	}
+	// e1: 修类处置后复燃——该火
+	e1 := mk("t-stuck-fix")
+	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,note)
+		VALUES('处置席','处置',$1)`, fmt.Sprintf("升件#%d 销——已修部署 o-core:abc123", e1)); err != nil {
+		t.Fatalf("disp1: %v", err)
+	}
+	mk("t-stuck-fix")
+	// e2: 销类处置后复燃——不该火(条件存续=正常复验)
+	e2 := mk("t-stuck-dismiss")
+	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,note)
+		VALUES('处置席','处置',$1)`, fmt.Sprintf("升件#%d 销——误发,触发器假", e2)); err != nil {
+		t.Fatalf("disp2: %v", err)
+	}
+	mk("t-stuck-dismiss")
+	// e3: 愈类处置后复燃——该火(宣称已愈=假愈)
+	e3 := mk("t-stuck-heal")
+	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,note)
+		VALUES('处置席','处置',$1)`, fmt.Sprintf("升件#%d 销——窗口内已愈", e3)); err != nil {
+		t.Fatalf("disp3: %v", err)
+	}
+	mk("t-stuck-heal")
+	// e4: 无处置连续火——不该火
+	mk("t-stuck-open")
+	mk("t-stuck-open")
+	svc := coreService{pool: pool}
+	deadSince := map[string]time.Time{}
+	svc.stuckEscCheck(ctx, deadSince)
+	var note string
+	if err := pool.QueryRow(ctx, `SELECT note FROM ops_event
+		WHERE event='升件' AND esc_scope='stuck_esc'`).Scan(&note); err != nil {
+		t.Fatalf("卡壳升件未落: %v", err)
+	}
+	if !strings.Contains(note, "t-stuck-fix") || !strings.Contains(note, "t-stuck-heal") || strings.Contains(note, "t-stuck-dismiss") || strings.Contains(note, "t-stuck-open") {
+		t.Fatalf("升件 note 谱错: %s", note)
+	}
+}
+
 // TestLessonBacklogEsc 矿积压探——pending≥5 且最陈>24h=升件;
 // 不足阈/不够陈不误发。
 func TestLessonBacklogEsc(t *testing.T) {
