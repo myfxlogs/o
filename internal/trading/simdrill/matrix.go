@@ -89,6 +89,7 @@ const RulesVersionMatrix = "simvenue-matrix/1"
 // Run 矩阵全格全档遍历（excell 唯一真源——免演登记格跳过不产凭据）。
 // 返回 error 仅限机械败（枚举/凭据落账败）；格病=verdict=fail+升件不炸批。
 func (m *Matrix) Run(ctx context.Context) (MatrixResult, error) {
+	sweepStaleEphemeral(ctx, m.Pool)
 	cells, err := excell.Enumerate(ctx, m.Pool)
 	if err != nil {
 		return MatrixResult{}, err

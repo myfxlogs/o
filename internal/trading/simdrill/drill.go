@@ -56,6 +56,20 @@ func retireEphemeral(ctx context.Context, pool *pgxpool.Pool, stratID int64) {
 	}
 }
 
+// sweepStaleEphemeral 起跑清扫——历史/崩跑残留的 degraded simdrill 行
+// 批量退役（各占一个 active_dedupe 键,不清=新插入永远撞）。毕即退
+// 管本跑行,本件管存量行:两案合起来 degraded 面零积压。
+// Transition 留痕同 retireEphemeral 律。
+func sweepStaleEphemeral(ctx context.Context, pool *pgxpool.Pool) {
+	_, _ = pool.Exec(ctx,
+		`INSERT INTO fin_strategy_transition(strategy_id,from_state,to_state,reason)
+		 SELECT id,'degraded','retired','drill_ephemeral_sweep'
+		 FROM fin_strategy WHERE template_ref LIKE 'simdrill%' AND state='degraded'`)
+	_, _ = pool.Exec(ctx,
+		`UPDATE fin_strategy SET state='retired'
+		 WHERE template_ref LIKE 'simdrill%' AND state='degraded'`)
+}
+
 // Result 演习结论（verdict 入 fin_exec_drill——毕业闸凭据）。
 type Result struct {
 	Verdict     string // pass|fail
@@ -79,6 +93,7 @@ type Drill struct {
 // verdict 缺省 pass；任一环病=翻 fail+升件（禁静默）——返回 err 仅限机械败
 // （判据/事实读不到——病面走 verdict 不走 error，升件行为准）。
 func (d *Drill) Run(ctx context.Context, strategyRef int64) (Result, error) {
+	sweepStaleEphemeral(ctx, d.Pool)
 	res := Result{StrategyRef: strategyRef, Verdict: "pass"}
 	// ① 策略型事实（inst/notional/template——演习对型跑）。
 	var inst, templateRef string
