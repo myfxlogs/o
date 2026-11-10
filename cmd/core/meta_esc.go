@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"o/internal/platform/execfam"
 	"o/internal/platform/notify"
 )
 
@@ -44,6 +45,15 @@ var orphanProbes = []orphanProbe{
 		WHERE status='pending' AND ts<now()-interval '48 hours'`},
 	{"hypothesis_proposed", `SELECT count(*) FROM fin_opp_hypothesis
 		WHERE state='proposed' AND ts<now()-interval '7 days'`},
+	// hypothesis_parked——parked 非终态是挂起：超 30d 未复核=需求黑洞
+	// （结构性盲区实证 2026-11-10：#3/#5/#6/#7 骨架齐而卡沉 parked 无人问）。
+	// last_reviewed=hypo decide 复核戳（re-park=再议落戳续挂 30d；
+	// 无戳卡回退建卡 ts——存量 parked 卡首拍全浮=如实「从未复核」）。
+	{"hypothesis_parked", `SELECT count(*) FROM fin_opp_hypothesis
+		WHERE state='parked' AND COALESCE(
+			CASE WHEN evidence->>'last_reviewed' ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
+				THEN (evidence->>'last_reviewed')::timestamptz END, ts)
+			< now()-interval '30 days'`},
 	{"condition_gap", `SELECT count(*) FROM fin_condition_gap
 		WHERE state='pending' AND requested_at<now()-interval '7 days'`},
 }
@@ -125,6 +135,72 @@ func (c coreService) commercialEscCheck(ctx context.Context, deadSince map[strin
 			"商业产出/commercial_stall: 策略面 30d 净产出 %.4f≤0（live+probe=%d 在仓=%d——机器名义在赚而实付净产出非正；Earn 息不入账已剔。空转定性归唤知会话）",
 			net, liveN, openPos)
 	})
+}
+
+// capabilityEscCheck 能力债面探（T-0523 感知升维——「在册即须被行使,
+// 不行使即信号」）：启用模板三不变量逐件核——
+// ①execfam 执行径在册 ②7d 内有绿演习凭据（fin_exec_drill cell pass）
+// ③14d 内有评估产出（fin_opp_eval——evaluator 在枚举该族）
+// 任一缺=升件 能力债/capability_<template>。结构性盲区实证 2026-11-10：
+// quarter_basis_long 矩阵格 11-08 fail 多日无人问+vol_sell 族错映沉睡+
+// #3/#5/#6/#7 骨架齐而卡沉——症状探针只看得见「坏」，看不见「缺」。
+// 边界：enabled=false 模板/registered-only 执行族（无模板行）=钦定挂起
+// 态不探；凭据补上=恢复自闭（能力债清偿=事实消失非销案）。
+func (c coreService) capabilityEscCheck(ctx context.Context, deadSince map[string]time.Time) {
+	rows, err := c.pool.Query(ctx, `SELECT template FROM fin_opp_template
+		WHERE enabled AND state='enabled' GROUP BY template`)
+	if err != nil {
+		return // 读件败本拍让位
+	}
+	var tmpls []string
+	for rows.Next() {
+		var t string
+		if rows.Scan(&t) == nil {
+			tmpls = append(tmpls, t)
+		}
+	}
+	rows.Close()
+	for _, t := range tmpls {
+		var drillN, evalN int
+		if err := c.pool.QueryRow(ctx, `SELECT count(*) FROM fin_exec_drill
+			WHERE cell_key LIKE $1||'@%' AND verdict='pass'
+			AND ts>now()-interval '7 days'`, t).Scan(&drillN); err != nil {
+			continue
+		}
+		if err := c.pool.QueryRow(ctx, `SELECT count(*) FROM fin_opp_eval
+			WHERE template=$1 AND ts>now()-interval '14 days'`, t).Scan(&evalN); err != nil {
+			continue
+		}
+		reg := execfam.Has(t)
+		gap := !reg || drillN == 0 || evalN == 0
+		t := t
+		c.escEdgeU(ctx, deadSince, "能力债", "capability_"+t, gap, func() string {
+			var lacks []string
+			if !reg {
+				lacks = append(lacks, "执行族未注册")
+			}
+			if drillN == 0 {
+				lacks = append(lacks, "7d 无绿演习凭据")
+			}
+			if evalN == 0 {
+				lacks = append(lacks, "14d 零评估产出")
+			}
+			return fmt.Sprintf(
+				"能力债/capability_%s: 启用模板 %s 缺项=[%s]——在册即须被行使,不行使即信号（处置径=补凭据/补评估/回禁用裁,定性归唤知会话能力债档）",
+				t, t, strings.Join(lacks, "+"))
+		})
+	}
+	// 已不启用模板的能力债补恢复（对称沿——禁用后键死而实测非债）。
+	seen := map[string]bool{}
+	for _, t := range tmpls {
+		seen["能力债/capability_"+t] = true
+	}
+	for k, since := range deadSince {
+		if strings.HasPrefix(k, "能力债/capability_") && !seen[k] {
+			delete(deadSince, k)
+			c.recoverNote(ctx, "能力债", strings.TrimPrefix(k, "能力债/"), since)
+		}
+	}
 }
 
 // dataGapEscCheck 数据缺面探——fin_opp_eval verdict='unevaluable' 同真因
