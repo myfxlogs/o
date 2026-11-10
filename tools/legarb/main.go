@@ -7,11 +7,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"strings"
+
 	"github.com/jackc/pgx/v5/pgxpool"
+
 	"o/internal/platform/config"
 	"o/internal/platform/cryptoutil"
 	"o/internal/trading/okxexec"
-	"os"
 )
 
 func main() {
@@ -26,23 +29,32 @@ func main() {
 		*dst = p
 	}
 	cli := okxexec.NewClient(cred, false)
-	rows, _ := pool.Query(ctx, `SELECT id,cl_ord_id,inst_id FROM fin_order_leg WHERE state='ambiguous' ORDER BY id`)
+	rows, _ := pool.Query(ctx, `SELECT id,cl_ord_id,inst_id,venue FROM fin_order_leg WHERE state='ambiguous' ORDER BY id`)
 	type leg struct {
 		id       int64
 		cl, inst string
+		venue    string
 	}
 	var legs []leg
 	for rows.Next() {
 		var l leg
-		rows.Scan(&l.id, &l.cl, &l.inst)
+		rows.Scan(&l.id, &l.cl, &l.inst, &l.venue)
 		legs = append(legs, l)
 	}
 	rows.Close()
 	for _, l := range legs {
-		fmt.Printf("== leg#%d %s clOrdId=%s\n", l.id, l.inst, l.cl)
+		fmt.Printf("== leg#%d %s clOrdId=%s venue=%s\n", l.id, l.inst, l.cl, l.venue)
+		if l.venue != "okx" {
+			fmt.Println("  非 okx 域——ord-history 径不适用,待 venue 对应径（mt5wrap/mt5verify）")
+			continue
+		}
+		instType := "SPOT"
+		if strings.HasSuffix(l.inst, "-SWAP") {
+			instType = "SWAP"
+		}
 		for _, ep := range []string{
-			"/api/v5/trade/orders-history-archive?instType=SWAP&instId=" + l.inst + "&clOrdId=" + l.cl,
-			"/api/v5/trade/orders-history?instType=SWAP&instId=" + l.inst + "&clOrdId=" + l.cl,
+			"/api/v5/trade/orders-history-archive?instType=" + instType + "&instId=" + l.inst + "&clOrdId=" + l.cl,
+			"/api/v5/trade/orders-history?instType=" + instType + "&instId=" + l.inst + "&clOrdId=" + l.cl,
 		} {
 			raw, err := cli.Get(ctx, ep)
 			if err != nil {

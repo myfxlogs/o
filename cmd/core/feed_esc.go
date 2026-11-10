@@ -1,12 +1,16 @@
 // feed_esc.go —— ops_event 升件环（业主令「探针只上 UI 不落 ops_event=病灶
 // 本体——后端对前端零信任」+「资金分配决策权整体下放 RSI/system」）：
-// 60s 拍评两类信号面——
+// 60s 拍评三类信号面——
 //
 //	①鲜度死：ops_face 同源 healthComps 注册表 dead 态→升件 esc_class=断流
 //	②部署缺口：净值/闸值/族需额对拍→升件 esc_class=资金闸
+//	③歧态腿：fin_order_leg ambiguous 在案→升件 esc_class=对账
+//	  （venue 回报歧态势=钱径事实,原径只推 Feishu 人端——机读面此处补）
 //
 // 转死=升件（esc_scope=键,24h 同窗去重防重启风暴）；复绿=恢复行携升件#id
 // 自闭（唤知环 dedup 视引证=已处置,自愈案例零认知开销）。
+// 对账类 dedup=「未销才抑」——同窗有未销升件不暴,销案后新批=新事证重升
+// （歧态批销案后同窗再来不可误吞）。
 package main
 
 import (
@@ -37,6 +41,7 @@ func (c coreService) escLoop(ctx context.Context) {
 		}
 		c.feedEscCheck(ctx, deadSince)
 		c.deployEscCheck(ctx, deadSince)
+		c.reconEscCheck(ctx, deadSince)
 	}
 }
 
@@ -94,6 +99,35 @@ func (c coreService) deployEscCheck(ctx context.Context, deadSince map[string]ti
 		})
 }
 
+// reconEscCheck 对账面探（歧态腿机读进水口）——fin_order_leg state='ambiguous'
+// 在案=钱径事实（venue 回报歧态,禁补单,原径仅 Feishu 人推）。探针只述
+// 腿数+ids,仲裁判词归唤知会话（runbook 对账档:tools/legarb 取证→三态裁）。
+// 沿触发同 escEdge 语义,唯 dedup 走「未销才抑」（销案后新批=新事证）。
+func (c coreService) reconEscCheck(ctx context.Context, deadSince map[string]time.Time) {
+	var n int
+	var ids []int64
+	if err := c.pool.QueryRow(ctx, `SELECT
+		(SELECT count(*) FROM fin_order_leg WHERE state='ambiguous'),
+		(SELECT COALESCE(array_agg(id),'{}') FROM
+			(SELECT id FROM fin_order_leg WHERE state='ambiguous'
+				ORDER BY id LIMIT 10) q)`).Scan(&n, &ids); err != nil {
+		return // 读件败本拍让位
+	}
+	const key = "对账/ambiguous_legs"
+	if n > 0 {
+		if _, ok := deadSince[key]; !ok {
+			deadSince[key] = time.Now()
+			c.escalateUnresolved(ctx, "对账", "ambiguous_legs", fmt.Sprintf(
+				"对账/ambiguous_legs: 歧态腿 %d 条在案（ids %v）——venue 回报歧态势,禁补单待仲裁（runbook 对账档:tools/legarb 取证→三态裁）", n, ids))
+		}
+		return
+	}
+	if since, ok := deadSince[key]; ok {
+		delete(deadSince, key)
+		c.recoverNote(ctx, "对账", "ambiguous_legs", since)
+	}
+}
+
 // cfgF 闸值浮点读（缺席/坏件=0——0 值天然不满足触发式,fail-safe）。
 func (c coreService) cfgF(key string) float64 {
 	v, err := c.cfg.GetFloat(key)
@@ -136,6 +170,27 @@ func (c coreService) escalate(ctx context.Context, class, scope, note string) {
 		class, scope, escDedupHours).Scan(&dup); err != nil || dup > 0 {
 		return // 读败静默下拍再试；同窗有报不暴
 	}
+	c.escInsert(ctx, class, scope, note)
+}
+
+// escalateUnresolved 未销才抑升件（对账类 dedup）——同窗 24h 内存未销升件
+// （无引证行）才 dedup;已销案（处置/恢复行引 升件#id）后再发=新事证重升。
+// 歧态批销案后新批腿再来不可被同窗误吞——dedup 粒=「未决事件」非「时间窗」。
+func (c coreService) escalateUnresolved(ctx context.Context, class, scope, note string) {
+	var open int
+	if err := c.pool.QueryRow(ctx, `SELECT count(*) FROM ops_event e
+		WHERE e.event='升件' AND e.esc_class=$1 AND e.esc_scope=$2
+		AND e.ts>now()-make_interval(hours=>$3)
+		AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.ts>e.ts
+			AND x.note ~ ('升件#'||e.id::text||'([^0-9]|$)'))`,
+		class, scope, escDedupHours).Scan(&open); err != nil || open > 0 {
+		return // 读败静默下拍再试；未销在案不暴
+	}
+	c.escInsert(ctx, class, scope, note)
+}
+
+// escInsert 升件落账行（escalate/escalateUnresolved 共用末段）。
+func (c coreService) escInsert(ctx context.Context, class, scope, note string) {
 	if _, err := c.pool.Exec(ctx,
 		`INSERT INTO ops_event(seat,event,ticket,note,esc_class,esc_scope)
 		VALUES('探测席','升件','',$1,$2,$3)`,
