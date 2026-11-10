@@ -53,6 +53,7 @@ func (c coreService) escLoop(ctx context.Context, al *notify.Alerter) {
 		c.orphanEscCheck(ctx, deadSince)
 		c.cognitionEscCheck(ctx, deadSince, al)
 		c.cognitionSpawnFailEscCheck(ctx, deadSince)
+		c.auditStallEscCheck(ctx, deadSince)
 		c.commercialEscCheck(ctx, deadSince)
 		c.capabilityEscCheck(ctx, deadSince)
 		c.dataGapEscCheck(ctx, deadSince)

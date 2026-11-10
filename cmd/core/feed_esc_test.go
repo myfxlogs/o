@@ -529,3 +529,82 @@ func TestCognitionSpawnFailEsc(t *testing.T) {
 		t.Fatalf("恢复 n=%d err=%v", n, err)
 	}
 }
+
+// TestAuditSpawnFailEsc 审计臂唤起败连败探——seat=审计机 同构两败即火
+// audit_spawn_fail；seat 隔离=唤知机败迹不擡本面（cognition_spawn_fail 零行）。
+func TestAuditSpawnFailEsc(t *testing.T) {
+	ctx := context.Background()
+	pool := testutil.Pool(t)
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM ops_event
+		WHERE esc_scope IN ('audit_spawn_fail','cognition_spawn_fail') OR note LIKE '%t-audit%'`); err != nil {
+		t.Fatalf("clean: %v", err)
+	}
+	svc := coreService{pool: pool}
+	deadSince := map[string]time.Time{}
+
+	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note)
+		VALUES('审计机','唤起败','','unit=t-audit-1 reason=session_discovery'),
+		      ('审计机','唤起败','','unit=t-audit-2 reason=session_discovery')`); err != nil {
+		t.Fatalf("败行: %v", err)
+	}
+	svc.cognitionSpawnFailEscCheck(ctx, deadSince)
+	var n int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE esc_class='唤知' AND esc_scope='audit_spawn_fail'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("审计两败未火 n=%d err=%v", n, err)
+	}
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE esc_scope='cognition_spawn_fail'`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("seat 隔离破 n=%d err=%v", n, err)
+	}
+}
+
+// TestAuditStallEsc 审计臂停摆探——产出锚 NULL=语义空态不死（装臂前合法
+// 态）；末审计行陈 48h=死火；新行落地=恢复自闭。
+func TestAuditStallEsc(t *testing.T) {
+	ctx := context.Background()
+	pool := testutil.Pool(t)
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM ops_event
+		WHERE esc_scope='audit_stall' OR (seat='审计席' AND note LIKE '%t-stall%')
+		OR (seat='探测席' AND event='恢复' AND note LIKE '%audit_stall%')`); err != nil {
+		t.Fatalf("clean: %v", err)
+	}
+	svc := coreService{pool: pool}
+	deadSince := map[string]time.Time{}
+	var n int
+
+	// 零行=臂未装合法态——不火
+	svc.auditStallEscCheck(ctx, deadSince)
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE esc_scope='audit_stall'`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("空态误火 n=%d err=%v", n, err)
+	}
+
+	// 末审计行陈 3 天→火恰一升件
+	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note,ts)
+		VALUES('审计席','审计','','t-stall 陈件',now()-interval '3 days')`); err != nil {
+		t.Fatalf("陈行: %v", err)
+	}
+	svc.auditStallEscCheck(ctx, deadSince)
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE esc_class='唤知' AND esc_scope='audit_stall'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("陈窗未火 n=%d err=%v", n, err)
+	}
+
+	// 新审计行落地→恢复行自闭
+	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note)
+		VALUES('审计席','审计','','t-stall 新件')`); err != nil {
+		t.Fatalf("新行: %v", err)
+	}
+	svc.auditStallEscCheck(ctx, deadSince)
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE seat='探测席' AND event='恢复' AND note LIKE '%audit_stall%'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("恢复 n=%d err=%v", n, err)
+	}
+}

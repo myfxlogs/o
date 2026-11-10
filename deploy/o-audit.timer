@@ -1,0 +1,10 @@
+[Unit]
+Description=o-audit.timer 审计机日拍（审计臂——03:30 域轮换唤审计会话）
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+Unit=o-audit-dispatch.service
+
+[Install]
+WantedBy=timers.target

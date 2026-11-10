@@ -9,24 +9,36 @@
 set -u
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 REPO=$(cd -- "$SCRIPT_DIR/../.." && pwd)
-ENVF="${REPORT_ENV_FILE:-/opt/o-research/env}"
-DSN=$(grep '^FIN_PG_DSN=' "$ENVF" 2>/dev/null | cut -d= -f2- | tr -d '"')
-[ -n "$DSN" ] || exit 0
 
-# 未决升件面（dispatch 同口径 7d 窗）：scope/class=原子召回键（| 分列
-# 直取——scope 词即条目 keywords 钦定域）；note 只抽 ascii 域词不整句
-# 切（中文分词不进 grep 径——中文召回键由 class 原子词承担）。
-UNRES="SELECT e.esc_scope s,COALESCE(e.esc_class,'') c,COALESCE(e.note,'') n
-	FROM ops_event e
-	WHERE e.event='升件' AND e.ts>now()-interval '7 days'
-	  AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.ts>e.ts
-	    AND x.note ~ ('升件#'||e.id::text||'([^0-9]|\$)'))"
-ROWS=$(psql "$DSN" -qAt -c "$UNRES" 2>/dev/null)
-[ -n "$ROWS" ] || exit 0
-TOKENS=$({
-	printf '%s\n' "$ROWS" | awk -F'|' '{print $1; print $2}'
-	printf '%s\n' "$ROWS" | cut -d'|' -f3 | grep -oE '[a-zA-Z][a-zA-Z0-9_]{2,}'
-} | tr ' ' '\n' | grep -vE '^$' | sort -u)
+# -w "<空格分词>"：召回键直取给词（审计臂按域喂词——跳过未决升件查询,
+# 打分/TOP8 件面同构）；缺省=未决升件词面命中原径。
+WORDS=""
+if [ "${1:-}" = "-w" ]; then
+	WORDS=${2:-}
+fi
+
+if [ -n "$WORDS" ]; then
+	TOKENS=$(printf '%s\n' "$WORDS" | tr ' ' '\n' | grep -vE '^$' | sort -u)
+else
+	ENVF="${REPORT_ENV_FILE:-/opt/o-research/env}"
+	DSN=$(grep '^FIN_PG_DSN=' "$ENVF" 2>/dev/null | cut -d= -f2- | tr -d '"')
+	[ -n "$DSN" ] || exit 0
+
+	# 未决升件面（dispatch 同口径 7d 窗）：scope/class=原子召回键（| 分列
+	# 直取——scope 词即条目 keywords 钦定域）；note 只抽 ascii 域词不整句
+	# 切（中文分词不进 grep 径——中文召回键由 class 原子词承担）。
+	UNRES="SELECT e.esc_scope s,COALESCE(e.esc_class,'') c,COALESCE(e.note,'') n
+		FROM ops_event e
+		WHERE e.event='升件' AND e.ts>now()-interval '7 days'
+		  AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.ts>e.ts
+		    AND x.note ~ ('升件#'||e.id::text||'([^0-9]|\$)'))"
+	ROWS=$(psql "$DSN" -qAt -c "$UNRES" 2>/dev/null)
+	[ -n "$ROWS" ] || exit 0
+	TOKENS=$({
+		printf '%s\n' "$ROWS" | awk -F'|' '{print $1; print $2}'
+		printf '%s\n' "$ROWS" | cut -d'|' -f3 | grep -oE '[a-zA-Z][a-zA-Z0-9_]{2,}'
+	} | tr ' ' '\n' | grep -vE '^$' | sort -u)
+fi
 [ -n "$TOKENS" ] || exit 0
 
 # 打分：件=一条目,分=命中 token 数（frontmatter keywords/id/summary+
