@@ -162,8 +162,9 @@ func (w *Warden) bareBagSpot(ctx context.Context, p posRow, legs legSet, cl Clos
 // 裸袋仍显形挂币量）。
 func (w *Warden) bagUSD(ctx context.Context, ccy string, qty float64) float64 {
 	var px *float64
-	_ = w.pool.QueryRow(ctx, `SELECT v FROM (SELECT last v,ts FROM md_ticks WHERE inst_id=$1
-		UNION ALL SELECT px,ts FROM md_mark_index WHERE inst_id=$1) q
+	// 升件#9802③：venue<>'sim'——夹具价不入尘估值（同 notionalNow 口径）。
+	_ = w.pool.QueryRow(ctx, `SELECT v FROM (SELECT last v,ts FROM md_ticks WHERE inst_id=$1 AND venue<>'sim'
+		UNION ALL SELECT px,ts FROM md_mark_index WHERE inst_id=$1 AND venue<>'sim') q
 		ORDER BY ts DESC LIMIT 1`, ccy+"-USDT").Scan(&px)
 	if px == nil || *px <= 0 {
 		return 0

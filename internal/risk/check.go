@@ -67,7 +67,7 @@ func NewGate(pool *pgxpool.Pool, cfg *config.Client) *Gate {
 	return &Gate{pool: pool, cfg: cfg,
 		rej: rejects.New("risk", "kill_switch", "missing_param", "intent_incomplete", "equity_missing",
 			"notional_cap", "venue_concentration", "exposure_cap",
-			"token_missing", "token_expired", "token_used", "write_err",
+			"token_missing", "token_expired", "token_used", "intent_mismatch", "write_err",
 			"guard_suspended", "suspend_read_err")}
 }
 
@@ -130,6 +130,9 @@ func (g *Gate) Check(ctx context.Context, in Intent) Decision {
 		// T-0136 口径修：venue 分子=open 持仓名义+在途 intent（已发令牌未
 		// 成交执行行）——armed 策略开火时竞额度非注册时占死（额度本义=真实
 		// 敞口上限非管道上限；armed 未开仓 3.5k 占死额度死锁实证）。
+		// 升件#9802①：exec state='open' 持仓期恒 open（markClosed 才迁）——
+		// 在持分态须以「无 fin_position 挂行」谓词互斥，否则同仓 position+exec
+		// 双计敞口，venue 集中度/总敞口实阈打半折误拒。
 		_ = g.pool.QueryRow(ctx,
 			`SELECT COALESCE(sum(p.notional_usd),0) FROM fin_position p
 			WHERE p.closed_at IS NULL AND EXISTS(
@@ -137,15 +140,18 @@ func (g *Gate) Check(ctx context.Context, in Intent) Decision {
 			in.Venue).Scan(&vExp)
 		var inflight float64
 		_ = g.pool.QueryRow(ctx,
-			`SELECT COALESCE(sum(notional_usd),0) FROM fin_execution
-			WHERE state='open' AND EXISTS(
-			  SELECT 1 FROM fin_strategy s WHERE s.id=strategy_ref AND s.venue=$1)`,
+			`SELECT COALESCE(sum(e.notional_usd),0) FROM fin_execution e
+			WHERE e.state='open' AND NOT EXISTS(
+			  SELECT 1 FROM fin_position p WHERE p.execution_id=e.id) AND EXISTS(
+			  SELECT 1 FROM fin_strategy s WHERE s.id=e.strategy_ref AND s.venue=$1)`,
 			in.Venue).Scan(&inflight)
 		vExp += inflight
 		_ = g.pool.QueryRow(ctx,
 			`SELECT COALESCE(sum(x),0) FROM (
 			  SELECT sum(notional_usd) x FROM fin_position WHERE closed_at IS NULL
-			  UNION ALL SELECT sum(notional_usd) FROM fin_execution WHERE state='open') t`).Scan(&tExp)
+			  UNION ALL SELECT sum(e.notional_usd) FROM fin_execution e
+			  WHERE e.state='open' AND NOT EXISTS(
+			    SELECT 1 FROM fin_position p WHERE p.execution_id=e.id)) t`).Scan(&tExp)
 		if eq > 0 && (vExp+in.NotionalUSD) > eq*maxPct {
 			return g.deny(ctx, in, "venue_concentration")
 		}
@@ -261,7 +267,7 @@ func (g *Gate) ConsumeToken(ctx context.Context, tokenID string, in Intent) Deci
 		return g.deny(ctx, in, "token_expired")
 	}
 	if hash != hex.EncodeToString(sum[:]) {
-		return g.deny(ctx, in, "token_missing")
+		return g.deny(ctx, in, "intent_mismatch") // 升件#9802②：异意图≠缺件——专属拒因分诊
 	}
 	if _, err := g.pool.Exec(ctx,
 		"UPDATE fin_risk_token SET used_at=now() WHERE token_id=$1 AND used_at IS NULL", tokenID); err != nil {
