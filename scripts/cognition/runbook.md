@@ -113,6 +113,18 @@ psql "$FIN_DSN" -c "SELECT id,kind,entity_ref,numbers FROM fin_econ_lesson
     评估器只枚举 grammar.Families() 闭集码面族。proposed 久滞=
     「族注册+executor 落位」需求在积：可落地→要码修（族表+执行面）；
     不可行→UPDATE state='dismissed'+处置行。
+  - **卡→族骨架交付清单**（要码修件的交付形——骨架齐=卡收养毕，
+    paper 跑通数据再谈 live executor 权重）：
+    ① grammar.Families() 注册行（模板名+腿向+结算源——枚举闭集入口）；
+    ② fin_opp_template 模板行+evaluator 判据（net_apr 计算式=
+       卡上收益公式可算口径，禁虚构参数）；
+    ③ simdrill 矩阵格（venue 腿合成径——无 venue executor 前
+       paper 全靠它产纸面数）；
+    ④ paper 记账臂（lifecycle paperFill 的 kind 映射——收益按
+       卡口径实记非近似）；
+    ⑤ 毕业判词接入（gradgate 进入条件该族判词=无判词走默认放行
+       并注明）。五件齐投 sim/paper 面=需求账变现；五件缺任
+       一=骨未立，升件续留（卡不是档案是需求）。
 - **唤知**（esc_class=唤知 scope=cognition_dead）→ 你读到它=认知环已活：
   销+note 写「死窗 <起止> 已复——<死因:timer停/dispatch卡/会话败>」；
   死因不明先查 `systemctl --user status o-cognition.timer`+

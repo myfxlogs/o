@@ -100,6 +100,33 @@ func (c coreService) cognitionEscCheck(ctx context.Context, deadSince map[string
 	}
 }
 
+// commercialEscCheck 商业产出面探——「机器在转但转不出钱」元盲区补位：
+// 策略面 30d 净产出≤0 且系统名义在赚（live/probe 在册>0）=升件
+// 商业产出/commercial_stall。口径=周净利 canon 剔 Earn 基线
+// （econ-earn-interest-as-strategy-profit 钦定：interest 非策略利润，
+// 损益 kind 集={fee,funding_settle,trade_pnl,rollback_cost,spot_buy,spot_sell}；
+// deposit/withdraw/earn_*/recon_adjust 非损益禁入）。
+// 探针只述净产出+在册面，「为何空转」定性归唤知会话；净产出回正=恢复自闭。
+func (c coreService) commercialEscCheck(ctx context.Context, deadSince map[string]time.Time) {
+	var net float64
+	var liveN, openPos int
+	if err := c.pool.QueryRow(ctx, `SELECT
+		(SELECT COALESCE(sum(amount),0) FROM fin_cashflow
+			WHERE venue<>'sim' AND occurred_at>now()-interval '30 days'
+			AND kind IN ('fee','funding_settle','trade_pnl','rollback_cost','spot_buy','spot_sell')),
+		(SELECT count(*) FROM fin_strategy WHERE state IN ('live','probe')),
+		(SELECT count(*) FROM fin_position WHERE closed_at IS NULL)`).
+		Scan(&net, &liveN, &openPos); err != nil {
+		return // 读件败本拍让位
+	}
+	stall := liveN > 0 && net <= 0
+	c.escEdgeU(ctx, deadSince, "商业产出", "commercial_stall", stall, func() string {
+		return fmt.Sprintf(
+			"商业产出/commercial_stall: 策略面 30d 净产出 %.4f≤0（live+probe=%d 在仓=%d——机器名义在赚而实付净产出非正；Earn 息不入账已剔。空转定性归唤知会话）",
+			net, liveN, openPos)
+	})
+}
+
 // dataGapEscCheck 数据缺面探——fin_opp_eval verdict='unevaluable' 同真因
 // 3d 窗 ≥3 行=结构缺（评估器重评估仍缺=非瞬态）。逐真因一 scope,
 // 数据到位=真因行消失→恢复自闭（销案不抑死态——事实仍死只清未决面）。

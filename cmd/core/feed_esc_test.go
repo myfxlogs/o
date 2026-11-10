@@ -256,3 +256,80 @@ func TestEscEdge(t *testing.T) {
 		t.Fatalf("自闭 n=%d err=%v", n, err)
 	}
 }
+
+// commercialEscCheck：live 在册而策略面 30d 净产出≤0→升件 commercial_stall；
+// 净产出回正→恢复自闭；无 live 在册=静默（空转定性归唤知会话非探针宣判）。
+func TestCommercialEsc(t *testing.T) {
+	ctx := context.Background()
+	pool := testutil.Pool(t)
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM fin_cashflow WHERE source_ref BETWEEN 990001 AND 990099;
+		DELETE FROM fin_strategy WHERE inst_id='T-STALL-USDT';
+		DELETE FROM ops_event WHERE esc_scope='commercial_stall'`); err != nil {
+		t.Fatalf("clean: %v", err)
+	}
+	ref := 990000
+	ins := func(kind string, amt float64) {
+		ref++
+		if _, err := pool.Exec(ctx, `INSERT INTO fin_cashflow(venue,kind,amount,ccy,occurred_at,source_table,source_ref)
+			VALUES('okx',$1,$2,'USD',now()-interval '2 days','fin_order_leg',$3)`,
+			kind, amt, ref); err != nil {
+			t.Fatalf("cf %s: %v", kind, err)
+		}
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_strategy(inst_id,template_ref,state,notional_usd,entered_at,criteria,created_at,venue)
+		VALUES('T-STALL-USDT','funding-hedge','live',50,now(),'{}',now(),'okx')`); err != nil {
+		t.Fatalf("strategy: %v", err)
+	}
+	svc := coreService{pool: pool}
+	deadSince := map[string]time.Time{}
+
+	// 净付型面:fee -3 + funding +0.01=-2.99≤0→升件
+	ins("fee", -3.0)
+	ins("funding_settle", 0.01)
+	svc.commercialEscCheck(ctx, deadSince)
+	var n int
+	var note string
+	if err := pool.QueryRow(ctx, `SELECT count(*),COALESCE(max(note),'') FROM ops_event
+		WHERE event='升件' AND esc_class='商业产出' AND esc_scope='commercial_stall'`).Scan(&n, &note); err != nil || n != 1 {
+		t.Fatalf("stall 升件 n=%d err=%v", n, err)
+	}
+	if !strings.Contains(note, "-2.9900") {
+		t.Fatalf("note 缺实数: %s", note)
+	}
+	svc.commercialEscCheck(ctx, deadSince) // 未销在案不暴
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE esc_scope='commercial_stall'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("未销抑 n=%d", n)
+	}
+
+	// interest 不入账:加 +10 interest 仍≤0→不恢复
+	ins("interest", 10.0)
+	svc.commercialEscCheck(ctx, deadSince)
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='恢复' AND esc_scope='commercial_stall'`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("interest 冒充恢复 n=%d", n)
+	}
+
+	// 策略面真回正(trade_pnl +5)→恢复自闭
+	ins("trade_pnl", 5.0)
+	svc.commercialEscCheck(ctx, deadSince)
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='恢复' AND note LIKE '%commercial_stall%'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("恢复 n=%d", n)
+	}
+
+	// live 退役→无 live 在册=静默不重升（即便面负）
+	if _, err := pool.Exec(ctx, `UPDATE fin_strategy SET state='retired'
+		WHERE inst_id='T-STALL-USDT'`); err != nil {
+		t.Fatalf("retire: %v", err)
+	}
+	ins("fee", -10.0)
+	svc.commercialEscCheck(ctx, deadSince)
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='升件' AND esc_scope='commercial_stall'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("无 live 静默 n=%d", n)
+	}
+}
