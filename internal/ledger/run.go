@@ -204,6 +204,21 @@ func (r *Runner) reconcile(ctx context.Context) error {
 			r.al.Alert(ctx, "ledger_diff_alert",
 				fmt.Sprintf("账实差 $%.2f（容差 $%.2f +已定性豁免 $%.2f）",
 					Diff(x.net, x.eq), tol, exempt))
+			// 机读进水口：账实差=对账类升件（原径仅 Feishu 人推——
+			// 「探针只上 UI 不落 ops_event=病灶」同病）。dedup=未销才抑：
+			// 同窗内有未销升件不暴,销案后差仍在/新差=新事证重升。
+			scope := fmt.Sprintf("ledger_diff_%s_%s", x.venue, x.ccy)
+			var open int
+			if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM ops_event e
+				WHERE e.event='升件' AND e.esc_class='对账' AND e.esc_scope=$1
+				AND e.ts>now()-interval '24 hours'
+				AND NOT EXISTS (SELECT 1 FROM ops_event x2 WHERE x2.ts>e.ts
+					AND x2.note ~ ('升件#'||e.id::text||'([^0-9]|$)'))`, scope).Scan(&open); err == nil && open == 0 {
+				_, _ = r.pool.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note,esc_class,esc_scope)
+					VALUES('探测席','升件','',$1,'对账',$2)`,
+					fmt.Sprintf("对账/%s: 账实差 $%.2f（容差 $%.2f+已定性豁免 $%.2f；venue 现读 %.4f vs 账本净 %.4f）——定性归唤知会话（runbook 对账档:tools/reconview 自助面→豁免行/根修）",
+						scope, Diff(x.net, x.eq), tol, exempt, x.eq, x.net), scope)
+			}
 			log.Printf("ALERT [ledger] 对账差 %s/%s venue=%.4f ledger=%.4f（容差 %.2f）", x.venue, x.ccy, x.eq, x.net, tol)
 		}
 	}

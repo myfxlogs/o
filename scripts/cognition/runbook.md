@@ -76,6 +76,33 @@ psql "$FIN_DSN" -c "SELECT id,kind,entity_ref,numbers FROM fin_econ_lesson
   - 持闸→销+note 写「现配置恰配——<一句定性>」（闲置是对的是保守也是判词）。
   - 白名单外需求（kill_switch/凭据/新 venue/包络外金额）→ 走「要业主」
     条件请求——窄门不是万能钥匙，够不着的归业主域。
+- **对账**（seat=探测席 esc_class=对账 的升件——歧态腿/账实差两进水口）→
+  工具化自助面（凭据径 `O_MASTER_KEY_FILE=/opt/o/secrets/o_master_key`；
+  工具在仓 go run 即跑,均只读取证零写账）：
+  - `ambiguous_legs`——venue 回报歧态势腿在案（禁补单!）：
+    ```bash
+    DB_DSN=$FIN_PG_DSN O_MASTER_KEY_FILE=/opt/o/secrets/o_master_key \
+      go run ./tools/legarb
+    ```
+    逐腿拉 OKX ord-history/archive 实录→三态裁：
+    - 实录 filled（有 ordId+fillSz>0）→ 按 venue 凭据补腿/仓真账
+      （UPDATE fin_order_leg state/px +仓面同步）+处置行携 ordId/avgPx
+    - 实录 absent/无 ordId → 腿+exec 归档 failed（同事务）+处置行
+      （先例:#8915 exec 1129-1133 ambiguous→failed 批档）
+    - 仍歧（读败/两表无单）→ 持案+note 写「venue 两表查无——续歧待
+      下窗」（dedup=未销才抑,持案不暴报;禁猜态禁造仓）
+  - `ledger_diff_<venue>_<ccy>`——账实差超容差+豁免：
+    ```bash
+    DB_DSN=$FIN_PG_DSN O_MASTER_KEY_FILE=/opt/o/secrets/o_master_key \
+      go run ./tools/reconview
+    ```
+    三段印（账本分量/venue 现读/diff+豁免后）→定性裁：
+    - 口径残差（市价读漂/在途窗/已知残差）→ `fin_known_residual`
+      豁免行（venue+ccy+amount_usd+reason+ticket_ref+expires_at）
+      +处置行——豁免期到差复出=环自警（不留永久豁免）
+    - 真差无因→ 要码修径（账本/采集病灶）
+  - reconview 自带 live 敞口甄别面（live 零开仓腿零近动=armed 设计态
+    非僵尸——funding-hedge 等信号族常态；甄别行只证敞口不作销件依据）
 - **要码修** → `git worktree add /opt/o-wt/<名>` → `bash scripts/bootstrap_worktree.sh`
   → 改 → `bash scripts/check_all.sh` → 支推 origin → 部署树 merge --no-ff
   （戳落 mirror_push 自推，勿手动推 master——单写者律）
