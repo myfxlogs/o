@@ -1,3 +1,19 @@
+---
+schema_version: 3
+id: funding-decay-regime-flip
+kind: case
+risk: medium
+status: verified
+keywords: [funding regime, 腰斩衰减, 瞬时值外推, 摘牌, EA-06]
+ea_link: EA-06
+summary: 观测窗内 funding 33.7%→16.8% 腰斩——瞬时值外推=自欺,毕业判据改持续性窗统计+息差独立盖费。
+first_seen: 2026-10-16
+last_verified: 2026-11-10
+evidence_refs:
+  - {type: table_row, id: "fin_carry_graduation#147"}
+  - {type: commit, id: "df5190f91"}
+---
+
 # funding regime 腰斩衰减（2026-10-16 · #147 摘牌实证）
 
 **情境**：#147 XPD 纸面观测窗内 funding_ann 33.7%→16.8% 衰减中，accrued +1.49 未盖费 −7.08，净额靠收敛价差 +9.40 顶正。
