@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"strings"
 	"testing"
@@ -117,6 +118,113 @@ func TestReconEscAmbiguousLegs(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
 		WHERE event='升件' AND esc_scope='ambiguous_legs'`).Scan(&n); err != nil || n != 2 {
 		t.Fatalf("新批重升 n=%d", n)
+	}
+}
+
+// orphanEscCheck：pending 积压超 TTL→升件 orphan_*；积压销→恢复自闭。
+func TestOrphanEsc(t *testing.T) {
+	ctx := context.Background()
+	pool := testutil.Pool(t)
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM fin_eng_lesson WHERE signature='t-orph';
+		DELETE FROM ops_event WHERE esc_scope='orphan_eng_lesson'`); err != nil {
+		t.Fatalf("clean: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_eng_lesson(signature,cluster_n,verify_state,numbers,status,verdict_ref,ts)
+		VALUES('t-orph',1,'ai_evaluated','{}','pending','',now()-interval '2 days')`); err != nil {
+		t.Fatalf("lesson: %v", err)
+	}
+	svc := coreService{pool: pool}
+	deadSince := map[string]time.Time{}
+	svc.orphanEscCheck(ctx, deadSince)
+	var n int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='升件' AND esc_class='孤儿账' AND esc_scope='orphan_eng_lesson'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("升件 n=%d err=%v", n, err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE fin_eng_lesson SET status='verdicted',
+		verdict_ref='弃——t 销' WHERE signature='t-orph'`); err != nil {
+		t.Fatalf("销: %v", err)
+	}
+	svc.orphanEscCheck(ctx, deadSince)
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='恢复' AND note LIKE '%orphan_eng_lesson%'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("恢复 n=%d", n)
+	}
+}
+
+// cognitionEscCheck：未决升件在案+处置行缺席>24h→唤知面死升件；
+// 处置行落地→恢复自闭（alerter nil=人推安全跳过）。
+func TestCognitionEsc(t *testing.T) {
+	ctx := context.Background()
+	pool := testutil.Pool(t)
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM ops_event
+		WHERE esc_scope IN ('t_open','cognition_dead') OR event='处置'`); err != nil {
+		t.Fatalf("clean: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note,esc_class,esc_scope)
+		VALUES('探测席','升件','','t 未决','断流','t_open')`); err != nil {
+		t.Fatalf("esc: %v", err)
+	}
+	svc := coreService{pool: pool}
+	deadSince := map[string]time.Time{}
+	svc.cognitionEscCheck(ctx, deadSince, nil)
+	var n int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='升件' AND esc_class='唤知' AND esc_scope='cognition_dead'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("唤知死升件 n=%d err=%v", n, err)
+	}
+	// 处置行落地→唤知面复绿（t_open 未决仍在,恢复语义只看处置行新鲜度）
+	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note)
+		VALUES('处置席','处置','','t 处置行落地')`); err != nil {
+		t.Fatalf("处置: %v", err)
+	}
+	svc.cognitionEscCheck(ctx, deadSince, nil)
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='恢复' AND note LIKE '%cognition_dead%'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("恢复 n=%d", n)
+	}
+}
+
+// dataGapEscCheck：unevaluable 同真因≥3 持续→升件 data_gap_*；真因消→恢复。
+func TestDataGapEsc(t *testing.T) {
+	ctx := context.Background()
+	pool := testutil.Pool(t)
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM fin_opp_eval WHERE inst_id LIKE 'T-GAP%';
+		DELETE FROM ops_event WHERE esc_scope='data_gap_t_missing'`); err != nil {
+		t.Fatalf("clean: %v", err)
+	}
+	for i := 0; i < 3; i++ {
+		if _, err := pool.Exec(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,verdict,legs,evidence)
+			VALUES($1,'t_fam','gap_carry','unevaluable','[]',
+				('{"reason":"t_missing"}')::jsonb)`,
+			fmt.Sprintf("T-GAP-%d", i)); err != nil {
+			t.Fatalf("eval%d: %v", i, err)
+		}
+	}
+	svc := coreService{pool: pool}
+	deadSince := map[string]time.Time{}
+	svc.dataGapEscCheck(ctx, deadSince)
+	var n int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='升件' AND esc_class='数据缺' AND esc_scope='data_gap_t_missing'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("升件 n=%d err=%v", n, err)
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM fin_opp_eval WHERE inst_id LIKE 'T-GAP%'`); err != nil {
+		t.Fatalf("消: %v", err)
+	}
+	svc.dataGapEscCheck(ctx, deadSince)
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='恢复' AND note LIKE '%data_gap_t_missing%'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("恢复 n=%d", n)
 	}
 }
 

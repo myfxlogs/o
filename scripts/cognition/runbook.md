@@ -103,6 +103,26 @@ psql "$FIN_DSN" -c "SELECT id,kind,entity_ref,numbers FROM fin_econ_lesson
     - 真差无因→ 要码修径（账本/采集病灶）
   - reconview 自带 live 敞口甄别面（live 零开仓腿零近动=armed 设计态
     非僵尸——funding-hedge 等信号族常态；甄别行只证敞口不作销件依据）
+- **孤儿账**（seat=探测席 esc_class=孤儿账 scope=orphan_*——「写了没人读」
+  元探针产物）→ 三因分裁：
+  - 消费面死（该裁的环停摆）→ 要码修（消费径修/接续面立）
+  - 表退役（写入面废而消费面先死）→ 销+定性「表留档不消费」
+  - 真积压（消费面活但速率不及）→ 按域裁批处置
+  - `orphan_hypothesis_proposed` 特注：fin_opp_hypothesis=需求账
+    （缺 executor/数据面/venue 的诉求卡），**不是**评估输入——
+    评估器只枚举 grammar.Families() 闭集码面族。proposed 久滞=
+    「族注册+executor 落位」需求在积：可落地→要码修（族表+执行面）；
+    不可行→UPDATE state='dismissed'+处置行。
+- **唤知**（esc_class=唤知 scope=cognition_dead）→ 你读到它=认知环已活：
+  销+note 写「死窗 <起止> 已复——<死因:timer停/dispatch卡/会话败>」；
+  死因不明先查 `systemctl --user status o-cognition.timer`+
+  `journalctl --user -u o-cognition-dispatch -n 50`；复发→要码修。
+- **数据缺**（esc_class=数据缺 scope=data_gap_<reason>——评估器
+  unevaluable 同真因 3d 窗≥3 行的持续缺腿信号）→ 按真因裁：
+  - venue 数据面缺（spot_missing/funding 面缺等）→ 要码修（采集面立件）
+  - 凭据/权限缺→ 要业主条件请求
+  - 面存在但 enabled=false（设计态未启）→ 定性销（写明启用门槛）
+  - 瞬态已愈（行已不足3）→ 销+注「窗口内已愈」
 - **要码修** → `git worktree add /opt/o-wt/<名>` → `bash scripts/bootstrap_worktree.sh`
   → 改 → `bash scripts/check_all.sh` → 支推 origin → 部署树 merge --no-ff
   （戳落 mirror_push 自推，勿手动推 master——单写者律）
