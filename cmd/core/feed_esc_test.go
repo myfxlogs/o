@@ -335,27 +335,33 @@ func TestCommercialEsc(t *testing.T) {
 }
 
 // capabilityEscCheck 能力债探（T-0523）：启用模板缺凭据/评估→升件；
-// 凭据补上→恢复自闭；模板禁用→键死补恢复。
+// 凭据补上→恢复自闭；模板禁用→键死补恢复。占用感知回归锚——零占
+// 免演模板（excell⑤）不火演习债只火评估债（永火假阳根修 2026-11-10）。
 func TestCapabilityEscCheck(t *testing.T) {
 	ctx := context.Background()
 	pool := testutil.Pool(t)
 	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
-	if _, err := pool.Exec(ctx, `DELETE FROM fin_opp_template WHERE template='funding-hedge';
+	if _, err := pool.Exec(ctx, `DELETE FROM fin_opp_template WHERE template IN ('funding-hedge','vol_sell_strangle');
 		DELETE FROM fin_exec_drill WHERE cell_key LIKE 'funding-hedge@%';
-		DELETE FROM fin_opp_eval WHERE template='funding-hedge';
-		DELETE FROM ops_event WHERE esc_scope='capability_funding-hedge'`); err != nil {
+		DELETE FROM fin_opp_eval WHERE template IN ('funding-hedge','vol_sell_strangle');
+		DELETE FROM fin_strategy WHERE template_ref IN ('funding-hedge','vol_sell_strangle');
+		DELETE FROM ops_event WHERE esc_scope IN ('capability_funding-hedge','capability_vol_sell_strangle')`); err != nil {
 		t.Fatalf("clean: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `INSERT INTO fin_opp_template(template,venue,enabled,state)
-		VALUES('funding-hedge','okx',true,'enabled')`); err != nil {
+		VALUES('funding-hedge','okx',true,'enabled'),
+		      ('vol_sell_strangle','okx',true,'enabled');
+		INSERT INTO fin_strategy(inst_id,template_ref,state,notional_usd)
+		VALUES('BTC-USDT-SWAP','funding-hedge','live',50)`); err != nil {
 		t.Fatalf("模板: %v", err)
 	}
 	svc := coreService{pool: pool}
 	deadSince := map[string]time.Time{}
 
-	// 零凭据零评估→gap（在册族 funding-hedge reg=true,缺②③两项）
+	// 占用格模板零凭据零评估→gap（funding-hedge reg=true,缺②③两项）；
+	// 零占免演模板→只缺③（vol_sell_strangle 演习债豁免）
 	svc.capabilityEscCheck(ctx, deadSince)
 	var n int
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
@@ -370,12 +376,20 @@ func TestCapabilityEscCheck(t *testing.T) {
 	if !strings.Contains(note, "无绿演习凭据") || !strings.Contains(note, "零评估产出") {
 		t.Fatalf("note 缺缺项载: %s", note)
 	}
+	if err := pool.QueryRow(ctx, `SELECT note FROM ops_event
+		WHERE esc_scope='capability_vol_sell_strangle'`).Scan(&note); err != nil {
+		t.Fatalf("免演族升件行缺: %v", err)
+	}
+	if strings.Contains(note, "无绿演习凭据") || !strings.Contains(note, "零评估产出") {
+		t.Fatalf("免演族 note 误载演习债: %s", note)
+	}
 
 	// 凭据+评估补上→恢复行自闭
 	if _, err := pool.Exec(ctx, `INSERT INTO fin_exec_drill(strategy_ref,inst_id,verdict,cell_key)
 		VALUES(-1,'BTC-USDT-SWAP','pass','funding-hedge@okx/short_perp_long_spot#usd=50');
 		INSERT INTO fin_opp_eval(inst_id,template,direction,verdict,legs,evidence)
-		VALUES('BTC-USDT-SWAP','funding-hedge','short_perp_long_spot','rejected','[]','{}')`); err != nil {
+		VALUES('BTC-USDT-SWAP','funding-hedge','short_perp_long_spot','rejected','[]','{}'),
+		      ('BTC-C-150+BTC-P-100','vol_sell_strangle','vol_sell','rejected','[]','{}')`); err != nil {
 		t.Fatalf("凭据: %v", err)
 	}
 	svc.capabilityEscCheck(ctx, deadSince)

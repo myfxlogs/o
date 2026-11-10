@@ -142,14 +142,20 @@ psql "$FIN_DSN" -c "SELECT id,kind,entity_ref,numbers FROM fin_econ_lesson
   14d 零评估产出。按缺项裁：
   - 未注册→ 要码修（执行族册/execfam）或回禁用（模板 enabled=false
     随行 hypo decide park 假想卡）；
-  - 无凭据→ 先跑 `docker run --rm --network host -e DB_DSN=... 
-    o-core:latest /bin/simdrill -matrix` 补演习（SG cron 日拍臂在案，
-    臂死=凭据陈=本件点火如实）；格 fail→按「要码修」定性病灶；
+  - 无凭据→ 先跑 `/opt/o/scripts/simdrill_matrix.sh`（SG cron 日拍臂
+    在案，臂死=凭据陈=本件点火如实——**手动跑必须走脚本或带
+    `--entrypoint /bin/simdrill`**：镜像 ENTRYPOINT=/bin/core exec 形，
+    裸 `docker run img /bin/simdrill` 会拼成「/bin/core /bin/simdrill」
+    跑成 core 非演习,容器 Up 而零凭据行——2026-11-10 产线实证坑）；
+    格 fail→按「要码修」定性病灶；
   - 零评估→ 查 grammar 枚举面（NeedFace 能力面禁没禁/评估器拍在
     不在跑）——枚举面活而市场无候选=如实销「市场平窗,族活面证」；
   - 钦定挂起（能力面缺=margin-borrow/跨所腿/质押轨类）→ 回禁用+
     decide park 附阻塞面,升件随模板禁用自闭。
-  - 误发例外无：三不变量全机械可证,缺项即真债。
+  - 零占免演族（excell⑤——enabled 但无策略/提案占格，如收养
+    未出水 vol_sell）结构产不出凭据→演习债豁免不升,只受③管：
+    enabled 而 14d 零枚举=真债升件不误发。
+  - 误发例外无：不变量全机械可证,缺项即真债。
 - **唤知**（esc_class=唤知 scope=cognition_dead）→ 你读到它=认知环已活：
   销+note 写「死窗 <起止> 已复——<死因:timer停/dispatch卡/会话败>」；
   死因不明先查 `systemctl --user status o-cognition.timer`+

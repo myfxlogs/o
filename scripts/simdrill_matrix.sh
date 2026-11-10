@@ -7,4 +7,8 @@
 set -uo pipefail
 IMG="${SIMDRILL_IMG:-o-core:latest}"
 DSN="${DB_DSN:-postgres://o:o@127.0.0.1:15433/o?sslmode=disable}"
-exec docker run --rm --network host -e "DB_DSN=$DSN" "$IMG" /bin/simdrill -matrix
+# --entrypoint 必给——镜像 ENTRYPOINT 是 /bin/core（exec 形），
+# 裸 docker run img /bin/simdrill 会被拼成「/bin/core /bin/simdrill」
+# 跑成 core 非演习（产线实证 2026-11-10——容器 Up 10min 零凭据行）。
+exec docker run --rm --network host --entrypoint /bin/simdrill \
+	-e "DB_DSN=$DSN" "$IMG" -matrix

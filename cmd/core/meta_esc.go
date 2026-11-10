@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"o/internal/platform/excell"
 	"o/internal/platform/execfam"
 	"o/internal/platform/notify"
 )
@@ -139,11 +140,17 @@ func (c coreService) commercialEscCheck(ctx context.Context, deadSince map[strin
 
 // capabilityEscCheck 能力债面探（T-0523 感知升维——「在册即须被行使,
 // 不行使即信号」）：启用模板三不变量逐件核——
-// ①execfam 执行径在册 ②7d 内有绿演习凭据（fin_exec_drill cell pass）
-// ③14d 内有评估产出（fin_opp_eval——evaluator 在枚举该族）
+// ①execfam 执行径在册 ②占用格模板 7d 内有绿演习凭据（fin_exec_drill
+// cell pass）③14d 内有评估产出（fin_opp_eval——evaluator 在枚举该族）
 // 任一缺=升件 能力债/capability_<template>。结构性盲区实证 2026-11-10：
 // quarter_basis_long 矩阵格 11-08 fail 多日无人问+vol_sell 族错映沉睡+
 // #3/#5/#6/#7 骨架齐而卡沉——症状探针只看得见「坏」，看不见「缺」。
+// 占用感知（2026-11-10 自修假阳）：excell⑤「词表零占免演」钦定——零占用
+// 模板无格可钻，结构性产不出凭据；对其火演习债=永火假阳。故②只对
+// 有占用格（excell.Enumerate 非 Exempt 格）的模板成立；零占 enabled 族
+// 健康度由③单独判（enabled 而永不被枚举=真债，枚举着没候选=市场平窗
+// 非债——eval 拒行也计行）。占用判定唯走 excell.Enumerate 真源（禁自查
+// fin_strategy 复述——枚举径演进探针不漂）。
 // 边界：enabled=false 模板/registered-only 执行族（无模板行）=钦定挂起
 // 态不探；凭据补上=恢复自闭（能力债清偿=事实消失非销案）。
 func (c coreService) capabilityEscCheck(ctx context.Context, deadSince map[string]time.Time) {
@@ -160,26 +167,39 @@ func (c coreService) capabilityEscCheck(ctx context.Context, deadSince map[strin
 		}
 	}
 	rows.Close()
+	cells, err := excell.Enumerate(ctx, c.pool)
+	if err != nil {
+		return // 枚举读件败本拍让位（同径下次再核）
+	}
+	occupied := map[string]bool{}
+	for i := range cells {
+		if !cells[i].Exempt {
+			occupied[cells[i].Template] = true
+		}
+	}
 	for _, t := range tmpls {
 		var drillN, evalN int
-		if err := c.pool.QueryRow(ctx, `SELECT count(*) FROM fin_exec_drill
-			WHERE cell_key LIKE $1||'@%' AND verdict='pass'
-			AND ts>now()-interval '7 days'`, t).Scan(&drillN); err != nil {
-			continue
+		needDrill := occupied[t]
+		if needDrill {
+			if err := c.pool.QueryRow(ctx, `SELECT count(*) FROM fin_exec_drill
+				WHERE cell_key LIKE $1||'@%' AND verdict='pass'
+				AND ts>now()-interval '7 days'`, t).Scan(&drillN); err != nil {
+				continue
+			}
 		}
 		if err := c.pool.QueryRow(ctx, `SELECT count(*) FROM fin_opp_eval
 			WHERE template=$1 AND ts>now()-interval '14 days'`, t).Scan(&evalN); err != nil {
 			continue
 		}
 		reg := execfam.Has(t)
-		gap := !reg || drillN == 0 || evalN == 0
+		gap := !reg || (needDrill && drillN == 0) || evalN == 0
 		t := t
 		c.escEdgeU(ctx, deadSince, "能力债", "capability_"+t, gap, func() string {
 			var lacks []string
 			if !reg {
 				lacks = append(lacks, "执行族未注册")
 			}
-			if drillN == 0 {
+			if needDrill && drillN == 0 {
 				lacks = append(lacks, "7d 无绿演习凭据")
 			}
 			if evalN == 0 {
