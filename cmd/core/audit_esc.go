@@ -56,9 +56,27 @@ func (c coreService) auditStallEscCheck(ctx context.Context, deadSince map[strin
 		return // 读件败本拍让位
 	}
 	dead := last != nil && time.Since(*last) > 48*time.Hour
+	var inst *time.Time
+	if last == nil {
+		// NULL 只在「臂未装」时是合法空态——审计机唤起行（唤器 spawn 成功
+		// 落账）在案而产出锚仍零行=装臂后死（升件#9572）。
+		if err := c.pool.QueryRow(ctx, `SELECT max(ts) FROM ops_event
+			WHERE seat='审计机' AND event='唤起'`).Scan(&inst); err != nil {
+			return
+		}
+		dead = inst != nil && time.Since(*inst) > 48*time.Hour
+	}
 	c.escEdgeU(ctx, deadSince, "唤知", "audit_stall", dead, func() string {
+		var anchor string
+		if last != nil {
+			anchor = fmt.Sprintf("末审计行 %s 陈 %s",
+				last.UTC().Format("01-02 15:04Z"), time.Since(*last).Round(time.Hour))
+		} else {
+			anchor = fmt.Sprintf("装臂证 %s（陈 %s）而零审计产出",
+				inst.UTC().Format("01-02 15:04Z"), time.Since(*inst).Round(time.Hour))
+		}
 		return fmt.Sprintf(
-			"唤知/audit_stall: 审计臂 48h 零产出（末审计行 %s 陈 %s）——日拍臂死/会话连败/runbook 坏三因其一,定性归唤知会话",
-			last.UTC().Format("01-02 15:04Z"), time.Since(*last).Round(time.Hour))
+			"唤知/audit_stall: 审计臂 48h 零产出（%s）——日拍臂死/会话连败/runbook 坏三因其一,定性归唤知会话",
+			anchor)
 	})
 }

@@ -93,8 +93,9 @@ func (c coreService) feedEscCheck(ctx context.Context, deadSince map[string]time
 func (c coreService) deployEscCheck(ctx context.Context, deadSince map[string]time.Time) {
 	var eq *float64
 	if err := c.pool.QueryRow(ctx, `SELECT equity FROM md_equity_curve
-		WHERE ccy='NAV' ORDER BY ts DESC LIMIT 1`).Scan(&eq); err != nil || eq == nil || *eq <= 0 {
-		return // 净值读件缺=不判（禁假证据升件）
+		WHERE ccy='NAV' AND ts>now()-interval '48 hours'
+		ORDER BY ts DESC LIMIT 1`).Scan(&eq); err != nil || eq == nil || *eq <= 0 {
+		return // 净值读件缺/陈值=不判（禁假证据升件——NAV 日拍件陈>48h 与零行同语义，升件#9575）
 	}
 	var demand float64
 	if err := c.pool.QueryRow(ctx, `SELECT coalesce(sum(notional_usd),0)
@@ -193,7 +194,9 @@ func (c coreService) escalateUnresolved(ctx context.Context, class, scope, note 
 		WHERE e.event='升件' AND e.esc_class=$1 AND e.esc_scope=$2
 		AND e.ts>now()-make_interval(hours=>$3)
 		AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.ts>e.ts
-			AND x.note ~ ('升件#'||e.id::text||'([^0-9]|$)'))`,
+			AND (x.note ~ ('升件#'||e.id::text||'([^0-9]|$)')
+				OR EXISTS (SELECT 1 FROM regexp_matches(x.note,'升件#(\d+)-(\d+)','g') AS m(mm)
+					WHERE e.id BETWEEN mm[1]::bigint AND mm[2]::bigint)))`,
 		class, scope, escDedupHours).Scan(&open); err != nil || open > 0 {
 		return // 读败静默下拍再试；未销在案不暴
 	}
@@ -219,7 +222,9 @@ func (c coreService) recoverNote(ctx context.Context, class, scope string, since
 		WHERE e.event='升件' AND e.esc_class=$1 AND e.esc_scope=$2
 		AND e.ts>now()-make_interval(hours=>$3)
 		AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.ts>e.ts
-			AND x.note ~ ('升件#'||e.id::text||'([^0-9]|$)'))
+			AND (x.note ~ ('升件#'||e.id::text||'([^0-9]|$)')
+				OR EXISTS (SELECT 1 FROM regexp_matches(x.note,'升件#(\d+)-(\d+)','g') AS m(mm)
+					WHERE e.id BETWEEN mm[1]::bigint AND mm[2]::bigint)))
 		ORDER BY e.id DESC LIMIT 1`,
 		class, scope, escDedupHours).Scan(&id); err != nil {
 		return // 无在案升件=静默
