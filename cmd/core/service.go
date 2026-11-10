@@ -17,6 +17,7 @@ import (
 	"o/internal/gen/scoutv1/scoutv1connect"
 	"o/internal/ledger/report"
 	"o/internal/platform/config"
+	"o/internal/platform/notify"
 	"o/internal/platform/signutil"
 
 	"o/internal/research/gapscan"
@@ -57,6 +58,9 @@ type coreService struct {
 	// 注假面，禁桩真 venue 同律）。
 	dialDialect func(addr string) (dialectSession, error)
 	dialectMeta dialectMeta
+	// 唤知面死看门狗人端兜底（feed_esc.go cognitionEscCheck——nil=只落账
+	// 不人推,生产装配必挂）。
+	al *notify.Alerter
 }
 
 // mdStats 采集观测源束（方法值闭包——collector/meter 单例由 main.go 装配注入）。

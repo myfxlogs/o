@@ -1,16 +1,21 @@
 // feed_esc.go —— ops_event 升件环（业主令「探针只上 UI 不落 ops_event=病灶
 // 本体——后端对前端零信任」+「资金分配决策权整体下放 RSI/system」）：
-// 60s 拍评三类信号面——
+// 60s 拍评六类信号面——
 //
 //	①鲜度死：ops_face 同源 healthComps 注册表 dead 态→升件 esc_class=断流
 //	②部署缺口：净值/闸值/族需额对拍→升件 esc_class=资金闸
 //	③歧态腿：fin_order_leg ambiguous 在案→升件 esc_class=对账
 //	  （venue 回报歧态势=钱径事实,原径只推 Feishu 人端——机读面此处补）
+//	④孤儿账：注册表册 pending 积压超 TTL=写了没人读→升件 esc_class=孤儿账
+//	⑤唤知面死：未决升件在案而处置行 24h 缺席→升件 esc_class=唤知
+//	  +Feishu 人端兜底（脑死时 ops_event 只是日志,人是最后兜底面）
+//	⑥数据缺：fin_opp_eval unevaluable 同真因持续在案=结构缺
+//	  →升件 esc_class=数据缺（把「安静等数据」变「缺口信号」）
 //
 // 转死=升件（esc_scope=键,24h 同窗去重防重启风暴）；复绿=恢复行携升件#id
 // 自闭（唤知环 dedup 视引证=已处置,自愈案例零认知开销）。
-// 对账类 dedup=「未销才抑」——同窗有未销升件不暴,销案后新批=新事证重升
-// （歧态批销案后同窗再来不可误吞）。
+// 对账/孤儿账/唤知/数据缺类 dedup=「未销才抑」——同窗有未销升件不暴,
+// 销案后新事证重升（销案≠事实消失,新批再来不可误吞）。
 package main
 
 import (
@@ -18,6 +23,8 @@ import (
 	"fmt"
 	"log"
 	"time"
+
+	"o/internal/platform/notify"
 )
 
 // escEvery 升件拍节（dead 阈最小 2min——60s 拍保证死不超拍级误报又不过频）。
@@ -28,8 +35,9 @@ const escEvery = 60 * time.Second
 const escDedupHours = 24
 
 // escLoop 常驻拍（o-core 装配环起——转死/复绿状态机在内存,
-// 24h 同窗 dedup 在库）。ctx 终=进程退。
-func (c coreService) escLoop(ctx context.Context) {
+// 24h 同窗 dedup 在库）。ctx 终=进程退。al=人端兜底告警器
+// （唤知面死用——nil=只落账不人推）。
+func (c coreService) escLoop(ctx context.Context, al *notify.Alerter) {
 	t := time.NewTicker(escEvery) // sched-exempt-ok：信号判定期界非业务轮询
 	defer t.Stop()
 	deadSince := map[string]time.Time{} // scope → 本次死起始（恢复行注死窗）
@@ -42,6 +50,9 @@ func (c coreService) escLoop(ctx context.Context) {
 		c.feedEscCheck(ctx, deadSince)
 		c.deployEscCheck(ctx, deadSince)
 		c.reconEscCheck(ctx, deadSince)
+		c.orphanEscCheck(ctx, deadSince)
+		c.cognitionEscCheck(ctx, deadSince, al)
+		c.dataGapEscCheck(ctx, deadSince)
 	}
 }
 
@@ -99,35 +110,6 @@ func (c coreService) deployEscCheck(ctx context.Context, deadSince map[string]ti
 		})
 }
 
-// reconEscCheck 对账面探（歧态腿机读进水口）——fin_order_leg state='ambiguous'
-// 在案=钱径事实（venue 回报歧态,禁补单,原径仅 Feishu 人推）。探针只述
-// 腿数+ids,仲裁判词归唤知会话（runbook 对账档:tools/legarb 取证→三态裁）。
-// 沿触发同 escEdge 语义,唯 dedup 走「未销才抑」（销案后新批=新事证）。
-func (c coreService) reconEscCheck(ctx context.Context, deadSince map[string]time.Time) {
-	var n int
-	var ids []int64
-	if err := c.pool.QueryRow(ctx, `SELECT
-		(SELECT count(*) FROM fin_order_leg WHERE state='ambiguous'),
-		(SELECT COALESCE(array_agg(id),'{}') FROM
-			(SELECT id FROM fin_order_leg WHERE state='ambiguous'
-				ORDER BY id LIMIT 10) q)`).Scan(&n, &ids); err != nil {
-		return // 读件败本拍让位
-	}
-	const key = "对账/ambiguous_legs"
-	if n > 0 {
-		if _, ok := deadSince[key]; !ok {
-			deadSince[key] = time.Now()
-			c.escalateUnresolved(ctx, "对账", "ambiguous_legs", fmt.Sprintf(
-				"对账/ambiguous_legs: 歧态腿 %d 条在案（ids %v）——venue 回报歧态势,禁补单待仲裁（runbook 对账档:tools/legarb 取证→三态裁）", n, ids))
-		}
-		return
-	}
-	if since, ok := deadSince[key]; ok {
-		delete(deadSince, key)
-		c.recoverNote(ctx, "对账", "ambiguous_legs", since)
-	}
-}
-
 // cfgF 闸值浮点读（缺席/坏件=0——0 值天然不满足触发式,fail-safe）。
 func (c coreService) cfgF(key string) float64 {
 	v, err := c.cfg.GetFloat(key)
@@ -152,6 +134,24 @@ func (c coreService) escEdge(ctx context.Context, deadSince map[string]time.Time
 		if _, ok := deadSince[key]; !ok {
 			deadSince[key] = time.Now()
 			c.escalate(ctx, class, scope, note())
+		}
+		return
+	}
+	if since, ok := deadSince[key]; ok {
+		delete(deadSince, key)
+		c.recoverNote(ctx, class, scope, since)
+	}
+}
+
+// escEdgeU 沿触发·未销才抑版——同 escEdge,唯死沿走 escalateUnresolved
+// （对账/孤儿账/唤知/数据缺类:销案后新事证不可被同窗误吞）。
+func (c coreService) escEdgeU(ctx context.Context, deadSince map[string]time.Time,
+	class, scope string, dead bool, note func() string) {
+	key := class + "/" + scope
+	if dead {
+		if _, ok := deadSince[key]; !ok {
+			deadSince[key] = time.Now()
+			c.escalateUnresolved(ctx, class, scope, note())
 		}
 		return
 	}

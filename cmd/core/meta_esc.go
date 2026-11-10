@@ -1,0 +1,145 @@
+// meta_esc.go —— 元认知面探针（escLoop 同拍载,探件本件）：
+// 对账/孤儿账/唤知/数据缺四类——「系统看不见自己的问题」元盲区补位。
+// 探针只述实数/事实,判词归唤知会话 runbook 对应档；
+// dedup 全走「未销才抑」（销案≠事实消失,销案后新事证重升不误吞）。
+package main
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"time"
+
+	"o/internal/platform/notify"
+)
+
+// reconEscCheck 对账面探（歧态腿机读进水口）——fin_order_leg state='ambiguous'
+// 在案=钱径事实（venue 回报歧态,禁补单,原径仅 Feishu 人推）。探针只述
+// 腿数+ids,仲裁判词归唤知会话（runbook 对账档:tools/legarb 取证→三态裁）。
+func (c coreService) reconEscCheck(ctx context.Context, deadSince map[string]time.Time) {
+	var n int
+	var ids []int64
+	if err := c.pool.QueryRow(ctx, `SELECT
+		(SELECT count(*) FROM fin_order_leg WHERE state='ambiguous'),
+		(SELECT COALESCE(array_agg(id),'{}') FROM
+			(SELECT id FROM fin_order_leg WHERE state='ambiguous'
+				ORDER BY id LIMIT 10) q)`).Scan(&n, &ids); err != nil {
+		return // 读件败本拍让位
+	}
+	c.escEdgeU(ctx, deadSince, "对账", "ambiguous_legs", n > 0, func() string {
+		return fmt.Sprintf(
+			"对账/ambiguous_legs: 歧态腿 %d 条在案（ids %v）——venue 回报歧态势,禁补单待仲裁（runbook 对账档:tools/legarb 取证→三态裁）", n, ids)
+	})
+}
+
+// orphanProbe 「写了没人读」积压册——（名,积压计数询）一件一册,TTL 在询内钦定。
+type orphanProbe struct{ name, query string }
+
+// orphanProbes 孤儿账注册表——消费面死/表退役/真积压三因同形=积压超 TTL。
+// TTL=各域消费拍宽限（教训矿 24/48h、假想卡/条件缺口 7d——再低=正常拍误报）。
+var orphanProbes = []orphanProbe{
+	{"eng_lesson", `SELECT count(*) FROM fin_eng_lesson
+		WHERE status='pending' AND ts<now()-interval '24 hours'`},
+	{"econ_lesson", `SELECT count(*) FROM fin_econ_lesson
+		WHERE status='pending' AND ts<now()-interval '48 hours'`},
+	{"hypothesis_proposed", `SELECT count(*) FROM fin_opp_hypothesis
+		WHERE state='proposed' AND ts<now()-interval '7 days'`},
+	{"condition_gap", `SELECT count(*) FROM fin_condition_gap
+		WHERE state='pending' AND requested_at<now()-interval '7 days'`},
+}
+
+// orphanEscCheck 孤儿账面探——注册表册逐件判,积压超 TTL=升件 orphan_*。
+// 元认知补盲：系统此前看不见「写了没人读」的表（fin_econ_lesson 诊断案
+// 曾积压产线无人裁,升件#9063 实证）。
+func (c coreService) orphanEscCheck(ctx context.Context, deadSince map[string]time.Time) {
+	for _, p := range orphanProbes {
+		var n int
+		if err := c.pool.QueryRow(ctx, p.query).Scan(&n); err != nil {
+			continue // 读件败本册让位
+		}
+		p := p
+		c.escEdgeU(ctx, deadSince, "孤儿账", "orphan_"+p.name, n > 0, func() string {
+			return fmt.Sprintf(
+				"孤儿账/%s: 未消费积压 %d 行超 TTL——表在写而消费面死/退役/积压（定性归唤知会话孤儿账档）", p.name, n)
+		})
+	}
+}
+
+// cognitionEscCheck 唤知面死看门狗——未决升件在案而处置行 24h 缺席=
+// 认知环停摆（钱径照转无人判案）。ops_event 升件落账+Feishu 人端告警
+// 双发——脑死时 ops_event 只是日志,人是最后兜底面（人端推只在死沿一拍发,
+// 持续死不刷屏）。
+func (c coreService) cognitionEscCheck(ctx context.Context, deadSince map[string]time.Time, al *notify.Alerter) {
+	var open int
+	if err := c.pool.QueryRow(ctx, `SELECT count(*) FROM ops_event e
+		WHERE e.event='升件' AND e.ts>now()-interval '72 hours'
+		AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.ts>e.ts
+			AND x.note ~ ('升件#'||e.id::text||'([^0-9]|$)'))`).Scan(&open); err != nil {
+		return
+	}
+	var last *time.Time
+	_ = c.pool.QueryRow(ctx, `SELECT max(ts) FROM ops_event WHERE event='处置'`).Scan(&last)
+	dead := open > 0 && (last == nil || time.Since(*last) > 24*time.Hour)
+	const key = "唤知/cognition_dead"
+	_, was := deadSince[key]
+	c.escEdgeU(ctx, deadSince, "唤知", "cognition_dead", dead, func() string {
+		lastTxt := "无处置行在案"
+		if last != nil {
+			lastTxt = fmt.Sprintf("末处置 %s（陈 %s）",
+				last.UTC().Format("01-02 15:04Z"), time.Since(*last).Round(time.Hour))
+		}
+		return fmt.Sprintf("唤知面死: 未决升件 %d 件在案,%s——认知环停摆,积压无人判（人端兜底告警已同发）", open, lastTxt)
+	})
+	if _, now := deadSince[key]; dead && !was && now && al != nil {
+		lastTxt := "无处置行在案"
+		if last != nil {
+			lastTxt = time.Since(*last).Round(time.Hour).String()
+		}
+		al.Alert(ctx, "cognition_dead",
+			fmt.Sprintf("唤知面死——未决升件 %d 件,末处置陈 %s（认知环停摆,积压无人判）", open, lastTxt))
+	}
+}
+
+// dataGapEscCheck 数据缺面探——fin_opp_eval verdict='unevaluable' 同真因
+// 3d 窗 ≥3 行=结构缺（评估器重评估仍缺=非瞬态）。逐真因一 scope,
+// 数据到位=真因行消失→恢复自闭（销案不抑死态——事实仍死只清未决面）。
+func (c coreService) dataGapEscCheck(ctx context.Context, deadSince map[string]time.Time) {
+	rows, err := c.pool.Query(ctx, `SELECT evidence->>'reason' r, count(*) FROM fin_opp_eval
+		WHERE verdict='unevaluable' AND ts>now()-interval '3 days'
+		GROUP BY 1 HAVING count(*)>=3`)
+	if err != nil {
+		return
+	}
+	type gap struct {
+		reason string
+		n      int
+	}
+	var gaps []gap
+	for rows.Next() {
+		var g gap
+		if rows.Scan(&g.reason, &g.n) == nil && g.reason != "" {
+			gaps = append(gaps, g)
+		}
+	}
+	rows.Close()
+	seen := map[string]bool{}
+	for _, g := range gaps {
+		seen[g.reason] = true
+		g := g
+		c.escEdgeU(ctx, deadSince, "数据缺", "data_gap_"+g.reason, true, func() string {
+			return fmt.Sprintf(
+				"数据缺/%s: 评估 unevaluable 3d 窗 %d 行同真因——数据面缺腿是结构缺非瞬态（数据/凭据/启用 定性归唤知会话）", g.reason, g.n)
+		})
+	}
+	// 真因消失=缺口愈合——对挂死键补恢复（沿对称:死键在而实测非死）。
+	for k, since := range deadSince {
+		if !strings.HasPrefix(k, "数据缺/data_gap_") {
+			continue
+		}
+		reason := strings.TrimPrefix(k, "数据缺/data_gap_")
+		if !seen[reason] {
+			delete(deadSince, k)
+			c.recoverNote(ctx, "数据缺", "data_gap_"+reason, since)
+		}
+	}
+}
