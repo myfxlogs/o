@@ -3,6 +3,7 @@ package lifecycle
 import (
 	"context"
 	"errors"
+	"strconv"
 	"testing"
 	"time"
 
@@ -340,5 +341,73 @@ func TestOpenBreakevenRejectsThin(t *testing.T) {
 	want := funding.CostAPR(funding.Params{TakerFeeBps: 5, SlippageBps: 3, FailCostBps: 2, WindowLossBps: 4, HoldDays: 3})
 	if costAPR != want {
 		t.Fatalf("evidence cost_apr=%v 与 funding.CostAPR=%v 异源", costAPR, want)
+	}
+}
+
+// T-0521 读侧合流锚：实测分量（fee=4/slip=10 往返 bps）新鲜→fee/slip 项
+// 替声明参数（fail/window 续守）→cost=4+10+2+4=20bps→cost_apr=0.2433；
+// friction_at 陈>30d→声明参数续守（32bps→0.3893）。
+func TestBreakevenMeasuredOverride(t *testing.T) {
+	ctx, r, _ := openerSetup(t)
+	seedFlip(t, ctx, r)
+	ins := func(k, v string) {
+		if _, err := r.pool.Exec(ctx,
+			"INSERT INTO app_config(key,value) VALUES($1,to_jsonb($2::text)) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value", k, v); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ins("lifecycle.friction_fee_bps.okx", "4")
+	ins("lifecycle.friction_slip_bps.okx", "10")
+	// 薄 funding→仍拒,但拒卡 cost_apr 应取实测口径非声明口径。
+	if _, err := r.pool.Exec(ctx, `INSERT INTO md_funding(ts,inst_id,funding_rate,next_funding_rate)
+		VALUES(now(),'OP-USDT-SWAP',0.00005,0.00005)`); err != nil {
+		t.Fatal(err)
+	}
+	readCost := func() float64 {
+		var v float64
+		if err := r.pool.QueryRow(ctx, `SELECT (evidence->>'cost_apr')::float8 FROM fin_eval_reject
+			WHERE reason='breakeven_beyond_hold' ORDER BY id DESC LIMIT 1`).Scan(&v); err != nil {
+			t.Fatalf("breakeven 拒卡未落: %v", err)
+		}
+		return v
+	}
+	// ①无 at 戳（分量不齐）→声明口径 32bps。每轮退役旧行+清拒卡+
+	// 建新行——denyAt 冷窗(300s)+active 唯一索引+reject 1h 幂等窗
+	// 三件套同窗内同 inst 不再出新拒卡（先行退役+清卡再建）。
+	mkStrategy(t, ctx, r, "live", time.Hour)
+	r.openLive(ctx)
+	if got, want := readCost(), funding.CostAPR(funding.Params{TakerFeeBps: 5, SlippageBps: 3,
+		FailCostBps: 2, WindowLossBps: 4, HoldDays: 3}); got != want {
+		t.Fatalf("分量不齐应续守声明口径: got=%v want=%v", got, want)
+	}
+	// ②at 新鲜→实测口径 20bps。
+	ins("lifecycle.friction_at.okx", strconv.FormatInt(time.Now().Unix(), 10))
+	if err := r.cfg.Load(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.pool.Exec(ctx, `UPDATE fin_strategy SET state='retired' WHERE state='live';
+		DELETE FROM fin_eval_reject`); err != nil {
+		t.Fatal(err)
+	}
+	mkStrategy(t, ctx, r, "live", time.Hour)
+	r.openLive(ctx)
+	if got, want := readCost(), funding.CostAPR(funding.Params{TakerFeeBps: 1, SlippageBps: 5,
+		FailCostBps: 2, WindowLossBps: 4, HoldDays: 3}); got != want {
+		t.Fatalf("实测新鲜应替声明: got=%v want=%v", got, want)
+	}
+	// ③at 陈 40d→声明口径复归。
+	ins("lifecycle.friction_at.okx", strconv.FormatInt(time.Now().Add(-40*24*time.Hour).Unix(), 10))
+	if err := r.cfg.Load(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.pool.Exec(ctx, `UPDATE fin_strategy SET state='retired' WHERE state='live';
+		DELETE FROM fin_eval_reject`); err != nil {
+		t.Fatal(err)
+	}
+	mkStrategy(t, ctx, r, "live", time.Hour)
+	r.openLive(ctx)
+	if got, want := readCost(), funding.CostAPR(funding.Params{TakerFeeBps: 5, SlippageBps: 3,
+		FailCostBps: 2, WindowLossBps: 4, HoldDays: 3}); got != want {
+		t.Fatalf("实测陈旧应复归声明口径: got=%v want=%v", got, want)
 	}
 }
