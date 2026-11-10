@@ -1,0 +1,10 @@
+[Unit]
+Description=o-ops-relay-urgent.service RSI 急件摆渡（P1/环死/部署升件→业主屏即发）
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/o
+Environment=PATH=/home/mluser/.local/bin:/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/bin/bash /opt/o/scripts/ops_relay.sh urgent
+NoNewPrivileges=true
+TimeoutStartSec=120
