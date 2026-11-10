@@ -1,0 +1,10 @@
+[Unit]
+Description=o-ops-relay.timer RSI 工作面公示拍（15min——与 deploy_watch 错峰）
+
+[Timer]
+OnCalendar=*-*-* *:8/15:00
+Persistent=true
+Unit=o-ops-relay.service
+
+[Install]
+WantedBy=timers.target

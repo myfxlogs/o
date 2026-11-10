@@ -1,0 +1,9 @@
+[Unit]
+Description=o-ops-relay.service RSI 工作面飞书摆渡（收口/审计行→业主屏）
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/o
+ExecStart=/bin/bash /opt/o/scripts/ops_relay.sh
+NoNewPrivileges=true
+TimeoutStartSec=300
