@@ -1,8 +1,8 @@
 [Unit]
-Description=o-audit.timer 审计机日拍（审计臂——03:30 域轮换唤审计会话）
+Description=o-audit.timer 审计机四拍（审计臂——6h 域轮换唤审计会话；瞬败域随轮换自然回收，5 域整轮 ~30h）
 
 [Timer]
-OnCalendar=*-*-* 03:30:00
+OnCalendar=*-*-* 03,09,15,21:30:00
 Persistent=true
 Unit=o-audit-dispatch.service
 

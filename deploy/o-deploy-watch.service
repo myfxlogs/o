@@ -1,0 +1,9 @@
+[Unit]
+Description=o-deploy-watch.service 部署自醒守望（master HEAD vs 产线镜像滞差→自动部署/升件）
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/o
+ExecStart=/bin/bash /opt/o/scripts/deploy_watch.sh
+NoNewPrivileges=true
+TimeoutStartSec=900

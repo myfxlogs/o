@@ -10,6 +10,24 @@
 
 ## 工作面（按序）
 
+### ⓪ 收养前任（命脱钩——先捡上一场未完件再开新活）
+
+```bash
+FIN_DSN=$(grep '^FIN_PG_DSN=' /opt/o-research/env | cut -d= -f2- | tr -d '"')
+# 审计前任悬置：audit 支未入 master 且带 RED→复证补升件
+git -C /opt/o fetch -p origin -q 2>/dev/null
+git -C /opt/o branch -r --no-merged origin/master | grep -E 'audit/'
+# 部署滞差（deploy_watch 兜底在案,但你先看见就先动）:
+psql "$FIN_DSN" -qAt -c "SELECT (regexp_match(note,'o-core:([0-9a-f]+)'))[1]
+  FROM ops_event WHERE seat='DEPLOY' AND event='部署' AND note LIKE '%rc=0%'
+  ORDER BY id DESC LIMIT 1"   # 与 git rev-parse --short=12 master 对拍,滞差→deploy_image.sh
+```
+- `deploy_lag`/`deploy_blocked`/`deploy_push_blocked`/`deploy_diverged` 升件处置档：
+  分叉/推阻/脏树——查明阻塞因，清障（如入档遗留 untracked）或修径，
+  销案判词载「已部署至 o-core:<sha>」为清偿证。
+- 审计支复证：跑支上 RED（`AUDIT_RED=1` 门件须带 env）→ RED 实→按审计
+  runbook 格式补升件（note 加「复证自审计前任支」）→处置档同新升件。
+
 ### ① 扫信号
 ```bash
 FIN_DSN=$(grep '^FIN_PG_DSN=' /opt/o-research/env | cut -d= -f2- | tr -d '"')
