@@ -253,11 +253,11 @@ func TestMatrixBasisCells(t *testing.T) {
 	}
 }
 
-// 锚⑥b：USD 计价族覆盖锚（T-0482）——BTC-USD-YYMMDD derived spot
-// BTC-USD OKX 实有面无此对（survey 在案：USD 计价现货仅 USDT-USD 一对）
-// →不登记→basis 腿构 fail-closed「现货乐器不在册 BTC-USD」机理同真径
-// loadMeta 空 rows；凭据 verdict=fail 落账=正确稳态禁冲绿（T-0481
-// 钦定锚——生产同格 usd=50 实案同键族）。
+// 锚⑥b：USD 计价族对冲现货归一锚（T-0482 校真面+2026-11-10 根修）——
+// BTC-USD-YYMMDD 的对冲现货=BTC-USDT（产线 lifecycle.basisSpotLeg 同律，
+// CEX 现货报价币=USDT 族；原锚前提「derived spot=BTC-USD fail-closed 同
+// 真径」为误锚——产线归一从未派生 BTC-USD）。绿凭据落账=对冲现货键
+// 归一+venue 册 hedgeSpotKey 登记双件同真径实证。
 func TestMatrixBasisUSDQuoteCell(t *testing.T) {
 	ctx, m := setupMatrix(t)
 	mkOcc(t, ctx, m, "BTC-USD-270326", "quarter_basis_long", "basis_quarter", "okx", 50)
@@ -271,19 +271,16 @@ func TestMatrixBasisUSDQuoteCell(t *testing.T) {
 		t.Fatal("quarter_basis_long 格未枚举")
 	}
 	res := m.runCell(ctx, *c, c.Tiers[0], shapeOKXTwoLeg)
-	if res.Verdict != "fail" {
-		t.Fatalf("USD 计价族应 fail-closed: %+v", res)
-	}
-	if !strings.Contains(res.Detail, "现货乐器不在册 BTC-USD") {
-		t.Fatalf("fail 机理应=现货乐器不在册（同真径 loadMeta）: %s", res.Detail)
+	if res.Verdict != "pass" {
+		t.Fatalf("USD 计价族应归一 BTC-USDT 绿: %+v", res)
 	}
 	var verdict string
 	if err := m.Pool.QueryRow(ctx, `SELECT verdict FROM fin_exec_drill
 		WHERE cell_key=$1 ORDER BY id DESC LIMIT 1`, res.CellKey).Scan(&verdict); err != nil {
 		t.Fatal(err)
 	}
-	if verdict != "fail" {
-		t.Fatalf("凭据应 fail（正确稳态禁冲绿）: %s", verdict)
+	if verdict != "pass" {
+		t.Fatalf("凭据应 pass: %s", verdict)
 	}
 }
 

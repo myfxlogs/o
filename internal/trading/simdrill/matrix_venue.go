@@ -29,6 +29,22 @@ func instPair(inst string) (base, quote string) {
 // baseCcy 乐器基键（instPair[0]——现货裸袋判锚）。
 func baseCcy(inst string) string { b, _ := instPair(inst); return b }
 
+// hedgeSpotKey 期货基键→现货对冲键——产线径 lifecycle.basisSpotLeg
+// 同律镜像（报价币 -USD/-USDG→-USDT：BTC-USD-270326 对冲现货=BTC-USDT，
+// CEX 现货报价币即 USDT 族非 USD；USDT 本位原形）。基键直查=BTC-USD
+// 类实有无对假「现货乐器不在册」（2026-11-10 产线实证——演习格 fail
+// 而产线 lifecycle 归一对，业主口径复核 cex=BTC-USDT）。
+// venue 册登记与腿构双消费——单源防双份派生再漂。
+func hedgeSpotKey(base string) string {
+	switch {
+	case strings.HasSuffix(base, "-USDG"):
+		return strings.TrimSuffix(base, "-USDG") + "-USDT"
+	case strings.HasSuffix(base, "-USD"):
+		return strings.TrimSuffix(base, "-USD") + "-USDT"
+	}
+	return base
+}
+
 // cfdCanonical okx perp 键→CFD 官话 canonical（X-USDT-SWAP→XUSD——mt5 腿
 // InstID=官名唯一天，venue 方言名由 mt5sim.Dialect 译件承担）。
 func cfdCanonical(inst string) string { return baseCcy(inst) + "USD" }
@@ -54,6 +70,12 @@ func newOKXVenue(inst string) *simvenue.SimVenue {
 	// loadMeta instruments 空 rows fail-closed（T-0481 判词 sim 缺陷根修）。
 	if okxSpotLive(spotID) {
 		v.WithInstrument(simvenue.Instrument{InstID: spotID, InstType: "SPOT",
+			LotSz: 0.0001, MinSz: 0.0001, TickSz: 0.0001, TakerFee: 0.001, Px: px})
+	}
+	// 派生对冲现货键（-USD/-USDG 期货的 USDT 对冲腿——BTC-USD-270326
+	// →BTC-USDT）——实有面在册才登，与腿构 hedgeSpotKey 同函数单源。
+	if hs := hedgeSpotKey(spotID); hs != spotID && okxSpotLive(hs) {
+		v.WithInstrument(simvenue.Instrument{InstID: hs, InstType: "SPOT",
 			LotSz: 0.0001, MinSz: 0.0001, TickSz: 0.0001, TakerFee: 0.001, Px: px})
 	}
 	// 本格合约乐器（SWAP 常规键 / FUTURES=-YYMMDD 期货键——basis_open.go 同域）。

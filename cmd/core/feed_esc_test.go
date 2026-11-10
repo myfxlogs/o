@@ -384,6 +384,29 @@ func TestCapabilityEscCheck(t *testing.T) {
 		t.Fatalf("免演族 note 误载演习债: %s", note)
 	}
 
+	// 销而未修径（定性要码修类：处置销案但债条件仍真）→未销才抑下
+	// 一拍内重火——沿锁版 deadSince 键占死不再发的回归锚（2026-11-10
+	// 产线坑:#9187 定性销后探针静默,债成黑洞）。
+	var escID int64
+	if err := pool.QueryRow(ctx, `SELECT id FROM ops_event
+		WHERE event='升件' AND esc_scope='capability_funding-hedge'`).Scan(&escID); err != nil {
+		t.Fatalf("升件 id: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note)
+		VALUES('处置席','处置','capability_funding-hedge',$1)`,
+		fmt.Sprintf("升件#%d 销——定性要码修（债条件仍真）", escID)); err != nil {
+		t.Fatalf("定性销: %v", err)
+	}
+	svc.capabilityEscCheck(ctx, deadSince)
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='升件' AND esc_scope='capability_funding-hedge'`).Scan(&n); err != nil || n != 2 {
+		t.Fatalf("销而未修重火 n=%d（沿锁回归——应重升提醒）", n)
+	}
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='升件' AND esc_scope='capability_vol_sell_strangle'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("免演族未销在案不暴 n=%d", n)
+	}
+
 	// 凭据+评估补上→恢复行自闭
 	if _, err := pool.Exec(ctx, `INSERT INTO fin_exec_drill(strategy_ref,inst_id,verdict,cell_key)
 		VALUES(-1,'BTC-USDT-SWAP','pass','funding-hedge@okx/short_perp_long_spot#usd=50');

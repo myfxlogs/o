@@ -4,9 +4,9 @@ id: simdrill-entrypoint-concat-and-exempt-probe
 kind: pitfall
 risk: medium
 status: verified
-keywords: [simdrill, docker run, entrypoint, excell, 免演, 能力债, capability probe, 假阳, cron]
-scope: [演习臂面, simdrill -matrix 手动/docker 调用, capabilityEscCheck 占用感知]
-summary: 两个同日坑——①o-core 镜像 ENTRYPOINT=/bin/core exec 形，裸 `docker run img /bin/simdrill -matrix` 被拼成「/bin/core /bin/simdrill」跑成 core 非演习（容器 Up 10min 零凭据行，假死无声）；②能力债探针「enabled 模板须 7d 绿凭据」撞 excell⑤「词表零占免演」钦定——零占用模板结构性产不出凭据，探针会对其永火假阳。修法=①--entrypoint 显式给或走 scripts/simdrill_matrix.sh；②演习债只对 excell.Enumerate 非 Exempt 占用格模板成立。
+keywords: [simdrill, docker run, entrypoint, excell, 免演, 能力债, capability probe, 假阳, cron, escEdgeU, 销案重火, deadSince]
+scope: [演习臂面, simdrill -matrix 手动/docker 调用, capabilityEscCheck 占用感知, escEdgeU 未销才抑]
+summary: 三个同日坑——①o-core 镜像 ENTRYPOINT=/bin/core exec 形，裸 `docker run img /bin/simdrill -matrix` 被拼成「/bin/core /bin/simdrill」跑成 core 非演习（容器 Up 10min 零凭据行，假死无声）；②能力债探针「enabled 模板须 7d 绿凭据」撞 excell⑤「词表零占免演」钦定——零占用模板结构性产不出凭据，探针会对其永火假阳；③escEdgeU 沿触发 deadSince 键占死不再发——「定性要码修」销案（分类≠修好）后信号成黑洞，唯重启回流。修法=①--entrypoint 显式给或走 scripts/simdrill_matrix.sh；②演习债只对 excell.Enumerate 非 Exempt 占用格模板成立；③escEdgeU 死态期间每拍过 escalateUnresolved（DB 判未决——开着静默/销了重火/火完再静默），dedup 粒=未决事件非「沿」。
 first_seen: 2026-11-10
 last_verified: 2026-11-10
 skills: []
@@ -39,6 +39,26 @@ o-core 镜像 `ENTRYPOINT ["/bin/core"]`（exec 形）。`docker run img cmd arg
 模板成立；零占 enabled 族健康度只由「14d 零评估产出」判（evaluator
 枚举尝试含拒行——枚举着没候选=市场平窗非债）。占用判定唯走
 Enumerate 真源，禁探针自查 fin_strategy 复述（枚举径演进探针不漂）。
+
+## 坑③：escEdgeU 沿锁——销案≠修好的类销后黑洞
+
+`escEdgeU` 原实现是沿触发：条件首拍为真→deadSince 落键+升件；此后
+键占着，`escalateUnresolved` 不再被唤。「未销才抑」语义钦定 dedup
+粒=未决事件（销了=新事证重升），实现却把它绑成「沿」——**销案而
+条件仍真**（定性要码修类：分类≠修好）时信号成黑洞，唯进程重启
+deadSince 清空才回流。歧态批类无碍（销案=修好=条件翻假=自然解锁），
+能力债类销案=定性，债还在。
+
+修法：dead 期间每拍过 `escalateUnresolved`——其内 DB 判未决升件，
+开着静默/销了重火/火完再静默；deadSince 只记首死供恢复行陈窗。
+测试锚=「销而未修→一拍内重火」（TestCapabilityEscCheck 处置行销
+E1→E2 重升）。
+
+同案附注：basis 演习格 `BTC-USD-270326` fail「现货乐器不在册」
+非真债是派生缺——期货基键直查现货（BTC-USD 实有无对），产线
+`lifecycle.basisSpotLeg` 从来归一 -USD/-USDG→-USDT（CEX 现货报价
+币=USDT 族，业主口径复核）。演习 venue 册+腿构双消费 `hedgeSpotKey`
+单源——旧锚⑥b 断言 fail=误锚（前提错非机理错），已转 pass 锚。
 
 ## 证据
 
