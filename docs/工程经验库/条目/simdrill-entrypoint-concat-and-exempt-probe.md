@@ -4,9 +4,9 @@ id: simdrill-entrypoint-concat-and-exempt-probe
 kind: pitfall
 risk: medium
 status: verified
-keywords: [simdrill, docker run, entrypoint, excell, 免演, 能力债, capability probe, 假阳, cron, escEdgeU, 销案重火, deadSince]
+keywords: [simdrill, docker run, entrypoint, excell, 免演, 能力债, capability probe, 假阳, cron, escEdgeU, 销案重火, deadSince, ephemeral, fin_strategy_active_dedupe, retireEphemeral, basisSpotLeg]
 scope: [演习臂面, simdrill -matrix 手动/docker 调用, capabilityEscCheck 占用感知, escEdgeU 未销才抑]
-summary: 三个同日坑——①o-core 镜像 ENTRYPOINT=/bin/core exec 形，裸 `docker run img /bin/simdrill -matrix` 被拼成「/bin/core /bin/simdrill」跑成 core 非演习（容器 Up 10min 零凭据行，假死无声）；②能力债探针「enabled 模板须 7d 绿凭据」撞 excell⑤「词表零占免演」钦定——零占用模板结构性产不出凭据，探针会对其永火假阳；③escEdgeU 沿触发 deadSince 键占死不再发——「定性要码修」销案（分类≠修好）后信号成黑洞，唯重启回流。修法=①--entrypoint 显式给或走 scripts/simdrill_matrix.sh；②演习债只对 excell.Enumerate 非 Exempt 占用格模板成立；③escEdgeU 死态期间每拍过 escalateUnresolved（DB 判未决——开着静默/销了重火/火完再静默），dedup 粒=未决事件非「沿」。
+summary: 四个同日坑——①o-core 镜像 ENTRYPOINT=/bin/core exec 形，裸 `docker run img /bin/simdrill -matrix` 被拼成「/bin/core /bin/simdrill」跑成 core 非演习（容器 Up 10min 零凭据行，假死无声）；②能力债探针「enabled 模板须 7d 绿凭据」撞 excell⑤「词表零占免演」钦定——零占用模板结构性产不出凭据，探针会对其永火假阳；③escEdgeU 沿触发 deadSince 键占死不再发——「定性要码修」销案（分类≠修好）后信号成黑洞，唯重启回流；④演习 ephemeral 策略行 degraded 不退役——占 active_dedupe 键致同格复跑全撞（24h TTL 不赶日拍间隔）。修法=①--entrypoint 显式给或走 scripts/simdrill_matrix.sh；②演习债只对 excell.Enumerate 非 Exempt 占用格模板成立；③escEdgeU 死态期间每拍过 escalateUnresolved（DB 判未决——开着静默/销了重火/火完再静默），dedup 粒=未决事件非「沿」；④演习毕即退 retireEphemeral+Transition 留痕。
 first_seen: 2026-11-10
 last_verified: 2026-11-10
 skills: []
@@ -59,6 +59,19 @@ E1→E2 重升）。
 `lifecycle.basisSpotLeg` 从来归一 -USD/-USDG→-USDT（CEX 现货报价
 币=USDT 族，业主口径复核）。演习 venue 册+腿构双消费 `hedgeSpotKey`
 单源——旧锚⑥b 断言 fail=误锚（前提错非机理错），已转 pass 锚。
+
+## 坑④：ephemeral 策略行占活跃去重键——复跑全撞
+
+演习径建 `fin_strategy` ephemeral 行（state='degraded'）从不退役；
+`fin_strategy_active_dedupe` 唯一键 `(venue,inst,direction,template_ref)
+WHERE state<>'retired'` 下占键——同格复跑必撞（矩阵二跑 6 格全
+`duplicate key`）。`retireStaleDegraded` 24h TTL 兜底不赶日拍间隔
+（23.5h<24h——cron 臂每天必撞）。
+
+修法：演习毕即退——`retireEphemeral` 三径 defer 共用（UPDATE
+degraded→retired + `fin_strategy_transition` 留痕
+reason='drill_ephemeral_done'；retire.go 律裸 UPDATE 零留痕禁）。
+测试锚=TestMatrixRerunIdempotent 同格连跑双绿。
 
 ## 证据
 

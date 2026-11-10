@@ -35,9 +35,40 @@ const (
 	Seat     = "演习"
 	Ticket   = "T-0426"
 	EscClass = "执行径演习"
-	// StratTemplate 演习 ephemeral 策略打标（审计可辨；24h TTL 自退役不复用）。
+	// StratTemplate 演习 ephemeral 策略打标（审计可辨）。
 	StratTemplate = "simdrill"
 )
+
+// retireEphemeral 演习 ephemeral 策略行即退+Transition 留痕——
+// fin_strategy_active_dedupe (venue,inst,direction,template_ref)
+// 活跃唯一键下 state='degraded' 行占键：degraded_ttl 24h 兜底
+// 不赶日拍间隔（23.5h<24h——2026-11-10 产线实证矩阵二跑 6 格
+// 全撞唯一键）。演习毕=语义终结态即退；产线律=Transition 留痕
+// （retire.go 钦定——裸 UPDATE 零留痕禁）。degraded 外态不动
+// （他径迁过态不抢改）。
+func retireEphemeral(ctx context.Context, pool *pgxpool.Pool, stratID int64) {
+	if tag, _ := pool.Exec(ctx,
+		`UPDATE fin_strategy SET state='retired' WHERE id=$1 AND state='degraded'`,
+		stratID); tag.RowsAffected() > 0 {
+		_, _ = pool.Exec(ctx,
+			`INSERT INTO fin_strategy_transition(strategy_id,from_state,to_state,reason)
+			 VALUES($1,'degraded','retired','drill_ephemeral_done')`, stratID)
+	}
+}
+
+// sweepStaleEphemeral 起跑清扫——历史/崩跑残留的 degraded simdrill 行
+// 批量退役（各占一个 active_dedupe 键,不清=新插入永远撞）。毕即退
+// 管本跑行,本件管存量行:两案合起来 degraded 面零积压。
+// Transition 留痕同 retireEphemeral 律。
+func sweepStaleEphemeral(ctx context.Context, pool *pgxpool.Pool) {
+	_, _ = pool.Exec(ctx,
+		`INSERT INTO fin_strategy_transition(strategy_id,from_state,to_state,reason)
+		 SELECT id,'degraded','retired','drill_ephemeral_sweep'
+		 FROM fin_strategy WHERE template_ref LIKE 'simdrill%' AND state='degraded'`)
+	_, _ = pool.Exec(ctx,
+		`UPDATE fin_strategy SET state='retired'
+		 WHERE template_ref LIKE 'simdrill%' AND state='degraded'`)
+}
 
 // Result 演习结论（verdict 入 fin_exec_drill——毕业闸凭据）。
 type Result struct {
@@ -62,6 +93,7 @@ type Drill struct {
 // verdict 缺省 pass；任一环病=翻 fail+升件（禁静默）——返回 err 仅限机械败
 // （判据/事实读不到——病面走 verdict 不走 error，升件行为准）。
 func (d *Drill) Run(ctx context.Context, strategyRef int64) (Result, error) {
+	sweepStaleEphemeral(ctx, d.Pool)
 	res := Result{StrategyRef: strategyRef, Verdict: "pass"}
 	// ① 策略型事实（inst/notional/template——演习对型跑）。
 	var inst, templateRef string
@@ -139,6 +171,7 @@ func (d *Drill) leggedDrill(ctx context.Context, res Result, inst string, notion
 			`UPDATE fin_guard_close SET state='closed',closed_at=now(),updated_at=now(),
 			 last_error='reconcile:drill_cleanup' WHERE state='closing'
 			 AND position_id IN (SELECT id FROM fin_position WHERE strategy_ref=$1)`, drillStrat)
+		retireEphemeral(ctx, d.Pool, drillStrat)
 	}()
 	// 行情真相锚（matrix execTwoLeg 同律——venue 成交价与 md_ticks 同价
 	// 防时差型假 drift；全腿统一 venue 册价,真器键 drill 不再靠夹具预播）。
