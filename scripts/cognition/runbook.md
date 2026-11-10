@@ -162,6 +162,19 @@ psql "$FIN_DSN" -c "SELECT id,kind,entity_ref,numbers FROM fin_econ_lesson
   销+note 写「死窗 <起止> 已复——<死因:timer停/dispatch卡/会话败>」；
   死因不明先查 `systemctl --user status o-cognition.timer`+
   `journalctl --user -u o-cognition-dispatch -n 50`；复发→要码修。
+- **唤知 spawn_fail**（esc_class=唤知 scope=cognition_spawn_fail——
+  唤起败 2h≥2 的结构性连败升件）→ note 载败数+末因（reason=
+  session_discovery/quota_cooldown/rate_limited/devin_rc_*/spawn落败）。
+  裁径：
+  - 末因同种连败=该机壳坏（env 漂/凭据缺/磁盘满）→修该机 run.sh
+    环境或停该机 dispatcher（`systemctl --user disable --now
+    o-cognition.timer` 于坏机）——**败机占锁不释的坑已修**（trap
+    释锁+RuntimeMaxSec 在案），若再发连败先核两机的 run.sh 版本；
+  - reason=spawn落败=systemd-run 本身起不了 unit（属主/cgroup 面）
+    →要业主或基建件；
+  - quota/rate_limit 连败=凭据池真尽→要业主（不销——事实在案）。
+  - 结案必销+note 引败迹行 ids。
+  KB: cognition-spawn-env-drift-lockout（env 漂/锁饿死/遮蔽/挂死四坑全案）。
 - **数据缺**（esc_class=数据缺 scope=data_gap_<reason>——评估器
   unevaluable 同真因 3d 窗≥3 行的持续缺腿信号）→ 按真因裁：
   - venue 数据面缺（spot_missing/funding 面缺等）→ 要码修（采集面立件）
