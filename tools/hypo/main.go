@@ -16,6 +16,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"o/internal/platform/execfam"
 )
 
 func main() {
@@ -33,6 +35,8 @@ func main() {
 		card(ctx, pool, os.Args[2:])
 	case "metrics":
 		metrics(ctx, pool)
+	case "decide":
+		decide(ctx, pool, os.Args[2:])
 	default:
 		usage()
 	}
@@ -106,6 +110,65 @@ func metrics(ctx context.Context, pool *pgxpool.Pool) {
 		weekly, adopted, total, rate*100)
 }
 
+// decide 卡裁决窄门（T-0522 骨架批——决策席/唤知会话卡生命周期写径）：
+// proposed|parked → adopted|parked|dismissed 单事务两件：state 迁移+
+// ops_event 处置审计行（旧态/新态/裁词必携——append-only 证据轨）。
+// adopted 骨检=execfam 册（五件骨架的执行族锚——未注册拒收养,防「收养了
+// 但跑不起来」的假骨架）；模板名=surface 剥 _template 尾（grammar 卡构键律）
+// 或 -template 显式传（研究员卡面）。
+func decide(ctx context.Context, pool *pgxpool.Pool, args []string) {
+	fs := flag.NewFlagSet("decide", flag.ExitOnError)
+	id := fs.Int64("id", 0, "假想卡 id")
+	state := fs.String("state", "", "目标态 adopted|parked|dismissed")
+	reason := fs.String("reason", "", "裁词（必填——入审计行证据面）")
+	seat := fs.String("seat", "决策席", "裁席名（ops_event.seat）")
+	tmpl := fs.String("template", "", "模板名（缺省=surface 剥 _template 尾）")
+	fs.Parse(args)
+	if *id <= 0 || *reason == "" {
+		fatal(fmt.Errorf("decide: -id 与 -reason 必填"))
+	}
+	switch *state {
+	case "adopted", "parked", "dismissed":
+	default:
+		fatal(fmt.Errorf("decide: -state 闭集 adopted|parked|dismissed（%q）", *state))
+	}
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		fatal(err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	var old, surface string
+	if err := tx.QueryRow(ctx,
+		`SELECT state,surface FROM fin_opp_hypothesis WHERE id=$1 FOR UPDATE`, *id).
+		Scan(&old, &surface); err != nil {
+		fatal(fmt.Errorf("decide: 卡 #%d 读败: %w", *id, err))
+	}
+	if old != "proposed" && old != "parked" {
+		fatal(fmt.Errorf("decide: 卡 #%d state=%s 不可迁（闭集源态 proposed|parked）", *id, old))
+	}
+	t := *tmpl
+	if t == "" {
+		t = strings.TrimSuffix(surface, "_template")
+	}
+	if *state == "adopted" && !execfam.Has(t) {
+		fatal(fmt.Errorf("decide: 收养拒——execfam 未注册 %s（骨架未齐先落执行族册）", t))
+	}
+	if _, err := tx.Exec(ctx,
+		`UPDATE fin_opp_hypothesis SET state=$1 WHERE id=$2`, *state, *id); err != nil {
+		fatal(fmt.Errorf("decide: state 迁败: %w", err))
+	}
+	note := fmt.Sprintf("假想卡#%d %s: %s→%s 裁词=%s", *id, surface, old, *state, *reason)
+	if _, err := tx.Exec(ctx,
+		`INSERT INTO ops_event(seat,event,ticket,note) VALUES($1,'处置','hypo',$2)`,
+		*seat, note); err != nil {
+		fatal(fmt.Errorf("decide: 审计行落败: %w", err))
+	}
+	if err := tx.Commit(ctx); err != nil {
+		fatal(err)
+	}
+	fmt.Printf("decide #%d %s→%s（template=%s 审计行落账）\n", *id, old, *state, t)
+}
+
 func splitCSV(s string) []string {
 	out := []string{}
 	for _, f := range strings.FieldsFunc(s, func(r rune) bool { return r == ',' || r == '，' }) {
@@ -124,7 +187,8 @@ func jsonValid(s, name string) error {
 func usage() {
 	fmt.Fprintln(os.Stderr, `用法:
   hypo card -venue okx -surface spread-trading -family basis -legs spot_long,perp_short [-req '{}'] [-ev '{"src":"…"}']
-  hypo metrics`)
+  hypo metrics
+  hypo decide -id <N> -state adopted|parked|dismissed -reason "裁词" [-seat 决策席] [-template 名]`)
 	os.Exit(2)
 }
 

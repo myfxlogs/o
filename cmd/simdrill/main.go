@@ -25,7 +25,6 @@ import (
 	"o/internal/risk"
 	"o/internal/store/pgstore"
 	"o/internal/trading/simdrill"
-	"o/internal/trading/simvenue"
 )
 
 func main() {
@@ -77,7 +76,14 @@ func run(strategyID int64) error {
 		return err
 	}
 	defer pool.Close()
-	d := &simdrill.Drill{Pool: pool, Cfg: cfg, Gate: gate, Venue: fixtureVenue()}
+	// venue 册按被闸策略 inst 派生（T-0522——原 fixture 只 CORE 对,真器
+	// 策略单钻永远「乐器不在册」凭据不可产;派生册现货实有面校真同矩阵径）。
+	var instID string
+	if err := pool.QueryRow(context.Background(),
+		`SELECT inst_id FROM fin_strategy WHERE id=$1`, strategyID).Scan(&instID); err != nil {
+		return fmt.Errorf("策略乐器读败: %w", err)
+	}
+	d := &simdrill.Drill{Pool: pool, Cfg: cfg, Gate: gate, Venue: simdrill.VenueForInst(instID)}
 	res, err := d.Run(context.Background(), strategyID)
 	if err != nil {
 		return err
@@ -111,15 +117,4 @@ func runMatrix() error {
 		os.Exit(1)
 	}
 	return nil
-}
-
-// fixtureVenue 演习乐器册（fixture 值——产线径=T-0427 品种主档供后换源）。
-func fixtureVenue() *simvenue.SimVenue {
-	return simvenue.New().
-		WithInstrument(simvenue.Instrument{InstID: "CORE-USDT", InstType: "SPOT",
-			LotSz: 0.01, MinSz: 0.01, TickSz: 0.0001, TakerFee: 0.001, Px: 0.0125}).
-		WithInstrument(simvenue.Instrument{InstID: "CORE-USDT-SWAP", InstType: "SWAP",
-			LotSz: 0.01, MinSz: 0.01, TickSz: 0.0001, CtVal: 100, CtValCcy: "CORE",
-			TakerFee: 0.0005, Px: 0.0125}).
-		WithBalance("USDT", 1000)
 }

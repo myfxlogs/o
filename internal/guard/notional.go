@@ -29,7 +29,17 @@ func (w *Warden) notionalNow(ctx context.Context, l leg) (float64, bool) {
 		return 0, false // 陈 tick=事实缺——fail-closed 同 facts_missing 计数
 	}
 	if l.qtyBase > 0 {
-		return l.qtyBase * *last, true
+		if l.szUnit == "contract" {
+			// T-0522 根修：datedFUT qty_base=实填张数（T-0483 钦定——SWAP
+			// 域 NULL 不同形）非币量——按基量×px 会虚胖 1/ctVal 倍
+			// （BTC 域~1000×）→delta_drift 绝对兜底秒杀全谱 basis 仓。
+			ct, ok := w.ctValOf(ctx, l.venue, l.inst)
+			if !ok {
+				return 0, false
+			}
+			return l.qtyBase * ct * *last, true
+		}
+		return l.qtyBase * *last, true // quote/base/lot 域 qty_base=币量
 	}
 	switch l.szUnit {
 	case "base":

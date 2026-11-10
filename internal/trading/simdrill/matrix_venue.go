@@ -84,6 +84,11 @@ func newMT5Venue(inst string) *mt5sim.Sim {
 		TradeMode: 4, Px: px, State: "live"})
 }
 
+// VenueForInst 单策略径 venue 装配（cmd 面——inst 派生乐器册：-YYMMDD→
+// FUTURES/现货实有面校真/基键-SWAP 幂等；DCD/复合键域派生键不被消费无害）。
+// T-0522：原 cmd fixture 只 CORE 对——真器策略单钻永远「乐器不在册」。
+func VenueForInst(inst string) *simvenue.SimVenue { return newOKXVenue(inst) }
+
 // defaultInst 空 InstID 格代表乐器（钦定 xvenue 空格=$50 单档——BTC
 // 基准键确定性取，演习域 fixture 价位同 pxOf 派生）。
 func defaultInst() string { return "BTC-USDT-SWAP" }
