@@ -112,7 +112,9 @@ func Enumerate(ctx context.Context, pool *pgxpool.Pool) ([]Cell, error) {
 		COALESCE(direction,''), notional_usd::float8, inst_id
 		FROM fin_strategy
 		WHERE state IN ('live','paper','probe','degraded')
-		  AND template_ref NOT LIKE 'simdrill%'`)
+		  AND template_ref NOT LIKE 'simdrill%'
+		ORDER BY CASE state WHEN 'live' THEN 0 WHEN 'paper' THEN 1
+		  WHEN 'probe' THEN 2 ELSE 3 END, id`)
 	if err != nil {
 		return nil, fmt.Errorf("excell 策略占用读败: %w", err)
 	}
@@ -135,7 +137,8 @@ func Enumerate(ctx context.Context, pool *pgxpool.Pool) ([]Cell, error) {
 	// ② 提案占用（模板经 eval 归位——无名义贡献仅占格）。
 	prows, err := pool.Query(ctx, `SELECT e.template, p.inst_id, p.direction
 		FROM fin_proposal p JOIN fin_opp_eval e ON e.id=p.eval_id
-		WHERE p.state IN ('fin_proposed','fin_armed')`)
+		WHERE p.state IN ('fin_proposed','fin_armed')
+		ORDER BY CASE p.state WHEN 'fin_armed' THEN 0 ELSE 1 END, p.id`)
 	if err != nil {
 		return nil, fmt.Errorf("excell 提案占用读败: %w", err)
 	}

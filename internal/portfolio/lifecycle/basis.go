@@ -105,7 +105,7 @@ func (r *Runner) basisPaperAccounting(ctx context.Context) error {
 		var spot float64
 		var spotTs time.Time
 		if err := r.pool.QueryRow(ctx, `SELECT last,ts FROM md_ticks
-			WHERE inst_id=$1`, spotInst).Scan(&spot, &spotTs); err != nil || spot <= 0 || !fresh(spotTs) {
+			WHERE inst_id=$1 AND venue<>'sim'`, spotInst).Scan(&spot, &spotTs); err != nil || spot <= 0 || !fresh(spotTs) {
 			r.rej.Inc("basis_mark_stale")
 			continue
 		}

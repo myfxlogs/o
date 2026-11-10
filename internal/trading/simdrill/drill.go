@@ -104,20 +104,21 @@ func (d *Drill) Run(ctx context.Context, strategyRef int64) (Result, error) {
 		return res, fmt.Errorf("策略型事实读败: %w", err)
 	}
 	res.InstID = inst
-	if !strings.HasSuffix(inst, "-SWAP") {
-		switch {
-		// DCD 产品域（dcd_put/dcd_call/vol_sell 毕业闸同凭据——probe→live
-		// 闸全策略同待遇,T-0426 判据不偏爱 funding-hedge；strangle 复合键
-		// runDCDDrill 内拆腿,T-0522）。
-		case templateRef == "dcd_put" || templateRef == "dcd_call" ||
-			templateRef == "vol_sell_single_call" || templateRef == "vol_sell_strangle":
-			return d.runDCDDrill(ctx, res, inst, templateRef, notional)
-		// basis 族=-YYMMDD 期货键（T-0522 假想卡骨架批——毕业域模板未载=
-		// 凭据不可产fail-forever,同坑戒 KB simdrill-gate-domain-coverage-mismatch）。
-		case isBasisTemplate(templateRef):
-			return d.runBasisDrill(ctx, res, inst, templateRef, notional)
-		}
-		return res, fmt.Errorf("演习面限 SWAP/dcd/basis 键策略（毕业域模板未载——新执行族注册须同 commit 补演习格）: %s template=%s", inst, templateRef)
+	// 派路单源=legShapeOf(templateRef)（矩阵径同注册表——inst 后缀派路与
+	// 模板腿形双实现分歧已废：xvenue-carry inst=*-SWAP 曾落 SWAP 支跑错腿
+	// 产 funding 形凭据毒化毕业闸）。shapeXvenue=显式拒载不产凭据。
+	shape, shapeOK := legShapeOf(templateRef)
+	switch {
+	case isBasisTemplate(templateRef): // basis 族=-YYMMDD 期货键（T-0522）
+		return d.runBasisDrill(ctx, res, inst, templateRef, notional)
+	case !shapeOK:
+		return res, fmt.Errorf("演习面模板腿形未载（legShapeOf 无映射——新执行族注册须同 commit 补演习格）: %s template=%s", inst, templateRef)
+	case shape == shapeXvenue:
+		return res, fmt.Errorf("xvenue 腿形未载（演习面无 mt5 sim 缝——错腿凭据毒化毕业闸，拒载不产凭据）: %s template=%s", inst, templateRef)
+	case shape == shapeDCD:
+		return d.runDCDDrill(ctx, res, inst, templateRef, notional)
+	case shape == shapeOKXTwoLeg && !strings.HasSuffix(inst, "-SWAP"):
+		return res, fmt.Errorf("okx_two_leg 腿形需 *-SWAP 合约键（inst=%s template=%s——键形不配拒载）", inst, templateRef)
 	}
 	// ② 乐器面（venue 册直取——T-0427 品种主档前同径，不落表；SWAP 键剥尾
 	// 即现货腿对键——CORE-USDT-SWAP→CORE-USDT）。
@@ -175,6 +176,8 @@ func (d *Drill) leggedDrill(ctx context.Context, res Result, inst string, notion
 	}()
 	// 行情真相锚（matrix execTwoLeg 同律——venue 成交价与 md_ticks 同价
 	// 防时差型假 drift；全腿统一 venue 册价,真器键 drill 不再靠夹具预播）。
+	// venue='sim' 键域行演习毕即退——产线盲读面已加 venue<>'sim' 谓词，
+	// 锚行留痕期=本钻存活窗，退役对称件防堆叠。
 	for _, l := range legs {
 		in, ok := d.Venue.Instrument(l.InstID)
 		if !ok {
@@ -187,6 +190,7 @@ func (d *Drill) leggedDrill(ctx context.Context, res Result, inst string, notion
 			return res, fmt.Errorf("行情锚写败: %w", err)
 		}
 	}
+	defer retireSimTicks(ctx, d.Pool, legs)
 	// 开仓（产线径：Gate 闸→Runner 双腿原子——live_switch 闸自验）。
 	runner := execution.NewRunner(d.Pool, d.Cfg, d.Venue)
 	dec := d.Gate.Check(ctx, risk.Intent{StrategyRef: drillStrat, Venue: "okx", InstID: inst,

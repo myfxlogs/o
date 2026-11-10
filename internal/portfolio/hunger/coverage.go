@@ -65,7 +65,7 @@ func (s *Sensor) ProbeLegCoverage(ctx context.Context) error {
 	}
 	var freshList []string
 	if err := s.pool.QueryRow(ctx, `SELECT COALESCE(array_agg(DISTINCT inst_id),'{}'::text[])
-		FROM md_ticks WHERE inst_id=ANY($1) AND ts>now()-make_interval(mins=>$2)`,
+		FROM md_ticks WHERE inst_id=ANY($1) AND venue<>'sim' AND ts>now()-make_interval(mins=>$2)`,
 		required, coverFreshMin).Scan(&freshList); err != nil {
 		return fmt.Errorf("腿覆盖探针 新鲜行读败: %w", err)
 	}

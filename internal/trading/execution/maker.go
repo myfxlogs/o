@@ -29,7 +29,7 @@ func (r *Runner) makerAttempt(ctx context.Context, execID int64, no int, leg Leg
 	}
 	var bid, ask float64
 	if err := r.pool.QueryRow(ctx, `SELECT bid,ask FROM md_ticks WHERE inst_id=$1
-		AND ts>now()-interval '30 seconds' ORDER BY ts DESC LIMIT 1`,
+		AND venue<>'sim' AND ts>now()-interval '30 seconds' ORDER BY ts DESC LIMIT 1`,
 		leg.InstID).Scan(&bid, &ask); err != nil {
 		return OrderResult{}, false // 盘口陈/缺=不挂 maker（鲜度 fail-closed）
 	}

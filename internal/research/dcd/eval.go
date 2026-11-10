@@ -147,7 +147,7 @@ func (r *Runner) spot(ctx context.Context, uly string) float64 {
 	}
 	var last *float64
 	for _, inst := range cands {
-		_ = r.pool.QueryRow(ctx, `SELECT v FROM (SELECT last v,ts FROM md_ticks WHERE inst_id=$1
+		_ = r.pool.QueryRow(ctx, `SELECT v FROM (SELECT last v,ts FROM md_ticks WHERE inst_id=$1 AND venue<>'sim'
 			UNION ALL SELECT px,ts FROM md_mark_index WHERE inst_id=$1) q
 			ORDER BY ts DESC LIMIT 1`, inst).Scan(&last)
 		if last != nil {
