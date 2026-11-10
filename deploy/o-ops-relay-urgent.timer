@@ -1,0 +1,9 @@
+[Unit]
+Description=o-ops-relay-urgent.timer RSI 急件摆渡 1min 拍
+
+[Timer]
+OnBootSec=90
+OnUnitActiveSec=60
+
+[Install]
+WantedBy=timers.target

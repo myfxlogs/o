@@ -213,6 +213,10 @@ psql "$FIN_DSN" -c "SELECT id,kind,entity_ref,numbers FROM fin_econ_lesson
   list-timers o-audit.timer`+`journalctl --user -u o-audit-dispatch -n 30`
   +`scripts/audit/scopes.tsv` 可读否；臂活而会话零产出=runbook/
   模型面问题→要码修；臂死→修 timer 后销）。
+  同档同裁：scope=lesson_backlog（教训矿 pending≥5 且最陈>24h——
+  先核本 runbook③段裁定流是否被跳过：近期唤知会话收口行里
+  「教训矿」段有无执行迹；流在案而矿仍积压=矿写径/表权限坏→
+  要码修；单纯队列长→按③段裁定清矿后销）。
 - **审计**（seat=审计席 esc_class=审计 scope=audit_<域>_<slug>——审计臂
   （D-0046,不等信号主动扫不变量）产物，note 载 维度/位置/根因/RED/
   分支/修法六件）→ 这是**唯一带现成失败测试进场的升件**，按序：
@@ -236,6 +240,13 @@ psql "$FIN_DSN" -c "SELECT id,kind,entity_ref,numbers FROM fin_econ_lesson
   - 凭据/权限缺→ 要业主条件请求
   - 面存在但 enabled=false（设计态未启）→ 定性销（写明启用门槛）
   - 瞬态已愈（行已不足3）→ 销+注「窗口内已愈」
+  同档同裁：scope=opp_eval_stall（曾活模板族 48h 零评估——note 载
+  断供族名+末评时。先分因：excell 枚举环活着否（o-core 日志
+  枚举行/其它族仍在评）→venue 面数据活着否（该族依赖的行情/
+  产品面 feed 鲜度）→族被摘/条件枯否。枚举死→要码修；venue
+  feed 断→采集面立件；市场枯（venue 面数据仍在更新,评估口径
+  正常只是零通过）→定性销+注「供给枯非断供」。2026-11-10 实案：
+  dcd_call/vol_sell_* 11 天零评估无声即本探针要防的盲）。
 - **要码修** → `git worktree add /opt/o-wt/<名>` → `bash scripts/bootstrap_worktree.sh`
   → 改 → `bash scripts/check_all.sh` → 支推 origin → 部署树 merge --no-ff
   （戳落 mirror_push 自推，勿手动推 master——单写者律）

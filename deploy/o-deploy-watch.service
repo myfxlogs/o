@@ -4,6 +4,7 @@ Description=o-deploy-watch.service 部署自醒守望（master HEAD vs 产线镜
 [Service]
 Type=oneshot
 WorkingDirectory=/opt/o
+Environment=PATH=/home/mluser/.local/bin:/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 ExecStart=/bin/bash /opt/o/scripts/deploy_watch.sh
 NoNewPrivileges=true
 TimeoutStartSec=900
