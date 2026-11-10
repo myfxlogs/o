@@ -57,6 +57,7 @@ func (d *Drill) runDCDDrill(ctx context.Context, res Result, inst, templateRef s
 			`UPDATE fin_guard_close SET state='closed',closed_at=now(),updated_at=now(),
 			 last_error='reconcile:drill_cleanup' WHERE state='closing'
 			 AND position_id IN (SELECT id FROM fin_position WHERE strategy_ref=$1)`, drillStrat)
+		retireEphemeral(ctx, d.Pool, drillStrat)
 	}()
 
 	legs := make([]dcdLeg, 0, n)

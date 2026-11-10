@@ -158,6 +158,7 @@ func (m *Matrix) runCell(ctx context.Context, c excell.Cell, t excell.Tier, shap
 			`UPDATE fin_guard_close SET state='closed',closed_at=now(),updated_at=now(),
 			 last_error='reconcile:drill_cleanup' WHERE state='closing'
 			 AND position_id IN (SELECT id FROM fin_position WHERE strategy_ref=$1)`, stratID)
+		retireEphemeral(ctx, m.Pool, stratID)
 	}()
 
 	if shape == shapeDCD {
