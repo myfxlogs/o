@@ -20,6 +20,7 @@ func TestOppSurfaceStallEsc(t *testing.T) {
 		t.Fatalf("migrate: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `DELETE FROM fin_opp_eval WHERE inst_id LIKE 'T-STALL%';
+		DELETE FROM md_eval_pulse WHERE template LIKE 't_%fam';
 		DELETE FROM ops_event WHERE esc_scope='opp_eval_stall'`); err != nil {
 		t.Fatalf("clean: %v", err)
 	}
@@ -41,6 +42,10 @@ func TestOppSurfaceStallEsc(t *testing.T) {
 		VALUES('T-STALL-fresh','t_livefam','dcd_put','rejected','[]','{}'::jsonb)`); err != nil {
 		t.Fatalf("fresh: %v", err)
 	}
+	if _, err := pool.Exec(ctx, `INSERT INTO md_eval_pulse(template,last_eval_ts,eval_n_24h)
+		VALUES('t_deadfam',now()-interval '3 days',20),('t_livefam',now(),21)`); err != nil {
+		t.Fatalf("pulse: %v", err)
+	}
 	svc := coreService{pool: pool}
 	deadSince := map[string]time.Time{}
 	svc.oppSurfaceStallEscCheck(ctx, deadSince)
@@ -55,6 +60,10 @@ func TestOppSurfaceStallEsc(t *testing.T) {
 	if _, err := pool.Exec(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,verdict,legs,evidence)
 		VALUES('T-STALL-revive','t_deadfam','dcd_put','rejected','[]','{}'::jsonb)`); err != nil {
 		t.Fatalf("revive: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE md_eval_pulse SET last_eval_ts=now(),eval_n_24h=21
+		WHERE template='t_deadfam'`); err != nil {
+		t.Fatalf("revive pulse: %v", err)
 	}
 	svc.oppSurfaceStallEscCheck(ctx, deadSince)
 	var n int
