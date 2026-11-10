@@ -17,7 +17,9 @@ psql "$FIN_DSN" -c "
 SELECT id,ts,ticket,note,esc_class,esc_scope FROM ops_event e
 WHERE event='升件' AND ts>now()-interval '7 days'
   AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.ts>e.ts
-    AND x.note ~ ('升件#'||e.id::text||'([^0-9]|$)'))
+    AND (x.note ~ ('升件#'||e.id::text||'([^0-9]|$)')
+      OR EXISTS (SELECT 1 FROM regexp_matches(x.note,'升件#(\d+)-(\d+)','g') AS m(mm)
+        WHERE e.id BETWEEN mm[1]::bigint AND mm[2]::bigint)))
 ORDER BY id"
 psql "$FIN_DSN" -c "SELECT id,signature,cluster_n,numbers FROM fin_eng_lesson
   WHERE verify_state='ai_evaluated' AND status='pending' ORDER BY id LIMIT 20"
@@ -218,6 +220,33 @@ psql "$FIN_DSN" -c "SELECT id,kind,entity_ref,numbers FROM fin_econ_lesson
   - 凭据/权限缺→ 要业主条件请求
   - 面存在但 enabled=false（设计态未启）→ 定性销（写明启用门槛）
   - 瞬态已愈（行已不足3）→ 销+注「窗口内已愈」
+- **venue漂移**（esc_class=venue漂移 scope=<venue>:<login>——onboard
+  漂移探针 venue 实返×注册面差分 beat；同签名 dedup 同窗复燃=差未消）→
+  核 venue 实返对注册面：注册面陈→补册/更正（要码修）；venue 面真变
+  →按 venue 事实径更新+评估策略面影响；已对齐→销+引对拍证据。
+- **写败**（esc_class=写败 scope=ops_decision——decision 写径败自报行）→
+  查写径权限/约束面（roster_rw/review_rw 缺权先例 fin_0160/fin_0162）：
+  授权缺→迁移补授权（要码修）；瞬态已愈→销+引复写证据。
+- **守卫环**（esc_class=守卫环 scope=fin_guard_close——guard 保护动件
+  事实行）→ 核仓位面该动对否：正当保护动→销+引仓面证据；误动/越阈
+  →要码修（guard 闸口径）。
+- **执行径演习**（esc_class=执行径演习 scope=fin——simdrill 格 fail 升件，
+  「禁静默红」病面收口）→ 按格定性：venue 凭据/端点漂→要码修或要业主；
+  断言口径陈→演习面修；瞬态败复绿→销。凭据陈而格全绿=凭据面病灶同裁。
+- **观测盲**（esc_class=观测盲 scope=face:*|table:*|dep_pair:*|config:*——
+  hunger 面清单/依赖对/覆盖探针「机器可列面×快照册」差分升件）→
+  新面亲证合法（生产行 ids 在案）→facesnap_whitelist 补册（要码修，
+  审计机/接市官/值守/research-dcd 四案先例）；真盲（面该建未建/该读
+  未读）→要码修；设计态缺席→定性销。
+- **谱域不可判/谱域缺行**（esc_class 同名 scope=<venue>:<族>——scanwm
+  族谱水位闸：期望集=注册面派生，实落行零鲜超阈/口径不可判升件，
+  1/族/日 dedup）→ 分因：venue feed 断供→采集面立件（要码修）；
+  族被摘/模板退→注册面同步（要码修或 hypo park）；市场枯零候选
+  →定性销「族活面证，供给枯非断供」。
+- **账链断**（esc_class=账链断 scope=ops_event——opschain append-only
+  hash 链完整性破：行被改/删/序列断=簿记面真警报）→ 最优先：查
+  写入面越权（授权矩阵外 UPDATE/DELETE 径）/工具漏洞/迁移副作用；
+  修径+记账——非探针误发，销件须载根因证据。
 - **要码修** → `git worktree add /opt/o-wt/<名>` → `bash scripts/bootstrap_worktree.sh`
   → 改 → `bash scripts/check_all.sh` → 支推 origin → 部署树 merge --no-ff
   （戳落 mirror_push 自推，勿手动推 master——单写者律）

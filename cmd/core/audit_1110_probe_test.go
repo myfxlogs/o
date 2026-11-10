@@ -37,9 +37,6 @@ import (
 // 在案而产出锚 NULL——臂被唤过但从未落审计行=死（session 起后零产出
 // 静默挂死=本探唯一可见面）。距唤起 <48h 的首飞会话=在飞非死（不误报）。
 func TestAuditStallInstalledArmBlind(t *testing.T) {
-	if os.Getenv("AUDIT_RED") != "1" {
-		t.Skip("audit RED 锚——修复期显跑: AUDIT_RED=1 go test -run TestAuditStallInstalledArmBlind ./cmd/core；修好后去门转正为回归锚")
-	}
 	ctx := context.Background()
 	pool := testutil.Pool(t)
 	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
@@ -80,9 +77,6 @@ func TestAuditStallInstalledArmBlind(t *testing.T) {
 // （认知环处置座）自主产出。他席处置行证明的是他环活非本环活——
 // 非处置席处置不重置死钟；处置席处置才复绿。
 func TestCognitionDeadForeignSeatMask(t *testing.T) {
-	if os.Getenv("AUDIT_RED") != "1" {
-		t.Skip("audit RED 锚——修复期显跑: AUDIT_RED=1 go test -run TestCognitionDeadForeignSeatMask ./cmd/core；修好后去门转正为回归锚")
-	}
 	ctx := context.Background()
 	pool := testutil.Pool(t)
 	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
@@ -128,9 +122,6 @@ func TestCognitionDeadForeignSeatMask(t *testing.T) {
 // 探针升件而 runbook 无档=升件进认知环无人会裁（esc_runbook_align_test
 // 钦定不变量同款——但本测试 glob=全仓非 cmd/core 一隅）。
 func TestEscClassCoverageRunbook(t *testing.T) {
-	if os.Getenv("AUDIT_RED") != "1" {
-		t.Skip("audit RED 锚——修复期显跑: AUDIT_RED=1 go test -run TestEscClassCoverageRunbook ./cmd/core；修好后去门转正为回归锚")
-	}
 	pats := []*regexp.Regexp{
 		regexp.MustCompile(`escEdgeU?\(ctx,\s*deadSince,\s*"([^"]+)"`),          // escEdge 类
 		regexp.MustCompile(`\w*[Cc]lass\w*\s*=\s*"([^"]{1,40})"`),               // *EscClass/Class* 常量
@@ -212,9 +203,6 @@ func TestEscClassCoverageRunbook(t *testing.T) {
 // 证据升件（md_equity_curve NAV=日拍件，陈 30d 行与零行同语义；禁假证据
 // 升件钦定的自然延伸）。
 func TestDeployEscStaleNav(t *testing.T) {
-	if os.Getenv("AUDIT_RED") != "1" {
-		t.Skip("audit RED 锚——修复期显跑: AUDIT_RED=1 go test -run TestDeployEscStaleNav ./cmd/core；修好后去门转正为回归锚")
-	}
 	ctx := context.Background()
 	pool := testutil.Pool(t)
 	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
@@ -256,9 +244,6 @@ func TestDeployEscStaleNav(t *testing.T) {
 // ⑤销案引证机读面：处置行「升件#a-b」区间引证=范围内逐 id 已销——
 // open-scan/dedup 谓词所见未决数应为 0。逐 id 引证形为对照（现行可机读）。
 func TestEscCitationRangeResolves(t *testing.T) {
-	if os.Getenv("AUDIT_RED") != "1" {
-		t.Skip("audit RED 锚——修复期显跑: AUDIT_RED=1 go test -run TestEscCitationRangeResolves ./cmd/core；修好后去门转正为回归锚")
-	}
 	ctx := context.Background()
 	pool := testutil.Pool(t)
 	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
@@ -273,7 +258,9 @@ func TestEscCitationRangeResolves(t *testing.T) {
 		if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event e
 			WHERE e.event='升件' AND e.id=$1
 			AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.ts>e.ts
-				AND x.note ~ ('升件#'||e.id::text||'([^0-9]|$)'))`, id).Scan(&n); err != nil {
+				AND (x.note ~ ('升件#'||e.id::text||'([^0-9]|$)')
+					OR EXISTS (SELECT 1 FROM regexp_matches(x.note,'升件#(\d+)-(\d+)','g') AS m(mm)
+						WHERE e.id BETWEEN mm[1]::bigint AND mm[2]::bigint)))`, id).Scan(&n); err != nil {
 			t.Fatalf("unresolved: %v", err)
 		}
 		return n
@@ -315,9 +302,6 @@ func TestEscCitationRangeResolves(t *testing.T) {
 // meta_esc.go 头注枚举面在列（「对账/孤儿账/唤知/数据缺四类」钦定枚举——
 // 后增探件须同步补注，否则 dedup 类册对读档者说谎）。
 func TestMetaEscHeaderEnumerates(t *testing.T) {
-	if os.Getenv("AUDIT_RED") != "1" {
-		t.Skip("audit RED 锚——修复期显跑: AUDIT_RED=1 go test -run TestMetaEscHeaderEnumerates ./cmd/core；修好后去门转正为回归锚")
-	}
 	b, err := os.ReadFile("meta_esc.go")
 	if err != nil {
 		t.Fatalf("read: %v", err)
