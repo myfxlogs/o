@@ -58,6 +58,7 @@ func (c coreService) escLoop(ctx context.Context, al *notify.Alerter) {
 		c.capabilityEscCheck(ctx, deadSince)
 		c.dataGapEscCheck(ctx, deadSince)
 		c.oppSurfaceStallEscCheck(ctx, deadSince)
+		c.liveDudEscCheck(ctx, deadSince)
 		c.lessonBacklogEscCheck(ctx, deadSince)
 	}
 }

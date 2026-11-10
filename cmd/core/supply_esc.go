@@ -44,6 +44,42 @@ func (c coreService) oppSurfaceStallEscCheck(ctx context.Context, deadSince map[
 	})
 }
 
+// liveDudEscCheck live 哑弹探——state='live' ≥7d 且零 fin_position=
+// 策略在册但从不开仓（执行触发段断/条件恒不满足/腿缺失三因其一,
+// 定性归唤知）。2026-11-10 实案：funding-hedge 31 live 中 29 哑,
+// 全谱 863 策略 90d 仅 2 结算仓——闸拒之外的更深断点：过闸≠开仓。
+// 判据：live ∧ entered_at>7d ∧ NOT EXISTS fin_position(strategy_ref)。
+// 曾开过仓的活不在本探针面（至少接线被验过）——哑=从未响过。
+func (c coreService) liveDudEscCheck(ctx context.Context, deadSince map[string]time.Time) {
+	rows, err := c.pool.Query(ctx, `SELECT s.id, s.inst_id, s.entered_at FROM fin_strategy s
+		WHERE s.state='live' AND s.entered_at < now()-interval '7 days'
+		AND NOT EXISTS (SELECT 1 FROM fin_position fp WHERE fp.strategy_ref=s.id)
+		ORDER BY s.entered_at LIMIT 8`)
+	if err != nil {
+		return // 读件败本拍让位
+	}
+	defer rows.Close()
+	var duds []string
+	n := 0
+	for rows.Next() {
+		var id int64
+		var inst string
+		var entered time.Time
+		if err := rows.Scan(&id, &inst, &entered); err != nil {
+			return
+		}
+		n++
+		if len(duds) < 5 {
+			duds = append(duds, fmt.Sprintf("#%d %s(live %s)", id, inst, entered.UTC().Format("01-02")))
+		}
+	}
+	dead := n > 0
+	c.escEdgeU(ctx, deadSince, "商业产出", "live_dud", dead, func() string {
+		return fmt.Sprintf("商业产出/live_dud: live≥7d 零仓位哑弹策略 %d 条（%s）——执行触发断/条件恒不满足/腿缺失三因其一,定性归唤知会话",
+			n, strings.Join(duds, "、"))
+	})
+}
+
 // lessonBacklogEscCheck 教训矿积压探——fin_eng_lesson pending ≥5 且最陈
 // >24h = 矿在产无人清（会话③段漏跑/矿写径坏三因其一,定性归唤知）。
 // 判词档=runbook③段裁定流（可归纳→canon 条目,判弃→verdicted）。
