@@ -1,0 +1,10 @@
+[Unit]
+Description=o-deploy-watch.timer 部署自醒拍（15min——master 滞差即自动部署）
+
+[Timer]
+OnCalendar=*-*-* *:0/15:00
+Persistent=true
+Unit=o-deploy-watch.service
+
+[Install]
+WantedBy=timers.target
