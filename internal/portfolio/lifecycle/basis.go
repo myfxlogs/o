@@ -46,7 +46,7 @@ func basisSpotLeg(futInst string) string {
 func (r *Runner) basisPaperAccounting(ctx context.Context) error {
 	rows, err := r.pool.Query(ctx, `SELECT s.id, s.inst_id, s.notional_usd, s.template_ref,
 		COALESCE((SELECT max(ts) FROM fin_paper_fill f
-			WHERE f.strategy_id=s.id AND f.inst_id=s.inst_id), s.entered_at)
+			WHERE f.strategy_id=s.id AND f.inst_id=s.inst_id AND f.kind='funding'), s.entered_at)
 		FROM fin_strategy s WHERE s.state='paper'
 		AND s.template_ref IN ('quarter_basis_long','perp_quarter_spread')`)
 	if err != nil {

@@ -29,8 +29,9 @@ var critKeys = []string{
 // Runner 命官岗：提案→paper 开户→虚拟结算→判据晋升→live 开仓消费（T-0050）
 // +饥饿感知拍（T-0378——T-0376 自治环末件入岗）。
 type Runner struct {
-	pool   *pgxpool.Pool
-	denyAt map[int64]time.Time // T-0136 ③拒放冷窗（策略→最近拒放戳）
+	pool       *pgxpool.Pool
+	denyAt     map[int64]time.Time // T-0136 ③拒放冷窗（策略→最近拒放戳）
+	frictionAt time.Time           // T-0521 摩擦回灌 6h 节拍闸
 
 	cfg    *config.Client
 	op     Opener
@@ -43,7 +44,8 @@ func NewRunner(pool *pgxpool.Pool, cfg *config.Client) *Runner {
 	return &Runner{pool: pool, denyAt: map[int64]time.Time{}, cfg: cfg,
 		rej: rejects.New("lifecycle", "illegal_transition", "missing_criteria", "write_err", "live_switch_off", "open_failed", "template_blocked", "xvenue_open_forbidden", "xvenue_sub_leg", "blacklist_retire",
 			"facts_missing", "missing_param", "oscillation_fuse", "dcd_quote_missing", "dcd_spot_stale", "basis_mark_stale",
-			"exec_drill_missing", "exec_drill_failed", "exec_cell_hold"), // T-0426 执行径演习闸拒因+T-0461 矩阵格凭据闸 hold 计数
+			"exec_drill_missing", "exec_drill_failed", "exec_cell_hold",
+			"conf_lb_fail", "entry_cond_defer"), // T-0521 毕业闸判词拒因
 		sensor: hunger.New(pool, cfg),
 		chainV: opschain.New(pool)}
 }
@@ -100,6 +102,12 @@ func (r *Runner) scan(ctx context.Context) error {
 	}
 	if err := r.retireStalePaper(ctx); err != nil { // T-0286：paper 墓碑锁解锁——领取前释放同键槽
 		return err
+	}
+	if time.Since(r.frictionAt) > frictionCalEvery { // T-0521：实绩回灌 6h 拍（败不阻开户拍）
+		if err := r.frictionCalibrate(ctx); err != nil {
+			log.Printf("[lifecycle] friction 校准拍败: %v", err)
+		}
+		r.frictionAt = time.Now()
 	}
 	if err := r.admitProposals(ctx, notional, minH, minNet, maxDD); err != nil {
 		return err
@@ -193,6 +201,7 @@ func (r *Runner) admitProposals(ctx context.Context, notional, minH, minNet, max
 			VALUES($1,'proposed','paper','验证官提案过阈→paper 沙箱开户')`, sid); err != nil {
 			return err
 		}
+		r.chargePaperFriction(ctx, sid, "okx", x.inst, notional) // T-0521：开户即扣估计往返摩擦（同摩擦基准）
 		if _, err := r.pool.Exec(ctx,
 			"UPDATE fin_proposal SET state='fin_armed' WHERE id=$1", x.id); err != nil {
 			return err
