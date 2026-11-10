@@ -32,8 +32,9 @@ $buf" >/dev/null 2>&1 && echo "$last" > "$WM"
 	;;
 urgent)
 	WM="${WM}_urgent"
-	# 急件集:审计P1+部署类+唤死类升件（探针类即时告警仍走
-	# o-core 告警链,此道只渡会话/审计产出与环死信号）
+	# 急件集:条件请求(业主域——凭证/新venue/包络外,机器开口
+	# 只有业主给得起,全系统最高递送级)+审计P1+部署/唤死类
+	# 升件（探针类即时告警仍走 o-core 告警链）
 	while IFS=$'\t' read -r id seat event note; do
 		last=$id
 		SEND="${FEISHU_BIN:-$HOME/.local/bin/feishusend}"
@@ -43,7 +44,8 @@ urgent)
 	done < <(psql "$DSN" -qAt -F$'\t' -c "
 SELECT id,seat,event,left(replace(note,E'\n',' '),600) FROM ops_event
 WHERE id>$(cat "$WM" 2>/dev/null || echo 0) AND (
-  (seat='审计席' AND event='升件' AND note LIKE '%P1%')
+  event='条件请求'
+  OR (seat='审计席' AND event='升件' AND note LIKE '%P1%')
   OR (event='升件' AND esc_scope IN ('deploy_lag','deploy_blocked',
     'cognition_dead','cognition_spawn_fail','audit_spawn_fail','audit_stall')))
 ORDER BY id")

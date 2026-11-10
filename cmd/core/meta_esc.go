@@ -1,5 +1,5 @@
 // meta_esc.go —— 元认知面探针（escLoop 同拍载,探件本件）：
-// 对账/孤儿账/唤知/数据缺四类——「系统看不见自己的问题」元盲区补位。
+// 对账/孤儿账/唤知/数据缺/商业产出/能力债六类——「系统看不见自己的问题」元盲区补位。
 // 探针只述实数/事实,判词归唤知会话 runbook 对应档；
 // dedup 全走「未销才抑」（销案≠事实消失,销案后新事证重升不误吞）。
 package main
@@ -85,11 +85,16 @@ func (c coreService) cognitionEscCheck(ctx context.Context, deadSince map[string
 	if err := c.pool.QueryRow(ctx, `SELECT count(*) FROM ops_event e
 		WHERE e.event='升件' AND e.ts>now()-interval '72 hours'
 		AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.ts>e.ts
-			AND x.note ~ ('升件#'||e.id::text||'([^0-9]|$)'))`).Scan(&open); err != nil {
+			AND (x.note ~ ('升件#'||e.id::text||'([^0-9]|$)')
+				OR EXISTS (SELECT 1 FROM regexp_matches(x.note,'升件#(\d+)-(\d+)','g') AS m(mm)
+					WHERE e.id BETWEEN mm[1]::bigint AND mm[2]::bigint)))`).Scan(&open); err != nil {
 		return
 	}
 	var last *time.Time
-	_ = c.pool.QueryRow(ctx, `SELECT max(ts) FROM ops_event WHERE event='处置'`).Scan(&last)
+	// 活性锚=认知环自身产出（处置席处置行）——他席处置证的是他环活非
+	// 本环活，混入即「探针看产出不看自主产出」遮蔽死（升件#9573）。
+	_ = c.pool.QueryRow(ctx, `SELECT max(ts) FROM ops_event
+		WHERE event='处置' AND seat='处置席'`).Scan(&last)
 	dead := open > 0 && (last == nil || time.Since(*last) > 24*time.Hour)
 	const key = "唤知/cognition_dead"
 	_, was := deadSince[key]
