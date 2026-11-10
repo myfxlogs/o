@@ -184,6 +184,8 @@ var faceBaselineWhitelist = map[string]string{
 	// dmwrite.go dmActor——业主令「如何去赚」全参数域归 DMSet 正径）：
 	// friction_bps 实绩回灌等参数调整账行按校准拍间歇写，静默 >7d
 	// 出窗摆回=间歇面形（T-0448 册语义罩位），登记不重复升。
-	"face:service:决策席-DM写径": "2026-11-10 入册——决策席-DM写径=T-0376 DM自治写径席位（dmwrite.go dmActor，业主令「如何去赚」参数域归 DMSet 正径）：friction_bps 实绩回灌等参数调整行按校准拍间歇写 7d 活跃窗摆动登记不重复升；生产亲证 #9090 lifecycle.friction_bps.okx=7.317 30d 实绩回灌行（面清单新面行→升件 #9092）",
-	"face:service:审计席":      "2026-11-10 入册——审计席=D-0046 审计臂裁决写席（audit 会话处置裁词/复证行 ops_event 写径合法——audit_stall/spawn_fail 自体活性探针同席）：间歇写=审计拍驱动 7d 活跃窗摆动登记不重复升；生产亲证 2026-11-10 审计升件处置批 #9572-9577 裁决行（面清单新面行→升件 #9593）",
+	"face:service:决策席-DM写径":         "2026-11-10 入册——决策席-DM写径=T-0376 DM自治写径席位（dmwrite.go dmActor，业主令「如何去赚」参数域归 DMSet 正径）：friction_bps 实绩回灌等参数调整行按校准拍间歇写 7d 活跃窗摆动登记不重复升；生产亲证 #9090 lifecycle.friction_bps.okx=7.317 30d 实绩回灌行（面清单新面行→升件 #9092）",
+	"face:service:审计席":              "2026-11-10 入册——审计席=D-0046 审计臂裁决写席（audit 会话处置裁词/复证行 ops_event 写径合法——audit_stall/spawn_fail 自体活性探针同席）：间歇写=审计拍驱动 7d 活跃窗摆动登记不重复升；生产亲证 2026-11-10 审计升件处置批 #9572-9577 裁决行（面清单新面行→升件 #9593）",
+	"face:service:research/grammar": "2026-11-10 入册——research/grammar=o-research grammar/vol_sell 枚举臂写席（vol_sell 评估枚举 beat+连败自停/复役条件书升件自报 写径合法——research/dcd 同型先例）；生产亲证 2026-11-10 自停升件行 #9630（fin_condition_gap #242 在案）→升件 #9641",
+	"face:service:唤知":               "2026-11-10 入册——唤知=唤知 dispatcher 自体写席（cognition_dead/spawn_fail 升件 beat——认知环活性自报合法面）；生产亲证 2026-11-10 面清单新面行→升件 #9643",
 }
