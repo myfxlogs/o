@@ -70,6 +70,8 @@ WON=$(printf '%s\n' "$WON" | grep -oE '^[0-9]+$' | head -1)
 [ -n "$WON" ] || exit 0 # 30min 内跨机唤起在案=在飞会话非本机辖——退
 systemd-run --user --unit="$UNIT" --collect \
 	--property=Description="唤知会话(trigger=$TRIGGER)" \
+	--property=RuntimeMaxSec=7200 \
+	--setenv=COG_UNIT="$UNIT" \
 	"$SCRIPT_DIR/run.sh" || {
 		psql "$DSN" -qAt -c "INSERT INTO ops_event(seat,event,ticket,note)
 			VALUES('唤知机','唤起败','','unit=$UNIT trigger=$TRIGGER spawn落败')" >/dev/null 2>&1

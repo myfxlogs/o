@@ -9,13 +9,30 @@ case "$MODEL" in swe-2-max|swe-2-high|swe-2-medium|swe-2-flash-high) ;; *) MODEL
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 source "${O_WORKER_RUNTIME_LIB:-$SCRIPT_DIR/worker_runtime.sh}"
 o_worker_ensure_runtime_dir || exit 1
-DEVIN_BIN=${O_WORKER_DEVIN_BIN:-/home/mluser/.local/bin/devin}
+# devin 自寻路（主机无关）——写死 /home/mluser 实坑 2026-11-10：SG 第二
+# dispatcher 临时 unit 不继承 drop-in env,硬路径缺席→discovery 败→瞬死
+# 占跨机锁饿死好机×4。env 覆写在,PATH/$HOME 兜底在,猜径=fail-closed。
+DEVIN_BIN=${O_WORKER_DEVIN_BIN:-$(command -v devin 2>/dev/null || echo "$HOME/.local/bin/devin")}
 RUNBOOK=${COG_RUNBOOK:-$SCRIPT_DIR/runbook.md}
 [ -s "$RUNBOOK" ] || { echo "[cognition] runbook 缺: $RUNBOOK" >&2; exit 2; }
 
 export O_SEAT=唤知席
 ENVF="${REPORT_ENV_FILE:-/opt/o-research/env}"
 FIN_DSN=$(grep '^FIN_PG_DSN=' "$ENVF" 2>/dev/null | cut -d= -f2- | tr -d '"')
+
+# 唤起败释锁 trap（跨机锁=ops_event 唤起行在案即占,早退不补败迹=
+# 占满 30min TTL 饿死他机——2026-11-10 四连败实证）。OK=会话完整跑完
+# (RC=0∧transcript 非空——devin 瞬退零消息但 exit 0 的静默败也算败)。
+# 残余黑洞=SIGKILL/宕机写不了行,由锁 TTL 兜底（30min 一次非无限）。
+COG_UNIT=${COG_UNIT:-manual}
+OK=0; REASON=session_incomplete
+release_lock() {
+	[ "$OK" = 1 ] && return 0
+	[ -n "${FIN_DSN:-}" ] || return 0
+	psql "$FIN_DSN" -qAt -c "INSERT INTO ops_event(seat,event,ticket,note)
+		VALUES('唤知机','唤起败','','unit=$COG_UNIT reason=$REASON')" >/dev/null 2>&1 || true # tolerate: 败迹写径本身是败迹——写败无二级上报径,锁由 30min TTL 兜底,不阻主径退出
+}
+trap 'rm -f ${LOG_FILE:+"$LOG_FILE"}; release_lock' EXIT
 
 hb() { # $1=state——唤知席心跳按日键（会话逐日新面,互不盖）
   [ -n "$FIN_DSN" ] || return 0
@@ -30,25 +47,23 @@ mkdir -p "$SESSION_DIR" && chmod 700 "$SESSION_DIR" && cd "$SESSION_DIR" || exit
 
 if quota_reset=$(o_worker_quota_until); then
 	echo "[cognition] quota cooldown active until epoch $quota_reset"
-	hb stalled
-	exit 0
+	REASON=quota_cooldown; hb stalled; exit 0
 else
 	quota_rc=$?
-	[ "$quota_rc" -ne 1 ] && { echo "[cognition] quota state unreadable; refusing" >&2; hb stalled; exit 1; }
+	[ "$quota_rc" -ne 1 ] && { echo "[cognition] quota state unreadable; refusing" >&2; REASON=quota_unreadable; hb stalled; exit 1; }
 fi
 
 SESSION_STATE=$(o_worker_session_state "$DEVIN_BIN")
-[ $? -ne 0 ] && { echo "[cognition] session discovery failed; refusing cold restart" >&2; hb stalled; exit 1; }
+[ $? -ne 0 ] && { echo "[cognition] session discovery failed; refusing cold restart" >&2; REASON=session_discovery; hb stalled; exit 1; }
 hb alive
 
 LOG_FILE=$(mktemp "$(o_worker_runtime_dir)/cognition.XXXXXX")
 chmod 600 "$LOG_FILE"
-trap 'rm -f "$LOG_FILE"' EXIT
 DEVIN_ARGS=()
 case "$SESSION_STATE" in
 	resume) DEVIN_ARGS+=(--continue) ;;
 	new) ;;
-	*) echo "[cognition] session discovery failed; refusing" >&2; hb stalled; exit 1 ;;
+	*) echo "[cognition] session discovery failed; refusing" >&2; REASON=session_state_invalid; hb stalled; exit 1 ;;
 esac
 
 # KB 召回（T-0521：经验库只写不读根修）——recall.sh 按未决升件词面命中
@@ -74,8 +89,10 @@ set -e
 if o_worker_is_rate_limited "$LOG_FILE"; then
 	quota_reset=$(o_worker_record_quota_reset "$LOG_FILE")
 	echo "[cognition] rate limit; cooldown until epoch $quota_reset"
-	RC=1
+	REASON=rate_limited; RC=1
 fi
+# OK=完整跑完——devin exit 0 但 transcript 空=零消息静默败（占锁同害算败）。
+[ $RC -eq 0 ] && [ -s "$TRANSCRIPT_FILE" ] && OK=1 || REASON=${REASON/session_incomplete/devin_rc_$RC}
 [ -s "$TRANSCRIPT_FILE" ] || rm -f "$TRANSCRIPT_FILE"
-[ $RC -eq 0 ] && hb alive || hb stalled
+[ "$OK" = 1 ] && hb alive || hb stalled
 exit 0

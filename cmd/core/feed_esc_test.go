@@ -462,3 +462,70 @@ func TestOrphanHypothesisParked(t *testing.T) {
 		t.Fatalf("恢复 n=%d err=%v", n, err)
 	}
 }
+
+// TestCognitionSpawnFailEsc 唤起败连败探——2h 窗 ≥2 败=结构性升件;
+// 单败=瞬态让位不扰;销案后条件仍真→escEdgeU 重火（同 dedup 契约）。
+func TestCognitionSpawnFailEsc(t *testing.T) {
+	ctx := context.Background()
+	pool := testutil.Pool(t)
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM ops_event
+		WHERE esc_scope='cognition_spawn_fail' OR note LIKE '%t-spawn%'`); err != nil {
+		t.Fatalf("clean: %v", err)
+	}
+	svc := coreService{pool: pool}
+	deadSince := map[string]time.Time{}
+
+	// 单败=瞬态——不升件
+	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note)
+		VALUES('唤知机','唤起败','','unit=t-spawn-1 reason=session_discovery')`); err != nil {
+		t.Fatalf("败行1: %v", err)
+	}
+	svc.cognitionSpawnFailEscCheck(ctx, deadSince)
+	var n int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE esc_scope='cognition_spawn_fail'`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("单败误火 n=%d err=%v", n, err)
+	}
+
+	// 连败→升件
+	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note)
+		VALUES('唤知机','唤起败','','unit=t-spawn-2 reason=session_discovery')`); err != nil {
+		t.Fatalf("败行2: %v", err)
+	}
+	svc.cognitionSpawnFailEscCheck(ctx, deadSince)
+	var escID int64
+	var note string
+	if err := pool.QueryRow(ctx, `SELECT id,note FROM ops_event
+		WHERE esc_class='唤知' AND esc_scope='cognition_spawn_fail'`).Scan(&escID, &note); err != nil {
+		t.Fatalf("连败未火: %v", err)
+	}
+	if !strings.Contains(note, "2 连发") || !strings.Contains(note, "t-spawn-2") {
+		t.Fatalf("note 缺实数/末因: %s", note)
+	}
+
+	// 销案而条件仍真→重火（销≠清偿同契）
+	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note)
+		VALUES('处置席','处置','',$1)`, fmt.Sprintf("升件#%d 销——t-spawn 测试", escID)); err != nil {
+		t.Fatalf("销案: %v", err)
+	}
+	svc.cognitionSpawnFailEscCheck(ctx, deadSince)
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE esc_scope='cognition_spawn_fail'`).Scan(&n); err != nil || n != 2 {
+		t.Fatalf("销后重火 n=%d err=%v", n, err)
+	}
+
+	// 败行全销净（条件翻假）→恢复行自闭；升件行 note 末因亦含 t-spawn,
+	// 按事件型删——勿误带升件行（recoverNote 靠未销升件定位引证）。
+	if _, err := pool.Exec(ctx, `DELETE FROM ops_event
+		WHERE seat='唤知机' AND event='唤起败' AND note LIKE '%t-spawn%'`); err != nil {
+		t.Fatalf("清败: %v", err)
+	}
+	svc.cognitionSpawnFailEscCheck(ctx, deadSince)
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE seat='探测席' AND event='恢复' AND note LIKE '%cognition_spawn_fail%'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("恢复 n=%d err=%v", n, err)
+	}
+}
