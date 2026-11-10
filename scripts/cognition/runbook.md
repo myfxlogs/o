@@ -67,9 +67,10 @@ psql "$FIN_DSN" -c "SELECT id,kind,entity_ref,numbers FROM fin_econ_lesson
   - 设计态缺席（单边陈=该对缺席如实/语义空态面）→销+定性。
   注意：复绿时升件环已落「升件#id 复绿」自闭行者不在未决面——
   摸到即已销，勿重复处置。
-- **资金闸**（seat=探测席 esc_class=资金闸 的升件——o-core 部署缺口探产物，
-  业主令「资金分配决策权整体下放 RSI/system」执行面）→
-  note 已载实数（净值/需额/闸值/利用率）。判词三态：
+- **资金闸**（seat=探测席 esc_class=资金闸 scope=cap_hit|idle_capital 的升件
+  ——o-core 部署缺口探产物，cap_hit=需额≥90% 敞口闸、idle_capital=需额
+  <25% 净值而 live 在册；业主令「资金分配决策权整体下放 RSI/system」
+  执行面）→ note 已载实数（净值/需额/闸值/利用率）。判词三态：
   - 加闸→调 `tools/capalloc`（窄门，白名单三键+净值比例包络在码面）：
     ```bash
     FIN_PG_DSN=$FIN_PG_DSN go run ./tools/capalloc \
@@ -81,6 +82,20 @@ psql "$FIN_DSN" -c "SELECT id,kind,entity_ref,numbers FROM fin_econ_lesson
   - 持闸→销+note 写「现配置恰配——<一句定性>」（闲置是对的是保守也是判词）。
   - 白名单外需求（kill_switch/凭据/新 venue/包络外金额）→ 走「要业主」
     条件请求——窄门不是万能钥匙，够不着的归业主域。
+- **商业产出**（seat=探测席 esc_class=商业产出 scope=commercial_stall——
+  策略面 30d 净产出≤0 ∧ live/probe 在册>0 的「转而不出水」信号；口径=
+  fin_cashflow venue<>'sim' 损益 kind 集,Earn 息已剔）→ 它问的不是
+  「哪坏了」是「为什么没产出」,裁径：
+  - 先分解：`SELECT template_ref,count(*),sum(notional_usd) FROM fin_strategy
+    WHERE state IN ('live','probe') GROUP BY 1` + 30d fin_cashflow 按
+    strategy/kind 聚合——在册 N 而在仓 0=闸门拒开（看 fin_opp_eval 近
+    拒因分布:breakeven/费率水位=市场面非族面）；在仓有而净负=费率/资金
+    费拖累→策略评估与仓位 skill 判淘汰阈；
+  - 同值复燃（note 净产出与上一件同数,30d 滑窗同态）→销+引上件判词
+    （escEdgeU 沿再发=设计内复燃非新病,#9122→#9141 先例）；
+  - 族面瓶颈（能钻的族少/收养族零占用）→接「能力债」档;
+  - 真失血（净产出走低且在仓）→减闸径（资金闸档减闸）+淘汰裁定。
+  禁销口径：「市场不好」无分解数据不得作判词。
 - **对账**（seat=探测席 esc_class=对账 的升件——歧态腿/账实差两进水口）→
   工具化自助面（凭据径 `O_MASTER_KEY_FILE=/opt/o/secrets/o_master_key`；
   工具在仓 go run 即跑,均只读取证零写账）：
@@ -175,6 +190,28 @@ psql "$FIN_DSN" -c "SELECT id,kind,entity_ref,numbers FROM fin_econ_lesson
   - quota/rate_limit 连败=凭据池真尽→要业主（不销——事实在案）。
   - 结案必销+note 引败迹行 ids。
   KB: cognition-spawn-env-drift-lockout（env 漂/锁饿死/遮蔽/挂死四坑全案）。
+  同档同裁：scope=audit_spawn_fail（审计臂壳连败,seat=审计机 败迹）；
+  scope=audit_stall（审计臂 48h 零产出——先查 `systemctl --user
+  list-timers o-audit.timer`+`journalctl --user -u o-audit-dispatch -n 30`
+  +`scripts/audit/scopes.tsv` 可读否；臂活而会话零产出=runbook/
+  模型面问题→要码修；臂死→修 timer 后销）。
+- **审计**（seat=审计席 esc_class=审计 scope=audit_<域>_<slug>——审计臂
+  （D-0046,不等信号主动扫不变量）产物，note 载 维度/位置/根因/RED/
+  分支/修法六件）→ 这是**唯一带现成失败测试进场的升件**，按序：
+  1. `git fetch origin && git worktree add /opt/o-wt/fix-<slug> origin/<分支>`
+     → `bash scripts/bootstrap_worktree.sh` → 跑 note 里的 RED 测试
+     **先亲眼看它红**（不红=命题存疑,走 3）；
+  2. 红→按 note 修法改实现（不改测试断言——测试断言的是正确语义；
+     断言本身错才改,note 写明为何）→ GREEN → `check_all` → 推支 →
+     merge（免疫件触及则 `免疫件:` trailer）→ 处置行 note 引 升件#id
+     +修复 commit sha（**修复 commit 正文必引 `升件#<id>`**——
+     found_by 度量靠它派生,漏引=机发现被记成人发现）；
+  3. 不红/命题假→销+note 写「底层命题判词:假+依据」，并
+     `git push origin --delete <分支>`；判词真而 RED 构造错→改测试
+     让它正确地红,回 2。
+  4. P1 优先于一切其他升件；P3 可「接续」留给下轮但不得静默。
+  审计升件不是探针误发——它背后有人读过码。销它要比销探针升件
+  更重的证据。
 - **数据缺**（esc_class=数据缺 scope=data_gap_<reason>——评估器
   unevaluable 同真因 3d 窗≥3 行的持续缺腿信号）→ 按真因裁：
   - venue 数据面缺（spot_missing/funding 面缺等）→ 要码修（采集面立件）
