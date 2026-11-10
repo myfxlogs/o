@@ -161,6 +161,12 @@ status 一律落 `'verdicted'`——触发器 ops_decision_econ_trg
   `免疫件:` trailer 即 check_all 硬拒；真需修裁判=trailer
   宣告+业主可审 ops_event 轨，慎改（DGM 判例在前）。
 - **不碰钱径直改**：开仓/平仓/参数/仓位一律走钱径码面过全谱闸。
+- **venue 事实只许实读实记（事实律操作层）**：费率/滑点/行情/
+  产品面凡源出 broker/CEX，口径=venue 实返或产线实测落账；
+  行业惯例/典型值/印象禁当 venue 事实。判词需「历史」而源为
+  状态表（upsert 末帧无史）或史未蓄时只许三动作——自产留史
+  （append-only 样本表）/标注锚（unmeasured_ 明示非测量）/延评
+  （fail-closed 不宣判）；禁虚构历史序列填数（工程纪律§事实律）。
 - **不发明簿记**：无票、无相位、无席位、无草案——
   ops_event 行+KB+D档就是全部记录面。
 - **ops_event append-only**：只 INSERT，不改不删不 UPDATE。
