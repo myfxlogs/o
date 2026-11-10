@@ -133,9 +133,12 @@ func TestProbeToLivePromotion(t *testing.T) {
 	seedFlip(t, ctx, r)
 	seedFunding(t, ctx, r)
 	sid := mkStrategy(t, ctx, r, "probe", 2*time.Hour)
-	if _, err := r.pool.Exec(ctx,
-		"INSERT INTO fin_paper_fill(strategy_id,kind,inst_id,amount_usd,ts) VALUES($1,'funding','OP-USDT-SWAP',0.5,now())", sid); err != nil {
-		t.Fatal(err)
+	// T-0521：置信闸须≥3 收入笔（同额 sd=0→LB>0）。
+	for i := 0; i < 3; i++ {
+		if _, err := r.pool.Exec(ctx,
+			"INSERT INTO fin_paper_fill(strategy_id,kind,inst_id,amount_usd,ts) VALUES($1,'funding','OP-USDT-SWAP',0.5,now())", sid); err != nil {
+			t.Fatal(err)
+		}
 	}
 	// 开关 false（setup 缺省）→probe 不晋。
 	if err := r.scan(ctx); err != nil {

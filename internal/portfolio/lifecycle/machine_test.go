@@ -84,9 +84,12 @@ func TestLifecycleE2E(t *testing.T) {
 		t.Fatal(err)
 	}
 	// funding 行→虚拟记账+晋升（判据 min_hours=0 即时满）
-	if _, err := pool.Exec(ctx, `INSERT INTO md_funding(ts,inst_id,funding_rate)
-		VALUES(now(),'LC-USDT-SWAP',0.01)`); err != nil {
-		t.Fatal(err)
+	// T-0521：置信闸须≥3 收入笔——3 行 funding 产 3 笔 fill（同额 sd=0→LB>0）。
+	for i := 0; i < 3; i++ {
+		if _, err := pool.Exec(ctx, `INSERT INTO md_funding(ts,inst_id,funding_rate)
+			VALUES(now()+make_interval(secs => $1),'LC-USDT-SWAP',0.01)`, i); err != nil {
+			t.Fatal(err)
+		}
 	}
 	if err := r.scan(ctx); err != nil {
 		t.Fatal(err)
@@ -294,7 +297,21 @@ func TestDcdPutAdmitGate(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT state FROM fin_proposal WHERE id=$1`, pid).Scan(&state); err != nil || state != "fin_armed" {
 		t.Fatalf("dcd_put paper admission 后提案应 armed，state=%s err=%v", state, err)
 	}
-	if _, err := pool.Exec(ctx, `UPDATE fin_strategy SET entered_at=now()-interval '2 days'
+	// T-0521：paper 开户即扣估计往返摩擦（kind='fee'）+置信下界证伪闸——
+	// 收入笔数<3 不宣判；预播 3 笔稳定收益 fill（摊提序列=L B>0 判词件）+
+	// 回 6 天累计摊出净正才配 probe（7d=paper_ttl 上限）。
+	var sid int64
+	if err := pool.QueryRow(ctx, `SELECT id FROM fin_strategy WHERE proposal_ref=$1`, pid).Scan(&sid); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 3; i++ {
+		if _, err := pool.Exec(ctx, `INSERT INTO fin_paper_fill(strategy_id,kind,inst_id,amount_usd,ts)
+			VALUES($1,'funding','BTC-USDT-261225-68000-P',0.20,now()-make_interval(days => $2))`,
+			sid, 5-i); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := pool.Exec(ctx, `UPDATE fin_strategy SET entered_at=now()-interval '6 days'
 		WHERE proposal_ref=$1`, pid); err != nil {
 		t.Fatal(err)
 	}
@@ -387,11 +404,11 @@ func TestDcdPaperFillFromSnapshot(t *testing.T) {
 	}
 	var cnt int
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM fin_paper_fill
-		WHERE inst_id='BTC-USDT-261225-95000-C'`).Scan(&cnt); err != nil {
+		WHERE inst_id='BTC-USDT-261225-95000-C' AND kind='funding'`).Scan(&cnt); err != nil {
 		t.Fatal(err)
 	}
 	if cnt != 0 {
-		t.Fatalf("现货腿价缺应让位不造 fill（cnt=%d）", cnt)
+		t.Fatalf("现货腿价缺应让位不造 funding fill（cnt=%d）", cnt)
 	}
 	// 鲜 tick 行→fill 生成；detail spot 与 md_ticks 行同源（88000）
 	if _, err := pool.Exec(ctx, `INSERT INTO md_ticks(ts,inst_id,last,bid,ask)
@@ -404,8 +421,8 @@ func TestDcdPaperFillFromSnapshot(t *testing.T) {
 	var amt float64
 	var detail map[string]any
 	if err := pool.QueryRow(ctx, `SELECT COALESCE(sum(amount_usd),0),
-		COALESCE((SELECT detail FROM fin_paper_fill WHERE inst_id='BTC-USDT-261225-95000-C' ORDER BY id DESC LIMIT 1),'{}'::jsonb)
-		FROM fin_paper_fill WHERE inst_id='BTC-USDT-261225-95000-C'`).Scan(&amt, &detail); err != nil {
+		COALESCE((SELECT detail FROM fin_paper_fill WHERE inst_id='BTC-USDT-261225-95000-C' AND kind='funding' ORDER BY id DESC LIMIT 1),'{}'::jsonb)
+		FROM fin_paper_fill WHERE inst_id='BTC-USDT-261225-95000-C' AND kind='funding'`).Scan(&amt, &detail); err != nil {
 		t.Fatal(err)
 	}
 	if amt <= 0 {

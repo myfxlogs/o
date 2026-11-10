@@ -70,26 +70,29 @@ func (r *Runner) paperAccounting(ctx context.Context) error {
 
 // promote paper 满判据→probe（时长+模拟净回报+回撤上界全机读；live 闸委员会开关）。
 func (r *Runner) promote(ctx context.Context, minH, minNet, maxDD float64, liveSw bool) error {
-	rows, err := r.pool.Query(ctx, `SELECT s.id, s.inst_id,
+	rows, err := r.pool.Query(ctx, `SELECT s.id, s.inst_id, s.template_ref, s.direction,
 		EXTRACT(EPOCH FROM (now()-s.entered_at))/3600.0,
 		COALESCE((SELECT sum(amount_usd) FROM fin_paper_fill f WHERE f.strategy_id=s.id),0),
 		COALESCE((SELECT min(cum) FROM (SELECT sum(amount_usd) OVER (ORDER BY ts) cum
-			FROM fin_paper_fill f WHERE f.strategy_id=s.id) q),0)
+			FROM fin_paper_fill f WHERE f.strategy_id=s.id) q),0),
+		COALESCE((SELECT p.net_apr FROM fin_proposal p WHERE p.id=s.proposal_ref),0)
 		FROM fin_strategy s WHERE s.state='paper'`)
 	if err != nil {
 		return err
 	}
 	type cand struct {
-		id     int64
-		inst   string
-		hours  float64
-		net    float64
-		minCum float64
+		id         int64
+		inst, tmpl string
+		dir        string
+		hours      float64
+		net        float64
+		minCum     float64
+		refAPR     float64
 	}
 	var cs []cand
 	for rows.Next() {
 		var c cand
-		if err := rows.Scan(&c.id, &c.inst, &c.hours, &c.net, &c.minCum); err != nil {
+		if err := rows.Scan(&c.id, &c.inst, &c.tmpl, &c.dir, &c.hours, &c.net, &c.minCum, &c.refAPR); err != nil {
 			rows.Close()
 			return err
 		}
@@ -100,8 +103,18 @@ func (r *Runner) promote(ctx context.Context, minH, minNet, maxDD float64, liveS
 		if c.hours < minH || c.net < minNet || c.minCum < -maxDD {
 			continue // 判据未满不晋升（不缺省放行）
 		}
+		if ok, why := r.confGate(ctx, c.id); !ok { // T-0521：置信下界证伪闸
+			r.rej.Inc("conf_lb_fail")
+			log.Printf("[lifecycle] #%d paper→probe 拦：%s", c.id, why)
+			continue
+		}
+		if ok, why := r.entryCondition(ctx, c.inst, c.tmpl, c.dir, c.refAPR); !ok { // T-0521：进入条件判词
+			r.rej.Inc("entry_cond_defer")
+			log.Printf("[lifecycle] #%d paper→probe 拦：%s", c.id, why)
+			continue
+		}
 		if err := Transition(ctx, r.pool, c.id, "probe",
-			"paper 判据满（时长/净回报/回撤三机读全过）→probe 观察岗", liveSw); err != nil {
+			"paper 判据满（时长/净回报/回撤+置信下界+进入条件五机读全过）→probe 观察岗", liveSw); err != nil {
 			r.rej.Inc("illegal_transition")
 			return err
 		}
@@ -111,22 +124,26 @@ func (r *Runner) promote(ctx context.Context, minH, minNet, maxDD float64, liveS
 	if !liveSw {
 		return nil
 	}
-	prows, err := r.pool.Query(ctx, `SELECT s.id,
+	prows, err := r.pool.Query(ctx, `SELECT s.id, s.inst_id, s.template_ref, s.direction,
 		EXTRACT(EPOCH FROM (now()-s.entered_at))/3600.0,
-		COALESCE((SELECT sum(amount_usd) FROM fin_paper_fill f WHERE f.strategy_id=s.id),0)
+		COALESCE((SELECT sum(amount_usd) FROM fin_paper_fill f WHERE f.strategy_id=s.id),0),
+		COALESCE((SELECT p.net_apr FROM fin_proposal p WHERE p.id=s.proposal_ref),0)
 		FROM fin_strategy s WHERE s.state='probe'`)
 	if err != nil {
 		return err
 	}
 	type pc struct {
-		id    int64
-		hours float64
-		net   float64
+		id         int64
+		inst, tmpl string
+		dir        string
+		hours      float64
+		net        float64
+		refAPR     float64
 	}
 	var pcs []pc
 	for prows.Next() {
 		var c pc
-		if err := prows.Scan(&c.id, &c.hours, &c.net); err != nil {
+		if err := prows.Scan(&c.id, &c.inst, &c.tmpl, &c.dir, &c.hours, &c.net, &c.refAPR); err != nil {
 			prows.Close()
 			return err
 		}
@@ -135,6 +152,16 @@ func (r *Runner) promote(ctx context.Context, minH, minNet, maxDD float64, liveS
 	prows.Close()
 	for _, c := range pcs {
 		if c.hours < minH || c.net < minNet {
+			continue
+		}
+		if ok, why := r.confGate(ctx, c.id); !ok { // T-0521：置信下界证伪闸（同 paper→probe 径）
+			r.rej.Inc("conf_lb_fail")
+			log.Printf("[lifecycle] #%d probe→live 拦：%s", c.id, why)
+			continue
+		}
+		if ok, why := r.entryCondition(ctx, c.inst, c.tmpl, c.dir, c.refAPR); !ok { // T-0521：进入条件判词（live 真钱时位——逆 regime 不开仓）
+			r.rej.Inc("entry_cond_defer")
+			log.Printf("[lifecycle] #%d probe→live 拦：%s", c.id, why)
 			continue
 		}
 		// T-0426 执行径演习闸（业主令 2026-11-07「每策略毕业前就该检查订单
@@ -190,7 +217,7 @@ func (r *Runner) dcdPaperAccounting(ctx context.Context) error {
 	// T-0215：vol-sell 两族同径记账——single_call 单腿键；strangle 复合键
 	// 「Cprod+Pprod」拆双腿各摊半名义（构型=双边权利金等权名义合并收割）。
 	rows, err := r.pool.Query(ctx, `SELECT s.id, s.inst_id, s.notional_usd,
-		COALESCE((SELECT max(ts) FROM fin_paper_fill f WHERE f.strategy_id=s.id), s.entered_at)
+		COALESCE((SELECT max(ts) FROM fin_paper_fill f WHERE f.strategy_id=s.id AND f.kind='funding'), s.entered_at)
 		FROM fin_strategy s WHERE s.state='paper' AND s.template_ref IN
 		('dcd_call','dcd_put','vol_sell_single_call','vol_sell_strangle')`)
 	if err != nil {

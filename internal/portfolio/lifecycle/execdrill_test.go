@@ -53,9 +53,16 @@ func TestGraduationGateExecDrillFailClosed(t *testing.T) {
 		VALUES('DG-USDT-SWAP','drill-gate-test','probe',100,'okx') RETURNING id`).Scan(&sid); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx,
-		`INSERT INTO fin_paper_fill(strategy_id,kind,inst_id,amount_usd,ts)
-		VALUES($1,'funding','DG-USDT-SWAP',1,now())`, sid); err != nil {
+	// T-0521：置信闸须≥3 收入笔+perp 方向判词须 funding 行（正率同号）。
+	for i := 0; i < 3; i++ {
+		if _, err := pool.Exec(ctx,
+			`INSERT INTO fin_paper_fill(strategy_id,kind,inst_id,amount_usd,ts)
+			VALUES($1,'funding','DG-USDT-SWAP',1,now())`, sid); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO md_funding(ts,inst_id,funding_rate)
+		VALUES(now(),'DG-USDT-SWAP',0.01)`); err != nil {
 		t.Fatal(err)
 	}
 	r := NewRunner(pool, cfg)
