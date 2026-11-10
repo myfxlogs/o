@@ -16,10 +16,16 @@ SELECT id,seat,event,left(replace(note,E'\n',' '),600) FROM ops_event
 WHERE id>$last AND (
   (seat='处置席' AND event='处置' AND note LIKE '%收口%')
   OR (seat='审计席' AND event IN ('审计','审计疑点','升件'))) ORDER BY id" |
+buf=""
+last=0
 while IFS=$'\t' read -r id seat event note; do
+	last=$id
 	[ "$event" = "升件" ] && [[ "$note" != *P1* ]] && continue
-	SEND="${FEISHU_BIN:-$HOME/.local/bin/feishusend}"
-	[ -x "$SEND" ] || SEND="go run ./tools/feishusend"
-	DB_DSN="$DSN" O_MASTER_KEY_FILE="$KEY" $SEND "[RSI] $note" >/dev/null 2>&1 \
-		&& echo "$id" > "$WM"
+	buf+="${seat}/${event} #${id} ${note}"$'\n'
 done
+[ "$last" -eq 0 ] && exit 0
+[ -z "$buf" ] && { echo "$last" > "$WM"; exit 0; }
+SEND="${FEISHU_BIN:-$HOME/.local/bin/feishusend}"
+[ -x "$SEND" ] || SEND="go run ./tools/feishusend"
+DB_DSN="$DSN" O_MASTER_KEY_FILE="$KEY" $SEND "[RSI]
+$buf" >/dev/null 2>&1 && echo "$last" > "$WM"
