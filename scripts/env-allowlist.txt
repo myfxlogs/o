@@ -40,6 +40,10 @@ ROSTER_PG_DSN
 # FIN_PG_DSN=review 钱径读写小池（T-0172——fin 域表正本在 SG，md 池无 fin 读面
 # =评史官全盲；隧道径与 ROSTER_PG_DSN 同形）。
 FIN_PG_DSN
+# OPS_DB_DSN=tools/hypo decide 审计行目的池（T-0522——fin_opp_hypothesis 正本在
+# OCI PG-md 而 ops_event 正本在 SG fin 库，同库同事务结构性落空；两序写——
+# 态迁先落审计后补，审计落败显式重放声零静默。一次性工具入参同 PG_DSN 类）。
+OPS_DB_DSN
 # READCRED_URL 已退役归 app_config research.readcred_url（业主令：env 只留 PG
 # 连接件——T-0170 址面原注「同类引导件」越界，收口回 PG 热更径）。
 
