@@ -28,7 +28,12 @@ if [ "$LOCAL" != "$REMOTE" ]; then
 		git merge --ff-only origin/master -q 2>/dev/null && say "ff 至 origin/master $(git rev-parse --short master)"
 		LOCAL=$(git rev-parse master)
 	elif [ "$BASE" = "$REMOTE" ]; then
-		if ! git push origin master 2>/dev/null; then
+		# 尖未盖戳=合流在途（merge→check_all→converge 序内）——让位盖戳流
+		# 不自推不升件（盖戳后本拍或会话径自然上岸；盲推撞 pre-push 闸=
+		# 自伤型升件源，2026-11-10 产线实证 deploy_push_blocked 三连发）。
+		if [ ! -f ".git/check-green-$LOCAL" ]; then
+			say "尖未盖戳——让位盖戳流（不推不升）"
+		elif ! git push origin master 2>/dev/null; then
 			esc "deploy_push_blocked" "部署/deploy_push_blocked: 本地 master 超前未推成（pre-push 闸或网阻）——merge 在仓未上岸,归唤知会话查闸因"
 			say "push 败——升件已落"
 		fi
@@ -41,6 +46,13 @@ HEAD=$(git rev-parse master)
 DEPLOYED=$([ -n "$DSN" ] && psql "$DSN" -qAt -c "SELECT (regexp_match(note,'o-core:([0-9a-f]+)'))[1] FROM ops_event WHERE seat='DEPLOY' AND event='部署' AND note LIKE '%rc=0%' ORDER BY id DESC LIMIT 1" 2>/dev/null)
 SHORT=${HEAD:0:12}
 if [ -z "$DEPLOYED" ] || [ "${HEAD:0:${#DEPLOYED}}" != "$DEPLOYED" ]; then
+	# 部署锁持=另径部署在途（会话 deploy_at_sha/本拍并发）——让位不撞锁
+	# （撞锁 rc=1+败事件+deploy_blocked 升件=自伤型信号源，2026-11-10
+	# 产线实证每次部署首试 rc=1→重试 rc=0 三连序列同型）。
+	if ssh "${O_SG_HOST:-root@192.229.85.35}" "test -d /opt/o/.deploy-lock" 2>/dev/null; then
+		say "滞差但部署锁持（另径在途）——让位本拍"
+		exit 0
+	fi
 	say "滞差: 部署=$DEPLOYED vs master=$SHORT——起部署"
 	out=$(bash scripts/deploy_image.sh 2>&1); rc=$?
 	echo "$out" | tail -3 | while read -r l; do say "$l"; done
