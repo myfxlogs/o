@@ -51,11 +51,23 @@ case "$SESSION_STATE" in
 	*) echo "[cognition] session discovery failed; refusing" >&2; hb stalled; exit 1 ;;
 esac
 
+# KB 召回（T-0521：经验库只写不读根修）——recall.sh 按未决升件词面命中
+# 条目挂 prompt 尾：每场会话起手头已带命中案卷。败=空串静默（fail-open
+# 不阻主径）——会话见块照口径读件,无块=本拍零命中非库坏。
+RECALL=$("$SCRIPT_DIR/recall.sh" 2>/dev/null || true)
+PROMPT=$(cat "$RUNBOOK")
+[ -n "$RECALL" ] && PROMPT="$PROMPT
+
+## KB 召回案卷（自动注入——按本拍未决升件词面命中 TOP8）
+先读命中条目再判案——案卷已按 scope/class/域词命中排在先；
+条目是判例 canon,命中即照口径,不符再查库。件径=部署树正本。
+$RECALL"
+
 TRANSCRIPT_FILE=$(mktemp "$SESSION_DIR/.devin-usage.XXXXXX.json")
 chmod 600 "$TRANSCRIPT_FILE"
 set +e
 "$DEVIN_BIN" "${DEVIN_ARGS[@]}" --export "$TRANSCRIPT_FILE" -p --model "$MODEL" \
-	--respect-workspace-trust false --permission-mode dangerous -- "$(cat "$RUNBOOK")" 2>&1 | tee "$LOG_FILE"
+	--respect-workspace-trust false --permission-mode dangerous -- "$PROMPT" 2>&1 | tee "$LOG_FILE"
 RC=${PIPESTATUS[0]}
 set -e
 
