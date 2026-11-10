@@ -86,17 +86,20 @@ func basisLegs(c excell.Cell, t excell.Tier, inst string, vs *simvenue.SimVenue)
 		return math.Abs(vs.Position(inst)) <= fut.LotSz/2+1e-9
 	}
 	if c.Template == "quarter_basis_long" {
-		// 现货腿 TgtQuote 买（quote 计价）。
-		sp, ok := vs.Instrument(base)
+		// 现货腿 TgtQuote 买（quote 计价）。现货键走 hedgeSpotKey 归一
+		// （产线 lifecycle.basisSpotLeg 同律——-USD 期货对冲=USDT 现货）：
+		// 基键直查 BTC-USD 类实有无对假「不在册」（2026-11-10 产线坑）。
+		spotID := hedgeSpotKey(base)
+		sp, ok := vs.Instrument(spotID)
 		if !ok {
-			return [2]execution.Leg{}, nil, fmt.Errorf("现货乐器不在册 %s", base)
+			return [2]execution.Leg{}, nil, fmt.Errorf("现货乐器不在册 %s", spotID)
 		}
-		legs := [2]execution.Leg{futLeg, {Venue: "okx", InstID: base, Side: "buy",
+		legs := [2]execution.Leg{futLeg, {Venue: "okx", InstID: spotID, Side: "buy",
 			Sz:       strconv.FormatFloat(spotQuoteSz(half, sp.Px, sp.LotSz), 'f', -1, 64),
 			Notional: half, TgtQuote: true}}
 		inner := flat
 		return legs, func() bool {
-			return inner() && vs.Balance(baseCcy(base)) <= math.Max(sp.LotSz, 1e-6)
+			return inner() && vs.Balance(baseCcy(spotID)) <= math.Max(sp.LotSz, 1e-6)
 		}, nil
 	}
 	// perp_quarter_spread→基键+-SWAP 多腿。

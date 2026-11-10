@@ -155,6 +155,8 @@ psql "$FIN_DSN" -c "SELECT id,kind,entity_ref,numbers FROM fin_econ_lesson
   - 零占免演族（excell⑤——enabled 但无策略/提案占格，如收养
     未出水 vol_sell）结构产不出凭据→演习债豁免不升,只受③管：
     enabled 而 14d 零枚举=真债升件不误发。
+  - 定性销案≠清偿——债条件仍真时探针一拍内重火（销=定性层非
+    清偿层；想真消=修码或回禁用,条件消=恢复自闭）。
   - 误发例外无：不变量全机械可证,缺项即真债。
 - **唤知**（esc_class=唤知 scope=cognition_dead）→ 你读到它=认知环已活：
   销+note 写「死窗 <起止> 已复——<死因:timer停/dispatch卡/会话败>」；

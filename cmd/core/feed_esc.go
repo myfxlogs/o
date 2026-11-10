@@ -145,16 +145,20 @@ func (c coreService) escEdge(ctx context.Context, deadSince map[string]time.Time
 	}
 }
 
-// escEdgeU 沿触发·未销才抑版——同 escEdge,唯死沿走 escalateUnresolved
-// （对账/孤儿账/唤知/数据缺类:销案后新事证不可被同窗误吞）。
+// escEdgeU 未销才抑版——死态期间每拍过 escalateUnresolved（其内 DB 判
+// 未决:开着静默/销了重火/火完再静默）——dedup 粒=未决事件非「沿」。
+// 2026-11-10 根修:原沿触发版 deadSince 键占死不再发——「定性要码修」
+// 类销案（分类≠修好,条件仍真）后信号成黑洞唯重启才回流,与注释钦定的
+// 「销案后再发=新事证重升」语义自相矛盾（歧态批无碍=销即修好=条件翻假;
+// 能力债类销案=定性,债还在）。deadSince 仍记首死供恢复行陈窗。
 func (c coreService) escEdgeU(ctx context.Context, deadSince map[string]time.Time,
 	class, scope string, dead bool, note func() string) {
 	key := class + "/" + scope
 	if dead {
 		if _, ok := deadSince[key]; !ok {
 			deadSince[key] = time.Now()
-			c.escalateUnresolved(ctx, class, scope, note())
 		}
+		c.escalateUnresolved(ctx, class, scope, note())
 		return
 	}
 	if since, ok := deadSince[key]; ok {
