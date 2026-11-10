@@ -389,6 +389,19 @@ func TestNotionalCtValDispatch(t *testing.T) {
 	if !ok || ns != 25 {
 		t.Fatalf("SPOT base 名义 sz×px: got %v ok=%v want 25", ns, ok)
 	}
+	// T-0522 锚：datedFUT contract 腿 qty_base=实填张数（T-0483 钦定）——
+	// 名义=张数×ctVal×px 非张数×px（修前按币量直乘 px=虚胖 1/ctVal 倍,
+	// delta_drift 绝对兜底秒杀全谱 basis 仓——simdrill 截获产线病灶重放）。
+	instrCtVal["BTC-USDT-260328"] = 0.001
+	if _, err := w.pool.Exec(ctx, `INSERT INTO md_ticks(ts,venue,inst_id,last)
+		VALUES(now(),'okx','BTC-USDT-260328',100)`); err != nil {
+		t.Fatal(err)
+	}
+	nf, ok := w.notionalNow(ctx, leg{inst: "BTC-USDT-260328", venue: "okx",
+		sz: 3.865, szUnit: "contract", qtyBase: 3.865})
+	if !ok || nf < 0.3865-1e-9 || nf > 0.3865+1e-9 {
+		t.Fatalf("datedFUT 名义 张数×ctVal×px: got %v ok=%v want ~0.3865", nf, ok)
+	}
 	// T-0107 锚：实填币量径（qty_base 优先——accFillSz 唯一真源；tick=100）。
 	nq, ok := w.notionalNow(ctx, leg{inst: "BTC-USDT", venue: "okx", sz: 24.13, szUnit: "quote", qtyBase: 0.0003})
 	if !ok || nq < 0.03-0.001 || nq > 0.03+0.001 {

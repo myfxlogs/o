@@ -44,14 +44,16 @@ var datedFutRe = regexp.MustCompile(`^([A-Z0-9]+-[A-Z0-9]+)-[0-9]{6}$`)
 // legShapeOf 模板→腿形映射（注册表——execfam 册内模板全覆盖断言锚）。
 func legShapeOf(tmpl string) (legShape, bool) {
 	switch {
-	case tmpl == "funding-hedge" || strings.HasPrefix(tmpl, "vol_sell"):
+	case tmpl == "funding-hedge":
 		return shapeOKXTwoLeg, true
 	case tmpl == "quarter_basis_long" || tmpl == "perp_quarter_spread" ||
 		tmpl == "quarter_basis_short":
 		return shapeOKXTwoLeg, true
 	case tmpl == "xvenue-carry":
 		return shapeXvenue, true
-	case strings.HasPrefix(tmpl, "dcd_"):
+	case strings.HasPrefix(tmpl, "dcd_") || strings.HasPrefix(tmpl, "vol_sell"):
+		// vol_sell=DCD 产品径（strangle 复合键 runDCD 内拆腿）——原误映
+		// okx_two_leg 会拿产品键当现货/合约键跑错腿（T-0522 假想卡骨架批）。
 		return shapeDCD, true
 	}
 	return "", false

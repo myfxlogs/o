@@ -73,12 +73,19 @@ func (d *Drill) Run(ctx context.Context, strategyRef int64) (Result, error) {
 	}
 	res.InstID = inst
 	if !strings.HasSuffix(inst, "-SWAP") {
-		// DCD 产品域（dcd_put/dcd_call 毕业闸同凭据——probe→live 闸
-		// 全策略同待遇,T-0426 判据不偏爱 funding-hedge）。
-		if templateRef == "dcd_put" || templateRef == "dcd_call" {
+		switch {
+		// DCD 产品域（dcd_put/dcd_call/vol_sell 毕业闸同凭据——probe→live
+		// 闸全策略同待遇,T-0426 判据不偏爱 funding-hedge；strangle 复合键
+		// runDCDDrill 内拆腿,T-0522）。
+		case templateRef == "dcd_put" || templateRef == "dcd_call" ||
+			templateRef == "vol_sell_single_call" || templateRef == "vol_sell_strangle":
 			return d.runDCDDrill(ctx, res, inst, templateRef, notional)
+		// basis 族=-YYMMDD 期货键（T-0522 假想卡骨架批——毕业域模板未载=
+		// 凭据不可产fail-forever,同坑戒 KB simdrill-gate-domain-coverage-mismatch）。
+		case isBasisTemplate(templateRef):
+			return d.runBasisDrill(ctx, res, inst, templateRef, notional)
 		}
-		return res, fmt.Errorf("演习面限 SWAP/dcd 键策略（funding-hedge+dcd 毕业域）: %s template=%s", inst, templateRef)
+		return res, fmt.Errorf("演习面限 SWAP/dcd/basis 键策略（毕业域模板未载——新执行族注册须同 commit 补演习格）: %s template=%s", inst, templateRef)
 	}
 	// ② 乐器面（venue 册直取——T-0427 品种主档前同径，不落表；SWAP 键剥尾
 	// 即现货腿对键——CORE-USDT-SWAP→CORE-USDT）。
@@ -90,7 +97,30 @@ func (d *Drill) Run(ctx context.Context, strategyRef int64) (Result, error) {
 	if !ok {
 		return res, fmt.Errorf("演习乐器不在册: %s", inst)
 	}
-	// ③ 演习 ephemeral 策略行（同型同名义，state='degraded'——哨戒降级联动
+	// ③ 合成腿（quote 买现货腿+SWAP 反向腿——量落 lotSz 网格，名义对半）。
+	half := notional / 2
+	contracts := math.Floor(half/(swapInst.CtVal*swapInst.Px)/swapInst.LotSz+1e-9) * swapInst.LotSz
+	if contracts <= 0 {
+		return res, fmt.Errorf("合成腿张数≤0（notional=%.2f ctVal=%.8g px=%.8g lotSz=%.8g）",
+			half, swapInst.CtVal, swapInst.Px, swapInst.LotSz)
+	}
+	legs := [2]execution.Leg{
+		{Venue: "okx", InstID: spotInst.InstID, Side: "buy", TgtQuote: true,
+			Sz: trimFloat(half), Notional: half},
+		{Venue: "okx", InstID: swapInst.InstID, Side: "sell",
+			Sz: trimFloat(contracts), Notional: half},
+	}
+	return d.leggedDrill(ctx, res, inst, notional, legs,
+		[]string{"spot_long", "perp_short"}, swapInst, spotInst)
+}
+
+// leggedDrill 双腿原子径共用体（funding/basis 两族同构——腿构/闸签/对拍锚
+// 参数化注入，流程单源：ephemeral 策略行→Gate→Execute→哨戒→费→结算→
+// recon 四锚→凭据）。deriv=卖出衍生腿（合约净持锚）long=多头腿
+// （SPOT=裸袋锚/合约=净持锚）。
+func (d *Drill) leggedDrill(ctx context.Context, res Result, inst string, notional float64,
+	legs [2]execution.Leg, gateLegs []string, deriv, long simvenue.Instrument) (Result, error) {
+	// 演习 ephemeral 策略行（同型同名义，state='degraded'——哨戒降级联动
 	// 必平径免 funding/tick 判据链依赖）。
 	var drillStrat int64
 	if err := d.Pool.QueryRow(ctx, `INSERT INTO fin_strategy(inst_id,template_ref,state,notional_usd,venue)
@@ -110,23 +140,24 @@ func (d *Drill) Run(ctx context.Context, strategyRef int64) (Result, error) {
 			 last_error='reconcile:drill_cleanup' WHERE state='closing'
 			 AND position_id IN (SELECT id FROM fin_position WHERE strategy_ref=$1)`, drillStrat)
 	}()
-	// ④ 合成腿（quote 买现货腿+SWAP 反向腿——量落 lotSz 网格，名义对半）。
-	half := notional / 2
-	contracts := math.Floor(half/(swapInst.CtVal*swapInst.Px)/swapInst.LotSz+1e-9) * swapInst.LotSz
-	if contracts <= 0 {
-		return res, fmt.Errorf("合成腿张数≤0（notional=%.2f ctVal=%.8g px=%.8g lotSz=%.8g）",
-			half, swapInst.CtVal, swapInst.Px, swapInst.LotSz)
+	// 行情真相锚（matrix execTwoLeg 同律——venue 成交价与 md_ticks 同价
+	// 防时差型假 drift；全腿统一 venue 册价,真器键 drill 不再靠夹具预播）。
+	for _, l := range legs {
+		in, ok := d.Venue.Instrument(l.InstID)
+		if !ok {
+			return res, fmt.Errorf("演习乐器不在册（tick 锚）: %s", l.InstID)
+		}
+		if _, err := d.Pool.Exec(ctx,
+			`INSERT INTO md_ticks(ts,venue,inst_id,last) VALUES(now(),'sim',$1,$2)
+			ON CONFLICT (venue,inst_id) DO UPDATE SET ts=EXCLUDED.ts,last=EXCLUDED.last`,
+			l.InstID, in.Px); err != nil {
+			return res, fmt.Errorf("行情锚写败: %w", err)
+		}
 	}
-	legs := [2]execution.Leg{
-		{Venue: "okx", InstID: spotInst.InstID, Side: "buy", TgtQuote: true,
-			Sz: trimFloat(half), Notional: half},
-		{Venue: "okx", InstID: swapInst.InstID, Side: "sell",
-			Sz: trimFloat(contracts), Notional: half},
-	}
-	// ⑤ 开仓（产线径：Gate 闸→Runner 双腿原子——live_switch 闸自验）。
+	// 开仓（产线径：Gate 闸→Runner 双腿原子——live_switch 闸自验）。
 	runner := execution.NewRunner(d.Pool, d.Cfg, d.Venue)
 	dec := d.Gate.Check(ctx, risk.Intent{StrategyRef: drillStrat, Venue: "okx", InstID: inst,
-		Legs: []string{"spot_long", "perp_short"}, NotionalUSD: notional, Leverage: 1, Kind: "open"})
+		Legs: gateLegs, NotionalUSD: notional, Leverage: 1, Kind: "open"})
 	if !dec.Allow {
 		return res, fmt.Errorf("演习开仓被闸拒（%s）——判据/config 缺 fail-closed", dec.Reason)
 	}
@@ -142,9 +173,9 @@ func (d *Drill) Run(ctx context.Context, strategyRef int64) (Result, error) {
 		Scan(&posID); err != nil || posID == 0 {
 		return res, fmt.Errorf("演习仓行缺（开仓事实不可读）: %v", err)
 	}
-	// ⑥ 开仓后 venue 真相快照（drift 假报检测锚——平仓前时点均衡判）。
-	openBalanced := d.balanced(spotInst, swapInst)
-	// ⑦ 哨戒平仓（产线径：Warden→execwiring 装配缝→Runner——sizer=venue 现读）。
+	// 开仓后 venue 真相快照（drift 假报检测锚——平仓前时点均衡判）。
+	openBalanced := d.balanced(long, deriv)
+	// 哨戒平仓（产线径：Warden→execwiring 装配缝→Runner——sizer=venue 现读）。
 	w := guard.NewWarden(d.Pool, d.Cfg, d.Gate, execwiring.CloseExec{R: runner})
 	w.AttachSizer(d.Venue)
 	w.AttachCtVal(func(_ context.Context, _, instID string) (float64, bool) {
@@ -156,80 +187,19 @@ func (d *Drill) Run(ctx context.Context, strategyRef int64) (Result, error) {
 	res.CloseExecID = closeExecIDOf(ctx, d.Pool, drillStrat)
 	_ = d.Pool.QueryRow(ctx, `SELECT COALESCE(trigger_kind::text,'') FROM fin_guard_close
 		WHERE position_id=$1`, posID).Scan(&res.Trigger)
-	// ⑧ 费流水入账（bills 钩同径——开+平全fills 一次归仓；USDT 域同 ingest）。
+	// 费流水入账（bills 钩同径——开+平全fills 一次归仓；USDT 域同 ingest）。
 	d.postSimFees(ctx, posID)
-	// ⑨ 结算对账（产线径：settle 落位+postmortem 判）。
+	// 结算对账（产线径：settle 落位+postmortem 判）。
 	if err := ledger.NewRunner(d.Pool, d.Cfg).ScanOnce(ctx); err != nil {
 		return res, fmt.Errorf("演习结算拍败: %w", err)
 	}
-	// ⑩ 账实对拍四锚（venue 真相×台账——任一锚破=fail+升件）。
-	res.Detail, res.Verdict = d.recon(ctx, res, spotInst, swapInst, openBalanced)
-	// ⑪ 凭据落账（毕业闸消费面——fail 亦落：闸可读败因）。
+	// 账实对拍四锚（venue 真相×台账——任一锚破=fail+升件）。
+	res.Detail, res.Verdict = d.recon(ctx, res, long, deriv, openBalanced)
+	// 凭据落账（毕业闸消费面——fail 亦落：闸可读败因）。
 	return d.writeDrill(ctx, res)
 }
 
-// recon 账实对拍四锚（detail=人读结论；verdict=fail=病面已升件）。
-func (d *Drill) recon(ctx context.Context, res Result, spot, swap simvenue.Instrument, openBalanced bool) (string, string) {
-	var closed bool
-	var posID int64
-	if err := d.Pool.QueryRow(ctx, `SELECT id,closed_at IS NOT NULL FROM fin_position
-		WHERE execution_id=$1 ORDER BY id DESC LIMIT 1`, res.OpenExecID).Scan(&posID, &closed); err != nil {
-		return d.fail(ctx, res, "演习仓行缺（开仓事实不可读）"), "fail"
-	}
-	// 锚⓪全径闭环：仓未平=平仓径败（拒单/执行败）——演习未走完即 fail 禁假绿。
-	if !closed {
-		return d.fail(ctx, res,
-			fmt.Sprintf("演习未平（触发=%s close_exec=#%d）——平仓径拒单/执行败", orDash(res.Trigger), res.CloseExecID)), "fail"
-	}
-	// 锚①drift 假报：开仓后 venue 真相均衡却报 delta_drift=假报（升件）。
-	if res.Trigger == "delta_drift" && openBalanced {
-		return d.fail(ctx, res,
-			"delta_drift 假报——venue 真相开仓双腿均衡（出生粒度域）"), "fail"
-	}
-	// 锚②残袋非零：仓关而 venue 货在且未挂账（挂账=账实同步显形非盲）。
-	var bagQty float64
-	_ = d.Pool.QueryRow(ctx, `SELECT COALESCE(bare_bag_qty,0) FROM fin_position
-		WHERE id=$1`, posID).Scan(&bagQty)
-	resid := d.Venue.Balance(baseOf(spot))
-	dust := math.Max(spot.LotSz, 1e-9)
-	if closed && resid > math.Max(dust, bagQty)+1e-9 {
-		return d.fail(ctx, res,
-			fmt.Sprintf("残袋非零未挂账——venue 实余 %.8g %s>挂账 %.8g（closed 了但货还在）", resid, baseOf(spot), bagQty)), "fail"
-	}
-	// 锚③合约净持归零：SWAP 平仓后净持≠0=敞口残（升件——非资产挂账域）。
-	if closed && math.Abs(d.Venue.Position(swap.InstID)) > swap.LotSz/2+1e-9 {
-		return d.fail(ctx, res,
-			fmt.Sprintf("合约残仓 %.8g 张——平未净敞口", d.Venue.Position(swap.InstID))), "fail"
-	}
-	// 锚④现金对平：venue USDT 流水 Δ==Σfin_cashflow（费行入账后——口径差
-	// >分位=账实背离升件）。
-	var sum float64
-	if err := d.Pool.QueryRow(ctx, `SELECT COALESCE(sum(amount),0) FROM fin_cashflow
-		WHERE position_ref=$1 AND kind NOT IN ('earn_in','earn_out')`, posID).Scan(&sum); err != nil {
-		return d.fail(ctx, res, fmt.Sprintf("fin_cashflow 归仓和读败: %v", err)), "fail"
-	}
-	var venueSum float64
-	for _, f := range d.Venue.Fills() {
-		venueSum += f.QuoteAmt // 计价币流水（fixture 域 USDT 计价——venue 真相）
-	}
-	if math.Abs(venueSum-sum) > 0.01 {
-		return d.fail(ctx, res,
-			fmt.Sprintf("现金账实不平——venue 流水 %.6f vs 台账 %.6f（差 %.6f>分位）", venueSum, sum, venueSum-sum)), "fail"
-	}
-	return fmt.Sprintf("全径绿（open=#%d close=#%d 触发=%s 现金对平 %.6f 残余 %s=%.8g）",
-		res.OpenExecID, res.CloseExecID, orDash(res.Trigger), sum, baseOf(spot), resid), "pass"
-}
-
-// balanced venue 真相均衡判（开仓后双腿名义对齐——lotSz 粒度+费内残差容）。
-func (d *Drill) balanced(spot, swap simvenue.Instrument) bool {
-	spotNotional := d.Venue.Balance(baseOf(spot)) * spot.Px
-	perpNotional := math.Abs(d.Venue.Position(swap.InstID)) * swap.CtVal * swap.Px
-	avg := (spotNotional + perpNotional) / 2
-	if avg <= 0 {
-		return false
-	}
-	return math.Abs(spotNotional-perpNotional)/avg*1e4 < 50 // 50bps 出生粒度容（基线播种域）
-}
+// 账实对拍四锚+腿名义/均衡判——drill_recon.go（棘轮拆件）。
 
 // postSimFees 费流水入账（bills 钩同径：kind='fee'/USDT 域/归仓 position_ref；
 // ingest 同弃非 USDT 域——spot 买基准币内扣费不入）。

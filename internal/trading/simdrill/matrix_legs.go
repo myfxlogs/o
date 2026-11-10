@@ -61,6 +61,11 @@ func fundingLegs(t excell.Tier, inst string, vs *simvenue.SimVenue) ([2]executio
 // 多头腿 quarter_basis_long→基键现货买 / 余→基键+-SWAP 买；flat=全腿
 // venue 真相归零——期货净持+多头腿残位双锚）。
 func basisLegs(c excell.Cell, t excell.Tier, inst string, vs *simvenue.SimVenue) ([2]execution.Leg, func() bool, error) {
+	if c.Template == "quarter_basis_short" {
+		// spot_short 腿=保证金借币卖——margin-borrow 面 enabled=false（T-0216
+		// 条件缺口/parked 域）；原映射错塞 SWAP 多腿构——显式拒防错腿产凭据。
+		return [2]execution.Leg{}, nil, fmt.Errorf("quarter_basis_short 演习不支持（spot_short 腿 margin-borrow 面缺——fail-closed 不构错腿）")
+	}
 	mm := datedFutRe.FindStringSubmatch(inst)
 	if mm == nil {
 		return [2]execution.Leg{}, nil, fmt.Errorf("basis inst 非到期日期货键: %s", inst)
@@ -94,7 +99,7 @@ func basisLegs(c excell.Cell, t excell.Tier, inst string, vs *simvenue.SimVenue)
 			return inner() && vs.Balance(baseCcy(base)) <= math.Max(sp.LotSz, 1e-6)
 		}, nil
 	}
-	// perp_quarter_spread/quarter_basis_short→基键+-SWAP 多腿。
+	// perp_quarter_spread→基键+-SWAP 多腿。
 	swID := base + "-SWAP"
 	sw, ok := vs.Instrument(swID)
 	if !ok {
