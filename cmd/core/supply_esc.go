@@ -96,3 +96,52 @@ func (c coreService) lessonBacklogEscCheck(ctx context.Context, deadSince map[st
 			n, oldest.UTC().Format("01-02 15:04Z"))
 	})
 }
+
+// stuckEscCheck 卡壳/复核面探——升件获「修|愈」类处置后同 scope 复燃=
+// 状态可证伪宣称被戳穿（宣称已修→修未成立;宣称已愈→愈是假愈——
+// 修没修成愈没愈成,状态不说谎）。判词质量复核的机械臂:
+// 复审不审词,审「宣称的事实」——两类宣称都可被状态戳穿。
+// 销类处置复燃不在此面（误发/同判词销=对判词不对状态,条件存续
+// 复火属正常流转;定性销无状态宣称=本探针域外,归审计抽查面）。
+// 判据:7d 内 ∃升件 e1,其后处置行载修愈类词∧同 scope 又火 e2。
+// 2026-11-10 业主令:机器卡壳不自知是常事,复审要机械可证伪。
+func (c coreService) stuckEscCheck(ctx context.Context, deadSince map[string]time.Time) {
+	rows, err := c.pool.Query(ctx, `SELECT e2.esc_scope, e1.id, e2.id FROM ops_event e1
+		JOIN ops_event e2 ON e2.esc_scope=e1.esc_scope AND e2.event='升件' AND e2.id>e1.id
+		WHERE e1.event='升件' AND e1.ts>now()-interval '7 days'
+		AND e1.esc_scope IS NOT NULL AND e1.esc_scope<>''
+		AND EXISTS (SELECT 1 FROM ops_event d WHERE d.event='处置'
+			AND d.id>e1.id AND d.id<e2.id
+			AND d.note ~ ('升件#'||e1.id||'([^0-9]|$)')
+			AND d.note ~ '(修|已修|部署|落成|修复|已愈|自愈|恢复|复绿)')
+		ORDER BY e2.id DESC LIMIT 10`)
+	if err != nil {
+		return // 读件败本拍让位
+	}
+	defer rows.Close()
+	type pair struct {
+		scope        string
+		prev, refire int64
+	}
+	seen := map[string]bool{}
+	var stuck []pair
+	for rows.Next() {
+		var p pair
+		if err := rows.Scan(&p.scope, &p.prev, &p.refire); err != nil {
+			return
+		}
+		if !seen[p.scope] {
+			seen[p.scope] = true
+			stuck = append(stuck, p)
+		}
+	}
+	dead := len(stuck) > 0
+	var parts []string
+	for _, s := range stuck {
+		parts = append(parts, fmt.Sprintf("%s(#%d销后→#%d又火)", s.scope, s.prev, s.refire))
+	}
+	c.escEdgeU(ctx, deadSince, "唤知", "stuck_esc", dead, func() string {
+		return fmt.Sprintf("唤知/stuck_esc: %d 个 scope 销案后复燃（%s）——判词宣称已修|已愈而条件复发,宣称不实,疑卡壳建议值守介入",
+			len(stuck), strings.Join(parts, "、"))
+	})
+}

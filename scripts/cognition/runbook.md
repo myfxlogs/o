@@ -83,6 +83,10 @@ psql "$FIN_DSN" -c "SELECT id,kind,entity_ref,numbers FROM fin_econ_lesson
   （#8907 案：R3 提案 n=0 误 emit 销件,而「演习域覆盖缺口」命题为真,
   命题沉了三月无人接）。判命题为真而触发为假者→命题转正式升件或
   要码修,不得随误发同销。
+- **销案载证**（值守令 2026-11-10——判词质量复核面）——销件 note
+  须载可核证据：已修→commit/部署 sha；已愈→复查实数；
+  定性销→底层命题判词（D-0523 同律）。「无异常/应该没事」
+  不是证据——无证据的销=懒判词,审计回放抽查面会抓。
 - **断流**（seat=探测席 esc_class=断流 的升件——o-core 鲜度死升件环产物）→
   先核面现况（同名 healthComps 查询直查）：
   - 已复绿→销+note 引「自愈/重启窗」证据——OCI 侧 `md_repair_log`（修复环账）
@@ -247,6 +251,14 @@ psql "$FIN_DSN" -c "SELECT id,kind,entity_ref,numbers FROM fin_econ_lesson
   - 凭据/权限缺→ 要业主条件请求
   - 面存在但 enabled=false（设计态未启）→ 定性销（写明启用门槛）
   - 瞬态已愈（行已不足3）→ 销+注「窗口内已愈」
+  同档同裁：scope=stuck_esc（升件获修|愈类处置后同 scope 复燃——
+  note 载「scope(#前件销后→#复燃件又火)」。判词宣称已修/已愈
+  而条件复发=宣称不实（修未成立/愈是假愈）。先核：宣称的修法
+  落没落（commit/部署/迁移实存否）→落了而复发=修错界（转要码修
+  收窄/放宽边界）→根本没落=懒判词（重写判词载实因,同 scope 件
+  重取证）。愈类复燃=条件未愈——重判不引旧判词。
+  修|愈后连续复燃≥2 轮→写「求助值守」非再销（卡壳认命是诚实,
+  求助不是失职）。
   同档同裁：scope=live_dud（live≥7d 零仓位哑弹策略——note 载 id+inst
   谱。先分因：执行触发环活着否（其它策略有仓位产出）→条件恒不
   满足否（评估面零提案但策略仍 live——生命周期倒挂,该走退役径）
@@ -302,6 +314,14 @@ psql "$FIN_DSN" -c "SELECT id,kind,entity_ref,numbers FROM fin_econ_lesson
   INSERT INTO ops_event(seat,event,ticket,note)
   VALUES('处置席','条件请求','','<要什么+为什么+缺它卡哪>')
   ```
+- **求助值守**（技术阻塞非业主域——卡壳/判词拿不准/缺更深上下文，
+  与条件请求分界：条件请求=要业主做事,求助=要技术支援）→
+  ```sql
+  INSERT INTO ops_event(seat,event,ticket,note)
+  VALUES('处置席','求助值守','','<卡在什么+试过什么+疑因什么>')
+  ```
+  urgent 道 ≤1min 推屏,业主转值守接手。写前先自助：runbook 档+
+  KB 检索+同类判词。卡壳不自知是常事——求助不是失职,僵着才是。
 
 ### ③ 教训矿
 `fin_eng_lesson` 候选逐条判：可归纳→写 `docs/工程经验库/条目/<id>.md`

@@ -45,6 +45,7 @@ urgent)
 SELECT id,seat,event,left(replace(note,E'\n',' '),600) FROM ops_event
 WHERE id>$(cat "$WM" 2>/dev/null || echo 0) AND (
   event='条件请求'
+  OR event='求助值守'
   OR (seat='审计席' AND event='升件' AND note LIKE '%P1%')
   OR (event='升件' AND esc_scope IN ('deploy_lag','deploy_blocked',
     'cognition_dead','cognition_spawn_fail','audit_spawn_fail','audit_stall')))
