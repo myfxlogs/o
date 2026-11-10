@@ -117,6 +117,10 @@ echo "[deploy_image] o-core 健康态=$st"
 
 # T-0153 船运后镜像自剪——留 72h 回滚余量（SG 盘 76% 实证病灶面治）。
 ssh "$SG" 'docker image prune -f --filter "until=72h" && echo "[deploy_image] prune≤72h done"'
+# SG 侧 tag 保留窗同窗——until=72h 只摘 dangling,SHA tag 永不剪
+# =镜像单调堆（2026-11-10 实证 43 枚 4.6G,+3G/高峰日）。同策近5+latest。
+ssh "$SG" 'bash /opt/o/scripts/image_tag_gc.sh' \
+  || echo "⚠️ [deploy_image] SG tag_gc 败（不阻断部署收口）" >&2 # tolerate: 保洁尽力件——tag 残留下轮再收，部署成败不绑保洁
 
 # ── ⑤ OCI PG-md 迁移随窗步（T-0336）──────────────────────────
 # 病灶（T-0333 红②③在案）：本径原只船 SG o-core——PG-md 迁移从不随窗，
