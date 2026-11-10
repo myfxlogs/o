@@ -53,6 +53,11 @@ psql "$FIN_DSN" -c "SELECT id,kind,entity_ref,numbers FROM fin_econ_lesson
   INSERT INTO ops_event(seat,event,ticket,note)
   VALUES('处置席','处置','<对象>','升件#<id> 销——<一句定性+证据>')
   ```
+- **销件纪律**（D-0523）——以「误发/判词错/触发器假」销件时，
+  note 必附一行「底层命题判词:真/假+一句依据」。触发器假≠命题假
+  （#8907 案：R3 提案 n=0 误 emit 销件,而「演习域覆盖缺口」命题为真,
+  命题沉了三月无人接）。判命题为真而触发为假者→命题转正式升件或
+  要码修,不得随误发同销。
 - **断流**（seat=探测席 esc_class=断流 的升件——o-core 鲜度死升件环产物）→
   先核面现况（同名 healthComps 查询直查）：
   - 已复绿→销+note 引「自愈/重启窗」证据——OCI 侧 `md_repair_log`（修复环账）
@@ -131,6 +136,20 @@ psql "$FIN_DSN" -c "SELECT id,kind,entity_ref,numbers FROM fin_econ_lesson
     ⑤ 毕业判词接入（gradgate 进入条件该族判词=无判词走默认放行
        并注明）。五件齐投 sim/paper 面=需求账变现；五件缺任
        一=骨未立，升件续留（卡不是档案是需求）。
+- **能力债**（seat=探测席 esc_class=能力债 scope=capability_<template>
+  的升件——o-core 能力债探产物，「在册即须被行使,不行使即信号」
+  不变量面）→ note 载缺项三选：执行族未注册/7d 无绿演习凭据/
+  14d 零评估产出。按缺项裁：
+  - 未注册→ 要码修（执行族册/execfam）或回禁用（模板 enabled=false
+    随行 hypo decide park 假想卡）；
+  - 无凭据→ 先跑 `docker run --rm --network host -e DB_DSN=... 
+    o-core:latest /bin/simdrill -matrix` 补演习（SG cron 日拍臂在案，
+    臂死=凭据陈=本件点火如实）；格 fail→按「要码修」定性病灶；
+  - 零评估→ 查 grammar 枚举面（NeedFace 能力面禁没禁/评估器拍在
+    不在跑）——枚举面活而市场无候选=如实销「市场平窗,族活面证」；
+  - 钦定挂起（能力面缺=margin-borrow/跨所腿/质押轨类）→ 回禁用+
+    decide park 附阻塞面,升件随模板禁用自闭。
+  - 误发例外无：三不变量全机械可证,缺项即真债。
 - **唤知**（esc_class=唤知 scope=cognition_dead）→ 你读到它=认知环已活：
   销+note 写「死窗 <起止> 已复——<死因:timer停/dispatch卡/会话败>」；
   死因不明先查 `systemctl --user status o-cognition.timer`+

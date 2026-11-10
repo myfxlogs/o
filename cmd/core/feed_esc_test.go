@@ -333,3 +333,95 @@ func TestCommercialEsc(t *testing.T) {
 		t.Fatalf("无 live 静默 n=%d", n)
 	}
 }
+
+// capabilityEscCheck 能力债探（T-0523）：启用模板缺凭据/评估→升件；
+// 凭据补上→恢复自闭；模板禁用→键死补恢复。
+func TestCapabilityEscCheck(t *testing.T) {
+	ctx := context.Background()
+	pool := testutil.Pool(t)
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM fin_opp_template WHERE template='funding-hedge';
+		DELETE FROM fin_exec_drill WHERE cell_key LIKE 'funding-hedge@%';
+		DELETE FROM fin_opp_eval WHERE template='funding-hedge';
+		DELETE FROM ops_event WHERE esc_scope='capability_funding-hedge'`); err != nil {
+		t.Fatalf("clean: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_opp_template(template,venue,enabled,state)
+		VALUES('funding-hedge','okx',true,'enabled')`); err != nil {
+		t.Fatalf("模板: %v", err)
+	}
+	svc := coreService{pool: pool}
+	deadSince := map[string]time.Time{}
+
+	// 零凭据零评估→gap（在册族 funding-hedge reg=true,缺②③两项）
+	svc.capabilityEscCheck(ctx, deadSince)
+	var n int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='升件' AND esc_class='能力债' AND esc_scope='capability_funding-hedge'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("能力债升件 n=%d err=%v", n, err)
+	}
+	var note string
+	if err := pool.QueryRow(ctx, `SELECT note FROM ops_event
+		WHERE esc_scope='capability_funding-hedge'`).Scan(&note); err != nil {
+		t.Fatalf("升件行: %v", err)
+	}
+	if !strings.Contains(note, "无绿演习凭据") || !strings.Contains(note, "零评估产出") {
+		t.Fatalf("note 缺缺项载: %s", note)
+	}
+
+	// 凭据+评估补上→恢复行自闭
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_exec_drill(strategy_ref,inst_id,verdict,cell_key)
+		VALUES(-1,'BTC-USDT-SWAP','pass','funding-hedge@okx/short_perp_long_spot#usd=50');
+		INSERT INTO fin_opp_eval(inst_id,template,direction,verdict,legs,evidence)
+		VALUES('BTC-USDT-SWAP','funding-hedge','short_perp_long_spot','rejected','[]','{}')`); err != nil {
+		t.Fatalf("凭据: %v", err)
+	}
+	svc.capabilityEscCheck(ctx, deadSince)
+	if err := pool.QueryRow(ctx, `SELECT note FROM ops_event
+		WHERE seat='探测席' AND event='恢复' AND note LIKE '%capability_funding-hedge%'`).Scan(&note); err != nil {
+		t.Fatalf("恢复行缺: %v", err)
+	}
+	if _, ok := deadSince["能力债/capability_funding-hedge"]; ok {
+		t.Fatalf("键未清: %v", deadSince)
+	}
+}
+
+// orphan hypothesis_parked（T-0523）——无复核戳的 parked 陈卡浮面；
+// last_reviewed 新戳续挂=不浮。
+func TestOrphanHypothesisParked(t *testing.T) {
+	ctx := context.Background()
+	pool := testutil.Pool(t)
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM fin_opp_hypothesis WHERE surface LIKE 't-park%';
+		DELETE FROM ops_event WHERE esc_scope='orphan_hypothesis_parked'`); err != nil {
+		t.Fatalf("clean: %v", err)
+	}
+	// 陈 parked 无戳→浮
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_opp_hypothesis(venue,surface,family,state,ts)
+		VALUES('okx','t-park-stale','basis','parked',now()-interval '60 days')`); err != nil {
+		t.Fatalf("陈卡: %v", err)
+	}
+	svc := coreService{pool: pool}
+	deadSince := map[string]time.Time{}
+	svc.orphanEscCheck(ctx, deadSince)
+	var n int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='升件' AND esc_scope='orphan_hypothesis_parked'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("parked 升件 n=%d err=%v", n, err)
+	}
+	// 复核戳新落→积压数归零→恢复自闭
+	if _, err := pool.Exec(ctx, `UPDATE fin_opp_hypothesis
+		SET evidence=evidence||'{"last_reviewed":"2099-01-01T00:00:00Z"}'
+		WHERE surface='t-park-stale'`); err != nil {
+		t.Fatalf("落戳: %v", err)
+	}
+	svc.orphanEscCheck(ctx, deadSince)
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE seat='探测席' AND event='恢复' AND note LIKE '%hypothesis_parked%'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("恢复 n=%d err=%v", n, err)
+	}
+}

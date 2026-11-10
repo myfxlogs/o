@@ -40,6 +40,10 @@ RUN buf generate --template buf.gen.core.yaml
 #（单模板=mt5 面生成码缺席编译炸——T-0048 起新增面）。
 RUN buf generate --template buf.gen.mtapi.yaml
 RUN go build -o /bin/core ./cmd/core
+# T-0523 演习臂自更新径——simdrill 入镜像：SG cron 跑
+# docker run o-core:latest /bin/simdrill -matrix，二进制永随部署 sha 零漂移
+#（能力债探针「7d 绿凭据」不变量的行使半——无臂=健康族每周误火）。
+RUN go build -o /bin/simdrill ./cmd/simdrill
 
 FROM alpine:3.20
 # T-0296 件③根修——tzdata 进镜像：/usr/share/zoneinfo 缺席时
@@ -48,4 +52,5 @@ FROM alpine:3.20
 RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories && \
     apk add --no-cache tzdata
 COPY --from=build /bin/core /bin/core
+COPY --from=build /bin/simdrill /bin/simdrill
 ENTRYPOINT ["/bin/core"]

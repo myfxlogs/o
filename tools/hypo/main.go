@@ -155,8 +155,14 @@ func decide(ctx context.Context, pool *pgxpool.Pool, args []string) {
 	if *state == "adopted" && !execfam.Has(t) {
 		fatal(fmt.Errorf("decide: 收养拒——execfam 未注册 %s（骨架未齐先落执行族册）", t))
 	}
+	// state 迁+evidence.last_reviewed 复核戳合写（T-0523——parked 再议
+	// 节律键：orphan_hypothesis_parked 探针以此戳判挂期,decide=复核即落戳；
+	// re-park 续挂 30d 不扰面,超戳=需求黑洞如实浮面）。
 	if _, err := tx.Exec(ctx,
-		`UPDATE fin_opp_hypothesis SET state=$1 WHERE id=$2`, *state, *id); err != nil {
+		`UPDATE fin_opp_hypothesis SET state=$1,
+			evidence = evidence || jsonb_build_object('last_reviewed',
+				to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"'))
+			WHERE id=$2`, *state, *id); err != nil {
 		fatal(fmt.Errorf("decide: state 迁败: %w", err))
 	}
 	note := fmt.Sprintf("假想卡#%d %s: %s→%s 裁词=%s", *id, surface, old, *state, *reason)
