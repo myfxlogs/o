@@ -61,6 +61,7 @@ func (c coreService) escLoop(ctx context.Context, al *notify.Alerter) {
 		c.liveDudEscCheck(ctx, deadSince)
 		c.stuckEscCheck(ctx, deadSince)
 		c.lessonBacklogEscCheck(ctx, deadSince)
+		c.codeworkStallEscCheck(ctx, deadSince)
 	}
 }
 

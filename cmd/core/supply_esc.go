@@ -147,3 +147,41 @@ func (c coreService) stuckEscCheck(ctx context.Context, deadSince map[string]tim
 			len(stuck), strings.Join(parts, "、"))
 	})
 }
+
+// codeworkStallEscCheck 工单滞留探——非探测席立的升件（会话验码/
+// 转要码修产生的工单行,如 处置席复证件/审计复证件/CTO 挂起件）
+// 陈>24h 未销=码修待启而无人盯——「说要修没开修」面,
+// 与 stuck_esc 孪生(一个盯说修了没修住,一个盯说要修没开修)。
+// 判据:14d 窗内 event=升件∧seat<>'探测席'∧ts>24h∧无后随处置行。
+// 探针类升件不入此面——探针火是值守件非工单,陈化归探针自身律。
+// 2026-11-11 业主令:转票无滞留哨=条件请求同族缺陷(径在无人盯走)。
+func (c coreService) codeworkStallEscCheck(ctx context.Context, deadSince map[string]time.Time) {
+	rows, err := c.pool.Query(ctx, `SELECT e.id, e.seat, left(e.note,40) FROM ops_event e
+		WHERE e.event='升件' AND e.seat<>'探测席'
+		AND e.ts>now()-interval '14 days' AND e.ts<now()-interval '24 hours'
+		AND NOT EXISTS (SELECT 1 FROM ops_event d WHERE d.event='处置'
+			AND d.id>e.id AND d.note ~ ('升件#'||e.id||'([^0-9]|$)'))
+		ORDER BY e.id DESC LIMIT 20`)
+	if err != nil {
+		return // 读件败本拍让位
+	}
+	defer rows.Close()
+	var parts []string
+	n := 0
+	for rows.Next() {
+		var id int64
+		var seat, note string
+		if rows.Scan(&id, &seat, &note) != nil {
+			return
+		}
+		n++
+		if len(parts) < 6 {
+			parts = append(parts, fmt.Sprintf("#%d(%s:%s)", id, seat, note))
+		}
+	}
+	dead := n > 0
+	c.escEdgeU(ctx, deadSince, "唤知", "codework_stall", dead, func() string {
+		return fmt.Sprintf("唤知/codework_stall: %d 件工单陈>24h未销（%s）——转要码修件滞留无哨,定性归唤知会话分诊(在修/挂起/死单)",
+			n, strings.Join(parts, "、"))
+	})
+}

@@ -211,6 +211,52 @@ func TestStuckEsc(t *testing.T) {
 	}
 }
 
+// TestCodeworkStallEsc 工单滞留探——非探测席工单陈>24h未销=升件;
+// 探测席件/已销件/新件不误发。
+func TestCodeworkStallEsc(t *testing.T) {
+	ctx := context.Background()
+	pool := testutil.Pool(t)
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	for _, tbl := range []string{"ops_event"} {
+		if _, err := pool.Exec(ctx, `DELETE FROM `+tbl+` WHERE note LIKE '%t-cw%'`); err != nil {
+			t.Fatalf("clean: %v", err)
+		}
+	}
+	ins := func(seat, note string, age string) int64 {
+		var id int64
+		if err := pool.QueryRow(ctx, `INSERT INTO ops_event(seat,event,note,ts)
+			VALUES($1,'升件',$2,now()-$3::interval) RETURNING id`, seat, note, age).Scan(&id); err != nil {
+			t.Fatalf("ins %s: %v", note, err)
+		}
+		return id
+	}
+	// a: 处置席工单陈 48h 未销——该火
+	ins("处置席", "复证自审计 t-cw-old-open", "48 hours")
+	// b: 处置席工单陈 48h 已销——不该火
+	b := ins("处置席", "复证自审计 t-cw-old-closed", "48 hours")
+	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,note)
+		VALUES('处置席','处置',$1)`, fmt.Sprintf("升件#%d 修——已部署 o-core:abc", b)); err != nil {
+		t.Fatalf("disp b: %v", err)
+	}
+	// c: 探测席升件陈 48h——不该火(探针件非工单)
+	ins("探测席", "商业产出/t-cw-probe", "48 hours")
+	// d: 处置席工单新 2h——不该火(未达龄)
+	ins("处置席", "复证自审计 t-cw-fresh", "2 hours")
+	svc := coreService{pool: pool}
+	deadSince := map[string]time.Time{}
+	svc.codeworkStallEscCheck(ctx, deadSince)
+	var note string
+	if err := pool.QueryRow(ctx, `SELECT note FROM ops_event
+		WHERE event='升件' AND esc_scope='codework_stall'`).Scan(&note); err != nil {
+		t.Fatalf("工单滞留升件未落: %v", err)
+	}
+	if !strings.Contains(note, "t-cw-old-open") || strings.Contains(note, "t-cw-old-closed") || strings.Contains(note, "t-cw-probe") || strings.Contains(note, "t-cw-fresh") {
+		t.Fatalf("升件 note 谱错: %s", note)
+	}
+}
+
 // TestLessonBacklogEsc 矿积压探——pending≥5 且最陈>24h=升件;
 // 不足阈/不够陈不误发。
 func TestLessonBacklogEsc(t *testing.T) {
