@@ -284,6 +284,33 @@ func TestMatrixBasisUSDQuoteCell(t *testing.T) {
 	}
 }
 
+// 锚⑥c：复跑幂等锚——ephemeral 策略行演习毕即退（retireEphemeral/
+// drill_ephemeral_done 留痕），同格连跑不撞 active_dedupe 唯一键
+// （2026-11-10 产线实证二跑 6 格全撞——degraded_ttl 24h 不赶日拍间隔）。
+func TestMatrixRerunIdempotent(t *testing.T) {
+	ctx, m := setupMatrix(t)
+	mkOcc(t, ctx, m, "BTC-USDT-260328", "quarter_basis_long", "basis_quarter", "okx", 50)
+	cells, err := excell.Enumerate(ctx, m.Pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := excell.IndexByCoord(cells)[excell.CoordKey("quarter_basis_long", "okx", "basis_quarter")]
+	if c == nil {
+		t.Fatal("格未枚举")
+	}
+	res1 := m.runCell(ctx, *c, c.Tiers[0], shapeOKXTwoLeg)
+	res2 := m.runCell(ctx, *c, c.Tiers[0], shapeOKXTwoLeg)
+	if res2.Verdict != "pass" {
+		t.Fatalf("复跑应绿: %+v", res2)
+	}
+	var n int
+	if err := m.Pool.QueryRow(ctx, `SELECT count(*) FROM fin_strategy_transition
+		WHERE strategy_id=$1 AND to_state='retired' AND reason='drill_ephemeral_done'`,
+		res1.StrategyRef).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("首跑 ephemeral 退役留痕 n=%d err=%v", n, err)
+	}
+}
+
 // 锚⑦：Run 批跑入口全谱——免演格跳过不产凭据+占用格全档跑+汇总
 // Failed=0+凭据行数=跑过格档数（格病=verdict fail 不炸批——批跑机
 // 语义锚；单格径细节锚②~⑥）。
