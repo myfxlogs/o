@@ -4,6 +4,7 @@ Description=o-ops-relay.service RSI 工作面飞书摆渡（收口/审计行→�
 [Service]
 Type=oneshot
 WorkingDirectory=/opt/o
+Environment=PATH=/usr/local/go/bin:/home/mluser/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 ExecStart=/bin/bash /opt/o/scripts/ops_relay.sh
 NoNewPrivileges=true
 TimeoutStartSec=300

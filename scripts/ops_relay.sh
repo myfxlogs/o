@@ -18,6 +18,8 @@ WHERE id>$last AND (
   OR (seat='审计席' AND event IN ('审计','审计疑点','升件'))) ORDER BY id" |
 while IFS=$'\t' read -r id seat event note; do
 	[ "$event" = "升件" ] && [[ "$note" != *P1* ]] && continue
-	DB_DSN="$DSN" O_MASTER_KEY_FILE="$KEY" go run ./tools/feishusend "[RSI] $note" >/dev/null 2>&1 \
+	SEND="${FEISHU_BIN:-$HOME/.local/bin/feishusend}"
+	[ -x "$SEND" ] || SEND="go run ./tools/feishusend"
+	DB_DSN="$DSN" O_MASTER_KEY_FILE="$KEY" $SEND "[RSI] $note" >/dev/null 2>&1 \
 		&& echo "$id" > "$WM"
 done
