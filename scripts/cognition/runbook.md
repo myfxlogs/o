@@ -239,7 +239,13 @@ psql "$FIN_DSN" -c "SELECT id,kind,entity_ref,numbers FROM fin_econ_lesson
 - **要码修** → `git worktree add /opt/o-wt/<名>` → `bash scripts/bootstrap_worktree.sh`
   → 改 → `bash scripts/check_all.sh` → 支推 origin → 部署树 merge --no-ff
   （戳落 mirror_push 自推，勿手动推 master——单写者律）
-- **要业主**（凭据/资本/权限/红线/歧义）→ 唯一到人径：
+- **要退役/上下架策略** → **系统自裁**（业主令 2026-11-10：「策略该上
+  该退由 system 自行决定,我只管出钱/出凭证/收收益」——上退役一律
+  **不再走条件请求**）：判词载证据（死法一句+实据）→
+  `DB_DSN=$FIN_DSN go run ./tools/stratretire -id <id> -reason "<判词>"`
+  ——lifecycle.Transition 合法迁+留痕+墓志铭同径,处置行记「已退役」。
+  上线（proposed→paper）走既有生命周期闸非本径。
+- **要业主**（凭据/资本/权限/红线三件/歧义——策略上退不在此列）→ 唯一到人径：
   ```sql
   INSERT INTO ops_event(seat,event,ticket,note)
   VALUES('处置席','条件请求','','<要什么+为什么+缺它卡哪>')
