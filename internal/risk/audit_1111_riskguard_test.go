@@ -1,19 +1,10 @@
-// audit_1111_riskguard_test.go —— 审计/风控哨戒 RED 锚（audit/1111-riskguard）：
-// 断言正确语义——修复落库后自然转绿，门转正为回归锚。
-// 显跑：AUDIT_RED=1 go test ./internal/risk ./internal/guard
+// audit_1111_riskguard_test.go —— 审计/风控哨戒回归锚（audit/1111-riskguard 修复转绿落库）：
+// 断言正确语义常驻——四锚即修复面回归。
 package risk
 
 import (
-	"os"
 	"testing"
 )
-
-func auditRedGate(t *testing.T) {
-	t.Helper()
-	if os.Getenv("AUDIT_RED") != "1" {
-		t.Skip("audit RED 锚——修复期显跑: AUDIT_RED=1 go test -run " + t.Name() + " ./internal/risk；修好后去门转正为回归锚")
-	}
-}
 
 // ① 在持仓敞口双计：fin_execution state='open' 无在途/在持分态——在持仓的
 // 开仓 exec 行持仓期恒 'open'（markClosed 才迁 closed，产线实证 state 分布
@@ -22,7 +13,6 @@ func auditRedGate(t *testing.T) {
 // 实阈打半折=合法开仓被 venue_concentration/exposure_cap 误拒（armed 死锁面）。
 // 正确语义=在途 intent 与在持仓不双计（exec 在持分态或 position 谓词互斥）。
 func TestAuditExposureDoubleCountsEstablished(t *testing.T) {
-	auditRedGate(t)
 	ctx, g := setup(t)
 	// equity=1000，max_venue_pct=0.35→venue 额 350；在持仓名义 100（exec 在持
 	// 'open' 同额同 venue）→本意 vExp=100；意图 240：100+240=340≤350 当放。
@@ -63,7 +53,6 @@ func TestAuditExposureDoubleCountsEstablished(t *testing.T) {
 // 分诊面无法区分（拒因语义黑洞）。正确语义=intent 不符有专属拒因词（注册表
 // 扩键），与 token_missing 分流。
 func TestAuditTokenHashMismatchReason(t *testing.T) {
-	auditRedGate(t)
 	ctx, g := setup(t)
 	d := g.Check(ctx, intent)
 	if !d.Allow {

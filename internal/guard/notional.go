@@ -16,8 +16,10 @@ func (w *Warden) notionalNow(ctx context.Context, l leg) (float64, bool) {
 	var last *float64
 	var ts time.Time
 	if err := w.pool.QueryRow(ctx,
-		`SELECT v,ts FROM (SELECT last v,ts FROM md_ticks WHERE inst_id=$1
-			UNION ALL SELECT px,ts FROM md_mark_index WHERE inst_id=$1) q
+		// 升件#9802③：sim 域显拒——演习夹具以真实 inst_id 播种 venue='sim' 行，
+		// 无 venue 谓词=假价污判官径（risk.dcdExposureUSD 同口径先滤）。
+		`SELECT v,ts FROM (SELECT last v,ts FROM md_ticks WHERE inst_id=$1 AND venue<>'sim'
+			UNION ALL SELECT px,ts FROM md_mark_index WHERE inst_id=$1 AND venue<>'sim') q
 			ORDER BY ts DESC LIMIT 1`, l.inst).Scan(&last, &ts); err != nil || last == nil {
 		return 0, false
 	}
