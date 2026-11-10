@@ -1,0 +1,7 @@
+[Unit]
+Description=o-audit-dispatch 审计机触发拍（审计臂——域册轮换唤审计会话）
+
+[Service]
+Type=oneshot
+ExecStart=/opt/o/scripts/audit/dispatch.sh
+NoNewPrivileges=true

@@ -111,32 +111,6 @@ func (c coreService) cognitionEscCheck(ctx context.Context, deadSince map[string
 	}
 }
 
-// cognitionSpawnFailEscCheck 唤知环断产面探——唤起败连败=会话壳起不来。
-// 2026-11-10 实坑实证：SG 第二 dispatcher 临时 unit env 漂→devin list 败
-// →瞬死占跨机锁不释(唤起行在案无败迹)→好机 30min 让位连败×4,交互会话
-// 处置行遮蔽 cognitionEscCheck「唤知面死」(其判据=24h 无处置)——探针全盲
-// 2h。2h 窗 ≥2 败=结构性(单败=瞬态让位不扰);探针只述败数+末因,定性归
-// 唤知会话。败迹源=run.sh EXIT trap 释锁行(dispatch spawn 落败同义)。
-func (c coreService) cognitionSpawnFailEscCheck(ctx context.Context, deadSince map[string]time.Time) {
-	var n int
-	var last *string
-	if err := c.pool.QueryRow(ctx, `SELECT count(*),
-		(SELECT note FROM ops_event
-			WHERE seat='唤知机' AND event='唤起败' ORDER BY id DESC LIMIT 1)
-		FROM ops_event WHERE seat='唤知机' AND event='唤起败'
-		AND ts>now()-interval '2 hours'`).Scan(&n, &last); err != nil {
-		return // 读件败本拍让位
-	}
-	c.escEdgeU(ctx, deadSince, "唤知", "cognition_spawn_fail", n >= 2, func() string {
-		tail := ""
-		if last != nil && *last != "" {
-			tail = "（末因 " + *last + "）"
-		}
-		return fmt.Sprintf(
-			"唤知/cognition_spawn_fail: 唤起败 2h 窗 %d 连发%s——会话壳起不来(瞬退占锁饿死他机=认知环断产,唤知面死探针被遮蔽时不响),定性归唤知会话", n, tail)
-	})
-}
-
 // commercialEscCheck 商业产出面探——「机器在转但转不出钱」元盲区补位：
 // 策略面 30d 净产出≤0 且系统名义在赚（live/probe 在册>0）=升件
 // 商业产出/commercial_stall。口径=周净利 canon 剔 Earn 基线

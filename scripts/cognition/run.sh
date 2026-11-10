@@ -16,7 +16,17 @@ DEVIN_BIN=${O_WORKER_DEVIN_BIN:-$(command -v devin 2>/dev/null || echo "$HOME/.l
 RUNBOOK=${COG_RUNBOOK:-$SCRIPT_DIR/runbook.md}
 [ -s "$RUNBOOK" ] || { echo "[cognition] runbook 缺: $RUNBOOK" >&2; exit 2; }
 
-export O_SEAT=唤知席
+# COG_ROLE 角色化（cognition 默认|audit 审计臂——同壳两席：会话目录
+# 按角色隔离即隔离 devin list 续会话面,审计绝不 --continue 唤知会话;
+# 心跳键前缀/败迹 seat 随角色分账）。
+COG_ROLE=${COG_ROLE:-cognition}
+case "$COG_ROLE" in
+	cognition) SEAT=唤知席; SEAT_MACHINE=唤知机; HB_PREFIX=COG- ;;
+	audit)     SEAT=审计席; SEAT_MACHINE=审计机; HB_PREFIX=AUD- ;;
+	*) echo "[cognition] COG_ROLE 非法: $COG_ROLE（cognition|audit）" >&2; exit 2 ;;
+esac
+
+export O_SEAT=$SEAT
 ENVF="${REPORT_ENV_FILE:-/opt/o-research/env}"
 FIN_DSN=$(grep '^FIN_PG_DSN=' "$ENVF" 2>/dev/null | cut -d= -f2- | tr -d '"')
 
@@ -30,19 +40,19 @@ release_lock() {
 	[ "$OK" = 1 ] && return 0
 	[ -n "${FIN_DSN:-}" ] || return 0
 	psql "$FIN_DSN" -qAt -c "INSERT INTO ops_event(seat,event,ticket,note)
-		VALUES('唤知机','唤起败','','unit=$COG_UNIT reason=$REASON')" >/dev/null 2>&1 || true # tolerate: 败迹写径本身是败迹——写败无二级上报径,锁由 30min TTL 兜底,不阻主径退出
+		VALUES('$SEAT_MACHINE','唤起败','','unit=$COG_UNIT reason=$REASON')" >/dev/null 2>&1 || true # tolerate: 败迹写径本身是败迹——写败无二级上报径,锁由 30min TTL 兜底,不阻主径退出
 }
 trap 'rm -f ${LOG_FILE:+"$LOG_FILE"}; release_lock' EXIT
 
-hb() { # $1=state——唤知席心跳按日键（会话逐日新面,互不盖）
+hb() { # $1=state——心跳按日键（会话逐日新面,互不盖；前缀随角色）
   [ -n "$FIN_DSN" ] || return 0
   psql "$FIN_DSN" -qAt -c "INSERT INTO ops_headless(ticket,seat,state,last_activity)
-    VALUES('COG-$(date +%Y%m%d)','唤知席','$1',now())
+    VALUES('${HB_PREFIX}$(date +%Y%m%d)','$SEAT','$1',now())
     ON CONFLICT (ticket) DO UPDATE SET seat=EXCLUDED.seat,
       state=EXCLUDED.state,last_activity=now(),updated_at=now()" >/dev/null 2>&1 || true # tolerate: 心跳=尽力径——hb写败不阻会话主径（dev_run.sh 先例同构）
 }
 
-SESSION_DIR="$(o_worker_runtime_dir)/sessions/cognition"
+SESSION_DIR="$(o_worker_runtime_dir)/sessions/$COG_ROLE"
 mkdir -p "$SESSION_DIR" && chmod 700 "$SESSION_DIR" && cd "$SESSION_DIR" || exit 1
 
 if quota_reset=$(o_worker_quota_until); then
@@ -69,8 +79,18 @@ esac
 # KB 召回（T-0521：经验库只写不读根修）——recall.sh 按未决升件词面命中
 # 条目挂 prompt 尾：每场会话起手头已带命中案卷。败=空串静默（fail-open
 # 不阻主径）——会话见块照口径读件,无块=本拍零命中非库坏。
-RECALL=$("$SCRIPT_DIR/recall.sh" 2>/dev/null || true) # tolerate: 召回败=知识面缺非闸面——空串静默不阻会话主径（runbook ①½ 生成面兜底）
-PROMPT=$(cat "$RUNBOOK")
+if [ "$COG_ROLE" = audit ] && [ -n "${COG_RECALL_WORDS:-}" ]; then
+	RECALL=$("$SCRIPT_DIR/recall.sh" -w "$COG_RECALL_WORDS" 2>/dev/null || true) # tolerate: 同上
+else
+	RECALL=$("$SCRIPT_DIR/recall.sh" 2>/dev/null || true) # tolerate: 召回败=知识面缺非闸面——空串静默不阻会话主径（runbook ①½ 生成面兜底）
+fi
+PROMPT=""
+# COG_SCOPE 审计域注入（dispatch 塞的域牌——非空即冠 prompt 首）。
+[ -n "${COG_SCOPE:-}" ] && PROMPT="## 本场审计域（dispatch 注入）
+scope=$COG_SCOPE
+
+"
+PROMPT="$PROMPT$(cat "$RUNBOOK")"
 [ -n "$RECALL" ] && PROMPT="$PROMPT
 
 ## KB 召回案卷（自动注入——按本拍未决升件词面命中 TOP8）
