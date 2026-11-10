@@ -112,7 +112,13 @@ psql "$FIN_DSN" -c "SELECT id,kind,entity_ref,numbers FROM fin_econ_lesson
     （缺 executor/数据面/venue 的诉求卡），**不是**评估输入——
     评估器只枚举 grammar.Families() 闭集码面族。proposed 久滞=
     「族注册+executor 落位」需求在积：可落地→要码修（族表+执行面）；
-    不可行→UPDATE state='dismissed'+处置行。
+    不可行→dismissed。
+  - **卡裁决窄门**（T-0522——禁直 SQL）：`hypo decide -id N -state
+    adopted|parked|dismissed -reason "裁词"`——execfam 骨检
+    （adopted 须执行族在册）+ops_event 审计行；OCI arm64 构建
+    scp 后跑，`DB_DSN`=md 正本、`OPS_DB_DSN`=ROSTER_PG_DSN
+    （跨库两序写——review_rw 缺 ops_headless 权败案在案；
+    seat∈{处置席,复审席}——fin_0154 矩阵）。
   - **卡→族骨架交付清单**（要码修件的交付形——骨架齐=卡收养毕，
     paper 跑通数据再谈 live executor 权重）：
     ① grammar.Families() 注册行（模板名+腿向+结算源——枚举闭集入口）；

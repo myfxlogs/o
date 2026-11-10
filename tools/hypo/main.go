@@ -2,7 +2,9 @@
 // 两子命令——card: INSERT fin_opp_hypothesis（UNIQUE(venue,surface) 幂等，
 // 重复面不重生）；metrics: 周卡数/采纳率 upsert fin_employee_registry
 // 「研究员」行（产出度量机读+last_beat 在岗锚——research_arm_silent 看门锚源）。
-// 零越权证载体：本文件=研究员全部 DB 写面，仅此两条写语句——venue 写径/
+// decide: 假想卡 state 迁移窄门（execfam 骨检+ops_event 审计行；
+// OPS_DB_DSN 置=审计跨库两序写——md 正本与 fin 正本裂面实据在案）。
+// 零越权证载体：本文件=研究员全部 DB 写面——venue 写径/
 // fin_opp_template/fin_proposal 零触（grep 证锚）。
 package main
 
@@ -121,7 +123,7 @@ func decide(ctx context.Context, pool *pgxpool.Pool, args []string) {
 	id := fs.Int64("id", 0, "假想卡 id")
 	state := fs.String("state", "", "目标态 adopted|parked|dismissed")
 	reason := fs.String("reason", "", "裁词（必填——入审计行证据面）")
-	seat := fs.String("seat", "决策席", "裁席名（ops_event.seat）")
+	seat := fs.String("seat", "处置席", "裁席名（ops_event.seat——fin_0154 矩阵 处置∈{处置席,复审席}）")
 	tmpl := fs.String("template", "", "模板名（缺省=surface 剥 _template 尾）")
 	fs.Parse(args)
 	if *id <= 0 || *reason == "" {
@@ -158,6 +160,27 @@ func decide(ctx context.Context, pool *pgxpool.Pool, args []string) {
 		fatal(fmt.Errorf("decide: state 迁败: %w", err))
 	}
 	note := fmt.Sprintf("假想卡#%d %s: %s→%s 裁词=%s", *id, surface, old, *state, *reason)
+	// 审计面跨库裂（KB hypothesis-cards-adopt-via-hypo-tool——fin_opp_hypothesis
+	// 正本在 OCI PG-md，ops_event 正本在 SG fin 库）：OPS_DB_DSN 置=两序写
+	// （态迁先落审计后补，审计落败=态已迁+显式重放声，零静默）；
+	// 缺省=同库同事务（测试/同域面原语义）。
+	if opsDSN := os.Getenv("OPS_DB_DSN"); opsDSN != "" {
+		if err := tx.Commit(ctx); err != nil {
+			fatal(err)
+		}
+		opool, err := pgxpool.New(ctx, opsDSN)
+		if err != nil {
+			fatal(fmt.Errorf("decide: 态已迁 #%d %s→%s——审计面连落败（OPS_DB_DSN），手工补 INSERT INTO ops_event(seat,event,ticket,note) VALUES('%s','处置','hypo','%s'): %w", *id, old, *state, *seat, note, err))
+		}
+		defer opool.Close()
+		if _, err := opool.Exec(ctx,
+			`INSERT INTO ops_event(seat,event,ticket,note) VALUES($1,'处置','hypo',$2)`,
+			*seat, note); err != nil {
+			fatal(fmt.Errorf("decide: 态已迁 #%d %s→%s——审计行落败，手工补 INSERT INTO ops_event(seat,event,ticket,note) VALUES('%s','处置','hypo','%s'): %w", *id, old, *state, *seat, note, err))
+		}
+		fmt.Printf("decide #%d %s→%s（template=%s 审计行落账·跨库 OPS_DB_DSN）\n", *id, old, *state, t)
+		return
+	}
 	if _, err := tx.Exec(ctx,
 		`INSERT INTO ops_event(seat,event,ticket,note) VALUES($1,'处置','hypo',$2)`,
 		*seat, note); err != nil {
