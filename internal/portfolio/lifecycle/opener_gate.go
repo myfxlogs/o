@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -109,7 +110,20 @@ func (r *Runner) breakevenOK(ctx context.Context, spec OpenSpec) (bool, string) 
 	if maxH, err = get("guard.max_hold_hours"); err != nil {
 		return false, err.Error()
 	}
-	p.HoldDays = maxH / 24 // 与评估器同一时间地平线一源
+	// T-0521 ①摊销窗实测定案：funding_flip 平闸在案——真实持仓寿命=收租
+	// 号连续段长（产线实测全局中位 0.7d），不是 max_hold 声明窗；72h 摊
+	// 销=乐观 4 倍定价病灶。分母=min(声明上限,该 inst 收租段中位 30d)。
+	// 史缺=不虚构摊销窗 fail-closed（该 inst 30d 无该号收租段=本来就摊
+	// 不开——拒开是测量结论非惩罚）。右删失段（在飞段）计入=保守向偏。
+	sign := 1.0
+	if strings.HasPrefix(spec.Direction, "long_perp") {
+		sign = -1
+	}
+	measH, merr := r.measuredHoldDays(ctx, spec.InstID, sign)
+	if merr != nil || measH <= 0 {
+		return false, fmt.Sprintf("持仓段史缺（%s 30d 无收租号段——摊销窗不虚构 fail-closed）", spec.InstID)
+	}
+	p.HoldDays = math.Min(maxH/24, measH)
 	safety := 1.5
 	if v, err := r.cfg.GetFloat("guard.breakeven_safety"); err == nil && v > 0 {
 		safety = v
@@ -126,13 +140,39 @@ func (r *Runner) breakevenOK(ctx context.Context, spec OpenSpec) (bool, string) 
 	if grossAPR < costAPR*safety {
 		if n := r.rejectEvalReason(ctx, spec, "breakeven_beyond_hold", map[string]any{
 			"cost_apr": costAPR, "gross_apr": grossAPR, "safety": safety,
-			"funding_rate": *rate, "hold_days": p.HoldDays}); !n {
+			"funding_rate": *rate, "hold_days": p.HoldDays, "measured_hold": measH}); !n {
 			return false, fmt.Sprintf("breakeven_beyond_hold:毛收 %.4f<摩擦年化 %.4f×%.1f",
 				grossAPR, costAPR, safety)
 		}
 		return false, "breakeven_beyond_hold"
 	}
 	return true, ""
+}
+
+// measuredHoldDays 实测持仓窗（T-0521 ①）：md_funding 该 inst 近 30d
+// sign 号收租连续段的天数中位——正号段=short_perp 收租期,负号段=
+// long_perp 收租期。sign(funding_rate)=0 行按 0 号分段（中断两侧段）。
+// 段长=段内 max−min+一个结算窗（0.334d≈8h——末行后仍收一窗租）。
+// 该 inst 无 sign 号段→0=facts 缺（caller fail-closed,不虚构摊销窗）。
+func (r *Runner) measuredHoldDays(ctx context.Context, inst string, sign float64) (float64, error) {
+	var d *float64
+	err := r.pool.QueryRow(ctx, `WITH s AS (
+		SELECT ts,funding_rate,LAG(funding_rate) OVER (ORDER BY ts) prev
+		FROM md_funding WHERE inst_id=$1 AND ts>now()-interval '30 days'),
+	r AS (SELECT ts,funding_rate,
+		SUM(CASE WHEN sign(funding_rate)<>sign(COALESCE(prev,0)) THEN 1 ELSE 0 END)
+		OVER (ORDER BY ts) rid FROM s),
+	st AS (SELECT EXTRACT(EPOCH FROM (max(ts)-min(ts)))/86400.0+0.334 d,
+		sign(max(funding_rate)) sg FROM r GROUP BY rid)
+	SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY d) FROM st WHERE sg=$2`,
+		inst, sign).Scan(&d)
+	if err != nil {
+		return 0, err
+	}
+	if d == nil {
+		return 0, nil
+	}
+	return *d, nil
 }
 
 // rejectEvalReason 通用拒卡落件（T-0111：reason 参数化——lifetime/回本窗同径

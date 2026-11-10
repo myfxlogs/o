@@ -191,8 +191,11 @@ func seedFlip(t *testing.T, ctx context.Context, r *Runner) {
 // →carry=5.4×9=48.6bps>4×(5+3)×1.5=48 回本窗闸过——T-0111 尾注夹具提量）。
 func seedFunding(t *testing.T, ctx context.Context, r *Runner) {
 	t.Helper()
+	// T-0521：单穿行=0.334d 实测段——摊销窗实测化后须种 ≥3d 正号段才顶住
+	// max_hold 上限（generate_series 10 行×8h；判据经济口径不变）。
 	if _, err := r.pool.Exec(ctx, `INSERT INTO md_funding(ts,inst_id,funding_rate,next_funding_rate)
-		VALUES(now(),'OP-USDT-SWAP',0.0006,0.0004)`); err != nil {
+		SELECT now()-interval '8 hours'*g,'OP-USDT-SWAP',0.0006,0.0004
+		FROM generate_series(0,9) g`); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -260,7 +263,8 @@ func TestOpenLifetimePassesHealthy(t *testing.T) {
 	mkStrategy(t, ctx, r, "live", time.Hour)
 	// 0.0006→carry 48.6bps>48 回本窗闸过（T-0111 尾注——0.0005 夹具落闸下）。
 	if _, err := r.pool.Exec(ctx, `INSERT INTO md_funding(ts,inst_id,funding_rate,next_funding_rate)
-		VALUES(now(),'OP-USDT-SWAP',0.0006,0.0004)`); err != nil {
+		SELECT now()-interval '8 hours'*g,'OP-USDT-SWAP',0.0006,0.0004
+		FROM generate_series(0,9) g`); err != nil {
 		t.Fatal(err)
 	}
 	seedAllCellsGreen(t, ctx, r) // T-0461 格凭据闸
@@ -326,7 +330,8 @@ func TestOpenBreakevenRejectsThin(t *testing.T) {
 	mkStrategy(t, ctx, r, "live", time.Hour)
 	// ETH 级薄 funding（0.5bps=0.00005——回本窗远超 72h 持仓上限）。
 	if _, err := r.pool.Exec(ctx, `INSERT INTO md_funding(ts,inst_id,funding_rate,next_funding_rate)
-		VALUES(now(),'OP-USDT-SWAP',0.00005,0.00005)`); err != nil {
+		SELECT now()-interval '8 hours'*g,'OP-USDT-SWAP',0.00005,0.00005
+		FROM generate_series(0,9) g`); err != nil {
 		t.Fatal(err)
 	}
 	r.openLive(ctx)
@@ -360,7 +365,8 @@ func TestBreakevenMeasuredOverride(t *testing.T) {
 	ins("lifecycle.friction_slip_bps.okx", "10")
 	// 薄 funding→仍拒,但拒卡 cost_apr 应取实测口径非声明口径。
 	if _, err := r.pool.Exec(ctx, `INSERT INTO md_funding(ts,inst_id,funding_rate,next_funding_rate)
-		VALUES(now(),'OP-USDT-SWAP',0.00005,0.00005)`); err != nil {
+		SELECT now()-interval '8 hours'*g,'OP-USDT-SWAP',0.00005,0.00005
+		FROM generate_series(0,9) g`); err != nil {
 		t.Fatal(err)
 	}
 	readCost := func() float64 {

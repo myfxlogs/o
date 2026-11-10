@@ -1,9 +1,10 @@
 // gradgate.go —— 毕业闸升级件（T-0521 FinRL 镜照②：时长/净回报/回撤裸阈升
 // 置信下界证伪制+族进入条件判词层）。
-// 置信下界口径（策略评估 skill B.12 同族思想移植到连续收益面）：
-// 收入流日聚合（kind=funding/swap——fee/snapshot 等非收入项不入列；fee 是
-// 确定性成本由 net≥minNet 兜，不污染随机序列）→mean−2σ/√N>0 才算收入
-// 可证伪为正。N<3=样本不足 fail-closed（不虚构置信）。
+// 置信下界口径（策略评估与仓位 skill 前提标注正本：N<30 用 Student-t 非正态；
+// 事件独立假设——N<30 时游程检验不可行，判词附「独立性未检」降级标注）：
+// 收入流按结算笔序列（kind=funding/swap——fee/snapshot 等非收入项不入列；
+// fee 是确定性成本由 net≥minNet 兜，不污染随机序列）→
+// mean−t(0.975,N−1)·sd/√N>0 才算收入可证伪为正。N<3=样本不足 fail-closed。
 // 进入条件判词（按族风险结构判「现在该不该进」——机会仍在条件复满即解，
 // 非否决）：
 //
@@ -23,14 +24,32 @@ import (
 )
 
 const (
-	confZ        = 2.0 // 下界判词系数（小样本保守档；N<30 t≈2 覆盖域）
 	confMinFills = 3   // 置信序列最小结算笔数——不足 fail-closed
 	volPctileReq = 0.5 // vol-sell 入场 APR 分位线（自史中位）
 )
 
+// tQ975 单侧 97.5% Student-t 分位（index=自由度 df=N−1；df>30 收敛正态 1.96）。
+// 策略评估与仓位 skill：N<30 小样本用 t 不用 z——z=2.0 在 df=2 时相当于
+// t=4.303 的 3 倍放水，是正本钦定的修正面。
+var tQ975 = [...]float64{
+	0, 12.706, 4.303, 3.182, 2.776, 2.571, 2.447, 2.365, 2.306, 2.262, 2.228,
+	2.201, 2.179, 2.160, 2.145, 2.131, 2.120, 2.110, 2.101, 2.093, 2.086,
+	2.080, 2.074, 2.069, 2.064, 2.060, 2.056, 2.052, 2.048, 2.045, 2.042,
+}
+
+func tQ975At(df int) float64 {
+	if df > len(tQ975)-1 {
+		return 1.96
+	}
+	if df < 1 {
+		df = 1
+	}
+	return tQ975[df]
+}
+
 // confGate 置信下界证伪闸：收入流按结算笔序列（kind=funding/swap——
 // funding 结算笔/dcd 日摊笔=真实观测粒度；fee/snapshot 等非收入项不入列，
-// fee 是确定性成本由 net≥minNet 兜）LB=mean−confZ·sd/√N>0 才放。
+// fee 是确定性成本由 net≥minNet 兜）LB=mean−t(0.975,N−1)·sd/√N>0 才放。
 // sd 用样本标准差（ddof=1）。返回 (放?, 判词)。
 func (r *Runner) confGate(ctx context.Context, strategyID int64) (bool, string) {
 	rows, err := r.pool.Query(ctx, `SELECT amount_usd FROM fin_paper_fill
@@ -62,12 +81,17 @@ func (r *Runner) confGate(ctx context.Context, strategyID int64) (bool, string) 
 		sd += (v - mean) * (v - mean)
 	}
 	sd = math.Sqrt(sd / (n - 1))
-	lb := mean - confZ*sd/math.Sqrt(n)
-	if lb <= 0 {
-		return false, fmt.Sprintf("收入流置信下界未过（N=%d mean=%.4f sd=%.4f LB=%.4f≤0）",
-			int(n), mean, sd, lb)
+	tq := tQ975At(int(n) - 1)
+	lb := mean - tq*sd/math.Sqrt(n)
+	indep := ""
+	if n < 30 {
+		indep = "独立性未检(N<30)"
 	}
-	return true, fmt.Sprintf("LB=%.4f>0(N=%d)", lb, int(n))
+	if lb <= 0 {
+		return false, fmt.Sprintf("收入流置信下界未过（N=%d mean=%.4f sd=%.4f t=%.3f LB=%.4f≤0 %s）",
+			int(n), mean, sd, tq, lb, indep)
+	}
+	return true, fmt.Sprintf("LB=%.4f>0(N=%d t=%.3f %s)", lb, int(n), tq, indep)
 }
 
 // entryCondition 进入条件判词（逆 regime 延评非否决——条件复满即自解）。

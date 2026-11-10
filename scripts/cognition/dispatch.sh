@@ -45,10 +45,33 @@ if systemctl --user list-units 'o-cognition-*' --state=active,activating --no-le
 fi
 
 UNIT="o-cognition-$(date +%s)"
+
+# 跨机单飞闸（T-0521 认知双活根修）：本机 systemd 闸只管本机面——第二台
+# dispatch 机同拍=双会话双处置双账。PG advisory lock(7969) 序列化临界区,
+# 「30min 唤起在案且无同 unit 唤起败」为跨机在飞判据——INSERT...WHERE NOT
+# EXISTS...RETURNING 单会话内持锁,胜方插行,败方读到已提交行即退。
+# spawn 落败→补'唤起败'同 unit 行=败迹清锁,下拍可重唤（append-only 径——
+# 不删行,补事实行）。
+WON=$(psql "$DSN" -qAt <<SQL
+SELECT pg_advisory_lock(7969);
+INSERT INTO ops_event(seat,event,ticket,note)
+SELECT '唤知机','唤起','','unit=$UNIT trigger=$TRIGGER'
+WHERE NOT EXISTS (
+	SELECT 1 FROM ops_event e
+	WHERE e.seat='唤知机' AND e.event='唤起' AND e.ts>now()-interval '30 minutes'
+	  AND NOT EXISTS (SELECT 1 FROM ops_event x
+	    WHERE x.seat='唤知机' AND x.event='唤起败' AND x.ts>e.ts
+	      AND x.note LIKE '%'||substring(e.note from 'unit=[^ ]+')||'%'))
+RETURNING id;
+SELECT pg_advisory_unlock(7969);
+SQL
+)
+WON=$(printf '%s\n' "$WON" | grep -oE '^[0-9]+$' | head -1)
+[ -n "$WON" ] || exit 0 # 30min 内跨机唤起在案=在飞会话非本机辖——退
 systemd-run --user --unit="$UNIT" --collect \
 	--property=Description="唤知会话(trigger=$TRIGGER)" \
-	"$SCRIPT_DIR/run.sh" || { echo "[dispatch] systemd-run 唤起落败" >&2; exit 1; }
-echo "[dispatch] 唤起 $UNIT trigger=$TRIGGER"
-# 唤起落账(ops_event 唤知行——唤起事件本身可查回放;note值=自产串零注入面)
-psql "$DSN" -qAt -c "INSERT INTO ops_event(seat,event,ticket,note)
-	VALUES('唤知机','唤起','', 'unit=$UNIT trigger=$TRIGGER')" >/dev/null 2>&1 || true # tolerate: 自报末环——唤起落账败静默退,不递归再报（纪元2 ops_esc 同款结构性限度）
+	"$SCRIPT_DIR/run.sh" || {
+		psql "$DSN" -qAt -c "INSERT INTO ops_event(seat,event,ticket,note)
+			VALUES('唤知机','唤起败','','unit=$UNIT trigger=$TRIGGER spawn落败')" >/dev/null 2>&1
+		echo "[dispatch] systemd-run 唤起落败(败迹已清锁)" >&2; exit 1; }
+echo "[dispatch] 唤起 $UNIT trigger=$TRIGGER (esc#$WON)"

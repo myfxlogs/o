@@ -52,6 +52,7 @@ func (c coreService) escLoop(ctx context.Context, al *notify.Alerter) {
 		c.reconEscCheck(ctx, deadSince)
 		c.orphanEscCheck(ctx, deadSince)
 		c.cognitionEscCheck(ctx, deadSince, al)
+		c.commercialEscCheck(ctx, deadSince)
 		c.dataGapEscCheck(ctx, deadSince)
 	}
 }
