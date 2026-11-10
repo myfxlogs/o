@@ -54,7 +54,7 @@ esac
 # KB 召回（T-0521：经验库只写不读根修）——recall.sh 按未决升件词面命中
 # 条目挂 prompt 尾：每场会话起手头已带命中案卷。败=空串静默（fail-open
 # 不阻主径）——会话见块照口径读件,无块=本拍零命中非库坏。
-RECALL=$("$SCRIPT_DIR/recall.sh" 2>/dev/null || true)
+RECALL=$("$SCRIPT_DIR/recall.sh" 2>/dev/null || true) # tolerate: 召回败=知识面缺非闸面——空串静默不阻会话主径（runbook ①½ 生成面兜底）
 PROMPT=$(cat "$RUNBOOK")
 [ -n "$RECALL" ] && PROMPT="$PROMPT
 
