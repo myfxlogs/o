@@ -72,7 +72,7 @@ func LatestPx(ctx context.Context, pool *pgxpool.Pool, instID string) (float64, 
 	var px float64
 	var ts time.Time
 	if err := pool.QueryRow(ctx,
-		`SELECT v,ts FROM (SELECT last v,ts FROM md_ticks WHERE inst_id=$1
+		`SELECT v,ts FROM (SELECT last v,ts FROM md_ticks WHERE inst_id=$1 AND venue<>'sim'
 			UNION ALL SELECT px,ts FROM md_mark_index WHERE inst_id=$1) q
 			ORDER BY ts DESC LIMIT 1`,
 		instID).Scan(&px, &ts); err != nil {

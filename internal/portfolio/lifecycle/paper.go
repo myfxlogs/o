@@ -276,7 +276,7 @@ func (r *Runner) dcdPaperAccounting(ctx context.Context) error {
 		var spot float64
 		var tickTs time.Time
 		err = r.pool.QueryRow(ctx, `SELECT last,ts FROM md_ticks
-			WHERE inst_id=regexp_replace($1,'-USD(G)?$','-USDT')`, ulys[0].uly).Scan(&spot, &tickTs)
+			WHERE inst_id=regexp_replace($1,'-USD(G)?$','-USDT') AND venue<>'sim'`, ulys[0].uly).Scan(&spot, &tickTs)
 		if err != nil || spot <= 0 || time.Since(tickTs) > time.Duration(maxAge*float64(time.Second)) {
 			r.rej.Inc("dcd_spot_stale")
 			continue // 现货腿价缺/陈=事实缺 fail-closed 让位不造 fill（T-0171）

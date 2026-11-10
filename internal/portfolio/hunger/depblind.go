@@ -223,7 +223,7 @@ func (s *Sensor) depCounts(ctx context.Context, p depPair) (prodN, consN int, er
 		}
 	case "leg":
 		if err = s.pool.QueryRow(ctx, `SELECT count(*) FROM md_ticks
-			WHERE inst_id=$1 AND ts>now()-make_interval(mins=>$2)`,
+			WHERE inst_id=$1 AND venue<>'sim' AND ts>now()-make_interval(mins=>$2)`,
 			p.producer, depblindLegFreshMin).Scan(&prodN); err != nil {
 			return 0, 0, fmt.Errorf("产者行情行数读败: %w", err)
 		}
@@ -242,7 +242,7 @@ func (s *Sensor) depCounts(ctx context.Context, p depPair) (prodN, consN int, er
 			return 0, 0, fmt.Errorf("产者晋级请求读败: %w", err)
 		}
 		if err = s.pool.QueryRow(ctx, `SELECT count(*) FROM md_ticks
-			WHERE inst_id=$1 AND ts>now()-make_interval(mins=>$2)`,
+			WHERE inst_id=$1 AND venue<>'sim' AND ts>now()-make_interval(mins=>$2)`,
 			p.consumer, depblindLegFreshMin).Scan(&consN); err != nil {
 			return 0, 0, fmt.Errorf("消费者晋级 tick 读败: %w", err)
 		}

@@ -7,7 +7,10 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"o/internal/trading/dcdexec"
+	"o/internal/trading/execution"
 	"o/internal/trading/simvenue"
 )
 
@@ -40,10 +43,11 @@ func (d *Drill) runDCDDrill(ctx context.Context, res Result, inst, templateRef s
 			(ts,venue,surface,uly,product_id,direction,raw)
 			VALUES(now(),'sim','drill',$1,$2,$3,'{"notionalCcy":"USDT"}')
 			ON CONFLICT (venue,product_id) DO UPDATE SET raw=EXCLUDED.raw,ts=now()`,
-			"SIM-"+pid, pid, dir); err != nil {
+			"SIM-"+pid, simProductKey(pid), dir); err != nil {
 			return res, fmt.Errorf("dcd 产品夹具播种败: %w", err)
 		}
 	}
+	defer retireSimDcdProducts(ctx, d.Pool, parts)
 	// ephemeral 策略行（degraded——同 SWAP 径标审计/免竞态）。
 	var drillStrat int64
 	if err := d.Pool.QueryRow(ctx, `INSERT INTO fin_strategy(inst_id,template_ref,state,notional_usd,venue)
@@ -62,9 +66,9 @@ func (d *Drill) runDCDDrill(ctx context.Context, res Result, inst, templateRef s
 
 	legs := make([]dcdLeg, 0, n)
 	for i, pid := range parts {
-		sim := newDcdSim(pid, per)
+		sim := newDcdSim(simProductKey(pid), per)
 		execID, err := dcdexec.Open(ctx, dcdexec.Deps{Pool: d.Pool, Gate: d.Gate}, sim,
-			dcdexec.Spec{StrategyRef: drillStrat, Venue: "okx", InstID: pid,
+			dcdexec.Spec{StrategyRef: drillStrat, Venue: "okx", InstID: simProductKey(pid),
 				Direction: templateRef, Template: templateRef, NotionalUSD: per})
 		if err != nil {
 			res.Verdict, res.Detail = "fail", d.fail(ctx, res, fmt.Sprintf(
@@ -134,3 +138,23 @@ func (d *Drill) writeDrill(ctx context.Context, res Result) (Result, error) {
 	}
 	return res, nil
 }
+
+// retireSimTicks 演习行情锚退役（ephemeral 建/退对称——venue='sim' 行
+// 永生=产线盲读遮蔽源+逐跑堆叠）。只清本钻腿键,他跑行不动。
+func retireSimTicks(ctx context.Context, pool *pgxpool.Pool, legs [2]execution.Leg) {
+	for _, l := range legs {
+		_, _ = pool.Exec(ctx, `DELETE FROM md_ticks WHERE venue='sim' AND inst_id=$1`, l.InstID)
+	}
+}
+
+// retireSimDcdProducts 演习 dcd 产品夹具退役（同 retireSimTicks 律——
+// sim: 名空间键域行演习毕即清）。
+func retireSimDcdProducts(ctx context.Context, pool *pgxpool.Pool, parts []string) {
+	for _, pid := range parts {
+		_, _ = pool.Exec(ctx, `DELETE FROM md_dcd_product WHERE venue='sim' AND product_id=$1`, simProductKey(pid))
+	}
+}
+
+// simProductKey dcd 产品夹具名空间键（产线读面 product_id=$真键 不可见——
+// venue 盲读遮蔽的键域隔离件;spec.InstID 同键寻址夹具行）。
+func simProductKey(pid string) string { return "sim:" + pid }

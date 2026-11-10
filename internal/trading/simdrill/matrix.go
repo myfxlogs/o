@@ -51,6 +51,10 @@ func legShapeOf(tmpl string) (legShape, bool) {
 		return shapeOKXTwoLeg, true
 	case tmpl == "xvenue-carry":
 		return shapeXvenue, true
+	case tmpl == "simdrill-gate":
+		// 演习 harness 自体测试模板（单钻径通用双腿闸演——非产线模板，
+		// Run 派路经 legShapeOf 单源后须显式登记否则拒载）。
+		return shapeOKXTwoLeg, true
 	case strings.HasPrefix(tmpl, "dcd_") || strings.HasPrefix(tmpl, "vol_sell"):
 		// vol_sell=DCD 产品径（strangle 复合键 runDCD 内拆腿）——原误映
 		// okx_two_leg 会拿产品键当现货/合约键跑错腿（T-0522 假想卡骨架批）。

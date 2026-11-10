@@ -84,6 +84,7 @@ func (m *Matrix) execTwoLeg(ctx context.Context, res *CellResult, vs *simvenue.S
 			return
 		}
 	}
+	defer retireSimTicks(ctx, m.Pool, legs)
 	runner := execution.NewRunner(m.Pool, m.Cfg, router)
 	legLabels := make([]string, 0, 2)
 	for _, l := range legs {
@@ -180,6 +181,7 @@ func (m *Matrix) runDCD(ctx context.Context, res *CellResult, c excell.Cell,
 	}
 	n := len(parts)
 	per := t.Notional / float64(n) // 等权名义/腿——strangle 执行器同律
+	defer retireSimDcdProducts(ctx, m.Pool, parts)
 	legs := make([]dcdLeg, 0, n)
 	for i, pid := range parts {
 		dir := "C"
@@ -194,9 +196,9 @@ func (m *Matrix) runDCD(ctx context.Context, res *CellResult, c excell.Cell,
 			res.Verdict, res.Detail = "fail", res.Detail+" dcd 产品夹具写败: "+err.Error()
 			return
 		}
-		sim := newDcdSim(pid, per)
+		sim := newDcdSim(simProductKey(pid), per)
 		execID, err := dcdexec.Open(ctx, dcdexec.Deps{Pool: m.Pool, Gate: m.Gate}, sim,
-			dcdexec.Spec{StrategyRef: stratID, Venue: "okx", InstID: pid,
+			dcdexec.Spec{StrategyRef: stratID, Venue: "okx", InstID: simProductKey(pid),
 				Direction: c.Direction, Template: c.Template, NotionalUSD: per})
 		if err != nil {
 			// 半构歧态势——volSellStrangle 同判词:已开腿不可回滚（DCD 无撤销面），
@@ -284,6 +286,6 @@ func (m *Matrix) seedDcdProduct(ctx context.Context, productID, dir string) erro
 		(ts,venue,surface,uly,product_id,direction,raw)
 		VALUES(now(),'sim','drill',$1,$2,$3,$4)
 		ON CONFLICT (venue,product_id) DO UPDATE SET raw=EXCLUDED.raw,ts=now()`,
-		"SIM-"+productID, productID, dir, `{"notionalCcy":"USDT"}`)
+		"SIM-"+productID, simProductKey(productID), dir, `{"notionalCcy":"USDT"}`)
 	return err
 }

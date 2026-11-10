@@ -191,7 +191,7 @@ func (g *Gate) dcdExposureUSD(ctx context.Context) (float64, bool) {
 		if ccy != "USDT" && ccy != "USD" {
 			var p *float64
 			err := g.pool.QueryRow(ctx, `SELECT p FROM (
-			      SELECT ts,last AS p FROM md_ticks WHERE inst_id=$1||'-USDT'
+			      SELECT ts,last AS p FROM md_ticks WHERE inst_id=$1||'-USDT' AND venue<>'sim'
 			      UNION ALL
 			      SELECT ts,px AS p FROM md_mark_index WHERE inst_id=$1||'-USDT'
 			    ) u ORDER BY ts DESC LIMIT 1`, ccy).Scan(&p)

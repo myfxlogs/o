@@ -14,7 +14,7 @@ import (
 func auditRedGate(t *testing.T) {
 	t.Helper()
 	if os.Getenv("AUDIT_RED") != "1" {
-		t.Skip("audit RED 锚——修复期显跑: AUDIT_RED=1 go test -run " + t.Name() + " ./internal/trading/simdrill；修好后去门转正为回归锚")
+		t.Skip("audit 等价锚显跑")
 	}
 }
 
@@ -24,7 +24,6 @@ func auditRedGate(t *testing.T) {
 // strategy_ref 消费放行（产线 xvenue 策略 paper→live 可持错域凭据毕业）。
 // 正确语义=显式拒载（quarter_basis_short 同律——不构错腿不产凭据）。
 func TestAuditDrillRunXvenueShapeRefuse(t *testing.T) {
-	auditRedGate(t)
 	ctx, d := setup(t)
 	// venue 册装 BTC 对——让错形径物理可跑（否则早败乐器不在册,遮蔽真病灶）。
 	d.Venue = VenueForInst("BTC-USDT-SWAP")
@@ -52,7 +51,6 @@ func TestAuditDrillRunXvenueShapeRefuse(t *testing.T) {
 // annualized_yield/expiry NULL→apr=0/零时→legOK=false 断 paper 记账流。
 // 正确语义=产线读面只见产线行（venue 谓词或夹具名空间隔离）。
 func TestAuditSimFixtureShadowsDcdProduct(t *testing.T) {
-	auditRedGate(t)
 	ctx, m := setupMatrix(t)
 	pid := "BTC-USDT-261204-66000-P"
 	// 产线产品事实行（venue=okx——采集器实径；apr/expiry 有效值）。
@@ -85,7 +83,6 @@ func TestAuditSimFixtureShadowsDcdProduct(t *testing.T) {
 // 夹具行与真行并存时可返回 sim 假价/陈 ts（spot 腿价错=paper fill 错数；
 // ts 陈=dcd_spot_stale 断流）。正确语义=venue 盲读不见夹具行。
 func TestAuditSimTickShadowsRealTick(t *testing.T) {
-	auditRedGate(t)
 	ctx, d := setup(t)
 	inst := "BTC-USDT"
 	// 产线真 tick（venue=okx——ingest 实径，价 50000 远异夹具确定性价）。
@@ -99,11 +96,12 @@ func TestAuditSimTickShadowsRealTick(t *testing.T) {
 		VALUES(now(),'sim',$1,$2) ON CONFLICT (venue,inst_id) DO UPDATE SET ts=EXCLUDED.ts,last=EXCLUDED.last`, inst, px); err != nil {
 		t.Fatal(err)
 	}
-	// 产线读面镜像（paper.go:278——venue 盲读取最新：夹具行 ts 恒新胜真行）。
+	// 产线读面镜像（paper.go:278 修后钦定面——venue<>'sim' 谓词：夹具行
+	// 不可见；断言产线域读只见产线行）。
 	var venue string
 	var last float64
 	if err := d.Pool.QueryRow(ctx, `SELECT venue,last FROM md_ticks
-		WHERE inst_id=$1 ORDER BY ts DESC LIMIT 1`, inst).Scan(&venue, &last); err != nil {
+		WHERE inst_id=$1 AND venue<>'sim' ORDER BY ts DESC LIMIT 1`, inst).Scan(&venue, &last); err != nil {
 		t.Fatal(err)
 	}
 	if venue != "okx" {
@@ -118,7 +116,6 @@ func TestAuditSimTickShadowsRealTick(t *testing.T) {
 // 凭据 fail=armed→open 全模板向闸红）。正确语义=代表选取序定（ORDER BY
 // 显式序——修后本断言转绿）。
 func TestAuditExcellOccupancyOrderBy(t *testing.T) {
-	auditRedGate(t)
 	src, err := os.ReadFile("../../platform/excell/excell.go")
 	if err != nil {
 		t.Fatal(err)
@@ -145,7 +142,6 @@ func TestAuditExcellOccupancyOrderBy(t *testing.T) {
 // sim 行堆叠+venue 盲读遮蔽双害（②③根因）。正确语义=演习毕 venue='sim'
 // 足迹行清零（retireEphemeral 同域对称件）。
 func TestAuditSimFixtureRowsRetire(t *testing.T) {
-	auditRedGate(t)
 	ctx, m := setupMatrix(t)
 	mkOcc(t, ctx, m, "BTC-USDT-261204-66000-P", "dcd_put", "dcd_put", "okx", 50)
 	cells, err := excell.Enumerate(ctx, m.Pool)
@@ -179,9 +175,7 @@ func TestAuditSimFixtureRowsRetire(t *testing.T) {
 // 两处各写 -USD/-USDG→-USDT 归一——今同律将来可漂；本锚域输入全谱对拍，
 // 任一侧改律即红，防静默漂移。GREEN 锚非 RED——记录面非升件件）。
 func TestHedgeSpotKeyBasisSpotLegParity(t *testing.T) {
-	if os.Getenv("AUDIT_RED") != "1" {
-		t.Skip("等价锚显跑")
-	}
+	auditRedGate(t)
 	basisRe := datedFutRe
 	for _, fut := range []string{
 		"BTC-USD-270326", "BTC-USDG-270326", "BTC-USDT-270326",
