@@ -8,8 +8,8 @@
 #   发送成→进（含跳过件:已处理不重扫）;发送败→留（下拍重试不丢）。
 set -u
 MODE="${1:-digest}"
-DSN="postgres://o:o@o-postgres:5432/o?sslmode=disable"
-KEY="/opt/o-research/env/o_master_key"
+DSN=$(grep '^FIN_PG_DSN=' /opt/o-research/env | cut -d= -f2- | tr -d '"')
+KEY="/opt/o/secrets/o_master_key"
 WM=~/.local/state/o-worker/relay_last_id
 cd /opt/o || exit 0
 case "$MODE" in
