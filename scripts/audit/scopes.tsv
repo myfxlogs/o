@@ -1,0 +1,14 @@
+# scopes.tsv —— 审计臂域册（audit/dispatch.sh 消费：最久未审者先；三列 TAB 分隔）
+# name<TAB>paths（空格分隔,会话扫描面）<TAB>recall_words（KB 召回词,空格分隔）
+# 每域末列「不变量提示」写在 paths 后以 `;;` 起——给会话的起手线索非封闭清单。
+# 域增删=本文件改一行；域名入 ops_event note（scope=<name>）禁含空格/竖线。
+探测面	cmd/core/meta_esc.go cmd/core/feed_esc.go cmd/core/ops_face.go scripts/cognition/runbook.md ;; 每个 esc scope 有 runbook 档;探针注释钦定的 dedup 语义=实现;探针判据不被「谁的产出都算」遮蔽;零行语义(NULL=空态还是死)逐探针写明	probe escEdgeU dedup 探针 假阳 runbook 升件
+演习面	internal/trading/simdrill internal/platform/excell internal/platform/execfam cmd/simdrill scripts/simdrill_matrix.sh ;; execfam 册×legShapeOf×excell 词表三面对齐;演习腿构派生律=产线派生律(basisSpotLeg/hedgeSpotKey 单源);ephemeral 行建/退对称;TTL 常量 vs cron 间隔	simdrill excell execfam 演习 凭据 ephemeral cell_key
+风控哨戒	internal/risk internal/guard internal/trading/execution/flow.go ;; 同一字段写读量纲一致(qty_base/sz/ctVal 按 sz_unit 分派);drift/imb 判词在合约粒度下非恒假阴/恒假阳;拒因键 ⊆ 注册表	risk guard warden notionalNow qty_base ctVal drift
+账本对账	internal/ledger internal/trading/execution ;; 每种 fin_cashflow kind 有且仅有一个写源;对账容差与豁免账同源;append-only 表零 UPDATE 径;恢复/销案语义对称	ledger cashflow recon 对账 账实差 append-only
+生命周期	internal/portfolio/lifecycle internal/platform/excell ;; 状态迁移全部经 Transition 留痕(禁裸 UPDATE state);armed→open 闸消费的凭据域 ⊆ 演习产能域;TTL/到期常量成对出现时序关系成立	lifecycle transition armed probe paper live retire
+饥饿感知	internal/portfolio/hunger ;; Detect/Respond 对称(每种 Detect 有 Respond 或显式 park);矿工 n=0 不 emit;白名单文件与码内枚举对齐	hunger miner coverage depblind silence facesnap
+评估枚举	internal/research/grammar internal/research/dcd internal/research/funding internal/research/hypothesis ;; enabled 模板必被枚举(零行=未枚举非市场平窗);direction 闭集与 CHECK 约束同形;拒因写行(拒也计行)	grammar evaluator fin_opp_eval direction unevaluable 枚举
+唤知环脚本	scripts/cognition scripts/audit deploy/o-cognition.timer deploy/o-cognition-dispatch.service deploy/o-audit.timer deploy/o-audit-dispatch.service ;; 获锁/释锁对称且释锁覆盖全部退出径;临时 unit env 不继承 drop-in(禁写死主机径);单飞闸剔自身;RuntimeMaxSec 在;runbook 档 ⊇ 探针 scope 集	dispatch run.sh 唤起败 跨机锁 systemd-run COG_UNIT
+部署管道	scripts/deploy_image.sh scripts/deploy_at_sha.sh scripts/deploy_sync.sh scripts/mirror_push.sh scripts/check_all.sh Dockerfile.core scripts/simdrill_matrix.sh ;; 镜像 ENTRYPOINT 形态与所有 docker run 调用点一致;戳键=sha 且脏树不复用;部署后健康态+水位双验;cron/timer 调用的脚本在部署树实存	deploy entrypoint check_all 绿戳 mirror_push docker
+数据采集桥	cmd/collector cmd/projector internal/data internal/projector ;; 采集端订阅集=桥端投影集(派生键两端同补);所需集×新鲜行探针对新键有宽限;单位/量纲字段(sz_unit/ctVal)写入即定	collector projector bridge 派生键 订阅 水印
