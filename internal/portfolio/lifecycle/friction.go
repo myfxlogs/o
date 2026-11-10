@@ -120,16 +120,26 @@ func (r *Runner) frictionCalibrate(ctx context.Context) error {
 		if bps < 1 {
 			bps = 1 // 费率近零=maker/返佣域——1bps 地板防零摩擦虚构
 		}
-		val, _ := json.Marshal(bps)
 		ev := fmt.Sprintf("30d 实绩回灌: n=%d仓 fee=$%.4f ntl=$%.2f→fee=%.2fbps+slip=%.2fbps(%s)",
 			a.n, a.fee, a.ntl, feeBps, slipBps, slipSrc)
-		res, err := r.cfg.DMSet(ctx, "lifecycle.friction_bps."+a.venue, val, ev, "T-0521")
-		if err != nil {
-			log.Printf("[lifecycle] friction_bps.%s 校准写败: %v", a.venue, err)
-			continue
-		}
-		if res.Changed {
-			log.Printf("[lifecycle] friction_bps.%s 校准 %s→%.2f（%s）", a.venue, string(res.Old), bps, ev)
+		// T-0521 读侧合流分量键：fee/slip 分记+at 鲜度戳——breakevenOK
+		// 判词实测分量替换声明参数的同源消费面（判据读事实非机器改判据）。
+		for _, kv := range [][2]any{
+			{"lifecycle.friction_bps." + a.venue, bps},
+			{"lifecycle.friction_fee_bps." + a.venue, feeBps},
+			{"lifecycle.friction_slip_bps." + a.venue, slipBps},
+			{"lifecycle.friction_at." + a.venue, float64(time.Now().Unix())},
+		} {
+			key, v := kv[0].(string), kv[1].(float64)
+			val, _ := json.Marshal(v)
+			res, err := r.cfg.DMSet(ctx, key, val, ev, "T-0521")
+			if err != nil {
+				log.Printf("[lifecycle] %s 校准写败: %v", key, err)
+				continue
+			}
+			if res.Changed {
+				log.Printf("[lifecycle] %s 校准 %s→%.2f（%s）", key, string(res.Old), v, ev)
+			}
 		}
 	}
 	return nil
