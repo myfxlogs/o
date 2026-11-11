@@ -63,6 +63,7 @@ func (c coreService) escLoop(ctx context.Context, al *notify.Alerter) {
 		c.stuckEscCheck(ctx, deadSince)
 		c.lessonBacklogEscCheck(ctx, deadSince)
 		c.pairZeroEscCheck(ctx, deadSince)
+		c.intakeDryEscCheck(ctx, deadSince)
 		c.codeworkStallEscCheck(ctx, deadSince)
 		c.armedDistanceBeat(ctx) // 量表探（非升件——armed 距阈日行照）
 	}

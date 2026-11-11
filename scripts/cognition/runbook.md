@@ -320,6 +320,11 @@ ORDER BY t.ts + COALESCE((substring(t.note from '期限=([0-9]+)h'))::int,24)*in
   hash 链完整性破：行被改/删/序列断=簿记面真警报）→ 最优先：查
   写入面越权（授权矩阵外 UPDATE/DELETE 径）/工具漏洞/迁移副作用；
   修径+记账——非探针误发，销件须载根因证据。
+- **量表**（seat=探测席 event=量表 scope/ticket=armed_distance——armed
+  距阈日行照：armed 集末拒的 gross/cost ratio 序,值指纹闸 20h 基线）→
+  **信息件非升件**——无处置面无销件,读为「距开仓还差多少」的市场温度；
+  常态近阈<20%=条件枯 regime 设计态;骤变趋近阈=行情面转暖信号,顺带
+  核 armed→open 转迁面是否联动。重复同纹不产新行(纹闸抑),勿当积压清。
 - **要码修** → `git worktree add /opt/o-wt/<名>` → `bash scripts/bootstrap_worktree.sh`
   → 改 → `bash scripts/check_all.sh` → 支推 origin → 部署树 merge --no-ff
   （戳落 mirror_push 自推，勿手动推 master——单写者律）

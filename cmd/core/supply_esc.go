@@ -141,6 +141,28 @@ func (c coreService) pairZeroEscCheck(ctx context.Context, deadSince map[string]
 	})
 }
 
+// intakeDryEscCheck 进水口干涸探——研究进水口自主发现循环（docs/drafts/
+// research-intake-spec.md 钦定健康面）:「源普查」登记行 7d 零新增=源发现
+// 臂断供（研究臂会话未被触发/规格未成 runbook 触发档/分诊闸过严三因其一,
+// 定性归唤知——研究域产物归研究臂,探针只报干涸不代采）。
+func (c coreService) intakeDryEscCheck(ctx context.Context, deadSince map[string]time.Time) {
+	var n int
+	var last *time.Time
+	if err := c.pool.QueryRow(ctx, `SELECT count(*), max(ts) FROM ops_event
+		WHERE seat='研究席' AND note LIKE '源普查%' AND ts>now()-interval '7 days'`).
+		Scan(&n, &last); err != nil {
+		return // 读件败本拍让位
+	}
+	dead := n == 0
+	c.escEdgeUV(ctx, deadSince, "商业产出", "intake_dry", "@", dead, func() string {
+		lst := "从未有登记"
+		if last != nil {
+			lst = "末登记 " + last.UTC().Format("01-02 15:04Z")
+		}
+		return fmt.Sprintf("商业产出/intake_dry: 源普查登记 7d 零新增（%s）——研究进水口自主发现循环断供:触发档未立/研究臂未被唤/分诊过严三因其一,定性归唤知会话", lst)
+	})
+}
+
 // stuckEscCheck 卡壳/复核面探——升件获「修|愈」类处置后同 scope 复燃=
 // 状态可证伪宣称被戳穿（宣称已修→修未成立;宣称已愈→愈是假愈——
 // 修没修成愈没愈成,状态不说谎）。判词质量复核的机械臂:
