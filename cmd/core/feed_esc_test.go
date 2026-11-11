@@ -24,13 +24,13 @@ func TestFeedEscLifecycle(t *testing.T) {
 		t.Fatalf("clean: %v", err)
 	}
 	svc := coreService{pool: pool}
-	svc.escalateUnresolved(ctx, "断流", "t_dead", "面断流 t_dead：零行——超阈。t_fix")
+	svc.escalateUnresolved(ctx, "断流", "t_dead", "", "面断流 t_dead：零行——超阈。t_fix")
 	var n int
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
 		WHERE event='升件' AND esc_class='断流' AND esc_scope='t_dead'`).Scan(&n); err != nil || n != 1 {
 		t.Fatalf("升件 n=%d err=%v", n, err)
 	}
-	svc.escalateUnresolved(ctx, "断流", "t_dead", "重报") // 未销重报不暴
+	svc.escalateUnresolved(ctx, "断流", "t_dead", "", "重报") // 未销重报不暴
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
 		WHERE event='升件' AND esc_scope='t_dead'`).Scan(&n); err != nil || n != 1 {
 		t.Fatalf("去重 n=%d err=%v", n, err)
@@ -45,6 +45,52 @@ func TestFeedEscLifecycle(t *testing.T) {
 	_ = pool.QueryRow(ctx, `SELECT id FROM ops_event WHERE esc_scope='t_dead'`).Scan(&id)
 	if want := "升件#" + strconv.FormatInt(id, 10); !strings.Contains(note, want) {
 		t.Fatalf("恢复行未携升件引: %s（望含 %s）", note, want)
+	}
+}
+
+// escalateUnresolved 值指纹闸（计量类边缘触发）：销案后同值复报不火
+// （「销=此量值已阅」——常设态建模根修 2026-11-11）；异值=新现实重火；
+// 空指纹=事件类语义不变（销后复报仍火）。
+func TestEscValueFingerprint(t *testing.T) {
+	ctx := context.Background()
+	pool := testutil.Pool(t)
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM ops_event WHERE esc_scope='t_fp'`); err != nil {
+		t.Fatalf("clean: %v", err)
+	}
+	svc := coreService{pool: pool}
+	cnt := func() int {
+		var n int
+		_ = pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+			WHERE event='升件' AND esc_scope='t_fp'`).Scan(&n)
+		return n
+	}
+	svc.escalateUnresolved(ctx, "计量", "t_fp", "28", "利用率28%")
+	if n := cnt(); n != 1 {
+		t.Fatalf("首火 n=%d", n)
+	}
+	// 销案（处置行引升件#id）
+	var id int64
+	_ = pool.QueryRow(ctx, `SELECT id FROM ops_event WHERE esc_scope='t_fp'`).Scan(&id)
+	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,note)
+		VALUES('会话','处置',$1)`, fmt.Sprintf("升件#%d 同判词延续", id)); err != nil {
+		t.Fatalf("销案行: %v", err)
+	}
+	svc.escalateUnresolved(ctx, "计量", "t_fp", "28", "利用率28%再报") // 同值不火
+	if n := cnt(); n != 1 {
+		t.Fatalf("销后同值复报 n=%d（应仍 1）", n)
+	}
+	svc.escalateUnresolved(ctx, "计量", "t_fp", "31", "利用率31%") // 异值重火
+	if n := cnt(); n != 2 {
+		t.Fatalf("异值重火 n=%d（应 2）", n)
+	}
+	var note string
+	if err := pool.QueryRow(ctx, `SELECT note FROM ops_event
+		WHERE esc_scope='t_fp' ORDER BY id DESC LIMIT 1`).Scan(&note); err != nil ||
+		!strings.HasPrefix(note, "v=31 ") {
+		t.Fatalf("指纹前缀缺 note=%q err=%v", note, err)
 	}
 }
 
@@ -399,8 +445,8 @@ func TestCapabilityEscCheck(t *testing.T) {
 	}
 	svc.capabilityEscCheck(ctx, deadSince)
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
-		WHERE event='升件' AND esc_scope='capability_funding-hedge'`).Scan(&n); err != nil || n != 2 {
-		t.Fatalf("销而未修重火 n=%d（沿锁回归——应重升提醒）", n)
+		WHERE event='升件' AND esc_scope='capability_funding-hedge'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("销而未修同回合纹抑 n=%d（应 1——同值已阅不火,复岗靠重启/30d点名）", n)
 	}
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
 		WHERE event='升件' AND esc_scope='capability_vol_sell_strangle'`).Scan(&n); err != nil || n != 1 {
@@ -416,9 +462,16 @@ func TestCapabilityEscCheck(t *testing.T) {
 		t.Fatalf("凭据: %v", err)
 	}
 	svc.capabilityEscCheck(ctx, deadSince)
+	// funding-hedge 升件已销案=既闭——复绿不再出恢复行（无未销可引，
+	// 销案行即关闭语义）；vol_sell 未销在案=恢复行照写自闭。
 	if err := pool.QueryRow(ctx, `SELECT note FROM ops_event
-		WHERE seat='探测席' AND event='恢复' AND note LIKE '%capability_funding-hedge%'`).Scan(&note); err != nil {
-		t.Fatalf("恢复行缺: %v", err)
+		WHERE seat='探测席' AND event='恢复' AND note LIKE '%capability_vol_sell_strangle%'`).Scan(&note); err != nil {
+		t.Fatalf("未销件恢复行缺: %v", err)
+	}
+	var recN int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='恢复' AND note LIKE '%capability_funding-hedge%'`).Scan(&recN); err != nil || recN != 0 {
+		t.Fatalf("已销件不应出恢复行 recN=%d err=%v", recN, err)
 	}
 	if _, ok := deadSince["能力债/capability_funding-hedge"]; ok {
 		t.Fatalf("键未清: %v", deadSince)
@@ -513,8 +566,8 @@ func TestCognitionSpawnFailEsc(t *testing.T) {
 	}
 	svc.cognitionSpawnFailEscCheck(ctx, deadSince)
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
-		WHERE esc_scope='cognition_spawn_fail'`).Scan(&n); err != nil || n != 2 {
-		t.Fatalf("销后重火 n=%d err=%v", n, err)
+		WHERE esc_scope='cognition_spawn_fail'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("销后同值纹抑 n=%d err=%v（应 1——计数纹同=同值已阅不火,新败变纹照火）", n, err)
 	}
 
 	// 败行全销净（条件翻假）→恢复行自闭；升件行 note 末因亦含 t-spawn,
@@ -524,9 +577,10 @@ func TestCognitionSpawnFailEsc(t *testing.T) {
 		t.Fatalf("清败: %v", err)
 	}
 	svc.cognitionSpawnFailEscCheck(ctx, deadSince)
+	// 升件已销案=既闭——复绿不出恢复行（无未销升件可引,销案行即关闭）
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
-		WHERE seat='探测席' AND event='恢复' AND note LIKE '%cognition_spawn_fail%'`).Scan(&n); err != nil || n != 1 {
-		t.Fatalf("恢复 n=%d err=%v", n, err)
+		WHERE seat='探测席' AND event='恢复' AND note LIKE '%cognition_spawn_fail%'`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("已销件不应出恢复行 n=%d err=%v", n, err)
 	}
 }
 

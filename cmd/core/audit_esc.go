@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 )
 
@@ -35,7 +36,7 @@ func (c coreService) cognitionSpawnFailEscCheck(ctx context.Context, deadSince m
 			continue // 读件败本拍本面让位
 		}
 		t := t
-		c.escEdgeU(ctx, deadSince, "唤知", t.scope, n >= 2, func() string {
+		c.escEdgeUV(ctx, deadSince, "唤知", t.scope, strconv.Itoa(n), n >= 2, func() string {
 			tail := ""
 			if last != nil && *last != "" {
 				tail = "（末因 " + *last + "）"
@@ -66,7 +67,7 @@ func (c coreService) auditStallEscCheck(ctx context.Context, deadSince map[strin
 		}
 		dead = inst != nil && time.Since(*inst) > 48*time.Hour
 	}
-	c.escEdgeU(ctx, deadSince, "唤知", "audit_stall", dead, func() string {
+	c.escEdgeUV(ctx, deadSince, "唤知", "audit_stall", "@", dead, func() string {
 		var anchor string
 		if last != nil {
 			anchor = fmt.Sprintf("末审计行 %s 陈 %s",

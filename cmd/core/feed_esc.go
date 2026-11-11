@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"o/internal/platform/notify"
@@ -78,7 +79,7 @@ func (c coreService) feedEscCheck(ctx context.Context, deadSince map[string]time
 		} else {
 			isDead = time.Since(*ts) > b.dead
 		}
-		c.escEdgeU(ctx, deadSince, "断流", b.name, isDead, func() string {
+		c.escEdgeUV(ctx, deadSince, "断流", b.name, "@", isDead, func() string {
 			lastTxt := "零行"
 			if ts != nil {
 				lastTxt = fmt.Sprintf("末鲜 %s（陈 %s）", ts.UTC().Format("01-02 15:04Z"), time.Since(*ts).Round(time.Second))
@@ -108,13 +109,14 @@ func (c coreService) deployEscCheck(ctx context.Context, deadSince map[string]ti
 	_ = c.pool.QueryRow(ctx, `SELECT count(*) FROM fin_strategy WHERE state='live'`).Scan(&liveN)
 	exp := c.cfgF("risk.max_exposure_usd")
 	notional := c.cfgF("risk.max_notional_usd")
-	facts := fmt.Sprintf("净值=%.0f 需额=%.0f(live×%d+probe) 敞口闸=%.0f 单笔闸=%.0f 利用率=%.0f%%",
-		*eq, demand, liveN, exp, notional, 100*demand/maxf(exp, 1))
-	c.escEdgeU(ctx, deadSince, "资金闸", "cap_hit",
+	util := fmt.Sprintf("%.0f", 100*demand/maxf(exp, 1))
+	facts := fmt.Sprintf("净值=%.0f 需额=%.0f(live×%d+probe) 敞口闸=%.0f 单笔闸=%.0f 利用率=%s%%",
+		*eq, demand, liveN, exp, notional, util)
+	c.escEdgeUV(ctx, deadSince, "资金闸", "cap_hit", util,
 		exp > 0 && demand >= 0.9*exp, func() string {
 			return fmt.Sprintf("敞口闸到顶：%s——live/probe 族需额已贴闸（部署面事实，阈值判词归唤知会话）", facts)
 		})
-	c.escEdgeU(ctx, deadSince, "资金闸", "idle_capital",
+	c.escEdgeUV(ctx, deadSince, "资金闸", "idle_capital", util,
 		liveN > 0 && eq != nil && demand < 0.25**eq, func() string {
 			return fmt.Sprintf("资本闲置：%s——已证族在册而部署不足净值 1/4（部署面事实，是否真缺口归唤知会话裁）", facts)
 		})
@@ -147,12 +149,27 @@ func maxf(a, b float64) float64 {
 // 沿触发版在抑撤后永哑(死沿早被消费)。
 func (c coreService) escEdgeU(ctx context.Context, deadSince map[string]time.Time,
 	class, scope string, dead bool, note func() string) {
+	c.escEdgeUV(ctx, deadSince, class, scope, "", dead, note)
+}
+
+// escEdgeUV 计量类边缘触发（值指纹版）：语义同 escEdgeU 而升件行
+// ticket 载量值指纹，dedup 扩到「销案行」——本 scope 末行（开或销）
+// 指纹同=同值已阅不火；异值=新现实重火。常设态信号（stall/dud/
+// capital 族）由「每拍一火同判词 churn」改「一变一火」——
+// 2026-11-11 业主令「常亮告警是状态不是事件」建模根修。
+// fp 调用点自供量化串（探针保薄壳——指纹比对是机械运算零判词）；
+// 事件类探针（每次发生=新事件）仍走 escEdgeU 传空 fp=旧语义。
+func (c coreService) escEdgeUV(ctx context.Context, deadSince map[string]time.Time,
+	class, scope, fp string, dead bool, note func() string) {
 	key := class + "/" + scope
 	if dead {
 		if _, ok := deadSince[key]; !ok {
 			deadSince[key] = time.Now()
 		}
-		c.escalateUnresolved(ctx, class, scope, note())
+		if fp == "@" {
+			fp = deadSince[key].UTC().Format("0601021504") // 二元死态类：回合起刻=指纹（同回合销后不火,复绿再死=新回合照火）
+		}
+		c.escalateUnresolved(ctx, class, scope, fp, note())
 		return
 	}
 	if since, ok := deadSince[key]; ok {
@@ -164,7 +181,43 @@ func (c coreService) escEdgeU(ctx context.Context, deadSince map[string]time.Tim
 // escalateUnresolved 未销才抑升件（对账类 dedup）——同窗 24h 内存未销升件
 // （无引证行）才 dedup;已销案（处置/恢复行引 升件#id）后再发=新事证重升。
 // 歧态批销案后新批腿再来不可被同窗误吞——dedup 粒=「未决事件」非「时间窗」。
-func (c coreService) escalateUnresolved(ctx context.Context, class, scope, note string) {
+func (c coreService) escalateUnresolved(ctx context.Context, class, scope, fp, note string) {
+	if fp != "" {
+		// 值指纹闸（计量类）：本 scope 30d 内末行升件（开或销）note 前缀
+		// 指纹同=同值已阅不火；30d 窗=指纹记忆期，超龄同值再火=定期复核
+		// 点名防静默烂账。指纹载 note 前缀不载 ticket（ticket=工单流
+		// 分组键,face 面有消费）——读败不抑（fail-open 升件优先）。
+		var lastID int64
+		var last string
+		if err := c.pool.QueryRow(ctx, `SELECT e.id, e.note FROM ops_event e
+			WHERE e.event='升件' AND e.esc_class=$1 AND e.esc_scope=$2
+			AND e.ts>now()-interval '30 days'
+			ORDER BY e.id DESC LIMIT 1`, class, scope).
+			Scan(&lastID, &last); err == nil && strings.HasPrefix(last, "v="+fp+" ") {
+			// 销票破纹：末行升件后存在本 scope 票已终（非挂起销票∨
+			// 挂票过期）——票终而条件存=抑撤复验，指纹失效照火
+			// （销票复岗安全网不破——TestTicketScopeSuppress 契约）。
+			var tickEnded bool
+			if err := c.pool.QueryRow(ctx, `SELECT EXISTS(
+				SELECT 1 FROM ops_event t
+				WHERE t.event='工单' AND t.id>$1 AND t.ts>now()-interval '30 days'
+					AND t.note ~ ('(^|[^a-zA-Z0-9_])scope='||$2||'([^a-zA-Z0-9_]|$)')
+					AND (EXISTS (SELECT 1 FROM ops_event d
+							WHERE d.event='处置' AND d.id>t.id
+								AND d.note ~ ('工单#'||t.id||'([^0-9]|$)')
+								AND d.note NOT LIKE '%挂起条件=%')
+						OR (t.ts + COALESCE((substring(t.note from '期限=([0-9]+)h'))::int,24)
+								*interval '1 hour' < now()
+							AND EXISTS (SELECT 1 FROM ops_event d
+								WHERE d.event='处置' AND d.id>t.id
+									AND d.note ~ ('工单#'||t.id||'([^0-9]|$)')
+									AND d.note LIKE '%挂起条件=%'))))`,
+				lastID, scope).Scan(&tickEnded); err == nil && !tickEnded {
+				return
+			}
+		}
+		note = "v=" + fp + " " + note
+	}
 	var open int
 	if err := c.pool.QueryRow(ctx, `SELECT count(*) FROM ops_event e
 		WHERE e.event='升件' AND e.esc_class=$1 AND e.esc_scope=$2

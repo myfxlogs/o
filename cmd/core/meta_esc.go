@@ -9,6 +9,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -30,10 +31,11 @@ func (c coreService) reconEscCheck(ctx context.Context, deadSince map[string]tim
 				ORDER BY id LIMIT 10) q)`).Scan(&n, &ids); err != nil {
 		return // 读件败本拍让位
 	}
-	c.escEdgeU(ctx, deadSince, "对账", "ambiguous_legs", n > 0, func() string {
-		return fmt.Sprintf(
-			"对账/ambiguous_legs: 歧态腿 %d 条在案（ids %v）——venue 回报歧态势,禁补单待仲裁（runbook 对账档:tools/legarb 取证→三态裁）", n, ids)
-	})
+	c.escEdgeUV(ctx, deadSince, "对账", "ambiguous_legs",
+		fmt.Sprintf("%d:%v", n, ids), n > 0, func() string {
+			return fmt.Sprintf(
+				"对账/ambiguous_legs: 歧态腿 %d 条在案（ids %v）——venue 回报歧态势,禁补单待仲裁（runbook 对账档:tools/legarb 取证→三态裁）", n, ids)
+		})
 }
 
 // orphanProbe 「写了没人读」积压册——（名,积压计数询）一件一册,TTL 在询内钦定。
@@ -71,7 +73,7 @@ func (c coreService) orphanEscCheck(ctx context.Context, deadSince map[string]ti
 			continue // 读件败本册让位
 		}
 		p := p
-		c.escEdgeU(ctx, deadSince, "孤儿账", "orphan_"+p.name, n > 0, func() string {
+		c.escEdgeUV(ctx, deadSince, "孤儿账", "orphan_"+p.name, strconv.Itoa(n), n > 0, func() string {
 			return fmt.Sprintf(
 				"孤儿账/%s: 未消费积压 %d 行超 TTL——表在写而消费面死/退役/积压（定性归唤知会话孤儿账档）", p.name, n)
 		})
@@ -100,7 +102,7 @@ func (c coreService) cognitionEscCheck(ctx context.Context, deadSince map[string
 	dead := open > 0 && (last == nil || time.Since(*last) > 24*time.Hour)
 	const key = "唤知/cognition_dead"
 	_, was := deadSince[key]
-	c.escEdgeU(ctx, deadSince, "唤知", "cognition_dead", dead, func() string {
+	c.escEdgeUV(ctx, deadSince, "唤知", "cognition_dead", "@", dead, func() string {
 		lastTxt := "无处置行在案"
 		if last != nil {
 			lastTxt = fmt.Sprintf("末处置 %s（陈 %s）",
@@ -138,11 +140,12 @@ func (c coreService) commercialEscCheck(ctx context.Context, deadSince map[strin
 		return // 读件败本拍让位
 	}
 	stall := liveN > 0 && net <= 0
-	c.escEdgeU(ctx, deadSince, "商业产出", "commercial_stall", stall, func() string {
-		return fmt.Sprintf(
-			"商业产出/commercial_stall: 策略面 30d 净产出 %.4f≤0（live+probe=%d 在仓=%d——机器名义在赚而实付净产出非正；Earn 息不入账已剔。空转定性归唤知会话）",
-			net, liveN, openPos)
-	})
+	c.escEdgeUV(ctx, deadSince, "商业产出", "commercial_stall",
+		fmt.Sprintf("%.4f", net), stall, func() string {
+			return fmt.Sprintf(
+				"商业产出/commercial_stall: 策略面 30d 净产出 %.4f≤0（live+probe=%d 在仓=%d——机器名义在赚而实付净产出非正；Earn 息不入账已剔。空转定性归唤知会话）",
+				net, liveN, openPos)
+		})
 }
 
 // capabilityEscCheck 能力债面探（T-0523 感知升维——「在册即须被行使,
@@ -201,7 +204,7 @@ func (c coreService) capabilityEscCheck(ctx context.Context, deadSince map[strin
 		reg := execfam.Has(t)
 		gap := !reg || (needDrill && drillN == 0) || evalN == 0
 		t := t
-		c.escEdgeU(ctx, deadSince, "能力债", "capability_"+t, gap, func() string {
+		c.escEdgeUV(ctx, deadSince, "能力债", "capability_"+t, "@", gap, func() string {
 			var lacks []string
 			if !reg {
 				lacks = append(lacks, "执行族未注册")
@@ -256,7 +259,7 @@ func (c coreService) dataGapEscCheck(ctx context.Context, deadSince map[string]t
 	for _, g := range gaps {
 		seen[g.reason] = true
 		g := g
-		c.escEdgeU(ctx, deadSince, "数据缺", "data_gap_"+g.reason, true, func() string {
+		c.escEdgeUV(ctx, deadSince, "数据缺", "data_gap_"+g.reason, "@", true, func() string {
 			return fmt.Sprintf(
 				"数据缺/%s: 评估 unevaluable 3d 窗 %d 行同真因——数据面缺腿是结构缺非瞬态（数据/凭据/启用 定性归唤知会话）", g.reason, g.n)
 		})

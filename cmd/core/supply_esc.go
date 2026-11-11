@@ -4,6 +4,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -28,7 +30,7 @@ func (c coreService) oppSurfaceStallEscCheck(ctx context.Context, deadSince map[
 		return // 读件败本拍让位
 	}
 	defer rows.Close()
-	var stalled []string
+	var stalled, tpls []string
 	for rows.Next() {
 		var tpl string
 		var last time.Time
@@ -36,9 +38,11 @@ func (c coreService) oppSurfaceStallEscCheck(ctx context.Context, deadSince map[
 			return
 		}
 		stalled = append(stalled, fmt.Sprintf("%s(末评 %s)", tpl, last.UTC().Format("01-02 15:04Z")))
+		tpls = append(tpls, tpl)
 	}
+	sort.Strings(tpls)
 	dead := len(stalled) > 0
-	c.escEdgeU(ctx, deadSince, "数据缺", "opp_eval_stall", dead, func() string {
+	c.escEdgeUV(ctx, deadSince, "数据缺", "opp_eval_stall", strings.Join(tpls, ","), dead, func() string {
 		return fmt.Sprintf("数据缺/opp_eval_stall: 曾活模板族 %d 支 48h 零评估（%s）——excell 枚举停/venue 面断/族被摘三因其一,定性归唤知会话",
 			len(stalled), strings.Join(stalled, "、"))
 	})
@@ -74,7 +78,7 @@ func (c coreService) liveDudEscCheck(ctx context.Context, deadSince map[string]t
 		}
 	}
 	dead := n > 0
-	c.escEdgeU(ctx, deadSince, "商业产出", "live_dud", dead, func() string {
+	c.escEdgeUV(ctx, deadSince, "商业产出", "live_dud", strconv.Itoa(n), dead, func() string {
 		return fmt.Sprintf("商业产出/live_dud: live≥7d 零仓位哑弹策略 %d 条（%s）——执行触发断/条件恒不满足/腿缺失三因其一,定性归唤知会话",
 			n, strings.Join(duds, "、"))
 	})
@@ -91,7 +95,7 @@ func (c coreService) lessonBacklogEscCheck(ctx context.Context, deadSince map[st
 		return // 读件败本拍让位
 	}
 	dead := n >= 5 && oldest != nil && time.Since(*oldest) > 24*time.Hour
-	c.escEdgeU(ctx, deadSince, "唤知", "lesson_backlog", dead, func() string {
+	c.escEdgeUV(ctx, deadSince, "唤知", "lesson_backlog", strconv.Itoa(n), dead, func() string {
 		return fmt.Sprintf("唤知/lesson_backlog: 教训矿 pending=%d（最陈 %s）——③段漏跑/矿写径坏,候选积压无人裁定,定性归唤知会话",
 			n, oldest.UTC().Format("01-02 15:04Z"))
 	})
@@ -142,11 +146,13 @@ func (c coreService) stuckEscCheck(ctx context.Context, deadSince map[string]tim
 		}
 	}
 	dead := len(stuck) > 0
-	var parts []string
+	var parts, fps []string
 	for _, s := range stuck {
 		parts = append(parts, fmt.Sprintf("%s(#%d销后→#%d又火)", s.scope, s.prev, s.refire))
+		fps = append(fps, fmt.Sprintf("%s#%d", s.scope, s.refire))
 	}
-	c.escEdgeU(ctx, deadSince, "唤知", "stuck_esc", dead, func() string {
+	sort.Strings(fps)
+	c.escEdgeUV(ctx, deadSince, "唤知", "stuck_esc", strings.Join(fps, ","), dead, func() string {
 		return fmt.Sprintf("唤知/stuck_esc: %d 个 scope 销案后复燃（%s）——判词宣称已修|已愈而条件复发,宣称不实,疑卡壳建议值守介入",
 			len(stuck), strings.Join(parts, "、"))
 	})
@@ -194,7 +200,7 @@ func (c coreService) codeworkStallEscCheck(ctx context.Context, deadSince map[st
 		}
 	}
 	dead := n > 0
-	c.escEdgeU(ctx, deadSince, "唤知", "codework_stall", dead, func() string {
+	c.escEdgeUV(ctx, deadSince, "唤知", "codework_stall", strconv.Itoa(n), dead, func() string {
 		return fmt.Sprintf("唤知/codework_stall: %d 件工单过期未销（%s）——转要码修件滞留,定性归唤知会话分诊(在修/挂起/死单/真滞留)",
 			n, strings.Join(parts, "、"))
 	})
