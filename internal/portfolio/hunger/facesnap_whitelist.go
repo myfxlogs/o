@@ -189,4 +189,13 @@ var faceBaselineWhitelist = map[string]string{
 	"face:service:审计席":              "2026-11-10 入册——审计席=D-0046 审计臂裁决写席（audit 会话处置裁词/复证行 ops_event 写径合法——audit_stall/spawn_fail 自体活性探针同席）：间歇写=审计拍驱动 7d 活跃窗摆动登记不重复升；生产亲证 2026-11-10 审计升件处置批 #9572-9577 裁决行（面清单新面行→升件 #9593）",
 	"face:service:research/grammar": "2026-11-10 入册——research/grammar=o-research grammar/vol_sell 枚举臂写席（vol_sell 评估枚举 beat+连败自停/复役条件书升件自报 写径合法——research/dcd 同型先例）；生产亲证 2026-11-10 自停升件行 #9630（fin_condition_gap #242 在案）→升件 #9641",
 	"face:service:唤知":               "2026-11-10 入册——唤知=唤知 dispatcher 自体写席（cognition_dead/spawn_fail 升件 beat——认知环活性自报合法面）；生产亲证 2026-11-10 面清单新面行→升件 #9643",
+	// md_calendar_pull 表面——fin_0168 迁移建 public 基表（工单#10693
+	// CALENDAR-FEED 口径修：calendar 拉环逐拍实拉落活性账 ok/events/err
+	// 含败拍，探针活性锚改读 max(ts) 非 sent_at 产出锚；domain.tsv fin
+	// 入册）在册即面；写径=notify.Calendar.notePull（calendar.go 同包
+	// app 角色 INSERT 在案），读径=hunger feedstale 探针同池读面；
+	// table 类面=information_schema BASE TABLE 枚举本体零硬编码——
+	// 建表落地即面（升件源 #10752，生产亲证首拍行 id=1 @19:20:47Z
+	// ok=t events=106）。
+	"face:table:md_calendar_pull": "工单#10693 入册——md_calendar_pull=fin_0168 迁移建 public 基表（CALENDAR-FEED 口径修：拉环逐拍活性账 ok/events/err 含败拍，domain.tsv fin 入册）；写径 notify.Calendar.notePull/读径 hunger feedstale 探针同池面在案；table 类面 information_schema BASE TABLE 枚举本体零硬编码，建表落地即面；生产亲证基表在册+首拍行 id=1 @2026-11-11 19:20:47Z ok=t events=106（升件源 ops_event #10752）",
 }
