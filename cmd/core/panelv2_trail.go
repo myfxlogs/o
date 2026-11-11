@@ -24,18 +24,22 @@ func (c coreService) GetDecisionTrail(ctx context.Context,
 	}
 	resp := &dashboardv1.GetDecisionTrailResponse{AsOf: timestamppb.Now()}
 
-	rs, err := c.pool.Query(ctx, `SELECT e.id, e.ts, coalesce(e.esc_class,''), coalesce(e.esc_scope,''),
-		left(e.note,200), d.id, d.ts, left(d.note,200)
+	// 引用端物化（SG CPU 烧实证同型改——逐升件 LATERAL regex 全表扫→
+	// 引用集单程抽出,per-e 首引行=物化集内 min xid,毫秒级）。
+	rs, err := c.pool.Query(ctx, `WITH cited AS MATERIALIZED (
+		SELECT x.id xid, x.ts xts, x.note xnote,
+			(m.mm)[1]::bigint lo, COALESCE((m.mm)[2]::bigint,(m.mm)[1]::bigint) hi
+		FROM ops_event x, LATERAL regexp_matches(x.note,$2,'g') m(mm)
+		WHERE x.note LIKE '%升件#%')
+		SELECT e.id, e.ts, coalesce(e.esc_class,''), coalesce(e.esc_scope,''),
+		left(e.note,200), d.xid, d.xts, left(d.xnote,200)
 		FROM ops_event e
 		LEFT JOIN LATERAL (
-			SELECT x.id, x.ts, x.note FROM ops_event x
-			WHERE x.ts>e.ts
-			AND (x.note ~ ('升件#'||e.id::text||'([^0-9]|$)')
-				OR EXISTS (SELECT 1 FROM regexp_matches(x.note,'升件#(\d+)-(\d+)','g') AS m(mm)
-					WHERE e.id BETWEEN mm[1]::bigint AND mm[2]::bigint))
-			ORDER BY x.id LIMIT 1
+			SELECT c.xid, c.xts, c.xnote FROM cited c
+			WHERE c.xid>e.id AND e.id BETWEEN c.lo AND c.hi
+			ORDER BY c.xid LIMIT 1
 		) d ON true
-		WHERE e.event='升件' ORDER BY e.id DESC LIMIT $1`, lim)
+		WHERE e.event='升件' ORDER BY e.id DESC LIMIT $1`, lim, `升件#([0-9]+)(?:-([0-9]+))?`)
 	if err != nil {
 		return nil, err
 	}

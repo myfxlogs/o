@@ -86,12 +86,17 @@ func (c coreService) orphanEscCheck(ctx context.Context, deadSince map[string]ti
 // 持续死不刷屏）。
 func (c coreService) cognitionEscCheck(ctx context.Context, deadSince map[string]time.Time, al *notify.Alerter) {
 	var open int
-	if err := c.pool.QueryRow(ctx, `SELECT count(*) FROM ops_event e
+	// 引用端物化（SG CPU 烧实证同型改——逐升件相关 regex 全表扫→
+	// 引用集单程抽出反连,毫秒级）。
+	if err := c.pool.QueryRow(ctx, `WITH cited AS MATERIALIZED (
+		SELECT x.id xid, (m.mm)[1]::bigint lo,
+			COALESCE((m.mm)[2]::bigint,(m.mm)[1]::bigint) hi
+		FROM ops_event x, LATERAL regexp_matches(x.note,$1,'g') m(mm)
+		WHERE x.note LIKE '%升件#%')
+		SELECT count(*) FROM ops_event e
 		WHERE e.event='升件' AND e.ts>now()-interval '72 hours'
-		AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.ts>e.ts
-			AND (x.note ~ ('升件#'||e.id::text||'([^0-9]|$)')
-				OR EXISTS (SELECT 1 FROM regexp_matches(x.note,'升件#(\d+)-(\d+)','g') AS m(mm)
-					WHERE e.id BETWEEN mm[1]::bigint AND mm[2]::bigint)))`).Scan(&open); err != nil {
+		AND NOT EXISTS (SELECT 1 FROM cited c WHERE c.xid>e.id
+			AND e.id BETWEEN c.lo AND c.hi)`, `升件#([0-9]+)(?:-([0-9]+))?`).Scan(&open); err != nil {
 		return
 	}
 	var last *time.Time

@@ -227,6 +227,7 @@ func (r *Runner) reconcile(ctx context.Context) error {
 				WHERE e.event='升件' AND e.esc_class='对账' AND e.esc_scope=$1
 				AND e.ts>now()-interval '24 hours'
 				AND NOT EXISTS (SELECT 1 FROM ops_event x2 WHERE x2.ts>e.ts
+					AND x2.note LIKE '%升件#%'
 					AND (x2.note ~ ('升件#'||e.id::text||'([^0-9]|$)')
 						OR EXISTS (SELECT 1 FROM regexp_matches(x2.note,'升件#(\d+)-(\d+)','g') AS m(mm)
 							WHERE e.id BETWEEN mm[1]::bigint AND mm[2]::bigint)))`, scope).Scan(&open); err == nil && open == 0 {

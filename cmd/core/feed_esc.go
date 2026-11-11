@@ -219,10 +219,13 @@ func (c coreService) escalateUnresolved(ctx context.Context, class, scope, fp, n
 		note = "v=" + fp + " " + note
 	}
 	var open int
+	// x 先 LIKE 剪非引用行再 regex（SG CPU 烧实证——无剪=逐 x 行
+	// 全价 regex 求值,引件行远少于全表）。
 	if err := c.pool.QueryRow(ctx, `SELECT count(*) FROM ops_event e
 		WHERE e.event='升件' AND e.esc_class=$1 AND e.esc_scope=$2
 		AND e.ts>now()-make_interval(hours=>$3)
 		AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.ts>e.ts
+			AND x.note LIKE '%升件#%'
 			AND (x.note ~ ('升件#'||e.id::text||'([^0-9]|$)')
 				OR EXISTS (SELECT 1 FROM regexp_matches(x.note,'升件#(\d+)-(\d+)','g') AS m(mm)
 					WHERE e.id BETWEEN mm[1]::bigint AND mm[2]::bigint)))`,
@@ -268,6 +271,7 @@ func (c coreService) recoverNote(ctx context.Context, class, scope string, since
 		WHERE e.event='升件' AND e.esc_class=$1 AND e.esc_scope=$2
 		AND e.ts>now()-make_interval(hours=>$3)
 		AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.ts>e.ts
+			AND x.note LIKE '%升件#%'
 			AND (x.note ~ ('升件#'||e.id::text||'([^0-9]|$)')
 				OR EXISTS (SELECT 1 FROM regexp_matches(x.note,'升件#(\d+)-(\d+)','g') AS m(mm)
 					WHERE e.id BETWEEN mm[1]::bigint AND mm[2]::bigint)))
