@@ -67,7 +67,7 @@ func main() {
 		connect.NewClient(connecthttp.NewTransport(http.DefaultClient, *addr)))
 	ctx := context.Background()
 	resume := map[string]int64{}
-	log.Printf("[mechwake] 订阅 %s 起（kind∈dm/mech→唤3件）", *addr)
+	log.Printf("[mechwake] 订阅 %s 起（kind∈dm/mech→唤%d件）", *addr, len(units))
 	for ctx.Err() == nil {
 		st, err := c.Watch(ctx, &eventv1.WatchRequest{Resume: resumeList(resume)})
 		if err != nil {
