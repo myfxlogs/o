@@ -52,7 +52,8 @@ func setup(t *testing.T) (context.Context, *Warden, *fakeExec) {
 		"risk.kill_switch":    "false", "risk.max_notional_usd": "500",
 		"risk.max_venue_pct": "0.35", "risk.max_exposure_usd": "1000",
 		"risk.token_ttl_seconds": "30",
-		"risk.max_dd_30d":        "0.03", "risk.dd_window_days": "30"} {
+		"risk.max_dd_30d":        "0.03", "risk.dd_window_days": "30",
+		"guard.dir_loss_budget_pct": "0.10"} { // 方向族亏损预算比（fin_0167 播种镜像——测面无迁移跑仍见键）
 		if _, err := pool.Exec(ctx,
 			"INSERT INTO app_config(key,value) VALUES($1,to_jsonb($2::text)) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value", k, v); err != nil {
 			t.Fatal(err)
