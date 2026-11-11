@@ -27,7 +27,11 @@ func (r *Runner) writeEval(ctx context.Context, inst, template, direction, verdi
 	var n int
 	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_opp_eval
 		WHERE inst_id=$1 AND template=$2 AND evidence->>'reason'=$3
-		AND ts>now()-interval '1 hour'`, inst, template, reason).Scan(&n); err != nil || n > 0 {
+		AND ts>now()-interval '1 hour'`, inst, template, reason).Scan(&n); err != nil {
+		r.rej.Inc("eval_write_err")
+		return err
+	}
+	if n > 0 {
 		return nil
 	}
 	_, err := r.pool.Exec(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,net_apr,verdict,legs,evidence)
