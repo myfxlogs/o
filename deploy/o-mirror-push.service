@@ -1,7 +1,10 @@
 # o-mirror-push.service —— T-0467 镜面推单发（推已绿 sha 非 HEAD）。
-# GW-001 段A：ExecStartPost 唤 o-mech——推成→origin/master 前进→
-# mech 收敛窗下拍即见（镜面推与部署收敛事件链闭环；`-` 前缀=单元
-# 未装期不炸本服务）。
+# 部署事件链闭环（业主令 2026-11-11「效率提起来」）：ExecStartPost
+# 唤 o-deploy-watch——推成→origin/master 前进→守望即拍 fetch+ff+
+# 滞差部署，部署腿由 15min timer 白等改事件驱动（timer 留作漏缝
+# 兜底兼推阻/分叉升件重试径；`-` 前缀=单元未装期不炸本服务）。
+# 旧 ExecStartPost 唤 o-mech 幽灵单元（全机无此件，恒 no-op）——
+# 收敛真身=deploy_watch 自身头段 fetch+ff，直指正身。
 [Unit]
 Description=o-mirror-push (镜面推已绿sha)
 After=network-online.target
@@ -9,5 +12,5 @@ After=network-online.target
 [Service]
 Type=oneshot
 ExecStart=/opt/o/scripts/mirror_push.sh
-ExecStartPost=-/usr/bin/systemctl --user start --no-block o-mech.service
+ExecStartPost=-/usr/bin/systemctl --user start --no-block o-deploy-watch.service
 NoNewPrivileges=true

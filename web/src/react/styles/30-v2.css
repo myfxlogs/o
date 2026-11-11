@@ -1,0 +1,309 @@
+/* 30-v2.css —— 运作面板 v2 三径页样式（apple-liquid-glass skill 移植：
+   · 内容=统一白面板+发丝线（unified panel>碎卡墙——同级行一面板）
+   · 玻璃只上重叠层：mobile topbar/tabbar（sticky 压滚动内容——
+     saturate(180%) blur(20px) 法定方）；side/topbar 桌面不叠内容=固面
+   · 层级走字重+尺寸+灰阶，色=状态灯+accent 仅此；数字 tabular-nums
+   · 暗题双令牌组——面板/发丝/灰阶各题一组，玻璃底随题调透明度 */
+
+/* —— v2 令牌（承 skill tokens.css，挂仓内既有变量——零新依赖） —— */
+:root {
+  --v2-ground: #f5f5f7;
+  --v2-surface: #ffffff;
+  --v2-hover: #fbfbfd;
+  --v2-hairline: rgba(0, 0, 0, 0.07);
+  --v2-text-2: #424245;
+  --v2-text-3: #86868b;
+  --v2-r-panel: 22px;
+  --v2-sh-panel:
+    0 1px 3px rgba(0, 0, 0, 0.05),
+    0 14px 40px rgba(0, 0, 0, 0.05);
+  --v2-live: #30d158;
+  --v2-glass-bg: rgba(245, 245, 247, 0.72);
+  --v2-glass-line: rgba(0, 0, 0, 0.07);
+}
+[data-theme="dark"] {
+  --v2-ground: #000000;
+  --v2-surface: #1c1c1e;
+  --v2-hover: #2c2c2e;
+  --v2-hairline: rgba(255, 255, 255, 0.09);
+  --v2-text-2: #aeaeb2;
+  --v2-text-3: #86868b;
+  --v2-sh-panel:
+    0 1px 3px rgba(0, 0, 0, 0.4),
+    0 14px 40px rgba(0, 0, 0, 0.35);
+  --v2-glass-bg: rgba(28, 28, 30, 0.72);
+  --v2-glass-line: rgba(255, 255, 255, 0.09);
+}
+
+/* —— v2 页面容器：地色走 v2-ground（冷灰——skill 钦定 #f5f5f7 系） —— */
+.page.v2 {
+  margin: -24px -20px -56px;
+  padding: 24px 20px 56px;
+  background: var(--v2-ground);
+  min-height: calc(100vh - 24px);
+  font-optical-sizing: auto;
+}
+@media (max-width: 767px) {
+  .page.v2 {
+    margin: -56px -12px -76px;
+    padding: 16px 12px 76px;
+    min-height: calc(100vh - 56px);
+  }
+}
+
+/* —— hero：eyebrow 小标签+负字距大题+一行副注 —— */
+.v2-hero {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: clamp(20px, 4vw, 40px) 4px clamp(16px, 3vw, 28px);
+}
+.v2-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--v2-text-3);
+}
+.v2-livedot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--v2-live);
+  animation: v2-pulse 2.2s ease-in-out infinite;
+}
+@keyframes v2-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+.v2-title {
+  margin: 12px 0 0;
+  font-size: clamp(27px, 5vw, 42px);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.v2-lede {
+  margin: 10px 0 0;
+  font-size: clamp(15px, 2.5vw, 17px);
+  color: var(--v2-text-2);
+  line-height: 1.6;
+  font-variant-numeric: tabular-nums;
+}
+
+/* —— 统一面板：白面+面板径+双层软影；同级行发丝分隔 —— */
+.v2-panel {
+  max-width: 1080px;
+  margin: 0 auto clamp(20px, 3.5vw, 34px);
+  background: var(--v2-surface);
+  border-radius: var(--v2-r-panel);
+  box-shadow: var(--v2-sh-panel);
+  overflow: hidden;
+}
+.v2-panel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px clamp(17px, 3vw, 24px) 10px;
+}
+.v2-panel-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.v2-panel .skel,
+.v2-panel .empty-state,
+.v2-panel .err-state {
+  margin: 0 clamp(17px, 3vw, 24px) 16px;
+}
+
+/* 行列——相邻兄弟加发丝线，hover 走 hover 灰（无描边无岛感） */
+.v2-rows {
+  padding-bottom: 8px;
+}
+.v2-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 13px clamp(17px, 3vw, 24px);
+  transition: background 0.15s;
+}
+.v2-row + .v2-row {
+  border-top: 1px solid var(--v2-hairline);
+}
+.v2-row:hover {
+  background: var(--v2-hover);
+}
+.v2-row .dot {
+  margin-top: 7px;
+  flex: none;
+}
+.v2-row-main {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.v2-row-title {
+  font-size: 15.5px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.4;
+  color: var(--ink);
+}
+.v2-row-id {
+  font-weight: 400;
+  font-size: 12.5px;
+  margin-left: 6px;
+}
+.v2-row-note {
+  font-size: 13px;
+  color: var(--v2-text-2);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.v2-row-sub {
+  font-size: 12.5px;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+
+/* —— 漏斗四级：标签|数|注 三列栅——零边框零底色块 —— */
+.v2-funnel {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0;
+  padding: 4px clamp(17px, 3vw, 24px) 16px;
+}
+.v2-funnel-lv {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 14px 10px 0;
+}
+.v2-funnel-lv + .v2-funnel-lv {
+  border-left: 1px solid var(--v2-hairline);
+  padding-left: 14px;
+}
+@media (max-width: 680px) {
+  .v2-funnel-lv + .v2-funnel-lv {
+    border-left: none;
+    padding-left: 0;
+  }
+}
+.v2-funnel-k {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+.v2-funnel-n {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.v2-funnel-note {
+  font-size: 12px;
+  line-height: 1.5;
+}
+.v2-funnel-rej {
+  padding: 0 clamp(17px, 3vw, 24px) 16px;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+/* —— 异常摘要条——异常点名置顶（全绿=条整不渲——异常是页存在的理由） —— */
+.v2-alert {
+  max-width: 1080px;
+  margin: 0 auto clamp(16px, 3vw, 24px);
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 13px clamp(17px, 3vw, 24px);
+  background: var(--v2-surface);
+  border-radius: var(--v2-r-panel);
+  box-shadow: var(--v2-sh-panel);
+  border-left: 3px solid var(--critical);
+  font-size: 14px;
+  font-weight: 550;
+  line-height: 1.5;
+}
+.v2-alert .dot {
+  margin-top: 5px;
+  flex: none;
+}
+
+/* —— ExchSections 组在 v2-panel 内的边距适配（原 20-cards 左边距偏大
+   系为 .card 内排设计——panel 下收拢对齐行列） —— */
+.v2-panel .exch-sec {
+  margin: 0 clamp(11px, 2vw, 18px) 8px;
+}
+.v2-panel .exch-sec:last-child {
+  margin-bottom: 12px;
+}
+.v2-chips {
+  padding: 0 clamp(17px, 3vw, 24px) 16px;
+}
+
+/* —— 指路行——单源件他页寻（安静链接行非 CTA） —— */
+.v2-linkrow {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 2px 4px 8px;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.v2-linkrow a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+/* —— 玻璃壳层：mobile topbar/tabbar 压滚动内容=saturate(180%)+blur(20)
+   法定方（重叠层才上玻璃——skill 铁律；桌面 side 不叠内容保固面） —— */
+@media (max-width: 767px) {
+  @supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+    .topbar {
+      background: var(--v2-glass-bg);
+      backdrop-filter: saturate(180%) blur(20px);
+      -webkit-backdrop-filter: saturate(180%) blur(20px);
+      border-bottom-color: var(--v2-glass-line);
+    }
+    .tabbar {
+      background: var(--v2-glass-bg);
+      backdrop-filter: saturate(180%) blur(20px);
+      -webkit-backdrop-filter: saturate(180%) blur(20px);
+      border-top-color: var(--v2-glass-line);
+    }
+  }
+}
+/* 九 tab 溢出保险：横滑不换行挤压（三径加入后 tabbar 7+ 项） */
+@media (max-width: 767px) {
+  .tabbar {
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .tabbar::-webkit-scrollbar {
+    display: none;
+  }
+  .tabbar a {
+    flex: 1 0 auto;
+    min-width: 56px;
+    padding: 0 10px;
+  }
+}
+
+/* 减动效：v2 页只留状态灯语义动效（v2-pulse=活性语言非装饰照留，
+   承 10-shell 同律）；面板/行零入场动效——直渲不渐隐（skill 铁律：
+   异步内容禁入场 opacity 帧——重渲会卡 0）。 */
