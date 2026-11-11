@@ -1,190 +1,178 @@
-/* 31-house.css —— 屋页（活物世界观，业主令 11-11）：
-   屋=身体常驻、值班经理=唤知会话、日记墙=ops_event 大脑、
-   白板=工单面、毛坯工位=待长器官。全 CSS 绘景零图片资产；
-   活性=真数据驱动（live 亮灯/探针呼吸/经理进出/墙钉换/NAV 跳），
-   无装饰性入场动效（异步内容禁 opacity 帧同律）。 */
+/* 31-floor.css —— 交易大厅·等距立体景（/floor）。
+   纯 SVG 场景+屏幕空间读数叠层；悬停出详情、点击物件到中央
+   （景压暗让位）。活性律：断流=厅灯暗，探针报警=哨兵呼吸。 */
 
-.house-room {
+.floor-scene {
   position: relative;
-  background: linear-gradient(180deg, #1c1e26 0%, #23262f 62%, #2a2d38 100%);
-  border-radius: 18px;
-  padding: 18px 22px 20px;
-  margin-bottom: 24px;
-  color: #e8eaf2;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.04);
-  transition: filter 0.6s ease;
+  width: 100%;
+  max-width: 1080px;
+  margin: 0 auto;
+  aspect-ratio: 940 / 560;
+  background: #11151d;
+  border: 1px solid #2a3140;
+  border-radius: 14px;
+  overflow: hidden;
 }
-/* 断流=整屋暗一档——显形不演 */
-.house-room:not(.live) { filter: brightness(0.72) saturate(0.8); }
+.floor-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  transition: filter 0.35s ease;
+}
+.floor-scene.focused .floor-svg {
+  filter: blur(5px) brightness(0.42);
+  pointer-events: none;
+}
+.floor-scene.dark .floor-svg {
+  filter: brightness(0.7) saturate(0.6);
+}
+.floor-scene.focused.dark .floor-svg {
+  filter: blur(5px) brightness(0.3);
+}
 
-/* ── 天棚：双钟+屋灯 ── */
-.house-top {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 18px;
-  margin-bottom: 14px;
+/* 活性动画 */
+@keyframes fx-breathe {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
 }
-.house-lamp {
-  width: 10px; height: 10px; border-radius: 50%;
-  background: #4a4f60; margin-right: auto;
-  transition: background 0.4s, box-shadow 0.4s;
-}
-.house-lamp.on {
-  background: #ffd166;
-  box-shadow: 0 0 14px 3px rgba(255, 209, 102, 0.45);
-}
-.h-clock { display: flex; align-items: baseline; gap: 7px; }
-.h-clock-label { font-size: 11px; color: #8b90a3; letter-spacing: 0.08em; }
-.h-clock-time { font-size: 15px; font-weight: 600; color: #e8eaf2; font-variant-numeric: tabular-nums; }
+.fx-breathe { animation: fx-breathe 1.6s ease-in-out infinite; }
 
-/* ── 后墙：日记墙/经验架/墙钉/NAV屏/身高尺 ── */
-.house-wall {
-  display: grid;
-  grid-template-columns: 1fr 220px 78px;
-  gap: 14px;
-  align-items: stretch;
-  margin-bottom: 16px;
+.iso-hot { cursor: pointer; }
+.iso-hot:hover > * { filter: brightness(1.25); }
+
+.iso-cap {
+  font-size: 10px;
+  fill: #aab6cf;
+  font-family: inherit;
 }
-.wall-shelf {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+.iso-cap.dim { fill: #68738c; }
+.iso-cap.gold { fill: #ffd76a; }
+
+/* 屏幕空间叠层——双钟/NAV 读数 */
+.iso-clock,
+.iso-nav {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  color: #cfe3ff;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  pointer-events: none;
+  text-shadow: 0 0 6px rgba(80, 140, 255, 0.5);
+}
+.iso-nav {
+  color: #3ddc84;
+  font-size: 13px;
+  font-weight: 700;
+  text-shadow: 0 0 10px rgba(61, 220, 132, 0.45);
+}
+.iso-state {
+  position: absolute;
+  left: 12px;
+  bottom: 10px;
+  font-size: 11px;
+  color: #68738c;
+  pointer-events: none;
+}
+.floor-scene.live .iso-state { color: #7ee787; }
+
+/* 悬停详情卡 */
+.iso-tip {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  min-width: 180px;
+  max-width: 300px;
+  background: rgba(14, 18, 28, 0.95);
+  border: 1px solid #3a4256;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+  color: #d5dceb;
+  pointer-events: none;
+  z-index: 5;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+}
+.iso-tip-t { font-weight: 700; color: #fff; margin-bottom: 4px; }
+.iso-tip-b { color: #aab6cf; line-height: 1.5; }
+.iso-tip-to { margin-top: 6px; font-size: 11px; color: #7aa2f7; }
+
+/* 聚焦层——物件到中央 */
+.iso-focus-back {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  cursor: zoom-out;
+}
+.iso-focus {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 9;
+  min-width: 320px;
+  max-width: 520px;
+  max-height: 80%;
+  overflow: auto;
+  animation: iso-pop 0.25s ease;
+}
+@keyframes iso-pop {
+  from { transform: translate(-50%, -46%) scale(0.92); opacity: 0; }
+  to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+}
+.iso-focus-x {
+  position: absolute;
+  right: -8px;
+  top: -8px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid #3a4256;
+  background: #1a2030;
+  color: #aab6cf;
+  font-size: 15px;
+  cursor: pointer;
+  z-index: 2;
+}
+.iso-focus-x:hover { background: #2a3245; color: #fff; }
+
+.iso-focus-in {
+  background: rgba(17, 22, 33, 0.97);
+  border: 1px solid #3a4256;
   border-radius: 12px;
-  padding: 12px 14px;
-  min-height: 118px;
+  padding: 16px 18px;
+  color: #d5dceb;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.65);
 }
-.shelf-label { font-size: 11px; margin-bottom: 8px; letter-spacing: 0.06em; }
-.shelf-row {
-  display: flex; align-items: center; gap: 5px;
-  min-height: 20px; margin-bottom: 6px; flex-wrap: wrap;
+.iso-focus-h { font-size: 13px; color: #8fa3c8; margin-bottom: 8px; }
+.iso-focus-big { font-size: 24px; font-weight: 700; color: #fff; margin: 6px 0 10px; }
+.iso-focus-row { font-size: 12.5px; color: #aab6cf; line-height: 1.9; }
+.iso-focus-go {
+  margin-top: 12px;
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid #3a55a0;
+  background: #1c2c50;
+  color: #9db8ff;
+  font-size: 12px;
+  cursor: pointer;
 }
-.shelf-k { font-size: 11px; color: #8b90a3; margin-right: 4px; }
-.shelf-box {
-  width: 13px; height: 16px; border-radius: 2px 4px 4px 2px;
-  background: linear-gradient(90deg, #5a8fdd, #7fb0ea);
-  box-shadow: inset -2px 0 0 rgba(0, 0, 0, 0.25);
-}
-.shelf-n { font-size: 12px; color: #9ab8e8; margin-left: 6px; font-weight: 600; }
-.shelf-empty { font-size: 12px; color: #6b7086; }
-.wall-notes { margin-top: 10px; display: flex; flex-direction: column; gap: 5px; }
-.wall-note {
-  display: flex; align-items: center; gap: 7px;
-  font-size: 12px; color: #b9bdd0;
-  background: rgba(255, 255, 255, 0.04);
-  border-radius: 6px; padding: 4px 8px;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.pin {
-  flex: none; width: 7px; height: 7px; border-radius: 50%;
-  background: #57d98e;
-}
-.pin.red { background: #ff6b6b; box-shadow: 0 0 6px rgba(255, 107, 107, 0.7); }
+.iso-focus-go:hover { background: #24386a; color: #fff; }
 
-/* NAV 大屏 */
-.wall-screen {
-  background: #0d1420;
-  border: 1px solid rgba(122, 168, 255, 0.22);
-  border-radius: 12px;
-  padding: 12px 16px;
-  display: flex; flex-direction: column; justify-content: center;
-  box-shadow: inset 0 0 24px rgba(80, 140, 255, 0.08);
+/* 白板聚焦卡=白板样 */
+.iso-focus-in.wb {
+  background: #e8e2d0;
+  color: #4a4232;
+  border-color: #b3a887;
 }
-.ws-label { font-size: 11px; color: #6d88b8; letter-spacing: 0.08em; margin-bottom: 6px; }
-.ws-nav { font-size: 26px; font-weight: 700; color: #bcd6ff; line-height: 1.15; }
-.ws-sub { font-size: 12px; color: #7d92b8; margin-top: 6px; }
+.wb-h { font-weight: 700; font-size: 14px; margin-bottom: 8px; color: #5a4e36; }
+.wb-row {
+  font-size: 12.5px;
+  line-height: 1.8;
+  padding: 3px 0;
+  border-bottom: 1px dashed #c5b894;
+}
+.wb-row.dim { color: #8a8268; }
 
-/* 身高尺 */
-.wall-ruler {
-  position: relative;
-  border-left: 2px solid rgba(255, 255, 255, 0.14);
-  padding-left: 10px;
-  display: flex; flex-direction: column; justify-content: space-between;
-  font-size: 11px; color: #8b90a3;
-}
-.ruler-mark { line-height: 1; }
-.ruler-pin {
-  position: absolute; left: -5px; width: 8px; height: 8px;
-  border-radius: 50%; background: #ffd166;
-  box-shadow: 0 0 8px rgba(255, 209, 102, 0.6);
-}
-.ruler-goal {
-  position: absolute; bottom: -4px; left: 10px; right: -30px;
-  font-size: 10px; color: #6b7086; white-space: nowrap;
-}
-
-/* ── 地板：三岗 ── */
-.house-floor {
-  display: grid;
-  grid-template-columns: 1fr 1.2fr 1fr;
-  gap: 14px;
-  margin-bottom: 16px;
-}
-.post {
-  background: rgba(255, 255, 255, 0.035);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 12px;
-  padding: 12px 14px;
-  min-height: 92px;
-}
-.post-label { font-size: 11px; margin-bottom: 9px; letter-spacing: 0.05em; }
-.post-sub { font-size: 11px; margin-top: 7px; }
-
-/* 哨兵岗 */
-.sentry-line { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.sentry { display: inline-flex; }
-
-/* 值班台+经理人像 */
-.manager { display: flex; align-items: center; gap: 10px; }
-.fig {
-  width: 26px; height: 26px; border-radius: 50% 50% 40% 40%;
-  background: #3a3f52;
-  transition: background 0.5s, box-shadow 0.5s;
-}
-.manager.on .fig {
-  background: #ffd166;
-  box-shadow: 0 0 12px rgba(255, 209, 102, 0.55);
-}
-.manager-state { font-size: 13px; color: #cfd3e4; }
-.manager.on .manager-state { color: #ffe3a1; }
-
-/* 白板 */
-.board-rows { display: flex; flex-direction: column; gap: 7px; }
-.board-row {
-  display: flex; align-items: center; gap: 8px;
-  font-size: 12px; color: #cfd3e4;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-
-/* ── 毛坯工位排 ── */
-.ghost-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
-  gap: 10px;
-}
-.ghost-desk {
-  border: 1px dashed rgba(255, 255, 255, 0.14);
-  border-radius: 10px;
-  padding: 10px 12px;
-  display: flex; flex-direction: column; align-items: center; gap: 6px;
-  background: rgba(255, 255, 255, 0.02);
-}
-.ghost-chair {
-  width: 20px; height: 14px;
-  border-radius: 4px 4px 2px 2px;
-  background: #343947;
-}
-.ghost-desk.build { border-color: rgba(255, 209, 102, 0.5); }
-.ghost-desk.build .ghost-chair { background: #8a7434; }
-.ghost-desk.done { border-style: solid; border-color: rgba(87, 217, 142, 0.5); }
-.ghost-desk.done .ghost-chair { background: #57d98e; }
-.ghost-name { font-size: 12px; color: #aab0c6; font-weight: 600; }
-.ghost-st { font-size: 10px; }
-.ghost-desk.build .ghost-st { color: #d8b45c; }
-.ghost-desk.done .ghost-st { color: #57d98e; }
-
-/* 窄屏回落——地板三岗变单列，墙屏尺顺序排 */
-@media (max-width: 860px) {
-  .house-wall { grid-template-columns: 1fr; }
-  .wall-ruler { min-height: 120px; }
-  .house-floor { grid-template-columns: 1fr; }
-}
+.c-red { color: #ff6b6b; }
+.c-green { color: #3ddc84; }
+.c-gold { color: #ffd76a; }
+.dim { color: #68738c; }
