@@ -102,12 +102,15 @@ echo "OK[bridge-audit] 模板列: deploy 三件套 DSN 键×实机对拍过"
 # ── ④ arch-源水印列（T-0230 回退径——源表 max(ts) vs arch max(src_ts) 日级
 # 滞>24h=红；arch 表缺行且源有行=闸死红——T-0223 存在性列留位接入）。
 wm() { # $1=侧(fin|md) $2=源表 $3=arch表
+	# 水印取末行 src_ts——arch_id pkey 单调递同向时间序（2026-11-11 病灶:
+	# max(src_ts) 对 7GB arch_eval 全扫 >20s 闸限,表长把闸顶死=闸自身
+	# 扩展性缺陷非数据病;ORDER BY pkey DESC LIMIT 1 同语义零扫描）。
 	if [ "$1" = fin ]; then
-		lag=$(sg_q "SELECT COALESCE(EXTRACT(EPOCH FROM (SELECT max(ts) FROM $2)-(SELECT max(src_ts) FROM $3)),0)")
+		lag=$(sg_q "SELECT COALESCE(EXTRACT(EPOCH FROM (SELECT max(ts) FROM $2)-(SELECT src_ts FROM $3 ORDER BY arch_id DESC LIMIT 1)),0)")
 		srcn=$(sg_q "SELECT count(*) FROM $2")
 		archn=$(sg_q "SELECT count(*) FROM $3")
 	else
-		lag=$(md_q "SELECT COALESCE(EXTRACT(EPOCH FROM (SELECT max(ts) FROM $2)-(SELECT max(src_ts) FROM $3)),0)")
+		lag=$(md_q "SELECT COALESCE(EXTRACT(EPOCH FROM (SELECT max(ts) FROM $2)-(SELECT src_ts FROM $3 ORDER BY arch_id DESC LIMIT 1)),0)")
 		srcn=$(md_q "SELECT count(*) FROM $2")
 		archn=$(md_q "SELECT count(*) FROM $3")
 	fi

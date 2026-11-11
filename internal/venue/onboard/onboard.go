@@ -75,6 +75,9 @@ type Runner struct {
 	// 禁桩真 venue 同律）。
 	dialProbeFn   func(addr string) (probeSession, error)
 	dialectRowsFn func(ctx context.Context, venue, login string) ([]mt5.DialectRow, error)
+	// okx.symbols=['*'] 通配展开缝（universeCatalog.Symbols 同供给件——
+	// T-0416 唯一真源；nil=通配不可展 fail-closed 空集）。
+	universeFn func(ctx context.Context) ([]string, error)
 }
 
 // New 装配（mk/dial 缺省=生产径；桩测覆写）。
@@ -83,6 +86,13 @@ func New(md, fin *pgxpool.Pool, cfg *config.Client) *Runner {
 		dial: func(addr string) (Session, error) { return mt5.Dial(addr) },
 		rej:  rejects.New("onboard", "cred_read_err", "probe_failed", "map_gate_err", "write_err"),
 		now:  time.Now}
+}
+
+// AttachUniverse 挂通配宇宙缝（装配层注 UniverseCatalog.Symbols——
+// okx.symbols=['*'] 册语义的唯一展开源；不挂=通配宇宙空集 fail-closed）。
+func (r *Runner) AttachUniverse(f func(ctx context.Context) ([]string, error)) *Runner {
+	r.universeFn = f
+	return r
 }
 
 // Run 上岗：席位注册+心跳+config_changed 事件脊（凭据/map 同帧）+活性兜底。

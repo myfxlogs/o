@@ -188,7 +188,8 @@ func researchArms(ctx context.Context, errc chan<- error, pool *pgxpool.Pool,
 	hr.AttachSignals(hypoSignalReader(pool)) // T-0140 信号读闸接线（sig 域→hypothesis 域投影）
 	// T-0416 提名 catalog 闸：宇宙扩件同一供给件（venue 目录实读+TTL 缓存）
 	// ——MUU 型假符（目录外 inst）进 fin_sub_request 前拒掉。
-	hr.AttachCatalog(okxws.NewUniverseCatalog(okcli.Get, okxws.UniverseTTL).Set)
+	uniCat := okxws.NewUniverseCatalog(okcli.Get, okxws.UniverseTTL)
+	hr.AttachCatalog(uniCat.Set)
 	go hr.Run(ctx, errc)
 	gr := grammar.NewRunner(pool, cfg).AttachCoins(okxCoinsFor(pool, okcli)).
 		AttachFin(finPool).AttachAlerter(alerter)
@@ -200,7 +201,9 @@ func researchArms(ctx context.Context, errc chan<- error, pool *pgxpool.Pool,
 	go scout.NewRunner(pool, cfg).AttachAlerter(alerter).Run(ctx, errc)
 	// T-0379 MT5 族 broker 接入标准径臂（凭据发现→探测→映射闸→paper 态——
 	// md=候选正本池/fin=凭据+ops_event+请求盒正本池；凭据域只读）。
-	go onboard.New(pool, finPool, cfg).Run(ctx, errc)
+	// AttachUniverse=okx.symbols=['*'] 通配展开缝（uniCat 同供给件——字面
+	// '*' 当 base 找配对=结构性永零实证病灶）。
+	go onboard.New(pool, finPool, cfg).AttachUniverse(uniCat.Symbols).Run(ctx, errc)
 	// T-0310 regime 分析席臂+ctx 采集臂（mql5/OI/FRED/COT/news 公开面——
 	// analyst=LLM 判词缝缺守位；ctx=四源采集事实行）。
 	go analyst.NewRunner(pool, cfg).AttachAlerter(alerter).Run(ctx, errc)

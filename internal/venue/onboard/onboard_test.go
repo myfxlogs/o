@@ -5,6 +5,7 @@ package onboard
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -238,6 +239,44 @@ func TestOnboardEmptySymbols(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
 		WHERE event='venue接入' AND esc_class='接入败'`).Scan(&n); err != nil || n == 0 {
 		t.Fatalf("符号表空败行 n=%d（应自报）", n)
+	}
+}
+
+// okx.symbols=['*'] 通配展缝锚——字面 '*' 当 base 配对=结构性永零实案病灶
+// （mt5:3001157 57 拍连零）。universeFn 缝=供给件唯一展开源：显式清单直用/
+// 缝 nil/目录读败=空集 fail-closed（beatDraft 让位语义）。
+func TestOkxUniverseWildcard(t *testing.T) {
+	r, pool, cfg := fixture(t)
+	ctx := context.Background()
+	seedCfg(t, ctx, pool, map[string]string{"okx.symbols": `["*"]`})
+	if err := cfg.Load(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := r.okxUniverse(ctx); len(got) != 0 {
+		t.Fatalf("通配缝未挂应空集 got=%v", got)
+	}
+	r.AttachUniverse(func(context.Context) ([]string, error) {
+		return []string{"BTC-USDT-SWAP", "ETH-USDT-SWAP"}, nil
+	})
+	if got := r.okxUniverse(ctx); len(got) != 2 {
+		t.Fatalf("通配应展开为2条 got=%v", got)
+	}
+	seedCfg(t, ctx, pool, map[string]string{"okx.symbols": `["SOL-USDT-SWAP"]`})
+	if err := cfg.Load(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := r.okxUniverse(ctx); len(got) != 1 || got[0] != "SOL-USDT-SWAP" {
+		t.Fatalf("显式清单应直用 got=%v", got)
+	}
+	seedCfg(t, ctx, pool, map[string]string{"okx.symbols": `["*"]`})
+	if err := cfg.Load(ctx); err != nil {
+		t.Fatal(err)
+	}
+	r.AttachUniverse(func(context.Context) ([]string, error) {
+		return nil, errors.New("目录败")
+	})
+	if got := r.okxUniverse(ctx); len(got) != 0 {
+		t.Fatalf("目录读败应空集 fail-closed got=%v", got)
 	}
 }
 

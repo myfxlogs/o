@@ -22,7 +22,8 @@ digest)
 SELECT id,seat,event,left(replace(note,E'\n',' '),600) FROM ops_event
 WHERE id>$(cat "$WM" 2>/dev/null || echo 0) AND (
   (seat='处置席' AND event='处置' AND note LIKE '%收口%')
-  OR (seat='审计席' AND event IN ('审计','审计疑点'))) ORDER BY id")
+  OR (seat='审计席' AND event IN ('审计','审计疑点'))
+  OR (seat='探测席' AND event='量表')) ORDER BY id")
 	[ "$last" -eq 0 ] && exit 0
 	[ -z "$buf" ] && { echo "$last" > "$WM"; exit 0; }
 	SEND="${FEISHU_BIN:-$HOME/.local/bin/feishusend}"
