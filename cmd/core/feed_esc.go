@@ -78,7 +78,7 @@ func (c coreService) feedEscCheck(ctx context.Context, deadSince map[string]time
 		} else {
 			isDead = time.Since(*ts) > b.dead
 		}
-		c.escEdge(ctx, deadSince, "断流", b.name, isDead, func() string {
+		c.escEdgeU(ctx, deadSince, "断流", b.name, isDead, func() string {
 			lastTxt := "零行"
 			if ts != nil {
 				lastTxt = fmt.Sprintf("末鲜 %s（陈 %s）", ts.UTC().Format("01-02 15:04Z"), time.Since(*ts).Round(time.Second))
@@ -110,11 +110,11 @@ func (c coreService) deployEscCheck(ctx context.Context, deadSince map[string]ti
 	notional := c.cfgF("risk.max_notional_usd")
 	facts := fmt.Sprintf("净值=%.0f 需额=%.0f(live×%d+probe) 敞口闸=%.0f 单笔闸=%.0f 利用率=%.0f%%",
 		*eq, demand, liveN, exp, notional, 100*demand/maxf(exp, 1))
-	c.escEdge(ctx, deadSince, "资金闸", "cap_hit",
+	c.escEdgeU(ctx, deadSince, "资金闸", "cap_hit",
 		exp > 0 && demand >= 0.9*exp, func() string {
 			return fmt.Sprintf("敞口闸到顶：%s——live/probe 族需额已贴闸（部署面事实，阈值判词归唤知会话）", facts)
 		})
-	c.escEdge(ctx, deadSince, "资金闸", "idle_capital",
+	c.escEdgeU(ctx, deadSince, "资金闸", "idle_capital",
 		liveN > 0 && eq != nil && demand < 0.25**eq, func() string {
 			return fmt.Sprintf("资本闲置：%s——已证族在册而部署不足净值 1/4（部署面事实，是否真缺口归唤知会话裁）", facts)
 		})
@@ -136,29 +136,15 @@ func maxf(a, b float64) float64 {
 	return b
 }
 
-// escEdge 沿触发——非死→死=升件(同窗 dedup)；死→非死=恢复行自闭。
-func (c coreService) escEdge(ctx context.Context, deadSince map[string]time.Time,
-	class, scope string, dead bool, note func() string) {
-	key := class + "/" + scope
-	if dead {
-		if _, ok := deadSince[key]; !ok {
-			deadSince[key] = time.Now()
-			c.escalate(ctx, class, scope, note())
-		}
-		return
-	}
-	if since, ok := deadSince[key]; ok {
-		delete(deadSince, key)
-		c.recoverNote(ctx, class, scope, since)
-	}
-}
-
-// escEdgeU 未销才抑版——死态期间每拍过 escalateUnresolved（其内 DB 判
+// escEdgeU 未销才抑沿——死态期间每拍过 escalateUnresolved（其内 DB 判
 // 未决:开着静默/销了重火/火完再静默）——dedup 粒=未决事件非「沿」。
 // 2026-11-10 根修:原沿触发版 deadSince 键占死不再发——「定性要码修」
 // 类销案（分类≠修好,条件仍真）后信号成黑洞唯重启才回流,与注释钦定的
 // 「销案后再发=新事证重升」语义自相矛盾（歧态批无碍=销即修好=条件翻假;
 // 能力债类销案=定性,债还在）。deadSince 仍记首死供恢复行陈窗。
+// 2026-11-11 全探针归一本版:旧 escEdge 沿触发版(仅 feed/资金闸三调用点
+// 在残)+escalate(同窗任意升件 dedup)删除——票抑复岗靠「销了重火」,
+// 沿触发版在抑撤后永哑(死沿早被消费)。
 func (c coreService) escEdgeU(ctx context.Context, deadSince map[string]time.Time,
 	class, scope string, dead bool, note func() string) {
 	key := class + "/" + scope
@@ -173,18 +159,6 @@ func (c coreService) escEdgeU(ctx context.Context, deadSince map[string]time.Tim
 		delete(deadSince, key)
 		c.recoverNote(ctx, class, scope, since)
 	}
-}
-
-// escalate 转死升件：同窗 24h dedup 后落 ops_event 升件。
-func (c coreService) escalate(ctx context.Context, class, scope, note string) {
-	var dup int
-	if err := c.pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
-		WHERE event='升件' AND esc_class=$1 AND esc_scope=$2
-		AND ts>now()-make_interval(hours=>$3)`,
-		class, scope, escDedupHours).Scan(&dup); err != nil || dup > 0 {
-		return // 读败静默下拍再试；同窗有报不暴
-	}
-	c.escInsert(ctx, class, scope, note)
 }
 
 // escalateUnresolved 未销才抑升件（对账类 dedup）——同窗 24h 内存未销升件
@@ -205,8 +179,25 @@ func (c coreService) escalateUnresolved(ctx context.Context, class, scope, note 
 	c.escInsert(ctx, class, scope, note)
 }
 
-// escInsert 升件落账行（escalate/escalateUnresolved 共用末段）。
+// escInsert 升件落账行（escalateUnresolved 末段）。
+// 票抑:同 scope 有开工单(无处置引「工单#id」∨挂起在期限内)静默让位——
+// 持续条件转票后探针不再重火同一问题,票自载期限管催(挂票亦抑:
+// 「票开着但不该干」≠「没人管」,过期抑撤自然复验)。销票/挂票过期
+// =抑撤,条件还在探针自然复岗(escalateUnresolved 未销才抑=抑撤即重火)。
 func (c coreService) escInsert(ctx context.Context, class, scope, note string) {
+	var tick int
+	if err := c.pool.QueryRow(ctx, `SELECT count(*) FROM ops_event t
+		WHERE t.event='工单' AND t.ts>now()-interval '30 days'
+		AND t.note ~ ('(^|[^a-zA-Z0-9_])scope='||$1||'([^a-zA-Z0-9_]|$)')
+		AND (NOT EXISTS (SELECT 1 FROM ops_event d WHERE d.event='处置'
+				AND d.id>t.id AND d.note ~ ('工单#'||t.id||'([^0-9]|$)'))
+			OR (t.ts + COALESCE((substring(t.note from '期限=([0-9]+)h'))::int,24)*interval '1 hour' > now()
+				AND EXISTS (SELECT 1 FROM ops_event d WHERE d.event='处置'
+					AND d.id>t.id AND d.note ~ ('工单#'||t.id||'([^0-9]|$)')
+					AND d.note LIKE '%挂起条件=%')))`,
+		scope).Scan(&tick); err == nil && tick > 0 {
+		return // 开工单在案——票管催,探针静默(读败不抑=fail-open升件优先)
+	}
 	if _, err := c.pool.Exec(ctx,
 		`INSERT INTO ops_event(seat,event,ticket,note,esc_class,esc_scope)
 		VALUES('探测席','升件','',$1,$2,$3)`,

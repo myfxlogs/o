@@ -4,6 +4,8 @@
 # 阈面: 未决升件≥COG_MIN_N(默认1)且最老>COG_MIN_AGE(默认600s——
 #   给在飞会话/人工处置留窗,防每拍对鲜信号空唤);
 #   或未决≥COG_BURST_N(默认5)无视龄直唤(积压即唤);
+#   或 OPEN 工单在案(未销∧无活在认领——票管催制的「派」接续,
+#   票面即优先级不等龄);
 #   单飞闸=o-cognition-* 有 active/activating 即退(串行认知——
 #   并行会话抢同一信号面=双处置双账,串行=天然去重);
 #   静默退出=零信号/未达阈/单飞中(每拍静默是常态非异常)。
@@ -28,12 +30,26 @@ WHERE e.event='升件' AND e.ts > now() - interval '7 days'
     SELECT 1 FROM ops_event x WHERE x.ts > e.ts
       AND x.note ~ ('升件#'||e.id::text||'([^0-9]|\$)'))" 2>/dev/null | tr '|' ' ')
 N=${N:-0}; OLDEST=${OLDEST:-0}
-[ "$N" -gt 0 ] || exit 0
+
+# 工单板（D-0045 票管催制——「立票→开修」接续环）：OPEN 票=未销
+# (无处置引「工单#id」)且无活在认领(认领行<2h 引同票——
+# RuntimeMaxSec 对齐,认领陈=会话死透票自然回落可拣)。
+# 票本身就是排期承诺:有 OPEN 票即唤,不等龄——票面即优先级。
+TICKET_N=$(psql "$DSN" -qAt -c "
+SELECT count(*) FROM ops_event t
+WHERE t.event='工单' AND t.ts>now()-interval '30 days'
+  AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='处置' AND x.ts>t.ts
+    AND x.note ~ ('工单#'||t.id::text||'([^0-9]|\$)'))
+  AND NOT EXISTS (SELECT 1 FROM ops_event c WHERE c.event='认领' AND c.ts>t.ts
+    AND c.ts>now()-interval '2 hours'
+    AND c.note ~ ('工单#'||t.id::text||'([^0-9]|\$)'))" 2>/dev/null)
+TICKET_N=${TICKET_N:-0}
 
 NOW=$(date +%s); AGE=$(( NOW - OLDEST ))
 TRIGGER=""
 [ "$N" -ge "$BURST_N" ] && TRIGGER="burst:$N"
 [ -z "$TRIGGER" ] && [ "$N" -ge "$MIN_N" ] && [ "$AGE" -ge "$MIN_AGE" ] && TRIGGER="aged:N=$N age=${AGE}s"
+[ "$TICKET_N" -gt 0 ] && TRIGGER="${TRIGGER:+$TRIGGER }ticket:$TICKET_N"
 [ -n "$TRIGGER" ] || exit 0
 
 # 单飞闸: o-cognition-<epoch> 会话件 active 即退(串行认知)。

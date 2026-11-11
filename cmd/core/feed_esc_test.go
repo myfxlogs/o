@@ -24,13 +24,13 @@ func TestFeedEscLifecycle(t *testing.T) {
 		t.Fatalf("clean: %v", err)
 	}
 	svc := coreService{pool: pool}
-	svc.escalate(ctx, "断流", "t_dead", "面断流 t_dead：零行——超阈。t_fix")
+	svc.escalateUnresolved(ctx, "断流", "t_dead", "面断流 t_dead：零行——超阈。t_fix")
 	var n int
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
 		WHERE event='升件' AND esc_class='断流' AND esc_scope='t_dead'`).Scan(&n); err != nil || n != 1 {
 		t.Fatalf("升件 n=%d err=%v", n, err)
 	}
-	svc.escalate(ctx, "断流", "t_dead", "重报") // 同窗重报不暴
+	svc.escalateUnresolved(ctx, "断流", "t_dead", "重报") // 未销重报不暴
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
 		WHERE event='升件' AND esc_scope='t_dead'`).Scan(&n); err != nil || n != 1 {
 		t.Fatalf("去重 n=%d err=%v", n, err)
@@ -228,7 +228,7 @@ func TestDataGapEsc(t *testing.T) {
 	}
 }
 
-// escEdge 沿触发：非死→死恰一报,持续死不重报,复绿自闭。
+// escEdgeU 未销才抑沿：非死→死恰一报,持续死不重报(未销在案),复绿自闭。
 func TestEscEdge(t *testing.T) {
 	ctx := context.Background()
 	pool := testutil.Pool(t)
@@ -241,7 +241,7 @@ func TestEscEdge(t *testing.T) {
 	svc := coreService{pool: pool}
 	ds := map[string]time.Time{}
 	fire := func(d bool) {
-		svc.escEdge(ctx, ds, "资金闸", "t_edge", d, func() string { return "t_edge note" })
+		svc.escEdgeU(ctx, ds, "资金闸", "t_edge", d, func() string { return "t_edge note" })
 	}
 	fire(false)
 	fire(true)
