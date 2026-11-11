@@ -148,20 +148,30 @@ func (c coreService) stuckEscCheck(ctx context.Context, deadSince map[string]tim
 	})
 }
 
-// codeworkStallEscCheck 工单滞留探——非探测席立的升件（会话验码/
-// 转要码修产生的工单行,如 处置席复证件/审计复证件/CTO 挂起件）
-// 陈>24h 未销=码修待启而无人盯——「说要修没开修」面,
-// 与 stuck_esc 孪生(一个盯说修了没修住,一个盯说要修没开修)。
-// 判据:14d 窗内 event=升件∧seat<>'探测席'∧ts>24h∧无后随处置行。
-// 探针类升件不入此面——探针火是值守件非工单,陈化归探针自身律。
-// 2026-11-11 业主令:转票无滞留哨=条件请求同族缺陷(径在无人盯走)。
+// codeworkStallEscCheck 工单滞留探——双臂:
+//
+//	①一等票型: event='工单' 真行,自载期限(note 期限=Nh,默认24h),
+//	  销=处置行「工单#id」——过期未销=码修待启而无人盯;
+//	②旧形臂: 非探测席立的升件(会话验码/复证/挂起件)陈>24h未销,
+//	  向后兼容一等票型前的工单形状。
+//
+// 「说要修没开修」面,与 stuck_esc 孪生(一个盯说修了没修住,
+// 一个盯说要修没开修)。判据皆为状态非散文——票行是真行。
+// 2026-11-11 业主令:转票无滞留哨=条件请求同族缺陷(径在无人盯走);
+// 同日升级:直接上一等票型,不养散文判定。
 func (c coreService) codeworkStallEscCheck(ctx context.Context, deadSince map[string]time.Time) {
 	rows, err := c.pool.Query(ctx, `SELECT e.id, e.seat, left(e.note,40) FROM ops_event e
+		WHERE e.event='工单' AND e.ts>now()-interval '30 days'
+		AND e.ts + COALESCE((substring(e.note from '期限=([0-9]+)h'))::int,24) * interval '1 hour' < now()
+		AND NOT EXISTS (SELECT 1 FROM ops_event d WHERE d.event='处置'
+			AND d.id>e.id AND d.note ~ ('工单#'||e.id||'([^0-9]|$)'))
+		UNION ALL
+		SELECT e.id, e.seat, left(e.note,40) FROM ops_event e
 		WHERE e.event='升件' AND e.seat<>'探测席'
 		AND e.ts>now()-interval '14 days' AND e.ts<now()-interval '24 hours'
 		AND NOT EXISTS (SELECT 1 FROM ops_event d WHERE d.event='处置'
 			AND d.id>e.id AND d.note ~ ('升件#'||e.id||'([^0-9]|$)'))
-		ORDER BY e.id DESC LIMIT 20`)
+		ORDER BY 1 DESC LIMIT 20`)
 	if err != nil {
 		return // 读件败本拍让位
 	}
@@ -181,7 +191,7 @@ func (c coreService) codeworkStallEscCheck(ctx context.Context, deadSince map[st
 	}
 	dead := n > 0
 	c.escEdgeU(ctx, deadSince, "唤知", "codework_stall", dead, func() string {
-		return fmt.Sprintf("唤知/codework_stall: %d 件工单陈>24h未销（%s）——转要码修件滞留无哨,定性归唤知会话分诊(在修/挂起/死单)",
+		return fmt.Sprintf("唤知/codework_stall: %d 件工单过期未销（%s）——转要码修件滞留,定性归唤知会话分诊(在修/挂起/死单/真滞留)",
 			n, strings.Join(parts, "、"))
 	})
 }
