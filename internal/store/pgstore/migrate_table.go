@@ -169,6 +169,7 @@ var migrationTable = []struct {
 	{160, "fin_0160_residual_grant.sql"},
 	{161, "fin_0161_fin_retire_fn.sql"},
 	{162, "fin_0162_headless_review_grant.sql"},
+	{163, "fin_0163_ops_event_probe_indexes.sql"},
 
 	// —— md 链（版本链内唯一且单调；md 链版本=历史号+1000 与 fin 键空间全局不相交——跨链并 schema 时 schema_migrations 零撞号，check_migrations 断言①⑤）——
 	{1003, "md_1003_market_facts.sql"},

@@ -186,12 +186,18 @@ func (c coreService) GetFaceGrid(ctx context.Context,
 	// 探针心跳：esc_scope 聚合最近升/复绿；未决=未销升件在案（runbook①
 	// 同谓词——无界窗对齐，老案未销亦显 open）。
 	openScopes := map[string]bool{}
-	if rs, err := c.pool.Query(ctx, `SELECT DISTINCT esc_scope FROM ops_event e
+	// 引用端物化（2026-11-10 SG CPU 烧实证——旧形逐升件行相关
+	// NOT EXISTS+嵌套 regexp_matches 扫全表,dashboard 每调必烧;
+	// 引用集单程抽出后反连,毫秒级）。单号/区间号统一展 lo-hi。
+	if rs, err := c.pool.Query(ctx, `WITH cited AS MATERIALIZED (
+		SELECT x.id xid, (m.mm)[1]::bigint lo,
+			COALESCE((m.mm)[2]::bigint,(m.mm)[1]::bigint) hi
+		FROM ops_event x, LATERAL regexp_matches(x.note,$1,'g') m(mm)
+		WHERE x.note LIKE '%升件#%')
+		SELECT DISTINCT e.esc_scope FROM ops_event e
 		WHERE e.event='升件' AND e.esc_scope IS NOT NULL AND e.esc_scope<>''
-		AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.ts>e.ts
-			AND (x.note ~ ('升件#'||e.id::text||'([^0-9]|$)')
-				OR EXISTS (SELECT 1 FROM regexp_matches(x.note,'升件#(\d+)-(\d+)','g') AS m(mm)
-					WHERE e.id BETWEEN mm[1]::bigint AND mm[2]::bigint)))`); err == nil {
+		AND NOT EXISTS (SELECT 1 FROM cited c WHERE c.xid>e.id
+			AND e.id BETWEEN c.lo AND c.hi)`, `升件#([0-9]+)(?:-([0-9]+))?`); err == nil {
 		for rs.Next() {
 			var s string
 			if rs.Scan(&s) == nil {

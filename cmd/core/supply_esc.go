@@ -116,15 +116,21 @@ func (c coreService) lessonBacklogEscCheck(ctx context.Context, deadSince map[st
 // ②宣称词负前文——宣称词被「宣称/说/谓/引号」裹述时不算宣称
 // (#9743 案:处置文内引「宣称已修实未愈」被计成已修宣称)。
 func (c coreService) stuckEscCheck(ctx context.Context, deadSince map[string]time.Time) {
-	rows, err := c.pool.Query(ctx, `SELECT e2.esc_scope, e1.id, e2.id FROM ops_event e1
-		JOIN ops_event e2 ON e2.esc_scope=e1.esc_scope AND e2.event='升件' AND e2.id>e1.id
+	// 处置端起步（2026-11-10 SG CPU 烧实证改写）：旧形 e1×e2 自连+
+	// 逐对 EXISTS regex 扫——1154 升件×8k 行 pkey 范围扫，单后端 100%
+	// 单核烧 2min+/拍。新形=宣称处置行先物化抽 升件#id（处置面行少，
+	// regex 单程），pkey 回 e1，scope 索引扫 e2——毫秒级。
+	rows, err := c.pool.Query(ctx, `WITH claims AS MATERIALIZED (
+		SELECT d.id did, (m.m)[1]::bigint e1id
+		FROM ops_event d, LATERAL regexp_matches(d.note,$1,'g') m(m)
+		WHERE d.event='处置' AND d.ts>now()-interval '7 days'
+		AND d.note ~ '(^|[^称说谓「『])(已修|已部署|已落成|已修复|已愈|自愈|已恢复|复绿|上岸)')
+		SELECT e2.esc_scope, e1.id, e2.id FROM claims c
+		JOIN ops_event e1 ON e1.id=c.e1id AND e1.id<c.did
+		JOIN ops_event e2 ON e2.esc_scope=e1.esc_scope AND e2.event='升件' AND e2.id>c.did
 		WHERE e1.event='升件' AND e1.ts>now()-interval '7 days'
 		AND e1.esc_scope IS NOT NULL AND e1.esc_scope<>'' AND e1.esc_scope<>'stuck_esc'
-		AND EXISTS (SELECT 1 FROM ops_event d WHERE d.event='处置'
-			AND d.id>e1.id AND d.id<e2.id
-			AND d.note ~ ('升件#'||e1.id||'([^0-9]|$)')
-			AND d.note ~ '(^|[^称说谓「『])(已修|已部署|已落成|已修复|已愈|自愈|已恢复|复绿|上岸)')
-		ORDER BY e2.id DESC LIMIT 10`)
+		ORDER BY e2.id DESC LIMIT 10`, `升件#([0-9]+)`)
 	if err != nil {
 		return // 读件败本拍让位
 	}
