@@ -92,7 +92,7 @@ export function FloorPage() {
           </defs>
           <MainHall live={live} probes={probes} openProbes={openProbes}
             notes={wallNotes} openCount={openEsc.length + openReq.length}
-            s={s} vens={vens} hot={hot} toRoom={setRoom}
+            trail={t.data?.trail ?? []} s={s} vens={vens} hot={hot} toRoom={setRoom}
             hover={setTip} unhover={() => setTip(null)} />
         </svg>
         )}

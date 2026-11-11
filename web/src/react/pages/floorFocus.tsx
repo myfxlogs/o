@@ -11,16 +11,26 @@ import { P, pts, IsoBox } from "../components/iso";
 
 export type Tip = { k: string; x: number; y: number; title: string; body: string[]; to: string };
 
-export const GHOSTS: { name: string; st: "ghost" | "build" | "done"; hint: string }[] = [
-  { name: "B 元探", st: "ghost", hint: "缺仪器自动发探——自模型胚" },
-  { name: "C 自态摘要", st: "ghost", hint: "会话冷启动账页" },
-  { name: "D 目标发起", st: "build", hint: "进水口已通·7源已抓" },
-  { name: "旧禁条作废", st: "build", hint: "种子行+引尸探在案" },
-  { name: "做梦", st: "ghost", hint: "离线反刍成规律" },
-  { name: "举一反三", st: "ghost", hint: "摔一次会一类" },
-  { name: "连续自我", st: "ghost", hint: "破日记人格" },
-  { name: "懂你", st: "ghost", hint: "业主意图模型" },
+export const GHOSTS: { name: string; st: "ghost" | "build" | "done"; hint: string; keys: string[] }[] = [
+  { name: "B 元探", st: "ghost", hint: "缺仪器自动发探——自模型胚", keys: ["元探", "自动发探", "缺仪器"] },
+  { name: "C 自态摘要", st: "ghost", hint: "会话冷启动账页", keys: ["自态", "#10489"] },
+  { name: "D 目标发起", st: "ghost", hint: "进水口已通·7源已抓", keys: ["目标发起", "abcd", "A-D", "进水口", "intake"] },
+  { name: "旧禁条作废", st: "ghost", hint: "种子行+引尸探在案", keys: ["禁条", "红线重定义", "redline", "法典"] },
+  { name: "做梦", st: "ghost", hint: "离线反刍成规律", keys: ["做梦"] },
+  { name: "举一反三", st: "ghost", hint: "摔一次会一类", keys: ["举一反三"] },
+  { name: "连续自我", st: "ghost", hint: "破日记人格", keys: ["连续自我"] },
+  { name: "懂你", st: "ghost", hint: "业主意图模型", keys: ["懂你"] },
 ];
+
+// 毛坯态推导——钉墙最新匹配钉定态（开钉→在建；销/部署→完工；无钉→毛坯）。
+// trail 新→旧序；DONE 词表=销/部署/落账毕，BUILD 词表=领命/工单/备记/开工。
+const DONE_RE = /销案|部署销|落账毕|法典已部署|已部署|已完成|收口/;
+export function ghostSt(gh: (typeof GHOSTS)[number], trail: { note: string; open: boolean }[]): "ghost" | "build" | "done" {
+  const hit = trail.find((r) => gh.keys.some((k) => r.note.includes(k)));
+  if (!hit) return "ghost";
+  if (hit.open || !DONE_RE.test(hit.note)) return "build";
+  return "done";
+}
 
 const fmtMoney = (v: number) =>
   "$" + v.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -28,20 +38,23 @@ const TO_LABEL: Record<string, string> = { "/": "机赚如何", "/device": "哪�
 
 type Hot = (tt: Omit<Tip, "x" | "y">, x: number, y: number, z?: number, cls?: string) => Record<string, unknown>;
 
-// 毛坯工位排——待长器官钦定清单（暗=毛坯，金=在建呼吸）。
-export function GhostRow(props: { hot: Hot }) {
+// 毛坯工位排——待长器官钦定清单（暗=毛坯，金=在建，绿=完工）。
+export function GhostRow(props: { hot: Hot; trail: { note: string; open: boolean }[] }) {
   return (
     <>
       {GHOSTS.map((gh, i) => {
         const x = 0.8 + i * 1.65, y = 8.3;
-        const gold = gh.st === "build";
-        const c = gold ? { top: "#5c5132", front: "#4d4329", right: "#403723" } : { top: "#2c3444", front: "#252c3a", right: "#1f2531" };
+        const st = ghostSt(gh, props.trail);
+        const gold = st === "build", done = st === "done";
+        const c = gold ? { top: "#5c5132", front: "#4d4329", right: "#403723" }
+          : done ? { top: "#2e4d3a", front: "#274233", right: "#1f3529" }
+          : { top: "#2c3444", front: "#252c3a", right: "#1f2531" };
         const [nx, ny] = P(x + 0.6, y + 1.35);
         return (
           <g key={gh.name}
-            {...props.hot({ k: "gh" + i, title: `毛坯位 · ${gh.name}`, body: [gh.hint, gh.st === "build" ? "在建" : "毛坯"], to: "/decision" }, x + 0.6, y + 0.4, 0.8, gold ? "fx-breathe" : "")}>
-            <IsoBox x={x} y={y} w={1.2} d={0.8} h={0.7} top={c.top} front={c.front} right={c.right} dashed op={0.85} />
-            <text x={nx} y={ny + 8} className={`iso-cap${gold ? " gold" : " dim"}`} textAnchor="middle">{gh.name}</text>
+            {...props.hot({ k: "gh" + i, title: `毛坯位 · ${gh.name}`, body: [gh.hint, done ? "已完工" : gold ? "在建" : "毛坯"], to: "/decision" }, x + 0.6, y + 0.4, 0.8, gold ? "fx-breathe" : "")}>
+            <IsoBox x={x} y={y} w={1.2} d={0.8} h={0.7} top={c.top} front={c.front} right={c.right} dashed={!done} op={0.85} />
+            <text x={nx} y={ny + 8} className={`iso-cap${gold ? " gold" : done ? "" : " dim"}`} textAnchor="middle">{gh.name}{done ? "✓" : ""}</text>
           </g>
         );
       })}
@@ -227,11 +240,12 @@ export function FocusBody(props: {
     );
   if (k.startsWith("gh")) {
     const gh = GHOSTS[Number(k.slice(2))];
+    const st = ghostSt(gh, props.trail ?? []);
     return (
       <div className="iso-focus-in">
         <div className="iso-focus-h">毛坯工位 · {gh.name}</div>
         <div className="iso-focus-row">{gh.hint}</div>
-        <div className="iso-focus-big">{gh.st === "build" ? "🟡 在建" : "⬚ 毛坯"}</div>
+        <div className="iso-focus-big">{st === "done" ? "🟢 已完工" : st === "build" ? "🟡 在建" : "⬚ 毛坯"}</div>
         {go}
       </div>
     );
