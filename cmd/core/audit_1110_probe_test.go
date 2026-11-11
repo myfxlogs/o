@@ -310,7 +310,7 @@ func TestMetaEscHeaderEnumerates(t *testing.T) {
 	head := src[:strings.Index(src, "package main")]
 	re := regexp.MustCompile(`escEdgeU\(ctx,\s*deadSince,\s*"([^"]+)"`)
 	used := map[string]bool{}
-	for _, f := range []string{"meta_esc.go", "audit_esc.go", "feed_esc.go"} {
+	for _, f := range []string{"meta_esc.go", "audit_esc.go", "feed_esc.go", "expect_esc.go"} {
 		fb, err := os.ReadFile(f)
 		if err != nil {
 			t.Fatalf("read %s: %v", f, err)

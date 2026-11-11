@@ -307,6 +307,14 @@ ORDER BY t.ts + COALESCE((substring(t.note from '期限=([0-9]+)h'))::int,24)*in
   feed 断→采集面立件；市场枯（venue 面数据仍在更新,评估口径
   正常只是零通过）→定性销+注「供给枯非断供」。2026-11-10 实案：
   dcd_call/vol_sell_* 11 天零评估无声即本探针要防的盲）。
+- **预期产出**（esc_class=预期产出 scope=expect_<面>——元探通用形：
+  expectDecls 注册表逐面声明期望产出（窗内实产≥阈），实产断供升件,
+  值指纹=实数；断流探管采集 feed,本档管「自产没人看」的环内生产面）→
+  分因：
+  - 生产码面病灶（beat 内件查询败/写径败——先核 o-core 日志该面段）→要码修
+  - 上游断供（beat 活而源头干——先核 healthComps 同名 feed 面）→接断流档定性
+  - 瞬态已愈（本 scope 恢复行已在案）→销+引恢复行号
+  - 设计态缺席（面拍节本就超窗/该面停用）→定性销+调册阈或摘册（要码修）
 - **venue漂移**（esc_class=venue漂移 scope=<venue>:<login>——onboard
   漂移探针 venue 实返×注册面差分 beat；同签名 dedup 同窗复燃=差未消）→
   核 venue 实返对注册面：注册面陈→补册/更正（要码修）；venue 面真变
