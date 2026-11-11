@@ -45,7 +45,8 @@ func die(err error) {
 
 // bridge 件持有面。
 type bridge struct {
-	pool   *pgxpool.Pool
+	pool   *pgxpool.Pool // roster_rw 写/读户（请求面+ops_event+secrets 读）
+	rpool  *pgxpool.Pool // condreq_resolver 结案户（fin_0165——nil=结案径未配 fail-closed）
 	fs     *notify.FeishuClient
 	chatID string
 	sent   map[int64]string // req_id→message_id（本程内推送记录）
@@ -59,9 +60,13 @@ func (b *bridge) intent(ctx context.Context, note string) {
 	}
 }
 
-// resolve 结案（pending 才动）——返回是否真实翻转。
+// resolve 结案（pending 才动，condreq_resolver 户径——「写者≠结案者」
+// 边界：本件池只结不改请求体）。返回是否真实翻转。
 func (b *bridge) resolve(ctx context.Context, id int64, state, note string) (bool, error) {
-	r, err := b.pool.Exec(ctx, `UPDATE fin_condition_gap SET state=$2,resolved_at=now(),resolve_note=$3
+	if b.rpool == nil {
+		return false, fmt.Errorf("结案径未配（feishubridge.resolver_dsn 缺）")
+	}
+	r, err := b.rpool.Exec(ctx, `UPDATE fin_condition_gap SET state=$2,resolved_at=now(),resolve_note=$3
 		WHERE id=$1 AND state='pending'`, id, state, note)
 	if err != nil {
 		return false, err
@@ -85,6 +90,9 @@ func (b *bridge) pushPending(ctx context.Context) {
 		var kind, venue, surface, payload string
 		if rows.Scan(&id, &kind, &venue, &surface, &payload) != nil {
 			continue
+		}
+		if !ownerFacing(kind, payload) {
+			continue // 会话域件不推业主——水位不进,flag 后翻仍可被推
 		}
 		mid, err := b.fs.CreateInteractive(ctx, b.chatID, reqCard(id, kind, venue, surface, payload))
 		if err != nil {
@@ -235,6 +243,18 @@ func main() {
 	}
 	b := &bridge{pool: pool, fs: notify.NewFeishu(appID, appSec), chatID: chatID,
 		sent: map[int64]string{}}
+	var rdsnCt []byte // 结案户 DSN（密文入库——凭据归 PG；缺=结案面 fail-closed 推送面照跑）
+	if err := pool.QueryRow(ctx, "SELECT ciphertext FROM app_secrets WHERE key='feishubridge.resolver_dsn'").Scan(&rdsnCt); err == nil {
+		if rdsn, err := cryptoutil.Open(mk, rdsnCt); err == nil {
+			if rp, err := pgxpool.New(ctx, rdsn); err == nil {
+				b.rpool = rp
+				defer rp.Close()
+			}
+		}
+	}
+	if b.rpool == nil {
+		log.Printf("feishubridge: resolver_dsn 未配——结案面禁用（推送面照跑）")
+	}
 	go b.listenPending(ctx)                       // condreq_pending 敲门→推卡（零轮询）
 	disp := dispatcher.NewEventDispatcher("", "") // ws 长连免验签/加密键
 	disp.OnP2CardActionTrigger(b.onCardAction)

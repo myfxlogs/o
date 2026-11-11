@@ -86,6 +86,28 @@ func TestReqCard(t *testing.T) {
 	}
 }
 
+func TestOwnerFacing(t *testing.T) {
+	cases := []struct {
+		kind, payload string
+		want          bool
+	}{
+		{"capital", `{}`, true},                           // 出钱=业主域
+		{"credential", `{}`, true},                        // 出凭据=业主域
+		{"permission", `{}`, true},                        // 放行权限=业主域
+		{"constraint", `{}`, true},                        // 红线放行=业主域
+		{"executor", `{}`, false},                         // executor 默认会话办
+		{"holding", `{}`, false},                          // holding 默认会话办
+		{"executor", `{"owner_required":true}`, true},     // 显式标业主件→推
+		{"permission", `{"owner_required":false}`, false}, // 显式豁免→不推
+		{"executor", `{bad json`, false},                  // 畸 payload 按类默认
+	}
+	for _, c := range cases {
+		if got := ownerFacing(c.kind, c.payload); got != c.want {
+			t.Fatalf("ownerFacing(%q,%q)=%v 望 %v", c.kind, c.payload, got, c.want)
+		}
+	}
+}
+
 func TestAskFromPayload(t *testing.T) {
 	cases := []struct{ in, want string }{
 		{`{"ask":"人话文本"}`, "人话文本"},

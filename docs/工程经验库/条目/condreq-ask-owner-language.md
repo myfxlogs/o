@@ -6,7 +6,7 @@ risk: medium
 status: verified
 keywords: [fin_condition_gap, 条件请求, payload, ask, 人话, 业主面, T-0081, feishubridge]
 scope: [internal/platform/condreq, 条件请求写臂, 业主面文案]
-summary: condreq 写臂把机器判词（verdict）塞 payload 当请求体——业主卡面收到 JSON 天书。钦定写侧约：payload 必带 ask 键=对业主的白话一句话（要你做/何时做/不给会怎样）；无 ask 的请求=写臂违规非桥件显形责
+summary: condreq 双约——①payload 必带 ask=业主白话一句话（写臂塞机器 verdict=业主收天书）；②owner_required 布尔键标业主域——0干预钦定真业主件只四类（出钱/出凭据/红线放行/人在场），executor/holding 默认会话可办不推卡，会话裁量件标 false 显式豁免
 first_seen: 2026-11-11
 last_verified: 2026-11-11
 skills: []
@@ -42,6 +42,12 @@ payload=`{"source":"T-0438","verdict":"通过——…armed→open闸fail-closed
   `{"ask":"真钱彩排须你到场——armed 13张策略等开仓,彩排不过零开火","verdict":"…","ticket":"T-0461"}`
 - verdict/ticket/ref 机器面字段照写不删——黑话挪括注尾保追溯
 - 桥件 askFromPayload 抽取序 ask→note→reason→verdict→原文兜底
+- **owner_required 业主域闸**（0干预钦定——真业主件=出钱/出凭据/
+  红线放行/人在场四类）：capital/credential/permission/constraint
+  默认推；executor/holding 默认会话可办不推,真业主件标
+  owner_required=true；会话裁量件标 owner_required=false 显式豁免。
+  机器可办件禁挂 pending 等业主——会话域自办或销案,勿把
+  请求盒当工单队列
 
 ## 证据
 
