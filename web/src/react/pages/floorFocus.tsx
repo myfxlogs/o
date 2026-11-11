@@ -2,9 +2,12 @@
 // 白板卡=白板样；各卡挂「进账本页」深链跳问答页。GHOSTS=毛坯工位钦定清单。
 import type { ReactNode } from "react";
 import { navigate } from "../router";
+import { client } from "../api";
+import { useLive } from "../hooks";
 import { plainText } from "../components/plain";
 import { pbDate } from "../components/fmt";
 import { AGE } from "../components/panel";
+import { P, pts, IsoBox } from "../components/iso";
 
 export type Tip = { k: string; x: number; y: number; title: string; body: string[]; to: string };
 
@@ -23,6 +26,47 @@ const fmtMoney = (v: number) =>
   "$" + v.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const TO_LABEL: Record<string, string> = { "/": "机赚如何", "/device": "哪病了", "/decision": "何事要裁" };
 
+type Hot = (tt: Omit<Tip, "x" | "y">, x: number, y: number, z?: number, cls?: string) => Record<string, unknown>;
+
+// 毛坯工位排——待长器官钦定清单（暗=毛坯，金=在建呼吸）。
+export function GhostRow(props: { hot: Hot }) {
+  return (
+    <>
+      {GHOSTS.map((gh, i) => {
+        const x = 0.8 + i * 1.65, y = 8.3;
+        const gold = gh.st === "build";
+        const c = gold ? { top: "#5c5132", front: "#4d4329", right: "#403723" } : { top: "#2c3444", front: "#252c3a", right: "#1f2531" };
+        const [nx, ny] = P(x + 0.6, y + 1.35);
+        return (
+          <g key={gh.name}
+            {...props.hot({ k: "gh" + i, title: `毛坯位 · ${gh.name}`, body: [gh.hint, gh.st === "build" ? "在建" : "毛坯"], to: "/decision" }, x + 0.6, y + 0.4, 0.8, gold ? "fx-breathe" : "")}>
+            <IsoBox x={x} y={y} w={1.2} d={0.8} h={0.7} top={c.top} front={c.front} right={c.right} dashed op={0.85} />
+            <text x={nx} y={ny + 8} className={`iso-cap${gold ? " gold" : " dim"}`} textAnchor="middle">{gh.name}</text>
+          </g>
+        );
+      })}
+    </>
+  );
+}
+
+// venue 屏排——右墙顶带小屏，几所几屏（overview money 行按 venue 分组）。
+export function VenueScreens(props: { hot: Hot; vens: [string, number][] }) {
+  return (
+    <>
+      {props.vens.map(([vn, usd], i) => {
+        const x = 8.6 + i * 1.15;
+        const [lx, ly] = P(x + 0.45, 0, 2.45);
+        return (
+          <g key={vn} {...props.hot({ k: "ven:" + vn, title: `${vn} 资金屏`, body: [`合计 ${fmtMoney(usd)}`], to: "/" }, x + 0.45, 0, 2.7)}>
+            <polygon points={pts([P(x, 0, 2.6), P(x + 0.9, 0, 2.6), P(x + 0.9, 0, 2.95), P(x, 0, 2.95)])} fill="#0a1020" stroke="#5a7ec2" strokeWidth="0.9" />
+            <text x={lx} y={ly + 6} className="iso-cap" textAnchor="middle" fill="#9db8ff" fontSize="8.5">{vn}</text>
+          </g>
+        );
+      })}
+    </>
+  );
+}
+
 // 聚焦卡数据源——场景页把已抓数据整包传入，本件只管排版。
 export function FocusBody(props: {
   f: Tip;
@@ -34,9 +78,13 @@ export function FocusBody(props: {
   engCanon: number; econCanon: number;
   nav?: { total: number; today: number; cum: number };
   session?: { running?: boolean; lastSpawn?: unknown; spawns24h?: unknown; closes24h?: unknown; fails24h?: unknown };
+  money?: { label: string; section: string; ccy: string; usd: number; venue: string; note: string }[];
   utc: string; bj: string;
 }) {
   const { f } = props;
+  // 仓单读面——聚焦打开才拉（ev_position 帧同刷）。
+  const pos = useLive(["ev_position"], () => client.listOpenPositions({}));
+  const hist = useLive(["ev_position"], () => client.listClosedPositions({ limit: 6, offset: 0 }));
   const go = f.to ? (
     <button className="iso-focus-go" onClick={() => navigate(f.to)}>进账本页 →{TO_LABEL[f.to]}</button>
   ) : null;
@@ -66,12 +114,25 @@ export function FocusBody(props: {
     ),
     nav: () => (
       <div className="iso-focus-in">
-        <div className="iso-focus-h">收银屏 · NAV</div>
+        <div className="iso-focus-h">收银大屏 · NAV + 持仓 + 历史单</div>
         <div className="iso-focus-big num">{props.nav ? fmtMoney(props.nav.total) : "—"}</div>
         <div className="iso-focus-row">
           今日 {props.nav ? (props.nav.today >= 0 ? "+" : "−") + fmtMoney(Math.abs(props.nav.today)) : "—"} ·
           累计 {props.nav ? (props.nav.cum >= 0 ? "+" : "−") + fmtMoney(Math.abs(props.nav.cum)) : "—"}
         </div>
+        <div className="iso-focus-h" style={{ marginTop: 10 }}>在仓 {pos.data?.positions?.length ?? "…"}</div>
+        {(pos.data?.positions ?? []).slice(0, 5).map((p) => (
+          <div key={String(p.id)} className="iso-focus-row">
+            {p.venue} · {p.instId} · {p.direction} · ${p.notionalUsd.toFixed(0)}{p.template ? ` · ${p.template}` : ""}
+          </div>
+        ))}
+        {(pos.data?.positions ?? []).length === 0 && !pos.loading && <div className="iso-focus-row dim">零在仓</div>}
+        <div className="iso-focus-h" style={{ marginTop: 10 }}>最近平仓</div>
+        {(hist.data?.positions ?? []).slice(0, 5).map((p) => (
+          <div key={String(p.id)} className="iso-focus-row">
+            {p.instId} · {p.settledAmount >= 0 ? "+" : "−"}{Math.abs(p.settledAmount).toFixed(2)} {p.settledCcy}
+          </div>
+        ))}
         {go}
       </div>
     ),
@@ -123,6 +184,21 @@ export function FocusBody(props: {
   };
   const k = f.k;
   if (body[k]) return <>{body[k]()}</>;
+  if (k.startsWith("ven:")) {
+    const vn = k.slice(4);
+    const rows = (props.money ?? []).filter((r) => r.venue === vn);
+    const tot = rows.reduce((a, r) => a + (r.usd || 0), 0);
+    return (
+      <div className="iso-focus-in">
+        <div className="iso-focus-h">{vn} · 资金屏</div>
+        <div className="iso-focus-big num">{fmtMoney(tot)}</div>
+        {rows.map((r, i) => (
+          <div key={i} className="iso-focus-row">{r.label} · {r.section} · {fmtMoney(r.usd)}{r.note ? ` · ${r.note}` : ""}</div>
+        ))}
+        {go}
+      </div>
+    );
+  }
   if (k === "sentry" || k.startsWith("probe"))
     return (
       <div className="iso-focus-in">

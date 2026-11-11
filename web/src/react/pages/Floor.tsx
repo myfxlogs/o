@@ -1,7 +1,7 @@
 // Floor.tsx —— 交易大厅页·等距立体景（业主令 11-11 活物世界观第二版）。
-// 大厅=O 身体常驻：左墙门/哨兵窗，右墙白板/钉墙/书架/NAV屏/身高尺，
-// 值班台=唤知会话，吊灯=数据流活性（断流灯暗不假亮），双钟=UTC+北京，
-// 毛坯工位=待长器官。悬停出详情、点击物件到中央（floorFocus 承接）。
+// 大厅=O 身体常驻：左墙门(通档案室)/哨兵窗，右墙白板/钉墙/书架/NAV屏/
+// venue 屏排/身高尺，值班台=唤知会话，吊灯=数据流活性（断流灯暗不假亮），
+// 双钟=UTC+北京，毛坯工位=待长器官。悬停出详情、点击物件到中央（floorFocus 承接）。
 import { useEffect, useMemo, useState } from "react";
 import { client } from "../api";
 import { useLive } from "../hooks";
@@ -12,7 +12,8 @@ import { pbDate } from "../components/fmt";
 import { AGE } from "../components/panel";
 import { plainText } from "../components/plain";
 import { P, pts, IsoBox, Person } from "../components/iso";
-import { GHOSTS, FocusBody, type Tip } from "./floorFocus";
+import { FocusBody, GhostRow, VenueScreens, type Tip } from "./floorFocus";
+import { ArchiveRoom } from "./floorArchive";
 
 const fmtMoney = (v: number) =>
   "$" + v.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -25,10 +26,13 @@ export function FloorPage() {
   const [now, setNow] = useState(() => new Date());
   const [tip, setTip] = useState<Tip | null>(null);
   const [focus, setFocus] = useState<Tip | null>(null);
+  const [room, setRoom] = useState<"floor" | "archive">("floor");
   useEffect(() => onLive((v) => setLive(!!v)), []);
   useEffect(() => {
     const i = setInterval(() => setNow(new Date()), 1000);
-    const on = (e: KeyboardEvent) => { if (e.key === "Escape") setFocus(null); };
+    const on = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setFocus((f) => (f ? null : (setRoom("floor"), null)));
+    };
     window.addEventListener("keydown", on);
     return () => { clearInterval(i); window.removeEventListener("keydown", on); };
   }, []);
@@ -36,6 +40,10 @@ export function FloorPage() {
   const d = g.data, o = ov.data, s = d?.session;
   const openEsc = useMemo(() => (t.data?.trail ?? []).filter((r) => r.open), [t.data]);
   const openReq = useMemo(() => (t.data?.condreqs ?? []).filter((r) => r.open), [t.data]);
+  const vens = useMemo(() => { // venue 屏排——money 行按 venue 分组合计
+    const m = new Map<string, number>();
+    for (const r of o?.money ?? []) m.set(r.venue, (m.get(r.venue) ?? 0) + (r.usd || 0));
+    return [...m.entries()]; }, [o]);
   const probes = d?.probes ?? [];
   const openProbes = probes.filter((p) => p.open).length;
   const engCanon = Number(t.data?.mine?.engCanon ?? 0n);
@@ -58,10 +66,15 @@ export function FloorPage() {
   if (g.err && !g.data) return <ErrorState msg={g.err} onRetry={g.reload} />;
 
   const ROOM_W = 14, ROOM_D = 10, WALL_Z = 3, lampC = P(7, 5, 0);
+  const VB = room === "archive" ? { x: 400, y: 140, w: 800, h: 480 } : { x: 470, y: 150, w: 940, h: 560 };
 
   return (
     <div className="page v2">
-      <div className={`floor-scene${live ? " live" : " dark"}${focus ? " focused" : ""}`}>
+      <div className={`floor-scene${live ? " live" : " dark"}${focus ? " focused" : ""}`} style={{ aspectRatio: `${VB.w}/${VB.h}` }}>
+        {room === "archive" ? (
+          <ArchiveRoom live={live} engCanon={engCanon} econCanon={econCanon}
+            notes={t.data?.trail ?? []} hot={hot} onExit={() => setRoom("floor")} />
+        ) : (
         <svg viewBox="-470 -150 940 560" className="floor-svg">
           <defs>
             <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
@@ -97,26 +110,26 @@ export function FloorPage() {
             fill="#3a4256" stroke="#171c26" strokeWidth="1.2"
           />
 
-          {/* 门——左墙前段（gx=0 面上画平行四边形） */}
-          <g {...hot({ k: "door", title: "门", body: ["它对外只有一扇门——飞书日行从这里递给你"], to: "" }, 0, 8.9, 1.1)}>
+          {/* 门——左墙前段：通档案室（点进入，非聚焦卡） */}
+          <g className="iso-hot"
+            onMouseEnter={() => { const [tx, ty] = P(0, 8.9, 1.1); setTip({ k: "door", x: tx, y: ty, title: "门 · 通档案室", body: ["点进去——canon 书架+日记钉墙；外递只有飞书日行"], to: "" }); }}
+            onMouseLeave={() => setTip(null)}
+            onClick={() => { setTip(null); setRoom("archive"); }}>
             <polygon points={pts([P(0, 7.8, 0), P(0, 10, 0), P(0, 10, 2.15), P(0, 7.8, 2.15)])} fill="#1d2432" stroke="#11161f" strokeWidth="0.8" />
             <polygon points={pts([P(0, 8.05, 0.05), P(0, 9.75, 0.05), P(0, 9.75, 2.0), P(0, 8.05, 2.0)])} fill="#55617a" stroke="#11161f" strokeWidth="0.6" />
             {(() => { const [kx, ky] = P(0, 9.55, 1.0); return <circle cx={kx} cy={ky} r="2" fill="#ffd76a" />; })()}
           </g>
 
           {/* 哨兵窗——左墙中段夜空窗，窗台哨兵排 */}
-          <g {...hot({
-            k: "sentry", title: `哨兵窗 · ${probes.length} 探在册`,
-            body: [openProbes ? `${openProbes} 探在报警——点开看哪病了` : "全谱静默——窗瞪着，无事上报"], to: "/device",
-          }, 0, 2.7, 1.9)}>
+          <g {...hot({ k: "sentry", title: `哨兵窗 · ${probes.length} 探在册`,
+            body: [openProbes ? `${openProbes} 探在报警——点开看哪病了` : "全谱静默——窗瞪着，无事上报"], to: "/device" }, 0, 2.7, 1.9)}>
             <polygon points={pts([P(0, 1.3, 1.3), P(0, 4.3, 1.3), P(0, 4.3, 2.75), P(0, 1.3, 2.75)])} fill="url(#sky)" stroke="#4d5a75" strokeWidth="1.4" />
             <line x1={P(0, 2.8, 1.3)[0]} y1={P(0, 2.8, 1.3)[1]} x2={P(0, 2.8, 2.75)[0]} y2={P(0, 2.8, 2.75)[1]} stroke="#4d5a75" strokeWidth="0.8" />
             <line x1={P(0, 1.3, 2.02)[0]} y1={P(0, 1.3, 2.02)[1]} x2={P(0, 4.3, 2.02)[0]} y2={P(0, 4.3, 2.02)[1]} stroke="#4d5a75" strokeWidth="0.8" />
           </g>
           {/* 哨兵——窗下小像，探针态=头部灯色（报警红呼吸/报过黄/静默绿） */}
           {probes.slice(0, 6).map((p, i) => {
-            const gy = 1.7 + i * 0.55;
-            const col = p.open ? "#ff6b6b" : p.lastEsc ? "#ffd76a" : "#6fd08c";
+            const gy = 1.7 + i * 0.55, col = p.open ? "#ff6b6b" : p.lastEsc ? "#ffd76a" : "#6fd08c";
             return (
               <g key={p.escClass + "/" + p.escScope}
                 {...hot({ k: "probe" + i, title: plainText(p.escClass + "/" + p.escScope), body: [p.open ? "正在报警" : "静默在岗"], to: "/device" }, 0.9, gy, 0, p.open ? "fx-breathe" : "")}>
@@ -128,11 +141,10 @@ export function FloorPage() {
             <text x={P(0.9, 5.2)[0]} y={P(0.9, 5.2)[1] - 8} className="iso-cap">+{probes.length - 6}</text>
           )}
 
-          {/* UTC 钟——左墙 */}
+          {/* UTC 钟——左墙；北京钟——右墙 */}
           <g {...hot({ k: "utc", title: "UTC 钟", body: [utc + " UTC——机器时间"], to: "" }, 0, 5.8, 2.3)}>
             <ellipse cx={P(0, 5.8, 2.3)[0]} cy={P(0, 5.8, 2.3)[1]} rx="11" ry="6" fill="#0e141f" stroke="#8fa3c8" strokeWidth="1" />
           </g>
-          {/* 北京钟——右墙 */}
           <g {...hot({ k: "bj", title: "北京钟", body: [bj + " 北京——你的时间"], to: "" }, 8.5, 0, 2.3)}>
             <ellipse cx={P(8.5, 0, 2.3)[0]} cy={P(8.5, 0, 2.3)[1]} rx="11" ry="6" fill="#0e141f" stroke="#8fa3c8" strokeWidth="1" />
           </g>
@@ -184,6 +196,9 @@ export function FloorPage() {
               <text x={P(11.9, 0.82, 1.1)[0]} y={P(11.9, 0.82, 1.1)[1]} className="iso-cap dim">经济架·空</text>
             )}
           </g>
+
+          {/* venue 屏排——右墙顶带，几所几屏（money 行分组实数） */}
+          <VenueScreens hot={hot} vens={vens} />
 
           {/* 身高尺——右墙角刻度（婴→少年→成年） */}
           <g {...hot({
@@ -238,29 +253,18 @@ export function FloorPage() {
           </g>
 
           {/* 毛坯工位——前排 8 位（虚线盒=未长，金=在建） */}
-          {GHOSTS.map((gh, i) => {
-            const x = 0.8 + i * 1.65, y = 8.3;
-            const gold = gh.st === "build";
-            const c = gold ? { top: "#5c5132", front: "#4d4329", right: "#403723" } : { top: "#2c3444", front: "#252c3a", right: "#1f2531" };
-            const [nx, ny] = P(x + 0.6, y + 1.35);
-            return (
-              <g key={gh.name}
-                {...hot({ k: "gh" + i, title: `毛坯位 · ${gh.name}`, body: [gh.hint, gh.st === "build" ? "在建" : "毛坯"], to: "/decision" }, x + 0.6, y + 0.4, 0.8, gold ? "fx-breathe" : "")}>
-                <IsoBox x={x} y={y} w={1.2} d={0.8} h={0.7} top={c.top} front={c.front} right={c.right} dashed op={0.85} />
-                <text x={nx} y={ny + 8} className={`iso-cap${gold ? " gold" : " dim"}`} textAnchor="middle">{gh.name}</text>
-              </g>
-            );
-          })}
+          <GhostRow hot={hot} />
 
           {/* 吊灯——活性灯（断流=灯暗，不假亮） */}
           <line x1={lampC[0]} y1={-140} x2={lampC[0]} y2={lampC[1] - 66} stroke="#4d5a75" strokeWidth="1.2" />
           {live && <ellipse cx={lampC[0]} cy={lampC[1] - 46} rx="46" ry="20" fill="url(#lampGlow)" />}
           <path d={`M ${lampC[0] - 13} ${lampC[1] - 66} L ${lampC[0] + 13} ${lampC[1] - 66} L ${lampC[0] + 6} ${lampC[1] - 50} L ${lampC[0] - 6} ${lampC[1] - 50} Z`} fill={live ? "#ffd76a" : "#4d5a75"} stroke="#0b0e14" strokeWidth="0.8" />
         </svg>
+        )}
 
         {/* 悬停详情卡 */}
         {tip && !focus && (
-          <div className="iso-tip" style={{ left: `${((tip.x + 470) / 940 * 100).toFixed(2)}%`, top: `${((tip.y + 150) / 560 * 100).toFixed(2)}%` }}>
+          <div className="iso-tip" style={{ left: `${((tip.x + VB.x) / VB.w * 100).toFixed(2)}%`, top: `${((tip.y + VB.y) / VB.h * 100).toFixed(2)}%` }}>
             <div className="iso-tip-t">{tip.title}</div>
             {tip.body.map((b, i) => <div key={i} className="iso-tip-b">{b}</div>)}
             <div className="iso-tip-to">点击→到中央</div>
@@ -268,27 +272,26 @@ export function FloorPage() {
         )}
 
         {/* 聚焦——物件到中央，景压暗让位 */}
-        {focus && (
-          <>
-            <div className="iso-focus-back" onClick={() => setFocus(null)} />
-            <div className="iso-focus">
-              <button className="iso-focus-x" onClick={() => setFocus(null)}>×</button>
-              <FocusBody f={focus} openEsc={openEsc} openReq={openReq} trail={t.data?.trail ?? []}
-                probes={probes} openProbes={openProbes} engCanon={engCanon} econCanon={econCanon}
-                nav={o ? { total: o.navTotal, today: o.pnlToday, cum: o.pnlCum } : undefined}
-                session={s} utc={utc} bj={bj} />
-            </div>
-          </>
-        )}
+        {focus && (<>
+          <div className="iso-focus-back" onClick={() => setFocus(null)} />
+          <div className="iso-focus">
+            <button className="iso-focus-x" onClick={() => setFocus(null)}>×</button>
+            <FocusBody f={focus} openEsc={openEsc} openReq={openReq} trail={t.data?.trail ?? []}
+              probes={probes} openProbes={openProbes} engCanon={engCanon} econCanon={econCanon}
+              nav={o ? { total: o.navTotal, today: o.pnlToday, cum: o.pnlCum } : undefined}
+              money={o?.money ?? []} session={s} utc={utc} bj={bj} />
+          </div>
+        </>)}
 
-        {/* 双钟读数（屏幕空间钉在钟面位——viewBox -470/-150 940×560 归一） */}
-        {([["utc", P(0, 5.8, 2.3), utc], ["bj", P(8.5, 0, 2.3), bj]] as const).map(([k, [px, py], v]) => (
-          <div key={k} className="iso-clock" style={{ left: `${((px + 470) / 940 * 100).toFixed(2)}%`, top: `${((py + 150) / 560 * 100).toFixed(2)}%` }}>{v.slice(0, 5)}</div>))}
-        {/* NAV 屏读数 */}
-        <div className="iso-nav num" style={{ left: `${((P(5.8, 0, 1.95)[0] + 470) / 940 * 100).toFixed(2)}%`, top: `${((P(5.8, 0, 1.95)[1] + 150) / 560 * 100).toFixed(2)}%` }}>
-          {o ? fmtMoney(o.navTotal) : "—"}
-        </div>
-        <div className="iso-state">{live ? "厅灯亮——数据流活着" : "厅灯暗——数据流断了"}</div>
+        {/* 双钟读数+NAV 屏数（仅主厅——viewBox 归一按当前房间） */}
+        {room === "floor" && (<>
+          {([["utc", P(0, 5.8, 2.3), utc], ["bj", P(8.5, 0, 2.3), bj]] as const).map(([k, [px, py], v]) => (
+            <div key={k} className="iso-clock" style={{ left: `${((px + VB.x) / VB.w * 100).toFixed(2)}%`, top: `${((py + VB.y) / VB.h * 100).toFixed(2)}%` }}>{v.slice(0, 5)}</div>))}
+          <div className="iso-nav num" style={{ left: `${((P(5.8, 0, 1.95)[0] + VB.x) / VB.w * 100).toFixed(2)}%`, top: `${((P(5.8, 0, 1.95)[1] + VB.y) / VB.h * 100).toFixed(2)}%` }}>
+            {o ? fmtMoney(o.navTotal) : "—"}
+          </div>
+        </>)}
+        <div className="iso-state">{room === "archive" ? "档案室——ESC 或点门回厅" : live ? "厅灯亮——数据流活着" : "厅灯暗——数据流断了"}</div>
       </div>
     </div>
   );
