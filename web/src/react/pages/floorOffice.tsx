@@ -1,7 +1,7 @@
 // floorOffice.tsx —— 写实办公室版交易厅（业主令 11-11：要真办公室质感）。
 // 大厅=木地开放区+水泥区；左墙大落地窗+档案室门，右墙 NAV 大屏/venue 屏排/
 // 机房钢门；件件独立可交互（hot() 包裹），数据绑定位与旧景一致。
-import { P, pts, IsoBox, Person } from "../components/iso";
+import { P, pts, IsoBox, Person, SeatedPerson, Walker } from "../components/iso";
 import { plainText } from "../components/plain";
 import { Desk, OfficeChair, Monitor, Plant, WaterCooler, PendantLamp, WallWindowL, ServerRack, DoorSprite } from "./officeParts";
 import { GhostRow, VenueScreens, type Fact, type Tip } from "./floorFocus";
@@ -38,9 +38,10 @@ export function MainHall(props: {
   facts: Fact[];
   s?: Sess; vens: [string, number][]; hot: Hot; toRoom: (r: "archive" | "server") => void;
   hover: (tt: Tip) => void; unhover: () => void;
+  walk?: { path: [number, number][]; tone: string; k: number }; walkDone: () => void;
 }) {
   const { hot, live } = props;
-  const W = 14, D = 10, Z = 3.1, SPLIT = 5.6;
+  const W = 18, D = 12, Z = 3.1, SPLIT = 6.4;
   const door = (k: string, x: number, y: number, z: number, title: string, body: string[], to: () => void) => ({
     className: "iso-hot",
     onMouseEnter: () => { const [tx, ty] = P(x, y, z); props.hover({ k, x: tx, y: ty, title, body, to: "" }); },
@@ -60,7 +61,7 @@ export function MainHall(props: {
 
       {/* 哨兵——窗下人形排，探针态=灯色 */}
       {props.probes.slice(0, 6).map((p, i) => {
-        const gy = 1.7 + i * 0.55, col = p.open ? "#ff6b6b" : p.lastEsc ? "#ffd76a" : "#6fd08c";
+        const gy = 1.7 + i * 0.62, col = p.open ? "#ff6b6b" : p.lastEsc ? "#ffd76a" : "#6fd08c";
         return (
           <g key={p.escClass + "/" + p.escScope}
             {...hot({ k: "probe" + i, title: plainText(p.escClass + "/" + p.escScope), body: [p.open ? "正在报警" : "静默在岗"], to: "/device" }, 0.9, gy, 0, p.open ? "fx-breathe" : "")}>
@@ -68,41 +69,41 @@ export function MainHall(props: {
           </g>
         );
       })}
-      {props.probes.length > 6 && <text x={P(0.9, 5.2)[0]} y={P(0.9, 5.2)[1] - 8} className="iso-cap">+{props.probes.length - 6}</text>}
+      {props.probes.length > 6 && <text x={P(0.9, 5.6)[0]} y={P(0.9, 5.6)[1] - 8} className="iso-cap">+{props.probes.length - 6}</text>}
 
-      {/* UTC 钟——左墙门上段 */}
-      <g {...hot({ k: "utc", title: "UTC 钟", body: ["机器时间"], to: "" }, 0, 7.5, 2.55)}>
-        <ellipse cx={P(0, 7.5, 2.55)[0]} cy={P(0, 7.5, 2.55)[1]} rx="11" ry="6" fill="#f4f1e8" stroke="#6a7280" strokeWidth="1" />
+      {/* UTC 钟——左墙窗门间带 */}
+      <g {...hot({ k: "utc", title: "UTC 钟", body: ["机器时间"], to: "" }, 0, 7.9, 2.55)}>
+        <ellipse cx={P(0, 7.9, 2.55)[0]} cy={P(0, 7.9, 2.55)[1]} rx="11" ry="6" fill="#f4f1e8" stroke="#6a7280" strokeWidth="1" />
       </g>
       {/* 北京钟——右墙 */}
-      <g {...hot({ k: "bj", title: "北京钟", body: ["你的时间"], to: "" }, 11.9, 0, 2.45)}>
-        <ellipse cx={P(11.9, 0, 2.45)[0]} cy={P(11.9, 0, 2.45)[1]} rx="11" ry="6" fill="#f4f1e8" stroke="#6a7280" strokeWidth="1" />
+      <g {...hot({ k: "bj", title: "北京钟", body: ["你的时间"], to: "" }, 14.0, 0, 2.45)}>
+        <ellipse cx={P(14.0, 0, 2.45)[0]} cy={P(14.0, 0, 2.45)[1]} rx="11" ry="6" fill="#f4f1e8" stroke="#6a7280" strokeWidth="1" />
       </g>
 
-      {/* 档案室门——左墙门洞+Kenney 门件（点进屋） */}
-      <g {...door("door", 0, 8.9, 1.1, "门 · 通档案室", ["点进去——canon 书架+日记钉墙"], () => props.toRoom("archive"))}>
-        <polygon points={pts([P(0, 7.9, 0), P(0, 9.9, 0), P(0, 9.9, 2.2), P(0, 7.9, 2.2)])} fill="#3a332a" stroke="#4a3a29" strokeWidth="1" />
-        <DoorSprite x={0.12} y={8.9} w={64} />
+      {/* 档案室门——左墙尽端门洞+Kenney 门件（点进屋） */}
+      <g {...door("door", 0, 10.9, 1.1, "门 · 通档案室", ["点进去——canon 书架+日记钉墙"], () => props.toRoom("archive"))}>
+        <polygon points={pts([P(0, 9.9, 0), P(0, 11.9, 0), P(0, 11.9, 2.2), P(0, 9.9, 2.2)])} fill="#3a332a" stroke="#4a3a29" strokeWidth="1" />
+        <DoorSprite x={0.12} y={10.9} w={64} />
       </g>
 
       {/* 机房钢门——右墙尽端（点进机房） */}
-      <g {...door("door2", 13.3, 0, 1.1, "钢门 · 通机房", ["点进去——常驻器官机柜排"], () => props.toRoom("server"))}>
-        <polygon points={pts([P(12.6, 0, 0), P(14, 0, 0), P(14, 0, 2.2), P(12.6, 0, 2.2)])} fill="#7d848f" stroke="#565c66" strokeWidth="1" />
-        <line x1={P(13.3, 0, 0)[0]} y1={P(13.3, 0, 0)[1]} x2={P(13.3, 0, 2.2)[0]} y2={P(13.3, 0, 2.2)[1]} stroke="#565c66" strokeWidth="0.9" />
-        <text x={P(13.3, 0, 2.35)[0]} y={P(13.3, 0, 2.35)[1]} className="iso-cap" textAnchor="middle">机房</text>
+      <g {...door("door2", 17.3, 0, 1.1, "钢门 · 通机房", ["点进去——常驻器官机柜排"], () => props.toRoom("server"))}>
+        <polygon points={pts([P(16.6, 0, 0), P(18, 0, 0), P(18, 0, 2.2), P(16.6, 0, 2.2)])} fill="#7d848f" stroke="#565c66" strokeWidth="1" />
+        <line x1={P(17.3, 0, 0)[0]} y1={P(17.3, 0, 0)[1]} x2={P(17.3, 0, 2.2)[0]} y2={P(17.3, 0, 2.2)[1]} stroke="#565c66" strokeWidth="0.9" />
+        <text x={P(17.3, 0, 2.35)[0]} y={P(17.3, 0, 2.35)[1]} className="iso-cap" textAnchor="middle">机房</text>
       </g>
 
       {/* NAV 大屏——右墙挂屏（读数叠层在 Floor.tsx） */}
-      <g {...hot({ k: "nav", title: "收银大屏 · NAV+持仓+历史", body: ["点开看净值/在仓/平仓全谱"], to: "/" }, 5.8, 0, 1.95)}>
-        <polygon points={pts([P(4.6, 0, 1.3), P(7.0, 0, 1.3), P(7.0, 0, 2.6), P(4.6, 0, 2.6)])} fill="#20242e" stroke="#4a5160" strokeWidth="1.6" />
-        <polygon points={pts([P(4.72, 0, 1.42), P(6.88, 0, 1.42), P(6.88, 0, 2.48), P(4.72, 0, 2.48)])} fill="#0d1420" />
+      <g {...hot({ k: "nav", title: "收银大屏 · NAV+持仓+历史", body: ["点开看净值/在仓/平仓全谱"], to: "/" }, 7.0, 0, 1.95)}>
+        <polygon points={pts([P(5.6, 0, 1.3), P(8.4, 0, 1.3), P(8.4, 0, 2.6), P(5.6, 0, 2.6)])} fill="#20242e" stroke="#4a5160" strokeWidth="1.6" />
+        <polygon points={pts([P(5.72, 0, 1.42), P(8.28, 0, 1.42), P(8.28, 0, 2.48), P(5.72, 0, 2.48)])} fill="#0d1420" />
       </g>
 
       {/* 日记钉墙——右墙软木钉板 */}
-      <g {...hot({ k: "wall", title: "日记钉墙 · 共享大脑", body: props.notes.length ? props.notes.map((r) => (r.open ? "🔴 " : "") + plainText(r.note).slice(0, 40)) : ["墙上干净——无新钉"], to: "/decision" }, 9.1, 0, 1.5)}>
-        <polygon points={pts([P(7.6, 0, 1.05), P(10.7, 0, 1.05), P(10.7, 0, 1.95), P(7.6, 0, 1.95)])} fill="#b08a5e" stroke="#8f6a3d" strokeWidth="1" />
+      <g {...hot({ k: "wall", title: "日记钉墙 · 共享大脑", body: props.notes.length ? props.notes.map((r) => (r.open ? "🔴 " : "") + plainText(r.note).slice(0, 40)) : ["墙上干净——无新钉"], to: "/decision" }, 10.6, 0, 1.5)}>
+        <polygon points={pts([P(9.0, 0, 1.05), P(12.6, 0, 1.05), P(12.6, 0, 1.95), P(9.0, 0, 1.95)])} fill="#b08a5e" stroke="#8f6a3d" strokeWidth="1" />
         {props.notes.slice(0, 3).map((r, i) => {
-          const x = 7.8 + i * 0.95, face = pts([P(x, 0, 1.2), P(x + 0.68, 0, 1.2), P(x + 0.68, 0, 1.8), P(x, 0, 1.8)]);
+          const x = 9.2 + i * 0.95, face = pts([P(x, 0, 1.2), P(x + 0.68, 0, 1.2), P(x + 0.68, 0, 1.8), P(x, 0, 1.8)]);
           const [px, py] = P(x + 0.34, 0, 1.74);
           return (
             <g key={String(r.escId)}>
@@ -140,35 +141,39 @@ export function MainHall(props: {
         {props.openCount === 0 && <text x={P(2.6, 1.57, 1.35)[0]} y={P(2.6, 1.57, 1.35)[1]} className="iso-cap dim">板上干净</text>}
       </g>
 
-      {/* 值班台——白桌+显示器+转椅（在班出人形） */}
-      <g {...hot({ k: "desk", title: "值班台 · 唤知会话", body: [props.s?.running ? "在班——正在干活" : "下班了——空椅待命"], to: "/device" }, 7.6, 4.8, 0.9)}>
-        <ellipse cx={P(7.7, 5.4)[0]} cy={P(7.7, 5.4)[1]} rx="70" ry="22" fill="#3a3f4b" opacity="0.18" />
-        <Desk x={6.3} y={3.9} w={2.7} d={1.35} />
-        <Monitor x={7.3} y={4.05} />
-        <OfficeChair x={7.65} y={5.7} />
-        {props.s?.running && <Person x={7.65} y={5.25} tone="#5b8def" breathe />}
+      {/* 值班台——白桌+显示器+转椅（在班出坐席人形） */}
+      <g {...hot({ k: "desk", title: "值班台 · 唤知会话", body: [props.s?.running ? "在班——正在干活" : "下班了——空椅待命"], to: "/device" }, 10.6, 5.4, 0.9)}>
+        <ellipse cx={P(10.8, 6.1)[0]} cy={P(10.8, 6.1)[1]} rx="70" ry="22" fill="#3a3f4b" opacity="0.18" />
+        <Desk x={9.4} y={4.6} w={2.7} d={1.35} />
+        <Monitor x={10.4} y={4.75} />
+        <OfficeChair x={11.2} y={6.5} />
+        {props.s?.running && <SeatedPerson x={11.2} y={6.4} tone="#5b8def" breathe />}
       </g>
 
       {/* 采集簿记台——常驻器官二席（空椅=无人值守也干活） */}
-      <g {...hot({ k: "desk2", title: "采集簿记台", body: ["常驻器官台——collector/projector 没人坐也在转"], to: "/device" }, 10.6, 4.8, 0.9)}>
-        <Desk x={9.8} y={3.9} w={2.2} d={1.35} />
-        <Monitor x={10.6} y={4.05} />
-        <OfficeChair x={10.9} y={5.7} tone="#4a5160" />
+      <g {...hot({ k: "desk2", title: "采集簿记台", body: ["常驻器官台——collector/projector 没人坐也在转"], to: "/device" }, 14.0, 5.4, 0.9)}>
+        <Desk x={13.0} y={4.6} w={2.2} d={1.35} />
+        <Monitor x={14.1} y={4.75} />
+        <OfficeChair x={14.4} y={6.5} tone="#4a5160" />
       </g>
 
-      {/* 毛坯工位——前排水泥区（态随钉墙推） */}
+      {/* 器官工位——前排水泥区 2×4（态随钉墙推） */}
       <GhostRow hot={hot} facts={props.facts} />
 
       {/* 软装——绿植×2 + 饮水机 */}
-      <Plant x={0.9} y={5.1} s={1.1} />
-      <Plant x={13.2} y={1.0} s={0.9} />
-      <g {...hot({ k: "wc", title: "饮水机", body: ["它不喝——但你看着顺眼就行"], to: "" }, 13.5, 6.7, 0.7)}>
-        <WaterCooler x={13.5} y={6.7} />
+      <Plant x={0.9} y={5.6} s={1.1} />
+      <Plant x={17.4} y={1.2} s={0.9} />
+      <g {...hot({ k: "wc", title: "饮水机", body: ["它不喝——但你看着顺眼就行"], to: "" }, 17.2, 8.2, 0.7)}>
+        <WaterCooler x={17.2} y={8.2} />
       </g>
 
-      {/* 吊灯×2——活性灯 */}
-      <PendantLamp x={7.7} y={4.6} z={2.65} on={live} />
-      <PendantLamp x={4} y={8.4} z={2.65} on={live} />
+      {/* 吊灯×3——活性灯 */}
+      <PendantLamp x={6} y={4.2} z={2.65} on={live} />
+      <PendantLamp x={5.5} y={9.7} z={2.65} on={live} />
+      <PendantLamp x={14} y={9} z={2.65} on={live} />
+
+      {/* 走位人——领命/移交事实触发的搬运人（顶层渲染不被家具遮） */}
+      {props.walk && <Walker key={props.walk.k} path={props.walk.path} tone={props.walk.tone} onDone={props.walkDone} />}
     </g>
   );
 }

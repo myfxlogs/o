@@ -7,7 +7,7 @@ import { useLive } from "../hooks";
 import { plainText } from "../components/plain";
 import { pbDate } from "../components/fmt";
 import { AGE } from "../components/panel";
-import { P, pts, Person } from "../components/iso";
+import { P, pts, Person, SeatedPerson } from "../components/iso";
 import { Sprite } from "./officeParts";
 
 export type Tip = { k: string; x: number; y: number; title: string; body: string[]; to: string };
@@ -55,11 +55,16 @@ type Hot = (tt: Omit<Tip, "x" | "y">, x: number, y: number, z?: number, cls?: st
 // 态随事实推：毛坯=桌椅人全淡影，立项=钢蓝人仔+桌📌旗，
 // 在建=金人仔呼吸在敲，完工=绿人仔名牌✓。
 const GH_TONE: Record<string, string> = { ghost: "#8a93a3", pin: "#7fa8d0", build: "#d9a62e", done: "#3ddc84" };
+// 器官位世界坐标——走位人/聚焦锚共用（2×4 阵，cx=桌心 x）。
+export const ghostPos = (i: number) => {
+  const x = 1.7 + (i % 4) * 3.0, y = i < 4 ? 8.5 : 10.3;
+  return { x, y, cx: x + 0.75 };
+};
 export function GhostRow(props: { hot: Hot; facts: Fact[] }) {
   return (
     <>
       {GHOSTS.map((gh, i) => {
-        const x = 1.5 + (i % 4) * 2.45, y = i < 4 ? 7.35 : 8.8, cx = x + 0.75;
+        const { x, y, cx } = ghostPos(i);
         const st = ghostSt(gh, props.facts);
         const fact = ghostFact(gh, props.facts);
         const done = st === "done", pin = st === "pin", dim = st === "ghost";
@@ -71,8 +76,9 @@ export function GhostRow(props: { hot: Hot; facts: Fact[] }) {
             <g opacity={dim ? 0.5 : 1}>
               <Sprite name="desk" x={cx} y={y + 0.62} w={66} />
               <Sprite name="screen" x={cx} y={y + 0.42} z={0.55} w={20} />
-              {/* 人仔在桌前背对镜头——面对显示器在敲/占位影 */}
-              <Person x={cx} y={y + 1.12} tone={GH_TONE[st]} breathe={st === "build"} />
+              <Sprite name="chair" x={cx} y={y + 1.06} w={26} />
+              {/* 坐席人——椅上躯干背对镜头，在建=呼吸在敲 */}
+              <SeatedPerson x={cx} y={y + 1.08} tone={GH_TONE[st]} breathe={st === "build"} />
             </g>
             {pin && <text x={P(cx - 0.3, y + 0.35, 0.72)[0]} y={P(cx - 0.3, y + 0.35, 0.72)[1]} fontSize="11">📌</text>}
             <text x={nx} y={ny + 8} className={`iso-cap${st === "build" ? " gold" : done ? "" : " dim"}`} textAnchor="middle">{gh.name}{done ? "✓" : ""}</text>
@@ -88,7 +94,7 @@ export function VenueScreens(props: { hot: Hot; vens: [string, number][] }) {
   return (
     <>
       {props.vens.map(([vn, usd], i) => {
-        const x = 8.6 + i * 1.15;
+        const x = 12.4 + i * 1.3;
         const [lx, ly] = P(x + 0.45, 0, 2.45);
         return (
           <g key={vn} {...props.hot({ k: "ven:" + vn, title: `${vn} 资金屏`, body: [`合计 ${fmtMoney(usd)}`], to: "/" }, x + 0.45, 0, 2.7)}>
