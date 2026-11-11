@@ -35,7 +35,7 @@ export function DevicePage() {
         <p className="v2-lede">
           {(d.faces ?? []).filter((f) => f.state === 0).length}/{(d.faces ?? []).length} 绿
           {s?.lastSpawn
-            ? ` · 末唤起 ${AGE(pbDate(s.lastSpawn)!)}（24h 唤${s.spawns24h} 收${s.closes24h}${s.fails24h > 0n ? ` 败${s.fails24h}` : ""}）`
+            ? ` · 末唤起 ${AGE(pbDate(s.lastSpawn)!)}${s.running ? "（在跑）" : ""}（24h 唤${s.spawns24h} 收${s.closes24h}${s.fails24h > 0n ? ` 败${s.fails24h}` : ""}）`
             : ""}
         </p>
       </section>
@@ -86,7 +86,7 @@ export function DevicePage() {
                     {p.escClass}/{p.escScope}
                   </span>
                   <span className="v2-row-sub ink-3">
-                    {p.lastEsc ? `末火 ${AGE(pbDate(p.lastEsc)!)}` : "7d 内未火"}
+                    {p.lastEsc ? `末火 ${AGE(pbDate(p.lastEsc)!)}` : "未有火记录"}
                     {p.lastRecover ? ` · 末复绿 ${AGE(pbDate(p.lastRecover)!)}` : ""}
                   </span>
                 </div>
@@ -104,12 +104,12 @@ export function DevicePage() {
         </div>
         <div className="v2-rows">
           {(d.deploys ?? []).map((r) => (
-            <div key={r.id} className="v2-row">
+            <div key={String(r.id)} className="v2-row">
               <StateDot state={r.rc === 0 ? 0 : 2} title={`rc=${r.rc}`} />
               <div className="v2-row-main">
                 <span className="v2-row-title mono">{r.sha || "—"}</span>
                 <span className="v2-row-sub ink-3">
-                  #{r.id} · {r.ts ? AGE(pbDate(r.ts)!) : "—"}
+                  #{String(r.id)} · {r.ts ? AGE(pbDate(r.ts)!) : "—"}
                 </span>
               </div>
             </div>

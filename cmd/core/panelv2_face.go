@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"regexp"
+	"sort"
 	"time"
 
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -105,10 +106,10 @@ func (c coreService) GetFunnel(ctx context.Context,
 	}
 	var prj int64
 	if err := c.pool.QueryRow(ctx, `SELECT count(*) FROM fin_proposal
-		WHERE created_at>now()-$1::interval AND state NOT IN ('fin_proposed','fin_armed')`, iv).
+		WHERE created_at>now()-$1::interval AND state='fin_retired'`, iv).
 		Scan(&prj); err == nil && prj > 0 {
 		resp.Rejects = append(resp.Rejects, &dashboardv1.FunnelReject{
-			Level: "proposal", Reason: "未成armed", N: prj})
+			Level: "proposal", Reason: "fin_retired", N: prj})
 	}
 
 	// 哑弹榜：live_dud 探针同判据（live∧entered>7d∧零 fin_position）。
@@ -182,11 +183,11 @@ func (c coreService) GetFaceGrid(ctx context.Context,
 		resp.Faces = append(resp.Faces, row)
 	}
 
-	// 探针心跳：esc_scope 聚合最近升/复绿；未决=未销升件在案（runbook①同谓词）。
+	// 探针心跳：esc_scope 聚合最近升/复绿；未决=未销升件在案（runbook①
+	// 同谓词——无界窗对齐，老案未销亦显 open）。
 	openScopes := map[string]bool{}
 	if rs, err := c.pool.Query(ctx, `SELECT DISTINCT esc_scope FROM ops_event e
 		WHERE e.event='升件' AND e.esc_scope IS NOT NULL AND e.esc_scope<>''
-		AND e.ts>now()-interval '7 days'
 		AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.ts>e.ts
 			AND (x.note ~ ('升件#'||e.id::text||'([^0-9]|$)')
 				OR EXISTS (SELECT 1 FROM regexp_matches(x.note,'升件#(\d+)-(\d+)','g') AS m(mm)
@@ -203,7 +204,7 @@ func (c coreService) GetFaceGrid(ctx context.Context,
 		max(ts) FILTER (WHERE event='升件') AS last_esc,
 		max(ts) FILTER (WHERE event='恢复') AS last_recover
 		FROM ops_event WHERE esc_scope IS NOT NULL AND esc_scope<>''
-		GROUP BY 1,2 ORDER BY last_esc DESC NULLS LAST LIMIT 24`); err == nil {
+		GROUP BY 1,2 ORDER BY last_esc DESC NULLS LAST`); err == nil {
 		for rs.Next() {
 			var cls, scope string
 			var esc, rec *time.Time
@@ -223,8 +224,16 @@ func (c coreService) GetFaceGrid(ctx context.Context,
 	} else {
 		log.Printf("[facegrid] 探针心跳查询败: %v", err)
 	}
+	// open 先行排（未决件不被新火序挤出视面——审计 P1）。
+	sort.SliceStable(resp.Probes, func(i, j int) bool {
+		if resp.Probes[i].Open != resp.Probes[j].Open {
+			return resp.Probes[i].Open
+		}
+		return false
+	})
 
-	// 会话面：唤起/收口/唤起败尾流（唤知机/唤知 seat 写径）。
+	// 会话面：唤起/收口/唤起败尾流——双臂 seat 全集（唤知机/唤知/审计机——
+	// 审计 P1：审计机|唤起败 在案，双臂滤单臂漏数）。
 	sf := &dashboardv1.SessionFace{}
 	var lastSpawn, lastClose *time.Time
 	var spawns, closes, fails int64
@@ -234,7 +243,7 @@ func (c coreService) GetFaceGrid(ctx context.Context,
 		count(*) FILTER (WHERE event='唤起' AND ts>now()-interval '24 hours'),
 		count(*) FILTER (WHERE event='会话收口' AND ts>now()-interval '24 hours'),
 		count(*) FILTER (WHERE event='唤起败' AND ts>now()-interval '24 hours')
-		FROM ops_event WHERE seat IN ('唤知机','唤知')`).
+		FROM ops_event WHERE seat IN ('唤知机','唤知','审计机')`).
 		Scan(&lastSpawn, &lastClose, &spawns, &closes, &fails); err != nil {
 		log.Printf("[facegrid] 会话面查询败: %v", err)
 	} else {
