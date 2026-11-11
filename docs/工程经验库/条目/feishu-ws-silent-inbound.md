@@ -52,3 +52,9 @@ evidence_refs:
   只用于侦测版——生产 Warn，Debug 每 90s 刷 ping/pong 噪。
 - **侦测径**：worktree 出 Debug 构建→停 unit→手跑同默认参→
   验毕杀侦测件起 unit——/opt/o 部署树一行不动。
+- **卡终态须走回调响应卡**：`CardActionTriggerResponse.Card`
+  （`{Type:"raw",Data:新卡map}`）=点下当场同步替换渲染；
+  走 im PATCH 有传播窗（实测 ≥11s 内旧钮仍可点照样发回调）。
+  PATCH 留作兜底+文本令径；已结残卡回点查现态回终态卡自愈。
+  **坑：data 内卡必须含 elements**——header-only 卡作响应 data
+  被静默忽略（toast 照样弹、卡不更新，零报错面）。

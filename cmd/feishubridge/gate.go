@@ -153,19 +153,43 @@ func reqCard(id int64, kind, venue, surface, payload string) string {
 	return string(b)
 }
 
-// doneCard 结案卡（无钮——终态显形）。state→人话。
-func doneCard(id int64, state string) string {
+// doneCard 结案卡（无钮——终态显形；回调响应直嵌 map=当场同步
+// 替换渲染零传播窗，PATCH 径调用方序列化）。state→人话。
+func doneCard(id int64, state string) map[string]any {
 	l := stateLabel[state]
 	if l == "" {
 		l = state
 	}
-	card := map[string]any{
+	return map[string]any{
 		"config": map[string]any{"wide_screen_mode": true},
 		"header": map[string]any{"template": "grey",
 			"title": map[string]any{"tag": "plain_text", "content": fmt.Sprintf("请求 #%d — %s", id, l)}},
+		"elements": []any{
+			map[string]any{"tag": "div", "text": map[string]any{
+				"tag": "plain_text", "content": "已结案，无需再操作"}}},
 	}
-	b, _ := json.Marshal(card)
+}
+
+// doneCardJSON PATCH 径序列化形。
+func doneCardJSON(id int64, state string) string {
+	b, _ := json.Marshal(doneCard(id, state))
 	return string(b)
+}
+
+// strP nil-safe 解引用（入站帧字段抽取）。
+func strP(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
+}
+
+// tail4 id 遮罩（日志只露头尾）。
+func tail4(s string) string {
+	if len(s) <= 8 {
+		return s
+	}
+	return s[:4] + "…" + s[len(s)-4:]
 }
 
 // wmPath 请求推送水位（重启不重复推——relay 系同约）。

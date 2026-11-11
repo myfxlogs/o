@@ -133,16 +133,14 @@ func (b *bridge) listenPending(ctx context.Context) {
 // onCardAction card.action.trigger 回调——窄门(chat 吻合+动作闭集)→结案。
 func (b *bridge) onCardAction(ctx context.Context, ev *callback.CardActionTriggerEvent) (*callback.CardActionTriggerResponse, error) {
 	deny := &callback.CardActionTriggerResponse{Toast: &callback.Toast{Type: "warning", Content: "非业主域"}}
-	ocid, aval := "", ""
-	if ev.Event != nil {
-		if ev.Event.Context != nil {
-			ocid = ev.Event.Context.OpenChatID
-		}
-		if ev.Event.Action != nil {
-			aval = fmt.Sprintf("%v", ev.Event.Action.Value)
-		}
+	var ocid, aval string
+	if e := ev.Event; e != nil && e.Context != nil {
+		ocid = e.Context.OpenChatID
 	}
-	log.Printf("feishubridge: 收卡钮 chat=%s…%s val=%s", ocid[:min(4, len(ocid))], ocid[max(0, len(ocid)-4):], aval)
+	if e := ev.Event; e != nil && e.Action != nil {
+		aval = fmt.Sprintf("%v", e.Action.Value)
+	}
+	log.Printf("feishubridge: 收卡钮 chat=%s val=%s", tail4(ocid), aval)
 	if ev.Event == nil || ev.Event.Context == nil || ev.Event.Context.OpenChatID != b.chatID {
 		return deny, nil
 	}
@@ -162,19 +160,27 @@ func (b *bridge) onCardAction(ctx context.Context, ev *callback.CardActionTrigge
 	if err != nil {
 		return nil, err
 	}
-	if !changed {
+	if !changed { // 已结残卡回点——查现态回终态卡自愈（点下即灰）
+		var cur string
+		if err := b.pool.QueryRow(ctx,
+			`SELECT state FROM fin_condition_gap WHERE id=$1`, req).Scan(&cur); err == nil && cur != "pending" {
+			return &callback.CardActionTriggerResponse{
+				Toast: &callback.Toast{Type: "info", Content: fmt.Sprintf("#%d 已结/无此件", req)},
+				Card:  &callback.Card{Type: "raw", Data: doneCard(req, cur)}}, nil
+		}
 		return &callback.CardActionTriggerResponse{Toast: &callback.Toast{
 			Type: "info", Content: fmt.Sprintf("#%d 已结/无此件", req)}}, nil
 	}
 	b.intent(ctx, fmt.Sprintf("条件请求#%d→%s[飞书钮 %s]", req, state, who))
 	delete(b.sent, req)
-	if mid := ev.Event.Context.OpenMessageID; mid != "" {
-		if err := b.fs.PatchCard(ctx, mid, doneCard(req, state)); err != nil {
+	if mid := ev.Event.Context.OpenMessageID; mid != "" { // 兜底刷（文本令径/异宿无主响应卡通道）
+		if err := b.fs.PatchCard(ctx, mid, doneCardJSON(req, state)); err != nil {
 			log.Printf("feishubridge: 卡刷新败 req=%d: %v", req, err)
 		}
 	}
-	return &callback.CardActionTriggerResponse{Toast: &callback.Toast{
-		Type: "success", Content: fmt.Sprintf("%s #%d", stateLabel[state], req)}}, nil
+	return &callback.CardActionTriggerResponse{
+		Toast: &callback.Toast{Type: "success", Content: fmt.Sprintf("%s #%d", stateLabel[state], req)},
+		Card:  &callback.Card{Type: "raw", Data: doneCard(req, state)}}, nil // 响应内嵌终态卡=点下当场灰，无 PATCH 传播窗
 }
 
 // onMessage im.message.receive_v1——窄门(chat 吻合+user 发送)→文本口令结案。
@@ -183,20 +189,8 @@ func (b *bridge) onMessage(ctx context.Context, ev *larkim.P2MessageReceiveV1) e
 		return nil
 	}
 	msg := ev.Event.Message
-	cid, st, mt, content := "", "", "", ""
-	if msg.ChatId != nil {
-		cid = *msg.ChatId
-	}
-	if ev.Event.Sender.SenderType != nil {
-		st = *ev.Event.Sender.SenderType
-	}
-	if msg.MessageType != nil {
-		mt = *msg.MessageType
-	}
-	if msg.Content != nil {
-		content = *msg.Content
-	}
-	log.Printf("feishubridge: 收消息 chat=%s…%s sender=%s type=%s body=%q", cid[:min(4, len(cid))], cid[max(0, len(cid)-4):], st, mt, content)
+	log.Printf("feishubridge: 收消息 chat=%s sender=%s type=%s body=%q",
+		tail4(strP(msg.ChatId)), strP(ev.Event.Sender.SenderType), strP(msg.MessageType), strP(msg.Content))
 	if msg.ChatId == nil || *msg.ChatId != b.chatID {
 		return nil
 	}
@@ -226,7 +220,7 @@ func (b *bridge) onMessage(ctx context.Context, ev *larkim.P2MessageReceiveV1) e
 	} else {
 		b.intent(ctx, fmt.Sprintf("条件请求#%d→%s[飞书文本]", req, state))
 		if mid := b.sent[req]; mid != "" {
-			if err := b.fs.PatchCard(ctx, mid, doneCard(req, state)); err != nil {
+			if err := b.fs.PatchCard(ctx, mid, doneCardJSON(req, state)); err != nil {
 				log.Printf("feishubridge: 卡刷新败 req=%d: %v", req, err)
 			}
 			delete(b.sent, req)
