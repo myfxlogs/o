@@ -156,7 +156,7 @@ func (b *bridge) onCardAction(ctx context.Context, ev *callback.CardActionTrigge
 		}
 	}
 	return &callback.CardActionTriggerResponse{Toast: &callback.Toast{
-		Type: "success", Content: fmt.Sprintf("已结 #%d → %s", req, state)}}, nil
+		Type: "success", Content: fmt.Sprintf("%s #%d", stateLabel[state], req)}}, nil
 }
 
 // onMessage im.message.receive_v1——窄门(chat 吻合+user 发送)→文本口令结案。
@@ -188,7 +188,7 @@ func (b *bridge) onMessage(ctx context.Context, ev *larkim.P2MessageReceiveV1) e
 	if err != nil {
 		return err
 	}
-	ack := fmt.Sprintf("已结 #%d → %s", req, state)
+	ack := fmt.Sprintf("%s #%d", stateLabel[state], req)
 	if !changed {
 		ack = fmt.Sprintf("#%d 已结/无此件", req)
 	} else {

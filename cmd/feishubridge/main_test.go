@@ -58,13 +58,16 @@ func TestCmdFromText(t *testing.T) {
 }
 
 func TestReqCard(t *testing.T) {
-	raw := reqCard(9, "credential", "bybit", "", `{"note":"需 API key"}`)
+	raw := reqCard(9, "credential", "bybit", "", `{"ask":"需要 API key 才能接"}`)
 	var card map[string]any
 	if err := json.Unmarshal([]byte(raw), &card); err != nil {
 		t.Fatalf("卡 JSON 畸: %v", err)
 	}
 	els := card["elements"].([]any)
-	act := els[1].(map[string]any)["actions"].([]any)
+	if len(els) != 3 {
+		t.Fatalf("elements=%d 望 3（体+注+钮行）", len(els))
+	}
+	act := els[2].(map[string]any)["actions"].([]any)
 	if len(act) != 3 {
 		t.Fatalf("钮数=%d 望 3", len(act))
 	}
@@ -74,7 +77,27 @@ func TestReqCard(t *testing.T) {
 		t.Fatalf("首钮 value 解回畸: %v", v)
 	}
 	hdr := card["header"].(map[string]any)["title"].(map[string]any)["content"]
-	if hdr != "条件请求 #9" {
-		t.Fatalf("题=%v", hdr)
+	if hdr != "需要凭据（密钥/账号）" {
+		t.Fatalf("题=%v（人话律违）", hdr)
+	}
+	body := els[0].(map[string]any)["text"].(map[string]any)["content"]
+	if body != "**要你做**\n需要 API key 才能接" {
+		t.Fatalf("体=%v", body)
+	}
+}
+
+func TestAskFromPayload(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{`{"ask":"人话文本"}`, "人话文本"},
+		{`{"note":"note文"}`, "note文"},
+		{`{"ask":"","reason":"r文"}`, "r文"},
+		{`{"n":3}`, `{"n":3}`},          // 无 ask 键回原始文
+		{`非JSON`, "非JSON"},              // 畸 payload 直通
+		{`{"ask":"a","note":"n"}`, "a"}, // ask 优先
+	}
+	for _, c := range cases {
+		if got := askFromPayload(c.in); got != c.want {
+			t.Fatalf("%q: 得 %q 望 %q", c.in, got, c.want)
+		}
 	}
 }
