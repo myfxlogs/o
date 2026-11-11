@@ -898,6 +898,8 @@ message MineRow {
   int64 eng_canon = 2;
   int64 eng_verdicted = 3;
   int64 econ_pending = 4;
+  int64 econ_canon = 5;
+  int64 econ_verdicted = 6;
 }
 message GetDecisionTrailResponse {
   google.protobuf.Timestamp as_of = 1;

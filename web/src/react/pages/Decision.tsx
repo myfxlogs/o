@@ -7,6 +7,7 @@ import { EmptyState, ErrorState, Skeleton, StateDot } from "../components/ui";
 import { AGE } from "../components/panel";
 import { pbDate } from "../components/fmt";
 import { PagerBar, usePager } from "../components/pager";
+import { plainKind, plainText } from "../components/plain";
 
 // ageTxt 秒级龄人话（<120min→Nm / <48h→N.Nh / else→N.Nd——审计 P2：裸分钟不可读）。
 const ageTxt = (s: number) =>
@@ -33,22 +34,21 @@ export function DecisionPage() {
           何事要裁 · LIVE
         </div>
         <h1 className="v2-title">
-          {openN === 0 ? "处置面清爽" : `近 ${(d.trail ?? []).length} 件中 ${openN} 未决`}
+          {openN === 0 ? "都处理完了" : `最近 ${(d.trail ?? []).length} 条上报，${openN} 条待处理`}
         </h1>
         <p className="v2-lede">
-          近 {(d.trail ?? []).length} 升件 · 教训矿 pending{" "}
-          {Number(m?.engPending ?? 0n) + Number(m?.econPending ?? 0n)}
+          教训矿 {Number(m?.engPending ?? 0n) + Number(m?.econPending ?? 0n)} 条候选待裁定
         </p>
       </section>
 
       {/* 升件→处置链——unified panel：open 行灯黄，已销行灯绿 */}
       <div className="v2-panel">
         <div className="v2-panel-head">
-          <h2 className="v2-panel-title">升件 · 处置链</h2>
+          <h2 className="v2-panel-title">上报 · 处理记录</h2>
           <PagerBar {...trailPager} onPage={trailPager.setPage} />
         </div>
         {(d.trail ?? []).length === 0 ? (
-          <EmptyState title="无升件" hint="探测升件落地后在此亮行" />
+          <EmptyState title="暂无上报" hint="系统上报落账后在此显示" />
         ) : (
           <div className="v2-rows">
             {trailPager.slice.map((r) => (
@@ -56,19 +56,19 @@ export function DecisionPage() {
                 <StateDot
                   state={r.open ? 1 : 0}
                   breathe={r.open}
-                  title={r.open ? "未决" : `处置 #${r.dispId}`}
+                  title={r.open ? "待处理" : `已处理 #${r.dispId}`}
                 />
                 <div className="v2-row-main">
                   <span className="v2-row-title">
-                    {r.escClass}/{r.escScope}
+                    {plainKind(r.escClass, r.escScope, r.note)}
                     <span className="ink-3 v2-row-id">#{String(r.escId)}</span>
                   </span>
-                  <span className="v2-row-note">{r.note}</span>
-                  <span className="v2-row-sub ink-3">
-                    {r.escTs ? AGE(pbDate(r.escTs)!) : "—"} 升
+                  <span className="v2-row-note" title={r.note}>{plainText(r.note)}</span>
+                  <span className="v2-row-sub ink-3" title={r.verdict}>
+                    {r.escTs ? AGE(pbDate(r.escTs)!) : "—"} 上报
                     {r.open
-                      ? ` · 候 ${ageTxt(Number(r.ageS))}`
-                      : ` · ${ageTxt(Number(r.ageS))} 后销${r.dispTs ? `（销于 ${AGE(pbDate(r.dispTs)!)}）` : ""} · ${r.verdict}`}
+                      ? ` · 已等 ${ageTxt(Number(r.ageS))}`
+                      : ` · 等了 ${ageTxt(Number(r.ageS))}${r.dispTs ? `，${AGE(pbDate(r.dispTs)!)} 处理完` : ""} · ${plainText(r.verdict)}`}
                   </span>
                 </div>
               </div>
@@ -84,12 +84,12 @@ export function DecisionPage() {
           <PagerBar {...reqPager} onPage={reqPager.setPage} />
         </div>
         {(d.condreqs ?? []).length === 0 ? (
-          <EmptyState title="无条件请求" hint="业主条件请求落地后在此亮行" />
+          <EmptyState title="暂无待办请求" hint="你设的条件请求会在此显示" />
         ) : (
           <div className="v2-rows">
             {reqPager.slice.map((r) => (
               <div key={String(r.id)} className="v2-row">
-                <StateDot state={r.open ? 1 : 3} title={r.open ? "未决" : "已结"} />
+                <StateDot state={r.open ? 1 : 3} title={r.open ? "待处理" : "已完成"} />
                 <div className="v2-row-main">
                   <span className="v2-row-title">
                     请求<span className="ink-3 v2-row-id">#{String(r.id)}</span>
@@ -105,25 +105,28 @@ export function DecisionPage() {
         )}
       </div>
 
-      {/* 教训矿面——eng/econ 状态计数 */}
+      {/* 教训矿面——canon 入库数=产出主数，裁定/待审作副数 */}
       <div className="v2-panel">
         <div className="v2-panel-head">
           <h2 className="v2-panel-title">教训矿</h2>
-          <span className="ink-3">fin_*_lesson</span>
+          <span className="ink-3">踩过的坑 → 经验条目</span>
         </div>
         <div className="v2-funnel">
           <div className="v2-funnel-lv">
-            <span className="v2-funnel-k ink-3">工程</span>
-            <span className="v2-funnel-n num">{String(m?.engPending ?? 0n)}</span>
+            <span className="v2-funnel-k ink-3">工程教训 · 已入库</span>
+            <span className="v2-funnel-n num">{String(m?.engCanon ?? 0n)}</span>
             <span className="v2-funnel-note ink-3">
-              pending · canon {String(m?.engCanon ?? 0n)} · verdicted{" "}
-              {String(m?.engVerdicted ?? 0n)}
+              已裁定 {String(m?.engVerdicted ?? 0n)} · 待审{" "}
+              {String(m?.engPending ?? 0n)}
             </span>
           </div>
           <div className="v2-funnel-lv">
-            <span className="v2-funnel-k ink-3">经济</span>
-            <span className="v2-funnel-n num">{String(m?.econPending ?? 0n)}</span>
-            <span className="v2-funnel-note ink-3">pending</span>
+            <span className="v2-funnel-k ink-3">经济教训 · 已入库</span>
+            <span className="v2-funnel-n num">{String(m?.econCanon ?? 0n)}</span>
+            <span className="v2-funnel-note ink-3">
+              已裁定 {String(m?.econVerdicted ?? 0n)} · 待审{" "}
+              {String(m?.econPending ?? 0n)}
+            </span>
           </div>
         </div>
       </div>
