@@ -25,7 +25,7 @@ export function DecisionPage() {
       <section className="v2-hero">
         <div className="v2-eyebrow">
           <span className="v2-livedot" />
-          决策径 · LIVE
+          何事要裁 · LIVE
         </div>
         <h1 className="v2-title">
           {openN === 0 ? "处置面清爽" : `近 ${(d.trail ?? []).length} 件中 ${openN} 未决`}

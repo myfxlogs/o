@@ -107,7 +107,7 @@ export function OverviewPage() {
         </div>
       </section>
 
-      {/* 三问之三——系统一句话健康（点进系统页） */}
+      {/* 三问之三——系统一句话健康（点进哪病了） */}
       <a className="health-strip" href="/device">
         <StateDot state={worst} />
         <span>

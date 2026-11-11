@@ -23,14 +23,14 @@ import "./styles/22-effects.css";
 import "./styles/30-v2.css";
 
 const ROUTES: RouteDef[] = [
-  { path: "/", label: "总览", el: <OverviewPage /> },
-  { path: "/money", label: "钱径", el: <MoneyPage /> },
-  { path: "/device", label: "设备", el: <DevicePage /> },
-  { path: "/decision", label: "决策", el: <DecisionPage /> },
-  { path: "/cockpit", label: "驾驶舱", el: <CockpitPage /> },
-  { path: "/trx", label: "TRX", el: <TrxPage /> },
-  { path: "/review", label: "复盘", el: <ReviewPage /> },
-  { path: "/onboard", label: "接入", el: <OnboardPage /> },
+  { path: "/", label: "机赚如何", el: <OverviewPage /> },
+  { path: "/money", label: "链在哪堵", el: <MoneyPage /> },
+  { path: "/device", label: "哪病了", el: <DevicePage /> },
+  { path: "/decision", label: "何事要裁", el: <DecisionPage /> },
+  { path: "/cockpit", label: "要我办啥", el: <CockpitPage /> },
+  { path: "/trx", label: "TRX盘怎样", el: <TrxPage /> },
+  { path: "/review", label: "钱怎么走的", el: <ReviewPage /> },
+  { path: "/onboard", label: "怎么接进来", el: <OnboardPage /> },
 ];
 
 function App() {

@@ -107,7 +107,7 @@ export function DevicePage() {
       <section className="v2-hero">
         <div className="v2-eyebrow">
           <span className="v2-livedot" />
-          设备径 · LIVE
+          哪病了 · LIVE
         </div>
         <h1 className="v2-title">
           {worst === 0 ? "全部组件正常" : worst === 1 ? "有组件节拍偏慢" : "有组件断流"}

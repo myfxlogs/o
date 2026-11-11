@@ -23,7 +23,7 @@ export function MoneyPage() {
       <section className="v2-hero">
         <div className="v2-eyebrow">
           <span className="v2-livedot" />
-          钱径 · LIVE
+          链在哪堵 · LIVE
         </div>
         <h1 className="v2-title">
           {posN >= 0n ? `${posN} 笔仓位（30d）` : "产出链 30d"}
@@ -87,8 +87,8 @@ export function MoneyPage() {
 
       {/* 指路行——单源件他页寻（不复读） */}
       <div className="v2-linkrow ink-3">
-        在持订单与 NAV 见 <a href="/">总览</a> · 净值曲线与现金流见{" "}
-        <a href="/review">复盘</a>
+        在持订单与 NAV 见 <a href="/">机赚如何</a> · 净值曲线与现金流见{" "}
+        <a href="/review">钱怎么走的</a>
       </div>
     </div>
   );

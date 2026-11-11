@@ -138,7 +138,7 @@ check("⑧空态向导仍在", empty.includes("①venue"));
 const reviewSrc = readFileSync(join(reactRoot, "pages", "Review.tsx"), "utf8");
 check("⑤复盘页不再挂 broker 接入卡", !reviewSrc.includes("BrokerOnboardCard"));
 const mainSrc = readFileSync(join(reactRoot, "main.tsx"), "utf8");
-check("⑤顶导航「接入」路由注册（/onboard）", mainSrc.includes('"/onboard"') && mainSrc.includes('"接入"'));
+check("⑤顶导航「接入」路由注册（/onboard）", mainSrc.includes('"/onboard"') && mainSrc.includes('"怎么接进来"'));
 const onboardSrc = readFileSync(join(reactRoot, "pages", "Onboard.tsx"), "utf8");
 check("⑤Onboard 页挂 broker 接入卡", onboardSrc.includes("BrokerOnboardCard"));
 
