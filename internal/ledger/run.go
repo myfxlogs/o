@@ -161,9 +161,15 @@ func (r *Runner) reconcile(ctx context.Context) error {
 			continue
 		}
 		var net float64
-		_ = r.pool.QueryRow(ctx,
+		// 升件#10063③：判据喂数禁吞错——读败=计数+WARN+本键让位（net=0
+		// 续判=venue 全额 phantom diff 无痕；swallow-sql-err-dead-guard 判例）。
+		if err := r.pool.QueryRow(ctx,
 			"SELECT COALESCE(sum(amount),0) FROM fin_cashflow WHERE venue=$1 AND ccy=$2 AND kind NOT IN ('earn_in','earn_out')",
-			k[0], k[1]).Scan(&net)
+			k[0], k[1]).Scan(&net); err != nil {
+			r.rej.Inc("recon_probe_failed")
+			log.Printf("WARN [ledger] 判据喂数读败 net %s/%s——本键让位: %v", k[0], k[1], err)
+			continue
+		}
 		net += parked[k]  // 非本位停泊币台账币数（venue=币量同径）
 		net += dcdBase[k] // T-0101：dcd 基线台账币数（venue=名义币量同径）
 		// T-0076：net+盯市偏移=同口径 NAV（持仓浮动与真差分离——偏移读败=0 不加不减）。
@@ -181,8 +187,13 @@ func (r *Runner) reconcile(ctx context.Context) error {
 		// T-0081 已知残差豁免：未过期豁免额补进容差——只压已定性部分，
 		// unexplained 超额仍即报（豁免≠白名单静默一切）。
 		var exempt float64
-		_ = r.pool.QueryRow(ctx, `SELECT COALESCE(sum(amount_usd),0) FROM fin_known_residual
-			WHERE venue=$1 AND ccy=$2 AND expires_at>now()`, x.venue, x.ccy).Scan(&exempt)
+		// 升件#10063③：豁免额读败=exempt 静默失效过警——同判例计数+让位。
+		if err := r.pool.QueryRow(ctx, `SELECT COALESCE(sum(amount_usd),0) FROM fin_known_residual
+			WHERE venue=$1 AND ccy=$2 AND expires_at>now()`, x.venue, x.ccy).Scan(&exempt); err != nil {
+			r.rej.Inc("recon_probe_failed")
+			log.Printf("WARN [ledger] 判据喂数读败 exempt %s/%s——本键让位: %v", x.venue, x.ccy, err)
+			continue
+		}
 		// T-0101 修补：非本位键 diff 为币量——按 md_ticks 折 USD 再对容差
 		// （容差/豁免皆 USD 口径；币量直接对 $0.5=高价币真差永静默——
 		// 0.02 BTC 差值 $2400 曾被容差吞）。无 tick 价且 diff≠0=不可估值
