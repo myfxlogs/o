@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -149,7 +150,10 @@ func (r *Runner) xvenueMap(ctx context.Context, key string) map[string]string {
 	return m
 }
 
-// okxUniverse OKX inst 宇宙（okx.symbols owner 册——草案匹配源；缺=空集）。
+// okxUniverse OKX inst 宇宙（okx.symbols owner 册——草案匹配源）：
+// 显式清单=钦定子集直用；含 '*' 通配=universeFn 缝展开（供给件实读目录
+// ——字面 '*' 当 base 找配对=结构性永零病灶，57 拍实证）。缝未挂/
+// 目录读败=空集 fail-closed（beatDraft 让位同语义——不虚构标的集）。
 func (r *Runner) okxUniverse(ctx context.Context) []string {
 	raw, err := r.cfg.Get("okx.symbols")
 	if err != nil {
@@ -159,7 +163,25 @@ func (r *Runner) okxUniverse(ctx context.Context) []string {
 	if err := json.Unmarshal(raw, &out); err != nil {
 		return nil
 	}
-	return out
+	wild := false
+	for _, s := range out {
+		if s == "*" {
+			wild = true
+			break
+		}
+	}
+	if !wild {
+		return out
+	}
+	if r.universeFn == nil {
+		return nil
+	}
+	syms, err := r.universeFn(ctx)
+	if err != nil {
+		log.Printf("[onboard] okx 宇宙目录读败（草案拍让位 fail-closed）: %v", err)
+		return nil
+	}
+	return syms
 }
 
 func (r *Runner) cfgStr(ctx context.Context, key string) (string, error) {

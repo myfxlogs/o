@@ -101,6 +101,46 @@ func (c coreService) lessonBacklogEscCheck(ctx context.Context, deadSince map[st
 	})
 }
 
+// pairZeroEscCheck 配对恒零探——venue接入草案 beat 同 scope 连续零命中=
+// 结构性死局（恒值信号非事件不入会话队——盲区实证 2026-11-11：mt5:3001157
+// 57 连零 28h 无会话看见,业主点破方知）。判据：36h 窗内零命中草案 beat
+// ≥10 ∧ 首零 >12h 前（持续非偶发）∧ 末零 <2h 前（仍活）∧ 末零后无非零
+// 草案 beat（未自复——复绿再死=新回合照火）。
+func (c coreService) pairZeroEscCheck(ctx context.Context, deadSince map[string]time.Time) {
+	rows, err := c.pool.Query(ctx, `WITH z AS (
+		SELECT esc_scope,
+			count(*) FILTER (WHERE note LIKE '%零命中%') AS zeros,
+			min(ts) FILTER (WHERE note LIKE '%零命中%') AS first_zero,
+			max(ts) FILTER (WHERE note LIKE '%零命中%') AS last_zero,
+			max(ts) FILTER (WHERE note NOT LIKE '%零命中%') AS last_nonzero
+		FROM ops_event
+		WHERE event='venue接入' AND note LIKE 'beat=草案 %'
+		AND ts>now()-interval '36 hours' GROUP BY esc_scope)
+		SELECT esc_scope, zeros, first_zero FROM z
+		WHERE zeros>=10 AND first_zero<now()-interval '12 hours'
+		AND last_zero>now()-interval '2 hours'
+		AND COALESCE(last_nonzero,'-infinity'::timestamptz)<last_zero`)
+	if err != nil {
+		return // 读件败本拍让位
+	}
+	defer rows.Close()
+	var stalled []string
+	for rows.Next() {
+		var sc string
+		var zeros int
+		var first time.Time
+		if err := rows.Scan(&sc, &zeros, &first); err != nil {
+			return
+		}
+		stalled = append(stalled, fmt.Sprintf("%s(连零%d 自%s)", sc, zeros, first.UTC().Format("01-02 15:04Z")))
+	}
+	dead := len(stalled) > 0
+	c.escEdgeUV(ctx, deadSince, "数据缺", "pair_zero", "@", dead, func() string {
+		return fmt.Sprintf("数据缺/pair_zero: venue 配对草案恒零 scope %d 支（%s）——符号宇宙方言不互译/宇宙字面消费/探测符号表残缺三因其一,定性归唤知会话",
+			len(stalled), strings.Join(stalled, "、"))
+	})
+}
+
 // stuckEscCheck 卡壳/复核面探——升件获「修|愈」类处置后同 scope 复燃=
 // 状态可证伪宣称被戳穿（宣称已修→修未成立;宣称已愈→愈是假愈——
 // 修没修成愈没愈成,状态不说谎）。判词质量复核的机械臂:
