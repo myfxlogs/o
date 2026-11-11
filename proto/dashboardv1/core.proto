@@ -77,6 +77,12 @@ service CoreService {
   rpc ListSymbolCandidates(ListSymbolCandidatesRequest) returns (ListSymbolCandidatesResponse) {}
   rpc SubmitSymbolMapping(SubmitSymbolMappingRequest) returns (SubmitSymbolMappingResponse) {}
   rpc ListCanonicalUniverse(ListCanonicalUniverseRequest) returns (ListCanonicalUniverseResponse) {}
+
+  // —— 运作面板 v2 三径读面（docs/drafts/dashboard-spec.md：钱径/设备径/
+  //   决策径各一 RPC；判词/判态/转化全后端算定，前端零计算只渲）——
+  rpc GetFunnel(GetFunnelRequest) returns (GetFunnelResponse) {}
+  rpc GetFaceGrid(GetFaceGridRequest) returns (GetFaceGridResponse) {}
+  rpc GetDecisionTrail(GetDecisionTrailRequest) returns (GetDecisionTrailResponse) {}
 }
 
 message PingRequest {}
@@ -786,4 +792,115 @@ message SubmitSymbolMappingResponse {
 message ListCanonicalUniverseRequest {}
 message ListCanonicalUniverseResponse {
   repeated string insts = 1;              // okx.symbols owner 册实读（升序）
+}
+
+// ── 运作面板 v2 三径读面（dashboard-spec.md §2——只读面，写径零新增）──
+
+// GetFunnel 钱径·评估漏斗：eval→提案→策略→仓位 四级窗内吞吐+各层拒因榜+
+// live_dud 哑弹榜（探针同源 SQL——同判据同窗，双径不复述）。
+message GetFunnelRequest {
+  int32 window_days = 1;                // 转化统计窗（0/负=缺省 30）
+}
+message FunnelLevel {
+  string key = 1;                       // eval/proposal/strategy/position
+  string label = 2;                     // 中文层名（后端出词前端零词表）
+  int64 n = 3;                          // 窗内该层对象数
+  int64 open_n = 4;                     // 现态在册/在仓数（层口径异——note 释）
+  string note = 5;                      // 服务端判词注（分布/异常一句）
+}
+message FunnelReject {
+  string level = 1;                     // 所属层 key
+  string reason = 2;                    // 拒因（verdict/state/reason 机读词）
+  int64 n = 3;
+}
+message DudStrategy {
+  int64 id = 1;
+  string inst_id = 2;
+  string template_ref = 3;
+  double notional_usd = 4;
+  google.protobuf.Timestamp entered_at = 5;
+}
+message GetFunnelResponse {
+  google.protobuf.Timestamp as_of = 1;
+  int32 window_days = 2;
+  repeated FunnelLevel levels = 3;      // 固定四级序（eval→position）
+  repeated FunnelReject rejects = 4;    // 拒因榜 top（服务端排序前端禁排）
+  repeated DudStrategy duds = 5;        // live≥7d 零仓哑弹（live_dud 同判据）
+}
+
+// GetFaceGrid 设备径：组件面格栅（healthComps 同源判态）+探针心跳+
+// 会话面+部署面——「它死没死/哪病了」一页答。
+message GetFaceGridRequest {}
+message FaceRow {
+  string name = 1;
+  string fact = 2;                      // 足迹表/谓词锚（指回事实行）
+  string exch = 3;
+  string cat = 4;
+  int32 state = 5;                      // 0绿/1陈/2死/3灰——后端判态
+  google.protobuf.Timestamp last_write = 6;
+  int64 lag_s = 7;                      // 鲜度滞后秒（无行=0）
+  string note = 8;
+}
+message ProbeBeat {
+  string esc_class = 1;
+  string esc_scope = 2;
+  google.protobuf.Timestamp last_esc = 3;      // 最近升件时
+  google.protobuf.Timestamp last_recover = 4;  // 最近复绿时
+  bool open = 5;                               // 有未销升件在案
+}
+message SessionFace {
+  google.protobuf.Timestamp last_spawn = 1;    // 末次唤起
+  int64 spawns_24h = 2;
+  int64 closes_24h = 3;
+  int64 fails_24h = 4;
+  bool running = 5;                            // 唤起后无收口且龄<2h（推断如实注）
+}
+message DeployRow {
+  int64 id = 1;
+  google.protobuf.Timestamp ts = 2;
+  string sha = 3;                       // note 解析 o-core:<sha12>
+  int32 rc = 4;
+}
+message GetFaceGridResponse {
+  google.protobuf.Timestamp as_of = 1;
+  repeated FaceRow faces = 2;
+  repeated ProbeBeat probes = 3;
+  SessionFace session = 4;
+  repeated DeployRow deploys = 5;       // 近 3 部署行（新→旧）
+}
+
+// GetDecisionTrail 决策径：升件→处置链尾流+条件请求榜+教训矿面——
+// 「它怎么想」可见，每行指回 ops_event 事实 id。
+message GetDecisionTrailRequest {
+  int32 limit = 1;                      // 0/负=缺省 20
+}
+message TrailRow {
+  int64 esc_id = 1;
+  google.protobuf.Timestamp esc_ts = 2;
+  string esc_class = 3;
+  string esc_scope = 4;
+  string note = 5;                      // 升件摘要（服务端截断）
+  bool open = 6;                        // 无处置行引证=未决
+  int64 disp_id = 7;                    // 首个处置行 id（0=未决）
+  google.protobuf.Timestamp disp_ts = 8;
+  string verdict = 9;                   // 处置判词摘要
+  int64 age_s = 10;                     // 处置耗时（未决=升件龄）
+}
+message CondReqRow {
+  int64 id = 1;
+  google.protobuf.Timestamp ts = 2;
+  string note = 3;
+  bool open = 4;
+}
+message MineRow {
+  int64 eng_pending = 1;
+  int64 eng_canon = 2;
+  int64 eng_verdicted = 3;
+  int64 econ_pending = 4;
+}
+message GetDecisionTrailResponse {
+  google.protobuf.Timestamp as_of = 1;
+  repeated TrailRow trail = 2;
+  repeated CondReqRow condreqs = 3;
+  MineRow mine = 4;
 }

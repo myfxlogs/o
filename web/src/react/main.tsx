@@ -6,6 +6,9 @@ import { Shell } from "./Shell";
 import type { RouteDef } from "./router";
 import { usePath } from "./router";
 import { OverviewPage } from "./pages/Overview";
+import { MoneyPage } from "./pages/Money";
+import { DevicePage } from "./pages/Device";
+import { DecisionPage } from "./pages/Decision";
 import { SystemPage } from "./pages/System";
 import { CockpitPage } from "./pages/Cockpit";
 import { TrxPage } from "./pages/Trx";
@@ -18,9 +21,13 @@ import "./styles/03-table-chip.css";
 import "./styles/06-buttons.css";
 import "./styles/20-semantic.css";
 import "./styles/22-effects.css";
+import "./styles/30-v2.css";
 
 const ROUTES: RouteDef[] = [
   { path: "/", label: "总览", el: <OverviewPage /> },
+  { path: "/money", label: "钱径", el: <MoneyPage /> },
+  { path: "/device", label: "设备", el: <DevicePage /> },
+  { path: "/decision", label: "决策", el: <DecisionPage /> },
   { path: "/cockpit", label: "驾驶舱", el: <CockpitPage /> },
   { path: "/system", label: "系统", el: <SystemPage /> },
   { path: "/trx", label: "TRX", el: <TrxPage /> },
