@@ -115,6 +115,8 @@ func NewWarden(pool *pgxpool.Pool, cfg *config.Client, gate *risk.Gate, ex Execu
 		rej: rejects.New("guard", "missing_param", "facts_missing", "leg_anomaly",
 			"close_denied", "close_failed", "close_gave_up", "write_err", "loop_alert",
 			"dd_missing_param", "equity_missing", "equity_stale", "dd_no_base", "dd_hardline_tripped", "dd_close_exhausted",
+			"dir_missing_param", "dir_nav_missing", "dir_measure_err", "dir_leg_px_missing", "dir_mark_missing",
+			"dir_freeze_err", "dir_loss_breaker_tripped", "dir_close_exhausted",
 			"bare_bag")}
 }
 
@@ -149,6 +151,7 @@ type posRow struct {
 // 逐仓判触发→close intent 过闸→执行缝→状态迁移。
 func (w *Warden) scanOnce(ctx context.Context) error {
 	w.ddScan(ctx)
+	w.dirScan(ctx)   // 方向族亏损预算熔断（业主令⑧——dd 线后族级闸）
 	w.loopProbe(ctx) // T-0423 自残探针——closing 滞留/超次升件+熔断（阈键独立缺件不阻主扫描）
 	backoff, maxAtt, err := w.retryKeys()
 	if err != nil {
