@@ -53,6 +53,14 @@ if [ -z "$DEPLOYED" ] || [ "${HEAD:0:${#DEPLOYED}}" != "$DEPLOYED" ]; then
 		say "滞差但部署锁持（另径在途）——让位本拍"
 		exit 0
 	fi
+	# 同 SHA 近窗败避让：DEPLOY 账内本 sha 近 15min 已有 rc!=0 试——
+	# 让位本拍不落新行（重试风暴闸：唤源任意重复唤皆安全——
+	# 2026-11-11 产线实证「HEAD 未推窗+事件唤链」rc=1 逐唤刷屏；
+	# 窗期后真滞差照试不误发，升件侧 deploy_blocked 未销已抑复式）。
+	if [ -n "$DSN" ]; then
+		LASTFAIL=$(psql "$DSN" -qAt -c "SELECT id FROM ops_event WHERE seat='DEPLOY' AND event='部署' AND note LIKE '%o-core:${SHORT}%' AND note NOT LIKE '%rc=0%' AND ts>now()-interval '15 minutes' ORDER BY id DESC LIMIT 1" 2>/dev/null)
+		[ -n "$LASTFAIL" ] && { say "同 sha 近窗部署败在案(#$LASTFAIL)——让位本拍"; exit 0; }
+	fi
 	say "滞差: 部署=$DEPLOYED vs master=$SHORT——起部署"
 	out=$(bash scripts/deploy_image.sh 2>&1); rc=$?
 	echo "$out" | tail -3 | while read -r l; do say "$l"; done
