@@ -131,6 +131,16 @@ func TestCalendarRecoverPush(t *testing.T) {
 	if len(fs.sent) != 1 {
 		t.Fatalf("重推违幂等: %+v", fs.sent)
 	}
+	// 拉取活性账（工单#10693）——403 败拍+200 活拍各落行,
+	// 活性锚=含败拍的拉取产出（feed 死闸探针改读面）。
+	var okN, errN int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FILTER (WHERE ok),
+		count(*) FILTER (WHERE NOT ok) FROM md_calendar_pull`).Scan(&okN, &errN); err != nil {
+		t.Fatal(err)
+	}
+	if okN != 2 || errN != 1 {
+		t.Fatalf("拉取活性账行数不符: ok=%d err=%d（望 2/1）", okN, errN)
+	}
 }
 
 // 锚：tzdata 真命中+DST 边界——2026-11-02 入冬令 ET=-5（8:30am ET=13:30 UTC），

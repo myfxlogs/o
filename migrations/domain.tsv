@@ -48,6 +48,7 @@ md_venue_fact	fin
 fin_venue_bill	fin
 fin_review_verdict	fin
 md_calendar_push	fin
+md_calendar_pull	fin
 fin_known_residual	fin
 fin_residual_custody	fin
 fin_slip_sample	fin
