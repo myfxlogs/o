@@ -33,9 +33,11 @@ if [ "$LOCAL" != "$REMOTE" ]; then
 		# 自伤型升件源，2026-11-10 产线实证 deploy_push_blocked 三连发）。
 		if [ ! -f ".git/check-green-$LOCAL" ]; then
 			say "尖未盖戳——让位盖戳流（不推不升）"
+			exit 0 # 让位=真让位（不落部署段——未推尖部署必遭出处闸拒=自伤升件）
 		elif ! git push origin master 2>/dev/null; then
 			esc "deploy_push_blocked" "部署/deploy_push_blocked: 本地 master 超前未推成（pre-push 闸或网阻）——merge 在仓未上岸,归唤知会话查闸因"
 			say "push 败——升件已落"
+			exit 0 # 推败=尖未上岸——继续走部署=出处闸拒必升件（噪音类根修,stuck_esc#10657 实证）
 		fi
 	else
 		esc "deploy_diverged" "部署/deploy_diverged: master 与 origin/master 分叉（本地=$LOCAL 远端=$REMOTE）——不自裁,归唤知会话"
