@@ -23,9 +23,9 @@ export function PagerBar(props: {
 }) {
 	if (props.pages <= 1) return <span className="ink-3">{props.total} 行</span>;
 	return (
-		<span className="pager">
+		<span className="pagerbar">
 			<button
-				className="pager-btn"
+				className="pagerbar-btn"
 				disabled={props.page === 0}
 				onClick={() => props.onPage(props.page - 1)}
 				aria-label="上一页"
@@ -36,7 +36,7 @@ export function PagerBar(props: {
 				{props.page + 1}/{props.pages} · 共{props.total}
 			</span>
 			<button
-				className="pager-btn"
+				className="pagerbar-btn"
 				disabled={props.page >= props.pages - 1}
 				onClick={() => props.onPage(props.page + 1)}
 				aria-label="下一页"
