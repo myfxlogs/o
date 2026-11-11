@@ -6,7 +6,9 @@ import { useLive } from "../hooks";
 import { EmptyState, ErrorState, Skeleton, StateDot, UtcClock } from "../components/ui";
 import { EarnToggle } from "../components/EarnToggle";
 import { OpenPositionsCard } from "../components/flows";
-import { fmtUsd } from "../components/fmt";
+import { fmtUsd, pbDate } from "../components/fmt";
+import { AGE } from "../components/panel";
+import { PagerBar, usePager } from "../components/pager";
 import { useState } from "react";
 import type { MoneyRow } from "../../gen/dashboardv1/core_pb";
 import { VENUE_CN } from "../components/labels";
@@ -70,11 +72,17 @@ export function OverviewPage() {
     client.overview({})
   );
   const health = useLive(["ev_account"], () => client.getSystemHealth({}));
+  // 链堵面（业主令 11-11：链在哪堵并入本页——漏斗+哑弹榜单源迁此，钱径页退役）
+  const fn = useLive(["ev_pipeline", "ev_position"], () =>
+    client.getFunnel({ windowDays: 30 })
+  );
+  const dudPager = usePager(fn.data?.duds ?? [], 8);
 
   if (ov.loading && !ov.data) return <Skeleton rows={6} />;
   if (ov.err && !ov.data)
     return <ErrorState msg={ov.err} onRetry={ov.reload} />;
   const o = ov.data!;
+  const f = fn.data;
 
   const worst = Math.max(
     0,
@@ -116,7 +124,62 @@ export function OverviewPage() {
       {ov.err ? <ErrorState msg={ov.err} onRetry={ov.reload} /> : null}
       <OpenPositionsCard doing={doing} />
 
-      {/* 最近动作——现金流尾流（v2 面板骨：读序第四） */}
+      {/* 链在哪堵（业主令 11-11 并入——评估漏斗吞吐+拒因+哑弹榜分页榜） */}
+      {f ? (
+        <div className="v2-cols">
+          <div className="v2-panel">
+            <div className="v2-panel-head">
+              <h2 className="v2-panel-title">链在哪堵 · 评估漏斗</h2>
+              <span className="ink-3">{f.windowDays}d 窗</span>
+            </div>
+            <div className="v2-funnel">
+              {(f.levels ?? []).map((l) => (
+                <div key={l.key} className="v2-funnel-lv">
+                  <span className="v2-funnel-k ink-3">{l.label}</span>
+                  <span className={"v2-funnel-n num" + (l.n < 0n ? " ink-3" : "")}>
+                    {l.n < 0n ? "缺" : Number(l.n).toLocaleString("zh-CN")}
+                  </span>
+                  <span className="v2-funnel-note ink-3">{l.note}</span>
+                </div>
+              ))}
+            </div>
+            {(f.rejects ?? []).length > 0 && (
+              <div className="v2-funnel-rej ink-3">
+                拒因：{(f.rejects ?? []).map((r) => `${r.reason}·${r.n}`).join("　")}
+              </div>
+            )}
+          </div>
+
+          <div className="v2-panel">
+            <div className="v2-panel-head">
+              <h2 className="v2-panel-title">哑弹榜</h2>
+              <PagerBar {...dudPager} onPage={dudPager.setPage} />
+            </div>
+            {(f.duds ?? []).length === 0 ? (
+              <EmptyState title="无哑弹" hint="live 超 7 天零仓策略在此显形" />
+            ) : (
+              <div className="v2-rows">
+                {dudPager.slice.map((d) => (
+                  <div key={String(d.id)} className="v2-row">
+                    <div className="v2-row-main">
+                      <span className="v2-row-title">
+                        #{String(d.id)} {d.instId}
+                      </span>
+                      <span className="v2-row-sub ink-3">
+                        {d.templateRef || "—"} · 名义 {fmtUsd(d.notionalUsd)} · 入场{" "}
+                        {pbDate(d.enteredAt) ? AGE(pbDate(d.enteredAt)!) : "—"}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
+
+      {/* 最近动作+钱在哪 1行两列（业主令 11-11：v2-cols 自适应多列栅格） */}
+      <div className="v2-cols">
       <div className="v2-panel">
         <div className="v2-panel-head">
           <h2 className="v2-panel-title">最近动作</h2>
@@ -148,6 +211,7 @@ export function OverviewPage() {
         )}
         {/* T-0342：Earn 自动申购开关——贴 Earn 展示处（钱在哪卡） */}
         <EarnToggle />
+      </div>
       </div>
     </div>
   );

@@ -6,13 +6,18 @@ import { useLive } from "../hooks";
 import { EmptyState, ErrorState, Skeleton, StateDot } from "../components/ui";
 import { AGE } from "../components/panel";
 import { pbDate } from "../components/fmt";
+import { PagerBar, usePager } from "../components/pager";
 
 // ageTxt 秒级龄人话（<120min→Nm / <48h→N.Nh / else→N.Nd——审计 P2：裸分钟不可读）。
 const ageTxt = (s: number) =>
   s < 7200 ? `${Math.floor(s / 60)}m` : s < 172800 ? `${(s / 3600).toFixed(1)}h` : `${(s / 86400).toFixed(1)}d`;
 
 export function DecisionPage() {
-  const t = useLive(["ev_pipeline"], () => client.getDecisionTrail({ limit: 20 }));
+  // 业主令 11-11：分页防撑高——取数窗 20→100 行,前端切片每页 10
+  const t = useLive(["ev_pipeline"], () => client.getDecisionTrail({ limit: 100 }));
+
+  const trailPager = usePager(t.data?.trail ?? [], 10);
+  const reqPager = usePager(t.data?.condreqs ?? [], 10);
 
   if (t.loading && !t.data) return <Skeleton rows={6} />;
   if (t.err && !t.data) return <ErrorState msg={t.err} onRetry={t.reload} />;
@@ -40,13 +45,13 @@ export function DecisionPage() {
       <div className="v2-panel">
         <div className="v2-panel-head">
           <h2 className="v2-panel-title">升件 · 处置链</h2>
-          <span className="ink-3">ops_event 事实链</span>
+          <PagerBar {...trailPager} onPage={trailPager.setPage} />
         </div>
         {(d.trail ?? []).length === 0 ? (
           <EmptyState title="无升件" hint="探测升件落地后在此亮行" />
         ) : (
           <div className="v2-rows">
-            {(d.trail ?? []).map((r) => (
+            {trailPager.slice.map((r) => (
               <div key={String(r.escId)} className="v2-row">
                 <StateDot
                   state={r.open ? 1 : 0}
@@ -76,13 +81,13 @@ export function DecisionPage() {
       <div className="v2-panel">
         <div className="v2-panel-head">
           <h2 className="v2-panel-title">条件请求</h2>
-          <span className="ink-3">30d</span>
+          <PagerBar {...reqPager} onPage={reqPager.setPage} />
         </div>
         {(d.condreqs ?? []).length === 0 ? (
           <EmptyState title="无条件请求" hint="业主条件请求落地后在此亮行" />
         ) : (
           <div className="v2-rows">
-            {(d.condreqs ?? []).map((r) => (
+            {reqPager.slice.map((r) => (
               <div key={String(r.id)} className="v2-row">
                 <StateDot state={r.open ? 1 : 3} title={r.open ? "未决" : "已结"} />
                 <div className="v2-row-main">

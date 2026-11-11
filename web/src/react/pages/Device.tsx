@@ -10,6 +10,7 @@ import { HostMetricsCard } from "../components/hostmetrics";
 import { OrgPipelineTile } from "../components/pipeline";
 import { AGE, ExchSections } from "../components/panel";
 import { pbDate } from "../components/fmt";
+import { PagerBar, usePager } from "../components/pager";
 import { COMPONENT_CN, REJECT_CN, cn } from "../components/labels";
 import type { FaceRow, GetSystemHealthResponse } from "../../gen/dashboardv1/core_pb";
 
@@ -101,6 +102,7 @@ export function DevicePage() {
   const worst = Math.max(0, ...allBad.map((r) => r.state));
   const s = d.session;
   const staff = ov.data?.staff ?? [];
+  const probePager = usePager(d.probes ?? [], 8);
 
   return (
     <div className="page v2">
@@ -167,17 +169,20 @@ export function DevicePage() {
         )}
       </div>
 
-      {/* 探针心跳——open 先行排（后端已序），未决件不被挤出视面 */}
+      {/* 小卡多列栅格（业主令 11-11：按卡片大小排版——探针心跳+会话部署
+          +宿主+管道四小件两两并置，页面不再单列撑高） */}
+      <div className="v2-cols">
+      {/* 探针心跳——open 先行排（后端已序），分页防撑高 */}
       <div className="v2-panel">
         <div className="v2-panel-head">
           <h2 className="v2-panel-title">探针心跳</h2>
-          <span className="ink-3">{(d.probes ?? []).filter((p) => p.open).length} 未决</span>
+          <PagerBar {...probePager} onPage={probePager.setPage} />
         </div>
         {(d.probes ?? []).length === 0 ? (
           <EmptyState title="探针未注册" hint="首个探针升件后在此亮行" />
         ) : (
           <div className="v2-rows">
-            {(d.probes ?? []).map((p) => (
+            {probePager.slice.map((p) => (
               <div key={p.escClass + "/" + p.escScope} className="v2-row">
                 <StateDot
                   state={p.open ? 1 : p.lastEsc ? 0 : 3}
@@ -223,10 +228,13 @@ export function DevicePage() {
           ))}
         </div>
       </div>
+      </div>
 
-      {/* 宿主资源+工程票管道（复用件——独立对象各一卡，合法非碎墙） */}
-      <HostMetricsCard />
-      <OrgPipelineTile />
+      {/* 宿主资源+工程票管道（复用件——小卡并列入栅格） */}
+      <div className="v2-cols">
+        <HostMetricsCard />
+        <OrgPipelineTile />
+      </div>
 
       {/* 席位在册——心跳延迟红点名 */}
       <div className="v2-panel">

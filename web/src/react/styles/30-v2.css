@@ -306,3 +306,35 @@
 /* 减动效：v2 页只留状态灯语义动效（v2-pulse=活性语言非装饰照留，
    承 10-shell 同律）；面板/行零入场动效——直渲不渐隐（skill 铁律：
    异步内容禁入场 opacity 帧——重渲会卡 0）。 */
+
+/* v2-cols 自适应多列栅格（业主令 11-11：小卡多列防单列撑高——
+   ≥340px 即自动成列,宽屏两列窄屏单列零断点写死） */
+.v2-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 24px;
+  align-items: start;
+}
+
+/* pager 分页条（业主令 11-11：榜单类分页——哑弹榜/探针心跳/处置链同形） */
+.pager {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.pager-btn {
+  min-width: 26px;
+  height: 26px;
+  border: 1px solid var(--v2-glass-line, rgba(128, 128, 128, 0.25));
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 6px;
+}
+.pager-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}

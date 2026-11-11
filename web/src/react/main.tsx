@@ -6,7 +6,6 @@ import { Shell } from "./Shell";
 import type { RouteDef } from "./router";
 import { usePath } from "./router";
 import { OverviewPage } from "./pages/Overview";
-import { MoneyPage } from "./pages/Money";
 import { DevicePage } from "./pages/Device";
 import { DecisionPage } from "./pages/Decision";
 import { CockpitPage } from "./pages/Cockpit";
@@ -24,7 +23,6 @@ import "./styles/30-v2.css";
 
 const ROUTES: RouteDef[] = [
   { path: "/", label: "机赚如何", el: <OverviewPage /> },
-  { path: "/money", label: "链在哪堵", el: <MoneyPage /> },
   { path: "/device", label: "哪病了", el: <DevicePage /> },
   { path: "/decision", label: "何事要裁", el: <DecisionPage /> },
   { path: "/cockpit", label: "要我办啥", el: <CockpitPage /> },
