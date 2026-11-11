@@ -33,20 +33,20 @@ export function Sprite(props: { name: keyof typeof SPR; x: number; y: number; z?
   return <image href={m.u} x={px - props.w / 2} y={py - h} width={props.w} height={h} />;
 }
 
-// 白面桌——Kenney 木桌精灵（w/d 参数弃用，视觉宽由调用方 w 定）。
-export function Desk(props: { x: number; y: number; w?: number; d?: number }) {
-  return <Sprite name="desk" x={props.x + (props.w ?? 2.6) / 2} y={props.y + (props.d ?? 1.35) / 2} w={112} />;
+// 白面桌——Kenney 木桌精灵（w/d 参数弃用，sw=精灵屏宽小桌用）。
+export function Desk(props: { x: number; y: number; w?: number; d?: number; sw?: number }) {
+  return <Sprite name="desk" x={props.x + (props.w ?? 2.6) / 2} y={props.y + (props.d ?? 1.35) / 2} w={props.sw ?? 112} />;
 }
 
 // 转椅——Kenney 办公椅精灵。
-export function OfficeChair(props: { x: number; y: number; tone?: string }) {
+export function OfficeChair(props: { x: number; y: number; tone?: string; w?: number }) {
   void props.tone;
-  return <Sprite name="chair" x={props.x} y={props.y} w={48} />;
+  return <Sprite name="chair" x={props.x} y={props.y} w={props.w ?? 48} />;
 }
 
 // 显示器——Kenney 显示器精灵（z0=落桌高）。
-export function Monitor(props: { x: number; y: number; z0?: number }) {
-  return <Sprite name="screen" x={props.x} y={props.y} z={props.z0 ?? 0.72} w={34} />;
+export function Monitor(props: { x: number; y: number; z0?: number; w?: number }) {
+  return <Sprite name="screen" x={props.x} y={props.y} z={props.z0 ?? 0.72} w={props.w ?? 34} />;
 }
 
 // 绿植——Kenney 盆栽精灵（大株/小株）。

@@ -7,11 +7,12 @@ import { useLive } from "../hooks";
 import { plainText } from "../components/plain";
 import { pbDate } from "../components/fmt";
 import { AGE } from "../components/panel";
-import { P, pts, IsoBox } from "../components/iso";
+import { P, pts, Person } from "../components/iso";
+import { Sprite } from "./officeParts";
 
 export type Tip = { k: string; x: number; y: number; title: string; body: string[]; to: string };
 
-export const GHOSTS: { name: string; st: "ghost" | "build" | "done"; hint: string; keys: string[] }[] = [
+export const GHOSTS: { name: string; st: "ghost" | "pin" | "build" | "done"; hint: string; keys: string[] }[] = [
   { name: "B 元探", st: "ghost", hint: "缺仪器自动发探——自模型胚", keys: ["元探", "自动发探", "缺仪器"] },
   { name: "C 自态摘要", st: "ghost", hint: "会话冷启动账页", keys: ["自态", "#10489"] },
   { name: "D 目标发起", st: "ghost", hint: "进水口已通·7源已抓", keys: ["目标发起", "abcd", "A-D", "进水口", "intake"] },
@@ -26,17 +27,22 @@ export const GHOSTS: { name: string; st: "ghost" | "build" | "done"; hint: strin
 // 判词取关键词 ±25 字邻域：一行可带多器官不同定性（如 #10507 同注
 // 「法典部署销」∧「自态账领命」），整行判会串味。
 export type Fact = { id: bigint; note: string };
-const DONE_RE = /销案|部署销|落账毕|法典已部署|已部署|已完成|收口/;
+// 四态词谱（±25 字邻域判，done>build>pin 优先级，无词兜底 build=有动过）：
+//   pin=认领未动工（领命/工单/备记类）；build=真在施（施工/落码/处置类）。
+const DONE_RE = /销案|部署销|落账毕|法典已部署|已部署|已完成|收口|上线|落地|启用|投产|生效/;
+const BUILD_RE = /施工|在施|开工|落码|码修|修码|部署中|处置中|实现|开发中|改造|推进/;
+const PIN_RE = /领命|工单|业主令|备记|清单|纳入|认领|立项|排期|消化径/;
 export function ghostFact(gh: (typeof GHOSTS)[number], facts: Fact[]): Fact | undefined {
   return facts.find((r) => gh.keys.some((k) => r.note.includes(k)));
 }
-export function ghostSt(gh: (typeof GHOSTS)[number], facts: Fact[]): "ghost" | "build" | "done" {
+export function ghostSt(gh: (typeof GHOSTS)[number], facts: Fact[]): "ghost" | "pin" | "build" | "done" {
   const hit = ghostFact(gh, facts);
   if (!hit) return "ghost";
-  return gh.keys.some((k) => {
+  const near = (re: RegExp) => gh.keys.some((k) => {
     const i = hit.note.indexOf(k);
-    return i >= 0 && DONE_RE.test(hit.note.slice(Math.max(0, i - 25), i + k.length + 25));
-  }) ? "done" : "build";
+    return i >= 0 && re.test(hit.note.slice(Math.max(0, i - 25), i + k.length + 25));
+  });
+  return near(DONE_RE) ? "done" : near(BUILD_RE) ? "build" : near(PIN_RE) ? "pin" : "build";
 }
 
 const fmtMoney = (v: number) =>
@@ -45,24 +51,31 @@ const TO_LABEL: Record<string, string> = { "/": "机赚如何", "/device": "哪�
 
 type Hot = (tt: Omit<Tip, "x" | "y">, x: number, y: number, z?: number, cls?: string) => Record<string, unknown>;
 
-// 毛坯工位排——待长器官钦定清单（暗=毛坯，金=在建，绿=完工）。
+// 器官工位排——2×4 桌阵（前排水泥区）。位=小桌+显示器+转椅+人仔，
+// 态随事实推：毛坯=桌椅人全淡影，立项=钢蓝人仔+桌📌旗，
+// 在建=金人仔呼吸在敲，完工=绿人仔名牌✓。
+const GH_TONE: Record<string, string> = { ghost: "#8a93a3", pin: "#7fa8d0", build: "#d9a62e", done: "#3ddc84" };
 export function GhostRow(props: { hot: Hot; facts: Fact[] }) {
   return (
     <>
       {GHOSTS.map((gh, i) => {
-        const x = 0.8 + i * 1.65, y = 8.3;
+        const x = 1.5 + (i % 4) * 2.45, y = i < 4 ? 7.35 : 8.8, cx = x + 0.75;
         const st = ghostSt(gh, props.facts);
         const fact = ghostFact(gh, props.facts);
-        const gold = st === "build", done = st === "done";
-        const c = gold ? { top: "#5c5132", front: "#4d4329", right: "#403723" }
-          : done ? { top: "#2e4d3a", front: "#274233", right: "#1f3529" }
-          : { top: "#2c3444", front: "#252c3a", right: "#1f2531" };
-        const [nx, ny] = P(x + 0.6, y + 1.35);
+        const done = st === "done", pin = st === "pin", dim = st === "ghost";
+        const stLb = done ? "已完工" : st === "build" ? "在建" : pin ? "已立项" : "毛坯";
+        const [nx, ny] = P(cx, y + 1.62);
         return (
           <g key={gh.name}
-            {...props.hot({ k: "gh" + i, title: `毛坯位 · ${gh.name}`, body: [gh.hint, done ? "已完工" : gold ? "在建" : "毛坯", fact ? `据 #${String(fact.id)}` : "无事实行"], to: "/decision" }, x + 0.6, y + 0.4, 0.8, gold ? "fx-breathe" : "")}>
-            <IsoBox x={x} y={y} w={1.2} d={0.8} h={0.7} top={c.top} front={c.front} right={c.right} dashed={!done} op={0.85} />
-            <text x={nx} y={ny + 8} className={`iso-cap${gold ? " gold" : done ? "" : " dim"}`} textAnchor="middle">{gh.name}{done ? "✓" : ""}</text>
+            {...props.hot({ k: "gh" + i, title: `工位 · ${gh.name}`, body: [gh.hint, stLb, fact ? `据 #${String(fact.id)}` : "无事实行"], to: "/decision" }, cx, y + 0.5, 0.9, st === "build" ? "fx-breathe" : "")}>
+            <g opacity={dim ? 0.5 : 1}>
+              <Sprite name="desk" x={cx} y={y + 0.62} w={66} />
+              <Sprite name="screen" x={cx} y={y + 0.42} z={0.55} w={20} />
+              {/* 人仔在桌前背对镜头——面对显示器在敲/占位影 */}
+              <Person x={cx} y={y + 1.12} tone={GH_TONE[st]} breathe={st === "build"} />
+            </g>
+            {pin && <text x={P(cx - 0.3, y + 0.35, 0.72)[0]} y={P(cx - 0.3, y + 0.35, 0.72)[1]} fontSize="11">📌</text>}
+            <text x={nx} y={ny + 8} className={`iso-cap${st === "build" ? " gold" : done ? "" : " dim"}`} textAnchor="middle">{gh.name}{done ? "✓" : ""}</text>
           </g>
         );
       })}
@@ -255,7 +268,7 @@ export function FocusBody(props: {
       <div className="iso-focus-in">
         <div className="iso-focus-h">毛坯工位 · {gh.name}</div>
         <div className="iso-focus-row">{gh.hint}</div>
-        <div className="iso-focus-big">{st === "done" ? "🟢 已完工" : st === "build" ? "🟡 在建" : "⬚ 毛坯"}</div>
+        <div className="iso-focus-big">{st === "done" ? "🟢 已完工" : st === "build" ? "🟡 在建" : st === "pin" ? "📌 已立项" : "⬚ 毛坯"}</div>
         {fact && <div className="iso-focus-row dim">据 #{String(fact.id)} · {plainText(fact.note).slice(0, 40)}</div>}
         {go}
       </div>
