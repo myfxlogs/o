@@ -136,7 +136,9 @@ export function DevicePage() {
         </div>
       )}
 
-      {/* 生产面 SG——venue 通道行+健康行（ExchSections 组收拢：异常自动张） */}
+      {/* 生产面 SG+采集面 OCI——双小卡入栅格并置（业主令 11-11：小卡
+          一行多列） */}
+      <div className="v2-cols">
       <div className="v2-panel">
         <div className="v2-panel-head">
           <h2 className="v2-panel-title">生产面（SG）——交易与本地臂</h2>
@@ -167,6 +169,7 @@ export function DevicePage() {
             ) : null}
           </>
         )}
+      </div>
       </div>
 
       {/* 小卡多列栅格（业主令 11-11：按卡片大小排版——探针心跳+会话部署

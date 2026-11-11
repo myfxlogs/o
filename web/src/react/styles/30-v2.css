@@ -307,11 +307,13 @@
    承 10-shell 同律）；面板/行零入场动效——直渲不渐隐（skill 铁律：
    异步内容禁入场 opacity 帧——重渲会卡 0）。 */
 
-/* —— 轨道归一（业主令 11-11 乱排返修：三轨混排病灶——panel/hero 走
-   1080 中轴而 health-strip/.card 持仓卡/.hm-tile/v2-cols 走视口宽轨,
-   左右缘全错。修法=一页一轨：page.v2 直接子件统一 1080 中轴,
-   v2-cols 自身守轨、列内子件归零自中心） —— */
+/* —— 轨道归一（业主令 11-11 乱排返修：真病灶=.page.v2 继承通用
+   .page 的 flex column——子件「自动宽+auto横边距」在 flex 列收缩成
+   内容宽，1080 cap 永远到不了，各卡各收各的=「三轨」假相一机制。
+   修法=钉宽 100% 使边距生效：子件宽=容器内容盒、上 cap 1080、
+   auto 边距吸余量=共享中轴；v2-cols 自身守轨、列内子件归零） —— */
 .page.v2 > * {
+  width: 100%;
   max-width: 1080px;
   margin-left: auto;
   margin-right: auto;
