@@ -48,6 +48,15 @@ psql "$FIN_DSN" -c "SELECT id,signature,cluster_n,numbers FROM fin_eng_lesson
   WHERE verify_state='ai_evaluated' AND status='pending' ORDER BY id LIMIT 20"
 psql "$FIN_DSN" -c "SELECT id,kind,entity_ref,numbers FROM fin_econ_lesson
   WHERE status='pending' ORDER BY id LIMIT 20"
+# OPEN 工单(未销+无活在认领)——按期限序=施工面入口,认领/销/挂起三选一,不许无声跳过:
+psql "$FIN_DSN" -c "SELECT t.id,t.ts,left(t.note,200) FROM ops_event t
+WHERE t.event='工单' AND t.ts>now()-interval '30 days'
+  AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='处置' AND x.ts>t.ts
+    AND x.note ~ ('工单#'||t.id::text||'([^0-9]|$)'))
+  AND NOT EXISTS (SELECT 1 FROM ops_event c WHERE c.event='认领' AND c.ts>t.ts
+    AND c.ts>now()-interval '2 hours'
+    AND c.note ~ ('工单#'||t.id::text||'([^0-9]|$)'))
+ORDER BY t.ts + COALESCE((substring(t.note from '期限=([0-9]+)h'))::int,24)*interval '1 hour'"
 ```
 
 ### ①½ 生成面（信号面净时——「探未知」常驻径）
@@ -338,16 +347,33 @@ psql "$FIN_DSN" -c "SELECT id,kind,entity_ref,numbers FROM fin_econ_lesson
   ② 立票真行：
   ```sql
   INSERT INTO ops_event(seat,event,note)
-  VALUES('处置席','工单','工单/<slug>: <要干什么+验收判据> ——期限=<Nh>,源=升件#<id>')
+  VALUES('处置席','工单','工单/<slug>: <要干什么+验收判据> ——期限=<Nh>,源=升件#<id>,scope=<esc_scope>')
   ```
   期限=自估交期（P级可短,默认24h）——过期未销 codework_stall
   自动升件,票本身就是状态不靠散文载。源=升件id/审计id 载出处。
-  ③ 修毕销票（载证同销案律——证据必备）：
+  scope=源升件的 esc_scope(无源件写 'manual')——票抑键:
+  OPEN 票∧挂票期限内,同 scope 探针静默让位(条件被票接管
+  不再重火问同一问题);销票/挂票过期=抑撤探针自然复岗。
+  验收判据可执行化:能写成 Go 测试/SQL 度量的写明测试名
+  ——修序=先挂测(判据编码成测试)→修→测绿=判据实证;
+  写不出测试的载人工核点。
+  ③ 施工（OPEN 票按期限序拣——认领→修→销票）：
   ```sql
   INSERT INTO ops_event(seat,event,note)
-  VALUES('处置席','处置','工单#<id> <判词>+证据(commit sha/部署rc/验证实数)')
+  VALUES('处置席','认领','','工单#<id> 认领:开修')
   ```
-  挂起不销票——处置行注「挂起条件=X」即可,哨认处置行不判真假挂。
+  认领 TTL=2h——活在认领防双会话抢同票,认领陈=会话死透
+  票回落可拣(收养前任段:同票 fix 分支/wt 在场先续)。
+  修毕销票（载证同销案律——证据必备）：
+  ```sql
+  INSERT INTO ops_event(seat,event,note)
+  VALUES('处置席','处置','工单#<id> <判词>+证据(commit sha/部署rc/测试绿/验证实数)')
+  ```
+  挂起不销票——处置行注「挂起条件=X」引工单#id:哨认处置行
+  不判真假挂,但挂票期限内仍抑同 scope 升件(等外因也管催)。
+  红线面不动工:票涉资金上限/风控参数值/凭据面/迁移约语义/
+  append-only 表结构→写「条件请求」上行业主(机审不装能审
+  一切,红线面归人)。
 
 ### ③ 教训矿
 `fin_eng_lesson` 候选逐条判：可归纳→写 `docs/工程经验库/条目/<id>.md`
