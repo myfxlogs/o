@@ -106,8 +106,11 @@ func (c coreService) GetDecisionTrail(ctx context.Context,
 		Scan(&mine.EngPending, &mine.EngCanon, &mine.EngVerdicted); err != nil {
 		log.Printf("[trail] eng 矿查询败: %v", err)
 	}
-	if err := c.pool.QueryRow(ctx, `SELECT count(*) FROM fin_econ_lesson WHERE status='pending'`).
-		Scan(&mine.EconPending); err != nil {
+	if err := c.pool.QueryRow(ctx, `SELECT
+		count(*) FILTER (WHERE status='pending'),
+		count(*) FILTER (WHERE status='canon'),
+		count(*) FILTER (WHERE status='verdicted') FROM fin_econ_lesson`).
+		Scan(&mine.EconPending, &mine.EconCanon, &mine.EconVerdicted); err != nil {
 		log.Printf("[trail] econ 矿查询败: %v", err)
 	}
 	resp.Mine = mine
