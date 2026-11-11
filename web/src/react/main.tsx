@@ -8,6 +8,7 @@ import { usePath } from "./router";
 import { OverviewPage } from "./pages/Overview";
 import { DevicePage } from "./pages/Device";
 import { DecisionPage } from "./pages/Decision";
+import { FloorPage } from "./pages/Floor";
 import { CockpitPage } from "./pages/Cockpit";
 import { TrxPage } from "./pages/Trx";
 import { ReviewPage } from "./pages/Review";
@@ -20,9 +21,11 @@ import "./styles/06-buttons.css";
 import "./styles/20-semantic.css";
 import "./styles/22-effects.css";
 import "./styles/30-v2.css";
+import "./styles/31-floor.css";
 
 const ROUTES: RouteDef[] = [
   { path: "/", label: "机赚如何", el: <OverviewPage /> },
+  { path: "/floor", label: "它在干啥", el: <FloorPage /> },
   { path: "/device", label: "哪病了", el: <DevicePage /> },
   { path: "/decision", label: "何事要裁", el: <DecisionPage /> },
   { path: "/cockpit", label: "要我办啥", el: <CockpitPage /> },

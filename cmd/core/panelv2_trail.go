@@ -106,9 +106,11 @@ func (c coreService) GetDecisionTrail(ctx context.Context,
 		Scan(&mine.EngPending, &mine.EngCanon, &mine.EngVerdicted); err != nil {
 		log.Printf("[trail] eng 矿查询败: %v", err)
 	}
+	// econ canon 语义在 verdict_ref 前缀（runbook：econ 禁写 'canon' 状态——
+	// status='canon' 恒零是测错口径非真空架）。OR 双轨兼容两制。
 	if err := c.pool.QueryRow(ctx, `SELECT
 		count(*) FILTER (WHERE status='pending'),
-		count(*) FILTER (WHERE status='canon'),
+		count(*) FILTER (WHERE status='canon' OR verdict_ref LIKE 'canon:%'),
 		count(*) FILTER (WHERE status='verdicted') FROM fin_econ_lesson`).
 		Scan(&mine.EconPending, &mine.EconCanon, &mine.EconVerdicted); err != nil {
 		log.Printf("[trail] econ 矿查询败: %v", err)
