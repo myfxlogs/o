@@ -240,8 +240,11 @@ func GreenKeys(ctx context.Context, pool *pgxpool.Pool, cells []Cell) (map[strin
 	if len(keys) == 0 {
 		return green, nil
 	}
+	// 凭据鲜度界（升件#10281 同口径）：ts>=now()-7d——能力债探针凭据窗同界；
+	// 无界收跨哨段陈凭据=闸收而侦测报缺互斥根修。陈档=缺档 fail-closed。
 	rows, err := pool.Query(ctx, `SELECT DISTINCT ON (cell_key) cell_key, verdict
 		FROM fin_exec_drill WHERE cell_key = ANY($1)
+		  AND ts >= now() - interval '7 days'
 		ORDER BY cell_key, ts DESC, id DESC`, keys)
 	if err != nil {
 		return nil, fmt.Errorf("excell 格凭据读败: %w", err)

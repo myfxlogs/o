@@ -3,7 +3,6 @@ package lifecycle
 import (
 	"context"
 	"log"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -191,17 +190,17 @@ func (r *Runner) promote(ctx context.Context, minH, minNet, maxDD float64, liveS
 // execDrillPass 执行径演习凭据判（T-0426）：fin_exec_drill latest 行
 // verdict='pass' 才真；drilled=false=判据件缺（无行——fail-closed 同经济
 // 判据缺位待遇）；verdict='fail'=演习败。读败=err 上抛 fail-closed。
+// 哨段龄界（升件#10281）：凭据须晚于 entered_at-2d（R3 侦测判词同口径——
+// 跨哨段陈凭据照收=闸与侦测面互斥根修）。
 func (r *Runner) execDrillPass(ctx context.Context, strategyID int64) (pass, drilled bool, err error) {
 	var verdict string
-	if err := r.pool.QueryRow(ctx, `SELECT verdict FROM fin_exec_drill
-		WHERE strategy_ref=$1 ORDER BY ts DESC, id DESC LIMIT 1`, strategyID).Scan(&verdict); err != nil {
+	if err := r.pool.QueryRow(ctx, `SELECT d.verdict FROM fin_exec_drill d
+		JOIN fin_strategy s ON s.id=d.strategy_ref WHERE d.strategy_ref=$1
+		AND d.ts >= s.entered_at - interval '2 days'
+		ORDER BY d.ts DESC, d.id DESC LIMIT 1`, strategyID).Scan(&verdict); err != nil {
 		return false, false, nil // 无行=判据件缺（非库错——fail-closed 不晋）
 	}
 	return verdict == "pass", true, nil
-}
-
-func ftoa(f float64) string {
-	return strconv.FormatFloat(f, 'g', -1, 64)
 }
 
 // dcdPaperAccounting dcd_call paper 记账（T-0160 ①paper 径实装：md_dcd_product

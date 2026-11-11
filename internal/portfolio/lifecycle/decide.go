@@ -28,3 +28,8 @@ func (r *Runner) noteLiveOpen(ctx context.Context, spec OpenSpec, execID int64) 
 			execID, spec.InstID, spec.NotionalUSD),
 		Payload: payload})
 }
+
+// ftoa 浮点紧凑格式化（原 paper.go——棘轮挪位,本包共用）。
+func ftoa(f float64) string {
+	return strconv.FormatFloat(f, 'g', -1, 64)
+}

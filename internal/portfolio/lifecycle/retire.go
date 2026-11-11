@@ -56,10 +56,14 @@ func (r *Runner) retireStaleProposed(ctx context.Context) error {
 
 // retireStaleArmedStrategies armed_ttl tag3 策略面退役（T-0258 根修）。
 // 判据①活动锚=执行侧证据最新戳：GREATEST(entered_at, fin_position 末次
-// 开仓, fin_execution 末次尝试, fin_eval_reject 末次闸拒) 超 ttl 才退——
-// 被开仓闸持续拒的活策略（拦在开仓前、零 position/execution）拒留痕即
-// 活动证据，全拒≠不活（7 条 live funding-hedge 误杀根修）；真 dormant
-// 照退语义不丢。fin_eval_reject 无 strategy_ref/venue 列——按
+// 开仓, fin_execution 末次尝试, fin_eval_reject 末次闸拒, fin_exec_drill
+// 末次毕业凭据) 超 ttl 才退——被开仓闸持续拒的活策略（拦在开仓前、零
+// position/execution）拒留痕即活动证据，全拒≠不活（7 条 live
+// funding-hedge 误杀根修）；真 dormant 照退语义不丢。fin_exec_drill
+// 锚（升件#10280）：probe→live 钦定毕业凭据产能证据——非 funding 族
+// probe 拿不到 eval_reject 锚（闸域集限定）、live 前又无 position/
+// execution，凭据行是 probe 唯一可产活动证；漏锚=probe 恒死
+// entered_at+ttl 4h 黑洞。fin_eval_reject 无 strategy_ref/venue 列——按
 // inst_id+direction 配且限 funding 闸域模板（rejectEvalReason 唯一写方、
 // 落件模板值硬记 'funding-hedge'：xvenue-carry 拒行同归此值，故以闸域集
 // 配非 s.template_ref 等值）。
@@ -75,7 +79,8 @@ func (r *Runner) retireStaleArmedStrategies(ctx context.Context, ttl float64) er
 			(SELECT max(e.created_at) FROM fin_execution e WHERE e.strategy_ref=s.id),
 			(SELECT max(ej.ts) FROM fin_eval_reject ej
 				WHERE ej.inst_id=s.inst_id AND ej.direction=s.direction
-				AND s.template_ref=ANY($2))
+				AND s.template_ref=ANY($2)),
+			(SELECT max(d.ts) FROM fin_exec_drill d WHERE d.strategy_ref=s.id)
 		)<now()-make_interval(hours=>$1)`, ttl, fam)
 	if err != nil {
 		r.rej.Inc("write_err")
