@@ -1,24 +1,15 @@
 // audit_1111_lifecycle_test.go —— 审计/生命周期 RED 锚（audit/1111-lifecycle）：
-// 断言正确语义——修复落库后自然转绿，门转正为回归锚。
-// 显跑：AUDIT_RED=1 go test ./internal/portfolio/lifecycle
+// 断言正确语义常驻——双锚即修复面回归。
 package lifecycle
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"o/internal/platform/config"
 	"o/internal/platform/testutil"
 	"o/internal/store/pgstore"
 )
-
-func auditRedGate(t *testing.T) {
-	t.Helper()
-	if os.Getenv("AUDIT_RED") != "1" {
-		t.Skip("audit RED 锚——修复期显跑: AUDIT_RED=1 go test -run " + t.Name() + " ./internal/portfolio/lifecycle；修好后去门转正为回归锚")
-	}
-}
 
 func auditSetup(t *testing.T) (context.Context, *Runner) {
 	t.Helper()
@@ -52,7 +43,6 @@ func auditSetup(t *testing.T) (context.Context, *Runner) {
 // （产线 probe 态零行、非 funding paper 滞 57h+ 实态同型）。正确语义=
 // 毕业凭据行（strategy_ref 同柄新鲜 drill 行）计入活动锚。
 func TestAuditArmedTtlIgnoresDrillCred(t *testing.T) {
-	auditRedGate(t)
 	ctx, r := auditSetup(t)
 	var sid int64
 	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_strategy
@@ -85,7 +75,6 @@ func TestAuditArmedTtlIgnoresDrillCred(t *testing.T) {
 // 对同一行判词互斥（闸收而侦测报缺）。正确语义=凭据须晚于
 // entered_at-2d（本哨段产能证据，R3 同口径）。
 func TestAuditDrillCredStaleCrossStint(t *testing.T) {
-	auditRedGate(t)
 	ctx, r := auditSetup(t)
 	var sid int64
 	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_strategy
