@@ -66,10 +66,11 @@ func (c coreService) escLoop(ctx context.Context, al *notify.Alerter) {
 		c.intakeDryEscCheck(ctx, deadSince)
 		c.navStaleEscCheck(ctx, deadSince)
 		c.codeworkStallEscCheck(ctx, deadSince)
-		c.armedDistanceBeat(ctx) // 量表探（非升件——armed 距阈日行照）
-		c.ownerLedgerBeat(ctx)   // 量表探（业主令账+点破率曲线日行照）
-		c.profitDailyBeat(ctx)   // 量表探（盈利报告日行照——业主唯一例行读件）
-		c.selfStateBeat(ctx)     // 量表探（自态账——会话冷启动即读件,工单#10358 C）
+		c.expectProdEscCheck(ctx, deadSince) // 元探通用形——生产面期望产出 vs 实产差分(工单#10605 B)
+		c.armedDistanceBeat(ctx)             // 量表探（非升件——armed 距阈日行照）
+		c.ownerLedgerBeat(ctx)               // 量表探（业主令账+点破率曲线日行照）
+		c.profitDailyBeat(ctx)               // 量表探（盈利报告日行照——业主唯一例行读件）
+		c.selfStateBeat(ctx)                 // 量表探（自态账——会话冷启动即读件,工单#10358 C）
 	}
 }
 
