@@ -66,6 +66,7 @@ func (c coreService) escLoop(ctx context.Context, al *notify.Alerter) {
 		c.intakeDryEscCheck(ctx, deadSince)
 		c.codeworkStallEscCheck(ctx, deadSince)
 		c.armedDistanceBeat(ctx) // 量表探（非升件——armed 距阈日行照）
+		c.ownerLedgerBeat(ctx)   // 量表探（业主令账+点破率曲线日行照）
 	}
 }
 

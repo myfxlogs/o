@@ -63,7 +63,7 @@ func (c coreService) armedDistanceBeat(ctx context.Context) {
 		as = append(as, a)
 	}
 	note, fp := armedNote(as)
-	if armedBeatDue(ctx, c, fp) {
+	if gaugeDue(ctx, c, "armed_distance", fp, armedBeatEvery) {
 		if _, err := c.pool.Exec(ctx,
 			`INSERT INTO ops_event(seat,event,ticket,note) VALUES('探测席','量表','armed_distance',$1)`,
 			note); err != nil {
@@ -126,17 +126,18 @@ func fpHash(fps []string) string {
 	return fmt.Sprintf("%08x", h)
 }
 
-// armedBeatDue 发射判——末行量表指纹异 ∨ ≥20h 陈 → 报；同纹且鲜 → 抑。
-func armedBeatDue(ctx context.Context, c coreService, fp string) bool {
+// gaugeDue 量表发射判（armed_distance/owner_ledger 双探共用——禁第二套
+// 纹闸）：末行同 ticket 量表指纹异 ∨ ≥every 陈 → 报；同纹且鲜 → 抑。
+func gaugeDue(ctx context.Context, c coreService, ticket, fp string, every time.Duration) bool {
 	var last string
 	var ts time.Time
 	if err := c.pool.QueryRow(ctx, `SELECT note,ts FROM ops_event
-		WHERE event='量表' AND ticket='armed_distance' ORDER BY id DESC LIMIT 1`).
+		WHERE event='量表' AND ticket=$1 ORDER BY id DESC LIMIT 1`, ticket).
 		Scan(&last, &ts); err != nil {
 		return true // 无末行=首报
 	}
 	if !strings.HasPrefix(last, "v="+fp+" ") {
-		return true // 指纹异=拒面新现实
+		return true // 指纹异=新现实
 	}
-	return time.Since(ts) >= armedBeatEvery
+	return time.Since(ts) >= every
 }
