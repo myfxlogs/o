@@ -29,6 +29,10 @@
 
 ```bash
 FIN_DSN=$(grep '^FIN_PG_DSN=' /opt/o-research/env | cut -d= -f2- | tr -d '"')
+# 自态账页一眼（工单#10358 C 件——冷启动即读帧:部署/未决/工单/在场/
+# NAV/策略态/闸面/收口鲜度七段;账页=取向面非真相源,处置仍走下方直查）:
+psql "$FIN_DSN" -qAt -c "SELECT note FROM ops_event
+  WHERE event='量表' AND ticket='self_state' ORDER BY id DESC LIMIT 1"
 # 审计前任悬置：audit 支未入 master 且带 RED→复证补升件
 git -C /opt/o fetch -p origin -q 2>/dev/null
 git -C /opt/o branch -r --no-merged origin/master | grep -E 'audit/'

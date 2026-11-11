@@ -41,7 +41,9 @@
 
 1. 读本文件 + `docs/decisions/D-0045-RSI薄环钦定-工程径裁撤内联家电化.md`
 2. `git pull`
-3. 扫信号面：`SELECT id,ts,seat,event,ticket,note FROM ops_event
+3. 自态账页一眼（`event='量表' ticket='self_state'` 末行=机器自报
+   冷启动帧——部署/未决/工单/NAV/闸面七段；取向面非真相源），
+   再扫信号面：`SELECT id,ts,seat,event,ticket,note FROM ops_event
    WHERE event='升件' AND ts>now()-interval '72 hours' ORDER BY id DESC`
    + `fin_eng_lesson` pending（教训矿候选）——未决信号即工作入口
 4. 开工：`git worktree add /opt/o-wt/<名>` → `bash scripts/bootstrap_worktree.sh`
