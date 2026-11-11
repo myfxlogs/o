@@ -288,6 +288,9 @@ func assemble(pool *pgxpool.Pool, cfg *config.Client,
 				by[m.GetCcy()] += m.GetAmount()
 			}
 		}
+		if o.NavTotal > 0 {
+			by["NAV"] = o.NavTotal // USD 聚合读面续供——按币簿记行另载（升件#10438）
+		}
 		return by, nil
 	}
 }
