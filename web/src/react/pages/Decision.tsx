@@ -96,7 +96,7 @@ export function DecisionPage() {
                   </span>
                   <span className="v2-row-note">{r.note}</span>
                   <span className="v2-row-sub ink-3">
-                    {r.ts ? AGE(pbDate(r.ts)!) : "—"}
+                    {r.ts ? AGE(pbDate(r.ts)!) : "—"} · {r.open ? "待处理" : "已完成"}
                   </span>
                 </div>
               </div>
