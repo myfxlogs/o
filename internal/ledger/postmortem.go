@@ -89,18 +89,25 @@ func (r *Runner) postmortem(ctx context.Context, posID int64) {
 		guardTrig                         string
 		guardAttempts                     int
 		guardLastErr                      string
+		stratTpl                          string
 	)
 	if err := r.pool.QueryRow(ctx, `SELECT p.execution_id,COALESCE(p.strategy_ref,0),
 		p.inst_id,p.notional_usd,p.settled_amount,
 		COALESCE(p.bare_bag_qty,0),COALESCE(p.bare_bag_usd,0),
 		p.opened_at,p.closed_at,COALESCE(g.trigger_kind,''),COALESCE(g.attempts,0),
-		COALESCE(g.last_error,'')
+		COALESCE(g.last_error,''),COALESCE(s.template_ref,'')
 		FROM fin_position p
 		LEFT JOIN fin_guard_close g ON g.position_id=p.id AND g.state='closed'
+		LEFT JOIN fin_strategy s ON s.id=p.strategy_ref
 		WHERE p.id=$1`, posID).Scan(&execID, &stratRef, &inst, &notional, &settled,
-		&bagQty, &bagUSD, &opened, &closed, &guardTrig, &guardAttempts, &guardLastErr); err != nil {
+		&bagQty, &bagUSD, &opened, &closed, &guardTrig, &guardAttempts, &guardLastErr, &stratTpl); err != nil {
 		r.rej.Inc("write_err")
 		log.Printf("WARN [ledger] 仓 #%d 结案事实读败——本仓跳判: %v", posID, err)
+		return
+	}
+	// 升件#4239 域闸：演习仓（simdrill 模板域）不入结案判定——纸面仓无真钱
+	// 语义,判入 fin_econ_lesson=假案源污教训矿（D-0523 同类:谱域必须显拒）。
+	if strings.HasPrefix(stratTpl, "simdrill") {
 		return
 	}
 	// ops_decision 本仓最近 close 理由行（payload 携 position_id 机读键——

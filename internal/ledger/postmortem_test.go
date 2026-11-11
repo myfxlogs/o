@@ -289,3 +289,37 @@ func TestPostmortemPnlAttributionWriteback(t *testing.T) {
 		}
 	}
 }
+
+// 升件#4239 回归锚：simdrill 模板域仓不入结案判定——纸面仓判入
+// fin_econ_lesson=假案源污教训矿，域闸显拒。
+func TestPostmortemSimDrillDomainSkip(t *testing.T) {
+	ctx, r := setup(t)
+	now := time.Now()
+	var sid int64
+	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_strategy(inst_id,template_ref,state,notional_usd,venue)
+		VALUES('X','simdrill:cell:funding-hedge@okx/x#usd=50','retired',100,'okx') RETURNING id`).Scan(&sid); err != nil {
+		t.Fatal(err)
+	}
+	var xid, pid int64
+	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_execution(inst_id,notional_usd,state,strategy_ref)
+		VALUES('X',100,'closed',$1) RETURNING id`, sid).Scan(&xid); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_position(execution_id,strategy_ref,inst_id,notional_usd,opened_at,closed_at)
+		VALUES($1,$2,'X',100,$3,$4) RETURNING id`, xid, sid, now.Add(-15*time.Second), now).Scan(&pid); err != nil {
+		t.Fatal(err)
+	}
+	pmGuardClose(t, ctx, r, pid, "funding_flip")
+	pmCash(t, ctx, r, pid, -49)
+	if err := r.settle(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if n := pmLessonCount(t, ctx, r, pid); n != 0 {
+		t.Fatalf("simdrill 域仓入结案判定 n=%d——域闸失效", n)
+	}
+	// 结算事实照落——域闸只挡判案不挡账。
+	var settled *float64
+	if err := r.pool.QueryRow(ctx, `SELECT settled_amount FROM fin_position WHERE id=$1`, pid).Scan(&settled); err != nil || settled == nil {
+		t.Fatalf("sim 仓 settled_amount 未落（err=%v）", err)
+	}
+}
