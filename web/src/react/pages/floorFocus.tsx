@@ -79,6 +79,7 @@ export function FocusBody(props: {
   nav?: { total: number; today: number; cum: number };
   session?: { running?: boolean; lastSpawn?: unknown; spawns24h?: unknown; closes24h?: unknown; fails24h?: unknown };
   money?: { label: string; section: string; ccy: string; usd: number; venue: string; note: string }[];
+  live?: boolean;
   utc: string; bj: string;
 }) {
   const { f } = props;
@@ -184,6 +185,17 @@ export function FocusBody(props: {
   };
   const k = f.k;
   if (body[k]) return <>{body[k]()}</>;
+  if (k.startsWith("srv:")) {
+    const nm = k.slice(4);
+    return (
+      <div className="iso-focus-in">
+        <div className="iso-focus-h">机柜 · {nm}</div>
+        <div className="iso-focus-big">{props.live ? "运行中" : "断流"}</div>
+        <div className="iso-focus-row">常驻器官——o-core 家电谱一件；健康细节进「哪病了」</div>
+        {go}
+      </div>
+    );
+  }
   if (k.startsWith("ven:")) {
     const vn = k.slice(4);
     const rows = (props.money ?? []).filter((r) => r.venue === vn);
