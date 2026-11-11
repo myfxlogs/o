@@ -119,7 +119,12 @@
 }
 .v2-panel .skel,
 .v2-panel .empty-state,
-.v2-panel .err-state {
+.v2-panel .err-state,
+.v2-panel .feed,
+.v2-panel .tree,
+.v2-panel .tile-scroll,
+.v2-panel > .dim,
+.v2-panel .earn-toggle {
   margin: 0 clamp(17px, 3vw, 24px) 16px;
 }
 
@@ -178,28 +183,22 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* —— 漏斗四级：标签|数|注 三列栅——零边框零底色块 —— */
+/* —— 漏斗四级：一级一行（级名|大数|判词注 行栅）——漏斗是序列非卡墙,
+竖排自上而下=转化读序,行间发丝分隔 —— */
 .v2-funnel {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 0;
+  display: flex;
+  flex-direction: column;
   padding: 4px clamp(17px, 3vw, 24px) 16px;
 }
 .v2-funnel-lv {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  padding: 10px 14px 10px 0;
+  display: grid;
+  grid-template-columns: 5em minmax(5.5em, auto) 1fr;
+  align-items: baseline;
+  column-gap: 16px;
+  padding: 10px 0;
 }
 .v2-funnel-lv + .v2-funnel-lv {
-  border-left: 1px solid var(--v2-hairline);
-  padding-left: 14px;
-}
-@media (max-width: 680px) {
-  .v2-funnel-lv + .v2-funnel-lv {
-    border-left: none;
-    padding-left: 0;
-  }
+  border-top: 1px solid var(--v2-hairline);
 }
 .v2-funnel-k {
   font-size: 12px;

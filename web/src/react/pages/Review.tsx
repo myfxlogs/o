@@ -224,7 +224,15 @@ function FlowsCard() {
 
 export function ReviewPage() {
   return (
-    <div className="page">
+    <div className="page v2">
+      <section className="v2-hero">
+        <div className="v2-eyebrow">
+          <span className="v2-livedot" />
+          钱怎么走的 · LIVE
+        </div>
+        <h1 className="v2-title">收支复盘</h1>
+        <p className="v2-lede">净值曲线→平台对账→期报→流水→已平仓——读序自上而下</p>
+      </section>
       <EquityCard />
       <VenueBoardCard />
       <div className="duo">

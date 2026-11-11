@@ -235,7 +235,7 @@ check("⑩源感知 pending=晋升中", vphtml.includes("晋升中…"));
 const ck = renderToStaticMarkup(h(UtcClock));
 check("⑧UtcClock 渲 HH:MM:SS UTC", /\d{2}:\d{2}:\d{2} UTC/.test(ck));
 const cockpitSrc = readFileSync(join(webRoot, "src/react/pages/Cockpit.tsx"), "utf8");
-check("⑧待开仓卡右上挂 UtcClock", /待开仓"[\s\S]{0,400}<UtcClock/.test(cockpitSrc));
+check("⑧Cockpit hero lede 载更新戳", /v2-lede[\s\S]{0,200}更新 \{ts\(d\.asOf\)\}/.test(cockpitSrc));
 
 console.log(`\n${n - fail}/${n} PASS`);
 process.exit(fail ? 1 : 0);

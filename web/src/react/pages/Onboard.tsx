@@ -5,7 +5,14 @@ import { BrokerOnboardCard } from "../components/brokerboard";
 
 export function OnboardPage() {
   return (
-    <div className="page">
+    <div className="page v2">
+      <section className="v2-hero">
+        <div className="v2-eyebrow">
+          <span className="v2-livedot" />
+          怎么接进来
+        </div>
+        <h1 className="v2-title">平台接入</h1>
+      </section>
       <BrokerOnboardCard />
     </div>
   );

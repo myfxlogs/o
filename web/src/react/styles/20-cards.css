@@ -754,22 +754,13 @@ details.rep summary {
     0 1px 1px color-mix(in srgb, var(--ink) 16%, transparent);
 }
 
-/* —— 双列同行（业主回单：报告+现金流 1 行 2 列——grid 强制并排，
-   窄屏回落单列；与 masonry 的列平衡语义不同：这里永远并排。
-   v3 解挤：瓦片间距 20→24px（驾驶舱v3 业主令——表格加 padding 后
-   瓦片内呼吸感同步放宽）—— */
+/* —— 瓦片纵列（原 .duo 双列同排：2026-11-11 业主令「根本没排过版」——
+   一页一问+判词优先+线性读序原则:双卡并置=等权卡墙无主次,统一竖排
+   先主后辅；v3 解挤间距 24px 沿）—— */
 .duo {
   display: flex;
   flex-direction: column;
   gap: 24px;
-}
-@media (min-width: 1000px) {
-  .duo {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 24px;
-    align-items: start;
-  }
 }
 
 /* —— 独立列容器（T-0389 列联动解耦——钦定语义=各列瓦片独立排布零联动：

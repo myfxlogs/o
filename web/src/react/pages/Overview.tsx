@@ -1,8 +1,9 @@
 // Overview.tsx —— 总览（T-0170 第一性首屏：30 秒答三问——赚亏多少/仓什么
-// 状态/系统活着没；hero 大数字+在持+健康汇总+最近动作，数据全走 Connect）。
+// 状态/系统活着没；2026-11-11 v2 骨架迁：hero 判词大字→健康条→在持→
+// 最近动作→钱在哪 线性读序，duo 双卡墙撤——数据全走 Connect）。
 import { client } from "../api";
 import { useLive } from "../hooks";
-import { Card, EmptyState, ErrorState, Skeleton, StateDot, UtcClock } from "../components/ui";
+import { EmptyState, ErrorState, Skeleton, StateDot, UtcClock } from "../components/ui";
 import { EarnToggle } from "../components/EarnToggle";
 import { OpenPositionsCard } from "../components/flows";
 import { fmtUsd } from "../components/fmt";
@@ -13,6 +14,8 @@ import { VENUE_CN } from "../components/labels";
 const money = (v: number) =>
   "$" +
   v.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+const signed = (v: number) => (v >= 0 ? "+" : "−") + money(Math.abs(v));
 
 
 // MoneyTree 钱在哪树（业主回单②：按平台树状——okx 多户收拢树下，点击展开
@@ -62,10 +65,6 @@ function MoneyTree(props: { rows: MoneyRow[] }) {
   );
 }
 
-function pnlCls(v: number): string {
-  return v > 0 ? "u-good" : v < 0 ? "u-bad" : "";
-}
-
 export function OverviewPage() {
   const ov = useLive(["ev_position", "ev_cashflow", "ev_account"], () =>
     client.overview({})
@@ -82,29 +81,21 @@ export function OverviewPage() {
     ...(health.data?.components ?? []).map((c) => c.state)
   );
   const doing = o.doing ?? [];
+  const healthTxt =
+    worst === 0 ? "系统全绿" : worst === 1 ? "有组件节拍偏慢" : "有组件断流";
 
   return (
-    <div className="page">
-      {/* Hero：三问之一——赚亏多少 */}
-      <section className="hero">
-        <div className="hero-item">
-          <span className="hero-k">净值</span>
-          <span className="hero-v">{money(o.navTotal)}</span>
+    <div className="page v2">
+      {/* Hero：三问之一——赚亏多少（判词大字=NAV,副注=今日/累计/健康） */}
+      <section className="v2-hero">
+        <div className="v2-eyebrow">
+          <span className="v2-livedot" />
+          机赚如何 · LIVE
         </div>
-        <div className="hero-item">
-          <span className="hero-k">今日</span>
-          <span className={"hero-v " + pnlCls(o.pnlToday)}>
-            {o.pnlToday >= 0 ? "+" : ""}
-            {money(o.pnlToday)}
-          </span>
-        </div>
-        <div className="hero-item">
-          <span className="hero-k">累计</span>
-          <span className={"hero-v " + pnlCls(o.pnlCum)}>
-            {o.pnlCum >= 0 ? "+" : ""}
-            {money(o.pnlCum)}
-          </span>
-        </div>
+        <h1 className="v2-title num">{money(o.navTotal)}</h1>
+        <p className="v2-lede num">
+          今日 {signed(o.pnlToday)} · 累计 {signed(o.pnlCum)} · {healthTxt}
+        </p>
       </section>
 
       {/* 三问之三——系统一句话健康（点进哪病了） */}
@@ -125,10 +116,12 @@ export function OverviewPage() {
       {ov.err ? <ErrorState msg={ov.err} onRetry={ov.reload} /> : null}
       <OpenPositionsCard doing={doing} />
 
-      {/* 最近动作+钱在哪同行双列（业主令：两卡同排不拆行——duo 栅格强制并排，
-          窄屏回落单列） */}
-      <div className="duo">
-      <Card title="最近动作" extra={<UtcClock />}>
+      {/* 最近动作——现金流尾流（v2 面板骨：读序第四） */}
+      <div className="v2-panel">
+        <div className="v2-panel-head">
+          <h2 className="v2-panel-title">最近动作</h2>
+          <UtcClock />
+        </div>
         {(o.recent ?? []).length === 0 ? (
           <EmptyState title="账面平静" hint="现金流落地后在此亮行" />
         ) : (
@@ -140,9 +133,14 @@ export function OverviewPage() {
             ))}
           </div>
         )}
-      </Card>
+      </div>
 
-      <Card title="钱在哪" extra={<span className="ink-3">{fmtUsd(o.navTotal)}</span>}>
+      {/* 钱在哪——venue 树（读序第五=证据层；Earn 开关贴展示处 T-0342） */}
+      <div className="v2-panel">
+        <div className="v2-panel-head">
+          <h2 className="v2-panel-title">钱在哪</h2>
+          <span className="ink-3">{fmtUsd(o.navTotal)}</span>
+        </div>
         {(o.money ?? []).length === 0 ? (
           <EmptyState title="读件缺——venue 行缺席" hint="账户面恢复后这里列出每一块钱" />
         ) : (
@@ -150,7 +148,6 @@ export function OverviewPage() {
         )}
         {/* T-0342：Earn 自动申购开关——贴 Earn 展示处（钱在哪卡） */}
         <EarnToggle />
-      </Card>
       </div>
     </div>
   );

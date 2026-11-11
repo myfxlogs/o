@@ -14,12 +14,19 @@ export function TrxPage() {
     void client.trxAccountRefresh({}).catch(() => {});
   }, []);
   return (
-    <div className="page">
+    <div className="page v2">
+      <section className="v2-hero">
+        <div className="v2-eyebrow">
+          <span className="v2-livedot" />
+          TRX盘怎样 · LIVE
+        </div>
+        <h1 className="v2-title">自营对冲盘</h1>
+      </section>
       {/* 首档：核心指标条——组合年化×2/待领取/强平距离（大数字 2em+呼吸灯） */}
       <ErrorBoundary label="核心指标">
         <TrxKpiStrip />
       </ErrorBoundary>
-      {/* 次档：收益率雷达‖对冲结构双列并排（.duo 先例，窄屏回落单列） */}
+      {/* 次档：收益率雷达→对冲结构（duo 已单列化——线性读序先图后构） */}
       <div className="duo">
         <ErrorBoundary label="收益率">
           <TrxYieldRadar />
