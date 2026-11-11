@@ -61,3 +61,35 @@ func (c coreService) ownerLedgerBeat(ctx context.Context) {
 		return
 	}
 }
+
+// profitDailyBeat 盈利报告日行（业主令 2026-11-11⑤：盈利方式为系统域,
+// 业主唯一常态读面=盈利报告）——净产出口径同 commercialEscCheck 钦定
+// （fin_cashflow 六 kind 族 venue<>'sim',Earn 息不入账已剔）。日行=业主
+// 唯一例行读件,负值不另告警（stall 面归 commercial 探针,本件纯账页）。
+func (c coreService) profitDailyBeat(ctx context.Context) {
+	var net24, net30 float64
+	var openPos, liveN int
+	if err := c.pool.QueryRow(ctx, `SELECT
+		(SELECT COALESCE(sum(amount),0) FROM fin_cashflow
+			WHERE venue<>'sim' AND occurred_at>now()-interval '24 hours'
+			AND kind IN ('fee','funding_settle','trade_pnl','rollback_cost','spot_buy','spot_sell')),
+		(SELECT COALESCE(sum(amount),0) FROM fin_cashflow
+			WHERE venue<>'sim' AND occurred_at>now()-interval '30 days'
+			AND kind IN ('fee','funding_settle','trade_pnl','rollback_cost','spot_buy','spot_sell')),
+		(SELECT count(*) FROM fin_position WHERE closed_at IS NULL),
+		(SELECT count(*) FROM fin_strategy WHERE state IN ('live','probe'))`).
+		Scan(&net24, &net30, &openPos, &liveN); err != nil {
+		return // 读件败本拍让位
+	}
+	fp := fmt.Sprintf("%.2f|%.2f|%d", net24, net30, openPos)
+	if !gaugeDue(ctx, c, "profit_daily", fp, ownerBeatEvery) {
+		return
+	}
+	note := fmt.Sprintf("v=%s 盈利报告: 24h净%.4f 30d累%.4f 在仓%d live+probe%d——纯账页件,空转/负产出告警面归 commercial 探针",
+		fp, net24, net30, openPos, liveN)
+	if _, err := c.pool.Exec(ctx,
+		`INSERT INTO ops_event(seat,event,ticket,note) VALUES('探测席','量表','profit_daily',$1)`,
+		note); err != nil {
+		return
+	}
+}
