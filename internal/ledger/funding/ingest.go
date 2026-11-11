@@ -177,7 +177,6 @@ func (i *Ingester) record(ctx context.Context, b Bill) (int, error) {
 		}
 		return n, nil
 	}
-	return 0, nil
 }
 
 // ownerDcd 业主域 dcd 单判定（T-0364）：账单对 fin_position_domain 域册——
