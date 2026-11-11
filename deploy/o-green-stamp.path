@@ -4,11 +4,15 @@
 # （timer 留作漏缝兜底）。PathExistsGlob 实测语义（systemd 255）：
 # 仅「新匹配件出现」触发——.git 常规 churn（index/FETCH_HEAD 等非
 # 匹配件）不误触；戳龄/HEAD包含/ff 三闸仍在 mirror_push 内裁。
+# 2026-11-11 产线实证：裸 check-green-* 把 .mode/.deferred 侧件+戳域
+# rm/recreate churn 全计触发——check_all 跑期每分钟级 mirror_push→
+# ExecStartPost→deploy_watch rc=1 刷屏（HEAD 未推时）。glob 收窄=
+# 恰 40 位十六进制（[0-9a-f]+39?）——侧件后缀出格不中。
 [Unit]
 Description=o-green-stamp 绿戳落件触发镜面推
 
 [Path]
-PathExistsGlob=/opt/o/.git/check-green-*
+PathExistsGlob=/opt/o/.git/check-green-[0-9a-f]???????????????????????????????????????
 Unit=o-mirror-push.service
 
 [Install]
