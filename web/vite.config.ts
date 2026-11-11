@@ -9,7 +9,7 @@ export default defineConfig({
   server: {
     proxy: {
       // Connect RPC 与资产同源转发——transport baseUrl=window.location.origin 不变。
-      '/o.dashboard.': { target: 'http://127.0.0.1:50051', changeOrigin: true },
+      '/o.dashboard.': { target: process.env.O_UI_API ?? 'http://127.0.0.1:50051', changeOrigin: true },
     },
   },
 })
