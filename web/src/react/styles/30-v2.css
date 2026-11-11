@@ -307,22 +307,38 @@
    承 10-shell 同律）；面板/行零入场动效——直渲不渐隐（skill 铁律：
    异步内容禁入场 opacity 帧——重渲会卡 0）。 */
 
+/* —— 轨道归一（业主令 11-11 乱排返修：三轨混排病灶——panel/hero 走
+   1080 中轴而 health-strip/.card 持仓卡/.hm-tile/v2-cols 走视口宽轨,
+   左右缘全错。修法=一页一轨：page.v2 直接子件统一 1080 中轴,
+   v2-cols 自身守轨、列内子件归零自中心） —— */
+.page.v2 > * {
+  max-width: 1080px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
 /* v2-cols 自适应多列栅格（业主令 11-11：小卡多列防单列撑高——
-   ≥340px 即自动成列,宽屏两列窄屏单列零断点写死） */
+   ≥340px 即自动成列,宽屏两列窄屏单列零断点写死；自身守 1080 轨） */
 .v2-cols {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
   gap: 24px;
   align-items: start;
+  margin-bottom: clamp(20px, 3.5vw, 34px);
+}
+.v2-cols > * {
+  max-width: none;
+  margin: 0;
 }
 
-/* pager 分页条（业主令 11-11：榜单类分页——哑弹榜/探针心跳/处置链同形） */
-.pager {
+/* pagerbar 头部分页条（业主令 11-11：榜单类分页——哑弹榜/探针心跳/
+   处置链同形；名避 20-cards 既有 .pager 卡尾居中条不冲撞） */
+.pagerbar {
   display: inline-flex;
   align-items: center;
   gap: 8px;
 }
-.pager-btn {
+.pagerbar-btn {
   min-width: 26px;
   height: 26px;
   border: 1px solid var(--v2-glass-line, rgba(128, 128, 128, 0.25));
@@ -334,7 +350,7 @@
   cursor: pointer;
   padding: 0 6px;
 }
-.pager-btn:disabled {
+.pagerbar-btn:disabled {
   opacity: 0.3;
   cursor: default;
 }
