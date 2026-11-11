@@ -75,7 +75,7 @@ func TestEscValueFingerprint(t *testing.T) {
 	var id int64
 	_ = pool.QueryRow(ctx, `SELECT id FROM ops_event WHERE esc_scope='t_fp'`).Scan(&id)
 	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,note)
-		VALUES('会话','处置',$1)`, fmt.Sprintf("升件#%d 同判词延续", id)); err != nil {
+		VALUES('处置席','处置',$1)`, fmt.Sprintf("升件#%d 同判词延续", id)); err != nil {
 		t.Fatalf("销案行: %v", err)
 	}
 	svc.escalateUnresolved(ctx, "计量", "t_fp", "28", "利用率28%再报") // 同值不火

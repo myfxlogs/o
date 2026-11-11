@@ -172,6 +172,7 @@ var migrationTable = []struct {
 	{163, "fin_0163_ops_event_probe_indexes.sql"},
 	{164, "fin_0164_condition_gap_notify.sql"},
 	{165, "fin_0165_condreq_resolver.sql"},
+	{166, "fin_0166_ops_event_sem_research_census.sql"},
 
 	// —— md 链（版本链内唯一且单调；md 链版本=历史号+1000 与 fin 键空间全局不相交——跨链并 schema 时 schema_migrations 零撞号，check_migrations 断言①⑤）——
 	{1003, "md_1003_market_facts.sql"},
