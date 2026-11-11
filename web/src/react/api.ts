@@ -116,4 +116,8 @@ export const client: Client<typeof CoreService> = {
   listCanonicalUniverse: deduped("ListCanonicalUniverse", raw.listCanonicalUniverse),
   listSymbolCandidates: raw.listSymbolCandidates,
   submitSymbolMapping: raw.submitSymbolMapping,
+  // 运作面板 v2 三径读面——全只读入合并窗（ev_pipeline/事件帧重取同源节流）。
+  getFunnel: deduped("GetFunnel", raw.getFunnel),
+  getFaceGrid: deduped("GetFaceGrid", raw.getFaceGrid),
+  getDecisionTrail: deduped("GetDecisionTrail", raw.getDecisionTrail),
 };
