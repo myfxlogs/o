@@ -92,7 +92,7 @@ export function FloorPage() {
           </defs>
           <MainHall live={live} probes={probes} openProbes={openProbes}
             notes={wallNotes} openCount={openEsc.length + openReq.length}
-            trail={t.data?.trail ?? []} s={s} vens={vens} hot={hot} toRoom={setRoom}
+            facts={t.data?.facts ?? []} s={s} vens={vens} hot={hot} toRoom={setRoom}
             hover={setTip} unhover={() => setTip(null)} />
         </svg>
         )}
@@ -111,7 +111,7 @@ export function FloorPage() {
           <div className="iso-focus-back" onClick={() => setFocus(null)} />
           <div className="iso-focus">
             <button className="iso-focus-x" onClick={() => setFocus(null)}>×</button>
-            <FocusBody f={focus} openEsc={openEsc} openReq={openReq} trail={t.data?.trail ?? []}
+            <FocusBody f={focus} openEsc={openEsc} openReq={openReq} trail={t.data?.trail ?? []} facts={t.data?.facts ?? []}
               probes={probes} openProbes={openProbes} engCanon={engCanon} econCanon={econCanon}
               nav={o ? { total: o.navTotal, today: o.pnlToday, cum: o.pnlCum } : undefined}
               money={o?.money ?? []} live={live} session={s} utc={utc} bj={bj} />

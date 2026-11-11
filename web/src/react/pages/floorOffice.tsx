@@ -4,7 +4,7 @@
 import { P, pts, IsoBox, Person } from "../components/iso";
 import { plainText } from "../components/plain";
 import { Desk, OfficeChair, Monitor, Plant, WaterCooler, PendantLamp, WallWindowL, ServerRack, DoorSprite } from "./officeParts";
-import { GhostRow, VenueScreens, type Tip } from "./floorFocus";
+import { GhostRow, VenueScreens, type Fact, type Tip } from "./floorFocus";
 
 type Hot = (tt: Omit<Tip, "x" | "y">, x: number, y: number, z?: number, cls?: string) => Record<string, unknown>;
 
@@ -35,7 +35,7 @@ function OfficeFloor(props: { w: number; d: number; split: number }) {
 // 主厅整景（svg 内层，不含 defs——defs 在文件尾共享）。
 export function MainHall(props: {
   live: boolean; probes: Probe[]; openProbes: number; notes: Note[]; openCount: number;
-  trail: { note: string; open: boolean }[];
+  facts: Fact[];
   s?: Sess; vens: [string, number][]; hot: Hot; toRoom: (r: "archive" | "server") => void;
   hover: (tt: Tip) => void; unhover: () => void;
 }) {
@@ -157,7 +157,7 @@ export function MainHall(props: {
       </g>
 
       {/* 毛坯工位——前排水泥区（态随钉墙推） */}
-      <GhostRow hot={hot} trail={props.trail} />
+      <GhostRow hot={hot} facts={props.facts} />
 
       {/* 软装——绿植×2 + 饮水机 */}
       <Plant x={0.9} y={5.1} s={1.1} />

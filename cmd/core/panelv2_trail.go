@@ -97,6 +97,23 @@ func (c coreService) GetDecisionTrail(ctx context.Context,
 		log.Printf("[trail] 条件请求榜查询败: %v", err)
 	}
 
+	// 器官事实面：ops_event 全事件类近窗行——工位态推导数据源（工单/处置/
+	// 收口等器官事实不在升件类，前端按器官关键词自取、取词邻域判态）。
+	if frs, err := c.pool.Query(ctx, `SELECT id, ts, event, left(note,220)
+		FROM ops_event ORDER BY id DESC LIMIT 600`); err == nil {
+		for frs.Next() {
+			var fr dashboardv1.FactRow
+			var fts time.Time
+			if frs.Scan(&fr.Id, &fts, &fr.Event, &fr.Note) == nil {
+				fr.Ts = timestamppb.New(fts.UTC())
+				resp.Facts = append(resp.Facts, &fr)
+			}
+		}
+		frs.Close()
+	} else {
+		log.Printf("[trail] 器官事实面查询败: %v", err)
+	}
+
 	// 矿面：fin_eng_lesson 状态计数+fin_econ_lesson pending。
 	mine := &dashboardv1.MineRow{}
 	if err := c.pool.QueryRow(ctx, `SELECT

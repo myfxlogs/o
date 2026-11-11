@@ -901,9 +901,16 @@ message MineRow {
   int64 econ_canon = 5;
   int64 econ_verdicted = 6;
 }
+message FactRow {
+  int64 id = 1;
+  google.protobuf.Timestamp ts = 2;
+  string event = 3;
+  string note = 4;                    // 摘要截 220（服务端截断）
+}
 message GetDecisionTrailResponse {
   google.protobuf.Timestamp as_of = 1;
   repeated TrailRow trail = 2;
   repeated CondReqRow condreqs = 3;
   MineRow mine = 4;
+  repeated FactRow facts = 5;         // ops_event 全事件类近窗——器官工位态推导面
 }
