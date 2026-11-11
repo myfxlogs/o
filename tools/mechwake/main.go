@@ -4,14 +4,15 @@
 // 业主令 2026-11-11「队列式，定时轮询最多兜底」）。
 // 唤醒映射（帧 Kind 键）：
 //
-//	dm   （升件/收口/移交/收口待审/诊断草案）→ 唤知派发+急件摆渡+部署守望
-//	mech （已批/派单/裁决/处置/部署/起草）   → 唤知派发+急件摆渡+部署守望
+//	dm   （升件/收口/移交/收口待审/诊断草案）→ 唤知派发+急件摆渡
+//	mech （已批/派单/裁决/处置/部署/起草）   → 唤知派发+急件摆渡
 //	其余 kind（ctx/econ）无唤件映射——收帧不动作。
 //
-// dm/mech 同表 ops_event_wip 共水位键互压丢帧属在案设计——union
-// 唤三件即撞帧亦必达；唤件幂等（dispatch 单飞闸/deploy_watch 让位
-// 三态/relay 水印去重）多唤零害。断流→携末帧水位重连（回填帧=停机
-// 期补唤——漏帧追偿语义正确非重复）。
+// 铁律：deploy_watch 永不由 ops_event 帧唤——其唤源=mirror_push
+// 推成钩+15min timer 兜底。DEPLOY rc 行自身即 mech 帧（部署败→
+// 落行→唤部署→再败=确定性自伤回环，2026-11-11 产线实证刷屏）。
+// 唤件幂等（dispatch 单飞闸/relay 水印去重）多唤零害；断流→携末帧
+// 水位重连（回填帧=停机期补唤——漏帧追偿语义正确非重复）。
 package main
 
 import (
@@ -34,7 +35,6 @@ var wakeSet = map[string]bool{"dm": true, "mech": true}
 var units = []string{
 	"o-cognition-dispatch.service",
 	"o-ops-relay-urgent.service",
-	"o-deploy-watch.service",
 }
 
 func wakeAll() {
