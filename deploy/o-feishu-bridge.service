@@ -1,0 +1,21 @@
+# o-feishu-bridge.service —— 飞书交互端常驻件（D-0045 钦定分工：
+# 飞书=交互端——条件请求交互卡推送+钮回调+文本口令三径入，
+# 业主域窄门结案；web 面板只读不写，飞书永不长报表）。
+# 入站 lark ws 长连接零公网口；出站轮询 fin_condition_gap pending
+# 30s 推卡。凭据同 feishu-notify 栈（app_secrets+主权钥+chat_id）。
+# go run 径：随 /opt/o merge 自取新码（与 o-mech 同型免装二进制）。
+[Unit]
+Description=o-feishu-bridge (飞书交互端 卡推+回调)
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/o
+Environment=PATH=/home/mluser/.local/bin:/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/usr/local/go/bin/go run ./cmd/feishubridge
+Restart=always
+RestartSec=5s
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

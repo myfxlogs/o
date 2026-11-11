@@ -1,0 +1,80 @@
+// main_test.go —— feishubridge 窄门面纯函数件（动作闭集/号畸/口令解析）
+package main
+
+import (
+	"encoding/json"
+	"testing"
+)
+
+func TestActFromValue(t *testing.T) {
+	cases := []struct {
+		name  string
+		value map[string]any
+		state string
+		req   int64
+		ok    bool
+	}{
+		{"fulfill-float", map[string]any{"act": "fulfill", "req": float64(42)}, "fulfilled", 42, true},
+		{"reject-string", map[string]any{"act": "reject", "req": "7"}, "rejected", 7, true},
+		{"dismiss", map[string]any{"act": "dismiss", "req": float64(3)}, "dismissed", 3, true},
+		{"act-域外", map[string]any{"act": "hack", "req": float64(1)}, "", 1, false},
+		{"req-零", map[string]any{"act": "fulfill", "req": float64(0)}, "fulfilled", 0, false},
+		{"req-负", map[string]any{"act": "fulfill", "req": float64(-2)}, "fulfilled", -2, false},
+		{"req-缺", map[string]any{"act": "fulfill"}, "fulfilled", 0, false},
+		{"req-文本畸", map[string]any{"act": "fulfill", "req": "abc"}, "fulfilled", 0, false},
+	}
+	for _, c := range cases {
+		st, req, ok := actFromValue(c.value)
+		if st != c.state || req != c.req || ok != c.ok {
+			t.Fatalf("%s: 得 (%q,%d,%v) 望 (%q,%d,%v)", c.name, st, req, ok, c.state, c.req, c.ok)
+		}
+	}
+}
+
+func TestCmdFromText(t *testing.T) {
+	cases := []struct {
+		in    string
+		state string
+		req   int64
+		ok    bool
+	}{
+		{"签 42", "fulfilled", 42, true},
+		{"驳 7", "rejected", 7, true},
+		{"销 #3", "dismissed", 3, true},
+		{"fulfill 9", "fulfilled", 9, true},
+		{"签", "", 0, false},                 // 缺号
+		{"签 abc", "", 0, false},             // 号畸
+		{"签 -1", "", 0, false},              // 负号
+		{"在吗", "", 0, false},                // 普通对话
+		{"签 1 2", "", 0, false},             // 三段超形
+		{"  签   5  ", "fulfilled", 5, true}, // 多空宽容
+	}
+	for _, c := range cases {
+		st, req, ok := cmdFromText(c.in)
+		if st != c.state || req != c.req || ok != c.ok {
+			t.Fatalf("%q: 得 (%q,%d,%v) 望 (%q,%d,%v)", c.in, st, req, ok, c.state, c.req, c.ok)
+		}
+	}
+}
+
+func TestReqCard(t *testing.T) {
+	raw := reqCard(9, "credential", "bybit", "", `{"note":"需 API key"}`)
+	var card map[string]any
+	if err := json.Unmarshal([]byte(raw), &card); err != nil {
+		t.Fatalf("卡 JSON 畸: %v", err)
+	}
+	els := card["elements"].([]any)
+	act := els[1].(map[string]any)["actions"].([]any)
+	if len(act) != 3 {
+		t.Fatalf("钮数=%d 望 3", len(act))
+	}
+	v := act[0].(map[string]any)["value"].(map[string]any)
+	st, req, ok := actFromValue(v)
+	if !ok || st != "fulfilled" || req != 9 {
+		t.Fatalf("首钮 value 解回畸: %v", v)
+	}
+	hdr := card["header"].(map[string]any)["title"].(map[string]any)["content"]
+	if hdr != "条件请求 #9" {
+		t.Fatalf("题=%v", hdr)
+	}
+}

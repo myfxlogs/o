@@ -32,6 +32,7 @@ nondeploy	.github/*
 nondeploy	.devin/*
 nondeploy	tools/*
 nondeploy	deploy/*
+nondeploy	cmd/feishubridge/*
 image_only	web/*
 image_only	Dockerfile*
 image_only	docker-compose*
