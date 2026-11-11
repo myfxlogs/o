@@ -79,6 +79,13 @@ func TestPanelV2ThreeFaces(t *testing.T) {
 	if len(f.Levels) != 4 || f.Levels[0].Key != "eval" || f.Levels[3].Key != "position" {
 		t.Fatalf("漏斗四级序错: %+v", f.Levels)
 	}
+	// 全层 n≥0——fail-soft -1 显缺闸（实库 string_agg/ts 双虫教训：层读件缺
+	// 静默过闸=面板上「读件缺」无警，层断言锁读径）。
+	for _, l := range f.Levels {
+		if l.N < 0 {
+			t.Fatalf("%s 层读件缺（%s）——查询径断", l.Key, l.Note)
+		}
+	}
 	if f.Levels[0].N < 4 {
 		t.Fatalf("eval 层漏夹具: n=%d", f.Levels[0].N)
 	}

@@ -48,11 +48,10 @@ func (c coreService) GetFunnel(ctx context.Context,
 			fmt.Sprintf("proposed %d · rejected %d · unevaluable %d", prop, rej, unev))
 	}
 	// ②提案层：窗内提案行+现态在册（proposed+armed）。
-	var st string
 	if err := c.pool.QueryRow(ctx, `SELECT count(*),
-		count(*) FILTER (WHERE state IN ('fin_proposed','fin_armed')),
-		string_agg(DISTINCT state) FROM fin_proposal WHERE created_at>now()-$1::interval`, iv).
-		Scan(&n, &openN, &st); err != nil {
+		count(*) FILTER (WHERE state IN ('fin_proposed','fin_armed'))
+		FROM fin_proposal WHERE created_at>now()-$1::interval`, iv).
+		Scan(&n, &openN); err != nil {
 		log.Printf("[funnel] 提案层查询败: %v", err)
 		lvl("proposal", "提案", -1, -1, "读件缺")
 	} else {
@@ -67,8 +66,8 @@ func (c coreService) GetFunnel(ctx context.Context,
 	} else {
 		lvl("strategy", "策略", n, openN, fmt.Sprintf("live+probe 在册 %d", openN))
 	}
-	// ④仓位层：窗内开仓+现态未平。
-	if err := c.pool.QueryRow(ctx, `SELECT count(*) FILTER (WHERE ts>now()-$1::interval),
+	// ④仓位层：窗内开仓+现态未平（fin_position 时标列=opened_at 非 ts）。
+	if err := c.pool.QueryRow(ctx, `SELECT count(*) FILTER (WHERE opened_at>now()-$1::interval),
 		count(*) FILTER (WHERE closed_at IS NULL)
 		FROM fin_position`, iv).Scan(&n, &openN); err != nil {
 		log.Printf("[funnel] 仓位层查询败: %v", err)
