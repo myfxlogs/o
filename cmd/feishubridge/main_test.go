@@ -91,6 +91,7 @@ func TestAskFromPayload(t *testing.T) {
 		{`{"ask":"人话文本"}`, "人话文本"},
 		{`{"note":"note文"}`, "note文"},
 		{`{"ask":"","reason":"r文"}`, "r文"},
+		{`{"verdict":"判词文"}`, "判词文"},    // verdict 降档取读（executor 系写臂惯例）
 		{`{"n":3}`, `{"n":3}`},          // 无 ask 键回原始文
 		{`非JSON`, "非JSON"},              // 畸 payload 直通
 		{`{"ask":"a","note":"n"}`, "a"}, // ask 优先

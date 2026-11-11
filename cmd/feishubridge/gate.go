@@ -87,14 +87,15 @@ var stateLabel = map[string]string{
 	"dismissed": "已销",
 }
 
-// askFromPayload payload→业主 ask 文本（写臂约定 ask 键载人话；
-// 缺则取 note/reason，再缺回原始文——黑话挪括注尾不吞证据）。
+// askFromPayload payload→业主 ask 文本（写臂约定 ask 键载人话——
+// 钦定写侧约：无 ask=业主收到天书；缺则 note/reason/verdict 降档
+// 取读，再缺回原始文——黑话挪括注尾不吞证据）。
 func askFromPayload(payload string) string {
 	var p map[string]any
 	if json.Unmarshal([]byte(payload), &p) != nil {
 		return payload
 	}
-	for _, k := range []string{"ask", "note", "reason"} {
+	for _, k := range []string{"ask", "note", "reason", "verdict"} {
 		if s, ok := p[k].(string); ok && s != "" {
 			return s
 		}
