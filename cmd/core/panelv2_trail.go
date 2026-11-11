@@ -4,6 +4,7 @@ package main
 import (
 	"context"
 	"log"
+	"strings"
 	"time"
 
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -54,7 +55,12 @@ func (c coreService) GetDecisionTrail(ctx context.Context,
 		if did != nil {
 			tr.DispId = *did
 			tr.DispTs = timestamppb.New(dts.UTC())
-			tr.Verdict = *dnote
+			// 判词截「升件#N 销——」前缀（escId 行头已显，裸注重复——审计 P2）。
+			v := *dnote
+			if i := strings.Index(v, "——"); i >= 0 {
+				v = v[i+len("——"):]
+			}
+			tr.Verdict = v
 			tr.AgeS = int64(dts.Sub(ets).Seconds())
 		} else {
 			tr.Open = true

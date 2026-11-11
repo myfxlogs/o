@@ -7,6 +7,10 @@ import { EmptyState, ErrorState, Skeleton, StateDot } from "../components/ui";
 import { AGE } from "../components/panel";
 import { pbDate } from "../components/fmt";
 
+// ageTxt 秒级龄人话（<120min→Nm / <48h→N.Nh / else→N.Nd——审计 P2：裸分钟不可读）。
+const ageTxt = (s: number) =>
+  s < 7200 ? `${Math.floor(s / 60)}m` : s < 172800 ? `${(s / 3600).toFixed(1)}h` : `${(s / 86400).toFixed(1)}d`;
+
 export function DecisionPage() {
   const t = useLive(["ev_pipeline"], () => client.getDecisionTrail({ limit: 20 }));
 
@@ -23,7 +27,9 @@ export function DecisionPage() {
           <span className="v2-livedot" />
           决策径 · LIVE
         </div>
-        <h1 className="v2-title">{openN === 0 ? "处置面清爽" : `${openN} 件未决`}</h1>
+        <h1 className="v2-title">
+          {openN === 0 ? "处置面清爽" : `近 ${(d.trail ?? []).length} 件中 ${openN} 未决`}
+        </h1>
         <p className="v2-lede">
           近 {(d.trail ?? []).length} 升件 · 教训矿 pending{" "}
           {Number(m?.engPending ?? 0n) + Number(m?.econPending ?? 0n)}
@@ -56,8 +62,8 @@ export function DecisionPage() {
                   <span className="v2-row-sub ink-3">
                     {r.escTs ? AGE(pbDate(r.escTs)!) : "—"} 升
                     {r.open
-                      ? ` · 候 ${Math.floor(Number(r.ageS) / 60)}m`
-                      : ` · ${Math.floor(Number(r.ageS) / 60)}m 后销 · ${r.verdict}`}
+                      ? ` · 候 ${ageTxt(Number(r.ageS))}`
+                      : ` · ${ageTxt(Number(r.ageS))} 后销${r.dispTs ? `（销于 ${AGE(pbDate(r.dispTs)!)}）` : ""} · ${r.verdict}`}
                   </span>
                 </div>
               </div>

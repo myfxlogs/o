@@ -3,7 +3,7 @@
 // 承 apple-liquid-glass skill：同级行一面板，禁碎卡墙）。
 import { client } from "../api";
 import { useLive } from "../hooks";
-import { Card, EmptyState, ErrorState, Skeleton } from "../components/ui";
+import { EmptyState, ErrorState, Skeleton } from "../components/ui";
 import { OpenPositionsCard } from "../components/flows";
 import { LineChart } from "../components/chart";
 import { AGE } from "../components/panel";

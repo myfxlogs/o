@@ -13,14 +13,10 @@
   --v2-hairline: rgba(0, 0, 0, 0.07);
   --v2-text-2: #424245;
   --v2-text-3: #86868b;
-  --v2-r-card: 18px;
   --v2-r-panel: 22px;
   --v2-sh-panel:
     0 1px 3px rgba(0, 0, 0, 0.05),
     0 14px 40px rgba(0, 0, 0, 0.05);
-  --v2-sh-card:
-    0 1px 2px rgba(0, 0, 0, 0.04),
-    0 8px 24px rgba(0, 0, 0, 0.05);
   --v2-live: #30d158;
   --v2-glass-bg: rgba(245, 245, 247, 0.72);
   --v2-glass-line: rgba(0, 0, 0, 0.07);
@@ -35,9 +31,6 @@
   --v2-sh-panel:
     0 1px 3px rgba(0, 0, 0, 0.4),
     0 14px 40px rgba(0, 0, 0, 0.35);
-  --v2-sh-card:
-    0 1px 2px rgba(0, 0, 0, 0.35),
-    0 8px 24px rgba(0, 0, 0, 0.3);
   --v2-glass-bg: rgba(28, 28, 30, 0.72);
   --v2-glass-line: rgba(255, 255, 255, 0.09);
 }
@@ -125,8 +118,8 @@
   color: var(--ink);
 }
 .v2-panel .skel,
-.v2-panel .empty,
-.v2-panel .errbox {
+.v2-panel .empty-state,
+.v2-panel .err-state {
   margin: 0 clamp(17px, 3vw, 24px) 16px;
 }
 
