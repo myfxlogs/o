@@ -1,0 +1,190 @@
+/* 31-house.css —— 屋页（活物世界观，业主令 11-11）：
+   屋=身体常驻、值班经理=唤知会话、日记墙=ops_event 大脑、
+   白板=工单面、毛坯工位=待长器官。全 CSS 绘景零图片资产；
+   活性=真数据驱动（live 亮灯/探针呼吸/经理进出/墙钉换/NAV 跳），
+   无装饰性入场动效（异步内容禁 opacity 帧同律）。 */
+
+.house-room {
+  position: relative;
+  background: linear-gradient(180deg, #1c1e26 0%, #23262f 62%, #2a2d38 100%);
+  border-radius: 18px;
+  padding: 18px 22px 20px;
+  margin-bottom: 24px;
+  color: #e8eaf2;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+  transition: filter 0.6s ease;
+}
+/* 断流=整屋暗一档——显形不演 */
+.house-room:not(.live) { filter: brightness(0.72) saturate(0.8); }
+
+/* ── 天棚：双钟+屋灯 ── */
+.house-top {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 18px;
+  margin-bottom: 14px;
+}
+.house-lamp {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: #4a4f60; margin-right: auto;
+  transition: background 0.4s, box-shadow 0.4s;
+}
+.house-lamp.on {
+  background: #ffd166;
+  box-shadow: 0 0 14px 3px rgba(255, 209, 102, 0.45);
+}
+.h-clock { display: flex; align-items: baseline; gap: 7px; }
+.h-clock-label { font-size: 11px; color: #8b90a3; letter-spacing: 0.08em; }
+.h-clock-time { font-size: 15px; font-weight: 600; color: #e8eaf2; font-variant-numeric: tabular-nums; }
+
+/* ── 后墙：日记墙/经验架/墙钉/NAV屏/身高尺 ── */
+.house-wall {
+  display: grid;
+  grid-template-columns: 1fr 220px 78px;
+  gap: 14px;
+  align-items: stretch;
+  margin-bottom: 16px;
+}
+.wall-shelf {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  padding: 12px 14px;
+  min-height: 118px;
+}
+.shelf-label { font-size: 11px; margin-bottom: 8px; letter-spacing: 0.06em; }
+.shelf-row {
+  display: flex; align-items: center; gap: 5px;
+  min-height: 20px; margin-bottom: 6px; flex-wrap: wrap;
+}
+.shelf-k { font-size: 11px; color: #8b90a3; margin-right: 4px; }
+.shelf-box {
+  width: 13px; height: 16px; border-radius: 2px 4px 4px 2px;
+  background: linear-gradient(90deg, #5a8fdd, #7fb0ea);
+  box-shadow: inset -2px 0 0 rgba(0, 0, 0, 0.25);
+}
+.shelf-n { font-size: 12px; color: #9ab8e8; margin-left: 6px; font-weight: 600; }
+.shelf-empty { font-size: 12px; color: #6b7086; }
+.wall-notes { margin-top: 10px; display: flex; flex-direction: column; gap: 5px; }
+.wall-note {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 12px; color: #b9bdd0;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 6px; padding: 4px 8px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pin {
+  flex: none; width: 7px; height: 7px; border-radius: 50%;
+  background: #57d98e;
+}
+.pin.red { background: #ff6b6b; box-shadow: 0 0 6px rgba(255, 107, 107, 0.7); }
+
+/* NAV 大屏 */
+.wall-screen {
+  background: #0d1420;
+  border: 1px solid rgba(122, 168, 255, 0.22);
+  border-radius: 12px;
+  padding: 12px 16px;
+  display: flex; flex-direction: column; justify-content: center;
+  box-shadow: inset 0 0 24px rgba(80, 140, 255, 0.08);
+}
+.ws-label { font-size: 11px; color: #6d88b8; letter-spacing: 0.08em; margin-bottom: 6px; }
+.ws-nav { font-size: 26px; font-weight: 700; color: #bcd6ff; line-height: 1.15; }
+.ws-sub { font-size: 12px; color: #7d92b8; margin-top: 6px; }
+
+/* 身高尺 */
+.wall-ruler {
+  position: relative;
+  border-left: 2px solid rgba(255, 255, 255, 0.14);
+  padding-left: 10px;
+  display: flex; flex-direction: column; justify-content: space-between;
+  font-size: 11px; color: #8b90a3;
+}
+.ruler-mark { line-height: 1; }
+.ruler-pin {
+  position: absolute; left: -5px; width: 8px; height: 8px;
+  border-radius: 50%; background: #ffd166;
+  box-shadow: 0 0 8px rgba(255, 209, 102, 0.6);
+}
+.ruler-goal {
+  position: absolute; bottom: -4px; left: 10px; right: -30px;
+  font-size: 10px; color: #6b7086; white-space: nowrap;
+}
+
+/* ── 地板：三岗 ── */
+.house-floor {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr 1fr;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+.post {
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  padding: 12px 14px;
+  min-height: 92px;
+}
+.post-label { font-size: 11px; margin-bottom: 9px; letter-spacing: 0.05em; }
+.post-sub { font-size: 11px; margin-top: 7px; }
+
+/* 哨兵岗 */
+.sentry-line { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.sentry { display: inline-flex; }
+
+/* 值班台+经理人像 */
+.manager { display: flex; align-items: center; gap: 10px; }
+.fig {
+  width: 26px; height: 26px; border-radius: 50% 50% 40% 40%;
+  background: #3a3f52;
+  transition: background 0.5s, box-shadow 0.5s;
+}
+.manager.on .fig {
+  background: #ffd166;
+  box-shadow: 0 0 12px rgba(255, 209, 102, 0.55);
+}
+.manager-state { font-size: 13px; color: #cfd3e4; }
+.manager.on .manager-state { color: #ffe3a1; }
+
+/* 白板 */
+.board-rows { display: flex; flex-direction: column; gap: 7px; }
+.board-row {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; color: #cfd3e4;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ── 毛坯工位排 ── */
+.ghost-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+  gap: 10px;
+}
+.ghost-desk {
+  border: 1px dashed rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  background: rgba(255, 255, 255, 0.02);
+}
+.ghost-chair {
+  width: 20px; height: 14px;
+  border-radius: 4px 4px 2px 2px;
+  background: #343947;
+}
+.ghost-desk.build { border-color: rgba(255, 209, 102, 0.5); }
+.ghost-desk.build .ghost-chair { background: #8a7434; }
+.ghost-desk.done { border-style: solid; border-color: rgba(87, 217, 142, 0.5); }
+.ghost-desk.done .ghost-chair { background: #57d98e; }
+.ghost-name { font-size: 12px; color: #aab0c6; font-weight: 600; }
+.ghost-st { font-size: 10px; }
+.ghost-desk.build .ghost-st { color: #d8b45c; }
+.ghost-desk.done .ghost-st { color: #57d98e; }
+
+/* 窄屏回落——地板三岗变单列，墙屏尺顺序排 */
+@media (max-width: 860px) {
+  .house-wall { grid-template-columns: 1fr; }
+  .wall-ruler { min-height: 120px; }
+  .house-floor { grid-template-columns: 1fr; }
+}
