@@ -18,11 +18,11 @@ MD_HOST="${MD_HOST:-ubuntu@149.118.58.98}"
 fail=0
 red() { echo "FAIL[bridge-audit] $1" >&2; fail=1; }
 
-sg_q() { timeout 20 ssh -n -o BatchMode=yes -o ConnectTimeout=8 "$SG_HOST" \
+sg_q() { timeout 60 ssh -n -o BatchMode=yes -o ConnectTimeout=8 "$SG_HOST" \
 	"docker exec o-postgres psql -U o -d o -Atc \"$1\"" 2>/dev/null | tr -d ' '; }
-md_q() { timeout 20 ssh -n -o BatchMode=yes -o ConnectTimeout=8 "$MD_HOST" \
+md_q() { timeout 60 ssh -n -o BatchMode=yes -o ConnectTimeout=8 "$MD_HOST" \
 	"sudo docker exec o-postgres-md psql -U o -d o -Atc \"$1\"" 2>/dev/null | tr -d ' '; }
-oci_f() { timeout 15 ssh -n -o BatchMode=yes -o ConnectTimeout=8 "$MD_HOST" "cat $1" 2>/dev/null; }
+oci_f() { timeout 30 ssh -n -o BatchMode=yes -o ConnectTimeout=8 "$MD_HOST" "cat $1" 2>/dev/null; }
 
 # ── ① 授权列 ─────────────────────────────────────────────
 # domain.tsv 桥域表集（bridge+bridge-reverse——登记表=名册唯一真源）。
