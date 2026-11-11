@@ -21,12 +21,13 @@ export const GHOSTS: { name: string; st: "ghost" | "pin" | "build" | "done"; hin
   { name: "举一反三", st: "ghost", hint: "摔一次会一类", keys: ["举一反三"] },
   { name: "连续自我", st: "ghost", hint: "破日记人格", keys: ["连续自我"] },
   { name: "懂你", st: "ghost", hint: "业主意图模型", keys: ["懂你"] },
+  { name: "账房", st: "ghost", hint: "ΔNAV三桶日对账——鬼账升件", keys: ["账房", "books_daily", "对账"] },
 ];
 
 // 毛坯态推导——事实面（ops_event 全事件类，新→旧序）最新匹配行定态。
 // 判词取关键词 ±25 字邻域：一行可带多器官不同定性（如 #10507 同注
 // 「法典部署销」∧「自态账领命」），整行判会串味。
-export type Fact = { id: bigint; note: string };
+export type Fact = { id: bigint; event?: string; note: string };
 // 四态词谱（±25 字邻域判，done>build>pin 优先级，无词兜底 build=有动过）：
 //   pin=认领未动工（领命/工单/备记类）；build=真在施（施工/落码/处置类）。
 const DONE_RE = /销案|部署销|落账毕|法典已部署|已部署|已完成|收口|上线|落地|启用|投产|生效/;
@@ -55,9 +56,9 @@ type Hot = (tt: Omit<Tip, "x" | "y">, x: number, y: number, z?: number, cls?: st
 // 态随事实推：毛坯=桌椅人全淡影，立项=钢蓝人仔+桌📌旗，
 // 在建=金人仔呼吸在敲，完工=绿人仔名牌✓。
 const GH_TONE: Record<string, string> = { ghost: "#8a93a3", pin: "#7fa8d0", build: "#d9a62e", done: "#3ddc84" };
-// 器官位世界坐标——走位人/聚焦锚共用（2×4 阵，cx=桌心 x）。
+// 器官位世界坐标——走位人/聚焦锚共用（5×2 阵，cx=桌心 x）。
 export const ghostPos = (i: number) => {
-  const x = 1.7 + (i % 4) * 3.0, y = i < 4 ? 8.5 : 10.3;
+  const x = 1.5 + (i % 5) * 2.75, y = i < 5 ? 8.5 : 10.3;
   return { x, y, cx: x + 0.75 };
 };
 export function GhostRow(props: { hot: Hot; facts: Fact[] }) {
@@ -162,6 +163,12 @@ export function FocusBody(props: {
           今日 {props.nav ? (props.nav.today >= 0 ? "+" : "−") + fmtMoney(Math.abs(props.nav.today)) : "—"} ·
           累计 {props.nav ? (props.nav.cum >= 0 ? "+" : "−") + fmtMoney(Math.abs(props.nav.cum)) : "—"}
         </div>
+        {(() => {
+          const b = props.facts.find((x) => x.event === "量表" && x.note.includes("账房对账"));
+          if (!b) return null;
+          const eq = b.note.split("账房对账: ")[1]?.split("——")[0] ?? "";
+          return <div className="iso-focus-row dim">📒 {plainText(eq).slice(0, 72)} · #{String(b.id)}</div>;
+        })()}
         <div className="iso-focus-h" style={{ marginTop: 10 }}>在仓 {pos.data?.positions?.length ?? "…"}</div>
         {(pos.data?.positions ?? []).slice(0, 5).map((p) => (
           <div key={String(p.id)} className="iso-focus-row">
