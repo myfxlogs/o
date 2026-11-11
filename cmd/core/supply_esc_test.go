@@ -198,15 +198,43 @@ func TestStuckEsc(t *testing.T) {
 	// e5: 无处置连续火——不该火
 	mk("t-stuck-open")
 	mk("t-stuck-open")
+	// e6: 宣称词裹述——处置文引「宣称已修实未愈」非已修宣称,
+	// 不该火(收窄计谱:负前文,生产 #9743→#9925 自指链案)
+	e6 := mk("t-stuck-prose")
+	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,note)
+		VALUES('处置席','处置',$1)`, fmt.Sprintf("升件#%d 销——转要码修:只追宣称已修实未愈型", e6)); err != nil {
+		t.Fatalf("disp6: %v", err)
+	}
+	mk("t-stuck-prose")
+	// e7: 引号裹述——处置文引「已愈」非愈宣称,不该火
+	e7 := mk("t-stuck-quote")
+	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,note)
+		VALUES('处置席','处置',$1)`, fmt.Sprintf("升件#%d 销——判词引「已愈」范式", e7)); err != nil {
+		t.Fatalf("disp7: %v", err)
+	}
+	mk("t-stuck-quote")
+	// e8: 自 scope 豁免——stuck_esc 自身销后复燃不计对
+	// (除自 scope:自指链无认知产出,除名后链饿殍)
+	se1 := mk("stuck_esc")
+	var disp8 int64
+	if err := pool.QueryRow(ctx, `INSERT INTO ops_event(seat,event,note)
+		VALUES('处置席','处置',$1) RETURNING id`, fmt.Sprintf("升件#%d 销——已修部署 o-core:abc123", se1)).Scan(&disp8); err != nil {
+		t.Fatalf("disp8: %v", err)
+	}
+	se2 := mk("stuck_esc")
 	svc := coreService{pool: pool}
 	deadSince := map[string]time.Time{}
 	svc.stuckEscCheck(ctx, deadSince)
+	// 自 scope 夹具先清再读探针落行(同 scope 行混读面)
+	if _, err := pool.Exec(ctx, `DELETE FROM ops_event WHERE id IN ($1,$2,$3)`, se1, se2, disp8); err != nil {
+		t.Fatalf("selfclean: %v", err)
+	}
 	var note string
 	if err := pool.QueryRow(ctx, `SELECT note FROM ops_event
 		WHERE event='升件' AND esc_scope='stuck_esc'`).Scan(&note); err != nil {
 		t.Fatalf("卡壳升件未落: %v", err)
 	}
-	if !strings.Contains(note, "t-stuck-fix") || !strings.Contains(note, "t-stuck-heal") || strings.Contains(note, "t-stuck-dismiss") || strings.Contains(note, "t-stuck-todo") || strings.Contains(note, "t-stuck-open") {
+	if !strings.Contains(note, "t-stuck-fix") || !strings.Contains(note, "t-stuck-heal") || strings.Contains(note, "t-stuck-dismiss") || strings.Contains(note, "t-stuck-todo") || strings.Contains(note, "t-stuck-open") || strings.Contains(note, "t-stuck-prose") || strings.Contains(note, "t-stuck-quote") || strings.Contains(note, fmt.Sprintf("#%d销后→#%d又火", se1, se2)) {
 		t.Fatalf("升件 note 谱错: %s", note)
 	}
 }

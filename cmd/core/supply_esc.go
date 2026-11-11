@@ -107,15 +107,19 @@ func (c coreService) lessonBacklogEscCheck(ctx context.Context, deadSince map[st
 // 词表钉完成态(已修/已部署/上岸…非裸「修」——「要码修/待修」
 // 是待办非宣称,裸词误中曾滚出 13 代自指链 2026-11-10 夜)。
 // 2026-11-10 业主令:机器卡壳不自知是常事,复审要机械可证伪。
+// 收窄计谱(升件#9739 判词钉,15+代自指链实证):①除自 scope——
+// 自 scope 销案判词与复燃同写一探针域,自指链无认知产出;
+// ②宣称词负前文——宣称词被「宣称/说/谓/引号」裹述时不算宣称
+// (#9743 案:处置文内引「宣称已修实未愈」被计成已修宣称)。
 func (c coreService) stuckEscCheck(ctx context.Context, deadSince map[string]time.Time) {
 	rows, err := c.pool.Query(ctx, `SELECT e2.esc_scope, e1.id, e2.id FROM ops_event e1
 		JOIN ops_event e2 ON e2.esc_scope=e1.esc_scope AND e2.event='升件' AND e2.id>e1.id
 		WHERE e1.event='升件' AND e1.ts>now()-interval '7 days'
-		AND e1.esc_scope IS NOT NULL AND e1.esc_scope<>''
+		AND e1.esc_scope IS NOT NULL AND e1.esc_scope<>'' AND e1.esc_scope<>'stuck_esc'
 		AND EXISTS (SELECT 1 FROM ops_event d WHERE d.event='处置'
 			AND d.id>e1.id AND d.id<e2.id
 			AND d.note ~ ('升件#'||e1.id||'([^0-9]|$)')
-			AND d.note ~ '(已修|已部署|已落成|已修复|已愈|自愈|已恢复|复绿|上岸)')
+			AND d.note ~ '(^|[^称说谓「『])(已修|已部署|已落成|已修复|已愈|自愈|已恢复|复绿|上岸)')
 		ORDER BY e2.id DESC LIMIT 10`)
 	if err != nil {
 		return // 读件败本拍让位
