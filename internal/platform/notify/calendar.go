@@ -100,7 +100,8 @@ func (c *Calendar) Scan(ctx context.Context) error {
 		d, n := c.miss()
 		log.Printf("[财经日历] feed 拉取败（连败退避 %s 后复拍，拉取败累计 %d——计数+log 不炸）: %v", d, n, err)
 		c.escalate(ctx, "拉取", err) // T-0410 零静默——败=升件非仅计数
-		return nil                 // 断源不炸推送面
+		c.notePull(ctx, false, 0, "fetch")
+		return nil // 断源不炸推送面
 	}
 	defer resp.Body.Close()
 	// T-0296 件②根修——StatusCode 必检：429/5xx 页不再当 XML 进 decode
@@ -109,6 +110,7 @@ func (c *Calendar) Scan(ctx context.Context) error {
 		d, n := c.miss()
 		log.Printf("[财经日历] feed HTTP %d（连败退避 %s 后复拍，拉取败累计 %d）", resp.StatusCode, d, n)
 		c.escalate(ctx, "HTTP", fmt.Errorf("feed HTTP %d", resp.StatusCode))
+		c.notePull(ctx, false, 0, fmt.Sprintf("http_%d", resp.StatusCode))
 		return nil
 	}
 	c.ok() // 200 到手=限流复常——退避档归零回 15min 拍
@@ -122,6 +124,7 @@ func (c *Calendar) Scan(ctx context.Context) error {
 	if err := dec.Decode(&w); err != nil {
 		log.Printf("[财经日历] feed 解包败（累计 %d）: %v", c.bump(&c.decErrs), err)
 		c.escalate(ctx, "解包", err)
+		c.notePull(ctx, false, 0, "decode")
 		return nil
 	}
 	// T-0410 零静默件②：200 但零事件行=空返升件（上游周历空返=断更前兆
@@ -129,8 +132,10 @@ func (c *Calendar) Scan(ctx context.Context) error {
 	if len(w.Events) == 0 {
 		log.Printf("[财经日历] feed 空返（200 零事件行——升件对拍锚）")
 		c.escalate(ctx, "空返", errors.New("feed 200 空事件集"))
+		c.notePull(ctx, false, 0, "empty")
 		return nil
 	}
+	c.notePull(ctx, true, len(w.Events), "") // 拉取活性账——feed 死闸探针锚面
 	minImp := c.minImp()
 	leadMin := int64(60)
 	if c.lead != nil {
@@ -197,6 +202,19 @@ func (c *Calendar) ok() {
 	c.mu.Lock()
 	c.fails, c.nextTry = 0, time.Time{}
 	c.mu.Unlock()
+}
+
+// notePull 拉取活性账（工单#10693——md_calendar_pull 逐拍实拉落行;
+// feed 死闸探针活性锚:推件产出≠feed 活性,零 high 窗设计缺席不误判）。
+// 账写败只 log 不断拉环；pool 缺席（桩测面）静默退——与 escalate 同构。
+func (c *Calendar) notePull(ctx context.Context, ok bool, events int, phase string) {
+	if c.pool == nil {
+		return
+	}
+	if _, err := c.pool.Exec(ctx, `INSERT INTO md_calendar_pull(ok,events,err)
+		VALUES($1,$2,$3)`, ok, events, phase); err != nil {
+		log.Printf("[财经日历] 拉取活性账写败（遥测面不炸环）: %v", err)
+	}
 }
 
 // bump 败次计数+1 回新值（T-0296 计数面——败次随 log 文案出）。

@@ -12,10 +12,11 @@ import (
 	"o/internal/store/pgstore"
 )
 
-// T-0410 锚①红桩：「feed 陈>阈+零升件行」修前红——md_calendar_push 末行
-// sent_at 超阈（24h——feed 本应日更）零新行 → ops_event `feed断更` 行+
+// T-0410 锚①红桩：「feed 陈>阈+零升件行」修前红——md_calendar_pull 末行
+// ts 超阈（24h——拉环 15min 拍日行实拉）零新行 → ops_event `feed断更` 行+
 // 观测盲升件（esc_scope='CALENDAR-FEED'，24h 同窗去重）。开关关态=feed
-// 应停非病灶不探；零推送行史（max=NULL）=断更极端形同报。
+// 应停非病灶不探；零拉取行史（max=NULL）=断更极端形同报。
+// 工单#10693 口径修：锚=拉取活性账（逐拍实拉含败拍）非推件送达产出。
 
 func feedFixture(t *testing.T) (*Sensor, *pgxpool.Pool) {
 	t.Helper()
@@ -49,11 +50,11 @@ func calSwitch(t *testing.T, s *Sensor, pool *pgxpool.Pool, on bool) {
 	}
 }
 
-// seedPush md_calendar_push 行定龄（age=推送行龄——>24h 即陈）。
-func seedPush(t *testing.T, pool *pgxpool.Pool, ageHours float64) {
+// seedPull md_calendar_pull 行定龄（age=拉取活性行龄——>24h 即陈）。
+func seedPull(t *testing.T, pool *pgxpool.Pool, ageHours float64) {
 	t.Helper()
 	if _, err := pool.Exec(context.Background(),
-		`INSERT INTO md_calendar_push(event_key,sent_at) VALUES('k|d|t',now()-make_interval(hours=>$1))`,
+		`INSERT INTO md_calendar_pull(ok,events,err,ts) VALUES(true,1,'',now()-make_interval(hours=>$1))`,
 		ageHours); err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +80,7 @@ func TestProbeFeedStaleLesionOnStaleRow(t *testing.T) {
 	s, pool := feedFixture(t)
 	ctx := context.Background()
 	calSwitch(t, s, pool, true)
-	seedPush(t, pool, 30)
+	seedPull(t, pool, 30)
 	if err := s.ProbeFeedStale(ctx); err != nil {
 		t.Fatalf("probe: %v", err)
 	}
@@ -92,8 +93,8 @@ func TestProbeFeedStaleLesionOnStaleRow(t *testing.T) {
 		WHERE event='升件' AND esc_scope='CALENDAR-FEED'`).Scan(&note); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(note, "断更") || !strings.Contains(note, "sent_at") {
-		t.Fatalf("升件 note 缺断更/sent_at 锚: %s", note)
+	if !strings.Contains(note, "断更") || !strings.Contains(note, "ts=") {
+		t.Fatalf("升件 note 缺断更/ts 锚: %s", note)
 	}
 }
 
@@ -102,7 +103,7 @@ func TestProbeFeedStaleQuietOnFreshRow(t *testing.T) {
 	s, pool := feedFixture(t)
 	ctx := context.Background()
 	calSwitch(t, s, pool, true)
-	seedPush(t, pool, 2)
+	seedPull(t, pool, 2)
 	if err := s.ProbeFeedStale(ctx); err != nil {
 		t.Fatalf("probe: %v", err)
 	}
@@ -116,7 +117,7 @@ func TestProbeFeedStaleSkipOnSwitchOff(t *testing.T) {
 	s, pool := feedFixture(t)
 	ctx := context.Background()
 	calSwitch(t, s, pool, false) // fin_0035 种缺省同——显式钉形
-	seedPush(t, pool, 30)
+	seedPull(t, pool, 30)
 	if err := s.ProbeFeedStale(ctx); err != nil {
 		t.Fatalf("probe: %v", err)
 	}
@@ -125,7 +126,7 @@ func TestProbeFeedStaleSkipOnSwitchOff(t *testing.T) {
 	}
 }
 
-// TestProbeFeedStaleEmptyTable 形④：开关开+零推送行史=断更极端形同报
+// TestProbeFeedStaleEmptyTable 形④：开关开+零拉取行史=断更极端形同报
 // （2026-11-06 病灶案=开关开而两日零行——零行史同语义）。
 func TestProbeFeedStaleEmptyTable(t *testing.T) {
 	s, pool := feedFixture(t)
@@ -143,7 +144,7 @@ func TestProbeFeedStaleEmptyTable(t *testing.T) {
 		WHERE event='feed断更'`).Scan(&note); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(note, "零推送行史") {
+	if !strings.Contains(note, "零拉取行史") {
 		t.Fatalf("零行史 note 未显形: %s", note)
 	}
 }
@@ -153,7 +154,7 @@ func TestProbeFeedStaleDedup24h(t *testing.T) {
 	s, pool := feedFixture(t)
 	ctx := context.Background()
 	calSwitch(t, s, pool, true)
-	seedPush(t, pool, 30)
+	seedPull(t, pool, 30)
 	for i := 0; i < 2; i++ {
 		if err := s.ProbeFeedStale(ctx); err != nil {
 			t.Fatalf("probe %d: %v", i, err)
