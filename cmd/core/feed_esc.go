@@ -69,6 +69,7 @@ func (c coreService) escLoop(ctx context.Context, al *notify.Alerter) {
 		c.armedDistanceBeat(ctx) // 量表探（非升件——armed 距阈日行照）
 		c.ownerLedgerBeat(ctx)   // 量表探（业主令账+点破率曲线日行照）
 		c.profitDailyBeat(ctx)   // 量表探（盈利报告日行照——业主唯一例行读件）
+		c.selfStateBeat(ctx)     // 量表探（自态账——会话冷启动即读件,工单#10358 C）
 	}
 }
 
