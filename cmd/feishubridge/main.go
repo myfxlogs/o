@@ -133,6 +133,16 @@ func (b *bridge) listenPending(ctx context.Context) {
 // onCardAction card.action.trigger 回调——窄门(chat 吻合+动作闭集)→结案。
 func (b *bridge) onCardAction(ctx context.Context, ev *callback.CardActionTriggerEvent) (*callback.CardActionTriggerResponse, error) {
 	deny := &callback.CardActionTriggerResponse{Toast: &callback.Toast{Type: "warning", Content: "非业主域"}}
+	ocid, aval := "", ""
+	if ev.Event != nil {
+		if ev.Event.Context != nil {
+			ocid = ev.Event.Context.OpenChatID
+		}
+		if ev.Event.Action != nil {
+			aval = fmt.Sprintf("%v", ev.Event.Action.Value)
+		}
+	}
+	log.Printf("feishubridge: 收卡钮 chat=%s…%s val=%s", ocid[:min(4, len(ocid))], ocid[max(0, len(ocid)-4):], aval)
 	if ev.Event == nil || ev.Event.Context == nil || ev.Event.Context.OpenChatID != b.chatID {
 		return deny, nil
 	}
@@ -173,6 +183,20 @@ func (b *bridge) onMessage(ctx context.Context, ev *larkim.P2MessageReceiveV1) e
 		return nil
 	}
 	msg := ev.Event.Message
+	cid, st, mt, content := "", "", "", ""
+	if msg.ChatId != nil {
+		cid = *msg.ChatId
+	}
+	if ev.Event.Sender.SenderType != nil {
+		st = *ev.Event.Sender.SenderType
+	}
+	if msg.MessageType != nil {
+		mt = *msg.MessageType
+	}
+	if msg.Content != nil {
+		content = *msg.Content
+	}
+	log.Printf("feishubridge: 收消息 chat=%s…%s sender=%s type=%s body=%q", cid[:min(4, len(cid))], cid[max(0, len(cid)-4):], st, mt, content)
 	if msg.ChatId == nil || *msg.ChatId != b.chatID {
 		return nil
 	}
