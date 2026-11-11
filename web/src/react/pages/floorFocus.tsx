@@ -22,14 +22,21 @@ export const GHOSTS: { name: string; st: "ghost" | "build" | "done"; hint: strin
   { name: "懂你", st: "ghost", hint: "业主意图模型", keys: ["懂你"] },
 ];
 
-// 毛坯态推导——钉墙最新匹配钉定态（开钉→在建；销/部署→完工；无钉→毛坯）。
-// trail 新→旧序；DONE 词表=销/部署/落账毕，BUILD 词表=领命/工单/备记/开工。
+// 毛坯态推导——事实面（ops_event 全事件类，新→旧序）最新匹配行定态。
+// 判词取关键词 ±25 字邻域：一行可带多器官不同定性（如 #10507 同注
+// 「法典部署销」∧「自态账领命」），整行判会串味。
+export type Fact = { id: bigint; note: string };
 const DONE_RE = /销案|部署销|落账毕|法典已部署|已部署|已完成|收口/;
-export function ghostSt(gh: (typeof GHOSTS)[number], trail: { note: string; open: boolean }[]): "ghost" | "build" | "done" {
-  const hit = trail.find((r) => gh.keys.some((k) => r.note.includes(k)));
+export function ghostFact(gh: (typeof GHOSTS)[number], facts: Fact[]): Fact | undefined {
+  return facts.find((r) => gh.keys.some((k) => r.note.includes(k)));
+}
+export function ghostSt(gh: (typeof GHOSTS)[number], facts: Fact[]): "ghost" | "build" | "done" {
+  const hit = ghostFact(gh, facts);
   if (!hit) return "ghost";
-  if (hit.open || !DONE_RE.test(hit.note)) return "build";
-  return "done";
+  return gh.keys.some((k) => {
+    const i = hit.note.indexOf(k);
+    return i >= 0 && DONE_RE.test(hit.note.slice(Math.max(0, i - 25), i + k.length + 25));
+  }) ? "done" : "build";
 }
 
 const fmtMoney = (v: number) =>
@@ -39,12 +46,13 @@ const TO_LABEL: Record<string, string> = { "/": "机赚如何", "/device": "哪�
 type Hot = (tt: Omit<Tip, "x" | "y">, x: number, y: number, z?: number, cls?: string) => Record<string, unknown>;
 
 // 毛坯工位排——待长器官钦定清单（暗=毛坯，金=在建，绿=完工）。
-export function GhostRow(props: { hot: Hot; trail: { note: string; open: boolean }[] }) {
+export function GhostRow(props: { hot: Hot; facts: Fact[] }) {
   return (
     <>
       {GHOSTS.map((gh, i) => {
         const x = 0.8 + i * 1.65, y = 8.3;
-        const st = ghostSt(gh, props.trail);
+        const st = ghostSt(gh, props.facts);
+        const fact = ghostFact(gh, props.facts);
         const gold = st === "build", done = st === "done";
         const c = gold ? { top: "#5c5132", front: "#4d4329", right: "#403723" }
           : done ? { top: "#2e4d3a", front: "#274233", right: "#1f3529" }
@@ -52,7 +60,7 @@ export function GhostRow(props: { hot: Hot; trail: { note: string; open: boolean
         const [nx, ny] = P(x + 0.6, y + 1.35);
         return (
           <g key={gh.name}
-            {...props.hot({ k: "gh" + i, title: `毛坯位 · ${gh.name}`, body: [gh.hint, done ? "已完工" : gold ? "在建" : "毛坯"], to: "/decision" }, x + 0.6, y + 0.4, 0.8, gold ? "fx-breathe" : "")}>
+            {...props.hot({ k: "gh" + i, title: `毛坯位 · ${gh.name}`, body: [gh.hint, done ? "已完工" : gold ? "在建" : "毛坯", fact ? `据 #${String(fact.id)}` : "无事实行"], to: "/decision" }, x + 0.6, y + 0.4, 0.8, gold ? "fx-breathe" : "")}>
             <IsoBox x={x} y={y} w={1.2} d={0.8} h={0.7} top={c.top} front={c.front} right={c.right} dashed={!done} op={0.85} />
             <text x={nx} y={ny + 8} className={`iso-cap${gold ? " gold" : done ? "" : " dim"}`} textAnchor="middle">{gh.name}{done ? "✓" : ""}</text>
           </g>
@@ -86,6 +94,7 @@ export function FocusBody(props: {
   openEsc: { escId: bigint; note: string }[];
   openReq: { id: bigint }[];
   trail: { escId: bigint; note: string; open: boolean }[];
+  facts: Fact[];
   probes: { escClass: string; escScope: string; open: boolean; lastEsc?: unknown }[];
   openProbes: number;
   engCanon: number; econCanon: number;
@@ -240,12 +249,14 @@ export function FocusBody(props: {
     );
   if (k.startsWith("gh")) {
     const gh = GHOSTS[Number(k.slice(2))];
-    const st = ghostSt(gh, props.trail ?? []);
+    const fact = ghostFact(gh, props.facts ?? []);
+    const st = fact ? ghostSt(gh, props.facts ?? []) : "ghost";
     return (
       <div className="iso-focus-in">
         <div className="iso-focus-h">毛坯工位 · {gh.name}</div>
         <div className="iso-focus-row">{gh.hint}</div>
         <div className="iso-focus-big">{st === "done" ? "🟢 已完工" : st === "build" ? "🟡 在建" : "⬚ 毛坯"}</div>
+        {fact && <div className="iso-focus-row dim">据 #{String(fact.id)} · {plainText(fact.note).slice(0, 40)}</div>}
         {go}
       </div>
     );
