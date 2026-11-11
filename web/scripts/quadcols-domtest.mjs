@@ -92,10 +92,8 @@ check("③展开→本列后续卡 y 增量=展开量（只增本卡高只推本
 check("②左列卡间间距恒=gap（y 差=h+24，无拉距）",
 	yCold[0].every((y, i) => i === 0 || y - yCold[0][i - 1] === colHs[0][i - 1] + gap));
 
-// —— ⑥接线索引：System 页实走 Cols 面 ——
-const sys = readFileSync(join(webRoot, "src/react/pages/System.tsx"), "utf8");
-check("⑥System 页接线 <Cols className=\"quad\">（非死件）",
-	/<Cols className="quad">/.test(sys) && !/<div className="quad"/.test(sys));
+// —— ⑥接线索引：原 System 页已并入 /device（三径 v2 线性读径——
+// quad 面暂无页消费，Cols 原语保留备将来排布；接线断言随页亡退役） ——
 
 console.log(`\n${n - fail}/${n} PASS${fail ? ` —— ${fail} FAIL` : ""}`);
 process.exit(fail ? 1 : 0);

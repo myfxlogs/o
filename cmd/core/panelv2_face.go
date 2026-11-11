@@ -170,7 +170,7 @@ func (c coreService) GetFaceGrid(ctx context.Context,
 	_ *dashboardv1.GetFaceGridRequest) (*dashboardv1.GetFaceGridResponse, error) {
 	resp := &dashboardv1.GetFaceGridResponse{AsOf: timestamppb.Now()}
 	for _, b := range healthComps() {
-		row := &dashboardv1.FaceRow{Name: b.name, Fact: b.fact, Exch: b.exch, Cat: b.cat}
+		row := &dashboardv1.FaceRow{Name: b.name, Fact: b.fact, Exch: b.exch, Cat: b.cat, Host: b.host}
 		var ts *time.Time
 		err := c.pool.QueryRow(ctx, b.query).Scan(&ts)
 		row.State, row.Note, row.LagS = faceEval(b, ts, err)
