@@ -80,6 +80,24 @@ var kindTitle = map[string]string{
 	"executor":   "需要你操作",
 }
 
+// ownerFacing 业主域闸（0干预钦定——真业主件=出钱/出凭据/红线放行/
+// 人在场四类；executor/holding 默认会话可办不推,显式 owner_required
+// 布尔键可双向豁免:executor 标 true=真业主件推,permission 标 false=
+// 会话裁量件不推）。
+func ownerFacing(kind, payload string) bool {
+	var p map[string]any
+	if json.Unmarshal([]byte(payload), &p) == nil {
+		if v, ok := p["owner_required"].(bool); ok {
+			return v
+		}
+	}
+	switch kind {
+	case "capital", "credential", "permission", "constraint":
+		return true
+	}
+	return false
+}
+
 // stateLabel 终态→人话（卡面/回执一致口径）。
 var stateLabel = map[string]string{
 	"fulfilled": "已办",
