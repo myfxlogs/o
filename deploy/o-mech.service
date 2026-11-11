@@ -1,0 +1,20 @@
+# o-mech.service —— 事件总线订阅唤醒臂（幽灵正身落地：纪元2 设计「dm/mech
+# 帧唤机械轨」的订阅客，纪元3 裁座后一直没装件致 mirror_push ExecStartPost
+# 唤名恒 no-op；业主令 2026-11-11 队列制——ops_event 落账即唤派发/急件/守望，
+# timer 系降为漏缝兜底）。
+# go run 径：随 /opt/o merge 自取新码（与 scripts 系 unit 同型免装二进制）。
+[Unit]
+Description=o-mech (事件总线订阅唤醒臂 dm/mech→unit)
+After=network-online.target o-oci-bus-tunnel.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/o
+Environment=PATH=/home/mluser/.local/bin:/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/usr/local/go/bin/go run ./tools/mechwake
+Restart=always
+RestartSec=5s
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target
