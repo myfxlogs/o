@@ -1,24 +1,15 @@
-// audit_1111_ledger_test.go —— 审计/账本对账 RED 锚（audit/1111-ledger）：
-// 断言正确语义——修复落库后自然转绿，门转正为回归锚。
-// 显跑：AUDIT_RED=1 go test ./internal/ledger/report
+// audit_1111_ledger_test.go —— 审计/账本对账 回归锚（audit/1111-ledger 修复转绿落库）：
+// 断言正确语义常驻——三锚即修复面回归。/report
 package report
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
 
 	"o/internal/platform/testutil"
 	"o/internal/store/pgstore"
 )
-
-func auditRedGate(t *testing.T) {
-	t.Helper()
-	if os.Getenv("AUDIT_RED") != "1" {
-		t.Skip("audit RED 锚——修复期显跑: AUDIT_RED=1 go test -run " + t.Name() + " ./internal/ledger/report；修好后去门转正为回归锚")
-	}
-}
 
 // ② 实现盈亏面吞 venue='sim' 夹具行：realizedSQL/RealizedDaily 按 kind 求和
 // 无 venue 谓词——simdrill 以真实 product/inst 播 venue='sim' 的 fee 行
@@ -27,7 +18,6 @@ func auditRedGate(t *testing.T) {
 // 账面正本反吞=同字段读口径漂移。正确语义=实现盈亏面只含产线域行。
 // 共享库并发稳健：按插入前后增量断言。
 func TestAuditRealizedSimVenuePollution(t *testing.T) {
-	auditRedGate(t)
 	pool := testutil.Pool(t)
 	ctx := context.Background()
 	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {

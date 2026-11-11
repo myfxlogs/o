@@ -157,9 +157,25 @@ func (i *Ingester) record(ctx context.Context, b Bill) (int, error) {
 		}
 		return 1, i.post(ctx, kind, b.BalChg, b, ccy, srcID, occurred)
 	default:
+		n := 0
 		if b.Fee != 0 { // 交易费/返佣（开平仓 taker 费入 fee kind）
-			return 1, i.post(ctx, "fee", b.Fee, b, ccy, srcID, occurred)
+			if err := i.post(ctx, "fee", b.Fee, b, ccy, srcID, occurred); err != nil {
+				return n, err
+			}
+			n++
 		}
+		// 升件#10063①：合约域 trade bill 现金守恒——balChg=PnL+fee，
+		// fee 单独入账后 Pnl 分量亦须落 cashflow（止 fin_venue_bill=
+		// 每平一仓漏记实现盈亏→对账 phantom diff 源；trade_pnl 有册
+		// 无产者即此洞）。SPOT/MARGIN 现货腿走 legCash 毛额对称径，
+		// bill 补记=双计——本支只钉衍生品型谱。
+		if b.Pnl != 0 && (b.InstType == "SWAP" || b.InstType == "FUTURES" || b.InstType == "OPTION") {
+			if err := i.post(ctx, "trade_pnl", b.Pnl, b, ccy, srcID, occurred); err != nil {
+				return n, err
+			}
+			n++
+		}
+		return n, nil
 	}
 	return 0, nil
 }

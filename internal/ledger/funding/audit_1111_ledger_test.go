@@ -1,20 +1,11 @@
-// audit_1111_ledger_test.go —— 审计/账本对账 RED 锚（audit/1111-ledger）：
-// 断言正确语义——修复落库后自然转绿，门转正为回归锚。
-// 显跑：AUDIT_RED=1 go test ./internal/ledger/funding
+// audit_1111_ledger_test.go —— 审计/账本对账 回归锚（audit/1111-ledger 修复转绿落库）：
+// 断言正确语义常驻——三锚即修复面回归。/funding
 package funding
 
 import (
-	"os"
 	"testing"
 	"time"
 )
-
-func auditRedGate(t *testing.T) {
-	t.Helper()
-	if os.Getenv("AUDIT_RED") != "1" {
-		t.Skip("audit RED 锚——修复期显跑: AUDIT_RED=1 go test -run " + t.Name() + " ./internal/ledger/funding；修好后去门转正为回归锚")
-	}
-}
 
 // ① 合约域 trade bill 实现盈亏漏账：OKX SWAP/FUT 平仓 bill 的 balChg=
 // 实现PnL+fee（官义），ingest record() default 支只记 fee——Pnl 分量进
@@ -26,7 +17,6 @@ func auditRedGate(t *testing.T) {
 // ——本锚只钉合约域（instType=SWAP/FUT/OPTION 类）bill 的现金守恒：
 // Σcashflow(bill 源行)==balChg。
 func TestAuditContractBillPnlUnbooked(t *testing.T) {
-	auditRedGate(t)
 	ctx, pool := setup(t)
 	mkPos(t, ctx, pool, "BTC-USDT-SWAP")
 	nowMs := time.Now().Add(-time.Minute).UnixMilli()
