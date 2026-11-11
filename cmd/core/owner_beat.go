@@ -85,8 +85,17 @@ func (c coreService) profitDailyBeat(ctx context.Context) {
 	if !gaugeDue(ctx, c, "profit_daily", fp, ownerBeatEvery) {
 		return
 	}
-	note := fmt.Sprintf("v=%s 盈利报告: 24h净%.4f 30d累%.4f 在仓%d live+probe%d——纯账页件,空转/负产出告警面归 commercial 探针",
-		fp, net24, net30, openPos, liveN)
+	// vs 目标8%——总纲钦定线同框（业主令 11-11⑩：目标数摆眼前不靠记性）。
+	// 年化=30d净×(365/30)/NAV 净值；NAV 缺/陈>48h 行省略（同 idle_capital 判据）。
+	var nav *float64
+	target := ""
+	if err := c.pool.QueryRow(ctx, `SELECT equity FROM md_equity_curve
+		WHERE ccy='NAV' AND ts>now()-interval '48 hours'
+		ORDER BY ts DESC LIMIT 1`).Scan(&nav); err == nil && nav != nil && *nav > 0 {
+		target = fmt.Sprintf(" 年化%.2f%%vs目标≥8%%", net30*365/30 / *nav * 100)
+	}
+	note := fmt.Sprintf("v=%s 盈利报告: 24h净%.4f 30d累%.4f 在仓%d live+probe%d%s——纯账页件,空转/负产出告警面归 commercial 探针",
+		fp, net24, net30, openPos, liveN, target)
 	if _, err := c.pool.Exec(ctx,
 		`INSERT INTO ops_event(seat,event,ticket,note) VALUES('探测席','量表','profit_daily',$1)`,
 		note); err != nil {

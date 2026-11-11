@@ -80,3 +80,12 @@ venue 配对面+一切「如实记」beat 类。显式 okx.symbols 清单不展�
 - class: 探针健康
 - query: SELECT esc_scope,count(*) FROM ops_event WHERE event='venue接入' AND note LIKE 'beat=草案 %零命中%' AND ts>now()-interval '36 hours' GROUP BY 1 HAVING count(*)>=10
 - threshold: ≥10 连零 36h=达阈应升件；升件面 24h 内无 pair_zero 行=探针失效人工复核
+
+## 变体②「陈值=不判」生产者沉默（2026-11-11 补）
+
+同族另一形：读件按「证据陈=不判」守假证据律（deployEscCheck NAV 48h
+判据、profit_daily 年化目标栏）——**不判=行为正确,但生产者死了无人
+报丧**。md_equity_curve NAV 11-09 断供 2d（原 6-11 拍/日）,idle_capital
+与年化目标两读件同盲零觉。修法同族:为该写件立缺席探 navStaleEscCheck
+（max(ts)>24h→数据缺升件）。判据推而广之:**凡「陈值=不判」读件,其
+上游生产者必配缺席探**——不判是证据律,缺席探是讣告职。
