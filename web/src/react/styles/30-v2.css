@@ -224,6 +224,52 @@
   line-height: 1.6;
 }
 
+/* —— 异常摘要条——异常点名置顶（全绿=条整不渲——异常是页存在的理由） —— */
+.v2-alert {
+  max-width: 1080px;
+  margin: 0 auto clamp(16px, 3vw, 24px);
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 13px clamp(17px, 3vw, 24px);
+  background: var(--v2-surface);
+  border-radius: var(--v2-r-panel);
+  box-shadow: var(--v2-sh-panel);
+  border-left: 3px solid var(--critical);
+  font-size: 14px;
+  font-weight: 550;
+  line-height: 1.5;
+}
+.v2-alert .dot {
+  margin-top: 5px;
+  flex: none;
+}
+
+/* —— ExchSections 组在 v2-panel 内的边距适配（原 20-cards 左边距偏大
+   系为 .card 内排设计——panel 下收拢对齐行列） —— */
+.v2-panel .exch-sec {
+  margin: 0 clamp(11px, 2vw, 18px) 8px;
+}
+.v2-panel .exch-sec:last-child {
+  margin-bottom: 12px;
+}
+.v2-chips {
+  padding: 0 clamp(17px, 3vw, 24px) 16px;
+}
+
+/* —— 指路行——单源件他页寻（安静链接行非 CTA） —— */
+.v2-linkrow {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 2px 4px 8px;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.v2-linkrow a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
 /* —— 玻璃壳层：mobile topbar/tabbar 压滚动内容=saturate(180%)+blur(20)
    法定方（重叠层才上玻璃——skill 铁律；桌面 side 不叠内容保固面） —— */
 @media (max-width: 767px) {

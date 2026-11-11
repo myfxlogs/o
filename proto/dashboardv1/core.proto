@@ -840,6 +840,7 @@ message FaceRow {
   google.protobuf.Timestamp last_write = 6;
   int64 lag_s = 7;                      // 鲜度滞后秒（无行=0）
   string note = 8;
+  string host = 9;                      // 宿主机组（oci/sg——生产 vs 采集分组锚）
 }
 message ProbeBeat {
   string esc_class = 1;

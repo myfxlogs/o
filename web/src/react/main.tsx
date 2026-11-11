@@ -9,7 +9,6 @@ import { OverviewPage } from "./pages/Overview";
 import { MoneyPage } from "./pages/Money";
 import { DevicePage } from "./pages/Device";
 import { DecisionPage } from "./pages/Decision";
-import { SystemPage } from "./pages/System";
 import { CockpitPage } from "./pages/Cockpit";
 import { TrxPage } from "./pages/Trx";
 import { ReviewPage } from "./pages/Review";
@@ -29,7 +28,6 @@ const ROUTES: RouteDef[] = [
   { path: "/device", label: "设备", el: <DevicePage /> },
   { path: "/decision", label: "决策", el: <DecisionPage /> },
   { path: "/cockpit", label: "驾驶舱", el: <CockpitPage /> },
-  { path: "/system", label: "系统", el: <SystemPage /> },
   { path: "/trx", label: "TRX", el: <TrxPage /> },
   { path: "/review", label: "复盘", el: <ReviewPage /> },
   { path: "/onboard", label: "接入", el: <OnboardPage /> },
