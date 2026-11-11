@@ -1,13 +1,13 @@
 // Floor.tsx —— 交易大厅壳层（业主令 11-11 活物世界观第三版·写实办公室）。
 // 三房间：大厅(MainHall·写实家具)/档案室(ArchiveRoom)/机房(ServerRoom)，
 // 门点切换非聚焦；悬停详情/点击聚焦到中央=floorFocus 承接，数据全接 RPC。
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { client } from "../api";
 import { useLive } from "../hooks";
 import { onLive } from "../stream";
 import { Skeleton, ErrorState } from "../components/ui";
 import { P } from "../components/iso";
-import { FocusBody, type Tip } from "./floorFocus";
+import { FocusBody, GHOSTS, ghostPos, type Tip } from "./floorFocus";
 import { ArchiveRoom } from "./floorArchive";
 import { MainHall, ServerRoom } from "./floorOffice";
 
@@ -16,7 +16,7 @@ const fmtMoney = (v: number) =>
 
 type Room = "floor" | "archive" | "server";
 const VB: Record<Room, { x: number; y: number; w: number; h: number }> = {
-  floor: { x: 470, y: 150, w: 940, h: 560 },
+  floor: { x: 390, y: 120, w: 960, h: 590 },
   archive: { x: 400, y: 140, w: 800, h: 480 },
   server: { x: 380, y: 140, w: 760, h: 440 },
 };
@@ -27,10 +27,28 @@ export function FloorPage() {
   const t = useLive(["ev_pipeline"], () => client.getDecisionTrail({ limit: 12 }));
   const [live, setLive] = useState(false);
   const [now, setNow] = useState(() => new Date());
+  const [walk, setWalk] = useState<{ path: [number, number][]; tone: string; k: number } | null>(null);
+  const lastFact = useRef(0);
   const [tip, setTip] = useState<Tip | null>(null);
   const [focus, setFocus] = useState<Tip | null>(null);
   const [room, setRoom] = useState<Room>("floor");
   useEffect(() => onLive((v) => setLive(!!v)), []);
+  // 走位人——事实面新行触发的搬运人：领命/移交=白板→工位（蓝），
+  // 销/部署/完工=工位→档案门（绿）。首载基线不走（防历史行重放）。
+  useEffect(() => {
+    const f = t.data?.facts?.[0];
+    if (!f) return;
+    const id = Number(f.id);
+    if (!lastFact.current) { lastFact.current = id; return; }
+    if (id <= lastFact.current) return;
+    lastFact.current = id;
+    if (!/领命|移交|认领|销案|部署销|部署|落账毕|收口/.test(f.note)) return;
+    const done = /销案|部署销|部署|落账毕|收口|完成/.test(f.note);
+    const gi = GHOSTS.findIndex((gh) => gh.keys.some((k) => f.note.includes(k)));
+    const seatP = gi >= 0 ? (({ cx, y }) => P(cx, y + 1.1))(ghostPos(gi)) : P(11.2, 6.4);
+    const board = P(2.6, 2.3), door = P(0.3, 10.8);
+    setWalk({ path: done ? [seatP, board, door] : [board, seatP], tone: done ? "#3ddc84" : "#5b8def", k: id });
+  }, [t.data]);
   useEffect(() => {
     const i = setInterval(() => setNow(new Date()), 1000);
     const on = (e: KeyboardEvent) => {
@@ -72,14 +90,14 @@ export function FloorPage() {
 
   return (
     <div className="page v2">
-      <div className={`floor-scene${live ? " live" : " dark"}${focus ? " focused" : ""}`} style={{ aspectRatio: `${vb.w}/${vb.h}` }}>
+      <div className={`floor-scene${live ? " live" : " dark"}${focus ? " focused" : ""}`}>
         {room === "archive" ? (
           <ArchiveRoom live={live} engCanon={engCanon} econCanon={econCanon}
             notes={t.data?.trail ?? []} hot={hot} onExit={() => setRoom("floor")} />
         ) : room === "server" ? (
           <ServerRoom live={live} warn={openProbes > 0} hot={hot} onExit={() => setRoom("floor")} />
         ) : (
-        <svg viewBox="-470 -150 940 560" className="floor-svg">
+        <svg viewBox="-390 -120 960 590" className="floor-svg">
           <defs>
             <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#a8c4de" />
@@ -93,7 +111,8 @@ export function FloorPage() {
           <MainHall live={live} probes={probes} openProbes={openProbes}
             notes={wallNotes} openCount={openEsc.length + openReq.length}
             facts={t.data?.facts ?? []} s={s} vens={vens} hot={hot} toRoom={setRoom}
-            hover={setTip} unhover={() => setTip(null)} />
+            hover={setTip} unhover={() => setTip(null)}
+            walk={walk ?? undefined} walkDone={() => setWalk(null)} />
         </svg>
         )}
 
@@ -120,9 +139,9 @@ export function FloorPage() {
 
         {/* 双钟读数+NAV 屏数（仅主厅——viewBox 归一按当前房间） */}
         {room === "floor" && (<>
-          {([["utc", P(0, 7.5, 2.55), utc], ["bj", P(11.9, 0, 2.45), bj]] as const).map(([k, [px, py], v]) => (
+          {([["utc", P(0, 7.9, 2.55), utc], ["bj", P(14.0, 0, 2.45), bj]] as const).map(([k, [px, py], v]) => (
             <div key={k} className="iso-clock" style={{ left: `${((px + vb.x) / vb.w * 100).toFixed(2)}%`, top: `${((py + vb.y) / vb.h * 100).toFixed(2)}%` }}>{v.slice(0, 5)}</div>))}
-          <div className="iso-nav num" style={{ left: `${((P(5.8, 0, 1.95)[0] + vb.x) / vb.w * 100).toFixed(2)}%`, top: `${((P(5.8, 0, 1.95)[1] + vb.y) / vb.h * 100).toFixed(2)}%` }}>
+          <div className="iso-nav num" style={{ left: `${((P(7.0, 0, 1.95)[0] + vb.x) / vb.w * 100).toFixed(2)}%`, top: `${((P(7.0, 0, 1.95)[1] + vb.y) / vb.h * 100).toFixed(2)}%` }}>
             {o ? fmtMoney(o.navTotal) : "—"}
           </div>
         </>)}

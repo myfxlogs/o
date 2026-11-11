@@ -5,9 +5,10 @@
 .floor-scene {
   position: relative;
   width: 100%;
-  max-width: 1080px;
-  margin: 0 auto;
-  aspect-ratio: 940 / 560;
+  /* 破 1080 轨——大厅吃满内容盒（业主令：画布要满屏） */
+  max-width: none;
+  height: calc(100dvh - 96px);
+  min-height: 560px;
   background: #11151d;
   border: 1px solid #2a3140;
   border-radius: 14px;
