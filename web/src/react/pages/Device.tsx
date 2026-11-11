@@ -68,6 +68,7 @@ export function DevicePage() {
     client.getSystemHealth({})
   );
   const ov = useLive(["ev_position", "ev_account"], () => client.overview({}));
+  const probePager = usePager(g.data?.probes ?? [], 8);
 
   if (g.loading && !g.data) return <Skeleton rows={6} />;
   if (g.err && !g.data) return <ErrorState msg={g.err} onRetry={g.reload} />;
@@ -102,7 +103,6 @@ export function DevicePage() {
   const worst = Math.max(0, ...allBad.map((r) => r.state));
   const s = d.session;
   const staff = ov.data?.staff ?? [];
-  const probePager = usePager(d.probes ?? [], 8);
 
   return (
     <div className="page v2">
