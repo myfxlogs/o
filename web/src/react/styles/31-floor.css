@@ -203,8 +203,9 @@ button.v2-row.ft-row {
 /* —— floor v3 全屏全息舱(floorStage.tsx):AI 舱图底+活件浮层 —— */
 .page.v2.fstage-page { max-width: none; padding: 0; }
 .fstage {
-  position: relative; width: min(100%, calc((100vh - 40px) * 1792 / 1006));
-  margin: 0 auto; aspect-ratio: 1792 / 1006;
+  /* 钉视口——跳出 .main max-width:1280 祖宗锁+拆 AI 图宽高比锁;
+     左让 180px 侧栏保持可导航 */
+  position: fixed; inset: 0 0 0 180px; z-index: 5;
   background:
     /* 地环(桌面位) */ radial-gradient(ellipse 52% 26% at 50% 72%, transparent 62%, rgba(96,200,255,.32) 64%, rgba(96,200,255,.32) 66%, transparent 68%),
     radial-gradient(ellipse 62% 32% at 50% 74%, rgba(30,80,140,.25), transparent 70%),
@@ -213,6 +214,9 @@ button.v2-row.ft-row {
     /* 舱体渐变 */ linear-gradient(180deg, #070d18 0%, #0b1626 30%, #10203a 55%, #0a1524 78%, #060b14 100%);
   background-color: #060b14;
   overflow: hidden; user-select: none;
+}
+@media (max-width: 767px) {
+  .fstage { inset: 48px 0 0 0; }
 }
 /* 中央全息球=CSS 球(在班泛光,脑闪增亮) */
 .fs-brain .fs-brain-glow {
