@@ -8,12 +8,13 @@ import { onLive } from "../stream";
 import { Skeleton, ErrorState } from "../components/ui";
 import { plainText } from "../components/plain";
 import { navigate } from "../router";
-import { FocusBody, GHOSTS, ghostFact, ghostSt, type Tip } from "./floorFocus";
+import { FocusBody, GHOSTS, ghostSt, type Tip } from "./floorFocus";
+import { Octopus } from "../components/octopus";
+import { useOctoFeed } from "./floorOcto";
 
 const fmtMoney = (v: number) =>
   "$" + v.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const RACKS = ["o-core", "PG", "collector", "projector", "sweeper", "eventbus"];
-const ST_TXT: Record<string, string> = { ghost: "毛坯", pin: "已立项", build: "在建", done: "已完工" };
 
 export function FloorPage() {
   const ov = useLive(["ev_position", "ev_account"], () => client.overview({}));
@@ -46,9 +47,13 @@ export function FloorPage() {
     bj = now.toLocaleTimeString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false });
 
   // 器官态推导——同 facts 窗驱动（GhostRow 同一套,点击开详情）
-  const organs = GHOSTS.map((gh, i) => ({
-    gh, i, st: ghostSt(gh, facts), fact: ghostFact(gh, facts),
-  }));
+  const organs = useMemo(() => GHOSTS.map((gh, i) => ({
+    gh, i, st: ghostSt(gh, facts),
+    // 域信号率——该器官关键词在事实窗内的命中数=章鱼腕搏动源
+    hits: facts.filter((f) => f.event !== "量表" && gh.keys.some((k) => f.note.includes(k))).length,
+  })), [facts]);
+  // 章鱼实时信号(腕抽/脑闪/在办/动向)——floorOcto 拆件
+  const octo = useOctoFeed(facts, organs);
   const doneN = organs.filter((x) => x.st === "done").length;
   const buildN = organs.filter((x) => x.st === "build").length;
   const pinN = organs.filter((x) => x.st === "pin").length;
@@ -92,22 +97,21 @@ export function FloorPage() {
       )}
 
       <div className="v2-cols">
-        {/* 器官工位阵——9 瓦片,态色左条=事实推导,点击开详情 */}
+        {/* 器官章鱼——腕=器官四态,脑=会话席,搏动=域信号率;点击开详情 */}
         <section className="v2-panel">
           <div className="v2-panel-head">
             <h2 className="v2-panel-title">器官工位</h2>
             <span className="ink-3">{doneN}/{organs.length} 完工</span>
           </div>
-          <div className="ft-tiles">
-            {organs.map(({ gh, i, st, fact }) => (
-              <button key={gh.name} className={`ft-tile st-${st}${st === "build" ? " breathe" : ""}`}
-                onClick={() => setFocus({ k: "gh" + i, x: 0, y: 0, title: `工位 · ${gh.name}`, body: [gh.hint], to: "/decision" })}>
-                <span className="ft-tile-name">{gh.name}</span>
-                <span className="ft-tile-st">{ST_TXT[st]}{st === "done" ? " ✓" : st === "pin" ? " 📌" : ""}</span>
-                <span className="ft-tile-sub">{fact ? `据 #${String(fact.id)}` : "无事实行"}</span>
-              </button>
-            ))}
-          </div>
+          <Octopus
+            arms={organs.map(({ gh, i, st, hits }) => ({ i, name: gh.name, st, hits, flash: octo.flash.has(i) }))}
+            awake={!!s?.running}
+            brainFlash={octo.brainFlash}
+            brainNote={s?.running ? octo.claim ?? "收棒中" : undefined}
+            brainAct={octo.lastAct}
+            onPick={setFocus}
+          />
+          <div className="octo-legend">腕色=态（绿完工/金在建/蓝立项/灰毛坯）· 腕内光流=域信号率 · 腕抽=新行到达 · 脑=会话席</div>
         </section>
 
         {/* 钱径——NAV + venue 分腿,点击开详情 */}
