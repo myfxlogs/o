@@ -203,8 +203,9 @@ button.v2-row.ft-row {
 /* —— floor v3 全屏全息舱(floorStage.tsx):AI 舱图底+活件浮层 —— */
 .page.v2.fstage-page { max-width: none; padding: 0; }
 .fstage {
-  position: relative; width: min(100%, calc((100vh - 40px) * 1792 / 1006));
-  margin: 0 auto; aspect-ratio: 1792 / 1006;
+  /* 钉视口——跳出 .main max-width:1280 祖宗锁+拆 AI 图宽高比锁;
+     左让 180px 侧栏保持可导航 */
+  position: fixed; inset: 0 0 0 180px; z-index: 5;
   background:
     /* 地环(桌面位) */ radial-gradient(ellipse 52% 26% at 50% 72%, transparent 62%, rgba(96,200,255,.32) 64%, rgba(96,200,255,.32) 66%, transparent 68%),
     radial-gradient(ellipse 62% 32% at 50% 74%, rgba(30,80,140,.25), transparent 70%),
@@ -214,6 +215,9 @@ button.v2-row.ft-row {
   background-color: #060b14;
   overflow: hidden; user-select: none;
 }
+@media (max-width: 767px) {
+  .fstage { inset: 48px 0 0 0; }
+}
 /* 中央全息球=CSS 球(在班泛光,脑闪增亮) */
 .fs-brain .fs-brain-glow {
   background:
@@ -222,6 +226,12 @@ button.v2-row.ft-row {
     repeating-conic-gradient(from 0deg, transparent 0 8deg, rgba(110,210,255,.10) 9deg, transparent 10deg);
   border-radius: 50%;
 }
+.fs-brain { display: grid; place-items: center; }
+.fs-globe { width: 100%; height: 100%; object-fit: contain; opacity: .38;
+  filter: saturate(.7) brightness(.75); transition: opacity .6s, filter .6s; }
+.fs-brain.awake .fs-globe { opacity: .95; filter: drop-shadow(0 0 18px rgba(110,210,255,.35)); }
+.fs-brain.flash .fs-globe { opacity: 1; filter: drop-shadow(0 0 30px rgba(140,225,255,.6)); }
+.fs-brain-glow { position: absolute; inset: 0; pointer-events: none; }
 .fstage button { font: inherit; background: none; border: 0; cursor: pointer; }
 .fs-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; background: #6b7a90; }
 .fs-dot.ok { background: #4ade80; box-shadow: 0 0 6px #4ade80aa; }

@@ -8,6 +8,7 @@
 import { useEffect, useRef, useState } from "react";
 import botSeatUrl from "../assets/bot-seat.png";
 import botStandUrl from "../assets/bot-stand.png";
+import globeUrl from "../assets/holo-globe.png";
 import { plainText } from "../components/plain";
 import type { Fact, Tip } from "./floorFocus";
 
@@ -81,6 +82,7 @@ export function FloorStage(p: StageProps) {
       <button className={`fs-brain${p.awake ? " awake" : ""}${p.brainFlash ? " flash" : ""}`}
         style={{ left: "50%", top: "24%" }}
         onClick={() => p.onPick({ k: "desk", x: 0, y: 0, title: "会话席", body: [], to: "/device" })}>
+        <img src={globeUrl} alt="" className="fs-globe" draggable={false} />
         <span className="fs-brain-glow" />
       </button>
       <button className="fs-brain-txt" style={{ left: "50%", top: "44.5%" }}
