@@ -353,6 +353,9 @@ button.fs-ven:hover, button.fs-probe:hover, button.fs-queue:hover { background: 
 
 /* 贴图层——坐姿机=器官座,站姿机=常驻机;态=滤镜不调图 */
 .fs-seatwrap { position: absolute; transform: translate(-50%, -92%); z-index: 3; width: 8.6%; text-align: center; }
+/* 落地接触影——原图每席椅/机下都有地板影,缺了就读作悬空 */
+.fs-seatwrap::before { content: ""; position: absolute; left: 6%; right: 6%; bottom: 12%; height: 9%; z-index: -1;
+  border-radius: 50%; background: radial-gradient(ellipse, rgba(4,14,30,.55) 0%, transparent 70%); }
 .fs-bot { width: 100%; display: block; filter: drop-shadow(0 6px 10px rgba(0,0,0,.5)); pointer-events: none; }
 .fs-bot.flip { transform: scaleX(-1); }
 .fs-seatwrap.st-build .fs-bot { filter: sepia(.45) saturate(1.7) hue-rotate(-18deg) drop-shadow(0 6px 10px rgba(0,0,0,.5)); }
