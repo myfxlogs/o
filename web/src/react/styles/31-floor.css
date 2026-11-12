@@ -255,10 +255,8 @@ button.v2-row.ft-row {
   border-radius: 8px; padding: 5px 10px; backdrop-filter: blur(4px);
 }
 .fs-hud-sub { color: #7f95b2; font-weight: 400; margin-left: 8px; font-size: .85em; }
-/* 部署基线片——量表帧「部署=ver」钉脑下:部署在飞=版号滞后 */
-.fs-dep { position: absolute; transform: translateX(-50%); z-index: 3; pointer-events: none;
-  font-size: clamp(8px, .7vw, 10px); color: #a8dcff; padding: 1px 8px; border-radius: 5px;
-  background: rgba(40, 110, 180, .3); border: 1px solid rgba(120, 200, 255, .4); }
+/* 部署基线行——量表帧「部署=ver·age」挂脑文案第三行 */
+.fs-brain-line.dep { color: #7fd8ff; font-size: .82em; }
 /* 器官单牌——单落谁身谁亮:票号+段位,段位分色 */
 .fs-tkt { position: absolute; top: -2%; right: -14%; z-index: 2; pointer-events: none; white-space: nowrap;
   font-size: clamp(7px, .62vw, 9px); font-weight: 700; color: #ffe9b8; padding: 1px 6px; border-radius: 5px;
@@ -277,13 +275,13 @@ button.v2-row.ft-row {
 @keyframes fs-alarmblink { 50% { filter: brightness(1.5); } }
 
 /* 中央全息球=脑——透明热区罩球,在班=罩层泛光,脑闪=新行到 */
-.fs-brain { position: absolute; transform: translate(-50%, -50%); width: 21%; aspect-ratio: 1; border-radius: 50%; z-index: 2; }
+.fs-brain { position: absolute; transform: translate(-50%, -50%); width: 30%; aspect-ratio: 1; aspect-ratio: 1; border-radius: 50%; z-index: 2; }
 .fs-brain-glow { position: absolute; inset: -4%; border-radius: 50%; border: 2px solid rgba(110, 230, 255, .35); box-shadow: 0 0 18px rgba(110, 230, 255, .2), inset 0 0 24px rgba(110, 230, 255, .08); opacity: .45; }
 .fs-brain.awake .fs-brain-glow { opacity: 1; border-color: rgba(110, 230, 255, .8); box-shadow: 0 0 24px rgba(110, 230, 255, .55), inset 0 0 30px rgba(110, 230, 255, .18); animation: fs-breathe 3.6s ease-in-out infinite; }
 .fs-brain.flash .fs-brain-glow, .fs-brain.flash { filter: brightness(1.6); }
 @keyframes fs-breathe { 50% { opacity: .55; } }
 /* 光斗——原图件:线框半球碗从台孔升起托球底(亮度=alpha 辉光) */
-.fs-bowl { position: absolute; transform: translate(-50%, -50%) scaleY(.72); width: 26%; z-index: 1;
+.fs-bowl { position: absolute; transform: translate(-50%, -50%) scaleY(.72); width: 32%; z-index: 1;
   pointer-events: none; opacity: .9; animation: fs-beamflow 4s ease-in-out infinite; }
 @keyframes fs-beamflow { 0%, 100% { opacity: .72; } 50% { opacity: 1; } }
 

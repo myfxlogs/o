@@ -11,8 +11,6 @@ import botBackUrl from "../assets/bot-seat-back.png";
 import botStandUrl from "../assets/wall-station.png";
 import rackUrl from "../assets/server-rack.png";
 import globeUrl from "../assets/holo-globe.png";
-import bowlUrl from "../assets/holo-bowl.png";
-import tableUrl from "../assets/dais-ring.png";
 import chairUrl from "../assets/scoop-chair.png";
 import hallUrl from "../assets/room-shell.jpg";
 import { plainText } from "../components/plain";
@@ -38,17 +36,17 @@ const fmtM = (v: number) => "$" + v.toLocaleString("zh-CN", { maximumFractionDig
 // SEAT_POS——9座全站环台缘外侧:台心(50,66) rx=35 ry=19.5 椭圆参数
 // θ=170°..10° 左缘→前中→右缘;尺度按θ景深(前大侧小)
 const SEAT_POS = [
-  [15.5, 69.4, 0.7], [19.7, 75.8, 0.8], [27.5, 80.9, 0.9], [38, 84.3, 1.0],
-  [50, 85.5, 1.05], [62, 84.3, 1.0], [72.5, 80.9, 0.9], [80.3, 75.8, 0.8], [84.5, 69.4, 0.7],
+  [11.5, 62, 0.7], [16.2, 67.5, 0.8], [24.9, 72, 0.9], [36.6, 75.4, 1.0],
+  [50, 76, 1.05], [63.4, 75.4, 1.0], [75.1, 72, 0.9], [83.8, 67.5, 0.8], [88.5, 62, 0.7],
 ];
 // 朝向:围桌朝台心——左半朝右(r)、前中背影(b)、右半朝左(l,翻转)
 const SEAT_FACE = ["r", "r", "r", "b", "b", "b", "l", "l", "l"] as const;
-const MACH_POS = [[10, 41], [20, 40], [33, 39], [64, 39], [78, 40], [90, 41], [46, 39.5], [55, 39.5]];
+const MACH_POS = [[6, 38], [14, 37], [22, 36], [30, 36], [68, 36], [76, 36], [84, 37], [92, 38]];
 // 物理主机机柜位——墙沿工位间缝,真硬件件(非人形:器/服/机三形分家)
-const HOST_POS = [[5, 46], [85, 46.5], [95, 46], [28, 47]];
-// 台面工单板位——环台面上散件,一待办一板(原图台面散件=活工单)
-const PAD_POS = [[32, 64], [41, 66.5], [50, 67.5], [59, 66.5], [68, 64], [27, 59.5], [73, 59.5], [50, 71]];
-const SCREEN_POS = { A: [11, 16], B: [32, 16], C: [67, 16], D: [87, 16] } as const;
+const HOST_POS = [[4, 44], [96, 44], [40, 42], [60, 42]];
+// 台面工单板位——环台面环带散件,一待办一板(原图台面散件=活工单)
+const PAD_POS = [[50, 70], [65.4, 67.4], [34.6, 67.4], [70.8, 64.5], [29.2, 64.5], [73.6, 60.9], [26.4, 60.9], [50, 74]];
+const SCREEN_POS = { A: [9, 15], B: [24, 15], C: [70, 15], D: [86, 15] } as const;
 
 export function FloorStage(p: StageProps) {
   const [pulse, setPulse] = useState<Set<number>>(new Set());
@@ -95,15 +93,7 @@ export function FloorStage(p: StageProps) {
         {p.counts.done}完工·{p.counts.build}在建·{p.counts.pin}立项·{p.queue.length}待办
         <span className="fs-hud-sub">UTC {p.utc.slice(0, 5)} · 北京 {p.bj.slice(0, 5)}</span>
       </div>
-      {/* 部署基线片——量表帧「部署=ver(age)」钉在脑名旁 */}
-      {(() => {
-        const f = p.facts.find((x) => x.event === "量表" && x.note.includes("部署="));
-        const m = f?.note.match(/部署=([0-9a-f]{9,12})\(([^)]*)\)/);
-        return m ? (
-          <span className="fs-dep" style={{ left: "50%", top: "48.5%" }}
-            title={`部署基线 ${m[1]}·${m[2]}前`}>▣{m[1].slice(0, 9)}</span>
-        ) : null;
-      })()}
+      {/* 部署基线——量表帧「部署=ver(age)」,并入脑文案行免撞碗沿 */}
       {/* 顶右警报灯——积压/断流红闪 */}
       <button className={`fs-alarm${alarm ? " on" : ""}`}
         onClick={() => p.onNav("/decision")}
@@ -123,15 +113,15 @@ export function FloorStage(p: StageProps) {
         onClick={() => p.onPick({ k: "desk", x: 0, y: 0, title: "会话席", body: [], to: "/device" })}>
         <span className="fs-brain-line main">{p.awake ? p.claim ?? "在班·收棒中" : "脑·下班"}</span>
         {p.lastAct && <span className="fs-brain-line sub">{p.lastAct}</span>}
+        {(() => {
+          const f = p.facts.find((x) => x.event === "量表" && x.note.includes("部署="));
+          const m = f?.note.match(/部署=([0-9a-f]{9,12})\(([^)]*)\)/);
+          return m ? <span className="fs-brain-line dep">▣{m[1].slice(0, 9)}·{m[2]}前</span> : null;
+        })()}
       </button>
 
-      {/* 环台——原图圆环巨台:藏蓝环面+同心光环+中心孔,NAV 嵌孔 */}
-      <img src={tableUrl} className="fs-table" style={{ left: "50%", top: "66%" }} alt="" draggable={false} />
-      {/* 光斗——原图件:线框半球碗从台孔升起托球底(台↔球连接体) */}
-      <img src={bowlUrl} className="fs-bowl" style={{ left: "50%", top: "51%" }} alt="" draggable={false} />
-
-      {/* 台心孔=喙·NAV 钱芯(钱从台心入) */}
-      <button className="fs-nav" style={{ left: "50%", top: "60%" }}
+      {/* 环台+光斗已烘进底图(原像素100%)——NAV 嵌台心孔 */}
+      <button className="fs-nav" style={{ left: "50%", top: "57%" }}
         onClick={() => p.onPick({ k: "nav", x: 0, y: 0, title: "NAV · 收银", body: [], to: "/" })}>
         <b>{p.nav ? fmtM(p.nav.total) : "—"}</b>
         <span>今日 {p.nav ? (p.nav.today >= 0 ? "+" : "−") + fmtM(Math.abs(p.nav.today)) : "—"}</span>
@@ -141,7 +131,7 @@ export function FloorStage(p: StageProps) {
       {p.organs.map((o, k) => (
         <button key={o.i}
           className={`fs-seatwrap st-${o.st} face-${SEAT_FACE[k]}${o.flash || pulse.has(o.i) ? " pulse" : ""}`}
-          style={{ left: `${SEAT_POS[k][0]}%`, top: `${SEAT_POS[k][1]}%`, width: `${8.6 * (SEAT_POS[k][2] ?? 1)}%` }}
+          style={{ left: `${SEAT_POS[k][0]}%`, top: `${SEAT_POS[k][1]}%`, width: `${10.4 * (SEAT_POS[k][2] ?? 1)}%` }}
           onClick={() => p.onPick({ k: "gh" + o.i, x: 0, y: 0, title: `工位 · ${o.name}`, body: [], to: "/decision" })}>
           {/* pin/ghost=空椅(座摆人未坐);build/done=坐机;朝向=围桌朝台心 */}
           <img src={o.st === "pin" || o.st === "ghost" ? chairUrl : SEAT_FACE[k] === "b" ? botBackUrl : botSeatUrl} alt={o.name}
