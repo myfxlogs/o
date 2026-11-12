@@ -105,6 +105,14 @@ ORDER BY t.ts + COALESCE((substring(t.note from '期限=([0-9]+)h'))::int,24)*in
 
 ### ② 逐件处置（三档判）
 
+**懂你口径页（工单#11384 器官——处置前可引）**：业主意图已归十行
+口径账，`SELECT note FROM ops_event WHERE event='口径' AND
+ticket='owner_intent' ORDER BY id`——红线/放权/读面/亏损预算/解锁/自裁
+/成年判据/问≠令/目的锚/生成径十键在案，判词引口径键名（如
+`口径:redline-principal`）即锚业主令。新业主令落账时处置会话随件
+续写口径行（可泛化者归键,特例不滥归）；口径行 append-only,
+改判=新行替旧不删。
+
 - **改进提案**（seat=改进矿工 esc_class=改进提案 的升件）→
   先评估判据成立否：成立→变体改码径（同「要码修」）；已修/不成立
   →销+note 引证据。判据永远核现况不核历史（提案 note 是快照）。
