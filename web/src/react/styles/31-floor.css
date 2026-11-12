@@ -204,7 +204,8 @@ button.v2-row.ft-row {
 .page.v2.fstage-page { max-width: none; padding: 0; }
 .fstage {
   /* 钉视口——跳出 .main max-width:1280 祖宗锁+拆 AI 图宽高比锁;
-     左让 180px 侧栏保持可导航 */
+     左让 180px 侧栏保持可导航;屏多大舱多大(业主令:不留白,bor/面板
+     另盖层) */
   position: fixed; inset: 0 0 0 180px; z-index: 5;
   background-size: cover; background-position: center; background-color: #060b14;
   overflow: hidden; user-select: none;
