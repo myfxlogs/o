@@ -14,7 +14,7 @@ export type Tip = { k: string; x: number; y: number; title: string; body: string
 
 export const GHOSTS: { name: string; st: "ghost" | "pin" | "build" | "done"; hint: string; keys: string[] }[] = [
   { name: "B 元探", st: "ghost", hint: "缺仪器自动发探——自模型胚", keys: ["元探", "自动发探", "缺仪器"] },
-  { name: "C 自态摘要", st: "ghost", hint: "会话冷启动账页", keys: ["自态", "#10489"] },
+  { name: "C 自态摘要", st: "ghost", hint: "会话冷启动账页", keys: ["自态"] },
   { name: "D 目标发起", st: "ghost", hint: "进水口已通·7源已抓", keys: ["目标发起", "abcd", "A-D", "进水口", "intake"] },
   { name: "旧禁条作废", st: "ghost", hint: "种子行+引尸探在案", keys: ["禁条", "红线重定义", "redline", "法典"] },
   { name: "做梦", st: "ghost", hint: "离线反刍成规律", keys: ["做梦"] },
@@ -30,18 +30,24 @@ export const GHOSTS: { name: string; st: "ghost" | "pin" | "build" | "done"; hin
 export type Fact = { id: bigint; event?: string; note: string };
 // 四态词谱（±25 字邻域判，done>build>pin 优先级，无词兜底 build=有动过）：
 //   pin=认领未动工（领命/工单/备记类）；build=真在施（施工/落码/处置类）。
-const DONE_RE = /销案|部署销|落账毕|法典已部署|已部署|已完成|收口|上线|落地|启用|投产|生效/;
+const DONE_RE = /销案|部署销|落账毕|法典已部署|已部署|已完成|收口|上线|落地|启用|投产|生效|已?销(?=[：:—→→，。、;]|$)|merge|部署至|产线/;
 const BUILD_RE = /施工|在施|开工|落码|码修|修码|部署中|处置中|实现|开发中|改造|推进/;
 const PIN_RE = /领命|工单|业主令|备记|清单|纳入|认领|立项|排期|消化径/;
 export function ghostFact(gh: (typeof GHOSTS)[number], facts: Fact[]): Fact | undefined {
-  return facts.find((r) => gh.keys.some((k) => r.note.includes(k)));
+  // 量表行是节奏心跳不是态断言——跳过,否则无态词分句被兜底判成 build
+  return facts.find((r) => r.event !== "量表" && gh.keys.some((k) => r.note.includes(k)));
 }
 export function ghostSt(gh: (typeof GHOSTS)[number], facts: Fact[]): "ghost" | "pin" | "build" | "done" {
   const hit = ghostFact(gh, facts);
   if (!hit) return "ghost";
+  // 同分句邻域: 器官名所在的分句内找态词——防一注多器官时邻句态词串味。
+  // 句界=，。；、：:|（） —— →不算界(它是工序连接符"认领→修→部署→销"为一句)
   const near = (re: RegExp) => gh.keys.some((k) => {
     const i = hit.note.indexOf(k);
-    return i >= 0 && re.test(hit.note.slice(Math.max(0, i - 25), i + k.length + 25));
+    if (i < 0) return false;
+    const seg = hit.note.slice(0, i).match(/[^，。；;|、：:（）()]*$/)?.[0] ?? "";
+    const after = hit.note.slice(i + k.length).match(/^[^，。；;|、：:]*/)?.[0] ?? "";
+    return re.test(seg + k + after);
   });
   return near(DONE_RE) ? "done" : near(BUILD_RE) ? "build" : near(PIN_RE) ? "pin" : "build";
 }
