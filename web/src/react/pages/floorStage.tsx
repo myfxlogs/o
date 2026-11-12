@@ -9,6 +9,10 @@ import { useEffect, useRef, useState } from "react";
 import botSeatUrl from "../assets/bot-seat.png";
 import botStandUrl from "../assets/bot-stand.png";
 import globeUrl from "../assets/holo-globe.png";
+import tableUrl from "../assets/conf-table.png";
+import chairUrl from "../assets/robot-chair.png";
+import hallUrl from "../assets/bridge-hall.jpg";
+import frameUrl from "../assets/holo-dashboard.png";
 import { plainText } from "../components/plain";
 import type { Fact, Tip } from "./floorFocus";
 
@@ -31,10 +35,37 @@ const fmtM = (v: number) => "$" + v.toLocaleString("zh-CN", { maximumFractionDig
 // pin 器居后缘缩尺(景深+立项=快入座)
 const SEAT_POS = [
   [76, 62, 0.85], [63, 71, 1.0], [37, 71, 1.0], [24, 62, 0.85], [20, 53, 0.7],
-  [33, 46, 0.65], [68, 45, 0.65], [84, 54, 0.7], [50, 72, 1.05],
+  [31, 49, 0.65], [68, 45, 0.65], [84, 54, 0.7], [50, 74, 1.0],
 ];
 const MACH_POS = [[74, 38], [80, 40], [34, 38], [26, 35], [90, 39], [93, 33]];
 const SCREEN_POS = { A: [11, 15], B: [26, 15], C: [68, 15], D: [85, 15] } as const;
+
+// 业主投件道——文件 POST /inbox,回执显落径几秒
+function Uploader() {
+  const [msg, setMsg] = useState("");
+  const [busy, setBusy] = useState(false);
+  const up = async (f: File) => {
+    setBusy(true); setMsg("");
+    try {
+      const fd = new FormData(); fd.append("file", f);
+      const r = await fetch("/inbox", { method: "POST", body: fd });
+      const j = await r.json();
+      setMsg(r.ok ? `已投 ${j.path}` : `败 ${j.err ?? r.status}`);
+    } catch (e) { setMsg("败 网络"); }
+    setBusy(false);
+    window.setTimeout(() => setMsg(""), 8000);
+  };
+  return (
+    <span className="fs-up">
+      <label className={`fs-up-btn${busy ? " busy" : ""}`}>
+        <input type="file" style={{ display: "none" }} disabled={busy}
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) up(f); e.target.value = ""; }} />
+        {busy ? "投…" : "投件"}
+      </label>
+      {msg && <span className="fs-up-msg">{msg}</span>}
+    </span>
+  );
+}
 
 export function FloorStage(p: StageProps) {
   const [pulse, setPulse] = useState<Set<number>>(new Set());
@@ -64,7 +95,7 @@ export function FloorStage(p: StageProps) {
   const alarm = openProbes.length > 0 || p.queue.length > 6 || !p.live;
 
   return (
-    <div className="fstage">
+    <div className="fstage" style={{ backgroundImage: `url(${hallUrl})` }}>
       {/* 顶左 HUD——计数+时钟(原 hero 压缩位) */}
       <div className="fs-hud">
         <span className={`fs-dot ${p.live ? "ok" : "bad"}`} />
@@ -77,6 +108,8 @@ export function FloorStage(p: StageProps) {
         title={alarm ? `警 ${openProbes.length}探针·${p.queue.length}待办` : "盘面静"}>
         {alarm ? `⚠ ${openProbes.length + p.queue.length}` : "·"}
       </button>
+      {/* 顶右投件道——业主丢件到本机 inbox(dev/sg 皆达,落径回执) */}
+      <Uploader />
 
       {/* 中央全息球=脑——在班泛光,球下在办+动向 */}
       <button className={`fs-brain${p.awake ? " awake" : ""}${p.brainFlash ? " flash" : ""}`}
@@ -91,8 +124,11 @@ export function FloorStage(p: StageProps) {
         {p.lastAct && <span className="fs-brain-line sub">{p.lastAct}</span>}
       </button>
 
-      {/* 球座悬带=喙·NAV 钱芯(全息球垂直落点=钱入处) */}
-      <button className="fs-nav" style={{ left: "50%", top: "56%" }}
+      {/* 环桌——器官座围的主桌,中空圆心嵌 NAV 喙 */}
+      <img src={tableUrl} className="fs-table" style={{ left: "50%", top: "64%" }} alt="" draggable={false} />
+
+      {/* 桌心孔=喙·NAV 钱芯(钱从桌心入) */}
+      <button className="fs-nav" style={{ left: "50%", top: "61.5%" }}
         onClick={() => p.onPick({ k: "nav", x: 0, y: 0, title: "NAV · 收银", body: [], to: "/" })}>
         <b>{p.nav ? fmtM(p.nav.total) : "—"}</b>
         <span>今日 {p.nav ? (p.nav.today >= 0 ? "+" : "−") + fmtM(Math.abs(p.nav.today)) : "—"}</span>
@@ -104,7 +140,9 @@ export function FloorStage(p: StageProps) {
           className={`fs-seatwrap st-${o.st}${o.flash || pulse.has(o.i) ? " pulse" : ""}`}
           style={{ left: `${SEAT_POS[k][0]}%`, top: `${SEAT_POS[k][1]}%`, width: `${8.6 * (SEAT_POS[k][2] ?? 1)}%` }}
           onClick={() => p.onPick({ k: "gh" + o.i, x: 0, y: 0, title: `工位 · ${o.name}`, body: [], to: "/decision" })}>
-          <img src={botSeatUrl} alt={o.name} className={`fs-bot${SEAT_POS[k][0] > 55 ? " flip" : ""}`} draggable={false} />
+          {/* pin/ghost=空椅(座摆人未坐);build/done=坐机 */}
+          <img src={o.st === "pin" || o.st === "ghost" ? chairUrl : botSeatUrl} alt={o.name}
+            className={`fs-bot${o.st === "pin" || o.st === "ghost" ? " chair" : ""}${SEAT_POS[k][0] > 55 ? " flip" : ""}`} draggable={false} />
           <span className="fs-seat">
             <b>{o.name}</b>
             <span>{o.st === "done" ? "完工" : o.st === "build" ? "在建" : o.st === "pin" ? "立项" : "毛坯"}{o.hits ? ` ·×${o.hits}` : ""}</span>
@@ -124,6 +162,7 @@ export function FloorStage(p: StageProps) {
 
       {/* 屏A 钱径——venue 柱,断腿=整柱灰塌(业主裁:venue=外伸非围坐) */}
       <div className="fs-screen" style={{ left: `${SCREEN_POS.A[0]}%`, top: `${SCREEN_POS.A[1]}%` }}>
+        <img src={frameUrl} className="fs-frame" alt="" draggable={false} />
         <div className="fs-scr-t">钱径</div>
         {p.vens.map((v) => (
           <button key={v.name} className={`fs-ven${v.dud ? " dud" : ""}`}
@@ -134,6 +173,7 @@ export function FloorStage(p: StageProps) {
       </div>
       {/* 屏B 哨兵墙 */}
       <div className="fs-screen" style={{ left: `${SCREEN_POS.B[0]}%`, top: `${SCREEN_POS.B[1]}%` }}>
+        <img src={frameUrl} className="fs-frame" alt="" draggable={false} />
         <div className="fs-scr-t">哨兵 {openProbes.length ? `· ${openProbes.length}警` : "· 静"}</div>
         {p.probes.slice(0, 5).map((pr, i) => (
           <button key={i} className={`fs-probe${pr.open ? " on" : ""}`}
@@ -144,6 +184,7 @@ export function FloorStage(p: StageProps) {
       </div>
       {/* 屏C 待办+工单 */}
       <div className="fs-screen" style={{ left: `${SCREEN_POS.C[0]}%`, top: `${SCREEN_POS.C[1]}%` }}>
+        <img src={frameUrl} className="fs-frame" alt="" draggable={false} />
         <div className="fs-scr-t">待办 {p.queue.length ? `· ${p.queue.length}` : "· 板上净"}</div>
         {p.queue.slice(0, 5).map((q) => (
           <button key={q.id} className="fs-queue" onClick={() => p.onNav("/decision")}>
@@ -153,6 +194,7 @@ export function FloorStage(p: StageProps) {
       </div>
       {/* 屏D 自态账页(末行事实) */}
       <div className="fs-screen" style={{ left: `${SCREEN_POS.D[0]}%`, top: `${SCREEN_POS.D[1]}%` }}>
+        <img src={frameUrl} className="fs-frame" alt="" draggable={false} />
         <div className="fs-scr-t">账页·末行</div>
         {trail.slice(0, 5).map((f) => (
           <div key={String(f.id)} className="fs-fact">{f.event} <span>{plainText(f.note).slice(0, 24)}</span></div>
