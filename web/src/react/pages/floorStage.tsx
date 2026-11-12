@@ -11,6 +11,7 @@ import botStandUrl from "../assets/bot-stand.png";
 import globeUrl from "../assets/holo-globe.png";
 import tableUrl from "../assets/conf-table.png";
 import chairUrl from "../assets/robot-chair.png";
+import hallUrl from "../assets/bridge-hall.jpg";
 import { plainText } from "../components/plain";
 import type { Fact, Tip } from "./floorFocus";
 
@@ -93,7 +94,7 @@ export function FloorStage(p: StageProps) {
   const alarm = openProbes.length > 0 || p.queue.length > 6 || !p.live;
 
   return (
-    <div className="fstage">
+    <div className="fstage" style={{ backgroundImage: `url(${hallUrl})` }}>
       {/* 顶左 HUD——计数+时钟(原 hero 压缩位) */}
       <div className="fs-hud">
         <span className={`fs-dot ${p.live ? "ok" : "bad"}`} />

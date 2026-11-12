@@ -206,13 +206,7 @@ button.v2-row.ft-row {
   /* 钉视口——跳出 .main max-width:1280 祖宗锁+拆 AI 图宽高比锁;
      左让 180px 侧栏保持可导航 */
   position: fixed; inset: 0 0 0 180px; z-index: 5;
-  background:
-    /* 地环(桌面位) */ radial-gradient(ellipse 52% 26% at 50% 72%, transparent 62%, rgba(96,200,255,.32) 64%, rgba(96,200,255,.32) 66%, transparent 68%),
-    radial-gradient(ellipse 62% 32% at 50% 74%, rgba(30,80,140,.25), transparent 70%),
-    /* 地面反光 */ linear-gradient(180deg, transparent 52%, rgba(40,90,150,.18) 68%, rgba(16,34,58,.5) 100%),
-    /* 墙光带 */ repeating-linear-gradient(90deg, transparent 0 118px, rgba(90,160,220,.07) 118px 122px, transparent 122px 240px),
-    /* 舱体渐变 */ linear-gradient(180deg, #070d18 0%, #0b1626 30%, #10203a 55%, #0a1524 78%, #060b14 100%);
-  background-color: #060b14;
+  background-size: cover; background-position: center; background-color: #060b14;
   overflow: hidden; user-select: none;
 }
 @media (max-width: 767px) {
