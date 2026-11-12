@@ -38,7 +38,7 @@ var organRegistry = []struct {
 	keys []string
 }{
 	{"B元探", []string{"元探", "自动发探", "缺仪器"}},
-	{"C自态", []string{"自态"}},
+	{"C自态摘要", []string{"自态"}},
 	{"D目标发起", []string{"目标发起", "abcd", "A-D", "进水口", "intake"}},
 	{"旧禁条作废", []string{"禁条", "红线重定义", "redline", "法典"}},
 	{"做梦", []string{"做梦"}},
