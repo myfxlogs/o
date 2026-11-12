@@ -333,13 +333,7 @@ button.fs-ven:hover, button.fs-probe:hover, button.fs-queue:hover { background: 
 .fs-probe.on { color: #ffb4b4; }
 .fs-fact span { color: #8ba3c0; }
 
-/* 桌面待办浮件 */
-.fs-doc {
-  position: absolute; transform: translate(-50%, -50%); z-index: 3;
-  font-size: clamp(9px, .8vw, 12px); font-weight: 600; color: #ffd9a8;
-  background: rgba(40, 26, 8, .8); border: 1px solid rgba(255, 190, 90, .45);
-  border-radius: 7px; padding: 3px 9px;
-}
+/* 桌面待办浮件——已被台面工单板 fs-pad 取代 */
 
 /* 底缘尾流 */
 .fs-trail {
@@ -350,6 +344,16 @@ button.fs-ven:hover, button.fs-probe:hover, button.fs-queue:hover { background: 
 }
 .fs-trail-i { color: #9fb4cf; }
 .fs-trail-i i { font-style: normal; font-weight: 700; color: #8fd4ff; margin-right: 4px; }
+
+/* 台面工单板——原图台面散件:平铺全息票,一待办一板 */
+.fs-pad { position: absolute; transform: translate(-50%, -50%) perspective(200px) rotateX(58deg);
+  z-index: 2; padding: 3px 10px; border-radius: 3px;
+  background: linear-gradient(160deg, rgba(120,200,255,.34), rgba(30,80,150,.5));
+  border: 1px solid rgba(150,220,255,.65); color: #e4f5ff;
+  box-shadow: 0 0 12px rgba(110,200,255,.55), inset 0 0 8px rgba(140,215,255,.3);
+  font-size: clamp(7px, .62vw, 10px); font-weight: 700; white-space: nowrap;
+  text-shadow: 0 0 6px rgba(150,225,255,.9); }
+.fs-pad:hover { background: linear-gradient(160deg, rgba(150,220,255,.5), rgba(50,110,180,.65)); }
 
 /* 贴图层——坐姿机=器官座,站姿机=常驻机;态=滤镜不调图 */
 .fs-seatwrap { position: absolute; transform: translate(-50%, -92%); z-index: 3; width: 8.6%; text-align: center; }
@@ -393,7 +397,9 @@ button.fs-ven:hover, button.fs-probe:hover, button.fs-queue:hover { background: 
 .fs-seatwrap.face-l .fs-panel { left: -22%; transform: perspective(120px) rotateX(16deg) rotateY(20deg) skewY(-3deg); }
 .fs-seatwrap.face-b .fs-panel { left: 21%; top: -6%; transform: perspective(120px) rotateX(-12deg); }
 .fs-seatwrap.st-pin .fs-panel, .fs-seatwrap.st-ghost .fs-panel { opacity: .35; }
-.fs-machwrap { position: absolute; transform: translate(-50%, -96%); z-index: 3; width: 4.4%; text-align: center; }
+.fs-machwrap { position: absolute; transform: translate(-50%, -96%); z-index: 3; width: 6.2%; text-align: center; }
+.fs-machwrap::before { content: ""; position: absolute; left: 8%; right: 8%; bottom: 8%; height: 7%; z-index: -1;
+  border-radius: 50%; background: radial-gradient(ellipse, rgba(4,14,30,.5) 0%, transparent 70%); }
 .fs-botm { width: 100%; display: block; filter: drop-shadow(0 4px 8px rgba(0,0,0,.5)); pointer-events: none; }
 .fs-machwrap.off .fs-botm { filter: grayscale(.9) brightness(.6) drop-shadow(0 0 8px rgba(248,113,113,.7)); }
 .fs-machwrap .fs-breath { top: 1%; left: 44%; width: 14%; --bc: #6fe8b0; }

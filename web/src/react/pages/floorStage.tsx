@@ -8,7 +8,7 @@
 import { useEffect, useRef, useState } from "react";
 import botSeatUrl from "../assets/bot-seat.png";
 import botBackUrl from "../assets/bot-seat-back.png";
-import botStandUrl from "../assets/bot-stand.png";
+import botStandUrl from "../assets/wall-station.png";
 import globeUrl from "../assets/holo-globe.png";
 import tableUrl from "../assets/console-ring.png";
 import chairUrl from "../assets/eames-chair.png";
@@ -39,7 +39,9 @@ const SEAT_POS = [
 ];
 // 朝向:围桌朝台心——b=背影朝台(前座) r=朝右(左翼) l=朝左(右翼,翻转)
 const SEAT_FACE = ["b", "b", "b", "r", "l", "r", "l", "r", "l"] as const;
-const MACH_POS = [[10, 41], [20, 40], [33, 39], [64, 39], [78, 40], [90, 41]];
+const MACH_POS = [[10, 41], [20, 40], [33, 39], [64, 39], [78, 40], [90, 41], [46, 39.5], [55, 39.5]];
+// 台面工单板位——环台面上散件,一待办一板(原图台面散件=活工单)
+const PAD_POS = [[38, 66], [46, 68], [54, 68], [62, 66], [30, 59], [70, 59], [38, 52], [62, 52]];
 const SCREEN_POS = { A: [11, 16], B: [32, 16], C: [67, 16], D: [87, 16] } as const;
 
 export function FloorStage(p: StageProps) {
@@ -177,12 +179,14 @@ export function FloorStage(p: StageProps) {
         ))}
       </div>
 
-      {/* 桌面待办浮件——桌前中部 */}
-      {p.queue.length > 0 && (
-        <button className="fs-doc" style={{ left: "40%", top: "70%" }} onClick={() => p.onNav("/decision")}>
-          待办 ×{p.queue.length}
+      {/* 台面工单板——原图台面散件=活待办,一板一票可点穿 */}
+      {p.queue.slice(0, 8).map((q, i) => (
+        <button key={q.id} className="fs-pad"
+          style={{ left: `${PAD_POS[i][0]}%`, top: `${PAD_POS[i][1]}%` }}
+          onClick={() => p.onNav("/decision")} title={plainText(q.note).slice(0, 40)}>
+          #{q.id}
         </button>
-      )}
+      ))}
       {/* 底缘事实尾流——拖尾横排 */}
       <div className="fs-trail">
         {trail.map((f) => (

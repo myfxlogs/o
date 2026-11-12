@@ -28,8 +28,12 @@
   birefnet-general 抠底裁紧。与 bot-seat 同瓷质同款,前 3 座专用(face-b)。
 
 ### holo-globe.png —— 全息地球(脑)
-- AI 生件(watermark:false)——线框地球+轨道环+底部投影光柱。
+- AI 生件(watermark:false)——线框球+同心环核+浮粒子(原图核结构)。
   黑底辉光支路:alpha 直取亮度(Lmax/255),叠舱底即加色辉光。
+
+### wall-station.png —— 墙沿坐台工位机(常驻机×8)
+- AI 生件(watermark:false)——白瓷机坐窄白台,台上浮青屏(原图墙沿工位)。
+  birefnet-general 抠底裁紧。
 
 ## 退役件(floor v3→v4 拆件替换)
 floor-holo.jpg / bridge-hall.jpg / conf-table.png / robot-chair.png
