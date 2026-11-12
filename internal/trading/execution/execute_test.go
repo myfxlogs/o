@@ -28,6 +28,8 @@ type fakeVenue struct {
 	resolveCalls int
 	makerFill    bool // maker 腿立即 filled（T-0238 锚——false=超时不成交径）
 	cancelled    int
+	fee          float64 // filled 回报费额（工单#11438 净额锚——负值）
+	feeCcy       string
 }
 
 func (f *fakeVenue) Cancel(_ context.Context, _ Leg, _ string) error {
@@ -53,7 +55,7 @@ func (f *fakeVenue) Place(ctx context.Context, leg Leg, clOrdID string) (OrderRe
 	if f.rbFail && contains(clOrdID, "rb") {
 		return OrderResult{ClOrdID: clOrdID, State: "unknown"}, fmt.Errorf("rb transport down")
 	}
-	return OrderResult{ClOrdID: clOrdID, State: "filled", FillPx: 1, FillSz: 100}, nil
+	return OrderResult{ClOrdID: clOrdID, State: "filled", FillPx: 1, FillSz: 100, Fee: f.fee, FeeCcy: f.feeCcy}, nil
 }
 func (f *fakeVenue) Resolve(ctx context.Context, leg Leg, clOrdID string) (OrderResult, error) {
 	if leg.Maker {
@@ -603,6 +605,55 @@ func TestLegCashSymmetric(t *testing.T) {
 		JOIN fin_order_leg l ON c.source_ref=l.id AND c.source_table='fin_order_leg'
 		WHERE l.inst_id LIKE '%-SWAP'`).Scan(&n); err != nil || n != 0 {
 		t.Fatalf("合约腿现金行=%d（应 0）", n)
+	}
+}
+
+// 工单#11438 锚：spot 腿 venue 实费净额入账——feeCcy=USDT 产 kind='fee' 独立行
+// （卖腿净收=毛额+fee(负)，费归费账非藏毛额）；费在 base 不触 USDT 账（零 fee 行）。
+func TestLegCashFeeNetCaliber(t *testing.T) {
+	fv := &fakeVenue{fee: -0.65, feeCcy: "USDT"}
+	ctx, r := setup(t, fv)
+	did := mkToken(t, ctx, r, false, false, "allow")
+	if _, err := r.Execute(ctx, mkIntent(did)); err != nil {
+		t.Fatalf("开仓: %v", err)
+	}
+	// 平：spot_sell +0.02 毛额 + fee −0.65 = venue 净收口径
+	did2 := mkToken(t, ctx, r, false, false, "allow")
+	cin := Intent{Kind: "close", DecisionID: did2, InstID: "BTC-USDT-SWAP", NotionalUSD: 100,
+		Legs: [2]Leg{
+			{Venue: "okx", InstID: "BTC-USDT-SWAP", Side: "buy", Sz: "1", Notional: 50, Close: true},
+			{Venue: "okx", InstID: "BTC-USDT", Side: "sell", Sz: "0.02", Notional: 50, Close: true},
+		}}
+	if _, err := r.Execute(ctx, cin); err != nil {
+		t.Fatalf("平仓: %v", err)
+	}
+	var n int
+	var tot float64
+	if err := r.pool.QueryRow(ctx, `SELECT count(*),COALESCE(sum(amount),0) FROM fin_cashflow
+		WHERE kind='fee' AND source_table='fin_order_leg'`).Scan(&n, &tot); err != nil || n != 2 || tot != -1.30 {
+		t.Fatalf("fee 行 n=%d Σ=%.4f（应 2 行 Σ=−1.30）", n, tot)
+	}
+	// 卖腿净额=毛额+fee（venue 实收对齐——账实差不再逐笔增生）
+	var legNet float64
+	if err := r.pool.QueryRow(ctx, `SELECT sum(c.amount) FROM fin_cashflow c
+		JOIN fin_order_leg l ON c.source_ref=l.id AND c.source_table='fin_order_leg'
+		WHERE l.side='sell' AND l.inst_id='BTC-USDT'`).Scan(&legNet); err != nil {
+		t.Fatal(err)
+	}
+	if legNet < -0.631 || legNet > -0.629 {
+		t.Fatalf("卖腿净额=%.4f（应 0.02−0.65=−0.63）", legNet)
+	}
+	// 费在 base：feeCcy=BTC → USDT 账零 fee 行
+	fv2 := &fakeVenue{fee: -0.5, feeCcy: "BTC"}
+	ctx2, r2 := setup(t, fv2)
+	did3 := mkToken(t, ctx2, r2, false, false, "allow")
+	if _, err := r2.Execute(ctx2, mkIntent(did3)); err != nil {
+		t.Fatalf("开仓2: %v", err)
+	}
+	var n2 int
+	if err := r2.pool.QueryRow(ctx2, `SELECT count(*) FROM fin_cashflow
+		WHERE kind='fee'`).Scan(&n2); err != nil || n2 != 0 {
+		t.Fatalf("base 费 fee 行=%d（应 0——不触 USDT 账）", n2)
 	}
 }
 

@@ -161,7 +161,7 @@ func (r *Runner) placeAndResolve(ctx context.Context, execID int64, no int, leg 
 	switch res.State {
 	case "filled":
 		legID := r.legPx(ctx, execID, no, leg, clOrdID, "filled", vc, vm, res.FillPx, res.FillSz, "market", res.FillTicket)
-		r.legCash(ctx, legID, leg, res.FillPx, res.FillSz, posRef)
+		r.legCash(ctx, legID, leg, res.FillPx, res.FillSz, posRef, res.Fee, res.FeeCcy)
 		return res, nil
 	case "live", "partially_filled":
 		r.leg(ctx, execID, no, leg, clOrdID, "ack", vc, vm)
