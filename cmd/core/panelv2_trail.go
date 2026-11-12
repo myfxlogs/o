@@ -99,8 +99,15 @@ func (c coreService) GetDecisionTrail(ctx context.Context,
 
 	// 器官事实面：ops_event 全事件类近窗行——工位态推导数据源（工单/处置/
 	// 收口等器官事实不在升件类，前端按器官关键词自取、取词邻域判态）。
-	if frs, err := c.pool.Query(ctx, `SELECT id, ts, event, left(note,220)
-		FROM ops_event ORDER BY id DESC LIMIT 600`); err == nil {
+	// 分窗取：量表心跳(~1440/日)灌水会把态变行 10h 内挤出窗——
+	// 态变类深窗 400 + 心跳浅窗 80，两窗 UNION 再按 id 降序归并。
+	if frs, err := c.pool.Query(ctx, `SELECT id, ts, event, note FROM (
+			(SELECT id, ts, event, left(note,220) AS note FROM ops_event
+				WHERE event <> '量表' ORDER BY id DESC LIMIT 400)
+			UNION ALL
+			(SELECT id, ts, event, left(note,220) AS note FROM ops_event
+				WHERE event = '量表' ORDER BY id DESC LIMIT 80)
+		) u ORDER BY id DESC`); err == nil {
 		for frs.Next() {
 			var fr dashboardv1.FactRow
 			var fts time.Time
