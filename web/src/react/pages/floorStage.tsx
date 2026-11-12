@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from "react";
 import botSeatUrl from "../assets/bot-seat.png";
 import botBackUrl from "../assets/bot-seat-back.png";
 import botStandUrl from "../assets/wall-station.png";
+import rackUrl from "../assets/server-rack.png";
 import globeUrl from "../assets/holo-globe.png";
 import bowlUrl from "../assets/holo-bowl.png";
 import tableUrl from "../assets/dais-ring.png";
@@ -19,10 +20,12 @@ import type { Fact, Tip } from "./floorFocus";
 
 export type StageOrgan = { i: number; name: string; st: string; hits: number; flash: boolean; anchor?: string };
 export type StageVen = { name: string; usd: number; dud: boolean };
+export type StageHost = { name: string; cpu: number; memPct: number; stale: boolean };
 export type StageProps = {
   organs: StageOrgan[]; vens: StageVen[]; queue: { id: string; note: string }[];
   probes: { escClass?: string; escScope?: string; open?: boolean }[];
   machines: { name: string; ok: boolean }[];
+  hosts?: StageHost[];
   nav?: { total: number; today: number; cum: number };
   awake: boolean; brainFlash: boolean; claim?: string; lastAct?: string;
   counts: { done: number; build: number; pin: number; openProbes: number };
@@ -41,6 +44,8 @@ const SEAT_POS = [
 // 朝向:围桌朝台心——b=背影朝台(前座) r=朝右(左翼) l=朝左(右翼,翻转)
 const SEAT_FACE = ["b", "b", "b", "r", "l", "r", "l", "r", "l"] as const;
 const MACH_POS = [[10, 41], [20, 40], [33, 39], [64, 39], [78, 40], [90, 41], [46, 39.5], [55, 39.5]];
+// 物理主机机柜位——墙沿工位间缝,真硬件件(非人形:器/服/机三形分家)
+const HOST_POS = [[5, 46], [85, 46.5], [95, 46], [28, 47]];
 // 台面工单板位——环台面上散件,一待办一板(原图台面散件=活工单)
 const PAD_POS = [[38, 66], [46, 68], [54, 68], [62, 66], [30, 59], [70, 59], [38, 52], [62, 52]];
 const SCREEN_POS = { A: [11, 16], B: [32, 16], C: [67, 16], D: [87, 16] } as const;
@@ -140,6 +145,16 @@ export function FloorStage(p: StageProps) {
           <img src={botStandUrl} alt={m.name} className="fs-botm" draggable={false} />
           <span className="fs-breath" />
           <span className="fs-mach"><span className={`fs-dot ${m.ok ? "ok" : "bad"}`} />{m.name}</span>
+        </button>
+      ))}
+
+      {/* 物理主机=机柜——fin_host_metrics 真监控:cpu% 载点,stale 灰红 */}
+      {(p.hosts ?? []).slice(0, HOST_POS.length).map((h, k) => (
+        <button key={h.name} className={`fs-rackwrap${h.stale ? " off" : ""}`}
+          style={{ left: `${HOST_POS[k][0]}%`, top: `${HOST_POS[k][1]}%` }}
+          onClick={() => p.onPick({ k: "host:" + h.name, x: 0, y: 0, title: `主机 · ${h.name}`, body: [`CPU ${h.cpu.toFixed(0)}% 内存 ${h.memPct.toFixed(0)}%`], to: "/device" })}>
+          <img src={rackUrl} alt={h.name} className="fs-rack" draggable={false} />
+          <span className="fs-rack-l"><span className={`fs-dot ${h.stale ? "bad" : "ok"}`} />{h.name} {h.cpu.toFixed(0)}%</span>
         </button>
       ))}
 
