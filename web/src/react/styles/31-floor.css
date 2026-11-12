@@ -335,6 +335,7 @@ button.fs-ven:hover, button.fs-probe:hover, button.fs-queue:hover { background: 
 /* 贴图层——坐姿机=器官座,站姿机=常驻机;态=滤镜不调图 */
 .fs-seatwrap { position: absolute; transform: translate(-50%, -92%); z-index: 3; width: 8.6%; text-align: center; }
 .fs-bot { width: 100%; display: block; filter: drop-shadow(0 6px 10px rgba(0,0,0,.5)); pointer-events: none; }
+.fs-bot.flip { transform: scaleX(-1); }
 .fs-seatwrap.st-build .fs-bot { filter: sepia(.45) saturate(1.7) hue-rotate(-18deg) drop-shadow(0 6px 10px rgba(0,0,0,.5)); }
 .fs-seatwrap.st-pin .fs-bot { opacity: .55; filter: saturate(.5) brightness(.85) drop-shadow(0 6px 10px rgba(0,0,0,.5)); }
 .fs-seatwrap.st-ghost .fs-bot { opacity: .3; filter: grayscale(.75) brightness(.68); }

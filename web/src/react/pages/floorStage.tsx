@@ -33,7 +33,7 @@ const SEAT_POS = [
   [76, 62, 0.85], [63, 71, 1.0], [37, 71, 1.0], [24, 62, 0.85], [20, 53, 0.7],
   [33, 46, 0.65], [68, 45, 0.65], [84, 54, 0.7], [50, 72, 1.05],
 ];
-const MACH_POS = [[74, 38], [80, 40], [34, 38], [26, 35], [90, 39], [95, 33]];
+const MACH_POS = [[74, 38], [80, 40], [34, 38], [26, 35], [90, 39], [93, 33]];
 const SCREEN_POS = { A: [11, 15], B: [26, 15], C: [68, 15], D: [85, 15] } as const;
 
 export function FloorStage(p: StageProps) {
@@ -104,7 +104,7 @@ export function FloorStage(p: StageProps) {
           className={`fs-seatwrap st-${o.st}${o.flash || pulse.has(o.i) ? " pulse" : ""}`}
           style={{ left: `${SEAT_POS[k][0]}%`, top: `${SEAT_POS[k][1]}%`, width: `${8.6 * (SEAT_POS[k][2] ?? 1)}%` }}
           onClick={() => p.onPick({ k: "gh" + o.i, x: 0, y: 0, title: `工位 · ${o.name}`, body: [], to: "/decision" })}>
-          <img src={botSeatUrl} alt={o.name} className="fs-bot" draggable={false} />
+          <img src={botSeatUrl} alt={o.name} className={`fs-bot${SEAT_POS[k][0] > 55 ? " flip" : ""}`} draggable={false} />
           <span className="fs-seat">
             <b>{o.name}</b>
             <span>{o.st === "done" ? "完工" : o.st === "build" ? "在建" : o.st === "pin" ? "立项" : "毛坯"}{o.hits ? ` ·×${o.hits}` : ""}</span>
