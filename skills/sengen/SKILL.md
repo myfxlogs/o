@@ -31,6 +31,15 @@ description: sensenova 文生图/图生图 CLI——UI 资产生成件(floor/其
 `/home/mluser/.config/sensenova/key`(0600,入 env `SENSENOVA_API_KEY` 亦可)。
 **禁入仓/禁入 commit**——工具属 devin 私有,与 O 业务无关(业主令 11-12)。
 
+## 抠底管线(rembg/u2net——本地件)
+
+- venv `/home/mluser/.openharness-venv`;模型 **已固化** `~/.rembg/models/u2net/u2net.onnx`(170MB)
+- **必设 `U2NET_HOME=/home/mluser/.rembg`**——不设则找 `~/.u2net` 空目→联网重下
+  卡死(实证烧 10min 零产出)
+- 用法:`new_session('u2net')` 一次建 session 复用;`remove(im, session=s)`
+- rembg CLI 有 watchdog 依赖缺——**走 python API 别走 CLI**
+- 矩形件(墙屏板/窗)不用 rembg——直接裁+羽化即 sprite
+
 ## 坑
 
 - API key 只放本机 config——工具脚本本身零凭据,可进仓

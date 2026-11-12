@@ -9,9 +9,9 @@ import { useEffect, useRef, useState } from "react";
 import botSeatUrl from "../assets/bot-seat.png";
 import botStandUrl from "../assets/bot-stand.png";
 import globeUrl from "../assets/holo-globe.png";
-import tableUrl from "../assets/conf-table.png";
-import chairUrl from "../assets/robot-chair.png";
-import hallUrl from "../assets/bridge-hall.jpg";
+import tableUrl from "../assets/console-ring.png";
+import chairUrl from "../assets/eames-chair.png";
+import hallUrl from "../assets/room-shell.jpg";
 import frameUrl from "../assets/holo-dashboard.png";
 import { plainText } from "../components/plain";
 import type { Fact, Tip } from "./floorFocus";
@@ -34,11 +34,11 @@ const fmtM = (v: number) => "$" + v.toLocaleString("zh-CN", { maximumFractionDig
 // SEAT_POS 按器官 i 定点:[x%,y%,scale]——done 器居前座满尺,
 // pin 器居后缘缩尺(景深+立项=快入座)
 const SEAT_POS = [
-  [76, 62, 0.85], [63, 71, 1.0], [37, 71, 1.0], [24, 62, 0.85], [20, 53, 0.7],
-  [31, 49, 0.65], [68, 45, 0.65], [84, 54, 0.7], [50, 74, 1.0],
+  [50, 75, 1.0], [35, 73.5, 1.0], [65, 73.5, 1.0], [24, 66, 0.85], [76, 66, 0.85],
+  [16, 57, 0.7], [84, 57, 0.7], [30, 54, 0.65], [70, 54, 0.65],
 ];
-const MACH_POS = [[74, 38], [80, 40], [34, 38], [26, 35], [90, 39], [93, 33]];
-const SCREEN_POS = { A: [11, 15], B: [26, 15], C: [68, 15], D: [85, 15] } as const;
+const MACH_POS = [[10, 41], [20, 40], [33, 39], [64, 39], [78, 40], [90, 41]];
+const SCREEN_POS = { A: [14, 19], B: [33, 19], C: [66, 19], D: [85, 19] } as const;
 
 export function FloorStage(p: StageProps) {
   const [pulse, setPulse] = useState<Set<number>>(new Set());
@@ -96,11 +96,11 @@ export function FloorStage(p: StageProps) {
         {p.lastAct && <span className="fs-brain-line sub">{p.lastAct}</span>}
       </button>
 
-      {/* 环桌——器官座围的主桌,中空圆心嵌 NAV 喙 */}
-      <img src={tableUrl} className="fs-table" style={{ left: "50%", top: "64%" }} alt="" draggable={false} />
+      {/* 环台——器官座围的全息控制台,中空圆心嵌 NAV 喙 */}
+      <img src={tableUrl} className="fs-table" style={{ left: "50%", top: "62%" }} alt="" draggable={false} />
 
-      {/* 桌心孔=喙·NAV 钱芯(钱从桌心入) */}
-      <button className="fs-nav" style={{ left: "50%", top: "61.5%" }}
+      {/* 台心孔=喙·NAV 钱芯(钱从台心入) */}
+      <button className="fs-nav" style={{ left: "50%", top: "60%" }}
         onClick={() => p.onPick({ k: "nav", x: 0, y: 0, title: "NAV · 收银", body: [], to: "/" })}>
         <b>{p.nav ? fmtM(p.nav.total) : "—"}</b>
         <span>今日 {p.nav ? (p.nav.today >= 0 ? "+" : "−") + fmtM(Math.abs(p.nav.today)) : "—"}</span>
@@ -175,7 +175,7 @@ export function FloorStage(p: StageProps) {
 
       {/* 桌面待办浮件——桌前中部 */}
       {p.queue.length > 0 && (
-        <button className="fs-doc" style={{ left: "42%", top: "63%" }} onClick={() => p.onNav("/decision")}>
+        <button className="fs-doc" style={{ left: "40%", top: "70%" }} onClick={() => p.onNav("/decision")}>
           待办 ×{p.queue.length}
         </button>
       )}
