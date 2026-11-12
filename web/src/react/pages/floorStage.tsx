@@ -7,6 +7,7 @@
 //   桌面件=待办浮件  底缘=事实尾流  顶角=警报灯
 import { useEffect, useRef, useState } from "react";
 import botSeatUrl from "../assets/bot-seat.png";
+import botBackUrl from "../assets/bot-seat-back.png";
 import botStandUrl from "../assets/bot-stand.png";
 import globeUrl from "../assets/holo-globe.png";
 import tableUrl from "../assets/console-ring.png";
@@ -36,6 +37,8 @@ const SEAT_POS = [
   [50, 75, 1.0], [35, 73.5, 1.0], [65, 73.5, 1.0], [24, 66, 0.85], [76, 66, 0.85],
   [16, 57, 0.7], [84, 57, 0.7], [30, 54, 0.65], [70, 54, 0.65],
 ];
+// 朝向:围桌朝台心——b=背影朝台(前座) r=朝右(左翼) l=朝左(右翼,翻转)
+const SEAT_FACE = ["b", "b", "b", "r", "l", "r", "l", "r", "l"] as const;
 const MACH_POS = [[10, 41], [20, 40], [33, 39], [64, 39], [78, 40], [90, 41]];
 const SCREEN_POS = { A: [11, 16], B: [32, 16], C: [67, 16], D: [87, 16] } as const;
 
@@ -97,6 +100,8 @@ export function FloorStage(p: StageProps) {
 
       {/* 环台——器官座围的全息控制台,中空圆心嵌 NAV 喙 */}
       <img src={tableUrl} className="fs-table" style={{ left: "50%", top: "62%" }} alt="" draggable={false} />
+      {/* 球台光柱——台心打进球底的连接梁(原图件) */}
+      <div className="fs-beam" />
 
       {/* 台心孔=喙·NAV 钱芯(钱从台心入) */}
       <button className="fs-nav" style={{ left: "50%", top: "60%" }}
@@ -108,12 +113,15 @@ export function FloorStage(p: StageProps) {
       {/* 圆桌9座=器官——色=态,新行到=脉冲,点=详情 */}
       {p.organs.map((o, k) => (
         <button key={o.i}
-          className={`fs-seatwrap st-${o.st}${o.flash || pulse.has(o.i) ? " pulse" : ""}`}
+          className={`fs-seatwrap st-${o.st} face-${SEAT_FACE[k]}${o.flash || pulse.has(o.i) ? " pulse" : ""}`}
           style={{ left: `${SEAT_POS[k][0]}%`, top: `${SEAT_POS[k][1]}%`, width: `${8.6 * (SEAT_POS[k][2] ?? 1)}%` }}
           onClick={() => p.onPick({ k: "gh" + o.i, x: 0, y: 0, title: `工位 · ${o.name}`, body: [], to: "/decision" })}>
-          {/* pin/ghost=空椅(座摆人未坐);build/done=坐机 */}
-          <img src={o.st === "pin" || o.st === "ghost" ? chairUrl : botSeatUrl} alt={o.name}
-            className={`fs-bot${o.st === "pin" || o.st === "ghost" ? " chair" : ""}${SEAT_POS[k][0] > 55 ? " flip" : ""}`} draggable={false} />
+          {/* pin/ghost=空椅(座摆人未坐);build/done=坐机;朝向=围桌朝台心 */}
+          <img src={o.st === "pin" || o.st === "ghost" ? chairUrl : SEAT_FACE[k] === "b" ? botBackUrl : botSeatUrl} alt={o.name}
+            className={`fs-bot${o.st === "pin" || o.st === "ghost" ? " chair" : ""}${SEAT_FACE[k] === "l" ? " flip" : ""}`} draggable={false} />
+          <span className="fs-breath" />
+          {/* 座前全息板——原图件:台面小浮屏朝台心,载器官 hits */}
+          <span className="fs-panel"><i>{o.hits || "·"}</i></span>
           <span className="fs-seat">
             <b>{o.name}</b>
             <span>{o.st === "done" ? "完工" : o.st === "build" ? "在建" : o.st === "pin" ? "立项" : "毛坯"}{o.hits ? ` ·×${o.hits}` : ""}</span>
@@ -127,6 +135,7 @@ export function FloorStage(p: StageProps) {
           style={{ left: `${MACH_POS[k][0]}%`, top: `${MACH_POS[k][1]}%` }}
           onClick={() => p.onPick({ k: "srv:" + m.name, x: 0, y: 0, title: `机柜 · ${m.name}`, body: [], to: "/device" })}>
           <img src={botStandUrl} alt={m.name} className="fs-botm" draggable={false} />
+          <span className="fs-breath" />
           <span className="fs-mach"><span className={`fs-dot ${m.ok ? "ok" : "bad"}`} />{m.name}</span>
         </button>
       ))}

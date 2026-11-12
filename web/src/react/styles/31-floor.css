@@ -266,6 +266,15 @@ button.v2-row.ft-row {
 .fs-brain.awake .fs-brain-glow { opacity: 1; border-color: rgba(110, 230, 255, .8); box-shadow: 0 0 24px rgba(110, 230, 255, .55), inset 0 0 30px rgba(110, 230, 255, .18); animation: fs-breathe 3.6s ease-in-out infinite; }
 .fs-brain.flash .fs-brain-glow, .fs-brain.flash { filter: brightness(1.6); }
 @keyframes fs-breathe { 50% { opacity: .55; } }
+/* 球台光柱——台心打进球底的连接梁(原图件:光锥上窄下宽) */
+.fs-beam { position: absolute; left: 50%; top: 36%; width: 9%; height: 27%; transform: translateX(-50%); z-index: 1;
+  pointer-events: none; filter: blur(1.5px);
+  background: linear-gradient(90deg, transparent 0%, rgba(140,220,255,.12) 30%, rgba(190,240,255,.65) 50%, rgba(140,220,255,.12) 70%, transparent 100%),
+    linear-gradient(180deg, rgba(140,220,255,.05) 0%, rgba(140,220,255,.4) 55%, rgba(180,235,255,.7) 100%);
+  clip-path: polygon(42% 0, 58% 0, 100% 100%, 0 100%);
+  animation: fs-beamflow 4s ease-in-out infinite; }
+@keyframes fs-beamflow { 0%, 100% { opacity: .7; } 50% { opacity: 1; } }
+
 .fs-brain-txt { position: absolute; transform: translateX(-50%); z-index: 3; text-align: center; }
 .fs-brain-line { display: block; padding: 1px 8px; border-radius: 6px; background: rgba(8, 18, 34, .66); color: #cfe8ff; font-size: clamp(9px, .8vw, 12px); }
 .fs-brain-line.main { font-weight: 700; color: #8fd4ff; }
@@ -355,7 +364,35 @@ button.fs-ven:hover, button.fs-probe:hover, button.fs-queue:hover { background: 
 .fs-seatwrap.pulse .fs-bot { animation: fs-botpulse 1.1s ease-out; }
 @keyframes fs-botpulse { 0% { filter: drop-shadow(0 0 18px rgba(120,220,255,.95)); } 100% { filter: drop-shadow(0 6px 10px rgba(0,0,0,.5)); } }
 .fs-seatwrap .fs-seat { position: static; transform: none; display: inline-block; margin-top: -7%; }
+/* 空椅件:底座杆+圆盘要显形,比坐机宽一档 */
+.fs-bot.chair { width: 112%; margin-left: -6%; }
+/* 头顶呼吸灯——色=工作态:done青稳/build金急/pulse闪;空椅无头不亮 */
+.fs-breath { position: absolute; top: 5%; left: 58%; width: 11%; aspect-ratio: 1; border-radius: 50%;
+  --bc: #8fd4ff; background: var(--bc); box-shadow: 0 0 8px 2px var(--bc);
+  animation: fs-breathdot 3.4s ease-in-out infinite; pointer-events: none; }
+.fs-seatwrap.face-l .fs-breath { left: 30%; }
+.fs-seatwrap.face-b .fs-breath { left: 45%; top: 4%; }
+.fs-seatwrap.st-done .fs-breath { --bc: #6fe8b0; }
+.fs-seatwrap.st-build .fs-breath { --bc: #ffce54; animation-duration: 1.8s; }
+.fs-seatwrap.st-pin .fs-breath, .fs-seatwrap.st-ghost .fs-breath { display: none; }
+@keyframes fs-breathdot { 0%, 100% { opacity: .18; transform: scale(.6); } 50% { opacity: 1; transform: scale(1); } }
+/* 座前全息板——原图件:台面小浮屏朝台心,透视斜置,载器官 hits */
+.fs-panel { position: absolute; top: 14%; width: 58%; height: 30%; z-index: 1; pointer-events: none;
+  display: flex; align-items: center; justify-content: center; overflow: hidden;
+  background: linear-gradient(160deg, rgba(90,170,255,.3), rgba(18,55,115,.5));
+  border: 1px solid rgba(140,215,255,.55); border-radius: 3px;
+  box-shadow: 0 0 10px rgba(100,190,255,.5), inset 0 0 9px rgba(120,200,255,.28); }
+.fs-panel::after { content: ""; position: absolute; inset: 0;
+  background: repeating-linear-gradient(0deg, rgba(160,225,255,.12) 0 1px, transparent 1px 3px); }
+.fs-panel i { font-style: normal; font-weight: 700; font-size: clamp(7px, .6vw, 9px); color: #d8f1ff;
+  text-shadow: 0 0 6px rgba(140,220,255,.9); }
+.fs-seatwrap.face-r .fs-panel { left: 64%; transform: perspective(120px) rotateX(16deg) rotateY(-20deg) skewY(3deg); }
+.fs-seatwrap.face-l .fs-panel { left: -22%; transform: perspective(120px) rotateX(16deg) rotateY(20deg) skewY(-3deg); }
+.fs-seatwrap.face-b .fs-panel { left: 21%; top: -6%; transform: perspective(120px) rotateX(-12deg); }
+.fs-seatwrap.st-pin .fs-panel, .fs-seatwrap.st-ghost .fs-panel { opacity: .35; }
 .fs-machwrap { position: absolute; transform: translate(-50%, -96%); z-index: 3; width: 4.4%; text-align: center; }
 .fs-botm { width: 100%; display: block; filter: drop-shadow(0 4px 8px rgba(0,0,0,.5)); pointer-events: none; }
 .fs-machwrap.off .fs-botm { filter: grayscale(.9) brightness(.6) drop-shadow(0 0 8px rgba(248,113,113,.7)); }
+.fs-machwrap .fs-breath { top: 1%; left: 44%; width: 14%; --bc: #6fe8b0; }
+.fs-machwrap.off .fs-breath { --bc: #ff6b6b; animation-duration: 1.1s; }
 .fs-machwrap .fs-mach { position: static; transform: none; display: inline-block; margin-top: -4%; }

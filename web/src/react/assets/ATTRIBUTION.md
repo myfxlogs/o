@@ -23,6 +23,10 @@
 - stockcake.com AI 库件(futuristic-robot-heart-stockcake.jpg,业主钦定 11-12),
   rembg/u2net 抠底。
 
+### bot-seat-back.png —— 坐机背影(前座朝台件)
+- AI 图生图件(watermark:false)——以 bot-seat.png 为参考出背后视角,
+  birefnet-general 抠底裁紧。与 bot-seat 同瓷质同款,前 3 座专用(face-b)。
+
 ### holo-globe.png —— 全息地球(脑)
 - AI 生件(watermark:false)——线框地球+轨道环+底部投影光柱。
   黑底辉光支路:alpha 直取亮度(Lmax/255),叠舱底即加色辉光。
