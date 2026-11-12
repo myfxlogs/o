@@ -10,8 +10,9 @@ import botSeatUrl from "../assets/bot-seat.png";
 import botBackUrl from "../assets/bot-seat-back.png";
 import botStandUrl from "../assets/wall-station.png";
 import globeUrl from "../assets/holo-globe.png";
-import tableUrl from "../assets/console-ring.png";
-import chairUrl from "../assets/eames-chair.png";
+import bowlUrl from "../assets/holo-bowl.png";
+import tableUrl from "../assets/dais-ring.png";
+import chairUrl from "../assets/scoop-chair.png";
 import hallUrl from "../assets/room-shell.jpg";
 import { plainText } from "../components/plain";
 import type { Fact, Tip } from "./floorFocus";
@@ -35,7 +36,7 @@ const fmtM = (v: number) => "$" + v.toLocaleString("zh-CN", { maximumFractionDig
 // pin 器居后缘缩尺(景深+立项=快入座)
 const SEAT_POS = [
   [50, 75, 1.0], [35, 73.5, 1.0], [65, 73.5, 1.0], [24, 66, 0.85], [76, 66, 0.85],
-  [16, 57, 0.7], [84, 57, 0.7], [30, 54, 0.65], [70, 54, 0.65],
+  [21, 57, 0.7], [79, 57, 0.7], [30, 54, 0.65], [70, 54, 0.65],
 ];
 // 朝向:围桌朝台心——b=背影朝台(前座) r=朝右(左翼) l=朝左(右翼,翻转)
 const SEAT_FACE = ["b", "b", "b", "r", "l", "r", "l", "r", "l"] as const;
@@ -100,10 +101,10 @@ export function FloorStage(p: StageProps) {
         {p.lastAct && <span className="fs-brain-line sub">{p.lastAct}</span>}
       </button>
 
-      {/* 环台——器官座围的全息控制台,中空圆心嵌 NAV 喙 */}
-      <img src={tableUrl} className="fs-table" style={{ left: "50%", top: "62%" }} alt="" draggable={false} />
-      {/* 球台光柱——台心打进球底的连接梁(原图件) */}
-      <div className="fs-beam" />
+      {/* 环台——原图圆环巨台:藏蓝环面+同心光环+中心孔,NAV 嵌孔 */}
+      <img src={tableUrl} className="fs-table" style={{ left: "50%", top: "66%" }} alt="" draggable={false} />
+      {/* 光斗——原图件:线框半球碗从台孔升起托球底(台↔球连接体) */}
+      <img src={bowlUrl} className="fs-bowl" style={{ left: "50%", top: "51%" }} alt="" draggable={false} />
 
       {/* 台心孔=喙·NAV 钱芯(钱从台心入) */}
       <button className="fs-nav" style={{ left: "50%", top: "60%" }}

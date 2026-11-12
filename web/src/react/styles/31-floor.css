@@ -241,7 +241,7 @@ button.v2-row.ft-row {
   font-size: 12.5px; border-bottom: 1px solid rgba(110, 160, 220, .12); }
 .inbox-row a { color: #7fb8e8; word-break: break-all; }
 
-.fs-table { position: absolute; transform: translate(-50%, -50%); width: 56%; z-index: 1;
+.fs-table { position: absolute; transform: translate(-50%, -50%) scaleY(.58); width: 64%; z-index: 1;
   filter: drop-shadow(0 14px 28px rgba(0,0,0,.65)); pointer-events: none; }
 .fstage button { font: inherit; background: none; border: 0; cursor: pointer; }
 .fs-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; background: #6b7a90; }
@@ -270,14 +270,10 @@ button.v2-row.ft-row {
 .fs-brain.awake .fs-brain-glow { opacity: 1; border-color: rgba(110, 230, 255, .8); box-shadow: 0 0 24px rgba(110, 230, 255, .55), inset 0 0 30px rgba(110, 230, 255, .18); animation: fs-breathe 3.6s ease-in-out infinite; }
 .fs-brain.flash .fs-brain-glow, .fs-brain.flash { filter: brightness(1.6); }
 @keyframes fs-breathe { 50% { opacity: .55; } }
-/* 球台光柱——台心打进球底的连接梁(原图件:光锥上窄下宽) */
-.fs-beam { position: absolute; left: 50%; top: 36%; width: 9%; height: 27%; transform: translateX(-50%); z-index: 1;
-  pointer-events: none; filter: blur(1.5px);
-  background: linear-gradient(90deg, transparent 0%, rgba(140,220,255,.12) 30%, rgba(190,240,255,.65) 50%, rgba(140,220,255,.12) 70%, transparent 100%),
-    linear-gradient(180deg, rgba(140,220,255,.05) 0%, rgba(140,220,255,.4) 55%, rgba(180,235,255,.7) 100%);
-  clip-path: polygon(42% 0, 58% 0, 100% 100%, 0 100%);
-  animation: fs-beamflow 4s ease-in-out infinite; }
-@keyframes fs-beamflow { 0%, 100% { opacity: .7; } 50% { opacity: 1; } }
+/* 光斗——原图件:线框半球碗从台孔升起托球底(亮度=alpha 辉光) */
+.fs-bowl { position: absolute; transform: translate(-50%, -50%) scaleY(.72); width: 26%; z-index: 1;
+  pointer-events: none; opacity: .9; animation: fs-beamflow 4s ease-in-out infinite; }
+@keyframes fs-beamflow { 0%, 100% { opacity: .72; } 50% { opacity: 1; } }
 
 .fs-brain-txt { position: absolute; transform: translateX(-50%); z-index: 3; text-align: center; }
 .fs-brain-line { display: block; padding: 1px 8px; border-radius: 6px; background: rgba(8, 18, 34, .66); color: #cfe8ff; font-size: clamp(9px, .8vw, 12px); }
