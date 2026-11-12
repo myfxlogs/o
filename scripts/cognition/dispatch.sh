@@ -149,6 +149,27 @@ SQL
 )
 WON=$(printf '%s\n' "$WON" | grep -oE '^[0-9]+$' | head -1)
 [ -n "$WON" ] || exit 0 # 30min 内跨机唤起在案=在飞会话非本机辖——退
+
+# 连续自我账页(工单#11385「连续自我」器官——唤起拍机产叙事帧,
+# 会话猝死账页也不断更): 我在=自态帧末行;上轮=近收口行摘要;
+# 卡在=OPEN工单前3。会话读径=单行末帧:
+#   SELECT note FROM ops_event WHERE event='量表' AND ticket='self_narrative'
+#   ORDER BY id DESC LIMIT 1
+psql "$DSN" -qAt <<'SQL' >/dev/null 2>&1 || true # tolerate: 账页写败不阻唤起
+INSERT INTO ops_event(seat,event,ticket,note)
+SELECT '唤知机','量表','self_narrative',
+ '我在='||COALESCE((SELECT left(note,110) FROM ops_event
+     WHERE event='量表' AND ticket='self_state' ORDER BY id DESC LIMIT 1),'?')
+ ||' |上轮='||COALESCE((SELECT left(note,120) FROM ops_event
+     WHERE event='会话收口' ORDER BY id DESC LIMIT 1),'?')
+ ||' |卡在='||COALESCE((SELECT string_agg('#'||t.id||':'||left(t.note,60),' + ')
+     FROM (SELECT id,note FROM ops_event t WHERE t.event='工单'
+       AND t.ts>now()-interval '30 days'
+       AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='处置'
+         AND x.ts>t.ts AND x.note ~ ('工单#'||t.id::text||'([^0-9]|$)'))
+       ORDER BY t.ts LIMIT 3) t),'无');
+SQL
+
 systemd-run --user --unit="$UNIT" --collect \
 	--property=Description="唤知会话(trigger=$TRIGGER)" \
 	--property=RuntimeMaxSec=7200 \
