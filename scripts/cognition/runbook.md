@@ -196,6 +196,11 @@ ORDER BY t.ts + COALESCE((substring(t.note from '期限=([0-9]+)h'))::int,24)*in
     - 实已完工→ 落 `工位:<名>:done 据#id` 断言事实行+销升件
       （工位行=器官态唯一权威——event='工位'，态变皆落断言行：
       认领施工落 build、竣工落 done；散文注记不再判态）。
+  - `pendbr_*`（scope=pendbr_<支名>——支无票探：远端 fix/feat/audit
+    支未入 master(tip 7d 内有动)∧ OPEN 工单零载支名）→ 三裁：
+    - 工件有效→ 落 `工单/merge-<slug>` 载支名（票落探针自闭）并链；
+    - 工件判废（被并件覆盖/方向弃）→ `git push origin --delete <支>`+销；
+    - **裸销=盲区**——销后仍裸下拍复火,处置须落到票/删/并其一。
   - `orphan_hypothesis_proposed` 特注：fin_opp_hypothesis=需求账
     （缺 executor/数据面/venue 的诉求卡），**不是**评估输入——
     评估器只枚举 grammar.Families() 闭集码面族。proposed 久滞=
