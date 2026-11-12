@@ -6,7 +6,8 @@
 //   圆桌9座=9器官  站位机器人×6=常驻机  后墙4屏=四面板
 //   桌面件=待办浮件  底缘=事实尾流  顶角=警报灯
 import { useEffect, useRef, useState } from "react";
-import holoUrl from "../assets/floor-holo.jpg";
+import botSeatUrl from "../assets/bot-seat.png";
+import botStandUrl from "../assets/bot-stand.png";
 import { plainText } from "../components/plain";
 import type { Fact, Tip } from "./floorFocus";
 
@@ -25,12 +26,13 @@ export type StageProps = {
 
 const fmtM = (v: number) => "$" + v.toLocaleString("zh-CN", { maximumFractionDigits: 0 });
 // 圆桌9座·站位6机·脑/喙/屏/件/流 —— 底图%位表(改图先改表)
-// SEAT_POS 按器官 i 定点:done 器居前座,pin 器居后缘(立项=快入座)
+// SEAT_POS 按器官 i 定点:[x%,y%,scale]——done 器居前座满尺,
+// pin 器居后缘缩尺(景深+立项=快入座)
 const SEAT_POS = [
-  [76, 62], [63, 71], [37, 71], [24, 62], [19, 53],
-  [32, 46], [70, 45], [84, 54], [50, 72],
+  [76, 62, 0.85], [63, 71, 1.0], [37, 71, 1.0], [24, 62, 0.85], [20, 53, 0.7],
+  [33, 46, 0.65], [68, 45, 0.65], [84, 54, 0.7], [50, 72, 1.05],
 ];
-const MACH_POS = [[73, 36], [79, 39], [33, 37], [26, 34], [93, 38], [97, 30]];
+const MACH_POS = [[74, 38], [80, 40], [34, 38], [26, 35], [90, 39], [95, 33]];
 const SCREEN_POS = { A: [11, 15], B: [26, 15], C: [68, 15], D: [85, 15] } as const;
 
 export function FloorStage(p: StageProps) {
@@ -61,7 +63,7 @@ export function FloorStage(p: StageProps) {
   const alarm = openProbes.length > 0 || p.queue.length > 6 || !p.live;
 
   return (
-    <div className="fstage" style={{ backgroundImage: `url(${holoUrl})` }}>
+    <div className="fstage">
       {/* 顶左 HUD——计数+时钟(原 hero 压缩位) */}
       <div className="fs-hud">
         <span className={`fs-dot ${p.live ? "ok" : "bad"}`} />
@@ -79,7 +81,7 @@ export function FloorStage(p: StageProps) {
       <button className={`fs-brain${p.awake ? " awake" : ""}${p.brainFlash ? " flash" : ""}`}
         style={{ left: "50%", top: "24%" }}
         onClick={() => p.onPick({ k: "desk", x: 0, y: 0, title: "会话席", body: [], to: "/device" })}>
-        {p.awake && <span className="fs-brain-glow" />}
+        <span className="fs-brain-glow" />
       </button>
       <button className="fs-brain-txt" style={{ left: "50%", top: "44.5%" }}
         onClick={() => p.onPick({ k: "desk", x: 0, y: 0, title: "会话席", body: [], to: "/device" })}>
@@ -87,8 +89,8 @@ export function FloorStage(p: StageProps) {
         {p.lastAct && <span className="fs-brain-line sub">{p.lastAct}</span>}
       </button>
 
-      {/* 球座环=喙·NAV 钱芯 */}
-      <button className="fs-nav" style={{ left: "50%", top: "58.5%" }}
+      {/* 球座悬带=喙·NAV 钱芯(全息球垂直落点=钱入处) */}
+      <button className="fs-nav" style={{ left: "50%", top: "56%" }}
         onClick={() => p.onPick({ k: "nav", x: 0, y: 0, title: "NAV · 收银", body: [], to: "/" })}>
         <b>{p.nav ? fmtM(p.nav.total) : "—"}</b>
         <span>今日 {p.nav ? (p.nav.today >= 0 ? "+" : "−") + fmtM(Math.abs(p.nav.today)) : "—"}</span>
@@ -97,20 +99,24 @@ export function FloorStage(p: StageProps) {
       {/* 圆桌9座=器官——色=态,新行到=脉冲,点=详情 */}
       {p.organs.map((o, k) => (
         <button key={o.i}
-          className={`fs-seat st-${o.st}${o.flash || pulse.has(o.i) ? " pulse" : ""}`}
-          style={{ left: `${SEAT_POS[k][0]}%`, top: `${SEAT_POS[k][1]}%` }}
+          className={`fs-seatwrap st-${o.st}${o.flash || pulse.has(o.i) ? " pulse" : ""}`}
+          style={{ left: `${SEAT_POS[k][0]}%`, top: `${SEAT_POS[k][1]}%`, width: `${8.6 * (SEAT_POS[k][2] ?? 1)}%` }}
           onClick={() => p.onPick({ k: "gh" + o.i, x: 0, y: 0, title: `工位 · ${o.name}`, body: [], to: "/decision" })}>
-          <b>{o.name}</b>
-          <span>{o.st === "done" ? "完工" : o.st === "build" ? "在建" : o.st === "pin" ? "立项" : "毛坯"}{o.hits ? ` ·×${o.hits}` : ""}</span>
+          <img src={botSeatUrl} alt={o.name} className="fs-bot" draggable={false} />
+          <span className="fs-seat">
+            <b>{o.name}</b>
+            <span>{o.st === "done" ? "完工" : o.st === "build" ? "在建" : o.st === "pin" ? "立项" : "毛坯"}{o.hits ? ` ·×${o.hits}` : ""}</span>
+          </span>
         </button>
       ))}
 
-      {/* 站位机器人×6=常驻机——断流红 */}
+      {/* 站位机器人×6=常驻机——站姿机贴图,断流灰红 */}
       {p.machines.map((m, k) => (
-        <button key={m.name} className={`fs-mach${m.ok ? "" : " off"}`}
+        <button key={m.name} className={`fs-machwrap${m.ok ? "" : " off"}`}
           style={{ left: `${MACH_POS[k][0]}%`, top: `${MACH_POS[k][1]}%` }}
           onClick={() => p.onPick({ k: "srv:" + m.name, x: 0, y: 0, title: `机柜 · ${m.name}`, body: [], to: "/device" })}>
-          <span className={`fs-dot ${m.ok ? "ok" : "bad"}`} />{m.name}
+          <img src={botStandUrl} alt={m.name} className="fs-botm" draggable={false} />
+          <span className="fs-mach"><span className={`fs-dot ${m.ok ? "ok" : "bad"}`} />{m.name}</span>
         </button>
       ))}
 
