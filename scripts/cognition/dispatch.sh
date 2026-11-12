@@ -52,7 +52,7 @@ TICKET_N=${TICKET_N:-0}
 # 散文把未完链挂出触发面,队列清零工件却活着。推支未入 master 即未完工作
 # 物证,工件本身当信号不等会话纪律): 7d tip 龄界防古墓支永唤;
 # merge/--no-merged 自清或会话 push --delete 判废。
-timeout 15 git -C /opt/o fetch origin -q 2>/dev/null || true
+timeout 15 git -C /opt/o fetch origin -q 2>/dev/null || true # tolerate: fetch败=远端瞬时,本地 remote-ref 陈旧仍数支——fail-open 不误闸
 PEND_BR=$(git -C /opt/o for-each-ref --no-merged origin/master \
 	--format='%(committerdate:unix)' \
 	'refs/remotes/origin/fix/*' 'refs/remotes/origin/feat/*' 'refs/remotes/origin/audit/*' \
@@ -79,10 +79,14 @@ UNIT="o-cognition-$(date +%s)"
 
 # 跨机单飞闸（T-0521 认知双活根修）：本机 systemd 闸只管本机面——第二台
 # dispatch 机同拍=双会话双处置双账。PG advisory lock(7969) 序列化临界区,
-# 「30min 唤起在案且无同 unit 唤起败」为跨机在飞判据——INSERT...WHERE NOT
-# EXISTS...RETURNING 单会话内持锁,胜方插行,败方读到已提交行即退。
+# 「30min 唤起在案且无同 unit 唤起败∧无后随收口」为跨机在飞判据——
+# INSERT...WHERE NOT EXISTS...RETURNING 单会话内持锁,胜方插行,败方
+# 读到已提交行即退。
 # spawn 落败→补'唤起败'同 unit 行=败迹清锁,下拍可重唤（append-only 径——
 # 不删行,补事实行）。
+# 收口释锁(坑处置: 僵尸锁根修——正常收口不写败迹,唤起行尸占30min TTL,
+# 历史唤起间隔30min+1s整即其尸证;收口行=正常完会话的释锁契,
+# x.ts>e.ts 界保在飞不被早释,TTL 兜底 SIGKILL 无收口黑洞)。
 WON=$(psql "$DSN" -qAt <<SQL
 SELECT pg_advisory_lock(7969);
 INSERT INTO ops_event(seat,event,ticket,note)
@@ -91,8 +95,10 @@ WHERE NOT EXISTS (
 	SELECT 1 FROM ops_event e
 	WHERE e.seat='唤知机' AND e.event='唤起' AND e.ts>now()-interval '30 minutes'
 	  AND NOT EXISTS (SELECT 1 FROM ops_event x
-	    WHERE x.seat='唤知机' AND x.event='唤起败' AND x.ts>e.ts
-	      AND x.note LIKE '%'||substring(e.note from 'unit=[^ ]+')||'%'))
+	    WHERE x.ts>e.ts AND (
+	      (x.seat='唤知机' AND x.event='唤起败'
+	        AND x.note LIKE '%'||substring(e.note from 'unit=[^ ]+')||'%')
+	      OR x.event='会话收口')))
 RETURNING id;
 SELECT pg_advisory_unlock(7969);
 SQL
