@@ -72,6 +72,7 @@ func (c coreService) escLoop(ctx context.Context, al *notify.Alerter) {
 		c.profitDailyBeat(ctx)               // 量表探（盈利报告日行照——业主唯一例行读件）
 		c.selfStateBeat(ctx)                 // 量表探（自态账——会话冷启动即读件,工单#10358 C）
 		c.booksBeat(ctx, deadSince)          // 账房（ΔNAV三桶对账+鬼账升件,业主令11-12立件）
+		c.pnlAttrBeat(ctx, deadSince)        // 策略盈亏归因（业主令11-12①——分列+账房咬合,账房器官零改动）
 	}
 }
 
