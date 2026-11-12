@@ -202,16 +202,20 @@ button.v2-row.ft-row {
 
 /* —— floor v3 全屏全息舱(floorStage.tsx):AI 舱图底+活件浮层 —— */
 .page.v2.fstage-page { max-width: none; padding: 0; }
-.fstage {
+.page.v2.fstage-page > .fstage {
   /* 钉视口——跳出 .main max-width:1280 祖宗锁+拆 AI 图宽高比锁;
      左让 180px 侧栏保持可导航;屏多大舱多大(业主令:不留白,bor/面板
-     另盖层) */
+     另盖层)。
+     坑钉:.page.v2>* 轨道归一(0,2,0)会给本子件上 max-width:1080+
+     margin:auto,fixed 盒被压窄居中=宽屏两侧空;特异度压过裸 .fstage
+     选择器(0,1,0)——本规则必须用 (0,3,0) 三级类径才赢。 */
   position: fixed; inset: 0 0 0 180px; z-index: 5;
+  width: auto; max-width: none; margin: 0;
   background-size: cover; background-position: center; background-color: #060b14;
   overflow: hidden; user-select: none;
 }
 @media (max-width: 767px) {
-  .fstage { inset: 48px 0 0 0; }
+  .page.v2.fstage-page > .fstage { inset: 48px 0 0 0; }
 }
 /* 中央全息球=CSS 球(在班泛光,脑闪增亮) */
 .fs-brain .fs-brain-glow {
@@ -237,7 +241,7 @@ button.v2-row.ft-row {
   font-size: 12.5px; border-bottom: 1px solid rgba(110, 160, 220, .12); }
 .inbox-row a { color: #7fb8e8; word-break: break-all; }
 
-.fs-table { position: absolute; transform: translate(-50%, -50%); width: 56%; z-index: 1;
+.fs-table { position: absolute; transform: translate(-50%, -50%) scaleY(.58); width: 64%; z-index: 1;
   filter: drop-shadow(0 14px 28px rgba(0,0,0,.65)); pointer-events: none; }
 .fstage button { font: inherit; background: none; border: 0; cursor: pointer; }
 .fs-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; background: #6b7a90; }
@@ -266,14 +270,10 @@ button.v2-row.ft-row {
 .fs-brain.awake .fs-brain-glow { opacity: 1; border-color: rgba(110, 230, 255, .8); box-shadow: 0 0 24px rgba(110, 230, 255, .55), inset 0 0 30px rgba(110, 230, 255, .18); animation: fs-breathe 3.6s ease-in-out infinite; }
 .fs-brain.flash .fs-brain-glow, .fs-brain.flash { filter: brightness(1.6); }
 @keyframes fs-breathe { 50% { opacity: .55; } }
-/* 球台光柱——台心打进球底的连接梁(原图件:光锥上窄下宽) */
-.fs-beam { position: absolute; left: 50%; top: 36%; width: 9%; height: 27%; transform: translateX(-50%); z-index: 1;
-  pointer-events: none; filter: blur(1.5px);
-  background: linear-gradient(90deg, transparent 0%, rgba(140,220,255,.12) 30%, rgba(190,240,255,.65) 50%, rgba(140,220,255,.12) 70%, transparent 100%),
-    linear-gradient(180deg, rgba(140,220,255,.05) 0%, rgba(140,220,255,.4) 55%, rgba(180,235,255,.7) 100%);
-  clip-path: polygon(42% 0, 58% 0, 100% 100%, 0 100%);
-  animation: fs-beamflow 4s ease-in-out infinite; }
-@keyframes fs-beamflow { 0%, 100% { opacity: .7; } 50% { opacity: 1; } }
+/* 光斗——原图件:线框半球碗从台孔升起托球底(亮度=alpha 辉光) */
+.fs-bowl { position: absolute; transform: translate(-50%, -50%) scaleY(.72); width: 26%; z-index: 1;
+  pointer-events: none; opacity: .9; animation: fs-beamflow 4s ease-in-out infinite; }
+@keyframes fs-beamflow { 0%, 100% { opacity: .72; } 50% { opacity: 1; } }
 
 .fs-brain-txt { position: absolute; transform: translateX(-50%); z-index: 3; text-align: center; }
 .fs-brain-line { display: block; padding: 1px 8px; border-radius: 6px; background: rgba(8, 18, 34, .66); color: #cfe8ff; font-size: clamp(9px, .8vw, 12px); }
@@ -333,13 +333,7 @@ button.fs-ven:hover, button.fs-probe:hover, button.fs-queue:hover { background: 
 .fs-probe.on { color: #ffb4b4; }
 .fs-fact span { color: #8ba3c0; }
 
-/* 桌面待办浮件 */
-.fs-doc {
-  position: absolute; transform: translate(-50%, -50%); z-index: 3;
-  font-size: clamp(9px, .8vw, 12px); font-weight: 600; color: #ffd9a8;
-  background: rgba(40, 26, 8, .8); border: 1px solid rgba(255, 190, 90, .45);
-  border-radius: 7px; padding: 3px 9px;
-}
+/* 桌面待办浮件——已被台面工单板 fs-pad 取代 */
 
 /* 底缘尾流 */
 .fs-trail {
@@ -350,6 +344,16 @@ button.fs-ven:hover, button.fs-probe:hover, button.fs-queue:hover { background: 
 }
 .fs-trail-i { color: #9fb4cf; }
 .fs-trail-i i { font-style: normal; font-weight: 700; color: #8fd4ff; margin-right: 4px; }
+
+/* 台面工单板——原图台面散件:平铺全息票,一待办一板 */
+.fs-pad { position: absolute; transform: translate(-50%, -50%) perspective(200px) rotateX(58deg);
+  z-index: 2; padding: 3px 10px; border-radius: 3px;
+  background: linear-gradient(160deg, rgba(120,200,255,.34), rgba(30,80,150,.5));
+  border: 1px solid rgba(150,220,255,.65); color: #e4f5ff;
+  box-shadow: 0 0 12px rgba(110,200,255,.55), inset 0 0 8px rgba(140,215,255,.3);
+  font-size: clamp(7px, .62vw, 10px); font-weight: 700; white-space: nowrap;
+  text-shadow: 0 0 6px rgba(150,225,255,.9); }
+.fs-pad:hover { background: linear-gradient(160deg, rgba(150,220,255,.5), rgba(50,110,180,.65)); }
 
 /* 贴图层——坐姿机=器官座,站姿机=常驻机;态=滤镜不调图 */
 .fs-seatwrap { position: absolute; transform: translate(-50%, -92%); z-index: 3; width: 8.6%; text-align: center; }
@@ -393,7 +397,9 @@ button.fs-ven:hover, button.fs-probe:hover, button.fs-queue:hover { background: 
 .fs-seatwrap.face-l .fs-panel { left: -22%; transform: perspective(120px) rotateX(16deg) rotateY(20deg) skewY(-3deg); }
 .fs-seatwrap.face-b .fs-panel { left: 21%; top: -6%; transform: perspective(120px) rotateX(-12deg); }
 .fs-seatwrap.st-pin .fs-panel, .fs-seatwrap.st-ghost .fs-panel { opacity: .35; }
-.fs-machwrap { position: absolute; transform: translate(-50%, -96%); z-index: 3; width: 4.4%; text-align: center; }
+.fs-machwrap { position: absolute; transform: translate(-50%, -96%); z-index: 3; width: 6.2%; text-align: center; }
+.fs-machwrap::before { content: ""; position: absolute; left: 8%; right: 8%; bottom: 8%; height: 7%; z-index: -1;
+  border-radius: 50%; background: radial-gradient(ellipse, rgba(4,14,30,.5) 0%, transparent 70%); }
 .fs-botm { width: 100%; display: block; filter: drop-shadow(0 4px 8px rgba(0,0,0,.5)); pointer-events: none; }
 .fs-machwrap.off .fs-botm { filter: grayscale(.9) brightness(.6) drop-shadow(0 0 8px rgba(248,113,113,.7)); }
 .fs-machwrap .fs-breath { top: 1%; left: 44%; width: 14%; --bc: #6fe8b0; }

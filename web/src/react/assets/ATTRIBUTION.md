@@ -28,8 +28,24 @@
   birefnet-general 抠底裁紧。与 bot-seat 同瓷质同款,前 3 座专用(face-b)。
 
 ### holo-globe.png —— 全息地球(脑)
-- AI 生件(watermark:false)——线框地球+轨道环+底部投影光柱。
+- AI 生件(watermark:false)——线框球+同心环核+浮粒子(原图核结构)。
   黑底辉光支路:alpha 直取亮度(Lmax/255),叠舱底即加色辉光。
+
+### dais-ring.png —— 圆环巨台(环台件,原图 dais)
+- AI 生件(watermark:false)——藏蓝环面+同心光环+中心孔,斜视椭圆,
+  birefnet 抠底。原图台体:扁环平台非控制台;CSS scaleY(.58) 矫正视角差。
+
+### holo-bowl.png —— 光斗(台↔球连接件,原图核心件)
+- AI 生件(watermark:false)——线框半球碗,亮度=alpha 辉光,台孔升起托球底。
+  原图连接体非光柱——半球光斗。
+
+### scoop-chair.png —— 矮斗凳(空椅件,原图椅款)
+- AI 生件(watermark:false)——米斗壳+铬杆+平圆盘,birefnet 抠底。
+  原图椅=矮斗凳非高背扶手椅。
+
+### wall-station.png —— 墙沿坐台工位机(常驻机×8)
+- AI 生件(watermark:false)——白瓷机坐窄白台,台上浮青屏(原图墙沿工位)。
+  birefnet-general 抠底裁紧。
 
 ## 退役件(floor v3→v4 拆件替换)
 floor-holo.jpg / bridge-hall.jpg / conf-table.png / robot-chair.png
