@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"o/web"
 )
 
@@ -14,7 +15,8 @@ import (
 // /trx 旧双入口路径自然收敛进 SPA 路由）。
 // T-0268 缓存头鉴别：index.html=no-cache（入口每回重验证不发陈壳）；/assets/*
 // =vite hash 指纹件 immutable 年长缓存（文件名变=URL 变，缓存不陈）。
-func mountUI(mux *http.ServeMux) {
+func mountUI(mux *http.ServeMux, pool *pgxpool.Pool) {
+	mountInbox(mux, pool) // 业主投件道(inbox.go——同 HTTP 面挂接)
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/o.dashboard.") {
 			http.NotFound(w, r) // Connect API 错路——不回 HTML

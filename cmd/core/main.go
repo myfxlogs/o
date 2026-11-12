@@ -275,7 +275,7 @@ func run() error {
 	// 总览活页（T-0067：service.go mountUI——SPA 静态面；数据面唯一入口=
 	// CoreService Connect，活推=Watch 流帧——T-0156 REST/SSE 双轨面撤）。
 	mux := http.NewServeMux()
-	mountUI(mux)
+	mountUI(mux, pool)
 	// T-0086 ①④：资金户/Earn 活读件注入（venue_readers.go——活读件注入）。
 	// T-0096：MT5 户活读件同注（OpenSession 现读——凭据缺席=读件缺不假零）。
 	// T-0110：TRX 自营盘读面同 server 注册（trxW 同源单例）。

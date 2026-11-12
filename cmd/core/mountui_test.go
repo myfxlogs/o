@@ -14,7 +14,7 @@ import (
 // 同径）no-cache 不吃长缓存——鉴别处理双断言。
 func TestMountUICacheHeaders(t *testing.T) {
 	mux := http.NewServeMux()
-	mountUI(mux)
+	mountUI(mux, nil)
 
 	// index.html=no-cache（入口壳每回重验证——hash 资产发新版壳不陈）
 	rec := httptest.NewRecorder()

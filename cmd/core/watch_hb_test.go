@@ -84,7 +84,7 @@ func TestFaviconServed(t *testing.T) {
 		t.Skip("dist/favicon.ico 未产（npm build 未跑于本树——条件未备跳过）")
 	}
 	mux := http.NewServeMux()
-	mountUI(mux)
+	mountUI(mux, nil)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, httptest.NewRequest("GET", "/favicon.ico", nil))
 	if rec.Code != http.StatusOK {

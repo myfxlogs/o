@@ -39,7 +39,7 @@ func trxTestSetup(t *testing.T) (context.Context, *trxWiring, coreService) {
 func TestRestFacesRetired(t *testing.T) {
 	_, w, _ := trxTestSetup(t)
 	mux := http.NewServeMux()
-	mountUI(mux)
+	mountUI(mux, nil)
 	mountCore(mux, coreService{pool: w.pool, trx: w})
 	for _, p := range []string{"/api/overview", "/api/watch", "/api/trx/account",
 		"/api/trx/yield_radar", "/api/trx/hedge_flow", "/api/trx/account_refresh",
@@ -238,7 +238,7 @@ func TestTrxvoteFlagOffDormant(t *testing.T) {
 func TestConnectEndToEndAndWatchLatency(t *testing.T) {
 	ctx, w, _ := trxTestSetup(t)
 	mux := http.NewServeMux()
-	mountUI(mux)
+	mountUI(mux, nil)
 	mountCore(mux, coreService{pool: w.pool, trx: w})
 	srv := httptest.NewServer(mux)
 	defer srv.Close()

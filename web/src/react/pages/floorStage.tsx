@@ -38,6 +38,33 @@ const SEAT_POS = [
 const MACH_POS = [[74, 38], [80, 40], [34, 38], [26, 35], [90, 39], [93, 33]];
 const SCREEN_POS = { A: [11, 15], B: [26, 15], C: [68, 15], D: [85, 15] } as const;
 
+// 业主投件道——文件 POST /inbox,回执显落径几秒
+function Uploader() {
+  const [msg, setMsg] = useState("");
+  const [busy, setBusy] = useState(false);
+  const up = async (f: File) => {
+    setBusy(true); setMsg("");
+    try {
+      const fd = new FormData(); fd.append("file", f);
+      const r = await fetch("/inbox", { method: "POST", body: fd });
+      const j = await r.json();
+      setMsg(r.ok ? `已投 ${j.path}` : `败 ${j.err ?? r.status}`);
+    } catch (e) { setMsg("败 网络"); }
+    setBusy(false);
+    window.setTimeout(() => setMsg(""), 8000);
+  };
+  return (
+    <span className="fs-up">
+      <label className={`fs-up-btn${busy ? " busy" : ""}`}>
+        <input type="file" style={{ display: "none" }} disabled={busy}
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) up(f); e.target.value = ""; }} />
+        {busy ? "投…" : "投件"}
+      </label>
+      {msg && <span className="fs-up-msg">{msg}</span>}
+    </span>
+  );
+}
+
 export function FloorStage(p: StageProps) {
   const [pulse, setPulse] = useState<Set<number>>(new Set());
   const seenRef = useRef(new Map<number, bigint>());
@@ -79,6 +106,8 @@ export function FloorStage(p: StageProps) {
         title={alarm ? `警 ${openProbes.length}探针·${p.queue.length}待办` : "盘面静"}>
         {alarm ? `⚠ ${openProbes.length + p.queue.length}` : "·"}
       </button>
+      {/* 顶右投件道——业主丢件到本机 inbox(dev/sg 皆达,落径回执) */}
+      <Uploader />
 
       {/* 中央全息球=脑——在班泛光,球下在办+动向 */}
       <button className={`fs-brain${p.awake ? " awake" : ""}${p.brainFlash ? " flash" : ""}`}

@@ -57,3 +57,6 @@ FEISHU_MANAGE_APP_ID
 FEISHU_MANAGE_APP_SECRET
 FEISHU_MANAGE_CHAT_ID
 O_TICKETDRAFT_WIP_MAX
+# O_INBOX_DIR=业主投件道落点(inbox.go——缺省 /opt/o-inbox;测试注入临时
+# 目录同 O_TEST_* 类基建参数,不载密不进 PG)。
+O_INBOX_DIR
