@@ -94,6 +94,10 @@ UNIT="o-cognition-$(date +%s)"
 # 收口释锁(坑处置: 僵尸锁根修——正常收口不写败迹,唤起行尸占30min TTL,
 # 历史唤起间隔30min+1s整即其尸证;收口行=正常完会话的释锁契,
 # x.ts>e.ts 界保在飞不被早释,TTL 兜底 SIGKILL 无收口黑洞)。
+# 心跳在飞证(坑处置: TTL30min<RuntimeMaxSec 2h 漏——长会话唤起行过期
+# 即失保护,85.35 dispatch 03:34 双唤实证(o-cognition-1794454485);
+# run.sh 60s 续期心跳 last_activity 鲜活=在飞,state='alive' 界
+# 收口停跳后~100s 自然释——崩死会话释锁从30min缩到~2min)。
 WON=$(psql "$DSN" -qAt <<SQL
 SELECT pg_advisory_lock(7969);
 INSERT INTO ops_event(seat,event,ticket,note)
@@ -106,6 +110,10 @@ WHERE NOT EXISTS (
 	      (x.seat='唤知机' AND x.event='唤起败'
 	        AND x.note LIKE '%'||substring(e.note from 'unit=[^ ]+')||'%')
 	      OR x.event='会话收口')))
+AND NOT EXISTS (
+	SELECT 1 FROM ops_headless h
+	WHERE h.seat='唤知席' AND h.ticket LIKE 'COG-%' AND h.state='alive'
+	  AND h.last_activity > now() - interval '100 seconds')
 RETURNING id;
 SELECT pg_advisory_unlock(7969);
 SQL
