@@ -17,6 +17,7 @@ export function FloorPage() {
   const ov = useLive(["ev_position", "ev_account"], () => client.overview({}));
   const g = useLive(["ev_account", "ev_position", "ev_pipeline"], () => client.getFaceGrid({}));
   const t = useLive(["ev_pipeline"], () => client.getDecisionTrail({ limit: 12 }));
+  const hm = useLive(["ev_hostmetrics"], () => client.getHostMetrics({}));
   const [live, setLive] = useState(false);
   const [now, setNow] = useState(() => new Date());
   const [focus, setFocus] = useState<Tip | null>(null);
@@ -68,6 +69,11 @@ export function FloorPage() {
         queue={queue}
         probes={probes}
         machines={RACKS.map((nm) => ({ name: nm, ok: live }))}
+        hosts={(hm.data?.hosts ?? []).map((h) => ({
+          name: h.host === "dev" ? "OCI" : h.host.toUpperCase(),
+          cpu: h.cpuPct, memPct: h.memTotalMb ? (h.memUsedMb / h.memTotalMb) * 100 : 0,
+          stale: h.stale,
+        }))}
         nav={o ? { total: o.navTotal, today: o.pnlToday, cum: o.pnlCum } : undefined}
         awake={!!s?.running}
         brainFlash={octo.brainFlash}

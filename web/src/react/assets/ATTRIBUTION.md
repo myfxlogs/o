@@ -43,6 +43,10 @@
 - AI 生件(watermark:false)——米斗壳+铬杆+平圆盘,birefnet 抠底。
   原图椅=矮斗凳非高背扶手椅。
 
+### server-rack.png —— 物理主机柜(主机件,真硬件非人形)
+- AI 生件(watermark:false)——藏蓝机柜+青 LED,birefnet 抠底。
+  三形分家:器=坐机/服=工位机/机=柜;载 fin_host_metrics cpu%,stale 灰红。
+
 ### wall-station.png —— 墙沿坐台工位机(常驻机×8)
 - AI 生件(watermark:false)——白瓷机坐窄白台,台上浮青屏(原图墙沿工位)。
   birefnet-general 抠底裁紧。
