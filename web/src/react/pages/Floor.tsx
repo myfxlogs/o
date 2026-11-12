@@ -1,7 +1,7 @@
 // Floor.tsx —— 它在干啥（业主令 11-12 瓦片版：iso 场景全撤,回归站内
 // v2 面板语言——hero+异常条+栅格面板;每块瓦片=事实+态色+点击详情,
 // 态推导/事实锚/FocusBody 弹窗全保留,零装饰像素)。
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { client } from "../api";
 import { useLive } from "../hooks";
 import { onLive } from "../stream";
@@ -10,6 +10,7 @@ import { plainText } from "../components/plain";
 import { navigate } from "../router";
 import { FocusBody, GHOSTS, ghostSt, type Tip } from "./floorFocus";
 import { Octopus } from "../components/octopus";
+import { useOctoFeed } from "./floorOcto";
 
 const fmtMoney = (v: number) =>
   "$" + v.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -51,28 +52,8 @@ export function FloorPage() {
     // 域信号率——该器官关键词在事实窗内的命中数=章鱼腕搏动源
     hits: facts.filter((f) => f.event !== "量表" && gh.keys.some((k) => f.note.includes(k))).length,
   })), [facts]);
-
-  // 到达感——器官域来新行→该腕抽一下(0.9s);首帧不闪(初始化只记水位)
-  const [flash, setFlash] = useState<Set<number>>(new Set());
-  const seenRef = useRef<Map<number, bigint>>(new Map());
-  const initRef = useRef(false);
-  useEffect(() => {
-    if (!facts.length) return;
-    const next = new Set<number>();
-    for (const o of organs) {
-      const newest = facts.find((f) => f.event !== "量表" && o.gh.keys.some((k) => f.note.includes(k)));
-      if (!newest) continue;
-      const prev = seenRef.current.get(o.i);
-      if (initRef.current && (prev === undefined || newest.id > prev)) next.add(o.i);
-      seenRef.current.set(o.i, prev !== undefined && prev > newest.id ? prev : newest.id);
-    }
-    initRef.current = true;
-    if (next.size) {
-      setFlash((s) => new Set([...s, ...next]));
-      const t = window.setTimeout(() => setFlash((s) => { const m = new Set(s); next.forEach((i) => m.delete(i)); return m; }), 900);
-      return () => clearTimeout(t);
-    }
-  }, [organs]);
+  // 章鱼实时信号(腕抽/脑闪/在办/动向)——floorOcto 拆件
+  const octo = useOctoFeed(facts, organs);
   const doneN = organs.filter((x) => x.st === "done").length;
   const buildN = organs.filter((x) => x.st === "build").length;
   const pinN = organs.filter((x) => x.st === "pin").length;
@@ -123,8 +104,11 @@ export function FloorPage() {
             <span className="ink-3">{doneN}/{organs.length} 完工</span>
           </div>
           <Octopus
-            arms={organs.map(({ gh, i, st, hits }) => ({ i, name: gh.name, st, hits, flash: flash.has(i) }))}
+            arms={organs.map(({ gh, i, st, hits }) => ({ i, name: gh.name, st, hits, flash: octo.flash.has(i) }))}
             awake={!!s?.running}
+            brainFlash={octo.brainFlash}
+            brainNote={s?.running ? octo.claim ?? "收棒中" : undefined}
+            brainAct={octo.lastAct}
             onPick={setFocus}
           />
           <div className="octo-legend">腕色=态（绿完工/金在建/蓝立项/灰毛坯）· 腕内光流=域信号率 · 腕抽=新行到达 · 脑=会话席</div>

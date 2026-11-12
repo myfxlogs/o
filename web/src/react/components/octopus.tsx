@@ -26,7 +26,7 @@ const qb = (p0: P, c: P, p1: P, t: number): P => {
   return { x: u * u * p0.x + 2 * u * t * c.x + t * t * p1.x, y: u * u * p0.y + 2 * u * t * c.y + t * t * p1.y };
 };
 
-export function Octopus(props: { arms: Arm[]; awake: boolean; onPick: (t: Tip) => void }) {
+export function Octopus(props: { arms: Arm[]; awake: boolean; brainFlash?: boolean; brainNote?: string; brainAct?: string; onPick: (t: Tip) => void }) {
   const n = props.arms.length;
   const fmt = (p: P) => `${p.x.toFixed(1)} ${p.y.toFixed(1)}`;
   return (
@@ -59,8 +59,8 @@ export function Octopus(props: { arms: Arm[]; awake: boolean; onPick: (t: Tip) =
           </g>
         );
       })}
-      {/* 脑=会话席 */}
-      <g className={`octo-brain${props.awake ? " awake" : ""}`}
+      {/* 脑=会话席——认领件贴脑下,新行到脑闪 */}
+      <g className={`octo-brain${props.awake ? " awake" : ""}${props.brainFlash ? " flash" : ""}`}
         onClick={() => props.onPick({ k: "desk", x: 0, y: 0, title: "会话席", body: [], to: "/device" })}>
         <title>脑 · 唤知会话席——{props.awake ? "在班" : "下班"}</title>
         {props.awake && <ellipse cx={CX} cy={CY} rx={RX + 7} ry={RY + 6} className="octo-halo" />}
@@ -76,6 +76,8 @@ export function Octopus(props: { arms: Arm[]; awake: boolean; onPick: (t: Tip) =
           <path d={`M ${CX + 11} ${CY - 3} q 6 5 12 0`} className="octo-eye-shut" />
         </>)}
         <text x={CX} y={CY + 20} textAnchor="middle" className="octo-brain-st">{props.awake ? "脑·在班" : "脑·下班"}</text>
+        {props.brainNote && <text x={CX} y={CY - RY - 24} textAnchor="middle" className="octo-brain-note">{props.brainNote}</text>}
+        {props.brainAct && <text x={CX} y={CY - RY - 40} textAnchor="middle" className="octo-brain-act">{props.brainAct}</text>}
       </g>
     </svg>
   );
