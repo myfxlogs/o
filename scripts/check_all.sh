@@ -278,6 +278,19 @@ else
   run_go_test "go test 红" ./...
 fi
 
+# 戳键=HEAD sha 而测面=工作树（已提交面∪porcelain 面）——脏树盖戳=
+# 「未验证的 HEAD commit」获绿戳可推可发（审计 audit_deploy_dirty_stamp
+# RED 锚：pre-push/mirror_push→deploy_at_sha 链直通破件上线）。戳写点前
+# porcelain 非空→拒落；CHECK_ALL_DIRTY_OK=1 显式放行+mode 附记留痕。
+if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
+  if [ "${CHECK_ALL_DIRTY_OK:-0}" = "1" ]; then
+    echo "⚠️ [check-all] 工作树脏（porcelain 非空）——CHECK_ALL_DIRTY_OK=1 显式放行，戳面含未提交件（mode 附记 dirty-ok）" >&2
+    printf 'dirty-ok\n' >> "$STAMP.mode"
+  else
+    fail "工作树脏（git status --porcelain 非空）——戳键=HEAD sha 而测面含未提交件，拒盖戳；先 commit/stash 或 CHECK_ALL_DIRTY_OK=1 显式放行"
+  fi
+fi
+
 if [ "$BRIDGE_DEFERRED" = 1 ]; then
   printf 'bridge-audit-deferred\n' > "$STAMP.deferred"
   echo "⏸ [check-all] 全链绿（bridge-audit 延后未验）——不落 check-green 戳；本盒 accept 补跑该闸绿后落" >&2
