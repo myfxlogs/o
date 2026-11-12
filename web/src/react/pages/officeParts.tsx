@@ -1,6 +1,7 @@
 // officeParts.tsx —— 写实派办公家具基件（业主令 11-11）。
 // 家具=Kenney Furniture Kit CC0 精灵图（等距 SE 角度，独立件可交互）；
 // 非家具件仍自绘等距盒。热区由调用方 hot() 包裹，数据绑定位不变。
+import { useEffect, useState } from "react";
 import { P, pts, IsoBox } from "../components/iso";
 import deskUrl from "../assets/furniture/desk.png";
 import chairUrl from "../assets/furniture/chairDesk.png";
@@ -12,6 +13,58 @@ import ceilLampUrl from "../assets/furniture/lampSquareCeiling.png";
 import doorUrl from "../assets/furniture/doorway.png";
 import trashUrl from "../assets/furniture/trashcan.png";
 import booksUrl from "../assets/furniture/books.png";
+
+// 职员人形——Kenney Prototype Pack Human 八向低模（蓝灰职员调）：
+//   idle_<d> 站桩（d: 0背左 1左 2前左 3正 4前右 5右 6背右 7背）
+//   run_<d>_<f> 跑步帧×10（d∈{0,4} 两走向） pick_4_<f> 弯腰取物件帧×6。
+const PPL = import.meta.glob<string>("../assets/people/*.png", { eager: true, import: "default" });
+const PDIM: Record<string, [number, number]> = {
+  idle_0: [45, 133], idle_1: [26, 136], idle_2: [47, 135], idle_3: [57, 130],
+  idle_4: [45, 134], idle_5: [26, 134], idle_6: [47, 132], idle_7: [57, 131],
+  pick_4_0: [45, 133], pick_4_1: [51, 108], pick_4_2: [62, 96], pick_4_3: [61, 94],
+  pick_4_4: [61, 95], pick_4_5: [56, 110],
+  run_0_0: [59, 132], run_0_1: [77, 135], run_0_2: [83, 128], run_0_3: [70, 118], run_0_4: [64, 123],
+  run_0_5: [62, 135], run_0_6: [74, 138], run_0_7: [79, 128], run_0_8: [66, 114], run_0_9: [56, 118],
+  run_4_0: [59, 105], run_4_1: [77, 92], run_4_2: [83, 100], run_4_3: [70, 116], run_4_4: [64, 106],
+  run_4_5: [62, 100], run_4_6: [73, 87], run_4_7: [79, 106], run_4_8: [65, 120], run_4_9: [56, 106],
+};
+// 人形精灵——底中锚点地板落点；tone=边缘辉光（态色），h=目标屏高 px。
+export function PersonSprite(props: { n: string; x: number; y: number; z?: number; h: number; tone?: string; opacity?: number }) {
+  const [w0, h0] = PDIM[props.n] ?? [50, 132];
+  const u = PPL[`../assets/people/${props.n}.png`];
+  const [px, py] = P(props.x, props.y, props.z ?? 0);
+  const w = props.h * w0 / h0;
+  return (
+    <image href={u} x={px - w / 2} y={py - props.h} width={w} height={props.h}
+      opacity={props.opacity ?? 1}
+      style={props.tone ? { filter: `drop-shadow(0 0 2.5px ${props.tone}) drop-shadow(0 0 6px ${props.tone})` } : undefined} />
+  );
+}
+
+// 走位人——沿屏幕路径跑的搬运人：animateMotion 移位+JS 换跑步帧。
+// 走向按路径首尾 dx 选 run_4(屏幕右下行)/run_0(屏幕左上行)——等距双向够用。
+export function WalkerSprite(props: { path: [number, number][]; dur?: number; h?: number; tone?: string; onDone: () => void }) {
+  const d = props.path.map(([x, y], i) => `${i ? "L" : "M"} ${x} ${y}`).join(" ");
+  const dur = props.dur ?? 3400;
+  const dir = props.path[props.path.length - 1][0] >= props.path[0][0] ? "run_4" : "run_0";
+  const [fr, setFr] = useState(0);
+  useEffect(() => {
+    const iv = setInterval(() => setFr((f) => (f + 1) % 10), 85);
+    const t = setTimeout(props.onDone, dur + 80);
+    return () => { clearInterval(iv); clearTimeout(t); };
+  }, [dur]);
+  const h = props.h ?? 46;
+  const [w0, h0] = PDIM[`${dir}_${fr}`];
+  const u = PPL[`../assets/people/${dir}_${fr}.png`];
+  const w = h * w0 / h0;
+  return (
+    <g>
+      <animateMotion dur={`${dur}ms`} path={d} fill="freeze" />
+      <image href={u} x={-w / 2} y={-h} width={w} height={h}
+        style={props.tone ? { filter: `drop-shadow(0 0 4px ${props.tone})` } : undefined} />
+    </g>
+  );
+}
 
 // 精灵件——底中锚点=地板落点（x,y,z 投影），w=目标屏宽 px。
 const SPR = {

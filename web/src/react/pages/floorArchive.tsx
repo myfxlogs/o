@@ -1,7 +1,8 @@
 // floorArchive.tsx —— 档案室（/floor 子房间，点主厅门进入）。
 // 全自写等距景：左墙=工程 canon 书架，右墙=经济 canon 架+日记钉墙，
 // 中央阅档台+吊灯，前门回主厅。canon 数=书脊实数，钉=ops_event 最新。
-import { P, pts, IsoBox, Person } from "../components/iso";
+import { P, pts, IsoBox } from "../components/iso";
+import { PersonSprite } from "./officeParts";
 import { plainText } from "../components/plain";
 import type { Tip } from "./floorFocus";
 
@@ -77,7 +78,7 @@ export function ArchiveRoom(props: {
         <IsoBox x={5} y={4} w={2} d={1.2} h={0.75} top="#6b543c" front="#5a4632" right="#4a3a29" />
         <IsoBox x={6.1} y={4.15} w={0.7} d={0.45} h={0.06} z0={0.75} top="#e8e2d0" front="#d9d2bc" right="#c9c1a8" />
       </g>
-      <Person x={5.4} y={3.6} tone="#c9a86a" breathe={live} />
+      <PersonSprite n="idle_3" x={5.4} y={3.6} h={46} tone={live ? "#c9a86a" : undefined} />
 
       {/* 吊灯 */}
       {(() => { const [lx, ly] = P(6, 4); return (

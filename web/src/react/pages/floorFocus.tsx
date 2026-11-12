@@ -7,8 +7,8 @@ import { useLive } from "../hooks";
 import { plainText } from "../components/plain";
 import { pbDate } from "../components/fmt";
 import { AGE } from "../components/panel";
-import { P, pts, Person, SeatedPerson } from "../components/iso";
-import { Sprite } from "./officeParts";
+import { P, pts } from "../components/iso";
+import { Sprite, PersonSprite } from "./officeParts";
 
 export type Tip = { k: string; x: number; y: number; title: string; body: string[]; to: string };
 
@@ -78,8 +78,8 @@ export function GhostRow(props: { hot: Hot; facts: Fact[] }) {
               <Sprite name="desk" x={cx} y={y + 0.62} w={66} />
               <Sprite name="screen" x={cx} y={y + 0.42} z={0.55} w={20} />
               <Sprite name="chair" x={cx} y={y + 1.06} w={26} />
-              {/* 坐席人——椅上躯干背对镜头，在建=呼吸在敲 */}
-              <SeatedPerson x={cx} y={y + 1.08} tone={GH_TONE[st]} breathe={st === "build"} />
+              {/* 职员在席——背对镜头人形件,态色=边缘辉光 */}
+              <PersonSprite n="idle_7" x={cx} y={y + 1.02} h={46} tone={GH_TONE[st]} />
             </g>
             {pin && <text x={P(cx - 0.3, y + 0.35, 0.72)[0]} y={P(cx - 0.3, y + 0.35, 0.72)[1]} fontSize="11">📌</text>}
             <text x={nx} y={ny + 8} className={`iso-cap${st === "build" ? " gold" : done ? "" : " dim"}`} textAnchor="middle">{gh.name}{done ? "✓" : ""}</text>
