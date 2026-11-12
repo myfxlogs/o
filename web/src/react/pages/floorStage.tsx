@@ -76,6 +76,16 @@ export function FloorStage(p: StageProps) {
   const openProbes = p.probes.filter((x) => x.open);
   const trail = p.facts.filter((f) => f.event !== "量表").slice(0, 10);
   const alarm = openProbes.length > 0 || p.queue.length > 6 || !p.live;
+  // 器官单牌——流水线长在身上:待办单注文含器官名=该器有单;
+  // 段位=注文末段工序词(认领→施工→修→戳→并→部署→销)
+  const STAGE_RE = /认领|施工|修|戳|并|部署|销|收口/g;
+  const organTicket = (o: StageOrgan) => {
+    const key = o.name.replace(/^[A-Z] ?/, "");
+    const q = p.queue.find((x) => x.note.includes(key));
+    if (!q) return null;
+    const hits = q.note.match(STAGE_RE);
+    return { id: q.id, stage: hits ? hits[hits.length - 1] : null };
+  };
 
   return (
     <div className="fstage" style={{ backgroundImage: `url(${hallUrl})` }}>
@@ -85,6 +95,15 @@ export function FloorStage(p: StageProps) {
         {p.counts.done}完工·{p.counts.build}在建·{p.counts.pin}立项·{p.queue.length}待办
         <span className="fs-hud-sub">UTC {p.utc.slice(0, 5)} · 北京 {p.bj.slice(0, 5)}</span>
       </div>
+      {/* 部署基线片——量表帧「部署=ver(age)」钉在脑名旁 */}
+      {(() => {
+        const f = p.facts.find((x) => x.event === "量表" && x.note.includes("部署="));
+        const m = f?.note.match(/部署=([0-9a-f]{9,12})\(([^)]*)\)/);
+        return m ? (
+          <span className="fs-dep" style={{ left: "50%", top: "48.5%" }}
+            title={`部署基线 ${m[1]}·${m[2]}前`}>▣{m[1].slice(0, 9)}</span>
+        ) : null;
+      })()}
       {/* 顶右警报灯——积压/断流红闪 */}
       <button className={`fs-alarm${alarm ? " on" : ""}`}
         onClick={() => p.onNav("/decision")}
@@ -128,6 +147,12 @@ export function FloorStage(p: StageProps) {
           <img src={o.st === "pin" || o.st === "ghost" ? chairUrl : SEAT_FACE[k] === "b" ? botBackUrl : botSeatUrl} alt={o.name}
             className={`fs-bot${o.st === "pin" || o.st === "ghost" ? " chair" : ""}${SEAT_FACE[k] === "l" ? " flip" : ""}`} draggable={false} />
           <span className="fs-breath" />
+          {/* 单牌——该器身上有单即亮:#票号+当前段位(认领/施工/部署/销) */}
+          {(() => { const t = organTicket(o); return t ? (
+            <span className={`fs-tkt${t.stage ? ` sg-${t.stage}` : ""}`} title={p.queue.find(x => x.id === t.id)?.note}>
+              #{t.id}{t.stage ? `·${t.stage}` : ""}
+            </span>
+          ) : null; })()}
           {/* 座前全息板——原图件:台面小浮屏朝台心,载器官 hits */}
           <span className="fs-panel"><i>{o.hits || "·"}</i></span>
           <span className="fs-seat">
