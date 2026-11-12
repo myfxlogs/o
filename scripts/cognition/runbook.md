@@ -41,6 +41,10 @@ FIN_DSN=$(grep '^FIN_PG_DSN=' /opt/o-research/env | cut -d= -f2- | tr -d '"')
 # NAV/策略态/闸面/收口鲜度七段;账页=取向面非真相源,处置仍走下方直查）:
 psql "$FIN_DSN" -qAt -c "SELECT note FROM ops_event
   WHERE event='量表' AND ticket='self_state' ORDER BY id DESC LIMIT 1"
+# 连续自我账页（工单#11385 器官——唤起拍机产叙事帧:「我在=自态帧/上轮=近
+# 收口/卡在=OPEN票前3」一页读尽,会话猝死也不断更;同为取向面非真相源）:
+psql "$FIN_DSN" -qAt -c "SELECT note FROM ops_event
+  WHERE event='量表' AND ticket='self_narrative' ORDER BY id DESC LIMIT 1"
 # 审计前任悬置：audit 支未入 master 且带 RED→复证补升件
 git -C /opt/o fetch -p origin -q 2>/dev/null
 git -C /opt/o branch -r --no-merged origin/master | grep -E 'audit/'
