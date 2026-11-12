@@ -75,10 +75,17 @@ psql "$FIN_DSN" -c "SELECT id,signature,cluster_n,numbers FROM fin_eng_lesson
 psql "$FIN_DSN" -c "SELECT id,kind,entity_ref,numbers FROM fin_econ_lesson
   WHERE status='pending' ORDER BY id LIMIT 20"
 # OPEN 工单(未销+无活在认领)——按期限序=施工面入口,认领/销/挂起三选一,不许无声跳过:
+# 销票引证剔「挂起条件=」与「接续」行(缓办/进度非完结,升件#12643);挂起引证在
+# 票期限内暂抑回列(票开着但缓办),过期回列复验——与 feed_esc tickEnded 同语义:
 psql "$FIN_DSN" -c "SELECT t.id,t.ts,left(t.note,200) FROM ops_event t
 WHERE t.event='工单' AND t.ts>now()-interval '30 days'
   AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='处置' AND x.ts>t.ts
-    AND x.note ~ ('工单#'||t.id::text||'([^0-9]|$)'))
+    AND x.note ~ ('工单#'||t.id::text||'([^0-9]|$)')
+    AND x.note NOT LIKE '%挂起条件=%'
+    AND x.note !~ ('工单#'||t.id::text||' ?接续'))
+  AND NOT EXISTS (SELECT 1 FROM ops_event s WHERE s.event='处置' AND s.ts>t.ts
+    AND s.note ~ ('工单#'||t.id::text||'([^0-9]|$)') AND s.note LIKE '%挂起条件=%'
+    AND t.ts + COALESCE((substring(t.note from '期限=([0-9]+)h'))::int,24)*interval '1 hour' > now())
   AND NOT EXISTS (SELECT 1 FROM ops_event c WHERE c.event='认领' AND c.ts>t.ts
     AND c.ts>now()-interval '2 hours'
     AND c.note ~ ('工单#'||t.id::text||'([^0-9]|$)'))
