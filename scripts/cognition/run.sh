@@ -100,10 +100,16 @@ $RECALL"
 
 TRANSCRIPT_FILE=$(mktemp "$SESSION_DIR/.devin-usage.XXXXXX.json")
 chmod 600 "$TRANSCRIPT_FILE"
+# 活性心跳续命（坑处置: 跨机锁30min TTL<RuntimeMaxSec 2h——长会话唤起行
+# 过期即失在飞保护,双机双会话实证 2026-11-12。60s 续期保
+# last_activity 鲜活=dispatch 跨机在飞判据;devin 主径阻塞期后台跑,
+# kill 于主径返回后——会话死透心跳即停,陈旧心跳≈死证自清）。
+( while :; do sleep 60; hb alive; done ) & HB_LOOP_PID=$!
 set +e
 "$DEVIN_BIN" "${DEVIN_ARGS[@]}" --export "$TRANSCRIPT_FILE" -p --model "$MODEL" \
 	--respect-workspace-trust false --permission-mode dangerous -- "$PROMPT" 2>&1 | tee "$LOG_FILE"
 RC=${PIPESTATUS[0]}
+kill "$HB_LOOP_PID" 2>/dev/null || true # tolerate: 心跳环随主径收——环死/已死不阻收口
 set -e
 
 if o_worker_is_rate_limited "$LOG_FILE"; then

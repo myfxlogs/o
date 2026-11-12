@@ -31,11 +31,26 @@ export type Fact = { id: bigint; event?: string; note: string };
 const DONE_RE = /销案|部署销|落账毕|法典已部署|已部署|已完成|收口|上线|落地|启用|投产|生效|已?销(?=[：:—→→，。、;]|$)|merge|部署至|产线/;
 const BUILD_RE = /施工|在施|开工|落码|码修|修码|部署中|处置中|实现|开发中|改造|推进/;
 const PIN_RE = /领命|工单|业主令|备记|清单|纳入|认领|立项|排期|消化径/;
+// 态权威=工位断言行（`工位:<名>:<st>`——organOrphanEscCheck 落账件,
+// 散文推导翻牌四度实证后改结构化）。tag=名去空格（前后端册词桥）。
+const organTag = (name: string) => name.replace(/\s/g, "");
+const organAssertRe = /工位:([^:：\s]+):(ghost|pin|build|done)/;
+function organAssertFact(gh: (typeof GHOSTS)[number], facts: Fact[]): Fact | undefined {
+  const tag = `工位:${organTag(gh.name)}:`;
+  return facts.find((r) => r.event === "工位" && r.note.includes(tag));
+}
 export function ghostFact(gh: (typeof GHOSTS)[number], facts: Fact[]): Fact | undefined {
+  const a = organAssertFact(gh, facts);
+  if (a) return a;
   // 量表行是节奏心跳不是态断言——跳过,否则无态词分句被兜底判成 build
   return facts.find((r) => r.event !== "量表" && gh.keys.some((k) => r.note.includes(k)));
 }
 export function ghostSt(gh: (typeof GHOSTS)[number], facts: Fact[]): "ghost" | "pin" | "build" | "done" {
+  const a = organAssertFact(gh, facts);
+  if (a) {
+    const m = a.note.match(organAssertRe);
+    if (m) return m[1] as "ghost" | "pin" | "build" | "done";
+  }
   const hit = ghostFact(gh, facts);
   if (!hit) return "ghost";
   // 同分句邻域: 器官名所在的分句内找态词——防一注多器官时邻句态词串味。

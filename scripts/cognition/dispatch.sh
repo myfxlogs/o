@@ -52,8 +52,15 @@ TICKET_N=${TICKET_N:-0}
 # 散文把未完链挂出触发面,队列清零工件却活着。推支未入 master 即未完工作
 # 物证,工件本身当信号不等会话纪律): 7d tip 龄界防古墓支永唤;
 # merge/--no-merged 自清或会话 push --delete 判废。
-timeout 15 git -C /opt/o fetch origin -q 2>/dev/null || true # tolerate: fetch败=远端瞬时,本地 remote-ref 陈旧仍数支——fail-open 不误闸
-PEND_BR=$(git -C /opt/o for-each-ref --no-merged origin/master \
+# 仓径自寻(坑处置: 部署机 /opt/o 是构件目录非 git 仓,真仓在 /root/o——
+# 写死单径=pendbr 在真唤会话机上哑火。候选序先 /opt/o 后 /root/o):
+OREPO=/opt/o
+git -C "$OREPO" rev-parse --git-dir >/dev/null 2>&1 || OREPO=/root/o
+git -C "$OREPO" rev-parse --git-dir >/dev/null 2>&1 || OREPO=""
+if [ -n "$OREPO" ]; then
+	timeout 15 git -C "$OREPO" fetch origin -q 2>/dev/null || true # tolerate: fetch败=远端瞬时,本地 remote-ref 陈旧仍数支——fail-open 不误闸
+fi
+PEND_BR=$([ -n "$OREPO" ] && git -C "$OREPO" for-each-ref --no-merged origin/master \
 	--format='%(committerdate:unix)' \
 	'refs/remotes/origin/fix/*' 'refs/remotes/origin/feat/*' 'refs/remotes/origin/audit/*' \
 	2>/dev/null | awk -v c=$(( $(date +%s) - 604800 )) '$1>c' | wc -l)
@@ -87,6 +94,10 @@ UNIT="o-cognition-$(date +%s)"
 # 收口释锁(坑处置: 僵尸锁根修——正常收口不写败迹,唤起行尸占30min TTL,
 # 历史唤起间隔30min+1s整即其尸证;收口行=正常完会话的释锁契,
 # x.ts>e.ts 界保在飞不被早释,TTL 兜底 SIGKILL 无收口黑洞)。
+# 心跳在飞证(坑处置: TTL30min<RuntimeMaxSec 2h 漏——长会话唤起行过期
+# 即失保护,85.35 dispatch 03:34 双唤实证(o-cognition-1794454485);
+# run.sh 60s 续期心跳 last_activity 鲜活=在飞,state='alive' 界
+# 收口停跳后~100s 自然释——崩死会话释锁从30min缩到~2min)。
 WON=$(psql "$DSN" -qAt <<SQL
 SELECT pg_advisory_lock(7969);
 INSERT INTO ops_event(seat,event,ticket,note)
@@ -99,6 +110,10 @@ WHERE NOT EXISTS (
 	      (x.seat='唤知机' AND x.event='唤起败'
 	        AND x.note LIKE '%'||substring(e.note from 'unit=[^ ]+')||'%')
 	      OR x.event='会话收口')))
+AND NOT EXISTS (
+	SELECT 1 FROM ops_headless h
+	WHERE h.seat='唤知席' AND h.ticket LIKE 'COG-%' AND h.state='alive'
+	  AND h.last_activity > now() - interval '100 seconds')
 RETURNING id;
 SELECT pg_advisory_unlock(7969);
 SQL
