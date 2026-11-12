@@ -12,6 +12,7 @@ import globeUrl from "../assets/holo-globe.png";
 import tableUrl from "../assets/conf-table.png";
 import chairUrl from "../assets/robot-chair.png";
 import hallUrl from "../assets/bridge-hall.jpg";
+import frameUrl from "../assets/holo-dashboard.png";
 import { plainText } from "../components/plain";
 import type { Fact, Tip } from "./floorFocus";
 
@@ -161,6 +162,7 @@ export function FloorStage(p: StageProps) {
 
       {/* 屏A 钱径——venue 柱,断腿=整柱灰塌(业主裁:venue=外伸非围坐) */}
       <div className="fs-screen" style={{ left: `${SCREEN_POS.A[0]}%`, top: `${SCREEN_POS.A[1]}%` }}>
+        <img src={frameUrl} className="fs-frame" alt="" draggable={false} />
         <div className="fs-scr-t">钱径</div>
         {p.vens.map((v) => (
           <button key={v.name} className={`fs-ven${v.dud ? " dud" : ""}`}
@@ -171,6 +173,7 @@ export function FloorStage(p: StageProps) {
       </div>
       {/* 屏B 哨兵墙 */}
       <div className="fs-screen" style={{ left: `${SCREEN_POS.B[0]}%`, top: `${SCREEN_POS.B[1]}%` }}>
+        <img src={frameUrl} className="fs-frame" alt="" draggable={false} />
         <div className="fs-scr-t">哨兵 {openProbes.length ? `· ${openProbes.length}警` : "· 静"}</div>
         {p.probes.slice(0, 5).map((pr, i) => (
           <button key={i} className={`fs-probe${pr.open ? " on" : ""}`}
@@ -181,6 +184,7 @@ export function FloorStage(p: StageProps) {
       </div>
       {/* 屏C 待办+工单 */}
       <div className="fs-screen" style={{ left: `${SCREEN_POS.C[0]}%`, top: `${SCREEN_POS.C[1]}%` }}>
+        <img src={frameUrl} className="fs-frame" alt="" draggable={false} />
         <div className="fs-scr-t">待办 {p.queue.length ? `· ${p.queue.length}` : "· 板上净"}</div>
         {p.queue.slice(0, 5).map((q) => (
           <button key={q.id} className="fs-queue" onClick={() => p.onNav("/decision")}>
@@ -190,6 +194,7 @@ export function FloorStage(p: StageProps) {
       </div>
       {/* 屏D 自态账页(末行事实) */}
       <div className="fs-screen" style={{ left: `${SCREEN_POS.D[0]}%`, top: `${SCREEN_POS.D[1]}%` }}>
+        <img src={frameUrl} className="fs-frame" alt="" draggable={false} />
         <div className="fs-scr-t">账页·末行</div>
         {trail.slice(0, 5).map((f) => (
           <div key={String(f.id)} className="fs-fact">{f.event} <span>{plainText(f.note).slice(0, 24)}</span></div>

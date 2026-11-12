@@ -21,8 +21,10 @@
   底+青边光条,前四分之三视,全身可见)。白底洪泛抠边(阈值 240+中性饱和度门,
   只切与外沿连通的白底)。权属未证,内部面板使用。
 
-- 同期另有「空屏全息看板」一 roll(holo-dashboard),业主已弃用未投放;
-  重roll 口径同上,需要时按提示词重出即可。
+# holo-dashboard.png
+- AI 生件(同上口径,watermark:false),1024x1024。提示词=墙面空屏全息看板:
+  拉丝金属八边形框+细青边辉光,屏内纯空深藏青无字无图,轻微透视倾斜。
+  白底洪泛抠边(阈值 212,连地面软投影一起吃)+`--kill-floor-shadow`。
 
 # bridge-hall.jpg
 - AI 生件(sensenova-u1.5-lite,watermark:false,2026-11-12 floor 件化),1536x864 16:9。
@@ -42,3 +44,8 @@
 # bot-seat.png(v2 白机带椅)
 - 从 floor-holo.jpg 原图抠件(业主评钦定原图风:米色 Eames 椅+白瓷机,
   rembg/u2net;伸向桌面前臂融桌光被食,显示尺寸内读作手搭膝)。
+
+# bridge-hall.jpg / holo-dashboard.png
+- 业主生件(11-12):空舰桥底图(件#6)+屏框(件#3,rembg 抠白底)。
+  至此七件全位:bot-seat/bot-stand/holo-globe/robot-chair/conf-table/
+  bridge-hall/holo-dashboard。

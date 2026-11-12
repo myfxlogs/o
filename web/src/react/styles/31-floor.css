@@ -304,10 +304,13 @@ button.v2-row.ft-row {
 /* 后墙4屏=活面板——半透罩在原图屏区上 */
 .fs-screen {
   position: absolute; transform: translateX(-50%); z-index: 3;
-  width: 17%; padding: 4px 6px; border-radius: 7px;
-  background: rgba(6, 14, 28, .78); border: 1px solid rgba(110, 190, 255, .28);
+  width: 17%; padding: 4px 6px;
+  background: rgba(4, 10, 22, .3);
   font-size: clamp(8px, .68vw, 11px); color: #cfe2f5;
 }
+/* 屏框贴图——框图屏芯区(84%×83.5%)对位内容盒,框体自然外探 */
+.fs-frame { position: absolute; left: -14.3%; top: -10.2%; width: 119%; height: 120%;
+  object-fit: fill; z-index: -1; pointer-events: none; }
 .fs-scr-t { font-weight: 700; color: #8fd4ff; margin-bottom: 2px; font-size: 1.05em; }
 .fs-ven, .fs-probe, .fs-queue, .fs-fact {
   display: block; width: 100%; text-align: left; padding: 1px 3px; border-radius: 4px;
