@@ -227,7 +227,10 @@ ACTUAL=$(printf '%s\n' "$RAW" | awk -F'|' -v mod="$MOD" '{split($2,a," "); for(i
 VIOL=""
 while IFS= read -r e; do
 	[ -z "$e" ] && continue
-	if ! printf '%s\n' "$ALLOWED" | grep -qxF "$e"; then
+	# 禁 grep -q：pipefail 下 -q 命中即退→builtin printf 续写吃 SIGPIPE(rc=141)
+	# →管线判败→白名单边被误报违例（随机假红~1.6%/边，strace 降速即消——
+	# 工单#11368 施工期产线实证）。无 -q 读全流至 EOF，printf 恒完工。
+	if ! printf '%s\n' "$ALLOWED" | grep -xF "$e" >/dev/null; then
 		VIOL="$VIOL$e\n"
 	fi
 done <<< "$ACTUAL"
