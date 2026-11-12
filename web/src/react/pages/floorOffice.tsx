@@ -1,9 +1,9 @@
 // floorOffice.tsx —— 写实办公室版交易厅（业主令 11-11：要真办公室质感）。
 // 大厅=木地开放区+水泥区；左墙大落地窗+档案室门，右墙 NAV 大屏/venue 屏排/
 // 机房钢门；件件独立可交互（hot() 包裹），数据绑定位与旧景一致。
-import { P, pts, IsoBox, Person, SeatedPerson, Walker } from "../components/iso";
+import { P, pts, IsoBox } from "../components/iso";
 import { plainText } from "../components/plain";
-import { Desk, OfficeChair, Monitor, Plant, WaterCooler, PendantLamp, WallWindowL, ServerRack, DoorSprite } from "./officeParts";
+import { Desk, OfficeChair, Monitor, Plant, WaterCooler, PendantLamp, WallWindowL, ServerRack, DoorSprite, PersonSprite, WalkerSprite } from "./officeParts";
 import { GhostRow, VenueScreens, type Fact, type Tip } from "./floorFocus";
 
 type Hot = (tt: Omit<Tip, "x" | "y">, x: number, y: number, z?: number, cls?: string) => Record<string, unknown>;
@@ -65,7 +65,7 @@ export function MainHall(props: {
         return (
           <g key={p.escClass + "/" + p.escScope}
             {...hot({ k: "probe" + i, title: plainText(p.escClass + "/" + p.escScope), body: [p.open ? "正在报警" : "静默在岗"], to: "/device" }, 0.9, gy, 0, p.open ? "fx-breathe" : "")}>
-            <Person x={0.9} y={gy} tone={col} />
+            <PersonSprite n="idle_5" x={0.9} y={gy} h={44} tone={col} />
           </g>
         );
       })}
@@ -147,7 +147,7 @@ export function MainHall(props: {
         <Desk x={9.4} y={4.6} w={2.7} d={1.35} />
         <Monitor x={10.4} y={4.75} />
         <OfficeChair x={11.2} y={6.5} />
-        {props.s?.running && <SeatedPerson x={11.2} y={6.4} tone="#5b8def" breathe />}
+        {props.s?.running && <PersonSprite n="idle_7" x={11.2} y={6.4} h={46} tone="#5b8def" />}
       </g>
 
       {/* 采集簿记台——常驻器官二席（空椅=无人值守也干活） */}
@@ -173,7 +173,7 @@ export function MainHall(props: {
       <PendantLamp x={14} y={9} z={2.65} on={live} />
 
       {/* 走位人——领命/移交事实触发的搬运人（顶层渲染不被家具遮） */}
-      {props.walk && <Walker key={props.walk.k} path={props.walk.path} tone={props.walk.tone} onDone={props.walkDone} />}
+      {props.walk && <WalkerSprite key={props.walk.k} path={props.walk.path} tone={props.walk.tone} onDone={props.walkDone} />}
     </g>
   );
 }
