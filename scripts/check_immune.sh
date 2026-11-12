@@ -33,11 +33,13 @@ bad=0; touched_any=0
 while IFS= read -r sha; do
 	hit=0
 	for p in "${PATS[@]}"; do
-		if git diff-tree --no-commit-id --name-only -r "$sha" -- "$p" 2>/dev/null | grep -q .; then
+		# 禁 grep -q：pipefail 下 -q 命中即退→上游续写吃 SIGPIPE→管线判假败
+		# （免疫触面漏检=偷渡窗——工单#11368 同期捕获同型病灶,check_import_direction.sh 详）
+		if git diff-tree --no-commit-id --name-only -r "$sha" -- "$p" 2>/dev/null | grep -c . >/dev/null; then
 			hit=1; touched_any=1
 			# merge commit 的 diff-tree 相对双亲语义差异——merge 尖本体
 			# 不携带新触件（触件在支 commit 里）,放行不重复判。
-			if git show -s --format='%B' "$sha" | grep -q '^免疫件:'; then
+			if git show -s --format='%B' "$sha" | grep -c '^免疫件:' >/dev/null; then
 				echo "⚠️ [immune] ${sha:0:9} 触面已宣告（免疫件: 在案）: $p"
 			else
 				echo "❌ [immune] ${sha:0:9} 触面未宣告: $p"
