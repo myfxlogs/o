@@ -6,6 +6,9 @@
 #   或未决≥COG_BURST_N(默认5)无视龄直唤(积压即唤);
 #   或 OPEN 工单在案(未销∧无活在认领——票管催制的「派」接续,
 #   票面即优先级不等龄);
+#   或未入支在案(fix/feat/audit 支未入 master 且 tip 7d 内有动——
+#   推支=未完链物理事实,工件即队列不靠会话散文接续;
+#   merge/删支即自清,陈支不唤防古墓支死循环唤);
 #   单飞闸=o-cognition-* 有 active/activating 即退(串行认知——
 #   并行会话抢同一信号面=双处置双账,串行=天然去重);
 #   静默退出=零信号/未达阈/单飞中(每拍静默是常态非异常)。
@@ -45,11 +48,23 @@ WHERE t.event='工单' AND t.ts>now()-interval '30 days'
     AND c.note ~ ('工单#'||t.id::text||'([^0-9]|\$)'))" 2>/dev/null)
 TICKET_N=${TICKET_N:-0}
 
+# 未入支板(坑处置: 升件#11240 散文接续缝根修——会话销案留「接续:merge」
+# 散文把未完链挂出触发面,队列清零工件却活着。推支未入 master 即未完工作
+# 物证,工件本身当信号不等会话纪律): 7d tip 龄界防古墓支永唤;
+# merge/--no-merged 自清或会话 push --delete 判废。
+timeout 15 git -C /opt/o fetch origin -q 2>/dev/null || true
+PEND_BR=$(git -C /opt/o for-each-ref --no-merged origin/master \
+	--format='%(committerdate:unix)' \
+	'refs/remotes/origin/fix/*' 'refs/remotes/origin/feat/*' 'refs/remotes/origin/audit/*' \
+	2>/dev/null | awk -v c=$(( $(date +%s) - 604800 )) '$1>c' | wc -l)
+PEND_BR=${PEND_BR:-0}
+
 NOW=$(date +%s); AGE=$(( NOW - OLDEST ))
 TRIGGER=""
 [ "$N" -ge "$BURST_N" ] && TRIGGER="burst:$N"
 [ -z "$TRIGGER" ] && [ "$N" -ge "$MIN_N" ] && [ "$AGE" -ge "$MIN_AGE" ] && TRIGGER="aged:N=$N age=${AGE}s"
 [ "$TICKET_N" -gt 0 ] && TRIGGER="${TRIGGER:+$TRIGGER }ticket:$TICKET_N"
+[ "$PEND_BR" -gt 0 ] && TRIGGER="${TRIGGER:+$TRIGGER }pendbr:$PEND_BR"
 [ -n "$TRIGGER" ] || exit 0
 
 # 单飞闸: o-cognition-<epoch> 会话件 active 即退(串行认知)。
