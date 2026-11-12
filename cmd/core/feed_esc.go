@@ -216,7 +216,7 @@ func (c coreService) escalateUnresolved(ctx context.Context, class, scope, fp, n
 					AND (EXISTS (SELECT 1 FROM ops_event d
 							WHERE d.event='处置' AND d.id>t.id
 								AND d.note ~ ('工单#'||t.id||'([^0-9]|$)')
-								AND d.note NOT LIKE '%挂起条件=%')
+								AND d.note NOT LIKE '%挂起条件=%' AND d.note !~ ('工单#'||t.id||' ?接续'))
 						OR (t.ts + COALESCE((substring(t.note from '期限=([0-9]+)h'))::int,24)
 								*interval '1 hour' < now()
 							AND EXISTS (SELECT 1 FROM ops_event d
@@ -257,7 +257,7 @@ func (c coreService) escInsert(ctx context.Context, class, scope, note string) {
 		WHERE t.event='工单' AND t.ts>now()-interval '30 days'
 		AND t.note ~ ('(^|[^a-zA-Z0-9_])scope='||$1||'([^a-zA-Z0-9_]|$)')
 		AND (NOT EXISTS (SELECT 1 FROM ops_event d WHERE d.event='处置'
-				AND d.id>t.id AND d.note ~ ('工单#'||t.id||'([^0-9]|$)'))
+				AND d.id>t.id AND d.note ~ ('工单#'||t.id||'([^0-9]|$)') AND d.note !~ ('工单#'||t.id||' ?接续'))
 			OR (t.ts + COALESCE((substring(t.note from '期限=([0-9]+)h'))::int,24)*interval '1 hour' > now()
 				AND EXISTS (SELECT 1 FROM ops_event d WHERE d.event='处置'
 					AND d.id>t.id AND d.note ~ ('工单#'||t.id||'([^0-9]|$)')

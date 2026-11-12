@@ -259,13 +259,17 @@ func (c coreService) codeworkStallEscCheck(ctx context.Context, deadSince map[st
 		WHERE e.event='工单' AND e.ts>now()-interval '30 days'
 		AND e.ts + COALESCE((substring(e.note from '期限=([0-9]+)h'))::int,24) * interval '1 hour' < now()
 		AND NOT EXISTS (SELECT 1 FROM ops_event d WHERE d.event='处置'
-			AND d.id>e.id AND d.note ~ ('工单#'||e.id||'([^0-9]|$)'))
+			AND d.id>e.id AND d.note ~ ('工单#'||e.id||'([^0-9]|$)')
+			AND d.note NOT LIKE '%挂起条件=%'
+			AND d.note !~ ('工单#'||e.id||' ?接续'))
 		UNION ALL
 		SELECT e.id, e.seat, left(e.note,40) FROM ops_event e
 		WHERE e.event='升件' AND e.seat<>'探测席'
 		AND e.ts>now()-interval '14 days' AND e.ts<now()-interval '24 hours'
 		AND NOT EXISTS (SELECT 1 FROM ops_event d WHERE d.event='处置'
-			AND d.id>e.id AND d.note ~ ('升件#'||e.id||'([^0-9]|$)'))
+			AND d.id>e.id AND d.note ~ ('升件#'||e.id||'([^0-9]|$)')
+			AND d.note NOT LIKE '%挂起条件=%'
+			AND d.note !~ ('升件#'||e.id||' ?接续'))
 		ORDER BY 1 DESC LIMIT 20`)
 	if err != nil {
 		return // 读件败本拍让位
