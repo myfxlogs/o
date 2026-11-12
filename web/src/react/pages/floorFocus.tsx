@@ -7,8 +7,8 @@ import { useLive } from "../hooks";
 import { plainText } from "../components/plain";
 import { pbDate } from "../components/fmt";
 import { AGE } from "../components/panel";
-import { P, pts } from "../components/iso";
-import { Sprite, PersonSprite } from "./officeParts";
+import { P } from "../components/iso";
+import { Cell } from "./floorTokens";
 
 export type Tip = { k: string; x: number; y: number; title: string; body: string[]; to: string };
 
@@ -52,14 +52,13 @@ const TO_LABEL: Record<string, string> = { "/": "机赚如何", "/device": "哪�
 
 type Hot = (tt: Omit<Tip, "x" | "y">, x: number, y: number, z?: number, cls?: string) => Record<string, unknown>;
 
-// 器官工位排——2×4 桌阵（前排水泥区）。位=小桌+显示器+转椅+人仔，
-// 态随事实推：毛坯=桌椅人全淡影，立项=钢蓝人仔+桌📌旗，
-// 在建=金人仔呼吸在敲，完工=绿人仔名牌✓。
-const GH_TONE: Record<string, string> = { ghost: "#8a93a3", pin: "#7fa8d0", build: "#d9a62e", done: "#3ddc84" };
-// 器官位世界坐标——走位人/聚焦锚共用（5×2 阵，cx=桌心 x）。
+// 器官工位令牌阵——2×5。令牌态色=事实推导(毛坯灰/立项蓝/在建金/完工绿),
+// 副行=事实锚(据 #N)。态色描边即状态,无装饰件。
+const GH_TONE: Record<string, string> = { ghost: "#5a6274", pin: "#7fa8d0", build: "#d9a62e", done: "#3ddc84" };
+// 器官位世界坐标——票签/聚焦锚共用（5×2 阵，cx=块心 x）。
 export const ghostPos = (i: number) => {
-  const x = 1.5 + (i % 5) * 2.75, y = i < 5 ? 8.5 : 10.3;
-  return { x, y, cx: x + 0.75 };
+  const x = 3.4 + (i % 5) * 2.2, y = i < 5 ? 7.5 : 9.6;
+  return { x, y, cx: x + 0.95 };
 };
 export function GhostRow(props: { hot: Hot; facts: Fact[] }) {
   return (
@@ -68,21 +67,14 @@ export function GhostRow(props: { hot: Hot; facts: Fact[] }) {
         const { x, y, cx } = ghostPos(i);
         const st = ghostSt(gh, props.facts);
         const fact = ghostFact(gh, props.facts);
-        const done = st === "done", pin = st === "pin", dim = st === "ghost";
+        const done = st === "done", pin = st === "pin";
         const stLb = done ? "已完工" : st === "build" ? "在建" : pin ? "已立项" : "毛坯";
-        const [nx, ny] = P(cx, y + 1.62);
         return (
           <g key={gh.name}
-            {...props.hot({ k: "gh" + i, title: `工位 · ${gh.name}`, body: [gh.hint, stLb, fact ? `据 #${String(fact.id)}` : "无事实行"], to: "/decision" }, cx, y + 0.5, 0.9, st === "build" ? "fx-breathe" : "")}>
-            <g opacity={dim ? 0.5 : 1}>
-              <Sprite name="desk" x={cx} y={y + 0.62} w={66} />
-              <Sprite name="screen" x={cx} y={y + 0.42} z={0.55} w={20} />
-              <Sprite name="chair" x={cx} y={y + 1.06} w={26} />
-              {/* 职员在席——背对镜头人形件,态色=边缘辉光 */}
-              <PersonSprite n="idle_7" x={cx} y={y + 1.02} h={46} tone={GH_TONE[st]} />
-            </g>
-            {pin && <text x={P(cx - 0.3, y + 0.35, 0.72)[0]} y={P(cx - 0.3, y + 0.35, 0.72)[1]} fontSize="11">📌</text>}
-            <text x={nx} y={ny + 8} className={`iso-cap${st === "build" ? " gold" : done ? "" : " dim"}`} textAnchor="middle">{gh.name}{done ? "✓" : ""}</text>
+            {...props.hot({ k: "gh" + i, title: `工位 · ${gh.name}`, body: [gh.hint, stLb, fact ? `据 #${String(fact.id)}` : "无事实行"], to: "/decision" }, cx, y + 0.5, 0, st === "build" ? "fx-breathe" : "")}>
+            <Cell x={x} y={y} w={1.9} d={1.0} tone={GH_TONE[st]} dim={st === "ghost"}
+              lines={[gh.name + (done ? " ✓" : pin ? " 📌" : ""), stLb]} fs={9}
+              sub={fact ? `据 #${String(fact.id)}` : "无事实行"} />
           </g>
         );
       })}
@@ -90,20 +82,16 @@ export function GhostRow(props: { hot: Hot; facts: Fact[] }) {
   );
 }
 
-// venue 屏排——右墙顶带小屏，几所几屏（overview money 行按 venue 分组）。
-export function VenueScreens(props: { hot: Hot; vens: [string, number][] }) {
+// venue 资金列——右列令牌排（overview money 行按 venue 分组合计，单行读数）。
+export function VenueCol(props: { hot: Hot; vens: [string, number][] }) {
   return (
     <>
-      {props.vens.map(([vn, usd], i) => {
-        const x = 12.4 + i * 1.3;
-        const [lx, ly] = P(x + 0.45, 0, 2.45);
-        return (
-          <g key={vn} {...props.hot({ k: "ven:" + vn, title: `${vn} 资金屏`, body: [`合计 ${fmtMoney(usd)}`], to: "/" }, x + 0.45, 0, 2.7)}>
-            <polygon points={pts([P(x, 0, 2.6), P(x + 0.9, 0, 2.6), P(x + 0.9, 0, 2.95), P(x, 0, 2.95)])} fill="#0a1020" stroke="#5a7ec2" strokeWidth="0.9" />
-            <text x={lx} y={ly + 6} className="iso-cap" textAnchor="middle" fill="#9db8ff" fontSize="8.5">{vn}</text>
-          </g>
-        );
-      })}
+      {props.vens.map(([vn, usd], i) => (
+        <g key={vn} {...props.hot({ k: "ven:" + vn, title: `${vn} 资金`, body: [`合计 ${fmtMoney(usd)}`], to: "/" }, 16.1, 3.2 + i * 0.9)}>
+          <Cell x={14.6} y={2.85 + i * 0.9} w={3.0} d={0.68} tone="#5a7ec2"
+            lines={[`${vn} ${fmtMoney(usd)}`]} fs={8.5} />
+        </g>
+      ))}
     </>
   );
 }

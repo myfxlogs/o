@@ -69,7 +69,7 @@
 .iso-state {
   position: absolute;
   left: 12px;
-  bottom: 10px;
+  top: 8px;
   font-size: 11px;
   color: #68738c;
   pointer-events: none;
@@ -177,3 +177,15 @@
 .c-green { color: #3ddc84; }
 .c-gold { color: #ffd76a; }
 .dim { color: #68738c; }
+
+/* 事实尾流条——ops_event 最新行(生产线实时尾流) */
+.iso-ticker {
+  position: absolute;
+  left: 12px; right: 12px; bottom: 6px;
+  display: flex; gap: 22px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px; color: #7d8aa6;
+  white-space: nowrap; overflow: hidden;
+  border-top: 1px solid #232b3c; padding-top: 5px;
+}
+.iso-ticker-i { flex: 0 0 auto; overflow: hidden; text-overflow: ellipsis; max-width: 30%; }

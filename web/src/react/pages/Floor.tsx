@@ -1,12 +1,13 @@
-// Floor.tsx —— 交易大厅壳层（业主令 11-11 活物世界观第三版·写实办公室）。
-// 三房间：大厅(MainHall·写实家具)/档案室(ArchiveRoom)/机房(ServerRoom)，
-// 门点切换非聚焦；悬停详情/点击聚焦到中央=floorFocus 承接，数据全接 RPC。
+// Floor.tsx —— 交易大厅壳层（业主令 11-12 控制室模拟盘版·删美工全语义）。
+// 三视图：主盘(MainHall 令牌阵)/档案(ArchiveRoom)/机房(ServerRoom)，
+// 悬停详情/点击聚焦到中央=floorFocus 承接，数据全接 RPC，底部=事实尾流条。
 import { useEffect, useMemo, useRef, useState } from "react";
 import { client } from "../api";
 import { useLive } from "../hooks";
 import { onLive } from "../stream";
 import { Skeleton, ErrorState } from "../components/ui";
 import { P } from "../components/iso";
+import { plainText } from "../components/plain";
 import { FocusBody, GHOSTS, ghostPos, type Tip } from "./floorFocus";
 import { ArchiveRoom } from "./floorArchive";
 import { MainHall, ServerRoom } from "./floorOffice";
@@ -16,9 +17,9 @@ const fmtMoney = (v: number) =>
 
 type Room = "floor" | "archive" | "server";
 const VB: Record<Room, { x: number; y: number; w: number; h: number }> = {
-  floor: { x: 390, y: 120, w: 960, h: 590 },
-  archive: { x: 400, y: 140, w: 800, h: 480 },
-  server: { x: 380, y: 140, w: 760, h: 440 },
+  floor: { x: 380, y: 25, w: 950, h: 510 },
+  archive: { x: 290, y: 30, w: 680, h: 360 },
+  server: { x: 290, y: 30, w: 680, h: 360 },
 };
 
 export function FloorPage() {
@@ -45,8 +46,8 @@ export function FloorPage() {
     if (!/领命|移交|认领|销案|部署销|部署|落账毕|收口/.test(f.note)) return;
     const done = /销案|部署销|部署|落账毕|收口|完成/.test(f.note);
     const gi = GHOSTS.findIndex((gh) => gh.keys.some((k) => f.note.includes(k)));
-    const seatP = gi >= 0 ? (({ cx, y }) => P(cx, y + 1.1))(ghostPos(gi)) : P(11.2, 6.4);
-    const board = P(2.6, 2.3), door = P(0.3, 10.8);
+    const seatP = gi >= 0 ? (({ cx, y }) => P(cx, y + 0.5))(ghostPos(gi)) : P(8.5, 4.5);
+    const board = P(1.65, 5.9), door = P(16.1, 7.55);
     setWalk({ path: done ? [seatP, board, door] : [board, seatP], tone: done ? "#3ddc84" : "#5b8def", k: id });
   }, [t.data]);
   useEffect(() => {
@@ -97,20 +98,13 @@ export function FloorPage() {
         ) : room === "server" ? (
           <ServerRoom live={live} warn={openProbes > 0} hot={hot} onExit={() => setRoom("floor")} />
         ) : (
-        <svg viewBox="-390 -120 960 590" className="floor-svg">
-          <defs>
-            <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#a8c4de" />
-              <stop offset="100%" stopColor="#d8e4f0" />
-            </linearGradient>
-            <radialGradient id="lampGlow">
-              <stop offset="0%" stopColor="#ffd76a" stopOpacity="0.55" />
-              <stop offset="100%" stopColor="#ffd76a" stopOpacity="0" />
-            </radialGradient>
-          </defs>
+        <svg viewBox="-380 -25 950 510" className="floor-svg">
           <MainHall live={live} probes={probes} openProbes={openProbes}
             notes={wallNotes} openCount={openEsc.length + openReq.length}
+            queue={[...openEsc.map((r) => ({ id: String(r.escId), note: r.note, open: true })),
+              ...openReq.map((r) => ({ id: String(r.id), note: "条件请求·待处理", open: true }))]}
             facts={t.data?.facts ?? []} s={s} vens={vens} hot={hot} toRoom={setRoom}
+            engCanon={engCanon} econCanon={econCanon}
             hover={setTip} unhover={() => setTip(null)}
             walk={walk ?? undefined} walkDone={() => setWalk(null)} />
         </svg>
@@ -137,14 +131,33 @@ export function FloorPage() {
           </div>
         </>)}
 
-        {/* 双钟读数+NAV 屏数（仅主厅——viewBox 归一按当前房间） */}
+        {/* 双钟读数+NAV 数（仅主厅——viewBox 归一按当前视图） */}
         {room === "floor" && (<>
-          {([["utc", P(0, 7.9, 2.55), utc], ["bj", P(14.0, 0, 2.45), bj]] as const).map(([k, [px, py], v]) => (
-            <div key={k} className="iso-clock" style={{ left: `${((px + vb.x) / vb.w * 100).toFixed(2)}%`, top: `${((py + vb.y) / vb.h * 100).toFixed(2)}%` }}>{v.slice(0, 5)}</div>))}
-          <div className="iso-nav num" style={{ left: `${((P(7.0, 0, 1.95)[0] + vb.x) / vb.w * 100).toFixed(2)}%`, top: `${((P(7.0, 0, 1.95)[1] + vb.y) / vb.h * 100).toFixed(2)}%` }}>
+          {([["UTC", P(1.65, 9.94), utc], ["北京", P(1.65, 10.84), bj]] as const).map(([k, [px, py], v]) => (
+            <div key={k} className="iso-clock" style={{ left: `${((px + vb.x) / vb.w * 100).toFixed(2)}%`, top: `${((py + vb.y) / vb.h * 100).toFixed(2)}%` }}>{k} {v.slice(0, 5)}</div>))}
+          <div className="iso-nav num" style={{ left: `${((P(16.1, 1.75)[0] + vb.x) / vb.w * 100).toFixed(2)}%`, top: `${((P(16.1, 1.75)[1] + vb.y) / vb.h * 100).toFixed(2)}%` }}>
             {o ? fmtMoney(o.navTotal) : "—"}
           </div>
         </>)}
+
+        {/* 事实尾流条——窗内事件计数 + ops_event 最新行,生产线实时尾流 */}
+        {room === "floor" && (
+          <div className="iso-ticker">
+            <span className="iso-ticker-i" style={{ color: "#5a6478" }}>
+              {(() => {
+                const m = new Map<string, number>();
+                for (const f of t.data?.facts ?? []) m.set(f.event ?? "?", (m.get(f.event ?? "?") ?? 0) + 1);
+                const top = [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
+                return `窗内${(t.data?.facts ?? []).length}行 · ${top.map(([e, n]) => `${e}×${n}`).join(" ")}`;
+              })()}
+            </span>
+            {(t.data?.facts ?? []).slice(0, 4).map((f) => (
+              <span key={String(f.id)} className="iso-ticker-i">
+                {f.event ?? ""} #{String(f.id)} {plainText(f.note).slice(0, 34)}
+              </span>
+            ))}
+          </div>
+        )}
         <div className="iso-state">{room === "floor" ? (live ? "厅灯亮——数据流活着" : "厅灯暗——数据流断了") : room === "archive" ? "档案室——ESC 或点门回厅" : "机房——ESC 或点门回厅"}</div>
       </div>
     </div>
