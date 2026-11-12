@@ -135,10 +135,14 @@ func (r *Runner) Run(ctx context.Context, errc chan<- error) {
 // -USD(G)→-USDT；funding-hedge 族 inst_id 剥 -SWAP 尾→现货对——现货腿价
 // =md_ticks 本地行（T-0171/T-0216 记账价源），不入集=现货 tick 被谓词
 // 滤在桥外（T-0392 失明病灶同位）。T-0401 晋级臂（fin_sub_request open）
-// 同入集——提名符 tick 过桥供 SG 侧消费面（拒请退订即出）。
+// 同入集——提名符 tick 过桥供 SG 侧消费面（拒请退订即出）。提案臂
+// （fin_proposed/fin_armed）同入集——独键提案无策略/position 罩，缺臂=
+// armed 提案鲜度闸无源可喂（升件#12229）；臂面引 legset.ProposalArm
+// 同源件禁复制字面量（active-set-dual-owner-arm-drift 判例）。
 func (r *Runner) refreshSets(ctx context.Context) error {
 	rows, err := r.sg.Query(ctx, `SELECT inst_id FROM fin_position WHERE closed_at IS NULL
 		UNION SELECT inst_id FROM fin_strategy WHERE state<>'retired'
+		UNION `+legset.ProposalArm+`
 		UNION `+legset.BasisSpotArm(`s.state<>'retired'`)+`
 		UNION `+legset.DCDSpotArm(`s.state<>'retired'`)+`
 		UNION `+legset.FundingHedgeSpotArm(`s.state<>'retired'`)+`

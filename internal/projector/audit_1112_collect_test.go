@@ -1,7 +1,5 @@
 // audit_1112_collect_test.go —— 审计/采集桥 RED 锚（audit/1112-collect）：
-// 断言正确语义——修复落库后自然转绿，门转正为回归锚。
-// 显跑：AUDIT_RED=1 go test ./internal/projector
-//
+// 断言正确语义——修复落库后自然转绿，门已去转正为回归锚。
 // 订阅集与镜像集双端同集不变量——collector ActiveSetUnion 持 fin_proposal
 // 提案臂（fin_proposed/fin_armed），projector refreshSets 无对偶臂=提案键
 // tick 被谓词滤在桥外：armed 提案等入场判据读 SG md_ticks（LatestPx 鲜度
@@ -11,21 +9,12 @@ package projector
 
 import (
 	"context"
-	"os"
 	"testing"
 )
 
-func auditRedGate(t *testing.T) {
-	t.Helper()
-	if os.Getenv("AUDIT_RED") != "1" {
-		t.Skip("audit RED 锚——修复期显跑: AUDIT_RED=1 go test -run " + t.Name() + " ./internal/projector；修好后去门转正为回归锚")
-	}
-}
-
 // TestArmedProposalMirrorArm SG 独键 armed 提案（仅 fin_proposal 行罩）的
-// inst tick 应过谓词投影——现 refreshSets 缺提案臂=本断言 RED。
+// inst tick 应过谓词投影——refreshSets 缺提案臂时本断言 RED（升件#12229 修后回归锚）。
 func TestArmedProposalMirrorArm(t *testing.T) {
-	auditRedGate(t)
 	ctx := context.Background()
 	r, md, sg := runner(t)
 	// SG 侧独键提案：eval+proposal（fin_armed），无 fin_strategy/fin_position/
