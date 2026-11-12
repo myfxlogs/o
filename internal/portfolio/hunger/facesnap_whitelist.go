@@ -199,4 +199,10 @@ var faceBaselineWhitelist = map[string]string{
 	// ok=t events=106）。
 	"face:table:md_calendar_pull":   "工单#10693 入册——md_calendar_pull=fin_0168 迁移建 public 基表（CALENDAR-FEED 口径修：拉环逐拍活性账 ok/events/err 含败拍，domain.tsv fin 入册）；写径 notify.Calendar.notePull/读径 hunger feedstale 探针同池面在案；table 类面 information_schema BASE TABLE 枚举本体零硬编码，建表落地即面；生产亲证基表在册+首拍行 id=1 @2026-11-11 19:20:47Z ok=t events=106（升件源 ops_event #10752）",
 	"face:table:ops_chain_residual": "工单#11419 入册——ops_chain_residual=fin_0169 迁移建 public 基表（账链伪戳已知立案行豁免册：仅抑伪戳档检出、断链/裸行/创世锚拓扑检不豁免，append-only INSERT/SELECT 授写，domain.tsv fin 入册）；写径处置/复审席豁免行 INSERT/读径 ops_chain_verify() 同池在案；table 类面 information_schema BASE TABLE 枚举本体零硬编码，建表落地即面；生产亲证基表在册+种子行 id=9442 定案豁免（升件源 ops_event #11596）",
+	// 簿记=唤知会话簿记写席——canon/口径/断言类事实行专用席
+	// （工单#11384 懂你器官十键口径行 event='口径' ticket='owner_intent'
+	// 首用，簿记簿写者席与处置席分工：处置行归处置席、canon 簿归簿记）：
+	// 簿记拍=工单驱动的间歇写面，静默 >7d 出窗摆回=间歇面形
+	// （T-0448 册语义罩位，纪元3 批同型先例），登记不重复升。
+	"face:service:簿记": "工单#11384 入册——簿记=唤知会话簿记写席（canon/口径 簿类事实行专用——owner_intent 十键口径行首用，处置席处置行外的簿记分道）：工单驱动间歇写 7d 活跃窗摆动登记不重复升；生产亲证 口径行十连 #11900-11909（面清单新面行→升件 #11979）",
 }
