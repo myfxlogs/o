@@ -52,8 +52,15 @@ TICKET_N=${TICKET_N:-0}
 # 散文把未完链挂出触发面,队列清零工件却活着。推支未入 master 即未完工作
 # 物证,工件本身当信号不等会话纪律): 7d tip 龄界防古墓支永唤;
 # merge/--no-merged 自清或会话 push --delete 判废。
-timeout 15 git -C /opt/o fetch origin -q 2>/dev/null || true # tolerate: fetch败=远端瞬时,本地 remote-ref 陈旧仍数支——fail-open 不误闸
-PEND_BR=$(git -C /opt/o for-each-ref --no-merged origin/master \
+# 仓径自寻(坑处置: 部署机 /opt/o 是构件目录非 git 仓,真仓在 /root/o——
+# 写死单径=pendbr 在真唤会话机上哑火。候选序先 /opt/o 后 /root/o):
+OREPO=/opt/o
+git -C "$OREPO" rev-parse --git-dir >/dev/null 2>&1 || OREPO=/root/o
+git -C "$OREPO" rev-parse --git-dir >/dev/null 2>&1 || OREPO=""
+if [ -n "$OREPO" ]; then
+	timeout 15 git -C "$OREPO" fetch origin -q 2>/dev/null || true # tolerate: fetch败=远端瞬时,本地 remote-ref 陈旧仍数支——fail-open 不误闸
+fi
+PEND_BR=$([ -n "$OREPO" ] && git -C "$OREPO" for-each-ref --no-merged origin/master \
 	--format='%(committerdate:unix)' \
 	'refs/remotes/origin/fix/*' 'refs/remotes/origin/feat/*' 'refs/remotes/origin/audit/*' \
 	2>/dev/null | awk -v c=$(( $(date +%s) - 604800 )) '$1>c' | wc -l)
