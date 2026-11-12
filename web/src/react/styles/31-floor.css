@@ -140,3 +140,52 @@ button.v2-row.ft-row {
 .c-green { color: #2e9348; }
 .c-gold { color: #b3821d; }
 .dim { color: var(--ink-3); }
+
+/* —— 器官章鱼(octopus.tsx)：腕=器官四态,脑=会话席,光流=域信号率 —— */
+.octo { display: block; width: min(460px, 100%); margin: 0 auto; padding: 0 8px 12px; }
+.octo-arm { cursor: pointer; }
+.octo-arm .hit { fill: none; stroke: transparent; stroke-width: 20; }
+.octo-arm .arm { fill: none; stroke-linecap: round; transition: opacity .15s; }
+.octo-arm:hover .arm { opacity: .8; }
+.octo-arm.st-done .arm { stroke: #34a853; stroke-width: 9; }
+.octo-arm.st-build .arm { stroke: #d9a62e; stroke-width: 7; stroke-dasharray: 10 7; animation: octo-grow 1.6s linear infinite; }
+.octo-arm.st-pin .arm { stroke: #5b8def; stroke-width: 3; stroke-dasharray: 8 6; }
+.octo-arm.st-ghost .arm { stroke: var(--ink-3); stroke-width: 5; opacity: .38; }
+.octo-sucker { fill: var(--v2-surface, #fff); opacity: .85; }
+.octo-arm .flow {
+  fill: none; stroke: var(--v2-surface, #fff); stroke-width: 2.2; opacity: .8;
+  stroke-dasharray: 5 16; animation: octo-flow linear infinite;
+}
+.octo-arm.st-build .flow { stroke: #f2d488; opacity: .9; }
+.octo-arm.st-pin .flow { stroke: #9cbcf5; }
+.octo-arm.st-ghost .flow { display: none; }
+@keyframes octo-flow { to { stroke-dashoffset: -84; } }
+@keyframes octo-grow { to { stroke-dashoffset: -17; } }
+/* 到达脉冲——新行来域腕抽一下(转轴=腕根脑连接点) */
+.octo-arm { transform-box: view-box; }
+.octo-arm.flash { animation: octo-twitch .9s ease-in-out; }
+.octo-arm.flash .arm { filter: brightness(1.25); }
+@keyframes octo-twitch {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(3.2deg); }
+  55% { transform: rotate(-2.2deg); }
+  80% { transform: rotate(1deg); }
+}
+/* 脑体常态呼吸——身体常驻活着(脑眼才随会话睁闭) */
+.octo-brain .mantle { transform-box: view-box; transform-origin: 235px 92px; animation: octo-idle 3.8s ease-in-out infinite; }
+@keyframes octo-idle { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.016); } }
+.octo-name { font-size: 11px; font-weight: 600; fill: var(--ink); }
+.octo-st { font-size: 9.5px; fill: var(--ink-3); }
+.octo-brain { cursor: pointer; }
+.octo-brain .mantle { fill: var(--v2-surface, #fff); stroke: var(--ink-3); stroke-width: 1.4; }
+.octo-brain.awake .mantle { stroke: #34a853; stroke-width: 1.8; }
+.octo-halo {
+  fill: none; stroke: #34a853; stroke-width: 1.6; opacity: .5;
+  animation: octo-halo 2.4s ease-in-out infinite; transform-origin: 235px 92px;
+}
+@keyframes octo-halo { 0%, 100% { opacity: .18; } 50% { opacity: .55; } }
+.octo-eye { fill: var(--ink); }
+.octo-pupil { fill: var(--v2-surface, #fff); }
+.octo-eye-shut { fill: none; stroke: var(--ink-3); stroke-width: 2; stroke-linecap: round; }
+.octo-brain-st { font-size: 11px; fill: var(--ink-3); }
+.octo-legend { font-size: 10.5px; color: var(--ink-3); text-align: center; padding: 0 12px 12px; }
