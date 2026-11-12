@@ -201,9 +201,10 @@ button.v2-row.ft-row {
 .octo-legend { font-size: 10.5px; color: var(--ink-3); text-align: center; padding: 0 12px 12px; }
 
 /* —— floor v3 全屏全息舱(floorStage.tsx):AI 舱图底+活件浮层 —— */
-.fstage-page { max-width: none; padding: 0; }
+.page.v2.fstage-page { max-width: none; padding: 0; }
 .fstage {
-  position: relative; width: 100%; aspect-ratio: 1792 / 1006;
+  position: relative; width: min(100%, calc((100vh - 40px) * 1792 / 1006));
+  margin: 0 auto; aspect-ratio: 1792 / 1006;
   background-size: 100% 100%; background-position: center;
   overflow: hidden; user-select: none;
 }
