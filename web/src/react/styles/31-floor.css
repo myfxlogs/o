@@ -302,16 +302,16 @@ button.v2-row.ft-row {
 }
 .fs-mach.off { color: #f87171; border-color: #f87171; }
 
-/* 后墙4屏=活面板——半透罩在原图屏区上 */
+/* 后墙4屏=活面板——入墙格区(业主令:嵌进墙板分区,不悬浮) */
 .fs-screen {
   position: absolute; transform: translateX(-50%); z-index: 3;
-  width: 17%; padding: 4px 6px;
-  background: rgba(4, 10, 22, .3);
+  width: 20%; padding: 6px 8px;
+  background: rgba(6, 16, 32, .62); border: 1px solid rgba(110, 190, 255, .3);
+  border-radius: 4px;
+  box-shadow: inset 0 0 22px rgba(80, 160, 255, .14), 0 0 10px rgba(60, 140, 255, .12);
+  backdrop-filter: blur(2px);
   font-size: clamp(8px, .68vw, 11px); color: #cfe2f5;
 }
-/* 屏框贴图——框图屏芯区(84%×83.5%)对位内容盒,框体自然外探 */
-.fs-frame { position: absolute; left: -14.3%; top: -10.2%; width: 119%; height: 120%;
-  object-fit: fill; z-index: -1; pointer-events: none; }
 .fs-scr-t { font-weight: 700; color: #8fd4ff; margin-bottom: 2px; font-size: 1.05em; }
 .fs-ven, .fs-probe, .fs-queue, .fs-fact {
   display: block; width: 100%; text-align: left; padding: 1px 3px; border-radius: 4px;
