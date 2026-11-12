@@ -241,7 +241,7 @@ button.v2-row.ft-row {
   font-size: 12.5px; border-bottom: 1px solid rgba(110, 160, 220, .12); }
 .inbox-row a { color: #7fb8e8; word-break: break-all; }
 
-.fs-table { position: absolute; transform: translate(-50%, -50%) scaleY(.58); width: 64%; z-index: 1;
+.fs-table { position: absolute; transform: translate(-50%, -50%) scaleY(.58); width: 70%; z-index: 1;
   filter: drop-shadow(0 14px 28px rgba(0,0,0,.65)); pointer-events: none; }
 .fstage button { font: inherit; background: none; border: 0; cursor: pointer; }
 .fs-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; background: #6b7a90; }
@@ -255,6 +255,16 @@ button.v2-row.ft-row {
   border-radius: 8px; padding: 5px 10px; backdrop-filter: blur(4px);
 }
 .fs-hud-sub { color: #7f95b2; font-weight: 400; margin-left: 8px; font-size: .85em; }
+/* 部署基线行——量表帧「部署=ver·age」挂脑文案第三行 */
+.fs-brain-line.dep { color: #7fd8ff; font-size: .82em; }
+/* 器官单牌——单落谁身谁亮:票号+段位,段位分色 */
+.fs-tkt { position: absolute; top: -2%; right: -14%; z-index: 2; pointer-events: none; white-space: nowrap;
+  font-size: clamp(7px, .62vw, 9px); font-weight: 700; color: #ffe9b8; padding: 1px 6px; border-radius: 5px;
+  background: rgba(60, 40, 6, .78); border: 1px solid rgba(255, 200, 90, .6);
+  box-shadow: 0 0 9px rgba(255, 190, 80, .5); }
+.fs-tkt.sg-部署, .fs-tkt.sg-并 { color: #b8e4ff; background: rgba(10, 50, 100, .78); border-color: rgba(120, 200, 255, .6); box-shadow: 0 0 9px rgba(100, 190, 255, .5); }
+.fs-tkt.sg-销, .fs-tkt.sg-收口 { color: #b8f0cc; background: rgba(8, 60, 30, .78); border-color: rgba(110, 230, 160, .55); box-shadow: 0 0 9px rgba(90, 220, 140, .45); }
+.fs-tkt.sg-认领 { color: #cfe8ff; }
 .fs-alarm {
   position: absolute; right: 1.4%; top: 2.2%; z-index: 3;
   font-size: clamp(10px, .95vw, 13px); font-weight: 700; color: #fbbf24;
@@ -265,13 +275,13 @@ button.v2-row.ft-row {
 @keyframes fs-alarmblink { 50% { filter: brightness(1.5); } }
 
 /* 中央全息球=脑——透明热区罩球,在班=罩层泛光,脑闪=新行到 */
-.fs-brain { position: absolute; transform: translate(-50%, -50%); width: 21%; aspect-ratio: 1; border-radius: 50%; z-index: 2; }
+.fs-brain { position: absolute; transform: translate(-50%, -50%); width: 30%; aspect-ratio: 1; aspect-ratio: 1; border-radius: 50%; z-index: 2; }
 .fs-brain-glow { position: absolute; inset: -4%; border-radius: 50%; border: 2px solid rgba(110, 230, 255, .35); box-shadow: 0 0 18px rgba(110, 230, 255, .2), inset 0 0 24px rgba(110, 230, 255, .08); opacity: .45; }
 .fs-brain.awake .fs-brain-glow { opacity: 1; border-color: rgba(110, 230, 255, .8); box-shadow: 0 0 24px rgba(110, 230, 255, .55), inset 0 0 30px rgba(110, 230, 255, .18); animation: fs-breathe 3.6s ease-in-out infinite; }
 .fs-brain.flash .fs-brain-glow, .fs-brain.flash { filter: brightness(1.6); }
 @keyframes fs-breathe { 50% { opacity: .55; } }
 /* 光斗——原图件:线框半球碗从台孔升起托球底(亮度=alpha 辉光) */
-.fs-bowl { position: absolute; transform: translate(-50%, -50%) scaleY(.72); width: 26%; z-index: 1;
+.fs-bowl { position: absolute; transform: translate(-50%, -50%) scaleY(.72); width: 32%; z-index: 1;
   pointer-events: none; opacity: .9; animation: fs-beamflow 4s ease-in-out infinite; }
 @keyframes fs-beamflow { 0%, 100% { opacity: .72; } 50% { opacity: 1; } }
 
