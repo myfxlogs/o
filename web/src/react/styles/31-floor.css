@@ -226,15 +226,15 @@ button.v2-row.ft-row {
 .fs-brain.awake .fs-globe { opacity: .95; filter: drop-shadow(0 0 18px rgba(110,210,255,.35)); }
 .fs-brain.flash .fs-globe { opacity: 1; filter: drop-shadow(0 0 30px rgba(140,225,255,.6)); }
 .fs-brain-glow { position: absolute; inset: 0; pointer-events: none; }
-/* 业主投件道——警报灯旁小件 */
-.fs-up { position: absolute; right: 5.5%; top: 2.2%; z-index: 3; display: flex; align-items: center; gap: 8px; }
-.fs-up-btn { display: inline-block; padding: 5px 12px; border-radius: 8px; font-size: 11.5px;
-  color: #bfe3ff; background: rgba(20, 42, 68, .78); border: 1px solid rgba(110, 190, 255, .35);
-  cursor: pointer; transition: all .2s; }
-.fs-up-btn:hover { border-color: rgba(140, 215, 255, .7); color: #fff; }
-.fs-up-btn.busy { opacity: .55; cursor: wait; }
-.fs-up-msg { font-size: 10.5px; color: #9fd8b8; max-width: 340px; overflow: hidden;
-  text-overflow: ellipsis; white-space: nowrap; text-shadow: 0 1px 3px rgba(0,0,0,.8); }
+/* 投件站页(Inbox.tsx)——floor 不载具(业主判) */
+.inbox-drop { display: block; padding: 18px; border: 1.5px dashed rgba(110, 190, 255, .4);
+  border-radius: 10px; text-align: center; color: var(--ink-2); cursor: pointer; }
+.inbox-drop:hover { border-color: rgba(140, 215, 255, .7); }
+.inbox-drop.busy { opacity: .55; cursor: wait; }
+.inbox-msg { color: #4a9e6b; font-size: 12.5px; margin-top: 8px; word-break: break-all; }
+.inbox-row { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0;
+  font-size: 12.5px; border-bottom: 1px solid rgba(110, 160, 220, .12); }
+.inbox-row a { color: #7fb8e8; word-break: break-all; }
 
 .fs-table { position: absolute; transform: translate(-50%, -50%); width: 40%; z-index: 1;
   filter: drop-shadow(0 14px 28px rgba(0,0,0,.65)); pointer-events: none; }

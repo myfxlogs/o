@@ -13,6 +13,7 @@ import { CockpitPage } from "./pages/Cockpit";
 import { TrxPage } from "./pages/Trx";
 import { ReviewPage } from "./pages/Review";
 import { OnboardPage } from "./pages/Onboard";
+import { InboxPage } from "./pages/Inbox";
 import "./styles/00-base.css";
 import "./styles/10-shell.css";
 import "./styles/20-cards.css";
@@ -32,6 +33,7 @@ const ROUTES: RouteDef[] = [
   { path: "/trx", label: "TRX盘怎样", el: <TrxPage /> },
   { path: "/review", label: "钱怎么走的", el: <ReviewPage /> },
   { path: "/onboard", label: "怎么接进来", el: <OnboardPage /> },
+  { path: "/inbox", label: "递东西", el: <InboxPage /> },
 ];
 
 function App() {

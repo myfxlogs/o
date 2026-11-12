@@ -5,6 +5,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -57,6 +58,7 @@ func safeInboxName(raw string) string {
 }
 
 func mountInbox(mux *http.ServeMux, pool *pgxpool.Pool) {
+	mountInboxRead(mux)
 	mux.HandleFunc("POST /inbox", func(w http.ResponseWriter, r *http.Request) {
 		r.Body = http.MaxBytesReader(w, r.Body, inboxMaxBytes)
 		if err := r.ParseMultipartForm(inboxMaxBytes); err != nil {
@@ -103,4 +105,44 @@ func inboxJSON(w http.ResponseWriter, code int, v map[string]any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(code)
 	_ = json.NewEncoder(w).Encode(v)
+}
+
+// GET /inbox —— 落件清单(新→陈,封顶 50)
+// GET /inbox/f/<名> —— 取件(净名防逃逸,只服 inbox 域内)
+func mountInboxRead(mux *http.ServeMux) {
+	mux.HandleFunc("GET /inbox", func(w http.ResponseWriter, r *http.Request) {
+		ents, _ := os.ReadDir(inboxDir())
+		type fi struct {
+			Name  string `json:"name"`
+			Size  int64  `json:"size"`
+			Mtime string `json:"mtime"`
+		}
+		var list []fi
+		for _, e := range ents {
+			if e.IsDir() {
+				continue
+			}
+			if st, err := e.Info(); err == nil {
+				list = append(list, fi{e.Name(), st.Size(), st.ModTime().UTC().Format("01-02 15:04")})
+			}
+		}
+		for i, j := 0, len(list)-1; i < j; i, j = i+1, j-1 {
+			list[i], list[j] = list[j], list[i]
+		}
+		if len(list) > 50 {
+			list = list[:50]
+		}
+		inboxJSON(w, http.StatusOK, map[string]any{"files": list})
+	})
+	mux.HandleFunc("GET /inbox/f/{name}", func(w http.ResponseWriter, r *http.Request) {
+		name := safeInboxName(r.PathValue("name"))
+		p := filepath.Join(inboxDir(), name)
+		b, err := os.ReadFile(p)
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Cache-Control", "no-cache")
+		http.ServeContent(w, r, name, time.Now(), bytes.NewReader(b))
+	})
 }
