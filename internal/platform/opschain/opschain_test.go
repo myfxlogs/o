@@ -177,6 +177,57 @@ func TestTamperDetectedAndReported(t *testing.T) {
 	}
 }
 
+// TestResidualSuppressesForgeryOnly 豁免册（fin_0169/工单#11419）：
+// 册内行仅抑「伪戳」重报——断链拓扑检不豁免。
+func TestResidualSuppressesForgeryOnly(t *testing.T) {
+	v, ctx := fixture(t)
+	var id int64
+	if err := v.pool.QueryRow(ctx,
+		`INSERT INTO ops_event(seat,event,ticket,note) VALUES('桩席','桩事','T-9Z03','豁免桩行')
+		RETURNING id`).Scan(&id); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := v.pool.Exec(ctx,
+		`UPDATE ops_event SET note='追改后内容' WHERE id=$1`, id); err != nil {
+		t.Fatal(err)
+	}
+	rep, err := v.Verify(ctx)
+	if err != nil || rep.OK() {
+		t.Fatalf("篡改未检出: %+v err=%v", rep, err)
+	}
+	if _, err := v.pool.Exec(ctx,
+		`INSERT INTO ops_chain_residual(id,reason,ticket_ref) VALUES($1,'桩豁免','工单#11419')`, id); err != nil {
+		t.Fatal(err)
+	}
+	rep, err = v.Verify(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range rep.Findings {
+		if f.ID == id && f.Kind == "伪戳" {
+			t.Fatalf("册内行伪戳未抑: %+v", rep.Findings)
+		}
+	}
+	// 册内行断链仍检——豁免=伪戳一档非拓扑免检。
+	if _, err := v.pool.Exec(ctx,
+		`UPDATE ops_event SET prev_hash='deadbeef' WHERE id=$1`, id); err != nil {
+		t.Fatal(err)
+	}
+	rep, err = v.Verify(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var dang bool
+	for _, f := range rep.Findings {
+		if f.ID == id && f.Kind == "断链" {
+			dang = true
+		}
+	}
+	if !dang {
+		t.Fatalf("册内行断链被误豁免: %+v", rep.Findings)
+	}
+}
+
 // TestLockdownRevokesUD 锚②：应用角色 UPDATE/DELETE/TRUNCATE 被拒
 // （锁权幂等——授权漂移重锁同调一式）；INSERT 照旧=写面不破坏。
 func TestLockdownRevokesUD(t *testing.T) {
