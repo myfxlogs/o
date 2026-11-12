@@ -237,7 +237,7 @@ button.v2-row.ft-row {
   font-size: 12.5px; border-bottom: 1px solid rgba(110, 160, 220, .12); }
 .inbox-row a { color: #7fb8e8; word-break: break-all; }
 
-.fs-table { position: absolute; transform: translate(-50%, -50%); width: 40%; z-index: 1;
+.fs-table { position: absolute; transform: translate(-50%, -50%); width: 56%; z-index: 1;
   filter: drop-shadow(0 14px 28px rgba(0,0,0,.65)); pointer-events: none; }
 .fstage button { font: inherit; background: none; border: 0; cursor: pointer; }
 .fs-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; background: #6b7a90; }

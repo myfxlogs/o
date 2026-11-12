@@ -15,8 +15,13 @@ body = {"model": "sensenova-u1.5-fast", "prompt": prompt, "n": 1,
         "size": size, "output_format": "png", "response_format": "b64_json", "watermark": False}
 url = "https://token.sensenova.cn/v1/images/generations"
 if mode == "edit":
-    b64 = base64.b64encode(open(ref, "rb").read()).decode()
-    body["images"] = [{"image_url": f"data:image/png;base64,{b64}"}]
+    raw = open(ref, "rb").read()
+    mime = ("image/jpeg" if raw[:2] == b"\xff\xd8" else
+            "image/png" if raw[:4] == b"\x89PNG" else
+            "image/webp" if raw[:4] == b"RIFF" else
+            "image/gif" if raw[:4] == b"GIF8" else "image/png")
+    b64 = base64.b64encode(raw).decode()
+    body["images"] = [{"image_url": f"data:{mime};base64,{b64}"}]
     url = "https://token.sensenova.cn/v1/images/edits"
 req = urllib.request.Request(url, data=json.dumps(body).encode(),
     headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
