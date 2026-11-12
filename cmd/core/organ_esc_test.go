@@ -91,3 +91,31 @@ func TestOrganOrphanDoneSilent(t *testing.T) {
 		t.Fatal("完工器官误升件")
 	}
 }
+
+func TestOrganOrphanAssertAuthority(t *testing.T) {
+	ctx := context.Background()
+	pool := testutil.Pool(t)
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM ops_event`); err != nil {
+		t.Fatalf("clean: %v", err)
+	}
+	svc := coreService{pool: pool}
+	// 断言 done 盖散文立项——断言行是唯一态权威。
+	seedOrganFact(t, ctx, svc, "举一反三器官立项——等认领施工")
+	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note)
+		VALUES('处置席','工位','','工位:举一反三:done 据#1——竣工销案')`); err != nil {
+		t.Fatalf("assert: %v", err)
+	}
+	svc.organOrphanEscCheck(ctx, map[string]time.Time{})
+	if organEscFired(t, ctx, svc, "organ_举一反三") {
+		t.Fatal("断言完工仍升件")
+	}
+	// 无断言论件=散文推导+自举补断言。
+	var n int
+	if err := svc.pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='工位' AND note LIKE '工位:做梦:%'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("自举断言未落 n=%d err=%v", n, err)
+	}
+}

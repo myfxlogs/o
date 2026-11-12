@@ -1,14 +1,21 @@
-// organ_esc.go —— 器官悬置面探（escLoop 同拍载）：「板上立项而队里无票」
-// 元盲区补位——floor 工位册镜像逐件判：推导态非完工 ∧ 无开工单载其词
-// →升件 孤儿账/organ_<名>（「册上有名而队里无票」与孤儿账同族——写了
-// 没人干）。实证病灶 2026-11-12：四缺器官立项注记在板而工单面零行，
+// organ_esc.go —— 器官悬置面探+工位态权威（escLoop 同拍载）：
+// 「板上立项而队里无票」元盲区补位——floor 工位册镜像逐件判：态非完工
+// ∧ 无开工单载其词 →升件 孤儿账/organ_<名>（「册上有名而队里无票」
+// 与孤儿账同族——写了没人干）。实证病灶 2026-11-12：四缺器官立项注记
 // 挂屏 2 天无人接——立项显示态≠工作实体，会话工作面只扫升件/工单。
 //
-// 词册=web/src/react/pages/floorFocus.tsx GHOSTS 同表镜像；态推导同
-// ghostSt 分句邻域形（量表=节奏件非态断言剔出；→是工序连接符不算句界）。
-// 词表漂移=两域手同步——漂移时本探针对自己先照见（词失=全「毛坯」升潮，
-// 如实报不抑）。
-// 判词归唤知会话——探针只述「立项无票」事实，补票/判废/判完工皆会话裁。
+// 态权威链（2026-11-12 散文推导第四度翻牌实证根修——账房锚对账信号行/
+// D锚裁词括号句,日常词器官散文匹配注定打地鼠）：
+//
+//	① event='工位' 断言行=态唯一权威（`工位:<名>:<ghost|pin|build|done>`
+//	   据#id——会话态变落行,结构化非散文捞）；
+//	② 无断言才散文推导（ghostSt 同形分句邻域,信号行 esc_class 非空剔出
+//	   ——探针信号非态言）且**自举补断言**——一经断言散文面即退；
+//	③ 前端 floorFocus 同改读断言行,散文推导退兜底。
+//
+// 词册=floorFocus GHOSTS 同表镜像——漂移时探针对自己先照见（词失=
+// 全「毛坯」升潮,如实报不抑）。判词归唤知会话——探针只述实,
+// 补票/判废/判完工皆会话裁（runbook 孤儿账 organ_* 档）。
 package main
 
 import (
@@ -87,13 +94,18 @@ func organState(note string, hasFact bool, keys []string) string {
 	return "build"
 }
 
+// organAssertRe 工位断言行解析（`工位:<名>:<ghost|pin|build|done>`）。
+var organAssertRe = regexp.MustCompile(`工位:([^:：\s]+):(ghost|pin|build|done)`)
+
 // organOrphanEscCheck 器官悬置一探：窗内事实行单程抽出（9 器官共享一
-// 扫非逐件一查）→逐件推导态+开工单覆盖对账→非完工且无票=悬置升件。
-// fp=推导态（态变=新现实重火;态同=同值已阅不暴；票终条件存=销票破
+// 扫非逐件一查）→断言权威逐件判态（无断言=散文推导+自举补断言）
+// →非完工且无开工单=悬置升件。
+// fp=态（态变=新现实重火;态同=同值已阅不暴；票终条件存=销票破
 // 纹复验——escEdgeUV 标准语义）。
 func (c coreService) organOrphanEscCheck(ctx context.Context, deadSince map[string]time.Time) {
 	rows, err := c.pool.Query(ctx, `SELECT id,note FROM ops_event
-		WHERE event<>'量表' AND ts>now()-interval '`+organFactWindow+`'
+		WHERE event<>'量表' AND COALESCE(esc_class,'')=''
+		AND ts>now()-interval '`+organFactWindow+`'
 		ORDER BY id DESC`)
 	if err != nil {
 		return // 读件败本拍让位
@@ -111,25 +123,57 @@ func (c coreService) organOrphanEscCheck(ctx context.Context, deadSince map[stri
 	}
 	rows.Close()
 
+	// 断言面:工位行=态权威（新行先扫到=最新断言）。
+	asserted := map[string]struct {
+		st  string
+		fid int64
+	}{}
+	for i := range facts {
+		if m := organAssertRe.FindStringSubmatch(facts[i].note); m != nil {
+			if _, ok := asserted[m[1]]; !ok {
+				asserted[m[1]] = struct {
+					st  string
+					fid int64
+				}{m[2], facts[i].id}
+			}
+		}
+	}
+
 	for _, org := range organRegistry {
-		// 态源=最新非量表载词行（同 ghostFact）。
-		var hit *fact
-		for i := range facts {
-			for _, k := range org.keys {
-				if strings.Contains(facts[i].note, k) {
-					hit = &facts[i]
+		var st string
+		var fid int64
+		if a, ok := asserted[org.name]; ok {
+			st, fid = a.st, a.fid // 断言权威——散文面不再参与
+		} else {
+			// 无断言=散文推导（同 ghostFact——最新非量表非信号载词行）。
+			var hit *fact
+			for i := range facts {
+				for _, k := range org.keys {
+					if strings.Contains(facts[i].note, k) {
+						hit = &facts[i]
+						break
+					}
+				}
+				if hit != nil {
 					break
 				}
 			}
+			st = "ghost"
 			if hit != nil {
-				break
+				fid = hit.id
+				st = organState(hit.note, true, org.keys)
 			}
-		}
-		st := "ghost"
-		var fid int64
-		if hit != nil {
-			fid = hit.id
-			st = organState(hit.note, true, org.keys)
+			// 自举补断言——推导态落结构化行,此后散文面退场;
+			// 写败下拍重试（幂等同值）。
+			anch := "无事实行"
+			if fid > 0 {
+				anch = fmt.Sprintf("据#%d", fid)
+			}
+			if _, err := c.pool.Exec(ctx,
+				`INSERT INTO ops_event(seat,event,ticket,note) VALUES('探测席','工位','',$1)`,
+				fmt.Sprintf("工位:%s:%s %s——探针自举(散文推导态;会话态变请落工位断言行)", org.name, st, anch)); err != nil {
+				continue // 断言写败本件让位
+			}
 		}
 		if st == "done" {
 			continue // 完工件非悬置域
