@@ -18,17 +18,17 @@
 - sengen 生件(1024×1024 白底,watermark:false)→rembg/u2net 抠(591×877)。
   米色圆背转椅——与 bot-seat 的椅同款,状态语义:座摆人未坐。
 
-### bot-seat.png —— 坐机带椅(完工/在建座)
-- 从原图抠件(rembg/u2net)——白瓷机+米色 Eames 椅一体;
-  伸向桌面前臂融桌光被食,显示尺寸内读作手搭膝。
+### bot-seat.png —— 坐机低斗凳(完工/在建座)
+- v2 AI 生件(watermark:false)——白瓷机坐奶油斗壳低凳(原图凳同款:
+  斗壳座+短铬杆+平圆盘),侧视朝右,birefnet 抠底(599×867)。
 
 ### bot-stand.png —— 立机(常驻机×6)
 - stockcake.com AI 库件(futuristic-robot-heart-stockcake.jpg,业主钦定 11-12),
   rembg/u2net 抠底。
 
-### bot-seat-back.png —— 坐机背影(前座朝台件)
-- AI 图生图件(watermark:false)——以 bot-seat.png 为参考出背后视角,
-  birefnet-general 抠底裁紧。与 bot-seat 同瓷质同款,前 3 座专用(face-b)。
+### bot-seat-back.png —— 坐机低斗凳背影(前座朝台件)
+- v2 AI 图生图件(watermark:false)——以 bot-seat v2 为参考出背后视角,
+  同斗壳凳+铬杆圆盘,birefnet 抠底(1010×1783)。前 3 座专用(face-b)。
 
 ### holo-globe.png —— 全息地球(脑)
 - AI 生件(watermark:false)——线框球+同心环核+浮粒子(原图核结构)。
