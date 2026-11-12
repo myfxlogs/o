@@ -202,16 +202,20 @@ button.v2-row.ft-row {
 
 /* —— floor v3 全屏全息舱(floorStage.tsx):AI 舱图底+活件浮层 —— */
 .page.v2.fstage-page { max-width: none; padding: 0; }
-.fstage {
+.page.v2.fstage-page > .fstage {
   /* 钉视口——跳出 .main max-width:1280 祖宗锁+拆 AI 图宽高比锁;
      左让 180px 侧栏保持可导航;屏多大舱多大(业主令:不留白,bor/面板
-     另盖层) */
+     另盖层)。
+     坑钉:.page.v2>* 轨道归一(0,2,0)会给本子件上 max-width:1080+
+     margin:auto,fixed 盒被压窄居中=宽屏两侧空;特异度压过裸 .fstage
+     选择器(0,1,0)——本规则必须用 (0,3,0) 三级类径才赢。 */
   position: fixed; inset: 0 0 0 180px; z-index: 5;
+  width: auto; max-width: none; margin: 0;
   background-size: cover; background-position: center; background-color: #060b14;
   overflow: hidden; user-select: none;
 }
 @media (max-width: 767px) {
-  .fstage { inset: 48px 0 0 0; }
+  .page.v2.fstage-page > .fstage { inset: 48px 0 0 0; }
 }
 /* 中央全息球=CSS 球(在班泛光,脑闪增亮) */
 .fs-brain .fs-brain-glow {
