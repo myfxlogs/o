@@ -7,8 +7,6 @@ import { useLive } from "../hooks";
 import { plainText } from "../components/plain";
 import { pbDate } from "../components/fmt";
 import { AGE } from "../components/panel";
-import { P } from "../components/iso";
-import { Cell } from "./floorTokens";
 
 export type Tip = { k: string; x: number; y: number; title: string; body: string[]; to: string };
 
@@ -55,52 +53,6 @@ export function ghostSt(gh: (typeof GHOSTS)[number], facts: Fact[]): "ghost" | "
 const fmtMoney = (v: number) =>
   "$" + v.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const TO_LABEL: Record<string, string> = { "/": "机赚如何", "/device": "哪病了", "/decision": "何事要裁" };
-
-type Hot = (tt: Omit<Tip, "x" | "y">, x: number, y: number, z?: number, cls?: string) => Record<string, unknown>;
-
-// 器官工位令牌阵——2×5。令牌态色=事实推导(毛坯灰/立项蓝/在建金/完工绿),
-// 副行=事实锚(据 #N)。态色描边即状态,无装饰件。
-const GH_TONE: Record<string, string> = { ghost: "#5a6274", pin: "#7fa8d0", build: "#d9a62e", done: "#3ddc84" };
-// 器官位世界坐标——票签/聚焦锚共用（5×2 阵，cx=块心 x）。
-export const ghostPos = (i: number) => {
-  const x = 3.4 + (i % 5) * 2.2, y = i < 5 ? 7.5 : 9.6;
-  return { x, y, cx: x + 0.95 };
-};
-export function GhostRow(props: { hot: Hot; facts: Fact[] }) {
-  return (
-    <>
-      {GHOSTS.map((gh, i) => {
-        const { x, y, cx } = ghostPos(i);
-        const st = ghostSt(gh, props.facts);
-        const fact = ghostFact(gh, props.facts);
-        const done = st === "done", pin = st === "pin";
-        const stLb = done ? "已完工" : st === "build" ? "在建" : pin ? "已立项" : "毛坯";
-        return (
-          <g key={gh.name}
-            {...props.hot({ k: "gh" + i, title: `工位 · ${gh.name}`, body: [gh.hint, stLb, fact ? `据 #${String(fact.id)}` : "无事实行"], to: "/decision" }, cx, y + 0.5, 0, st === "build" ? "fx-breathe" : "")}>
-            <Cell x={x} y={y} w={1.9} d={1.0} tone={GH_TONE[st]} dim={st === "ghost"}
-              lines={[gh.name + (done ? " ✓" : pin ? " 📌" : ""), stLb]} fs={9}
-              sub={fact ? `据 #${String(fact.id)}` : "无事实行"} />
-          </g>
-        );
-      })}
-    </>
-  );
-}
-
-// venue 资金列——右列令牌排（overview money 行按 venue 分组合计，单行读数）。
-export function VenueCol(props: { hot: Hot; vens: [string, number][] }) {
-  return (
-    <>
-      {props.vens.map(([vn, usd], i) => (
-        <g key={vn} {...props.hot({ k: "ven:" + vn, title: `${vn} 资金`, body: [`合计 ${fmtMoney(usd)}`], to: "/" }, 16.1, 3.2 + i * 0.9)}>
-          <Cell x={14.6} y={2.85 + i * 0.9} w={3.0} d={0.68} tone="#5a7ec2"
-            lines={[`${vn} ${fmtMoney(usd)}`]} fs={8.5} />
-        </g>
-      ))}
-    </>
-  );
-}
 
 // 聚焦卡数据源——场景页把已抓数据整包传入，本件只管排版。
 export function FocusBody(props: {
