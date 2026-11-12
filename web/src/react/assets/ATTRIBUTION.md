@@ -23,14 +23,15 @@
 - stockcake.com AI 库件(futuristic-robot-heart-stockcake.jpg,业主钦定 11-12),
   rembg/u2net 抠底。
 
+### bot-seat-back.png —— 坐机背影(前座朝台件)
+- AI 图生图件(watermark:false)——以 bot-seat.png 为参考出背后视角,
+  birefnet-general 抠底裁紧。与 bot-seat 同瓷质同款,前 3 座专用(face-b)。
+
 ### holo-globe.png —— 全息地球(脑)
 - AI 生件(watermark:false)——线框地球+轨道环+底部投影光柱。
   黑底辉光支路:alpha 直取亮度(Lmax/255),叠舱底即加色辉光。
 
-### holo-dashboard.png —— 屏框(四活屏金属框)
-- AI 生件(watermark:false),1024×1024——拉丝金属框+细青边辉光,屏内纯空。
-  白底洪泛抠边(阈值 212)+`--kill-floor-shadow`。
-
 ## 退役件(floor v3→v4 拆件替换)
 floor-holo.jpg / bridge-hall.jpg / conf-table.png / robot-chair.png
 ——整幅 AI 底被 room-shell(原图壳)取代,生成桌/椅被原图抠件取代。
+holo-dashboard.png —— 屏框金属件,业主令四屏入墙后退役(屏芯改青玻格区)。
