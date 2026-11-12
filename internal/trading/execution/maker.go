@@ -55,7 +55,7 @@ func (r *Runner) makerAttempt(ctx context.Context, execID int64, no int, leg Leg
 		res, err := r.exec.Resolve(ctx, ml, clOrdID)
 		if err == nil && res.State == "filled" {
 			legID := r.legPx(ctx, execID, no, ml, clOrdID, "filled", "", "", res.FillPx, res.FillSz, "post_only", res.FillTicket)
-			r.legCash(ctx, legID, ml, res.FillPx, res.FillSz, posRef)
+			r.legCash(ctx, legID, ml, res.FillPx, res.FillSz, posRef, res.Fee, res.FeeCcy)
 			return res, true
 		}
 		if time.Now().After(deadline) {
@@ -67,7 +67,7 @@ func (r *Runner) makerAttempt(ctx context.Context, execID int64, no int, leg Leg
 	res, err := r.exec.Resolve(ctx, ml, clOrdID)
 	if err == nil && res.State == "filled" { // 撤窗竞态成交
 		legID := r.legPx(ctx, execID, no, ml, clOrdID, "filled", "", "", res.FillPx, res.FillSz, "post_only", res.FillTicket)
-		r.legCash(ctx, legID, ml, res.FillPx, res.FillSz, posRef)
+		r.legCash(ctx, legID, ml, res.FillPx, res.FillSz, posRef, res.Fee, res.FeeCcy)
 		return res, true
 	}
 	// 碎量径（审计驳回修①）：canceled+accFillSz>0=部分成交——实量记 post_only
@@ -75,7 +75,7 @@ func (r *Runner) makerAttempt(ctx context.Context, execID int64, no int, leg Leg
 	// 碎仓+台账吞量实证坑）。
 	if res.FillSz > 0 {
 		legID := r.legPx(ctx, execID, no, ml, clOrdID, "filled", "", "", res.FillPx, res.FillSz, "post_only", res.FillTicket)
-		r.legCash(ctx, legID, ml, res.FillPx, res.FillSz, posRef)
+		r.legCash(ctx, legID, ml, res.FillPx, res.FillSz, posRef, res.Fee, res.FeeCcy)
 		return OrderResult{ClOrdID: clOrdID, State: "partial", FillPx: res.FillPx, FillSz: res.FillSz}, true
 	}
 	r.legPx(ctx, execID, no, ml, clOrdID, "failed", "", "", 0, 0, "post_only", 0)

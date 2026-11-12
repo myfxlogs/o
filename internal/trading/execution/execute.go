@@ -38,8 +38,10 @@ type OrderResult struct {
 	State        string // filled|live|partially_filled|absent|unknown
 	FillPx       float64
 	FillSz       float64
-	FillTicket   int64  // venue 仓凭据（MT5 ticket——hedge 户平仓 OrderClose 必携；okx=0 略）
-	VenueCode    string // venue 业务拒码（okx sCode≠0——留痕 fin_order_leg，T-0040）
+	FillTicket   int64   // venue 仓凭据（MT5 ticket——hedge 户平仓 OrderClose 必携；okx=0 略）
+	Fee          float64 // venue 实返累计费（okx spot=fee 字段负值；他 venue=0 略——工单#11438 净额锚）
+	FeeCcy       string  // fee 计价币（spot 卖=quote(USDT)/买=base；非 USDT 不触现金账）
+	VenueCode    string  // venue 业务拒码（okx sCode≠0——留痕 fin_order_leg，T-0040）
 	VenueMsg     string
 	RulesVersion string // 规则集指纹（T-0426 仿真域携——真 venue 留空；审计可验「哪套规则判的」）
 }

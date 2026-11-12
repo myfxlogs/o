@@ -46,7 +46,7 @@ func (r *Runner) rollback(ctx context.Context, execID int64, leg Leg, res OrderR
 	}
 	legID := r.legPx(ctx, execID, 1, leg, clOrdID, "rolled_back", "", "", 0, rb.FillSz, "market", rb.FillTicket)
 	// 回滚腿=真实现金事件（买回即卖出）——spot 腿同径记账（rev.Side 定向，px 缺=名义锚）。
-	r.legCash(ctx, legID, rev, rb.FillPx, rb.FillSz, nil)
+	r.legCash(ctx, legID, rev, rb.FillPx, rb.FillSz, nil, rb.Fee, rb.FeeCcy)
 	r.setState(ctx, execID, "rolled_back")
 	log.Printf("[execution] #%d LEGGED→leg1 回滚成", execID)
 }

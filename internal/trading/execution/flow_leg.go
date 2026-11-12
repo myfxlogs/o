@@ -105,7 +105,7 @@ func (r *Runner) slipSample(ctx context.Context, legID int64, leg Leg, px float6
 // legCash 腿级现金行（T-0083 对称记账）：okx 现货腿（非合约域 SWAP/datedFUT——
 // T-0483）买=流出毛额负、卖=流入毛额正——两腿各记净额自然=真价差；合约腿无名义现金（结算走 bills/fee）。
 // source_ref=腿行 id（幂等溯源锚）；perp/CFD/杂 venue 不触现径。
-func (r *Runner) legCash(ctx context.Context, legID int64, leg Leg, px, fillSz float64, posRef *int64) {
+func (r *Runner) legCash(ctx context.Context, legID int64, leg Leg, px, fillSz float64, posRef *int64, fee float64, feeCcy string) {
 	if legID == 0 || leg.Venue != "okx" || contractInst(leg.InstID) {
 		return
 	}
@@ -118,6 +118,17 @@ func (r *Runner) legCash(ctx context.Context, legID int64, leg Leg, px, fillSz f
 		VALUES($1,$2,'USDT',$3,$4,$5,'fin_order_leg',now())`,
 		kind, leg.Venue, sign*r.legGross(leg, px, fillSz), posRef, legID); err != nil {
 		r.rej.Inc("write_err")
+	}
+	// 工单#11438 费净额锚：venue 实返 fee 仅 feeCcy=USDT 触本账——卖腿净收=
+	// 毛额+fee(负)，买腿费在 base 不触 USDT。kind='fee' 独立行=费归费账
+	// （review/caliber 已汇此 kind；藏进 spot_* 毛额=账实差逐笔增生）。
+	if fee != 0 && feeCcy == "USDT" {
+		if _, err := r.pool.Exec(ctx, `INSERT INTO fin_cashflow
+			(kind,venue,ccy,amount,position_ref,source_ref,source_table,occurred_at)
+			VALUES('fee',$1,'USDT',$2,$3,$4,'fin_order_leg',now())`,
+			leg.Venue, fee, posRef, legID); err != nil {
+			r.rej.Inc("write_err")
+		}
 	}
 }
 
