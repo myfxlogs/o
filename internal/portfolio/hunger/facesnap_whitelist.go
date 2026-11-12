@@ -197,5 +197,6 @@ var faceBaselineWhitelist = map[string]string{
 	// table 类面=information_schema BASE TABLE 枚举本体零硬编码——
 	// 建表落地即面（升件源 #10752，生产亲证首拍行 id=1 @19:20:47Z
 	// ok=t events=106）。
-	"face:table:md_calendar_pull": "工单#10693 入册——md_calendar_pull=fin_0168 迁移建 public 基表（CALENDAR-FEED 口径修：拉环逐拍活性账 ok/events/err 含败拍，domain.tsv fin 入册）；写径 notify.Calendar.notePull/读径 hunger feedstale 探针同池面在案；table 类面 information_schema BASE TABLE 枚举本体零硬编码，建表落地即面；生产亲证基表在册+首拍行 id=1 @2026-11-11 19:20:47Z ok=t events=106（升件源 ops_event #10752）",
+	"face:table:md_calendar_pull":   "工单#10693 入册——md_calendar_pull=fin_0168 迁移建 public 基表（CALENDAR-FEED 口径修：拉环逐拍活性账 ok/events/err 含败拍，domain.tsv fin 入册）；写径 notify.Calendar.notePull/读径 hunger feedstale 探针同池面在案；table 类面 information_schema BASE TABLE 枚举本体零硬编码，建表落地即面；生产亲证基表在册+首拍行 id=1 @2026-11-11 19:20:47Z ok=t events=106（升件源 ops_event #10752）",
+	"face:table:ops_chain_residual": "工单#11419 入册——ops_chain_residual=fin_0169 迁移建 public 基表（账链伪戳已知立案行豁免册：仅抑伪戳档检出、断链/裸行/创世锚拓扑检不豁免，append-only INSERT/SELECT 授写，domain.tsv fin 入册）；写径处置/复审席豁免行 INSERT/读径 ops_chain_verify() 同池在案；table 类面 information_schema BASE TABLE 枚举本体零硬编码，建表落地即面；生产亲证基表在册+种子行 id=9442 定案豁免（升件源 ops_event #11596）",
 }
