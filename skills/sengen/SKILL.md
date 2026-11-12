@@ -31,6 +31,19 @@ description: sensenova 文生图/图生图 CLI——UI 资产生成件(floor/其
 `/home/mluser/.config/sensenova/key`(0600,入 env `SENSENOVA_API_KEY` 亦可)。
 **禁入仓/禁入 commit**——工具属 devin 私有,与 O 业务无关(业主令 11-12)。
 
+## 副通道 SiliconFlow(实测在案 2026-11-12)
+
+- key `/home/mluser/.config/siliconflow/key`(0600)——国内直连免翻墙
+- 端点 `POST https://api.siliconflow.cn/v1/images/generations`,OpenAI 兼容形:
+  `{model,prompt,image_size}` → 返回 `images[0].url`(临时链需即下)
+- 可用图像模型(实测清单):**`Tongyi-MAI/Z-Image-Turbo`**(生图首选,快+质量好)、
+  `Tongyi-MAI/Z-Image`、`Qwen/Qwen-Image-Edit-2509`(图生图编辑)、
+  `Qwen/Qwen-Image-Edit`、`Qwen/Qwen-Image`、`Kwai-Kolors/Kolors`、`OpenMOSS-Team/MOSS-Image`
+- `black-forest-labs/FLUX.1-schnell` 已下架(30003 Model disabled)
+- **出图右下角带「AI生成」水印**——入件前裁掉边缘即可
+- Gemini key `/home/mluser/.config/gemini/key` 在案但**免费档生图配额=0**
+  (Google 已撤免费生图,绑卡才可用,nano-banana ~$0.04/张)
+
 ## 抠底管线(rembg——本地件)
 
 - venv `/home/mluser/.openharness-venv`
