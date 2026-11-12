@@ -44,6 +44,10 @@ var expectDecls = []expectDecl{
 		`SELECT count(*) FROM ops_event WHERE event='量表'
 			AND ticket='books_daily' AND ts>now()-interval '30 hours'`, 1,
 		"booksBeat 断供——账房日对账停更"},
+	{"pnl_attr_daily", "量表 pnl_attr_daily(20h拍)",
+		`SELECT count(*) FROM ops_event WHERE event='量表'
+			AND ticket='pnl_attr_daily' AND ts>now()-interval '30 hours'`, 1,
+		"pnlAttrBeat 断供——策略盈亏归因账页停更"},
 }
 
 // expectProdEscCheck 期望产出面探——注册表册逐件对拍:实产<阈=升件
