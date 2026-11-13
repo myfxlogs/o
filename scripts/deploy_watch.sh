@@ -53,7 +53,7 @@ if [ "$LOCAL" != "$REMOTE" ]; then
 	fi
 fi
 HEAD=$(git rev-parse master)
-DEPLOYED=$([ -n "$DSN" ] && psql "$DSN" -qAt -c "SELECT (regexp_match(note,'o-core:([0-9a-f]+)'))[1] FROM ops_event WHERE seat='DEPLOY' AND event='部署' AND note LIKE '%rc=0%' ORDER BY id DESC LIMIT 1" 2>/dev/null)
+DEPLOYED=$([ -n "$DSN" ] && psql "$DSN" -qAt -c "SELECT (regexp_match(note,'o-core:([0-9a-f]+)'))[1] FROM ops_event WHERE seat='DEPLOY' AND event='部署' AND note LIKE '%rc=0%' AND note LIKE '%o-core:%' ORDER BY id DESC LIMIT 1" 2>/dev/null) # T-13283：行类滤先——deploy-oci 臂行同 seat/event/rc=0 无 o-core: 标记，取最新行后 extract 必空(假滞差→多余部署)
 SHORT=${HEAD:0:12}
 if [ -z "$DEPLOYED" ] || [ "${HEAD:0:${#DEPLOYED}}" != "$DEPLOYED" ]; then
 	# 部署锁持=另径部署在途（会话 deploy_at_sha/本拍并发）——让位不撞锁
@@ -74,7 +74,11 @@ if [ -z "$DEPLOYED" ] || [ "${HEAD:0:${#DEPLOYED}}" != "$DEPLOYED" ]; then
 	say "滞差: 部署=$DEPLOYED vs master=$SHORT——起部署"
 	out=$(bash scripts/deploy_image.sh 2>&1); rc=$?
 	echo "$out" | tail -3 | while read -r l; do say "$l"; done
-	[ $rc -ne 0 ] && esc "deploy_blocked" "部署/deploy_blocked: deploy_image rc=$rc（master=$SHORT 待部署）尾=$(echo "$out" | tail -2 | tr '\n' ' ' | cut -c1-120)——归唤知会话清障（脏树/锁/网）"
+	if [ $rc -ne 0 ]; then # T-13283：&& 短路作末句=test 假值传染脚本 exit 1——成功部署也标 unit FAILURE（systemd 噪音掩真败）
+		esc "deploy_blocked" "部署/deploy_blocked: deploy_image rc=$rc（master=$SHORT 待部署）尾=$(echo "$out" | tail -2 | tr '\n' ' ' | cut -c1-120)——归唤知会话清障（脏树/锁/网）"
+		exit 1
+	fi
 else
 	say "已同步（部署=$DEPLOYED = master）"
 fi
+exit 0
