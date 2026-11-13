@@ -916,3 +916,47 @@ func TestEvalPulseBridge(t *testing.T) {
 		t.Fatalf("funding-hedge 脉冲行缺: %d", n)
 	}
 }
+
+// TestReverseKlines 日K反向桥（工单#13065 切片④——eval 消费径）：SG 正本
+// →PG-md 副本复合键全表 diff；形成帧 confirm 翻转覆写+幂等零漂移三拍。
+func TestReverseKlines(t *testing.T) {
+	ctx := context.Background()
+	r, md, sg := runner(t)
+	if _, err := sg.Exec(ctx, `INSERT INTO md_klines(venue,inst_id,bar,ts,o,h,l,c,vol,vol_ccy,confirm)
+		VALUES ('okx','BTC-USDT-SWAP','1D','2026-11-12T16:00:00Z',100,110,95,105,1000,105000,false),
+		       ('okx','ETH-USDT-SWAP','1D','2026-11-12T16:00:00Z',10,11,9,10.5,2000,21000,true)`); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.reverseKlines(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if n := count(t, md, "SELECT count(*) FROM md_klines"); n != 2 {
+		t.Fatalf("日K副本应 2 行: %d", n)
+	}
+	// 正本形成帧收线（confirm 翻转+收价改写）→再 diff 副本同键覆写非新行。
+	if _, err := sg.Exec(ctx, `UPDATE md_klines SET c=108, vol=1500, vol_ccy=162000, confirm=true
+		WHERE inst_id='BTC-USDT-SWAP'`); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.reverseKlines(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if n := count(t, md, "SELECT count(*) FROM md_klines"); n != 2 {
+		t.Fatalf("同键覆写应仍 2 行: %d", n)
+	}
+	var c float64
+	var confirm bool
+	if err := md.QueryRow(ctx, `SELECT c,confirm FROM md_klines WHERE inst_id='BTC-USDT-SWAP'`).Scan(&c, &confirm); err != nil {
+		t.Fatal(err)
+	}
+	if !confirm || c != 108 {
+		t.Fatalf("副本应收线覆写 c=108 confirm=t: c=%v confirm=%v", c, confirm)
+	}
+	// 副本零漂移：零变再 diff 行数不变（upsert-only 幂等）。
+	if err := r.reverseKlines(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if n := count(t, md, "SELECT count(*) FROM md_klines"); n != 2 {
+		t.Fatalf("幂等再 diff 应仍 2 行: %d", n)
+	}
+}

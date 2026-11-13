@@ -90,7 +90,7 @@ func New(md, sg *pgxpool.Pool, alert *notify.Alerter, mode string) (*Runner, err
 	}
 	for _, t := range []string{"fin_strategy", "fin_venue_untradeable", "md_earn_rate",
 		"fin_trx_vote_apr", "fin_trx_account", "fin_trx_txs",
-		"fin_cmc_history", "fin_cmc_positions"} {
+		"fin_cmc_history", "fin_cmc_positions", "md_klines"} {
 		if !regRevSet[t] {
 			return nil, fmt.Errorf("域册 bridge-reverse 缺反向桥表 %s——册面先行", t)
 		}
