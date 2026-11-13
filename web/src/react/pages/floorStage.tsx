@@ -12,6 +12,7 @@ import botStandUrl from "../assets/wall-station.png";
 import rackUrl from "../assets/server-rack.png";
 import globeUrl from "../assets/holo-globe.png";
 import chairUrl from "../assets/scoop-chair.png";
+import rimUrl from "../assets/rim-front.png";
 import hallUrl from "../assets/room-shell.jpg";
 import { plainText } from "../components/plain";
 import type { Fact, Tip } from "./floorFocus";
@@ -36,12 +37,12 @@ const fmtM = (v: number) => "$" + v.toLocaleString("zh-CN", { maximumFractionDig
 // SEAT_POS——9座全站环台缘外侧:台心(50,66) rx=35 ry=19.5 椭圆参数
 // θ=170°..10° 左缘→前中→右缘;尺度按θ景深(前大侧小)
 const SEAT_POS = [
-  [11.5, 62, 0.7], [16.2, 67.5, 0.8], [24.9, 72, 0.9], [36.6, 75.4, 1.0],
-  [50, 76, 1.05], [63.4, 75.4, 1.0], [75.1, 72, 0.9], [83.8, 67.5, 0.8], [88.5, 62, 0.7],
+  [12.6, 63.6, 0.7], [17.1, 70.5, 0.8], [25.6, 76.1, 0.9], [37, 79.7, 1.0],
+  [50, 81, 1.05], [63, 79.7, 1.0], [74.4, 76.1, 0.9], [82.9, 70.5, 0.8], [87.4, 63.6, 0.7],
 ];
 // 朝向:围桌朝台心——左半朝右(r)、前中背影(b)、右半朝左(l,翻转)
 const SEAT_FACE = ["r", "r", "r", "b", "b", "b", "l", "l", "l"] as const;
-const MACH_POS = [[6, 38], [14, 37], [22, 36], [30, 36], [68, 36], [76, 36], [84, 37], [92, 38]];
+const MACH_POS = [[6, 38], [14, 37], [22, 36], [30, 36], [68, 36], [76, 36], [84, 37], [90, 38]];
 // 物理主机机柜位——墙沿工位间缝,真硬件件(非人形:器/服/机三形分家)
 const HOST_POS = [[4, 44], [96, 44], [40, 42], [60, 42]];
 // 台面工单板位——环台面环带散件,一待办一板(原图台面散件=活工单)
@@ -131,7 +132,7 @@ export function FloorStage(p: StageProps) {
       {p.organs.map((o, k) => (
         <button key={o.i}
           className={`fs-seatwrap st-${o.st} face-${SEAT_FACE[k]}${o.flash || pulse.has(o.i) ? " pulse" : ""}`}
-          style={{ left: `${SEAT_POS[k][0]}%`, top: `${SEAT_POS[k][1]}%`, width: `${10.4 * (SEAT_POS[k][2] ?? 1)}%` }}
+          style={{ left: `${SEAT_POS[k][0]}%`, top: `${SEAT_POS[k][1]}%`, width: `${11.4 * (SEAT_POS[k][2] ?? 1)}%` }}
           onClick={() => p.onPick({ k: "gh" + o.i, x: 0, y: 0, title: `工位 · ${o.name}`, body: [], to: "/decision" })}>
           {/* pin/ghost=空椅(座摆人未坐);build/done=坐机;朝向=围桌朝台心 */}
           <img src={o.st === "pin" || o.st === "ghost" ? chairUrl : SEAT_FACE[k] === "b" ? botBackUrl : botSeatUrl} alt={o.name}
@@ -151,6 +152,9 @@ export function FloorStage(p: StageProps) {
           </span>
         </button>
       ))}
+
+      {/* 前台环缘遮罩——原图前唇盖座机下半身:机埋台缘凹槽非浮台面 */}
+      <img src={rimUrl} className="fs-rim" style={{ left: "50%", top: "64%" }} alt="" draggable={false} />
 
       {/* 站位机器人×6=常驻机——站姿机贴图,断流灰红 */}
       {p.machines.map((m, k) => (
