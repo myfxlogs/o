@@ -115,11 +115,12 @@ UNIT="o-cognition-$(date +%s)"
 
 # 跨机单飞闸（T-0521 认知双活根修）：本机 systemd 闸只管本机面——第二台
 # dispatch 机同拍=双会话双处置双账。PG advisory lock(7969) 序列化临界区,
-# 「30min 唤起在案且无同 unit 唤起败∧无后随收口」为跨机在飞判据——
+# 「30min 唤起在案且无同 unit 唤起败/唤起果∧无后随收口」为跨机在飞判据——
 # INSERT...WHERE NOT EXISTS...RETURNING 单会话内持锁,胜方插行,败方
 # 读到已提交行即退。
 # spawn 落败→补'唤起败'同 unit 行=败迹清锁,下拍可重唤（append-only 径——
-# 不删行,补事实行）。
+# 不删行,补事实行）;run.sh EXIT trap 成则'唤起果'败则'唤起败'——
+# 唤起行必有配对行=唤起存在性对账（会话自写'会话收口'=判词语义层）。
 # 收口释锁(坑处置: 僵尸锁根修——正常收口不写败迹,唤起行尸占30min TTL,
 # 历史唤起间隔30min+1s整即其尸证;收口行=正常完会话的释锁契,
 # x.ts>e.ts 界保在飞不被早释,TTL 兜底 SIGKILL 无收口黑洞)。
@@ -130,13 +131,13 @@ UNIT="o-cognition-$(date +%s)"
 WON=$(psql "$DSN" -qAt <<SQL
 SELECT pg_advisory_lock(7969);
 INSERT INTO ops_event(seat,event,ticket,note)
-SELECT '唤知机','唤起','','unit=$UNIT trigger=$TRIGGER'
+SELECT '唤知机','唤起','','unit=$UNIT host=$(hostname) trigger=$TRIGGER'
 WHERE NOT EXISTS (
 	SELECT 1 FROM ops_event e
 	WHERE e.seat='唤知机' AND e.event='唤起' AND e.ts>now()-interval '30 minutes'
 	  AND NOT EXISTS (SELECT 1 FROM ops_event x
 	    WHERE x.ts>e.ts AND (
-	      (x.seat='唤知机' AND x.event='唤起败'
+	      (x.seat='唤知机' AND x.event IN ('唤起败','唤起果')
 	        AND x.note LIKE '%'||substring(e.note from 'unit=[^ ]+')||'%')
 	      OR x.event='会话收口')))
 AND NOT EXISTS (
@@ -176,6 +177,6 @@ systemd-run --user --unit="$UNIT" --collect \
 	--setenv=COG_UNIT="$UNIT" \
 	"$SCRIPT_DIR/run.sh" || {
 		psql "$DSN" -qAt -c "INSERT INTO ops_event(seat,event,ticket,note)
-			VALUES('唤知机','唤起败','','unit=$UNIT trigger=$TRIGGER spawn落败')" >/dev/null 2>&1
+			VALUES('唤知机','唤起败','','unit=$UNIT host=$(hostname) trigger=$TRIGGER spawn落败')" >/dev/null 2>&1
 		echo "[dispatch] systemd-run 唤起落败(败迹已清锁)" >&2; exit 1; }
 echo "[dispatch] 唤起 $UNIT trigger=$TRIGGER (esc#$WON)"
