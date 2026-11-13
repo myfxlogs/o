@@ -63,7 +63,8 @@ func (e *EventPush) push(ctx context.Context, key, text string) {
 func (e *EventPush) pushOpened(ctx context.Context) {
 	rows, err := e.pool.Query(ctx, `SELECT p.id,p.inst_id,p.notional_usd,p.opened_at,
 		s.template_ref FROM fin_position p LEFT JOIN fin_strategy s ON s.id=p.strategy_ref
-		WHERE p.opened_at > now()-interval '10 minutes' ORDER BY p.id`)
+		WHERE p.opened_at > now()-interval '10 minutes'
+		  AND COALESCE(s.template_ref,'') NOT LIKE 'simdrill%' ORDER BY p.id`)
 	if err != nil {
 		return
 	}
@@ -111,7 +112,9 @@ func (e *EventPush) pushFunding(ctx context.Context) {
 func (e *EventPush) pushClosed(ctx context.Context) {
 	rows, err := e.pool.Query(ctx, `SELECT p.id,p.inst_id,p.notional_usd,
 		COALESCE(p.settled_amount,0),COALESCE(p.settled_ccy,'USD') FROM fin_position p
-		WHERE p.closed_at IS NOT NULL AND p.closed_at > now()-interval '10 minutes' ORDER BY p.id`)
+		LEFT JOIN fin_strategy s ON s.id=p.strategy_ref
+		WHERE p.closed_at IS NOT NULL AND p.closed_at > now()-interval '10 minutes'
+		  AND COALESCE(s.template_ref,'') NOT LIKE 'simdrill%' ORDER BY p.id`)
 	if err != nil {
 		return
 	}
