@@ -35,7 +35,8 @@ func (c coreService) selfStateBeat(ctx context.Context) {
 	var depTs time.Time
 	if err := c.pool.QueryRow(ctx, `SELECT note,ts FROM ops_event
 		WHERE seat='DEPLOY' AND event='部署' AND note LIKE '%rc=0%'
-		ORDER BY id DESC LIMIT 1`).Scan(&depNote, &depTs); err == nil {
+		AND note LIKE '%o-core:%'
+		ORDER BY id DESC LIMIT 1`).Scan(&depNote, &depTs); err == nil { // T-13283：行类滤先——deploy-oci 臂行同 seat/event/rc=0 无 o-core: 标记，取最新行后 extract 必 ?(假滞差源)
 		sha := "?"
 		if m := depShaRe.FindStringSubmatch(depNote); m != nil && len(m[1]) >= 12 {
 			sha = m[1][:12]
