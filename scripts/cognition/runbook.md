@@ -49,6 +49,10 @@ psql "$FIN_DSN" -qAt -c "SELECT note FROM ops_event
 # 唤起无果/票过期/器官僵/收口陈 显式判读,卡≠0先处置再开新活）:
 psql "$FIN_DSN" -qAt -c "SELECT note FROM ops_event
   WHERE event='量表' AND ticket='self_aware' ORDER BY id DESC LIMIT 1"
+# 自模账页（自我意识能力账翼——30d 域面成败三数:票/逾期/复燃+会话果败比
+# 与求助数;「我擅长什么哪类活总砸」的事实源,拣票先看自己短板域）:
+psql "$FIN_DSN" -qAt -c "SELECT note FROM ops_event
+  WHERE event='量表' AND ticket='self_model' ORDER BY id DESC LIMIT 1"
 # 懂你口径页（工单#11384 器官——业主意图十键口径账:红线/放权/读面/亏损
 # 预算/解锁/自裁/成年判据/问≠令/目的锚/生成径;判词引 口径:<键> 即锚业主令）:
 psql "$FIN_DSN" -qAt -c "SELECT note FROM ops_event
@@ -520,9 +524,9 @@ dispatch 未入支板（pendbr）兜底在案,工单是正道pendbr是保险。
   唤起四连零账行）。壳兜底另有唤起果/唤起败行管「活没活」,
   本行管「判了什么」——两层不替。
   **用帧契**（器官闭环账——判词尾必载）：`用帧=<键,逗分|无>`=本轮判词
-  **实际引用**的器官产出键,集=自态/叙事/自观/懂你/做梦/模式行
-  （对应 self_state/self_narrative/self_aware/owner_intent/dream_replay/
-  pattern-canon）。冷启动眼过不算用——判词里真引了才算；处置 note 引
+  **实际引用**的器官产出键,集=自态/叙事/自观/自模/懂你/做梦/模式行
+  （对应 self_state/self_narrative/self_aware/self_model/owner_intent/
+  dream_replay/pattern-canon）。冷启动眼过不算用——判词里真引了才算；处置 note 引
   `口径:<键>`/自观卡旗判词/回放推演 都算用。`用帧=无` 合法如实——
   帧产而无人用=器官问题非会话问题,用法账=器官迭代唯一输入面
   （引用率升件面在册,勿为凑数虚报——虚报=记忆律违）。

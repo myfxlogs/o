@@ -55,6 +55,7 @@ func pulseState(ts *time.Time, err error, quiet, dead time.Duration) string {
 }
 
 func (c coreService) selfAwareBeat(ctx context.Context) {
+	c.selfModelBeat(ctx) // 自模账帧同拍（自我意识帧组——能力账翼;独立自闸 20h;feed_esc 棘轮满线不入册唤点）
 	var earn, move, idle, doing, stuck string
 
 	// ① 赚：NAV 末行+陈 | 30d 净产出（commercial_stall 同径——
