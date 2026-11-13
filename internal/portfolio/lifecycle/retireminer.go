@@ -46,6 +46,7 @@ SELECT 'retire_postmortem','strategy#'||t.strategy_id,
 FROM fin_strategy_transition t JOIN fin_strategy s ON s.id=t.strategy_id
 WHERE t.to_state='retired'
 	AND t.ts>now()-make_interval(days=>$1)
+	AND s.template_ref NOT LIKE 'simdrill%' -- 演习仓死=焚具非教训（drill_ephemeral_done 高频淹矿——部署首案 5/5 全演习实证）
 	AND NOT EXISTS(SELECT 1 FROM fin_econ_lesson l
 		WHERE l.kind='retire_postmortem'
 		AND l.entity_ref='strategy#'||t.strategy_id)

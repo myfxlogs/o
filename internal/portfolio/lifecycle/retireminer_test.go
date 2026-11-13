@@ -106,6 +106,27 @@ func TestRetireLessonMineWindow(t *testing.T) {
 	}
 }
 
+// TestRetireLessonMineSkipsSimdrill 演习仓死不产案——drill_ephemeral_done
+// =焚具非教训（部署首案 5/5 全演习实证，不滤=高频淹矿）。
+func TestRetireLessonMineSkipsSimdrill(t *testing.T) {
+	r := retireRig(t)
+	ctx := context.Background()
+	var sid int64
+	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_strategy(inst_id,template_ref,state,notional_usd,direction)
+		VALUES('RM-DRILL-USDT-SWAP','simdrill:cell:funding-hedge@okx/short_perp_long_spot#usd=50','paper',50,'short_perp_long_spot') RETURNING id`).Scan(&sid); err != nil {
+		t.Fatal(err)
+	}
+	if err := Transition(ctx, r.pool, sid, "retired", "drill_ephemeral_done", false); err != nil {
+		t.Fatal(err)
+	}
+	r.retireLessonMine(ctx)
+	var n int
+	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_econ_lesson
+		WHERE kind='retire_postmortem'`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("演习仓产案: n=%d err=%v", n, err)
+	}
+}
+
 // TestRetireLessonMineNoRetireNoLesson 非退役 transition（paper→probe）不产案。
 func TestRetireLessonMineNoRetireNoLesson(t *testing.T) {
 	r := retireRig(t)
