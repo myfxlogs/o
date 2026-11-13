@@ -1,0 +1,10 @@
+[Unit]
+Description=o-overwatch.timer 外监工哨拍（业主「随时把握 system 工作情况」——6h 机械监账扫+飞书活卡原刷）
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=6h
+Unit=o-overwatch.service
+
+[Install]
+WantedBy=timers.target
