@@ -1,0 +1,14 @@
+# o-overwatch.service —— 外监工哨（纪元3监工面：机械监账扫→ops_event
+# 监账行+飞书活卡原刷；凭据同 feishubridge 栈 app_secrets+主权钥。
+# go run 径随 /opt/o merge 自取新码；部署前工具未落=静默退不炸）。
+[Unit]
+Description=o-overwatch (外监工哨 监账扫+飞书活卡)
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/o
+Environment=PATH=/usr/local/go/bin:/home/mluser/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=O_MASTER_KEY_FILE=/opt/o/secrets/o_master_key
+ExecStart=/bin/bash -c 'test -f tools/overwatch/main.go || exit 0; set -a; . /opt/o-research/env; set +a; export DB_DSN=$FIN_PG_DSN; exec /usr/local/go/bin/go run ./tools/overwatch'
+NoNewPrivileges=true
+TimeoutStartSec=120
