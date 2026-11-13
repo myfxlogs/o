@@ -44,6 +44,7 @@ var faceBaselineWhitelist = map[string]string{
 	// （ops_event #13759/#13761 升件源+fin_sub_request 行实拍）。
 	"face:dep_pair:leg:ETH-USDT-SWAP":                 "纪元3 入册——xvenue-carry 提名臂 open→判词闭请间歇腿面（评估周期<订阅拾取拍摆形）；生产亲证 2026-11-13 10:33Z→10:41Z 自闭（升件源 #13759）",
 	"face:dep_pair:subreq:xvenue-carry:ETH-USDT-SWAP": "纪元3 入册——xvenue-carry 晋级请求面：提名 open 行在册即面（SubRequestArm 枚举本体），闭/开=间歇面窗摆形；生产亲证自闭 reason=carry_diff_threshold @2026-11-13 10:41Z（升件源 #13761）",
+	"face:dep_pair:subreq:xvenue-carry:BTC-USDT-SWAP": "纪元3 入册——xvenue-carry 晋级请求面同型（宇宙目录闸内提名 open→判词闭请=间歇窗摆形）；生产亲证自闭 reason=carry_diff_threshold @2026-11-13 11:15Z（升件源 #13851）",
 	// T-0447 depSignalFamilies 钉定消费册登记对——合法新面（basis_ann→
 	// basis 族活性对账在册，非「该建未建」残余）。
 	"face:dep_pair:signal:basis_ann→quarter_basis_long":  "T-0447 basis_ann 钉定消费册登记对——depSignalFamilies 族消费补位合法新面（活性对账在册）",
