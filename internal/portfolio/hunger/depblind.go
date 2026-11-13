@@ -133,6 +133,15 @@ func (s *Sensor) probeDep(ctx context.Context, p depPair) error {
 	if reason, ok := depBlindExempt(p.sig); ok {
 		return s.depExemptRow(ctx, p, reason)
 	}
+	// 腿对让位面：唯一需求源=晋级提名 open 行→subreq 对专管（同键超龄
+	// 零产归晋级滞留径——提名周期<拾取拍先火=#13757/#10046 两发根修）。
+	if p.family == "leg" {
+		if only, err := s.legSubReqOnly(ctx, p.producer); err != nil {
+			return fmt.Errorf("腿subreq独占读败: %w", err)
+		} else if only {
+			return nil
+		}
+	}
 	prodN, consN, err := s.depCounts(ctx, p)
 	if err != nil {
 		return err

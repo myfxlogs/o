@@ -337,6 +337,54 @@ func TestProbeDepsSubreqStale(t *testing.T) {
 	}
 }
 
+// TestProbeDepsLegSubreqOnlyYields 提名独占腿让位（升件#13757/#10046
+// leg:ETH-USDT-SWAP 同型两发根修）：inst 唯一需求源=open sub_request
+// →腿对零升件（subreq 对超龄径专管）；策略臂在册腿照升不误。
+func TestProbeDepsLegSubreqOnlyYields(t *testing.T) {
+	s, pool := depFixture(t)
+	ctx := context.Background()
+	if _, err := pool.Exec(ctx, `UPDATE app_config SET value='["*"]' WHERE key='okx.symbols'`); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.cfg.Load(ctx); err != nil {
+		t.Fatal(err)
+	}
+	s.AttachUniverse(func(context.Context) ([]string, error) {
+		return []string{"XSUBONLY-USDT-SWAP", "XORGLIVE-USDT-SWAP"}, nil
+	})
+	seedDepScan(t, pool, 0)
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_sub_request(venue,inst_id,requester,state,ts)
+		VALUES('okx','XSUBONLY-USDT-SWAP','xvenue-carry','open',now())`); err != nil {
+		t.Fatal(err)
+	}
+	seedDepStrategy(t, pool, "XORGLIVE-USDT-SWAP", "funding-hedge", "live")
+	if err := s.ProbeDeps(ctx); err != nil {
+		t.Fatalf("probe: %v", err)
+	}
+	var n int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='升件' AND esc_scope='leg:XSUBONLY-USDT-SWAP'`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("提名独占腿误升: n=%d err=%v", n, err)
+	}
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='升件' AND esc_scope='leg:XORGLIVE-USDT-SWAP'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("策略腿升件缺: n=%d err=%v", n, err)
+	}
+}
+
+// TestFaceBaselineETHNominationRegistered 纪元3 册检（修复类律先红桩）：
+// ETH-USDT-SWAP 提名双面 leg/subreq 必须在人工基线册。
+func TestFaceBaselineETHNominationRegistered(t *testing.T) {
+	for _, scope := range []string{
+		"face:dep_pair:leg:ETH-USDT-SWAP",
+		"face:dep_pair:subreq:xvenue-carry:ETH-USDT-SWAP",
+	} {
+		if reason, ok := faceBaselineExempt(scope); !ok || reason == "" {
+			t.Fatalf("册缺 %s", scope)
+		}
+	}
+}
+
 // TestProbeDepsCensusStableNoDup 清单幂等面：谱面未变二拍不重复落
 // 「依赖对清单」行（枚举器产出留账≠每拍轰炸）。
 func TestProbeDepsCensusStableNoDup(t *testing.T) {

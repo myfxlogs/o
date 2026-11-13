@@ -162,6 +162,18 @@ func (s *Sensor) depLegKeys(ctx context.Context) ([]string, error) {
 	return out, rows.Err()
 }
 
+// legSubReqOnly 晋级提名独占判定——inst 唯一在册需求源=fin_sub_request
+// open 行（提名臂独占无非提名臂成员）：腿对让位 subreq 对专管，同键
+// 超龄零产归「晋级滞留」径升件（升件#13757/#10046 leg:ETH-USDT-SWAP
+// 同型两发根修——提名评估周期<订阅拾取拍，双对并发重复炸票消源）。
+func (s *Sensor) legSubReqOnly(ctx context.Context, inst string) (bool, error) {
+	var only bool
+	err := s.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM fin_sub_request
+		WHERE inst_id=$1 AND state='open') AND NOT EXISTS(SELECT 1 FROM (`+
+		legset.ActiveSetUnionSansSubReq+`) t WHERE t.inst_id=$1)`, inst).Scan(&only)
+	return only, err
+}
+
 // depCensus 枚举器产出对清单落账（首跑人工基线材料——「依赖对清单」行
 // 携全谱对签名；谱面不变不重复落行——最新行 note 全等比对，零膨胀）。
 func (s *Sensor) depCensus(ctx context.Context, pairs []depPair) error {

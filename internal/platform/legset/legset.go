@@ -74,9 +74,13 @@ var ProposalArm = `SELECT inst_id FROM fin_proposal WHERE state IN ('fin_propose
 // 非 retired；basis 臂=paper/live/degraded；funding-hedge 臂=非 retired
 // （票面「在仓/在途/live」——paper/probe/proposed 同含，退役即出）；
 // 晋级臂=fin_sub_request open（T-0401——UNION 加臂非改旧臂，红线不动）。
-var ActiveSetUnion = ProposalArm + `
+// ActiveSetUnionSansSubReq 非提名臂 UNION（需求源分解面——dep 探针
+// 「提名臂独占键」判定引本件；谓词面同全串档逐臂在案，禁第二套）。
+var ActiveSetUnionSansSubReq = ProposalArm + `
 	UNION SELECT inst_id FROM fin_strategy WHERE state IN ('live','degraded')
 	UNION ` + DCDSpotArm(`s.state<>'retired'`) + `
 	UNION ` + BasisSpotArm(`s.state IN ('paper','live','degraded')`) + `
-	UNION ` + FundingHedgeSpotArm(`s.state<>'retired'`) + `
+	UNION ` + FundingHedgeSpotArm(`s.state<>'retired'`)
+
+var ActiveSetUnion = ActiveSetUnionSansSubReq + `
 	UNION ` + SubRequestArm

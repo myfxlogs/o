@@ -38,6 +38,12 @@ var faceBaselineWhitelist = map[string]string{
 	// user_intent/quote_watchlist），请求闭/开摆动=间歇面窗摆形
 	// （T-0448 册语义罩位），册外窗摆回重复升件炸起草拍（T-0393 链）。
 	"face:dep_pair:leg:TRX-USDT-SWAP": "T-0449 入册——TRX-USDT-SWAP 本键腿面：fin_sub_request open 行经 SubRequestArm 入 ActiveSetUnion（枚举本体零硬编码，同 T-0450 subreq 面同一 open 行 user_intent/quote_watchlist @2026-11-07 12:43Z 生产亲证仍 open），请求闭/开=间歇面窗摆形；生产亲证 b13/b14 快照批在册（ops_event #3406 升件源）",
+	// 纪元3：ETH-USDT-SWAP 提名双面——xvenue-carry 评估臂提名 open→
+	// 判词出闭请=纯间歇面窗摆形（T-0448 册语义罩位同族先例）；生产
+	// 亲证 2026-11-13 10:33Z 入册→10:41Z 自闭 reason=carry_diff_threshold
+	// （ops_event #13759/#13761 升件源+fin_sub_request 行实拍）。
+	"face:dep_pair:leg:ETH-USDT-SWAP":                 "纪元3 入册——xvenue-carry 提名臂 open→判词闭请间歇腿面（评估周期<订阅拾取拍摆形）；生产亲证 2026-11-13 10:33Z→10:41Z 自闭（升件源 #13759）",
+	"face:dep_pair:subreq:xvenue-carry:ETH-USDT-SWAP": "纪元3 入册——xvenue-carry 晋级请求面：提名 open 行在册即面（SubRequestArm 枚举本体），闭/开=间歇面窗摆形；生产亲证自闭 reason=carry_diff_threshold @2026-11-13 10:41Z（升件源 #13761）",
 	// T-0447 depSignalFamilies 钉定消费册登记对——合法新面（basis_ann→
 	// basis 族活性对账在册，非「该建未建」残余）。
 	"face:dep_pair:signal:basis_ann→quarter_basis_long":  "T-0447 basis_ann 钉定消费册登记对——depSignalFamilies 族消费补位合法新面（活性对账在册）",
