@@ -33,8 +33,10 @@ func main() {
 		panic(err)
 	}
 
-	// ── venue 现读（venue_readers.go 同径：trading=md_account_events 最新帧
-	// 基金口径 eqUsd 求和;funding/savings/dcd=REST 活读,usd=false 原币量；
+	// ── venue 现读（venue_readers.go 同径：trading=md_account_events 最新
+	// account 快照帧基金口径 eqUsd 求和——T-0123 状态表下跨频道取最新行会
+	// 采到 balance_and_position 帧（data 无 details[]→trading 整量漏算零，
+	// 假差≈trading 全额）;funding/savings/dcd=REST 活读,usd=false 原币量；
 	// 非本位币走 FundCcy 白名单闸——托管尘不键）。
 	ven := map[[2]string]float64{}
 	fset, _ := ledger.FundCcy(ctx, pool)
@@ -44,7 +46,7 @@ func main() {
 	var venErr []string
 	var data json.RawMessage
 	if pool.QueryRow(ctx, `SELECT data FROM md_account_events
-		WHERE channel IN ('account','balance_and_position') ORDER BY ts DESC LIMIT 1`).Scan(&data) == nil {
+		WHERE channel='account' ORDER BY ts DESC LIMIT 1`).Scan(&data) == nil {
 		var top struct {
 			Details []struct {
 				Ccy   string `json:"ccy"`
