@@ -30,6 +30,7 @@ type hungerSensor interface {
 	ProbeLegCoverage(ctx context.Context) error
 	ProbeDeps(ctx context.Context) error
 	ProbeFeedStale(ctx context.Context) error
+	ProbeKlineStale(ctx context.Context) error
 	MineLessons(ctx context.Context) (int, error)
 }
 
@@ -120,6 +121,11 @@ func (r *Runner) hungerTick(ctx context.Context) {
 	if err := r.sensor.ProbeFeedStale(ctx); err != nil {
 		log.Printf("[lifecycle] hungertick feed死闸探针败: %v", err)
 		r.hungerEscalate(ctx, "feedstale_probe", err)
+	}
+	// 工单#13065 日K死闸同槽（ProbeFeedStale 同款败情隔离位）。
+	if err := r.sensor.ProbeKlineStale(ctx); err != nil {
+		log.Printf("[lifecycle] hungertick 日K死闸探针败: %v", err)
+		r.hungerEscalate(ctx, "klinestale_probe", err)
 	}
 	rep, err := r.sensor.Detect(ctx)
 	if err != nil {
