@@ -81,6 +81,9 @@ func (r *Runner) Reconcile(ctx context.Context, full bool) error {
 	if err := r.reverseSubRequests(ctx); err != nil { // T-0412 user_intent 臂期界兜底
 		return fmt.Errorf("反向桥 sub_request diff: %w", err)
 	}
+	if err := r.reverseKlines(ctx); err != nil { // 工单#13065 切片④——eval 消费径期界兜底
+		return fmt.Errorf("反向桥 klines diff: %w", err)
+	}
 	if err := r.projectTwoTier(ctx); err != nil { // T-0401 两级采集制桥面对（活性对账顺带）
 		return fmt.Errorf("两级采集制桥面对: %w", err)
 	}
