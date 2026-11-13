@@ -45,6 +45,38 @@ func (c coreService) cognitionSpawnFailEscCheck(ctx context.Context, deadSince m
 				"唤知/%s: %s唤起败 2h 窗 %d 连发%s——会话壳起不来(瞬退占锁饿死他机=断产),定性归唤知会话", t.scope, t.word, n, tail)
 		})
 	}
+	c.spawnOrphanEscCheck(ctx, deadSince) // 唤起孤儿探同拍（唤知面同域;feed_esc 棘轮满线不入册唤点）
+}
+
+// spawnOrphanEscCheck 唤起孤儿探——唤起行超 3h 无 unit 配对果/败/收口=
+// 会话吊死无 trap 落行∨宿主亡（SIGKILL/宕机写不了行=残余黑洞,本探即
+// 该黑洞的升件径;自我意识「连自己死了不知死」死角补位,自观帧卡旗同源）。
+// 三栏判据:
+//
+//	宽限 3h——RuntimeMaxSec 2h 上限+写行滞后余量(48h 实测最长合法会话
+//	108min,3h 外零合法在飞);24h 回看界——孤儿出窗自然转绿销案;
+//	自锚——只判「unit 收口契约活后出生」的唤起(锚=首条带 unit= 的
+//	会话收口行 ts;契约缺席时锚=now() 判集恒空=探针自闭,链修前老格式
+//	唤起永远配不上对不冤判)。
+//
+// 二元死态 fp="@"——回合销后再孤=新回合照火。
+func (c coreService) spawnOrphanEscCheck(ctx context.Context, deadSince map[string]time.Time) {
+	var n int
+	if err := c.pool.QueryRow(ctx, `SELECT count(*) FROM ops_event e
+		WHERE e.event='唤起' AND e.ts>now()-interval '24 hours'
+		AND e.ts<now()-interval '3 hours'
+		AND e.ts>(SELECT COALESCE(min(x.ts),now()) FROM ops_event x
+			WHERE x.event='会话收口' AND x.note ~ 'unit=[^ ]+')
+		AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.ts>e.ts
+			AND x.event IN ('唤起果','唤起败','会话收口')
+			AND x.note LIKE '%'||substring(e.note from 'unit=[^ ]+')||'%')`).
+		Scan(&n); err != nil {
+		return // 读件败本拍让位
+	}
+	c.escEdgeUV(ctx, deadSince, "唤知", "spawn_orphan", "@", n > 0, func() string {
+		return fmt.Sprintf(
+			"唤知/spawn_orphan: %d 唤起超 3h 无配对果/败/收口——会话吊死或宿主亡无 trap 落行,认知环自死不知死（自观帧卡旗同源,此探=升件径）", n)
+	})
 }
 
 // auditStallEscCheck 审计臂停摆面探——seat='审计席' 产出锚 48h 零行=死。

@@ -81,7 +81,8 @@ func (c coreService) selfAwareBeat(ctx context.Context) {
 	}
 
 	// ② 动：常驻器官册逐件判态（僵件名顺带进卡旗）。
-	var mv, dead []string
+	//   mvFp=结构纹件——只载名:态,年龄属浮点噪声不触纹。
+	var mv, mvFp, dead []string
 	for _, o := range organPulses {
 		var ts *time.Time
 		err := c.pool.QueryRow(ctx, o.sql).Scan(&ts)
@@ -91,6 +92,7 @@ func (c coreService) selfAwareBeat(ctx context.Context) {
 			age = time.Since(*ts).Round(time.Minute).String()
 		}
 		mv = append(mv, fmt.Sprintf("%s:%s(%s)", o.name, st, age))
+		mvFp = append(mvFp, o.name+":"+st)
 		if st == "僵" || st == "?" {
 			dead = append(dead, o.name)
 		}
@@ -135,13 +137,15 @@ func (c coreService) selfAwareBeat(ctx context.Context) {
 
 	// ⑤ 卡：显式判读旗集——各旗独立源（心跳陈旧/唤起无果/部署滞差/
 	//    工单过期/器官僵）；读败段如实标 ?。
-	var flags []string
+	//   fpFlags=结构纹件——旗名不带龄/数,数值漂不触纹。
+	var flags, fpFlags []string
+	flag := func(name, disp string) { flags = append(flags, disp); fpFlags = append(fpFlags, name) }
 	var lastClose *time.Time
 	if err := c.pool.QueryRow(ctx, `SELECT max(ts) FROM ops_event
 		WHERE event='会话收口'`).Scan(&lastClose); err != nil {
-		flags = append(flags, "收口?")
+		flag("收口?", "收口?")
 	} else if lastClose != nil && time.Since(*lastClose) > 2*time.Hour {
-		flags = append(flags, fmt.Sprintf("收口陈%s", time.Since(*lastClose).Round(time.Minute)))
+		flag("收口陈", fmt.Sprintf("收口陈%s", time.Since(*lastClose).Round(time.Minute)))
 	}
 	var spawnless int
 	if err := c.pool.QueryRow(ctx, `SELECT count(*) FROM ops_event e
@@ -150,16 +154,16 @@ func (c coreService) selfAwareBeat(ctx context.Context) {
 			AND x.event IN ('唤起果','唤起败','会话收口')
 			AND x.note LIKE '%'||substring(e.note from 'unit=[^ ]+')||'%')`).
 		Scan(&spawnless); err == nil && spawnless > 0 {
-		flags = append(flags, fmt.Sprintf("唤起无果%d", spawnless))
+		flag("唤起无果", fmt.Sprintf("唤起无果%d", spawnless))
 	} else if err != nil {
-		flags = append(flags, "唤起?")
+		flag("唤起?", "唤起?")
 	}
 	var depNote *string
 	if err := c.pool.QueryRow(ctx, `SELECT note FROM ops_event
 		WHERE seat='DEPLOY' AND event='部署' ORDER BY id DESC LIMIT 1`).
 		Scan(&depNote); err == nil && depNote != nil &&
 		!strings.Contains(*depNote, "rc=0") {
-		flags = append(flags, "部署败")
+		flag("部署败", "部署败")
 	}
 	var overdue int
 	if err := c.pool.QueryRow(ctx, `SELECT count(*) FROM ops_event t
@@ -167,17 +171,23 @@ func (c coreService) selfAwareBeat(ctx context.Context) {
 		AND t.ts+COALESCE((substring(t.note from '期限=([0-9]+)h'))::int,24)*interval '1 hour'<now()
 		AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='处置' AND x.ts>t.ts
 			AND x.note ~ ('工单#'||t.id::text||'([^0-9]|$)'))`).Scan(&overdue); err == nil && overdue > 0 {
-		flags = append(flags, fmt.Sprintf("票过期%d", overdue))
+		flag("票过期", fmt.Sprintf("票过期%d", overdue))
 	}
 	flags = append(flags, dead...)
+	fpFlags = append(fpFlags, dead...)
 	if len(flags) > 0 {
 		stuck = strings.Join(flags, ",")
 	} else {
 		stuck = "0"
 	}
 
-	// 纹=结构态指纹（器官态集+旗集+办数——数值漂不触纹）。
-	fp := fpHash([]string{move, idle, stuck, fmt.Sprintf("%d", doN)})
+	// 纹=结构态指纹（器官态集+间歇件分面+旗名集+办数——
+	//   年龄/计数等数值漂不触纹:mvFp 只载 名:态,fpFlags 只载旗名）。
+	fpParts := append(mvFp, act...)
+	fpParts = append(fpParts, idl...)
+	fpParts = append(fpParts, fmt.Sprintf("%d", doN))
+	fpParts = append(fpParts, fpFlags...)
+	fp := fpHash(fpParts)
 	if !gaugeDue(ctx, c, "self_aware", fp, selfAwareEvery) {
 		return
 	}
