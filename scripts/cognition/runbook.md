@@ -385,6 +385,10 @@ note=「反事实#<案id>-<slug>: 实态=<事实轨迹>；若<变量>→<推演>
 - **写败**（esc_class=写败 scope=ops_decision——decision 写径败自报行）→
   查写径权限/约束面（roster_rw/review_rw 缺权先例 fin_0160/fin_0162）：
   授权缺→迁移补授权（要码修）；瞬态已愈→销+引复写证据。
+- **唤起链行面**（event 族非 esc_class——唤知/审计会话生命周期账行）:
+  唤起（唤知机/审计机,dispatch 写在飞占锁）/ 唤起果（run.sh EXIT trap
+  成收）/ 唤起败（同 trap 败收∧spawn 落败）/ 会话收口（唤知,会话判词）——
+  配对=同 unit note 引证,无配对唤起行尸占 TTL 或心跳陈旧自然释。
 - **守卫环**（esc_class=守卫环 scope=fin_guard_close——guard 保护动件
   事实行）→ 核仓位面该动对否：正当保护动→销+引仓面证据；误动/越阈
   →要码修（guard 闸口径）。
