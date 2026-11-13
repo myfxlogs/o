@@ -67,8 +67,9 @@ func main() {
 	// 粗扫臂谱域同一供给件同读（原 universe() 桥面复制件归一）。
 	uni := okxws.NewUniverseCatalog(cli.PublicGet, okxws.UniverseTTL)
 	c := okxws.NewCollector(pool, cfg)
-	c.FullSub = true             // 桥面=全量订阅（不受 SG 瘦身口径）
-	c.AlertKind = "bridge_stale" // 面死告警 kind 覆写（T-0137 设计钉）
+	c.AttachRestGet(cli.PublicGet) // 工单#13065③:日K史面回填读件（公开零凭据）
+	c.FullSub = true               // 桥面=全量订阅（不受 SG 瘦身口径）
+	c.AlertKind = "bridge_stale"   // 面死告警 kind 覆写（T-0137 设计钉）
 	c.ExpandSymbols = uni.Symbols
 	c.AttachCTV(ctvFeed(cli)) // T-0139 depth5 USD 额换算（instruments SWAP ctVal 实读）
 	errc := make(chan error, 4)

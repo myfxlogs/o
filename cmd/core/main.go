@@ -95,8 +95,8 @@ func run() error {
 	// alerter 声明后置位——闭包延迟调 nil 安全）。
 	var meter *netmeter.Meter
 	var okcli *okxexec.Client
-	uni, expand := universeWire(func() *okxexec.Client { return okcli }, pool) // T-0416 供给件单源——订阅扩件与 hunger 探针同读
-	collector := attachLocalWritePred(ctx, okxws.NewCollector(pool, cfg), pool)
+	uni, expand := universeWire(func() *okxexec.Client { return okcli }, pool)                                                        // T-0416 供给件单源——订阅扩件与 hunger 探针同读
+	collector := attachLocalWritePred(ctx, okxws.NewCollector(pool, cfg), pool, universeGet(func() *okxexec.Client { return okcli })) // #13065③懒客注入
 	collector.ExpandSymbols = expand
 	go collector.Run(ctx, errc)
 
