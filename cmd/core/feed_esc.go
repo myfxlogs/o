@@ -4,8 +4,7 @@
 //
 //	①鲜度死：ops_face 同源 healthComps 注册表 dead 态→升件 esc_class=断流
 //	②部署缺口：净值/闸值/族需额对拍→升件 esc_class=资金闸
-//	③歧态腿：fin_order_leg ambiguous 在案→升件 esc_class=对账
-//	  （venue 回报歧态势=钱径事实,原径只推 Feishu 人端——机读面此处补）
+//	③歧态腿：fin_order_leg ambiguous 在案→升件 esc_class=对账（venue 回报歧态势=钱径事实,原径只推 Feishu 人端——机读面此处补）
 //	④孤儿账：注册表册 pending 积压超 TTL=写了没人读→升件 esc_class=孤儿账
 //	⑤唤知面死：未决升件在案而处置行 24h 缺席→升件 esc_class=唤知
 //	  +Feishu 人端兜底（脑死时 ops_event 只是日志,人是最后兜底面）
@@ -73,7 +72,8 @@ func (c coreService) escLoop(ctx context.Context, al *notify.Alerter) {
 		c.profitDailyBeat(ctx)               // 量表探（盈利报告日行照——业主唯一例行读件）
 		c.selfStateBeat(ctx)                 // 量表探（自态账——会话冷启动即读件,工单#10358 C）
 		c.booksBeat(ctx, deadSince)          // 账房（ΔNAV三桶对账+鬼账升件,业主令11-12立件）
-		c.pnlAttrBeat(ctx, deadSince)        // 策略盈亏归因（业主令11-12①——分列+账房咬合,账房器官零改动）
+		c.pnlAttrBeat(ctx, deadSince)        // 策略盈亏归因（11-12①——分列+账房咬合,账房器官零改动）
+		c.selfAwareBeat(ctx)                 // 自我意识器官帧（工单#13540 业主令件——本体觉三问量表）
 	}
 }
 

@@ -48,6 +48,10 @@ var expectDecls = []expectDecl{
 		`SELECT count(*) FROM ops_event WHERE event='量表'
 			AND ticket='pnl_attr_daily' AND ts>now()-interval '30 hours'`, 1,
 		"pnlAttrBeat 断供——策略盈亏归因账页停更"},
+	{"self_aware", "量表 self_aware(6h拍)",
+		`SELECT count(*) FROM ops_event WHERE event='量表'
+			AND ticket='self_aware' AND ts>now()-interval '9 hours'`, 1,
+		"selfAwareBeat 断供——自我意识器官帧停更"},
 }
 
 // expectProdEscCheck 期望产出面探——注册表册逐件对拍:实产<阈=升件
