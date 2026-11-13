@@ -304,7 +304,22 @@ button.v2-row.ft-row {
 /* 中央全息球=脑——透明热区罩球,在班=罩层泛光,脑闪=新行到 */
 .fs-brain { position: absolute; transform: translate(-50%, -50%); width: 30%; aspect-ratio: 1; aspect-ratio: 1; border-radius: 50%; z-index: 2; }
 .fs-brain-glow { position: absolute; inset: -4%; border-radius: 50%; border: 2px solid rgba(110, 230, 255, .35); box-shadow: 0 0 18px rgba(110, 230, 255, .2), inset 0 0 24px rgba(110, 230, 255, .08); opacity: .45; }
-.fs-brain.awake .fs-brain-glow { opacity: 1; border-color: rgba(110, 230, 255, .8); box-shadow: 0 0 24px rgba(110, 230, 255, .55), inset 0 0 30px rgba(110, 230, 255, .18); animation: fs-breathe 3.6s ease-in-out infinite; }
+.fs-brain.awake .fs-brain-glow { opacity: .5; border-color: rgba(110, 230, 255, .4); box-shadow: 0 0 14px rgba(110, 230, 255, .22), inset 0 0 20px rgba(110, 230, 255, .07); }
+/* 唤知焦点三环——贴球面中央同心圆位(环心51.1%,48.1%;PNG半径50/115/160,img非等比→椭圆) */
+.fs-reticle { position: absolute; left: 51.1%; top: 48.1%; width: 30.3%; height: 36.2%;
+  transform: translate(-50%, -50%); pointer-events: none; z-index: 2; }
+.fs-reticle i { position: absolute; inset: 0; border-radius: 50% / 50%; opacity: 0;
+  border: 1.5px solid rgba(140, 230, 255, .8); }
+.fs-reticle i:nth-child(2) { inset: 14%; }
+.fs-reticle i:nth-child(3) { inset: 34.4%; }
+/* 在班=三光带亮+错峰呼吸(外→中→内递进) */
+.fs-brain.awake .fs-reticle i { opacity: 1; animation: fs-ringpulse 3.2s ease-in-out infinite; }
+.fs-brain.awake .fs-reticle i:nth-child(2) { animation-delay: .45s; }
+.fs-brain.awake .fs-reticle i:nth-child(3) { animation-delay: .9s; }
+@keyframes fs-ringpulse {
+  0%, 100% { opacity: .3; box-shadow: 0 0 5px rgba(110, 225, 255, .3), inset 0 0 5px rgba(110, 225, 255, .15); }
+  50% { opacity: 1; box-shadow: 0 0 14px rgba(120, 230, 255, .65), inset 0 0 10px rgba(110, 225, 255, .3); } }
+.fs-brain.flash .fs-reticle i { filter: brightness(1.9); }
 .fs-brain.flash .fs-brain-glow, .fs-brain.flash { filter: brightness(1.6); }
 @keyframes fs-breathe { 50% { opacity: .55; } }
 /* 光斗——原图件:线框半球碗从台孔升起托球底(亮度=alpha 辉光) */

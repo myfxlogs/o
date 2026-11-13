@@ -106,6 +106,8 @@ export function FloorStage(p: StageProps) {
         onClick={() => p.onPick({ k: "desk", x: 0, y: 0, title: "会话席", body: [], to: "/device" })}>
         <img src={globeUrl} alt="" className="fs-globe" draggable={false} />
         <span className="fs-brain-glow" />
+        {/* 唤知焦点=球面中央三同心环——在班=三光带错峰呼吸,整球降为底光 */}
+        <span className="fs-reticle"><i /><i /><i /></span>
       </button>
       <button className="fs-brain-txt" style={{ left: "50%", top: "44.5%" }}
         onClick={() => p.onPick({ k: "desk", x: 0, y: 0, title: "会话席", body: [], to: "/device" })}>
