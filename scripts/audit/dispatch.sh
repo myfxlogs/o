@@ -56,12 +56,12 @@ UNIT="o-audit-$(date +%s)"
 WON=$(psql "$DSN" -qAt <<SQL
 SELECT pg_advisory_lock(7970);
 INSERT INTO ops_event(seat,event,ticket,note)
-SELECT '审计机','唤起','','unit=$UNIT scope=$SCOPE '
+SELECT '审计机','唤起','','unit=$UNIT host=$(hostname) scope=$SCOPE '
 WHERE NOT EXISTS (
 	SELECT 1 FROM ops_event e
 	WHERE e.seat='审计机' AND e.event='唤起' AND e.ts>now()-interval '30 minutes'
 	  AND NOT EXISTS (SELECT 1 FROM ops_event x
-	    WHERE x.seat='审计机' AND x.event='唤起败' AND x.ts>e.ts
+	    WHERE x.seat='审计机' AND x.event IN ('唤起败','唤起果') AND x.ts>e.ts
 	      AND x.note LIKE '%'||substring(e.note from 'unit=[^ ]+')||'%'))
 RETURNING id;
 SELECT pg_advisory_unlock(7970);
@@ -79,6 +79,6 @@ systemd-run --user --unit="$UNIT" --collect \
 	--setenv=COG_RUNBOOK="$RUNBOOK" \
 	"$REPO/scripts/cognition/run.sh" || {
 		psql "$DSN" -qAt -c "INSERT INTO ops_event(seat,event,ticket,note)
-			VALUES('审计机','唤起败','','unit=$UNIT scope=$SCOPE spawn落败')" >/dev/null 2>&1
+			VALUES('审计机','唤起败','','unit=$UNIT host=$(hostname) scope=$SCOPE spawn落败')" >/dev/null 2>&1
 		echo "[audit-dispatch] systemd-run 唤起落败(败迹已清锁)" >&2; exit 1; }
 echo "[audit-dispatch] 唤起 $UNIT scope=$SCOPE (esc#$WON)"

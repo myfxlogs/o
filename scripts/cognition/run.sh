@@ -30,17 +30,23 @@ export O_SEAT=$SEAT
 ENVF="${REPORT_ENV_FILE:-/opt/o-research/env}"
 FIN_DSN=$(grep '^FIN_PG_DSN=' "$ENVF" 2>/dev/null | cut -d= -f2- | tr -d '"')
 
-# 唤起败释锁 trap（跨机锁=ops_event 唤起行在案即占,早退不补败迹=
+# 唤起果/唤起败释锁 trap（跨机锁=ops_event 唤起行在案即占,早退不补果败迹=
 # 占满 30min TTL 饿死他机——2026-11-10 四连败实证）。OK=会话完整跑完
 # (RC=0∧transcript 非空——devin 瞬退零消息但 exit 0 的静默败也算败)。
-# 残余黑洞=SIGKILL/宕机写不了行,由锁 TTL 兜底（30min 一次非无限）。
+# 唤起行必配果/败行（坑处置: 唤起断尾幻影根修——会话判词不落账=唤起
+# 无产出=假死象,排查须跨机翻 transcript;壳兜底行=唤起存在性对账,
+# 会话自写会话收口=判词语义层,两层不替）。残余黑洞=SIGKILL/宕机写不了行,
+# 由锁 TTL 兜底（30min 一次非无限）。
 COG_UNIT=${COG_UNIT:-manual}
-OK=0; REASON=session_incomplete
+HOST_TAG=$(hostname 2>/dev/null || echo '?')
+T0=$(date +%s)
+OK=0; RC=0; REASON=session_incomplete
 release_lock() {
-	[ "$OK" = 1 ] && return 0
 	[ -n "${FIN_DSN:-}" ] || return 0
+	local dur=$(( $(date +%s) - T0 )) ev=唤起果
+	[ "$OK" = 1 ] || ev=唤起败
 	psql "$FIN_DSN" -qAt -c "INSERT INTO ops_event(seat,event,ticket,note)
-		VALUES('$SEAT_MACHINE','唤起败','','unit=$COG_UNIT reason=$REASON')" >/dev/null 2>&1 || true # tolerate: 败迹写径本身是败迹——写败无二级上报径,锁由 30min TTL 兜底,不阻主径退出
+		VALUES('$SEAT_MACHINE','$ev','','unit=$COG_UNIT host=$HOST_TAG rc=$RC reason=$REASON dur=${dur}s')" >/dev/null 2>&1 || true # tolerate: 果败写径本身是败迹——写败无二级上报径,锁由 30min TTL 兜底,不阻主径退出
 }
 trap 'rm -f ${LOG_FILE:+"$LOG_FILE"}; release_lock' EXIT
 
@@ -120,5 +126,5 @@ fi
 # OK=完整跑完——devin exit 0 但 transcript 空=零消息静默败（占锁同害算败）。
 [ $RC -eq 0 ] && [ -s "$TRANSCRIPT_FILE" ] && OK=1 || REASON=${REASON/session_incomplete/devin_rc_$RC}
 [ -s "$TRANSCRIPT_FILE" ] || rm -f "$TRANSCRIPT_FILE"
-[ "$OK" = 1 ] && hb alive || hb stalled
+[ "$OK" = 1 ] && hb done || hb dead
 exit 0
