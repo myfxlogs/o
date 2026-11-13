@@ -174,3 +174,27 @@ func countKind(buf []rowItem, kind string) int {
 	}
 	return n
 }
+
+// passThrottle T-0209②：per-inst 3s 最小写间隔（tickers/funding 同拍——
+// T-0193 过拍闸量级沿；写洪防）。间隔内跳帧=不落行。收线帧必落——
+// 终态不可被节流丢（工单#13065 candle 面）。
+func (c *Collector) passThrottle(it rowItem) bool {
+	var kind, inst string
+	switch {
+	case it.tick != nil:
+		kind, inst = "ticks", it.tick.instID
+	case it.funding != nil:
+		kind, inst = "funding", it.funding.instID
+	case it.kline != nil && !it.kline.confirm:
+		kind, inst = "klines", it.kline.instID+":"+it.kline.bar
+	default:
+		return true // mark/depth5/收线帧面不限
+	}
+	c.passMu.Lock()
+	defer c.passMu.Unlock()
+	if last, ok := c.passAt[kind+":"+inst]; ok && time.Since(last) < 3*time.Second {
+		return false
+	}
+	c.passAt[kind+":"+inst] = time.Now()
+	return true
+}

@@ -30,27 +30,27 @@ const (
 	backoffMax = 60 * time.Second
 	symbolsKey = "okx.symbols"
 
-	employeeName  = "行情巡"
-	employeeDept  = "data"
-	employeeTitle = "OKX 公开行情采集岗"
+	employeeName, employeeDept, employeeTitle = "行情巡", "data", "OKX 公开行情采集岗"
 )
 
 // Collector OKX 公开 WS 采集器（连接+订阅+读循环+断线重连）。
 type Collector struct {
-	pool  *pgxpool.Pool
-	cfg   *config.Client
-	rej   *rejects.Door
-	url   string // 测试覆写指向 fake server
-	queue chan rowItem
+	pool   *pgxpool.Pool
+	cfg    *config.Client
+	rej    *rejects.Door
+	url    string // 测试覆写指向 fake server
+	bizURL string // business 端点（测试覆写指 fake——klineLoop 用）
+	queue  chan rowItem
 
 	frames    atomic.Int64 // 业务帧计数（观测面）
 	lastFrame atomic.Int64 // 最近业务帧 UnixNano（status 端点/看门狗同读）
 	Stats     *Door        // 别名 rej（对外观测名）
 	meter     *netmeter.Meter
 	al        *notify.Alerter
-	refuseSub map[string]bool // 60018 拒收集（本连接内生效——T-0133 ③）
-	FullSub   bool            // T-0137 桥面全量 WS 订阅（index-tickers/mark-price 同订——dev 蒸馏面）
-	AlertKind string          // 面死告警 kind 覆写（桥=bridge_stale；缺省 okxws_face_dead）
+	refuseSub map[string]bool // 60018 拒收集（本连接内生效——T-0133 ③；public/business 双臂共表+refuseMu 互斥）
+	refuseMu  sync.Mutex
+	FullSub   bool   // T-0137 桥面全量 WS 订阅（index-tickers/mark-price 同订——dev 蒸馏面）
+	AlertKind string // 面死告警 kind 覆写（桥=bridge_stale；缺省 okxws_face_dead）
 	// mark-price REST 轮询读件已随 T-0171 快照价格全面退役全撤——mark/index
 	// 行唯一来源=WS（桥全量订阅+SG 活跃集 tickers），REST 只准条款/目录注册面。
 	// ExpandSymbols 宇宙扩件（T-0122：okx.symbols 含 "*"=放开全 SWAP+季度
@@ -65,12 +65,13 @@ type Collector struct {
 	LocalWritePred func(kind, instID string) bool
 	passAt         map[string]time.Time // T-0209②：per-inst 末写戳
 	passMu         sync.Mutex
-	ctvFeed        func(ctx context.Context) (map[string]float64, error) // SWAP ctVal 读件（USD 额换算）
-	ctvMu          sync.Mutex                                            // T-0191：ctv 字段读写互斥（reload 协程×读环并发）
-	ctvCache       map[string]float64
-	ctvAt          time.Time
-	ctvReloading   bool                 // T-0191：后台重载飞行中闸（≤1 次/60s 节流——帧频防 venue 打爆）
-	depth5At       map[string]time.Time // per-inst 蒸馏写节流（特征值 5s 鲜度足够）
+
+	ctvFeed      func(ctx context.Context) (map[string]float64, error) // SWAP ctVal 读件（USD 额换算）
+	ctvMu        sync.Mutex                                            // T-0191：ctv 字段读写互斥（reload 协程×读环并发）
+	ctvCache     map[string]float64
+	ctvAt        time.Time
+	ctvReloading bool                 // T-0191：后台重载飞行中闸（≤1 次/60s 节流——帧频防 venue 打爆）
+	depth5At     map[string]time.Time // per-inst 蒸馏写节流（特征值 5s 鲜度足够）
 }
 
 // AttachMeter 挂带宽计量件（T-0057：nil=不计量）。
@@ -85,12 +86,13 @@ type Door = rejects.Door
 // NewCollector 默认参数版（生产径）。
 func NewCollector(pool *pgxpool.Pool, cfg *config.Client) *Collector {
 	return &Collector{
-		pool: pool, cfg: cfg, url: PublicURL,
+		pool: pool, cfg: cfg, url: PublicURL, bizURL: BusinessURL,
 		rej: rejects.New("okxws", "non_usdt_instid", "seq_gap", "parse_fail", "write_err", "symbols_missing",
 			"activeset_read_failed", "depth5_no_ctval"),
-		queue:  make(chan rowItem, 1024),
-		passAt: make(map[string]time.Time),
-		Stats:  nil,
+		queue:     make(chan rowItem, 1024),
+		refuseSub: map[string]bool{},
+		passAt:    make(map[string]time.Time),
+		Stats:     nil,
 	}
 }
 
@@ -107,6 +109,7 @@ func (c *Collector) Run(ctx context.Context, errc chan<- error) {
 	go roster.BeatLoop(ctx, c.pool, employeeName, 30*time.Second, errc)
 	go c.writer(ctx)
 	go c.staleWatch(ctx) // T-0129 面级断流告警（全订阅标的齐冻=面死显形）
+	go c.klineLoop(ctx)  // 工单#13065：business 端点 candle1D 日K臂（独立连接）
 
 	backoff := backoffMin
 	for ctx.Err() == nil {
@@ -219,8 +222,8 @@ func (c *Collector) dialLoop(ctx context.Context, syms []string, gen int64) erro
 	// 在仓+fin_proposal 在途+fin_strategy 非退役的 inst_id 才配成交价级实时性）。
 	// T-0133 幽灵标的滤除+分帧加订+60018 拒收集（件在 subscribe.go——棘轮）。
 	subTick := map[string]bool{}
-	c.refuseSub = map[string]bool{}
-	syncActive := func() { c.syncActiveSet(ctx, conn, syms, subTick, c.refuseSub) }
+	c.refuseReset() // 重连清表（business 臂拒项随表换清=重试自然放行）
+	syncActive := func() { c.syncActiveSet(ctx, conn, syms, subTick) }
 	syncActive() // 连接建立即加订当前活跃集
 	// 看门狗起表（T-0050 根修——订阅成功即起表消盲区：75s 无帧判死重连）。
 	c.lastFrame.Store(time.Now().UnixNano())
@@ -276,25 +279,4 @@ func (c *Collector) FrameCount() int64 { return c.frames.Load() }
 // LastFrame 最近业务帧时刻（status/看门狗观测面）。
 func (c *Collector) LastFrame() time.Time { return time.Unix(0, c.lastFrame.Load()) }
 
-// passThrottle T-0209②：per-inst 3s 最小写间隔（tickers/funding 同拍——
-// T-0193 过拍闸量级沿；写洪防）。间隔内跳帧=不落行。
-func (c *Collector) passThrottle(it rowItem) bool {
-	var kind, inst string
-	switch {
-	case it.tick != nil:
-		kind, inst = "ticks", it.tick.instID
-	case it.funding != nil:
-		kind, inst = "funding", it.funding.instID
-	case it.kline != nil && !it.kline.confirm: // 收线帧必落——终态不可被节流丢（工单#13065）
-		kind, inst = "klines", it.kline.instID+":"+it.kline.bar
-	default:
-		return true // mark/depth5/收线帧面不限
-	}
-	c.passMu.Lock()
-	defer c.passMu.Unlock()
-	if last, ok := c.passAt[kind+":"+inst]; ok && time.Since(last) < 3*time.Second {
-		return false
-	}
-	c.passAt[kind+":"+inst] = time.Now()
-	return true
-}
+// passThrottle 已迁 store.go（写径节流同域件——棘轮行数归位）。

@@ -5,8 +5,13 @@ package okxws
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/gorilla/websocket"
 
 	"o/internal/platform/testutil"
 	"o/internal/store/pgstore"
@@ -79,5 +84,50 @@ func TestKlineStoreUpsert(t *testing.T) {
 	}
 	if err := pool.QueryRow(ctx, `SELECT c,confirm FROM md_klines WHERE inst_id='XKL-USDT-SWAP' AND bar='1D'`).Scan(&close, &confirm); err != nil || close != 1.9 || !confirm {
 		t.Fatalf("终态 c=%v confirm=%v err=%v", close, confirm, err)
+	}
+}
+
+// business 臂端对端：klineLoop→klineDial→handle→writer→md_klines 行落
+// （fake server 接帧即推——candle 帧走 RawMessage 数组载荷径）。
+func TestKlineDialFeedE2E(t *testing.T) {
+	ctx := context.Background()
+	pool := testutil.Pool(t)
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM md_klines WHERE inst_id='XKL-USDT-SWAP'`); err != nil {
+		t.Fatalf("clean: %v", err)
+	}
+	frame := `{"arg":{"channel":"candle1D","instId":"XKL-USDT-SWAP"},"data":[["1761000000000","67000","67500","66800","67200","123.4","8300000","0","0"]]}`
+	up := websocket.Upgrader{}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := up.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		_ = conn.WriteMessage(websocket.TextMessage, []byte(frame))
+		time.Sleep(3 * time.Second) // sched-exempt-ok（桩挂连接断言窗）
+	}))
+	defer srv.Close()
+
+	c := NewCollector(pool, nil)
+	c.bizURL = "ws" + strings.TrimPrefix(srv.URL, "http")
+	ctx2, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go c.writer(ctx2) // 生产径=Run() 起写协程——桩内同构自起（队列消费件）
+	go c.klineLoop(ctx2)
+
+	deadline := time.Now().Add(8 * time.Second)
+	for {
+		var n int
+		_ = pool.QueryRow(ctx, "SELECT count(*) FROM md_klines WHERE inst_id='XKL-USDT-SWAP'").Scan(&n)
+		if n > 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("candle 帧未落 md_klines（business 臂链路断）")
+		}
+		time.Sleep(150 * time.Millisecond) // sched-exempt-ok（桩断言轮询期界）
 	}
 }
