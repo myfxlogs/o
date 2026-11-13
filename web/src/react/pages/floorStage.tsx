@@ -3,15 +3,12 @@
 // 绑活数据可点穿,底图只作氛围舞台,状态从不画在图上)。
 // 几何: 位标=底图(1792×1006)像素坐标→stage 等比缩,改图先改本表。
 //   中央全息球=脑(会话席+自态+记忆)  球座环=喙(NAV 钱芯)
-//   圆桌9座=9器官  站位机器人×6=常驻机  后墙4屏=四面板
+//   环台9晶球=9器官  站位机器人×6=常驻机  后墙4屏=四面板
 //   桌面件=待办浮件  底缘=事实尾流  顶角=警报灯
 import { useEffect, useRef, useState } from "react";
-import botSeatUrl from "../assets/bot-seat.png";
-import botBackUrl from "../assets/bot-seat-back.png";
 import botStandUrl from "../assets/wall-station.png";
 import rackUrl from "../assets/server-rack.png";
 import globeUrl from "../assets/holo-globe.png";
-import chairUrl from "../assets/scoop-chair.png";
 import rimUrl from "../assets/rim-front.png";
 import hallUrl from "../assets/room-shell.jpg";
 import { plainText } from "../components/plain";
@@ -36,14 +33,12 @@ export type StageProps = {
 
 const fmtM = (v: number) => "$" + v.toLocaleString("zh-CN", { maximumFractionDigits: 0 });
 // 圆桌9座·站位6机·脑/喙/屏/件/流 —— 底图%位表(改图先改表)
-// SEAT_POS——9座全站环台缘外侧:台心(50,66) rx=35 ry=19.5 椭圆参数
+// SEAT_POS——9晶球悬浮台缘上方(台心50,66 椭圆内缩圈:rx≈30 ry≈16)
 // θ=170°..10° 左缘→前中→右缘;尺度按θ景深(前大侧小)
 const SEAT_POS = [
-  [9.6, 63.3, 0.7], [14.5, 69.5, 0.8], [23.6, 74.6, 0.9], [36, 77.9, 1.0],
-  [50, 79, 1.05], [64, 77.9, 1.0], [76.4, 74.6, 0.9], [85.5, 69.5, 0.8], [90.4, 63.3, 0.7],
+  [12.5, 59, 0.7], [17.5, 64, 0.8], [26.5, 68.5, 0.9], [38, 71.5, 1.0],
+  [50, 72.3, 1.05], [62, 71.5, 1.0], [73.5, 68.5, 0.9], [82.5, 64, 0.8], [87.5, 59, 0.7],
 ];
-// 朝向:围桌朝台心——左半朝右(r)、前中背影(b)、右半朝左(l,翻转)
-const SEAT_FACE = ["r", "r", "r", "b", "b", "b", "l", "l", "l"] as const;
 const MACH_POS = [[6, 44], [14, 44], [22, 45], [30, 45], [68, 45], [76, 45], [84, 44], [90, 44]];
 // 物理主机机柜位——左右墙脚地板线,真硬件件(非人形:器/服/机三形分家)
 const HOST_POS = [[4, 47], [96, 47], [40, 46], [60, 46]];
@@ -130,24 +125,22 @@ export function FloorStage(p: StageProps) {
         <span>今日 {p.nav ? (p.nav.today >= 0 ? "+" : "−") + fmtM(Math.abs(p.nav.today)) : "—"}</span>
       </button>
 
-      {/* 圆桌9座=器官——色=态,新行到=脉冲,点=详情 */}
+      {/* 环台9晶球=器官核——辉光色=态,呼吸灯节律=活性,新行到=球一搏,点=详情 */}
       {p.organs.map((o, k) => (
         <button key={o.i}
-          className={`fs-seatwrap st-${o.st} face-${SEAT_FACE[k]}${o.flash || pulse.has(o.i) ? " pulse" : ""}`}
+          className={`fs-seatwrap st-${o.st}${o.flash || pulse.has(o.i) ? " pulse" : ""}`}
           style={{ left: `${SEAT_POS[k][0]}%`, top: `${SEAT_POS[k][1]}%`, width: `${11.4 * (SEAT_POS[k][2] ?? 1)}%` }}
           onClick={() => p.onPick({ k: "gh" + o.i, x: 0, y: 0, title: `工位 · ${o.name}`, body: [], to: "/decision" })}>
-          {/* pin/ghost=空椅(座摆人未坐);build/done=坐机;朝向=围桌朝台心 */}
-          <img src={o.st === "pin" || o.st === "ghost" ? chairUrl : SEAT_FACE[k] === "b" ? botBackUrl : botSeatUrl} alt={o.name}
-            className={`fs-bot${o.st === "pin" || o.st === "ghost" ? " chair" : ""}${SEAT_FACE[k] === "l" ? " flip" : ""}`} draggable={false} />
-          <span className="fs-breath" />
+          {/* 球下投影——悬浮纵深:球升影缩淡,球降影扩浓 */}
+          <span className="fs-orbshadow" />
+          {/* 悬浮晶球——态=辉光色(done青稳/build金急/pin虚形/ghost淡影) */}
+          <span className="fs-orb" />
           {/* 单牌——该器身上有单即亮:#票号+当前段位(认领/施工/部署/销) */}
           {(() => { const t = organTicket(o); return t ? (
             <span className={`fs-tkt${t.stage ? ` sg-${t.stage}` : ""}`} title={p.queue.find(x => x.id === t.id)?.note}>
               #{t.id}{t.stage ? `·${t.stage}` : ""}
             </span>
           ) : null; })()}
-          {/* 座前全息板——原图件:台面小浮屏朝台心,载器官 hits */}
-          <span className="fs-panel"><i>{o.hits || "·"}</i></span>
           <span className="fs-seat">
             <b>{o.name}</b>
             <span>{o.st === "done" ? "完工" : o.st === "build" ? "在建" : o.st === "pin" ? "立项" : "毛坯"}{o.hits ? ` ·×${o.hits}` : ""}</span>
