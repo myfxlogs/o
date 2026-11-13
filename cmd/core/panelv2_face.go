@@ -238,25 +238,37 @@ func (c coreService) GetFaceGrid(ctx context.Context,
 		return false
 	})
 
-	// 会话面：唤起/收口/唤起败尾流——双臂 seat 全集（唤知机/唤知/审计机——
-	// 审计 P1：审计机|唤起败 在案，双臂滤单臂漏数）。
+	// 会话面：唤起/果败收口尾流+心跳活性——双臂 seat 全集（唤知机/唤知/审计机）。
+	// running=2h 内唤起无同 unit 配对行（会话收口∨唤起果∨唤起败——dispatch 释锁契同构）
+	// ∧（心跳鲜活着∨唤起龄<90s 盖 spawn→hb 首拍窗）——收口断代期死会话不再显在班≤2h
+	// （工单#13577 幻影唤起类实证）；臂间异 unit 行互不误销。
 	sf := &dashboardv1.SessionFace{}
-	var lastSpawn, lastClose *time.Time
+	var lastSpawn, lastUnpaired, lastHb *time.Time
+	var hbState *string
 	var spawns, closes, fails int64
 	if err := c.pool.QueryRow(ctx, `SELECT
 		max(ts) FILTER (WHERE event='唤起'),
-		max(ts) FILTER (WHERE event='会话收口'),
+		(SELECT max(e.ts) FROM ops_event e
+			WHERE e.event='唤起' AND e.seat IN ('唤知机','审计机')
+			  AND e.ts>now()-interval '2 hours'
+			  AND NOT EXISTS (SELECT 1 FROM ops_event x
+			    WHERE x.ts>e.ts AND x.event IN ('会话收口','唤起果','唤起败')
+			      AND x.note LIKE '%'||substring(e.note from 'unit=[^ ]+')||'%')),
 		count(*) FILTER (WHERE event='唤起' AND ts>now()-interval '24 hours'),
 		count(*) FILTER (WHERE event='会话收口' AND ts>now()-interval '24 hours'),
-		count(*) FILTER (WHERE event='唤起败' AND ts>now()-interval '24 hours')
+		count(*) FILTER (WHERE event='唤起败' AND ts>now()-interval '24 hours'),
+		(SELECT h.last_activity FROM ops_headless h
+			WHERE h.ticket ~ '^(COG|AUD)-' ORDER BY h.last_activity DESC LIMIT 1),
+		(SELECT h.state FROM ops_headless h
+			WHERE h.ticket ~ '^(COG|AUD)-' ORDER BY h.last_activity DESC LIMIT 1)
 		FROM ops_event WHERE seat IN ('唤知机','唤知','审计机')`).
-		Scan(&lastSpawn, &lastClose, &spawns, &closes, &fails); err != nil {
+		Scan(&lastSpawn, &lastUnpaired, &spawns, &closes, &fails, &lastHb, &hbState); err != nil {
 		log.Printf("[facegrid] 会话面查询败: %v", err)
 	} else {
 		if lastSpawn != nil {
 			sf.LastSpawn = timestamppb.New(lastSpawn.UTC())
-			sf.Running = (lastClose == nil || lastSpawn.After(*lastClose)) &&
-				time.Since(*lastSpawn) < 2*time.Hour
+			alive := hbState != nil && *hbState == "alive" && lastHb != nil && time.Since(*lastHb) < 100*time.Second
+			sf.Running = lastUnpaired != nil && (alive || time.Since(*lastUnpaired) < 90*time.Second)
 		}
 		sf.Spawns_24H, sf.Closes_24H, sf.Fails_24H = spawns, closes, fails
 	}
