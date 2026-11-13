@@ -93,8 +93,10 @@ func main() {
 		// GW-001 A4：机械类事件独立源 kind=mech——与 d 源同表双水位
 		// 各自独立（判断/机械帧不混），已批/派单/裁决/处置/部署/起草
 		// 落账即唤 o-mech 机械轨；判断类仍走 d 源 dm 帧双唤 CTO/CEO。
+		// 「工单」入白名单——票落板即唤派单（业主令 11-13：队列式正路,
+		// 此前工单漏名单只能蹭 15min 拍兜底,实测票→唤延迟至 30min+）。
 		"e": {Table: "ops_event_wip", Kind: "mech", DSN: "fin",
-			Q: "SELECT COALESCE(max(id),0) FROM ops_event WHERE event IN ('已批','派单','裁决','处置','部署','起草')"},
+			Q: "SELECT COALESCE(max(id),0) FROM ops_event WHERE event IN ('已批','派单','裁决','处置','部署','起草','工单')"},
 	}
 	pools := map[string]eventbus.Querier{}
 	for _, kv := range [][2]string{{"md", "MD_PG_DSN"}, {"fin", "FIN_PG_DSN"}} {
