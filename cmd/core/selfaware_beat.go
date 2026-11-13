@@ -150,8 +150,11 @@ func (c coreService) selfAwareBeat(ctx context.Context) {
 		flag("收口陈", fmt.Sprintf("收口陈%s", time.Since(*lastClose).Round(time.Minute)))
 	}
 	var spawnless int
+	// 在飞宽限15min：唤起后秒级无配对=会话在跑非孤儿（观测时长32-202s），
+	// 无宽限=每拍必中在飞唤，旗沦为常开噪声掩真孤儿（87帧实证）。
 	if err := c.pool.QueryRow(ctx, `SELECT count(*) FROM ops_event e
 		WHERE e.event='唤起' AND e.ts>now()-interval '2 hours'
+			AND e.ts<now()-interval '15 minutes'
 		AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.ts>e.ts
 			AND x.event IN ('唤起果','唤起败','会话收口')
 			AND x.note LIKE '%'||substring(e.note from 'unit=[^ ]+')||'%')`).
