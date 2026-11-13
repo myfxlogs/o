@@ -241,6 +241,7 @@ func (c coreService) stuckEscCheck(ctx context.Context, deadSince map[string]tim
 		return fmt.Sprintf("唤知/stuck_esc: %d 个 scope 销案后复燃（%s）——判词宣称已修|已愈而条件复发,宣称不实,疑卡壳建议值守介入",
 			len(stuck), strings.Join(parts, "、"))
 	})
+	c.hotDomainEscCheck(ctx, deadSince) // 热域探同拍——复燃同数据源（stuck_esc 行的域级聚类翼,selfmodel 同口径）
 }
 
 // codeworkStallEscCheck 工单滞留探——双臂:

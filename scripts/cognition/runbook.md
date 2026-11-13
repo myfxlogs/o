@@ -89,6 +89,11 @@ psql "$FIN_DSN" -c "SELECT id,kind,entity_ref,numbers FROM fin_econ_lesson
 # 族面集中度+练习场水位(钱面事实帧——单族集中/练习场空一眼见,动机档手段裁定素材):
 psql "$FIN_DSN" -c "SELECT template_ref,state,count(*) FROM fin_strategy
   WHERE state IN ('paper','probe','live') GROUP BY 1,2 ORDER BY 1"
+# 域热榜(自模账主动翼——30d 销案后复燃次数榜,热域票=先验尸契约适用面):
+psql "$FIN_DSN" -c "SELECT m[1] dom, count(DISTINCT e.id) refires
+  FROM ops_event e, LATERAL regexp_matches(e.note,'([a-zA-Z0-9_-]+)#[0-9]+','g') m
+  WHERE e.event='升件' AND e.esc_scope='stuck_esc' AND e.ts>now()-interval '30 days'
+  GROUP BY 1 ORDER BY 2 DESC LIMIT 8"
 # OPEN 工单(未销+无活在认领)——按期限序=施工面入口,认领/销/挂起三选一,不许无声跳过:
 # 销票引证剔「挂起条件=」与「接续」行(缓办/进度非完结,升件#12643);挂起引证在
 # 票期限内暂抑回列(票开着但缓办),过期回列复验——与 feed_esc tickEnded 同语义:
@@ -233,6 +238,13 @@ note=「反事实#<案id>-<slug>: 实态=<事实轨迹>；若<变量>→<推演>
     confGate+entryCond 五机读）或 paper_ttl_expired 验尸案归因;
     paper 毕不了业的族不许喊 live——live 迁另有委员会开关位
     (invest.lifecycle.live_switch)非本环自裁）。
+  - **能力绑定**（手段含新族/新面→先查「做不做得起」再立）：
+    execfam 册无执行族∨fin_opp_template 未启用∨venue 能力面
+    缺键（margin-borrow/跨所腿/质押轨类）∨凭据/户/KYC 缺——
+    目标票必须随立子件：**缺码**→`工单/goal-<slug>-cap-<名>`
+    （要码修=执行族注册/采集面/格凭据）;**缺物**→条件请求
+    （供物径）+票载挂起条件=供物#id。**禁立着假装能做**——
+    能力缺口不挂=目标票就是散文。
   - **paper_dry 升件**（动机面第二信号——练习场零候选=经验管断料）：
     常径=立「进水口」目标票（验收=paper+probe 候选数≥N——上游供水
     归假想链/研究员;断在 venue 能力面/凭据/KYC=条件请求径求供物,
@@ -519,6 +531,12 @@ note=「反事实#<案id>-<slug>: 实态=<事实轨迹>；若<变量>→<推演>
   ```
   认领 TTL=2h——活在认领防双会话抢同票,认领陈=会话死透
   票回落可拣(收养前任段:同票 fix 分支/wt 在场先续)。
+  **热域先验尸契约**(hotdom_<域>升件∨域热榜≥5 在册——该域
+  30d 内被判词宣称「已修」后又火≥5 次=判词不实/修错界自证):
+  认领前必读此域前 N 次销案判词(`ops_event 处置行 引工单#`),
+  收口判词必答两问——**上次为什么砸+这次哪不同**;
+  答不出「哪不同」=同一修法再试=禁认(复发已在案,
+  同径第五次的期望不高于前四次)。
   修毕销票（载证同销案律——证据必备）：
   ```sql
   INSERT INTO ops_event(seat,event,note)
