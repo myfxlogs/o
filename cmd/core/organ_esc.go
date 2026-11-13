@@ -45,6 +45,7 @@ var organRegistry = []struct {
 	{"举一反三", []string{"举一反三"}},
 	{"连续自我", []string{"连续自我"}},
 	{"懂你", []string{"懂你"}},
+	{"自我意识", []string{"自我意识", "自观", "自感知"}}, // floorFocus GHOSTS 第十器同键镜像（2026-11-13 业主令器官——册漏=悬置探盲区）
 	{"账房", []string{"账房", "books_daily", "对账"}},
 }
 

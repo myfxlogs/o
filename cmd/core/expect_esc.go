@@ -57,6 +57,17 @@ var expectDecls = []expectDecl{
 // expectProdEscCheck 期望产出面探——注册表册逐件对拍:实产<阈=升件
 // expect_*。值指纹=实数（变值复燃=新现实;销后同值 30d 内不火）。
 func (c coreService) expectProdEscCheck(ctx context.Context, deadSince map[string]time.Time) {
+	// 部署冷启宽免（工单#13830——升件#13763 self_aware 死窗1m39s 复绿实证：
+	// 新册面部署零窗行必先火后自愈=噪音源）。末次部署龄<宽免窗=首产拍
+	// 未完本拍全册让位；读败照常评（读径病灶不得借宽免暗灭）;真断供
+	// 宽免期后下一拍照升。
+	var depTs time.Time
+	if err := c.pool.QueryRow(ctx, `SELECT ts FROM ops_event WHERE seat='DEPLOY'
+		AND event='部署' AND note LIKE '%o-core:%' AND note LIKE '%rc=0%'
+		ORDER BY id DESC LIMIT 1`).Scan(&depTs); err == nil &&
+		time.Since(depTs) < 10*time.Minute {
+		return
+	}
 	for _, d := range expectDecls {
 		var n float64
 		if err := c.pool.QueryRow(ctx, d.query).Scan(&n); err != nil {
