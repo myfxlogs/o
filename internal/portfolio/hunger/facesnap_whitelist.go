@@ -213,4 +213,13 @@ var faceBaselineWhitelist = map[string]string{
 	// （T-0448 册语义罩位，纪元3 批同型先例），登记不重复升。
 	"face:service:簿记": "工单#11384 入册——簿记=唤知会话簿记写席（canon/口径 簿类事实行专用——owner_intent 十键口径行首用，处置席处置行外的簿记分道）：工单驱动间歇写 7d 活跃窗摆动登记不重复升；生产亲证 口径行十连 #11900-11909（面清单新面行→升件 #11979）",
 	"face:service:监工": "升件#13154 入册——监工=overwatch 机械哨写席（业主随时把握 system 工作情况的机械层：tools/overwatch 6h 拍 SQL 可判指标扫→ops_event seat='监工' 哨报 digest+哨:旗标 24h 值指纹抑+里程碑一次性行，deploy/o-overwatch.service+timer 部署件+scripts/watch/OVERWATCH.md 判读哨页在案）：6h 拍间歇写 7d 活跃窗摆动登记不重复升；生产亲证 面清单新面行（升件源 ops_event #13154）",
+	// 工单#13065：md_klines 表面——md_1094/fin_0171 双链迁移建 public
+	// 基表（日K数据面切片①：OKX candle1D business 端点采集→upsert
+	// 形成中覆写/收线终态，domain.tsv bridge 入册；venue 实证 candle*
+	// 全族归 /business 端点——canon okx-candle-business-endpoint 在案）。
+	// 写径 okxws klineLoop→writer/读径 projector_rw 投影桥在案；table
+	// 类面 information_schema BASE TABLE 枚举本体零硬编码，建表落地
+	// 即面；生产亲证 SG 基表在册+19inst 形成中日线落行
+	// @2026-11-13 14:0xZ（升件源 ops_event #14096）。
+	"face:table:md_klines": "工单#13065 入册——md_klines=md_1094/fin_0171 双链迁移建 public 基表（日K数据面：OKX candle1D business 端点采集→同键 upsert 形成中覆写/收线终态，domain.tsv bridge 入册；candle* 全族归 /business 端点 venue 实证 canon okx-candle-business-endpoint 在案）；写径 okxws klineLoop→writer/读径 projector_rw 投影桥在案；table 类面 information_schema BASE TABLE 枚举本体零硬编码，建表落地即面；生产亲证 SG 基表在册+19inst 形成中日线落行 @2026-11-13 14:0xZ（升件源 ops_event #14096）",
 }
