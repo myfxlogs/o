@@ -285,8 +285,10 @@ func (c *Collector) passThrottle(it rowItem) bool {
 		kind, inst = "ticks", it.tick.instID
 	case it.funding != nil:
 		kind, inst = "funding", it.funding.instID
+	case it.kline != nil && !it.kline.confirm: // 收线帧必落——终态不可被节流丢（工单#13065）
+		kind, inst = "klines", it.kline.instID+":"+it.kline.bar
 	default:
-		return true // mark/depth5 面不限
+		return true // mark/depth5/收线帧面不限
 	}
 	c.passMu.Lock()
 	defer c.passMu.Unlock()

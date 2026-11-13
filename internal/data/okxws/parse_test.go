@@ -48,12 +48,12 @@ func TestSubscribeArgs(t *testing.T) {
 func TestParseTicks(t *testing.T) {
 	m := msg(t, "tickers", "BTC-USDT-SWAP", map[string]any{
 		"last": "67000.1", "bidPx": "67000", "askPx": "67000.5", "vol24h": "1234", "ts": "1761000000000"})
-	r := parseTickers(m.Arg.InstID, m.Data[0])
+	r := parseTickers(m.Arg.InstID, obj(m.Data[0]))
 	if r == nil || r.bid != 67000 || r.ask != 67000.5 || r.ts.UnixMilli() != 1761000000000 {
 		t.Fatalf("tick parse: %+v", r)
 	}
 	bad := msg(t, "tickers", "BTC-USDT-SWAP", map[string]any{"bidPx": "0", "askPx": "0"})
-	if r := parseTickers(bad.Arg.InstID, bad.Data[0]); r != nil {
+	if r := parseTickers(bad.Arg.InstID, obj(bad.Data[0])); r != nil {
 		t.Fatal("零价帧应拒")
 	}
 }
@@ -61,7 +61,7 @@ func TestParseTicks(t *testing.T) {
 func TestParseFunding(t *testing.T) {
 	m := msg(t, "funding-rate", "BTC-USDT-SWAP", map[string]any{
 		"fundingRate": "0.0001", "fundingTime": "1761000000000", "nextFundingTime": "1761003600000"})
-	r := parseFunding(m.Arg.InstID, m.Data[0])
+	r := parseFunding(m.Arg.InstID, obj(m.Data[0]))
 	if r == nil || r.fundingRate != 0.0001 || r.nextFundingTs.UnixMilli() != 1761003600000 {
 		t.Fatalf("funding parse: %+v", r)
 	}
@@ -69,11 +69,11 @@ func TestParseFunding(t *testing.T) {
 
 func TestParseMarkBothForms(t *testing.T) {
 	m1 := msg(t, "mark-price", "BTC-USDT-SWAP", map[string]any{"markPx": "67000", "ts": "1761000000000"})
-	if r := parseMark(m1.Arg.InstID, "mark-price", m1.Data[0]); r == nil || r.px != 67000 {
+	if r := parseMark(m1.Arg.InstID, "mark-price", obj(m1.Data[0])); r == nil || r.px != 67000 {
 		t.Fatalf("mark-price parse: %+v", r)
 	}
 	m2 := msg(t, "index-tickers", "BTC-USDT", map[string]any{"idxPx": "66999", "ts": "1761000000000"})
-	if r := parseMark(m2.Arg.InstID, "index-tickers", m2.Data[0]); r == nil || r.px != 66999 {
+	if r := parseMark(m2.Arg.InstID, "index-tickers", obj(m2.Data[0])); r == nil || r.px != 66999 {
 		t.Fatalf("index-tickers parse: %+v", r)
 	}
 }

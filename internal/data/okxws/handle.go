@@ -34,15 +34,17 @@ func (c *Collector) handle(data []byte) {
 		c.rej.Inc("non_usdt_instid")
 		return
 	}
-	for _, d := range msg.Data {
+	for _, raw := range msg.Data {
 		var it rowItem
 		switch msg.Arg.Channel {
 		case "tickers":
-			it.tick = parseTickers(instID, d)
+			it.tick = parseTickers(instID, obj(raw))
 		case "funding-rate":
-			it.funding = parseFunding(instID, d)
+			it.funding = parseFunding(instID, obj(raw))
 		case "mark-price", "index-tickers":
-			it.mark = parseMark(instID, msg.Arg.Channel, d)
+			it.mark = parseMark(instID, msg.Arg.Channel, obj(raw))
+		case "candle1D": // 工单#13065 日K面——数组载荷活跃集尾流
+			it.kline = parseCandle(instID, "1D", raw)
 		case "books5": // T-0139：深度蒸馏——5s 节流（特征值非原始盘口）
 			c.ctvMu.Lock()
 			ctv := c.ctvCache[instID]
@@ -50,7 +52,7 @@ func (c *Collector) handle(data []byte) {
 			c.ctvMu.Unlock()
 			if ctv > 0 {
 				if c.depth5At == nil || time.Since(c.depth5At[instID]) > 5*time.Second {
-					it.depth5 = parseBooks5(instID, d, ctv)
+					it.depth5 = parseBooks5(instID, obj(raw), ctv)
 					if it.depth5 != nil && c.depth5At != nil {
 						c.depth5At[instID] = time.Now()
 					}
@@ -79,7 +81,7 @@ func (c *Collector) handle(data []byte) {
 		default:
 			continue
 		}
-		if it.tick == nil && it.funding == nil && it.mark == nil && it.depth5 == nil {
+		if it.tick == nil && it.funding == nil && it.mark == nil && it.depth5 == nil && it.kline == nil {
 			if msg.Arg.Channel != "books5" { // books5 节流窗静默非解析败
 				c.rej.Inc("parse_fail")
 			}
@@ -102,6 +104,10 @@ func (c *Collector) handle(data []byte) {
 				}
 			case it.funding != nil:
 				if !c.LocalWritePred("funding", it.funding.instID) {
+					continue
+				}
+			case it.kline != nil:
+				if !c.LocalWritePred("klines", it.kline.instID) {
 					continue
 				}
 			}

@@ -229,4 +229,5 @@ var migrationTable = []struct {
 	{1091, "md_1091_two_tier_collect.sql"},
 	{1092, "md_1092_scan_universe.sql"},
 	{1093, "md_1093_repair_log.sql"},
+	{1094, "md_1094_klines.sql"},
 }

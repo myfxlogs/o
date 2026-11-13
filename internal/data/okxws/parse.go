@@ -8,14 +8,23 @@ import (
 	"o/internal/platform/legset"
 )
 
-// wsMsg OKX v5 推送帧头+载荷（arg.channel 分流；data[]=频道载荷行）。
+// wsMsg OKX v5 推送帧头+载荷（arg.channel 分流；data[]=频道载荷行——
+// 行形频道而异：tickers/funding/mark/books5=对象，candle*=数组，
+// 故 Data 只载 RawMessage 由各频道解析面自解）。
 type wsMsg struct {
 	Event string `json:"event"`
 	Arg   struct {
 		Channel string `json:"channel"`
 		InstID  string `json:"instId"`
 	} `json:"arg"`
-	Data []map[string]json.RawMessage `json:"data"`
+	Data []json.RawMessage `json:"data"`
+}
+
+// obj 对象形载荷行解码（tickers/funding/mark/books5 各频道共用）。
+func obj(raw json.RawMessage) map[string]json.RawMessage {
+	var d map[string]json.RawMessage
+	_ = json.Unmarshal(raw, &d)
+	return d
 }
 
 func str(d map[string]json.RawMessage, k string) string {
@@ -95,4 +104,21 @@ func parseMark(instID, channel string, d map[string]json.RawMessage) *markRow {
 		ts = time.Now().UTC()
 	}
 	return &markRow{instID: instID, channel: channel, ts: ts, px: px}
+}
+
+// parseCandle → klineRow（candle* 数组载荷：[ts,o,h,l,c,vol,volCcy,
+// volCcyQuote,confirm]——confirm "0"=形成中 "1"=已收线；ts=开盘时刻毫秒）。
+func parseCandle(instID, bar string, raw json.RawMessage) *klineRow {
+	var a []string
+	if err := json.Unmarshal(raw, &a); err != nil || len(a) < 9 {
+		return nil
+	}
+	ms, _ := strconv.ParseInt(a[0], 10, 64)
+	if ms == 0 {
+		return nil
+	}
+	f := func(i int) float64 { v, _ := strconv.ParseFloat(a[i], 64); return v }
+	return &klineRow{instID: instID, bar: bar, ts: time.UnixMilli(ms).UTC(),
+		o: f(1), h: f(2), l: f(3), c: f(4), vol: f(5), volCcy: f(6),
+		confirm: a[8] == "1"}
 }

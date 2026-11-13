@@ -89,6 +89,13 @@ func (c *Collector) insertBatch(ctx context.Context, rows []rowItem) error {
 				px=EXCLUDED.px,recv_ts=now()`,
 				r.ts, r.instID, r.channel, r.px)
 			n++
+		case it.kline != nil: // 工单#13065：md_klines upsert——形成中帧同键覆写至收线
+			r := it.kline
+			b.Queue(`INSERT INTO md_klines(inst_id,bar,ts,o,h,l,c,vol,vol_ccy,confirm) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+				ON CONFLICT (venue,inst_id,bar,ts) DO UPDATE SET o=EXCLUDED.o,h=EXCLUDED.h,l=EXCLUDED.l,
+				c=EXCLUDED.c,vol=EXCLUDED.vol,vol_ccy=EXCLUDED.vol_ccy,confirm=EXCLUDED.confirm,recv_ts=now()`,
+				r.instID, r.bar, r.ts, r.o, r.h, r.l, r.c, r.vol, r.volCcy, r.confirm)
+			n++
 		case it.depth5 != nil: // T-0139：md_signal kind='depth5'——特征值 upsert（有界状态表）
 			r := it.depth5
 			meta, _ := json.Marshal(map[string]any{
@@ -121,6 +128,8 @@ func rowKey(it rowItem) string {
 		return "3:" + it.mark.instID + ":" + it.mark.channel
 	case it.depth5 != nil:
 		return "4:" + it.depth5.instID
+	case it.kline != nil:
+		return "5:" + it.kline.instID + ":" + it.kline.bar + ":" + it.kline.ts.UTC().Format("20060102150405")
 	}
 	return "9:"
 }
@@ -155,6 +164,10 @@ func countKind(buf []rowItem, kind string) int {
 			}
 		case "depth5":
 			if it.depth5 != nil {
+				n++
+			}
+		case "kline":
+			if it.kline != nil {
 				n++
 			}
 		}
