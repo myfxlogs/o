@@ -59,6 +59,31 @@ button.v2-row.ft-row {
 }
 
 /* —— 聚焦弹窗——点瓦片开详情(浅色化,站内语言) —— */
+/* floor 域=中央息投屏:点挂载件→全息投屏展舱心,非跳页(业主令 11-13) */
+.fstage-page .iso-focus-back { background: rgba(4, 10, 20, .55); backdrop-filter: blur(2px); }
+.fstage-page .iso-focus { min-width: 380px; max-width: 640px; width: 52vw; max-height: 74vh; }
+.fstage-page .iso-focus-in { position: relative; color: #d6ecf8;
+  background: linear-gradient(160deg, rgba(14, 40, 66, .92), rgba(6, 18, 34, .95));
+  border: 1px solid rgba(110, 220, 255, .45); border-radius: 10px;
+  box-shadow: 0 0 0 1px rgba(110,220,255,.12), 0 0 42px rgba(60,180,255,.35), inset 0 0 60px rgba(60,160,255,.07);
+  overflow: hidden; }
+.fstage-page .iso-focus-in::before { content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(0deg, transparent 0 3px, rgba(140,220,255,.05) 3px 4px); }
+.fstage-page .iso-focus-in::after { content: ""; position: absolute; left: 6%; right: 6%; top: 0; height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(140,230,255,.9), transparent); }
+.fstage-page .iso-focus-h { color: #6fd8ff; letter-spacing: .12em; font-size: 12px; text-transform: none; }
+.fstage-page .iso-focus-big { color: #eaf7ff; text-shadow: 0 0 18px rgba(90,200,255,.55); }
+.fstage-page .iso-focus-row { color: #a9c8dc; }
+.fstage-page .iso-focus-row.dim { color: #5f7c94; }
+.fstage-page .iso-focus-x { background: rgba(20,50,80,.7); border-color: rgba(110,220,255,.5); color: #9fd8f0; }
+.fstage-page .iso-focus-x:hover { color: #fff; box-shadow: 0 0 10px rgba(110,220,255,.6); }
+.fstage-page .iso-focus-go { background: rgba(30,90,140,.5); border: 1px solid rgba(110,220,255,.5); color: #cfeaff; }
+.fstage-page .iso-focus { animation: holo-open .28s ease; }
+@keyframes holo-open {
+  0% { transform: translate(-50%,-50%) scaleY(.02) scaleX(.6); opacity: 0; }
+  60% { transform: translate(-50%,-50%) scaleY(1.02) scaleX(1); opacity: 1; }
+  100% { transform: translate(-50%,-50%) scale(1); }
+}
 .iso-focus-back {
   position: fixed;
   inset: 0;
