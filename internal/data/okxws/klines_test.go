@@ -51,7 +51,9 @@ func TestKlineThrottleConfirmBypass(t *testing.T) {
 func TestKlineStoreUpsert(t *testing.T) {
 	ctx := context.Background()
 	pool := testutil.Pool(t)
-	if err := pgstore.Migrate(ctx, pool, "md"); err != nil {
+	// fin 域桩——SG collector 写库=fin 链（md_klines=bridge 双链同形；
+	// md 域单链会致生产 write_err，本桩钉 SG 写侧 schema 实存）。
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `DELETE FROM md_klines WHERE inst_id='XKL-USDT-SWAP'`); err != nil {
