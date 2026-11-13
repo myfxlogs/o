@@ -3,10 +3,9 @@
 // 绑活数据可点穿,底图只作氛围舞台,状态从不画在图上)。
 // 几何: 位标=底图(1792×1006)像素坐标→stage 等比缩,改图先改本表。
 //   中央全息球=脑(会话席+自态+记忆)  球座环=喙(NAV 钱芯)
-//   环台9晶球=9器官  站位机器人×6=常驻机  后墙4屏=四面板
+//   环台9穹顶=9器官  壁际机面半球=常驻机  后墙4屏=四面板
 //   桌面件=待办浮件  底缘=事实尾流  顶角=警报灯
 import { useEffect, useRef, useState } from "react";
-import botStandUrl from "../assets/wall-station.png";
 import rackUrl from "../assets/server-rack.png";
 import globeUrl from "../assets/holo-globe.png";
 import rimUrl from "../assets/rim-front.png";
@@ -33,15 +32,20 @@ export type StageProps = {
 
 const fmtM = (v: number) => "$" + v.toLocaleString("zh-CN", { maximumFractionDigits: 0 });
 // 圆桌9座·站位6机·脑/喙/屏/件/流 —— 底图%位表(改图先改表)
-// SEAT_POS——9晶球悬浮台缘上方(台心50,66 椭圆内缩圈:rx≈30 ry≈16)
-// θ=170°..10° 左缘→前中→右缘;尺度按θ景深(前大侧小)
+// SEAT_POS——10穹顶各坞一块台面平垫(底图饰板锚位:竖屏+平垫=一站,穹压垫上)
+// cover裁切换算(stage实测1320宽):x%=img_x×0.06974-12.46,y%=img_y/10.06;锚=垫心+球悬高
 const SEAT_POS = [
-  [12.5, 59, 0.7], [17.5, 64, 0.8], [26.5, 68.5, 0.9], [38, 71.5, 1.0],
-  [50, 72.3, 1.05], [62, 71.5, 1.0], [73.5, 68.5, 0.9], [82.5, 64, 0.8], [87.5, 59, 0.7],
+  [22.3, 59.2, 0.8], [31.5, 54.6, 0.7], [24.0, 67.2, 0.85], [34.7, 76.4, 0.95],
+  [50.7, 78.5, 1.05], [64.8, 77.9, 1.0], [79.0, 71.8, 0.9], [87.3, 66.5, 0.8], [73.4, 54.2, 0.7],
+  [80.7, 60.1, 0.7],
 ];
-const MACH_POS = [[6, 44], [14, 44], [22, 45], [30, 45], [68, 45], [76, 45], [84, 44], [90, 44]];
-// 物理主机机柜位——左右墙脚地板线,真硬件件(非人形:器/服/机三形分家)
-const HOST_POS = [[4, 47], [96, 47], [40, 46], [60, 46]];
+// 常驻机=壁际工位机上台面的半球——一台一桌面,穹底压台面(cover裁切换算同SEAT_POS)
+const MACH_POS = [
+  [11.5, 34.0], [17.5, 34.4], [23.5, 34.8], [29.5, 35.2],
+  [66.5, 33.4], [73.0, 34.0], [79.5, 34.6], [86.5, 35.2],
+];
+// 物理主机机柜位——左右墙脚地板线立置,真硬件件(非人形:器/服/机三形分家)
+const HOST_POS = [[4, 49.5], [96, 49.5], [40, 48.5], [60, 48.5]];
 // 台面工单板位——环台面环带散件,一待办一板(原图台面散件=活工单)
 const PAD_POS = [[50, 70], [65.4, 67.4], [34.6, 67.4], [70.8, 64.5], [29.2, 64.5], [73.6, 60.9], [26.4, 60.9], [50, 74]];
 const SCREEN_POS = { A: [9, 15], B: [24, 15], C: [70, 15], D: [86, 15] } as const;
@@ -106,6 +110,8 @@ export function FloorStage(p: StageProps) {
         onClick={() => p.onPick({ k: "desk", x: 0, y: 0, title: "会话席", body: [], to: "/device" })}>
         <img src={globeUrl} alt="" className="fs-globe" draggable={false} />
         <span className="fs-brain-glow" />
+        {/* 唤知焦点=球面中央三同心环——在班=三光带错峰呼吸,整球降为底光 */}
+        <span className="fs-reticle"><i /><i /><i /></span>
       </button>
       <button className="fs-brain-txt" style={{ left: "50%", top: "44.5%" }}
         onClick={() => p.onPick({ k: "desk", x: 0, y: 0, title: "会话席", body: [], to: "/device" })}>
@@ -125,15 +131,15 @@ export function FloorStage(p: StageProps) {
         <span>今日 {p.nav ? (p.nav.today >= 0 ? "+" : "−") + fmtM(Math.abs(p.nav.today)) : "—"}</span>
       </button>
 
-      {/* 环台9晶球=器官核——辉光色=态,呼吸灯节律=活性,新行到=球一搏,点=详情 */}
+      {/* 环台9穹顶=器官核——平底压台面平垫,辉光色=态,呼吸节律=活性,新行到=亮搏,点=详情 */}
       {p.organs.map((o, k) => (
         <button key={o.i}
           className={`fs-seatwrap st-${o.st}${o.flash || pulse.has(o.i) ? " pulse" : ""}`}
           style={{ left: `${SEAT_POS[k][0]}%`, top: `${SEAT_POS[k][1]}%`, width: `${11.4 * (SEAT_POS[k][2] ?? 1)}%` }}
           onClick={() => p.onPick({ k: "gh" + o.i, x: 0, y: 0, title: `工位 · ${o.name}`, body: [], to: "/decision" })}>
-          {/* 球下投影——悬浮纵深:球升影缩淡,球降影扩浓 */}
+          {/* 穹底接触影——压垫面只呼吸深浅不移位 */}
           <span className="fs-orbshadow" />
-          {/* 悬浮晶球——态=辉光色(done青稳/build金急/pin虚形/ghost淡影) */}
+          {/* 半球穹顶——平底压平垫定置,态=辉光色(done青稳/build金急/pin虚形/ghost淡影) */}
           <span className="fs-orb" />
           {/* 单牌——该器身上有单即亮:#票号+当前段位(认领/施工/部署/销) */}
           {(() => { const t = organTicket(o); return t ? (
@@ -151,13 +157,13 @@ export function FloorStage(p: StageProps) {
       {/* 前台环缘遮罩——原图前唇盖座机下半身:机埋台缘凹槽非浮台面 */}
       <img src={rimUrl} className="fs-rim" style={{ left: "50%", top: "64%" }} alt="" draggable={false} />
 
-      {/* 站位机器人×6=常驻机——站姿机贴图,断流灰红 */}
+      {/* 常驻机=壁际工位机上半球——稼働=青稳呼吸,断流=灰退赤急搏 */}
       {p.machines.map((m, k) => (
         <button key={m.name} className={`fs-machwrap${m.ok ? "" : " off"}`}
           style={{ left: `${MACH_POS[k][0]}%`, top: `${MACH_POS[k][1]}%` }}
           onClick={() => p.onPick({ k: "srv:" + m.name, x: 0, y: 0, title: `机柜 · ${m.name}`, body: [], to: "/device" })}>
-          <img src={botStandUrl} alt={m.name} className="fs-botm" draggable={false} />
-          <span className="fs-breath" />
+          <span className="fs-mshadow" />
+          <span className="fs-mdome" />
           <span className="fs-mach"><span className={`fs-dot ${m.ok ? "ok" : "bad"}`} />{m.name}</span>
         </button>
       ))}
