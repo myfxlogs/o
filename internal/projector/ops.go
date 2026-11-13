@@ -29,16 +29,14 @@ func (r *Runner) mdWake(ctx context.Context, ch string) error {
 				return err
 			}
 		}
-		return r.projectTsTable(ctx, ch)
+		return r.projectAllTs(ctx) // T-13230：唤醒名只作叫醒源——全 ts 道过闸（cap1 塌陷道饿死根修）
 	case "ev_eval":
 		return r.projectEvals(ctx)
 	case "ev_proposal":
 		return r.projectNewProposals(ctx)
 	case "": // boot 首拍（无 channel）——水印零值全量过一遍谓词面
-		for _, c := range []string{"ev_ticks", "ev_markidx", "ev_funding", "ev_signal", "ev_dcd"} {
-			if err := r.projectTsTable(ctx, c); err != nil {
-				return err
-			}
+		if err := r.projectAllTs(ctx); err != nil {
+			return err
 		}
 		if err := r.projectVenueCandidates(ctx); err != nil {
 			return err

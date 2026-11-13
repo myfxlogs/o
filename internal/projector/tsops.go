@@ -151,7 +151,20 @@ func (r *Runner) queryTs(ctx context.Context, p tsProjection, wm time.Time) (pgx
 // signal/dcd ≥1s。New 装配默认读此册（Runner.tsMinPass 实例化）。
 var tsMinPassInterval = map[string]time.Duration{
 	"ev_ticks": 3 * time.Second, "ev_markidx": 3 * time.Second,
-	"ev_funding": 3 * time.Second, "ev_signal": time.Second, "ev_dcd": time.Second,
+	"ev_funding": 3 * time.Second, "ev_signal": 5 * time.Second, "ev_dcd": time.Second,
+} // T-13230：信号道无谓词全量 916 行扫——唤醒面全道排干下 ≥1s=洪泛自伤；5s<2min dead 阈绰绰
+
+// projectAllTs T-13230：唤醒名只作叫醒源——events wake cap1 塌陷期
+// ev_ticks 洪泛占槽使 ev_signal/ev_dcd 帧名永不达（SG md_signal 陈>2min
+// 假断流升件实证）。任何 ts 帧到=全道过一遍，min-pass+水印幂等兜
+// （空集零代价）；boot 首拍同径复用。
+func (r *Runner) projectAllTs(ctx context.Context) error {
+	for _, c := range []string{"ev_ticks", "ev_markidx", "ev_funding", "ev_signal", "ev_dcd"} {
+		if err := r.projectTsTable(ctx, c); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // projectTsTable 单 ts 桥表谓词切片投影（水印后增量）。
@@ -188,4 +201,29 @@ func (r *Runner) projectTsTable(ctx context.Context, ch string) error {
 	}
 	r.bumpWm(p.wmKey, max)
 	return nil
+}
+
+// mirrorStaleSince SG ts 桥面最大值是否陈于阈（全空=未始不判陈）。
+// T-13230：max()全局被高频道掩蔽——signal 道塌陷饿死时 ticks 仍鲜=哨盲。
+// 补按表判：快道鲜∧signal 陈>5min=道饿死签名（dcd/funding 低频不入——
+// 其陈窗=正常拍非断流）。本件自 projector.go 移来（>300 棘轮面）。
+func (r *Runner) mirrorStaleSince(ctx context.Context) (bool, error) {
+	var latest *time.Time
+	err := r.sg.QueryRow(ctx, `SELECT max(ts) FROM (
+		SELECT max(ts) ts FROM md_ticks UNION ALL SELECT max(ts) FROM md_mark_index
+		UNION ALL SELECT max(ts) FROM md_signal UNION ALL SELECT max(ts) FROM md_dcd_product
+		UNION ALL SELECT max(ts) FROM md_funding UNION ALL SELECT max(ts) FROM fin_opp_eval) q`).Scan(&latest)
+	if err != nil {
+		return false, err
+	}
+	var tickTs, sigTs *time.Time
+	if err := r.sg.QueryRow(ctx, `SELECT max(ts) FROM md_ticks`).Scan(&tickTs); err != nil {
+		return false, err
+	}
+	if err := r.sg.QueryRow(ctx, `SELECT max(ts) FROM md_signal`).Scan(&sigTs); err != nil {
+		return false, err
+	}
+	starved := tickTs != nil && sigTs != nil &&
+		time.Since(*tickTs) < time.Minute && time.Since(*sigTs) > 5*time.Minute
+	return (latest != nil && time.Since(*latest) > mirrorStale) || starved, nil
 }

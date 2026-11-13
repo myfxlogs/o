@@ -263,19 +263,7 @@ func (r *Runner) beatLoop(ctx context.Context, errc chan<- error) {
 	}
 }
 
-// mirrorStaleSince SG ts 桥面最大值是否陈于阈（全空=未始不判陈）。
-func (r *Runner) mirrorStaleSince(ctx context.Context) (bool, error) {
-	var latest *time.Time
-	err := r.sg.QueryRow(ctx, `SELECT max(ts) FROM (
-		SELECT max(ts) ts FROM md_ticks UNION ALL SELECT max(ts) FROM md_mark_index
-		UNION ALL SELECT max(ts) FROM md_signal UNION ALL SELECT max(ts) FROM md_dcd_product
-		UNION ALL SELECT max(ts) FROM md_funding UNION ALL SELECT max(ts) FROM fin_opp_eval) q`).Scan(&latest)
-	if err != nil {
-		return false, err
-	}
-	return latest != nil && time.Since(*latest) > mirrorStale, nil
-}
-
+// mirrorStaleSince 移 tsops.go（>300 棘轮面）。
 // livenessLoop 活性兜底（10min 期界——事件失联自检非工作扫描，events.go 钦定
 // 豁免类）：断窗行与低频桥表靠期界重对账收敛。
 func (r *Runner) livenessLoop(ctx context.Context, errc chan<- error) {
