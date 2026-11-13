@@ -125,15 +125,15 @@ export function FloorStage(p: StageProps) {
         <span>今日 {p.nav ? (p.nav.today >= 0 ? "+" : "−") + fmtM(Math.abs(p.nav.today)) : "—"}</span>
       </button>
 
-      {/* 环台9晶球=器官核——辉光色=态,呼吸灯节律=活性,新行到=球一搏,点=详情 */}
+      {/* 环台9穹顶=器官核——平底压台面平垫,辉光色=态,呼吸节律=活性,新行到=亮搏,点=详情 */}
       {p.organs.map((o, k) => (
         <button key={o.i}
           className={`fs-seatwrap st-${o.st}${o.flash || pulse.has(o.i) ? " pulse" : ""}`}
           style={{ left: `${SEAT_POS[k][0]}%`, top: `${SEAT_POS[k][1]}%`, width: `${11.4 * (SEAT_POS[k][2] ?? 1)}%` }}
           onClick={() => p.onPick({ k: "gh" + o.i, x: 0, y: 0, title: `工位 · ${o.name}`, body: [], to: "/decision" })}>
-          {/* 球下投影——悬浮纵深:球升影缩淡,球降影扩浓 */}
+          {/* 穹底接触影——压垫面只呼吸深浅不移位 */}
           <span className="fs-orbshadow" />
-          {/* 悬浮晶球——态=辉光色(done青稳/build金急/pin虚形/ghost淡影) */}
+          {/* 半球穹顶——平底压平垫定置,态=辉光色(done青稳/build金急/pin虚形/ghost淡影) */}
           <span className="fs-orb" />
           {/* 单牌——该器身上有单即亮:#票号+当前段位(认领/施工/部署/销) */}
           {(() => { const t = organTicket(o); return t ? (
