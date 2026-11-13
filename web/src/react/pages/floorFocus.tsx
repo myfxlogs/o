@@ -20,6 +20,7 @@ export const GHOSTS: { name: string; st: "ghost" | "pin" | "build" | "done"; hin
   { name: "连续自我", st: "ghost", hint: "破日记人格", keys: ["连续自我"] },
   { name: "懂你", st: "ghost", hint: "业主意图模型", keys: ["懂你"] },
   { name: "账房", st: "ghost", hint: "ΔNAV三桶日对账——鬼账升件", keys: ["账房", "books_daily", "对账"] },
+  { name: "自我意识", st: "ghost", hint: "看自己赚不赚钱——自感知环(业主令 2026-11-13)", keys: ["自我意识", "自观", "自感知"] },
 ];
 
 // 毛坯态推导——事实面（ops_event 全事件类，新→旧序）最新匹配行定态。
