@@ -367,6 +367,21 @@ note=「反事实#<案id>-<slug>: 实态=<事实轨迹>；若<变量>→<推演>
   漂移探针 venue 实返×注册面差分 beat；同签名 dedup 同窗复燃=差未消）→
   核 venue 实返对注册面：注册面陈→补册/更正（要码修）；venue 面真变
   →按 venue 事实径更新+评估策略面影响；已对齐→销+引对拍证据。
+- **读败**（esc_class=读败 scope=<venue>|CALENDAR-FEED|NOTIFY-MACRO-REMIND
+  ——venue_fail_gate venue 读面连败闸(≥10拍或≥5min先升,读常清零,日限1)
+  +calendar/macro_remind 拉取败自报——无人值守面可读性事实）→ 分因：
+  - venue 侧病灶（凭据拒/网关熔断/IP封禁——note 败因摘要载因）→
+    凭据类要业主条件请求；venue 临时劣化已愈→销+引复常证据
+    （连败计数自清=读常回零,下升件前窗实数）；
+  - 我方读径病灶（端点漂/凭据读面/解析漂）→要码修；
+  - scope=CALENDAR-FEED/NOTIFY-MACRO-REMIND=内部生产面拉取败——
+    断流档同裁：源头断供修采集,瞬态复写销引证据。
+- **接入败**（esc_class=接入败 scope=<venue>:<login>——onboard Runner
+  venue接入 beat 败情事实行:凭据拒/broker回绝/beat步骤败）→ 分因：
+  - 凭据面（KYC/密件错/权限缺）→要业主条件请求（凭据=业主域）；
+  - 接入码面病灶（onboard beat 逻辑/请求构形）→要码修；
+  - venue 侧拒（broker策略/地域限）→载实因,候选回 park 并注阻塞面；
+  - 瞬态已愈（后续 beat 通行行在案）→销+引通行证据。
 - **写败**（esc_class=写败 scope=ops_decision——decision 写径败自报行）→
   查写径权限/约束面（roster_rw/review_rw 缺权先例 fin_0160/fin_0162）：
   授权缺→迁移补授权（要码修）；瞬态已愈→销+引复写证据。
