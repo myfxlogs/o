@@ -3,10 +3,9 @@
 // 绑活数据可点穿,底图只作氛围舞台,状态从不画在图上)。
 // 几何: 位标=底图(1792×1006)像素坐标→stage 等比缩,改图先改本表。
 //   中央全息球=脑(会话席+自态+记忆)  球座环=喙(NAV 钱芯)
-//   环台9晶球=9器官  站位机器人×6=常驻机  后墙4屏=四面板
+//   环台9穹顶=9器官  壁际机面半球=常驻机  后墙4屏=四面板
 //   桌面件=待办浮件  底缘=事实尾流  顶角=警报灯
 import { useEffect, useRef, useState } from "react";
-import botStandUrl from "../assets/wall-station.png";
 import rackUrl from "../assets/server-rack.png";
 import globeUrl from "../assets/holo-globe.png";
 import rimUrl from "../assets/rim-front.png";
@@ -39,9 +38,13 @@ const SEAT_POS = [
   [22.3, 59.2, 0.8], [31.5, 54.6, 0.7], [24.0, 67.2, 0.85], [34.7, 76.4, 0.95],
   [50.7, 78.5, 1.05], [64.8, 77.9, 1.0], [79.0, 71.8, 0.9], [87.3, 66.5, 0.8], [73.4, 54.2, 0.7],
 ];
-const MACH_POS = [[6, 44], [14, 44], [22, 45], [30, 45], [68, 45], [76, 45], [84, 44], [90, 44]];
-// 物理主机机柜位——左右墙脚地板线,真硬件件(非人形:器/服/机三形分家)
-const HOST_POS = [[4, 47], [96, 47], [40, 46], [60, 46]];
+// 常驻机=壁际工位机上台面的半球——一台一桌面,穹底压台面(cover裁切换算同SEAT_POS)
+const MACH_POS = [
+  [11.5, 34.0], [17.5, 34.4], [23.5, 34.8], [29.5, 35.2],
+  [66.5, 33.4], [73.0, 34.0], [79.5, 34.6], [86.5, 35.2],
+];
+// 物理主机机柜位——左右墙脚地板线立置,真硬件件(非人形:器/服/机三形分家)
+const HOST_POS = [[4, 49.5], [96, 49.5], [40, 48.5], [60, 48.5]];
 // 台面工单板位——环台面环带散件,一待办一板(原图台面散件=活工单)
 const PAD_POS = [[50, 70], [65.4, 67.4], [34.6, 67.4], [70.8, 64.5], [29.2, 64.5], [73.6, 60.9], [26.4, 60.9], [50, 74]];
 const SCREEN_POS = { A: [9, 15], B: [24, 15], C: [70, 15], D: [86, 15] } as const;
@@ -153,13 +156,13 @@ export function FloorStage(p: StageProps) {
       {/* 前台环缘遮罩——原图前唇盖座机下半身:机埋台缘凹槽非浮台面 */}
       <img src={rimUrl} className="fs-rim" style={{ left: "50%", top: "64%" }} alt="" draggable={false} />
 
-      {/* 站位机器人×6=常驻机——站姿机贴图,断流灰红 */}
+      {/* 常驻机=壁际工位机上半球——稼働=青稳呼吸,断流=灰退赤急搏 */}
       {p.machines.map((m, k) => (
         <button key={m.name} className={`fs-machwrap${m.ok ? "" : " off"}`}
           style={{ left: `${MACH_POS[k][0]}%`, top: `${MACH_POS[k][1]}%` }}
           onClick={() => p.onPick({ k: "srv:" + m.name, x: 0, y: 0, title: `机柜 · ${m.name}`, body: [], to: "/device" })}>
-          <img src={botStandUrl} alt={m.name} className="fs-botm" draggable={false} />
-          <span className="fs-breath" />
+          <span className="fs-mshadow" />
+          <span className="fs-mdome" />
           <span className="fs-mach"><span className={`fs-dot ${m.ok ? "ok" : "bad"}`} />{m.name}</span>
         </button>
       ))}
