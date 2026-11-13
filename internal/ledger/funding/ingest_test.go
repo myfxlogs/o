@@ -59,14 +59,17 @@ func TestIngestFundingAndFeeIdempotent(t *testing.T) {
 		{BillID: "bfee", SubType: "5", InstID: "BTC-USDT-SWAP", InstType: "SWAP",
 			Ccy: "USDT", TsMs: nowMs + 2, BalChg: -100.01, Fee: -0.01, Raw: []byte(`{}`)},
 		{BillID: "bskip", SubType: "1", InstID: "BTC-USDT-SWAP", InstType: "SWAP",
-			Ccy: "USDT", TsMs: nowMs + 3, BalChg: 50, Fee: 0, Raw: []byte(`{}`)}, // 非资金费无费=只留源
+			Ccy: "USDT", TsMs: nowMs + 3, BalChg: 50, Fee: 0, Raw: []byte(`{}`)}, // 未映射子型≠0→残差守恒落 unmapped_bill
 		{BillID: "bdust", SubType: "174", InstID: "DOGE-USDT-SWAP", InstType: "SWAP",
 			Ccy: "USDT", TsMs: nowMs + 4, BalChg: 0.001, Raw: []byte(`{}`)}, // 无归仓→position_ref NULL
 	}
 	ing := NewIngester(pool, fakeSrc{pages: map[string][]Bill{"": bills}})
 	n, err := ing.Ingest(ctx)
-	if err != nil || n != 4 {
-		t.Fatalf("首拉应记 4 单（174/173/fee/dust）got=%d err=%v", n, err)
+	// 升件#14671：残差守恒后 bfee(balChg-100.01-fee-0.01=残-100)与
+	// bskip(无费 balChg 50 未映射)各产 unmapped_bill 行——静默零覆盖
+	// 旧语义正是审计所销病灶，断言随守恒律更新。
+	if err != nil || n != 6 {
+		t.Fatalf("首拉应记 6 单（174/173/fee+残/dust/残）got=%d err=%v", n, err)
 	}
 	// 幂等：同批重放（重启重放径）——零新记。
 	n, err = ing.Ingest(ctx)
@@ -81,6 +84,8 @@ func TestIngestFundingAndFeeIdempotent(t *testing.T) {
 		{"funding_settle", 1.23, true},
 		{"funding_settle", -0.5, true},
 		{"fee", -0.01, true},
+		{"unmapped_bill", -100, true},
+		{"unmapped_bill", 50, true},
 		{"funding_settle", 0.001, false},
 	} {
 		var amt float64
@@ -95,11 +100,12 @@ func TestIngestFundingAndFeeIdempotent(t *testing.T) {
 			t.Fatalf("%s %.3f 归仓位错: pos=%v", tc.kind, tc.amt, pos)
 		}
 	}
-	// 非资金费无费单：只留源行不入账。
+	// 未映射子型 balChg≠0：残差守恒落 unmapped_bill（adjustment 待归因）——
+	// 「只留源行不入账」旧语义=升件#14671 所销病灶本体。
 	var cnt int
 	if err := pool.QueryRow(ctx,
-		"SELECT count(*) FROM fin_cashflow c JOIN fin_venue_bill b ON c.source_ref=b.id WHERE b.bill_id='bskip'").Scan(&cnt); err != nil || cnt != 0 {
-		t.Fatalf("bskip 不应入账 cnt=%d", cnt)
+		"SELECT count(*) FROM fin_cashflow c JOIN fin_venue_bill b ON c.source_ref=b.id WHERE b.bill_id='bskip' AND c.kind='unmapped_bill'").Scan(&cnt); err != nil || cnt != 1 {
+		t.Fatalf("bskip 应落 unmapped_bill 1 行 cnt=%d", cnt)
 	}
 	// 源表 5 行全留档（对拍面）。
 	if err := pool.QueryRow(ctx, "SELECT count(*) FROM fin_venue_bill").Scan(&cnt); err != nil || cnt != 5 {

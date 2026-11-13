@@ -27,6 +27,11 @@ var kinds = map[string]bool{
 	// 共户托管账面归口；class=transfer 非策略线，earn_* 排除面不含=照入
 	// venue 净额对拍）。
 	"owner_in": true, "owner_out": true,
+	// 升件#14671：bill 未映射子型域 kind（fin_0075 册载而 DB/Go 闭集缺位
+	// 零写者病灶）——dust_*=残币归口(Easy convert)、supply_income=理财收益、
+	// airdrop=空投/奖励、unmapped_bill=残差守恒落账位（adjustment 待归因）。
+	"dust_in": true, "dust_out": true, "supply_income": true,
+	"airdrop": true, "unmapped_bill": true,
 }
 var ccys = map[string]bool{"USDT": true, "USD": true}
 

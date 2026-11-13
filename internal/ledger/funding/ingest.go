@@ -45,7 +45,26 @@ const (
 	subDcdSettle  = "161" // dcd 回款
 	subDcdYield   = "162" // dcd 收益
 	subDcdRefund  = "163" // dcd 退款
-	maxPages      = 5     // 单次事件拉取上限页（100/页——常规结算拍远不及）
+	// 升件#14671：册载 dust/supply/airdrop kind 子型映射（2026-11-13 实拉
+	// /api/v5/account/subtypes 权威典核证）——Easy convert=残币归口面；
+	// Auto Earn+ 息/质押奖/奖券=理财收益；bot airdrop/trading bonus 进出=
+	// 空投奖励域（出向负号原生=收益回冲如实）。
+	subEasyConvertIn  = "236" // type28 Easy convert in
+	subEasyConvertOut = "237" // type28 Easy convert out
+	subEarnInterest   = "381" // type1 Auto Earn+ lending interest
+	subEarnStaking    = "392" // type1 Auto Earn+ staking reward
+	subEarnBonus      = "429" // type1 Auto Earn+ Bonus
+	subBotAirdropIn   = "372" // type12 Bot airdrop transfer in
+	subBotAirdropOut  = "373" // type12 Bot airdrop transfer out
+	subAirdropReclIn  = "374" // type12 Bot airdrop reclaim transfer in
+	subAirdropReclOut = "375" // type12 Bot airdrop reclaim transfer out
+	subTradingBonusIn = "288" // type1 Trading bonus transfer in
+	subBonusReclamOut = "292" // type1 Trading bonus reclamation transfer out
+	// type1 划转双腿——残差守恒排外域：内部划转现金由 withdrawal/deposit
+	// 终证扫描径记账（withdraw 案行钦定「划转行禁记账」），bill 侧补记=双计。
+	subTransferIn  = "11" // type1 Transfer in
+	subTransferOut = "12" // type1 Transfer out
+	maxPages       = 5    // 单次事件拉取上限页（100/页——常规结算拍远不及）
 )
 
 // instTypesAll 账单拉取型谱（T-0062 根修②：SWAP+SPOT 双采——现货腿成本归集）。
@@ -156,12 +175,27 @@ func (i *Ingester) record(ctx context.Context, b Bill) (int, error) {
 			kind = "owner_in"
 		}
 		return 1, i.post(ctx, kind, b.BalChg, b, ccy, srcID, occurred)
+	case subEasyConvertIn:
+		return 1, i.post(ctx, "dust_in", b.BalChg, b, ccy, srcID, occurred)
+	case subEasyConvertOut:
+		return 1, i.post(ctx, "dust_out", b.BalChg, b, ccy, srcID, occurred)
+	case subEarnInterest, subEarnStaking, subEarnBonus:
+		return 1, i.post(ctx, "supply_income", b.BalChg, b, ccy, srcID, occurred)
+	case subBotAirdropIn, subBotAirdropOut, subAirdropReclIn, subAirdropReclOut,
+		subTradingBonusIn, subBonusReclamOut:
+		return 1, i.post(ctx, "airdrop", b.BalChg, b, ccy, srcID, occurred)
 	default:
 		n := 0
-		if b.Fee != 0 { // 交易费/返佣（开平仓 taker 费入 fee kind）
+		// 升件#14672：SPOT/MARGIN 现货腿走 legCash 毛额对称径（fee 已按
+		// fin_order_leg 源落账——升件#10063① trade_pnl 同闸先例）——
+		// bill 侧 fee/pnl/残差补记皆双计，整支跳过。
+		spotLike := b.InstType == "SPOT" || b.InstType == "MARGIN"
+		covered := 0.0
+		if b.Fee != 0 && !spotLike { // 交易费/返佣（衍生品开平仓 taker 费入 fee kind）
 			if err := i.post(ctx, "fee", b.Fee, b, ccy, srcID, occurred); err != nil {
 				return n, err
 			}
+			covered += b.Fee
 			n++
 		}
 		// 升件#10063①：合约域 trade bill 现金守恒——balChg=PnL+fee，
@@ -171,6 +205,19 @@ func (i *Ingester) record(ctx context.Context, b Bill) (int, error) {
 		// bill 补记=双计——本支只钉衍生品型谱。
 		if b.Pnl != 0 && (b.InstType == "SWAP" || b.InstType == "FUTURES" || b.InstType == "OPTION") {
 			if err := i.post(ctx, "trade_pnl", b.Pnl, b, ccy, srcID, occurred); err != nil {
+				return n, err
+			}
+			covered += b.Pnl
+			n++
+		}
+		// 升件#14671：现金守恒兜底——未映射子型 balChg 未被 fee/pnl 分量
+		// 覆盖部分落 unmapped_bill（adjustment 待归因；静默零覆盖=对账
+		// phantom diff 源）。衍生品行 covered=balChg 零残差不产行；
+		// 划转双腿排外——现金已由 withdrawal/deposit 终证扫描径记账。
+		if rem := b.BalChg - covered; !spotLike &&
+			b.SubType != subTransferIn && b.SubType != subTransferOut &&
+			(rem > 1e-9 || rem < -1e-9) {
+			if err := i.post(ctx, "unmapped_bill", rem, b, ccy, srcID, occurred); err != nil {
 				return n, err
 			}
 			n++

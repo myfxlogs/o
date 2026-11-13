@@ -180,6 +180,7 @@ var migrationTable = []struct {
 	{171, "fin_0171_klines.sql"},
 	{172, "fin_0172_retire_postmortem.sql"},
 	{173, "fin_0173_klines_research_grant.sql"},
+	{174, "fin_0174_bill_kind_close_set.sql"},
 
 	// —— md 链（版本链内唯一且单调；md 链版本=历史号+1000 与 fin 键空间全局不相交——跨链并 schema 时 schema_migrations 零撞号，check_migrations 断言①⑤）——
 	{1003, "md_1003_market_facts.sql"},
