@@ -33,10 +33,10 @@ func subscribeArgs(syms []string) []map[string]string {
 	return args
 }
 
-// subArgs tickers 增删订阅帧（op=subscribe/unsubscribe——活跃集动态重订不重建连接）。
-func subArgs(op, inst string) map[string]any {
+// subArgs 增删订阅帧（op=subscribe/unsubscribe——活跃集动态重订不重建连接）。
+func subArgs(op, channel, inst string) map[string]any {
 	return map[string]any{"op": op,
-		"args": []map[string]string{{"channel": "tickers", "instId": inst}}}
+		"args": []map[string]string{{"channel": channel, "instId": inst}}}
 }
 
 // subscribeAll ≤100 args/帧分帧订阅（帧间节流 50ms）。
@@ -117,7 +117,9 @@ func (c *Collector) syncActiveSet(ctx context.Context, conn *websocket.Conn,
 		if !tickGate(inst, valid, refused, subTick) {
 			continue
 		}
-		adds = append(adds, map[string]string{"channel": "tickers", "instId": inst})
+		adds = append(adds,
+			map[string]string{"channel": "tickers", "instId": inst},
+			map[string]string{"channel": "candle1D", "instId": inst}) // 工单#13065 日K尾流随活跃集
 	}
 	if err := subscribeAll(conn, adds); err != nil {
 		return
@@ -127,8 +129,10 @@ func (c *Collector) syncActiveSet(ctx context.Context, conn *websocket.Conn,
 	}
 	for inst := range subTick {
 		if !set[inst] {
-			if err := conn.WriteJSON(subArgs("unsubscribe", inst)); err != nil {
-				return
+			for _, ch := range []string{"tickers", "candle1D"} {
+				if err := conn.WriteJSON(subArgs("unsubscribe", ch, inst)); err != nil {
+					return
+				}
 			}
 			delete(subTick, inst)
 		}

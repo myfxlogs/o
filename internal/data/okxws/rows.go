@@ -36,6 +36,22 @@ type rowItem struct {
 	funding *fundingRow
 	mark    *markRow
 	depth5  *depth5Row
+	kline   *klineRow
+}
+
+// klineRow candle* 频道 K 线行（工单#13065 日K数据面——confirm=false 为
+// 形成中帧随 tick 覆写；confirm=true 收线帧终态必落）。bar=周期名（1D 首发）。
+type klineRow struct {
+	instID  string
+	bar     string
+	ts      time.Time
+	o       float64
+	h       float64
+	l       float64
+	c       float64
+	vol     float64
+	volCcy  float64
+	confirm bool
 }
 
 // depth5Row books5 蒸馏特征行（T-0139/D-0022：特征值非原始盘口——top5
