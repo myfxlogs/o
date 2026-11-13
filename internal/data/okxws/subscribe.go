@@ -102,7 +102,8 @@ func tickGate(inst string, valid, refused, subTick map[string]bool) bool {
 // 标的，∩订阅宇宙 syms 才发 tickers 帧；②加订分帧节流≤100 args/帧
 // ——60014 限频实证；③60018 拒收集 refused 本连接内不再重发）。
 func (c *Collector) syncActiveSet(ctx context.Context, conn *websocket.Conn,
-	syms []string, subTick, refused map[string]bool) {
+	syms []string, subTick map[string]bool) {
+	refused := c.refuseSnap() // 拒集快照（business 臂并写同表——锁内读件）
 	valid := map[string]bool{}
 	for _, s := range syms {
 		valid[s] = true
@@ -117,9 +118,7 @@ func (c *Collector) syncActiveSet(ctx context.Context, conn *websocket.Conn,
 		if !tickGate(inst, valid, refused, subTick) {
 			continue
 		}
-		adds = append(adds,
-			map[string]string{"channel": "tickers", "instId": inst},
-			map[string]string{"channel": "candle1D", "instId": inst}) // 工单#13065 日K尾流随活跃集
+		adds = append(adds, map[string]string{"channel": "tickers", "instId": inst})
 	}
 	if err := subscribeAll(conn, adds); err != nil {
 		return
@@ -129,10 +128,8 @@ func (c *Collector) syncActiveSet(ctx context.Context, conn *websocket.Conn,
 	}
 	for inst := range subTick {
 		if !set[inst] {
-			for _, ch := range []string{"tickers", "candle1D"} {
-				if err := conn.WriteJSON(subArgs("unsubscribe", ch, inst)); err != nil {
-					return
-				}
+			if err := conn.WriteJSON(subArgs("unsubscribe", "tickers", inst)); err != nil {
+				return
 			}
 			delete(subTick, inst)
 		}

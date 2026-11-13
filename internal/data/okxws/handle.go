@@ -23,8 +23,8 @@ func (c *Collector) handle(data []byte) {
 			log.Printf("[okxws] 服务端 error 帧: %s", data)
 			// T-0133 ③60018 拒收集：带 instId 的服务端拒收记黑名单——本连接
 			// 内 syncActive 不再重发（重连清表自然放行）。
-			if c.refuseSub != nil && msg.Arg.InstID != "" {
-				c.refuseSub[msg.Arg.InstID] = true
+			if msg.Arg.InstID != "" {
+				c.refuseMark(msg.Arg.InstID)
 			}
 		}
 		return // subscribe ack/channel-conn-count/error 留痕非业务帧
