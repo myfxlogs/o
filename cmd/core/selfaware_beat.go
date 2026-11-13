@@ -149,17 +149,8 @@ func (c coreService) selfAwareBeat(ctx context.Context) {
 	} else if lastClose != nil && time.Since(*lastClose) > 2*time.Hour {
 		flag("收口陈", fmt.Sprintf("收口陈%s", time.Since(*lastClose).Round(time.Minute)))
 	}
-	var spawnless int
-	// 在飞宽限15min：唤起后秒级无配对=会话在跑非孤儿（观测时长32-202s），
-	// 无宽限=每拍必中在飞唤，旗沦为常开噪声掩真孤儿（87帧实证）。
-	if err := c.pool.QueryRow(ctx, `SELECT count(*) FROM ops_event e
-		WHERE e.event='唤起' AND e.ts>now()-interval '2 hours'
-			AND e.ts<now()-interval '15 minutes'
-		AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.ts>e.ts
-			AND x.event IN ('唤起果','唤起败','会话收口')
-			AND x.note LIKE '%'||substring(e.note from 'unit=[^ ]+')||'%')`).
-		Scan(&spawnless); err == nil && spawnless > 0 {
-		flag("唤起无果", fmt.Sprintf("唤起无果%d", spawnless))
+	if n, err := c.spawnlessOrphans(ctx); err == nil && n > 0 {
+		flag("唤起无果", fmt.Sprintf("唤起无果%d", n))
 	} else if err != nil {
 		flag("唤起?", "唤起?")
 	}
@@ -208,4 +199,19 @@ func truncRunes(s string, n int) string {
 		return s
 	}
 	return string(r[:n])
+}
+
+// spawnlessOrphans 唤起无果计数——2h 窗内唤起行无 unit 配对收口/果/败。
+// 在飞宽限15min：唤起后秒级无配对=会话在跑非孤儿（观测时长32-202s），
+// 无宽限=每拍必中在飞唤，旗沦为常开噪声掩真孤儿（87帧实证）。
+func (c coreService) spawnlessOrphans(ctx context.Context) (int, error) {
+	var n int
+	err := c.pool.QueryRow(ctx, `SELECT count(*) FROM ops_event e
+		WHERE e.event='唤起' AND e.ts>now()-interval '2 hours'
+			AND e.ts<now()-interval '15 minutes'
+		AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.ts>e.ts
+			AND x.event IN ('唤起果','唤起败','会话收口')
+			AND x.note LIKE '%'||substring(e.note from 'unit=[^ ]+')||'%')`).
+		Scan(&n)
+	return n, err
 }
