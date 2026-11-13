@@ -135,6 +135,7 @@ func (c coreService) cognitionEscCheck(ctx context.Context, deadSince map[string
 func (c coreService) commercialEscCheck(ctx context.Context, deadSince map[string]time.Time) {
 	c.hungerGapEscCheck(ctx, deadSince) // 动机探同拍（钱面同域;feed_esc 棘轮满线不入册唤点）
 	c.paperDryEscCheck(ctx, deadSince)  // 练习场旱探同拍（动机面第二信号——零候选即旱）
+	c.goalIdleEscCheck(ctx, deadSince)  // 目标票怠探同拍（想要空转——OPEN票零推进即喊）
 	var net float64
 	var liveN, openPos int
 	if err := c.pool.QueryRow(ctx, `SELECT

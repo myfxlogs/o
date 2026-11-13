@@ -16,6 +16,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -63,4 +65,46 @@ func (c coreService) paperDryEscCheck(ctx context.Context, deadSince map[string]
 	c.escEdgeUV(ctx, deadSince, "动机", "paper_dry", "@", n == 0, func() string {
 		return "动机/paper_dry: 练习场零候选（paper+probe=0——无策略在练,经验管断料;补料归目标票/研究员提案径,admitProposals 开户面在案）"
 	})
+}
+
+// goalIdleEscCheck 目标票怠探（「想≠做」缝实证 2026-11-14：goal-nav-apr
+// 立票 10h 零推进——目标票躺工单面无拉力,升件面必拣而工单面可无视）。
+// 判据=状态非散文:OPEN goal 票(同 codeworkStall 未销形)票龄>4h 且
+// 近 8h 无任何处置行点名工单#id(推进/接续/挂起皆算在场触)。触出现=
+// 自复绿,复怠=新回合照火(escalateUnresolved 律)。探针只喊不开药:
+// 认领票干活∨接续挂起留据∨证伪销票,裁径归会话(runbook 动机档)。
+func (c coreService) goalIdleEscCheck(ctx context.Context, deadSince map[string]time.Time) {
+	rows, err := c.pool.Query(ctx, `SELECT e.id, left(e.note,50),
+		round(extract(epoch from now()-e.ts)/3600)
+		FROM ops_event e WHERE e.event='工单' AND e.note LIKE '工单/goal-%'
+		AND e.ts > now() - interval '30 days' AND e.ts < now() - interval '4 hours'
+		AND NOT EXISTS (SELECT 1 FROM ops_event d WHERE d.event='处置'
+			AND d.id>e.id AND d.note ~ ('工单#'||e.id||'([^0-9]|$)')
+			AND d.note NOT LIKE '%挂起条件=%' AND d.note !~ ('工单#'||e.id||' ?接续'))
+		AND NOT EXISTS (SELECT 1 FROM ops_event d WHERE d.event='处置'
+			AND d.id>e.id AND d.note ~ ('工单#'||e.id||'([^0-9]|$)')
+			AND d.ts > now() - interval '8 hours')
+		ORDER BY e.id LIMIT 8`)
+	if err != nil {
+		return // 读件败本拍让位
+	}
+	defer rows.Close()
+	var parts []string
+	var ids []string
+	for rows.Next() {
+		var id int64
+		var note string
+		var age float64
+		if rows.Scan(&id, &note, &age) != nil {
+			return
+		}
+		ids = append(ids, strconv.FormatInt(id, 10))
+		parts = append(parts, fmt.Sprintf("#%d(%.0fh):%s", id, age, note))
+	}
+	c.escEdgeUV(ctx, deadSince, "动机", "goal_idle",
+		strings.Join(ids, "+"), len(ids) > 0, func() string {
+			return fmt.Sprintf(
+				"动机/goal_idle: %d 张目标票期限内零推进（%s）——想要空转:认领=拣票干活写推进行∨接续挂起留据∨证伪销票,禁无视(runbook 动机档)",
+				len(ids), strings.Join(parts, "、"))
+		})
 }
