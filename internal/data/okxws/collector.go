@@ -35,12 +35,13 @@ const (
 
 // Collector OKX 公开 WS 采集器（连接+订阅+读循环+断线重连）。
 type Collector struct {
-	pool   *pgxpool.Pool
-	cfg    *config.Client
-	rej    *rejects.Door
-	url    string // 测试覆写指向 fake server
-	bizURL string // business 端点（测试覆写指 fake——klineLoop 用）
-	queue  chan rowItem
+	pool    *pgxpool.Pool
+	cfg     *config.Client
+	rej     *rejects.Door
+	url     string  // 测试覆写指向 fake server
+	bizURL  string  // business 端点（测试覆写指 fake——klineLoop 用）
+	restGet ScanGet // REST 公开读件（AttachRestGet 注——回填臂用,nil=臂停）
+	queue   chan rowItem
 
 	frames    atomic.Int64 // 业务帧计数（观测面）
 	lastFrame atomic.Int64 // 最近业务帧 UnixNano（status 端点/看门狗同读）
@@ -88,7 +89,7 @@ func NewCollector(pool *pgxpool.Pool, cfg *config.Client) *Collector {
 	return &Collector{
 		pool: pool, cfg: cfg, url: PublicURL, bizURL: BusinessURL,
 		rej: rejects.New("okxws", "non_usdt_instid", "seq_gap", "parse_fail", "write_err", "symbols_missing",
-			"activeset_read_failed", "depth5_no_ctval"),
+			"activeset_read_failed", "depth5_no_ctval", "klineback_err"),
 		queue:     make(chan rowItem, 1024),
 		refuseSub: map[string]bool{},
 		passAt:    make(map[string]time.Time),
@@ -108,8 +109,9 @@ func (c *Collector) Run(ctx context.Context, errc chan<- error) {
 	}
 	go roster.BeatLoop(ctx, c.pool, employeeName, 30*time.Second, errc)
 	go c.writer(ctx)
-	go c.staleWatch(ctx) // T-0129 面级断流告警（全订阅标的齐冻=面死显形）
-	go c.klineLoop(ctx)  // 工单#13065：business 端点 candle1D 日K臂（独立连接）
+	go c.staleWatch(ctx)   // T-0129 面级断流告警（全订阅标的齐冻=面死显形）
+	go c.klineLoop(ctx)    // 工单#13065：business 端点 candle1D 日K臂（独立连接）
+	go c.backfillLoop(ctx) // 工单#13065 切片③：日K史面自举回填臂
 
 	backoff := backoffMin
 	for ctx.Err() == nil {

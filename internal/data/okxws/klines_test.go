@@ -131,3 +131,69 @@ func TestKlineDialFeedE2E(t *testing.T) {
 		time.Sleep(150 * time.Millisecond) // sched-exempt-ok（桩断言轮询期界）
 	}
 }
+
+// 切片③桩：backfillSweep——REST 页滤 confirm=1 收线行+剔库内已有 ts+
+// 形成中帧弃（归 WS 臂）；fake restGet 注入免 venue。
+func TestKlineBackfillSweep(t *testing.T) {
+	ctx := context.Background()
+	pool := testutil.Pool(t)
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM md_klines`); err != nil {
+		t.Fatal(err)
+	}
+	// 预置已收线行 ts=1794412800000（库内已有→应跳过不覆写）。
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO md_klines(venue,inst_id,bar,ts,o,h,l,c,vol,vol_ccy,confirm,recv_ts)
+		 VALUES('okx','XBK-USDT-SWAP','1D',to_timestamp(1794412800000.0/1000),9,9,9,9,9,9,true,now())`); err != nil {
+		t.Fatal(err)
+	}
+	page := `[` +
+		`["1794499200000","1","2","1","1.5","10","10","100","0"],` + // 形成中帧→弃
+		`["1794412800000","1","2","1","1.5","10","10","100","1"],` + // 已收线在库→跳
+		`["1794326400000","1","2","1","1.5","10","10","100","1"],` + // 缺齿→补
+		`["1794240000000","1","2","1","1.5","10","10","100","1"]]` // 缺齿→补
+	c := NewCollector(pool, nil)
+	c.AttachRestGet(func(ctx context.Context, pq string) (json.RawMessage, error) {
+		if !strings.Contains(pq, "history-candles") || !strings.Contains(pq, "instId=XBK-USDT-SWAP") {
+			t.Fatalf("回填请求形异: %s", pq)
+		}
+		return json.RawMessage(page), nil
+	})
+	// 活跃集真源=legset.ActiveSetUnion——桩造 fin_strategy live 行供枚举。
+	var sid int64
+	if err := pool.QueryRow(ctx,
+		`INSERT INTO fin_strategy(inst_id,template_ref,state,notional_usd,venue)
+		 VALUES('XBK-USDT-SWAP','backfill-test','live',1,'okx') RETURNING id`).Scan(&sid); err != nil {
+		t.Fatal(err)
+	}
+	ctx2, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go c.writer(ctx2)
+	c.backfillSweep(ctx2)
+
+	deadline := time.Now().Add(8 * time.Second)
+	for {
+		var n int
+		_ = pool.QueryRow(ctx, `SELECT count(*) FROM md_klines WHERE inst_id='XBK-USDT-SWAP'`).Scan(&n)
+		if n >= 3 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("回填缺齿未落: n=%d", n)
+		}
+		time.Sleep(100 * time.Millisecond) // sched-exempt-ok（桩断言轮询期界）
+	}
+	// 断言①：只补 2 行（预置行不覆写 recv_ts 应仍≈now 原值——count=3=1预置+2补）。
+	var n int
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM md_klines WHERE inst_id='XBK-USDT-SWAP' AND ts=to_timestamp(1794499200000.0/1000)`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("形成中帧被回填覆写——WS 臂主权被侵: n=%d err=%v", n, err)
+	}
+	// 断言②：两行皆 confirm=true 收线终态。
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM md_klines WHERE inst_id='XBK-USDT-SWAP' AND confirm=false`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("回填落了非收线行: n=%d err=%v", n, err)
+	}
+}

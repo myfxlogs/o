@@ -13,7 +13,8 @@ import (
 // fin_strategy 非 retired（projector serve 谓词同式自算不赖种子表；
 // tickers→md_ticks、funding→md_funding 同键幂等共写——dev 桥恢复后
 // 最新赢自动让位，行数不膨胀撕裂对拍）。读败=不落行 fail-closed。
-func attachLocalWritePred(ctx context.Context, c *okxws.Collector, pool *pgxpool.Pool) *okxws.Collector {
+func attachLocalWritePred(ctx context.Context, c *okxws.Collector, pool *pgxpool.Pool, get okxws.ScanGet) *okxws.Collector {
+	c.AttachRestGet(get) // 工单#13065③：日K史面回填读件（懒客 ScanGet 注入）
 	c.LocalWritePred = func(kind, instID string) bool {
 		var n int
 		if err := pool.QueryRow(ctx, `SELECT count(*) FROM (
