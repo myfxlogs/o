@@ -406,7 +406,7 @@ button.fs-ven:hover, button.fs-probe:hover, button.fs-queue:hover { background: 
 @keyframes fs-orbfloat {
   0%, 100% { transform: translate(-50%, -56%); box-shadow: 0 0 10px var(--og), 0 0 26px var(--og), inset 0 -8px 16px rgba(0,12,22,.42); }
   50% { transform: translate(-50%, -44%); box-shadow: 0 0 20px var(--og), 0 0 46px var(--og), inset 0 -8px 16px rgba(0,12,22,.42); } }
-.fs-orbshadow { position: absolute; left: 28%; right: 28%; top: 54%; height: 9%; border-radius: 50%; z-index: 1;
+.fs-orbshadow { position: absolute; left: 28%; right: 28%; top: 44%; height: 9%; border-radius: 50%; z-index: 1;
   background: radial-gradient(ellipse, var(--og) 0%, transparent 72%); pointer-events: none;
   animation: fs-orbsh 3.6s ease-in-out infinite; }
 @keyframes fs-orbsh { 0%, 100% { transform: scale(.8); opacity: .24; } 50% { transform: scale(1.12); opacity: .5; } }
@@ -423,8 +423,8 @@ button.fs-ven:hover, button.fs-probe:hover, button.fs-queue:hover { background: 
 .fs-seatwrap.pulse .fs-orb { filter: brightness(1.85) drop-shadow(0 0 22px rgba(160, 240, 255, .9)); }
 /* 单牌悬球下——有单即亮 */
 .fs-seatwrap .fs-tkt { top: 54%; right: -8%; }
-/* 名牌坠球下沿 */
-.fs-seatwrap .fs-seat { position: absolute; left: 50%; transform: translateX(-50%); bottom: 0; margin-top: 0; }
+/* 名牌钉投影下沿——各尺度间隙一致(原 bottom:0 随 wrap 高漂移) */
+.fs-seatwrap .fs-seat { position: absolute; left: 50%; transform: translateX(-50%); top: 56%; margin-top: 0; }
 /* 常驻机头顶呼吸灯(晶球无此件——球体本身即呼吸) */
 .fs-breath { position: absolute; top: 5%; left: 58%; width: 11%; aspect-ratio: 1; border-radius: 50%;
   --bc: #8fd4ff; background: var(--bc); box-shadow: 0 0 8px 2px var(--bc);
