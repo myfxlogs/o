@@ -45,6 +45,14 @@ psql "$FIN_DSN" -qAt -c "SELECT note FROM ops_event
 # 收口/卡在=OPEN票前3」一页读尽,会话猝死也不断更;同为取向面非真相源）:
 psql "$FIN_DSN" -qAt -c "SELECT note FROM ops_event
   WHERE event='量表' AND ticket='self_narrative' ORDER BY id DESC LIMIT 1"
+# 自观帧（工单#13540 器官——本体觉三问量表:赚/动/息/办/卡五段;卡旗=
+# 唤起无果/票过期/器官僵/收口陈 显式判读,卡≠0先处置再开新活）:
+psql "$FIN_DSN" -qAt -c "SELECT note FROM ops_event
+  WHERE event='量表' AND ticket='self_aware' ORDER BY id DESC LIMIT 1"
+# 懂你口径页（工单#11384 器官——业主意图十键口径账:红线/放权/读面/亏损
+# 预算/解锁/自裁/成年判据/问≠令/目的锚/生成径;判词引 口径:<键> 即锚业主令）:
+psql "$FIN_DSN" -qAt -c "SELECT note FROM ops_event
+  WHERE event='口径' AND ticket='owner_intent' ORDER BY id"
 # 审计前任悬置：audit 支未入 master 且带 RED→复证补升件
 git -C /opt/o fetch -p origin -q 2>/dev/null
 git -C /opt/o branch -r --no-merged origin/master | grep -E 'audit/'
@@ -505,12 +513,19 @@ dispatch 未入支板（pendbr）兜底在案,工单是正道pendbr是保险。
   「落工单补票」律即本条的前身,本条是其泛化。
 - **收口行必落账**——退前必 INSERT（面净也写,「面净:<读数>」=判词非无货）:
   `INSERT INTO ops_event(seat,event,ticket,note)
-   VALUES('唤知','会话收口','','unit='$COG_UNIT' <轮次>:<判词>')`。
+   VALUES('唤知','会话收口','','unit='$COG_UNIT' <轮次>:<判词> 用帧=<键集|无>')`。
   本行=唤起配对行+释锁契（唤起∧无唤起败∧无后随收口=在飞判据）+自态账页
   「上轮=」源——缺行=唤起成幻影、账页断帧、排查须跨机翻 transcript
   （2026-11-13 断代实证：写法靠续会话部落记忆传,SG 换机断代即丢,
   唤起四连零账行）。壳兜底另有唤起果/唤起败行管「活没活」,
   本行管「判了什么」——两层不替。
+  **用帧契**（器官闭环账——判词尾必载）：`用帧=<键,逗分|无>`=本轮判词
+  **实际引用**的器官产出键,集=自态/叙事/自观/懂你/做梦/模式行
+  （对应 self_state/self_narrative/self_aware/owner_intent/dream_replay/
+  pattern-canon）。冷启动眼过不算用——判词里真引了才算；处置 note 引
+  `口径:<键>`/自观卡旗判词/回放推演 都算用。`用帧=无` 合法如实——
+  帧产而无人用=器官问题非会话问题,用法账=器官迭代唯一输入面
+  （引用率升件面在册,勿为凑数虚报——虚报=记忆律违）。
 末尾自查：无信号被你处置后仍裸着,无你发现而未立票的真缺口,收口行落账。
 然后退。
 

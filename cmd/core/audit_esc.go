@@ -46,6 +46,7 @@ func (c coreService) cognitionSpawnFailEscCheck(ctx context.Context, deadSince m
 		})
 	}
 	c.spawnOrphanEscCheck(ctx, deadSince) // 唤起孤儿探同拍（唤知面同域;feed_esc 棘轮满线不入册唤点）
+	c.frameUseEscCheck(ctx, deadSince)    // 器官闭环账探同拍（同上不入册）
 }
 
 // spawnOrphanEscCheck 唤起孤儿探——唤起行超 3h 无 unit 配对果/败/收口=
@@ -76,6 +77,39 @@ func (c coreService) spawnOrphanEscCheck(ctx context.Context, deadSince map[stri
 	c.escEdgeUV(ctx, deadSince, "唤知", "spawn_orphan", "@", n > 0, func() string {
 		return fmt.Sprintf(
 			"唤知/spawn_orphan: %d 唤起超 3h 无配对果/败/收口——会话吊死或宿主亡无 trap 落行,认知环自死不知死（自观帧卡旗同源,此探=升件径）", n)
+	})
+}
+
+// frameUseEscCheck 器官闭环账探——用帧契(runbook收口契「用帧=<键|无>」)两档:
+//
+//	frame_use_gap:   契活后唤知收口行缺 用帧= 字段=契约漂移(会话没接新契);
+//	frame_use_zero:  契行≥3 而全数 用帧=无=器官产出零引用——
+//	  「帧产无人用=器官空转」升件径,用法账=器官迭代唯一输入面(无探针
+//	  盯=该账又是「写了没人读」表,本探即其消费面)。
+//
+// 自锚同孤儿探——锚=首条载 用帧= 的唤知收口行;契未上线判集恒空探针自闭。
+// 3d 窗:漂移/零引行 append-only 出窗自然转绿销案。
+func (c coreService) frameUseEscCheck(ctx context.Context, deadSince map[string]time.Time) {
+	var n, missing, zero int
+	if err := c.pool.QueryRow(ctx, `SELECT count(*),
+		count(*) FILTER (WHERE e.note !~ '用帧='),
+		count(*) FILTER (WHERE e.note ~ '用帧=无')
+		FROM ops_event e
+		WHERE e.event='会话收口' AND e.seat='唤知'
+		AND e.ts>now()-interval '3 days'
+		AND e.ts>(SELECT COALESCE(min(x.ts),now()) FROM ops_event x
+			WHERE x.event='会话收口' AND x.seat='唤知' AND x.note ~ '用帧=')`).
+		Scan(&n, &missing, &zero); err != nil {
+		return // 读件败本拍让位
+	}
+	compl, used := n-missing, n-missing-zero
+	c.escEdgeUV(ctx, deadSince, "唤知", "frame_use_zero", "@", compl >= 3 && used == 0, func() string {
+		return fmt.Sprintf(
+			"唤知/frame_use_zero: 3d 窗唤知契行 %d 条全 用帧=无——器官产出零引用(帧产无人用=器官空转),器官迭代输入面断供,判词面定性归唤知会话", compl)
+	})
+	c.escEdgeUV(ctx, deadSince, "唤知", "frame_use_gap", "@", missing > 0, func() string {
+		return fmt.Sprintf(
+			"唤知/frame_use_gap: 用帧契活后唤知收口 %d 行缺用帧=字段——契约漂移(runbook 收口格式被绕,会话未接新契)", missing)
 	})
 }
 
