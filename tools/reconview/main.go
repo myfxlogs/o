@@ -36,7 +36,9 @@ func main() {
 	// ── venue 现读（venue_readers.go 同径：trading=md_account_events 最新
 	// account 快照帧基金口径 eqUsd 求和——T-0123 状态表下跨频道取最新行会
 	// 采到 balance_and_position 帧（data 无 details[]→trading 整量漏算零，
-	// 假差≈trading 全额）;funding/savings/dcd=REST 活读,usd=false 原币量；
+	// 假差≈trading 全额）;帧缺/读败→REST /account/balance 兜底
+	// （tradingFundEq 同径,双径俱败显名 venErr 非静默）;
+	// funding/savings/dcd=REST 活读,usd=false 原币量；
 	// 非本位币走 FundCcy 白名单闸——托管尘不键）。
 	ven := map[[2]string]float64{}
 	fset, _ := ledger.FundCcy(ctx, pool)
@@ -45,21 +47,28 @@ func main() {
 	}
 	var venErr []string
 	var data json.RawMessage
-	if pool.QueryRow(ctx, `SELECT data FROM md_account_events
-		WHERE channel='account' ORDER BY ts DESC LIMIT 1`).Scan(&data) == nil {
-		var top struct {
-			Details []struct {
-				Ccy   string `json:"ccy"`
-				EqUsd string `json:"eqUsd"`
-			} `json:"details"`
-		}
-		if json.Unmarshal(data, &top) == nil {
-			for _, d := range top.Details {
-				if emitOK("trading", d.Ccy) {
-					ven[[2]string{"okx", "USDT"}] += pf(d.EqUsd)
-				}
+	type detailRow struct {
+		Ccy   string `json:"ccy"`
+		EqUsd string `json:"eqUsd"`
+	}
+	tradingSum := func(rows []detailRow) float64 {
+		var sum float64
+		for _, d := range rows {
+			if emitOK("trading", d.Ccy) {
+				sum += pf(d.EqUsd)
 			}
 		}
+		return sum
+	}
+	tradingRead := false
+	var top struct {
+		Details []detailRow `json:"details"`
+	}
+	if err := pool.QueryRow(ctx, `SELECT data FROM md_account_events
+		WHERE channel='account' ORDER BY ts DESC LIMIT 1`).Scan(&data); err == nil &&
+		json.Unmarshal(data, &top) == nil && tradingSum(top.Details) > 0 {
+		ven[[2]string{"okx", "USDT"}] += tradingSum(top.Details)
+		tradingRead = true
 	}
 	var cred okxexec.Credentials
 	var cli *okxexec.Client
@@ -110,6 +119,25 @@ func main() {
 		} else {
 			for _, od := range ords {
 				ven[[2]string{"okx", od.NotionalCcy}] += pf(od.NotionalSz)
+			}
+		}
+		if !tradingRead {
+			// 帧缺/读败→REST /account/balance 兜底（tradingFundEq 同径;
+			// Get 已剥 data 壳）——禁静默归零,双径俱败显名上账。
+			raw, err := cli.Get(ctx, "/api/v5/account/balance")
+			var rows []struct {
+				Details []detailRow `json:"details"`
+			}
+			var sum float64
+			if err == nil && json.Unmarshal(raw, &rows) == nil && len(rows) > 0 {
+				sum = tradingSum(rows[0].Details)
+			}
+			if sum > 0 {
+				ven[[2]string{"okx", "USDT"}] += sum
+			} else if err != nil {
+				venErr = append(venErr, "trading 读败(帧缺+REST兜底俱败,分量缺读数偏低): "+err.Error())
+			} else {
+				venErr = append(venErr, "trading 分量缺: account 帧+REST 均无 details 行")
 			}
 		}
 	}

@@ -6,7 +6,7 @@ risk: medium
 status: verified
 keywords: [reconview, md_account_events, balance_and_position, 状态表, 跨频道最新行, 假差, trading 漏算]
 scope: [tools/reconview, md_account_events 读面, 对账升件面]
-summary: "状态表(T-0123 键=venue/channel/ccy/inst_id 各存一最新行)下「跨频道 ORDER BY ts DESC」拿到的是最常被写的那类帧不是目标帧。reconview trading 读 channel IN (account,balance_and_position) 取最新行——b&p 帧成交后高频刷新占头而其 data 无 details[] 键→trading 整量漏算→假差=trading 全额(升件#13297 实读 11279.26 vs 真 11306.18 差恰 $26.92)。修=频道锚定 WHERE channel='account'。"
+summary: "状态表(T-0123 键=venue/channel/ccy/inst_id 各存一最新行)下「跨频道 ORDER BY ts DESC」拿到的是最常被写的那类帧不是目标帧。reconview trading 读 channel IN (account,balance_and_position) 取最新行——b&p 帧成交后高频刷新占头而其 data 无 details[] 键→trading 整量漏算→假差=trading 全额(升件#13297 实读 11279.26 vs 真 11306.18 差恰 $26.92)。修=频道锚定 WHERE channel='account'+帧缺/读败走 REST /account/balance 兜底(tradingFundEq 同径),双径俱败显名 venErr——吞错=假差。"
 first_seen: 2026-11-13
 last_verified: 2026-11-13
 skills: []
@@ -28,7 +28,7 @@ details[] 键——解析零行,trading 分量静默归零。无 error、无
 WARN——水面以下假差。
 
 **修法**：读口径按帧形状锚定频道——`WHERE channel='account'`
-（快照帧带 details[]）。普律：对状态表写「最新帧」查询前先问
+（快照帧带 details[]）,帧缺/读败→REST /account/balance 兜底,双径俱败显名 venErr 不吞。普律：对状态表写「最新帧」查询前先问
 目标 schema 存在哪些频道行；字段回退（eqUsd‖eq）救不了整键
 缺席。侦测器 r.bal 走 REST 活读径（T-0048）不受此害——本坑仅
 诊断透镜面。
