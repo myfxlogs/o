@@ -103,6 +103,7 @@ func (r *Runner) scan(ctx context.Context) error {
 	if err := r.retireStalePaper(ctx); err != nil { // T-0286：paper 墓碑锁解锁——领取前释放同键槽
 		return err
 	}
+	r.retireLessonMine(ctx)                          // fin_0172：退役验尸产线——本拍新死同拍入经济矿（非致命径自含败）
 	if time.Since(r.frictionAt) > frictionCalEvery { // T-0521：实绩回灌 6h 拍（败不阻开户拍）
 		if err := r.frictionCalibrate(ctx); err != nil {
 			log.Printf("[lifecycle] friction 校准拍败: %v", err)

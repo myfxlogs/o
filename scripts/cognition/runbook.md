@@ -86,6 +86,9 @@ psql "$FIN_DSN" -c "SELECT id,signature,cluster_n,numbers FROM fin_eng_lesson
   WHERE verify_state='ai_evaluated' AND status='pending' ORDER BY id LIMIT 20"
 psql "$FIN_DSN" -c "SELECT id,kind,entity_ref,numbers FROM fin_econ_lesson
   WHERE status='pending' ORDER BY id LIMIT 20"
+# 族面集中度+练习场水位(钱面事实帧——单族集中/练习场空一眼见,动机档手段裁定素材):
+psql "$FIN_DSN" -c "SELECT template_ref,state,count(*) FROM fin_strategy
+  WHERE state IN ('paper','probe','live') GROUP BY 1,2 ORDER BY 1"
 # OPEN 工单(未销+无活在认领)——按期限序=施工面入口,认领/销/挂起三选一,不许无声跳过:
 # 销票引证剔「挂起条件=」与「接续」行(缓办/进度非完结,升件#12643);挂起引证在
 # 票期限内暂抑回列(票开着但缓办),过期回列复验——与 feed_esc tickEnded 同语义:
@@ -212,6 +215,28 @@ note=「反事实#<案id>-<slug>: 实态=<事实轨迹>；若<变量>→<推演>
     ③**一票一目标**,期限=自估,到期未达=票过期 codework_stall 催,
     差距仍在饿探再火=再立（上一目标为什么没达到,判词必写——
     这是「举一反三」的料）。先看自模账短板域再选手段（用帧=自模）。
+    **目标未达销票/过期=证伪案必落账**:
+    `INSERT INTO fin_econ_lesson(kind,entity_ref,numbers)
+     VALUES('falsified_verdict','goal:<slug>',
+       '{"goal":…,"means":…,"gap":…,"why":…}')`
+    ——败径变裁据,下轮饿火手段裁定先读它=重复失败改未来行动
+    （UNIQUE 一票一案幂等）。
+  - **手段裁定先读账**（禁盲选——funding-hedge 19/20 单族集中实证在
+    账,「再加同族」还是「开新族」由死法聚类说了算非惯性）：
+    `fin_econ_lesson` pending 里 retire_postmortem 簇=各族死法集
+    （同 template_ref/venue/reason 反复死=该组合已判死刑,别再喂）;
+    `docs/经济经验库/` 已 canon 案=先验模式;`策略评估与仓位` skill=
+    判据法源（置信界/依赖性/分数 f——新族 sizing 不许拍头）。
+  - **新族手段=验收必载 paper 实证**（生命周期钦定径
+    proposed→paper→probe→live 机读判据在案——目标写「新族X赚」
+    验收行必须载 paper 判据过线行（min_hours/min_net/max_dd+
+    confGate+entryCond 五机读）或 paper_ttl_expired 验尸案归因;
+    paper 毕不了业的族不许喊 live——live 迁另有委员会开关位
+    (invest.lifecycle.live_switch)非本环自裁）。
+  - **paper_dry 升件**（动机面第二信号——练习场零候选=经验管断料）：
+    常径=立「进水口」目标票（验收=paper+probe 候选数≥N——上游供水
+    归假想链/研究员;断在 venue 能力面/凭据/KYC=条件请求径求供物,
+    票载挂起条件=供物#id）。
   - **物理前提缺**（venue/凭据/本金=业主供物件,无米不炊）→条件请求
     求供物,同时**仍立目标票**载「挂起条件=供物#id」——饿不因缺米消失。
   - 禁销口径：「市场不好/条件枯/已在尽力」——无目标票的销=装不饿。
@@ -514,7 +539,12 @@ verdict_ref='弃——<理由>'`（触发器自动落裁定席行——勿写
 verify_state='dismissed'，CHECK 约束不收此值）。
 
 `fin_econ_lesson` pending 同判（SG-5544 表——诊断/结案监察案产线：
-rootcause_diag/trade_postmortem/semantic_caliber 等）。表无
+rootcause_diag/trade_postmortem/semantic_caliber/retire_postmortem
+等——retire_postmortem=策略级验尸案,numbers 载一生账
+(positions/realized_usd/paper_net_usd/execs/died_at+from_state+
+reason);**同 template_ref/venue/reason 反复死=族级模式**→归纳
+归 `docs/经济经验库/条目/` canon(verdict_ref=canon:<条目id>)——
+孤案 merge/弃,簇案必裁）。表无
 verify_state 列，裁定语义全在 verdict_ref 前缀：
 `canon:<条目id或口径文>`（可归纳→同走经济经验库条目径）、
 `merge:ticket:<同案票>`（同窗病灶并案）、`弃——<理由>`；

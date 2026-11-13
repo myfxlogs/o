@@ -48,3 +48,19 @@ func (c coreService) hungerGapEscCheck(ctx context.Context, deadSince map[string
 				annual, hungerTargetPct, net30, *nav, liveN, hungerTargetPct-annual)
 		})
 }
+
+// paperDryEscCheck 练习场旱情探（业主令 2026-11-13「经验管接通」件②——
+// paper/probe 槽全空=无候选在练：手艺不进则退，practice field 空转=饿
+// 探之外的第二钱面信号）。二元死态（≥1 即湿不自扰），fp="@" 回合起刻
+// 纹——复干新回合照火。探针只述旱不开药：补料径=提案→admitProposals→
+// paper 开户全机读在案，干的是上游提案供水（研究员/目标票域）。
+func (c coreService) paperDryEscCheck(ctx context.Context, deadSince map[string]time.Time) {
+	var n int
+	if err := c.pool.QueryRow(ctx, `SELECT count(*) FROM fin_strategy
+		WHERE state IN ('paper','probe')`).Scan(&n); err != nil {
+		return // 读件败本拍让位
+	}
+	c.escEdgeUV(ctx, deadSince, "动机", "paper_dry", "@", n == 0, func() string {
+		return "动机/paper_dry: 练习场零候选（paper+probe=0——无策略在练,经验管断料;补料归目标票/研究员提案径,admitProposals 开户面在案）"
+	})
+}
