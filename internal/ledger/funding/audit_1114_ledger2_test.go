@@ -50,3 +50,33 @@ func TestAuditUnmappedBillConservation(t *testing.T) {
 			b.BalChg, covered, cashRows)
 	}
 }
+
+// TestAuditSpotBillFeeDoubleBook 不变量（单源——升件#10063① 钦定
+// 「SPOT/MARGIN 现货腿走 legCash 毛额对称径，bill 补记=双计」同律须及
+// fee）：flow_leg.go legCash 已对 USDT 费现货腿落 kind='fee'；ingest
+// default 支 `if b.Fee != 0` 无 InstType 闸——同一笔现货交易费被
+// fin_order_leg 源+bill 源各记一次→fee kind 双倍→realizedKinds 实现盈亏
+// 系统性低估+对账净额常偏 -fee。正确语义=SPOT/MARGIN bill 费支同
+// trade_pnl 显排（现货域归 legCash 单源）——修好本测试自然转绿。
+func TestAuditSpotBillFeeDoubleBook(t *testing.T) {
+	auditRedGate(t)
+	ctx, pool := setup(t)
+	i := NewIngester(pool, fakeSrc{})
+	b := Bill{BillID: "spot-fee-1", SubType: "1", Type: "2", InstType: "SPOT",
+		InstID: "BTC-USDT", Ccy: "USDT", TsMs: time.Now().Add(-time.Minute).UnixMilli(),
+		BalChg: 99.5, Fee: -0.5, Raw: []byte(`{"billId":"spot-fee-1"}`)}
+	if _, err := i.record(ctx, b); err != nil {
+		t.Fatalf("record 上抛: %v", err)
+	}
+	var feeRows int
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM fin_cashflow c
+		 JOIN fin_venue_bill v ON c.source_table='fin_venue_bill' AND c.source_ref=v.id
+		 WHERE v.bill_id=$1 AND c.kind='fee'`, b.BillID).Scan(&feeRows); err != nil {
+		t.Fatal(err)
+	}
+	if feeRows != 0 {
+		t.Fatalf("SPOT bill fee 落 fee kind %d 行——现货费域归 legCash 单源，bill 补记=同事双计"+
+			"（trade_pnl 已按升件#10063① 排 SPOT，fee 支漏同 InstType 闸）", feeRows)
+	}
+}
