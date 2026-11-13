@@ -133,6 +133,7 @@ func (c coreService) cognitionEscCheck(ctx context.Context, deadSince map[string
 // deposit/withdraw/earn_*/recon_adjust 非损益禁入）。
 // 探针只述净产出+在册面，「为何空转」定性归唤知会话；净产出回正=恢复自闭。
 func (c coreService) commercialEscCheck(ctx context.Context, deadSince map[string]time.Time) {
+	c.hungerGapEscCheck(ctx, deadSince) // 动机探同拍（钱面同域;feed_esc 棘轮满线不入册唤点）
 	var net float64
 	var liveN, openPos int
 	if err := c.pool.QueryRow(ctx, `SELECT

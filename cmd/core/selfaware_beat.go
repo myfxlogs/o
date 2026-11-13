@@ -74,9 +74,10 @@ func (c coreService) selfAwareBeat(ctx context.Context) {
 		count(*) FILTER (WHERE state='probe'),
 		(SELECT count(*) FROM fin_position WHERE closed_at IS NULL)
 		FROM fin_strategy`).Scan(&liveN, &probeN, &posN)
-	if nav != nil && navTs != nil {
-		earn = fmt.Sprintf("NAV%.0f(%s) 30d净%+.2f live%d/probe%d/仓%d",
-			*nav, time.Since(*navTs).Round(time.Minute), net, liveN, probeN, posN)
+	if nav != nil && navTs != nil && *nav > 0 {
+		earn = fmt.Sprintf("NAV%.0f(%s) 30d净%+.2f 年化%+.1f%%vs%.0f%% live%d/probe%d/仓%d",
+			*nav, time.Since(*navTs).Round(time.Minute), net,
+			net*365/30 / *nav * 100, hungerTargetPct, liveN, probeN, posN)
 	} else {
 		earn = "?"
 	}
