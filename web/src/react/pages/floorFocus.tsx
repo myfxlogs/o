@@ -49,7 +49,7 @@ export function ghostSt(gh: (typeof GHOSTS)[number], facts: Fact[]): "ghost" | "
   const a = organAssertFact(gh, facts);
   if (a) {
     const m = a.note.match(organAssertRe);
-    if (m) return m[1] as "ghost" | "pin" | "build" | "done";
+    if (m) return m[2] as "ghost" | "pin" | "build" | "done";
   }
   const hit = ghostFact(gh, facts);
   if (!hit) return "ghost";
@@ -83,6 +83,9 @@ export function FocusBody(props: {
   session?: { running?: boolean; lastSpawn?: unknown; spawns24h?: unknown; closes24h?: unknown; fails24h?: unknown };
   money?: { label: string; section: string; ccy: string; usd: number; venue: string; note: string }[];
   live?: boolean;
+  hosts?: { name: string; cpu: number; memPct: number; stale: boolean; cores: number;
+    memUsedMb: number; memTotalMb: number; diskUsedGb: number; diskTotalGb: number;
+    netRxKbps: number; netTxKbps: number; uptimeHours: number }[];
   utc: string; bj: string;
 }) {
   const { f } = props;
@@ -201,6 +204,28 @@ export function FocusBody(props: {
         <div className="iso-focus-h">机柜 · {nm}</div>
         <div className="iso-focus-big">{props.live ? "运行中" : "断流"}</div>
         <div className="iso-focus-row">常驻器官——o-core 家电谱一件；健康细节进「哪病了」</div>
+        {go}
+      </div>
+    );
+  }
+  if (k.startsWith("host:")) {
+    const nm = k.slice(5);
+    const h = (props.hosts ?? []).find((x) => x.name === nm);
+    if (!h) return (
+      <div className="iso-focus-in">
+        <div className="iso-focus-h">主机资源 · {nm}</div>
+        <div className="iso-focus-row">监控行未达——fin_host_metrics 无此机帧</div>
+        {go}
+      </div>
+    );
+    const up = h.uptimeHours >= 24 ? `${(h.uptimeHours / 24).toFixed(0)} 天` : `${h.uptimeHours.toFixed(0)} 小时`;
+    return (
+      <div className="iso-focus-in">
+        <div className="iso-focus-h">主机资源 · {h.name}</div>
+        <div className="iso-focus-big">{h.stale ? "🔴 监控断流" : `🟢 CPU ${h.cpu.toFixed(0)}%`}</div>
+        <div className="iso-focus-row">{h.cores} 核 · 内存 {(h.memUsedMb / 1024).toFixed(1)}/{(h.memTotalMb / 1024).toFixed(0)} GB（{h.memPct.toFixed(0)}%）</div>
+        <div className="iso-focus-row">盘 {h.diskUsedGb.toFixed(0)}/{h.diskTotalGb.toFixed(0)} GB · 网 ↓{h.netRxKbps.toFixed(0)} ↑{h.netTxKbps.toFixed(0)} kbps</div>
+        <div className="iso-focus-row dim">在跑 {up}</div>
         {go}
       </div>
     );

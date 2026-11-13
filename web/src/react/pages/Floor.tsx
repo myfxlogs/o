@@ -55,6 +55,14 @@ export function FloorPage() {
   const queue = [...openEsc.map((r) => ({ id: String(r.escId), note: r.note })),
     ...openReq.map((r) => ({ id: String(r.id), note: "条件请求·待处理" }))];
 
+  const hosts = useMemo(() => (hm.data?.hosts ?? []).map((h) => ({
+    name: h.host === "dev" ? "OCI" : h.host.toUpperCase(),
+    cpu: h.cpuPct, memPct: h.memTotalMb ? (h.memUsedMb / h.memTotalMb) * 100 : 0,
+    stale: h.stale, cores: h.cores, memUsedMb: h.memUsedMb, memTotalMb: h.memTotalMb,
+    diskUsedGb: h.diskUsedGb, diskTotalGb: h.diskTotalGb,
+    netRxKbps: h.netRxKbps, netTxKbps: h.netTxKbps, uptimeHours: h.uptimeHours,
+  })), [hm.data]);
+
   const utc = now.toLocaleTimeString("zh-CN", { timeZone: "UTC", hour12: false }),
     bj = now.toLocaleTimeString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false });
 
@@ -69,11 +77,7 @@ export function FloorPage() {
         queue={queue}
         probes={probes}
         machines={RACKS.map((nm) => ({ name: nm, ok: live }))}
-        hosts={(hm.data?.hosts ?? []).map((h) => ({
-          name: h.host === "dev" ? "OCI" : h.host.toUpperCase(),
-          cpu: h.cpuPct, memPct: h.memTotalMb ? (h.memUsedMb / h.memTotalMb) * 100 : 0,
-          stale: h.stale,
-        }))}
+        hosts={hosts}
         nav={o ? { total: o.navTotal, today: o.pnlToday, cum: o.pnlCum } : undefined}
         awake={!!s?.running}
         brainFlash={octo.brainFlash}
@@ -101,7 +105,7 @@ export function FloorPage() {
             probes={probes} openProbes={probes.filter((p) => p.open).length}
             engCanon={Number(t.data?.mine?.engCanon ?? 0n)} econCanon={Number(t.data?.mine?.econCanon ?? 0n)}
             nav={o ? { total: o.navTotal, today: o.pnlToday, cum: o.pnlCum } : undefined}
-            money={o?.money ?? []} live={live} session={s} utc={utc} bj={bj} />
+            money={o?.money ?? []} live={live} session={s} utc={utc} bj={bj} hosts={hosts} />
         </div>
       </>)}
     </div>

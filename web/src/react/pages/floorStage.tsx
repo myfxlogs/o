@@ -19,12 +19,14 @@ import type { Fact, Tip } from "./floorFocus";
 
 export type StageOrgan = { i: number; name: string; st: string; hits: number; flash: boolean; anchor?: string };
 export type StageVen = { name: string; usd: number; dud: boolean };
-export type StageHost = { name: string; cpu: number; memPct: number; stale: boolean };
+export type StageHost = { name: string; cpu: number; memPct: number; stale: boolean;
+  cores: number; memUsedMb: number; memTotalMb: number; diskUsedGb: number; diskTotalGb: number;
+  netRxKbps: number; netTxKbps: number; uptimeHours: number };
 export type StageProps = {
   organs: StageOrgan[]; vens: StageVen[]; queue: { id: string; note: string }[];
+  hosts?: StageHost[];
   probes: { escClass?: string; escScope?: string; open?: boolean }[];
   machines: { name: string; ok: boolean }[];
-  hosts?: StageHost[];
   nav?: { total: number; today: number; cum: number };
   awake: boolean; brainFlash: boolean; claim?: string; lastAct?: string;
   counts: { done: number; build: number; pin: number; openProbes: number };
@@ -37,14 +39,14 @@ const fmtM = (v: number) => "$" + v.toLocaleString("zh-CN", { maximumFractionDig
 // SEAT_POS——9座全站环台缘外侧:台心(50,66) rx=35 ry=19.5 椭圆参数
 // θ=170°..10° 左缘→前中→右缘;尺度按θ景深(前大侧小)
 const SEAT_POS = [
-  [13.5, 54, 0.7], [19.5, 59.5, 0.8], [25.5, 66, 0.9], [37, 72, 1.0],
-  [50, 73, 1.05], [63, 72, 1.0], [74.5, 66, 0.9], [80.5, 59.5, 0.8], [86.5, 54, 0.7],
+  [9.6, 63.3, 0.7], [14.5, 69.5, 0.8], [23.6, 74.6, 0.9], [36, 77.9, 1.0],
+  [50, 79, 1.05], [64, 77.9, 1.0], [76.4, 74.6, 0.9], [85.5, 69.5, 0.8], [90.4, 63.3, 0.7],
 ];
 // 朝向:围桌朝台心——左半朝右(r)、前中背影(b)、右半朝左(l,翻转)
 const SEAT_FACE = ["r", "r", "r", "b", "b", "b", "l", "l", "l"] as const;
 const MACH_POS = [[6, 44], [14, 44], [22, 45], [30, 45], [68, 45], [76, 45], [84, 44], [90, 44]];
-// 物理主机机柜位——墙沿工位间缝,真硬件件(非人形:器/服/机三形分家)
-const HOST_POS = [[4, 44], [96, 44], [40, 42], [60, 42]];
+// 物理主机机柜位——左右墙脚地板线,真硬件件(非人形:器/服/机三形分家)
+const HOST_POS = [[4, 47], [96, 47], [40, 46], [60, 46]];
 // 台面工单板位——环台面环带散件,一待办一板(原图台面散件=活工单)
 const PAD_POS = [[50, 70], [65.4, 67.4], [34.6, 67.4], [70.8, 64.5], [29.2, 64.5], [73.6, 60.9], [26.4, 60.9], [50, 74]];
 const SCREEN_POS = { A: [9, 15], B: [24, 15], C: [70, 15], D: [86, 15] } as const;
@@ -171,7 +173,7 @@ export function FloorStage(p: StageProps) {
       {(p.hosts ?? []).slice(0, HOST_POS.length).map((h, k) => (
         <button key={h.name} className={`fs-rackwrap${h.stale ? " off" : ""}`}
           style={{ left: `${HOST_POS[k][0]}%`, top: `${HOST_POS[k][1]}%` }}
-          onClick={() => p.onPick({ k: "host:" + h.name, x: 0, y: 0, title: `主机 · ${h.name}`, body: [`CPU ${h.cpu.toFixed(0)}% 内存 ${h.memPct.toFixed(0)}%`], to: "/device" })}>
+          onClick={() => p.onPick({ k: "host:" + h.name, x: 0, y: 0, title: `主机 · ${h.name}`, body: [], to: "/device" })}>
           <img src={rackUrl} alt={h.name} className="fs-rack" draggable={false} />
           <span className="fs-rack-l"><span className={`fs-dot ${h.stale ? "bad" : "ok"}`} />{h.name} {h.cpu.toFixed(0)}%</span>
         </button>
