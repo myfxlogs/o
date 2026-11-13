@@ -243,6 +243,12 @@ func TestDeltaDriftTrigger(t *testing.T) {
 	ctx, w, fx := setup(t)
 	seedFacts(t, ctx, w, 0.0001)
 	posID := mkPosition(t, ctx, w, "live", 2, time.Now())
+	// 基线预播域内（升件#14117 播种态豁免修——NULL 基线首拍一律播种
+	// 不杀;桩预播 0 表征「开仓近衡、基线已立」正形,漂移/abs-cap 照验）。
+	if _, err := w.pool.Exec(ctx,
+		"UPDATE fin_position SET open_imbalance_bps=0 WHERE id=$1", posID); err != nil {
+		t.Fatal(err)
+	}
 	if err := w.scanOnce(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -649,7 +655,13 @@ func TestDriftOffsetKills(t *testing.T) {
 // T-0064 锚③：绝对兜底闸——imb>500bps 无条件杀（基线也拦不住）。
 func TestDriftAbsCap(t *testing.T) {
 	ctx, w, fx := setup(t)
-	mkPosLegs(t, ctx, w, 0.2350, 25) // imb≈(23.5−25)/24.25≈−619bps>500
+	posID := mkPosLegs(t, ctx, w, 0.2350, 25) // imb≈(23.5−25)/24.25≈−619bps>500
+	// 基线预播域内（升件#14117 播种态豁免修——|open|>cap 仓=粒度底域
+	// 走相对闸;abs-cap 只施于基线域内仓,桩预播 0=已立近衡基线正形）。
+	if _, err := w.pool.Exec(ctx,
+		"UPDATE fin_position SET open_imbalance_bps=0 WHERE id=$1", posID); err != nil {
+		t.Fatal(err)
+	}
 	seedEthFacts(t, ctx, w, "100", "100")
 	if err := w.scanOnce(ctx); err != nil {
 		t.Fatal(err)

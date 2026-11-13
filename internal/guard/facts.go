@@ -147,23 +147,29 @@ func (w *Warden) nextFunding(ctx context.Context, inst string) (float64, bool) {
 	return w.fundingRate(ctx, inst, "next_funding_rate")
 }
 
-// driftTriggered 漂移双闸（T-0064）：①绝对兜底 |imb|>500bps 无条件杀；②语义闸
+// driftTriggered 漂移双闸（T-0064）：①绝对兜底 |imb|>500bps 无条件杀——
+// 仅施于「基线域内」仓（|open|≤cap：该仓应近衡,裸值失守=真杀）；②语义闸
 // |imb_now−imb_open|>band——基线 NULL=首拍实算落列零杀（基线播种拍）。
+// 播种态豁免裸值兜底（升件#14117 修）：|open|>cap 的仓=粒度底残差域
+// （KB lotsz-granularity 实证 $24 腿×0.01 张网格≈9800bps），abs-cap 前置
+// 会把相对闸死码化+首拍残差不播种即杀——基线超阈仓只走相对闸域。
 const driftAbsCapBps = 500
 
 func (w *Warden) driftTriggered(ctx context.Context, posID int64, imbNow, bandBps float64) bool {
-	if imbNow > driftAbsCapBps || imbNow < -driftAbsCapBps {
-		return true // 绝对兜底闸：裸腿级失衡无条件杀（基线也拦不住的失守）
-	}
 	var open *float64
 	if err := w.pool.QueryRow(ctx,
 		"SELECT open_imbalance_bps FROM fin_position WHERE id=$1", posID).Scan(&open); err != nil || open == nil {
-		// 基线播种：首拍实算落列，本拍零杀（出生残差入基线）。
+		// 基线播种：首拍实算落列，本拍零杀（出生残差入基线——粒度底
+		// 残差先入列,次拍起相对闸接管；abs-cap 不前置抢杀播种拍）。
 		if _, err := w.pool.Exec(ctx,
 			"UPDATE fin_position SET open_imbalance_bps=$2 WHERE id=$1 AND open_imbalance_bps IS NULL", posID, imbNow); err != nil {
 			w.rej.Inc("write_err")
 		}
 		return false
+	}
+	if math.Abs(*open) <= driftAbsCapBps &&
+		(imbNow > driftAbsCapBps || imbNow < -driftAbsCapBps) {
+		return true // 绝对兜底闸：基线域内仓裸腿级失守无条件杀
 	}
 	return math.Abs(imbNow-*open) > bandBps
 }
