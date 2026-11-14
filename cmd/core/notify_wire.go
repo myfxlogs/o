@@ -16,11 +16,10 @@ import (
 // typed-nil 主修 T-0032：缺件传真 nil 接口非 (*FeishuClient)(nil)）。
 func wireNotify(ctx context.Context, pool *pgxpool.Pool, cfg *config.Client) (notify.Sender, *notify.Alerter) {
 	var sender notify.Sender
-	var feishuCli *notify.FeishuClient
 	if c := feishuSender(ctx, pool); c != nil {
 		sender = c
-		feishuCli = c
 	}
+	sysCli := feishuSysSender(ctx, pool) // 第二机器人（meta 挪用——nil=降级主cli）
 	al := notify.NewAlerter(sender, func() string {
 		v, _ := cfg.GetString("feishu.chat_id")
 		return v
@@ -28,7 +27,7 @@ func wireNotify(ctx context.Context, pool *pgxpool.Pool, cfg *config.Client) (no
 		WithSysChat(func() string { // 系统类告警/在办富卡分频
 			v, _ := cfg.GetString("feishu.sys_chat_id")
 			return v
-		})
-	startSysPush(ctx, pool, cfg, feishuCli) // 系统频在办活卡（ev_headless 脊——sys_push.go）
+		}).WithSysSender(sysCli)
+	startSysPush(ctx, pool, cfg, sysCli) // 系统频在办活卡（ev_headless 脊——sys_push.go）
 	return sender, al
 }
