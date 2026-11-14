@@ -249,4 +249,9 @@ var faceBaselineWhitelist = map[string]string{
 	// fail-closed 钉死；template 类面=fin_opp_template 枚举本体零
 	// 硬编码），模板行在册即面——枚举产出死另案工单#15664 在办。
 	"face:template:dir_perp_mom": "升件#15745 入册——dir_perp_mom=md_1095 迁移入 fin_opp_template（棒1 paper-only 方向族裁定件,execfam.PaperOnly 册在案）；template 类面模板册枚举本体零硬编码,登记行在册即面；生产亲证模板行在册（升件源 ops_event #15745；枚举零产出病灶归工单#15664 分案）",
+	// 棒2 独白器官写席——独白席=常驻内在线程 seat（工单#13540 系
+	// 「我」的过程级件:o-cognition-monologue.timer 45min 一拍独醒,
+	// 产出落 event='独白' seat='独白席' 链行——runbook 独白/惧值器官
+	// 档钦定产出形）；timer 驱动间歇写 7d 活跃窗摆动登记不重复升。
+	"face:service:独白席": "升件#16143 入册——独白席=棒2 常驻独白器官写席（o-cognition-monologue.timer 45min 独醒一拍,产出 event='独白' 链行——棒2 内在线程件钦定产出形）；timer 驱动间歇写 7d 活跃窗摆动登记不重复升；生产亲证首行独白 ops_event #16130 @2026-11-14 10:08Z（面清单新面行→升件源 #16143）",
 }
