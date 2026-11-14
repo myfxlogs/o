@@ -103,6 +103,25 @@ LEFT JOIN (SELECT f.strategy_id,sum(f.amount_usd) net FROM fin_paper_fill f
   GROUP BY 1) pf ON pf.strategy_id=s.id
 WHERE s.template_ref NOT LIKE 'simdrill%'
 GROUP BY 1 ORDER BY 4 DESC NULLS LAST"
+# 校准榜(世模第一桩——O对世界的信念账:每族「我以为X/实际Y/后代n」,
+# pred=eval 预测净APR均值,real=后代实测净APR均值(cashflow+paper_fill
+# 合并年化,种群榜同口径);|pred−real|>5pp=信念失真→calib_drift 探):
+psql "$FIN_DSN" -c "SELECT r.template_ref, count(*) n,
+  round(avg(r.pred)::numeric,4) pred_apr,
+  round(avg(r.real)::numeric,4) real_apr
+FROM (SELECT s.template_ref,e.net_apr pred,
+  (COALESCE(cf.net,0)+COALESCE(pf.net,0))/NULLIF(s.notional_usd,0)
+    /GREATEST(EXTRACT(EPOCH FROM(now()-COALESCE(s.entered_at,s.created_at)))/86400,1)*365 real
+FROM fin_strategy s
+JOIN fin_proposal pr ON pr.id=s.proposal_ref
+JOIN fin_opp_eval e ON e.id=pr.eval_id
+LEFT JOIN (SELECT p.strategy_ref,sum(c.amount) net FROM fin_position p
+  JOIN fin_cashflow c ON c.position_ref=p.id GROUP BY 1) cf ON cf.strategy_ref=s.id
+LEFT JOIN (SELECT f.strategy_id,sum(f.amount_usd) net FROM fin_paper_fill f
+  GROUP BY 1) pf ON pf.strategy_id=s.id
+WHERE s.template_ref NOT LIKE 'simdrill%' AND e.net_apr IS NOT NULL
+  AND (cf.net IS NOT NULL OR pf.net IS NOT NULL)) r
+GROUP BY 1 ORDER BY 2 DESC"
 # 域热榜(自模账主动翼——30d 销案后复燃次数榜,热域票=先验尸契约适用面):
 psql "$FIN_DSN" -c "SELECT m[1] dom, count(DISTINCT e.id) refires
   FROM ops_event e, LATERAL regexp_matches(e.note,'([a-zA-Z0-9_-]+)#[0-9]+','g') m
@@ -212,6 +231,15 @@ canon/skills 条目或「求知:<题>」工单（结构化调研归研究席触�
   引用=自证绿疑案；note 载疑行数）→ 逐行核:判词真落实
   （canon/工单/回放/升级自问实存）→销+note 引落实件;
   不实→追立工单补落实+note 载追修。禁「muse 本来就这样」式销。
+- **世模/calib_drift 升件**（校准失真探产物——族预测净APR vs 实测
+  净APR 系统性偏离>5pp 且实测后代≥10;note 载失真族+两均值+n）→
+  处置三径写到失真族:①**核 eval 模型病灶**（评估器漏了什么成本/
+  假设——lethal 簇归井查 eval 证据面,模型病=假想卡判据修工单）;
+  ②**标 lethal 断粮**（信念失真且实测净负=不可信族,育种序禁再喂
+  ——处置行载「lethal:<族>」种群榜消费）;③**校准后放行**（失真
+  有因可释=载据销,如样本期过短/费用模型已修）。**禁裸销**——失真
+  是 O 对世界信念被证伪,不处置=下次同错照犯(funding-hedge 1613
+  后代预测 -2.8% 仍生实证)。
 - **机械可证**（相位/账本/文件/端点事实可核）→ 修或销，落：
   ```sql
   INSERT INTO ops_event(seat,event,ticket,note)
@@ -339,8 +367,9 @@ canon/skills 条目或「求知:<题>」工单（结构化调研归研究席触�
     +`evidence.mut="inst_swap|param_mut|legs_x|venue_port"`
     ——无谱系=无归因,后代实绩归不到父母=进化环瞎。
   - **无种可繁**（零 proven 族）→径归研究员③源普查循环（新族
-    假想卡+收益公式闸）——lethal 族禁再喂（种群榜全灭净负者,
-    与死法聚类互证）。
+    假想卡+收益公式闸）——lethal 族禁再喂（种群榜全灭净负∨
+    校准榜 |pred−real|>5pp(n≥10)系统性失真=不可信族,与死法
+    聚类互证;失真族处置先走 calib_drift 判词径)。
   - 禁销口径：「扫描器还在跑」——扫描器是枚举器排列穷举会衰竭
     （funding-hedge 1804 死实证）;育种是你的活不是它的。
 - **对账**（seat=探测席 esc_class=对账 的升件——歧态腿/账实差两进水口）→
