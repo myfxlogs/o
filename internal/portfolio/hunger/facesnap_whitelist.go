@@ -231,4 +231,9 @@ var faceBaselineWhitelist = map[string]string{
 	// o_fin_ro SELECT；table 类面=information_schema BASE TABLE 枚举
 	// 本体零硬编码，建表落地即面。
 	"face:table:fin_econ_rule": "升件#15221 入册——fin_econ_rule=fin_0175 迁移建 public 基表（canon 可执行化规约闸：admit_block 规约行由 lifecycle admitProposals 机械执行，domain.tsv fin 入册）；写径裁定席 roster_rw INSERT/撤规+读径 lifecycle.econrule/o_fin_ro 在案；table 类面 information_schema BASE TABLE 枚举本体零硬编码，建表落地即面；生产亲证基表在册（升件源 ops_event #15221）",
+	// 工单#11386 muse 器官写席——唤知席=muse 档答题自证绿行写径
+	// （唤知/muse 升件唤点驱动：自问答题落 event='muse' 行 seat='唤知席',
+	// runbook muse 档钦定产出形）；唤点驱动间歇写 7d 活跃窗摆动登记
+	// 不重复升（静默>7d 出窗摆回=间歇面形 T-0448 册语义罩位）。
+	"face:service:唤知席": "升件#15501 入册——唤知席=muse 档答题写席（工单#11386 muse 器官：唤知/muse 升件唤点驱动,自问答题落 event='muse' ticket='muse' 行——runbook muse 档钦定产出形 seat='唤知席'）；唤点驱动间歇写 7d 活跃窗摆动登记不重复升；生产亲证首行 muse 自问#15455 答题行 ops_event #15469（面清单新面行→升件源 #15501）",
 }
