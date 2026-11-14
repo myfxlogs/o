@@ -218,6 +218,12 @@ func (r *Runner) stakeCarryEval(ctx context.Context, venue, ccy string, sy fundi
 	if verdict != "proposed" {
 		return
 	}
+	var banned int
+	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_venue_untradeable
+		WHERE inst_id=$1`, inst).Scan(&banned); err == nil && banned > 0 {
+		log.Printf("[research/hypo] %s 黑名单命中（venue_untradeable）——stake_carry 候选不起草", inst)
+		return
+	}
 	var n int
 	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_proposal
 		WHERE eval_id=$1`, evalID).Scan(&n); err == nil && n == 0 {

@@ -245,6 +245,12 @@ func (r *Runner) persistEval(ctx context.Context, e Eval) error {
 	if owner {
 		return RequestOwnerDomain(ctx, r.fin, e, r.rej, "research/dcd")
 	}
+	var banned int
+	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_venue_untradeable
+		WHERE inst_id=$1`, e.Product.ProductID).Scan(&banned); err == nil && banned > 0 {
+		log.Printf("[research/dcd] %s 黑名单命中（venue_untradeable）——候选不起草", e.Product.ProductID)
+		return nil
+	}
 	var open int
 	if err := r.pool.QueryRow(ctx,
 		"SELECT count(*) FROM fin_proposal WHERE inst_id=$1 AND state='fin_proposed'",

@@ -154,6 +154,14 @@ func (r *Runner) evalBasis(ctx context.Context, f Family) error {
 				WHERE inst_id=$1 AND template=$2 AND direction=$3`, inst, f.Template, f.Direction).Scan(&evalID); err != nil {
 				return err
 			}
+			// T-0142 黑名单滤：venue 拒过的 inst 不再起草（gapscan 同式——
+			// 工单#15188 案：BTC-USD-270326 黑名单在册 2h 后仍被本径武装）。
+			var banned int
+			if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_venue_untradeable
+				WHERE inst_id=$1`, inst).Scan(&banned); err == nil && banned > 0 {
+				log.Printf("[research/grammar] %s 黑名单命中（venue_untradeable）——候选不起草", inst)
+				continue
+			}
 			// T-0216 返修：预查键对齐 md_1054 闸 (inst_id,direction)+双在途态
 			// （原 inst 单键=跨族误吞——同 inst 双 basis 族互斥；direction 已
 			// 去分叉后键语义归一，闸吞前先自静=「落卡」假日志根除）。

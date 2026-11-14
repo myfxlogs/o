@@ -194,6 +194,12 @@ func (r *Runner) xvenueCarryEval(ctx context.Context, okxInst, dir string, net, 
 		// T-0377 断链根修⑥：count 查询声明 $1 却未传参（pgx expected 1 got 0）——
 		// err≠nil 静默跳过提案 INSERT，xvenue-carry 提案永零（登记前被前置拒
 		// 掩护不可见）。补传 evalID 恢复提案径；err 面显式留痕不再吞。
+		var banned int
+		if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_venue_untradeable
+			WHERE inst_id=$1`, okxInst).Scan(&banned); err == nil && banned > 0 {
+			log.Printf("[research/hypo] %s 黑名单命中（venue_untradeable）——xvenue 候选不起草", okxInst)
+			return
+		}
 		if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_proposal
 			WHERE eval_id=$1`, evalID).Scan(&n); err != nil {
 			r.rej.Inc("hypo_write_err")
