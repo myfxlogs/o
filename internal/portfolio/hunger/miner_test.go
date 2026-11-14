@@ -369,3 +369,34 @@ func TestMinerSilentNoSignal(t *testing.T) {
 		t.Fatalf("无信号误产: n=%d", n)
 	}
 }
+
+// TestMinerHandFeelCluster 手感签名类(内隐知识漏斗第六件):会话收口
+// 载 手感=<slug>:<一句> 同域≥2→手感:<slug>簇 pending;单件/异slug
+// 不产(手感=复发才教训,非高危面);无手感=收口行不入窗。
+func TestMinerHandFeelCluster(t *testing.T) {
+	s, pool := minerFixture(t)
+	ctx := context.Background()
+	// 同 slug 双行聚簇
+	seedOps(t, pool, "唤知", "会话收口", "", "unit=t1 收口:处置 手感=sql-quoting:pgx数组参数要::text", "", "")
+	seedOps(t, pool, "唤知", "会话收口", "", "unit=t2 收口:处置 手感=sql-quoting:EXTRACT epoch 单位坑", "", "")
+	// 异 slug 单件不产
+	seedOps(t, pool, "唤知", "会话收口", "", "unit=t3 收口:面净 手感=deploy-lock:锁是活的非僵", "", "")
+	// 无手感收口不入窗
+	seedOps(t, pool, "唤知", "会话收口", "", "unit=t4 收口:面净 用帧=自态 自问=无", "", "")
+	n, err := s.MineLessons(ctx)
+	if err != nil {
+		t.Fatalf("mine: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("手感簇未产: n=%d", n)
+	}
+	var sig string
+	var cn int
+	if err := pool.QueryRow(ctx, `SELECT signature,cluster_n FROM fin_eng_lesson
+		WHERE signature LIKE '手感:%'`).Scan(&sig, &cn); err != nil {
+		t.Fatalf("手感 pending 缺: %v", err)
+	}
+	if sig != "手感:sql-quoting" || cn != 2 {
+		t.Fatalf("签名面坏: sig=%s cn=%d", sig, cn)
+	}
+}

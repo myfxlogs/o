@@ -11,6 +11,7 @@ package hunger
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"sort"
 )
 
@@ -40,7 +41,9 @@ type minerRow struct {
 }
 
 // lessonClass 行→签名类（裁决行 note 驳回*=驳回签名类——T-0382 实证双写径；
-// 收口行 note 含「偏离」=收口偏离签名类——票面签名集第五件）。
+// 收口行 note 含「偏离」=收口偏离签名类——票面签名集第五件；
+// 会话收口行 note 含「手感=」=手感签名类——2026-11-14 内隐知识漏斗件
+// 第六件:手感=干活中摸到但没落成 canon 的手感,同域复发=教训候选）。
 func (r *minerRow) lessonClass() string {
 	if r.event == "裁决" {
 		return "驳回"
@@ -48,8 +51,15 @@ func (r *minerRow) lessonClass() string {
 	if r.event == "收口" {
 		return "收口偏离"
 	}
+	if r.event == "会话收口" {
+		return "手感"
+	}
 	return r.event
 }
+
+// handSlugRe 手感域键提取（手感=<slug>:<一句>——slug=域键,同域复发
+// 聚类成簇;无 slug 退席别键防签名串并）。
+var handSlugRe = regexp.MustCompile(`手感=([\p{L}\p{N}_-]+)`)
 
 // signature 签名级去重键（票面钦维度）：升件带类=esc_class+esc_scope 等值键；
 // 其余=类+票号维度；无票行退席别键（无票无类行以席聚类防签名串并）。
@@ -57,6 +67,11 @@ func (r *minerRow) signature() string {
 	cls := r.lessonClass()
 	if cls == "升件" && r.escClass != "" {
 		return "升件:" + r.escClass + ":" + r.escScope
+	}
+	if cls == "手感" {
+		if m := handSlugRe.FindStringSubmatch(r.note); m != nil {
+			return "手感:" + m[1]
+		}
 	}
 	key := r.ticket
 	if key == "" {
@@ -157,14 +172,15 @@ func (s *Sensor) MineLessons(ctx context.Context) (int, error) {
 }
 
 // minerScan 事件账窗行（签名集：升件/驳回/异常/返修＋裁决 note 驳回*双写件
-// ＋收口 note 含「偏离」——票面钦五类签名全覆盖）。
+// ＋收口 note 含「偏离」＋会话收口 note 含「手感=」——票面钦六类签名）。
 func (s *Sensor) minerScan(ctx context.Context) ([]minerRow, error) {
 	rows, err := s.pool.Query(ctx, `SELECT id,seat,event,ticket,note,
 		COALESCE(esc_class,''),COALESCE(esc_scope,'') FROM ops_event
 		WHERE ts>now()-make_interval(hours=>$1)
 		  AND (event IN ('升件','驳回','异常','返修')
 		       OR (event='裁决' AND note LIKE '驳回%')
-		       OR (event='收口' AND note LIKE '%偏离%'))
+		       OR (event='收口' AND note LIKE '%偏离%')
+		       OR (event='会话收口' AND note ~ '手感='))
 		ORDER BY id`, minerWindowHours)
 	if err != nil {
 		return nil, err
