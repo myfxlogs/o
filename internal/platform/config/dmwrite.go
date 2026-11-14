@@ -56,6 +56,7 @@ var dmWritableGlobs = []string{
 var ownerKeyGlobs = []string{
 	"risk.max_notional_usd", // 资金上限（锚④硬界）
 	"risk.kill_switch",      // 舰队停机总闸（guard 自动翻位径不受限）
+	"risk.dir.*",            // 方向书子预算（棒3——毕业供数归业主）
 	"ledger.recon_tol_usd",  // 对账容差（红线三）
 	"feishu.chat_id",        // 业主通知通道
 	"notify.*",              // 通知投递面

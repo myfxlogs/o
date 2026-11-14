@@ -138,3 +138,90 @@ func TestTokenMechanics(t *testing.T) {
 		t.Fatalf("复用应拒 token_used: %+v", x)
 	}
 }
+
+// TestDirBookGate 方向书子预算闸（棒3）：方向书成员开仓额外两判——
+// 亏完断粮(已实现净亏破阈)先于书名义帽(open+在途 dir 名义+意图>帽)；
+// 非方向/查无行原径放行;close 径不拦;键缺 fail-closed missing_param。
+func TestDirBookGate(t *testing.T) {
+	ctx, g := setup(t)
+	for _, q := range []string{ // 本测专属种子面清场（共享库防串）
+		`DELETE FROM fin_cashflow WHERE source_table='RKDIR'`,
+		`DELETE FROM fin_position WHERE inst_id='RK-DIR'`,
+		`DELETE FROM fin_execution WHERE inst_id='RK-DIR'`,
+	} {
+		if _, err := g.pool.Exec(ctx, q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for k, v := range map[string]string{ // 生产种子 0=零预算全拒;测试显式供数
+		"risk.dir.max_notional_usd": "200", "risk.dir.loss_budget_usd": "50"} {
+		if _, err := g.pool.Exec(ctx,
+			"INSERT INTO app_config(key,value) VALUES($1,to_jsonb($2::text)) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value", k, v); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := g.cfg.Load(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var eid, pid, sid int64 // eval→proposal→strategy 链——direction=long_perp 方向书成员
+	if err := g.pool.QueryRow(ctx, `INSERT INTO fin_opp_eval
+		(inst_id,template,direction,net_apr,verdict,legs,evidence)
+		VALUES('RK-DIR','dir_perp_mom','long_perp',0.1,'proposed','[]','{}') RETURNING id`).Scan(&eid); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.pool.QueryRow(ctx, `INSERT INTO fin_proposal
+		(eval_id,inst_id,direction,net_apr,state)
+		VALUES($1,'RK-DIR','long_perp',0.1,'fin_proposed') RETURNING id`, eid).Scan(&pid); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.pool.QueryRow(ctx, `INSERT INTO fin_strategy
+		(inst_id,template_ref,proposal_ref,state,notional_usd,direction)
+		VALUES('RK-DIR','dir_perp_mom',$1,'live',100,'long_perp') RETURNING id`, pid).Scan(&sid); err != nil {
+		t.Fatal(err)
+	}
+	din := intent
+	din.StrategyRef = sid
+
+	if d := g.Check(ctx, din); !d.Allow { // ①书内零仓零亏=放行
+		t.Fatalf("方向书空账应放: %+v", d)
+	}
+	var xid, posid int64 // ②open dir 仓 150+意图 100>帽 200→dir_notional_cap
+	if err := g.pool.QueryRow(ctx, `INSERT INTO fin_execution
+		(strategy_ref,inst_id,notional_usd,state) VALUES($1,'RK-DIR',150,'open') RETURNING id`, sid).Scan(&xid); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.pool.QueryRow(ctx, `INSERT INTO fin_position
+		(execution_id,strategy_ref,inst_id,notional_usd) VALUES($1,$2,'RK-DIR',150) RETURNING id`,
+		xid, sid).Scan(&posid); err != nil {
+		t.Fatal(err)
+	}
+	if d := g.Check(ctx, din); d.Allow || d.Reason != "dir_notional_cap" {
+		t.Fatalf("dir_notional_cap: %+v", d)
+	}
+	// ③已实现-60<-50→dir_budget_exhausted(判序先于帽)
+	if _, err := g.pool.Exec(ctx, `INSERT INTO fin_cashflow
+		(kind,venue,ccy,amount,position_ref,source_ref,source_table,occurred_at)
+		VALUES('trade_pnl','rktest','USDT',-60,$1,$1,'RKDIR',now())`, posid); err != nil {
+		t.Fatal(err)
+	}
+	if d := g.Check(ctx, din); d.Allow || d.Reason != "dir_budget_exhausted" {
+		t.Fatalf("dir_budget_exhausted: %+v", d)
+	}
+	if d := g.Check(ctx, intent); !d.Allow { // ④查无行=非方向书成员原径
+		t.Fatalf("非方向应原径放: %+v", d)
+	}
+	cin := din
+	cin.Kind = "close" // ⑤close 径不拦(退仓权保留)
+	if d := g.Check(ctx, cin); !d.Allow {
+		t.Fatalf("close 径应放: %+v", d)
+	}
+	if _, err := g.pool.Exec(ctx, `DELETE FROM app_config WHERE key LIKE 'risk.dir.%'`); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.cfg.Load(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if d := g.Check(ctx, din); d.Allow || d.Reason != "missing_param" { // ⑥键缺 fail-closed
+		t.Fatalf("missing_param: %+v", d)
+	}
+}

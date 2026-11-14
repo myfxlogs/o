@@ -35,6 +35,7 @@ trx.poll_seconds	dm	Tron 轮询间隔（Earn 族）
 # —— owner 类（业主面——DM 写径不可达，锚④硬界）——
 risk.max_notional_usd	owner	资金上限（锚④硬界——单仓名义帽归业主）
 risk.kill_switch	owner	舰队停机总闸（guard 自动翻位径不受限——非 DM 自主域）
+risk.dir.*	owner	方向书子预算（棒3——名义帽+亏完断粮阈,种子0=方向书零预算;毕业供数归业主与 max_notional 同类）
 ledger.recon_tol_usd	owner	对账容差（红线三：对账三通道不可动）
 feishu.chat_id	owner	业主通知通道
 notify.*	owner	通知投递面（fail-closed 非钱径）

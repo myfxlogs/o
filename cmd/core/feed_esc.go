@@ -30,13 +30,11 @@ import (
 // escEvery 升件拍节（dead 阈最小 2min——60s 拍保证死不超拍级误报又不过频）。
 const escEvery = 60 * time.Second
 
-// escDedupHours 同窗去重——同键 24h 至多一报（进程重启后 DB 同窗
-// 兜底内存面丢忆；覆盖失明探针同契）。
+// escDedupHours 同窗去重——同键 24h 至多一报（重启后 DB 同窗兜底内存丢忆）。
 const escDedupHours = 24
 
-// escLoop 常驻拍（o-core 装配环起——转死/复绿状态机在内存,
-// 24h 同窗 dedup 在库）。ctx 终=进程退。al=人端兜底告警器
-// （唤知面死用——nil=只落账不人推）。
+// escLoop 常驻拍（o-core 装配环起——转死/复绿状态机在内存,24h 同窗
+// dedup 在库）。ctx 终=进程退。al=人端兜底告警器（nil=只落账不人推）。
 func (c coreService) escLoop(ctx context.Context, al *notify.Alerter) {
 	t := time.NewTicker(escEvery) // sched-exempt-ok：信号判定期界非业务轮询
 	defer t.Stop()
@@ -66,6 +64,7 @@ func (c coreService) escLoop(ctx context.Context, al *notify.Alerter) {
 		c.intakeDryEscCheck(ctx, deadSince)
 		c.navStaleEscCheck(ctx, deadSince)
 		c.codeworkStallEscCheck(ctx, deadSince)
+		c.calibDriftEscCheck(ctx, deadSince) // 世模校准探(棒3 补挂——棒1 建件漏接线,信念对账面死态根修)
 		c.expectProdEscCheck(ctx, deadSince) // 元探通用形——生产面期望产出 vs 实产差分(工单#10605 B)
 		c.armedDistanceBeat(ctx)             // 量表探（非升件——armed 距阈日行照）
 		c.ownerLedgerBeat(ctx)               // 量表探（业主令账+点破率曲线日行照）
@@ -74,6 +73,7 @@ func (c coreService) escLoop(ctx context.Context, al *notify.Alerter) {
 		c.booksBeat(ctx, deadSince)          // 账房（ΔNAV三桶对账+鬼账升件,业主令11-12立件）
 		c.pnlAttrBeat(ctx, deadSince)        // 策略盈亏归因（11-12①——分列+账房咬合,账房器官零改动）
 		c.selfAwareBeat(ctx)                 // 自我意识器官帧（工单#13540 业主令件——本体觉三问量表）
+		c.regimeBeat(ctx)                    // 世模环境帧（棒3——市场态量表,世面=冷启动即见件）
 	}
 }
 
