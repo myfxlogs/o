@@ -217,6 +217,12 @@ func (r *Runner) persistLegEval(ctx context.Context, e dcd.Eval, f Family, inst 
 		WHERE inst_id=$1 AND template=$2 AND direction=$3`, inst, f.Template, f.Direction).Scan(&evalID); err != nil {
 		return err
 	}
+	var banned int
+	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_venue_untradeable
+		WHERE inst_id=$1`, inst).Scan(&banned); err == nil && banned > 0 {
+		log.Printf("[research/grammar] %s 黑名单命中（venue_untradeable）——候选不起草", inst)
+		return nil
+	}
 	var open int
 	if err := r.pool.QueryRow(ctx,
 		"SELECT count(*) FROM fin_proposal WHERE inst_id=$1 AND state='fin_proposed'", inst).Scan(&open); err != nil {
