@@ -108,6 +108,12 @@ psql "$FIN_DSN" -c "SELECT m[1] dom, count(DISTINCT e.id) refires
   FROM ops_event e, LATERAL regexp_matches(e.note,'([a-zA-Z0-9_-]+)#[0-9]+','g') m
   WHERE e.event='升件' AND e.esc_scope='stuck_esc' AND e.ts>now()-interval '30 days'
   GROUP BY 1 ORDER BY 2 DESC LIMIT 8"
+# 可达面账(求知环·手能伸到哪——凭据在册≠在用:okx.*=交易户,okx_read.*=只读户,
+# mt5.*=MT5户(mtapi径),fred_api_key=FRED,ibkr.paper_*=IBKR纸面户,cmc.*/trx.*
+# 余键=杂面;凭据名=面位非秘密,值永不读不落地):
+psql "$FIN_DSN" -c "SELECT key FROM app_secrets ORDER BY 1"
+# 公共读面(零凭据):ctx 五源(ffcal/FRED/frankfurter/CFTC-COT/OKX-OI 采集链已在跑,
+# internal/research/ctx)+会话自带 webfetch/web_search——外拓答自问走 muse 档读面律。
 # OPEN 工单(未销+无活在认领)——按期限序=施工面入口,认领/销/挂起三选一,不许无声跳过:
 # 销票引证剔「挂起条件=」与「接续」行(缓办/进度非完结,升件#12643);挂起引证在
 # 票期限内暂抑回列(票开着但缓办),过期回列复验——与 feed_esc tickEnded 同语义:
@@ -177,6 +183,15 @@ VALUES('唤知席','muse','muse','自问#<id> <题>→<结论>;
 （想出「该做X」→立工单,不自己动手——想是想的活,干是干的票）;
 **禁自问造题充数**（已有探针/工单管的事不许自问,自问=无覆盖盲区
 专户——muse 前查升件/工单面验真盲区）。
+**出外读面律**（求知环·题需外部知识时伸手——可达面账帧载手能到哪）：
+答自问允许且鼓励**出外取证**——①公共读面：webfetch/web_search 读
+venue 文档/API 册/开源实现,ctx 五源数面直查;②凭据读面：仅 skills/
+canon 已载**只读**端点可探（okx-account/api-spec/market-ws、mtapi 系
+——新端点先过协议面取证:消息体全文核证+断言实证,禁凭能力推断）;
+**禁一切 mutating 端点**（下单/改仓/划转/写配置——读面律只开读）;
+**凭据值零落地**（键名=面位可查,值永不读不写不进账）。外拓结论=
+canon/skills 条目或「求知:<题>」工单（结构化调研归研究席触发④——
+清单/提案面,muse 不越席代写）。
 
 - **改进提案**（seat=改进矿工 esc_class=改进提案 的升件）→
   先评估判据成立否：成立→变体改码径（同「要码修」）；已修/不成立
@@ -581,6 +596,10 @@ VALUES('唤知席','muse','muse','自问#<id> <题>→<结论>;
   验收判据可执行化:能写成 Go 测试/SQL 度量的写明测试名
   ——修序=先挂测(判据编码成测试)→修→测绿=判据实证;
   写不出测试的载人工核点。
+  **「求知:<题>」前缀票=研究席触发④专用**（外拓调研件——
+  muse/处置会话遇「题需结构化外部调研」时立,源=自问#id∨
+  工单#id∨能力债）:处置席**不领**（超出本席窄门写径的交付
+  归研究员）,只可见可引用;研究员按触发④径交付。
   ③ 施工（OPEN 票按期限序拣——认领→修→销票）：
   ```sql
   INSERT INTO ops_event(seat,event,note)
