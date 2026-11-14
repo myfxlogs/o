@@ -1,0 +1,8 @@
+[Unit]
+Description=o-cognition-monologue 独白器官拍（棒2——内在线程定时醒;单飞守卫+跨机锁在 monologue.sh,在飞即让位）
+
+[Service]
+Type=oneshot
+ExecStart=/opt/o/scripts/cognition/monologue.sh
+RuntimeMaxSec=900
+NoNewPrivileges=true

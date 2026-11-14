@@ -441,3 +441,64 @@ func TestFocusStaleEscCheck(t *testing.T) {
 		t.Fatalf("移焦未复绿: recN=%d err=%v", recN, err)
 	}
 }
+
+// monologueStallEscCheck 独白停探:零独白=自锚未立静默;鲜独白静默;
+// 独白陈>26h→唤知/monologue_stall;新独白行=复绿。
+func TestMonologueStallEscCheck(t *testing.T) {
+	ctx := context.Background()
+	pool := testutil.Pool(t)
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM ops_event
+		WHERE esc_scope='monologue_stall' OR event='独白' OR event='恢复'`); err != nil {
+		t.Fatal(err)
+	}
+	svc := coreService{pool: pool}
+	deadSince := map[string]time.Time{}
+	fireN := func() int {
+		var n int
+		if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+			WHERE esc_scope='monologue_stall' AND event='升件'`).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+
+	svc.monologueStallEscCheck(ctx, deadSince) // 零独白=自锚未立静默
+	if n := fireN(); n != 0 {
+		t.Fatalf("零独白误唤: n=%d", n)
+	}
+
+	// 鲜独白行→静默
+	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,note)
+		VALUES('独白席','独白','首念上线 续=独白#0')`); err != nil {
+		t.Fatal(err)
+	}
+	svc.monologueStallEscCheck(ctx, deadSince)
+	if n := fireN(); n != 0 {
+		t.Fatalf("鲜独白误唤: n=%d", n)
+	}
+
+	// 独白陈>26h→唤
+	if _, err := pool.Exec(ctx, `UPDATE ops_event SET ts=now()-interval '30 hours'
+		WHERE event='独白'`); err != nil {
+		t.Fatal(err)
+	}
+	svc.monologueStallEscCheck(ctx, deadSince)
+	if n := fireN(); n != 1 {
+		t.Fatalf("线程断流未唤: n=%d", n)
+	}
+
+	// 新独白行(线程续上)→复绿
+	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,note)
+		VALUES('独白席','独白','线程回温 续=独白#1')`); err != nil {
+		t.Fatal(err)
+	}
+	svc.monologueStallEscCheck(ctx, deadSince)
+	var recN int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='恢复' AND note LIKE '%/monologue_stall%'`).Scan(&recN); err != nil || recN != 1 {
+		t.Fatalf("续链未复绿: recN=%d err=%v", recN, err)
+	}
+}
