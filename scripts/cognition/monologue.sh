@@ -3,10 +3,11 @@
 # 内心独白」): 内在线程=常驻节奏非信号驱动——定时醒,续独白链写一行念头,
 # 不干活(干活归唤知会话;想=线程不是任务)。
 # 单飞三闸: ①本机 systemd 面 o-cognition-* 在飞(剔自身件)即退——想不抢
-#   饭碗,工作会话优先; ②跨机 PG 锁同 dispatch 契(唤起行 30min 未配
-#   果/败/收口 ∨ ops_headless COG|MONO 心跳鲜活)→让位;
+#   饭碗,工作会话优先; ②跨机 PG 锁=让位判据收窄为「真在飞」:唤起行
+#   5min 内未配对(剔自 trigger=monologue——只盖 spawn→心跳间隙)
+#   ∨ ops_headless COG|MONO 心跳鲜活(运行中工作+前独白尸);
 #   ③胜方插唤起行(trigger=monologue)→run.sh 释锁径(唤起果/败)接管。
-# 静默退出=认知面在飞(常态非异常)。
+# 静默退出=认知面真在飞(非常态——判据收窄后饿死缝消)。
 set -u
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 ENVF="${REPORT_ENV_FILE:-/opt/o-research/env}"
@@ -27,8 +28,13 @@ SELECT pg_advisory_lock(7969);
 INSERT INTO ops_event(seat,event,ticket,note)
 SELECT '唤知机','唤起','','unit=$UNIT host=$(hostname) trigger=monologue'
 WHERE NOT EXISTS (
+	-- 独白槽位令(2026-11-14):唤起窗 30min→5min——只拦刚 spawn 未心跳
+	-- 的工作会话(唤起→心跳间隙=秒级,5min 覆盖 spawn 败迹);已心跳
+	-- 的由下行 ops_headless 判。原 30min 窗+唤起流每~16min=独白永让位
+	-- 零产饿死(26h 实证)。剔 trigger=monologue 行=陈独白尸不拦己。
 	SELECT 1 FROM ops_event e
-	WHERE e.seat='唤知机' AND e.event='唤起' AND e.ts>now()-interval '30 minutes'
+	WHERE e.seat='唤知机' AND e.event='唤起' AND e.ts>now()-interval '5 minutes'
+	  AND e.note NOT LIKE '%trigger=monologue%'
 	  AND NOT EXISTS (SELECT 1 FROM ops_event x
 	    WHERE x.ts>e.ts AND (
 	      (x.seat='唤知机' AND x.event IN ('唤起败','唤起果')

@@ -164,14 +164,17 @@ SELECT '唤知机','唤起','','unit=$UNIT host=$(hostname) trigger=$TRIGGER'
 WHERE NOT EXISTS (
 	SELECT 1 FROM ops_event e
 	WHERE e.seat='唤知机' AND e.event='唤起' AND e.ts>now()-interval '30 minutes'
+	  AND e.note NOT LIKE '%trigger=monologue%'
 	  AND NOT EXISTS (SELECT 1 FROM ops_event x
 	    WHERE x.ts>e.ts AND (
 	      (x.seat='唤知机' AND x.event IN ('唤起败','唤起果')
 	        AND x.note LIKE '%'||substring(e.note from 'unit=[^ ]+')||'%')
 	      OR x.event='会话收口')))
 AND NOT EXISTS (
+	-- 独白槽位令(2026-11-14):MONO 心跳剔出在飞面——独白=低优先
+	-- 租客永不拦工(AUD- 本不入面先例;独白唤起行上行同剔)。
 	SELECT 1 FROM ops_headless h
-	WHERE h.ticket ~ '^(COG|MONO)-' AND h.state='alive'
+	WHERE h.ticket ~ '^COG-' AND h.state='alive'
 	  AND h.last_activity > now() - interval '100 seconds')
 RETURNING id;
 SELECT pg_advisory_unlock(7969);
