@@ -135,7 +135,9 @@ TRIGGER=""
 # 单飞闸: o-cognition-<epoch> 会话件 active 即退(串行认知)。
 # 闸面剔自身——dispatch unit 名也在 o-cognition-* glob 下,不剔=自锁死
 # (首拍实证:dispatcher 把自己算进在飞会话即退,2026-11-09)。
-if systemctl --user list-units 'o-cognition-*' --state=active,activating --no-legend --plain 2>/dev/null \
+# glob 收窄 *.service(坑处置 2026-11-14②:timer 件恒 active 同入
+# o-cognition-* glob——dispatch/monologue 双闸自锁死,models 侧零产实证)
+if systemctl --user list-units 'o-cognition-*.service' --state=active,activating --no-legend --plain 2>/dev/null \
 	| grep -vE 'o-cognition-dispatch\.service' | grep -q .; then
 	exit 0
 fi
