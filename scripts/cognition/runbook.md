@@ -171,6 +171,43 @@ ORDER BY t.ts + COALESCE((substring(t.note from '期限=([0-9]+)h'))::int,24)*in
    但模板注册表 mt5 行=零——XAUUSDm 贵金属族/swap-carry/
    跨 venue arb 三族候选 11-06 盘点在案，先啃这块。
 
+### ①¾ 观察窗（业主令2026-11-14③——「自己跑」期对拍单,信号面净时一次查完）
+
+```bash
+dsn=$(grep '^FIN_PG_DSN=' /opt/o-research/env | cut -d= -f2- | tr -d '"')
+psql "$dsn" -At <<'SQL'
+SELECT '独白', id||'@'||to_char(ts,'MM-DD HH24:MI'), left(note,80)
+  FROM ops_event WHERE event='独白' ORDER BY id DESC LIMIT 3;
+SELECT '梦/muse', ticket||'#'||id||'@'||to_char(ts,'MM-DD HH24:MI'), left(note,70)
+  FROM ops_event WHERE ticket IN ('dream_replay','muse') ORDER BY id DESC LIMIT 3;
+SELECT '自问未答', count(*)::text, '' FROM ops_event e
+  WHERE e.event='自问' AND e.ts>now()-interval '30 days'
+  AND NOT EXISTS (SELECT 1 FROM ops_event d WHERE d.event='处置' AND d.ts>e.ts
+    AND d.note ~ ('自问#'||e.id||'([^0-9]|$)'));
+SELECT '唤起host', host, count(*)::text FROM (
+  SELECT substring(note from 'host=([^ ]+)') host FROM ops_event
+  WHERE event='唤起' AND ts>now()-interval '24 hours') s GROUP BY host;
+SELECT '唤起败24h', count(*)::text, max(ts)::text FROM ops_event
+  WHERE event='唤起败' AND ts>now()-interval '24 hours';
+SELECT '断供', esc_scope, left(note,60) FROM ops_esc_pending WHERE esc_scope LIKE 'expect_%';
+SELECT '方向书', id||'/'||state, to_char(entered_at,'MM-DD')||' '||coalesce(direction,'?')
+  FROM fin_strategy WHERE template_ref LIKE 'dir_perp_mom%' AND state<>'retired';
+SELECT '自知', '', left(note,120) FROM ops_event
+  WHERE event='量表' AND ticket='self_aware' ORDER BY id DESC LIMIT 1;
+SELECT '世面', '', left(note,90) FROM ops_event
+  WHERE event='量表' AND ticket='regime' ORDER BY id DESC LIMIT 1;
+SQL
+```
+
+判读（全绿=只记不动）:
+- 独白>90min 零产∨续链断=独白病灶升件;models/ant 唤起 24h 双零=认知双死邻。
+- expect_* 在册=对应器官断供走升件径;自问未答堆积=muse 喂料账。
+- 方向书 fill 面在 fin_paper_fill(roster_rw 无读权,fill 级核账走业主
+  根径或量表帧推断);funding 窗=OKX 8h 一拍,窗间零新增是常态非断供。
+- 梦龄>7d∧dream_due 未决在册=素材在案无产,唤点病灶;muse>24h 零产∧
+  自问账非空=同判。
+- 自知帧报亏=如实账非病灶;盈利判据=足样本期年化(30d 自报口径)非日读。
+
 ### ② 逐件处置（三档判）
 
 **懂你口径页（工单#11384 器官——处置前可引）**：业主意图已归十行
