@@ -70,12 +70,13 @@ func (r *Runner) writeEval(ctx context.Context, tx pgx.Tx, inst, dir, verdict, r
 	if err := tx.QueryRow(ctx, `SELECT (SELECT count(*) FROM fin_proposal
 		WHERE inst_id=$1 AND direction=$2 AND state IN ('fin_proposed','fin_armed'))
 		+ (SELECT count(*) FROM fin_strategy
-		WHERE inst_id=$1 AND direction=$2 AND state<>'retired')`,
+		WHERE inst_id=$1 AND direction=$2 AND state<>'retired')
+		+ (SELECT count(*) FROM fin_venue_untradeable WHERE inst_id=$1)`,
 		inst, dir).Scan(&open); err != nil {
 		return err
 	}
 	if open > 0 {
-		return nil
+		return nil // 在挂/黑名单在册不起草（fin_venue_untradeable 滤=#15188 死案径全员义务）
 	}
 	_, err := tx.Exec(ctx, `INSERT INTO fin_proposal(eval_id,inst_id,direction,net_apr)
 		VALUES($1,$2,$3,$4)`, evalID, inst, dir, c.netAPR)
