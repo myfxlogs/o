@@ -267,6 +267,9 @@ func (c coreService) GetCockpit(ctx context.Context,
 	} else {
 		r.Pipeline = pl
 	}
+	// ⑧ 在办检查点面并入首帧（在办契读侧件——每场 unit 各自在办什么;
+	// 判态/闭账逻辑件见 doing_face.go）。读败=missing 名段显缺非冒零。
+	c.doingRows(ctx, r)
 	return r, nil
 }
 

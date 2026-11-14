@@ -6,6 +6,10 @@
 //     传 nil 接口为主修，本件 reflect 判为兜底防线（注入不炸锚双落）；
 //  3. 持续告警退避：同指纹间隔 5→10→20→40→60min 顶（计数递进），首报即时——
 //     kill_switch/dd 触线等瞬时事件首报不受退避；不同指纹各自计 ladder。
+//
+// 双频（业主令 2026-11-15）：chanMoney 集内 kinds=钱径面→主 chat_id 文本；
+// 集外=系统运行情况→feishu.sys_chat_id 富卡片（CardSender 可升卡则卡，
+// 否则文本；sys_chat_id 空=回落主频零漏件）。
 package notify
 
 import (
@@ -29,14 +33,27 @@ const (
 	backoffCap  = 60 * time.Minute
 )
 
+// chanMoney 钱径 kinds（仓/金/账/风险/策略生灭/venue 注册——业主令双频分册；
+// 集外一切=系统运行情况进系统频，未定性新 kind 默认落系统频护钱径净面）。
+var chanMoney = map[string]bool{
+	"ledger_diff_alert": true, "rollback_failed": true, "close_gave_up": true,
+	"guard_close_loop": true, "dd_hardline_tripped": true, "dd_close_exhausted": true,
+	"dir_close_exhausted": true, "kill_switch": true, "transfer_ambiguous": true,
+	"bare_bag": true, "close_residual_perp": true, "residual_exposure": true,
+	"residual_clear_failed": true, "dcd_auto_retire": true, "volsell_auto_retire": true,
+	"bal_missing": true, "band_audit_drift": true, "scout_recommend": true,
+	"net_budget_warn": true, "net_budget_crit": true,
+}
+
 // Alerter 退避推送器（同指纹指数退避——持续态告警禁变相刷屏）。
 type Alerter struct {
-	cli    Sender
-	chatID func() string
-	on     func() bool // enabled 热启判（nil=off）
-	mu     sync.Mutex
-	last   map[uint64]time.Time
-	sent   map[uint64]int // 同指纹已推次数（ladder 档位）
+	cli     Sender
+	chatID  func() string
+	sysChat func() string // 系统频 chat 解析（nil/空=回落主频——双频未绑零漏件）
+	on      func() bool   // enabled 热启判（nil=off）
+	mu      sync.Mutex
+	last    map[uint64]time.Time
+	sent    map[uint64]int // 同指纹已推次数（ladder 档位）
 }
 
 // NewAlerter enabled/chatID 缺席=fail-closed 降级（on=nil 或 false=只 log）。
@@ -45,12 +62,22 @@ func NewAlerter(cli Sender, chatID func() string, on func() bool) *Alerter {
 		last: map[uint64]time.Time{}, sent: map[uint64]int{}}
 }
 
+// WithSysChat 挂系统频解析（fluent——双频分流件；nil=全量走主频旧行为）。
+func (a *Alerter) WithSysChat(fn func() string) *Alerter { a.sysChat = fn; return a }
+
 // cliNil typed-nil 判：接口零值或内裹 nil 指针皆判缺（反射兜底——主修在装配点）。
 func cliNil(s Sender) bool {
 	if s == nil {
 		return true
 	}
 	return reflect.ValueOf(s).Kind() == reflect.Ptr && reflect.ValueOf(s).IsNil()
+}
+
+func (a *Alerter) sysChatID() string {
+	if a.sysChat == nil {
+		return ""
+	}
+	return a.sysChat()
 }
 
 // Alert 推送（kind+fingerprint 指纹退避；禁重试——单次失败计数返回）。
@@ -80,14 +107,28 @@ func (a *Alerter) Alert(ctx context.Context, kind, payload string) {
 	a.last[k] = time.Now()
 	a.sent[k] = n + 1
 	a.mu.Unlock()
-	body := body0
-	_, actable := HumanText(kind, payload)
+	body, actable := HumanText(kind, payload)
+	sys := !chanMoney[kind]
+	chat := a.chatID()
+	if sys {
+		if s := a.sysChatID(); s != "" {
+			chat = s
+		}
+		if cs, ok := a.cli.(CardSender); ok { // 系统频富卡（业主令——败则回落文本不丢件）
+			card := AlertCard(title, fmt.Sprintf("%s\n—— %s", body, time.Now().Format("15:04:05")), actable)
+			if _, err := cs.CreateInteractive(ctx, chat, card); err == nil {
+				return
+			} else {
+				log.Printf("[alert] feishu card push err (%s): %v", kind, err)
+			}
+		}
+	}
 	prefix := "[经营事件] "
 	if actable {
 		prefix = "[O告警] "
 	}
 	text := fmt.Sprintf("%s%s | %s", prefix, body, time.Now().Format("15:04:05"))
-	if _, err := a.cli.SendText(ctx, a.chatID(), text); err != nil {
+	if _, err := a.cli.SendText(ctx, chat, text); err != nil {
 		log.Printf("[alert] feishu push err (%s): %v", kind, err)
 	}
 }

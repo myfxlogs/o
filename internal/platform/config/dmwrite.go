@@ -59,6 +59,7 @@ var ownerKeyGlobs = []string{
 	"risk.dir.*",            // 方向书子预算（棒3——毕业供数归业主）
 	"ledger.recon_tol_usd",  // 对账容差（红线三）
 	"feishu.chat_id",        // 业主通知通道
+	"feishu.sys_chat_id",    // 系统通知通道（业主令 2026-11-15 双频——运行/在办富卡）
 	"notify.*",              // 通知投递面
 	"trx.stake_address",     // 资金去向地址
 	"trx.rental_payers",     // 资金对手方注册表

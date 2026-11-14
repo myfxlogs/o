@@ -515,6 +515,17 @@ message GetCockpitResponse {
   int32 roster_active = 10;              // active 岗数（WHERE status='active'）
   int64 roster_worst_lag_s = 11;         // 最坏心跳滞后秒（同 GetFlowPulse 口径）
   string roster_worst_seat = 12;         // 最滞岗名（红警显名——>10min 滞转红）
+  repeated CogDoingRow doing = 13;       // 每场各自在办什么（unit粒度开检查点面——「我现在正在做什么」主动声明;读败=missing "doing"）
+}
+
+// —— 在办检查点面（在办契读侧件——每场唤知 unit 各自的未闭在办行;
+// 收口/唤起果/唤起败/处置引 在办#id 销=闭;态=服务端派生前端零判据）——
+message CogDoingRow {
+  string unit = 1;                       // 会话 unit（o-cognition-<epoch>——场=id）
+  string doing = 2;                      // 在办声明（<处置对象>:<相位一句>——ops_event note 原文）
+  google.protobuf.Timestamp ts = 3;      // 本在办行落账时刻
+  string state = 4;                      // 在干|悬账(服务端判态:unit 2h 内有新事件=在干,否则=悬账——同 selfaware 办 TTL 律)
+  int64 age_s = 5;                       // 在办龄秒(前端显形——鲜度自判)
 }
 
 // —— 工作流管道（驾驶舱 v4 三卡合一——1票1行管道流；ops_event 流水按票
