@@ -17,11 +17,16 @@ import (
 )
 
 // 锚①：腿形注册覆盖——execfam 词表全模板有腿形映射（新增族未登记=
-// 矩阵面缺口 fail-closed 不静默漏）。
+// 矩阵面缺口 fail-closed 不静默漏；显式裁定不入演习面者走
+// drillUnsupported 白名单——shape_align 同册单源）。
 func TestLegShapeCoverage(t *testing.T) {
+	exempt := map[string]bool{}
+	for _, tmpl := range drillUnsupported {
+		exempt[tmpl] = true
+	}
 	for _, tmpl := range execfam.All() {
-		if _, ok := excell.LegShapeOf(tmpl); !ok {
-			t.Fatalf("execfam 模板 %s 腿形未登记", tmpl)
+		if _, ok := excell.LegShapeOf(tmpl); !ok && !exempt[tmpl] {
+			t.Fatalf("execfam 模板 %s 腿形未登记且不在演习不支持白名单", tmpl)
 		}
 	}
 	// 钦定映射抽查：funding/basis/xvenue/dcd 四族归位正确。

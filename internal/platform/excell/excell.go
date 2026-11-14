@@ -3,8 +3,9 @@
 // 格=模板×venue对×方向（机枚举禁手编——占用格自 fin_strategy
 // live|paper|probe|degraded ∪ fin_proposal fin_proposed|fin_armed 现查，
 // 钦定 xvenue-carry 双向格无条件在册）；面值档=格内最小在产名义+上中位
-// 名义两档（零占用钦定格=首单规模 $50 单档）；词表零占格=免演登记
-// （Exempt=true——不产凭据不静默漏）。cell_key 机读格式唯一真源：
+// 名义两档（零占用钦定格=首单规模 $50 单档）；免演登记双源：①词表
+// 零占格 ②paper-only 裁定族占用格（Exempt=true——不产凭据不静默漏）。
+// cell_key 机读格式唯一真源：
 //
 //	template@venuepair/direction#usd=<面值>
 //
@@ -40,7 +41,7 @@ type Cell struct {
 	VenuePair string
 	Direction string
 	Occupied  bool   // 有策略/提案占用（false=钦定空格或免演登记）
-	Exempt    bool   // 词表零占免演登记——不产凭据不静默漏
+	Exempt    bool   // 免演登记双源——①词表零占格 ②paper-only 裁定族占用格（不产凭据不静默漏）
 	Tiers     []Tier // 面值档（min 在产+上中位；空占用钦定格=$50 单档）
 }
 
@@ -187,6 +188,13 @@ func Enumerate(ctx context.Context, pool *pgxpool.Pool) ([]Cell, error) {
 				inst = r
 			}
 			c.Tiers = append(c.Tiers, Tier{Notional: n, InstID: inst})
+		}
+	}
+	// ③b paper-only 裁定族占用格标免演（真单径未建跑格=凭据伪造不可为；
+	// 免演=显式知缺非静默漏——族出 PaperOnly 册即自动转真演习格）。
+	for _, c := range cells {
+		if execfam.PaperOnly(c.Template) {
+			c.Exempt = true
 		}
 	}
 	// ④ 钦定 xvenue 双向格并入（T-0145 CTO 裁定——无占用=$50 单档在册）。
