@@ -63,6 +63,14 @@ WHERE NOT EXISTS (
 	  AND NOT EXISTS (SELECT 1 FROM ops_event x
 	    WHERE x.seat='审计机' AND x.event IN ('唤起败','唤起果') AND x.ts>e.ts
 	      AND x.note LIKE '%'||substring(e.note from 'unit=[^ ]+')||'%'))
+AND NOT EXISTS (
+	-- ops_headless AUD- 心跳腿(cognition dispatch.sh 同构,T-0521 85.35 双唤
+	-- 实证修法移植):唤起行 30min 窗<RuntimeMaxSec 5400s,长会话唤起行过期后
+	-- 30~90min 窗内需心跳续在飞判据——run.sh HB_PREFIX=AUD- 60s 续期产数,
+	-- 票键钉 '^AUD-' 唤知/独白心跳不互拦(AUD 独立槽位令 2026-11-14)。
+	SELECT 1 FROM ops_headless h
+	WHERE h.ticket ~ '^AUD-' AND h.state='alive'
+	  AND h.last_activity > now() - interval '100 seconds')
 RETURNING id;
 SELECT pg_advisory_unlock(7970);
 SQL
