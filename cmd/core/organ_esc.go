@@ -208,3 +208,20 @@ func (c coreService) organOrphanEscCheck(ctx context.Context, deadSince map[stri
 		})
 	}
 }
+
+// navStaleEscCheck NAV 日拍缺席探——md_equity_curve ccy='NAV' 常拍（实证
+// 6-11 行/日）24h 零新增=report_daily 断供。读件「陈值=不判」守假证据律
+// 但「不判」≠「不可见」：生产者死了探针得替它报丧——11-11 实证断供 2d
+// 零觉,idle_capital/年化目标两读件同瞎。只报断供不诊因。
+func (c coreService) navStaleEscCheck(ctx context.Context, deadSince map[string]time.Time) {
+	var last *time.Time
+	if err := c.pool.QueryRow(ctx, `SELECT max(ts) FROM md_equity_curve
+		WHERE ccy='NAV'`).Scan(&last); err != nil {
+		return // 读件败本拍让位
+	}
+	dead := last != nil && time.Since(*last) > 24*time.Hour // 有史才谈断供
+	c.escEdgeUV(ctx, deadSince, "数据缺", "nav_stale", "@", dead, func() string {
+		return fmt.Sprintf("数据缺/nav_stale: NAV 日拍件 24h 零新增（末拍 %s）——report_daily 断供,权益读件全盲（idle_capital/年化目标同瞎）;定性归唤知会话",
+			last.UTC().Format("01-02 15:04Z"))
+	})
+}

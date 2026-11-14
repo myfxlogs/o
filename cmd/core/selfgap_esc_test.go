@@ -187,3 +187,183 @@ func TestMuseDueEscCheck(t *testing.T) {
 		t.Fatalf("答题未复绿: recN=%d err=%v", recN, err)
 	}
 }
+
+// learnGapEscCheck 求知滞探:OPEN 求知票龄>2h 零触→升件;
+// 新票(<2h)/活在认领/已处置皆静默;销票处置=复绿。
+func TestLearnGapEscCheck(t *testing.T) {
+	ctx := context.Background()
+	pool := testutil.Pool(t)
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM ops_event
+		WHERE esc_scope='learn_gap' OR event='工单' OR event='认领'`); err != nil {
+		t.Fatal(err)
+	}
+	svc := coreService{pool: pool}
+	deadSince := map[string]time.Time{}
+	fireN := func() int {
+		var n int
+		if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+			WHERE esc_scope='learn_gap' AND event='升件'`).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+
+	svc.learnGapEscCheck(ctx, deadSince) // 零票静默
+	if n := fireN(); n != 0 {
+		t.Fatalf("零票误唤: n=%d", n)
+	}
+
+	// 新票(<2h)不唤
+	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,note)
+		VALUES('处置席','工单','求知:okx earn 活期产品面——期限=24h,源=自问#1')`); err != nil {
+		t.Fatal(err)
+	}
+	svc.learnGapEscCheck(ctx, deadSince)
+	if n := fireN(); n != 0 {
+		t.Fatalf("新票误唤: n=%d", n)
+	}
+
+	// 陈票(3h)唤
+	var tid int64
+	if err := pool.QueryRow(ctx, `INSERT INTO ops_event(seat,event,note,ts)
+		VALUES('处置席','工单','求知:mtapi 还有哪些已授信未探读面——期限=48h,源=自问#2',
+			now()-interval '3 hours') RETURNING id`).Scan(&tid); err != nil {
+		t.Fatal(err)
+	}
+	svc.learnGapEscCheck(ctx, deadSince)
+	if n := fireN(); n != 1 {
+		t.Fatalf("陈票未唤: n=%d", n)
+	}
+
+	// 处置销票→复绿
+	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,note)
+		VALUES('处置席','处置',$1)`,
+		fmt.Sprintf("工单#%d digest 交付毕——canon 条目落位", tid)); err != nil {
+		t.Fatal(err)
+	}
+	svc.learnGapEscCheck(ctx, deadSince)
+	var recN int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='恢复' AND note LIKE '%/learn_gap%'`).Scan(&recN); err != nil || recN != 1 {
+		t.Fatalf("销票未复绿: recN=%d err=%v", recN, err)
+	}
+}
+
+// museClaimEscCheck muse 落实探:muse 行缺「落=」∧无核行→升件;
+// 载落=静默;处置核行=复绿。
+func TestMuseClaimEscCheck(t *testing.T) {
+	ctx := context.Background()
+	pool := testutil.Pool(t)
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM ops_event
+		WHERE esc_scope='muse_claim' OR event='muse' OR event='处置'`); err != nil {
+		t.Fatal(err)
+	}
+	svc := coreService{pool: pool}
+	deadSince := map[string]time.Time{}
+	fireN := func() int {
+		var n int
+		if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+			WHERE esc_scope='muse_claim' AND event='升件'`).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+
+	// 合规 muse 行(载落=)不唤
+	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note)
+		VALUES('唤知席','muse','muse','自问#9 armed哑弹为何无launch验证→需venue闸;落=工单#555')`); err != nil {
+		t.Fatal(err)
+	}
+	svc.museClaimEscCheck(ctx, deadSince)
+	if n := fireN(); n != 0 {
+		t.Fatalf("合规行误唤: n=%d", n)
+	}
+
+	// 缺落=行唤
+	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note)
+		VALUES('唤知席','muse','muse','自问#10 想了一圈感觉挺好的')`); err != nil {
+		t.Fatal(err)
+	}
+	svc.museClaimEscCheck(ctx, deadSince)
+	if n := fireN(); n != 1 {
+		t.Fatalf("缺落=未唤: n=%d", n)
+	}
+
+	// 核行处置→复绿
+	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,note)
+		VALUES('处置席','处置','muse 行核毕:自问#10 判词不实已追立工单#556')`); err != nil {
+		t.Fatal(err)
+	}
+	svc.museClaimEscCheck(ctx, deadSince)
+	var recN int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='恢复' AND note LIKE '%/muse_claim%'`).Scan(&recN); err != nil || recN != 1 {
+		t.Fatalf("核行未复绿: recN=%d err=%v", recN, err)
+	}
+}
+
+// selfq_gap 自问字段 drift 核:锚(首条载 自问= 收口行)前安静,
+// 锚后缺字段行→唤知/selfq_gap;同条件不重复火(escEdgeUV dedup)。
+func TestSelfqGapEscCheck(t *testing.T) {
+	ctx := context.Background()
+	pool := testutil.Pool(t)
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM ops_event
+		WHERE esc_scope='selfq_gap' OR (event='会话收口' AND seat='唤知')`); err != nil {
+		t.Fatal(err)
+	}
+	svc := coreService{pool: pool}
+	deadSince := map[string]time.Time{}
+	fireN := func() int {
+		var n int
+		if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+			WHERE esc_scope='selfq_gap' AND event='升件'`).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+
+	// 锚前行(契未上线)不计
+	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,note)
+		VALUES('唤知','会话收口','unit=t-a 收口:面净 用帧=自态')`); err != nil {
+		t.Fatal(err)
+	}
+	svc.frameUseEscCheck(ctx, deadSince)
+	if n := fireN(); n != 0 {
+		t.Fatalf("锚前误唤: n=%d", n)
+	}
+
+	// 锚行(契上线证)
+	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,note)
+		VALUES('唤知','会话收口','unit=t-b 收口:处置 用帧=自态 自问=9')`); err != nil {
+		t.Fatal(err)
+	}
+	svc.frameUseEscCheck(ctx, deadSince)
+	if n := fireN(); n != 0 {
+		t.Fatalf("锚行即唤: n=%d", n)
+	}
+
+	// 锚后缺字段行→火
+	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,note)
+		VALUES('唤知','会话收口','unit=t-c 收口:处置 用帧=叙事')`); err != nil {
+		t.Fatal(err)
+	}
+	svc.frameUseEscCheck(ctx, deadSince)
+	if n := fireN(); n != 1 {
+		t.Fatalf("缺字段未唤: n=%d", n)
+	}
+
+	// 条件在不再火(dedup)
+	svc.frameUseEscCheck(ctx, deadSince)
+	if n := fireN(); n != 1 {
+		t.Fatalf("同条件重火: n=%d", n)
+	}
+}

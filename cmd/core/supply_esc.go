@@ -163,23 +163,6 @@ func (c coreService) intakeDryEscCheck(ctx context.Context, deadSince map[string
 	})
 }
 
-// navStaleEscCheck NAV 日拍缺席探——md_equity_curve ccy='NAV' 常拍（实证
-// 6-11 行/日）24h 零新增=report_daily 断供。读件「陈值=不判」守假证据律
-// 但「不判」≠「不可见」：生产者死了探针得替它报丧——11-11 实证断供 2d
-// 零觉,idle_capital/年化目标两读件同瞎。只报断供不诊因。
-func (c coreService) navStaleEscCheck(ctx context.Context, deadSince map[string]time.Time) {
-	var last *time.Time
-	if err := c.pool.QueryRow(ctx, `SELECT max(ts) FROM md_equity_curve
-		WHERE ccy='NAV'`).Scan(&last); err != nil {
-		return // 读件败本拍让位
-	}
-	dead := last != nil && time.Since(*last) > 24*time.Hour // 有史才谈断供
-	c.escEdgeUV(ctx, deadSince, "数据缺", "nav_stale", "@", dead, func() string {
-		return fmt.Sprintf("数据缺/nav_stale: NAV 日拍件 24h 零新增（末拍 %s）——report_daily 断供,权益读件全盲（idle_capital/年化目标同瞎）;定性归唤知会话",
-			last.UTC().Format("01-02 15:04Z"))
-	})
-}
-
 // stuckEscCheck 卡壳/复核面探——升件获「修|愈」类处置后同 scope 复燃=
 // 状态可证伪宣称被戳穿（宣称已修→修未成立;宣称已愈→愈是假愈——
 // 修没修成愈没愈成,状态不说谎）。判词质量复核的机械臂:
@@ -244,6 +227,8 @@ func (c coreService) stuckEscCheck(ctx context.Context, deadSince map[string]tim
 	c.hotDomainEscCheck(ctx, deadSince) // 热域探同拍——复燃同数据源（stuck_esc 行的域级聚类翼,selfmodel 同口径）
 	c.dreamDueEscCheck(ctx, deadSince)  // 梦探同拍——离线巩固唤点(自模器官家同翼)
 	c.museDueEscCheck(ctx, deadSince)   // muse 醒探同拍——自发议程唤点(自问账出题自己答)
+	c.learnGapEscCheck(ctx, deadSince)  // 求知滞探同拍——无主外调票转升件接上注意链
+	c.museClaimEscCheck(ctx, deadSince) // muse 落实探同拍——自证绿缝核查
 }
 
 // codeworkStallEscCheck 工单滞留探——双臂:

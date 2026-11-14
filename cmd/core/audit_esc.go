@@ -111,6 +111,27 @@ func (c coreService) frameUseEscCheck(ctx context.Context, deadSince map[string]
 		return fmt.Sprintf(
 			"唤知/frame_use_gap: 用帧契活后唤知收口 %d 行缺用帧=字段——契约漂移(runbook 收口格式被绕,会话未接新契)", missing)
 	})
+
+	// 自问字段同款自锚 drift 核(零激励缝根修的牙——「必留题」软义务
+	// 已改收口必填字段,缺字段=回潮):锚=首条载 自问= 的唤知收口行,
+	// 契未上线判集恒空探针自闭。
+	var sqAnchor *time.Time
+	var sqMissing int
+	if err := c.pool.QueryRow(ctx, `SELECT
+		(SELECT min(x.ts) FROM ops_event x WHERE x.event='会话收口'
+			AND x.seat='唤知' AND x.note ~ '自问='),
+		(SELECT count(*) FROM ops_event e WHERE e.event='会话收口'
+			AND e.seat='唤知' AND e.ts>now()-interval '3 days'
+			AND e.note !~ '自问='
+			AND e.ts>(SELECT COALESCE(min(x.ts),now()+interval '1 year')
+				FROM ops_event x WHERE x.event='会话收口' AND x.seat='唤知'
+				AND x.note ~ '自问='))`).Scan(&sqAnchor, &sqMissing); err != nil {
+		return
+	}
+	c.escEdgeUV(ctx, deadSince, "唤知", "selfq_gap", "@", sqAnchor != nil && sqMissing > 0, func() string {
+		return fmt.Sprintf(
+			"唤知/selfq_gap: 自问契活后唤知收口 %d 行缺自问=字段——零激励缝回潮(收口格式被绕,自问账断供)", sqMissing)
+	})
 }
 
 // auditStallEscCheck 审计臂停摆面探——seat='审计席' 产出锚 48h 零行=死。
