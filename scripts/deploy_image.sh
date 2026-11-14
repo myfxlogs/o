@@ -156,4 +156,10 @@ fi
 # 留近 5 个 sha tag+latest 保回滚径。保洁件尽力——败不翻部署结果。
 bash scripts/image_tag_gc.sh || echo "⚠️ [deploy_image] image_tag_gc 败（不阻断部署收口）" >&2 # tolerate: 保洁尽力件——tag 残留下轮 deploy 再收，部署成败不绑保洁
 
+# ── ⑦ 本机 builder cache 窗（2026-11-14 病灶：build cache 213G 塞满盘
+# 断写 runbook——每部署 Go/npm 构建层堆积，tag_gc 只剪镜像不剪缓存）。
+# until=72h 同窗镜像剪口径——日常部署热层保，陈层摘。保洁件尽力。
+docker builder prune -f --filter "until=72h" >/dev/null 2>&1 \
+  || echo "⚠️ [deploy_image] builder prune 败（不阻断部署收口）" >&2 # tolerate: 保洁尽力件——缓存残留下轮 deploy 再收，部署成败不绑保洁
+
 echo "[deploy_image] done→$SG（部署锁 trap 已释）"
