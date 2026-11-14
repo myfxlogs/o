@@ -78,6 +78,21 @@ func TestCalibDriftEscCheck(t *testing.T) {
 		t.Fatalf("校准族误唤: n=%d", n)
 	}
 
+	// 时代守卫:eval 开户后改写(e.ts>pr.created_at)=事后重估非入场
+	// 信念——失真幅相同但全簇被剔,探沉默(工单#15866 funding-hedge
+	// 幻影失真同构:负簇 eval.ts 均开户后18d)
+	seed("ghost-fam", 10, 0.10, -10)
+	if _, err := pool.Exec(ctx, `UPDATE fin_opp_eval e SET ts=now()+interval '2 days'
+		WHERE e.id IN (SELECT p.eval_id FROM fin_proposal p
+			JOIN fin_strategy s ON s.proposal_ref=p.id
+			WHERE s.template_ref='ghost-fam')`); err != nil {
+		t.Fatal(err)
+	}
+	svc.calibDriftEscCheck(ctx, deadSince)
+	if n := fireN(); n != 0 {
+		t.Fatalf("改写簇误唤(时代守卫失效): n=%d", n)
+	}
+
 	seed("wild-fam", 10, 0.10, -10) // 失真族:pred+10% vs real -3650%
 	svc.calibDriftEscCheck(ctx, deadSince)
 	if n := fireN(); n != 1 {
