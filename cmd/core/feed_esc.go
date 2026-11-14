@@ -63,17 +63,10 @@ func (c coreService) escLoop(ctx context.Context, al *notify.Alerter) {
 		c.navStaleEscCheck(ctx, deadSince)
 		c.codeworkStallEscCheck(ctx, deadSince)
 		c.calibDriftEscCheck(ctx, deadSince) // 世模校准探(棒3 补挂——棒1 建件漏接线,信念对账面死态根修)
+		c.noveltyEscCheck(ctx, deadSince)    // 惊异唤探(新假想卡进管道即唤——知道自己不知道的扳机面)
 		c.reflexCompileCheck(ctx, deadSince) // 反射编译器(棒4——裁定记号机械物化 econ_rule 闸,判词不靠会话记得)
 		c.expectProdEscCheck(ctx, deadSince) // 元探通用形——生产面期望产出 vs 实产差分(工单#10605 B)
-		c.armedDistanceBeat(ctx)             // 量表探（非升件——armed 距阈日行照）
-		c.ownerLedgerBeat(ctx)               // 量表探（业主令账+点破率曲线日行照）
-		c.ownerModelBeat(ctx, deadSince)     // 懂你模型帧(棒4——请托结局谱∪点破域谱+reask_denied 探)
-		c.profitDailyBeat(ctx)               // 量表探（盈利报告日行照——业主唯一例行读件）
-		c.selfStateBeat(ctx)                 // 量表探（自态账——会话冷启动即读件,工单#10358 C）
-		c.booksBeat(ctx, deadSince)          // 账房（ΔNAV三桶对账+鬼账升件,业主令11-12立件）
-		c.pnlAttrBeat(ctx, deadSince)        // 策略盈亏归因（11-12①——分列+账房咬合,账房器官零改动）
-		c.selfAwareBeat(ctx)                 // 自我意识器官帧（工单#13540 业主令件——本体觉三问量表）
-		c.regimeBeat(ctx)                    // 世模环境帧（棒3——市场态量表,世面=冷启动即见件）
+		c.metricBeats(ctx, deadSince)        // 量表探群(件见 metric_beats.go——本文件棘轮线满)
 	}
 }
 

@@ -57,6 +57,19 @@ psql "$FIN_DSN" -qAt -c "SELECT note FROM ops_event
 # 预算/解锁/自裁/成年判据/问≠令/目的锚/生成径;判词引 口径:<键> 即锚业主令）:
 psql "$FIN_DSN" -qAt -c "SELECT note FROM ops_event
   WHERE event='口径' AND ticket='owner_intent' ORDER BY id"
+# 未完在办（检查点件——在办行所在 unit 死无收口/果败=上一棒猝死残态;
+# 每 unit 只取末行=断气前最后在干的事;见到→先判接续∨弃置:
+# 接续=本轮处置之,弃置=落'处置'行引 在办#<id> 销账,不许装看不见;
+# 本行存在=写侧契约的产物,见 ② 逐件处置段在办契）:
+psql "$FIN_DSN" -qAt -c "SELECT DISTINCT ON (e.ticket) e.id, e.ticket,
+  left(e.note,150) FROM ops_event e
+WHERE e.event='在办' AND e.ts>now()-interval '48 hours'
+  AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.ts>e.ts
+    AND x.note LIKE '%'||e.ticket||'%'
+    AND x.event IN ('会话收口','唤起果','唤起败'))
+  AND NOT EXISTS (SELECT 1 FROM ops_event d WHERE d.event='处置' AND d.ts>e.ts
+    AND d.note ~ ('在办#'||e.id::text||'([^0-9]|\$)'))
+ORDER BY e.ticket, e.id DESC LIMIT 3"
 # 审计前任悬置：audit 支未入 master 且带 RED→复证补升件
 git -C /opt/o fetch -p origin -q 2>/dev/null
 git -C /opt/o branch -r --no-merged origin/master | grep -E 'audit/'
@@ -209,6 +222,23 @@ SQL
 - 自知帧报亏=如实账非病灶;盈利判据=足样本期年化(30d 自报口径)非日读。
 
 ### ② 逐件处置（三档判）
+
+**在办契**（检查点件——会话间工作记忆:猝死时给下一棒留「断气前
+在干什么」;⓪ 段「未完在办」查询是本契的读侧）:
+- 进处置面选定首个处置对象→写一行;
+- 处置对象换挡→再写一行（append-only,**末行=当前态**,不改旧行）;
+- 收口行=本契天然关闭,正常完场**不另写销行**。
+```sql
+INSERT INTO ops_event(seat,event,ticket,note)
+VALUES('唤知','在办','${COG_UNIT:-manual}',
+ '<处置对象——升件#id∨工单#id∨勘面名>:<阶段一句>')
+```
+三律：①**ticket 必载 unit**——audit/monologue 角色行同契
+（`$COG_UNIT` 缺省落 'manual'，孤儿账靠 unit 对关闭行，
+缺 ticket=残态永远挂面）②note 写「对象+阶段」不写感想——
+「工单#16211 eval史版化:已定位upsert点」是行，
+「在思考人生」不是③每行都得能独活——下一棒只读末行接续，
+「同上」式引用=断链。
 
 **懂你口径页（工单#11384 器官——处置前可引）**：业主意图已归十行
 口径账，`SELECT note FROM ops_event WHERE event='口径' AND

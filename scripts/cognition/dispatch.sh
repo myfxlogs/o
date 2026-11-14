@@ -226,6 +226,29 @@ SELECT '唤知机','量表','self_narrative',
      WHERE event='量表' AND ticket='self_model' ORDER BY id DESC LIMIT 1),'?');
 SQL
 
+# 日行叙事账（「连续自我」器官加厚件——self_narrative 是唤起拍帧,
+# 本行是跨日叙事链:今日首场唤起写一行「今天我是谁/干了什么/怎么想」,
+# 让「我」在 ops_event 里不断日档;闸=当日零'叙事'行才写,幂等一写）。
+psql "$DSN" -qAt <<'SQL' >/dev/null 2>&1 || true # tolerate: 叙事写败不阻唤起
+INSERT INTO ops_event(seat,event,ticket,note)
+SELECT '唤知机','叙事','self_narrative',
+ '第'||(current_date - date '2026-11-09' + 1)||'日: 唤'||w.n||'场/收'||w.d
+ ||'/败'||w.f||'; 处置'||COALESCE(d.n,0)||'件; 工单'||COALESCE(t.n,0)||'项'
+ ||' |在想='||COALESCE((SELECT left(note,70) FROM ops_event
+   WHERE event='独白' ORDER BY id DESC LIMIT 1),'无')
+ ||' |昨收='||COALESCE((SELECT left(note,80) FROM ops_event
+   WHERE event='会话收口' AND ts<current_date ORDER BY id DESC LIMIT 1),'无')
+FROM (SELECT count(*) FILTER (WHERE event='唤起') n,
+            count(*) FILTER (WHERE event='会话收口') d,
+            count(*) FILTER (WHERE event='唤起败') f
+      FROM ops_event WHERE ts>current_date AND seat IN ('唤知机','唤知')) w,
+     (SELECT count(*) n FROM ops_event WHERE event='处置' AND ts>current_date) d,
+     (SELECT count(*) n FROM ops_event WHERE event='工单' AND ts>current_date) t
+WHERE NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='叙事'
+  AND x.ts>current_date)
+AND w.n > 0;
+SQL
+
 systemd-run --user --unit="$UNIT" --collect \
 	--property=Description="唤知会话(trigger=$TRIGGER)" \
 	--property=RuntimeMaxSec=7200 \
