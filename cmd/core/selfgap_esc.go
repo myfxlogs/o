@@ -95,3 +95,35 @@ func (c coreService) dreamDueEscCheck(ctx context.Context, deadSince map[string]
 			since, material)
 	})
 }
+
+// museDueEscCheck muse 醒探（「思想者」件 2026-11-14——自发议程环:
+// 自问账=上一个会话出的题,muse 醒=没任务的想,两拼=议程无探针参与,
+// 「会答题不会出题」缝的补齐）。sleep-time 全义版:非指派材料回放,
+// 是自己出题自己答的离线巩固。
+// 判据=状态非散文:自问账有未答题(自问行无「自问#id」处置引)∧
+// 未决升件<3(想不抢饭碗——队列重时静默)∧末次 muse>8h(思想不占带宽,
+// ticket='muse' 行=想过的痕)。探针只唤不出题也不产答——议程=挑
+// 自问账最值钱题想到底(runbook muse 档),答落 muse 行自复绿。
+func (c coreService) museDueEscCheck(ctx context.Context, deadSince map[string]time.Time) {
+	var qN, pendN int
+	var lastMuse *time.Time
+	if err := c.pool.QueryRow(ctx, `SELECT
+		(SELECT count(*) FROM ops_event e WHERE e.event='自问'
+			AND e.ts>now()-interval '30 days'
+			AND NOT EXISTS (SELECT 1 FROM ops_event d WHERE d.event='处置'
+				AND d.id>e.id AND d.note ~ ('自问#'||e.id||'([^0-9]|$)'))),
+		(SELECT count(*) FROM ops_event e WHERE e.event='升件'
+			AND e.ts>now()-interval '72 hours'
+			AND NOT EXISTS (SELECT 1 FROM ops_event d WHERE d.id>e.id
+				AND d.note ~ ('升件#'||e.id||'([^0-9]|$)'))),
+		(SELECT max(ts) FROM ops_event WHERE ticket='muse')`).
+		Scan(&qN, &pendN, &lastMuse); err != nil {
+		return // 读件败本拍让位
+	}
+	due := qN > 0 && pendN < 3 && (lastMuse == nil || time.Since(*lastMuse) > 8*time.Hour)
+	c.escEdgeUV(ctx, deadSince, "唤知", "muse", "@", due, func() string {
+		return fmt.Sprintf(
+			"唤知/muse: 自问账 %d 题未答+队列 %d 轻——无任务的醒:挑最值钱一题想到底,结论落 muse 行自复绿(runbook muse 档;答不了=升级自问非弃)",
+			qN, pendN)
+	})
+}

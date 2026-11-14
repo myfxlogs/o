@@ -129,3 +129,61 @@ func TestDreamDueEscCheck(t *testing.T) {
 		t.Fatalf("有梦未复绿: recN=%d err=%v", recN, err)
 	}
 }
+
+// museDueEscCheck muse 醒探:自问未答题在案+队列轻+距末想>8h∨零史→
+// 升件;答题/重队列/频闸内皆不唤;muse 行产=自复绿。
+func TestMuseDueEscCheck(t *testing.T) {
+	ctx := context.Background()
+	pool := testutil.Pool(t)
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM ops_event
+		WHERE esc_scope='muse' OR event='自问' OR ticket='muse' OR event='升件'`); err != nil {
+		t.Fatal(err)
+	}
+	svc := coreService{pool: pool}
+	deadSince := map[string]time.Time{}
+	fireN := func() int {
+		var n int
+		if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+			WHERE esc_scope='muse' AND event='升件'`).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+
+	svc.museDueEscCheck(ctx, deadSince) // 零题不唤
+	if n := fireN(); n != 0 {
+		t.Fatalf("零题误唤: n=%d", n)
+	}
+
+	var qid int64
+	if err := pool.QueryRow(ctx, `INSERT INTO ops_event(seat,event,ticket,note)
+		VALUES('处置席','自问','self_question','armed 哑弹为何 launch 前无验证? 源=勘面') RETURNING id`).
+		Scan(&qid); err != nil {
+		t.Fatal(err)
+	}
+	svc.museDueEscCheck(ctx, deadSince) // 题在+队列空+零史→唤
+	if n := fireN(); n != 1 {
+		t.Fatalf("该唤未唤: n=%d", n)
+	}
+
+	// 答题销题(muse 行+处置引)→复绿
+	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note)
+		VALUES('唤知席','muse','muse',$1)`,
+		fmt.Sprintf("自问#%d armed哑弹为何无launch验证→落=工单", qid)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,note)
+		VALUES('处置席','处置',$1)`,
+		fmt.Sprintf("自问#%d 答毕——muse 行在案", qid)); err != nil {
+		t.Fatal(err)
+	}
+	svc.museDueEscCheck(ctx, deadSince)
+	var recN int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='恢复' AND note LIKE '%/muse%'`).Scan(&recN); err != nil || recN != 1 {
+		t.Fatalf("答题未复绿: recN=%d err=%v", recN, err)
+	}
+}
