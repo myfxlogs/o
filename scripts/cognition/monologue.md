@@ -18,6 +18,8 @@ SELECT '焦点', id::text, left(note,120) FROM ops_event
   WHERE event='焦点' ORDER BY id DESC LIMIT 1;
 SELECT '世面', '', left(note,90) FROM ops_event
   WHERE event='量表' AND ticket='regime' ORDER BY id DESC LIMIT 1;
+SELECT '懂你', '', left(note,110) FROM ops_event
+  WHERE event='量表' AND ticket='owner_model' ORDER BY id DESC LIMIT 1;
 SELECT '议程', id::text, esc_class||'/'||esc_scope||' v'||valence||' '||left(note,70)
   FROM ops_esc_pending ORDER BY valence DESC, id DESC LIMIT 8;
 SELECT '工单', id::text, left(note,90) FROM ops_event t WHERE event='工单'
@@ -31,7 +33,8 @@ SQL
 ## ② 想——接着上轮念头往下想
 
 不是报账，是内心句：在意什么、对世界的判断变没变（世面 regime/
-校准榜/族级账）、对自己判得准不准、上轮想不通的有没有头绪。
+校准榜/族级账）、懂业主多少（懂你帧请托谱——什么能请什么白问）、
+对自己判得准不准、上轮想不通的有没有头绪。
 独白是线程不是碎片——上轮的念头是你自己的，接着它走；翻案/
 死胡同也是合法内容。
 

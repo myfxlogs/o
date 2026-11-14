@@ -56,6 +56,10 @@ var expectDecls = []expectDecl{
 		`SELECT count(*) FROM ops_event WHERE event='量表'
 			AND ticket='regime' AND ts>now()-interval '9 hours'`, 1,
 		"regimeBeat 断供——世模环境帧停更"},
+	{"owner_model", "量表 owner_model(20h拍)",
+		`SELECT count(*) FROM ops_event WHERE event='量表'
+			AND ticket='owner_model' AND ts>now()-interval '30 hours'`, 1,
+		"ownerModelBeat 断供——懂你模型帧停更"},
 }
 
 // expectProdEscCheck 期望产出面探——注册表册逐件对拍:实产<阈=升件

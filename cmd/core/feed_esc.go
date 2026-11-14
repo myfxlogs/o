@@ -11,10 +11,9 @@
 //	⑥数据缺：fin_opp_eval unevaluable 同真因持续在案=结构缺
 //	  →升件 esc_class=数据缺（把「安静等数据」变「缺口信号」）
 //
-// 转死=升件（esc_scope=键,24h 同窗去重防重启风暴）；复绿=恢复行携升件#id
-// 自闭（唤知环 dedup 视引证=已处置,自愈案例零认知开销）。
-// 对账/孤儿账/唤知/数据缺类 dedup=「未销才抑」——同窗有未销升件不暴,
-// 销案后新事证重升（销案≠事实消失,新批再来不可误吞）。
+// 转死=升件（esc_scope=键,24h 同窗去重防重启风暴）；复绿=恢复行携升件#id 自闭
+// （唤知环 dedup 视引证=已处置）。对账/孤儿账/唤知/数据缺类 dedup=「未销才抑」
+// ——同窗有未销升件不暴,销案后新事证重升（销案≠事实消失,新批再来不可误吞）。
 package main
 
 import (
@@ -33,8 +32,7 @@ const escEvery = 60 * time.Second
 // escDedupHours 同窗去重——同键 24h 至多一报（重启后 DB 同窗兜底内存丢忆）。
 const escDedupHours = 24
 
-// escLoop 常驻拍（o-core 装配环起——转死/复绿状态机在内存,24h 同窗
-// dedup 在库）。ctx 终=进程退。al=人端兜底告警器（nil=只落账不人推）。
+// escLoop 常驻拍（状态机内存,24h dedup 在库;ctx 终=进程退;al=人端兜底告警器）。
 func (c coreService) escLoop(ctx context.Context, al *notify.Alerter) {
 	t := time.NewTicker(escEvery) // sched-exempt-ok：信号判定期界非业务轮询
 	defer t.Stop()
@@ -65,9 +63,11 @@ func (c coreService) escLoop(ctx context.Context, al *notify.Alerter) {
 		c.navStaleEscCheck(ctx, deadSince)
 		c.codeworkStallEscCheck(ctx, deadSince)
 		c.calibDriftEscCheck(ctx, deadSince) // 世模校准探(棒3 补挂——棒1 建件漏接线,信念对账面死态根修)
+		c.reflexCompileCheck(ctx, deadSince) // 反射编译器(棒4——裁定记号机械物化 econ_rule 闸,判词不靠会话记得)
 		c.expectProdEscCheck(ctx, deadSince) // 元探通用形——生产面期望产出 vs 实产差分(工单#10605 B)
 		c.armedDistanceBeat(ctx)             // 量表探（非升件——armed 距阈日行照）
 		c.ownerLedgerBeat(ctx)               // 量表探（业主令账+点破率曲线日行照）
+		c.ownerModelBeat(ctx, deadSince)     // 懂你模型帧(棒4——请托结局谱∪点破域谱+reask_denied 探)
 		c.profitDailyBeat(ctx)               // 量表探（盈利报告日行照——业主唯一例行读件）
 		c.selfStateBeat(ctx)                 // 量表探（自态账——会话冷启动即读件,工单#10358 C）
 		c.booksBeat(ctx, deadSince)          // 账房（ΔNAV三桶对账+鬼账升件,业主令11-12立件）
