@@ -335,6 +335,12 @@ canon/skills 条目或「求知:<题>」工单（结构化调研归研究席触�
     confGate+entryCond 五机读）或 paper_ttl_expired 验尸案归因;
     paper 毕不了业的族不许喊 live——live 迁另有委员会开关位
     (invest.lifecycle.live_switch)非本环自裁）。
+    **paper-only 裁定族**（execfam.PaperOnly 册——棒1 dir_perp_mom
+    首发）:eval→proposal→paper→MTM 账全通,probe→live 由
+    Drillable=false fail-closed 钉死（executor+单腿演习件未建——
+    滞留 exec_drill_unshaped 至 armed_ttl 退役是裁定非病灶）;
+    excell 占用格标免演不产凭据非静默漏。方向仓的停/盈/TTL/
+    翻面四出场在 dirpaper.go——「方向=每次开仓一次可证伪信念」。
   - **能力绑定**（手段含新族/新面→先查「做不做得起」再立）：
     execfam 册无执行族∨fin_opp_template 未启用∨venue 能力面
     缺键（margin-borrow/跨所腿/质押轨类）∨凭据/户/KYC 缺——

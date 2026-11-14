@@ -115,6 +115,12 @@ internal/research/grammar -> internal/research/dcd
 internal/research/dcd -> internal/research/armwatch
 internal/research/grammar -> internal/research/armwatch
 internal/research/grammar -> internal/research/funding
+internal/research/dirmom -> internal/platform/config
+internal/research/dirmom -> internal/platform/execfam
+internal/research/dirmom -> internal/platform/notify
+internal/research/dirmom -> internal/platform/rejects
+internal/research/dirmom -> internal/platform/roster
+internal/research/dirmom -> internal/research/armwatch
 internal/research/armwatch -> internal/platform/notify
 internal/research/armwatch -> internal/platform/config
 internal/research/researcher -> internal/platform/notify

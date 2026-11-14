@@ -13,6 +13,8 @@
 //	  付租；md_funding 行缺=事实缺 fail-closed 延评不虚构。
 //	dcd/vol_sell 族=申报 APR 分位判词——最新 annualized_yield 须≥自身
 //	  30d 史中位（IV 穷不卖波动率）；史样本缺/最新缺=延评。
+//	dir_perp_mom 族=信号续存判词——本向最新评估行仍 proposed 且 72h 内
+//	  （毕业再进场=信念续存核验；信号弱化/翻面=延评）。
 package lifecycle
 
 import (
@@ -47,13 +49,14 @@ func tQ975At(df int) float64 {
 	return tQ975[df]
 }
 
-// confGate 置信下界证伪闸：收入流按结算笔序列（kind=funding/swap——
-// funding 结算笔/dcd 日摊笔=真实观测粒度；fee/snapshot 等非收入项不入列，
-// fee 是确定性成本由 net≥minNet 兜）LB=mean−t(0.975,N−1)·sd/√N>0 才放。
+// confGate 置信下界证伪闸：收入流按结算笔序列（kind=funding/swap/pnl——
+// funding 结算笔/dcd 日摊笔/方向 MTM 摊提笔=真实观测粒度；fee/snapshot/
+// open/close 等非收入项不入列，fee 是确定性成本由 net≥minNet 兜）
+// LB=mean−t(0.975,N−1)·sd/√N>0 才放。
 // sd 用样本标准差（ddof=1）。返回 (放?, 判词)。
 func (r *Runner) confGate(ctx context.Context, strategyID int64) (bool, string) {
 	rows, err := r.pool.Query(ctx, `SELECT amount_usd FROM fin_paper_fill
-		WHERE strategy_id=$1 AND kind IN ('funding','swap') ORDER BY ts`, strategyID)
+		WHERE strategy_id=$1 AND kind IN ('funding','swap','pnl') ORDER BY ts`, strategyID)
 	if err != nil {
 		return false, fmt.Sprintf("置信序列读败 fail-closed: %v", err)
 	}
@@ -107,9 +110,31 @@ func (r *Runner) entryCondition(ctx context.Context, inst, tmpl, dir string, ref
 	case tmpl == "dcd_call" || tmpl == "dcd_put" ||
 		tmpl == "vol_sell_single_call" || tmpl == "vol_sell_strangle":
 		return r.volEntryGate(ctx, inst, refAPR)
+	case tmpl == "dir_perp_mom":
+		return r.dirEntryGate(ctx, inst, dir)
 	default: // perp 腿 carry 族（funding-hedge/basis/xvenue——方向判词）
 		return r.fundingEntryGate(ctx, inst, dir)
 	}
+}
+
+// dirEntryGate 方向族入场判词：本向最新 fin_opp_eval 行仍 verdict='proposed'
+// 且 72h 内（信号续存核验——评估臂每拍覆写，陈行=臂停/断供分型延评不虚构；
+// 行缺/已拒=延评——信念消亡不进）。
+func (r *Runner) dirEntryGate(ctx context.Context, inst, dir string) (bool, string) {
+	var v string
+	var ts time.Time
+	if err := r.pool.QueryRow(ctx, `SELECT verdict,ts FROM fin_opp_eval
+		WHERE inst_id=$1 AND template='dir_perp_mom' AND direction=$2
+		ORDER BY ts DESC LIMIT 1`, inst, dir).Scan(&v, &ts); err != nil {
+		return false, fmt.Sprintf("方向评估行缺（%s %s 无 eval——延评不虚构）", inst, dir)
+	}
+	if time.Since(ts) > 72*time.Hour {
+		return false, fmt.Sprintf("方向评估行陈（%s %s 末评 %s>72h——臂停/断供延评）", inst, dir, ts.Format("01-02 15:04"))
+	}
+	if v != "proposed" {
+		return false, fmt.Sprintf("信号弱化（%s %s 最新判词=%s——信念消亡延评）", inst, dir, v)
+	}
+	return true, "信号续存"
 }
 
 // fundingEntryGate 资金费率方向判词：perp 腿方向×最新 rate 同号才收租——

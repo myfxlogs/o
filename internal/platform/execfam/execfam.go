@@ -14,7 +14,8 @@ var set = map[string]bool{
 	"funding-hedge": true, "dcd_call": true, "dcd_put": true,
 	"vol_sell_strangle": true, "vol_sell_single_call": true,
 	"quarter_basis_long": true, "perp_quarter_spread": true,
-	"xvenue-carry": true} // T-0160/T-0215/T-0216 历次落位同集（原 lifecycle.paperTemplates 册归并——quarter_basis_short=spot_short 腿缺 margin 能力面不在册）；dcd_put=T-0353 件②④复役登记（USDT 计价腿=基金钱常径——executor DcdQuote/DcdTrade 方向无关、paper 摊提同式、open 派发同 case，全链贯通验证在案）；xvenue-carry=T-0377 paper 径贯通登记（T-0144 双腿开户全链可达：评估前置拒/模板门闸双闸开）——open 派发仍 opener 永拒显式禁（T-0144 armed→open 钉死，T-0145 真执行另票），登记语义=paper 结算域贯通非真单径
+	"xvenue-carry": true,
+	"dir_perp_mom": true} // T-0160/T-0215/T-0216 历次落位同集（原 lifecycle.paperTemplates 册归并——quarter_basis_short=spot_short 腿缺 margin 能力面不在册）；dcd_put=T-0353 件②④复役登记（USDT 计价腿=基金钱常径——executor DcdQuote/DcdTrade 方向无关、paper 摊提同式、open 派发同 case，全链贯通验证在案）；xvenue-carry=T-0377 paper 径贯通登记（T-0144 双腿开户全链可达：评估前置拒/模板门闸双闸开）——open 派发仍 opener 永拒显式禁（T-0144 armed→open 钉死，T-0145 真执行另票），登记语义=paper 结算域贯通非真单径；dir_perp_mom=方向族首发 paper-only 登记（棒1——eval→proposal→paper→MTM 记账链贯通；真单径=executor+单腿演习件另棒，Drillable=false 拦 probe→live 在位）
 
 // Has 模板族执行径在册否。
 func Has(template string) bool { return set[template] }
@@ -44,6 +45,27 @@ func FundingHedge(template string) bool { return fundingHedge[template] }
 func FundingHedgeList() []string {
 	out := make([]string, 0, len(fundingHedge))
 	for t := range fundingHedge {
+		out = append(out, t)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// paperOnly paper-only 裁定族册（方向族面——登记语义=paper 结算域贯通
+// 非真单径：excell 占用格标 Exempt 免演登记非静默漏，probe→live 由
+// excell.Drillable=false fail-closed 拦——真单径 executor+单腿演习件
+// 接通后出册，届时占用格转真演习格自动生效）。
+var paperOnly = map[string]bool{
+	"dir_perp_mom": true,
+}
+
+// PaperOnly 模板属 paper-only 裁定族否。
+func PaperOnly(template string) bool { return paperOnly[template] }
+
+// PaperOnlyList paper-only 族键序（SQL ANY 绑参/记账面集——序定排防漂移）。
+func PaperOnlyList() []string {
+	out := make([]string, 0, len(paperOnly))
+	for t := range paperOnly {
 		out = append(out, t)
 	}
 	sort.Strings(out)

@@ -26,6 +26,7 @@ import (
 	"o/internal/research/band"
 	ctxcoll "o/internal/research/ctx"
 	"o/internal/research/dcd"
+	"o/internal/research/dirmom"
 	"o/internal/research/funding"
 	"o/internal/research/gapscan"
 	"o/internal/research/grammar"
@@ -199,6 +200,9 @@ func researchArms(ctx context.Context, errc chan<- error, pool *pgxpool.Pool,
 	go gr.Run(ctx, errc) // T-0120 文法枚举臂；T-0215 vol-sell 实评 coins 缝；T-0356 SG enabled/连败闸
 	// T-0300 venue scout 骨架臂（公开面零凭据——凭据型端点调用=票级禁线）。
 	go scout.NewRunner(pool, cfg).AttachAlerter(alerter).Run(ctx, errc)
+	// 棒1 方向族评估臂（dir_perp_mom paper-only——md_klines 1D→z 分→eval/
+	// proposal；真单径未建，paper 结算域贯通登记）。
+	go dirmom.NewRunner(pool, cfg).AttachAlerter(alerter).Run(ctx, errc)
 	// T-0379 MT5 族 broker 接入标准径臂（凭据发现→探测→映射闸→paper 态——
 	// md=候选正本池/fin=凭据+ops_event+请求盒正本池；凭据域只读）。
 	// AttachUniverse=okx.symbols=['*'] 通配展开缝（uniCat 同供给件——字面

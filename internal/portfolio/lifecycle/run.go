@@ -46,7 +46,7 @@ func NewRunner(pool *pgxpool.Pool, cfg *config.Client) *Runner {
 			"facts_missing", "missing_param", "oscillation_fuse", "dcd_quote_missing", "dcd_spot_stale", "basis_mark_stale",
 			"exec_drill_missing", "exec_drill_failed", "exec_cell_hold",
 			"exec_drill_unshaped", "exec_drill_err",
-			"conf_lb_fail", "entry_cond_defer"), // T-0521 毕业闸判词拒因；exec_drill_unshaped=#15291 消费域收窄拦词、exec_drill_err=#15292 断库上抛拒因
+			"conf_lb_fail", "entry_cond_defer", "dir_mark_stale"), // T-0521 毕业闸判词拒因；exec_drill_unshaped=#15291 消费域收窄拦词、exec_drill_err=#15292 断库上抛拒因；dir_mark_stale=方向面 MTM 价缺/陈让位（棒1）
 		sensor: hunger.New(pool, cfg),
 		chainV: opschain.New(pool)}
 }
@@ -125,6 +125,9 @@ func (r *Runner) scan(ctx context.Context) error {
 	}
 	if err := r.xvenueSwapAccounting(ctx); err != nil {
 		log.Printf("[lifecycle] xvenue mt5 腿 swap 记账败: %v", err) // T-0377：记账败不拖开户/晋升拍（basis 同款非致命位）
+	}
+	if err := r.dirPaperAccounting(ctx); err != nil {
+		log.Printf("[lifecycle] 方向 paper MTM 记账败: %v", err) // 棒1：方向族 MTM+出场面（同款非致命位）
 	}
 	if err := r.promote(ctx, minH, minNet, maxDD, liveSw); err != nil {
 		return err
