@@ -236,4 +236,17 @@ var faceBaselineWhitelist = map[string]string{
 	// runbook muse 档钦定产出形）；唤点驱动间歇写 7d 活跃窗摆动登记
 	// 不重复升（静默>7d 出窗摆回=间歇面形 T-0448 册语义罩位）。
 	"face:service:唤知席": "升件#15501 入册——唤知席=muse 档答题写席（工单#11386 muse 器官：唤知/muse 升件唤点驱动,自问答题落 event='muse' ticket='muse' 行——runbook muse 档钦定产出形 seat='唤知席'）；唤点驱动间歇写 7d 活跃窗摆动登记不重复升；生产亲证首行 muse 自问#15455 答题行 ops_event #15469（面清单新面行→升件源 #15501）",
+	// 棒2 惧值器官表面——ops_esc_valence=fin_0177 迁移建 public 基表
+	// （升件显著性权重册：esc_key='class'∨'class/scope'→0-100 权重，
+	// 离钱/死越近越高,自指件压尾；domain.tsv fin 入册）在册即面；
+	// 写径=迁移种子 INSERT（权重调整走工单合议径非会话随手改），
+	// 读径=ops_esc_pending 视图 JOIN+dispatch valence 序消费在案；
+	// table 类面=information_schema BASE TABLE 枚举本体零硬编码，
+	// 建表落地即面。
+	"face:table:ops_esc_valence": "升件#15743 入册——ops_esc_valence=fin_0177 迁移建 public 基表（棒2 惧值器官：class∨class/scope→0-100 权重册,ops_esc_pending 视图消费源；domain.tsv fin 入册）；写径迁移种子+读径 dispatch valence 序在案；table 类面 information_schema BASE TABLE 枚举本体零硬编码，建表落地即面；生产亲证基表在册（升件源 ops_event #15743）",
+	// 棒1 方向族模板面——dir_perp_mom=md_1095 迁移入 fin_opp_template
+	// （paper-only 裁定族，execfam.PaperOnly 册+Drillable=false
+	// fail-closed 钉死；template 类面=fin_opp_template 枚举本体零
+	// 硬编码），模板行在册即面——枚举产出死另案工单#15664 在办。
+	"face:template:dir_perp_mom": "升件#15745 入册——dir_perp_mom=md_1095 迁移入 fin_opp_template（棒1 paper-only 方向族裁定件,execfam.PaperOnly 册在案）；template 类面模板册枚举本体零硬编码,登记行在册即面；生产亲证模板行在册（升件源 ops_event #15745；枚举零产出病灶归工单#15664 分案）",
 }
