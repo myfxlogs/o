@@ -187,7 +187,7 @@ func (c coreService) stuckEscCheck(ctx context.Context, deadSince map[string]tim
 		FROM ops_event d, LATERAL regexp_matches(d.note,$1,'g') m(m)
 		WHERE d.event='处置' AND d.ts>now()-interval '7 days'
 		AND d.note ~ '(^|[^称说谓「『])(已修|已部署|已落成|已修复|已愈|自愈|已恢复|复绿|上岸)')
-		SELECT e2.esc_scope, e1.id, e2.id FROM claims c
+		SELECT e2.esc_scope, e1.id, e2.id, c.did FROM claims c
 		JOIN ops_event e1 ON e1.id=c.e1id AND e1.id<c.did
 		JOIN ops_event e2 ON e2.esc_scope=e1.esc_scope AND e2.event='升件' AND e2.id>c.did
 		WHERE e1.event='升件' AND e1.ts>now()-interval '7 days'
@@ -200,12 +200,13 @@ func (c coreService) stuckEscCheck(ctx context.Context, deadSince map[string]tim
 	type pair struct {
 		scope        string
 		prev, refire int64
+		claim        int64
 	}
 	seen := map[string]bool{}
 	var stuck []pair
 	for rows.Next() {
 		var p pair
-		if err := rows.Scan(&p.scope, &p.prev, &p.refire); err != nil {
+		if err := rows.Scan(&p.scope, &p.prev, &p.refire, &p.claim); err != nil {
 			return
 		}
 		if !seen[p.scope] {
@@ -217,7 +218,10 @@ func (c coreService) stuckEscCheck(ctx context.Context, deadSince map[string]tim
 	var parts, fps []string
 	for _, s := range stuck {
 		parts = append(parts, fmt.Sprintf("%s(#%d销后→#%d又火)", s.scope, s.prev, s.refire))
-		fps = append(fps, fmt.Sprintf("%s#%d", s.scope, s.refire))
+		// 指纹=scope#假判词did非#复燃id(坑处置2026-11-14③:复燃id逐
+		// 行变=陈域簇每拍新指纹重烧——34发/3d零新信息实证;钉did后同
+		// 一份假判词被持续复发=指纹稳dedup吞,再出一份新假判词=新指纹照火)
+		fps = append(fps, fmt.Sprintf("%s#%d", s.scope, s.claim))
 	}
 	sort.Strings(fps)
 	c.escEdgeUV(ctx, deadSince, "唤知", "stuck_esc", strings.Join(fps, ","), dead, func() string {

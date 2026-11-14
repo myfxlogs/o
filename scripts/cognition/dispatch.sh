@@ -59,7 +59,13 @@ OREPO=/opt/o
 git -C "$OREPO" rev-parse --git-dir >/dev/null 2>&1 || OREPO=/root/o
 git -C "$OREPO" rev-parse --git-dir >/dev/null 2>&1 || OREPO=""
 if [ -n "$OREPO" ]; then
-	timeout 15 git -C "$OREPO" fetch origin -q 2>/dev/null || true # tolerate: fetch败=远端瞬时,本地 remote-ref 陈旧仍数支——fail-open 不误闸
+	# fetch --prune(坑处置2026-11-14④:远端删支后 remote-tracking 引不剪
+	# =鬼支永存——fix/dispatch-pendbr 已并 master 仍 13 发假火实证);
+	# fetch败=PBR_FETCH=0→pendbr 扫尾全跳(远端真态不可知,陈引照扫
+	# =鬼支假火+真悬误闭双害)。
+	PBR_FETCH=0
+	timeout 15 git -C "$OREPO" fetch origin -q --prune 2>/dev/null && PBR_FETCH=1
+	[ "$PBR_FETCH" = 1 ] || OREPO="" # fetch败=远端真态不可知——计数/扫描/扫尾全停(陈引照数=假唤+鬼火)
 fi
 PEND_BR=$([ -n "$OREPO" ] && git -C "$OREPO" for-each-ref --no-merged origin/master \
 	--format='%(committerdate:unix)' \
@@ -83,16 +89,18 @@ PEND_BR=${PEND_BR:-0}
 # 败=远端面不可知,发件扫尾全跳(fail-open 不误闸——git 瞬败若照扫,
 # 空尖集会误闭全部真悬件)。
 PBR_GIT=1
-if [ -n "$OREPO" ]; then
+if [ -n "$OREPO" ] && [ "${PBR_FETCH:-0}" = 1 ]; then
 	PBR_REFS=$(git -C "$OREPO" for-each-ref --no-merged origin/master \
 		--format='%(refname:short) %(objectname:short) %(committerdate:unix)' \
 		'refs/remotes/origin/fix/*' 'refs/remotes/origin/feat/*' 'refs/remotes/origin/audit/*' 2>/dev/null)
 	PBR_GIT=$?
 fi
-if [ -n "$OREPO" ] && [ "$PBR_GIT" -eq 0 ]; then
+if [ -n "$OREPO" ] && [ "$PBR_GIT" -eq 0 ] && [ "${PBR_FETCH:-0}" = 1 ]; then
 	VALID_PBR=""
 	while IFS=' ' read -r br sha; do
 		[ -n "$br" ] || continue
+		# 尖已在 master 祖链=支形残但件已并(merge 后支未删的过渡态)——不升
+		git -C "$OREPO" merge-base --is-ancestor "$sha" origin/master 2>/dev/null && continue
 		br=$(printf '%s' "$br" | tr -d "'\"\\")
 		scope="pendbr_$(printf '%s' "$br" | tr '/' '-')_${sha}"
 		VALID_PBR="$VALID_PBR $scope"
