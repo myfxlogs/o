@@ -66,20 +66,38 @@ PEND_BR=$([ -n "$OREPO" ] && git -C "$OREPO" for-each-ref --no-merged origin/mas
 	2>/dev/null | awk -v c=$(( $(date +%s) - 604800 )) '$1>c' | wc -l)
 PEND_BR=${PEND_BR:-0}
 
-# 支无票探(孤儿账/pendbr_<支>——业主令 11-12:「裸支产缝」必办):
-# 支在远端未入 master(工件活着)而 OPEN 工单零载支名(指令面零)→升件。
+# 支无票探(孤儿账/pendbr_<支>_<尖sha>——业主令 11-12:「裸支产缝」必办;
+# 工单#14370 churn 根修): 支在远端未入 master(工件活着)而 OPEN 工单
+# 零载支名(指令面零)→升件。
 # 产缝三径:外席推支无收口仪式/会话半路死收口未跑/让位挂支——「支必有
 # merge 票」原是收口纪律件,绕开收口即漏;此探把不变量改机械对账。
 # 覆盖=工单载支名(销证即工单面有票);销后仍裸→下拍复火(裸销非处置,
 # 处置=补票载名并/删支判废)。refname 剔引号防注入(名仅 git 合法字符)。
+# scope 绑尖sha(热域根修): 键域仅支名=多潮工件挤同 scope——并行会话
+# 复用支名推新尖,潮潮实并仍按「销后复燃」记 stuck_esc/hotdom 假热域
+# 19 波(工单#14370 实证;改会话支名习惯=外部行为不可修,探针键域可修)。
+# 尖绑后:同尖抑重(本scope未决不叠件)、新尖=新工件新scope、移尖/并支/
+# 龄出→下方扫尾自闭(恢复行携升件#id引证=未决面同契),工件归新scope
+# 不吊死——复绿=条件消自证非宣称。扫尾有侧效,for-each-ref 成败先存:
+# 败=远端面不可知,发件扫尾全跳(fail-open 不误闸——git 瞬败若照扫,
+# 空尖集会误闭全部真悬件)。
+PBR_GIT=1
 if [ -n "$OREPO" ]; then
-	while IFS= read -r br; do
+	PBR_REFS=$(git -C "$OREPO" for-each-ref --no-merged origin/master \
+		--format='%(refname:short) %(objectname:short) %(committerdate:unix)' \
+		'refs/remotes/origin/fix/*' 'refs/remotes/origin/feat/*' 'refs/remotes/origin/audit/*' 2>/dev/null)
+	PBR_GIT=$?
+fi
+if [ -n "$OREPO" ] && [ "$PBR_GIT" -eq 0 ]; then
+	VALID_PBR=""
+	while IFS=' ' read -r br sha; do
 		[ -n "$br" ] || continue
 		br=$(printf '%s' "$br" | tr -d "'\"\\")
-		scope="pendbr_$(printf '%s' "$br" | tr '/' '-')"
+		scope="pendbr_$(printf '%s' "$br" | tr '/' '-')_${sha}"
+		VALID_PBR="$VALID_PBR $scope"
 		psql "$DSN" -qAt <<SQL >/dev/null 2>&1 || true # tolerate: 探行写败=下拍补,不阻唤起闸
 INSERT INTO ops_event(seat,event,esc_class,esc_scope,note)
-SELECT '探测席','升件','孤儿账','$scope','裸支 $br 未入 master 且工单面无载名票——并/删/票三裁归会话'
+SELECT '探测席','升件','孤儿账','$scope','裸支 $br 尖 $sha 未入 master 且工单面无载名票——并/删/票三裁归会话'
 WHERE NOT EXISTS (SELECT 1 FROM ops_event x
 	WHERE x.event='升件' AND x.esc_scope='$scope' AND x.ts>now()-interval '7 days'
 	AND NOT EXISTS (SELECT 1 FROM ops_event y WHERE y.ts>x.ts
@@ -89,10 +107,19 @@ AND NOT EXISTS (SELECT 1 FROM ops_event t
 	AND NOT EXISTS (SELECT 1 FROM ops_event y WHERE y.event='处置' AND y.ts>t.ts
 		AND y.note ~ ('工单#'||t.id::text||'([^0-9]|\$)')))
 SQL
-	done < <(git -C "$OREPO" for-each-ref --no-merged origin/master \
-		--format='%(refname:short) %(committerdate:unix)' \
-		'refs/remotes/origin/fix/*' 'refs/remotes/origin/feat/*' 'refs/remotes/origin/audit/*' \
-		| awk -v c=$(( $(date +%s) - 604800 )) '$2>c {print $1}' | sed 's|^origin/||')
+	done < <(printf '%s\n' "$PBR_REFS" \
+		| awk -v c=$(( $(date +%s) - 604800 )) '$3>c {print $1,$2}' | sed 's|^origin/||')
+	VALID_SQL=$(printf '%s' "$VALID_PBR" | tr ' ' '\n' | sed -n "s/^\\(.\\+\\)$/'\\1'/p" | paste -sd, -)
+	[ -n "$VALID_SQL" ] || VALID_SQL="''"
+	psql "$DSN" -qAt <<SQL >/dev/null 2>&1 || true # tolerate: 扫尾写败=下拍补
+INSERT INTO ops_event(seat,event,note)
+SELECT '探测席','恢复','升件#'||e.id||' 复绿——pendbr 件态消(尖移/支并/龄出),活尖归新scope 工件不断监 '||e.esc_scope
+FROM ops_event e
+WHERE e.event='升件' AND e.esc_scope LIKE 'pendbr\_%' AND e.ts>now()-interval '7 days'
+  AND e.esc_scope NOT IN ($VALID_SQL)
+  AND NOT EXISTS (SELECT 1 FROM ops_event y WHERE y.ts>e.ts
+    AND y.note ~ ('升件#'||e.id::text||'([^0-9]|\$)'))
+SQL
 fi
 
 NOW=$(date +%s); AGE=$(( NOW - OLDEST ))
