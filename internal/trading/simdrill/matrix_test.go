@@ -20,18 +20,18 @@ import (
 // 矩阵面缺口 fail-closed 不静默漏）。
 func TestLegShapeCoverage(t *testing.T) {
 	for _, tmpl := range execfam.All() {
-		if _, ok := legShapeOf(tmpl); !ok {
+		if _, ok := excell.LegShapeOf(tmpl); !ok {
 			t.Fatalf("execfam 模板 %s 腿形未登记", tmpl)
 		}
 	}
 	// 钦定映射抽查：funding/basis/xvenue/dcd 四族归位正确。
-	cases := map[string]legShape{
-		"funding-hedge": shapeOKXTwoLeg, "quarter_basis_long": shapeOKXTwoLeg,
-		"perp_quarter_spread": shapeOKXTwoLeg, "dcd_put": shapeDCD,
-		"dcd_call": shapeDCD, "xvenue-carry": shapeXvenue,
+	cases := map[string]excell.LegShape{
+		"funding-hedge": excell.ShapeOKXTwoLeg, "quarter_basis_long": excell.ShapeOKXTwoLeg,
+		"perp_quarter_spread": excell.ShapeOKXTwoLeg, "dcd_put": excell.ShapeDCD,
+		"dcd_call": excell.ShapeDCD, "xvenue-carry": excell.ShapeXvenue,
 	}
 	for tmpl, want := range cases {
-		if got, _ := legShapeOf(tmpl); got != want {
+		if got, _ := excell.LegShapeOf(tmpl); got != want {
 			t.Fatalf("%s 腿形=%s want %s", tmpl, got, want)
 		}
 	}
@@ -148,7 +148,7 @@ func TestMatrixXvenueCells(t *testing.T) {
 	}
 	for _, c := range xv {
 		for _, tr := range c.Tiers {
-			res := m.runCell(ctx, c, tr, shapeXvenue)
+			res := m.runCell(ctx, c, tr, excell.ShapeXvenue)
 			if res.Verdict != "pass" {
 				t.Fatalf("xvenue 格 %s 档 %.0f 败: %s", res.CellKey, tr.Notional, res.Detail)
 			}
@@ -184,7 +184,7 @@ func TestMatrixFundingCellTwoTiers(t *testing.T) {
 		t.Fatalf("两档名义应两档: %+v", c.Tiers)
 	}
 	for _, tr := range c.Tiers {
-		res := m.runCell(ctx, *c, tr, shapeOKXTwoLeg)
+		res := m.runCell(ctx, *c, tr, excell.ShapeOKXTwoLeg)
 		if res.Verdict != "pass" {
 			t.Fatalf("funding 格档 %.0f 败: %s", tr.Notional, res.Detail)
 		}
@@ -209,7 +209,7 @@ func TestMatrixDcdLifecycle(t *testing.T) {
 		t.Fatal("dcd_put 格未枚举")
 	}
 	for _, tr := range c.Tiers {
-		res := m.runCell(ctx, *c, tr, shapeDCD)
+		res := m.runCell(ctx, *c, tr, excell.ShapeDCD)
 		if res.Verdict != "pass" {
 			t.Fatalf("dcd 格档 %.0f 败: %s", tr.Notional, res.Detail)
 		}
@@ -245,7 +245,7 @@ func TestMatrixBasisCells(t *testing.T) {
 			t.Fatalf("basis 格未枚举 %s", coord[0])
 		}
 		for _, tr := range c.Tiers {
-			res := m.runCell(ctx, *c, tr, shapeOKXTwoLeg)
+			res := m.runCell(ctx, *c, tr, excell.ShapeOKXTwoLeg)
 			if res.Verdict != "pass" {
 				t.Fatalf("basis 格 %s 档 %.0f 败: %s", res.CellKey, tr.Notional, res.Detail)
 			}
@@ -270,7 +270,7 @@ func TestMatrixBasisUSDQuoteCell(t *testing.T) {
 	if c == nil {
 		t.Fatal("quarter_basis_long 格未枚举")
 	}
-	res := m.runCell(ctx, *c, c.Tiers[0], shapeOKXTwoLeg)
+	res := m.runCell(ctx, *c, c.Tiers[0], excell.ShapeOKXTwoLeg)
 	if res.Verdict != "pass" {
 		t.Fatalf("USD 计价族应归一 BTC-USDT 绿: %+v", res)
 	}
@@ -298,8 +298,8 @@ func TestMatrixRerunIdempotent(t *testing.T) {
 	if c == nil {
 		t.Fatal("格未枚举")
 	}
-	res1 := m.runCell(ctx, *c, c.Tiers[0], shapeOKXTwoLeg)
-	res2 := m.runCell(ctx, *c, c.Tiers[0], shapeOKXTwoLeg)
+	res1 := m.runCell(ctx, *c, c.Tiers[0], excell.ShapeOKXTwoLeg)
+	res2 := m.runCell(ctx, *c, c.Tiers[0], excell.ShapeOKXTwoLeg)
 	if res2.Verdict != "pass" {
 		t.Fatalf("复跑应绿: %+v", res2)
 	}

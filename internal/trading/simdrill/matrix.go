@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"log"
 	"regexp"
-	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -29,39 +28,11 @@ import (
 	"o/internal/risk"
 )
 
-// legShape 腿形注册（模板→腿构法——票面钦定映射登记表；新增执行族模板
-// 必先登记此表否则矩阵 fail-closed 拒跑不静默漏）。
-type legShape string
-
-const (
-	shapeOKXTwoLeg legShape = "okx_two_leg" // 现货多+合约空（funding/basis 族）
-	shapeXvenue    legShape = "xvenue"      // mt5 CFD 腿先+okx perp 腿后
-	shapeDCD       legShape = "dcd"         // DCD 产品三步径（quote→trade→status）
-)
+// 腿形册=excell.LegShapeOf 唯一真源（升件#15291 迁立 platform 格域件——
+// 毕业闸 Drillable 谓词与 Run/矩阵派路同源；新增执行族模板必先登记否则
+// 矩阵 fail-closed 拒跑不静默漏）。
 
 var datedFutRe = regexp.MustCompile(`^([A-Z0-9]+-[A-Z0-9]+)-[0-9]{6}$`)
-
-// legShapeOf 模板→腿形映射（注册表——execfam 册内模板全覆盖断言锚）。
-func legShapeOf(tmpl string) (legShape, bool) {
-	switch {
-	case tmpl == "funding-hedge":
-		return shapeOKXTwoLeg, true
-	case tmpl == "quarter_basis_long" || tmpl == "perp_quarter_spread" ||
-		tmpl == "quarter_basis_short":
-		return shapeOKXTwoLeg, true
-	case tmpl == "xvenue-carry":
-		return shapeXvenue, true
-	case tmpl == "simdrill-gate":
-		// 演习 harness 自体测试模板（单钻径通用双腿闸演——非产线模板，
-		// Run 派路经 legShapeOf 单源后须显式登记否则拒载）。
-		return shapeOKXTwoLeg, true
-	case strings.HasPrefix(tmpl, "dcd_") || strings.HasPrefix(tmpl, "vol_sell"):
-		// vol_sell=DCD 产品径（strangle 复合键 runDCD 内拆腿）——原误映
-		// okx_two_leg 会拿产品键当现货/合约键跑错腿（T-0522 假想卡骨架批）。
-		return shapeDCD, true
-	}
-	return "", false
-}
 
 // Matrix 矩阵批跑机（venue 三面全仿真——每格新 venue 实例隔离残留对拍）。
 type Matrix struct {
@@ -104,7 +75,7 @@ func (m *Matrix) Run(ctx context.Context) (MatrixResult, error) {
 			log.Printf("[simdrill-matrix] 免演登记跳过: %s（词表零占）", c.Template)
 			continue
 		}
-		shape, ok := legShapeOf(c.Template)
+		shape, ok := excell.LegShapeOf(c.Template)
 		if !ok {
 			// 占用格腿形未登记=矩阵面缺口——显式 fail 凭据不静默漏。
 			out.Results = append(out.Results, CellResult{
@@ -126,7 +97,7 @@ func (m *Matrix) Run(ctx context.Context) (MatrixResult, error) {
 }
 
 // runCell 单格单档全径（开→持→强平→对账→凭据落账——格 fail 亦落凭据）。
-func (m *Matrix) runCell(ctx context.Context, c excell.Cell, t excell.Tier, shape legShape) CellResult {
+func (m *Matrix) runCell(ctx context.Context, c excell.Cell, t excell.Tier, shape excell.LegShape) CellResult {
 	res := CellResult{CellKey: excell.CellKey(c.Template, c.VenuePair, c.Direction, t.Notional),
 		Verdict: "pass"}
 	inst := t.InstID
@@ -138,7 +109,7 @@ func (m *Matrix) runCell(ctx context.Context, c excell.Cell, t excell.Tier, shap
 	// 演习 ephemeral 策略行（同 T-0426——state='degraded' 哨戒降级联动必平
 	// 径免判据链依赖；24h TTL 自退役——模板打 simdrill: 前缀不产占用格防自激）。
 	venueTag := "okx"
-	if shape == shapeXvenue {
+	if shape == excell.ShapeXvenue {
 		venueTag = excell.VenuePairXvenue
 	}
 	var stratID int64
@@ -166,7 +137,7 @@ func (m *Matrix) runCell(ctx context.Context, c excell.Cell, t excell.Tier, shap
 		retireEphemeral(ctx, m.Pool, stratID)
 	}()
 
-	if shape == shapeDCD {
+	if shape == excell.ShapeDCD {
 		m.runDCD(ctx, &res, c, t, stratID, inst)
 	} else {
 		m.runLegged(ctx, &res, c, t, stratID, inst, shape)

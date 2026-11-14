@@ -10,6 +10,8 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"o/internal/platform/excell"
 )
 
 func auditRedGateLife2(t *testing.T) {
@@ -20,15 +22,25 @@ func auditRedGateLife2(t *testing.T) {
 }
 
 // TestAuditDrillDomainCoverage 不变量：凡可经 paper→probe→live 毕业链抵
-// execDrillPass 闸的模板，必须有策略级演习凭据产能径（legShapeOf 映到
+// execDrillPass 闸的模板，必须有策略级演习凭据产能径（LegShapeOf 映到
 // 非拒载腿形）。包向禁 import execfam——同源消费面=源文解析 execfam.set
 // 册（注册语义=paper 结算域贯通，paper→probe→live 链路同域）。
-// 破面：xvenue-carry 在册可 paper→probe，而 legShapeOf→shapeXvenue→
-// Drill.Run 显式拒载（「xvenue 腿形未载…拒载不产凭据」）——probe 滞留
-// exec_drill_missing 至 armed_ttl 黑洞；matrix 格凭据走 cell_key 键域
-// 与 execDrillPass 的 strategy_ref 键域不接=产能域两键空。
-// 正确语义=①execDrillPass 只消费可钻域（册收窄）或②xvenue 凭据改由
-// matrix cell 键域接通——修好（册/闸/产能三径任一闭合）本测试转绿。
+// 破面原案：xvenue-carry 在册可 paper→probe，而 legShapeOf→excell.ShapeXvenue→
+// Drill.Run 显式拒载——probe 滞留 exec_drill_missing 至 armed_ttl 黑洞；
+// matrix 格凭据走 cell_key 键域与 strategy_ref 键域不接=产能域两键空。
+// 修复形（升件#15291 消费域收窄——canon 钦定径①）：毕业闸在
+// execDrillPass 消费前以 excell.Drillable 谓词拦不可钻模板
+// （xvenue 产能只在格级键域，strategy_ref 凭据永不可得——谓词与
+// Run 派路同出 LegShapeOf 单源）。断言三件：
+// ①paper.go probe→live 段含 Drillable 收窄谓词（消费域收窄在案——
+//
+//	谓词缺席=闸回退全谱消费，任何在册不可钻模板即成黑洞）；
+//
+// ②execfam 册内每键 LegShapeOf 有映射（矩阵 fail-closed 覆盖锚——
+//
+//	未登记=格凭据 unshaped fail+闸谓词挡=册缺口死径仍抓）；
+//
+// ③Drillable 与 LegShapeOf 派路一致（谓词漂移=消费域/产能域再裂）。
 func TestAuditDrillDomainCoverage(t *testing.T) {
 	auditRedGateLife2(t)
 	_, file, _, _ := runtime.Caller(0)
@@ -37,28 +49,39 @@ func TestAuditDrillDomainCoverage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// ① 收窄锚：毕业闸消费凭据前必以 Drillable 谓词拦拒载族（源文断言
+	// 同 execfam 册解析律——谓词失位=消费域无界回退）。
+	psrc, err := os.ReadFile(filepath.Join(root, "internal/portfolio/lifecycle/paper.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(psrc), "excell.Drillable(") {
+		t.Fatal("execDrillPass 消费域无界——paper.go probe→live 段未见 excell.Drillable 收窄谓词" +
+			"（升件#15291 修复件失位：消费域>产能域=probe 滞留黑洞回退）")
+	}
 	// 册解析：var set 字面量内 "tmpl": true 键集（注册域=execfam 唯一真源）。
 	keys := regexp.MustCompile(`"([a-z_0-9-]+)"\s*:\s*true`).FindAllStringSubmatch(string(src), -1)
 	if len(keys) == 0 {
 		t.Fatal("execfam 册解析空——源文形态变更须同步本锚")
 	}
 	seen := map[string]bool{}
-	var undrillable []string
 	for _, k := range keys {
 		tmpl := k[1]
 		if seen[tmpl] {
 			continue
 		}
 		seen[tmpl] = true
-		shape, ok := legShapeOf(tmpl)
-		if !ok || shape == shapeXvenue {
-			undrillable = append(undrillable, tmpl)
+		// ② 册覆盖：在册模板须腿形登记——未登记则矩阵 unshaped fail+
+		// 闸谓词恒挡=死径占位（新增执行族注册须同 commit 补演习格）。
+		shape, ok := excell.LegShapeOf(tmpl)
+		if !ok {
+			t.Errorf("execfam 在册模板腿形未登记（矩阵 unshaped fail+毕业闸外=死径占位）: %s", tmpl)
+			continue
 		}
-	}
-	if len(undrillable) > 0 {
-		t.Fatalf("execfam 在册模板无策略级演习产能径: %s——execDrillPass 全谱消费 strategy_ref 凭据"+
-			"而 Drill.Run 对之拒载=probe 滞留 exec_drill_missing 至 armed_ttl 黑洞"+
-			"（canon simdrill-gate-domain-coverage-mismatch：闸凭据消费域必须≤演习产能域）",
-			strings.Join(undrillable, ","))
+		// ③ 谓词同出：Drillable⇔映到 Drill.Run 可产凭据腿形（excell.ShapeXvenue
+		// =格级键域产能——策略级谓词恒 false 消费域外）。
+		if excell.Drillable(tmpl) != (shape != excell.ShapeXvenue) {
+			t.Errorf("Drillable 与 LegShapeOf 派路分歧: %s shape=%s（消费域收窄谓词须与 Run 派路同出）", tmpl, shape)
+		}
 	}
 }

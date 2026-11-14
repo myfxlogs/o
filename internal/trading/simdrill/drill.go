@@ -24,6 +24,7 @@ import (
 	"o/internal/guard"
 	"o/internal/ledger"
 	"o/internal/platform/config"
+	"o/internal/platform/excell"
 	"o/internal/risk"
 	"o/internal/trading/execution"
 	"o/internal/trading/execwiring"
@@ -104,20 +105,20 @@ func (d *Drill) Run(ctx context.Context, strategyRef int64) (Result, error) {
 		return res, fmt.Errorf("策略型事实读败: %w", err)
 	}
 	res.InstID = inst
-	// 派路单源=legShapeOf(templateRef)（矩阵径同注册表——inst 后缀派路与
+	// 派路单源=excell.LegShapeOf(templateRef)（矩阵径同注册表——inst 后缀派路与
 	// 模板腿形双实现分歧已废：xvenue-carry inst=*-SWAP 曾落 SWAP 支跑错腿
-	// 产 funding 形凭据毒化毕业闸）。shapeXvenue=显式拒载不产凭据。
-	shape, shapeOK := legShapeOf(templateRef)
+	// 产 funding 形凭据毒化毕业闸）。excell.ShapeXvenue=显式拒载不产凭据。
+	shape, shapeOK := excell.LegShapeOf(templateRef)
 	switch {
 	case isBasisTemplate(templateRef): // basis 族=-YYMMDD 期货键（T-0522）
 		return d.runBasisDrill(ctx, res, inst, templateRef, notional)
 	case !shapeOK:
 		return res, fmt.Errorf("演习面模板腿形未载（legShapeOf 无映射——新执行族注册须同 commit 补演习格）: %s template=%s", inst, templateRef)
-	case shape == shapeXvenue:
+	case shape == excell.ShapeXvenue:
 		return res, fmt.Errorf("xvenue 腿形未载（演习面无 mt5 sim 缝——错腿凭据毒化毕业闸，拒载不产凭据）: %s template=%s", inst, templateRef)
-	case shape == shapeDCD:
+	case shape == excell.ShapeDCD:
 		return d.runDCDDrill(ctx, res, inst, templateRef, notional)
-	case shape == shapeOKXTwoLeg && !strings.HasSuffix(inst, "-SWAP"):
+	case shape == excell.ShapeOKXTwoLeg && !strings.HasSuffix(inst, "-SWAP"):
 		return res, fmt.Errorf("okx_two_leg 腿形需 *-SWAP 合约键（inst=%s template=%s——键形不配拒载）", inst, templateRef)
 	}
 	// ② 乐器面（venue 册直取——T-0427 品种主档前同径，不落表；SWAP 键剥尾

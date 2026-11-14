@@ -22,15 +22,15 @@ func TestGraduationGateExecDrillFailClosed(t *testing.T) {
 	}
 	if _, err := pool.Exec(ctx,
 		`DELETE FROM fin_exec_drill WHERE strategy_ref IN
-		   (SELECT id FROM fin_strategy WHERE template_ref='drill-gate-test')`); err != nil {
+		   (SELECT id FROM fin_strategy WHERE template_ref='simdrill-gate')`); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx,
 		`DELETE FROM fin_strategy_transition WHERE strategy_id IN
-		   (SELECT id FROM fin_strategy WHERE template_ref='drill-gate-test')`); err != nil {
+		   (SELECT id FROM fin_strategy WHERE template_ref='simdrill-gate')`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `DELETE FROM fin_strategy WHERE template_ref='drill-gate-test'`); err != nil {
+	if _, err := pool.Exec(ctx, `DELETE FROM fin_strategy WHERE template_ref='simdrill-gate'`); err != nil {
 		t.Fatal(err)
 	}
 	for k, v := range map[string]string{
@@ -50,7 +50,7 @@ func TestGraduationGateExecDrillFailClosed(t *testing.T) {
 	var sid int64
 	if err := pool.QueryRow(ctx,
 		`INSERT INTO fin_strategy(inst_id,template_ref,state,notional_usd,venue)
-		VALUES('DG-USDT-SWAP','drill-gate-test','probe',100,'okx') RETURNING id`).Scan(&sid); err != nil {
+		VALUES('DG-USDT-SWAP','simdrill-gate','probe',100,'okx') RETURNING id`).Scan(&sid); err != nil {
 		t.Fatal(err)
 	}
 	// T-0521：置信闸须≥3 收入笔+perp 方向判词须 funding 行（正率同号）。

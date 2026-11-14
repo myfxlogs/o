@@ -139,7 +139,7 @@ func TestDrillVolSellStrangleBadKey(t *testing.T) {
 	}
 }
 
-// 矩阵格：vol_sell_strangle 占用格走 shapeDCD 复合键径（T-0522 前误映
+// 矩阵格：vol_sell_strangle 占用格走 excell.ShapeDCD 复合键径（T-0522 前误映
 // okx_two_leg——产品键当现货键跑错腿的回归锚）。
 func TestMatrixVolSellStrangleCell(t *testing.T) {
 	ctx, m := setupMatrix(t)
@@ -153,7 +153,7 @@ func TestMatrixVolSellStrangleCell(t *testing.T) {
 		t.Fatal("strangle 格未枚举")
 	}
 	for _, tr := range c.Tiers {
-		res := m.runCell(ctx, *c, tr, shapeDCD)
+		res := m.runCell(ctx, *c, tr, excell.ShapeDCD)
 		if res.Verdict != "pass" {
 			t.Fatalf("strangle 格档 %.0f 败: %s", tr.Notional, res.Detail)
 		}
@@ -173,7 +173,7 @@ func TestMatrixQuarterBasisShortCell(t *testing.T) {
 	if c == nil {
 		t.Fatal("qbs 格未枚举")
 	}
-	res := m.runCell(ctx, *c, c.Tiers[0], shapeOKXTwoLeg)
+	res := m.runCell(ctx, *c, c.Tiers[0], excell.ShapeOKXTwoLeg)
 	if res.Verdict != "fail" || !strings.Contains(res.Detail, "quarter_basis_short 演习不支持") {
 		t.Fatalf("qbs 格应 fail+显式拒词: verdict=%s detail=%s", res.Verdict, res.Detail)
 	}
