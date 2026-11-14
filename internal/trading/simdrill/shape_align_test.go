@@ -13,10 +13,7 @@ import (
 // drillUnsupported 演习不支持白名单——册内模板经显式裁定不入矩阵腿形
 // 面者在此登记（空=零豁免：全册须有形）。新增豁免须同 commit 写明裁处。
 var drillUnsupported = []string{
-	// dir_perp_mom=方向族首发 paper-only（棒1裁处——单腿方向位无对冲腿，
-	// 真单径 executor+单腿演习件另棒接通；占用格由 execfam.PaperOnly 标
-	// excell 免演登记，非静默漏。族出 PaperOnly 册=本行同删回真演习面）。
-	"dir_perp_mom",
+	// 空=零豁免（棒5c：dir_perp_mom 出册——ShapeOKXSingleLeg 演习件接通）。
 }
 
 func TestExecfamLegShapeAlign(t *testing.T) {

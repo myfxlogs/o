@@ -19,7 +19,17 @@ import (
 type CloseExec struct{ R *execution.Runner }
 
 func (c CloseExec) ExecuteClose(ctx context.Context, spec guard.CloseSpec) (int64, error) {
+	if spec.Legs[1].InstID == "" { // 单腿仓（方向族契约——棒5c）走 ExecuteDir
+		return c.R.ExecuteDir(ctx, CloseDirIntent(spec))
+	}
 	return c.R.Execute(ctx, CloseIntent(spec))
+}
+
+// CloseDirIntent 单腿平仓 Intent（方向族契约——Legs[1] 空槽不消费）。
+func CloseDirIntent(spec guard.CloseSpec) execution.Intent {
+	return execution.Intent{Kind: "close", DecisionID: spec.DecisionID,
+		StrategyRef: spec.StrategyRef, InstID: spec.InstID, NotionalUSD: spec.NotionalUSD,
+		Legs: [2]execution.Leg{CloseLegOf(spec, spec.Legs[0]), {}}}
 }
 
 // CloseIntent 平仓 Intent 装配——Kind="close" 免闸免赎语义位+双腿 Close=true 必置。

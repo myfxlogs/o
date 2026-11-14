@@ -190,10 +190,11 @@ func Enumerate(ctx context.Context, pool *pgxpool.Pool) ([]Cell, error) {
 			c.Tiers = append(c.Tiers, Tier{Notional: n, InstID: inst})
 		}
 	}
-	// ③b paper-only 裁定族占用格标免演（真单径未建跑格=凭据伪造不可为；
-	// 免演=显式知缺非静默漏——族出 PaperOnly 册即自动转真演习格）。
+	// ③b 无演习产能族占用格标免演（跑格=凭据伪造不可为；免演=显式知缺
+	// 非静默漏）。棒5c 判据收窄：PaperOnly（结算域册）→!Drillable
+	// （产能谓词）——dir_perp_mom 单腿件接通后自动转真演习格。
 	for _, c := range cells {
-		if execfam.PaperOnly(c.Template) {
+		if !Drillable(c.Template) {
 			c.Exempt = true
 		}
 	}

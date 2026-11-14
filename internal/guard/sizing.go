@@ -58,6 +58,9 @@ func alignCloseSz(want, avail, lotSz float64) (float64, bool) {
 // Mt5Sizer OpenedOrders 实读手数；venue 无路由=fail 不开非默认错 venue 件）。
 func (w *Warden) sizedCloseLegs(ctx context.Context, cls [2]CloseLeg) ([2]CloseLeg, bool) {
 	for i, cl := range cls {
+		if cl.InstID == "" {
+			continue // 单腿仓空槽（棒5c——方向族 reverse 一腿一空）
+		}
 		szr := w.sizerFor(cl.Venue)
 		if szr == nil {
 			return cls, false // venue 现读面缺席=禁发（跨 venue 无兜底——错 venue 件=错读量）

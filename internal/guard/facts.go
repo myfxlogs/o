@@ -12,9 +12,10 @@ import (
 
 // legSet 一仓双腿（fin_order_leg 按 execution 取；a/b=leg 序）。
 type legSet struct {
-	venue string
-	a, b  leg
-	one   bool // 单腿/无腿/>2 腿异常态
+	venue  string
+	a, b   leg
+	one    bool // 缺腿/>2 腿异常态（棒5c:恰一腿归 single 不再混畸形——方向族单腿是契约非病灶）
+	single bool // 恰一腿（方向族契约位——tend 走单腿平仓径非反向原子径）
 }
 
 type leg struct {
@@ -27,13 +28,17 @@ type leg struct {
 
 func (ls legSet) labels() []string {
 	out := []string{}
-	if !ls.one {
+	switch {
+	case ls.single:
+		out = append(out, ls.a.side+"@"+ls.a.inst) // 方向族单腿=一签
+	case !ls.one:
 		out = append(out, ls.a.side+"@"+ls.a.inst, ls.b.side+"@"+ls.b.inst)
 	}
 	return out
 }
 
-// reverse 双腿反向（平仓语义：side 取反、inst 沿原仓、量按 closeWant 消歧）。
+// reverse 反向腿（平仓语义：side 取反、inst 沿原仓、量按 closeWant 消歧）。
+// 单腿仓=[1]出单腿+[1]空槽（消费侧按 InstID=="" 跳过——棒5c）。
 func (ls legSet) reverse() [2]CloseLeg {
 	flip := func(side string) string {
 		if side == "buy" || side == "long" {
@@ -47,6 +52,9 @@ func (ls legSet) reverse() [2]CloseLeg {
 		// venue=平仓路由错 venue 病灶）；ticket 透传 venue 仓凭据（mt5 平
 		// 仓 OrderClose 必携——无票=failure 禁反向单）。
 		return CloseLeg{Venue: l.venue, InstID: l.inst, Side: flip(l.side), Sz: want, SzKnown: ok, Ticket: l.ticket}
+	}
+	if ls.single {
+		return [2]CloseLeg{mk(ls.a), {}} // 单腿=一腿一空槽（sizedCloseLegs/execwiring 按空槽跳）
 	}
 	return [2]CloseLeg{mk(ls.a), mk(ls.b)}
 }
@@ -113,8 +121,11 @@ func (w *Warden) legs(ctx context.Context, execID int64) legSet {
 			ls.one = true // >2 腿=契约外形态，计数防误判
 		}
 	}
-	if ls.a.inst == "" || ls.b.inst == "" {
-		return legSet{one: true}
+	if ls.a.inst == "" {
+		return legSet{one: true} // 零腿=畸形
+	}
+	if ls.b.inst == "" {
+		ls.single = true // 恰一腿=方向族契约（棒5c——单腿平仓径消费位）
 	}
 	return ls
 }

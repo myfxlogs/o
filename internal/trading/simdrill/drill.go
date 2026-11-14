@@ -118,6 +118,8 @@ func (d *Drill) Run(ctx context.Context, strategyRef int64) (Result, error) {
 		return res, fmt.Errorf("xvenue 腿形未载（演习面无 mt5 sim 缝——错腿凭据毒化毕业闸，拒载不产凭据）: %s template=%s", inst, templateRef)
 	case shape == excell.ShapeDCD:
 		return d.runDCDDrill(ctx, res, inst, templateRef, notional)
+	case shape == excell.ShapeOKXSingleLeg:
+		return d.runDirDrill(ctx, res, inst, templateRef, notional)
 	case shape == excell.ShapeOKXTwoLeg && !strings.HasSuffix(inst, "-SWAP"):
 		return res, fmt.Errorf("okx_two_leg 腿形需 *-SWAP 合约键（inst=%s template=%s——键形不配拒载）", inst, templateRef)
 	}

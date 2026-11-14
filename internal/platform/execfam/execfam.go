@@ -51,10 +51,10 @@ func FundingHedgeList() []string {
 	return out
 }
 
-// paperOnly paper-only 裁定族册（方向族面——登记语义=paper 结算域贯通
-// 非真单径：excell 占用格标 Exempt 免演登记非静默漏，probe→live 由
-// excell.Drillable=false fail-closed 拦——真单径 executor+单腿演习件
-// 接通后出册，届时占用格转真演习格自动生效）。
+// paperOnly paper 结算域族册（方向族面——登记语义=paper MTM/出场摊提域
+// 成员（dirpaper 消费），非「真单径缺席」判：真单径缺席语义唯一真源=
+// !excell.Drillable（棒5c 根修——dir_perp_mom 单腿径接通后 paper 域与
+// live 域并存，册语义收窄回结算域，演习豁免判转 Drillable）。
 var paperOnly = map[string]bool{
 	"dir_perp_mom": true,
 }
