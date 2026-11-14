@@ -1,13 +1,15 @@
 // floorOcto.ts —— 器官章鱼的实时信号面(Floor 行数棘轮拆件):
 //   腕抽 = 器官域新行到达(id 水位比对,0.9s)  脑闪 = 任何非量表新行
-//   在办 = 最新认领行解析  动向 = 最新非量表事实行(它刚干了什么)
+//   在办 = 开检查点真源(cockpit.doing——unit粒度服务端闭账;fallback=认领行解析)
+//   动向 = 最新非量表事实行(它刚干了什么)
 import { useEffect, useMemo, useRef, useState } from "react";
 import { plainText } from "../components/plain";
 import type { Fact } from "./floorFocus";
+import type { CogDoingRow } from "../../gen/dashboardv1/core_pb";
 
 type OrganLite = { i: number; gh: { keys: string[] } };
 
-export function useOctoFeed(facts: Fact[], organs: OrganLite[]) {
+export function useOctoFeed(facts: Fact[], organs: OrganLite[], doings: CogDoingRow[] = []) {
   const [flash, setFlash] = useState<Set<number>>(new Set());
   const seenRef = useRef<Map<number, bigint>>(new Map());
   const initRef = useRef(false);
@@ -30,10 +32,20 @@ export function useOctoFeed(facts: Fact[], organs: OrganLite[]) {
   }, [organs]);
 
   const claim = useMemo(() => {
+    // 真源=cockpit.doing 开检查点(服务端闭账):在干行优先,纯悬账=猝死残态显形;
+    // 多场并行→最新场文本 +N场 计数。无开检查点→退认领旧径→「收棒中」。
+    const open = doings.filter((d) => d.state === "在干");
+    const pool = open.length ? open : doings;
+    if (pool.length) {
+      const d = pool[0];
+      const tag = d.state === "在干" ? "在办" : "悬账";
+      const more = pool.length > 1 ? ` +${pool.length - 1}场` : "";
+      return `${tag} ${plainText(d.doing).replace(/\s+/g, " ").slice(0, 16)}${more}`;
+    }
     const c = facts.find((f) => f.event === "认领");
     const m = c?.note.match(/工单#(\d+)\s*认领[：:]?(.*)/);
     return m ? `在办 #${m[1]} ${plainText(m[2]).replace(/^开修——/, "").slice(0, 18)}` : undefined;
-  }, [facts]);
+  }, [facts, doings]);
   const lastAct = useMemo(() => {
     const f = facts.find((x) => x.event !== "量表");
     return f ? `${f.event} ${plainText(f.note).replace(/\s+/g, " ").slice(0, 22)}` : undefined;

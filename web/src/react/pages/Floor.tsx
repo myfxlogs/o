@@ -18,6 +18,8 @@ export function FloorPage() {
   const g = useLive(["ev_account", "ev_position", "ev_pipeline"], () => client.getFaceGrid({}));
   const t = useLive(["ev_pipeline"], () => client.getDecisionTrail({ limit: 12 }));
   const hm = useLive(["ev_hostmetrics"], () => client.getHostMetrics({}));
+  // 在办检查点面——在办契读侧件:ev_headless 帧驱动(检查点族落行即推,fin_0183)
+  const ck = useLive(["ev_headless"], () => client.getCockpit({}));
   const [live, setLive] = useState(false);
   const [now, setNow] = useState(() => new Date());
   const [focus, setFocus] = useState<Tip | null>(null);
@@ -40,7 +42,8 @@ export function FloorPage() {
     gh, i, st: ghostSt(gh, facts),
     hits: facts.filter((f) => f.event !== "量表" && gh.keys.some((k) => f.note.includes(k))).length,
   })), [facts]);
-  const octo = useOctoFeed(facts, organs);
+  const doings = useMemo(() => ck.data?.doing ?? [], [ck.data]);
+  const octo = useOctoFeed(facts, organs, doings);
 
   // venue 分腿——open 探针载 venue 名=断腿(整柱灰塌)
   const vens = useMemo(() => {
@@ -81,7 +84,8 @@ export function FloorPage() {
         nav={o ? { total: o.navTotal, today: o.pnlToday, cum: o.pnlCum } : undefined}
         awake={!!s?.running}
         brainFlash={octo.brainFlash}
-        claim={s?.running ? octo.claim ?? "收棒中" : undefined}
+        claim={octo.claim ?? (s?.running ? "收棒中" : undefined)}
+        doings={doings}
         lastAct={octo.lastAct}
         counts={{
           done: organs.filter((x) => x.st === "done").length,

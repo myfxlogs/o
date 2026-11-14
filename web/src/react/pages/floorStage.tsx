@@ -25,6 +25,7 @@ export type StageProps = {
   machines: { name: string; ok: boolean }[];
   nav?: { total: number; today: number; cum: number };
   awake: boolean; brainFlash: boolean; claim?: string; lastAct?: string;
+  doings?: { unit: string; doing: string; state: string; ageS: bigint }[]; // 开检查点真源——脑弹窗列全场在办
   counts: { done: number; build: number; pin: number; openProbes: number };
   facts: Fact[]; live: boolean; utc: string; bj: string;
   onPick: (t: Tip) => void; onNav: (to: string) => void;
@@ -51,6 +52,8 @@ const PAD_POS = [[50, 70], [65.4, 67.4], [34.6, 67.4], [70.8, 64.5], [29.2, 64.5
 const SCREEN_POS = { A: [9, 15], B: [24, 15], C: [70, 15], D: [86, 15] } as const;
 
 export function FloorStage(p: StageProps) {
+  const doingBody = (p.doings ?? []).map(
+    (d) => `${d.state} · ${d.unit.replace(/^o-cognition-/, "cog-")} · ${d.doing}`);
   const [pulse, setPulse] = useState<Set<number>>(new Set());
   const seenRef = useRef(new Map<number, bigint>());
   const initRef = useRef(false);
@@ -107,15 +110,15 @@ export function FloorStage(p: StageProps) {
       {/* 中央全息球=脑——在班泛光,球下在办+动向 */}
       <button className={`fs-brain${p.awake ? " awake" : ""}${p.brainFlash ? " flash" : ""}`}
         style={{ left: "50%", top: "24%" }}
-        onClick={() => p.onPick({ k: "desk", x: 0, y: 0, title: "会话席", body: [], to: "/device" })}>
+        onClick={() => p.onPick({ k: "desk", x: 0, y: 0, title: "会话席 · 在办", body: doingBody, to: "/device" })}>
         <img src={globeUrl} alt="" className="fs-globe" draggable={false} />
         <span className="fs-brain-glow" />
         {/* 唤知焦点=球面中央三同心环——在班=三光带错峰呼吸,整球降为底光 */}
         <span className="fs-reticle"><i /><i /><i /></span>
       </button>
       <button className="fs-brain-txt" style={{ left: "50%", top: "44.5%" }}
-        onClick={() => p.onPick({ k: "desk", x: 0, y: 0, title: "会话席", body: [], to: "/device" })}>
-        <span className="fs-brain-line main">{p.awake ? p.claim ?? "在班·收棒中" : "脑·下班"}</span>
+        onClick={() => p.onPick({ k: "desk", x: 0, y: 0, title: "会话席 · 在办", body: doingBody, to: "/device" })}>
+        <span className="fs-brain-line main">{p.awake || p.claim ? p.claim ?? "在班·收棒中" : "脑·下班"}</span>
         {p.lastAct && <span className="fs-brain-line sub">{p.lastAct}</span>}
         {(() => {
           const f = p.facts.find((x) => x.event === "量表" && x.note.includes("部署="));

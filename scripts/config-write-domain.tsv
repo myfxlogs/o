@@ -38,6 +38,7 @@ risk.kill_switch	owner	舰队停机总闸（guard 自动翻位径不受限——
 risk.dir.*	owner	方向书子预算（棒3——名义帽+亏完断粮阈,种子0=方向书零预算;毕业供数归业主与 max_notional 同类）
 ledger.recon_tol_usd	owner	对账容差（红线三：对账三通道不可动）
 feishu.chat_id	owner	业主通知通道
+feishu.sys_chat_id	owner	系统通知通道（业主令 2026-11-15 双频——运行/在办富卡）
 notify.*	owner	通知投递面（fail-closed 非钱径）
 trx.stake_address	owner	资金去向地址
 trx.rental_payers	owner	资金对手方注册表

@@ -26,7 +26,6 @@ import (
 	"o/internal/platform/config"
 	"o/internal/platform/hostmetrics"
 	"o/internal/platform/netmeter"
-	"o/internal/platform/notify"
 	"o/internal/platform/pgguard"
 	"o/internal/platform/roster"
 	"o/internal/portfolio/lifecycle"
@@ -106,14 +105,7 @@ func run() error {
 	var closer guard.Executor
 	// Earn 停泊态+feishu 告警通道（凭据就位挂接——boot_secrets.go）。（boot_secrets.go——app_secrets 密文列解，缺件=nil 降级；
 	// typed-nil 主修 T-0032：凭据缺席传真 nil 接口非 (*FeishuClient)(nil)）。
-	var sender notify.Sender
-	if feishuCli := feishuSender(ctx, pool); feishuCli != nil {
-		sender = feishuCli
-	}
-	alerter := notify.NewAlerter(sender, func() string {
-		v, _ := cfg.GetString("feishu.chat_id")
-		return v
-	}, func() bool { v, _ := cfg.GetBool("notify.feishu.enabled"); return v })
+	sender, alerter := wireNotify(ctx, pool, cfg) // notify_wire.go——棘轮拆出
 	{
 		budgetKB, _ := cfg.GetInt("net.budget_kbps")
 		meter = netmeter.New(int(budgetKB), func(ctx context.Context, kind, msg string) {
