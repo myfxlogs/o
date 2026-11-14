@@ -183,7 +183,8 @@ WON=$(printf '%s\n' "$WON" | grep -oE '^[0-9]+$' | head -1)
 # 连续自我账页(工单#11385「连续自我」器官——唤起拍机产叙事帧,
 # 会话猝死账页也不断更): 我在=自态帧末行;上轮=近收口行摘要;
 # 在想=末条独白+在意=惧值顶3(棒2 独白/valence 件——内在线程与
-# 内生偏好冷启动即见);卡在=OPEN工单前3;我能=自模账末行。
+# 内生偏好冷启动即见);世面=末帧 regime(棒3 世模环境件);卡在=
+# OPEN工单前3;我能=自模账末行。
 # 会话读径=单行末帧:
 #   SELECT note FROM ops_event WHERE event='量表' AND ticket='self_narrative'
 #   ORDER BY id DESC LIMIT 1
@@ -200,6 +201,8 @@ SELECT '唤知机','量表','self_narrative',
      ||p.esc_scope||'(v'||p.valence||')',' + ')
      FROM (SELECT id,esc_class,esc_scope,valence FROM ops_esc_pending
        ORDER BY valence DESC, id DESC LIMIT 3) p),'无')
+ ||' |世面='||COALESCE((SELECT left(note,60) FROM ops_event
+     WHERE event='量表' AND ticket='regime' ORDER BY id DESC LIMIT 1),'?')
  ||' |卡在='||COALESCE((SELECT string_agg('#'||t.id||':'||left(t.note,60),' + ')
      FROM (SELECT id,note FROM ops_event t WHERE t.event='工单'
        AND t.ts>now()-interval '30 days'

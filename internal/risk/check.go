@@ -68,7 +68,7 @@ func NewGate(pool *pgxpool.Pool, cfg *config.Client) *Gate {
 		rej: rejects.New("risk", "kill_switch", "missing_param", "intent_incomplete", "equity_missing",
 			"notional_cap", "venue_concentration", "exposure_cap",
 			"token_missing", "token_expired", "token_used", "intent_mismatch", "write_err",
-			"guard_suspended", "suspend_read_err")}
+			"guard_suspended", "suspend_read_err", "dir_budget_exhausted", "dir_notional_cap")}
 }
 
 func (g *Gate) getF(k string) (float64, error) { return g.cfg.GetFloat(k) }
@@ -168,6 +168,9 @@ func (g *Gate) Check(ctx context.Context, in Intent) Decision {
 		tExp += dcdUSD
 		if (tExp + in.NotionalUSD) > maxExp {
 			return g.deny(ctx, in, "exposure_cap")
+		}
+		if d := g.dirBookDeny(ctx, in); d != nil {
+			return *d // 方向书子预算闸（棒3——dir_gate.go 件）
 		}
 	}
 	return g.allow(ctx, in, int64(ttl))
