@@ -103,6 +103,25 @@ LEFT JOIN (SELECT f.strategy_id,sum(f.amount_usd) net FROM fin_paper_fill f
   GROUP BY 1) pf ON pf.strategy_id=s.id
 WHERE s.template_ref NOT LIKE 'simdrill%'
 GROUP BY 1 ORDER BY 4 DESC NULLS LAST"
+# 校准榜(世模第一桩——O对世界的信念账:每族「我以为X/实际Y/后代n」,
+# pred=eval 预测净APR均值,real=后代实测净APR均值(cashflow+paper_fill
+# 合并年化,种群榜同口径);|pred−real|>5pp=信念失真→calib_drift 探):
+psql "$FIN_DSN" -c "SELECT r.template_ref, count(*) n,
+  round(avg(r.pred)::numeric,4) pred_apr,
+  round(avg(r.real)::numeric,4) real_apr
+FROM (SELECT s.template_ref,e.net_apr pred,
+  (COALESCE(cf.net,0)+COALESCE(pf.net,0))/NULLIF(s.notional_usd,0)
+    /GREATEST(EXTRACT(EPOCH FROM(now()-COALESCE(s.entered_at,s.created_at)))/86400,1)*365 real
+FROM fin_strategy s
+JOIN fin_proposal pr ON pr.id=s.proposal_ref
+JOIN fin_opp_eval e ON e.id=pr.eval_id
+LEFT JOIN (SELECT p.strategy_ref,sum(c.amount) net FROM fin_position p
+  JOIN fin_cashflow c ON c.position_ref=p.id GROUP BY 1) cf ON cf.strategy_ref=s.id
+LEFT JOIN (SELECT f.strategy_id,sum(f.amount_usd) net FROM fin_paper_fill f
+  GROUP BY 1) pf ON pf.strategy_id=s.id
+WHERE s.template_ref NOT LIKE 'simdrill%' AND e.net_apr IS NOT NULL
+  AND (cf.net IS NOT NULL OR pf.net IS NOT NULL)) r
+GROUP BY 1 ORDER BY 2 DESC"
 # 域热榜(自模账主动翼——30d 销案后复燃次数榜,热域票=先验尸契约适用面):
 psql "$FIN_DSN" -c "SELECT m[1] dom, count(DISTINCT e.id) refires
   FROM ops_event e, LATERAL regexp_matches(e.note,'([a-zA-Z0-9_-]+)#[0-9]+','g') m
@@ -114,6 +133,10 @@ psql "$FIN_DSN" -c "SELECT m[1] dom, count(DISTINCT e.id) refires
 psql "$FIN_DSN" -c "SELECT key FROM app_secrets ORDER BY 1"
 # 公共读面(零凭据):ctx 五源(ffcal/FRED/frankfurter/CFTC-COT/OKX-OI 采集链已在跑,
 # internal/research/ctx)+会话自带 webfetch/web_search——外拓答自问走 muse 档读面律。
+# 当前焦点(意图账——O此刻在追求什么=注意力指针,会话间工作记忆;
+# 工单=目标集,焦点=当前追求指针;无行=器官未启用):
+psql "$FIN_DSN" -c "SELECT id,ts,note FROM ops_event WHERE event='焦点'
+  ORDER BY id DESC LIMIT 1"
 # OPEN 工单(未销+无活在认领)——按期限序=施工面入口,认领/销/挂起三选一,不许无声跳过:
 # 销票引证剔「挂起条件=」与「接续」行(缓办/进度非完结,升件#12643);挂起引证在
 # 票期限内暂抑回列(票开着但缓办),过期回列复验——与 feed_esc tickEnded 同语义:
@@ -212,6 +235,19 @@ canon/skills 条目或「求知:<题>」工单（结构化调研归研究席触�
   引用=自证绿疑案；note 载疑行数）→ 逐行核:判词真落实
   （canon/工单/回放/升级自问实存）→销+note 引落实件;
   不实→追立工单补落实+note 载追修。禁「muse 本来就这样」式销。
+- **唤知/focus_stale 升件**（焦点陈腐探产物——意图账指针失指：
+  焦点引已销票∨陈化>5d;note 载失指因）→ 移焦点到 OPEN 目标票
+  （按焦点档写焦点行）∨「焦点:无」留据（目标集真空）——**禁裸销
+  本件**,销它=注意力指针继续指死物。
+- **世模/calib_drift 升件**（校准失真探产物——族预测净APR vs 实测
+  净APR 系统性偏离>5pp 且实测后代≥10;note 载失真族+两均值+n）→
+  处置三径写到失真族:①**核 eval 模型病灶**（评估器漏了什么成本/
+  假设——lethal 簇归井查 eval 证据面,模型病=假想卡判据修工单）;
+  ②**标 lethal 断粮**（信念失真且实测净负=不可信族,育种序禁再喂
+  ——处置行载「lethal:<族>」种群榜消费）;③**校准后放行**（失真
+  有因可释=载据销,如样本期过短/费用模型已修）。**禁裸销**——失真
+  是 O 对世界信念被证伪,不处置=下次同错照犯(funding-hedge 1613
+  后代预测 -2.8% 仍生实证)。
 - **机械可证**（相位/账本/文件/端点事实可核）→ 修或销，落：
   ```sql
   INSERT INTO ops_event(seat,event,ticket,note)
@@ -316,6 +352,16 @@ canon/skills 条目或「求知:<题>」工单（结构化调研归研究席触�
     年化≥8% 复绿探针自销,那是唯一的饱。
   票抑键：目标票 OPEN 时饿探静默（条件被票接管）;票销/过期差距仍在
   →再火=新一轮想要。做梦面可对上一目标跑反事实（用帧=做梦）。
+- **焦点档**（意图账——O此刻在追求什么,会话间工作记忆/注意力指针;
+  `event='焦点' ticket='focus'` 末行=当前追求）:
+  - **认领目标票须立焦点**——拣 OPEN goal 票干活者写焦点行:
+    `INSERT INTO ops_event(seat,event,ticket,note)
+    VALUES('处置席','焦点','focus','工单#<票id> <目标一句>——<为何此刻选它>')`;
+  - **销目标票须移焦点**——目标达成/证伪销票者,焦点移到下一 OPEN
+    目标票,无票写「焦点:无——目标集空」留据（空=如实非偷懒）;
+  - **muse 可移焦点**——无任务的醒发现更值钱的追求可移,note 载
+    「移因=<前焦为何不配此刻>」——移焦是意图选择,意图判词归会话;
+  - focus_stale 探自锚核:焦点引已销票∨陈化>5d→升件催移焦。
 - **goal_idle 升件**（动机面第三信号——OPEN 目标票票龄>4h 且近 8h
   零处置触=想要空转;note 载怠票#id+票龄）。**此件不是新信号是传唤**
   ——处置径只三条,皆写在点名票上不在本件：
@@ -339,8 +385,9 @@ canon/skills 条目或「求知:<题>」工单（结构化调研归研究席触�
     +`evidence.mut="inst_swap|param_mut|legs_x|venue_port"`
     ——无谱系=无归因,后代实绩归不到父母=进化环瞎。
   - **无种可繁**（零 proven 族）→径归研究员③源普查循环（新族
-    假想卡+收益公式闸）——lethal 族禁再喂（种群榜全灭净负者,
-    与死法聚类互证）。
+    假想卡+收益公式闸）——lethal 族禁再喂（种群榜全灭净负∨
+    校准榜 |pred−real|>5pp(n≥10)系统性失真=不可信族,与死法
+    聚类互证;失真族处置先走 calib_drift 判词径)。
   - 禁销口径：「扫描器还在跑」——扫描器是枚举器排列穷举会衰竭
     （funding-hedge 1804 死实证）;育种是你的活不是它的。
 - **对账**（seat=探测席 esc_class=对账 的升件——歧态腿/账实差两进水口）→
@@ -714,6 +761,12 @@ dispatch 未入支板（pendbr）兜底在案,工单是正道pendbr是保险。
   硬性字段）:本轮干活注意到无覆盖疑问→自问行 id;真没有→`无`
   （如实空≠没问）。不载字段=收口行残缺,selfq_gap 探自锚核——
   与缺用帧同级（frame_use_gap 同款 drift 判据）。
+  **手感字段可选**（内隐知识漏斗件——干活中摸到但没落成 canon 的
+  手感）:`手感=<slug>:<一句>`——slug=域键（如 sql-quoting/
+  deploy-lock/pg-dsn）,一句=手感本句（坑/技巧/捷径）。**与 canon
+  分工**:够格进 canon 的直接写条目不塞手感;手感=够不上 canon
+  但同域复发会攒成教训——矿工扫窗同 slug≥2 聚簇→工程案候选
+  （minerScan 第六签名类）。禁把手感当判词垃圾箱——没手感不填。
   本行=唤起配对行+释锁契（唤起∧无唤起败∧无后随收口=在飞判据）+自态账页
   「上轮=」源——缺行=唤起成幻影、账页断帧、排查须跨机翻 transcript
   （2026-11-13 断代实证：写法靠续会话部落记忆传,SG 换机断代即丢,

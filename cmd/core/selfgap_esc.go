@@ -13,6 +13,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -187,5 +188,44 @@ func (c coreService) museClaimEscCheck(ctx context.Context, deadSince map[string
 		return fmt.Sprintf(
 			"唤知/muse_claim: %d 张 muse 行无「落=」引用=自证绿——核判词落实(canon/工单/回放/升级自问实存)∨判不实追修;禁裸销",
 			n)
+	})
+}
+
+// focusStaleEscCheck 焦点陈腐探(意图账器官——O此刻在追求什么=
+// 注意力指针,会话间工作记忆;连续自我的脊柱件:工单=目标集,
+// 焦点=当前追求指针,没它=目标群立而无人正在追)。
+// 自锚:首条 event='焦点' 行=器官上线证(零行=未启用探针自闭);
+// 其后两判:①末行焦点引 工单#N 已被处置销=指针指死物;
+// ②末行焦点>5d 零移=指针陈化。探针只喊不动——移焦点归
+// muse/处置会话判词(焦点=意图非状态,意图选择是心智活非机械活)。
+var focusTicketRe = regexp.MustCompile(`工单#(\d+)`)
+
+func (c coreService) focusStaleEscCheck(ctx context.Context, deadSince map[string]time.Time) {
+	var fid int64
+	var fts time.Time
+	var fnote string
+	if err := c.pool.QueryRow(ctx, `SELECT id,ts,note FROM ops_event
+		WHERE event='焦点' ORDER BY id DESC LIMIT 1`).Scan(&fid, &fts, &fnote); err != nil {
+		return // 零焦点∨读件败=自锚未立探针自闭
+	}
+	stale := time.Since(fts) > 5*24*time.Hour
+	dead := stale
+	if m := focusTicketRe.FindStringSubmatch(fnote); m != nil {
+		var closed bool
+		if err := c.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM ops_event d
+			WHERE d.event='处置' AND d.id>$1
+			AND d.note ~ ('工单#'||$2||'([^0-9]|$)'))`,
+			fid, m[1]).Scan(&closed); err == nil && closed {
+			dead = true
+		}
+	}
+	c.escEdgeUV(ctx, deadSince, "唤知", "focus_stale", "@", dead, func() string {
+		why := "指针陈化>5d"
+		if !stale {
+			why = "所指工单已销=焦点指死物"
+		}
+		return fmt.Sprintf(
+			"唤知/focus_stale: 焦点#%d %s（末行:%s）——注意力指针失指:移焦点到 OPEN 目标票∨「焦点:无」留据(runbook 焦点档;禁裸销)",
+			fid, why, fnote)
 	})
 }

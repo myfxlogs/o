@@ -367,3 +367,77 @@ func TestSelfqGapEscCheck(t *testing.T) {
 		t.Fatalf("同条件重火: n=%d", n)
 	}
 }
+
+// focusStaleEscCheck 焦点陈腐探:自锚未立静默;焦点引已销票∨陈化>5d
+// →唤知/focus_stale;移焦点(新行)=复绿。
+func TestFocusStaleEscCheck(t *testing.T) {
+	ctx := context.Background()
+	pool := testutil.Pool(t)
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM ops_event
+		WHERE esc_scope='focus_stale' OR event='焦点' OR event='处置'`); err != nil {
+		t.Fatal(err)
+	}
+	svc := coreService{pool: pool}
+	deadSince := map[string]time.Time{}
+	fireN := func() int {
+		var n int
+		if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+			WHERE esc_scope='focus_stale' AND event='升件'`).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+
+	svc.focusStaleEscCheck(ctx, deadSince) // 零焦点=自锚未立静默
+	if n := fireN(); n != 0 {
+		t.Fatalf("零焦点误唤: n=%d", n)
+	}
+
+	// 新焦点引活票(无处置引)→静默
+	var tid int64
+	if err := pool.QueryRow(ctx, `INSERT INTO ops_event(seat,event,note)
+		VALUES('处置席','工单','工单/goal-nav: 钱目标首案——期限=48h,源=饿探') RETURNING id`).Scan(&tid); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note)
+		VALUES('处置席','焦点','focus',$1)`,
+		fmt.Sprintf("工单#%d goal-nav——钱目标当前追求", tid)); err != nil {
+		t.Fatal(err)
+	}
+	svc.focusStaleEscCheck(ctx, deadSince)
+	if n := fireN(); n != 0 {
+		t.Fatalf("活焦点误唤: n=%d", n)
+	}
+
+	// 所指工单销→焦点指死物=火
+	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,note)
+		VALUES('处置席','处置',$1)`,
+		fmt.Sprintf("工单#%d 销——达成落账", tid)); err != nil {
+		t.Fatal(err)
+	}
+	svc.focusStaleEscCheck(ctx, deadSince)
+	if n := fireN(); n != 1 {
+		t.Fatalf("死物焦点未唤: n=%d", n)
+	}
+
+	// 移焦点(新焦点行引活票)→复绿
+	var tid2 int64
+	if err := pool.QueryRow(ctx, `INSERT INTO ops_event(seat,event,note)
+		VALUES('处置席','工单','工单/goal-x: 次案——期限=48h') RETURNING id`).Scan(&tid2); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note)
+		VALUES('处置席','焦点','focus',$1)`,
+		fmt.Sprintf("工单#%d 次案——上案销移此", tid2)); err != nil {
+		t.Fatal(err)
+	}
+	svc.focusStaleEscCheck(ctx, deadSince)
+	var recN int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='恢复' AND note LIKE '%/focus_stale%'`).Scan(&recN); err != nil || recN != 1 {
+		t.Fatalf("移焦未复绿: recN=%d err=%v", recN, err)
+	}
+}
