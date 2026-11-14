@@ -229,3 +229,25 @@ func (c coreService) focusStaleEscCheck(ctx context.Context, deadSince map[strin
 			fid, why, fnote)
 	})
 }
+
+// monologueStallEscCheck 独白停探（棒2「常驻内心独白」器官零产面——
+// 内在线程是常驻节奏件非信号件:timer 哑/锁饿死/会话连败都让线程断流
+// 而线程断了没人喊=器官死而无声）。
+// 自锚:首条 event='独白' 行=器官上线证(零行=未启用探针自闭);
+// 其后末行独白>26h=线程断流→唤知/monologue_stall 升件。
+// 处置=核 o-cognition-monologue.timer/service 态+败迹(唤起败/锁占用),
+// 修器官不修账——探针只喊不动。
+func (c coreService) monologueStallEscCheck(ctx context.Context, deadSince map[string]time.Time) {
+	var last time.Time
+	var id int64
+	if err := c.pool.QueryRow(ctx, `SELECT id,ts FROM ops_event
+		WHERE event='独白' ORDER BY id DESC LIMIT 1`).Scan(&id, &last); err != nil {
+		return // 零独白∨读件败=自锚未立探针自闭
+	}
+	c.escEdgeUV(ctx, deadSince, "唤知", "monologue_stall", "@",
+		time.Since(last) > 26*time.Hour, func() string {
+			return fmt.Sprintf(
+				"唤知/monologue_stall: 独白链末行#%d 陈 %.0fh——内在线程断流:核 o-cognition-monologue.timer/service 态+唤起败/锁占(monologue.sh 三闸),修器官不修账",
+				id, time.Since(last).Hours())
+		})
+}

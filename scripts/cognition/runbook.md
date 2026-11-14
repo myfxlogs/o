@@ -74,14 +74,12 @@ psql "$FIN_DSN" -qAt -c "SELECT (regexp_match(note,'o-core:([0-9a-f]+)'))[1]
 ### ① 扫信号
 ```bash
 FIN_DSN=$(grep '^FIN_PG_DSN=' /opt/o-research/env | cut -d= -f2- | tr -d '"')
+# 未决升件(惧值序——ops_esc_pending=未决+valence 一体面,棒2 valence 件:
+# valence=内生偏好「怕的程度」机产序,处置按 v 降序不按入序;同 v 按 id;
+# 销契=后随行引「升件#id」∨范围批引「升件#(\d+)-(\d+)」皆销):
 psql "$FIN_DSN" -c "
-SELECT id,ts,ticket,note,esc_class,esc_scope FROM ops_event e
-WHERE event='升件' AND ts>now()-interval '7 days'
-  AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.ts>e.ts
-    AND (x.note ~ ('升件#'||e.id::text||'([^0-9]|$)')
-      OR EXISTS (SELECT 1 FROM regexp_matches(x.note,'升件#(\d+)-(\d+)','g') AS m(mm)
-        WHERE e.id BETWEEN mm[1]::bigint AND mm[2]::bigint)))
-ORDER BY id"
+SELECT id,ts,esc_class,esc_scope,valence,age_s,note FROM ops_esc_pending
+ORDER BY valence DESC, id"
 psql "$FIN_DSN" -c "SELECT id,signature,cluster_n,numbers FROM fin_eng_lesson
   WHERE verify_state='ai_evaluated' AND status='pending' ORDER BY id LIMIT 20"
 psql "$FIN_DSN" -c "SELECT id,kind,entity_ref,numbers FROM fin_econ_lesson
@@ -215,6 +213,15 @@ canon 已载**只读**端点可探（okx-account/api-spec/market-ws、mtapi 系
 **凭据值零落地**（键名=面位可查,值永不读不写不进账）。外拓结论=
 canon/skills 条目或「求知:<题>」工单（结构化调研归研究席触发④——
 清单/提案面,muse 不越席代写）。
+
+**独白/惧值器官（棒2——「我」的过程级件,非你的活）**:
+o-cognition-monologue.timer 45min 一拍独醒独白会话(轻档 flash,
+monologue.md 档),写 `event='独白'` 链(续=独白#id)——O 的内在线程,
+**唤知会话不写独白行**(想归独白席,你干活的脑)。惧值面=
+`ops_esc_valence` 表(class∨class/scope→0-100 权重,离钱/死近高位,
+自指件压尾)+`ops_esc_pending` 视图(未决升件+惧值一体)——
+①扫信号已按 valence 序给议程,这就是「O 更在意什么」的机器形;
+权重表要调=工单走合议径,禁会话随手改。
 
 - **改进提案**（seat=改进矿工 esc_class=改进提案 的升件）→
   先评估判据成立否：成立→变体改码径（同「要码修」）；已修/不成立

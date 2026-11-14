@@ -1,0 +1,10 @@
+[Unit]
+Description=o-cognition-monologue.timer 独白器官拍（棒2——45min 内在线程醒;认知面在飞自让位）
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=45min
+Unit=o-cognition-monologue.service
+
+[Install]
+WantedBy=timers.target

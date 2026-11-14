@@ -26,13 +26,14 @@ MIN_N=${COG_MIN_N:-1}; MIN_AGE=${COG_MIN_AGE:-600}; BURST_N=${COG_BURST_N:-5}
 
 # 未决升件: 后随 ops_event 无 note 引「升件#<id>」处置行=未处置。
 # (纪元3处置词='处置'——处置行 note 引源升件 id 为销账同契)。
-read -r N OLDEST < <(psql "$DSN" -qAt -c "
-SELECT count(*), COALESCE(min(extract(epoch from e.ts)::bigint),0) FROM ops_event e
-WHERE e.event='升件' AND e.ts > now() - interval '7 days'
-  AND NOT EXISTS (
-    SELECT 1 FROM ops_event x WHERE x.ts > e.ts
-      AND x.note ~ ('升件#'||e.id::text||'([^0-9]|\$)'))" 2>/dev/null | tr '|' ' ')
-N=${N:-0}; OLDEST=${OLDEST:-0}
+# 棒2 valence: 未决面读 ops_esc_pending 视图(未决口径同 esc 侧 dedup
+# 全契——单引「升件#id」+范围引「升件#N-M」皆销;惧值列同查)——
+# MAXV=面顶惧值,≥COG_VAL_HI(默认80)=直唤不等龄(怕的信号不排队)。
+read -r N OLDEST MAXV < <(psql "$DSN" -qAt -c "
+SELECT count(*), COALESCE(min(extract(epoch from p.ts)::bigint),0),
+       COALESCE(max(p.valence),0) FROM ops_esc_pending p" 2>/dev/null | tr '|' ' ')
+N=${N:-0}; OLDEST=${OLDEST:-0}; MAXV=${MAXV:-0}
+VAL_HI=${COG_VAL_HI:-80}
 
 # 工单板（D-0045 票管催制——「立票→开修」接续环）：OPEN 票=未销
 # (无处置引「工单#id」)且无活在认领(认领行<2h 引同票——
@@ -124,7 +125,8 @@ fi
 
 NOW=$(date +%s); AGE=$(( NOW - OLDEST ))
 TRIGGER=""
-[ "$N" -ge "$BURST_N" ] && TRIGGER="burst:$N"
+[ "$MAXV" -ge "$VAL_HI" ] && TRIGGER="valence:$MAXV"
+[ -z "$TRIGGER" ] && [ "$N" -ge "$BURST_N" ] && TRIGGER="burst:$N"
 [ -z "$TRIGGER" ] && [ "$N" -ge "$MIN_N" ] && [ "$AGE" -ge "$MIN_AGE" ] && TRIGGER="aged:N=$N age=${AGE}s"
 [ "$TICKET_N" -gt 0 ] && TRIGGER="${TRIGGER:+$TRIGGER }ticket:$TICKET_N"
 [ "$PEND_BR" -gt 0 ] && TRIGGER="${TRIGGER:+$TRIGGER }pendbr:$PEND_BR"
@@ -169,7 +171,7 @@ WHERE NOT EXISTS (
 	      OR x.event='会话收口')))
 AND NOT EXISTS (
 	SELECT 1 FROM ops_headless h
-	WHERE h.seat='唤知席' AND h.ticket LIKE 'COG-%' AND h.state='alive'
+	WHERE h.ticket ~ '^(COG|MONO)-' AND h.state='alive'
 	  AND h.last_activity > now() - interval '100 seconds')
 RETURNING id;
 SELECT pg_advisory_unlock(7969);
@@ -180,7 +182,8 @@ WON=$(printf '%s\n' "$WON" | grep -oE '^[0-9]+$' | head -1)
 
 # 连续自我账页(工单#11385「连续自我」器官——唤起拍机产叙事帧,
 # 会话猝死账页也不断更): 我在=自态帧末行;上轮=近收口行摘要;
-# 卡在=OPEN工单前3;我能=自模账末行(能力账翼——域面成败随唤起入册)。
+# 在想=末条独白+在意=惧值顶3(棒2 独白/valence 件——内在线程与
+# 内生偏好冷启动即见);卡在=OPEN工单前3;我能=自模账末行。
 # 会话读径=单行末帧:
 #   SELECT note FROM ops_event WHERE event='量表' AND ticket='self_narrative'
 #   ORDER BY id DESC LIMIT 1
@@ -191,6 +194,12 @@ SELECT '唤知机','量表','self_narrative',
      WHERE event='量表' AND ticket='self_state' ORDER BY id DESC LIMIT 1),'?')
  ||' |上轮='||COALESCE((SELECT left(note,120) FROM ops_event
      WHERE event='会话收口' ORDER BY id DESC LIMIT 1),'?')
+ ||' |在想='||COALESCE((SELECT left(note,80) FROM ops_event
+     WHERE event='独白' ORDER BY id DESC LIMIT 1),'无')
+ ||' |在意='||COALESCE((SELECT string_agg('#'||p.id||' '||p.esc_class||'/'
+     ||p.esc_scope||'(v'||p.valence||')',' + ')
+     FROM (SELECT id,esc_class,esc_scope,valence FROM ops_esc_pending
+       ORDER BY valence DESC, id DESC LIMIT 3) p),'无')
  ||' |卡在='||COALESCE((SELECT string_agg('#'||t.id||':'||left(t.note,60),' + ')
      FROM (SELECT id,note FROM ops_event t WHERE t.event='工单'
        AND t.ts>now()-interval '30 days'

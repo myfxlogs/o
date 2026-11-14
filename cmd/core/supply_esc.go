@@ -224,11 +224,12 @@ func (c coreService) stuckEscCheck(ctx context.Context, deadSince map[string]tim
 		return fmt.Sprintf("唤知/stuck_esc: %d 个 scope 销案后复燃（%s）——判词宣称已修|已愈而条件复发,宣称不实,疑卡壳建议值守介入",
 			len(stuck), strings.Join(parts, "、"))
 	})
-	c.hotDomainEscCheck(ctx, deadSince) // 热域探同拍——复燃同数据源（stuck_esc 行的域级聚类翼,selfmodel 同口径）
-	c.dreamDueEscCheck(ctx, deadSince)  // 梦探同拍——离线巩固唤点(自模器官家同翼)
-	c.museDueEscCheck(ctx, deadSince)   // muse 醒探同拍——自发议程唤点(自问账出题自己答)
-	c.learnGapEscCheck(ctx, deadSince)  // 求知滞探同拍——无主外调票转升件接上注意链
-	c.museClaimEscCheck(ctx, deadSince) // muse 落实探同拍——自证绿缝核查
+	c.hotDomainEscCheck(ctx, deadSince)      // 热域探同拍——复燃同数据源（stuck_esc 行的域级聚类翼,selfmodel 同口径）
+	c.dreamDueEscCheck(ctx, deadSince)       // 梦探同拍——离线巩固唤点(自模器官家同翼)
+	c.museDueEscCheck(ctx, deadSince)        // muse 醒探同拍——自发议程唤点(自问账出题自己答)
+	c.learnGapEscCheck(ctx, deadSince)       // 求知滞探同拍——无主外调票转升件接上注意链
+	c.museClaimEscCheck(ctx, deadSince)      // muse 落实探同拍——自证绿缝核查
+	c.monologueStallEscCheck(ctx, deadSince) // 独白停探同拍——内在线程断流(棒2器官零产面)
 }
 
 // codeworkStallEscCheck 工单滞留探——双臂:
