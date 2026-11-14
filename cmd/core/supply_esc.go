@@ -242,6 +242,7 @@ func (c coreService) stuckEscCheck(ctx context.Context, deadSince map[string]tim
 			len(stuck), strings.Join(parts, "、"))
 	})
 	c.hotDomainEscCheck(ctx, deadSince) // 热域探同拍——复燃同数据源（stuck_esc 行的域级聚类翼,selfmodel 同口径）
+	c.dreamDueEscCheck(ctx, deadSince)  // 梦探同拍——离线巩固唤点(自模器官家同翼)
 }
 
 // codeworkStallEscCheck 工单滞留探——双臂:

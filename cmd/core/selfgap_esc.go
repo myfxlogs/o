@@ -64,3 +64,34 @@ func (c coreService) hotDomainEscCheck(ctx context.Context, deadSince map[string
 		}
 	}
 }
+
+// dreamDueEscCheck 做梦到时探（「做梦」器官产线补位 2026-11-14——sleep-time
+// compute 对拍:回放写面纯契约(ticket='dream_replay' 行等会话产)而无人
+// 唤=器官 15% 刻度实证零产;无米不梦——素材尽=静息合法非僵)。
+// 判据=状态非散文:末次回放>7d∨零史,且 30d 内有判毕素材案
+// (falsified_verdict/retire_postmortem/trade_postmortem/settled_loss——
+// 反事实得有「实态」可对)。产回放行=自复绿;素材尽=不唤。
+// 探针只述「到时」不产梦:推演=会话域活(runbook 做梦回放面档——
+// 拒虚构 venue 数,无实测只许簿记量差)。
+func (c coreService) dreamDueEscCheck(ctx context.Context, deadSince map[string]time.Time) {
+	var last *time.Time
+	var material int
+	if err := c.pool.QueryRow(ctx, `SELECT
+		(SELECT max(ts) FROM ops_event WHERE ticket='dream_replay'),
+		(SELECT count(*) FROM fin_econ_lesson
+			WHERE kind IN ('falsified_verdict','retire_postmortem','trade_postmortem','settled_loss')
+			AND status='verdicted' AND ts>now()-interval '30 days')`).
+		Scan(&last, &material); err != nil {
+		return // 读件败本拍让位
+	}
+	due := material > 0 && (last == nil || time.Since(*last) > 7*24*time.Hour)
+	c.escEdgeUV(ctx, deadSince, "唤知", "dream_due", "@", due, func() string {
+		since := "零史"
+		if last != nil {
+			since = fmt.Sprintf("%.0fd", time.Since(*last).Hours()/24)
+		}
+		return fmt.Sprintf(
+			"唤知/dream_due: 回放面 %s 无梦，30d 判毕素材 %d 案——做梦=离线巩固非新信号,产 回放/dream_replay 行自复绿(runbook 做梦回放面档)",
+			since, material)
+	})
+}

@@ -74,3 +74,58 @@ func TestHotDomainEscCheck(t *testing.T) {
 		t.Fatalf("复绿行缺: n=%d err=%v", n, err)
 	}
 }
+
+// dreamDueEscCheck 梦探:判毕素材在案+回放>7d∨零史→升件;有梦复绿;
+// 素材尽不唤。
+func TestDreamDueEscCheck(t *testing.T) {
+	ctx := context.Background()
+	pool := testutil.Pool(t)
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	for _, q := range []string{
+		`DELETE FROM ops_event WHERE esc_scope='dream_due' OR ticket='dream_replay'`,
+		`DELETE FROM fin_econ_lesson`,
+	} {
+		if _, err := pool.Exec(ctx, q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	svc := coreService{pool: pool}
+	deadSince := map[string]time.Time{}
+	fireN := func() int {
+		var n int
+		if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+			WHERE esc_scope='dream_due' AND event='升件'`).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+
+	svc.dreamDueEscCheck(ctx, deadSince) // 零素材不唤
+	if n := fireN(); n != 0 {
+		t.Fatalf("零素材误唤: n=%d", n)
+	}
+
+	// 判毕素材入案→唤
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_econ_lesson(kind,entity_ref,status,verdict_ref)
+		VALUES('falsified_verdict','goal:test','verdicted','弃——验毕')`); err != nil {
+		t.Fatal(err)
+	}
+	svc.dreamDueEscCheck(ctx, deadSince)
+	if n := fireN(); n != 1 {
+		t.Fatalf("到时未唤: n=%d", n)
+	}
+
+	// 产回放行→复绿
+	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note)
+		VALUES('唤知席','回放','dream_replay','反事实#1-test: 实态…')`); err != nil {
+		t.Fatal(err)
+	}
+	svc.dreamDueEscCheck(ctx, deadSince)
+	var recN int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='恢复' AND note LIKE '%dream_due%'`).Scan(&recN); err != nil || recN != 1 {
+		t.Fatalf("有梦未复绿: recN=%d err=%v", recN, err)
+	}
+}
