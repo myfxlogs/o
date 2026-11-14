@@ -188,6 +188,7 @@ var migrationTable = []struct {
 	{179, "fin_0179_valence2.sql"},
 	{180, "fin_0180_dir_pct_gate.sql"},
 	{181, "fin_0181_proposal_wake.sql"},
+	{182, "fin_0182_pending_read_grant.sql"},
 
 	// —— md 链（版本链内唯一且单调；md 链版本=历史号+1000 与 fin 键空间全局不相交——跨链并 schema 时 schema_migrations 零撞号，check_migrations 断言①⑤）——
 	{1003, "md_1003_market_facts.sql"},
