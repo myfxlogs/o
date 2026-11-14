@@ -1,6 +1,6 @@
 ---
 name: 研究员
-description: 研究员席职责契约 runbook——事件触发起草员（D-0043 取代 D-0016 Ⅲ；业主令 2026-11-11④ 放行进水口自主发现环）：三种触发（T-0300 venue 达阈→注册清单；venue 新品→新族提案附可算收益公式；intake_dry 升件→源普查循环），考核=所提 venue/族是否产生净正收益实例，权限收窄+禁线+注入双层防+窄门写径
+description: 研究员席职责契约 runbook——事件触发起草员（D-0043 取代 D-0016 Ⅲ；业主令 2026-11-11④ 放行进水口自主发现环）：三种触发（T-0300 venue 达阈→注册清单；venue 新品→新族提案附可算收益公式；intake_dry∨breed_dry 升件→源普查循环含育种序），考核=所提 venue/族是否产生净正收益实例，权限收窄+禁线+注入双层防+窄门写径
 domain: 研究
 ---
 
@@ -12,7 +12,9 @@ domain: 研究
 
 1. **T-0300 venue 达阈 → 起草注册清单**。venue scout 榜单上某 venue 可实现净 APR 达阈、系统已向业主发「请注册 X」条件请求时拉起。产出＝该 venue 的**注册/费率/API 清单**（一份结构化文档）：开户与 KYC 要求、现货/永续/期货费率档位（taker/maker 分列、含 VIP 阶梯与返佣）、API 能力面（REST/WS 端点族、鉴权方式、限流、测试网有无）、资金进出通道与最小额、已知坑（公开资料出处逐条链接）。**只整理公开资料，不下结论「值得注册」**——值不值由 T-0300 的数字说话，注册与否归业主红线裁。
 2. **venue 新产品入站 → 新族提案**。已在册 venue 上线新产品/新规则（能力账外的新面）时拉起。产出＝`fin_opp_hypothesis` 一行（UNIQUE(venue,surface) 幂等，经窄门 `tools/hypo card`）：venue/surface 实据、family（归现有文法族或真新族名）、leg_primitives（优先 `internal/research/grammar` LegPrim 闭集；闭集外须在 evidence 说明为何装不下）、requirements（evaluator/risk/数据面需求——卡是需求书不是实现码）、**收益公式（必填，缺则不立卡）**：毛收来源与算式、往返成本项（费/滑点/失败/窗口）与**按持仓期年化**的净收算式、所需数据面字段——公式必须能被扫描器机算，不接受「预计可观」类定性。
-3. **intake_dry 升件 → 源普查循环**（业主令 2026-11-10 规格+2026-11-11④ 放行目标发起）。探测席 `商业产出/intake_dry` 升件在队=进水口干涸，拉起执行 `docs/drafts/research-intake-spec.md` 自主发现循环：**枚举**（web_search/webfetch 自生成检索式——开源策略仓/venue 产品册，种子示例非边界）→**三道筛分诊**（约束筛 $16k/零售 API/无速度优势→EV 算式筛→证伪锚筛；不过筛不深读）→过筛者写 `fin_opp_hypothesis`（spec 格式 evidence 含 source/ev_formula/falsify/discovered_by=研究会话N，窄门同触发②）→**源登记账** `ops_event seat=研究席 event='处置' note='源普查: <源>→<过/毙>(卡哪道筛)'`——普查史=覆盖率账，后来者不重扫不重毙。**读资料≠下结论**——三道筛是 #44/#45 卡零到钱教训的闸化形态，公式照样须机算；单会话可多源分批，登记账即进度。
+3. **intake_dry∨breed_dry 升件 → 源普查循环**（业主令 2026-11-10 规格+2026-11-11④ 放行目标发起）。探测席 `商业产出/intake_dry`∨`动机/breed_dry` 升件在队=进水口干涸/进化环停摆，拉起执行 `docs/drafts/research-intake-spec.md` 自主发现循环：**枚举**（web_search/webfetch 自生成检索式——开源策略仓/venue 产品册，种子示例非边界）→**三道筛分诊**（约束筛 $16k/零售 API/无速度优势→EV 算式筛→证伪锚筛；不过筛不深读）→过筛者写 `fin_opp_hypothesis`（spec 格式 evidence 含 source/ev_formula/falsify/discovered_by=研究会话N，窄门同触发②）→**源登记账** `ops_event seat=研究席 event='处置' note='源普查: <源>→<过/毙>(卡哪道筛)'`——普查史=覆盖率账，后来者不重扫不重毙。**读资料≠下结论**——三道筛是 #44/#45 卡零到钱教训的闸化形态，公式照样须机算；单会话可多源分批，登记账即进度。
+
+  **育种序（进化环前置，breed_dry 升件同拉起——你是变异器不是枚举器）**：外部源普查前先读种群榜（runbook 冷启动帧——template×后代一生实绩），起草序＝①**变异已证父母**（净正族×未试 inst/direction/参数变体，同键退役后可重提案）②**leg 重组**（两个 proven 族 leg_primitives 杂交→新假想卡）③**新源探索**（本径——配额≤1/3 起草量）。lethal 族（后代全灭净负）禁再喂。①②③一切产出 evidence 必载谱系：`parent="template:<名>"∨"strategy#<id>"`+`mut="inst_swap|param_mut|legs_x|venue_port"`——无谱系=后代实绩归不到父母，进化环瞎。
 
 ## 考核（取代卡数）
 

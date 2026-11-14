@@ -108,3 +108,40 @@ func (c coreService) goalIdleEscCheck(ctx context.Context, deadSince map[string]
 				len(ids), strings.Join(parts, "、"))
 		})
 }
+
+// breedDryEscCheck 育种旱探（策略进化环件①,FunSearch 范式落地 2026-11-14:
+// 种群=template×后代一生实绩,变异算子=认知会话,适应度=paper五闸+真账)。
+// 病灶:提案供给=族扫描器排列穷举——funding-hedge 1804 死 19 活、参数
+// 空间试完即衰竭(45→6/天衰减实证),「有种不繁」无人喊。
+// 判据=状态非散文:7d 无 verdict='proposed' 新评估=进水口干。note 载
+// proven 种数(后代 realized+paper 净>0 的族——有种不繁)∨0(无种可繁=
+// 纯探索域,径归研究员源普查)。探针只述旱不开药:育种序/谱系载法归
+// 研究员契约(skills/研究员)与 runbook 动机档。
+func (c coreService) breedDryEscCheck(ctx context.Context, deadSince map[string]time.Time) {
+	var proposals7d, provenN int
+	if err := c.pool.QueryRow(ctx, `SELECT
+		(SELECT count(*) FROM fin_opp_eval
+			WHERE verdict='proposed' AND ts>now()-interval '7 days'),
+		(SELECT count(*) FROM (SELECT s.template_ref FROM fin_strategy s
+			LEFT JOIN (SELECT p.strategy_ref,sum(c.amount) net FROM fin_position p
+				JOIN fin_cashflow c ON c.position_ref=p.id GROUP BY 1) cf
+				ON cf.strategy_ref=s.id
+			LEFT JOIN (SELECT f.strategy_id,sum(f.amount_usd) net FROM fin_paper_fill f
+				GROUP BY 1) pf ON pf.strategy_id=s.id
+			WHERE s.template_ref NOT LIKE 'simdrill%'
+			GROUP BY s.template_ref
+			HAVING COALESCE(sum(cf.net),0)+COALESCE(sum(pf.net),0)>0) proven)`).
+		Scan(&proposals7d, &provenN); err != nil {
+		return // 读件败本拍让位
+	}
+	c.escEdgeUV(ctx, deadSince, "动机", "breed_dry", "@",
+		proposals7d == 0, func() string {
+			state := fmt.Sprintf("有种不繁（%d 个 proven 族在册未育）", provenN)
+			if provenN == 0 {
+				state = "无种可繁（零 proven 族——纯探索域）"
+			}
+			return fmt.Sprintf(
+				"动机/breed_dry: 提案进水 7d=0，%s——变异源=会话非扫描器:育种序/谱系径归研究员契约+runbook 动机档(种群榜冷启动帧在册)",
+				state)
+		})
+}

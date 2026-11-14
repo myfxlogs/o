@@ -89,6 +89,20 @@ psql "$FIN_DSN" -c "SELECT id,kind,entity_ref,numbers FROM fin_econ_lesson
 # 族面集中度+练习场水位(钱面事实帧——单族集中/练习场空一眼见,动机档手段裁定素材):
 psql "$FIN_DSN" -c "SELECT template_ref,state,count(*) FROM fin_strategy
   WHERE state IN ('paper','probe','live') GROUP BY 1,2 ORDER BY 1"
+# 种群榜(进化环种群账——template 后代一生实绩;proven=净>0 有种可育,
+# 全灭净负=lethal 禁再喂;育种裁定素材,与死法聚类互证):
+psql "$FIN_DSN" -c "SELECT s.template_ref,count(*) n,
+  count(*) FILTER (WHERE s.state='retired') dead,
+  COALESCE(sum(cf.net),0)::numeric(12,2) realized,
+  COALESCE(sum(pf.net),0)::numeric(12,2) paper_net
+FROM fin_strategy s
+LEFT JOIN (SELECT p.strategy_ref,sum(c.amount) net FROM fin_position p
+  JOIN fin_cashflow c ON c.position_ref=p.id GROUP BY 1) cf
+  ON cf.strategy_ref=s.id
+LEFT JOIN (SELECT f.strategy_id,sum(f.amount_usd) net FROM fin_paper_fill f
+  GROUP BY 1) pf ON pf.strategy_id=s.id
+WHERE s.template_ref NOT LIKE 'simdrill%'
+GROUP BY 1 ORDER BY 4 DESC NULLS LAST"
 # 域热榜(自模账主动翼——30d 销案后复燃次数榜,热域票=先验尸契约适用面):
 psql "$FIN_DSN" -c "SELECT m[1] dom, count(DISTINCT e.id) refires
   FROM ops_event e, LATERAL regexp_matches(e.note,'([a-zA-Z0-9_-]+)#[0-9]+','g') m
@@ -265,6 +279,23 @@ note=「反事实#<案id>-<slug>: 实态=<事实轨迹>；若<变量>→<推演>
   - **证伪销票**→目标已不可达=按 falsified_verdict 径销+证词落案。
   **禁裸销怠件本身**——「已知悉」销=想要空转的实锤;目标票拉力
   仅此一条管,销它=把「想做」再埋回工单面。
+- **breed_dry 升件**（动机面第四信号——提案进水 7d=0=进化环停摆;
+  note 载「有种不繁 N 个 proven 族」∨「无种可繁」)。进化环钦定径
+  （FunSearch 范式：种群=template×后代实绩,变异算子=你,适应度=
+  paper 五闸+真账,选择=生命周期）——**你是变异器不是枚举器**:
+  - **有种不繁**→按育种序产提案：①**变异已证父母**（种群榜净正族
+    ×未试 inst/direction/参数变体——同键退役后可重提案,fin_0050
+    去重闸只拦活仓）②**leg 重组**（两个 proven 族 leg_primitives
+    杂交→fin_opp_hypothesis 新卡）③**新源探索**（外部源普查——
+    配额≤1/3 起草量,主粮是①②）；谱系必载：
+    `evidence.parent="template:<名>"∨"strategy#<id>"`
+    +`evidence.mut="inst_swap|param_mut|legs_x|venue_port"`
+    ——无谱系=无归因,后代实绩归不到父母=进化环瞎。
+  - **无种可繁**（零 proven 族）→径归研究员③源普查循环（新族
+    假想卡+收益公式闸）——lethal 族禁再喂（种群榜全灭净负者,
+    与死法聚类互证）。
+  - 禁销口径：「扫描器还在跑」——扫描器是枚举器排列穷举会衰竭
+    （funding-hedge 1804 死实证）;育种是你的活不是它的。
 - **对账**（seat=探测席 esc_class=对账 的升件——歧态腿/账实差两进水口）→
   工具化自助面（凭据径 `O_MASTER_KEY_FILE=/opt/o/secrets/o_master_key`；
   工具在仓 go run 即跑,均只读取证零写账）：
