@@ -222,4 +222,13 @@ var faceBaselineWhitelist = map[string]string{
 	// 即面；生产亲证 SG 基表在册+19inst 形成中日线落行
 	// @2026-11-13 14:0xZ（升件源 ops_event #14096）。
 	"face:table:md_klines": "工单#13065 入册——md_klines=md_1094/fin_0171 双链迁移建 public 基表（日K数据面：OKX candle1D business 端点采集→同键 upsert 形成中覆写/收线终态，domain.tsv bridge 入册；candle* 全族归 /business 端点 venue 实证 canon okx-candle-business-endpoint 在案）；写径 okxws klineLoop→writer/读径 projector_rw 投影桥在案；table 类面 information_schema BASE TABLE 枚举本体零硬编码，建表落地即面；生产亲证 SG 基表在册+19inst 形成中日线落行 @2026-11-13 14:0xZ（升件源 ops_event #14096）",
+	// fin_econ_rule 表面——fin_0175 迁移建 public 基表（canon 可执行化
+	// 规约闸，业主令 2026-11-14「经验→知识→闸」件②：可机读教训落
+	// admit_block 规约行，生命周期 admitProposals 机械执行；domain.tsv
+	// fin 入册）在册即面；写径=裁定席 INSERT/active=false 撤规
+	// （roster_rw SELECT,INSERT,UPDATE 授权在案），读径=
+	// lifecycle.econrule loadAdmitBlockRules（admitProposals 消费闸）+
+	// o_fin_ro SELECT；table 类面=information_schema BASE TABLE 枚举
+	// 本体零硬编码，建表落地即面。
+	"face:table:fin_econ_rule": "升件#15221 入册——fin_econ_rule=fin_0175 迁移建 public 基表（canon 可执行化规约闸：admit_block 规约行由 lifecycle admitProposals 机械执行，domain.tsv fin 入册）；写径裁定席 roster_rw INSERT/撤规+读径 lifecycle.econrule/o_fin_ro 在案；table 类面 information_schema BASE TABLE 枚举本体零硬编码，建表落地即面；生产亲证基表在册（升件源 ops_event #15221）",
 }
