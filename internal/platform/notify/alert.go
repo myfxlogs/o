@@ -48,6 +48,7 @@ var chanMoney = map[string]bool{
 // Alerter 退避推送器（同指纹指数退避——持续态告警禁变相刷屏）。
 type Alerter struct {
 	cli     Sender
+	sysCli  Sender // 系统频发送件（第二机器人——nil=回落主 cli）
 	chatID  func() string
 	sysChat func() string // 系统频 chat 解析（nil/空=回落主频——双频未绑零漏件）
 	on      func() bool   // enabled 热启判（nil=off）
@@ -64,6 +65,10 @@ func NewAlerter(cli Sender, chatID func() string, on func() bool) *Alerter {
 
 // WithSysChat 挂系统频解析（fluent——双频分流件；nil=全量走主频旧行为）。
 func (a *Alerter) WithSysChat(fn func() string) *Alerter { a.sysChat = fn; return a }
+
+// WithSysSender 挂系统频发送件（第二机器人——业主令 2026-11-15 meta 飞书挪作
+// 系统通道；nil/typed-nil=回落主 cli 不炸）。
+func (a *Alerter) WithSysSender(cli Sender) *Alerter { a.sysCli = cli; return a }
 
 // cliNil typed-nil 判：接口零值或内裹 nil 指针皆判缺（反射兜底——主修在装配点）。
 func cliNil(s Sender) bool {
@@ -110,11 +115,11 @@ func (a *Alerter) Alert(ctx context.Context, kind, payload string) {
 	body, actable := HumanText(kind, payload)
 	sys := !chanMoney[kind]
 	chat := a.chatID()
-	if sys {
-		if s := a.sysChatID(); s != "" {
-			chat = s
-		}
-		if cs, ok := a.cli.(CardSender); ok { // 系统频富卡（业主令——败则回落文本不丢件）
+	cli := a.cli
+	if sys && !cliNil(a.sysCli) && a.sysChatID() != "" {
+		// 系统频成对翻（cli+chat 必须同对——跨对=目标会话机器人不在席发送必败）
+		cli, chat = a.sysCli, a.sysChatID()
+		if cs, ok := cli.(CardSender); ok { // 系统频富卡（业主令——败则回落文本不丢件）
 			card := AlertCard(title, fmt.Sprintf("%s\n—— %s", body, time.Now().Format("15:04:05")), actable)
 			if _, err := cs.CreateInteractive(ctx, chat, card); err == nil {
 				return
@@ -128,7 +133,7 @@ func (a *Alerter) Alert(ctx context.Context, kind, payload string) {
 		prefix = "[O告警] "
 	}
 	text := fmt.Sprintf("%s%s | %s", prefix, body, time.Now().Format("15:04:05"))
-	if _, err := a.cli.SendText(ctx, chat, text); err != nil {
+	if _, err := cli.SendText(ctx, chat, text); err != nil {
 		log.Printf("[alert] feishu push err (%s): %v", kind, err)
 	}
 }

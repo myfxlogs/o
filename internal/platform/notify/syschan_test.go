@@ -22,43 +22,61 @@ func (f *fakeCardSender) CreateInteractive(ctx context.Context, chatID, content 
 }
 
 // TestSysChannelRouting 双频分流锚（业主令 2026-11-15）：钱 kinds→主频文本；
-// 系统 kinds→sys 频富卡；sys 空=回落主频；无 CardSender=系统件文本降级。
+// 系统 kinds→sys 频富卡（cli+chat 成对翻——跨对=机器人不在席发送必败）；
+// sysCli/sysChat 任一缺=整对回落主频；无 CardSender=系统件文本降级。
 func TestSysChannelRouting(t *testing.T) {
 	ctx := context.Background()
 
-	// ① 双频齐：钱走主频文本，系统走 sys 卡
-	f := &fakeCardSender{}
-	a := NewAlerter(f, func() string { return "money" }, func() bool { return true }).
-		WithSysChat(func() string { return "sys" })
+	// ① 双频齐：钱走主频文本，系统走 sys 机器人卡
+	m := &fakeCardSender{} // 主机器人
+	s := &fakeCardSender{} // 系统机器人
+	a := NewAlerter(m, func() string { return "money" }, func() bool { return true }).
+		WithSysChat(func() string { return "sys" }).WithSysSender(s)
 	a.Alert(ctx, "kill_switch", "on")     // 钱径集
 	a.Alert(ctx, "cognition_dead", "2h")  // 系统集
 	a.Alert(ctx, "newkind_unlisted", "x") // 未定性=默认系统
-	if len(f.texts) != 1 || !strings.HasPrefix(f.texts[0], "money|") {
-		t.Fatalf("钱 kind 未走主频文本: %+v", f.texts)
+	if len(m.texts) != 1 || !strings.HasPrefix(m.texts[0], "money|") {
+		t.Fatalf("钱 kind 未走主频文本: %+v", m.texts)
 	}
-	if len(f.cards) != 2 || !strings.HasPrefix(f.cards[0], "sys|") ||
-		!strings.HasPrefix(f.cards[1], "sys|") {
-		t.Fatalf("系统 kind 未走 sys 卡: %+v", f.cards)
+	if len(m.cards)+len(m.texts) != 1 {
+		t.Fatalf("主频混入系统件: %+v %+v", m.texts, m.cards)
 	}
-	if !strings.Contains(f.cards[0], "interactive") && !strings.Contains(f.cards[0], "header") {
+	if len(s.cards) != 2 || !strings.HasPrefix(s.cards[0], "sys|") ||
+		!strings.HasPrefix(s.cards[1], "sys|") {
+		t.Fatalf("系统 kind 未走 sys 卡: %+v", s.cards)
+	}
+	if !strings.Contains(s.cards[0], "header") {
 		t.Fatal("卡体非 interactive 装配")
 	}
 
-	// ② sys 空=回落主频零漏件
-	f2 := &fakeCardSender{}
-	a2 := NewAlerter(f2, func() string { return "money" }, func() bool { return true }).
-		WithSysChat(func() string { return "" })
+	// ② sysCli 缺=整对回落主频（sysChat 独设不生效——跨对禁）
+	m2, s2 := &fakeCardSender{}, &fakeCardSender{}
+	a2 := NewAlerter(m2, func() string { return "money" }, func() bool { return true }).
+		WithSysChat(func() string { return "sys" })
+	_ = s2 // 未挂
 	a2.Alert(ctx, "cognition_dead", "2h")
-	if len(f2.cards) != 1 || !strings.HasPrefix(f2.cards[0], "money|") {
-		t.Fatalf("sys 空未回落主频: %+v", f2.cards)
+	if len(m2.texts) != 1 || !strings.HasPrefix(m2.texts[0], "money|") {
+		t.Fatalf("sysCli 缺未回落主频文本: %+v", m2.texts)
 	}
 
-	// ③ 无 CardSender 实现=系统件文本降级仍落 sys 频
-	f3 := &fakeSender{}
-	a3 := NewAlerter(f3, func() string { return "money" }, func() bool { return true }).
-		WithSysChat(func() string { return "sys" })
+	// ③ sysChat 空=整对回落主频（sysCli 独在不生效）
+	m3, s3 := &fakeCardSender{}, &fakeCardSender{}
+	a3 := NewAlerter(m3, func() string { return "money" }, func() bool { return true }).
+		WithSysChat(func() string { return "" }).WithSysSender(s3)
 	a3.Alert(ctx, "cognition_dead", "2h")
-	if len(f3.sent) != 1 {
-		t.Fatalf("文本降级未发: %+v", f3.sent)
+	if len(m3.texts) != 1 || !strings.HasPrefix(m3.texts[0], "money|") {
+		t.Fatalf("sysChat 空未回落主频: %+v", m3.texts)
+	}
+	if len(s3.cards)+len(s3.texts) != 0 {
+		t.Fatalf("跨对误发 sysCli→主频: %+v %+v", s3.texts, s3.cards)
+	}
+
+	// ④ 系统 cli 无 CardSender=文本降级仍落 sys 频
+	m4, s4 := &fakeCardSender{}, &fakeSender{}
+	a4 := NewAlerter(m4, func() string { return "money" }, func() bool { return true }).
+		WithSysChat(func() string { return "sys" }).WithSysSender(s4)
+	a4.Alert(ctx, "cognition_dead", "2h")
+	if len(s4.sent) != 1 || len(m4.texts)+len(m4.cards) != 0 {
+		t.Fatalf("文本降级未落 sys: %+v", s4.sent)
 	}
 }
