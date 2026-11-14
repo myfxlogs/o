@@ -9,6 +9,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"regexp"
 	"strings"
 	"time"
@@ -30,6 +31,7 @@ type sysPush struct {
 // ev_headless 事件脊钦定径非轮询）。
 func startSysPush(ctx context.Context, pool *pgxpool.Pool, cfg *config.Client, cli *notify.FeishuClient) {
 	if cli == nil {
+		log.Printf("[sys_push] 系统频凭据缺席——活卡降级不启（告警径不受影响）")
 		return
 	}
 	sp := &sysPush{pool: pool, cfg: cfg, cli: cli}
