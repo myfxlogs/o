@@ -208,7 +208,7 @@ func (w *Warden) dirTrip(ctx context.Context, fam string, loss, realized, floati
 	anomaly := w.dirAnomaly(ctx, fam)
 	anomalyNote := ""
 	if len(anomaly) > 0 {
-		anomalyNote = fmt.Sprintf(";畸形/单腿仓 %d 件待人平(ids=%v——自动平仓径只接双腿契约)", len(anomaly), anomaly)
+		anomalyNote = fmt.Sprintf(";畸形仓 %d 件待人平(ids=%v——自动平仓径接 1/2 腿契约)", len(anomaly), anomaly)
 	}
 	note := fmt.Sprintf("方向族亏损熔断:族=%s 累计亏损 %.2f ≥预算 %.2f（=本金NAV %.2f×预算比;实现 %.2f+浮亏 %.2f）——模板禁+%d 策略降级+族仓全平,待业主复审%s(解封=显式 guard.dir_broken.%s=false+模板enabled+策略回迁)",
 		fam, loss, budget, nav, realized, floating, degraded, anomalyNote, fam)
@@ -222,15 +222,15 @@ func (w *Warden) dirTrip(ctx context.Context, fam string, loss, realized, floati
 	w.dirFlatten(ctx, fam)
 }
 
-// dirAnomaly 族在仓畸形位（无腿/单腿/>2 腿=自动平仓径契约外）——id 集,
-// 触线升件载明待人平（tend 同 anomaly 语义:不盲发不静默）。
+// dirAnomaly 族在仓畸形位（零腿/>2 腿=自动平仓径契约外；棒5c 单腿升一等
+// 契约后出畸形集——方向族 1 腿=tend 单腿径可平）。id 集触线升件载明待人平。
 func (w *Warden) dirAnomaly(ctx context.Context, fam string) []int64 {
 	var out []int64
 	rows, err := w.pool.Query(ctx, `SELECT p.id FROM fin_position p
 		JOIN fin_strategy s ON s.id=p.strategy_ref
 		WHERE s.template_ref=$1 AND p.closed_at IS NULL
 		AND (SELECT count(*) FROM fin_order_leg l
-		     WHERE l.execution_id=p.execution_id AND l.state='filled') <> 2`, fam)
+		     WHERE l.execution_id=p.execution_id AND l.state='filled') NOT IN (1,2)`, fam)
 	if err != nil {
 		w.rej.Inc("write_err")
 		return nil

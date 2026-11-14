@@ -198,7 +198,9 @@ func (w *Warden) tend(ctx context.Context, p posRow, maxAtt int64, trig closeTri
 	if trig.kind == "" {
 		return
 	}
-	// 腿形态契约外（缺腿/>2 腿）无法反向原子平——升级留痕不盲发畸形 intent。
+	// 腿形态契约外（缺腿/>2 腿）无法反向平——升级留痕不盲发畸形 intent。
+	// 单腿（方向族契约）走同径：labels 一签/reverse 一空槽/execwiring 派
+	// ExecuteDir——反向语义在腿级（side 取反）非腿集级（棒5c）。
 	if legs.one {
 		w.rej.Inc("leg_anomaly")
 		log.Printf("[guard] WARN 仓 %d 触发 %s 但腿形态异常——不可反向平，人工介入", p.id, trig.kind)

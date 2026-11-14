@@ -52,6 +52,7 @@ func (w *Warden) evaluate(ctx context.Context, p posRow, legs legSet) closeTrig 
 	if bandBps, err := w.getF("exec.hedge_band_bps"); err != nil {
 		w.rej.Inc("missing_param")
 		w.note("missing_param:band", fmt.Sprintf("仓 %d exec.hedge_band_bps 读败——漂移判据链跳过: %v", p.id, err))
+	} else if legs.single { // 棒5c：单腿方向位跳漂移判不计畸形（方向位的停/盈/TTL/翻面判在 dirTrig 件）
 	} else if legs.one {
 		w.rej.Inc("leg_anomaly")
 		w.note("leg_anomaly:legs", fmt.Sprintf("仓 %d 腿形态异常——漂移判据跳过", p.id))
@@ -67,6 +68,13 @@ func (w *Warden) evaluate(ctx context.Context, p posRow, legs legSet) closeTrig 
 				reason: fmt.Sprintf("delta_drift：imb_now=%.1fbps band=%.0fbps（对开时基线偏移；|imb|>500 绝对兜底同闸）",
 					imb, bandBps),
 				facts: map[string]any{"imb_now_bps": imb, "band_bps": bandBps, "abs_cap_bps": driftAbsCapBps}}
+		}
+	}
+	// ②.5 方向族单腿位出场判（棒5c——停/盈/TTL/翻面 dirTrig；判据键与
+	// paper 径同源 lifecycle.dir.*）。mark/entry 缺陈=让位不虚构。
+	if legs.single {
+		if t := w.dirTrig(ctx, p, legs); t.kind != "" {
+			return t
 		}
 	}
 	// ③ 持仓超龄：age > guard.max_hold_hours（T-0111：收益失效判——live 且

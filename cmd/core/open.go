@@ -56,6 +56,9 @@ func (h hedgeOpener) Open(ctx context.Context, spec lifecycle.OpenSpec) (int64, 
 		// T-0145 跨所 carry 真执行——mt5 cfd 腿先行+okx perp 腿双腿原子序
 		// （DM 裁定钦定面——xvenue.go）。
 		return h.xvenueOpen(ctx, spec)
+	case "dir_perp_mom":
+		// 棒5c 方向族单腿真户径（open_dir.go——BuildDirLeg+ExecuteDir）。
+		return h.dirOpen(ctx, spec)
 	}
 	notional := spec.NotionalUSD
 	// 双帽取小（openfirst 同径：probe_notional/max_notional——缺键 fail-closed）。
