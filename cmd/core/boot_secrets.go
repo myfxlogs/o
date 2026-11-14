@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"log"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -23,18 +24,27 @@ func feishuSysSender(ctx context.Context, pool *pgxpool.Pool) *notify.FeishuClie
 	return feishuKeySender(ctx, pool, "feishu_sys.app_id", "feishu_sys.app_secret")
 }
 
+// feishuKeySender 双轨共享装配——降级必留声（坑#16928 实证：封钥归一错→
+// nil 静默→sys_push 哑死 40min 零痕迹；败因分记=下次同类病灶秒见）。
 func feishuKeySender(ctx context.Context, pool *pgxpool.Pool, idKey, secKey string) *notify.FeishuClient {
-	mk, _ := config.ReadMasterKey()
+	mk, err := config.ReadMasterKey()
+	if err != nil {
+		log.Printf("[boot] 主权钥读败 %v——sender(%s) 降级缺席", err, idKey)
+		return nil
+	}
 	var idCt, secCt []byte
 	if err := pool.QueryRow(ctx, "SELECT ciphertext FROM app_secrets WHERE key=$1", idKey).Scan(&idCt); err != nil {
+		log.Printf("[boot] %s 密件读败 %v——sender 降级缺席", idKey, err)
 		return nil
 	}
 	if err := pool.QueryRow(ctx, "SELECT ciphertext FROM app_secrets WHERE key=$1", secKey).Scan(&secCt); err != nil {
+		log.Printf("[boot] %s 密件读败 %v——sender 降级缺席", secKey, err)
 		return nil
 	}
 	id, e1 := cryptoutil.Open(mk, idCt)
 	sec, e2 := cryptoutil.Open(mk, secCt)
 	if e1 != nil || e2 != nil {
+		log.Printf("[boot] %s/%s 解封败(%v / %v)——sender 降级缺席（封钥归一疑）", idKey, secKey, e1, e2)
 		return nil
 	}
 	return notify.NewFeishu(id, sec)
