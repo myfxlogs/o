@@ -42,8 +42,7 @@ import (
 const (
 	Template    = "dir_perp_mom" // execfam 册键同源
 	bar         = "1D"
-	staleBars   = 36 * time.Hour // 末确认棒陈界（1D 棒日收线+扫拍余量——陈=不评估 fail-closed）
-	minDataBars = 12             // 棒数下界（sigma 稳定性——不足=unevaluable 不虚构）
+	minDataBars = 12 // 棒数下界（sigma 稳定性——不足=unevaluable 不虚构）
 )
 
 var paramKeys = []string{
@@ -115,6 +114,16 @@ func (r *Runner) Run(ctx context.Context, errc chan<- error) {
 		case <-time.After(iv): // sched-exempt-ok：评估节拍非轮询拉取
 		}
 	}
+}
+
+// staleBars 末确认棒陈界（research.dirmom.stale_h 懒读缺省 56h——1D 棒=
+// 收线确认滞~16h+日 cadence 24h→常龄≤40h;原 36h 常量每日 04→16 UTC
+// 处死窗零评估实证,56h 顶=真断供仍捕陈=不评估 fail-closed）。
+func (r *Runner) staleBars() time.Duration {
+	if v, err := r.cfg.GetFloat("research.dirmom.stale_h"); err == nil && v > 0 {
+		return time.Duration(v * float64(time.Hour))
+	}
+	return 56 * time.Hour
 }
 
 // params 判据全 app_config 机读（缺/坏=fail-closed 不评估不虚构判据）。
@@ -198,7 +207,7 @@ func (r *Runner) scan(ctx context.Context) error {
 			r.rej.Inc("dir_thin_bars")
 			continue
 		}
-		if time.Since(ts) > staleBars {
+		if time.Since(ts) > r.staleBars() {
 			r.rej.Inc("dir_stale_bars")
 			continue // 陈棒面不评估（快照禁令同 funding 新鲜度语义）
 		}

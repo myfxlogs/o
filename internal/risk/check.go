@@ -68,7 +68,7 @@ func NewGate(pool *pgxpool.Pool, cfg *config.Client) *Gate {
 		rej: rejects.New("risk", "kill_switch", "missing_param", "intent_incomplete", "equity_missing",
 			"notional_cap", "venue_concentration", "exposure_cap",
 			"token_missing", "token_expired", "token_used", "intent_mismatch", "write_err",
-			"guard_suspended", "suspend_read_err", "dir_budget_exhausted", "dir_notional_cap")}
+			"guard_suspended", "suspend_read_err", "dir_budget_exhausted", "dir_notional_cap", "dir_trade_loss_cap")}
 }
 
 func (g *Gate) getF(k string) (float64, error) { return g.cfg.GetFloat(k) }

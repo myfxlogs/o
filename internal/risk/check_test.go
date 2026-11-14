@@ -153,8 +153,9 @@ func TestDirBookGate(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	for k, v := range map[string]string{ // 生产种子 0=零预算全拒;测试显式供数
-		"risk.dir.max_notional_usd": "200", "risk.dir.loss_budget_usd": "50"} {
+	for k, v := range map[string]string{ // 生产种子=百分比基线;测试显式供数(equity 夹具=1000)
+		"risk.dir.max_notional_pct": "0.20", "risk.dir.loss_budget_pct": "0.10",
+		"risk.dir.trade_loss_pct": "0.005", "lifecycle.dir.stop_frac": "0.15"} {
 		if _, err := g.pool.Exec(ctx,
 			"INSERT INTO app_config(key,value) VALUES($1,to_jsonb($2::text)) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value", k, v); err != nil {
 			t.Fatal(err)
@@ -181,37 +182,43 @@ func TestDirBookGate(t *testing.T) {
 	}
 	din := intent
 	din.StrategyRef = sid
+	din.NotionalUSD = 30 // equity=1000:单笔帽=0.005×1000÷0.15=33.3;书帽=200
 
-	if d := g.Check(ctx, din); !d.Allow { // ①书内零仓零亏=放行
+	if d := g.Check(ctx, din); !d.Allow { // ①书内零仓零亏+意图30×0.15=4.5≤5=放行
 		t.Fatalf("方向书空账应放: %+v", d)
 	}
-	var xid, posid int64 // ②open dir 仓 150+意图 100>帽 200→dir_notional_cap
+	bin := din // ②意图 40×0.15=6>5→dir_trade_loss_cap(判序先于书帽)
+	bin.NotionalUSD = 40
+	if d := g.Check(ctx, bin); d.Allow || d.Reason != "dir_trade_loss_cap" {
+		t.Fatalf("dir_trade_loss_cap: %+v", d)
+	}
+	var xid, posid int64 // ③open dir 仓 180+意图 30=210>帽 200→dir_notional_cap
 	if err := g.pool.QueryRow(ctx, `INSERT INTO fin_execution
-		(strategy_ref,inst_id,notional_usd,state) VALUES($1,'RK-DIR',150,'open') RETURNING id`, sid).Scan(&xid); err != nil {
+		(strategy_ref,inst_id,notional_usd,state) VALUES($1,'RK-DIR',180,'open') RETURNING id`, sid).Scan(&xid); err != nil {
 		t.Fatal(err)
 	}
 	if err := g.pool.QueryRow(ctx, `INSERT INTO fin_position
-		(execution_id,strategy_ref,inst_id,notional_usd) VALUES($1,$2,'RK-DIR',150) RETURNING id`,
+		(execution_id,strategy_ref,inst_id,notional_usd) VALUES($1,$2,'RK-DIR',180) RETURNING id`,
 		xid, sid).Scan(&posid); err != nil {
 		t.Fatal(err)
 	}
 	if d := g.Check(ctx, din); d.Allow || d.Reason != "dir_notional_cap" {
 		t.Fatalf("dir_notional_cap: %+v", d)
 	}
-	// ③已实现-60<-50→dir_budget_exhausted(判序先于帽)
+	// ④已实现-120<-100(0.10×1000)→dir_budget_exhausted(判序先于两帽)
 	if _, err := g.pool.Exec(ctx, `INSERT INTO fin_cashflow
 		(kind,venue,ccy,amount,position_ref,source_ref,source_table,occurred_at)
-		VALUES('trade_pnl','rktest','USDT',-60,$1,$1,'RKDIR',now())`, posid); err != nil {
+		VALUES('trade_pnl','rktest','USDT',-120,$1,$1,'RKDIR',now())`, posid); err != nil {
 		t.Fatal(err)
 	}
 	if d := g.Check(ctx, din); d.Allow || d.Reason != "dir_budget_exhausted" {
 		t.Fatalf("dir_budget_exhausted: %+v", d)
 	}
-	if d := g.Check(ctx, intent); !d.Allow { // ④查无行=非方向书成员原径
+	if d := g.Check(ctx, intent); !d.Allow { // ⑤查无行=非方向书成员原径
 		t.Fatalf("非方向应原径放: %+v", d)
 	}
 	cin := din
-	cin.Kind = "close" // ⑤close 径不拦(退仓权保留)
+	cin.Kind = "close" // ⑥close 径不拦(退仓权保留)
 	if d := g.Check(ctx, cin); !d.Allow {
 		t.Fatalf("close 径应放: %+v", d)
 	}
@@ -221,7 +228,7 @@ func TestDirBookGate(t *testing.T) {
 	if err := g.cfg.Load(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if d := g.Check(ctx, din); d.Allow || d.Reason != "missing_param" { // ⑥键缺 fail-closed
+	if d := g.Check(ctx, din); d.Allow || d.Reason != "missing_param" { // ⑦键缺 fail-closed
 		t.Fatalf("missing_param: %+v", d)
 	}
 }
