@@ -148,3 +148,39 @@ func (r *Runner) retireStalePaper(ctx context.Context) error {
 	}
 	return nil
 }
+
+// retireStaleDegraded degraded 超龄退役（T-0098 方案 A：degraded=暂停待复盘——
+// 有界暂停合莫环自净，无限期暂停=墓碑锁同键去重，BTC #1 实证 860 提案被吸）。
+// TTL=config strategy.degraded_ttl_hours，键缺/非正=默认 24h（自疗径不配键不瘫）。
+// （fin_0175 件②随搬：run.go 棘轮满线——退役面归位本件）。
+func (r *Runner) retireStaleDegraded(ctx context.Context) error {
+	ttl := 24.0
+	if v, err := r.cfg.GetFloat("strategy.degraded_ttl_hours"); err == nil && v > 0 {
+		ttl = v
+	}
+	rows, err := r.pool.Query(ctx, `SELECT id FROM fin_strategy
+		WHERE state='degraded' AND entered_at < now() - make_interval(hours => $1)`, ttl)
+	if err != nil {
+		r.rej.Inc("write_err")
+		return err
+	}
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return err
+		}
+		ids = append(ids, id)
+	}
+	rows.Close()
+	for _, id := range ids {
+		if err := Transition(ctx, r.pool, id, "retired",
+			"degraded 超龄自动退役——莫环重生窗", false); err != nil {
+			r.rej.Inc("write_err")
+			return err
+		}
+		log.Printf("[lifecycle] #%d degraded 超 %.0fh 自动退役（莫环重生窗——同键解锁复评）", id, ttl)
+	}
+	return nil
+}

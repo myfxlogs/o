@@ -616,6 +616,17 @@ launch 闸（armed→TTL 到期 `positions=0`=启动即哑，防点在开仓
 残缺**——哑弹簇全批「设计死」=簇底 `positions=0` 的防点被埋
 （11-14 实证：100 案 86 判设计死 0 canon，分类对了洞察缺席；
 弃案理由栏亦须载此答，「设计死」单四字不算答）。
+**canon 可执行化**（fin_0175 规约闸——可机读教训不落散文落规约行,
+「lethal 簇禁再喂」劝变闸）：裁定 canon 时教训若可写成
+「template_ref/inst_id/direction 键子集 AND 匹配=禁开户」形
+（簇级死法聚类正是此形——同 template×inst 反复死=该键组合判死刑），
+必随落：`INSERT INTO fin_econ_rule(kind,match,source,note)
+VALUES('admit_block','{"template_ref":"X","inst_id":"Y"}',
+'canon:<条目id>','<判词>')`（UNIQUE(kind,match) 幂等;source 锚出处;
+`active=false`=撤规不删行——判词可回查）。kind 闭集现只
+admit_block——防点是「不许再进」者落此;防点在别环（仓位/早退/
+成本）者仍走散文 canon,禁硬塞键面。**规约只写「禁」不写「许」**
+——机器闸收窄入口非放宽;撤规须同案判词（谁批的禁谁批的放）。
 
 ### ④ 收口
 每个摸过的升件都有处置行（销/修/条件请求三态其一）；
