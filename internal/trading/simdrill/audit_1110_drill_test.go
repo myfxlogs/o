@@ -152,7 +152,7 @@ func TestAuditSimFixtureRowsRetire(t *testing.T) {
 	if c == nil {
 		t.Fatal("dcd_put 格未枚举")
 	}
-	res := m.runCell(ctx, *c, c.Tiers[0], shapeDCD)
+	res := m.runCell(ctx, *c, c.Tiers[0], excell.ShapeDCD)
 	if res.Verdict != "pass" {
 		t.Fatalf("格演习应绿（夹具可用前提）: %s", res.Detail)
 	}

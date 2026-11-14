@@ -2,9 +2,12 @@ package lifecycle
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"strings"
 	"time"
+
+	"o/internal/platform/excell"
 )
 
 // paperAccounting paper 态策略吃 md_funding 新行虚拟记账（空跑=对真事实行结算，
@@ -167,8 +170,22 @@ func (r *Runner) promote(ctx context.Context, minH, minNet, maxDD float64, liveS
 		// 会不会出错」）：probe→live 判据增「执行径演习通过」——该策略型的
 		// 开→平→对账全径仿真跑绿才准 live；判据件缺/演习败=fail-closed 不晋
 		// （同经济判据待遇——simdrill 演习绿落凭据后自解）。
+		// 消费域收窄（升件#15291——canon simdrill-gate-domain-coverage-
+		// mismatch）：策略级演习无产能径的模板不进凭据闸（xvenue 腿形
+		// Drill.Run 拒载——T-0145 真执行另票接通前 probe 滞留
+		// exec_drill_missing 至 armed_ttl=死径占位耗 TTL）；谓词与 Run
+		// 派路同出 excell.LegShapeOf 单源，消费域=产能域按构成立。
+		if !excell.Drillable(c.tmpl) {
+			r.rej.Inc("exec_drill_unshaped")
+			log.Printf("[lifecycle] #%d probe→live 拦：演习面无策略级凭据产能（template=%s——Drill.Run 拒载族，钻径接通前毕业链止于此）", c.id, c.tmpl)
+			continue
+		}
 		pass, drilled, err := r.execDrillPass(ctx, c.id)
-		if err != nil || !drilled {
+		if err != nil {
+			r.rej.Inc("exec_drill_err")
+			return fmt.Errorf("probe→live 演习凭据读败（断库非断凭——fail-closed 上抛不误记缺件）: %w", err)
+		}
+		if !drilled {
 			r.rej.Inc("exec_drill_missing")
 			log.Printf("[lifecycle] #%d probe→live 拦：执行径演习凭据缺（fail-closed——跑演习落凭据后自解）", c.id)
 			continue
@@ -185,22 +202,6 @@ func (r *Runner) promote(ctx context.Context, minH, minNet, maxDD float64, liveS
 		}
 	}
 	return nil
-}
-
-// execDrillPass 执行径演习凭据判（T-0426）：fin_exec_drill latest 行
-// verdict='pass' 才真；drilled=false=判据件缺（无行——fail-closed 同经济
-// 判据缺位待遇）；verdict='fail'=演习败。读败=err 上抛 fail-closed。
-// 哨段龄界（升件#10281）：凭据须晚于 entered_at-2d（R3 侦测判词同口径——
-// 跨哨段陈凭据照收=闸与侦测面互斥根修）。
-func (r *Runner) execDrillPass(ctx context.Context, strategyID int64) (pass, drilled bool, err error) {
-	var verdict string
-	if err := r.pool.QueryRow(ctx, `SELECT d.verdict FROM fin_exec_drill d
-		JOIN fin_strategy s ON s.id=d.strategy_ref WHERE d.strategy_ref=$1
-		AND d.ts >= s.entered_at - interval '2 days'
-		ORDER BY d.ts DESC, d.id DESC LIMIT 1`, strategyID).Scan(&verdict); err != nil {
-		return false, false, nil // 无行=判据件缺（非库错——fail-closed 不晋）
-	}
-	return verdict == "pass", true, nil
 }
 
 // dcdPaperAccounting dcd_call paper 记账（T-0160 ①paper 径实装：md_dcd_product

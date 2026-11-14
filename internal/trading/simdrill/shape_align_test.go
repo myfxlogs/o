@@ -6,6 +6,7 @@ package simdrill
 import (
 	"testing"
 
+	"o/internal/platform/excell"
 	"o/internal/platform/execfam"
 )
 
@@ -20,7 +21,7 @@ func TestExecfamLegShapeAlign(t *testing.T) {
 	}
 	var unshaped []string
 	for _, tmpl := range execfam.All() {
-		if _, ok := legShapeOf(tmpl); !ok && !exempt[tmpl] {
+		if _, ok := excell.LegShapeOf(tmpl); !ok && !exempt[tmpl] {
 			unshaped = append(unshaped, tmpl)
 		}
 	}

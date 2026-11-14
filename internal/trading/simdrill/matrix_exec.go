@@ -27,14 +27,14 @@ import (
 // runLegged 双腿原子径（Runner.Execute 产线同码——venue 三面注入；
 // 哨戒强平走 Warden venue 路由现读面；残留=venue 真相归零判）。
 func (m *Matrix) runLegged(ctx context.Context, res *CellResult, c excell.Cell,
-	t excell.Tier, stratID int64, inst string, shape legShape) {
+	t excell.Tier, stratID int64, inst string, shape excell.LegShape) {
 	vs := newOKXVenue(inst)
 	var mt *mt5sim.Sim
 	var legs [2]execution.Leg
 	var flat func() bool
 
 	switch {
-	case shape == shapeXvenue:
+	case shape == excell.ShapeXvenue:
 		mt = newMT5Venue(inst)
 		l, err := xvenueLegs(c, t, inst, mt)
 		if err != nil {

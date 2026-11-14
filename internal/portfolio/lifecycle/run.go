@@ -45,7 +45,8 @@ func NewRunner(pool *pgxpool.Pool, cfg *config.Client) *Runner {
 		rej: rejects.New("lifecycle", "illegal_transition", "missing_criteria", "write_err", "live_switch_off", "open_failed", "template_blocked", "xvenue_open_forbidden", "xvenue_sub_leg", "blacklist_retire",
 			"facts_missing", "missing_param", "oscillation_fuse", "dcd_quote_missing", "dcd_spot_stale", "basis_mark_stale",
 			"exec_drill_missing", "exec_drill_failed", "exec_cell_hold",
-			"conf_lb_fail", "entry_cond_defer"), // T-0521 毕业闸判词拒因
+			"exec_drill_unshaped", "exec_drill_err",
+			"conf_lb_fail", "entry_cond_defer"), // T-0521 毕业闸判词拒因；exec_drill_unshaped=#15291 消费域收窄拦词、exec_drill_err=#15292 断库上抛拒因
 		sensor: hunger.New(pool, cfg),
 		chainV: opschain.New(pool)}
 }
