@@ -84,25 +84,28 @@ SQL
 
 # ticketstall 扫尾:票回活(引证动账<阈/已销/已挂起)=滞留条件消→恢复行
 # 自闭未决 stall 升件(复绿=条件消自证非宣称,同 pendbr 扫尾契)。
+# 坑处置(2026-11-15⑤锁堆实证):裸JOIN+相关子查询=规划器先跑贵谓词全表
+# 重扫(单拍跑15min持行锁堆死迁移/写队)——CTE物化先收窄到ticketstall
+# 未决小集(常空),JOIN/回活判定只在小集上跑,秒级钉死。
 psql "$DSN" -qAt <<SQL >/dev/null 2>&1 || true # tolerate: 扫尾写败=下拍补
 INSERT INTO ops_event(seat,event,note)
-SELECT '探测席','恢复','升件#'||e.id||' 复绿——工单#'||substring(e.esc_scope from 13)
+SELECT '探测席','恢复','升件#'||p.id||' 复绿——工单#'||p.tid
  ||' 回活(引证动账<阈或票已离板),滞留件归销'
-FROM ops_event e
-JOIN ops_event t ON t.id::text=substring(e.esc_scope from 13)
-WHERE e.event='升件' AND e.esc_scope LIKE 'ticketstall\_%'
-  AND e.ts>now()-interval '7 days'
-  AND NOT EXISTS (SELECT 1 FROM ops_event y WHERE y.ts>e.ts
-    AND y.note ~ ('升件#'||e.id::text||'([^0-9]|\$)'))
-  AND (
-    COALESCE((SELECT max(a.ts) FROM ops_event a WHERE a.ts>t.ts
+FROM (
+  SELECT e.id,substring(e.esc_scope from 13) AS tid FROM ops_event e
+  WHERE e.event='升件' AND e.esc_scope LIKE 'ticketstall\_%'
+    AND e.ts>now()-interval '7 days'
+    AND NOT EXISTS (SELECT 1 FROM ops_event y WHERE y.ts>e.ts
+      AND y.note ~ ('升件#'||e.id::text||'([^0-9]|\$)'))
+) p
+JOIN ops_event t ON t.id=p.tid::bigint
+WHERE COALESCE((SELECT max(a.ts) FROM ops_event a WHERE a.ts>t.ts
       AND a.note ~ ('工单#'||t.id::text||'([^0-9]|\$)')),t.ts)
       > now() - interval '1 second' * $STALL_AGE
-    OR EXISTS (SELECT 1 FROM ops_event x WHERE x.event='处置' AND x.ts>t.ts
+   OR EXISTS (SELECT 1 FROM ops_event x WHERE x.event='处置' AND x.ts>t.ts
       AND x.note ~ ('工单#'||t.id::text||'([^0-9]|\$)')
       AND x.note NOT LIKE '%挂起条件=%'
       AND x.note !~ ('工单#'||t.id::text||' ?接续'))
-  )
 SQL
 
 # 未入支板(坑处置: 升件#11240 散文接续缝根修——会话销案留「接续:merge」
