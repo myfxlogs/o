@@ -21,9 +21,10 @@ import (
 )
 
 type feedPush struct {
-	pool *pgxpool.Pool
-	cfg  *config.Client
-	cli  *notify.FeishuClient
+	pool     *pgxpool.Pool
+	cfg      *config.Client
+	cli      *notify.FeishuClient
+	lastPush time.Time // 攒批窗锚——送成才记（发败不锚,下醒重泄同批）
 }
 
 type feedRow struct {
@@ -43,7 +44,14 @@ func startFeedPush(ctx context.Context, pool *pgxpool.Pool, cfg *config.Client, 
 	go events.ListenLoop(ctx, pool, "feed_push", []string{"ev_feed"}, fp.push)
 }
 
-// push 一醒一泄：短窗合流→水印后新动作行逐条人话渲染合一发→送成才过水印。
+// feedQuietGap 攒批窗——非穿透件攒 10min 一批（事驱推吵坑 2026-11-15:
+// 写账即推,会话活跃=刷屏;警报/判词/部署/自愈穿透窗即时推,余攒批）。
+const feedQuietGap = 10 * time.Minute
+
+// feedPierce 穿透事件集——窗内到即推不等攒（要事不延迟）。
+var feedPierce = "('升件','判词','部署','恢复')"
+
+// push 一醒一泄：短窗合流→攒批闸→水印后新动作行逐条人话渲染合一发→送成才过水印。
 func (s *feedPush) push(ctx context.Context) error {
 	if en, _ := s.cfg.GetBool("notify.feishu.sys.enabled"); !en {
 		return nil
@@ -56,6 +64,15 @@ func (s *feedPush) push(ctx context.Context) error {
 	wm, err := s.watermark(ctx)
 	if err != nil {
 		return err
+	}
+	if time.Since(s.lastPush) < feedQuietGap {
+		pierce, err := s.hasPierce(ctx, wm)
+		if err != nil {
+			return err
+		}
+		if !pierce {
+			return nil // 攒批窗内非穿透件=攒着不过水印,下醒合批泄
+		}
 	}
 	if wm == 0 { // 首启不回放史——锚定当下 max(id)
 		return s.initWM(ctx)
@@ -79,6 +96,7 @@ func (s *feedPush) push(ctx context.Context) error {
 		if _, err := s.cli.SendText(ctx, chat, strings.TrimRight(b.String(), "\n")); err != nil {
 			return err // 发败=不过水印，下醒重泄同批（不漏件）
 		}
+		s.lastPush = time.Now()
 		wm = rows[len(rows)-1].id
 		if err := s.setWM(ctx, wm); err != nil {
 			return err
@@ -108,6 +126,16 @@ func (s *feedPush) pending(ctx context.Context, wm int64) ([]feedRow, error) {
 		out = append(out, r)
 	}
 	return out, rows.Err()
+}
+
+// hasPierce 攒批窗穿透判——水印后有要事件=真（窗内不等攒即时泄）。
+func (s *feedPush) hasPierce(ctx context.Context, wm int64) (bool, error) {
+	var n int
+	err := s.pool.QueryRow(ctx,
+		`SELECT count(*) FROM ops_event
+		 WHERE id>$1 AND event IN `+feedPierce+`
+		 AND event NOT IN `+feedExclude, wm).Scan(&n)
+	return n > 0, err
 }
 
 func (s *feedPush) watermark(ctx context.Context) (int64, error) {
