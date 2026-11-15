@@ -28,6 +28,7 @@ func wireNotify(ctx context.Context, pool *pgxpool.Pool, cfg *config.Client) (no
 			v, _ := cfg.GetString("feishu.sys_chat_id")
 			return v
 		}).WithSysSender(sysCli)
-	startSysPush(ctx, pool, cfg, sysCli) // 系统频在办活卡（ev_headless 脊——sys_push.go）
+	startSysPush(ctx, pool, cfg, sysCli)  // 系统频在办活卡（ev_headless 脊——sys_push.go）
+	startFeedPush(ctx, pool, cfg, sysCli) // 系统频动作流水（ev_feed 脊——feed_push.go）
 	return sender, al
 }
