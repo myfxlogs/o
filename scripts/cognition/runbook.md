@@ -170,7 +170,7 @@ WHERE t.event='工单' AND t.ts>now()-interval '30 days'
     AND x.note NOT LIKE '%挂起条件=%'
     AND x.note !~ ('工单#'||t.id::text||' ?接续'))
   AND NOT EXISTS (SELECT 1 FROM ops_event s WHERE s.event='处置' AND s.ts>t.ts
-    AND s.note ~ ('工单#'||t.id::text||'([^0-9]|$)') AND s.note LIKE '%挂起条件=%'
+    AND s.note ~ ('工单#'||t.id::text||'([^0-9]|$)') AND s.note LIKE '%挂起条件=%' AND s.note NOT LIKE '%认领窗%' AND s.note NOT LIKE '%施工窗%'
     AND s.ts + COALESCE((substring(s.note from '挂起期限=([0-9]+)h'))::int,
       COALESCE((substring(t.note from '期限=([0-9]+)h'))::int,72))*interval '1 hour' > now())
   AND NOT EXISTS (SELECT 1 FROM ops_event c WHERE c.event='认领' AND c.ts>t.ts
