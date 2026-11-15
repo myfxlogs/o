@@ -18,11 +18,28 @@
 #   「事事有应答」。
 # ⑤ OCI PG-md 迁移随窗（T-0336）：arm64 migrate scp 上盒跑 -domain=md+
 #   水位断言——PG-md 欠账不再靠手补（O_MD_MIGRATE_SKIP=1 跳步哨兵照红）。
+# 健康闸后皆尾步（工单#17818）：败不翻部署 rc——记 TAIL_FAIL 进部署行
+# tail= 并经 escalate.sh 自报升件；deployed-sha 锚=健康闸非尾步。
 set -euo pipefail
 SG="${O_SG_HOST:-root@192.229.85.35}"
 LOCK_DIR=/opt/o/.deploy-lock
 cd "$(dirname "$0")/.."
 die() { echo "❌ [deploy_image] $1" >&2; exit 1; }
+
+OPS_ESC_SH="${O_OPS_ESC_SH:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/cognition/escalate.sh}"
+TAIL_FAIL=""
+tail_fail() { # $1=尾步名 $2=败因短述——记账+自报升件，不翻部署 rc
+  local step=$1 detail=${2:-}
+  TAIL_FAIL="${TAIL_FAIL:+$TAIL_FAIL,}$step"
+  echo "⚠️  [deploy_image] 尾步败 $step（健康闸已过——不翻部署 rc）" >&2
+  if [ -x "$OPS_ESC_SH" ]; then
+    "$OPS_ESC_SH" DEPLOY "" "部署" "deploy_tail_$step" \
+      "部署/deploy_tail/$step" \
+      "deploy ${SHA:-unknown} 尾步 $step 败——$detail（健康闸已过，部署 rc 不翻；欠账归升件面追）" \
+      >/dev/null 2>&1 || true # tolerate: 尾步升件写径末环——写败不翻部署 rc（结构性限度同 escalate.sh）
+  fi
+  return 0
+}
 
 # ── ⓪ 退场义务（EXIT trap 统一径：释锁 + 完工投件）──────────────
 # 投件设闸前——出处闸拒也须报（业主令「事事有应答」）；败静默：mbus 缺席/投败
@@ -36,22 +53,25 @@ release_lock() {
 }
 deploy_event() {
   local rc=$1 sha=${SHA:-$(git rev-parse --short=12 HEAD 2>/dev/null || echo unknown)}
+  local tail_note=""
+  [ -n "${TAIL_FAIL:-}" ] && tail_note=" tail=${TAIL_FAIL}"
   # 回执径（T-0375 件③修通）：mbus 邮箱总线清档退役（脚本→archive、
   # /opt/meta/mail 箱面尽撤——复活即逆清档令），改 feishu-notify 直推
   # （同 report.sh 自报径的活通知面；实活验证 rc=0）。
-  echo "[deploy_image] 完工回执 deploy $sha rc=$rc image=o-core:$sha" >>"$HOME/devin-relay.log" 2>/dev/null || true # tolerate: relay 留痕行 best-effort——回执本体 feishu 推送败已显报（下行回执缺 echo）
+  echo "[deploy_image] 完工回执 deploy $sha rc=$rc image=o-core:$sha$tail_note" >>"$HOME/devin-relay.log" 2>/dev/null || true # tolerate: relay 留痕行 best-effort——回执本体 feishu 推送败已显报（下行回执缺 echo）
   timeout 15 /opt/meta/scripts/feishu-notify.sh \
-    "[部署回执] deploy $sha rc=$rc image=o-core:$sha" >>"$HOME/devin-relay.log" 2>&1 \
+    "[部署回执] deploy $sha rc=$rc image=o-core:$sha$tail_note" >>"$HOME/devin-relay.log" 2>&1 \
     || echo "[deploy_image] 完工投件败（回执缺，不影响部署 rc=$rc）" >&2
   # 驾驶舱 v4 完结线（设计稿钉：完结=部署上线）：部署事件落 ops_event
   # （event=部署,ticket=''——管道按部署 ts≥票末事件退场判，fin_0092 触发器
   # 同拍 NOTIFY→前端行秒级退场）。凭据取径同 report.sh（FIN_PG_DSN 自
-  # /opt/o-research/env）；败静默不影响部署 rc。
+  # /opt/o-research/env）；败静默不影响部署 rc。尾步败走 tail= 后缀——
+  # rc 仍锚健康闸（工单#17818：尾步假败不再把 deployed-sha 钉陈）。
   local dsn
   dsn=$(grep '^FIN_PG_DSN=' /opt/o-research/env 2>/dev/null | cut -d= -f2- | tr -d '"')
   if [ -n "$dsn" ]; then
     timeout 15 psql "$dsn" -Atc \
-      "INSERT INTO ops_event(seat,event,ticket,note) VALUES('DEPLOY','部署','','deploy $sha rc=$rc image=o-core:$sha')" \
+      "INSERT INTO ops_event(seat,event,ticket,note) VALUES('DEPLOY','部署','','deploy $sha rc=$rc image=o-core:$sha$tail_note')" \
       >/dev/null 2>&1 \
       || echo "[deploy_image] ops_event 部署事件落簿败（管道完结线缺本拍，不影响部署 rc=$rc）" >&2
   fi
@@ -115,12 +135,15 @@ for i in $(seq 1 18); do
 done
 echo "[deploy_image] o-core 健康态=$st"
 
+# 健康闸=部署主体成锚（工单#17818）：此后皆尾步——败记 TAIL_FAIL+升件，
+# 不翻 rc；deployed-sha 账只认 rc=0 部署行，尾步欠账走升件面追。
 # T-0153 船运后镜像自剪——留 72h 回滚余量（SG 盘 76% 实证病灶面治）。
-ssh "$SG" 'docker image prune -f --filter "until=72h" && echo "[deploy_image] prune≤72h done"'
+ssh "$SG" 'docker image prune -f --filter "until=72h" && echo "[deploy_image] prune≤72h done"' \
+  || tail_fail "sg_image_prune" "ssh/docker image prune 败"
 # SG 侧 tag 保留窗同窗——until=72h 只摘 dangling,SHA tag 永不剪
 # =镜像单调堆（2026-11-10 实证 43 枚 4.6G,+3G/高峰日）。同策近5+latest。
 ssh "$SG" 'bash /opt/o/scripts/image_tag_gc.sh' \
-  || echo "⚠️ [deploy_image] SG tag_gc 败（不阻断部署收口）" >&2 # tolerate: 保洁尽力件——tag 残留下轮再收，部署成败不绑保洁
+  || tail_fail "sg_tag_gc" "ssh image_tag_gc 败（tag 残留下轮再收）" # 保洁尽力件——败记尾步升件，部署成败不绑保洁
 
 # ── ⑤ OCI PG-md 迁移随窗步（T-0336）──────────────────────────
 # 病灶（T-0333 红②③在案）：本径原只船 SG o-core——PG-md 迁移从不随窗，
@@ -128,38 +151,48 @@ ssh "$SG" 'bash /opt/o/scripts/image_tag_gc.sh' \
 # 五表欠账无人补。此步随锁同窗：arm64 migrate 交叉建→scp 上盒→env 件取
 # MD_PG_DSN 跑 -domain=md→水位断言 live≥登记表（「已合并≠已执行」机检，
 # 同 check_schema_live 判据）。O_MD_MIGRATE_SKIP=1 跳步（OCI 失联/演习——
-# 跳步即欠账，哨兵照样报红）。
+# 跳步即欠账，哨兵照样报红）。健康闸后本步属尾步——败走 tail_fail 不翻 rc。
+pg_md_tail() {
+  local reg_md live_md
+  reg_md=$(grep -oE '\{[0-9]+, "md_[0-9]+' internal/store/pgstore/migrate_table.go \
+    | grep -oE '^\{[0-9]+' | tr -d '{' | sort -n | tail -1) || return 1
+  [ -n "$reg_md" ] || return 1
+  echo "[deploy_image] OCI PG-md 迁移随窗——host=$MD_HOST 登记表水位=$reg_md"
+  GOARCH=arm64 GOOS=linux go build -o "/tmp/o-migrate-md.$$" ./cmd/migrate \
+    || { rm -f "/tmp/o-migrate-md.$$"; return 1; }
+  if ! scp -q -o BatchMode=yes -o ConnectTimeout=10 "/tmp/o-migrate-md.$$" "$MD_HOST:/tmp/o-migrate-md"; then
+    rm -f "/tmp/o-migrate-md.$$"; return 1
+  fi
+  rm -f "/tmp/o-migrate-md.$$"
+  if ! ssh -o BatchMode=yes -o ConnectTimeout=10 "$MD_HOST" '
+    set -e
+    MD_PG_DSN=$(grep "^MD_PG_DSN=" ~/o-projector.env | cut -d= -f2- | tr -d "\"")
+    [ -n "$MD_PG_DSN" ] || { echo "o-projector.env MD_PG_DSN 缺" >&2; exit 1; }
+    PG_DSN="$MD_PG_DSN" /tmp/o-migrate-md -domain=md'; then
+    return 1
+  fi
+  live_md=$(ssh -o BatchMode=yes -o ConnectTimeout=10 "$MD_HOST" \
+    "sudo docker exec o-postgres-md psql -U o -d o -tc 'SELECT COALESCE(max(version),0) FROM schema_migrations'" | tr -d ' ') || return 1
+  [ "${live_md:-0}" -ge "$reg_md" ] || return 1
+  echo "[deploy_image] PG-md 水位 live=$live_md ≥ 登记表=$reg_md"
+}
 if [ "${O_MD_MIGRATE_SKIP:-0}" = 1 ]; then
   echo "⚠️  [deploy_image] O_MD_MIGRATE_SKIP=1——PG-md 迁移步跳（欠账哨兵照红）" >&2
 else
   MD_HOST="${O_MD_HOST:-ubuntu@149.118.58.98}"
-  reg_md=$(grep -oE '\{[0-9]+, "md_[0-9]+' internal/store/pgstore/migrate_table.go \
-    | grep -oE '^\{[0-9]+' | tr -d '{' | sort -n | tail -1)
-  echo "[deploy_image] OCI PG-md 迁移随窗——host=$MD_HOST 登记表水位=$reg_md"
-  GOARCH=arm64 GOOS=linux go build -o "/tmp/o-migrate-md.$$" ./cmd/migrate
-  scp -q -o BatchMode=yes -o ConnectTimeout=10 "/tmp/o-migrate-md.$$" "$MD_HOST:/tmp/o-migrate-md"
-  rm -f "/tmp/o-migrate-md.$$"
-  ssh -o BatchMode=yes -o ConnectTimeout=10 "$MD_HOST" '
-    set -e
-    MD_PG_DSN=$(grep "^MD_PG_DSN=" ~/o-projector.env | cut -d= -f2- | tr -d "\"")
-    [ -n "$MD_PG_DSN" ] || { echo "o-projector.env MD_PG_DSN 缺" >&2; exit 1; }
-    PG_DSN="$MD_PG_DSN" /tmp/o-migrate-md -domain=md'
-  live_md=$(ssh -o BatchMode=yes -o ConnectTimeout=10 "$MD_HOST" \
-    "sudo docker exec o-postgres-md psql -U o -d o -tc 'SELECT COALESCE(max(version),0) FROM schema_migrations'" | tr -d ' ')
-  [ "${live_md:-0}" -ge "$reg_md" ] \
-    || die "PG-md 水位断言红——live=${live_md:-<空>} < 登记表=$reg_md"
-  echo "[deploy_image] PG-md 水位 live=$live_md ≥ 登记表=$reg_md"
+  pg_md_tail || tail_fail "pg_md_migrate" "OCI PG-md 迁移/水位断言败（欠账由升件面追）"
 fi
 
 # ── ⑥ 本机构建面 tag 保留窗（T-0466 件②）────────────────────
 # 一 commit 一 tag 永不删=镜像堆单调增长病灶（66 tag≈5G 实证）；
-# 留近 5 个 sha tag+latest 保回滚径。保洁件尽力——败不翻部署结果。
-bash scripts/image_tag_gc.sh || echo "⚠️ [deploy_image] image_tag_gc 败（不阻断部署收口）" >&2 # tolerate: 保洁尽力件——tag 残留下轮 deploy 再收，部署成败不绑保洁
+# 留近 5 个 sha tag+latest 保回滚径。保洁件尽力——败记尾步升件不翻部署结果。
+bash scripts/image_tag_gc.sh \
+  || tail_fail "local_tag_gc" "image_tag_gc 败（tag 残留下轮 deploy 再收）" # 保洁尽力件——败记尾步升件，部署成败不绑保洁
 
 # ── ⑦ 本机 builder cache 窗（2026-11-14 病灶：build cache 213G 塞满盘
 # 断写 runbook——每部署 Go/npm 构建层堆积，tag_gc 只剪镜像不剪缓存）。
-# until=72h 同窗镜像剪口径——日常部署热层保，陈层摘。保洁件尽力。
+# until=72h 同窗镜像剪口径——日常部署热层保，陈层摘。保洁件尽力——败记尾步升件。
 docker builder prune -f --filter "until=72h" >/dev/null 2>&1 \
-  || echo "⚠️ [deploy_image] builder prune 败（不阻断部署收口）" >&2 # tolerate: 保洁尽力件——缓存残留下轮 deploy 再收，部署成败不绑保洁
+  || tail_fail "builder_prune" "docker builder prune 败（缓存残留下轮 deploy 再收）" # 保洁尽力件——败记尾步升件，部署成败不绑保洁
 
 echo "[deploy_image] done→$SG（部署锁 trap 已释）"
