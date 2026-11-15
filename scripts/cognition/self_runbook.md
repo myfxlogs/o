@@ -22,6 +22,9 @@
 
 ```bash
 FIN_DSN=$(grep '^FIN_PG_DSN=' /opt/o-research/env | cut -d= -f2- | tr -d '"')
+# 我为什么被叫(唤起行 trigger=baseline∨early:<因>——早唤=有要事,先处置它):
+psql "$FIN_DSN" -qAt -c "SELECT note FROM ops_event
+  WHERE seat='自我机' AND event='唤起' ORDER BY id DESC LIMIT 1"
 # 我的上一拍判词(承诺面):
 psql "$FIN_DSN" -c "SELECT id,ts,left(note,400) FROM ops_event
   WHERE seat='自我' AND event='判词' ORDER BY id DESC LIMIT 1"

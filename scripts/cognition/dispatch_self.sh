@@ -24,13 +24,42 @@ fi
 
 UNIT="o-self-$(date +%s)"
 
+# 唤醒判据(30min快拍): 保底拍=距上次唤起≥6h必醒;早唤=要事触发——
+# ①P1新票立案 ②新开仓(钱面事件) ③P1票被挂起还票(裁定被退=死锁形)
+# ④NAV波动>2%(fin_ledger_snapshot 最新快照 vs 上次唤起前最近快照整组
+# 对差)。无事=退零成本;查询败=不唤fail-closed。
+LAST_WAKE=$(psql "$DSN" -qAt -c "SELECT COALESCE(max(ts),'epoch'::timestamptz)
+	FROM ops_event WHERE seat='自我机' AND event='唤起'" 2>/dev/null)
+[ -n "$LAST_WAKE" ] || exit 0
+TRIGGER=$(psql "$DSN" -qAt <<SQL
+SELECT CASE
+  WHEN now() - '$LAST_WAKE'::timestamptz >= interval '6 hours' THEN 'baseline'
+  WHEN EXISTS (SELECT 1 FROM ops_event WHERE ts>'$LAST_WAKE'::timestamptz
+    AND event='工单' AND note ~ '级=P1') THEN 'early:p1_ticket'
+  WHEN EXISTS (SELECT 1 FROM fin_position WHERE opened_at>'$LAST_WAKE'::timestamptz)
+    THEN 'early:new_position'
+  WHEN EXISTS (SELECT 1 FROM ops_event WHERE ts>'$LAST_WAKE'::timestamptz
+    AND event='处置' AND note LIKE '%挂起条件=%' AND note ~ '级=P1')
+    THEN 'early:p1_rebound'
+  WHEN (SELECT abs(c.s-p.s)/nullif(p.s,0)
+    FROM (SELECT sum(net_usd) s FROM fin_ledger_snapshot
+      WHERE ts=(SELECT max(ts) FROM fin_ledger_snapshot)) c,
+     (SELECT sum(net_usd) s FROM fin_ledger_snapshot
+      WHERE ts=(SELECT max(ts) FROM fin_ledger_snapshot
+        WHERE ts<='$LAST_WAKE'::timestamptz)) p) > 0.02 THEN 'early:nav_delta'
+  ELSE 'quiet' END;
+SQL
+)
+[ "$TRIGGER" = "quiet" ] && exit 0
+[ -z "$TRIGGER" ] && exit 0 # 查询败=不唤,fail-closed
+
 # 唤起单写径: 7969 唤知/7970 施工/7971 自我——三锁三账。
 # 条件插入免 DELETE(append-only 铁律):「30min 唤起在案且无唤起败/果/
 # 收口收尾∨SELF- 心跳鲜活」=跨机在飞判据——seat='自我机' 分账。
 WON=$(psql "$DSN" -qAt <<SQL
 SELECT pg_advisory_lock(7971);
 INSERT INTO ops_event(seat,event,ticket,note)
-SELECT '自我机','唤起','','unit=$UNIT host=$(hostname)'
+SELECT '自我机','唤起','','unit=$UNIT host=$(hostname) trigger=$TRIGGER'
 WHERE NOT EXISTS (
 	SELECT 1 FROM ops_event e
 	WHERE e.seat='自我机' AND e.event='唤起' AND e.ts>now()-interval '30 minutes'
