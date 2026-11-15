@@ -434,3 +434,61 @@ func TestLessonBacklogEsc(t *testing.T) {
 		t.Fatalf("清矿复绿 n=%d err=%v", n, err)
 	}
 }
+
+// TestStuckEscIncidentClass incident 类 scope 签名配对（工单#18002）——
+// 同 scope 异签名=新事件非复燃不报；同签名复犯照升；签名抽不出不配对。
+func TestStuckEscIncidentClass(t *testing.T) {
+	ctx := context.Background()
+	pool := testutil.Pool(t)
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM ops_event WHERE esc_scope IN
+		('cognition_spawn_fail','deploy_blocked') OR note LIKE '%t-inc%'`); err != nil {
+		t.Fatalf("clean: %v", err)
+	}
+	mk := func(scope, note string) int64 {
+		var id int64
+		if err := pool.QueryRow(ctx, `INSERT INTO ops_event(seat,event,esc_class,esc_scope,note)
+			VALUES('探测席','升件','测试',$1,$2) RETURNING id`, scope, note).Scan(&id); err != nil {
+			t.Fatalf("esc: %v", err)
+		}
+		return id
+	}
+	// spawn_fail: e1 reason=devin_rc_1 宣称已修→e2 异签名 quota_cooldown
+	// =新事件不配对;e3 同签名 devin_rc_1=真复燃照升。
+	e1 := mk("cognition_spawn_fail", "v=2 唤知/cognition_spawn_fail: 唤起败 2h 窗 2 连发（末因 unit=t-inc-u1 reason=devin_rc_1 dur=10s）")
+	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,note)
+		VALUES('处置席','处置',$1)`, fmt.Sprintf("升件#%d 销——已修壳环境", e1)); err != nil {
+		t.Fatalf("disp: %v", err)
+	}
+	e2 := mk("cognition_spawn_fail", "v=2 唤知/cognition_spawn_fail: 唤起败 2h 窗 2 连发（末因 unit=t-inc-u2 reason=quota_cooldown dur=5s）")
+	e3 := mk("cognition_spawn_fail", "v=3 唤知/cognition_spawn_fail: 唤起败 2h 窗 3 连发（末因 unit=t-inc-u3 reason=devin_rc_1 dur=8s）")
+	// deploy_blocked: e4 尾=工作树脏 宣称已修→e5 尾=OCI PG-md 异败因
+	// 不配对;e6 尾面同脏树类跨 sha 跨拍同签名照升。
+	e4 := mk("deploy_blocked", "部署/deploy_blocked: deploy_image rc=1（master=aaa1111 待部署）尾=❌ [deploy_image] 工作树脏（git status 有未提交）")
+	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,note)
+		VALUES('处置席','处置',$1)`, fmt.Sprintf("升件#%d 销——已修清障部署 o-core:def456", e4)); err != nil {
+		t.Fatalf("disp2: %v", err)
+	}
+	e5 := mk("deploy_blocked", "部署/deploy_blocked: deploy_image rc=1（master=bbb2222 待部署）尾=ts=2026-11-15T01:00:00+00:00 ❌ [deploy_image] OCI PG-md 连接超时")
+	e6 := mk("deploy_blocked", "部署/deploy_blocked: deploy_image rc=1（master=ccc3333 待部署）尾=2026-11-15T02:00:00 ❌ [deploy_image] 工作树脏（git status 有未提交）")
+	svc := coreService{pool: pool}
+	svc.stuckEscCheck(ctx, map[string]time.Time{})
+	var note string
+	if err := pool.QueryRow(ctx, `SELECT note FROM ops_event
+		WHERE event='升件' AND esc_scope='stuck_esc'`).Scan(&note); err != nil {
+		t.Fatalf("卡壳升件未落: %v", err)
+	}
+	if !strings.Contains(note, fmt.Sprintf("cognition_spawn_fail(#%d销后→#%d又火)", e1, e3)) {
+		t.Fatalf("spawn 同签名对缺: %s", note)
+	}
+	if !strings.Contains(note, fmt.Sprintf("deploy_blocked(#%d销后→#%d又火)", e4, e6)) {
+		t.Fatalf("deploy 同签名对缺: %s", note)
+	}
+	// 异签名对不得入谱——note 载「#id又火」形,抽查两新事件 id 缺席。
+	if strings.Contains(note, fmt.Sprintf("#%d又火", e2)) ||
+		strings.Contains(note, fmt.Sprintf("#%d又火", e5)) {
+		t.Fatalf("异签名新事件误配对: %s", note)
+	}
+}
