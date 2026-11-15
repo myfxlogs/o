@@ -1,7 +1,10 @@
 // bridge.go —— MT5 quote-only 桥腿（T-0141 P2b/D-0022）：跨所信号的 MT5
-// 行情物理层。凭据/址链归 app_config 会话重读（业主令 env 只留 PG 连接件——
-// bridge.mt5.{login,password,server,host}+mt5.gateway_{addr,fallbacks}，
-// dev 桥仍零 app_secrets 读权；原 env 注入径 T-0141 契约已退役）。
+// 行情物理层。**共享会话纯消费腿**（2026-11-15 跨机实证后接管）：读
+// mt5.session_token 共享行→SetSharedToken→CheckAlive 复挂；永不
+// ConnectEx（owner=汇市巡独占 login 权——跨腿互撞坑根消）永不
+// Disconnect（shared 幂等空转防连坐）。共享行缺/死=退避等汇市巡
+// 重建——腿星化可观测（connect_failed+会话终行），不自开 login。
+// bridge.mt5.* 凭据键成历史遗留（腿不再消费，app_config 行留存无害）。
 // 零账户面：不 snapshot 不 profit 流——collector_rw
 // 零 fin_* 写权，账户帧撞权限墙（票面钦定 quote-only）；零 mutating（mt5
 // trading 面零触）。quote 流→md_ticks venue='mt5'——与 SG 汇市巡同键共写
@@ -33,14 +36,10 @@ type BridgeCollector struct {
 	cfg       *config.Client
 	meter     *netmeter.Meter
 	rej       *rejects.Door
-	cr        Credentials
 	dial      func(addr string) (*Client, error)                                                  // 测试注入面
 	symFetch  func(ctx context.Context, cl *Client, sym string) (*mt5pb.SymbolParamsReply, error) // 测试注入面（FIX-02 消哑失败形态 fixture 缝——nil=生产径）
 	symList   func(ctx context.Context, cl *Client) ([]string, error)                             // 目录粗扫缝（T-0408——nil=SymbolList 正径）
 	quoteMany func(ctx context.Context, cl *Client, syms []string) map[string]float64             // 目录 mid 快照缝（nil=GetQuoteMany 正径）
-	// 会话锚——上会话所在网关+token（复挂先行情境同汇市巡；token 按网关域有效）。
-	sessAddr string
-	sessTok  string
 }
 
 // NewBridgeCollector 装配（凭据/址链全归 app_config 会话重读——env 凭据径退役；
@@ -49,26 +48,6 @@ func NewBridgeCollector(pool *pgxpool.Pool, cfg *config.Client) (*BridgeCollecto
 	return &BridgeCollector{pool: pool, cfg: cfg,
 		rej: rejects.New("mt5bridge", "connect_failed", "subscribe_failed",
 			"symbols_missing", "tick_write_err", "symbols_read_failed", "symbol_group_nil")}, nil
-}
-
-// bridgeAuth 桥腿凭据读——app_config bridge.mt5.{login,password,server,host}
-// （凭据归 PG 热更径，D-0005 env 只留 DSN 钦定收口；dev 桥仍零 app_secrets
-// 读权——app_config≠密册）。host 可空缺省（server 径户 host 空串合法）。
-func bridgeAuth(cfg *config.Client) (Credentials, error) {
-	var cr Credentials
-	login, err := cfg.GetInt("bridge.mt5.login")
-	if err != nil {
-		return cr, fmt.Errorf("bridge.mt5.login: %w", err)
-	}
-	cr.Login = uint64(login)
-	if cr.Password, err = cfg.GetString("bridge.mt5.password"); err != nil {
-		return cr, fmt.Errorf("bridge.mt5.password: %w", err)
-	}
-	if cr.Server, err = cfg.GetString("bridge.mt5.server"); err != nil {
-		return cr, fmt.Errorf("bridge.mt5.server: %w", err)
-	}
-	cr.Host, _ = cfg.GetString("bridge.mt5.host")
-	return cr, nil
 }
 
 // Run 上岗（无 roster 注册——桥面工序岗属采集器机延伸，编制册零新卡；
@@ -97,8 +76,9 @@ func (c *BridgeCollector) Run(ctx context.Context, errc chan<- error) {
 	}
 }
 
-// bridgeSession 一次会话：Connect→订阅（bridge.mt5.symbols 热启，缺=fail-closed
-// 返错重试）→OnQuote 流→md_ticks venue='mt5'。零账户面（禁 snapshot/profit）。
+// bridgeSession 一次会话：共享行复挂（纯消费腿——永不 ConnectEx 永不
+// Disconnect）→订阅（bridge.mt5.symbols 热启，缺=fail-closed 返错重试）
+// →OnQuote 流→md_ticks venue='mt5'。零账户面（禁 snapshot/profit）。
 func (c *BridgeCollector) bridgeSession(ctx context.Context, dial func(string) (*Client, error)) error {
 	// T-0143 返修：会话域派生 ctx（Run 的 ctx 跨重连共用——直接传则断连不
 	// cancel，swapLoop goroutine 随重连累积）。sessCtx 于会话终（stream 断返
@@ -109,49 +89,11 @@ func (c *BridgeCollector) bridgeSession(ctx context.Context, dial func(string) (
 	if len(syms) == 0 {
 		return fmt.Errorf("bridge.mt5.symbols 缺/空——fail-closed 不虚构标的集")
 	}
-	cr, err := bridgeAuth(c.cfg)
+	cl, err := sharedAttach(ctx, c.pool, dial)
 	if err != nil {
-		return err
+		return err // 共享行缺/会话死——等汇市巡（owner）建；腿永不 ConnectEx 防双 login 竞速
 	}
-	c.cr = cr
-	addrs, err := gatewayAddrs(c.cfg)
-	if err != nil {
-		return err
-	}
-	var cl *Client
-	var clAddr string
-	var lastErr error
-	for _, a := range addrs {
-		cand, derr := dial(a)
-		if derr != nil {
-			lastErr = derr
-			continue
-		}
-		if c.sessTok != "" && a == c.sessAddr {
-			cand.SetToken(c.sessTok)
-			if cand.CheckAlive(ctx) == nil {
-				cl, clAddr = cand, a // 复挂——流死≠会话死，零新 login
-				break
-			}
-		}
-		if cerr := cand.Connect(ctx, c.cr); cerr != nil {
-			cand.Close()
-			lastErr = cerr
-			continue
-		}
-		cl, clAddr = cand, a
-		break
-	}
-	if cl == nil {
-		return lastErr
-	}
-	c.sessAddr, c.sessTok = clAddr, cl.Token()
-	defer func() {
-		if ctx.Err() != nil { // 关停=优雅登出；流死=留会话给下轮复挂
-			cl.Disconnect(context.Background())
-		}
-		cl.Close()
-	}()
+	defer cl.Close() // 共享会话不归腿登出——owner 独掌会话生死（shared 标置已兜）
 	for _, s := range syms {
 		if err := cl.Subscribe(ctx, s); err != nil {
 			c.rej.Inc("subscribe_failed")

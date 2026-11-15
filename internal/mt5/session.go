@@ -23,6 +23,12 @@ const openSessionBudget = 30 * time.Second
 // OpenSession 独立一次性会话（开连+登录——用毕调用方 Disconnect；facts 采面/
 // 探针面用）。分阶段 log（dial→connect→authed 起讫；失败含阶段名+err）。
 func OpenSession(ctx context.Context, pool *pgxpool.Pool, cfg *config.Client) (*Client, error) {
+	// 共享先行——共享行活 token=零新 login 复挂（双腿共享会话 churn 减源；
+	// shared 标置=调用侧遗留 Disconnect 幂等空转不伤共享会话）。
+	if cl, err := sharedAttach(ctx, pool, Dial); err == nil {
+		log.Printf("[mt5] OpenSession 复挂共享会话（零新 login）")
+		return cl, nil
+	}
 	addrs, cr, err := endpoints(ctx, pool, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("阶段=creds: %w", err)
@@ -99,6 +105,11 @@ func (c *Collector) session(ctx context.Context, dial func(string) (*Client, err
 		return err
 	}
 	c.cr = cr
+	if c.sessTok == "" {
+		if ss, err := sharedSessionRead(ctx, c.pool); err == nil {
+			c.sessAddr, c.sessTok = ss.Addr, ss.Token // 重启续挂——共享行自读（零新 login）
+		}
+	}
 	var cl *Client
 	var clAddr string
 	var lastErr error
@@ -128,10 +139,10 @@ func (c *Collector) session(ctx context.Context, dial func(string) (*Client, err
 		return lastErr
 	}
 	c.sessAddr, c.sessTok = clAddr, cl.Token()
+	sharedSessionWrite(ctx, c.pool, clAddr, cl.Token()) // owner 落共享行——消费腿据此复挂
 	defer func() {
-		if ctx.Err() != nil { // 关停=优雅登出；流死=留会话给下轮复挂
-			cl.Disconnect(context.Background())
-		}
+		// 共享会话不归腿登出——句柄跨腿共享+跨重启续挂（Disconnect=连坐杀
+		// 共享会话坑）；僵尸界=券商 TTL 自然收尸。关停/流死皆仅收本地 conn。
 		cl.Close()
 	}()
 	// boot 账户快照（事件锚定首读——USD 本位；venue_type 闭集 'mt5' 已在 0005）。
