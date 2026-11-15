@@ -1,8 +1,8 @@
 #!/bin/bash
 # ops_relay.sh —— RSI 工作面→业主飞书摆渡（15min 汇总拍，系统频 -bot sys）。
 # 用法: ops_relay.sh [digest|urgent]
-#   digest（缺省）: 处置席收口+审计席产出+量表有用帧（自模账/盈利报告）,
-#           一拍一条多行汇总——量表心跳帧（自态/叙事/自观分拍）滤除
+#   digest（缺省）: 量表有用帧（自模账/盈利报告）一拍一条多行汇总——
+#           量表心跳帧滤除；处置/审计等动作行归 feed_push 实时流不抄送
 #           （业主令 2026-11-15：只留有信息的，黑话转人话）;
 #   urgent: 急件道——审计P1升件+部署/唤死类升件,逐条即发
 #           （1min 拍驱动;与 digest 分道双水印互不重复）。
@@ -51,11 +51,9 @@ digest)
 		last=$id; buf+="${seat}/${event} #${id} $(printf '%s' "$note" | humanize)"$'\n'
 	done < <(psql "$DSN" -qAt -F$'\t' -c "
 SELECT id,seat,event,left(replace(note,E'\n',' '),600) FROM ops_event
-WHERE id>$(cat "$WM" 2>/dev/null || echo 0) AND (
-  (seat='处置席' AND event='处置' AND note LIKE '%收口%')
-  OR (seat='审计席' AND event IN ('审计','审计疑点'))
-  OR (seat='探测席' AND event='量表'
-      AND (note LIKE '%自模账%' OR note LIKE '%盈利报告%'))) ORDER BY id")
+WHERE id>$(cat "$WM" 2>/dev/null || echo 0)
+  AND seat='探测席' AND event='量表'
+  AND (note LIKE '%自模账%' OR note LIKE '%盈利报告%') ORDER BY id")
 	[ "$last" -eq 0 ] && exit 0
 	[ -z "$buf" ] && { echo "$last" > "$WM"; exit 0; }
 	SEND="${FEISHU_BIN:-$HOME/.local/bin/feishusend}"

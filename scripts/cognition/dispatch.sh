@@ -49,6 +49,62 @@ WHERE t.event='工单' AND t.ts>now()-interval '30 days'
     AND c.note ~ ('工单#'||t.id::text||'([^0-9]|\$)'))" 2>/dev/null)
 TICKET_N=${TICKET_N:-0}
 
+# 票滞留探(工单面动线审计 2026-11-15⑤:在板票全谱晾龄≈立案龄零引证动账——
+# 三选一「不许无声跳过」规则零执,会话只办门口件(升件/矿尸)作业本不拽活;
+# 修复=把滞留票变成门口件——stall 阈后产 ticketstall_<id> 升件走升件道
+# ~100%分诊率。键域=票行id(唯一锚);销后复火=敷衍销升件不动票=下拍复火
+# 罚懒器;动账=任何引「工单#id」行(认领/处置/接续/自述引证皆算活)。
+STALL_AGE=${COG_TICKET_STALL_AGE:-21600} # 默认6h零动账=滞留(给挂起窗内缓办留量)
+psql "$DSN" -qAt <<SQL >/dev/null 2>&1 || true # tolerate: 探行写败=下拍补,不阻唤起闸
+INSERT INTO ops_event(seat,event,esc_class,esc_scope,note)
+SELECT '探测席','升件','票滞留','ticketstall_'||t.id,
+ '工单#'||t.id||' '||COALESCE(substring(t.note from '工单/([a-z0-9_-]+)'),'票')
+ ||' 立案'||round(EXTRACT(EPOCH FROM (now()-t.ts))/3600.0)||'h 零引证动账——'
+ ||'认领/拆解/挂起带条件/销尸票四裁其一,无声跳过=下拍复火'
+FROM ops_event t
+WHERE t.event='工单' AND t.ts>now()-interval '30 days'
+  AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='处置' AND x.ts>t.ts
+    AND x.note ~ ('工单#'||t.id::text||'([^0-9]|\$)')
+    AND x.note NOT LIKE '%挂起条件=%'
+    AND x.note !~ ('工单#'||t.id::text||' ?接续'))
+  AND NOT EXISTS (SELECT 1 FROM ops_event s WHERE s.event='处置' AND s.ts>t.ts
+    AND s.note ~ ('工单#'||t.id::text||'([^0-9]|\$)') AND s.note LIKE '%挂起条件=%'
+    AND t.ts + COALESCE((substring(t.note from '期限=([0-9]+)h'))::int,24)*interval '1 hour' > now())
+  AND NOT EXISTS (SELECT 1 FROM ops_event c WHERE c.event='认领' AND c.ts>t.ts
+    AND c.ts>now()-interval '2 hours'
+    AND c.note ~ ('工单#'||t.id::text||'([^0-9]|\$)'))
+  AND COALESCE((SELECT max(a.ts) FROM ops_event a WHERE a.ts>t.ts
+    AND a.note ~ ('工单#'||t.id::text||'([^0-9]|\$)')),t.ts)
+    < now() - interval '1 second' * $STALL_AGE
+  AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='升件'
+    AND x.esc_scope='ticketstall_'||t.id AND x.ts>now()-interval '7 days'
+    AND NOT EXISTS (SELECT 1 FROM ops_event y WHERE y.ts>x.ts
+      AND y.note ~ ('升件#'||x.id::text||'([^0-9]|\$)')))
+SQL
+
+# ticketstall 扫尾:票回活(引证动账<阈/已销/已挂起)=滞留条件消→恢复行
+# 自闭未决 stall 升件(复绿=条件消自证非宣称,同 pendbr 扫尾契)。
+psql "$DSN" -qAt <<SQL >/dev/null 2>&1 || true # tolerate: 扫尾写败=下拍补
+INSERT INTO ops_event(seat,event,note)
+SELECT '探测席','恢复','升件#'||e.id||' 复绿——工单#'||substring(e.esc_scope from 13)
+ ||' 回活(引证动账<阈或票已离板),滞留件归销'
+FROM ops_event e
+JOIN ops_event t ON t.id::text=substring(e.esc_scope from 13)
+WHERE e.event='升件' AND e.esc_scope LIKE 'ticketstall\_%'
+  AND e.ts>now()-interval '7 days'
+  AND NOT EXISTS (SELECT 1 FROM ops_event y WHERE y.ts>e.ts
+    AND y.note ~ ('升件#'||e.id::text||'([^0-9]|\$)'))
+  AND (
+    COALESCE((SELECT max(a.ts) FROM ops_event a WHERE a.ts>t.ts
+      AND a.note ~ ('工单#'||t.id::text||'([^0-9]|\$)')),t.ts)
+      > now() - interval '1 second' * $STALL_AGE
+    OR EXISTS (SELECT 1 FROM ops_event x WHERE x.event='处置' AND x.ts>t.ts
+      AND x.note ~ ('工单#'||t.id::text||'([^0-9]|\$)')
+      AND x.note NOT LIKE '%挂起条件=%'
+      AND x.note !~ ('工单#'||t.id::text||' ?接续'))
+  )
+SQL
+
 # 未入支板(坑处置: 升件#11240 散文接续缝根修——会话销案留「接续:merge」
 # 散文把未完链挂出触发面,队列清零工件却活着。推支未入 master 即未完工作
 # 物证,工件本身当信号不等会话纪律): 7d tip 龄界防古墓支永唤;
