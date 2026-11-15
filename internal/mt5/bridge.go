@@ -38,6 +38,9 @@ type BridgeCollector struct {
 	symFetch  func(ctx context.Context, cl *Client, sym string) (*mt5pb.SymbolParamsReply, error) // 测试注入面（FIX-02 消哑失败形态 fixture 缝——nil=生产径）
 	symList   func(ctx context.Context, cl *Client) ([]string, error)                             // 目录粗扫缝（T-0408——nil=SymbolList 正径）
 	quoteMany func(ctx context.Context, cl *Client, syms []string) map[string]float64             // 目录 mid 快照缝（nil=GetQuoteMany 正径）
+	// 会话锚——上会话所在网关+token（复挂先行情境同汇市巡；token 按网关域有效）。
+	sessAddr string
+	sessTok  string
 }
 
 // NewBridgeCollector 装配（凭据/址链全归 app_config 会话重读——env 凭据径退役；
@@ -77,14 +80,18 @@ func (c *BridgeCollector) Run(ctx context.Context, errc chan<- error) {
 	}
 	backoff := reconMin
 	for ctx.Err() == nil {
+		wait := backoff
 		if err := c.bridgeSession(ctx, dial); err != nil && ctx.Err() == nil {
 			c.rej.Inc("connect_failed")
-			log.Printf("[mt5bridge] 会话终（%.0fs 后重连——OKX 面不连坐）: %v", backoff.Seconds(), err)
+			if d, ok := SessionBackoff(err); ok && d > wait {
+				wait = d // 会话冲突指纹——照 mtapi 冷却睡
+			}
+			log.Printf("[mt5bridge] 会话终（%.0fs 后重连——OKX 面不连坐）: %v", wait.Seconds(), err)
 		}
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(backoff): // sched-exempt-ok 断线退避重连（期界等待非轮询拉取——汇市巡同款）
+		case <-time.After(wait): // sched-exempt-ok 断线退避重连（期界等待非轮询拉取——汇市巡同款）
 		}
 		backoff = min(backoff*2, reconMax)
 	}
@@ -112,6 +119,7 @@ func (c *BridgeCollector) bridgeSession(ctx context.Context, dial func(string) (
 		return err
 	}
 	var cl *Client
+	var clAddr string
 	var lastErr error
 	for _, a := range addrs {
 		cand, derr := dial(a)
@@ -119,19 +127,31 @@ func (c *BridgeCollector) bridgeSession(ctx context.Context, dial func(string) (
 			lastErr = derr
 			continue
 		}
+		if c.sessTok != "" && a == c.sessAddr {
+			cand.SetToken(c.sessTok)
+			if cand.CheckAlive(ctx) == nil {
+				cl, clAddr = cand, a // 复挂——流死≠会话死，零新 login
+				break
+			}
+		}
 		if cerr := cand.Connect(ctx, c.cr); cerr != nil {
 			cand.Close()
 			lastErr = cerr
 			continue
 		}
-		cl = cand
+		cl, clAddr = cand, a
 		break
 	}
 	if cl == nil {
 		return lastErr
 	}
-	defer cl.Close()
-	defer cl.Disconnect(context.Background())
+	c.sessAddr, c.sessTok = clAddr, cl.Token()
+	defer func() {
+		if ctx.Err() != nil { // 关停=优雅登出；流死=留会话给下轮复挂
+			cl.Disconnect(context.Background())
+		}
+		cl.Close()
+	}()
 	for _, s := range syms {
 		if err := cl.Subscribe(ctx, s); err != nil {
 			c.rej.Inc("subscribe_failed")

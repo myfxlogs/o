@@ -348,6 +348,20 @@ AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='升件'
   AND NOT EXISTS (SELECT 1 FROM ops_event y WHERE y.ts>x.ts
     AND y.note ~ ('升件#'||x.id::text||'([^0-9]|\$)')))
 SQL
+# ⑦盲区账缺(注册表缺席探): event='盲区' 行制=「不知道自己不知道什么」
+# 清单(工单#18324——结构常数主动管理件,自指/同源/墙外三域种子)。
+# 零行=地图未建升件;7d 复火窗=销判后仍空再鸣(同 consol_dry 窗语义)。
+psql "$DSN" -qAt <<SQL >/dev/null 2>&1 || true # tolerate: 探行写败=下拍补
+INSERT INTO ops_event(seat,event,esc_class,esc_scope,note)
+SELECT '探测席','升件','器官自审','blindspot_map_absent',
+ '盲区账缺——event=盲区 注册表零行:「不知道自己不知道什么」清单未建'
+ ||'(自指/同源/墙外=结构性常数须主动管理,工单#18324 在板)——认领建图∨判口径'
+WHERE NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='盲区')
+AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='升件'
+  AND x.esc_scope='blindspot_map_absent' AND x.ts>now()-interval '7 days'
+  AND NOT EXISTS (SELECT 1 FROM ops_event y WHERE y.ts>x.ts
+    AND y.note ~ ('升件#'||x.id::text||'([^0-9]|\$)')))
+SQL
 fi
 
 NOW=$(date +%s); AGE=$(( NOW - OLDEST ))

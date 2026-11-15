@@ -46,6 +46,10 @@ type Collector struct {
 	cr    Credentials
 	// dial 覆写面（测试注入 fake server；nil=grpc.NewClient 生产径）。
 	dial func(addr string) (*Client, error)
+	// 会话锚——上会话所在网关+token（token 按网关域有效）。断线重连
+	// 先 CheckAlive 复挂：流死≠会话死，活则零新 login 避开券商冲突掐。
+	sessAddr string
+	sessTok  string
 }
 
 // readCreds 凭据+网关址读（NewCollector/OpenSession 共源）。
@@ -121,14 +125,18 @@ func (c *Collector) Run(ctx context.Context, errc chan<- error) {
 	}
 	backoff := reconMin
 	for {
+		wait := backoff
 		if err := c.session(ctx, dial); err != nil && ctx.Err() == nil {
 			c.rej.Inc("stream_dead")
-			log.Printf("[mt5] 会话终止（%.0fs 后重连）: %v", backoff.Seconds(), err)
+			if d, ok := SessionBackoff(err); ok && d > wait {
+				wait = d // 会话冲突指纹——照 mtapi 冷却睡，勿 2s 节奏硬撞
+			}
+			log.Printf("[mt5] 会话终止（%.0fs 后重连）: %v", wait.Seconds(), err)
 		}
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(backoff):
+		case <-time.After(wait): // sched-exempt-ok 断线退避重连（期界等待非轮询——含 mtapi 冷却自白量）
 		}
 		backoff = min(backoff*2, reconMax)
 	}

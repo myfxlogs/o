@@ -100,6 +100,7 @@ func (c *Collector) session(ctx context.Context, dial func(string) (*Client, err
 	}
 	c.cr = cr
 	var cl *Client
+	var clAddr string
 	var lastErr error
 	for _, a := range addrs {
 		cand, derr := dial(a)
@@ -107,20 +108,32 @@ func (c *Collector) session(ctx context.Context, dial func(string) (*Client, err
 			lastErr = derr
 			continue
 		}
+		if c.sessTok != "" && a == c.sessAddr {
+			cand.SetToken(c.sessTok)
+			if cand.CheckAlive(ctx) == nil {
+				cl, clAddr = cand, a // 复挂——流死≠会话死，零新 login 避开券商冲突掐
+				break
+			}
+		}
 		if cerr := cand.Connect(ctx, c.cr); cerr != nil {
 			cand.Close()
 			lastErr = cerr
 			continue
 		}
-		cl = cand
+		cl, clAddr = cand, a
 		break
 	}
 	if cl == nil {
 		c.rej.Inc("connect_failed")
 		return lastErr
 	}
-	defer cl.Close()
-	defer cl.Disconnect(context.Background())
+	c.sessAddr, c.sessTok = clAddr, cl.Token()
+	defer func() {
+		if ctx.Err() != nil { // 关停=优雅登出；流死=留会话给下轮复挂
+			cl.Disconnect(context.Background())
+		}
+		cl.Close()
+	}()
 	// boot 账户快照（事件锚定首读——USD 本位；venue_type 闭集 'mt5' 已在 0005）。
 	c.snapshotOnce(ctx, cl, "mt5_boot")
 	syms := c.symbols(ctx, cl)

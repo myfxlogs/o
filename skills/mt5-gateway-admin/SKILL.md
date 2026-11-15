@@ -35,7 +35,15 @@ domain: 工程
 - **dial 参数**（ant 实证集）：TLS1.2+、`MaxCallMsgSize 16MB`、keepalive `30s/20s/PermitWithoutStream`（**长流必须**，无则被中间件静默割）。
 - **端点活性实证（2026-11-09，EXR 3001157）**：`mt5grpc3` ConnectThread 出口被 Exness **拒连**——60 台 server 全谱扫同死法「socket opened → send login → 券商即断」（产线实测约 10% 间歇成功率）；`mt5grpc2` 同参首试 CONNECTED+52 PASS 只读谱零断。`mt5grpc1/4` 在 SG 网段被 ingress 劫持（TLS 证书=ingress.local）**不可作 fallback**。生产 `app_config.mt5.gateway_addr` 已切 grpc2（ops_event #8931）。**逃生门**：官方 proto `rpc ConnectProxy`——broker 连接走自备 SOCKS5 而非 mtapi 出口，若出口 IP 再被封=券商只见我方 IP。
 - **坑：collector 长会话 addr 启动缓存**——`internal/mt5/collector.go` `NewCollector` 读一次 `mt5.gateway_addr` 存 `c.addr`，重连环 `dial(c.addr)` 永不重读 config——换端点须重启进程才生效（`OpenSession` 每拍重读无此坑）。
-- **`send login (:<login>)` 死法判读**：ConnectThread 报文尾段=「socket opened → send login → 断」=**券商拒 mtapi 出口**（凭据/服务器名无辜——MT 客户端同参可登即为证）;若报文停在 connecting 前=寻址死,停 authed 后=凭据死。
+- **`send login (:<login>)` 死法判读（2026-11-16 精修——同签名两因）**：ConnectThread 报文尾段=「socket opened → send login → 断」有两因须分：**① 出口拒**=某网关**持续全拒**而他网关全通（11-09 grpc3 案——凭据/服务器名无辜，MT 客户端同参可登即为证）；**② 会话冲突掐**=**间歇爆发跨网关同现+自愈**（11-16 案，见下节——Exness/XM 同签名，与接入 IP/凭据/网关无关）。若报文停在 connecting 前=寻址死,停 authed 后=凭据死。
+
+## 会话生命周期（2026-11-16 mt5connprobe 全谱实证——升件#18354 根修面）
+
+- **token=后端会话句柄**：同账户+同服务器，mtapi 复用一条后端 MT5 会话——ConnectEx 成功≠新登录，是挂进存活会话。grpc2 回 mtapi 自配 token；grpc3 回显 client 自供 id；**ConnectEx 体字段 `Id` 填了则两网关都回显自供键**（复挂锚确定化）。
+- **流死≠会话死**：杀 gRPC conn 后，后端会话仍活——实证 `cc.Close→2s→新 conn CheckConnect(token)=OK`。**重连先 CheckConnect 复挂=零新 login**，券商冲突物理不触发。
+- **会话冲突掐机制**：前会话未死透时强开新 login→券商 login 段掐 socket→mtapi 叠加节流自白：「paused for **N** more milliseconds」/「refused a login on every cluster member... wait **N** milliseconds」——**冷却量内嵌错串可直接解析照睡**（实测窗 5~8.3s）；socket-closed 无内嵌值睡 ≥12s。尸寒（前会话过期）后自愈=间歇爆发形。
+- **churn 源**：每拍新会话 id+断线即 ConnectEx+Disconnect 滥杀=冲突温床。生产两腿同账户（汇市巡 `mt5.*` 密文 + OCI 桥腿 `bridge.mt5.*` 明文——明文凭据卫生账另计）互撞放大爆发。
+- **证伪清单**：ConnectProxy/换出口 IP、Bearer 付费 token（grpc3 免费道忽略）、换网关、换券商——全不治此病；refusal 是账户会话级。
 
 - **Disconnect 排水窗**：Disconnect RPC 后等 ~200ms 再 `cc.Close`——让在飞 Recv 观察到取消，防级联重连（ant QUOTE-RECONNECT-LOOP 实证）。
 - **Ping**=`CheckConnect{Id}`；**登出纪律**：Disconnect 只应由持有方 actor 发起。
