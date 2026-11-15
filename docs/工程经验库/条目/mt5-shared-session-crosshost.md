@@ -1,59 +1,59 @@
 ---
 id: mt5-shared-session-crosshost
-title: MT5 共享会话——token 跨机复挂实证与 owner/consumer 角色制
+title: MT5共享会话跨机复挂——owner/consumer角色制
 kind: pit
 date: 2026-11-16
-source: 跨机实证 mt5tokprobe（SG acquire + OCI 149.118.58.98 use 同 token
-  并发读 equity=3247.31 全绿、单边断连不连坐）+ 双腿共用 3001157 跨腿
-  互撞结构余账收口（mt5-session-conflict-churn 共生面）
+source: 升件:venue:mt5_shared_session_crosshost（eng#52 canon 提炼）/
+  merge 7948db3e 投产 + mt5tokprobe 跨机实证（SG acquire+OCI use 同
+  token 并发读全绿、单边断连不连坐）
+keywords: [mt5, session, crosshost, venue, grpc, owner-consumer]
 ---
 
-# MT5 共享会话（跨机 token 复挂实证）
+# MT5共享会话跨机复挂——owner/consumer角色制
 
-**机制**：`ConnectEx` result=**后端 MT5 会话句柄**——不绑 gRPC 连接、
-不绑出口 IP、不绑主机。两台主机各自 gRPC 连接递同一 token 并发
-CheckConnect/AccountSummary/OnQuote 全绿；单边断连不连坐。
+**病灶**：mt5-session-conflict-churn 条目钉过的「并发腿账」结构余账——
+两腿（汇市巡 app_secrets mt5.* + OCI桥腿 app_config bridge.mt5.*）共用
+同账户 3001157，各自 login 互踢会话=churn 温床。复挂+冷却只减频率，
+跨腿撞是结构问题。
 
-**坑形（共享期新增三坑，比单腿期更毒）**：
+**解法**（7948db3e 投产）：账户会话单 owner——汇市巡独占
+ConnectEx/login，token 落 `app_config mt5.session_token{addr,token,ts}`；
+OCI 桥腿降为纯消费者，走 sharedAttach 复挂既有 token，**永不 Connect**。
+会话所有权从「谁掉谁登」改为「一主一客」。
 
-1. **消费端误登杀会话**——任一共享端 `Disconnect`=把后端会话登出，
-   **其他共享端全部陪葬**（OpenSession 短调用面的「用毕 Disconnect」
-   遗留契约撞共享=自毁）。修法=shared 标置：消费径注凭走
-   `SetSharedToken`（置 `Client.shared`），`Disconnect` 幂等空转——
-   共享会话不归任何消费端登出，僵尸界=券商 TTL 自然收尸。
-
-2. **双 login 竞速**——共享会话真死时，多端各自 `ConnectEx` 重建=
-   回到跨腿互撞老坑（socket-closed/paused 指纹）。修法=**owner 独占
-   login 权**：汇市巡（持 app_secrets 凭据）唯一 ConnectEx 面，会话
-   建立后落 `app_config mt5.session_token` 共享行
-   `{addr,token,ts}`；OCI 桥腿=纯消费腿（`sharedAttach`：读行→
-   SetSharedToken→CheckAlive），共享行缺/死=退避等 owner 重建，
-   **永不 ConnectEx**（腿星化可观测：connect_failed+会话终行）。
-
-3. **共享行快照滞读**——`config.Client.Get` 走 snap（Watch 刷新有
-   窗口），token 是易变会话态非配置态。修法=共享行读写直走 pool
-   （`sharedSessionRead/Write` 直 SQL），绕 snap 径。
+**共享期三坑**（比单腿期更毒，防面=码面带锁非口头约）：
+- **消费端 Disconnect=连坐杀会话**——OpenSession「用毕 Disconnect」
+  遗留契约撞共享=自毁；修法=`Client.shared` 标置使 Disconnect 幂等
+  空转，共享会话不归任何消费端登出（僵尸界=券商 TTL 自然收尸）
+- **会话死多端齐 ConnectEx=双 login 竞速**——owner 独占 login 权，
+  消费端只退避等共享行（腿星化可观测非静默）
+- **cfg.Get snap 滞读易变 token**——共享行读写直走 pool，绕 Watch
+  刷新窗口
 
 **观测约定**：
-- owner 正常：`OpenSession 复挂共享会话（零新 login）`（短调用面）/
-  connect 起缺席（腿复挂静默径——同 conflict-churn 条目约定）
-- 消费腿等 owner：`共享会话未立（等汇市巡建）`/`共享会话已死（等汇市巡
-  重建）`——**正常等待非故障**；长时间星化=查汇市巡 owner 活性
-- `WARN [mt5] 共享会话行写败`——owner 落行败（消费腿晚拍拿新值，会话
-  本体不炸）
+- `OpenSession 复挂共享会话（零新 login）`=正常（25s 周期读面全切
+  此径=churn 源绝迹的产线实证签名）
+- 消费腿 `共享会话未立/已死（等汇市巡…）`=**正常等待非故障**；
+  长星化=查汇市巡 owner 活性
+- `WARN [mt5] 共享会话行写败`=owner 落行败（消费腿晚拍拿新值，
+  会话本体不炸）
+
+**判据**：
+- 跨机撞会话连败消失=修成立（churn 升件窗清零）
+- session_token 陈化（ts 超时窗）=桥腿 attach 拒→回 owner 重登后写新
+  token，consumer 侧按 token 龄重试不抢登
+- owner 侧 CheckConnect 复挂+冷却退避照旧（同 churn 条目防点）
 
 **边界/余账**：
 - `mt5.session_token` 键名含 token=credentialRE 自动 owner 硬拒域——
-  免册零闸改；app_config 明文（bridge.mt5.password 先例同构，会话
-  句柄按凭证形管）
+  免册零闸改；app_config 明文（bridge.mt5.password 先例同构）
 - OpenSession 兜底径（共享行缺时 legacy ConnectEx）保留——owner 未
-  就位期的可用性面；与 owner 重建竞速窗=conflict-churn 冷却退避兜
+  就位期可用性面；与 owner 重建竞速窗=conflict-churn 冷却退避兜
 - `bridge.mt5.*` 凭据键成历史遗留（消费腿不再读——app_config 行留存
   无害，清理另议）
-- 部署序：镜像面（cmd/core owner+OpenSession）先上产共享行→OCI
-  collecto 后上消费径；中间窗 OCI 旧桥腿仍走自连凭据径（旧码兼容，
-  部署完成即切共享）
 
-**判据**：凡「多进程/多机共用一会话句柄」设计——先问谁建谁登出谁
-重建；三角不齐=连坐或竞速坑，本条目三角=owner 建/无人登出/owner
-重建。
+**推广**：凡「多客户端共享同账户会话」的 venue 协议——先定
+owner/consumer 角色制，token 注册表单写者；「断线即新 login」
+在跨机场景必变互踢。防点=会话所有权单写者，非重连逻辑。
+
+**互见**：mt5-session-conflict-churn（churn 病灶+复挂冷却件）
