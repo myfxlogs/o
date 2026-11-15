@@ -2,13 +2,16 @@
 // feishuprobe 同族=T-0028 通知面工具族延伸）。用法：
 //
 //	DB_DSN=postgres://... O_MASTER_KEY_FILE=./secrets/o_master_key \
-//	  go run ./tools/feishusend "文本"
+//	  go run ./tools/feishusend [-bot money|sys] "文本"
 //
-// chat_id 读 app_config.feishu.chat_id（绑定态）；缺绑定/缺键=fail-closed 退非零。
+// -bot money（缺省）=feishu.*/feishu.chat_id 钱径频；-bot sys=feishu_sys.*/
+// feishu.sys_chat_id 系统频（业主令 2026-11-15 双频分流）。chat_id 读
+// app_config 绑定态；缺绑定/缺键=fail-closed 退非零。
 package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"os"
 
@@ -20,8 +23,17 @@ import (
 )
 
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, `用法: go run ./tools/feishusend "文本"（env: DB_DSN, O_MASTER_KEY_FILE）`)
+	bot := flag.String("bot", "money", "money=钱径频(feishu.*);sys=系统频(feishu_sys.*)")
+	flag.Parse()
+	if flag.NArg() < 1 {
+		fmt.Fprintln(os.Stderr, `用法: go run ./tools/feishusend [-bot money|sys] "文本"（env: DB_DSN, O_MASTER_KEY_FILE）`)
+		os.Exit(1)
+	}
+	prefix, chatKey := "feishu.", "feishu.chat_id"
+	if *bot == "sys" {
+		prefix, chatKey = "feishu_sys.", "feishu.sys_chat_id"
+	} else if *bot != "money" {
+		fmt.Fprintln(os.Stderr, "-bot 只认 money|sys")
 		os.Exit(1)
 	}
 	ctx := context.Background()
@@ -51,12 +63,12 @@ func main() {
 	}
 	var chatID string
 	if err := pool.QueryRow(ctx,
-		"SELECT value#>>'{}' FROM app_config WHERE key='feishu.chat_id'").Scan(&chatID); err != nil || chatID == "" {
-		fmt.Fprintln(os.Stderr, "feishu.chat_id 未绑定（fail-closed 不推）")
+		"SELECT value#>>'{}' FROM app_config WHERE key=$1", chatKey).Scan(&chatID); err != nil || chatID == "" {
+		fmt.Fprintln(os.Stderr, chatKey, "未绑定（fail-closed 不推）")
 		os.Exit(1)
 	}
-	cli := notify.NewFeishu(getSecret("feishu.app_id"), getSecret("feishu.app_secret"))
-	msgID, err := cli.SendText(ctx, chatID, os.Args[1])
+	cli := notify.NewFeishu(getSecret(prefix+"app_id"), getSecret(prefix+"app_secret"))
+	msgID, err := cli.SendText(ctx, chatID, flag.Arg(0))
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "send:", err)
 		os.Exit(1)
