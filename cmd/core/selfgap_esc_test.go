@@ -351,6 +351,21 @@ func TestSelfqGapEscCheck(t *testing.T) {
 		t.Fatalf("锚行即唤: n=%d", n)
 	}
 
+	// 非契行(值守/外席手写,无 unit= 头)不入判集——缺字段也不唤(工单#17136)
+	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,note)
+		VALUES('唤知','会话收口','值守席本轮:面净——手写收口非唤起契对象')`); err != nil {
+		t.Fatal(err)
+	}
+	svc.frameUseEscCheck(ctx, deadSince)
+	if n := fireN(); n != 0 {
+		t.Fatalf("非契行误唤: n=%d", n)
+	}
+	var fgap int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE esc_scope='frame_use_gap' AND event='升件'`).Scan(&fgap); err != nil || fgap != 0 {
+		t.Fatalf("非契行计入 frame 判集: fgap=%d err=%v", fgap, err)
+	}
+
 	// 锚后缺字段行→火
 	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,note)
 		VALUES('唤知','会话收口','unit=t-c 收口:处置 用帧=叙事')`); err != nil {
