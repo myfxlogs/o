@@ -37,12 +37,13 @@ type Credentials struct {
 
 // Client mtapi 只读会话客户端（Connect 持会话；token 体域携行）。
 type Client struct {
-	conn  *grpc.ClientConn
-	connM mt5pb.ConnectionClient
-	mt5   mt5pb.MT5Client
-	subs  mt5pb.SubscriptionsClient
-	strm  mt5pb.StreamsClient
-	token string
+	conn   *grpc.ClientConn
+	connM  mt5pb.ConnectionClient
+	mt5    mt5pb.MT5Client
+	subs   mt5pb.SubscriptionsClient
+	strm   mt5pb.StreamsClient
+	token  string
+	sessID string // 自供会话键（ConnectEx Id 体字段——复挂锚；空=Connect 时新生成）
 }
 
 // Dial 网关连接（TLS+keepalive——长流参数集）。
@@ -75,11 +76,14 @@ func (c *Client) Connect(ctx context.Context, cr Credentials) error {
 		ctx, cancel = context.WithTimeout(ctx, connectBudget)
 		defer cancel()
 	}
-	sid := fmt.Sprintf("o-%d", time.Now().UnixNano())
+	sid := c.sessID
+	if sid == "" {
+		sid = fmt.Sprintf("o-%d", time.Now().UnixNano())
+	}
 	loginCtx := metadata.NewOutgoingContext(ctx, metadata.New(map[string]string{"id": sid}))
 	if cr.Server != "" {
 		resp, err := c.connM.ConnectEx(loginCtx, &mt5pb.ConnectExRequest{
-			User: cr.Login, Password: cr.Password, Server: cr.Server,
+			User: cr.Login, Password: cr.Password, Server: cr.Server, Id: &sid,
 		})
 		if err != nil {
 			return fmt.Errorf("ConnectEx: %w", err)
@@ -87,19 +91,22 @@ func (c *Client) Connect(ctx context.Context, cr Credentials) error {
 		if resp.Error != nil {
 			return fmt.Errorf("ConnectEx err: %s", resp.Error.Message)
 		}
-		c.token = resp.Result
+		c.sessID, c.token = sid, resp.Result
+		if c.token == "" {
+			c.token = sid // 网关回空=自供键即会话凭（grpc3 echo 实拍形）
+		}
 		return nil
 	}
 	for _, h := range splitHosts(cr.Host) {
 		host, port := splitHostPort(h)
 		resp, err := c.connM.Connect(loginCtx, &mt5pb.ConnectRequest{
-			User: cr.Login, Password: cr.Password, Host: host, Port: port,
+			User: cr.Login, Password: cr.Password, Host: host, Port: port, Id: &sid,
 		})
 		if err != nil {
 			continue // 多候选逐试（skill 装配面契约）
 		}
 		if resp.Error == nil && resp.Result != "" {
-			c.token = resp.Result
+			c.sessID, c.token = sid, resp.Result
 			return nil
 		}
 	}
@@ -110,6 +117,9 @@ func (c *Client) Connect(ctx context.Context, cr Credentials) error {
 func (c *Client) authed(ctx context.Context) context.Context {
 	return metadata.NewOutgoingContext(ctx, metadata.New(map[string]string{"id": c.token}))
 }
+
+// 重连纪律三件（SetToken/CheckAlive/SessionBackoff）在 recon.go——
+// 流死≠会话死复挂径+冲突指纹冷却退避（升件#18354 根修面）。
 
 // AccountSummary 权益/保证金实读（md_account_events 事件行——USD 本位）。
 func (c *Client) AccountSummary(ctx context.Context) (equity, freeMargin, balance float64, err error) {

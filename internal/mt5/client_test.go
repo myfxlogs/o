@@ -2,6 +2,7 @@ package mt5
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -120,5 +121,60 @@ func TestConnectDeadlineBounded(t *testing.T) {
 	}
 	if d := time.Since(start); d > 2*time.Second {
 		t.Fatalf("调用方短 budget 未继承（悬挂）: %v", d)
+	}
+}
+
+// TestSessionBackoff 会话冲突指纹分类——实测签名串逐型（Exness socket-closed/
+// mtapi paused 内嵌值/XM refused+wait 内嵌值）；非冲突串不误抬。
+func TestSessionBackoff(t *testing.T) {
+	cases := []struct {
+		name string
+		err  string
+		ok   bool
+		minD time.Duration
+	}{
+		{"exness_socket_close",
+			"ConnectEx err: Server closed the socket. Process: ConnectThread started, connecting to server 43.211.3.14:443, socket opened 43.211.3.14:443, send login (:3001157)",
+			true, 12 * time.Second},
+		{"mtapi_paused_内嵌值",
+			"ConnectEx err: Broker Exness-MT5Real is refusing logins. Connects to it are paused for 8285 more milliseconds. (:3001157)",
+			true, 9 * time.Second},
+		{"xm_refused_wait_内嵌值",
+			"ConnectEx err: Server XMGlobal-MT5 2 refused a login on every cluster member just 3082 milliseconds ago. Please wait 5000 milliseconds to try again. (:110660304)",
+			true, 3 * time.Second},
+		{"普错不抬",
+			"ConnectEx err: Invalid account", false, 0},
+		{"nil", "", false, 0},
+	}
+	for _, tc := range cases {
+		var err error
+		if tc.err != "" {
+			err = fmt.Errorf("%s", tc.err)
+		}
+		d, ok := SessionBackoff(err)
+		if ok != tc.ok {
+			t.Fatalf("%s: ok=%v want %v", tc.name, ok, tc.ok)
+		}
+		if ok && d < tc.minD {
+			t.Fatalf("%s: d=%v < %v", tc.name, d, tc.minD)
+		}
+	}
+	// paused 内嵌值应精确解析+余量。
+	d, ok := SessionBackoff(fmt.Errorf("paused for 8285 more milliseconds"))
+	if !ok || d < 8285*time.Millisecond {
+		t.Fatalf("内嵌冷却解析: d=%v ok=%v", d, ok)
+	}
+}
+
+// TestSetTokenReattachKey 复挂注凭：SetToken 同灌 token+sessID——Connect 兜底
+// 径以同键再登录（sessID 复用作 ConnectEx Id 体字段）。
+func TestSetTokenReattachKey(t *testing.T) {
+	cl := &Client{}
+	cl.SetToken("sess-abc")
+	if cl.token != "sess-abc" || cl.sessID != "sess-abc" {
+		t.Fatalf("SetToken: token=%q sessID=%q", cl.token, cl.sessID)
+	}
+	if err := cl.CheckAlive(context.Background()); err == nil {
+		t.Fatal("空 conn CheckAlive 应返错非悬挂")
 	}
 }
