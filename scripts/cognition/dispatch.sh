@@ -207,6 +207,129 @@ WHERE e.event='升件' AND e.esc_scope LIKE 'pendbr\_%' AND e.ts>now()-interval 
 SQL
 fi
 
+# ── 器官镜组(业主令2026-11-15⑦批造——「自然人能力」基质外照层)───────────
+# 对内盲区不可自省但可外照:基质病灶逻辑上不能靠基质自愈(拾取断实证——
+# 修拾取的票本身也拾不起来),器官健康件=外席件非它作业。
+# 四探共契:产出=升件走同分诊道(检测机械化,销裁仍归处置席——判断力不动);
+# scope dedup+销后复火;时级闸(整点后2min内跑一拍,器官题一小时粒度足够)。
+if (( 10#$(date +%M) < 2 )); then
+# ①eval流断(全谱): 全模板零eval行24h=研究枚举臂死征(enum-dead类上位探——
+# 单廊死靠人肉立案的教训,全死必机械报)。
+psql "$DSN" -qAt <<SQL >/dev/null 2>&1 || true # tolerate: 探行写败=下拍补
+INSERT INTO ops_event(seat,event,esc_class,esc_scope,note)
+SELECT '探测席','升件','eval流断','evalflow_dead',
+ 'eval流断——全模板fin_opp_eval零产出24h:研究枚举臂死征(enum-dead类上位探)——认领诊断∨判停用'
+WHERE NOT EXISTS (SELECT 1 FROM fin_opp_eval e WHERE e.ts>now()-interval '24 hours')
+AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='升件'
+  AND x.esc_scope='evalflow_dead' AND x.ts>now()-interval '7 days'
+  AND NOT EXISTS (SELECT 1 FROM ops_event y WHERE y.ts>x.ts
+    AND y.note ~ ('升件#'||x.id::text||'([^0-9]|\$)')))
+SQL
+# ②产线静默(模板级): 有开放仓(proposed/paper/live)在管而eval流断3d=
+# 复评/枚举产线疑死。零仓零eval不升(合理静默非病灶)。
+psql "$DSN" -qAt <<SQL >/dev/null 2>&1 || true # tolerate: 探行写败=下拍补
+INSERT INTO ops_event(seat,event,esc_class,esc_scope,note)
+SELECT '探测席','升件','产线静默','lanesil_'||p.tmpl,
+ '产线静默——'||p.tmpl||' 开放仓'||p.n||'张('||p.states||')在管但eval流断3d——认领诊断∨判停用'
+FROM (
+  SELECT s.template_ref tmpl,count(*) n,string_agg(DISTINCT s.state,'/') states
+  FROM fin_strategy s WHERE s.state IN ('proposed','paper','live') GROUP BY 1
+) p
+WHERE NOT EXISTS (SELECT 1 FROM fin_opp_eval e WHERE e.template=p.tmpl
+    AND e.ts>now()-interval '3 days')
+AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='升件'
+  AND x.esc_scope='lanesil_'||p.tmpl AND x.ts>now()-interval '7 days'
+  AND NOT EXISTS (SELECT 1 FROM ops_event y WHERE y.ts>x.ts
+    AND y.note ~ ('升件#'||x.id::text||'([^0-9]|\$)')))
+SQL
+# ③前提疑死(注册表重估): 立案契约「前提=<查>:<参>」周期重估——前提假=
+# 死题疑云升件(只报疑似死,销题仍归处置席)。注册表白名单:
+# eval_zero<t>/strat_open_zero<t>/esc_unres<scope>(服务端评估零注入面)。
+psql "$DSN" -qAt <<SQL >/dev/null 2>&1 || true # tolerate: 探行写败=下拍补
+WITH cand AS (
+  SELECT t.id,(regexp_match(t.note,'前提=([a-z_]+):([a-z0-9_\-\.]+)')) m
+  FROM ops_event t
+  WHERE t.event='工单' AND t.ts>now()-interval '30 days'
+    AND t.note ~ '前提=[a-z_]+:'
+    AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='处置' AND x.ts>t.ts
+      AND x.note ~ ('工单#'||t.id::text||'([^0-9]|\$)')
+      AND x.note NOT LIKE '%挂起条件=%'
+      AND x.note !~ ('工单#'||t.id::text||' ?接续'))
+    AND NOT EXISTS (SELECT 1 FROM ops_event s WHERE s.event='处置' AND s.ts>t.ts
+      AND s.note ~ ('工单#'||t.id::text||'([^0-9]|\$)') AND s.note LIKE '%挂起条件=%'
+      AND t.ts + COALESCE((substring(t.note from '期限=([0-9]+)h'))::int,24)*interval '1 hour' > now())
+    AND NOT EXISTS (SELECT 1 FROM ops_event c WHERE c.event='认领' AND c.ts>t.ts
+      AND c.ts>now()-interval '2 hours'
+      AND c.note ~ ('工单#'||t.id::text||'([^0-9]|\$)'))
+), chk AS (
+  SELECT c.id,c.m[1] k,c.m[2] a,
+    CASE c.m[1]
+      WHEN 'eval_zero' THEN NOT EXISTS(SELECT 1 FROM fin_opp_eval e WHERE e.template=c.m[2] AND e.ts>now()-interval '30 days')
+      WHEN 'strat_open_zero' THEN NOT EXISTS(SELECT 1 FROM fin_strategy s WHERE s.template_ref=c.m[2] AND s.state IN('proposed','paper','live'))
+      WHEN 'esc_unres' THEN EXISTS(SELECT 1 FROM ops_esc_pending p WHERE p.esc_scope=c.m[2])
+      ELSE NULL END AS alive
+  FROM cand c WHERE c.m IS NOT NULL
+)
+INSERT INTO ops_event(seat,event,esc_class,esc_scope,note)
+SELECT '探测席','升件','前提疑死','premdead_'||id,
+ '工单#'||id||' 前提='||k||':'||a||' 评估=假——立案前提疑死(死题#15804同型):复核销题∨载新前提∨挂起条件'
+FROM chk WHERE alive IS FALSE
+AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='升件'
+  AND x.esc_scope='premdead_'||chk.id AND x.ts>now()-interval '7 days'
+  AND NOT EXISTS (SELECT 1 FROM ops_event y WHERE y.ts>x.ts
+    AND y.note ~ ('升件#'||x.id::text||'([^0-9]|\$)')))
+SQL
+# ④判词失真(可验断言抽复): 判词载「merge=<sha>」须真在origin/master;
+# 「零<模板>eval/产出」须与fin_opp_eval 30d实数相容——可证伪者升件
+# (只升「判词与账矛盾」,判词对不判对错;fetch败=远端不可知全跳)。
+if [ -n "$OREPO" ] && [ "${PBR_FETCH:-0}" = 1 ]; then
+  psql "$DSN" -qAt <<'SQL' | while IFS=' ' read -r rid sha; do
+SELECT id||' '||(regexp_match(note,'merge=([0-9a-f]{9,40})'))[1]
+FROM ops_event WHERE ts>now()-interval '24 hours'
+  AND event IN ('处置','工单','收口','在办','独语','独白','自述','自问')
+  AND seat<>'探测席' AND note ~ 'merge=[0-9a-f]{9}'
+SQL
+    [ -n "$rid" ] && [ -n "$sha" ] || continue
+    git -C "$OREPO" cat-file -e "${sha}^{commit}" 2>/dev/null || continue # 本地不识=不可验跳
+    git -C "$OREPO" merge-base --is-ancestor "$sha" origin/master 2>/dev/null && continue # 真上岸
+    psql "$DSN" -qAt <<SQL >/dev/null 2>&1 || true # tolerate: 探行写败=下拍补
+INSERT INTO ops_event(seat,event,esc_class,esc_scope,note)
+SELECT '探测席','升件','判词失真','verdfalse_$rid',
+ '判词失真——行#$rid 称merge=$sha已上岸,实不在origin/master(判词与账矛盾):复核判词径∨口径自辩'
+WHERE NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='升件'
+  AND x.esc_scope='verdfalse_$rid')
+SQL
+  done
+fi
+psql "$DSN" -qAt <<SQL >/dev/null 2>&1 || true # tolerate: 探行写败=下拍补
+WITH tmpl AS (SELECT DISTINCT template t FROM fin_opp_eval),
+cand AS (
+  SELECT e.id,t.t FROM ops_event e JOIN tmpl t ON e.note ILIKE '%'||t.t||'%'
+  WHERE e.ts>now()-interval '24 hours'
+    AND e.event IN ('处置','收口','在办','独语','独白','自述','自问')
+    AND e.seat<>'探测席' AND e.note ~ '零.{0,8}(eval|产出)'
+)
+INSERT INTO ops_event(seat,event,esc_class,esc_scope,note)
+SELECT '探测席','升件','判词失真','verdz_'||c.id||'_'||c.t,
+ '判词失真——行#'||c.id||' 称'||c.t||'零产出,fin_opp_eval 30d实有'
+ ||(SELECT count(*) FROM fin_opp_eval e WHERE e.template=c.t AND e.ts>now()-interval '30 days')
+ ||'行(#17743断假前提同型):复核判词径∨口径自辩'
+FROM cand c
+WHERE EXISTS (SELECT 1 FROM fin_opp_eval e WHERE e.template=c.t AND e.ts>now()-interval '30 days')
+AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='升件'
+  AND x.esc_scope='verdz_'||c.id||'_'||c.t)
+SQL
+# ⑤器官自审(日级唤起): 把我手做的值守审计变成常驻节拍——量=滞留复火
+# 直方图/判词失真未决/产线静默/stall→认领时延/立案→转化时延。
+psql "$DSN" -qAt <<SQL >/dev/null 2>&1 || true # tolerate: 探行写败=下拍补
+INSERT INTO ops_event(seat,event,esc_class,esc_scope,note)
+SELECT '探测席','升件','器官自审','orgaudit_'||to_char(now() AT TIME ZONE 'Asia/Shanghai','YYYYMMDD'),
+ '器官自审日拍(基质外照层周期件)——量:滞留复火直方图/判词失真未决/产线静默/stall→认领时延/立案→转化时延;产出器官账行∨异常立案'
+WHERE NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='升件'
+  AND x.esc_scope='orgaudit_'||to_char(now() AT TIME ZONE 'Asia/Shanghai','YYYYMMDD'))
+SQL
+fi
+
 NOW=$(date +%s); AGE=$(( NOW - OLDEST ))
 TRIGGER=""
 [ "$MAXV" -ge "$VAL_HI" ] && TRIGGER="valence:$MAXV"
