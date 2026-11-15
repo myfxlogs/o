@@ -28,7 +28,8 @@ step() { echo "── $1" >&2; }
 TOPKEY=$(pwd -P | sha256sum | cut -c1-16)
 # T-0466 件⑦：GOCACHE 按 checkout 分家——并发跑互逐「非码面红」
 # （T-0458 外审裁记实证）绝种；代价=各 wt 独立缓存目录，孤儿目录
-# 由 wt_gc.sh 保洁面按「wt 已删+锁未持+龄>24h」三闸清。
+# 孤儿目录无机扫件——wt_gc.sh 已随纪元3清扫退役（o-disk-hygiene
+# unit 同退），残留缓存目录靠 /tmp 系统面自然代谢。
 export GOCACHE=${GOCACHE:-/tmp/gocache-${TOPKEY}}
 mkdir -p "$GOCACHE" 2>/dev/null || true # tolerate: 建败=go 自建/报错——缓存目录非硬依赖
 LOCK="/tmp/o-check_all-${TOPKEY}.lock"
@@ -41,7 +42,7 @@ oe_lock() { # $1=note
   dsn=$(grep '^FIN_PG_DSN=' /opt/o-research/env 2>/dev/null | cut -d= -f2- | tr -d '"')
   [ -n "$dsn" ] && psql "$dsn" -qAt -c \
     "INSERT INTO ops_event(seat,event,ticket,note) VALUES('跑席','等锁','T-0466','$1')" \
-    >/dev/null 2>&1 || true # tolerate: 等锁行写败不阻断跑——审计件非硬闸（同 wt_gc GC 行式）
+    >/dev/null 2>&1 || true # tolerate: 等锁行写败不阻断跑——审计件非硬闸（同纪元3已退 GC 行式）
 }
 
 exec 9>"$LOCK"
