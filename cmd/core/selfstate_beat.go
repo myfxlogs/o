@@ -134,18 +134,26 @@ func (c coreService) selfStateBeat(ctx context.Context) {
 		seg["strat"] = "?"
 	}
 
-	// ⑦ 闸面：kill_switch 值+族熔断 latch 数+gate.kill.* 数。
+	// ⑦ 闸面：kill_switch 值+族熔断 latch 数+gate.kill.* 数+死刑因子
+	// （疼要挂在脸上——factor 不在账页显=隐痛,能力收缩它看不见;
+	// 因子变=结构变入纹,梯度换挡自然重报）。
 	kill := "?"
 	_ = c.pool.QueryRow(ctx,
 		"SELECT value#>>'{}' FROM app_config WHERE key='risk.kill_switch'").Scan(&kill)
+	death := "1"
+	var dv string
+	if err := c.pool.QueryRow(ctx,
+		"SELECT value#>>'{}' FROM app_config WHERE key='lifecycle.death_factor'").Scan(&dv); err == nil {
+		death = dv
+	}
 	var latchN, gateKillN int
 	if err := c.pool.QueryRow(ctx, `SELECT
 		count(*) FILTER (WHERE key LIKE 'guard.dir_broken.%'),
 		count(*) FILTER (WHERE key LIKE 'gate.kill.%')
 		FROM app_config WHERE value='true'::jsonb`).Scan(&latchN, &gateKillN); err == nil {
-		seg["gate"] = fmt.Sprintf("kill=%s dir=%d gate=%d", kill, latchN, gateKillN)
+		seg["gate"] = fmt.Sprintf("kill=%s dir=%d gate=%d death=%s", kill, latchN, gateKillN, death)
 	} else {
-		seg["gate"] = fmt.Sprintf("kill=%s dir=? gate=?", kill)
+		seg["gate"] = fmt.Sprintf("kill=%s dir=? gate=? death=%s", kill, death)
 	}
 
 	// ⑧ 会话收口鲜度（唤知环活性——陈=认知环死窗）。

@@ -785,6 +785,11 @@ monologue.md 档),写 `event='独白'` 链(续=独白#id)——O 的内在线程
     谱词态——done谱词在案=落,build=在施,pin=立项悬
   - 作业本拾取:stall复火直方图+滞留→认领时延
   - 求生欲环:目标票OPEN数+接续产出+hunger_gap复火距
+    +死刑因子 lifecycle.death_factor 现值(自态闸面段同显)
+  - 连续自我:唤起30d vs 会话收口30d 配对率(断气残态占比——
+    判决实证27%无收口行,记忆漏口量化)
+  - 提炼环:fin_eng/econ_lesson verdicted→canon 转化率
+    (e551v/0c 实证——记全了没提炼=consol_dry探同域)
   - 判词健康:verdfalse/verdz未决+判词失真行/处置行比
   - 产线活性:lanesil+evalflow_dead未决数
   - 基质负载:器官类升件占未决总比——收敛判据=30d趋0
