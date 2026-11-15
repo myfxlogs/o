@@ -182,12 +182,15 @@ func (c coreService) stuckEscCheck(ctx context.Context, deadSince map[string]tim
 	// 逐对 EXISTS regex 扫——1154 升件×8k 行 pkey 范围扫，单后端 100%
 	// 单核烧 2min+/拍。新形=宣称处置行先物化抽 升件#id（处置面行少，
 	// regex 单程），pkey 回 e1，scope 索引扫 e2——毫秒级。
+	// incident 类 scope 加载 e1/e2 note——配对须同签名非同 scope 名
+	// （工单#18002:spawn_fail/deploy_blocked 每火=离散新事件,同 scope
+	// 新败迹被误判「宣称已修又犯」）。
 	rows, err := c.pool.Query(ctx, `WITH claims AS MATERIALIZED (
 		SELECT d.id did, (m.m)[1]::bigint e1id
 		FROM ops_event d, LATERAL regexp_matches(d.note,$1,'g') m(m)
 		WHERE d.event='处置' AND d.ts>now()-interval '7 days'
 		AND d.note ~ '(^|[^称说谓「『])(已修|已部署|已落成|已修复|已愈|自愈|已恢复|复绿|上岸)')
-		SELECT e2.esc_scope, e1.id, e2.id, c.did FROM claims c
+		SELECT e2.esc_scope, e1.id, e2.id, c.did, e1.note, e2.note FROM claims c
 		JOIN ops_event e1 ON e1.id=c.e1id AND e1.id<c.did
 		JOIN ops_event e2 ON e2.esc_scope=e1.esc_scope AND e2.event='升件' AND e2.id>c.did
 		WHERE e1.event='升件' AND e1.ts>now()-interval '7 days'
@@ -201,13 +204,20 @@ func (c coreService) stuckEscCheck(ctx context.Context, deadSince map[string]tim
 		scope        string
 		prev, refire int64
 		claim        int64
+		n1, n2       string
 	}
 	seen := map[string]bool{}
 	var stuck []pair
 	for rows.Next() {
 		var p pair
-		if err := rows.Scan(&p.scope, &p.prev, &p.refire, &p.claim); err != nil {
+		if err := rows.Scan(&p.scope, &p.prev, &p.refire, &p.claim, &p.n1, &p.n2); err != nil {
 			return
+		}
+		if sigf, ok := stuckIncidentScopes[p.scope]; ok {
+			s := sigf(p.n1)
+			if s == "" || s != sigf(p.n2) {
+				continue // incident 类:异签名=新事件非复燃,签不出=证据不足
+			}
 		}
 		if !seen[p.scope] {
 			seen[p.scope] = true
