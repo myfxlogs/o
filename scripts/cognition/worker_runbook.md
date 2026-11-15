@@ -41,11 +41,20 @@ WHERE t.event='工单' AND t.ts>now()-interval '30 days'
   AND NOT EXISTS (SELECT 1 FROM ops_event c WHERE c.event='认领' AND c.ts>t.ts
     AND c.ts>now()-interval '2 hours'
     AND c.note ~ ('工单#'||t.id::text||'([^0-9]|$)'))
-ORDER BY t.ts LIMIT 10"
+ORDER BY COALESCE((
+    SELECT (substring(g.note from '级=P([123])'))::int FROM ops_event g
+    WHERE g.note ~ '级=P[123]'
+      AND (g.id = t.id OR (g.event='处置' AND g.ts>t.ts
+        AND g.note ~ ('工单#'||t.id::text||'([^0-9]|$)')))
+    ORDER BY g.ts DESC, g.id DESC LIMIT 1), 2),
+  t.ts + COALESCE((substring(t.note from '期限=([0-9]+)h'))::int,24)*interval '1 hour'
+  LIMIT 10"
 ```
 
-拣**最老 OPEN 票一张**（票面即优先级——期限注记「期限=Nh」逾者先，
-无注按龄）。一场一张：干完一张有时间再拣下一张，不贪多烂尾。
+拣**序首 OPEN 票一张**（级=P1 先→期限逾者先→立案龄——
+级=判据: P1堵钱径/堵他票/凭据断供,P2常态工程,P3清洁文档;
+未标=P2。级判错不是你的事——干就是,判级归唤知/自我）。
+一场一张：干完一张有时间再拣下一张，不贪多烂尾。
 
 ### ① 认领——先写行再动手（租约闸）
 

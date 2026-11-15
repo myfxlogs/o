@@ -54,6 +54,9 @@ psql "$FIN_DSN" -qAt -c "SELECT note FROM ops_event
 # 收口/卡在=OPEN票前3」一页读尽,会话猝死也不断更;同为取向面非真相源）:
 psql "$FIN_DSN" -qAt -c "SELECT note FROM ops_event
   WHERE event='量表' AND ticket='self_narrative' ORDER BY id DESC LIMIT 1"
+# CEO 态势页（docs/态势.md——自我席的判词承诺面:方向/接下来3件/
+# 问董事会;你的活=执行面接它的排序,不重议方向）:
+cat docs/态势.md 2>/dev/null | head -40
 # 自观帧（工单#13540 器官——本体觉三问量表:赚/动/息/办/卡五段;卡旗=
 # 唤起无果/票过期/器官僵/收口陈 显式判读,卡≠0先处置再开新活）:
 psql "$FIN_DSN" -qAt -c "SELECT note FROM ops_event
@@ -173,7 +176,13 @@ WHERE t.event='工单' AND t.ts>now()-interval '30 days'
   AND NOT EXISTS (SELECT 1 FROM ops_event c WHERE c.event='认领' AND c.ts>t.ts
     AND c.ts>now()-interval '2 hours'
     AND c.note ~ ('工单#'||t.id::text||'([^0-9]|$)'))
-ORDER BY t.ts + COALESCE((substring(t.note from '期限=([0-9]+)h'))::int,24)*interval '1 hour'"
+ORDER BY COALESCE((
+    SELECT (substring(g.note from '级=P([123])'))::int FROM ops_event g
+    WHERE g.note ~ '级=P[123]'
+      AND (g.id = t.id OR (g.event='处置' AND g.ts>t.ts
+        AND g.note ~ ('工单#'||t.id::text||'([^0-9]|$)')))
+    ORDER BY g.ts DESC, g.id DESC LIMIT 1), 2),
+  t.ts + COALESCE((substring(t.note from '期限=([0-9]+)h'))::int,24)*interval '1 hour'"
 ```
 
 ### ①½ 生成面（信号面净时——「探未知」常驻径）
@@ -767,9 +776,13 @@ monologue.md 档),写 `event='独白'` 链(续=独白#id)——O 的内在线程
   ② 立票真行：
   ```sql
   INSERT INTO ops_event(seat,event,note)
-  VALUES('处置席','工单','工单/<slug>: <要干什么+验收判据> ——期限=<Nh>,源=升件#<id>,scope=<esc_scope>')
+  VALUES('处置席','工单','工单/<slug>: <要干什么+验收判据> ——期限=<Nh>,级=P<n>,源=升件#<id>,scope=<esc_scope>')
   ```
-  期限=自估交期（P级可短,默认24h）——过期未销 codework_stall
+  期限=自估交期（默认24h）——过期未销 codework_stall
+  **级=判级轴**（组织表件——桌面排序第一键，未标=P2）:
+  P1 堵钱径/堵他票/凭据断供（客观可验）;P2 常态工程;
+  P3 canon/文档/清洁。改判=处置行写「级=Px」（追加不涂改——
+  唤知验收拍复校,自我席统判）。
   自动升件,票本身就是状态不靠散文载。源=升件id/审计id 载出处。
   scope=源升件的 esc_scope(无源件写 'manual')——票抑键:
   OPEN 票∧挂票期限内,同 scope 探针静默让位(条件被票接管
