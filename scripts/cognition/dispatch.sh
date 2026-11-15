@@ -324,7 +324,7 @@ SQL
 psql "$DSN" -qAt <<SQL >/dev/null 2>&1 || true # tolerate: 探行写败=下拍补
 INSERT INTO ops_event(seat,event,esc_class,esc_scope,note)
 SELECT '探测席','升件','器官自审','orgaudit_'||to_char(now() AT TIME ZONE 'Asia/Shanghai','YYYYMMDD'),
- '器官自审日拍(基质外照层周期件)——量:滞留复火直方图/判词失真未决/产线静默/stall→认领时延/立案→转化时延;产出器官账行∨异常立案'
+ '器官自审日拍——按runbook「第一阶段完成度账」逐格打数(五器官谱词态/作业本拾取/求生欲环/判词健康/产线活性/基质负载/点破计数);产出器官账行∨异常立案'
 WHERE NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='升件'
   AND x.esc_scope='orgaudit_'||to_char(now() AT TIME ZONE 'Asia/Shanghai','YYYYMMDD'))
 SQL
