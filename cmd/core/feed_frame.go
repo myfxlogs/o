@@ -93,6 +93,10 @@ func (s *feedPush) frameSeats(ctx context.Context) ([]frameSeat, error) {
 func frameText(seats []frameSeat, esc, tickets, claimable int64) string {
 	var parts []string
 	for _, fs := range seats {
+		cn := feedSeatCN[fs.seat]
+		if cn == "" {
+			cn = fs.seat // 未录席名原样透出（字典非白名单——宁露黑话不漏席）
+		}
 		switch {
 		case fs.ticket > 0:
 			sub := fs.subject
@@ -100,9 +104,9 @@ func frameText(seats []frameSeat, esc, tickets, claimable int64) string {
 				sub = "「" + sub + "」"
 			}
 			parts = append(parts, fmt.Sprintf("%s在修工单#%d%s(%s)",
-				fs.seat, fs.ticket, sub, frameAge(time.Since(fs.claimTs))))
+				cn, fs.ticket, sub, frameAge(time.Since(fs.claimTs))))
 		default:
-			parts = append(parts, fs.seat+"在跑(未领件)")
+			parts = append(parts, cn+"在跑(未领件)")
 		}
 	}
 	head := "在办: " + strings.Join(parts, " | ")

@@ -74,7 +74,7 @@ func (s *feedPush) push(ctx context.Context) error {
 			b.WriteString(f + "\n———\n")
 		}
 		for _, r := range rows {
-			fmt.Fprintf(&b, "%s/%s #%d %s\n", r.seat, r.event, r.id, feedTidy(r.note))
+			fmt.Fprintf(&b, "%s #%d %s\n", feedHead(r.seat, r.event), r.id, feedTidy(r.note))
 		}
 		if _, err := s.cli.SendText(ctx, chat, strings.TrimRight(b.String(), "\n")); err != nil {
 			return err // 发败=不过水印，下醒重泄同批（不漏件）
@@ -144,5 +144,5 @@ var feedWS = strings.NewReplacer("\n", " ", "\r", " ")
 
 // feedTidy 动作行人话渲染（k=v 头段中化+unit 短名同活卡层；换行拍平保一行一件）。
 func feedTidy(note string) string {
-	return feedWS.Replace(strings.TrimSpace(humanizeKV(note)))
+	return feedWS.Replace(feedGloss.Replace(strings.TrimSpace(humanizeKV(note))))
 }
