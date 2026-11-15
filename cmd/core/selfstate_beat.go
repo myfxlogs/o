@@ -23,6 +23,16 @@ const selfStateEvery = 6 * time.Hour
 
 var depShaRe = regexp.MustCompile(`o-core:([0-9a-f]{7,40})`)
 
+// depSegSha 部署段 sha 提取（指纹件——age 是时漂件非结构件:
+// A1 实证指纹含「sha(龄)」=分钟变=gaugeDue 6h 闸永火,
+// self_state 4522帧/30d。指纹只认 sha,龄只入帧面 display）。
+func depSegSha(note string) string {
+	if m := depShaRe.FindStringSubmatch(note); m != nil && len(m[1]) >= 12 {
+		return m[1][:12]
+	}
+	return "?"
+}
+
 // selfStateBeat 自态账拍——部署/升件未决/工单/在场认领/NAV/策略态/闸面/
 // 会话收口鲜度 七段一帧（各段读败=该段标 ? 不整帧弃——账页面读败如实
 // 呈不虚构；INSERT 本身败=零帧让位静默同量表惯例）。
@@ -33,14 +43,13 @@ func (c coreService) selfStateBeat(ctx context.Context) {
 	//   滞差判归 deploy_watch——本页载部署事实非闸语）。
 	var depNote string
 	var depTs time.Time
+	depSha := "?" // 指纹件——只认 sha 不认龄（A1:龄入指纹=分钟变=闸永火）
 	if err := c.pool.QueryRow(ctx, `SELECT note,ts FROM ops_event
 		WHERE seat='DEPLOY' AND event='部署' AND note LIKE '%rc=0%'
 		AND note LIKE '%o-core:%'
 		ORDER BY id DESC LIMIT 1`).Scan(&depNote, &depTs); err == nil { // T-13283：行类滤先——deploy-oci 臂行同 seat/event/rc=0 无 o-core: 标记，取最新行后 extract 必 ?(假滞差源)
-		sha := "?"
-		if m := depShaRe.FindStringSubmatch(depNote); m != nil && len(m[1]) >= 12 {
-			sha = m[1][:12]
-		}
+		sha := depSegSha(depNote)
+		depSha = sha
 		seg["dep"] = fmt.Sprintf("%s(%s)", sha, time.Since(depTs).Round(time.Minute))
 	} else {
 		seg["dep"] = "?"
@@ -65,14 +74,21 @@ func (c coreService) selfStateBeat(ctx context.Context) {
 		seg["esc"] = "?"
 	}
 
-	// ③ OPEN 工单面（runbook 口径：无处置引证+无活在认领）+近限时。
+	// ③ OPEN 工单面（口径对齐 dispatch 派活件:A4 实证本页缺挂起/
+	//   接续两剔——处置载 挂起条件=∨接续 不销票,挂起暂存期限活=
+	//   停放不入OPEN拣面;无活在认领+近限时）。
 	var tkN int
 	var tkDue *time.Time
 	if err := c.pool.QueryRow(ctx, `SELECT count(*), min(t.ts +
 		COALESCE((substring(t.note from '期限=([0-9]+)h'))::int,24)*interval '1 hour')
 		FROM ops_event t WHERE t.event='工单' AND t.ts>now()-interval '30 days'
 		AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='处置' AND x.ts>t.ts
-		  AND x.note ~ ('工单#'||t.id::text||'([^0-9]|$)'))
+		  AND x.note ~ ('工单#'||t.id::text||'([^0-9]|$)')
+		  AND x.note NOT LIKE '%挂起条件=%'
+		  AND x.note !~ ('工单#'||t.id::text||' ?接续'))
+		AND NOT EXISTS (SELECT 1 FROM ops_event s WHERE s.event='处置' AND s.ts>t.ts
+		  AND s.note ~ ('工单#'||t.id::text||'([^0-9]|$)') AND s.note LIKE '%挂起条件=%'
+		  AND t.ts + COALESCE((substring(t.note from '期限=([0-9]+)h'))::int,24)*interval '1 hour' > now())
 		AND NOT EXISTS (SELECT 1 FROM ops_event cl WHERE cl.event='认领' AND cl.ts>t.ts
 		  AND cl.ts>now()-interval '2 hours'
 		  AND cl.note ~ ('工单#'||t.id::text||'([^0-9]|$)'))`).
@@ -142,7 +158,7 @@ func (c coreService) selfStateBeat(ctx context.Context) {
 	}
 
 	// 纹=结构态指纹（值随浮点漂者只入帧——纹闸只随结构变重报）。
-	fp := fmt.Sprintf("%s|%s|%s|%s|%s", seg["dep"], seg["esc"], seg["tk"], seg["strat"], seg["gate"])
+	fp := fmt.Sprintf("%s|%s|%s|%s|%s", depSha, seg["esc"], seg["tk"], seg["strat"], seg["gate"])
 	if !gaugeDue(ctx, c, "self_state", fp, selfStateEvery) {
 		return
 	}

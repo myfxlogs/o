@@ -45,7 +45,17 @@ func (c coreService) ownerLedgerBeat(ctx context.Context) {
 		AND ts>now()-interval '14 days'`).Scan(&spot7d, &spotPrev7d); err != nil {
 		return
 	}
-	fp := fmt.Sprintf("%d|%d", openN, spot7d)
+	// 类=点破真口径（判据三分契约——30d 载 类=点破 升件行计数=成年判据
+	// ①分子;A5 实证旧式数的是全量业主升件非点破:两数并存,7d 对拍=
+	// 沉默面收敛信号照旧,类点破=真判据。未标默认喂料=历史行结构性
+	// 低估窗,随新标行积累转正）。
+	var poke30d int
+	if err := c.pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='升件' AND ts>now()-interval '30 days'
+		AND note LIKE '%类=点破%'`).Scan(&poke30d); err != nil {
+		return
+	}
+	fp := fmt.Sprintf("%d|%d|%d", openN, spot7d, poke30d)
 	if !gaugeDue(ctx, c, "owner_ledger", fp, ownerBeatEvery) {
 		return
 	}
@@ -53,8 +63,8 @@ func (c coreService) ownerLedgerBeat(ctx context.Context) {
 	if oldest != nil {
 		old = oldest.UTC().Format("01-02")
 	}
-	note := fmt.Sprintf("v=%s 业主令账: 开账%d件(最陈%s) 7d落%d件 | 点破率 7d=%d 前7d=%d——业主被迫发令移机频应单调下行(盲区收敛度;上行=沉默面新出须普查)",
-		fp, openN, old, closed7d, spot7d, spotPrev7d)
+	note := fmt.Sprintf("v=%s 业主令账: 开账%d件(最陈%s) 7d落%d件 | 点破率 7d=%d 前7d=%d 类点破30d=%d——业主被迫发令移机频应单调下行(盲区收敛度;上行=沉默面新出须普查;类点破=成年判据①真分子,历史行默认喂料不入)",
+		fp, openN, old, closed7d, spot7d, spotPrev7d, poke30d)
 	if _, err := c.pool.Exec(ctx,
 		`INSERT INTO ops_event(seat,event,ticket,note) VALUES('探测席','量表','owner_ledger',$1)`,
 		note); err != nil {

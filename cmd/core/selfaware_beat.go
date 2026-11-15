@@ -32,7 +32,7 @@ var organPulses = []struct {
 // organIdle 间歇器官册——事件驱动件：近窗产出=动，余=息（静息合法非僵）。
 var organIdle = []struct{ name, sql string }{
 	{"做梦", `SELECT max(ts) FROM ops_event WHERE ticket='dream_replay'`},
-	{"懂你", `SELECT max(ts) FROM ops_event WHERE ticket='owner_intent'`},
+	{"懂你", `SELECT max(ts) FROM ops_event WHERE ticket='owner_model'`}, // A2:器官产出在 owner_model——owner_intent=静态十键脉源插错线
 	{"连续", `SELECT max(ts) FROM ops_event WHERE ticket='self_narrative'`},
 	{"研究", `SELECT max(ts) FROM ops_event WHERE seat='研究员' AND event='能力面扫描'`},
 	{"部署", `SELECT max(ts) FROM ops_event WHERE seat='DEPLOY' AND event='部署' AND note LIKE '%o-core:%'`},
@@ -118,11 +118,24 @@ func (c coreService) selfAwareBeat(ctx context.Context) {
 		idle = "息[" + strings.Join(idl, ",") + "]"
 	}
 
-	// ④ 办：未配对 在办/认领 行（2h TTL 同认领律——陈行转卡旗不计办）。
+	// ④ 办：未配对 在办/认领 行（2h TTL 同认领律——陈行转卡旗不计办；
+	//   A3 配对契同 runbook ⓪ 未完在办口径——认领行对象引证(工单#∨
+	//   升件#)被后场处置引证=出场;在办行 unit 名被收口/果/败行引证∨
+	//   处置引 在办#id 销账=出场;配对过的行不计办——已完场的活不显在办）。
 	var doN int
 	var doFirst *string
-	if err := c.pool.QueryRow(ctx, `SELECT count(*), min(note) FROM ops_event
-		WHERE event IN ('认领','在办') AND ts>now()-interval '2 hours'`).
+	if err := c.pool.QueryRow(ctx, `SELECT count(*), min(note) FROM (
+		SELECT e.note FROM ops_event e WHERE e.event='认领' AND e.ts>now()-interval '2 hours'
+		  AND (substring(e.note from '[工单升]件#[0-9]+') IS NULL
+		    OR NOT EXISTS (SELECT 1 FROM ops_event d WHERE d.event='处置' AND d.ts>e.ts
+		      AND d.note ~ (substring(e.note from '[工单升]件#[0-9]+')||'([^0-9]|$)')))
+		UNION ALL
+		SELECT e.note FROM ops_event e WHERE e.event='在办' AND e.ts>now()-interval '2 hours'
+		  AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.ts>e.ts
+		    AND x.note LIKE '%'||e.ticket||'%'
+		    AND x.event IN ('会话收口','唤起果','唤起败'))
+		  AND NOT EXISTS (SELECT 1 FROM ops_event d WHERE d.event='处置' AND d.ts>e.ts
+		    AND d.note ~ ('在办#'||e.id::text||'([^0-9]|$)'))) p`).
 		Scan(&doN, &doFirst); err == nil {
 		if doN == 0 {
 			doing = "0"
