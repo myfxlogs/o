@@ -19,6 +19,11 @@ import (
 // 仍可能复用网关侧存活会话而非强开新 login）。
 func (c *Client) SetToken(tok string) { c.token, c.sessID = tok, tok }
 
+// SetSharedToken 共享会话注凭——token 自共享行来（owner 建），同灌 token+
+// sessID 复挂锚并置 shared 标：Disconnect 幂等空转（消费端误登=连坐杀
+// 共享会话）；sharedAttach 唯一置位径。
+func (c *Client) SetSharedToken(tok string) { c.SetToken(tok); c.shared = true }
+
 // CheckAlive 会话活性探（CheckConnect——旧 token 活着=流死非会话死，
 // 复挂零新 login；死=调用侧落 Connect 新 login 径）。
 func (c *Client) CheckAlive(ctx context.Context) error {

@@ -89,8 +89,8 @@ func main() {
 	sd := sigdist.New(pool)
 	sd.AttachConfig(cfg)
 	go sd.Run(ctx, errc) // 桥二期信号蒸馏拍（basis_ann/funding_view/xvenue→md_signal）
-	// T-0141 MT5 quote-only 桥腿（凭据/址链全归 app_config bridge.mt5.*+mt5.gateway_*
-	// 会话重读；缺件=桥会话返错退避——让位 WARN 不拖 OKX 面）
+	// T-0141 MT5 quote-only 桥腿（共享会话纯消费腿——mt5.session_token 共享行
+	// 复挂，永不 ConnectEx；行缺/会话死=返错退避等汇市巡建——让位 WARN 不拖 OKX 面）
 	if bc, err := mt5.NewBridgeCollector(pool, cfg); err != nil {
 		log.Printf("[collector] MT5 桥腿装配败（跨所族停摆非全桥）: %v", err)
 	} else {

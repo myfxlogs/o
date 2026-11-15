@@ -44,6 +44,7 @@ type Client struct {
 	strm   mt5pb.StreamsClient
 	token  string
 	sessID string // 自供会话键（ConnectEx Id 体字段——复挂锚；空=Connect 时新生成）
+	shared bool   // 共享会话标置（SetSharedToken 置——Disconnect 幂等空转防消费端误登杀共享会话）
 }
 
 // Dial 网关连接（TLS+keepalive——长流参数集）。
@@ -202,8 +203,9 @@ func (c *Client) OnOrderProfit(ctx context.Context) (grpc.ServerStreamingClient[
 }
 
 // Disconnect 会话登出（200ms 排水窗后由 Close 收 conn）。
+// 共享会话幂等空转——句柄跨腿共享，消费端登出=连坐杀会话（shared.go 角色制）。
 func (c *Client) Disconnect(ctx context.Context) {
-	if c.token == "" {
+	if c.token == "" || c.shared {
 		return
 	}
 	_, _ = c.connM.Disconnect(c.authed(ctx), &mt5pb.DisconnectRequest{Id: c.token})
@@ -226,7 +228,11 @@ func (c *Client) Authed(ctx context.Context) context.Context { return c.authed(c
 // Authed 只携 header，体域 Id 须调用方填本值，mt5-gateway-admin 双位契约）。
 func (c *Client) Token() string { return c.token }
 
-func (c *Client) Close() { _ = c.conn.Close() }
+func (c *Client) Close() {
+	if c.conn != nil {
+		_ = c.conn.Close()
+	}
+}
 
 func splitHosts(h string) []string {
 	var out []string

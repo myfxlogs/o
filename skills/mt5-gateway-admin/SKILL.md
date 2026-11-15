@@ -47,3 +47,10 @@ domain: 工程
 
 - **Disconnect 排水窗**：Disconnect RPC 后等 ~200ms 再 `cc.Close`——让在飞 Recv 观察到取消，防级联重连（ant QUOTE-RECONNECT-LOOP 实证）。
 - **Ping**=`CheckConnect{Id}`；**登出纪律**：Disconnect 只应由持有方 actor 发起。
+
+## 共享会话（2026-11-16 跨机实证 mt5tokprobe——双腿共用同 token 投产面）
+
+- **token 跨机性实证**：SG acquire→OCI(149.118.58.98，异出口 IP) use——同 token 并发 CheckConnect/AccountSummary 全绿（equity 同值=同后端会话），单边断连不连坐。**token=后端句柄不绑连接/IP/主机**。
+- **角色制**（internal/mt5/shared.go 钦定）：**汇市巡=owner 独占 ConnectEx**（凭据在 app_secrets），建会话落 `app_config mt5.session_token{addr,token,ts}`；**OCI 桥腿=纯消费**（sharedAttach：读行→SetSharedToken→CheckAlive）**永不 ConnectEx 永不 Disconnect**；OpenSession 短调用面共享先行（零新 login 减 churn）。
+- **共享期三坑**（坑条目 mt5-shared-session-crosshost）：①消费端 Disconnect=连坐杀会话——`Client.shared` 标置使 Disconnect 幂等空转；②会话死多端齐 ConnectEx=回到互撞坑——owner 独占 login 权，消费端只退避等行；③cfg.Get snap 滞读易变 token——共享行读写直走 pool。
+- **观测**：`OpenSession 复挂共享会话（零新 login）`=正常；消费腿 `共享会话未立/已死（等汇市巡…）`=正常等待非故障，长星化查 owner 活性。
