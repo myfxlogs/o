@@ -343,13 +343,14 @@ SQL
 # ⑥提炼旱(教训→canon转化断): 验尸攒案不结晶=「记全了没提炼」——
 # e551v/0c 实证(值守席判决 B2)。判据=verdicted≥50 且 canon转化<5%
 # (eng 13/37=35%健阈不扰,econ 0/551=全断照火)。只述积压开药归会话。
+# econ canon 身份=verdict_ref 前缀制（KB econ-canon-verdictref-not-status）——status='canon' 恒零假空架，计数须 OR verdict_ref LIKE 'canon:%' 双轨。
 psql "$DSN" -qAt <<SQL >/dev/null 2>&1 || true # tolerate: 探行写败=下拍补
 WITH l AS (
   SELECT 'eng' tbl, count(*) FILTER (WHERE status='verdicted') v,
     count(*) FILTER (WHERE status='canon') c FROM fin_eng_lesson
   UNION ALL
   SELECT 'econ', count(*) FILTER (WHERE status='verdicted'),
-    count(*) FILTER (WHERE status='canon') FROM fin_econ_lesson)
+    count(*) FILTER (WHERE status='canon' OR verdict_ref LIKE 'canon:%') FROM fin_econ_lesson)
 INSERT INTO ops_event(seat,event,esc_class,esc_scope,note)
 SELECT '探测席','升件','提炼旱','consol_dry_'||l.tbl,
  '提炼旱——fin_'||l.tbl||'_lesson verdicted='||l.v||'/canon='||l.c
