@@ -88,6 +88,9 @@ func (c coreService) spawnOrphanEscCheck(ctx context.Context, deadSince map[stri
 //	  盯=该账又是「写了没人读」表,本探即其消费面)。
 //
 // 自锚同孤儿探——锚=首条载 用帧= 的唤知收口行;契未上线判集恒空探针自闭。
+// 判集收窄 note~'unit='(工单#17136):收口契对象是唤起机 spawn 会话(行载
+// unit=<unit>),值守/外席手写同 seat/event 行非契约对象,无 unit= 头者不入
+// 判集——否则人工行缺字段被计契约漂移,frame_use_gap 三度误火在案。
 // 3d 窗:漂移/零引行 append-only 出窗自然转绿销案。
 func (c coreService) frameUseEscCheck(ctx context.Context, deadSince map[string]time.Time) {
 	var n, missing, zero int
@@ -95,10 +98,11 @@ func (c coreService) frameUseEscCheck(ctx context.Context, deadSince map[string]
 		count(*) FILTER (WHERE e.note !~ '用帧='),
 		count(*) FILTER (WHERE e.note ~ '用帧=无')
 		FROM ops_event e
-		WHERE e.event='会话收口' AND e.seat='唤知'
+		WHERE e.event='会话收口' AND e.seat='唤知' AND e.note ~ 'unit='
 		AND e.ts>now()-interval '3 days'
 		AND e.ts>(SELECT COALESCE(min(x.ts),now()) FROM ops_event x
-			WHERE x.event='会话收口' AND x.seat='唤知' AND x.note ~ '用帧=')`).
+			WHERE x.event='会话收口' AND x.seat='唤知' AND x.note ~ '用帧='
+			AND x.note ~ 'unit=')`).
 		Scan(&n, &missing, &zero); err != nil {
 		return // 读件败本拍让位
 	}
@@ -114,18 +118,18 @@ func (c coreService) frameUseEscCheck(ctx context.Context, deadSince map[string]
 
 	// 自问字段同款自锚 drift 核(零激励缝根修的牙——「必留题」软义务
 	// 已改收口必填字段,缺字段=回潮):锚=首条载 自问= 的唤知收口行,
-	// 契未上线判集恒空探针自闭。
+	// 契未上线判集恒空探针自闭。判集同收窄 note~'unit='(工单#17136)。
 	var sqAnchor *time.Time
 	var sqMissing int
 	if err := c.pool.QueryRow(ctx, `SELECT
 		(SELECT min(x.ts) FROM ops_event x WHERE x.event='会话收口'
-			AND x.seat='唤知' AND x.note ~ '自问='),
+			AND x.seat='唤知' AND x.note ~ '自问=' AND x.note ~ 'unit='),
 		(SELECT count(*) FROM ops_event e WHERE e.event='会话收口'
-			AND e.seat='唤知' AND e.ts>now()-interval '3 days'
+			AND e.seat='唤知' AND e.note ~ 'unit=' AND e.ts>now()-interval '3 days'
 			AND e.note !~ '自问='
 			AND e.ts>(SELECT COALESCE(min(x.ts),now()+interval '1 year')
 				FROM ops_event x WHERE x.event='会话收口' AND x.seat='唤知'
-				AND x.note ~ '自问='))`).Scan(&sqAnchor, &sqMissing); err != nil {
+				AND x.note ~ '自问=' AND x.note ~ 'unit='))`).Scan(&sqAnchor, &sqMissing); err != nil {
 		return
 	}
 	c.escEdgeUV(ctx, deadSince, "唤知", "selfq_gap", "@", sqAnchor != nil && sqMissing > 0, func() string {
