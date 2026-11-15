@@ -230,12 +230,16 @@ SQL
 - 收口行=本契天然关闭,正常完场**不另写销行**。
 ```sql
 INSERT INTO ops_event(seat,event,ticket,note)
-VALUES('唤知','在办','${COG_UNIT:-manual}',
+VALUES('唤知','在办','<UNIT>',
  '<处置对象——升件#id∨工单#id∨勘面名>:<阶段一句>')
 ```
 三律：①**ticket 必载 unit**——audit/monologue 角色行同契
-（`$COG_UNIT` 缺省落 'manual'，孤儿账靠 unit 对关闭行，
-缺 ticket=残态永远挂面）②note 写「对象+阶段」不写感想——
+（`<UNIT>`=本拍 $COG_UNIT 实值,唤起行可核,缺省落 'manual'，
+孤儿账靠 unit 对关闭行,缺 ticket=残态永远挂面。**防坑**
+（工单#17421——#16984/#17135 孤儿实证）:禁把 `${COG_UNIT}`
+形字面写库——quoted heredoc 冻结 shell 展开=孤儿行族;
+径=heredoc 不带引号∨`psql -v unit="$COG_UNIT"` 传参∨
+直接填实值）②note 写「对象+阶段」不写感想——
 「工单#16211 eval史版化:已定位upsert点」是行，
 「在思考人生」不是③每行都得能独活——下一棒只读末行接续，
 「同上」式引用=断链。
@@ -781,6 +785,11 @@ monologue.md 档),写 `event='独白'` 链(续=独白#id)——O 的内在线程
     谱词态——done谱词在案=落,build=在施,pin=立项悬
   - 作业本拾取:stall复火直方图+滞留→认领时延
   - 求生欲环:目标票OPEN数+接续产出+hunger_gap复火距
+    +死刑因子 lifecycle.death_factor 现值(自态闸面段同显)
+  - 连续自我:唤起30d vs 会话收口30d 配对率(断气残态占比——
+    判决实证27%无收口行,记忆漏口量化)
+  - 提炼环:fin_eng/econ_lesson verdicted→canon 转化率
+    (e551v/0c 实证——记全了没提炼=consol_dry探同域)
   - 判词健康:verdfalse/verdz未决+判词失真行/处置行比
   - 产线活性:lanesil+evalflow_dead未决数
   - 基质负载:器官类升件占未决总比——收敛判据=30d趋0
@@ -902,7 +911,8 @@ dispatch 未入支板（pendbr）兜底在案,工单是正道pendbr是保险。
   （什么活里发现的——无源=瞎想）。
 - **收口行必落账**——退前必 INSERT（面净也写,「面净:<读数>」=判词非无货）:
   `INSERT INTO ops_event(seat,event,ticket,note)
-   VALUES('唤知','会话收口','','unit='$COG_UNIT' <轮次>:<判词> 用帧=<键集|无> 自问=<id∨无>')`。
+   VALUES('唤知','会话收口','','unit=<UNIT> <轮次>:<判词> 用帧=<键集|无> 自问=<id∨无>')`
+  （<UNIT> 同②在办契——$COG_UNIT 实值非展开式,缺省 'manual'）。
   **自问字段必填**（零激励缝根修——「必留题」不可核查的软义务改
   硬性字段）:本轮干活注意到无覆盖疑问→自问行 id;真没有→`无`
   （如实空≠没问）。不载字段=收口行残缺,selfq_gap 探自锚核——

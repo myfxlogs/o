@@ -328,6 +328,26 @@ SELECT '探测席','升件','器官自审','orgaudit_'||to_char(now() AT TIME ZO
 WHERE NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='升件'
   AND x.esc_scope='orgaudit_'||to_char(now() AT TIME ZONE 'Asia/Shanghai','YYYYMMDD'))
 SQL
+# ⑥提炼旱(教训→canon转化断): 验尸攒案不结晶=「记全了没提炼」——
+# e551v/0c 实证(值守席判决 B2)。判据=verdicted≥50 且 canon转化<5%
+# (eng 13/37=35%健阈不扰,econ 0/551=全断照火)。只述积压开药归会话。
+psql "$DSN" -qAt <<SQL >/dev/null 2>&1 || true # tolerate: 探行写败=下拍补
+WITH l AS (
+  SELECT 'eng' tbl, count(*) FILTER (WHERE status='verdicted') v,
+    count(*) FILTER (WHERE status='canon') c FROM fin_eng_lesson
+  UNION ALL
+  SELECT 'econ', count(*) FILTER (WHERE status='verdicted'),
+    count(*) FILTER (WHERE status='canon') FROM fin_econ_lesson)
+INSERT INTO ops_event(seat,event,esc_class,esc_scope,note)
+SELECT '探测席','升件','提炼旱','consol_dry_'||l.tbl,
+ '提炼旱——fin_'||l.tbl||'_lesson verdicted='||l.v||'/canon='||l.c
+ ||'(转化<5%:记全了没提炼,学习器官有记无化——B2同型)——认领诊断∨判口径'
+FROM l WHERE l.v>=50 AND l.c*20<l.v
+AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='升件'
+  AND x.esc_scope='consol_dry_'||l.tbl AND x.ts>now()-interval '7 days'
+  AND NOT EXISTS (SELECT 1 FROM ops_event y WHERE y.ts>x.ts
+    AND y.note ~ ('升件#'||x.id::text||'([^0-9]|\$)')))
+SQL
 fi
 
 NOW=$(date +%s); AGE=$(( NOW - OLDEST ))
