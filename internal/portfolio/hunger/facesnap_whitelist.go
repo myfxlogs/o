@@ -183,6 +183,13 @@ var faceBaselineWhitelist = map[string]string{
 	// 本体零硬编码，域在册恒产非产消断（T-0490/0492 meta 同型先例）。
 	"face:dep_pair:config:repair→采集臂修复环": "2026-11-09 入册——repair 键域=app_config repair.feeds/repair.guard 在册即面，读者册载采集臂修复环（internal/repair/watch.go cfg.Get 实读两键，修复环配额闸+md_repair_log 落账径在案）；depConfigReaders 补册后枚举对合法新面登记不重复升；生产亲证 app_config 两键在册+升件源 ops_event #9011",
 	"face:gate_domain:repair":            "2026-11-09 入册——repair app_config 键域=采集臂修复注册表/闸参数在册即面（写域册 dm 类基建自愈面，读者=采集臂修复环实读在案）；gate_domain 枚举=split_part 本体零硬编码合法新面登记不重复升；生产亲证 app_config repair.feeds+repair.guard 在册+升件源 ops_event #9015",
+	// okxws 键域=app_config okxws.kline_watchlist（e91f7ccc4 日K观察
+	// 名单并入回填扫集，DM 域键 dmwrite 册在案）；读者册载「日K回填臂」
+	// （internal/data/okxws/klineback.go GetStringList 实读）；补册同
+	// depenum-config-reader-register-or-orphan 案（升件源 #18307/
+	// #18309/#18311）。
+	"face:dep_pair:config:okxws→日K回填臂": "2026-11-15 入册——okxws 键域=app_config okxws.kline_watchlist（e91f7ccc4 日K观察名单并回填扫集，dmwrite DM 册在案）在册即面，读者册载日K回填臂（internal/data/okxws/klineback.go GetStringList 实读同键）；枚举对 depConfigReaders 册内合法新面登记不重复升；升件源 ops_event #18309",
+	"face:gate_domain:okxws":           "2026-11-15 入册——okxws app_config 键域=日K观察名单（DM 域感知面扩集键，读者=日K回填臂实读在案）；gate_domain 枚举=split_part 本体零硬编码合法新面登记不重复升；升件源 ops_event #18311",
 	// 研究员=能力面扫描机件席位（D-0045①½立项产出——capability scan
 	// 假想卡 ops_event 写径合法）；扫描拍间歇写（信号面净+7d 无扫描才
 	// 触发）静默 >7d 出集再活跃=再现新面再升件再起草循环（T-0393 链，
