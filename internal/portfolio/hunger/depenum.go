@@ -273,6 +273,9 @@ var depConfigReaders = map[string]string{
 	// （采集臂鲜度死→配额闸→systemctl restart+md_repair_log——升件#9011
 	// orphan 误报根修：读者在码面实读两键，册外登记补位）。
 	"repair": "采集臂修复环",
+	// okxws.kline_watchlist 读者=okxws/klineback.go 日K回填臂
+	// （升件#18307 orphan 同根——depenum-config-reader 案补册）。
+	"okxws": "日K回填臂",
 }
 
 // configDomains app_config 键域谱（首段域枚举——④族枚举源；
