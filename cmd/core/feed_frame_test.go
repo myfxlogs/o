@@ -12,22 +12,23 @@ func TestFrameText(t *testing.T) {
 		seats   []frameSeat
 		esc     int64
 		tickets int64
+		pick    int64
 		want    string
 	}{
-		{"空闲", nil, 0, 8, "在办: 全员空闲 | 信号0 · 工单8"},
+		{"空闲", nil, 0, 8, 2, "在办: 全员空闲 | 信号0 · 工单8(可拣2)"},
 		{"施工领票", []frameSeat{{seat: "施工席", ticket: 11481,
 			subject: "stall探针误报簇", claimTs: now.Add(-37 * time.Minute)}},
-			2, 7, "在办: 施工席在修工单#11481「stall探针误报簇」(37分) | 信号2 · 工单7"},
-		{"在跑未领", []frameSeat{{seat: "唤知席"}}, 1, 9,
-			"在办: 唤知席在跑(未领件) | 信号1 · 工单9"},
+			2, 7, 4, "在办: 施工席在修工单#11481「stall探针误报簇」(37分) | 信号2 · 工单7(可拣4)"},
+		{"在跑未领", []frameSeat{{seat: "唤知席"}}, 1, 9, 9,
+			"在办: 唤知席在跑(未领件) | 信号1 · 工单9(可拣9)"},
 		{"双席", []frameSeat{
 			{seat: "施工席", ticket: 11481, claimTs: now.Add(-2 * time.Hour)},
 			{seat: "审计席"}},
-			0, 5, "在办: 施工席在修工单#11481(2h0分) | 审计席在跑(未领件) | 信号0 · 工单5"},
+			0, 5, 3, "在办: 施工席在修工单#11481(2h0分) | 审计席在跑(未领件) | 信号0 · 工单5(可拣3)"},
 		{"刚领", []frameSeat{{seat: "施工席", ticket: 7, claimTs: now}},
-			0, 1, "在办: 施工席在修工单#7(刚领) | 信号0 · 工单1"},
+			0, 1, 1, "在办: 施工席在修工单#7(刚领) | 信号0 · 工单1(可拣1)"},
 	} {
-		if got := frameText(c.seats, c.esc, c.tickets); got != c.want {
+		if got := frameText(c.seats, c.esc, c.tickets, c.pick); got != c.want {
 			t.Fatalf("%s: got %q want %q", c.name, got, c.want)
 		}
 	}

@@ -29,15 +29,28 @@ func (s *feedPush) feedFrame(ctx context.Context) string {
 	if err != nil {
 		return "" // 降级省行不阻主径
 	}
-	var esc, tickets int64
+	var esc, tickets, claimable int64
 	_ = s.pool.QueryRow(ctx, `SELECT count(*) FROM ops_esc_pending`).Scan(&esc)
-	_ = s.pool.QueryRow(ctx, `SELECT count(*) FROM ops_event t
+	// 工单两计数：OPEN 全谱(未销)与可拣面(剔挂起缓期窗/在办认领——
+	// 与施工桌 dispatch_worker TICKET_N 同契)。
+	_ = s.pool.QueryRow(ctx, `WITH open_t AS (
+		SELECT t.id,t.ts,t.note FROM ops_event t
 		WHERE t.event='工单' AND t.ts>now()-interval '30 days'
 		  AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='处置'
 		    AND x.ts>t.ts AND x.note ~ ('工单#'||t.id::text||'([^0-9]|$)')
 		    AND x.note NOT LIKE '%挂起条件=%'
-		    AND x.note !~ ('工单#'||t.id::text||' ?接续'))`).Scan(&tickets)
-	return frameText(seats, esc, tickets)
+		    AND x.note !~ ('工单#'||t.id::text||' ?接续')))
+		SELECT (SELECT count(*) FROM open_t),
+		  (SELECT count(*) FROM open_t t
+		    WHERE NOT EXISTS (SELECT 1 FROM ops_event s WHERE s.event='处置'
+		      AND s.ts>t.ts AND s.note ~ ('工单#'||t.id::text||'([^0-9]|$)')
+		      AND s.note LIKE '%挂起条件=%'
+		      AND s.ts + COALESCE((substring(s.note from '挂起期限=([0-9]+)h'))::int,
+		        COALESCE((substring(t.note from '期限=([0-9]+)h'))::int,72))*interval '1 hour' > now())
+		    AND NOT EXISTS (SELECT 1 FROM ops_event c WHERE c.event='认领'
+		      AND c.ts>t.ts AND c.ts>now()-interval '2 hours'
+		      AND c.note ~ ('工单#'||t.id::text||'([^0-9]|$)')))`).Scan(&tickets, &claimable)
+	return frameText(seats, esc, tickets, claimable)
 }
 
 // frameSeats 在飞席+其认领票——心跳<100s 取活（死透行陈旧自然剔除）。
@@ -76,8 +89,8 @@ func (s *feedPush) frameSeats(ctx context.Context) ([]frameSeat, error) {
 	return seats, nil
 }
 
-// frameText 帧文纯件——白话一行（在办: <谁干什么> | 信号N · 工单M）。
-func frameText(seats []frameSeat, esc, tickets int64) string {
+// frameText 帧文纯件——白话一行（在办: <谁干什么> | 信号N · 工单M(可拣K)）。
+func frameText(seats []frameSeat, esc, tickets, claimable int64) string {
 	var parts []string
 	for _, fs := range seats {
 		switch {
@@ -96,7 +109,7 @@ func frameText(seats []frameSeat, esc, tickets int64) string {
 	if len(parts) == 0 {
 		head += "全员空闲"
 	}
-	return fmt.Sprintf("%s | 信号%d · 工单%d", head, esc, tickets)
+	return fmt.Sprintf("%s | 信号%d · 工单%d(可拣%d)", head, esc, tickets, claimable)
 }
 
 // frameAge 龄白话（<1分=刚领;<60分=N分;≥1h=NhM分）。
