@@ -70,6 +70,9 @@ func (s *feedPush) push(ctx context.Context) error {
 		}
 		var b strings.Builder
 		b.WriteString("[O·动]\n")
+		if f := s.feedFrame(ctx); f != "" { // 在办帧冠首——「此刻谁在干什么」白话解说
+			b.WriteString(f + "\n———\n")
+		}
 		for _, r := range rows {
 			fmt.Fprintf(&b, "%s/%s #%d %s\n", r.seat, r.event, r.id, feedTidy(r.note))
 		}
