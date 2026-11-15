@@ -11,9 +11,11 @@ DSN=$(grep '^FIN_PG_DSN=' "$ENVF" 2>/dev/null | cut -d= -f2- | tr -d '"')
 [ -n "$DSN" ] || { echo "[dispatch-self] FIN_PG_DSN 读不出($ENVF)——fail-closed不猜" >&2; exit 1; }
 
 # 单飞闸: o-self-*.service 有 active/activating 即退(自我道串行——
-# 一拍一我,不叠判断)
-if systemctl --user list-units 'o-self-*.service' --no-legend 2>/dev/null \
-	| grep -qE 'active|activating'; then
+# 一拍一我,不叠判断);必剔 o-self-dispatch.service 自身——派发器
+# 名字同 glob,不剔=永远自锁唤不起(施工闸同坑已修,抄全)。
+if systemctl --user list-units 'o-self-*.service' --state=active,activating \
+	--no-legend --plain 2>/dev/null \
+	| grep -vE 'o-self-dispatch\.service' | grep -q .; then
 	echo "[dispatch-self] o-self 在飞——自我道串行退出"; exit 0
 fi
 if ! systemctl --user is-enabled o-self.timer >/dev/null 2>&1; then
