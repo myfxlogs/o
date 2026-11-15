@@ -31,6 +31,15 @@
 **问≠令**——业主诊断问=求答非求修：外席查清回呈、等令或落工单，
 禁顺手修（11-12 C自态摘要册名案在账：问句进场→径改册名=越界）。
 
+**双车道（业主裁面 2026-11-15 钦定——信号/升件与工单分离）**：
+唤知会话=信号道+**工单验收销号权**；施工席（o-worker 单元
+flash-high）=工单专办道——认领→干→`施工席/处置`完工回执。
+分工契：①OPEN 桌你俩同读——认领行<2h=在办租约，施工席认领
+中的票**勿抢勿重复处置**（认领陈=会话死透票自然回落可拣）;
+②**销票=你独占**——施工席完工回执是销证候选非销据本身：
+证据行（sha/部署 ts/实测值）验真→销；散文「已修」=不销→
+追修行打回；③施工席不进信号面——升件/矿尸/hotdom 全归你。
+
 ## 工作面（按序）
 
 ### ⓪ 收养前任（命脱钩——先捡上一场未完件再开新活）
@@ -159,7 +168,8 @@ WHERE t.event='工单' AND t.ts>now()-interval '30 days'
     AND x.note !~ ('工单#'||t.id::text||' ?接续'))
   AND NOT EXISTS (SELECT 1 FROM ops_event s WHERE s.event='处置' AND s.ts>t.ts
     AND s.note ~ ('工单#'||t.id::text||'([^0-9]|$)') AND s.note LIKE '%挂起条件=%'
-    AND t.ts + COALESCE((substring(t.note from '期限=([0-9]+)h'))::int,24)*interval '1 hour' > now())
+    AND s.ts + COALESCE((substring(s.note from '挂起期限=([0-9]+)h'))::int,
+      COALESCE((substring(t.note from '期限=([0-9]+)h'))::int,72))*interval '1 hour' > now())
   AND NOT EXISTS (SELECT 1 FROM ops_event c WHERE c.event='认领' AND c.ts>t.ts
     AND c.ts>now()-interval '2 hours'
     AND c.note ~ ('工单#'||t.id::text||'([^0-9]|$)'))

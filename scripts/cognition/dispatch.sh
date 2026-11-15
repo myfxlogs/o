@@ -39,11 +39,18 @@ VAL_HI=${COG_VAL_HI:-80}
 # (无处置引「工单#id」)且无活在认领(认领行<2h 引同票——
 # RuntimeMaxSec 对齐,认领陈=会话死透票自然回落可拣)。
 # 票本身就是排期承诺:有 OPEN 票即唤,不等龄——票面即优先级。
+SUSPEND_AGE=${COG_TICKET_SUSPEND_AGE:-72}
 TICKET_N=$(psql "$DSN" -qAt -c "
 SELECT count(*) FROM ops_event t
 WHERE t.event='工单' AND t.ts>now()-interval '30 days'
   AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='处置' AND x.ts>t.ts
-    AND x.note ~ ('工单#'||t.id::text||'([^0-9]|\$)'))
+    AND x.note ~ ('工单#'||t.id::text||'([^0-9]|\$)')
+    AND x.note NOT LIKE '%挂起条件=%'
+    AND x.note !~ ('工单#'||t.id::text||' ?接续'))
+  AND NOT EXISTS (SELECT 1 FROM ops_event s WHERE s.event='处置' AND s.ts>t.ts
+    AND s.note ~ ('工单#'||t.id::text||'([^0-9]|\$)') AND s.note LIKE '%挂起条件=%'
+    AND s.ts + COALESCE((substring(s.note from '挂起期限=([0-9]+)h'))::int,
+      COALESCE((substring(t.note from '期限=([0-9]+)h'))::int,$SUSPEND_AGE))*interval '1 hour' > now())
   AND NOT EXISTS (SELECT 1 FROM ops_event c WHERE c.event='认领' AND c.ts>t.ts
     AND c.ts>now()-interval '2 hours'
     AND c.note ~ ('工单#'||t.id::text||'([^0-9]|\$)'))" 2>/dev/null)
@@ -261,7 +268,8 @@ WITH cand AS (
       AND x.note !~ ('工单#'||t.id::text||' ?接续'))
     AND NOT EXISTS (SELECT 1 FROM ops_event s WHERE s.event='处置' AND s.ts>t.ts
       AND s.note ~ ('工单#'||t.id::text||'([^0-9]|\$)') AND s.note LIKE '%挂起条件=%'
-      AND t.ts + COALESCE((substring(t.note from '期限=([0-9]+)h'))::int,24)*interval '1 hour' > now())
+      AND s.ts + COALESCE((substring(s.note from '挂起期限=([0-9]+)h'))::int,
+        COALESCE((substring(t.note from '期限=([0-9]+)h'))::int,72))*interval '1 hour' > now())
     AND NOT EXISTS (SELECT 1 FROM ops_event c WHERE c.event='认领' AND c.ts>t.ts
       AND c.ts>now()-interval '2 hours'
       AND c.note ~ ('工单#'||t.id::text||'([^0-9]|\$)'))

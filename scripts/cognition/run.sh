@@ -24,7 +24,8 @@ case "$COG_ROLE" in
 	cognition) SEAT=唤知席; SEAT_MACHINE=唤知机; HB_PREFIX=COG- ;;
 	audit)     SEAT=审计席; SEAT_MACHINE=审计机; HB_PREFIX=AUD- ;;
 	monologue) SEAT=独白席; SEAT_MACHINE=唤知机; HB_PREFIX=MONO- ;;
-	*) echo "[cognition] COG_ROLE 非法: $COG_ROLE（cognition|audit|monologue）" >&2; exit 2 ;;
+	worker)    SEAT=施工席; SEAT_MACHINE=施工机; HB_PREFIX=WRK- ;;
+	*) echo "[cognition] COG_ROLE 非法: $COG_ROLE（cognition|audit|monologue|worker）" >&2; exit 2 ;;
 esac
 
 export O_SEAT=$SEAT
