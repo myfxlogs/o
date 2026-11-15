@@ -58,3 +58,4 @@ repair.guard	owner	修复环闸参数（JSON:restart_gap_sec/grace_sec/max_per_d
 # *private_key）不须入册——dmwrite.go credentialRE 先于一切硬拒归 owner
 # （trx.trongrid_api_key/cmc.account_id 实证在案）。
 okxws.tick_scan_s	dm	粗扫节拍秒（T-0401——60s 钦定值覆写键，采集域参数）
+okxws.kline_watchlist	dm	日K观察名单（业主令 2026-11-15——感知面扩集：名单标的日K常采入 md_klines，破活跃集闭环失明；DM 可自扩=举一反三器官留舵）

@@ -51,14 +51,19 @@ func (c *Collector) backfillLoop(ctx context.Context) {
 	}
 }
 
-// backfillSweep 单扫：活跃集逐 inst 拉单页→滤 confirm=1 收线行→
+// backfillSweep 单扫：（活跃集∪观察名单）逐 inst 拉单页→滤 confirm=1 收线行→
 // 剔库内已有 ts→缺齿行入队（阻塞式——队列背压等 writer 排空,
-// 回填行不弃；ctx 死让位）。
+// 回填行不弃；ctx 死让位）。业主令 2026-11-15：okxws.kline_watchlist
+// 观察名单并入集——活跃集=「在交易什么」闭集,无名单补充则新标的结构性
+// 失明（无棒→dirmom 无法评估→不提案→永不进集=闭环锁死实证）。
 func (c *Collector) backfillSweep(ctx context.Context) {
 	set, err := c.activeSet(ctx)
 	if err != nil {
 		log.Printf("[okxws] kline 回填活跃集读败（本扫让位）: %v", err)
 		return
+	}
+	if c.cfg != nil {
+		watchUnion(set, c.cfg.GetStringList("okxws.kline_watchlist"))
 	}
 	filled := 0
 	for inst := range set {
@@ -110,4 +115,14 @@ func (c *Collector) backfillSweep(ctx context.Context) {
 		}
 	}
 	log.Printf("[okxws] kline 回填拍: insts=%d 补行=%d", len(set), filled)
+}
+
+// watchUnion 观察名单并入扫集（纯函数可测面——空名单零副作用,
+// 已入集键幂等）。名单=基建感知面（venue 无该 inst=单发败不连坐）。
+func watchUnion(set map[string]bool, watch []string) {
+	for _, inst := range watch {
+		if inst != "" {
+			set[inst] = true
+		}
+	}
 }
