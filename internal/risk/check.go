@@ -66,7 +66,7 @@ func (g *Gate) WithEquity(fn func(ctx context.Context, venue string) (float64, e
 func NewGate(pool *pgxpool.Pool, cfg *config.Client) *Gate {
 	return &Gate{pool: pool, cfg: cfg,
 		rej: rejects.New("risk", "kill_switch", "missing_param", "intent_incomplete", "equity_missing",
-			"notional_cap", "venue_concentration", "exposure_cap",
+			"notional_cap", "venue_concentration", "exposure_cap", "death_gradient",
 			"token_missing", "token_expired", "token_used", "intent_mismatch", "write_err",
 			"guard_suspended", "suspend_read_err", "dir_budget_exhausted", "dir_notional_cap", "dir_trade_loss_cap")}
 }
@@ -166,7 +166,20 @@ func (g *Gate) Check(ctx context.Context, in Intent) Decision {
 			return g.deny(ctx, in, "exposure_cap")
 		}
 		tExp += dcdUSD
-		if (tExp + in.NotionalUSD) > maxExp {
+		// 死刑梯度（业主令 2026-11-15「死刑真实性归医生裁」件——death_grad.go
+		// beat 按三窗年化 DMSet 自调）：lifecycle.death_factor 乘总敞口阈=
+		// 能力收缩只减不增（open 径专属,close 径不查同 kill_switch 契——
+		// 敞口只减不增）。缺行/读败/越域值=1.0：梯度=附加约束层,底层
+		// risk.max_* 基线恒守——因子层坏不死锁活路。fac<1 拒因记
+		// death_gradient（拒遥测分病饿与基线满两态,自观账可读）。
+		fac := 1.0
+		if f, ferr := g.getF("lifecycle.death_factor"); ferr == nil && f > 0 && f < 1 {
+			fac = f
+		}
+		if (tExp + in.NotionalUSD) > maxExp*fac {
+			if fac < 1 {
+				return g.deny(ctx, in, "death_gradient")
+			}
 			return g.deny(ctx, in, "exposure_cap")
 		}
 		if d := g.dirBookDeny(ctx, in); d != nil {

@@ -137,6 +137,7 @@ func (c coreService) commercialEscCheck(ctx context.Context, deadSince map[strin
 	c.paperDryEscCheck(ctx, deadSince)  // 练习场旱探同拍（动机面第二信号——零候选即旱）
 	c.goalIdleEscCheck(ctx, deadSince)  // 目标票怠探同拍（想要空转——OPEN票零推进即喊）
 	c.breedDryEscCheck(ctx, deadSince)  // 育种旱探同拍（进化环停滞——有种不繁/无种可繁）
+	c.deathGradCheck(ctx, deadSince)    // 死刑梯度同拍（饿的牙——年化→能力因子→敞口阈）
 	var net float64
 	var liveN, openPos int
 	if err := c.pool.QueryRow(ctx, `SELECT
