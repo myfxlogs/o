@@ -54,7 +54,10 @@ TICKET_N=${TICKET_N:-0}
 # 修复=把滞留票变成门口件——stall 阈后产 ticketstall_<id> 升件走升件道
 # ~100%分诊率。键域=票行id(唯一锚);销后复火=敷衍销升件不动票=下拍复火
 # 罚懒器;动账=状态事件(认领/处置/在办)引「工单#id」——散文引证不计时。
-STALL_AGE=${COG_TICKET_STALL_AGE:-21600} # 默认6h零动账=滞留(给挂起窗内缓办留量)
+STALL_AGE=${COG_TICKET_STALL_AGE:-21600}   # 默认6h零动账=滞留(给挂起窗内缓办留量)
+SUSPEND_AGE=${COG_TICKET_SUSPEND_AGE:-72}  # 挂起缓期h(挂起行ts起算非票立案ts——
+# 升件#18484实证:锚错在票ts=老票挂起窗恒过期,销了又升8簇3轮每拍耗整会话;
+# 级=挂起注记「挂起期限=Nh」→票面「期限=Nh」→本默认;到期回列复验语义不变)
 STUCK_N=${COG_TICKET_STUCK_N:-3}        # 滞留第N次=慢性升档换问法
 # 动账收窄(业主令2026-11-15⑥判词缓刑环实证预见):仅状态事件(认领/处置/
 # 在办)引票算动账——自问/自述/工单注记等散文引证不计时,写评语不续命。
@@ -83,7 +86,8 @@ FROM (
     AND x.note !~ ('工单#'||t.id::text||' ?接续'))
   AND NOT EXISTS (SELECT 1 FROM ops_event s WHERE s.event='处置' AND s.ts>t.ts
     AND s.note ~ ('工单#'||t.id::text||'([^0-9]|\$)') AND s.note LIKE '%挂起条件=%'
-    AND t.ts + COALESCE((substring(t.note from '期限=([0-9]+)h'))::int,24)*interval '1 hour' > now())
+    AND s.ts + COALESCE((substring(s.note from '挂起期限=([0-9]+)h'))::int,
+      COALESCE((substring(t.note from '期限=([0-9]+)h'))::int,$SUSPEND_AGE))*interval '1 hour' > now())
   AND NOT EXISTS (SELECT 1 FROM ops_event c WHERE c.event='认领' AND c.ts>t.ts
     AND c.ts>now()-interval '2 hours'
     AND c.note ~ ('工单#'||t.id::text||'([^0-9]|\$)'))
