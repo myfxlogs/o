@@ -68,14 +68,17 @@ func (c coreService) selfModelBeat(ctx context.Context) {
 		}
 		r2.Close()
 	}
-	// 会话果败尾——唤知环自身健康(果行 rc!=0=干活干败)+求助值守数。
+	// 会话果败尾——唤知环自身健康(果行 rc!=0=干活干败)+求助未销数(求助值守
+	// 行缺回执引证者才计——累计数永不降是假报警;回执=后行 note 含 #id)。
 	var good, bad, help int
 	_ = c.pool.QueryRow(ctx, `SELECT
 		count(*) FILTER (WHERE event='唤起果' AND note ~ 'rc=0([^0-9]|$)'),
 		count(*) FILTER (WHERE event IN ('唤起果','唤起败')
 			AND (event='唤起败' OR note !~ 'rc=0([^0-9]|$)')),
-		(SELECT count(*) FROM ops_event WHERE event='求助值守'
-			AND ts>now()-interval '30 days')
+		(SELECT count(*) FROM ops_event h WHERE h.event='求助值守'
+			AND h.ts>now()-interval '30 days'
+			AND NOT EXISTS (SELECT 1 FROM ops_event r WHERE r.id>h.id
+				AND r.note ~ ('#'||h.id||'([^0-9]|$)')))
 		FROM ops_event WHERE event IN ('唤起果','唤起败')
 		AND ts>now()-interval '30 days'`).Scan(&good, &bad, &help)
 
@@ -89,12 +92,12 @@ func (c coreService) selfModelBeat(ctx context.Context) {
 			fpIn = append(fpIn, s)
 		}
 	}
-	fpIn = append(fpIn, fmt.Sprintf("会话%d果%d败", good, bad), fmt.Sprintf("求%d", help))
+	fpIn = append(fpIn, fmt.Sprintf("会话%d果%d败", good, bad), fmt.Sprintf("求未%d", help))
 	fp := fpHash(fpIn)
 	if !gaugeDue(ctx, c, "self_model", fp, selfModelEvery) {
 		return
 	}
-	note := fmt.Sprintf("v=%s 自模账: %s | 会话=%d果%d败 求=%d——自我模型器官帧(能力账翼;30d窗域面成败,只述事实不定性)",
+	note := fmt.Sprintf("v=%s 自模账: %s | 会话=%d果%d败 求未=%d——自我模型器官帧(能力账翼;30d窗域面成败,只述事实不定性)",
 		fp, strings.Join(seg, " "), good, bad, help)
 	_, _ = c.pool.Exec(ctx,
 		`INSERT INTO ops_event(seat,event,ticket,note) VALUES('探测席','量表','self_model',$1)`, note)
