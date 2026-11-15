@@ -25,9 +25,11 @@ fi
 UNIT="o-self-$(date +%s)"
 
 # 唤醒判据(30min快拍): 保底拍=距上次唤起≥6h必醒;早唤=要事触发——
-# ①P1新票立案 ②新开仓(钱面事件) ③P1票被挂起还票(裁定被退=死锁形)
-# ④NAV波动>2%(fin_ledger_snapshot 最新快照 vs 上次唤起前最近快照整组
-# 对差)。无事=退零成本;查询败=不唤fail-closed。
+# ①P1新票立案 ②P1票被挂起还票(裁定被退=死锁形) ③新仓活水
+# (fin_cashflow新position_ref) ④窗内现金净动>$250(钱面突变)。
+# roster_rw界:fin_position/fin_ledger_snapshot皆越权不可读(实证
+# 判词④同坑——读面全走ops_event+fin_cashflow)。
+# 无事=退零成本;查询败=不唤fail-closed。
 LAST_WAKE=$(psql "$DSN" -qAt -c "SELECT COALESCE(max(ts),'epoch'::timestamptz)
 	FROM ops_event WHERE seat='自我机' AND event='唤起'" 2>/dev/null)
 [ -n "$LAST_WAKE" ] || exit 0
@@ -36,17 +38,13 @@ SELECT CASE
   WHEN now() - '$LAST_WAKE'::timestamptz >= interval '6 hours' THEN 'baseline'
   WHEN EXISTS (SELECT 1 FROM ops_event WHERE ts>'$LAST_WAKE'::timestamptz
     AND event='工单' AND note ~ '级=P1') THEN 'early:p1_ticket'
-  WHEN EXISTS (SELECT 1 FROM fin_position WHERE opened_at>'$LAST_WAKE'::timestamptz)
-    THEN 'early:new_position'
   WHEN EXISTS (SELECT 1 FROM ops_event WHERE ts>'$LAST_WAKE'::timestamptz
     AND event='处置' AND note LIKE '%挂起条件=%' AND note ~ '级=P1')
     THEN 'early:p1_rebound'
-  WHEN (SELECT abs(c.s-p.s)/nullif(p.s,0)
-    FROM (SELECT sum(net_usd) s FROM fin_ledger_snapshot
-      WHERE ts=(SELECT max(ts) FROM fin_ledger_snapshot)) c,
-     (SELECT sum(net_usd) s FROM fin_ledger_snapshot
-      WHERE ts=(SELECT max(ts) FROM fin_ledger_snapshot
-        WHERE ts<='$LAST_WAKE'::timestamptz)) p) > 0.02 THEN 'early:nav_delta'
+  WHEN EXISTS (SELECT 1 FROM fin_cashflow WHERE ts>'$LAST_WAKE'::timestamptz
+    AND position_ref IS NOT NULL) THEN 'early:new_position'
+  WHEN (SELECT abs(COALESCE(sum(amount),0)) FROM fin_cashflow
+    WHERE ts>'$LAST_WAKE'::timestamptz) > 250 THEN 'early:cashflow_burst'
   ELSE 'quiet' END;
 SQL
 )

@@ -36,12 +36,15 @@ psql "$FIN_DSN" -c "SELECT id,ts,left(note,400) FROM ops_event
 ### ① 读钱——公司在赚吗
 
 ```bash
-psql "$FIN_DSN" -c "SELECT venue,ccy,net_usd FROM fin_ledger_snapshot
-  WHERE ts=(SELECT max(ts) FROM fin_ledger_snapshot)"
+# roster_rw界:fin_ledger_snapshot/fin_position 越权不可读——
+# NAV走量表帧(探针机产),钱面动量走fin_cashflow(可读)
+psql "$FIN_DSN" -qAt -c "SELECT note FROM ops_event
+  WHERE event='量表' AND ticket='self_state' ORDER BY id DESC LIMIT 1"
+psql "$FIN_DSN" -c "SELECT kind,venue,sum(amount) FROM fin_cashflow
+  WHERE ts>now()-interval '30 days' GROUP BY kind,venue ORDER BY 3"
 psql "$FIN_DSN" -c "SELECT template,verdict,net_apr,inst_id,ts::date
   FROM fin_opp_eval ORDER BY net_apr LIMIT 15"
-# 各template净APR(净负=该死候选;另有 fin_position/fin_live_* 仓面
-# 表按场查——在册而零开=闸门拒开看 rejects 注册表拒因分布)
+# 各template净APR(净负=该死候选;在册而零开=闸门拒开看 rejects 拒因分布)
 ```
 
 ### ② 读板——全公司在干什么
