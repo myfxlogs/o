@@ -92,23 +92,54 @@ func (s *Service) session(ctx context.Context) error {
 	if err := s.browser.Navigate(s.browserCtx()); err != nil {
 		return err
 	}
-	if !s.browser.WaitWS(ctx) {
-		if !s.browser.LoginFormPresent(ctx) {
-			return errNoWS
-		}
-		// cookie 注入不生效（app 要 localStorage 态等）——UI 表单兜底一梭
-		log.Printf("[cmcweb] cookie 注入未生效——UI 登录兜底")
-		if err := s.browser.UILogin(ctx, s.email, s.pass); err != nil {
-			log.Printf("[cmcweb] UILogin 败 diag: %s", s.browser.Diag(ctx))
+	if !s.waitForApp(ctx) {
+		log.Printf("[cmcweb] WS 未建 diag: %s", s.browser.Diag(ctx))
+		if s.browser.LoginFormPresent(ctx) {
 			return errLoginForm
 		}
-		if !s.browser.WaitWS(ctx) {
-			log.Printf("[cmcweb] 登录后无 WS diag: %s", s.browser.Diag(ctx))
-			return errNoWS
-		}
+		return errNoWS
 	}
 	log.Printf("[cmcweb] session 建立——app WS 在录 acct=%d", s.accountID)
 	return nil
+}
+
+// waitForApp 统一等待环——按页态分派:账户选择页→点行(15s 节流);登录页→
+// UI 填表(30s 节流);WS 起→true。页态单拍采样不可靠(SPA 异步渲染,22:22
+// 实坑:/#/login 已显而 form 未渲),轮询态机全覆盖。
+func (s *Service) waitForApp(ctx context.Context) bool {
+	deadline := time.Now().Add(browserWSWait)
+	var lastClick, lastLogin time.Time
+	for time.Now().Before(deadline) {
+		if s.browser.WSAlive() {
+			return true
+		}
+		switch {
+		case s.browser.OnAccountSelection(ctx):
+			if time.Since(lastClick) > 15*time.Second {
+				res, err := s.browser.SelectAccount(ctx, s.accountID)
+				if err != nil {
+					log.Printf("[cmcweb] 账户选择点击败: %v", err)
+				} else {
+					log.Printf("[cmcweb] 账户选择页 click: %s", res)
+				}
+				lastClick = time.Now()
+			}
+		case s.browser.LoginFormPresent(ctx):
+			if time.Since(lastLogin) > 30*time.Second {
+				log.Printf("[cmcweb] 登录面显形——UI 登录")
+				if err := s.browser.UILogin(ctx, s.email, s.pass); err != nil {
+					log.Printf("[cmcweb] UILogin 败 diag: %s", s.browser.Diag(ctx))
+				}
+				lastLogin = time.Now()
+			}
+		}
+		select {
+		case <-ctx.Done():
+			return false
+		case <-time.After(3 * time.Second): // sched-exempt-ok：WS 等待轮询
+		}
+	}
+	return s.browser.WSAlive()
 }
 
 func (s *Service) browserCtx() context.Context {
@@ -144,16 +175,12 @@ func (s *Service) watchdog(ctx context.Context) {
 				if err := s.browser.Navigate(s.browserCtx()); err != nil {
 					log.Printf("[cmcweb] 重载败: %v", err)
 				}
-				wctx, wcancel := context.WithTimeout(ctx, 45*time.Second)
-				if !s.browser.WaitWS(wctx) {
-					if s.browser.LoginFormPresent(ctx) {
-						log.Printf("[cmcweb] 重载后登录面显形——整会话重建")
-						if err := s.session(ctx); err != nil {
-							log.Printf("[cmcweb] 会话重建败: %v", err)
-						}
+				if !s.waitForApp(ctx) && s.browser.LoginFormPresent(ctx) {
+					log.Printf("[cmcweb] 重载后登录面显形——整会话重建")
+					if err := s.session(ctx); err != nil {
+						log.Printf("[cmcweb] 会话重建败: %v", err)
 					}
 				}
-				wcancel()
 				deadSince = time.Time{}
 			}
 		} else {

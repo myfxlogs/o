@@ -43,7 +43,7 @@ type Browser struct {
 	relay *Relay
 
 	mu        sync.Mutex
-	wsAlive   bool
+	appWS     map[network.RequestID]bool // 匹配 WSMatch 的存活 WS 集合——app 常并行两条,一条关≠全死
 	lastFrame time.Time
 	wsURLSeen string
 
@@ -56,11 +56,11 @@ func NewBrowser(cfg BrowserCfg, relay *Relay) *Browser {
 	return &Browser{cfg: cfg, relay: relay}
 }
 
-// WSAlive app WS 活态。
+// WSAlive app WS 活态（集合非空）。
 func (b *Browser) WSAlive() bool {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	return b.wsAlive
+	return len(b.appWS) > 0
 }
 
 // LastFrame 末帧时刻（探针面）。
@@ -92,6 +92,7 @@ func (b *Browser) Start(ctx context.Context) error {
 	allocCtx, allocCancel := chromedp.NewExecAllocator(ctx, opts...)
 	bctx, bcancel := chromedp.NewContext(allocCtx)
 	b.allocCancel, b.bctx, b.bcancel = allocCancel, bctx, bcancel
+	b.appWS = map[network.RequestID]bool{}
 
 	chromedp.ListenTarget(bctx, b.onEvent)
 	if err := chromedp.Run(bctx, network.Enable(), page.Enable(), runtime.Enable()); err != nil {
@@ -112,7 +113,10 @@ func (b *Browser) Stop() {
 		b.allocCancel()
 		b.allocCancel = nil
 	}
-	b.setAlive(false, "")
+	b.mu.Lock()
+	b.appWS = map[network.RequestID]bool{}
+	b.mu.Unlock()
+	b.relay.SetUpstreamAlive(false)
 }
 
 // onEvent CDP 目标域事件分发。
@@ -121,37 +125,39 @@ func (b *Browser) onEvent(ev any) {
 	case *network.EventWebSocketCreated:
 		log.Printf("[cmcweb] WS created: %s", e.URL) // 全量记录——匹配口径实证面
 		if strings.Contains(e.URL, b.cfg.WSMatch) {
-			b.setAlive(true, e.URL)
-			log.Printf("[cmcweb] app WS up: %s", e.URL)
+			b.mu.Lock()
+			b.appWS[e.RequestID] = true
+			b.wsURLSeen = e.URL
+			n := len(b.appWS)
+			b.mu.Unlock()
+			b.relay.SetUpstreamAlive(true)
+			log.Printf("[cmcweb] app WS up: %s (open=%d)", e.URL, n)
 		}
 	case *network.EventWebSocketFrameReceived:
 		b.mu.Lock()
-		alive := b.wsAlive
+		ok := b.appWS[e.RequestID]
+		if ok {
+			b.lastFrame = time.Now()
+		}
 		b.mu.Unlock()
-		if !alive || e.Response.Opcode != 1 { // 只收本端 WS 的 text 帧
+		if !ok || e.Response.Opcode != 1 { // 只收匹配 WS 集合内的 text 帧——websockbin 等杂流不混
 			return
 		}
-		b.mu.Lock()
-		b.lastFrame = time.Now()
-		b.mu.Unlock()
 		b.relay.Feed(e.Response.PayloadData)
 	case *network.EventWebSocketClosed:
 		b.mu.Lock()
-		if b.wsAlive {
+		if _, ok := b.appWS[e.RequestID]; !ok {
 			b.mu.Unlock()
-			b.setAlive(false, "")
-			log.Printf("[cmcweb] app WS closed")
-		} else {
-			b.mu.Unlock()
+			return
+		}
+		delete(b.appWS, e.RequestID)
+		n := len(b.appWS)
+		b.mu.Unlock()
+		log.Printf("[cmcweb] app WS closed (open=%d)", n)
+		if n == 0 {
+			b.relay.SetUpstreamAlive(false)
 		}
 	}
-}
-
-func (b *Browser) setAlive(alive bool, u string) {
-	b.mu.Lock()
-	b.wsAlive, b.wsURLSeen = alive, u
-	b.mu.Unlock()
-	b.relay.SetUpstreamAlive(alive)
 }
 
 // InjectCookies 登录态注入——AuthManager 会话 cookie 罐写进浏览器 cookie 库。
@@ -210,42 +216,31 @@ func (b *Browser) WaitWS(ctx context.Context) bool {
 	return false
 }
 
-// LoginFormPresent 登录面显形探测（password 输入框在=被登出）。
+// LoginFormPresent 登录面显形探测——PerformSearch 穿 shadow 找可见 password
+// 输入件（新 cmc-login web-component 的字段在 closed shadow,JS 探不到）。
 func (b *Browser) LoginFormPresent(ctx context.Context) bool {
 	if b.bctx == nil {
 		return true
 	}
-	var has bool
 	evalCtx, cancel := context.WithTimeout(b.bctx, 15*time.Second)
 	defer cancel()
-	if err := chromedp.Run(evalCtx, chromedp.Evaluate(
-		`!!document.querySelector('input[type="password"]')`, &has)); err != nil {
-		return true // 页死视同登出——走重登径
-	}
+	var has bool
+	_ = chromedp.Run(evalCtx, chromedp.ActionFunc(func(ctx context.Context) error {
+		nodes, err := searchNodes(ctx, "input")
+		if err != nil {
+			return err
+		}
+		for _, n := range nodes {
+			if strings.EqualFold(attrOf(n, "type"), "password") {
+				if _, _, ok := boxCenter(ctx, n); ok {
+					has = true
+					return nil
+				}
+			}
+		}
+		return nil
+	}))
 	return has
-}
-
-// UILogin 登录面兜底——cookie 注入不生效时填表单（CMC loginForm=AngularJS:
-// #username type=text + #password + input[type=submit] ng-click=login(),
-// SG dump-dom 实证 2026-11-16；OneTrust 横幅可能盖提交钮先接受再填）。
-func (b *Browser) UILogin(ctx context.Context, email, pass string) error {
-	if b.bctx == nil {
-		return fmt.Errorf("browser 未起")
-	}
-	lctx, cancel := context.WithTimeout(b.bctx, 45*time.Second)
-	defer cancel()
-	userSel := `#username, input[name="username"], input[type="email"], input[autocomplete="username"]`
-	// OneTrust 同意横幅先撤（best-effort——不在场=3s 过，不占登录预算）
-	bctx, bcancel := context.WithTimeout(lctx, 3*time.Second)
-	_ = chromedp.Run(bctx, chromedp.Click(`#onetrust-accept-btn-handler`, chromedp.ByQuery))
-	bcancel()
-	return chromedp.Run(lctx,
-		chromedp.WaitVisible(userSel, chromedp.ByQuery),
-		chromedp.Clear(userSel, chromedp.ByQuery),
-		chromedp.SendKeys(userSel, email, chromedp.ByQuery),
-		chromedp.SendKeys(`#password`, pass, chromedp.ByQuery),
-		chromedp.Click(`input[type="submit"], button[type="submit"]`, chromedp.ByQuery),
-	)
 }
 
 // Diag 登录/导航失败取证——页面 URL+title+登录面态+截图落 profile 卷
