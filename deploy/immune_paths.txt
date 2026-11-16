@@ -36,5 +36,8 @@ migrations/
 scripts/land_scope.sh
 scripts/worker_land.sh
 
+# ── 席位钉位（业主令 2026-11-16：唤起单元×主机钉死判据本体）──
+deploy/seat-hosts.tsv
+
 # ── 自指 ──
 deploy/immune_paths.txt

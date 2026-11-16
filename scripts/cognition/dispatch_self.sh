@@ -10,6 +10,22 @@ ENVF="${REPORT_ENV_FILE:-/opt/o-research/env}"
 DSN=$(grep '^FIN_PG_DSN=' "$ENVF" 2>/dev/null | cut -d= -f2- | tr -d '"')
 [ -n "$DSN" ] || { echo "[dispatch-self] FIN_PG_DSN 读不出($ENVF)——fail-closed不猜" >&2; exit 1; }
 
+# 主机钉位（deploy/seat-hosts.tsv——业主令 2026-11-16 职能固定：错机唤起
+# 物理拒唤+唤起败落账；表缺/行缺=放行向后兼容——钉位真源在表）。
+PIN_ALLOW=$(awk -v u=o-self 'BEGIN{FS="[ \t]+"} $1==u{print $2; exit}' \
+	"$SCRIPT_DIR/../../deploy/seat-hosts.tsv" 2>/dev/null || true) # tolerate: 钉位表读败=放行向后兼容（表缺不锁座——钉位语义明文行缺/表缺放行）
+if [ -n "$PIN_ALLOW" ]; then
+	PIN_HOST=$(hostname 2>/dev/null || echo unknown)
+	case ",$PIN_ALLOW," in
+		*",$PIN_HOST,"*) ;;
+		*) psql "$DSN" -qAt -c "INSERT INTO ops_event(seat,event,ticket,note)
+			VALUES('自我机','唤起败','','host=$PIN_HOST 主机钉位拒唤——pin=$PIN_ALLOW(deploy/seat-hosts.tsv)')" \
+			>/dev/null 2>&1 || true # tolerate: 拒唤报账尽力——DSN 写败仅本机 stderr 留迹
+		   echo "[dispatch-self] 主机钉位拒唤 host=$PIN_HOST pin=$PIN_ALLOW" >&2
+		   exit 1 ;;
+	esac
+fi
+
 # 单飞闸: o-self-*.service 有 active/activating 即退(自我道串行——
 # 一拍一我,不叠判断);必剔 o-self-dispatch.service 自身——派发器
 # 名字同 glob,不剔=永远自锁唤不起(施工闸同坑已修,抄全)。

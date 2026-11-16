@@ -1,0 +1,12 @@
+# seat-hosts.tsv —— 唤起单元×主机钉位（业主令 2026-11-16「各主机职能固定」）。
+# 病灶:2026-11-15 施工席误装 SG——外席照抄唤知单元径选机,账无选机理由;
+#   后果=完工十条支无戳落地不了（#21127）、会话烧产线 4C/7.7G。
+# 消费径=dispatch*.sh 唤起前查本表：hostname 不在允许列=拒唤+唤起败落账。
+# 格式: <单元词头>\t<允许主机(逗号分隔)>；行缺/表缺=放行向后兼容。
+o-worker	models
+o-self	ant
+o-cognition	models,ant
+o-audit	models
+# 注: o-self 暂守 ant——态势页驻 SG 部署树未迁（自我席迁本机=D 批件,
+#   迁后本行改 models）。o-cognition 双机在册=standby 语义归 D 批细化。
+# 本表=钉位唯一真源——改钉位=改本表（immune 册在案,commit 须免疫件:）。
