@@ -22,16 +22,17 @@ import (
 
 // hedgeOpener funding-hedge 开仓适配（cmd 组合根——投资域不反向依赖交易/风控域）。
 type hedgeOpener struct {
-	pool  *pgxpool.Pool
-	cfg   *config.Client
-	gate  *risk.Gate
-	r     *execution.Runner
-	cli   *okxexec.Client
-	dcd   dcdVenue             // T-0259 桩测注伪缝——nil=cli 产线形
-	xcli  xvenueSess           // T-0145：mt5 懒连会话件（xvenue-carry 执行/方言/现读同件——窄面桩测注假）
-	xdial mtexec.Dialect       // T-0145：方言译件（官名→venue 符号唯一天）
-	xds   *mt5.DialectStore    // T-0145：方言行仓（ct_val/min_sz/lot_step 基线读）
-	xmeta execution.MetaLoader // T-0145 返修①桩测缝——nil=h.loadMeta 产线形（xvenue e2e 桩绕 venue 活读）
+	pool   *pgxpool.Pool
+	cfg    *config.Client
+	gate   *risk.Gate
+	r      *execution.Runner
+	cli    *okxexec.Client
+	dcd    dcdVenue                                        // T-0259 桩测注伪缝——nil=cli 产线形
+	xcli   xvenueSess                                      // T-0145：mt5 懒连会话件（xvenue-carry 执行/方言/现读同件——窄面桩测注假）
+	xdial  mtexec.Dialect                                  // T-0145：方言译件（官名→venue 符号唯一天）
+	xds    *mt5.DialectStore                               // T-0145：方言行仓（ct_val/min_sz/lot_step 基线读）
+	xmeta  execution.MetaLoader                            // T-0145 返修①桩测缝——nil=h.loadMeta 产线形（xvenue e2e 桩绕 venue 活读）
+	redeem func(ctx context.Context, usdAmt float64) error // O-CAP1：earn.Worker.RedeemToTrading 同源注入——nil=旧径不变
 }
 
 // Open live 策略开仓：双帽取小→闸→腿构→原子执行。任一环败=err 上抛
@@ -174,7 +175,7 @@ func (h hedgeOpener) loadMeta(ctx context.Context, iid string) (execution.InstMe
 // dcdexec 单源——产线与 simvenue 矩阵 DCD 演习格同径消费，venue 三步缝
 // 注入式全产线同码；cmd 侧仅规格映射）。
 func (h hedgeOpener) dcdOpen(ctx context.Context, spec lifecycle.OpenSpec) (int64, error) {
-	return dcdexec.Open(ctx, dcdexec.Deps{Pool: h.pool, Gate: h.gate}, h.dcdCli(),
+	return dcdexec.Open(ctx, dcdexec.Deps{Pool: h.pool, Gate: h.gate, Redeem: h.redeem}, h.dcdCli(),
 		dcdexec.Spec{StrategyRef: spec.StrategyRef, Venue: spec.Venue, InstID: spec.InstID,
 			Direction: spec.Direction, Template: spec.Template, NotionalUSD: spec.NotionalUSD})
 }

@@ -156,7 +156,8 @@ func run() error {
 			closer = execwiring.CloseExec{R: execR}
 			// live 开仓缝（T-0050——gate+执事+元数据件同源接线；T-0145 xvenue 面同件）。
 			liveOpener = hedgeOpener{pool: pool, cfg: cfg, gate: riskGate, r: execR, // T-0050
-				cli: newCli(priv.Credentials()), xcli: xcli, xdial: xdial, xds: xds}
+				redeem: earnW.RedeemToTrading, // O-CAP1：dcdexec 前置赎回同源 earn 实例（execR.WithEarn 同件）
+				cli:    newCli(priv.Credentials()), xcli: xcli, xdial: xdial, xds: xds}
 		} // !ro mutating 接线域收
 		// 读径面（只读镜像全通）：boot 首读播种+平仓量现读+funding 记账+私流守。
 		creds := priv.Credentials()

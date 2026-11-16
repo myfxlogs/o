@@ -55,8 +55,9 @@ type Spec struct {
 
 // Deps 开仓依赖面（pool=台账/gate=风控闸——产线装配同位注入）。
 type Deps struct {
-	Pool *pgxpool.Pool
-	Gate *risk.Gate
+	Pool   *pgxpool.Pool
+	Gate   *risk.Gate
+	Redeem func(ctx context.Context, usdAmt float64) error // O-CAP1：储蓄可赎前置缝（nil=旧径不变）
 }
 
 // Open dcd 产品开仓全径（产线 dcdOpen 原码搬迁——行为零漂移）。
@@ -109,6 +110,9 @@ func Open(ctx context.Context, d Deps, v Venue, spec Spec) (int64, error) {
 			return execID, fmt.Errorf("funding 户余读败 fail-closed: %w", aerr)
 		}
 		if deficit := spec.NotionalUSD - avail; deficit > 0 {
+			if rerr := d.preRedeem(ctx, execID, deficit); rerr != nil {
+				return execID, rerr
+			}
 			clTID, transID, terr := v.AssetTransfer(ctx, "USDT", deficit, AcctTrading, AcctFunding)
 			switch {
 			case terr == nil:
