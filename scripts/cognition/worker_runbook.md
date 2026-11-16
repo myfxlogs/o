@@ -24,6 +24,11 @@
 
 ```bash
 FIN_DSN=$(grep '^FIN_PG_DSN=' /opt/o-research/env | cut -d= -f2- | tr -d '"')
+# 读面选径(工单#17113):fin只读面=FIN_PG_RO_DSN(env载o_fin_ro窄读角色——
+#   fin_opp_eval/fin_opp_template等白名单表FIN_PG_DSN角色拒读实证,
+#   取证被拒读时换RO径不写接续):RO_DSN=$(grep '^FIN_PG_RO_DSN=' /opt/o-research/env | cut -d= -f2- | tr -d '"')
+#   md_*面SG无径——MD_PG_DSN在env但127.0.0.1:5435无o库(PG-md正本在OCI盒),
+#   归OCI座会话,本会话勿空等;写面/票面照旧FIN_PG_DSN。
 # OPEN 桌=ops_ticket_desk(fin_0190 语义层根修:销/挂起/认领/级单点视图——
 # 处置记号契:销——=销票|挂起解==复办|挂起条件==挂起|回执=待验不销,
 # 「销票归唤知」类名词引用不销;级=级P/级降P/级升P 三写法同解):

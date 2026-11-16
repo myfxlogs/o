@@ -22,6 +22,11 @@
 
 ```bash
 FIN_DSN=$(grep '^FIN_PG_DSN=' /opt/o-research/env | cut -d= -f2- | tr -d '"')
+# 读面选径(工单#17113):fin只读面=FIN_PG_RO_DSN(env载o_fin_ro窄读角色——
+#   fin_opp_eval/fin_opp_template等白名单表FIN_PG_DSN角色拒读实证,
+#   取证被拒读时换RO径不写接续):RO_DSN=$(grep '^FIN_PG_RO_DSN=' /opt/o-research/env | cut -d= -f2- | tr -d '"')
+#   md_*面SG无径——MD_PG_DSN在env但127.0.0.1:5435无o库(PG-md正本在OCI盒),
+#   归OCI座会话,本会话勿空等;写面/票面照旧FIN_PG_DSN。
 # 我为什么被叫(唤起行 trigger=baseline∨early:<因>——早唤=有要事,先处置它):
 psql "$FIN_DSN" -qAt -c "SELECT note FROM ops_event
   WHERE seat='自我机' AND event='唤起' ORDER BY id DESC LIMIT 1"
