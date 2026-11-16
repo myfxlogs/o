@@ -18,7 +18,7 @@ DSN=$(grep '^FIN_PG_DSN=' "$ENVF" 2>/dev/null | cut -d= -f2- | tr -d '"')
 # OPEN 票在案=唤(票态单点=ops_ticket_desk 视图,fin_0190 语义层根修——
 # 销/挂起/接续/认领/级解析只活在那一份,此处不再复制正则面)。
 TICKET_N=$(psql "$DSN" -qAt -c "
-SELECT count(*) FROM ops_ticket_desk WHERE workable" 2>/dev/null)
+SELECT count(*) FROM ops_ticket_desk WHERE workable AND tkind='工单'" 2>/dev/null)
 TICKET_N=${TICKET_N:-0}
 [ "$TICKET_N" -ge 1 ] || exit 0 # 零 OPEN 票=静默退(常态)
 
