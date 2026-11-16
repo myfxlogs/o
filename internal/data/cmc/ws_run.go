@@ -56,9 +56,11 @@ func (w *WsClient) runOnce(ctx context.Context) error {
 		}
 	}
 	log.Printf("[cmc-ws] connected+subscribed account=%d", w.accountID)
-	// 4. heartbeat goroutine
+	// 4. heartbeat goroutine + 连内续期（D-370 补丁的上游：auth-JWT 到期前连内重发
+	// auth 帧——消 "Session expired" 掐线→全量重登风暴根；服务端不认则照旧断线兜底）
 	done := make(chan struct{})
 	defer close(done)
+	w.startReauth(ctx, conn, done, jwt)
 	safego.GoLoop("cmc-ws:heartbeat", func() {
 		ticker := time.NewTicker(wsHeartbeatInterval) // sched-exempt-ok：WS 心跳节拍
 		defer ticker.Stop()
@@ -111,7 +113,8 @@ func (w *WsClient) handleMessage(ctx context.Context, data []byte) {
 		return
 	}
 	if env.Auth != nil {
-		return // auth ack 由 runOnce 处理
+		log.Printf("[cmc-ws] auth ack status=%s（续期回应面——首连 ack 由 runOnce 直读）", env.Auth.Status)
+		return
 	}
 	if env.Init != nil {
 		log.Printf("[cmc-ws] init: heartbeatInterval=%dms heartbeatTimeout=%dms subscriptions=%d",
