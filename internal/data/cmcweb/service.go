@@ -1,6 +1,7 @@
-// service.go —— cmcweb 编排面：AuthManager 登录 → 会话 cookie 注入 → 真 Chrome
-// 跑 platform → app WS 旁录 → 本地中继喂 o-core WsClient。看门狗：页死重启、
-// 被登出重注、连续败退避+条件请求。凭据不出进程（Go 侧只用于 cookie 源）。
+// service.go —— cmcweb 编排面：真 Chrome 跑 platform → UI 登录 → app WS
+// 旁录 → 本地中继喂 o-core WsClient + /api/ 页内 fetch REST 代理。看门狗：
+// 页死重启、被登出重登、连续败退避+条件请求。单会话制——Go 侧零 AuthManager
+// (任何 createsession 踢浏览器会话,SG 乒乓实证;UI 登录是唯一合法入口)。
 package cmcweb
 
 import (
@@ -11,7 +12,6 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"o/internal/data/cmc"
 	"o/internal/platform/condreq"
 )
 
@@ -23,13 +23,12 @@ const (
 )
 
 var (
-	errLoginForm = errors.New("登录面显形——会话 cookie 失签")
+	errLoginForm = errors.New("登录面显形——UI 登录未过")
 	errNoWS      = errors.New("app WS 未建立（90s 超时）")
 )
 
 // Service 浏览器采集中继服务。
 type Service struct {
-	auth      *cmc.AuthManager
 	browser   *Browser
 	pool      *pgxpool.Pool
 	accountID int64
@@ -37,10 +36,12 @@ type Service struct {
 	pass      string
 }
 
-func NewService(auth *cmc.AuthManager, accountID int64, bcfg BrowserCfg, pool *pgxpool.Pool, email, pass string) *Service {
+func NewService(accountID int64, bcfg BrowserCfg, pool *pgxpool.Pool, email, pass string) *Service {
+	relay := NewRelay(bcfg.RelayAddr)
+	b := NewBrowser(bcfg, relay)
+	relay.BindBrowser(b)
 	return &Service{
-		auth:      auth,
-		browser:   NewBrowser(bcfg, NewRelay(bcfg.RelayAddr)),
+		browser:   b,
 		pool:      pool,
 		accountID: accountID,
 		email:     email,
@@ -53,8 +54,6 @@ func (s *Service) Relay() *Relay { return s.browser.relay }
 
 // Run 编排主环（阻塞）。
 func (s *Service) Run(ctx context.Context) {
-	go s.auth.StartRefresh(ctx) // Go 侧会话续命——cookie 源恒温
-
 	bootOK := false
 	for i := 0; i < loginRetryMax; i++ {
 		if err := s.session(ctx); err != nil {
@@ -77,16 +76,9 @@ func (s *Service) Run(ctx context.Context) {
 	s.watchdog(ctx)
 }
 
-// session 一轮完整会话建立：登录→起浏览器→注 cookie→导航→等 WS。
+// session 一轮完整会话建立：起浏览器→导航→页态机(登录面填表/选择页点行)→等 WS。
 func (s *Service) session(ctx context.Context) error {
-	if err := s.auth.Login(ctx); err != nil {
-		return err
-	}
 	if err := s.browser.Start(ctx); err != nil {
-		return err
-	}
-	cookies := s.auth.SessionCookies(s.browser.cfg.PlatformBase)
-	if err := s.browser.InjectCookies(s.browserCtx(), cookies); err != nil {
 		return err
 	}
 	if err := s.browser.Navigate(s.browserCtx()); err != nil {

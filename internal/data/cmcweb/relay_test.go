@@ -30,6 +30,7 @@ func startRelay(t *testing.T) (*Relay, string) {
 	addr := ln.Addr().String()
 	_ = ln.Close()
 	r := NewRelay(addr)
+	r.SetUpstreamAlive(true) // 上游死时 serveWS 503 拒升——测试默认上游活
 	go func() { _ = r.ListenAndServe(context.Background()) }()
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
@@ -94,7 +95,6 @@ func TestRelayAcks(t *testing.T) {
 
 func TestRelayUpstreamDeath(t *testing.T) {
 	r, addr := startRelay(t)
-	r.SetUpstreamAlive(true)
 	c := dialRelay(t, addr)
 	defer c.Close()
 	_ = c.WriteMessage(1, []byte(`{"auth":{"token":"x"}}`))
@@ -102,5 +102,9 @@ func TestRelayUpstreamDeath(t *testing.T) {
 	r.SetUpstreamAlive(false)
 	if _, err := readFrame(t, c, 2*time.Second); err == nil {
 		t.Fatal("上游死客户端连未掐")
+	}
+	// 死态下新连接拒升（陈旧回放假报活闸——dial 应 503 败）
+	if _, _, err := websocket.DefaultDialer.Dial(fmt.Sprintf("ws://%s/", addr), nil); err == nil {
+		t.Fatal("上游死态下新 WS 升级未拒")
 	}
 }

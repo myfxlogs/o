@@ -66,7 +66,7 @@ type Snapshot struct {
 }
 
 type WsClient struct {
-	auth         jwtProvider
+	auth         JWTProvider
 	accountID    int64
 	store        *pgstore.Store
 	wsBase       string
@@ -123,7 +123,7 @@ type WsClient struct {
 	connMu       sync.Mutex
 }
 
-func NewWsClient(auth jwtProvider, accountID int64, store *pgstore.Store, wsBase, restBase string) *WsClient {
+func NewWsClient(auth JWTProvider, accountID int64, store *pgstore.Store, wsBase, restBase string) *WsClient {
 	w := &WsClient{
 		auth: auth, accountID: accountID, store: store, wsBase: wsBase, restBase: restBase,
 		marketStatus: func() string { return "" }, // 默认无注入（R2 修复：S1 重构误删已补回）

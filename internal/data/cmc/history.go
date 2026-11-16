@@ -14,13 +14,13 @@ import (
 // HistoryCollector 采集 CMC 交易历史（含每日隔夜利息 OVERNIGHT_SETTLEMENT）。
 // 增量拉取：LastCMCHistoryTime + from=last+1s，防 facts 表重复累积。
 type HistoryCollector struct {
-	auth      jwtProvider
+	auth      JWTProvider
 	accountID int64
 	store     *pgstore.Store
 	restBase  string
 }
 
-func NewHistoryCollector(auth jwtProvider, accountID int64, store *pgstore.Store, restBase string) *HistoryCollector {
+func NewHistoryCollector(auth JWTProvider, accountID int64, store *pgstore.Store, restBase string) *HistoryCollector {
 	return &HistoryCollector{auth: auth, accountID: accountID, store: store, restBase: restBase}
 }
 

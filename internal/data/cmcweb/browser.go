@@ -8,10 +8,9 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -26,6 +25,16 @@ const (
 	browserWSWait    = 90 * time.Second // 导航后等 app WS 建立上限
 	browserNavTimout = 60 * time.Second
 )
+
+// appJWTRe app WS 发帧 auth 载荷里的 JWT 抽取（{"auth":{"token":"eyJ…"}}）。
+var appJWTRe = regexp.MustCompile(`"token"\s*:\s*"(eyJ[^"]+)"`)
+
+// AppJWT app 自发 auth 帧捕获的当前 JWT（REST 代理令牌源;空=未捕获）。
+func (b *Browser) AppJWT() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.appJWT
+}
 
 // BrowserCfg 浏览器装配键。
 type BrowserCfg struct {
@@ -44,6 +53,7 @@ type Browser struct {
 
 	mu        sync.Mutex
 	appWS     map[network.RequestID]bool // 匹配 WSMatch 的存活 WS 集合——app 常并行两条,一条关≠全死
+	appJWT    string                     // app 自发 auth 帧里的真 JWT——REST 代理令牌源
 	lastFrame time.Time
 	wsURLSeen string
 
@@ -144,6 +154,17 @@ func (b *Browser) onEvent(ev any) {
 			return
 		}
 		b.relay.Feed(e.Response.PayloadData)
+	case *network.EventWebSocketFrameSent:
+		// app 周期 auth 帧携真 JWT——REST 代理令牌源（单会话制:页内 fetch 用
+		// app 自己的令牌发 connectapi,与 app 请求不可区分）。
+		if _, ok := b.appWS[e.RequestID]; !ok {
+			return
+		}
+		if m := appJWTRe.FindStringSubmatch(e.Response.PayloadData); len(m) == 2 {
+			b.mu.Lock()
+			b.appJWT = m[1]
+			b.mu.Unlock()
+		}
 	case *network.EventWebSocketClosed:
 		b.mu.Lock()
 		if _, ok := b.appWS[e.RequestID]; !ok {
@@ -160,38 +181,9 @@ func (b *Browser) onEvent(ev any) {
 	}
 }
 
-// InjectCookies 登录态注入——AuthManager 会话 cookie 罐写进浏览器 cookie 库。
-func (b *Browser) InjectCookies(ctx context.Context, cookies []*http.Cookie) error {
-	if len(cookies) == 0 {
-		return fmt.Errorf("cookie 罐空")
-	}
-	u, err := url.Parse(b.cfg.PlatformBase)
-	if err != nil {
-		return err
-	}
-	for _, c := range cookies {
-		dom := c.Domain
-		if dom == "" {
-			dom = u.Host
-		}
-		p := network.SetCookie(c.Name, c.Value).
-			WithDomain(dom).
-			WithPath(defaultStr(c.Path, "/")).
-			WithSecure(true).
-			WithHTTPOnly(c.HttpOnly)
-		if err := chromedp.Run(ctx, p); err != nil {
-			return fmt.Errorf("setCookie %s: %w", c.Name, err)
-		}
-	}
-	return nil
-}
-
-func defaultStr(s, d string) string {
-	if s == "" {
-		return d
-	}
-	return s
-}
+// InjectCookies/SessionCookies 径已退役——cookie 注入对 localStorage 型 SPA
+// 无效（22:03 实证:注入后仍落登录面），单会话制下 Go 侧会话本就禁建。
+// 登录唯一合法径=UI 填表（login.go）。
 
 // Navigate 导航 platform 根（app 自启自连 WS）。
 func (b *Browser) Navigate(ctx context.Context) error {

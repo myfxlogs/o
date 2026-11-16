@@ -31,7 +31,11 @@ type Relay struct {
 	upAlive bool     // 上游 app WS 活态——死则掐全客户端
 	addr    string
 	srv     *http.Server
+	browser *Browser // REST 代理页内 fetch 出口（BindBrowser 接线）
 }
+
+// BindBrowser REST 代理的浏览器出口（构造序:NewRelay→NewBrowser→Bind）。
+func (r *Relay) BindBrowser(b *Browser) { r.browser = b }
 
 type relayClient struct {
 	conn *websocket.Conn
@@ -103,6 +107,7 @@ func (r *Relay) ListenAndServe(ctx context.Context) error {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(fmt.Sprintf("ok upstream=%v clients=%d\n", up, n)))
 	})
+	mux.HandleFunc("/api/", r.apiProxy(r.browser)) // REST 页内 fetch 代理——单会话制 Go 零会话
 	mux.HandleFunc("/", r.serveWS)
 	r.srv = &http.Server{Addr: r.addr, Handler: mux}
 	ln, err := net.Listen("tcp", r.addr)
@@ -117,8 +122,16 @@ func (r *Relay) ListenAndServe(ctx context.Context) error {
 	return r.srv.Serve(ln)
 }
 
-// serveWS 升级 + 控制帧应答循环 + 数据帧泵。
+// serveWS 升级 + 控制帧应答循环 + 数据帧泵。上游死=503 拒升（下放陈旧
+// 回放帧会假报活——宁拒连客户端退避等新上游,不喂假数据）。
 func (r *Relay) serveWS(w http.ResponseWriter, req *http.Request) {
+	r.mu.Lock()
+	up := r.upAlive
+	r.mu.Unlock()
+	if !up {
+		http.Error(w, "上游 app WS 未建立", http.StatusServiceUnavailable)
+		return
+	}
 	conn, err := relayUpgrader.Upgrade(w, req, nil)
 	if err != nil {
 		return

@@ -17,15 +17,17 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// jwtProvider 抽象 JWT 获取（AuthManager 实现；测试用 mockAuth，提示词 S7 要求 mock AuthManager）。
-type jwtProvider interface {
+// JWTProvider 抽象 JWT 获取（AuthManager 实现；StaticJWT=中继径零会话件；
+// 测试用 mockAuth，提示词 S7 要求 mock AuthManager）。
+type JWTProvider interface {
 	JWT(ctx context.Context) (string, error)
+	Login(ctx context.Context) error
 }
 
 // ---------- PricesCollector ----------
 
 type PricesCollector struct {
-	auth         jwtProvider
+	auth         JWTProvider
 	instrumentID string
 	restBase     string
 	store        *pgstore.Store
@@ -40,7 +42,7 @@ type PricesCollector struct {
 	quoteHook func(bid, ask float64, ts time.Time)
 }
 
-func NewPricesCollector(auth jwtProvider, instrumentID string, store *pgstore.Store, restBase string) *PricesCollector {
+func NewPricesCollector(auth JWTProvider, instrumentID string, store *pgstore.Store, restBase string) *PricesCollector {
 	return &PricesCollector{auth: auth, instrumentID: instrumentID, store: store, restBase: restBase}
 }
 

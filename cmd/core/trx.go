@@ -162,17 +162,32 @@ func cmcArm(ctx context.Context, errc chan<- error, w *trxWiring) {
 		return
 	}
 	pool, st := w.pool, w.st
-	auth := cmc.NewAuthManager(email, pass, acct, cmc.DefaultPlatformBase)
-	go auth.StartRefresh(ctx)
+	// 中继径判定:cmc.ws_base/cmc.rest_base 任一覆写→浏览器单会话径,Go 侧
+	// 零会话(单会话制——任何 createsession 踢掉浏览器 web 会话,SG 23:04
+	// 乒乓实证;auth 帧中继不验,REST 由浏览器页内 fetch 代发)。
+	wsBase, _ := w.cfg.GetString("cmc.ws_base")
+	restBase, _ := w.cfg.GetString("cmc.rest_base")
+	if restBase == "" {
+		restBase = cmc.DefaultRestBase
+	}
+	var auth cmc.JWTProvider
+	relayMode := wsBase != "" || restBase != cmc.DefaultRestBase
+	if relayMode {
+		auth = cmc.NewStaticJWT("relay")
+		log.Printf("[cmc] 中继径——Go 侧零会话(浏览器单会话制) ws=%s rest=%s", wsBase, restBase)
+	} else {
+		am := cmc.NewAuthManager(email, pass, acct, cmc.DefaultPlatformBase)
+		go am.StartRefresh(ctx)
+		auth = am
+	}
 	// WS 事件流（T-0110：LiveState 内存态=对冲结构 freshLive 主源；ws_disabled
 	// 热启回退全 REST——nox wire_cmc 同语义）。
 	wsOff, _ := w.cfg.GetBool("cmc.ws_disabled")
 	if !wsOff {
-		wsBase, _ := w.cfg.GetString("cmc.ws_base") // cmcweb 中继径覆写件（空=官端点直连）
 		if wsBase == "" {
 			wsBase = cmc.DefaultWsBase
 		}
-		ws := cmc.NewWsClient(auth, acct, st, wsBase, cmc.DefaultRestBase)
+		ws := cmc.NewWsClient(auth, acct, st, wsBase, restBase)
 		w.cmcLive = ws.LiveState
 		w.cmcWsHealth = ws.IsHealthy
 		go ws.Run(ctx) // sched-exempt-ok：WS 事件流（有流用流——断流自愈循环）
@@ -183,9 +198,9 @@ func cmcArm(ctx context.Context, errc chan<- error, w *trxWiring) {
 		return
 	}
 	go roster.BeatLoop(ctx, pool, "CMC CFD 采集", 30*time.Second, errc)
-	prices := cmc.NewPricesCollector(auth, "X-AFQUL", st, cmc.DefaultRestBase)
-	accts := cmc.NewAccountCollector(auth, acct, st, cmc.DefaultRestBase)
-	hist := cmc.NewHistoryCollector(auth, acct, st, cmc.DefaultRestBase)
+	prices := cmc.NewPricesCollector(auth, "X-AFQUL", st, restBase)
+	accts := cmc.NewAccountCollector(auth, acct, st, restBase)
+	hist := cmc.NewHistoryCollector(auth, acct, st, restBase)
 	poll := func() {
 		if err := auth.Login(ctx); err != nil {
 			log.Printf("[cmc] login 败（本轮采集让位）: %v", err)

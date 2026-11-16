@@ -49,7 +49,6 @@ func main() {
 		}
 		return string(b)
 	}
-	cmc.SetCreateTplHex(sec("cmc.create_tpl"))
 	email, pass := sec("cmc.email"), sec("cmc.password")
 	acctS, _ := cfg.GetString("cmc.account_id")
 	acct, _ := strconv.ParseInt(acctS, 10, 64)
@@ -81,8 +80,7 @@ func main() {
 	errc := make(chan error, 4)
 	go roster.BeatLoop(ctx, pool, "CMC 浏览器中继", 30*time.Second, errc)
 
-	auth := cmc.NewAuthManager(email, pass, acct, bcfg.PlatformBase)
-	svc := cmcweb.NewService(auth, acct, bcfg, pool, email, pass)
+	svc := cmcweb.NewService(acct, bcfg, pool, email, pass)
 	go func() {
 		if err := svc.Relay().ListenAndServe(ctx); err != nil {
 			errc <- err

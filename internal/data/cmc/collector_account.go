@@ -14,7 +14,7 @@ import (
 )
 
 type AccountCollector struct {
-	auth      jwtProvider
+	auth      JWTProvider
 	accountID int64
 	store     *pgstore.Store
 	restBase  string
@@ -22,7 +22,7 @@ type AccountCollector struct {
 	wsHealthy func() bool
 }
 
-func NewAccountCollector(auth jwtProvider, accountID int64, store *pgstore.Store, restBase string) *AccountCollector {
+func NewAccountCollector(auth JWTProvider, accountID int64, store *pgstore.Store, restBase string) *AccountCollector {
 	return &AccountCollector{auth: auth, accountID: accountID, store: store, restBase: restBase}
 }
 
