@@ -50,37 +50,46 @@ psql "$FIN_DSN" -c "SELECT template,verdict,net_apr,inst_id,ts::date
 ### ② 读板——全公司在干什么
 
 ```bash
-# 未决信号面+工单桌+P1 积压+研究提案积压——四张快照
+# 未决信号面+工单桌(fin_0190 单点视图)+裁定债+研究提案积压:
 psql "$FIN_DSN" -c "SELECT count(*),max(age_s) FROM ops_esc_pending"
-psql "$FIN_DSN" -c "SELECT t.id,left(t.note,120) FROM ops_event t
-  WHERE t.event='工单' AND t.ts>now()-interval '30 days'
-    AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='处置'
-      AND x.ts>t.ts AND x.note ~ ('工单#'||t.id::text||'([^0-9]|$)')
-      AND x.note NOT LIKE '%挂起条件=%'
-      AND x.note !~ ('工单#'||t.id::text||' ?接续'))
-  ORDER BY t.ts LIMIT 25"
+psql "$FIN_DSN" -c "SELECT id,level,workable,rulable,claimed,susp_cls,
+  left(note,120) FROM ops_ticket_desk WHERE NOT closed
+  ORDER BY COALESCE(level,9),filed_ts LIMIT 30"
+# 裁定债(等裁定票=唤知裁定本+你直裁件——最陈龄是KPI):
+psql "$FIN_DSN" -c "SELECT count(*),COALESCE(max(now()-susp_since),'0s')::interval(0)
+  FROM ops_ticket_desk WHERE rulable"
 ```
 
 - **级=未标的票按判据标**（P1堵钱径堵他票凭据断供/P2常态/P3清洁）
 - P1 在板>3 张=本拍必处置——砍/提前置/报董事会，不许晾
+- **裁定债保底**——rulable 面最陈>48h∨≥4张=本拍必裁至少1张
+  （裁=挂起解=复办∨销终局∨级改判∨判「过期作废」销——挂起>7天
+  的票你有消极权：不值得裁的裁定本身就是答案）。一张没裁=判词
+  写明「债N张/最陈Xh/未裁因=…」不许无声。批量裁=同类裁定一拍清。
 
 ### ③ 判——本拍判词（第一人称写）
 
-判词必须答完这四问，缺一=拍废：
+判词必须答完这六问，缺一=拍废：
 
 1. **方向对不对**：钱的面（年化轨迹/各族产出）vs 总纲——偏没偏？
 2. **什么先做**：板子上哪三张最重（写下你的排序理由）
 3. **什么该死**：净负族/烂票/空转件——列死名单及证据
 4. **我错哪了**：上拍判词哪句被证伪——**认错是职责不是软弱**
+5. **裁定债几两**：等裁定票N张/最陈Xh——本拍裁了几张，零裁写因
+   （等裁定=别人的工作挂在你嘴上——欠账要明，不欠不问）
+6. **补丁还是根修**：本拍修件里有没有「打补丁代根修」——
+   第2次修同族病灶=你在给雷区布雷，停手查母病（反问器件）
 
 ### ④ 写——判词+令票+态势页
 
 ```bash
 # 判词(本拍总账,必落):
 psql "$FIN_DSN" -c "INSERT INTO ops_event(seat,event,ticket,note)
-  VALUES('自我','判词','','第<seq>拍——<四问答案压缩>」
+  VALUES('自我','判词','','第<seq>拍——<六问答案压缩>」
   |接下来3件: ①<票/动作> ②<> ③<>')"
-# 令票(级=处置行改判/方向票立案——方向票≤3张/拍防票厂):
+# 令票(级=处置行改判/方向票立案——方向票≤3张/拍防票厂;
+# 机制类票(修法/机制变更)票面必填三栏——修法候选/被否方案/取舍理由,
+# 缺栏=唤知退件口实,反问器件①):
 psql "$FIN_DSN" -c "INSERT INTO ops_event(seat,event,ticket,note)
   VALUES('自我','处置','','工单#<id> 级=P1——<理由>')"
 psql "$FIN_DSN" -c "INSERT INTO ops_event(seat,event,ticket,note)

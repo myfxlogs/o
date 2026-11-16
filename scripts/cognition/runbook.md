@@ -160,29 +160,18 @@ psql "$FIN_DSN" -c "SELECT key FROM app_secrets ORDER BY 1"
 # 工单=目标集,焦点=当前追求指针;无行=器官未启用):
 psql "$FIN_DSN" -c "SELECT id,ts,note FROM ops_event WHERE event='焦点'
   ORDER BY id DESC LIMIT 1"
-# OPEN 工单(未销+无活在认领)——按期限序=施工面入口,认领/销/挂起三选一,不许无声跳过:
-# 销票引证剔「挂起条件=」与「接续」行(缓办/进度非完结,升件#12643);挂起引证在
-# 票期限内暂抑回列(票开着但缓办),过期回列复验——与 feed_esc tickEnded 同语义:
-psql "$FIN_DSN" -c "SELECT t.id,t.ts,left(t.note,200) FROM ops_event t
-WHERE t.event='工单' AND t.ts>now()-interval '30 days'
-  AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='处置' AND x.ts>t.ts
-    AND x.note ~ ('工单#'||t.id::text||'([^0-9]|$)')
-    AND x.note NOT LIKE '%挂起条件=%'
-    AND x.note !~ ('工单#'||t.id::text||' ?接续'))
-  AND NOT EXISTS (SELECT 1 FROM ops_event s WHERE s.event='处置' AND s.ts>t.ts
-    AND s.note ~ ('工单#'||t.id::text||'([^0-9]|$)') AND s.note LIKE '%挂起条件=%' AND s.note NOT LIKE '%认领窗%' AND s.note NOT LIKE '%施工窗%'
-    AND s.ts + COALESCE((substring(s.note from '挂起期限=([0-9]+)h'))::int,
-      COALESCE((substring(t.note from '期限=([0-9]+)h'))::int,72))*interval '1 hour' > now())
-  AND NOT EXISTS (SELECT 1 FROM ops_event c WHERE c.event='认领' AND c.ts>t.ts
-    AND c.ts>now()-interval '2 hours'
-    AND c.note ~ ('工单#'||t.id::text||'([^0-9]|$)'))
-ORDER BY COALESCE((
-    SELECT (substring(g.note from '级=P([123])'))::int FROM ops_event g
-    WHERE g.note ~ '级=P[123]'
-      AND (g.id = t.id OR (g.event='处置' AND g.ts>t.ts
-        AND g.note ~ ('工单#'||t.id::text||'([^0-9]|$)')))
-    ORDER BY g.ts DESC, g.id DESC LIMIT 1), 2),
-  t.ts + COALESCE((substring(t.note from '期限=([0-9]+)h'))::int,24)*interval '1 hour'"
+# OPEN 工单=ops_ticket_desk(fin_0190 语义层根修——票态单点视图)。
+# 处置记号契:销——=销票|挂起解=<裁定>=复办|挂起条件==挂起|回执=待验
+# 不销|级=P/级降P/级升P 同解;「销票归唤知」类名词引用不销:
+psql "$FIN_DSN" -c "SELECT id,level,deadline,left(note,200) FROM ops_ticket_desk
+WHERE workable ORDER BY COALESCE(level,2), deadline"
+# 裁定本(rulable——挂起条件含裁定/细裁/DM/授权/口径/规格的等裁票:
+# 它们在你桌不归施工桌;裁三选一→处置行载票:
+# 挂起解=<裁定结果> =复办回施工桌|销—— =终局|级=Px =改判;
+# 票面缺「修法候选/被否方案/取舍理由」的机制票=可退件(处置行
+# 「退件——缺取舍栏」注缺项)或你自补齐三栏再裁):
+psql "$FIN_DSN" -c "SELECT id,level,susp_since,left(note,200) FROM ops_ticket_desk
+WHERE rulable ORDER BY susp_since"
 ```
 
 ### ①½ 生成面（信号面净时——「探未知」常驻径）
@@ -798,6 +787,10 @@ monologue.md 档),写 `event='独白'` 链(续=独白#id)——O 的内在线程
   仍归处置席。判词凡载事实断言的尽量写可验式(merge=<sha>/
   部署sha/计数断言)——verdfalse探抽复,判词与账矛盾即升件,
   写不成断言的照旧散文不阻。
+  **机制票三栏契**(2026-11-16 反问器件①——词面坑族实证:
+  首草修法无人挑战直装=坑母;立案即强制对抗自审):
+  修法/机制类票票面必填「修法候选≥2/被否方案/取舍理由」——
+  缺栏=唤知可退件(处置行载「退件——缺取舍栏」)或处置席自补。
   **判据三分口径**(业主令2026-11-15⑧医件——「点破率30d=0」
   成年判据的可量基):外席行必载 `类=<键>`——类=点破(给方向
   给答案:「走X廊」「照Y修」)/类=喂料(事实审计生产实测纠偏)/

@@ -22,11 +22,8 @@ SELECT '懂你', '', left(note,110) FROM ops_event
   WHERE event='量表' AND ticket='owner_model' ORDER BY id DESC LIMIT 1;
 SELECT '议程', id::text, esc_class||'/'||esc_scope||' v'||valence||' '||left(note,70)
   FROM ops_esc_pending ORDER BY valence DESC, id DESC LIMIT 8;
-SELECT '工单', id::text, left(note,90) FROM ops_event t WHERE event='工单'
-  AND t.ts>now()-interval '30 days'
-  AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='处置' AND x.ts>t.ts
-    AND x.note ~ ('工单#'||t.id||'([^0-9]|$)'))
-  ORDER BY t.ts LIMIT 5;
+SELECT '工单', id::text, left(note,90) FROM ops_ticket_desk t WHERE NOT t.closed
+  ORDER BY t.filed_ts LIMIT 5;
 SQL
 ```
 
