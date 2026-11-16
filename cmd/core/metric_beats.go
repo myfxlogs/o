@@ -19,4 +19,5 @@ func (c coreService) metricBeats(ctx context.Context, deadSince map[string]time.
 	c.pnlAttrBeat(ctx, deadSince)    // 策略盈亏归因（11-12①——分列+账房咬合,账房器官零改动）
 	c.selfAwareBeat(ctx)             // 自我意识器官帧（工单#13540 业主令件——本体觉三问量表）
 	c.regimeBeat(ctx)                // 世模环境帧（棒3——市场态量表,世面=冷启动即见件）
+	c.seatKpiBeat(ctx)               // 各岗KPI量表（工单#19121——唤知钦定八口径日行照）
 }
