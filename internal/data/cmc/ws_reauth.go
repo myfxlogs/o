@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"math/rand"
 	"time"
 
 	"o/internal/platform/safego"
@@ -50,14 +51,16 @@ func (w *WsClient) startReauth(ctx context.Context, conn *websocket.Conn, done <
 	})
 }
 
-// reauthWait 距下次续期的等待：exp-reauthMargin，下限 reauthMinWait；解析败回退 reauthDefault。
+// reauthWait 距下次续期的等待：exp-reauthMargin+±10s 抖动，下限 reauthMinWait；
+// 解析败回退 reauthDefault。抖动消节拍器纹（爬虫脚印降噪）——margin45s 兜得住。
 func reauthWait(jwt string) time.Duration {
 	exp, err := parseExp(jwt)
 	if err != nil {
 		return reauthDefault
 	}
-	if wait := time.Until(exp.Add(-reauthMargin)); wait >= reauthMinWait {
-		return wait
+	wait := time.Until(exp.Add(-reauthMargin)) + time.Duration(rand.Intn(21)-10)*time.Second
+	if wait < reauthMinWait {
+		return reauthMinWait
 	}
-	return reauthMinWait
+	return wait
 }

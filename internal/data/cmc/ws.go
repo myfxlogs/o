@@ -11,6 +11,7 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"math/rand"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -49,9 +50,10 @@ var ( // 新鲜度守卫参数（C2 路径②）+ 退避：var 便于测试覆�
 	wsBackoff       = func(attempt int) time.Duration {
 		d := time.Duration(1<<uint(attempt)) * time.Second
 		if d > 60*time.Second {
-			return 60 * time.Second
+			d = 60 * time.Second
 		}
-		return d
+		// ±40% 抖动：指数退避不叠节拍器纹（爬虫脚印降噪+服务端恢复窗防齐步重锤）
+		return d + time.Duration(float64(d)*(rand.Float64()*0.8-0.4))
 	}
 )
 

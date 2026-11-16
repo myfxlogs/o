@@ -14,7 +14,7 @@ func TestReauthWait(t *testing.T) {
 		min  time.Duration
 		max  time.Duration
 	}{
-		{"300s新鲜JWT→255s档", fakeJWT(time.Now().Add(300 * time.Second)), 250 * time.Second, 260 * time.Second},
+		{"300s新鲜JWT→255s±10s档", fakeJWT(time.Now().Add(300 * time.Second)), 244 * time.Second, 276 * time.Second},
 		{"剩40s→钳下限30s", fakeJWT(time.Now().Add(40 * time.Second)), 29 * time.Second, 31 * time.Second},
 		{"已过期→下限", fakeJWT(time.Now().Add(-10 * time.Second)), 29 * time.Second, 31 * time.Second},
 		{"非法串→默认240s", "not-a-jwt", 239 * time.Second, 241 * time.Second},
