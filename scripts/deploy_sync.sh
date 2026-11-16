@@ -8,7 +8,9 @@ SG="${O_SG_HOST:-root@192.229.85.35}"
 DEST="/opt/o/"
 EXTRA=(); [ "${1:-}" = "-n" ] && EXTRA=(-n)
 # --files-from=git 跟踪清单（core.quotepath=false CJK 原样——NOX 实证）。
-rsync -az "${EXTRA[@]}" --files-from=<(git -c core.quotepath=false ls-files) ./ "$SG:$DEST"
+# 剔 docs/态势.md——SG 自我席活页就地写非 git 真源，同步冲页=灭连续自我
+# （2026-11-16 实证冲页 18min；自我席迁本机前免碰，迁后此剔可去）。
+rsync -az "${EXTRA[@]}" --files-from=<(git -c core.quotepath=false ls-files | grep -vxF 'docs/态势.md') ./ "$SG:$DEST"
 
 # 陈件 prune：git 已删 .go/migrations 差集定点删——**禁 rsync --delete**
 # （坑正典 deploy-sync-stale-files：--files-from 下 --delete 扫删 .env/logs 活件）。

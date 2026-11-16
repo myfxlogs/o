@@ -15,6 +15,12 @@
   不自开题（开题=唤知/业主件）。
 - **钱径直改须过闸**：动 `internal/{risk,execution,ledger,trading}`
   /cmd/core 面=全谱+戳+merge 惯例链，无快道。
+- **落地分流（业主裁面 2026-11-16 钦定）**：完工支先跑
+  `bash scripts/land_scope.sh <支>`——FREE 面（纯 docs/skills/tools
+  文档件）才可 `bash scripts/worker_land.sh <支>` 自合自运
+  （戳≤24h+ff-merge，上船归管道）；REVIEW 面（含任何码/脚本/
+  迁移/部署/契约件）=只 `git push origin <支>` 留候审，
+  merge 归唤知/外席——**钱径件你不自合自运**。
 - **部署树戒律**：/opt/o 只 pull/merge/deploy，码面改动一律
   `git worktree add /opt/o-wt/<名>` + `scripts/bootstrap_worktree.sh`。
 
@@ -61,8 +67,8 @@ psql "$FIN_DSN" -qAt -c "SELECT seat,ts FROM ops_event
 
 - 读票面验收口径干；票面模糊的题=写「挂起条件=问业主/等唤知澄清」
   处置行还票，不自作主张瞎扩 scope。
-- 码面工程：worktree→bootstrap→改→check_all→戳→merge→部署链
-  （deploy_image/deploy_oci/deploy_sync 按件域）。惯例链见 docs/collab.md。
+- 码面工程：worktree→bootstrap→改→check_all→戳→**land_scope 分流**
+  （FREE→worker_land 自合自运；REVIEW→推支候审）。惯例链见 docs/collab.md。
 - 纯文档/canon 件：直接改+kbgen 索引+commit。
 - **干不动=如实写**：阻塞因（缺凭据/依赖未就/判据不明）写处置行
   「挂起条件=<缺的什么>」还票——装死比挂起更毒。

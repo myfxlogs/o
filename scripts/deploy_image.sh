@@ -195,4 +195,10 @@ bash scripts/image_tag_gc.sh \
 docker builder prune -f --filter "until=72h" >/dev/null 2>&1 \
   || tail_fail "builder_prune" "docker builder prune 败（缓存残留下轮 deploy 再收）" # 保洁尽力件——败记尾步升件，部署成败不绑保洁
 
+# ── ⑧ 脚本/契约随链同步（2026-11-16 病灶：只换镜像不带 scripts——
+# SG 唤知/施工/自我调度件与 runbook 滞版数小时，两机契约面分叉；
+# 修复靠人手跑 deploy_sync，无自动环）。尾步——败升件不翻部署结果。
+bash scripts/deploy_sync.sh \
+  || tail_fail "deploy_sync" "源码同步败（镜像已上，SG 脚本/契约面滞版——补跑 scripts/deploy_sync.sh）"
+
 echo "[deploy_image] done→$SG（部署锁 trap 已释）"

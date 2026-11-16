@@ -32,5 +32,9 @@ cmd/simdrill/
 # ── 账面约束（append-only/语义闸 DDL 载体）──
 migrations/
 
+# ── 落地闸（业主裁面 2026-11-16：钱径件只交支候审，分流判据本体）──
+scripts/land_scope.sh
+scripts/worker_land.sh
+
 # ── 自指 ──
 deploy/immune_paths.txt

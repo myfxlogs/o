@@ -1,0 +1,10 @@
+[Unit]
+Description=o-worker.timer 施工机拍（双车道件——15min 扫 OPEN 工桌唤施工席会话）
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=15min
+Unit=o-worker-dispatch.service
+
+[Install]
+WantedBy=timers.target

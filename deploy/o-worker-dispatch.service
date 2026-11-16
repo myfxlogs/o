@@ -1,0 +1,7 @@
+[Unit]
+Description=o-worker-dispatch 施工机触发拍（双车道件——OPEN 票在案→单飞施工席会话）
+
+[Service]
+Type=oneshot
+ExecStart=/opt/o/scripts/cognition/dispatch_worker.sh
+NoNewPrivileges=true
