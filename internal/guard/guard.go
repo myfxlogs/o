@@ -69,6 +69,10 @@ type Warden struct {
 	notes   map[string]time.Time                       // skip 态限频日志时间戳（键级 10min 节流）
 	equity  func(ctx context.Context) (float64, error) // 净权益现读件（dd 硬线判定时点实读）
 	ddFacts map[string]any                             // 本拍回撤实况载荷（dd/阈/peak/cur——T-0415 平仓决策行携实况）
+	// 以下三件由 events.ListenLoop 单 goroutine 串行驱动（scanOnce）——不加锁同前提。
+	now         func() time.Time // 时钟缝（nil=time.Now；取用走 w.clock()）
+	bar         ddBar            // dd 硬线分钟柱在收柱（柱内样本攒内存）
+	eqFailSince time.Time        // 权益连续读败起点（成功拍清零）
 }
 
 // AttachSizer 挂平仓量 venue 现读面（cmd 装配注入——未挂=平仓 fail-closed）。
@@ -114,7 +118,7 @@ func NewWarden(pool *pgxpool.Pool, cfg *config.Client, gate *risk.Gate, ex Execu
 	return &Warden{pool: pool, cfg: cfg, gate: gate, ex: ex,
 		rej: rejects.New("guard", "missing_param", "facts_missing", "leg_anomaly",
 			"close_denied", "close_failed", "close_gave_up", "write_err", "loop_alert",
-			"dd_missing_param", "equity_missing", "equity_stale", "dd_no_base", "dd_hardline_tripped", "dd_close_exhausted",
+			"dd_missing_param", "equity_missing", "equity_stale", "dd_no_base", "dd_hardline_tripped", "dd_close_exhausted", "dd_bar_thin",
 			"dir_missing_param", "dir_nav_missing", "dir_measure_err", "dir_leg_px_missing", "dir_mark_missing",
 			"dir_freeze_err", "dir_loss_breaker_tripped", "dir_close_exhausted",
 			"bare_bag")}

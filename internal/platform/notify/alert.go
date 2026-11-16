@@ -38,6 +38,7 @@ const (
 var chanMoney = map[string]bool{
 	"ledger_diff_alert": true, "rollback_failed": true, "close_gave_up": true,
 	"guard_close_loop": true, "dd_hardline_tripped": true, "dd_close_exhausted": true,
+	"dd_line_blind":       true,
 	"dir_close_exhausted": true, "kill_switch": true, "transfer_ambiguous": true,
 	"bare_bag": true, "close_residual_perp": true, "residual_exposure": true,
 	"residual_clear_failed": true, "dcd_auto_retire": true, "volsell_auto_retire": true,

@@ -2,15 +2,20 @@
 # check_config_write_domain.sh —— app_config 写域二分册机检闸（T-0376 锚④
 # 静态断言）。分册正本=scripts/config-write-domain.tsv；Go 径=internal/
 # platform/config/dmwrite.go（dmWritableGlobs/ownerKeyGlobs 同集镜像）。
-# 四断言：
+# 五断言：
 #   ① 集同：TSV dm/owner 行集 == dmwrite.go 两 glob 集逐字（漂移即红）；
 #   ② 硬界：dm 行零凭证形、零业主面硬键（资金上限/停机总闸/对账容差
 #      ——碰即红）；TSV 两集交叠=红（owner 行优先语义不允许交叠歧义）；
 #   ③ 覆盖棘轮：Go 消费宇宙（config 读器调用点+*Key 常量定义的键字面量）
 #      每键必被「凭证形 regex ∨ 分册行」覆盖——未登记=红（新键须入册，
 #      fail-closed 归 owner 是运行时闸，本断言逼文档面同步）。
-# 行为级半面=go test（TestClassifyKeyDomain/TestDMSetHardBoundsUnreachable
-# ——check_all 全谱跑；集同①保证 TSV 行为=Go 行为的文档镜像不失真）。
+#   ④ 行为级对拍=go test（TestClassifyKeyDomain/TestDMSetHardBoundsUnreachable
+#      ——check_all 全谱跑；集同①保证 TSV 行为=Go 行为的文档镜像不失真）。
+#   ⑤ 裸 Get 白名单：internal/platform/config 包外非测试 Go 件对字面量键
+#      的裸 .Get 读点「文件:键」必须在白名单内——标量键禁裸 Get（走
+#      GetBool/GetFloat/GetInt/GetString 宽容读器；canon
+#      config-json-type-fragility 复发实证=killSwitchOn 单型解 jsonb 布尔
+#      致回撤硬线失明三周，工单#20799），清单/映射键现存读点全列白名单。
 set -uo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
@@ -70,4 +75,27 @@ done | head -8)
 [ -z "$unreg" ] || fail "消费宇宙未登记键（入册后 DM 才可写——fail-closed 域）: $(echo "$unreg" | tr '\n' ' ')"
 
 # —— ④ 行为级对拍=go test（见头注——本脚本零探针）——
-echo "✅ [config-write-domain] 集同+硬界+覆盖三断言全绿（dm=$(echo "$go_dm" | wc -l) 行 owner=$(echo "$go_owner" | wc -l) 行 universe=$(echo "$UNIVERSE" | wc -l) 键）"
+
+# —— ⑤ 裸 Get 白名单闸（标量键禁裸 .Get——config 包外字面量键裸读现存点全列；
+#    「文件:键」粒度，新增读点未登记即红）——
+BARE_GET_ALLOW=$'internal/mt5/bridge.go:bridge.mt5.symbols
+internal/mt5/collector.go:mt5.gateway_addr
+internal/mt5/collector.go:mt5.symbols
+internal/mt5/session.go:mt5.gateway_addr
+internal/mt5/session.go:mt5.gateway_fallbacks
+internal/venue/onboard/mapgate.go:okx.symbols
+internal/portfolio/hunger/coverage.go:okx.symbols
+internal/repair/watch.go:repair.feeds
+internal/repair/watch.go:repair.guard
+internal/research/sigdist/xvenue.go:bridge.xvenue.map
+internal/research/sigdist/xshadow.go:okx.symbols
+internal/data/okxws/depth5.go:bridge.depth5.symbols
+cmd/core/dialect_submit.go:okx.symbols'
+bare=$(grep -rnE '\.Get\("[a-z0-9_]+\.[a-z0-9_.]+"' internal cmd tools \
+    --include='*.go' --exclude='*_test.go' 2>/dev/null \
+  | grep -v '^internal/platform/config/' \
+  | sed -E 's/^([^:]+):[0-9]+:.*\.Get\("([a-z0-9_.]+)"\).*/\1:\2/' | sort -u)
+bad=$(comm -23 <(echo "$bare") <(echo "$BARE_GET_ALLOW" | sort -u))
+[ -z "$bad" ] || fail "裸 Get 白名单外读点（标量键禁裸 .Get——走 GetBool/GetFloat/GetInt/GetString；清单/映射键读点须先入白名单）: $(echo "$bad" | tr '\n' ' ')"
+
+echo "✅ [config-write-domain] 集同+硬界+覆盖+裸Get四断言全绿（dm=$(echo "$go_dm" | wc -l) 行 owner=$(echo "$go_owner" | wc -l) 行 universe=$(echo "$UNIVERSE" | wc -l) 键 bare=$(echo "$bare" | wc -l) 读点）"

@@ -9,10 +9,12 @@ import (
 	"o/internal/risk"
 )
 
-// 回撤硬线测试锚（T-0025 段一·验收标准一）——共享库纪律：md_equity_curve/快照行
-// 属本包 schema 隔离面（T-0021 testutil），测试首拍清本表保确定性，收官不删库行。
+// 回撤硬线测试锚（T-0025 段一·验收标准一；O-DD1 工单#20799 柱语义改造）——
+// 共享库纪律：md_equity_curve/快照行属本包 schema 隔离面（T-0021 testutil），
+// 测试首拍清本表保确定性，收官不删库行。
 
-// ddSeed 净权益场景播种（快照行现值+曲线历史；src=test 供清扫）。
+// ddSeed 净权益场景播种（历史柱行 src='guard_dd_bar'——峰值只读柱行；
+// cur 直挂定值权益件，逐值节拍用 newDDRig）。
 func ddSeed(t *testing.T, ctx context.Context, w *Warden, cur float64, hist map[string]float64) {
 	t.Helper()
 	if _, err := w.pool.Exec(ctx, "DELETE FROM md_equity_curve"); err != nil {
@@ -21,7 +23,7 @@ func ddSeed(t *testing.T, ctx context.Context, w *Warden, cur float64, hist map[
 	w.AttachEquity(func(ctx context.Context) (float64, error) { return cur, nil })
 	for ago, eq := range hist {
 		if _, err := w.pool.Exec(ctx,
-			`INSERT INTO md_equity_curve(ts,venue,ccy,equity,src) VALUES(now()-$1::interval,'okx','USDT',$2,'test')`, ago, eq); err != nil {
+			`INSERT INTO md_equity_curve(ts,venue,ccy,equity,src) VALUES(now()-$1::interval,'okx','USDT',$2,'guard_dd_bar')`, ago, eq); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -44,7 +46,9 @@ func TestDDTripFlattensAndKills(t *testing.T) {
 	// 起点 HWM 100，现值 96.5——回撤 3.5% ≥ 3% 触线（史 10d<窗口 30d→HWM 径）
 	ddSeed(t, ctx, w, 96.5, map[string]float64{"'10 days'": 100, "'5 days'": 95})
 	posID := mkPosition(t, ctx, w, "live", 1, time.Now().Add(-time.Hour))
-	w.ddScan(ctx)
+	r := newDDRig(t, ctx, w)
+	r.feed(96.5, 96.5, 96.5)
+	r.close(96.5)
 	if !killSwitchDB(t, ctx, w) {
 		t.Fatal("触线未落 kill_switch")
 	}
@@ -68,7 +72,9 @@ func TestDDBelowThresholdZeroAction(t *testing.T) {
 	ctx, w, fx := setup(t)
 	ddSeed(t, ctx, w, 98, map[string]float64{"'10 days'": 100}) // dd=2%<3%
 	mkPosition(t, ctx, w, "live", 1, time.Now().Add(-time.Hour))
-	w.ddScan(ctx)
+	r := newDDRig(t, ctx, w)
+	r.feed(98, 98, 98)
+	r.close(98)
 	if killSwitchDB(t, ctx, w) {
 		t.Fatal("阈下误落闸")
 	}
@@ -87,7 +93,9 @@ func TestDDInsufficientHistoryHWM(t *testing.T) {
 	// 史 2d（<30d 窗）但起点回撤 4%：100→96——HWM 径必触
 	ddSeed(t, ctx, w, 96, map[string]float64{"'2 days'": 100, "'1 days'": 97})
 	mkPosition(t, ctx, w, "live", 1, time.Now().Add(-time.Hour))
-	w.ddScan(ctx)
+	r := newDDRig(t, ctx, w)
+	r.feed(96, 96, 96)
+	r.close(96)
 	if !killSwitchDB(t, ctx, w) {
 		t.Fatal("史不足径未按起点 HWM 判触")
 	}
@@ -101,7 +109,9 @@ func TestDDWindowRollsOff(t *testing.T) {
 	ctx, w, _ := setup(t)
 	// 40d 前峰 100（窗外），窗内 95@-10d，现值 96.5→窗内 dd=0 不触
 	ddSeed(t, ctx, w, 96.5, map[string]float64{"'40 days'": 100, "'10 days'": 95})
-	w.ddScan(ctx)
+	r := newDDRig(t, ctx, w)
+	r.feed(96.5, 96.5, 96.5)
+	r.close(96.5)
 	if killSwitchDB(t, ctx, w) {
 		t.Fatal("窗外旧峰误触线（滚动窗未滚出）")
 	}
@@ -112,7 +122,9 @@ func TestDDWindowRollsOff(t *testing.T) {
 func TestDDNoAutoReset(t *testing.T) {
 	ctx, w, fx := setup(t)
 	ddSeed(t, ctx, w, 96, map[string]float64{"'2 days'": 100})
-	w.ddScan(ctx)
+	r := newDDRig(t, ctx, w)
+	r.feed(96, 96, 96)
+	r.close(96)
 	if !killSwitchDB(t, ctx, w) {
 		t.Fatal("前置：应已触线落闸")
 	}
@@ -122,7 +134,8 @@ func TestDDNoAutoReset(t *testing.T) {
 	if err := w.cfg.Load(ctx); err != nil {
 		t.Fatal(err)
 	}
-	w.ddScan(ctx)
+	r.eq = 120
+	r.scan()
 	if !killSwitchDB(t, ctx, w) {
 		t.Fatal("监视面自动复位了 kill_switch——越权")
 	}
@@ -152,10 +165,10 @@ func TestDDNoAutoReset(t *testing.T) {
 	}
 }
 
-// TestDDMissingKeysFailClosed 判据键缺=不监视+告警计数（fail-closed 不虚构）。
+// TestDDMissingKeysFailClosed 判据键缺=不监视+失明计数告警（fail-closed 不虚构）。
 func TestDDMissingKeysFailClosed(t *testing.T) {
 	ctx, w, fx := setup(t)
-	for _, k := range []string{"risk.max_dd_30d", "risk.dd_window_days"} {
+	for _, k := range []string{"risk.max_dd_30d", "risk.dd_window_days", "risk.dd_bar_seconds"} {
 		if _, err := w.pool.Exec(ctx, "DELETE FROM app_config WHERE key=$1", k); err != nil {
 			t.Fatal(err)
 		}
@@ -165,20 +178,22 @@ func TestDDMissingKeysFailClosed(t *testing.T) {
 	}
 	ddSeed(t, ctx, w, 90, map[string]float64{"'2 days'": 100}) // 深回撤场景——键缺仍不得动作
 	mkPosition(t, ctx, w, "live", 1, time.Now().Add(-time.Hour))
-	w.ddScan(ctx)
+	r := newDDRig(t, ctx, w)
+	r.feed(90, 90, 90)
+	r.close(90)
 	if w.rej.Snapshot()["guard/dd_missing_param"] == 0 {
-		t.Fatal("缺键告警计数未计")
+		t.Fatal("缺键失明计数未计")
 	}
 	if killSwitchDB(t, ctx, w) || len(fx.calls) != 0 {
 		t.Fatal("缺键面不得动作（判据不虚构）")
 	}
 	var n int
-	if err := w.pool.QueryRow(ctx, "SELECT count(*) FROM md_equity_curve WHERE src='guard_dd'").Scan(&n); err != nil || n != 0 {
-		t.Fatalf("缺键面不应采点: n=%d", n)
+	if err := w.pool.QueryRow(ctx, "SELECT count(*) FROM md_equity_curve WHERE src='guard_dd_bar' AND ts>now()-interval '1 hour'").Scan(&n); err != nil || n != 0 {
+		t.Fatalf("缺键面不应落柱行: n=%d", n)
 	}
 }
 
-// TestDDEquityStaleSkips 陈快照不采点不判（读径新鲜度门——快照禁令）。
+// TestDDEquityStaleSkips 权益现读败不采点不判（读径新鲜度门——瞬时读败不告警）。
 func TestDDEquityStaleSkips(t *testing.T) {
 	ctx, w, _ := setup(t)
 	if _, err := w.pool.Exec(ctx, "DELETE FROM md_equity_curve"); err != nil {
@@ -191,24 +206,28 @@ func TestDDEquityStaleSkips(t *testing.T) {
 	}
 	var n int
 	if err := w.pool.QueryRow(ctx, "SELECT count(*) FROM md_equity_curve").Scan(&n); err != nil || n != 0 {
-		t.Fatalf("陈快照不应采点: n=%d", n)
+		t.Fatalf("读败面不应落柱行: n=%d", n)
 	}
 }
 
-// TestDDCaptureAppendsCurve 采点面：鲜快照每拍落 md_equity_curve 事实行（append-only）。
-func TestDDCaptureAppendsCurve(t *testing.T) {
+// TestDDBarAppendsCurve 柱行面：收柱前零行、收柱后恰 1 行 src='guard_dd_bar'（append-only）。
+func TestDDBarAppendsCurve(t *testing.T) {
 	ctx, w, _ := setup(t)
 	if _, err := w.pool.Exec(ctx, "DELETE FROM md_equity_curve"); err != nil {
 		t.Fatal(err)
 	}
-	ddSeed(t, ctx, w, 100, nil)
-	w.ddScan(ctx)
+	r := newDDRig(t, ctx, w)
+	r.feed(100, 100, 100)
+	var n0 int
+	if err := w.pool.QueryRow(ctx, "SELECT count(*) FROM md_equity_curve").Scan(&n0); err != nil || n0 != 0 {
+		t.Fatalf("收柱前应零行: n=%d", n0)
+	}
+	r.close(100)
 	var n int
 	var src string
-	if err := w.pool.QueryRow(ctx, `SELECT count(*),max(src) FROM md_equity_curve WHERE src='guard_dd'`).Scan(&n, &src); err != nil || n != 1 {
-		t.Fatalf("采点行=%d err=%v", n, err)
+	if err := w.pool.QueryRow(ctx, `SELECT count(*),max(src) FROM md_equity_curve WHERE src='guard_dd_bar'`).Scan(&n, &src); err != nil || n != 1 {
+		t.Fatalf("收柱后柱行=%d err=%v", n, err)
 	}
-	_ = fmt.Sprint(src)
 }
 
 // TestDDRetryAfterFirstFail 触线续平循环：首败→次拍自动重平→closed（打回返工锚①
@@ -218,12 +237,17 @@ func TestDDRetryAfterFirstFail(t *testing.T) {
 	fx.failFirstN = 1 // 首平瞬时败
 	ddSeed(t, ctx, w, 96, map[string]float64{"'2 days'": 100})
 	posID := mkPosition(t, ctx, w, "live", 1, time.Now().Add(-time.Hour))
-	w.ddScan(ctx) // 触发拍：落闸+首平败（close_failed，attempts=1）
+	r := newDDRig(t, ctx, w)
+	r.feed(96, 96, 96)
+	r.close(96) // 触发拍：落闸+首平败（close_failed，attempts=1）
 	if !killSwitchDB(t, ctx, w) || len(fx.calls) != 1 {
 		t.Fatalf("触发拍 kill=%v calls=%d", killSwitchDB(t, ctx, w), len(fx.calls))
 	}
 	if closed, _, _ := posClosed(t, ctx, w, posID); closed {
 		t.Fatal("首败不应已平")
+	}
+	if err := w.cfg.Load(ctx); err != nil { // 快照翻闸（产线热载——测面手动）
+		t.Fatal(err)
 	}
 	w.ddScan(ctx) // 次拍：触线态续平（节拍窗内 attempts=1<3）→成
 	if len(fx.calls) != 2 {
@@ -249,9 +273,14 @@ func TestDDExhaustedPersistentAlert(t *testing.T) {
 	fx.failFirstN = 100 // 全败
 	ddSeed(t, ctx, w, 96, map[string]float64{"'2 days'": 100})
 	mkPosition(t, ctx, w, "live", 1, time.Now().Add(-time.Hour))
-	for i := 0; i < 3; i++ { // 三拍耗尽上限（retry_max_attempts=3）
-		w.ddScan(ctx)
+	r := newDDRig(t, ctx, w)
+	r.feed(96, 96, 96)
+	r.close(96)                             // 触发拍：落闸+首平败
+	if err := w.cfg.Load(ctx); err != nil { // 快照翻闸（产线热载——测面手动）
+		t.Fatal(err)
 	}
+	r.scan()      // 次拍续平败（attempts=2）
+	w.ddScan(ctx) // 第三拍续平败（attempts=3=上限）
 	if len(fx.calls) != 3 {
 		t.Fatalf("耗尽前平仓尝试=%d（应 3）", len(fx.calls))
 	}

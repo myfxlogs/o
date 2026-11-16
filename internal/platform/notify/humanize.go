@@ -16,6 +16,7 @@ var kindSpec = map[string]struct {
 	"guard_close_loop":       {"平仓循环自残", false, "守卫环熔断——同策略开仓已挂起（T-0423），解冻归裁定席判词/业主令"},
 	"dd_hardline_tripped":    {"净值硬线触停", true, "风险停手已自动执行"},
 	"dd_close_exhausted":     {"触停平仓耗尽", false, "仓残人工处置"},
+	"dd_line_blind":          {"净值硬线失明", true, "硬线未在判撤——判据/急停开关/权益读不出，需人工排查"},
 	"kill_switch":            {"急停开关", true, "系统停手状态变化"},
 	"transfer_ambiguous":     {"划转歧态势", true, "钱动未确认——人工核实"},
 	"net_budget_warn":        {"带宽预算预警", false, "观测面超阈"},

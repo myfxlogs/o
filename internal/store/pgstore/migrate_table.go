@@ -202,6 +202,7 @@ var migrationTable = []struct {
 	{193, "fin_0193_ticket_kind.sql"},
 	{194, "fin_0194_wip_window.sql"},
 	{195, "fin_0195_dirtrend_keys.sql"},
+	{196, "fin_0196_ddline_bar.sql"},
 
 	// —— md 链（版本链内唯一且单调；md 链版本=历史号+1000 与 fin 键空间全局不相交——跨链并 schema 时 schema_migrations 零撞号，check_migrations 断言①⑤）——
 	{1003, "md_1003_market_facts.sql"},
