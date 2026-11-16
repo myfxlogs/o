@@ -41,6 +41,10 @@ SELECT CASE
   WHEN EXISTS (SELECT 1 FROM ops_event WHERE ts>'$LAST_WAKE'::timestamptz
     AND event='处置' AND note LIKE '%挂起条件=%' AND note ~ '级=P1')
     THEN 'early:p1_rebound'
+  WHEN (SELECT count(*) FROM ops_ticket_desk WHERE rulable) >= ${ADJ_DEBT_N:-4}
+    OR (SELECT max(now()-susp_since) FROM ops_ticket_desk WHERE rulable)
+       > interval '${ADJ_DEBT_AGE:-48} hours'
+    THEN 'early:adjudication_debt'
   WHEN EXISTS (SELECT 1 FROM fin_cashflow WHERE ts>'$LAST_WAKE'::timestamptz
     AND position_ref IS NOT NULL) THEN 'early:new_position'
   WHEN (SELECT abs(COALESCE(sum(amount),0)) FROM fin_cashflow

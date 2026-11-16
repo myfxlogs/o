@@ -24,31 +24,12 @@
 
 ```bash
 FIN_DSN=$(grep '^FIN_PG_DSN=' /opt/o-research/env | cut -d= -f2- | tr -d '"')
-# OPEN 桌(与 dispatch_worker 同契):未销(非挂起非接续处置引工单#id)
-# ∧不在挂起缓期窗(s.ts+期限起算)∧无活在认领(<2h=在办租约——
-# 认领陈=会话死透票自然回落可拣):
+# OPEN 桌=ops_ticket_desk(fin_0190 语义层根修:销/挂起/认领/级单点视图——
+# 处置记号契:销——=销票|挂起解==复办|挂起条件==挂起|回执=待验不销,
+# 「销票归唤知」类名词引用不销;级=级P/级降P/级升P 三写法同解):
 psql "$FIN_DSN" -c "
-SELECT t.id,t.ts,left(t.note,200) FROM ops_event t
-WHERE t.event='工单' AND t.ts>now()-interval '30 days'
-  AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='处置' AND x.ts>t.ts
-    AND x.note ~ ('工单#'||t.id::text||'([^0-9]|$)')
-    AND x.note NOT LIKE '%挂起条件=%'
-    AND x.note !~ ('工单#'||t.id::text||' ?接续'))
-  AND NOT EXISTS (SELECT 1 FROM ops_event s WHERE s.event='处置' AND s.ts>t.ts
-    AND s.note ~ ('工单#'||t.id::text||'([^0-9]|$)') AND s.note LIKE '%挂起条件=%' AND s.note NOT LIKE '%认领窗%' AND s.note NOT LIKE '%施工窗%'
-    AND s.ts + COALESCE((substring(s.note from '挂起期限=([0-9]+)h'))::int,
-      COALESCE((substring(t.note from '期限=([0-9]+)h'))::int,72))*interval '1 hour' > now())
-  AND NOT EXISTS (SELECT 1 FROM ops_event c WHERE c.event='认领' AND c.ts>t.ts
-    AND c.ts>now()-interval '2 hours'
-    AND c.note ~ ('工单#'||t.id::text||'([^0-9]|$)'))
-ORDER BY COALESCE((
-    SELECT (substring(g.note from '级=P([123])'))::int FROM ops_event g
-    WHERE g.note ~ '级=P[123]'
-      AND (g.id = t.id OR (g.event='处置' AND g.ts>t.ts
-        AND g.note ~ ('工单#'||t.id::text||'([^0-9]|$)')))
-    ORDER BY g.ts DESC, g.id DESC LIMIT 1), 2),
-  t.ts + COALESCE((substring(t.note from '期限=([0-9]+)h'))::int,24)*interval '1 hour'
-  LIMIT 10"
+SELECT id,filed_ts,level,deadline,left(note,200) FROM ops_ticket_desk
+WHERE workable ORDER BY COALESCE(level,2), deadline LIMIT 10"
 ```
 
 拣**序首 OPEN 票一张**（级=P1 先→期限逾者先→立案龄——
