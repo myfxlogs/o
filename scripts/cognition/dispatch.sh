@@ -73,7 +73,9 @@ FROM (
       AND x2.esc_scope='ticketstall_'||t.id AND x2.ts>now()-interval '30 days')+1 AS n,
     round(EXTRACT(EPOCH FROM (now()-t.filed_ts))/3600.0) AS age_h
   FROM ops_ticket_desk t
-  WHERE t.workable
+  WHERE t.workable AND t.dispatchable
+  -- dispatchable窗(fin_0194 WIP限界):滞留探只管服务窗内晾票——
+  -- 窗外backlog票不可拣,逐票升件=压力放大器,由queue_depth聚合卡报。
   AND t.last_active < now() - interval '1 second' * $STALL_AGE
   AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='升件'
     AND x.esc_scope='ticketstall_'||t.id AND x.ts>now()-interval '7 days'
@@ -102,6 +104,59 @@ LEFT JOIN ops_ticket_desk t ON t.id=p.tid::bigint
 WHERE t.id IS NULL -- 票龄出30d窗=死件,滞留升件归销
    OR t.last_active > now() - interval '1 second' * $STALL_AGE
    OR NOT t.workable
+SQL
+
+# 工单面压力探(fin_0194 队列闭环感知腿):backlog=WIP窗外在账不可拣票,
+# 滞留探只管窗内,窗外淤积由本件聚合一张卡报——不逐票升件(逐件=压力
+# 放大器,自喂环实证在fin_0194注)。阈=backlog≥COG_BACKLOG_HI,24h去重;
+# 卡载窗态/最陈龄/7d入出率/簇top——判归席,探只报。
+BACKLOG_HI=${COG_BACKLOG_HI:-5}
+psql "$DSN" -qAt <<SQL >/dev/null 2>&1 || true # tolerate: 同滞留探契,败=下拍补
+INSERT INTO ops_event(seat,event,esc_class,esc_scope,note)
+SELECT '探测席','升件','工单面压力','queue_depth',
+  '工单面压力:窗'||q.active||'/'||q.wip||' backlog='||q.backlog
+  ||' 最陈='||q.oldest_h||'h 7d入'||q.in7||'/出'||q.out7||' 簇top='||q.clusters
+  ||'——窗外按级饿死非丢票;入流请并簇/摘要票/缓P3,勿逐件立'
+FROM (
+  SELECT
+    count(*) FILTER (WHERE dispatchable AND tkind='工单') AS active,
+    count(*) FILTER (WHERE workable AND NOT dispatchable AND tkind='工单') AS backlog,
+    COALESCE(max(EXTRACT(epoch FROM now()-filed_ts)/3600)
+      FILTER (WHERE workable AND NOT dispatchable),0)::int AS oldest_h,
+    (SELECT count(*) FROM ops_event WHERE event='工单'
+      AND ts>now()-interval '7 days') AS in7,
+    (SELECT count(*) FROM ops_event_act a JOIN ops_event e ON e.id=a.rel
+      WHERE a.act='close' AND e.event='工单'
+      AND a.ts>now()-interval '7 days') AS out7,
+    COALESCE((SELECT string_agg(slug||'×'||rn, ',' ORDER BY rn DESC) FROM (
+      SELECT substring(note from '工单/([a-z0-9_-]+)') AS slug, count(*) AS rn
+      FROM ops_ticket_desk
+      WHERE workable AND NOT dispatchable AND tkind='工单'
+      GROUP BY 1 ORDER BY rn DESC LIMIT 3) c),'(无)') AS clusters,
+    COALESCE((SELECT value::int FROM app_config WHERE key='dm.cog.wip_limit'),20) AS wip
+  FROM ops_ticket_desk
+) q
+WHERE q.backlog >= $BACKLOG_HI
+AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='升件'
+  AND x.esc_scope='queue_depth' AND x.ts>now()-interval '24 hours'
+  AND NOT EXISTS (SELECT 1 FROM ops_event y WHERE y.ts>x.ts
+    AND y.note ~ ('升件#'||x.id::text||'([^0-9]|\$)')))
+SQL
+
+# 面压扫尾:backlog回阈下=压力条件消→恢复行自闭未决件(同ticketstall扫尾契)
+psql "$DSN" -qAt <<SQL >/dev/null 2>&1 || true # tolerate: 扫尾写败=下拍补
+INSERT INTO ops_event(seat,event,note)
+SELECT '探测席','恢复','升件#'||p.id||' 复绿——backlog='||b.n||'回阈下,面压归销'
+FROM (
+  SELECT e.id FROM ops_event e
+  WHERE e.event='升件' AND e.esc_scope='queue_depth'
+    AND e.ts>now()-interval '7 days'
+    AND NOT EXISTS (SELECT 1 FROM ops_event y WHERE y.ts>e.ts
+      AND y.note ~ ('升件#'||e.id::text||'([^0-9]|\$)'))
+) p,
+LATERAL (SELECT count(*) AS n FROM ops_ticket_desk
+  WHERE workable AND NOT dispatchable AND tkind='工单') b
+WHERE b.n < $BACKLOG_HI
 SQL
 
 # 未入支板(坑处置: 升件#11240 散文接续缝根修——会话销案留「接续:merge」

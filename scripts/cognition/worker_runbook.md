@@ -29,13 +29,19 @@ FIN_DSN=$(grep '^FIN_PG_DSN=' /opt/o-research/env | cut -d= -f2- | tr -d '"')
 # 「销票归唤知」类名词引用不销;级=级P/级降P/级升P 三写法同解):
 psql "$FIN_DSN" -c "
 SELECT id,filed_ts,level,deadline,left(note,200) FROM ops_ticket_desk
-WHERE workable AND tkind='工单' ORDER BY COALESCE(level,2), deadline LIMIT 10"
+WHERE dispatchable AND tkind='工单' ORDER BY COALESCE(level,2), deadline LIMIT 10"
 ```
+
+桌只露**服务窗**（fin_0194 WIP限界：workable中按级/期限排前N张,
+N=app_config dm.cog.wip_limit)——窗外backlog在账不可拣,不是失踪,
+由唤知统管;窗内没票就收口,别去窗外翻活干。
 
 拣**序首 OPEN 票一张**（级=P1 先→期限逾者先→立案龄——
 级=判据: P1堵钱径/堵他票/凭据断供,P2常态工程,P3清洁文档;
 未标=P2。级判错不是你的事——干就是,判级归唤知/自我）。
-一场一张：干完一张有时间再拣下一张，不贪多烂尾。
+**簇并办**:top10内同slug族票(工单/<同前缀>)且验收判据同族者,
+可一棒并办——认领行逐票各写一张(占票承诺不省),回执/挂起引全簇
+工单#id;异族票不硬凑。一场一簇：干完一簇有时间再拣下一簇,不贪多烂尾。
 
 ### ① 认领——先写行再动手（租约闸）
 
