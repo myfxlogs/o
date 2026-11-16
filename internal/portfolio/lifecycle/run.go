@@ -14,6 +14,7 @@ import (
 	"o/internal/platform/decision"
 	"o/internal/platform/events"
 	"o/internal/platform/execfam"
+	"o/internal/platform/legset"
 	"o/internal/platform/opschain"
 	"o/internal/platform/rejects"
 	"o/internal/platform/roster"
@@ -178,6 +179,10 @@ func (r *Runner) admitProposals(ctx context.Context, notional, minH, minNet, max
 		if !execfam.Has(x.tmpl) {
 			blocked[x.tmpl]++
 			continue // executor 缺席=看见了做不了——提案留 proposed（模板门闸，T-0124）
+		}
+		if !legset.InstFitOK(x.tmpl, x.inst) {
+			blocked[x.tmpl+"/inst形不符"]++
+			continue // inst 构型不合族腿构型=看见了做不了——提案留 proposed（工单#15943：DCD 期权形误进 funding-hedge 实证）
 		}
 		if x.tmpl == "xvenue-carry" {
 			if err := r.admitXvenuePair(ctx, x.id, x.inst, x.dir, notional, minH, minNet, maxDD); err != nil {

@@ -181,6 +181,7 @@ internal/trading/okxexec -> internal/platform/signutil
 internal/gen/dashboardv1/dashboardv1connect -> internal/gen/dashboardv1
 internal/gen/scoutv1/scoutv1connect -> internal/gen/scoutv1
 internal/portfolio/lifecycle -> internal/platform/execfam
+internal/portfolio/lifecycle -> internal/platform/legset
 internal/research/dcd -> internal/platform/execfam
 internal/research/funding -> internal/platform/execfam
 internal/research/gapscan -> internal/platform/execfam
