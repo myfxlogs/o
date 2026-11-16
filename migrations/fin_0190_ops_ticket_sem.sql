@@ -26,20 +26,18 @@
 ALTER TABLE ops_event ADD COLUMN IF NOT EXISTS sem JSONB;
 
 CREATE OR REPLACE VIEW ops_event_act AS
-SELECT e.id, e.ts, e.seat, e.event,
-  COALESCE((e.sem->>'rel')::bigint,
-    (regexp_match(e.note,'工单#([0-9]+)'))[1]::bigint,
-    (regexp_match(COALESCE(e.ticket,''),'^(?:工单#)?([0-9]+)$'))[1]::bigint) AS rel,
+SELECT e.id, e.ts, e.seat, e.event, r.rel,
   COALESCE(e.sem->>'act', CASE
-    WHEN e.event='认领' AND e.note ~ '工单#[0-9]' THEN 'claim'
-    WHEN e.event='在办' AND e.note ~ '工单#[0-9]' THEN 'doing'
-    WHEN e.event='处置' AND e.note ~ '工单#[0-9]' AND e.note ~ '挂起条件=' THEN 'suspend'
-    WHEN e.event='处置' AND e.note ~ '工单#[0-9]' AND e.note ~ '挂起解=' THEN 'resume'
-    WHEN e.event='处置' AND e.note ~ '工单#[0-9]' AND e.note ~ '接续' THEN 'continue'
-    WHEN e.event='处置' AND e.note ~ '工单#[0-9]'
-      AND e.note ~ '(工单#[0-9]+ +销|销[—：:，,]|销$)' THEN 'close'
-    WHEN e.event='处置' AND e.note ~ '工单#[0-9]' AND e.note ~ '回执' THEN 'receipt'
-    WHEN e.event='处置' AND e.note ~ '工单#[0-9]' THEN 'note'
+    WHEN e.event='认领' AND r.rel IS NOT NULL THEN 'claim'
+    WHEN e.event='在办' AND r.rel IS NOT NULL THEN 'doing'
+    WHEN e.event='处置' AND r.rel IS NOT NULL AND e.note ~ '挂起条件=' THEN 'suspend'
+    WHEN e.event='处置' AND r.rel IS NOT NULL AND e.note ~ '挂起解=' THEN 'resume'
+    WHEN e.event='处置' AND r.rel IS NOT NULL
+      AND e.note ~ ('工单#'||r.rel||' ?接续') THEN 'continue'
+    WHEN e.event='处置' AND r.rel IS NOT NULL
+      AND e.note ~ ('工单#'||r.rel||'[^—#]{0,20}(销[—：:，,]|销$)') THEN 'close'
+    WHEN e.event='处置' AND r.rel IS NOT NULL AND e.note ~ '回执' THEN 'receipt'
+    WHEN e.event='处置' AND r.rel IS NOT NULL THEN 'note'
   END) AS act,
   CASE WHEN e.event='处置' AND e.note ~ '挂起条件=' THEN
     COALESCE(e.sem->>'cls', CASE
@@ -49,8 +47,11 @@ SELECT e.id, e.ts, e.seat, e.event,
   END AS susp_cls,
   (regexp_match(e.note,'挂起期限=([0-9]+)h'))[1]::int AS susp_hours,
   COALESCE((e.sem->>'level')::int,
-    (regexp_match(e.note,'级[ ]*[升降=]*[ ]*P([123])'))[1]::int) AS level
-FROM ops_event e;
+    (regexp_match(e.note,'工单#[0-9]+[^#]{0,30}级[ ]*[升降=]*[ ]*P([123])'))[1]::int) AS level
+FROM ops_event e,
+LATERAL (SELECT COALESCE((e.sem->>'rel')::bigint,
+    (regexp_match(e.note,'工单#([0-9]+)'))[1]::bigint,
+    (regexp_match(COALESCE(e.ticket,''),'^(?:工单#)?([0-9]+)$'))[1]::bigint) AS rel) r;
 
 CREATE OR REPLACE VIEW ops_ticket_desk AS
 SELECT t.id, t.ts filed_ts, t.note,
