@@ -558,7 +558,8 @@ monologue.md 档),写 `event='独白'` 链(续=独白#id)——O 的内在线程
     （adopted 须执行族在册）+ops_event 审计行；OCI arm64 构建
     scp 后跑，`DB_DSN`=md 正本、`OPS_DB_DSN`=ROSTER_PG_DSN
     （跨库两序写——review_rw 缺 ops_headless 权败案在案；
-    seat∈{处置席,复审席}——fin_0154 矩阵）。
+    seat∈{处置席,复审席}——fin_0154 矩阵；mdMasterGuard 正本闸
+    在码——SG 镜像面拒写，工单#19021 缝防）。
   - **卡→族骨架交付清单**（要码修件的交付形——骨架齐=卡收养毕，
     paper 跑通数据再谈 live executor 权重）：
     ① grammar.Families() 注册行（模板名+腿向+结算源——枚举闭集入口）；
