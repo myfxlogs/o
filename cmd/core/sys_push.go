@@ -142,7 +142,7 @@ func shTZ() *time.Location {
 }
 
 // shortUnit 机产 unit ID→短名（o-cognition-NNNN→唤知·尾NNNN；
-// o-cognition-monologue→唤知·独白；o-cog 截尾→唤知；其他=o-前缀剥）。
+// o-cog 截尾→唤知；其他=o-前缀剥）。
 func shortUnit(u string) string {
 	if u == "o-cog" {
 		return "唤知"
@@ -150,9 +150,6 @@ func shortUnit(u string) string {
 	s := strings.TrimPrefix(u, "o-cognition-")
 	if s == u {
 		return strings.TrimPrefix(u, "o-")
-	}
-	if s == "monologue" {
-		return "唤知·独白"
 	}
 	if len(s) > 4 && isDigits(s) {
 		return "唤知·尾" + s[len(s)-4:]

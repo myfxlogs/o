@@ -20,7 +20,6 @@ cd /opt/o || exit 0
 humanize() {
 	sed -E \
 		-e 's/unit=o-cognition-[0-9]*([0-9]{4})\b/唤知·尾\1/g' \
-		-e 's/unit=o-cognition-monologue/唤知·独白/g' \
 		-e 's/unit=o-cognition-[a-zA-Z0-9_-]+/唤知/g' \
 		-e 's/host=([a-zA-Z0-9_-]+)/@\1/g' \
 		-e 's/rc=0 ?//g' \
