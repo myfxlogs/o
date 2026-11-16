@@ -16,7 +16,7 @@ const (
 	ShapeOKXTwoLeg    LegShape = "okx_two_leg"    // 现货多+合约空（funding/basis 族）
 	ShapeXvenue       LegShape = "xvenue"         // mt5 CFD 腿先+okx perp 腿后
 	ShapeDCD          LegShape = "dcd"            // DCD 产品三步径（quote→trade→status）
-	ShapeOKXSingleLeg LegShape = "okx_single_leg" // 方向族单 perp 腿（棒5c——dir_perp_mom 首发）
+	ShapeOKXSingleLeg LegShape = "okx_single_leg" // 方向族单 perp 腿（棒5c dir_perp_mom 首发；perp-trend-daily 同形工单#11481）
 )
 
 // LegShapeOf 模板→腿形映射（注册表——execfam 册内模板全覆盖断言锚）。
@@ -29,7 +29,7 @@ func LegShapeOf(tmpl string) (LegShape, bool) {
 		return ShapeOKXTwoLeg, true
 	case tmpl == "xvenue-carry":
 		return ShapeXvenue, true
-	case tmpl == "dir_perp_mom":
+	case tmpl == "dir_perp_mom" || tmpl == "perp-trend-daily":
 		return ShapeOKXSingleLeg, true
 	case tmpl == "simdrill-gate":
 		// 演习 harness 自体测试模板（单钻径通用双腿闸演——非产线模板，
