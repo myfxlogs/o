@@ -32,6 +32,7 @@ type stubSensor struct {
 	depErr   error
 	fserr    error
 	kserr    error
+	odErr    error
 	detects  atomic.Int64
 	responds atomic.Int64
 	probes   atomic.Int64
@@ -40,6 +41,7 @@ type stubSensor struct {
 	deps     atomic.Int64
 	fstales  atomic.Int64
 	kstales  atomic.Int64
+	ods      atomic.Int64
 }
 
 func (s *stubSensor) Detect(context.Context) (*hunger.Report, error) {
@@ -81,6 +83,11 @@ func (s *stubSensor) ProbeFeedStale(context.Context) error {
 func (s *stubSensor) ProbeKlineStale(context.Context) error {
 	s.kstales.Add(1)
 	return s.kserr
+}
+
+func (s *stubSensor) ProbeOpenDrought(context.Context) error {
+	s.ods.Add(1)
+	return s.odErr
 }
 
 func (s *stubSensor) MineLessons(context.Context) (int, error) {
@@ -358,12 +365,12 @@ func TestHungerTickFeedStaleEveryBeat(t *testing.T) {
 		t.Fatal(err)
 	}
 	stub := &stubSensor{rep: &hunger.Report{Triggered: false, WindowDays: 3},
-		fserr: errors.New("假败——行龄读败")}
+		fserr: errors.New("假败——行龄读败"), odErr: errors.New("假败——断流读败")}
 	r := &Runner{pool: pool, sensor: stub}
 	r.hungerTick(ctx)
-	if stub.fstales.Load() != 1 || stub.kstales.Load() != 1 || stub.detects.Load() != 1 {
-		t.Fatalf("feed死闸/日K死闸/Detect 同槽拍不齐: fstales=%d kstales=%d detects=%d",
-			stub.fstales.Load(), stub.kstales.Load(), stub.detects.Load())
+	if stub.fstales.Load() != 1 || stub.kstales.Load() != 1 || stub.ods.Load() != 1 || stub.detects.Load() != 1 {
+		t.Fatalf("feed死闸/日K死闸/断流/Detect 同槽拍不齐: fstales=%d kstales=%d ods=%d detects=%d",
+			stub.fstales.Load(), stub.kstales.Load(), stub.ods.Load(), stub.detects.Load())
 	}
 	var n int
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
