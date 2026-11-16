@@ -1,8 +1,11 @@
 // notifyflood_test.go —— ev_eval 通知洪泛源治桩锚（T-0162）：实质变才发——
-// 同键同值覆写零 NOTIFY；批内多变一 NOTIFY（同事务空 payload 同值去重）；
-// INSERT 恒发（新键=新评估）；实质变仍即时醒（lifecycle 唤醒语义不变线）。
+// INSERT 恒发（新键/新版本=新评估，版史形下每版皆新信息）；UPDATE 仅
+// verdict/评分/legs/evidence IS DISTINCT 才发（ts 元数据不计——SG uEval
+// 镜像刷新同值静默仍守）；批内多变一 NOTIFY（同事务空 payload 同值去重）。
 // 行为测每测独占 channel（触发器重指独有名——共享测试实例上他包 fin_opp_eval
 // 写拍同频道噪声隔离）；生产频道形由结构锚直验触发器定义。
+// 工单#19778 版史迁移：md 写径 upsert→纯 INSERT（重述版=新版本仍发——
+// 实测写率~1-2/min 远低洪泛阈，版通知=新信念唤醒正当）；UPDATE 径语义不变。
 package events
 
 import (
@@ -19,13 +22,16 @@ import (
 	"o/internal/store/pgstore"
 )
 
-// upsertEval 生产写拍同形（funding 扫描臂 persist 同构——INSERT..ON CONFLICT
-// DO UPDATE 无条件覆写含 ts）。
-const upsertEval = `INSERT INTO fin_opp_eval(inst_id,template,direction,gross_apr,net_apr,verdict,legs,evidence)
-	VALUES($1,'funding-hedge','short_perp_long_spot',$2,$3,$4,$5::jsonb,$6::jsonb)
-	ON CONFLICT (inst_id,template,direction) DO UPDATE SET ts=now(),
-	gross_apr=EXCLUDED.gross_apr,net_apr=EXCLUDED.net_apr,verdict=EXCLUDED.verdict,
-	legs=EXCLUDED.legs,evidence=EXCLUDED.evidence`
+// insertEval 生产写拍同形（工单#19778 版史形——md 写径纯 INSERT 无
+// ON CONFLICT；每评估一版 id 递增）。
+const insertEval = `INSERT INTO fin_opp_eval(inst_id,template,direction,gross_apr,net_apr,verdict,legs,evidence)
+	VALUES($1,'funding-hedge','short_perp_long_spot',$2,$3,$4,$5::jsonb,$6::jsonb)`
+
+// updateEval UPDATE 径同形（SG uEval 镜像刷新臂——同键 ts 新鲜赢覆写
+// 实质字段；洪泛闸 IS DISTINCT 判面在此径仍生效）。
+const updateEval = `UPDATE fin_opp_eval SET ts=now(),gross_apr=$2,net_apr=$3,
+	verdict=$4,legs=$5::jsonb,evidence=$6::jsonb
+	WHERE inst_id=$1 AND template='funding-hedge' AND direction='short_perp_long_spot'`
 
 func evalArgs(verdict string, netApr float64, evidence string) []any {
 	return []any{"T0162-USDT-SWAP", nil, netApr, verdict, "[]", evidence}
@@ -110,42 +116,49 @@ func TestEvalNotifyFloodShrink(t *testing.T) {
 	}
 	l := listenChannel(t, pool, ch)
 
-	// 锚③ INSERT 恒发：新键=新评估=实质变，即时醒。
-	if _, err := pool.Exec(ctx, upsertEval, evalArgs("proposed", 0.10, `{"n":1}`)...); err != nil {
+	// 锚③ INSERT 恒发：新键/新版本=新评估=实质变，即时醒（版史形）。
+	if _, err := pool.Exec(ctx, insertEval, evalArgs("proposed", 0.10, `{"n":1}`)...); err != nil {
 		t.Fatal(err)
 	}
 	l.expect(t, 1, 2*time.Second)
 
-	// 锚① 同键同值覆写零 NOTIFY：三连写同值（逐行 autocommit=生产洪泛形）整窗静默。
+	// 锚①' 同值 UPDATE 零 NOTIFY：三连覆写同值（ts 元数据不计——SG uEval
+	// 镜像刷新形）整窗静默；洪泛闸 IS DISTINCT 判面在 UPDATE 径仍守。
 	for i := 0; i < 3; i++ {
-		if _, err := pool.Exec(ctx, upsertEval, evalArgs("proposed", 0.10, `{"n":1}`)...); err != nil {
+		if _, err := pool.Exec(ctx, updateEval, evalArgs("proposed", 0.10, `{"n":1}`)...); err != nil {
 			t.Fatal(err)
 		}
 	}
 	l.expectQuiet(t, 600*time.Millisecond)
 
-	// 锚④ 实质变仍即时醒（lifecycle 唤醒语义不变线）：verdict/评分/evidence 各换面即醒。
-	if _, err := pool.Exec(ctx, upsertEval, evalArgs("rejected", 0.10, `{"n":1}`)...); err != nil {
-		t.Fatal(err)
-	}
-	l.expect(t, 1, 2*time.Second)
-	if _, err := pool.Exec(ctx, upsertEval, evalArgs("rejected", 0.20, `{"n":1}`)...); err != nil {
-		t.Fatal(err)
-	}
-	l.expect(t, 1, 2*time.Second)
-	if _, err := pool.Exec(ctx, upsertEval, evalArgs("rejected", 0.20, `{"n":2}`)...); err != nil {
+	// 版史语义锚：同值 INSERT 新版本仍发——每版=新信念事件（非覆写噪声，
+	// 实测写率~1-2/min 远低洪泛阈）。
+	if _, err := pool.Exec(ctx, insertEval, evalArgs("proposed", 0.10, `{"n":1}`)...); err != nil {
 		t.Fatal(err)
 	}
 	l.expect(t, 1, 2*time.Second)
 
-	// 锚② 批内多变一 NOTIFY：一语句三行（一不变+一实质变+一新键）=同事务
-	// 三次 pg_notify 同值去重→恰一醒；同语句重放（全行已同值）=零醒。
+	// 锚④ 实质变 UPDATE 仍即时醒（lifecycle 唤醒语义不变线）：verdict/评分/evidence 各换面即醒。
+	if _, err := pool.Exec(ctx, updateEval, evalArgs("rejected", 0.10, `{"n":1}`)...); err != nil {
+		t.Fatal(err)
+	}
+	l.expect(t, 1, 2*time.Second)
+	if _, err := pool.Exec(ctx, updateEval, evalArgs("rejected", 0.20, `{"n":1}`)...); err != nil {
+		t.Fatal(err)
+	}
+	l.expect(t, 1, 2*time.Second)
+	if _, err := pool.Exec(ctx, updateEval, evalArgs("rejected", 0.20, `{"n":2}`)...); err != nil {
+		t.Fatal(err)
+	}
+	l.expect(t, 1, 2*time.Second)
+
+	// 锚② 批内多变一 NOTIFY：一语句多行版史 INSERT=同事务 pg_notify 同值
+	// 去重→恰一醒；重放=新版本再发（版史语义——重述版亦新信息，非
+	// T-0162 同值覆写静默形）。
 	batch := `INSERT INTO fin_opp_eval(inst_id,template,direction,net_apr,verdict,legs,evidence)
 		VALUES('T0162-B1','funding-hedge','short_perp_long_spot',0.08,'proposed','[]','{}'),
 		('T0162-B2','funding-hedge','short_perp_long_spot',NULL,'rejected','[]','{}'),
-		('T0162-USDT-SWAP','funding-hedge','short_perp_long_spot',NULL,'rejected','[]','{"n":2}')
-		ON CONFLICT (inst_id,template,direction) DO UPDATE SET ts=now(),
-		verdict=EXCLUDED.verdict,legs=EXCLUDED.legs,evidence=EXCLUDED.evidence`
+		('T0162-USDT-SWAP','funding-hedge','short_perp_long_spot',NULL,'rejected','[]','{"n":2}')`
 	if _, err := pool.Exec(ctx, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -153,17 +166,17 @@ func TestEvalNotifyFloodShrink(t *testing.T) {
 	if _, err := pool.Exec(ctx, batch); err != nil {
 		t.Fatal(err)
 	}
-	l.expectQuiet(t, 600*time.Millisecond)
+	l.expect(t, 1, 2*time.Second)
 
-	// 锚②（拍级事务合流形——funding 扫描臂 T-0162 改后同形）：一事务多条
-	// 逐行 upsert（两行实质变+一行同值）→整事务恰一醒；重放全同值=零醒。
+	// 锚②（拍级事务合流形）：一事务多条逐行 INSERT（两新键+一既有键新版）
+	// →整事务恰一醒；重放 tx=新版本再发。
 	if err := pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
 		for _, a := range [][]any{
-			evalArgs("rejected", 0.20, `{"n":2}`),                // 同值行（静默）
-			{"T0162-B1", nil, nil, "rejected", "[]", `{"x":1}`},  // 实质变
-			{"T0162-B2", nil, 0.20, "proposed", "[]", `{"x":1}`}, // 实质变（fin_0094 闸：proposed 行 net_apr 非 NULL）
+			evalArgs("rejected", 0.20, `{"n":2}`),
+			{"T0162-B1", nil, nil, "rejected", "[]", `{"x":1}`},
+			{"T0162-B2", nil, 0.20, "proposed", "[]", `{"x":1}`},
 		} {
-			if _, err := tx.Exec(ctx, upsertEval, a...); err != nil {
+			if _, err := tx.Exec(ctx, insertEval, a...); err != nil {
 				return err
 			}
 		}
@@ -178,7 +191,7 @@ func TestEvalNotifyFloodShrink(t *testing.T) {
 			{"T0162-B1", nil, nil, "rejected", "[]", `{"x":1}`},
 			{"T0162-B2", nil, 0.20, "proposed", "[]", `{"x":1}`},
 		} {
-			if _, err := tx.Exec(ctx, upsertEval, a...); err != nil {
+			if _, err := tx.Exec(ctx, insertEval, a...); err != nil {
 				return err
 			}
 		}
@@ -186,12 +199,11 @@ func TestEvalNotifyFloodShrink(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	l.expectQuiet(t, 600*time.Millisecond)
+	l.expect(t, 1, 2*time.Second)
 
-	// 边缘锚：DO NOTHING 臂零行零 fire=静默。
-	if _, err := pool.Exec(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,net_apr,verdict,legs,evidence)
-		VALUES('T0162-USDT-SWAP','funding-hedge','short_perp_long_spot',0.08,'proposed','[]','{}')
-		ON CONFLICT (inst_id,template,direction) DO NOTHING`); err != nil {
+	// 边缘锚：UPDATE 零行命中=零 fire=静默。
+	if _, err := pool.Exec(ctx, `UPDATE fin_opp_eval SET ts=now()
+		WHERE inst_id='T0162-NOPE'`); err != nil {
 		t.Fatal(err)
 	}
 	l.expectQuiet(t, 600*time.Millisecond)

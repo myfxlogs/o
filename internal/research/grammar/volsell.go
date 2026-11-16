@@ -214,7 +214,8 @@ func (r *Runner) persistLegEval(ctx context.Context, e dcd.Eval, f Family, inst 
 	}
 	var evalID int64
 	if err := r.pool.QueryRow(ctx, `SELECT id FROM fin_opp_eval
-		WHERE inst_id=$1 AND template=$2 AND direction=$3`, inst, f.Template, f.Direction).Scan(&evalID); err != nil {
+		WHERE inst_id=$1 AND template=$2 AND direction=$3
+		ORDER BY id DESC LIMIT 1`, inst, f.Template, f.Direction).Scan(&evalID); err != nil {
 		return err
 	}
 	var banned int

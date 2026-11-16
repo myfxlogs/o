@@ -59,10 +59,7 @@ func (r *Runner) writeEval(ctx context.Context, tx pgx.Tx, inst, dir, verdict, r
 		"long_perp": "perp_long", "short_perp": "perp_short"}[dir]})
 	var evalID int64
 	if err := tx.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,gross_apr,net_apr,verdict,legs,evidence)
-		VALUES($1,$2,$3,$4,$5,$6,$7,$8)
-		ON CONFLICT (inst_id,template,direction) DO UPDATE SET ts=now(),
-		gross_apr=EXCLUDED.gross_apr,net_apr=EXCLUDED.net_apr,verdict=EXCLUDED.verdict,
-		legs=EXCLUDED.legs,evidence=EXCLUDED.evidence RETURNING id`,
+		VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
 		inst, Template, dir, c.grossAPR, c.netAPR,
 		verdict, legs, ev).Scan(&evalID); err != nil {
 		return err

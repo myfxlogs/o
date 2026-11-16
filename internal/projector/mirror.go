@@ -110,21 +110,26 @@ const uProposal = `INSERT INTO fin_proposal(id,eval_id,inst_id,direction,net_apr
 
 // 前向无 state 列组（D-0030 写权矩阵——lifecycle 唯一写方；不写=不触发 SG ev_proposal_sg，零回环）。
 
-// T-0211：fin_opp_eval=自然键状态表（UNIQUE=inst_id,template,direction）——
-// 冲突判改自然键（原 ON CONFLICT(id) 跨写者同键异 id 必撞=宿主迁移崩环实案）。
+// T-0211：fin_opp_eval SG 侧=自然键单行镜像（md 正本已版本化 insert-only
+// ——工单#19778 fin_0197 撤 UNIQUE，单行/键改本径手工 upsert 承载：upd CTE
+// 同键且 ts 更新鲜→覆写内容保 id；键缺席→pick CTE 另发号 INSERT）。
 // pick CTE 兜 PK 防撞：md id 被 SG 异键行占用（重灌序列回掷场景）→max(id)+1
 // 另发号（不用 nextval——projector_rw 无序列 USAGE 位；投影臂=SG eval 唯一
 // 写方，单写者下 max+1 无竞争）；同键占用/空位仍携 md id 落。
-const uEval = `WITH pick AS (
+const uEval = `WITH upd AS (
+	UPDATE fin_opp_eval e SET ts=$2::timestamptz,gross_apr=$6::numeric,net_apr=$7::numeric,
+		verdict=$8,legs=$9::jsonb,evidence=$10::jsonb
+	WHERE e.inst_id=$3 AND e.template=$4 AND e.direction=$5
+		AND $2::timestamptz > e.ts
+	RETURNING e.id),
+pick AS (
 	SELECT CASE WHEN EXISTS(SELECT 1 FROM fin_opp_eval x WHERE x.id=$1
 		AND (x.inst_id,x.template,x.direction) IS DISTINCT FROM ($3,$4,$5))
 		THEN (SELECT COALESCE(max(id),0)+1 FROM fin_opp_eval) ELSE $1 END AS id)
-	INSERT INTO fin_opp_eval(id,ts,inst_id,template,direction,gross_apr,net_apr,verdict,legs,evidence)
-	SELECT pick.id,$2::timestamptz,$3,$4,$5,$6::numeric,$7::numeric,$8,$9::jsonb,$10::jsonb FROM pick
-	ON CONFLICT (inst_id,template,direction) DO UPDATE SET ts=EXCLUDED.ts,
-		gross_apr=EXCLUDED.gross_apr,net_apr=EXCLUDED.net_apr,
-		verdict=EXCLUDED.verdict,legs=EXCLUDED.legs,evidence=EXCLUDED.evidence
-	WHERE EXCLUDED.ts > fin_opp_eval.ts`
+INSERT INTO fin_opp_eval(id,ts,inst_id,template,direction,gross_apr,net_apr,verdict,legs,evidence)
+SELECT pick.id,$2::timestamptz,$3,$4,$5,$6::numeric,$7::numeric,$8,$9::jsonb,$10::jsonb FROM pick
+WHERE NOT EXISTS (SELECT 1 FROM fin_opp_eval x
+	WHERE x.inst_id=$3 AND x.template=$4 AND x.direction=$5)`
 
 const uProposalReverse = `UPDATE fin_proposal SET state=$2,retire_reason=$3,retired_at=$4::timestamptz WHERE id=$1`
 

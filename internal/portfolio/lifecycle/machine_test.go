@@ -139,7 +139,7 @@ func TestPaperDedupe(t *testing.T) {
 		var eid int64
 		if err := pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,net_apr,verdict,legs,evidence)
 			VALUES('DD-USDT-SWAP','funding-hedge','short_perp_long_spot',0.08,'proposed','{}','{}')
-			ON CONFLICT (inst_id,template,direction) DO UPDATE SET ts=now() RETURNING id`).Scan(&eid); err != nil {
+			RETURNING id`).Scan(&eid); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := pool.Exec(ctx,

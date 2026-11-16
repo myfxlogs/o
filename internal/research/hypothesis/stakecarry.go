@@ -207,9 +207,6 @@ func (r *Runner) stakeCarryEval(ctx context.Context, venue, ccy string, sy fundi
 	var evalID int64
 	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,gross_apr,net_apr,verdict,legs,evidence)
 		VALUES($1,'stake-carry','stake_carry',$2,$3,$4,$5,$6)
-		ON CONFLICT (inst_id,template,direction) DO UPDATE SET ts=now(),
-		gross_apr=EXCLUDED.gross_apr,net_apr=EXCLUDED.net_apr,verdict=EXCLUDED.verdict,
-		legs=EXCLUDED.legs,evidence=EXCLUDED.evidence
 		RETURNING id`, inst, (sy.APR*1e4+shortBps)/1e4, net/1e4, verdict, legs, evj).Scan(&evalID); err != nil {
 		r.rej.Inc("sig_write_err")
 		log.Printf("[research/hypo] stake_carry 评估写败 %s: %v", inst, err)

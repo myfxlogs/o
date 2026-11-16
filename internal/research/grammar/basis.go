@@ -151,7 +151,8 @@ func (r *Runner) evalBasis(ctx context.Context, f Family) error {
 		if verdict == "proposed" { // T-0216：proposed→fin_proposal 提案径（executor 在位——同 volsell persistLegEval 幂等形）
 			var evalID int64
 			if err := r.pool.QueryRow(ctx, `SELECT id FROM fin_opp_eval
-				WHERE inst_id=$1 AND template=$2 AND direction=$3`, inst, f.Template, f.Direction).Scan(&evalID); err != nil {
+				WHERE inst_id=$1 AND template=$2 AND direction=$3
+				ORDER BY id DESC LIMIT 1`, inst, f.Template, f.Direction).Scan(&evalID); err != nil {
 				return err
 			}
 			// T-0142 黑名单滤：venue 拒过的 inst 不再起草（gapscan 同式——
