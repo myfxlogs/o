@@ -198,6 +198,7 @@ var migrationTable = []struct {
 	{189, "fin_0189_ops_event_sem_self_seat.sql"},
 	{190, "fin_0190_ops_ticket_sem.sql"},
 	{191, "fin_0191_ops_event_act_table.sql"},
+	{192, "fin_0192_open_drought_key.sql"},
 
 	// —— md 链（版本链内唯一且单调；md 链版本=历史号+1000 与 fin 键空间全局不相交——跨链并 schema 时 schema_migrations 零撞号，check_migrations 断言①⑤）——
 	{1003, "md_1003_market_facts.sql"},
