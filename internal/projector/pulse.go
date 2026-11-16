@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-const qEvalPulse = `SELECT template, max(ts), count(*) FILTER (WHERE ts>now()-interval '24 hours')
+const qEvalPulse = `SELECT template, max(ts), count(DISTINCT (inst_id,direction)) FILTER (WHERE ts>now()-interval '24 hours')
 	FROM fin_opp_eval GROUP BY template`
 
 const uEvalPulse = `INSERT INTO md_eval_pulse(template,last_eval_ts,eval_n_24h,refreshed_at)

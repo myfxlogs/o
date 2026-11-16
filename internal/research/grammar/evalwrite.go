@@ -35,9 +35,7 @@ func (r *Runner) writeEval(ctx context.Context, inst, template, direction, verdi
 		return nil
 	}
 	_, err := r.pool.Exec(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,net_apr,verdict,legs,evidence)
-		VALUES($1,$2,$3,$4,$5,'[]',$6)
-		ON CONFLICT (inst_id,template,direction) DO UPDATE SET ts=now(),
-		net_apr=EXCLUDED.net_apr,verdict=EXCLUDED.verdict,legs=EXCLUDED.legs,evidence=EXCLUDED.evidence`,
+		VALUES($1,$2,$3,$4,$5,'[]',$6)`,
 		inst, template, direction, aprArg, verdict, b)
 	if err != nil {
 		r.rej.Inc("eval_write_err")

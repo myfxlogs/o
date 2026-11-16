@@ -183,3 +183,41 @@ func TestScanE2E(t *testing.T) {
 		t.Fatalf("SP 提案数=%v 期 0", n)
 	}
 }
+
+// TestEvalInsertOnlyVersions 工单#19778 验收锚：fin_opp_eval 版本化
+// insert-only——同键重评=新增版行不覆写（upsert 灭史病灶根修：入场信念
+// 成史可查），读面取最新=id DESC。
+func TestEvalInsertOnlyVersions(t *testing.T) {
+	pool := testutil.Pool(t)
+	ctx := context.Background()
+	migrateBoth(t, ctx, pool)
+	seedCfg(t, ctx, pool)
+	const inst = "TVER-USDT-SWAP"
+	for _, tb := range []string{"md_klines", "fin_opp_eval", "fin_proposal"} {
+		if _, err := pool.Exec(ctx, "DELETE FROM "+tb+" WHERE inst_id=$1", inst); err != nil {
+			t.Fatal(err)
+		}
+	}
+	seedKlines(t, ctx, pool, inst, 81, 0.02, 0.005)
+	cfg := config.New(pool)
+	if err := cfg.Load(ctx); err != nil {
+		t.Fatal(err)
+	}
+	r := NewRunner(pool, cfg)
+	for i := 0; i < 2; i++ {
+		if err := r.ScanOnce(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var n int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM fin_opp_eval
+		WHERE inst_id=$1 AND template='perp-trend-daily' AND direction='long_perp'`, inst).Scan(&n); err != nil || n != 2 {
+		t.Fatalf("同键重评版数=%v err=%v 期 2（insert-only 版本史）", n, err)
+	}
+	var v string
+	if err := pool.QueryRow(ctx, `SELECT verdict FROM fin_opp_eval
+		WHERE inst_id=$1 AND template='perp-trend-daily' AND direction='long_perp'
+		ORDER BY id DESC LIMIT 1`, inst).Scan(&v); err != nil || v != "proposed" {
+		t.Fatalf("最新版判词=%v err=%v 期 proposed", v, err)
+	}
+}

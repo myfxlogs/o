@@ -203,6 +203,7 @@ var migrationTable = []struct {
 	{194, "fin_0194_wip_window.sql"},
 	{195, "fin_0195_dirtrend_keys.sql"},
 	{196, "fin_0196_ddline_bar.sql"},
+	{197, "fin_0197_eval_insertonly.sql"},
 
 	// —— md 链（版本链内唯一且单调；md 链版本=历史号+1000 与 fin 键空间全局不相交——跨链并 schema 时 schema_migrations 零撞号，check_migrations 断言①⑤）——
 	{1003, "md_1003_market_facts.sql"},
@@ -258,4 +259,5 @@ var migrationTable = []struct {
 	{1094, "md_1094_klines.sql"},
 	{1095, "md_1095_dir_perp.sql"},
 	{1096, "md_1096_perp_trend_daily.sql"},
+	{1097, "md_1097_eval_insertonly.sql"},
 }

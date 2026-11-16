@@ -182,8 +182,6 @@ func (r *Runner) xvenueCarryEval(ctx context.Context, okxInst, dir string, net, 
 	var evalID int64
 	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,gross_apr,net_apr,verdict,legs,evidence)
 		VALUES($1,'xvenue-carry',$2,NULL,$3,$4,'[]',$5)
-		ON CONFLICT (inst_id,template,direction) DO UPDATE SET ts=now(),
-		net_apr=EXCLUDED.net_apr, verdict=EXCLUDED.verdict, evidence=EXCLUDED.evidence
 		RETURNING id`, okxInst, dir, net/10000, verdict, ev).Scan(&evalID); err != nil {
 		r.rej.Inc("hypo_write_err")
 		log.Printf("[research/hypo] xvenue_carry 评估写败: %v", err)

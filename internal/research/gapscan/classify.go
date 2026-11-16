@@ -141,9 +141,7 @@ func (r *Runner) generateCandidate(ctx context.Context, venue, surface, family s
 	var evalID int64
 	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,
 		gross_apr,net_apr,verdict,legs,evidence)
-		VALUES($1,'surface-gap',$2,NULL,NULL,$4,'{}',$3)
-		ON CONFLICT (inst_id,template,direction) DO UPDATE SET ts=now(),
-		verdict=EXCLUDED.verdict,evidence=EXCLUDED.evidence RETURNING id`,
+		VALUES($1,'surface-gap',$2,NULL,NULL,$4,'{}',$3) RETURNING id`,
 		instID, direction, ev, verdict).Scan(&evalID); err != nil {
 		r.rej.Inc("gap_write_err")
 		return false, err
