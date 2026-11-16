@@ -99,9 +99,11 @@ func (s *Service) session(ctx context.Context) error {
 		// cookie 注入不生效（app 要 localStorage 态等）——UI 表单兜底一梭
 		log.Printf("[cmcweb] cookie 注入未生效——UI 登录兜底")
 		if err := s.browser.UILogin(ctx, s.email, s.pass); err != nil {
+			log.Printf("[cmcweb] UILogin 败 diag: %s", s.browser.Diag(ctx))
 			return errLoginForm
 		}
 		if !s.browser.WaitWS(ctx) {
+			log.Printf("[cmcweb] 登录后无 WS diag: %s", s.browser.Diag(ctx))
 			return errNoWS
 		}
 	}

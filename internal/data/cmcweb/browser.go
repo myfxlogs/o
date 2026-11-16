@@ -10,6 +10,8 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -68,9 +70,13 @@ func (b *Browser) LastFrame() time.Time {
 	return b.lastFrame
 }
 
-// Start 起浏览器实例（幂等——旧实例先掐）。
+// Start 起浏览器实例（幂等——旧实例先掐；持久卷 SingletonLock 残件先清，
+// 容器硬杀会留锁=新实例 process_singleton_posix 拒起，21:22 实坑）。
 func (b *Browser) Start(ctx context.Context) error {
 	b.Stop()
+	for _, f := range []string{"SingletonLock", "SingletonSocket", "SingletonCookie"} {
+		_ = os.Remove(filepath.Join(b.cfg.ProfileDir, f))
+	}
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.ExecPath(b.cfg.ChromePath),
 		chromedp.Flag("headless", "new"),
@@ -113,6 +119,7 @@ func (b *Browser) Stop() {
 func (b *Browser) onEvent(ev any) {
 	switch e := ev.(type) {
 	case *network.EventWebSocketCreated:
+		log.Printf("[cmcweb] WS created: %s", e.URL) // 全量记录——匹配口径实证面
 		if strings.Contains(e.URL, b.cfg.WSMatch) {
 			b.setAlive(true, e.URL)
 			log.Printf("[cmcweb] app WS up: %s", e.URL)
@@ -239,6 +246,26 @@ func (b *Browser) UILogin(ctx context.Context, email, pass string) error {
 		chromedp.SendKeys(`#password`, pass, chromedp.ByQuery),
 		chromedp.Click(`input[type="submit"], button[type="submit"]`, chromedp.ByQuery),
 	)
+}
+
+// Diag 登录/导航失败取证——页面 URL+title+登录面态+截图落 profile 卷
+// （排查"登录提交后到底卡在哪屏"的黑盒面）。
+func (b *Browser) Diag(ctx context.Context) string {
+	if b.bctx == nil {
+		return "browser=nil"
+	}
+	dctx, cancel := context.WithTimeout(b.bctx, 20*time.Second)
+	defer cancel()
+	var loc, title string
+	_ = chromedp.Run(dctx, chromedp.Location(&loc), chromedp.Title(&title))
+	hasPwd := b.LoginFormPresent(ctx)
+	var shot []byte
+	if err := chromedp.Run(dctx, chromedp.CaptureScreenshot(&shot)); err == nil && len(shot) > 0 {
+		f := filepath.Join(b.cfg.ProfileDir, fmt.Sprintf("diag-%d.png", time.Now().Unix()))
+		_ = os.WriteFile(f, shot, 0o600)
+		log.Printf("[cmcweb] diag 截图落 %s", f)
+	}
+	return fmt.Sprintf("url=%s title=%q pwdForm=%v", loc, title, hasPwd)
 }
 
 // Alive 页活性探针（target 死=Run 败）。
