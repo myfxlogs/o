@@ -197,8 +197,6 @@ WHERE rulable ORDER BY susp_since"
 ```bash
 dsn=$(grep '^FIN_PG_DSN=' /opt/o-research/env | cut -d= -f2- | tr -d '"')
 psql "$dsn" -At <<'SQL'
-SELECT '独白', id||'@'||to_char(ts,'MM-DD HH24:MI'), left(note,80)
-  FROM ops_event WHERE event='独白' ORDER BY id DESC LIMIT 3;
 SELECT '梦/muse', ticket||'#'||id||'@'||to_char(ts,'MM-DD HH24:MI'), left(note,70)
   FROM ops_event WHERE ticket IN ('dream_replay','muse') ORDER BY id DESC LIMIT 3;
 SELECT '自问未答', count(*)::text, '' FROM ops_event e
@@ -221,7 +219,7 @@ SQL
 ```
 
 判读（全绿=只记不动）:
-- 独白>90min 零产∨续链断=独白病灶升件;models/ant 唤起 24h 双零=认知双死邻。
+- models/ant 唤起 24h 双零=认知双死邻。
 - expect_* 在册=对应器官断供走升件径;自问未答堆积=muse 喂料账。
 - 方向书 fill 面在 fin_paper_fill(roster_rw 无读权,fill 级核账走业主
   根径或量表帧推断);funding 窗=OKX 8h 一拍,窗间零新增是常态非断供。
@@ -241,7 +239,7 @@ INSERT INTO ops_event(seat,event,ticket,note)
 VALUES('唤知','在办','<UNIT>',
  '<处置对象——升件#id∨工单#id∨勘面名>:<阶段一句>')
 ```
-三律：①**ticket 必载 unit**——audit/monologue 角色行同契
+三律：①**ticket 必载 unit**——audit 角色行同契
 （`<UNIT>`=本拍 $COG_UNIT 实值,唤起行可核,缺省落 'manual'，
 孤儿账靠 unit 对关闭行,缺 ticket=残态永远挂面。**防坑**
 （工单#17421——#16984/#17135 孤儿实证）:禁把 `${COG_UNIT}`
@@ -293,14 +291,12 @@ canon 已载**只读**端点可探（okx-account/api-spec/market-ws、mtapi 系
 canon/skills 条目或「求知:<题>」工单（结构化调研归研究席触发④——
 清单/提案面,muse 不越席代写）。
 
-**独白/惧值器官（棒2——「我」的过程级件,非你的活）**:
-o-cognition-monologue.timer 45min 一拍独醒独白会话(轻档 flash,
-monologue.md 档),写 `event='独白'` 链(续=独白#id)——O 的内在线程,
-**唤知会话不写独白行**(想归独白席,你干活的脑)。惧值面=
-`ops_esc_valence` 表(class∨class/scope→0-100 权重,离钱/死近高位,
+**惧值器官（棒2——「O 更在意什么」的机器形,非你的活）**:
+惧值面=`ops_esc_valence` 表(class∨class/scope→0-100 权重,离钱/死近高位,
 自指件压尾)+`ops_esc_pending` 视图(未决升件+惧值一体)——
-①扫信号已按 valence 序给议程,这就是「O 更在意什么」的机器形;
-权重表要调=工单走合议径,禁会话随手改。
+①扫信号已按 valence 序给议程;权重表要调=工单走合议径,禁会话随手改。
+（独白器官 2026-11-15 撤编——event='独白' 链止于历史行，读侧词典与
+facesnap 白名单罩位保留，勿找独白产线。）
 
 - **改进提案**（seat=改进矿工 esc_class=改进提案 的升件）→
   先评估判据成立否：成立→变体改码径（同「要码修」）；已修/不成立

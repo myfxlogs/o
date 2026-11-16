@@ -10,7 +10,6 @@ import (
 func TestShortUnit(t *testing.T) {
 	for _, tc := range []struct{ in, want string }{
 		{"o-cognition-1794678602", "唤知·尾8602"},
-		{"o-cognition-monologue", "唤知·独白"},
 		{"o-cog", "唤知"},
 		{"o-cognition-ab", "唤知·ab"},
 		{"o-sweeper", "sweeper"},
@@ -26,8 +25,6 @@ func TestHumanizeKV(t *testing.T) {
 	for _, tc := range []struct{ name, in, want string }{
 		{"唤起果全字段", "unit=o-cognition-1794678602 host=ant rc=0 reason=session_incomplete dur=32s",
 			"唤知·尾8602 · @ant · 会话未完整 · 32 秒"},
-		{"独白果", "unit=o-cognition-monologue host=models rc=0 reason=session_incomplete dur=68s",
-			"唤知·独白 · @models · 会话未完整 · 1 分 8 秒"},
 		{"收口带正文", "unit=o-cognition-1794677643 第159轮:面净(deploy=master e50b5929ce09,升件0) 用帧=无",
 			"唤知·尾7643｜第159轮:面净(部署 e50b5929ce09,升件0) 未用帧"},
 		{"独白席无kv", "独白#16934 产=同一性边界洞成族",

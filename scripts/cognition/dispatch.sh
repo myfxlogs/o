@@ -399,7 +399,7 @@ TRIGGER=""
 # 闸面剔自身——dispatch unit 名也在 o-cognition-* glob 下,不剔=自锁死
 # (首拍实证:dispatcher 把自己算进在飞会话即退,2026-11-09)。
 # glob 收窄 *.service(坑处置 2026-11-14②:timer 件恒 active 同入
-# o-cognition-* glob——dispatch/monologue 双闸自锁死,models 侧零产实证)
+# o-cognition-* glob——dispatch/monologue(独白器官2026-11-15撤编) 双闸自锁死,models 侧零产实证)
 if systemctl --user list-units 'o-cognition-*.service' --state=active,activating --no-legend --plain 2>/dev/null \
 	| grep -vE 'o-cognition-dispatch\.service' | grep -q .; then
 	exit 0
@@ -429,15 +429,14 @@ SELECT '唤知机','唤起','','unit=$UNIT host=$(hostname) trigger=$TRIGGER'
 WHERE NOT EXISTS (
 	SELECT 1 FROM ops_event e
 	WHERE e.seat='唤知机' AND e.event='唤起' AND e.ts>now()-interval '30 minutes'
-	  AND e.note NOT LIKE '%trigger=monologue%'
 	  AND NOT EXISTS (SELECT 1 FROM ops_event x
 	    WHERE x.ts>e.ts AND (
 	      (x.seat='唤知机' AND x.event IN ('唤起败','唤起果')
 	        AND x.note LIKE '%'||substring(e.note from 'unit=[^ ]+')||'%')
 	      OR x.event='会话收口')))
 AND NOT EXISTS (
-	-- 独白槽位令(2026-11-14):MONO 心跳剔出在飞面——独白=低优先
-	-- 租客永不拦工(AUD- 本不入面先例;独白唤起行上行同剔)。
+	-- 票键分工(槽位令2026-11-14;独白器官2026-11-15撤编):在飞面只认
+	-- ^COG- 心跳——AUD- 独立槽不互拦先例在案,MONO- 面随器官撤编消。
 	SELECT 1 FROM ops_headless h
 	WHERE h.ticket ~ '^COG-' AND h.state='alive'
 	  AND h.last_activity > now() - interval '100 seconds')
