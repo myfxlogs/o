@@ -272,4 +272,10 @@ var faceBaselineWhitelist = map[string]string{
 	// ops_event近7d DISTINCT seat活跃投影，施工会话驱动间歇写7d窗摆动
 	// 登记不重复升（T-0448册语义罩位，同纪元3批先例）。
 	"face:service:施工机": "工单#18763 入册——施工机=o-worker施工单元面（升件#18752亲证合法，D-0045施工席会话认领/处置/会话收口 ops_event 写径合法）；service 面7d活跃窗摆动登记不重复升；生产亲证升件源 ops_event #18752",
+	// 工单#19775：research/ctx=o-research单元面ctx五源采集臂（ffcal/
+	// FRED/frankfurter/CFTC COT/OKX OI——md_ctx_fact落行生产亲证
+	// cftc/ffcal/fred/fx/oi全源在案，升件#19764亲证合法，同#18763
+	// 补册径）；service 面=ops_event近7d DISTINCT seat活跃投影，
+	// 采集臂间歇写7d窗摆动登记不重复升（T-0448册语义罩位）。
+	"face:service:research/ctx": "工单#19775 入册——research/ctx=o-research单元面ctx五源采集臂（升件#19764亲证合法，md_ctx_fact cftc/ffcal/fred/fx/oi五源落行生产亲证）；service 面7d活跃窗摆动登记不重复升；生产亲证升件源 ops_event #19764",
 }
