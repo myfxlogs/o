@@ -121,6 +121,12 @@ internal/research/dirmom -> internal/platform/notify
 internal/research/dirmom -> internal/platform/rejects
 internal/research/dirmom -> internal/platform/roster
 internal/research/dirmom -> internal/research/armwatch
+internal/research/dirtrend -> internal/platform/config
+internal/research/dirtrend -> internal/platform/execfam
+internal/research/dirtrend -> internal/platform/notify
+internal/research/dirtrend -> internal/platform/rejects
+internal/research/dirtrend -> internal/platform/roster
+internal/research/dirtrend -> internal/research/armwatch
 internal/research/armwatch -> internal/platform/notify
 internal/research/armwatch -> internal/platform/config
 internal/research/researcher -> internal/platform/notify

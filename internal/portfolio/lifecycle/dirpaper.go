@@ -1,5 +1,6 @@
-// dirpaper.go —— 方向族 paper MTM 记账+出场面（棒1 paper-only 族消费径）：
-// dir_perp_mom 单腿方向位=价变动量仓——funding 腿由通用 paperAccounting
+// dirpaper.go —— 方向族 paper MTM 记账+出场面（棒1 paper-only 族消费径；
+// perp-trend-daily 工单#11481 同册共享）：
+// 方向族单腿方向位=价变动量/突破仓——funding 腿由通用 paperAccounting
 // 照记（perp 方向行），本件补价差 PnL 摊提笔（kind='pnl'——收入流观测
 // 粒度入 confGate 序列/晋升净额）+四路出场（止损/止盈/TTL/信号翻面）。
 // 价源 md_ticks WS 行（venue<>'sim'，鲜度闸 exec.tick_max_age_s 同 dcd 径；
@@ -34,7 +35,7 @@ func (r *Runner) dirPaperAccounting(ctx context.Context) error {
 	if v, err := r.cfg.GetFloat("exec.tick_max_age_s"); err == nil && v > 0 {
 		maxAge = v
 	}
-	rows, err := r.pool.Query(ctx, `SELECT s.id, s.inst_id, s.direction, s.notional_usd,
+	rows, err := r.pool.Query(ctx, `SELECT s.id, s.inst_id, s.direction, s.template_ref, s.notional_usd,
 		s.entered_at,
 		COALESCE((SELECT max(ts) FROM fin_paper_fill f WHERE f.strategy_id=s.id
 			AND f.kind IN ('open','pnl')), s.entered_at),
@@ -52,6 +53,7 @@ func (r *Runner) dirPaperAccounting(ctx context.Context) error {
 		id       int64
 		inst     string
 		dir      string
+		tmpl     string
 		notional float64
 		entered  time.Time
 		lastMark time.Time
@@ -61,7 +63,7 @@ func (r *Runner) dirPaperAccounting(ctx context.Context) error {
 	var sts []st
 	for rows.Next() {
 		var x st
-		if err := rows.Scan(&x.id, &x.inst, &x.dir, &x.notional,
+		if err := rows.Scan(&x.id, &x.inst, &x.dir, &x.tmpl, &x.notional,
 			&x.entered, &x.lastMark, &x.cumPnl, &x.lastPx); err != nil {
 			rows.Close()
 			return err
@@ -114,8 +116,8 @@ func (r *Runner) dirPaperAccounting(ctx context.Context) error {
 			// 反信号——方向仓的信念续存判据，与 TTL 机械闸互补）。
 			var v string
 			if err := r.pool.QueryRow(ctx, `SELECT verdict FROM fin_opp_eval
-				WHERE inst_id=$1 AND template='dir_perp_mom' AND direction=$2
-				ORDER BY ts DESC LIMIT 1`, x.inst, x.dir).Scan(&v); err == nil && v == "rejected" {
+				WHERE inst_id=$1 AND template=$3 AND direction=$2
+				ORDER BY ts DESC LIMIT 1`, x.inst, x.dir, x.tmpl).Scan(&v); err == nil && v == "rejected" {
 				reason = "dir_signal_flip"
 			}
 		}

@@ -93,6 +93,13 @@ func Families() []Family {
 			Legs: []LegPrim{SpotLongStaked, CfdShort}, Settle: "swap_daily",
 			NeedFace:   map[string][]string{"tron": {"staking-TRX"}, "cmc": {"swap-carry-TRX"}},
 			PrimaryVen: "cmc", PrimarySurf: "swap-carry-TRX"},
+		// ⑥ perp-trend-daily 方向趋势族（工单#11481 假想卡#172286 parked
+		// 解锁径——Donchian 突破+winrate-CI 评估臂另件；Executor 非空=
+		// 不产假想卡，Kind=trend_follow 无 evaluate 分支=文法不代评，
+		// paper-only 裁定同棒1）。
+		{Template: "perp-trend-daily", Direction: "perp_trend", Kind: "trend_follow",
+			Legs: []LegPrim{PerpLong, PerpShort}, Settle: "mtm",
+			NeedFace: need("market-tickers", "market-instruments"), Executor: "dirtrend"},
 	}
 }
 
