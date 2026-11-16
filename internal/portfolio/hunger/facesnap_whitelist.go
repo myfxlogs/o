@@ -267,4 +267,9 @@ var faceBaselineWhitelist = map[string]string{
 	// 产出落 event='独白' seat='独白席' 链行——runbook 独白/惧值器官
 	// 档钦定产出形）；timer 驱动间歇写 7d 活跃窗摆动登记不重复升。
 	"face:service:独白席": "升件#16143 入册——独白席=棒2 常驻独白器官写席（o-cognition-monologue.timer 45min 独醒一拍,产出 event='独白' 链行——棒2 内在线程件钦定产出形）；timer 驱动间歇写 7d 活跃窗摆动登记不重复升；生产亲证首行独白 ops_event #16130 @2026-11-14 10:08Z（面清单新面行→升件源 #16143）",
+	// 工单#18763：施工机=o-worker施工单元面（D-0045施工席会话写径——认领/
+	// 处置/会话收口 ops_event 写径合法，升件#18752亲证合法）；service 面=
+	// ops_event近7d DISTINCT seat活跃投影，施工会话驱动间歇写7d窗摆动
+	// 登记不重复升（T-0448册语义罩位，同纪元3批先例）。
+	"face:service:施工机": "工单#18763 入册——施工机=o-worker施工单元面（升件#18752亲证合法，D-0045施工席会话认领/处置/会话收口 ops_event 写径合法）；service 面7d活跃窗摆动登记不重复升；生产亲证升件源 ops_event #18752",
 }
