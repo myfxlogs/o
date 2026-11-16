@@ -36,7 +36,8 @@ N=${N:-0}; OLDEST=${OLDEST:-0}; MAXV=${MAXV:-0}
 VAL_HI=${COG_VAL_HI:-80}
 
 # 工单板（D-0045 票管催制——「立票→开修」接续环）：OPEN 票=未销
-# (无处置引「工单#id」)且无活在认领(认领行<2h 引同票——
+# (销证=处置引「工单#id」剔挂起/接续/「回执无销」行——自报回执不
+#   算验收,须含销标才入销证,工单#19669)且无活在认领(认领行<2h 引同票——
 # RuntimeMaxSec 对齐,认领陈=会话死透票自然回落可拣)。
 # 票本身就是排期承诺:有 OPEN 票即唤,不等龄——票面即优先级。
 SUSPEND_AGE=${COG_TICKET_SUSPEND_AGE:-72}
@@ -46,7 +47,8 @@ WHERE t.event='工单' AND t.ts>now()-interval '30 days'
   AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='处置' AND x.ts>t.ts
     AND x.note ~ ('工单#'||t.id::text||'([^0-9]|\$)')
     AND x.note NOT LIKE '%挂起条件=%'
-    AND x.note !~ ('工单#'||t.id::text||' ?接续'))
+    AND x.note !~ ('工单#'||t.id::text||' ?接续')
+    AND NOT (x.note LIKE '%回执%' AND x.note NOT LIKE '%销%'))
   AND NOT EXISTS (SELECT 1 FROM ops_event s WHERE s.event='处置' AND s.ts>t.ts
     AND s.note ~ ('工单#'||t.id::text||'([^0-9]|\$)') AND s.note LIKE '%挂起条件=%'
     AND s.ts + COALESCE((substring(s.note from '挂起期限=([0-9]+)h'))::int,
@@ -90,7 +92,8 @@ FROM (
   AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='处置' AND x.ts>t.ts
     AND x.note ~ ('工单#'||t.id::text||'([^0-9]|\$)')
     AND x.note NOT LIKE '%挂起条件=%'
-    AND x.note !~ ('工单#'||t.id::text||' ?接续'))
+    AND x.note !~ ('工单#'||t.id::text||' ?接续')
+    AND NOT (x.note LIKE '%回执%' AND x.note NOT LIKE '%销%'))
   AND NOT EXISTS (SELECT 1 FROM ops_event s WHERE s.event='处置' AND s.ts>t.ts
     AND s.note ~ ('工单#'||t.id::text||'([^0-9]|\$)') AND s.note LIKE '%挂起条件=%'
     AND s.ts + COALESCE((substring(s.note from '挂起期限=([0-9]+)h'))::int,
@@ -133,7 +136,8 @@ WHERE COALESCE((SELECT max(a.ts) FROM ops_event a WHERE a.ts>t.ts
    OR EXISTS (SELECT 1 FROM ops_event x WHERE x.event='处置' AND x.ts>t.ts
       AND x.note ~ ('工单#'||t.id::text||'([^0-9]|\$)')
       AND x.note NOT LIKE '%挂起条件=%'
-      AND x.note !~ ('工单#'||t.id::text||' ?接续'))
+      AND x.note !~ ('工单#'||t.id::text||' ?接续')
+      AND NOT (x.note LIKE '%回执%' AND x.note NOT LIKE '%销%'))
 SQL
 
 # 未入支板(坑处置: 升件#11240 散文接续缝根修——会话销案留「接续:merge」
@@ -265,7 +269,8 @@ WITH cand AS (
     AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='处置' AND x.ts>t.ts
       AND x.note ~ ('工单#'||t.id::text||'([^0-9]|\$)')
       AND x.note NOT LIKE '%挂起条件=%'
-      AND x.note !~ ('工单#'||t.id::text||' ?接续'))
+      AND x.note !~ ('工单#'||t.id::text||' ?接续')
+      AND NOT (x.note LIKE '%回执%' AND x.note NOT LIKE '%销%'))
     AND NOT EXISTS (SELECT 1 FROM ops_event s WHERE s.event='处置' AND s.ts>t.ts
       AND s.note ~ ('工单#'||t.id::text||'([^0-9]|\$)') AND s.note LIKE '%挂起条件=%'
       AND s.ts + COALESCE((substring(s.note from '挂起期限=([0-9]+)h'))::int,

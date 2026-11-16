@@ -24,7 +24,8 @@
 
 ```bash
 FIN_DSN=$(grep '^FIN_PG_DSN=' /opt/o-research/env | cut -d= -f2- | tr -d '"')
-# OPEN 桌(与 dispatch_worker 同契):未销(非挂起非接续处置引工单#id)
+# OPEN 桌(与 dispatch_worker 同契):未销(销证=非挂起非接续且非
+# 回执无销处置引工单#id——回执须销标才入销证,工单#19669)
 # ∧不在挂起缓期窗(s.ts+期限起算)∧无活在认领(<2h=在办租约——
 # 认领陈=会话死透票自然回落可拣):
 psql "$FIN_DSN" -c "
@@ -33,7 +34,8 @@ WHERE t.event='工单' AND t.ts>now()-interval '30 days'
   AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='处置' AND x.ts>t.ts
     AND x.note ~ ('工单#'||t.id::text||'([^0-9]|$)')
     AND x.note NOT LIKE '%挂起条件=%'
-    AND x.note !~ ('工单#'||t.id::text||' ?接续'))
+    AND x.note !~ ('工单#'||t.id::text||' ?接续')
+    AND NOT (x.note LIKE '%回执%' AND x.note NOT LIKE '%销%'))
   AND NOT EXISTS (SELECT 1 FROM ops_event s WHERE s.event='处置' AND s.ts>t.ts
     AND s.note ~ ('工单#'||t.id::text||'([^0-9]|$)') AND s.note LIKE '%挂起条件=%'
     AND s.ts + COALESCE((substring(s.note from '挂起期限=([0-9]+)h'))::int,

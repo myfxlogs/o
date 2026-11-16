@@ -52,12 +52,14 @@ psql "$FIN_DSN" -c "SELECT template,verdict,net_apr,inst_id,ts::date
 ```bash
 # 未决信号面+工单桌+P1 积压+研究提案积压——四张快照
 psql "$FIN_DSN" -c "SELECT count(*),max(age_s) FROM ops_esc_pending"
+# 工单桌=销证同 OPEN 契——「回执」无「销」标不入销证(工单#19669)
 psql "$FIN_DSN" -c "SELECT t.id,left(t.note,120) FROM ops_event t
   WHERE t.event='工单' AND t.ts>now()-interval '30 days'
     AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='处置'
       AND x.ts>t.ts AND x.note ~ ('工单#'||t.id::text||'([^0-9]|$)')
       AND x.note NOT LIKE '%挂起条件=%'
-      AND x.note !~ ('工单#'||t.id::text||' ?接续'))
+      AND x.note !~ ('工单#'||t.id::text||' ?接续')
+      AND NOT (x.note LIKE '%回执%' AND x.note NOT LIKE '%销%'))
   ORDER BY t.ts LIMIT 25"
 ```
 
