@@ -142,6 +142,16 @@ func (s *Service) watchdog(ctx context.Context) {
 				if err := s.browser.Navigate(s.browserCtx()); err != nil {
 					log.Printf("[cmcweb] 重载败: %v", err)
 				}
+				wctx, wcancel := context.WithTimeout(ctx, 45*time.Second)
+				if !s.browser.WaitWS(wctx) {
+					if s.browser.LoginFormPresent(ctx) {
+						log.Printf("[cmcweb] 重载后登录面显形——整会话重建")
+						if err := s.session(ctx); err != nil {
+							log.Printf("[cmcweb] 会话重建败: %v", err)
+						}
+					}
+				}
+				wcancel()
 				deadSince = time.Time{}
 			}
 		} else {

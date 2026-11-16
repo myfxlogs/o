@@ -218,21 +218,26 @@ func (b *Browser) LoginFormPresent(ctx context.Context) bool {
 	return has
 }
 
-// UILogin 登录面兜底——cookie 注入不生效时填表单（通用选择器族：email/text
-// 输入框+password+submit；CMC 登录页结构改版则败→上抛走条件请求）。
+// UILogin 登录面兜底——cookie 注入不生效时填表单（CMC loginForm=AngularJS:
+// #username type=text + #password + input[type=submit] ng-click=login(),
+// SG dump-dom 实证 2026-11-16；OneTrust 横幅可能盖提交钮先接受再填）。
 func (b *Browser) UILogin(ctx context.Context, email, pass string) error {
 	if b.bctx == nil {
 		return fmt.Errorf("browser 未起")
 	}
 	lctx, cancel := context.WithTimeout(b.bctx, 45*time.Second)
 	defer cancel()
-	emailSel := `input[type="email"], input[name*="mail" i], input[autocomplete="username"]`
+	userSel := `#username, input[name="username"], input[type="email"], input[autocomplete="username"]`
+	// OneTrust 同意横幅先撤（best-effort——不在场=3s 过，不占登录预算）
+	bctx, bcancel := context.WithTimeout(lctx, 3*time.Second)
+	_ = chromedp.Run(bctx, chromedp.Click(`#onetrust-accept-btn-handler`, chromedp.ByQuery))
+	bcancel()
 	return chromedp.Run(lctx,
-		chromedp.WaitVisible(emailSel, chromedp.ByQuery),
-		chromedp.Clear(emailSel, chromedp.ByQuery),
-		chromedp.SendKeys(emailSel, email, chromedp.ByQuery),
-		chromedp.SendKeys(`input[type="password"]`, pass, chromedp.ByQuery),
-		chromedp.Click(`button[type="submit"], input[type="submit"], button[class*="submit" i]`, chromedp.ByQuery),
+		chromedp.WaitVisible(userSel, chromedp.ByQuery),
+		chromedp.Clear(userSel, chromedp.ByQuery),
+		chromedp.SendKeys(userSel, email, chromedp.ByQuery),
+		chromedp.SendKeys(`#password`, pass, chromedp.ByQuery),
+		chromedp.Click(`input[type="submit"], button[type="submit"]`, chromedp.ByQuery),
 	)
 }
 
