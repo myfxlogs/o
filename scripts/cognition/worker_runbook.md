@@ -33,7 +33,7 @@ WHERE dispatchable AND tkind='工单' ORDER BY COALESCE(level,2), deadline LIMIT
 ```
 
 桌只露**服务窗**（fin_0194 WIP限界：workable中按级/期限排前N张,
-N=app_config cog.wip_limit)——窗外backlog在账不可拣,不是失踪,
+N=app_config dm.cog.wip_limit)——窗外backlog在账不可拣,不是失踪,
 由唤知统管;窗内没票就收口,别去窗外翻活干。
 
 拣**序首 OPEN 票一张**（级=P1 先→期限逾者先→立案龄——

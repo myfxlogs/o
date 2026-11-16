@@ -133,7 +133,7 @@ FROM (
       FROM ops_ticket_desk
       WHERE workable AND NOT dispatchable AND tkind='工单'
       GROUP BY 1 ORDER BY rn DESC LIMIT 3) c),'(无)') AS clusters,
-    COALESCE((SELECT value::int FROM app_config WHERE key='cog.wip_limit'),20) AS wip
+    COALESCE((SELECT value::int FROM app_config WHERE key='dm.cog.wip_limit'),20) AS wip
   FROM ops_ticket_desk
 ) q
 WHERE q.backlog >= $BACKLOG_HI

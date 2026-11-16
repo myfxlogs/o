@@ -7,7 +7,7 @@
 --   dispatchable=workable中按(级,期限,id)排前N张=服务窗,窗内才可拣;
 --   窗外=backlog在账不可拣——λ>μ时饿死按级排不随机,饿死可见性本身成信号。
 --   滞留探收窗内(dispatchable)——backlog不逐票升件,改一张聚合压力卡;
---   窗阈=app_config cog.wip_limit DM可调(默认20),backlog告警阈env件。
+--   窗阈=app_config dm.cog.wip_limit DM可调(默认20),backlog告警阈env件。
 BEGIN;
 
 -- ①desk重定义:内层承fin_0193逐字,外包一层仅对workable集排位露两列
@@ -58,12 +58,12 @@ SELECT d.id, d.filed_ts, d.note, d.closed, d.claimed, d.susp_until, d.susp_cls,
   d.workable, d.rulable, d.last_active, d.level, d.susp_since, d.deadline, d.tkind,
   w.dispatch_rank,
   (d.workable AND w.dispatch_rank <= COALESCE(
-    (SELECT value::int FROM app_config WHERE key='cog.wip_limit'),20)) AS dispatchable
+    (SELECT value::int FROM app_config WHERE key='dm.cog.wip_limit'),20)) AS dispatchable
 FROM d LEFT JOIN w ON w.id=d.id;
 
 -- ②窗阈种子(DM可调——o-core热读app_config,改窗宽零部署)
 INSERT INTO app_config(key,value,updated_by) VALUES
-  ('cog.wip_limit','20','fin_0194')
+  ('dm.cog.wip_limit','20','fin_0194')
 ON CONFLICT (key) DO NOTHING;
 
 COMMIT;
