@@ -293,4 +293,12 @@ var faceBaselineWhitelist = map[string]string{
 	// INSERT 自动落行，读径=语义投影消费面在案；table 类面
 	// information_schema BASE TABLE 枚举本体零硬编码，建表落地即面。
 	"face:table:ops_event_act": "工单#20174 入册——ops_event_act=fin_0191 迁移建 public 基表（fin_0190 视图先行转基表+ops_event_ai 触发器投影链；19733 行在册+产线行引证在案）；写径触发器随 ops_event INSERT 自动落行/读径语义投影消费面在案；table 类面 information_schema BASE TABLE 枚举本体零硬编码，建表落地即面；生产亲证升件源 ops_event #20148",
+	// 工单#16664：dashboard-ui=业主前端驾驶舱写席（earn_auto_purchase
+	// 自动转入翻位/price_alert 建行翻位/quote_watchlist 自选条替换——
+	// 业主手动操作经前端落 ops_event 写径合法，#16657 处置亲证合法性
+	// 在案）；service 面=ops_event 近 7d DISTINCT seat 活跃投影（写者
+	// 席即服务面投影，facesnap.go 设计口径）入集，业主操作驱动间歇写
+	// 7d 活跃窗摆动登记不重复升（T-0448 册语义罩位，同值守席/独白席
+	// 先例）。
+	"face:service:dashboard-ui": "工单#16664 入册——dashboard-ui=业主前端驾驶舱写席（earn_auto_purchase 翻位/price_alert 建行翻位/quote_watchlist 替换 ops_event 写径合法，#16657 处置亲证合法）；service 面7d活跃窗摆动登记不重复升；生产亲证 22 行在案（earn_auto_purchase #16616/#3321/#3325、price_alert 簇 #3365-3380、quote_watchlist #3364；面清单新面行 #16657→升件源）",
 }
