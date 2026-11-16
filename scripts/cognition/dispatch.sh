@@ -54,7 +54,19 @@ VAL_HI=${COG_VAL_HI:-80}
 # 工单板（D-0045 票管催制——「立票→开修」接续环）：OPEN 票=workable
 # (未销未认领无非容量挂起)∨rulable(等裁定面——裁定件=唤知作业本票,
 # fin_0190 语义层:票态单点视图,销/挂起/级/认领解析不再复制)。
-# 票本身就是排期承诺:有 OPEN 票即唤,不等龄——票面即优先级。
+# D批①唤起三条件（业主裁面 2026-11-16「唤知三条件+6h兜底」——72%空唤
+# 实案收口：workable工单不再唤知（施工席自领，唤知票道只留两键）：
+# ①rulable=等裁定票 ②receipt末态=完工待验收票——销票归唤知验收件；
+# 其余=6h兜底一扫（命脉升件另册直唤在下）。
+RULE_N=$(psql "$DSN" -qAt -c "
+SELECT count(*) FROM ops_ticket_desk WHERE rulable" 2>/dev/null)
+RULE_N=${RULE_N:-0}
+AWAIT_N=$(psql "$DSN" -qAt -c "
+WITH last AS (SELECT DISTINCT ON (rel) rel, act FROM ops_event_act
+  WHERE act IS NOT NULL ORDER BY rel, ts DESC)
+SELECT count(*) FROM last WHERE act='receipt'" 2>/dev/null)
+AWAIT_N=${AWAIT_N:-0}
+# workable 工单数仍读（量表/干跑面用，不唤）。
 TICKET_N=$(psql "$DSN" -qAt -c "
 SELECT count(*) FROM ops_ticket_desk WHERE workable OR rulable" 2>/dev/null)
 TICKET_N=${TICKET_N:-0}
@@ -153,7 +165,7 @@ if [ -n "$OREPO" ]; then
 		--format='%(committerdate:unix) %(refname:short)' \
 		'refs/remotes/origin/fix/*' 'refs/remotes/origin/feat/*' \
 		'refs/remotes/origin/audit/*' 'refs/remotes/origin/t/*' 2>/dev/null \
-		| awk -v c=$(( $(date +%s) - 604800 )) '$1>c {print $2}' | sed 's|^origin/||' | tr -d "'\"\\")
+		| awk -v c=$(( $(date +%s) - 604800 )) '$1>c {print $2}' | sed 's|^origin/||' | tr -d "\"'\\\\")
 	DG_BR_N=$(printf '%s\n' "$DG_REFS" | grep -c . || true) # tolerate: 空集=零未并支合法
 	DG_BR_LIST=$(printf '%s\n' "$DG_REFS" | grep . | head -6 | paste -sd, -)
 	[ "$DG_BR_N" -gt 6 ] && DG_BR_LIST="$DG_BR_LIST,…"
@@ -178,15 +190,28 @@ WHERE NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='量表'
   AND x.ticket='housekeeping_daily' AND x.ts>current_date)
 SQL
 
-NOW=$(date +%s); AGE=$(( NOW - OLDEST ))
+NOW=$(date +%s)
+# 命脉册（D批①——册内升件类未决即唤不等龄；册外慢性类随兜底拍见。
+# 册=A批保留命脉名录:对账/断流/读败/账链断/资金闸/死刑/部署/执行径演习/
+# 唤知面死/审计;高惧值∨突发簇另作开放兜底——新命脉类不必先改册）
+CRIT_N=$(psql "$DSN" -qAt -c "SELECT count(*) FROM ops_esc_pending
+WHERE esc_class IN ('对账','断流','读败','账链断','资金闸','死刑','部署',
+  '执行径演习','唤知','审计')" 2>/dev/null)
+CRIT_N=${CRIT_N:-0}
+# 6h兜底（D批①——三条件皆空且距上唤>6h=兜底一扫：慢性面/账页对时/
+# 每日一行读时都在兜底拍见;距上唤≤6h纯静默不唤）。
+LAST_WOKE=$(psql "$DSN" -qAt -c "SELECT COALESCE(extract(epoch from
+  max(ts))::bigint,0) FROM ops_event WHERE seat='唤知机' AND event='唤起'" 2>/dev/null)
+LAST_WOKE=${LAST_WOKE:-0}
 TRIGGER=""
 [ "$MAXV" -ge "$VAL_HI" ] && TRIGGER="valence:$MAXV"
 [ -z "$TRIGGER" ] && [ "$N" -ge "$BURST_N" ] && TRIGGER="burst:$N"
-[ -z "$TRIGGER" ] && [ "$N" -ge "$MIN_N" ] && [ "$AGE" -ge "$MIN_AGE" ] && TRIGGER="aged:N=$N age=${AGE}s"
-[ "$TICKET_N" -gt 0 ] && TRIGGER="${TRIGGER:+$TRIGGER }ticket:$TICKET_N"
-[ "$PEND_BR" -gt 0 ] && TRIGGER="${TRIGGER:+$TRIGGER }pendbr:$PEND_BR"
+[ -z "$TRIGGER" ] && [ "$CRIT_N" -gt 0 ] && TRIGGER="crit:$CRIT_N"
+[ "$RULE_N" -gt 0 ] && TRIGGER="${TRIGGER:+$TRIGGER }rule:$RULE_N"
+[ "$AWAIT_N" -gt 0 ] && TRIGGER="${TRIGGER:+$TRIGGER }accept:$AWAIT_N"
+[ -z "$TRIGGER" ] && [ $(( NOW - LAST_WOKE )) -gt 21600 ] && TRIGGER="sweep:6h"
 # 干跑口：探针/摘要照跑，唤起前退出并打印触发判定（验证用——不落唤起行不 spawn）。
-[ "${COG_DRY:-}" = 1 ] && { echo "[dispatch] dry: trigger=${TRIGGER:-none} N=$N MAXV=$MAXV ticket=$TICKET_N pendbr=$PEND_BR"; exit 0; }
+[ "${COG_DRY:-}" = 1 ] && { echo "[dispatch] dry: trigger=${TRIGGER:-none} N=$N MAXV=$MAXV crit=$CRIT_N rule=$RULE_N await=$AWAIT_N ticket=$TICKET_N pendbr=$PEND_BR lastwoke=$((NOW-LAST_WOKE))s"; exit 0; }
 [ -n "$TRIGGER" ] || exit 0
 
 # 单飞闸: o-cognition-<epoch> 会话件 active 即退(串行认知)。
