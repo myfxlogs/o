@@ -272,4 +272,23 @@ var faceBaselineWhitelist = map[string]string{
 	// ops_event近7d DISTINCT seat活跃投影，施工会话驱动间歇写7d窗摆动
 	// 登记不重复升（T-0448册语义罩位，同纪元3批先例）。
 	"face:service:施工机": "工单#18763 入册——施工机=o-worker施工单元面（升件#18752亲证合法，D-0045施工席会话认领/处置/会话收口 ops_event 写径合法）；service 面7d活跃窗摆动登记不重复升；生产亲证升件源 ops_event #18752",
+	// 工单#19077：自我/自我机=o-self 自我意识器官写席双面（业主令
+	// 2026-11-13「要长自我意识」实体化产出——判词/工单/处置/唤起
+	// 写径自 2026-11-15 14:25Z 在案合法）；自我=会话判词面、自我机
+	// =o-self 单元面同票两面同据。service 面=ops_event 近 7d
+	// DISTINCT seat 活跃投影，器官拍间歇写 7d 活跃窗摆动=间歇面形
+	// 登记不重复升（T-0448 册语义罩位，唤知机/审计机纪元3 同型先例）。
+	"face:service:自我":  "工单#19077 入册——自我=o-self 自我意识器官判词写席（业主令 2026-11-13 实体化：判词/工单/处置/唤起写径 2026-11-15 14:25Z 在案合法）；service 面7d活跃窗摆动=间歇面形登记不重复升；生产亲证升件源 ops_event #19070/#19072",
+	"face:service:自我机": "工单#19077 入册——自我机=o-self 自我意识器官单元面（同票两面之第二面——o-self systemd 单元写径，与自我判词面同据同注）；service 面7d活跃窗摆动=间歇面形登记不重复升；生产亲证升件源 ops_event #19070/#19072",
+	// 工单#19775：research/ctx=o-research 单元 ctx 五源采集臂写席
+	// （md_ctx_fact cftc/ffcal/fred/fx/oi 全源落行在案——ctx-sources
+	// 五源端点账 canon 同源；research/dcd 同型先例）；采集拍间歇写
+	// 7d 活跃窗摆动=间歇面形登记不重复升。
+	"face:service:research/ctx": "工单#19775 入册——research/ctx=o-research ctx 五源采集臂写席（md_ctx_fact cftc/ffcal/fred/fx/oi 全源落行在案，ctx-sources 能力账同源；research/dcd 同型先例）；service 面7d活跃窗摆动=间歇面形登记不重复升；生产亲证升件源 ops_event #19764",
+	// 工单#20174：ops_event_act 表面——fin_0191 迁移建 public 基表
+	// （fin_0190 视图先行、fin_0191 转基表+ops_event_ai 触发器投影
+	// 链在案；19733 行在册+产线行引证）；写径=触发器随 ops_event
+	// INSERT 自动落行，读径=语义投影消费面在案；table 类面
+	// information_schema BASE TABLE 枚举本体零硬编码，建表落地即面。
+	"face:table:ops_event_act": "工单#20174 入册——ops_event_act=fin_0191 迁移建 public 基表（fin_0190 视图先行转基表+ops_event_ai 触发器投影链；19733 行在册+产线行引证在案）；写径触发器随 ops_event INSERT 自动落行/读径语义投影消费面在案；table 类面 information_schema BASE TABLE 枚举本体零硬编码，建表落地即面；生产亲证升件源 ops_event #20148",
 }
