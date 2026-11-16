@@ -98,7 +98,7 @@ func TestXvenueSizerRouting(t *testing.T) {
 	cls := [2]CloseLeg{
 		{Venue: "mt5", InstID: "BTCUSDm", Side: "buy", Sz: 0.5, SzKnown: true, Ticket: 777},
 		{Venue: "okx", InstID: "BTC-USDT-SWAP", Side: "sell", Sz: 10, SzKnown: true}}
-	out, ok := w.sizedCloseLegs(ctx, cls)
+	out, _, ok := w.sizedCloseLegs(ctx, cls)
 	if !ok {
 		t.Fatal("路由件在册仍 fail")
 	}
@@ -114,7 +114,7 @@ func TestXvenueSizerRouting(t *testing.T) {
 	}
 	// venue 无路由=fail-closed（错 venue 件=错读量防线）
 	cls[0].Venue = "binance"
-	if _, ok = w.sizedCloseLegs(ctx, cls); ok {
+	if _, _, ok = w.sizedCloseLegs(ctx, cls); ok {
 		t.Fatal("venue 无路由应 fail-closed")
 	}
 }

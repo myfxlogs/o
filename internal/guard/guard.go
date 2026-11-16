@@ -224,11 +224,38 @@ func (w *Warden) tend(ctx context.Context, p posRow, maxAtt int64, trig closeTri
 		log.Printf("[guard] WARN 仓 %d 平仓被闸拒（%s/%s）——升级留痕", p.id, trig.kind, dec.Reason)
 		return
 	}
-	cls, ok := w.sizedCloseLegs(ctx, legs.reverse())
+	cls, settled, ok := w.sizedCloseLegs(ctx, legs.reverse())
 	if !ok {
 		w.rej.Inc("facts_missing")
 		w.noteAttemptFail(ctx, p.id, "plan:sizer:平仓量现读败/对齐零") // T-0428——Earn 收走余额类计划期败
 		w.note("sizer_fail", fmt.Sprintf("仓 %d 平仓量 venue 现读败/对齐零——fail-closed 不发 intent", p.id))
+		return
+	}
+	// 工单#21745：venue 实读对齐零腿=外部已结（residual_clear 外扫/外部
+	// 移动等外因清场）——不构平腿不发残量单；幸存腿前置归并（execwiring
+	// Legs[1]==""→ExecuteDir 单腿径契约位），残量走挂账显形。
+	if cls[0].InstID == "" && cls[1].InstID != "" {
+		cls[0], cls[1] = cls[1], CloseLeg{}
+	}
+	if len(settled) > 0 {
+		names := make([]string, 0, len(settled))
+		for _, s := range settled {
+			w.noteSettledLeg(ctx, p, s)
+			names = append(names, s.instID)
+		}
+		if trig.facts == nil {
+			trig.facts = map[string]any{}
+		}
+		trig.facts["externally_settled"] = names
+	}
+	if cls[0].InstID == "" {
+		// 全腿外结=venue 已平——无执行件可发，直迁 closed（决策行
+		// close_exec_id=0 显式记零执行=外结事实非成交）。
+		if err := w.markClosed(ctx, p, 0, trig); err != nil {
+			log.Printf("[guard] WARN 仓 %d 全腿外结但态迁写败：%v", p.id, err)
+			return
+		}
+		log.Printf("[guard] 仓 %d 全腿外部已结（触发=%s）——直迁 closed", p.id, trig.kind)
 		return
 	}
 	execID, err := w.ex.ExecuteClose(ctx, CloseSpec{

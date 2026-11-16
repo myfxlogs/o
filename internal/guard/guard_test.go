@@ -473,20 +473,70 @@ func TestSizedCloseLegs(t *testing.T) {
 		{Venue: "okx", InstID: "BTC-USDT-SWAP", Side: "buy", Sz: 3, SzKnown: true}}
 	// avail=0.00030866（taker 费内扣实持）、lot=0.0000001——0.00030897→0.0003086。
 	w.AttachSizer(fakeSizer{avail: 0.00030866, contract: 1e9, lot: 0.0000001})
-	got, ok := w.sizedCloseLegs(ctx, cls)
-	if !ok || math.Abs(got[0].Sz-0.0003086) > 1e-12 {
-		t.Fatalf("spot 平仓量应对齐 avail 网格: ok=%v sz=%.8f", ok, got[0].Sz)
+	got, settled, ok := w.sizedCloseLegs(ctx, cls)
+	if !ok || len(settled) != 0 || math.Abs(got[0].Sz-0.0003086) > 1e-12 {
+		t.Fatalf("spot 平仓量应对齐 avail 网格: ok=%v sz=%.8f settled=%v", ok, got[0].Sz, settled)
 	}
 	if got[1].Sz != 3 { // perp avail 直通（同 sizer avail>3）
 		t.Fatalf("perp 平仓量应沿实读: %v", got[1].Sz)
 	}
 	w.AttachSizer(fakeSizer{errOn: "-USDT"})
-	if _, ok := w.sizedCloseLegs(ctx, cls); ok {
+	if _, _, ok := w.sizedCloseLegs(ctx, cls); ok {
 		t.Fatal("venue 读败应 fail-closed 拒平")
 	}
-	w.AttachSizer(fakeSizer{avail: 0.000000001, lot: 0.0000001})
-	if _, ok := w.sizedCloseLegs(ctx, cls); ok {
-		t.Fatal("对齐后零量应 fail-closed 拒平（禁发残量单）")
+	// 工单#21745：对齐零=externally_settled 出列非整单拒——avail≈0 双腿皆
+	// 外结→ok=true+双槽清空（调用侧全外结径直迁 closed）；读败仍拒。
+	w.AttachSizer(fakeSizer{avail: 0.000000001, contract: 0.000000001, lot: 0.0000001})
+	got, settled, ok = w.sizedCloseLegs(ctx, cls)
+	if !ok || len(settled) != 2 || got[0].InstID != "" || got[1].InstID != "" {
+		t.Fatalf("对齐零腿应出列为空槽: ok=%v settled=%d cls=%+v", ok, len(settled), got)
+	}
+}
+
+// 工单#21745 锚：spot 腿 venue 实读≈0（residual_clear 外扫后）=externally_settled
+// ——不构零量平腿不发残量单；幸存 SWAP 腿前置归并走 ExecuteDir 单腿径平仓
+// 走完，guard_close 翻 closed，残量 bare_bag/fin_holding/事件行落账。
+func TestCloseSpotLegExternallySettled(t *testing.T) {
+	ctx, w, fx := setup(t)
+	seedFacts(t, ctx, w, -0.001)
+	posID := mkPosition(t, ctx, w, "live", 1, time.Now())
+	// 仓#86 形：spot avail=0.0012<lot=0.01 对齐零=外结；swap contract 健在。
+	w.AttachSizer(fakeSizer{avail: 0.0012, contract: 10, lot: 0.01})
+	if err := w.scanOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if len(fx.calls) != 1 {
+		t.Fatalf("期望一次平仓执行，got %d", len(fx.calls))
+	}
+	// 幸存腿前置：SWAP close 腿居槽0（ExecuteDir 径），外结 spot 腿不构单。
+	if fx.calls[0].Legs[0].InstID != "BTC-USDT-SWAP" || fx.calls[0].Legs[0].Side != "buy" ||
+		fx.calls[0].Legs[1].InstID != "" {
+		t.Fatalf("外结腿应清空槽+幸存腿前置: %+v", fx.calls[0].Legs)
+	}
+	closed, state, trig := posClosed(t, ctx, w, posID)
+	if !closed || state != "closed" || trig != "funding_flip" {
+		t.Fatalf("仓应 closed/funding_flip，got closed=%v state=%q trig=%q", closed, state, trig)
+	}
+	// 残量挂账：bare_bag 列+fin_holding recon 行+裸袋事件行三事实落账。
+	var ccy string
+	var qty *float64
+	if err := w.pool.QueryRow(ctx,
+		`SELECT bare_bag_ccy,bare_bag_qty FROM fin_position WHERE id=$1`, posID).Scan(&ccy, &qty); err != nil {
+		t.Fatal(err)
+	}
+	if ccy != "BTC" || qty == nil || math.Abs(*qty-0.0012) > 1e-9 {
+		t.Fatalf("bare_bag 挂账应记外结残量 0.0012 BTC: ccy=%q qty=%v", ccy, qty)
+	}
+	var n int
+	if err := w.pool.QueryRow(ctx,
+		`SELECT count(*) FROM fin_holding WHERE kind='spot_dust' AND ccy='BTC'
+		   AND val_ref->>'bare_bag_position'=$1`, fmt.Sprint(posID)).Scan(&n); err != nil || n < 1 {
+		t.Fatalf("fin_holding spot_dust recon 行应落账: n=%d err=%v", n, err)
+	}
+	if err := w.pool.QueryRow(ctx,
+		`SELECT count(*) FROM ops_event WHERE event='裸袋' AND note LIKE $1`,
+		fmt.Sprintf("仓#%d BTC-USDT %%", posID)).Scan(&n); err != nil || n < 1 {
+		t.Fatalf("裸袋事件行应落账: n=%d err=%v", n, err)
 	}
 }
 
