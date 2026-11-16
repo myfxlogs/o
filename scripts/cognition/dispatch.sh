@@ -43,122 +43,6 @@ TICKET_N=$(psql "$DSN" -qAt -c "
 SELECT count(*) FROM ops_ticket_desk WHERE workable OR rulable" 2>/dev/null)
 TICKET_N=${TICKET_N:-0}
 
-# 票滞留探(工单面动线审计 2026-11-15⑤:在板票全谱晾龄≈立案龄零引证动账——
-# 三选一「不许无声跳过」规则零执,会话只办门口件(升件/矿尸)作业本不拽活;
-# 修复=把滞留票变成门口件——stall 阈后产 ticketstall_<id> 升件走升件道
-# ~100%分诊率。键域=票行id(唯一锚);销后复火=敷衍销升件不动票=下拍复火
-# 罚懒器;动账=状态事件(认领/处置/在办)引「工单#id」——散文引证不计时。
-STALL_AGE=${COG_TICKET_STALL_AGE:-21600}   # 默认6h零动账=滞留(给挂起窗内缓办留量)
-SUSPEND_AGE=${COG_TICKET_SUSPEND_AGE:-72}  # 挂起缓期h(挂起行ts起算非票立案ts——
-# 升件#18484实证:锚错在票ts=老票挂起窗恒过期,销了又升8簇3轮每拍耗整会话;
-# 级=挂起注记「挂起期限=Nh」→票面「期限=Nh」→本默认;到期回列复验语义不变)
-STUCK_N=${COG_TICKET_STUCK_N:-3}        # 滞留第N次=慢性升档换问法
-# 动账收窄(业主令2026-11-15⑥判词缓刑环实证预见):仅状态事件(认领/处置/
-# 在办)引票算动账——自问/自述/工单注记等散文引证不计时,写评语不续命。
-# 滞留第N次复火升class+换问法:不再问「有效吗」(可无限答)改问「为何结构
-# 性办不了」——裁项终局化(认领落码/拆解/挂起给依赖/销),禁续判有效。
-psql "$DSN" -qAt <<SQL >/dev/null 2>&1 || true # tolerate: 探行写败=下拍补,不阻唤起闸
-INSERT INTO ops_event(seat,event,esc_class,esc_scope,note)
-SELECT '探测席','升件',
-  CASE WHEN p.n>=$STUCK_N THEN '票滞留·慢性' ELSE '票滞留' END,
-  'ticketstall_'||p.id,
-  '工单#'||p.id||' '||p.name||' 立案'||p.age_h||'h 零动账(第'||p.n||'次滞留)'
-  ||CASE WHEN p.n>=$STUCK_N
-      THEN '——有效判词已'||(p.n-1)||'轮仍零落码:裁=认领落码/拆解/挂起给依赖/销其一,禁续判有效'
-      ELSE '——认领/拆解/挂起带条件/销尸票四裁其一,无声跳过=下拍复火' END
-FROM (
-  SELECT t.id,t.filed_ts,
-    COALESCE(substring(t.note from '工单/([a-z0-9_-]+)'),'票') AS name,
-    (SELECT count(*) FROM ops_event x2 WHERE x2.event='升件'
-      AND x2.esc_scope='ticketstall_'||t.id AND x2.ts>now()-interval '30 days')+1 AS n,
-    round(EXTRACT(EPOCH FROM (now()-t.filed_ts))/3600.0) AS age_h
-  FROM ops_ticket_desk t
-  WHERE t.workable AND t.dispatchable
-  -- dispatchable窗(fin_0194 WIP限界):滞留探只管服务窗内晾票——
-  -- 窗外backlog票不可拣,逐票升件=压力放大器,由queue_depth聚合卡报。
-  AND t.last_active < now() - interval '1 second' * $STALL_AGE
-  AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='升件'
-    AND x.esc_scope='ticketstall_'||t.id AND x.ts>now()-interval '7 days'
-    AND NOT EXISTS (SELECT 1 FROM ops_event y WHERE y.ts>x.ts
-      AND y.note ~ ('升件#'||x.id::text||'([^0-9]|\$)')))
-) p
-SQL
-
-# ticketstall 扫尾:票回活(引证动账<阈/已销/已挂起)=滞留条件消→恢复行
-# 自闭未决 stall 升件(复绿=条件消自证非宣称,同 pendbr 扫尾契)。
-# 坑处置(2026-11-15⑤锁堆实证):裸JOIN+相关子查询=规划器先跑贵谓词全表
-# 重扫(单拍跑15min持行锁堆死迁移/写队)——CTE物化先收窄到ticketstall
-# 未决小集(常空),JOIN/回活判定只在小集上跑,秒级钉死。
-psql "$DSN" -qAt <<SQL >/dev/null 2>&1 || true # tolerate: 扫尾写败=下拍补
-INSERT INTO ops_event(seat,event,note)
-SELECT '探测席','恢复','升件#'||p.id||' 复绿——工单#'||p.tid
- ||' 回活(引证动账<阈或票已离板),滞留件归销'
-FROM (
-  SELECT e.id,substring(e.esc_scope from 13) AS tid FROM ops_event e
-  WHERE e.event='升件' AND e.esc_scope LIKE 'ticketstall\_%'
-    AND e.ts>now()-interval '7 days'
-    AND NOT EXISTS (SELECT 1 FROM ops_event y WHERE y.ts>e.ts
-      AND y.note ~ ('升件#'||e.id::text||'([^0-9]|\$)'))
-) p
-LEFT JOIN ops_ticket_desk t ON t.id=p.tid::bigint
-WHERE t.id IS NULL -- 票龄出30d窗=死件,滞留升件归销
-   OR t.last_active > now() - interval '1 second' * $STALL_AGE
-   OR NOT t.workable
-SQL
-
-# 工单面压力探(fin_0194 队列闭环感知腿):backlog=WIP窗外在账不可拣票,
-# 滞留探只管窗内,窗外淤积由本件聚合一张卡报——不逐票升件(逐件=压力
-# 放大器,自喂环实证在fin_0194注)。阈=backlog≥COG_BACKLOG_HI,24h去重;
-# 卡载窗态/最陈龄/7d入出率/簇top——判归席,探只报。
-BACKLOG_HI=${COG_BACKLOG_HI:-5}
-psql "$DSN" -qAt <<SQL >/dev/null 2>&1 || true # tolerate: 同滞留探契,败=下拍补
-INSERT INTO ops_event(seat,event,esc_class,esc_scope,note)
-SELECT '探测席','升件','工单面压力','queue_depth',
-  '工单面压力:窗'||q.active||'/'||q.wip||' backlog='||q.backlog
-  ||' 最陈='||q.oldest_h||'h 7d入'||q.in7||'/出'||q.out7||' 簇top='||q.clusters
-  ||'——窗外按级饿死非丢票;入流请并簇/摘要票/缓P3,勿逐件立'
-FROM (
-  SELECT
-    count(*) FILTER (WHERE dispatchable AND tkind='工单') AS active,
-    count(*) FILTER (WHERE workable AND NOT dispatchable AND tkind='工单') AS backlog,
-    COALESCE(max(EXTRACT(epoch FROM now()-filed_ts)/3600)
-      FILTER (WHERE workable AND NOT dispatchable),0)::int AS oldest_h,
-    (SELECT count(*) FROM ops_event WHERE event='工单'
-      AND ts>now()-interval '7 days') AS in7,
-    (SELECT count(*) FROM ops_event_act a JOIN ops_event e ON e.id=a.rel
-      WHERE a.act='close' AND e.event='工单'
-      AND a.ts>now()-interval '7 days') AS out7,
-    COALESCE((SELECT string_agg(slug||'×'||rn, ',' ORDER BY rn DESC) FROM (
-      SELECT substring(note from '工单/([a-z0-9_-]+)') AS slug, count(*) AS rn
-      FROM ops_ticket_desk
-      WHERE workable AND NOT dispatchable AND tkind='工单'
-      GROUP BY 1 ORDER BY rn DESC LIMIT 3) c),'(无)') AS clusters,
-    COALESCE((SELECT value::int FROM app_config WHERE key='dm.cog.wip_limit'),20) AS wip
-  FROM ops_ticket_desk
-) q
-WHERE q.backlog >= $BACKLOG_HI
-AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='升件'
-  AND x.esc_scope='queue_depth' AND x.ts>now()-interval '24 hours'
-  AND NOT EXISTS (SELECT 1 FROM ops_event y WHERE y.ts>x.ts
-    AND y.note ~ ('升件#'||x.id::text||'([^0-9]|\$)')))
-SQL
-
-# 面压扫尾:backlog回阈下=压力条件消→恢复行自闭未决件(同ticketstall扫尾契)
-psql "$DSN" -qAt <<SQL >/dev/null 2>&1 || true # tolerate: 扫尾写败=下拍补
-INSERT INTO ops_event(seat,event,note)
-SELECT '探测席','恢复','升件#'||p.id||' 复绿——backlog='||b.n||'回阈下,面压归销'
-FROM (
-  SELECT e.id FROM ops_event e
-  WHERE e.event='升件' AND e.esc_scope='queue_depth'
-    AND e.ts>now()-interval '7 days'
-    AND NOT EXISTS (SELECT 1 FROM ops_event y WHERE y.ts>e.ts
-      AND y.note ~ ('升件#'||e.id::text||'([^0-9]|\$)'))
-) p,
-LATERAL (SELECT count(*) AS n FROM ops_ticket_desk
-  WHERE workable AND NOT dispatchable AND tkind='工单') b
-WHERE b.n < $BACKLOG_HI
-SQL
-
 # 未入支板(坑处置: 升件#11240 散文接续缝根修——会话销案留「接续:merge」
 # 散文把未完链挂出触发面,队列清零工件却活着。推支未入 master 即未完工作
 # 物证,工件本身当信号不等会话纪律): 7d tip 龄界防古墓支永唤;
@@ -183,66 +67,12 @@ PEND_BR=$([ -n "$OREPO" ] && git -C "$OREPO" for-each-ref --no-merged origin/mas
 	2>/dev/null | awk -v c=$(( $(date +%s) - 604800 )) '$1>c' | wc -l)
 PEND_BR=${PEND_BR:-0}
 
-# 支无票探(孤儿账/pendbr_<支>_<尖sha>——业主令 11-12:「裸支产缝」必办;
-# 工单#14370 churn 根修): 支在远端未入 master(工件活着)而 OPEN 工单
-# 零载支名(指令面零)→升件。
-# 产缝三径:外席推支无收口仪式/会话半路死收口未跑/让位挂支——「支必有
-# merge 票」原是收口纪律件,绕开收口即漏;此探把不变量改机械对账。
-# 覆盖=工单载支名(销证即工单面有票);销后仍裸→下拍复火(裸销非处置,
-# 处置=补票载名并/删支判废)。refname 剔引号防注入(名仅 git 合法字符)。
-# scope 绑尖sha(热域根修): 键域仅支名=多潮工件挤同 scope——并行会话
-# 复用支名推新尖,潮潮实并仍按「销后复燃」记 stuck_esc/hotdom 假热域
-# 19 波(工单#14370 实证;改会话支名习惯=外部行为不可修,探针键域可修)。
-# 尖绑后:同尖抑重(本scope未决不叠件)、新尖=新工件新scope、移尖/并支/
-# 龄出→下方扫尾自闭(恢复行携升件#id引证=未决面同契),工件归新scope
-# 不吊死——复绿=条件消自证非宣称。扫尾有侧效,for-each-ref 成败先存:
-# 败=远端面不可知,发件扫尾全跳(fail-open 不误闸——git 瞬败若照扫,
-# 空尖集会误闭全部真悬件)。
-PBR_GIT=1
-if [ -n "$OREPO" ] && [ "${PBR_FETCH:-0}" = 1 ]; then
-	PBR_REFS=$(git -C "$OREPO" for-each-ref --no-merged origin/master \
-		--format='%(refname:short) %(objectname:short) %(committerdate:unix)' \
-		'refs/remotes/origin/fix/*' 'refs/remotes/origin/feat/*' 'refs/remotes/origin/audit/*' 2>/dev/null)
-	PBR_GIT=$?
-fi
-if [ -n "$OREPO" ] && [ "$PBR_GIT" -eq 0 ] && [ "${PBR_FETCH:-0}" = 1 ]; then
-	VALID_PBR=""
-	while IFS=' ' read -r br sha; do
-		[ -n "$br" ] || continue
-		# 尖已在 master 祖链=支形残但件已并(merge 后支未删的过渡态)——不升
-		git -C "$OREPO" merge-base --is-ancestor "$sha" origin/master 2>/dev/null && continue
-		br=$(printf '%s' "$br" | tr -d "'\"\\")
-		scope="pendbr_$(printf '%s' "$br" | tr '/' '-')_${sha}"
-		VALID_PBR="$VALID_PBR $scope"
-		psql "$DSN" -qAt <<SQL >/dev/null 2>&1 || true # tolerate: 探行写败=下拍补,不阻唤起闸
-INSERT INTO ops_event(seat,event,esc_class,esc_scope,note)
-SELECT '探测席','升件','孤儿账','$scope','裸支 $br 尖 $sha 未入 master 且工单面无载名票——并/删/票三裁归会话'
-WHERE NOT EXISTS (SELECT 1 FROM ops_event x
-	WHERE x.event='升件' AND x.esc_scope='$scope' AND x.ts>now()-interval '7 days'
-	AND NOT EXISTS (SELECT 1 FROM ops_event y WHERE y.ts>x.ts
-		AND y.note ~ ('升件#'||x.id::text||'([^0-9]|\$)')))
-AND NOT EXISTS (SELECT 1 FROM ops_ticket_desk t
-	WHERE NOT t.closed AND t.note LIKE '%'||'$br'||'%')
-SQL
-	done < <(printf '%s\n' "$PBR_REFS" \
-		| awk -v c=$(( $(date +%s) - 604800 )) '$3>c {print $1,$2}' | sed 's|^origin/||')
-	VALID_SQL=$(printf '%s' "$VALID_PBR" | tr ' ' '\n' | sed -n "s/^\\(.\\+\\)$/'\\1'/p" | paste -sd, -)
-	[ -n "$VALID_SQL" ] || VALID_SQL="''"
-	psql "$DSN" -qAt <<SQL >/dev/null 2>&1 || true # tolerate: 扫尾写败=下拍补
-INSERT INTO ops_event(seat,event,note)
-SELECT '探测席','恢复','升件#'||e.id||' 复绿——pendbr 件态消(尖移/支并/龄出),活尖归新scope 工件不断监 '||e.esc_scope
-FROM ops_event e
-WHERE e.event='升件' AND e.esc_scope LIKE 'pendbr\_%' AND e.ts>now()-interval '7 days'
-  AND e.esc_scope NOT IN ($VALID_SQL)
-  AND NOT EXISTS (SELECT 1 FROM ops_event y WHERE y.ts>e.ts
-    AND y.note ~ ('升件#'||e.id::text||'([^0-9]|\$)'))
-SQL
-fi
-
 # ── 器官镜组(业主令2026-11-15⑦批造——「自然人能力」基质外照层)───────────
 # 对内盲区不可自省但可外照:基质病灶逻辑上不能靠基质自愈(拾取断实证——
 # 修拾取的票本身也拾不起来),器官健康件=外席件非它作业。
-# 四探共契:产出=升件走同分诊道(检测机械化,销裁仍归处置席——判断力不动);
+# 三探共契(业主令#20930 减法 C 批:③前提疑死/④判词失真/⑤器官自审/⑦盲区账缺
+# 四件随元探针撤编——机器自查类升件=自喂环实证,改每日一行/不升件):
+# 产出=升件走同分诊道(检测机械化,销裁仍归处置席——判断力不动);
 # scope dedup+销后复火;时级闸(整点后2min内跑一拍,器官题一小时粒度足够)。
 if (( 10#$(date +%M) < 2 )); then
 # ①eval流断(全谱): 全模板零eval行24h=研究枚举臂死征(enum-dead类上位探——
@@ -274,82 +104,6 @@ AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='升件'
   AND NOT EXISTS (SELECT 1 FROM ops_event y WHERE y.ts>x.ts
     AND y.note ~ ('升件#'||x.id::text||'([^0-9]|\$)')))
 SQL
-# ③前提疑死(注册表重估): 立案契约「前提=<查>:<参>」周期重估——前提假=
-# 死题疑云升件(只报疑似死,销题仍归处置席)。注册表白名单:
-# eval_zero<t>/strat_open_zero<t>/esc_unres<scope>(服务端评估零注入面)。
-psql "$DSN" -qAt <<SQL >/dev/null 2>&1 || true # tolerate: 探行写败=下拍补
-WITH cand AS (
-  SELECT t.id,(regexp_match(t.note,'前提=([a-z_]+):([a-z0-9_\-\.]+)')) m
-  FROM ops_ticket_desk t
-  WHERE (t.workable OR t.rulable)
-    AND t.note ~ '前提=[a-z_]+:'
-), chk AS (
-  SELECT c.id,c.m[1] k,c.m[2] a,
-    CASE c.m[1]
-      WHEN 'eval_zero' THEN NOT EXISTS(SELECT 1 FROM fin_opp_eval e WHERE e.template=c.m[2] AND e.ts>now()-interval '30 days')
-      WHEN 'strat_open_zero' THEN NOT EXISTS(SELECT 1 FROM fin_strategy s WHERE s.template_ref=c.m[2] AND s.state IN('proposed','paper','live'))
-      WHEN 'esc_unres' THEN EXISTS(SELECT 1 FROM ops_esc_pending p WHERE p.esc_scope=c.m[2])
-      ELSE NULL END AS alive
-  FROM cand c WHERE c.m IS NOT NULL
-)
-INSERT INTO ops_event(seat,event,esc_class,esc_scope,note)
-SELECT '探测席','升件','前提疑死','premdead_'||id,
- '工单#'||id||' 前提='||k||':'||a||' 评估=假——立案前提疑死(死题#15804同型):复核销题∨载新前提∨挂起条件'
-FROM chk WHERE alive IS FALSE
-AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='升件'
-  AND x.esc_scope='premdead_'||chk.id AND x.ts>now()-interval '7 days'
-  AND NOT EXISTS (SELECT 1 FROM ops_event y WHERE y.ts>x.ts
-    AND y.note ~ ('升件#'||x.id::text||'([^0-9]|\$)')))
-SQL
-# ④判词失真(可验断言抽复): 判词载「merge=<sha>」须真在origin/master;
-# 「零<模板>eval/产出」须与fin_opp_eval 30d实数相容——可证伪者升件
-# (只升「判词与账矛盾」,判词对不判对错;fetch败=远端不可知全跳)。
-if [ -n "$OREPO" ] && [ "${PBR_FETCH:-0}" = 1 ]; then
-  psql "$DSN" -qAt <<'SQL' | while IFS=' ' read -r rid sha; do
-SELECT id||' '||(regexp_match(note,'merge=([0-9a-f]{9,40})'))[1]
-FROM ops_event WHERE ts>now()-interval '24 hours'
-  AND event IN ('处置','工单','收口','在办','独语','独白','自述','自问')
-  AND seat<>'探测席' AND note ~ 'merge=[0-9a-f]{9}'
-SQL
-    [ -n "$rid" ] && [ -n "$sha" ] || continue
-    git -C "$OREPO" cat-file -e "${sha}^{commit}" 2>/dev/null || continue # 本地不识=不可验跳
-    git -C "$OREPO" merge-base --is-ancestor "$sha" origin/master 2>/dev/null && continue # 真上岸
-    psql "$DSN" -qAt <<SQL >/dev/null 2>&1 || true # tolerate: 探行写败=下拍补
-INSERT INTO ops_event(seat,event,esc_class,esc_scope,note)
-SELECT '探测席','升件','判词失真','verdfalse_$rid',
- '判词失真——行#$rid 称merge=$sha已上岸,实不在origin/master(判词与账矛盾):复核判词径∨口径自辩'
-WHERE NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='升件'
-  AND x.esc_scope='verdfalse_$rid')
-SQL
-  done
-fi
-psql "$DSN" -qAt <<SQL >/dev/null 2>&1 || true # tolerate: 探行写败=下拍补
-WITH tmpl AS (SELECT DISTINCT template t FROM fin_opp_eval),
-cand AS (
-  SELECT e.id,t.t FROM ops_event e JOIN tmpl t ON e.note ILIKE '%'||t.t||'%'
-  WHERE e.ts>now()-interval '24 hours'
-    AND e.event IN ('处置','收口','在办','独语','独白','自述','自问')
-    AND e.seat<>'探测席' AND e.note ~ '零.{0,8}(eval|产出)'
-)
-INSERT INTO ops_event(seat,event,esc_class,esc_scope,note)
-SELECT '探测席','升件','判词失真','verdz_'||c.id||'_'||c.t,
- '判词失真——行#'||c.id||' 称'||c.t||'零产出,fin_opp_eval 30d实有'
- ||(SELECT count(*) FROM fin_opp_eval e WHERE e.template=c.t AND e.ts>now()-interval '30 days')
- ||'行(#17743断假前提同型):复核判词径∨口径自辩'
-FROM cand c
-WHERE EXISTS (SELECT 1 FROM fin_opp_eval e WHERE e.template=c.t AND e.ts>now()-interval '30 days')
-AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='升件'
-  AND x.esc_scope='verdz_'||c.id||'_'||c.t)
-SQL
-# ⑤器官自审(日级唤起): 把我手做的值守审计变成常驻节拍——量=滞留复火
-# 直方图/判词失真未决/产线静默/stall→认领时延/立案→转化时延。
-psql "$DSN" -qAt <<SQL >/dev/null 2>&1 || true # tolerate: 探行写败=下拍补
-INSERT INTO ops_event(seat,event,esc_class,esc_scope,note)
-SELECT '探测席','升件','器官自审','orgaudit_'||to_char(now() AT TIME ZONE 'Asia/Shanghai','YYYYMMDD'),
- '器官自审日拍——按runbook「第一阶段完成度账」逐格打数(五器官谱词态/作业本拾取/求生欲环/判词健康/产线活性/基质负载/点破计数);产出器官账行∨异常立案'
-WHERE NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='升件'
-  AND x.esc_scope='orgaudit_'||to_char(now() AT TIME ZONE 'Asia/Shanghai','YYYYMMDD'))
-SQL
 # ⑥提炼旱(教训→canon转化断): 验尸攒案不结晶=「记全了没提炼」——
 # e551v/0c 实证(值守席判决 B2)。判据=verdicted≥50 且 canon转化<5%
 # (eng 13/37=35%健阈不扰,econ 0/551=全断照火)。只述积压开药归会话。
@@ -370,21 +124,42 @@ AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='升件'
   AND NOT EXISTS (SELECT 1 FROM ops_event y WHERE y.ts>x.ts
     AND y.note ~ ('升件#'||x.id::text||'([^0-9]|\$)')))
 SQL
-# ⑦盲区账缺(注册表缺席探): event='盲区' 行制=「不知道自己不知道什么」
-# 清单(工单#18324——结构常数主动管理件,自指/同源/墙外三域种子)。
-# 零行=地图未建升件;7d 复火窗=销判后仍空再鸣(同 consol_dry 窗语义)。
-psql "$DSN" -qAt <<SQL >/dev/null 2>&1 || true # tolerate: 探行写败=下拍补
-INSERT INTO ops_event(seat,event,esc_class,esc_scope,note)
-SELECT '探测席','升件','器官自审','blindspot_map_absent',
- '盲区账缺——event=盲区 注册表零行:「不知道自己不知道什么」清单未建'
- ||'(自指/同源/墙外=结构性常数须主动管理,工单#18324 在板)——认领建图∨判口径'
-WHERE NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='盲区')
-AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='升件'
-  AND x.esc_scope='blindspot_map_absent' AND x.ts>now()-interval '7 days'
-  AND NOT EXISTS (SELECT 1 FROM ops_event y WHERE y.ts>x.ts
-    AND y.note ~ ('升件#'||x.id::text||'([^0-9]|\$)')))
-SQL
 fi
+
+# 每日一行（减法 C 批·业主令#20930）：工单板/未并支/新面 三数并一行量表——
+# 原票滞留探/工单面压力探/支无票探/新面升件 四件撤编后的唯一可见面。只述数不升件，
+# 幂等=当日（库时区）零行才写。未并支面=fix|feat|audit|t 四前缀、尖 7d 内有动；
+# fetch 败=计数未知显 ?（不虚构）。
+DG_BR_N="?"; DG_BR_LIST=""
+if [ -n "$OREPO" ]; then
+	DG_REFS=$(git -C "$OREPO" for-each-ref --no-merged origin/master \
+		--format='%(committerdate:unix) %(refname:short)' \
+		'refs/remotes/origin/fix/*' 'refs/remotes/origin/feat/*' \
+		'refs/remotes/origin/audit/*' 'refs/remotes/origin/t/*' 2>/dev/null \
+		| awk -v c=$(( $(date +%s) - 604800 )) '$1>c {print $2}' | sed 's|^origin/||' | tr -d "'\"\\")
+	DG_BR_N=$(printf '%s\n' "$DG_REFS" | grep -c . || true) # tolerate: 空集=零未并支合法
+	DG_BR_LIST=$(printf '%s\n' "$DG_REFS" | grep . | head -6 | paste -sd, -)
+	[ "$DG_BR_N" -gt 6 ] && DG_BR_LIST="$DG_BR_LIST,…"
+fi
+psql "$DSN" -qAt <<SQL >/dev/null 2>&1 || true # tolerate: 摘要行写败=下拍补（当日幂等）
+INSERT INTO ops_event(seat,event,ticket,note)
+SELECT '探测席','量表','housekeeping_daily',
+ '日摘要: 工单板 开'||d.open||'/窗内'||d.active||'/窗外'||d.backlog||'/最陈'||d.oldest_h||'h/逾期'||d.overdue
+ ||' | 未并支 $DG_BR_N'||CASE WHEN '$DG_BR_LIST'<>'' THEN ':$DG_BR_LIST' ELSE '' END
+ ||' | 新面24h '||f.n||'(册外'||f.unreg||')'
+ ||'——只述数不升件;异常自裁归唤知/自我席'
+FROM (SELECT
+    count(*) FILTER (WHERE closed IS NOT TRUE) AS open,
+    count(*) FILTER (WHERE dispatchable AND tkind='工单') AS active,
+    count(*) FILTER (WHERE workable AND dispatchable IS NOT TRUE AND tkind='工单') AS backlog,
+    COALESCE(max(EXTRACT(epoch FROM now()-filed_ts)/3600) FILTER (WHERE closed IS NOT TRUE),0)::int AS oldest_h,
+    count(*) FILTER (WHERE closed IS NOT TRUE AND deadline<now()) AS overdue
+  FROM ops_ticket_desk) d,
+  (SELECT count(*) AS n, count(*) FILTER (WHERE note NOT LIKE '%基线册=%') AS unreg
+   FROM ops_event WHERE event='面清单新面' AND ts>now()-interval '24 hours') f
+WHERE NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='量表'
+  AND x.ticket='housekeeping_daily' AND x.ts>current_date)
+SQL
 
 NOW=$(date +%s); AGE=$(( NOW - OLDEST ))
 TRIGGER=""
@@ -393,6 +168,8 @@ TRIGGER=""
 [ -z "$TRIGGER" ] && [ "$N" -ge "$MIN_N" ] && [ "$AGE" -ge "$MIN_AGE" ] && TRIGGER="aged:N=$N age=${AGE}s"
 [ "$TICKET_N" -gt 0 ] && TRIGGER="${TRIGGER:+$TRIGGER }ticket:$TICKET_N"
 [ "$PEND_BR" -gt 0 ] && TRIGGER="${TRIGGER:+$TRIGGER }pendbr:$PEND_BR"
+# 干跑口：探针/摘要照跑，唤起前退出并打印触发判定（验证用——不落唤起行不 spawn）。
+[ "${COG_DRY:-}" = 1 ] && { echo "[dispatch] dry: trigger=${TRIGGER:-none} N=$N MAXV=$MAXV ticket=$TICKET_N pendbr=$PEND_BR"; exit 0; }
 [ -n "$TRIGGER" ] || exit 0
 
 # 单飞闸: o-cognition-<epoch> 会话件 active 即退(串行认知)。

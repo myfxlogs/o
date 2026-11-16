@@ -1,8 +1,8 @@
 // seat_kpi_beat.go —— 各岗 KPI 量表探（工单#19121——唤知钦定口径
 // ops_event #19588 备忘全文转录；八段全 ops_event∪fin_opp_hypothesis
 // 派生读域，零新表/零推送/零依赖）。量表拍群同挂位（metricBeats 尾加
-// 一行），日行一次档期=gaugeDue 同群先例形（selfStateBeat/
-// profitDailyBeat 同构——指纹=八段面值串，面变重报窗内抑判）。
+// 一行），严格日拍=seatKpiDue（业主令#20930——指纹闸面值一抖即重发，
+// 改末行 ts 距今<档即抑）。
 // probe 在 o-core 内跑=全读域无 roster_rw 界；各段读败=该段标 ?
 // 不整帧弃（账页面读败如实呈不虚构，同 selfStateBeat 先例）。
 //
@@ -18,8 +18,8 @@ import (
 	"time"
 )
 
-// seatKpiEvery 日行心跳兜底（同群 20h 先例——面值指纹主档期，
-// 心跳保鲜度）。
+// seatKpiEvery 严格日拍档期（业主令#20930——指纹含小数，面值一抖
+// 就重发；改末行 ts 距今<档即抑，不看指纹）。
 const seatKpiEvery = 20 * time.Hour
 
 // seatKpiM 八段读数（nil=该段读败——note 面呈 ? 不虚构）。
@@ -35,14 +35,26 @@ type seatKpiM struct {
 	research  *int     // ⑧研究转化 90d
 }
 
-// seatKpiBeat 各岗 KPI 日行——指纹闸先行（面值纹异=新现实重报，
-// 同纹且鲜=抑——gaugeDue 同群先例形，profitDailyBeat 同构）。
+// seatKpiDue 严格日拍闸——末行 ticket='seat_kpi' 距今 < seatKpiEvery
+// 即抑（不看指纹：面值一抖不重发）；无末行=首报。读败放行——量表
+// 惯例读败不虚构抑制。
+func (c coreService) seatKpiDue(ctx context.Context) bool {
+	var last *time.Time
+	if err := c.pool.QueryRow(ctx, `SELECT max(ts) FROM ops_event
+		WHERE event='量表' AND ticket='seat_kpi'`).Scan(&last); err != nil {
+		return true
+	}
+	return last == nil || time.Since(*last) >= seatKpiEvery
+}
+
+// seatKpiBeat 各岗 KPI 日行——严格日拍（seatKpiDue 同档期内全抑，
+// 面值变动不再重发——业主令#20930 减法 C 批）。
 func (c coreService) seatKpiBeat(ctx context.Context) {
-	m := c.seatKpiRead(ctx)
-	fp := strings.Join(seatKpiVals(m), "|")
-	if !gaugeDue(ctx, c, "seat_kpi", fp, seatKpiEvery) {
+	if !c.seatKpiDue(ctx) {
 		return
 	}
+	m := c.seatKpiRead(ctx)
+	fp := strings.Join(seatKpiVals(m), "|")
 	note := seatKpiNote(fp, m)
 	if _, err := c.pool.Exec(ctx,
 		`INSERT INTO ops_event(seat,event,ticket,note) VALUES('探测席','量表','seat_kpi',$1)`,

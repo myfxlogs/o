@@ -56,12 +56,11 @@ func (c coreService) escLoop(ctx context.Context, al *notify.Alerter) {
 		c.dataGapEscCheck(ctx, deadSince)
 		c.oppSurfaceStallEscCheck(ctx, deadSince)
 		c.liveDudEscCheck(ctx, deadSince)
-		c.stuckEscCheck(ctx, deadSince)
+		c.learnGapEscCheck(ctx, deadSince) // 求知滞探（原挂 stuck_esc 同拍——该探 C 批撤编后直挂）
 		c.lessonBacklogEscCheck(ctx, deadSince)
 		c.pairZeroEscCheck(ctx, deadSince)
 		c.intakeDryEscCheck(ctx, deadSince)
 		c.navStaleEscCheck(ctx, deadSince)
-		c.codeworkStallEscCheck(ctx, deadSince)
 		c.calibDriftEscCheck(ctx, deadSince) // 世模校准探(棒3 补挂——棒1 建件漏接线,信念对账面死态根修)
 		c.noveltyEscCheck(ctx, deadSince)    // 惊异唤探(新假想卡进管道即唤——知道自己不知道的扳机面)
 		c.reflexCompileCheck(ctx, deadSince) // 反射编译器(棒4——裁定记号机械物化 econ_rule 闸,判词不靠会话记得)

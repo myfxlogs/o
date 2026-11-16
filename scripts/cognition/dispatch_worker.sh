@@ -21,8 +21,7 @@ DSN=$(grep '^FIN_PG_DSN=' "$ENVF" 2>/dev/null | cut -d= -f2- | tr -d '"')
 TICKET_N=$(psql "$DSN" -qAt -c "
 SELECT count(*) FROM ops_ticket_desk WHERE dispatchable AND tkind='工单'" 2>/dev/null)
 TICKET_N=${TICKET_N:-0}
-# backlog=窗外在账不可拣(fin_0194 WIP窗——施工道只见窗内,窗外淤积由
-# queue_depth聚合卡报唤知统管;backlog只进触发note供账页观测)
+# backlog=窗外在账不可拣(fin_0194 WIP窗——施工道只见窗内,窗外淤积计数入每日一行（housekeeping_daily）;backlog只进触发note供账页观测)
 BACKLOG_N=$(psql "$DSN" -qAt -c "
 SELECT count(*) FROM ops_ticket_desk
 WHERE workable AND NOT dispatchable AND tkind='工单'" 2>/dev/null)

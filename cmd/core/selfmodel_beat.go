@@ -3,8 +3,7 @@
 // 总砸」=能力层——人格=对自己能力边界的稳定认识,元认知底座。
 //
 // 域键=工单 scope= 源升件域,无 scope 兜 seat（业主令票/外席票自带域义）。
-// 域面三数(30d窗):票=立票量,逾=开逾期+销逾期,燃=stuck_esc 销案后同域
-// 复燃次数(判词不实/修错界的自证)。尾行=会话果败比+求助值守数——
+// 域面三数(30d窗):票=立票量,逾=开逾期+销逾期。尾行=会话果败比+求助值守数——
 // 「我干活行不行」直接事实。
 // 量表件只述事实不定性;值指纹闸 20h——域集/数变=新现实重报,同纹抑。
 
@@ -52,22 +51,6 @@ func (c coreService) selfModelBeat(ctx context.Context) {
 		}
 		rows.Close()
 	}
-	// 域面复燃——stuck_esc note v= 前缀内 scope#id 对(销案后再火=自证不实)。
-	refire := map[string]int{}
-	r2, err := c.pool.Query(ctx, `SELECT m[1], count(DISTINCT e.id) FROM ops_event e,
-		LATERAL regexp_matches(e.note,'([a-zA-Z0-9_-]+)#[0-9]+','g') m
-		WHERE e.event='升件' AND e.esc_scope='stuck_esc' AND e.ts>now()-interval '30 days'
-		GROUP BY 1`)
-	if err == nil {
-		for r2.Next() {
-			var k string
-			var v int
-			if r2.Scan(&k, &v) == nil {
-				refire[k] = v
-			}
-		}
-		r2.Close()
-	}
 	// 会话果败尾——唤知环自身健康(果行 rc!=0=干活干败)+求助未销数(求助值守
 	// 行缺回执引证者才计——累计数永不降是假报警;回执=后行 note 含 #id)。
 	var good, bad, help int
@@ -87,7 +70,7 @@ func (c coreService) selfModelBeat(ctx context.Context) {
 		seg = append(seg, "域=?")
 	} else {
 		for _, d := range doms {
-			s := fmt.Sprintf("%s 票%d逾%d燃%d", d.dom, d.n, d.od, refire[d.dom])
+			s := fmt.Sprintf("%s 票%d逾%d", d.dom, d.n, d.od)
 			seg = append(seg, s)
 			fpIn = append(fpIn, s)
 		}

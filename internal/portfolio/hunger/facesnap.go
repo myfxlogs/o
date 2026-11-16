@@ -4,8 +4,8 @@
 // 语义：每拍机器可列面五类（service=ops_event 活跃席/table=public 基表/
 // dep_pair=枚举器产消对签名/template=评估+模板族/gate_domain=app_config
 // 键域）整面落批（ops_face_snapshot 窄表）→与上拍批 diff→新面逐条
-// 「面清单新面」行+观测盲升件（esc_scope=face:<kind>:<face>，同窗 24h
-// 去重同 depblind 式）。首拍=基线建册零升件（依赖对清单首跑人工基线先例
+// 「面清单新面」行（C 批起只落事实行不升件——计数入每日一行
+// housekeeping_daily，同窗 24h 去重同 depblind 式）。首拍=基线建册零升件（依赖对清单首跑人工基线先例
 // ——面宇宙人工过一遍后新增才值得看）。快照仅留最近两拍批——diff 毕
 // 旧批即清（窄表不建重型件）。只报不修，败情并入 ProbeDeps 拍级错非静默。
 package hunger
@@ -157,24 +157,24 @@ func faceBaselineExempt(scope string) (string, bool) {
 	return "", false
 }
 
-// reportNewFace 单新面落账：「面清单新面」行+观测盲升件（esc_scope=
-// face:<kind>:<face>，同窗 24h 至多一报——depblind 同款去重口径：
-// 新面持续新于基线批只报一次，基线批前移后仍同窗吸）。基线册内面
-// 新面行照落携理由键但升件免——人工过基线合法面窗摆不重复炸票。
+// reportNewFace 单新面落账：「面清单新面」事实行（C 批起不升件——
+// note 前缀 kind=face_diff key=<scope> 作同窗 24h 去重键，尾空格防
+// face:table:a 误吸 face:table:ab）。基线册内面行照落携理由键。
 func (s *Sensor) reportNewFace(ctx context.Context, r faceRow) error {
 	scope := fmt.Sprintf("face:%s:%s", r.kind, r.face)
+	prefix := fmt.Sprintf("kind=face_diff key=%s ", scope)
 	var dup int
 	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
-		WHERE event='升件' AND esc_class=$1 AND esc_scope=$2
-		AND ts>now()-make_interval(hours=>$3)`,
-		depblindEscClass, scope, depblindDedupHours).Scan(&dup); err != nil {
+		WHERE event='面清单新面' AND left(note, length($1))=$1
+		AND ts>now()-make_interval(hours=>$2)`,
+		prefix, depblindDedupHours).Scan(&dup); err != nil {
 		return fmt.Errorf("同窗去重读败: %w", err)
 	}
 	if dup > 0 {
 		return nil
 	}
 	reason, exempt := faceBaselineExempt(scope)
-	note := fmt.Sprintf("kind=face_diff key=%s kind=%s face=%s", scope, r.kind, r.face)
+	note := prefix + fmt.Sprintf("kind=%s face=%s", r.kind, r.face)
 	if exempt {
 		note += " 基线册=" + reason
 	}
@@ -182,18 +182,6 @@ func (s *Sensor) reportNewFace(ctx context.Context, r faceRow) error {
 		`INSERT INTO ops_event(seat,event,ticket,note) VALUES($1,'面清单新面',$2,$3)`,
 		hungerSeat, faceTicket, note); err != nil {
 		return fmt.Errorf("新面行: %w", err)
-	}
-	if exempt {
-		return nil
-	}
-	if _, err := s.pool.Exec(ctx,
-		`INSERT INTO ops_event(seat,event,ticket,note,esc_class,esc_scope)
-		VALUES($1,'升件',$2,$3,$4,$5)`,
-		hungerSeat, faceTicket,
-		fmt.Sprintf("面清单新面 %s：机器可列面 %s 类新增 %s——上拍快照册外新面（「该建未建」类残余差集；探针只报不修，合法性人工过基线）",
-			scope, r.kind, r.face),
-		depblindEscClass, scope); err != nil {
-		return fmt.Errorf("升件行: %w", err)
 	}
 	return nil
 }

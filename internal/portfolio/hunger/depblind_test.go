@@ -492,7 +492,7 @@ func TestProbeDepsConfigOrphanDomain(t *testing.T) {
 // TestProbeFaceDiffNewFaceEscalation 面清单 diff 三态：首拍=基线建册零
 // 升件→新键域入册后二拍=新面行+观测盲升件（gate_domain+dep_pair 两形
 // 同新）→三拍谱稳=零新增（差集空+同窗去重双闸）；快照仅留最近两拍批。
-func TestProbeFaceDiffNewFaceEscalation(t *testing.T) {
+func TestProbeFaceDiffNewFaceRowNoEsc(t *testing.T) {
 	s, pool := depFixture(t)
 	ctx := context.Background()
 	// 一拍=基线（零新面升件）
@@ -520,9 +520,10 @@ func TestProbeFaceDiffNewFaceEscalation(t *testing.T) {
 		`SELECT count(*) FROM ops_event WHERE event='面清单新面'`).Scan(&n); err != nil || n != 2 {
 		t.Fatalf("新面行数错位: n=%d err=%v", n, err)
 	}
+	// C 批起新面不升件——只落「面清单新面」事实行（face:* 升件恒零）
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
-		WHERE event='升件' AND esc_class='观测盲' AND esc_scope='face:gate_domain:newdom'`).Scan(&n); err != nil || n != 1 {
-		t.Fatalf("gate_domain 新面升件缺: n=%d err=%v", n, err)
+		WHERE event='升件' AND esc_class='观测盲' AND esc_scope LIKE 'face:%'`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("新面升件未撤: n=%d err=%v", n, err)
 	}
 	// 三拍谱稳：差集空零新增（同窗去重同吸）；快照批≤2
 	if err := s.ProbeDeps(ctx); err != nil {
@@ -577,10 +578,14 @@ func TestProbeFaceDiffBaselineExempt(t *testing.T) {
 		WHERE event='升件' AND esc_scope='face:service:whsvc'`).Scan(&n); err != nil || n != 0 {
 		t.Fatalf("册内面升件未免: n=%d err=%v", n, err)
 	}
-	// 册外面对照：新面行+升件齐（豁免不误伤）
+	// 册外面对照：新面行在、无基线册标、升件=0（C 批起新面不升件——豁免语义=行上标不标）
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
-		WHERE event='升件' AND esc_scope='face:service:badsvc'`).Scan(&n); err != nil || n != 1 {
-		t.Fatalf("册外面升件缺: n=%d err=%v", n, err)
+		WHERE event='面清单新面' AND note LIKE '%key=face:service:badsvc%' AND note NOT LIKE '%基线册=%'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("册外新面行缺或误带册标: n=%d err=%v", n, err)
+	}
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='升件' AND esc_scope LIKE 'face:%'`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("新面升件未撤: n=%d err=%v", n, err)
 	}
 }
 
@@ -1028,5 +1033,34 @@ func TestFaceBaselineService研究员哨兵Registered(t *testing.T) {
 	}
 	if strings.TrimSpace(reason) == "" {
 		t.Fatalf("%s 理由键空——注册式不静默（depblind 豁免同律）", scope)
+	}
+}
+
+// TestFaceRowDedupSameWindow C 批去重改查事实行：同新面 24h 窗内
+// reportNewFace 两调=事实行恰 1；且 face:table:ab 行在案时
+// face:table:a 照落（note 前缀尾空格防前缀误吸——无空格则
+// 「…table:a」前缀会误吸「…table:ab」行）。
+func TestFaceRowDedupSameWindow(t *testing.T) {
+	s, pool := depFixture(t)
+	ctx := context.Background()
+	// 先落 ab——「a」前缀无尾空格时会被 ab 行误吸（M2 红位）
+	if err := s.reportNewFace(ctx, faceRow{"table", "ab"}); err != nil {
+		t.Fatalf("report ab: %v", err)
+	}
+	// face:table:a 两调：首调应落行，次调同窗去重吸
+	if err := s.reportNewFace(ctx, faceRow{"table", "a"}); err != nil {
+		t.Fatalf("report a#1: %v", err)
+	}
+	if err := s.reportNewFace(ctx, faceRow{"table", "a"}); err != nil {
+		t.Fatalf("report a#2: %v", err)
+	}
+	var n int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='面清单新面' AND note LIKE '%key=face:table:a %'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("face:table:a 去重/误吸失效: n=%d err=%v", n, err)
+	}
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='面清单新面' AND note LIKE '%key=face:table:ab %'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("face:table:ab 行数错: n=%d err=%v", n, err)
 	}
 }

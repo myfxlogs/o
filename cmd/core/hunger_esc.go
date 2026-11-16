@@ -69,7 +69,7 @@ func (c coreService) paperDryEscCheck(ctx context.Context, deadSince map[string]
 
 // goalIdleEscCheck 目标票怠探（「想≠做」缝实证 2026-11-14：goal-nav-apr
 // 立票 10h 零推进——目标票躺工单面无拉力,升件面必拣而工单面可无视）。
-// 判据=状态非散文:OPEN goal 票(同 codeworkStall 未销形)票龄>4h 且
+// 判据=状态非散文:OPEN goal 票(同工单未销形)票龄>4h 且
 // 近 8h 无任何处置行点名工单#id(推进/接续/挂起皆算在场触)。触出现=
 // 自复绿,复怠=新回合照火(escalateUnresolved 律)。探针只喊不开药:
 // 认领票干活∨接续挂起留据∨证伪销票,裁径归会话(runbook 动机档)。

@@ -154,12 +154,6 @@ func main() {
 		WHERE table_name ILIKE '%kline%' OR table_name ILIKE '%candle%' OR table_name ILIKE '%ohlc%'`)
 	one("日K数据面", map[bool]string{true: "ok", false: "info"}[kline > 0],
 		map[bool]string{true: fmt.Sprintf("%d表", kline), false: "无"}[kline > 0])
-	stuck := num(`SELECT count(*) FROM ops_event WHERE event='升件' AND esc_scope='stuck_esc'
-		AND ts>now()-interval '24 hours'`)
-	if stuck > 5 {
-		addf("stuck-esc-tax", "warn", fmt.Sprintf("哨:stuck-esc-tax 24h复火%d——支名复用税超阈,dedup键该修", stuck))
-	}
-	one("stuck_esc24h", st(stuck > 5), stuck)
 	econAge := num(`SELECT COALESCE(round(extract(epoch from (now()-max(ts)))/86400),-1)::bigint FROM fin_econ_lesson`)
 	if econAge > 5 {
 		addf("econ-miner-dry", "warn", fmt.Sprintf("哨:econ-miner-dry %dd零新产——矿写径/触发面查", econAge))

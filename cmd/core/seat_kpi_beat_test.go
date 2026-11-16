@@ -130,3 +130,40 @@ func TestSeatKpiNoteShape(t *testing.T) {
 		}
 	}
 }
+
+// TestSeatKpiStrictDaily 严格日拍（业主令#20930）：面值一抖窗内不重发；
+// 首行 ts 推到档期外→再拍重发。
+func TestSeatKpiStrictDaily(t *testing.T) {
+	ctx, svc := seatKpiSetup(t)
+	now := time.Now()
+	d := func(days, hours float64) time.Time {
+		return now.Add(-time.Duration(days*24+hours) * time.Hour)
+	}
+	e1 := oe(t, ctx, svc, "探测席", "升件", "", "桩升件", d(10, 0), "")
+	oe(t, ctx, svc, "处置席", "处置", "", "升件#"+strconv.FormatInt(e1, 10)+" 销——桩", d(10, -1), "")
+
+	svc.seatKpiBeat(ctx)
+	var n int
+	if err := svc.pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='量表' AND ticket='seat_kpi'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("首拍行数=%d err=%v 期 1", n, err)
+	}
+	// 面值变化（新增一对升件+处置改误报率）→窗内仍抑（不看指纹）
+	e2 := oe(t, ctx, svc, "探测席", "升件", "", "桩升件二", d(9, 0), "")
+	oe(t, ctx, svc, "处置席", "处置", "", "升件#"+strconv.FormatInt(e2, 10)+" 销误报——桩", d(9, -1), "")
+	svc.seatKpiBeat(ctx)
+	if err := svc.pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='量表' AND ticket='seat_kpi'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("面值抖动窗内重发: n=%d err=%v 期 1", n, err)
+	}
+	// 首行推到档期外→再拍重发
+	if _, err := svc.pool.Exec(ctx, `UPDATE ops_event SET ts=ts-interval '21 hours'
+		WHERE event='量表' AND ticket='seat_kpi'`); err != nil {
+		t.Fatalf("回拨首行: %v", err)
+	}
+	svc.seatKpiBeat(ctx)
+	if err := svc.pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='量表' AND ticket='seat_kpi'`).Scan(&n); err != nil || n != 2 {
+		t.Fatalf("档期外未重发: n=%d err=%v 期 2", n, err)
+	}
+}

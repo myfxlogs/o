@@ -58,6 +58,8 @@ psql "$FIN_DSN" -c "SELECT id,level,workable,rulable,claimed,susp_cls,
 # 裁定债(等裁定票=唤知裁定本+你直裁件——最陈龄是KPI):
 psql "$FIN_DSN" -c "SELECT count(*),COALESCE(max(now()-susp_since),'0s')::interval(0)
   FROM ops_ticket_desk WHERE rulable"
+# 每日一行（工单板/未并支/新面三数——原滞留/面压/支无票/新面四探撤编后并此,只述数不升件）:
+psql "$FIN_DSN" -qAt -c "SELECT note FROM ops_event WHERE event='量表' AND ticket='housekeeping_daily' ORDER BY id DESC LIMIT 1"
 ```
 
 - **级=未标的票按判据标**（P1堵钱径堵他票凭据断供/P2常态/P3清洁）
