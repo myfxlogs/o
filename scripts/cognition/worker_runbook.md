@@ -29,7 +29,7 @@ FIN_DSN=$(grep '^FIN_PG_DSN=' /opt/o-research/env | cut -d= -f2- | tr -d '"')
 # 「销票归唤知」类名词引用不销;级=级P/级降P/级升P 三写法同解):
 psql "$FIN_DSN" -c "
 SELECT id,filed_ts,level,deadline,left(note,200) FROM ops_ticket_desk
-WHERE workable ORDER BY COALESCE(level,2), deadline LIMIT 10"
+WHERE workable AND tkind='工单' ORDER BY COALESCE(level,2), deadline LIMIT 10"
 ```
 
 拣**序首 OPEN 票一张**（级=P1 先→期限逾者先→立案龄——
