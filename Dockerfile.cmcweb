@@ -1,0 +1,18 @@
+# O cmcweb 镜像——CMC 浏览器采集中继（业主裁 2026-11-16：爬虫面换真 Chrome
+# 指纹）。真 platform 跑无头 Chromium，CDP 旁录 app WS 帧 → :8080 本地中继
+# → o-core WsClient 指 ws://o-cmcweb:8080 原样消费。
+FROM golang:1.27-alpine AS build
+ENV GOPROXY=https://goproxy.cn,direct
+WORKDIR /src
+COPY . .
+# cmd/cmcweb 依赖图不含 internal/gen——免 buf regen（与 Dockerfile.core 不同面）。
+RUN go build -o /bin/cmcweb ./cmd/cmcweb
+
+FROM alpine:3.20
+# chromium=无头采集臂本体；nss/freetype/harfbuzz=TLS+渲染闭链；ttf-freefont/
+# wqy=中英文字体面（CMC 平台页渲染需要）；tzdata 同 Dockerfile.core 规。
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories && \
+    apk add --no-cache chromium nss freetype harfbuzz ca-certificates \
+    ttf-freefont font-wqy-zenhei tzdata
+COPY --from=build /bin/cmcweb /bin/cmcweb
+ENTRYPOINT ["/bin/cmcweb"]

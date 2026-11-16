@@ -57,6 +57,10 @@ internal/data/trx -> internal/store/pgstore
 internal/data/cmc -> internal/data/fact
 internal/data/cmc -> internal/platform/safego
 internal/data/cmc -> internal/store/pgstore
+# cmcweb 浏览器中继（业主裁 2026-11-16）：复用 cmc 认证链(AuthManager/基址)+
+# condreq 凭据求援盒——采集面同位合法边。
+internal/data/cmcweb -> internal/data/cmc
+internal/data/cmcweb -> internal/platform/condreq
 internal/data/fact -> internal/store/pgstore
 internal/mt5 -> internal/platform/netmeter
 internal/ledger/report -> internal/platform/roster

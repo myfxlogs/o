@@ -46,6 +46,37 @@ services:
       # - ./proto:/kn/proto:ro
       # - ./cmd:/kn/cmd:ro
 
+  # O-CMCWEB（业主裁 2026-11-16）：CMC 浏览器采集中继——真 Chrome 跑 platform，
+  # CDP 旁录 app WS 帧 → :8080 本地中继喂 o-core WsClient（cmc.ws_base 覆写径）。
+  o-cmcweb:
+    build:
+      context: .
+      dockerfile: Dockerfile.cmcweb
+    image: ${O_CMCWEB_IMAGE:-o-cmcweb:latest}
+    container_name: o-cmcweb
+    restart: unless-stopped
+    mem_limit: 1200m # chromium 常驻 + Go 中继
+    cpus: 1
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:8080/healthz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: 50m
+        max-file: "3"
+    depends_on:
+      o-postgres:
+        condition: service_healthy
+    environment:
+      PG_DSN: "postgres://o:o@o-postgres:5432/o?sslmode=disable"
+      O_MASTER_KEY_FILE: "/run/secrets/o_master_key"
+    volumes:
+      - ./secrets:/run/secrets:ro
+      - o-cmcweb-profile:/var/lib/cmcweb # 浏览器 user-data-dir 持久化（cookie 跨重启）
+
   o-postgres:
     image: timescale/timescaledb:2.30.2-pg18
     container_name: o-postgres
@@ -110,6 +141,8 @@ services:
       retries: 5
 
 volumes:
+  o-cmcweb-profile:
+    name: o-cmcweb-profile
   o-pgdata:
     name: o-pgdata
   o-pgdata-test:

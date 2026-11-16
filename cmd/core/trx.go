@@ -168,7 +168,11 @@ func cmcArm(ctx context.Context, errc chan<- error, w *trxWiring) {
 	// 热启回退全 REST——nox wire_cmc 同语义）。
 	wsOff, _ := w.cfg.GetBool("cmc.ws_disabled")
 	if !wsOff {
-		ws := cmc.NewWsClient(auth, acct, st, cmc.DefaultWsBase, cmc.DefaultRestBase)
+		wsBase, _ := w.cfg.GetString("cmc.ws_base") // cmcweb 中继径覆写件（空=官端点直连）
+		if wsBase == "" {
+			wsBase = cmc.DefaultWsBase
+		}
+		ws := cmc.NewWsClient(auth, acct, st, wsBase, cmc.DefaultRestBase)
 		w.cmcLive = ws.LiveState
 		w.cmcWsHealth = ws.IsHealthy
 		go ws.Run(ctx) // sched-exempt-ok：WS 事件流（有流用流——断流自愈循环）

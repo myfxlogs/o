@@ -67,6 +67,7 @@ var ownerKeyGlobs = []string{
 	"bridge.*",              // 采集基建面（fail-closed）
 	"calendar.*",            // 宏观日历面（fail-closed）
 	"cmc.ws_disabled",       // 采集基建面（fail-closed）
+	"cmc.ws_base",           // WS 端点拓扑（cmcweb 中继径覆写——基建面）
 	"net.budget_kbps",       // 带宽预算（基建面）
 	"mt5.gateway_addr",      // 网关拓扑（基建面）
 	"mt5.gateway_fallbacks", // 网关备用址链（基建面——JSON 字符串列）
