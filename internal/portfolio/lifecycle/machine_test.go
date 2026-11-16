@@ -264,6 +264,59 @@ func TestTemplateGateBlocksNonPaper(t *testing.T) {
 	}
 }
 
+// 工单#15943 锚：promotion inst 构型核——DCD 期权形 inst 配 funding-hedge
+// 模板=盲 promotion 病灶实证形（econ 矿 #273/#274，748 行 retired 在案），
+// 门闸须拦下不建策略行、提案留 fin_proposed；反向同律（SWAP 形配 dcd
+// 模板）同拒。
+func TestInstFormGateBlocksMismatch(t *testing.T) {
+	ctx, pool, cfg := setup(t)
+	r := NewRunner(pool, cfg)
+	for _, q := range []string{
+		"DELETE FROM fin_strategy WHERE inst_id IN ('BETH-USDT-261113-2800-C','LC2-USDT-SWAP')",
+		"DELETE FROM fin_proposal WHERE inst_id IN ('BETH-USDT-261113-2800-C','LC2-USDT-SWAP')",
+		"DELETE FROM fin_opp_eval WHERE inst_id IN ('BETH-USDT-261113-2800-C','LC2-USDT-SWAP')"} {
+		if _, err := pool.Exec(ctx, q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// 病灶复刻：eval 模板=funding-hedge × inst=DCD 期权合约形
+	var eid int64
+	if err := pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,net_apr,verdict,legs,evidence)
+		VALUES('BETH-USDT-261113-2800-C','funding-hedge','dcd_call',0.08,'proposed','{}','{}') RETURNING id`).Scan(&eid); err != nil {
+		t.Fatal(err)
+	}
+	var pid int64
+	if err := pool.QueryRow(ctx, `INSERT INTO fin_proposal(eval_id,inst_id,direction,net_apr)
+		VALUES($1,'BETH-USDT-261113-2800-C','dcd_call',0.11) RETURNING id`, eid).Scan(&pid); err != nil {
+		t.Fatal(err)
+	}
+	// 反向：dcd_call 模板 × SWAP 永续形 inst
+	var eid2 int64
+	if err := pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,net_apr,verdict,legs,evidence)
+		VALUES('LC2-USDT-SWAP','dcd_call','dcd_call',0.08,'proposed','{}','{}') RETURNING id`).Scan(&eid2); err != nil {
+		t.Fatal(err)
+	}
+	var pid2 int64
+	if err := pool.QueryRow(ctx, `INSERT INTO fin_proposal(eval_id,inst_id,direction,net_apr)
+		VALUES($1,'LC2-USDT-SWAP','dcd_call',0.11) RETURNING id`, eid2).Scan(&pid2); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.scan(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM fin_strategy
+		WHERE inst_id IN ('BETH-USDT-261113-2800-C','LC2-USDT-SWAP')`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("inst 构型不符不应建策略行 n=%d err=%v", n, err)
+	}
+	for _, id := range []int64{pid, pid2} {
+		var st string
+		if err := pool.QueryRow(ctx, "SELECT state FROM fin_proposal WHERE id=$1", id).Scan(&st); err != nil || st != "fin_proposed" {
+			t.Fatalf("inst 构型不符提案应留 fin_proposed id=%d state=%s err=%v", id, st, err)
+		}
+	}
+}
+
 // T-0353 件②：USDT 腿 dcd_put 走执行族常径，提案→paper，不能被 BTC-call
 // 业主资产域条件请求错误阻断。
 func TestDcdPutAdmitGate(t *testing.T) {

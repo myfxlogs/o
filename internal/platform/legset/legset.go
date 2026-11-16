@@ -61,6 +61,87 @@ func FundingHedgeSpotArm(pred string) string {
 // 评估判词出闭请行退订，提案常驻=提案臂接管）。谓词自带无外参。
 var SubRequestArm = `SELECT inst_id FROM fin_sub_request WHERE state='open'`
 
+// ── inst 构型核（工单#15943 promotion 模板门闸——execfam.Has 只核「有径」
+// 不核「inst 形合族腿构型」：DCD 期权合约（BETH-USDT-*-C 族）被盲 promotion
+// 误建 funding-hedge paper 748 行实证（econ 矿 #273/#274，live 占位死）。
+// 族→允许构型映射唯一真源，lifecycle admitProposals 门闸消费；
+// 反向同律——SWAP/远期形 inst 不得进 dcd/basis 族（腿派生臂同源失明）。
+
+var (
+	// swapPerpRe 永续腿形（-SWAP$ 尾——funding-hedge/xvenue-carry 主腿，
+	// 现货腿由 SWAP 键派生不直接持现货 inst）。
+	swapPerpRe = regexp.MustCompile(`-SWAP$`)
+	// dcdOptRe DCD 期权腿形（BASE-QUOTE-YYMMDD-STRIKE-{C,P} 段——QUOTE 域
+	// USDT/RLUSD/USDC/USDG…不收窄；strangle 复合形 + 连接双腿同段各命中）。
+	dcdOptRe = regexp.MustCompile(`-[0-9]{6}-[0-9]+(\.[0-9]+)?-[CP]`)
+	// optLegRe 期权类型段界（-C+/−P$——复合形每腿各成一枚类型计）。
+	optLegRe = regexp.MustCompile(`-([CP])(?:\+|$)`)
+)
+
+// instForm inst 构型分类（族腿构型判据的中间层）。
+type instForm int
+
+const (
+	formOther       instForm = iota // 现货对/伪键/未知形
+	formSwapPerp                    // -SWAP$ 永续
+	formDatedFut                    // -\d{6}$ 季度远期（DatedFutRe 同源）
+	formDCDCall                     // DCD 单腿看涨产品
+	formDCDPut                      // DCD 单腿看跌产品
+	formDCDStrangle                 // DCD strangle 复合形（C+P 双腿）
+)
+
+// classifyInst inst→构型分类。期权形优先判（复合形含 -P$ 尾不撞
+// DatedFutRe；SWAP/远期形不含 -\d{6}-strike-C/P 段不撞 dcdOptRe——三族
+// 构型互斥无需次序，但期权复合形先取保证 strangle 不落单腿）。
+func classifyInst(instID string) instForm {
+	if dcdOptRe.MatchString(instID) {
+		types := map[byte]bool{}
+		for _, m := range optLegRe.FindAllStringSubmatch(instID, -1) {
+			types[m[1][0]] = true
+		}
+		switch {
+		case types['C'] && types['P']:
+			return formDCDStrangle
+		case types['C']:
+			return formDCDCall
+		case types['P']:
+			return formDCDPut
+		}
+		return formOther
+	}
+	if swapPerpRe.MatchString(instID) {
+		return formSwapPerp
+	}
+	if DatedFutRe.MatchString(instID) {
+		return formDatedFut
+	}
+	return formOther
+}
+
+// InstFitOK promotion 模板门闸 inst 构型核（工单#15943）：template 族
+// 允许的 inst 构型唯一判据——不合=提案留 fin_proposed 不建策略行
+// （与模板门闸同语义「看见了做不了」）。未注册族返 false=fail-closed
+// （execfam 扩族漏登构型=闸拦响非静默放行；覆盖断言见 legset 测试）。
+func InstFitOK(template, instID string) bool {
+	switch template {
+	case "funding-hedge", "xvenue-carry", "dir_perp_mom":
+		// perp 腿形家族——主腿=USDT 本位永续（D-0018 只许 USDT 计价；
+		// IsUSDTInst 同源拒 BTC-USD-SWAP 币本位形；dir_perp_mom=单腿方向
+		// 位同 perp 键，dirpaper.go 价源 md_ticks 同读）。
+		return classifyInst(instID) == formSwapPerp && IsUSDTInst(instID)
+	case "quarter_basis_long", "perp_quarter_spread":
+		// basis 两族——腿=季度远期形（-\d{6}$ 尾，币/ USDT 本位皆可）。
+		return classifyInst(instID) == formDatedFut
+	case "dcd_call", "vol_sell_single_call":
+		return classifyInst(instID) == formDCDCall
+	case "dcd_put":
+		return classifyInst(instID) == formDCDPut
+	case "vol_sell_strangle":
+		return classifyInst(instID) == formDCDStrangle
+	}
+	return false
+}
+
 // ProposalArm 提案臂（fin_proposed/fin_armed 在订即入集——无策略/无
 // position 罩的独键提案 tick 亦须过桥投影，armed 提案入场判据读 SG
 // md_ticks 鲜度闸 fail-closed；升件#12229 双端谓词同源件——订阅集与
