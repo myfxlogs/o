@@ -5,7 +5,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"time"
 )
 
@@ -36,7 +35,11 @@ func (c coreService) cognitionSpawnFailEscCheck(ctx context.Context, deadSince m
 			continue // 读件败本拍本面让位
 		}
 		t := t
-		c.escEdgeUV(ctx, deadSince, "唤知", t.scope, strconv.Itoa(n), n >= 2, func() string {
+		// fp=@回合起刻——离散事件类（每簇=新事件）弃计数纹：n 指纹令
+		// 同计数异簇互吞（v=2 纹抑新 n=2 簇，11-15 实证，工单#20690；
+		// #18002 stuckesc incident 分册同型根修）。回合=连续死态段：
+		// 销后同回合不火、复绿再死=新回合照火（spawn_orphan/audit_stall 同式）。
+		c.escEdgeUV(ctx, deadSince, "唤知", t.scope, "@", n >= 2, func() string {
 			tail := ""
 			if last != nil && *last != "" {
 				tail = "（末因 " + *last + "）"

@@ -199,10 +199,7 @@ func (c coreService) capabilityEscCheck(ctx context.Context, deadSince map[strin
 	}
 	for _, t := range tmpls {
 		var drillN, evalN int
-		// 工单#17938 启用窗起算：新启用族(<7d)演习债宽限——凭据窗
-		// 起点=enabled_at（采纳日∨参数调整启行最新ts），无据=
-		// -infinity 回落旧 7d 回看；评估债臂不在此修（候选期已产
-		// 评估,零评估=真债不误伤）。
+		// 工单#17938 启用窗起算：新启用族(<7d)演习债宽限——凭据窗起点=enabled_at（采纳日∨参数调整启行最新ts），无据=-infinity回落旧7d；评估债臂不修（零评估=真债不误伤）。
 		var young bool
 		if err := c.pool.QueryRow(ctx, `SELECT GREATEST(
 			COALESCE((SELECT max(h.ts) FROM fin_opp_hypothesis h
@@ -248,8 +245,7 @@ func (c coreService) capabilityEscCheck(ctx context.Context, deadSince map[strin
 				t, t, strings.Join(lacks, "+"))
 		})
 	}
-	// 已不启用模板的能力债补恢复（对称沿——禁用后键死而实测非债）。
-	seen := map[string]bool{}
+	seen := map[string]bool{} // 已不启用模板的能力债补恢复（对称沿——禁用后键死而实测非债）
 	for _, t := range tmpls {
 		seen["能力债/capability_"+t] = true
 	}
@@ -261,9 +257,7 @@ func (c coreService) capabilityEscCheck(ctx context.Context, deadSince map[strin
 	}
 }
 
-// dataGapEscCheck 数据缺面探——fin_opp_eval verdict='unevaluable' 同真因
-// 3d 窗 ≥3 行=结构缺（评估器重评估仍缺=非瞬态）。逐真因一 scope,
-// 数据到位=真因行消失→恢复自闭（销案不抑死态——事实仍死只清未决面）。
+// dataGapEscCheck 数据缺面探——fin_opp_eval verdict='unevaluable' 同真因3d窗≥3行=结构缺（非瞬态）；真因消失=恢复自闭（销案不抑死态——事实仍死只清未决面）。
 func (c coreService) dataGapEscCheck(ctx context.Context, deadSince map[string]time.Time) {
 	rows, err := c.pool.Query(ctx, `SELECT evidence->>'reason' r, count(*) FROM fin_opp_eval
 		WHERE verdict='unevaluable' AND ts>now()-interval '3 days'
@@ -292,8 +286,7 @@ func (c coreService) dataGapEscCheck(ctx context.Context, deadSince map[string]t
 				"数据缺/%s: 评估 unevaluable 3d 窗 %d 行同真因——数据面缺腿是结构缺非瞬态（数据/凭据/启用 定性归唤知会话）", g.reason, g.n)
 		})
 	}
-	// 真因消失=缺口愈合——对挂死键补恢复（沿对称:死键在而实测非死）。
-	for k, since := range deadSince {
+	for k, since := range deadSince { // 真因消失=缺口愈合——对挂死键补恢复（沿对称:死键在而实测非死）
 		if !strings.HasPrefix(k, "数据缺/data_gap_") {
 			continue
 		}
