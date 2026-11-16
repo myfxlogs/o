@@ -60,6 +60,7 @@ func TestInstFitOKCoversExecFam(t *testing.T) {
 		"funding-hedge":        "BTC-USDT-SWAP",
 		"xvenue-carry":         "BTC-USDT-SWAP",
 		"dir_perp_mom":         "BTC-USDT-SWAP",
+		"perp-trend-daily":     "BTC-USDT-SWAP",
 		"quarter_basis_long":   "BTC-USD-270326",
 		"perp_quarter_spread":  "BTC-USD-261225",
 		"dcd_call":             "BTC-USDT-261225-95000-C",

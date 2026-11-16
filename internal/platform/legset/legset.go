@@ -124,7 +124,7 @@ func classifyInst(instID string) instForm {
 // （execfam 扩族漏登构型=闸拦响非静默放行；覆盖断言见 legset 测试）。
 func InstFitOK(template, instID string) bool {
 	switch template {
-	case "funding-hedge", "xvenue-carry", "dir_perp_mom":
+	case "funding-hedge", "xvenue-carry", "dir_perp_mom", "perp-trend-daily":
 		// perp 腿形家族——主腿=USDT 本位永续（D-0018 只许 USDT 计价；
 		// IsUSDTInst 同源拒 BTC-USD-SWAP 币本位形；dir_perp_mom=单腿方向
 		// 位同 perp 键，dirpaper.go 价源 md_ticks 同读）。
