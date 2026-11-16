@@ -75,7 +75,12 @@ if [ -z "$DEPLOYED" ] || [ "${HEAD:0:${#DEPLOYED}}" != "$DEPLOYED" ]; then
 	out=$(bash scripts/deploy_image.sh 2>&1); rc=$?
 	echo "$out" | tail -3 | while read -r l; do say "$l"; done
 	if [ $rc -ne 0 ]; then # T-13283：&& 短路作末句=test 假值传染脚本 exit 1——成功部署也标 unit FAILURE（systemd 噪音掩真败）
-		esc "deploy_blocked" "部署/deploy_blocked: deploy_image rc=$rc（master=$SHORT 待部署）尾=$(echo "$out" | tail -2 | tr '\n' ' ' | cut -c1-120)——归唤知会话清障（脏树/锁/网）"
+		# 工单#16633 写手自证：败时刻 git status --porcelain 落升件 note——
+		# 脏树写者归因不再靠事后猜（历史两窗 1dfaa8fcd/67ae07f90f41 写者
+		# 未锁定实证）；截 8 行/240 字防爆 note 面，树径同载（多树并发归因键）。
+		TOP=$(git rev-parse --show-toplevel 2>/dev/null)
+		DIRTY=$(git status --porcelain 2>/dev/null | head -8 | tr '\n' ';' | cut -c1-240)
+		esc "deploy_blocked" "部署/deploy_blocked: deploy_image rc=$rc（master=$SHORT 待部署）尾=$(echo "$out" | tail -2 | tr '\n' ' ' | cut -c1-120) 树=${TOP:-?} 脏=${DIRTY:-空}——归唤知会话清障（脏树/锁/网）"
 		exit 1
 	fi
 else
