@@ -148,6 +148,14 @@ func TestWeeklyAnnualized(t *testing.T) {
 	_, _ = pool.Exec(ctx, "DELETE FROM fin_report")
 	defer func() { _, _ = pool.Exec(ctx, "DELETE FROM fin_cashflow") }()
 	now := time.Now()
+	// 期界 flake 根修：fixture 时刻须落进 weekly∧monthly 双窗内——
+	// 「10 分钟前」在周一 00:0x UTC/每月 1 号 00:0x 会掉出当期（net=0 漂红）。
+	// 锚=max(周始,月始)..now 中分均布，恒在双窗内。
+	winStart := BoundsOf("weekly", now).Start
+	if mo := BoundsOf("monthly", now).Start; mo.After(winStart) {
+		winStart = mo
+	}
+	span := now.Sub(winStart)
 	rows := []struct {
 		kind, class string
 		amt         float64
@@ -157,7 +165,7 @@ func TestWeeklyAnnualized(t *testing.T) {
 	}
 	for i, r := range rows {
 		if _, err := pool.Exec(ctx, `INSERT INTO fin_cashflow(kind,venue,ccy,amount,source_ref,source_table,class,occurred_at)
-			VALUES($1,'okx','USDT',$2,0,'test',$3,$4)`, r.kind, r.amt, r.class, now.Add(-time.Duration(10-i)*time.Minute)); err != nil {
+			VALUES($1,'okx','USDT',$2,0,'test',$3,$4)`, r.kind, r.amt, r.class, winStart.Add(span*time.Duration(i+1)/6)); err != nil {
 			t.Fatal(err)
 		}
 	}
