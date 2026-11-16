@@ -199,7 +199,25 @@ func (c coreService) capabilityEscCheck(ctx context.Context, deadSince map[strin
 	}
 	for _, t := range tmpls {
 		var drillN, evalN int
-		needDrill := occupied[t]
+		// 工单#17938 启用窗起算：新启用族(<7d)演习债宽限——凭据窗
+		// 起点=enabled_at（采纳日∨参数调整启行最新ts），无据=
+		// -infinity 回落旧 7d 回看；评估债臂不在此修（候选期已产
+		// 评估,零评估=真债不误伤）。
+		var young bool
+		if err := c.pool.QueryRow(ctx, `SELECT GREATEST(
+			COALESCE((SELECT max(h.ts) FROM fin_opp_hypothesis h
+				WHERE h.state='adopted' AND EXISTS (
+					SELECT 1 FROM fin_opp_template tt
+					WHERE tt.template=$1 AND tt.venue=h.venue AND tt.surface=h.surface)),
+			 '-infinity'::timestamptz),
+			COALESCE((SELECT max(e.ts) FROM ops_event e
+				WHERE e.event='参数调整'
+				  AND strpos(e.note,'target=fin_opp_template key='||$1||'@')=1
+				  AND e.note LIKE '%新=enabled=true%'),
+			 '-infinity'::timestamptz)) > now()-interval '7 days'`, t).Scan(&young); err != nil {
+			continue
+		}
+		needDrill := occupied[t] && !young
 		if needDrill {
 			if err := c.pool.QueryRow(ctx, `SELECT count(*) FROM fin_exec_drill
 				WHERE cell_key LIKE $1||'@%' AND verdict='pass'

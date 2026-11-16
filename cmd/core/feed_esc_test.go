@@ -478,6 +478,97 @@ func TestCapabilityEscCheck(t *testing.T) {
 	}
 }
 
+// capabilityEscCheck 启用窗起算（工单#17938）：新启用族(<7d)演习债
+// 宽限——凭据窗起点=enabled_at（hypothesis adopted 日∨参数调整
+// 启行最新ts）；无据=-infinity 回落旧 7d 回看。评估债臂不修。
+func TestCapabilityEscCheckEnableGrace(t *testing.T) {
+	ctx := context.Background()
+	pool := testutil.Pool(t)
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM fin_opp_template WHERE template='funding-hedge';
+		DELETE FROM fin_exec_drill WHERE cell_key LIKE 'funding-hedge@%';
+		DELETE FROM fin_opp_eval WHERE template='funding-hedge';
+		DELETE FROM fin_strategy WHERE template_ref='funding-hedge';
+		DELETE FROM fin_opp_hypothesis WHERE venue='okx' AND surface='hedge_s';
+		DELETE FROM ops_event WHERE esc_scope='capability_funding-hedge' OR (event='参数调整' AND note LIKE 'target=fin_opp_template key=funding-hedge@%')`); err != nil {
+		t.Fatalf("clean: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_opp_template(template,venue,surface,enabled,state)
+		VALUES('funding-hedge','okx','hedge_s',true,'enabled');
+		INSERT INTO fin_strategy(inst_id,template_ref,state,notional_usd)
+		VALUES('BTC-USDT-SWAP','funding-hedge','live',50)`); err != nil {
+		t.Fatalf("模板: %v", err)
+	}
+	svc := coreService{pool: pool}
+	deadSince := map[string]time.Time{}
+	escNote := func() string {
+		var note string
+		if err := pool.QueryRow(ctx, `SELECT note FROM ops_event
+			WHERE event='升件' AND esc_scope='capability_funding-hedge'
+			ORDER BY id DESC LIMIT 1`).Scan(&note); err != nil {
+			t.Fatalf("升件行缺: %v", err)
+		}
+		return note
+	}
+
+	// 相位A：hypothesis adopted=now()（启用<7d）→演习债宽限,
+	// 升件只载评估债不载演习债。
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_opp_hypothesis(venue,surface,family,state)
+		VALUES('okx','hedge_s','directional','adopted')`); err != nil {
+		t.Fatalf("hypo: %v", err)
+	}
+	svc.capabilityEscCheck(ctx, deadSince)
+	if note := escNote(); strings.Contains(note, "无绿演习凭据") {
+		t.Fatalf("新启用族演习债未宽限: %s", note)
+	} else if !strings.Contains(note, "零评估产出") {
+		t.Fatalf("评估债臂应照火: %s", note)
+	}
+	// 相位A2：补评估行→evalN>0,young 仍真→全腿 gap=false 出恢复行
+	// （deadSince 键清——同 fp 指纹闸下不销不复位,须真复绿才开新死期）。
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,verdict,legs,evidence)
+		VALUES('BTC-USDT-SWAP','funding-hedge','short_perp_long_spot','rejected','[]','{}')`); err != nil {
+		t.Fatalf("评估行: %v", err)
+	}
+	svc.capabilityEscCheck(ctx, deadSince)
+	var recA int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='恢复' AND note LIKE '%capability_funding-hedge%'`).Scan(&recA); err != nil || recA != 1 {
+		t.Fatalf("相位A2 应出恢复行 recA=%d err=%v", recA, err)
+	}
+
+	// 相位B：adopted=8d 前（启用≥7d）→演习债宽限退场照火（评估债已清,
+	// 升件应只载演习债）。fp=回合起刻分戳——同分钟新死期指纹同被闸,
+	// 预置回合起刻=等价上拍已判死>1min 的生产常态,令新死期指纹异。
+	deadSince["能力债/capability_funding-hedge"] = time.Now().Add(-2 * time.Minute)
+	if _, err := pool.Exec(ctx, `UPDATE fin_opp_hypothesis SET ts=now()-interval '8 days'
+		WHERE venue='okx' AND surface='hedge_s'`); err != nil {
+		t.Fatalf("hypo 老化: %v", err)
+	}
+	svc.capabilityEscCheck(ctx, deadSince)
+	if note := escNote(); !strings.Contains(note, "无绿演习凭据") {
+		t.Fatalf("启用≥7d 零凭据应照火: %s", note)
+	} else if strings.Contains(note, "零评估产出") {
+		t.Fatalf("评估债已清不应再载: %s", note)
+	}
+
+	// 相位C：hypothesis 除名,参数调整启行=now()（hunger 复活径）
+	// →演习债再宽限;evalN>0 全腿 gap=false 应再出恢复行。
+	if _, err := pool.Exec(ctx, `DELETE FROM fin_opp_hypothesis WHERE venue='okx' AND surface='hedge_s';
+		INSERT INTO ops_event(seat,event,note) VALUES('探测席','参数调整',
+		'target=fin_opp_template key=funding-hedge@okx 旧=enabled=false/state=retired 新=enabled=true/state=enabled 证据=proposed_eval×3@窗7天')`); err != nil {
+		t.Fatalf("启行: %v", err)
+	}
+	svc.capabilityEscCheck(ctx, deadSince)
+	var recNote string
+	if err := pool.QueryRow(ctx, `SELECT note FROM ops_event
+		WHERE event='恢复' AND note LIKE '%capability_funding-hedge%'
+		ORDER BY id DESC LIMIT 1`).Scan(&recNote); err != nil {
+		t.Fatalf("恢复行缺(相位C应自闭): %v", err)
+	}
+}
+
 // orphan hypothesis_parked（T-0523）——无复核戳的 parked 陈卡浮面；
 // last_reviewed 新戳续挂=不浮。
 func TestOrphanHypothesisParked(t *testing.T) {
