@@ -584,6 +584,50 @@ func TestCognitionSpawnFailEsc(t *testing.T) {
 	}
 }
 
+// TestCognitionSpawnFailEscClusterRefire 离散事件类指纹契——同计数新簇
+// 不得被旧簇 v= 纹吞（工单#20690：fp=n 计数纹→v=2 纹抑新 n=2 簇，
+// 11-15 唤知 2 败被 #17432 同纹 30d 记忆抑实证）。场景=旧簇升件已销
+// 结清→新败簇同计数 n=2 必须照火第二件（fp=@回合起刻异值破纹）。
+func TestCognitionSpawnFailEscClusterRefire(t *testing.T) {
+	ctx := context.Background()
+	pool := testutil.Pool(t)
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM ops_event
+		WHERE esc_scope='cognition_spawn_fail' OR note LIKE '%t-spawn2%'`); err != nil {
+		t.Fatalf("clean: %v", err)
+	}
+	svc := coreService{pool: pool}
+	deadSince := map[string]time.Time{}
+
+	// 历史簇：v=2 升件已销结清（本 scope 末行升件 note 前缀=v=2）
+	var oldID int64
+	if err := pool.QueryRow(ctx, `INSERT INTO ops_event(seat,event,ticket,note,esc_class,esc_scope)
+		VALUES('探测席','升件','','v=2 唤知/cognition_spawn_fail: 旧簇 2h 窗 2 连发','唤知','cognition_spawn_fail')
+		RETURNING id`).Scan(&oldID); err != nil {
+		t.Fatalf("旧升件: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note)
+		VALUES('处置席','处置','',$1)`, fmt.Sprintf("升件#%d 销——旧簇清偿", oldID)); err != nil {
+		t.Fatalf("旧销案: %v", err)
+	}
+
+	// 新簇同计数 n=2——离散事件类异簇异回合，指纹须异照火
+	for i := 1; i <= 2; i++ {
+		if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note)
+			VALUES('唤知机','唤起败','','unit=t-spawn2 reason=session_discovery')`); err != nil {
+			t.Fatalf("新败行%d: %v", i, err)
+		}
+	}
+	svc.cognitionSpawnFailEscCheck(ctx, deadSince)
+	var n int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE esc_scope='cognition_spawn_fail' AND id>$1`, oldID).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("同计数新簇被吞 n=%d err=%v（应 1——计数纹同=旧值已阅不火病灶）", n, err)
+	}
+}
+
 // TestAuditSpawnFailEsc 审计臂唤起败连败探——seat=审计机 同构两败即火
 // audit_spawn_fail；seat 隔离=唤知机败迹不擡本面（cognition_spawn_fail 零行）。
 func TestAuditSpawnFailEsc(t *testing.T) {
