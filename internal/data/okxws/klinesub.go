@@ -7,6 +7,7 @@ package okxws
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -16,12 +17,18 @@ import (
 
 const BusinessURL = "wss://ws.okx.com:443/ws/v5/business"
 
+// klineDataIdle candle 业务帧看门狗阈（工单#22844——订阅假死判死重连；
+// 形成中 1D 帧 venue 秒级连推实证，活跃集任一在交易 inst 即常新）。
+const klineDataIdle = 10 * time.Minute
+
 // klineLoop business 端点连接臂：拨号→klineDial→终则退避重连。
 // 独立于 public 连接的生命周期——candle 面死连不拖行情面（同 backoff 谱）。
 func (c *Collector) klineLoop(ctx context.Context) {
 	backoff := backoffMin
-	sub := map[string]bool{}
 	for ctx.Err() == nil {
+		// WS 订阅态=连接级——新连清零重订全活跃集（工单#22844：订阅图
+		// 跨连存续→重连后零 subscribe 帧=假活静默死根因）。
+		sub := map[string]bool{}
 		conn, _, err := websocket.DefaultDialer.DialContext(ctx, c.bizURL, http.Header{})
 		if err != nil {
 			log.Printf("[okxws] business 拨号: %v——%s 后重试", err, backoff)
@@ -56,10 +63,13 @@ func (c *Collector) klineDial(ctx context.Context, conn *websocket.Conn, sub map
 	errCh := make(chan error, 1)
 	go func() {
 		for {
-			_, data, err := conn.ReadMessage()
+			mt, data, err := conn.ReadMessage()
 			if err != nil {
 				errCh <- err
 				return
+			}
+			if mt == websocket.TextMessage && string(data) == "pong" {
+				continue
 			}
 			c.handle(data)
 		}
@@ -68,6 +78,10 @@ func (c *Collector) klineDial(ctx context.Context, conn *websocket.Conn, sub map
 	defer ping.Stop()
 	syncTick := time.NewTicker(30 * time.Second) // sched-exempt-ok 活跃集重订轮询
 	defer syncTick.Stop()
+	watch := time.NewTicker(30 * time.Second) // sched-exempt-ok candle 帧看门狗节
+	defer watch.Stop()
+	// 工单#22844：本连首帧宽限——lastKline 跨连存续，起表防旧戳即触发。
+	c.lastKline.Store(time.Now().UnixNano())
 	for {
 		select {
 		case <-ctx.Done():
@@ -80,6 +94,15 @@ func (c *Collector) klineDial(ctx context.Context, conn *websocket.Conn, sub map
 			}
 		case <-syncTick.C:
 			c.klineSync(ctx, conn, sub)
+		case <-watch.C:
+			// 订阅假死自愈臂——有订无帧超 klineDataIdle 判死重连。
+			if len(sub) == 0 {
+				continue
+			}
+			idle := time.Since(time.Unix(0, c.lastKline.Load()))
+			if idle > klineDataIdle {
+				return fmt.Errorf("candle1D 业务帧静默 %s（订阅假死——看门狗判死重连）", idle.Round(time.Second))
+			}
 		}
 	}
 }
