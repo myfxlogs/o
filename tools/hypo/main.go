@@ -3,8 +3,7 @@
 // 重复面不重生）；metrics: 周卡数/采纳率 upsert fin_employee_registry
 // 「研究员」行（产出度量机读+last_beat 在岗锚——research_arm_silent 看门锚源）。
 // decide: 假想卡 state 迁移窄门（execfam 骨检+ops_event 审计行；
-// OPS_DB_DSN 置=审计跨库两序写——md 正本与 fin 正本裂面实据在案；
-// mdMasterGuard 正本闸——card/decide 镜像面拒写，工单#19021）。
+// OPS_DB_DSN 置=审计跨库两序写——md 正本与 fin 正本裂面实据在案）。
 // 零越权证载体：本文件=研究员全部 DB 写面——venue 写径/
 // fin_opp_template/fin_proposal 零触（grep 证锚）。
 package main
@@ -45,21 +44,6 @@ func main() {
 	}
 }
 
-// mdMasterGuard fin_opp_hypothesis 正本在 OCI PG-md，SG fin 侧=projector
-// 镜像（projectGhostTables md→sg 全量 upsert 覆写 state/evidence）——
-// 镜像面写 state=投影下拍回卷，ops_event 审计行（fin 正本）却留存=
-// 工单#19021「裁 proposed→parked 审计落账而 state 仍 proposed」缝实案。
-// 写径前探 md 域独件 fin_capability_surface 在册=正本闸（bridge 表两侧
-// 同存不可判域；md 独件缺席=镜像面拒写——card/decide 同病同防）。
-func mdMasterGuard(ctx context.Context, pool *pgxpool.Pool, cmd string) {
-	var ok bool
-	if err := pool.QueryRow(ctx, `SELECT EXISTS(
-		SELECT 1 FROM information_schema.tables
-		WHERE table_schema='public' AND table_name='fin_capability_surface')`).Scan(&ok); err != nil || !ok {
-		fatal(fmt.Errorf("%s: 非 md 正本——fin_opp_hypothesis 写径只达正本（SG 镜像面 state 写被投影回卷=审计落账态漂移缝，工单#19021）；DB_DSN 须指 OCI PG-md", cmd))
-	}
-}
-
 func card(ctx context.Context, pool *pgxpool.Pool, args []string) {
 	fs := flag.NewFlagSet("card", flag.ExitOnError)
 	venue := fs.String("venue", "", "venue（okx/mt5/cmc/trx…）")
@@ -85,7 +69,6 @@ func card(ctx context.Context, pool *pgxpool.Pool, args []string) {
 	evm["provenance"] = "researcher" // 溯源强制——窄门盖章非会话自报
 	evb, _ := json.Marshal(evm)
 	legb, _ := json.Marshal(splitCSV(*legs)) // 空 legs=[]（非 null——列 NOT NULL）
-	mdMasterGuard(ctx, pool, "card")
 	tag, err := pool.Exec(ctx, `INSERT INTO fin_opp_hypothesis(venue,surface,family,leg_primitives,requirements,evidence)
 		VALUES($1,$2,$3,$4::jsonb,$5::jsonb,$6::jsonb)
 		ON CONFLICT (venue,surface) DO NOTHING`,
@@ -151,7 +134,6 @@ func decide(ctx context.Context, pool *pgxpool.Pool, args []string) {
 	default:
 		fatal(fmt.Errorf("decide: -state 闭集 adopted|parked|dismissed（%q）", *state))
 	}
-	mdMasterGuard(ctx, pool, "decide")
 	tx, err := pool.Begin(ctx)
 	if err != nil {
 		fatal(err)
