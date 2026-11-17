@@ -95,6 +95,120 @@ PEND_BR=$([ -n "$OREPO" ] && git -C "$OREPO" for-each-ref --no-merged origin/mas
 	2>/dev/null | awk -v c=$(( $(date +%s) - 604800 )) '$1>c' | wc -l)
 PEND_BR=${PEND_BR:-0}
 
+# ── 支面三探(2026-11-17 VVV实证窄复活——业主裁:只复两窄件+新一件)─────
+# C批(78cd6cf45)撤编漏掉真病灶覆盖:假销票期修复支成裸支(pendbr恰可抓)
+# +P1票挂支无人并(旧探不覆盖=新p1stall件)+假merge判词(verdfalse)。
+# 窄域纪律(防回自喂环):pendbr只升无票裸支;p1stall只升P1票(level=1)
+# 挂支超60min未并;verdfalse只升可证伪merge=<sha>断言。三件皆
+# scope绑尖sha+销后同尖不叠+fetch败全跳(陈引照数=假火)。
+if [ -n "$OREPO" ] && [ "${PBR_FETCH:-0}" = 1 ]; then
+	PBR_REFS=$(git -C "$OREPO" for-each-ref --no-merged origin/master \
+		--format='%(refname:short) %(objectname:short) %(committerdate:unix)' \
+		'refs/remotes/origin/fix/*' 'refs/remotes/origin/feat/*' \
+		'refs/remotes/origin/audit/*' 'refs/remotes/origin/revfix/*' \
+		'refs/remotes/origin/t/*' 'refs/remotes/origin/hotfix/*' 2>/dev/null)
+	PBR_GIT=$?
+	VALID_PBR=""
+	if [ "$PBR_GIT" -eq 0 ]; then
+		while IFS=' ' read -r br sha; do
+			[ -n "$br" ] || continue
+			git -C "$OREPO" merge-base --is-ancestor "$sha" origin/master 2>/dev/null && continue
+			br=$(printf '%s' "$br" | tr -d "'\"\\")
+			scope="pendbr_$(printf '%s' "$br" | tr '/' '-')_${sha}"
+			VALID_PBR="$VALID_PBR $scope"
+			psql "$DSN" -qAt <<SQL >/dev/null 2>&1 || true # tolerate: 探行写败=下拍补,不阻唤起闸
+INSERT INTO ops_event(seat,event,esc_class,esc_scope,note)
+SELECT '探测席','升件','孤儿账','$scope','裸支 $br 尖 $sha 未入 master 且工单面无载名票——并/删/票三裁归会话'
+WHERE NOT EXISTS (SELECT 1 FROM ops_event x
+	WHERE x.event='升件' AND x.esc_scope='$scope' AND x.ts>now()-interval '7 days'
+	AND NOT EXISTS (SELECT 1 FROM ops_event y WHERE y.ts>x.ts
+		AND y.note ~ ('升件#'||x.id::text||'([^0-9]|\$)')))
+AND NOT EXISTS (SELECT 1 FROM ops_ticket_desk t
+	WHERE NOT t.closed AND t.note LIKE '%'||'$br'||'%')
+SQL
+		done < <(printf '%s\n' "$PBR_REFS" \
+			| awk -v c=$(( $(date +%s) - 604800 )) '$3>c {print $1,$2}' | sed 's|^origin/||')
+		VALID_SQL=$(printf '%s' "$VALID_PBR" | tr ' ' '\n' | sed -n "s/^\\(.\\+\\)$/''\\1''/p" | paste -sd, -)
+		[ -n "$VALID_SQL" ] || VALID_SQL="''"
+		psql "$DSN" -qAt <<SQL >/dev/null 2>&1 || true # tolerate: 扫尾写败=下拍补
+INSERT INTO ops_event(seat,event,note)
+SELECT '探测席','恢复','升件#'||e.id||' 复绿——pendbr 件态消(尖移/支并/龄出),活尖归新scope 工件不断监 '||e.esc_scope
+FROM ops_event e
+WHERE e.event='升件' AND e.esc_scope LIKE 'pendbr\_%' AND e.ts>now()-interval '7 days'
+  AND e.esc_scope NOT IN ($VALID_SQL)
+  AND NOT EXISTS (SELECT 1 FROM ops_event y WHERE y.ts>e.ts
+    AND y.note ~ ('升件#'||e.id::text||'([^0-9]|\$)'))
+SQL
+	fi
+	# p1stall: OPEN P1票(level=1)载支名∧支尖未入master∧票龄>60min→升件。
+	# scope=p1stall_<票>_<尖>:同尖不叠,移尖=新工件新scope;
+	# 并支/销票后扫尾行自闭(下块)。
+	psql "$DSN" -qAt <<'SQL' | while IFS=' ' read -r tid br; do
+SELECT t.id||' '||m[1]
+FROM ops_ticket_desk t,
+ LATERAL regexp_matches(t.note,'\y((fix|feat|t|audit|revfix|hotfix)/[A-Za-z0-9._-]+)','g') m
+WHERE NOT t.closed AND t.level=1
+  AND t.filed_ts<now()-interval '60 minutes'
+SQL
+		[ -n "$tid" ] && [ -n "$br" ] || continue
+		bsha=$(git -C "$OREPO" rev-parse --verify --quiet "refs/remotes/origin/$br^{commit}" 2>/dev/null | cut -c1-9)
+		[ -n "$bsha" ] || continue # 支不在远端=已删/本地件,不判
+		git -C "$OREPO" merge-base --is-ancestor "$bsha" origin/master 2>/dev/null && continue
+		psql "$DSN" -qAt <<SQL >/dev/null 2>&1 || true # tolerate: 探行写败=下拍补,不阻唤起闸
+INSERT INTO ops_event(seat,event,esc_class,esc_scope,note)
+SELECT '探测席','升件','孤儿账','p1stall_${tid}_${bsha}',
+ 'P1票#$tid 载支 $br 尖 $bsha 未入 master 票龄逾60min——候审支无消费者实证形,认领/复审/并归唤知'
+WHERE NOT EXISTS (SELECT 1 FROM ops_event x
+	WHERE x.event='升件' AND x.esc_scope='p1stall_${tid}_${bsha}'
+	AND x.ts>now()-interval '7 days'
+	AND NOT EXISTS (SELECT 1 FROM ops_event y WHERE y.ts>x.ts
+		AND y.note ~ ('升件#'||x.id::text||'([^0-9]|\$)')))
+SQL
+	done
+	# p1stall扫尾:票销/支并/支删→前件复绿(键=p1stall_<tid>_<sha>)。
+	psql "$DSN" -qAt <<'SQL' | while IFS=' ' read -r eid tid bsha; do
+SELECT e.id,
+  (regexp_match(e.esc_scope,'p1stall_([0-9]+)_([0-9a-f]+)'))[1],
+  (regexp_match(e.esc_scope,'p1stall_([0-9]+)_([0-9a-f]+)'))[2]
+FROM ops_event e
+WHERE e.event='升件' AND e.esc_scope LIKE 'p1stall\_%'
+  AND e.ts>now()-interval '7 days'
+  AND NOT EXISTS (SELECT 1 FROM ops_event y WHERE y.ts>e.ts
+    AND y.note ~ ('升件#'||e.id::text||'([^0-9]|\$)'))
+SQL
+		[ -n "$eid" ] || continue
+		still=0
+		closed=$(psql "$DSN" -qAt -c "SELECT closed FROM ops_ticket_desk WHERE id=$tid" 2>/dev/null)
+		if [ "$closed" = "t" ]; then still=0;
+		elif git -C "$OREPO" merge-base --is-ancestor "$bsha" origin/master 2>/dev/null; then still=0;
+		elif ! git -C "$OREPO" cat-file -e "$bsha" 2>/dev/null; then still=0;
+		else still=1; fi
+		[ "$still" = 1 ] && continue
+		psql "$DSN" -qAt <<SQL >/dev/null 2>&1 || true # tolerate: 探行写败=下拍补,不阻唤起闸
+INSERT INTO ops_event(seat,event,note)
+VALUES('探测席','恢复','升件#$eid 复绿——p1stall 件态消(票销/尖并/支删)')
+SQL
+	done
+	# verdfalse: 判词载 merge=<sha> 须真在 origin/master——假销票对账件。
+	psql "$DSN" -qAt <<'SQL' | while IFS=' ' read -r rid sha; do
+SELECT id||' '||(regexp_match(note,'merge=([0-9a-f]{9,40})'))[1]
+FROM ops_event WHERE ts>now()-interval '24 hours'
+  AND event IN ('处置','工单','收口','在办','独语','独白','自述','自问')
+  AND seat<>'探测席' AND note ~ 'merge=[0-9a-f]{9}'
+SQL
+		[ -n "$rid" ] && [ -n "$sha" ] || continue
+		git -C "$OREPO" cat-file -e "${sha}^{commit}" 2>/dev/null || continue
+		git -C "$OREPO" merge-base --is-ancestor "$sha" origin/master 2>/dev/null && continue
+		psql "$DSN" -qAt <<SQL >/dev/null 2>&1 || true # tolerate: 探行写败=下拍补,不阻唤起闸
+INSERT INTO ops_event(seat,event,esc_class,esc_scope,note)
+SELECT '探测席','升件','判词失真','verdfalse_$rid',
+ '判词失真——行#$rid 称merge=$sha已上岸,实不在origin/master(判词与账矛盾):复核判词径∨口径自辩'
+WHERE NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='升件'
+  AND x.esc_scope='verdfalse_$rid')
+SQL
+	done
+fi
+
 # ── 器官镜组(业主令2026-11-15⑦批造——「自然人能力」基质外照层)───────────
 # 对内盲区不可自省但可外照:基质病灶逻辑上不能靠基质自愈(拾取断实证——
 # 修拾取的票本身也拾不起来),器官健康件=外席件非它作业。
