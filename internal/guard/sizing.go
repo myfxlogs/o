@@ -53,17 +53,33 @@ func alignCloseSz(want, avail, lotSz float64) (float64, bool) {
 	return sz, true
 }
 
-// sizedCloseLegs 反向腿 venue 实读定量（T-0046 ②根修）——任一腿读败/对齐零= false（fail-closed：不构 intent 不发半仓平仓）。
+// settledLeg 外部已结腿（工单#21745）：venue 实读对齐零=币/仓已不在场
+// （residual_clear 外扫/外部移动等外因清场）——非读败，fail-closed 死锁
+// 的正解是「不构平腿+残量挂账」非整单锁死。avail=实读残量、want=腿账
+// 目标量（SzKnown=false 时=avail 备源同值）。
+type settledLeg struct {
+	idx    int
+	venue  string
+	instID string
+	avail  float64
+	want   float64
+}
+
+// sizedCloseLegs 反向腿 venue 实读定量（T-0046 ②根修）——读败/sizer 缺/
+// lotSz 败=fail-closed 整单拒（不发半仓平仓）；腿 venue 实读对齐零=
+// settledLeg 出列+对应槽清空（幸存腿由调用侧前置归并——execwiring
+// Legs[1]==""→单腿径契约位）。
 // T-0145 venue 路由：腿按 Venue 分派现读件（跨 venue 双腿——mt5 腿走
 // Mt5Sizer OpenedOrders 实读手数；venue 无路由=fail 不开非默认错 venue 件）。
-func (w *Warden) sizedCloseLegs(ctx context.Context, cls [2]CloseLeg) ([2]CloseLeg, bool) {
+func (w *Warden) sizedCloseLegs(ctx context.Context, cls [2]CloseLeg) ([2]CloseLeg, []settledLeg, bool) {
+	var settled []settledLeg
 	for i, cl := range cls {
 		if cl.InstID == "" {
 			continue // 单腿仓空槽（棒5c——方向族 reverse 一腿一空）
 		}
 		szr := w.sizerFor(cl.Venue)
 		if szr == nil {
-			return cls, false // venue 现读面缺席=禁发（跨 venue 无兜底——错 venue 件=错读量）
+			return cls, nil, false // venue 现读面缺席=禁发（跨 venue 无兜底——错 venue 件=错读量）
 		}
 		var avail float64
 		var err error
@@ -73,11 +89,11 @@ func (w *Warden) sizedCloseLegs(ctx context.Context, cls [2]CloseLeg) ([2]CloseL
 			avail, err = szr.SpotAvailBal(ctx, cl.InstID)
 		}
 		if err != nil {
-			return cls, false
+			return cls, nil, false
 		}
 		lot, err := szr.LotSz(ctx, cl.InstID)
 		if err != nil {
-			return cls, false
+			return cls, nil, false
 		}
 		// T-0419：腿账不可定（SzKnown=false——quote 腿 qty_base 缺/量纲未消歧）
 		// →目标量备源=venue 余额实查（钦定双径之「读持仓余额」）；腿账可定
@@ -88,10 +104,12 @@ func (w *Warden) sizedCloseLegs(ctx context.Context, cls [2]CloseLeg) ([2]CloseL
 		}
 		sz, ok := alignCloseSz(want, avail, lot)
 		if !ok {
-			return cls, false
+			settled = append(settled, settledLeg{idx: i, venue: cl.Venue, instID: cl.InstID, avail: avail, want: want})
+			cls[i] = CloseLeg{} // 外结腿清空槽——不构平腿（残量由 noteSettledLeg 挂账）
+			continue
 		}
 		cls[i].Sz = sz
 		cls[i].SzKnown = true
 	}
-	return cls, true
+	return cls, settled, true
 }

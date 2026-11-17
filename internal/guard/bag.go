@@ -56,6 +56,9 @@ func (w *Warden) bareBags(ctx context.Context, p posRow, legs legSet, cls [2]Clo
 	}
 	rows.Close()
 	for _, cl := range cls {
+		if cl.InstID == "" {
+			continue // 外结腿清空槽/单腿仓空槽——无平腿可对拍
+		}
 		if !filled[cl.InstID] {
 			w.rej.Inc("facts_missing")
 			log.Printf("WARN [guard] 仓 %d 平腿 %s 行缺——残袋对拍本腿跳过", p.id, cl.InstID)
@@ -156,6 +159,55 @@ func (w *Warden) bareBagSpot(ctx context.Context, p posRow, legs legSet, cl Clos
 	w.al.Alert(ctx, "bare_bag",
 		fmt.Sprintf("仓 %d %s 残袋 %.8f≈$%.2f——平仓未回资产已挂账", p.id, ccy, bag, usd))
 	log.Printf("[guard] 仓 %d %s 残袋 %.8f（≈$%.2f）——裸袋挂账显形", p.id, ccy, bag, usd)
+}
+
+// noteSettledLeg 外结腿挂账显形（工单#21745——sizedCloseLegs 对齐零出列腿：
+// venue 实读≈0 非读败，residual_clear 外扫/外部移动等外因已清场）。残量
+// =min(avail,want)（avail 含杂币不全归本仓——want=腿账求偿量封顶）；
+// spot 腿走 bareBagSpot 同式三列+fin_holding recon 行+事件行（碎尘免阈
+// ——外结是异常事实非噪声）；swap/mt5 腿残仓>0=敞口事故升件（bareBagSwap
+// 同律）非资产挂账。无论有无残量都落「裸袋」事件行——externally_settled
+// 事实不静默。
+func (w *Warden) noteSettledLeg(ctx context.Context, p posRow, s settledLeg) {
+	ccy := strings.SplitN(s.instID, "-", 2)[0]
+	if s.venue == "mt5" || strings.HasSuffix(s.instID, "-SWAP") {
+		if s.avail > 0 {
+			w.rej.Inc("bare_bag")
+			w.al.Alert(ctx, "close_residual_perp",
+				fmt.Sprintf("仓 %d %s 外结后合约残仓 %.4f 张——平未净敞口人工介入", p.id, s.instID, s.avail))
+		}
+		w.bagEvent(ctx, p, s.instID, "腿外部已结（venue实读≈0）——externally_settled 不构平腿")
+		return
+	}
+	bag := s.avail
+	if s.want > 0 && s.want < bag {
+		bag = s.want
+	}
+	if bag <= 0 {
+		w.bagEvent(ctx, p, s.instID, "腿外部已结（venue实读≈0）——externally_settled 不构平腿")
+		return
+	}
+	usd := w.bagUSD(ctx, ccy, bag)
+	var usdArg *float64
+	if usd > 0 {
+		usdArg = &usd
+	}
+	if _, err := w.pool.Exec(ctx,
+		`UPDATE fin_position SET bare_bag_ccy=$2,bare_bag_qty=$3,bare_bag_usd=$4 WHERE id=$1`,
+		p.id, ccy, bag, usdArg); err != nil {
+		w.rej.Inc("write_err")
+	}
+	w.bagEvent(ctx, p, s.instID,
+		fmt.Sprintf("腿外部已结残量 %.8f≈$%.2f——externally_settled 挂账待处置", bag, usd))
+	if blob, err := json.Marshal(map[string]any{"bare_bag_position": p.id, "detected": "close_recon", "externally_settled": true}); err == nil {
+		if _, err := w.pool.Exec(ctx, `INSERT INTO fin_holding(venue,kind,ccy,amount,venue_ref,val_ref)
+			VALUES($1,'spot_dust',$2,$3,'',$4)
+			ON CONFLICT(venue,kind,ccy,venue_ref) DO UPDATE SET amount=EXCLUDED.amount`,
+			s.venue, ccy, bag, blob); err != nil {
+			w.rej.Inc("write_err")
+		}
+	}
+	log.Printf("[guard] 仓 %d %s 腿外部已结残量 %.8f（≈$%.2f）——挂账显形", p.id, ccy, bag, usd)
 }
 
 // bagUSD 裸袋 USD 估值（md_ticks/mark_index 最新价——无价=0 不挂虚值，
