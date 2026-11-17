@@ -41,6 +41,12 @@ fi
 UNIT="o-self-$(date +%s)"
 
 # 唤醒判据(30min快拍): 保底拍=距上次唤起≥6h必醒;早唤=要事触发——
+# ⓪活敞口跟进钟(2026-11-17 董事会判——仓#86裸空4h30m,自我席21:08
+# 知情后2h33m未醒=无跟进):近窗内有守卫环升件(=仓该平而平不掉,
+# 守卫每 guard.loop_alert_hours 复报直至实平)→每拍必唤。窗=
+# LIVE_INCIDENT_MIN 缺省135min(复报周期2h+余量;实平后至多尾唤
+# 一窗)。roster_rw拒读fin_guard_close,近窗代理非精确态——精确
+# 谓词待工单#22248。
 # ①P1新票立案 ②P1票被挂起还票(裁定被退=死锁形) ③新仓活水
 # (fin_cashflow新position_ref) ④窗内现金净动>$250(钱面突变)。
 # roster_rw界:fin_position/fin_ledger_snapshot皆越权不可读(实证
@@ -51,6 +57,9 @@ LAST_WAKE=$(psql "$DSN" -qAt -c "SELECT COALESCE(max(ts),'epoch'::timestamptz)
 [ -n "$LAST_WAKE" ] || exit 0
 TRIGGER=$(psql "$DSN" -qAt <<SQL
 SELECT CASE
+  WHEN EXISTS (SELECT 1 FROM ops_event WHERE event='升件' AND esc_class='守卫环'
+    AND ts > now() - interval '${LIVE_INCIDENT_MIN:-135} minutes')
+    THEN 'early:live_incident'
   WHEN now() - '$LAST_WAKE'::timestamptz >= interval '6 hours' THEN 'baseline'
   WHEN EXISTS (SELECT 1 FROM ops_event WHERE ts>'$LAST_WAKE'::timestamptz
     AND event='工单' AND note ~ '级=P1') THEN 'early:p1_ticket'
