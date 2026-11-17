@@ -57,19 +57,20 @@ func (missingExecutor) ExecuteClose(context.Context, CloseSpec) (int64, error) {
 
 // Warden 员工「仓巡」——常驻哨戒循环。
 type Warden struct {
-	pool    *pgxpool.Pool
-	cfg     *config.Client
-	gate    *risk.Gate
-	ex      Executor
-	sizer   VenueSizer
-	sizers  map[string]VenueSizer                                           // T-0145：venue 路由现读面（跨 venue 双腿——mt5 腿须 mt5 sizer；缺 venue 路由=fail-closed 不开）
-	ctVal   func(ctx context.Context, venue, instID string) (float64, bool) // 合约面值现读件（T-0046①——T-0048 后 facts 表废，cmd 注入 venue 现读）
-	rej     *rejects.Door
-	al      *notify.Alerter
-	notes   map[string]time.Time                       // skip 态限频日志时间戳（键级 10min 节流）
-	emg     emergencyState                             // 末路只减仓出口态（工单#22247——exec缝/受令去重/节流）
-	equity  func(ctx context.Context) (float64, error) // 净权益现读件（dd 硬线判定时点实读）
-	ddFacts map[string]any                             // 本拍回撤实况载荷（dd/阈/peak/cur——T-0415 平仓决策行携实况）
+	pool          *pgxpool.Pool
+	cfg           *config.Client
+	gate          *risk.Gate
+	ex            Executor
+	sizer         VenueSizer
+	sizers        map[string]VenueSizer                                           // T-0145：venue 路由现读面（跨 venue 双腿——mt5 腿须 mt5 sizer；缺 venue 路由=fail-closed 不开）
+	ctVal         func(ctx context.Context, venue, instID string) (float64, bool) // 合约面值现读件（T-0046①——T-0048 后 facts 表废，cmd 注入 venue 现读）
+	rej           *rejects.Door
+	al            *notify.Alerter
+	notes         map[string]time.Time                       // skip 态限频日志时间戳（键级 10min 节流）
+	emg           emergencyState                             // 末路只减仓出口态（工单#22247——exec缝/受令去重/节流）
+	anomalyMarked map[int64]bool                             // 腿形态异常定性行已落集（工单#22845——进程内去重,重启幂等重写）
+	equity        func(ctx context.Context) (float64, error) // 净权益现读件（dd 硬线判定时点实读）
+	ddFacts       map[string]any                             // 本拍回撤实况载荷（dd/阈/peak/cur——T-0415 平仓决策行携实况）
 	// 以下三件由 events.ListenLoop 单 goroutine 串行驱动（scanOnce）——不加锁同前提。
 	now         func() time.Time // 时钟缝（nil=time.Now；取用走 w.clock()）
 	bar         ddBar            // dd 硬线分钟柱在收柱（柱内样本攒内存）
@@ -123,7 +124,8 @@ func NewWarden(pool *pgxpool.Pool, cfg *config.Client, gate *risk.Gate, ex Execu
 			"dir_missing_param", "dir_nav_missing", "dir_measure_err", "dir_leg_px_missing", "dir_mark_missing",
 			"dir_freeze_err", "dir_loss_breaker_tripped", "dir_close_exhausted",
 			"bare_bag"),
-		emg: emergencyState{seen: map[int64]bool{}, last: map[int64]time.Time{}}}
+		emg:           emergencyState{seen: map[int64]bool{}, last: map[int64]time.Time{}},
+		anomalyMarked: map[int64]bool{}}
 }
 
 // Run 在岗登记+心跳+哨戒循环（产出窗=fin_guard_close 行/fin_position.closed_at 迁移
@@ -210,7 +212,12 @@ func (w *Warden) tend(ctx context.Context, p posRow, maxAtt int64, trig closeTri
 	// ExecuteDir——反向语义在腿级（side 取反）非腿集级（棒5c）。
 	if legs.one {
 		w.rej.Inc("leg_anomaly")
-		log.Printf("[guard] WARN 仓 %d 触发 %s 但腿形态异常——不可反向平，人工介入", p.id, trig.kind)
+		// 工单#22845：腿形态异常仓（零腿=dcd 单产品仓等）反向平径恒不可达——
+		// 原 WARN 每拍直刷=噪音洪泛；定性行落 fin_guard_close 一次（进程内
+		// 去重+upsert 幂等），日志走 note 10min 节流，态不沉默不误报。
+		w.markLegAnomaly(ctx, p.id, trig.kind)
+		w.note(fmt.Sprintf("leg_anomaly:%d", p.id),
+			fmt.Sprintf("仓 %d 触发 %s 腿形态异常——不可反向平（定性行已落 fin_guard_close；10min 节流）", p.id, trig.kind))
 		return
 	}
 	if err := w.markClosing(ctx, p.id, trig.kind); err != nil {
