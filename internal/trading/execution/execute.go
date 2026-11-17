@@ -83,6 +83,10 @@ type Runner struct {
 	earn EarnMover
 	rej  *rejects.Door
 	al   *notify.Alerter
+	// bookVenue 台账 venue 域覆写（工单#22576：simdrill 演习径注入 'sim'——
+	// venue IO 仿真但 fin_cashflow/fin_slip_sample venue 列归 sim 域，
+	// 产线口径 venue<>'sim' 谓词不再吞演习流水；空=腿 Venue 原样）。
+	bookVenue string
 }
 
 func NewRunner(pool *pgxpool.Pool, cfg *config.Client, exec Executor) *Runner {
@@ -97,6 +101,11 @@ func (r *Runner) WithAlerter(a *notify.Alerter) *Runner { r.al = a; return r }
 
 // WithEarn 挂接停泊赎回面（cmd 装配层接线；未挂=停泊关闭——资金常驻交易户径）。
 func (r *Runner) WithEarn(m EarnMover) *Runner { r.earn = m; return r }
+
+// WithBookVenue 台账 venue 域覆写挂接（演习径专用——覆写只及
+// fin_cashflow/fin_slip_sample venue 列；fin_order_leg.venue 保腿 Venue
+// 路由真相——guard 平仓腿经 facts.legs 回读须仍路由得回执行件）。
+func (r *Runner) WithBookVenue(v string) *Runner { r.bookVenue = v; return r }
 
 // verifyToken 令牌验证为第一件事：不存在/非 allow/过期/已消费=拒（四径）。
 // 通过则同 tx 置 used_at（单次消费原子性）。

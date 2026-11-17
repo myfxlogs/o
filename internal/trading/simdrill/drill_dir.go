@@ -58,7 +58,7 @@ func (d *Drill) runDirDrill(ctx context.Context, res Result, inst, templateRef s
 		return res, fmt.Errorf("行情锚写败: %w", err)
 	}
 	defer retireSimTicks(ctx, d.Pool, [2]execution.Leg{{InstID: inst}})
-	runner := execution.NewRunner(d.Pool, d.Cfg, d.Venue)
+	runner := execution.NewRunner(d.Pool, d.Cfg, d.Venue).WithBookVenue("sim") // 工单#22576：演习腿台账归 sim 域
 	dec := d.Gate.Check(ctx, risk.Intent{StrategyRef: drillStrat, Venue: "okx", InstID: inst,
 		Legs: []string{direction}, NotionalUSD: notional, Leverage: 1, Kind: "open"})
 	if !dec.Allow {

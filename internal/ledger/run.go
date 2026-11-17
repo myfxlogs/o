@@ -243,11 +243,11 @@ func (r *Runner) reconcile(ctx context.Context) error {
 }
 
 // daySnapshot 日切（venue×ccy 净额行——NAV=venue 总权益口径 T-0060 钉死；
-// earn_in/earn_out 内部划转显式排除——历史行在禁改=过滤非删）。
+// earn_in/earn_out 内部划转显式排除=过滤非删；venue='sim' 夹具域同拒）。
 func (r *Runner) daySnapshot(ctx context.Context) error {
 	_, err := r.pool.Exec(ctx, `INSERT INTO fin_ledger_snapshot(venue,ccy,net_usd,snap_date)
 		SELECT venue,ccy,sum(amount),CURRENT_DATE FROM fin_cashflow
-		WHERE kind NOT IN ('earn_in','earn_out') GROUP BY venue,ccy
+		WHERE kind NOT IN ('earn_in','earn_out') AND venue<>'sim' GROUP BY venue,ccy
 		ON CONFLICT(venue,ccy,snap_date) DO UPDATE SET net_usd=EXCLUDED.net_usd,ts=now()`)
 	return err
 }

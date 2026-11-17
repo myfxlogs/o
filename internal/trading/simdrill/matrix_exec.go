@@ -85,7 +85,7 @@ func (m *Matrix) execTwoLeg(ctx context.Context, res *CellResult, vs *simvenue.S
 		}
 	}
 	defer retireSimTicks(ctx, m.Pool, legs)
-	runner := execution.NewRunner(m.Pool, m.Cfg, router)
+	runner := execution.NewRunner(m.Pool, m.Cfg, router).WithBookVenue("sim") // 工单#22576：演习腿台账归 sim 域
 	legLabels := make([]string, 0, 2)
 	for _, l := range legs {
 		tag, dir := "perp", "long"
