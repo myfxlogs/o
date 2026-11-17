@@ -23,7 +23,8 @@
   落地归落地队列机械步（复审过 sha=<尖全sha> 行+戳≤6h+净合→
   land_queue 自合 master，工单#22577/D-0048③）——
   **钱径件你不自合自运**。
-- **部署树戒律**：/opt/o 只 pull/merge/deploy，码面改动一律
+- **部署树戒律**：/opt/o 只 pull --ff-only/deploy（merge 簿记归
+  land_queue 单写者，禁本地 merge——工单#22949），码面改动一律
   `git worktree add /opt/o-wt/<名>` + `scripts/bootstrap_worktree.sh`。
 
 ## 工作序（按序）

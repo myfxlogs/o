@@ -614,7 +614,8 @@ facesnap 白名单罩位保留，勿找独白产线。）
      **先亲眼看它红**（不红=命题存疑,走 3）；
   2. 红→按 note 修法改实现（不改测试断言——测试断言的是正确语义；
      断言本身错才改,note 写明为何）→ GREEN → `check_all` → 推支 →
-     merge（免疫件触及则 `免疫件:` trailer）→ 处置行 note 引 升件#id
+     复审过行齐→落地队列机械合（免疫件触及则 `免疫件:` trailer
+     随支尖承袭——部署树禁本地 merge，工单#22949）→ 处置行 note 引 升件#id
      +修复 commit sha（**修复 commit 正文必引 `升件#<id>`**——
      found_by 度量靠它派生,漏引=机发现被记成人发现）；
   3. 不红/命题假→销+note 写「底层命题判词:假+依据」，并
@@ -740,8 +741,11 @@ facesnap 白名单罩位保留，勿找独白产线。）
   **辨义**：业主令「直接根修不走止血」（#19887）指码面不打补丁；
   钱面止血=敞口归零，二者不相代——根修照走全谱闸，血不等它。
 - **要码修** → `git worktree add /opt/o-wt/<名>` → `bash scripts/bootstrap_worktree.sh`
-  → 改 → `bash scripts/check_all.sh` → 支推 origin → 部署树 merge --no-ff
-  （戳落 mirror_push 自推，勿手动推 master——单写者律）
+  → 改 → `bash scripts/check_all.sh` → 支推 origin → 复审过行齐→落地队列
+  机械合 master（候审契①/D-0048③）→ deploy_watch ff+部署。
+  部署树只许 `git pull --ff-only` 对齐 origin/master——**禁本地
+  merge --no-ff**（本地 merge 点不入 origin=分叉源堵落地链，
+  工单#22949；merge 簿记归 land_queue 单写者，勿手动推 master）
 - **要退役/上下架策略** → **系统自裁**（业主令 2026-11-10：「策略该上
   该退由 system 自行决定,我只管出钱/出凭证/收收益」——上退役一律
   **不再走条件请求**）：判词载证据（死法一句+实据）→
