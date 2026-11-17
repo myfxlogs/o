@@ -1271,3 +1271,62 @@ func TestLoopProbeReconcileClosedPos(t *testing.T) {
 }
 
 func ptrTime(t time.Time) *time.Time { return &t }
+
+// 工单#22845 锚：零腿仓（dcd 单产品仓形态——exec 无 fin_order_leg 行）触发
+// 平仓判据时反向平径恒不可达——定性行落 fin_guard_close 一次
+// （state=close_failed+last_error=leg_anomaly 定性），不发执行、仓不迁、
+// 二拍幂等不重复定性（anomalyMarked 进程内去重）。
+func TestLegAnomalyClassified(t *testing.T) {
+	ctx, w, fx := setup(t)
+	seedFacts(t, ctx, w, 0.0001)
+	var stratID, execID, posID int64
+	if err := w.pool.QueryRow(ctx,
+		`INSERT INTO fin_strategy(inst_id,template_ref,state,notional_usd,venue) VALUES('BTC-USDT-261204-66000-P','guard-test','live',50,'okx') RETURNING id`).Scan(&stratID); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.pool.QueryRow(ctx,
+		`INSERT INTO fin_execution(strategy_ref,inst_id,notional_usd,state) VALUES($1,'BTC-USDT-261204-66000-P',50,'open') RETURNING id`,
+		stratID).Scan(&execID); err != nil {
+		t.Fatal(err)
+	}
+	// 零腿=dcdexec.Open 产线形态（单产品仓无 fin_order_leg——非病灶是契约）。
+	if err := w.pool.QueryRow(ctx,
+		`INSERT INTO fin_position(execution_id,strategy_ref,inst_id,notional_usd,opened_at)
+		 VALUES($1,$2,'BTC-USDT-261204-66000-P',50,$3) RETURNING id`,
+		execID, stratID, time.Now().Add(-100*time.Hour)).Scan(&posID); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.scanOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if len(fx.calls) != 0 {
+		t.Fatalf("腿形态异常仓不应发平仓执行，got %+v", fx.calls)
+	}
+	closed, state, trig := posClosed(t, ctx, w, posID)
+	if closed || state != "close_failed" || trig != "max_hold" {
+		t.Fatalf("仓应仍在+close_failed/max_hold 定性，got closed=%v state=%q trig=%q", closed, state, trig)
+	}
+	var lastErr string
+	if err := w.pool.QueryRow(ctx,
+		"SELECT COALESCE(last_error,'') FROM fin_guard_close WHERE position_id=$1", posID).Scan(&lastErr); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(lastErr, "leg_anomaly") {
+		t.Fatalf("定性行 last_error 应载 leg_anomaly 病灶，got %q", lastErr)
+	}
+	// 二拍幂等：定性行不重复写（attempts 恒 0 不伪造尝试账）、仓仍在。
+	if err := w.scanOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var attempts int
+	if err := w.pool.QueryRow(ctx,
+		"SELECT attempts FROM fin_guard_close WHERE position_id=$1", posID).Scan(&attempts); err != nil {
+		t.Fatal(err)
+	}
+	if attempts != 0 {
+		t.Fatalf("腿形态异常定性不应动 attempts 账，got %d", attempts)
+	}
+	if len(fx.calls) != 0 {
+		t.Fatalf("二拍仍不应发执行，got %+v", fx.calls)
+	}
+}
