@@ -1,0 +1,15 @@
+[Unit]
+Description=o-land-queue.service 落地队列（复审过支→master 机械合——工单#22577/D-0048③）
+# ConditionPathExists：支未并前脚本不在部署树——单元可先装，
+# land_queue.sh 随 master 落地后下拍自然激活（零空跑失败噪音）。
+ConditionPathExists=/opt/o/scripts/land_queue.sh
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/o
+Environment=PATH=/home/mluser/.local/bin:/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/bin/bash /opt/o/scripts/land_queue.sh
+NoNewPrivileges=true
+# 合并点 check_all 全谱可达 ~1h——上界给足，不设 900s 类短帽。
+TimeoutStartSec=7200
+TimeoutStopSec=30

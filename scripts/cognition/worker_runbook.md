@@ -19,8 +19,10 @@
   `bash scripts/land_scope.sh <支>`——FREE 面（纯 docs/skills/tools
   文档件）才可 `bash scripts/worker_land.sh <支>` 自合自运
   （戳≤24h+ff-merge，上船归管道）；REVIEW 面（含任何码/脚本/
-  迁移/部署/契约件）=只 `git push origin <支>` 留候审，
-  merge 归唤知/外席——**钱径件你不自合自运**。
+  迁移/部署/契约件）=只 `git push origin <支>` 留候审——
+  落地归落地队列机械步（复审过 sha=<尖全sha> 行+戳≤6h+净合→
+  land_queue 自合 master，工单#22577/D-0048③）——
+  **钱径件你不自合自运**。
 - **部署树戒律**：/opt/o 只 pull/merge/deploy，码面改动一律
   `git worktree add /opt/o-wt/<名>` + `scripts/bootstrap_worktree.sh`。
 
