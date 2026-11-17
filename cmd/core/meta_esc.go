@@ -1,5 +1,6 @@
 // meta_esc.go —— 元认知面探针（escLoop 同拍载,探件本件）：
-// 断流/资金闸/对账/孤儿账/唤知/数据缺/商业产出/能力债/预期产出九类
+// 断流/资金闸/对账/唤知/数据缺/能力债/预期产出等类（孤儿账/商业产出
+// 已随减法B批平移入 ops_state 视件+状况桥——fin_0201,判据零漂）
 // （escLoop 探针类谱——断流/资金闸载 feed_esc.go,预期产出通用形载
 // expect_esc.go,余载本件）——「系统看不见自己的问题」元盲区补位。
 // 探针只述实数/事实,判词归唤知会话 runbook 对应档；
@@ -9,7 +10,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -38,47 +38,9 @@ func (c coreService) reconEscCheck(ctx context.Context, deadSince map[string]tim
 		})
 }
 
-// orphanProbe 「写了没人读」积压册——（名,积压计数询）一件一册,TTL 在询内钦定。
-type orphanProbe struct{ name, query string }
-
-// orphanProbes 孤儿账注册表——消费面死/表退役/真积压三因同形=积压超 TTL。
-// TTL=各域消费拍宽限（教训矿 24/48h、假想卡/条件缺口 7d——再低=正常拍误报）。
-var orphanProbes = []orphanProbe{
-	{"eng_lesson", `SELECT count(*) FROM fin_eng_lesson
-		WHERE status='pending' AND ts<now()-interval '24 hours'`},
-	{"econ_lesson", `SELECT count(*) FROM fin_econ_lesson
-		WHERE status='pending' AND ts<now()-interval '48 hours'`},
-	{"hypothesis_proposed", `SELECT count(*) FROM fin_opp_hypothesis
-		WHERE state='proposed' AND ts<now()-interval '7 days'`},
-	// hypothesis_parked——parked 非终态是挂起：超 30d 未复核=需求黑洞
-	// （结构性盲区实证 2026-11-10：#3/#5/#6/#7 骨架齐而卡沉 parked 无人问）。
-	// last_reviewed=hypo decide 复核戳（re-park=再议落戳续挂 30d；
-	// 无戳卡回退建卡 ts——存量 parked 卡首拍全浮=如实「从未复核」）。
-	{"hypothesis_parked", `SELECT count(*) FROM fin_opp_hypothesis
-		WHERE state='parked' AND COALESCE(
-			CASE WHEN evidence->>'last_reviewed' ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
-				THEN (evidence->>'last_reviewed')::timestamptz END, ts)
-			< now()-interval '30 days'`},
-	{"condition_gap", `SELECT count(*) FROM fin_condition_gap
-		WHERE state='pending' AND requested_at<now()-interval '7 days'`},
-}
-
-// orphanEscCheck 孤儿账面探——注册表册逐件判,积压超 TTL=升件 orphan_*。
-// 元认知补盲：系统此前看不见「写了没人读」的表（fin_econ_lesson 诊断案
-// 曾积压产线无人裁,升件#9063 实证）。
-func (c coreService) orphanEscCheck(ctx context.Context, deadSince map[string]time.Time) {
-	for _, p := range orphanProbes {
-		var n int
-		if err := c.pool.QueryRow(ctx, p.query).Scan(&n); err != nil {
-			continue // 读件败本册让位
-		}
-		p := p
-		c.escEdgeUV(ctx, deadSince, "孤儿账", "orphan_"+p.name, strconv.Itoa(n), n > 0, func() string {
-			return fmt.Sprintf(
-				"孤儿账/%s: 未消费积压 %d 行超 TTL——表在写而消费面死/退役/积压（定性归唤知会话孤儿账档）", p.name, n)
-		})
-	}
-}
+// orphanProbes 孤儿账注册表已随减法 B 批平移入 ops_state 视件
+// （fin_0201——「写了没人读」积压册判据零漂,scope=orphan_<name> 同款；
+// 元认知补盲来历=fin_econ_lesson 诊断案积压产线无人裁实证,升件#9063）。
 
 // cognitionEscCheck 唤知面死看门狗——未决升件在案而处置行 24h 缺席=
 // 认知环停摆（钱径照转无人判案）。ops_event 升件落账+Feishu 人端告警
@@ -125,37 +87,17 @@ func (c coreService) cognitionEscCheck(ctx context.Context, deadSince map[string
 	}
 }
 
-// commercialEscCheck 商业产出面探——「机器在转但转不出钱」元盲区补位：
-// 策略面 30d 净产出≤0 且系统名义在赚（live/probe 在册>0）=升件
-// 商业产出/commercial_stall。口径=周净利 canon 剔 Earn 基线
-// （econ-earn-interest-as-strategy-profit 钦定：interest 非策略利润，
-// 损益 kind 集={fee,funding_settle,trade_pnl,rollback_cost,spot_buy,spot_sell}；
-// deposit/withdraw/earn_*/recon_adjust 非损益禁入）。
-// 探针只述净产出+在册面，「为何空转」定性归唤知会话；净产出回正=恢复自闭。
+// commercialEscCheck 商业面同拍副探容器——原 commercial_stall 升件
+// （30d净≤0∧live/probe在册——「机器在转但转不出钱」元盲区补位，
+// 损益 kind 集 canon 见 econ-earn-interest-as-strategy-profit）已随
+// 减法 B 批平移入 ops_state 视件+状况桥（fin_0201，判据零漂）；
+// 本件只余钱面同域副探（feed_esc 棘轮满线不入册唤点故搭拍）。
 func (c coreService) commercialEscCheck(ctx context.Context, deadSince map[string]time.Time) {
 	c.hungerGapEscCheck(ctx, deadSince) // 动机探同拍（钱面同域;feed_esc 棘轮满线不入册唤点）
 	c.paperDryEscCheck(ctx, deadSince)  // 练习场旱探同拍（动机面第二信号——零候选即旱）
 	c.goalIdleEscCheck(ctx, deadSince)  // 目标票怠探同拍（想要空转——OPEN票零推进即喊）
 	c.breedDryEscCheck(ctx, deadSince)  // 育种旱探同拍（进化环停滞——有种不繁/无种可繁）
 	c.deathGradCheck(ctx, deadSince)    // 死刑梯度同拍（饿的牙——年化→能力因子→敞口阈）
-	var net float64
-	var liveN, openPos int
-	if err := c.pool.QueryRow(ctx, `SELECT
-		(SELECT COALESCE(sum(amount),0) FROM fin_cashflow
-			WHERE venue<>'sim' AND occurred_at>now()-interval '30 days'
-			AND kind IN ('fee','funding_settle','trade_pnl','rollback_cost','spot_buy','spot_sell')),
-		(SELECT count(*) FROM fin_strategy WHERE state IN ('live','probe')),
-		(SELECT count(*) FROM fin_position WHERE closed_at IS NULL)`).
-		Scan(&net, &liveN, &openPos); err != nil {
-		return // 读件败本拍让位
-	}
-	stall := liveN > 0 && net <= 0
-	c.escEdgeUV(ctx, deadSince, "商业产出", "commercial_stall",
-		fmt.Sprintf("%.4f", net), stall, func() string {
-			return fmt.Sprintf(
-				"商业产出/commercial_stall: 策略面 30d 净产出 %.4f≤0（live+probe=%d 在仓=%d——机器名义在赚而实付净产出非正；Earn 息不入账已剔。空转定性归唤知会话）",
-				net, liveN, openPos)
-		})
 }
 
 // capabilityEscCheck 能力债面探（T-0523 感知升维——「在册即须被行使,

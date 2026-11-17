@@ -168,62 +168,25 @@ fi
 # ── 器官镜组(业主令2026-11-15⑦批造——「自然人能力」基质外照层)───────────
 # 对内盲区不可自省但可外照:基质病灶逻辑上不能靠基质自愈(拾取断实证——
 # 修拾取的票本身也拾不起来),器官健康件=外席件非它作业。
-# 三探共契(业主令#20930 减法 C 批:③前提疑死/④判词失真/⑤器官自审/⑦盲区账缺
-# 四件随元探针撤编——机器自查类升件=自喂环实证,改每日一行/不升件):
-# 产出=升件走同分诊道(检测机械化,销裁仍归处置席——判断力不动);
-# scope dedup+销后复火;时级闸(整点后2min内跑一拍,器官题一小时粒度足够)。
-if (( 10#$(date +%M) < 2 )); then
-# ①eval流断(全谱): 全模板零eval行24h=研究枚举臂死征(enum-dead类上位探——
-# 单廊死靠人肉立案的教训,全死必机械报)。
-psql "$DSN" -qAt <<SQL >/dev/null 2>&1 || true # tolerate: 探行写败=下拍补
+# 状况→升件桥(减法 B 批·业主令#20930「经营状况→状态表」——fin_0201 起
+# 三探(eval流断/产线静默/提炼旱)与 Go 侧孤儿账/商业产出判据统一平移入
+# ops_state 视件):经营状况=持久可查行非事件流——每况7d至多一火(销后况犹在
+# 不叠拍,状态认视面非事件面);况消=其 pending 升件自闭(复绿自闭同型)。
+# bridge=f 自管类(票滞留/工单面压力)只入视面不走桥——D-0048④ 看自己的
+# 状况降可视件不唤会话。每拍跑(读小视+pending扫,廉价);况在视面=会话入场见。
+psql "$DSN" -qAt <<SQL >/dev/null 2>&1 || true # tolerate: 桥行写败=下拍补
 INSERT INTO ops_event(seat,event,esc_class,esc_scope,note)
-SELECT '探测席','升件','eval流断','evalflow_dead',
- 'eval流断——全模板fin_opp_eval零产出24h:研究枚举臂死征(enum-dead类上位探)——认领诊断∨判停用'
-WHERE NOT EXISTS (SELECT 1 FROM fin_opp_eval e WHERE e.ts>now()-interval '24 hours')
-AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='升件'
-  AND x.esc_scope='evalflow_dead' AND x.ts>now()-interval '7 days'
-  AND NOT EXISTS (SELECT 1 FROM ops_event y WHERE y.ts>x.ts
-    AND y.note ~ ('升件#'||x.id::text||'([^0-9]|\$)')))
+SELECT '探测席','升件',s.kind,s.scope,
+ '况现:'||s.detail||'——认额定销/拆解/处置;况在态表(ops_state),非事件件不叠火'
+FROM ops_state s WHERE s.bridge
+AND NOT EXISTS (SELECT 1 FROM ops_event e WHERE e.event='升件'
+  AND e.esc_class=s.kind AND e.esc_scope=s.scope AND e.ts>now()-interval '7 days');
+INSERT INTO ops_event(seat,event,note)
+SELECT '探测席','恢复','升件#'||e.id||' 况消自闭——ops_state已无此况'
+FROM ops_esc_pending e
+WHERE e.esc_class IN ('商业产出','产线静默','提炼旱','eval流断','孤儿账')
+AND NOT EXISTS (SELECT 1 FROM ops_state s WHERE s.kind=e.esc_class AND s.scope=e.esc_scope);
 SQL
-# ②产线静默(模板级): 有开放仓(proposed/paper/live)在管而eval流断3d=
-# 复评/枚举产线疑死。零仓零eval不升(合理静默非病灶)。
-psql "$DSN" -qAt <<SQL >/dev/null 2>&1 || true # tolerate: 探行写败=下拍补
-INSERT INTO ops_event(seat,event,esc_class,esc_scope,note)
-SELECT '探测席','升件','产线静默','lanesil_'||p.tmpl,
- '产线静默——'||p.tmpl||' 开放仓'||p.n||'张('||p.states||')在管但eval流断3d——认领诊断∨判停用'
-FROM (
-  SELECT s.template_ref tmpl,count(*) n,string_agg(DISTINCT s.state,'/') states
-  FROM fin_strategy s WHERE s.state IN ('proposed','paper','live') GROUP BY 1
-) p
-WHERE NOT EXISTS (SELECT 1 FROM fin_opp_eval e WHERE e.template=p.tmpl
-    AND e.ts>now()-interval '3 days')
-AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='升件'
-  AND x.esc_scope='lanesil_'||p.tmpl AND x.ts>now()-interval '7 days'
-  AND NOT EXISTS (SELECT 1 FROM ops_event y WHERE y.ts>x.ts
-    AND y.note ~ ('升件#'||x.id::text||'([^0-9]|\$)')))
-SQL
-# ⑥提炼旱(教训→canon转化断): 验尸攒案不结晶=「记全了没提炼」——
-# e551v/0c 实证(值守席判决 B2)。判据=verdicted≥50 且 canon转化<5%
-# (eng 13/37=35%健阈不扰,econ 0/551=全断照火)。只述积压开药归会话。
-# econ canon 身份=verdict_ref 前缀制（KB econ-canon-verdictref-not-status）——status='canon' 恒零假空架，计数须 OR verdict_ref LIKE 'canon:%' 双轨。
-psql "$DSN" -qAt <<SQL >/dev/null 2>&1 || true # tolerate: 探行写败=下拍补
-WITH l AS (
-  SELECT 'eng' tbl, count(*) FILTER (WHERE status='verdicted') v,
-    count(*) FILTER (WHERE status='canon') c FROM fin_eng_lesson
-  UNION ALL
-  SELECT 'econ', count(*) FILTER (WHERE status='verdicted'),
-    count(*) FILTER (WHERE status='canon' OR verdict_ref LIKE 'canon:%') FROM fin_econ_lesson)
-INSERT INTO ops_event(seat,event,esc_class,esc_scope,note)
-SELECT '探测席','升件','提炼旱','consol_dry_'||l.tbl,
- '提炼旱——fin_'||l.tbl||'_lesson verdicted='||l.v||'/canon='||l.c
- ||'(转化<5%:记全了没提炼,学习器官有记无化——B2同型)——认领诊断∨判口径'
-FROM l WHERE l.v>=50 AND l.c*20<l.v
-AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='升件'
-  AND x.esc_scope='consol_dry_'||l.tbl AND x.ts>now()-interval '7 days'
-  AND NOT EXISTS (SELECT 1 FROM ops_event y WHERE y.ts>x.ts
-    AND y.note ~ ('升件#'||x.id::text||'([^0-9]|\$)')))
-SQL
-fi
 
 # 每日一行（减法 C 批·业主令#20930）：工单板/未并支/新面 三数并一行量表——
 # 原票滞留探/工单面压力探/支无票探/新面升件 四件撤编后的唯一可见面。只述数不升件，

@@ -167,40 +167,6 @@ func TestReconEscAmbiguousLegs(t *testing.T) {
 	}
 }
 
-// orphanEscCheck：pending 积压超 TTL→升件 orphan_*；积压销→恢复自闭。
-func TestOrphanEsc(t *testing.T) {
-	ctx := context.Background()
-	pool := testutil.Pool(t)
-	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
-	if _, err := pool.Exec(ctx, `DELETE FROM fin_eng_lesson WHERE signature='t-orph';
-		DELETE FROM ops_event WHERE esc_scope='orphan_eng_lesson'`); err != nil {
-		t.Fatalf("clean: %v", err)
-	}
-	if _, err := pool.Exec(ctx, `INSERT INTO fin_eng_lesson(signature,cluster_n,verify_state,numbers,status,verdict_ref,ts)
-		VALUES('t-orph',1,'ai_evaluated','{}','pending','',now()-interval '2 days')`); err != nil {
-		t.Fatalf("lesson: %v", err)
-	}
-	svc := coreService{pool: pool}
-	deadSince := map[string]time.Time{}
-	svc.orphanEscCheck(ctx, deadSince)
-	var n int
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
-		WHERE event='升件' AND esc_class='孤儿账' AND esc_scope='orphan_eng_lesson'`).Scan(&n); err != nil || n != 1 {
-		t.Fatalf("升件 n=%d err=%v", n, err)
-	}
-	if _, err := pool.Exec(ctx, `UPDATE fin_eng_lesson SET status='verdicted',
-		verdict_ref='弃——t 销' WHERE signature='t-orph'`); err != nil {
-		t.Fatalf("销: %v", err)
-	}
-	svc.orphanEscCheck(ctx, deadSince)
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
-		WHERE event='恢复' AND note LIKE '%orphan_eng_lesson%'`).Scan(&n); err != nil || n != 1 {
-		t.Fatalf("恢复 n=%d", n)
-	}
-}
-
 // cognitionEscCheck：未决升件在案+处置行缺席>24h→唤知面死升件；
 // 处置行落地→恢复自闭（alerter nil=人推安全跳过）。
 func TestCognitionEsc(t *testing.T) {
@@ -300,83 +266,6 @@ func TestEscEdge(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
 		WHERE event='恢复' AND note LIKE '%t_edge%'`).Scan(&n); err != nil || n != 1 {
 		t.Fatalf("自闭 n=%d err=%v", n, err)
-	}
-}
-
-// commercialEscCheck：live 在册而策略面 30d 净产出≤0→升件 commercial_stall；
-// 净产出回正→恢复自闭；无 live 在册=静默（空转定性归唤知会话非探针宣判）。
-func TestCommercialEsc(t *testing.T) {
-	ctx := context.Background()
-	pool := testutil.Pool(t)
-	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
-	if _, err := pool.Exec(ctx, `DELETE FROM fin_cashflow WHERE source_ref BETWEEN 990001 AND 990099;
-		DELETE FROM fin_strategy WHERE inst_id='T-STALL-USDT';
-		DELETE FROM ops_event WHERE esc_scope='commercial_stall'`); err != nil {
-		t.Fatalf("clean: %v", err)
-	}
-	ref := 990000
-	ins := func(kind string, amt float64) {
-		ref++
-		if _, err := pool.Exec(ctx, `INSERT INTO fin_cashflow(venue,kind,amount,ccy,occurred_at,source_table,source_ref)
-			VALUES('okx',$1,$2,'USD',now()-interval '2 days','fin_order_leg',$3)`,
-			kind, amt, ref); err != nil {
-			t.Fatalf("cf %s: %v", kind, err)
-		}
-	}
-	if _, err := pool.Exec(ctx, `INSERT INTO fin_strategy(inst_id,template_ref,state,notional_usd,entered_at,criteria,created_at,venue)
-		VALUES('T-STALL-USDT','funding-hedge','live',50,now(),'{}',now(),'okx')`); err != nil {
-		t.Fatalf("strategy: %v", err)
-	}
-	svc := coreService{pool: pool}
-	deadSince := map[string]time.Time{}
-
-	// 净付型面:fee -3 + funding +0.01=-2.99≤0→升件
-	ins("fee", -3.0)
-	ins("funding_settle", 0.01)
-	svc.commercialEscCheck(ctx, deadSince)
-	var n int
-	var note string
-	if err := pool.QueryRow(ctx, `SELECT count(*),COALESCE(max(note),'') FROM ops_event
-		WHERE event='升件' AND esc_class='商业产出' AND esc_scope='commercial_stall'`).Scan(&n, &note); err != nil || n != 1 {
-		t.Fatalf("stall 升件 n=%d err=%v", n, err)
-	}
-	if !strings.Contains(note, "-2.9900") {
-		t.Fatalf("note 缺实数: %s", note)
-	}
-	svc.commercialEscCheck(ctx, deadSince) // 未销在案不暴
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
-		WHERE esc_scope='commercial_stall'`).Scan(&n); err != nil || n != 1 {
-		t.Fatalf("未销抑 n=%d", n)
-	}
-
-	// interest 不入账:加 +10 interest 仍≤0→不恢复
-	ins("interest", 10.0)
-	svc.commercialEscCheck(ctx, deadSince)
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
-		WHERE event='恢复' AND esc_scope='commercial_stall'`).Scan(&n); err != nil || n != 0 {
-		t.Fatalf("interest 冒充恢复 n=%d", n)
-	}
-
-	// 策略面真回正(trade_pnl +5)→恢复自闭
-	ins("trade_pnl", 5.0)
-	svc.commercialEscCheck(ctx, deadSince)
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
-		WHERE event='恢复' AND note LIKE '%commercial_stall%'`).Scan(&n); err != nil || n != 1 {
-		t.Fatalf("恢复 n=%d", n)
-	}
-
-	// live 退役→无 live 在册=静默不重升（即便面负）
-	if _, err := pool.Exec(ctx, `UPDATE fin_strategy SET state='retired'
-		WHERE inst_id='T-STALL-USDT'`); err != nil {
-		t.Fatalf("retire: %v", err)
-	}
-	ins("fee", -10.0)
-	svc.commercialEscCheck(ctx, deadSince)
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
-		WHERE event='升件' AND esc_scope='commercial_stall'`).Scan(&n); err != nil || n != 1 {
-		t.Fatalf("无 live 静默 n=%d", n)
 	}
 }
 
@@ -566,44 +455,6 @@ func TestCapabilityEscCheckEnableGrace(t *testing.T) {
 		WHERE event='恢复' AND note LIKE '%capability_funding-hedge%'
 		ORDER BY id DESC LIMIT 1`).Scan(&recNote); err != nil {
 		t.Fatalf("恢复行缺(相位C应自闭): %v", err)
-	}
-}
-
-// orphan hypothesis_parked（T-0523）——无复核戳的 parked 陈卡浮面；
-// last_reviewed 新戳续挂=不浮。
-func TestOrphanHypothesisParked(t *testing.T) {
-	ctx := context.Background()
-	pool := testutil.Pool(t)
-	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
-	if _, err := pool.Exec(ctx, `DELETE FROM fin_opp_hypothesis WHERE surface LIKE 't-park%';
-		DELETE FROM ops_event WHERE esc_scope='orphan_hypothesis_parked'`); err != nil {
-		t.Fatalf("clean: %v", err)
-	}
-	// 陈 parked 无戳→浮
-	if _, err := pool.Exec(ctx, `INSERT INTO fin_opp_hypothesis(venue,surface,family,state,ts)
-		VALUES('okx','t-park-stale','basis','parked',now()-interval '60 days')`); err != nil {
-		t.Fatalf("陈卡: %v", err)
-	}
-	svc := coreService{pool: pool}
-	deadSince := map[string]time.Time{}
-	svc.orphanEscCheck(ctx, deadSince)
-	var n int
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
-		WHERE event='升件' AND esc_scope='orphan_hypothesis_parked'`).Scan(&n); err != nil || n != 1 {
-		t.Fatalf("parked 升件 n=%d err=%v", n, err)
-	}
-	// 复核戳新落→积压数归零→恢复自闭
-	if _, err := pool.Exec(ctx, `UPDATE fin_opp_hypothesis
-		SET evidence=evidence||'{"last_reviewed":"2099-01-01T00:00:00Z"}'
-		WHERE surface='t-park-stale'`); err != nil {
-		t.Fatalf("落戳: %v", err)
-	}
-	svc.orphanEscCheck(ctx, deadSince)
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
-		WHERE seat='探测席' AND event='恢复' AND note LIKE '%hypothesis_parked%'`).Scan(&n); err != nil || n != 1 {
-		t.Fatalf("恢复 n=%d err=%v", n, err)
 	}
 }
 

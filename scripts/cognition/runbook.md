@@ -110,6 +110,10 @@ FIN_DSN=$(grep '^FIN_PG_DSN=' /opt/o-research/env | cut -d= -f2- | tr -d '"')
 psql "$FIN_DSN" -c "
 SELECT id,ts,esc_class,esc_scope,valence,age_s,note FROM ops_esc_pending
 ORDER BY valence DESC, id"
+# 经营状况一眼面（ops_state——减法B批 fin_0201:持久况为行非事件,
+# bridge=t 经营类走桥升件/bridge=f 自管类只入视;况消其 pending 升件自闭）:
+psql "$FIN_DSN" -c "SELECT kind,scope,valence,bridge,detail FROM ops_state
+  ORDER BY valence DESC, kind, scope"
 psql "$FIN_DSN" -c "SELECT id,signature,cluster_n,numbers FROM fin_eng_lesson
   WHERE verify_state='ai_evaluated' AND status='pending' ORDER BY id LIMIT 20"
 psql "$FIN_DSN" -c "SELECT id,kind,entity_ref,numbers FROM fin_econ_lesson

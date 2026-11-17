@@ -46,7 +46,6 @@ func (c coreService) escLoop(ctx context.Context, al *notify.Alerter) {
 		c.feedEscCheck(ctx, deadSince)
 		c.deployEscCheck(ctx, deadSince)
 		c.reconEscCheck(ctx, deadSince)
-		c.orphanEscCheck(ctx, deadSince)
 		c.organOrphanEscCheck(ctx, deadSince)
 		c.cognitionEscCheck(ctx, deadSince, al)
 		c.cognitionSpawnFailEscCheck(ctx, deadSince)
