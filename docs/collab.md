@@ -43,8 +43,9 @@
 
 ## 3. 工作面隔离（防占位——纪元3 沿用）
 
-- **`/opt/o` 部署树=master 常检**：只许 pull/merge/deploy 与账本 docs
-  提交。码面改动一律 worktree——违者闸拦+计次。
+- **`/opt/o` 部署树=master 常检**：只许 pull --ff-only/deploy 与账本
+  docs 提交（merge 簿记归 land_queue 单写者，禁本地 merge——工单#22949）。
+  码面改动一律 worktree——违者闸拦+计次。
 - **工作面=自己的 worktree**：`git worktree add /opt/o-wt/<名>`，
   用毕 `git worktree remove`+删支（wt_gc 人工径——纪元3 起无机扫件，
   对账 `git worktree list` 逐树判 merged/脏/活）。

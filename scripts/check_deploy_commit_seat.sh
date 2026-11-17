@@ -5,11 +5,12 @@
 # 调用的纯判定函数，进不了历史=闸语义等价达成）。
 #
 # 判法（钦定面③+裁填）：root realpath=部署树 ∧ branch=master ∧
-# 非 merge 在途（MERGE_HEAD 无——合支正当径不动）→ subject 首词
-# 位 [角色:施工] 即拒。判别域=施工前缀负向列——T-0370 语义一字
-# 不动（当年闸只禁施工前缀）；无标 commit=DM/决策票立流在案
-# （origin/master first-parent 实证 T-0440 系无标立票件常态）
-# 不收；[角色:决策]/[角色:COS]/[角色:外审]/[角色:管理] 等他席标
+# 非 merge 在途（MERGE_HEAD 无——合支正当径不动；注：部署树本地
+# merge 已被工单#22949 契约面废止=pull-only，本闸不背新禁）→
+# subject 首词位 [角色:施工] 即拒。判别域=施工前缀负向列——
+# T-0370 语义一字不动（当年闸只禁施工前缀）；无标 commit=DM/决策票
+# 立流在案（origin/master first-parent 实证 T-0440 系无标立票件
+# 常态）不收；[角色:决策]/[角色:COS]/[角色:外审]/[角色:管理] 等他席标
 # 直落=既有合法径不收窄（判别域只窄不宽——施工外扩需另票实证）。
 #
 # 用法：check_deploy_commit_seat.sh <root> <branch> <subject>
@@ -29,7 +30,7 @@ case "$SUBJ" in
   \[角色:施工\]*)
     echo "FAIL(T-0467): 部署树 /opt/o master 直落 [角色:施工] commit——" >&2
     echo "  §9 前移闸：施工禁在部署树提交（判例=T-0367 abe3fd1a 直落实证）。" >&2
-    echo "  正当径：票支 worktree 施工→check_all 绿→合支随 merge 入 master。" >&2
+    echo "  正当径：票支 worktree 施工→check_all 绿→支推 origin→复审过行→落地队列机械合 master（部署树禁本地 merge，工单#22949）。" >&2
     echo "  拒因 subj=[$SUBJ]" >&2
     exit 1 ;;
 esac
