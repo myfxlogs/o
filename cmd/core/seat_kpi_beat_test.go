@@ -115,16 +115,17 @@ func TestSeatKpiNoteShape(t *testing.T) {
 	note := seatKpiNote("2026-11-16", seatKpiM{
 		escH: &h, refirePct: &h, doneH: &h, rejectPct: &h,
 		p1: &p1, falsePct: &h, selfK: &k, selfN: &nn, research: &res,
+		moneyK: &k, moneyN: &nn,
 	})
 	for _, seg := range []string{"v=2026-11-16", "销中位2.5h", "误销2.5%",
-		"完工中位2.5h", "打回2.5%", "P13", "误报2.5%", "兑现1/4", "转化7/90d"} {
+		"完工中位2.5h", "打回2.5%", "P13", "误报2.5%", "兑现1/4", "转化7/90d", "施工钱环:1/4"} {
 		if !strings.Contains(note, seg) {
 			t.Fatalf("缺段 %q: %s", seg, note)
 		}
 	}
 	empty := seatKpiNote("2026-11-16", seatKpiM{})
 	for _, seg := range []string{"销中位?h", "误销?%", "完工中位?h", "打回?%",
-		"P1?", "误报?%", "兑现?/?", "转化?/90d"} {
+		"P1?", "误报?%", "兑现?/?", "转化?/90d", "施工钱环:?/?"} {
 		if !strings.Contains(empty, seg) {
 			t.Fatalf("空读面缺 ? 段 %q: %s", seg, empty)
 		}

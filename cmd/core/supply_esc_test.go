@@ -21,13 +21,14 @@ func TestTicketScopeSuppress(t *testing.T) {
 	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
-	if _, err := pool.Exec(ctx, `DELETE FROM fin_strategy WHERE inst_id='T-SUP-dud';
+	if _, err := pool.Exec(ctx, `DELETE FROM fin_eng_lesson WHERE signature LIKE 't-sup%';
 		DELETE FROM ops_event WHERE esc_scope='lesson_backlog' OR note LIKE '%t-sup%'`); err != nil {
 		t.Fatalf("clean: %v", err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO fin_strategy(inst_id,template_ref,state,notional_usd,entered_at)
-		VALUES('T-SUP-dud','t_tpl','live',50,now()-interval '8 days')`); err != nil {
-		t.Fatalf("dud: %v", err)
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_eng_lesson(signature,cluster_n,numbers,status,ts)
+		SELECT 't-sup-'||g,0,'[]'::jsonb,'pending',now()-interval '2 days'
+		FROM generate_series(1,5) g`); err != nil {
+		t.Fatalf("seed: %v", err)
 	}
 	svc := coreService{pool: pool}
 	ds := map[string]time.Time{}

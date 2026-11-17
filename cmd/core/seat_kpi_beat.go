@@ -33,6 +33,8 @@ type seatKpiM struct {
 	selfK     *int     // ⑦自我兑现分子
 	selfN     *int     // ⑦自我兑现分母
 	research  *int     // ⑧研究转化 90d
+	moneyK    *int     // ⑨施工钱环占比分子
+	moneyN    *int     // ⑨施工钱环占比分母
 }
 
 // seatKpiDue 严格日拍闸——末行 ticket='seat_kpi' 距今 < seatKpiEvery
@@ -183,6 +185,24 @@ func (c coreService) seatKpiRead(ctx context.Context) seatKpiM {
 		WHERE state='adopted' AND ts>now()-interval '90 days'`).Scan(&m.research); err != nil {
 		m.research = nil
 	}
+
+	// ⑨ 施工钱环占比（减法E批·业主令#20930「施工会话中钱环票不少于
+	// 2/3」预算墙实测面）：分母=30d 施工席完工回执票（同③④选域），
+	// 分子=票文命中钱环词面者。钱环词=钱径环面（策略/venue/执行/账/
+	// 评估/研究/族）钦定词册——自管词（探针/工单/会话/部署/台账）
+	// 不在册故零命中票=自管票如实判（词册演进=改本行一处）。
+	if err := c.pool.QueryRow(ctx, `WITH done AS (
+		SELECT substring(d.note from '工单#([0-9]+)') AS tk
+		FROM ops_event d
+		WHERE d.seat='施工席' AND d.event='处置'
+		  AND (d.note LIKE '%完工%' OR d.note LIKE '%回执%')
+		  AND d.ts>now()-interval '30 days')
+		SELECT count(*), count(*) FILTER (WHERE e.note ~*
+		  '(venue|okx|mt5|cmc|策略|评估|假想|hypo|执行|exec|平仓|开仓|腿|ledger|净值|资金|risk|演习|校准|drill|族|template|funding|研究|育种|进水口|dcd|行情|pnl|收益|position|order|leg|fill|settle|结算|利息|earn|利润|候选)')
+		FROM ops_event e JOIN done ON e.id::text=done.tk WHERE e.event='工单'`).
+		Scan(&m.moneyN, &m.moneyK); err != nil {
+		m.moneyK, m.moneyN = nil, nil
+	}
 	return m
 }
 
@@ -205,13 +225,17 @@ func seatKpiVals(m seatKpiM) []string {
 	if m.selfK != nil && m.selfN != nil {
 		fulfill = fmt.Sprintf("%d/%d", *m.selfK, *m.selfN)
 	}
+	money := "?/?"
+	if m.moneyK != nil && m.moneyN != nil {
+		money = fmt.Sprintf("%d/%d", *m.moneyK, *m.moneyN)
+	}
 	return []string{f(m.escH), f(m.refirePct), f(m.doneH), f(m.rejectPct),
-		i(m.p1), f(m.falsePct), fulfill, i(m.research)}
+		i(m.p1), f(m.falsePct), fulfill, i(m.research), money}
 }
 
 // seatKpiNote 量表文+指纹（纯函数供 shape 测——钦定六段词形）。
 func seatKpiNote(fp string, m seatKpiM) string {
 	v := seatKpiVals(m)
-	return fmt.Sprintf("v=%s 唤知:销中位%sh·误销%s%%|施工:完工中位%sh·打回%s%%|审计:P1%s|探针:误报%s%%|自我:兑现%s|研究:转化%s/90d",
-		fp, v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7])
+	return fmt.Sprintf("v=%s 唤知:销中位%sh·误销%s%%|施工:完工中位%sh·打回%s%%|审计:P1%s|探针:误报%s%%|自我:兑现%s|研究:转化%s/90d|施工钱环:%s",
+		fp, v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7], v[8])
 }
