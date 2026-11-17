@@ -121,6 +121,12 @@ func (r *Runner) Execute(ctx context.Context, in Intent) (int64, error) {
 func (r *Runner) placeAndResolve(ctx context.Context, execID int64, no int, leg Leg, posRef *int64) (OrderResult, error) {
 	// clOrdId=大小写英数 only（OKX 实拍 51000——T-0038：连字符非法；字母位分隔）。
 	clOrdID := fmt.Sprintf("ph%dx%dx%d", execID, no, time.Now().UnixNano()%1e6)
+	return r.placeAndResolveCID(ctx, execID, no, leg, posRef, clOrdID)
+}
+
+// placeAndResolveCID 同 placeAndResolve——clOrdId 由调用侧携（末路出口
+// emg 前缀幂等键位；常规径仍走 ph 生成）。
+func (r *Runner) placeAndResolveCID(ctx context.Context, execID int64, no int, leg Leg, posRef *int64, clOrdID string) (OrderResult, error) {
 	// T-0238 maker 优先径：exec.maker_enabled 且 okx 腿且盘口鲜活→post_only
 	// 挂价等时；时限/未成/拒→取消定态降级 market（成=低费，败=原径无损）。
 	if mres, ok := r.makerAttempt(ctx, execID, no, leg, posRef); ok {

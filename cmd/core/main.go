@@ -103,6 +103,7 @@ func run() error {
 	// 不炸 boot——E-1 未落位期岗位缺席留痕非死码）。
 	// 凭据缺席期仓巡平仓缝降级 stub（拒执 fail-closed）——凭据落位重启即全链。
 	var closer guard.Executor
+	var emgCloser guard.EmergencyExecutor // 末路只减仓缝（工单#22247——priv 域同件接线）
 	// Earn 停泊态+feishu 告警通道（凭据就位挂接——boot_secrets.go）。（boot_secrets.go——app_secrets 密文列解，缺件=nil 降级；
 	// typed-nil 主修 T-0032：凭据缺席传真 nil 接口非 (*FeishuClient)(nil)）。
 	sender, alerter := wireNotify(ctx, pool, cfg) // notify_wire.go——棘轮拆出
@@ -154,6 +155,7 @@ func run() error {
 			execR := newExecRunner(pool, cfg, priv.Credentials(), xcli, xdial).WithEarn(earnW).WithAlerter(alerter)
 			go execution.Run(ctx, errc, execR)
 			closer = execwiring.CloseExec{R: execR}
+			emgCloser = execwiring.EmergencyExec{R: execR} // 末路出口同执事件（reduce-only 腿径）
 			// live 开仓缝（T-0050——gate+执事+元数据件同源接线；T-0145 xvenue 面同件）。
 			liveOpener = hedgeOpener{pool: pool, cfg: cfg, gate: riskGate, r: execR, // T-0050
 				redeem: earnW.RedeemToTrading, // O-CAP1：dcdexec 前置赎回同源 earn 实例（execR.WithEarn 同件）
@@ -258,6 +260,7 @@ func run() error {
 		wd.AttachSizer(closeSizer) // T-0046②：平仓量现读件
 	}
 	wd.AttachVenueSizer("mt5", Mt5Sizer{C: xcli, X: xdial, D: xds}) // T-0145 mt5 腿路由现读件（OpenedOrders 手数）
+	wd.AttachEmergencyExecutor(emgCloser)                           // 工单#22247：末路只减仓缝（nil=末路缺席不假救）
 	wd.AttachCtVal(ctValReader(okcli))                              // T-0046①：面值现读件（nav_live.go）
 	wd.AttachAlerter(alerter)
 	// venue 现读件（T-0048：快照行全域出局——venue_readers.go 装配）。
