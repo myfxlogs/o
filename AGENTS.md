@@ -90,7 +90,9 @@
 - **钱径全谱闸**：动 `internal/{risk,execution,ledger,trading}` / cmd/core
   =check_all 全谱+戳+merge，无快道。
 - **ops_event append-only**：事实只插不改；相位/状态靠事件推导非 UPDATE。
-- **部署树戒律**：/opt/o 只 pull/merge/deploy，码面改动一律 worktree。
+- **部署树戒律**：/opt/o 只 pull/deploy——merge 簿记全归 land_queue
+  独树，本地合点禁留（ff 对齐属 pull 语义，工单#22949）；码面改动
+  一律 worktree。
 - **红线=本金总额一条硬线**（业主令 2026-11-11⑥#10328）：线内钱径全归
   system 域——配置/移动/策略自裁。越线三径归业主面：扩投=超总额须业主
   供钱（物理前提非许可；解锁=真账盈利验证,令⑨#10417——未验证前系统不

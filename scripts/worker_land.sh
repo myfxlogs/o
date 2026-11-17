@@ -7,7 +7,8 @@
 #   rc0=已合 master；rc2=钱径面已推支候审；rc1=戳缺/戳陈/非ff/取数败。
 #
 # 戳规：check-green-<支尖> 须存在且 ≤24h——陈戳=闸过期，重跑 check_all。
-# merge 域=/opt/o 部署树（戒律允许面：只 pull/merge/deploy）——脏树/非ff=拒。
+# merge 域=/opt/o 部署树——只许 --ff-only 对齐（戒律面：只 pull/deploy，
+# 本地合点禁留，merge 簿记归 land_queue 独树，工单#22949）——脏树/非ff=拒。
 # 本件在免疫册——改本闸=触免疫面。
 set -u
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
