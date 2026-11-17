@@ -1,0 +1,10 @@
+[Unit]
+Description=o-land-queue.timer 落地队列拍（15min——deploy_watch 同拍）
+
+[Timer]
+OnCalendar=*-*-* *:0/15:00
+Persistent=true
+Unit=o-land-queue.service
+
+[Install]
+WantedBy=timers.target
