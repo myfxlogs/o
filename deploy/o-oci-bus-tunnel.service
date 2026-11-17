@@ -5,7 +5,7 @@ Description=o-oci-bus-tunnel (localhost:15436→OCI eventbus)
 After=network-online.target
 
 [Service]
-ExecStart=/usr/bin/ssh -N -i %h/.ssh/o_oci_bus -o BatchMode=yes -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -L 15436:localhost:15436 ubuntu@149.118.58.98
+ExecStart=/opt/o/scripts/oci_bus_tunnel_up.sh
 Restart=always
 RestartSec=5
 NoNewPrivileges=true

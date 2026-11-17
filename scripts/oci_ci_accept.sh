@@ -29,6 +29,7 @@ GITDIR=$(cd "$GITDIR" 2>/dev/null && pwd -P) || exit 2
 STAMP="$GITDIR/check-green-$SHA"
 SIDE="$GITDIR/oci-report-$SHA"
 SSH_TARGET=${OCI_CI_SSH:-ubuntu@149.118.58.98}
+source "$(dirname "${BASH_SOURCE[0]}")/oci_ssh_route.sh" "$SSH_TARGET" # OCI 路由自愈(直连死→SG跳板)
 CI_ROOT=${OCI_CI_ROOT:-/home/ubuntu/o-ci}
 REPORT=${OCI_CI_REPORT_FILE:-}
 LOG=${OCI_CI_LOG_FILE:-}
@@ -43,10 +44,10 @@ trap cleanup EXIT
 if [ -z "$REPORT" ] || [ -z "$LOG" ]; then
   TMP=$(mktemp -d) || exit 2
   REPORT="$TMP/report"; LOG="$TMP/run.log"
-  ssh -o BatchMode=yes -o ConnectTimeout=10 "$SSH_TARGET" \
+  ssh -o BatchMode=yes -o ConnectTimeout=10 $O_OCI_JARG "$SSH_TARGET" \
     "cat '$CI_ROOT/reports/$SHA.report'" > "$REPORT" 2>"$TMP/fetch.err" \
     || { echo "❌ [oci-ci-accept] 报告拉取败（$(tail -1 "$TMP/fetch.err" 2>/dev/null)）——不可核" >&2; exit 2; }
-  ssh -o BatchMode=yes -o ConnectTimeout=10 "$SSH_TARGET" \
+  ssh -o BatchMode=yes -o ConnectTimeout=10 $O_OCI_JARG "$SSH_TARGET" \
     "cat '$CI_ROOT/reports/$SHA.log'" > "$LOG" 2>>"$TMP/fetch.err" \
     || { echo "❌ [oci-ci-accept] 日志拉取败——不可核（哈希无从复算）" >&2; exit 2; }
 fi

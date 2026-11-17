@@ -15,7 +15,8 @@ set -euo pipefail
 OCI="${O_OCI_HOST:-ubuntu@149.118.58.98}"
 SSH="${O_OCI_SSH:-ssh}"
 SCP="${O_OCI_SCP:-scp}"
-SSHOPT="-o BatchMode=yes -o ConnectTimeout=10"
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/oci_ssh_route.sh" "$OCI" # OCI 路由自愈(直连死→SG跳板)
+SSHOPT="-o BatchMode=yes -o ConnectTimeout=10 $O_OCI_JARG"
 LOCK_DIR='.oci-deploy-lock'
 CONTRACT="$(dirname "$0")/../deploy/oci-env-contract.tsv"
 DRY="${DRY_RUN:-0}"

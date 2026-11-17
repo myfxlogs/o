@@ -160,18 +160,18 @@ pg_md_tail() {
   echo "[deploy_image] OCI PG-md 迁移随窗——host=$MD_HOST 登记表水位=$reg_md"
   GOARCH=arm64 GOOS=linux go build -o "/tmp/o-migrate-md.$$" ./cmd/migrate \
     || { rm -f "/tmp/o-migrate-md.$$"; return 1; }
-  if ! scp -q -o BatchMode=yes -o ConnectTimeout=10 "/tmp/o-migrate-md.$$" "$MD_HOST:/tmp/o-migrate-md"; then
+  if ! scp -q -o BatchMode=yes -o ConnectTimeout=10 $O_OCI_JARG "/tmp/o-migrate-md.$$" "$MD_HOST:/tmp/o-migrate-md"; then
     rm -f "/tmp/o-migrate-md.$$"; return 1
   fi
   rm -f "/tmp/o-migrate-md.$$"
-  if ! ssh -o BatchMode=yes -o ConnectTimeout=10 "$MD_HOST" '
+  if ! ssh -o BatchMode=yes -o ConnectTimeout=10 $O_OCI_JARG "$MD_HOST" '
     set -e
     MD_PG_DSN=$(grep "^MD_PG_DSN=" ~/o-projector.env | cut -d= -f2- | tr -d "\"")
     [ -n "$MD_PG_DSN" ] || { echo "o-projector.env MD_PG_DSN 缺" >&2; exit 1; }
     PG_DSN="$MD_PG_DSN" /tmp/o-migrate-md -domain=md'; then
     return 1
   fi
-  live_md=$(ssh -o BatchMode=yes -o ConnectTimeout=10 "$MD_HOST" \
+  live_md=$(ssh -o BatchMode=yes -o ConnectTimeout=10 $O_OCI_JARG "$MD_HOST" \
     "sudo docker exec o-postgres-md psql -U o -d o -tc 'SELECT COALESCE(max(version),0) FROM schema_migrations'" | tr -d ' ') || return 1
   [ "${live_md:-0}" -ge "$reg_md" ] || return 1
   echo "[deploy_image] PG-md 水位 live=$live_md ≥ 登记表=$reg_md"
@@ -180,6 +180,7 @@ if [ "${O_MD_MIGRATE_SKIP:-0}" = 1 ]; then
   echo "⚠️  [deploy_image] O_MD_MIGRATE_SKIP=1——PG-md 迁移步跳（欠账哨兵照红）" >&2
 else
   MD_HOST="${O_MD_HOST:-ubuntu@149.118.58.98}"
+  source scripts/oci_ssh_route.sh "$MD_HOST" # OCI 路由自愈(直连死→SG跳板)
   pg_md_tail || tail_fail "pg_md_migrate" "OCI PG-md 迁移/水位断言败（欠账由升件面追）"
 fi
 

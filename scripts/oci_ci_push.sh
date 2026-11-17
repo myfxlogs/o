@@ -20,6 +20,8 @@ GITDIR=$(cd "$GITDIR" 2>/dev/null && pwd -P) || exit 2
 
 REMOTE=${OCI_CI_PUSH_REMOTE:-oci-ci}
 SSH_TARGET=${OCI_CI_SSH:-ubuntu@149.118.58.98}
+source "$(dirname "${BASH_SOURCE[0]}")/oci_ssh_route.sh" "$SSH_TARGET" # OCI 路由自愈(直连死→SG跳板)
+export GIT_SSH_COMMAND="ssh $O_OCI_JARG" # git-over-ssh 同径(push scratch.git)
 CI_ROOT=${OCI_CI_ROOT:-/home/ubuntu/o-ci}
 WAIT=${OCI_CI_TIMEOUT:-3600}
 POLL=${OCI_CI_POLL:-5}
@@ -54,16 +56,16 @@ fi
 
 echo "⏳ [oci-ci] 等 OCI runner 回报（sha=${SHA:0:12}，上界 ${WAIT}s）…" >&2
 N=$(( WAIT / POLL )); [ "$N" -ge 1 ] || N=1
-if ! ssh -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=30 "$SSH_TARGET" \
+if ! ssh -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=30 $O_OCI_JARG "$SSH_TARGET" \
   "export XDG_RUNTIME_DIR=/run/user/\$(id -u); for i in \$(seq 1 $N); do [ -f '$CI_ROOT/reports/$SHA.report' ] && exit 0; sleep $POLL; done; exit 66" 2>/dev/null; then
   local_check "report 超时/SSH 缺席（${WAIT}s）"
 fi
 
 TMP=$(mktemp -d) || local_check "mktemp 败"
 trap 'rm -rf "$TMP"' EXIT
-ssh -o BatchMode=yes -o ConnectTimeout=10 "$SSH_TARGET" "cat '$CI_ROOT/reports/$SHA.report'" > "$TMP/report" 2>/dev/null \
+ssh -o BatchMode=yes -o ConnectTimeout=10 $O_OCI_JARG "$SSH_TARGET" "cat '$CI_ROOT/reports/$SHA.report'" > "$TMP/report" 2>/dev/null \
   || local_check "report 拉取败"
-ssh -o BatchMode=yes -o ConnectTimeout=10 "$SSH_TARGET" "cat '$CI_ROOT/reports/$SHA.log'" > "$TMP/run.log" 2>/dev/null \
+ssh -o BatchMode=yes -o ConnectTimeout=10 $O_OCI_JARG "$SSH_TARGET" "cat '$CI_ROOT/reports/$SHA.log'" > "$TMP/run.log" 2>/dev/null \
   || local_check "日志拉取败"
 
 OCI_CI_REPORT_FILE="$TMP/report" OCI_CI_LOG_FILE="$TMP/run.log" \

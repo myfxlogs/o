@@ -17,8 +17,9 @@ fi
 # T-0211 捎带：md 链正本已迁 OCI 盒（dev o-postgres-md 排水停机）——
 # 哨兵 md 探针改 SSH 径打 OCI 权威库（本机容器幻影读空同族坑）。
 MD_HOST="${MD_HOST:-ubuntu@149.118.58.98}"
+source "$(dirname "$0")/oci_ssh_route.sh" "$MD_HOST" # OCI 路由自愈(直连死→SG跳板)
 md_q() { # $1=SQL——SSH 径 sudo docker exec（OCI ubuntu 免密 sudo 实证）
-	timeout 20 ssh -o BatchMode=yes -o ConnectTimeout=8 "$MD_HOST" \
+	timeout 20 ssh -o BatchMode=yes -o ConnectTimeout=8 $O_OCI_JARG "$MD_HOST" \
 		"sudo docker exec o-postgres-md psql -U o -d o -tc \"$1\"" 2>/dev/null | tr -d ' '
 }
 if [ -z "$MD_DSN" ]; then

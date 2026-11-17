@@ -14,6 +14,7 @@
 set -uo pipefail
 
 SSH_TARGET=${OCI_CI_SSH:-ubuntu@149.118.58.98}
+source "$(dirname "${BASH_SOURCE[0]}")/oci_ssh_route.sh" "$SSH_TARGET" # OCI 路由自愈(直连死→SG跳板)
 CI_ROOT=${OCI_CI_ROOT:-/home/ubuntu/o-ci}
 ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || { echo "❌ [oci-ci-provision] 非 git 树" >&2; exit 1; }
 SRC="$ROOT/scripts/oci_ci"
@@ -25,7 +26,7 @@ PG_C=o-postgres-test-c
 
 say() { echo "▶ [oci-ci-provision] $*" >&2; }
 die() { echo "❌ [oci-ci-provision] $*" >&2; exit 1; }
-srun() { ssh -o BatchMode=yes -o ConnectTimeout=15 "$SSH_TARGET" "$@"; }
+srun() { ssh -o BatchMode=yes -o ConnectTimeout=15 $O_OCI_JARG "$SSH_TARGET" "$@"; }
 
 [ -f "$SRC/runner.sh" ] && [ -f "$SRC/post-receive" ] && [ -f "$SRC/o-ci-runner@.service" ] \
   || die "装件缺（$SRC）"
