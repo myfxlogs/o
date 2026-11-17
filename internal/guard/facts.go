@@ -257,8 +257,13 @@ func (w *Warden) markClosed(ctx context.Context, p posRow, closeExecID int64, tr
 		w.rej.Inc("write_err")
 		return err
 	}
+	// upsert 非 UPDATE（工单#22247：受令末路可及无 guard 行仓——closed 终态
+	// 行必立，「attempts 耗尽仓未平」无行滞留面归零；trigger_kind 同步真值）。
 	if _, err := tx.Exec(ctx,
-		`UPDATE fin_guard_close SET state='closed',closed_at=now(),updated_at=now() WHERE position_id=$1`, p.id); err != nil {
+		`INSERT INTO fin_guard_close(position_id,state,trigger_kind,closed_at,updated_at)
+		 VALUES($1,'closed',$2,now(),now())
+		 ON CONFLICT(position_id) DO UPDATE SET state='closed',closed_at=now(),
+		   trigger_kind=$2,updated_at=now()`, p.id, trig.kind); err != nil {
 		w.rej.Inc("write_err")
 		return err
 	}
@@ -276,4 +281,18 @@ func (w *Warden) markClosed(ctx context.Context, p posRow, closeExecID int64, tr
 	}
 	w.writeCloseDecision(ctx, p, closeExecID, trig) // T-0415 红桩①平仓决策行
 	return nil
+}
+
+// trailingIncomePositive 收益失效判实读（T-0111）：fin_cashflow 归仓行
+// kind=funding 近 24h 实收合计>0=仓仍在赚——免超龄处决。读败/无行=false
+// 保守侧（证据缺不豁免——fail-closed 回年龄判据）。
+func (w *Warden) trailingIncomePositive(ctx context.Context, posID int64) bool {
+	var sum float64
+	if err := w.pool.QueryRow(ctx, `SELECT COALESCE(SUM(amount),0) FROM fin_cashflow
+		WHERE position_ref=$1 AND kind='funding_settle' AND occurred_at>now()-interval '24 hours'`,
+		posID).Scan(&sum); err != nil {
+		log.Printf("WARN [guard] 仓 %d trailing 实收读败（豁免判据回退年龄闸）: %v", posID, err)
+		return false
+	}
+	return sum > 0
 }

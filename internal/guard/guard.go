@@ -67,6 +67,7 @@ type Warden struct {
 	rej     *rejects.Door
 	al      *notify.Alerter
 	notes   map[string]time.Time                       // skip 态限频日志时间戳（键级 10min 节流）
+	emg     emergencyState                             // 末路只减仓出口态（工单#22247——exec缝/受令去重/节流）
 	equity  func(ctx context.Context) (float64, error) // 净权益现读件（dd 硬线判定时点实读）
 	ddFacts map[string]any                             // 本拍回撤实况载荷（dd/阈/peak/cur——T-0415 平仓决策行携实况）
 	// 以下三件由 events.ListenLoop 单 goroutine 串行驱动（scanOnce）——不加锁同前提。
@@ -121,7 +122,8 @@ func NewWarden(pool *pgxpool.Pool, cfg *config.Client, gate *risk.Gate, ex Execu
 			"dd_missing_param", "equity_missing", "equity_stale", "dd_no_base", "dd_hardline_tripped", "dd_close_exhausted", "dd_bar_thin",
 			"dir_missing_param", "dir_nav_missing", "dir_measure_err", "dir_leg_px_missing", "dir_mark_missing",
 			"dir_freeze_err", "dir_loss_breaker_tripped", "dir_close_exhausted",
-			"bare_bag")}
+			"bare_bag"),
+		emg: emergencyState{seen: map[int64]bool{}, last: map[int64]time.Time{}}}
 }
 
 // Run 在岗登记+心跳+哨戒循环（产出窗=fin_guard_close 行/fin_position.closed_at 迁移
@@ -192,6 +194,7 @@ func (w *Warden) scanOnce(ctx context.Context) error {
 	for _, p := range batch {
 		w.tend(ctx, p, maxAtt, w.evaluate(ctx, p, w.legs(ctx, p.execID)))
 	}
+	w.emergencyScan(ctx, maxAtt) // 工单#22247：末路只减仓出口（attempts 耗尽+受令）
 	return nil
 }
 
@@ -281,18 +284,4 @@ func (w *Warden) tend(ctx context.Context, p posRow, maxAtt int64, trig closeTri
 		return
 	}
 	log.Printf("[guard] 仓 %d 已平（触发=%s，decision=%d，close_exec=%d）", p.id, trig.kind, dec.DecisionID, execID)
-}
-
-// trailingIncomePositive 收益失效判实读（T-0111）：fin_cashflow 归仓行
-// kind=funding 近 24h 实收合计>0=仓仍在赚——免超龄处决。读败/无行=false
-// 保守侧（证据缺不豁免——fail-closed 回年龄判据）。
-func (w *Warden) trailingIncomePositive(ctx context.Context, posID int64) bool {
-	var sum float64
-	if err := w.pool.QueryRow(ctx, `SELECT COALESCE(SUM(amount),0) FROM fin_cashflow
-		WHERE position_ref=$1 AND kind='funding_settle' AND occurred_at>now()-interval '24 hours'`,
-		posID).Scan(&sum); err != nil {
-		log.Printf("WARN [guard] 仓 %d trailing 实收读败（豁免判据回退年龄闸）: %v", posID, err)
-		return false
-	}
-	return sum > 0
 }

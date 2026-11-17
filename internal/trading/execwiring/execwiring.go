@@ -7,6 +7,7 @@ package execwiring
 
 import (
 	"context"
+	"math"
 	"strconv"
 	"strings"
 
@@ -50,6 +51,24 @@ func CloseLegOf(spec guard.CloseSpec, l guard.CloseLeg) execution.Leg {
 		Sz: strconv.FormatFloat(l.Sz, 'f', -1, 64), Notional: spec.NotionalUSD / 2, Ticket: l.Ticket}
 }
 
+// EmergencyExec 末路只减仓装配缝（工单#22247——guard.EmergencyExecutor
+// 实现；不共用 plan(闸/令牌)与 sizer：腿量已由 guard 侧 venue 实读定好，
+// 腿 Close=true 语义位在 execution 侧兜底必置）。
+type EmergencyExec struct{ R *execution.Runner }
+
+func (e EmergencyExec) ExecuteEmergency(ctx context.Context, spec guard.EmergencySpec) (int64, error) {
+	in := execution.EmergencyIntent{
+		PositionID: spec.PositionID, StrategyRef: spec.StrategyRef, InstID: spec.InstID,
+		NotionalUSD: spec.NotionalUSD, Trigger: spec.Trigger,
+		Legs: make([]execution.Leg, 0, len(spec.Legs))}
+	for _, l := range spec.Legs {
+		in.Legs = append(in.Legs, execution.Leg{Venue: l.Venue, InstID: l.InstID,
+			Side: l.Side, Sz: strconv.FormatFloat(l.Sz, 'f', -1, 64),
+			Notional: spec.NotionalUSD, Close: true, Ticket: l.Ticket})
+	}
+	return e.R.ExecuteEmergency(ctx, in)
+}
+
 // OkxSizer guard.VenueSizer okx 适配（T-0046 ②——平仓量决策时点 venue 现读：
 // 现货=availBal、合约=positions 张数、lotSz=instruments；读败=fail-closed 拒平）。
 type OkxSizer struct{ C *okxexec.Client }
@@ -72,4 +91,29 @@ func (s OkxSizer) LotSz(ctx context.Context, instID string) (float64, error) {
 		return 0, err
 	}
 	return m.LotSz, nil
+}
+
+// ContractPosDir 合约腿符号位现读（工单#22247 末路出口——Positions 全
+// 枚举行按 posSide/net 定号求和；无行=0）。signedPosSizer 可选面实现。
+func (s OkxSizer) ContractPosDir(ctx context.Context, instID string) (float64, error) {
+	rows, err := s.C.Positions(ctx)
+	if err != nil {
+		return 0, err
+	}
+	sum := 0.0
+	for _, p := range rows {
+		if p.InstID != instID {
+			continue
+		}
+		v := okxexec.ParseF(p.Pos)
+		switch p.PosSide {
+		case "short":
+			sum -= math.Abs(v)
+		case "long":
+			sum += math.Abs(v)
+		default: // net 模式 pos 自带符号
+			sum += v
+		}
+	}
+	return sum, nil
 }
