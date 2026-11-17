@@ -17,6 +17,8 @@ import (
 	"encoding/json"
 	"log"
 	"math"
+
+	"o/internal/research/evalgate"
 )
 
 // xvenueCarryScan 信号臂 xvenue_carry 支路（ScanSignals 尾调）：carry_diff
@@ -179,13 +181,23 @@ func (r *Runner) xvenueCarryEval(ctx context.Context, okxInst, dir string, net, 
 		"slippage_buffer_bps": buffer, "net_ann_bps": net,
 		"capacity_usd": capacity, "direction": dir,
 		"mt5_symbol": mt5Sym, "reason": reason})
-	var evalID int64
-	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,gross_apr,net_apr,verdict,legs,evidence)
-		VALUES($1,'xvenue-carry',$2,NULL,$3,$4,'[]',$5)
-		RETURNING id`, okxInst, dir, net/10000, verdict, ev).Scan(&evalID); err != nil {
+	// 工单#22904 指纹闸：同(inst,template,direction)最新行 verdict+net_apr
+	// 未变=信念未迁→跳 INSERT 复用行 id（eval_id 幂等查随之复稳——upsert
+	// 时代同义；判词/净额变迁仍产新版史）。
+	evalID, same, err := evalgate.SameFingerprint(ctx, r.pool, okxInst, "xvenue-carry", dir, verdict, net/10000)
+	if err != nil {
 		r.rej.Inc("hypo_write_err")
-		log.Printf("[research/hypo] xvenue_carry 评估写败: %v", err)
+		log.Printf("[research/hypo] xvenue_carry 指纹闸查败: %v", err)
 		return
+	}
+	if !same {
+		if err := r.pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,gross_apr,net_apr,verdict,legs,evidence)
+			VALUES($1,'xvenue-carry',$2,NULL,$3,$4,'[]',$5)
+			RETURNING id`, okxInst, dir, net/10000, verdict, ev).Scan(&evalID); err != nil {
+			r.rej.Inc("hypo_write_err")
+			log.Printf("[research/hypo] xvenue_carry 评估写败: %v", err)
+			return
+		}
 	}
 	if verdict == "proposed" {
 		var n int

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"o/internal/platform/execfam"
+	"o/internal/research/evalgate"
 )
 
 // Params 阈闸判据（票面初版数值种 0043——热启可调）。
@@ -225,13 +226,21 @@ func (r *Runner) persistEval(ctx context.Context, e Eval) error {
 	}
 	legs, _ := json.Marshal(e.Legs())
 	evb, _ := json.Marshal(ev)
-	var evalID int64
-	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,
-		gross_apr,net_apr,verdict,legs,evidence)
-		VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
-		e.Product.ProductID, e.Template, e.Template, nullF(e.APR), nullF(e.APR),
-		e.Verdict, legs, evb).Scan(&evalID); err != nil {
+	// 工单#22904 指纹闸：同(inst,template,direction)最新行 verdict+net_apr
+	// 未变=信念未迁→跳 INSERT 复用行 id 续提案径（判词/净额变迁仍产新版史）。
+	evalID, same, err := evalgate.SameFingerprint(ctx, r.pool, e.Product.ProductID,
+		e.Template, e.Template, e.Verdict, nullF(e.APR))
+	if err != nil {
 		return err
+	}
+	if !same {
+		if err := r.pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,
+			gross_apr,net_apr,verdict,legs,evidence)
+			VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
+			e.Product.ProductID, e.Template, e.Template, nullF(e.APR), nullF(e.APR),
+			e.Verdict, legs, evb).Scan(&evalID); err != nil {
+			return err
+		}
 	}
 	if e.Verdict != "proposed" {
 		if e.Reason != "" {
@@ -257,7 +266,7 @@ func (r *Runner) persistEval(ctx context.Context, e Eval) error {
 	if open > 0 {
 		return nil // 已挂提案不重复提案
 	}
-	_, err := r.pool.Exec(ctx, `INSERT INTO fin_proposal(eval_id,inst_id,direction,net_apr)
+	_, err = r.pool.Exec(ctx, `INSERT INTO fin_proposal(eval_id,inst_id,direction,net_apr)
 		VALUES($1,$2,$3,$4)`, evalID, e.Product.ProductID, e.Template, nullF(e.APR))
 	if err == nil {
 		log.Printf("[research/dcd] 提案落卡 %s %s apr=%.4f（验证官闸过）",

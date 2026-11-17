@@ -19,6 +19,7 @@ import (
 
 	"o/internal/platform/condreq"
 	"o/internal/platform/execfam"
+	"o/internal/research/evalgate"
 )
 
 // shadowTemplate 影域评估模板族码（fin_opp_eval.template——真/影可辨键）。
@@ -76,13 +77,23 @@ func (r *Runner) xvenueShadowEval(ctx context.Context, okxInst, dir string, net,
 		"capacity_usd": capacity, "direction": dir,
 		"mt5_symbol": mt5Sym, "reason": reason,
 		"shadow": true, "candidate": true})
-	var evalID int64
-	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,gross_apr,net_apr,verdict,legs,evidence)
-		VALUES($1,$5,$2,NULL,$3,$4,'[]',$6)
-		RETURNING id`, okxInst, dir, net/10000, verdict, shadowTemplate, ev).Scan(&evalID); err != nil {
+	// 工单#22904 指纹闸：同(inst,template,direction)最新行 verdict+net_apr
+	// 未变=信念未迁→跳 INSERT 复用行 id（condreq eval_id 呈证据复用旧行
+	// =upsert 时代同义；判词/净额变迁仍产新版史）。
+	evalID, same, err := evalgate.SameFingerprint(ctx, r.pool, okxInst, shadowTemplate, dir, verdict, net/10000)
+	if err != nil {
 		r.rej.Inc("hypo_write_err")
-		log.Printf("[research/hypo] xvenue_shadow 评估写败: %v", err)
+		log.Printf("[research/hypo] xvenue_shadow 指纹闸查败: %v", err)
 		return
+	}
+	if !same {
+		if err := r.pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,gross_apr,net_apr,verdict,legs,evidence)
+			VALUES($1,$5,$2,NULL,$3,$4,'[]',$6)
+			RETURNING id`, okxInst, dir, net/10000, verdict, shadowTemplate, ev).Scan(&evalID); err != nil {
+			r.rej.Inc("hypo_write_err")
+			log.Printf("[research/hypo] xvenue_shadow 评估写败: %v", err)
+			return
+		}
 	}
 	if verdict != "proposed" {
 		log.Printf("[research/hypo] xvenue_shadow 评估 %s=%s/%s（净 %.0fbps——留账零闸动）",

@@ -149,6 +149,15 @@ internal/research/funding -> internal/research/armwatch
 internal/research/gapscan -> internal/research/armwatch
 internal/research/hypothesis -> internal/research/armwatch
 internal/research/hypothesis -> internal/research/funding
+# 工单#22904 fin_opp_eval 指纹闸单点件（evalgate）——8 写面同消费防判据漂移；
+# research→research/evalgate 同域边（research↛trading 红线不触）。
+internal/research/dirtrend -> internal/research/evalgate
+internal/research/dirmom -> internal/research/evalgate
+internal/research/grammar -> internal/research/evalgate
+internal/research/gapscan -> internal/research/evalgate
+internal/research/funding -> internal/research/evalgate
+internal/research/dcd -> internal/research/evalgate
+internal/research/hypothesis -> internal/research/evalgate
 internal/research/gapscan -> internal/platform/config
 internal/research/gapscan -> internal/platform/rejects
 internal/research/gapscan -> internal/platform/roster

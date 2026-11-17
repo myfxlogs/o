@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"o/internal/platform/execfam"
+	"o/internal/research/evalgate"
 )
 
 // classifyPending 裁 pending/unclassified 行：元数据→族；命中 carry/hedge→
@@ -138,13 +139,21 @@ func (r *Runner) generateCandidate(ctx context.Context, venue, surface, family s
 		verdict, meta["reason"] = "rejected", "exec_family_missing"
 	}
 	ev, _ := json.Marshal(meta)
-	var evalID int64
-	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,
-		gross_apr,net_apr,verdict,legs,evidence)
-		VALUES($1,'surface-gap',$2,NULL,NULL,$4,'{}',$3) RETURNING id`,
-		instID, direction, ev, verdict).Scan(&evalID); err != nil {
+	// 工单#22904 指纹闸：同(inst,template,direction)最新行 verdict+net_apr
+	// 未变=信念未迁→跳 INSERT 复用行 id 续提案径（net_apr 恒 NULL 族同闸）。
+	evalID, same, err := evalgate.SameFingerprint(ctx, r.pool, instID, "surface-gap", direction, verdict, nil)
+	if err != nil {
 		r.rej.Inc("gap_write_err")
 		return false, err
+	}
+	if !same {
+		if err := r.pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,
+			gross_apr,net_apr,verdict,legs,evidence)
+			VALUES($1,'surface-gap',$2,NULL,NULL,$4,'{}',$3) RETURNING id`,
+			instID, direction, ev, verdict).Scan(&evalID); err != nil {
+			r.rej.Inc("gap_write_err")
+			return false, err
+		}
 	}
 	if !execfam.Has("surface-gap") {
 		log.Printf("[gapscan] %s 前置拒——exec_family_missing（执行径未建族候选不起草）", instID)
