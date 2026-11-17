@@ -1,8 +1,15 @@
 ---
+schema_version: 2
 id: landqueue-residual-merge-mandate
-title: 单写者机械合上线后——旧「部署树 merge」契约行漏网=分叉源复发
-kind: pit
-date: 2026-11-17
+kind: pitfall
+risk: high
+status: verified
+keywords: [land_queue, 部署树, merge --no-ff, pull --ff-only, mirror_push, 分叉, deploy_diverged, 单写者, 契约行残留, runbook]
+scope: [scripts/land_queue.sh, scripts/deploy_watch, /opt/o 部署树戒律, scripts/cognition/runbook.md, scripts/cognition/worker_runbook.md, docs/collab.md, scripts/check_deploy_commit_seat.sh]
+summary: land_queue 单写者收编「复审过支→master」后,runbook 等契约面仍钦定「部署树 merge --no-ff」——本地 merge 点不入 origin(mirror_push 只推支尖 sha),HEAD 恒在 origin/master 外→land_queue 基线闸每拍让位+deploy_watch 停摆=落地链死锁,reset 清障同族复发四次+。收编类改动落地同 commit 必须 grep 全仓同径动词面逐处改 pull-only——验收面=「旧径指令零残留」可机检。
+first_seen: 2026-11-17
+last_verified: 2026-11-17
+skills: []
 source: 工单#22949（deploy_diverged 三发+落地链死锁，P1）
 ---
 
