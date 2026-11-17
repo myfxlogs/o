@@ -10,6 +10,16 @@ import (
 // 腿行落库一族——fin_order_leg 腿行+滑点采样+现金对称记账+position_ref 补链
 // （T-0521 自 flow.go 拆出——棘轮基线 300 行闸）。
 
+// bookVenueOf 台账 venue 域（工单#22576：覆写在册=归覆写域——演习径
+// 'sim'；缺省=腿 Venue 原样——产线径零扰动）。域判（spot/合约/mt5
+// 量纲）仍走 leg.Venue——覆写只及落账 venue 列不及语义分派。
+func (r *Runner) bookVenueOf(leg Leg) string {
+	if r.bookVenue != "" {
+		return r.bookVenue
+	}
+	return leg.Venue
+}
+
 func (r *Runner) leg(ctx context.Context, execID int64, no int, leg Leg, clOrdID, state, venueCode, venueMsg string) {
 	r.legPx(ctx, execID, no, leg, clOrdID, state, venueCode, venueMsg, 0, 0, "market", 0)
 }
@@ -76,7 +86,7 @@ func (r *Runner) slipSample(ctx context.Context, legID int64, leg Leg, px float6
 	var mark, bid, ask, last float64
 	var markTs time.Time
 	err := r.pool.QueryRow(ctx, `SELECT COALESCE(NULLIF((bid+ask)/2,0),last),COALESCE(bid,0),COALESCE(ask,0),COALESCE(last,0),ts
-		FROM md_ticks WHERE venue=$1 AND inst_id=$2`, leg.Venue, leg.InstID).
+		FROM md_ticks WHERE venue=$1 AND inst_id=$2`, r.bookVenueOf(leg), leg.InstID).
 		Scan(&mark, &bid, &ask, &last, &markTs)
 	var slip *float64
 	var spread *float64
@@ -97,7 +107,7 @@ func (r *Runner) slipSample(ctx context.Context, legID int64, leg Leg, px float6
 	}
 	if _, err := r.pool.Exec(ctx, `INSERT INTO fin_slip_sample(leg_id,venue,inst_id,side,px,mark_px,mark_ts,slip_bps,spread_bps)
 		VALUES($1,$2,$3,$4,$5,NULLIF($6,0),$7,$8,$9)`,
-		legID, leg.Venue, leg.InstID, leg.Side, px, mark, markTsArg, slip, spread); err != nil {
+		legID, r.bookVenueOf(leg), leg.InstID, leg.Side, px, mark, markTsArg, slip, spread); err != nil {
 		r.rej.Inc("write_err")
 	}
 }
@@ -116,7 +126,7 @@ func (r *Runner) legCash(ctx context.Context, legID int64, leg Leg, px, fillSz f
 	if _, err := r.pool.Exec(ctx, `INSERT INTO fin_cashflow
 		(kind,venue,ccy,amount,position_ref,source_ref,source_table,occurred_at)
 		VALUES($1,$2,'USDT',$3,$4,$5,'fin_order_leg',now())`,
-		kind, leg.Venue, sign*r.legGross(leg, px, fillSz), posRef, legID); err != nil {
+		kind, r.bookVenueOf(leg), sign*r.legGross(leg, px, fillSz), posRef, legID); err != nil {
 		r.rej.Inc("write_err")
 	}
 	// 工单#11438 费净额锚：venue 实返 fee 仅 feeCcy=USDT 触本账——卖腿净收=
@@ -126,7 +136,7 @@ func (r *Runner) legCash(ctx context.Context, legID int64, leg Leg, px, fillSz f
 		if _, err := r.pool.Exec(ctx, `INSERT INTO fin_cashflow
 			(kind,venue,ccy,amount,position_ref,source_ref,source_table,occurred_at)
 			VALUES('fee',$1,'USDT',$2,$3,$4,'fin_order_leg',now())`,
-			leg.Venue, fee, posRef, legID); err != nil {
+			r.bookVenueOf(leg), fee, posRef, legID); err != nil {
 			r.rej.Inc("write_err")
 		}
 	}

@@ -195,7 +195,7 @@ func (d *Drill) leggedDrill(ctx context.Context, res Result, inst string, notion
 	}
 	defer retireSimTicks(ctx, d.Pool, legs)
 	// 开仓（产线径：Gate 闸→Runner 双腿原子——live_switch 闸自验）。
-	runner := execution.NewRunner(d.Pool, d.Cfg, d.Venue)
+	runner := execution.NewRunner(d.Pool, d.Cfg, d.Venue).WithBookVenue("sim") // 工单#22576：演习腿台账归 sim 域（venue IO 仿真/流水不真）
 	dec := d.Gate.Check(ctx, risk.Intent{StrategyRef: drillStrat, Venue: "okx", InstID: inst,
 		Legs: gateLegs, NotionalUSD: notional, Leverage: 1, Kind: "open"})
 	if !dec.Allow {
