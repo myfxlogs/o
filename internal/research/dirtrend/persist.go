@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"o/internal/platform/execfam"
+	"o/internal/research/evalgate"
 )
 
 // closes 末 n 根确认棒收盘序（旧→新；不足 n 返实得数）。
@@ -57,12 +58,19 @@ func (r *Runner) writeEval(ctx context.Context, tx pgx.Tx, inst, dir, verdict, r
 	})
 	legs, _ := json.Marshal([]string{map[string]string{
 		"long_perp": "perp_long", "short_perp": "perp_short"}[dir]})
-	var evalID int64
-	if err := tx.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,gross_apr,net_apr,verdict,legs,evidence)
-		VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
-		inst, Template, dir, c.grossAPR, c.netAPR,
-		verdict, legs, ev).Scan(&evalID); err != nil {
+	// 工单#22904 指纹闸：同(inst,template,direction)最新行 verdict+net_apr
+	// 未变=信念未迁→跳 INSERT 复用行 id 续提案径（判词/净额变迁仍产新版史）。
+	evalID, same, err := evalgate.SameFingerprint(ctx, tx, inst, Template, dir, verdict, c.netAPR)
+	if err != nil {
 		return err
+	}
+	if !same {
+		if err := tx.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,gross_apr,net_apr,verdict,legs,evidence)
+			VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
+			inst, Template, dir, c.grossAPR, c.netAPR,
+			verdict, legs, ev).Scan(&evalID); err != nil {
+			return err
+		}
 	}
 	if verdict != "proposed" {
 		return nil
@@ -79,7 +87,7 @@ func (r *Runner) writeEval(ctx context.Context, tx pgx.Tx, inst, dir, verdict, r
 	if open > 0 {
 		return nil // 在挂/黑名单在册不起草（fin_venue_untradeable 滤=#15188 死案径全员义务）
 	}
-	_, err := tx.Exec(ctx, `INSERT INTO fin_proposal(eval_id,inst_id,direction,net_apr)
+	_, err = tx.Exec(ctx, `INSERT INTO fin_proposal(eval_id,inst_id,direction,net_apr)
 		VALUES($1,$2,$3,$4)`, evalID, inst, dir, c.netAPR)
 	if err == nil {
 		log.Printf("[research/dirtrend] 提案落卡 %s %s n=%d lb=%.3f net_apr=%.4f（paper-only 族）",

@@ -4,9 +4,14 @@
 # 消费径=dispatch*.sh 唤起前查本表：hostname 不在允许列=拒唤+唤起败落账。
 # 格式: <单元词头>\t<允许主机(逗号分隔)>；行缺/表缺=放行向后兼容。
 o-worker	models
-o-self	ant
+o-self	models,ant
 o-cognition	models,ant
 o-audit	models
-# 注: o-self 暂守 ant——态势页驻 SG 部署树未迁（自我席迁本机=D 批件,
-#   迁后本行改 models）。o-cognition 双机在册=standby 语义归 D 批细化。
+# 注(D批②2026-11-17落地): 本机主/SG备援——
+#   o-self=models主/ant冷备: ant侧 o-self.timer 常态 disabled,
+#     备援径=scp models:/opt/o/docs/态势.md→SG同径 + enable timer
+#     (态势页就地写部署树非git真源,迁机须随页,否则连续自我断页)。
+#   o-cognition=models,ant热备: 双侧timer常在,PG锁7969跨机串行
+#     (单机宕=对侧自接续,无手工切换步——T-0521双活根修即此语义)。
+#   主备不判先后的件靠timer启停表达,钉位列=允许集非优先序。
 # 本表=钉位唯一真源——改钉位=改本表（immune 册在案,commit 须免疫件:）。

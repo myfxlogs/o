@@ -6,6 +6,8 @@ import (
 	"context"
 	"encoding/json"
 	"math"
+
+	"o/internal/research/evalgate"
 )
 
 // writeEval 幂等评估行（同 inst+template+reason 1h 窗不重生——节拍防抖）。
@@ -23,6 +25,15 @@ func (r *Runner) writeEval(ctx context.Context, inst, template, direction, verdi
 		aprArg = apr
 	}
 	ev["reason"] = reason
+	// 工单#22904 指纹闸：同(inst,template,direction)最新行 verdict+net_apr
+	// 未变=信念未迁→跳 INSERT（md_1097 insert-only 后同指纹每拍重写=盘烧；
+	// 判词/净额变迁仍产新版史——1h reason 防抖在指纹异时照旧兜底）。
+	if _, same, err := evalgate.SameFingerprint(ctx, r.pool, inst, template, direction, verdict, aprArg); err != nil {
+		r.rej.Inc("eval_write_err")
+		return err
+	} else if same {
+		return nil
+	}
 	b, _ := json.Marshal(ev)
 	var n int
 	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_opp_eval

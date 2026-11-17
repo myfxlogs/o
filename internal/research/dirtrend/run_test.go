@@ -184,9 +184,10 @@ func TestScanE2E(t *testing.T) {
 	}
 }
 
-// TestEvalInsertOnlyVersions 工单#19778 验收锚：fin_opp_eval 版本化
-// insert-only——同键重评=新增版行不覆写（upsert 灭史病灶根修：入场信念
-// 成史可查），读面取最新=id DESC。
+// TestEvalInsertOnlyVersions 工单#19778 验收锚+工单#22904 指纹闸修订：
+// fin_opp_eval 版本化 insert-only——判词/净额变迁=新增版行不覆写（入场
+// 信念成史可查），读面取最新=id DESC；同指纹重评=信念未迁不产新版
+// （evalgate 单点闸——md_1097 后同指纹每拍重写=盘烧根修）。
 func TestEvalInsertOnlyVersions(t *testing.T) {
 	pool := testutil.Pool(t)
 	ctx := context.Background()
@@ -210,9 +211,22 @@ func TestEvalInsertOnlyVersions(t *testing.T) {
 		}
 	}
 	var n int
+	// 同指纹双拍→版数仍 1（指纹闸：verdict+net_apr 未变不产新版）。
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM fin_opp_eval
+		WHERE inst_id=$1 AND template='perp-trend-daily' AND direction='long_perp'`, inst).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("同指纹重评版数=%v err=%v 期 1（指纹闸零重复行）", n, err)
+	}
+	// 净额变迁（klines 重种漂移率不同→net_apr 异）→新版史。
+	if _, err := pool.Exec(ctx, "DELETE FROM md_klines WHERE inst_id=$1", inst); err != nil {
+		t.Fatal(err)
+	}
+	seedKlines(t, ctx, pool, inst, 81, 0.03, 0.005)
+	if err := r.ScanOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM fin_opp_eval
 		WHERE inst_id=$1 AND template='perp-trend-daily' AND direction='long_perp'`, inst).Scan(&n); err != nil || n != 2 {
-		t.Fatalf("同键重评版数=%v err=%v 期 2（insert-only 版本史）", n, err)
+		t.Fatalf("净额变迁版数=%v err=%v 期 2（变迁留版本史）", n, err)
 	}
 	var v string
 	if err := pool.QueryRow(ctx, `SELECT verdict FROM fin_opp_eval

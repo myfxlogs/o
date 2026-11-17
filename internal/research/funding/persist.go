@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"o/internal/platform/execfam"
+	"o/internal/research/evalgate"
 )
 
 // spotLegOK 现货腿存在性预核（起草闸）：短_perp_long_spot 族的 spot 腿
@@ -61,33 +62,41 @@ func (r *Runner) persist(ctx context.Context, tx pgx.Tx, e Eval, p Params) error
 		e.Verdict = "rejected"
 		e.Evidence["reason"] = "exec_family_missing"
 	}
+	// T-0150 起草闸前置：proposed 提案落卡前核现货腿存在性——无 spot 腿
+	// （perp-only 合成器）=评估行改 rejected 如实拒绝由，不进提案队列。
+	// 前置于指纹闸：终判词须先定——proposed↔rejected 摆动每拍产新版=闸失效
+	// （原插后 UPDATE 两行写径并一：终态直落单行）。
+	if e.Verdict == "proposed" {
+		if ok, why := r.spotLegOK(ctx, e.InstID); !ok {
+			// verdict 闭集（0006 三值）——infeasible 语义落 rejected+拒绝由
+			// （neg_funding_infeasible 同构先例）。
+			if e.Evidence == nil {
+				e.Evidence = map[string]any{}
+			}
+			e.Evidence["reason"] = why
+			e.Verdict = "rejected"
+			r.rej.Inc("no_spot_leg")
+			log.Printf("[research] %s 起草闸拒（%s——perp-only 合成器不进提案队列）", e.InstID, why)
+		}
+	}
 	legs, _ := json.Marshal(e.Legs)
 	ev, _ := json.Marshal(e.Evidence)
-	var evalID int64
-	if err := tx.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,gross_apr,net_apr,verdict,legs,evidence)
-		VALUES($1,'funding-hedge',$2,$3,$4,$5,$6,$7) RETURNING id`,
-		e.InstID, e.Direction, e.GrossAPR, e.NetAPR, e.Verdict, legs, ev).Scan(&evalID); err != nil {
+	// 工单#22904 指纹闸：同(inst,template,direction)最新行 verdict+net_apr
+	// 未变=信念未迁→跳 INSERT 复用行 id 续提案径（md_1097 insert-only 后
+	// 同指纹每拍重写=盘烧；判词/净额变迁仍产新版史）。
+	evalID, same, err := evalgate.SameFingerprint(ctx, tx, e.InstID, "funding-hedge", e.Direction, e.Verdict, e.NetAPR)
+	if err != nil {
+		r.rej.Inc("write_err")
 		return err
 	}
-	if e.Verdict != "proposed" {
-		return nil
-	}
-	// T-0150 起草闸：proposed 提案落卡前核现货腿存在性——无 spot 腿
-	// （perp-only 合成器）=评估行改 infeasible 如实拒绝由，不进提案队列。
-	if ok, why := r.spotLegOK(ctx, e.InstID); !ok {
-		// verdict 闭集（0006 三值）——infeasible 语义落 rejected+拒绝由
-		// （neg_funding_infeasible 同构先例）。
-		if e.Evidence == nil {
-			e.Evidence = map[string]any{}
-		}
-		e.Evidence["reason"] = why
-		ev2, _ := json.Marshal(e.Evidence)
-		if _, err := tx.Exec(ctx, `UPDATE fin_opp_eval SET verdict='rejected',
-			evidence=$2 WHERE id=$1`, evalID, ev2); err != nil {
+	if !same {
+		if err := tx.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,gross_apr,net_apr,verdict,legs,evidence)
+			VALUES($1,'funding-hedge',$2,$3,$4,$5,$6,$7) RETURNING id`,
+			e.InstID, e.Direction, e.GrossAPR, e.NetAPR, e.Verdict, legs, ev).Scan(&evalID); err != nil {
 			return err
 		}
-		r.rej.Inc("no_spot_leg")
-		log.Printf("[research] %s 起草闸拒（%s——perp-only 合成器不进提案队列）", e.InstID, why)
+	}
+	if e.Verdict != "proposed" {
 		return nil
 	}
 	var open int
@@ -101,7 +110,7 @@ func (r *Runner) persist(ctx context.Context, tx pgx.Tx, e Eval, p Params) error
 	if open > 0 {
 		return nil // 已挂提案不重复提案（滞留禁超 SLA 由生命周期票管）
 	}
-	_, err := tx.Exec(ctx, `INSERT INTO fin_proposal(eval_id,inst_id,direction,net_apr)
+	_, err = tx.Exec(ctx, `INSERT INTO fin_proposal(eval_id,inst_id,direction,net_apr)
 		VALUES($1,$2,$3,$4)`, evalID, e.InstID, e.Direction, e.NetAPR)
 	if err == nil {
 		log.Printf("[research] 提案落卡 %s %s net_apr=%.4f（验证官闸过）", e.InstID, e.Direction, e.NetAPR)

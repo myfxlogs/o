@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"o/internal/platform/execfam"
+	"o/internal/research/evalgate"
 	"o/internal/research/funding"
 )
 
@@ -204,13 +205,23 @@ func (r *Runner) stakeCarryEval(ctx context.Context, venue, ccy string, sy fundi
 		"ccy": ccy, "venue": venue, "stake_apr_bps": sy.APR * 1e4, "stake_source": sy.Source,
 		"short_ann_bps": shortBps, "carry": carryMeta, "buffer_bps": buf,
 		"threshold_bps": th, "net_ann_bps": net, "reason": reason})
-	var evalID int64
-	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,gross_apr,net_apr,verdict,legs,evidence)
-		VALUES($1,'stake-carry','stake_carry',$2,$3,$4,$5,$6)
-		RETURNING id`, inst, (sy.APR*1e4+shortBps)/1e4, net/1e4, verdict, legs, evj).Scan(&evalID); err != nil {
+	// 工单#22904 指纹闸：同(inst,template,direction)最新行 verdict+net_apr
+	// 未变=信念未迁→跳 INSERT 复用行 id（eval_id 幂等查随之复稳——upsert
+	// 时代同义；判词/净额变迁仍产新版史）。
+	evalID, same, err := evalgate.SameFingerprint(ctx, r.pool, inst, "stake-carry", "stake_carry", verdict, net/1e4)
+	if err != nil {
 		r.rej.Inc("sig_write_err")
-		log.Printf("[research/hypo] stake_carry 评估写败 %s: %v", inst, err)
+		log.Printf("[research/hypo] stake_carry 指纹闸查败 %s: %v", inst, err)
 		return
+	}
+	if !same {
+		if err := r.pool.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,gross_apr,net_apr,verdict,legs,evidence)
+			VALUES($1,'stake-carry','stake_carry',$2,$3,$4,$5,$6)
+			RETURNING id`, inst, (sy.APR*1e4+shortBps)/1e4, net/1e4, verdict, legs, evj).Scan(&evalID); err != nil {
+			r.rej.Inc("sig_write_err")
+			log.Printf("[research/hypo] stake_carry 评估写败 %s: %v", inst, err)
+			return
+		}
 	}
 	if verdict != "proposed" {
 		return
