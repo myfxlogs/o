@@ -45,6 +45,7 @@ var dmWritableGlobs = []string{
 	"earn.auto_purchase_enabled",  // 闲置金 Earn 自动转入（资金运用重排）
 	"earn.sweep_whitelist",        // Earn 扫袋白名单（T-0439 计价币放行线）
 	"earn.residual_clear_min_usd", // 杂币实存即清粉尘阈（T-0439 闸值族）
+	"earn.residual_clear_halted",  // 残币处置停摆键（工单#22248①——置位即零动钱）
 	"trx.floor_pct",               // Tron 质押保底率（Earn 族）
 	"trx.vote_enabled",            // Tron 投票开关（Earn 族）
 	"trx.vote_max_rebal_per_day",  // Tron 再平衡频次（Earn 族）

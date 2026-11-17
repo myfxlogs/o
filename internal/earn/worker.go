@@ -80,7 +80,11 @@ type Worker struct {
 	// 让位，检出升件照发）。
 	clr    Clearer
 	rateFn func(ctx context.Context) (okxexec.RateSummary, error)
-	mu     sync.Mutex // 单飞锁：redeem 持锁必进（开仓不排队），sweep TryLock 让位
+	// haltStaleAfter 停摆置位显形阈（工单#22248①——生产 24h；
+	// 注入位=测缝，updated_at 受 bump_config_generation 触发器保护
+	// 测试不可回拨故开时长注入）。
+	haltStaleAfter time.Duration
+	mu             sync.Mutex // 单飞锁：redeem 持锁必进（开仓不排队），sweep TryLock 让位
 	// T-0059 同因退避：上一拍 sweep 败（amt 近似+时点）——同因 5min 内不再发
 	// （终拒后同参重试=死锁环实证；告警随尝试节拍自然 ≤1 条/5min）。
 	lastSweepFailAmt float64
@@ -90,11 +94,13 @@ type Worker struct {
 // NewWorker 装配（api 未挂接=现率采集岗；AttachVenue 后停泊钱动上岗）。
 func NewWorker(pool *pgxpool.Pool, cfg *config.Client) *Worker {
 	return &Worker{pool: pool, cfg: cfg, venue: defaultVenue, ccy: defaultCcy,
+		haltStaleAfter: 24 * time.Hour,
 		rej: rejects.New("earn", "rate_fetch_failed", "rate_parse_failed", "missing_param",
 			"idle_missing", "idle_fund_missing", "sweep_skip_inflight", "sweep_busy", "sweep_backoff", "venue_absent",
 			"deposit_failed", "transfer_ambiguous", "compensation_failed", "auto_purchase_off",
 			"snapshot_refresh_failed", "write_err", "custody_marked", "transfer_rejected",
 			"residual_exposure", "residual_clear_failed", "residual_exempted",
+			"residual_clear_halted",
 			"clearer_absent", "gross_fallback"),
 		rateFn: func(ctx context.Context) (okxexec.RateSummary, error) {
 			return okxexec.LendingRateSummary(ctx, defaultCcy)
