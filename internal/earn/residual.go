@@ -140,6 +140,28 @@ func valCcyOf(ctx context.Context, pool *pgxpool.Pool, ccy string, units float64
 	return units * *last
 }
 
+// coinInFlight 开仓提交窗判定（工单#21723 TOCTOU 根修）：fin_position 行在
+// 双腿成交后才落——腿 filled→仓行 commit 窗内 FundCcy 读不到新开腿基币，
+// venue 侧币已可动=杂币误扫面（仓#86 VVV 实证：腿 filled 与敞口升件同 ts）。
+// 窗内信号=fin_execution 非终态（open/legged）且该币为其仓位/腿基币——
+// 窗内一律让位（下拍 FundCcy 已含，或仓闭转杂币再清）。查败=保守让位
+// （误放过一拍优于误卖基金腿币）。
+func (w *Worker) coinInFlight(ctx context.Context, ccy string) bool {
+	var hit bool
+	if err := w.pool.QueryRow(ctx, `SELECT EXISTS(
+		SELECT 1 FROM fin_execution e
+		WHERE e.state IN ('open','legged') AND (
+			split_part(e.inst_id,'-',1)=$2
+			OR EXISTS(SELECT 1 FROM fin_order_leg l
+				WHERE l.execution_id=e.id AND l.venue=$1
+				AND split_part(l.inst_id,'-',1)=$2)))`,
+		w.venue, ccy).Scan(&hit); err != nil {
+		w.rej.Inc("write_err")
+		return true
+	}
+	return hit
+}
+
 // sweepResidual 残币处置一拍：逐非基金币种量判——
 //   - 豁免册在册 → 跳过（扫袋/清仓双径同读）；
 //   - 白名单内 → Earn 停泊旧径（摆渡→申购；拒=回摆+托管标）；
@@ -174,6 +196,9 @@ func (w *Worker) sweepResidual(ctx context.Context) error {
 		}
 		if w.residualExempted(ctx, ccy) {
 			continue // 豁免册在册——扫袋/清仓双径同跳过
+		}
+		if w.coinInFlight(ctx, ccy) {
+			continue // 开仓提交窗内腿币禁扫（#21723——FundCcy 待 fin_position 落行才含）
 		}
 		usd := valCcyOf(ctx, w.pool, ccy, amt)
 		if wl[ccy] {

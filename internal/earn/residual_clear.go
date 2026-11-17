@@ -94,6 +94,12 @@ func (w *Worker) clearResidual(ctx context.Context, ccy string, amt, usd float64
 		return
 	}
 	defer w.mu.Unlock()
+	// 落位前终审（工单#21723）：拍头 fundCcy/coins 读早于 leg commit——清仓单
+	// 落 venue 前重读在持集+在飞仓，窗内新开腿币禁扫（查败=保守让位）。
+	if fund, err := w.fundCcy(ctx); err != nil || fund[ccy] || w.coinInFlight(ctx, ccy) {
+		w.rej.Inc("sweep_skip_inflight")
+		return
+	}
 	inst := ccy + "-USDT"
 	// clOrdId=大小写英数 only≤32（OKX 实拍 51000——T-0038）；升件不补单律下
 	// 单发即终，幂等键无需跨拍复用。

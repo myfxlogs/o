@@ -396,6 +396,61 @@ func TestResidualExposureEscalateOnce(t *testing.T) {
 	}
 }
 
+// 锚⑫：开仓提交窗内腿币禁扫（工单#21723 TOCTOU 根修，仓#86 VVV 实证形）——
+// exec open+腿 filled 而 fin_position 未落：venue 币已可动但 FundCcy 未含，
+// sweep 须零清仓零敞口升件零托管零摆渡；仓行落=FundCcy 收编仍零动；
+// 仓闭 exec closed=转杂币常规处置（清仓径放行）。
+func TestResidualInFlightLegNotSwept(t *testing.T) {
+	clr := &fakeClearer{res: ClearResult{State: "filled", FillPx: 20.24, FillSz: 1.19}}
+	ctx, w, fake := setupW(t, &fakeAPI{}, residualKeys)
+	w.AttachClearer(clr)
+	seedTick(t, ctx, w, "VVV-USDT", 20.26)
+	var xid int64
+	if err := w.pool.QueryRow(ctx, `INSERT INTO fin_execution(inst_id,notional_usd,state)
+		VALUES('VVV-USDT-SWAP',50,'open') RETURNING id`).Scan(&xid); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.pool.Exec(ctx, `INSERT INTO fin_order_leg(execution_id,leg_no,cl_ord_id,venue,side,inst_id,sz,state,qty_base)
+		VALUES($1,2,'cl-inflight',$2,'buy','VVV-USDT',24.3,'filled',1.1989)`, xid, w.venue); err != nil {
+		t.Fatal(err)
+	}
+	w.AttachCoins(func(context.Context) (map[string]float64, error) {
+		return map[string]float64{"VVV": 1.1989}, nil
+	})
+	if err := w.sweepResidual(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if len(clr.places) != 0 || opsCount(t, ctx, w, "杂币敞口", "VVV") != 0 ||
+		custodyCount(t, ctx, w, "VVV") != 0 || len(fake.transfers) != 0 || len(fake.purchases) != 0 {
+		t.Fatal("开仓提交窗内腿币被误扫（#21723 病灶复现）")
+	}
+	// 仓行落=commit 完成→FundCcy 收编 VVV→仍零动（在持守恒）。
+	if _, err := w.pool.Exec(ctx, `INSERT INTO fin_position(execution_id,inst_id,notional_usd)
+		VALUES($1,'VVV-USDT-SWAP',50)`, xid); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.sweepResidual(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if len(clr.places) != 0 {
+		t.Fatal("仓行落后 FundCcy 未收编在持腿币")
+	}
+	// 仓闭 exec closed→VVV 出在持集转杂币→敞口升件+清仓放行。
+	if _, err := w.pool.Exec(ctx, `UPDATE fin_position SET closed_at=now() WHERE execution_id=$1`, xid); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.pool.Exec(ctx, `UPDATE fin_execution SET state='closed' WHERE id=$1`, xid); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.sweepResidual(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if len(clr.places) != 1 || clr.places[0].InstID != "VVV-USDT" ||
+		opsCount(t, ctx, w, "杂币敞口", "VVV") != 1 {
+		t.Fatal("仓闭后杂币处置未放行")
+	}
+}
+
 // 锚⑪：清仓缝未挂=检出升件照发+清仓径让位（clearer_absent 计数门）——
 // 敞口不因执行缝缺席而失声。
 func TestResidualNoClearer(t *testing.T) {
