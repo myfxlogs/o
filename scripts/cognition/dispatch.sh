@@ -168,24 +168,23 @@ fi
 # ── 器官镜组(业主令2026-11-15⑦批造——「自然人能力」基质外照层)───────────
 # 对内盲区不可自省但可外照:基质病灶逻辑上不能靠基质自愈(拾取断实证——
 # 修拾取的票本身也拾不起来),器官健康件=外席件非它作业。
-# 状况→升件桥(减法 B 批·业主令#20930「经营状况→状态表」——fin_0201 起
-# 三探(eval流断/产线静默/提炼旱)与 Go 侧孤儿账/商业产出判据统一平移入
-# ops_state 视件):经营状况=持久可查行非事件流——每况7d至多一火(销后况犹在
-# 不叠拍,状态认视面非事件面);况消=其 pending 升件自闭(复绿自闭同型)。
-# bridge=f 自管类(票滞留/工单面压力)只入视面不走桥——D-0048④ 看自己的
-# 状况降可视件不唤会话。每拍跑(读小视+pending扫,廉价);况在视面=会话入场见。
-psql "$DSN" -qAt <<SQL >/dev/null 2>&1 || true # tolerate: 桥行写败=下拍补
-INSERT INTO ops_event(seat,event,esc_class,esc_scope,note)
-SELECT '探测席','升件',s.kind,s.scope,
- '况现:'||s.detail||'——认额定销/拆解/处置;况在态表(ops_state),非事件件不叠火'
-FROM ops_state s WHERE s.bridge
-AND NOT EXISTS (SELECT 1 FROM ops_event e WHERE e.event='升件'
-  AND e.esc_class=s.kind AND e.esc_scope=s.scope AND e.ts>now()-interval '7 days');
+# 况消自闭(减法 B 批·业主令#20931「不升件不唤醒,变了才更新一行,自我席每拍读」):
+# ops_state 覆盖类 pending 升件其况已消→机械销(复绿自闭同型)。只销不升——
+# 覆盖类(scope 白名单钦定:钦定类+模式类)永不再升件,视面行=持久可查;白名单外
+# 类(对账nav_stale等同kind异scope件)不受本桥触——scope 级判非 kind 级。
+psql "$DSN" -qAt <<SQL >/dev/null 2>&1 || true # tolerate: 自闭行写败=下拍补
 INSERT INTO ops_event(seat,event,note)
 SELECT '探测席','恢复','升件#'||e.id||' 况消自闭——ops_state已无此况'
 FROM ops_esc_pending e
-WHERE e.esc_class IN ('商业产出','产线静默','提炼旱','eval流断','孤儿账')
-AND NOT EXISTS (SELECT 1 FROM ops_state s WHERE s.kind=e.esc_class AND s.scope=e.esc_scope);
+WHERE (e.esc_scope IN ('commercial_stall','live_dud','idle_capital','opp_eval_stall',
+  'calib_drift','evalflow_dead','wip',
+  'orphan_eng_lesson','orphan_econ_lesson','orphan_hypothesis_proposed',
+  'orphan_hypothesis_parked','orphan_condition_gap')
+  OR e.esc_scope LIKE 'lanesil\_%' ESCAPE '\'
+  OR e.esc_scope LIKE 'consol\_dry\_%' ESCAPE '\'
+  OR e.esc_scope LIKE 'ticketstall\_%' ESCAPE '\'
+  OR e.esc_scope LIKE 'capability\_%' ESCAPE '\')
+AND NOT EXISTS (SELECT 1 FROM ops_state s WHERE s.scope=e.esc_scope);
 SQL
 
 # 每日一行（减法 C 批·业主令#20930）：工单板/未并支/新面 三数并一行量表——

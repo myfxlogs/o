@@ -16,7 +16,7 @@ import (
 // →升件（class='novelty' scope='novelty_<venue>/<surface>'，
 // 一卡一 scope 各火各销；fp=卡 id——销后同卡不重火，30d 纹期后
 // 同名再卡=新案照火）。无新卡=常静默（本探不报族谱面净态——
-// 生成面停滞归 oppSurfaceStallEscCheck 管，不叠探）。
+// 生成面停滞归 ops_state/opp_eval_stall 况行管，不叠探）。
 func (c coreService) noveltyEscCheck(ctx context.Context, deadSince map[string]time.Time) {
 	rows, err := c.pool.Query(ctx, `SELECT id,venue,surface,family
 		FROM fin_opp_hypothesis

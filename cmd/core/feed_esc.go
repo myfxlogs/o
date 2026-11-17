@@ -53,14 +53,11 @@ func (c coreService) escLoop(ctx context.Context, al *notify.Alerter) {
 		c.commercialEscCheck(ctx, deadSince)
 		c.capabilityEscCheck(ctx, deadSince)
 		c.dataGapEscCheck(ctx, deadSince)
-		c.oppSurfaceStallEscCheck(ctx, deadSince)
-		c.liveDudEscCheck(ctx, deadSince)
 		c.learnGapEscCheck(ctx, deadSince) // 求知滞探（原挂 stuck_esc 同拍——该探 C 批撤编后直挂）
 		c.lessonBacklogEscCheck(ctx, deadSince)
 		c.pairZeroEscCheck(ctx, deadSince)
 		c.intakeDryEscCheck(ctx, deadSince)
 		c.navStaleEscCheck(ctx, deadSince)
-		c.calibDriftEscCheck(ctx, deadSince) // 世模校准探(棒3 补挂——棒1 建件漏接线,信念对账面死态根修)
 		c.noveltyEscCheck(ctx, deadSince)    // 惊异唤探(新假想卡进管道即唤——知道自己不知道的扳机面)
 		c.reflexCompileCheck(ctx, deadSince) // 反射编译器(棒4——裁定记号机械物化 econ_rule 闸,判词不靠会话记得)
 		c.expectProdEscCheck(ctx, deadSince) // 元探通用形——生产面期望产出 vs 实产差分(工单#10605 B)
@@ -118,10 +115,8 @@ func (c coreService) deployEscCheck(ctx context.Context, deadSince map[string]ti
 		exp > 0 && demand >= 0.9*exp, func() string {
 			return fmt.Sprintf("敞口闸到顶：%s——live/probe 族需额已贴闸（部署面事实，阈值判词归唤知会话）", facts)
 		})
-	c.escEdgeUV(ctx, deadSince, "资金闸", "idle_capital", util,
-		liveN > 0 && eq != nil && demand < 0.25**eq, func() string {
-			return fmt.Sprintf("资本闲置：%s——已证族在册而部署不足净值 1/4（部署面事实，是否真缺口归唤知会话裁）", facts)
-		})
+	// idle_capital 已随减法 B 批平移入 ops_state 视件（fin_0202——
+	// 「不升件不唤醒」钦定;本探只余 cap_hit 闸到顶升件）。
 }
 
 // cfgF 闸值浮点读（缺席/坏件=0——0 值天然不满足触发式,fail-safe）。

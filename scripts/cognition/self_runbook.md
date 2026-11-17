@@ -54,6 +54,10 @@ psql "$FIN_DSN" -c "SELECT id,ts,left(note,160) FROM ops_event
 # 钱面未决信号(惧值序):
 psql "$FIN_DSN" -c "SELECT id,esc_class,esc_scope,valence,age_s,left(note,120)
   FROM ops_esc_pending ORDER BY valence DESC,id LIMIT 10"
+# 经营状况全表(减法B批钦定「自我席每拍读」——持久况为行非事件,
+# 覆盖类不升件:商业产出/孤儿账/产线静默/提炼旱/能力债/校准失真等):
+psql "$FIN_DSN" -c "SELECT kind,scope,valence,left(detail,100) FROM ops_state
+  ORDER BY valence DESC,kind,scope"
 # 董事会/外席点破(=你没自己看见的事——逐条认账,不许无声):
 psql "$FIN_DSN" -c "SELECT id,ts,left(note,300) FROM ops_event
   WHERE seat='外席' AND note LIKE '类=点破%'

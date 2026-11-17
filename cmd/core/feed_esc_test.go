@@ -269,9 +269,10 @@ func TestEscEdge(t *testing.T) {
 	}
 }
 
-// capabilityEscCheck 能力债探（T-0523）：启用模板缺凭据/评估→升件；
-// 凭据补上→恢复自闭；模板禁用→键死补恢复。占用感知回归锚——零占
-// 免演模板（excell⑤）不火演习债只火评估债（永火假阳根修 2026-11-10）。
+// capabilityEscCheck 能力债探（T-0523）：启用模板缺凭据/评估→ops_state_row
+// 况行（fin_0202 减法B批——升件改态表行写,「不升件不唤醒,变了才更新一行」）；
+// 凭据补上→况行自消；模板禁用→键死行除（want 缺席即删）。
+// 占用感知回归锚——零占免演模板（excell⑤）不火演习债只火评估债。
 func TestCapabilityEscCheck(t *testing.T) {
 	ctx := context.Background()
 	pool := testutil.Pool(t)
@@ -282,7 +283,7 @@ func TestCapabilityEscCheck(t *testing.T) {
 		DELETE FROM fin_exec_drill WHERE cell_key LIKE 'funding-hedge@%';
 		DELETE FROM fin_opp_eval WHERE template IN ('funding-hedge','vol_sell_strangle');
 		DELETE FROM fin_strategy WHERE template_ref IN ('funding-hedge','vol_sell_strangle');
-		DELETE FROM ops_event WHERE esc_scope IN ('capability_funding-hedge','capability_vol_sell_strangle')`); err != nil {
+		DELETE FROM ops_state_row WHERE scope LIKE 'capability_%'`); err != nil {
 		t.Fatalf("clean: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `INSERT INTO fin_opp_template(template,venue,enabled,state)
@@ -294,55 +295,41 @@ func TestCapabilityEscCheck(t *testing.T) {
 	}
 	svc := coreService{pool: pool}
 	deadSince := map[string]time.Time{}
+	detail := func(scope string) string {
+		var d string
+		if err := pool.QueryRow(ctx, `SELECT detail FROM ops_state_row
+			WHERE kind='能力债' AND scope=$1`, scope).Scan(&d); err != nil {
+			t.Fatalf("况行 %s 缺: %v", scope, err)
+		}
+		return d
+	}
 
-	// 占用格模板零凭据零评估→gap（funding-hedge reg=true,缺②③两项）；
+	// 占用格模板零凭据零评估→况行（funding-hedge 缺②③两项）；
 	// 零占免演模板→只缺③（vol_sell_strangle 演习债豁免）
 	svc.capabilityEscCheck(ctx, deadSince)
-	var n int
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
-		WHERE event='升件' AND esc_class='能力债' AND esc_scope='capability_funding-hedge'`).Scan(&n); err != nil || n != 1 {
-		t.Fatalf("能力债升件 n=%d err=%v", n, err)
+	if d := detail("capability_funding-hedge"); !strings.Contains(d, "无绿演习凭据") || !strings.Contains(d, "零评估产出") {
+		t.Fatalf("况行缺缺项载: %s", d)
 	}
-	var note string
-	if err := pool.QueryRow(ctx, `SELECT note FROM ops_event
-		WHERE esc_scope='capability_funding-hedge'`).Scan(&note); err != nil {
-		t.Fatalf("升件行: %v", err)
+	if d := detail("capability_vol_sell_strangle"); strings.Contains(d, "无绿演习凭据") || !strings.Contains(d, "零评估产出") {
+		t.Fatalf("免演族况行误载演习债: %s", d)
 	}
-	if !strings.Contains(note, "无绿演习凭据") || !strings.Contains(note, "零评估产出") {
-		t.Fatalf("note 缺缺项载: %s", note)
-	}
-	if err := pool.QueryRow(ctx, `SELECT note FROM ops_event
-		WHERE esc_scope='capability_vol_sell_strangle'`).Scan(&note); err != nil {
-		t.Fatalf("免演族升件行缺: %v", err)
-	}
-	if strings.Contains(note, "无绿演习凭据") || !strings.Contains(note, "零评估产出") {
-		t.Fatalf("免演族 note 误载演习债: %s", note)
-	}
-
-	// 销而未修径（定性要码修类：处置销案但债条件仍真）→未销才抑下
-	// 一拍内重火——沿锁版 deadSince 键占死不再发的回归锚（2026-11-10
-	// 产线坑:#9187 定性销后探针静默,债成黑洞）。
-	var escID int64
-	if err := pool.QueryRow(ctx, `SELECT id FROM ops_event
-		WHERE event='升件' AND esc_scope='capability_funding-hedge'`).Scan(&escID); err != nil {
-		t.Fatalf("升件 id: %v", err)
-	}
-	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note)
-		VALUES('处置席','处置','capability_funding-hedge',$1)`,
-		fmt.Sprintf("升件#%d 销——定性要码修（债条件仍真）", escID)); err != nil {
-		t.Fatalf("定性销: %v", err)
+	// 同值再拍→行在而 updated_at 不动（「变了才更新一行」）
+	var u1 time.Time
+	if err := pool.QueryRow(ctx, `SELECT updated_at FROM ops_state_row
+		WHERE scope='capability_funding-hedge'`).Scan(&u1); err != nil {
+		t.Fatalf("updated_at: %v", err)
 	}
 	svc.capabilityEscCheck(ctx, deadSince)
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
-		WHERE event='升件' AND esc_scope='capability_funding-hedge'`).Scan(&n); err != nil || n != 1 {
-		t.Fatalf("销而未修同回合纹抑 n=%d（应 1——同值已阅不火,复岗靠重启/30d点名）", n)
+	var u2 time.Time
+	if err := pool.QueryRow(ctx, `SELECT updated_at FROM ops_state_row
+		WHERE scope='capability_funding-hedge'`).Scan(&u2); err != nil {
+		t.Fatalf("updated_at2: %v", err)
 	}
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
-		WHERE event='升件' AND esc_scope='capability_vol_sell_strangle'`).Scan(&n); err != nil || n != 1 {
-		t.Fatalf("免演族未销在案不暴 n=%d", n)
+	if !u1.Equal(u2) {
+		t.Fatalf("同值重拍 updated_at 动了: %v→%v", u1, u2)
 	}
 
-	// 凭据+评估补上→恢复行自闭
+	// 凭据+评估补上→况行自消（事实消失=行除非销案）
 	if _, err := pool.Exec(ctx, `INSERT INTO fin_exec_drill(strategy_ref,inst_id,verdict,cell_key)
 		VALUES(-1,'BTC-USDT-SWAP','pass','funding-hedge@okx/short_perp_long_spot#usd=50');
 		INSERT INTO fin_opp_eval(inst_id,template,direction,verdict,legs,evidence)
@@ -351,25 +338,17 @@ func TestCapabilityEscCheck(t *testing.T) {
 		t.Fatalf("凭据: %v", err)
 	}
 	svc.capabilityEscCheck(ctx, deadSince)
-	// funding-hedge 升件已销案=既闭——复绿不再出恢复行（无未销可引，
-	// 销案行即关闭语义）；vol_sell 未销在案=恢复行照写自闭。
-	if err := pool.QueryRow(ctx, `SELECT note FROM ops_event
-		WHERE seat='探测席' AND event='恢复' AND note LIKE '%capability_vol_sell_strangle%'`).Scan(&note); err != nil {
-		t.Fatalf("未销件恢复行缺: %v", err)
-	}
-	var recN int
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
-		WHERE event='恢复' AND note LIKE '%capability_funding-hedge%'`).Scan(&recN); err != nil || recN != 0 {
-		t.Fatalf("已销件不应出恢复行 recN=%d err=%v", recN, err)
-	}
-	if _, ok := deadSince["能力债/capability_funding-hedge"]; ok {
-		t.Fatalf("键未清: %v", deadSince)
+	var n int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_state_row
+		WHERE kind='能力债' AND scope LIKE 'capability_%'`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("凭据补上况行未消 n=%d err=%v", n, err)
 	}
 }
 
 // capabilityEscCheck 启用窗起算（工单#17938）：新启用族(<7d)演习债
 // 宽限——凭据窗起点=enabled_at（hypothesis adopted 日∨参数调整
 // 启行最新ts）；无据=-infinity 回落旧 7d 回看。评估债臂不修。
+// fin_0202 起断言面=ops_state_row 况行存/消（原升件/恢复行语义退役）。
 func TestCapabilityEscCheckEnableGrace(t *testing.T) {
 	ctx := context.Background()
 	pool := testutil.Pool(t)
@@ -381,7 +360,8 @@ func TestCapabilityEscCheckEnableGrace(t *testing.T) {
 		DELETE FROM fin_opp_eval WHERE template='funding-hedge';
 		DELETE FROM fin_strategy WHERE template_ref='funding-hedge';
 		DELETE FROM fin_opp_hypothesis WHERE venue='okx' AND surface='hedge_s';
-		DELETE FROM ops_event WHERE esc_scope='capability_funding-hedge' OR (event='参数调整' AND note LIKE 'target=fin_opp_template key=funding-hedge@%')`); err != nil {
+		DELETE FROM ops_state_row WHERE scope='capability_funding-hedge';
+		DELETE FROM ops_event WHERE event='参数调整' AND note LIKE 'target=fin_opp_template key=funding-hedge@%'`); err != nil {
 		t.Fatalf("clean: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `INSERT INTO fin_opp_template(template,venue,surface,enabled,state)
@@ -392,69 +372,62 @@ func TestCapabilityEscCheckEnableGrace(t *testing.T) {
 	}
 	svc := coreService{pool: pool}
 	deadSince := map[string]time.Time{}
-	escNote := func() string {
-		var note string
-		if err := pool.QueryRow(ctx, `SELECT note FROM ops_event
-			WHERE event='升件' AND esc_scope='capability_funding-hedge'
-			ORDER BY id DESC LIMIT 1`).Scan(&note); err != nil {
-			t.Fatalf("升件行缺: %v", err)
+	row := func() string {
+		var d string
+		if err := pool.QueryRow(ctx, `SELECT detail FROM ops_state_row
+			WHERE scope='capability_funding-hedge'`).Scan(&d); err != nil {
+			return "" // 无行=况消
 		}
-		return note
+		return d
 	}
 
 	// 相位A：hypothesis adopted=now()（启用<7d）→演习债宽限,
-	// 升件只载评估债不载演习债。
+	// 况行只载评估债不载演习债。
 	if _, err := pool.Exec(ctx, `INSERT INTO fin_opp_hypothesis(venue,surface,family,state)
 		VALUES('okx','hedge_s','directional','adopted')`); err != nil {
 		t.Fatalf("hypo: %v", err)
 	}
 	svc.capabilityEscCheck(ctx, deadSince)
-	if note := escNote(); strings.Contains(note, "无绿演习凭据") {
-		t.Fatalf("新启用族演习债未宽限: %s", note)
-	} else if !strings.Contains(note, "零评估产出") {
-		t.Fatalf("评估债臂应照火: %s", note)
+	if d := row(); d == "" {
+		t.Fatalf("相位A 况行缺（评估债应在）")
+	} else if strings.Contains(d, "无绿演习凭据") {
+		t.Fatalf("新启用族演习债未宽限: %s", d)
+	} else if !strings.Contains(d, "零评估产出") {
+		t.Fatalf("评估债臂应照载: %s", d)
 	}
-	// 相位A2：补评估行→evalN>0,young 仍真→全腿 gap=false 出恢复行
-	// （deadSince 键清——同 fp 指纹闸下不销不复位,须真复绿才开新死期）。
+	// 相位A2：补评估行→全腿 gap=false→况行自消。
 	if _, err := pool.Exec(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,verdict,legs,evidence)
 		VALUES('BTC-USDT-SWAP','funding-hedge','short_perp_long_spot','rejected','[]','{}')`); err != nil {
 		t.Fatalf("评估行: %v", err)
 	}
 	svc.capabilityEscCheck(ctx, deadSince)
-	var recA int
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
-		WHERE event='恢复' AND note LIKE '%capability_funding-hedge%'`).Scan(&recA); err != nil || recA != 1 {
-		t.Fatalf("相位A2 应出恢复行 recA=%d err=%v", recA, err)
+	if d := row(); d != "" {
+		t.Fatalf("相位A2 况行应自消: %s", d)
 	}
 
-	// 相位B：adopted=8d 前（启用≥7d）→演习债宽限退场照火（评估债已清,
-	// 升件应只载演习债）。fp=回合起刻分戳——同分钟新死期指纹同被闸,
-	// 预置回合起刻=等价上拍已判死>1min 的生产常态,令新死期指纹异。
-	deadSince["能力债/capability_funding-hedge"] = time.Now().Add(-2 * time.Minute)
+	// 相位B：adopted=8d 前（启用≥7d）→演习债宽限退场照载（评估债已清,
+	// 况行应只载演习债）。
 	if _, err := pool.Exec(ctx, `UPDATE fin_opp_hypothesis SET ts=now()-interval '8 days'
 		WHERE venue='okx' AND surface='hedge_s'`); err != nil {
 		t.Fatalf("hypo 老化: %v", err)
 	}
 	svc.capabilityEscCheck(ctx, deadSince)
-	if note := escNote(); !strings.Contains(note, "无绿演习凭据") {
-		t.Fatalf("启用≥7d 零凭据应照火: %s", note)
-	} else if strings.Contains(note, "零评估产出") {
-		t.Fatalf("评估债已清不应再载: %s", note)
+	if d := row(); !strings.Contains(d, "无绿演习凭据") {
+		t.Fatalf("启用≥7d 零凭据应照载: %s", d)
+	} else if strings.Contains(d, "零评估产出") {
+		t.Fatalf("评估债已清不应再载: %s", d)
 	}
 
 	// 相位C：hypothesis 除名,参数调整启行=now()（hunger 复活径）
-	// →演习债再宽限;evalN>0 全腿 gap=false 应再出恢复行。
+	// →演习债再宽限;evalN>0 全腿 gap=false 况行再消。
 	if _, err := pool.Exec(ctx, `DELETE FROM fin_opp_hypothesis WHERE venue='okx' AND surface='hedge_s';
 		INSERT INTO ops_event(seat,event,note) VALUES('探测席','参数调整',
 		'target=fin_opp_template key=funding-hedge@okx 旧=enabled=false/state=retired 新=enabled=true/state=enabled 证据=proposed_eval×3@窗7天')`); err != nil {
 		t.Fatalf("启行: %v", err)
 	}
 	svc.capabilityEscCheck(ctx, deadSince)
-	var recNote string
-	if err := pool.QueryRow(ctx, `SELECT note FROM ops_event
-		WHERE event='恢复' AND note LIKE '%capability_funding-hedge%'
-		ORDER BY id DESC LIMIT 1`).Scan(&recNote); err != nil {
-		t.Fatalf("恢复行缺(相位C应自闭): %v", err)
+	if d := row(); d != "" {
+		t.Fatalf("相位C 况行应自消: %s", d)
 	}
 }
 

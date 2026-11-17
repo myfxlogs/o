@@ -114,7 +114,9 @@ func (c coreService) commercialEscCheck(ctx context.Context, deadSince map[strin
 // 非债——eval 拒行也计行）。占用判定唯走 excell.Enumerate 真源（禁自查
 // fin_strategy 复述——枚举径演进探针不漂）。
 // 边界：enabled=false 模板/registered-only 执行族（无模板行）=钦定挂起
-// 态不探；凭据补上=恢复自闭（能力债清偿=事实消失非销案）。
+// 态不探；凭据补上=况行自消（能力债清偿=事实消失非销案）。
+// 减法B批（fin_0202）：升件写改 ops_state_row 行写（「不升件不唤醒,
+// 变了才更新一行」）——excell.Enumerate 占用判定不可 SQL 化故走表不走视。
 func (c coreService) capabilityEscCheck(ctx context.Context, deadSince map[string]time.Time) {
 	rows, err := c.pool.Query(ctx, `SELECT template FROM fin_opp_template
 		WHERE enabled AND state='enabled' GROUP BY template`)
@@ -139,6 +141,7 @@ func (c coreService) capabilityEscCheck(ctx context.Context, deadSince map[strin
 			occupied[cells[i].Template] = true
 		}
 	}
+	want := map[string]string{}
 	for _, t := range tmpls {
 		var drillN, evalN int
 		// 工单#17938 启用窗起算：新启用族(<7d)演习债宽限——凭据窗起点=enabled_at（采纳日∨参数调整启行最新ts），无据=-infinity回落旧7d；评估债臂不修（零评估=真债不误伤）。
@@ -169,9 +172,7 @@ func (c coreService) capabilityEscCheck(ctx context.Context, deadSince map[strin
 			continue
 		}
 		reg := execfam.Has(t)
-		gap := !reg || (needDrill && drillN == 0) || evalN == 0
-		t := t
-		c.escEdgeUV(ctx, deadSince, "能力债", "capability_"+t, "@", gap, func() string {
+		if gap := !reg || (needDrill && drillN == 0) || evalN == 0; gap {
 			var lacks []string
 			if !reg {
 				lacks = append(lacks, "执行族未注册")
@@ -182,20 +183,35 @@ func (c coreService) capabilityEscCheck(ctx context.Context, deadSince map[strin
 			if evalN == 0 {
 				lacks = append(lacks, "14d 零评估产出")
 			}
-			return fmt.Sprintf(
-				"能力债/capability_%s: 启用模板 %s 缺项=[%s]——在册即须被行使,不行使即信号（处置径=补凭据/补评估/回禁用裁,定性归唤知会话能力债档）",
-				t, t, strings.Join(lacks, "+"))
-		})
-	}
-	seen := map[string]bool{} // 已不启用模板的能力债补恢复（对称沿——禁用后键死而实测非债）
-	for _, t := range tmpls {
-		seen["能力债/capability_"+t] = true
-	}
-	for k, since := range deadSince {
-		if strings.HasPrefix(k, "能力债/capability_") && !seen[k] {
-			delete(deadSince, k)
-			c.recoverNote(ctx, "能力债", strings.TrimPrefix(k, "能力债/"), since)
+			want["capability_"+t] = fmt.Sprintf(
+				"启用模板 %s 缺项=[%s]——在册即须被行使,不行使即信号（处置径=补凭据/补评估/回禁用裁,定性归唤知会话能力债档）",
+				t, strings.Join(lacks, "+"))
 		}
+	}
+	c.syncStateRows(ctx, "能力债", "capability_", want, 50)
+}
+
+// syncStateRows 状况行同步——ops_state_row 写面（fin_0202,减法B批
+// 「不升件不唤醒,变了才更新一行,自我席每拍读」钦定）：want=本拍真况集
+// （scope→detail）,差出删/同值留（detail 未变 updated_at 不动=变了才更）/
+// 新现插。写败=本拍让位。
+func (c coreService) syncStateRows(ctx context.Context, kind, prefix string, want map[string]string, valence int) {
+	scopes := make([]string, 0, len(want))
+	for scope, detail := range want {
+		scopes = append(scopes, scope)
+		if _, err := c.pool.Exec(ctx, `INSERT INTO ops_state_row(kind,scope,valence,detail)
+			VALUES($1,$2,$3,$4)
+			ON CONFLICT(kind,scope) DO UPDATE SET detail=EXCLUDED.detail,
+				updated_at=CASE WHEN ops_state_row.detail IS DISTINCT FROM EXCLUDED.detail
+					THEN now() ELSE ops_state_row.updated_at END`,
+			kind, scope, valence, detail); err != nil {
+			return // 写件败本拍让位
+		}
+	}
+	if _, err := c.pool.Exec(ctx, `DELETE FROM ops_state_row
+		WHERE kind=$1 AND scope LIKE $2 AND NOT (scope=ANY($3))`,
+		kind, prefix+"%", scopes); err != nil {
+		_ = err // 差出删败=陈行多留一拍,下拍补
 	}
 }
 
