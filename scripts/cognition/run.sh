@@ -126,6 +126,15 @@ if o_worker_is_rate_limited "$LOG_FILE"; then
 	REASON=rate_limited; RC=1
 fi
 # OK=完整跑完——devin exit 0 但 transcript 空=零消息静默败（占锁同害算败）。
+# 工单#22868：--export 写盘异步迟至~5min（唤起败#22858 实证 exit 后
+# mtime 滞后）——RC=0 时 poll 等待窗（COG_EXPORT_WAIT_S 默认 360s 覆
+# 实测迟滞；见件即出早退，真静默败全窗后仍空=败判据不变）。
+if [ $RC -eq 0 ]; then
+	_w=0
+	while [ ! -s "$TRANSCRIPT_FILE" ] && [ "$_w" -lt "${COG_EXPORT_WAIT_S:-360}" ]; do
+		sleep 5; _w=$((_w+5))
+	done
+fi
 [ $RC -eq 0 ] && [ -s "$TRANSCRIPT_FILE" ] && OK=1 || REASON=${REASON/session_incomplete/devin_rc_$RC}
 [ -s "$TRANSCRIPT_FILE" ] || rm -f "$TRANSCRIPT_FILE"
 [ "$OK" = 1 ] && hb done || hb dead
