@@ -173,6 +173,13 @@ func (w *Worker) sweepResidual(ctx context.Context) error {
 	if w.coins == nil {
 		return nil // 处置面让位（判据源缺席——巡检拍下拍再判）
 	}
+	if halted, stale := w.residualHalted(ctx); halted {
+		w.rej.Inc("residual_clear_halted")
+		if stale {
+			w.escalateHaltStale(ctx)
+		}
+		return nil // T-22248①：停摆键置位=处置面全段零动钱（决策零发）
+	}
 	dustUSD, err := w.getF("earn.residual_clear_min_usd")
 	if err != nil {
 		w.rej.Inc("missing_param")
