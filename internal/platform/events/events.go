@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"o/internal/platform/writefail"
 )
 
 // livenessMax 活性兜底窗（事件失联>10min→一拍自检——健康探针非工作扫描）。
@@ -108,12 +110,22 @@ func ListenLoop(ctx context.Context, pool *pgxpool.Pool, name string, channels [
 // channel 按 channel 名分派，免全表族过水印）。塌陷期多 channel 合流：唤醒位
 // 只携末到 channel 名——余者由调用方水印/对账径兜（幂等 upsert 语义下无损）。
 func ListenLoopChan(ctx context.Context, pool *pgxpool.Pool, name string, channels []string, fn func(context.Context, string) error) {
-	if err := fn(ctx, ""); err != nil {
+	// 工单#22873：拍败自报——fn 败包 writefail 升件径（池未装配=守位
+	// 不报——core 等他进程天然免疫；o-research finPool 装配后「事件拍
+	// fn 败」不再纯日志静默，42P10 类写拒连刷有升件兜底）。
+	wfn := func(ctx context.Context, ch string) error {
+		err := fn(ctx, ch)
+		if err != nil {
+			writefail.Report(ctx, name, "工单#22873", "EVENT-BEAT/"+name, "事件拍fn: "+err.Error())
+		}
+		return err
+	}
+	if err := wfn(ctx, ""); err != nil {
 		log.Printf("[%s] boot 首拍: %v", name, err)
 	}
 	backoff := time.Second
 	for {
-		err := listenOnce(ctx, pool, channels, fn)
+		err := listenOnce(ctx, pool, channels, wfn)
 		if ctx.Err() != nil {
 			return
 		}
@@ -156,12 +168,20 @@ func listenOnce(ctx context.Context, pool *pgxpool.Pool, channels []string, fn f
 // 期界由 worker 侧 timer 承接，专读环全程不中断、套接字持续排干）。
 func ListenOrDeadline(ctx context.Context, pool *pgxpool.Pool, name string, channels []string,
 	nextDue func(context.Context) time.Duration, fn func(context.Context) error) {
-	if err := fn(ctx); err != nil {
+	// 工单#22873：拍败自报同 ListenLoopChan（期界型环同款静默面）。
+	wfn := func(ctx context.Context) error {
+		err := fn(ctx)
+		if err != nil {
+			writefail.Report(ctx, name, "工单#22873", "EVENT-BEAT/"+name, "事件拍fn: "+err.Error())
+		}
+		return err
+	}
+	if err := wfn(ctx); err != nil {
 		log.Printf("[%s] boot 首拍: %v", name, err)
 	}
 	backoff := time.Second
 	for {
-		err := listenOnceDeadline(ctx, pool, name, channels, nextDue, fn)
+		err := listenOnceDeadline(ctx, pool, name, channels, nextDue, wfn)
 		if ctx.Err() != nil {
 			return
 		}

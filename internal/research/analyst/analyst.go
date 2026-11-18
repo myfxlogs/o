@@ -17,6 +17,7 @@ import (
 	"o/internal/platform/config"
 	"o/internal/platform/notify"
 	"o/internal/platform/rejects"
+	"o/internal/platform/writefail"
 )
 
 // LLM 判词件缝（假想官基建同款注入式——AttachLLM 不接=产出行缺席如实；
@@ -50,6 +51,7 @@ func (r *Runner) Run(ctx context.Context, errc chan<- error) {
 	for {
 		if err := r.TickOnce(ctx); err != nil {
 			log.Printf("[analyst] 拍败（下拍续试）: %v", err)
+			writefail.Report(ctx, "research/analyst", "工单#22873", "RESEARCH-TICK/analyst", "拍败: "+err.Error())
 		}
 		select {
 		case <-ctx.Done():

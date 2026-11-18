@@ -22,6 +22,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"o/internal/platform/rejects"
+	"o/internal/platform/writefail"
 )
 
 // Fetcher HTTP 取件缝（scout 同款——公开零凭据端点）。
@@ -169,6 +170,7 @@ func (r *Runner) TickOnce(c context.Context) error {
 	}
 	if err := r.ProbeStale(c); err != nil {
 		log.Printf("[ctx] 断供探针拍败（下拍续试）: %v", err)
+		writefail.Report(c, "research/ctx", "工单#22873", "RESEARCH-TICK/ctx-probe", "断供探针拍: "+err.Error())
 		r.rej.Inc("probe_err")
 	}
 	return nil
