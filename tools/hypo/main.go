@@ -3,7 +3,8 @@
 // 重复面不重生）；metrics: 周卡数/采纳率 upsert fin_employee_registry
 // 「研究员」行（产出度量机读+last_beat 在岗锚——research_arm_silent 看门锚源）。
 // decide: 假想卡 state 迁移窄门（execfam 骨检+ops_event 审计行；
-// OPS_DB_DSN 置=审计跨库两序写——md 正本与 fin 正本裂面实据在案）。
+// OPS_DB_DSN 置=审计跨库两序写——md 正本与 fin 正本裂面实据在案；
+// mdMasterGuard 正本闸——card/decide 镜像面拒写，工单#22184/#19021）。
 // 零越权证载体：本文件=研究员全部 DB 写面——venue 写径/
 // fin_opp_template/fin_proposal 零触（grep 证锚）。
 package main
@@ -17,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"o/internal/platform/execfam"
@@ -41,6 +43,36 @@ func main() {
 		decide(ctx, pool, os.Args[2:])
 	default:
 		usage()
+	}
+}
+
+// mdMasterGuard fin_opp_hypothesis 正本在 OCI PG-md，SG fin 侧=projector
+// 镜像（projectGhostTables md→sg 全量 upsert 覆写 state/evidence）——
+// 镜像面写 state=投影下拍回卷，ops_event 审计行（fin 正本）却留存=
+// 工单#19021「裁 proposed→parked 审计落账而 state 仍 proposed」缝实案。
+// 判据=fin 域独件 ops_event 在册即拒（#21346 钦定——bridge 表两侧
+// 同存不可判域；ops_event=fin 域独件 md 正本无=域特征签；
+// to_regclass 走 search_path 生产两侧皆 public 而测试包级 schema 同精确）。
+// card/decide 同病同防。
+type mdQuerier interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
+func mdMasterErr(ctx context.Context, q mdQuerier) error {
+	var finFace bool
+	if err := q.QueryRow(ctx,
+		`SELECT to_regclass('ops_event') IS NOT NULL`).Scan(&finFace); err != nil {
+		return fmt.Errorf("md 正本判据查败（fail-closed）: %w", err)
+	}
+	if finFace {
+		return fmt.Errorf("非 md 正本——ops_event 在册=fin 域面（SG 镜像面 state 写被投影回卷=审计落账态漂移缝，工单#19021/#22184）；DB_DSN 须指 OCI PG-md")
+	}
+	return nil
+}
+
+func mdMasterGuard(ctx context.Context, pool *pgxpool.Pool, cmd string) {
+	if err := mdMasterErr(ctx, pool); err != nil {
+		fatal(fmt.Errorf("%s: %w", cmd, err))
 	}
 }
 
@@ -69,6 +101,7 @@ func card(ctx context.Context, pool *pgxpool.Pool, args []string) {
 	evm["provenance"] = "researcher" // 溯源强制——窄门盖章非会话自报
 	evb, _ := json.Marshal(evm)
 	legb, _ := json.Marshal(splitCSV(*legs)) // 空 legs=[]（非 null——列 NOT NULL）
+	mdMasterGuard(ctx, pool, "card")
 	tag, err := pool.Exec(ctx, `INSERT INTO fin_opp_hypothesis(venue,surface,family,leg_primitives,requirements,evidence)
 		VALUES($1,$2,$3,$4::jsonb,$5::jsonb,$6::jsonb)
 		ON CONFLICT (venue,surface) DO NOTHING`,
@@ -134,6 +167,7 @@ func decide(ctx context.Context, pool *pgxpool.Pool, args []string) {
 	default:
 		fatal(fmt.Errorf("decide: -state 闭集 adopted|parked|dismissed（%q）", *state))
 	}
+	mdMasterGuard(ctx, pool, "decide")
 	tx, err := pool.Begin(ctx)
 	if err != nil {
 		fatal(err)
