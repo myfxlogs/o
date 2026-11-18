@@ -4,6 +4,7 @@ package guard
 
 import (
 	"context"
+	"fmt"
 )
 
 // markLegAnomaly 腿形态异常定性行（工单#22845）：legs.one 仓反向平径恒
@@ -26,4 +27,21 @@ func (w *Warden) markLegAnomaly(ctx context.Context, posID int64, trig string) {
 		return
 	}
 	w.anomalyMarked[posID] = true
+	// 工单#20672②：表行外补升件径——fin_guard_close 是态非信号（探测薄壳
+	// 律「疼须写成信号行」），原 WARN 刷频零 ops_event=机器不可见实证。
+	// dedup=同 scope 未销升件且同仓号在案即抑（销而未修=真再发照火）；
+	// 查败 fail-open 不补——定性行已载病灶，升件缺位下拍自重试。
+	var open bool
+	if err := w.pool.QueryRow(ctx, `SELECT EXISTS(
+		SELECT 1 FROM ops_event e WHERE e.event='升件' AND e.esc_scope='guard_leg_anomaly'
+		AND e.note ~ ('仓 #'||$1::text||'([^0-9]|$)')
+		AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.ts>e.ts
+			AND x.note ~ ('升件#'||e.id::text||'([^0-9]|$)')))`, posID).Scan(&open); err != nil || open {
+		return
+	}
+	if _, err := w.pool.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note,esc_class,esc_scope)
+		VALUES('仓巡','升件','',$1,'守卫环','guard_leg_anomaly')`,
+		fmt.Sprintf("仓 #%d 腿形态异常不可反向平（定性行已落 fin_guard_close）——需专道收殓：dcd 到期结算∨人工介入，守卫反向平径不适用", posID)); err != nil {
+		w.rej.Inc("write_err")
+	}
 }

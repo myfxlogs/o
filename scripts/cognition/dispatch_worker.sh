@@ -34,8 +34,12 @@ fi
 
 # OPEN 票在案=唤(票态单点=ops_ticket_desk 视图,fin_0190 语义层根修——
 # 销/挂起/接续/认领/级解析只活在那一份,此处不再复制正则面)。
+# 工单#22578③/D-0048④:桌面窗只排「钱安全/钱数真伪/找钱」三类——机器看自己
+# (自管类 slug)剔出施工道;剔除集=自观域词缀钦定单(钱/采集/部署域票不受影响,
+# venue/mt5/cmc 接入属采集钱径不剔)。
 TICKET_N=$(psql "$DSN" -qAt -c "
-SELECT count(*) FROM ops_ticket_desk WHERE dispatchable AND tkind='工单'" 2>/dev/null)
+SELECT count(*) FROM ops_ticket_desk WHERE dispatchable AND tkind='工单'
+AND note !~ '^工单/(dispatch|spawn|runbook|selfwatch|self-|stall|stuck|session|seat|pin-refuse|landq|queue|host-consol|close-finality|meta-|digest-|canon|kb-|org-|frame|probe|watch|beat|ticket-|worker-|cognition-|audit-|review-|lease|monologue|alert|feed-' )'" 2>/dev/null)
 TICKET_N=${TICKET_N:-0}
 # backlog=窗外在账不可拣(fin_0194 WIP窗——施工道只见窗内,窗外淤积计数入每日一行（housekeeping_daily）;backlog只进触发note供账页观测)
 BACKLOG_N=$(psql "$DSN" -qAt -c "

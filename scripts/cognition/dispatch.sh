@@ -229,7 +229,7 @@ NOW=$(date +%s)
 # 唤知面死/审计;高惧值∨突发簇另作开放兜底——新命脉类不必先改册）
 CRIT_N=$(psql "$DSN" -qAt -c "SELECT count(*) FROM ops_esc_pending
 WHERE esc_class IN ('对账','断流','读败','账链断','资金闸','死刑','部署',
-  '执行径演习','唤知','审计')" 2>/dev/null)
+  '执行径演习')" 2>/dev/null) # 工单#22578②:唤知/审计自观类剔册——唤醒=钱/采集/部署败类+待裁+落地败行
 CRIT_N=${CRIT_N:-0}
 # 6h兜底（D批①——三条件皆空且距上唤>6h=兜底一扫：慢性面/账页对时/
 # 每日一行读时都在兜底拍见;距上唤≤6h纯静默不唤）。
@@ -241,7 +241,7 @@ TRIGGER=""
 [ -z "$TRIGGER" ] && [ "$N" -ge "$BURST_N" ] && TRIGGER="burst:$N"
 [ -z "$TRIGGER" ] && [ "$CRIT_N" -gt 0 ] && TRIGGER="crit:$CRIT_N"
 [ "$RULE_N" -gt 0 ] && TRIGGER="${TRIGGER:+$TRIGGER }rule:$RULE_N"
-[ "$AWAIT_N" -gt 0 ] && TRIGGER="${TRIGGER:+$TRIGGER }accept:$AWAIT_N"
+# 工单#22578②:accept/ticket 类不再单独唤醒——完工待验票归兜底拍∨他唤同见
 [ -z "$TRIGGER" ] && [ $(( NOW - LAST_WOKE )) -gt 21600 ] && TRIGGER="sweep:6h"
 # 干跑口：探针/摘要照跑，唤起前退出并打印触发判定（验证用——不落唤起行不 spawn）。
 [ "${COG_DRY:-}" = 1 ] && { echo "[dispatch] dry: trigger=${TRIGGER:-none} N=$N MAXV=$MAXV crit=$CRIT_N rule=$RULE_N await=$AWAIT_N ticket=$TICKET_N pendbr=$PEND_BR lastwoke=$((NOW-LAST_WOKE))s"; exit 0; }
