@@ -1,6 +1,15 @@
 # 升件类处置 playbook（runbook.d——②段弹目迁存,按需 cat 勿全注）
 # 索引:处置对应 esc_class 升件前先读本件对应弹目;判词/销契纪律在 runbook.md 本线
 
+- **自观计**（seat=探测席 event=量表 esc_class=自观计——工单#22578①
+  降级件日结行,非升件）→ 自观类探针（唤知 audit_stall/learn_gap/
+  lesson_backlog/spawn_orphan/*_spawn_fail·动机/goal_idle·反射·懂你·
+  预期产出·孤儿账——「不处置不损钱不断数据」的机器自观面）不再落
+  升件,死回合沿只日计一火;note 载 `自观探日计 <class>/<scope>——N 火`。
+  处置面:某 scope 连日 N 高企=该自观面实质病灶（如 learn_gap 连计=
+  求知票无人认领——干票不干行）,下件弹目判词档仍作病灶判据参考;
+  单发零火=噪声勿动。**钱径/数据/出带三类永不降**:断流·对账·资金闸·
+  数据缺·商业产出·死刑·唤知/cognition_dead 升件照旧走本 playbook。
 - **改进提案**（seat=改进矿工 esc_class=改进提案 的升件）→
   先评估判据成立否：成立→变体改码径（同「要码修」）；已修/不成立
   →销+note 引证据。判据永远核现况不核历史（提案 note 是快照）。

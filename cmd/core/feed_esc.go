@@ -62,6 +62,7 @@ func (c coreService) escLoop(ctx context.Context, al *notify.Alerter) {
 		c.reflexCompileCheck(ctx, deadSince) // 反射编译器(棒4——裁定记号机械物化 econ_rule 闸,判词不靠会话记得)
 		c.expectProdEscCheck(ctx, deadSince) // 元探通用形——生产面期望产出 vs 实产差分(工单#10605 B)
 		c.metricBeats(ctx, deadSince)        // 量表探群(件见 metric_beats.go——本文件棘轮线满)
+		c.selfEscMeterFlush(ctx)             // 自观降级日结(#22578①——日界翻落上日计数行)
 	}
 }
 
@@ -159,6 +160,18 @@ func (c coreService) escEdgeU(ctx context.Context, deadSince map[string]time.Tim
 func (c coreService) escEdgeUV(ctx context.Context, deadSince map[string]time.Time,
 	class, scope, fp string, dead bool, note func() string) {
 	key := class + "/" + scope
+	if selfEscDemote[class] || selfEscDemote[key] {
+		// 自观类降级（#22578①,册件见 selfesc_meter.go）:死沿计一火,复绿只清态
+		if dead {
+			if _, ok := deadSince[key]; !ok {
+				deadSince[key] = time.Now()
+				selfEscMeter.bump(key)
+			}
+		} else {
+			delete(deadSince, key)
+		}
+		return
+	}
 	if dead {
 		if _, ok := deadSince[key]; !ok {
 			deadSince[key] = time.Now()

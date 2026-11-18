@@ -52,6 +52,7 @@ func TestOwnerModelFrame(t *testing.T) {
 
 func TestOwnerModelReaskDenied(t *testing.T) {
 	ctx, svc := ownerModelSetup(t)
+	resetSelfMeter()
 	gapRow(t, ctx, svc, "rejected")
 	gapRow(t, ctx, svc, "dismissed")
 	gapRow(t, ctx, svc, "pending") // 同键 pending+2否史=重复问已否
@@ -59,19 +60,26 @@ func TestOwnerModelReaskDenied(t *testing.T) {
 	var n int
 	svc.pool.QueryRow(ctx, `SELECT count(*) FROM ops_event WHERE event='升件'
 		AND esc_class='懂你' AND esc_scope='reask_denied'`).Scan(&n)
-	if n != 1 {
-		t.Fatalf("reask_denied 未升件: %d", n)
+	if n != 0 {
+		t.Fatalf("降级件竟升件: %d", n)
+	}
+	if selfEscMeter.counts["懂你/reask_denied"] != 1 {
+		t.Fatalf("reask_denied 未入日计: %v", selfEscMeter.counts)
 	}
 }
 
 func TestOwnerModelNoDenialNoEsc(t *testing.T) {
 	ctx, svc := ownerModelSetup(t)
-	gapRow(t, ctx, svc, "pending") // 零否史 pending 不升
+	resetSelfMeter()
+	gapRow(t, ctx, svc, "pending") // 零否史 pending 不死
 	svc.ownerModelBeat(ctx, map[string]time.Time{})
 	var n int
 	svc.pool.QueryRow(ctx, `SELECT count(*) FROM ops_event WHERE event='升件'
 		AND esc_class='懂你'`).Scan(&n)
 	if n != 0 {
 		t.Fatalf("零否史竟升件: %d", n)
+	}
+	if selfEscMeter.counts["懂你/reask_denied"] != 0 {
+		t.Fatalf("零否史误计: %v", selfEscMeter.counts)
 	}
 }

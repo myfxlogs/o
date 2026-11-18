@@ -49,27 +49,33 @@ func TestAuditStallInstalledArmBlind(t *testing.T) {
 	svc := coreService{pool: pool}
 	deadSince := map[string]time.Time{}
 	var n int
+	resetSelfMeter()
 
-	// 装臂证在案且陈 49h+零审计产出→死——当前实现 NULL 一概非死=盲
+	// 装臂证在案且陈 49h+零审计产出→死——降级契约(#22578①):不落升件,
+	// 日计一火入账
 	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note,ts)
 		VALUES('审计机','唤起','','unit=t-audstall scope=t_x',now()-interval '49 hours')`); err != nil {
 		t.Fatalf("唤起: %v", err)
 	}
 	svc.auditStallEscCheck(ctx, deadSince)
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
-		WHERE esc_class='唤知' AND esc_scope='audit_stall'`).Scan(&n); err != nil || n != 1 {
-		t.Fatalf("装臂后零产出未火 n=%d err=%v——audit_stall 对「已装臂从未产出」永绿", n, err)
+		WHERE esc_class='唤知' AND esc_scope='audit_stall'`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("降级件竟升件 n=%d err=%v", n, err)
+	}
+	if selfEscMeter.counts["唤知/audit_stall"] != 1 {
+		t.Fatalf("死回合未入日计: %v", selfEscMeter.counts)
 	}
 
-	// 恢复语义：审计行落地→恢复自闭（同既有契约）
+	// 降级契约:审计行落地=复绿只清态——无恢复行(未开之件无可闭),
+	// 再死=新回合再计一火
 	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note)
 		VALUES('审计席','审计','','t-audstall 首产')`); err != nil {
 		t.Fatalf("新行: %v", err)
 	}
 	svc.auditStallEscCheck(ctx, deadSince)
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
-		WHERE seat='探测席' AND event='恢复' AND note LIKE '%audit_stall%'`).Scan(&n); err != nil || n != 1 {
-		t.Fatalf("恢复 n=%d err=%v", n, err)
+		WHERE seat='探测席' AND event='恢复' AND note LIKE '%audit_stall%'`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("降级件竟写恢复 n=%d err=%v", n, err)
 	}
 }
 

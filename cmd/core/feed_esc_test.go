@@ -431,8 +431,9 @@ func TestCapabilityEscCheckEnableGrace(t *testing.T) {
 	}
 }
 
-// TestCognitionSpawnFailEsc 唤起败连败探——2h 窗 ≥2 败=结构性升件;
-// 单败=瞬态让位不扰;销案后条件仍真→escEdgeU 重火（同 dedup 契约）。
+// TestCognitionSpawnFailEsc 唤起败连败探——2h 窗 ≥2 败=死态（降级契约
+// 工单#22578①：自观会话面不落升件,死回合沿=日计一火）;单败=瞬态
+// 不计;同回合死态持续不重计;复绿再死=新回合再计。
 func TestCognitionSpawnFailEsc(t *testing.T) {
 	ctx := context.Background()
 	pool := testutil.Pool(t)
@@ -445,64 +446,64 @@ func TestCognitionSpawnFailEsc(t *testing.T) {
 	}
 	svc := coreService{pool: pool}
 	deadSince := map[string]time.Time{}
+	var n int
+	resetSelfMeter()
 
-	// 单败=瞬态——不升件
+	// 单败=瞬态——不计
 	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note)
 		VALUES('唤知机','唤起败','','unit=t-spawn-1 reason=session_discovery')`); err != nil {
 		t.Fatalf("败行1: %v", err)
 	}
 	svc.cognitionSpawnFailEscCheck(ctx, deadSince)
-	var n int
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
-		WHERE esc_scope='cognition_spawn_fail'`).Scan(&n); err != nil || n != 0 {
-		t.Fatalf("单败误火 n=%d err=%v", n, err)
+	if selfEscMeter.counts["唤知/cognition_spawn_fail"] != 0 {
+		t.Fatalf("单败误计: %v", selfEscMeter.counts)
 	}
 
-	// 连败→升件
+	// 连败→死态——无升件,日计一火
 	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note)
 		VALUES('唤知机','唤起败','','unit=t-spawn-2 reason=session_discovery')`); err != nil {
 		t.Fatalf("败行2: %v", err)
 	}
 	svc.cognitionSpawnFailEscCheck(ctx, deadSince)
-	var escID int64
-	var note string
-	if err := pool.QueryRow(ctx, `SELECT id,note FROM ops_event
-		WHERE esc_class='唤知' AND esc_scope='cognition_spawn_fail'`).Scan(&escID, &note); err != nil {
-		t.Fatalf("连败未火: %v", err)
-	}
-	if !strings.Contains(note, "2 连发") || !strings.Contains(note, "t-spawn-2") {
-		t.Fatalf("note 缺实数/末因: %s", note)
-	}
-
-	// 销案而条件仍真→重火（销≠清偿同契）
-	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note)
-		VALUES('处置席','处置','',$1)`, fmt.Sprintf("升件#%d 销——t-spawn 测试", escID)); err != nil {
-		t.Fatalf("销案: %v", err)
-	}
-	svc.cognitionSpawnFailEscCheck(ctx, deadSince)
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
-		WHERE esc_scope='cognition_spawn_fail'`).Scan(&n); err != nil || n != 1 {
-		t.Fatalf("销后同值纹抑 n=%d err=%v（应 1——计数纹同=同值已阅不火,新败变纹照火）", n, err)
+		WHERE esc_scope='cognition_spawn_fail'`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("降级件竟升件 n=%d err=%v", n, err)
+	}
+	if selfEscMeter.counts["唤知/cognition_spawn_fail"] != 1 {
+		t.Fatalf("死回合未入日计: %v", selfEscMeter.counts)
 	}
 
-	// 败行全销净（条件翻假）→恢复行自闭；升件行 note 末因亦含 t-spawn,
-	// 按事件型删——勿误带升件行（recoverNote 靠未销升件定位引证）。
+	// 死态持续（再拍同死）→同回合不重计
+	svc.cognitionSpawnFailEscCheck(ctx, deadSince)
+	if selfEscMeter.counts["唤知/cognition_spawn_fail"] != 1 {
+		t.Fatalf("同回合重复计: %v", selfEscMeter.counts)
+	}
+
+	// 败行全销净（条件翻假）→复绿清态零恢复行;再连败=新回合再计一火
 	if _, err := pool.Exec(ctx, `DELETE FROM ops_event
 		WHERE seat='唤知机' AND event='唤起败' AND note LIKE '%t-spawn%'`); err != nil {
 		t.Fatalf("清败: %v", err)
 	}
 	svc.cognitionSpawnFailEscCheck(ctx, deadSince)
-	// 升件已销案=既闭——复绿不出恢复行（无未销升件可引,销案行即关闭）
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
 		WHERE seat='探测席' AND event='恢复' AND note LIKE '%cognition_spawn_fail%'`).Scan(&n); err != nil || n != 0 {
-		t.Fatalf("已销件不应出恢复行 n=%d err=%v", n, err)
+		t.Fatalf("降级件不应出恢复行 n=%d err=%v", n, err)
+	}
+	for i := 3; i <= 4; i++ {
+		if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note)
+			VALUES('唤知机','唤起败','','unit=t-spawn-3 reason=session_discovery')`); err != nil {
+			t.Fatalf("新败行%d: %v", i, err)
+		}
+	}
+	svc.cognitionSpawnFailEscCheck(ctx, deadSince)
+	if selfEscMeter.counts["唤知/cognition_spawn_fail"] != 2 {
+		t.Fatalf("复绿再死未计新回合: %v", selfEscMeter.counts)
 	}
 }
 
-// TestCognitionSpawnFailEscClusterRefire 离散事件类指纹契——同计数新簇
-// 不得被旧簇 v= 纹吞（工单#20690：fp=n 计数纹→v=2 纹抑新 n=2 簇，
-// 11-15 唤知 2 败被 #17432 同纹 30d 记忆抑实证）。场景=旧簇升件已销
-// 结清→新败簇同计数 n=2 必须照火第二件（fp=@回合起刻异值破纹）。
+// TestCognitionSpawnFailEscClusterRefire 降级契约下的异簇契——降级后
+// 升件面全空,计数语义=死回合数:复绿后的新簇=新回合照计（#22578①
+// 收编工单#20690 纹吞病灶——簇间界由复绿沿定非指纹值）。
 func TestCognitionSpawnFailEscClusterRefire(t *testing.T) {
 	ctx := context.Background()
 	pool := testutil.Pool(t)
@@ -515,36 +516,43 @@ func TestCognitionSpawnFailEscClusterRefire(t *testing.T) {
 	}
 	svc := coreService{pool: pool}
 	deadSince := map[string]time.Time{}
+	resetSelfMeter()
 
-	// 历史簇：v=2 升件已销结清（本 scope 末行升件 note 前缀=v=2）
-	var oldID int64
-	if err := pool.QueryRow(ctx, `INSERT INTO ops_event(seat,event,ticket,note,esc_class,esc_scope)
-		VALUES('探测席','升件','','v=2 唤知/cognition_spawn_fail: 旧簇 2h 窗 2 连发','唤知','cognition_spawn_fail')
-		RETURNING id`).Scan(&oldID); err != nil {
-		t.Fatalf("旧升件: %v", err)
-	}
-	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note)
-		VALUES('处置席','处置','',$1)`, fmt.Sprintf("升件#%d 销——旧簇清偿", oldID)); err != nil {
-		t.Fatalf("旧销案: %v", err)
-	}
-
-	// 新簇同计数 n=2——离散事件类异簇异回合，指纹须异照火
+	// 新簇连败→死态计一;败行全销→复绿;同计数新簇→再计一（异簇异回合）
 	for i := 1; i <= 2; i++ {
 		if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note)
 			VALUES('唤知机','唤起败','','unit=t-spawn2 reason=session_discovery')`); err != nil {
+			t.Fatalf("败行%d: %v", i, err)
+		}
+	}
+	svc.cognitionSpawnFailEscCheck(ctx, deadSince)
+	if selfEscMeter.counts["唤知/cognition_spawn_fail"] != 1 {
+		t.Fatalf("簇一未计: %v", selfEscMeter.counts)
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM ops_event
+		WHERE seat='唤知机' AND event='唤起败' AND note LIKE '%t-spawn2%'`); err != nil {
+		t.Fatalf("清簇: %v", err)
+	}
+	svc.cognitionSpawnFailEscCheck(ctx, deadSince)
+	for i := 1; i <= 2; i++ {
+		if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note)
+			VALUES('唤知机','唤起败','','unit=t-spawn2-b reason=session_discovery')`); err != nil {
 			t.Fatalf("新败行%d: %v", i, err)
 		}
 	}
 	svc.cognitionSpawnFailEscCheck(ctx, deadSince)
+	if selfEscMeter.counts["唤知/cognition_spawn_fail"] != 2 {
+		t.Fatalf("异簇未再计: %v", selfEscMeter.counts)
+	}
 	var n int
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
-		WHERE esc_scope='cognition_spawn_fail' AND id>$1`, oldID).Scan(&n); err != nil || n != 1 {
-		t.Fatalf("同计数新簇被吞 n=%d err=%v（应 1——计数纹同=旧值已阅不火病灶）", n, err)
+		WHERE esc_scope='cognition_spawn_fail'`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("降级件竟升件 n=%d err=%v", n, err)
 	}
 }
 
-// TestAuditSpawnFailEsc 审计臂唤起败连败探——seat=审计机 同构两败即火
-// audit_spawn_fail；seat 隔离=唤知机败迹不擡本面（cognition_spawn_fail 零行）。
+// TestAuditSpawnFailEsc 审计臂唤起败连败探——seat=审计机 同构两败计
+// audit_spawn_fail（降级面,无升件）；seat 隔离=唤知机败迹不擡本面。
 func TestAuditSpawnFailEsc(t *testing.T) {
 	ctx := context.Background()
 	pool := testutil.Pool(t)
@@ -557,6 +565,7 @@ func TestAuditSpawnFailEsc(t *testing.T) {
 	}
 	svc := coreService{pool: pool}
 	deadSince := map[string]time.Time{}
+	resetSelfMeter()
 
 	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note)
 		VALUES('审计机','唤起败','','unit=t-audit-1 reason=session_discovery'),
@@ -566,17 +575,19 @@ func TestAuditSpawnFailEsc(t *testing.T) {
 	svc.cognitionSpawnFailEscCheck(ctx, deadSince)
 	var n int
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
-		WHERE esc_class='唤知' AND esc_scope='audit_spawn_fail'`).Scan(&n); err != nil || n != 1 {
-		t.Fatalf("审计两败未火 n=%d err=%v", n, err)
+		WHERE esc_class='唤知' AND esc_scope='audit_spawn_fail'`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("降级件竟升件 n=%d err=%v", n, err)
 	}
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
-		WHERE esc_scope='cognition_spawn_fail'`).Scan(&n); err != nil || n != 0 {
-		t.Fatalf("seat 隔离破 n=%d err=%v", n, err)
+	if selfEscMeter.counts["唤知/audit_spawn_fail"] != 1 {
+		t.Fatalf("审计两败未入日计: %v", selfEscMeter.counts)
+	}
+	if selfEscMeter.counts["唤知/cognition_spawn_fail"] != 0 {
+		t.Fatalf("seat 隔离破: %v", selfEscMeter.counts)
 	}
 }
 
-// TestAuditStallEsc 审计臂停摆探——产出锚 NULL=语义空态不死（装臂前合法
-// 态）；末审计行陈 48h=死火；新行落地=恢复自闭。
+// TestAuditStallEsc 审计臂停摆探（降级契约#22578①）——产出锚 NULL=语义
+// 空态不死;末审计行陈 48h=死态日计一火无升件;新行落地=复绿清态零恢复行。
 func TestAuditStallEsc(t *testing.T) {
 	ctx := context.Background()
 	pool := testutil.Pool(t)
@@ -591,33 +602,40 @@ func TestAuditStallEsc(t *testing.T) {
 	svc := coreService{pool: pool}
 	deadSince := map[string]time.Time{}
 	var n int
+	resetSelfMeter()
 
-	// 零行=臂未装合法态——不火
+	// 零行=臂未装合法态——不死不计
 	svc.auditStallEscCheck(ctx, deadSince)
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
 		WHERE esc_scope='audit_stall'`).Scan(&n); err != nil || n != 0 {
 		t.Fatalf("空态误火 n=%d err=%v", n, err)
 	}
+	if selfEscMeter.counts["唤知/audit_stall"] != 0 {
+		t.Fatalf("空态误计: %v", selfEscMeter.counts)
+	}
 
-	// 末审计行陈 3 天→火恰一升件
+	// 末审计行陈 3 天→死态——无升件,日计一火
 	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note,ts)
 		VALUES('审计席','审计','','t-stall 陈件',now()-interval '3 days')`); err != nil {
 		t.Fatalf("陈行: %v", err)
 	}
 	svc.auditStallEscCheck(ctx, deadSince)
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
-		WHERE esc_class='唤知' AND esc_scope='audit_stall'`).Scan(&n); err != nil || n != 1 {
-		t.Fatalf("陈窗未火 n=%d err=%v", n, err)
+		WHERE esc_class='唤知' AND esc_scope='audit_stall'`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("降级件竟升件 n=%d err=%v", n, err)
+	}
+	if selfEscMeter.counts["唤知/audit_stall"] != 1 {
+		t.Fatalf("死态未入日计: %v", selfEscMeter.counts)
 	}
 
-	// 新审计行落地→恢复行自闭
+	// 新审计行落地→复绿清态——无恢复行（未开之件无可闭）
 	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note)
 		VALUES('审计席','审计','','t-stall 新件')`); err != nil {
 		t.Fatalf("新行: %v", err)
 	}
 	svc.auditStallEscCheck(ctx, deadSince)
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
-		WHERE seat='探测席' AND event='恢复' AND note LIKE '%audit_stall%'`).Scan(&n); err != nil || n != 1 {
-		t.Fatalf("恢复 n=%d err=%v", n, err)
+		WHERE seat='探测席' AND event='恢复' AND note LIKE '%audit_stall%'`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("降级件竟写恢复 n=%d err=%v", n, err)
 	}
 }

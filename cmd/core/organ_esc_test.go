@@ -20,6 +20,8 @@ func seedOrganFact(t *testing.T, ctx context.Context, svc coreService, note stri
 	}
 }
 
+// organEscFired 降级契约（#22578①）——孤儿账自观册面不落升件,死态沿=
+// 日计一火;"火"判据=该 scope 本日计次>0（升件行恒零,别测面断言）。
 func organEscFired(t *testing.T, ctx context.Context, svc coreService, scope string) bool {
 	t.Helper()
 	var n int
@@ -28,7 +30,17 @@ func organEscFired(t *testing.T, ctx context.Context, svc coreService, scope str
 		Scan(&n); err != nil {
 		t.Fatalf("fired: %v", err)
 	}
-	return n > 0
+	if n != 0 {
+		t.Fatalf("降级件竟升件 %s n=%d", scope, n)
+	}
+	return selfEscMeter.counts["孤儿账/"+scope] > 0
+}
+
+// resetSelfMeter 测试间计件归零（包级单例隔离）。
+func resetSelfMeter() {
+	selfEscMeter.mu.Lock()
+	selfEscMeter.counts = map[string]int{}
+	selfEscMeter.mu.Unlock()
 }
 
 func TestOrganOrphanPinNoTicket(t *testing.T) {
@@ -41,6 +53,7 @@ func TestOrganOrphanPinNoTicket(t *testing.T) {
 		t.Fatalf("clean: %v", err)
 	}
 	svc := coreService{pool: pool}
+	resetSelfMeter()
 	seedOrganFact(t, ctx, svc, "举一反三器官立项——等认领施工")
 	svc.organOrphanEscCheck(ctx, map[string]time.Time{})
 	if !organEscFired(t, ctx, svc, "organ_举一反三") {
@@ -61,6 +74,7 @@ func TestOrganOrphanCoveredByTicket(t *testing.T) {
 		t.Fatalf("clean: %v", err)
 	}
 	svc := coreService{pool: pool}
+	resetSelfMeter()
 	seedOrganFact(t, ctx, svc, "举一反三器官立项——等认领施工")
 	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,note)
 		VALUES('业主','工单','期限=168h 举一反三器官施工')`); err != nil {
@@ -85,6 +99,7 @@ func TestOrganOrphanDoneSilent(t *testing.T) {
 		t.Fatalf("clean: %v", err)
 	}
 	svc := coreService{pool: pool}
+	resetSelfMeter()
 	seedOrganFact(t, ctx, svc, "举一反三器官认领→施工→部署至产线——销案毕")
 	svc.organOrphanEscCheck(ctx, map[string]time.Time{})
 	if organEscFired(t, ctx, svc, "organ_举一反三") {
@@ -102,6 +117,7 @@ func TestOrganOrphanAssertAuthority(t *testing.T) {
 		t.Fatalf("clean: %v", err)
 	}
 	svc := coreService{pool: pool}
+	resetSelfMeter()
 	// 断言 done 盖散文立项——断言行是唯一态权威。
 	seedOrganFact(t, ctx, svc, "举一反三器官立项——等认领施工")
 	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note)
