@@ -94,7 +94,7 @@ review_ok() { # $1=br名 $2=tip全sha → rc0=复审过行在且写行席≠完�
 	[ -n "$DSN" ] || return 1
 	bre=$(printf '%s' "$br" | sed 's/[][\\.*^$()+?{}|]/\\&/g') # tolerate: sed 恒 rc0——纯转义器非闸
 	aseat=$(q "SELECT seat FROM ops_event
-		WHERE note ~ '完工回执' AND (note ~ '$bre' OR note ~ '${tip:0:9}')
+		WHERE note ~ '(完工回执|完工推支候审|候审回执)' AND (note ~ '$bre' OR note ~ '${tip:0:9}')
 		ORDER BY id DESC LIMIT 1")
 	[ -n "$aseat" ] || return 1 # 作者席不可考=分席不可证→fail-closed
 	aseat=$(printf '%s' "$aseat" | tr -d "\"'\\")
