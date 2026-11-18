@@ -5,6 +5,7 @@ package guard
 import (
 	"context"
 	"fmt"
+	"strconv"
 )
 
 // markLegAnomaly 腿形态异常定性行（工单#22845）：legs.one 仓反向平径恒
@@ -36,7 +37,7 @@ func (w *Warden) markLegAnomaly(ctx context.Context, posID int64, trig string) {
 		SELECT 1 FROM ops_event e WHERE e.event='升件' AND e.esc_scope='guard_leg_anomaly'
 		AND e.note ~ ('仓 #'||$1::text||'([^0-9]|$)')
 		AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.ts>e.ts
-			AND x.note ~ ('升件#'||e.id::text||'([^0-9]|$)')))`, posID).Scan(&open); err != nil || open {
+			AND x.note ~ ('升件#'||e.id::text||'([^0-9]|$)')))`, strconv.FormatInt(posID, 10)).Scan(&open); err != nil || open {
 		return
 	}
 	if _, err := w.pool.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note,esc_class,esc_scope)

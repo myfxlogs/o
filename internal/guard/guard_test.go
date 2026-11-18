@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -1335,7 +1336,7 @@ func TestLegAnomalyClassified(t *testing.T) {
 	if err := w.pool.QueryRow(ctx,
 		`SELECT count(*) FROM ops_event WHERE event='升件'
 		 AND esc_scope='guard_leg_anomaly' AND note ~ ('仓 #'||$1::text||'([^0-9]|$)')`,
-		posID).Scan(&escN); err != nil || escN != 1 {
+		strconv.FormatInt(posID, 10)).Scan(&escN); err != nil || escN != 1 {
 		t.Fatalf("腿形态异常应落 guard_leg_anomaly 升件一笔，got n=%d err=%v", escN, err)
 	}
 }
