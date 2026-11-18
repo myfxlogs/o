@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -195,5 +196,75 @@ func TestKlineBackfillSweep(t *testing.T) {
 	if err := pool.QueryRow(ctx,
 		`SELECT count(*) FROM md_klines WHERE inst_id='XBK-USDT-SWAP' AND confirm=false`).Scan(&n); err != nil || n != 0 {
 		t.Fatalf("回填落了非收线行: n=%d err=%v", n, err)
+	}
+}
+
+// 工单#22844 根修桩：订阅图=连接级——首连订阅后服务端断连，重连必须
+// 全量重发 subscribe（旧径 sub 图跨连存续→新连零订阅帧=假活静默死）。
+func TestKlineReconnectResubscribe(t *testing.T) {
+	ctx := context.Background()
+	pool := testutil.Pool(t)
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	var sid int64
+	if err := pool.QueryRow(ctx,
+		`INSERT INTO fin_strategy(inst_id,template_ref,state,notional_usd,venue)
+		 VALUES('XRC-USDT-SWAP','kline-reconnect-test','live',1,'okx') RETURNING id`).Scan(&sid); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _, _ = pool.Exec(ctx, `DELETE FROM fin_strategy WHERE id=$1`, sid) }()
+
+	var connN, subN atomic.Int32
+	up := websocket.Upgrader{}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := up.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		n := connN.Add(1)
+		for {
+			mt, data, err := conn.ReadMessage()
+			if err != nil {
+				return
+			}
+			if mt != websocket.TextMessage {
+				continue
+			}
+			var m struct {
+				Op   string `json:"op"`
+				Args []struct {
+					Channel string `json:"channel"`
+					InstID  string `json:"instId"`
+				} `json:"args"`
+			}
+			if json.Unmarshal(data, &m) != nil || m.Op != "subscribe" {
+				continue
+			}
+			subN.Add(1)
+			if n == 1 {
+				return // 首连订阅落账即断——逼 klineLoop 重连验重订
+			}
+		}
+	}))
+	defer srv.Close()
+
+	c := NewCollector(pool, nil)
+	c.bizURL = "ws" + strings.TrimPrefix(srv.URL, "http")
+	ctx2, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go c.klineLoop(ctx2)
+
+	deadline := time.Now().Add(15 * time.Second)
+	for {
+		if connN.Load() >= 2 && subN.Load() >= 2 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("重连后未重订阅（订阅图跨连存续病灶）: conns=%d subs=%d",
+				connN.Load(), subN.Load())
+		}
+		time.Sleep(100 * time.Millisecond) // sched-exempt-ok（桩断言轮询期界）
 	}
 }

@@ -89,6 +89,9 @@ func (c *Collector) handle(data []byte) {
 		}
 		c.frames.Add(1)
 		c.lastFrame.Store(time.Now().UnixNano())
+		if it.kline != nil {
+			c.lastKline.Store(time.Now().UnixNano())
+		}
 		// T-0209②：per-inst 3s 最小写间隔（tickers/funding 同拍——写洪防；
 		// T-0193 过拍闸量级沿）。
 		if !c.passThrottle(it) {

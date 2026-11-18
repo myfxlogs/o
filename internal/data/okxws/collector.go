@@ -45,6 +45,7 @@ type Collector struct {
 
 	frames    atomic.Int64 // 业务帧计数（观测面）
 	lastFrame atomic.Int64 // 最近业务帧 UnixNano（status 端点/看门狗同读）
+	lastKline atomic.Int64 // 最近 candle 业务帧 UnixNano（business 臂看门狗——工单#22844）
 	Stats     *Door        // 别名 rej（对外观测名）
 	meter     *netmeter.Meter
 	al        *notify.Alerter
