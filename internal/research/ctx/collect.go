@@ -230,9 +230,11 @@ func (r *Runner) collectCot(c context.Context) error {
 	}
 	var rows []map[string]any
 	if err := json.Unmarshal(b, &rows); err != nil {
+		log.Printf("[ctx] cftc 解析败: %v", err) // 观测盲补（工单#19626——parse 败零日志同病绝）
 		r.rej.Inc("parse_err")
 		return nil
 	}
+	log.Printf("[ctx] cftc 拉得 %d 行", len(rows)) // 工单#19626——成功产零行=上游死证可见
 	for _, row := range rows {
 		key, _ := row["id"].(string) // 行 id 字段=dedupe 键（缺=NULL 不入键）
 		if err := r.ins(c, "cftc", "cot", key, row); err != nil {
