@@ -7,7 +7,7 @@
 #   不等龄——票面即优先级;
 #   单飞闸=o-worker-* 有 active/activating 即退(自有道glob——
 #   不撞 o-cognition-* 唤知道锁,双道物理隔离);
-#   跨机单飞=PG advisory lock(7970) 序列化+唤起在案行判据(同唤知径,
+#   跨机单飞=PG advisory lock(7972) 序列化+唤起在案行判据(同唤知径,
 #   seat='施工机' 分账不混唤知锁面)。
 # 用法: systemd timer 周期驱(o-worker.timer 建议 15min)或手跑。
 set -u
@@ -67,11 +67,11 @@ fi
 
 UNIT="o-worker-$(date +%s)"
 
-# 跨机单飞闸: advisory lock(7970) 序列化临界区,「30min 唤起在案且无同
+# 跨机单飞闸: advisory lock(7972) 序列化临界区,「30min 唤起在案且无同
 # unit 唤起败/果∧无后随收口」=跨机在飞判据——seat='施工机' 分账面
 # 与唤知机互不见(两道各自有锁);WRK- 心跳键同不入唤知在飞面。
 WON=$(psql "$DSN" -qAt <<SQL
-SELECT pg_advisory_lock(7970);
+SELECT pg_advisory_lock(7972);
 INSERT INTO ops_event(seat,event,ticket,note)
 SELECT '施工机','唤起','','unit=$UNIT host=$(hostname) trigger=ticket_n$TICKET_N backlog=$BACKLOG_N'
 WHERE NOT EXISTS (
@@ -87,7 +87,7 @@ AND NOT EXISTS (
 	WHERE h.ticket ~ '^WRK-' AND h.state='alive'
 	  AND h.last_activity > now() - interval '100 seconds')
 RETURNING id;
-SELECT pg_advisory_unlock(7970);
+SELECT pg_advisory_unlock(7972);
 SQL
 )
 WON=$(printf '%s\n' "$WON" | grep -oE '^[0-9]+$' | head -1)
