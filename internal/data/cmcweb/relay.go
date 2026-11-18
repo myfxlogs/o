@@ -25,13 +25,16 @@ const (
 
 // Relay 本地 WS 中继。frames 由浏览器捕获件投递；客户端连接=下游消费者。
 type Relay struct {
-	mu      sync.Mutex
-	clients map[*relayClient]struct{}
-	buf     [][]byte // 环形缓冲（新连客户端回灌用）
-	upAlive bool     // 上游 app WS 活态——死则掐全客户端
-	addr    string
-	srv     *http.Server
-	browser *Browser // REST 代理页内 fetch 出口（BindBrowser 接线）
+	mu        sync.Mutex
+	clients   map[*relayClient]struct{}
+	buf       [][]byte  // 环形缓冲（新连客户端回灌用）
+	upAlive   bool      // 上游 app WS 活态——死则掐全客户端
+	upDeadAt  time.Time // 上游死态起点（healthz 死窗判——转移日志面同源）
+	watchBeat time.Time // watchdog 拍心跳（假活判——拍龄超阈=看门狗楔死）
+	bootAt    time.Time // 进程起点（boot 宽限判）
+	addr      string
+	srv       *http.Server
+	browser   *Browser // REST 代理页内 fetch 出口（BindBrowser 接线）
 }
 
 // BindBrowser REST 代理的浏览器出口（构造序:NewRelay→NewBrowser→Bind）。
@@ -48,7 +51,7 @@ var relayUpgrader = websocket.Upgrader{
 }
 
 func NewRelay(addr string) *Relay {
-	return &Relay{addr: addr, clients: make(map[*relayClient]struct{})}
+	return &Relay{addr: addr, clients: make(map[*relayClient]struct{}), bootAt: time.Now()}
 }
 
 // Feed 投递一帧旁录数据（浏览器捕获侧调；满则丢最旧）。
@@ -78,12 +81,25 @@ func (r *Relay) SetUpstreamAlive(alive bool) {
 		return
 	}
 	r.upAlive = alive
+	if alive {
+		r.upDeadAt = time.Time{}
+	} else {
+		r.upDeadAt = time.Now()
+	}
 	log.Printf("[cmcweb-relay] upstream alive=%v clients=%d", alive, len(r.clients))
 	if !alive {
 		for c := range r.clients {
 			r.dropLocked(c)
 		}
 	}
+	r.mu.Unlock()
+}
+
+// SetWatchdogBeat watchdog 拍心跳（Service.watchdog 每拍喂——healthz 假活判源：
+// 拍沉默=看门狗 goroutine 楔死,11-18 产线 8h 零日志实证）。
+func (r *Relay) SetWatchdogBeat() {
+	r.mu.Lock()
+	r.watchBeat = time.Now()
 	r.mu.Unlock()
 }
 
@@ -100,13 +116,7 @@ func (r *Relay) dropLocked(c *relayClient) {
 // ListenAndServe 起 HTTP+WS 服务（阻塞，ctx 取消即退）。
 func (r *Relay) ListenAndServe(ctx context.Context) error {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
-		r.mu.Lock()
-		up, n := r.upAlive, len(r.clients)
-		r.mu.Unlock()
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(fmt.Sprintf("ok upstream=%v clients=%d\n", up, n)))
-	})
+	mux.HandleFunc("/healthz", r.serveHealthz)
 	mux.HandleFunc("/api/", r.apiProxy(r.browser)) // REST 页内 fetch 代理——单会话制 Go 零会话
 	mux.HandleFunc("/", r.serveWS)
 	r.srv = &http.Server{Addr: r.addr, Handler: mux}
@@ -120,6 +130,42 @@ func (r *Relay) ListenAndServe(ctx context.Context) error {
 	}()
 	log.Printf("[cmcweb-relay] listen %s", r.addr)
 	return r.srv.Serve(ln)
+}
+
+// serveHealthz 健康面——双死判非恒活（11-18 假活窗 8h 实证：upstream=false
+// 照报 200=docker healthy 假绿）：
+//
+//	① watchdog 拍龄>90s（boot 后从未拍过也算）=看门狗 goroutine 楔死——503
+//	② 上游死窗>15min（deadRestartMin+余量——看门狗该自愈而未愈）=503
+//
+// boot 宽限 2min——会话建立期 upstream 本就死、watchdog 未开拍。
+func (r *Relay) serveHealthz(w http.ResponseWriter, _ *http.Request) {
+	r.mu.Lock()
+	up, n := r.upAlive, len(r.clients)
+	deadAt, beat, boot := r.upDeadAt, r.watchBeat, r.bootAt
+	r.mu.Unlock()
+	age := time.Since(boot)
+	beatAge := time.Since(beat)
+	var deadWin time.Duration
+	if !deadAt.IsZero() {
+		deadWin = time.Since(deadAt)
+	}
+	sick := ""
+	switch {
+	case age > 2*time.Minute && (beat.IsZero() || beatAge > 90*time.Second):
+		sick = fmt.Sprintf("watchdog 拍龄 %.0fs 超阈（goroutine 楔死疑）", beatAge.Seconds())
+	case age > 2*time.Minute && deadWin > 15*time.Minute:
+		sick = fmt.Sprintf("upstream 死窗 %.0fm 超阈（看门狗自愈未达）", deadWin.Minutes())
+	}
+	status := http.StatusOK
+	word := "ok"
+	if sick != "" {
+		status = http.StatusServiceUnavailable
+		word = "sick"
+	}
+	w.WriteHeader(status)
+	_, _ = w.Write([]byte(fmt.Sprintf("%s upstream=%v dead=%.0fs beat=%.0fs clients=%d %s\n",
+		word, up, deadWin.Seconds(), beatAge.Seconds(), n, sick)))
 }
 
 // serveWS 升级 + 控制帧应答循环 + 数据帧泵。上游死=503 拒升（下放陈旧

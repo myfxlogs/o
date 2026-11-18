@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"log"
+	"sync/atomic"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -17,6 +18,7 @@ import (
 
 const (
 	watchdogInterval  = 30 * time.Second
+	watchdogTickMax   = 90 * time.Second // 单拍硬帽——chromedp 阻塞调用楔死实证（11-18 假活8h）
 	loginRetryMax     = 3
 	loginRetryBackoff = 2 * time.Minute
 	deadRestartMin    = 10 * time.Minute // 页活但 app WS 久死 → 整页重载重启会话
@@ -29,11 +31,12 @@ var (
 
 // Service 浏览器采集中继服务。
 type Service struct {
-	browser   *Browser
-	pool      *pgxpool.Pool
-	accountID int64
-	email     string
-	pass      string
+	browser     *Browser
+	pool        *pgxpool.Pool
+	accountID   int64
+	email       string
+	pass        string
+	wsDeadSince atomic.Int64 // app WS 死窗起点 unixnano（0=无——弃置拍与续拍并发写安全面）
 }
 
 func NewService(accountID int64, bcfg BrowserCfg, pool *pgxpool.Pool, email, pass string) *Service {
@@ -141,9 +144,10 @@ func (s *Service) browserCtx() context.Context {
 	return s.browser.bctx
 }
 
-// watchdog 活态环：页死→重启会话；app WS 久死→重载页。
+// watchdog 活态环：页死→重启会话；app WS 久死→重载页。每拍喂 relay
+// 心跳（healthz 拍龄判源）+整拍包 watchdogTickMax 硬帽——环内任一调用
+// 楔死不冻环（11-18 产线 8h 零日志零自愈实证：单调用楔死=全环陪葬）。
 func (s *Service) watchdog(ctx context.Context) {
-	deadSince := time.Time{}
 	for {
 		select {
 		case <-ctx.Done():
@@ -151,32 +155,49 @@ func (s *Service) watchdog(ctx context.Context) {
 			return
 		case <-time.After(watchdogInterval): // sched-exempt-ok：看门狗拍
 		}
-		if !s.browser.Alive() {
-			log.Printf("[cmcweb] 页死——重启会话")
-			if err := s.session(ctx); err != nil {
-				log.Printf("[cmcweb] 重启败: %v", err)
-			}
-			deadSince = time.Time{}
-			continue
+		s.browser.relay.SetWatchdogBeat()
+		tctx, cancel := context.WithTimeout(ctx, watchdogTickMax)
+		done := make(chan struct{})
+		go func() { s.watchdogTick(tctx); close(done) }()
+		select {
+		case <-done:
+		case <-tctx.Done():
+			log.Printf("[cmcweb] watchdog 拍超 %v——掐浏览器解楔+弃置续拍", watchdogTickMax)
+			s.browser.Stop() // 掐 bctx——楔死 chromedp 调用 ctx 解阻塞出 goroutine；下拍页死径整会话重建
 		}
-		if !s.browser.WSAlive() {
-			if deadSince.IsZero() {
-				deadSince = time.Now()
-			} else if time.Since(deadSince) > deadRestartMin {
-				log.Printf("[cmcweb] app WS 死超 %v——重载页", deadRestartMin)
-				if err := s.browser.Navigate(s.browserCtx()); err != nil {
-					log.Printf("[cmcweb] 重载败: %v", err)
-				}
-				if !s.waitForApp(ctx) && s.browser.LoginFormPresent(ctx) {
-					log.Printf("[cmcweb] 重载后登录面显形——整会话重建")
-					if err := s.session(ctx); err != nil {
-						log.Printf("[cmcweb] 会话重建败: %v", err)
-					}
-				}
-				deadSince = time.Time{}
-			}
-		} else {
-			deadSince = time.Time{}
+		cancel()
+	}
+}
+
+// watchdogTick 单拍体：页死→重启会话；app WS 久死→重载页（ctx=拍级时限）。
+func (s *Service) watchdogTick(ctx context.Context) {
+	if !s.browser.Alive() {
+		log.Printf("[cmcweb] 页死——重启会话")
+		if err := s.session(ctx); err != nil {
+			log.Printf("[cmcweb] 重启败: %v", err)
+		}
+		return
+	}
+	if s.browser.WSAlive() {
+		s.wsDeadSince.Store(0)
+		return
+	}
+	if s.wsDeadSince.Load() == 0 {
+		s.wsDeadSince.Store(time.Now().UnixNano())
+		return
+	}
+	if time.Since(time.Unix(0, s.wsDeadSince.Load())) <= deadRestartMin {
+		return
+	}
+	log.Printf("[cmcweb] app WS 死超 %v——重载页", deadRestartMin)
+	if err := s.browser.Navigate(s.browserCtx()); err != nil {
+		log.Printf("[cmcweb] 重载败: %v", err)
+	}
+	if !s.waitForApp(ctx) && s.browser.LoginFormPresent(ctx) {
+		log.Printf("[cmcweb] 重载后登录面显形——整会话重建")
+		if err := s.session(ctx); err != nil {
+			log.Printf("[cmcweb] 会话重建败: %v", err)
 		}
 	}
+	s.wsDeadSince.Store(0)
 }

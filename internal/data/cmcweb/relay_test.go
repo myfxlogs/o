@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -106,5 +107,34 @@ func TestRelayUpstreamDeath(t *testing.T) {
 	// 死态下新连接拒升（陈旧回放假报活闸——dial 应 503 败）
 	if _, _, err := websocket.DefaultDialer.Dial(fmt.Sprintf("ws://%s/", addr), nil); err == nil {
 		t.Fatal("上游死态下新 WS 升级未拒")
+	}
+}
+
+// healthz 双死判（11-18 假活窗实证——恒 200=docker healthy 假绿）：
+// ① watchdog 拍龄>90s∨从未拍=楔死 503；②上游死窗>15min=自愈未达 503；
+// boot 宽限 2min 内恒 200。
+func TestHealthzSickToggles(t *testing.T) {
+	req := httptest.NewRequest("GET", "/healthz", nil)
+	cases := []struct {
+		name               string
+		boot, beat, deadAt time.Time
+		upAlive            bool
+		want               int
+	}{
+		{"boot宽限内恒活", time.Now(), time.Time{}, time.Time{}, false, 200},
+		{"拍鲜+上游活=200", time.Now().Add(-3 * time.Minute), time.Now(), time.Time{}, true, 200},
+		{"拍龄超阈=503", time.Now().Add(-3 * time.Minute), time.Now().Add(-2 * time.Minute), time.Time{}, true, 503},
+		{"从未拍=503", time.Now().Add(-3 * time.Minute), time.Time{}, time.Time{}, true, 503},
+		{"上游死窗超阈=503", time.Now().Add(-3 * time.Minute), time.Now(), time.Now().Add(-20 * time.Minute), false, 503},
+		{"上游死窗未超=200", time.Now().Add(-3 * time.Minute), time.Now(), time.Now().Add(-5 * time.Minute), false, 200},
+	}
+	for _, tc := range cases {
+		r := NewRelay("x")
+		r.bootAt, r.watchBeat, r.upDeadAt, r.upAlive = tc.boot, tc.beat, tc.deadAt, tc.upAlive
+		w := httptest.NewRecorder()
+		r.serveHealthz(w, req)
+		if w.Code != tc.want {
+			t.Fatalf("%s: code=%d want %d（body=%s）", tc.name, w.Code, tc.want, w.Body.String())
+		}
 	}
 }
