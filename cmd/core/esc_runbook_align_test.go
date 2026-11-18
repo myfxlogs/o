@@ -45,6 +45,12 @@ func TestEscScopesCoveredByRunbook(t *testing.T) {
 	if err != nil {
 		t.Fatalf("runbook: %v", err)
 	}
+	subs, _ := filepath.Glob(filepath.Join("..", "..", "scripts", "cognition", "runbook.d", "*.md"))
+	for _, f := range subs {
+		if b, e := os.ReadFile(f); e == nil {
+			rb = append(rb, b...)
+		}
+	}
 	text := string(rb)
 	var missing []string
 	for s := range scopes {

@@ -86,4 +86,27 @@ if [ -z "$DEPLOYED" ] || [ "${HEAD:0:${#DEPLOYED}}" != "$DEPLOYED" ]; then
 else
 	say "已同步（部署=$DEPLOYED = master）"
 fi
+# ── OCI 臂滞后探（工单#22882：裸二进制不随 master 追新——迁移先落旧臂
+# 照跑=跨库写败窗实证 eval 断 18h；deploy-oci rc=0 账行=换拍凭据。
+# 陈化起点=臂部署 sha..HEAD 最早缺件 committer ts>24h → 升件逐臂）
+if [ -n "$DSN" ]; then
+	for arm in collecto projector research; do
+		ASHA=$(psql "$DSN" -qAt -c "SELECT (regexp_match(note,'deploy-oci ([0-9a-f]+)'))[1] FROM ops_event WHERE seat='DEPLOY' AND event='部署' AND note LIKE 'deploy-oci %rc=0%' AND note ~ ('arms=[^|]*$arm([^a-z]|$)') ORDER BY id DESC LIMIT 1" 2>/dev/null)
+		if [ -z "$ASHA" ]; then
+			esc "oci_arm_lag_$arm" "部署/oci_arm_lag: OCI臂$arm 无 deploy-oci rc=0 账行——换拍凭据缺席不可证陈/鲜,归唤知会话"
+			continue
+		fi
+		if ! git rev-parse --verify -q "$ASHA^{commit}" >/dev/null 2>&1; then
+			esc "oci_arm_lag_$arm" "部署/oci_arm_lag: OCI臂$arm 部署账 sha=$ASHA 本地不可解——镜像账/仓面对不上,归唤知会话"
+			continue
+		fi
+		[ "$(git rev-parse "$ASHA")" = "$HEAD" ] && continue
+		git merge-base --is-ancestor "$ASHA" "$HEAD" 2>/dev/null || {
+			esc "oci_arm_lag_$arm" "部署/oci_arm_lag: OCI臂$arm 部署 sha=$ASHA 非 master 祖先——漂移分叉不自裁,归唤知会话"; continue; }
+		SINCE=$(git log --format=%ct "$ASHA..$HEAD" 2>/dev/null | tail -1)
+		if [ -n "$SINCE" ] && [ $(( $(date +%s) - SINCE )) -gt 86400 ]; then
+			esc "oci_arm_lag_$arm" "部署/oci_arm_lag: OCI臂$arm 陈化>24h——部署=$ASHA vs master=$SHORT,缺件最早 $(date -d @$SINCE +%m-%d\ %H:%M) 起(master迁移/口径先落旧臂照跑=写败窗),归唤知会话deploy_oci"
+		fi
+	done
+fi
 exit 0
