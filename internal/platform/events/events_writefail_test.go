@@ -16,6 +16,7 @@ import (
 
 	"o/internal/platform/testutil"
 	"o/internal/platform/writefail"
+	"o/internal/store/pgstore"
 )
 
 // sigPool writefail.Pool 桩——Exec 透传真池+首调关 called 信号位
@@ -35,6 +36,9 @@ func (s *sigPool) Exec(ctx context.Context, sql string, arguments ...any) (pgcon
 func TestListenLoopChanBeatFailEscalates(t *testing.T) {
 	pool := testutil.Pool(t)
 	ctx, cancel := context.WithCancel(context.Background())
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatal(err)
+	}
 	defer cancel()
 	sp := &sigPool{inner: pool, called: make(chan struct{})}
 	writefail.SetPool(sp)
@@ -75,6 +79,9 @@ func TestListenLoopChanBeatFailNoPoolSilent(t *testing.T) {
 	writefail.SetPool(nil)
 	pool := testutil.Pool(t)
 	ctx, cancel := context.WithCancel(context.Background())
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatal(err)
+	}
 	defer cancel()
 	name := fmt.Sprintf("test-beat-nopool-%d", time.Now().UnixNano())
 	fnCalled := make(chan struct{})
