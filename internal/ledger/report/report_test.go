@@ -136,6 +136,31 @@ func TestReportCounts(t *testing.T) {
 	}
 }
 
+// 工单#20008 锚：earn 陈值计入余额（读败≠钱消失）且陈额显式标——
+// 修前 stale=false 排除产 NAV 假跳族。
+func TestReportEarnStaleCaliber(t *testing.T) {
+	pool := testutil.Pool(t)
+	ctx := context.Background()
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_holding(venue,kind,ccy,amount,stale,venue_ref)
+		VALUES('okx','earn_flexible','USDT',100,false,'a'),('okx','earn_flexible','USDT',40,true,'b')`); err != nil {
+		t.Fatal(err)
+	}
+	if err := Gen(ctx, pool, "daily", BoundsOf("daily", time.Now())); err != nil {
+		t.Fatal(err)
+	}
+	var bal, stale float64
+	if err := pool.QueryRow(ctx,
+		"SELECT (metrics->>'earn_balance')::float,(metrics->>'earn_stale')::float FROM fin_report WHERE period='daily'").Scan(&bal, &stale); err != nil {
+		t.Fatal(err)
+	}
+	if bal != 140 || stale != 40 {
+		t.Fatalf("earn 陈值口径失真: balance=%v(要140=陈值计入) stale=%v(要40=陈额标出)", bal, stale)
+	}
+}
+
 // T-0252 weekly 年化折算锚：周净/资本基数×52——fixture 行验式非摆拍
 // （基数口径同 monthly=lifetime deposit 累计单源）；daily 无年化键（裁定注记）。
 func TestWeeklyAnnualized(t *testing.T) {

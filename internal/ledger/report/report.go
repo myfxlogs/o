@@ -31,7 +31,7 @@ func Gen(ctx context.Context, pool *pgxpool.Pool, period string, b Bounds) error
 			*dst = v
 		}
 	}
-	var net, funding, earnBal, cumNav float64
+	var net, funding, earnBal, earnStale, cumNav float64
 	var opened, closed, proposed, rejected, active, alerts, capital int
 	// T-0422 统一实现盈亏口径（caliber.go 单源——三面同读一式）：
 	// net=期内实现盈亏（现金钉式按 occurred_at+腿/袋按 closed_at 归属）；
@@ -40,7 +40,11 @@ func Gen(ctx context.Context, pool *pgxpool.Pool, period string, b Bounds) error
 	net, _ = Realized(ctx, pool, b.Start, b.End)
 	cumNav, _ = Realized(ctx, pool, time.Time{}, b.End)
 	q(`SELECT COALESCE(sum(amount),0) FROM fin_cashflow WHERE kind='funding_settle' AND occurred_at>=$1 AND occurred_at<$2`, &funding, b.Start, b.End)
-	q(`SELECT COALESCE(sum(amount),0) FROM fin_holding WHERE kind LIKE 'earn%' AND stale=false`, &earnBal)
+	// 工单#20008/#16273 钦定修法：earn 余额计陈值并显式标陈额——
+	// stale=venue 拉败标陈不抹值（holding/sync.go 语义），排除即
+	// 离线腿按 0 计产 NAV 假跳（-3284 鬼跳#15837）；读败≠钱消失。
+	q(`SELECT COALESCE(sum(amount),0) FROM fin_holding WHERE kind LIKE 'earn%'`, &earnBal)
+	q(`SELECT COALESCE(sum(amount),0) FROM fin_holding WHERE kind LIKE 'earn%' AND stale`, &earnStale)
 	q1(`SELECT count(*) FROM fin_strategy WHERE entered_at>=$1 AND entered_at<$2`, &opened, b.Start, b.End)
 	q1(`SELECT count(*) FROM fin_position WHERE closed_at IS NOT NULL AND closed_at>=$1 AND closed_at<$2`, &closed, b.Start, b.End)
 	q1(`SELECT count(*) FROM fin_opp_eval WHERE verdict='proposed' AND ts>=$1 AND ts<$2`, &proposed, b.Start, b.End)
@@ -117,6 +121,13 @@ func Gen(ctx context.Context, pool *pgxpool.Pool, period string, b Bounds) error
 	m["cum_nav"] = cumNav
 	m["funding_income"] = funding
 	m["earn_balance"] = earnBal
+	m["earn_stale"] = earnStale
+	if earnStale > 0 {
+		if note != "" {
+			note += "；"
+		}
+		note += fmt.Sprintf("earn余额含陈值$%.2f（venue读败标陈非零——读败≠钱消失）", earnStale)
+	}
 	m["opened"], m["closed"] = opened, closed
 	m["proposed"], m["rejected"], m["active"], m["alerts"], m["capital_flows"] = proposed, rejected, active, alerts, capital
 	if _, err := pool.Exec(ctx, `INSERT INTO fin_report(period,period_start,period_end,metrics,note)
