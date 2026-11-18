@@ -32,6 +32,10 @@ TOPKEY=$(pwd -P | sha256sum | cut -c1-16)
 # unit 同退），残留缓存目录靠 /tmp 系统面自然代谢。
 export GOCACHE=${GOCACHE:-/tmp/gocache-${TOPKEY}}
 mkdir -p "$GOCACHE" 2>/dev/null || true # tolerate: 建败=go 自建/报错——缓存目录非硬依赖
+# 工单#20165：分家尸清——wt 删/冷 >7d 的 gocache-* 尸目收（T-0466 分家留尸
+# 65GB 实证；内容寻址可弃，尸清=本拍顺手不另设 unit）。mtime>7d 界保
+# 活 wt 缓存不误删（每跑必触 mtime）。
+find /tmp -maxdepth 1 -name 'gocache-*' -type d -mtime +7 -exec rm -rf {} + 2>/dev/null || true # tolerate: 尸清尽力件——败下拍补
 LOCK="/tmp/o-check_all-${TOPKEY}.lock"
 
 # T-0466 件⑤：等锁面可观测——入等锁/锁到手/等锁超时各落 ops_event
