@@ -51,7 +51,7 @@ AND NOT EXISTS (SELECT 1 FROM ops_event x
 	AND x.note ~ ('esc#'||e.id::text||'([^0-9]|$)'))
 UNION ALL
 SELECT 'tk#'||t.id||':'||left(t.note,40) FROM ops_ticket_desk t
-WHERE NOT t.closed AND t.note ~ '^(求知:|研究席:)'
+WHERE t.closed IS NOT TRUE AND t.note ~ '^(求知:|研究席:)'
 AND NOT EXISTS (SELECT 1 FROM ops_event x
 	WHERE x.seat='研究机' AND x.event='唤起'
 	AND x.note ~ ('tk#'||t.id::text||'([^0-9]|$)'))
