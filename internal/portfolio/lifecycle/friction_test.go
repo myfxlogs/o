@@ -74,24 +74,42 @@ func TestFrictionChargeCalibratedRate(t *testing.T) {
 	}
 }
 
-// mkClosedPosition 已平 live 仓桩景（execution+position+fee 三行——
-// 回灌样本单元）。
+// mkClosedPosition 已平 live 仓桩景（execution+position+两腿携 fee——
+// 工单#21129 后回灌样本单元=腿级测量列；两腿各半费，开+平同 execution）。
 func mkClosedPosition(t *testing.T, ctx context.Context, r *Runner, notional, fee float64) {
+	t.Helper()
+	mkClosedLegsPosition(t, ctx, r, notional, fee, "USDT")
+}
+
+// mkClosedLegsPosition 同上携 fee_ccy（基币费折算锚/缺费排除锚用）。
+// fee>0 语义=仓总费 USD 额——USDT 两腿各 -fee/2；非 USDT=费原值
+// 折 px 计同额（feeCcy='BASE' 名义基币，腿 px=100→各 -fee/2/100）。
+func mkClosedLegsPosition(t *testing.T, ctx context.Context, r *Runner, notional, fee float64, feeCcy string) {
 	t.Helper()
 	var execID int64
 	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_execution(inst_id,notional_usd,state)
 		VALUES('BTC-USDT-SWAP',$1,'closed') RETURNING id`, notional).Scan(&execID); err != nil {
 		t.Fatal(err)
 	}
-	var pid int64
-	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_position(execution_id,inst_id,notional_usd,opened_at,closed_at)
-		VALUES($1,'BTC-USDT-SWAP',$2,now()-interval '5 days',now()-interval '1 day')
-		RETURNING id`, execID, notional).Scan(&pid); err != nil {
+	if _, err := r.pool.Exec(ctx, `INSERT INTO fin_position(execution_id,inst_id,notional_usd,opened_at,closed_at)
+		VALUES($1,'BTC-USDT-SWAP',$2,now()-interval '5 days',now()-interval '1 day')`,
+		execID, notional); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := r.pool.Exec(ctx, `INSERT INTO fin_cashflow(kind,venue,ccy,amount,position_ref,source_ref,source_table,occurred_at)
-		VALUES('fee','okx','USDT',$1,$2,0,'leg',now()-interval '1 day')`, -fee, pid); err != nil {
-		t.Fatal(err)
+	legFee := -fee / 2
+	if feeCcy != "USDT" && feeCcy != "" {
+		legFee = -fee / 2 / 100 // px=100 折算后同 USD 额
+	}
+	for i := 0; i < 2; i++ {
+		var ccy *string
+		if feeCcy != "" {
+			ccy = &feeCcy
+		}
+		if _, err := r.pool.Exec(ctx, `INSERT INTO fin_order_leg(execution_id,leg_no,cl_ord_id,venue,side,inst_id,sz,state,px,fee,fee_ccy,ord_type)
+			VALUES($1,$2,'c','okx','buy','BTC-USDT-SWAP',0.02,'filled',100,$3,$4,'market')`,
+			execID, i+1, legFee, ccy); err != nil {
+			t.Fatal(err)
+		}
 	}
 }
 
@@ -149,6 +167,8 @@ func TestFrictionCalibrateSlipMeasured(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	// 第四仓：两腿 fee NULL=未测——工单#21129 口径任一腿缺费=整仓不计
+	// 分子分母（n 仍=3 fee 仍 0.6）；腿仍计入 legs_per_pos（8腿/4仓=2.0）。
 	var execID int64
 	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_execution(inst_id,notional_usd,state)
 		VALUES('BTC-USDT-SWAP',2000,'closed') RETURNING id`).Scan(&execID); err != nil {
@@ -159,8 +179,8 @@ func TestFrictionCalibrateSlipMeasured(t *testing.T) {
 		t.Fatal(err)
 	}
 	for i := 0; i < 2; i++ {
-		if _, err := r.pool.Exec(ctx, `INSERT INTO fin_order_leg(execution_id,leg_no,cl_ord_id,venue,side,inst_id,sz,state,px)
-			VALUES($1,$2,'c','okx','buy','BTC-USDT-SWAP',0.02,'filled',100)`, execID, i+1); err != nil {
+		if _, err := r.pool.Exec(ctx, `INSERT INTO fin_order_leg(execution_id,leg_no,cl_ord_id,venue,side,inst_id,sz,state,px,ord_type)
+			VALUES($1,$2,'c','okx','buy','BTC-USDT-SWAP',0.02,'filled',100,'market')`, execID, i+1); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -172,10 +192,31 @@ func TestFrictionCalibrateSlipMeasured(t *testing.T) {
 		WHERE key='lifecycle.friction_bps.okx'`).Scan(&bps); err != nil {
 		t.Fatal(err)
 	}
-	// fee=0.6/6000·1e4=1bps；slip 实测=avg2×legs_per_pos 2=4bps→总 5bps
-	// （仓均腿数只算 execID 那仓=2；其余三仓 execution_id 虚指不入 join）。
+	// fee=0.6/6000·1e4=1bps（第四仓未测不计）；slip 实测=avg2×legs_per_pos
+	// 8腿/4仓=2→4bps→总 5bps。
 	want := 1.0 + 2.0*2.0
 	if bps != want {
 		t.Fatalf("滑点实测替代缓冲: bps=%.4f want=%.4f", bps, want)
+	}
+}
+
+// TestFrictionCalibrateBaseFeeConverted 工单#21129 基币费折算锚——
+// fee_ccy 非 USDT 腿按腿 px 折 USDT 入分子（现货买腿费在 base=
+// 旧 cashflow 口径全丢的洞）。
+func TestFrictionCalibrateBaseFeeConverted(t *testing.T) {
+	r, ctx := frictionFixture(t)
+	for i := 0; i < 3; i++ {
+		mkClosedLegsPosition(t, ctx, r, 2000, 0.2, "BTC") // 基币费折 px=同 0.2/仓
+	}
+	if err := r.frictionCalibrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var bps float64
+	if err := r.pool.QueryRow(ctx, `SELECT value::float FROM app_config
+		WHERE key='lifecycle.friction_bps.okx'`).Scan(&bps); err != nil {
+		t.Fatalf("校准键未落: %v", err)
+	}
+	if want := 1.0 + frictionBufferBps; bps != want {
+		t.Fatalf("基币费折算: bps=%.4f want=%.4f（0.6/6000=1+buf5）", bps, want)
 	}
 }

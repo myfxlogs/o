@@ -116,6 +116,15 @@ func (r *Runner) slipSample(ctx context.Context, legID int64, leg Leg, px float6
 // T-0483）买=流出毛额负、卖=流入毛额正——两腿各记净额自然=真价差；合约腿无名义现金（结算走 bills/fee）。
 // source_ref=腿行 id（幂等溯源锚）；perp/CFD/杂 venue 不触现径。
 func (r *Runner) legCash(ctx context.Context, legID int64, leg Leg, px, fillSz float64, posRef *int64, fee float64, feeCcy string) {
+	// 工单#21129 测量列：venue 返费原始值先存腿（fee≠0∨feeCcy 报=已测，
+	// 零费实测同落）——合约/mt5/rollback 腿过闸前同径，现金账域在下不挡
+	// 测量。friction 校准按仓归集腿费=精确归仓（基币费读侧按腿 px 折 USDT）。
+	if legID != 0 && (fee != 0 || feeCcy != "") {
+		if _, err := r.pool.Exec(ctx, `UPDATE fin_order_leg SET fee=$2, fee_ccy=NULLIF($3,'') WHERE id=$1`,
+			legID, fee, feeCcy); err != nil {
+			r.rej.Inc("write_err")
+		}
+	}
 	if legID == 0 || leg.Venue != "okx" || contractInst(leg.InstID) {
 		return
 	}
