@@ -96,6 +96,60 @@ psql "$FIN_DSN" -c "INSERT INTO ops_event(seat,event,ticket,note)
 - 干一半断=写处置行「接续——<进度锚>」——下个会话（或唤知收养）
   按锚续，不烂尾不丢账。
 
+### ③b 候审支复审——land_queue 前段消费者（工单#23795）
+
+REVIEW 支「复审过 sha=<尖全sha>」行此前无正式消费者——施工席
+land_scope 留候审、唤知无复审步=权限真空，8 支积压+业主两次
+人工放行实证。本步=前段拾序：**每场至多复审一支**（防贪），
+作者≠复审分席照旧。
+
+**候选枚举**（与 land_queue.sh 同口径）：
+
+```bash
+cd /opt/o && git fetch origin -q --prune && git for-each-ref \
+  --no-merged origin/master --sort=committerdate \
+  --format='%(committerdate:unix) %(refname:short) %(objectname)' \
+  'refs/remotes/origin/fix/*' 'refs/remotes/origin/feat/*' \
+  'refs/remotes/origin/t/*' 'refs/remotes/origin/audit/*' \
+  'refs/remotes/origin/revfix/*' 'refs/remotes/origin/hotfix/*' \
+  | awk -v c=$(( $(date +%s) - 604800 )) '$1>c {print $2,$3}' \
+  | sed 's|^origin/||'   # 出「支名 尖全sha」对——land_queue CANDS 同口径
+```
+
+逐支核五判（缺一不审）：
+- `check-green-<尖全sha>` 戳在且龄≤6h（git-common-dir 下
+  `check-green-*` 文件名即戳——戳缺/陈=支须先重跑 check_all，
+  非复审对象，跳过）；
+- ops_event 有该支或该尖的「完工回执」行（无=非施工道件，跳过）；
+- 无「复审过」行载该尖全 sha（有=已复审，跳过——land_queue
+  review_ok 同口径）；
+- 差分非 docs-only：`git diff --name-only $(git merge-base
+  origin/master <尖>) <尖>` 不全中 `docs/*|skills/*|*.md`
+  （全中者 land_queue 免复审，跳过）。
+
+**复审三维**（runbook REVIEW支候审消费契①同口径，判词载行内）：
+- 内部一致——diff 只做回执宣称之事，无夹带、无 scope 漂移；
+- oracle 对拍——对票面验收口径逐条核，声称修好之判据在码里
+  真成立（必要时跑针对性测试/追实现径，不绿读绿）；
+- 边界语义——错径/拒径/并发/空集/超时等边角 fail-closed 与否。
+
+**写行**——三维皆过则：
+
+```bash
+psql "$FIN_DSN" -c "INSERT INTO ops_event(seat,event,ticket,note)
+  VALUES('复审席','复审过','','复审过 sha=<尖全sha> ——支 <支名>
+  （完工回执出处=<ops_event id/out>）。复审三维判词：内部一致=<判词>;
+  oracle对拍=<判词>;边界语义=<判词>）"
+```
+
+三维任一不过=**不写复审过行**——写「处置」行载败因（支名+
+三维哪维红+证据行）归会话；**不自修支**（修码归作者席/新票）。
+本场刚完工的支不自审（分席须跨会话实质）。
+
+**次序**：拾桌有可拣票→先干票，完工场内有余复审一支再收口；
+拾桌空→直接复审一支再收口。戳在 6h 窗内复审——复审不替戳
+续命，戳陈支等重跑 check_all 出新戳后再审。
+
 ### ④ 收口——会话收口行（唤知锁释契）
 
 ```bash
