@@ -8,35 +8,61 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 )
 
 // DcdOrder dcd 产品持仓单（order-history 行——字段名=venue 返文如实，
-// 2026-10-25 真户实拉取证：productId/annualizedYield 名非猜）。
+// 2026-10-25 真户实拉取证：productId/annualizedYield 名非猜；
+// 结算落果 settleSz/settleCcy/settlePx/yieldSz/yieldCcy=docs-v5 返参核证）。
 type DcdOrder struct {
 	OrdID           string `json:"ordId"`
 	ProductID       string `json:"productId"` // BTC-USDT-261225-95000-C 型
-	State           string `json:"state"`     // LIVE/SETTLED 族
+	State           string `json:"state"`     // live/pending_settle/settled/pending_redeem/redeemed 族
 	BaseCcy         string `json:"baseCcy"`
 	QuoteCcy        string `json:"quoteCcy"`
 	NotionalCcy     string `json:"notionalCcy"`
 	NotionalSz      string `json:"notionalSz"`
 	Strike          string `json:"strike"`          // 行权价
 	AnnualizedYield string `json:"annualizedYield"` // 年化
+	YieldSz         string `json:"yieldSz"`         // 收益金额
+	YieldCcy        string `json:"yieldCcy"`        // 收益币种
+	SettleSz        string `json:"settleSz"`        // 结算金额（未结算=""）
+	SettleCcy       string `json:"settleCcy"`       // 结算币种（未结算=""——回款币种 venue 明告）
+	SettlePx        string `json:"settlePx"`        // 结算价格（未结算=""）
 	SettleTime      string `json:"settleTime"`      // 到期（ms 串）
+	ExpTime         string `json:"expTime"`         // 产品到期（ms 串）
 	CTime           string `json:"cTime"`
 }
 
 // DcdLiveOrders 在持 dcd 单枚举（state=live——SETTLED 单走余额径不入此面；
 // 读败=err 上抛不假零）。60s TTL 单飞缓存——端点限流紧（429 实证），
 // 卡面/对拍/巡检多方裸打曾撞限；持仓变动粒度=购买/结算日级，窗内陈旧零风险。
+// 工单#22919：拉取改无过滤全谱（limit=100——同调用数下兼得结算/在途集，
+// 端点限速 1次/s 禁第二发），live 分区客户端侧。
 func (c *Client) DcdLiveOrders(ctx context.Context) ([]DcdOrder, error) {
+	ords, err := c.DcdOrders(ctx)
+	if err != nil {
+		return ords, err
+	}
+	var live []DcdOrder
+	for _, od := range ords {
+		if strings.EqualFold(od.State, "live") {
+			live = append(live, od)
+		}
+	}
+	return live, nil
+}
+
+// DcdOrders 全谱 dcd 单枚举（无 state 过滤——live/pending_settle/settled
+// 同帧返回；缓存共享 DcdLiveOrders 同槽）。
+func (c *Client) DcdOrders(ctx context.Context) ([]DcdOrder, error) {
 	c.dcdMu.Lock()
 	defer c.dcdMu.Unlock()
 	if time.Since(c.dcdAt) < 60*time.Second {
 		return c.dcdOrds, c.dcdErr
 	}
-	raw, err := c.Get(ctx, "/api/v5/finance/sfp/dcd/order-history?state=live")
+	raw, err := c.Get(ctx, "/api/v5/finance/sfp/dcd/order-history?limit=100")
 	c.dcdAt = time.Now()
 	c.dcdErr = err
 	if err != nil {

@@ -55,9 +55,12 @@ func FundCcy(ctx context.Context, pool *pgxpool.Pool) (map[[2]string]bool, error
 		out[[2]string{v + ":earn", c}] = true
 	}
 	// T-0101 第三类别：dcd 基线入册币落 venue:dcd 域（已部署产品持仓=基金的钱，
-	// 卡面走专属区不经此域——此域只为对拍 venue 键供集）。
+	// 卡面走专属区不经此域——此域只为对拍 venue 键供集）。工单#22919：同
+	// ordId 已落 dcd_settle 凭据=基线退役（结算后不再供 dcd 域键）。
 	drows, err := pool.Query(ctx, `SELECT DISTINCT intent->>'venue',intent->>'ccy'
-		FROM fin_risk_decision WHERE intent->>'op'='dcd_baseline'`)
+		FROM fin_risk_decision r WHERE intent->>'op'='dcd_baseline'
+		AND NOT EXISTS (SELECT 1 FROM fin_risk_decision s
+			WHERE s.intent->>'op'='dcd_settle' AND s.intent->>'ordId'=r.intent->>'ordId')`)
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +72,23 @@ func FundCcy(ctx context.Context, pool *pgxpool.Pool) (map[[2]string]bool, error
 		}
 		out[[2]string{v + ":dcd", c}] = true
 	}
-	return out, drows.Err()
+	// 工单#20904(b)：dcd 结算回款币落 venue:funding/earn 域（结算回款入资金户
+	// =基金的钱——BTC 等非册币回款永久漏计面根修；venue settleCcy 明告不猜）。
+	srows, err := pool.Query(ctx, `SELECT DISTINCT intent->>'venue',intent->>'ccy'
+		FROM fin_risk_decision WHERE intent->>'op'='dcd_settle' AND intent->>'ccy'<>''`)
+	if err != nil {
+		return nil, err
+	}
+	defer srows.Close()
+	for srows.Next() {
+		var v, c string
+		if err := srows.Scan(&v, &c); err != nil {
+			return nil, err
+		}
+		out[[2]string{v + ":funding", c}] = true
+		out[[2]string{v + ":earn", c}] = true
+	}
+	return out, srows.Err()
 }
 
 // ParkedAmt 停泊溯源币台账量（T-0100 ③对拍 ledger 侧按币量建键——
@@ -125,8 +144,11 @@ func ReconSets(ctx context.Context, pool *pgxpool.Pool) (wlSet map[[2]string]boo
 func DcdBaselineAmt(ctx context.Context, pool *pgxpool.Pool) (map[[2]string]float64, error) {
 	out := map[[2]string]float64{}
 	rows, err := pool.Query(ctx, `SELECT intent->>'venue',intent->>'ccy',
-		sum((intent->>'amt')::numeric) FROM fin_risk_decision
-		WHERE intent->>'op'='dcd_baseline' GROUP BY 1,2`)
+		sum((intent->>'amt')::numeric) FROM fin_risk_decision r
+		WHERE intent->>'op'='dcd_baseline'
+		AND NOT EXISTS (SELECT 1 FROM fin_risk_decision s
+			WHERE s.intent->>'op'='dcd_settle' AND s.intent->>'ordId'=r.intent->>'ordId')
+		GROUP BY 1,2`)
 	if err != nil {
 		return nil, err
 	}

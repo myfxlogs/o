@@ -67,18 +67,49 @@ func fundSaveBalances(ctx context.Context, pool *pgxpool.Pool, okcli *okxexec.Cl
 	// T-0101：dcd 在持产品单无条件入键（venue LIVE 单=已部署资本铁证——
 	// 不走 FundCcy 闸：未基线的新购仓 venue 侧照发，基线缺席由对拍面兜差）；
 	// 读败=err 上抛不假零。
-	ords, err := okcli.DcdLiveOrders(ctx)
+	// 工单#20904/#22919 权益缝根修（状态机逐段盖，零双计零永漏）：
+	//   live            →名义照计（原径）；
+	//   pending_settle/redeem →在途名义照计——离 live 集到回款入账之间
+	//     整额不计曾产 NAV 假回撤（到期回撤硬线误触面）；
+	//   settled         →结算回款币未注册 FundCcy(funding) 前按 settleSz
+	//     计（BTC 回款=册外币永久漏计面——注册后由资金户余额面接管，
+	//     本键自动退出零双计）。
+	ords, err := okcli.DcdOrders(ctx)
 	if err != nil {
 		return fmt.Errorf("dcd 持仓读败: %w", err)
 	}
-	for _, od := range ords {
-		amt := okxexec.ParseF(od.NotionalSz)
-		if usd && od.NotionalCcy != "USDT" && od.NotionalCcy != "USD" {
-			amt = valCcy(ctx, pool, od.NotionalCcy, amt)
+	addOrd := func(od okxexec.DcdOrder) {
+		ccy, amt := od.NotionalCcy, okxexec.ParseF(od.NotionalSz)
+		if strings.EqualFold(od.State, "settled") || strings.EqualFold(od.State, "redeemed") {
+			if od.SettleCcy == "" || set[[2]string{"okx:funding", od.SettleCcy}] {
+				return // 回款币已注册→资金户余额面已计（双计禁）
+			}
+			ccy, amt = od.SettleCcy, okxexec.ParseF(od.SettleSz)
 		}
-		out[[2]string{"okx", od.NotionalCcy}] += amt
+		if amt == 0 {
+			return
+		}
+		if usd && ccy != "USDT" && ccy != "USD" {
+			amt = valCcy(ctx, pool, ccy, amt)
+		}
+		out[[2]string{"okx", ccy}] += amt
 	}
-	dcdSyncEvents(ctx, pool, ords)
+	var live []okxexec.DcdOrder
+	for _, od := range ords {
+		switch {
+		case strings.EqualFold(od.State, "live"),
+			strings.EqualFold(od.State, "pending_settle"),
+			strings.EqualFold(od.State, "pending_redeem"),
+			strings.EqualFold(od.State, "settled"),
+			strings.EqualFold(od.State, "redeemed"):
+			addOrd(od)
+		}
+		if strings.EqualFold(od.State, "live") {
+			live = append(live, od)
+		}
+	}
+	dcdSyncEvents(ctx, pool, live)
+	dcdSettleReconcile(ctx, pool, ords)
 	restOKAt.Store(time.Now().UnixNano())
 	return nil
 }
