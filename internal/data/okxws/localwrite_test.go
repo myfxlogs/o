@@ -152,3 +152,45 @@ func TestLocalBridgeCoWriteIdempotent(t *testing.T) {
 		t.Fatalf("桥新行应赢: 行=%d last=%v（期望 1/300——行数不膨胀+最新赢）", n, last)
 	}
 }
+
+// TestLocalWritePredActiveSetUnion 工单#24376 钉档：写谓词∪订阅集同源——
+// fin_sub_request open inst（SubRequestArm——本案 TRX-USDT-SWAP 病灶键域）
+// /非退役策略 inst/retired 负例/无关 inst 四断言。
+func TestLocalWritePredActiveSetUnion(t *testing.T) {
+	pool := testutil.Pool(t)
+	ctx := context.Background()
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatal(err)
+	}
+	const (
+		subInst   = "LWP-TEST-SUB-USDT-SWAP"
+		stratInst = "LWP-TEST-STRAT-USDT-SWAP"
+		retInst   = "LWP-TEST-RET-USDT-SWAP"
+		loneInst  = "LWP-TEST-LONE-USDT-SWAP"
+	)
+	defer func() {
+		_, _ = pool.Exec(ctx, `DELETE FROM fin_sub_request WHERE inst_id LIKE 'LWP-TEST-%'`)
+		_, _ = pool.Exec(ctx, `DELETE FROM fin_strategy WHERE inst_id LIKE 'LWP-TEST-%'`)
+	}()
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_sub_request(venue,inst_id,requester,state,reason)
+		VALUES('okx',$1,'user_intent','open','lwp-test')`, subInst); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_strategy(inst_id,template_ref,state,notional_usd)
+		VALUES($1,'funding-hedge','paper',100),($2,'funding-hedge','retired',100)`, stratInst, retInst); err != nil {
+		t.Fatal(err)
+	}
+	pred := LocalWritePredFunc(ctx, pool)
+	if !pred("klines", subInst) {
+		t.Fatal("fin_sub_request open inst 应过写谓词（SubRequestArm 同源——订而不写根修）")
+	}
+	if !pred("klines", stratInst) {
+		t.Fatal("非退役策略 inst 应过写谓词（T-0209 原臂）")
+	}
+	if pred("klines", retInst) {
+		t.Fatal("retired 策略 inst 应跳闸")
+	}
+	if pred("klines", loneInst) {
+		t.Fatal("无关 inst 应跳闸（不落行不写僵尸）")
+	}
+}
