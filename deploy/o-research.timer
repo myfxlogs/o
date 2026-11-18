@@ -1,0 +1,10 @@
+[Unit]
+Description=o-research.timer 研究机拍（事件触发件——15min 扫四触发唤研究席会话）
+
+[Timer]
+OnBootSec=6min
+OnUnitActiveSec=15min
+Unit=o-research-dispatch.service
+
+[Install]
+WantedBy=timers.target

@@ -25,7 +25,8 @@ case "$COG_ROLE" in
 	audit)     SEAT=审计席; SEAT_MACHINE=审计机; HB_PREFIX=AUD- ;;
 	worker)    SEAT=施工席; SEAT_MACHINE=施工机; HB_PREFIX=WRK- ;;
 	self)      SEAT=自我; SEAT_MACHINE=自我机; HB_PREFIX=SELF- ;;
-	*) echo "[cognition] COG_ROLE 非法: $COG_ROLE（cognition|audit|worker|self）" >&2; exit 2 ;;
+	research)  SEAT=研究席; SEAT_MACHINE=研究机; HB_PREFIX=RES- ;;
+	*) echo "[cognition] COG_ROLE 非法: $COG_ROLE（cognition|audit|worker|self|research）" >&2; exit 2 ;;
 esac
 
 export O_SEAT=$SEAT

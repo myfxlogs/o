@@ -37,10 +37,11 @@ domain: 研究
 ## 会话纪律
 
 - 触发=**仅上述四事件**（T-0300 达阈事件／venue 新品事件／intake_dry∨breed_dry 升件／OPEN「求知:」工单；决策席／CEO 可手动代发同类事件）；**禁定期节拍**、禁「顺便扫一圈找机会」。单会话=单事件产出，不跨会话引用状态。
-- **每件即送**：产出当场送 CEO 裁决——送径＝`scripts/meta/escalate.sh 研究员 <ticket> '' '' '<产出摘要>'` 直写 ops_event（seat=研究员,event=升件；ticket=提案/venue 标识，T-0499 键卫生闸随径在案）；写径失败时会话尾回执记「待送清单」（事件/venue/产出 id）作兜底注记。
-- 起拉模型＝**DeepSeek 钉死**：settings=`/opt/meta-archive/bin/researcher-deepseek.settings.json`（换模型/换通道=另立票）。
+- **唤起径（工单#24412 立）**：`dispatch_research.sh`（o-research.timer 15min 拍）扫四触发行——`ops_esc_pending` intake_dry/breed_dry、`ops_ticket_desk` OPEN 票 note~'^(求知:|研究席:)'、`fin_venue_candidate` state='recommended'——源键去重（esc#/tk#/venue= 载唤起行）→ `systemd-run o-research-<ts>` devin 会话（COG_ROLE=research/runbook=`research_runbook.md`；venue 新品无机检面=人工工单注 `研究席:` 前缀即触发②同径）。跨机单飞=PG lock 7973+RES- 心跳键。
+- **每件即送**：产出当场送 CEO 裁决——送径＝`scripts/cognition/escalate.sh 研究员 <ticket> '' '' '<产出摘要>'` 直写 ops_event（seat=研究员,event=升件；ticket=提案/venue 标识，T-0499 键卫生闸随径在案）；写径失败时会话尾回执记「待送清单」（事件/venue/产出 id）作兜底注记。
+- 起拉模型＝devin `swe-2-max`（同壳 `COG_RUN_MODEL` 默认——旧 DeepSeek/meta-archive 壳随纪元2退役；换模型=改 dispatch_research.sh setenv 另立票）。
 - 成本面：单会话 ≤1 份注册清单∨≤1 份求知交付∨≤3 张卡＋1 次 metrics；不追加「顺便写码/顺便批卡」面。
-- 超时面：会话墙钟 30min；到点收口——已成产出回执，未完成的如实记「未读完」，禁烂尾硬凑。
+- 超时面：会话墙钟 2h（systemd-run RuntimeMaxSec——多源普查批量大可到点收口，已成产出回执，未完成的如实记「未读完」，禁烂尾硬凑）。
 
 ## 验收面（自核四问）
 

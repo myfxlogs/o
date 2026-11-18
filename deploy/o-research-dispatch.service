@@ -1,0 +1,7 @@
+[Unit]
+Description=o-research-dispatch 研究机触发拍（工单#24412——四触发在案→单飞研究席会话）
+
+[Service]
+Type=oneshot
+ExecStart=/opt/o/scripts/cognition/dispatch_research.sh
+NoNewPrivileges=true

@@ -7,6 +7,7 @@ o-worker	models
 o-self	models,ant
 o-cognition	models,ant
 o-audit	models
+o-research	models
 # 注(D批②2026-11-17落地): 本机主/SG备援——
 #   o-self=models主/ant冷备: ant侧 o-self.timer 常态 disabled,
 #     备援径=scp models:/opt/o/docs/态势.md→SG同径 + enable timer
