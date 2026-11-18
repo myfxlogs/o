@@ -87,6 +87,7 @@ internal/portfolio/lifecycle -> internal/platform/roster
 internal/portfolio/lifecycle -> internal/platform/opschain
 internal/portfolio/lifecycle -> internal/portfolio/hunger
 internal/portfolio/lifecycle -> internal/research/funding
+internal/portfolio/lifecycle -> internal/research/grammar
 internal/repair -> internal/platform/config
 internal/review -> internal/platform/rejects
 internal/review -> internal/platform/roster

@@ -47,7 +47,7 @@ func NewRunner(pool *pgxpool.Pool, cfg *config.Client) *Runner {
 			"facts_missing", "missing_param", "oscillation_fuse", "dcd_quote_missing", "dcd_spot_stale", "basis_mark_stale",
 			"exec_drill_missing", "exec_drill_failed", "exec_cell_hold",
 			"exec_drill_unshaped", "exec_drill_err",
-			"conf_lb_fail", "entry_cond_defer", "dir_mark_stale"), // T-0521 毕业闸判词拒因；exec_drill_unshaped=#15291 消费域收窄拦词、exec_drill_err=#15292 断库上抛拒因；dir_mark_stale=方向面 MTM 价缺/陈让位（棒1）
+			"conf_lb_fail", "entry_cond_defer", "dir_mark_stale", "inst_form_mismatch"), // T-0521 毕业闸判词拒因；exec_drill_unshaped=#15291 消费域收窄拦词、exec_drill_err=#15292 断库上抛拒因；dir_mark_stale=方向面 MTM 价缺/陈让位（棒1）；inst_form_mismatch=#15943 inst 构型不配族拦词
 		sensor: hunger.New(pool, cfg),
 		chainV: opschain.New(pool)}
 }

@@ -3,6 +3,8 @@
 // fin_capability_surface enabled 面 join 生成 candidate 模板行。
 package grammar
 
+import "regexp"
+
 // LegPrim 腿原语（闭集——新增须随族定义同 commit 入库）。
 type LegPrim string
 
@@ -35,6 +37,47 @@ type Family struct {
 	Existing    bool                // 已落 enabled 模板（funding-hedge/dcd——文法映射不重复）
 	PrimaryVen  string
 	PrimarySurf string
+}
+
+// inst 构型闸（工单#15943——promotion 径缺核实证：BETH-USDT-*-C 期权 inst
+// 被盲 promotion 误建成 funding-hedge paper,live 占位死）。构型核=期权/
+// 远期形态 inst 只许进含对应腿原语的族；spot/swap 形=现状放行（D-0018
+// 令只许 USDT 计价族在腿/结算面另闸）。
+var (
+	reOptInst = regexp.MustCompile(`^[A-Z0-9]+-[A-Z0-9]+-[0-9]{6}-[0-9]+-[CP]$`)
+	reFutInst = regexp.MustCompile(`^[A-Z0-9]+-[A-Z0-9]+-[0-9]{6}$`)
+)
+
+// AcceptsInst inst 构型 vs 族腿构型判——期权形 inst 须族含期权锁仓腿；
+// 远期形须含季度期货腿；其余形（spot/swap/非 inst 形）不拦。
+func (f Family) AcceptsInst(inst string) bool {
+	switch {
+	case reOptInst.MatchString(inst):
+		for _, l := range f.Legs {
+			if l == LockedCcyCall || l == LockedUsdtPut {
+				return true
+			}
+		}
+		return false
+	case reFutInst.MatchString(inst):
+		for _, l := range f.Legs {
+			if l == QFutLong || l == QFutShort {
+				return true
+			}
+		}
+		return false
+	}
+	return true
+}
+
+// LookupFamily 模板→闭集族查（未注册模板=非文法族，构型闸让位不拦）。
+func LookupFamily(tmpl string) (Family, bool) {
+	for _, f := range Families() {
+		if f.Template == tmpl {
+			return f, true
+		}
+	}
+	return Family{}, false
 }
 
 // Families 闭集族表（funding-hedge/dcd 映射文法项——Existing 面不重生行）。
