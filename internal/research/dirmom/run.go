@@ -36,6 +36,7 @@ import (
 	"o/internal/platform/notify"
 	"o/internal/platform/rejects"
 	"o/internal/platform/roster"
+	"o/internal/platform/writefail"
 	"o/internal/research/armwatch"
 )
 
@@ -104,6 +105,7 @@ func (r *Runner) Run(ctx context.Context, errc chan<- error) {
 	for {
 		if err := r.scan(ctx); err != nil {
 			log.Printf("[research/dirmom] 拍败: %v", err)
+			writefail.Report(ctx, "research/dirmom", "工单#22873", "RESEARCH-TICK/dirmom", "拍败: "+err.Error())
 		}
 		if p, err := r.params(); err == nil && p.ScanIv > 0 {
 			iv = p.ScanIv

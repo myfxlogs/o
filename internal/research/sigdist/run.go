@@ -25,6 +25,7 @@ import (
 	"o/internal/platform/config"
 	"o/internal/platform/rejects"
 	"o/internal/platform/roster"
+	"o/internal/platform/writefail"
 )
 
 // distillPeriod 蒸馏拍周期（basis/funding 均为慢特征——60s 鲜度足够假想
@@ -65,6 +66,7 @@ func (r *Runner) Run(ctx context.Context, errc chan<- error) {
 		case <-t.C:
 			if err := r.Distill(ctx); err != nil {
 				log.Printf("[sigdist] 蒸馏拍让位: %v", err)
+				writefail.Report(ctx, "research/sigdist", "工单#22873", "RESEARCH-TICK/sigdist", "蒸馏拍: "+err.Error())
 			}
 		}
 	}
@@ -82,6 +84,7 @@ func (r *Runner) Distill(ctx context.Context) error {
 	}
 	if err := r.Xvenue(ctx); err != nil { // T-0141 跨所族（映射缺=让位不炸 OKX 族）
 		log.Printf("[sigdist] xvenue 族让位: %v", err)
+		writefail.Report(ctx, "research/sigdist", "工单#22873", "RESEARCH-TICK/sigdist-xvenue", "xvenue族: "+err.Error())
 	}
 	return nil
 }

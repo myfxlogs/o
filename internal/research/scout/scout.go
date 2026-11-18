@@ -14,6 +14,7 @@ import (
 	"o/internal/platform/config"
 	"o/internal/platform/notify"
 	"o/internal/platform/rejects"
+	"o/internal/platform/writefail"
 )
 
 // Runner scout 臂（采集+度量+推荐——日拍）。
@@ -41,6 +42,7 @@ func (r *Runner) Run(ctx context.Context, errc chan<- error) {
 	for {
 		if err := r.tick(ctx); err != nil {
 			log.Printf("[scout] 拍败（下拍续试）: %v", err)
+			writefail.Report(ctx, "research/scout", "工单#22873", "RESEARCH-TICK/scout", "拍败: "+err.Error())
 		}
 		iv := 24 * time.Hour
 		if v, err := r.cfg.GetFloat("scout.measure_interval_h"); err == nil && v > 0 {

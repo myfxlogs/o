@@ -245,6 +245,16 @@ internal/trading/simdrill -> internal/platform/excell
 internal/trading/simdrill -> internal/trading/dcdexec
 internal/trading/simdrill -> internal/trading/mt5sim
 internal/trading/simdrill -> internal/trading/mtexec
+# 工单#22873 writefail 拍败/写败自报公共件（platform 层——ops_event
+# 升件 esc_class='写败' 24h 同窗去重；events 事件脊 fn 包自报+
+# research 定时臂拍败点同消费，方向=platform/research→platform 下行）。
+internal/platform/events -> internal/platform/writefail
+internal/research/analyst -> internal/platform/writefail
+internal/research/ctx -> internal/platform/writefail
+internal/research/dirmom -> internal/platform/writefail
+internal/research/dirtrend -> internal/platform/writefail
+internal/research/scout -> internal/platform/writefail
+internal/research/sigdist -> internal/platform/writefail
 EOF
 )
 

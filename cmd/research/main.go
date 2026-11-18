@@ -15,6 +15,7 @@ import (
 	"o/internal/platform/notify"
 	"o/internal/platform/rejects"
 	"o/internal/platform/roster"
+	"o/internal/platform/writefail"
 	"o/internal/review"
 	"o/internal/store/pgstore"
 	"o/internal/trading/okxexec"
@@ -57,6 +58,9 @@ func main() {
 		log.Fatalf("fin 池连接败: %v", err)
 	}
 	defer finPool.Close()
+	// 工单#22873：研究臂拍败/写败自报升件池——ops_event 驻 fin 域
+	// （md 池无面，同 ctxcoll AttachEscPool 先例）；未装配臂天然免疫。
+	writefail.SetPool(finPool)
 	cfg := config.New(pool)
 	if err := cfg.Load(ctx); err != nil {
 		log.Fatalf("config load: %v", err)
