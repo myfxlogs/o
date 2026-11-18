@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -468,5 +469,79 @@ func TestResidualNoClearer(t *testing.T) {
 	}
 	if w.rej.Snapshot()["earn/clearer_absent"] == 0 {
 		t.Fatal("clearer_absent 计数门未计")
+	}
+}
+
+// 锚⑫：停摆键置位=处置面全段零动钱（工单#22248①验收锚——
+// 决策零发：Place/停泊/升件/托管标全静默+residual_clear_halted
+// 计数门）；置位超阈=显形升件一行且同键节流幂等。
+func TestResidualHaltStopsAll(t *testing.T) {
+	clr := &fakeClearer{res: ClearResult{State: "filled", FillPx: 0.02, FillSz: 2000}}
+	ctx, w, fake := setupW(t, &fakeAPI{}, map[string]string{
+		"earn.residual_clear_min_usd": "1",
+		"earn.residual_clear_halted":  "true",
+	})
+	defer w.pool.Exec(ctx, "DELETE FROM ops_event WHERE event='杂币清仓停摆'")
+	haltEsc := func() int {
+		var n int
+		if err := w.pool.QueryRow(ctx,
+			`SELECT count(*) FROM ops_event WHERE event='杂币清仓停摆'`).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	residualSetup(t, ctx, w.pool, w.venue)
+	w.AttachClearer(clr)
+	seedTick(t, ctx, w, "CORE-USDT", 0.02)
+	w.AttachCoins(func(context.Context) (map[string]float64, error) {
+		return map[string]float64{"CORE": 2000}, nil
+	})
+	if err := w.sweepResidual(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if len(clr.places) != 0 || len(fake.transfers) != 0 || len(fake.purchases) != 0 ||
+		opsCount(t, ctx, w, "杂币敞口", "CORE") != 0 || custodyCount(t, ctx, w, "CORE") != 0 {
+		t.Fatal("停摆键置位而处置面仍有动作——决策零发破")
+	}
+	if w.rej.Snapshot()["earn/residual_clear_halted"] == 0 {
+		t.Fatal("residual_clear_halted 计数门未计")
+	}
+	if haltEsc() != 0 {
+		t.Fatal("置位未超阈不应升件")
+	}
+}
+
+// 锚⑬：置位超阈=显形升件一行+同键节流幂等（防忘键永久暗停）。
+// 阈走注入缝——updated_at 受 bump_config_generation 触发器保护
+// （NEW.updated_at:=now() 强制回写）测试不可回拨，负阈=立陈。
+func TestResidualHaltStaleEscalates(t *testing.T) {
+	ctx, w, _ := setupW(t, &fakeAPI{}, map[string]string{
+		"earn.residual_clear_min_usd": "1",
+		"earn.residual_clear_halted":  "true",
+	})
+	defer w.pool.Exec(ctx, "DELETE FROM ops_event WHERE event='杂币清仓停摆'")
+	haltEsc := func() int {
+		var n int
+		if err := w.pool.QueryRow(ctx,
+			`SELECT count(*) FROM ops_event WHERE event='杂币清仓停摆'`).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	w.haltStaleAfter = -time.Second
+	w.AttachCoins(func(context.Context) (map[string]float64, error) {
+		return map[string]float64{"CORE": 2000}, nil
+	})
+	if err := w.sweepResidual(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if haltEsc() != 1 {
+		t.Fatal("置位超阈显形升件未落")
+	}
+	if err := w.sweepResidual(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if haltEsc() != 1 {
+		t.Fatal("显形升件应同键节流幂等")
 	}
 }
