@@ -211,6 +211,7 @@ var migrationTable = []struct {
 	{202, "fin_0202_ops_state_v2.sql"},
 	{203, "fin_0203_kill_levers_22248.sql"},
 	{204, "fin_0204_leg_fee_measure.sql"},
+	{205, "fin_0205_ops_state_stall_arms.sql"},
 	{206, "fin_0206_dcd_settle_recon.sql"},
 	{208, "fin_0208_desk_dispatchable_receipt.sql"},
 
