@@ -655,6 +655,20 @@ func TestLegCashFeeNetCaliber(t *testing.T) {
 		WHERE kind='fee'`).Scan(&n2); err != nil || n2 != 0 {
 		t.Fatalf("base 费 fee 行=%d（应 0——不触 USDT 账）", n2)
 	}
+	// 工单#21129 测量列锚：base 费现金账零行但腿 fee/fee_ccy 已存——
+	// friction 校准腿级归集能见（SWAP 腿同径——合约费列同存 USDT 域）。
+	var lfee float64
+	var lccy string
+	if err := r2.pool.QueryRow(ctx2, `SELECT fee,fee_ccy FROM fin_order_leg
+		WHERE inst_id='BTC-USDT' AND state='filled'`).Scan(&lfee, &lccy); err != nil || lfee != -0.5 || lccy != "BTC" {
+		t.Fatalf("腿测量列: fee=%v ccy=%v err=%v（应 −0.5/BTC）", lfee, lccy, err)
+	}
+	var sfee float64
+	var sccy string
+	if err := r2.pool.QueryRow(ctx2, `SELECT fee,fee_ccy FROM fin_order_leg
+		WHERE inst_id='BTC-USDT-SWAP' AND state='filled'`).Scan(&sfee, &sccy); err != nil || sfee != -0.5 || sccy != "BTC" {
+		t.Fatalf("合约腿测量列: fee=%v ccy=%v err=%v（应 −0.5/BTC）", sfee, sccy, err)
+	}
 }
 
 // T-0083 返修①②锚：close 径禁建 fin_position 新行（空壳病灶根除）+linkLegCash

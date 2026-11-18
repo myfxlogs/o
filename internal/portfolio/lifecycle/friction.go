@@ -60,16 +60,39 @@ func (r *Runner) chargePaperFriction(ctx context.Context, strategyID int64, venu
 	}
 }
 
-// frictionCalibrate 实绩回灌校准（6h 拍）：近 30d 已平 live 仓 fee 流水聚合
+// frictionCalibrate 实绩回灌校准（6h 拍）：近 30d 已平 live 仓腿费聚合
 // →往返费率=Σ|fee|/Σnotional×1e4+滑点缓冲→DMSet lifecycle.friction_bps.<venue>。
 // 样本<minSamples 不覆写（薄样测率噪声>信号——持旧值不虚构）；venue='sim'
 // 演习域剔除（演习费非真钱）。
 func (r *Runner) frictionCalibrate(ctx context.Context) error {
-	rows, err := r.pool.Query(ctx, `SELECT c.venue, sum(-c.amount), sum(p.notional_usd), count(DISTINCT p.id)
-		FROM fin_cashflow c JOIN fin_position p ON p.id=c.position_ref
-		WHERE c.kind='fee' AND c.venue<>'sim' AND c.venue<>''
-		  AND p.closed_at IS NOT NULL AND p.opened_at>now()-interval '30 days'
-		GROUP BY c.venue`)
+	// 工单#21129 根修：分子从 cashflow JOIN 换腿级测量列——cashflow 口径
+	// 三洞（基币费不入账/bill 挂账跳过/position_ref NULL 排除）漏 ~80%。
+	// leg 存 venue 返费原值（fee+fee_ccy，fin_0204 起含回填）——按仓归集
+	// 精确（execution_id 1:1）。口径=全腿已测仓（unmeasured=0：任一腿缺
+	// 费=该仓测量不全禁入分子分母——宁缺不混），非 USDT 费按腿 px 折
+	// USDT；分子分母同集配对。taker/maker 腿数比注入口径（maker=post_only）。
+	rows, err := r.pool.Query(ctx, `WITH pos AS (
+		SELECT p.id, p.execution_id, p.notional_usd
+		FROM fin_position p
+		WHERE p.closed_at IS NOT NULL AND p.opened_at > now() - interval '30 days'
+	), legf AS (
+		SELECT p.id AS pid, max(l.venue) AS venue,
+			sum(CASE WHEN COALESCE(l.fee_ccy,'USDT')='USDT' THEN -l.fee
+			         ELSE -l.fee * l.px END) AS fee_usd,
+			count(*) FILTER (WHERE l.fee IS NULL) AS unmeasured,
+			count(*) FILTER (WHERE l.fee IS NOT NULL
+			                 AND COALESCE(l.fee_ccy,'USDT')<>'USDT'
+			                 AND (l.px IS NULL OR l.px <= 0)) AS nopx,
+			count(*) FILTER (WHERE COALESCE(l.ord_type,'market')='market') AS taker,
+			count(*) AS legs
+		FROM pos p JOIN fin_order_leg l ON l.execution_id = p.execution_id AND l.state='filled'
+		GROUP BY p.id
+	)
+	SELECT l.venue, sum(l.fee_usd), sum(p.notional_usd), count(*),
+		sum(l.taker)::bigint, sum(l.legs)::bigint
+	FROM pos p JOIN legf l ON l.pid = p.id
+	WHERE l.unmeasured = 0 AND l.nopx = 0 AND l.venue <> 'sim' AND l.venue <> ''
+	GROUP BY l.venue`)
 	if err != nil {
 		return err
 	}
@@ -78,11 +101,13 @@ func (r *Runner) frictionCalibrate(ctx context.Context) error {
 		fee   float64
 		ntl   float64
 		n     int64
+		taker int64
+		legs  int64
 	}
 	var as []agg
 	for rows.Next() {
 		var a agg
-		if err := rows.Scan(&a.venue, &a.fee, &a.ntl, &a.n); err != nil {
+		if err := rows.Scan(&a.venue, &a.fee, &a.ntl, &a.n, &a.taker, &a.legs); err != nil {
 			rows.Close()
 			return err
 		}
@@ -120,8 +145,8 @@ func (r *Runner) frictionCalibrate(ctx context.Context) error {
 		if bps < 1 {
 			bps = 1 // 费率近零=maker/返佣域——1bps 地板防零摩擦虚构
 		}
-		ev := fmt.Sprintf("30d 实绩回灌: n=%d仓 fee=$%.4f ntl=$%.2f→fee=%.2fbps+slip=%.2fbps(%s)",
-			a.n, a.fee, a.ntl, feeBps, slipBps, slipSrc)
+		ev := fmt.Sprintf("30d 实绩回灌: n=%d仓 fee=$%.4f ntl=$%.2f→fee=%.2fbps+slip=%.2fbps(%s) 口径=taker %d/%d腿",
+			a.n, a.fee, a.ntl, feeBps, slipBps, slipSrc, a.taker, a.legs)
 		// T-0521 读侧合流分量键：fee/slip 分记+at 鲜度戳——breakevenOK
 		// 判词实测分量替换声明参数的同源消费面（判据读事实非机器改判据）。
 		for _, kv := range [][2]any{
