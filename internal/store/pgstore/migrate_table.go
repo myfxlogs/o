@@ -213,6 +213,7 @@ var migrationTable = []struct {
 	{204, "fin_0204_leg_fee_measure.sql"},
 	{205, "fin_0205_ops_state_stall_arms.sql"},
 	{206, "fin_0206_dcd_settle_recon.sql"},
+	{207, "fin_0207_condition_gap_154.sql"},
 	{208, "fin_0208_desk_dispatchable_receipt.sql"},
 
 	// —— md 链（版本链内唯一且单调；md 链版本=历史号+1000 与 fin 键空间全局不相交——跨链并 schema 时 schema_migrations 零撞号，check_migrations 断言①⑤）——
