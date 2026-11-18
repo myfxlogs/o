@@ -44,6 +44,20 @@ WHERE workable AND NOT dispatchable AND tkind='工单'" 2>/dev/null)
 BACKLOG_N=${BACKLOG_N:-0}
 [ "$TICKET_N" -ge 1 ] || exit 0 # 零 OPEN 票=静默退(常态)
 
+# 空扫簇退避（工单#23931②——dispatchable集≠可拣集错配出血收）：
+# 2h唤起≥3拍而施工act零产(claim/receipt/suspend/resume/close皆算产)
+# =连唤皆空扫,本拍退避不烧钱——真可拾票下一拍再验(退避非压制,
+# 同簇连败阈同构)。
+SPAWN_2H=$(psql "$DSN" -qAt -c "SELECT count(*) FROM ops_event
+WHERE seat='施工机' AND event='唤起' AND ts>now()-interval '2 hours'" 2>/dev/null)
+PROD_2H=$(psql "$DSN" -qAt -c "SELECT count(*) FROM ops_event_act
+WHERE seat='施工机' AND act IN ('claim','receipt','suspend','resume','close')
+  AND ts>now()-interval '2 hours'" 2>/dev/null)
+if [ "${SPAWN_2H:-0}" -ge 3 ] && [ "${PROD_2H:-0}" -eq 0 ]; then
+	echo "[dispatch-worker] 空扫簇退避: 2h唤起${SPAWN_2H}拍零产出——本拍退" >&2
+	exit 0
+fi
+
 # 单飞闸: o-worker-*.service 有 active/activating 即退(施工道串行——
 # 双会话抢同一工桌面=双认领双干,串行=天然去重;剔本dispatch unit防自锁)。
 if systemctl --user list-units 'o-worker-*.service' --state=active,activating --no-legend --plain 2>/dev/null \
