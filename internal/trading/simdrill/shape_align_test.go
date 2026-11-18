@@ -14,6 +14,7 @@ import (
 // 面者在此登记（空=零豁免：全册须有形）。新增豁免须同 commit 写明裁处。
 var drillUnsupported = []string{
 	// 空=零豁免（棒5c：dir_perp_mom 出册——ShapeOKXSingleLeg 演习件接通）。
+	"stake-carry", // 工单#21612：参考模型族——venue 执行臂未建无可演习腿形，凭据伪造不可为
 }
 
 func TestExecfamLegShapeAlign(t *testing.T) {

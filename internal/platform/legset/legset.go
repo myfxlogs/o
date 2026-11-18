@@ -76,6 +76,9 @@ var (
 	dcdOptRe = regexp.MustCompile(`-[0-9]{6}-[0-9]+(\.[0-9]+)?-[CP]`)
 	// optLegRe 期权类型段界（-C+/−P$——复合形每腿各成一枚类型计）。
 	optLegRe = regexp.MustCompile(`-([CP])(?:\+|$)`)
+	// venueCcyRe stake_carry 假想卡 inst 形（venue:ccy——okx:TRX/cmc:TRX，
+	// 双头族键=venue 空腿位+质押币对，非可交易 inst 键——工单#21612 参考模型族）。
+	venueCcyRe = regexp.MustCompile(`^[a-z0-9]+:[A-Z0-9]+$`)
 )
 
 // instForm inst 构型分类（族腿构型判据的中间层）。
@@ -138,6 +141,10 @@ func InstFitOK(template, instID string) bool {
 		return classifyInst(instID) == formDCDPut
 	case "vol_sell_strangle":
 		return classifyInst(instID) == formDCDStrangle
+	case "stake-carry":
+		// 双头族 inst=venue:ccy 假想卡键（非交易 inst——工单#21612 参考
+		// 模型族：eval→proposal→paper 记账面贯通，真单径 venue 执行臂另案）。
+		return venueCcyRe.MatchString(instID)
 	}
 	return false
 }
