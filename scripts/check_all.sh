@@ -68,10 +68,15 @@ fi
 # 锁内复用:前跑同SHA已绿=同码同结果→命中即退不重跑;
 # 强重跑留径 CHECK_ALL_FORCE=1(重验env/闸自身)。
 STAMP_LOCK="/tmp/o-check-green-$(git rev-parse HEAD).lock"
-exec 8>"$STAMP_LOCK"
-if ! flock -n 8 2>/dev/null; then
+# fd7 持戳域锁——fd8 是 testdb_lease 持锁 fd(同 shell source 径),
+# fd8 旧用在此=租约 exec 8>> 重定向顶掉戳域锁 OFD→flock 静默释,
+# 同SHA并发在 go test 窗内互抹 .mode/残戳=本锁要修的病灶复活
+# (票#24623 审计抓出)。fd 谱:9=TOPKEY树锁/7=SHA戳域锁/8=DB租约/
+# 10=全局谱锁——各司其域不互顶。
+exec 7>"$STAMP_LOCK"
+if ! flock -n 7 2>/dev/null; then
   echo "⏳ [check-all] 同SHA戳域等锁——前跑在途,候其绿戳(上界2400s)" >&2
-  flock -w 2400 8 || fail "同SHA戳域锁等锁超时2400s——前跑在途过或锁泄漏,ps核查后重试"
+  flock -w 2400 7 || fail "同SHA戳域锁等锁超时2400s——前跑在途过或锁泄漏,ps核查后重试"
 fi
 if [ -f "$STAMP" ] && [ "${CHECK_ALL_FORCE:-0}" != "1" ]; then
   echo "✅ [check-all] 同SHA绿戳已在（前跑刚盖或残戳仍有效）——复用不重跑；强重跑 CHECK_ALL_FORCE=1" >&2
@@ -238,6 +243,37 @@ fi
 # 再 herestring 判，两处消费面同式。
 PG_NAMES=$(docker ps --format '{{.Names}}' 2>/dev/null || true) # tolerate: docker 缺席/查询败=按无 test PG 处理（DSN 不注入）
 
+# 工单#24623 件①：go test 段全机串行——测试库字母族池隔离 schema 互踩
+# 但资源层零隔离（5 端口=5 谱并发×-p12=60 测试二进制同机抢 CPU/IO→pgx
+# 帧超时→env-contention 假红，票面 6 连实证）。票钦「谱调度归一=
+# testdb-lease 全局串」：fd10 全局锁罩住租约+go test 全段——
+#   ①先拿全局锁再租端口（防「持港等锁+持锁等港」循环死锁——全局串行
+#     下端口恒空，池化机制留作单谱内分库语义不动）；
+#   ②等锁可观测同 TOPKEY 锁形（oe_lock 落账+holder+锁龄）；
+#   ③等锁上界 O_CHECKTEST_GLOBAL_WAIT 默认 5400s（全谱 ~30min×前跑
+#     1~2 在途仍兜得住；超限 fail 报 holder 不假绿）；
+#   ④docs-only 不占（无 go test 段不入队——同租约跳过语义）。
+GTEST_LOCK="/tmp/o-checktest-global.lock"
+# 坑位（testdb_lease 头注同坑）：exec 重定向禁搭 2>/dev/null——
+# 会把调用方 stderr 整体永久吞掉（成功也吞）;if ! 语境包住=
+# 开败不炸脚本只报 bash 自错→降级径（判不准不硬闸,同 lease infra 径）。
+if ! exec 10>"$GTEST_LOCK"; then GTEST_LOCK=""; fi
+if [ -n "$GTEST_LOCK" ] && [ "$MODE" != "docs-only" ]; then
+  if ! flock -n 10 2>/dev/null; then
+    HOLDER=$(fuser "$GTEST_LOCK" 2>/dev/null | tr -s ' ' '\n' | grep -v "^$$\$" | head -3 | tr '\n' ' ' || true) # tolerate: fuser 败/空集=holder 未知如实报 ?
+    HPID=$(printf '%s' "$HOLDER" | awk '{print $1}')
+    LOCK_AGE=$(ps -o etimes= -p "$HPID" 2>/dev/null | tr -d ' ' || true) # tolerate: holder 已退=锁龄空串如实落 ?
+    echo "⏳ [check-all] go test 全局谱等锁——前谱在途 holder pid=[${HOLDER:-?}]（票#24623 全局串；锁龄=${LOCK_AGE:-?}s，阻塞上界 ${O_CHECKTEST_GLOBAL_WAIT:-5400}s）" >&2
+    oe_lock "check_all go test 全局谱等锁 holder=[${HOLDER:-?}] 锁龄=${LOCK_AGE:-?}s"
+    if ! flock -w "${O_CHECKTEST_GLOBAL_WAIT:-5400}" 10; then
+      oe_lock "check_all go test 全局谱等锁超时 holder=[${HOLDER:-?}] 锁龄=${LOCK_AGE:-?}s"
+      fail "go test 全局谱等锁超时 ${O_CHECKTEST_GLOBAL_WAIT:-5400}s——holder pid=[${HOLDER:-?}]（锁=$GTEST_LOCK）；前谱仍在途或锁泄漏，ps 核查后重试"
+    fi
+    oe_lock "check_all go test 全局谱锁到手（前谱已退续跑）"
+    echo "✅ [check-all] go test 全局谱锁到手（前谱已退）——续跑" >&2
+  fi
+fi
+
 # T-0435 件②：测试库租约——非 docs-only 才占库（字母族池化独占领取，
 # DSN 注入与租约同源禁租A注B；池空不猜不占 skip 径；详见 testdb_lease.sh 头注）。
 # 老双注入块（grep -q herestring 判 5434 直注）在此归并入租约件单点。
@@ -255,7 +291,7 @@ run_go_test() { # $1=fail-msg $2..=go test 参数（包集/./...）
   local msg="$1" out rc=0
   shift # fail-msg 出参数表——go test 实参从 $2 起（混入=malformed import path 假红）
   out=$(mktemp) || fail "mktemp 败——测试输出无处落"
-  go test "$@" -timeout=1800s 8>&- 2>&1 | tee "$out" >&2 || rc=$? # 8>&-：租约 fd 不传子进程（泄漏测试进程不得持库锁）
+  go test "$@" -timeout=1800s 7>&- 8>&- 10>&- 2>&1 | tee "$out" >&2 || rc=$? # 8>&-：租约 fd 不传子进程（泄漏测试进程不得持库锁）;10>&-：全局谱锁同理（票#24623 锁泄漏=全机谱饿死）;7>&-：SHA戳域锁同理（fd8→fd7 移域后同防泄）
   if [ "$rc" -ne 0 ]; then
     if grep -q 'panic: test timed out' "$out" && grep -q 'jackc/pgx' "$out"; then
       printf 'env-contention\n' >> "$STAMP.mode"
