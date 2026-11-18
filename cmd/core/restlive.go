@@ -197,6 +197,7 @@ func okxCoinsFor(pool *pgxpool.Pool, okcli *okxexec.Client) func(context.Context
 			}
 		}
 		if len(out) > 0 {
+			addSavingsUSDT(ctx, okcli, out)
 			return out, nil
 		}
 		if okcli == nil {
@@ -220,6 +221,36 @@ func okxCoinsFor(pool *pgxpool.Pool, okcli *okxexec.Client) func(context.Context
 				out[d.Ccy] = v
 			}
 		}
+		addSavingsUSDT(ctx, okcli, out)
 		return out, nil
+	}
+}
+
+// addSavingsUSDT USDT 可赎储蓄并入可动余量（工单#20484①：T+0 赎回原语
+// earn.RedeemToTrading 在案、dcdexec.Open preRedeem 前置缝已接——余量面
+// 不并储蓄=eval 拒 insufficient_balance 而 savings USDT 躺资金户实证
+// trading avail=$232/savings=$1014）。读败=fail-open 不并入（保守低估
+// 不误放大——eval 面宁缺不混；开仓径 preRedeem 真赎时 venue 二次实判）。
+func addSavingsUSDT(ctx context.Context, okcli *okxexec.Client, out map[string]float64) {
+	if okcli == nil {
+		return
+	}
+	sav, err := okcli.SavingsBalance(ctx)
+	if err != nil {
+		return
+	}
+	var rows []struct {
+		Ccy string `json:"ccy"`
+		Amt string `json:"amt"`
+	}
+	if json.Unmarshal(sav, &rows) != nil {
+		return
+	}
+	for _, r := range rows {
+		if r.Ccy == "USDT" {
+			if v := okxexec.ParseF(r.Amt); v > 0 {
+				out["USDT"] += v
+			}
+		}
 	}
 }
