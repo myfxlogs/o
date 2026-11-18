@@ -3,7 +3,7 @@
 # 公司唯一「我」:6h 慢拍恒唤——无条件触发(CEO 对钱与承诺负责,
 # 非事件驱动件)。单飞: o-self-* 在飞即退(慢判断不堆叠);跨机:
 # PG advisory lock 7971+自我机 seat 唤起行 30min 在飞判(与唤知7969/
-# 施工7970 分域——三锁三账)。
+# 审计7970/施工7972 分域——四锁四账)。
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENVF="${REPORT_ENV_FILE:-/opt/o-research/env}"
@@ -79,7 +79,7 @@ SQL
 [ "$TRIGGER" = "quiet" ] && exit 0
 [ -z "$TRIGGER" ] && exit 0 # 查询败=不唤,fail-closed
 
-# 唤起单写径: 7969 唤知/7970 施工/7971 自我——三锁三账。
+# 唤起单写径: 7969 唤知/7970 审计/7971 自我/7972 施工——四锁四账。
 # 条件插入免 DELETE(append-only 铁律):「30min 唤起在案且无唤起败/果/
 # 收口收尾∨SELF- 心跳鲜活」=跨机在飞判据——seat='自我机' 分账。
 WON=$(psql "$DSN" -qAt <<SQL
