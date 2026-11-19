@@ -15,6 +15,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"sort"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -26,6 +29,11 @@ const (
 	// klineBackGap 逐 inst 间隔（20req/2s 界内慢放——活跃集 40+inst
 	// 全扫≈10s,不占 venue 配额）。
 	klineBackGap = 200 * time.Millisecond
+	// klineTopN 流动性序扩集缺省额度（okxws.kline_topn 可覆,0=关动扩）。
+	klineTopN = 50
+	// klineCensusHours 全 USDT-SWAP 普查缺省降频（okxws.kline_census_hours
+	// 可覆,0=关普查——新上零量标的补盲窗）。
+	klineCensusHours = 168
 )
 
 // AttachRestGet 注 REST 公开读件（装配层挂 okxexec.PublicGet——
@@ -51,11 +59,12 @@ func (c *Collector) backfillLoop(ctx context.Context) {
 	}
 }
 
-// backfillSweep 单扫：（活跃集∪观察名单）逐 inst 拉单页→滤 confirm=1 收线行→
-// 剔库内已有 ts→缺齿行入队（阻塞式——队列背压等 writer 排空,
+// backfillSweep 单扫：（活跃集∪观察名单∪动扩集）逐 inst 拉单页→滤 confirm=1
+// 收线行→剔库内已有 ts→缺齿行入队（阻塞式——队列背压等 writer 排空,
 // 回填行不弃；ctx 死让位）。业主令 2026-11-15：okxws.kline_watchlist
 // 观察名单并入集——活跃集=「在交易什么」闭集,无名单补充则新标的结构性
 // 失明（无棒→dirmom 无法评估→不提案→永不进集=闭环锁死实证）。
+// 工单#18314（自我裁#19987）：名单之外再挂流动性序动扩——机制件见 univExpand。
 func (c *Collector) backfillSweep(ctx context.Context) {
 	set, err := c.activeSet(ctx)
 	if err != nil {
@@ -65,6 +74,7 @@ func (c *Collector) backfillSweep(ctx context.Context) {
 	if c.cfg != nil {
 		watchUnion(set, c.cfg.GetStringList("okxws.kline_watchlist"))
 	}
+	c.univExpand(ctx, set)
 	filled := 0
 	for inst := range set {
 		if ctx.Err() != nil {
@@ -125,4 +135,77 @@ func watchUnion(set map[string]bool, watch []string) {
 			set[inst] = true
 		}
 	}
+}
+
+// univExpand 宇宙动态扩集（工单#18314——自我裁#19987：①流动性序动态扩集
+// 为主径,②全 SWAP 普查降频为辅）。venue SWAP tickers 单发全谱拉取按
+// volCcy24h 降序：①主径=top okxws.kline_topn（缺省 klineTopN,0=关）每扫
+// 并入集,长尾标的按量序自入视野零人工；②辅径=全 USDT-SWAP 普查降频并集
+// （okxws.kline_census_hours 缺省 klineCensusHours,0=关——捕零量新上/极
+// 长尾,零量标的永远进不了 topN 序）。棒落 md_klines 即入 dirmom 宇宙
+// （dirmom 宇宙=md_klines inst 集）——扩集→蓄史→评估链零配置零写面。
+// REST 败=本扫让位不连坐（同 watchUnion 单发律）；读拍驱动不动 app_config。
+func (c *Collector) univExpand(ctx context.Context, set map[string]bool) {
+	if c.restGet == nil {
+		return // 读件缺席=臂停（测试构面免崩——backfillLoop 已先行拦,双闸）
+	}
+	topn, censusH := klineTopN, klineCensusHours
+	if c.cfg != nil {
+		if v, err := c.cfg.GetInt("okxws.kline_topn"); err == nil {
+			topn = int(v)
+		}
+		if v, err := c.cfg.GetInt("okxws.kline_census_hours"); err == nil {
+			censusH = int(v)
+		}
+	}
+	census := censusH > 0 && time.Since(c.lastCensus) >= time.Duration(censusH)*time.Hour
+	if topn <= 0 && !census {
+		return // 双径全关=纯活跃集∪名单行为（闸回退零副作用）
+	}
+	raw, err := c.restGet(ctx, "/api/v5/market/tickers?instType=SWAP")
+	if err != nil {
+		c.rej.Inc("univ_expand_err")
+		return
+	}
+	ranked := rankSwapTickers(raw)
+	if census {
+		for _, t := range ranked {
+			set[t.inst] = true
+		}
+		c.lastCensus = time.Now()
+		return
+	}
+	for i, t := range ranked {
+		if i >= topn {
+			break
+		}
+		set[t.inst] = true
+	}
+}
+
+type swapTicker struct {
+	inst string
+	vol  float64
+}
+
+// rankSwapTickers SWAP tickers 载荷排序（纯函数可测面）——滤 USDT-SWAP
+// （业主令 USDT 计价闸：币本位/现货不采不评）,volCcy24h 降序。
+func rankSwapTickers(raw json.RawMessage) []swapTicker {
+	var rows []struct {
+		InstID    string `json:"instId"`
+		VolCcy24h string `json:"volCcy24h"`
+	}
+	if err := json.Unmarshal(raw, &rows); err != nil {
+		return nil
+	}
+	out := make([]swapTicker, 0, len(rows))
+	for _, r := range rows {
+		if !strings.HasSuffix(r.InstID, "-USDT-SWAP") {
+			continue
+		}
+		v, _ := strconv.ParseFloat(r.VolCcy24h, 64)
+		out = append(out, swapTicker{r.InstID, v})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].vol > out[j].vol })
+	return out
 }

@@ -156,11 +156,22 @@ func TestKlineBackfillSweep(t *testing.T) {
 		`["1794326400000","1","2","1","1.5","10","10","100","1"],` + // 缺齿→补
 		`["1794240000000","1","2","1","1.5","10","10","100","1"]]` // 缺齿→补
 	c := NewCollector(pool, nil)
+	expSeen := false
 	c.AttachRestGet(func(ctx context.Context, pq string) (json.RawMessage, error) {
-		if !strings.Contains(pq, "history-candles") || !strings.Contains(pq, "instId=XBK-USDT-SWAP") {
+		switch {
+		case strings.Contains(pq, "market/tickers"):
+			// 动扩面（工单#18314）：tickers 载荷并入 EXP-USDT-SWAP——
+			// 其后 history-candles 须带该 instId 方为机制实证。
+			return json.RawMessage(`[{"instId":"EXP-USDT-SWAP","volCcy24h":"7"}]`), nil
+		case strings.Contains(pq, "history-candles") && strings.Contains(pq, "instId=XBK-USDT-SWAP"):
+			return json.RawMessage(page), nil
+		case strings.Contains(pq, "history-candles") && strings.Contains(pq, "instId=EXP-USDT-SWAP"):
+			expSeen = true
+			return json.RawMessage(`[]`), nil
+		default:
 			t.Fatalf("回填请求形异: %s", pq)
+			return nil, nil
 		}
-		return json.RawMessage(page), nil
 	})
 	// 活跃集真源=legset.ActiveSetUnion——桩造 fin_strategy live 行供枚举。
 	var sid int64
@@ -196,6 +207,10 @@ func TestKlineBackfillSweep(t *testing.T) {
 	if err := pool.QueryRow(ctx,
 		`SELECT count(*) FROM md_klines WHERE inst_id='XBK-USDT-SWAP' AND confirm=false`).Scan(&n); err != nil || n != 0 {
 		t.Fatalf("回填落了非收线行: n=%d err=%v", n, err)
+	}
+	// 断言③：动扩标的经 tickers 并入后真被拉棒（univExpand 机制实证）。
+	if !expSeen {
+		t.Fatal("动扩标的 EXP-USDT-SWAP 未见 candles 拉取——univExpand 未并入扫集")
 	}
 }
 
