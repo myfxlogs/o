@@ -43,6 +43,19 @@ fact() { # 落地事实行——seat=落地件 event=落地；$1=note（不升�
 		VALUES('落地件','落地','','$n')" >/dev/null 2>&1 \
 		|| say "事实行写败（不阻断）——$1" # tolerate: 事实行写败下拍补，主径不依账
 }
+esc() { # 可处置败类升件——无头世界静默晾死根修（工单#deploy-pipe-tax②）：
+	# 同 deploy_watch escEdgeU dedup 语义（同 scope 24h 内未销才抑）。
+	# $1=scope（按支分词——多支同卡各自升件不互抑） $2=note
+	local scope="$1" note="$2" s n
+	s=$(sqlq "$scope"); n=$(sqlq "$note")
+	[ -n "$DSN" ] || return 0
+	q "SELECT count(*) FROM ops_event e WHERE e.event='升件' AND e.esc_scope='$s'
+		AND e.ts>now()-interval '24 hours'
+		AND NOT EXISTS (SELECT 1 FROM ops_event x2 WHERE x2.ts>e.ts
+			AND x2.note ~ ('升件#'||e.id::text||'([^0-9]|$)'))" | grep -qx 0 \
+	&& "$PSQL" "$DSN" -c "INSERT INTO ops_event(seat,event,ticket,note,esc_class,esc_scope)
+		VALUES('探测席','升件','','$n','部署','$s')" >/dev/null 2>&1 || true # tolerate: 升件写败只剩下拍重试，无二级径
+}
 
 cleanup() {
 	[ -n "$WT" ] || return 0
@@ -128,6 +141,7 @@ while read -r br tip; do
 	fi
 	if ! mergeable "$tip"; then
 		fact "落地败 支=$br 尖=$tip 因=对origin/master不可净合(merge-tree冲突)——支须重基,同尖冷却24h"
+		esc "landq_conflict_${br//\//_}" "部署/landq_merge_conflict: 支=$br 尖=$tip 对origin/master不可净合——须重基或人工裁决,支入24h冷却待处置"
 		continue
 	fi
 	SB="$br"; STIP="$tip"; break
@@ -163,6 +177,7 @@ git merge-base --is-ancestor "$STIP" origin/master 2>/dev/null \
 if ! (cd "$WT/wt" && git merge --no-ff -m "$MSG" "$STIP" >/dev/null 2>&1); then
 	(cd "$WT/wt" && git merge --abort >/dev/null 2>&1) || true # tolerate: abort 败=本不在merge态——rc1兜底
 	fact "落地败 支=$SB 尖=$STIP 因=工树merge冲突(预检后竞动)——同尖冷却24h"
+	esc "landq_conflict_${SB//\//_}" "部署/landq_merge_conflict: 支=$SB 尖=$STIP 工树merge冲突(预检后竞动)——须人工裁决,支入24h冷却"
 	exit 0
 fi
 MSHA=$(git -C "$WT/wt" rev-parse HEAD 2>/dev/null) # tolerate: rev-parse 败=空串落下行戳验拒
@@ -170,19 +185,36 @@ MSHA=$(git -C "$WT/wt" rev-parse HEAD 2>/dev/null) # tolerate: rev-parse 败=空
 [ "$(git -C "$WT/wt" rev-parse 'HEAD^2' 2>/dev/null)" = "$STIP" ] \
 	|| { fact "落地暂缓 支=$SB 尖=$STIP 因=merge未成真合(Already-up-to-date竞动)——下拍重扫"; exit 0; }
 
-if ! (cd "$WT/wt" && bash -c "$BOOTSTRAP" >/dev/null 2>&1); then
-	fact "落地败 支=$SB 尖=$STIP 因=工树bootstrap败(gen面缺)"
-	exit 0
-fi
-COUT=$(cd "$WT/wt" && bash -c "$CHECK_ALL" 2>&1) # tolerate: check_all 败=rc非零落下行判据——输出截尾入账
-CRC=$?
-if [ "$CRC" -ne 0 ]; then
-	fact "落地败 支=$SB 尖=$STIP 因=合并点check_all红 尾=$(printf '%s' "$COUT" | tail -3 | tr '\n' ' ' | cut -c1-160)"
-	exit 0
-fi
 GD=$(git -C "$WT/wt" rev-parse --path-format=absolute --git-common-dir 2>/dev/null) # tolerate: 败=空串落下行戳验拒
-[ -n "$GD" ] && [ -f "$GD/check-green-$MSHA" ] \
-	|| { fact "落地败 支=$SB 尖=$STIP 因=check_all绿而合并点戳缺(自相矛盾)"; exit 0; }
+MTREE=$(git -C "$WT/wt" rev-parse 'HEAD^{tree}' 2>/dev/null) # tolerate: 败=空串→不走快径退全验
+TTREE=$(git rev-parse "$STIP^{tree}" 2>/dev/null)           # tolerate: 同上
+if [ -n "$MTREE" ] && [ -n "$TTREE" ] && [ "$MTREE" = "$TTREE" ] \
+	&& [ -n "$GD" ] && [ -f "$GD/check-green-$STIP" ]; then
+	# 工单#deploy-pipe-tax①合并树≡支尖树快径：树同=内容同=合并点重验=
+	# 复验同一份已戳内容（戳义=「本内容过全谱」随树迁非随sha——
+	# master未动常态≈15min/件白烧实证）。戳名迁供 pre-push 出处闸，
+	# 合并点check_all/bootstrap全跳。
+	if cp "$GD/check-green-$STIP" "$GD/check-green-$MSHA" 2>/dev/null; then
+		fact "落成快径 支=$SB 尖=$STIP merge=$MSHA——合并树≡支尖树跳合并点重验(内容=已戳件,戳随树迁)"
+	else
+		fact "落地暂缓 支=$SB 尖=$STIP 因=快径戳迁写败——下拍全验径"
+		exit 0
+	fi
+else
+	if ! (cd "$WT/wt" && bash -c "$BOOTSTRAP" >/dev/null 2>&1); then
+		fact "落地败 支=$SB 尖=$STIP 因=工树bootstrap败(gen面缺)"
+		exit 0
+	fi
+	COUT=$(cd "$WT/wt" && bash -c "$CHECK_ALL" 2>&1) # tolerate: check_all 败=rc非零落下行判据——输出截尾入账
+	CRC=$?
+	if [ "$CRC" -ne 0 ]; then
+		fact "落地败 支=$SB 尖=$STIP 因=合并点check_all红 尾=$(printf '%s' "$COUT" | tail -3 | tr '\n' ' ' | cut -c1-160)"
+		esc "landq_merge_red_${SB//\//_}" "部署/landq_merge_red: 支=$SB 尖=$STIP 合并点check_all红 尾=$(printf '%s' "$COUT" | tail -2 | tr '\n' ' ' | cut -c1-120)——须人工定性修支或撤票"
+		exit 0
+	fi
+	[ -n "$GD" ] && [ -f "$GD/check-green-$MSHA" ] \
+		|| { fact "落地败 支=$SB 尖=$STIP 因=check_all绿而合并点戳缺(自相矛盾)"; exit 0; }
+fi
 
 # 推前对拍：check_all 窗内 origin/master 若已移，sha:master 非ff必拒——
 # 先验祖先关系，移了落暂缓行下拍重合（不烧推送重试）。
