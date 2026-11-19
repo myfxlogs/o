@@ -261,7 +261,11 @@ func TestLockdownRevokesUD(t *testing.T) {
 	if _, err := pool.Exec(ctx, `GRANT USAGE ON SCHEMA "`+schema+`" TO roster_rw;
 		GRANT SELECT,INSERT,UPDATE,DELETE,TRUNCATE ON ops_event TO roster_rw;
 		GRANT USAGE ON SEQUENCE ops_event_id_seq TO roster_rw;
-		GRANT SELECT,UPDATE ON ops_headless TO roster_rw`); err != nil { // fin_0088 touch 触发器 INVOKER 面——WHERE 读列须 SELECT+UPDATE（prod 写角色同款在册权）
+		GRANT SELECT,UPDATE ON ops_headless TO roster_rw;
+		GRANT SELECT ON ops_event_sem_matrix TO roster_rw;
+		GRANT SELECT,INSERT ON ops_event_act TO roster_rw;
+		GRANT SELECT,INSERT,UPDATE ON ops_precedent TO roster_rw;
+		GRANT USAGE ON SEQUENCE ops_precedent_id_seq TO roster_rw`); err != nil { // INVOKER 触发器触面全对齐 prod 在册权（fin_0088 touch/fin_0111 先例臂/fin_0154 语义闸/fin_0191 act 解析臂）；CI 库角色=测试自建无迁移期真授——漏一手=插行撞下一层触发器
 		t.Fatal(err)
 	}
 	// 授权漂移景→重锁——UD/TRUNCATE 收编、INSERT/SELECT 照旧。
