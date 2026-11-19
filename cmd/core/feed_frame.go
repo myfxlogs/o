@@ -78,7 +78,7 @@ func (s *feedPush) frameSeats(ctx context.Context) ([]frameSeat, error) {
 	return seats, nil
 }
 
-// frameText 帧文纯件——白话一行（在办: <谁干什么> | 信号N · 工单M(可拣K)）。
+// frameText 帧文纯件——白话一行（在办: <谁干什么> | 信号N · 工单M(待施工K)）。
 func frameText(seats []frameSeat, esc, tickets, claimable int64) string {
 	var parts []string
 	for _, fs := range seats {
@@ -102,7 +102,7 @@ func frameText(seats []frameSeat, esc, tickets, claimable int64) string {
 	if len(parts) == 0 {
 		head += "全员空闲"
 	}
-	return fmt.Sprintf("%s | 信号%d · 工单%d(可拣%d)", head, esc, tickets, claimable)
+	return fmt.Sprintf("%s | 信号%d · 工单%d(待施工%d)", head, esc, tickets, claimable)
 }
 
 // frameAge 龄白话（<1分=刚领;<60分=N分;≥1h=NhM分）。
