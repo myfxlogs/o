@@ -67,6 +67,11 @@ SELECT d.id, d.filed_ts, d.note, d.closed, d.claimed, d.susp_until, d.susp_cls,
     (SELECT value::int FROM app_config WHERE key='dm.cog.wip_limit'),20)) AS dispatchable
 FROM d LEFT JOIN w ON w.id=d.id;
 
-GRANT SELECT ON ops_ticket_desk TO roster_rw;
+DO $$
+BEGIN
+    IF EXISTS (SELECT FROM pg_roles WHERE rolname='roster_rw') THEN
+        EXECUTE 'GRANT SELECT ON ops_ticket_desk TO roster_rw';
+    END IF;
+END $$;
 
 COMMIT;

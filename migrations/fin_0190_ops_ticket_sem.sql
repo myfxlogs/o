@@ -87,4 +87,9 @@ LEFT JOIN LATERAL (SELECT a.level FROM ops_event_act a
   WHERE a.rel=t.id AND a.level IS NOT NULL ORDER BY a.ts DESC LIMIT 1) lvl ON true
 WHERE t.event='工单' AND t.ts>now()-interval '30 days';
 
-GRANT SELECT ON ops_event_act, ops_ticket_desk TO roster_rw;
+DO $$
+BEGIN
+    IF EXISTS (SELECT FROM pg_roles WHERE rolname='roster_rw') THEN
+        EXECUTE 'GRANT SELECT ON ops_event_act, ops_ticket_desk TO roster_rw';
+    END IF;
+END $$;
