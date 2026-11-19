@@ -31,25 +31,14 @@ func (s *feedPush) feedFrame(ctx context.Context) string {
 	}
 	var esc, tickets, claimable int64
 	_ = s.pool.QueryRow(ctx, `SELECT count(*) FROM ops_esc_pending`).Scan(&esc)
-	// 工单两计数：OPEN 全谱(未销)与可拣面(剔挂起缓期窗/在办认领——
-	// 与施工桌 dispatch_worker TICKET_N 同契)。
-	_ = s.pool.QueryRow(ctx, `WITH open_t AS (
-		SELECT t.id,t.ts,t.note FROM ops_event t
-		WHERE t.event='工单' AND t.ts>now()-interval '30 days'
-		  AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='处置'
-		    AND x.ts>t.ts AND x.note ~ ('工单#'||t.id::text||'([^0-9]|$)')
-		    AND x.note NOT LIKE '%挂起条件=%'
-		    AND x.note !~ ('工单#'||t.id::text||' ?接续')))
-		SELECT (SELECT count(*) FROM open_t),
-		  (SELECT count(*) FROM open_t t
-		    WHERE NOT EXISTS (SELECT 1 FROM ops_event s WHERE s.event='处置'
-		      AND s.ts>t.ts AND s.note ~ ('工单#'||t.id::text||'([^0-9]|$)')
-		      AND s.note LIKE '%挂起条件=%'
-		      AND s.ts + COALESCE((substring(s.note from '挂起期限=([0-9]+)h'))::int,
-		        COALESCE((substring(t.note from '期限=([0-9]+)h'))::int,72))*interval '1 hour' > now())
-		    AND NOT EXISTS (SELECT 1 FROM ops_event c WHERE c.event='认领'
-		      AND c.ts>t.ts AND c.ts>now()-interval '2 hours'
-		      AND c.note ~ ('工单#'||t.id::text||'([^0-9]|$)')))`).Scan(&tickets, &claimable)
+	// 工单两计数：OPEN 全谱(未销)与可拣面——票态单点=ops_ticket_desk 视图
+	// (fin_0190 语义层,与施工桌 dispatch_worker TICKET_N 同源)。旧行内正则
+	// 径只认「处置」字面行:sem 显式 act 销(fin_0191 钦定外席径)/无 工单/
+	// 前缀簿记行全漏数——双口径漂移假账实案。
+	_ = s.pool.QueryRow(ctx, `SELECT
+		count(*) FILTER (WHERE closed IS NOT TRUE),
+		count(*) FILTER (WHERE dispatchable)
+		FROM ops_ticket_desk WHERE filed_ts > now()-interval '30 days'`).Scan(&tickets, &claimable)
 	return frameText(seats, esc, tickets, claimable)
 }
 
