@@ -1340,3 +1340,81 @@ func TestLegAnomalyClassified(t *testing.T) {
 		t.Fatalf("腿形态异常应落 guard_leg_anomaly 升件一笔，got n=%d err=%v", escN, err)
 	}
 }
+
+// 工单#24838 锚：markLegAnomaly 升件径票抑同契——同 scope OPEN 工单在案
+// 时定性行照落但不再产新升件（销一件火一件三火实证根修）；销票后
+// 条件存=抑撤自然复火。anomalyMarked 复位=重启语义（fin_guard_close
+// 行在→ON CONFLICT 重标→升件判径重走）。
+func TestLegAnomalyTicketSuppress(t *testing.T) {
+	ctx, w, _ := setup(t)
+	seedFacts(t, ctx, w, 0.0001)
+	var stratID, execID, posID int64
+	if err := w.pool.QueryRow(ctx,
+		`INSERT INTO fin_strategy(inst_id,template_ref,state,notional_usd,venue) VALUES('BTC-USDT-261204-66000-P','guard-test','live',50,'okx') RETURNING id`).Scan(&stratID); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.pool.QueryRow(ctx,
+		`INSERT INTO fin_execution(strategy_ref,inst_id,notional_usd,state) VALUES($1,'BTC-USDT-261204-66000-P',50,'open') RETURNING id`,
+		stratID).Scan(&execID); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.pool.QueryRow(ctx,
+		`INSERT INTO fin_position(execution_id,strategy_ref,inst_id,notional_usd,opened_at)
+		 VALUES($1,$2,'BTC-USDT-261204-66000-P',50,$3) RETURNING id`,
+		execID, stratID, time.Now().Add(-100*time.Hour)).Scan(&posID); err != nil {
+		t.Fatal(err)
+	}
+	escCount := func() int {
+		var n int
+		if err := w.pool.QueryRow(ctx,
+			`SELECT count(*) FROM ops_event WHERE event='升件'
+			 AND esc_scope='guard_leg_anomaly' AND note ~ ('仓 #'||$1::text||'([^0-9]|$)')`,
+			strconv.FormatInt(posID, 10)).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	if err := w.scanOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var escID int64
+	if err := w.pool.QueryRow(ctx,
+		`SELECT id FROM ops_event WHERE event='升件' AND esc_scope='guard_leg_anomaly'
+		 AND note ~ ('仓 #'||$1::text||'([^0-9]|$)')`,
+		strconv.FormatInt(posID, 10)).Scan(&escID); err != nil {
+		t.Fatalf("首火应在案 err=%v", err)
+	}
+	// 升件销（升件#id 引件=dedup 抑撤）——同 scope 票未立案时应复火；
+	// 先立 OPEN 票再扫=票抑径静默（本票验收断言行）。
+	if _, err := w.pool.Exec(ctx,
+		`INSERT INTO ops_event(seat,event,ticket,note) VALUES('处置席','处置','',$1)`,
+		fmt.Sprintf("升件#%d 销——转票接管", escID)); err != nil {
+		t.Fatal(err)
+	}
+	var tickID int64
+	if err := w.pool.QueryRow(ctx,
+		`INSERT INTO ops_event(seat,event,ticket,note) VALUES('处置席','工单','',$1) RETURNING id`,
+		"工单/leg-anomaly-test: 仓#42 类病灶收殓 scope=guard_leg_anomaly 期限=48h").Scan(&tickID); err != nil {
+		t.Fatal(err)
+	}
+	w.anomalyMarked = map[int64]bool{}
+	if err := w.scanOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if n := escCount(); n != 1 {
+		t.Fatalf("同 scope OPEN 票在案应抑新升件，got n=%d（应 1）", n)
+	}
+	// 销票→抑撤——条件存（异常仓仍在）自然复火。
+	if _, err := w.pool.Exec(ctx,
+		`INSERT INTO ops_event(seat,event,ticket,note) VALUES('处置席','处置','',$1)`,
+		fmt.Sprintf("工单#%d 销票——病灶已收", tickID)); err != nil {
+		t.Fatal(err)
+	}
+	w.anomalyMarked = map[int64]bool{}
+	if err := w.scanOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if n := escCount(); n != 2 {
+		t.Fatalf("销票后抑撤应复火，got n=%d（应 2）", n)
+	}
+}
