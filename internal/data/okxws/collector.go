@@ -43,16 +43,17 @@ type Collector struct {
 	restGet ScanGet // REST 公开读件（AttachRestGet 注——回填臂用,nil=臂停）
 	queue   chan rowItem
 
-	frames    atomic.Int64 // 业务帧计数（观测面）
-	lastFrame atomic.Int64 // 最近业务帧 UnixNano（status 端点/看门狗同读）
-	lastKline atomic.Int64 // 最近 candle 业务帧 UnixNano（business 臂看门狗——工单#22844）
-	Stats     *Door        // 别名 rej（对外观测名）
-	meter     *netmeter.Meter
-	al        *notify.Alerter
-	refuseSub map[string]bool // 60018 拒收集（本连接内生效——T-0133 ③；public/business 双臂共表+refuseMu 互斥）
-	refuseMu  sync.Mutex
-	FullSub   bool   // T-0137 桥面全量 WS 订阅（index-tickers/mark-price 同订——dev 蒸馏面）
-	AlertKind string // 面死告警 kind 覆写（桥=bridge_stale；缺省 okxws_face_dead）
+	frames     atomic.Int64 // 业务帧计数（观测面）
+	lastFrame  atomic.Int64 // 最近业务帧 UnixNano（status 端点/看门狗同读）
+	lastKline  atomic.Int64 // 最近 candle 业务帧 UnixNano（business 臂看门狗——工单#22844）
+	Stats      *Door        // 别名 rej（对外观测名）
+	meter      *netmeter.Meter
+	al         *notify.Alerter
+	refuseSub  map[string]bool // 60018 拒收集（本连接内生效——T-0133 ③；public/business 双臂共表+refuseMu 互斥）
+	refuseMu   sync.Mutex
+	lastCensus time.Time // 全 USDT-SWAP 普查最近跑点（工单#18314②辅径——仅 backfillLoop 单写者读写,免锁）
+	FullSub    bool      // T-0137 桥面全量 WS 订阅（index-tickers/mark-price 同订——dev 蒸馏面）
+	AlertKind  string    // 面死告警 kind 覆写（桥=bridge_stale；缺省 okxws_face_dead）
 	// mark-price REST 轮询读件已随 T-0171 快照价格全面退役全撤——mark/index
 	// 行唯一来源=WS（桥全量订阅+SG 活跃集 tickers），REST 只准条款/目录注册面。
 	// ExpandSymbols 宇宙扩件（T-0122：okx.symbols 含 "*"=放开全 SWAP+季度
@@ -90,7 +91,7 @@ func NewCollector(pool *pgxpool.Pool, cfg *config.Client) *Collector {
 	return &Collector{
 		pool: pool, cfg: cfg, url: PublicURL, bizURL: BusinessURL,
 		rej: rejects.New("okxws", "non_usdt_instid", "seq_gap", "parse_fail", "write_err", "symbols_missing",
-			"activeset_read_failed", "depth5_no_ctval", "klineback_err"),
+			"activeset_read_failed", "depth5_no_ctval", "klineback_err", "univ_expand_err"),
 		queue:     make(chan rowItem, 1024),
 		refuseSub: map[string]bool{},
 		passAt:    make(map[string]time.Time),
