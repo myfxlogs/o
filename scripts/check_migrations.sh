@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# check_migrations.sh —— 迁移七断言硬闸（T-0109 三断言为基，T-0167 分链制扩七）：
+# check_migrations.sh —— 迁移八断言硬闸（T-0109 三断言为基，T-0167 分链制扩七，裸GRANT 闸为⑧）：
 #   ① migrate_table.go 登记 version 链内唯一（同链重复号=红——同号后登记者被 silent-skip）；
 #   ② 每条登记 {N, "md|fin_NNNN_*.sql"} 的链内序号=登记号 N 且文件实存；
 #   ③ migrations/*.sql 每个文件恰有一条登记行（孤儿文件=红）；
@@ -11,7 +11,10 @@
 #      （回滚径「SG 镜像表即正表（DDL 相同）」前提机检钉死）；
 #   ⑦ T-0167/D-0030 §六：域表白名单（migrations/domain.tsv 表名→md|fin|bridge|
 #      bridge-reverse）——链内 DDL/DML 触表出现非本域且非桥（bridge/
-#      bridge-reverse）即红（串链）；触表缺册=红。
+#      bridge-reverse）即红（串链）；触表缺册=红；
+#   ⑧ 裸 GRANT 闸（0071/0098/0161/0191 四案实证）：链外角色 GRANT 必须
+#      在 DO $$ IF EXISTS(pg_roles) 块内——顶格 GRANT 只许链内自建角色
+#      或 PUBLIC，否则 fresh 测试库无此角色即 SQLSTATE 42704 炸链。
 # 判的是链内号重复非连续——链内单调由⑤另钉。全域一致性检查（工作树面），
 # 由 pre-commit 门禁链调用，可单独跑（与 check-lines 同构）。
 set -euo pipefail
@@ -197,8 +200,28 @@ BRIDGE="md_ticks md_mark_index md_signal md_dcd_product md_funding md_macro_even
 	fi
 done
 
+# ⑧ 裸 GRANT 闸（CI/fresh 测试库无生产手工角色——roster_rw 类裸授炸链
+# 0071/0098/0161/0191 四案实证）：链外角色（非本链 CREATE 者）GRANT 必须
+# 在 DO $$ IF EXISTS(pg_roles) 块内；顶格（DO 块外）GRANT 只许授给
+# 链内自建角色或 PUBLIC。
+CREATED_ROLES=$(grep -rhoE 'CREATE +(ROLE|USER) +[a-z_][a-z_0-9]*' migrations/*.sql \
+	| awk '{print $3}' | sort -u)
+while IFS= read -r hit; do
+	f="${hit%%:*}"; rest="${hit#*:}"; ln="${rest%%:*}"; stmt="${rest#*:}"
+	role=$(sed -nE 's/.*\bTO +([a-z_][a-z_0-9]*).*/\1/p' <<< "$stmt")
+	[ -z "$role" ] || [ "$role" = "PUBLIC" ] && continue
+	if ! grep -qx "$role" <<< "$CREATED_ROLES"; then
+		echo "FAIL $f:$ln: 顶格 GRANT TO $role（链外角色无 IF EXISTS 门——fresh 测试库无此角色即 SQLSTATE 42704 炸链，canon grant-not-in-migration-silent-dead）" >&2
+		fail=1
+	fi
+done < <(awk '
+	/^[[:space:]]*DO[[:space:]]+\$[a-zA-Z_0-9]*\$/ {blk=1}
+	/^[[:space:]]*END[[:space:]]+\$[a-zA-Z_0-9]*\$[[:space:]]*;/ {blk=0}
+	/^[[:space:]]*GRANT[[:space:]]/ && blk==0 {print FILENAME":"FNR":"$0}
+' migrations/*.sql)
+
 if [ "$fail" -eq 1 ]; then
-	echo "❌ check_migrations: 断言红——撞号/串链/桥表漂移/白名单缺册禁提交（canon migration-number-collision + D-0030 §六）" >&2
+	echo "❌ check_migrations: 断言红——撞号/串链/桥表漂移/白名单缺册/裸GRANT 禁提交（canon migration-number-collision + D-0030 §六）" >&2
 	exit 1
 fi
-echo "OK: check_migrations（七断言过——链内唯一/序号实存/零孤儿/md_* 键域/两链单调/八桥 DDL 同形/域白名单）"
+echo "OK: check_migrations（八断言过——链内唯一/序号实存/零孤儿/md_* 键域/两链单调/八桥 DDL 同形/域白名单/裸GRANT 白名单）"
