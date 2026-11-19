@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+
 	"o/internal/platform/testutil"
 )
 
@@ -72,22 +74,25 @@ func TestListenSocketStarvationRootFix(t *testing.T) {
 	// 灌通知（三机位并发各持一池连——单机位灌速=Exec 延时，herd 负载下
 	// ~100ms/发→29s 采样窗仅 ~270 发 < 500 锚量不可达实发（segD 戳跑红案）；
 	// 并发语义不降反升：真 ClientWrite 钉死则全机位 Exec 同超时=实锤依旧）。
+	// 灌连走直连不占池——并发须连=notifier+listener+sampler+3 灌=6＞pgxpool
+	// 默认 MaxConns=max(4,NumCPU)（CI 4 核=4，sampler 与末灌工互饿 30min 挂死
+	// 实证 run 44468003537；本机核多池大侥幸绿）。直连绕池帽语义不降。
 	payload := strings.Repeat("x", 7000)
 	var sent, maxLatencyMs atomic.Int64
 	floodCtx, floodStop := context.WithCancel(ctx)
 	floodErr := make(chan error, 3)
 	for fi := 0; fi < 3; fi++ {
 		go func() {
-			fconn, err := pool.Acquire(floodCtx)
+			fconn, err := pgx.ConnectConfig(floodCtx, pool.Config().ConnConfig.Copy())
 			if err != nil {
 				if floodCtx.Err() != nil {
 					floodErr <- nil
 					return
 				}
-				floodErr <- fmt.Errorf("灌发机位取连败: %w", err)
+				floodErr <- fmt.Errorf("灌发机位直连败: %w", err)
 				return
 			}
-			defer fconn.Release()
+			defer func() { _ = fconn.Close(context.Background()) }()
 			tick := time.NewTicker(15 * time.Millisecond) // sched-exempt-ok 桩测灌装节拍（夹具非生产调度）
 			defer tick.Stop()
 			for {
