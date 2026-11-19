@@ -282,16 +282,7 @@ func assemble(pool *pgxpool.Pool, cfg *config.Client,
 	return svc, func(ctx context.Context) (map[string]float64, error) {
 		o := &dashboardv1.OverviewResponse{}
 		svc.moneyRows(ctx, o)
-		by := map[string]float64{}
-		for _, m := range o.Money {
-			if m.GetCcy() != "" && m.GetNote() == "" {
-				by[m.GetCcy()] += m.GetAmount()
-			}
-		}
-		if o.NavTotal > 0 {
-			by["NAV"] = o.NavTotal // USD 聚合读面续供——按币簿记行另载（升件#10438）
-		}
-		return by, nil
+		return navBy(o) // 完备性闸+按币聚合——nav_gate.go（行棘轮拆件）
 	}
 }
 

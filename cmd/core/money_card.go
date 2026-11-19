@@ -105,8 +105,14 @@ func (c coreService) moneyRows(ctx context.Context, o *dashboardv1.OverviewRespo
 	fundF := c.fundCcy(ctx, "okx:funding")
 	fundE := c.fundCcy(ctx, "okx:earn")
 	var frame json.RawMessage
+	// 工单#24802：腿读败静默吞=nav() 闭包缺腿无感照写坏帧（部署窗
+	// funding REST 挂→USDT=1014 坏帧落 md_equity_curve 实证）。各腿
+	// 同 MT5/dcd「读件缺」显形形——读败落 note 行不假零不藏。
 	if err := c.pool.QueryRow(ctx, `SELECT data FROM md_account_events
-		WHERE channel IN ('account','balance_and_position') ORDER BY ts DESC LIMIT 1`).Scan(&frame); err == nil {
+		WHERE channel IN ('account','balance_and_position') ORDER BY ts DESC LIMIT 1`).Scan(&frame); err != nil {
+		o.Money = append(o.Money, &dashboardv1.MoneyRow{
+			Venue: "okx", Section: "交易户", Label: "读件缺", Note: "读件缺"})
+	} else {
 		var top struct {
 			Details []struct {
 				Ccy   string `json:"ccy"`
@@ -143,6 +149,10 @@ func (c coreService) moneyRows(ctx context.Context, o *dashboardv1.OverviewRespo
 				o.Money = append(o.Money, moneyRow("okx", "资金户", ccy,
 					ccy, v, u))
 			}
+		} else {
+			log.Printf("WARN: 资金户活读败（钱在哪卡显读件缺）: %v", err)
+			o.Money = append(o.Money, &dashboardv1.MoneyRow{
+				Venue: "okx", Section: "资金户", Label: "读件缺", Note: "读件缺"})
 		}
 	}
 	if c.earnLive != nil {
@@ -156,6 +166,10 @@ func (c coreService) moneyRows(ctx context.Context, o *dashboardv1.OverviewRespo
 				o.Money = append(o.Money, moneyRow("okx", "Earn", ccy,
 					ccy, v, u))
 			}
+		} else {
+			log.Printf("WARN: Earn 活读败（钱在哪卡显读件缺）: %v", err)
+			o.Money = append(o.Money, &dashboardv1.MoneyRow{
+				Venue: "okx", Section: "Earn", Label: "读件缺", Note: "读件缺"})
 		}
 	}
 	// T-0096：MT5 入户（专属券商户全计）——逐真实账号一行；读件缺/读败
