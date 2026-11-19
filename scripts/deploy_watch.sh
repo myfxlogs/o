@@ -52,10 +52,60 @@ if [ "$LOCAL" != "$REMOTE" ]; then
 		exit 0
 	fi
 fi
+# image_dep_clean <repo相对路径> <dep包径集> → rc0=该件在 core 依赖闭包外
+image_dep_clean() {
+	local p="$1" dirs="$2" d
+	while IFS= read -r d; do
+		[ -n "$d" ] || continue
+		case "$p" in "$d"/*|"$d") return 1;; esac
+	done <<< "$dirs"
+	return 0
+}
+# image_face_clean <deployed基线sha> → rc0=diff 全件证外（镜像面可跳零重启——
+# 工单#deploy-pipe-tax③：go list -deps ./cmd/core 实算依赖闭包∪构建输入
+# 硬列之外=o-core 二进制运行行为不可变；不可证空方向保守照换）。
+image_face_clean() {
+	local base="$1" files dirs p
+	[ -n "$base" ] || return 1 # 基线缺（首部署）=不可证空照换
+	git merge-base --is-ancestor "$base" "$HEAD" 2>/dev/null || return 1 # 非祖先=谱系岔不可证空
+	files=$(git diff --name-only "$base" "$HEAD" 2>/dev/null) || return 1
+	[ -n "$files" ] || return 1 # 空 diff 不应至此——不可证空
+	local raw
+	raw=$(go list -f '{{.ImportPath}}' -deps ./cmd/core 2>/dev/null) || return 1 # go list 败=闭包不完整→不可证空照换（半截闭包=假证空源）
+	dirs=$(printf '%s\n' "$raw" | sed -n 's|^o/||p')
+	[ -n "$dirs" ] || return 1 # go 面缺/空=不可证空照换
+	printf '%s\n' "$dirs" | grep -qx 'cmd/core' || return 1 # 闭包不含主件自体=实算面失真不可证空
+	while IFS= read -r p; do
+		[ -n "$p" ] || continue
+		p=${p##* -> } # rename 形取新名
+		case "$p" in
+			go.mod|go.sum|Dockerfile*|docker-compose*|.dockerignore) return 1;; # 构建输入硬列——碰即不证空
+		esac
+		image_dep_clean "$p" "$dirs" || return 1
+	done <<< "$files"
+	return 0
+}
 HEAD=$(git rev-parse master)
 DEPLOYED=$([ -n "$DSN" ] && psql "$DSN" -qAt -c "SELECT (regexp_match(note,'o-core:([0-9a-f]+)'))[1] FROM ops_event WHERE seat='DEPLOY' AND event='部署' AND note LIKE '%rc=0%' AND note LIKE '%o-core:%' ORDER BY id DESC LIMIT 1" 2>/dev/null) # T-13283：行类滤先——deploy-oci 臂行同 seat/event/rc=0 无 o-core: 标记，取最新行后 extract 必空(假滞差→多余部署)
 SHORT=${HEAD:0:12}
 if [ -z "$DEPLOYED" ] || [ "${HEAD:0:${#DEPLOYED}}" != "$DEPLOYED" ]; then
+	# 工单#deploy-pipe-tax③镜像面谱系证空（对拍 deploy_oci arm_provably_clean
+	# 先例——镜像面本无此检：见滞差即全量 rebuild+SG 重启钱径）：
+	# diff DEPLOYED..HEAD 全件在 cmd/core 依赖闭包∪构建输入外=二进制
+	# 运行行为不可变,落 o-core-clean 水位行跳本拍；水位不抵实部署
+	# （下尖有证内件=照走锁/败避让/部署全段）。
+	CLEANWM=$([ -n "$DSN" ] && psql "$DSN" -qAt -c "SELECT (regexp_match(note,'o-core-clean:([0-9a-f]+)'))[1] FROM ops_event WHERE seat='DEPLOY' AND event='部署' AND note LIKE '%o-core-clean:%' ORDER BY id DESC LIMIT 1" 2>/dev/null) # tolerate: DSN缺=空——退正常滞差部署
+	if [ -n "$CLEANWM" ] && [ "${HEAD:0:${#CLEANWM}}" = "$CLEANWM" ]; then
+		say "谱系证空水位在案(o-core-clean:$CLEANWM)——跳部署"
+		exit 0
+	fi
+	if image_face_clean "$DEPLOYED"; then
+		[ -n "$DSN" ] && psql "$DSN" -c "INSERT INTO ops_event(seat,event,ticket,note)
+			VALUES('DEPLOY','部署','','o-core-clean:$SHORT rc=0 base=$DEPLOYED 谱系证空——diff全件在cmd/core依赖闭包(go list -deps实算)∪构建输入外,镜像面零重启')" >/dev/null 2>&1 \
+			|| say "水位行写败（不阻断）" # tolerate: 水位写败=下拍重判重发同一跳，不翻部署
+		say "谱系证空——o-core-clean:$SHORT 水位落,SG零重启"
+		exit 0
+	fi
 	# 部署锁持=另径部署在途（会话 deploy_at_sha/本拍并发）——让位不撞锁
 	# （撞锁 rc=1+败事件+deploy_blocked 升件=自伤型信号源，2026-11-10
 	# 产线实证每次部署首试 rc=1→重试 rc=0 三连序列同型）。
