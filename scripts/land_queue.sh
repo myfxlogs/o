@@ -194,6 +194,24 @@ fi
 if (cd "$REPO" && bash -c "$PUSH_CMD origin $MSHA:master" >/dev/null 2>&1); then
 	fact "落成 支=$SB 尖=$STIP merge=$MSHA——deploy_watch接力ff+部署"
 	say "落成 $SB → master $MSHA"
+	# 工单#24624：机械合支自动销簿记——支体commits提「工单#N」销案
+	# 行随落地写（现径=外席巡检滞后销缺口实证）。闸:仅机械合支
+	# +号面≤5防爆销(超出面落备忘不销——人工复核域非机械域)。
+	TNS=$(cd "$WT/wt" && git log --format='%B' "origin/master..$STIP" 2>/dev/null \
+		| grep -oE '工单#[0-9]+' | sort -u | head -8)
+	TNN=$(printf '%s\n' "$TNS" | grep -c '工单#' || true) # tolerate: grep空集rc1——计数器非闸
+	if [ "$TNN" -le 5 ]; then
+		for tn in $TNS; do
+			tid="${tn#工单#}"
+			cn="工单#$tid 销——机械合支 $SB 落成 $MSHA 自动销簿记（工单#24624件——支体commit载号随合即销,外席巡检滞后径退役）"
+			"$PSQL" "$DSN" -qAt -c "INSERT INTO ops_event(seat,event,ticket,note)
+				VALUES('处置席','处置','$tid','$(sqlq "$cn")')" >/dev/null 2>&1 \
+				|| say "自动销行写败 tid=$tid（不阻断）" # tolerate: 销行写败=巡检旧径兜
+		done
+		[ "$TNN" -gt 0 ] && fact "自动销簿记 支=$SB 票=$TNS——$TNN 号随合销"
+	else
+		fact "自动销暂缓 支=$SB——commit工单号面=$TNN>5超机械域,人工复核"
+	fi
 else
 	fact "落地暂缓 支=$SB 尖=$STIP 因=sha:master推败(远端先行/闸拒)——下拍重试"
 fi
