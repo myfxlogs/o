@@ -27,4 +27,11 @@ BEGIN
 		VALUES(p_id, v_from, 'retired', p_reason);
 END $$;
 REVOKE ALL ON FUNCTION fin_retire(bigint,text) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION fin_retire(bigint,text) TO roster_rw;
+-- roster_rw=生产手工角色不在迁链内建——裸 GRANT 在无该角色的测试库
+-- 炸链（0071/0098 同款坑已三修，IF EXISTS 门幂等）。
+DO $$
+BEGIN
+    IF EXISTS (SELECT FROM pg_roles WHERE rolname='roster_rw') THEN
+        EXECUTE 'GRANT EXECUTE ON FUNCTION fin_retire(bigint,text) TO roster_rw';
+    END IF;
+END $$;
