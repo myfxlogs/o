@@ -8,15 +8,21 @@ cd "$(git rev-parse --show-toplevel)" || exit 1
 ENVF="${REPORT_ENV_FILE:-/opt/o-research/env}"
 DSN="${FIN_PG_DSN:-$(grep '^FIN_PG_DSN=' "$ENVF" 2>/dev/null | cut -d= -f2- | tr -d '"')}"
 say() { echo "[deploy_watch] $*"; }
-esc() { # 升件 dedup=未销才抑（同 escEdgeU 语义——销而未修重火）
-	local scope="$1" note="$2"
-	[ -n "$DSN" ] || return 0
+esc_pending() { # esc_pending <scope> → rc0=未销升件在案（24h窗——esc dedup 同源判据，
+	# 工单#25481 抽函数：自动换件重试风暴闸复用同判——有未销败件即让位本拍）
+	local scope="$1"
+	[ -n "$DSN" ] || return 1
 	psql "$DSN" -qAt -c "
 		SELECT count(*) FROM ops_event e WHERE e.event='升件' AND e.esc_scope='$scope'
 		AND e.ts>now()-interval '24 hours'
 		AND NOT EXISTS (SELECT 1 FROM ops_event x2 WHERE x2.ts>e.ts
-			AND x2.note ~ ('升件#'||e.id::text||'([^0-9]|$)'))" 2>/dev/null | grep -qx 0 \
-		&& psql "$DSN" -c "INSERT INTO ops_event(seat,event,ticket,note,esc_class,esc_scope)
+			AND x2.note ~ ('升件#'||e.id::text||'([^0-9]|$)'))" 2>/dev/null | grep -qxv 0
+}
+esc() { # 升件 dedup=未销才抑（同 escEdgeU 语义——销而未修重火）
+	local scope="$1" note="$2"
+	[ -n "$DSN" ] || return 0
+	esc_pending "$scope" \
+		|| psql "$DSN" -c "INSERT INTO ops_event(seat,event,ticket,note,esc_class,esc_scope)
 			VALUES('探测席','升件','','$note','部署','$scope')" >/dev/null 2>&1 # tolerate: 升件写败只剩下拍重试，无二级径
 }
 git fetch origin master -q 2>/dev/null
@@ -136,10 +142,16 @@ if [ -z "$DEPLOYED" ] || [ "${HEAD:0:${#DEPLOYED}}" != "$DEPLOYED" ]; then
 else
 	say "已同步（部署=$DEPLOYED = master）"
 fi
-# ── OCI 臂滞后探（工单#22882：裸二进制不随 master 追新——迁移先落旧臂
-# 照跑=跨库写败窗实证 eval 断 18h；deploy-oci rc=0 账行=换拍凭据。
-# 陈化起点=臂部署 sha..HEAD 最早缺件 committer ts>24h → 升件逐臂）
+# ── OCI 臂滞后探 → 自动换件（工单#25481：原案=纯探测>24h 升件等唤知——
+# univ-expand 实证静默窗内 collecto 陈 ~10h 扩集特性空转。改直调径：
+# 臂部署账 sha 非 HEAD 祖先面照走三闸（无账/不可解/分叉→升件）；
+# 账陈先过 deploy-faces.tsv 谱系判（arm_stale——diff 全件证外=簿记面
+# 陈化零烧，静默跳）；证内碰臂→本拍直调 deploy_oci.sh（其内谱系自检
+# 复核+部署锁/环约对账/健康闸/败回滚全在）；换败→esc 即火（未销期间
+# 让位不连试=重试风暴闸同 15min 镜像面避让意）；直调后账仍陈
+# （内检证空快退=盒件比账鲜的簿记漂移/连试连败）→>24h 滞后升件揭之。
 if [ -n "$DSN" ]; then
+	source scripts/arm_faces_lib.sh
 	for arm in collecto projector research; do
 		ASHA=$(psql "$DSN" -qAt -c "SELECT (regexp_match(note,'deploy-oci ([0-9a-f]+)'))[1] FROM ops_event WHERE seat='DEPLOY' AND event='部署' AND note LIKE 'deploy-oci %rc=0%' AND note ~ ('arms=[^|]*$arm([^a-z]|$)') ORDER BY id DESC LIMIT 1" 2>/dev/null)
 		if [ -z "$ASHA" ]; then
@@ -153,9 +165,24 @@ if [ -n "$DSN" ]; then
 		[ "$(git rev-parse "$ASHA")" = "$HEAD" ] && continue
 		git merge-base --is-ancestor "$ASHA" "$HEAD" 2>/dev/null || {
 			esc "oci_arm_lag_$arm" "部署/oci_arm_lag: OCI臂$arm 部署 sha=$ASHA 非 master 祖先——漂移分叉不自裁,归唤知会话"; continue; }
+		base=$(git merge-base "$ASHA" "$HEAD" 2>/dev/null || true) # tolerate: mb 败=谱系岔不可证空→arm_stale 不询落直调保守换（deploy_oci 内检再复核），非静默省件
+		if [ -n "$base" ] && ! arm_stale "$arm" "$base"; then
+			continue # 谱系证空——陈化属簿记面（证外件动的账）非二进制差，静默
+		fi
+		if ! esc_pending "oci_arm_deploy_$arm"; then
+			say "臂$arm 谱系证内陈化(账=$ASHA vs master=$SHORT)——直调 deploy_oci"
+			out=$(bash scripts/deploy_oci.sh "$arm" 2>&1); rc=$?
+			echo "$out" | tail -3 | while read -r l; do say "$l"; done
+			if [ $rc -ne 0 ]; then
+				esc "oci_arm_deploy_$arm" "部署/oci_arm_deploy: 自动换臂$arm rc=$rc（master=$SHORT 待换）尾=$(echo "$out" | tail -2 | tr '\n' ' ' | cut -c1-120)——归唤知会话清障（锁/ssh路由/环约缺键/健康闸）"
+				continue
+			fi
+			ASHA=$(psql "$DSN" -qAt -c "SELECT (regexp_match(note,'deploy-oci ([0-9a-f]+)'))[1] FROM ops_event WHERE seat='DEPLOY' AND event='部署' AND note LIKE 'deploy-oci %rc=0%' AND note ~ ('arms=[^|]*$arm([^a-z]|$)') ORDER BY id DESC LIMIT 1" 2>/dev/null)
+			[ -n "$ASHA" ] && [ "$(git rev-parse "$ASHA" 2>/dev/null)" = "$HEAD" ] && continue
+		fi
 		SINCE=$(git log --format=%ct "$ASHA..$HEAD" 2>/dev/null | tail -1)
 		if [ -n "$SINCE" ] && [ $(( $(date +%s) - SINCE )) -gt 86400 ]; then
-			esc "oci_arm_lag_$arm" "部署/oci_arm_lag: OCI臂$arm 陈化>24h——部署=$ASHA vs master=$SHORT,缺件最早 $(date -d @$SINCE +%m-%d\ %H:%M) 起(master迁移/口径先落旧臂照跑=写败窗),归唤知会话deploy_oci"
+			esc "oci_arm_lag_$arm" "部署/oci_arm_lag: OCI臂$arm 陈化>24h——部署=$ASHA vs master=$SHORT,缺件最早 $(date -d @$SINCE +%m-%d\ %H:%M) 起(自动换件连败或账盒漂移),归唤知会话deploy_oci"
 		fi
 	done
 fi
