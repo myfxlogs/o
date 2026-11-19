@@ -25,8 +25,10 @@ if [ -n "$PIN_ALLOW" ]; then
 	case ",$PIN_ALLOW," in
 		*",$PIN_HOST,"*) ;;
 		*) psql "$DSN" -qAt -c "INSERT INTO ops_event(seat,event,ticket,note)
-			VALUES('施工机','唤起败','','host=$PIN_HOST 主机钉位拒唤——pin=$PIN_ALLOW(deploy/seat-hosts.tsv)')" \
+			VALUES('施工机','唤起拒','','host=$PIN_HOST 主机钉位拒唤——pin=$PIN_ALLOW(deploy/seat-hosts.tsv)')" \
 			>/dev/null 2>&1 || true # tolerate: 拒唤报账尽力——DSN 写败仅本机 stderr 留迹
+		   # 工单#21291：钉位拒唤落「唤起拒」非「唤起败」（唤知dispatch.sh同
+		   # 契）——败行虚增喂spawn_fail探阈值，源头词面归位优于下游过滤
 		   echo "[dispatch-worker] 主机钉位拒唤 host=$PIN_HOST pin=$PIN_ALLOW" >&2
 		   exit 1 ;;
 	esac
