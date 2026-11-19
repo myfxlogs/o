@@ -132,8 +132,9 @@ func InstFitOK(template, instID string) bool {
 		// IsUSDTInst 同源拒 BTC-USD-SWAP 币本位形；dir_perp_mom=单腿方向
 		// 位同 perp 键，dirpaper.go 价源 md_ticks 同读）。
 		return classifyInst(instID) == formSwapPerp && IsUSDTInst(instID)
-	case "quarter_basis_long", "perp_quarter_spread":
+	case "quarter_basis_long", "perp_quarter_spread", "quarter-calendar-spread":
 		// basis 两族——腿=季度远期形（-\d{6}$ 尾，币/ USDT 本位皆可）。
+		// quarter-calendar-spread 双腿同季度远期键（工单#24981 骨架）。
 		return classifyInst(instID) == formDatedFut
 	case "dcd_call", "vol_sell_single_call":
 		return classifyInst(instID) == formDCDCall

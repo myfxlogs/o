@@ -25,7 +25,7 @@ func LegShapeOf(tmpl string) (LegShape, bool) {
 	case tmpl == "funding-hedge":
 		return ShapeOKXTwoLeg, true
 	case tmpl == "quarter_basis_long" || tmpl == "perp_quarter_spread" ||
-		tmpl == "quarter_basis_short":
+		tmpl == "quarter_basis_short" || tmpl == "quarter-calendar-spread":
 		return ShapeOKXTwoLeg, true
 	case tmpl == "xvenue-carry":
 		return ShapeXvenue, true

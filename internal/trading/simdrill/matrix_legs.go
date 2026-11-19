@@ -18,7 +18,8 @@ import (
 // isBasisTemplate basis 族判定（模板族——basis_open.go 同域；inst 键形
 // 由 basisLegs 内 datedFutRe 断言 fail-closed）。
 func isBasisTemplate(tmpl string) bool {
-	return tmpl == "quarter_basis_long" || tmpl == "perp_quarter_spread" || tmpl == "quarter_basis_short"
+	return tmpl == "quarter_basis_long" || tmpl == "perp_quarter_spread" ||
+		tmpl == "quarter_basis_short" || tmpl == "quarter-calendar-spread"
 }
 
 // spotQuoteSz TgtQuote 委托额网格对齐——simvenue vetGrid 判
@@ -65,6 +66,11 @@ func basisLegs(c excell.Cell, t excell.Tier, inst string, vs *simvenue.SimVenue)
 		// spot_short 腿=保证金借币卖——margin-borrow 面 enabled=false（T-0216
 		// 条件缺口/parked 域）；原映射错塞 SWAP 多腿构——显式拒防错腿产凭据。
 		return [2]execution.Leg{}, nil, fmt.Errorf("quarter_basis_short 演习不支持（spot_short 腿 margin-borrow 面缺——fail-closed 不构错腿）")
+	}
+	if c.Template == "quarter-calendar-spread" {
+		// 工单#24981 骨架族——双季度远期腿对约定（近空远多键对）未建,
+		// 通用两腿构会错塞现货/合约键——显式拒防错腿产凭据。
+		return [2]execution.Leg{}, nil, fmt.Errorf("quarter-calendar-spread 演习不支持（骨架族腿对约定未建——fail-closed 不构错腿）")
 	}
 	mm := datedFutRe.FindStringSubmatch(inst)
 	if mm == nil {

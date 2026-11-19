@@ -57,17 +57,18 @@ func TestInstFitOKFamilyContract(t *testing.T) {
 // 构型（漏登=本表无键=红——扩族单点登记语义延伸至构型核）。
 func TestInstFitOKCoversExecFam(t *testing.T) {
 	valid := map[string]string{
-		"funding-hedge":        "BTC-USDT-SWAP",
-		"xvenue-carry":         "BTC-USDT-SWAP",
-		"dir_perp_mom":         "BTC-USDT-SWAP",
-		"perp-trend-daily":     "BTC-USDT-SWAP",
-		"quarter_basis_long":   "BTC-USD-270326",
-		"perp_quarter_spread":  "BTC-USD-261225",
-		"dcd_call":             "BTC-USDT-261225-95000-C",
-		"dcd_put":              "BTC-USDT-261225-68000-P",
-		"vol_sell_single_call": "DOGE-USDT-261030-0.0752-C",
-		"vol_sell_strangle":    "BETH-USDT-261029-2325-C+ETH-RLUSD-261029-2330-P",
-		"stake-carry":          "okx:TRX",
+		"funding-hedge":           "BTC-USDT-SWAP",
+		"xvenue-carry":            "BTC-USDT-SWAP",
+		"dir_perp_mom":            "BTC-USDT-SWAP",
+		"perp-trend-daily":        "BTC-USDT-SWAP",
+		"quarter_basis_long":      "BTC-USD-270326",
+		"perp_quarter_spread":     "BTC-USD-261225",
+		"quarter-calendar-spread": "BTC-USD-270327",
+		"dcd_call":                "BTC-USDT-261225-95000-C",
+		"dcd_put":                 "BTC-USDT-261225-68000-P",
+		"vol_sell_single_call":    "DOGE-USDT-261030-0.0752-C",
+		"vol_sell_strangle":       "BETH-USDT-261029-2325-C+ETH-RLUSD-261029-2330-P",
+		"stake-carry":             "okx:TRX",
 	}
 	for _, tmpl := range execfam.All() {
 		inst, ok := valid[tmpl]
