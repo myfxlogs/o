@@ -32,6 +32,18 @@ WTBASE="${O_LAND_WT:-/tmp}"
 LOCK="${O_LAND_LOCK:-/tmp/o-land-queue.lock}"
 WT=""
 
+# go 工具径自足（工单#25880）：合并点 check_all 的唤起面不定——正式
+# systemd 单元 Environment 有 go 径，transient systemd-run/手工径最小
+# PATH 缺 /usr/local/go/bin（实证 o-land-drain 2026-11-20 05:42Z 四支
+# merge_red 同因 check_all.sh:87 go:command not found，非支病灶）。
+# PATH 缺口在唤起面自足补齐——禁依赖外部 unit env 声明在场。
+if ! command -v go >/dev/null 2>&1; then
+	for _gobin in /usr/local/go/bin /usr/lib/go/bin /snap/go/current/bin 		"$HOME/go/bin" "$HOME/sdk/go/bin" /opt/go/bin; do
+		if [ -x "$_gobin/go" ]; then PATH="$_gobin:$PATH"; export PATH; break; fi
+	done
+	unset _gobin
+fi
+
 say() { echo "[land_queue] $*"; }
 sqlq() { printf '%s' "$1" | sed "s/'/''/g"; } # tolerate: sed 恒 rc0——纯转义器非闸
 q() { # $1=sql → stdout（DSN/psql 败=空——调用方按空判不猜）
