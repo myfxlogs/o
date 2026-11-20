@@ -221,6 +221,7 @@ var migrationTable = []struct {
 	{212, "fin_0212_desk_dispatchable_cert.sql"},
 	{213, "fin_0213_app_config_dm_grant.sql"},
 	{214, "fin_0214_mono_family_seed.sql"},
+	{216, "fin_0216_regime_keys.sql"}, // 工单#25750：fin_0215 在途占（fix/gridfit 支）——跳号钉 0216
 	{217, "fin_0217_ocore_window.sql"},
 
 	// —— md 链（版本链内唯一且单调；md 链版本=历史号+1000 与 fin 键空间全局不相交——跨链并 schema 时 schema_migrations 零撞号，check_migrations 断言①⑤）——
