@@ -35,6 +35,7 @@ type hungerSensor interface {
 	ProbeOpenDrought(ctx context.Context) error
 	ProbeWorkerCloseout(ctx context.Context) error
 	ProbeDeployWatch(ctx context.Context) error
+	ProbeUnitDrift(ctx context.Context) error
 	MineLessons(ctx context.Context) (int, error)
 }
 
@@ -146,6 +147,12 @@ func (r *Runner) hungerTick(ctx context.Context) {
 	if err := r.sensor.ProbeDeployWatch(ctx); err != nil {
 		log.Printf("[lifecycle] hungertick deploy_watch看门狗探针败: %v", err)
 		r.hungerEscalate(ctx, "deploywatch_probe", err)
+	}
+	// 工单#26444 建制单元差分探针同槽（同款败情隔离位——注册表差分
+	// =单元死活+产出鲜度+查件死活三面）。
+	if err := r.sensor.ProbeUnitDrift(ctx); err != nil {
+		log.Printf("[lifecycle] hungertick 建制单元差分探针败: %v", err)
+		r.hungerEscalate(ctx, "unitdrift_probe", err)
 	}
 	rep, err := r.sensor.Detect(ctx)
 	if err != nil {

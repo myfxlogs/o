@@ -1,0 +1,10 @@
+[Unit]
+Description=o-unit-watch.service 建制单元本机查件（工单#26444——systemctl 实查差分落账）
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/o
+Environment=PATH=/home/mluser/.local/bin:/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/bin/bash /opt/o/scripts/unit_watch.sh
+NoNewPrivileges=true
+TimeoutStartSec=120
