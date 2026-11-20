@@ -47,7 +47,8 @@ type BridgeCollector struct {
 func NewBridgeCollector(pool *pgxpool.Pool, cfg *config.Client) (*BridgeCollector, error) {
 	return &BridgeCollector{pool: pool, cfg: cfg,
 		rej: rejects.New("mt5bridge", "connect_failed", "subscribe_failed",
-			"symbols_missing", "tick_write_err", "symbols_read_failed", "symbol_group_nil")}, nil
+			"symbols_missing", "tick_write_err", "symbols_read_failed", "symbol_group_nil",
+			"kline_symbols_failed", "kline_read_failed", "kline_write_err")}, nil
 }
 
 // Run 上岗（无 roster 注册——桥面工序岗属采集器机延伸，编制册零新卡；
@@ -110,6 +111,9 @@ func (c *BridgeCollector) bridgeSession(ctx context.Context, dial func(string) (
 	// T-0408①：全目录粗扫拍（366 符 SymbolParams 步进限速+GetQuoteMany mid
 	// 快照——低频 RPC 非流，影子评估层事实源；同会话止）。
 	go c.catalogLoop(sessCtx, cl)
+	// 工单#25563：D1 日K扫拍（全目录 ExMany 分批→md_klines venue='mt5'——
+	// 异因子评估数据面；同会话止）。
+	go c.klineLoop(sessCtx, cl)
 	// 推流静默死看门狗（11-09 三符同窗断帧实证——venue 订阅侧哑但流不返
 	// err，Recv 永阻塞；RPC 面 SymbolParams 同会话照常=非连接死）。
 	// 真帧超阈零至=cancel sessCtx→Recv 返 err→Run 退避重连重订自愈；
