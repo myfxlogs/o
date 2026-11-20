@@ -74,14 +74,26 @@ type card struct {
 // Runner 方向评估岗（md 池——fin_opp_eval/fin_proposal/fin_opp_template
 // 正本+fin_strategy 只读副本+md_klines 桥面，研究域同池惯例）。
 type Runner struct {
-	pool  *pgxpool.Pool
-	cfg   *config.Client
-	rej   *rejects.Door
-	watch *armwatch.Watch
+	pool     *pgxpool.Pool
+	cfg      *config.Client
+	rej      *rejects.Door
+	watch    *armwatch.Watch
+	venue    string // md_klines venue 域（okx 正径；mt5=影子评估面 工单#25563）
+	instLike string // 宇宙 inst_id LIKE 形（okx='%-SWAP'；mt5='%' 全目录）
+	template string // fin_opp_eval.template + execfam 册键
+	seat     string // roster 座名+watch 标（双臂并存须分席）
 }
 
 func NewRunner(pool *pgxpool.Pool, cfg *config.Client) *Runner {
-	return &Runner{pool: pool, cfg: cfg, watch: armwatch.New("方向评估"),
+	return NewRunnerVenue(pool, cfg, "okx", "%-SWAP", Template, "方向评估")
+}
+
+// NewRunnerVenue 泛 venue 构造（MT5 影子评估面：venue='mt5' 全目录
+// instLike='%',template 另册——execfam 未册模板判词全落
+// rejected/exec_family_missing=影域语义，eval 卡全可见执行零径）。
+func NewRunnerVenue(pool *pgxpool.Pool, cfg *config.Client, venue, instLike, template, seat string) *Runner {
+	return &Runner{pool: pool, cfg: cfg, watch: armwatch.New(seat),
+		venue: venue, instLike: instLike, template: template, seat: seat,
 		rej: rejects.New("research", "dir_missing_params", "dir_stale_bars",
 			"dir_thin_bars", "dir_write_err", "gate_kill")}
 }
@@ -95,12 +107,12 @@ func (r *Runner) ScanOnce(ctx context.Context) error { return r.scan(ctx) }
 // Run 在岗（注册+心跳+ticker 拍——klines 无事件脊，日棒粒度 ticker 正解；
 // sched-exempt-ok：慢特征评估节拍非轮询拉取）。
 func (r *Runner) Run(ctx context.Context, errc chan<- error) {
-	if err := roster.Register(ctx, r.pool, "方向评估", "research",
+	if err := roster.Register(ctx, r.pool, r.seat, "research",
 		"md_klines 1D→动量 z 分→方向评估卡+提案（paper-only 族）", nil); err != nil {
-		errc <- fmt.Errorf("方向评估 register: %w", err)
+		errc <- fmt.Errorf("%s register: %w", r.seat, err)
 		return
 	}
-	go roster.BeatLoop(ctx, r.pool, "方向评估", 30*time.Second, errc)
+	go roster.BeatLoop(ctx, r.pool, r.seat, 30*time.Second, errc)
 	iv := 4 * time.Hour // 判据未读前兜底节距（拍内 params 重读热启）
 	for {
 		if err := r.scan(ctx); err != nil {
@@ -185,7 +197,7 @@ func (r *Runner) scan(ctx context.Context) error {
 		return fmt.Errorf("判据缺位=不评估（fail-closed）: %w", err)
 	}
 	instRows, err := r.pool.Query(ctx, `SELECT DISTINCT inst_id FROM md_klines
-		WHERE venue='okx' AND bar=$1 AND inst_id LIKE '%-SWAP' ORDER BY inst_id`, bar)
+		WHERE venue=$2 AND bar=$1 AND inst_id LIKE $3 ORDER BY inst_id`, bar, r.venue, r.instLike)
 	if err != nil {
 		return err
 	}

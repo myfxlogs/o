@@ -16,8 +16,8 @@ import (
 // closes 末 n 根确认棒收盘序（旧→新；不足 n 返实得数）。
 func (r *Runner) closes(ctx context.Context, inst string, n int) ([]float64, time.Time, int, error) {
 	rows, err := r.pool.Query(ctx, `SELECT c,ts FROM md_klines
-		WHERE venue='okx' AND inst_id=$1 AND bar=$2 AND confirm
-		ORDER BY ts DESC LIMIT $3`, inst, bar, n)
+		WHERE venue=$4 AND inst_id=$1 AND bar=$2 AND confirm
+		ORDER BY ts DESC LIMIT $3`, inst, bar, n, r.venue)
 	if err != nil {
 		return nil, time.Time{}, 0, err
 	}
@@ -43,7 +43,7 @@ func (r *Runner) closes(ctx context.Context, inst string, n int) ([]float64, tim
 // （闸后唯一提案径——fin_strategy md 侧只读副本 dedupe 同 funding persist）。
 func (r *Runner) writeEval(ctx context.Context, tx pgx.Tx, inst, dir, verdict, reason string,
 	c card, p Params) error {
-	if verdict == "proposed" && !execfam.Has(Template) {
+	if verdict == "proposed" && !execfam.Has(r.template) {
 		verdict, reason = "rejected", "exec_family_missing" // T-0330 前置拒同闸
 	}
 	ev, _ := json.Marshal(map[string]any{
@@ -56,14 +56,14 @@ func (r *Runner) writeEval(ctx context.Context, tx pgx.Tx, inst, dir, verdict, r
 		"long_perp": "perp_long", "short_perp": "perp_short"}[dir]})
 	// 工单#22904 指纹闸：同(inst,template,direction)最新行 verdict+net_apr
 	// 未变=信念未迁→跳 INSERT 复用行 id 续提案径（判词/净额变迁仍产新版史）。
-	evalID, same, err := evalgate.SameFingerprint(ctx, tx, inst, Template, dir, verdict, c.netAPR)
+	evalID, same, err := evalgate.SameFingerprint(ctx, tx, inst, r.template, dir, verdict, c.netAPR)
 	if err != nil {
 		return err
 	}
 	if !same {
 		if err := tx.QueryRow(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,gross_apr,net_apr,verdict,legs,evidence)
 			VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
-			inst, Template, dir, c.netAPR+p.FrictionRT*365/p.HoldDays, c.netAPR,
+			inst, r.template, dir, c.netAPR+p.FrictionRT*365/p.HoldDays, c.netAPR,
 			verdict, legs, ev).Scan(&evalID); err != nil {
 			return err
 		}

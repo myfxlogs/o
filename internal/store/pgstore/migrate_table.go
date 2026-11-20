@@ -277,4 +277,5 @@ var migrationTable = []struct {
 	{1096, "md_1096_perp_trend_daily.sql"},
 	{1097, "md_1097_eval_insertonly.sql"},
 	{1098, "md_1098_trend_template_park.sql"},
+	{1099, "md_1099_mt5_dir_mom.sql"},
 }

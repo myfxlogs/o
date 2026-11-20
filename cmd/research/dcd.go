@@ -207,6 +207,10 @@ func researchArms(ctx context.Context, errc chan<- error, pool *pgxpool.Pool,
 	// 工单#11481 方向趋势族评估臂（perp-trend-daily paper-only——md_klines
 	// 1D→Donchian 突破+winrate-CI→eval/proposal；真单径未建同棒1裁定）。
 	go dirtrend.NewRunner(pool, cfg).AttachAlerter(alerter).Run(ctx, errc)
+	// 工单#25563 MT5 影子评估臂（venue='mt5' 全目录→同 z 分判据——
+	// execfam 未册=判词全落 exec_family_missing，影域评分先行执行零径）。
+	go dirmom.NewRunnerVenue(pool, cfg, "mt5", "%", "mt5_dir_mom", "MT5方向评估").
+		AttachAlerter(alerter).Run(ctx, errc)
 	// T-0379 MT5 族 broker 接入标准径臂（凭据发现→探测→映射闸→paper 态——
 	// md=候选正本池/fin=凭据+ops_event+请求盒正本池；凭据域只读）。
 	// AttachUniverse=okx.symbols=['*'] 通配展开缝（uniCat 同供给件——字面
