@@ -37,6 +37,8 @@ chmod +x "$T/bin/psql"
 cat > "$T/stub_check.sh" <<'EOF'
 #!/usr/bin/env bash
 # 桩合并点闸：绿=往 git-common-dir 盖戳（模拟 check_all.sh 末段）
+# GO_PROBE 在场=记 command -v go 实解（PATH 自足闸断言面，工单#25880）
+[ -n "${GO_PROBE:-}" ] && { command -v go > "$GO_PROBE" 2>/dev/null || true; } # tolerate: 桩探针行——go 缺席=空文件如实断言面，写败不翻测判
 [ "${STUB_CHECK_FAIL:-0}" = 1 ] && { echo "stub check_all red"; exit 1; }
 gd=$(git rev-parse --path-format=absolute --git-common-dir) || exit 1
 touch "$gd/check-green-$(git rev-parse HEAD)"
@@ -199,6 +201,30 @@ new_case
 TIP=$(tip_of "$T/o" fix/deplain); stamp "$T/o" "$TIP"
 run_lq T_REVIEW_OK=1
 if landed "$T/o" "$TIP"; then ok "无声明迁移放落"; else bad "无声明迁移未落"; fi
+
+# ═══ PATH 自足闸（工单#25880）：唤起面最小 PATH 无 go 径→land_queue 自补 ═══
+echo "== PATH 自足闸 =="
+new_case
+(cd "$T/o" && git checkout -q -b fix/gopath master \
+  && echo gopath >> f.txt && git add -A && git commit -qm "wip gopath" \
+  && git push -qu origin fix/gopath && git checkout -q master \
+  && echo master-moved > m2.txt && git add -A && git commit -qm "master 进位" \
+  && git push -qu origin master)
+# master 进位→合并树≠支尖树——快径跳不过，合并点 check_all 必走（桩记 go 探针）
+TIP=$(tip_of "$T/o" fix/gopath); stamp "$T/o" "$TIP"
+# env -i 最小集——模拟 transient systemd-run 径（无 /usr/local/go/bin、
+# 无继承环境；go 真件在 /usr/local/go/bin 供自足环探得）
+env -i PATH="$T/bin:/usr/bin:/bin" HOME="$HOME" \
+  O_LAND_REPO="$T/o" O_LAND_DSN=stub O_LAND_PSQL="$T/bin/psql" \
+  O_LAND_CHECK_ALL="bash $T/stub_check.sh" O_LAND_BOOTSTRAP=true \
+  O_LAND_PUSH="git push" O_LAND_WT="$T/wt" O_LAND_LOCK="$T/lq.lock" \
+  PSQL_LOG="$T/psql.log" GO_PROBE="$T/go.probe" T_REVIEW_OK=1 \
+  bash "$LQ" >/dev/null 2>&1
+if [ -s "$T/go.probe" ] && landed "$T/o" "$TIP"; then
+  ok "最小PATH唤起面go自足+支落地"
+else
+  bad "go自足败 probe=[$(cat "$T/go.probe" 2>/dev/null)]"
+fi
 
 echo "== 汇总: PASS=$PASS FAIL=$FAILN =="
 [ "$FAILN" -eq 0 ]
