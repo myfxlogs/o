@@ -33,6 +33,7 @@ type stubSensor struct {
 	fserr    error
 	kserr    error
 	odErr    error
+	copErr   error
 	detects  atomic.Int64
 	responds atomic.Int64
 	probes   atomic.Int64
@@ -42,6 +43,7 @@ type stubSensor struct {
 	fstales  atomic.Int64
 	kstales  atomic.Int64
 	ods      atomic.Int64
+	cops     atomic.Int64
 }
 
 func (s *stubSensor) Detect(context.Context) (*hunger.Report, error) {
@@ -88,6 +90,11 @@ func (s *stubSensor) ProbeKlineStale(context.Context) error {
 func (s *stubSensor) ProbeOpenDrought(context.Context) error {
 	s.ods.Add(1)
 	return s.odErr
+}
+
+func (s *stubSensor) ProbeWorkerCloseout(context.Context) error {
+	s.cops.Add(1)
+	return s.copErr
 }
 
 func (s *stubSensor) MineLessons(context.Context) (int, error) {
