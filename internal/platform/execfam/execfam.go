@@ -37,6 +37,11 @@ var set = map[string]bool{
 	// redeem/cancel(三向停泊比价评估,非Executor腿语义);Drillable未册=
 	// probe→live结构性拦在位;凭据域=业主condreq在案;hunger册免=
 	// 族无自有cfg键(有键才册票钦)。
+	"signal-bot-relay": true, // 工单#26272 parked卡#550054 骨架登记——
+	// paper 域提案门开;真径=tradingBot signal API(create-signal+order-
+	// algo+webhook,venue侧executor转发外部信号,消化#26159取证在案;弹
+	// 性增量非新alpha);Drillable未册=probe→live结构性拦在位;凭据域=
+	// 业主condreq;hunger册免=族无自有cfg键(有键才册票钦)。
 }
 
 // Has 模板族执行径在册否。

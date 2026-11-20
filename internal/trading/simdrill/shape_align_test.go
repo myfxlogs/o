@@ -18,6 +18,7 @@ var drillUnsupported = []string{
 	"grid_spot",            // 工单#25840：venue 原生 bot 容器族——execution.Executor 腿形语义外（okxgrid 适配器径），无可演习腿形
 	"stable-park-usdg",     // 工单#26272：骨架族——真径=okx finance okusd 申赎非 Executor 腿形，probe→live 结构性拦保持
 	"staking-defi-parking", // 工单#26272：骨架族——真径=okx finance staking-defi purchase/redeem 非 Executor 腿形，probe→live 结构性拦保持
+	"signal-bot-relay",     // 工单#26272：骨架族——真径=tradingBot signal 适配器非 Executor 腿形，probe→live 结构性拦保持
 }
 
 func TestExecfamLegShapeAlign(t *testing.T) {

@@ -165,6 +165,11 @@ func InstFitOK(template, instID string) bool {
 		// 卡#550055 骨架——inst=okx:ETH/okx:SOL 资产级伪键（staking-defi
 		// purchase 标的；他币/异 venue/交易对/SWAP 形皆拒，fail-closed）。
 		return okxStakeRe.MatchString(instID)
+	case "signal-bot-relay":
+		// 卡#550054 骨架——信号载体=order-algo instIds 钦定 USDT 本位
+		// 永续形（docs-v5 tradingBot/signal/order-algo 实证 BTC-USDT-
+		// SWAP）；现货对/远期/期权/伪键形皆拒，fail-closed。
+		return classifyInst(instID) == formSwapPerp && IsUSDTInst(instID)
 	}
 	return false
 }
