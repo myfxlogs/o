@@ -136,6 +136,7 @@ func TestClassifyKeyDomain(t *testing.T) {
 		"strategy.degraded_ttl_hours", "gate.kill.funding_carry",
 		"exec.probe_notional_usd", "dm.hunger.zero_proposal_days",
 		"earn.auto_purchase_enabled", "trx.floor_pct",
+		"deploy.ocore_window_utc",
 	}
 	owner := []string{
 		"risk.max_notional_usd", "risk.kill_switch", "ledger.recon_tol_usd",
