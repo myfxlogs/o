@@ -99,8 +99,8 @@ func (c coreService) Overview(ctx context.Context, _ *dashboardv1.OverviewReques
 	// 持仓（无 open 仓且无 DCD live 单）；DCD 读件缺显形不静默（不假零）。
 	// exec 持仓简讯行撤——同页在持订单卡 ListOpenPositions 结构化行承载
 	// （业主令两瓦片合一；本段仅留 posN 供静持空态判据）。
-	prow, _ := c.pool.Query(ctx, `SELECT position_id FROM fin_position_view
-		WHERE kind='exec' AND closed_at IS NULL LIMIT 5`)
+	prow, _ := c.pool.Query(ctx, `SELECT id FROM fin_position
+		WHERE state<>'closed' LIMIT 5`)
 	posN := 0
 	for prow.Next() {
 		var id int64

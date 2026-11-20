@@ -44,7 +44,7 @@ func (d *Drill) runDirDrill(ctx context.Context, res Result, inst, templateRef s
 	}
 	defer func() {
 		_, _ = d.Pool.Exec(ctx,
-			`UPDATE fin_position SET closed_at=now() WHERE strategy_ref=$1 AND closed_at IS NULL`, drillStrat)
+			`UPDATE fin_position SET closed_at=now() WHERE strategy_ref=$1 AND state<>'closed'`, drillStrat)
 		_, _ = d.Pool.Exec(ctx,
 			`UPDATE fin_guard_close SET state='closed',closed_at=now(),updated_at=now(),
 			 last_error='reconcile:drill_cleanup' WHERE state='closing'
@@ -102,7 +102,7 @@ func (d *Drill) runDirDrill(ctx context.Context, res Result, inst, templateRef s
 func (d *Drill) dirRecon(ctx context.Context, res Result, deriv simvenue.Instrument) (string, string) {
 	var closed bool
 	var posID int64
-	if err := d.Pool.QueryRow(ctx, `SELECT id,closed_at IS NOT NULL FROM fin_position
+	if err := d.Pool.QueryRow(ctx, `SELECT id,state='closed' FROM fin_position
 		WHERE execution_id=$1 ORDER BY id DESC LIMIT 1`, res.OpenExecID).Scan(&posID, &closed); err != nil {
 		return d.fail(ctx, res, "演习仓行缺（开仓事实不可读）"), "fail"
 	}

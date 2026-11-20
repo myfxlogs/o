@@ -73,7 +73,7 @@ func (r *Runner) retireStaleArmedStrategies(ctx context.Context, ttl float64) er
 	fam := execfam.FundingHedgeList() // T-0392：闸域族集=execfam 册同源（原 fundingHedgeFamily 本地册归并）
 	rows, err := r.pool.Query(ctx, `SELECT s.id FROM fin_strategy s
 		WHERE s.state IN ('live','probe') AND NOT EXISTS(
-			SELECT 1 FROM fin_position p WHERE p.strategy_ref=s.id AND p.closed_at IS NULL)
+			SELECT 1 FROM fin_position p WHERE p.strategy_ref=s.id AND p.state<>'closed')
 		AND GREATEST(s.entered_at,
 			(SELECT max(p2.opened_at) FROM fin_position p2 WHERE p2.strategy_ref=s.id),
 			(SELECT max(e.created_at) FROM fin_execution e WHERE e.strategy_ref=s.id),

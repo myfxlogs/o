@@ -176,7 +176,7 @@ func (w *Warden) ddResume(ctx context.Context) {
 	var stuck int
 	if err := w.pool.QueryRow(ctx, `SELECT count(*) FROM fin_position p
 		LEFT JOIN fin_guard_close g ON g.position_id = p.id
-		WHERE p.closed_at IS NULL AND COALESCE(g.attempts,0) >= $1`, maxAtt).Scan(&stuck); err != nil {
+		WHERE p.state<>'closed' AND COALESCE(g.attempts,0) >= $1`, maxAtt).Scan(&stuck); err != nil {
 		w.rej.Inc("write_err")
 		return
 	}
@@ -191,7 +191,7 @@ func (w *Warden) ddResume(ctx context.Context) {
 		FROM fin_position p
 		LEFT JOIN fin_guard_close g ON g.position_id = p.id
 		LEFT JOIN fin_strategy s ON s.id = p.strategy_ref
-		WHERE p.closed_at IS NULL AND COALESCE(g.state,'open') <> 'closed'
+		WHERE p.state<>'closed' AND COALESCE(g.state,'open') <> 'closed'
 		  AND COALESCE(g.attempts,0) < $1
 		  AND (g.last_try_at IS NULL OR now() - g.last_try_at >= make_interval(secs => $2))`,
 		maxAtt, backoff)

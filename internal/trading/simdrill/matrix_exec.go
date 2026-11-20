@@ -119,14 +119,14 @@ func (m *Matrix) execTwoLeg(ctx context.Context, res *CellResult, vs *simvenue.S
 	res.OpenExecID = execID
 	var posID int64
 	if err := m.Pool.QueryRow(ctx,
-		`SELECT id, closed_at IS NULL FROM fin_position WHERE execution_id=$1 ORDER BY id DESC LIMIT 1`,
+		`SELECT id, state<>'closed' FROM fin_position WHERE execution_id=$1 ORDER BY id DESC LIMIT 1`,
 		execID).Scan(&posID, new(bool)); err != nil || posID == 0 {
 		res.Verdict, res.Detail = "fail", res.Detail+" 演习仓行缺（开仓事实不可读）"
 		return
 	}
 	// hold 段——仓在期间敞口真（closed_at 未落=在持；强平前快照锚）。
 	var stillOpen bool
-	_ = m.Pool.QueryRow(ctx, `SELECT closed_at IS NULL FROM fin_position WHERE id=$1`, posID).Scan(&stillOpen)
+	_ = m.Pool.QueryRow(ctx, `SELECT state<>'closed' FROM fin_position WHERE id=$1`, posID).Scan(&stillOpen)
 	if !stillOpen {
 		res.Verdict, res.Detail = "fail", res.Detail+" hold 段仓已闭（开仓未留持窗）"
 		return

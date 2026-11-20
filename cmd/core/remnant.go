@@ -39,9 +39,9 @@ func msToTime(ms string) *time.Time {
 // 策略 inst——「活策略」=probe/live/degraded 出资态；paper/proposed 簿记态
 // 无 venue 仓不归属，retired=策略死正是幽灵类）。
 func (c coreService) holdingAttr(ctx context.Context) (map[string]bool, error) {
-	rows, err := c.pool.Query(ctx, `SELECT inst_id FROM fin_position WHERE closed_at IS NULL
+	rows, err := c.pool.Query(ctx, `SELECT inst_id FROM fin_position WHERE state<>'closed'
 		UNION SELECT l.inst_id FROM fin_order_leg l
-			JOIN fin_position p ON p.execution_id=l.execution_id WHERE p.closed_at IS NULL
+			JOIN fin_position p ON p.execution_id=l.execution_id WHERE p.state<>'closed'
 		UNION SELECT inst_id FROM fin_strategy WHERE state IN ('probe','live','degraded')`)
 	if err != nil {
 		return nil, err

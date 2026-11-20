@@ -110,7 +110,7 @@ func (c coreService) GetCockpit(ctx context.Context,
 	// T-0364：kind='dcd'=策略域——业主域凭据视图分流 kind='dcd_owner'
 	// 剔出敞口分子（业主独立仓收归，显示面最简隐；闸面同源）。
 	if err := c.pool.QueryRow(ctx, `SELECT COALESCE(
-		  (SELECT sum(notional) FROM fin_position_view WHERE kind='exec' AND closed_at IS NULL),0)
+		  (SELECT sum(notional_usd) FROM fin_position WHERE state<>'closed'),0)
 		+ COALESCE((SELECT sum(v.notional*CASE WHEN v.ccy IN ('USDT','USD') THEN 1
 			ELSE COALESCE(px.p,0) END)
 		  FROM fin_position_view v

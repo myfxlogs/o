@@ -85,7 +85,7 @@ func (w *Warden) emergencyScan(ctx context.Context, maxAtt int64) {
 		FROM fin_position p
 		LEFT JOIN fin_guard_close g ON g.position_id = p.id
 		LEFT JOIN fin_strategy s ON s.id = p.strategy_ref
-		WHERE p.closed_at IS NULL
+		WHERE p.state<>'closed'
 		  AND COALESCE(g.state,'open') <> 'closed'`)
 	if err != nil {
 		w.rej.Inc("write_err")

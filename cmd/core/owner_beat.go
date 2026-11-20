@@ -86,7 +86,7 @@ func (c coreService) profitDailyBeat(ctx context.Context) {
 		(SELECT COALESCE(sum(amount),0) FROM fin_cashflow
 			WHERE venue<>'sim' AND occurred_at>now()-interval '30 days'
 			AND kind IN ('fee','funding_settle','trade_pnl','rollback_cost','spot_buy','spot_sell')),
-		(SELECT count(*) FROM fin_position WHERE closed_at IS NULL),
+		(SELECT count(*) FROM fin_position WHERE state<>'closed'),
 		(SELECT count(*) FROM fin_strategy WHERE state IN ('live','probe'))`).
 		Scan(&net24, &net30, &openPos, &liveN); err != nil {
 		return // 读件败本拍让位

@@ -105,7 +105,7 @@ func (s *Sensor) droughtCard(ctx context.Context, ageDays float64) (string, erro
 	if err := s.pool.QueryRow(ctx,
 		`SELECT count(*) FILTER (WHERE state='paper'), count(*) FILTER (WHERE state='probe'),
 		  count(*) FILTER (WHERE state='live'),
-		  (SELECT count(*) FROM fin_position WHERE closed_at IS NULL)
+		  (SELECT count(*) FROM fin_position WHERE state<>'closed')
 		 FROM fin_strategy`).Scan(&paper, &probe, &live, &openNow); err != nil {
 		return "", fmt.Errorf("策略池读败: %w", err)
 	}

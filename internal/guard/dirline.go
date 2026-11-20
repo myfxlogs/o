@@ -94,7 +94,7 @@ func (w *Warden) dirWatch(ctx context.Context, broken map[string]bool) []string 
 	rows, err := w.pool.Query(ctx, `SELECT DISTINCT s.template_ref
 		FROM fin_position p
 		JOIN fin_strategy s ON s.id=p.strategy_ref
-		WHERE p.closed_at IS NULL AND s.template_ref NOT LIKE 'simdrill%'
+		WHERE p.state<>'closed' AND s.template_ref NOT LIKE 'simdrill%'
 		AND EXISTS (
 			SELECT 1 FROM fin_order_leg l WHERE l.execution_id=p.execution_id
 			  AND l.state='filled'
@@ -134,7 +134,7 @@ func (w *Warden) dirFloating(ctx context.Context, fam string) (float64, error) {
 		FROM fin_order_leg l
 		JOIN fin_position p ON p.execution_id=l.execution_id
 		JOIN fin_strategy s ON s.id=p.strategy_ref
-		WHERE s.template_ref=$1 AND p.closed_at IS NULL AND l.state='filled'
+		WHERE s.template_ref=$1 AND p.state<>'closed' AND l.state='filled'
 		AND p.execution_id IN (
 			SELECT execution_id FROM fin_order_leg WHERE state='filled'
 			GROUP BY execution_id HAVING count(DISTINCT side)=1)
@@ -228,7 +228,7 @@ func (w *Warden) dirAnomaly(ctx context.Context, fam string) []int64 {
 	var out []int64
 	rows, err := w.pool.Query(ctx, `SELECT p.id FROM fin_position p
 		JOIN fin_strategy s ON s.id=p.strategy_ref
-		WHERE s.template_ref=$1 AND p.closed_at IS NULL
+		WHERE s.template_ref=$1 AND p.state<>'closed'
 		AND (SELECT count(*) FROM fin_order_leg l
 		     WHERE l.execution_id=p.execution_id AND l.state='filled') NOT IN (1,2)`, fam)
 	if err != nil {
@@ -259,7 +259,7 @@ func (w *Warden) dirFlatten(ctx context.Context, fam string) {
 		FROM fin_position p
 		JOIN fin_strategy s ON s.id=p.strategy_ref
 		LEFT JOIN fin_guard_close g ON g.position_id = p.id
-		WHERE s.template_ref=$1 AND p.closed_at IS NULL
+		WHERE s.template_ref=$1 AND p.state<>'closed'
 		  AND COALESCE(g.state,'open') <> 'closed'
 		  AND COALESCE(g.attempts,0) < $2
 		  AND (g.last_try_at IS NULL OR now() - g.last_try_at >= make_interval(secs => $3))`,
@@ -289,7 +289,7 @@ func (w *Warden) dirFlatten(ctx context.Context, fam string) {
 	if err := w.pool.QueryRow(ctx, `SELECT count(*) FROM fin_position p
 		JOIN fin_strategy s ON s.id=p.strategy_ref
 		LEFT JOIN fin_guard_close g ON g.position_id=p.id
-		WHERE s.template_ref=$1 AND p.closed_at IS NULL AND COALESCE(g.attempts,0)>=$2`,
+		WHERE s.template_ref=$1 AND p.state<>'closed' AND COALESCE(g.attempts,0)>=$2`,
 		fam, maxAtt).Scan(&stuck); err == nil && stuck > 0 {
 		w.rej.Inc("dir_close_exhausted")
 		w.al.Alert(ctx, "dir_close_exhausted", fmt.Sprintf("方向族 %s %d 仓耗尽敞口仍开——人工介入", fam, stuck))

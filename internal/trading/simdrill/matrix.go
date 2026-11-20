@@ -127,7 +127,7 @@ func (m *Matrix) runCell(ctx context.Context, c excell.Cell, t excell.Tier, shap
 	// 夭折防护同 Drill.Run——演习未平仓位即时关账防产线仓巡拾取。
 	defer func() {
 		_, _ = m.Pool.Exec(ctx,
-			`UPDATE fin_position SET closed_at=now() WHERE strategy_ref=$1 AND closed_at IS NULL`, stratID)
+			`UPDATE fin_position SET closed_at=now() WHERE strategy_ref=$1 AND state<>'closed'`, stratID)
 		// T-0511：position 关账后残 'closing' 行=僵尸（探针假升件）——
 		// 清扫径同关 guard_close。
 		_, _ = m.Pool.Exec(ctx,

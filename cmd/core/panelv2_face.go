@@ -69,7 +69,7 @@ func (c coreService) GetFunnel(ctx context.Context,
 	}
 	// ④仓位层：窗内开仓+现态未平（fin_position 时标列=opened_at 非 ts）。
 	if err := c.pool.QueryRow(ctx, `SELECT count(*) FILTER (WHERE opened_at>now()-$1::interval),
-		count(*) FILTER (WHERE closed_at IS NULL)
+		count(*) FILTER (WHERE state<>'closed')
 		FROM fin_position`, iv).Scan(&n, &openN); err != nil {
 		log.Printf("[funnel] 仓位层查询败: %v", err)
 		lvl("position", "仓位", -1, -1, "读件缺")

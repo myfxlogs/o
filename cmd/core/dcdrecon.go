@@ -57,7 +57,7 @@ func dcdSettleOne(ctx context.Context, pool *pgxpool.Pool, od okxexec.DcdOrder) 
 	defer tx.Rollback(ctx)
 	rows, qerr := tx.Query(ctx, `SELECT p.id,p.execution_id FROM fin_position p
 		JOIN fin_execution e ON e.id=p.execution_id
-		WHERE p.closed_at IS NULL AND (
+		WHERE p.state<>'closed' AND (
 			e.venue_ord_id=$1 OR (e.venue_ord_id IS NULL AND p.inst_id=$2))
 		ORDER BY (e.venue_ord_id=$1) DESC`, od.OrdID, od.ProductID)
 	var pid, eid int64
@@ -85,7 +85,7 @@ func dcdSettleOne(ctx context.Context, pool *pgxpool.Pool, od okxexec.DcdOrder) 
 	} else {
 		if _, err := tx.Exec(ctx, fmt.Sprintf(`UPDATE fin_position
 			SET closed_at=%s, settled_at=%s, settled_amount=$1, settled_ccy=$2
-			WHERE id=$3 AND closed_at IS NULL`, settleTs, settleTs),
+			WHERE id=$3 AND state<>'closed'`, settleTs, settleTs),
 			okxexec.ParseF(od.SettleSz), od.SettleCcy, pid); err != nil {
 			log.Printf("[dcd] settle 仓收敛写败 pos=%d ordId=%s: %v", pid, od.OrdID, err)
 			_ = tx.Rollback(ctx)
@@ -143,7 +143,7 @@ func dcdOrphanCheck(ctx context.Context, pool *pgxpool.Pool, od okxexec.DcdOrder
 	var covered bool
 	if err := pool.QueryRow(ctx, `SELECT
 		EXISTS(SELECT 1 FROM fin_position p JOIN fin_execution e ON e.id=p.execution_id
-		       WHERE p.inst_id=$1 AND p.closed_at IS NULL)
+		       WHERE p.inst_id=$1 AND p.state<>'closed')
 		OR EXISTS(SELECT 1 FROM fin_position_domain WHERE ord_id=$2 OR inst_id=$1)
 		OR EXISTS(SELECT 1 FROM fin_risk_decision
 		       WHERE intent->>'op'='dcd_baseline' AND intent->>'ordId'=$2)`,
