@@ -11,6 +11,7 @@ package okxgrid
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"time"
@@ -23,13 +24,16 @@ import (
 
 // Runner venue bot 管护臂（fin 池——bot 实体账与权益快照皆 fin 域）。
 type Runner struct {
-	pool *pgxpool.Pool
-	cfg  *config.Client
-	ad   *Adapter
+	pool     *pgxpool.Pool
+	cfg      *config.Client
+	ad       *Adapter
+	quoteBal QuoteBal   // 交易户 quote availBal 现读（工单#26337 资金闸）
+	redeem   EarnRedeem // earn 前置赎回（dcdexec 同源注入先例）
 }
 
-func NewRunner(pool *pgxpool.Pool, cfg *config.Client, ad *Adapter) *Runner {
-	return &Runner{pool: pool, cfg: cfg, ad: ad}
+func NewRunner(pool *pgxpool.Pool, cfg *config.Client, ad *Adapter,
+	quoteBal QuoteBal, redeem EarnRedeem) *Runner {
+	return &Runner{pool: pool, cfg: cfg, ad: ad, quoteBal: quoteBal, redeem: redeem}
 }
 
 // Run 常驻（roster 员工注册+心跳+慢拍——snap_sec 键热调，缺省 300s；
@@ -175,6 +179,7 @@ func (r *Runner) snapSync(ctx context.Context) error {
 // launchGate 拉起门——live 态 grid_spot 策略未挂 bot 且业主首闸放
 // （okxgrid.live_switch=true）才拉起；双闸另棒在案：excell.Drillable
 // （grid_spot 未产能=probe→live 结构性拦）+本键（手动期首闸票面钉）。
+// 前置资金闸+歧态势 hold 禁自动重试（工单#26337——launchfund.go 钉注）。
 func (r *Runner) launchGate(ctx context.Context) error {
 	sw, err := r.cfg.GetBool("okxgrid.live_switch")
 	if err != nil || !sw {
@@ -189,7 +194,8 @@ func (r *Runner) launchGate(ctx context.Context) error {
 		JOIN fin_proposal p ON p.id=s.proposal_ref
 		JOIN fin_opp_eval e ON e.id=p.eval_id
 		WHERE s.template_ref='grid_spot' AND s.state='live'
-		  AND NOT EXISTS(SELECT 1 FROM fin_bot_order b WHERE b.strategy_id=s.id)`)
+		  AND NOT EXISTS(SELECT 1 FROM fin_bot_order b WHERE b.strategy_id=s.id)
+		  AND NOT EXISTS(SELECT 1 FROM fin_bot_launch_hold h WHERE h.strategy_id=s.id)`)
 	if err != nil {
 		return err
 	}
@@ -229,14 +235,34 @@ func (r *Runner) launchGate(ctx context.Context) error {
 		if inv > maxInv {
 			inv = maxInv // 投入帽=业主闸下二次保险（live_switch 已放仍帽）
 		}
+		// 前置资金闸（工单#26337）：交易户 quote 不足 quoteSz 则同棒内
+		// earn 赎回补缺口——余额读败=非钱动 log 让位下拍；赎回败=任一败
+		// hold 禁自动重试（歧态势禁补单铁律，launchfund.go 钉注）。
+		if err := r.ensureFunds(ctx, quoteCcy(c.inst), inv); err != nil {
+			var br errBalanceRead
+			if errors.As(err, &br) {
+				log.Printf("[okxgrid] #%d %s 资金闸余额读败（下拍重试）: %v", c.sid, c.inst, err)
+				continue
+			}
+			r.holdLaunch(ctx, c.sid, c.inst, "redeem", err)
+			continue
+		}
+		// 零隙纪律：赎回→划转→Launch 同棒零 sleep——清扫臂拍距约秒级，
+		// 任何间隙=送钱回 earn（实证坑 bills 575/577 锚）。
 		algoID, err := r.ad.Launch(ctx, LaunchReq{
 			InstID: c.inst, MaxPx: ev.BandHi, MinPx: ev.BandLo,
 			GridNum: ev.NLines, QuoteSz: inv,
 			AlgoClID: fmt.Sprintf("og%d", c.sid), Tag: "okxgrid",
 		})
 		if err != nil {
-			r.esc(ctx, "okxgrid_launch_fail", "钱径",
-				fmt.Sprintf("策略#%d %s 拉起败（band %.4f~%.4f 档%d 投$%.2f）: %v", c.sid, c.inst, ev.BandLo, ev.BandHi, ev.NLines, inv, err))
+			if launchDefinite(err) {
+				r.esc(ctx, "okxgrid_launch_fail", "钱径",
+					fmt.Sprintf("策略#%d %s 拉起败（band %.4f~%.4f 档%d 投$%.2f）: %v", c.sid, c.inst, ev.BandLo, ev.BandHi, ev.NLines, inv, err))
+				continue
+			}
+			// 不确定态（超时/5xx/断连）——venue 可能已成 bot：hold 禁自动
+			// 重试补单（双 bot 险），人工核查后删 hold 行放行。
+			r.holdLaunch(ctx, c.sid, c.inst, "launch", err)
 			continue
 		}
 		params, _ := json.Marshal(map[string]any{
