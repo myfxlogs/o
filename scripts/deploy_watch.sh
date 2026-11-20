@@ -3,10 +3,17 @@
 # merge→push→deploy 最后一步不再靠会话寿命——master HEAD 与产线镜像 SHA
 # 滞差即自动部署；同步失败/部署败→升件 deploy_lag/deploy_blocked 转信号，
 # 唤知会话清障。被动件有 merge 才醒的钦定形态，15min 一拍幂等）。
+# 工单#25760 o-core 换件部署窗：谱系判命中 cmd/core 依赖闭包=镜像必换+钱径
+# 重启——随 merge 即换废止，收窄到 UTC 低活动窗集中放件（app_config
+# deploy.ocore_window_utc，缺省 19:00-21:00）；窗外=入窗队列让位（不换
+# o-core，OCI 臂面照走），越窗未放（最老待放 commit 龄>max_hold）升件；
+# 首次部署（DEPLOYED 空）与会话紧急径（deploy_at_sha/deploy_image）不入窗。
+# 测试时钟缝：O_DEPLOY_NOW_EPOCH（秒——窗内/窗外/越窗可重放，同 O_MIRROR_NOW 先例）。
 set -uo pipefail
 cd "$(git rev-parse --show-toplevel)" || exit 1
 ENVF="${REPORT_ENV_FILE:-/opt/o-research/env}"
 DSN="${FIN_PG_DSN:-$(grep '^FIN_PG_DSN=' "$ENVF" 2>/dev/null | cut -d= -f2- | tr -d '"')}"
+NOW_EPOCH=${O_DEPLOY_NOW_EPOCH:-$(date +%s)}
 say() { echo "[deploy_watch] $*"; }
 esc_pending() { # esc_pending <scope> → rc0=未销升件在案（24h窗——esc dedup 同源判据，
 	# 工单#25481 抽函数：自动换件重试风暴闸复用同判——有未销败件即让位本拍）
@@ -24,6 +31,30 @@ esc() { # 升件 dedup=未销才抑（同 escEdgeU 语义——销而未修重�
 	esc_pending "$scope" \
 		|| psql "$DSN" -c "INSERT INTO ops_event(seat,event,ticket,note,esc_class,esc_scope)
 			VALUES('探测席','升件','','$note','部署','$scope')" >/dev/null 2>&1 # tolerate: 升件写败只剩下拍重试，无二级径
+}
+# cfg_get <key> <default> —— app_config 只读取值（缺键/DSN 缺=default）。
+cfg_get() {
+	local v=""
+	[ -n "$DSN" ] && v=$(psql "$DSN" -qAt -c "SELECT value #>> '{}' FROM app_config WHERE key='$1'" 2>/dev/null)
+	[ -n "$v" ] && printf '%s' "$v" || printf '%s' "$2"
+}
+# ow_valid <HH:MM-HH:MM> —— 窗形/端点校验（start≠end；UTC 语义）。
+ow_valid() {
+	local s="$1"
+	[[ "$s" =~ ^([01][0-9]|2[0-3]):[0-5][0-9]-([01][0-9]|2[0-3]):[0-5][0-9]$ ]] || return 1
+	[ "${s%%-*}" != "${s##*-}" ]
+}
+ow_min() { local t="$1"; printf '%s' $(( 10#${t:0:2} * 60 + 10#${t:3:2} )); }
+# ow_in_window <spec> <epoch> → rc0=UTC 窗内（左闭右开；start>end=跨午夜）。
+ow_in_window() {
+	local start end now
+	start=$(ow_min "${1%%-*}"); end=$(ow_min "${1##*-}")
+	now=$(( ($2 % 86400) / 60 ))
+	if [ "$start" -le "$end" ]; then
+		[ "$now" -ge "$start" ] && [ "$now" -lt "$end" ]
+	else
+		[ "$now" -ge "$start" ] || [ "$now" -lt "$end" ]
+	fi
 }
 git fetch origin master -q 2>/dev/null
 LOCAL=$(git rev-parse master 2>/dev/null); REMOTE=$(git rev-parse origin/master 2>/dev/null)
@@ -112,32 +143,67 @@ if [ -z "$DEPLOYED" ] || [ "${HEAD:0:${#DEPLOYED}}" != "$DEPLOYED" ]; then
 		say "谱系证空——o-core-clean:$SHORT 水位落,SG零重启"
 		exit 0
 	fi
-	# 部署锁持=另径部署在途（会话 deploy_at_sha/本拍并发）——让位不撞锁
-	# （撞锁 rc=1+败事件+deploy_blocked 升件=自伤型信号源，2026-11-10
-	# 产线实证每次部署首试 rc=1→重试 rc=0 三连序列同型）。
-	if ssh "${O_SG_HOST:-root@192.229.85.35}" "test -d /opt/o/.deploy-lock" 2>/dev/null; then
-		say "滞差但部署锁持（另径在途）——让位本拍"
-		exit 0
+	# ── 工单#25760 o-core 换件部署窗（谱系证内=镜像必换+钱径重启）──
+	# 窗外=入窗队列让位（本拍不换 o-core，继续走 OCI 臂面）；窗内=照走
+	# 锁/败避让/部署全段。首次部署与紧急会话径不入窗（DEPLOYED 空=启机/
+	# 灾备；会话 deploy_at_sha 直调 deploy_image 不归本闸）。
+	OW_DEFER=0
+	if [ -n "$DEPLOYED" ]; then
+		OW_SPEC=$(cfg_get deploy.ocore_window_utc "19:00-21:00")
+		OW_MAXH=$(cfg_get deploy.ocore_window_max_hold_h "26")
+		case "$OW_MAXH" in ''|*[!0-9]*) OW_MAXH=26;; esac
+		[ "$OW_MAXH" -ge 1 ] || OW_MAXH=26
+		if ! ow_valid "$OW_SPEC"; then
+			esc "deploy_ocore_window_config" "部署/deploy_ocore_window_config: 窗配置非法 deploy.ocore_window_utc=$OW_SPEC（须 UTC HH:MM-HH:MM）——fail-closed 本拍不换钱径,归唤知会话修配置"
+			OW_DEFER=1
+			say "窗配置非法（$OW_SPEC）——fail-closed 本拍不换"
+		elif ! ow_in_window "$OW_SPEC" "$NOW_EPOCH"; then
+			OW_DEFER=1
+			OW_QUEUED=$(psql "$DSN" -qAt -c "SELECT count(*) FROM ops_event WHERE seat='DEPLOY' AND event='部署' AND note LIKE 'ocore-window 入窗 sha=$SHORT%' AND ts>now()-interval '7 days'" 2>/dev/null)
+			if [ "${OW_QUEUED:-0}" = 0 ]; then
+				psql "$DSN" -c "INSERT INTO ops_event(seat,event,ticket,note)
+					VALUES('DEPLOY','部署','','ocore-window 入窗 sha=$SHORT base=$DEPLOYED win=$OW_SPEC UTC——谱系证内(镜像必换),窗外让位待窗放件')" >/dev/null 2>&1 \
+					|| say "入窗行写败（不阻断，下拍重写同事实）" # tolerate: 入窗行写败=事实面缺一行,下拍重写,不翻部署判
+			fi
+			# 越窗未放：最老待放 commit 龄>max_hold（日窗+跨度+漏一次检出面）→升件。
+			OW_SINCE=$(git log --format=%ct "$DEPLOYED..$HEAD" 2>/dev/null | tail -1)
+			if [ -n "$OW_SINCE" ]; then
+				OW_AGE=$(( NOW_EPOCH - OW_SINCE ))
+				if [ "$OW_AGE" -gt $(( OW_MAXH * 3600 )) ]; then
+					esc "deploy_ocore_window_overdue" "部署/deploy_ocore_window_overdue: o-core换件越窗未放 待放=$SHORT 部署=$DEPLOYED 最老待放=$(date -u -d "@$OW_SINCE" +%m-%d\ %H:%M) 龄=$(( OW_AGE / 3600 ))h>max_hold=${OW_MAXH}h 窗=$OW_SPEC UTC——归唤知会话查deploy_watch/锁/窗配置"
+				fi
+			fi
+			say "窗外（窗=$OW_SPEC UTC）——入窗队列待放，本拍不换 o-core"
+		fi
 	fi
-	# 同 SHA 近窗败避让：DEPLOY 账内本 sha 近 15min 已有 rc!=0 试——
-	# 让位本拍不落新行（重试风暴闸：唤源任意重复唤皆安全——
-	# 2026-11-11 产线实证「HEAD 未推窗+事件唤链」rc=1 逐唤刷屏；
-	# 窗期后真滞差照试不误发，升件侧 deploy_blocked 未销已抑复式）。
-	if [ -n "$DSN" ]; then
-		LASTFAIL=$(psql "$DSN" -qAt -c "SELECT id FROM ops_event WHERE seat='DEPLOY' AND event='部署' AND note LIKE '%o-core:${SHORT}%' AND note NOT LIKE '%rc=0%' AND ts>now()-interval '15 minutes' ORDER BY id DESC LIMIT 1" 2>/dev/null)
-		[ -n "$LASTFAIL" ] && { say "同 sha 近窗部署败在案(#$LASTFAIL)——让位本拍"; exit 0; }
-	fi
-	say "滞差: 部署=$DEPLOYED vs master=$SHORT——起部署"
-	out=$(bash scripts/deploy_image.sh 2>&1); rc=$?
-	echo "$out" | tail -3 | while read -r l; do say "$l"; done
-	if [ $rc -ne 0 ]; then # T-13283：&& 短路作末句=test 假值传染脚本 exit 1——成功部署也标 unit FAILURE（systemd 噪音掩真败）
-		# 工单#16633 写手自证：败时刻 git status --porcelain 落升件 note——
-		# 脏树写者归因不再靠事后猜（历史两窗 1dfaa8fcd/67ae07f90f41 写者
-		# 未锁定实证）；截 8 行/240 字防爆 note 面，树径同载（多树并发归因键）。
-		TOP=$(git rev-parse --show-toplevel 2>/dev/null)
-		DIRTY=$(git status --porcelain 2>/dev/null | head -8 | tr '\n' ';' | cut -c1-240)
-		esc "deploy_blocked" "部署/deploy_blocked: deploy_image rc=$rc（master=$SHORT 待部署）尾=$(echo "$out" | tail -2 | tr '\n' ' ' | cut -c1-120) 树=${TOP:-?} 脏=${DIRTY:-空}——归唤知会话清障（脏树/锁/网）"
-		exit 1
+	if [ "$OW_DEFER" = 0 ]; then
+		# 部署锁持=另径部署在途（会话 deploy_at_sha/本拍并发）——让位不撞锁
+		# （撞锁 rc=1+败事件+deploy_blocked 升件=自伤型信号源，2026-11-10
+		# 产线实证每次部署首试 rc=1→重试 rc=0 三连序列同型）。
+		if ssh "${O_SG_HOST:-root@192.229.85.35}" "test -d /opt/o/.deploy-lock" 2>/dev/null; then
+			say "滞差但部署锁持（另径在途）——让位本拍"
+			exit 0
+		fi
+		# 同 SHA 近窗败避让：DEPLOY 账内本 sha 近 15min 已有 rc!=0 试——
+		# 让位本拍不落新行（重试风暴闸：唤源任意重复唤皆安全——
+		# 2026-11-11 产线实证「HEAD 未推窗+事件唤链」rc=1 逐唤刷屏；
+		# 窗期后真滞差照试不误发，升件侧 deploy_blocked 未销已抑复式）。
+		if [ -n "$DSN" ]; then
+			LASTFAIL=$(psql "$DSN" -qAt -c "SELECT id FROM ops_event WHERE seat='DEPLOY' AND event='部署' AND note LIKE '%o-core:${SHORT}%' AND note NOT LIKE '%rc=0%' AND ts>now()-interval '15 minutes' ORDER BY id DESC LIMIT 1" 2>/dev/null)
+			[ -n "$LASTFAIL" ] && { say "同 sha 近窗部署败在案(#$LASTFAIL)——让位本拍"; exit 0; }
+		fi
+		say "滞差: 部署=$DEPLOYED vs master=$SHORT——起部署"
+		out=$(bash scripts/deploy_image.sh 2>&1); rc=$?
+		echo "$out" | tail -3 | while read -r l; do say "$l"; done
+		if [ $rc -ne 0 ]; then # T-13283：&& 短路作末句=test 假值传染脚本 exit 1——成功部署也标 unit FAILURE（systemd 噪音掩真败）
+			# 工单#16633 写手自证：败时刻 git status --porcelain 落升件 note——
+			# 脏树写者归因不再靠事后猜（历史两窗 1dfaa8fcd/67ae07f90f41 写者
+			# 未锁定实证）；截 8 行/240 字防爆 note 面，树径同载（多树并发归因键）。
+			TOP=$(git rev-parse --show-toplevel 2>/dev/null)
+			DIRTY=$(git status --porcelain 2>/dev/null | head -8 | tr '\n' ';' | cut -c1-240)
+			esc "deploy_blocked" "部署/deploy_blocked: deploy_image rc=$rc（master=$SHORT 待部署）尾=$(echo "$out" | tail -2 | tr '\n' ' ' | cut -c1-120) 树=${TOP:-?} 脏=${DIRTY:-空}——归唤知会话清障（脏树/锁/网）"
+			exit 1
+		fi
 	fi
 else
 	say "已同步（部署=$DEPLOYED = master）"

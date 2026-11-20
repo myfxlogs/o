@@ -54,6 +54,7 @@ var dmWritableGlobs = []string{
 	"okxws.kline_watchlist",       // 日K观察名单（业主令 2026-11-15 感知面扩集——破活跃集闭环失明，DM 可自扩）
 	"okxws.kline_topn",            // 日K宇宙动扩额度（工单#18314①——volCcy24h 降序 topN 并扫集,0=关）
 	"okxws.kline_census_hours",    // 全 USDT-SWAP 普查降频时（工单#18314②——零量新上补盲,0=关）
+	"deploy.*",                    // 部署窗（o-core 换件集中放件时窗——工单#25760）
 }
 
 // ownerKeyGlobs —— 业主面键（分册 owner 行同集镜像；与 dm 集不交——交叠=闸红）。

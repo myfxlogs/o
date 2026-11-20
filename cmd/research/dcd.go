@@ -33,6 +33,7 @@ import (
 	"o/internal/research/grammar"
 	"o/internal/research/gridfit"
 	"o/internal/research/hypothesis"
+	"o/internal/research/regime"
 	"o/internal/research/researcher"
 	"o/internal/research/scout"
 	"o/internal/research/sigdist"
@@ -212,6 +213,10 @@ func researchArms(ctx context.Context, errc chan<- error, pool *pgxpool.Pool,
 	// →网格带回放→eval/proposal；execfam 未册=判词落 exec_family_missing，
 	// 影域评分先行执行零径 T-0408 先例）。
 	go gridfit.NewRunner(pool, cfg).AttachAlerter(alerter).Run(ctx, errc)
+	// 工单#25750 regime→结构映射器（有界钦定形——md_klines 1D 全宇宙
+	// 五态分类→人维护映射表→族覆盖缺口→族提案升件；影子产出零执行，
+	// 映射表外族永不提案 fail-closed；ops_event 写径挂 fin 池）。
+	go regime.NewRunner(pool, cfg).AttachAlerter(alerter).AttachEscPool(finPool).Run(ctx, errc)
 	// 工单#25563 MT5 影子评估臂（venue='mt5' 全目录→同 z 分判据——
 	// execfam 未册=判词全落 exec_family_missing，影域评分先行执行零径）。
 	go dirmom.NewRunnerVenue(pool, cfg, "mt5", "%", "mt5_dir_mom", "MT5方向评估").

@@ -123,9 +123,10 @@ step "ops-chain";   bash scripts/check_ops_chain.sh                || fail "ops 
 #     不确定→回退全谱 fail-safe 不 fail-open。
 # CHECK_ALL_FORCE_FULL=1 无条件全谱；merge-base/命令败 fail-closed
 # 走全谱。戳旁 .mode 四档留痕（scoped/merge-scoped 附实测包集清单
-# ——T-0397 三档审裁读戳面同形）。
+# ——T-0397 三档审裁读戳面同形）。分档判定本体抽件
+# scripts/check_all_scope.sh（工单#25798——变更样本可测；恒测册=
+# 现册∪cmd/core 实算依赖闭包，判据逐字同原内联块）。
 MODE=full; NCOM=0; NWT=0; MB=""; TEST_PKGS=""
-ALWAYS_PKGS="o/internal/risk/... o/internal/ledger/... o/internal/trading/... o/internal/guard o/internal/portfolio/lifecycle/..."
 if [ "${CHECK_ALL_FORCE_FULL:-}" != "1" ]; then
   MB=$(git merge-base HEAD origin/master 2>/dev/null) \
     || MB=$(git merge-base HEAD master 2>/dev/null) \
@@ -143,98 +144,13 @@ if [ "${CHECK_ALL_FORCE_FULL:-}" != "1" ]; then
                 done; } | grep -v '^$' | sort -u ) # tolerate: 空集=零变更合法径
     NCOM=$(printf '%s\n' "$CFILES" | grep -c . || true) # tolerate: 空集=零已提交变更合法径
     NWT=$(printf '%s\n' "$WLIST" | grep -c . || true)  # tolerate: 空集=净工作树合法径
-    ALL_DOCS=1; HAS_GO=0; HAS_MIG=0; HAS_PROTO=0; HAS_OTHER=0
-    CODE_SEEN=0
-    while IFS= read -r p; do
-      [ -n "$p" ] || continue
-      case "$p" in
-        docs/*|skills/*|*.md) ;;
-        *.go)             HAS_GO=1;    CODE_SEEN=1; ALL_DOCS=0 ;;
-        migrations/*.sql) HAS_MIG=1;   CODE_SEEN=1; ALL_DOCS=0 ;;
-        proto/*)          HAS_PROTO=1; CODE_SEEN=1; ALL_DOCS=0 ;;
-        # 安全基建件=中性：不算 docs（ALL_DOCS=0——独现/伴 docs 落
-        # full 不免测）不算清单外（HAS_OTHER 不置——伴码件入
-        # merge-scoped 定向谱）。T-0433 首版漏清 ALL_DOCS 致
-        # docs+scripts 面误判 docs-only 免测=fail-open，红桩锚在
-        # scripts/meta/tests/check_all_scope_test.sh 场景①。
-        scripts/*|.github/*) ALL_DOCS=0 ;;
-        *)   HAS_OTHER=1; ALL_DOCS=0 ;;
-      esac
-    done <<< "$CHANGED"
-    if [ "$ALL_DOCS" = 1 ]; then
-      MODE=docs-only
-    elif [ "$HAS_OTHER" = 0 ] && [ "$CODE_SEEN" = 1 ]; then
-      # 定向谱候选（scoped/merge-scoped 同构）：种子=.go 包映射+
-      # 迁移→pgstore+proto→gen 包映射；闭包+恒测册同式；任一步不确定回退 full
-      SCOPE_OK=1; SEEDS=""
-      while IFS= read -r f; do
-        [ -n "$f" ] || continue
-        pkg=$(go list "./$(dirname "$f")" 2>/dev/null) \
-          || { SCOPE_OK=0; break; }
-        SEEDS="$SEEDS $pkg"
-      done <<< "$(printf '%s\n' "$CHANGED" | grep '\.go$' || true)" # tolerate: 空集合法（mig/proto-only 面）
-      # 迁移面定向（T-0433③）：fin_/md_ 迁移→pgstore migrate 测+受影响包
-      # （check_migrations 闸在上段门禁位已恒跑）
-      if [ "$SCOPE_OK" = 1 ] && [ "$HAS_MIG" = 1 ]; then
-        pkg=$(go list ./internal/store/pgstore 2>/dev/null) \
-          || SCOPE_OK=0
-        [ "$SCOPE_OK" = 1 ] && SEEDS="$SEEDS $pkg"
-      fi
-      # proto 面定向：proto/<dir>/*→o/internal/gen/<dir> 包映射+buf build 闸
-      if [ "$SCOPE_OK" = 1 ] && [ "$HAS_PROTO" = 1 ]; then
-        command -v buf >/dev/null 2>&1 && buf build >/dev/null 2>&1 \
-          || SCOPE_OK=0   # proto 闸：buf 缺席/编译败=判不准→full
-        while IFS= read -r f; do
-          [ -n "$f" ] || continue
-          d=${f#proto/}; d=${d%/*}
-          pkg=$(go list "./internal/gen/$d" 2>/dev/null) \
-            || { SCOPE_OK=0; break; }
-          SEEDS="$SEEDS $pkg"
-        done <<< "$(printf '%s\n' "$CHANGED" | grep '^proto/' || true)" # tolerate: 空集合法
-      fi
-      if [ "$SCOPE_OK" = 1 ]; then
-        IG=$(mktemp) || SCOPE_OK=0
-        if [ "$SCOPE_OK" = 1 ]; then
-          go list -f '{{.ImportPath}}|{{join .Imports ","}}|{{join .TestImports ","}}|{{join .XTestImports ","}}' ./... > "$IG" 2>/dev/null \
-            || SCOPE_OK=0
-        fi
-        if [ "$SCOPE_OK" = 1 ]; then
-          CLOSURE=$(python3 - "$IG" $SEEDS 2>/dev/null <<'PY'
-import sys
-ig, seeds = sys.argv[1], set(sys.argv[2:])
-rev = {}
-for line in open(ig):
-    parts = line.rstrip("\n").split("|")
-    if len(parts) < 4:
-        continue
-    for d in parts[1].split(",") + parts[2].split(",") + parts[3].split(","):
-        if d:
-            rev.setdefault(d, set()).add(parts[0])
-seen, stack = set(seeds), list(seeds)
-while stack:
-    for imp in rev.get(stack.pop(), ()):
-        if imp not in seen:
-            seen.add(imp); stack.append(imp)
-print(" ".join(sorted(seen)))
-PY
-) && [ -n "$CLOSURE" ] || SCOPE_OK=0
-        fi
-        [ -n "${IG:-}" ] && rm -f "$IG"
-      fi
-      if [ "$SCOPE_OK" = 1 ]; then
-        # 恒测册包集展开（败=回退 full——册内包消失=结构变了不猜）
-        AP=$(go list $ALWAYS_PKGS 2>/dev/null) || SCOPE_OK=0
-        if [ "$SCOPE_OK" = 1 ]; then
-          if [ "$HAS_MIG" = 1 ] || [ "$HAS_PROTO" = 1 ]; then
-            MODE=merge-scoped
-          else
-            MODE=scoped
-          fi
-          TEST_PKGS=$(printf '%s\n%s\n' "$CLOSURE" "$AP" | tr ' ' '\n' | grep -v '^$' | sort -u | tr '\n' ' ')
-        fi
-      fi
-      [ "$SCOPE_OK" = 1 ] || MODE=full
-    fi
+    # 测谱分档判定抽件 check_all_scope.sh（工单#25798——判据逐字同原
+    # 内联块；抽出=变更样本可测，check_all_scope_test.sh 直接喂路径集）。
+    # 输出 MODE/TEST_PKGS 两行；判定件缺席/输出异常=MODE 空→case 兜 full。
+    SCOPE_RES=$(printf '%s\n' "$CHANGED" | bash scripts/check_all_scope.sh) || SCOPE_RES=""
+    MODE=$(printf '%s\n' "$SCOPE_RES" | sed -n 's/^MODE=//p' | head -1)
+    TEST_PKGS=$(printf '%s\n' "$SCOPE_RES" | sed -n 's/^TEST_PKGS=//p')
+    case "$MODE" in docs-only|scoped|merge-scoped|full) ;; *) MODE=full; TEST_PKGS="";; esac
   fi
 fi
 
@@ -307,7 +223,7 @@ if [ "$MODE" = docs-only ]; then
   echo "── go test 全谱：docs-only 豁免跳过——已提交面 ${NCOM} 件+工作树面 ${NWT} 件全中白名单（docs/**、*.md、skills/**），merge-base=$MB；CHECK_ALL_FORCE_FULL=1 压过" >&2
   echo "docs-only" > "$STAMP.mode"
 elif [ "$MODE" = scoped ] || [ "$MODE" = merge-scoped ]; then
-  echo "── go test：$MODE 定向谱——变更包+反向依赖闭包+恒测册（risk/ledger/trading/guard/lifecycle）$( [ "$MODE" = merge-scoped ] && echo '+迁移pgstore/proto-gen附加种子' )；包集: $TEST_PKGS" >&2
+  echo "── go test：$MODE 定向谱——变更包+反向依赖闭包+恒测册（risk/ledger/trading/guard/lifecycle+cmd/core依赖闭包）$( [ "$MODE" = merge-scoped ] && echo '+迁移pgstore/proto-gen附加种子' )；包集: $TEST_PKGS" >&2
   { echo "$MODE"; printf '%s\n' $TEST_PKGS; } > "$STAMP.mode"
   run_go_test "go test 红（$MODE）" $TEST_PKGS
 else
