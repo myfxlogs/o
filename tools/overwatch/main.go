@@ -73,13 +73,10 @@ func main() {
 		return "ok"
 	}
 
-	// ── 信号面 ──
-	openEsc := num(`SELECT count(*) FROM ops_event e WHERE e.event='升件'
-		AND e.ts>now()-interval '7 days' AND NOT EXISTS
-		(SELECT 1 FROM ops_event x WHERE x.ts>e.ts AND x.note LIKE '%升件#'||e.id::text||'%')`)
-	oldEscH := num(`SELECT COALESCE(round(max(extract(epoch from (now()-ts))/3600)),0)::bigint FROM ops_event e
-		WHERE e.event='升件' AND e.ts>now()-interval '7 days' AND NOT EXISTS
-		(SELECT 1 FROM ops_event x WHERE x.ts>e.ts AND x.note LIKE '%升件#'||e.id::text||'%')`)
+	// ── 信号面 ──（未决口径=ops_esc_pending 视图——逐id LIKE 旧径漏范围批引
+	// 「升件#a-b」假阳实证（工单#25659）；视图即真相源不再手卷第二份判据）
+	openEsc := num(`SELECT count(*) FROM ops_esc_pending`)
+	oldEscH := num(`SELECT COALESCE(round(max(age_s::float8)/3600),0)::bigint FROM ops_esc_pending`)
 	if openEsc > 0 && oldEscH > 24 {
 		addf("esc-backlog", "warn", fmt.Sprintf("哨:esc-backlog 未决升件%d件最陈%dh——信号面积压", openEsc, oldEscH))
 	}
