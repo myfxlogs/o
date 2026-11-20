@@ -132,6 +132,11 @@ internal/research/dirtrend -> internal/platform/notify
 internal/research/dirtrend -> internal/platform/rejects
 internal/research/dirtrend -> internal/platform/roster
 internal/research/dirtrend -> internal/research/armwatch
+internal/research/regime -> internal/platform/config
+internal/research/regime -> internal/platform/notify
+internal/research/regime -> internal/platform/rejects
+internal/research/regime -> internal/platform/roster
+internal/research/regime -> internal/research/armwatch
 internal/research/armwatch -> internal/platform/notify
 internal/research/armwatch -> internal/platform/config
 internal/research/researcher -> internal/platform/notify
@@ -253,6 +258,7 @@ internal/research/analyst -> internal/platform/writefail
 internal/research/ctx -> internal/platform/writefail
 internal/research/dirmom -> internal/platform/writefail
 internal/research/dirtrend -> internal/platform/writefail
+internal/research/regime -> internal/platform/writefail
 internal/research/scout -> internal/platform/writefail
 internal/research/sigdist -> internal/platform/writefail
 EOF
