@@ -21,9 +21,9 @@ const klineEvery = 4 * time.Hour
 const klineBatch = 60
 
 // klineNumBars 单符回填深度（dirtrend eval 需 lookback20+replay60+1=81 棒——
-// 200 棒冗余：FX 周线休市+假日缺口,cal 窗 200d 保底 81 根确认棒；
-// 后续拍同量幂等覆写零增量成本）。
-const klineNumBars = 200
+// 1000 棒≈4 年日K（FX 252d/yr）一次回填,深窗判词不用等攒数;CopyRates
+// 常规深度,网关拒深=扫拍 WARN 现形退浅。后续拍同量幂等覆写零增量成本）。
+const klineNumBars = 1000
 
 // klineFrom 回填锚窗——From 为网关必填 string 形 DateTime 且语义=**末锚**
 // （首扫实证：From=now-210d 拉回棒齐截 2026-04-19=锚前一日——网关从
