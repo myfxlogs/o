@@ -28,6 +28,7 @@ func main() {
 	server := flag.String("server", "", "")
 	host := flag.String("host", "", "")
 	servers := flag.String("servers", "", "逗号分隔 ConnectEx 扫描名单")
+	connectLegacy := flag.Bool("connect", false, "legacy Connect{Host,Port} 径逐候选试（#26356 径②取证面——server 空形对照 ConnectEx）")
 	symFilter := flag.String("syms", "", "登录后 Symbols 子串过滤印名")
 	flag.Parse()
 
@@ -38,8 +39,48 @@ func main() {
 	}
 	defer cc.Close()
 	svc := mt5pb.NewServiceClient(cc)
-	_ = *host
 	conn := mt5pb.NewConnectionClient(cc)
+
+	if *connectLegacy && *login != 0 {
+		// legacy Connect{Host,Port} 径（server 空形——工单#26356 径②取证：
+		// ConnectEx 与 Connect 共用 mtapi 嵌入终端建，OLD_VERSION 拒因应同源；
+		// -host 逗号分隔 host:port 候选（缺省口 443），逐候选印判词）。
+		for _, h := range strings.Split(*host, ",") {
+			h = strings.TrimSpace(h)
+			if h == "" {
+				continue
+			}
+			hp, port := h, int32(443)
+			if i := strings.LastIndex(h, ":"); i >= 0 {
+				if _, err := fmt.Sscanf(h[i+1:], "%d", &port); err == nil {
+					hp = h[:i]
+				}
+			}
+			sid := fmt.Sprintf("probe-%d", time.Now().UnixNano())
+			cx, cl := context.WithTimeout(metadata.NewOutgoingContext(context.Background(),
+				metadata.New(map[string]string{"id": sid})), 25*time.Second)
+			r, err := conn.Connect(cx, &mt5pb.ConnectRequest{
+				User: *login, Password: *pass, Host: hp, Port: port, Id: &sid})
+			cl()
+			switch {
+			case err != nil:
+				fmt.Printf("%-28s rpcerr: %v\n", h, err)
+			case r.GetError() != nil:
+				fmt.Printf("%-28s apierr: %s\n", h, r.GetError().GetMessage())
+			default:
+				fmt.Printf("%-28s CONNECTED\n", h)
+				tok := r.GetResult()
+				if tok == "" {
+					tok = sid
+				}
+				dx, dc := context.WithTimeout(metadata.NewOutgoingContext(context.Background(),
+					metadata.New(map[string]string{"id": tok})), 10*time.Second)
+				_, _ = conn.Disconnect(dx, &mt5pb.DisconnectRequest{Id: tok})
+				dc()
+			}
+		}
+		return
+	}
 
 	if *symFilter != "" && *login != 0 {
 		m5 := mt5pb.NewMT5Client(cc)
