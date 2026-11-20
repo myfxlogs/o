@@ -220,6 +220,7 @@ var migrationTable = []struct {
 	{211, "fin_0211_sem_research_seat.sql"},
 	{212, "fin_0212_desk_dispatchable_cert.sql"},
 	{213, "fin_0213_app_config_dm_grant.sql"},
+	{215, "fin_0215_gridfit.sql"}, // 工单#25737：fin_0214 在途占（hunger-mono-family 支）——跳号钉 0215
 
 	// —— md 链（版本链内唯一且单调；md 链版本=历史号+1000 与 fin 键空间全局不相交——跨链并 schema 时 schema_migrations 零撞号，check_migrations 断言①⑤）——
 	{1003, "md_1003_market_facts.sql"},
@@ -278,4 +279,5 @@ var migrationTable = []struct {
 	{1097, "md_1097_eval_insertonly.sql"},
 	{1098, "md_1098_trend_template_park.sql"},
 	{1099, "md_1099_mt5_dir_mom.sql"},
+	{1100, "md_1100_gridfit.sql"}, // 工单#25737：网格族影子评估面（fin_0215 值 CHECK 放行+模板册行）
 }

@@ -31,6 +31,7 @@ import (
 	"o/internal/research/funding"
 	"o/internal/research/gapscan"
 	"o/internal/research/grammar"
+	"o/internal/research/gridfit"
 	"o/internal/research/hypothesis"
 	"o/internal/research/researcher"
 	"o/internal/research/scout"
@@ -207,6 +208,10 @@ func researchArms(ctx context.Context, errc chan<- error, pool *pgxpool.Pool,
 	// 工单#11481 方向趋势族评估臂（perp-trend-daily paper-only——md_klines
 	// 1D→Donchian 突破+winrate-CI→eval/proposal；真单径未建同棒1裁定）。
 	go dirtrend.NewRunner(pool, cfg).AttachAlerter(alerter).Run(ctx, errc)
+	// 工单#25737 网格评估族影子臂（grid_spot——md_klines 1D OHLC 现货宇宙
+	// →网格带回放→eval/proposal；execfam 未册=判词落 exec_family_missing，
+	// 影域评分先行执行零径 T-0408 先例）。
+	go gridfit.NewRunner(pool, cfg).AttachAlerter(alerter).Run(ctx, errc)
 	// 工单#25563 MT5 影子评估臂（venue='mt5' 全目录→同 z 分判据——
 	// execfam 未册=判词全落 exec_family_missing，影域评分先行执行零径）。
 	go dirmom.NewRunnerVenue(pool, cfg, "mt5", "%", "mt5_dir_mom", "MT5方向评估").
