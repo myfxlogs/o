@@ -15,6 +15,29 @@ ENVF="${REPORT_ENV_FILE:-/opt/o-research/env}"
 DSN="${FIN_PG_DSN:-$(grep '^FIN_PG_DSN=' "$ENVF" 2>/dev/null | cut -d= -f2- | tr -d '"')}"
 NOW_EPOCH=${O_DEPLOY_NOW_EPOCH:-$(date +%s)}
 say() { echo "[deploy_watch] $*"; }
+# ── 工单#25803 心跳面：每拍写 ops_event（seat=DEPLOY event=心跳）──
+# 看门狗=hunger ProbeDeployWatch 读末行龄>45min（3×15min拍距）升
+# deploy_watch_silent——timer死/服务崩/锁卡死=心跳停三因同覆。
+# 写败容忍（心跳非钱径，下拍重写不翻部署判）。EXIT trap 全出口覆盖
+# （含 ref缺/让位/败径——任一出口=本拍活着即心跳）。
+# 节流取值说明：派工单钦定「判词变化∨距末心跳>2h」与看门狗阈
+# 「末行龄>45min」自相矛盾——2h 节流窗下末行龄常态达 2h≫45min=健康
+# 态恒误报；且拍间隔上界≈30min（15min拍+15min服务超时）下任何>15min
+# 节流阈都可能顶穿 45min。取每拍一行（~96行/日≈ops_event日量7%——
+# 非洪水）保验收可绿；判词随行载（sha/base/态）备查。
+HB_STATE="拍始"
+hb_write() {
+	[ -n "$DSN" ] || return 0
+	local sha
+	sha=$(git rev-parse --short=12 master 2>/dev/null); sha=${sha:-?}
+	if psql "$DSN" -c "INSERT INTO ops_event(seat,event,ticket,note)
+		VALUES('DEPLOY','心跳','','心跳 $HB_STATE sha=$sha base=${DEPLOYED:-?}')" >/dev/null 2>&1; then
+		say "心跳: $HB_STATE"
+	else
+		say "心跳写败（不阻断，下拍重写）"
+	fi
+}
+trap hb_write EXIT
 esc_pending() { # esc_pending <scope> → rc0=未销升件在案（24h窗——esc dedup 同源判据，
 	# 工单#25481 抽函数：自动换件重试风暴闸复用同判——有未销败件即让位本拍）
 	local scope="$1"
@@ -58,7 +81,7 @@ ow_in_window() {
 }
 git fetch origin master -q 2>/dev/null
 LOCAL=$(git rev-parse master 2>/dev/null); REMOTE=$(git rev-parse origin/master 2>/dev/null)
-[ -n "$LOCAL" ] && [ -n "$REMOTE" ] || { say "ref 缺——退出"; exit 0; }
+[ -n "$LOCAL" ] && [ -n "$REMOTE" ] || { HB_STATE=ref缺; say "ref 缺——退出"; exit 0; }
 BASE=$(git merge-base master origin/master)
 if [ "$LOCAL" != "$REMOTE" ]; then
 	if [ "$BASE" = "$LOCAL" ]; then
@@ -69,7 +92,7 @@ if [ "$LOCAL" != "$REMOTE" ]; then
 		# 不自推不升件（盖戳后本拍或会话径自然上岸；盲推撞 pre-push 闸=
 		# 自伤型升件源，2026-11-10 产线实证 deploy_push_blocked 三连发）。
 		if [ ! -f ".git/check-green-$LOCAL" ]; then
-			say "尖未盖戳——让位盖戳流（不推不升）"
+			HB_STATE=让位盖戳; say "尖未盖戳——让位盖戳流（不推不升）"
 			exit 0 # 让位=真让位（不落部署段——未推尖部署必遭出处闸拒=自伤升件）
 		elif ! git push origin master 2>/dev/null; then
 			# 推败先对拍：mirror_push 并行推同 sha 落地=竞窗让位非闸阻——
@@ -77,14 +100,16 @@ if [ "$LOCAL" != "$REMOTE" ]; then
 			# 逐案「瞬态」为真而触发器结构必再产——判错界根修）。
 			git fetch origin master -q 2>/dev/null
 			if git merge-base --is-ancestor "$LOCAL" origin/master 2>/dev/null; then
-				say "push 撞并行推件——远端已含尖，让位"
+				HB_STATE=push并行让位; say "push 撞并行推件——远端已含尖，让位"
 				exit 0
 			fi
+			HB_STATE=push败
 			esc "deploy_push_blocked" "部署/deploy_push_blocked: 本地 master 超前未推成（pre-push 闸或网阻）——merge 在仓未上岸,归唤知会话查闸因"
 			say "push 败——升件已落"
 			exit 0 # 推败=尖未上岸——继续走部署=出处闸拒必升件（噪音类根修,stuck_esc#10657 实证）
 		fi
 	else
+		HB_STATE=diverged
 		esc "deploy_diverged" "部署/deploy_diverged: master 与 origin/master 分叉（本地=$LOCAL 远端=$REMOTE）——不自裁,归唤知会话"
 		exit 0
 	fi
@@ -133,14 +158,14 @@ if [ -z "$DEPLOYED" ] || [ "${HEAD:0:${#DEPLOYED}}" != "$DEPLOYED" ]; then
 	# （下尖有证内件=照走锁/败避让/部署全段）。
 	CLEANWM=$([ -n "$DSN" ] && psql "$DSN" -qAt -c "SELECT (regexp_match(note,'o-core-clean:([0-9a-f]+)'))[1] FROM ops_event WHERE seat='DEPLOY' AND event='部署' AND note LIKE '%o-core-clean:%' ORDER BY id DESC LIMIT 1" 2>/dev/null) # tolerate: DSN缺=空——退正常滞差部署
 	if [ -n "$CLEANWM" ] && [ "${HEAD:0:${#CLEANWM}}" = "$CLEANWM" ]; then
-		say "谱系证空水位在案(o-core-clean:$CLEANWM)——跳部署"
+		HB_STATE=clean水位; say "谱系证空水位在案(o-core-clean:$CLEANWM)——跳部署"
 		exit 0
 	fi
 	if image_face_clean "$DEPLOYED"; then
 		[ -n "$DSN" ] && psql "$DSN" -c "INSERT INTO ops_event(seat,event,ticket,note)
 			VALUES('DEPLOY','部署','','o-core-clean:$SHORT rc=0 base=$DEPLOYED 谱系证空——diff全件在cmd/core依赖闭包(go list -deps实算)∪构建输入外,镜像面零重启')" >/dev/null 2>&1 \
 			|| say "水位行写败（不阻断）" # tolerate: 水位写败=下拍重判重发同一跳，不翻部署
-		say "谱系证空——o-core-clean:$SHORT 水位落,SG零重启"
+		HB_STATE=证空跳部署; say "谱系证空——o-core-clean:$SHORT 水位落,SG零重启"
 		exit 0
 	fi
 	# ── 工单#25760 o-core 换件部署窗（谱系证内=镜像必换+钱径重启）──
@@ -154,6 +179,7 @@ if [ -z "$DEPLOYED" ] || [ "${HEAD:0:${#DEPLOYED}}" != "$DEPLOYED" ]; then
 		case "$OW_MAXH" in ''|*[!0-9]*) OW_MAXH=26;; esac
 		[ "$OW_MAXH" -ge 1 ] || OW_MAXH=26
 		if ! ow_valid "$OW_SPEC"; then
+			HB_STATE=窗配置非法
 			esc "deploy_ocore_window_config" "部署/deploy_ocore_window_config: 窗配置非法 deploy.ocore_window_utc=$OW_SPEC（须 UTC HH:MM-HH:MM）——fail-closed 本拍不换钱径,归唤知会话修配置"
 			OW_DEFER=1
 			say "窗配置非法（$OW_SPEC）——fail-closed 本拍不换"
@@ -173,7 +199,7 @@ if [ -z "$DEPLOYED" ] || [ "${HEAD:0:${#DEPLOYED}}" != "$DEPLOYED" ]; then
 					esc "deploy_ocore_window_overdue" "部署/deploy_ocore_window_overdue: o-core换件越窗未放 待放=$SHORT 部署=$DEPLOYED 最老待放=$(date -u -d "@$OW_SINCE" +%m-%d\ %H:%M) 龄=$(( OW_AGE / 3600 ))h>max_hold=${OW_MAXH}h 窗=$OW_SPEC UTC——归唤知会话查deploy_watch/锁/窗配置"
 				fi
 			fi
-			say "窗外（窗=$OW_SPEC UTC）——入窗队列待放，本拍不换 o-core"
+			HB_STATE=窗外队列; say "窗外（窗=$OW_SPEC UTC）——入窗队列待放，本拍不换 o-core"
 		fi
 	fi
 	if [ "$OW_DEFER" = 0 ]; then
@@ -181,7 +207,7 @@ if [ -z "$DEPLOYED" ] || [ "${HEAD:0:${#DEPLOYED}}" != "$DEPLOYED" ]; then
 		# （撞锁 rc=1+败事件+deploy_blocked 升件=自伤型信号源，2026-11-10
 		# 产线实证每次部署首试 rc=1→重试 rc=0 三连序列同型）。
 		if ssh "${O_SG_HOST:-root@192.229.85.35}" "test -d /opt/o/.deploy-lock" 2>/dev/null; then
-			say "滞差但部署锁持（另径在途）——让位本拍"
+			HB_STATE=锁持让位; say "滞差但部署锁持（另径在途）——让位本拍"
 			exit 0
 		fi
 		# 同 SHA 近窗败避让：DEPLOY 账内本 sha 近 15min 已有 rc!=0 试——
@@ -190,7 +216,7 @@ if [ -z "$DEPLOYED" ] || [ "${HEAD:0:${#DEPLOYED}}" != "$DEPLOYED" ]; then
 		# 窗期后真滞差照试不误发，升件侧 deploy_blocked 未销已抑复式）。
 		if [ -n "$DSN" ]; then
 			LASTFAIL=$(psql "$DSN" -qAt -c "SELECT id FROM ops_event WHERE seat='DEPLOY' AND event='部署' AND note LIKE '%o-core:${SHORT}%' AND note NOT LIKE '%rc=0%' AND ts>now()-interval '15 minutes' ORDER BY id DESC LIMIT 1" 2>/dev/null)
-			[ -n "$LASTFAIL" ] && { say "同 sha 近窗部署败在案(#$LASTFAIL)——让位本拍"; exit 0; }
+			[ -n "$LASTFAIL" ] && { HB_STATE=近窗败让位; say "同 sha 近窗部署败在案(#$LASTFAIL)——让位本拍"; exit 0; }
 		fi
 		say "滞差: 部署=$DEPLOYED vs master=$SHORT——起部署"
 		out=$(bash scripts/deploy_image.sh 2>&1); rc=$?
@@ -201,11 +227,14 @@ if [ -z "$DEPLOYED" ] || [ "${HEAD:0:${#DEPLOYED}}" != "$DEPLOYED" ]; then
 			# 未锁定实证）；截 8 行/240 字防爆 note 面，树径同载（多树并发归因键）。
 			TOP=$(git rev-parse --show-toplevel 2>/dev/null)
 			DIRTY=$(git status --porcelain 2>/dev/null | head -8 | tr '\n' ';' | cut -c1-240)
+			HB_STATE=部署败
 			esc "deploy_blocked" "部署/deploy_blocked: deploy_image rc=$rc（master=$SHORT 待部署）尾=$(echo "$out" | tail -2 | tr '\n' ' ' | cut -c1-120) 树=${TOP:-?} 脏=${DIRTY:-空}——归唤知会话清障（脏树/锁/网）"
 			exit 1
 		fi
+		HB_STATE=部署成
 	fi
 else
+	HB_STATE=已同步
 	say "已同步（部署=$DEPLOYED = master）"
 fi
 # ── OCI 臂滞后探 → 自动换件（工单#25481：原案=纯探测>24h 升件等唤知——
