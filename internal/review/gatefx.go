@@ -4,8 +4,11 @@ package review
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
+
+	"o/internal/platform/config"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -29,6 +32,10 @@ func (g *GateFx) Apply(ctx context.Context, verdictWord, value string) error {
 		key = "gate.combo." + strings.TrimPrefix(verdictWord, "combo_gate:")
 	default:
 		return fmt.Errorf("未译词 %q——机械类词集外不触键", verdictWord)
+	}
+	enc, _ := json.Marshal(value) // 存形=to_jsonb(text) 串——值域校验同形
+	if err := config.CheckValueDomain(key, enc); err != nil {
+		return fmt.Errorf("键 %s 值域闸拒——%w", key, err)
 	}
 	res, err := g.fin.Exec(ctx, `UPDATE app_config SET value=to_jsonb($2::text)
 		WHERE key=$1`, key, value)
