@@ -34,6 +34,27 @@ if [ -n "$PIN_ALLOW" ]; then
 	esac
 fi
 
+# 工单#26306③：亡 unit 收口壳兜底——每拍扫 8d 唤起面,果/败在案∨超
+# RuntimeMaxSec(7200s+余量=3h)仍无同 unit「会话收口」行=亡前未写,
+# 派工壳补簿记行(run.sh EXIT trap 第一保,本拍=第二保;seat 仍记
+# 施工席——行=会话收口契约簿记非派工自产)。写败尽力不阻主径。
+psql "$DSN" -qAt <<'SQL' >/dev/null 2>&1 || true # tolerate: 兜底扫=簿记尽力件——DSN/写败仅 stderr 留迹,不阻派工主径
+INSERT INTO ops_event(seat,event,ticket,note)
+SELECT '施工席','会话收口','',
+  'unit='||u.unit||'——派工壳兜底收口:unit亡前会话未自写收口行——判词归唤起果败行+transcript'
+FROM (SELECT substring(e.note from 'unit=(o-worker-[0-9]+)') AS unit, e.ts
+      FROM ops_event e
+      WHERE e.seat='施工机' AND e.event='唤起'
+        AND e.ts>now()-interval '8 days') u
+WHERE u.unit IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='会话收口'
+    AND x.note LIKE '%unit='||u.unit||'%')
+  AND (EXISTS (SELECT 1 FROM ops_event x WHERE x.ts>u.ts
+         AND x.seat='施工机' AND x.event IN ('唤起果','唤起败')
+         AND x.note LIKE '%unit='||u.unit||'%')
+    OR u.ts < now()-interval '3 hours');
+SQL
+
 # OPEN 票在案=唤(票态单点=ops_ticket_desk 视图,fin_0190 语义层根修——
 # 销/挂起/接续/认领/级解析只活在那一份,此处不再复制正则面)。
 # 工单#22578③/D-0048④:桌面窗只排「钱安全/钱数真伪/找钱」三类——机器看自己

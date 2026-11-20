@@ -20,7 +20,10 @@ cat > "$T/bin/psql" <<'STUB'
 sql=""; prev=""
 for a in "$@"; do [ "$prev" = "-c" ] && sql="$a"; prev="$a"; done
 printf '%s\n' "$sql" >> "${PSQL_LOG:-/dev/null}"
-case "$sql" in INSERT*) echo "INSERT 0 1";; esac
+case "$sql" in
+	SELECT*count*会话收口*) echo "${STUB_CLOSEOUT_HAVE:-0}" ;; # closeout_write dedup 查应答
+	INSERT*) echo "INSERT 0 1" ;;
+esac
 exit 0
 STUB
 chmod +x "$T/bin/psql"
@@ -54,6 +57,7 @@ run_case() { # $1=tag $2=defer $3=wait_s
 		REPORT_ENV_FILE="$T/env" COG_RUNBOOK="$T/runbook.md" \
 		COG_UNIT="test-$tag" COG_EXPORT_WAIT_S="$wait" \
 		STUB_DEFER="$defer" PSQL_LOG="$T/psql.log" \
+		COG_ROLE="${STUB_ROLE:-cognition}" STUB_CLOSEOUT_HAVE="${STUB_HAVE:-0}" \
 		bash "$RUN" >/dev/null 2>&1
 	return $?
 }
@@ -79,6 +83,27 @@ else
 	bad "rc=0+永不export→应唤起败实得:$(grep -c '唤起' "$T/psql.log" 2>/dev/null)行唤起"
 fi
 [ "$el" -ge 10 ] && ok "静默败等全窗${el}s" || bad "静默败未等全窗(${el}s<10)"
+
+# 案③ 工单#26306①：worker 壳兜底收口——会话未自写→EXIT trap 补行；
+#    同 unit 收口在案（STUB_HAVE=1）→dedup 不补；非 worker 角色不写。
+STUB_ROLE=worker STUB_HAVE=0 run_case wmiss 0 5
+if grep -q '会话收口.*壳兜底收口' "$T/psql.log"; then
+	ok "worker无自写→壳兜底收口行落"
+else
+	bad "worker无自写→壳兜底行缺"
+fi
+STUB_ROLE=worker STUB_HAVE=1 run_case whave 0 5
+if grep -q '壳兜底收口' "$T/psql.log"; then
+	bad "同unit收口在案→dedup应不写"
+else
+	ok "同unit收口在案→dedup不写"
+fi
+STUB_ROLE=cognition STUB_HAVE=0 run_case crole 0 5
+if grep -q '壳兜底收口' "$T/psql.log"; then
+	bad "非worker角色→兜底应不写"
+else
+	ok "非worker角色→兜底不写"
+fi
 
 echo "run_test: PASS=$PASS FAIL=$FAILN"
 [ "$FAILN" -eq 0 ]
