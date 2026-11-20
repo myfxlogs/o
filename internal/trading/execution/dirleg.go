@@ -90,15 +90,26 @@ func (r *Runner) ExecuteDir(ctx context.Context, in Intent) (int64, error) {
 			posRef = &pid
 		}
 	}
+	// saga 流程账开（工单#25807——单腿流同罩：steps 照 Execute 缩形）。
+	sagaID := r.sagaBegin(ctx, tern(in.Kind == "close", "close", "open"), execID, []sagaStep{
+		{Name: "exec_row", Status: "done", UndoRef: "fail_exec"},
+		{Name: "earn_redeem", Status: tern(r.earn != nil && in.Kind != "close", "pending", "skipped"), UndoRef: ""},
+		{Name: "leg1", Status: "pending", UndoRef: "rollback_leg"},
+		{Name: "position_row", Status: tern(in.Kind != "close", "pending", "skipped"), UndoRef: "delete_position"},
+	})
+	defer func() { r.sagaClose(ctx, sagaID, "done") }()
 	if r.earn != nil && in.Kind != "close" {
 		if err := r.earn.RedeemToTrading(ctx, in.NotionalUSD); err != nil {
+			r.sagaMark(ctx, sagaID, "earn_redeem", "failed", err.Error())
 			r.setState(ctx, execID, "failed")
 			r.rej.Inc("earn_redeem_failed")
 			return execID, fmt.Errorf("前置赎回: %w", err)
 		}
+		r.sagaMark(ctx, sagaID, "earn_redeem", "done", "")
 	}
 	res, err := r.placeAndResolve(ctx, execID, 1, leg, posRef)
 	if err != nil {
+		r.sagaMark(ctx, sagaID, "leg1", "failed", err.Error())
 		if res.State == "unknown" || res.State == "live" || res.State == "partially_filled" {
 			r.alert(ctx, "dir_leg_ambiguous",
 				fmt.Sprintf("exec#%d 单腿 %s@%s 歧态势（state=%s）——venue 可能已成仓，残留敞口人查", execID, leg.InstID, leg.Venue, res.State))
@@ -106,14 +117,17 @@ func (r *Runner) ExecuteDir(ctx context.Context, in Intent) (int64, error) {
 		r.setState(ctx, execID, "failed")
 		return execID, fmt.Errorf("dir_leg: %w", err)
 	}
+	r.sagaMark(ctx, sagaID, "leg1", "done", "")
 	if in.Kind != "close" {
 		var posID int64
 		if err := r.pool.QueryRow(ctx, `INSERT INTO fin_position(execution_id,strategy_ref,inst_id,notional_usd)
 			VALUES($1,$2,$3,$4) RETURNING id`,
 			execID, in.StrategyRef, in.InstID, in.NotionalUSD).Scan(&posID); err != nil {
 			r.rej.Inc("write_err")
+			r.sagaMark(ctx, sagaID, "position_row", "failed", err.Error())
 		} else {
 			r.linkLegCash(ctx, execID, posID)
+			r.sagaMark(ctx, sagaID, "position_row", "done", "")
 		}
 	}
 	log.Printf("[execution] #%d %s 单腿成交（clOrdId %s dir）", execID, in.InstID, res.ClOrdID)

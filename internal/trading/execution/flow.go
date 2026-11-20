@@ -58,18 +58,31 @@ func (r *Runner) Execute(ctx context.Context, in Intent) (int64, error) {
 			posRef = &pid
 		}
 	}
+	// saga 流程账开（工单#25807）——earn_redeem/position_row=open 径专步
+	// （close 免赎禁建仓行——skipped 钉步显形非缺列）；undo_fn_ref 闭集注册。
+	sagaID := r.sagaBegin(ctx, tern(in.Kind == "close", "close", "open"), execID, []sagaStep{
+		{Name: "exec_row", Status: "done", UndoRef: "fail_exec"},
+		{Name: "earn_redeem", Status: tern(r.earn != nil && in.Kind != "close", "pending", "skipped"), UndoRef: ""},
+		{Name: "leg1", Status: "pending", UndoRef: "rollback_leg"},
+		{Name: "leg2", Status: "pending", UndoRef: "rollback_leg"},
+		{Name: "position_row", Status: tern(in.Kind != "close", "pending", "skipped"), UndoRef: "delete_position"},
+	})
+	defer func() { r.sagaClose(ctx, sagaID, "done") }()
 	// ③.5 前置赎回（D-0006 停泊态：闲资默认停 Earn——开仓先赎回 notional+buffer 回拢；
 	// 败=fail-closed 不开仓，留痕=exec 行翻 failed+计数门。close 免赎——退仓不进钱径）。
 	if r.earn != nil && in.Kind != "close" {
 		if err := r.earn.RedeemToTrading(ctx, in.NotionalUSD); err != nil {
+			r.sagaMark(ctx, sagaID, "earn_redeem", "failed", err.Error())
 			r.setState(ctx, execID, "failed")
 			r.rej.Inc("earn_redeem_failed")
 			return execID, fmt.Errorf("前置赎回: %w", err)
 		}
+		r.sagaMark(ctx, sagaID, "earn_redeem", "done", "")
 	}
 	// ④leg1
 	res1, err := r.placeAndResolve(ctx, execID, 1, l1, posRef)
 	if err != nil {
+		r.sagaMark(ctx, sagaID, "leg1", "failed", err.Error())
 		// T-0145：leg1 歧态势（传输败/live/部分成→Resolve 定不了真态）——
 		// venue 可能已成仓（裸腿残留）=告警升件人查，禁静默当败。
 		if res1.State == "unknown" || res1.State == "live" || res1.State == "partially_filled" {
@@ -79,6 +92,7 @@ func (r *Runner) Execute(ctx context.Context, in Intent) (int64, error) {
 		r.setState(ctx, execID, "failed")
 		return execID, fmt.Errorf("leg1: %w", err)
 	}
+	r.sagaMark(ctx, sagaID, "leg1", "done", "")
 	// ⑤leg2——败/歧义=LEGGED→自动回滚 leg1（不留半成品敞口）。
 	res2, err := r.placeAndResolve(ctx, execID, 2, l2, posRef)
 	if err != nil || res2.State == "ambiguous" {
@@ -89,7 +103,9 @@ func (r *Runner) Execute(ctx context.Context, in Intent) (int64, error) {
 				fmt.Sprintf("exec#%d leg2 %s@%s 歧态势（state=%s）——回滚 leg1 后 leg2 实存须人查", execID, l2.InstID, l2.Venue, res2.State))
 		}
 		r.setState(ctx, execID, "legged")
+		r.sagaMark(ctx, sagaID, "leg2", "failed", fmt.Sprint(err))
 		r.rollback(ctx, execID, l1, res1)
+		r.sagaMark(ctx, sagaID, "leg1", "undone", "inline LEGGED 回滚")
 		// T-0145 返修①：败径 %w 透传——venue APIError（okx/mtexec 终局码）吞不得，
 		// xvenue 终局分类靠 errors.As 判（无 %w=untradeable 联动死径，armed 重试
 		// 开平 churn 烧真钱）；err==nil 纯歧义分支保原文（无码可透）。
@@ -98,6 +114,7 @@ func (r *Runner) Execute(ctx context.Context, in Intent) (int64, error) {
 		}
 		return execID, fmt.Errorf("leg2 败/歧义→LEGGED 回滚 leg1")
 	}
+	r.sagaMark(ctx, sagaID, "leg2", "done", "")
 	// ⑥仓行（delta 中性标——funding 对冲天然）——仅 open 径建（T-0083 返修①：
 	// close 径禁建新仓行——被平的是既有仓（guard markClosed 关原行），close 建
 	// 行=空壳壳行+cash 错绑病灶源）；linkLegCash 同律只挂 open 径（返修②：
@@ -108,8 +125,10 @@ func (r *Runner) Execute(ctx context.Context, in Intent) (int64, error) {
 			VALUES($1,$2,$3,$4) RETURNING id`,
 			execID, in.StrategyRef, in.InstID, in.NotionalUSD).Scan(&posID); err != nil {
 			r.rej.Inc("write_err")
+			r.sagaMark(ctx, sagaID, "position_row", "failed", err.Error())
 		} else {
 			r.linkLegCash(ctx, execID, posID)
+			r.sagaMark(ctx, sagaID, "position_row", "done", "")
 		}
 	}
 	log.Printf("[execution] #%d %s 双腿成交（clOrdId %s/%s）", execID, in.InstID, res1.ClOrdID, res2.ClOrdID)

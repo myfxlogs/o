@@ -226,6 +226,7 @@ var migrationTable = []struct {
 	{217, "fin_0217_ocore_window.sql"},
 	{218, "fin_0218_position_state.sql"}, // 工单#25806 FSM 收口——state 物化+转移闸+对账孤儿
 	{219, "fin_0219_okxgrid.sql"},        // 工单#25840——fin_0218 在途占（fix/fsm-converge 支）——跳号钉 0219
+	{220, "fin_0220_saga.sql"},           // 工单#25807 saga 流程级补偿账（fin_0219 在途占 fix/okx-native-grid 支——跳号钉 0220）
 
 	// —— md 链（版本链内唯一且单调；md 链版本=历史号+1000 与 fin 键空间全局不相交——跨链并 schema 时 schema_migrations 零撞号，check_migrations 断言①⑤）——
 	{1003, "md_1003_market_facts.sql"},

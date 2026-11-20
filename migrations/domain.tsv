@@ -118,3 +118,4 @@ ops_state_row	fin
 fin_guard_close_status	fin
 fin_bot_order	fin
 fin_bot_equity_snap	fin
+fin_saga	fin
