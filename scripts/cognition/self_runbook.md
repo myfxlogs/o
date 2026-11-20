@@ -24,6 +24,8 @@
 
 ```bash
 FIN_DSN=$(grep '^FIN_PG_DSN=' /opt/o-research/env | cut -d= -f2- | tr -d '"')
+# 分析/排查类 SQL 默认 scripts/fin_ro.sh（OCI 镜像读面；工单#25758）——
+#   禁 psql "$FIN_DSN" 直压 SG 主库；镜像未桥接表显式 --sg（FIN_PG_RO_DSN 窄读）。
 # 读面选径(工单#17113):fin只读面=FIN_PG_RO_DSN(env载o_fin_ro窄读角色——
 #   fin_opp_eval/fin_opp_template等白名单表FIN_PG_DSN角色拒读实证,
 #   取证被拒读时换RO径不写接续):RO_DSN=$(grep '^FIN_PG_RO_DSN=' /opt/o-research/env | cut -d= -f2- | tr -d '"')

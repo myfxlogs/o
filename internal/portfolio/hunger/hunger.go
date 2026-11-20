@@ -89,6 +89,9 @@ func (s *Sensor) Detect(ctx context.Context) (*Report, error) {
 		rep.Triggered = true
 		rep.Reasons = append(rep.Reasons, "paper_empty:paper池空(0策略)")
 	}
+	if err := s.detectMonoFamily(ctx, rep); err != nil {
+		return nil, err
+	}
 	return rep, nil
 }
 

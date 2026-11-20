@@ -298,6 +298,42 @@ func TestSweepInflightSkips(t *testing.T) {
 	}
 }
 
+// TestSweepStaleExecProceeds 超龄 open exec(>1h)=账烂非在途——扫额放行+
+// 「资金闸」升件火（工单#25693 病案复演）；同 scope 未销件在案=二拍不连鸣。
+func TestSweepStaleExecProceeds(t *testing.T) {
+	ctx, w, fake := setupW(t, &fakeAPI{}, map[string]string{"earn.sweep_min_usd": "100"})
+	defer w.pool.Exec(ctx, "DELETE FROM fin_cashflow WHERE venue=$1 AND kind IN ('earn_in','earn_out')", w.venue)
+	defer w.pool.Exec(ctx, "DELETE FROM fin_risk_decision WHERE intent->>'kind'='transfer'")
+	defer w.pool.Exec(ctx, "DELETE FROM fin_execution WHERE inst_id='TEST-EARN'")
+	defer w.pool.Exec(ctx, "DELETE FROM ops_event WHERE esc_scope='earn_stale_exec_open'")
+	w.AttachIdle(func(ctx context.Context) (float64, error) { return 150, nil })
+	if _, err := w.pool.Exec(ctx, `INSERT INTO fin_execution(strategy_ref,decision_id,token_id,inst_id,notional_usd,state,created_at)
+		VALUES(1,1,NULL,'TEST-EARN',100,'open',now()-interval '2 hours')`); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.scan(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if len(fake.transfers) == 0 {
+		t.Fatal("超龄 open 不应堵扫额")
+	}
+	if w.rej.Snapshot()["earn/sweep_skip_inflight"] != 0 {
+		t.Fatal("账烂不该计在途让位")
+	}
+	var n int
+	if err := w.pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='升件' AND esc_scope='earn_stale_exec_open'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("探针升件应火一次: n=%d err=%v", n, err)
+	}
+	if err := w.scan(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='升件' AND esc_scope='earn_stale_exec_open'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("未销同 scope 应抑: n=%d err=%v", n, err)
+	}
+}
+
 // TestRatePollFactRow 现率采样→md_earn_rate 事实行；采样败=计数不入假值。
 func TestRatePollFactRow(t *testing.T) {
 	ctx, w, _ := setupW(t, &fakeAPI{}, map[string]string{"earn.sweep_min_usd": "100"})
