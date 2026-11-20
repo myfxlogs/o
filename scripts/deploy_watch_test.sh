@@ -23,6 +23,7 @@ sql=""; prev=""
 for a in "$@"; do [ "$prev" = "-c" ] && sql="$a"; prev="$a"; done
 printf '%s\n' "$sql" >> "${PSQL_LOG:-/dev/null}"
 case "$sql" in
+  INSERT*心跳*'') [ "${T_HB_FAIL:-0}" = 1 ] && exit 1; exit 0;;
   INSERT*) exit 0;;
   *deploy.ocore_window_utc*)  printf '%s\n' "${T_WIN:-19:00-21:00}";;
   *deploy.ocore_window_max_hold_h*) printf '%s\n' "${T_MAXH:-26}";;
@@ -32,6 +33,7 @@ case "$sql" in
   *regexp_match*o-core:*) printf '%s\n' "${T_DEPLOYED:-}";;
   *SELECT\ id*o-core:*) : ;;
   *event='升件'*) echo 0;;
+  *split_part*note*event='心跳'*) printf '%s|%s\n' "${T_HB_LAST_STATE:-}" "${T_HB_LAST_AGE:-999999}";;
   *) : ;;
 esac
 exit 0
@@ -91,6 +93,7 @@ run_dw() { # $1=now epoch [$2=T_WIN] [$3=T_MAXH] [$4=T_CLEANWM] [$5=T_QUEUED]
 		O_DEPLOY_NOW_EPOCH="$1" T_DEPLOYED="$BASE" \
 		T_WIN="${2:-19:00-21:00}" T_MAXH="${3:-26}" \
 		T_CLEANWM="${4:-}" T_QUEUED="${5:-0}" \
+		T_HB_LAST_STATE="${T_HB_LAST_STATE:-}" T_HB_LAST_AGE="${T_HB_LAST_AGE:-999999}" \
 		bash scripts/deploy_watch.sh >"$T/out" 2>&1 )
 }
 now_of() { date -u -d "$1" +%s; }
@@ -146,6 +149,22 @@ new_repo; second_commit cmd/core/main.go "package main" "2026-11-20T03:00:00"
 run_dw "$(now_of '2026-11-20 10:00:00')" bogus
 has 'deploy_ocore_window_config' "$T/psql.log" && ok "配置非法升件在账" || bad "配置非法升件缺"
 [ ! -s "$T/calls.log" ] && ok "配置非法不换钱径" || bad "配置非法竟换件"
+
+# ═══ ⑧ 心跳面（工单#25803）：每拍写 ops_event seat=DEPLOY event=心跳 ═══
+echo "== ⑧ 心跳面 =="
+new_repo; second_commit docs/note.md "doc" "2026-11-20T03:00:00"
+run_dw "$(now_of '2026-11-20 10:00:00')"
+has "VALUES('DEPLOY','心跳'" "$T/psql.log" && ok "心跳行落账" || bad "心跳行缺"
+has "心跳 证空跳部署" "$T/psql.log" && ok "判词随行（证空跳部署）" || bad "判词随行缺"
+has '心跳: 证空跳部署' "$T/out" && ok "say 心跳判词" || bad "say 心跳缺"
+# 写败容忍：psql 桩 INSERT 败→脚本仍 rc0（心跳非钱径不翻部署判）
+new_repo; second_commit docs/note.md "doc" "2026-11-20T03:00:00"
+( cd "$T/o" && env PATH="$T/bin:$PATH" FIN_PG_DSN=stub REPORT_ENV_FILE=/dev/null \
+	PSQL_LOG="$T/psql.log" CALL_LOG="$T/calls.log" O_DEPLOY_NOW_EPOCH="$(now_of '2026-11-20 10:00:00')" \
+	T_DEPLOYED="$BASE" T_WIN=19:00-21:00 T_MAXH=26 T_CLEANWM= T_QUEUED=0 \
+	T_HB_FAIL=1 bash scripts/deploy_watch.sh >"$T/out" 2>&1 ); rc=$?
+[ "$rc" = 0 ] && ok "心跳写败不翻部署判 rc=0" || bad "心跳写败翻判 rc=$rc"
+has '心跳写败' "$T/out" && ok "写败如实报" || bad "写败静默"
 
 echo "== 汇总: PASS=$PASS FAIL=$FAILN =="
 [ "$FAILN" -eq 0 ]

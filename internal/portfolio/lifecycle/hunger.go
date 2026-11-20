@@ -23,6 +23,7 @@ import (
 // T-0392：ProbeLegCoverage 腿-行情覆盖探针同缝——探针族同槽入拍。
 // T-0394：ProbeDeps 依赖对活性枚举探针同缝——探针族同槽入拍。
 // T-0410：ProbeFeedStale 日历 feed 死闸同缝——探针族同槽入拍。
+// 工单#25803：ProbeDeployWatch deploy_watch 心跳看门狗同缝——同款隔离位。
 type hungerSensor interface {
 	Detect(ctx context.Context) (*hunger.Report, error)
 	Respond(ctx context.Context, rep *hunger.Report) ([]hunger.StepResult, error)
@@ -33,6 +34,7 @@ type hungerSensor interface {
 	ProbeKlineStale(ctx context.Context) error
 	ProbeOpenDrought(ctx context.Context) error
 	ProbeWorkerCloseout(ctx context.Context) error
+	ProbeDeployWatch(ctx context.Context) error
 	MineLessons(ctx context.Context) (int, error)
 }
 
@@ -138,6 +140,12 @@ func (r *Runner) hungerTick(ctx context.Context) {
 	if err := r.sensor.ProbeWorkerCloseout(ctx); err != nil {
 		log.Printf("[lifecycle] hungertick 施工收口探针败: %v", err)
 		r.hungerEscalate(ctx, "closeout_probe", err)
+	}
+	// 工单#25803 deploy_watch 心跳看门狗同槽（同款败情隔离位——
+	// timer死/服务崩/锁卡死=心跳停→deploy_watch_silent 升件）。
+	if err := r.sensor.ProbeDeployWatch(ctx); err != nil {
+		log.Printf("[lifecycle] hungertick deploy_watch看门狗探针败: %v", err)
+		r.hungerEscalate(ctx, "deploywatch_probe", err)
 	}
 	rep, err := r.sensor.Detect(ctx)
 	if err != nil {

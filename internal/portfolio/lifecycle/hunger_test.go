@@ -34,6 +34,7 @@ type stubSensor struct {
 	kserr    error
 	odErr    error
 	copErr   error
+	dwErr    error
 	detects  atomic.Int64
 	responds atomic.Int64
 	probes   atomic.Int64
@@ -44,6 +45,7 @@ type stubSensor struct {
 	kstales  atomic.Int64
 	ods      atomic.Int64
 	cops     atomic.Int64
+	dws      atomic.Int64
 }
 
 func (s *stubSensor) Detect(context.Context) (*hunger.Report, error) {
@@ -95,6 +97,11 @@ func (s *stubSensor) ProbeOpenDrought(context.Context) error {
 func (s *stubSensor) ProbeWorkerCloseout(context.Context) error {
 	s.cops.Add(1)
 	return s.copErr
+}
+
+func (s *stubSensor) ProbeDeployWatch(context.Context) error {
+	s.dws.Add(1)
+	return s.dwErr
 }
 
 func (s *stubSensor) MineLessons(context.Context) (int, error) {
@@ -360,6 +367,29 @@ func TestHungerTickRespondFailSelfReported(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
 		WHERE event='升件' AND esc_scope='LIFECYCLE-HUNGER' AND note LIKE 'hungertick respond 败%'`).Scan(&n); err != nil || n != 1 {
 		t.Fatalf("respond 自报行缺: n=%d err=%v", n, err)
+	}
+}
+
+// TestHungerTickDeployWatchEveryBeat 锚（工单#25803）：deploy_watch 心跳
+// 看门狗与 Detect 同槽——每拍先探；探针假败→升件自报行落+Detect 照常
+// （败情隔离同 ProbeWorkerCloseout 先例）。
+func TestHungerTickDeployWatchEveryBeat(t *testing.T) {
+	pool := testutil.Pool(t)
+	ctx := context.Background()
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatal(err)
+	}
+	stub := &stubSensor{rep: &hunger.Report{Triggered: false, WindowDays: 3},
+		dwErr: errors.New("假败——心跳末行读败")}
+	r := &Runner{pool: pool, sensor: stub}
+	r.hungerTick(ctx)
+	if stub.dws.Load() != 1 || stub.detects.Load() != 1 {
+		t.Fatalf("看门狗/Detect 同槽拍不齐: dws=%d detects=%d", stub.dws.Load(), stub.detects.Load())
+	}
+	var n int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
+		WHERE event='升件' AND esc_scope='LIFECYCLE-HUNGER' AND note LIKE 'hungertick deploywatch_probe 败%'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("看门狗败情自报行缺: n=%d err=%v", n, err)
 	}
 }
 
