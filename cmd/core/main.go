@@ -163,7 +163,7 @@ func run() error {
 				cli:    newCli(priv.Credentials()), xcli: xcli, xdial: xdial, xds: xds}
 			// venue 原生 bot 管护臂（工单#25840——kill 闸消费+权益快照+业主
 			// 首闸拉起；ro=mutating 全撤不挂；okcli 同 mutating 凭据件）。
-			go okxgrid.NewRunner(pool, cfg, okxgrid.NewAdapter(okcli)).Run(ctx, errc)
+			go okxgrid.NewRunner(pool, cfg, okxgrid.NewAdapter(okcli), okcli.TradingAvailBal, earnW.RedeemToTrading).Run(ctx, errc) // #26337 资金闸注入
 		} // !ro mutating 接线域收
 		// 读径面（只读镜像全通）：boot 首读播种+平仓量现读+funding 记账+私流守。
 		creds := priv.Credentials()
