@@ -7,7 +7,9 @@
 #   (b) ops_event 有「复审过 sha=<尖全sha>」行且写行席≠该支完工回执席——
 #       docs-only 差分支（diff ⊆ docs/**|skills/**|*.md，check_all
 #       docs-only 同口径）免 b；
-#   (c) 对 origin/master 可净合（merge-tree 预检+工树 merge --no-ff 实证）。
+#   (c) 对 origin/master 可净合（merge-tree 预检+工树 merge --no-ff 实证；
+#       净合前另过 depends_on 时序闸——支新增迁移所依须已在
+#       origin/master 或同支自带，未合跳支不占落地账，工单#25800）。
 # 落法=独立工树（非部署树）merge --no-ff→合并点跑 check_all→盖戳→
 # 部署树发 <merge_sha>:master（pre-push master 只许 /opt/o 径）→清工树；
 # deploy_watch 照旧 ff+部署。单写者=本件；一拍一支串行；红/冲突=不落+
@@ -119,6 +121,27 @@ review_ok() { # $1=br名 $2=tip全sha → rc0=复审过行在且写行席≠完�
 mergeable() { # $1=tip → rc0=对 origin/master 净合（merge-tree 预检，不动工树）
 	git merge-tree --write-tree origin/master "$1" >/dev/null 2>&1
 }
+mig_dep_gate() { # $1=br名 $2=tip → rc0=依赖序合法；rc1=所依未合（say 记跳因）
+	# 工单#25800 合流时序闸：支新增迁移的 depends_on 目标须已在
+	# origin/master 或同支自带——跨支未合依赖跳支不合（不占落地账、
+	# 不烧冷却，下拍重扫）。判据核心=mig_dep_lib.sh::mig_dep_gate_check；
+	# 解析件取支尖自带版——deploy 树未含本闸件时亦能判（渐进启用）。
+	local br="$1" tip="$2" mb added libtmp miss rc
+	mb=$(git merge-base origin/master "$tip" 2>/dev/null) || return 0 # tolerate: base 败=放——mergeable 已预检此支可合域
+	added=$(git diff --name-only --diff-filter=A "$mb" "$tip" -- 'migrations/*.sql' 2>/dev/null)
+	[ -n "$added" ] || return 0
+	libtmp=$(mktemp /tmp/migdep-lib-XXXXXX 2>/dev/null) || return 0 # tolerate: mktemp 败=放闸下拍——支自带 check_all⑨已保底声明合法
+	if ! git show "$tip:scripts/mig_dep_lib.sh" > "$libtmp" 2>/dev/null; then
+		rm -f "$libtmp"; return 0 # tolerate: 支无解析件=无声明语义——放
+	fi
+	. "$libtmp"
+	miss=$(printf '%s\n' "$added" | mig_dep_gate_check "$tip" origin/master 2>/dev/null)
+	rc=$?
+	rm -f "$libtmp"
+	[ "$rc" -eq 0 ] && return 0
+	say "跳 $br——迁移依赖未合：$(printf '%s' "$miss" | tr '\n' ' ' | sed 's/ $//')（目标须先在 origin/master 或同支自带）"
+	return 1
+}
 
 # ── 扫支：七日内未并支按尖龄升序，一拍一支 ──
 CANDS=$(git for-each-ref --no-merged origin/master --sort=committerdate \
@@ -139,6 +162,7 @@ while read -r br tip; do
 	elif ! review_ok "$br" "$tip"; then
 		say "跳 $br——复审过行缺/分席不可证/无DSN"; continue
 	fi
+	mig_dep_gate "$br" "$tip" || continue
 	if ! mergeable "$tip"; then
 		fact "落地败 支=$br 尖=$tip 因=对origin/master不可净合(merge-tree冲突)——支须重基,同尖冷却24h"
 		esc "landq_conflict_${br//\//_}" "部署/landq_merge_conflict: 支=$br 尖=$tip 对origin/master不可净合——须重基或人工裁决,支入24h冷却待处置"

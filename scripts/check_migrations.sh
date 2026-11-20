@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# check_migrations.sh —— 迁移八断言硬闸（T-0109 三断言为基，T-0167 分链制扩七，裸GRANT 闸为⑧）：
+# check_migrations.sh —— 迁移九断言硬闸（T-0109 三断言为基，T-0167 分链制扩七，裸GRANT 闸为⑧，depends_on 声明合法性为⑨）：
 #   ① migrate_table.go 登记 version 链内唯一（同链重复号=红——同号后登记者被 silent-skip）；
 #   ② 每条登记 {N, "md|fin_NNNN_*.sql"} 的链内序号=登记号 N 且文件实存；
 #   ③ migrations/*.sql 每个文件恰有一条登记行（孤儿文件=红）；
@@ -15,9 +15,17 @@
 #   ⑧ 裸 GRANT 闸（0071/0098/0161/0191 四案实证）：链外角色 GRANT 必须
 #      在 DO $$ IF EXISTS(pg_roles) 块内——顶格 GRANT 只许链内自建角色
 #      或 PUBLIC，否则 fresh 测试库无此角色即 SQLSTATE 42704 炸链。
+#   ⑨ depends_on 声明合法性（工单#25800——跨支迁移序号倒挂治本）：
+#      文件头注释区 `-- depends_on: <file.sql>`（mig_dep_lib 解析）——
+#      目标须=登记在册同链迁移且链内号<声明者（Migrate 应用序=号序，
+#      依赖必先施；号序倒挂=静默语义反转）；未登记/跨链/倒挂/值非法/
+#      头区外错位声明=红。无声明=现状不禁（渐进启用——既有迁移零
+#      声明零影响）。合流时序闸在 land_queue.sh（所依未合→不合）。
 # 判的是链内号重复非连续——链内单调由⑤另钉。全域一致性检查（工作树面），
 # 由 pre-commit 门禁链调用，可单独跑（与 check-lines 同构）。
 set -euo pipefail
+MIGDEP_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/mig_dep_lib.sh"
+if [ -f "$MIGDEP_LIB" ]; then . "$MIGDEP_LIB"; else mig_dep_parse() { :; }; mig_dep_stray() { :; }; fi
 cd "$(git rev-parse --show-toplevel)"
 
 REG="internal/store/pgstore/migrate_table.go"
@@ -32,6 +40,7 @@ fi
 # ①②⑤ 登记表面（链内唯一/单调+序号失配+幽灵登记）
 declare -A SEEN=()
 declare -A LAST=()
+declare -A VEROF=()   # 文件名→登记号（⑨ depends_on 判据）
 while IFS= read -r line; do
 	[ -z "$line" ] && continue
 	ver=$(sed -E 's/^\s*\{([0-9]+),.*/\1/' <<< "$line")
@@ -66,6 +75,7 @@ while IFS= read -r line; do
 		echo "FAIL $REG: 登记 $ver 的 $name 文件不存在（幽灵登记——部署即炸）" >&2
 		fail=1
 	fi
+	VEROF[$name]=$ver
 done < <(grep -E '^\s*\{[0-9]+, *"(md|fin)_[0-9]+_' "$REG")
 
 # ③ 孤儿文件（migrations/*.sql 每文件恰一条登记）
@@ -220,8 +230,53 @@ done < <(awk '
 	/^[[:space:]]*GRANT[[:space:]]/ && blk==0 {print FILENAME":"FNR":"$0}
 ' migrations/*.sql)
 
+# ⑨ depends_on 声明合法性（工单#25800——跨支迁移序号倒挂治本）：头区
+# 声明解析（mig_dep_lib 共用件）——目标须在册同链且链内号<声明者
+# （Migrate 应用序=号序，依赖必先施；号序倒挂=静默语义反转）；头区外
+# 错位声明另红（防作者以为声明了实则闸不见）。无声明=现状不禁。
+if [ ! -f "$MIGDEP_LIB" ]; then
+	echo "FAIL $MIGDEP_LIB: depends_on 解析件缺席（⑨ 判据残缺）" >&2
+	fail=1
+fi
+while IFS= read -r f; do
+	name=$(basename "$f")
+	dv=${VEROF[$name]:-}
+	[ -n "$dv" ] || continue   # 未登记文件③已红——⑨不重复判
+	chain=${name%%_*}
+	while IFS= read -r dep; do
+		[ -n "$dep" ] || continue
+		case "$dep" in
+			md_*.sql|fin_*.sql) ;;
+			*)
+				echo "FAIL $f: depends_on 值非法 '$dep'（须=迁移文件名 fin_NNNN_*.sql|md_NNNN_*.sql）" >&2
+				fail=1
+				continue ;;
+		esac
+		pv=${VEROF[$dep]:-}
+		if [ -z "$pv" ]; then
+			echo "FAIL $f: depends_on 目标 $dep 未登记（依赖不可施——先落依赖或改名）" >&2
+			fail=1
+			continue
+		fi
+		if [ "${dep%%_*}" != "$chain" ]; then
+			echo "FAIL $f: depends_on 跨链 $dep（依赖须同链——两链应用域不同）" >&2
+			fail=1
+			continue
+		fi
+		if [ "$pv" -ge "$dv" ]; then
+			echo "FAIL $f: depends_on $dep 版=$pv ≥ 声明者版=$dv（应用序=号序——依赖号须小；倒挂=静默语义反转）" >&2
+			fail=1
+		fi
+	done < <(mig_dep_parse < "$f")
+	while IFS= read -r stray; do
+		[ -n "$stray" ] || continue
+		echo "FAIL $f: depends_on 声明错位（头区外——只在文件头注释区生效；见 '$stray'）" >&2
+		fail=1
+	done < <(mig_dep_stray < "$f")
+done < <(find migrations -maxdepth 1 -name '*.sql' | sort)
+
 if [ "$fail" -eq 1 ]; then
-	echo "❌ check_migrations: 断言红——撞号/串链/桥表漂移/白名单缺册/裸GRANT 禁提交（canon migration-number-collision + D-0030 §六）" >&2
+	echo "❌ check_migrations: 断言红——撞号/串链/桥表漂移/白名单缺册/裸GRANT/depends_on 声明禁提交（canon migration-number-collision + D-0030 §六 + 工单#25800）" >&2
 	exit 1
 fi
-echo "OK: check_migrations（八断言过——链内唯一/序号实存/零孤儿/md_* 键域/两链单调/八桥 DDL 同形/域白名单/裸GRANT 白名单）"
+echo "OK: check_migrations（九断言过——链内唯一/序号实存/零孤儿/md_* 键域/两链单调/八桥 DDL 同形/域白名单/裸GRANT 白名单/depends_on 声明合法）"

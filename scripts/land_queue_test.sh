@@ -2,7 +2,9 @@
 # land_queue_test.sh —— 落地件桩测（工单#22577 验收①）：
 # 桩 git（本地 bare origin+clone）+桩 psql（PATH 注入按词面应答）+
 # 桩 check_all（绿=盖戳）——验三件齐→落；缺戳/缺复审过行/复审席=
-# 作者席/冲突/戳陈 五反例各不落；docs-only 差分免 b 正例。
+# 作者席/冲突/戳陈 五反例各不落；docs-only 差分免 b 正例；
+# depends_on 合流时序闸（工单#25800）：依赖未合拒/同支自带放/
+# 已合放/无声明放 四态。
 set -uo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 LQ="$HERE/land_queue.sh"
@@ -51,7 +53,10 @@ new_repo() { # $1=case目录 → bare origin + master 对齐的 clone
   git -C "$d/o" config user.name t
   git -C "$d/o" remote add origin "$d/origin.git"
   echo base > "$d/o/f.txt"
-  git -C "$d/o" add f.txt
+  mkdir -p "$d/o/scripts" "$d/o/migrations"
+  cp "$HERE/mig_dep_lib.sh" "$d/o/scripts/mig_dep_lib.sh"
+  printf -- '-- fin_0001_old 基线迁移（夹具）\nSELECT 1;\n' > "$d/o/migrations/fin_0001_old.sql"
+  git -C "$d/o" add -A
   git -C "$d/o" commit -qm init
   git -C "$d/o" push -qu origin master
 }
@@ -147,6 +152,53 @@ new_case
 TIP=$(tip_of "$T/o" fix/docsonly); stamp "$T/o" "$TIP"
 run_lq T_REVIEW_OK=0
 if landed "$T/o" "$TIP"; then ok "docs-only免b落成"; else bad "docs-only未落"; fi
+
+# ═══ 依赖闸1：所依未合 → 跳支不落不烧账（工单#25800）═══
+echo "== 依赖闸 依赖未合拒=="
+new_case
+(cd "$T/o" && git checkout -q -b fix/depmiss master \
+  && mkdir -p migrations \
+  && printf -- '-- depmiss 依赖未合拒例\n-- depends_on: fin_0999_ghost.sql\nSELECT 1;\n' > migrations/fin_0002_dep.sql \
+  && git add -A && git commit -qm "wip depmiss" \
+  && git push -qu origin fix/depmiss && git checkout -q master)
+TIP=$(tip_of "$T/o" fix/depmiss); stamp "$T/o" "$TIP"
+run_lq T_REVIEW_OK=1
+if landed "$T/o" "$TIP"; then bad "依赖未合支竟落"; else ok "依赖未合不落"; fi
+grep -q '落地败 支=' "$T/psql.log" && bad "依赖未合竟烧落地败账" || ok "依赖未合不占落地账"
+
+# ═══ 依赖闸2：同支自带 → 放落 ═══
+echo "== 依赖闸 同支自带放=="
+new_case
+(cd "$T/o" && git checkout -q -b fix/depself master \
+  && printf -- '-- depself 基迁\nSELECT 1;\n' > migrations/fin_0002_a.sql \
+  && printf -- '-- depself 子迁\n-- depends_on: fin_0002_a.sql\nSELECT 1;\n' > migrations/fin_0003_b.sql \
+  && git add -A && git commit -qm "wip depself" \
+  && git push -qu origin fix/depself && git checkout -q master)
+TIP=$(tip_of "$T/o" fix/depself); stamp "$T/o" "$TIP"
+run_lq T_REVIEW_OK=1
+if landed "$T/o" "$TIP"; then ok "同支自带依赖放落"; else bad "同支自带依赖未落"; fi
+
+# ═══ 依赖闸3：所依已在 origin/master → 放落 ═══
+echo "== 依赖闸 已合放=="
+new_case
+(cd "$T/o" && git checkout -q -b fix/depmerged master \
+  && printf -- '-- depmerged 子迁\n-- depends_on: fin_0001_old.sql\nSELECT 1;\n' > migrations/fin_0002_new.sql \
+  && git add -A && git commit -qm "wip depmerged" \
+  && git push -qu origin fix/depmerged && git checkout -q master)
+TIP=$(tip_of "$T/o" fix/depmerged); stamp "$T/o" "$TIP"
+run_lq T_REVIEW_OK=1
+if landed "$T/o" "$TIP"; then ok "已合依赖放落"; else bad "已合依赖未落"; fi
+
+# ═══ 依赖闸4：迁移无声明 → 放落（渐进启用）═══
+echo "== 依赖闸 无声明放=="
+new_case
+(cd "$T/o" && git checkout -q -b fix/deplain master \
+  && printf -- '-- deplain 迁移\nSELECT 1;\n' > migrations/fin_0002_plain.sql \
+  && git add -A && git commit -qm "wip deplain" \
+  && git push -qu origin fix/deplain && git checkout -q master)
+TIP=$(tip_of "$T/o" fix/deplain); stamp "$T/o" "$TIP"
+run_lq T_REVIEW_OK=1
+if landed "$T/o" "$TIP"; then ok "无声明迁移放落"; else bad "无声明迁移未落"; fi
 
 echo "== 汇总: PASS=$PASS FAIL=$FAILN =="
 [ "$FAILN" -eq 0 ]
