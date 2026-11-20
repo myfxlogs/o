@@ -182,7 +182,9 @@ func (w *Worker) autoPurchaseOn() bool {
 }
 
 // sweepIdle 闲余>阈值（热启）→回存停泊。判据源：unified 快照行 avail（WS 事件源，
-// 鲜<5min fail-closed 不动钱）；执行在途（state=open）让位防饿腿。
+// 鲜<5min fail-closed 不动钱）；执行在途（state=open ∧ <1h）让位防饿腿——
+// 超龄 open=执行行漏关账烂非在途（在途单秒级态迁），放行+探针升件（工单#25693：
+// #1117/#1134 挂 14 天把闸堵死实证——账烂堵钱比饿腿更伤）。
 func (w *Worker) sweepIdle(ctx context.Context) error {
 	if !w.autoPurchaseOn() {
 		return nil // T-0342：自动申购停用中——本拍全段让位（钱留原账户）
@@ -195,11 +197,16 @@ func (w *Worker) sweepIdle(ctx context.Context) error {
 	// 在途让位先判（T-0462——dcd 摆渡款落 funding 即属在途单预备金；
 	// 先扫 funding 段会把渡款抢去 Earn=ping-pong 病灶。原序=funding 段
 	// 裸奔无此闸——交易户段同款闸上移罩全域）。
-	var inFlight int
+	var inFlight, stale int
 	if err := w.pool.QueryRow(ctx,
-		"SELECT count(*) FROM fin_execution WHERE state='open'").Scan(&inFlight); err != nil {
+		`SELECT count(*) FILTER (WHERE created_at>now()-interval '1 hour'),
+			count(*) FILTER (WHERE created_at<=now()-interval '1 hour')
+		 FROM fin_execution WHERE state='open'`).Scan(&inFlight, &stale); err != nil {
 		w.rej.Inc("write_err")
 		return err
+	}
+	if stale > 0 {
+		w.staleExecEsc(ctx)
 	}
 	if inFlight > 0 {
 		w.rej.Inc("sweep_skip_inflight")
