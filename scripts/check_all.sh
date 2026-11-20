@@ -109,9 +109,16 @@ step "tolerate-report"; bash scripts/check_tolerate_report.sh      || fail "容�
 step "ops-chain";   bash scripts/check_ops_chain.sh                || fail "ops 账链闸红"
 # 测谱分级（T-0409 刀②+④；T-0433 二期插 merge-scoped 档）：变更面=
 # 已提交面（merge-base...HEAD）∪工作树面（status --porcelain 含
-# untracked），与 docs-only 豁免同径收集不复制判据。四档——
+# untracked），与 docs-only 豁免同径收集不复制判据。五档——
 #   docs-only：变更面全中白名单（docs/**、*.md 任意层、skills/**）→
 #     免 go test 段（业主令 2026-10-31 既有语义不动）；
+#   scripts-sh：变更面=docs白名单∪scripts/*.sh∪.github/**（零 .go/
+#     mig/proto/其他码件）→免 go test 段——Go 对 .sh 零耦合实证
+#     （scripts/ 在 Go 侧仅存注释+tsv 数据面引用，无 exec 调用面；
+#     全谱 go test 对本面覆盖恒零），测面=变更 .sh 逐件 bash -n
+#     语法检+同名/前缀 *_test.sh 桩谱（无桩件 INFO 在案不硬闸）；
+#     scripts/ 非 .sh 件（tsv 数据面被 Go 消费——config-write-domain
+#     .tsv 等）不中本档，留原谱；
 #   scoped：变更面=.go+docs/infra（无 mig/proto）→「变更包+反向
 #     依赖闭包+恒测册」定向谱（T-0409 语义零回归）；
 #   merge-scoped（T-0433）：变更面=.go+migrations/*.sql+proto/*+
@@ -144,25 +151,32 @@ if [ "${CHECK_ALL_FORCE_FULL:-}" != "1" ]; then
     NCOM=$(printf '%s\n' "$CFILES" | grep -c . || true) # tolerate: 空集=零已提交变更合法径
     NWT=$(printf '%s\n' "$WLIST" | grep -c . || true)  # tolerate: 空集=净工作树合法径
     ALL_DOCS=1; HAS_GO=0; HAS_MIG=0; HAS_PROTO=0; HAS_OTHER=0
-    CODE_SEEN=0
+    CODE_SEEN=0; SH_ONLY=1; SH_SEEN=0
     while IFS= read -r p; do
       [ -n "$p" ] || continue
       case "$p" in
         docs/*|skills/*|*.md) ;;
-        *.go)             HAS_GO=1;    CODE_SEEN=1; ALL_DOCS=0 ;;
-        migrations/*.sql) HAS_MIG=1;   CODE_SEEN=1; ALL_DOCS=0 ;;
-        proto/*)          HAS_PROTO=1; CODE_SEEN=1; ALL_DOCS=0 ;;
+        *.go)             HAS_GO=1;    CODE_SEEN=1; ALL_DOCS=0; SH_ONLY=0 ;;
+        migrations/*.sql) HAS_MIG=1;   CODE_SEEN=1; ALL_DOCS=0; SH_ONLY=0 ;;
+        proto/*)          HAS_PROTO=1; CODE_SEEN=1; ALL_DOCS=0; SH_ONLY=0 ;;
+        # scripts/*.sh 与 .github/*=scripts-sh 档候选（中性基建件——Go 对
+        # .sh/CI-yaml 零耦合；ALL_DOCS 同旧律必清，docs+sh 混面免进
+        # docs-only=T-0433 首版漏清 ALL_DOCS 红桩锚同坑防）。
+        scripts/*.sh|.github/*) SH_SEEN=1; ALL_DOCS=0 ;;
         # 安全基建件=中性：不算 docs（ALL_DOCS=0——独现/伴 docs 落
         # full 不免测）不算清单外（HAS_OTHER 不置——伴码件入
         # merge-scoped 定向谱）。T-0433 首版漏清 ALL_DOCS 致
         # docs+scripts 面误判 docs-only 免测=fail-open，红桩锚在
         # scripts/meta/tests/check_all_scope_test.sh 场景①。
-        scripts/*|.github/*) ALL_DOCS=0 ;;
-        *)   HAS_OTHER=1; ALL_DOCS=0 ;;
+        # scripts/ 非 .sh 件（tsv 等被 Go 消费）不中 scripts-sh 档。
+        scripts/*)        ALL_DOCS=0; SH_ONLY=0 ;;
+        *)   HAS_OTHER=1; ALL_DOCS=0; SH_ONLY=0 ;;
       esac
     done <<< "$CHANGED"
     if [ "$ALL_DOCS" = 1 ]; then
       MODE=docs-only
+    elif [ "$SH_ONLY" = 1 ] && [ "$SH_SEEN" = 1 ]; then
+      MODE=scripts-sh
     elif [ "$HAS_OTHER" = 0 ] && [ "$CODE_SEEN" = 1 ]; then
       # 定向谱候选（scoped/merge-scoped 同构）：种子=.go 包映射+
       # 迁移→pgstore+proto→gen 包映射；闭包+恒测册同式；任一步不确定回退 full
@@ -258,7 +272,7 @@ GTEST_LOCK="/tmp/o-checktest-global.lock"
 # 会把调用方 stderr 整体永久吞掉（成功也吞）;if ! 语境包住=
 # 开败不炸脚本只报 bash 自错→降级径（判不准不硬闸,同 lease infra 径）。
 if ! exec 10>"$GTEST_LOCK"; then GTEST_LOCK=""; fi
-if [ -n "$GTEST_LOCK" ] && [ "$MODE" != "docs-only" ]; then
+if [ -n "$GTEST_LOCK" ] && [ "$MODE" != "docs-only" ] && [ "$MODE" != "scripts-sh" ]; then
   if ! flock -n 10 2>/dev/null; then
     HOLDER=$(fuser "$GTEST_LOCK" 2>/dev/null | tr -s ' ' '\n' | grep -v "^$$\$" | head -3 | tr '\n' ' ' || true) # tolerate: fuser 败/空集=holder 未知如实报 ?
     HPID=$(printf '%s' "$HOLDER" | awk '{print $1}')
@@ -277,7 +291,7 @@ fi
 # T-0435 件②：测试库租约——非 docs-only 才占库（字母族池化独占领取，
 # DSN 注入与租约同源禁租A注B；池空不猜不占 skip 径；详见 testdb_lease.sh 头注）。
 # 老双注入块（grep -q herestring 判 5434 直注）在此归并入租约件单点。
-if [ "$MODE" != "docs-only" ]; then
+if [ "$MODE" != "docs-only" ] && [ "$MODE" != "scripts-sh" ]; then
   source "$(pwd -P)/scripts/testdb_lease.sh"
   testdb_lease_acquire "$PG_NAMES" || fail "测试库租约败——见上方 holder 行"
 fi
@@ -306,6 +320,33 @@ run_go_test() { # $1=fail-msg $2..=go test 参数（包集/./...）
 if [ "$MODE" = docs-only ]; then
   echo "── go test 全谱：docs-only 豁免跳过——已提交面 ${NCOM} 件+工作树面 ${NWT} 件全中白名单（docs/**、*.md、skills/**），merge-base=$MB；CHECK_ALL_FORCE_FULL=1 压过" >&2
   echo "docs-only" > "$STAMP.mode"
+elif [ "$MODE" = "scripts-sh" ]; then
+  # scripts-sh 档（业主令钦定小件——scripts/*.sh∪.github/* 仅变：Go 面对
+  # .sh 零耦合实证=全谱零覆盖不烧；测面=变更 .sh 逐件 bash -n+同名/
+  # 前缀 *_test.sh 桩谱——桩谱即各件票面钉的机检件,不接=随码腐烂）。
+  echo "scripts-sh" > "$STAMP.mode"
+  SH_FAIL=0; SH_RUN=0; SH_NOTEST=""
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    case "$f" in scripts/*.sh) ;; *) continue ;; esac
+    if ! bash -n "$f" 2>/dev/null; then
+      echo "FAIL bash -n $f——语法破" >&2; SH_FAIL=1; continue
+    fi
+    base=${f%.sh}; stubhit=0
+    for t in "${base}_test.sh" ${base}_*_test.sh; do
+      [ -f "$t" ] || continue
+      stubhit=1
+      if bash "$t" >/dev/null 2>&1; then
+        SH_RUN=$((SH_RUN+1))
+      else
+        echo "FAIL 桩测 $t——$f 配套件红" >&2; SH_FAIL=1
+      fi
+    done
+    [ "$stubhit" = 1 ] || SH_NOTEST="${SH_NOTEST} $f"
+  done <<< "${CHANGED:-}"
+  [ -n "$SH_NOTEST" ] && echo "ℹ️ [check-all] scripts-sh 无桩件:${SH_NOTEST}——bash -n 已过（补 *_test.sh 归各件票面）" >&2
+  [ "$SH_FAIL" = 0 ] || fail "scripts-sh 面红——语法/桩测见上"
+  echo "── go test：scripts-sh 豁免跳过——变更面全中 scripts/*.sh|.github/*（Go 对 .sh 零耦合实证，全谱覆盖恒零不烧）；bash -n 全过+桩测 ${SH_RUN} 件绿；CHECK_ALL_FORCE_FULL=1 压过" >&2
 elif [ "$MODE" = scoped ] || [ "$MODE" = merge-scoped ]; then
   echo "── go test：$MODE 定向谱——变更包+反向依赖闭包+恒测册（risk/ledger/trading/guard/lifecycle）$( [ "$MODE" = merge-scoped ] && echo '+迁移pgstore/proto-gen附加种子' )；包集: $TEST_PKGS" >&2
   { echo "$MODE"; printf '%s\n' $TEST_PKGS; } > "$STAMP.mode"
