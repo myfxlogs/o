@@ -27,6 +27,15 @@ var set = map[string]bool{
 	// 产能（grid_spot 无 LegShape 映=probe→live 结构性拦）+okxgrid.live_
 	// switch 业主首闸（缺/非 true fail-closed）——登记语义=paper 域贯通，
 	// 真钱拉起两闸均未通。
+	"sprd-atomic-basis": true, // 工单#26268 OKX Nitro Spread 价差组合族骨架册
+	// ——提案卡#550052 parked 前提②消（裁定词「execfam 骨架未册收养骨检硬拒」）。
+	// 登记语义=paper 域提案门开（判词卡→提案→paper 链贯通），**非真单语义**：
+	// 真单径=OKX /api/v5/sprd/order 原子多腿执行臂，凭据私读 403 物理前提
+	// 在案归业主（condreq 票 okx-read-scope），本票禁写任何 sprd API 调用码
+	// （协议面取证纪律）；Drillable 未产能（无 LegShape 映=probe→live 结构
+	// 性拦勿虚开）。inst 构型=sprdId 双腿 '_' 连接形（legset.InstFitOK
+	// 同源判）。hunger 册免：族无自有 cfg 键——depenum/facesnap_whitelist
+	// 「有键才册」票钦免册。
 }
 
 // Has 模板族执行径在册否。

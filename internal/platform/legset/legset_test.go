@@ -43,6 +43,17 @@ func TestInstFitOKFamilyContract(t *testing.T) {
 		{"vol_sell_single_call", "BETH-USDT-261030-2200-P", false},
 		{"vol_sell_strangle", "BETH-USDT-261029-2325-C+ETH-RLUSD-261029-2330-P", true},
 		{"vol_sell_strangle", "BETH-USDT-261029-2325-C", false}, // strangle=双腿复合形
+		// sprd-atomic-basis：sprdId 双腿 '_' 连接形（工单#26268——官方
+		// docs 实证 BTC-USDT_BTC-USDT-SWAP/ETH-USD-SWAP_ETH-USD-231229）
+		{"sprd-atomic-basis", "BTC-USDT_BTC-USDT-SWAP", true},            // 现货×永续
+		{"sprd-atomic-basis", "ETH-USD-SWAP_ETH-USD-231229", true},       // 永续×远期（USD 结算 inverse 形不收窄）
+		{"sprd-atomic-basis", "BTC-USDT_BTC-USD-SWAP", false},            // 异结算币（USDT vs USD）拒
+		{"sprd-atomic-basis", "BTC-USDT_ETH-USDT-SWAP", false},           // 跨基腿币拒
+		{"sprd-atomic-basis", "BTC-USDT_BTC-USDT", false},                // 同腿退化形拒
+		{"sprd-atomic-basis", "BTC-USDT", false},                         // 单腿非价差形拒
+		{"sprd-atomic-basis", "BTC-USDT_BTC-USDT-SWAP_EXTRA", false},     // 三段腿拒
+		{"sprd-atomic-basis", "BTC-USDT_BTC-USDT-261225-95000-C", false}, // 期权腿拒
+		{"sprd-atomic-basis", "BTC-USDT_btc-usdt-swap", false},           // 腿内小写形拒
 		// 未注册族 fail-closed
 		{"unsupported-template", "BTC-USDT-SWAP", false},
 	}
@@ -70,6 +81,7 @@ func TestInstFitOKCoversExecFam(t *testing.T) {
 		"vol_sell_strangle":       "BETH-USDT-261029-2325-C+ETH-RLUSD-261029-2330-P",
 		"stake-carry":             "okx:TRX",
 		"grid_spot":               "BTC-USDT",
+		"sprd-atomic-basis":       "BTC-USDT_BTC-USDT-SWAP",
 	}
 	for _, tmpl := range execfam.All() {
 		inst, ok := valid[tmpl]
