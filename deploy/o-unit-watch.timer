@@ -1,0 +1,10 @@
+[Unit]
+Description=o-unit-watch.timer 建制单元查拍（5min——单元死活差分≤2拍出账）
+
+[Timer]
+OnCalendar=*-*-* *:0/5:00
+Persistent=true
+Unit=o-unit-watch.service
+
+[Install]
+WantedBy=timers.target
