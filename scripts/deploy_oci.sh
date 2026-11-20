@@ -5,9 +5,14 @@
 # 流（同 deploy_image.sh 纪律）：出处闸 → OCI 部署锁 → arm64 build（SHA 留痕）
 # → staging scp+sha256 对拍 → 环约对账（码面 env 需求集 deploy/oci-env-contract.tsv
 # vs 单元 Environment/EnvironmentFiles 键集——req=1 缺键预检拒换，值面补齐归
-# 凭据域 escrow 径本脚本不碰 env 件）→ 备份 → 换件 → restart → 健康闸（单元
-# active∧不翻饼；collector 断流面=PG-md md_ticks max(ts) 推进；projector=同断言
-# 走隧道 SG_PG_DSN 侧）→ 败即回滚旧件。
+# 凭据域 escrow 径本脚本不碰 env 件）→ fin 迁移水位闸（SG fin 库
+# schema_migrations ≥ 码面登记表 fin_ 最大序号——#26123 新码打旧 schema
+# crash-loop 根修；不达=让位本拍零升件静默等下拍，fin 链迁移者=o-core
+# SG 侧 deploy_image 窗先到位）→ 备份（含 .sha 标件）→ 换件 → restart →
+# 健康闸（单元 active∧不翻饼；collector 断流面=PG-md md_ticks max(ts)
+# 推进；projector=同断言走隧道 SG_PG_DSN 侧）→ 败即回滚旧件同还 .sha
+# 标件（消假标滞留——谱系自检不再误判已部署）；换件败 sha+臂记档
+# ops_event，下拍同 sha 自动 force 重试该臂（自复替手工 O_DEPLOY_FORCE）。
 # 用法：scripts/deploy_oci.sh [collecto|projector|research ...]（缺省三臂全换）
 #   DRY_RUN=1 干跑（锁/船运/换件不执行，环约对账仍实读远端——只读面）
 #   O_DEPLOY_ALLOW_UNPUSHED=1 放行未并 HEAD（回滚/热补径）；O_DEPLOY_FORCE=1 抢陈锁
@@ -15,6 +20,7 @@ set -euo pipefail
 OCI="${O_OCI_HOST:-ubuntu@149.118.58.98}"
 SSH="${O_OCI_SSH:-ssh}"
 SCP="${O_OCI_SCP:-scp}"
+SG_HOST="${O_SG_HOST:-root@192.229.85.35}" # fin 权威库所在（check_schema_live 同源——臂 SG_PG_DSN/FIN_PG_DSN 隧道终点）
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/oci_ssh_route.sh" "$OCI" # OCI 路由自愈(直连死→SG跳板)
 SSHOPT="-o BatchMode=yes -o ConnectTimeout=10 $O_OCI_JARG"
 LOCK_DIR='.oci-deploy-lock'
@@ -29,7 +35,7 @@ declare -A CMD=(  [collecto]=./cmd/collector [projector]=./cmd/projector [resear
 # psql 客端打隧道侧同断言；none=仅单元活性闸。
 declare -A PROBE=( [o-collecto]=md_ticks [o-projector]=sg_ticks [o-research]=none )
 ARMS=("$@"); [ ${#ARMS[@]} -gt 0 ] || ARMS=(collecto projector research)
-SWAP_HAPPENED=0; SWAPPED=()
+SWAP_HAPPENED=0; SWAPPED=(); FAIL_ARM=""
 for a in "${ARMS[@]}"; do [ -n "${UNIT[$a]:-}" ] || die "未知臂 $a（合法: collecto|projector|research）"; done
 
 # ── ① 出处闸（同 deploy_image.sh）─────────────────────────────
@@ -42,6 +48,31 @@ fi
 SHA=$(git rev-parse --short=12 HEAD); FULLSHA=$(git rev-parse HEAD)
 SEAT="${O_DEPLOY_SEAT:-$(whoami)}@$(hostname -s 2>/dev/null || hostname)"
 TOKEN="$SEAT-$$-$(date +%s)"; TS="$(date +%Y%m%d-%H%M%S)"
+
+# ── ①a 败臂 force 重试自复（工单#26150③）：上轮换件败记档在 ops_event
+# （deploy-oci <sha> rc≠0 … fail=<arm>），本 sha 末次成功行之后仍挂败臂→
+# 该臂绕谱系自检照换（自复替手工 O_DEPLOY_FORCE——器官级依赖外席不可接受）。
+# DSN 取径同 oci_deploy_event（/opt/o-research/env FIN_PG_DSN）；读败=空集
+# 不误伤——force 只是加速径非必经，谱系自检照常兜底。──
+declare -A FORCE_ARMS
+FIN_DSN=""
+RESEARCH_ENV="${O_RESEARCH_ENV:-/opt/o-research/env}"
+fin_dsn() { [ -n "$FIN_DSN" ] || FIN_DSN=$(grep '^FIN_PG_DSN=' "$RESEARCH_ENV" 2>/dev/null | cut -d= -f2- | tr -d '"'); printf '%s' "$FIN_DSN"; }
+_fdsn=$(fin_dsn)
+if [ -n "$_fdsn" ]; then
+	_fail_arms=$(timeout 15 psql "$_fdsn" -Atc "
+		SELECT DISTINCT (regexp_matches(note,'fail=(collecto|projector|research)','g'))[1]
+		FROM ops_event
+		WHERE seat='DEPLOY' AND event='部署'
+		  AND note LIKE 'deploy-oci $SHA %'
+		  AND id > COALESCE((SELECT max(id) FROM ops_event
+			WHERE seat='DEPLOY' AND event='部署'
+			  AND note LIKE 'deploy-oci $SHA %' AND note ~ 'rc=0 '),0)
+		ORDER BY 1" 2>/dev/null || true) # tolerate: 读败=空集——force 自复面缺席不挡部署主径
+	while IFS= read -r _fa; do [ -n "$_fa" ] && FORCE_ARMS[$_fa]=1; done <<<"$_fail_arms"
+	[ -n "${FORCE_ARMS[*]:-}" ] && echo "[deploy_oci] 败臂记档在案 force 重试: ${!FORCE_ARMS[*]}"
+fi
+unset _fdsn _fail_arms _fa
 
 # ── ①b 谱系自检（T-0425 件③——两半部署制幂等径）：臂级构建源
 # diff 证空=跳臂零烧。判式：diff(merge-base(臂部署SHA,HEAD)..HEAD)
@@ -65,6 +96,10 @@ sed -n 's/^sha=//p' \"\$e.sha\" 2>/dev/null | head -1" 2>/dev/null | head -1 || 
 if [ "${O_DEPLOY_FORCE:-0}" != 1 ]; then
 	KEPT=()
 	for a in "${ARMS[@]}"; do u="${UNIT[$a]}"
+		if [ "${FORCE_ARMS[$a]:-0}" = 1 ]; then
+			echo "[deploy_oci] $a 上轮换件败记档在案——force 重试绕谱系自检"
+			KEPT+=("$a"); continue
+		fi
 		s=$(arm_deployed_sha "$u")
 		base=""
 		[ -n "$s" ] && base=$(git merge-base "$s" HEAD 2>/dev/null || true) # tolerate: mb 败=谱系岔不可证空→该臂照换非静默省
@@ -78,6 +113,22 @@ if [ "${O_DEPLOY_FORCE:-0}" != 1 ]; then
 	[ ${#ARMS[@]} -gt 0 ] || { echo "[deploy_oci] 全臂谱系 diff 证空——幂等快退零烧"; exit 0; }
 	echo "[deploy_oci] 谱系自检后待换臂: ${ARMS[*]}"
 fi
+
+# ── ①c fin 迁移水位闸（工单#26150①——#26123 journal column "state" does
+# not exist 实证：换臂先于 fin 迁移=新码打旧 schema crash-loop）。SG fin
+# 库 schema_migrations max(version) 须 ≥ 码面登记表 fin_ 最大序号（同
+# check_schema_live 判据）；不达=让位本拍零升件静默等下拍——fin 链迁移
+# 者=o-core SG 侧（deploy_image 窗重启自迁）先到位后本闸自开。读败=
+# fail-closed 同拒——水位不可证不换件。──
+reg_fin=$(grep -oE '\{[0-9]+, "fin_[0-9]+' internal/store/pgstore/migrate_table.go \
+	| grep -oE '^\{[0-9]+' | tr -d '{' | sort -n | tail -1 || true) # tolerate: 登记面解析败=空→下行 fail-closed 拒换（水位不可证不换件同契）
+live_fin=$(timeout 20 ssh -o BatchMode=yes -o ConnectTimeout=8 "$SG_HOST" \
+	"docker exec o-postgres psql -U o -d o -tc 'SELECT COALESCE(max(version),0) FROM schema_migrations'" 2>/dev/null | tr -d ' ' || true) # tolerate: 读败=空→下行 fail-closed 拒换（不可证不换件）
+if [ -z "$reg_fin" ] || [ -z "$live_fin" ] || [ "$live_fin" -lt "$reg_fin" ]; then
+	echo "[deploy_oci] fin 迁移水位闸未过（live=${live_fin:-读败} reg=${reg_fin:-读败}）——让位本拍零升件，schema 随先部署臂到位后下拍自开" >&2
+	exit 0
+fi
+echo "[deploy_oci] fin 迁移水位闸绿——live=$live_fin ≥ reg=$reg_fin"
 
 # ── ② OCI 部署锁（盒上 mkdir 原子互斥——三臂同锁防双臂并发换件）──
 LOCK_HELD=0
@@ -106,17 +157,21 @@ fi
 # 防谱系快退/纯预检退误落部署行。
 oci_deploy_event() {
 	local rc=$1
-	[ "${SWAP_HAPPENED:-0}" = 1 ] || return 0
-	local arms="${SWAPPED[*]:-}"
-	echo "[deploy_oci] 完工回执 deploy-oci $SHA rc=$rc arms=$arms" >>"$HOME/devin-relay.log" 2>/dev/null || true # tolerate: relay 留痕行 best-effort
+	# rc=0 仍须 SWAP_HAPPENED=1 闸（谱系快退/纯预检退不落部署行）；
+	# rc≠0 恒记档——换件败 sha+臂=①a force 重试自复的数据源（#26150③），
+	# 换件前段败（env 对账/船运）亦留痕，fail= 缺席=非臂败不触发 force。
+	{ [ "${SWAP_HAPPENED:-0}" = 1 ] || [ "$rc" != 0 ]; } || return 0
+	local arms="${SWAPPED[*]:-}" failnote=""
+	[ "$rc" != 0 ] && [ -n "${FAIL_ARM:-}" ] && failnote=" fail=$FAIL_ARM"
+	echo "[deploy_oci] 完工回执 deploy-oci $SHA rc=$rc arms=$arms$failnote" >>"$HOME/devin-relay.log" 2>/dev/null || true # tolerate: relay 留痕行 best-effort
 	timeout 15 /opt/meta/scripts/feishu-notify.sh \
-		"[部署回执] deploy-oci $SHA rc=$rc arms=$arms" >>"$HOME/devin-relay.log" 2>&1 \
+		"[部署回执] deploy-oci $SHA rc=$rc arms=$arms$failnote" >>"$HOME/devin-relay.log" 2>&1 \
 		|| echo "[deploy_oci] 完工投件败（回执缺，不影响部署 rc=$rc）" >&2
 	local dsn
-	dsn=$(grep '^FIN_PG_DSN=' /opt/o-research/env 2>/dev/null | cut -d= -f2- | tr -d '"')
+	dsn=$(fin_dsn)
 	if [ -n "$dsn" ]; then
 		timeout 15 psql "$dsn" -Atc \
-			"INSERT INTO ops_event(seat,event,ticket,note) VALUES('DEPLOY','部署','','deploy-oci $SHA rc=$rc arms=$arms')" \
+			"INSERT INTO ops_event(seat,event,ticket,note) VALUES('DEPLOY','部署','','deploy-oci $SHA rc=$rc arms=$arms$failnote')" \
 			>/dev/null 2>&1 \
 			|| echo "[deploy_oci] ops_event 部署事件落簿败（不影响部署 rc=$rc）" >&2
 	fi
@@ -214,13 +269,15 @@ tick_probe() { # tick_probe <arm> —— 写流断言 max(ts) 推进；0=推进 
 }
 rollback() { local a=$1 u=${UNIT[$a]} ep=${EXECPATH[$a]}
   echo "↩️  [deploy_oci] $u 回滚旧件" >&2
-  $SSH $SSHOPT "$OCI" "install -m 755 '$ep.bak.$TS' '$ep' && systemctl --user restart $u"
+  # .sha 标件同还（#26150②）：旧标件在=还原旧 sha；旧无标件=撤新标——
+  # 败退不留假标，arm_deployed_sha 读回真值谱系自检不误判已部署。
+  $SSH $SSHOPT "$OCI" "install -m 755 '$ep.bak.$TS' '$ep' && systemctl --user restart $u; if [ -f '$ep.sha.bak.$TS' ]; then install -m 644 '$ep.sha.bak.$TS' '$ep.sha'; else rm -f '$ep.sha'; fi"
   sleep 10
   st=$($SSH $SSHOPT "$OCI" "systemctl --user show $u -p ActiveState --value")
   echo "[deploy_oci] $u 回滚后 ActiveState=$st"
 }
 for a in "${ARMS[@]}"; do u="${UNIT[$a]}" ep="${EXECPATH[$a]}"
-  $SSH $SSHOPT "$OCI" "cp -a '$ep' '$ep.bak.$TS'" # 备份
+  $SSH $SSHOPT "$OCI" "cp -a '$ep' '$ep.bak.$TS'; [ ! -f '$ep.sha' ] || cp -a '$ep.sha' '$ep.sha.bak.$TS'" # 备份（含 .sha 标件——回滚同还消假标）
   $SSH $SSHOPT "$OCI" "install -m 755 ~/o-staging/${u} '$ep' && printf 'sha=%s\nseat=%s\nts=%s\n' '$FULLSHA' '$SEAT' '\$(date -Is)' > '$ep.sha'"
   $SSH $SSHOPT "$OCI" "systemctl --user restart $u"
   nr0=$($SSH $SSHOPT "$OCI" "systemctl --user show $u -p NRestarts --value" || echo 0); sleep 15
@@ -228,11 +285,11 @@ for a in "${ARMS[@]}"; do u="${UNIT[$a]}" ep="${EXECPATH[$a]}"
   nr1=$($SSH $SSHOPT "$OCI" "systemctl --user show $u -p NRestarts --value" || echo 0)
   if [ "$st" != active ] || [ "${nr1:-0}" -gt "${nr0:-0}" ]; then
     echo "❌ [deploy_oci] $u 活性闸红（ActiveState=$st NRestarts $nr0→$nr1）" >&2
-    rollback "$a"; die "$u 换件败已回滚——journalctl --user -u $u 查因"
+    FAIL_ARM=$a; rollback "$a"; die "$u 换件败已回滚——journalctl --user -u $u 查因"
   fi
   if ! tick_probe "$a"; then
     echo "❌ [deploy_oci] $u 健康闸红——${PROBE[$u]} max(ts) 90s 未推进（断流面复现）" >&2
-    rollback "$a"; die "$u 写流闸败已回滚"
+    FAIL_ARM=$a; rollback "$a"; die "$u 写流闸败已回滚"
   fi
   SWAP_HAPPENED=1; SWAPPED+=("$a")
   echo "[deploy_oci] $u 换件绿——ActiveState=$st 旧件备份 $ep.bak.$TS"
