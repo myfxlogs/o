@@ -89,6 +89,58 @@ func TestDetectQuietWithFreshProposalAndPaperPool(t *testing.T) {
 	}
 }
 
+// quietOldTwo 铺静面：鲜提案+paper 池让旧两判安静——只证 mono_family 单形。
+func quietOldTwo(t *testing.T, pool *pgxpool.Pool) {
+	t.Helper()
+	ctx := context.Background()
+	seedProposal(t, pool, seedEval(t, pool, "seed_prop"), time.Hour)
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_strategy(inst_id,template_ref,state,notional_usd)
+		VALUES('okx:perp:BTC-USDT-SWAP','funding','paper',100)`); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDetectMonoFamilyTriggers(t *testing.T) {
+	s, pool := hungerFixture(t)
+	quietOldTwo(t, pool)
+	for i := 0; i < monoMinEvals; i++ {
+		seedEval(t, pool, "dir_perp_mom")
+	}
+	rep, err := s.Detect(context.Background())
+	if err != nil {
+		t.Fatalf("detect: %v", err)
+	}
+	if !rep.Triggered || !strings.Contains(strings.Join(rep.Reasons, "|"), "mono_family:dir_perp_mom") {
+		t.Fatalf("单模板满窗应触发 mono_family: %+v", rep)
+	}
+}
+
+func TestDetectMonoFamilyFloorAndSplit(t *testing.T) {
+	s, pool := hungerFixture(t)
+	quietOldTwo(t, pool)                  // 内种 seed_prop 判词×1——地板下余量=monoMinEvals-2
+	for i := 0; i < monoMinEvals-2; i++ { // 加自身种件合 monoMinEvals-1<地板
+		seedEval(t, pool, "dir_perp_mom")
+	}
+	rep, err := s.Detect(context.Background())
+	if err != nil {
+		t.Fatalf("detect: %v", err)
+	}
+	if rep.Triggered {
+		t.Fatalf("样本地板下不应触发: %+v", rep)
+	}
+	// 补足过地板但劈开——dir 占比 <85% 不判
+	for i := 0; i < 7; i++ {
+		seedEval(t, pool, "carry")
+	}
+	rep, err = s.Detect(context.Background())
+	if err != nil {
+		t.Fatalf("detect: %v", err)
+	}
+	if rep.Triggered {
+		t.Fatalf("多模板分摊不应触发: %+v", rep)
+	}
+}
+
 func TestRespondSequenceRunsAllStepsWithRows(t *testing.T) {
 	s, pool := hungerFixture(t)
 	ctx := context.Background()
