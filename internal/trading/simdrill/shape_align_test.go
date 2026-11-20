@@ -15,6 +15,7 @@ import (
 var drillUnsupported = []string{
 	// 空=零豁免（棒5c：dir_perp_mom 出册——ShapeOKXSingleLeg 演习件接通）。
 	"stake-carry", // 工单#21612：参考模型族——venue 执行臂未建无可演习腿形，凭据伪造不可为
+	"grid_spot",   // 工单#25840：venue 原生 bot 容器族——execution.Executor 腿形语义外（okxgrid 适配器径），无可演习腿形
 }
 
 func TestExecfamLegShapeAlign(t *testing.T) {

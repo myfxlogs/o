@@ -146,6 +146,10 @@ func InstFitOK(template, instID string) bool {
 		// 双头族 inst=venue:ccy 假想卡键（非交易 inst——工单#21612 参考
 		// 模型族：eval→proposal→paper 记账面贯通，真单径 venue 执行臂另案）。
 		return venueCcyRe.MatchString(instID)
+	case "grid_spot":
+		// venue 原生现货网格族（工单#25840）——bot 腿=USDT 计价现货对
+		// （BTC-USDT 形，formOther 域内圈定——-SWAP/-\d{6}/venue:ccy 皆拒）。
+		return classifyInst(instID) == formOther && IsUSDTInst(instID)
 	}
 	return false
 }

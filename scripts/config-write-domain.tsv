@@ -65,3 +65,8 @@ okxws.kline_watchlist	dm	日K观察名单（业主令 2026-11-15——感知面�
 okxws.kline_topn	dm	日K宇宙动扩额度（工单#18314①主径——venue SWAP tickers volCcy24h 降序 topN 并入日K扫集，0=关动扩；缺省 50）
 okxws.kline_census_hours	dm	全USDT-SWAP普查降频时（工单#18314②辅径——零量新上/极长尾补盲窗，缺省 168h，0=关普查）
 deploy.*	dm	部署窗（o-core 换件集中放件时窗——工单#25760；DM 可自调 UTC 低活动窗/越窗阈）
+okxgrid.snap_sec	dm	venue原生bot监控拍秒（工单#25840——snapSync/killWatch拍距,缺省300）
+okxgrid.max_invest_usd	dm	单bot投入帽USDT（工单#25840——业主闸下二次保险,缺省100）
+okxgrid.kill_stop_type	dm	拔线回收形（工单#25840——1=卖基币回quote/2=留基币,钦定回收形缺省1）
+okxgrid.harvest_min_usd	dm	收割阈USDT（工单#25840——grid_profit达阈可withdraw-income,缺省5）
+okxgrid.live_switch	owner	venue原生bot真钱拉起首闸（工单#25840——手动期钦定：首批拉起须业主令显式放;缺/非true fail-closed）

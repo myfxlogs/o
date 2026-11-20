@@ -173,8 +173,8 @@ func TestScanE2E(t *testing.T) {
 	if err := NewRunner(pool, cfg).ScanOnce(ctx); err != nil {
 		t.Fatal(err)
 	}
-	// 正弦：影子闸后 verdict=rejected/exec_family_missing，evidence 留
-	// sim_verdict=proposed+realized>0（卡证据面全可见执行零径）。
+	// 正弦：grid_spot 在册后（工单#25840 execfam 登记）影子闸拆——verdict
+	// 直通 proposed 落提案；sim_verdict/realized 闸前原判同留 evidence。
 	var v, reason string
 	var realized float64
 	var simVerdict string
@@ -185,8 +185,8 @@ func TestScanE2E(t *testing.T) {
 		Scan(&v, &reason, &realized, &simVerdict); err != nil {
 		t.Fatalf("TESTGRID-USDT 评估行缺失: %v", err)
 	}
-	if v != "rejected" || reason != "exec_family_missing" {
-		t.Fatalf("TESTGRID-USDT 判词=%s/%s 期 rejected/exec_family_missing（影子闸）", v, reason)
+	if v != "proposed" {
+		t.Fatalf("TESTGRID-USDT 判词=%s/%s 期 proposed（execfam 在册直通——影子闸拆）", v, reason)
 	}
 	if simVerdict != "proposed" || realized <= 0 {
 		t.Fatalf("TESTGRID-USDT sim_verdict=%s realized=%.4f 期 proposed∧>0", simVerdict, realized)
@@ -206,8 +206,13 @@ func TestScanE2E(t *testing.T) {
 		WHERE inst_id='TESTTHIN-USDT'`).Scan(&n); err != nil || n != 0 {
 		t.Fatalf("TESTTHIN-USDT 评估行数=%v err=%v 期 0（thin_bars skip）", n, err)
 	}
+	// execfam 在册直通后：TESTGRID-USDT 提案落卡 1 行（TESTDOWN/TESTTHIN 仍零）。
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM fin_proposal
-		WHERE inst_id IN ('TESTGRID-USDT','TESTDOWN-USDT','TESTTHIN-USDT')`).Scan(&n); err != nil || n != 0 {
-		t.Fatalf("提案行数=%v err=%v 期 0（影子族零提案径）", n, err)
+		WHERE inst_id='TESTGRID-USDT'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("TESTGRID-USDT 提案行数=%v err=%v 期 1（在册直通径）", n, err)
+	}
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM fin_proposal
+		WHERE inst_id IN ('TESTDOWN-USDT','TESTTHIN-USDT')`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("拒/薄提案行数=%v err=%v 期 0", n, err)
 	}
 }

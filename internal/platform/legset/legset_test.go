@@ -69,6 +69,7 @@ func TestInstFitOKCoversExecFam(t *testing.T) {
 		"vol_sell_single_call":    "DOGE-USDT-261030-0.0752-C",
 		"vol_sell_strangle":       "BETH-USDT-261029-2325-C+ETH-RLUSD-261029-2330-P",
 		"stake-carry":             "okx:TRX",
+		"grid_spot":               "BTC-USDT",
 	}
 	for _, tmpl := range execfam.All() {
 		inst, ok := valid[tmpl]
