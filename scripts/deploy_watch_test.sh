@@ -30,6 +30,7 @@ case "$sql" in
   *o-core-clean:*) printf '%s\n' "${T_CLEANWM:-}";;
   *deploy-oci*) : ;;
   *ocore-window\ 入窗*) printf '%s\n' "${T_QUEUED:-0}";;
+  *deploy-gate*) printf '%s\n' "${T_DIRTYN:-0}";;
   *regexp_match*o-core:*) printf '%s\n' "${T_DEPLOYED:-}";;
   *SELECT\ id*o-core:*) : ;;
   *event='升件'*) echo 0;;
@@ -92,7 +93,7 @@ run_dw() { # $1=now epoch [$2=T_WIN] [$3=T_MAXH] [$4=T_CLEANWM] [$5=T_QUEUED]
 		PSQL_LOG="$T/psql.log" CALL_LOG="$T/calls.log" \
 		O_DEPLOY_NOW_EPOCH="$1" T_DEPLOYED="$BASE" \
 		T_WIN="${2:-19:00-21:00}" T_MAXH="${3:-26}" \
-		T_CLEANWM="${4:-}" T_QUEUED="${5:-0}" \
+		T_CLEANWM="${4:-}" T_QUEUED="${5:-0}" T_DIRTYN="${T_DIRTYN:-0}" \
 		T_HB_LAST_STATE="${T_HB_LAST_STATE:-}" T_HB_LAST_AGE="${T_HB_LAST_AGE:-999999}" \
 		bash scripts/deploy_watch.sh >"$T/out" 2>&1 )
 }
@@ -165,6 +166,18 @@ new_repo; second_commit docs/note.md "doc" "2026-11-20T03:00:00"
 	T_HB_FAIL=1 bash scripts/deploy_watch.sh >"$T/out" 2>&1 ); rc=$?
 [ "$rc" = 0 ] && ok "心跳写败不翻部署判 rc=0" || bad "心跳写败翻判 rc=$rc"
 has '心跳写败' "$T/out" && ok "写败如实报" || bad "写败静默"
+
+# ═══ ⑨ 脏树连拍升件（工单#25903）：deploy-gate 行 45min≥2→deploy_blocked ═══
+echo "== ⑨ 脏树连拍升件 =="
+new_repo; second_commit docs/note.md "doc" "2026-11-20T03:00:00"
+T_DIRTYN=2 run_dw "$(now_of '2026-11-20 10:00:00')"
+has 'deploy_blocked' "$T/psql.log" && has '脏树连拍拒部 2 次' "$T/psql.log"   && has 'stray=' "$T/psql.log" && ok "连拍2次→deploy_blocked 载 stray" || bad "连拍升件缺/载面不全"
+
+# ═══ ⑩ 单拍不升（连拍阈防瞬时脏误报——单拍即升被否在案）═══
+echo "== ⑩ 单拍不升 =="
+new_repo; second_commit docs/note.md "doc" "2026-11-20T03:00:00"
+T_DIRTYN=1 run_dw "$(now_of '2026-11-20 10:00:00')"
+has '脏树连拍拒部' "$T/psql.log" && bad "单拍竟升件" || ok "单拍零升件"
 
 echo "== 汇总: PASS=$PASS FAIL=$FAILN =="
 [ "$FAILN" -eq 0 ]
