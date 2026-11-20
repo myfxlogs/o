@@ -275,7 +275,8 @@ var depConfigReaders = map[string]string{
 	"repair": "采集臂修复环",
 	// okxws.kline_watchlist 读者=okxws/klineback.go 日K回填臂
 	// （升件#18307 orphan 同根——depenum-config-reader 案补册）。
-	"okxws": "日K回填臂",
+	"okxws":  "日K回填臂",
+	"deploy": "部署管窗", // 工单#25760 deploy.ocore_window_* 读者=scripts/deploy_watch.sh（fin_0217 种键）
 }
 
 // configDomains app_config 键域谱（首段域枚举——④族枚举源；

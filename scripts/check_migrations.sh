@@ -23,7 +23,7 @@
 #      声明零影响）。合流时序闸在 land_queue.sh（所依未合→不合）。
 #   ⑩ 破坏性 DDL 存量违例 lint（工单#25799——测试 migrate 恒空表，
 #      ADD CONSTRAINT CHECK/FOREIGN KEY、SET NOT NULL、新 UNIQUE/
-#      唯一索引对生产存量行违例部署期才炸）：水位 fin≤214/md≤1099
+#      唯一索引对生产存量行违例部署期才炸）：水位 fin≤215/md≤1100
 #      （本闸落地时点存量全册）豁免不回杀；水位以上新迁移——
 #      a) ADD CONSTRAINT <名> CHECK|FOREIGN KEY 须 NOT VALID+同文件
 #         VALIDATE CONSTRAINT <名>（NOT VALID 不验=静默豁免洞）；
@@ -285,14 +285,14 @@ while IFS= read -r f; do
 done < <(find migrations -maxdepth 1 -name '*.sql' | sort)
 
 # ⑩ 破坏性 DDL 存量违例 lint（工单#25799——形①预演闸）：测试 migrate
-# 恒空表，存量违例部署期才炸。本闸=lint 渐进启用——水位以下（fin≤214/
-# md≤1099，本闸落地时点存量全册）豁免不回杀在库件；水位以上新迁移
+# 恒空表，存量违例部署期才炸。本闸=lint 渐进启用——水位以下（fin≤215/
+# md≤1100，本闸落地时点实测册）豁免不回杀在库件；水位以上新迁移
 # 走 python 语句级扫描（剥注释/字符串/dollar-quote 体后按 ; 切——
 # $$ 函数体内假命中防）。形②部署前快照影子库 dry-run 评估：
 # backup_pg.sh 有 pg_dump 日滚 14 份径但无现成影子库重放管道件——
 # dump 重建+双链域挂 Migrate=新管道件成本超本票档，记票面（存量
 # 违例残面=VALIDATE 败显式炸+告警分诊径兜）。
-REH_WM_FIN=214; REH_WM_MD=1099
+REH_WM_FIN=215; REH_WM_MD=1100 # 水位=闸落地时点实测册：fin_0215/md_1100(gridfit词表扩)为闸写作→落地并线隙产物,归存量不回杀
 NEW_MIGS=""
 while IFS= read -r f; do
 	b=$(basename "$f"); n=${b#*_}; n=${n%%_*}

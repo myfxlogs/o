@@ -132,6 +132,17 @@ internal/research/dirtrend -> internal/platform/notify
 internal/research/dirtrend -> internal/platform/rejects
 internal/research/dirtrend -> internal/platform/roster
 internal/research/dirtrend -> internal/research/armwatch
+internal/research/gridfit -> internal/platform/config
+internal/research/gridfit -> internal/platform/execfam
+internal/research/gridfit -> internal/platform/notify
+internal/research/gridfit -> internal/platform/rejects
+internal/research/gridfit -> internal/platform/roster
+internal/research/gridfit -> internal/research/armwatch
+internal/research/regime -> internal/platform/config
+internal/research/regime -> internal/platform/notify
+internal/research/regime -> internal/platform/rejects
+internal/research/regime -> internal/platform/roster
+internal/research/regime -> internal/research/armwatch
 internal/research/armwatch -> internal/platform/notify
 internal/research/armwatch -> internal/platform/config
 internal/research/researcher -> internal/platform/notify
@@ -154,6 +165,7 @@ internal/research/hypothesis -> internal/research/funding
 # research→research/evalgate 同域边（research↛trading 红线不触）。
 internal/research/dirtrend -> internal/research/evalgate
 internal/research/dirmom -> internal/research/evalgate
+internal/research/gridfit -> internal/research/evalgate
 internal/research/grammar -> internal/research/evalgate
 internal/research/gapscan -> internal/research/evalgate
 internal/research/funding -> internal/research/evalgate
@@ -253,6 +265,8 @@ internal/research/analyst -> internal/platform/writefail
 internal/research/ctx -> internal/platform/writefail
 internal/research/dirmom -> internal/platform/writefail
 internal/research/dirtrend -> internal/platform/writefail
+internal/research/gridfit -> internal/platform/writefail
+internal/research/regime -> internal/platform/writefail
 internal/research/scout -> internal/platform/writefail
 internal/research/sigdist -> internal/platform/writefail
 EOF

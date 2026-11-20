@@ -64,3 +64,4 @@ okxws.tick_scan_s	dm	粗扫节拍秒（T-0401——60s 钦定值覆写键，采�
 okxws.kline_watchlist	dm	日K观察名单（业主令 2026-11-15——感知面扩集：名单标的日K常采入 md_klines，破活跃集闭环失明；DM 可自扩=举一反三器官留舵）
 okxws.kline_topn	dm	日K宇宙动扩额度（工单#18314①主径——venue SWAP tickers volCcy24h 降序 topN 并入日K扫集，0=关动扩；缺省 50）
 okxws.kline_census_hours	dm	全USDT-SWAP普查降频时（工单#18314②辅径——零量新上/极长尾补盲窗，缺省 168h，0=关普查）
+deploy.*	dm	部署窗（o-core 换件集中放件时窗——工单#25760；DM 可自调 UTC 低活动窗/越窗阈）

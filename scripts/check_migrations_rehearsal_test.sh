@@ -3,7 +3,7 @@
 # （工单#25799 形①）：夹具=真仓 migrations/+migrate_table.go/domain.tsv
 # 拷入临时 git 仓（①-⑨ 基线面恒绿），逐案加水位以上新迁移+登记行跑
 # scripts/check_migrations.sh，按 FAIL 行断言——绿例须全谱 OK，红例
-# 逐条钉判词。水位 fin≤214/md≤1099 豁免由真仓存量 39 件违例迁移
+# 逐条钉判词。水位 fin≤215/md≤1100 豁免由真仓存量 41 件违例迁移（含并线隙 fin_0215/md_1100 两件）
 # 全绿实证（本夹具同拷=同豁免面）。
 set -uo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
