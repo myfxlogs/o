@@ -150,6 +150,14 @@ image_face_clean() {
 HEAD=$(git rev-parse master)
 DEPLOYED=$([ -n "$DSN" ] && psql "$DSN" -qAt -c "SELECT (regexp_match(note,'o-core:([0-9a-f]+)'))[1] FROM ops_event WHERE seat='DEPLOY' AND event='部署' AND note LIKE '%rc=0%' AND note LIKE '%o-core:%' ORDER BY id DESC LIMIT 1" 2>/dev/null) # T-13283：行类滤先——deploy-oci 臂行同 seat/event/rc=0 无 o-core: 标记，取最新行后 extract 必空(假滞差→多余部署)
 SHORT=${HEAD:0:12}
+# ── 工单#25903 脏树连拍升件（拒部 esc_row 与滞差探并行不替）：deploy-gate
+# 脏树拒* 行 45min(3拍窗)≥2→deploy_blocked 载 stray——连拍阈防瞬时脏
+# （单拍即升被否）；行计数唤起面无关，每拍必经段置（早退径全覆）。
+if [ -n "$DSN" ]; then
+	DIRTYN=$(psql "$DSN" -qAt -c "SELECT count(*) FROM ops_event WHERE seat='DEPLOY' AND event='部署' AND note LIKE 'deploy-gate 脏树拒%' AND ts>now()-interval '45 minutes'" 2>/dev/null)
+	case "$DIRTYN" in ''|*[!0-9]*) DIRTYN=0;; esac
+	[ "$DIRTYN" -ge 2 ] && { HB_STATE=脏树连拍; esc "deploy_blocked" "部署/deploy_blocked: 脏树连拍拒部 ${DIRTYN} 次/45min stray=$(git status --porcelain 2>/dev/null | head -8 | tr '\n' ';' | cut -c1-240)——deploy_image 出处闸连拒,归唤知会话清障"; }
+fi
 if [ -z "$DEPLOYED" ] || [ "${HEAD:0:${#DEPLOYED}}" != "$DEPLOYED" ]; then
 	# 工单#deploy-pipe-tax③镜像面谱系证空（对拍 deploy_oci arm_provably_clean
 	# 先例——镜像面本无此检：见滞差即全量 rebuild+SG 重启钱径）：

@@ -26,6 +26,18 @@ LOCK_DIR=/opt/o/.deploy-lock
 cd "$(dirname "$0")/.."
 die() { echo "❌ [deploy_image] $1" >&2; exit 1; }
 
+# gate_event <闸名> <细节> —— 出处闸拒部留痕行（工单#25903②：拒部
+# esc_row 与现有滞差探并行不替——deploy_watch 脏树连拍计数消费面；
+# 单拍不升件，连拍阈在 watch 侧防瞬时脏误报）。写径同 deploy_event
+# DSN 径；败静默不翻拒 rc。
+gate_event() {
+  local dsn
+  dsn=$(grep '^FIN_PG_DSN=' /opt/o-research/env 2>/dev/null | cut -d= -f2- | tr -d '"')
+  [ -n "$dsn" ] || return 0
+  timeout 15 psql "$dsn" -Atc     "INSERT INTO ops_event(seat,event,ticket,note) VALUES('DEPLOY','部署','','deploy-gate $1拒 sha=$(git rev-parse --short=12 HEAD 2>/dev/null || echo ?) $2')"     >/dev/null 2>&1 || true # tolerate: 拒部留痕末环——写败只剩连拍计数缺行,不翻拒 rc
+  return 0
+}
+
 OPS_ESC_SH="${O_OPS_ESC_SH:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/cognition/escalate.sh}"
 TAIL_FAIL=""
 tail_fail() { # $1=尾步名 $2=败因短述——记账+自报升件，不翻部署 rc
@@ -80,14 +92,18 @@ LOCK_HELD=0
 trap 'deploy_event $?; release_lock' EXIT
 
 # ── ① 出处闸 ────────────────────────────────────────────────
-[ -z "$(git status --porcelain)" ] \
-  || die "工作树脏（git status 非空）——commit/stash 后再部署"
+DIRTY=$(git status --porcelain 2>/dev/null | head -8 | tr '\n' ';' | cut -c1-240)
+if [ -n "$DIRTY" ]; then
+  gate_event "脏树" "stray=$DIRTY"
+  die "工作树脏（git status 非空）——commit/stash 后再部署"
+fi
 git fetch origin master --quiet 2>/dev/null \
   || echo "⚠️  [deploy_image] git fetch 失败——按本地 origin/master 快照判"
 if ! git merge-base --is-ancestor HEAD origin/master; then
   if [ "${O_DEPLOY_ALLOW_UNPUSHED:-0}" != 1 ]; then
     echo "❌ [deploy_image] HEAD 不在 origin/master——未并码禁部署。待推 commits:" >&2
     git log --oneline origin/master..HEAD | head -10 >&2
+    gate_event "未并" "unpushed=$(git log --oneline origin/master..HEAD 2>/dev/null | head -3 | tr '\n' ';' | cut -c1-200)"
     die "回滚/热补显式放行：O_DEPLOY_ALLOW_UNPUSHED=1"
   fi
   echo "⚠️  [deploy_image] O_DEPLOY_ALLOW_UNPUSHED=1——放行未并 HEAD（回滚/热补径）"
