@@ -82,6 +82,10 @@ var (
 	// okxUsdgRe stable-park-usdg 族 inst 形（工单#26272 骨架——okusd
 	// 申购/赎回标的=USDG 资产级伪键，非交易对；venue 前缀钉 okx 单源）。
 	okxUsdgRe = regexp.MustCompile(`^okx:USDG$`)
+	// okxStakeRe staking-defi-parking 族 inst 形（工单#26272 骨架——
+	// 质押标的=ETH/SOL 资产级伪键，卡面钦定两币收窄；offers 面扩币
+	// 另票开，fail-closed 偏严）。
+	okxStakeRe = regexp.MustCompile(`^okx:(ETH|SOL)$`)
 )
 
 // instForm inst 构型分类（族腿构型判据的中间层）。
@@ -157,6 +161,10 @@ func InstFitOK(template, instID string) bool {
 		// 卡#550053 骨架——inst=okx:USDG 资产级伪键（earn_deposit 腿标的；
 		// 交易对/SWAP/venue:ccy 通形皆拒，okusd 面仅 USDG 一标的收窄）。
 		return okxUsdgRe.MatchString(instID)
+	case "staking-defi-parking":
+		// 卡#550055 骨架——inst=okx:ETH/okx:SOL 资产级伪键（staking-defi
+		// purchase 标的；他币/异 venue/交易对/SWAP 形皆拒，fail-closed）。
+		return okxStakeRe.MatchString(instID)
 	}
 	return false
 }

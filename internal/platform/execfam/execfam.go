@@ -32,6 +32,11 @@ var set = map[string]bool{
 	// execution.Executor腿语义);Drillable未册=probe→live结构性拦在位;
 	// 凭据域=业主condreq在案(前提①),登记语义=骨架册非执行径;
 	// hunger depenum/facesnap_whitelist 免册=族无自有cfg键(有键才册票钦)。
+	"staking-defi-parking": true, // 工单#26272 parked卡#550055 骨架登记——
+	// paper 域提案门开;真径=OKX finance staking-defi offers purchase/
+	// redeem/cancel(三向停泊比价评估,非Executor腿语义);Drillable未册=
+	// probe→live结构性拦在位;凭据域=业主condreq在案;hunger册免=
+	// 族无自有cfg键(有键才册票钦)。
 }
 
 // Has 模板族执行径在册否。

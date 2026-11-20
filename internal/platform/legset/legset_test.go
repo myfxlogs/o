@@ -49,6 +49,13 @@ func TestInstFitOKFamilyContract(t *testing.T) {
 		{"stable-park-usdg", "cmc:USDG", false},  // venue 前缀钉 okx
 		{"stable-park-usdg", "USDG-USDT", false}, // 交易对非伪键形
 		{"stable-park-usdg", "USDG-USDT-SWAP", false},
+		// staking-defi-parking：okx:ETH/okx:SOL 资产级伪键=合；他币/异 venue/交易对=拒
+		{"staking-defi-parking", "okx:ETH", true},
+		{"staking-defi-parking", "okx:SOL", true},
+		{"staking-defi-parking", "okx:BTC", false},  // 卡面钦定两币收窄
+		{"staking-defi-parking", "cmc:ETH", false},  // venue 前缀钉 okx
+		{"staking-defi-parking", "ETH-USDT", false}, // 交易对非伪键形
+		{"staking-defi-parking", "ETH-USDT-SWAP", false},
 		// 未注册族 fail-closed
 		{"unsupported-template", "BTC-USDT-SWAP", false},
 	}
@@ -77,6 +84,7 @@ func TestInstFitOKCoversExecFam(t *testing.T) {
 		"stake-carry":             "okx:TRX",
 		"grid_spot":               "BTC-USDT",
 		"stable-park-usdg":        "okx:USDG",
+		"staking-defi-parking":    "okx:ETH",
 	}
 	for _, tmpl := range execfam.All() {
 		inst, ok := valid[tmpl]
