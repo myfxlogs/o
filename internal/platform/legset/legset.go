@@ -79,6 +79,11 @@ var (
 	// venueCcyRe stake_carry 假想卡 inst 形（venue:ccy——okx:TRX/cmc:TRX，
 	// 双头族键=venue 空腿位+质押币对，非可交易 inst 键——工单#21612 参考模型族）。
 	venueCcyRe = regexp.MustCompile(`^[a-z0-9]+:[A-Z0-9]+$`)
+	// sprdLegRe sprd-atomic-basis 腿构型（工单#26268——每腿=标准 instId：
+	// 现货 BASE-QUOTE / 永续 BASE-QUOTE-SWAP / 季度远期 BASE-QUOTE-YYMMDD；
+	// 期权腿 -YYMMDD-STRIKE-[CP] 段形不收——sprd 簿=现货×衍生品价差非期权，
+	// fail-closed 偏严）。官方 docs sprd/spreads+sprd/order 实证形在案。
+	sprdLegRe = regexp.MustCompile(`^[A-Z0-9]+-[A-Z0-9]+(?:-SWAP|-[0-9]{6})?$`)
 )
 
 // instForm inst 构型分类（族腿构型判据的中间层）。
@@ -121,6 +126,31 @@ func classifyInst(instID string) instForm {
 	return formOther
 }
 
+// sprdLegParts sprdId 腿→(base,quote) 币种对——quote=instId 第二段
+// （OKX instId 段序 BASE-QUOTE-… 全族同构：现货/SWAP/远期同位）。
+func sprdLegParts(leg string) (base, quote string, ok bool) {
+	if !sprdLegRe.MatchString(leg) {
+		return "", "", false
+	}
+	seg := strings.Split(leg, "-")
+	return seg[0], seg[1], true
+}
+
+// sprdBasisFit sprd-atomic-basis inst 构型核（工单#26268）——sprdId=
+// 两腿 '_' 连接（腿内 '-' 段序无 '_' 故 Split 恰两段；腿须互异防退化形）。
+// 「两腿同 venue 同 ccy 结算」票面保守判全量：同基腿币+同结算币
+// （venue=同 OKX instId 命名空间构造内含）；跨基腿/异结算币/期权腿/
+// 不可解析形=fail-closed 拒。
+func sprdBasisFit(instID string) bool {
+	legs := strings.Split(instID, "_")
+	if len(legs) != 2 || legs[0] == legs[1] {
+		return false
+	}
+	b0, q0, ok0 := sprdLegParts(legs[0])
+	b1, q1, ok1 := sprdLegParts(legs[1])
+	return ok0 && ok1 && b0 == b1 && q0 == q1
+}
+
 // InstFitOK promotion 模板门闸 inst 构型核（工单#15943）：template 族
 // 允许的 inst 构型唯一判据——不合=提案留 fin_proposed 不建策略行
 // （与模板门闸同语义「看见了做不了」）。未注册族返 false=fail-closed
@@ -150,6 +180,10 @@ func InstFitOK(template, instID string) bool {
 		// venue 原生现货网格族（工单#25840）——bot 腿=USDT 计价现货对
 		// （BTC-USDT 形，formOther 域内圈定——-SWAP/-\d{6}/venue:ccy 皆拒）。
 		return classifyInst(instID) == formOther && IsUSDTInst(instID)
+	case "sprd-atomic-basis":
+		// OKX Nitro Spread 价差组合族（工单#26268 骨架册——提案卡#550052
+		// 前提②消）：instId=sprdId 双腿 '_' 连接形，腿级构型核见 sprdBasisFit。
+		return sprdBasisFit(instID)
 	}
 	return false
 }
