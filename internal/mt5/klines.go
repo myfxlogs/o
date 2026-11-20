@@ -21,8 +21,16 @@ const klineEvery = 4 * time.Hour
 const klineBatch = 60
 
 // klineNumBars 单符回填深度（dirtrend eval 需 lookback20+replay60+1=81 棒——
-// 120 棒冗余容缺口假日；后续拍同量幂等覆写零增量成本）。
-const klineNumBars = 120
+// 200 棒冗余：FX 周线休市+假日缺口,cal 窗 200d 保底 81 根确认棒；
+// 后续拍同量幂等覆写零增量成本）。
+const klineNumBars = 200
+
+// klineFrom 回填锚窗（From 为网关必填 string 形 DateTime——空串服务端
+// DateTime.Parse 全批炸，首扫实证 mt5rest.QuoteHistory 内部签名
+// (id,sym[],from,numBars,timeFrame,timeout)）。
+func klineFrom(now time.Time) string {
+	return now.AddDate(0, 0, -210).UTC().Format("2006-01-02T15:04:05Z")
+}
 
 // mt5FrameD1 PERIOD_D1 枚举值（MT5 标准 ENUM_TIMEFRAMES——实证钉:扫后
 // md_klines ts 间距≠24h 即枚举错配,WARN 行现形,不静默）。
@@ -93,7 +101,8 @@ func (c *BridgeCollector) klineSweep(ctx context.Context, cl *Client) {
 func (c *BridgeCollector) klineBatchWrite(ctx context.Context, cl *Client, batch []string) (int, string) {
 	r, err := mt5pb.NewQuoteHistoryClient(cl.Conn()).PriceHistoryExMany(cl.Authed(ctx),
 		&mt5pb.PriceHistoryExManyRequest{
-			Id: cl.Token(), Symbol: batch, NumBars: klineNumBars, TimeFrame: mt5FrameD1})
+			Id: cl.Token(), Symbol: batch, From: klineFrom(time.Now()),
+			NumBars: klineNumBars, TimeFrame: mt5FrameD1})
 	if err != nil {
 		c.rej.Inc("kline_read_failed")
 		return 0, err.Error()
