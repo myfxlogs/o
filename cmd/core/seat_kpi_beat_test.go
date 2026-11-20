@@ -74,6 +74,11 @@ func TestSeatKpiBeat(t *testing.T) {
 	oe(t, ctx, svc, "自我", "判词", "", "桩判词 引 工单#91003 与 工单#91004", d(1, 0), "")
 
 	// —— ⑧ 研究转化（fin_opp_hypothesis adopted 90d 内）。
+	//    共享基线含 md_1095 adopted 种子行——清场回 fin-only 旧径基线
+	//    （计数断言=本夹具行唯一口径）。
+	if _, err := svc.pool.Exec(ctx, `DELETE FROM fin_opp_hypothesis`); err != nil {
+		t.Fatalf("hypo clean: %v", err)
+	}
 	if _, err := svc.pool.Exec(ctx, `INSERT INTO fin_opp_hypothesis
 		(venue,surface,family,state,ts) VALUES('okx','kpitest_surface','trend_follow','adopted',$1)`,
 		d(10, 0)); err != nil {

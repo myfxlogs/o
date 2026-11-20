@@ -313,3 +313,86 @@ func TestReopenCooldownBlocked(t *testing.T) {
 		t.Fatal("键缺应 fail-closed 上抛")
 	}
 }
+
+// TestMain 包级共享 schema（工单#26108 per-test setup 税根治）——建面
+// 一次+每测 Pool 定向清表代替逐测随机 schema+fin/md 全链迁移重施
+// （Domains=并集：remnant 等测自跑 Migrate(md)，并集建面后逐测
+// Migrate 全幂等 no-op）。
+// SeedRestore 全量列（子→父序，清表两相位内部处理）：写面并集=
+// 包直写表+fin 族 FK 邻表+ops_event/venue_untradeable/eval_reject
+// 触发器波及表（act/precedent/headless/decision/arch_eval_reject）。
+// app_config 键册由共享径自动快照复位，不入列。NoTrigger=ops_event
+// ——sem_gate 拒写/act pkey/chain 改写等触发器群，种子还原 INSERT
+// 须旁路。序依据=fin_* 表间实测 FK 边（order_leg/position→execution、
+// proposal→opp_eval、risk_token→risk_decision、transition/paper_fill
+// →strategy、precedent→ops_event）。
+func TestMain(m *testing.M) {
+	testutil.ShareMain(m, testutil.ShareSpec{
+		Domains: []string{"fin", "md"},
+		Migrate: pgstore.Migrate,
+		SeedRestore: []string{
+			"fin_guard_close",
+			"fin_order_leg",
+			"fin_position",
+			"fin_execution",
+			"fin_risk_token",
+			"fin_risk_decision",
+			"fin_strategy_transition",
+			"fin_paper_fill",
+			"fin_proposal",
+			"fin_opp_eval",
+			"fin_sub_request",
+			"fin_eng_lesson",
+			"fin_econ_lesson",
+			"fin_econ_rule",
+			"fin_eval_reject",
+			"arch_eval_reject",
+			"fin_exec_drill",
+			"fin_slip_sample",
+			"fin_trx_account",
+			"fin_trx_txs",
+			"fin_trx_vote_apr",
+			"fin_trx_vote_rebalance",
+			"fin_cashflow",
+			"fin_guard_suspend",
+			"fin_holding",
+			"fin_opp_template",
+			"fin_opp_hypothesis",
+			"fin_venue_candidate",
+			"fin_venue_untradeable",
+			"ops_decision",
+			"ops_headless",
+			"ops_event_act",
+			"ops_precedent",
+			"ops_event",
+			"ops_state_row",
+			"ops_face_snapshot",
+			"ops_ticket_usage",
+			"md_calendar_pull",
+			"md_eval_pulse",
+			"md_dcd_product",
+			"md_macro_event",
+			"md_mark_index",
+			"md_klines",
+			"md_signal",
+			"md_ticks",
+			"md_tick_scan",
+			"md_equity_curve",
+			"md_funding",
+			"md_earn_rate",
+			"md_account_events",
+			"app_secrets",
+			"fin_cmc_history",
+			"fin_condition_gap",
+			"fin_employee_registry",
+			"fin_host_metrics",
+			"fin_price_alert",
+			"fin_push_ledger",
+			"fin_quote_watchlist",
+			"fin_report",
+			"fin_symbol_dialect",
+			"fin_strategy",
+		},
+		NoTrigger: []string{"ops_event"},
+	})
+}

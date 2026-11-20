@@ -279,7 +279,7 @@ func TestCapabilityEscCheck(t *testing.T) {
 	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
-	if _, err := pool.Exec(ctx, `DELETE FROM fin_opp_template WHERE template IN ('funding-hedge','vol_sell_strangle');
+	if _, err := pool.Exec(ctx, `DELETE FROM fin_opp_template;
 		DELETE FROM fin_exec_drill WHERE cell_key LIKE 'funding-hedge@%';
 		DELETE FROM fin_opp_eval WHERE template IN ('funding-hedge','vol_sell_strangle');
 		DELETE FROM fin_strategy WHERE template_ref IN ('funding-hedge','vol_sell_strangle');

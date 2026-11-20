@@ -201,7 +201,7 @@ func TestGetCockpitTicketPaging(t *testing.T) {
 
 // T-0268 锚①：无头面并入 getCockpit 一往返——ops_headless 桩行随首帧出。
 func TestGetCockpitHeadlessMerged(t *testing.T) {
-	pool := testutil.Pool(t)
+	pool := testutil.PoolIsolated(t)
 	if err := pgstore.Migrate(context.Background(), pool, "fin"); err != nil {
 		t.Fatal(err)
 	}
@@ -249,7 +249,7 @@ func TestGetCockpitHeadlessMerged(t *testing.T) {
 
 // T-0241 三律③拔径桩：视图缺席→missing 名段+其余块不受染。
 func TestGetCockpitMissingDegrade(t *testing.T) {
-	pool := testutil.Pool(t)
+	pool := testutil.PoolIsolated(t)
 	if err := pgstore.Migrate(context.Background(), pool, "fin"); err != nil {
 		t.Fatal(err)
 	}
