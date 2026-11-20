@@ -139,18 +139,36 @@ func Pool(t *testing.T) *pgxpool.Pool {
 	if sp, ok := sharedForDir(callerDir); ok {
 		return sp.poolFor(t, dsn)
 	}
-	// 包级 schema 名（caller 包尾段+随机尾——同包多测共享 schema 无碍，包间零干扰）
+	return poolIsolated(t, dsn, callerDir)
+}
+
+// PoolIsolated 强制旧径逐测建面（随机 schema+全链迁移+DROP CASCADE）——
+// 共享包内做 DDL 破坏（DROP/ALTER/视图拆装）或依赖 schema 级隔离语义
+// 的测试专用逃逸口：共享 schema 下 DDL 残害会跨测污染（DROP 后定向
+// 清表面缺席=连锁 FAIL），此类测试须走本径保逐测面独占。
+func PoolIsolated(t *testing.T) *pgxpool.Pool {
+	t.Helper()
+	dsn := os.Getenv("O_TEST_PG_DSN")
+	if dsn == "" {
+		t.Skip("O_TEST_PG_DSN 未设——独立测试实例缺席，skip（不打生产实例）")
+	}
+	return poolIsolated(t, dsn, callerFileDir(1))
+}
+
+// poolIsolated 旧径本体——callerDir=调用方包目录（分库散列+schema 名
+// 尾段同源）。
+func poolIsolated(t *testing.T, dsn, callerDir string) *pgxpool.Pool {
+	t.Helper()
+	// 包级 schema 名（caller 包目录尾段+随机尾——同包多测共享 schema
+	// 无碍，包间零干扰；目录名即包名同语义——helper 内嵌取帧坑免）
 	pkg := "x"
-	if _, file, _, ok := runtime.Caller(1); ok {
-		parts := strings.Split(file, "/")
-		if len(parts) >= 2 {
-			pkg = strings.Map(func(r rune) rune {
-				if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
-					return r
-				}
-				return '_'
-			}, parts[len(parts)-2])
-		}
+	if parts := strings.Split(callerDir, "/"); len(parts) >= 1 {
+		pkg = strings.Map(func(r rune) rune {
+			if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+				return r
+			}
+			return '_'
+		}, parts[len(parts)-1])
 	}
 	schema := fmt.Sprintf("t_%s_%d", pkg, time.Now().UnixNano()%1e8)
 	cfg, err := pgxpool.ParseConfig(dsn)

@@ -256,7 +256,7 @@ func TestGetPipelinePhantomRowNormalized(t *testing.T) {
 // 测试实例公共 schema 有残表（2026-10-31 实证 o_test public.ops_event 10-29
 // 残数据），不隔离则 unqualified 解析兜到残表=假活。
 func TestGetCockpitPipelineMerged(t *testing.T) {
-	pool := testutil.Pool(t)
+	pool := testutil.PoolIsolated(t)
 	if err := pgstore.Migrate(context.Background(), pool, "fin"); err != nil {
 		t.Fatal(err)
 	}
