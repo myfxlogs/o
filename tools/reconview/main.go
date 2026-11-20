@@ -232,7 +232,7 @@ func main() {
 		var openLegs, act7d int
 		_ = pool.QueryRow(ctx, `SELECT count(*) FROM fin_order_leg l
 			JOIN fin_position p ON p.execution_id=l.execution_id
-			WHERE p.closed_at IS NULL AND l.state='filled' AND l.inst_id=$1`, inst).Scan(&openLegs)
+			WHERE p.state<>'closed' AND l.state='filled' AND l.inst_id=$1`, inst).Scan(&openLegs)
 		_ = pool.QueryRow(ctx, `SELECT count(*) FROM fin_order_leg WHERE inst_id=$1
 			AND ts>now()-interval '7 days'`, inst).Scan(&act7d)
 		tag := ""
@@ -254,7 +254,7 @@ func mtmOf(ctx context.Context, pool *pgxpool.Pool, cli *okxexec.Client, k [2]st
 	}
 	rows, err := pool.Query(ctx, `SELECT l.venue,l.inst_id,l.side,l.sz,l.px,l.sz_unit,l.qty_base
 		FROM fin_order_leg l JOIN fin_position p ON p.execution_id=l.execution_id
-		WHERE p.closed_at IS NULL AND l.state='filled' AND l.px IS NOT NULL`)
+		WHERE p.state<>'closed' AND l.state='filled' AND l.px IS NOT NULL`)
 	if err != nil {
 		return 0
 	}

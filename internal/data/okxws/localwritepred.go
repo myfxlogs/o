@@ -18,7 +18,7 @@ import (
 // 全谱——订阅集与写谓词同源，后加臂自动生效；upsert 幂等同键与桥写
 // 共存 T-0209 注释已钦，宽写无膨胀险）。读败=不落行 fail-closed。
 var localWritePredSQL = `SELECT count(*) FROM (
-	SELECT inst_id FROM fin_position WHERE closed_at IS NULL
+	SELECT inst_id FROM fin_position WHERE state<>'closed'
 	UNION SELECT inst_id FROM fin_strategy WHERE state<>'retired'
 	UNION ` + legset.ActiveSetUnion + `) t WHERE t.inst_id=$1`
 

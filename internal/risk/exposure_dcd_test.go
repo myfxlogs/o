@@ -49,7 +49,7 @@ func TestDcdBaselineCountsTowardExposureCap(t *testing.T) {
 	// tExp+dcd+notional=cur+50100 > max → exposure_cap deny（dcd 不入则放行）。
 	var cur float64
 	if err := g.pool.QueryRow(ctx, `SELECT COALESCE(sum(x),0) FROM (
-		  SELECT sum(notional_usd) x FROM fin_position WHERE closed_at IS NULL
+		  SELECT sum(notional_usd) x FROM fin_position WHERE state<>'closed'
 		  UNION ALL SELECT sum(notional_usd) FROM fin_execution WHERE state='open') t`).Scan(&cur); err != nil {
 		t.Fatal(err)
 	}

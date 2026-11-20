@@ -85,7 +85,7 @@ func (r *Runner) ExecuteDir(ctx context.Context, in Intent) (int64, error) {
 	if in.Kind == "close" {
 		var pid int64
 		if err := r.pool.QueryRow(ctx, `SELECT id FROM fin_position
-			WHERE inst_id=$1 AND closed_at IS NULL ORDER BY id DESC LIMIT 1`,
+			WHERE inst_id=$1 AND state<>'closed' ORDER BY id DESC LIMIT 1`,
 			in.InstID).Scan(&pid); err == nil {
 			posRef = &pid
 		}

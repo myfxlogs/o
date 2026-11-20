@@ -16,7 +16,7 @@ import (
 func (d *Drill) recon(ctx context.Context, res Result, long, deriv simvenue.Instrument, openBalanced bool) (string, string) {
 	var closed bool
 	var posID int64
-	if err := d.Pool.QueryRow(ctx, `SELECT id,closed_at IS NOT NULL FROM fin_position
+	if err := d.Pool.QueryRow(ctx, `SELECT id,state='closed' FROM fin_position
 		WHERE execution_id=$1 ORDER BY id DESC LIMIT 1`, res.OpenExecID).Scan(&posID, &closed); err != nil {
 		return d.fail(ctx, res, "演习仓行缺（开仓事实不可读）"), "fail"
 	}

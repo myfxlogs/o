@@ -51,13 +51,13 @@ func (c coreService) ListClosedPositions(ctx context.Context,
 	r := &dashboardv1.ListClosedPositionsResponse{}
 	var total int32
 	if err := c.pool.QueryRow(ctx,
-		"SELECT count(*) FROM fin_position WHERE closed_at IS NOT NULL").Scan(&total); err != nil {
+		"SELECT count(*) FROM fin_position WHERE state='closed'").Scan(&total); err != nil {
 		return nil, err
 	}
 	r.Total = total
 	rows, err := c.pool.Query(ctx, `SELECT id,inst_id,opened_at,closed_at,
 		coalesce(settled_amount,0),coalesce(settled_ccy,'') FROM fin_position
-		WHERE closed_at IS NOT NULL ORDER BY closed_at DESC LIMIT $1 OFFSET $2`,
+		WHERE state='closed' ORDER BY closed_at DESC LIMIT $1 OFFSET $2`,
 		limit, int(req.GetOffset()))
 	if err != nil {
 		return nil, err
@@ -91,7 +91,7 @@ func (c coreService) ListOpenPositions(ctx context.Context,
 		coalesce(s.template_ref,''),coalesce(s.venue,''),p.inst_id,
 		coalesce(s.direction,''),p.notional_usd,p.opened_at
 		FROM fin_position p LEFT JOIN fin_strategy s ON s.id=p.strategy_ref
-		WHERE p.closed_at IS NULL ORDER BY p.opened_at DESC LIMIT 50`)
+		WHERE p.state<>'closed' ORDER BY p.opened_at DESC LIMIT 50`)
 	if err != nil {
 		return nil, err
 	}
@@ -143,7 +143,7 @@ func (c coreService) ListOpenPositions(ctx context.Context,
 	arows, err := c.pool.Query(ctx, `SELECT s.id,s.template_ref,s.venue,s.inst_id,
 		s.notional_usd,s.state,s.entered_at FROM fin_strategy s
 		WHERE s.state='live' AND NOT EXISTS
-		(SELECT 1 FROM fin_position p WHERE p.strategy_ref=s.id AND p.closed_at IS NULL)
+		(SELECT 1 FROM fin_position p WHERE p.strategy_ref=s.id AND p.state<>'closed')
 		ORDER BY s.entered_at DESC LIMIT 100`)
 	if err != nil {
 		return nil, err

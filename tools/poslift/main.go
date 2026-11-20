@@ -69,7 +69,7 @@ func lift(ctx context.Context, pool *pgxpool.Pool, posID int64, by, evidence, ti
 	var attempts int64
 	var closed bool
 	err = tx.QueryRow(ctx, `
-		SELECT g.state, g.attempts, (p.closed_at IS NOT NULL)
+		SELECT g.state, g.attempts, (p.state='closed')
 		FROM fin_guard_close g JOIN fin_position p ON p.id = g.position_id
 		WHERE g.position_id = $1`, posID).Scan(&state, &attempts, &closed)
 	if err != nil {

@@ -168,7 +168,7 @@ func (d *Drill) leggedDrill(ctx context.Context, res Result, inst string, notion
 	// ops_event/fin_exec_drill。
 	defer func() {
 		_, _ = d.Pool.Exec(ctx,
-			`UPDATE fin_position SET closed_at=now() WHERE strategy_ref=$1 AND closed_at IS NULL`, drillStrat)
+			`UPDATE fin_position SET closed_at=now() WHERE strategy_ref=$1 AND state<>'closed'`, drillStrat)
 		// T-0511：position 关账后残 'closing' 行=僵尸（探针假升件）——
 		// 清扫径同关 guard_close。
 		_, _ = d.Pool.Exec(ctx,

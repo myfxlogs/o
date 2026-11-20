@@ -62,7 +62,7 @@ func (g *Gate) dirBookDeny(ctx context.Context, in Intent) *Decision {
 	_ = g.pool.QueryRow(ctx, `SELECT COALESCE(sum(x),0) FROM (
 		SELECT sum(p.notional_usd) x FROM fin_position p
 			JOIN fin_strategy s ON s.id=p.strategy_ref
-			WHERE p.closed_at IS NULL AND s.direction IN ('long_perp','short_perp')
+			WHERE p.state<>'closed' AND s.direction IN ('long_perp','short_perp')
 		UNION ALL SELECT sum(e.notional_usd) FROM fin_execution e
 			JOIN fin_strategy s ON s.id=e.strategy_ref
 			WHERE e.state='open' AND s.direction IN ('long_perp','short_perp')

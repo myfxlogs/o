@@ -56,7 +56,7 @@ func (d *Drill) runDCDDrill(ctx context.Context, res Result, inst, templateRef s
 	}
 	defer func() { // 同 SWAP 径:sim 仓即时关账防仓巡拾起对真 venue 发单。
 		_, _ = d.Pool.Exec(ctx,
-			`UPDATE fin_position SET closed_at=now() WHERE strategy_ref=$1 AND closed_at IS NULL`, drillStrat)
+			`UPDATE fin_position SET closed_at=now() WHERE strategy_ref=$1 AND state<>'closed'`, drillStrat)
 		_, _ = d.Pool.Exec(ctx,
 			`UPDATE fin_guard_close SET state='closed',closed_at=now(),updated_at=now(),
 			 last_error='reconcile:drill_cleanup' WHERE state='closing'

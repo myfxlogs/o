@@ -18,7 +18,7 @@ func mtmReader(pool *pgxpool.Pool,
 		out := map[[2]string]float64{}
 		rows, err := pool.Query(ctx, `SELECT l.venue,l.inst_id,l.side,l.sz,l.px,l.sz_unit,l.qty_base
 			FROM fin_order_leg l JOIN fin_position p ON p.execution_id=l.execution_id
-			WHERE p.closed_at IS NULL AND l.state='filled' AND l.px IS NOT NULL`)
+			WHERE p.state<>'closed' AND l.state='filled' AND l.px IS NOT NULL`)
 		if err != nil {
 			return nil, err
 		}

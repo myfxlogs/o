@@ -18,7 +18,21 @@ import (
 func (w *Worker) staleExecEsc(ctx context.Context) {
 	var ids string
 	if err := w.pool.QueryRow(ctx, `SELECT COALESCE(string_agg(id::text,',' ORDER BY id),'')
-		FROM fin_execution WHERE state='open' AND created_at<now()-interval '1 hour'`).Scan(&ids); err != nil || ids == "" {
+		FROM fin_execution WHERE state='open' AND created_at<now()-interval '1 hour'`).Scan(&ids); err != nil {
+		return
+	}
+	// FSM 面（工单#25806）：位置态机成 zombie 判据直接源——orphaned 恒异
+	// 常（对账标孤儿=执行断腿实证）；open∧exec open>1h=同型僵尸的持仓面
+	// 投影（exec 漏关终态则其派生仓同样脱钩）。
+	var pids string
+	if err := w.pool.QueryRow(ctx, `SELECT COALESCE(string_agg(p.id::text,',' ORDER BY p.id),'')
+		FROM fin_position p WHERE p.state='orphaned'
+		   OR (p.state='open' AND EXISTS(SELECT 1 FROM fin_execution e
+		       WHERE e.id=p.execution_id AND e.state='open'
+		         AND e.created_at<now()-interval '1 hour'))`).Scan(&pids); err != nil {
+		return
+	}
+	if ids == "" && pids == "" {
 		return
 	}
 	var open bool
@@ -43,7 +57,7 @@ func (w *Worker) staleExecEsc(ctx context.Context) {
 	}
 	if _, err := w.pool.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note,esc_class,esc_scope)
 		VALUES('o-core','升件','',$1,'资金闸','earn_stale_exec_open')`,
-		fmt.Sprintf("fin_execution open 超龄(>1h)挂账 id=%s——执行行漏关终态非在途，账烂曾堵 sweepIdle 闸 14 天实证(工单#25693)。处置=核 fin_position/venue 真态后迁终态", ids)); err != nil {
+		fmt.Sprintf("fin_execution open 超龄(>1h)挂账 id=%s；fin_position 异常态 id=%s(orphaned∪open∧exec超龄)——执行行漏关终态非在途，账烂曾堵 sweepIdle 闸 14 天实证(工单#25693/#25806)。处置=核 fin_position/venue 真态后迁终态", ids, pids)); err != nil {
 		w.rej.Inc("write_err")
 	}
 }

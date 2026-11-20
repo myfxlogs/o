@@ -32,9 +32,32 @@ type loopStuck struct {
 	alerted  *time.Time // loop_alerted_at（NULL=未升过）
 }
 
+// markPosClosing 平仓发起→position open→closing（工单#25806 FSM——
+// fin_position_fsm 转移闸内合法边；尽力写不阻业务径：写败 rej 计数，
+// state 漂移由 reconcile/探针面兜，closed_at 权威不受影响）。
+func (w *Warden) markPosClosing(ctx context.Context, posID int64) {
+	if _, err := w.pool.Exec(ctx,
+		`UPDATE fin_position SET state='closing' WHERE id=$1 AND state='open'`, posID); err != nil {
+		w.rej.Inc("write_err")
+		log.Printf("WARN [guard] position closing 态写败 pos=%d: %v", posID, err)
+	}
+}
+
 // loopProbe 自残探针一拍（scanOnce 内挂——闸径独立阈键，读败/缺键=探针
 // 本面跳过不影响主扫描）。
 func (w *Warden) loopProbe(ctx context.Context) {
+	// FSM 对账（工单#25806）：position 活态(open/closing)∧execution 终态
+	// =脱钩孤儿——markClosed/dcdrecon 均双写同事务，exec 终态而 pos 仍活
+	// 只可能是漏关终态病灶（#1117/#1134 同型反向）。落 'orphaned' 探针
+	// 可见态（非执行终态——closed_at 不动仍计敞口，guard scan 收编走
+	// 正常平仓恢复径；收口归 staleexec 升件+人工/对账径）。幂等重扫。
+	if _, err := w.pool.Exec(ctx, `UPDATE fin_position p SET state='orphaned'
+		FROM fin_execution e
+		WHERE p.execution_id=e.id AND p.state IN ('open','closing')
+		  AND e.state IN ('closed','failed','rolled_back','rollback_failed')`); err != nil {
+		w.rej.Inc("write_err")
+		log.Printf("WARN [guard] FSM 对账孤儿标写败: %v", err)
+	}
 	// reconcile 先扫（T-0511 僵尸行实证）：position 已 closed 的 'closing'
 	// 行=带外闭环（drill 清扫径/人工径写 position.closed_at 未走
 	// markClosed 双写）——scanOnce 按 closed_at 滤仓永不再碰，探针
@@ -43,7 +66,7 @@ func (w *Warden) loopProbe(ctx context.Context) {
 		SET state='closed',closed_at=now(),updated_at=now(),
 		    last_error='reconcile:position_closed_outside_guard'
 		FROM fin_position p
-		WHERE g.position_id=p.id AND g.state='closing' AND p.closed_at IS NOT NULL`); err != nil {
+		WHERE g.position_id=p.id AND g.state='closing' AND p.state='closed'`); err != nil {
 		w.rej.Inc("write_err")
 	}
 	maxAtt, err1 := w.getF("guard.loop_alert_attempts")
@@ -57,7 +80,7 @@ func (w *Warden) loopProbe(ctx context.Context) {
 		SELECT g.position_id, p.strategy_ref, g.attempts,
 		       COALESCE(g.last_try_at,p.opened_at), g.loop_alerted_at
 		FROM fin_guard_close g JOIN fin_position p ON p.id=g.position_id
-		WHERE g.state='closing' AND p.closed_at IS NULL
+		WHERE g.state='closing' AND p.state<>'closed'
 		  AND (g.attempts >= $1
 		       OR now()-COALESCE(g.last_try_at,p.opened_at) > make_interval(secs => $2*3600))`,
 		int64(maxAtt), maxHrs)

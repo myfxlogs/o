@@ -40,7 +40,7 @@ func (r *Runner) openLive(ctx context.Context) {
 	rows, err := r.pool.Query(ctx, `SELECT s.id, s.inst_id, s.direction, s.notional_usd, COALESCE(s.venue,'okx'), s.template_ref
 		FROM fin_strategy s
 		WHERE s.state='live' AND NOT EXISTS (
-			SELECT 1 FROM fin_position p WHERE p.strategy_ref=s.id AND p.closed_at IS NULL)`)
+			SELECT 1 FROM fin_position p WHERE p.strategy_ref=s.id AND p.state<>'closed')`)
 	if err != nil {
 		r.rej.Inc("write_err")
 		return

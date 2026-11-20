@@ -127,7 +127,7 @@ func (c coreService) selfStateBeat(ctx context.Context) {
 	if err := c.pool.QueryRow(ctx, `SELECT
 		count(*) FILTER (WHERE state='live'),
 		count(*) FILTER (WHERE state='probe'),
-		(SELECT count(*) FROM fin_position WHERE closed_at IS NULL)
+		(SELECT count(*) FROM fin_position WHERE state<>'closed')
 		FROM fin_strategy`).Scan(&liveN, &probeN, &posN); err == nil {
 		seg["strat"] = fmt.Sprintf("live%d/probe%d/仓%d", liveN, probeN, posN)
 	} else {

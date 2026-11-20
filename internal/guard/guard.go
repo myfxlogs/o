@@ -171,7 +171,7 @@ func (w *Warden) scanOnce(ctx context.Context) error {
 		FROM fin_position p
 		LEFT JOIN fin_guard_close g ON g.position_id = p.id
 		LEFT JOIN fin_strategy s ON s.id = p.strategy_ref
-		WHERE p.closed_at IS NULL
+		WHERE p.state<>'closed'
 		  AND COALESCE(g.state,'open') <> 'closed'
 		  AND COALESCE(g.attempts,0) < $1
 		  AND (g.last_try_at IS NULL OR now() - g.last_try_at >= make_interval(secs => $2))`,

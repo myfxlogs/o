@@ -213,6 +213,7 @@ func (w *Warden) retryKeys() (backoff, maxAtt int64, err error) {
 }
 
 func (w *Warden) markClosing(ctx context.Context, posID int64, trig string) error {
+	w.markPosClosing(ctx, posID) // FSM open→closing 尽力写（#25806——漂移由 reconcile 兜）
 	_, err := w.pool.Exec(ctx, `INSERT INTO fin_guard_close(position_id,state,trigger_kind,attempts,last_try_at,last_attempt_at,updated_at)
 		VALUES($1,'closing',$2,1,now(),now(),now())
 		ON CONFLICT(position_id) DO UPDATE SET state='closing',trigger_kind=$2,
@@ -252,7 +253,7 @@ func (w *Warden) markClosed(ctx context.Context, p posRow, closeExecID int64, tr
 	}
 	defer tx.Rollback(ctx)
 	if _, err := tx.Exec(ctx,
-		`UPDATE fin_position SET closed_at=now() WHERE (id=$1 OR execution_id=$2) AND closed_at IS NULL`,
+		`UPDATE fin_position SET closed_at=now() WHERE (id=$1 OR execution_id=$2) AND state<>'closed'`,
 		p.id, closeExecID); err != nil {
 		w.rej.Inc("write_err")
 		return err

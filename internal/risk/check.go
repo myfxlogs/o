@@ -135,7 +135,7 @@ func (g *Gate) Check(ctx context.Context, in Intent) Decision {
 		// 双计敞口，venue 集中度/总敞口实阈打半折误拒。
 		_ = g.pool.QueryRow(ctx,
 			`SELECT COALESCE(sum(p.notional_usd),0) FROM fin_position p
-			WHERE p.closed_at IS NULL AND EXISTS(
+			WHERE p.state<>'closed' AND EXISTS(
 			  SELECT 1 FROM fin_strategy s WHERE s.id=p.strategy_ref AND s.venue=$1)`,
 			in.Venue).Scan(&vExp)
 		var inflight float64
@@ -148,7 +148,7 @@ func (g *Gate) Check(ctx context.Context, in Intent) Decision {
 		vExp += inflight
 		_ = g.pool.QueryRow(ctx,
 			`SELECT COALESCE(sum(x),0) FROM (
-			  SELECT sum(notional_usd) x FROM fin_position WHERE closed_at IS NULL
+			  SELECT sum(notional_usd) x FROM fin_position WHERE state<>'closed'
 			  UNION ALL SELECT sum(e.notional_usd) FROM fin_execution e
 			  WHERE e.state='open' AND NOT EXISTS(
 			    SELECT 1 FROM fin_position p WHERE p.execution_id=e.id)) t`).Scan(&tExp)

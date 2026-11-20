@@ -254,7 +254,7 @@ func (i *Ingester) post(ctx context.Context, kind string, amt float64, b Bill, c
 	var posRef *int64
 	var pid int64
 	err := i.pool.QueryRow(ctx, `SELECT id FROM fin_position
-		WHERE inst_id=$1 AND opened_at<=$2 AND (closed_at IS NULL OR closed_at>=$2)
+		WHERE inst_id=$1 AND opened_at<=$2 AND (state<>'closed' OR closed_at>=$2)
 		ORDER BY id DESC LIMIT 1`, b.InstID, occurred).Scan(&pid)
 	if err == nil {
 		posRef = &pid

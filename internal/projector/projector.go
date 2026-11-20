@@ -140,7 +140,7 @@ func (r *Runner) Run(ctx context.Context, errc chan<- error) {
 // armed 提案鲜度闸无源可喂（升件#12229）；臂面引 legset.ProposalArm
 // 同源件禁复制字面量（active-set-dual-owner-arm-drift 判例）。
 func (r *Runner) refreshSets(ctx context.Context) error {
-	rows, err := r.sg.Query(ctx, `SELECT inst_id FROM fin_position WHERE closed_at IS NULL
+	rows, err := r.sg.Query(ctx, `SELECT inst_id FROM fin_position WHERE state<>'closed'
 		UNION SELECT inst_id FROM fin_strategy WHERE state<>'retired'
 		UNION `+legset.ProposalArm+`
 		UNION `+legset.BasisSpotArm(`s.state<>'retired'`)+`

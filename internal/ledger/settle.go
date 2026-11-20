@@ -12,7 +12,7 @@ import (
 // （「closed 了但货还在」静默背离禁线；挂账 NULL=无袋按纯现金净）。
 func (r *Runner) settle(ctx context.Context) error {
 	rows, err := r.pool.Query(ctx, `SELECT id,COALESCE(bare_bag_usd,0) FROM fin_position
-		WHERE closed_at IS NOT NULL AND settled_at IS NULL`)
+		WHERE state='closed' AND settled_at IS NULL`)
 	if err != nil {
 		return err
 	}

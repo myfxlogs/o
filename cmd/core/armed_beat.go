@@ -37,7 +37,7 @@ func (c coreService) armedDistanceBeat(ctx context.Context) {
 			WHERE e.inst_id=s.inst_id ORDER BY e.ts DESC LIMIT 1) r ON true
 		WHERE s.state='live' AND NOT (s.template_ref='xvenue-carry' AND COALESCE(s.venue,'')<>'okx')
 		AND NOT EXISTS (SELECT 1 FROM fin_position p
-			WHERE p.strategy_ref=s.id AND p.closed_at IS NULL)
+			WHERE p.strategy_ref=s.id AND p.state<>'closed')
 		ORDER BY s.inst_id`)
 	if err != nil {
 		return // 读件败本拍让位
