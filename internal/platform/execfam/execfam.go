@@ -27,6 +27,11 @@ var set = map[string]bool{
 	// 产能（grid_spot 无 LegShape 映=probe→live 结构性拦）+okxgrid.live_
 	// switch 业主首闸（缺/非 true fail-closed）——登记语义=paper 域贯通，
 	// 真钱拉起两闸均未通。
+	"stable-park-usdg": true, // 工单#26272 parked卡#550053 骨架登记——paper 域
+	// 提案门开；真径=OKX finance okusd subscribe/redeem(clOrdId幂等,非
+	// execution.Executor腿语义);Drillable未册=probe→live结构性拦在位;
+	// 凭据域=业主condreq在案(前提①),登记语义=骨架册非执行径;
+	// hunger depenum/facesnap_whitelist 免册=族无自有cfg键(有键才册票钦)。
 }
 
 // Has 模板族执行径在册否。

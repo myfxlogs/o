@@ -43,6 +43,12 @@ func TestInstFitOKFamilyContract(t *testing.T) {
 		{"vol_sell_single_call", "BETH-USDT-261030-2200-P", false},
 		{"vol_sell_strangle", "BETH-USDT-261029-2325-C+ETH-RLUSD-261029-2330-P", true},
 		{"vol_sell_strangle", "BETH-USDT-261029-2325-C", false}, // strangle=双腿复合形
+		// stable-park-usdg：okx:USDG 资产级伪键=合；他币伪键/交易对/SWAP=拒
+		{"stable-park-usdg", "okx:USDG", true},
+		{"stable-park-usdg", "okx:USDT", false},  // 伪键他币非本族标的
+		{"stable-park-usdg", "cmc:USDG", false},  // venue 前缀钉 okx
+		{"stable-park-usdg", "USDG-USDT", false}, // 交易对非伪键形
+		{"stable-park-usdg", "USDG-USDT-SWAP", false},
 		// 未注册族 fail-closed
 		{"unsupported-template", "BTC-USDT-SWAP", false},
 	}
@@ -70,6 +76,7 @@ func TestInstFitOKCoversExecFam(t *testing.T) {
 		"vol_sell_strangle":       "BETH-USDT-261029-2325-C+ETH-RLUSD-261029-2330-P",
 		"stake-carry":             "okx:TRX",
 		"grid_spot":               "BTC-USDT",
+		"stable-park-usdg":        "okx:USDG",
 	}
 	for _, tmpl := range execfam.All() {
 		inst, ok := valid[tmpl]

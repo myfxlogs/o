@@ -79,6 +79,9 @@ var (
 	// venueCcyRe stake_carry 假想卡 inst 形（venue:ccy——okx:TRX/cmc:TRX，
 	// 双头族键=venue 空腿位+质押币对，非可交易 inst 键——工单#21612 参考模型族）。
 	venueCcyRe = regexp.MustCompile(`^[a-z0-9]+:[A-Z0-9]+$`)
+	// okxUsdgRe stable-park-usdg 族 inst 形（工单#26272 骨架——okusd
+	// 申购/赎回标的=USDG 资产级伪键，非交易对；venue 前缀钉 okx 单源）。
+	okxUsdgRe = regexp.MustCompile(`^okx:USDG$`)
 )
 
 // instForm inst 构型分类（族腿构型判据的中间层）。
@@ -150,6 +153,10 @@ func InstFitOK(template, instID string) bool {
 		// venue 原生现货网格族（工单#25840）——bot 腿=USDT 计价现货对
 		// （BTC-USDT 形，formOther 域内圈定——-SWAP/-\d{6}/venue:ccy 皆拒）。
 		return classifyInst(instID) == formOther && IsUSDTInst(instID)
+	case "stable-park-usdg":
+		// 卡#550053 骨架——inst=okx:USDG 资产级伪键（earn_deposit 腿标的；
+		// 交易对/SWAP/venue:ccy 通形皆拒，okusd 面仅 USDG 一标的收窄）。
+		return okxUsdgRe.MatchString(instID)
 	}
 	return false
 }
