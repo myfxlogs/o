@@ -5,11 +5,15 @@ package config
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 )
 
 // Set 写值+写者名（actor=进程名/席名——app_config 钦定审计列留痕；
 // updated_at now() 同拍记——翻位者可考；value=JSON 原生型标量契约守）。
 func (c *Client) Set(ctx context.Context, key string, value json.RawMessage, actor string) error {
+	if err := CheckValueDomain(key, value); err != nil {
+		return fmt.Errorf("%s: 值域闸拒——%w", key, err)
+	}
 	_, err := c.pool.Exec(ctx, `INSERT INTO app_config(key,value,updated_at,updated_by)
 		VALUES($1,$2::jsonb,now(),$3)
 		ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value,updated_at=now(),updated_by=EXCLUDED.updated_by`,

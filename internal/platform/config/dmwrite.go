@@ -128,6 +128,9 @@ func (c *Client) DMSet(ctx context.Context, key string, value json.RawMessage,
 	if err := validScalar(value); err != nil {
 		return nil, fmt.Errorf("%s: %w", key, err)
 	}
+	if err := CheckValueDomain(key, value); err != nil {
+		return nil, fmt.Errorf("%s: 值域闸拒——%w", key, err)
+	}
 	if evidence == "" {
 		return nil, fmt.Errorf("%s: 证据锚缺席——无证据不自调", key)
 	}
