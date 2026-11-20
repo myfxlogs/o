@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# check_migrations.sh —— 迁移九断言硬闸（T-0109 三断言为基，T-0167 分链制扩七，裸GRANT 闸为⑧，depends_on 声明合法性为⑨）：
+# check_migrations.sh —— 迁移十断言硬闸（T-0109 三断言为基，T-0167 分链制扩七，裸GRANT 闸为⑧，depends_on 声明合法性为⑨，破坏性 DDL 存量违例 lint 为⑩）：
 #   ① migrate_table.go 登记 version 链内唯一（同链重复号=红——同号后登记者被 silent-skip）；
 #   ② 每条登记 {N, "md|fin_NNNN_*.sql"} 的链内序号=登记号 N 且文件实存；
 #   ③ migrations/*.sql 每个文件恰有一条登记行（孤儿文件=红）；
@@ -21,6 +21,15 @@
 #      依赖必先施；号序倒挂=静默语义反转）；未登记/跨链/倒挂/值非法/
 #      头区外错位声明=红。无声明=现状不禁（渐进启用——既有迁移零
 #      声明零影响）。合流时序闸在 land_queue.sh（所依未合→不合）。
+#   ⑩ 破坏性 DDL 存量违例 lint（工单#25799——测试 migrate 恒空表，
+#      ADD CONSTRAINT CHECK/FOREIGN KEY、SET NOT NULL、新 UNIQUE/
+#      唯一索引对生产存量行违例部署期才炸）：水位 fin≤214/md≤1099
+#      （本闸落地时点存量全册）豁免不回杀；水位以上新迁移——
+#      a) ADD CONSTRAINT <名> CHECK|FOREIGN KEY 须 NOT VALID+同文件
+#         VALIDATE CONSTRAINT <名>（NOT VALID 不验=静默豁免洞）；
+#      b) UNIQUE/PK/EXCLUDE/SET NOT NULL/ADD COLUMN NOT NULL 无
+#         DEFAULT/CREATE UNIQUE INDEX/裸 ADD CHECK|FK 不可 NOT VALID
+#         型须 `-- mig-rehearsal-ok: <理由>` 豁免行。
 # 判的是链内号重复非连续——链内单调由⑤另钉。全域一致性检查（工作树面），
 # 由 pre-commit 门禁链调用，可单独跑（与 check-lines 同构）。
 set -euo pipefail
@@ -275,8 +284,146 @@ while IFS= read -r f; do
 	done < <(mig_dep_stray < "$f")
 done < <(find migrations -maxdepth 1 -name '*.sql' | sort)
 
+# ⑩ 破坏性 DDL 存量违例 lint（工单#25799——形①预演闸）：测试 migrate
+# 恒空表，存量违例部署期才炸。本闸=lint 渐进启用——水位以下（fin≤214/
+# md≤1099，本闸落地时点存量全册）豁免不回杀在库件；水位以上新迁移
+# 走 python 语句级扫描（剥注释/字符串/dollar-quote 体后按 ; 切——
+# $$ 函数体内假命中防）。形②部署前快照影子库 dry-run 评估：
+# backup_pg.sh 有 pg_dump 日滚 14 份径但无现成影子库重放管道件——
+# dump 重建+双链域挂 Migrate=新管道件成本超本票档，记票面（存量
+# 违例残面=VALIDATE 败显式炸+告警分诊径兜）。
+REH_WM_FIN=214; REH_WM_MD=1099
+NEW_MIGS=""
+while IFS= read -r f; do
+	b=$(basename "$f"); n=${b#*_}; n=${n%%_*}
+	case "$n" in ''|*[!0-9]*) continue ;; esac
+	case "$b" in
+		fin_*) [ $((10#$n)) -gt "$REH_WM_FIN" ] && NEW_MIGS="${NEW_MIGS}${f}"$'\n' ;;
+		md_*)  [ $((10#$n)) -gt "$REH_WM_MD"  ] && NEW_MIGS="${NEW_MIGS}${f}"$'\n' ;;
+	esac
+done < <(find migrations -maxdepth 1 -name '*.sql' | sort)
+NEW_MIGS=$(printf '%s' "$NEW_MIGS" | sed '/^$/d')
+if [ -n "$NEW_MIGS" ]; then
+	if ! command -v python3 >/dev/null 2>&1; then
+		echo "FAIL python3 缺席——⑩ 判据残缺（存量违例 lint 无法判）" >&2
+		fail=1
+	else
+		mapfile -t MIG10 < <(printf '%s\n' "$NEW_MIGS")
+		OUT10=$(python3 - "${MIG10[@]}" <<'PYEOF'
+import re, sys
+
+WAIVER = re.compile(r'mig-rehearsal-ok\s*:\s*\S')
+WS = re.compile(r'\s+')
+DOLLAR = re.compile(r'\$[A-Za-z_0-9]*\$')
+
+def split_stmts(sql):
+	out, buf, i, n = [], [], 0, len(sql)
+	while i < n:
+		if sql.startswith('--', i):
+			j = sql.find('\n', i)
+			i = n if j < 0 else j
+			buf.append('\n')
+			continue
+		if sql.startswith('/*', i):
+			j = sql.find('*/', i + 2)
+			i = n if j < 0 else j + 2
+			buf.append(' ')
+			continue
+		c = sql[i]
+		if c == "'":
+			j = i + 1
+			while j < n:
+				if sql[j] == "'":
+					if j + 1 < n and sql[j + 1] == "'":
+						j += 2
+						continue
+					break
+				j += 1
+			buf.append("''")
+			i = j + 1
+			continue
+		m = DOLLAR.match(sql, i)
+		if m:
+			tag = m.group(0)
+			j = sql.find(tag, i + len(tag))
+			i = n if j < 0 else j + len(tag)
+			buf.append(' $$ ')
+			continue
+		buf.append(c)
+		if c == ';':
+			out.append(''.join(buf))
+			buf = []
+		i += 1
+	if buf:
+		out.append(''.join(buf))
+	return out
+
+def lint(path):
+	try:
+		raw = open(path, encoding='utf-8').read()
+	except OSError as e:
+		return ['FAIL %s: 读取败 %s' % (path, e)]
+	waiver = bool(WAIVER.search(raw))
+	valids = set()
+	stmts = []
+	for st in split_stmts(raw):
+		ns = WS.sub(' ', st)
+		stmts.append(ns)
+		m = re.search(r'VALIDATE\s+CONSTRAINT\s+("[^"]+"|[A-Za-z_0-9]+)', ns, re.I)
+		if m:
+			valids.add(m.group(1).strip('"'))
+	bad = []
+	for ns in stmts:
+		marks = [m.start() for m in re.finditer(r'ADD\s+CONSTRAINT\b', ns, re.I)]
+		for k, st0 in enumerate(marks):
+			st1 = marks[k + 1] if k + 1 < len(marks) else len(ns)
+			seg = ns[st0:st1]
+			m = re.match(r'ADD\s+CONSTRAINT\s+("[^"]+"|[A-Za-z_0-9]+)\s+(CHECK|FOREIGN\s+KEY)\b', seg, re.I)
+			if not m:
+				continue
+			name = m.group(1).strip('"')
+			if not re.search(r'\bNOT\s+VALID\b', seg[m.end():], re.I):
+				bad.append('FAIL %s: ADD CONSTRAINT %s %s 缺 NOT VALID——存量校验须两段式：ADD ... NOT VALID（即时挂）+同文件 ALTER TABLE ... VALIDATE CONSTRAINT %s（分离扫）（工单#25799⑩）' % (path, name, re.sub(r'\s+', ' ', m.group(2).upper()), name))
+			elif name not in valids:
+				bad.append('FAIL %s: ADD CONSTRAINT %s 带 NOT VALID 但同文件无 VALIDATE CONSTRAINT %s——存量行永不校验=静默豁免洞（工单#25799⑩）' % (path, name, name))
+		risky = []
+		if re.search(r'ADD\s+CONSTRAINT\s+("[^"]+"|[A-Za-z_0-9]+)\s+(UNIQUE|PRIMARY\s+KEY|EXCLUDE)\b', ns, re.I):
+			risky.append('ADD CONSTRAINT UNIQUE/PK/EXCLUDE')
+		if re.search(r'\bADD\s+(PRIMARY\s+KEY|UNIQUE|CHECK|FOREIGN\s+KEY|EXCLUDE)\s*\(', ns, re.I):
+			risky.append('裸 ADD PK/UNIQUE/CHECK/FK/EXCLUDE')
+		if re.search(r'\bSET\s+NOT\s+NULL\b', ns, re.I):
+			risky.append('SET NOT NULL')
+		if re.search(r'\bADD\s+COLUMN\b', ns, re.I) and re.search(r'\bNOT\s+NULL\b', ns, re.I) and not re.search(r'\bDEFAULT\b', ns, re.I):
+			risky.append('ADD COLUMN NOT NULL 无 DEFAULT')
+		if re.search(r'\bCREATE\s+UNIQUE\s+INDEX\b', ns, re.I):
+			risky.append('CREATE UNIQUE INDEX')
+		if risky and not waiver:
+			bad.append('FAIL %s: 破坏性 DDL 不可 NOT VALID 型（%s）——存量违例部署期才炸；须 `-- mig-rehearsal-ok: <理由>` 豁免或改两段式（工单#25799⑩）' % (path, '、'.join(risky)))
+	return bad
+
+allbad = []
+for p in sys.argv[1:]:
+	try:
+		allbad.extend(lint(p))
+	except Exception as e:
+		allbad.append('FAIL %s: lint 内部错 %s' % (p, e))
+for b in allbad:
+	print(b)
+sys.exit(1 if allbad else 0)
+PYEOF
+) && CRC10=0 || CRC10=$?   # tolerate: 违例=rc1 落下行判据——输出非空即红；rc 非0 且输出空=lint 崩溃按残缺红
+		if [ -z "$OUT10" ] && [ "$CRC10" -ne 0 ]; then
+			echo "FAIL python3 破坏性 DDL lint 崩溃（rc=$CRC10 无判词——⑩ 判据残缺）" >&2
+			fail=1
+		elif [ -n "$OUT10" ]; then
+			printf '%s\n' "$OUT10" >&2
+			fail=1
+		fi
+	fi
+fi
+
 if [ "$fail" -eq 1 ]; then
-	echo "❌ check_migrations: 断言红——撞号/串链/桥表漂移/白名单缺册/裸GRANT/depends_on 声明禁提交（canon migration-number-collision + D-0030 §六 + 工单#25800）" >&2
+	echo "❌ check_migrations: 断言红——撞号/串链/桥表漂移/白名单缺册/裸GRANT/depends_on 声明/破坏性 DDL 禁提交（canon migration-number-collision + D-0030 §六 + 工单#25800/#25799）" >&2
 	exit 1
 fi
-echo "OK: check_migrations（九断言过——链内唯一/序号实存/零孤儿/md_* 键域/两链单调/八桥 DDL 同形/域白名单/裸GRANT 白名单/depends_on 声明合法）"
+echo "OK: check_migrations（十断言过——链内唯一/序号实存/零孤儿/md_* 键域/两链单调/八桥 DDL 同形/域白名单/裸GRANT 白名单/depends_on 声明合法/破坏性 DDL lint）"

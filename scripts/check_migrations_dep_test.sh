@@ -31,14 +31,14 @@ expect_fail() { # $1=标签 $2=grep式——输出须含判词行
 	if printf '%s\n' "$OUT" | grep -q "$2"; then ok "$1"; else bad "$1（输出无判词 /$2/）"; printf '%s\n' "$OUT" | tail -5 | sed 's/^/    /'; fi
 }
 
-echo "== ⑨绿例：同链在册小号依赖 → 九断言全过 =="
+echo "== ⑨绿例：同链在册小号依赖 → 十断言全过（P2 ⑩ 并存） =="
 add_mig 215 fin_0215_okdep.sql \
 '-- okdep 正例
 -- depends_on: fin_0001_app_config.sql
 SELECT 1;'
 OUT=$(run_cm); CRC=$?
-if [ "$CRC" -eq 0 ] && printf '%s\n' "$OUT" | grep -q 'OK: check_migrations（九断言'; then
-	ok "合法 depends_on 全谱绿"
+if [ "$CRC" -eq 0 ] && printf '%s\n' "$OUT" | grep -q 'OK: check_migrations（十断言'; then
+	ok "合法 depends_on 全谱绿（含⑩零候选面）"
 else
 	bad "合法 depends_on 未全绿"; printf '%s\n' "$OUT" | tail -8 | sed 's/^/    /'
 fi
