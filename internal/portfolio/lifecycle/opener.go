@@ -7,6 +7,7 @@ package lifecycle
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"time"
 
@@ -61,6 +62,7 @@ func (r *Runner) openLive(ctx context.Context) {
 	}
 	rows.Close()
 	gate := r.loadCellGate(ctx) // T-0461 armed→open 格凭据闸（判位=r.op.Open 前）
+	nav := &shapeGateNavLazy{}  // #26436 判例#1形态闸：本金线懒读（bounded 直过零 DB 成本）
 	for i, c := range cs {
 		if i > 0 { // T-0208②：venue 限速节流——quote+trade 双调用扇出 1s/策略拍（429 洪泛根修；sched-exempt-ok 执行节流非轮询）
 			select {
@@ -130,6 +132,10 @@ func (r *Runner) openLive(ctx context.Context) {
 		}
 		if !gate.allow(r, c.spec) { // T-0461 格凭据未绿 hold
 			continue
+		}
+		if ok, why := r.shapeGateBlock(ctx, fmt.Sprintf("strategy=#%d", c.spec.StrategyRef), c.spec.Template, c.spec.NotionalUSD, nav); !ok {
+			log.Printf("[lifecycle] 策略 %d %s live 开仓闸拦：形态闸——%s（滞留 live 待判据面自解/业主处置）", c.spec.StrategyRef, c.spec.InstID, why)
+			continue // #26436 判例#1：leveraged/funded 未过保证金面审——越本金线已由闸内升件记案
 		}
 		eid, err := r.op.Open(ctx, c.spec)
 		if err != nil {

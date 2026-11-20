@@ -62,6 +62,10 @@ type ShareSpec struct {
 	// chain 改写）INSERT 会重放副作用，DISABLE/ENABLE TRIGGER USER
 	// 包复位窗（FK 约束触发器不受 USER 域影响仍生效）。
 	NoTrigger []string
+	// SeedSQL 建面迁移后、种子快照前执行的种子 SQL——包级测试基线
+	// 事实行（如本金曲线 NAV 采点：形态闸等本金读面 fail-closed 判据
+	// 需 ambient 净值在册）；快照随 SeedRestore 逐测还原保基线。
+	SeedSQL []string
 }
 
 // sharedPkg 包级共享 schema 登记项（caller dir → 实体）。
@@ -191,6 +195,11 @@ func (s *sharedPkg) setup(dsn string, spec ShareSpec) error {
 	for _, d := range spec.Domains {
 		if err := spec.Migrate(ctx, work, d); err != nil {
 			return fmt.Errorf("migrate %s: %w", d, err)
+		}
+	}
+	for _, q := range spec.SeedSQL {
+		if _, err := work.Exec(ctx, q); err != nil {
+			return fmt.Errorf("seed sql: %w", err)
 		}
 	}
 	// app_config 键册快照（无条件——覆写/新增键恒复位迁移后基线）。

@@ -69,5 +69,12 @@ func TestMain(m *testing.M) {
 			"fin_strategy",
 		},
 		NoTrigger: []string{"ops_event"},
+		// #26436 判例#1形态闸：本金总额线=md_equity_curve NAV 现值（48h 鲜度窗）
+		// ——空表=判据缺 fail-closed 拒 leveraged/funded 族，存量闸径测试须
+		// ambient 本金在册；SeedSQL 快照入基线逐测还原（闸本体测可删行复现
+		// 判据缺态）。
+		SeedSQL: []string{
+			"INSERT INTO md_equity_curve(ccy,equity,src) VALUES('NAV',100000,'testutil_seed')",
+		},
 	})
 }
