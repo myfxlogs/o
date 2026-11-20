@@ -132,6 +132,13 @@ func Pool(t *testing.T) *pgxpool.Pool {
 	if dsn == "" {
 		t.Skip("O_TEST_PG_DSN 未设——独立测试实例缺席，skip（不打生产实例）")
 	}
+	// 包级共享 schema 径（工单#26108）：caller 目录已 ShareMain 注册=
+	// 每测新池+定向清表（跳随机 schema+全链迁移+DROP CASCADE 税）；
+	// 未注册=旧径逐测建面——兼容壳，包迁移渐进不回杀。
+	callerDir := callerFileDir(1)
+	if sp, ok := sharedForDir(callerDir); ok {
+		return sp.poolFor(t, dsn)
+	}
 	// 包级 schema 名（caller 包尾段+随机尾——同包多测共享 schema 无碍，包间零干扰）
 	pkg := "x"
 	if _, file, _, ok := runtime.Caller(1); ok {
@@ -153,7 +160,7 @@ func Pool(t *testing.T) *pgxpool.Pool {
 	// T-0468 分库：包目录散列→o_test_s<N>（K=1 恒 o_test 现行语义）；
 	// 分库确保败落基库=只慢不语义错。Database 置位先于 GuardPool/
 	// NewWithConfig——ConnConfig.Database 即连接目标库。
-	dbname := shardForDir(callerFileDir(1))
+	dbname := shardForDir(callerDir)
 	if dbname != "o_test" {
 		ctx0 := context.Background()
 		if ensureShardDB(ctx0, cfg.ConnConfig, dbname) {
