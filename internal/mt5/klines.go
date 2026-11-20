@@ -25,11 +25,11 @@ const klineBatch = 60
 // 后续拍同量幂等覆写零增量成本）。
 const klineNumBars = 200
 
-// klineFrom 回填锚窗（From 为网关必填 string 形 DateTime——空串服务端
-// DateTime.Parse 全批炸，首扫实证 mt5rest.QuoteHistory 内部签名
-// (id,sym[],from,numBars,timeFrame,timeout)）。
+// klineFrom 回填锚窗——From 为网关必填 string 形 DateTime 且语义=**末锚**
+// （首扫实证：From=now-210d 拉回棒齐截 2026-04-19=锚前一日——网关从
+// From 回数 numBars 非起点顺拉；now+2d 兜住今日进行棒，远端忽略未来段）。
 func klineFrom(now time.Time) string {
-	return now.AddDate(0, 0, -210).UTC().Format("2006-01-02T15:04:05Z")
+	return now.AddDate(0, 0, 2).UTC().Format("2006-01-02T15:04:05Z")
 }
 
 // mt5FrameD1 PERIOD_D1 枚举值（MT5 标准 ENUM_TIMEFRAMES——实证钉:扫后
