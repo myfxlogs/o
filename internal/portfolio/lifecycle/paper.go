@@ -133,7 +133,7 @@ func (r *Runner) promote(ctx context.Context, minH, minNet, maxDD float64, liveS
 		return nil
 	}
 	prows, err := r.pool.Query(ctx, `SELECT s.id, s.inst_id, s.template_ref, s.direction,
-		EXTRACT(EPOCH FROM (now()-s.entered_at))/3600.0,
+		EXTRACT(EPOCH FROM (now()-s.entered_at))/3600.0, s.notional_usd,
 		COALESCE((SELECT sum(amount_usd) FROM fin_paper_fill f WHERE f.strategy_id=s.id),0),
 		COALESCE((SELECT p.net_apr FROM fin_proposal p WHERE p.id=s.proposal_ref),0)
 		FROM fin_strategy s WHERE s.state='probe'`)
@@ -145,19 +145,21 @@ func (r *Runner) promote(ctx context.Context, minH, minNet, maxDD float64, liveS
 		inst, tmpl string
 		dir        string
 		hours      float64
+		notional   float64
 		net        float64
 		refAPR     float64
 	}
 	var pcs []pc
 	for prows.Next() {
 		var c pc
-		if err := prows.Scan(&c.id, &c.inst, &c.tmpl, &c.dir, &c.hours, &c.net, &c.refAPR); err != nil {
+		if err := prows.Scan(&c.id, &c.inst, &c.tmpl, &c.dir, &c.hours, &c.notional, &c.net, &c.refAPR); err != nil {
 			prows.Close()
 			return err
 		}
 		pcs = append(pcs, c)
 	}
 	prows.Close()
+	nav := &shapeGateNavLazy{} // #26436 判例#1形态闸：本金线本拍懒读（bounded 直过零 DB 成本）
 	for _, c := range pcs {
 		if c.hours < minH || c.net < minNet {
 			continue
@@ -205,6 +207,10 @@ func (r *Runner) promote(ctx context.Context, minH, minNet, maxDD float64, liveS
 			r.rej.Inc("exec_drill_failed")
 			log.Printf("[lifecycle] #%d probe→live 拦：执行径演习败（fail-closed——修病灶重演习）", c.id)
 			continue
+		}
+		if ok, why := r.shapeGateBlock(ctx, fmt.Sprintf("strategy=#%d", c.id), c.tmpl, c.notional, nav); !ok {
+			log.Printf("[lifecycle] #%d probe→live 拦：形态闸——%s（滞留 probe 待判据面自解/业主处置）", c.id, why)
+			continue // #26436 判例#1：leveraged/funded 未过保证金面审——越本金线已由闸内升件记案
 		}
 		if err := Transition(ctx, r.pool, c.id, "live",
 			"probe 观察窗满+净回报续优+执行径演习绿+委员会开关 true→live 真钱开仓岗", liveSw); err != nil {

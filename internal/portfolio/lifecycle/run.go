@@ -176,6 +176,7 @@ func (r *Runner) admitProposals(ctx context.Context, notional, minH, minNet, max
 	rows.Close()
 	blocked := map[string]int{}
 	rules := r.loadAdmitBlockRules(ctx) // fin_0175:canon 落规约行=机器闸(lethal 簇禁再喂——劝变闸)
+	nav := &shapeGateNavLazy{}          // #26436 判例#1形态闸：本金线本拍懒读（bounded 直过零 DB 成本）
 	for _, x := range ps {
 		if admitBlocked(rules, x.tmpl, x.inst, x.dir) {
 			blocked["econ_rule:"+x.tmpl]++
@@ -188,6 +189,11 @@ func (r *Runner) admitProposals(ctx context.Context, notional, minH, minNet, max
 		if !legset.InstFitOK(x.tmpl, x.inst) {
 			blocked[x.tmpl+"/inst形不符"]++
 			continue // inst 构型不合族腿构型=看见了做不了——提案留 proposed（工单#15943：DCD 期权形误进 funding-hedge 实证）
+		}
+		if ok, why := r.shapeGateBlock(ctx, fmt.Sprintf("proposal=#%d", x.id), x.tmpl, notional, nav); !ok {
+			blocked["shape_gate:"+x.tmpl]++
+			log.Printf("[lifecycle] 提案 #%d %s 形态闸拦：%s（留 fin_proposed 待判据面自解/业主处置）", x.id, x.tmpl, why)
+			continue // #26436 判例#1：leveraged/funded 未过保证金面审——越本金线已由闸内升件记案
 		}
 		if x.tmpl == "xvenue-carry" {
 			if err := r.admitXvenuePair(ctx, x.id, x.inst, x.dir, notional, minH, minNet, maxDD); err != nil {

@@ -8,7 +8,10 @@
 //	登记，评估/生命周期双侧零漂移。
 package execfam
 
-import "sort"
+import (
+	"fmt"
+	"sort"
+)
 
 var set = map[string]bool{
 	"funding-hedge": true, "dcd_call": true, "dcd_put": true,
@@ -106,4 +109,83 @@ func PaperOnlyList() []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// ── 亏算形态标（判例#1器官级物化——工单#26436）：ops_event
+// seat=自裁 event=判例 ticket=okxgrid-shape 在案——本金线内偏好亏算封
+// 顶工具形（现货网格/套利/earn 停泊：亏≤投入+带内浮亏，无爆仓无资金
+// 费拖磨）；杠杆不禁用但逐案过仓位判据保证金面——杠杆把潜在亏损推出
+// 本金总额线外=越线归业主物理前提。形态标=族级静态册（扩族登记时钦
+// 定）；判例行读径留扩展位（判例攒多再抽查表，本票不提前抽象）。
+const (
+	ShapeBounded   uint8 = 1 << iota // 亏算封顶——现货网格/现货套利/earn 停泊形
+	ShapeLeveraged                   // 杠杆含爆仓线——perp/margin/期权卖方形
+	ShapeFunded                      // 背资金费/持续持有成本拖磨——SWAP 系
+)
+
+// riskShapes 族→形态标位集（册内族必有册；缺册=未登记——RiskShape
+// ok=false，闸消费面 fail-closed 视 leveraged 从严）。
+var riskShapes = map[string]uint8{
+	"funding-hedge":           ShapeLeveraged | ShapeFunded, // perp 腿爆仓线+资金费拖磨
+	"xvenue-carry":            ShapeLeveraged | ShapeFunded,
+	"dir_perp_mom":            ShapeLeveraged | ShapeFunded, // 方向 perp——杠杆+资金费
+	"perp-trend-daily":        ShapeLeveraged | ShapeFunded,
+	"signal-bot-relay":        ShapeLeveraged | ShapeFunded, // 卡#550054 骨架——信号载体=USDT 永续
+	"quarter_basis_long":      ShapeLeveraged,               // 季度远期腿=期货保证金形（无资金费位）
+	"perp_quarter_spread":     ShapeLeveraged | ShapeFunded, // perp 腿背资金费（basis.go:128 实证——perp_quarter_spread 专属 funding 记账臂）
+	"quarter-calendar-spread": ShapeLeveraged,
+	"sprd-atomic-basis":       ShapeLeveraged | ShapeFunded, // 腿可含 -SWAP 形（sprdLegRe 收）——保证金面+资金费拖磨双标
+	"dcd_call":                ShapeLeveraged,               // 期权卖方——尾部风险超权利金，margin 形态从严
+	"dcd_put":                 ShapeLeveraged,
+	"vol_sell_single_call":    ShapeLeveraged,
+	"vol_sell_strangle":       ShapeLeveraged,
+	"stake-carry":             ShapeBounded, // 质押 carry=earn 停泊形（参考模型族）
+	"grid_spot":               ShapeBounded, // 判例#1 钦定代表——现货网格亏算封顶
+	"stable-park-usdg":        ShapeBounded, // 卡#550053 骨架——okusd 停泊=earn 形
+	"staking-defi-parking":    ShapeBounded, // 卡#550055 骨架——staking 停泊=earn 形
+}
+
+// RiskShape 族形态标集（ok=false=册缺——消费面 fail-closed 视 leveraged
+// 从严；扩族漏登形态标=闸按最严档处理非静默放行）。
+func RiskShape(template string) (mask uint8, registered bool) {
+	m, ok := riskShapes[template]
+	return m, ok
+}
+
+// ShapeBoundedOnly 族形态=bounded 单标否（判例#1 直过判据——无
+// leveraged/funded 位=亏算结构封顶，保证金面审免）。
+func ShapeBoundedOnly(template string) bool {
+	m, ok := riskShapes[template]
+	return ok && m == ShapeBounded
+}
+
+// ShapeGateVerdict 判例#1形态闸判词（拉起闸消费件——策略 probe→live/
+// bot 拉起面同读）：
+//
+//	bounded 单标→直过（判例钦定优先形）；
+//	含 leveraged/funded 位或缺册（fail-closed 视 leveraged 从严）→保证金
+//	面审：demand=notional/levAssumed（期望保证金占用）+notional×lossFrac
+//	（极端情形潜在亏损）>principal（本金总额线）=硬拒——杠杆把潜在亏
+//	损推出本金总额线外=越线归业主物理前提，升件记案归调用面；
+//	参数非正（levAssumed/lossFrac/principal≤0）=判据缺 fail-closed 拒
+//	（不虚构判据值——bounded 直过先于参数判，免审族不受参数面影响）。
+//	第三返回=越本金线归业主标（true=调用面升件记案；判据缺/审过=false）。
+func ShapeGateVerdict(template string, notional, principal, levAssumed, lossFrac float64) (bool, string, bool) {
+	if ShapeBoundedOnly(template) {
+		return true, fmt.Sprintf("族=%s bounded 单标直过（判例#1——亏算封顶形态免保证金面审）", template), false
+	}
+	mask, ok := riskShapes[template]
+	if !ok {
+		mask = ShapeLeveraged // 缺册 fail-closed 视 leveraged 从严
+	}
+	if levAssumed <= 0 || lossFrac <= 0 || principal <= 0 {
+		return false, fmt.Sprintf("族=%s 形态=%08b 判据缺（lev=%.4g lossFrac=%.4g principal=%.4g）——fail-closed 不放行", template, mask, levAssumed, lossFrac, principal), false
+	}
+	margin := notional / levAssumed
+	extreme := notional * lossFrac
+	demand := margin + extreme
+	if demand > principal {
+		return false, fmt.Sprintf("族=%s 形态=%08b 硬拒：需求=%.2f（保证金%.2f+极端亏%.2f notional=%.2f）>本金线%.2f——杠杆潜在亏损越线归业主物理前提", template, mask, demand, margin, extreme, notional, principal), true
+	}
+	return true, fmt.Sprintf("族=%s 形态=%08b 保证金面审过：需求=%.2f（保证金%.2f+极端亏%.2f）≤本金线%.2f", template, mask, demand, margin, extreme, principal), false
 }

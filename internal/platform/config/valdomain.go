@@ -70,6 +70,7 @@ var valueDomainRules = []valRule{
 	{"exec.*_timeout_*", valPos},
 	{"exec.*_cooldown_*", valNonNeg},
 	{"lifecycle.*_ttl_*", valNonNeg},
+	{"lifecycle.shape_gate.*", valPos}, // #26436 判例#1形态闸判据参数——lev_assumed/loss_frac 非正写入即拒（读器 v>0 采纳口径镜像）
 	{"strategy.*_ttl_*", valNonNeg},
 	// —— 分数域 [0,1]：pct 名分数实（在册值实证）——
 	{"risk.dir.*_pct", valFrac},
