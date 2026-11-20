@@ -51,7 +51,24 @@ release_lock() {
 	psql "$FIN_DSN" -qAt -c "INSERT INTO ops_event(seat,event,ticket,note)
 		VALUES('$SEAT_MACHINE','$ev','','unit=$COG_UNIT host=$HOST_TAG rc=$RC reason=$REASON dur=${dur}s')" >/dev/null 2>&1 || true # tolerate: 果败写径本身是败迹——写败无二级上报径,锁由 30min TTL 兜底,不阻主径退出
 }
-trap 'rm -f ${LOG_FILE:+"$LOG_FILE"}; release_lock' EXIT
+# 工单#26306①：施工席收口契壳兜底——unit 亡前必落「会话收口」行
+# （deploy_watch.sh trap hb_write EXIT 同款全出口覆形）。会话自写=判词
+# 真源（认领/完工/挂起还票字段全）；本行=存在性簿记——主径断/超时/杀
+# 致亡前未写时补「壳兜底收口」行,防收口配对账断尾。dedup=同 unit 名
+# 收口行在案即不补;查败/空=按 0 计 fail-open 仍写（重复行无害于漏行）。
+closeout_write() {
+	[ "$COG_ROLE" = worker ] || return 0 # 收口契=施工道专契（他席自管不写）
+	[ "$COG_UNIT" != manual ] || return 0 # 手跑会话=人写收口非壳辖
+	[ -n "${FIN_DSN:-}" ] || return 0
+	local have
+	have=$(psql "$FIN_DSN" -qAt -c "SELECT count(*) FROM ops_event
+		WHERE event='会话收口' AND note LIKE '%unit=$COG_UNIT%'" 2>/dev/null || echo 0)
+	have=${have:-0}
+	[ "$have" = "0" ] || return 0
+	psql "$FIN_DSN" -qAt -c "INSERT INTO ops_event(seat,event,ticket,note)
+		VALUES('$SEAT','会话收口','','unit=$COG_UNIT——壳兜底收口:unit亡前会话未自写收口行(主径断/超时/杀)——判词归唤起果败行+transcript')" >/dev/null 2>&1 || true # tolerate: 兜底写径=尽力件——写败无二级上报,唤起果败行仍在案
+}
+trap 'rm -f ${LOG_FILE:+"$LOG_FILE"}; closeout_write; release_lock' EXIT
 
 hb() { # $1=state——心跳按日键（会话逐日新面,互不盖；前缀随角色）
   [ -n "$FIN_DSN" ] || return 0
