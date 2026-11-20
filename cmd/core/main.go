@@ -34,6 +34,7 @@ import (
 	"o/internal/trading/execution"
 	"o/internal/trading/execwiring"
 	"o/internal/trading/okxexec"
+	"o/internal/trading/okxgrid"
 )
 
 const (
@@ -160,6 +161,9 @@ func run() error {
 			liveOpener = hedgeOpener{pool: pool, cfg: cfg, gate: riskGate, r: execR, // T-0050
 				redeem: earnW.RedeemToTrading, // O-CAP1：dcdexec 前置赎回同源 earn 实例（execR.WithEarn 同件）
 				cli:    newCli(priv.Credentials()), xcli: xcli, xdial: xdial, xds: xds}
+			// venue 原生 bot 管护臂（工单#25840——kill 闸消费+权益快照+业主
+			// 首闸拉起；ro=mutating 全撤不挂；okcli 同 mutating 凭据件）。
+			go okxgrid.NewRunner(pool, cfg, okxgrid.NewAdapter(okcli)).Run(ctx, errc)
 		} // !ro mutating 接线域收
 		// 读径面（只读镜像全通）：boot 首读播种+平仓量现读+funding 记账+私流守。
 		creds := priv.Credentials()

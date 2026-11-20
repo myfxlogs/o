@@ -55,6 +55,10 @@ var dmWritableGlobs = []string{
 	"okxws.kline_topn",            // 日K宇宙动扩额度（工单#18314①——volCcy24h 降序 topN 并扫集,0=关）
 	"okxws.kline_census_hours",    // 全 USDT-SWAP 普查降频时（工单#18314②——零量新上补盲,0=关）
 	"deploy.*",                    // 部署窗（o-core 换件集中放件时窗——工单#25760）
+	"okxgrid.snap_sec",            // venue原生bot监控拍秒（工单#25840）
+	"okxgrid.max_invest_usd",      // 单bot投入帽（工单#25840——业主闸下二次保险）
+	"okxgrid.kill_stop_type",      // 拔线回收形（工单#25840——1卖基币/2留基币）
+	"okxgrid.harvest_min_usd",     // 收割阈（工单#25840——withdraw-income 触发阈）
 }
 
 // ownerKeyGlobs —— 业主面键（分册 owner 行同集镜像；与 dm 集不交——交叠=闸红）。
@@ -82,6 +86,7 @@ var ownerKeyGlobs = []string{
 	"readcred.entitlement",  // 读凭据权限白名单（访问控制面——fail-closed）
 	"repair.feeds",          // 采集臂修复注册表（基建自愈面——白名单在码面）
 	"repair.guard",          // 修复环闸参数（配额闸防风暴）
+	"okxgrid.live_switch",   // venue原生bot真钱拉起首闸（工单#25840——手动期业主令显式放，fail-closed）
 }
 
 // credentialRE 凭证形键硬拒（先于一切通配——任何键形含凭证词即 owner；
