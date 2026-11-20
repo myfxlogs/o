@@ -174,7 +174,14 @@ if [ -n "$DSN" ]; then
 			out=$(bash scripts/deploy_oci.sh "$arm" 2>&1); rc=$?
 			echo "$out" | tail -3 | while read -r l; do say "$l"; done
 			if [ $rc -ne 0 ]; then
-				esc "oci_arm_deploy_$arm" "部署/oci_arm_deploy: 自动换臂$arm rc=$rc（master=$SHORT 待换）尾=$(echo "$out" | tail -2 | tr '\n' ' ' | cut -c1-120)——归唤知会话清障（锁/ssh路由/环约缺键/健康闸）"
+				# 工单#25658：锁竞争签名（deploy_oci die 两形——「部署锁占用 age<1800s」
+				# /「抢锁败」）=他席活锁在途,非真败——退避让位下拍自然接管,不升件
+				# （真败仍被下行 >24h lag 侦兜,不沉）。串臂每臂撞锁各升一件=
+				# 自伤信号源实证。
+				case "$out" in
+					*部署锁占用*|*抢锁败*) say "臂$arm 撞部署锁（他席在途）——退避让位下拍";;
+					*) esc "oci_arm_deploy_$arm" "部署/oci_arm_deploy: 自动换臂$arm rc=$rc（master=$SHORT 待换）尾=$(echo "$out" | tail -2 | tr '\n' ' ' | cut -c1-120)——归唤知会话清障（锁/ssh路由/环约缺键/健康闸）";;
+				esac
 				continue
 			fi
 			ASHA=$(psql "$DSN" -qAt -c "SELECT (regexp_match(note,'deploy-oci ([0-9a-f]+)'))[1] FROM ops_event WHERE seat='DEPLOY' AND event='部署' AND note LIKE 'deploy-oci %rc=0%' AND note ~ ('arms=[^|]*$arm([^a-z]|$)') ORDER BY id DESC LIMIT 1" 2>/dev/null)
