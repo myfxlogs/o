@@ -17,6 +17,11 @@ var drillUnsupported = []string{
 	"stake-carry",       // 工单#21612：参考模型族——venue 执行臂未建无可演习腿形，凭据伪造不可为
 	"grid_spot",         // 工单#25840：venue 原生 bot 容器族——execution.Executor 腿形语义外（okxgrid 适配器径），无可演习腿形
 	"sprd-atomic-basis", // 工单#26268：venue 原子多腿价差容器族——sprd 原子执行臂未接（凭据 403 在案），无可演习腿形勿虚开
+	"stake-carry",          // 工单#21612：参考模型族——venue 执行臂未建无可演习腿形，凭据伪造不可为
+	"grid_spot",            // 工单#25840：venue 原生 bot 容器族——execution.Executor 腿形语义外（okxgrid 适配器径），无可演习腿形
+	"stable-park-usdg",     // 工单#26272：骨架族——真径=okx finance okusd 申赎非 Executor 腿形，probe→live 结构性拦保持
+	"staking-defi-parking", // 工单#26272：骨架族——真径=okx finance staking-defi purchase/redeem 非 Executor 腿形，probe→live 结构性拦保持
+	"signal-bot-relay",     // 工单#26272：骨架族——真径=tradingBot signal 适配器非 Executor 腿形，probe→live 结构性拦保持
 }
 
 func TestExecfamLegShapeAlign(t *testing.T) {

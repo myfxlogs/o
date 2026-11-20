@@ -54,6 +54,25 @@ func TestInstFitOKFamilyContract(t *testing.T) {
 		{"sprd-atomic-basis", "BTC-USDT_BTC-USDT-SWAP_EXTRA", false},     // 三段腿拒
 		{"sprd-atomic-basis", "BTC-USDT_BTC-USDT-261225-95000-C", false}, // 期权腿拒
 		{"sprd-atomic-basis", "BTC-USDT_btc-usdt-swap", false},           // 腿内小写形拒
+		// stable-park-usdg：okx:USDG 资产级伪键=合；他币伪键/交易对/SWAP=拒
+		{"stable-park-usdg", "okx:USDG", true},
+		{"stable-park-usdg", "okx:USDT", false},  // 伪键他币非本族标的
+		{"stable-park-usdg", "cmc:USDG", false},  // venue 前缀钉 okx
+		{"stable-park-usdg", "USDG-USDT", false}, // 交易对非伪键形
+		{"stable-park-usdg", "USDG-USDT-SWAP", false},
+		// staking-defi-parking：okx:ETH/okx:SOL 资产级伪键=合；他币/异 venue/交易对=拒
+		{"staking-defi-parking", "okx:ETH", true},
+		{"staking-defi-parking", "okx:SOL", true},
+		{"staking-defi-parking", "okx:BTC", false},  // 卡面钦定两币收窄
+		{"staking-defi-parking", "cmc:ETH", false},  // venue 前缀钉 okx
+		{"staking-defi-parking", "ETH-USDT", false}, // 交易对非伪键形
+		{"staking-defi-parking", "ETH-USDT-SWAP", false},
+		// signal-bot-relay：信号载体=order-algo instIds USDT 永续形=合；币本位/现货/远期/伪键=拒
+		{"signal-bot-relay", "BTC-USDT-SWAP", true},
+		{"signal-bot-relay", "BTC-USD-SWAP", false},   // D-0018 USDT 计价闸
+		{"signal-bot-relay", "BTC-USDT", false},       // 现货对非载体形
+		{"signal-bot-relay", "BTC-USD-261225", false}, // 远期形非 instIds 域
+		{"signal-bot-relay", "okx:BTC", false},        // 伪键非载体形
 		// 未注册族 fail-closed
 		{"unsupported-template", "BTC-USDT-SWAP", false},
 	}
@@ -82,6 +101,9 @@ func TestInstFitOKCoversExecFam(t *testing.T) {
 		"stake-carry":             "okx:TRX",
 		"grid_spot":               "BTC-USDT",
 		"sprd-atomic-basis":       "BTC-USDT_BTC-USDT-SWAP",
+		"stable-park-usdg":        "okx:USDG",
+		"staking-defi-parking":    "okx:ETH",
+		"signal-bot-relay":        "BTC-USDT-SWAP",
 	}
 	for _, tmpl := range execfam.All() {
 		inst, ok := valid[tmpl]

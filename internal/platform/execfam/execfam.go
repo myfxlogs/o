@@ -36,6 +36,21 @@ var set = map[string]bool{
 	// 性拦勿虚开）。inst 构型=sprdId 双腿 '_' 连接形（legset.InstFitOK
 	// 同源判）。hunger 册免：族无自有 cfg 键——depenum/facesnap_whitelist
 	// 「有键才册」票钦免册。
+	"stable-park-usdg": true, // 工单#26272 parked卡#550053 骨架登记——paper 域
+	// 提案门开；真径=OKX finance okusd subscribe/redeem(clOrdId幂等,非
+	// execution.Executor腿语义);Drillable未册=probe→live结构性拦在位;
+	// 凭据域=业主condreq在案(前提①),登记语义=骨架册非执行径;
+	// hunger depenum/facesnap_whitelist 免册=族无自有cfg键(有键才册票钦)。
+	"staking-defi-parking": true, // 工单#26272 parked卡#550055 骨架登记——
+	// paper 域提案门开;真径=OKX finance staking-defi offers purchase/
+	// redeem/cancel(三向停泊比价评估,非Executor腿语义);Drillable未册=
+	// probe→live结构性拦在位;凭据域=业主condreq在案;hunger册免=
+	// 族无自有cfg键(有键才册票钦)。
+	"signal-bot-relay": true, // 工单#26272 parked卡#550054 骨架登记——
+	// paper 域提案门开;真径=tradingBot signal API(create-signal+order-
+	// algo+webhook,venue侧executor转发外部信号,消化#26159取证在案;弹
+	// 性增量非新alpha);Drillable未册=probe→live结构性拦在位;凭据域=
+	// 业主condreq;hunger册免=族无自有cfg键(有键才册票钦)。
 }
 
 // Has 模板族执行径在册否。
