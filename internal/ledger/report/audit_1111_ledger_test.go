@@ -29,9 +29,25 @@ func TestAuditRealizedSimVenuePollution(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	var simPos int64
+	{
+		var sid, eid int64
+		if err := pool.QueryRow(ctx, `INSERT INTO fin_strategy(inst_id,template_ref,state,notional_usd,venue)
+			VALUES('SIM-USDT','simdrill:cell:audit-sim-pollution','retired',50,'okx') RETURNING id`).Scan(&sid); err != nil {
+			t.Fatal(err)
+		}
+		if err := pool.QueryRow(ctx, `INSERT INTO fin_execution(strategy_ref,inst_id,notional_usd,state)
+			VALUES($1,'SIM-USDT',50,'open') RETURNING id`, sid).Scan(&eid); err != nil {
+			t.Fatal(err)
+		}
+		if err := pool.QueryRow(ctx, `INSERT INTO fin_position(execution_id,strategy_ref,inst_id,notional_usd)
+			VALUES($1,$2,'SIM-USDT',50) RETURNING id`, eid, sid).Scan(&simPos); err != nil {
+			t.Fatal(err)
+		}
+	}
 	if _, err := pool.Exec(ctx, `INSERT INTO fin_cashflow
 		(kind,venue,ccy,amount,position_ref,source_ref,source_table,occurred_at)
-		VALUES('fee','sim','USDT',-7.00,NULL,0,'simvenue',now())`); err != nil {
+		VALUES('fee','sim','USDT',-7.00,$1,0,'simvenue',now())`, simPos); err != nil {
 		t.Fatal(err)
 	}
 	after, err := Realized(ctx, pool, start, end)
