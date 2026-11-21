@@ -184,6 +184,11 @@ func (c coreService) moneyRows(ctx context.Context, o *dashboardv1.OverviewRespo
 		if aerr != nil {
 			log.Printf("WARN: MT5 户活读败（钱在哪卡显读件缺）: %v", aerr)
 		}
+		// 工单#26999：结构死 venue（ErrVenueDead）腿注记死因——navBy 对
+		// 死腿剔除照写 NAV；暂态读败照 miss 照挡不动。显形行不动（诚实）。
+		if IsVenueDead(aerr) {
+			miss.Note = "读件缺·" + venueDeadMark
+		}
 		o.Money = append(o.Money, miss)
 	} else {
 		for _, a := range accts {

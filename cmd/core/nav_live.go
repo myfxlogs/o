@@ -70,7 +70,10 @@ func mt5SummaryOnce(ctx context.Context, pool *pgxpool.Pool, cfg *config.Client,
 	cl, err := open(ctx)
 	if err != nil {
 		mt5Sum.at, mt5Sum.err = time.Now(), err
-		return mt5Sum.acct, err
+		if IsVenueDead(err) { // 工单#26999：结构死 venue 分类——暂态读败非同类
+			mt5Sum.err = venueDeadWrap(err)
+		}
+		return mt5Sum.acct, mt5Sum.err
 	}
 	defer cl.Close()
 	login, _, _, ferr := cl.AccountFacts(ctx)
@@ -78,6 +81,9 @@ func mt5SummaryOnce(ctx context.Context, pool *pgxpool.Pool, cfg *config.Client,
 	if ferr != nil || aerr != nil {
 		mt5Sum.at = time.Now()
 		mt5Sum.err = fmt.Errorf("mt5 facts/summary: %v / %v", ferr, aerr)
+		if IsVenueDead(ferr) || IsVenueDead(aerr) {
+			mt5Sum.err = venueDeadWrap(mt5Sum.err)
+		}
 		return mt5Sum.acct, mt5Sum.err
 	}
 	acct := mt5Acct{Login: fmt.Sprintf("%d", login), Equity: eq, Balance: bal}

@@ -17,9 +17,15 @@ import (
 func navBy(o *dashboardv1.OverviewResponse) (map[string]float64, error) {
 	var miss []string
 	for _, m := range o.Money {
-		if m.GetNote() != "" {
-			miss = append(miss, m.GetSection()+"/"+m.GetLabel())
+		if m.GetNote() == "" {
+			continue
 		}
+		// 工单#26999：结构死 venue 腿（note 载 venueDeadMark）不计 miss——
+		// 死腿剔除照写 NAV（缺腿语义由显形行承载）；暂态读败照 miss 照挡。
+		if strings.Contains(m.GetNote(), venueDeadMark) {
+			continue
+		}
+		miss = append(miss, m.GetSection()+"/"+m.GetLabel())
 	}
 	if len(miss) > 0 {
 		return nil, fmt.Errorf("nav 缺腿（%s）——本拍让位不写", strings.Join(miss, ","))
