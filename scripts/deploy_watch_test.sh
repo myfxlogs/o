@@ -18,13 +18,26 @@ bad() { FAILN=$((FAILN+1)); echo "  FAIL $1"; }
 mkdir -p "$T/bin"
 cat > "$T/bin/psql" <<'EOF'
 #!/usr/bin/env bash
-# psql 桩：按 -c SQL 词面应答；查询全落 PSQL_LOG 供断言（INSERT 亦记）。
+# psql 桩：按 -c SQL 词面应答；查询全落 PSQL_LOG 供断言。
+# INSERT 走词法级校验（工单#29766）：剥合法串字面量后剩余裸词
+# 只许 INSERT 结构词表——note 内嵌未转义 ' 会截断字面量产裸词
+# （conclusion='failure'→failure 裸词）=真 psql 同款语法错→rc1
+# 不落 PSQL_OK；''转义对合法不产裸词→落 PSQL_OK=「行落账」断言面。
+# 引号计数偶/奇判不可信（嵌入引号恒成对——病灶恰在位置不在数量）。
+# T_HB_FAIL=1 心跳写败径不变。
 sql=""; prev=""
 for a in "$@"; do [ "$prev" = "-c" ] && sql="$a"; prev="$a"; done
 printf '%s\n' "$sql" >> "${PSQL_LOG:-/dev/null}"
 case "$sql" in
-  INSERT*心跳*'') [ "${T_HB_FAIL:-0}" = 1 ] && exit 1; exit 0;;
-  INSERT*) exit 0;;
+  INSERT*)
+    if printf '%s' "$sql" | grep -q '心跳' && [ "${T_HB_FAIL:-0}" = 1 ]; then exit 1; fi
+    stripped=$(printf '%s' "$sql" | sed -E "s/'([^']|'')*'//g")
+    badbw=$(printf '%s\n' "$stripped" | tr -c 'A-Za-z_' '\n' \
+      | grep -E '^[A-Za-z_]+$' | sort -u \
+      | grep -vE '^(INSERT|INTO|ops_event|seat|event|ticket|note|esc_class|esc_scope|VALUES)$')
+    [ -z "$badbw" ] || exit 1
+    printf '%s\n' "$sql" >> "${PSQL_OK:-/dev/null}"
+    exit 0;;
   *deploy.ocore_window_utc*)  printf '%s\n' "${T_WIN:-19:00-21:00}";;
   *deploy.ocore_window_max_hold_h*) printf '%s\n' "${T_MAXH:-26}";;
   *o-core-clean:*) printf '%s\n' "${T_CLEANWM:-}";;
@@ -51,10 +64,20 @@ cat > "$T/bin/go" <<'EOF'
 printf 'o/cmd/core\no/internal/platform/config\n'
 EOF
 chmod +x "$T/bin/go"
+cat > "$T/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+# gh 桩：build-test check-runs 应答面——deploy_watch 取 --jq 后形
+# 「<status> <conclusion>」（缺省绿；T_CIV 注入红/待闸态重放）。
+case "$*" in
+  *check-runs*) printf '%s\n' "${T_CIV:-completed success}";;
+esac
+exit 0
+EOF
+chmod +x "$T/bin/gh"
 
 # ── 夹具：bare origin + master 对齐 clone（真 git；脚本/stub 入 base commit）──
 new_repo() {
-	rm -rf "$T/o" "$T/origin.git" "$T/psql.log" "$T/calls.log" "$T/out"
+	rm -rf "$T/o" "$T/origin.git" "$T/psql.log" "$T/psql_ok.log" "$T/calls.log" "$T/out"
 	git init --bare -q "$T/origin.git"
 	git init -q -b master "$T/o"
 	git -C "$T/o" config user.email t@t
@@ -88,12 +111,13 @@ second_commit() { # $1=path $2=content [$3=commit date ISO]
 	git -C "$T/o" push -qu origin master
 	HEAD2=$(git -C "$T/o" rev-parse --short=12 master)
 }
-run_dw() { # $1=now epoch [$2=T_WIN] [$3=T_MAXH] [$4=T_CLEANWM] [$5=T_QUEUED]
+run_dw() { # $1=now epoch [$2=T_WIN] [$3=T_MAXH] [$4=T_CLEANWM] [$5=T_QUEUED] [$6=T_CIV]
 	( cd "$T/o" && env PATH="$T/bin:$PATH" FIN_PG_DSN=stub REPORT_ENV_FILE=/dev/null \
-		PSQL_LOG="$T/psql.log" CALL_LOG="$T/calls.log" \
+		PSQL_LOG="$T/psql.log" PSQL_OK="$T/psql_ok.log" CALL_LOG="$T/calls.log" \
 		O_DEPLOY_NOW_EPOCH="$1" T_DEPLOYED="$BASE" \
 		T_WIN="${2:-19:00-21:00}" T_MAXH="${3:-26}" \
 		T_CLEANWM="${4:-}" T_QUEUED="${5:-0}" T_DIRTYN="${T_DIRTYN:-0}" \
+		T_CIV="${6:-completed success}" \
 		T_HB_LAST_STATE="${T_HB_LAST_STATE:-}" T_HB_LAST_AGE="${T_HB_LAST_AGE:-999999}" \
 		bash scripts/deploy_watch.sh >"$T/out" 2>&1 )
 }
@@ -178,6 +202,17 @@ echo "== ⑩ 单拍不升 =="
 new_repo; second_commit docs/note.md "doc" "2026-11-20T03:00:00"
 T_DIRTYN=1 run_dw "$(now_of '2026-11-20 10:00:00')"
 has '脏树连拍拒部' "$T/psql.log" && bad "单拍竟升件" || ok "单拍零升件"
+
+# ═══ ⑪ CI红断升件引号面（工单#29766）：conclusion='failure' 嵌入
+# 单引号曾断 SQL 字面量→INSERT 每拍写败被 tolerate 吞（deploy_ci_red
+# 升件 0 行 vs CI红断心跳 1594 行/9h=信号面假净根因）。验收径=
+# CIV=failure 重放→升件 INSERT 引号转义后落 PSQL_OK。═══
+echo "== ⑪ CI红断引号面 =="
+new_repo; second_commit cmd/core/main.go "package main" "2026-11-20T03:00:00"
+run_dw "$(now_of '2026-11-20 19:30:00')" 00:00-23:59 26 "" 0 "completed failure"
+has 'deploy_ci_red' "$T/psql_ok.log" && ok "CI红断升件落账" || bad "CI红断升件缺/SQL破"
+has "conclusion=''failure''" "$T/psql.log" && ok "引号已转义" || bad "引号未转义"
+has 'CI红断' "$T/out" && ok "CI红断判词" || bad "CI红断判词缺"
 
 echo "== 汇总: PASS=$PASS FAIL=$FAILN =="
 [ "$FAILN" -eq 0 ]
