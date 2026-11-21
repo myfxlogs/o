@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"errors"
 
 	"time"
 
@@ -91,6 +92,11 @@ func (c coreService) ListTrxTxs(ctx context.Context,
 func (c coreService) ListHedgeFlow(ctx context.Context,
 	req *dashboardv1.ListHedgeFlowRequest) (*dashboardv1.ListHedgeFlowResponse, error) {
 	w := c.trx
+	if w == nil {
+		// 载荷契约「查败=帧照发不炸流」——臂未装配归 error 非 panic
+		// （测面 svc 无 trx 装配；产态 trxArms 恒非 nil）。
+		return nil, errors.New("trx 读臂未装配")
+	}
 	items, err := w.st.ListHedgeFlowPage(ctx, req.GetSourceFilter(), int(req.GetLimit()), int(req.GetOffset()))
 	if err != nil {
 		return nil, err
