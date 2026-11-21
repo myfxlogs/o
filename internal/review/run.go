@@ -257,7 +257,15 @@ func (r *Runner) recycleFalsified(ctx context.Context, execID int64, attrib stri
 	}
 	// live→degraded 合法径内联迁（review→lifecycle 跨包向禁——D-514）：
 	// state='live' 谓词=只迁 live 行，非 live 行零动不误迁。
-	tag, err := r.fin.Exec(ctx, `UPDATE fin_strategy SET state='degraded',entered_at=now()
+	// 迁移+留痕同 tx（升件#27183——两拍裸 Exec 崩于写间=无痕迁移；
+	// dirline tx.Exec 先例同形）。
+	tx, err := r.fin.Begin(ctx)
+	if err != nil {
+		r.rej.Inc("write_err")
+		return
+	}
+	defer tx.Rollback(ctx) // Committed 后=noop（幂等兜底）。
+	tag, err := tx.Exec(ctx, `UPDATE fin_strategy SET state='degraded',entered_at=now()
 		WHERE id=$1 AND state='live'`, sid)
 	if err != nil {
 		r.rej.Inc("write_err")
@@ -267,9 +275,13 @@ func (r *Runner) recycleFalsified(ctx context.Context, execID int64, attrib stri
 	if tag.RowsAffected() == 0 {
 		return // 非 live 态（已退役/降级/未晋）——回炉径天然无事
 	}
-	if _, err := r.fin.Exec(ctx, `INSERT INTO fin_strategy_transition(strategy_id,from_state,to_state,reason)
+	if _, err := tx.Exec(ctx, `INSERT INTO fin_strategy_transition(strategy_id,from_state,to_state,reason)
 		VALUES($1,'live','degraded',$2)`, sid,
 		fmt.Sprintf("falsified 判决回炉（归因=%s）——降级待复盘非原地待命", attrib)); err != nil {
+		r.rej.Inc("write_err")
+		return
+	}
+	if err := tx.Commit(ctx); err != nil {
 		r.rej.Inc("write_err")
 		return
 	}
