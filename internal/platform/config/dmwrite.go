@@ -30,35 +30,45 @@ const dmActor = "决策席-DM写径"
 // dmWritableGlobs —— dm 类通配（分册 dm 行同集镜像；顺序无关——凭证形
 // regex 前置硬拒、owner 行次之，本集末查）。
 var dmWritableGlobs = []string{
-	"research.*",                  // 评估阈/族参数/扫描族启停
-	"guard.*",                     // 守仓参数（flip/breakeven/max_hold——执行域）
-	"invest.lifecycle.*",          // 放行线+paper→probe→live 判据值
-	"invest.paper.*",              // paper 仓位判定
-	"scout.*",                     // venue 测榜参数
-	"lifecycle.*",                 // 生命周期 TTL/冷却族
-	"strategy.*",                  // 降级 TTL 族
-	"gate.kill.*",                 // 族级风险停机闸（退役闸族——T-0312 白名单续认）
-	"exec.*",                      // 执行参数（探针仓位/超时/冷却/cfd_map）
-	"funding.scan_timeout_s",      // funding 扫描超时
-	"gapscan.scan_timeout_s",      // gap 扫描超时
-	"dm.hunger.*",                 // 饥饿响应自参数（检测窗）
-	"earn.auto_purchase_enabled",  // 闲置金 Earn 自动转入（资金运用重排）
-	"earn.sweep_whitelist",        // Earn 扫袋白名单（T-0439 计价币放行线）
-	"earn.residual_clear_min_usd", // 杂币实存即清粉尘阈（T-0439 闸值族）
-	"earn.residual_clear_halted",  // 残币处置停摆键（工单#22248①——置位即零动钱）
-	"trx.floor_pct",               // Tron 质押保底率（Earn 族）
-	"trx.vote_enabled",            // Tron 投票开关（Earn 族）
-	"trx.vote_max_rebal_per_day",  // Tron 再平衡频次（Earn 族）
-	"trx.poll_seconds",            // Tron 轮询间隔（Earn 族）
-	"okxws.tick_scan_s",           // 粗扫节拍秒（T-0401 两级采集制——60s 钦定值覆写键）
-	"okxws.kline_watchlist",       // 日K观察名单（业主令 2026-11-15 感知面扩集——破活跃集闭环失明，DM 可自扩）
-	"okxws.kline_topn",            // 日K宇宙动扩额度（工单#18314①——volCcy24h 降序 topN 并扫集,0=关）
-	"okxws.kline_census_hours",    // 全 USDT-SWAP 普查降频时（工单#18314②——零量新上补盲,0=关）
-	"deploy.*",                    // 部署窗（o-core 换件集中放件时窗——工单#25760）
-	"okxgrid.snap_sec",            // venue原生bot监控拍秒（工单#25840）
-	"okxgrid.max_invest_usd",      // 单bot投入帽（工单#25840——业主闸下二次保险）
-	"okxgrid.kill_stop_type",      // 拔线回收形（工单#25840——1卖基币/2留基币）
-	"okxgrid.harvest_min_usd",     // 收割阈（工单#25840——withdraw-income 触发阈）
+	"research.*",                   // 评估阈/族参数/扫描族启停
+	"guard.*",                      // 守仓参数（flip/breakeven/max_hold——执行域）
+	"invest.lifecycle.*",           // 放行线+paper→probe→live 判据值
+	"invest.paper.*",               // paper 仓位判定
+	"scout.*",                      // venue 测榜参数
+	"lifecycle.*",                  // 生命周期 TTL/冷却族
+	"strategy.*",                   // 降级 TTL 族
+	"gate.kill.*",                  // 族级风险停机闸（退役闸族——T-0312 白名单续认）
+	"exec.*",                       // 执行参数（探针仓位/超时/冷却/cfd_map）
+	"funding.scan_timeout_s",       // funding 扫描超时
+	"gapscan.scan_timeout_s",       // gap 扫描超时
+	"dm.hunger.*",                  // 饥饿响应自参数（检测窗）
+	"earn.auto_purchase_enabled",   // 闲置金 Earn 自动转入（资金运用重排）
+	"earn.sweep_whitelist",         // Earn 扫袋白名单（T-0439 计价币放行线）
+	"earn.residual_clear_min_usd",  // 杂币实存即清粉尘阈（T-0439 闸值族）
+	"earn.residual_clear_halted",   // 残币处置停摆键（工单#22248①——置位即零动钱）
+	"trx.floor_pct",                // Tron 质押保底率（Earn 族）
+	"trx.vote_enabled",             // Tron 投票开关（Earn 族）
+	"trx.vote_max_rebal_per_day",   // Tron 再平衡频次（Earn 族）
+	"trx.poll_seconds",             // Tron 轮询间隔（Earn 族）
+	"okxws.tick_scan_s",            // 粗扫节拍秒（T-0401 两级采集制——60s 钦定值覆写键）
+	"okxws.kline_watchlist",        // 日K观察名单（业主令 2026-11-15 感知面扩集——破活跃集闭环失明，DM 可自扩）
+	"okxws.kline_topn",             // 日K宇宙动扩额度（工单#18314①——volCcy24h 降序 topN 并扫集,0=关）
+	"okxws.kline_census_hours",     // 全 USDT-SWAP 普查降频时（工单#18314②——零量新上补盲,0=关）
+	"deploy.*",                     // 部署窗（o-core 换件集中放件时窗——工单#25760）
+	"okxgrid.snap_sec",             // venue原生bot监控拍秒（工单#25840）
+	"okxgrid.max_invest_usd",       // 单bot投入帽（工单#25840——业主闸下二次保险）
+	"okxgrid.kill_stop_type",       // 拔线回收形（工单#25840——1卖基币/2留基币）
+	"okxgrid.harvest_min_usd",      // 收割阈（工单#25840——withdraw-income 触发阈）
+	"okxgrid.verdict_enabled",      // bot判官环开关（业主令2026-11-21全域自判——判据O自定）
+	"okxgrid.stop_loss_frac",       // 判平亏穿线frac×投额
+	"okxgrid.stop_patience_h",      // 亏穿持续窗小时
+	"okxgrid.stop_warmup_h",        // 判官热身期小时
+	"okxgrid.scale_min_age_h",      // 判加最小单龄小时
+	"okxgrid.scale_apr_min",        // 判加网格APR阈
+	"okxgrid.scale_float_max_frac", // 判加浮亏界frac×投额
+	"okxgrid.scale_size_usd",       // 判加平行单投入USDT
+	"okxgrid.agg_invest_max_usd",   // 聚合投入帽USDT（机器线内护栏非业主键）
+	"okxgrid.harvest_cooldown_s",   // 收割冷却秒
 }
 
 // ownerKeyGlobs —— 业主面键（分册 owner 行同集镜像；与 dm 集不交——交叠=闸红）。

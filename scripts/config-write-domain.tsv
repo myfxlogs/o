@@ -71,3 +71,13 @@ okxgrid.max_invest_usd	dm	单bot投入帽USDT（工单#25840——业主闸下�
 okxgrid.kill_stop_type	dm	拔线回收形（工单#25840——1=卖基币回quote/2=留基币,钦定回收形缺省1）
 okxgrid.harvest_min_usd	dm	收割阈USDT（工单#25840——grid_profit达阈可withdraw-income,缺省5）
 okxgrid.live_switch	owner	venue原生bot真钱拉起首闸（工单#25840——手动期钦定：首批拉起须业主令显式放;缺/非true fail-closed）
+okxgrid.verdict_enabled	dm	bot判官环开关（业主令2026-11-21全域自判授权——判据O自定,缺省true）
+okxgrid.stop_loss_frac	dm	判平亏穿线frac×投额（判官判据,缺省0.15）
+okxgrid.stop_patience_h	dm	亏穿持续窗小时（窗内快照全穿才判平,缺省72）
+okxgrid.stop_warmup_h	dm	判官热身期小时（新单不判死,缺省24）
+okxgrid.scale_min_age_h	dm	判加最小单龄小时（缺省168=7d）
+okxgrid.scale_apr_min	dm	判加网格APR阈（grid_profit/投/龄年化,缺省0.20）
+okxgrid.scale_float_max_frac	dm	判加浮亏界frac×投额（缺省0.05）
+okxgrid.scale_size_usd	dm	判加平行单投入USDT（缺省100）
+okxgrid.agg_invest_max_usd	dm	聚合投入帽USDT（机器线内护栏非业主键,缺省500）
+okxgrid.harvest_cooldown_s	dm	收割冷却秒（防重收,缺省86400）
