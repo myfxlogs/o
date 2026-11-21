@@ -108,6 +108,10 @@ func (s *stubSensor) ProbeUnitDrift(context.Context) error {
 	return nil
 }
 
+func (s *stubSensor) ProbeAuditCanary(context.Context) error {
+	return nil
+}
+
 func (s *stubSensor) MineLessons(context.Context) (int, error) {
 	s.mines.Add(1)
 	return s.mineN, s.merr
