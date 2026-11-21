@@ -119,9 +119,25 @@ func TestFrictionCalibrateMeasuredFee(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		mkClosedPosition(t, ctx, r, 2000, 0.2)
 	}
-	// sim 域行——剔除锚（不计入）。
+	// sim 域行——剔除锚（不计入）。fin_0225 域闸：sim 行必须挂演习仓。
+	var simPos int64
+	{
+		var sid, eid int64
+		if err := r.pool.QueryRow(ctx, `INSERT INTO fin_strategy(inst_id,template_ref,state,notional_usd,venue)
+			VALUES('SIM-USDT','simdrill:cell:friction-cal','retired',50,'okx') RETURNING id`).Scan(&sid); err != nil {
+			t.Fatal(err)
+		}
+		if err := r.pool.QueryRow(ctx, `INSERT INTO fin_execution(strategy_ref,inst_id,notional_usd,state)
+			VALUES($1,'SIM-USDT',50,'closed') RETURNING id`, sid).Scan(&eid); err != nil {
+			t.Fatal(err)
+		}
+		if err := r.pool.QueryRow(ctx, `INSERT INTO fin_position(execution_id,strategy_ref,inst_id,notional_usd)
+			VALUES($1,$2,'SIM-USDT',50) RETURNING id`, eid, sid).Scan(&simPos); err != nil {
+			t.Fatal(err)
+		}
+	}
 	if _, err := r.pool.Exec(ctx, `INSERT INTO fin_cashflow(kind,venue,ccy,amount,position_ref,source_ref,source_table,occurred_at)
-		VALUES('fee','sim','USDT',-99,999999,0,'simvenue',now())`); err != nil {
+		VALUES('fee','sim','USDT',-99,$1,0,'simvenue',now())`, simPos); err != nil {
 		t.Fatal(err)
 	}
 	if err := r.frictionCalibrate(ctx); err != nil {

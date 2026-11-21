@@ -45,6 +45,20 @@ for t in "${rev_tables[@]}"; do
 done
 echo "OK[bridge-audit] 授权列: $((${#rev_tables[@]}+${#fwd_tables[@]})) 桥表×projector_rw.SELECT + ${#rev_tables[@]} reverse×research_rw.SELECT 齐"
 
+# ── ①b 法证读面列（fin_0226——o_fin_ro 钱账底表 SELECT 钉；
+# 迁移在案才断言:部署窗内 schema_migrations 无 0226=grace 跳,
+# 已迁移缺权=红——授权回潮 CI 拦）─────────────────────────────
+HAS226=$(sg_q "SELECT count(*) FROM schema_migrations WHERE version=226")
+if [ "$HAS226" = "1" ]; then
+	for t in fin_bot_order fin_bot_equity_snap fin_paper_fill fin_holding; do
+		n=$(sg_q "SELECT count(*) FROM information_schema.role_table_grants WHERE grantee='o_fin_ro' AND table_name='$t' AND privilege_type='SELECT'")
+		[ "$n" = "1" ] || red "法证读面授权缺: SG o_fin_ro.SELECT on $t（fin_0226 在案而实机无——宣告vs物理对拍断径回潮）"
+	done
+	echo "OK[bridge-audit] 法证读面列: 4 表×o_fin_ro.SELECT 齐（fin_0226 在案）"
+else
+	echo "[bridge-audit] 法证读面列: fin_0226 未迁移——grace 跳（部署窗）"
+fi
+
 # ── ② 触发器存在性列 ─────────────────────────────────────
 # 迁移册派生：TRIGGER <name> ... ON <table>，按文件名链分侧（fin_*→SG，md_*→OCI）。
 # 清单空=红（抽取败静默过=闸失效同病灶）。
