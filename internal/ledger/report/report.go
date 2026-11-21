@@ -70,6 +70,21 @@ func Gen(ctx context.Context, pool *pgxpool.Pool, period string, b Bounds) error
 		}
 		m["annualized"] = ann
 		m["capital_base"] = base
+		// 法证劈①成分钉（2026-11-21 浑水式法证——「策略在赚钱」假叙述：
+		// 全史实现盈亏万级但策略域净额分位级,全在业主现货腿。周/月报
+		// 拆 strategy_net(策略损益族 kinds)vs spot_leg_net(现货腿毛额)
+		// ——盈利宣告先看成分,spot 腿收益≠策略收益,假叙述不再靠撞）。
+		var stratNet, spotNet float64
+		q(`SELECT COALESCE(sum(amount),0) FROM fin_cashflow WHERE venue<>'sim'
+			AND kind IN ('trade_pnl','funding_settle','fee')
+			AND occurred_at>=$1 AND occurred_at<$2`, &stratNet, b.Start, b.End)
+		q(`SELECT COALESCE(sum(c.amount),0) FROM fin_cashflow c
+			JOIN fin_position p ON p.id=c.position_ref
+			WHERE c.kind IN ('spot_buy','spot_sell') AND p.closed_at>=$1 AND p.closed_at<$2
+			AND NOT EXISTS(SELECT 1 FROM fin_strategy s WHERE s.id=p.strategy_ref
+				AND s.template_ref LIKE 'simdrill%')`, &spotNet, b.Start, b.End)
+		m["strategy_net"] = stratNet
+		m["spot_leg_net"] = spotNet
 	}
 	if period == "monthly" {
 		var retired int
