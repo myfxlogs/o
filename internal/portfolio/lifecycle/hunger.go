@@ -36,6 +36,7 @@ type hungerSensor interface {
 	ProbeWorkerCloseout(ctx context.Context) error
 	ProbeDeployWatch(ctx context.Context) error
 	ProbeUnitDrift(ctx context.Context) error
+	ProbeAuditCanary(ctx context.Context) error
 	MineLessons(ctx context.Context) (int, error)
 }
 
@@ -153,6 +154,12 @@ func (r *Runner) hungerTick(ctx context.Context) {
 	if err := r.sensor.ProbeUnitDrift(ctx); err != nil {
 		log.Printf("[lifecycle] hungertick 建制单元差分探针败: %v", err)
 		r.hungerEscalate(ctx, "unitdrift_probe", err)
+	}
+	// 业主令 2026-11-21 审计雷探针同槽（同款败情隔离位——假命题升件
+	// 播种+处置核实度机械量：审计/处置席「核实过」vs「橡皮章」分）。
+	if err := r.sensor.ProbeAuditCanary(ctx); err != nil {
+		log.Printf("[lifecycle] hungertick 审计雷探针败: %v", err)
+		r.hungerEscalate(ctx, "canary_probe", err)
 	}
 	rep, err := r.sensor.Detect(ctx)
 	if err != nil {
