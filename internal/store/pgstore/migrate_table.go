@@ -233,6 +233,7 @@ var migrationTable = []struct {
 	{224, "fin_0224_closeout_shape_gate.sql"},  // 施工收口形闸——[施工收口:O-<票>] @ sha=<40>定稿形机械拒写
 	{225, "fin_0225_simdrill_domain_gate.sql"}, // 法证劈③——venue=sim 演习域写径闸(非演习仓物理拒)
 	{226, "fin_0226_finro_audit_read.sql"},     // 法证劈④⑤——o_fin_ro钱账读权+fin_cashflow_domain域视图
+	{227, "fin_0227_bot_order_notify.sql"},     // 经营推送补盲——fin_bot_order 拉起/停翻帧→ev_position（手动bot#1零报实证劈）
 
 	// —— md 链（版本链内唯一且单调；md 链版本=历史号+1000 与 fin 键空间全局不相交——跨链并 schema 时 schema_migrations 零撞号，check_migrations 断言①⑤）——
 	{1003, "md_1003_market_facts.sql"},

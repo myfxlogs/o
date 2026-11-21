@@ -43,6 +43,8 @@ func (e *EventPush) Scan(ctx context.Context) error {
 	e.pushOpened(ctx)
 	e.pushFunding(ctx)
 	e.pushClosed(ctx)
+	e.pushBotOpened(ctx)
+	e.pushBotStopped(ctx)
 	return nil
 }
 
@@ -132,6 +134,61 @@ func (e *EventPush) pushClosed(ctx context.Context) {
 		e.push(ctx, fmt.Sprintf("closed:%d", id),
 			fmt.Sprintf("平仓：%s，本轮净盈亏 %s%.4f %s", hedgeName(inst), sign, absf(pnl), ccy))
 	}
+}
+
+// pushBotOpened 网格 bot 拉起推（fin_0227 补盲——bot 域≠fin_position 形，
+// 手动/判官拉起源不分全报；参数取 params.quoteSz 投入额）。
+func (e *EventPush) pushBotOpened(ctx context.Context) {
+	rows, err := e.pool.Query(ctx, `SELECT id,inst_id,COALESCE(params->>'quoteSz','?')
+		FROM fin_bot_order WHERE launched_at > now()-interval '10 minutes' ORDER BY id`)
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id int64
+		var inst, quoteSz string
+		if err := rows.Scan(&id, &inst, &quoteSz); err != nil {
+			continue
+		}
+		e.push(ctx, fmt.Sprintf("bot_opened:%d", id),
+			fmt.Sprintf("网格开仓：%s 网格，投入 $%s", botBase(inst), quoteSz))
+	}
+}
+
+// pushBotStopped 网格 bot 收单推（stopped/killed 翻帧——收割回报载末拍
+// 已实现网格利；无快照=0）。
+func (e *EventPush) pushBotStopped(ctx context.Context) {
+	rows, err := e.pool.Query(ctx, `SELECT b.id,b.inst_id,b.state,
+		COALESCE((SELECT grid_profit FROM fin_bot_equity_snap s WHERE s.bot_id=b.id
+			ORDER BY ts DESC LIMIT 1),0) FROM fin_bot_order b
+		WHERE b.stopped_at IS NOT NULL AND b.stopped_at > now()-interval '10 minutes' ORDER BY b.id`)
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id int64
+		var inst, state string
+		var gridProfit float64
+		if err := rows.Scan(&id, &inst, &state, &gridProfit); err != nil {
+			continue
+		}
+		why := "收单"
+		if state == "killed" {
+			why = "闸停"
+		}
+		e.push(ctx, fmt.Sprintf("bot_stopped:%d", id),
+			fmt.Sprintf("网格%s：%s 网格，已实现网格利 %.4f USD", why, botBase(inst), gridProfit))
+	}
+}
+
+// botBase inst_id→标的名（BTC-USDT→BTC——同 hedgeName 截首段律）。
+func botBase(inst string) string {
+	if i := strings.IndexByte(inst, '-'); i > 0 {
+		return inst[:i]
+	}
+	return inst
 }
 
 // hedgeName inst_id→人话仓名（T-0065：ETH-USDT-SWAP→「ETH 期现对冲仓」；
