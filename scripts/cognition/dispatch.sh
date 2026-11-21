@@ -117,13 +117,14 @@ if [ -n "$OREPO" ] && [ "${PBR_FETCH:-0}" = 1 ]; then
 	# 载名判定=票面载支名 token，原 LIKE 子串口径收紧为边界 token）。
 	TICKETED_BR=$(psql "$DSN" -qAt -c "
 SELECT DISTINCT m[1] FROM ops_ticket_desk t,
- LATERAL regexp_matches(t.note,'\y((fix|feat|t|audit|revfix|hotfix)/[A-Za-z0-9._-]+)','g') m
+ LATERAL regexp_matches(t.note,'\y((fix|feat|t|audit|revfix|hotfix|canon)/[A-Za-z0-9._-]+)','g') m
 WHERE NOT t.closed" 2>/dev/null)
 	PBR_LIST=$(git -C "$OREPO" for-each-ref --no-merged origin/master \
 		--format='%(committerdate:unix) %(refname:short)' \
 		'refs/remotes/origin/fix/*' 'refs/remotes/origin/feat/*' \
 		'refs/remotes/origin/audit/*' 'refs/remotes/origin/revfix/*' \
-		'refs/remotes/origin/t/*' 'refs/remotes/origin/hotfix/*' 2>/dev/null \
+		'refs/remotes/origin/t/*' 'refs/remotes/origin/hotfix/*' \
+		'refs/remotes/origin/canon/*' 2>/dev/null \
 		| awk -v c=$(( $(date +%s) - 604800 )) '$1>c {print $2}' \
 		| sed 's|^origin/||' | tr -d "\"'\\")
 	PENDBR_N=0
@@ -135,7 +136,7 @@ WHERE NOT t.closed" 2>/dev/null)
 	P1CAND=$(psql "$DSN" -qAt <<'SQL'
 SELECT DISTINCT t.id||' '||m[1]
 FROM ops_ticket_desk t,
- LATERAL regexp_matches(t.note,'\y((fix|feat|t|audit|revfix|hotfix)/[A-Za-z0-9._-]+)','g') m
+ LATERAL regexp_matches(t.note,'\y((fix|feat|t|audit|revfix|hotfix|canon)/[A-Za-z0-9._-]+)','g') m
 WHERE NOT t.closed AND t.level=1
   AND t.filed_ts<now()-interval '60 minutes'
 SQL
