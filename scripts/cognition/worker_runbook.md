@@ -117,6 +117,7 @@ cd /opt/o && git fetch origin -q --prune && git for-each-ref \
   'refs/remotes/origin/fix/*' 'refs/remotes/origin/feat/*' \
   'refs/remotes/origin/t/*' 'refs/remotes/origin/audit/*' \
   'refs/remotes/origin/revfix/*' 'refs/remotes/origin/hotfix/*' \
+  'refs/remotes/origin/canon/*' \
   | awk -v c=$(( $(date +%s) - 604800 )) '$1>c {print $2,$3}' \
   | sed 's|^origin/||'   # 出「支名 尖全sha」对——land_queue CANDS 同口径
 ```

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # land_queue.sh —— 落地队列（工单#22577 / D-0048 裁定③）：
 # 「复审过的支→master」机械化——models 定时件（deploy/o-land-queue.timer，
-# 与 deploy_watch 同拍 15min）。候选支（fix|feat|t|audit|revfix|hotfix/*，
+# 与 deploy_watch 同拍 15min）。候选支（fix|feat|t|audit|revfix|hotfix|canon/*，
 # 尖 7d 内由 for-each-ref--no-merged 域界）三件事实齐即落：
 #   (a) 支尖 check_all 绿戳龄≤6h（git-common-dir/check-green-<tip全sha>）；
 #   (b) ops_event 有「复审过 sha=<尖全sha>」行且写行席≠该支完工回执席——
@@ -160,21 +160,22 @@ CANDS=$(git for-each-ref --no-merged origin/master --sort=committerdate \
 	--format='%(committerdate:unix) %(refname:short) %(objectname)' \
 	'refs/remotes/origin/fix/*' 'refs/remotes/origin/feat/*' \
 	'refs/remotes/origin/t/*' 'refs/remotes/origin/audit/*' \
-	'refs/remotes/origin/revfix/*' 'refs/remotes/origin/hotfix/*' 2>/dev/null \
+	'refs/remotes/origin/revfix/*' 'refs/remotes/origin/hotfix/*' \
+	'refs/remotes/origin/canon/*' 2>/dev/null \
 	| awk -v c=$(( $(date +%s) - 604800 )) '$1>c {print $2,$3}' \
 	| sed 's|^origin/||')
 
-SB=""; STIP=""
+SB=""; STIP=""; STRANDED=""
 while read -r br tip; do
 	[ -n "$br" ] && [ -n "$tip" ] || continue
 	recent_fail "$tip" && { say "跳 $br——同尖24h败冷却"; continue; }
-	stamp_ok "$tip" || { say "跳 $br——戳缺/戳陈"; continue; }
+	stamp_ok "$tip" || { say "跳 $br——戳缺/戳陈"; STRANDED="$STRANDED $br"; continue; }
 	if docs_only_diff "$tip"; then
 		say "$br docs-only 差分——免复审行(b)"
 	elif ! review_ok "$br" "$tip"; then
-		say "跳 $br——复审过行缺/分席不可证/无DSN"; continue
+		say "跳 $br——复审过行缺/分席不可证/无DSN"; STRANDED="$STRANDED $br"; continue
 	fi
-	mig_dep_gate "$br" "$tip" || continue
+	mig_dep_gate "$br" "$tip" || { STRANDED="$STRANDED $br(依赖未合)"; continue; }
 	if ! mergeable "$tip"; then
 		fact "落地败 支=$br 尖=$tip 因=对origin/master不可净合(merge-tree冲突)——支须重基,同尖冷却24h"
 		esc "landq_conflict_${br//\//_}" "部署/landq_merge_conflict: 支=$br 尖=$tip 对origin/master不可净合——须重基或人工裁决,支入24h冷却待处置"
@@ -182,6 +183,46 @@ while read -r br tip; do
 	fi
 	SB="$br"; STIP="$tip"; break
 done <<< "$CANDS"
+
+# ── 补扫:扫描面外未并支一律入滞留集（同日实证:cmcweb无名单前缀且仅
+# 本地、canon/*无前缀、macro-events超7d窗——进了扫描才有"跳"录,
+# 面外支连跳因都不落,永不可见）。凡本地或远端未并 origin/master
+# 且本轮未经候选评估之支,不问要件齐否皆滞留;脱困=改名入名单前缀/
+# 推远端并补要件/判废清支。
+SEEN=" ${SB:-} "
+while read -r ebr _etip; do
+	[ -n "$ebr" ] && SEEN="$SEEN$ebr "
+done <<< "$CANDS"
+# 在办支剔集：被任一 worktree checkout 之支=在办非滞留(worktreepath 原子跨
+# 版本不稳,porcelain 支行取——detached 工树无 branch 行天然不误剔)
+WTACTIVE=$(git worktree list --porcelain 2>/dev/null \
+	| awk '/^branch refs\/heads\//{sub("refs/heads/","",$2);print $2}' \
+	| paste -sd' ' -) # 扁单行——多行 case " x " 空格定界失配漏剔(桩测实证)
+while IFS= read -r ob; do
+	case " $SEEN $WTACTIVE " in *" $ob "*) continue;; esac
+	STRANDED="$STRANDED $ob(面外)"
+done < <(git for-each-ref --no-merged origin/master --format='%(refname:short)' \
+	'refs/heads/' 'refs/remotes/origin/' 2>/dev/null \
+	| sed 's|^origin/||' | grep -vxe master -vxe HEAD | sort -u)
+
+# 滞留支可见化（业主令2026-11-21断链根修——audit双修复支戳/复审缺在岸
+# 静默滞留实证:#27164/#27183 修复已推origin但无戳无复审,三事实闸外
+# 只 say 落日志=无人见的滞留）：缺戳或缺复审支集名件升件,归唤知会话
+# 补戳+复审或判废清支——land_queue 只喊不办,要件齐自落。节流=同scope
+# 升件(销否不计)20h内零行才再发,防每拍复唤自喂。
+if [ -n "$STRANDED" ] && [ -n "$DSN" ]; then
+	STALE=$(q "SELECT count(*) FROM ops_event WHERE event='升件'
+		AND esc_scope='landq_starved' AND ts>now()-interval '20 hours'")
+	if [ "${STALE:-0}" = "0" ]; then
+		SLIST=$(printf '%s\n' $STRANDED | paste -sd, -)
+		# note 整体过 sqlq——支名=会话可控输入,refname 合法含引号/分号
+		# (复审驳#1实证:裸拼注入面可伪造复审过行绕闸),与 esc/fact 同径
+		SNOTE=$(sqlq "部署/landq_starved: 未并支滞留——缺落地要件(戳缺/戳陈或复审过行缺)或扫描面外(无前缀/仅本地/超窗,标面外)或迁移依赖未合:$SLIST——归会话补戳+复审/改名入面推远端/判废清支;要件齐land_queue自落勿手工合")
+		"$PSQL" "$DSN" -c "INSERT INTO ops_event(seat,event,ticket,note,esc_class,esc_scope)
+			VALUES('探测席','升件','','$SNOTE','部署','landq_starved')" >/dev/null 2>&1 \
+			|| say "landq_starved 升件写败（不阻断）"
+	fi
+fi
 
 [ -n "$SB" ] || { say "无三件齐候选——本拍空"; exit 0; }
 say "选中 $SB 尖=$STIP——起合"

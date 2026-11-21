@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# land_queue_test.sh —— 落地件桩测（工单#22577 验收①）：
+# land_queue_test.sh —— 落地件桩测（工单#22577 验收①+2026-11-21滞留升件三件）：
 # 桩 git（本地 bare origin+clone）+桩 psql（PATH 注入按词面应答）+
 # 桩 check_all（绿=盖戳）——验三件齐→落；缺戳/缺复审过行/复审席=
 # 作者席/冲突/戳陈 五反例各不落；docs-only 差分免 b 正例；
@@ -30,6 +30,7 @@ case "$sql" in
     [ "${T_REVIEW_OK:-0}" = 1 ] \
       && [ "${T_REVIEW_SEAT:-唤知}" != "${T_AUTHOR_SEAT:-施工席}" ] && echo 1;;
   *落地败*LIMIT*) [ "${T_FAILROW:-0}" = 1 ] && echo 1;;
+  *esc_scope=\'landq_starved\'*) echo "${T_STARVED_N:-0}";; # 节流计=20h内同scope升件行数(引号转义=字面)
 esac
 exit 0
 EOF
@@ -167,6 +168,7 @@ TIP=$(tip_of "$T/o" fix/depmiss); stamp "$T/o" "$TIP"
 run_lq T_REVIEW_OK=1
 if landed "$T/o" "$TIP"; then bad "依赖未合支竟落"; else ok "依赖未合不落"; fi
 grep -q '落地败 支=' "$T/psql.log" && bad "依赖未合竟烧落地败账" || ok "依赖未合不占落地账"
+grep -q "landq_starved.*fix/depmiss(依赖未合)" "$T/psql.log" && ok "依赖未合支入滞留集" || bad "依赖未合支静默滞留"
 
 # ═══ 依赖闸2：同支自带 → 放落 ═══
 echo "== 依赖闸 同支自带放=="
@@ -225,6 +227,64 @@ if [ -s "$T/go.probe" ] && landed "$T/o" "$TIP"; then
 else
   bad "go自足败 probe=[$(cat "$T/go.probe" 2>/dev/null)]"
 fi
+
+# ═══ 滞留支可见化（业主令2026-11-21断链根修）：缺戳/缺复审支→landq_starved升件 ═══
+echo "== 滞留升件 =="
+new_case
+mk_branch "$T/o" fix/stranded feat_st2.txt st2
+run_lq T_REVIEW_OK=1
+grep -q "landq_starved.*fix/stranded" "$T/psql.log" && ok "缺戳滞留支升件名支在案" || bad "滞留支无升件"
+# 节流：20h内同scope已有升件→不再发（T_STARVED_N=1 桩应答）
+run_lq T_REVIEW_OK=1 T_STARVED_N=1
+[ "$(grep -c '未并支滞留' "$T/psql.log")" -eq 1 ] && ok "节流20h内不复发" || bad "节流失效复发"
+
+# ═══ 补扫：扫描面外支（无前缀推远端/仅本地未推）→ 同入滞留集 ═══
+echo "== 面外支补扫 =="
+new_case
+mk_branch "$T/o" plainbranch pb.txt pb          # 无名单前缀但已推 origin
+(cd "$T/o" && git checkout -q -b localonly master \
+  && echo x > lo.txt && git add -A && git commit -qm wip \
+  && git checkout -q master)                     # 仅本地未推
+mk_branch "$T/o" fix/stranded2 st2.txt st2       # 名单内缺戳对照
+run_lq T_REVIEW_OK=1
+grep -q "landq_starved.*plainbranch(面外)" "$T/psql.log" && ok "无前缀远端支入滞留集" || bad "无前缀支漏报"
+grep -q "landq_starved.*localonly(面外)" "$T/psql.log" && ok "仅本地支入滞留集" || bad "仅本地支漏报"
+grep -q "landq_starved.*fix/stranded2" "$T/psql.log" && ok "名单内缺戳仍入集" || bad "名单内滞留丢"
+grep -q "fix/stranded2(面外)" "$T/psql.log" && bad "候选跳支重列面外" || ok "候选跳支不重列面外"
+
+# ═══ 补扫边界：在办支剔集/超窗前缀支/支名注入转义 ═══
+echo "== 补扫边界 =="
+new_case
+(cd "$T/o" && git checkout -q -b wtactive master \
+  && echo x > wa.txt && git add -A && git commit -qm wip \
+  && git checkout -q master && git worktree add -q "$T/wtactive_wt" wtactive) # 工树在办支=非滞留
+(cd "$T/o" && git checkout -q -b fix/oldbranch master \
+  && echo x > ob.txt && git add -A \
+  && GIT_COMMITTER_DATE='2020-01-01T00:00:00Z' git commit -qm wip --date='2020-01-01T00:00:00Z' \
+  && git push -qu origin fix/oldbranch && git checkout -q master)              # 名单内但尖超7d窗
+mk_branch "$T/o" "fix/ev'il" evil.txt ev                                       # 支名带单引号=注入面
+run_lq T_REVIEW_OK=1
+grep -q "landq_starved.*wtactive" "$T/psql.log" && bad "在办支误标滞留" || ok "在办支不入滞留集"
+grep -q "landq_starved.*fix/oldbranch(面外)" "$T/psql.log" && ok "超窗前缀支入面外" || bad "超窗支漏报"
+grep -q "fix/ev''il" "$T/psql.log" && ok "支名单引号sqlq转义" || bad "支名注入裸拼"
+rm -rf "$T/wtactive_wt"; git -C "$T/o" worktree prune 2>/dev/null
+
+# ═══ canon/* 收入名单:docs-only 免复审即自落（会话自然命名零改面） ═══
+echo "== canon 支自落 =="
+new_case
+(cd "$T/o" && git checkout -q -b canon/kb-entry master \
+  && mkdir -p docs && echo kb > docs/kb.md && git add -A && git commit -qm "canon entry" \
+  && git push -qu origin canon/kb-entry && git checkout -q master)
+TIP=$(tip_of "$T/o" canon/kb-entry); stamp "$T/o" "$TIP"
+run_lq T_REVIEW_OK=0
+if landed "$T/o" "$TIP"; then ok "canon支docs-only无复审行自落"; else bad "canon支未落"; fi
+
+# ═══ 滞留不误报：三件齐支不入滞留集 ═══
+new_case
+mk_branch "$T/o" fix/landable feat_l.txt l
+TIP=$(tip_of "$T/o" fix/landable); stamp "$T/o" "$TIP"
+run_lq T_REVIEW_OK=1
+grep -q "landq_starved.*fix/landable" "$T/psql.log" && bad "可落支误入滞留集" || ok "可落支不入滞留集"
 
 echo "== 汇总: PASS=$PASS FAIL=$FAILN =="
 [ "$FAILN" -eq 0 ]
