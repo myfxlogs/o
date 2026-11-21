@@ -91,8 +91,12 @@ func dcdSettleOne(ctx context.Context, pool *pgxpool.Pool, od okxexec.DcdOrder) 
 			_ = tx.Rollback(ctx)
 			return
 		}
-		if _, err := tx.Exec(ctx, `UPDATE fin_execution SET state='closed', venue_ord_id=$2
-			WHERE id=$1 AND state='open'`, eid, od.OrdID); err != nil {
+		// 工单#24798：venue_ord_id 确证键回填与 exec 态迁解耦——孤儿裁定仓
+		// exec 早已 closed（仓42 实证形），原 WHERE state='open' 把 ordId 永
+		// 久留空=确证键断根；已闭 exec 只补 ordId 不动态，open exec 同拍迁 closed。
+		if _, err := tx.Exec(ctx, `UPDATE fin_execution SET state=CASE WHEN state='open' THEN 'closed' ELSE state END,
+			venue_ord_id=COALESCE(NULLIF(venue_ord_id,''),$2)
+			WHERE id=$1`, eid, od.OrdID); err != nil {
 			log.Printf("[dcd] settle exec 收敛写败 exec=%d ordId=%s: %v", eid, od.OrdID, err)
 			_ = tx.Rollback(ctx)
 			return

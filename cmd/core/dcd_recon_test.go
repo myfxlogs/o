@@ -133,3 +133,46 @@ func TestFundCcyDcdSettle(t *testing.T) {
 		t.Fatal("已结算基线未退役——幻影持仓面")
 	}
 }
+
+// 工单#24798 锚④：孤儿裁定仓形（exec 早已 closed+position state='orphaned'）
+// ——settle 仍收敛仓（closed_at 置位 FSM 随 closed）+exec ordId 确证键回填
+// 不动态（原 WHERE state='open' 断根形根修）。
+func TestDcdSettleOrphanedConverge(t *testing.T) {
+	pool := testutil.Pool(t)
+	ctx := context.Background()
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatal(err)
+	}
+	var eid, pid int64
+	if err := pool.QueryRow(ctx, `INSERT INTO fin_execution(inst_id,notional_usd,state)
+		VALUES('BTC-USDT-261204-66000-P',50,'closed') RETURNING id`).Scan(&eid); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(ctx, `INSERT INTO fin_position(execution_id,inst_id,notional_usd,state)
+		VALUES($1,'BTC-USDT-261204-66000-P',50,'orphaned') RETURNING id`, eid).Scan(&pid); err != nil {
+		t.Fatal(err)
+	}
+	od := okxexec.DcdOrder{OrdID: "11594773", ProductID: "BTC-USDT-261204-66000-P",
+		State: "settled", NotionalCcy: "USDT", NotionalSz: "50",
+		SettleCcy: "USDT", SettleSz: "50.5", SettlePx: "70100",
+		YieldCcy: "USDT", YieldSz: "0.5", SettleTime: "1764979200000", ExpTime: "1764979200000"}
+	dcdSettleReconcile(ctx, pool, []okxexec.DcdOrder{od})
+	var estate, ordID, pstate string
+	var closedAt *time.Time
+	var samt float64
+	var sccy string
+	if err := pool.QueryRow(ctx, `SELECT state,COALESCE(venue_ord_id,'') FROM fin_execution
+		WHERE id=$1`, eid).Scan(&estate, &ordID); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(ctx, `SELECT state,closed_at,settled_amount,settled_ccy
+		FROM fin_position WHERE id=$1`, pid).Scan(&pstate, &closedAt, &samt, &sccy); err != nil {
+		t.Fatal(err)
+	}
+	if estate != "closed" || ordID != "11594773" {
+		t.Fatalf("exec 确证键断根: state=%s ordId=%s", estate, ordID)
+	}
+	if pstate != "closed" || closedAt == nil || samt != 50.5 || sccy != "USDT" {
+		t.Fatalf("孤儿仓未收敛: state=%s closed_at=%v amt=%v ccy=%s", pstate, closedAt, samt, sccy)
+	}
+}
