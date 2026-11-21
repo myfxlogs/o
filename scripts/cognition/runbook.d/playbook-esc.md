@@ -301,6 +301,14 @@
   先核本 runbook③段裁定流是否被跳过：近期唤知会话收口行里
   「教训矿」段有无执行迹；流在案而矿仍积压=矿写径/表权限坏→
   要码修；单纯队列长→按③段裁定清矿后销）。
+  同档同裁：esc_class=learn_canon scope=lesson:<signature>（工单#27050
+  消费环产物——fin_eng_lesson pending 签名簇仍复火=候选等归纳；
+  note 载 lesson#id+signature+复火件数。裁径=读该 lesson 证据行做
+  语义归纳→canon 条目落 KB→lesson 行 status 手工翻 canon/verdicted
+  销；簇已熄探针自闭复绿无需销）。
+  同档同裁：esc_class=learn_stale scope=lesson:<signature>（同件——
+  pending>7d 零动作积压点名；裁径=按 learn_canon 同径归纳或判弃
+  verdicted；签名簇早已死的陈尸行直接 verdicted 销）。
 - **审计**（seat=审计席 esc_class=审计 scope=audit_<域>_<slug>——审计臂
   （D-0046,不等信号主动扫不变量）产物，note 载 维度/位置/根因/RED/
   分支/修法六件）→ 这是**唯一带现成失败测试进场的升件**，按序：
