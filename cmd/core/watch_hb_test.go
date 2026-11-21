@@ -43,36 +43,44 @@ func TestWatchHeartbeatFrames(t *testing.T) {
 	if err != nil || open.Kind != "watch_open" {
 		t.Fatalf("首帧应 watch_open: %v %+v", err, open)
 	}
-	// 静默窗（无 NOTIFY）连收两拍心跳——节拍语义+间隔判据。
-	var last time.Time
-	for i := 0; i < 2; i++ {
+	// 静默窗连收两拍心跳——节拍语义+间隔判据。非 hb 帧=共享测试库并发
+	// 写面真 NOTIFY 透传（go test ./... 包二进制并行/同包漏臂续写皆向
+	// ev_* 广播——产品帧合法非静默破）——跳过收帧不判静默。
+	var lastHb time.Time
+	for hb := 0; hb < 2; {
 		ev, err := stream.Receive()
 		if err != nil {
-			t.Fatalf("心跳帧 %d 未达: %v", i, err)
+			t.Fatalf("心跳帧 %d 未达: %v", hb, err)
 		}
 		if ev.Kind != "watch_hb" {
-			t.Fatalf("静默期帧应 watch_hb: %s", ev.Kind)
+			t.Logf("外路帧跳过: %s", ev.Kind)
+			continue
 		}
 		if ev.GetData() != nil {
 			t.Fatalf("心跳帧应无载荷（纯信号）: %v", ev.GetData())
 		}
-		if !last.IsZero() {
-			if gap := time.Since(last); gap > 4*60*time.Millisecond {
+		if !lastHb.IsZero() {
+			if gap := time.Since(lastHb); gap > 4*60*time.Millisecond {
 				t.Fatalf("心跳间隔超期界×4: %v", gap)
 			}
 		}
-		last = time.Now()
+		lastHb = time.Now()
+		hb++
 	}
-	// NOTIFY 透传不被心跳环饿死：ev_account 纯信号帧照推。
+	// NOTIFY 透传不被心跳环饿死：ev_account 纯信号帧照推（外路帧同跳过）。
 	if _, err := w.pool.Exec(ctx, `SELECT pg_notify('ev_account','')`); err != nil {
 		t.Fatal(err)
 	}
-	ev, err := stream.Receive()
-	if err != nil {
-		t.Fatalf("ev_account 帧未达: %v", err)
-	}
-	if ev.Kind != "ev_account" {
-		t.Fatalf("应透传 ev_account: %s", ev.Kind)
+	for {
+		ev, err := stream.Receive()
+		if err != nil {
+			t.Fatalf("ev_account 帧未达: %v", err)
+		}
+		if ev.Kind != "ev_account" {
+			t.Logf("外路帧跳过: %s", ev.Kind)
+			continue
+		}
+		break
 	}
 	cancel()
 }
