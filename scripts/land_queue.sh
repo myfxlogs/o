@@ -208,12 +208,23 @@ done < <(git for-each-ref --no-merged origin/master --format='%(refname:short)' 
 # 滞留支可见化（业主令2026-11-21断链根修——audit双修复支戳/复审缺在岸
 # 静默滞留实证:#27164/#27183 修复已推origin但无戳无复审,三事实闸外
 # 只 say 落日志=无人见的滞留）：缺戳或缺复审支集名件升件,归唤知会话
-# 补戳+复审或判废清支——land_queue 只喊不办,要件齐自落。节流=同scope
-# 升件(销否不计)20h内零行才再发,防每拍复唤自喂。
+# 补戳+复审或判废清支——land_queue 只喊不办,要件齐自落。节流=滞留集
+# 覆盖判（业主令2026-11-21②——旧「20h同scope零行才再发」粗节流把新
+# 滞留支并进旧升件影子=候审支零升件零事驱,实证:07:15 audit/1121-life
+# 升件后 fix/forensic-sim-finro 候审支当拍静默）:逐名对拍最近一次升件
+# note——有支名未被覆盖即升件（事驱=滞留集变化）;全集已覆盖且<6h 不升
+# （同集续滞防自喂）,≥6h 同集重升(轮询兜底——绑绿戳6h鲜度窗:滞留过窗戳反正陈,再喊边际成本为零)
 if [ -n "$STRANDED" ] && [ -n "$DSN" ]; then
-	STALE=$(q "SELECT count(*) FROM ops_event WHERE event='升件'
-		AND esc_scope='landq_starved' AND ts>now()-interval '20 hours'")
-	if [ "${STALE:-0}" = "0" ]; then
+	LAST_NOTE=$(q "SELECT note FROM ops_event WHERE event='升件'
+		AND esc_scope='landq_starved' ORDER BY id DESC LIMIT 1" 2>/dev/null)
+	LAST_AGE_S=$(q "SELECT COALESCE(EXTRACT(EPOCH FROM now()-max(ts))::int,99999)
+		FROM ops_event WHERE event='升件' AND esc_scope='landq_starved'" 2>/dev/null)
+	NEED=0
+	for sb in $STRANDED; do
+		case "$LAST_NOTE" in *"${sb%%(*}"*) ;; *) NEED=1;; esac # 剔(面外)/(依赖未合)标缀取裸支名对拍
+	done
+	[ "$NEED" = 0 ] && [ "${LAST_AGE_S:-99999}" -lt 21600 ] || NEED=1
+	if [ "$NEED" = 1 ]; then
 		SLIST=$(printf '%s\n' $STRANDED | paste -sd, -)
 		# note 整体过 sqlq——支名=会话可控输入,refname 合法含引号/分号
 		# (复审驳#1实证:裸拼注入面可伪造复审过行绕闸),与 esc/fact 同径
