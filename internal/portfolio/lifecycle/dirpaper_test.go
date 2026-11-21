@@ -34,7 +34,7 @@ func dirRig(t *testing.T) *Runner {
 	r := newRig(t)
 	ctx := context.Background()
 	for k, v := range map[string]string{
-		"lifecycle.dir.mark_iv_min": "0.001", "lifecycle.dir.stop_frac": "0.15",
+		"lifecycle.pnl_mark_min": "0.001", "lifecycle.dir.stop_frac": "0.15",
 		"lifecycle.dir.take_frac": "0.10", "lifecycle.dir.ttl_h": "240",
 	} {
 		if _, err := r.pool.Exec(ctx,
@@ -173,5 +173,32 @@ func TestDirPaperStaleMark(t *testing.T) {
 	var n int
 	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_paper_fill WHERE strategy_id=$1`, sid).Scan(&n); err != nil || n != 0 {
 		t.Fatalf("陈价仍造 fill n=%d err=%v 期 0", n, err)
+	}
+}
+
+// O-27493 锚：direction 精确单腿族——多腿/对冲构型（short_perp_long_cfd
+// 等）在 paperOnly 模板下不记 MTM（票面「多腿构型不记MTM」钉——腿分解
+// 归 grammar 另票；防模板册扩员时方向歧义静默入账）。
+func TestDirPaperMultiLegSkipped(t *testing.T) {
+	r := dirRig(t)
+	ctx := context.Background()
+	sid := seedDir(t, r, "DIRM-USDT-SWAP", "short_perp_long_cfd", "1 hours")
+	setTick(t, r, "DIRM-USDT-SWAP", 100)
+	if err := r.dirPaperAccounting(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_paper_fill WHERE strategy_id=$1`, sid).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("多腿构型不应记 MTM fill n=%d err=%v 期 0", n, err)
+	}
+	// 对照：同模板单腿 short_perp 照记（闸不连带误伤）。
+	sid2 := seedDir(t, r, "DIRS2-USDT-SWAP", "short_perp", "1 hours")
+	setTick(t, r, "DIRS2-USDT-SWAP", 100)
+	if err := r.dirPaperAccounting(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var n2 int
+	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_paper_fill WHERE strategy_id=$1 AND kind='open'`, sid2).Scan(&n2); err != nil || n2 != 1 {
+		t.Fatalf("单腿 short_perp 应记 open 锚 n=%d err=%v 期 1", n2, err)
 	}
 }

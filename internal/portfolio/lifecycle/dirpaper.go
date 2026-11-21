@@ -18,9 +18,11 @@ import (
 // dirPaperAccounting paper 态方向族 MTM 记账+出场判定（非致命径——记账败
 // 不拖开户/晋升拍，同 basis/xvenue 位）。
 func (r *Runner) dirPaperAccounting(ctx context.Context) error {
-	markIv, stop, take, ttl := 240.0, 0.15, 0.30, 240.0 // 缺省判据（键缺=内置值非虚构——lifecycle.* 懒读惯例同 armed_ttl_h）
-	if v, err := r.cfg.GetFloat("lifecycle.dir.mark_iv_min"); err == nil && v > 0 {
+	markIv, stop, take, ttl := 240.0, 0.15, 0.30, 240.0 // 缺省判据（键缺=内置值非虚构——lifecycle.* 懒读惯例同 armed_ttl_h；O-27493 票面钦定节拍键= lifecycle.pnl_mark_min——240min tuned default 保守守，60min 可经 dm 键直改）
+	if v, err := r.cfg.GetFloat("lifecycle.pnl_mark_min"); err == nil && v > 0 {
 		markIv = v
+	} else if v, err := r.cfg.GetFloat("lifecycle.dir.mark_iv_min"); err == nil && v > 0 {
+		markIv = v // 旧键回退——pnl_mark_min 钦定名优先（O-27493 键名归一，存量设置不丢）
 	}
 	if v, err := r.cfg.GetFloat("lifecycle.dir.stop_frac"); err == nil && v > 0 {
 		stop = v
@@ -44,7 +46,8 @@ func (r *Runner) dirPaperAccounting(ctx context.Context) error {
 		(SELECT (f.detail#>>'{px}')::float8 FROM fin_paper_fill f
 			WHERE f.strategy_id=s.id AND f.kind IN ('open','pnl')
 			ORDER BY ts DESC LIMIT 1)
-		FROM fin_strategy s WHERE s.state='paper' AND s.template_ref=ANY($1)`,
+		FROM fin_strategy s WHERE s.state='paper' AND s.template_ref=ANY($1)
+		AND s.direction IN ('short_perp','long_perp')`, // O-27493：direction 精确单腿族——多腿/对冲构型不记 MTM（腿分解归 grammar 另票）
 		execfam.PaperOnlyList())
 	if err != nil {
 		return err
