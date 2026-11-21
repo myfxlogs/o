@@ -70,6 +70,9 @@ func (r *Runner) scan(ctx context.Context) error {
 	if err := r.snapSync(ctx); err != nil {
 		return err
 	}
+	if err := r.verdictBots(ctx); err != nil {
+		log.Printf("[okxgrid] 判官拍败（本拍让位下拍）: %v", err)
+	}
 	return r.launchGate(ctx)
 }
 
