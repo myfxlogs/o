@@ -24,19 +24,28 @@ cat > "$T/bin/psql" <<'EOF'
 # （conclusion='failure'→failure 裸词）=真 psql 同款语法错→rc1
 # 不落 PSQL_OK；''转义对合法不产裸词→落 PSQL_OK=「行落账」断言面。
 # 引号计数偶/奇判不可信（嵌入引号恒成对——病灶恰在位置不在数量）。
-# T_HB_FAIL=1 心跳写败径不变。
-sql=""; prev=""
-for a in "$@"; do [ "$prev" = "-c" ] && sql="$a"; prev="$a"; done
+# T_HB_FAIL=1 心跳写败径不变。-qAt 标志区分 esc() 主径（无）与
+# escalate.sh 径（有）——T_ESC_PRI_FAIL 注败只咬主径,FB_FAIL_SCOPE 咬指定
+# scope 的 escalate 径 INSERT;败件 rc1 不落 PSQL_OK=「行未落账」。
+# 升件 dedup/pending 改有态——按 PSQL_OK 已落行应答（esc 兜底/自审案要
+# 「写成败有后果」桩——静态 echo 0 验不出径差）。
+sql=""; prev=""; qat=0
+for a in "$@"; do [ "$a" = "-qAt" ] && qat=1; [ "$prev" = "-c" ] && sql="$a"; prev="$a"; done
+pok="${PSQL_OK:-/dev/null}"
 printf '%s\n' "$sql" >> "${PSQL_LOG:-/dev/null}"
 case "$sql" in
   INSERT*)
     if printf '%s' "$sql" | grep -q '心跳' && [ "${T_HB_FAIL:-0}" = 1 ]; then exit 1; fi
+    if [ "${T_ESC_PRI_FAIL:-0}" = 1 ] && [ "$qat" = 0 ] \
+      && printf '%s' "$sql" | grep -q 'esc_class,esc_scope'; then exit 1; fi
+    if [ -n "${T_ESC_FB_FAIL_SCOPE:-}" ] && [ "$qat" = 1 ] \
+      && printf '%s' "$sql" | grep -q ",'$T_ESC_FB_FAIL_SCOPE')"; then exit 1; fi
     stripped=$(printf '%s' "$sql" | sed -E "s/'([^']|'')*'//g")
     badbw=$(printf '%s\n' "$stripped" | tr -c 'A-Za-z_' '\n' \
       | grep -E '^[A-Za-z_]+$' | sort -u \
       | grep -vE '^(INSERT|INTO|ops_event|seat|event|ticket|note|esc_class|esc_scope|VALUES)$')
     [ -z "$badbw" ] || exit 1
-    printf '%s\n' "$sql" >> "${PSQL_OK:-/dev/null}"
+    printf '%s\n' "$sql" >> "$pok"
     exit 0;;
   *deploy.ocore_window_utc*)  printf '%s\n' "${T_WIN:-19:00-21:00}";;
   *deploy.ocore_window_max_hold_h*) printf '%s\n' "${T_MAXH:-26}";;
@@ -46,7 +55,14 @@ case "$sql" in
   *deploy-gate*) printf '%s\n' "${T_DIRTYN:-0}";;
   *regexp_match*o-core:*) printf '%s\n' "${T_DEPLOYED:-}";;
   *SELECT\ id*o-core:*) : ;;
-  *event='升件'*) echo 0;;
+  *event=\'升件\'*note\ LIKE*)
+    pre=$(printf '%s' "$sql" | sed -n "s/.*note LIKE '\([^']*\)%.*/\1/p")
+    { [ -n "$pre" ] && grep 'VALUES' "$pok" 2>/dev/null | grep -qF "$pre"; } \
+      && echo 1 || echo 0;;
+  *event=\'升件\'*esc_scope=*)
+    scp=$(printf '%s' "$sql" | sed -n "s/.*esc_scope='\([^']*\)'.*/\1/p")
+    { grep 'VALUES' "$pok" 2>/dev/null || true; } | grep -c ",'$scp')" || true;; # tolerate: pok 首拍未建/零 VALUES 行=正常空面,吞 grep rc1 取零计数
+  *event=\'升件\'*) echo 0;;
   *split_part*note*event='心跳'*) printf '%s|%s\n' "${T_HB_LAST_STATE:-}" "${T_HB_LAST_AGE:-999999}";;
   *) : ;;
 esac
@@ -83,8 +99,9 @@ new_repo() {
 	git -C "$T/o" config user.email t@t
 	git -C "$T/o" config user.name t
 	git -C "$T/o" remote add origin "$T/origin.git"
-	mkdir -p "$T/o/docs" "$T/o/scripts"
+	mkdir -p "$T/o/docs" "$T/o/scripts/cognition"
 	cp "$DW" "$T/o/scripts/deploy_watch.sh"
+	cp "$HERE/cognition/escalate.sh" "$T/o/scripts/cognition/escalate.sh"
 	cat > "$T/o/scripts/arm_faces_lib.sh" <<'EOF'
 arm_stale() { return 1; }
 EOF
@@ -112,17 +129,21 @@ second_commit() { # $1=path $2=content [$3=commit date ISO]
 	HEAD2=$(git -C "$T/o" rev-parse --short=12 master)
 }
 run_dw() { # $1=now epoch [$2=T_WIN] [$3=T_MAXH] [$4=T_CLEANWM] [$5=T_QUEUED] [$6=T_CIV]
-	( cd "$T/o" && env PATH="$T/bin:$PATH" FIN_PG_DSN=stub REPORT_ENV_FILE=/dev/null \
+	( cd "$T/o" && env PATH="$T/bin:$PATH" FIN_PG_DSN=stub REPORT_ENV_FILE="$T/envfile" \
 		PSQL_LOG="$T/psql.log" PSQL_OK="$T/psql_ok.log" CALL_LOG="$T/calls.log" \
 		O_DEPLOY_NOW_EPOCH="$1" T_DEPLOYED="$BASE" \
 		T_WIN="${2:-19:00-21:00}" T_MAXH="${3:-26}" \
 		T_CLEANWM="${4:-}" T_QUEUED="${5:-0}" T_DIRTYN="${T_DIRTYN:-0}" \
 		T_CIV="${6:-completed success}" \
+		T_ESC_PRI_FAIL="${T_ESC_PRI_FAIL:-0}" \
+		T_ESC_FB_FAIL_SCOPE="${T_ESC_FB_FAIL_SCOPE:-}" \
 		T_HB_LAST_STATE="${T_HB_LAST_STATE:-}" T_HB_LAST_AGE="${T_HB_LAST_AGE:-999999}" \
 		bash scripts/deploy_watch.sh >"$T/out" 2>&1 )
 }
 now_of() { date -u -d "$1" +%s; }
 has() { grep -q "$1" "$2" 2>/dev/null; }
+# envfile——escalate.sh 兜底径只读 env 文件不读 env 变量,夹具共一件。
+printf 'FIN_PG_DSN=stub\n' > "$T/envfile"
 
 # ═══ ① 窗外谱系证内 → 入窗队列，不换 ═══
 echo "== ① 窗外入窗队列 =="
@@ -213,6 +234,27 @@ run_dw "$(now_of '2026-11-20 19:30:00')" 00:00-23:59 26 "" 0 "completed failure"
 has 'deploy_ci_red' "$T/psql_ok.log" && ok "CI红断升件落账" || bad "CI红断升件缺/SQL破"
 has "conclusion=''failure''" "$T/psql.log" && ok "引号已转义" || bad "引号未转义"
 has 'CI红断' "$T/out" && ok "CI红断判词" || bad "CI红断判词缺"
+
+# ═══ ⑫ esc 主径写败→escalate.sh 第二径兜底+心跳载 esc写败（工单#30086）═══
+# 夹具 escalate.sh 用真件（scripts/cognition/ 拷入）——验的是真实第二径互
+# 操作不是仿写;envfile 供 escalate 自取 DSN（它只读 env 文件不读 env 变量）。
+echo "== ⑫ esc主径断兜底 =="
+new_repo; second_commit cmd/core/main.go "package main" "2026-11-20T03:00:00"
+T_ESC_PRI_FAIL=1 run_dw "$(now_of '2026-11-20 19:30:00')" 00:00-23:59 26 "" 0 "completed failure"
+has '部署/deploy_ci_red:——' "$T/psql_ok.log" && ok "兜底升件落账" || bad "兜底升件缺"
+has '心跳 CI红断 esc写败' "$T/psql.log" && ok "心跳载 esc写败" || bad "心跳载败缺"
+has 'esc缺' "$T/psql.log" && bad "兜底在案竟误补火" || ok "兜底在案零误补"
+
+# ═══ ⑬ esc 全径断→态/实劈差自审 deploy_esc_missing 补火+心跳载 esc缺（工单#30087）═══
+# FB_FAIL_SCOPE=deploy_ci_red：escalate 兜底径同 scope INSERT 败（词法合法
+# 而写败——主径以外的第二断点注桩）→态/实劈差自审捕获补火。
+echo "== ⑬ esc全径断自审 =="
+new_repo; second_commit cmd/core/main.go "package main" "2026-11-20T03:00:00"
+T_ESC_PRI_FAIL=1 T_ESC_FB_FAIL_SCOPE=deploy_ci_red \
+	run_dw "$(now_of '2026-11-20 19:30:00')" 00:00-23:59 26 "" 0 "completed failure"
+has 'deploy_esc_missing' "$T/psql_ok.log" && ok "自审补火落账" || bad "自审补火缺"
+has '心跳 CI红断 esc缺' "$T/psql.log" && ok "心跳载 esc缺" || bad "心跳 esc缺缺"
+has 'esc写败' "$T/psql.log" && ok "心跳载 esc写败" || bad "esc写败缺"
 
 echo "== 汇总: PASS=$PASS FAIL=$FAILN =="
 [ "$FAILN" -eq 0 ]

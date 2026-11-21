@@ -26,11 +26,28 @@ sqlq() { printf '%s' "$1" | sed "s/'/''/g"; } # tolerate: sed 恒 rc0——纯�
 # 态恒误报；且拍间隔上界≈30min（15min拍+15min服务超时）下任何>15min
 # 节流阈都可能顶穿 45min。取每拍一行（~96行/日≈ops_event日量7%——
 # 非洪水）保验收可绿；判词随行载（sha/base/态）备查。
-HB_STATE="拍始"
+HB_STATE="拍始"; ESC_WRITE_FAIL=
+# 工单#30087 态/实劈差自审映射——终态判词∈此表=本拍 esc() 应已产未销行;
+# 行缺=主写径断（esc 崩/码路未达）→第二径补火+心跳载「esc缺」显形。
+# 只列无条件 esc 态;条件阈态（CI待闸>90min/越窗>max_hold/oci_arm_*）条件
+# 未达即无行属正常——无法区分「未达」与「断径」,不入表防误报。
+declare -A ESC_AUDIT=(
+	[CI红断]=deploy_ci_red [部署败]=deploy_blocked [脏树连拍]=deploy_blocked
+	[push败]=deploy_push_blocked [diverged]=deploy_diverged
+	[窗配置非法]=deploy_ocore_window_config
+)
 hb_write() {
 	[ -n "$DSN" ] || return 0
-	local sha
+	local sha ascp
 	sha=$(git rev-parse --short=12 master 2>/dev/null); sha=${sha:-?}
+	ascp=${ESC_AUDIT[$HB_STATE]:-}
+	if [ -n "$ascp" ] && ! esc_pending "$ascp"; then
+		bash scripts/cognition/escalate.sh '探测席' '' '部署' deploy_esc_missing \
+			"部署/deploy_esc_missing:$ascp" \
+			"态 $HB_STATE 判毕而升件 $ascp 无未销行——主写径断自审补火,归唤知会话查 esc() 径" >/dev/null 2>&1 || true # tolerate: 第二径再败无第三径——败痕已由下行 esc缺 载心跳显形,非静默吞
+		HB_STATE="$HB_STATE esc缺"
+	fi
+	[ -n "$ESC_WRITE_FAIL" ] && HB_STATE="$HB_STATE esc写败"
 	if psql "$DSN" -c "INSERT INTO ops_event(seat,event,ticket,note)
 		VALUES('DEPLOY','心跳','','心跳 $HB_STATE sha=$sha base=${DEPLOYED:-?}')" >/dev/null 2>&1; then
 		say "心跳: $HB_STATE"
@@ -57,9 +74,16 @@ esc() { # 升件 dedup=未销才抑（同 escEdgeU 语义——销而未修重�
 	local scope="$1" note="$2" s n
 	s=$(sqlq "$scope"); n=$(sqlq "$note")
 	[ -n "$DSN" ] || return 0
-	esc_pending "$scope" \
-		|| psql "$DSN" -c "INSERT INTO ops_event(seat,event,ticket,note,esc_class,esc_scope)
-			VALUES('探测席','升件','','$n','部署','$s')" >/dev/null 2>&1 # tolerate: 升件写败只剩下拍重试，无二级径
+	esc_pending "$scope" && return 0
+	psql "$DSN" -c "INSERT INTO ops_event(seat,event,ticket,note,esc_class,esc_scope)
+		VALUES('探测席','升件','','$n','部署','$s')" >/dev/null 2>&1 && return 0
+	# 工单#30086 主径写败→第二径 escalate.sh 兜底（独立码路——同一坑不双断;
+	# prefix=部署/<scope>: 24h窗去重天然幂等;detail 传原 note——escalate 自
+	# 具 QC 转义,预转义则双转）+心跳载「esc写败」显形——升件#29764 实证
+	# 「写败静默=信号面假净」,败留痕=写径健康自感。
+	ESC_WRITE_FAIL=1
+	bash scripts/cognition/escalate.sh '探测席' '' '部署' "$scope" \
+		"部署/${scope}:" "$note" >/dev/null 2>&1 || true # tolerate: 兜底径再败无第三径——ESC_WRITE_FAIL 已置,心跳载 esc写败 显形非静默
 }
 # cfg_get <key> <default> —— app_config 只读取值（缺键/DSN 缺=default）。
 cfg_get() {
