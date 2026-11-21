@@ -226,6 +226,27 @@ if [ -z "$DEPLOYED" ] || [ "${HEAD:0:${#DEPLOYED}}" != "$DEPLOYED" ]; then
 			LASTFAIL=$(psql "$DSN" -qAt -c "SELECT id FROM ops_event WHERE seat='DEPLOY' AND event='部署' AND note LIKE '%o-core:${SHORT}%' AND note NOT LIKE '%rc=0%' AND ts>now()-interval '15 minutes' ORDER BY id DESC LIMIT 1" 2>/dev/null)
 			[ -n "$LASTFAIL" ] && { HB_STATE=近窗败让位; say "同 sha 近窗部署败在案(#$LASTFAIL)——让位本拍"; exit 0; }
 		fi
+		# 首性审计整改：build-test CI 机械闸——master 可进伪戳/no-verify 件
+		# （戳=本地文件可 touch,形闸/前缀=消息级可 spoof——首性审亲证），
+		# 产线边界在此：check-runs 最新 build-test conclusion=success 才放
+		# 部署。待闸/查询败=fail-closed 让位本拍；红=升件断供（闸不重置,
+		# HEAD 换绿 sha 自解）。只罩真实部署径——谱系证空水位件无产线
+		# 触碰,不耗 gh 调用。
+		CIV=$(gh api "repos/myfxlogs/o/commits/$HEAD/check-runs?per_page=100" \
+			--jq '.check_runs | map(select(.name=="build-test")) | sort_by(.id) | last | .status + " " + (.conclusion // "")' 2>/dev/null)
+		case "$CIV" in
+			"completed success") ;;
+			"completed failure"|"completed cancelled"|"completed timed_out"|"completed startup_failure"|"completed action_required")
+				HB_STATE=CI红断
+				esc "deploy_ci_red" "部署/deploy_ci_red: master=$SHORT build-test conclusion='${CIV##* }'——CI 红件禁部署,闸不重置（HEAD 换绿 sha 自解）——归唤知会话修/revert"
+				exit 0 ;;
+			*)
+				HB_STATE=CI待闸
+				HAGE=$(git log -1 --format=%ct "$HEAD" 2>/dev/null); HAGE=$(( NOW_EPOCH - ${HAGE:-$NOW_EPOCH} ))
+				[ "$HAGE" -gt 5400 ] && esc "deploy_ci_pending" "部署/deploy_ci_pending: master=$SHORT build-test 未绿(check='${CIV:-查询败/缺席}')待闸 $(( HAGE/60 ))min>90——部署挂起,归唤知会话查 gh auth/CI 断供"
+				say "build-test 未绿（${CIV:-查询败/缺席}）——待闸让位本拍"
+				exit 0 ;;
+		esac
 		say "滞差: 部署=$DEPLOYED vs master=$SHORT——起部署"
 		out=$(bash scripts/deploy_image.sh 2>&1); rc=$?
 		echo "$out" | tail -3 | while read -r l; do say "$l"; done
