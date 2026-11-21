@@ -5,9 +5,10 @@
 -- 升库层前置闸:UPDATE/DELETE/TRUNCATE 一律 RAISE——对全角色含
 -- 表属主生效,与 sem_gate 同型(SQL 触发器非应用层自觉)。
 --
--- 旁路一:测试实例(o_test_s<N> 库名)放行——27 个篡改现场测试零改动;
--- current_database() 会话内不可伪造,且测试库内的 ops_event 与产线
--- 真相无关,放行无泄面。
+-- 旁路一:测试实例(o_test 基库+o_test_s<N> 分片)放行——27 个篡改现场
+-- 测试+shared_reset 重置段零改动;current_database() 会话内不可伪造,
+-- 且测试库内的 ops_event 与产线真相无关,放行无泄面(生产库=o,
+-- 不匹配 o\_test% 前缀)。
 -- 旁路二:合法订正/回填=迁移 tx 内显式 DISABLE TRIGGER:
 --   ALTER TABLE ops_event DISABLE TRIGGER ops_event_immutable_trg;
 --   ... UPDATE/DELETE ...
@@ -16,7 +17,7 @@
 --  周期验检出,与同族闸的威胁模型同构)。
 CREATE OR REPLACE FUNCTION ops_event_immutable() RETURNS trigger AS $$
 BEGIN
-    IF current_database() LIKE 'o\_test\_%' THEN
+    IF current_database() LIKE 'o\_test%' THEN
         IF TG_OP = 'TRUNCATE' THEN RETURN NULL; END IF;
         RETURN COALESCE(NEW, OLD);
     END IF;

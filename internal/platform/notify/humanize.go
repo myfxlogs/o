@@ -2,7 +2,10 @@
 // 要你做 三段式；黑话 kind 名挪括注尾——业主只应条件请求，三域外降级 [经营事件]）。
 package notify
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // kindSpec 处置性分档表（业主可处置域=出资/凭据/权限三件——域外降级事件级）。
 var kindSpec = map[string]struct {
@@ -49,6 +52,21 @@ func HumanText(kind, msg string) (text string, actable bool) {
 			actable  bool
 			relation string
 		}{"未定性系统事件", false, "未定性——需排查"}
+	}
+	// 方向敏感定性：kill_switch 同 kind 双向（cmd/core/notify.go 发射
+	// msg=「kill_switch <prev>→<new>」）——解除=复位落点是通报非告警,
+	// 勿用「请关注」报已解事件（2026-11-21 实证：复位通知被读成待办急件）。
+	if kind == "kill_switch" {
+		switch {
+		case strings.Contains(msg, "→false"):
+			spec.title, spec.actable = "急停解除", false
+			spec.relation = "停手已解除——条件配合完成或人工翻闸复位"
+			msg = "系统由停手转为放行（" + msg + "）"
+		case strings.Contains(msg, "→true"):
+			spec.title = "系统停手"
+			spec.relation = "急停触发——新开仓已拦平仓放行；查明因+复位后翻闸"
+			msg = "系统由放行转为停手（" + msg + "）"
+		}
 	}
 	act := "无需操作"
 	if spec.actable {
