@@ -48,13 +48,16 @@ const (
 // （retire.go 钦定——裸 UPDATE 零留痕禁）。degraded 外态不动
 // （他径迁过态不抢改）。
 func retireEphemeral(ctx context.Context, pool *pgxpool.Pool, stratID int64) {
-	if tag, _ := pool.Exec(ctx,
-		`UPDATE fin_strategy SET state='retired' WHERE id=$1 AND state='degraded'`,
-		stratID); tag.RowsAffected() > 0 {
-		_, _ = pool.Exec(ctx,
-			`INSERT INTO fin_strategy_transition(strategy_id,from_state,to_state,reason)
-			 VALUES($1,'degraded','retired','drill_ephemeral_done')`, stratID)
+	tx, err := pool.Begin(ctx) // 迁移+留痕同 tx（升件#27183——两拍裸 Exec=幽灵留痕窗）
+	if err != nil {
+		return
 	}
+	defer tx.Rollback(ctx) // Committed 后=noop。
+	if tag, _ := tx.Exec(ctx, `UPDATE fin_strategy SET state='retired' WHERE id=$1 AND state='degraded'`, stratID); tag.RowsAffected() > 0 {
+		_, _ = tx.Exec(ctx, `INSERT INTO fin_strategy_transition(strategy_id,from_state,to_state,reason)
+		 VALUES($1,'degraded','retired','drill_ephemeral_done')`, stratID)
+	}
+	_ = tx.Commit(ctx)
 }
 
 // sweepStaleEphemeral 起跑清扫——历史/崩跑残留的 degraded simdrill 行
@@ -62,13 +65,16 @@ func retireEphemeral(ctx context.Context, pool *pgxpool.Pool, stratID int64) {
 // 管本跑行,本件管存量行:两案合起来 degraded 面零积压。
 // Transition 留痕同 retireEphemeral 律。
 func sweepStaleEphemeral(ctx context.Context, pool *pgxpool.Pool) {
-	_, _ = pool.Exec(ctx,
-		`INSERT INTO fin_strategy_transition(strategy_id,from_state,to_state,reason)
-		 SELECT id,'degraded','retired','drill_ephemeral_sweep'
-		 FROM fin_strategy WHERE template_ref LIKE 'simdrill%' AND state='degraded'`)
-	_, _ = pool.Exec(ctx,
-		`UPDATE fin_strategy SET state='retired'
-		 WHERE template_ref LIKE 'simdrill%' AND state='degraded'`)
+	tx, err := pool.Begin(ctx) // 迁移+留痕同 tx（升件#27183——两拍裸 Exec=幽灵留痕窗）
+	if err != nil {
+		return
+	}
+	defer tx.Rollback(ctx) // Committed 后=noop。
+	_, _ = tx.Exec(ctx, `UPDATE fin_strategy SET state='retired' WHERE template_ref LIKE 'simdrill%' AND state='degraded'`)
+	_, _ = tx.Exec(ctx, `INSERT INTO fin_strategy_transition(strategy_id,from_state,to_state,reason)
+	 SELECT id,'degraded','retired','drill_ephemeral_sweep'
+	 FROM fin_strategy WHERE template_ref LIKE 'simdrill%' AND state='degraded'`)
+	_ = tx.Commit(ctx)
 }
 
 // Result 演习结论（verdict 入 fin_exec_drill——毕业闸凭据）。
