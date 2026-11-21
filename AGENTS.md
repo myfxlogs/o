@@ -57,6 +57,8 @@
    件,「O 更在意什么」的机产序;同 v 按 id）
    + `fin_eng_lesson` pending（教训矿候选）——未决信号即工作入口
 4. 开工：`git worktree add /opt/o-wt/<名>` → `bash scripts/bootstrap_worktree.sh`
+   （外派/接单另约：`docs/工单规约.md`——工单文档 SSOT+fwd: 转发词+
+   `[施工收口:O-<票号>] @ sha=<40>` 收口形，三模板机读钦定）
 
 ## 角色（纪元3收敛）
 
