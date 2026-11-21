@@ -122,6 +122,19 @@ note 末尾（「度量: …」）——这是 RSI 的适应度读数：修复�
 worktree 留着（唤知会话要用分支）；无升件则 `git worktree remove` 并
 删分支。然后退。
 
+**支上含非测试修复 commit 的特例**（违「不修」已发生——例：缺陷顺手
+修了）：支不再是纯证物,须自写候审回执入落地链（候审回执 event 无闸,
+审计席可写；缺此行=支结构性滞留——2026-11-21 audit/1121-drill·life
+双支实证）：
+
+```sql
+INSERT INTO ops_event(seat,event,ticket,note)
+VALUES('审计席','处置','','audit/<name> 候审回执——<自修件一句>; 支=audit/<date>-<name> sha=<tip全sha>');
+```
+
+note 必含支名或 tip 前缀（land_queue review_ok 按词面配对作者席）。
+之后等复审席 `复审过 sha=<tip>` 行——你自己不审自己。
+
 ## 禁线（硬）
 
 - **不修**：不改 paths 下任何非测试文件；不 merge；不 push master；

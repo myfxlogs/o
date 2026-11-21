@@ -229,6 +229,8 @@ var migrationTable = []struct {
 	{220, "fin_0220_saga.sql"},                // 工单#25807 saga 流程级补偿账（fin_0219 在途占 fix/okx-native-grid 支——跳号钉 0220）
 	{221, "fin_0221_okxgrid_launch_hold.sql"}, // 工单#26337 拉起歧态势抑重账——hold 行禁自动重试补单
 	{222, "fin_0222_unit_registry.sql"},       // 工单#26444 建制单元注册表 seed——ops.unit_registry canon
+	{223, "fin_0223_ops_event_immutable.sql"}, // 首性审计整改——append-only 升库层前置闸(UPDATE/DELETE/TRUNCATE 全角色禁)
+	{224, "fin_0224_closeout_shape_gate.sql"}, // 施工收口形闸——[施工收口:O-<票>] @ sha=<40>定稿形机械拒写
 
 	// —— md 链（版本链内唯一且单调；md 链版本=历史号+1000 与 fin 键空间全局不相交——跨链并 schema 时 schema_migrations 零撞号，check_migrations 断言①⑤）——
 	{1003, "md_1003_market_facts.sql"},

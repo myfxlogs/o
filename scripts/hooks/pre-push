@@ -7,8 +7,10 @@
 #    .git/check-green-<SHA>（6h 窗）——全链独立跑不在钩内（钩内跑全谱=
 #    持 git 连接数分钟，GitHub 掐空闲连接实证 10-27；拆戳=闸仍强制连接短促）。
 #
-# 伪戳=违例入案（服务端 required-check build-test 兜真伪——假绿推 master
-# 照拒）。--no-verify=违例本身。
+# 伪戳=违例入案——戳是本地文件可 touch（首性审计 2026-11-21 亲证），
+# 服务端 build-test 对直推=事后标红检出非拒推（pr_required=False）；
+# 真产线边界=deploy_watch CI 闸（conclusion=success 才部署）。
+# --no-verify=违例本身（物理可绕,账/CI/探针四重可溯）。
 set -uo pipefail
 
 remote="$1"
