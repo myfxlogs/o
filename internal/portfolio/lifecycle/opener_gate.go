@@ -119,7 +119,7 @@ func (r *Runner) breakevenOK(ctx context.Context, spec OpenSpec) (bool, string) 
 	if strings.HasPrefix(spec.Direction, "long_perp") {
 		sign = -1
 	}
-	measH, merr := r.measuredHoldDays(ctx, spec.InstID, sign)
+	measH, merr := funding.MeasuredHoldDays(ctx, r.pool, spec.InstID, sign)
 	if merr != nil || measH <= 0 {
 		return false, fmt.Sprintf("持仓段史缺（%s 30d 无收租号段——摊销窗不虚构 fail-closed）", spec.InstID)
 	}
@@ -147,32 +147,6 @@ func (r *Runner) breakevenOK(ctx context.Context, spec OpenSpec) (bool, string) 
 		return false, "breakeven_beyond_hold"
 	}
 	return true, ""
-}
-
-// measuredHoldDays 实测持仓窗（T-0521 ①）：md_funding 该 inst 近 30d
-// sign 号收租连续段的天数中位——正号段=short_perp 收租期,负号段=
-// long_perp 收租期。sign(funding_rate)=0 行按 0 号分段（中断两侧段）。
-// 段长=段内 max−min+一个结算窗（0.334d≈8h——末行后仍收一窗租）。
-// 该 inst 无 sign 号段→0=facts 缺（caller fail-closed,不虚构摊销窗）。
-func (r *Runner) measuredHoldDays(ctx context.Context, inst string, sign float64) (float64, error) {
-	var d *float64
-	err := r.pool.QueryRow(ctx, `WITH s AS (
-		SELECT ts,funding_rate,LAG(funding_rate) OVER (ORDER BY ts) prev
-		FROM md_funding WHERE inst_id=$1 AND ts>now()-interval '30 days'),
-	r AS (SELECT ts,funding_rate,
-		SUM(CASE WHEN sign(funding_rate)<>sign(COALESCE(prev,0)) THEN 1 ELSE 0 END)
-		OVER (ORDER BY ts) rid FROM s),
-	st AS (SELECT EXTRACT(EPOCH FROM (max(ts)-min(ts)))/86400.0+0.334 d,
-		sign(max(funding_rate)) sg FROM r GROUP BY rid)
-	SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY d) FROM st WHERE sg=$2`,
-		inst, sign).Scan(&d)
-	if err != nil {
-		return 0, err
-	}
-	if d == nil {
-		return 0, nil
-	}
-	return *d, nil
 }
 
 // rejectEvalReason 通用拒卡落件（T-0111：reason 参数化——lifetime/回本窗同径

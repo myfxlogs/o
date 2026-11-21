@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -21,13 +22,6 @@ import (
 const (
 	freshnessMax = 25 * time.Hour // funding 事实行新鲜度门（8h 结算×3+余量）
 )
-
-var paramKeys = []string{
-	"research.funding.taker_fee_bps", "research.funding.maker_fee_bps", "research.funding.slippage_bps",
-	"research.funding.fail_cost_bps", "research.funding.window_loss_bps",
-	"research.funding.min_net_apr", "research.funding.settles_per_day",
-	"guard.max_hold_hours", // T-0297：费用年化摊销持仓期源（与 opener breakevenOK 同键一源）
-}
 
 // Runner 枚举+评估+闸岗（双员工：探员=枚举面，验证官=评估+提案闸面）。
 type Runner struct {
@@ -76,49 +70,6 @@ func (r *Runner) Run(ctx context.Context, errc chan<- error) {
 	events.ListenLoop(ctx, r.pool, "research", []string{"ev_funding"}, r.scan)
 }
 
-// params 判据全自 config 快照读；任一键缺=不可评估面（fail-closed 不虚构判据）。
-func (r *Runner) params() (Params, error) {
-	var p Params
-	get := func(k string) (float64, error) { return r.cfg.GetFloat(k) }
-	var err error
-	if p.TakerFeeBps, err = get(paramKeys[0]); err != nil {
-		return p, fmt.Errorf("%s: %w", paramKeys[0], err)
-	}
-	if v, e := get(paramKeys[1]); e == nil {
-		p.MakerFeeBps, p.MakerFeeSet = v, true // T-0247 分层：在册含 0/负按真值
-	}
-	if p.SlippageBps, err = get(paramKeys[2]); err != nil {
-		return p, fmt.Errorf("%s: %w", paramKeys[1], err)
-	}
-	if p.FailCostBps, err = get(paramKeys[3]); err != nil {
-		return p, fmt.Errorf("%s: %w", paramKeys[3], err)
-	}
-	if p.WindowLossBps, err = get(paramKeys[4]); err != nil {
-		return p, fmt.Errorf("%s: %w", paramKeys[4], err)
-	}
-	if p.MinNetAPR, err = get(paramKeys[5]); err != nil {
-		return p, fmt.Errorf("%s: %w", paramKeys[6], err)
-	}
-	if p.SettlesPerDay, err = get(paramKeys[6]); err != nil {
-		return p, fmt.Errorf("%s: %w", paramKeys[5], err)
-	}
-	var holdH float64
-	if holdH, err = get(paramKeys[7]); err != nil {
-		return p, fmt.Errorf("%s: %w", paramKeys[7], err)
-	}
-	p.HoldDays = holdH / 24
-	return p, nil
-}
-
-// stakeStale 质押分量率行新鲜度门读（research.stake.stale_hours——
-// 缺/坏=0 不闸，慢特征率行如实取；scan 拍内调一次非逐 inst）。
-func (r *Runner) stakeStale() float64 {
-	if v, err := r.cfg.GetFloat("research.stake.stale_hours"); err == nil && v > 0 {
-		return v
-	}
-	return 0
-}
-
 // scan 一拍：Earn 现率→md_funding 最新行/inst_id → 动态底五拆评估 → 落卡 → 阈闸提案。
 // 读评分离+写拍批内合流（T-0162）：先排干 md_funding 快照完成评估（读面零写），
 // 写面整体单事务落卡——同事务空 payload NOTIFY 同值天然去重=全拍至多一醒
@@ -145,6 +96,21 @@ func (r *Runner) scan(ctx context.Context) error {
 	if err != nil {
 		r.rej.Inc("missing_params")
 		return fmt.Errorf("判据缺位=不可评估（fail-closed）: %w", err)
+	}
+	// 工单#19797①费面实测合流（T-0521 opener 侧同式——eval 成本侧与
+	// lifecycle.friction 实测同族口径，禁双 taker 虚高）：fee/slip 分量
+	// 实测值新鲜（≤30d 对齐测量窗）则替声明参数；换算同 breakevenOK——
+	// RoundTripBps fee 项=4×taker、slip 项=2×slip，故 taker=fee/4、
+	// slip=slip/2 走 CostAPR 单源函数（自检 I 不破）；fail/window 成本项
+	// 实测面覆盖不到=声明值续守。venue=okx（md_funding 域即 okx perp 面）。
+	if fee, e := r.cfg.GetFloat("lifecycle.friction_fee_bps.okx"); e == nil && fee > 0 {
+		if slip, e := r.cfg.GetFloat("lifecycle.friction_slip_bps.okx"); e == nil && slip >= 0 {
+			if at, e := r.cfg.GetFloat("lifecycle.friction_at.okx"); e == nil &&
+				time.Since(time.Unix(int64(at), 0)) < 30*24*time.Hour {
+				p.TakerFeeBps, p.MakerFeeSet = fee/4, false
+				p.SlippageBps = slip / 2
+			}
+		}
 	}
 	earnAPR, fresh, err := r.earnRateAPR(ctx)
 	if err != nil {
@@ -182,7 +148,37 @@ func (r *Runner) scan(ctx context.Context) error {
 		} else if !yok {
 			sy = Yield{}
 		}
-		e := Evaluate(instID, rate, p, sy)
+		// 工单#19797②摊销窗实测合流（T-0521 同式——eval HoldDays 分母与
+		// opener breakevenOK 同判据一源）：正 funding 族（rate>0→
+		// short_perp_long_spot 收租向）分母=min(声明上限 max_hold/24,
+		// 该 inst 收租号连续段 30d 中位)；无该号段=摊销窗不虚构 fail-closed
+		// 拒（与开闸判据同结论——eval 不虚构放行）。rate<0 反向族本即拒，
+		// 不耗实测查询。measured 源入 evidence 留痕。
+		pi := p
+		if rate > 0 {
+			measH, merr := MeasuredHoldDays(ctx, r.pool, instID, 1.0)
+			if merr != nil {
+				r.rej.Inc("write_err")
+				return merr
+			}
+			if measH <= 0 {
+				e := Eval{InstID: instID, Direction: "short_perp_long_spot",
+					Legs:     map[string]any{"perp": "short", "spot": "long"},
+					Verdict:  "rejected",
+					Reason:   "hold_window_unmeasured:30d 无该号收租段——摊销窗不虚构 fail-closed",
+					Evidence: map[string]any{"funding_rate": rate, "hold_days_src": "unmeasured"}}
+				batch = append(batch, e)
+				continue
+			}
+			pi.HoldDays = math.Min(p.HoldDays, measH)
+		}
+		e := Evaluate(instID, rate, pi, sy)
+		if rate > 0 {
+			if e.Evidence == nil {
+				e.Evidence = map[string]any{}
+			}
+			e.Evidence["hold_days_src"] = "measured"
+		}
 		applyMacro(&e, macro) // 近窗事件→evidence.macro（纯注解层）
 		if e.Verdict == "rejected" && rate < 0 {
 			r.rej.Inc("neg_funding_infeasible")
