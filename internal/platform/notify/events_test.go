@@ -78,3 +78,31 @@ func TestEventPushSimdrillFiltered(t *testing.T) {
 		t.Fatalf("真平仓应再推 1 got=%v", f.sent)
 	}
 }
+
+// TestEventPushBotCovered 手动bot#1零报劈回补——fin_bot_order 拉起/停翻帧
+// 入经营推送（fin_0227 触发器同事务 NOTIFY 供面+查询面双锚）。
+func TestEventPushBotCovered(t *testing.T) {
+	pool := testutil.Pool(t)
+	ctx := context.Background()
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatal(err)
+	}
+	var bid int64
+	if err := pool.QueryRow(ctx, `INSERT INTO fin_bot_order(inst_id,algo_id,params)
+		VALUES('BTC-USDT','algo-t1','{"quoteSz":"100"}') RETURNING id`).Scan(&bid); err != nil {
+		t.Fatal(err)
+	}
+	f := &fakeSender{}
+	e := NewEventPush(pool, f, func() string { return "oc_x" }, func() bool { return true })
+	e.pushBotOpened(ctx)
+	if len(f.sent) != 1 || !strings.Contains(f.sent[0], "网格开仓") || !strings.Contains(f.sent[0], "BTC") {
+		t.Fatalf("bot 拉起应推网格开仓 got=%v", f.sent)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE fin_bot_order SET state='stopped',stopped_at=now() WHERE id=$1`, bid); err != nil {
+		t.Fatal(err)
+	}
+	e.pushBotStopped(ctx)
+	if len(f.sent) != 2 || !strings.Contains(f.sent[1], "网格收单") {
+		t.Fatalf("bot 停应推网格收单 got=%v", f.sent)
+	}
+}
