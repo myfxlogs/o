@@ -7,11 +7,25 @@ import (
 	"testing"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"o/internal/platform/config"
 	"o/internal/platform/testutil"
 	"o/internal/store/pgstore"
 )
+
+// seedStreak 正号收租段桩（工单#19797②：eval HoldDays 分母=该 inst
+// 收租号连续段 30d 中位实测——单行桩段长仅 0.334d 会把摊销窗压碎，
+// 生产 md_funding 为 8h 密排史；测试须铺 ≥3d 同号连续段保 declared
+// 上限语义）。80h 跨度+0.334 结算窗≈3.67d→min(3d 上限,3.67)=3 不变。
+func seedStreak(t *testing.T, ctx context.Context, pool *pgxpool.Pool, inst string, rate float64) {
+	t.Helper()
+	if _, err := pool.Exec(ctx, `INSERT INTO md_funding(ts,inst_id,funding_rate)
+		SELECT now() - (g||' hours')::interval, $1, $2
+		FROM generate_series(0,80,8) g`, inst, rate); err != nil {
+		t.Fatal(err)
+	}
+}
 
 func TestScanE2E(t *testing.T) {
 	pool := testutil.Pool(t)
@@ -44,8 +58,9 @@ func TestScanE2E(t *testing.T) {
 		t.Fatal(err)
 	}
 	// 鲜 funding 行：高率（应提案）+负率（应拒）
+	seedStreak(t, ctx, pool, "TEST-USDT-SWAP", 0.01)
 	if _, err := pool.Exec(ctx, `INSERT INTO md_funding(ts,inst_id,funding_rate) VALUES
-		(now(),'TEST-USDT-SWAP',0.01),(now(),'TEST2-USDT-SWAP',-0.02)`); err != nil {
+		(now(),'TEST2-USDT-SWAP',-0.02)`); err != nil {
 		t.Fatal(err)
 	}
 	// 陈行不评估
@@ -122,10 +137,12 @@ func TestScanEarnFloorE2E(t *testing.T) {
 	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
 		t.Fatal(err)
 	}
-	// net=0.06 锚定形判据（T-0297 新口径：cost_rt=3050bps 按 HoldDays=365 摊→cost_apr=0.305；
-	// rate 0.001×1 settle×365=0.365 毛收−0.305=0.06）
+	// net≈0.067 锚定形判据（工单#19797②实测摊销窗：HoldDays=min(声明上限,
+	// 收租段 30d 中位)——seedStreak 80h 段→measH≈3.67d 定 HoldDays=3.67；
+	// cost_rt=4×7+2×1=30bps→cost_apr=30/1e4×365/3.67≈0.298；
+	// rate 0.001×1 settle×365=0.365 毛收−0.298≈0.067 落 (0.05,0.08) between 态）
 	for k, v := range map[string]string{
-		"research.funding.taker_fee_bps": "750", "research.funding.slippage_bps": "25",
+		"research.funding.taker_fee_bps": "7", "research.funding.slippage_bps": "1",
 		"research.funding.fail_cost_bps": "0", "research.funding.window_loss_bps": "0",
 		"research.funding.min_net_apr": "0.05", "research.funding.settles_per_day": "1",
 		"guard.max_hold_hours":      "8760",
@@ -155,10 +172,8 @@ func TestScanEarnFloorE2E(t *testing.T) {
 	if _, err := pool.Exec(ctx, `INSERT INTO md_earn_rate(ts,venue,ccy,rate) VALUES(now(),'okx','USDT',0.08)`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO md_funding(ts,inst_id,funding_rate) VALUES
-		(now(),'TESTE1-USDT-SWAP',0.001),(now(),'TESTE2-USDT-SWAP',0.01)`); err != nil {
-		t.Fatal(err)
-	}
+	seedStreak(t, ctx, pool, "TESTE1-USDT-SWAP", 0.001)
+	seedStreak(t, ctx, pool, "TESTE2-USDT-SWAP", 0.01)
 	if err := r.scan(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -176,10 +191,7 @@ func TestScanEarnFloorE2E(t *testing.T) {
 	if _, err := pool.Exec(ctx, "DELETE FROM md_earn_rate WHERE ccy='USDT'"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO md_funding(ts,inst_id,funding_rate) VALUES
-		(now(),'TESTE3-USDT-SWAP',0.001)`); err != nil {
-		t.Fatal(err)
-	}
+	seedStreak(t, ctx, pool, "TESTE3-USDT-SWAP", 0.001)
 	before := r.rej.Snapshot()["research/earn_rate_degraded"]
 	if err := r.scan(ctx); err != nil {
 		t.Fatal(err)
@@ -196,10 +208,7 @@ func TestScanEarnFloorE2E(t *testing.T) {
 		(now()-interval '5 hours','okx','USDT',0.08)`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO md_funding(ts,inst_id,funding_rate) VALUES
-		(now(),'TESTE4-USDT-SWAP',0.001)`); err != nil {
-		t.Fatal(err)
-	}
+	seedStreak(t, ctx, pool, "TESTE4-USDT-SWAP", 0.001)
 	before = r.rej.Snapshot()["research/earn_rate_degraded"]
 	if err := r.scan(ctx); err != nil {
 		t.Fatal(err)
@@ -289,10 +298,7 @@ func TestActiveStrategyBlocksProposal(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO md_funding(ts,inst_id,funding_rate)
-		VALUES(now(),'DUP-USDT-SWAP',0.01)`); err != nil {
-		t.Fatal(err)
-	}
+	seedStreak(t, ctx, pool, "DUP-USDT-SWAP", 0.01)
 	// 同键 active 策略在册——新提案应被闸。
 	if _, err := pool.Exec(ctx, `INSERT INTO fin_strategy(inst_id,template_ref,state,notional_usd,direction)
 		VALUES('DUP-USDT-SWAP','funding-hedge','paper',100,'short_perp_long_spot')`); err != nil {
@@ -448,12 +454,13 @@ func TestScanSpotYieldE2E(t *testing.T) {
 		 VALUES(now(),3.33,3.35,3.30,0.05)`,
 		`INSERT INTO fin_trx_account(address,votes_total,balance_sun,allowance_sun,energy_delegated,bandwidth_staked,net_limit)
 		 VALUES('TTEST',0,0,0,0,0,0)`,
-		`INSERT INTO md_funding(ts,inst_id,funding_rate) VALUES(now(),'TRX-USDT-SWAP',0.0001)`,
+		// TRX 段桩走 seedStreak（下方独立注入——VALUES 列表不支 SELECT 形）
 	} {
 		if _, err := pool.Exec(ctx, q); err != nil {
 			t.Fatal(err)
 		}
 	}
+	seedStreak(t, ctx, pool, "TRX-USDT-SWAP", 0.0001)
 	cfg := config.New(pool)
 	if err := cfg.Load(ctx); err != nil {
 		t.Fatal(err)
@@ -477,5 +484,49 @@ func TestScanSpotYieldE2E(t *testing.T) {
 	// （0.3893≈32bps×365/3d——净负如实，质押分量仍 +0.0333 上移）。
 	if math.Abs(gross-0.1428) > 1e-9 || math.Abs(net-(gross-0.0032*365/3)) > 1e-6 {
 		t.Fatalf("质押分量未入总分: gross=%v net=%v", gross, net)
+	}
+}
+
+// 工单#19797②锚：MeasuredHoldDays 实测摊销窗——正负号段分组中位、
+// 无该号段=0 不虚构、在飞段计入保守向。
+func TestMeasuredHoldDays(t *testing.T) {
+	pool := testutil.Pool(t)
+	ctx := context.Background()
+	if err := pgstore.Migrate(ctx, pool, "md"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, "DELETE FROM md_funding WHERE inst_id='MW-USDT-SWAP'"); err != nil {
+		t.Fatal(err)
+	}
+	// 正段 40h（6×8h 跨度）+负段 24h（未来向三行）——sg=+1 段长=40h+0.334d≈2.0d。
+	if _, err := pool.Exec(ctx, `INSERT INTO md_funding(ts,inst_id,funding_rate)
+		SELECT now() - (g||' hours')::interval, 'MW-USDT-SWAP', 0.001
+		FROM generate_series(0,40,8) g`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO md_funding(ts,inst_id,funding_rate)
+		SELECT now() + (g||' hours')::interval, 'MW-USDT-SWAP', -0.001
+		FROM generate_series(8,24,8) g`); err != nil {
+		t.Fatal(err)
+	}
+	d, err := MeasuredHoldDays(ctx, pool, "MW-USDT-SWAP", 1.0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d < 1.9 || d > 2.1 {
+		t.Fatalf("正号段中位=%v（应≈2.0d=40h+0.334 结算窗）", d)
+	}
+	// 无该号段（全负史取正号）→0 不虚构。
+	if _, err := pool.Exec(ctx, "DELETE FROM md_funding WHERE inst_id='MW-USDT-SWAP'"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO md_funding(ts,inst_id,funding_rate)
+		SELECT now() - (g||' hours')::interval, 'MW-USDT-SWAP', -0.001
+		FROM generate_series(0,16,8) g`); err != nil {
+		t.Fatal(err)
+	}
+	d, err = MeasuredHoldDays(ctx, pool, "MW-USDT-SWAP", 1.0)
+	if err != nil || d != 0 {
+		t.Fatalf("无正号段应=0: d=%v err=%v", d, err)
 	}
 }
