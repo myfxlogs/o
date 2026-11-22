@@ -229,9 +229,13 @@ func TestEvalQueueRows(t *testing.T) {
 		VALUES ('okx','lending','lending_spread','proposed',now()-interval '10 days')`); err != nil {
 		t.Fatal(err)
 	}
-	// template：1 enabled + 1 candidate（名册灰显注）
-	if _, err := c.pool.Exec(ctx, `INSERT INTO fin_opp_template(template,venue,enabled)
-		VALUES ('test-cand','okx',false)`); err != nil {
+	// template：1 live + 1 candidate + 1 disabled（O-33393 名册四态分色注——
+	// 禁行带禁因/前提/禁日龄，candidate 未收养与钦定禁用分态）。
+	if _, err := c.pool.Exec(ctx, `INSERT INTO fin_opp_template(template,venue,surface,enabled,state,
+			disabled_reason,ban_premise,ban_premise_kind,banned_at) VALUES
+		('test-live','okx','funding',true,'enabled',NULL,NULL,NULL,NULL),
+		('test-cand','okx','dcd',false,'candidate','未收养候选——非钦定禁用','无前提可核','none',NULL),
+		('test-ban','okx','dcd',false,'disabled','测试禁因——venue缺类','venue面缺类前提','venue_capability',now()-interval '5 days')`); err != nil {
 		t.Fatal(err)
 	}
 	r, err := c.GetSystemHealth(ctx, &dashboardv1.GetSystemHealthRequest{})
@@ -256,7 +260,9 @@ func TestEvalQueueRows(t *testing.T) {
 		t.Fatalf("审批队列行不对: %+v", h)
 	}
 	tr := byName["机会模板名册"]
-	if tr == nil || tr.State != 0 || !strings.Contains(tr.Note, "test-cand:okx") {
+	// 名册四态计数随迁移种子行浮动——钉禁行名+disabled 计数+绿态三锚。
+	if tr == nil || tr.State != 0 || !strings.Contains(tr.Note, "disabled 1") ||
+		!strings.Contains(tr.Note, "test-ban:dcd") {
 		t.Fatalf("模板名册行不对: %+v", tr)
 	}
 }

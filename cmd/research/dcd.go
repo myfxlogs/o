@@ -24,6 +24,7 @@ import (
 
 	"o/internal/research/analyst"
 	"o/internal/research/band"
+	"o/internal/research/banrecheck"
 	ctxcoll "o/internal/research/ctx"
 	"o/internal/research/dcd"
 	"o/internal/research/dirmom"
@@ -222,6 +223,10 @@ func researchArms(ctx context.Context, errc chan<- error, pool *pgxpool.Pool,
 	// 五态分类→人维护映射表→族覆盖缺口→族提案升件；影子产出零执行，
 	// 映射表外族永不提案 fail-closed；ops_event 写径挂 fin 池）。
 	go regime.NewRunner(pool, cfg).AttachAlerter(alerter).AttachEscPool(finPool).Run(ctx, errc)
+	// 工单O-33393 模板禁前提复核拍（独立提案面——眼死了探照灯也得亮：
+	// enabled=f∧ban_premise 行周期重核，前提证伪升件复审非自动解禁）。
+	go banrecheck.NewRunner(pool, cfg).AttachEscPool(finPool).
+		AttachCheck(banrecheckCheckFor(okcli, cfg, rej)).AttachAlerter(alerter).Run(ctx, errc)
 	// 工单#25563 MT5 影子评估臂（venue='mt5' 全目录→同 z 分判据——
 	// execfam 未册=判词全落 exec_family_missing，影域评分先行执行零径）。
 	go dirmom.NewRunnerVenue(pool, cfg, "mt5", "%", "mt5_dir_mom", "MT5方向评估").

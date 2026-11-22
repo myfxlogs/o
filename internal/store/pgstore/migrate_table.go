@@ -246,4 +246,5 @@ var finMigrationTable = []migEntry{
 	{231, "fin_0231_ops_work_notify.sql"},         // 工单O-32300——ops_event 关键行→ev_work NOTIFY 唤醒脊（工单/升件/候审链，timer 兜底不撤）
 	{232, "fin_0232_md_market_read_grant.sql"},    // 工单O-32603——fin_0231 在途占（fix/work-wake-bus 支）——跳号钉 0232；roster_rw 补 md_klines/md_funding 读权（体制读数输入面）
 	{233, "fin_0233_dcd_cashflow_kinds.sql"},      // 工单O-33362——dcd 申购/结算 counted 现金腿 kind 扩集（dcd_out/dcd_in=transfer）+凭据 (op,ordId) 唯一闸
+	{234, "fin_0234_tmpl_ban_fields.sql"},         // 工单O-33393——fin_opp_template 禁因三件套+名册视图 SG 镜像（md_1103 正本同形）
 }
