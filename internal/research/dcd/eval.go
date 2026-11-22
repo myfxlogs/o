@@ -215,14 +215,21 @@ func (r *Runner) persistProduct(ctx context.Context, s Surface, p Product, spot 
 // missing 如实，不进提案队列（族码=template 列）。
 // T-0353 件④业主资产域闸：锁仓币≠USDT 的 proposed 分流 fin_condition_gap
 // （评估卡如实留 proposed+evidence.proposal_path 自释「proposed 而无提案」）。
-func (r *Runner) persistEval(ctx context.Context, e Eval) error {
+func (r *Runner) persistEval(ctx context.Context, e Eval, tplOn map[string]bool) error {
 	if e.Verdict == "proposed" && !execfam.Has(e.Template) {
 		e.Verdict, e.Reason = "rejected", "exec_family_missing"
 	}
 	owner := e.Verdict == "proposed" && OwnerDomain(e)
+	// O-33377：模板态闸——目录解钳后禁用模板评估卡照落 proposed（复核拍
+	// 证据面+提案前审计链），但不起 fin_proposal 行（钱径闸在模板态，
+	// 名册复核翻启用才放行——与 surfaces 声明闸解耦成对称两半）。
+	tmplOff := e.Verdict == "proposed" && !tplOn[e.Template]
 	ev := e.Evidence()
 	if owner {
 		ev["proposal_path"] = "condition_gap_owner_domain"
+	}
+	if tmplOff {
+		ev["proposal_path"] = "template_disabled"
 	}
 	legs, _ := json.Marshal(e.Legs())
 	evb, _ := json.Marshal(ev)
@@ -250,6 +257,11 @@ func (r *Runner) persistEval(ctx context.Context, e Eval) error {
 	}
 	if owner {
 		return RequestOwnerDomain(ctx, r.fin, e, r.rej, "research/dcd")
+	}
+	if tmplOff {
+		log.Printf("[research/dcd] %s 模板 %s 未启用——评估卡留 proposed 不起提案（名册态闸）",
+			e.Product.ProductID, e.Template)
+		return nil
 	}
 	var banned int
 	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_venue_untradeable
