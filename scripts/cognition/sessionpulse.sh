@@ -25,11 +25,15 @@ STALL_MIN=90 # 会话在修龄阈（分钟）——写死常量：大件判据�
 
 # Q1 候选=唤起行龄超阈且 unit= token 可解（旧形无 unit 行不判——
 # 配对键缺席不可对账）。unit 字符集 [A-Za-z0-9_-] 兼容下行 ~ 正则直插。
+# 扫窗下界 24h（工单O-32268 回火实证 2026-11-22：无下界扫全史——
+# 配对行约定前老会话 86 件全升件信号洪水;RuntimeMaxSec=2h 下 >24h
+# 唤起行=无可救药死尸,升件无可处置价值）。
 CAND=$(psql "$DSN" -qAt -F'|' -c "
 SELECT e.id, extract(epoch from e.ts)::bigint, e.seat,
        (regexp_match(e.note,'unit=([A-Za-z0-9_-]+)'))[1]
 FROM ops_event e
 WHERE e.event='唤起' AND e.ts<now()-interval '${STALL_MIN} minutes'
+	AND e.ts>now()-interval '24 hours'
 ORDER BY e.ts" 2>/dev/null) # tolerate: 查询败=空集本拍零监控——fail-open不阻主径
 [ -n "$CAND" ] || exit 0
 
