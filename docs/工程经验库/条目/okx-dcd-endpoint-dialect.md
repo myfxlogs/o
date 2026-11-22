@@ -6,9 +6,9 @@ risk: medium
 status: verified
 keywords: [OKX, sfp/dcd, 双币赢, 信封 code 数字型, order-history, 50110 IP 白名单, IPv6 egress, bill subType]
 scope: [internal/trading/okxexec, tools 探针族, venue 集成面]
-summary: OKX sfp/dcd 端点族三坑——响应 code 为数字型（okxexec 信封 string 解析拒）、端点名猜错回 500 非 404（真名 order-history/order-status）、IP 白名单按出口栈族判（IPv6 egress 漂移即 50110）；dcd 资金流水走 bills subType 160-163/207-210
+summary: OKX sfp/dcd 端点族三坑——响应 code 为数字型（okxexec 信封 string 解析拒）、端点名猜错回 500 非 404（真名 order-history/order-status）、IP 白名单按出口栈族判（IPv6 egress 漂移即 50110）；dcd 资金流水真腿=/asset/bills type 160-163（/account/bills 同号段=type6 保证金子型非 dcd——O-33362 取证根修）
 first_seen: 2026-10-25
-last_verified: 2026-10-25
+last_verified: 2026-11-22
 skills: [okx-asset-funding]
 evidence_refs:
   - type: server_fact
@@ -34,9 +34,14 @@ evidence_refs:
    漂移 IPv6 egress→50110「IP 不在白名单」间歇 401——同机同钥同时段
    一半请求过一半拒，表象像钥匙坏。诊断锚：报错体里的 IP 是 v6 形即中此坑；
    修法=出站钉 tcp4 或把 v6 也录白名单。
-4. **dcd 流水面=bills subType**：双币赢申购/回款/收益/退款=
-   subType 160/161/162/163（精简版 207-210）——查 dcd 资金流不查
-   finance 表，走 `/account/bills`/`/asset/bills` 按 subType 过滤。
+4. ~~dcd 流水面=bills subType~~ **已证伪（O-33362 取证根修 2026-11-22）**：
+   双币赢现金腿真面=**`/asset/bills(-history)` 的 `type` 字段
+   160/161/162/163**（funding 户账单族——ordId=11594773 的 -50 USDT
+   「Dual Investment subscription」实证）；`/account/bills` 同号段
+   subType 160-163=**type=6 保证金子型**（`/account/subtypes` 权威典
+   +真户 bills?ordId 实证 DCD 订单零行）——两面同号不同域。另：
+   /asset/bills 行**无 ordId 键**，归因须对订单枚举面（order-history
+   settleSz/yieldSz 明告）配对，禁按 subType 单猜。
 
 ## 经验
 

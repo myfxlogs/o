@@ -32,6 +32,9 @@ var kinds = map[string]bool{
 	// airdrop=空投/奖励、unmapped_bill=残差守恒落账位（adjustment 待归因）。
 	"dust_in": true, "dust_out": true, "supply_income": true,
 	"airdrop": true, "unmapped_bill": true,
+	// O-33362：dcd_out/dcd_in=双币赢申购扣款/结算回款本金腿（transfer
+	// counted——earn_* 排除面外照入 net；与 dcd_baseline 凭据配对互抵）。
+	"dcd_out": true, "dcd_in": true,
 }
 var ccys = map[string]bool{"USDT": true, "USD": true}
 

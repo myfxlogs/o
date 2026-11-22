@@ -31,6 +31,7 @@ type DcdOrder struct {
 	SettleCcy       string `json:"settleCcy"`       // 结算币种（未结算=""——回款币种 venue 明告）
 	SettlePx        string `json:"settlePx"`        // 结算价格（未结算=""）
 	SettleTime      string `json:"settleTime"`      // 到期（ms 串）
+	SettledTime     string `json:"settledTime"`     // 实结时刻（ms 串——未结算=""；现金腿 occurred_at 优先锚）
 	ExpTime         string `json:"expTime"`         // 产品到期（ms 串）
 	CTime           string `json:"cTime"`
 }

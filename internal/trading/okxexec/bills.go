@@ -29,7 +29,7 @@ type Bill struct {
 func (c *Client) Bills(ctx context.Context, instType, afterBillID string) ([]Bill, error) {
 	q := "/api/v5/account/bills?limit=100"
 	if instType != "" {
-		q += "&instType=" + instType // T-0160 ③空串=无过滤全谱（ASSET 非法参 51000 实证——dcd 160-163 唯捕获径）
+		q += "&instType=" + instType // T-0160 ③空串=无过滤全谱（ASSET 非法参 51000 实证；O-33362 取证注：dcd 现金腿不在此口——实在 /asset/bills type 160-163）
 	}
 	if afterBillID != "" {
 		q += "&after=" + afterBillID
