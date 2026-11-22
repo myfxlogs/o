@@ -389,31 +389,41 @@ if (cd "$REPO" && bash -c "$PUSH_CMD origin $FINAL:master" >/dev/null 2>&1); the
 	while read -r br tip msha; do
 		[ -n "$br" ] && fact "落成 支=$br 尖=$tip merge=$msha——deploy_watch接力ff+部署(列车$LN支)"
 	done <<< "$LANDED"
-	# 工单#24624：机械合支自动销簿记——列车径同判逐支销。
-	# commit 区间基=列车前 origin/master（ORIG_M——推后 origin/master
-	# 已含支尖，现行单支径同式区间实为空集=销簿记静默死径，列车径
-	# 按列前基线取=语义归位非新行为）。闸:仅机械合支+号面≤5防爆销。
-	# ORIG_M 空=区间退化不可判→整段跳过（巡检旧径兜）。
+	# 落成自动销票细胞（工单O-33182）：支名+commit面+合并commit面三源
+	# 并集提 O-<id>/工单#<id> 号集→desk闸(未销∧未挂起∧非裁定)∧完工回执
+	# 闸→seat=落地件 处置销行——「落成≠销案」簿记断尾根修（#32269/#32295
+	# 码齐票挂实证）。取代旧「工单#机械合支随合即销」无闸径（工单#24624
+	# 件——无回执强销/susp·rulable误销洞同修：多段epic干一半不冤杀）。
+	# ORIG_M 空=区间退化整段跳（巡检旧径兜）。
 	SEEN_TID=" "
 	while [ -n "$ORIG_M" ] && read -r br tip msha; do
 		[ -n "$br" ] || continue
-		TNS=$(git -C "$REPO" log --format='%B' "$ORIG_M..$tip" 2>/dev/null \
-			| grep -oE '工单#[0-9]+' | sort -u | head -8) # tolerate: log 败=空集合法径
-		TNN=$(printf '%s\n' "$TNS" | grep -c '工单#' || true) # tolerate: grep空集rc1——计数器非闸
-		if [ "$TNN" -le 5 ]; then
-			for tn in $TNS; do
-				tid="${tn#工单#}"
-				case "$SEEN_TID" in *" $tid "*) continue;; esac # tolerate: case 空集不匹配=放行首见
-				SEEN_TID="$SEEN_TID$tid "
-				cn="工单#$tid 销——机械合支 $br 落成 $msha 自动销簿记（工单#24624件+O-32267列车径同判——支体commit载号随合即销）"
-				"$PSQL" "$DSN" -qAt -c "INSERT INTO ops_event(seat,event,ticket,note)
-					VALUES('处置席','处置','$tid','$(sqlq "$cn")')" >/dev/null 2>&1 \
-					|| say "自动销行写败 tid=$tid（不阻断）" # tolerate: 销行写败=巡检旧径兜
-			done
-			[ "$TNN" -gt 0 ] && fact "自动销簿记 支=$br 票=$TNS——$TNN 号随合销(列车)"
-		else
-			fact "自动销暂缓 支=$br——commit工单号面=$TNN>5超机械域,人工复核"
-		fi
+		TSET=$( { printf '%s\n' "$br"
+			git -C "$REPO" log --format=%B "$ORIG_M..$tip" 2>/dev/null
+			git -C "$REPO" log -1 --format=%B "$msha" 2>/dev/null; } \
+			| grep -oE '(^|[^[:alnum:]])O-[0-9]+|工单#[0-9]+' \
+			| grep -oE '[0-9]+' | sort -un ) # tolerate: 提取面败/空集=跳支不销
+		[ -n "$TSET" ] || continue
+		CLOSESET=$(q "WITH nums AS (SELECT unnest(ARRAY[$(printf '%s' "$TSET" | paste -sd, -)]) AS tid)
+			SELECT n.tid FROM nums n JOIN ops_ticket_desk d ON d.id=n.tid
+			WHERE d.closed IS NOT TRUE AND d.susp_until IS NULL AND d.rulable IS NOT TRUE
+			  AND EXISTS (SELECT 1 FROM ops_event r
+			    WHERE (r.note ~ '(完工回执|完工推支候审|候审回执|施工收口)' OR r.event ~ '完工')
+			      AND r.note !~ '^复审过[[:space:]]*sha=' AND r.seat NOT IN ('复审席','落地件')
+			      AND (r.note ~ ('O-'||n.tid||'([^0-9]|$)') OR r.note ~ ('工单#'||n.tid||'([^0-9]|$)')
+			        OR r.ticket ~ ('^(O-|工单#)?'||n.tid||'$')))")
+		DID=""
+		for tid in $CLOSESET; do
+			case "$SEEN_TID" in *" $tid "*) continue;; esac # tolerate: case 空集不匹配=放行首见
+			SEEN_TID="$SEEN_TID$tid "
+			DID="$DID $tid"
+			cn="工单#$tid 销——落成自动销 支=$br merge=$msha"
+			"$PSQL" "$DSN" -qAt -c "INSERT INTO ops_event(seat,event,ticket,note)
+				VALUES('落地件','处置','工单','$(sqlq "$cn")')" >/dev/null 2>&1 \
+				|| say "自动销行写败 tid=$tid（不阻断）" # tolerate: 写败下拍支已落不重复合——巡检兜
+		done
+		[ -n "$(printf '%s' "$DID" | tr -d '[:space:]')" ] \
+			&& fact "落成自动销 支=$br 票=$(printf '%s' "$DID" | tr ' ' '\n' | sort -un | paste -sd, -)"
 	done <<< "$LANDED"
 else
 	fact "落地暂缓 列车$LN支 因=sha:master推败(远端先行/闸拒)——下拍重列"
