@@ -182,6 +182,22 @@ WHERE rulable ORDER BY susp_since"
 psql "$FIN_DSN" -qAt -c "SELECT note FROM ops_event WHERE event='量表' AND ticket='housekeeping_daily' ORDER BY id DESC LIMIT 1"
 ```
 
+**审批带宽保底（evalfloor——工单O-30294 器官件，议程保底非信号）**：
+本拍唤起 trigger 携 `evalfloor`=议程保底件——fin_opp_eval proposed
+积压最老龄超阈（app_config `cognition.evalfloor_age_h`，默认24h）∧
+连续零审批处置拍超阈（`cognition.evalfloor_idle_beats`，默认8拍）时
+dispatch 保底一拍给评估审批。**本拍必办**：P0/救命件（死刑/资金闸/
+对账/账链断升件、守位强平在飞）恒先照处；非P0救火件不顶掉本件——
+保底拍内先给评估审批面一份处置再回救火队列。处置径=读 proposed
+积压（`fin_opp_eval WHERE verdict='proposed'`，读面被拒换
+FIN_PG_RO_DSN）逐件裁：采纳→假想卡/提案径、否决→处置行销、
+存疑→挂起条件=——**禁裸 UPDATE verdict、禁替会话裁 verdict 内容**
+（decide 窄门判据不动）。处置落账照常（处置行引 eval#/hypo decide
+审计行皆销「零审批静默」账——eidle 复位靠裁决族判词行）。
+因子机读：`evalage_h=<h>`=积压最老龄、`eidle=<n>`=审批静默拍数
+（唤起行 note trigger= 串可查：`SELECT note FROM ops_event WHERE
+seat='唤知机' AND event='唤起' AND note LIKE '%<COG_UNIT>%'`）。
+
 ### ①½ 生成面（信号面净时——「探未知」常驻径）
 
 未决升件=0 且近 7d 无 seat='研究员' event='能力面扫描' 行→本拍做

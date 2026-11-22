@@ -244,6 +244,22 @@ TRIGGER=""
 [ "$RULE_N" -gt 0 ] && TRIGGER="${TRIGGER:+$TRIGGER }rule:$RULE_N"
 # 工单#22578②:accept/ticket 类不再单独唤醒——完工待验票归兜底拍∨他唤同见
 [ -z "$TRIGGER" ] && [ $(( NOW - LAST_WOKE )) -gt 21600 ] && TRIGGER="sweep:6h"
+# ── 审批带宽保底（工单O-30294——proposed→裁定=决策席人工件,救火信号
+# 可无限挤占审批带宽:evalfloor.sh 出 evalage_h/eidle/evalfloor 议程
+# 因子——fin_opp_eval proposed 最老龄>app_config阈 ∧ 连续N拍零审批
+# 处置 → 保底拍;非P0救火件不挤(因子与救火因子并列不互斥),P0在飞
+# (死刑/资金闸/对账/账链断升件∪守位强平在飞)让位——救命恒先。
+# --sole=本拍无他触发因子才传——evalfloor.sh 内冷却闸防静默期保底
+# 独唤风暴;他件在飞拍不传=因子搭车零成本不冷却)────────────────
+FLOOR_TOKENS=$("$SCRIPT_DIR/evalfloor.sh" $([ -z "$TRIGGER" ] && printf -- '--sole') 2>/dev/null || true) # tolerate: 保底件败=本拍无保底因子,主触发面不受阻
+# 因子并入:他件触发在=evalage_h/eidle/evalfloor 全随行(议程因子机读);
+# 本拍净=仅 evalfloor 保底拍可成 TRIGGER(evalage_h/eidle 是账非信号
+# ——净拍不单独唤,静默=常态)。
+if [ -n "$TRIGGER" ]; then
+	[ -n "$FLOOR_TOKENS" ] && TRIGGER="$TRIGGER $FLOOR_TOKENS"
+elif printf '%s' "$FLOOR_TOKENS" | grep -qw evalfloor; then
+	TRIGGER="$FLOOR_TOKENS"
+fi
 # 干跑口：探针/摘要照跑，唤起前退出并打印触发判定（验证用——不落唤起行不 spawn）。
 [ "${COG_DRY:-}" = 1 ] && { echo "[dispatch] dry: trigger=${TRIGGER:-none} N=$N MAXV=$MAXV crit=$CRIT_N rule=$RULE_N await=$AWAIT_N ticket=$TICKET_N pendbr=$PEND_BR lastwoke=$((NOW-LAST_WOKE))s"; exit 0; }
 [ -n "$TRIGGER" ] || exit 0
