@@ -62,7 +62,7 @@ closeout_write() {
 	[ -n "${FIN_DSN:-}" ] || return 0
 	local have
 	have=$(psql "$FIN_DSN" -qAt -c "SELECT count(*) FROM ops_event
-		WHERE event='会话收口' AND note LIKE '%unit=$COG_UNIT%'" 2>/dev/null || echo 0)
+		WHERE event='会话收口' AND note ~ ('unit=$COG_UNIT' || '([^0-9A-Za-z_-]|\$)')" 2>/dev/null || echo 0)
 	have=${have:-0}
 	[ "$have" = "0" ] || return 0
 	psql "$FIN_DSN" -qAt -c "INSERT INTO ops_event(seat,event,ticket,note)

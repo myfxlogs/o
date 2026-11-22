@@ -48,10 +48,10 @@ FROM (SELECT substring(e.note from 'unit=(o-worker-[0-9]+)') AS unit, e.ts
         AND e.ts>now()-interval '8 days') u
 WHERE u.unit IS NOT NULL
   AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='会话收口'
-    AND x.note LIKE '%unit='||u.unit||'%')
+    AND x.note ~ ('unit='||u.unit||'([^0-9A-Za-z_-]|$)'))
   AND (EXISTS (SELECT 1 FROM ops_event x WHERE x.ts>u.ts
          AND x.seat='施工机' AND x.event IN ('唤起果','唤起败')
-         AND x.note LIKE '%unit='||u.unit||'%')
+         AND x.note ~ ('unit='||u.unit||'([^0-9A-Za-z_-]|$)'))
     OR u.ts < now()-interval '3 hours');
 SQL
 
@@ -107,7 +107,7 @@ WHERE NOT EXISTS (
 	  AND NOT EXISTS (SELECT 1 FROM ops_event x
 	    WHERE x.ts>e.ts AND (
 	      (x.seat='施工机' AND x.event IN ('唤起败','唤起果')
-	        AND x.note LIKE '%'||substring(e.note from 'unit=[^ ]+')||'%')
+	        AND x.note ~ (substring(e.note from 'unit=[^ ]+')||'([^0-9A-Za-z_-]|\$)'))
 	      OR x.event='会话收口' AND x.note ~ 'o-worker')))
 AND NOT EXISTS (
 	SELECT 1 FROM ops_headless h

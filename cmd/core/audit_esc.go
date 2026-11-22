@@ -72,7 +72,7 @@ func (c coreService) spawnOrphanEscCheck(ctx context.Context, deadSince map[stri
 			WHERE x.event='会话收口' AND x.note ~ 'unit=[^ ]+')
 		AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.ts>e.ts
 			AND x.event IN ('唤起果','唤起败','会话收口')
-			AND x.note LIKE '%'||substring(e.note from 'unit=[^ ]+')||'%')`).
+			AND x.note ~ (substring(e.note from 'unit=[^ ]+')||'([^0-9A-Za-z_-]|$)'))`).
 		Scan(&n); err != nil {
 		return // 读件败本拍让位
 	}
