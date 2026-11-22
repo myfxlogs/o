@@ -17,7 +17,9 @@
 #   行经 desk 视图同源，INSERT 即入板，dispatch_research.sh 触发④
 #   (^求知:|^研究席:) 自然拾取。
 # 票形：seat='唤知席' event='工单' ticket=NULL
-#   note='求知：<digest ticket|esc_scope|digest>——digest#<id>发现词面派生：<命中词>'
+#   note='求知:<digest ticket|esc_scope|digest>——digest#<id>发现词面派生:<命中词>'
+#   (前缀半角冒号=研究机拾取契;读端dispatch_research已宽容[:：]两形,#32020
+#    实证全角票死等——写端正形+读端宽容双保险)
 #   命中词=regexp_matches 全命中 DISTINCT '/' 连（机读可溯派生源）。
 # 边界：digest 销件语义不动——本闸只产票，不触 ops_esc_pending/valence/
 #   处置链；desk 视图只读引用不写；全件零 UPDATE/DELETE（append-only）。
@@ -33,7 +35,7 @@ DSN=$(grep '^FIN_PG_DSN=' "$ENVF" 2>/dev/null | cut -d= -f2- | tr -d '"')
 psql "$DSN" -qAt <<'SQL' 2>/dev/null || true # tolerate: 自产闸写败=本拍无新票,digest销件链不受阻(dispatch主触发面照跑——fail-open同mine.sh例)
 INSERT INTO ops_event(seat,event,note)
 SELECT '唤知席','工单',
- '求知：'||COALESCE(NULLIF(e.ticket,''),NULLIF(e.esc_scope,''),'digest')
+ '求知:'||COALESCE(NULLIF(e.ticket,''),NULLIF(e.esc_scope,''),'digest')
  ||'——digest#'||e.id||'发现词面派生：'||hit.kw
 FROM ops_event e
 JOIN LATERAL (

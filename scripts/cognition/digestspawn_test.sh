@@ -47,10 +47,10 @@ run() { OUT=$("$DS" 2>/dev/null); }
 has() { printf '%s' "$OUT" | grep -q "$1"; }
 
 echo "== 案① digest含发现词→产求知票 =="
-STUB_SPAWN='求知：O-27488——digest#31714发现词面派生：适配器提案/达标候选'
+STUB_SPAWN='求知:O-27488——digest#31714发现词面派生：适配器提案/达标候选'
 STUB_ONCE=0
 run
-has '求知：O-27488' && has 'digest#31714' && has '适配器提案/达标候选' \
+has '求知:O-27488' && has 'digest#31714' && has '适配器提案/达标候选' \
 	&& ok "① 产票回显：票面=求知:题——digest#id发现词面派生:命中词" \
 	|| bad "① OUT=[$OUT]"
 grep -q 'INSERT INTO ops_event' "$PSQL_LOG" \
@@ -64,7 +64,7 @@ run
 
 echo "== 案③ 重放幂等零增 =="
 rm -f "$STUB_MARK"; STUB_ONCE=1
-STUB_SPAWN='求知：O-27488——digest#31714发现词面派生：适配器提案/达标候选'
+STUB_SPAWN='求知:O-27488——digest#31714发现词面派生：适配器提案/达标候选'
 run
 has 'digest#31714' && ok "③a 首拍产票" || bad "③a OUT=[$OUT]"
 run

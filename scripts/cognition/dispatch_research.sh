@@ -5,7 +5,7 @@
 # 阈面（研究员 SKILL.md 钦定四触发,仅事件唤起禁定期节拍）:
 #   ① ops_esc_pending intake_dry∨breed_dry 升件未决——进水口干涸/
 #     进化环停摆=源普查循环唤起(esc#<id> 记触发源,销后重火=新id新唤);
-#   ② ops_ticket_desk OPEN 票 note ~ '^(求知:|研究席:)'——求知票外拓
+#   ② ops_ticket_desk OPEN 票 note ~ '^(求知[:：]|研究席[:：])'——求知票外拓
 #     调研/业主手注研究席事件(venue新品等机检缺席面的人工注入口,
 #     SKILL「决策席/CEO可手动代发同类事件」钦定)(tk#<id>记源);
 #   ③ fin_venue_candidate state='recommended'——T-0300 达阈=注册
@@ -51,7 +51,7 @@ AND NOT EXISTS (SELECT 1 FROM ops_event x
 	AND x.note ~ ('esc#'||e.id::text||'([^0-9]|$)'))
 UNION ALL
 SELECT 'tk#'||t.id||':'||left(t.note,40) FROM ops_ticket_desk t
-WHERE t.closed IS NOT TRUE AND t.note ~ '^(求知:|研究席:)'
+WHERE t.closed IS NOT TRUE AND t.note ~ '^(求知[:：]|研究席[:：])'
 AND NOT EXISTS (SELECT 1 FROM ops_event x
 	WHERE x.seat='研究机' AND x.event='唤起'
 	AND x.note ~ ('tk#'||t.id::text||'([^0-9]|$)'))
