@@ -37,6 +37,7 @@ import (
 	"o/internal/research/researcher"
 	"o/internal/research/scout"
 	"o/internal/research/sigdist"
+	"o/internal/research/trendmech"
 	"o/internal/trading/okxexec"
 	"o/internal/venue/onboard"
 )
@@ -209,6 +210,10 @@ func researchArms(ctx context.Context, errc chan<- error, pool *pgxpool.Pool,
 	// 工单#11481 方向趋势族评估臂（perp-trend-daily paper-only——md_klines
 	// 1D→Donchian 突破+winrate-CI→eval/proposal；真单径未建同棒1裁定）。
 	go dirtrend.NewRunner(pool, cfg).AttachAlerter(alerter).Run(ctx, errc)
+	// 工单O-32604 机械趋势假想卡②评估臂（trend_mech——BTC-USDT-SWAP 1D
+	// Donchian20/10 手术刀 paper 模拟→fin_opp_eval；卡留 proposed 归死刑
+	// 审查裁，本臂影子产出零执行零提案径）。
+	go trendmech.NewRunner(pool, cfg).AttachAlerter(alerter).Run(ctx, errc)
 	// 工单#25737 网格评估族影子臂（grid_spot——md_klines 1D OHLC 现货宇宙
 	// →网格带回放→eval/proposal；execfam 未册=判词落 exec_family_missing，
 	// 影域评分先行执行零径 T-0408 先例）。
