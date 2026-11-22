@@ -54,6 +54,11 @@ fi
 # 坑实证)；纯Go码件豁免。审计面机械查=本件,判据正本=工单规约D节。
 "$SCRIPT_DIR/closeoutcert.sh" || true # tolerate: 监控败=本拍无升件,主触发面不受阻
 
+# 体制读数到期判+对拍细胞（工单O-32603）：regime_digest 龄满评分落
+# regime_score + 指纹变/超龄落 regime_due 标件——唤知会话经 trigger
+# regime:due 按 regime_prompt.md 契约产读数；细胞件不立登记。
+"$SCRIPT_DIR/regimedigest.sh" || true # tolerate: 读数面败=本拍无标件无评分,主触发面不受阻
+
 MIN_N=${COG_MIN_N:-1}; MIN_AGE=${COG_MIN_AGE:-600}; BURST_N=${COG_BURST_N:-5}
 
 # 未决升件: 后随 ops_event 无 note 引「升件#<id>」处置行=未处置。
@@ -87,6 +92,13 @@ WITH last AS (SELECT DISTINCT ON (rel) rel, act, ts FROM ops_event_act
 SELECT count(*), count(*) FILTER (WHERE ts>now()-interval '$AWAIT_FRESH_H hours')
 FROM last WHERE act='receipt'" 2>/dev/null | tr '|' ' ')
 AWAIT_N=${AWAIT_N:-0}; AWAIT_FRESH=${AWAIT_FRESH:-0}
+# 体制读数到期标件未消费数（regime_due 落后无 regime_digest=待产；
+# 细胞件判据同源——此处只数标件不重复判龄/指纹，判据单点在 regimedigest.sh）
+REGIME_DUE=$(psql "$DSN" -qAt -c "
+SELECT count(*) FROM ops_event d WHERE d.event='量表' AND d.ticket='regime_due'
+AND d.ts > COALESCE((SELECT max(ts) FROM ops_event
+  WHERE event='量表' AND ticket='regime_digest'),'-infinity'::timestamptz)" 2>/dev/null)
+REGIME_DUE=${REGIME_DUE:-0}
 # workable 工单数仍读（量表/干跑面用，不唤）。
 TICKET_N=$(psql "$DSN" -qAt -c "
 SELECT count(*) FROM ops_ticket_desk WHERE workable OR rulable" 2>/dev/null)
@@ -274,6 +286,10 @@ VAL_MID=${COG_VAL_MID:-60}
 # ——O-32300 普查证出必填项：wakebus 踹+timer 双径都需判据面认账，
 # 否则踹=trigger=none 空转；fresh 界防滞留票每拍空唤回潮）。
 [ "$AWAIT_FRESH" -gt 0 ] && TRIGGER="${TRIGGER:+$TRIGGER }await:$AWAIT_FRESH"
+# 体制读数因子（O-32603）：他触发在=regime:due 随行零成本；本拍净+
+# 距上唤>6h=独立唤（读数 12h 刷新窗内至多 ~2 场/日，不挤占救命带宽）。
+[ "$REGIME_DUE" -gt 0 ] && [ -n "$TRIGGER" ] && TRIGGER="$TRIGGER regime:due"
+[ -z "$TRIGGER" ] && [ "$REGIME_DUE" -gt 0 ] && [ $(( NOW - LAST_WOKE )) -gt 21600 ] && TRIGGER="regime:due"
 [ -z "$TRIGGER" ] && [ $(( NOW - LAST_WOKE )) -gt 21600 ] && TRIGGER="sweep:6h"
 # ── 审批带宽保底（工单O-30294——proposed→裁定=决策席人工件,救火信号
 # 可无限挤占审批带宽:evalfloor.sh 出 evalage_h/eidle/evalfloor 议程
@@ -291,8 +307,11 @@ if [ -n "$TRIGGER" ]; then
 elif printf '%s' "$FLOOR_TOKENS" | grep -qw evalfloor; then
 	TRIGGER="$FLOOR_TOKENS"
 fi
+# regime:due 兜底随行——evalfloor sole 净拍等晚到因子也带上读数到期账
+[ "$REGIME_DUE" -gt 0 ] && [ -n "$TRIGGER" ] && ! printf '%s' "$TRIGGER" | grep -q 'regime:due' \
+	&& TRIGGER="$TRIGGER regime:due"
 # 干跑口：探针/摘要照跑，唤起前退出并打印触发判定（验证用——不落唤起行不 spawn）。
-[ "${COG_DRY:-}" = 1 ] && { echo "[dispatch] dry: trigger=${TRIGGER:-none} N=$N MAXV=$MAXV crit=$CRIT_N rule=$RULE_N await=$AWAIT_N ticket=$TICKET_N pendbr=$PEND_BR lastwoke=$((NOW-LAST_WOKE))s"; exit 0; }
+[ "${COG_DRY:-}" = 1 ] && { echo "[dispatch] dry: trigger=${TRIGGER:-none} N=$N MAXV=$MAXV crit=$CRIT_N rule=$RULE_N regime=$REGIME_DUE await=$AWAIT_N ticket=$TICKET_N pendbr=$PEND_BR lastwoke=$((NOW-LAST_WOKE))s"; exit 0; }
 [ -n "$TRIGGER" ] || exit 0
 
 # 单飞闸: o-cognition-<epoch> 会话件 active 即退(串行认知)。
