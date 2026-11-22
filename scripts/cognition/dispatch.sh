@@ -43,6 +43,11 @@ fi
 # digest 销件语义不动（票自产≠信号滞留，处置席照常销）。
 "$SCRIPT_DIR/digestspawn.sh" || true # tolerate: 自产闸败=本拍无新票,主触发面不受阻
 
+# 会话在修龄阈监控（工单O-32268②）：唤起行龄>90min无配对收口/果/败
+# →session_stall 升件——「大件在会话内做」沉为判据非会话判断；在办
+# 脉冲在 run.sh 壳侧（①件），本件=②龄阈监控盒内薄壳面。
+"$SCRIPT_DIR/sessionpulse.sh" || true # tolerate: 监控败=本拍无升件,主触发面不受阻
+
 MIN_N=${COG_MIN_N:-1}; MIN_AGE=${COG_MIN_AGE:-600}; BURST_N=${COG_BURST_N:-5}
 
 # 未决升件: 后随 ops_event 无 note 引「升件#<id>」处置行=未处置。
