@@ -8,13 +8,15 @@ keywords: ["psql", "-c", "变量插值", ":'var'", "syntax error at or near \":\
 scope: [scripts/meta/*.sh, psql 写径, ops_event INSERT 族]
 summary: psql -c 不做冒号变量插值——字面量直达服务器报 syntax error（-v 传参形同虚设）。带用户文本（公告标题等任意串）的 INSERT 须 bash 侧单引号双写转义后直拼（gauges 同构），或走 COPY/STDIN 径。
 first_seen: 2026-11-05
-last_verified: 2026-11-05
+last_verified: 2026-11-22
 skills: [施工席]
 evidence_refs:
   - type: server_fact
     ref: 2026-11-05 T-0348 T2 注入干跑 emit rc=1——服务器回 syntax error at/near 冒号，LINE 1 VALUES 尾见裸冒号变量原文
   - type: doc
     ref: scripts/meta/venue_watch.sh emit()（修后单引号双写转义在案）
+  - type: server_fact
+    ref: 2026-11-22 生产复踩——ops_esc 升件写径主（deploy_watch.sh）/兜底（escalate.sh）双径同用 -c+:'var' 形，CI 红期升件全断；修后生产真实升件落账 id=32177
 ---
 
 # psql -c 不插值 :'var'——字面量撞服务器语法错
@@ -41,11 +43,21 @@ psql "$DSN" -qAt -c "INSERT ... VALUES('...','$esc')"
 ```
 gauges_tick 升件径同构（存量先例）；标题/URL 任意文本安全（换行/@tsv 已转义层）。
 
+stdin 径（2026-11-22 生产实证正形——esc 升件写径采用）：
+```bash
+printf '%s\n' "SELECT ops_esc(:'seat',:'ticket',:'cls',:'scp',:'prefix',:'detail')" |
+  psql "$DSN" -qAt -v seat=... -v ticket=... ...
+```
+stdin 进 psql 词法层，`:'var'` 插值生效，-v 传参真安全；调用侧零转义负担。
+
 ## 证据
 
 - check: `psql "$DSN" -qAt -v note=x -c "INSERT INTO ops_event(note) VALUES(:'note')"`
 - result: ERROR: syntax error at or near ":"（rc=1）；同语句 bash 转义直拼 rc=0 落行
 - ref: T-0348 票面结果段（修后 T2 干跑 1 行落账+重放零重复）
+- 2026-11-22 生产：ops_esc 双径 `-v seat=... -c "SELECT ops_esc(:'seat',...)"` 全断
+  （syntax error at ":"）；改 stdin 喂径后真升件 id=32177 落账——canon 在册仍复踩，
+  教训：写新 psql 写径时默认 stdin/-f 径，-c 仅限无变量字面量。
 
 ## 反证条件
 
