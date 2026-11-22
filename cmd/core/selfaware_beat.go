@@ -78,6 +78,7 @@ func (c coreService) selfAwareBeat(ctx context.Context) {
 		earn = fmt.Sprintf("NAV%.0f(%s) 30d净%+.2f 年化%+.1f%%vs%.0f%% live%d/probe%d/仓%d",
 			*nav, time.Since(*navTs).Round(time.Minute), net,
 			net*365/30 / *nav * 100, hungerTargetPct, liveN, probeN, posN)
+		earn += " |钱在:" + c.moneyDist(ctx, *nav)
 	} else {
 		earn = "?"
 	}
@@ -204,6 +205,56 @@ func (c coreService) selfAwareBeat(ctx context.Context) {
 		fp, earn, move, idle, doing, stuck)
 	_, _ = c.pool.Exec(ctx,
 		`INSERT INTO ops_event(seat,event,ticket,note) VALUES('探测席','量表','self_aware',$1)`, note)
+}
+
+// moneyDist 资金分布三段面（工单O-30472——「钱在哪赚」自观帧加段，
+// 只增不替既有判词形）。口径实读定：
+//
+//	交易部署=fin_position 开仓 notional_usd（state<>'closed'——与本帧
+//	  仓数 posN 同集）+ fin_position_view kind='dcd' 策略域产品仓凭据
+//	  Σamt×最新 tick 估值 USD（cockpit 敞口同径——USDT/USD 直入、余币
+//	  种按 md_ticks.last∨md_mark_index.px 取新、无 tick=0 不虚计；
+//	  kind='dcd_owner' 业主独立仓剔出=T-0364 同源；paper 仓走
+//	  fin_paper_fill 不入本腿）；
+//	赚息腿=fin_holding kind LIKE 'earn%' 持仓 USD 估值（同 tick 径；
+//	  stale 行不剔——陈=venue 拉败标非钱消，ledger report earnBal
+//	  同径含陈）；
+//	闲置=NAV−部署−赚息 残差——腿间时移/跨域资产全归残差，加总恒=NAV，
+//	  口径漂移由残差显形不藏；
+//	缺段降级：每腿独立读败=该段 ?（部署? 息? 闲?），不炸帧。
+func (c coreService) moneyDist(ctx context.Context, nav float64) string {
+	var dep, earnLeg float64
+	depOK := c.pool.QueryRow(ctx, `SELECT COALESCE(
+	  (SELECT sum(notional_usd) FROM fin_position WHERE state<>'closed'),0)
+	+ COALESCE((SELECT sum(v.notional*CASE WHEN v.ccy IN ('USDT','USD') THEN 1
+		ELSE COALESCE(px.p,0) END)
+	  FROM fin_position_view v
+	  LEFT JOIN LATERAL (SELECT p FROM (
+	      SELECT ts,last AS p FROM md_ticks WHERE inst_id=v.ccy||'-USDT'
+	      UNION ALL
+	      SELECT ts,px AS p FROM md_mark_index WHERE inst_id=v.ccy||'-USDT'
+	    ) u ORDER BY ts DESC LIMIT 1) px ON true
+	  WHERE v.kind='dcd'),0)`).Scan(&dep) == nil
+	earnOK := c.pool.QueryRow(ctx, `SELECT COALESCE(sum(h.amount*CASE
+	  WHEN h.ccy IN ('USDT','USD') THEN 1 ELSE COALESCE(px.p,0) END),0)
+	FROM fin_holding h
+	LEFT JOIN LATERAL (SELECT p FROM (
+	    SELECT ts,last AS p FROM md_ticks WHERE inst_id=h.ccy||'-USDT'
+	    UNION ALL
+	    SELECT ts,px AS p FROM md_mark_index WHERE inst_id=h.ccy||'-USDT'
+	  ) u ORDER BY ts DESC LIMIT 1) px ON true
+	WHERE h.kind LIKE 'earn%'`).Scan(&earnLeg) == nil
+	switch {
+	case depOK && earnOK:
+		return fmt.Sprintf("部署%.0f(%.1f%%) 息%.0f 闲%.0f",
+			dep, dep/nav*100, earnLeg, nav-dep-earnLeg)
+	case depOK:
+		return fmt.Sprintf("部署%.0f 息? 闲?", dep)
+	case earnOK:
+		return fmt.Sprintf("部署? 息%.0f 闲?", earnLeg)
+	default:
+		return "部署? 息? 闲?"
+	}
 }
 
 func truncRunes(s string, n int) string {
