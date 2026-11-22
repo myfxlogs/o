@@ -100,10 +100,13 @@ esc() { # 升件 dedup=未销才抑（同 escEdgeU 语义——销而未修重�
 	esc_pending "$scope" && return 0
 	# ON_ERROR_STOP=1：函件缺席/SQL 错必须 rc≠0 落兜底径——psql 缺省
 	# SQL 错仍 rc0 会被误判「去重抑制」静默吞（写径假净回潮防线）。
-	out=$(psql "$DSN" -q -A -t -v ON_ERROR_STOP=1 \
+	# stdin 喂串不 -c：psql -c 不做 -v 变量插值（:'var' 原样成语法错
+	# =升件写径全断——CI红断期 esc缺/esc写败 心跳实锤），stdin 径
+	# 插值+字面量转义语义不变。
+	out=$(printf '%s\n' "SELECT ops_esc(:'seat',:'ticket',:'cls',:'scp',:'prefix',:'detail')" \
+		| psql "$DSN" -q -A -t -v ON_ERROR_STOP=1 \
 		-v seat='探测席' -v ticket='' -v cls='部署' -v scp="$scope" \
-		-v prefix="部署/${scope}:" -v detail="$note" \
-		-c "SELECT ops_esc(:'seat',:'ticket',:'cls',:'scp',:'prefix',:'detail')" 2>/dev/null) \
+		-v prefix="部署/${scope}:" -v detail="$note" 2>/dev/null) \
 		&& { [ -n "$out" ] || ESC_DEDUPED[$scope]=1; return 0; }
 	# 工单#30086 主径写败→第二径 escalate.sh 兜底（独立码路——同一坑不双断;
 	# 函件归一后兜底=同函件异会话重试+失败显形，语义不变）+心跳载「esc写败」显形——升件#29764 实证

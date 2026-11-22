@@ -40,6 +40,9 @@ for a in "$@"; do
   fi
   prev="$a"
 done
+# stdin 喂串径（-c 修件后 esc 双径皆走此——psql -c 不做 -v 插值病灶
+# 根修）：无 -c 参时 SQL 自 stdin 到，读之与 -c 面同断言。
+[ -z "$sql" ] && sql=$(cat)
 pok="${PSQL_OK:-/dev/null}"
 printf '%s\n' "$sql" >> "${PSQL_LOG:-/dev/null}"
 case "$sql" in
