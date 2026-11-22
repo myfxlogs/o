@@ -2,8 +2,13 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
+
+	"o/internal/platform/testutil"
+	"o/internal/store/pgstore"
 )
 
 func TestActFromValue(t *testing.T) {
@@ -122,5 +127,60 @@ func TestAskFromPayload(t *testing.T) {
 		if got := askFromPayload(c.in); got != c.want {
 			t.Fatalf("%q: 得 %q 望 %q", c.in, got, c.want)
 		}
+	}
+}
+
+// TestPushPendingContigWM O-30635 水位连续性根修锚：发败行不再被后位成功行
+// 跳过——水位钉死于连续成功末行，败行下醒追偿；后位已发行凭 b.sent 免重发。
+// 另锚 requested_at 60s 滞后余量（Marten 型跳读防护）。
+func TestPushPendingContigWM(t *testing.T) {
+	ctx := context.Background()
+	t.Setenv("HOME", t.TempDir()) // wmPath 落临时家目录——不脏真水位件
+	pool := testutil.Pool(t)
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatal(err)
+	}
+	// 三请求行：r1 发败、r2 发成、r3 域外（kind=executor 非 ownerFacing）。
+	var ids []int64
+	for i, k := range []string{"capital", "capital", "executor"} {
+		var id int64
+		// surface 逐行异——pending_uq(venue,surface,kind) 唯一闸防同面同类双开。
+		if err := pool.QueryRow(ctx, `INSERT INTO fin_condition_gap(kind,venue,surface,payload,requested_at)
+			VALUES($1,'okx',$2,'{}',now()-interval '2 minutes') RETURNING id`,
+			k, fmt.Sprintf("s%d", i)).Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, id)
+	}
+	b := &bridge{pool: pool, chatID: "c", sent: map[int64]string{}}
+	calls := 0 // 首卡发败、其后发成——败行=r1
+	b.sendCard = func(ctx context.Context, chatID, content string) (string, error) {
+		calls++
+		if calls == 1 {
+			return "", fmt.Errorf("boom")
+		}
+		return "mid", nil
+	}
+	b.pushPending(ctx)
+	// 断言：r1 未推进水位（readWM<r1.id 或=前值0）；r2 已发（b.sent 有）但
+	// 水位不得越过 r1——wm 应仍=0（首行即败，后位行水位全不进）。
+	if wm := readWM(); wm != 0 {
+		t.Fatalf("发败首行后水位不应推进: wm=%d", wm)
+	}
+	if _, ok := b.sent[ids[1]]; !ok {
+		t.Fatal("败行后位 ownerFacing 行应照发（不阻塞）")
+	}
+	// 二拍：r1 复发成→水位连进 r1,r2；r3 域外随水位；b.sent[r2] 免重发。
+	resends := 0
+	b.sendCard = func(ctx context.Context, chatID, content string) (string, error) {
+		resends++
+		return "mid", nil
+	}
+	b.pushPending(ctx)
+	if wm := readWM(); wm != ids[2] {
+		t.Fatalf("追偿拍水位应连进至域外末行: wm=%d want=%d", wm, ids[2])
+	}
+	if resends != 1 { // 仅 r1 重发——r2/r3 凭 sent/域外免发
+		t.Fatalf("追偿拍应仅重发败行: send calls=%d", resends)
 	}
 }

@@ -75,9 +75,12 @@ func (r *Runner) analyze(ctx context.Context) error {
 		r.rej.Inc("llm_absent")
 		return nil
 	}
+	// 游标=自产出 evidence.ctx_max_id（md_regime_fact）。ASC 头吃：DESC+LIMIT
+	// 把水位钉到最新 50 底——积压>50 时中段行永跳（确定性丢件非竞态）；
+	// ASC 连贯推进、水位后排下拍续扫，批内 id 序=消费序。
 	rows, err := r.pool.Query(ctx, `SELECT id,source,kind,payload::text FROM md_ctx_fact
 		WHERE id>COALESCE((SELECT max((evidence->>'ctx_max_id')::bigint) FROM md_regime_fact),0)
-		ORDER BY id DESC LIMIT 50`)
+		ORDER BY id ASC LIMIT 50`)
 	if err != nil {
 		return err
 	}
