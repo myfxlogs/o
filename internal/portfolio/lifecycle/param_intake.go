@@ -114,8 +114,12 @@ func (r *Runner) paramIntakeTick(ctx context.Context) {
 		log.Printf("[lifecycle] paramintake 水位读败: %v", err)
 		return
 	}
+	// ts 滞后余量 60s：ops_event=id 分配序≠提交序（Marten 型——取低 id 事务
+	// 未提交期间高 id 行先入水位=低位行永跳；本道水位落库无重扫自愈）。
+	// 截断把可跳窗压到 >60s 长事务；进气道非实时径，滞后无感。
 	rows, err := r.pool.Query(ctx, `SELECT id,event,seat,ticket,note FROM ops_event
 		WHERE id>$1
+		  AND ts<now()-interval '60 seconds'
 		  AND event IN ('处置','裁定','条件请求','令','业主令','管理令','优先令','闸值钦定','口径','判词','裁决')
 		  AND seat<>'决策席-DM写径'
 		  AND note ~* '(insert|update)[[:space:]]+[a-z0-9_.]+[[:space:]]*='

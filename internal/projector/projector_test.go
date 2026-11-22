@@ -960,3 +960,79 @@ func TestReverseKlines(t *testing.T) {
 		t.Fatalf("幂等再 diff 应仍 2 行: %d", n)
 	}
 }
+
+// TestProposalLateCommitOverlap O-30635 Marten 型并发提交重放锚：txA 取低 id
+// 未提交、txB 高 id 先提交——水位越过 txB 后 txA 方提交；id 重叠窗复读须
+// 兜回 txA 行（修前 id>水位=永跳，活性对账 max-id 径亦不可见内隙）。
+func TestProposalLateCommitOverlap(t *testing.T) {
+	ctx := context.Background()
+	r, md, sg := runner(t)
+	txA, err := md.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer txA.Rollback(ctx)
+	if _, err := txA.Exec(ctx, `INSERT INTO fin_opp_eval(id,ts,inst_id,template,direction,net_apr,verdict,legs,evidence)
+		VALUES (900,now(),'AAA-USDT-SWAP','funding-hedge','short_perp_long_spot',0.08,'proposed','[]','{}')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := txA.Exec(ctx, `INSERT INTO fin_proposal(id,eval_id,inst_id,direction,net_apr,created_at)
+		VALUES (901,900,'AAA-USDT-SWAP','short_perp_long_spot',0.08,now())`); err != nil {
+		t.Fatal(err)
+	}
+	seedProposal(t, md, 902, 903, "BBB-USDT-SWAP") // txB 高 id 先提交
+	if err := r.projectNewProposals(ctx); err != nil {
+		t.Fatalf("首拍: %v", err)
+	}
+	if n := count(t, sg, "SELECT count(*) FROM fin_proposal WHERE id=902"); n != 1 {
+		t.Fatalf("txB 提案应已投影: %d", n)
+	}
+	if n := count(t, sg, "SELECT count(*) FROM fin_proposal WHERE id=901"); n != 0 {
+		t.Fatal("txA 未提交行不应可见")
+	}
+	if err := txA.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.projectNewProposals(ctx); err != nil {
+		t.Fatalf("次拍: %v", err)
+	}
+	if n := count(t, sg, "SELECT count(*) FROM fin_proposal WHERE id=901"); n != 1 {
+		t.Fatalf("晚提交低 id 行应由重叠窗兜回: %d", n)
+	}
+}
+
+// TestEvalLateCommitOverlap 同型 ts 面锚：txA eval 旧 ts 未提交、txB 新 ts
+// 先提交——ts 水位越过后 txA 方提交；10min 重叠窗复读兜回（修前 ts>水位永跳）。
+func TestEvalLateCommitOverlap(t *testing.T) {
+	ctx := context.Background()
+	r, md, sg := runner(t)
+	txA, err := md.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer txA.Rollback(ctx)
+	if _, err := txA.Exec(ctx, `INSERT INTO fin_opp_eval(id,ts,inst_id,template,direction,net_apr,verdict,legs,evidence)
+		VALUES (910,now()-interval '5 minutes','AAA-USDT-SWAP','funding-hedge','short_perp_long_spot',0.08,'proposed','[]','{}')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := txA.Exec(ctx, `INSERT INTO fin_proposal(id,eval_id,inst_id,direction,net_apr,created_at)
+		VALUES (911,910,'AAA-USDT-SWAP','short_perp_long_spot',0.08,now())`); err != nil {
+		t.Fatal(err)
+	}
+	seedProposal(t, md, 912, 913, "BBB-USDT-SWAP") // txB 新 ts 先提交
+	if err := r.projectEvals(ctx); err != nil {
+		t.Fatalf("首拍: %v", err)
+	}
+	if n := count(t, sg, "SELECT count(*) FROM fin_opp_eval WHERE inst_id='BBB-USDT-SWAP'"); n != 1 {
+		t.Fatalf("txB eval 应已投影: %d", n)
+	}
+	if err := txA.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.projectEvals(ctx); err != nil {
+		t.Fatalf("次拍: %v", err)
+	}
+	if n := count(t, sg, "SELECT count(*) FROM fin_opp_eval WHERE inst_id='AAA-USDT-SWAP'"); n != 1 {
+		t.Fatalf("晚提交旧 ts eval 应由重叠窗兜回: %d", n)
+	}
+}

@@ -8,6 +8,8 @@
 #           （1min 拍驱动;与 digest 分道双水印互不重复）。
 # 水印: ~/.local/state/o-worker/relay_last_id[_urgent]——
 #   发送成→进（含跳过件:已处理不重扫）;发送败→留（下拍重试不丢）。
+#   两道查询同带 ts<now()-60s 滞后余量——id 分配序≠提交序（Marten 型
+#   跳读根修，O-30635）；摆渡非实时径滞后无感。
 set -u
 MODE="${1:-digest}"
 DSN=$(grep '^FIN_PG_DSN=' /opt/o-research/env | cut -d= -f2- | tr -d '"')
@@ -51,6 +53,7 @@ digest)
 	done < <(psql "$DSN" -qAt -F$'\t' -c "
 SELECT id,seat,event,left(replace(note,E'\n',' '),600) FROM ops_event
 WHERE id>$(cat "$WM" 2>/dev/null || echo 0)
+  AND ts<now()-interval '60 seconds'
   AND seat='探测席' AND event='量表'
   AND (note LIKE '%自模账%' OR note LIKE '%盈利报告%') ORDER BY id")
 	[ "$last" -eq 0 ] && exit 0
@@ -74,7 +77,8 @@ urgent)
 			>/dev/null 2>&1 && echo "$id" > "$WM"
 	done < <(psql "$DSN" -qAt -F$'\t' -c "
 SELECT id,seat,event,left(replace(note,E'\n',' '),600) FROM ops_event
-WHERE id>$(cat "$WM" 2>/dev/null || echo 0) AND (
+WHERE id>$(cat "$WM" 2>/dev/null || echo 0)
+  AND ts<now()-interval '60 seconds' AND (
   event='求助值守'
   OR (seat='审计席' AND event='升件' AND note LIKE '%P1%')
   OR (event='升件' AND esc_scope IN ('deploy_lag','deploy_blocked',

@@ -21,7 +21,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
@@ -45,11 +44,12 @@ func die(err error) {
 
 // bridge 件持有面。
 type bridge struct {
-	pool   *pgxpool.Pool // roster_rw 写/读户（请求面+ops_event+secrets 读）
-	rpool  *pgxpool.Pool // condreq_resolver 结案户（fin_0165——nil=结案径未配 fail-closed）
-	fs     *notify.FeishuClient
-	chatID string
-	sent   map[int64]string // req_id→message_id（本程内推送记录）
+	pool     *pgxpool.Pool // roster_rw 写/读户（请求面+ops_event+secrets 读）
+	rpool    *pgxpool.Pool // condreq_resolver 结案户（fin_0165——nil=结案径未配 fail-closed）
+	fs       *notify.FeishuClient
+	sendCard func(ctx context.Context, chatID, content string) (string, error) // 测试缝——nil=fs.CreateInteractive
+	chatID   string
+	sent     map[int64]string // req_id→message_id（本程内推送记录）
 }
 
 // intent 业主动作意图行（ops_event append-only——业主令非相位闸词直通）。
@@ -72,62 +72,6 @@ func (b *bridge) resolve(ctx context.Context, id int64, state, note string) (boo
 		return false, err
 	}
 	return r.RowsAffected() > 0, nil
-}
-
-// pushPending 未决请求→交互卡（水位外新发；发败水位不进——
-// 下次敲门/开机扫底追偿）。
-func (b *bridge) pushPending(ctx context.Context) {
-	wm := readWM()
-	rows, err := b.pool.Query(ctx, `SELECT id,kind,coalesce(venue,''),coalesce(surface,''),payload::text
-		FROM fin_condition_gap WHERE state='pending' AND id>$1 ORDER BY id`, wm)
-	if err != nil {
-		log.Printf("feishubridge: pending 查败: %v", err)
-		return
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var id int64
-		var kind, venue, surface, payload string
-		if rows.Scan(&id, &kind, &venue, &surface, &payload) != nil {
-			continue
-		}
-		if !ownerFacing(kind, payload) {
-			continue // 会话域件不推业主——水位不进,flag 后翻仍可被推
-		}
-		mid, err := b.fs.CreateInteractive(ctx, b.chatID, reqCard(id, kind, venue, surface, payload))
-		if err != nil {
-			log.Printf("feishubridge: 卡发败 req=%d: %v", id, err)
-			continue // 水位不进——下响追偿
-		}
-		b.sent[id] = mid
-		writeWM(id)
-	}
-}
-
-// listenPending condreq_pending 敲门环（fin_0164 触发器——INSERT/UPDATE
-// 至 pending 即醒；开机先扫底覆盖停机期漏件；断流退避重连）。
-func (b *bridge) listenPending(ctx context.Context) {
-	b.pushPending(ctx) // 开机扫底——停机期漏件追偿
-	for ctx.Err() == nil {
-		c, err := b.pool.Acquire(ctx)
-		if err != nil {
-			time.Sleep(3 * time.Second) // sched-exempt-ok 断流重连退避（mechwake 同约——非轮询数据）
-			continue
-		}
-		if _, err := c.Exec(ctx, "LISTEN condreq_pending"); err != nil {
-			c.Release()
-			time.Sleep(3 * time.Second) // sched-exempt-ok 同上
-			continue
-		}
-		for ctx.Err() == nil {
-			if _, err := c.Conn().WaitForNotification(ctx); err != nil {
-				break // 断流→出内环重连
-			}
-			b.pushPending(ctx) // notify 只敲门——读仍走表正源
-		}
-		c.Release()
-		time.Sleep(3 * time.Second) // sched-exempt-ok 断流重连退避
-	}
 }
 
 // onCardAction card.action.trigger 回调——窄门(chat 吻合+动作闭集)→结案。

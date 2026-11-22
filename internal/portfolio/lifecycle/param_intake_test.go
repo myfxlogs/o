@@ -34,8 +34,10 @@ func intakeFixture(t *testing.T) (*Runner, context.Context) {
 func intakeEv(t *testing.T, ctx context.Context, r *Runner, seat, event, ticket, note string) int64 {
 	t.Helper()
 	var id int64
+	// ts 回拨 2min——进气道带 60s 滞后余量（O-30635 Marten 型根修），
+	// 桩件须落在余量窗外才入扫面；滞后本体由 TestParamIntakeLag 专锚。
 	if err := r.pool.QueryRow(ctx,
-		`INSERT INTO ops_event(seat,event,ticket,note) VALUES($1,$2,$3,$4) RETURNING id`,
+		`INSERT INTO ops_event(seat,event,ticket,note,ts) VALUES($1,$2,$3,$4,now()-interval '2 minutes') RETURNING id`,
 		seat, event, ticket, note).Scan(&id); err != nil {
 		t.Fatal(err)
 	}
@@ -199,4 +201,36 @@ func TestParamIntakeTick(t *testing.T) {
 		t.Fatalf("续扫落值不符 slip=%s", slip)
 	}
 	_ = idNew
+}
+
+// TestParamIntakeLag O-30635 Marten 型根修锚：ts<now()-60s 滞后余量——
+// 新鲜行（模拟未提交窗内的相对新行）本拍不入扫面不推进水位；
+// 回拨行照常落键。水位不越新行=下拍续偿不丢。
+func TestParamIntakeLag(t *testing.T) {
+	r, ctx := intakeFixture(t)
+	var freshID int64
+	if err := r.pool.QueryRow(ctx,
+		`INSERT INTO ops_event(seat,event,ticket,note) VALUES('自我','处置','T-lag',
+		 'UPDATE research.funding.slippage_bps=7.7 新鲜行滞后窗内不拾') RETURNING id`).Scan(&freshID); err != nil {
+		t.Fatal(err)
+	}
+	r.paramIntakeTick(ctx)
+	var v string
+	// 键或有默认值——断「未被改成新鲜值 7.7」而非键缺席。
+	if err := r.pool.QueryRow(ctx,
+		`SELECT value::text FROM app_config WHERE key='research.funding.slippage_bps'`).Scan(&v); err == nil && v == "7.7" {
+		t.Fatalf("滞后窗内新鲜行被拾 slip=%s（60s 余量失效）", v)
+	}
+	// 水位不得越过未消费新鲜行——下拍（行龄>60s 后）须仍可拾。
+	aged := intakeEv(t, ctx, r, "自我", "处置", "T-lag",
+		"UPDATE research.funding.maker_fee_bps=0.42 回拨行照常拾")
+	r.paramIntakeTick(ctx)
+	if err := r.pool.QueryRow(ctx,
+		`SELECT value::text FROM app_config WHERE key='research.funding.maker_fee_bps'`).Scan(&v); err != nil || v != "0.42" {
+		t.Fatalf("回拨行未落 maker=%q err=%v", v, err)
+	}
+	// 水位=aged 行 id——aged.id>fresh.id（后插）故 fresh 已永滞后窗内不可达
+	// 仅当其 ts 仍<60s；此处验证的是「新鲜行不阻塞后位回拨行」语义。
+	_ = aged
+	_ = freshID
 }

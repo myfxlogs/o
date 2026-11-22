@@ -109,9 +109,13 @@ func (s *feedPush) push(ctx context.Context) error {
 const feedExclude = "('量表','唤起','唤起果','唤起败','条件请求','求助值守')"
 
 func (s *feedPush) pending(ctx context.Context, wm int64) ([]feedRow, error) {
+	// ts 滞后余量 60s：ops_event=id 分配序≠提交序（Marten 型——取低 id 事务
+	// 未提交期间高 id 行先入水位=低位行永跳）；动作流水非实时径（攒批窗
+	// 本就 6s 合流+10min 静默），滞后无感。
 	rows, err := s.pool.Query(ctx,
 		`SELECT id,seat,event,left(note,500) FROM ops_event
-		 WHERE id>$1 AND event NOT IN `+feedExclude+`
+		 WHERE id>$1 AND ts<now()-interval '60 seconds'
+		   AND event NOT IN `+feedExclude+`
 		 ORDER BY id LIMIT 40`, wm)
 	if err != nil {
 		return nil, err
