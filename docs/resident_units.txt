@@ -1,0 +1,62 @@
+# resident_units.txt —— 常驻件机读登记表（工单O-30515——器官增生无卡口
+# 根修②：AGENTS.md「常驻盒内件」行升格为机读登记+check_all 对拍闸
+# scripts/check_resident_units.sh——新常驻件必同步登记，未登记/已删/类不符
+# =闸红；判据=新任务先问挂哪个既有器官（同拍距+同数据面→长细胞
+# probe/face/beat 段；异拍距∨异宿点∨独立生命周期→准长器官且须登记）。
+#
+# 字段=件名|类|拍距|宿点|职责（五段，| 分隔；# 注释/空行免）。
+# 类册=cmd入口|oci单元|定时脚本——拍内 beat/probe/face 细胞层不登
+# （cells 非器官——beat 挂宿主拍属细胞层，表只登记常驻生命件）。
+# 实扫面=check_resident_units.sh：cmd/*/main.go + deploy/**/*.service +
+# deploy oneshot ExecStart scripts/*.sh payload——扫的就是表口径。
+# 边界：OCI 盒系统件（o-backup-*/o-sentinel/o-sg-tunnel/sing-box/docker
+# 容器）与宿主级 cron（simdrill_matrix.sh 等）非 deploy/ 机读面——机器
+# 档见 docs/运维/OCI盒档案.md，本表只钉仓内可机检常驻件。
+#
+# ── cmd 入口（12 件——cmd/ 现盘全量，逐件定类）──────────────────────
+cmd/cmcweb|cmd入口|常驻|SG o-cmcweb容器|CMC 浏览器采集中继——无头Chrome跑真platform，CDP旁录app WS帧→:8080本地中继喂o-core WsClient
+cmd/collector|cmd入口|常驻|OCI o-collecto|采集面外置蒸馏件——OKX全宇宙WS+MT5桥→md_*直写盒本机PG-md；sigdist五族血统/鲜度闸
+cmd/core|cmd入口|常驻|SG o-core容器|O单二进制钱径本体——ConnectRPC+健康端点+钱径全谱+30s roster beat（1号员工）
+cmd/eventbus|cmd入口|常驻|OCI o-eventbus|事件总线服务端——MD本地+FIN隧道双DSN 3s轮询→Watch server-stream扇出127.0.0.1:15436
+cmd/feishubridge|cmd入口|常驻|dev o-feishu-bridge|飞书交互端——条件请求卡推+钮回调+文本口令三径入，业主域窄门结案
+cmd/feishu-notify|cmd入口|按需CLI|dev/SG调用面|调度环事件推飞书薄CLI——app_secrets解凭据+SendText，调用方best-effort推送
+cmd/migrate|cmd入口|按需一次性|dev/OCI/SG|分域迁移一次性执行器——-domain=md/fin选链，fail-closed
+cmd/projector|cmd入口|常驻|OCI o-projector|投影臂——PG-md→SG八桥镜像搬运+fin_proposal双向回写，败=岗终重启自愈
+cmd/research|cmd入口|常驻|OCI o-research|研究域节点——researchArms全族+review；读盒本机PG-md+隧道SG/FIN/ROSTER
+cmd/simdrill|cmd入口|日拍cron+手动|SG o-core镜像|执行径演习臂——开→平→对账全径演习+矩阵批跑，凭据落fin_exec_drill毕业闸判据
+cmd/sweeper|cmd入口|常驻（日拍+30s beat）|OCI o-sweeper|PG-md清道夫——分库保留账日拍+采集臂修复环+roster beat（清道夫-md）
+cmd/trxpolldiag|cmd入口|按需一次性|dev/OCI|流水零行诊断件——TxsCollector单次Poll全链取证，只读链上+真账回填
+#
+# ── deploy 单元件（19 件——deploy/**/*.service 全量）─────────────────
+# 长驻单元（Type≠oneshot，Restart=always/simple）
+o-eventbus|oci单元|常驻|OCI|事件总线OCI用户级单元——%h/o-research/bin/eventbus裸二进制，绑127.0.0.1:15436
+o-feishu-bridge|oci单元|常驻|dev(models)|飞书交互端dev用户级单元——go run ./cmd/feishubridge随/opt/o merge自取新码
+o-mech|oci单元|常驻|dev(models)|事件总线订阅唤醒臂——tools/mechwake订阅dm/mech→unit触发，ExecStopPost唤+timer兜底
+o-oci-bus-tunnel|oci单元|常驻|dev(models)|dev→OCI反向隧道——ssh -L 15436→OCI eventbus，restrict+permitopen专钥无壳
+o-projector|oci单元|常驻|OCI|投影臂OCI用户级单元——/opt/o-projector/o-projector裸二进制+env契约
+o-readcred-tunnel|oci单元|常驻|dev(models)|readcred隧道dev:5545→SG:8095——只读钥boot内存取面，restrict+permitopen
+o-research|oci单元|常驻|OCI|研究域节点OCI用户级单元——/opt/o-research/o-research裸二进制+env契约
+o-collecto/tunnel|oci单元|常驻|dev(models)|collector隧道dev:5544→SG:15433——ssh -L，tunnel@ restrict+permitopen无壳键
+# 定时拍壳单元（Type=oneshot，timer/path 事件驱）
+o-audit-dispatch|oci单元|6h(03/09/15/21:30)|dev(models)|审计机触发拍壳——→scripts/audit/dispatch.sh唤审计会话，域册轮换
+o-cognition-dispatch|oci单元|15min|dev(models)|唤知机触发拍壳——→scripts/cognition/dispatch.sh扫信号面达阈唤会话
+o-deploy-watch|oci单元|15min|dev(models)|部署自醒守望拍壳——→scripts/deploy_watch.sh master滞差即部署/升件
+o-land-queue|oci单元|15min|dev(models)|落地队列拍壳——→scripts/land_queue.sh复审过支→master机械合+D-0048簿记
+o-mirror-push|oci单元|15min+绿戳path事件|dev(models)|镜面推拍壳——→scripts/mirror_push.sh推已绿sha非HEAD；o-green-stamp.path事件驱+timer兜底
+o-ops-relay|oci单元|15min(:8错峰)|dev(models)|RSI工作面摆渡拍壳——→scripts/ops_relay.sh收口/审计行→业主屏
+o-ops-relay-urgent|oci单元|1min|dev(models)|RSI急件摆渡拍壳——→scripts/ops_relay.sh urgent，P1/环死/部署升件即发
+o-overwatch|oci单元|6h|dev(models)|外监工哨拍壳——→tools/overwatch监账扫+飞书活卡原刷（部署前工具未落=静默退）
+o-research-dispatch|oci单元|15min|dev(models)|研究机触发拍壳——→scripts/cognition/dispatch_research.sh四触发唤研究席会话
+o-unit-watch|oci单元|5min|dev(models)|建制单元本机查件拍壳——→scripts/unit_watch.sh systemctl实查差分落账
+o-worker-dispatch|oci单元|15min|dev(models)|施工机触发拍壳——→scripts/cognition/dispatch_worker.sh OPEN工单唤施工席会话
+#
+# ── 定时脚本 payload（9 件——deploy oneshot ExecStart scripts/*.sh）──
+scripts/audit/dispatch.sh|定时脚本|6h|dev(models)|审计机触发拍本体——域册轮换唤审计会话（o-audit-dispatch.service ExecStart）
+scripts/cognition/dispatch.sh|定时脚本|15min|dev(models)|唤知机触发拍本体——扫信号面达阈→systemd-run单飞唤知会话（o-cognition-dispatch.service ExecStart）
+scripts/cognition/dispatch_research.sh|定时脚本|15min|dev(models)|研究机触发拍本体——四触发（intake_dry/breed_dry/求知票/venue推荐）唤研究席（o-research-dispatch.service ExecStart）
+scripts/cognition/dispatch_worker.sh|定时脚本|15min|dev(models)|施工机触发拍本体——OPEN工单在案唤施工席会话+亡unit收口壳兜底（o-worker-dispatch.service ExecStart）
+scripts/deploy_watch.sh|定时脚本|15min|dev(models)|部署自醒守望本体——master HEAD vs产线镜像滞差→自动部署/升件+o-core-clean水位（o-deploy-watch.service ExecStart）
+scripts/land_queue.sh|定时脚本|15min|dev(models)|落地队列本体——复审过支→master机械合+merge簿记+D-0048分席闸（o-land-queue.service ExecStart）
+scripts/mirror_push.sh|定时脚本|15min+事件|dev(models)|镜面推本体——推已绿sha非HEAD（o-mirror-push.service ExecStart+o-green-stamp.path触发）
+scripts/ops_relay.sh|定时脚本|15min/1min|dev(models)|RSI摆渡本体——收口/审计行→飞书业主屏；urgent档=P1急件即发（o-ops-relay/.urgent.service ExecStart）
+scripts/unit_watch.sh|定时脚本|5min|dev(models)|建制单元查件本体——ops.unit_registry期望×systemctl实查差分落账+beat覆写（o-unit-watch.service ExecStart）
