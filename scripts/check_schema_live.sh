@@ -5,7 +5,9 @@
 # scripts/check_schema_live.sh [SG_PG_DSN] [MD_PG_DSN]（缺=容器探测）。
 set -euo pipefail
 # 登记表最大号（单源——migrate_table 登记链是合法迁移清单；按链名取号）
-max_of() { grep -oE '\{[0-9]+, "[a-z]+_[0-9]+' internal/store/pgstore/migrate_table.go 2>/dev/null || true; }
+# 登记表分件（migrate_table*.go——拆链后 md 链在 _md 件，只读本件=md 水位恒空
+# 致 -lt 空参崩溃/假红，升件#32765 同族漏跟件）。
+max_of() { grep -hoE '\{[0-9]+, "[a-z]+_[0-9]+' internal/store/pgstore/migrate_table*.go 2>/dev/null || true; } # tolerate: 无登记=空集非败态
 SG_DSN="${1:-}"
 MD_DSN="${2:-}"
 # T-0181 返修：fin 探针改 SSH 径打 SG 真库（docker port 自动探测=本机
@@ -27,7 +29,7 @@ if [ -z "$MD_DSN" ]; then
 fi
 fail=0
 for dom in fin md; do
-	reg=$(grep -oE "\{[0-9]+, \"${dom}_[0-9]+" internal/store/pgstore/migrate_table.go \
+	reg=$(grep -hoE "\{[0-9]+, \"${dom}_[0-9]+" internal/store/pgstore/migrate_table*.go \
 		| grep -oE '^\{[0-9]+' | tr -d '{' | sort -n | tail -1)
 	dsn=$([ "$dom" = fin ] && echo "$SG_DSN" || echo "$MD_DSN")
 	if [ "$dom" = fin ] && [ "$SG_DSN" = "ssh" ]; then

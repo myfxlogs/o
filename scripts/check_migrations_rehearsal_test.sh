@@ -19,7 +19,7 @@ FX="$T/fx"
 mkdir -p "$FX/scripts" "$FX/internal/store/pgstore"
 git -C "$FX" init -q
 cp -r "$SRC/migrations" "$FX/migrations"
-cp "$SRC/internal/store/pgstore/migrate_table.go" "$FX/internal/store/pgstore/"
+cp "$SRC"/internal/store/pgstore/migrate_table*.go "$FX/internal/store/pgstore/"
 cp "$HERE/check_migrations.sh" "$HERE/mig_dep_lib.sh" "$FX/scripts/"
 
 REGF="$FX/internal/store/pgstore/migrate_table.go"
