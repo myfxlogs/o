@@ -36,18 +36,37 @@ declare -A ESC_AUDIT=(
 	[push败]=deploy_push_blocked [diverged]=deploy_diverged
 	[窗配置非法]=deploy_ocore_window_config
 )
+# 工单#30514：esc() 函件去重抑制登记——ops_esc 返 NULL=同窗已报非写败；
+# 态/实劈差自审凭它区分「主写径断」与「去重合法抑制」，防误补火。
+declare -A ESC_DEDUPED=()
 hb_write() {
 	[ -n "$DSN" ] || return 0
-	local sha ascp
+	local sha ascp last lst lage anchor
 	sha=$(git rev-parse --short=12 master 2>/dev/null); sha=${sha:-?}
 	ascp=${ESC_AUDIT[$HB_STATE]:-}
-	if [ -n "$ascp" ] && ! esc_pending "$ascp"; then
+	if [ -n "$ascp" ] && ! esc_pending "$ascp" && [ -z "${ESC_DEDUPED[$ascp]:-}" ]; then
 		bash scripts/cognition/escalate.sh '探测席' '' '部署' deploy_esc_missing \
 			"部署/deploy_esc_missing:$ascp" \
 			"态 $HB_STATE 判毕而升件 $ascp 无未销行——主写径断自审补火,归唤知会话查 esc() 径" >/dev/null 2>&1 || true # tolerate: 第二径再败无第三径——败痕已由下行 esc缺 载心跳显形,非静默吞
 		HB_STATE="$HB_STATE esc缺"
 	fi
 	[ -n "$ESC_WRITE_FAIL" ] && HB_STATE="$HB_STATE esc写败"
+	# 工单#30514 心跳降噪「态变+锚拍」：末行态同∧末行龄<锚距→跳写
+	# （态恒同时复读行零信息）；锚距=app_config deploy.hb_anchor_min
+	# 缺省20min——须>15min拍距才有降噪可达（spec字面≤5min与拍距互斥
+	# =每拍皆锚零降噪,按「锚距<活性判据窗」约束取20min）且<45min
+	# 活性窗（hunger deploywatch.go deployWatchSilentMaxAge）留
+	# degraded 拍距余量。末行查询败/零行史=照写（fail-open 保鲜度）。
+	anchor=$(cfg_get deploy.hb_anchor_min 20)
+	case "$anchor" in ''|*[!0-9]*|0*) anchor=20;; esac
+	last=$(psql "$DSN" -qAt -c "SELECT substr(split_part(note,' sha=',1),4)||'|'||floor(extract(epoch from now()-ts))::int
+		FROM ops_event WHERE seat='DEPLOY' AND event='心跳' ORDER BY id DESC LIMIT 1" 2>/dev/null)
+	lst=${last%%|*}; lage=${last##*|}
+	if [ -n "$last" ] && [[ "$lage" =~ ^[0-9]+$ ]] && [ "$lst" = "$HB_STATE" ] \
+		&& [ "$lage" -lt $((anchor*60)) ]; then
+		say "心跳同态跳写（末行态同龄 ${lage}s<锚 ${anchor}min）"
+		return 0
+	fi
 	if psql "$DSN" -c "INSERT INTO ops_event(seat,event,ticket,note)
 		VALUES('DEPLOY','心跳','','心跳 $HB_STATE sha=$sha base=${DEPLOYED:-?}')" >/dev/null 2>&1; then
 		say "心跳: $HB_STATE"
@@ -68,18 +87,26 @@ esc_pending() { # esc_pending <scope> → rc0=未销升件在案（24h窗——e
 			AND x2.note ~ ('升件#'||e.id::text||'([^0-9]|$)'))" 2>/dev/null | grep -qxv 0
 }
 esc() { # 升件 dedup=未销才抑（同 escEdgeU 语义——销而未修重火）
-	# 工单#29766：note/scope 先 sqlq——note 内嵌 '（CI结论引号包裹/
-	# 命令输出/git脏清单/窗配置原值）曾截断 SQL 字面量→INSERT 每拍
-	# 写败被 tolerate 吞=deploy_ci_red 升件 0 行信号面假净根因。
-	local scope="$1" note="$2" s n
-	s=$(sqlq "$scope"); n=$(sqlq "$note")
+	# 工单#30514 写径归一：主径=库内函件 ops_esc()（fin_0228——
+	# escalate.sh 语义复刻：note=prefix||'——'||detail、24h note 前缀
+	# 同窗去重、class/scope 空→NULL、psql -v 参数化喂参引号结构性
+	# 绝根——#29766 引号断径病灶的根修）。esc_pending 未销预检保留
+	# （scope 级未销判不变）；函件返 NULL=同窗已报=去重合法抑制非写
+	# 败——ESC_DEDUPED 登记防态/实劈差自审误判「主写径断」补火。
+	# 旗形注：主径用分立 -q -A -t（语义≡-qAt 但桩按整词 -qAt 识别
+	# 兜底径——deploy_watch_test 分径锚，勿并旗改回 -qAt）。
+	local scope="$1" note="$2" out
 	[ -n "$DSN" ] || return 0
 	esc_pending "$scope" && return 0
-	psql "$DSN" -c "INSERT INTO ops_event(seat,event,ticket,note,esc_class,esc_scope)
-		VALUES('探测席','升件','','$n','部署','$s')" >/dev/null 2>&1 && return 0
+	# ON_ERROR_STOP=1：函件缺席/SQL 错必须 rc≠0 落兜底径——psql 缺省
+	# SQL 错仍 rc0 会被误判「去重抑制」静默吞（写径假净回潮防线）。
+	out=$(psql "$DSN" -q -A -t -v ON_ERROR_STOP=1 \
+		-v seat='探测席' -v ticket='' -v cls='部署' -v scp="$scope" \
+		-v prefix="部署/${scope}:" -v detail="$note" \
+		-c "SELECT ops_esc(:'seat',:'ticket',:'cls',:'scp',:'prefix',:'detail')" 2>/dev/null) \
+		&& { [ -n "$out" ] || ESC_DEDUPED[$scope]=1; return 0; }
 	# 工单#30086 主径写败→第二径 escalate.sh 兜底（独立码路——同一坑不双断;
-	# prefix=部署/<scope>: 24h窗去重天然幂等;detail 传原 note——escalate 自
-	# 具 QC 转义,预转义则双转）+心跳载「esc写败」显形——升件#29764 实证
+	# 函件归一后兜底=同函件异会话重试+失败显形，语义不变）+心跳载「esc写败」显形——升件#29764 实证
 	# 「写败静默=信号面假净」,败留痕=写径健康自感。
 	ESC_WRITE_FAIL=1
 	bash scripts/cognition/escalate.sh '探测席' '' '部署' "$scope" \
