@@ -48,6 +48,12 @@ fi
 # 脉冲在 run.sh 壳侧（①件），本件=②龄阈监控盒内薄壳面。
 "$SCRIPT_DIR/sessionpulse.sh" || true # tolerate: 监控败=本拍无升件,主触发面不受阻
 
+# 收口「调用径实证」闸（工单O-32269）：完工回执/施工收口行∧支diff
+# 命中触发类(.sh新改/CREATE FUNCTION/psql调用径)∧缺实证段→
+# 审计/closeout_callpath 升件——桩测≠调用径(O-30514 psql -c不插值
+# 坑实证)；纯Go码件豁免。审计面机械查=本件,判据正本=工单规约D节。
+"$SCRIPT_DIR/closeoutcert.sh" || true # tolerate: 监控败=本拍无升件,主触发面不受阻
+
 MIN_N=${COG_MIN_N:-1}; MIN_AGE=${COG_MIN_AGE:-600}; BURST_N=${COG_BURST_N:-5}
 
 # 未决升件: 后随 ops_event 无 note 引「升件#<id>」处置行=未处置。
