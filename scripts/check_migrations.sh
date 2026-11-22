@@ -37,11 +37,14 @@ MIGDEP_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/mig_dep_lib.sh"
 if [ -f "$MIGDEP_LIB" ]; then . "$MIGDEP_LIB"; else mig_dep_parse() { :; }; mig_dep_stray() { :; }; fi
 cd "$(git rev-parse --show-toplevel)"
 
-REG="internal/store/pgstore/migrate_table.go"
+# 登记表分件（migrate_table*.go——D-588 棘轮拆链：fin 链本件/md 链 _md 件）。
+# ls 字典序 migrate_table.go<migrate_table_md.go 天然 fin 前 md 后，
+# 链内单调判据序守恒；grep -h 抑文件名前缀保行形。
+REGS=$(ls internal/store/pgstore/migrate_table*.go 2>/dev/null | tr '\n' ' ')
 TSV="migrations/domain.tsv"
 fail=0
 
-if [ ! -f "$REG" ]; then
+if [ -z "$REGS" ]; then
 	echo "check_migrations: 条件未备跳过（登记表缺席）"
 	exit 0
 fi
@@ -58,41 +61,41 @@ while IFS= read -r line; do
 	rest=${name#*_}
 	num=$((10#${rest%%_*}))
 	if [ "$chain" != "md" ] && [ "$chain" != "fin" ]; then
-		echo "FAIL $REG: 登记 $name 前缀非 md|fin（分链制命名 md_NNNN_*/fin_NNNN_*）" >&2
+		echo "FAIL 登记表: 登记 $name 前缀非 md|fin（分链制命名 md_NNNN_*/fin_NNNN_*）" >&2
 		fail=1
 		continue
 	fi
 	# ① 链内唯一
 	key="$chain/$ver"
 	if [ -n "${SEEN[$key]:-}" ]; then
-		echo "FAIL $REG: $chain 链版本号 $ver 重复登记（${SEEN[$key]} 与 $name）——同号后登记者被 silent-skip" >&2
+		echo "FAIL 登记表: $chain 链版本号 $ver 重复登记（${SEEN[$key]} 与 $name）——同号后登记者被 silent-skip" >&2
 		fail=1
 	fi
 	SEEN[$key]=$name
 	# ⑤ 链内单调（登记序=版本升序）
 	if [ -n "${LAST[$chain]:-}" ] && [ "$ver" -le "${LAST[$chain]}" ]; then
-		echo "FAIL $REG: $chain 链登记非单调（$name 乱序）——分链后链即序，乱序=红" >&2
+		echo "FAIL 登记表: $chain 链登记非单调（$name 乱序）——分链后链即序，乱序=红" >&2
 		fail=1
 	fi
 	LAST[$chain]=$ver
 	# ② 链内序号=登记号 + 文件实存
 	if [ "$num" != "$ver" ]; then
-		echo "FAIL $REG: 登记 $ver 与文件链内序号 $num 失配（$name）——序号语义分裂" >&2
+		echo "FAIL 登记表: 登记 $ver 与文件链内序号 $num 失配（$name）——序号语义分裂" >&2
 		fail=1
 	fi
 	if [ ! -f "migrations/$name" ]; then
-		echo "FAIL $REG: 登记 $ver 的 $name 文件不存在（幽灵登记——部署即炸）" >&2
+		echo "FAIL 登记表: 登记 $ver 的 $name 文件不存在（幽灵登记——部署即炸）" >&2
 		fail=1
 	fi
 	VEROF[$name]=$ver
-done < <(grep -E '^\s*\{[0-9]+, *"(md|fin)_[0-9]+_' "$REG")
+done < <(grep -hE '^\s*\{[0-9]+, *"(md|fin)_[0-9]+_' $REGS)
 
 # ③ 孤儿文件（migrations/*.sql 每文件恰一条登记）
 while IFS= read -r f; do
 	name=$(basename "$f")
 	[ "$name" = "migrations.go" ] && continue
 	[ "$name" = "domain.tsv" ] && continue
-	grep -qF "\"$name\"" "$REG" || {
+	grep -qF "\"$name\"" $REGS || {
 		echo "FAIL migrations/$name: 孤儿迁移文件（登记表无行——永不执行）" >&2
 		fail=1
 	}
