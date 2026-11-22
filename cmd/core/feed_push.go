@@ -7,7 +7,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"strconv"
 	"strings"
@@ -28,10 +27,12 @@ type feedPush struct {
 }
 
 type feedRow struct {
-	id    int64
-	seat  string
-	event string
-	note  string
+	id       int64
+	seat     string
+	event    string
+	note     string
+	escClass string // 人话翻译层锚（升件器官归口）——COALESCE 空串
+	escScope string // 同上，scope 优先于 class 作器官名
 }
 
 // startFeedPush 装配（cli nil=凭据缺席整件降级不炸——同 sys_push 律）。
@@ -91,7 +92,7 @@ func (s *feedPush) push(ctx context.Context) error {
 			b.WriteString(f + "\n———\n")
 		}
 		for _, r := range rows {
-			fmt.Fprintf(&b, "%s #%d %s\n", feedHead(r.seat, r.event), r.id, feedTidy(r.note))
+			b.WriteString(feedRender(r) + "\n") // 人话行+缩进机器行双行（O-32265）
 		}
 		if _, err := s.cli.SendText(ctx, chat, strings.TrimRight(b.String(), "\n")); err != nil {
 			return err // 发败=不过水印，下醒重泄同批（不漏件）
@@ -113,7 +114,8 @@ func (s *feedPush) pending(ctx context.Context, wm int64) ([]feedRow, error) {
 	// 未提交期间高 id 行先入水位=低位行永跳）；动作流水非实时径（攒批窗
 	// 本就 6s 合流+10min 静默），滞后无感。
 	rows, err := s.pool.Query(ctx,
-		`SELECT id,seat,event,left(note,500) FROM ops_event
+		`SELECT id,seat,event,left(note,500),COALESCE(esc_class,''),COALESCE(esc_scope,'')
+		 FROM ops_event
 		 WHERE id>$1 AND ts<now()-interval '60 seconds'
 		   AND event NOT IN `+feedExclude+`
 		 ORDER BY id LIMIT 40`, wm)
@@ -124,7 +126,7 @@ func (s *feedPush) pending(ctx context.Context, wm int64) ([]feedRow, error) {
 	var out []feedRow
 	for rows.Next() {
 		var r feedRow
-		if err := rows.Scan(&r.id, &r.seat, &r.event, &r.note); err != nil {
+		if err := rows.Scan(&r.id, &r.seat, &r.event, &r.note, &r.escClass, &r.escScope); err != nil {
 			return out, err
 		}
 		out = append(out, r)
