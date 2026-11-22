@@ -43,24 +43,27 @@ fi
 
 # 触发扫（源键去重——唤起行载 esc#/tk#/venue= 键,同键已唤不重唤;
 # NOT EXISTS 只认 '唤起' 行=唤起败不吞键可重唤;源键集拼 trigger note）。
+# 去重锚 'trigger=' 位——唤起 note 同时载留拍键（『三键取首,tk#X/tk#Y留拍』
+# 实证#32346),泛词面匹配把留拍键误判已唤=幽灵票永不复唤(方言坑同族
+# 第四发,工单O-32603前立案在案);trigger=前缀位=真被取走的键。
 TRIGGERS=$(psql "$DSN" -qAt <<'SQL'
 SELECT 'esc#'||e.id||':'||e.esc_scope FROM ops_esc_pending e
 WHERE e.esc_scope IN ('intake_dry','breed_dry')
 AND NOT EXISTS (SELECT 1 FROM ops_event x
 	WHERE x.seat='研究机' AND x.event='唤起'
-	AND x.note ~ ('esc#'||e.id::text||'([^0-9]|$)'))
+	AND x.note ~ ('trigger=esc#'||e.id::text||'([^0-9]|$)'))
 UNION ALL
 SELECT 'tk#'||t.id||':'||left(t.note,40) FROM ops_ticket_desk t
 WHERE t.closed IS NOT TRUE AND t.note ~ '^(求知[:：]|研究席[:：])'
 AND NOT EXISTS (SELECT 1 FROM ops_event x
 	WHERE x.seat='研究机' AND x.event='唤起'
-	AND x.note ~ ('tk#'||t.id::text||'([^0-9]|$)'))
+	AND x.note ~ ('trigger=tk#'||t.id::text||'([^0-9]|$)'))
 UNION ALL
 SELECT 'venue='||c.venue||':recommended' FROM fin_venue_candidate c
 WHERE c.state='recommended'
 AND NOT EXISTS (SELECT 1 FROM ops_event x
 	WHERE x.seat='研究机' AND x.event='唤起'
-	AND x.ts > c.last_request_at AND x.note ~ ('venue='||c.venue||'([^a-zA-Z0-9._-]|$)'))
+	AND x.ts > c.last_request_at AND x.note ~ ('trigger=venue='||c.venue||'([^a-zA-Z0-9._-]|$)'))
 SQL
 )
 TRIGGERS=$(printf '%s\n' "$TRIGGERS" | grep -v '^$' | paste -sd' ' -)
