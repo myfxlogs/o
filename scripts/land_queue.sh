@@ -131,14 +131,14 @@ review_ok() { # $1=br名 $2=tip全sha → rc0=复审过行在且写行席≠完�
 	bre=$(printf '%s' "$br" | sed 's/[][\\.*^$()+?{}|]/\\&/g') # tolerate: sed 恒 rc0——纯转义器非闸
 	aseat=$(q "SELECT seat FROM ops_event
 		WHERE ((note ~ '(完工回执|完工推支候审|候审回执|施工收口)' OR event ~ '完工')
-			AND note !~ '复审过' AND seat NOT IN ('复审席','落地件')
+			AND note !~ '复审过[[:space:]]*sha=' AND seat NOT IN ('复审席','落地件')
 			AND (note ~ '$bre' OR note ~ '${tip:0:9}'))
 		ORDER BY id DESC LIMIT 1")
 	[ -n "$aseat" ] || return 1 # 作者席不可考=分席不可证→fail-closed
 	aseat=$(printf '%s' "$aseat" | tr -d "\"'\\")
 	[ "$aseat" = "落地件" ] && return 1
 	q "SELECT 1 FROM ops_event
-		WHERE note ~ '复审过' AND note ~ 'sha=[[:space:]]*${tip}'
+		WHERE note ~ '复审过[[:space:]]*sha=[[:space:]]*${tip}'
 		AND seat <> '$aseat' LIMIT 1" | grep -q .
 }
 mergeable() { # $1=tip → rc0=对 origin/master 净合（merge-tree 预检，不动工树）
