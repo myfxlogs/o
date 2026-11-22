@@ -3,6 +3,8 @@
 # 桩 git（本地 bare origin+clone）+桩 psql（PATH 注入按词面应答）+
 # 桩 check_all（绿=盖戳）——验三件齐→落；缺戳/缺复审过行/复审席=
 # 作者席/冲突/戳陈 五反例各不落；docs-only 差分免 b 正例；
+# aseat 取行双键（工单O-27955）：复审词面不毒化/施工收口与完工类
+# event 认回执/自审仍拒/缺回执 fail-closed；
 # depends_on 合流时序闸（工单#25800）：依赖未合拒/同支自带放/
 # 已合放/无声明放 四态。
 set -uo pipefail
@@ -18,19 +20,49 @@ bad() { FAILN=$((FAILN+1)); echo "  FAIL $1"; }
 mkdir -p "$T/bin" "$T/wt"
 cat > "$T/bin/psql" <<'EOF'
 #!/usr/bin/env bash
-# psql 桩：按 -c SQL 词面应答，全部查询落 $PSQL_LOG 供断言
+# psql 桩：按 -c SQL 词面应答，全部查询落 $PSQL_LOG 供断言。
+# T_ASEAT_ROWS 在场=按行集评 author-seat 查询（id seat event note TSV，
+# 末行覆盖=ORDER BY id DESC 同义）；缺省回 T_AUTHOR_SEAT 旧径。
 sql=""; prev=""
 for a in "$@"; do [ "$prev" = "-c" ] && sql="$a"; prev="$a"; done
 printf '%s\n' "$sql" >> "${PSQL_LOG:-/dev/null}"
+if [[ "$sql" == *"SELECT seat FROM ops_event"* && "$sql" == *"seat NOT IN"* ]]; then
+  seat=""
+  if [ -n "${T_ASEAT_ROWS:-}" ]; then
+    if [ -f "$T_ASEAT_ROWS" ]; then
+      while IFS=$'\t' read -r rid rseat revent rnote; do
+        [ -n "$rid" ] || continue
+        receipt=0
+        [[ "$revent" == *完工* ]] && receipt=1
+        [[ "$rnote" == *完工回执* || "$rnote" == *完工推支候审* || "$rnote" == *候审回执* || "$rnote" == *施工收口* ]] && receipt=1
+        [ "$receipt" = 1 ] || continue
+        [[ "$rnote" == *复审过* || "$rseat" == "复审席" || "$rseat" == "落地件" ]] && continue
+        match=0
+        if [ -z "${T_BRANCH:-}" ] && [ -z "${T_TIP9:-}" ]; then match=1; else
+          [ -n "${T_BRANCH:-}" ] && [[ "$rnote" == *"$T_BRANCH"* ]] && match=1
+          [ -n "${T_TIP9:-}" ] && [[ "$rnote" == *"$T_TIP9"* ]] && match=1
+        fi
+        [ "$match" = 1 ] && seat="$rseat"
+      done < "$T_ASEAT_ROWS"
+    fi
+  else
+    seat="${T_AUTHOR_SEAT:-施工席}"
+  fi
+  [ -n "$seat" ] && printf '%s\n' "$seat" > "${T_ASEAT_STATE:-/dev/null}"
+  [ -n "$seat" ] && printf '%s\n' "$seat"
+  exit 0
+fi
 case "$sql" in
   INSERT*) echo "INSERT 0 1";;
-  *完工回执*) printf '%s\n' "${T_AUTHOR_SEAT:-施工席}";;
   *复审过*)
     # 模拟 seat<>作者席 谓词：同席→空集（分席不可证不落）
+    author="${T_AUTHOR_SEAT:-施工席}"
+    [ -n "${T_ASEAT_STATE:-}" ] && [ -s "$T_ASEAT_STATE" ] && author=$(cat "$T_ASEAT_STATE")
     [ "${T_REVIEW_OK:-0}" = 1 ] \
-      && [ "${T_REVIEW_SEAT:-唤知}" != "${T_AUTHOR_SEAT:-施工席}" ] && echo 1;;
+      && [ "${T_REVIEW_SEAT:-唤知}" != "$author" ] && echo 1;;
   *落地败*LIMIT*) [ "${T_FAILROW:-0}" = 1 ] && echo 1;;
-  *esc_scope=\'landq_starved\'*) echo "${T_STARVED_N:-0}";; # 节流计=20h内同scope升件行数(引号转义=字面)
+  *SELECT*note*ops_event*landq_starved*) echo "${T_STARVED_NOTE:-}";;
+  *EXTRACT*landq_starved*) echo "${T_STARVED_AGE:-99999}";;
 esac
 exit 0
 EOF
@@ -73,11 +105,11 @@ stamp() { # $1=repo $2=sha [$3=age文字] —— 盖/陈绿戳
   local gd; gd=$(git -C "$1" rev-parse --path-format=absolute --git-common-dir)
   touch ${3:+-d "$3"} "$gd/check-green-$2"
 }
-run_lq() { # 余参=桩应答覆写（T_AUTHOR_SEAT/T_REVIEW_OK/T_REVIEW_SEAT/T_FAILROW/STUB_CHECK_FAIL）
+run_lq() { # 余参=桩应答覆写（T_AUTHOR_SEAT/T_REVIEW_OK/T_REVIEW_SEAT/T_FAILROW/STUB_CHECK_FAIL/T_ASEAT_ROWS/T_BRANCH/T_TIP9）
   env PATH="$T/bin:$PATH" O_LAND_REPO="$T/o" O_LAND_DSN=stub \
     O_LAND_PSQL="$T/bin/psql" O_LAND_CHECK_ALL="bash $T/stub_check.sh" \
     O_LAND_BOOTSTRAP=true O_LAND_PUSH="git push" O_LAND_WT="$T/wt" \
-    O_LAND_LOCK="$T/lq.lock" PSQL_LOG="$T/psql.log" "$@" \
+    O_LAND_LOCK="$T/lq.lock" PSQL_LOG="$T/psql.log" T_ASEAT_STATE="$T/aseat.state" "$@" \
     bash "$LQ" >/dev/null 2>&1
 }
 landed() { # $1=repo $2=tip → rc0=tip 已并入 origin/master
@@ -85,7 +117,7 @@ landed() { # $1=repo $2=tip → rc0=tip 已并入 origin/master
   git -C "$1" merge-base --is-ancestor "$2" origin/master 2>/dev/null
 }
 new_case() { # $1=名 → 重建 $T/o 夹具+清账
-  rm -rf "$T/o" "$T/origin.git" "$T/wt"/* "$T/psql.log"
+  rm -rf "$T/o" "$T/origin.git" "$T/wt"/* "$T/psql.log" "$T/aseat.state" "$T/aseat_rows.tsv"
   mkdir -p "$T/wt"
   new_repo "$T"
 }
@@ -155,6 +187,53 @@ new_case
 TIP=$(tip_of "$T/o" fix/docsonly); stamp "$T/o" "$TIP"
 run_lq T_REVIEW_OK=0
 if landed "$T/o" "$TIP"; then ok "docs-only免b落成"; else bad "docs-only未落"; fi
+
+# ═══ aseat 取行双键（工单O-27955）：复审词面不毒化/施工收口认回执/缺回执fail-closed ═══
+echo "== aseat 复审词面不误取 =="
+new_case
+mk_branch "$T/o" fix/aseat-poison feat_ap.txt ap
+TIP=$(tip_of "$T/o" fix/aseat-poison); stamp "$T/o" "$TIP"
+: > "$T/aseat_rows.tsv"
+printf '%s\t%s\t%s\t%s\n' 1 施工席 记事 "完工回执——fix/aseat-poison@${TIP:0:9} 候审" >> "$T/aseat_rows.tsv"
+printf '%s\t%s\t%s\t%s\n' 2 复审席 复审过 "复审过 sha=$TIP fix/aseat-poison 三维——候审回执在案" >> "$T/aseat_rows.tsv"
+run_lq T_ASEAT_ROWS="$T/aseat_rows.tsv" T_BRANCH=fix/aseat-poison T_TIP9="${TIP:0:9}" T_REVIEW_OK=1 T_REVIEW_SEAT=复审席 T_AUTHOR_SEAT=施工席
+if landed "$T/o" "$TIP"; then ok "复审行候审回执词面不误取aseat"; else bad "复审行词面仍毒化aseat"; fi
+
+echo "== aseat 施工收口认回执 =="
+new_case
+mk_branch "$T/o" fix/aseat-closeout feat_ac.txt ac
+TIP=$(tip_of "$T/o" fix/aseat-closeout); stamp "$T/o" "$TIP"
+: > "$T/aseat_rows.tsv"
+printf '%s\t%s\t%s\t%s\n' 1 施工席 记事 "[施工收口:O-27955] @ sha=$TIP 支=fix/aseat-closeout 已推 origin" >> "$T/aseat_rows.tsv"
+run_lq T_ASEAT_ROWS="$T/aseat_rows.tsv" T_BRANCH=fix/aseat-closeout T_TIP9="${TIP:0:9}" T_REVIEW_OK=1 T_REVIEW_SEAT=唤知 T_AUTHOR_SEAT=施工席
+if landed "$T/o" "$TIP"; then ok "施工收口行认作回执"; else bad "施工收口行未认回执"; fi
+
+echo "== aseat event完工类认回执 =="
+new_case
+mk_branch "$T/o" fix/aseat-event feat_ae.txt ae
+TIP=$(tip_of "$T/o" fix/aseat-event); stamp "$T/o" "$TIP"
+: > "$T/aseat_rows.tsv"
+printf '%s\t%s\t%s\t%s\n' 1 外席 完工回执 "O-25563 支=fix/aseat-event@${TIP:0:9} 已推 origin" >> "$T/aseat_rows.tsv"
+run_lq T_ASEAT_ROWS="$T/aseat_rows.tsv" T_BRANCH=fix/aseat-event T_TIP9="${TIP:0:9}" T_REVIEW_OK=1 T_REVIEW_SEAT=复审席 T_AUTHOR_SEAT=外席
+if landed "$T/o" "$TIP"; then ok "event完工类行认回执且外席可作作者"; else bad "event完工类行/外席未认回执"; fi
+
+echo "== aseat 自审仍拒 =="
+new_case
+mk_branch "$T/o" fix/aseat-selfreview feat_as.txt as
+TIP=$(tip_of "$T/o" fix/aseat-selfreview); stamp "$T/o" "$TIP"
+: > "$T/aseat_rows.tsv"
+printf '%s\t%s\t%s\t%s\n' 1 施工席 处置 "完工回执——fix/aseat-selfreview@${TIP:0:9} 候审" >> "$T/aseat_rows.tsv"
+run_lq T_ASEAT_ROWS="$T/aseat_rows.tsv" T_BRANCH=fix/aseat-selfreview T_TIP9="${TIP:0:9}" T_REVIEW_OK=1 T_REVIEW_SEAT=施工席 T_AUTHOR_SEAT=施工席
+if landed "$T/o" "$TIP"; then bad "复审席=作者席竟落"; else ok "复审席=作者席仍拒"; fi
+
+echo "== aseat 回执行缺fail-closed =="
+new_case
+mk_branch "$T/o" fix/aseat-noreceipt feat_an.txt an
+TIP=$(tip_of "$T/o" fix/aseat-noreceipt); stamp "$T/o" "$TIP"
+: > "$T/aseat_rows.tsv"
+printf '%s\t%s\t%s\t%s\n' 1 复审席 复审过 "复审过 sha=$TIP fix/aseat-noreceipt 候审回执在案" >> "$T/aseat_rows.tsv"
+run_lq T_ASEAT_ROWS="$T/aseat_rows.tsv" T_BRANCH=fix/aseat-noreceipt T_TIP9="${TIP:0:9}" T_REVIEW_OK=1 T_REVIEW_SEAT=唤知 T_AUTHOR_SEAT=施工席
+if landed "$T/o" "$TIP"; then bad "回执行缺竟落"; else ok "回执行缺aseat空仍fail-closed"; fi
 
 # ═══ 依赖闸1：所依未合 → 跳支不落不烧账（工单#25800）═══
 echo "== 依赖闸 依赖未合拒=="
@@ -234,8 +313,8 @@ new_case
 mk_branch "$T/o" fix/stranded feat_st2.txt st2
 run_lq T_REVIEW_OK=1
 grep -q "landq_starved.*fix/stranded" "$T/psql.log" && ok "缺戳滞留支升件名支在案" || bad "滞留支无升件"
-# 节流：20h内同scope已有升件→不再发（T_STARVED_N=1 桩应答）
-run_lq T_REVIEW_OK=1 T_STARVED_N=1
+# 节流：20h内同scope已有升件覆盖同集→不再发（桩回最近升件note+龄）
+run_lq T_REVIEW_OK=1 T_STARVED_NOTE='landq_starved fix/stranded' T_STARVED_AGE=60
 [ "$(grep -c '未并支滞留' "$T/psql.log")" -eq 1 ] && ok "节流20h内不复发" || bad "节流失效复发"
 
 # ═══ 补扫：扫描面外支（无前缀推远端/仅本地未推）→ 同入滞留集 ═══
