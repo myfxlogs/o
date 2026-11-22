@@ -76,12 +76,15 @@ func (r *Runner) Run(ctx context.Context, errc chan<- error) {
 
 // surfaces 枚举面读表（注册表×模板适用声明 join——「注册+声明=探员即枚举」
 // 扩张机制唯一真源；关态面随全集返出——扩张自证断言面，scan 只取 enabled）。
+// O-33377：声明闸不挂 t.enabled——产品册=venue 真相目录非策略产出，模板
+// 禁用不该弄瞎传感器（287249 案禁因复核恰需新鲜目录证伪；提案闸在下游
+// 模板合格判据另闸，目录新鲜≠放行）。面级 kill-switch=cs.enabled 照旧。
 func (r *Runner) surfaces(ctx context.Context) ([]Surface, error) {
 	rows, err := r.pool.Query(ctx, `SELECT DISTINCT cs.venue,cs.surface,cs.endpoint_family,
 		cs.product_family,cs.enabled
 		FROM fin_capability_surface cs
 		JOIN fin_opp_template t ON t.venue=cs.venue AND t.surface=cs.surface
-		WHERE cs.rw_class='read' AND t.enabled AND t.template IN ('dcd_call','dcd_put')
+		WHERE cs.rw_class='read' AND t.template IN ('dcd_call','dcd_put')
 		ORDER BY 1,2`)
 	if err != nil {
 		return nil, err
@@ -152,6 +155,13 @@ func (r *Runner) scan(ctx context.Context) error {
 
 // scanSurface 单面：快照留痕+评估落卡+阈闸提案。
 func (r *Runner) scanSurface(ctx context.Context, s Surface, ps []Product, p Params) error {
+	// O-33377：目录解钳≠放行——模板启用集面级取一次，禁用模板评估卡照落
+	// （复核拍证据面）但 persistEval 闸不起提案行（钱径闸在模板态）。
+	tplOn, err := r.enabledTemplates(ctx, s)
+	if err != nil {
+		r.rej.Inc("dcd_write_err")
+		return err
+	}
 	skipCcy := 0 // T-0117 修4：USDT 计价硬闸（业主令 10-25——非 USDT 产品
 	// 枚举期挡不入 eval：异币评出 insufficient_balance=误导性条件缺口；产品
 	// 行照留宇宙可见性保留）。
@@ -182,7 +192,7 @@ func (r *Runner) scanSurface(ctx context.Context, s Surface, ps []Product, p Par
 		if dup && e.Verdict == "proposed" {
 			e.Verdict, e.Reason = "rejected", "duplicate_direction"
 		}
-		if err := r.persistEval(ctx, e); err != nil {
+		if err := r.persistEval(ctx, e, tplOn); err != nil {
 			r.rej.Inc("dcd_write_err")
 			return err
 		}
@@ -196,6 +206,26 @@ func (r *Runner) scanSurface(ctx context.Context, s Surface, ps []Product, p Par
 		log.Printf("WARN [research/dcd] 面 %s feed 空集（products=0——OKX 面真空或上游断供，如实呈）", s.Surface)
 	}
 	return nil
+}
+
+// enabledTemplates 面级模板启用集（venue×surface×template 三键——禁用
+// 模板评估照跑、提案闸在 persistEval；读败上抛 fail-closed）。
+func (r *Runner) enabledTemplates(ctx context.Context, s Surface) (map[string]bool, error) {
+	rows, err := r.pool.Query(ctx, `SELECT template FROM fin_opp_template
+		WHERE venue=$1 AND surface=$2 AND enabled`, s.Venue, s.Surface)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]bool{}
+	for rows.Next() {
+		var t string
+		if err := rows.Scan(&t); err != nil {
+			return nil, err
+		}
+		out[t] = true
+	}
+	return out, rows.Err()
 }
 
 // params 判据全 config 热启读（任一缺=fail-closed 不可评估）。

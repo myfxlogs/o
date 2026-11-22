@@ -159,7 +159,13 @@ func (h hedgeOpener) untradeable(ctx context.Context, spec lifecycle.OpenSpec, x
 }
 
 // loadMeta 乐器元数据现读（/public/instruments——SPOT/SWAP 按后缀分派）。
+// O-33377④ 族路由闸：DCD 产品键（*-P/*-C+日期戳）不在 instruments 族——
+// 跨族查空=结构性假阴性（287249 幻影退役案），显式族标错误上抛不猜族。
 func (h hedgeOpener) loadMeta(ctx context.Context, iid string) (execution.InstMeta, error) {
+	if okxexec.DcdProductKey(iid) {
+		return execution.InstMeta{}, fmt.Errorf("inst 族=%s 非 instruments 族——存在性/元数据核验走 sfp/dcd 面（order-history/order-status），禁跨族判不存在 %s",
+			okxexec.InstFamily(iid), okxexec.FamilyCheckNote("dcd"))
+	}
 	it := "SPOT"
 	if strings.HasSuffix(iid, "-SWAP") {
 		it = "SWAP"
