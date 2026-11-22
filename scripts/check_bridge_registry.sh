@@ -59,6 +59,18 @@ else
 	echo "[bridge-audit] 法证读面列: fin_0226 未迁移——grace 跳（部署窗）"
 fi
 
+# ── ①c 域视图读面列（fin_0229——fin_cashflow_domain 视图本体 o_fin_ro
+# SELECT 钉；审计 audit/1122-forensic 实证：底表 4 件授权齐而视图漏授
+# =对拍面自身黑盒。同律：已迁移缺权=红）──────────────────────────────
+HAS229=$(sg_q "SELECT count(*) FROM schema_migrations WHERE version=229")
+if [ "$HAS229" = "1" ]; then
+	n=$(sg_q "SELECT count(*) FROM information_schema.role_table_grants WHERE grantee='o_fin_ro' AND table_name='fin_cashflow_domain' AND privilege_type='SELECT'")
+	[ "$n" = "1" ] || red "域视图读面授权缺: SG o_fin_ro.SELECT on fin_cashflow_domain（fin_0229 在案而实机无——劈⑤对拍面自身黑盒回潮）"
+	echo "OK[bridge-audit] 域视图读面列: fin_cashflow_domain×o_fin_ro.SELECT 齐（fin_0229 在案）"
+else
+	echo "[bridge-audit] 域视图读面列: fin_0229 未迁移——grace 跳（部署窗）"
+fi
+
 # ── ② 触发器存在性列 ─────────────────────────────────────
 # 迁移册派生：TRIGGER <name> ... ON <table>，按文件名链分侧（fin_*→SG，md_*→OCI）。
 # 清单空=红（抽取败静默过=闸失效同病灶）。
