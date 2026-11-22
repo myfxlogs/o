@@ -15,6 +15,7 @@ domain: 工程
 - `funding-rate`：资金费率推送——REST `/public/funding-rate(-history)` 轮询已闸关退役（`NOX_OKX_REST_FUNDING` 豁免键备）
 - `mark-price`/`index-tickers`/`instruments`：标记价/指数/合约目录推送
 ## 坑注记
+- **books5 分钟级断流=断连重订阅自愈**（ops_event#27808 实证：「断流:买五档 depth5」末鲜陈 2m7s 即超 dead 阈升件，OCI o-collecto books5 订阅段断连重订阅即回）——分钟级陈化勿当故障追修，持续断流才查订阅段。
 - **无效符号单点拒不误伤**：`SILVER-USDT-SWAP` 等 venue 不存在合约被单符拒绝、其余符号照流——目录脏符不阻断面（但仍应清目录）。
 - **ack≠存活**：订阅 ack 收讫不代表帧在流——存活判据=帧时戳前移（同 binance 族教训）。
 - **REST depth 兜底闸关**：`NOX_DEPTH_REST_OKX=1` 才开，默认 fail-closed（缺数据≠降级数据——宁缺交易不静默降级）。
