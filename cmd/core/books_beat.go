@@ -14,6 +14,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -53,24 +54,86 @@ func (c coreService) booksBeat(ctx context.Context, deadSince map[string]time.Ti
 	if !gaugeDue(ctx, c, "books_daily", fp, booksEvery) {
 		return
 	}
-	note := booksNote(fp, delta, flow, earned, resid, tsPrev, tsNow)
+	// ③ 鬼账升件（残差超阈——探针只述实数,定性归唤知会话）。
+	//    残差透镜（工单O-27665 取舍b）：阈内不扰，阈外 note 附未载类
+	//    明细+venue 腿跨窗差——「残差为何残」可读非黑盒，口径不动。
+	ghost := resid > booksGhostUSD || resid < -booksGhostUSD
+	lens := ""
+	if ghost {
+		lens = c.residLens(ctx, tsPrev, tsNow)
+	}
+	note := booksNote(fp, delta, flow, earned, resid, tsPrev, tsNow, lens)
 	if _, err := c.pool.Exec(ctx,
 		`INSERT INTO ops_event(seat,event,ticket,note) VALUES('探测席','量表','books_daily',$1)`,
 		note); err != nil {
 		return
 	}
-	// ③ 鬼账升件（残差超阈——探针只述实数,定性归唤知会话）。
-	ghost := resid > booksGhostUSD || resid < -booksGhostUSD
 	c.escEdgeUV(ctx, deadSince, "对账", "nav_residual", fmt.Sprintf("%.0f", resid), ghost, func() string {
-		return fmt.Sprintf("账面闹鬼：ΔNAV%+.2f 净流%+.2f 盈亏%+.2f 未释%+.2f——净值跳变拆三桶后残差超阈（定性归唤知会话;可能因=快照缺腿/mt5离线进出/未载费类）",
-			delta, flow, earned, resid)
+		return fmt.Sprintf("账面闹鬼：ΔNAV%+.2f 净流%+.2f 盈亏%+.2f 未释%+.2f——净值跳变拆三桶后残差超阈（定性归唤知会话;可能因=快照缺腿/mt5离线进出/未载费类）%s",
+			delta, flow, earned, resid, lens)
 	})
 }
 
-// booksNote 对账账页文——三桶式+窗+阈注（纯函数供 shape 测）。
-func booksNote(fp string, delta, flow, earned, resid float64, tsPrev, tsNow time.Time) string {
-	return fmt.Sprintf("v=%s 账房对账: ΔNAV%+.2f = 净流%+.2f + 盈亏%+.2f + 未释%+.2f（窗 %s→%s %.0fh）——|未释|>$%.0f=账面闹鬼升件对账/nav_residual;mt5无bill源其进出落残差桶",
+// residLens 残差透镜——阈外才取（O-27665）：
+// ① fin_cashflow 未入桶类行明细（kind/venue/amt——六族盈亏桶+bill净流
+//
+//	桶之外的外部进出/息/调整类，owner_in±10k 类即此面）；
+//
+// ② venue 腿跨窗集差（md_equity_curve venue/ccy 腿：窗内首见=+新腿、
+//
+//	窗前有账窗内断=−退腿——腿集差=残差候选因）。
+//
+// 读败=空串（透镜件不阻主径——fail-open 同本文件惯例）。
+func (c coreService) residLens(ctx context.Context, tsPrev, tsNow time.Time) string {
+	var unloaded, legDiff string
+	rows, err := c.pool.Query(ctx, `SELECT kind||'/'||venue||' '||round(sum(amount),2)||'x'||count(*)
+		FROM fin_cashflow
+		WHERE venue<>'sim' AND occurred_at>$1 AND occurred_at<=$2
+		  AND kind NOT IN ('fee','funding_settle','trade_pnl','rollback_cost','spot_buy','spot_sell')
+		GROUP BY kind,venue ORDER BY abs(sum(amount)) DESC LIMIT 5`, tsPrev, tsNow)
+	if err == nil {
+		var segs []string
+		for rows.Next() {
+			var s string
+			if rows.Scan(&s) == nil {
+				segs = append(segs, s)
+			}
+		}
+		rows.Close()
+		if len(segs) > 0 {
+			unloaded = strings.Join(segs, ";")
+		}
+	}
+	_ = c.pool.QueryRow(ctx, `WITH w AS (
+			SELECT DISTINCT venue||'/'||ccy AS leg FROM md_equity_curve
+			WHERE ts>$1 AND ts<=$2 AND ccy<>'NAV'),
+		p AS (SELECT DISTINCT venue||'/'||ccy AS leg FROM md_equity_curve
+			WHERE ts<=$1 AND ccy<>'NAV')
+		SELECT coalesce((SELECT string_agg('+'||leg,',') FROM (SELECT leg FROM w EXCEPT SELECT leg FROM p) n),'')
+			||coalesce((SELECT string_agg('-'||leg,',') FROM (SELECT leg FROM p EXCEPT SELECT leg FROM w) o),'')`,
+		tsPrev, tsNow).Scan(&legDiff)
+	return booksLensText(unloaded, legDiff)
+}
+
+// booksLensText 透镜文纯函数——两段有则拼，无则空串（供 shape 测）。
+func booksLensText(unloaded, legDiff string) string {
+	var seg []string
+	if unloaded != "" {
+		seg = append(seg, "未载类["+unloaded+"]")
+	}
+	if legDiff != "" {
+		seg = append(seg, "腿差["+legDiff+"]")
+	}
+	if len(seg) == 0 {
+		return ""
+	}
+	return "——残差透镜:" + strings.Join(seg, ";")
+}
+
+// booksNote 对账账页文——三桶式+窗+阈注+残差透镜尾段（lens 空=原样，纯函数供 shape 测）。
+func booksNote(fp string, delta, flow, earned, resid float64, tsPrev, tsNow time.Time, lens string) string {
+	return fmt.Sprintf("v=%s 账房对账: ΔNAV%+.2f = 净流%+.2f + 盈亏%+.2f + 未释%+.2f（窗 %s→%s %.0fh）——|未释|>$%.0f=账面闹鬼升件对账/nav_residual;mt5无bill源其进出落残差桶%s",
 		fp, delta, flow, earned, resid,
 		tsPrev.UTC().Format("01-02 15:04"), tsNow.UTC().Format("01-02 15:04"),
-		tsNow.Sub(tsPrev).Hours(), booksGhostUSD)
+		tsNow.Sub(tsPrev).Hours(), booksGhostUSD, lens)
 }
