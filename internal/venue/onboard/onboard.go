@@ -146,6 +146,12 @@ func (r *Runner) scan(ctx context.Context) error {
 			log.Printf("[onboard] %s mapped 闸检测败: %v", v, err)
 		}
 	}
+	// 滞留分诊（O-33223）：recommended 超龄候选双支分诊——凭据缺落
+	// condreq credential gap、方言不识升 ops_esc venue_dialect_gap；
+	// 写径幂等在函件层，枚举败不阻探针拍。
+	if err := r.stallTriage(ctx, brokers); err != nil {
+		log.Printf("[onboard] 滞留分诊枚举败: %v", err)
+	}
 	// ⑤漂移探针（T-0432——监测面：dialect 行全谱指纹对拍+探活，败不上抛
 	// 不阻主链；升件去重见 probe.go）。
 	r.probePass(ctx, brokers)
