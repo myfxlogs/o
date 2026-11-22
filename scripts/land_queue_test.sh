@@ -53,6 +53,22 @@ if [[ "$sql" == *"SELECT seat FROM ops_event"* && "$sql" == *"seat NOT IN"* ]]; 
   exit 0
 fi
 case "$sql" in
+  *ops_ticket_desk*unnest*|*unnest*ops_ticket_desk*)
+    # 落成自动销票 desk∧回执闸桩（工单O-33182）：T_DESK_ROWS 行形
+    # tid\tclosed(t/f/'')\tsusp(t/f)\trulable(t/f)\treceipt(t/f)——
+    # 同 SQL 闸语义评估：未销∧未挂起∧非裁定∧有完工回执→返 tid
+    if [ -n "${T_DESK_ROWS:-}" ] && [ -f "$T_DESK_ROWS" ]; then
+      _tids=$(printf '%s' "$sql" | grep -oE 'ARRAY\[[0-9,]+\]' | grep -oE '[0-9]+')
+      while IFS=$'\t' read -r dtid dclosed dsusp drulable drcpt; do
+        [ -n "$dtid" ] || continue
+        printf '%s\n' "$_tids" | grep -qx "$dtid" || continue
+        [ "$dclosed" = "t" ] && continue
+        [ "$dsusp" = "t" ] && continue
+        [ "$drulable" = "t" ] && continue
+        [ "$drcpt" != "t" ] && continue
+        echo "$dtid"
+      done < "$T_DESK_ROWS"
+    fi;;
   INSERT*) echo "INSERT 0 1";;
   *复审过*)
     # 模拟 seat<>作者席 谓词：同席→空集（分席不可证不落）
@@ -432,5 +448,38 @@ if ! landed "$T/o" "$TIPCA" && ! landed "$T/o" "$TIPCB"; then ok "全冲突支�
 [ "$(grep -c '落成 支=' "$T/psql.log")" -eq 0 ] && ok "全剔零落成行" || bad "全剔有落成行"
 
 # ═══ 列车④：单支→退化为现行一支一落（工单O-32267 spec④=既有全例同径）═══
+
+# ═══ 落成自动销票细胞（工单O-33182）：三源提号→desk∧回执双闸→落地件销行 ═══
+echo "== 落成自动销票 =="
+new_case
+mk_branch_msg() { # $1=repo $2=支名 $3=文件名 $4=提交题（载票号面）
+  (cd "$1" && git checkout -q -b "$2" master \
+    && echo x > "$3" && git add -A && git commit -qm "$4" \
+    && git push -qu origin "$2" && git checkout -q master)
+}
+# 案①commit面双源 O-N+工单#N / 案②支名面嵌号 / 案③四拒形(无回执·已销·挂起·裁定) / 案④跨支同号去重
+mk_branch_msg "$T/o" fix/closereceipt feat_cr.txt "wip 工单O-88001 与 工单#88002 双源"
+mk_branch_msg "$T/o" fix/O-88003-named feat_cn.txt "wip 支名嵌号"
+mk_branch_msg "$T/o" fix/closereject feat_cj.txt "wip refs O-88004 O-88005 O-88006 O-88007"
+mk_branch_msg "$T/o" fix/closededup feat_cd.txt "wip 重复 O-88001"
+for b in fix/closereceipt fix/O-88003-named fix/closereject fix/closededup; do
+  _t=$(tip_of "$T/o" "$b"); stamp "$T/o" "$_t"
+done
+: > "$T/desk_rows.tsv"
+printf '88001\tf\tf\tf\tt\n88002\tf\tf\tf\tt\n88003\tf\tf\tf\tt\n88004\tf\tf\tf\tf\n88005\tt\tf\tf\tt\n88006\tf\tt\tf\tt\n88007\tf\tf\tt\tt\n' >> "$T/desk_rows.tsv"
+rm -f "$T/psql.log"
+run_lq T_REVIEW_OK=1 T_DESK_ROWS="$T/desk_rows.tsv"
+[ "$(grep -c "工单#88001 销" "$T/psql.log")" -eq 1 ] && ok "O-N源销行且跨支去重一行" || bad "88001销行数=$(grep -c '工单#88001 销' "$T/psql.log")"
+[ "$(grep -c "工单#88002 销" "$T/psql.log")" -eq 1 ] && ok "工单#N源销行" || bad "88002销行数=$(grep -c '工单#88002 销' "$T/psql.log")"
+[ "$(grep -c "工单#88003 销" "$T/psql.log")" -eq 1 ] && ok "支名面嵌号销行" || bad "88003销行数=$(grep -c '工单#88003 销' "$T/psql.log")"
+_rej=1
+for badt in 88004 88005 88006 88007; do
+  [ "$(grep -c "工单#$badt 销" "$T/psql.log")" -eq 0 ] || { bad "拒形票$badt竟销"; _rej=0; }
+done
+[ "$_rej" = 1 ] && ok "无回执/已销/挂起/裁定四拒形零销行"
+[ "$(grep -c "VALUES('落地件','处置','工单'" "$T/psql.log")" -eq 3 ] && ok "销行seat=落地件/event=处置/ticket=工单三列形" || bad "销行列形数=$(grep -c "落地件','处置','工单'" "$T/psql.log")"
+grep -q "销——落成自动销 支=fix/closereceipt merge=" "$T/psql.log" && ok "销行note形=工单#N销——落成自动销" || bad "销行note形不符"
+grep -q "落成自动销 支=" "$T/psql.log" && ok "落成自动销簿记行在账" || bad "无自动销簿记行"
+
 echo "== 汇总: PASS=$PASS FAIL=$FAILN =="
 [ "$FAILN" -eq 0 ]
