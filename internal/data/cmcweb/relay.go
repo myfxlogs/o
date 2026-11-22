@@ -247,13 +247,14 @@ func (r *Relay) serveWS(w http.ResponseWriter, req *http.Request) {
 				continue
 			}
 			var ack []byte
+			var openGate bool
 			switch {
 			case env["auth"] != nil:
 				ack = []byte(`{"auth":{"status":"ok"}}`)
 				select {
 				case <-pumpGate:
 				default:
-					close(pumpGate) // 首个 auth 应答发出即开数据闸
+					openGate = true // 闸只许在 ack 入队后开——先开=泵抢塞 backlog,ack 后发先至首帧漏（CI -race 实锤）
 				}
 			case env["subscribe"] != nil:
 				ack = []byte(`{"subscribe":{"status":"ok"}}`)
@@ -266,6 +267,9 @@ func (r *Relay) serveWS(w http.ResponseWriter, req *http.Request) {
 			case writes <- ack:
 			case <-c.done:
 				return
+			}
+			if openGate {
+				close(pumpGate) // 首个 auth 应答入队后才开数据闸——ack 保序首帧
 			}
 		}
 	}
