@@ -38,6 +38,11 @@ fi
 # 提案半产件:先挖档案产改进提案升件,后扫描面含新件同拍判。
 "$SCRIPT_DIR/mine.sh" || true # tolerate: 矿工败=本拍无新提案,存量信号面处置照跑
 
+# digest 发现词面→求知票自产闸（工单O-31997）：研究席 digest 升件含
+# 发现词面集∧desk 无 digest#id 引用票→机械产求知票喂研究席触发④；
+# digest 销件语义不动（票自产≠信号滞留，处置席照常销）。
+"$SCRIPT_DIR/digestspawn.sh" || true # tolerate: 自产闸败=本拍无新票,主触发面不受阻
+
 MIN_N=${COG_MIN_N:-1}; MIN_AGE=${COG_MIN_AGE:-600}; BURST_N=${COG_BURST_N:-5}
 
 # 未决升件: 后随 ops_event 无 note 引「升件#<id>」处置行=未处置。
