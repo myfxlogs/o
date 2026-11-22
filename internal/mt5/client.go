@@ -83,8 +83,11 @@ func (c *Client) Connect(ctx context.Context, cr Credentials) error {
 	}
 	loginCtx := metadata.NewOutgoingContext(ctx, metadata.New(map[string]string{"id": sid}))
 	if cr.Server != "" {
+		// 体字段 Id 禁填（vendor OLD_VERSION 坑 2026-11-22 实拍：客户端自供
+		// id 被路由至未更新成员面全拒；省略则网关自配 token 走已修径——
+		// resp.Result 即会话凭，sessID 仅留作 header 锚不再作体键）。
 		resp, err := c.connM.ConnectEx(loginCtx, &mt5pb.ConnectExRequest{
-			User: cr.Login, Password: cr.Password, Server: cr.Server, Id: &sid,
+			User: cr.Login, Password: cr.Password, Server: cr.Server,
 		})
 		if err != nil {
 			return fmt.Errorf("ConnectEx: %w", err)
@@ -101,7 +104,7 @@ func (c *Client) Connect(ctx context.Context, cr Credentials) error {
 	for _, h := range splitHosts(cr.Host) {
 		host, port := splitHostPort(h)
 		resp, err := c.connM.Connect(loginCtx, &mt5pb.ConnectRequest{
-			User: cr.Login, Password: cr.Password, Host: host, Port: port, Id: &sid,
+			User: cr.Login, Password: cr.Password, Host: host, Port: port,
 		})
 		if err != nil {
 			continue // 多候选逐试（skill 装配面契约）
