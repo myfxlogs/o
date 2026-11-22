@@ -252,7 +252,7 @@ func TestEvalQueueRows(t *testing.T) {
 		t.Fatalf("漏斗行不对: %+v", f)
 	}
 	h := byName["假想卡审批队列"]
-	if h == nil || h.State != 1 || !strings.Contains(h.Note, "proposed 1") {
+	if h == nil || h.State != 1 || !strings.Contains(h.Note, "proposed 2") {
 		t.Fatalf("审批队列行不对: %+v", h)
 	}
 	tr := byName["机会模板名册"]
