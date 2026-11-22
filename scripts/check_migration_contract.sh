@@ -21,12 +21,13 @@ if [ -n "$dup_files" ]; then
   echo "FAIL migrations/: 迁移号文件名撞号（$(echo "$dup_files" | paste -sd' ' -)）——同号后登记者会被 silent-skip" >&2
   uniq_fail=1
 fi
-# b) 登记表级：migrate_table.go 行首 {NNNN, 版本号查重
-REG="internal/store/pgstore/migrate_table.go"
-if [ -f "$REG" ]; then
-  dup_reg=$(grep -oE '^\s*\{[0-9]+,' "$REG" | grep -oE '[0-9]+' | sort -n | uniq -d || true)
+# b) 登记表级：migrate_table*.go 行首 {NNNN, 版本号查重（分件制——
+# md 链在 _md 件，单件漏半面=拆链漏跟件根修）
+REGS=$(ls internal/store/pgstore/migrate_table*.go 2>/dev/null || true) # tolerate: 登记表缺席=空集交下游判
+if [ -n "$REGS" ]; then
+  dup_reg=$(grep -hoE '^\s*\{[0-9]+,' $REGS | grep -oE '[0-9]+' | sort -n | uniq -d || true) # tolerate: 无重号=空集非败态
   if [ -n "$dup_reg" ]; then
-    echo "FAIL $REG: 版本号重复登记（$(echo "$dup_reg" | paste -sd' ' -)）——两文件占同号必有一方被跳" >&2
+    echo "FAIL $REGS: 版本号重复登记（$(echo "$dup_reg" | paste -sd' ' -)）——两文件占同号必有一方被跳" >&2
     uniq_fail=1
   fi
 fi

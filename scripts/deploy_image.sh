@@ -170,7 +170,9 @@ ssh "$SG" 'bash /opt/o/scripts/image_tag_gc.sh' \
 # 跳步即欠账，哨兵照样报红）。健康闸后本步属尾步——败走 tail_fail 不翻 rc。
 pg_md_tail() {
   local reg_md live_md
-  reg_md=$(grep -oE '\{[0-9]+, "md_[0-9]+' internal/store/pgstore/migrate_table.go \
+  # 登记表分件（migrate_table*.go——D-588 棘轮拆链：md 链已迁 _md 件，
+  # 只 grep 本件=水位恒空假败，升件#32765 实案）。
+  reg_md=$(grep -hoE '\{[0-9]+, "md_[0-9]+' internal/store/pgstore/migrate_table*.go \
     | grep -oE '^\{[0-9]+' | tr -d '{' | sort -n | tail -1) || return 1
   [ -n "$reg_md" ] || return 1
   echo "[deploy_image] OCI PG-md 迁移随窗——host=$MD_HOST 登记表水位=$reg_md"
