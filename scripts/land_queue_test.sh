@@ -63,6 +63,7 @@ case "$sql" in
   *落地败*LIMIT*) [ "${T_FAILROW:-0}" = 1 ] && echo 1;;
   *SELECT*note*ops_event*landq_starved*) echo "${T_STARVED_NOTE:-}";;
   *EXTRACT*landq_starved*) echo "${T_STARVED_AGE:-99999}";;
+  *count*esc_scope*|*esc_scope*count*) echo "${T_ESC_ROWS:-0}";; # esc()去重计数桩——0=无在案升件→INSERT放行（列车冲突/合红升件断言面）
 esac
 exit 0
 EOF
@@ -72,6 +73,7 @@ cat > "$T/stub_check.sh" <<'EOF'
 # 桩合并点闸：绿=往 git-common-dir 盖戳（模拟 check_all.sh 末段）
 # GO_PROBE 在场=记 command -v go 实解（PATH 自足闸断言面，工单#25880）
 [ -n "${GO_PROBE:-}" ] && { command -v go > "$GO_PROBE" 2>/dev/null || true; } # tolerate: 桩探针行——go 缺席=空文件如实断言面，写败不翻测判
+[ -n "${CHECK_COUNT_FILE:-}" ] && echo run >> "$CHECK_COUNT_FILE" # tolerate: 计数面写败不翻测判——列车「一次验」断言用
 [ "${STUB_CHECK_FAIL:-0}" = 1 ] && { echo "stub check_all red"; exit 1; }
 gd=$(git rev-parse --path-format=absolute --git-common-dir) || exit 1
 touch "$gd/check-green-$(git rev-parse HEAD)"
@@ -365,5 +367,70 @@ TIP=$(tip_of "$T/o" fix/landable); stamp "$T/o" "$TIP"
 run_lq T_REVIEW_OK=1
 grep -q "landq_starved.*fix/landable" "$T/psql.log" && bad "可落支误入滞留集" || ok "可落支不入滞留集"
 
+# ═══ 列车①：3 支齐→一列一次验一次推（工单O-32267 spec①）═══
+echo "== 列车 三支齐一次落 =="
+new_case
+# 显式 committerdate 保列序确定性：ta<tb<tc
+mk_branch_d() { # $1=repo $2=支名 $3=文件名 $4=内容 $5=ISO日期
+  (cd "$1" && git checkout -q -b "$2" master \
+    && echo "$4" > "$3" && git add -A \
+    && GIT_COMMITTER_DATE="$5" git commit -qm "wip $2" --date="$5" \
+    && git push -qu origin "$2" && git checkout -q master)
+}
+mk_branch_d "$T/o" fix/ta ta.txt ta-content "$(date -u -d '3 hours ago' +%Y-%m-%dT%H:%M:%SZ)"
+mk_branch_d "$T/o" fix/tb tb.txt tb-content "$(date -u -d '2 hours ago' +%Y-%m-%dT%H:%M:%SZ)"
+mk_branch_d "$T/o" fix/tc tc.txt tc-content "$(date -u -d '1 hour ago' +%Y-%m-%dT%H:%M:%SZ)"
+TIPA=$(tip_of "$T/o" fix/ta); TIPB=$(tip_of "$T/o" fix/tb); TIPC=$(tip_of "$T/o" fix/tc)
+stamp "$T/o" "$TIPA"; stamp "$T/o" "$TIPB"; stamp "$T/o" "$TIPC"
+cat > "$T/count_push.sh" <<'EOF'
+#!/usr/bin/env bash
+echo push >> "${PUSH_COUNT_FILE:-/dev/null}" # tolerate: 计数面写败不翻测判
+exec git "$@"
+EOF
+chmod +x "$T/count_push.sh"
+rm -f "$T/check.count" "$T/push.count"
+run_lq T_REVIEW_OK=1 CHECK_COUNT_FILE="$T/check.count" PUSH_COUNT_FILE="$T/push.count" O_LAND_PUSH="bash $T/count_push.sh push"
+if landed "$T/o" "$TIPA" && landed "$T/o" "$TIPB" && landed "$T/o" "$TIPC"; then ok "列车三支全落"; else bad "列车三支未全落"; fi
+[ "$(grep -c . "$T/check.count" 2>/dev/null || echo 0)" -eq 1 ] && ok "列车合并点验一次" || bad "列车验次数=$(cat "$T/check.count" 2>/dev/null | wc -l)"
+[ "$(grep -c . "$T/push.count" 2>/dev/null || echo 0)" -eq 1 ] && ok "列车推送一次" || bad "列车推送次数>1"
+[ "$(grep -c '落成 支=' "$T/psql.log")" -eq 3 ] && ok "列车三支落成行逐支在账" || bad "列车落成行数=$(grep -c '落成 支=' "$T/psql.log")"
+
+# ═══ 列车②：中支冲突→剔除续列（工单O-32267 spec②）═══
+echo "== 列车 中支冲突剔除续列 =="
+new_case
+# ta/tb 同改 f.txt 异内容（互不相让）；tc 独占文件——tb 对 origin/master
+# 预检净合（master 未动）入列，合并时撞 ta 已合内容=列内互冲剔除
+mk_branch_d "$T/o" fix/ta f.txt ta-side "$(date -u -d '3 hours ago' +%Y-%m-%dT%H:%M:%SZ)"
+mk_branch_d "$T/o" fix/tb f.txt tb-side "$(date -u -d '2 hours ago' +%Y-%m-%dT%H:%M:%SZ)"
+mk_branch_d "$T/o" fix/tc tc2.txt tc2-content "$(date -u -d '1 hour ago' +%Y-%m-%dT%H:%M:%SZ)"
+TIPA=$(tip_of "$T/o" fix/ta); TIPB=$(tip_of "$T/o" fix/tb); TIPC=$(tip_of "$T/o" fix/tc)
+stamp "$T/o" "$TIPA"; stamp "$T/o" "$TIPB"; stamp "$T/o" "$TIPC"
+rm -f "$T/check.count" "$T/push.count"
+run_lq T_REVIEW_OK=1 CHECK_COUNT_FILE="$T/check.count" PUSH_COUNT_FILE="$T/push.count" O_LAND_PUSH="bash $T/count_push.sh push"
+if landed "$T/o" "$TIPA" && landed "$T/o" "$TIPC" && ! landed "$T/o" "$TIPB"; then ok "冲突支剔除余支续列"; else bad "剔除续列判错 ta=$(landed "$T/o" "$TIPA" && echo 1) tb=$(landed "$T/o" "$TIPB" && echo 1) tc=$(landed "$T/o" "$TIPC" && echo 1)"; fi
+grep -q 'landq_merge_conflict.*fix/tb\|landq_merge_conflict_fix_tb' "$T/psql.log" && ok "冲突支升件在案" || bad "冲突支无升件"
+grep -q '落地败 支=fix/tb' "$T/psql.log" && ok "冲突支落地败行在账" || bad "冲突支无落地败行"
+[ "$(grep -c . "$T/check.count" 2>/dev/null || echo 0)" -eq 1 ] && ok "剔后列车仍一次验" || bad "剔后验次数异常"
+
+# ═══ 列车③：全冲突→全剔升件（工单O-32267 spec③）═══
+echo "== 列车 全冲突全剔 =="
+new_case
+# 两支均改 f.txt；master 侧亦改 f.txt 并推——两支对新 origin/master
+# 预检皆冲突=扫描期全剔（合并时全剔需竞动注入，首支对净合基线必合
+# 故全剔实径=预检径——同 landq_merge_conflict 升件面）
+mk_branch_d "$T/o" fix/ca f.txt ca-side "$(date -u -d '3 hours ago' +%Y-%m-%dT%H:%M:%SZ)"
+mk_branch_d "$T/o" fix/cb f.txt cb-side "$(date -u -d '2 hours ago' +%Y-%m-%dT%H:%M:%SZ)"
+TIPCA=$(tip_of "$T/o" fix/ca); TIPCB=$(tip_of "$T/o" fix/cb)
+stamp "$T/o" "$TIPCA"; stamp "$T/o" "$TIPCB"
+echo master-moved > "$T/o/f.txt"
+git -C "$T/o" add f.txt && git -C "$T/o" commit -qm "master move" && git -C "$T/o" push -qu origin master
+rm -f "$T/check.count" "$T/push.count"
+run_lq T_REVIEW_OK=1 CHECK_COUNT_FILE="$T/check.count" PUSH_COUNT_FILE="$T/push.count" O_LAND_PUSH="bash $T/count_push.sh push"
+if ! landed "$T/o" "$TIPCA" && ! landed "$T/o" "$TIPCB"; then ok "全冲突支皆不落"; else bad "全冲突支竟落"; fi
+[ "$(grep -c 'landq_merge_conflict' "$T/psql.log")" -ge 2 ] && ok "全冲突支逐支升件" || bad "全冲突升件数不足"
+[ ! -s "$T/check.count" ] && [ ! -s "$T/push.count" ] && ok "全剔零验零推" || bad "全剔仍验/推"
+[ "$(grep -c '落成 支=' "$T/psql.log")" -eq 0 ] && ok "全剔零落成行" || bad "全剔有落成行"
+
+# ═══ 列车④：单支→退化为现行一支一落（工单O-32267 spec④=既有全例同径）═══
 echo "== 汇总: PASS=$PASS FAIL=$FAILN =="
 [ "$FAILN" -eq 0 ]
