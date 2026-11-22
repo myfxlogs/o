@@ -9,7 +9,7 @@ domain: 工程
 | RPC/面 | 功能 | 实测 | 关键坑 |
 |---|---|---|---|
 | Connection.Connect | 连接+登录（返回 token） | 三户 ok（256-500ms） | **token 语义（2026-10-24 修正）**：**header `id` 必带**——Connect 时 metadata `id=<临时 sid>`，登录后**所有**调用（unary+stream 同）metadata `id`=<token>，缺之全拒 InvalidArgument「Id header is required」；请求体 `Id` 字段同填不替（nox 期「header 径不读」判词失效——EXR 3001157 实拍反证）；多 fallback 端点 mt5grpc1/4/2.mtapi.io |
-| CheckConnect | 连接活性 | 独立连接 id 径（probe skipped 如实） | 断线自愈=adapter sessionClient 重连包装 |
+| CheckConnect | 连接活性 | **2026-11-22 起不可信**——内部走 `MT5API.Connect()` 重登撞版本闸，对活 token 也误拒 `OLD_VERSION (:0)`（实拍：同 token check 拒而 AccountSummary 返真账） | **活性探禁用**——改 AccountSummary 实数探；断线自愈=adapter sessionClient 重连包装 |
 | ConnectEx/ConnectProxy | 连接变体（扩展参数/代理） | **ConnectEx 2026-10-24 实测 ok**（EXR 3001157 真户，server 名径「Exness-MT5Real」一次通） | ConnectEx{User,Password,Server} 与 Connect{Host,Port} 双径皆可用；ConnectProxy 未实测 |
 | PingHost(Many) | 服务器端点探活 | PingHost ok；Many 版 err「host.Length != port.Length」 | Many 版入参=host/port 配对数组，参数形态坑在案 |
 | GetClients/MemorySnapshot | 网关管理面 | GetClients err「Unable to cast…」依旧；**MemorySnapshot 2026-10-24 恶化为挂起超时**（不再快错——调用方须带 deadline） | 管理面不可用如实——且 MemorySnapshot 现为**悬挂型**缺陷（更危险） |
@@ -39,14 +39,14 @@ domain: 工程
 
 ## 会话生命周期（2026-11-16 mt5connprobe 全谱实证——升件#18354 根修面）
 
-- **token=后端会话句柄**：同账户+同服务器，mtapi 复用一条后端 MT5 会话——ConnectEx 成功≠新登录，是挂进存活会话。grpc2 回 mtapi 自配 token；grpc3 回显 client 自供 id；**ConnectEx 体字段 `Id` 填了则两网关都回显自供键**（复挂锚确定化）。
-- **流死≠会话死**：杀 gRPC conn 后，后端会话仍活——实证 `cc.Close→2s→新 conn CheckConnect(token)=OK`。**重连先 CheckConnect 复挂=零新 login**，券商冲突物理不触发。
+- **token=后端会话句柄**：同账户+同服务器，mtapi 复用一条后端 MT5 会话——ConnectEx 成功≠新登录，是挂进存活会话。grpc2 回 mtapi 自配 token；grpc3 回显 client 自供 id。**⚠️ 2026-11-22 契约反转：Connect/ConnectEx 体字段 `Id` 禁填**——自供 id 请求被路由至未更新成员面 100% 拒 `OLD_VERSION`（header `id` 无辜——变量隔离实证：header=o-* 体无 id→成功，体 id=o-*→拒）；**省略 Id=网关自配 token 走已修径**，服务端同户同服去重故复挂仍零新 login。旧判词「体 Id 填了回显自供键」作废。
+- **流死≠会话死**：杀 gRPC conn 后，后端会话仍活——实证 `cc.Close→2s→新 conn CheckConnect(token)=OK`。**重连先活性探复挂=零新 login**（⚠️ 2026-11-22 起活性探改 `AccountSummary{Id:token}`——CheckConnect 内部走 `MT5API.Connect()` 重登撞 OLD_VERSION 闸对活 token 也误拒，实证同 token check 拒而 summary 返真账 $3247.31）；券商冲突物理不触发。
 - **会话冲突掐机制**：前会话未死透时强开新 login→券商 login 段掐 socket→mtapi 叠加节流自白：「paused for **N** more milliseconds」/「refused a login on every cluster member... wait **N** milliseconds」——**冷却量内嵌错串可直接解析照睡**（实测窗 5~8.3s）；socket-closed 无内嵌值睡 ≥12s。尸寒（前会话过期）后自愈=间歇爆发形。
 - **churn 源**：每拍新会话 id+断线即 ConnectEx+Disconnect 滥杀=冲突温床。生产两腿同账户（汇市巡 `mt5.*` 密文 + OCI 桥腿 `bridge.mt5.*` 明文——明文凭据卫生账另计）互撞放大爆发。
 - **证伪清单**：ConnectProxy/换出口 IP、Bearer 付费 token（grpc3 免费道忽略）、换网关、换券商——全不治此病；refusal 是账户会话级。
 
 - **Disconnect 排水窗**：Disconnect RPC 后等 ~200ms 再 `cc.Close`——让在飞 Recv 观察到取消，防级联重连（ant QUOTE-RECONNECT-LOOP 实证）。
-- **Ping**=`CheckConnect{Id}`；**登出纪律**：Disconnect 只应由持有方 actor 发起。
+- **Ping**=`CheckConnect{Id}`（⚠️ 11-22 起该 RPC 自身被版本闸毒化——Ping 语义同废，勿作探活凭据）；**登出纪律**：Disconnect 只应由持有方 actor 发起。
 
 ## 共享会话（2026-11-16 跨机实证 mt5tokprobe——双腿共用同 token 投产面）
 
@@ -54,3 +54,14 @@ domain: 工程
 - **角色制**（internal/mt5/shared.go 钦定）：**汇市巡=owner 独占 ConnectEx**（凭据在 app_secrets），建会话落 `app_config mt5.session_token{addr,token,ts}`；**OCI 桥腿=纯消费**（sharedAttach：读行→SetSharedToken→CheckAlive）**永不 ConnectEx 永不 Disconnect**；OpenSession 短调用面共享先行（零新 login 减 churn）。
 - **共享期三坑**（坑条目 mt5-shared-session-crosshost）：①消费端 Disconnect=连坐杀会话——`Client.shared` 标置使 Disconnect 幂等空转；②会话死多端齐 ConnectEx=回到互撞坑——owner 独占 login 权，消费端只退避等行；③cfg.Get snap 滞读易变 token——共享行读写直走 pool。
 - **观测**：`OpenSession 复挂共享会话（零新 login）`=正常；消费腿 `共享会话未立/已死（等汇市巡…）`=正常等待非故障，长星化查 owner 活性。
+
+## OLD_VERSION 事件（2026-11-22 全谱取证——vendor 版本闸+滚动半滚案）
+
+- **事件**:MT5 面断供 55h+，ConnectEx 全拒 `OLD_VERSION (:login)`——vendor 版本闸杀旧仿真端；官方称「已修复」但本面实测半滚。
+- **版本串无义**:`Service/Version` 修复前后同报 `2026.10.14-10.44`——**版本核验勿信 Version 串**，用功能试（ConnectEx）+reflection 能力 diff。
+- **路由双面实证**:ConnectEx/Connect **体字段 `id` 填→路由旧成员面全拒**；**不填→网关自配 token 走已修径全成**。header `id` 与此无关（header=o-* 体无 id→成）。**生产修法=体 id 永禁填**。
+- **CheckConnect 自毒**：其内部 `MT5API.Connect()` 重登撞版本闸——活 token 也报 `OLD_VERSION (:0)`，而 AccountSummary 同 token 返真账。**活性探=AccountSummary，勿用 CheckConnect**。
+- **集群半滚形态**:grpc3 上 OLD_VERSION↔`Server closed socket(send login)` 交替=成员版本不齐（已修成员过版本闸死更深段=grpc3 出口 Exness 拒 11-09 案再证）；grpc2 初一致 OLD_VERSION 后转全通——滚动部署按成员分批。
+- **取证手法**（复用径）：生产日志实拍→裸 grpcurl 双源（dev+SG）对拍→变量隔离（header/体 id 分试）→同 token check/summary 对照。raw error 包留 ops_event #33036+续行。
+- **券商侧锚**：账户 3001157 末次成功鉴权自 `91.98.38.182`(Hetzner=mtapi 后端出口，11-16 18:34)；用户终端 build 6230 可登=券商闸认新版。
+- **grpc1/4 出口劫持**：dev/SG 双源均 TLS 证书 ingress.local——非 SG 段独坑，fallback 双残勿依赖。

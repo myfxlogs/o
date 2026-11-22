@@ -42,6 +42,20 @@ func (s *stubConnM) ConnectEx(ctx context.Context, r *mt5pb.ConnectExRequest, op
 	return &mt5pb.ConnectExReply{Error: &mt5pb.Error{Message: "stub 禁真 login"}}, nil
 }
 
+// stubMT5 MT5Client 测试桩——AccountSummary 按 alive 回执（CheckAlive
+// 活性探自 CheckConnect 改实数探——OLD_VERSION 案后桩面随）。
+type stubMT5 struct {
+	mt5pb.MT5Client
+	alive bool
+}
+
+func (s *stubMT5) AccountSummary(ctx context.Context, r *mt5pb.AccountSummaryRequest, opts ...grpc.CallOption) (*mt5pb.AccountSummaryReply, error) {
+	if s.alive {
+		return &mt5pb.AccountSummaryReply{Result: &mt5pb.AccountSummary{Balance: 1}}, nil
+	}
+	return &mt5pb.AccountSummaryReply{Error: &mt5pb.Error{Message: "session dead"}}, nil
+}
+
 // TestSharedSessionRound 共享行读写锚——owner 落行=消费腿原值读回
 // （addr+token+ts 三域齐）。
 func TestSharedSessionRound(t *testing.T) {
@@ -78,11 +92,12 @@ func TestSharedAttach(t *testing.T) {
 		t.Fatal(err)
 	}
 	stub := &stubConnM{alive: true}
+	mstub := &stubMT5{alive: true}
 	dial := func(addr string) (*Client, error) {
 		if addr != "mt5grpc2.mtapi.io:443" {
 			t.Fatalf("应拨共享行 addr got %s", addr)
 		}
-		return &Client{connM: stub}, nil
+		return &Client{connM: stub, mt5: mstub}, nil
 	}
 	if _, err := sharedAttach(ctx, pool, dial); err == nil ||
 		!strings.Contains(err.Error(), "共享会话未立") {
@@ -97,6 +112,7 @@ func TestSharedAttach(t *testing.T) {
 		t.Fatalf("复挂 client shared=%v token=%q", cl.shared, cl.Token())
 	}
 	stub.alive = false
+	mstub.alive = false
 	if _, err := sharedAttach(ctx, pool, dial); err == nil ||
 		!strings.Contains(err.Error(), "共享会话已死") {
 		t.Fatalf("死 token 应返等重建 err got %v", err)

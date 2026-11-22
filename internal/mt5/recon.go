@@ -24,16 +24,19 @@ func (c *Client) SetToken(tok string) { c.token, c.sessID = tok, tok }
 // 共享会话）；sharedAttach 唯一置位径。
 func (c *Client) SetSharedToken(tok string) { c.SetToken(tok); c.shared = true }
 
-// CheckAlive 会话活性探（CheckConnect——旧 token 活着=流死非会话死，
-// 复挂零新 login；死=调用侧落 Connect 新 login 径）。
+// CheckAlive 会话活性探——AccountSummary 实数探（弃 CheckConnect：vendor
+// 内部走 MT5API.Connect() 重登撞 OLD_VERSION 闸，对活 token 也误拒——
+// 2026-11-22 实拍 token 活而 check 拒、summary 返真账）。旧 token 活着=
+// 流死非会话死，复挂零新 login；死=调用侧落 Connect 新 login 径（服务端
+// 同户同服会话去重，复挂天然零新 login）。
 func (c *Client) CheckAlive(ctx context.Context) error {
 	if c.token == "" {
 		return fmt.Errorf("会话凭空")
 	}
-	if c.connM == nil {
+	if c.mt5 == nil {
 		return fmt.Errorf("conn 未立")
 	}
-	r, err := c.connM.CheckConnect(c.authed(ctx), &mt5pb.CheckConnectRequest{Id: c.token})
+	r, err := c.mt5.AccountSummary(c.authed(ctx), &mt5pb.AccountSummaryRequest{Id: c.token})
 	if err != nil {
 		return err
 	}
