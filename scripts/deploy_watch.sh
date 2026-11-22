@@ -15,6 +15,7 @@ ENVF="${REPORT_ENV_FILE:-/opt/o-research/env}"
 DSN="${FIN_PG_DSN:-$(grep '^FIN_PG_DSN=' "$ENVF" 2>/dev/null | cut -d= -f2- | tr -d '"')}"
 NOW_EPOCH=${O_DEPLOY_NOW_EPOCH:-$(date +%s)}
 say() { echo "[deploy_watch] $*"; }
+sqlq() { printf '%s' "$1" | sed "s/'/''/g"; } # tolerate: sed 恒 rc0——纯转义器非闸（同 land_queue.sh 件）
 # ── 工单#25803 心跳面：每拍写 ops_event（seat=DEPLOY event=心跳）──
 # 看门狗=hunger ProbeDeployWatch 读末行龄>45min（3×15min拍距）升
 # deploy_watch_silent——timer死/服务崩/锁卡死=心跳停三因同覆。
@@ -40,20 +41,25 @@ hb_write() {
 trap hb_write EXIT
 esc_pending() { # esc_pending <scope> → rc0=未销升件在案（24h窗——esc dedup 同源判据，
 	# 工单#25481 抽函数：自动换件重试风暴闸复用同判——有未销败件即让位本拍）
-	local scope="$1"
+	local scope="$1" s
+	s=$(sqlq "$scope")
 	[ -n "$DSN" ] || return 1
 	psql "$DSN" -qAt -c "
-		SELECT count(*) FROM ops_event e WHERE e.event='升件' AND e.esc_scope='$scope'
+		SELECT count(*) FROM ops_event e WHERE e.event='升件' AND e.esc_scope='$s'
 		AND e.ts>now()-interval '24 hours'
 		AND NOT EXISTS (SELECT 1 FROM ops_event x2 WHERE x2.ts>e.ts
 			AND x2.note ~ ('升件#'||e.id::text||'([^0-9]|$)'))" 2>/dev/null | grep -qxv 0
 }
 esc() { # 升件 dedup=未销才抑（同 escEdgeU 语义——销而未修重火）
-	local scope="$1" note="$2"
+	# 工单#29766：note/scope 先 sqlq——note 内嵌 '（CI结论引号包裹/
+	# 命令输出/git脏清单/窗配置原值）曾截断 SQL 字面量→INSERT 每拍
+	# 写败被 tolerate 吞=deploy_ci_red 升件 0 行信号面假净根因。
+	local scope="$1" note="$2" s n
+	s=$(sqlq "$scope"); n=$(sqlq "$note")
 	[ -n "$DSN" ] || return 0
 	esc_pending "$scope" \
 		|| psql "$DSN" -c "INSERT INTO ops_event(seat,event,ticket,note,esc_class,esc_scope)
-			VALUES('探测席','升件','','$note','部署','$scope')" >/dev/null 2>&1 # tolerate: 升件写败只剩下拍重试，无二级径
+			VALUES('探测席','升件','','$n','部署','$s')" >/dev/null 2>&1 # tolerate: 升件写败只剩下拍重试，无二级径
 }
 # cfg_get <key> <default> —— app_config 只读取值（缺键/DSN 缺=default）。
 cfg_get() {
@@ -195,8 +201,9 @@ if [ -z "$DEPLOYED" ] || [ "${HEAD:0:${#DEPLOYED}}" != "$DEPLOYED" ]; then
 			OW_DEFER=1
 			OW_QUEUED=$(psql "$DSN" -qAt -c "SELECT count(*) FROM ops_event WHERE seat='DEPLOY' AND event='部署' AND note LIKE 'ocore-window 入窗 sha=$SHORT%' AND ts>now()-interval '7 days'" 2>/dev/null)
 			if [ "${OW_QUEUED:-0}" = 0 ]; then
+				OW_NOTE=$(sqlq "ocore-window 入窗 sha=$SHORT base=$DEPLOYED win=$OW_SPEC UTC——谱系证内(镜像必换),窗外让位待窗放件")
 				psql "$DSN" -c "INSERT INTO ops_event(seat,event,ticket,note)
-					VALUES('DEPLOY','部署','','ocore-window 入窗 sha=$SHORT base=$DEPLOYED win=$OW_SPEC UTC——谱系证内(镜像必换),窗外让位待窗放件')" >/dev/null 2>&1 \
+					VALUES('DEPLOY','部署','','$OW_NOTE')" >/dev/null 2>&1 \
 					|| say "入窗行写败（不阻断，下拍重写同事实）" # tolerate: 入窗行写败=事实面缺一行,下拍重写,不翻部署判
 			fi
 			# 越窗未放：最老待放 commit 龄>max_hold（日窗+跨度+漏一次检出面）→升件。
