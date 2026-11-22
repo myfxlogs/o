@@ -27,9 +27,12 @@ done
 # 函件径：:'var' 由 psql 做字面量转义——note/scope 内嵌引号不再可能
 # 截断 SQL（#29766 引号断径病灶的结构性根修）；-qAt 旗形=deploy_watch
 # esc() 主径识别锚（deploy_watch_test 桩按整词 -qAt 分径，勿并旗）。
-psql "$FIN_DSN" -qAt \
+# stdin 喂串不 -c：psql -c 不做 -v 变量插值（串面直发服务端，:'var'
+# 原样成 SQL 语法错=写径全断——esc缺/esc写败心跳实证），stdin 径
+# 插值照常且转义语义不变。
+printf '%s\n' "SELECT ops_esc(:'seat',:'ticket',:'cls',:'scp',:'prefix',:'detail')" \
+	| psql "$FIN_DSN" -qAt \
 	-v seat="$SEAT" -v ticket="$TICKET" -v cls="$CLS" \
 	-v scp="$SCP" -v prefix="$PREFIX" -v detail="$DETAIL" \
-	-c "SELECT ops_esc(:'seat',:'ticket',:'cls',:'scp',:'prefix',:'detail')" \
 	>/dev/null 2>&1 || true # tolerate: 自报末环——写败静默退（结构性限度在案）
 exit 0
