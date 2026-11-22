@@ -49,6 +49,7 @@ o-overwatch|oci单元|6h|dev(models)|外监工哨拍壳——→tools/overwatch�
 o-research-dispatch|oci单元|15min|dev(models)|研究机触发拍壳——→scripts/cognition/dispatch_research.sh四触发唤研究席会话
 o-unit-watch|oci单元|5min|dev(models)|建制单元本机查件拍壳——→scripts/unit_watch.sh systemctl实查差分落账
 o-worker-dispatch|oci单元|15min|dev(models)|施工机触发拍壳——→scripts/cognition/dispatch_worker.sh OPEN工单唤施工席会话
+o-wakebus|oci单元|常驻(事件驱ev_work+漏唤timer兜底)|dev(models)|工作面唤醒总线——LISTEN ev_work攒批窗→按行(event,note)路由踹o-*-dispatch/o-land-queue单元，派发器幂等自闸（工单O-32300，tools/wakebus+deploy/o-wakebus.service）
 #
 # ── 定时脚本 payload（9 件——deploy oneshot ExecStart scripts/*.sh）──
 scripts/audit/dispatch.sh|定时脚本|6h|dev(models)|审计机触发拍本体——域册轮换唤审计会话（o-audit-dispatch.service ExecStart）
