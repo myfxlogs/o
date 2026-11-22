@@ -174,8 +174,11 @@ func (r *Runner) upsertTemplate(ctx context.Context, f Family) error {
 	}
 	params, _ := json.Marshal(map[string]any{
 		"legs": f.Legs, "settle": f.Settle, "kind": f.Kind, "grammar": true})
-	_, err := r.pool.Exec(ctx, `INSERT INTO fin_opp_template(template,venue,surface,params,enabled,state)
-		VALUES($1,$2,$3,$4,false,'candidate')
+	// O-33393 禁因机读化：候选行自带「未收养」因+kind='none'（candidate
+	// 未收养与钦定禁用分态——名册/复核拍同读此面）。
+	_, err := r.pool.Exec(ctx, `INSERT INTO fin_opp_template(template,venue,surface,params,enabled,state,
+		disabled_reason,ban_premise_kind)
+		VALUES($1,$2,$3,$4,false,'candidate','未收养候选——非钦定禁用','none')
 		ON CONFLICT (template,venue,COALESCE(surface,'')) DO NOTHING`,
 		f.Template, f.PrimaryVen, f.PrimarySurf, params)
 	return err

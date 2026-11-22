@@ -88,7 +88,9 @@ func (r *Runner) projectGhostTables(ctx context.Context) error {
 	if err := batchExec(ctx, r.sg, uHypo, hb); err != nil {
 		return fmt.Errorf("hypothesis 投影: %w", err)
 	}
-	rows2, err := r.md.Query(ctx, `SELECT id,template,venue,params,enabled,surface,state
+	rows2, err := r.md.Query(ctx, `SELECT id,template,venue,params,enabled,surface,state,
+		disabled_reason,ban_premise,ban_premise_kind,banned_at,
+		ban_last_verdict,ban_last_check_at
 		FROM fin_opp_template`)
 	if err != nil {
 		return fmt.Errorf("template 查询: %w", err)
@@ -100,11 +102,18 @@ func (r *Runner) projectGhostTables(ctx context.Context) error {
 		var params []byte
 		var enabled bool
 		var surface, state *string
-		if err := rows2.Scan(&id, &template, &venue, &params, &enabled, &surface, &state); err != nil {
+		var disabledReason, banPremise, banPremiseKind *string
+		var bannedAt, banLastCheckAt *time.Time
+		var banLastVerdict *string
+		if err := rows2.Scan(&id, &template, &venue, &params, &enabled, &surface, &state,
+			&disabledReason, &banPremise, &banPremiseKind, &bannedAt,
+			&banLastVerdict, &banLastCheckAt); err != nil {
 			rows2.Close()
 			return err
 		}
-		tb = append(tb, []any{id, template, venue, params, enabled, surface, state})
+		tb = append(tb, []any{id, template, venue, params, enabled, surface, state,
+			disabledReason, banPremise, banPremiseKind, bannedAt,
+			banLastVerdict, banLastCheckAt})
 	}
 	rows2.Close()
 	return batchExec(ctx, r.sg, uTemplate, tb)
@@ -116,7 +125,12 @@ const uHypo = `INSERT INTO fin_opp_hypothesis(id,ts,venue,surface,family,leg_pri
 		leg_primitives=EXCLUDED.leg_primitives,requirements=EXCLUDED.requirements,
 		state=EXCLUDED.state,evidence=EXCLUDED.evidence`
 
-const uTemplate = `INSERT INTO fin_opp_template(id,template,venue,params,enabled,surface,state)
-	VALUES($1,$2,$3,$4::jsonb,$5,$6,$7)
+const uTemplate = `INSERT INTO fin_opp_template(id,template,venue,params,enabled,surface,state,
+	disabled_reason,ban_premise,ban_premise_kind,banned_at,
+	ban_last_verdict,ban_last_check_at)
+	VALUES($1,$2,$3,$4::jsonb,$5,$6,$7,$8,$9,$10,$11,$12,$13)
 	ON CONFLICT (template,venue,(COALESCE(surface,''))) DO UPDATE SET params=EXCLUDED.params,
-		enabled=EXCLUDED.enabled,surface=EXCLUDED.surface,state=EXCLUDED.state`
+		enabled=EXCLUDED.enabled,surface=EXCLUDED.surface,state=EXCLUDED.state,
+		disabled_reason=EXCLUDED.disabled_reason,ban_premise=EXCLUDED.ban_premise,
+		ban_premise_kind=EXCLUDED.ban_premise_kind,banned_at=EXCLUDED.banned_at,
+		ban_last_verdict=EXCLUDED.ban_last_verdict,ban_last_check_at=EXCLUDED.ban_last_check_at`

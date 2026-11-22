@@ -168,25 +168,31 @@ func (c coreService) hypothesisQueueRow(ctx context.Context) *dashboardv1.System
 	return comp
 }
 
-// templateRosterRow fin_opp_template enabled/candidate 分色——新族未启=
-// 候选态灰显属正常（恒绿，名册可见即值）。
+// templateRosterRow fin_opp_template_roster 标准态名册（O-33393——禁因
+// 机读化：enabled/candidate/disabled/retired 分色+禁因/前提/禁日龄；
+// 「禁了什么、为什么、多久、前提成不成立」一条 SQL 同答）。
 func (c coreService) templateRosterRow(ctx context.Context) *dashboardv1.SystemComponent {
-	comp := eqComp("机会模板名册", "fin_opp_template enabled/candidate")
-	var enabled, cand int64
-	var names *string
+	comp := eqComp("机会模板名册", "fin_opp_template_roster 标准态")
+	var live, cand, dis, ret int64
+	var banNames *string
 	if err := c.pool.QueryRow(ctx, `SELECT
-		count(*) FILTER (WHERE enabled), count(*) FILTER (WHERE NOT enabled),
-		string_agg(template||':'||venue,'、') FILTER (WHERE NOT enabled)
-		FROM fin_opp_template`).Scan(&enabled, &cand, &names); err != nil {
+		count(*) FILTER (WHERE std_state='live'),
+		count(*) FILTER (WHERE std_state='candidate'),
+		count(*) FILTER (WHERE std_state='disabled'),
+		count(*) FILTER (WHERE std_state='retired'),
+		string_agg(template||':'||coalesce(surface,'-'),'、')
+			FILTER (WHERE std_state='disabled')
+		FROM fin_opp_template_roster`).Scan(&live, &cand, &dis, &ret, &banNames); err != nil {
 		return eqFail(comp, err)
 	}
-	if enabled+cand == 0 {
+	if live+cand+dis+ret == 0 {
 		comp.State, comp.Note = 2, "零行——读件缺"
 		return comp
 	}
-	comp.Note = fmt.Sprintf("enabled %d · candidate %d", enabled, cand)
-	if cand > 0 && names != nil {
-		comp.Note += "（" + *names + "）"
+	comp.Note = fmt.Sprintf("live %d · candidate %d · disabled %d · retired %d",
+		live, cand, dis, ret)
+	if dis > 0 && banNames != nil {
+		comp.Note += "｜禁:" + *banNames
 	}
 	return comp
 }

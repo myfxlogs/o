@@ -61,4 +61,5 @@ var mdMigrationTable = []migEntry{
 	{1100, "md_1100_gridfit.sql"},         // 工单#25737：网格族影子评估面（fin_0215 值 CHECK 放行+模板册行）
 	{1101, "md_1101_opt_chain.sql"},       // 工单#32540：OKX 期权链采集面（instruments/summary/ticker/snapshot 四表——covered-call 数据前置）
 	{1102, "md_1102_trend_mech_card.sql"}, // 工单O-32604：假想卡② trend_mech 落账（proposed——方向族死刑审查输入件）；md_1101 双占撞号改钉 1102
+	{1103, "md_1103_tmpl_ban_fields.sql"}, // 工单O-33393：fin_opp_template 禁因三件套+名册视图（正本=PG-md——enabled=f 禁因机读化+state 矛盾态清零+candidate/禁用分态）
 }
