@@ -75,10 +75,19 @@ type Collector struct {
 	ctvAt        time.Time
 	ctvReloading bool                 // T-0191：后台重载飞行中闸（≤1 次/60s 节流——帧频防 venue 打爆）
 	depth5At     map[string]time.Time // per-inst 蒸馏写节流（特征值 5s 鲜度足够）
+
+	// O-32540 期权链采集面（covered-call 研究数据前置——加法件：
+	// nil=期权面缺席既有径零扰；opt-summary 族键订阅+活跃子集
+	// tickers+周期快照臂）。
+	Opt *OptChain
 }
 
 // AttachMeter 挂带宽计量件（T-0057：nil=不计量）。
 func (c *Collector) AttachMeter(m *netmeter.Meter) { c.meter = m }
+
+// AttachOptChain 挂期权链目录供给件（O-32540——nil=期权面缺席；
+// 装配层 cmd/collector 挂 okxexec.PublicGet 实读闭包）。
+func (c *Collector) AttachOptChain(oc *OptChain) { c.Opt = oc }
 
 // AttachAlerter 挂业主告警通道（T-0128 返修②——面死告警走 humanize kind
 // 非 log 前缀；nil=测试/无装配 log 退路）。
@@ -111,9 +120,10 @@ func (c *Collector) Run(ctx context.Context, errc chan<- error) {
 	}
 	go roster.BeatLoop(ctx, c.pool, employeeName, 30*time.Second, errc)
 	go c.writer(ctx)
-	go c.staleWatch(ctx)   // T-0129 面级断流告警（全订阅标的齐冻=面死显形）
-	go c.klineLoop(ctx)    // 工单#13065：business 端点 candle1D 日K臂（独立连接）
-	go c.backfillLoop(ctx) // 工单#13065 切片③：日K史面自举回填臂
+	go c.staleWatch(ctx)      // T-0129 面级断流告警（全订阅标的齐冻=面死显形）
+	go c.klineLoop(ctx)       // 工单#13065：business 端点 candle1D 日K臂（独立连接）
+	go c.backfillLoop(ctx)    // 工单#13065 切片③：日K史面自举回填臂
+	go c.optSnapshotLoop(ctx) // O-32540：期权活跃链周期快照臂（Opt nil=自停）
 
 	backoff := backoffMin
 	for ctx.Err() == nil {
@@ -221,6 +231,7 @@ func (c *Collector) dialLoop(ctx context.Context, syms []string, gen int64) erro
 		c.depth5At = map[string]time.Time{}
 		log.Printf("[okxws] books5 桥面订阅 syms=%d（信号蒸馏域）", len(c.depth5Syms))
 	}
+	c.optSubscribe(ctx, conn) // O-32540：期权链订阅（加法件 fail-open——读败跳过不炸主连接）
 	log.Printf("[okxws] subscribed syms=%d url=%s", len(syms), c.url)
 	// T-0132 活跃集 tickers 动态重订（增删订阅帧不重建连接——fin_position
 	// 在仓+fin_proposal 在途+fin_strategy 非退役的 inst_id 才配成交价级实时性）。

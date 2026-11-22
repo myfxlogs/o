@@ -37,6 +37,42 @@ type rowItem struct {
 	mark    *markRow
 	depth5  *depth5Row
 	kline   *klineRow
+	optSum  *optSumRow  // O-32540：opt-summary 希腊字/IV 最新态
+	optTick *optTickRow // O-32540：期权活跃链 ticker 最新态
+}
+
+// optSumRow opt-summary 频道行（O-32540——instFamily 增量推逐行；
+// 数值字段 *float64：venue 空串落 NULL 不落 0，缺席≠真值0 标缺律）。
+type optSumRow struct {
+	instID   string
+	ts       time.Time
+	delta    *float64
+	gamma    *float64
+	theta    *float64
+	vega     *float64
+	markVol  *float64 // 期权 IV
+	bidVol   *float64
+	askVol   *float64
+	volLv    *float64
+	fwdPx    *float64
+	distance *float64
+	buyApr   *float64
+	sellApr  *float64
+	lever    *float64
+}
+
+// optTickRow 期权 tickers 频道行（O-32540——活跃子集 instId 键；
+// last/bid/ask 空串=无成交/无报价落 NULL 非 0）。
+type optTickRow struct {
+	instID string
+	ts     time.Time
+	last   *float64
+	lastSz *float64
+	bidPx  *float64
+	bidSz  *float64
+	askPx  *float64
+	askSz  *float64
+	vol24h *float64
 }
 
 // klineRow candle* 频道 K 线行（工单#13065 日K数据面——confirm=false 为

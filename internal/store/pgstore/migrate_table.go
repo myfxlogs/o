@@ -296,5 +296,6 @@ var migrationTable = []struct {
 	{1097, "md_1097_eval_insertonly.sql"},
 	{1098, "md_1098_trend_template_park.sql"},
 	{1099, "md_1099_mt5_dir_mom.sql"},
-	{1100, "md_1100_gridfit.sql"}, // 工单#25737：网格族影子评估面（fin_0215 值 CHECK 放行+模板册行）
+	{1100, "md_1100_gridfit.sql"},   // 工单#25737：网格族影子评估面（fin_0215 值 CHECK 放行+模板册行）
+	{1101, "md_1101_opt_chain.sql"}, // 工单#32540：OKX 期权链采集面（instruments/summary/ticker/snapshot 四表——covered-call 数据前置）
 }

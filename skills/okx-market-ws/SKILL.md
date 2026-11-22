@@ -28,3 +28,11 @@ domain: 工程
 - `nextFundingRate`=**死字段，勿采勿用**——OKX 官方文档参数表已划线「no longer supported」：2024-03 资金费率机制改制后 `method=current_period` 为唯一支持形，该字段恒发 `""`（官方推送示例实发 `"nextFundingRate":""`；SG 一周全谱实采 `next_funding_rate` 非零行=0 实证）。T-0084 预测前置闸因此作废。
 - `nextFundingTime` 仍发值（落 next_funding_ts）——有下一拍时刻、无预测「值」；「帧逐帧推预测值」之前提不成立。
 - 重飞注记：`store.go` funding INSERT `ON CONFLICT (venue,inst_id,ts)` 仅 `SET recv_ts`——venue 若回补字段，同结算拍内首见值后永不刷新；且空串→`num()`→0 落库使「缺席」与「真值 0」不可分辨（违 D-616 标缺律——重开此径须改空串→NULL 语义+冲突刷新谓词）。
+
+## 期权链频道面（O-32540 普查实证 2026-11-23 真连）
+
+- **`opt-summary`：instFamily 键唯一受理面**——`{"channel":"opt-summary","instFamily":"BTC-USD"}` 订阅 ack+增量推全链行（instId 在 data 行内非 arg）；`instId` 键形无 ack 拒。载荷=delta/gamma/theta/vega/markVol(=IV)/bidVol/askVol/volLv/fwdPx/distance/buyApr/sellApr/lever/ts，数值字段空串=缺席须落 NULL 非 0。
+- **期权 instId 形**：`<family>-<YYMMDD>-<strike>-<C|P>`（family 自身含 `-`/`_UM` 后缀——BTC/ETH×{USD 反向,USD_UM 线性}四族）；tickers/books/books5/trades/mark-price 对 OPTION instId **全受理**（实测 ack+推流）。
+- **`instruments?instType=OPTION`**：须 `uly`∪`instFamily` 二选一（裸 instType=50015 拒）；行含 expTime/stk/optType/ctType/settleCcy/state/tickSz/lotSz/ctVal 全字段；`instFamily` WS instruments 频道仅态变推非全量。
+- **参照价**：活跃窗锚=index-tickers 取 `uly`（BTC-USD_UM→BTC-USD——族剥 `_UM` 尾同 uly）。
+- **选型账**：summary 族键全链覆盖+tickers 活跃子集（近 3 到期日×现价±20% 行权价×族帽 200）双层——books5 期权面**实测受理但弃订**（原始深度体量 vs ticker 已满足研究窗；要补深度=加订阅行非改语义）。

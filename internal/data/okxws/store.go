@@ -35,8 +35,8 @@ func (c *Collector) writer(ctx context.Context) {
 		if err := c.insertBatch(ctx, buf); err != nil {
 			c.rej.Inc("write_err")
 			lastFlushFunding = fundingOnly(buf) // funding 行入缓待下拍重试
-			log.Printf("[okxws] insertBatch 败：批=%d 行（ticks=%d funding=%d mark=%d depth5=%d）: %v",
-				len(buf), countKind(buf, "tick"), countKind(buf, "funding"), countKind(buf, "mark"), countKind(buf, "depth5"), err)
+			log.Printf("[okxws] insertBatch 败：批=%d 行（ticks=%d funding=%d mark=%d depth5=%d optsum=%d opttick=%d）: %v",
+				len(buf), countKind(buf, "tick"), countKind(buf, "funding"), countKind(buf, "mark"), countKind(buf, "depth5"), countKind(buf, "optsum"), countKind(buf, "opttick"), err)
 		}
 		buf = buf[:0]
 	}
@@ -96,6 +96,32 @@ func (c *Collector) insertBatch(ctx context.Context, rows []rowItem) error {
 				c=EXCLUDED.c,vol=EXCLUDED.vol,vol_ccy=EXCLUDED.vol_ccy,confirm=EXCLUDED.confirm,recv_ts=now()`,
 				r.instID, r.bar, r.ts, r.o, r.h, r.l, r.c, r.vol, r.volCcy, r.confirm)
 			n++
+		case it.optSum != nil: // O-32540：md_opt_summary 最新态 upsert（全字段覆盖——最新赢同 md_ticks 律）
+			r := it.optSum
+			b.Queue(`INSERT INTO md_opt_summary(ts,inst_id,delta,gamma,theta,vega,
+				mark_vol,bid_vol,ask_vol,vol_lv,fwd_px,distance,buy_apr,sell_apr,lever)
+				VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+				ON CONFLICT (venue,inst_id) DO UPDATE SET ts=EXCLUDED.ts,
+				delta=EXCLUDED.delta,gamma=EXCLUDED.gamma,theta=EXCLUDED.theta,
+				vega=EXCLUDED.vega,mark_vol=EXCLUDED.mark_vol,bid_vol=EXCLUDED.bid_vol,
+				ask_vol=EXCLUDED.ask_vol,vol_lv=EXCLUDED.vol_lv,fwd_px=EXCLUDED.fwd_px,
+				distance=EXCLUDED.distance,buy_apr=EXCLUDED.buy_apr,
+				sell_apr=EXCLUDED.sell_apr,lever=EXCLUDED.lever,recv_ts=now()`,
+				r.ts, r.instID, r.delta, r.gamma, r.theta, r.vega, r.markVol,
+				r.bidVol, r.askVol, r.volLv, r.fwdPx, r.distance, r.buyApr,
+				r.sellApr, r.lever)
+			n++
+		case it.optTick != nil: // O-32540：md_opt_ticker 最新态 upsert
+			r := it.optTick
+			b.Queue(`INSERT INTO md_opt_ticker(ts,inst_id,last,last_sz,bid_px,bid_sz,
+				ask_px,ask_sz,vol_24h) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)
+				ON CONFLICT (venue,inst_id) DO UPDATE SET ts=EXCLUDED.ts,
+				last=EXCLUDED.last,last_sz=EXCLUDED.last_sz,bid_px=EXCLUDED.bid_px,
+				bid_sz=EXCLUDED.bid_sz,ask_px=EXCLUDED.ask_px,ask_sz=EXCLUDED.ask_sz,
+				vol_24h=EXCLUDED.vol_24h,recv_ts=now()`,
+				r.ts, r.instID, r.last, r.lastSz, r.bidPx, r.bidSz, r.askPx,
+				r.askSz, r.vol24h)
+			n++
 		case it.depth5 != nil: // T-0139：md_signal kind='depth5'——特征值 upsert（有界状态表）
 			r := it.depth5
 			meta, _ := json.Marshal(map[string]any{
@@ -130,6 +156,10 @@ func rowKey(it rowItem) string {
 		return "4:" + it.depth5.instID
 	case it.kline != nil:
 		return "5:" + it.kline.instID + ":" + it.kline.bar + ":" + it.kline.ts.UTC().Format("20060102150405")
+	case it.optSum != nil:
+		return "6:" + it.optSum.instID
+	case it.optTick != nil:
+		return "7:" + it.optTick.instID
 	}
 	return "9:"
 }
@@ -170,6 +200,14 @@ func countKind(buf []rowItem, kind string) int {
 			if it.kline != nil {
 				n++
 			}
+		case "optsum":
+			if it.optSum != nil {
+				n++
+			}
+		case "opttick":
+			if it.optTick != nil {
+				n++
+			}
 		}
 	}
 	return n
@@ -180,6 +218,7 @@ func countKind(buf []rowItem, kind string) int {
 // 终态不可被节流丢（工单#13065 candle 面）。
 func (c *Collector) passThrottle(it rowItem) bool {
 	var kind, inst string
+	gap := 3 * time.Second
 	switch {
 	case it.tick != nil:
 		kind, inst = "ticks", it.tick.instID
@@ -187,12 +226,16 @@ func (c *Collector) passThrottle(it rowItem) bool {
 		kind, inst = "funding", it.funding.instID
 	case it.kline != nil && !it.kline.confirm:
 		kind, inst = "klines", it.kline.instID+":"+it.kline.bar
+	case it.optTick != nil: // O-32540：期权 ticker 同 3s 律（活跃子集有界）
+		kind, inst = "opttick", it.optTick.instID
+	case it.optSum != nil: // O-32540：opt-summary 增量洪——60s/inst 最新态节流
+		kind, inst, gap = "optsum", it.optSum.instID, optSumMinInterval
 	default:
 		return true // mark/depth5/收线帧面不限
 	}
 	c.passMu.Lock()
 	defer c.passMu.Unlock()
-	if last, ok := c.passAt[kind+":"+inst]; ok && time.Since(last) < 3*time.Second {
+	if last, ok := c.passAt[kind+":"+inst]; ok && time.Since(last) < gap {
 		return false
 	}
 	c.passAt[kind+":"+inst] = time.Now()

@@ -14,8 +14,9 @@ import (
 type wsMsg struct {
 	Event string `json:"event"`
 	Arg   struct {
-		Channel string `json:"channel"`
-		InstID  string `json:"instId"`
+		Channel    string `json:"channel"`
+		InstID     string `json:"instId"`
+		InstFamily string `json:"instFamily"` // O-32540：opt-summary 订阅键（instId 形无 ack 拒——族键唯一受理面）
 	} `json:"arg"`
 	Data []json.RawMessage `json:"data"`
 }
@@ -42,6 +43,20 @@ func num(d map[string]json.RawMessage, k string) float64 {
 	}
 	f, _ := strconv.ParseFloat(s, 64)
 	return f
+}
+
+// numPtr 可空数值解析（O-32540 期权面——venue 空串/缺字段落 nil→
+// NULL 入库，缺席≠真值 0 标缺律；区别于 num() 的 0 缺省语义）。
+func numPtr(d map[string]json.RawMessage, k string) *float64 {
+	s := str(d, k)
+	if s == "" {
+		return nil
+	}
+	f, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return nil
+	}
+	return &f
 }
 
 func intv(d map[string]json.RawMessage, k string) int64 {
@@ -104,6 +119,41 @@ func parseMark(instID, channel string, d map[string]json.RawMessage) *markRow {
 		ts = time.Now().UTC()
 	}
 	return &markRow{instID: instID, channel: channel, ts: ts, px: px}
+}
+
+// parseOptSummary → optSumRow（O-32540——opt-summary 增量推行；
+// instId 在载荷行内非 arg；ts 缺省回落 recv 时刻）。
+func parseOptSummary(d map[string]json.RawMessage) *optSumRow {
+	instID := str(d, "instId")
+	if instID == "" {
+		return nil
+	}
+	ts := tsms(d, "ts")
+	if ts.IsZero() {
+		ts = time.Now().UTC()
+	}
+	return &optSumRow{instID: instID, ts: ts,
+		delta: numPtr(d, "delta"), gamma: numPtr(d, "gamma"),
+		theta: numPtr(d, "theta"), vega: numPtr(d, "vega"),
+		markVol: numPtr(d, "markVol"), bidVol: numPtr(d, "bidVol"),
+		askVol: numPtr(d, "askVol"), volLv: numPtr(d, "volLv"),
+		fwdPx: numPtr(d, "fwdPx"), distance: numPtr(d, "distance"),
+		buyApr: numPtr(d, "buyApr"), sellApr: numPtr(d, "sellApr"),
+		lever: numPtr(d, "lever")}
+}
+
+// parseOptTickers → optTickRow（O-32540——期权 tickers 行形与
+// SWAP 同构但全字段可空：last="" 无成交、bid/ask="" 无报价）。
+func parseOptTickers(instID string, d map[string]json.RawMessage) *optTickRow {
+	ts := tsms(d, "ts")
+	if ts.IsZero() {
+		ts = time.Now().UTC()
+	}
+	return &optTickRow{instID: instID, ts: ts,
+		last: numPtr(d, "last"), lastSz: numPtr(d, "lastSz"),
+		bidPx: numPtr(d, "bidPx"), bidSz: numPtr(d, "bidSz"),
+		askPx: numPtr(d, "askPx"), askSz: numPtr(d, "askSz"),
+		vol24h: numPtr(d, "vol24h")}
 }
 
 // parseCandle → klineRow（candle* 数组载荷：[ts,o,h,l,c,vol,volCcy,
