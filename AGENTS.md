@@ -43,8 +43,15 @@
 记录: ops_event append-only + KB条目 + D档
 ```
 
-常驻盒内件（全部）：o-core 钱径 / 采集数据面 / PG / 探测薄壳 /
-部署管道（check_all·green-stamp·mirror_push·tunnel，被动件有 merge 才醒）。
+常驻盒内件（全部）：机读登记=docs/resident_units.txt（件名|类|拍距|宿点|
+职责——cmd 入口/oci 单元/定时脚本三类全量；对拍闸 scripts/check_resident_
+units.sh 在 check_all 链，未登记/已删/类不符=闸红）；语义面=o-core 钱径 /
+采集数据面 / PG / 探测薄壳 / 部署管道（check_all·green-stamp·mirror_push·
+tunnel，被动件有 merge 才醒）。
+
+器官增生判据：新任务先问挂哪个既有器官——同拍距+同数据面→长细胞
+（probe/face/beat 段）；异拍距∨异宿点∨独立生命周期→准长器官，且须同步
+登记 docs/resident_units.txt（check_all 对拍闸在案）。
 
 ## 进仓协议
 
@@ -84,7 +91,7 @@
 | `skills/` | 能力账 canon（在用中证错必修） |
 | `internal/portfolio/hunger` | 感知+钱维护自治环（探针/Detect/Respond/教训矿工） |
 | `internal/portfolio/lifecycle` | 策略生命周期（开仓→paper→live→退役——钱径） |
-| `cmd/{core,collector,projector,research,sweeper}` | 部署件 |
+| `cmd/` | 入口全集 12 件——类/拍距/宿点/职责逐件定类见 docs/resident_units.txt |
 | `scripts/` | 部署管道+免疫闸（无 meta/ 席位件） |
 
 ## 铁律（纪元3不变的）
