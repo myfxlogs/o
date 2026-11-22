@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -73,6 +74,138 @@ func TestSpawnlessOrphanGrace(t *testing.T) {
 	}
 	if got := count(); got != 1 {
 		t.Fatalf("孤儿唤漏计 got %d want 1", got)
+	}
+}
+
+// TestMoneyDist 资金分布三段面（工单O-30472）——部署=开仓仓名义+dcd
+// 策略域凭据tick估值、息=earn%持仓USD估值、闲=NAV残差：三段加总
+// ≈NAV（残差式恒等）+部署率=部署/NAV；非USDT币种按 md_ticks 估值、
+// 已平仓仓剔出。PoolIsolated——DDL 破坏（DROP）须逐测面独占。
+func TestMoneyDist(t *testing.T) {
+	ctx := context.Background()
+	pool := testutil.PoolIsolated(t)
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	svc := coreService{pool: pool}
+	var xid int64
+	if err := pool.QueryRow(ctx, `INSERT INTO fin_execution(strategy_ref,decision_id,token_id,inst_id,notional_usd,state)
+		VALUES(0,0,gen_random_uuid(),'STUB',100,'open') RETURNING id`).Scan(&xid); err != nil {
+		t.Fatalf("exec桩: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_position(execution_id,strategy_ref,inst_id,notional_usd)
+		VALUES($1,0,'STUB',100)`, xid); err != nil {
+		t.Fatalf("开仓桩: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_position(execution_id,strategy_ref,inst_id,notional_usd,state,closed_at)
+		VALUES($1,0,'STUB',999,'closed',now())`, xid); err != nil {
+		t.Fatalf("平仓桩: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_holding(venue,kind,ccy,product,amount)
+		VALUES('okx','earn_flexible','USDT','savings',9000),
+		      ('okx','earn_flexible','BTC','savings',0.1)`); err != nil {
+		t.Fatalf("息腿桩: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO md_ticks(ts,venue,inst_id,last)
+		VALUES(now(),'okx','BTC-USDT',50000)`); err != nil {
+		t.Fatalf("tick桩: %v", err)
+	}
+	// 部署=100(开仓)；息=9000+0.1×50000=14000；闲=20000-100-14000=5900；
+	// 部署率=100/20000=0.5%。三段加总=20000=NAV 恒等（残差式）。
+	if got, want := svc.moneyDist(ctx, 20000), "部署100(0.5%) 息14000 闲5900"; got != want {
+		t.Fatalf("moneyDist=%q want %q", got, want)
+	}
+}
+
+// TestMoneyDistDegrade 缺段降级——每腿独立读败标 ? 不炸帧：
+// 息腿表缺席→息?闲?；部署面视图缺席→部署?；两腿俱败→全 ?。
+func TestMoneyDistDegrade(t *testing.T) {
+	ctx := context.Background()
+	pool := testutil.PoolIsolated(t)
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	svc := coreService{pool: pool}
+	var xid int64
+	if err := pool.QueryRow(ctx, `INSERT INTO fin_execution(strategy_ref,decision_id,token_id,inst_id,notional_usd,state)
+		VALUES(0,0,gen_random_uuid(),'STUB',100,'open') RETURNING id`).Scan(&xid); err != nil {
+		t.Fatalf("exec桩: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_position(execution_id,strategy_ref,inst_id,notional_usd)
+		VALUES($1,0,'STUB',100)`, xid); err != nil {
+		t.Fatalf("仓桩: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_holding(venue,kind,ccy,product,amount)
+		VALUES('okx','earn_flexible','USDT','savings',9000)`); err != nil {
+		t.Fatalf("息腿桩: %v", err)
+	}
+	if got, want := svc.moneyDist(ctx, 20000), "部署100(0.5%) 息9000 闲10900"; got != want {
+		t.Fatalf("基线 moneyDist=%q want %q", got, want)
+	}
+	// 案①息腿读败：列改名（public.fin_holding 存在——DROP 会穿透到
+	// public 空表产息0假象，列改名让 h.amount 必败=真读败形）。
+	if _, err := pool.Exec(ctx, `ALTER TABLE fin_holding RENAME COLUMN amount TO amount_x`); err != nil {
+		t.Fatalf("rename amount: %v", err)
+	}
+	if got, want := svc.moneyDist(ctx, 20000), "部署100 息? 闲?"; got != want {
+		t.Fatalf("息腿缺席 moneyDist=%q want %q", got, want)
+	}
+	// 案②部署面视图缺席：列名还回→DROP fin_position_view（无 public
+	// 同名视图=真缺席）→部署腿整句读败→部署?；息腿照实读。
+	if _, err := pool.Exec(ctx, `ALTER TABLE fin_holding RENAME COLUMN amount_x TO amount`); err != nil {
+		t.Fatalf("restore amount: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `DROP VIEW fin_position_view`); err != nil {
+		t.Fatalf("drop view: %v", err)
+	}
+	if got, want := svc.moneyDist(ctx, 20000), "部署? 息9000 闲?"; got != want {
+		t.Fatalf("部署腿缺席 moneyDist=%q want %q", got, want)
+	}
+	// 案③两腿俱败：息腿列再改名→全 ?。
+	if _, err := pool.Exec(ctx, `ALTER TABLE fin_holding RENAME COLUMN amount TO amount_x`); err != nil {
+		t.Fatalf("rename amount2: %v", err)
+	}
+	if got, want := svc.moneyDist(ctx, 20000), "部署? 息? 闲?"; got != want {
+		t.Fatalf("双腿缺席 moneyDist=%q want %q", got, want)
+	}
+}
+
+// TestSelfAwareFrameDist 帧面锚（工单O-30472）——分布面真进
+// self_aware 量表帧：赚段尾挂 |钱在:三段，既有判词形不动。
+func TestSelfAwareFrameDist(t *testing.T) {
+	ctx := context.Background()
+	pool := testutil.PoolIsolated(t)
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	svc := coreService{pool: pool}
+	if _, err := pool.Exec(ctx, `INSERT INTO md_equity_curve(ts,venue,ccy,equity,src)
+		VALUES(now(),'ledger','NAV',20000,'t-dist')`); err != nil {
+		t.Fatalf("nav桩: %v", err)
+	}
+	var xid int64
+	if err := pool.QueryRow(ctx, `INSERT INTO fin_execution(strategy_ref,decision_id,token_id,inst_id,notional_usd,state)
+		VALUES(0,0,gen_random_uuid(),'STUB',100,'open') RETURNING id`).Scan(&xid); err != nil {
+		t.Fatalf("exec桩: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_position(execution_id,strategy_ref,inst_id,notional_usd)
+		VALUES($1,0,'STUB',100)`, xid); err != nil {
+		t.Fatalf("仓桩: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_holding(venue,kind,ccy,product,amount)
+		VALUES('okx','earn_flexible','USDT','savings',9000)`); err != nil {
+		t.Fatalf("息腿桩: %v", err)
+	}
+	svc.selfAwareBeat(ctx)
+	var note string
+	if err := pool.QueryRow(ctx, `SELECT note FROM ops_event
+		WHERE event='量表' AND ticket='self_aware' ORDER BY id DESC LIMIT 1`).Scan(&note); err != nil {
+		t.Fatalf("帧未落: %v", err)
+	}
+	for _, want := range []string{"钱在:部署100(0.5%)", "息9000", "闲10900"} {
+		if !strings.Contains(note, want) {
+			t.Fatalf("帧缺分布段 %q——note=%.160q", want, note)
+		}
 	}
 }
 
