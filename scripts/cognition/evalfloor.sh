@@ -30,13 +30,26 @@ set -u
 ENVF="${REPORT_ENV_FILE:-/opt/o-research/env}"
 DSN=$(grep '^FIN_PG_DSN=' "$ENVF" 2>/dev/null | cut -d= -f2- | tr -d '"')
 [ -n "$DSN" ] || exit 0
+# 真积压谓词须读 fin_proposal（roster_rw 无读权——本腿走 FIN_PG_RO_DSN
+#   o_fin_ro 审计读面，fin_opp_eval+fin_proposal 双表可读实证）；
+#   RO DSN 缺席=fail-open 静默（同库读败语义）。
+RODSN=$(grep '^FIN_PG_RO_DSN=' "$ENVF" 2>/dev/null | cut -d= -f2- | tr -d '"')
+[ -n "$RODSN" ] || exit 0
 SOLE=0; [ "${1:-}" = "--sole" ] && SOLE=1
 
-# ① proposed 积压：计数+最老龄(h，一位小数)。零积压=无因子静默；
+# ① proposed 真积压：计数+最老龄(h，一位小数)。零积压=无因子静默；
 #    读败(空)=同静默——积压龄无从谈起不出假因子。
-read -r EVAL_N EVAL_AGE_H < <(psql "$DSN" -qAt -c "
-SELECT count(*), COALESCE(round(EXTRACT(EPOCH FROM now()-min(ts))/3600,1),0)
-FROM fin_opp_eval WHERE verdict='proposed'" 2>/dev/null | tr '|' ' ')
+#    sticky 语义钉死（工单O-31103）：verdict='proposed' 为终态词——提案
+#    径建 fin_proposal 不翻 verdict，schema 无 adopted 态；裸计 proposed
+#    把已消费 eval 也算积压（evalage_h 实测 621h sticky 龄≠真积压龄）。
+#    真未裁=proposed ∧ NOT EXISTS(fin_proposal p.eval_id=e.id)——
+#    fin_proposal 全行带 eval_id（2789/2789 实证），建行=消费落账，
+#    退役/armed 态皆已裁（裁果归 proposal 生命周期非 eval 积压）。
+read -r EVAL_N EVAL_AGE_H < <(psql "$RODSN" -qAt -c "
+SELECT count(*), COALESCE(round(EXTRACT(EPOCH FROM now()-min(e.ts))/3600,1),0)
+FROM fin_opp_eval e
+WHERE e.verdict='proposed'
+  AND NOT EXISTS (SELECT 1 FROM fin_proposal p WHERE p.eval_id=e.id)" 2>/dev/null | tr '|' ' ')
 EVAL_N=${EVAL_N:-0}; EVAL_AGE_H=${EVAL_AGE_H:-0}
 case "$EVAL_N" in ''|*[!0-9]*) exit 0;; esac
 [ "$EVAL_N" -gt 0 ] || exit 0
