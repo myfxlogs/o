@@ -132,7 +132,7 @@ review_ok() { # $1=br名 $2=tip全sha → rc0=复审过行在且写行席≠完�
 	aseat=$(q "SELECT seat FROM ops_event
 		WHERE ((note ~ '(完工回执|完工推支候审|候审回执|施工收口)' OR event ~ '完工')
 			AND note !~ '^复审过[[:space:]]*sha=' AND seat NOT IN ('复审席','落地件')
-			AND (note ~ '$bre' OR note ~ '${tip:0:9}'))
+			AND (note ~ ('$bre' || '([@[:space:]=]|\$)') OR note ~ '${tip:0:9}'))
 		ORDER BY id DESC LIMIT 1")
 	[ -n "$aseat" ] || return 1 # 作者席不可考=分席不可证→fail-closed
 	aseat=$(printf '%s' "$aseat" | tr -d "\"'\\")

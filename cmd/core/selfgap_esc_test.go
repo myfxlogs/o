@@ -166,3 +166,39 @@ func TestLearnGapEscCheckTicketN(t *testing.T) {
 		t.Fatalf("升件带误占日计: %v", selfEscMeter.counts)
 	}
 }
+
+// TestLearnGapEscCheckAnchor 锚位契约（工单O-32638 词面闸普查B档②）：
+// learn_gap 消费谓词与 dispatch_research 研究票消费锚同形——句首
+// ^求知[:：]|研究席[:：]；「工单/slug:…文中求知：…」句中提及非研究票，
+// 不得计滞留（产消谓词不对称=colon 案同族未爆面）。
+func TestLearnGapEscCheckAnchor(t *testing.T) {
+	ctx := context.Background()
+	pool := testutil.Pool(t)
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM ops_event
+		WHERE esc_scope='learn_gap' OR event='工单' OR event='认领'`); err != nil {
+		t.Fatal(err)
+	}
+	svc := coreService{pool: pool}
+	deadSince := map[string]time.Time{}
+	resetSelfMeter()
+
+	// 句中「求知：」提及（非句首）+陈票龄——锚位拒，不入日计不升件
+	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,note,ts)
+		VALUES('处置席','工单','工单/probe-x: 本件提及求知：子题派发——期限=24h',
+			now()-interval '3 hours')`); err != nil {
+		t.Fatal(err)
+	}
+	// 对照：句首「研究席：」前缀票=消费锚同形，陈票应入日计
+	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,note,ts)
+		VALUES('处置席','工单','研究席：venue-y 深研面——期限=48h',
+			now()-interval '3 hours')`); err != nil {
+		t.Fatal(err)
+	}
+	svc.learnGapEscCheck(ctx, deadSince)
+	if m := selfEscMeter.counts["唤知/learn_gap"]; m != 1 {
+		t.Fatalf("锚位判错: 句中票误计或研究席票漏计 meter=%v", selfEscMeter.counts)
+	}
+}

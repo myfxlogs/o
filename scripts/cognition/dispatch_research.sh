@@ -104,7 +104,7 @@ WHERE NOT EXISTS (
 	  AND NOT EXISTS (SELECT 1 FROM ops_event x
 	    WHERE x.ts>e.ts AND (
 	      (x.seat='研究机' AND x.event IN ('唤起败','唤起果')
-	        AND x.note LIKE '%'||substring(e.note from 'unit=[^ ]+')||'%')
+	        AND x.note ~ (substring(e.note from 'unit=[^ ]+')||'([^0-9A-Za-z_-]|\$)'))
 	      OR x.event='会话收口' AND x.note ~ 'o-research')))
 AND NOT EXISTS (
 	SELECT 1 FROM ops_headless h

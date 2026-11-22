@@ -78,7 +78,7 @@ WHERE NOT EXISTS (
 	WHERE e.seat='审计机' AND e.event='唤起' AND e.ts>now()-interval '30 minutes'
 	  AND NOT EXISTS (SELECT 1 FROM ops_event x
 	    WHERE x.seat='审计机' AND x.event IN ('唤起败','唤起果') AND x.ts>e.ts
-	      AND x.note LIKE '%'||substring(e.note from 'unit=[^ ]+')||'%'))
+	      AND x.note ~ (substring(e.note from 'unit=[^ ]+')||'([^0-9A-Za-z_-]|\$)')))
 AND NOT EXISTS (
 	-- ops_headless AUD- 心跳腿(cognition dispatch.sh 同构,T-0521 85.35 双唤
 	-- 实证修法移植):唤起行 30min 窗<RuntimeMaxSec 5400s,长会话唤起行过期后

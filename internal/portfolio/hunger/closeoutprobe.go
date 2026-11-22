@@ -49,10 +49,10 @@ var (
 	claimRE = regexp.MustCompile(`工单#(\d+)`)
 	// receiptRE 完工回执邻接形（票号与「完工回执」间仅空白——销票/
 	// 还票/验真引证行天然排除）。
-	receiptRE = regexp.MustCompile(`工单#(\d+)\s*完工回执`)
+	receiptRE = regexp.MustCompile(`工单#(\d+)[\s　]*完工回执`)
 	// returnFieldRE 收口还票字段「挂起还票<票表>」（分隔 ,，、# 空白；
 	// 「无/；/：」形天然不配）。
-	returnFieldRE = regexp.MustCompile(`挂起还票[=]?\s*#?\s*(\d+(?:\s*[#,，、]\s*\d+)*)`)
+	returnFieldRE = regexp.MustCompile(`挂起还票[=]?[\s　]*#?[\s　]*(\d+(?:[\s　]*[#,，、][\s　]*\d+)*)`)
 	// suspendAdjRE 处置还票邻近形「工单#N…挂起条件=」（≤20 非段字符——
 	// 「挂起条件已解」无「=」不配=非还票；认领行尾缀同形亦不配）。
 	suspendAdjRE = regexp.MustCompile(`工单#(\d+)[^;；\n]{0,20}挂起条件=`)
@@ -104,7 +104,7 @@ func (s *Sensor) ProbeWorkerCloseout(ctx context.Context) error {
 	receipts := map[string][]time.Time{}
 	rrows, err := s.pool.Query(ctx, `SELECT ts,note FROM ops_event
 		WHERE event IN ('处置','记事') AND seat='施工席'
-		  AND note ~ '工单#[0-9]+[[:space:]]*完工回执'
+		  AND note ~ '工单#[0-9]+[[:space:]　]*完工回执'
 		  AND ts > now()-interval '8 days'`)
 	if err != nil {
 		return fmt.Errorf("回执面读败: %w", err)

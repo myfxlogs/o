@@ -275,7 +275,7 @@ func (c coreService) spawnlessOrphans(ctx context.Context) (int, error) {
 			AND e.ts<now()-interval '15 minutes'
 		AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.ts>e.ts
 			AND x.event IN ('唤起果','唤起败','会话收口')
-			AND x.note LIKE '%'||substring(e.note from 'unit=[^ ]+')||'%')`).
+			AND x.note ~ (substring(e.note from 'unit=[^ ]+')||'([^0-9A-Za-z_-]|$)'))`).
 		Scan(&n)
 	return n, err
 }
