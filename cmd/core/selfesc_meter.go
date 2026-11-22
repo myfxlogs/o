@@ -3,6 +3,11 @@
 // 信号不落升件,死回合沿只日计一火;实证=7d 升件约 2/3 自观类噪声掩
 // 真钱事故 3 条。收窄点=escEdgeUV 顶部（cmd/core 全探针共漏斗）;
 // hunger 包直写升件面（face 册/覆盖/依赖对）不在本册——另案降级。
+// O-32295 分级复升：唤知/learn_gap 移出本册——降级全禁言实证滞票
+// 双盲（#26142滞44h+/32020/32021滞4h+只日计无人知）。现 learnGapEscCheck
+// 自分级：计数带(票龄2-12h∧<3张)仍直 bump 本计数件同键日计（降级
+// 语义保留盖噪声窗），热带(>12h∨≥3张)走 escEdgeUV 真升件径；册内
+// 其余探针保日计不动（spec 禁线）。
 package main
 
 import (
@@ -20,7 +25,6 @@ import (
 // paper_dry/breed_dry（钱径漏斗+研究唤触发）。
 var selfEscDemote = map[string]bool{
 	"唤知/audit_stall":          true, // 审计臂滞=自观器官,唤知面另有 cognition_dead 兜底
-	"唤知/learn_gap":            true, // 求知滞=自观学习环
 	"唤知/lesson_backlog":       true, // 教训矿积压=自观队列
 	"唤知/spawn_orphan":         true, // 唤起孤儿会话=自观会话面
 	"唤知/cognition_spawn_fail": true, // 唤知环唤起败簇=自观会话面
