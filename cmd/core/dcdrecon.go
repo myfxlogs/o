@@ -1,5 +1,6 @@
 // dcdrecon.go —— dcd 结算对账拍（工单#22919 钦定修法①自 restlive.go
-// 拆出——棘轮 300 行顶线）。fundSaveBalances 读拍驱动、全幂等、写败只
+// 拆出——棘轮 300 行顶线；O-33362 簿记机械环——孤儿升级件退役改
+// 自动补挂+现金腿配对）。fundSaveBalances 读拍驱动、全幂等、写败只
 // log 不炸权益面。
 package main
 
@@ -16,15 +17,17 @@ import (
 )
 
 // dcdSettleReconcile 结算对账拍（工单#22919 钦定修法①——dcd_live 族无结算
-// 消费件根修）。读拍驱动、全幂等、写败只 log 不炸权益面：
+// 消费件根修；O-33362：③孤儿升件退役改 dcdLiveBook 自动补挂环）。
+// 读拍驱动、全幂等、写败只 log 不炸权益面：
 //
 //	① settled/redeemed 单 → 账本 open exec 仓收敛 closed_at+settled_*
 //	  （venue_ord_id 确证键优先，productId 单 open 仓模糊配兜底——旧仓无
 //	  ordId 的过渡径；同 productId 多 open 仓=歧义跳过如实记）；
-//	② 结算回款币注册 fin_risk_decision op='dcd_settle'（FundCcy funding/earn
-//	  域扩集——BTC 回款非册币永久漏计面根修；基线凭据同键退役靠凭据 NOT
-//	  EXISTS 排除非改行）；
-//	③ venue live∧账本零覆盖（exec 仓∪归属域册∪基线凭据）→反向孤儿升件；
+//	② 结算回款币注册 fin_risk_decision op='dcd_settle' + counted 回款腿
+//	  同事务（FundCcy funding/earn 域扩集——BTC 回款非册币永久漏计面根修；
+//	  基线凭据同键退役靠凭据 NOT EXISTS 排除非改行）；
+//	③ venue 名义在持（live∪pending 族）∧账本零覆盖 → dcdLiveBook 自动
+//	  补挂 dcd_baseline 凭据+申购 counted 腿（写败才升 dcd_baseline_fail）；
 //	④ 结算实拍 md_account_events channel='dcd_settle' 落账（#20904 验收
 //	  的到期迁移序列活证——状态/settleSz/settleCcy/settlePx/settleTime 全载）。
 func dcdSettleReconcile(ctx context.Context, pool *pgxpool.Pool, ords []okxexec.DcdOrder) {
@@ -35,11 +38,23 @@ func dcdSettleReconcile(ctx context.Context, pool *pgxpool.Pool, ords []okxexec.
 		dcdSettleOne(ctx, pool, od)
 	}
 	for _, od := range ords {
-		if !strings.EqualFold(od.State, "live") {
+		if !dcdNotionalLive(od) {
 			continue
 		}
-		dcdOrphanCheck(ctx, pool, od)
+		dcdLiveBook(ctx, pool, od)
 	}
+}
+
+// dcdNotionalLive 名义在持集（restlive addOrd 同集——live/pending_settle/
+// pending_redeem 三态名义照计；settled/redeemed 走回款 settleCcy 径）。
+func dcdNotionalLive(od okxexec.DcdOrder) bool {
+	switch {
+	case strings.EqualFold(od.State, "live"),
+		strings.EqualFold(od.State, "pending_settle"),
+		strings.EqualFold(od.State, "pending_redeem"):
+		return true
+	}
+	return false
 }
 
 // dcdSettleOne 单结算收敛（幂等——closed_at 置位/凭据在册即跳）。
@@ -106,8 +121,8 @@ func dcdSettleOne(ctx context.Context, pool *pgxpool.Pool, od okxexec.DcdOrder) 
 			return
 		}
 	}
-	// ② 回款币注册（dcd_settle 凭据幂等——ordId 在册即跳；FundCcy
-	// funding/earn 域据此扩集，venue 回款到账即被权益面接管）。
+	// ② 回款币注册+counted 回款腿同事务（dcd_settle 凭据幂等——ordId 在册
+	// 即整组跳过不重复落腿；O-33362：凭据与现金腿同生同灭零半账）。
 	var have bool
 	if err := pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM fin_risk_decision
 		WHERE intent->>'op'='dcd_settle' AND intent->>'ordId'=$1)`, od.OrdID).Scan(&have); err != nil {
@@ -115,14 +130,8 @@ func dcdSettleOne(ctx context.Context, pool *pgxpool.Pool, od okxexec.DcdOrder) 
 		return
 	}
 	if !have {
-		intent, _ := json.Marshal(map[string]any{
-			"op": "dcd_settle", "kind": "transfer", "venue": "okx",
-			"ccy": od.SettleCcy, "amt": okxexec.ParseF(od.SettleSz),
-			"ordId": od.OrdID, "productId": od.ProductID,
-			"settlePx": od.SettlePx, "settleTime": od.SettleTime})
-		if _, err := pool.Exec(ctx, `INSERT INTO fin_risk_decision(intent,decision,reason,config_gen,kind)
-			VALUES($1,'allow','transfer',1,'open')`, intent); err != nil {
-			log.Printf("[dcd] settle 凭据写败 ordId=%s: %v", od.OrdID, err)
+		if err := dcdSettleWrite(ctx, pool, od); err != nil {
+			log.Printf("[dcd] settle 凭据/回款腿写败 ordId=%s: %v", od.OrdID, err)
 		}
 	}
 	// ③ 实拍账（全载结算落果——回款币种/价/量/到期刻 venue 原值）。
@@ -140,34 +149,46 @@ func dcdSettleOne(ctx context.Context, pool *pgxpool.Pool, od okxexec.DcdOrder) 
 	}
 }
 
-// dcdOrphanCheck venue live∧账本零覆盖=反向孤儿升件（仓外漂无敞口账面——
-// exec open 仓∪归属域册 ord_id∪dcd_baseline 凭据 ordId 三覆盖源全缺即升；
-// 24h 同 ordId 去重窗防连拍炸件）。
-func dcdOrphanCheck(ctx context.Context, pool *pgxpool.Pool, od okxexec.DcdOrder) {
+// dcdLiveBook venue 名义在持单账本覆盖环（O-33362 簿记机械环——孤儿升级件
+// 退役改自动补挂）：exec 活仓（open/closing——orphaned=脱钩探针态非健康
+// 覆盖，staleexec 另径收编）∪归属域册∪基线凭据三覆盖源全缺 → 同事务落
+// dcd_baseline 凭据+申购 counted 腿；写败才升 dcd_baseline_fail 专属告警
+// （24h 同 ordId 去重窗）。
+func dcdLiveBook(ctx context.Context, pool *pgxpool.Pool, od okxexec.DcdOrder) {
 	var covered bool
 	if err := pool.QueryRow(ctx, `SELECT
 		EXISTS(SELECT 1 FROM fin_position p JOIN fin_execution e ON e.id=p.execution_id
-		       WHERE p.inst_id=$1 AND p.state<>'closed')
+		       WHERE p.inst_id=$1 AND p.state NOT IN ('closed','orphaned'))
 		OR EXISTS(SELECT 1 FROM fin_position_domain WHERE ord_id=$2 OR inst_id=$1)
 		OR EXISTS(SELECT 1 FROM fin_risk_decision
 		       WHERE intent->>'op'='dcd_baseline' AND intent->>'ordId'=$2)`,
-		od.ProductID, od.OrdID).Scan(&covered); err != nil || covered {
-		if err != nil {
-			log.Printf("[dcd] 孤儿覆盖查败 ordId=%s: %v", od.OrdID, err)
-		}
+		od.ProductID, od.OrdID).Scan(&covered); err != nil {
+		log.Printf("[dcd] 覆盖查败 ordId=%s: %v", od.OrdID, err)
 		return
 	}
+	if covered {
+		return
+	}
+	if err := dcdBaselineWrite(ctx, pool, od); err != nil {
+		log.Printf("[dcd] 基线补挂写败 ordId=%s: %v", od.OrdID, err)
+		dcdBaselineFailEsc(ctx, pool, od, err)
+	}
+}
+
+// dcdBaselineFailEsc 基线补挂写败专属告警——venue 名义在持单账本补挂失败
+// =簿记环断需人工介入（孤儿升件退役后唯一升件径；24h 同 ordId 去重）。
+func dcdBaselineFailEsc(ctx context.Context, pool *pgxpool.Pool, od okxexec.DcdOrder, werr error) {
 	var dup bool
 	if err := pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM ops_event
-		WHERE event='升件' AND esc_class='dcd_orphan' AND esc_scope=$1
+		WHERE event='升件' AND esc_class='dcd_baseline_fail' AND esc_scope=$1
 		AND ts>now()-interval '24 hours')`, od.OrdID).Scan(&dup); err != nil || dup {
 		return
 	}
 	if _, err := pool.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note,esc_class,esc_scope)
-		VALUES('探测席','升件','工单/22919',$1,'dcd_orphan',$2)`,
-		fmt.Sprintf("dcd 反向孤儿：venue LIVE ordId=%s productId=%s notional=%s %s——账本 exec 仓/归属域册/基线凭据三覆盖源全缺（结算对账拍发现，仓账外漂无敞口账）",
-			od.OrdID, od.ProductID, od.NotionalSz, od.NotionalCcy),
+		VALUES('探测席','升件','',$1,'dcd_baseline_fail',$2)`,
+		fmt.Sprintf("dcd 基线补挂写败：venue 名义在持 ordId=%s productId=%s notional=%s %s——三覆盖源全缺且自动补挂失败（%v）——簿记环断需人工介入",
+			od.OrdID, od.ProductID, od.NotionalSz, od.NotionalCcy, werr),
 		od.OrdID); err != nil {
-		log.Printf("[dcd] 孤儿升件写败 ordId=%s: %v", od.OrdID, err)
+		log.Printf("[dcd] 补挂败升件写败 ordId=%s: %v", od.OrdID, err)
 	}
 }

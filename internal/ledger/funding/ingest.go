@@ -41,10 +41,12 @@ const (
 	// OKX 账单子类型（官方 docs-v5 核证）：173 资金费支出/174 资金费收入。
 	subFundingPay = "173"
 	subFundingRcv = "174"
-	subDcdDebit   = "160" // dcd 申购扣款（T-0160 ④——结构化产品资金流水 160-163）
-	subDcdSettle  = "161" // dcd 回款
-	subDcdYield   = "162" // dcd 收益
-	subDcdRefund  = "163" // dcd 退款
+	// O-33362 取证定案：/account/bills subType 160-163=type=6 保证金子型
+	// （/account/subtypes 权威典+真户 bills?ordId 实证——DCD 订单零行），
+	// 非双币赢流水；原 subDcd* 映射系误配已摘除（保证金行落 unmapped_bill
+	// 残差域如实待归因）。真 DCD 现金腿=/asset/bills(-history) type
+	// 160-163（funding 户，无 ordId 键）——counted 腿由 dcdrecon 簿记
+	// 环按订单枚举直写，本 ingest 面不重复入账防双计。
 	// 升件#14671：册载 dust/supply/airdrop kind 子型映射（2026-11-13 实拉
 	// /api/v5/account/subtypes 权威典核证）——Easy convert=残币归口面；
 	// Auto Earn+ 息/质押奖/奖券=理财收益；bot airdrop/trading bonus 进出=
@@ -70,7 +72,8 @@ const (
 // instTypesAll 账单拉取型谱（T-0062 根修②：SWAP+SPOT 双采——现货腿成本归集）。
 // T-0160 三返修②：instType 过滤域实证「ASSET」=51000 非法参——改无过滤
 // 拉取面（空串=/account/bills 不带 instType 唯一捕获径）；SWAP/SPOT 分型
-// 显注 record 分派面（现网实证 dcd 160-163 在此口进——DEP 单帧式直通）。
+// 显注 record 分派面（O-33362 取证修正：dcd 现金腿不在此口——实在
+// /asset/bills type 160-163，见 subDcd* 摘除注）。
 var instTypesAll = []string{""}
 
 // Ingester 记账执事。
@@ -163,18 +166,6 @@ func (i *Ingester) record(ctx context.Context, b Bill) (int, error) {
 			amt = b.Pnl // 个性口径兜底：资金费行 balChg 空→pnl 查询总额口径（官方口径注）
 		}
 		return 1, i.post(ctx, "funding_settle", amt, b, ccy, srcID, occurred)
-	case subDcdDebit: // 申购扣款=earn_out（balChg 负号原生——如实进账）；T-0364 业主域=owner_out
-		kind := "earn_out"
-		if i.ownerDcd(ctx, b) {
-			kind = "owner_out"
-		}
-		return 1, i.post(ctx, kind, b.BalChg, b, ccy, srcID, occurred)
-	case subDcdSettle, subDcdYield, subDcdRefund: // 回款/收益/退款=earn_in；T-0364 业主域=owner_in（业主资产收入非策略线）
-		kind := "earn_in"
-		if i.ownerDcd(ctx, b) {
-			kind = "owner_in"
-		}
-		return 1, i.post(ctx, kind, b.BalChg, b, ccy, srcID, occurred)
 	case subEasyConvertIn:
 		return 1, i.post(ctx, "dust_in", b.BalChg, b, ccy, srcID, occurred)
 	case subEasyConvertOut:
@@ -224,28 +215,6 @@ func (i *Ingester) record(ctx context.Context, b Bill) (int, error) {
 		}
 		return n, nil
 	}
-}
-
-// ownerDcd 业主域 dcd 单判定（T-0364）：账单对 fin_position_domain 域册——
-// inst_id=产品单号主链键，raw.ordId=备链键（账单 instId 缺位方言兜底）。
-// 判不出=归常径 earn_*（读败不冒归 owner——域归属显形靠域册非猜）。
-func (i *Ingester) ownerDcd(ctx context.Context, b Bill) bool {
-	var ord string
-	if len(b.Raw) > 0 {
-		var r struct {
-			OrdID string `json:"ordId"`
-		}
-		if json.Unmarshal(b.Raw, &r) == nil {
-			ord = r.OrdID
-		}
-	}
-	var hit bool
-	if err := i.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM fin_position_domain
-		WHERE domain='owner' AND ((inst_id<>'' AND inst_id=$1) OR (ord_id<>'' AND ord_id=$2)))`,
-		b.InstID, ord).Scan(&hit); err != nil {
-		return false
-	}
-	return hit
 }
 
 // post 入账（kind/闭集校验在 ledger.Post——此处只装配）。position_ref=按
