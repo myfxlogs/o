@@ -60,8 +60,12 @@ func TestWatchHeartbeatFrames(t *testing.T) {
 			t.Fatalf("心跳帧应无载荷（纯信号）: %v", ev.GetData())
 		}
 		if !lastHb.IsZero() {
-			if gap := time.Since(lastHb); gap > 4*60*time.Millisecond {
-				t.Fatalf("心跳间隔超期界×4: %v", gap)
+			// 间隔判据=「心跳环活着」非「精节拍」——CI 共享核调度毛刺
+			// 实测可饿数百ms（4×=240ms 界 flake 实证 CI 45020138459/389ms），
+			// 15×=900ms 仍在「心跳死=帧断流」检出域内（死环=永不达帧
+			// 由外层 10s ctx 兜）。
+			if gap := time.Since(lastHb); gap > 15*60*time.Millisecond {
+				t.Fatalf("心跳间隔超期界×15: %v", gap)
 			}
 		}
 		lastHb = time.Now()
