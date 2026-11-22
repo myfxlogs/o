@@ -78,6 +78,26 @@ hb() { # $1=state——心跳按日键（会话逐日新面,互不盖；前缀�
       state=EXCLUDED.state,last_activity=now(),updated_at=now()" >/dev/null 2>&1 || true # tolerate: 心跳=尽力径——hb写败不阻会话主径（dev_run.sh 先例同构）
 }
 
+# 在办脉冲（工单O-32268①）：会话存活期每 PULSE_TICKS 拍（60s×10=10min）
+# 落 event='在办' 事实行——「21min在修吗」只能猜的实证根修：机械侧
+# 钉死不靠会话自觉。seat=机器席（会话自写在办=判词层，本行=存在性
+# 簿记层两层不替）；在办=事实账非信号不进 ops_esc_pending（不吵面）。
+# 内容=unit+已耗时+LOG_FILE 尾行（在修什么的机械代理——会话真正在修
+# 面归会话自写在办行，壳行只证活着+耗时）。阈值写死常量可调改此。
+PULSE_TICKS=10 # 在办脉冲间隔=心跳拍(60s)×10=10min——写死常量（spec钉值，调整改此行）
+pulse() {
+  [ -n "$FIN_DSN" ] || return 0
+  local dur=$(( $(date +%s) - T0 )) tail60 note
+  tail60=$(tail -1 "$LOG_FILE" 2>/dev/null | tr '\n' ' ' | cut -c1-80) # tolerate: 尾行空=会话未产输出——在修面空合法
+  note="unit=$COG_UNIT 已耗时=${dur}s 在修=${tail60}"
+  # stdin 喂串+-v 参数化（escalate.sh 同型——LOG 尾行携任意引号，
+  # :'var' 由 psql 字面量转义引号断径结构性绝根）
+  printf '%s\n' "INSERT INTO ops_event(seat,event,ticket,note)
+    VALUES(:'seat','在办','',:'note')" \
+    | psql "$FIN_DSN" -qAt -v seat="$SEAT_MACHINE" -v note="$note" \
+    >/dev/null 2>&1 || true # tolerate: 脉冲写败不阻会话主径——下拍补
+}
+
 SESSION_DIR="$(o_worker_runtime_dir)/sessions/$COG_ROLE"
 mkdir -p "$SESSION_DIR" && chmod 700 "$SESSION_DIR" && cd "$SESSION_DIR" || exit 1
 
@@ -130,7 +150,11 @@ chmod 600 "$TRANSCRIPT_FILE"
 # 过期即失在飞保护,双机双会话实证 2026-11-12。60s 续期保
 # last_activity 鲜活=dispatch 跨机在飞判据;devin 主径阻塞期后台跑,
 # kill 于主径返回后——会话死透心跳即停,陈旧心跳≈死证自清）。
-( while :; do sleep 60; hb alive; done ) & HB_LOOP_PID=$!
+# 起跑锚先落（同步——秒级亡会话也留首行在办事实行，工单O-32268①；
+# 异步环首拍与 kill 赛跑=锚行可能丢，实证桩测案④）；其后每
+# PULSE_TICKS 拍落在办脉冲（i=10/20/…→t=600s/1200s…）。
+pulse
+( i=1; while :; do sleep 60; hb alive; [ $((i % PULSE_TICKS)) -eq 0 ] && pulse; i=$((i+1)); done ) & HB_LOOP_PID=$!
 set +e
 "$DEVIN_BIN" "${DEVIN_ARGS[@]}" --export "$TRANSCRIPT_FILE" -p --model "$MODEL" \
 	--respect-workspace-trust false --permission-mode dangerous -- "$PROMPT" 2>&1 | tee "$LOG_FILE"

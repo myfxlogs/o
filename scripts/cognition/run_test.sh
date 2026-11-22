@@ -19,6 +19,8 @@ cat > "$T/bin/psql" <<'STUB'
 # psql 桩：SQL 全量落 PSQL_LOG，INSERT 应答 0 1，其余吐空
 sql=""; prev=""
 for a in "$@"; do [ "$prev" = "-c" ] && sql="$a"; prev="$a"; done
+# stdin 喂串径兜底捕获（pulse() -v 参数化 INSERT 无 -c——工单O-32268①）
+[ -z "$sql" ] && sql=$(cat 2>/dev/null)
 printf '%s\n' "$sql" >> "${PSQL_LOG:-/dev/null}"
 case "$sql" in
 	SELECT*count*会话收口*) echo "${STUB_CLOSEOUT_HAVE:-0}" ;; # closeout_write dedup 查应答
@@ -103,6 +105,16 @@ if grep -q '壳兜底收口' "$T/psql.log"; then
 	bad "非worker角色→兜底应不写"
 else
 	ok "非worker角色→兜底不写"
+fi
+
+# 案④ 工单O-32268①：会话存活期在办脉冲——壳侧机械行 i=0 起拍即落
+#    event='在办'（秒级亡会话也留首行锚；10min 间隔面=PULSE_TICKS
+#    写死常量，桩会话秒亡只验首行产出——间隔面由常量注释钉）。
+STUB_ROLE=cognition STUB_HAVE=0 run_case pulse 0 5
+if grep -q "'在办'" "$T/psql.log"; then
+	ok "会话途中心跳在办行产出"
+else
+	bad "在办脉冲行缺"
 fi
 
 echo "run_test: PASS=$PASS FAIL=$FAILN"
