@@ -41,14 +41,17 @@ mig_dep_stray() { # stdin=SQL → 头区外 depends_on 命中 token 逐行（供
 }
 
 # mig_dep_gate_check —— land_queue 合流时序闸核心（工单#25800）：
-#   $1=支尖 ref $2=已合基线 ref（origin/master）；stdin=支新增迁移
-#   文件清单（migrations/ 相对路径逐行）。须在仓内 git 语境调用。
-#   stdout=缺依文件名逐行；rc0=全依已合/同支自带，rc1=有缺依。
+#   $1=支尖 ref $2=已合基线 ref（origin/master/列车实合 HEAD）；
+#   [$3=provides 文件——列车先序支自带迁移 basename 清单，可选]；
+#   stdin=支新增迁移文件清单（migrations/ 相对路径逐行）。须在仓内
+#   git 语境调用。stdout=缺依文件名逐行；rc0=全依已合/列内先序/同支
+#   自带，rc1=有缺依。
 # 判据：声明目标须在 $2 树内实存（已合）或在支新增集内（合流原子
-# 带入）——两皆无=跨支未合依赖→rc1。depends_on 形合法性归
-# check_migrations ⑨（支须先过绿戳），本闸只判「在合否」。
-mig_dep_gate_check() { # $1=tip-ref $2=base-ref；stdin=新增迁移路径清单
-	local tip="$1" base="$2" added selfdeps f dep rc=0
+# 带入）或在 $3 provides 集内（列车先序支合流带入）——三皆无=跨支
+# 未合依赖→rc1。depends_on 形合法性归 check_migrations ⑨（支须先过
+# 绿戳），本闸只判「在合否」。
+mig_dep_gate_check() { # $1=tip-ref $2=base-ref [$3=provides-file]；stdin=新增迁移路径清单
+	local tip="$1" base="$2" prov="${3:-}" added selfdeps f dep rc=0
 	added=$(cat)
 	[ -n "$added" ] || return 0
 	selfdeps=""
@@ -62,6 +65,7 @@ mig_dep_gate_check() { # $1=tip-ref $2=base-ref；stdin=新增迁移路径清单
 			[ -n "$dep" ] || continue
 			git cat-file -e "$base:migrations/$dep" 2>/dev/null && continue
 			grep -qxF "$dep" <<< "$selfdeps" && continue
+			[ -n "$prov" ] && [ -f "$prov" ] && grep -qxF "$dep" "$prov" && continue
 			printf '%s\n' "$dep"
 			rc=1
 		done < <(git show "$tip:$f" 2>/dev/null | mig_dep_parse)

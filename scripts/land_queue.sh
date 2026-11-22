@@ -12,8 +12,15 @@
 #       origin/master 或同支自带，未合跳支不占落地账，工单#25800）。
 # 落法=独立工树（非部署树）merge --no-ff→合并点跑 check_all→盖戳→
 # 部署树发 <merge_sha>:master（pre-push master 只许 /opt/o 径）→清工树；
-# deploy_watch 照旧 ff+部署。单写者=本件；一拍一支串行；红/冲突=不落+
-# 落地事实行（不升件不立票）；同尖败冷却 24h（落地行自载账）。
+# deploy_watch 照旧 ff+部署。单写者=本件。
+# 列车形（工单O-32267）：一拍取全部要件齐支（上界 TRAIN_MAX=5，
+# committerdate 升序）串成一列——master 依次 --no-ff 合各支尖→
+# 单棵树→一次合并点 check_all/一次推/一次 CI/一次部署；列内任支
+# 合不净=剔出该支（landq_merge_conflict 升件径复用）其余支重列续走，
+# 迁移依赖列车感知（列内先序支自带迁移计已合面，合并时对实合 HEAD
+# 复核兜底——前序支被剔则依赖落空支同剔不合缺依迁移）；每支落成行
+# 照旧载支名+尖+merge sha 审计粒度不丢；单支列车退化为现行一支一落。
+# 红/冲突=不落+落地事实行（不升件不立票）；同尖败冷却 24h（落地行自载账）。
 #
 # 用法：scripts/land_queue.sh（无参；o-land-queue.timer 每 15min 唤）
 # 桩测缝：O_LAND_REPO（仓径，缺省 /opt/o）/O_LAND_PSQL/O_LAND_DSN/
@@ -30,7 +37,8 @@ BOOTSTRAP="${O_LAND_BOOTSTRAP:-bash scripts/bootstrap_worktree.sh}"
 PUSH_CMD="${O_LAND_PUSH:-bash scripts/git_push.sh}"
 WTBASE="${O_LAND_WT:-/tmp}"
 LOCK="${O_LAND_LOCK:-/tmp/o-land-queue.lock}"
-WT=""
+TRAIN_MAX=5 # 列车上界写死（工单O-32267 spec——N 封顶防一拍巨列放大爆炸半径）
+WT="" PROV_F=""
 
 # go 工具径自足（工单#25880）：合并点 check_all 的唤起面不定——正式
 # systemd 单元 Environment 有 go 径，transient systemd-run/手工径最小
@@ -72,10 +80,11 @@ esc() { # 可处置败类升件——无头世界静默晾死根修（工单#dep
 }
 
 cleanup() {
-	[ -n "$WT" ] || return 0
+	[ -n "$WT" ] || { [ -n "$PROV_F" ] && rm -f "$PROV_F"; PROV_F=""; return 0; }
 	git -C "$REPO" worktree remove --force "$WT/wt" >/dev/null 2>&1 || true # tolerate: 清树败=残件待 prune，不阻断收口
 	rm -rf "$WT" 2>/dev/null || true # tolerate: rm 败=tmp 面系统代谢兜底
 	WT=""
+	[ -n "$PROV_F" ] && rm -f "$PROV_F" 2>/dev/null; PROV_F="" # tolerate: 临时件残留无害
 }
 trap cleanup EXIT
 
@@ -135,12 +144,11 @@ review_ok() { # $1=br名 $2=tip全sha → rc0=复审过行在且写行席≠完�
 mergeable() { # $1=tip → rc0=对 origin/master 净合（merge-tree 预检，不动工树）
 	git merge-tree --write-tree origin/master "$1" >/dev/null 2>&1
 }
-mig_dep_gate() { # $1=br名 $2=tip → rc0=依赖序合法；rc1=所依未合（say 记跳因）
-	# 工单#25800 合流时序闸：支新增迁移的 depends_on 目标须已在
-	# origin/master 或同支自带——跨支未合依赖跳支不合（不占落地账、
-	# 不烧冷却，下拍重扫）。判据核心=mig_dep_lib.sh::mig_dep_gate_check；
+mig_dep_miss() { # $1=tip $2=base-ref [$3=provides文件] → stdout=缺依清单; rc0=齐 rc1=缺
+	# 列车感知时序闸核心（工单O-32267）：base=已合基线（origin/master 或
+	# 列车实合 HEAD sha），provides=列内先序支自带迁移 basename 文件。
 	# 解析件取支尖自带版——deploy 树未含本闸件时亦能判（渐进启用）。
-	local br="$1" tip="$2" mb added libtmp miss rc
+	local tip="$1" base="$2" prov="${3:-}" mb added libtmp miss rc
 	mb=$(git merge-base origin/master "$tip" 2>/dev/null) || return 0 # tolerate: base 败=放——mergeable 已预检此支可合域
 	added=$(git diff --name-only --diff-filter=A "$mb" "$tip" -- 'migrations/*.sql' 2>/dev/null)
 	[ -n "$added" ] || return 0
@@ -149,15 +157,26 @@ mig_dep_gate() { # $1=br名 $2=tip → rc0=依赖序合法；rc1=所依未合（
 		rm -f "$libtmp"; return 0 # tolerate: 支无解析件=无声明语义——放
 	fi
 	. "$libtmp"
-	miss=$(printf '%s\n' "$added" | mig_dep_gate_check "$tip" origin/master 2>/dev/null)
+	if [ -n "$prov" ]; then
+		miss=$(printf '%s\n' "$added" | mig_dep_gate_check "$tip" "$base" "$prov" 2>/dev/null)
+	else
+		miss=$(printf '%s\n' "$added" | mig_dep_gate_check "$tip" "$base" 2>/dev/null)
+	fi
 	rc=$?
 	rm -f "$libtmp"
 	[ "$rc" -eq 0 ] && return 0
-	say "跳 $br——迁移依赖未合：$(printf '%s' "$miss" | tr '\n' ' ' | sed 's/ $//')（目标须先在 origin/master 或同支自带）"
+	printf '%s' "$miss"
+	return 1
+}
+mig_dep_gate() { # $1=br名 $2=tip [$3=provides文件] → rc0=依赖序合法；rc1=所依未合（say 记跳因）
+	local br="$1" tip="$2" prov="${3:-}" miss rc
+	miss=$(mig_dep_miss "$tip" origin/master "$prov"); rc=$?
+	[ "$rc" -eq 0 ] && return 0
+	say "跳 $br——迁移依赖未合：$(printf '%s' "$miss" | tr '\n' ' ' | sed 's/ $//')（目标须先在 origin/master/列内先序支或同支自带）"
 	return 1
 }
 
-# ── 扫支：七日内未并支按尖龄升序，一拍一支 ──
+# ── 扫支：七日内未并支按尖龄升序，要件齐支入列车（上界 TRAIN_MAX）──
 CANDS=$(git for-each-ref --no-merged origin/master --sort=committerdate \
 	--format='%(committerdate:unix) %(refname:short) %(objectname)' \
 	'refs/remotes/origin/fix/*' 'refs/remotes/origin/feat/*' \
@@ -167,7 +186,11 @@ CANDS=$(git for-each-ref --no-merged origin/master --sort=committerdate \
 	| awk -v c=$(( $(date +%s) - 604800 )) '$1>c {print $2,$3}' \
 	| sed 's|^origin/||')
 
-SB=""; STIP=""; STRANDED=""
+# 列车构造（工单O-32267）：要件三件闸语义不动（戳+复审+净合逐支同判），
+# 只改「取一支」为「取至多 TRAIN_MAX 支」——列内依赖面=列内先序支
+# 自带迁移（provides 文件逐支累积，合并时对实合 HEAD 复核兜底）。
+TRAIN=""; STRANDED=""; TN=0; PROV_F=$(mktemp /tmp/lq-prov-XXXXXX 2>/dev/null || echo "") # tolerate: mktemp 败=空串→provides 闸退化为仅 master/同支（保守向）
+: > "$PROV_F" 2>/dev/null || PROV_F="" # tolerate: 建文件败=同上退化
 while read -r br tip; do
 	[ -n "$br" ] && [ -n "$tip" ] || continue
 	recent_fail "$tip" && { say "跳 $br——同尖24h败冷却"; continue; }
@@ -177,21 +200,30 @@ while read -r br tip; do
 	elif ! review_ok "$br" "$tip"; then
 		say "跳 $br——复审过行缺/分席不可证/无DSN"; STRANDED="$STRANDED $br"; continue
 	fi
-	mig_dep_gate "$br" "$tip" || { STRANDED="$STRANDED $br(依赖未合)"; continue; }
+	mig_dep_gate "$br" "$tip" "$PROV_F" || { STRANDED="$STRANDED $br(依赖未合)"; continue; }
 	if ! mergeable "$tip"; then
 		fact "落地败 支=$br 尖=$tip 因=对origin/master不可净合(merge-tree冲突)——支须重基,同尖冷却24h"
 		esc "landq_conflict_${br//\//_}" "部署/landq_merge_conflict: 支=$br 尖=$tip 对origin/master不可净合——须重基或人工裁决,支入24h冷却待处置"
 		continue
 	fi
-	SB="$br"; STIP="$tip"; break
+	TRAIN="$TRAIN$br $tip
+"
+	# 入列支新增迁移 basename 并入 provides——供列内后续支依赖判
+	_tmb=$(git merge-base origin/master "$tip" 2>/dev/null) # tolerate: 败=空→不产 provides 行
+	[ -n "$_tmb" ] && [ -n "$PROV_F" ] \
+		&& git diff --name-only --diff-filter=A "$_tmb" "$tip" -- 'migrations/*.sql' 2>/dev/null \
+			| sed 's|.*/||' | grep . >> "$PROV_F" # tolerate: 追加败=provides 缺面→后续支依赖闸保守拒(安全向)
+	TN=$((TN+1))
+	[ "$TN" -ge "$TRAIN_MAX" ] && break # 列车上界——超出支下拍重列（spec N=5 写死）
 done <<< "$CANDS"
+TRAIN_N=$TN
 
 # ── 补扫:扫描面外未并支一律入滞留集（同日实证:cmcweb无名单前缀且仅
 # 本地、canon/*无前缀、macro-events超7d窗——进了扫描才有"跳"录,
 # 面外支连跳因都不落,永不可见）。凡本地或远端未并 origin/master
 # 且本轮未经候选评估之支,不问要件齐否皆滞留;脱困=改名入名单前缀/
 # 推远端并补要件/判废清支。
-SEEN=" ${SB:-} "
+SEEN=" "
 while read -r ebr _etip; do
 	[ -n "$ebr" ] && SEEN="$SEEN$ebr "
 done <<< "$CANDS"
@@ -237,104 +269,153 @@ if [ -n "$STRANDED" ] && [ -n "$DSN" ]; then
 	fi
 fi
 
-[ -n "$SB" ] || { say "无三件齐候选——本拍空"; exit 0; }
-say "选中 $SB 尖=$STIP——起合"
+[ "$TRAIN_N" -gt 0 ] || { say "无三件齐候选——本拍空"; exit 0; }
+say "列车 $TRAIN_N 支——起合（committerdate升序,上界$TRAIN_MAX）"
 
-# ── 落法：独立工树 merge --no-ff→check_all→戳→部署树推 sha:master ──
+# ── 落法：独立工树 merge --no-ff 逐支串列→单树 check_all→一次推 ──
 WT=$(mktemp -d "${WTBASE}/o-land-XXXXXX")
 if ! git worktree add --detach "$WT/wt" origin/master >/dev/null 2>&1; then
-	fact "落地暂缓 支=$SB 尖=$STIP 因=独立工树建立败"
+	fact "落地暂缓 列车$TRAIN_N支 因=独立工树建立败"
 	exit 0
 fi
-SUBJ=$(git log -1 --format=%s "$STIP" 2>/dev/null | cut -c1-80) # tolerate: log 败=空串——subject 缺省不阻断合流
-TRAILERS=$(git log --format=%B origin/master.."$STIP" 2>/dev/null \
-	| grep -E '^(坑处置:|免疫件:)' | sort -u) # tolerate: grep 空集=支尖无trailer合法径
-MSG="merge: land-queue $SB——${SUBJ}
-落地件机械合（工单#22577/D-0048③）：三件齐——鲜戳+复审过 sha=$STIP+净合；
+
+# 逐支串列：列内任支合不净=剔出该支（落地败行+landq_merge_conflict
+# 升件径复用）其余支重列续走——一炸不全列死（工单O-32267 spec②）。
+# 迁移依赖合并时复核：base=实合 HEAD 演进（origin/master→逐支 merge
+# sha），前序支被剔则依赖落空支同剔不合缺依迁移。
+LANDED=""; CUR_BASE="origin/master"
+while read -r br tip; do
+	[ -n "$br" ] && [ -n "$tip" ] || continue
+	# 列车内迁移依赖复核（对实合面——provides 仅构造期乐观面，此处为准）
+	_tmb=$(git merge-base origin/master "$tip" 2>/dev/null) # tolerate: 败=空→跳过复核放行(支自带 check_all⑨保底)
+	_tadded=""
+	[ -n "$_tmb" ] && _tadded=$(git diff --name-only --diff-filter=A "$_tmb" "$tip" -- 'migrations/*.sql' 2>/dev/null)
+	if [ -n "$_tadded" ]; then
+		_tlib=$(mktemp /tmp/migdep-lib-XXXXXX 2>/dev/null) || _tlib="" # tolerate: mktemp 败=_tlib空→复核跳过放行
+		if [ -n "$_tlib" ] && git show "$tip:scripts/mig_dep_lib.sh" > "$_tlib" 2>/dev/null; then
+			_tmiss=$(cd "$WT/wt" && . "$_tlib" && printf '%s\n' "$_tadded" | mig_dep_gate_check "$tip" "$CUR_BASE" 2>/dev/null); _trc=$?
+			rm -f "$_tlib"
+			[ "$_trc" -ne 0 ] && [ -n "$_tmiss" ] && {
+				fact "落地暂缓 支=$br 尖=$tip 因=列车内迁移依赖落空(前序支被剔/未合):$_tmiss——下拍重扫"
+				say "跳 $br——列车内依赖落空"
+				continue
+			}
+		else
+			[ -n "$_tlib" ] && rm -f "$_tlib"
+		fi
+	fi
+	git merge-base --is-ancestor "$tip" origin/master 2>/dev/null \
+		&& { fact "落地暂缓 支=$br 尖=$tip 因=尖已被他径并入master——候选态竞动,下拍重扫"; continue; }
+	SUBJ=$(git log -1 --format=%s "$tip" 2>/dev/null | cut -c1-80) # tolerate: log 败=空串——subject 缺省不阻断合流
+	TRAILERS=$(git log --format=%B "$CUR_BASE..$tip" 2>/dev/null \
+		| grep -E '^(坑处置:|免疫件:)' | sort -u) # tolerate: grep 空集=支尖无trailer合法径
+	MSG="merge: land-queue $br——${SUBJ}
+落地件机械合（工单#22577/D-0048③+O-32267列车）：三件齐——鲜戳+复审过 sha=$tip+净合；列车第$(( $(printf '%s' "$LANDED" | grep -c .) + 1 ))支；
 deploy_watch 照旧 ff+部署。"
-if [ -n "$TRAILERS" ]; then
-	MSG="$MSG
+	if [ -n "$TRAILERS" ]; then
+		MSG="$MSG
 
 承袭支尖：
 $TRAILERS"
-fi
-MSG="$MSG
+	fi
+	MSG="$MSG
 
 坑处置:合流机械步——判词承支尖commit体，无新坑"
+	if ! (cd "$WT/wt" && git merge --no-ff -m "$MSG" "$tip" >/dev/null 2>&1); then
+		(cd "$WT/wt" && git merge --abort >/dev/null 2>&1) || true # tolerate: abort 败=本不在merge态——rc1兜底
+		fact "落地败 支=$br 尖=$tip 因=工树merge冲突(预检后竞动/列内互冲)——同尖冷却24h"
+		esc "landq_conflict_${br//\//_}" "部署/landq_merge_conflict: 支=$br 尖=$tip 工树merge冲突(列车内)——须人工裁决,支入24h冷却"
+		continue
+	fi
+	MSHA=$(git -C "$WT/wt" rev-parse HEAD 2>/dev/null) # tolerate: rev-parse 败=空串落下行戳验拒
+	[ -n "$MSHA" ] || { fact "落地败 支=$br 尖=$tip 因=merge后HEAD不可解"; continue; }
+	[ "$(git -C "$WT/wt" rev-parse 'HEAD^2' 2>/dev/null)" = "$tip" ] \
+		|| { fact "落地暂缓 支=$br 尖=$tip 因=merge未成真合(Already-up-to-date竞动)——下拍重扫"; continue; }
+	LANDED="$LANDED$br $tip $MSHA
+"
+	CUR_BASE="$MSHA"
+	say "列车合 $br → $MSHA"
+done <<< "$TRAIN"
 
-git merge-base --is-ancestor "$STIP" origin/master 2>/dev/null \
-	&& { fact "落地暂缓 支=$SB 尖=$STIP 因=尖已被他径并入master——候选态竞动,下拍重扫"; exit 0; }
-if ! (cd "$WT/wt" && git merge --no-ff -m "$MSG" "$STIP" >/dev/null 2>&1); then
-	(cd "$WT/wt" && git merge --abort >/dev/null 2>&1) || true # tolerate: abort 败=本不在merge态——rc1兜底
-	fact "落地败 支=$SB 尖=$STIP 因=工树merge冲突(预检后竞动)——同尖冷却24h"
-	esc "landq_conflict_${SB//\//_}" "部署/landq_merge_conflict: 支=$SB 尖=$STIP 工树merge冲突(预检后竞动)——须人工裁决,支入24h冷却"
-	exit 0
-fi
-MSHA=$(git -C "$WT/wt" rev-parse HEAD 2>/dev/null) # tolerate: rev-parse 败=空串落下行戳验拒
-[ -n "$MSHA" ] || { fact "落地败 支=$SB 尖=$STIP 因=merge后HEAD不可解"; exit 0; }
-[ "$(git -C "$WT/wt" rev-parse 'HEAD^2' 2>/dev/null)" = "$STIP" ] \
-	|| { fact "落地暂缓 支=$SB 尖=$STIP 因=merge未成真合(Already-up-to-date竞动)——下拍重扫"; exit 0; }
+LN=$(printf '%s' "$LANDED" | grep -c . || true) # tolerate: grep空集rc1——零落=0合法
+[ "$LN" -gt 0 ] || { say "列车全剔——本拍无落"; exit 0; }
+FINAL=$(git -C "$WT/wt" rev-parse HEAD 2>/dev/null) # tolerate: 败=空串落下行戳验拒
+[ -n "$FINAL" ] || { fact "落地败 列车$LN支 因=串列后HEAD不可解"; exit 0; }
 
+# ── 单树一次验：快径=合并树≡末支尖树（末支已含全列内容=已戳件戳随树
+#    迁，工单#deploy-pipe-tax①同判逐支适用——树同判据不变）；否则合并
+#    点 check_all 一次（列车全列共享一次 CI——spec①省 N-1 次串行验）──
 GD=$(git -C "$WT/wt" rev-parse --path-format=absolute --git-common-dir 2>/dev/null) # tolerate: 败=空串落下行戳验拒
-MTREE=$(git -C "$WT/wt" rev-parse 'HEAD^{tree}' 2>/dev/null) # tolerate: 败=空串→不走快径退全验
-TTREE=$(git rev-parse "$STIP^{tree}" 2>/dev/null)           # tolerate: 同上
+MTREE=$(git -C "$WT/wt" rev-parse 'HEAD^{tree}' 2>/dev/null)               # tolerate: 败=空串→不走快径退全验
+LAST_TIP=$(printf '%s' "$LANDED" | tail -1 | awk '{print $2}')
+TTREE=$(git rev-parse "$LAST_TIP^{tree}" 2>/dev/null)                      # tolerate: 同上
 if [ -n "$MTREE" ] && [ -n "$TTREE" ] && [ "$MTREE" = "$TTREE" ] \
-	&& [ -n "$GD" ] && [ -f "$GD/check-green-$STIP" ]; then
-	# 工单#deploy-pipe-tax①合并树≡支尖树快径：树同=内容同=合并点重验=
-	# 复验同一份已戳内容（戳义=「本内容过全谱」随树迁非随sha——
-	# master未动常态≈15min/件白烧实证）。戳名迁供 pre-push 出处闸，
-	# 合并点check_all/bootstrap全跳。
-	if cp "$GD/check-green-$STIP" "$GD/check-green-$MSHA" 2>/dev/null; then
-		fact "落成快径 支=$SB 尖=$STIP merge=$MSHA——合并树≡支尖树跳合并点重验(内容=已戳件,戳随树迁)"
+	&& [ -n "$GD" ] && [ -f "$GD/check-green-$LAST_TIP" ]; then
+	if cp "$GD/check-green-$LAST_TIP" "$GD/check-green-$FINAL" 2>/dev/null; then
+		fact "落成快径 列车$LN支 尖末=$LAST_TIP merge=$FINAL——合并树≡末支尖树跳合并点重验(内容=已戳件,戳随树迁)"
 	else
-		fact "落地暂缓 支=$SB 尖=$STIP 因=快径戳迁写败——下拍全验径"
+		fact "落地暂缓 列车$LN支 因=快径戳迁写败——下拍全验径"
 		exit 0
 	fi
 else
 	if ! (cd "$WT/wt" && bash -c "$BOOTSTRAP" >/dev/null 2>&1); then
-		fact "落地败 支=$SB 尖=$STIP 因=工树bootstrap败(gen面缺)"
+		fact "落地败 列车$LN支 因=工树bootstrap败(gen面缺)"
 		exit 0
 	fi
 	COUT=$(cd "$WT/wt" && bash -c "$CHECK_ALL" 2>&1) # tolerate: check_all 败=rc非零落下行判据——输出截尾入账
 	CRC=$?
 	if [ "$CRC" -ne 0 ]; then
-		fact "落地败 支=$SB 尖=$STIP 因=合并点check_all红 尾=$(printf '%s' "$COUT" | tail -3 | tr '\n' ' ' | cut -c1-160)"
-		esc "landq_merge_red_${SB//\//_}" "部署/landq_merge_red: 支=$SB 尖=$STIP 合并点check_all红 尾=$(printf '%s' "$COUT" | tail -2 | tr '\n' ' ' | cut -c1-120)——须人工定性修支或撤票"
+		TMEM=$(printf '%s' "$LANDED" | awk '{printf "%s@%s ",$1,substr($2,1,9)}')
+		TSCOPE="landq_merge_red_train_$(printf '%s' "$LANDED" | md5sum | cut -c1-8)" # tolerate: md5sum 败=空→scope 退化 landq_merge_red_train_（仍分桶）
+		fact "落地败 列车$LN支 成员=$TMEM 因=合并点check_all红 尾=$(printf '%s' "$COUT" | tail -3 | tr '\n' ' ' | cut -c1-160)"
+		esc "$TSCOPE" "部署/landq_merge_red: 列车$LN支($TMEM)合并点check_all红 尾=$(printf '%s' "$COUT" | tail -2 | tr '\n' ' ' | cut -c1-120)——列组合红须人工定性(拆列/修支/撤票)"
 		exit 0
 	fi
-	[ -n "$GD" ] && [ -f "$GD/check-green-$MSHA" ] \
-		|| { fact "落地败 支=$SB 尖=$STIP 因=check_all绿而合并点戳缺(自相矛盾)"; exit 0; }
+	[ -n "$GD" ] && [ -f "$GD/check-green-$FINAL" ] \
+		|| { fact "落地败 列车$LN支 因=check_all绿而合并点戳缺(自相矛盾)"; exit 0; }
 fi
 
 # 推前对拍：check_all 窗内 origin/master 若已移，sha:master 非ff必拒——
-# 先验祖先关系，移了落暂缓行下拍重合（不烧推送重试）。
+# 先验祖先关系，移了落暂缓行下拍重列（不烧推送重试）。
 git fetch origin master -q 2>/dev/null || true # tolerate: fetch 败=沿用旧ref推——pre-push远端自拒兜底
-if ! git merge-base --is-ancestor origin/master "$MSHA" 2>/dev/null; then
-	fact "落地暂缓 支=$SB 尖=$STIP 因=check_all窗内master已移——下拍重合"
+if ! git merge-base --is-ancestor origin/master "$FINAL" 2>/dev/null; then
+	fact "落地暂缓 列车$LN支 因=check_all窗内master已移——下拍重列"
 	exit 0
 fi
-if (cd "$REPO" && bash -c "$PUSH_CMD origin $MSHA:master" >/dev/null 2>&1); then
-	fact "落成 支=$SB 尖=$STIP merge=$MSHA——deploy_watch接力ff+部署"
-	say "落成 $SB → master $MSHA"
-	# 工单#24624：机械合支自动销簿记——支体commits提「工单#N」销案
-	# 行随落地写（现径=外席巡检滞后销缺口实证）。闸:仅机械合支
-	# +号面≤5防爆销(超出面落备忘不销——人工复核域非机械域)。
-	TNS=$(cd "$WT/wt" && git log --format='%B' "origin/master..$STIP" 2>/dev/null \
-		| grep -oE '工单#[0-9]+' | sort -u | head -8)
-	TNN=$(printf '%s\n' "$TNS" | grep -c '工单#' || true) # tolerate: grep空集rc1——计数器非闸
-	if [ "$TNN" -le 5 ]; then
-		for tn in $TNS; do
-			tid="${tn#工单#}"
-			cn="工单#$tid 销——机械合支 $SB 落成 $MSHA 自动销簿记（工单#24624件——支体commit载号随合即销,外席巡检滞后径退役）"
-			"$PSQL" "$DSN" -qAt -c "INSERT INTO ops_event(seat,event,ticket,note)
-				VALUES('处置席','处置','$tid','$(sqlq "$cn")')" >/dev/null 2>&1 \
-				|| say "自动销行写败 tid=$tid（不阻断）" # tolerate: 销行写败=巡检旧径兜
-		done
-		[ "$TNN" -gt 0 ] && fact "自动销簿记 支=$SB 票=$TNS——$TNN 号随合销"
-	else
-		fact "自动销暂缓 支=$SB——commit工单号面=$TNN>5超机械域,人工复核"
-	fi
+ORIG_M=$(git rev-parse origin/master 2>/dev/null) # tolerate: 败=空→自动销区间退化跳过(销行写径另有巡检兜)
+if (cd "$REPO" && bash -c "$PUSH_CMD origin $FINAL:master" >/dev/null 2>&1); then
+	say "列车落成 $LN 支 → master $FINAL"
+	# 每支落成行照旧（支名+尖+merge sha 审计粒度不丢，spec③）
+	while read -r br tip msha; do
+		[ -n "$br" ] && fact "落成 支=$br 尖=$tip merge=$msha——deploy_watch接力ff+部署(列车$LN支)"
+	done <<< "$LANDED"
+	# 工单#24624：机械合支自动销簿记——列车径同判逐支销。
+	# commit 区间基=列车前 origin/master（ORIG_M——推后 origin/master
+	# 已含支尖，现行单支径同式区间实为空集=销簿记静默死径，列车径
+	# 按列前基线取=语义归位非新行为）。闸:仅机械合支+号面≤5防爆销。
+	# ORIG_M 空=区间退化不可判→整段跳过（巡检旧径兜）。
+	SEEN_TID=" "
+	while [ -n "$ORIG_M" ] && read -r br tip msha; do
+		[ -n "$br" ] || continue
+		TNS=$(git -C "$REPO" log --format='%B' "$ORIG_M..$tip" 2>/dev/null \
+			| grep -oE '工单#[0-9]+' | sort -u | head -8) # tolerate: log 败=空集合法径
+		TNN=$(printf '%s\n' "$TNS" | grep -c '工单#' || true) # tolerate: grep空集rc1——计数器非闸
+		if [ "$TNN" -le 5 ]; then
+			for tn in $TNS; do
+				tid="${tn#工单#}"
+				case "$SEEN_TID" in *" $tid "*) continue;; esac # tolerate: case 空集不匹配=放行首见
+				SEEN_TID="$SEEN_TID$tid "
+				cn="工单#$tid 销——机械合支 $br 落成 $msha 自动销簿记（工单#24624件+O-32267列车径同判——支体commit载号随合即销）"
+				"$PSQL" "$DSN" -qAt -c "INSERT INTO ops_event(seat,event,ticket,note)
+					VALUES('处置席','处置','$tid','$(sqlq "$cn")')" >/dev/null 2>&1 \
+					|| say "自动销行写败 tid=$tid（不阻断）" # tolerate: 销行写败=巡检旧径兜
+			done
+			[ "$TNN" -gt 0 ] && fact "自动销簿记 支=$br 票=$TNS——$TNN 号随合销(列车)"
+		else
+			fact "自动销暂缓 支=$br——commit工单号面=$TNN>5超机械域,人工复核"
+		fi
+	done <<< "$LANDED"
 else
-	fact "落地暂缓 支=$SB 尖=$STIP 因=sha:master推败(远端先行/闸拒)——下拍重试"
+	fact "落地暂缓 列车$LN支 因=sha:master推败(远端先行/闸拒)——下拍重列"
 fi
 exit 0
