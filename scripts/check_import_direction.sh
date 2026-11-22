@@ -142,6 +142,13 @@ internal/research/gridfit -> internal/platform/notify
 internal/research/gridfit -> internal/platform/rejects
 internal/research/gridfit -> internal/platform/roster
 internal/research/gridfit -> internal/research/armwatch
+internal/research/trendmech -> internal/platform/config
+internal/research/trendmech -> internal/platform/notify
+internal/research/trendmech -> internal/platform/rejects
+internal/research/trendmech -> internal/platform/roster
+internal/research/trendmech -> internal/platform/writefail
+internal/research/trendmech -> internal/research/armwatch
+internal/research/trendmech -> internal/research/evalgate
 internal/research/regime -> internal/platform/config
 internal/research/regime -> internal/platform/notify
 internal/research/regime -> internal/platform/rejects
