@@ -237,6 +237,7 @@ var migrationTable = []struct {
 	{228, "fin_0228_ops_esc.sql"},                 // 工单O-30514 升件写径归一函件——escalate.sh 语义库内复刻（24h前缀去重/返id）
 	{229, "fin_0229_finro_domain_view_grant.sql"}, // 工单O-28958——fin_0228 在途占（fix/esc-writepath-unify 支）——跳号钉 0229；fin_0226 漏授视图本体补齐
 	{230, "fin_0230_esc_pending_cluster.sql"},     // 工单O-27914——fin_0228/0229 在途占双支——跳号钉 0230；ops_esc_pending 同根簇折叠
+	{231, "fin_0231_ops_work_notify.sql"},         // 工单O-32300——ops_event 关键行→ev_work NOTIFY 唤醒脊（工单/升件/候审链，timer 兜底不撤）
 
 	// —— md 链（版本链内唯一且单调；md 链版本=历史号+1000 与 fin 键空间全局不相交——跨链并 schema 时 schema_migrations 零撞号，check_migrations 断言①⑤）——
 	{1003, "md_1003_market_facts.sql"},

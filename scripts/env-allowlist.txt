@@ -60,3 +60,13 @@ O_TICKETDRAFT_WIP_MAX
 # O_INBOX_DIR=业主投件道落点(inbox.go——缺省 /opt/o-inbox;测试注入临时
 # 目录同 O_TEST_* 类基建参数,不载密不进 PG)。
 O_INBOX_DIR
+# O-32300 wakebus 桩测/运行面参数（不载密——DSN 仍走 env 文件/FIN_PG_DSN
+# 既有径；ROWS_FILE=桩测行集注入、KICK_CMD=踹件桩、ONCE/WM/BATCH_SEC/
+# LAG_SEC=单批次与窗参、REPORT_ENV_FILE=env 件路径同 dispatch 族既有键）。
+REPORT_ENV_FILE
+WAKEBUS_ROWS_FILE
+WAKEBUS_KICK_CMD
+WAKEBUS_ONCE
+WAKEBUS_WM
+WAKEBUS_BATCH_SEC
+WAKEBUS_LAG_SEC

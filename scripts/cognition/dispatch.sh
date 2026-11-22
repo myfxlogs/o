@@ -66,11 +66,16 @@ VAL_HI=${COG_VAL_HI:-80}
 RULE_N=$(psql "$DSN" -qAt -c "
 SELECT count(*) FROM ops_ticket_desk WHERE rulable" 2>/dev/null)
 RULE_N=${RULE_N:-0}
-AWAIT_N=$(psql "$DSN" -qAt -c "
-WITH last AS (SELECT DISTINCT ON (rel) rel, act FROM ops_event_act
+# AWAIT 双计（工单O-32300②：fresh 窗内完工待验收票=直唤因子——
+# AWAIT_N 总量供量表/干跑面，AWAIT_FRESH=近 COG_AWAIT_FRESH_H(默认2h)
+# 内 receipt 末态票数供触发判据；陈账不独唤归 sweep/他唤同见）。
+AWAIT_FRESH_H=${COG_AWAIT_FRESH_H:-2}
+read -r AWAIT_N AWAIT_FRESH < <(psql "$DSN" -qAt -c "
+WITH last AS (SELECT DISTINCT ON (rel) rel, act, ts FROM ops_event_act
   WHERE act IS NOT NULL ORDER BY rel, ts DESC)
-SELECT count(*) FROM last WHERE act='receipt'" 2>/dev/null)
-AWAIT_N=${AWAIT_N:-0}
+SELECT count(*), count(*) FILTER (WHERE ts>now()-interval '$AWAIT_FRESH_H hours')
+FROM last WHERE act='receipt'" 2>/dev/null | tr '|' ' ')
+AWAIT_N=${AWAIT_N:-0}; AWAIT_FRESH=${AWAIT_FRESH:-0}
 # workable 工单数仍读（量表/干跑面用，不唤）。
 TICKET_N=$(psql "$DSN" -qAt -c "
 SELECT count(*) FROM ops_ticket_desk WHERE workable OR rulable" 2>/dev/null)
@@ -246,8 +251,18 @@ TRIGGER=""
 [ "$MAXV" -ge "$VAL_HI" ] && TRIGGER="valence:$MAXV"
 [ -z "$TRIGGER" ] && [ "$N" -ge "$BURST_N" ] && TRIGGER="burst:$N"
 [ -z "$TRIGGER" ] && [ "$CRIT_N" -gt 0 ] && TRIGGER="crit:$CRIT_N"
+# 工单O-32300③：非 crit 升件按 valence 阈直唤——valmid 档取
+# COG_VAL_MID(默认60)>噪底谱（14d 实测：票滞留/审计/观测盲/孤儿账
+# 45-55/default50），低权重慢性类仍 6h 兜底（D批①降噪意图保留）；
+# MIN_AGE=600s 处置窗同阈面原义——鲜升件给在飞会话/人工处置留窗。
+VAL_MID=${COG_VAL_MID:-60}
+[ -z "$TRIGGER" ] && [ "$MAXV" -ge "$VAL_MID" ] && [ "$MAXV" -lt "$VAL_HI" ] \
+	&& [ $(( NOW - OLDEST )) -gt "$MIN_AGE" ] && TRIGGER="valmid:$MAXV"
 [ "$RULE_N" -gt 0 ] && TRIGGER="${TRIGGER:+$TRIGGER }rule:$RULE_N"
-# 工单#22578②:accept/ticket 类不再单独唤醒——完工待验票归兜底拍∨他唤同见
+# 工单O-32300②：完工待验收票 fresh 窗内直唤（#22578② 原降级为兜底/搭车
+# ——O-32300 普查证出必填项：wakebus 踹+timer 双径都需判据面认账，
+# 否则踹=trigger=none 空转；fresh 界防滞留票每拍空唤回潮）。
+[ "$AWAIT_FRESH" -gt 0 ] && TRIGGER="${TRIGGER:+$TRIGGER }await:$AWAIT_FRESH"
 [ -z "$TRIGGER" ] && [ $(( NOW - LAST_WOKE )) -gt 21600 ] && TRIGGER="sweep:6h"
 # ── 审批带宽保底（工单O-30294——proposed→裁定=决策席人工件,救火信号
 # 可无限挤占审批带宽:evalfloor.sh 出 evalage_h/eidle/evalfloor 议程

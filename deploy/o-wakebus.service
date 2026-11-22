@@ -1,0 +1,20 @@
+# o-wakebus.service —— 工作面事件唤醒总线（工单O-32300：ops_event 关键行
+# 落库→fin_0231 ev_work NOTIFY→攒批窗→按行路由踹对应 dispatch/landq 单元；
+# 派发器幂等自闸=安全层，15min timer 降级为漏唤看门狗双保险——加法接入
+# 不撤任何既有 timer/单飞闸/advisory 锁）。
+# go run 径：随 /opt/o merge 自取新码（o-mech 同例免装二进制）。
+[Unit]
+Description=o-wakebus 工作面事件唤醒总线（ev_work→dispatch 路由踹）
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/o
+Environment=PATH=/home/mluser/.local/bin:/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/usr/local/go/bin/go run ./tools/wakebus
+Restart=always
+RestartSec=5s
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target
