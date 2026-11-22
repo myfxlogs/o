@@ -30,7 +30,9 @@ func (c *Collector) handle(data []byte) {
 		return // subscribe ack/channel-conn-count/error 留痕非业务帧
 	}
 	instID := msg.Arg.InstID
-	if instID != "" && !isUSDTInst(instID) {
+	// O-32540：期权 instId 非 USDT 计价但系钦定采集域——IsUSDTInst 闸前
+	// 放行本形（optInstRe 尾三段钉，SWAP/期货/现货形零误中）。
+	if instID != "" && !isUSDTInst(instID) && !isOptInstID(instID) {
 		c.rej.Inc("non_usdt_instid")
 		return
 	}
@@ -38,14 +40,26 @@ func (c *Collector) handle(data []byte) {
 		var it rowItem
 		switch msg.Arg.Channel {
 		case "tickers":
-			it.tick = parseTickers(instID, obj(raw))
+			if isOptInstID(instID) { // O-32540：期权 ticker→md_opt_ticker
+				it.optTick = parseOptTickers(instID, obj(raw))
+			} else {
+				it.tick = parseTickers(instID, obj(raw))
+			}
+		case "opt-summary": // O-32540：instFamily 键增量推——instId 在行内
+			it.optSum = parseOptSummary(obj(raw))
 		case "funding-rate":
 			it.funding = parseFunding(instID, obj(raw))
 		case "mark-price", "index-tickers":
+			if isOptInstID(instID) {
+				continue // O-32540：期权 mark 走 opt-summary 族面——不入 md_mark_index 防域污染（本件不订此形，防御闸）
+			}
 			it.mark = parseMark(instID, msg.Arg.Channel, obj(raw))
 		case "candle1D": // 工单#13065 日K面——数组载荷活跃集尾流
 			it.kline = parseCandle(instID, "1D", raw)
 		case "books5": // T-0139：深度蒸馏——5s 节流（特征值非原始盘口）
+			if isOptInstID(instID) {
+				continue // O-32540：期权 books5 本件不订（ticker∨books5 取 ticker）——防御闸防 ctv 误查
+			}
 			c.ctvMu.Lock()
 			ctv := c.ctvCache[instID]
 			stale := !c.ctvReloading && time.Since(c.ctvAt) > 60*time.Second
@@ -81,7 +95,7 @@ func (c *Collector) handle(data []byte) {
 		default:
 			continue
 		}
-		if it.tick == nil && it.funding == nil && it.mark == nil && it.depth5 == nil && it.kline == nil {
+		if it.tick == nil && it.funding == nil && it.mark == nil && it.depth5 == nil && it.kline == nil && it.optSum == nil && it.optTick == nil {
 			if msg.Arg.Channel != "books5" { // books5 节流窗静默非解析败
 				c.rej.Inc("parse_fail")
 			}
@@ -114,6 +128,9 @@ func (c *Collector) handle(data []byte) {
 					continue
 				}
 			}
+			// O-32540：optSum/optTick 不入谓词闸——期权订阅集本身即有界
+			// 研究窗（近月±20%行权价），covered-call 先攒数据后开仓，
+			// 仓位门语义不适用（同 mark/depth5 旁路先例）。
 		}
 		select {
 		case c.queue <- it:

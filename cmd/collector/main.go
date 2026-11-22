@@ -71,7 +71,8 @@ func main() {
 	c.FullSub = true               // 桥面=全量订阅（不受 SG 瘦身口径）
 	c.AlertKind = "bridge_stale"   // 面死告警 kind 覆写（T-0137 设计钉）
 	c.ExpandSymbols = uni.Symbols
-	c.AttachCTV(ctvFeed(cli)) // T-0139 depth5 USD 额换算（instruments SWAP ctVal 实读）
+	c.AttachCTV(ctvFeed(cli))                             // T-0139 depth5 USD 额换算（instruments SWAP ctVal 实读）
+	c.AttachOptChain(okxws.NewOptChain(cli.PublicGet, 0)) // O-32540 期权链采集面（covered-call 数据前置——加法件）
 	errc := make(chan error, 4)
 	go c.Run(ctx, errc)
 	// T-0401 粗扫层：REST tickers 60s 全谱→md_tick_scan（两级采集制①——

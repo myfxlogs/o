@@ -88,6 +88,12 @@ fin_venue_candidate	bridge
 md_venue_funding	md
 md_ctx_fact	md
 md_repair_log	md
+# md_opt_* 期权链四表（O-32540——collector 直写 PG-md 研究窗数据，
+# fin 链零触；covered-call #32274 读面=md 侧直读，桥镜像非本件范围）
+md_opt_instruments	md
+md_opt_summary	md
+md_opt_ticker	md
+md_opt_snapshot	md
 md_klines	bridge-reverse
 md_regime_fact	bridge
 md_regime_memo	bridge
