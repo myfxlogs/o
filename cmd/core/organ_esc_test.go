@@ -41,6 +41,7 @@ func resetSelfMeter() {
 	selfEscMeter.mu.Lock()
 	selfEscMeter.counts = map[string]int{}
 	selfEscMeter.mu.Unlock()
+	learnGapCountEdge.Store(false) // learn_gap 计数带死沿同隔离(O-32295)
 }
 
 func TestOrganOrphanPinNoTicket(t *testing.T) {
