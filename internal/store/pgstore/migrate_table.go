@@ -244,4 +244,5 @@ var finMigrationTable = []migEntry{
 	{229, "fin_0229_finro_domain_view_grant.sql"}, // 工单O-28958——fin_0228 在途占（fix/esc-writepath-unify 支）——跳号钉 0229；fin_0226 漏授视图本体补齐
 	{230, "fin_0230_esc_pending_cluster.sql"},     // 工单O-27914——fin_0228/0229 在途占双支——跳号钉 0230；ops_esc_pending 同根簇折叠
 	{231, "fin_0231_ops_work_notify.sql"},         // 工单O-32300——ops_event 关键行→ev_work NOTIFY 唤醒脊（工单/升件/候审链，timer 兜底不撤）
+	{232, "fin_0232_md_market_read_grant.sql"},    // 工单O-32603——fin_0231 在途占（fix/work-wake-bus 支）——跳号钉 0232；roster_rw 补 md_klines/md_funding 读权（体制读数输入面）
 }

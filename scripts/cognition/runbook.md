@@ -198,6 +198,18 @@ FIN_PG_RO_DSN）逐件裁：采纳→假想卡/提案径、否决→处置行销
 （唤起行 note trigger= 串可查：`SELECT note FROM ops_event WHERE
 seat='唤知机' AND event='唤起' AND note LIKE '%<COG_UNIT>%'`）。
 
+**宏观体制读数（regime——工单O-32603 器官件，配料层特征行非信号）**：
+本拍唤起 trigger 携 `regime:due`=体制读数到期——dispatch 拍前细胞
+regimedigest.sh 机械判（末读数龄>12h ∨ md_funding/md_klines 指纹变
+∧龄>2h）落 `量表/regime_due` 标件；**本拍必办**：cat
+`scripts/cognition/regime_prompt.md`——输入 SQL/闭集标签/产出契约
+全在模板，照模板产一行 `量表/regime_digest`（seat='唤知机'，
+note=`regime=<liq_*+risk_*> conf=<low|mid|high> horizon=<24h|7d>
+evid=fp:<8位>;<实读锚>`）；同标签同置信 24h 内已落行=不重复落
+（模板内 NOT EXISTS 判据自带，返回空=正常收工）。读数不接任何
+执行/闸——产出=可后验打分的特征行，horizon 满后 regimedigest.sh
+对拍段机械落 `量表/regime_score` 命中账，你不写 score 行。
+
 ### ①½ 生成面（信号面净时——「探未知」常驻径）
 
 未决升件=0 且近 7d 无 seat='研究员' event='能力面扫描' 行→本拍做
