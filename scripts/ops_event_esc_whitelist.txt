@@ -1,0 +1,14 @@
+# 升件写径白名单（工单O-30514）——esc 写径归一 ops_esc()（fin_0228）
+# 后，仅册内 .sh 件许存直写升件行；escalate.sh/deploy_watch.sh 已归一
+# 不入册=直写回归即红（形散神不散根修①的锁回归面）。
+# 存量未归一写径（根修②候选——后续工单逐件收编，本册只减不增原则
+# 例外=新写径必须先论证不能走函件再入册并注明事由）：
+scripts/arch_daily.sh
+scripts/backup_push_sg.sh
+scripts/cognition/mine.sh
+scripts/land_queue.sh
+# 桩件入册（违例样例/函件语义重建行=被测对象数据非写径——
+# check_ops_event_writepath_test 夹具违例件、deploy_watch_test 桩
+# 按 -v 重建函件落行供消费面断言）：
+scripts/check_ops_event_writepath_test.sh
+scripts/deploy_watch_test.sh

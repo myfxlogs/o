@@ -234,6 +234,7 @@ var migrationTable = []struct {
 	{225, "fin_0225_simdrill_domain_gate.sql"}, // 法证劈③——venue=sim 演习域写径闸(非演习仓物理拒)
 	{226, "fin_0226_finro_audit_read.sql"},     // 法证劈④⑤——o_fin_ro钱账读权+fin_cashflow_domain域视图
 	{227, "fin_0227_bot_order_notify.sql"},     // 经营推送补盲——fin_bot_order 拉起/停翻帧→ev_position（手动bot#1零报实证劈）
+	{228, "fin_0228_ops_esc.sql"},              // 工单O-30514 升件写径归一函件——escalate.sh 语义库内复刻（24h前缀去重/返id）
 
 	// —— md 链（版本链内唯一且单调；md 链版本=历史号+1000 与 fin 键空间全局不相交——跨链并 schema 时 schema_migrations 零撞号，check_migrations 断言①⑤）——
 	{1003, "md_1003_market_facts.sql"},

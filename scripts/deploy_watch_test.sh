@@ -29,8 +29,17 @@ cat > "$T/bin/psql" <<'EOF'
 # scope 的 escalate 径 INSERT;败件 rc1 不落 PSQL_OK=「行未落账」。
 # 升件 dedup/pending 改有态——按 PSQL_OK 已落行应答（esc 兜底/自审案要
 # 「写成败有后果」桩——静态 echo 0 验不出径差）。
-sql=""; prev=""; qat=0
-for a in "$@"; do [ "$a" = "-qAt" ] && qat=1; [ "$prev" = "-c" ] && sql="$a"; prev="$a"; done
+sql=""; prev=""; qat=0; scp_v=""; pre_v=""; det_v=""
+for a in "$@"; do
+  [ "$a" = "-qAt" ] && qat=1
+  [ "$prev" = "-c" ] && sql="$a"
+  if [ "$prev" = "-v" ]; then
+    case "$a" in
+      scp=*) scp_v=${a#scp=};; prefix=*) pre_v=${a#prefix=};; detail=*) det_v=${a#detail=};;
+    esac
+  fi
+  prev="$a"
+done
 pok="${PSQL_OK:-/dev/null}"
 printf '%s\n' "$sql" >> "${PSQL_LOG:-/dev/null}"
 case "$sql" in
@@ -49,12 +58,30 @@ case "$sql" in
     exit 0;;
   *deploy.ocore_window_utc*)  printf '%s\n' "${T_WIN:-19:00-21:00}";;
   *deploy.ocore_window_max_hold_h*) printf '%s\n' "${T_MAXH:-26}";;
+  *hb_anchor_min*) printf '%s\n' "${T_HB_ANCHOR_MIN:-}";;
   *o-core-clean:*) printf '%s\n' "${T_CLEANWM:-}";;
   *deploy-oci*) : ;;
   *ocore-window\ 入窗*) printf '%s\n' "${T_QUEUED:-0}";;
   *deploy-gate*) printf '%s\n' "${T_DIRTYN:-0}";;
   *regexp_match*o-core:*) printf '%s\n' "${T_DEPLOYED:-}";;
   *SELECT\ id*o-core:*) : ;;
+  *ops_esc*)
+    # 升件函件径（工单#30514）：deploy_watch esc() 主径用分立旗
+    # -q -A -t（无整词 -qAt→qat=0）；兜底 escalate.sh 薄壳 -qAt
+    # （qat=1）。T_ESC_PRI_FAIL 咬主径写败；T_ESC_FB_FAIL_SCOPE 咬
+    # 兜底径指定 scope。桩按 -v 重建函件语义行（note=prefix——detail）
+    # 落 PSQL_OK——esc_pending/销件消费面不变；函件内部 24h 前缀去重
+    # 归真库 PG 不在桩面。
+    if [ "${T_ESC_PRI_FAIL:-0}" = 1 ] && [ "$qat" = 0 ]; then exit 1; fi
+    if [ -n "${T_ESC_FB_FAIL_SCOPE:-}" ] && [ "$qat" = 1 ] \
+      && [ "$scp_v" = "$T_ESC_FB_FAIL_SCOPE" ]; then exit 1; fi
+    # -v 值不进 SQL 文本——桩补记 scp/pre/det 到 PSQL_LOG 供断言面
+    # （scope/note 内容可见性等价旧直写 INSERT 字面量面）。
+    printf 'OPS_ESC scp=%s pre=%s det=%s\n' "$scp_v" "$pre_v" "$det_v" \
+      >> "${PSQL_LOG:-/dev/null}"
+    printf "INSERT INTO ops_event(seat,event,ticket,note,esc_class,esc_scope) VALUES('探测席','升件','','%s——%s','部署','%s')\n" \
+      "$pre_v" "$det_v" "$scp_v" >> "$pok"
+    echo 99001; exit 0;;
   *event=\'升件\'*note\ LIKE*)
     pre=$(printf '%s' "$sql" | sed -n "s/.*note LIKE '\([^']*\)%.*/\1/p")
     { [ -n "$pre" ] && grep 'VALUES' "$pok" 2>/dev/null | grep -qF "$pre"; } \
@@ -63,7 +90,7 @@ case "$sql" in
     scp=$(printf '%s' "$sql" | sed -n "s/.*esc_scope='\([^']*\)'.*/\1/p")
     { grep 'VALUES' "$pok" 2>/dev/null || true; } | grep -c ",'$scp')" || true;; # tolerate: pok 首拍未建/零 VALUES 行=正常空面,吞 grep rc1 取零计数
   *event=\'升件\'*) echo 0;;
-  *split_part*note*event='心跳'*) printf '%s|%s\n' "${T_HB_LAST_STATE:-}" "${T_HB_LAST_AGE:-999999}";;
+  *split_part*note*event=\'心跳\'*) printf '%s|%s\n' "${T_HB_LAST_STATE:-}" "${T_HB_LAST_AGE:-999999}";;
   *) : ;;
 esac
 exit 0
@@ -138,6 +165,7 @@ run_dw() { # $1=now epoch [$2=T_WIN] [$3=T_MAXH] [$4=T_CLEANWM] [$5=T_QUEUED] [$
 		T_ESC_PRI_FAIL="${T_ESC_PRI_FAIL:-0}" \
 		T_ESC_FB_FAIL_SCOPE="${T_ESC_FB_FAIL_SCOPE:-}" \
 		T_HB_LAST_STATE="${T_HB_LAST_STATE:-}" T_HB_LAST_AGE="${T_HB_LAST_AGE:-999999}" \
+		T_HB_ANCHOR_MIN="${T_HB_ANCHOR_MIN:-}" \
 		bash scripts/deploy_watch.sh >"$T/out" 2>&1 )
 }
 now_of() { date -u -d "$1" +%s; }
@@ -232,7 +260,11 @@ echo "== ⑪ CI红断引号面 =="
 new_repo; second_commit cmd/core/main.go "package main" "2026-11-20T03:00:00"
 run_dw "$(now_of '2026-11-20 19:30:00')" 00:00-23:59 26 "" 0 "completed failure"
 has 'deploy_ci_red' "$T/psql_ok.log" && ok "CI红断升件落账" || bad "CI红断升件缺/SQL破"
-has "conclusion=''failure''" "$T/psql.log" && ok "引号已转义" || bad "引号未转义"
+# O-30514 引号面升级：note/scope 走 psql -v 参数化——值不进 SQL 文本
+# （引号断径结构性绝根），桩记 det 原文 conclusion='failure' 单引号
+# 原样=内容保真实证（旧 QC() 双写 ''failure'' 断言随径退役）。
+has "conclusion='failure'" "$T/psql.log" && ok "引号内容经 -v 保真" || bad "引号内容失真"
+has 'ops_esc' "$T/psql.log" && ok "函件径在账" || bad "函件径缺"
 has 'CI红断' "$T/out" && ok "CI红断判词" || bad "CI红断判词缺"
 
 # ═══ ⑫ esc 主径写败→escalate.sh 第二径兜底+心跳载 esc写败（工单#30086）═══
@@ -255,6 +287,32 @@ T_ESC_PRI_FAIL=1 T_ESC_FB_FAIL_SCOPE=deploy_ci_red \
 has 'deploy_esc_missing' "$T/psql_ok.log" && ok "自审补火落账" || bad "自审补火缺"
 has '心跳 CI红断 esc缺' "$T/psql.log" && ok "心跳载 esc缺" || bad "心跳 esc缺缺"
 has 'esc写败' "$T/psql.log" && ok "心跳载 esc写败" || bad "esc写败缺"
+
+# ═══ ⑭ 心跳「态变+锚拍」降噪（工单#30514）：同态∧末行龄<锚距→
+# 跳写零增量（态恒同时复读行零信息）；末行态龄由 T_HB_LAST_STATE/
+# T_HB_LAST_AGE 桩注（psql 桩 split_part 心跳末行查询应答面）。═══
+echo "== ⑭ 心跳同态新鲜跳写 =="
+new_repo; second_commit docs/note.md "doc" "2026-11-20T03:00:00"
+T_HB_LAST_STATE="证空跳部署" T_HB_LAST_AGE=300 run_dw "$(now_of '2026-11-20 10:00:00')"
+has "VALUES('DEPLOY','心跳'" "$T/psql.log" && bad "同态新鲜竟写心跳" || ok "同态新鲜跳写零增量"
+has '同态跳写' "$T/out" && ok "跳写判词" || bad "跳写判词缺"
+
+echo "== ⑮ 心跳锚距到照写 =="
+new_repo; second_commit docs/note.md "doc" "2026-11-20T03:00:00"
+T_HB_LAST_STATE="证空跳部署" T_HB_LAST_AGE=999999 run_dw "$(now_of '2026-11-20 10:00:00')"
+has "VALUES('DEPLOY','心跳'" "$T/psql.log" && ok "锚距到心跳照写" || bad "锚距到竟跳写"
+has '心跳: 证空跳部署' "$T/out" && ok "锚拍判词" || bad "锚拍判词缺"
+
+echo "== ⑯ 心跳态变照写（末行龄新鲜亦写）==="
+new_repo; second_commit docs/note.md "doc" "2026-11-20T03:00:00"
+T_HB_LAST_STATE="让位盖戳" T_HB_LAST_AGE=10 run_dw "$(now_of '2026-11-20 10:00:00')"
+has "VALUES('DEPLOY','心跳'" "$T/psql.log" && ok "态变心跳照写" || bad "态变竟跳写"
+
+echo "== ⑰ 锚距可裁（app_config deploy.hb_anchor_min=1→龄5min照写）==="
+new_repo; second_commit docs/note.md "doc" "2026-11-20T03:00:00"
+T_HB_LAST_STATE="证空跳部署" T_HB_LAST_AGE=300 T_HB_ANCHOR_MIN=1 \
+	run_dw "$(now_of '2026-11-20 10:00:00')"
+has "VALUES('DEPLOY','心跳'" "$T/psql.log" && ok "锚裁剪生效照写" || bad "锚裁剪失效"
 
 echo "== 汇总: PASS=$PASS FAIL=$FAILN =="
 [ "$FAILN" -eq 0 ]
