@@ -274,15 +274,21 @@ func TestConnectEndToEndAndWatchLatency(t *testing.T) {
 		VALUES('fee','okx','USDT',-0.1,1,'fin_execution',now())`); err != nil {
 		t.Fatal(err)
 	}
-	ev, err := stream.Receive()
-	if err != nil {
-		t.Fatalf("流帧未达: %v", err)
+	// 外路帧同跳过（watch_hb_test 同形——共享测试库 pg_notify 库级广播，
+	// 并行包/漏臂续写皆发合法 ev_* 帧非静默破）；<1s 期界量到目标帧。
+	var ev *dashboardv1.WatchEvent
+	for {
+		ev, err = stream.Receive()
+		if err != nil {
+			t.Fatalf("流帧未达: %v", err)
+		}
+		if ev.Kind == "ev_cashflow" {
+			break
+		}
+		t.Logf("外路帧跳过: %s", ev.Kind)
 	}
 	if el := time.Since(t0); el > time.Second {
 		t.Fatalf("NOTIFY→帧达应 <1s（事件驱动律）: %v", el)
-	}
-	if k := ev.Kind; k != "ev_cashflow" {
-		t.Fatalf("帧通道应 ev_cashflow: %s", k)
 	}
 	// T-0220a 一跳推数桩锚：NOTIFY 帧即带载荷（ListHedgeFlowResponse 形——
 	// txs 数组在，前端收帧即渲染零重拉）。
