@@ -139,13 +139,112 @@ ow_in_window() {
 		[ "$now" -ge "$start" ] || [ "$now" -lt "$end" ]
 	fi
 }
+# ── 工单O-35463④ go run 常驻件哑尸根修 ──────────────────────────────
+# 病灶实证：o-wakebus.service 跑 11-22 编译旧码——ff 落地后未重启，
+# lag 窗内行漏读工单踹发丢死；deploy/*.service go run 共 4 户同病
+# （wakebus/mech/overwatch/feishu-bridge）。修法=ff 点挂重启钩：
+# 变更路径集→「路径前缀→单元名」映射零表化——扫 deploy/*.service
+# ExecStart 的 go run ./<pkg> 现场生成（service 文件即钦定面，新
+# go-run 件自动入面，不造第二份表）；依赖闭包=go list -deps 实算
+# （internal/* 变更同样令二进制陈——纯目录前缀漏依赖层=哑尸残留；
+# 算败退化=本包前缀=spec 字面面）。只踢活件（active/activating/
+# auto-restart/reloading）——oneshot/timer 件每拍 go run 恒新码天
+# 然免疫，重启=无谓空跑；Restart=always 兜底在案，重踹幂等无害。
+gorun_unit_map() { # →「unit|pkg」行集（deploy/*.service ExecStart go run 面）
+	local svc unit rest tok pkg
+	for svc in deploy/*.service; do
+		[ -f "$svc" ] || continue
+		unit=${svc##*/}; unit=${unit%.service}
+		# ExecStart 行内 go run 后首个非旗 token=包径（./ 前缀剥除；
+		# bash -c 包壳形同捕——'go run ./x'' 引号截停；只扫 ExecStart
+		# 行——注释/Environment 面的 go run 词不入映射）。
+		sed -n 's/^ExecStart=//p' "$svc" | grep -oE 'go run[^"'"'"'|;&]*' \
+			| while read -r rest; do
+			for tok in $rest; do
+				case "$tok" in go|run|-*) continue;; esac
+				pkg=${tok%%[\(\[]*}; pkg=${pkg#./}
+				case "$pkg" in */*) printf '%s|%s\n' "$unit" "$pkg"; break;; esac
+			done
+		done | sort -u
+	done
+}
+gorun_deps() { # $1=repo 相对包径 → repo 相对包目录集（go list -deps
+	# ImportPath 去 o/ 前缀；算败/空=本包兜底——前缀面仍在）
+	local pkg="$1"
+	go list -deps -f '{{.ImportPath}}' "./$pkg" 2>/dev/null \
+		| sed -n 's|^o/||p' | sort -u
+}
+gorun_ff_restart() { # $1=ff 前 sha $2=ff 后 sha ——变更集命中单元即踢
+	local prev="$1" new="$2" changed p unit pkg deps d state paths
+	[ -n "$prev" ] && [ -n "$new" ] && [ "$prev" != "$new" ] || return 0
+	changed=$(git diff --name-only "$prev" "$new" 2>/dev/null) || return 0
+	[ -n "$changed" ] || return 0
+	local map
+	map=$(gorun_unit_map)
+	[ -n "$map" ] || return 0
+	local -A ISGORUN=() SEEN=()
+	while IFS='|' read -r unit pkg; do ISGORUN[$unit]=1; done <<< "$map"
+	# 命中①：service 文件本身变更（限 go-run 户——非 go-run 单元
+	# 不入面，o-deploy-watch 自身变更不自踢）。
+	while IFS= read -r p; do
+		[ -n "$p" ] || continue
+		case "$p" in
+			deploy/*.service)
+				unit=${p##*/}; unit=${unit%.service}
+				[ -n "${ISGORUN[$unit]:-}" ] \
+					&& SEEN[$unit]="${SEEN[$unit]:+${SEEN[$unit]},}$p";;
+			go.mod|go.sum|go.work|go.work.sum)
+				while IFS='|' read -r unit pkg; do
+					SEEN[$unit]="${SEEN[$unit]:+${SEEN[$unit]},}$p"
+				done <<< "$map";;
+		esac
+	done <<< "$changed"
+	# 命中②：变更路径落 go-run 户依赖闭包目录前缀下（包目录树=本包
+	# +传递依赖；目录前缀制兼容 go:embed 子径件）。
+	while IFS='|' read -r unit pkg; do
+		deps=$(gorun_deps "$pkg"); [ -n "$deps" ] || deps="$pkg"
+		while IFS= read -r d; do
+			[ -n "$d" ] || continue
+			while IFS= read -r p; do
+				case "$p" in
+					"$d"/*) SEEN[$unit]="${SEEN[$unit]:+${SEEN[$unit]},}$p";;
+				esac
+			done <<< "$changed"
+		done <<< "$deps"
+	done <<< "$map"
+	[ "${#SEEN[@]}" -gt 0 ] || return 0
+	for unit in "${!SEEN[@]}"; do
+		paths=${SEEN[$unit]}
+		state=$(systemctl --user is-active "$unit.service" 2>/dev/null || true) # tolerate: 探针败=state空→*)支say「非活件跳过」自报径显形+fail-safe不踢（重启未知态=自伤向）,非静默吞
+		case "$state" in
+			active|activating|auto-restart|reloading) ;;
+			*) say "gorun ff 命中 $unit 但 state=${state:-?}——非活件跳过（oneshot/timer 每拍 go run 恒新码免疫）"
+				continue;;
+		esac
+		if systemctl --user restart "$unit.service" 2>/dev/null; then
+			if [ -n "$DSN" ]; then
+				psql "$DSN" -c "INSERT INTO ops_event(seat,event,ticket,note)
+					VALUES('DEPLOY','部署','','gorun-restart unit=$unit rc=0 paths=$(sqlq "$paths" | cut -c1-400) base=${prev:0:12} head=${new:0:12}')" >/dev/null 2>&1 \
+					|| say "gorun-restart 事实行写败（不阻断）"
+			fi
+			say "gorun ff 重启 $unit（paths=$paths）"
+		else
+			esc "deploy_gorun_restart" "部署/deploy_gorun_restart: ff 重启 $unit.service 败（paths=$paths base=${prev:0:12} head=${new:0:12}）——go run 常驻件续跑旧码=哑尸残留,归唤知会话查 unit/journal"
+			say "gorun ff 重启 $unit 败——升件已落"
+		fi
+	done
+	return 0
+}
 git fetch origin master -q 2>/dev/null
 LOCAL=$(git rev-parse master 2>/dev/null); REMOTE=$(git rev-parse origin/master 2>/dev/null)
 [ -n "$LOCAL" ] && [ -n "$REMOTE" ] || { HB_STATE=ref缺; say "ref 缺——退出"; exit 0; }
 BASE=$(git merge-base master origin/master)
 if [ "$LOCAL" != "$REMOTE" ]; then
 	if [ "$BASE" = "$LOCAL" ]; then
-		git merge --ff-only origin/master -q 2>/dev/null && say "ff 至 origin/master $(git rev-parse --short master)"
+		if git merge --ff-only origin/master -q 2>/dev/null; then
+			say "ff 至 origin/master $(git rev-parse --short master)"
+			gorun_ff_restart "$LOCAL" "$(git rev-parse master)"
+		fi
 		LOCAL=$(git rev-parse master)
 	elif [ "$BASE" = "$REMOTE" ]; then
 		# 尖未盖戳=合流在途（merge→check_all→converge 序内）——让位盖戳流

@@ -230,25 +230,26 @@ var finMigrationTable = []migEntry{
 	{215, "fin_0215_gridfit.sql"},     // 工单#25737——跳号钉 0215
 	{216, "fin_0216_regime_keys.sql"}, // 工单#25750：fin_0215 在途占（fix/gridfit 支）——跳号钉 0216
 	{217, "fin_0217_ocore_window.sql"},
-	{218, "fin_0218_position_state.sql"},          // 工单#25806 FSM 收口——state 物化+转移闸+对账孤儿
-	{219, "fin_0219_okxgrid.sql"},                 // 工单#25840——fin_0218 在途占（fix/fsm-converge 支）——跳号钉 0219
-	{220, "fin_0220_saga.sql"},                    // 工单#25807 saga 流程级补偿账（fin_0219 在途占 fix/okx-native-grid 支——跳号钉 0220）
-	{221, "fin_0221_okxgrid_launch_hold.sql"},     // 工单#26337 拉起歧态势抑重账——hold 行禁自动重试补单
-	{222, "fin_0222_unit_registry.sql"},           // 工单#26444 建制单元注册表 seed——ops.unit_registry canon
-	{223, "fin_0223_ops_event_immutable.sql"},     // 首性审计整改——append-only 升库层前置闸(UPDATE/DELETE/TRUNCATE 全角色禁)
-	{224, "fin_0224_closeout_shape_gate.sql"},     // 施工收口形闸——[施工收口:O-<票>] @ sha=<40>定稿形机械拒写
-	{225, "fin_0225_simdrill_domain_gate.sql"},    // 法证劈③——venue=sim 演习域写径闸(非演习仓物理拒)
-	{226, "fin_0226_finro_audit_read.sql"},        // 法证劈④⑤——o_fin_ro钱账读权+fin_cashflow_domain域视图
-	{227, "fin_0227_bot_order_notify.sql"},        // 经营推送补盲——fin_bot_order 拉起/停翻帧→ev_position（手动bot#1零报实证劈）
-	{228, "fin_0228_ops_esc.sql"},                 // 工单O-30514 升件写径归一函件——escalate.sh 语义库内复刻（24h前缀去重/返id）
-	{229, "fin_0229_finro_domain_view_grant.sql"}, // 工单O-28958——fin_0228 在途占（fix/esc-writepath-unify 支）——跳号钉 0229；fin_0226 漏授视图本体补齐
-	{230, "fin_0230_esc_pending_cluster.sql"},     // 工单O-27914——fin_0228/0229 在途占双支——跳号钉 0230；ops_esc_pending 同根簇折叠
-	{231, "fin_0231_ops_work_notify.sql"},         // 工单O-32300——ops_event 关键行→ev_work NOTIFY 唤醒脊（工单/升件/候审链，timer 兜底不撤）
-	{232, "fin_0232_md_market_read_grant.sql"},    // 工单O-32603——fin_0231 在途占（fix/work-wake-bus 支）——跳号钉 0232；roster_rw 补 md_klines/md_funding 读权（体制读数输入面）
-	{233, "fin_0233_dcd_cashflow_kinds.sql"},      // 工单O-33362——dcd 申购/结算 counted 现金腿 kind 扩集（dcd_out/dcd_in=transfer）+凭据 (op,ordId) 唯一闸
-	{234, "fin_0234_tmpl_ban_fields.sql"},         // 工单O-33393——fin_opp_template 禁因三件套+名册视图 SG 镜像（md_1103 正本同形）
-	{235, "fin_0235_native_ccy.sql"},              // 工单O-34287——fin_cashflow.ccy 闭集→原生币形开闸（各币各域零换算）
-	{236, "fin_0236_pnl_net_view.sql"},            // 工单#34619——fin_pnl_net 净产出口径单源视图+ops_state commercial_stall 臂改吃（position_ref NULL 现货腿排除=账外资产转换不计业绩）
-	{237, "fin_0237_landq_autoclose_sem.sql"},     // 工单O-33705——sem_matrix 补（处置,落地件）自动销形放行（假汇总行病灶根修）
-	{238, "fin_0238_annualized_floor.sql"},        // 工单O-34963——app_config annualized.deploy_floor_usd=500（部署本金年化判据下限，低于回退NAV口径）
+	{218, "fin_0218_position_state.sql"},                // 工单#25806 FSM 收口——state 物化+转移闸+对账孤儿
+	{219, "fin_0219_okxgrid.sql"},                       // 工单#25840——fin_0218 在途占（fix/fsm-converge 支）——跳号钉 0219
+	{220, "fin_0220_saga.sql"},                          // 工单#25807 saga 流程级补偿账（fin_0219 在途占 fix/okx-native-grid 支——跳号钉 0220）
+	{221, "fin_0221_okxgrid_launch_hold.sql"},           // 工单#26337 拉起歧态势抑重账——hold 行禁自动重试补单
+	{222, "fin_0222_unit_registry.sql"},                 // 工单#26444 建制单元注册表 seed——ops.unit_registry canon
+	{223, "fin_0223_ops_event_immutable.sql"},           // 首性审计整改——append-only 升库层前置闸(UPDATE/DELETE/TRUNCATE 全角色禁)
+	{224, "fin_0224_closeout_shape_gate.sql"},           // 施工收口形闸——[施工收口:O-<票>] @ sha=<40>定稿形机械拒写
+	{225, "fin_0225_simdrill_domain_gate.sql"},          // 法证劈③——venue=sim 演习域写径闸(非演习仓物理拒)
+	{226, "fin_0226_finro_audit_read.sql"},              // 法证劈④⑤——o_fin_ro钱账读权+fin_cashflow_domain域视图
+	{227, "fin_0227_bot_order_notify.sql"},              // 经营推送补盲——fin_bot_order 拉起/停翻帧→ev_position（手动bot#1零报实证劈）
+	{228, "fin_0228_ops_esc.sql"},                       // 工单O-30514 升件写径归一函件——escalate.sh 语义库内复刻（24h前缀去重/返id）
+	{229, "fin_0229_finro_domain_view_grant.sql"},       // 工单O-28958——fin_0228 在途占（fix/esc-writepath-unify 支）——跳号钉 0229；fin_0226 漏授视图本体补齐
+	{230, "fin_0230_esc_pending_cluster.sql"},           // 工单O-27914——fin_0228/0229 在途占双支——跳号钉 0230；ops_esc_pending 同根簇折叠
+	{231, "fin_0231_ops_work_notify.sql"},               // 工单O-32300——ops_event 关键行→ev_work NOTIFY 唤醒脊（工单/升件/候审链，timer 兜底不撤）
+	{232, "fin_0232_md_market_read_grant.sql"},          // 工单O-32603——fin_0231 在途占（fix/work-wake-bus 支）——跳号钉 0232；roster_rw 补 md_klines/md_funding 读权（体制读数输入面）
+	{233, "fin_0233_dcd_cashflow_kinds.sql"},            // 工单O-33362——dcd 申购/结算 counted 现金腿 kind 扩集（dcd_out/dcd_in=transfer）+凭据 (op,ordId) 唯一闸
+	{234, "fin_0234_tmpl_ban_fields.sql"},               // 工单O-33393——fin_opp_template 禁因三件套+名册视图 SG 镜像（md_1103 正本同形）
+	{235, "fin_0235_native_ccy.sql"},                    // 工单O-34287——fin_cashflow.ccy 闭集→原生币形开闸（各币各域零换算）
+	{236, "fin_0236_pnl_net_view.sql"},                  // 工单#34619——fin_pnl_net 净产出口径单源视图+ops_state commercial_stall 臂改吃（position_ref NULL 现货腿排除=账外资产转换不计业绩）
+	{237, "fin_0237_landq_autoclose_sem.sql"},           // 工单O-33705——sem_matrix 补（处置,落地件）自动销形放行（假汇总行病灶根修）
+	{238, "fin_0238_annualized_floor.sql"},              // 工单O-34963——app_config annualized.deploy_floor_usd=500（部署本金年化判据下限，低于回退NAV口径）
+	{239, "fin_0239_ops_state_dispatchable_corpse.sql"}, // 工单O-35463——ops_state 工单面压力臂 backlog 含尸（dispatchable IS NOT TRUE 收 rank NULL NULL 判）
 }
