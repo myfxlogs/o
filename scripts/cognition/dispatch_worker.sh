@@ -67,7 +67,7 @@ TICKET_N=${TICKET_N:-0}
 # backlog=窗外在账不可拣(fin_0194 WIP窗——施工道只见窗内,窗外淤积计数入每日一行（housekeeping_daily）;backlog只进触发note供账页观测)
 BACKLOG_N=$(psql "$DSN" -qAt -c "
 SELECT count(*) FROM ops_ticket_desk
-WHERE workable AND NOT dispatchable AND tkind='工单'" 2>/dev/null)
+WHERE workable AND dispatchable IS NOT TRUE AND tkind='工单'" 2>/dev/null)
 BACKLOG_N=${BACKLOG_N:-0}
 [ "$TICKET_N" -ge 1 ] || exit 0 # 零 OPEN 票=静默退(常态)
 
