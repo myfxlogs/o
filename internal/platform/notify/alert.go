@@ -88,12 +88,20 @@ func (a *Alerter) sysChatID() string {
 
 // Alert 推送（kind+fingerprint 指纹退避；禁重试——单次失败计数返回）。
 func (a *Alerter) Alert(ctx context.Context, kind, payload string) {
+	a.AlertPlain(ctx, kind, payload, "")
+}
+
+// AlertPlain 双载荷推送（工单O-34997）：payload=机读诊断原文（指纹/
+// 分诊语义不变），plain=业主面「发生」段人话摘要（非空优先——生产侧
+// 已译好白话直给；空=装配侧 kindSpec.plain/通用兜底接管，机读文永不
+// 直出业主面）。
+func (a *Alerter) AlertPlain(ctx context.Context, kind, payload, plain string) {
 	if a == nil || cliNil(a.cli) || a.chatID == nil || a.chatID() == "" || (a.on != nil && !a.on()) {
 		return
 	}
 	// T-0081 返修：指纹按 kind+title 定（payload 变额每抖重置阶梯=持续差
 	// 退避失效病灶——title 稳定=同病同阶）。
-	body0, _ := HumanText(kind, payload)
+	body0, _ := HumanTextPlain(kind, payload, plain)
 	title := strings.SplitN(body0, "\n", 2)[0]
 	fp := fnv.New64a()
 	_, _ = fp.Write([]byte(kind + "|" + title))
@@ -113,7 +121,7 @@ func (a *Alerter) Alert(ctx context.Context, kind, payload string) {
 	a.last[k] = time.Now()
 	a.sent[k] = n + 1
 	a.mu.Unlock()
-	body, actable := HumanText(kind, payload)
+	body, actable := HumanTextPlain(kind, payload, plain)
 	sys := !chanMoney[kind]
 	chat := a.chatID()
 	cli := a.cli
