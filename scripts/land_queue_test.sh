@@ -69,6 +69,16 @@ case "$sql" in
         echo "$dtid"
       done < "$T_DESK_ROWS"
     fi;;
+  *落地件*处置*)
+    # 落成自动销销行拒写桩（工单O-33705）：T_CLOSE_REJECT_TIDS=逗号
+    # 集——note 提 工单#<tid> 命中集→exit1 模拟 semgate 拒写；缺省
+    # 全放行 echo INSERT 0 1（与 INSERT* 桩同义）。
+    if [ -n "${T_CLOSE_REJECT_TIDS:-}" ]; then
+      _ctid=$(printf '%s' "$sql" | grep -oE '工单#[0-9]+' | grep -oE '[0-9]+' | head -1)
+      case ",$T_CLOSE_REJECT_TIDS," in *,"$_ctid",*) exit 1;; esac
+    fi
+    echo "INSERT 0 1";;
+  *ops_esc\(*) echo "${T_ESC_ID:-900001}";; # ops_esc() 升件函件桩——返假 id
   INSERT*) echo "INSERT 0 1";;
   *复审过*)
     # 模拟 seat<>作者席 谓词：同席→空集（分席不可证不落）
@@ -480,6 +490,44 @@ done
 [ "$(grep -c "VALUES('落地件','处置','工单'" "$T/psql.log")" -eq 3 ] && ok "销行seat=落地件/event=处置/ticket=工单三列形" || bad "销行列形数=$(grep -c "落地件','处置','工单'" "$T/psql.log")"
 grep -q "销——落成自动销 支=fix/closereceipt merge=" "$T/psql.log" && ok "销行note形=工单#N销——落成自动销" || bad "销行note形不符"
 grep -q "落成自动销 支=" "$T/psql.log" && ok "落成自动销簿记行在账" || bad "无自动销簿记行"
+
+# ═══ 销行被拒（工单O-33705 spec④）：DID 成功才追加+写败落升件+csv 不含败 tid ═══
+echo "== 销行被拒不吞 =="
+new_case
+mk_branch_msg "$T/o" fix/autoclose-reject feat_ar.txt "wip 工单#9101 与 工单#9102 双票"
+TIP=$(tip_of "$T/o" fix/autoclose-reject); stamp "$T/o" "$TIP"
+: > "$T/desk_rows.tsv"
+printf '9101\tf\tf\tf\tt\n9102\tf\tf\tf\tt\n' >> "$T/desk_rows.tsv"
+rm -f "$T/psql.log"
+run_lq T_REVIEW_OK=1 T_DESK_ROWS="$T/desk_rows.tsv" T_CLOSE_REJECT_TIDS=9102
+# 两票销行 INSERT 均尝试（账面可见）
+[ "$(grep -c "工单#9101 销" "$T/psql.log")" -eq 1 ] && [ "$(grep -c "工单#9102 销" "$T/psql.log")" -eq 1 ] \
+	&& ok "双票销行均尝试在账" || bad "销行尝试缺: $(grep -c '工单#91' "$T/psql.log")"
+# 汇总 csv 只含真销成 tid——9101 在、9102 不在
+_sumcsv=$(grep '落成自动销 支=' "$T/psql.log" | grep -oE '票=[0-9,]+' | head -1)
+case "$_sumcsv" in
+	*9101*) ok "汇总csv含真销成9101" ;;
+	*) bad "汇总csv缺9101: $_sumcsv" ;;
+esac
+case "$_sumcsv" in
+	*9102*) bad "汇总csv混入写败9102: $_sumcsv" ;;
+	*) ok "汇总csv不含写败9102" ;;
+esac
+# 写败 tid 落升件（ops_esc 函件径）
+grep -q 'ops_esc' "$T/psql.log" && grep -q '落成自动销写败 tid=9102' "$T/psql.log" \
+	&& grep -q 'landq_autoclose' "$T/psql.log" \
+	&& ok "写败tid落升件(ops_esc landq_autoclose)" || bad "写败tid无升件"
+# 反向对照：全放行时 csv 双票俱在（DID 追加语义不破坏正径）
+new_case
+mk_branch_msg "$T/o" fix/autoclose-ok feat_ao.txt "wip 工单#9201 与 工单#9202"
+TIP=$(tip_of "$T/o" fix/autoclose-ok); stamp "$T/o" "$TIP"
+: > "$T/desk_rows.tsv"
+printf '9201\tf\tf\tf\tt\n9202\tf\tf\tf\tt\n' >> "$T/desk_rows.tsv"
+rm -f "$T/psql.log"
+run_lq T_REVIEW_OK=1 T_DESK_ROWS="$T/desk_rows.tsv"
+_sumcsv2=$(grep '落成自动销 支=' "$T/psql.log" | grep -oE '票=[0-9,]+' | head -1)
+case "$_sumcsv2" in *9201*9202*|*9202*9201*) ok "全放行csv双票俱在" ;; *) bad "全放行csv异常: $_sumcsv2" ;; esac
+! grep -q 'ops_esc' "$T/psql.log" && ok "全放行零升件" || bad "全放行竟升件"
 
 echo "== 汇总: PASS=$PASS FAIL=$FAILN =="
 [ "$FAILN" -eq 0 ]
