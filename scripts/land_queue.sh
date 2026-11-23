@@ -126,20 +126,24 @@ docs_only_diff() { # $1=tip → rc0=差分全中 docs/**|skills/**|*.md（check_
 	return 0
 }
 review_ok() { # $1=br名 $2=tip全sha → rc0=复审过行在且写行席≠完工/候审/施工收口回执席
+	# rc 分因（O-35491⑤/源票#35488——跳支日志三因合并串致唤知直造支
+	# 「回执缺」与「复审缺」不可分诊）：rc2=无DSN rc3=完工回执缺/作者席
+	# 不可证（分席不可证 fail-closed）rc4=复审过行缺/同席复审
 	local br="$1" tip="$2" bre aseat
-	[ -n "$DSN" ] || return 1
+	[ -n "$DSN" ] || return 2
 	bre=$(printf '%s' "$br" | sed 's/[][\\.*^$()+?{}|]/\\&/g') # tolerate: sed 恒 rc0——纯转义器非闸
 	aseat=$(q "SELECT seat FROM ops_event
 		WHERE ((note ~ '(完工回执|完工推支候审|候审回执|施工收口)' OR event ~ '完工')
 			AND note !~ '^复审过[[:space:]]*sha=' AND seat NOT IN ('复审席','落地件')
 			AND (note ~ ('$bre' || '([@[:space:]=]|\$)') OR note ~ '${tip:0:9}'))
 		ORDER BY id DESC LIMIT 1")
-	[ -n "$aseat" ] || return 1 # 作者席不可考=分席不可证→fail-closed
+	[ -n "$aseat" ] || return 3 # 作者席不可考=分席不可证→fail-closed
 	aseat=$(printf '%s' "$aseat" | tr -d "\"'\\")
-	[ "$aseat" = "落地件" ] && return 1
+	[ "$aseat" = "落地件" ] && return 3
 	q "SELECT 1 FROM ops_event
 		WHERE note ~ '^复审过[[:space:]]*sha=[[:space:]]*${tip}'
-		AND seat <> '$aseat' LIMIT 1" | grep -q .
+		AND seat <> '$aseat' LIMIT 1" | grep -q . || return 4
+	return 0
 }
 mergeable() { # $1=tip → rc0=对 origin/master 净合（merge-tree 预检，不动工树）
 	git merge-tree --write-tree origin/master "$1" >/dev/null 2>&1
@@ -197,8 +201,17 @@ while read -r br tip; do
 	stamp_ok "$tip" || { say "跳 $br——戳缺/戳陈"; STRANDED="$STRANDED $br"; continue; }
 	if docs_only_diff "$tip"; then
 		say "$br docs-only 差分——免复审行(b)"
-	elif ! review_ok "$br" "$tip"; then
-		say "跳 $br——复审过行缺/分席不可证/无DSN"; STRANDED="$STRANDED $br"; continue
+	else
+		review_ok "$br" "$tip"; _rrc=$?
+		if [ "$_rrc" -ne 0 ]; then
+			case "$_rrc" in
+				2) say "跳 $br——无DSN(复审要件不可读)" ;;
+				3) say "跳 $br——完工回执缺/作者席不可证(唤知直造支分席不可证→fail-closed)" ;;
+				4) say "跳 $br——复审过行缺/同席复审" ;;
+				*) say "跳 $br——复审要件未过(rc=$_rrc)" ;;
+			esac
+			STRANDED="$STRANDED $br"; continue
+		fi
 	fi
 	mig_dep_gate "$br" "$tip" "$PROV_F" || { STRANDED="$STRANDED $br(依赖未合)"; continue; }
 	if ! mergeable "$tip"; then
