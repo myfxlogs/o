@@ -248,4 +248,5 @@ var finMigrationTable = []migEntry{
 	{233, "fin_0233_dcd_cashflow_kinds.sql"},      // 工单O-33362——dcd 申购/结算 counted 现金腿 kind 扩集（dcd_out/dcd_in=transfer）+凭据 (op,ordId) 唯一闸
 	{234, "fin_0234_tmpl_ban_fields.sql"},         // 工单O-33393——fin_opp_template 禁因三件套+名册视图 SG 镜像（md_1103 正本同形）
 	{235, "fin_0235_native_ccy.sql"},              // 工单O-34287——fin_cashflow.ccy 闭集→原生币形开闸（各币各域零换算）
+	{236, "fin_0236_pnl_net_view.sql"},            // 工单#34619——fin_pnl_net 净产出口径单源视图+ops_state commercial_stall 臂改吃（position_ref NULL 现货腿排除=账外资产转换不计业绩）
 }
