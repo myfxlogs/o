@@ -22,6 +22,7 @@ const (
 	LendingBorrow   LegPrim = "lending_borrow"
 	SpotLongStaked  LegPrim = "spot_long_staked" // T-0320：质押态长现货（非裸持）
 	CfdShort        LegPrim = "cfd_short"        // T-0320：CFD 空单（swap 付费 venue）
+	CfdLong         LegPrim = "cfd_long"         // O-35163：CFD 多单（mt5 方向族腿形——模板#2074 legs 契源）
 )
 
 // Family 组合律族——模板名+腿原语集+结算原语+所需能力面（venue→面清单，
@@ -143,6 +144,13 @@ func Families() []Family {
 		{Template: "perp-trend-daily", Direction: "perp_trend", Kind: "trend_follow",
 			Legs: []LegPrim{PerpLong, PerpShort}, Settle: "mtm",
 			NeedFace: need("market-tickers", "market-instruments"), Executor: "dirtrend"},
+		// ⑦ mt5_dir_mom CFD 方向动量族（O-35163——模板#2074 已落 enabled：
+		// legs=cfd_long/cfd_short settle=mtm shadow=t signal=mom_z；评估臂=
+		// dirmom venue='mt5' NewRunnerVenue 在案，Existing 不重生模板行）。
+		{Template: "mt5_dir_mom", Direction: "cfd_directional", Kind: "trend_follow",
+			Legs: []LegPrim{CfdLong, CfdShort}, Settle: "mtm",
+			NeedFace: map[string][]string{"mt5": {"catalog", "symbols"}},
+			Executor: "dirmom", Existing: true, PrimaryVen: "mt5", PrimarySurf: "catalog"},
 	}
 }
 

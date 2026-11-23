@@ -39,6 +39,17 @@ func (r *Runner) closes(ctx context.Context, inst string, n int) ([]float64, tim
 	return cl, last, len(cl), rows.Err()
 }
 
+// legName 方向位→腿原语名（eval.legs 证据载荷——O-35163：mt5 CFD 臂
+// 腿形=cfd_long/cfd_short 模板#2074 legs 契源，okx 臂照旧 perp 形；
+// direction 词沿用 long_perp/short_perp 族位约定——direction CHECK 闭集
+// 已在册词，腿原语才是构型真相面）。
+func (r *Runner) legName(dir string) string {
+	if r.template == "mt5_dir_mom" {
+		return map[string]string{"long_perp": "cfd_long", "short_perp": "cfd_short"}[dir]
+	}
+	return map[string]string{"long_perp": "perp_long", "short_perp": "perp_short"}[dir]
+}
+
 // writeEval 评估卡落表（upsert 自然键）+proposed 且无 open 提案/策略→提案行
 // （闸后唯一提案径——fin_strategy md 侧只读副本 dedupe 同 funding persist）。
 func (r *Runner) writeEval(ctx context.Context, tx pgx.Tx, inst, dir, verdict, reason string,
@@ -52,8 +63,7 @@ func (r *Runner) writeEval(ctx context.Context, tx pgx.Tx, inst, dir, verdict, r
 		"friction_rt": p.FrictionRT, "net_apr": c.netAPR,
 		"last_bar_ts": c.lastTs, "reason": reason,
 	})
-	legs, _ := json.Marshal([]string{map[string]string{
-		"long_perp": "perp_long", "short_perp": "perp_short"}[dir]})
+	legs, _ := json.Marshal([]string{r.legName(dir)})
 	// 工单#22904 指纹闸：同(inst,template,direction)最新行 verdict+net_apr
 	// 未变=信念未迁→跳 INSERT 复用行 id 续提案径（判词/净额变迁仍产新版史）。
 	evalID, same, err := evalgate.SameFingerprint(ctx, tx, inst, r.template, dir, verdict, c.netAPR)

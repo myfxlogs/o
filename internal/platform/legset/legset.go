@@ -169,6 +169,13 @@ func InstFitOK(template, instID string) bool {
 		// IsUSDTInst 同源拒 BTC-USD-SWAP 币本位形；dir_perp_mom=单腿方向
 		// 位同 perp 键，dirpaper.go 价源 md_ticks 同读）。
 		return classifyInst(instID) == formSwapPerp && IsUSDTInst(instID)
+	case "mt5_dir_mom":
+		// O-35163 CFD 方向族——inst=venue='mt5' 官名实读（md_klines
+		// venue='mt5' inst 集本体：XAUUSDm/BTCUSDm 形——官名方言禁猜
+		// 枚举，结构闸=拒 OKX inst 形（-SWAP$/-\d{6}$/期权形/pseudo键），
+		// formOther 域放行即 CFD 官名域；评估臂只产 venue='mt5' 棒源
+		// inst，构型闸为提案侧二道防线非宇宙白名单）。
+		return classifyInst(instID) == formOther && !venueCcyRe.MatchString(instID)
 	case "quarter_basis_long", "perp_quarter_spread", "quarter-calendar-spread":
 		// basis 两族——腿=季度远期形（-\d{6}$ 尾，币/ USDT 本位皆可）。
 		// quarter-calendar-spread 双腿同季度远期键（工单#24981 骨架）。
