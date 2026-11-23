@@ -74,9 +74,21 @@ func (c coreService) selfAwareBeat(ctx context.Context) {
 		(SELECT count(*) FROM fin_position WHERE state<>'closed')
 		FROM fin_strategy`).Scan(&liveN, &probeN, &posN)
 	if nav != nil && navTs != nil && *nav > 0 {
-		earn = fmt.Sprintf("NAV%.0f(%s) 30d净%+.2f 年化%+.1f%%vs%.0f%% live%d/probe%d/仓%d",
+		// 年化分母=部署本金窗时加权均值（令#34702③——NAV 基部署率低
+		// 时失真）；分子=fin_pnl_net 不动。分母不可得/零部署→"—"。
+		dep, depOK, depSnap := c.deployedBasis(ctx,
+			time.Now().Add(-30*24*time.Hour), time.Now())
+		annTxt := fmt.Sprintf("年化—vs%.0f%%%s", hungerTargetPct,
+			annualDepTag(dep, depOK, depSnap))
+		if depOK {
+			if ann, ok := annualizedPct(net, 30, dep); ok {
+				annTxt = fmt.Sprintf("年化%+.1f%%vs%.0f%%%s", ann, hungerTargetPct,
+					annualDepTag(dep, depOK, depSnap))
+			}
+		}
+		earn = fmt.Sprintf("NAV%.0f(%s) 30d净%+.2f %s live%d/probe%d/仓%d",
 			*nav, time.Since(*navTs).Round(time.Minute), net,
-			net*365/30 / *nav * 100, hungerTargetPct, liveN, probeN, posN)
+			annTxt, liveN, probeN, posN)
 		earn += " |钱在:" + c.moneyDist(ctx, *nav)
 	} else {
 		earn = "?"
