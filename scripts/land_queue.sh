@@ -416,11 +416,18 @@ if (cd "$REPO" && bash -c "$PUSH_CMD origin $FINAL:master" >/dev/null 2>&1); the
 		for tid in $CLOSESET; do
 			case "$SEEN_TID" in *" $tid "*) continue;; esac # tolerate: case 空集不匹配=放行首见
 			SEEN_TID="$SEEN_TID$tid "
-			DID="$DID $tid"
 			cn="工单#$tid 销——落成自动销 支=$br merge=$msha"
-			"$PSQL" "$DSN" -qAt -c "INSERT INTO ops_event(seat,event,ticket,note)
-				VALUES('落地件','处置','工单','$(sqlq "$cn")')" >/dev/null 2>&1 \
-				|| say "自动销行写败 tid=$tid（不阻断）" # tolerate: 写败下拍支已落不重复合——巡检兜
+			# O-33705：DID 只在 INSERT 成功后追加——写败=票仍挂开，
+			# ops_esc 升件载明（24h 前缀去重 per-tid）不再静默吞；
+			# 汇总 csv 只含真销成 tid（称销未销假汇总行病灶根修）。
+			if "$PSQL" "$DSN" -qAt -c "INSERT INTO ops_event(seat,event,ticket,note)
+				VALUES('落地件','处置','工单','$(sqlq "$cn")')" >/dev/null 2>&1; then
+				DID="$DID $tid"
+			else
+				q "SELECT ops_esc('落地件','工单#$tid','部署','landq_autoclose',
+					'落成自动销写败 tid=$tid','支=$br merge=$msha——销行INSERT败票未销仍挂开,支已落不重试,值守/巡检人工处置')" >/dev/null
+				say "自动销行写败 tid=$tid（升件已落/去重窗内）" # tolerate: 升件写败=值守面兜——支已落不重试
+			fi
 		done
 		[ -n "$(printf '%s' "$DID" | tr -d '[:space:]')" ] \
 			&& fact "落成自动销 支=$br 票=$(printf '%s' "$DID" | tr ' ' '\n' | sort -un | paste -sd, -)"
