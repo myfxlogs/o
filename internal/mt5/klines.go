@@ -92,10 +92,12 @@ func (c *BridgeCollector) klineSweep(ctx context.Context, cl *Client) {
 		if end > len(syms) {
 			end = len(syms)
 		}
-		if n, why := c.klineBatchWrite(ctx, cl, syms[i:end]); why != "" {
+		// O-35587：批败自适应对半拆（网关 504=载荷=符×棒数乘积——
+		// 固定批在负载漂移下必再越线；零落行才拆，部分写败不重试）。
+		n, why := c.klineWriteAdaptive(ctx, cl, syms[i:end])
+		okN += n
+		if why != "" && sample == "" {
 			sample = why
-		} else {
-			okN += n
 		}
 	}
 	if okN == 0 {
@@ -103,6 +105,27 @@ func (c *BridgeCollector) klineSweep(ctx context.Context, cl *Client) {
 		return
 	}
 	log.Printf("[mt5bridge] 日K扫拍：%d 棒落行（目录 %d 符）", okN, len(syms))
+}
+
+// klineWriteAdaptive 批写自适应：整批零落行（网关超时/载荷拒）→对半
+// 拆批递归至单符地板；单符仍零落=真败样本上抛。部分落行（n>0 带 why
+// =写侧中途败）不拆——upsert 幂等但拆半无增益只增 RPC。
+func (c *BridgeCollector) klineWriteAdaptive(ctx context.Context, cl *Client, syms []string) (int, string) {
+	wr := c.klineWr
+	if wr == nil {
+		wr = c.klineBatchWrite
+	}
+	n, why := wr(ctx, cl, syms)
+	if why == "" || n > 0 || len(syms) <= 1 {
+		return n, why
+	}
+	mid := len(syms) / 2
+	n1, w1 := c.klineWriteAdaptive(ctx, cl, syms[:mid])
+	n2, w2 := c.klineWriteAdaptive(ctx, cl, syms[mid:])
+	if w1 != "" {
+		return n1 + n2, w1
+	}
+	return n1 + n2, w2
 }
 
 // klineBatchWrite 单批:ExMany→逐符逐棒 upsert;返落棒数+败样（批败=why非空）。

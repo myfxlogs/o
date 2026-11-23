@@ -40,6 +40,7 @@ type BridgeCollector struct {
 	symFetch  func(ctx context.Context, cl *Client, sym string) (*mt5pb.SymbolParamsReply, error) // 测试注入面（FIX-02 消哑失败形态 fixture 缝——nil=生产径）
 	symList   func(ctx context.Context, cl *Client) ([]string, error)                             // 目录粗扫缝（T-0408——nil=SymbolList 正径）
 	quoteMany func(ctx context.Context, cl *Client, syms []string) map[string]float64             // 目录 mid 快照缝（nil=GetQuoteMany 正径）
+	klineWr   func(ctx context.Context, cl *Client, batch []string) (int, string)                 // 日K批写缝（nil=klineBatchWrite 正径——O-35587 自适应拆批桩测面）
 }
 
 // NewBridgeCollector 装配（凭据/址链全归 app_config 会话重读——env 凭据径退役；
