@@ -212,7 +212,7 @@ func (r *Runner) reconcile(ctx context.Context) error {
 			r.rej.Inc("diff_alert")
 			// 业主令 2026-11-10：告警载初诊（出入金标识+簿记构成——
 			// 「只报发现不答钱从哪来」病灶，见 diff_brief.go）。
-			brief := ledgerDiffBrief(ctx, r.pool, x.venue, x.ccy)
+			brief := ledgerDiffBrief(ctx, r.pool, x.venue, x.ccy, r.mtm)
 			r.al.Alert(ctx, "ledger_diff_alert",
 				fmt.Sprintf("账实差 $%.2f（容差 $%.2f +已定性豁免 $%.2f；venue读 %.4f vs 账本净 %.4f）→ %s",
 					Diff(x.net, x.eq), tol, exempt, x.eq, x.net, brief))
