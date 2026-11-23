@@ -31,8 +31,8 @@ psql "$FIN_DSN" -qAt -c "WITH b AS (
   FROM b WHERE rn<=21 GROUP BY inst_id HAVING count(*)>=21)
 SELECT count(*), round(percentile_cont(0.5) WITHIN GROUP (ORDER BY vol)::numeric,3) med_vol,
   round(percentile_cont(0.5) WITHIN GROUP (ORDER BY mom)::numeric,4) med_mom,
-  round(avg((mom>0)::int)::numeric,3) breadth, max(mom>0.03)::int up_n,
-  max(mom<-0.03)::int down_n FROM s"
+  round(avg((mom>0)::int)::numeric,3) breadth, max((mom>0.03)::int) up_n,
+  max((mom<-0.03)::int) down_n FROM s"
 
 # 3) 市场面事件 24h（体制判读的事件锚——崩盘/解禁/宏观冲击在账即读）
 psql "$FIN_DSN" -qAt -c "SELECT event, count(*) FROM ops_event
