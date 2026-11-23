@@ -14,6 +14,9 @@ set -euo pipefail
 WT="${1:-$(git rev-parse --show-toplevel)}"
 SRC="${BOOTSTRAP_SRC:-/opt/o}"
 
+# unit-PATH 无 ~/go/bin——buf 插件（protoc-gen-*）隐依赖前置补（O-35491③）
+export PATH="$(go env GOPATH)/bin:$PATH"
+
 echo "[bootstrap] $WT"
 { [ -d "$WT/.git" ] || [ -f "$WT/.git" ]; } \
   || { echo "[bootstrap] 非 git 树：$WT" >&2; exit 1; }
@@ -71,7 +74,9 @@ if [ -n "$(gen_missing "$WT" go "${REQ_GEN_GO[@]}")" ]; then
     || { echo "[bootstrap] 降级源 $SRC/internal/gen 亦缺——先在部署树补 gen" >&2; exit 1; }
   echo "[bootstrap] 降级径：rsync $SRC/internal/gen →（叠加补缺——快照可能与本支 proto 不同步；全正径先 npm ci 再重跑本件）"
   mkdir -p "$WT/internal/gen"
-  rsync -a "$SRC/internal/gen/" "$WT/internal/gen/"
+  # --ignore-existing 只补缺不盖鲜——快照陈件按名覆写 buf 鲜产实证三烧
+  # 列车（#35333/#35357/#35377 Symbols 覆没，O-35491③）
+  rsync -a --ignore-existing "$SRC/internal/gen/" "$WT/internal/gen/"
 fi
 if [ -n "$(gen_missing "$WT" ts "${REQ_GEN_WEB[@]}")" ]; then
   [ -d "$SRC/web/src/gen/dashboardv1" ] \
