@@ -74,17 +74,15 @@ func (c coreService) selfAwareBeat(ctx context.Context) {
 		(SELECT count(*) FROM fin_position WHERE state<>'closed')
 		FROM fin_strategy`).Scan(&liveN, &probeN, &posN)
 	if nav != nil && navTs != nil && *nav > 0 {
-		// 年化分母=部署本金窗时加权均值（令#34702③——NAV 基部署率低
-		// 时失真）；分子=fin_pnl_net 不动。分母不可得/零部署→"—"。
-		dep, depOK, depSnap := c.deployedBasis(ctx,
-			time.Now().Add(-30*24*time.Hour), time.Now())
-		annTxt := fmt.Sprintf("年化—vs%.0f%%%s", hungerTargetPct,
-			annualDepTag(dep, depOK, depSnap))
-		if depOK {
-			if ann, ok := annualizedPct(net, 30, dep); ok {
-				annTxt = fmt.Sprintf("年化%+.1f%%vs%.0f%%%s", ann, hungerTargetPct,
-					annualDepTag(dep, depOK, depSnap))
-			}
+		// 年化判据输入单源 annualJudgment（令#34702③部署本金口径+
+		// O-34963下限补丁：部署<floor 回退 NAV——读面签随实际口径）。
+		// 判据无据→"—"。
+		now := time.Now()
+		ann, annOK, annTag := c.annualJudgment(ctx,
+			now.Add(-30*24*time.Hour), now, net, 30)
+		annTxt := fmt.Sprintf("年化—vs%.0f%%%s", hungerTargetPct, annTag)
+		if annOK {
+			annTxt = fmt.Sprintf("年化%+.1f%%vs%.0f%%%s", ann, hungerTargetPct, annTag)
 		}
 		earn = fmt.Sprintf("NAV%.0f(%s) 30d净%+.2f %s live%d/probe%d/仓%d",
 			*nav, time.Since(*navTs).Round(time.Minute), net,

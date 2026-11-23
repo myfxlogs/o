@@ -69,6 +69,7 @@ var dmWritableGlobs = []string{
 	"okxgrid.scale_size_usd",       // 判加平行单投入USDT
 	"okxgrid.agg_invest_max_usd",   // 聚合投入帽USDT（机器线内护栏非业主键）
 	"okxgrid.harvest_cooldown_s",   // 收割冷却秒
+	"annualized.*",                 // 年化判据参数（deploy_floor_usd=部署本金口径下限——工单O-34963）
 }
 
 // ownerKeyGlobs —— 业主面键（分册 owner 行同集镜像；与 dm 集不交——交叠=闸红）。
