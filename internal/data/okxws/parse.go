@@ -156,6 +156,32 @@ func parseOptTickers(instID string, d map[string]json.RawMessage) *optTickRow {
 		vol24h: numPtr(d, "vol24h")}
 }
 
+// parseLiquidation → []liqRow（O-35587②——liquidation-orders 帧级对象
+// {instId,instFamily,instType,uly,details[]}→details 逐条展开；ts=毫秒
+// epoch 字符串缺省回落 recv 时刻；空 details/缺 instId=拒入 nil）。
+func parseLiquidation(d map[string]json.RawMessage) []liqRow {
+	instID := str(d, "instId")
+	if instID == "" {
+		return nil
+	}
+	var dets []map[string]json.RawMessage
+	if err := json.Unmarshal(d["details"], &dets); err != nil || len(dets) == 0 {
+		return nil
+	}
+	out := make([]liqRow, 0, len(dets))
+	for _, det := range dets {
+		ts := tsms(det, "ts")
+		if ts.IsZero() {
+			ts = time.Now().UTC()
+		}
+		out = append(out, liqRow{instID: instID, instFam: str(d, "instFamily"),
+			uly: str(d, "uly"), ts: ts, posSide: str(det, "posSide"),
+			side: str(det, "side"), sz: num(det, "sz"), bkPx: num(det, "bkPx"),
+			bkLoss: num(det, "bkLoss"), ccy: str(det, "ccy")})
+	}
+	return out
+}
+
 // parseCandle → klineRow（candle* 数组载荷：[ts,o,h,l,c,vol,volCcy,
 // volCcyQuote,confirm]——confirm "0"=形成中 "1"=已收线；ts=开盘时刻毫秒）。
 func parseCandle(instID, bar string, raw json.RawMessage) *klineRow {
