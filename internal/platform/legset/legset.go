@@ -164,10 +164,13 @@ func sprdBasisFit(instID string) bool {
 // （execfam 扩族漏登构型=闸拦响非静默放行；覆盖断言见 legset 测试）。
 func InstFitOK(template, instID string) bool {
 	switch template {
-	case "funding-hedge", "xvenue-carry", "dir_perp_mom", "perp-trend-daily":
+	case "funding-hedge", "xvenue-carry", "dir_perp_mom", "perp-trend-daily",
+		"funding-extreme-fade", "mark-last-disloc-fade", "xsec-perp-mom-basket":
 		// perp 腿形家族——主腿=USDT 本位永续（D-0018 只许 USDT 计价；
 		// IsUSDTInst 同源拒 BTC-USD-SWAP 币本位形；dir_perp_mom=单腿方向
-		// 位同 perp 键，dirpaper.go 价源 md_ticks 同读）。
+		// 位同 perp 键，dirpaper.go 价源 md_ticks 同读）。O-35489 三族骨架
+		// 同收——篮族成分腿/ fade 族标的腿皆 USDT 本位永续构型；篮复合
+		// 编码面归评估臂另件（inst 闸=可交易单元形核非篮成员数核）。
 		return classifyInst(instID) == formSwapPerp && IsUSDTInst(instID)
 	case "mt5_dir_mom":
 		// O-35163 CFD 方向族——inst=venue='mt5' 官名实读（md_klines

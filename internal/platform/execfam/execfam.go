@@ -54,6 +54,21 @@ var set = map[string]bool{
 	// algo+webhook,venue侧executor转发外部信号,消化#26159取证在案;弹
 	// 性增量非新alpha);Drillable未册=probe→live结构性拦在位;凭据域=
 	// 业主condreq;hunger册免=族无自有cfg键(有键才册票钦)。
+	"xsec-perp-mom-basket": true, // 工单O-35489 假想卡#578380 骨架登记——
+	// paper 域提案门开；真径=横截面动量篮多臂执行器未建（腿原语
+	// perp_long_basket/perp_short_basket=篮复合非单 inst 腿形）；
+	// Drillable 未册=probe→live 结构性拦在位；hunger 册免=族无自有
+	// cfg 键（判据键 research.xsec_mom.* 在 fin_0241——有键才册先例
+	// 适用但 depenum/facesnap 册语义=族执行 cfg 非判据 cfg，同#26272 族免）。
+	"funding-extreme-fade": true, // 工单O-35489 假想卡#578381 骨架登记——
+	// paper 域提案门开；真径=极端资金费率反打执行器未建（腿原语
+	// perp_fade_dyn=方向动态单腿）；Drillable=ShapeOKXSingleLeg 册载
+	// （单腿演习形在案——占用格出真演习格同 dir_perp_mom 先例）；
+	// hunger 册免=族无自有 cfg 键同上。
+	"mark-last-disloc-fade": true, // 工单O-35489 假想卡#578382 骨架登记——
+	// paper 域提案门开；真径=标记/最新价错位反打执行器未建（腿原语
+	// perp_fade_dyn 同上；延迟预算闸=卡 requirements.latency）；
+	// Drillable=ShapeOKXSingleLeg 册载同上；hunger 册免同上。
 }
 
 // Has 模板族执行径在册否。
@@ -97,6 +112,13 @@ func FundingHedgeList() []string {
 var paperOnly = map[string]bool{
 	"dir_perp_mom": true, "perp-trend-daily": true, // 工单#11481 方向趋势族同棒1 paper-only 裁定
 	"mt5_dir_mom": true, // O-35163 CFD 方向动量族——dirpaper MTM/出场摊提域成员（价源 md_ticks venue='mt5'，出场判词同查 fin_opp_eval direction 键）
+	// O-35489 OSS 三族骨架——paper-only 裁定同上（真单径未建）；
+	// dirpaper 消费面=template_ref∈本册 ∧ direction∈(long_perp,
+	// short_perp)：两 fade 族 eval 将产方向行→MTM 链天然贯通；
+	// xsec 篮族双向复合 direction 词表外→dirpaper 不收（篮 MTM 记账臂
+	// 另件——funding 通用臂照记不虚构 pnl，fail-closed 不晋升）。
+	"xsec-perp-mom-basket": true, "funding-extreme-fade": true,
+	"mark-last-disloc-fade": true,
 }
 
 // PaperOnly 模板属 paper-only 裁定族否。
@@ -141,10 +163,13 @@ var riskShapes = map[string]uint8{
 	"dcd_put":                 ShapeLeveraged,
 	"vol_sell_single_call":    ShapeLeveraged,
 	"vol_sell_strangle":       ShapeLeveraged,
-	"stake-carry":             ShapeBounded, // 质押 carry=earn 停泊形（参考模型族）
-	"grid_spot":               ShapeBounded, // 判例#1 钦定代表——现货网格亏算封顶
-	"stable-park-usdg":        ShapeBounded, // 卡#550053 骨架——okusd 停泊=earn 形
-	"staking-defi-parking":    ShapeBounded, // 卡#550055 骨架——staking 停泊=earn 形
+	"stake-carry":             ShapeBounded,                 // 质押 carry=earn 停泊形（参考模型族）
+	"grid_spot":               ShapeBounded,                 // 判例#1 钦定代表——现货网格亏算封顶
+	"stable-park-usdg":        ShapeBounded,                 // 卡#550053 骨架——okusd 停泊=earn 形
+	"staking-defi-parking":    ShapeBounded,                 // 卡#550055 骨架——staking 停泊=earn 形
+	"xsec-perp-mom-basket":    ShapeLeveraged | ShapeFunded, // O-35489 卡#578380——perp 篮腿爆仓线+资金费拖磨（判例#1 杠杆逐案过仓位判据同 bit 语义）
+	"funding-extreme-fade":    ShapeLeveraged | ShapeFunded, // 卡#578381——perp 单腿同上
+	"mark-last-disloc-fade":   ShapeLeveraged | ShapeFunded, // 卡#578382——perp 单腿同上
 }
 
 // RiskShape 族形态标集（ok=false=册缺——消费面 fail-closed 视 leveraged

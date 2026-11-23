@@ -81,6 +81,14 @@ func TestInstFitOKFamilyContract(t *testing.T) {
 		{"mt5_dir_mom", "BTC-USDT-SWAP", false},  // OKX 永续形非 CFD 官名域
 		{"mt5_dir_mom", "BTC-USD-261225", false}, // 远期形拒
 		{"mt5_dir_mom", "okx:TRX", false},        // venue:ccy 伪键拒
+		// O-35489 三族骨架：USDT 本位永续构型=合；现货对/币本位/远期/伪键=拒
+		{"xsec-perp-mom-basket", "BTC-USDT-SWAP", true},
+		{"xsec-perp-mom-basket", "BTC-USD-SWAP", false}, // 币本位拒（D-0018）
+		{"xsec-perp-mom-basket", "BTC-USDT", false},     // 现货对非 perp 构型
+		{"funding-extreme-fade", "ETH-USDT-SWAP", true},
+		{"funding-extreme-fade", "ETH-USD-SWAP", false},
+		{"mark-last-disloc-fade", "SOL-USDT-SWAP", true},
+		{"mark-last-disloc-fade", "okx:SOL", false}, // 伪键非构型
 		// 未注册族 fail-closed
 		{"unsupported-template", "BTC-USDT-SWAP", false},
 	}
@@ -113,6 +121,9 @@ func TestInstFitOKCoversExecFam(t *testing.T) {
 		"staking-defi-parking":    "okx:ETH",
 		"signal-bot-relay":        "BTC-USDT-SWAP",
 		"mt5_dir_mom":             "XAUUSDm",
+		"xsec-perp-mom-basket":    "BTC-USDT-SWAP",
+		"funding-extreme-fade":    "BTC-USDT-SWAP",
+		"mark-last-disloc-fade":   "BTC-USDT-SWAP",
 	}
 	for _, tmpl := range execfam.All() {
 		inst, ok := valid[tmpl]

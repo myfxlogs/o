@@ -252,4 +252,5 @@ var finMigrationTable = []migEntry{
 	{237, "fin_0237_landq_autoclose_sem.sql"},           // 工单O-33705——sem_matrix 补（处置,落地件）自动销形放行（假汇总行病灶根修）
 	{238, "fin_0238_annualized_floor.sql"},              // 工单O-34963——app_config annualized.deploy_floor_usd=500（部署本金年化判据下限，低于回退NAV口径）
 	{239, "fin_0239_ops_state_dispatchable_corpse.sql"}, // 工单O-35463——ops_state 工单面压力臂 backlog 含尸（dispatchable IS NOT TRUE 收 rank NULL NULL 判）
+	{241, "fin_0241_oss_fam_criterion.sql"},             // 工单O-35489：OSS 三族骨架评估判据键（research.xsec_mom/funding_fade/disloc_fade.*——卡 falsify/ev_formula 可算口径；fin_0240 在途占跳号钉 0241）
 }
