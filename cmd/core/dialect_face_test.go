@@ -361,3 +361,104 @@ func TestSubmitSymbolMappingConnFail(t *testing.T) {
 		t.Fatalf("零落表破: %d", n)
 	}
 }
+
+// O-35250①#尾方言剥：XM #=tradable 变体标——剥后余串进 quote 层；
+// 无#同名符（观察面）同剥同 base 不碍；非#尾形零回归。
+func TestSplitDialectHash(t *testing.T) {
+	cases := []struct{ sym, base, suf string }{
+		{"BTCUSD#", "BTC", "usd"},       // #剥→USD剥→base=BTC（spec 钉案）
+		{"BTCUSD", "BTC", "usd"},        // 无#同名观察面——同剥同 base
+		{"AUDUSD#", "AUD", "usd"},       // #尾+quote 双剥
+		{"GOLD#", "GOLD", ""},           // 无 quote 尾——#剥后 base=GOLD
+		{"US500Cash#", "US500Cash", ""}, // Cash 尾非报价族——#剥即止
+		{"OIL-JAN27", "OIL-JAN27", ""},  // 期货月年形无#无quote——原样
+		{"BTCUSD.pro", "BTC", "usd"},    // .PRO marker 层零回归
+		{"BTCUSDm", "BTC", "usdm"},      // m 尾方言零回归
+	}
+	for _, c := range cases {
+		b, s := splitDialect(c.sym)
+		if b != c.base || s != c.suf {
+			t.Fatalf("splitDialect(%q)=(%q,%q) want (%q,%q)", c.sym, b, s, c.base, c.suf)
+		}
+	}
+}
+
+// O-35250②XM 目录候选面：SymbolList 218 符含#尾——canonical BTC-USDT-SWAP
+// 候选命中 BTCUSD#/BTCUSD 双形（#=tradable 优先序同分并列如实），
+// symbols 原文字段=目录浏览面数据源（rankCandidates 前全量）。
+func TestXMHashCandidatesRPC(t *testing.T) {
+	oldPace := dialectPace
+	dialectPace = 0
+	defer func() { dialectPace = oldPace }()
+	xmSyms := []string{"BTCUSD#", "BTCUSD", "ETHUSD#", "GOLD#", "SILVER#",
+		"AUDUSD", "AUDUSD#", "EURUSD", "US500Cash#", "OILCash#",
+		"BRENT-JAN27", "OIL-JAN27"}
+	for len(xmSyms) < 218 {
+		xmSyms = append(xmSyms, "FILL"+string(rune('A'+len(xmSyms)%26))+string(rune('0'+len(xmSyms)%10)))
+	}
+	specs := map[string]*dxSpec{"BTCUSD#": dxBTC(1), "BTCUSD": dxBTC(1)}
+	_, pool, ctx, mux := dialectMux(t,
+		func(string) (dialectSession, error) {
+			return &fakeDxSession{syms: xmSyms, specs: specs}, nil
+		}, nil)
+	mk := brokerMk(t)
+	seedDxCreds(t, ctx, pool, mk, "xm", "88001234")
+	rec := dxPost(t, mux, dxProcCandidates,
+		`{"venue":"xm","canonical":"BTC-USDT-SWAP"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("候选 RPC 败: %d %s", rec.Code, rec.Body.String())
+	}
+	var resp dashboardv1.ListSymbolCandidatesResponse
+	if err := protojson.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.GetScanned() != 218 || len(resp.GetSymbols()) != 218 {
+		t.Fatalf("目录面破: scanned=%d symbols=%d", resp.GetScanned(), len(resp.GetSymbols()))
+	}
+	got := map[string]bool{}
+	for _, r := range resp.GetRows() {
+		got[r.GetVenueSymbol()] = true
+	}
+	if !got["BTCUSD#"] || !got["BTCUSD"] {
+		t.Fatalf("#尾候选未命中: %v", got)
+	}
+	// 目录浏览数据源=原文全量（含未入候选的观察面/期货形）
+	var hasRaw bool
+	for _, s := range resp.GetSymbols() {
+		if s == "AUDUSD" || s == "OIL-JAN27" {
+			hasRaw = true
+		}
+	}
+	if !hasRaw {
+		t.Fatal("symbols 原文缺观察面/期货形——目录浏览数据源破")
+	}
+}
+
+// O-35250③#尾手输落行：候选机外 venue_symbol 同走 SubmitSymbolMapping
+// 硬验径（后端零改——GOLD# 实认过全谱验落 fin_symbol_dialect）。
+func TestSubmitSymbolMappingHashSymbol(t *testing.T) {
+	mk := brokerMk(t)
+	_, pool, ctx, mux := dialectMux(t,
+		func(string) (dialectSession, error) {
+			return &fakeDxSession{
+				syms:   []string{"GOLD#", "XAUUSD"},
+				specs:  map[string]*dxSpec{"GOLD#": dxBTC(1), "XAUUSD": dxBTC(1)},
+				quotes: map[string]mt5.QuoteSnapshot{"GOLD#": {Bid: 2650, Ask: 2650.35}},
+			}, nil
+		},
+		func(context.Context, string) (float64, string, string, error) { return 1, "XAU", "live", nil })
+	seedDxCreds(t, ctx, pool, mk, "xm", "88001234")
+	rec := dxPost(t, mux, dxProcMapping,
+		`{"venue":"xm","canonical":"XAU-USD-SWAP","venueSymbol":"GOLD#","note":"目录浏览手挑"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("#尾手输硬验应过: %d %s", rec.Code, rec.Body.String())
+	}
+	var vs string
+	if err := pool.QueryRow(ctx, `SELECT venue_symbol FROM fin_symbol_dialect
+		WHERE venue='xm' AND canonical='XAU-USD-SWAP'`).Scan(&vs); err != nil {
+		t.Fatalf("#尾行未落: %v", err)
+	}
+	if vs != "GOLD#" {
+		t.Fatalf("落行 venue_symbol=%s want GOLD#", vs)
+	}
+}

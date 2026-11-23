@@ -191,7 +191,7 @@ func (c coreService) ListSymbolCandidates(ctx context.Context,
 	}
 	rows, scanned := c.rankCandidates(ctx, sess, syms,
 		canonicalBase(req.GetCanonical()), canonicalQuote(req.GetCanonical()), int(req.GetLimit()))
-	return &dashboardv1.ListSymbolCandidatesResponse{Rows: rows, Scanned: int32(scanned)}, nil
+	return &dashboardv1.ListSymbolCandidatesResponse{Rows: rows, Scanned: int32(scanned), Symbols: syms}, nil
 }
 
 // rankCandidates 候选排序核（纯机造——base 命中才进面：万符噪声不入下拉；
@@ -249,8 +249,10 @@ func (c coreService) rankCandidates(ctx context.Context, sess dialectSession,
 var dialectMarkers = []string{".PRO", ".P", "PERP"}
 
 // splitDialect 方言名两层剥后缀→(base, quote 后缀)（marker 层先剥档位标，
-// quote 层长先剥——mt5.QuoteSuffixes 单源复用禁平行第二套；USDM m 尾方言
-// 全含）。base 长度=ASCII 剥余（venue 符 ASCII token 面）。
+// #尾 venue 可用标次剥（O-35250 XM 实拍：#=tradable 变体标，无#同名符=观察面
+// 并存不碍——剥后余串再进 quote 层），quote 层长先剥——mt5.QuoteSuffixes
+// 单源复用禁平行第二套；USDM m 尾方言全含）。base 长度=ASCII 剥余
+// （venue 符 ASCII token 面）。
 func splitDialect(sym string) (base, suffix string) {
 	rest := strings.ToUpper(sym)
 	for _, m := range dialectMarkers {
@@ -259,6 +261,7 @@ func splitDialect(sym string) (base, suffix string) {
 			break
 		}
 	}
+	rest = strings.TrimSuffix(rest, "#") // XM 方言：#尾=tradable 变体标（BTCUSD#→BTCUSD 再剥 USD→BTC）
 	for _, q := range mt5.QuoteSuffixes() {
 		if q == "PERP" || q == ".P" {
 			continue // 型后缀归 marker 层（本件两遍剥）

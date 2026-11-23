@@ -776,6 +776,7 @@ message SymbolCandidate {
 message ListSymbolCandidatesResponse {
   repeated SymbolCandidate rows = 1;      // score 降序（服务端排序——前端禁 sort）
   int32 scanned = 2;                      // venue 自报目录全量（枚举面如实）
+  repeated string symbols = 3;            // 目录原文（rankCandidates 前 syms——步④目录浏览面如实给席位挑，O-35250）
 }
 message SymbolVerifyEvidence {
   double bid = 1;                         // GetQuote 实拍（探活证——bid/ask>0）

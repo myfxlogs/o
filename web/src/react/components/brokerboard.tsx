@@ -24,8 +24,7 @@ import { client, errText } from "../api";
 import { useLive } from "../hooks";
 import { Card, EmptyState, ErrorState, Skeleton } from "./ui";
 import { BrokerOnboardList } from "./brokeronboardlist";
-import { SymbolMappingStep, type MappingQuery, type MappingSubmit } from "./brokermap";
-import type { SymbolCandidate } from "../../gen/dashboardv1/core_pb";
+import { SymbolMappingStep, type MappingQuery, type MappingQueryResult, type MappingSubmit } from "./brokermap";
 import type { BrokerOnboardRow } from "../../gen/dashboardv1/core_pb";
 
 // 掩码显示（凭据预览钉——长度可见值不可见，raw 值零渲染）。
@@ -59,7 +58,7 @@ export function BrokerOnboardView(props: {
 	initialErr?: string | null;
 	// T-0432 步④符号映射回调（容器装配 RPC——View 纯选转零直连）。
 	loadUniverse?: () => Promise<string[]>;
-	onMappingQuery?: (f: MappingQuery) => Promise<{ rows: SymbolCandidate[]; scanned: number }>;
+	onMappingQuery?: (f: MappingQuery) => Promise<MappingQueryResult>;
 	onSubmitMapping?: (f: MappingSubmit) => Promise<void>;
 }) {
 	const [step, setStep] = useState(props.initialStep ?? 1);
@@ -262,7 +261,7 @@ export function BrokerOnboardCard() {
 			loadUniverse={async () => (await client.listCanonicalUniverse({})).insts}
 			onMappingQuery={async (q) => {
 				const r = await client.listSymbolCandidates(q);
-				return { rows: r.rows, scanned: r.scanned };
+				return { rows: r.rows, scanned: r.scanned, symbols: r.symbols };
 			}}
 			onSubmitMapping={async (m) => {
 				await client.submitSymbolMapping(m);
