@@ -449,3 +449,14 @@
   常态近阈<20%=条件枯 regime 设计态,骤变趋近阈=行情转暖顺带核
   armed→open 转迁;owner_ledger 点破率上行=沉默面新出须普查。重复
   同纹不产新行(纹闸抑),勿当积压清。
+- **票桌孤儿**（esc_class=票桌孤儿 scope=desk_orphan——hunger 探针
+  ProbeDeskOrphan 升件（工单O-35463）：票桌 workable∧tkind='工单'∧
+  dispatch_rank IS NULL∧filed_ts<now()-24h 陈票池；note 载池计数+
+  最陈票 id+死因粗分「无证锚=… 有证未排=…（回执剔/自域死角）」；
+  rank NULL 三隐身径=证锚闸挡派发/自域 slug 双剔/dispatchable NULL
+  三值漏计，池非零=票桌有票无主轮不到任何席）→ 逐张取证裁断三择：
+  已交付/已废→处置「工单#N 销——<证据锚>」（ops_act_parse 落 close）；
+  票仍有效但缺证锚→复活重开（补证径得 rank 回派发队）∨处置
+  「工单#N 挂起条件=<因>」留据；裁定在途/条件挂起→标挂由不动。
+  池清零探针记事自销（note 引升件#id）；禁裸批量销——逐张判词
+  必载证据锚（交付件/判据/判词行），同「票滞留」禁空手处置律。

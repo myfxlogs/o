@@ -107,9 +107,36 @@ chmod +x "$T/bin/ssh"
 cat > "$T/bin/go" <<'EOF'
 #!/usr/bin/env bash
 # go list -deps 桩：cmd/core 闭包只留主件+一包（diff 落 cmd/core/ 即证内）。
+# 工单O-35463④ gorun 依赖闭包面：./tools/*|./cmd/feishubridge 各回
+# 「本包+internal/platform/config 共享依赖」——config 变更=全户命中
+# 实证面；其余包径回落 cmd/core 答案（image_face_clean 面不变）。
+for a in "$@"; do
+  case "$a" in
+    ./tools/*|./cmd/feishubridge)
+      printf 'o/%s\no/internal/platform/config\n' "${a#./}"; exit 0;;
+  esac
+done
 printf 'o/cmd/core\no/internal/platform/config\n'
 EOF
 chmod +x "$T/bin/go"
+cat > "$T/bin/systemctl" <<'EOF'
+#!/usr/bin/env bash
+# systemctl 桩（工单O-35463④ gorun 重启面）：调用全落 SYSTEMCTL_LOG；
+# is-active 应答=T_SVC_INACTIVE 名单内=inactive 余=active；
+# restart=T_SVC_FAIL 名单内=rc1 否则 rc0。
+echo "$*" >> "${SYSTEMCTL_LOG:-/dev/null}"
+case "$1 $2" in
+  "--user is-active")
+    u=${3%.service}
+    case " ${T_SVC_INACTIVE:-} " in *" $u "*) echo inactive;; *) echo active;; esac;;
+  "--user restart")
+    u=${3%.service}
+    case " ${T_SVC_FAIL:-} " in *" $u "*) exit 1;; esac
+    exit 0;;
+esac
+exit 0
+EOF
+chmod +x "$T/bin/systemctl"
 cat > "$T/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 # gh 桩：build-test check-runs 应答面——deploy_watch 取 --jq 后形
@@ -123,7 +150,7 @@ chmod +x "$T/bin/gh"
 
 # ── 夹具：bare origin + master 对齐 clone（真 git；脚本/stub 入 base commit）──
 new_repo() {
-	rm -rf "$T/o" "$T/origin.git" "$T/psql.log" "$T/psql_ok.log" "$T/calls.log" "$T/out"
+	rm -rf "$T/o" "$T/origin.git" "$T/psql.log" "$T/psql_ok.log" "$T/calls.log" "$T/out" "$T/systemctl.log"
 	git init --bare -q "$T/origin.git"
 	git init -q -b master "$T/o"
 	git -C "$T/o" config user.email t@t
@@ -158,6 +185,27 @@ second_commit() { # $1=path $2=content [$3=commit date ISO]
 	git -C "$T/o" push -qu origin master
 	HEAD2=$(git -C "$T/o" rev-parse --short=12 master)
 }
+gorun_units() { # 工单O-35463④夹具：deploy/*.service go-run 面入仓同步 origin
+	mkdir -p "$T/o/deploy"
+	cat > "$T/o/deploy/o-wakebus.service" <<'EOF'
+[Service]
+ExecStart=/usr/local/go/bin/go run ./tools/wakebus
+EOF
+	cat > "$T/o/deploy/o-feishu-bridge.service" <<'EOF'
+[Service]
+ExecStart=/bin/bash -c 'exec /usr/local/go/bin/go run ./cmd/feishubridge'
+EOF
+	cat > "$T/o/deploy/o-mech.service" <<'EOF'
+[Service]
+ExecStart=/usr/local/go/bin/go run ./tools/mechwake
+EOF
+	git -C "$T/o" add -A; git -C "$T/o" commit -qm gorun-units
+	git -C "$T/o" push -qu origin master
+	UNITS=$(git -C "$T/o" rev-parse master)
+}
+gorun_ff() { # 本地回 UNITS、origin 已在变更尖 → deploy_watch ff 径
+	git -C "$T/o" reset --hard -q "$UNITS"
+}
 run_dw() { # $1=now epoch [$2=T_WIN] [$3=T_MAXH] [$4=T_CLEANWM] [$5=T_QUEUED] [$6=T_CIV]
 	( cd "$T/o" && env PATH="$T/bin:$PATH" FIN_PG_DSN=stub REPORT_ENV_FILE="$T/envfile" \
 		PSQL_LOG="$T/psql.log" PSQL_OK="$T/psql_ok.log" CALL_LOG="$T/calls.log" \
@@ -169,6 +217,8 @@ run_dw() { # $1=now epoch [$2=T_WIN] [$3=T_MAXH] [$4=T_CLEANWM] [$5=T_QUEUED] [$
 		T_ESC_FB_FAIL_SCOPE="${T_ESC_FB_FAIL_SCOPE:-}" \
 		T_HB_LAST_STATE="${T_HB_LAST_STATE:-}" T_HB_LAST_AGE="${T_HB_LAST_AGE:-999999}" \
 		T_HB_ANCHOR_MIN="${T_HB_ANCHOR_MIN:-}" \
+		SYSTEMCTL_LOG="$T/systemctl.log" \
+		T_SVC_INACTIVE="${T_SVC_INACTIVE:-}" T_SVC_FAIL="${T_SVC_FAIL:-}" \
 		bash scripts/deploy_watch.sh >"$T/out" 2>&1 )
 }
 now_of() { date -u -d "$1" +%s; }
@@ -316,6 +366,69 @@ new_repo; second_commit docs/note.md "doc" "2026-11-20T03:00:00"
 T_HB_LAST_STATE="证空跳部署" T_HB_LAST_AGE=300 T_HB_ANCHOR_MIN=1 \
 	run_dw "$(now_of '2026-11-20 10:00:00')"
 has "VALUES('DEPLOY','心跳'" "$T/psql.log" && ok "锚裁剪生效照写" || bad "锚裁剪失效"
+
+# ═══ ⑱ gorun ff 本包径命中重启（工单O-35463④）：tools/wakebus 变更
+# →o-wakebus restart+部署事实行；feishu/mech 依赖闭包不含→零踢 ═══
+echo "== ⑱ gorun ff 本包径命中 =="
+new_repo; gorun_units
+second_commit tools/wakebus/main.go "package main" "2026-11-20T03:00:00"
+gorun_ff
+run_dw "$(now_of '2026-11-20 10:00:00')"
+has 'restart o-wakebus.service' "$T/systemctl.log" && ok "wakebus 重启在案" || bad "wakebus 未重启"
+has 'restart o-feishu-bridge.service' "$T/systemctl.log" && bad "feishu 误重启" || ok "feishu 零命中"
+has 'restart o-mech.service' "$T/systemctl.log" && bad "mech 误重启" || ok "mech 零命中"
+has 'gorun-restart unit=o-wakebus' "$T/psql.log" && ok "部署事实行在账" || bad "事实行缺"
+has 'gorun ff 重启 o-wakebus' "$T/out" && ok "重启判词" || bad "重启判词缺"
+
+# ═══ ⑲ gorun ff 零命中零重启：docs-only 变更→无 systemctl 调用 ═══
+echo "== ⑲ gorun ff 零命中 =="
+new_repo; gorun_units
+second_commit docs/note.md "doc" "2026-11-20T03:00:00"
+gorun_ff
+run_dw "$(now_of '2026-11-20 10:00:00')"
+[ ! -s "$T/systemctl.log" ] && ok "零命中零 systemctl 调用" || bad "零命中竟调 systemctl"
+
+# ═══ ⑳ gorun ff service 件本身变更→该户重启（限 go-run 户）═══
+echo "== ⑳ gorun ff service 件变更 =="
+new_repo; gorun_units
+printf '[Service]\nExecStart=/usr/local/go/bin/go run ./tools/wakebus\n# touched\n' \
+	> "$T/o/deploy/o-wakebus.service"
+git -C "$T/o" add -A; git -C "$T/o" commit -qm svc-change
+git -C "$T/o" push -qu origin master
+gorun_ff
+run_dw "$(now_of '2026-11-20 10:00:00')"
+has 'restart o-wakebus.service' "$T/systemctl.log" && ok "service 变更重启在案" || bad "service 变更未重启"
+has 'restart o-mech.service' "$T/systemctl.log" && bad "mech 误重启" || ok "mech 零命中"
+
+# ═══ ㉑ gorun ff 依赖闭包命中：internal/platform/config 变更（桩共享
+# 依赖）→全 go-run 户重启 ═══
+echo "== ㉑ gorun ff 依赖闭包命中 =="
+new_repo; gorun_units
+second_commit internal/platform/config/x.go "package config" "2026-11-20T03:00:00"
+gorun_ff
+run_dw "$(now_of '2026-11-20 10:00:00')"
+for u in o-wakebus o-feishu-bridge o-mech; do
+	has "restart $u.service" "$T/systemctl.log" && ok "$u 闭包命中重启" || bad "$u 闭包命中未重启"
+done
+
+# ═══ ㉒ gorun ff 非活件跳过：is-active=inactive→零踢+判词 ═══
+echo "== ㉒ gorun ff 非活件跳过 =="
+new_repo; gorun_units
+second_commit tools/wakebus/main.go "package main" "2026-11-20T03:00:00"
+gorun_ff
+T_SVC_INACTIVE="o-wakebus" run_dw "$(now_of '2026-11-20 10:00:00')"
+has 'restart o-wakebus.service' "$T/systemctl.log" && bad "非活件竟重启" || ok "非活件零踢"
+has '非活件跳过' "$T/out" && ok "跳过判词" || bad "跳过判词缺"
+
+# ═══ ㉓ gorun ff 重启败→deploy_gorun_restart 升件不静默 ═══
+echo "== ㉓ gorun ff 重启败升件 =="
+new_repo; gorun_units
+second_commit tools/wakebus/main.go "package main" "2026-11-20T03:00:00"
+gorun_ff
+T_SVC_FAIL="o-wakebus" run_dw "$(now_of '2026-11-20 10:00:00')"
+has 'restart o-wakebus.service' "$T/systemctl.log" && ok "重启尝试在案" || bad "重启未尝试"
+has 'deploy_gorun_restart' "$T/psql.log" && ok "升件在账" || bad "升件缺"
+has 'gorun ff 重启 o-wakebus 败' "$T/out" && ok "败判词" || bad "败判词缺"
 
 echo "== 汇总: PASS=$PASS FAIL=$FAILN =="
 [ "$FAILN" -eq 0 ]
