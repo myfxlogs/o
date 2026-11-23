@@ -164,6 +164,9 @@ func (c *Collector) session(ctx context.Context, dial func(string) (*Client, err
 	// push-on-change：空仓静默=无变动非流死。任一框架死=会话退重连）。
 	sessCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	// O-35753 充提入账细胞——OrderHistory 轮询→fin_cashflow（会话命同寿，
+	// 水位跨会话续；boot 首拍 7d 回看补漏窗，后续 15min 增量）。
+	go c.balanceOpsLoop(sessCtx, cl)
 	if n, err := cl.SubscribeOrderProfit(ctx); err != nil {
 		c.rej.Inc("subscribe_failed")
 		log.Printf("[mt5] SubscribeOrderProfit 败（流实测免订阅自推，不阻塞）: %v", err)

@@ -33,6 +33,7 @@ type hungerSensor interface {
 	ProbeFeedStale(ctx context.Context) error
 	ProbeKlineStale(ctx context.Context) error
 	ProbeOpenDrought(ctx context.Context) error
+	ProbeLiveDrought(ctx context.Context) error // O-35729：live 终局断流（各段活≠全链活——终局段无盯补盯）
 	ProbeWorkerCloseout(ctx context.Context) error
 	ProbeDeployWatch(ctx context.Context) error
 	ProbeUnitDrift(ctx context.Context) error
@@ -138,6 +139,12 @@ func (r *Runner) hungerTick(ctx context.Context) {
 	if err := r.sensor.ProbeOpenDrought(ctx); err != nil {
 		log.Printf("[lifecycle] hungertick 开仓断流探针败: %v", err)
 		r.hungerEscalate(ctx, "opendrought_probe", err)
+	}
+	// 工单O-35729 live 终局断流探针同槽（ProbeOpenDrought 同款败情隔离位——
+	// live 在册=0 超龄→归因卡升件，业主令「钱闲着」与管道断同格响）。
+	if err := r.sensor.ProbeLiveDrought(ctx); err != nil {
+		log.Printf("[lifecycle] hungertick live终局断流探针败: %v", err)
+		r.hungerEscalate(ctx, "livedrought_probe", err)
 	}
 	// 工单#25790 施工收口探针同槽（ProbeOpenDrought 同款败情隔离位）。
 	if err := r.sensor.ProbeWorkerCloseout(ctx); err != nil {
