@@ -98,3 +98,27 @@ func TestHumanTextLedgerDiffPlain(t *testing.T) {
 		t.Fatalf("兜底形机读漏出: %q", txt2)
 	}
 }
+
+// payload 感知 plain：臂名/席名/失明因分档进人话句（桩测回归锚——
+// armwatch/researcher/guard 三处断言同契：主语名不丢、机读原文不出）。
+func TestHumanTextPayloadAwarePlains(t *testing.T) {
+	txt, _ := HumanText("research_arm_silent", "研究臂 测试臂 超 2h0m0s 零成功产出——fail-closed 让位循环")
+	if !strings.Contains(txt, "测试臂") || !strings.Contains(txt, "没有产出") {
+		t.Fatalf("臂名未入人话句: %q", txt)
+	}
+	assertNoJargon(t, "armwatch", txt)
+	txt, _ = HumanText("research_arm_silent", "研究员席超 14 天零产出（无新假想卡+registry 心跳陈旧）——外部进水口停摆")
+	if !strings.Contains(txt, "研究员席") {
+		t.Fatalf("席名未入人话句: %q", txt)
+	}
+	assertNoJargon(t, "researcher", txt)
+	txt, _ = HumanText("dd_line_blind", "净权益连续读败")
+	if !strings.Contains(txt, "读不出来") || strings.Contains(txt, "净权益连续读败") {
+		t.Fatalf("失明因分档不符: %q", txt)
+	}
+	assertNoJargon(t, "dd_blind", txt)
+	txt, _ = HumanText("dd_line_blind", "risk.kill_switch 读不出")
+	if !strings.Contains(txt, "判断不了") {
+		t.Fatalf("未知 why 应走通用句: %q", txt)
+	}
+}

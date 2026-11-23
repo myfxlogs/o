@@ -25,19 +25,15 @@ var kindSpec = map[string]struct {
 		return "账户净值跌破安全硬线，系统已自动停手减仓——风控闸在正常工作，钱在保，不用动。"
 	}},
 	"dd_close_exhausted": {"触停平仓耗尽", false, "仓残人工处置", nil},
-	"dd_line_blind": {"净值硬线失明", true, "硬线未在判撤——判据/急停开关/权益读不出，需人工排查", func(string) string {
-		return "净值安全线暂时判断不了（数据读不出来）——硬线保护可能失效，机器在排查，可能需要你看一眼。"
-	}},
-	"kill_switch": {"急停开关", true, "系统停手状态变化", plainKillSwitch},
+	"dd_line_blind":      {"净值硬线失明", true, "硬线未在判撤——判据/急停开关/权益读不出，需人工排查", plainDDLineBlind},
+	"kill_switch":        {"急停开关", true, "系统停手状态变化", plainKillSwitch},
 	"transfer_ambiguous": {"划转歧态势", true, "钱动未确认——人工核实", func(string) string {
 		return "一笔资金划转结果不确定——钱可能已经动了也可能没动，需要人工核实，先别重复操作。"
 	}},
-	"net_budget_warn": {"带宽预算预警", false, "观测面超阈", nil},
-	"net_budget_crit": {"带宽预算临界", false, "观测面超阈", nil},
-	"bal_missing":     {"对账缺岗", false, "venue 读件缺席", nil},
-	"research_arm_silent": {"研究臂静默", true, "在编臂零产出——机会面停摆（T-0117）", func(string) string {
-		return "负责找机会的研究模块一段时间没有产出——赚钱机会面可能停摆，机器在查。"
-	}},
+	"net_budget_warn":        {"带宽预算预警", false, "观测面超阈", nil},
+	"net_budget_crit":        {"带宽预算临界", false, "观测面超阈", nil},
+	"bal_missing":            {"对账缺岗", false, "venue 读件缺席", nil},
+	"research_arm_silent":    {"研究臂静默", true, "在编臂零产出——机会面停摆（T-0117）", plainResearchArmSilent},
 	"retention_volume_alert": {"体积哨兵告警", false, "库/单表体积超阈——新无底洞查证（T-0153）", nil},
 	"okxws_face_dead":        {"行情面断流", false, "订阅标的行情全冻——系统面故障（T-0129）", nil},
 	"bridge_stale":           {"采集桥断链", false, "dev 蒸馏写径超时——SG REST 兜底自动接管（T-0137）", nil},
@@ -62,6 +58,36 @@ var kindSpec = map[string]struct {
 // 函数只兜底未带显式载荷的调用形）。
 func plainLedgerDiff(payload string) string {
 	return "账上记的钱和交易所实际显示对不上——金额与初步定性机器在查，初步看不像钱丢了，不用动。"
+}
+
+// plainDDLineBlind 硬线失明「发生」段人话——why 稳定短语族映射白话
+// （连续读败/参数缺/开关读不出分档；未知形走通用句——机读原文不出业主面）。
+func plainDDLineBlind(payload string) string {
+	switch {
+	case strings.Contains(payload, "净权益连续读败"):
+		return "账户净值数据连续一段时间读不出来——硬线保护可能失效，机器在排查，可能需要你看一眼。"
+	case strings.Contains(payload, "参数"):
+		return "硬线判断所需参数缺失或不合法——机器在排查，可能需要你看一眼。"
+	default:
+		return "净值安全线暂时判断不了（数据读不出来）——硬线保护可能失效，机器在排查，可能需要你看一眼。"
+	}
+}
+
+// plainResearchArmSilent 研究臂静默「发生」段人话——payload 载体分两形：
+// armwatch「研究臂 <名> 超…零成功产出」/researcher「研究员席超 14 天…」，
+// 主语名提取进白话（哪条臂/哪个席停摆=业主要知的核心事实）。
+func plainResearchArmSilent(payload string) string {
+	subj := "负责找机会的研究模块"
+	if strings.HasPrefix(payload, "研究臂 ") {
+		if i := strings.Index(payload, " 超"); i > len("研究臂 ") {
+			if name := payload[len("研究臂 "):i]; name != "" {
+				subj = "研究模块「" + name + "」"
+			}
+		}
+	} else if strings.HasPrefix(payload, "研究员席") {
+		subj = "研究员席"
+	}
+	return subj + "一段时间没有产出——赚钱机会面可能停摆，机器在查。"
 }
 
 // plainKillSwitch 急停开关方向敏感人话（→false=解除通报；→true=停手告警；
