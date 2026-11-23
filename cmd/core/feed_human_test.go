@@ -39,9 +39,9 @@ func TestFeedHumanClasses(t *testing.T) {
 }
 
 func TestFeedHumanFallback(t *testing.T) {
-	// 未覆盖类=回退原文（feedHuman 空串→feedRender 单行机器行）
-	for _, ev := range []string{"等锁", "面清单新面", "参数调整", "监账", "判词", "在办", "叙事"} {
-		r := feedRow{id: 1, seat: "跑席", event: ev, note: "k=v 机产行原文"}
+	// 规则表全不中=feedHuman 空串（feedRender 层走通用兜底人话——O-35002）
+	for _, ev := range []string{"等锁", "面清单新面", "参数调整", "监账", "叙事", "全新事件类xyz"} {
+		r := feedRow{id: 1, seat: "跑席", event: ev, note: "k=v 机产行原文 venue读=1.0"}
 		if got := feedHuman(r); got != "" {
 			t.Errorf("未覆盖类 %s 应回退空串，得 %q", ev, got)
 		}
@@ -67,13 +67,102 @@ func TestFeedRenderDualLine(t *testing.T) {
 	if !strings.HasPrefix(lines[1], "  ") || !strings.Contains(lines[1], "#32249") {
 		t.Errorf("次行应缩进机器行含 id，得 %q", lines[1])
 	}
-	// 未中=单行机器行原文
-	r2 := feedRow{id: 7, seat: "跑席", event: "等锁", note: "check_all go test 全局谱等锁"}
-	out2 := feedRender(r2)
-	if strings.Contains(out2, "\n") {
-		t.Errorf("未覆盖类应单行，得 %q", out2)
+}
+
+// ── O-35002 业主面全谱人话化验收 ─────────────────────────────────
+
+// 黑话词表——业主面首行（人话行）禁命中；机器审计行豁免（缩进行=机读层）。
+var feedJargon = []string{
+	"venue读", "账本净", "ops_event", "esc_scope", "k=v", "sha=",
+	"merge=", "尖=", "rc=", "watermark", "fingerprint",
+}
+
+func feedHumanLine(t *testing.T, r feedRow) string {
+	t.Helper()
+	out := feedRender(r)
+	return strings.SplitN(out, "\n", 2)[0]
+}
+
+func assertFeedNoJargon(t *testing.T, tag, line string) {
+	t.Helper()
+	for _, w := range feedJargon {
+		if strings.Contains(line, w) {
+			t.Fatalf("%s 黑话词 %q 命中人话行: %q", tag, w, line)
+		}
 	}
-	if !strings.Contains(out2, "#7") || !strings.Contains(out2, "等锁") {
-		t.Errorf("机器行原文应保留，得 %q", out2)
+}
+
+// spec 钦定常见事件类全覆盖——每类人话行非空且非原生 note 直出。
+func TestFeedRenderCommonEvents(t *testing.T) {
+	jargonNote := "venue读=9480.1008 账本净=9544.6921 k=v sha=abc123def merge=deadbeef"
+	for _, ev := range []string{
+		"唤起", "唤起果", "唤起败", "在办", "会话收口", "判词", "认领",
+		"完工回执", "候审回执", "复审过", "升件", "处置", "工单", "部署",
+		"落地", "记事", "量表", "profit_daily", "挂起", "败", "勘误",
+		"恢复", "心跳", "审计", "决策", "备忘",
+	} {
+		r := feedRow{id: 99, seat: "唤知席", event: ev, note: jargonNote}
+		line := feedHumanLine(t, r)
+		if line == "" {
+			t.Fatalf("%s 人话行为空", ev)
+		}
+		assertFeedNoJargon(t, ev, line)
+		if strings.Contains(line, jargonNote) {
+			t.Fatalf("%s 人话行漏原生 note: %q", ev, line)
+		}
+	}
+}
+
+// 未知事件类=显式兜底人话行+机器审计行双行——原生 note 不作首行。
+func TestFeedRenderUnknownFallback(t *testing.T) {
+	r := feedRow{id: 7, seat: "跑席", event: "全新事件类xyz",
+		note: "venue读=1.0 账本净=2.0 k=v 原生机读行"}
+	out := feedRender(r)
+	lines := strings.Split(out, "\n")
+	if len(lines) != 2 {
+		t.Fatalf("未知类应兜底人话+机器行双行，得 %d 行：%q", len(lines), out)
+	}
+	assertFeedNoJargon(t, "unknown", lines[0])
+	if strings.Contains(lines[0], "原生机读行") {
+		t.Fatalf("未知类人话行漏原生 note: %q", lines[0])
+	}
+	// 机器审计行=原文保留（id+note 不丢——append-only 对账面）
+	if !strings.HasPrefix(lines[1], "  ") || !strings.Contains(lines[1], "#7") ||
+		!strings.Contains(lines[1], "原生机读行") {
+		t.Fatalf("机器审计行应保留原文，得 %q", lines[1])
+	}
+}
+
+// 票题注入：工单#N/O-NNNN 引用→subj 解析非空则「题」随行；空=原样。
+func TestFeedTicketSubjectEnrich(t *testing.T) {
+	subj := func(id int64) string {
+		if id == 35484 {
+			return "出生闸三件套+credscan开集"
+		}
+		return ""
+	}
+	// 认领行：票号→票题
+	out := feedRender(feedRow{id: 1, seat: "施工席", event: "认领",
+		note: "认领 工单#35484 开工"}, subj)
+	if !strings.Contains(out, "工单#35484「出生闸三件套+credscan开集」") {
+		t.Fatalf("认领票题未注入: %q", out)
+	}
+	// O-NNNN 别名形（记事完工回执规则产「工单 O-N」）
+	out2 := feedRender(feedRow{id: 2, seat: "施工席", event: "记事",
+		note: "完工回执 O-35484 落成"}, subj)
+	if !strings.Contains(out2, "O-35484「出生闸三件套+credscan开集」") {
+		t.Fatalf("O- 票题未注入: %q", out2)
+	}
+	// 查无此票=原样不注（不硬编）
+	out3 := feedRender(feedRow{id: 3, seat: "施工席", event: "认领",
+		note: "认领 工单#99999 开工"}, subj)
+	if strings.Contains(out3, "「") {
+		t.Fatalf("无题票不应注入: %q", out3)
+	}
+	// subj=nil=纯渲染零注
+	out4 := feedRender(feedRow{id: 4, seat: "施工席", event: "认领",
+		note: "认领 工单#35484 开工"})
+	if strings.Contains(out4, "「出生闸") {
+		t.Fatalf("nil subj 不应注入: %q", out4)
 	}
 }

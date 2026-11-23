@@ -20,10 +20,11 @@ import (
 )
 
 type feedPush struct {
-	pool     *pgxpool.Pool
-	cfg      *config.Client
-	cli      *notify.FeishuClient
-	lastPush time.Time // 攒批窗锚——送成才记（发败不锚,下醒重泄同批）
+	pool      *pgxpool.Pool
+	cfg       *config.Client
+	cli       *notify.FeishuClient
+	lastPush  time.Time        // 攒批窗锚——送成才记（发败不锚,下醒重泄同批）
+	subjCache map[int64]string // O-35002 票题缓存——票号→ops_event 票行 note 截 30
 }
 
 type feedRow struct {
@@ -92,7 +93,8 @@ func (s *feedPush) push(ctx context.Context) error {
 			b.WriteString(f + "\n———\n")
 		}
 		for _, r := range rows {
-			b.WriteString(feedRender(r) + "\n") // 人话行+缩进机器行双行（O-32265）
+			subj := func(id int64) string { return s.ticketSubj(ctx, id) }
+			b.WriteString(feedRender(r, subj) + "\n") // 人话行+缩进机器行双行（O-32265/O-35002）
 		}
 		if _, err := s.cli.SendText(ctx, chat, strings.TrimRight(b.String(), "\n")); err != nil {
 			return err // 发败=不过水印，下醒重泄同批（不漏件）
@@ -172,6 +174,22 @@ func (s *feedPush) setWM(ctx context.Context, id int64) error {
 		 ON CONFLICT (scope,key) DO UPDATE SET msg_id=EXCLUDED.msg_id,pushed_at=now()`,
 		strconv.FormatInt(id, 10))
 	return err
+}
+
+// ticketSubj 票题白话解析（O-35002）——票号=ops_event id 域（frameSeats
+// 同约定），票行 note 截 30 字作题；查无此行/读败=空串不注（不硬编）。
+// 进程内缓存：一批行票号重复引用免重查；票题 append-only 行不变。
+func (s *feedPush) ticketSubj(ctx context.Context, id int64) string {
+	if s.subjCache == nil {
+		s.subjCache = map[int64]string{}
+	}
+	if v, ok := s.subjCache[id]; ok {
+		return v
+	}
+	var note string
+	_ = s.pool.QueryRow(ctx, `SELECT left(note,30) FROM ops_event WHERE id=$1`, id).Scan(&note)
+	s.subjCache[id] = strings.TrimSpace(note)
+	return s.subjCache[id]
 }
 
 var feedWS = strings.NewReplacer("\n", " ", "\r", " ")
