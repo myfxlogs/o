@@ -54,6 +54,7 @@ mt5.gateway_fallbacks	owner	网关备用址链（基建面——JSON 字符串�
 trx.grpc_endpoint	owner	Tron RPC 拓扑（基建面）
 okx.symbols	owner	采集宇宙清单（GetStringList 数组键——基建面）
 mt5.symbols	owner	采集宇宙清单（GetStringList 数组键——基建面）
+mt5.tick_dead_sec	owner	OnQuote 死流活性阈秒（O-34264——实报价帧静默判死收尸重连,缺省300s;基建自愈面同 repair.feeds dead_sec 族）
 readcred.entitlement	owner	读凭据权限白名单（访问控制面——fail-closed）
 repair.feeds	owner	采集臂修复注册表（JSON 面列:unit/table/where/dead_sec——基建自愈面）
 repair.guard	owner	修复环闸参数（JSON:restart_gap_sec/grace_sec/max_per_day——配额闸防风暴）
