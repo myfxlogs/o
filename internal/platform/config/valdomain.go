@@ -58,6 +58,7 @@ var valueDomainRules = []valRule{
 	{"net.budget_kbps", valNonNeg},
 	{"risk.*_pct", valFrac}, // 方向书外阈同分数实（risk.max_venue_pct=0.35 在册）
 	{"trx.poll_seconds", valPos},
+	{"annualized.deploy_floor_usd", valPos}, // 部署本金年化判据下限（O-34963——非正=判据恒部署口径=小分母病灶复辟口）
 	{"*notional_usd", valPos},
 	{"*_min_usd", valNonNeg},
 	{"*_bps", valNonNeg},

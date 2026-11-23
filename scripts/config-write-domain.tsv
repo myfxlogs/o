@@ -82,3 +82,4 @@ okxgrid.scale_float_max_frac	dm	判加浮亏界frac×投额（缺省0.05）
 okxgrid.scale_size_usd	dm	判加平行单投入USDT（缺省100）
 okxgrid.agg_invest_max_usd	dm	聚合投入帽USDT（机器线内护栏非业主键,缺省500）
 okxgrid.harvest_cooldown_s	dm	收割冷却秒（防重收,缺省86400）
+annualized.*	dm	年化判据参数（deploy_floor_usd=部署本金口径下限——低于回退NAV口径,工单O-34963/裁定#34962）

@@ -6,14 +6,19 @@
 // 按 opened_at/closed_at 与查询窗交叠加权（无 closed_at 计至窗
 // 尾）+ fin_position_view kind='dcd' 策略域产品仓凭据现值快照
 // （凭据无区间史——快照径，读面带 annualSnapMark）；dcd_owner/
-// paper/Earn 腿不入。全部年化读面（盈利报告/自观账/饿探/死刑
-// 梯度）同调本文件——第二处算式=口径漂移温床。
+// paper/Earn 腿不入。全部年化判据读面（盈利报告/自观账/饿探/死刑
+// 梯度）同调 annualJudgment 判据输入单源出口——第二处算式=口径
+// 漂移温床。O-34963 下限补丁：部署均值<floor（app_config
+// annualized.deploy_floor_usd 缺省500）→判据回退 NAV 口径
+// （小分母放大失真实证#34937/#34942）。
 package main
 
 import (
 	"context"
 	"fmt"
 	"time"
+
+	"o/internal/platform/config"
 )
 
 // annualSnapMark 快照径读面标（spec 钦定字面——DCD 凭据无区间史，
@@ -69,4 +74,50 @@ func annualDepTag(dep float64, ok, snap bool) string {
 		tag += annualSnapMark
 	}
 	return tag
+}
+
+// annualDeployFloor 判据下限（工单O-34963/值守裁定#34962）：
+// app_config annualized.deploy_floor_usd，缺省 500 fail-closed——
+// 读败/键缺/非正值回落缺省（0 floor=部署口径恒生效=小分母病灶
+// 复辟口）。
+func annualDeployFloor(cfg *config.Client) float64 {
+	if cfg != nil {
+		if v, err := cfg.GetFloat("annualized.deploy_floor_usd"); err == nil && v > 0 {
+			return v
+		}
+	}
+	return 500
+}
+
+// annualJudgment 判据输入单源出口（O-34963——部署本金口径下限补丁，
+// #34702③同令下限非改令）：部署腿时加权均值≥floor→部署口径判；
+// <floor 或分母读败→回退 NAV 口径（net×365/days÷NAV——底线真相，
+// 部署不足不得以小分母豁免达标判定；「分母不足」语义=证据不足
+// 回退 NAV 判，非达标非不达标）。NAV 回退径沿用权益盲律：缺/
+// 陈>48h/非正→ok=false（读面"—"不虚计）。返回 pct/ok/tag——
+// tag 随实际消费口径同源，读面显什么判据就吃什么。
+func (c coreService) annualJudgment(ctx context.Context, start, end time.Time,
+	net, days float64) (pct float64, ok bool, tag string) {
+	dep, depOK, snap := c.deployedBasis(ctx, start, end)
+	floor := annualDeployFloor(c.cfg)
+	if depOK && dep >= floor {
+		p, ok := annualizedPct(net, days, dep)
+		return p, ok, annualDepTag(dep, depOK, snap)
+	}
+	depTxt := "?"
+	if depOK {
+		depTxt = fmt.Sprintf("$%.0f", dep)
+	}
+	tag = fmt.Sprintf("（部署%s<下限%.0f→NAV口径）", depTxt, floor)
+	if snap {
+		tag += annualSnapMark
+	}
+	var nav *float64
+	if err := c.pool.QueryRow(ctx, `SELECT equity FROM md_equity_curve
+		WHERE ccy='NAV' AND ts>now()-interval '48 hours'
+		ORDER BY ts DESC LIMIT 1`).Scan(&nav); err != nil || nav == nil || *nav <= 0 {
+		return 0, false, tag
+	}
+	p, ok := annualizedPct(net, days, *nav)
+	return p, ok, tag
 }

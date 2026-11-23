@@ -250,4 +250,5 @@ var finMigrationTable = []migEntry{
 	{235, "fin_0235_native_ccy.sql"},              // 工单O-34287——fin_cashflow.ccy 闭集→原生币形开闸（各币各域零换算）
 	{236, "fin_0236_pnl_net_view.sql"},            // 工单#34619——fin_pnl_net 净产出口径单源视图+ops_state commercial_stall 臂改吃（position_ref NULL 现货腿排除=账外资产转换不计业绩）
 	{237, "fin_0237_landq_autoclose_sem.sql"},     // 工单O-33705——sem_matrix 补（处置,落地件）自动销形放行（假汇总行病灶根修）
+	{238, "fin_0238_annualized_floor.sql"},        // 工单O-34963——app_config annualized.deploy_floor_usd=500（部署本金年化判据下限，低于回退NAV口径）
 }
