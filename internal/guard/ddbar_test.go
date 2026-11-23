@@ -249,8 +249,11 @@ func TestDDBlindOnEquityOutage(t *testing.T) {
 	}
 	r.clk = r.clk.Add((ddTestBarSec + 1) * time.Second)
 	r.scan() // 连续读败满一柱长
-	if len(fs.sent) != 1 || !strings.Contains(fs.sent[0], "净权益连续读败") {
-		t.Fatalf("失明告警=%v（应恰 1 条含「净权益连续读败」）", fs.sent)
+	// O-34997：业主面「发生」段人话化——机读 why（净权益连续读败）不再
+	// 直出告警体，人话句须载「连续读不出」语义+标题「净值硬线失明」。
+	if len(fs.sent) != 1 || !strings.Contains(fs.sent[0], "净值硬线失明") ||
+		!strings.Contains(fs.sent[0], "读不出来") {
+		t.Fatalf("失明告警=%v（应恰 1 条含标题+人话发生段）", fs.sent)
 	}
 	if rows := ddBarRows(t, ctx, w); len(rows) != 0 {
 		t.Fatalf("读败面不应落柱行: %v", rows)

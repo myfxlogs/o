@@ -280,22 +280,62 @@ func TestOkxUniverseWildcard(t *testing.T) {
 	}
 }
 
-// 键形拆分锚：单例 mt5.*→'mt5'；<broker>.mt5.*→broker；冒号/杂形拒。
+// 键形拆分锚：单例 mt5.*→('mt5','mt5')；<broker>.mt5.*→(broker,'mt5')；
+// <venue>.<field> 注册表 field→对应 kind（工单O-35485 方言开集）；
+// 未注册 field/冒号杂形拒。
 func TestCredKeySplit(t *testing.T) {
 	for _, c := range []struct {
-		k, v, f string
-		ok      bool
+		k, v, kind, f string
+		ok            bool
 	}{
-		{"mt5.login", "mt5", "login", true},
-		{"exness.mt5.password", "exness", "password", true},
-		{"xm-01.mt5.host", "xm-01", "host", true},
-		{"mt5.login", "mt5", "login", true},
-		{"okx.api_key", "", "", false},
-		{"bad venue.mt5.login", "", "", false},
+		{"mt5.login", "mt5", "mt5", "login", true},
+		{"exness.mt5.password", "exness", "mt5", "password", true},
+		{"xm-01.mt5.host", "xm-01", "mt5", "host", true},
+		{"mt5.login", "mt5", "mt5", "login", true},
+		{"hyperliquid.account", "hyperliquid", "dex-agent", "account", true},
+		{"hyperliquid.agent_key", "hyperliquid", "dex-agent", "agent_key", true},
+		{"okx.api_key", "okx", "cex", "api_key", true},
+		{"okx_read.passphrase", "okx_read", "cex", "passphrase", true},
+		{"ibkr.paper_account", "", "", "", false},
+		{"cmc.create_tpl", "", "", "", false},
+		{"bad venue.mt5.login", "", "", "", false},
 	} {
-		v, f, ok := credKeySplit(c.k)
-		if ok != c.ok || v != c.v || f != c.f {
-			t.Fatalf("%s → %q %q %v", c.k, v, f, ok)
+		v, kind, f, ok := credKeySplit(c.k)
+		if ok != c.ok || v != c.v || kind != c.kind || f != c.f {
+			t.Fatalf("%s → %q %q %q %v", c.k, v, kind, f, ok)
 		}
+	}
+}
+
+// 注册表形校验锚（工单O-35485）：dex-agent/cex 族必备件齐=不 broken；
+// 缺件=broken fail-closed；未注册 kind=broken。非 mt5 族不过 MT5 探测径。
+func TestCredShapeOpenSet(t *testing.T) {
+	ok := checkCredShape(credFamily{venue: "hyperliquid", kind: "dex-agent",
+		fields: map[string]string{"account": "a", "agent_key": "k"}})
+	if ok.broken != "" {
+		t.Fatalf("dex-agent 齐件竟 broken=%q", ok.broken)
+	}
+	bad := checkCredShape(credFamily{venue: "hyperliquid", kind: "dex-agent",
+		fields: map[string]string{"account": "a"}})
+	if bad.broken == "" {
+		t.Fatal("dex-agent 缺 agent_key 应 broken")
+	}
+	cex := checkCredShape(credFamily{venue: "okx", kind: "cex",
+		fields: map[string]string{"api_key": "k", "api_secret": "s", "passphrase": "p"}})
+	if cex.broken != "" {
+		t.Fatalf("cex 别名形（api_key/api_secret）竟 broken=%q", cex.broken)
+	}
+	unk := checkCredShape(credFamily{venue: "x", kind: "nope",
+		fields: map[string]string{}})
+	if unk.broken == "" {
+		t.Fatal("未注册 kind 应 broken")
+	}
+	// venue-kind 闸：非 mt5 族 beat() 前置拒——不过 MT5 探测径。
+	r := &Runner{}
+	adv, err := r.beat(context.Background(),
+		credFamily{venue: "okx", kind: "cex", fields: map[string]string{}},
+		"registered", map[string]any{})
+	if err != nil || adv {
+		t.Fatalf("cex 族 beat 应拒进 adv=%v err=%v", adv, err)
 	}
 }
