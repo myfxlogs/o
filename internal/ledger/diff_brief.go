@@ -9,12 +9,11 @@ import (
 	"context"
 	"fmt"
 	"log"
-
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func ledgerDiffBrief(ctx context.Context, pool *pgxpool.Pool, venue, ccy string,
-	mtmFn func(context.Context) (map[[2]string]float64, error)) string {
+func ledgerDiffBrief(ctx context.Context, r *Runner, venue, ccy string) string {
+	pool := r.pool
+	mtmFn := r.mtm
 	var depo, wdr float64
 	_ = pool.QueryRow(ctx, `SELECT COALESCE(sum(amount) FILTER (WHERE kind='deposit'),0),
 		COALESCE(-sum(amount) FILTER (WHERE kind='withdraw'),0) FROM fin_cashflow
@@ -46,15 +45,14 @@ func ledgerDiffBrief(ctx context.Context, pool *pgxpool.Pool, venue, ccy string,
 	} else {
 		comp += "+构成读败(停泊/dcd/原生/mtm)"
 	}
+	// O-36327：豁免额=静态行+resolver 跟踪行现算——成分段显逐行
+	// mode 定性（现算/锚/破带归零/回退），与 run.go 判据同源 trackedExempt。
+	_, exBrief := r.trackedExemptBrief(ctx, venue, ccy)
 	var exN int
-	var exSum float64
-	var exWhy string
-	_ = pool.QueryRow(ctx, `SELECT count(*),COALESCE(sum(amount_usd),0),
-		COALESCE(string_agg(left(reason,28),'｜'),'')
-		FROM fin_known_residual WHERE venue=$1 AND ccy=$2 AND expires_at>now()`,
-		venue, ccy).Scan(&exN, &exSum, &exWhy)
+	_ = pool.QueryRow(ctx, `SELECT count(*) FROM fin_known_residual
+		WHERE venue=$1 AND ccy=$2 AND expires_at>now()`, venue, ccy).Scan(&exN)
 	if exN > 0 {
-		comp += fmt.Sprintf("；豁免在账$%.2f(%d行: %s)", exSum, exN, exWhy)
+		comp += "；" + exBrief
 	} else {
 		comp += "；豁免在账=0"
 	}
@@ -84,7 +82,7 @@ func (r *Runner) alertLedgerDiff(ctx context.Context, venue, ccy string,
 	r.rej.Inc("diff_alert")
 	// 业主令 2026-11-10：告警载初诊（出入金标识+簿记构成——
 	// 「只报发现不答钱从哪来」病灶，见 diff_brief.go）。
-	brief := ledgerDiffBrief(ctx, r.pool, venue, ccy, r.mtm)
+	brief := ledgerDiffBrief(ctx, r, venue, ccy)
 	raw := Diff(net, eq)
 	dir := "少"
 	if net > eq {
