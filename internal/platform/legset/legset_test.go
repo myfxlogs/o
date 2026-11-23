@@ -73,6 +73,14 @@ func TestInstFitOKFamilyContract(t *testing.T) {
 		{"signal-bot-relay", "BTC-USDT", false},       // 现货对非载体形
 		{"signal-bot-relay", "BTC-USD-261225", false}, // 远期形非 instIds 域
 		{"signal-bot-relay", "okx:BTC", false},        // 伪键非载体形
+		// mt5_dir_mom：venue='mt5' CFD 官名形=合（formOther 域非 OKX inst 形非伪键）；
+		// OKX inst 形/伪键/期权形=拒（O-35163 构型闸）
+		{"mt5_dir_mom", "XAUUSDm", true},
+		{"mt5_dir_mom", "BTCUSDm", true},
+		{"mt5_dir_mom", "US30_x10m", true},
+		{"mt5_dir_mom", "BTC-USDT-SWAP", false},  // OKX 永续形非 CFD 官名域
+		{"mt5_dir_mom", "BTC-USD-261225", false}, // 远期形拒
+		{"mt5_dir_mom", "okx:TRX", false},        // venue:ccy 伪键拒
 		// 未注册族 fail-closed
 		{"unsupported-template", "BTC-USDT-SWAP", false},
 	}
@@ -104,6 +112,7 @@ func TestInstFitOKCoversExecFam(t *testing.T) {
 		"stable-park-usdg":        "okx:USDG",
 		"staking-defi-parking":    "okx:ETH",
 		"signal-bot-relay":        "BTC-USDT-SWAP",
+		"mt5_dir_mom":             "XAUUSDm",
 	}
 	for _, tmpl := range execfam.All() {
 		inst, ok := valid[tmpl]

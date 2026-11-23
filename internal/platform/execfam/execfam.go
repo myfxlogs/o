@@ -23,7 +23,7 @@ var set = map[string]bool{
 	// 臂另棒(同quarter_basis_short缺margin册注先例),卡#531289复裁件
 	"xvenue-carry": true,
 	"stake-carry":  true,
-	"dir_perp_mom": true, "perp-trend-daily": true, // T-0160/T-0215/T-0216 历次落位同集（原 lifecycle.paperTemplates 册归并——quarter_basis_short=spot_short 腿缺 margin 能力面不在册）；dcd_put=T-0353 件②④复役登记（USDT 计价腿=基金钱常径——executor DcdQuote/DcdTrade 方向无关、paper 摊提同式、open 派发同 case，全链贯通验证在案）；xvenue-carry=T-0377 paper 径贯通登记（T-0144 双腿开户全链可达：评估前置拒/模板门闸双闸开）——open 派发仍 opener 永拒显式禁（T-0144 armed→open 钉死，T-0145 真执行另票），登记语义=paper 结算域贯通非真单径；dir_perp_mom=方向族首发 paper-only 登记（棒1——eval→proposal→paper→MTM 记账链贯通；真单径=executor+单腿演习件另棒，Drillable=false 拦 probe→live 在位）；perp-trend-daily=方向趋势族 paper-only 登记（工单#11481——Donchian 突破+winrate-CI 评估臂，eval→proposal→paper→MTM 链同棒1贯通；真单径另棒同裁定）
+	"dir_perp_mom": true, "perp-trend-daily": true, "mt5_dir_mom": true, // T-0160/T-0215/T-0216 历次落位同集（原 lifecycle.paperTemplates 册归并——quarter_basis_short=spot_short 腿缺 margin 能力面不在册）；dcd_put=T-0353 件②④复役登记（USDT 计价腿=基金钱常径——executor DcdQuote/DcdTrade 方向无关、paper 摊提同式、open 派发同 case，全链贯通验证在案）；xvenue-carry=T-0377 paper 径贯通登记（T-0144 双腿开户全链可达：评估前置拒/模板门闸双闸开）——open 派发仍 opener 永拒显式禁（T-0144 armed→open 钉死，T-0145 真执行另票），登记语义=paper 结算域贯通非真单径；dir_perp_mom=方向族首发 paper-only 登记（棒1——eval→proposal→paper→MTM 记账链贯通；真单径=executor+单腿演习件另棒，Drillable=false 拦 probe→live 在位）；perp-trend-daily=方向趋势族 paper-only 登记（工单#11481——Donchian 突破+winrate-CI 评估臂，eval→proposal→paper→MTM 链同棒1贯通；真单径另棒同裁定）；mt5_dir_mom=O-35163 CFD 方向动量族 paper-only 登记（模板#2074 legs=cfd_long/cfd_short settle=mtm——dirmom venue='mt5' 评估臂在案，eval→proposal→paper→dirpaper MTM 链贯通；live 构型位 fail-closed 桩：eq=0+Drillable 未产能，真单径不建）
 	"grid_spot": true, // 工单#25840 OKX原生网格族登记——paper 域提案门开
 	// （判词卡→提案→paper 链贯通）；真单径=okxgrid venue原生bot适配器非
 	// execution.Executor 腿语义——live 晋升双闸在案：excell.Drillable 未
@@ -96,6 +96,7 @@ func FundingHedgeList() []string {
 // live 域并存，册语义收窄回结算域，演习豁免判转 Drillable）。
 var paperOnly = map[string]bool{
 	"dir_perp_mom": true, "perp-trend-daily": true, // 工单#11481 方向趋势族同棒1 paper-only 裁定
+	"mt5_dir_mom": true, // O-35163 CFD 方向动量族——dirpaper MTM/出场摊提域成员（价源 md_ticks venue='mt5'，出场判词同查 fin_opp_eval direction 键）
 }
 
 // PaperOnly 模板属 paper-only 裁定族否。
@@ -130,6 +131,7 @@ var riskShapes = map[string]uint8{
 	"xvenue-carry":            ShapeLeveraged | ShapeFunded,
 	"dir_perp_mom":            ShapeLeveraged | ShapeFunded, // 方向 perp——杠杆+资金费
 	"perp-trend-daily":        ShapeLeveraged | ShapeFunded,
+	"mt5_dir_mom":             ShapeLeveraged | ShapeFunded, // O-35163 CFD——保证金杠杆+swap 隔夜融资拖磨（杠杆把潜在亏推过本金线=越线归业主同判例#1）
 	"signal-bot-relay":        ShapeLeveraged | ShapeFunded, // 卡#550054 骨架——信号载体=USDT 永续
 	"quarter_basis_long":      ShapeLeveraged,               // 季度远期腿=期货保证金形（无资金费位）
 	"perp_quarter_spread":     ShapeLeveraged | ShapeFunded, // perp 腿背资金费（basis.go:128 实证——perp_quarter_spread 专属 funding 记账臂）

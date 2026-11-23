@@ -150,8 +150,11 @@ func (r *Runner) scan(ctx context.Context) error {
 // admitProposals 新提案开户（state=paper；criteria 快照入行——判据代次留痕；
 // 模板门闸：join fin_opp_eval 取模板，无 paper 径族拦下不建策略）。
 func (r *Runner) admitProposals(ctx context.Context, notional, minH, minNet, maxDD float64) error {
-	rows, err := r.pool.Query(ctx, `SELECT p.id,p.inst_id,p.direction,e.template,p.eval_id,p.net_apr FROM fin_proposal p
+	rows, err := r.pool.Query(ctx, `SELECT p.id,p.inst_id,p.direction,e.template,p.eval_id,p.net_apr,
+		COALESCE(t.venue,'okx')
+		FROM fin_proposal p
 		JOIN fin_opp_eval e ON e.id=p.eval_id
+		LEFT JOIN fin_opp_template t ON t.template=e.template
 		WHERE p.state='fin_proposed' AND NOT EXISTS(
 			SELECT 1 FROM fin_strategy s WHERE s.proposal_ref=p.id)`)
 	if err != nil {
@@ -163,11 +166,12 @@ func (r *Runner) admitProposals(ctx context.Context, notional, minH, minNet, max
 		dir        string
 		tmpl       string
 		netApr     float64
+		venue      string
 	}
 	var ps []prop
 	for rows.Next() {
 		var x prop
-		if err := rows.Scan(&x.id, &x.inst, &x.dir, &x.tmpl, &x.evalID, &x.netApr); err != nil {
+		if err := rows.Scan(&x.id, &x.inst, &x.dir, &x.tmpl, &x.evalID, &x.netApr, &x.venue); err != nil {
 			rows.Close()
 			return err
 		}
@@ -207,10 +211,10 @@ func (r *Runner) admitProposals(ctx context.Context, notional, minH, minNet, max
 		// 同键去重（T-0022：同 venue+inst_id+direction+template 同时最多一个非
 		// retired 策略行——T-0124 键绑模板防跨族串仓；已挂 active 行=复用不新建，
 		// 提案照样 armed 被吸收）。
-		err := r.pool.QueryRow(ctx, `INSERT INTO fin_strategy(inst_id,template_ref,proposal_ref,state,notional_usd,criteria,direction)
-			VALUES($1,$2,$3,'paper',$4,$5,$6)
+		err := r.pool.QueryRow(ctx, `INSERT INTO fin_strategy(inst_id,template_ref,proposal_ref,state,notional_usd,criteria,direction,venue)
+			VALUES($1,$2,$3,'paper',$4,$5,$6,$7)
 			ON CONFLICT (venue,inst_id,direction,template_ref) WHERE state<>'retired' DO NOTHING
-			RETURNING id`, x.inst, x.tmpl, x.id, notional, crit, x.dir).Scan(&sid)
+			RETURNING id`, x.inst, x.tmpl, x.id, notional, crit, x.dir, x.venue).Scan(&sid)
 		if err != nil {
 			if err.Error() == "no rows in result set" {
 				if _, err := r.pool.Exec(ctx,
@@ -227,7 +231,7 @@ func (r *Runner) admitProposals(ctx context.Context, notional, minH, minNet, max
 			VALUES($1,'proposed','paper','验证官提案过阈→paper 沙箱开户')`, sid); err != nil {
 			return err
 		}
-		r.chargePaperFriction(ctx, sid, "okx", x.inst, notional) // T-0521：开户即扣估计往返摩擦（同摩擦基准）
+		r.chargePaperFriction(ctx, sid, x.venue, x.inst, notional) // T-0521：开户即扣估计往返摩擦（同摩擦基准；O-35163 venue 随模板——mt5 CFD 腿不再误标 okx）
 		if _, err := r.pool.Exec(ctx,
 			"UPDATE fin_proposal SET state='fin_armed' WHERE id=$1", x.id); err != nil {
 			return err
