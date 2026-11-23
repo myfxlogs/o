@@ -93,6 +93,7 @@ var ownerKeyGlobs = []string{
 	"trx.grpc_endpoint",     // Tron RPC 拓扑（基建面）
 	"okx.symbols",           // 采集宇宙清单（GetStringList 数组键——基建面）
 	"mt5.symbols",           // 采集宇宙清单（GetStringList 数组键——基建面）
+	"mt5.tick_dead_sec",     // OnQuote 死流活性阈秒（O-34264——基建自愈面）
 	"readcred.entitlement",  // 读凭据权限白名单（访问控制面——fail-closed）
 	"repair.feeds",          // 采集臂修复注册表（基建自愈面——白名单在码面）
 	"repair.guard",          // 修复环闸参数（配额闸防风暴）
