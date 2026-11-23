@@ -94,6 +94,8 @@ md_opt_instruments	md
 md_opt_summary	md
 md_opt_ticker	md
 md_opt_snapshot	md
+md_open_interest	md
+md_liquidation	md
 md_klines	bridge-reverse
 md_regime_fact	bridge
 md_regime_memo	bridge

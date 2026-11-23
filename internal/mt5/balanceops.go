@@ -9,7 +9,7 @@
 // dedup 兼容防双记」承接）：
 //
 //	①精确重放闸——(venue,source_table='mt5_deal',source_ref=票号) 部分
-//	  唯一索引（fin_0240）硬约束+WHERE NOT EXISTS 预检双保险；
+//	  唯一索引（fin_0241）硬约束+WHERE NOT EXISTS 预检双保险；
 //	②人工先例冲突闸——同 venue 非 mt5_deal 行（owner_out#34239/deposit
 //	  #35771 先例域）、同号、金额容差 max($0.25,0.2%)、occurred_at ±72h
 //	  窗内=视为已人工簿记→跳过不双记（manual_dup 日志归因可追）。

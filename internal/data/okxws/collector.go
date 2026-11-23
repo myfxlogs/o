@@ -231,7 +231,10 @@ func (c *Collector) dialLoop(ctx context.Context, syms []string, gen int64) erro
 		c.depth5At = map[string]time.Time{}
 		log.Printf("[okxws] books5 桥面订阅 syms=%d（信号蒸馏域）", len(c.depth5Syms))
 	}
-	c.optSubscribe(ctx, conn) // O-32540：期权链订阅（加法件 fail-open——读败跳过不炸主连接）
+	c.optSubscribe(ctx, conn)                            // O-32540：期权链订阅（加法件 fail-open——读败跳过不炸主连接）
+	if err := c.subscribeLiquidation(conn); err != nil { // O-35587②：清算事件流频道级订阅
+		return err
+	}
 	log.Printf("[okxws] subscribed syms=%d url=%s", len(syms), c.url)
 	// T-0132 活跃集 tickers 动态重订（增删订阅帧不重建连接——fin_position
 	// 在仓+fin_proposal 在途+fin_strategy 非退役的 inst_id 才配成交价级实时性）。

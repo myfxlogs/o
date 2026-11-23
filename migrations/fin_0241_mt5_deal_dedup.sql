@@ -1,4 +1,4 @@
--- fin_0240 mt5_deal 充提入账幂等硬约束（工单O-35753——MT5 充提采集臂
+-- fin_0241 mt5_deal 充提入账幂等硬约束（工单O-35753——MT5 充提采集臂
 -- fin_cashflow 落账 source_table='mt5_deal' 新源域）。
 --   部分唯一索引钉 (venue,source_table,source_ref) 三元组——spec 钦定
 --   去重键；WHERE 限 mt5_deal 域零存量行（新源表——违例集=空集，

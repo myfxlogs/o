@@ -87,6 +87,9 @@ func main() {
 		"FUTURES": uni.FamSet("FUTURES"),
 	}
 	go sp.Run(ctx, errc)
+	// O-35587②/#35490：OI 状态拍臂（md_open_interest——OKX OI 无 WS 频道
+	// REST 快照唯一取数道；清算流归 okxws liquidation-orders WS 订阅在 collector 内）。
+	go okxws.NewOIPoller(pool, cli.PublicGet).Run(ctx, errc)
 	sd := sigdist.New(pool)
 	sd.AttachConfig(cfg)
 	go sd.Run(ctx, errc) // 桥二期信号蒸馏拍（basis_ann/funding_view/xvenue→md_signal）

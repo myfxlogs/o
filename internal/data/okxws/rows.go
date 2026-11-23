@@ -39,6 +39,23 @@ type rowItem struct {
 	kline   *klineRow
 	optSum  *optSumRow  // O-32540：opt-summary 希腊字/IV 最新态
 	optTick *optTickRow // O-32540：期权活跃链 ticker 最新态
+	liqs    []liqRow    // O-35587②：liquidation-orders 帧内 details 展开（事件流水非状态）
+}
+
+// liqRow liquidation-orders 频道清算事件行（OKX 公共 WS 面——docs-v5
+// 实证载荷：details[]={bkLoss,bkPx,ccy,posSide,side,sz,ts}；帧级
+// instId/instFamily/uly 随行。事件 append-only——天然键去重 DO NOTHING）。
+type liqRow struct {
+	instID  string
+	instFam string
+	uly     string
+	ts      time.Time
+	posSide string
+	side    string
+	sz      float64
+	bkPx    float64
+	bkLoss  float64
+	ccy     string
 }
 
 // optSumRow opt-summary 频道行（O-32540——instFamily 增量推逐行；

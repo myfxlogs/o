@@ -35,8 +35,8 @@ func (c *Collector) writer(ctx context.Context) {
 		if err := c.insertBatch(ctx, buf); err != nil {
 			c.rej.Inc("write_err")
 			lastFlushFunding = fundingOnly(buf) // funding 行入缓待下拍重试
-			log.Printf("[okxws] insertBatch 败：批=%d 行（ticks=%d funding=%d mark=%d depth5=%d optsum=%d opttick=%d）: %v",
-				len(buf), countKind(buf, "tick"), countKind(buf, "funding"), countKind(buf, "mark"), countKind(buf, "depth5"), countKind(buf, "optsum"), countKind(buf, "opttick"), err)
+			log.Printf("[okxws] insertBatch 败：批=%d 行（ticks=%d funding=%d mark=%d depth5=%d optsum=%d opttick=%d liq=%d）: %v",
+				len(buf), countKind(buf, "tick"), countKind(buf, "funding"), countKind(buf, "mark"), countKind(buf, "depth5"), countKind(buf, "optsum"), countKind(buf, "opttick"), countKind(buf, "liq"), err)
 		}
 		buf = buf[:0]
 	}
@@ -122,6 +122,14 @@ func (c *Collector) insertBatch(ctx context.Context, rows []rowItem) error {
 				r.ts, r.instID, r.last, r.lastSz, r.bidPx, r.bidSz, r.askPx,
 				r.askSz, r.vol24h)
 			n++
+		case len(it.liqs) > 0: // O-35587②：md_liquidation 事件流水——天然键去重 DO NOTHING（重试/重连重推幂等）
+			for _, r := range it.liqs {
+				b.Queue(`INSERT INTO md_liquidation(ts,inst_id,inst_family,uly,pos_side,side,sz,bk_px,bk_loss,ccy)
+					VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+					ON CONFLICT (venue,inst_id,ts,pos_side,side,sz,bk_px) DO NOTHING`,
+					r.ts, r.instID, r.instFam, r.uly, r.posSide, r.side, r.sz, r.bkPx, r.bkLoss, r.ccy)
+				n++
+			}
 		case it.depth5 != nil: // T-0139：md_signal kind='depth5'——特征值 upsert（有界状态表）
 			r := it.depth5
 			meta, _ := json.Marshal(map[string]any{
@@ -160,6 +168,8 @@ func rowKey(it rowItem) string {
 		return "6:" + it.optSum.instID
 	case it.optTick != nil:
 		return "7:" + it.optTick.instID
+	case len(it.liqs) > 0:
+		return "8:" + it.liqs[0].instID + ":" + it.liqs[0].ts.UTC().Format("20060102150405.000")
 	}
 	return "9:"
 }
@@ -206,6 +216,10 @@ func countKind(buf []rowItem, kind string) int {
 			}
 		case "opttick":
 			if it.optTick != nil {
+				n++
+			}
+		case "liq":
+			if len(it.liqs) > 0 {
 				n++
 			}
 		}
