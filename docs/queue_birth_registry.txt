@@ -1,0 +1,28 @@
+# queue_birth_registry.txt —— 判断型消费面出生登记表（工单O-35484①——
+# 消费面出生无闸根修：evalfloor 幻影 623h 隐身/同根簇 30+ 火复发/
+# digest finding 派生缺——同型病三得打地鼠，出生无闸）。
+# 对拍闸=scripts/check_queue_birth.sh（check_all 链）：
+#   机扫面=migrations/*.sql 全部 CREATE [OR REPLACE] VIEW 名（消费面视图域）；
+#   钦定面=本表登记行（队列表/消费谓词等机扫不可名状面由此登记）。
+# 字段=面名|类|保底谓词|折叠签名|派生规则|豁免（六段，| 分隔；# 注释/空行免）。
+#   类=view|queue|谓词；三件套列=锚描述（迁移号/函数名/工单号皆可），
+#   缺件=「-」；豁免=存量普查<日期>（只挡新生——存量面 2026-11-24 普查落档）。
+# 判据：
+#   ① 机扫 view 名 ⊆ 本表（未登记=新增面未配三件套→闸红）；
+#   ② 本表 view 行 ⊆ 机扫集（幻影登记=闸红）；
+#   ③ 非豁免行三件套缺一=「-」→闸红；豁免行豁免列必须「存量」起头。
+# 新消费面落地径：迁移建 view/队列表/谓词 → 本表加行填三件套锚 → 闸绿。
+
+# ── 存量普查 2026-11-24（fin 链 12 视图全量——豁免落档不追三件套）─────
+fin_cashflow_domain|view|-|-|-|存量普查2026-11-24
+fin_guard_close_status|view|-|-|-|存量普查2026-11-24
+fin_opp_template_roster|view|-|-|-|存量普查2026-11-24
+fin_pnl_net|view|-|-|-|存量普查2026-11-24
+fin_position_view|view|-|-|-|存量普查2026-11-24
+ops_esc_pending|view|-|-|-|存量普查2026-11-24
+ops_event_act|view|-|-|-|存量普查2026-11-24
+ops_seat_latest|view|-|-|-|存量普查2026-11-24
+ops_state|view|-|-|-|存量普查2026-11-24
+ops_ticket_desk|view|-|-|-|存量普查2026-11-24
+ops_ticket_phase|view|-|-|-|存量普查2026-11-24
+ops_ticket_state|view|-|-|-|存量普查2026-11-24
