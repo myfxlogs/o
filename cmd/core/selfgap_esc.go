@@ -45,8 +45,8 @@ func (c coreService) learnGapEscCheck(ctx context.Context, deadSince map[string]
 	WHERE t.event='工单' AND t.ts>now()-interval '30 days'
 		AND t.note ~ '^(求知[:：]|研究席[:：])'
 		AND t.ts<now()-interval '2 hours'
-		AND NOT EXISTS (SELECT 1 FROM ops_event x WHERE x.event='处置'
-			AND x.id>t.id AND x.note ~ ('工单#'||t.id||'([^0-9]|$)'))
+		AND NOT EXISTS (SELECT 1 FROM ops_event_act a
+			WHERE a.act='close' AND a.rel=t.id AND a.ts>t.ts)
 		AND NOT EXISTS (SELECT 1 FROM ops_event cl WHERE cl.event='认领'
 			AND cl.id>t.id AND cl.ts>now()-interval '2 hours'
 			AND cl.note ~ ('工单#'||t.id||'([^0-9]|$)'))

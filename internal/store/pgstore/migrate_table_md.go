@@ -62,5 +62,6 @@ var mdMigrationTable = []migEntry{
 	{1101, "md_1101_opt_chain.sql"},       // 工单#32540：OKX 期权链采集面（instruments/summary/ticker/snapshot 四表——covered-call 数据前置）
 	{1102, "md_1102_trend_mech_card.sql"}, // 工单O-32604：假想卡② trend_mech 落账（proposed——方向族死刑审查输入件）；md_1101 双占撞号改钉 1102
 	{1103, "md_1103_tmpl_ban_fields.sql"}, // 工单O-33393：fin_opp_template 禁因三件套+名册视图（正本=PG-md——enabled=f 禁因机读化+state 矛盾态清零+candidate/禁用分态）
+	{1104, "md_1104_dir_perp_trend.sql"},  // 工单O-35491②：direction 词表扩 perp_trend（fin_0240 对偶——两链 ALTER 归一化全等）
 	{1105, "md_1105_md_oi_liq.sql"},       // 工单O-35587②/#35490：md_open_interest OI 状态表+md_liquidation 清算事件流水（超表90d+天然键去重——两表入 fin_data_retention 账）
 }
