@@ -23,6 +23,9 @@ const (
 	SpotLongStaked  LegPrim = "spot_long_staked" // T-0320：质押态长现货（非裸持）
 	CfdShort        LegPrim = "cfd_short"        // T-0320：CFD 空单（swap 付费 venue）
 	CfdLong         LegPrim = "cfd_long"         // O-35163：CFD 多单（mt5 方向族腿形——模板#2074 legs 契源）
+	PerpLongBasket  LegPrim = "perp_long_basket" // O-35489：横截面多头篮腿（篮=多 inst 复合非单 inst）
+	PerpShortBasket LegPrim = "perp_short_basket"
+	PerpFadeDyn     LegPrim = "perp_fade_dyn" // O-35489：方向动态单腿 perp（fade 族——多/空侧由信号定非族定）
 )
 
 // Family 组合律族——模板名+腿原语集+结算原语+所需能力面（venue→面清单，
@@ -151,6 +154,23 @@ func Families() []Family {
 			Legs: []LegPrim{CfdLong, CfdShort}, Settle: "mtm",
 			NeedFace: map[string][]string{"mt5": {"catalog", "symbols"}},
 			Executor: "dirmom", Existing: true, PrimaryVen: "mt5", PrimarySurf: "catalog"},
+		// ⑧ OSS 三族骨架（工单O-35489——假想卡#578380-82 parked 语义正本
+		// 逐族五件落位：本行=文法闭集注册行；Executor="" 但 Existing=true
+		// =模板行由 md_1106 迁移落位（candidate 态）+假想卡 parked 在案——
+		// 文法不重生模板/假想卡/评估（骨架语义=登记面齐、执行/评估臂另件，
+		// 族进枚举仅作闭集词汇与构型闸判据）。判据键=fin_0241 app_config
+		// research.<fam>.*（卡 falsify/ev_formula 可算口径机读——禁虚构常数）。
+		{Template: "xsec-perp-mom-basket", Direction: "xsec_mom_basket", Kind: "xsec_mom",
+			Legs: []LegPrim{PerpLongBasket, PerpShortBasket}, Settle: "mtm",
+			NeedFace: need("market-instruments", "market-tickers"), Existing: true},
+		{Template: "funding-extreme-fade", Direction: "perp_fade", Kind: "mean_reversion",
+			Legs: []LegPrim{PerpFadeDyn}, Settle: "mtm",
+			NeedFace: need("market-funding-rate", "market-instruments", "market-tickers"),
+			Existing: true},
+		{Template: "mark-last-disloc-fade", Direction: "perp_fade", Kind: "mean_reversion",
+			Legs: []LegPrim{PerpFadeDyn}, Settle: "mtm",
+			NeedFace: need("market-tickers", "market-mark-price", "market-index-tickers"),
+			Existing: true},
 	}
 }
 

@@ -255,4 +255,5 @@ var finMigrationTable = []migEntry{
 	{240, "fin_0240_dir_perp_trend.sql"},                // 工单O-35491②——direction 词表扩 perp_trend（trendmech 评估卡撞 CHECK 零落根修；md_1104 对偶）
 	{241, "fin_0241_mt5_deal_dedup.sql"},                // 工单O-35753——fin_cashflow mt5_deal 源域 (venue,source_table,source_ref) 部分唯一索引（充提采集臂幂等硬约束）
 	{242, "fin_0242_live_drought.sql"},                  // 工单O-35729——dm.hunger.live_drought_days 键+ops_esc_valence P0 闲置族谱固化（live_drought=100 顶格）；fin_0240/0241 在途占（batch-clear5/oss-fam-skeleton 支）跳号钉位
+	{243, "fin_0243_oss_fam_criterion.sql"},             // 工单O-35489：OSS 三族骨架评估判据键（research.xsec_mom/funding_fade/disloc_fade.*——卡 falsify/ev_formula 可算口径；fin_0240-0242 在途占三连跳号钉 0243）
 }

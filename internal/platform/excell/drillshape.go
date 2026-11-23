@@ -29,7 +29,11 @@ func LegShapeOf(tmpl string) (LegShape, bool) {
 		return ShapeOKXTwoLeg, true
 	case tmpl == "xvenue-carry":
 		return ShapeXvenue, true
-	case tmpl == "dir_perp_mom" || tmpl == "perp-trend-daily":
+	case tmpl == "dir_perp_mom" || tmpl == "perp-trend-daily" ||
+		tmpl == "funding-extreme-fade" || tmpl == "mark-last-disloc-fade":
+		// O-35489 两 fade 族=单腿方向动态 perp——同 ShapeOKXSingleLeg 演习形
+		// （占用格出真演习格同 dir_perp_mom 先例；xsec 篮族=篮复合腿形
+		// 未册=drillUnsupported 白名单，勿虚开）。
 		return ShapeOKXSingleLeg, true
 	case tmpl == "simdrill-gate":
 		// 演习 harness 自体测试模板（单钻径通用双腿闸演——非产线模板，

@@ -13,9 +13,9 @@
 //	  付租；md_funding 行缺=事实缺 fail-closed 延评不虚构。
 //	dcd/vol_sell 族=申报 APR 分位判词——最新 annualized_yield 须≥自身
 //	  30d 史中位（IV 穷不卖波动率）；史样本缺/最新缺=延评。
-//	dir 方向族（dir_perp_mom/perp-trend-daily）=信号续存判词——本向最新
-//	  评估行仍 proposed 且 72h 内（毕业再进场=信念续存核验；信号弱化/
-//	  翻面=延评）。
+//	dir 方向族（dir_perp_mom/perp-trend-daily/O-35489 三族骨架）=信号续存
+//	  判词——本向最新评估行仍 proposed 且 72h 内（毕业再进场=信念续存核验；
+//	  信号弱化/翻面=延评）。
 package lifecycle
 
 import (
@@ -111,7 +111,11 @@ func (r *Runner) entryCondition(ctx context.Context, inst, tmpl, dir string, ref
 	case tmpl == "dcd_call" || tmpl == "dcd_put" ||
 		tmpl == "vol_sell_single_call" || tmpl == "vol_sell_strangle":
 		return r.volEntryGate(ctx, inst, refAPR)
-	case tmpl == "dir_perp_mom" || tmpl == "perp-trend-daily":
+	case tmpl == "dir_perp_mom" || tmpl == "perp-trend-daily" ||
+		tmpl == "xsec-perp-mom-basket" || tmpl == "funding-extreme-fade" ||
+		tmpl == "mark-last-disloc-fade":
+		// O-35489 三族骨架同判词——eval→proposal→paper 链评估驱动族，
+		// 信号续存核验同构（篮族=再平衡信号续存；eval 行缺=延评不虚构）。
 		return r.dirEntryGate(ctx, inst, tmpl, dir)
 	default: // perp 腿 carry 族（funding-hedge/basis/xvenue——方向判词）
 		return r.fundingEntryGate(ctx, inst, dir)

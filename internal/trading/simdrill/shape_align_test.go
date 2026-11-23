@@ -21,6 +21,7 @@ var drillUnsupported = []string{
 	"staking-defi-parking", // 工单#26272：骨架族——真径=okx finance staking-defi purchase/redeem 非 Executor 腿形，probe→live 结构性拦保持
 	"signal-bot-relay",     // 工单#26272：骨架族——真径=tradingBot signal 适配器非 Executor 腿形，probe→live 结构性拦保持
 	"mt5_dir_mom",          // 工单#35163：CFD 方向族 venue='mt5'——mt5 执行臂未建（真单径不建裁定在案 eq=0），无可演习腿形勿虚开（stake-carry 同判例）
+	"xsec-perp-mom-basket", // 工单O-35489：篮复合腿形（perp_long_basket+perp_short_basket 多 inst 复合）——单/双腿演习形皆不配，骨架族执行臂未建无可演习腿形，probe→live 结构性拦保持
 }
 
 func TestExecfamLegShapeAlign(t *testing.T) {
