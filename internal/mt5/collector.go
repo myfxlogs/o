@@ -14,6 +14,7 @@ import (
 	"log"
 	"o/internal/platform/netmeter"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -50,6 +51,9 @@ type Collector struct {
 	// 先 CheckAlive 复挂：流死≠会话死，活则零新 login 避开券商冲突掐。
 	sessAddr string
 	sessTok  string
+	// balWM 充提轮询水位（unixnano——上拍 OrderHistory 上界；0=未跑过
+	// 首拍走 7d 回看补漏窗）。跨会话存活——重连不回看重跑（O-35753）。
+	balWM atomic.Int64
 }
 
 // readCreds 凭据+网关址读（NewCollector/OpenSession 共源）。
@@ -105,7 +109,8 @@ func NewCollector(ctx context.Context, pool *pgxpool.Pool, cfg *config.Client) (
 	}
 	return &Collector{pool: pool, cfg: cfg, cr: cr,
 		rej: rejects.New("mt5", "connect_failed", "subscribe_failed", "stream_dead",
-			"symbols_read_failed", "snapshot_write_failed", "tick_write_err", "write_err")}, nil
+			"symbols_read_failed", "snapshot_write_failed", "tick_write_err", "write_err",
+			"balance_ops_err")}, nil
 }
 
 // Run 上岗：Register+Beat → 连接循环（Connect→boot 读→订阅→OnQuote 流消费；

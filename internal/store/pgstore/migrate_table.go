@@ -253,4 +253,5 @@ var finMigrationTable = []migEntry{
 	{238, "fin_0238_annualized_floor.sql"},              // 工单O-34963——app_config annualized.deploy_floor_usd=500（部署本金年化判据下限，低于回退NAV口径）
 	{239, "fin_0239_ops_state_dispatchable_corpse.sql"}, // 工单O-35463——ops_state 工单面压力臂 backlog 含尸（dispatchable IS NOT TRUE 收 rank NULL NULL 判）
 	{240, "fin_0240_dir_perp_trend.sql"},                // 工单O-35491②——direction 词表扩 perp_trend（trendmech 评估卡撞 CHECK 零落根修；md_1104 对偶）
+	{241, "fin_0241_mt5_deal_dedup.sql"},                // 工单O-35753——fin_cashflow mt5_deal 源域 (venue,source_table,source_ref) 部分唯一索引（充提采集臂幂等硬约束）
 }
