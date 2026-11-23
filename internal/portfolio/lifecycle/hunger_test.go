@@ -33,6 +33,7 @@ type stubSensor struct {
 	fserr    error
 	kserr    error
 	odErr    error
+	ldErr    error
 	copErr   error
 	dwErr    error
 	detects  atomic.Int64
@@ -44,6 +45,7 @@ type stubSensor struct {
 	fstales  atomic.Int64
 	kstales  atomic.Int64
 	ods      atomic.Int64
+	lds      atomic.Int64
 	cops     atomic.Int64
 	dws      atomic.Int64
 }
@@ -92,6 +94,11 @@ func (s *stubSensor) ProbeKlineStale(context.Context) error {
 func (s *stubSensor) ProbeOpenDrought(context.Context) error {
 	s.ods.Add(1)
 	return s.odErr
+}
+
+func (s *stubSensor) ProbeLiveDrought(context.Context) error {
+	s.lds.Add(1)
+	return s.ldErr
 }
 
 func (s *stubSensor) ProbeWorkerCloseout(context.Context) error {
