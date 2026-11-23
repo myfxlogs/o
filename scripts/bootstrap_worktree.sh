@@ -23,12 +23,23 @@ if command -v buf >/dev/null 2>&1; then
   echo "[bootstrap] 正径 buf mtapi 模板（internal/gen/mtapi——裸 wt 可行面）"
   (cd "$WT" && buf generate --template buf.gen.mtapi.yaml) \
     || echo "  buf mtapi 败——internal/gen 降级径接手"
+  # Go 面恒正径（core 模板不依赖 protoc-gen-es——Dockerfile 同款）；
+  # es 缺时不再全谱跳过（病灶 O-35250：动 proto 支合并点 Go gen
+  # 陈旧=编译红，proto 变更支必撞）。
+  (cd "$WT" && buf generate --template buf.gen.core.yaml) \
+    || echo "  buf core 败——internal/gen 降级径接手"
+  if [ ! -e "$WT/web/node_modules/.bin/protoc-gen-es" ] \
+    && command -v npm >/dev/null 2>&1 && [ -f "$WT/web/package.json" ]; then
+    echo "[bootstrap] protoc-gen-es 缺——npm ci 补件再产 web gen"
+    (cd "$WT/web" && npm ci --no-audit --no-fund) \
+      || echo "  npm ci 败——web gen 走降级径"
+  fi
   if [ -e "$WT/web/node_modules/.bin/protoc-gen-es" ]; then
-    echo "[bootstrap] 正径 buf 默认模板（internal/gen 余面+web/src/gen）"
-    (cd "$WT" && buf generate) \
-      || echo "  buf 默认模板败——两 gen 面降级径接手"
+    echo "[bootstrap] 正径 buf web 模板（web/src/gen——TS 面独立再生）"
+    (cd "$WT" && buf generate --template buf.gen.web.yaml) \
+      || echo "  buf web 败——web/src/gen 降级径接手"
   else
-    echo "  protoc-gen-es 缺（无 web/node_modules）——全谱 buf 跳过（全正径先 npm ci 再重跑本件）"
+    echo "  protoc-gen-es 缺且 npm 不可达——web gen 走降级径（Go 面已 core 模板正径）"
   fi
 else
   echo "  buf 缺席——gen 面全走降级径（部署树快照）"
