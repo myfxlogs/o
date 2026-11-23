@@ -7,8 +7,8 @@
 //	fin_strategy(inst_id+template_ref 落签);无 position 链行=未归因
 //	桶（不虚构策略归）——Σ(归因+未归因) 对同基盈亏桶实差即咬合差,
 //	口径漂移显数不藏。
-//	窗=同 booksBeat NAV 锚式（同 equity 帧对）+同六族 kind 闭集=
-//	与账房日对账机械咬合,不新开口径。
+//	窗=同 booksBeat NAV 锚式（同 equity 帧对）+净产出口径单源
+//	fin_pnl_net（工单#34619——与账房日对账机械咬合,不新开口径）。
 //	只落量表账页不升件——排序/互证是读面,判词归读者。
 package main
 
@@ -24,10 +24,6 @@ const pnlAttrEvery = 20 * time.Hour
 
 // pnlAttrShow 账页分列上界——赚列/赔列各取头三,余归「他n策」计。
 const pnlAttrShow = 3
-
-// pnlAttrKinds 六族盈亏闭集——与 booksBeat/profitDailyBeat 钦定口径同集
-// （咬合前提=同基;改此集须同步账房件）。
-var pnlAttrKinds = `'fee','funding_settle','trade_pnl','rollback_cost','spot_buy','spot_sell'`
 
 type pnlAttrRow struct {
 	strat, tmpl, inst string
@@ -50,11 +46,10 @@ func (c coreService) pnlAttrBeat(ctx context.Context, deadSince map[string]time.
 	// ② 策略分列（position 链归因;NULL 链=未归因桶如实）。
 	rows, err := c.pool.Query(ctx, `SELECT coalesce(s.id::text,'unattr'),
 		coalesce(s.template_ref,'-'), coalesce(s.inst_id,'-'),
-		sum(c.amount), count(*) FROM fin_cashflow c
+		sum(c.amount), count(*) FROM fin_pnl_net c
 		LEFT JOIN fin_position p ON c.position_ref=p.id
 		LEFT JOIN fin_strategy s ON p.strategy_ref=s.id
-		WHERE c.venue<>'sim' AND c.occurred_at>$1 AND c.occurred_at<=$2
-		AND c.kind IN (`+pnlAttrKinds+`)
+		WHERE c.occurred_at>$1 AND c.occurred_at<=$2
 		GROUP BY 1,2,3 ORDER BY sum(c.amount) DESC`, tsPrev, tsNow)
 	if err != nil {
 		return
@@ -72,9 +67,8 @@ func (c coreService) pnlAttrBeat(ctx context.Context, deadSince map[string]time.
 	}
 	// ③ 咬合件——同基盈亏桶（两查询实差=口径漂移显数）。
 	var earned float64
-	_ = c.pool.QueryRow(ctx, `SELECT coalesce(sum(amount),0) FROM fin_cashflow
-		WHERE venue<>'sim' AND occurred_at>$1 AND occurred_at<=$2
-		AND kind IN (`+pnlAttrKinds+`) AND ccy IN ('USDT','USD') `, tsPrev, tsNow).Scan(&earned)
+	_ = c.pool.QueryRow(ctx, `SELECT coalesce(sum(amount),0) FROM fin_pnl_net
+		WHERE occurred_at>$1 AND occurred_at<=$2 `, tsPrev, tsNow).Scan(&earned)
 	attrSum, unattr := 0.0, 0.0
 	nStrat := 0
 	for _, r := range rs {

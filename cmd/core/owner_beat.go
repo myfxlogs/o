@@ -73,21 +73,17 @@ func (c coreService) ownerLedgerBeat(ctx context.Context) {
 }
 
 // profitDailyBeat 盈利报告日行（业主令 2026-11-11⑤：盈利方式为系统域,
-// 业主唯一常态读面=盈利报告）——净产出口径同 commercialEscCheck 钦定
-// （fin_cashflow 六 kind 族 venue<>'sim',Earn 息不入账已剔）。日行=业主
+// 业主唯一常态读面=盈利报告）——净产出口径单源 fin_pnl_net（工单#34619：损益六kind∧USDT/USD域∧
+// position_ref NULL现货腿排除——账外资产转换不计业绩；Earn息不入账已剔）。日行=业主
 // 唯一例行读件,负值不另告警（stall 面归 commercial 探针,本件纯账页）。
 func (c coreService) profitDailyBeat(ctx context.Context) {
 	var net24, net30 float64
 	var openPos, liveN int
 	if err := c.pool.QueryRow(ctx, `SELECT
-		(SELECT COALESCE(sum(amount),0) FROM fin_cashflow
-			WHERE venue<>'sim' AND occurred_at>now()-interval '24 hours'
-			AND kind IN ('fee','funding_settle','trade_pnl','rollback_cost','spot_buy','spot_sell')
-			AND ccy IN ('USDT','USD')),
-		(SELECT COALESCE(sum(amount),0) FROM fin_cashflow
-			WHERE venue<>'sim' AND occurred_at>now()-interval '30 days'
-			AND kind IN ('fee','funding_settle','trade_pnl','rollback_cost','spot_buy','spot_sell')
-			AND ccy IN ('USDT','USD')),
+		(SELECT COALESCE(sum(amount),0) FROM fin_pnl_net
+			WHERE occurred_at>now()-interval '24 hours'),
+		(SELECT COALESCE(sum(amount),0) FROM fin_pnl_net
+			WHERE occurred_at>now()-interval '30 days'),
 		(SELECT count(*) FROM fin_position WHERE state<>'closed'),
 		(SELECT count(*) FROM fin_strategy WHERE state IN ('live','probe')) `).
 		Scan(&net24, &net30, &openPos, &liveN); err != nil {
