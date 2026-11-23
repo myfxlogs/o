@@ -162,3 +162,13 @@ func (c *Collector) subscribeSet(syms []string) []map[string]string {
 	}
 	return subscribeArgs(syms)
 }
+
+// subscribeLiquidation O-35587②：liquidation-orders 频道级订阅（公共面
+// SWAP 清算事件流——arg 形 {channel,instType} 无 instId；帧级 instId
+// 在载荷行内。事件流水→md_liquidation 天然键去重——多实例同订幂等不重）。
+func (c *Collector) subscribeLiquidation(conn *websocket.Conn) error {
+	if err := subscribeAll(conn, []map[string]string{{"channel": "liquidation-orders", "instType": "SWAP"}}); err != nil {
+		return fmt.Errorf("liquidation-orders subscribe: %w", err)
+	}
+	return nil
+}

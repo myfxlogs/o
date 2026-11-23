@@ -56,6 +56,8 @@ func (c *Collector) handle(data []byte) {
 			it.mark = parseMark(instID, msg.Arg.Channel, obj(raw))
 		case "candle1D": // 工单#13065 日K面——数组载荷活跃集尾流
 			it.kline = parseCandle(instID, "1D", raw)
+		case "liquidation-orders": // O-35587②：频道级订阅（arg 无 instId）——instId 在载荷行内
+			it.liqs = parseLiquidation(obj(raw))
 		case "books5": // T-0139：深度蒸馏——5s 节流（特征值非原始盘口）
 			if isOptInstID(instID) {
 				continue // O-32540：期权 books5 本件不订（ticker∨books5 取 ticker）——防御闸防 ctv 误查
@@ -95,7 +97,7 @@ func (c *Collector) handle(data []byte) {
 		default:
 			continue
 		}
-		if it.tick == nil && it.funding == nil && it.mark == nil && it.depth5 == nil && it.kline == nil && it.optSum == nil && it.optTick == nil {
+		if it.tick == nil && it.funding == nil && it.mark == nil && it.depth5 == nil && it.kline == nil && it.optSum == nil && it.optTick == nil && len(it.liqs) == 0 {
 			if msg.Arg.Channel != "books5" { // books5 节流窗静默非解析败
 				c.rej.Inc("parse_fail")
 			}
