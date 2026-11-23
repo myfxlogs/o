@@ -93,14 +93,16 @@ func (c coreService) profitDailyBeat(ctx context.Context) {
 	if !gaugeDue(ctx, c, "profit_daily", fp, ownerBeatEvery) {
 		return
 	}
-	// vs 目标8%——总纲钦定线同框（业主令 11-11⑩：目标数摆眼前不靠记性）。
-	// 年化=30d净×(365/30)/NAV 净值；NAV 缺/陈>48h 行省略（同 idle_capital 判据）。
-	var nav *float64
-	target := ""
-	if err := c.pool.QueryRow(ctx, `SELECT equity FROM md_equity_curve
-		WHERE ccy='NAV' AND ts>now()-interval '48 hours'
-		ORDER BY ts DESC LIMIT 1`).Scan(&nav); err == nil && nav != nil && *nav > 0 {
-		target = fmt.Sprintf(" 年化%.2f%%vs目标≥8%%", net30*365/30 / *nav * 100)
+	// vs 目标8%——总纲钦定线同框（业主令 11-11⑩：目标数摆眼前不靠记性；
+	// 令#34702③年化分母=部署本金窗时加权均值——NAV 基部署率低时失真，
+	// 分子=fin_pnl_net 净产单源不动）。分母不可得/零部署→"—"不虚计。
+	dep, depOK, depSnap := c.deployedBasis(ctx,
+		time.Now().Add(-30*24*time.Hour), time.Now())
+	target := " 年化—vs目标≥8%" + annualDepTag(dep, depOK, depSnap)
+	if depOK {
+		if ann, ok := annualizedPct(net30, 30, dep); ok {
+			target = fmt.Sprintf(" 年化%.2f%%vs目标≥8%%%s", ann, annualDepTag(dep, depOK, depSnap))
+		}
 	}
 	note := fmt.Sprintf("v=%s 盈利报告: 24h净%.4f 30d累%.4f 在仓%d live+probe%d%s——纯账页件,空转/负产出告警面归 commercial 探针",
 		fp, net24, net30, openPos, liveN, target)
