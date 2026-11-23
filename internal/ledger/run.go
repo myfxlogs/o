@@ -27,9 +27,12 @@ type Runner struct {
 	bal func(ctx context.Context) (map[[2]string]float64, error)
 	// earnings savings 累计收益读件（T-0055 利息入账源）。
 	earnings func(ctx context.Context) (map[string]float64, error)
-	pool     *pgxpool.Pool
-	cfg      *config.Client
-	rej      *rejects.Door
+	// dcdOrd venue dcd 持仓单读件（O-36327：dcd_mtm_drift resolver 名义量
+	// 差源——nil=resolver fail-closed 回退静态锚）。
+	dcdOrd func(ctx context.Context) ([]DcdOrderView, error)
+	pool   *pgxpool.Pool
+	cfg    *config.Client
+	rej    *rejects.Door
 }
 
 // WithAlerter 挂告警器（nil=静默降级）。
@@ -51,6 +54,13 @@ func (r *Runner) WithBalances(fn func(ctx context.Context) (map[[2]string]float6
 // WithMTM 挂持仓盯市偏移读件（T-0076——venue×ccy 偏移额；无持仓=空 map）。
 func (r *Runner) WithMTM(fn func(ctx context.Context) (map[[2]string]float64, error)) *Runner {
 	r.mtm = fn
+	return r
+}
+
+// WithDcdOrders 挂 venue dcd 持仓单读件（O-36327——cmd 装配层接线；
+// nil=跟踪豁免 resolver 回退静态锚 fail-closed）。
+func (r *Runner) WithDcdOrders(fn func(ctx context.Context) ([]DcdOrderView, error)) *Runner {
+	r.dcdOrd = fn
 	return r
 }
 
@@ -186,10 +196,13 @@ func (r *Runner) reconcile(ctx context.Context) error {
 		// unexplained 超额仍即报（豁免≠白名单静默一切）。
 		var exempt float64
 		// 升件#10063③：豁免额读败=exempt 静默失效过警——同判例计数+让位。
-		if err := r.pool.QueryRow(ctx, `SELECT COALESCE(sum(amount_usd),0) FROM fin_known_residual
-			WHERE venue=$1 AND ccy=$2 AND expires_at>now()`, x.venue, x.ccy).Scan(&exempt); err != nil {
+		// O-36327：豁免额=静态行+resolver 跟踪行现算（trackedExempt 同源——
+		// 破带行贡献归零+升件，回退/静态语义见 residual_tracked.go）。
+		var exErr error
+		exempt, _, exErr = r.trackedExempt(ctx, x.venue, x.ccy)
+		if exErr != nil {
 			r.rej.Inc("recon_probe_failed")
-			log.Printf("WARN [ledger] 判据喂数读败 exempt %s/%s——本键让位: %v", x.venue, x.ccy, err)
+			log.Printf("WARN [ledger] 判据喂数读败 exempt %s/%s——本键让位: %v", x.venue, x.ccy, exErr)
 			continue
 		}
 		// T-0101 修补：非本位键 diff 为币量——按 md_ticks 折 USD 再对容差
