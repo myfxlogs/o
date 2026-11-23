@@ -15,7 +15,7 @@
 // 提案流鲜度/eval拒谱/paper·probe池计数与最陈/漏斗迁移流/退役因top/
 // 断点推定+责任归位行（业主令④——谁在让钱闲着卡先答）+在办证。
 // 只报不修、24h 同窗去重（esc_class+esc_scope 等值键）。fail-closed 键缺
-// =探针报错不探（迁移 fin_0240 落键防哑针）。
+// =探针报错不探（迁移 fin_0242 落键防哑针）。
 package hunger
 
 import (
@@ -25,7 +25,7 @@ import (
 )
 
 // liveDroughtEscClass 升件类（本件新类——ops_esc_valence 'live_drought'=100
-// 顶格在案，fin_0240 迁移固化；scope 同词供 24h 同窗去重等值键）。
+// 顶格在案，fin_0242 迁移固化；scope 同词供 24h 同窗去重等值键）。
 const liveDroughtEscClass = "live_drought"
 
 // ProbeLiveDrought live 终局断流探针一拍：live 在册=0 且断流超阈→归因卡

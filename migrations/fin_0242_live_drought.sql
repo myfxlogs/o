@@ -1,4 +1,4 @@
--- 0240 live 终局断流探针键+P0 族谱惧值固化（工单O-35729——业主令
+-- 0242 live 终局断流探针键+P0 族谱惧值固化（工单O-35729——业主令
 -- 2026-11-23②③④：钱躺着=P0 顶格，闲置族权重不漂）：
 -- ① dm.hunger.live_drought_days——live 终局断流窗（初值 3d 对齐
 --   zero_proposal/open_drought_days 票面钦例；探针 fail-closed 键缺不探，
@@ -10,7 +10,7 @@
 --   世模/calib_drift 不动（非闲置族——业主令表外）。
 
 INSERT INTO app_config(key,value,updated_by) VALUES
-  ('dm.hunger.live_drought_days', '3', 'fin_0240')
+  ('dm.hunger.live_drought_days', '3', 'fin_0242')
 ON CONFLICT (key) DO NOTHING;
 
 INSERT INTO ops_esc_valence(esc_key,weight,note) VALUES
