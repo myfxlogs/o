@@ -92,7 +92,7 @@ func (c coreService) GetCockpit(ctx context.Context,
 	var cryptoIn float64
 	if err := c.pool.QueryRow(ctx,
 		`SELECT COALESCE(sum(amount),0) FROM fin_cashflow
-		 WHERE kind IN ('deposit','withdraw','recon_adjust') AND venue<>'mt5'`).Scan(&cryptoIn); err != nil {
+		 WHERE kind IN ('deposit','withdraw','recon_adjust') AND venue<>'mt5' AND ccy IN ('USDT','USD') `).Scan(&cryptoIn); err != nil {
 		moneyErr = true
 	}
 	if ds, derr := report.RealizedDaily(ctx, c.pool,
@@ -143,7 +143,7 @@ func (c coreService) GetCockpit(ctx context.Context,
 	}
 	var parked float64
 	_ = c.pool.QueryRow(ctx, `SELECT COALESCE(sum(amount),0) FROM fin_cashflow
-		WHERE kind IN ('earn_in','earn_out')`).Scan(&parked)
+		WHERE kind IN ('earn_in','earn_out') AND ccy IN ('USDT','USD') `).Scan(&parked)
 	crow := &dashboardv1.CockpitPlatformRow{Platform: "crypto", Committed: commC,
 		Deposited: cryptoIn, Parked: parked, Exposure: r.Money.Exposure}
 	r.Money.Platforms = append(r.Money.Platforms, crow)

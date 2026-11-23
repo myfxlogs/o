@@ -114,13 +114,13 @@ func ParkedAmt(ctx context.Context, pool *pgxpool.Pool) (map[[2]string]float64, 
 	return out, rows.Err()
 }
 
-// ReconSets 对拍三件一次出（T-0100/T-0101——账户域作用集折叠 venue×ccy
-// 白名单+停泊台账币数+dcd 基线台账币数）。
+// ReconSets 对拍四件一次出（T-0100/T-0101+O-34287——账户域作用集折叠
+// venue×ccy 白名单+停泊台账币数+dcd 基线台账币数+原生币基线台账币数）。
 func ReconSets(ctx context.Context, pool *pgxpool.Pool) (wlSet map[[2]string]bool,
-	parked, dcdBase map[[2]string]float64, err error) {
+	parked, dcdBase, nativeBase map[[2]string]float64, err error) {
 	set, err := FundCcy(ctx, pool)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	wlSet = map[[2]string]bool{}
 	for k := range set {
@@ -132,10 +132,47 @@ func ReconSets(ctx context.Context, pool *pgxpool.Pool) (wlSet map[[2]string]boo
 	}
 	parked, err = ParkedAmt(ctx, pool)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	dcdBase, err = DcdBaselineAmt(ctx, pool)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	nativeBase, err = NativeBaselineAmt(ctx, pool)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	// O-34287 验收⑤：原生币基线键并入对拍域（venue 真值首拍幂等建账——
+	// 杂币余额开账位=账本域存在，非白名单静默放行）。
+	for k := range nativeBase {
+		wlSet[k] = true
+	}
 	return
+}
+
+// NativeBaselineAmt 原生币基线台账量（O-34287 验收⑤：op='native_baseline'
+// 凭据行 Σamt 逐 (venue,ccy)——存量非 USDT/USD 资产首拍 venue 真值驱动
+// 幂等建 opening 账，形同 dcd_baseline 归因凭据语义；BTC 尘/Earn 杂币/
+// TRX 托管币等 FundCcy 未登记币的对账域载体）。
+func NativeBaselineAmt(ctx context.Context, pool *pgxpool.Pool) (map[[2]string]float64, error) {
+	out := map[[2]string]float64{}
+	rows, err := pool.Query(ctx, `SELECT intent->>'venue',intent->>'ccy',
+		sum((intent->>'amt')::numeric) FROM fin_risk_decision
+		WHERE intent->>'op'='native_baseline'
+		GROUP BY 1,2`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var v, c string
+		var a float64
+		if err := rows.Scan(&v, &c, &a); err != nil {
+			return nil, err
+		}
+		out[[2]string{v, c}] += a
+	}
+	return out, rows.Err()
 }
 
 // DcdBaselineAmt dcd 基线台账量（T-0101：op='dcd_baseline' 凭据行 Σamt 逐

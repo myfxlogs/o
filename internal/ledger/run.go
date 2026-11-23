@@ -140,17 +140,14 @@ func (r *Runner) reconcile(ctx context.Context) error {
 	// T-0100 ①③+T-0101：对拍白名单=ReconSets 三件一次出（venue 域折叠白
 	// 名单+停泊/dcd 台账币数）；非本位键 ledger 侧按币量建键——venue=币数
 	// 同径比对，单位错配爆雷根除。台账有量 venue 无行=补零强制比对（漏报根修）。
-	wl, parked, dcdBase, err := ReconSets(ctx, r.pool)
+	wl, parked, dcdBase, nativeBase, err := ReconSets(ctx, r.pool)
 	if err != nil {
 		r.rej.Inc("write_err")
 		return err
 	}
-	for _, m := range []map[[2]string]float64{parked, dcdBase} {
-		for k := range m {
-			if _, ok := ven[k]; !ok {
-				ven[k] = 0
-			}
-		}
+	if err := r.armNativeBaselines(ctx, ven, wl, parked, dcdBase, nativeBase); err != nil {
+		r.rej.Inc("write_err")
+		return err
 	}
 	var rs []struct {
 		venue, ccy string
@@ -170,8 +167,9 @@ func (r *Runner) reconcile(ctx context.Context) error {
 			log.Printf("WARN [ledger] 判据喂数读败 net %s/%s——本键让位: %v", k[0], k[1], err)
 			continue
 		}
-		net += parked[k]  // 非本位停泊币台账币数（venue=币量同径）
-		net += dcdBase[k] // T-0101：dcd 基线台账币数（venue=名义币量同径）
+		net += parked[k]     // 非本位停泊币台账币数（venue=币量同径）
+		net += dcdBase[k]    // T-0101：dcd 基线台账币数（venue=名义币量同径）
+		net += nativeBase[k] // O-34287：原生币基线台账币数（venue=余额币量同径）
 		// T-0076：net+盯市偏移=同口径 NAV（持仓浮动与真差分离——偏移读败=0 不加不减）。
 		if r.mtm != nil {
 			if mv, merr := r.mtm(ctx); merr == nil {

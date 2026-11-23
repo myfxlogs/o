@@ -290,7 +290,7 @@ func (w *Warden) markClosed(ctx context.Context, p posRow, closeExecID int64, tr
 func (w *Warden) trailingIncomePositive(ctx context.Context, posID int64) bool {
 	var sum float64
 	if err := w.pool.QueryRow(ctx, `SELECT COALESCE(SUM(amount),0) FROM fin_cashflow
-		WHERE position_ref=$1 AND kind='funding_settle' AND occurred_at>now()-interval '24 hours'`,
+		WHERE position_ref=$1 AND kind='funding_settle' AND occurred_at>now()-interval '24 hours' AND ccy IN ('USDT','USD') `,
 		posID).Scan(&sum); err != nil {
 		log.Printf("WARN [guard] 仓 %d trailing 实收读败（豁免判据回退年龄闸）: %v", posID, err)
 		return false

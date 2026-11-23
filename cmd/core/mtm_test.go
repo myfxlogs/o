@@ -63,8 +63,18 @@ func TestMTMReaderSpotFullValueAndSwapIncrement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if d := mv[[2]string{"okx", "USDT"}]; d < 19.999 || d > 20.001 {
-		t.Fatalf("并轨偏移=%v（应 20=现货全值 21−合约增量 1，价缺腿按 0）", d)
+	// O-34287 验收③：非 SWAP 腿偏移=基币原量入基币键（币量不折 USDT、
+	// 不需现价——量纲=币量非估值）；SWAP 增量仍 USDT 域。
+	// ETH 买腿 +0.01 ETH；BTC 腿 +0.001 BTC（原币量径无价依赖）；
+	// 合约腿 USDT −1；quote 额腿缺 base 量仍跳过。
+	if d := mv[[2]string{"okx", "ETH"}]; d != 0.01 {
+		t.Fatalf("ETH 基币偏移=%v 应 0.01（qty_base 原币量）", d)
+	}
+	if d := mv[[2]string{"okx", "BTC"}]; d != 0.001 {
+		t.Fatalf("BTC 基币偏移=%v 应 0.001", d)
+	}
+	if d := mv[[2]string{"okx", "USDT"}]; d < -1.001 || d > -0.999 {
+		t.Fatalf("USDT 域应仅合约增量 -1（现货全值已归基币键）: %v", d)
 	}
 	// closed 仓不入偏移。
 	if _, err := pool.Exec(ctx, `UPDATE fin_position SET closed_at=now() WHERE id=$1`, pid); err != nil {

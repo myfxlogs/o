@@ -74,7 +74,7 @@ func (c coreService) pnlAttrBeat(ctx context.Context, deadSince map[string]time.
 	var earned float64
 	_ = c.pool.QueryRow(ctx, `SELECT coalesce(sum(amount),0) FROM fin_cashflow
 		WHERE venue<>'sim' AND occurred_at>$1 AND occurred_at<=$2
-		AND kind IN (`+pnlAttrKinds+`)`, tsPrev, tsNow).Scan(&earned)
+		AND kind IN (`+pnlAttrKinds+`) AND ccy IN ('USDT','USD') `, tsPrev, tsNow).Scan(&earned)
 	attrSum, unattr := 0.0, 0.0
 	nStrat := 0
 	for _, r := range rs {

@@ -46,7 +46,7 @@ func (c coreService) booksBeat(ctx context.Context, deadSince map[string]time.Ti
 		tsPrev, tsNow).Scan(&flow)
 	_ = c.pool.QueryRow(ctx, `SELECT coalesce(sum(amount),0) FROM fin_cashflow
 		WHERE venue<>'sim' AND occurred_at>$1 AND occurred_at<=$2
-		AND kind IN ('fee','funding_settle','trade_pnl','rollback_cost','spot_buy','spot_sell')`,
+		AND kind IN ('fee','funding_settle','trade_pnl','rollback_cost','spot_buy','spot_sell') AND ccy IN ('USDT','USD') `,
 		tsPrev, tsNow).Scan(&earned)
 	delta := navNow - navPrev
 	resid := delta - flow - earned
@@ -90,7 +90,7 @@ func (c coreService) residLens(ctx context.Context, tsPrev, tsNow time.Time) str
 		FROM fin_cashflow
 		WHERE venue<>'sim' AND occurred_at>$1 AND occurred_at<=$2
 		  AND kind NOT IN ('fee','funding_settle','trade_pnl','rollback_cost','spot_buy','spot_sell')
-		GROUP BY kind,venue ORDER BY abs(sum(amount)) DESC LIMIT 5`, tsPrev, tsNow)
+		AND ccy IN ('USDT','USD') GROUP BY kind,venue ORDER BY abs(sum(amount)) DESC LIMIT 5`, tsPrev, tsNow)
 	if err == nil {
 		var segs []string
 		for rows.Next() {

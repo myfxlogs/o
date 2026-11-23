@@ -116,7 +116,7 @@ func (d *Drill) dirRecon(ctx context.Context, res Result, deriv simvenue.Instrum
 	}
 	var sum float64
 	if err := d.Pool.QueryRow(ctx, `SELECT COALESCE(sum(amount),0) FROM fin_cashflow
-		WHERE position_ref=$1 AND venue='sim'`, posID).Scan(&sum); err != nil {
+		WHERE position_ref=$1 AND venue='sim' AND ccy IN ('USDT','USD') `, posID).Scan(&sum); err != nil {
 		return d.fail(ctx, res, "演习现金账读败"), "fail"
 	}
 	return fmt.Sprintf("单腿演习闭环（开 #%d→平 #%d 触发=%s）残仓零 cash=%.4f",

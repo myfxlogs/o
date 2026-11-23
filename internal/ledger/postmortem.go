@@ -274,7 +274,7 @@ func (r *Runner) attrAnchors(ctx context.Context, posID, execID int64,
 		log.Printf("WARN [ledger] 仓 #%d 归因锚 ops 断供读败（按零锚）: %v", posID, err)
 	}
 	if err := r.pool.QueryRow(ctx, `SELECT COALESCE(sum(amount),0) FROM fin_cashflow
-		WHERE position_ref=$1 AND kind='funding_settle'`, posID).Scan(&f.FundingNet); err != nil {
+		WHERE position_ref=$1 AND kind='funding_settle' AND ccy IN ('USDT','USD') `, posID).Scan(&f.FundingNet); err != nil {
 		log.Printf("WARN [ledger] 仓 #%d 归因锚 funding 净额读败（按零锚）: %v", posID, err)
 	}
 	return f

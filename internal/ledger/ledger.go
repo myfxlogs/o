@@ -1,6 +1,7 @@
 // Package ledger —— 账本域（G9 单源货币真相）。
-// 铁律：fin_cashflow 每行强制 source_ref+source_table（禁推断记账）；kind/ccy
-// 闭集（OKX=USDT/MT5=USD 各记各的零换算，杂币不入账拒写）；净额=Σcashflow；
+// 铁律：fin_cashflow 每行强制 source_ref+source_table（禁推断记账）；kind 闭集
+// +ccy 原生币形闸（O-34287 业主令：各币各域零换算——OKX 原生币全收，
+// MT5=USD 单币照旧）；净额=Σcashflow；
 // 对账拿 venue 私有流快照交叉，差即告警计数；账本不触发钱动作。
 package ledger
 
@@ -8,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"regexp"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -36,7 +38,19 @@ var kinds = map[string]bool{
 	// counted——earn_* 排除面外照入 net；与 dcd_baseline 凭据配对互抵）。
 	"dcd_out": true, "dcd_in": true,
 }
-var ccys = map[string]bool{"USDT": true, "USD": true}
+
+// ccyRE 原生币种形（O-34287「各币各域」——OKX 原生币全收：BTC/DOGE/
+// 1000PEPE 等 venue 真报币种按本域入账零换算；形闸防垃圾串）。
+var ccyRE = regexp.MustCompile(`^[A-Z0-9]{2,20}$`)
+
+// CcyOK 币种域合法判（O-34287：venue 原生币各记各域——mt5 恒 USD 单币
+// 照旧；其余 venue=原生币形全放。库约束 fin_0235 同形镜像）。
+func CcyOK(venue, ccy string) bool {
+	if venue == "mt5" {
+		return ccy == "USD"
+	}
+	return ccyRE.MatchString(ccy)
+}
 
 // Entry 入账入参。
 type Entry struct {
@@ -55,8 +69,8 @@ func Post(ctx context.Context, pool *pgxpool.Pool, e Entry) (int64, error) {
 	if !kinds[e.Kind] {
 		return 0, fmt.Errorf("kind %q 非法闭集外", e.Kind)
 	}
-	if !ccys[e.Ccy] {
-		return 0, fmt.Errorf("ccy %q 非法——杂币不入账", e.Ccy)
+	if !CcyOK(e.Venue, e.Ccy) {
+		return 0, fmt.Errorf("ccy %q 非法——各币各域闭集外", e.Ccy)
 	}
 	if e.SourceRef <= 0 || e.SourceTable == "" {
 		return 0, fmt.Errorf("缺 source_ref/source_table——禁推断记账")
@@ -88,7 +102,7 @@ func NetAmount(ctx context.Context, pool *pgxpool.Pool, venue, ccy string, posit
 // Breakdown 构成明细（判决书=净额+kind 分桶构成可查）。
 func Breakdown(ctx context.Context, pool *pgxpool.Pool, positionRef int64) (map[string]float64, error) {
 	rows, err := pool.Query(ctx,
-		"SELECT kind, sum(amount) FROM fin_cashflow WHERE position_ref=$1 GROUP BY kind", positionRef)
+		"SELECT kind, sum(amount) FROM fin_cashflow WHERE position_ref=$1 AND ccy IN ('USDT','USD') GROUP BY kind", positionRef)
 	if err != nil {
 		return nil, err
 	}

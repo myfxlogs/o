@@ -40,9 +40,13 @@ func TestRecordOpeningIdempotent(t *testing.T) {
 		t.Fatalf("幂等判失效: ok=%v amt=%v err=%v", ok, amt2, err)
 	}
 	// 别 ccy 独立键（通用径——venue/ccy 各自一期初）
-	if _, err := recordOpening(ctx, pool, "mt5", "EURX", 100); err == nil {
-		// EURX 不在 ccy 闭集——应被 CHECK 拒（fail-closed 闭集仍有效）
-		t.Fatal("册外 ccy 应被 CHECK 拒")
+	if _, err := recordOpening(ctx, pool, "okx", "EURX", 100); err != nil {
+		// O-34287：原生币形开闸——EURX 合法形应入账（各币各域）
+		t.Fatalf("原生币 EURX 应入账: %v", err)
+	}
+	if _, err := recordOpening(ctx, pool, "okx", "bad ccy!", 100); err == nil {
+		// 形闸外垃圾串仍被 CHECK 拒（fail-closed 形闸仍有效）
+		t.Fatal("形闸外 ccy 应被 CHECK 拒")
 	}
 }
 

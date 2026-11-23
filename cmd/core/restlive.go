@@ -34,11 +34,21 @@ func fundSaveBalances(ctx context.Context, pool *pgxpool.Pool, okcli *okxexec.Cl
 		return err
 	}
 	emit := func(ccy string, amt float64) {
+		if amt == 0 {
+			return
+		}
+		if !usd {
+			// O-34287 验收②：对拍径=venue 真值全币发射（原生币各域——
+			// 未登记币由基线凭据机制建账本域对拍，不静默跳过；TRX 托管币
+			// 对账域照建、业绩豁免在聚合层 ccy 闸）。
+			out[[2]string{"okx", ccy}] += amt
+			return
+		}
 		if ccy != "USDT" && ccy != "USD" &&
 			!set[[2]string{"okx:funding", ccy}] && !set[[2]string{"okx:earn", ccy}] {
 			return // 非停泊托管币=域外不键（T-0100 ① venue 侧同源排除）
 		}
-		if usd && ccy != "USDT" && ccy != "USD" {
+		if ccy != "USDT" && ccy != "USD" {
 			amt = valCcy(ctx, pool, ccy, amt)
 		}
 		out[[2]string{"okx", ccy}] += amt
@@ -143,64 +153,54 @@ func dcdSyncEvents(ctx context.Context, pool *pgxpool.Pool, ords []okxexec.DcdOr
 	}
 }
 
-// tradingFundEq 交易户基金口径 eqUsd（T-0100 ①：trading 域=USDT∪open 腿基币
-// 行过滤求和——不按全账户取；账外尘〔腿平残币/杂币〕口径内天然排除）。
-// 帧 details 逐 ccy 过滤，帧缺/零和→REST /account/balance 兜底同口径
+// tradingFundMap 交易户逐币原生权益（O-34287 验收②：对拍径=币种原生量——
+// details[].eq 原币字段逐 ccy 求和，eqUsd=USD 估值字段禁入簿记径；
+// 全币种收——对账白名单/基线凭据层裁域，venue 真值不藏）。
+// 帧 details 逐 ccy 聚，帧缺/零和→REST /account/balance 兜底同口径
 // （fail-closed 上抛禁静默跳腿）。
-func tradingFundEq(ctx context.Context, pool *pgxpool.Pool, okcli *okxexec.Client) (float64, error) {
-	wl, err := ledger.FundCcy(ctx, pool)
-	if err != nil {
-		return 0, err
-	}
-	fund := map[string]bool{}
-	for k := range wl {
-		if k[0] == "okx:trading" {
-			fund[k[1]] = true
-		}
-	}
+func tradingFundMap(ctx context.Context, pool *pgxpool.Pool, okcli *okxexec.Client) (map[string]float64, error) {
 	sumRows := func(rows []struct {
-		Ccy   string `json:"ccy"`
-		EqUsd string `json:"eqUsd"`
-	}) float64 {
-		var sum float64
+		Ccy string `json:"ccy"`
+		Eq  string `json:"eq"`
+	}) map[string]float64 {
+		out := map[string]float64{}
 		for _, d := range rows {
-			if !fund[d.Ccy] {
-				continue
+			if v := parseNum(d.Eq); v != 0 {
+				out[d.Ccy] += v
 			}
-			sum += parseNum(d.EqUsd)
 		}
-		return sum
+		return out
 	}
 	var data json.RawMessage
 	if err := pool.QueryRow(ctx, `SELECT data FROM md_account_events
 		WHERE channel IN ('account','balance_and_position') ORDER BY ts DESC LIMIT 1`).Scan(&data); err == nil {
 		var top struct {
 			Details []struct {
-				Ccy   string `json:"ccy"`
-				EqUsd string `json:"eqUsd"`
+				Ccy string `json:"ccy"`
+				Eq  string `json:"eq"`
 			} `json:"details"`
 		}
 		if json.Unmarshal(data, &top) == nil && len(top.Details) > 0 {
-			if sum := sumRows(top.Details); sum > 0 {
-				return sum, nil
+			if m := sumRows(top.Details); len(m) > 0 {
+				return m, nil
 			}
 		}
 	}
 	if okcli == nil {
-		return 0, fmt.Errorf("帧缺且 REST 兜底件缺席")
+		return nil, fmt.Errorf("帧缺且 REST 兜底件缺席")
 	}
 	raw, rerr := okcli.Get(ctx, "/api/v5/account/balance")
 	if rerr != nil {
-		return 0, rerr
+		return nil, rerr
 	}
 	var rows []struct {
 		Details []struct {
-			Ccy   string `json:"ccy"`
-			EqUsd string `json:"eqUsd"`
+			Ccy string `json:"ccy"`
+			Eq  string `json:"eq"`
 		} `json:"details"`
 	}
 	if uerr := json.Unmarshal(raw, &rows); uerr != nil || len(rows) == 0 {
-		return 0, fmt.Errorf("balance parse: %v", uerr)
+		return nil, fmt.Errorf("balance parse: %v", uerr)
 	}
 	return sumRows(rows[0].Details), nil
 }

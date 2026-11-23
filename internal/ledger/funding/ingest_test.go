@@ -194,3 +194,45 @@ func TestIngestMarginOwnerDomainResidual(t *testing.T) {
 		t.Fatalf("unmapped=%v owner_in=%v owner_out=%v 应 40.0/0/0", unmapped, ownerIn, ownerOut)
 	}
 }
+
+// O-34287 验收④：SPOT 原生币腿按本币入账——BTC 基币行 subType1=credit
+// 记 spot_buy BTC（gross=balChg−fee）、fee 腿按扣款币另记；USDT 报价侧
+// 行 spotLike 非 native 仍走旧径零腿（quote 侧现金流=legCash 径不重复）。
+// position_ref=NULL——基币量不进仓结算求和域（USDT/USD 报价币域）。
+func TestIngestSpotNativeLegs(t *testing.T) {
+	ctx, pool := setup(t)
+	nowMs := time.Now().UnixMilli()
+	bills := []Bill{
+		{BillID: "nb1", SubType: "1", InstID: "BTC-USDT", InstType: "SPOT",
+			Ccy: "BTC", TsMs: nowMs, BalChg: 0.001, Fee: -0.00001, Raw: []byte(`{}`)},
+		{BillID: "nb2", SubType: "2", InstID: "BTC-USDT", InstType: "SPOT",
+			Ccy: "BTC", TsMs: nowMs + 1, BalChg: -0.002, Fee: -0.00002, Raw: []byte(`{}`)},
+		{BillID: "nb3", SubType: "2", InstID: "BTC-USDT", InstType: "SPOT",
+			Ccy: "USDT", TsMs: nowMs + 2, BalChg: -100.5, Fee: -0.1, Raw: []byte(`{}`)},
+	}
+	ing := NewIngester(pool, fakeSrc{pages: map[string][]Bill{"": bills}})
+	n, err := ing.Ingest(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 4 { // BTC 两行各 spot 腿+fee 腿=4，USDT 行零腿
+		t.Fatalf("原生币腿应 4 行入账: %d", n)
+	}
+	var buy, sell, feeBTC, feeUSDT float64
+	_ = pool.QueryRow(ctx, "SELECT COALESCE(sum(amount),0) FROM fin_cashflow WHERE ccy='BTC' AND kind='spot_buy'").Scan(&buy)
+	_ = pool.QueryRow(ctx, "SELECT COALESCE(sum(amount),0) FROM fin_cashflow WHERE ccy='BTC' AND kind='spot_sell'").Scan(&sell)
+	_ = pool.QueryRow(ctx, "SELECT COALESCE(sum(amount),0) FROM fin_cashflow WHERE ccy='BTC' AND kind='fee'").Scan(&feeBTC)
+	_ = pool.QueryRow(ctx, "SELECT COALESCE(sum(amount),0) FROM fin_cashflow WHERE ccy='USDT' AND kind='fee'").Scan(&feeUSDT)
+	// gross=balChg−fee：买 0.001−(−0.00001)=0.00101；卖 −0.002−(−0.00002)=−0.00198
+	if buy != 0.00101 || sell != -0.00198 {
+		t.Fatalf("BTC spot 腿 buy=%v sell=%v 应 0.00101/-0.00198", buy, sell)
+	}
+	if feeBTC != -0.00003 || feeUSDT != 0 {
+		t.Fatalf("fee 腿 BTC=%v USDT=%v 应 -0.00003/0（USDT 侧 spotLike 旧径零腿）", feeBTC, feeUSDT)
+	}
+	var posRef *int64
+	_ = pool.QueryRow(ctx, "SELECT position_ref FROM fin_cashflow WHERE ccy='BTC' LIMIT 1").Scan(&posRef)
+	if posRef != nil {
+		t.Fatalf("原生币腿 position_ref 应 NULL（币量不混报价币结算域）: %v", *posRef)
+	}
+}

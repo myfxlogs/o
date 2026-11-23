@@ -40,9 +40,17 @@ func TestPostGuards(t *testing.T) {
 	if _, err := Post(ctx, r.pool, Entry{Kind: "fee", Venue: "okx", Ccy: "USDT", Amount: 1}); err == nil {
 		t.Fatal("缺 source_ref 应拒写")
 	}
-	// 杂币不入账锚（业主令 USDT/USD 各记各的）
-	if _, err := Post(ctx, r.pool, Entry{Kind: "fee", Venue: "okx", Ccy: "PENGU", Amount: 1, SourceRef: 1, SourceTable: "x"}); err == nil {
-		t.Fatal("杂币应拒写")
+	// O-34287：原生币开闸——OKX 杂币按本域入账（各币各域零换算）；
+	// 形闸外垃圾串仍拒（ccyRE ^[A-Z0-9]{2,20}$）。
+	if _, err := Post(ctx, r.pool, Entry{Kind: "fee", Venue: "okx", Ccy: "PENGU", Amount: 1, SourceRef: 1, SourceTable: "x"}); err != nil {
+		t.Fatalf("原生币 PENGU 应入账: %v", err)
+	}
+	if _, err := Post(ctx, r.pool, Entry{Kind: "fee", Venue: "okx", Ccy: "bad ccy!", Amount: 1, SourceRef: 1, SourceTable: "x"}); err == nil {
+		t.Fatal("形闸外币种应拒写")
+	}
+	// MT5 域照旧 USD 单币
+	if _, err := Post(ctx, r.pool, Entry{Kind: "fee", Venue: "mt5", Ccy: "BTC", Amount: 1, SourceRef: 1, SourceTable: "x"}); err == nil {
+		t.Fatal("mt5 非 USD 应拒写")
 	}
 	// kind 闭集外拒
 	if _, err := Post(ctx, r.pool, Entry{Kind: "guess", Venue: "okx", Ccy: "USDT", Amount: 1, SourceRef: 1, SourceTable: "x"}); err == nil {

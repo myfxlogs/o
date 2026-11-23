@@ -39,7 +39,7 @@ func Gen(ctx context.Context, pool *pgxpool.Pool, period string, b Bounds) error
 	// 吞未来行+开仓腿当亏双病灶根修）。
 	net, _ = Realized(ctx, pool, b.Start, b.End)
 	cumNav, _ = Realized(ctx, pool, time.Time{}, b.End)
-	q(`SELECT COALESCE(sum(amount),0) FROM fin_cashflow WHERE kind='funding_settle' AND occurred_at>=$1 AND occurred_at<$2`, &funding, b.Start, b.End)
+	q(`SELECT COALESCE(sum(amount),0) FROM fin_cashflow WHERE kind='funding_settle' AND occurred_at>=$1 AND occurred_at<$2 AND ccy IN ('USDT','USD') `, &funding, b.Start, b.End)
 	// 工单#20008/#16273 钦定修法：earn 余额计陈值并显式标陈额——
 	// stale=venue 拉败标陈不抹值（holding/sync.go 语义），排除即
 	// 离线腿按 0 计产 NAV 假跳（-3284 鬼跳#15837）；读败≠钱消失。
@@ -60,7 +60,7 @@ func Gen(ctx context.Context, pool *pgxpool.Pool, period string, b Bounds) error
 	// kind=deposit 累计），同式换系数（×12→×52）；daily 不补（日年化无经济义——裁定注记）。
 	var base, ann float64
 	if period == "weekly" || period == "monthly" {
-		q(`SELECT COALESCE(sum(amount),0) FROM fin_cashflow WHERE kind='deposit'`, &base)
+		q(`SELECT COALESCE(sum(amount),0) FROM fin_cashflow WHERE kind='deposit' AND ccy IN ('USDT','USD') `, &base)
 		mult := 12.0
 		if period == "weekly" {
 			mult = 52
@@ -77,7 +77,7 @@ func Gen(ctx context.Context, pool *pgxpool.Pool, period string, b Bounds) error
 		var stratNet, spotNet float64
 		q(`SELECT COALESCE(sum(amount),0) FROM fin_cashflow WHERE venue<>'sim'
 			AND kind IN ('trade_pnl','funding_settle','fee')
-			AND occurred_at>=$1 AND occurred_at<$2`, &stratNet, b.Start, b.End)
+			AND occurred_at>=$1 AND occurred_at<$2 AND ccy IN ('USDT','USD') `, &stratNet, b.Start, b.End)
 		q(`SELECT COALESCE(sum(c.amount),0) FROM fin_cashflow c
 			JOIN fin_position p ON p.id=c.position_ref
 			WHERE c.kind IN ('spot_buy','spot_sell') AND p.closed_at>=$1 AND p.closed_at<$2

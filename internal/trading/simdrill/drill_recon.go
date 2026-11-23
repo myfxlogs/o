@@ -58,7 +58,7 @@ func (d *Drill) recon(ctx context.Context, res Result, long, deriv simvenue.Inst
 	// >分位=账实背离升件）。
 	var sum float64
 	if err := d.Pool.QueryRow(ctx, `SELECT COALESCE(sum(amount),0) FROM fin_cashflow
-		WHERE position_ref=$1 AND kind NOT IN ('earn_in','earn_out')`, posID).Scan(&sum); err != nil {
+		WHERE position_ref=$1 AND kind NOT IN ('earn_in','earn_out') AND ccy IN ('USDT','USD') `, posID).Scan(&sum); err != nil {
 		return d.fail(ctx, res, fmt.Sprintf("fin_cashflow 归仓和读败: %v", err)), "fail"
 	}
 	var venueSum float64

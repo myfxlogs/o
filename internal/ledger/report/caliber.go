@@ -31,16 +31,18 @@ const realizedKinds = `('interest','funding_settle','trade_pnl','fee','rollback_
 // simdrill 模板域同拒（纸面仓腿差/裸袋非实现损益）。
 const realizedSQL = `SELECT COALESCE(
 	  (SELECT sum(amount) FROM fin_cashflow
-	    WHERE kind IN ` + realizedKinds + ` AND venue<>'sim' AND occurred_at>=$1 AND occurred_at<$2)
+	    WHERE kind IN ` + realizedKinds + ` AND venue<>'sim' AND occurred_at>=$1 AND occurred_at<$2
+	    AND ccy IN ('USDT','USD'))
 	+ COALESCE((SELECT sum(c.amount) FROM fin_cashflow c
 	    JOIN fin_position p ON p.id=c.position_ref
-	    WHERE c.kind IN ('spot_buy','spot_sell') AND p.closed_at>=$1 AND p.closed_at<$2
+	    WHERE c.kind IN ('spot_buy','spot_sell') AND c.ccy IN ('USDT','USD')
+	      AND p.closed_at>=$1 AND p.closed_at<$2
 	      AND NOT EXISTS(SELECT 1 FROM fin_strategy s WHERE s.id=p.strategy_ref
 	        AND s.template_ref LIKE 'simdrill%')),0)
 	+ COALESCE((SELECT sum(p.bare_bag_usd) FROM fin_position p
 	    WHERE p.closed_at>=$1 AND p.closed_at<$2
 	      AND NOT EXISTS(SELECT 1 FROM fin_strategy s WHERE s.id=p.strategy_ref
-	        AND s.template_ref LIKE 'simdrill%')),0), 0)`
+	        AND s.template_ref LIKE 'simdrill%')),0), 0) `
 
 // Realized 实现盈亏 [start,end)——start=零值=左无界（累计面：全史至 end）。
 // 界为 timestamptz 绝对参——无会话时区歧（UTC 界由调用方定）。

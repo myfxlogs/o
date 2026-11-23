@@ -82,12 +82,14 @@ func (c coreService) profitDailyBeat(ctx context.Context) {
 	if err := c.pool.QueryRow(ctx, `SELECT
 		(SELECT COALESCE(sum(amount),0) FROM fin_cashflow
 			WHERE venue<>'sim' AND occurred_at>now()-interval '24 hours'
-			AND kind IN ('fee','funding_settle','trade_pnl','rollback_cost','spot_buy','spot_sell')),
+			AND kind IN ('fee','funding_settle','trade_pnl','rollback_cost','spot_buy','spot_sell')
+			AND ccy IN ('USDT','USD')),
 		(SELECT COALESCE(sum(amount),0) FROM fin_cashflow
 			WHERE venue<>'sim' AND occurred_at>now()-interval '30 days'
-			AND kind IN ('fee','funding_settle','trade_pnl','rollback_cost','spot_buy','spot_sell')),
+			AND kind IN ('fee','funding_settle','trade_pnl','rollback_cost','spot_buy','spot_sell')
+			AND ccy IN ('USDT','USD')),
 		(SELECT count(*) FROM fin_position WHERE state<>'closed'),
-		(SELECT count(*) FROM fin_strategy WHERE state IN ('live','probe'))`).
+		(SELECT count(*) FROM fin_strategy WHERE state IN ('live','probe')) `).
 		Scan(&net24, &net30, &openPos, &liveN); err != nil {
 		return // 读件败本拍让位
 	}

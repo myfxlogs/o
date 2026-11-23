@@ -35,7 +35,7 @@ func (r *Runner) settle(ctx context.Context) error {
 	for _, x := range ids {
 		var net float64
 		if err := r.pool.QueryRow(ctx,
-			"SELECT COALESCE(sum(amount),0) FROM fin_cashflow WHERE position_ref=$1 AND kind NOT IN ('earn_in','earn_out')", x.id).Scan(&net); err != nil {
+			"SELECT COALESCE(sum(amount),0) FROM fin_cashflow WHERE position_ref=$1 AND kind NOT IN ('earn_in','earn_out') AND ccy IN ('USDT','USD') ", x.id).Scan(&net); err != nil {
 			return err
 		}
 		net += x.bag
