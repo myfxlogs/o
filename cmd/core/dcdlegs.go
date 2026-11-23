@@ -11,13 +11,13 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"o/internal/ledger"
 	"o/internal/trading/okxexec"
 )
 
-// dcdCashCcy 本位闭集判（fin_cashflow.ccy CHECK 同集——杂币名义/回款
-// 结构性不入账：BTC 名义单资金源=册外资产域，基线凭据已供 venue 名义
-// 对拍 dcdBase 币量键，现金腿无处可落如实跳过）。
-func dcdCashCcy(ccy string) bool { return ccy == "USDT" || ccy == "USD" }
+// dcdCashCcy counted 腿币种闸（O-34287：原生币域开闸——BTC 回款/申购
+// 按本币记账，凭据配对语义不变；形闸=ledger.CcyOK 同判）。
+func dcdCashCcy(ccy string) bool { return ledger.CcyOK("okx", ccy) }
 
 // dcdOccurTS venue ms 串→occurred_at（订阅锚 cTime/实结锚 settledTime
 // 优先、settleTime 兜底；缺位=now()—— occurred_at NOT NULL 闭集）。

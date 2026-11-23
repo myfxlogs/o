@@ -147,7 +147,7 @@ func main() {
 	fmt.Printf("== mt5 USD 账本净额 %.2f（venue 现读走 mt5wrap/mt5verify——容器外径）\n\n", mt5eq)
 
 	// ── 账本净额分解（run.go reconcile 同口径）：
-	wl, parked, dcdBase, err := ledger.ReconSets(ctx, pool)
+	wl, parked, dcdBase, nativeBase, err := ledger.ReconSets(ctx, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -167,8 +167,8 @@ func main() {
 	}
 	sort.Slice(ks, func(i, j int) bool { return ks[i][0]+ks[i][1] < ks[j][0]+ks[j][1] })
 
-	fmt.Printf("%-6s %-6s %14s %12s %10s %10s %12s | %14s %10s %10s\n",
-		"venue", "ccy", "cashflow净", "parked", "dcdBase", "mtm", "账本净", "venue现读", "diff", "豁免后")
+	fmt.Printf("%-6s %-6s %14s %12s %10s %10s %10s %12s | %14s %10s %10s %s\n",
+		"venue", "ccy", "cashflow净", "parked", "dcdBase", "nativeBase", "mtm", "账本净", "venue现读", "diff", "豁免后", "白名单")
 	for _, k := range ks {
 		var cf, ex float64
 		_ = pool.QueryRow(ctx, `SELECT COALESCE(sum(amount),0) FROM fin_cashflow
@@ -176,7 +176,7 @@ func main() {
 		_ = pool.QueryRow(ctx, `SELECT COALESCE(sum(amount_usd),0) FROM fin_known_residual
 			WHERE venue=$1 AND ccy=$2 AND expires_at>now()`, k[0], k[1]).Scan(&ex)
 		mtm := mtmOf(ctx, pool, cli, k)
-		net := cf + parked[k] + dcdBase[k] + mtm
+		net := cf + parked[k] + dcdBase[k] + nativeBase[k] + mtm
 		eq := ven[k]
 		diff := ledger.Diff(net, eq)
 		usdDiff := diff
@@ -193,8 +193,8 @@ func main() {
 		if !wl[k] {
 			wlv = "（白名单外—不报）"
 		}
-		fmt.Printf("%-6s %-6s %14.4f %12.4f %10.4f %10.4f %12.4f | %14.4f %10.2f %10.2f %s\n",
-			k[0], k[1], cf, parked[k], dcdBase[k], mtm, net, eq, usdDiff, usdDiff-ex, wlv)
+		fmt.Printf("%-6s %-6s %14.4f %12.4f %10.4f %10.4f %10.4f %12.4f | %14.4f %10.2f %10.2f %s\n",
+			k[0], k[1], cf, parked[k], dcdBase[k], nativeBase[k], mtm, net, eq, usdDiff, usdDiff-ex, wlv)
 	}
 	for _, e := range venErr {
 		fmt.Println("venue 读缺:", e)

@@ -149,9 +149,17 @@ func TestDcdLiveBtcBaselineNoLeg(t *testing.T) {
 		AND intent->>'ccy'='BTC'`).Scan(&n); err != nil || n != 1 {
 		t.Fatalf("BTC 基线缺: n=%d", n)
 	}
+	// O-34287 验收⑥：BTC 名义按本币记账——dcd_out -0.0207 BTC 腿应落
+	// （凭据配对语义不变；旧「杂币不入账」闭集已开闸）。
+	var legN int
+	var legAmt float64
+	if err := pool.QueryRow(ctx, `SELECT count(*),COALESCE(sum(amount),0) FROM fin_cashflow
+		WHERE kind='dcd_out' AND ccy='BTC'`).Scan(&legN, &legAmt); err != nil || legN != 1 || legAmt != -0.0207 {
+		t.Fatalf("BTC 申购腿应落 dcd_out=-0.0207: n=%d amt=%v", legN, legAmt)
+	}
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM fin_cashflow
-		WHERE kind IN ('dcd_out','dcd_in')`).Scan(&n); err != nil || n != 0 {
-		t.Fatalf("BTC 名义误落现金腿: n=%d", n)
+		WHERE kind IN ('dcd_out','dcd_in') AND ccy<>'BTC'`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("BTC 名义不应落非 BTC 腿: n=%d", n)
 	}
 }
 
@@ -293,9 +301,22 @@ func TestDcdSettleBtcNoLeg(t *testing.T) {
 		WHERE intent->>'op'='dcd_settle' AND intent->>'ordId'='920007'`).Scan(&n); err != nil || n != 1 {
 		t.Fatalf("BTC 结算凭据缺: n=%d", n)
 	}
+	// O-34287 验收⑥：BTC 回款按本币记账——yieldCcy=settleCcy 拆分：
+	// dcd_in 本金 0.010 BTC + interest 息 0.0005 BTC（凭据配对不变）。
+	var legs int
+	var pin, iy float64
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM fin_cashflow
-		WHERE kind IN ('dcd_in','dcd_out','interest')`).Scan(&n); err != nil || n != 0 {
-		t.Fatalf("BTC 回款误落现金腿: n=%d", n)
+		WHERE kind IN ('dcd_in','dcd_out','interest') AND ccy='BTC'`).Scan(&legs); err != nil || legs != 2 {
+		t.Fatalf("BTC 回款应落两腿: n=%d", legs)
+	}
+	_ = pool.QueryRow(ctx, `SELECT COALESCE(sum(amount) FILTER (WHERE kind='dcd_in'),0) FROM fin_cashflow WHERE ccy='BTC'`).Scan(&pin)
+	_ = pool.QueryRow(ctx, `SELECT COALESCE(sum(amount) FILTER (WHERE kind='interest'),0) FROM fin_cashflow WHERE ccy='BTC'`).Scan(&iy)
+	if pin != 0.01 || iy != 0.0005 {
+		t.Fatalf("BTC 回款拆分本金=%v 息=%v 应 0.01/0.0005", pin, iy)
+	}
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM fin_cashflow
+		WHERE kind IN ('dcd_in','dcd_out','interest') AND ccy<>'BTC'`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("BTC 回款不应落非 BTC 腿: n=%d", n)
 	}
 }
 

@@ -51,13 +51,16 @@ func (c coreService) deathGradCheck(ctx context.Context, deadSince map[string]ti
 			AND ts>now()-interval '48 hours' ORDER BY ts DESC LIMIT 1),
 		(SELECT COALESCE(sum(amount),0) FROM fin_cashflow
 			WHERE venue<>'sim' AND occurred_at>now()-interval '7 days'
-			AND kind IN ('fee','funding_settle','trade_pnl','rollback_cost','spot_buy','spot_sell')),
+			AND kind IN ('fee','funding_settle','trade_pnl','rollback_cost','spot_buy','spot_sell')
+			AND ccy IN ('USDT','USD')),
 		(SELECT COALESCE(sum(amount),0) FROM fin_cashflow
 			WHERE venue<>'sim' AND occurred_at>now()-interval '14 days'
-			AND kind IN ('fee','funding_settle','trade_pnl','rollback_cost','spot_buy','spot_sell')),
+			AND kind IN ('fee','funding_settle','trade_pnl','rollback_cost','spot_buy','spot_sell')
+			AND ccy IN ('USDT','USD')),
 		(SELECT COALESCE(sum(amount),0) FROM fin_cashflow
 			WHERE venue<>'sim' AND occurred_at>now()-interval '30 days'
-			AND kind IN ('fee','funding_settle','trade_pnl','rollback_cost','spot_buy','spot_sell'))`).
+			AND kind IN ('fee','funding_settle','trade_pnl','rollback_cost','spot_buy','spot_sell')
+			AND ccy IN ('USDT','USD'))`).
 		Scan(&nav, &n7, &n14, &n30); err != nil {
 		return // 读件败本拍让位
 	}

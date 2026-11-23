@@ -9,11 +9,16 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
+	"regexp"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+// fundCcyOK 原生币形闸（O-34287——镜像 ledger.CcyOK 同形 ^[A-Z0-9]{2,20}$；
+// 分层禁 funding→ledger 反向 import，双写以 DB CHECK+Post 闭集为终闸）。
+var fundCcyOK = regexp.MustCompile(`^[A-Z0-9]{2,20}$`).MatchString
 
 // Bill venue 账单行（域自有型——ledger 不反向依赖交易域，装配层适配 okxexec.Bill）。
 type Bill struct {
@@ -151,14 +156,16 @@ func (i *Ingester) record(ctx context.Context, b Bill) (int, error) {
 	if err != nil {
 		return 0, err // 上抛（写败≠已记过）
 	}
-	// 杂币不入账（源行已留档——USDT 本位闭集，ccy 缺省归一 USDT）。
+	// O-34287「各币各域」：ccy 闭集开闸——venue 原生币按本域入账零换算
+	// （BTC/DOGE/TRX 腿不再只留档）；垃圾串形闸 CcyOK 外=源行已留档弃记。
 	ccy := b.Ccy
 	if ccy == "" {
 		ccy = "USDT"
 	}
-	if ccy != "USDT" {
+	if !fundCcyOK(ccy) {
 		return 0, nil
 	}
+	native := ccy != "USDT" && ccy != "USD" // 原生币域（非 USDT/USD 结算币）
 	switch b.SubType {
 	case subFundingPay, subFundingRcv:
 		amt := b.BalChg
@@ -176,11 +183,14 @@ func (i *Ingester) record(ctx context.Context, b Bill) (int, error) {
 		subTradingBonusIn, subBonusReclamOut:
 		return 1, i.post(ctx, "airdrop", b.BalChg, b, ccy, srcID, occurred)
 	default:
-		n := 0
-		// 升件#14672：SPOT/MARGIN 现货腿走 legCash 毛额对称径（fee 已按
-		// fin_order_leg 源落账——升件#10063① trade_pnl 同闸先例）——
-		// bill 侧 fee/pnl/残差补记皆双计，整支跳过。
+		// O-34287：SPOT/MARGIN 原生币腿=type2 成交双腿之基币侧——OKX 每币
+		// 独立 bill 行（subType 1=credit/2=debit），balChg=sz+fee 净额
+		// 实测定案；对称两腿各记各币（quote 侧 USDT/USD 仍归 legCash 径）。
 		spotLike := b.InstType == "SPOT" || b.InstType == "MARGIN"
+		if spotLike && native && (b.SubType == "1" || b.SubType == "2") {
+			return i.spotNative(ctx, b, ccy, srcID, occurred)
+		}
+		n := 0
 		covered := 0.0
 		if b.Fee != 0 && !spotLike { // 交易费/返佣（衍生品开平仓 taker 费入 fee kind）
 			if err := i.post(ctx, "fee", b.Fee, b, ccy, srcID, occurred); err != nil {
@@ -218,17 +228,21 @@ func (i *Ingester) record(ctx context.Context, b Bill) (int, error) {
 }
 
 // post 入账（kind/闭集校验在 ledger.Post——此处只装配）。position_ref=按
-// inst_id+时窗归仓（开仓≤结算时<平仓；无归仓=NULL 记账不丢）。
+// inst_id+时窗归仓（开仓≤结算时<平仓；无归仓=NULL 记账不丢）；O-34287：
+// 原生币腿 position_ref=NULL——仓结算求和域=USDT/USD 报价币，基币量混入
+// 会产单位错配（BTC 数加 USDT 数=假盈亏）。
 func (i *Ingester) post(ctx context.Context, kind string, amt float64, b Bill, ccy string, srcID int64, occurred time.Time) error {
 	var posRef *int64
-	var pid int64
-	err := i.pool.QueryRow(ctx, `SELECT id FROM fin_position
-		WHERE inst_id=$1 AND opened_at<=$2 AND (state<>'closed' OR closed_at>=$2)
-		ORDER BY id DESC LIMIT 1`, b.InstID, occurred).Scan(&pid)
-	if err == nil {
-		posRef = &pid
-	} // 归仓失败=无匹配仓（独立户流水等）——不拦入账
-	_, err = i.pool.Exec(ctx, `INSERT INTO fin_cashflow
+	if ccy == "USDT" || ccy == "USD" {
+		var pid int64
+		err := i.pool.QueryRow(ctx, `SELECT id FROM fin_position
+			WHERE inst_id=$1 AND opened_at<=$2 AND (state<>'closed' OR closed_at>=$2)
+			ORDER BY id DESC LIMIT 1`, b.InstID, occurred).Scan(&pid)
+		if err == nil {
+			posRef = &pid
+		} // 归仓失败=无匹配仓（独立户流水等）——不拦入账
+	}
+	_, err := i.pool.Exec(ctx, `INSERT INTO fin_cashflow
 		(kind,venue,ccy,amount,position_ref,source_ref,source_table,occurred_at)
 		VALUES($1,'okx',$2,$3,$4,$5,'fin_venue_bill',$6)`,
 		kind, ccy, amt, posRef, srcID, occurred)

@@ -53,7 +53,7 @@ func (r *Runner) reviewSettled(ctx context.Context) error {
 		var feeShare float64
 		var fee float64
 		_ = r.fin.QueryRow(ctx,
-			"SELECT COALESCE(sum(-amount),0) FROM fin_cashflow WHERE position_ref=$1 AND kind='fee'", x.id).Scan(&fee)
+			"SELECT COALESCE(sum(-amount),0) FROM fin_cashflow WHERE position_ref=$1 AND kind='fee' AND ccy IN ('USDT','USD') ", x.id).Scan(&fee)
 		if x.net != 0 {
 			feeShare = fee / abs(x.net)
 		}
@@ -152,7 +152,7 @@ func (r *Runner) judgeDue(ctx context.Context) error {
 		if c.kind == "position" {
 			// 仓窗实收=钱径账（fin 池——fin_cashflow 正本在 SG）
 			err = r.fin.QueryRow(ctx, `SELECT COALESCE(sum(amount),0) FROM fin_cashflow
-				WHERE position_ref=$1 AND kind='funding_settle' AND occurred_at<=$2`, c.ref, c.target).Scan(&actual)
+				WHERE position_ref=$1 AND kind='funding_settle' AND occurred_at<=$2 AND ccy IN ('USDT','USD') `, c.ref, c.target).Scan(&actual)
 		} else {
 			// 否决提案假设执行：inst_id 自 eval 行，notional 按锚值口径 100
 			var instID string

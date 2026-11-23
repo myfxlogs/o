@@ -68,7 +68,7 @@ func (c coreService) selfAwareBeat(ctx context.Context) {
 		WHERE ccy='NAV' ORDER BY ts DESC LIMIT 1`).Scan(&nav, &navTs)
 	_ = c.pool.QueryRow(ctx, `SELECT COALESCE(sum(amount),0) FROM fin_cashflow
 		WHERE venue<>'sim' AND ts>now()-interval '30 days'
-		AND kind IN ('fee','funding_settle','trade_pnl','rollback_cost','spot_buy','spot_sell')`).Scan(&net)
+		AND kind IN ('fee','funding_settle','trade_pnl','rollback_cost','spot_buy','spot_sell') AND ccy IN ('USDT','USD') `).Scan(&net)
 	_ = c.pool.QueryRow(ctx, `SELECT
 		count(*) FILTER (WHERE state='live'),
 		count(*) FILTER (WHERE state='probe'),

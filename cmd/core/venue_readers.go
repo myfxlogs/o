@@ -195,13 +195,17 @@ func attachVenueReaders(riskGate *risk.Gate, wd *guard.Warden, ledgerR *ledger.R
 	ledgerR.WithMTM(mtmReader(pool, ctValReader(okcli))) // T-0076 盯市偏移
 	ledgerR.WithBalances(func(ctx context.Context) (map[[2]string]float64, error) {
 		out := map[[2]string]float64{}
-		eq, err := tradingFundEq(ctx, pool, okcli)
+		// O-34287 验收②：交易户逐币原生量径——details[].eq 原币字段逐 ccy
+		// 并入（eqUsd=USD 估值字段禁入簿记对拍径；BTC/ETH 持仓不再折 USDT）。
+		nat, err := tradingFundMap(ctx, pool, okcli)
 		if err != nil {
 			vg.fail(ctx, "okx", err) // T-0352：对账面读败入闸（生产病灶拍——5s 连败刷日志零升件）
 			return nil, fmt.Errorf("trading 读败: %w", err)
 		}
 		vg.ok("okx")
-		out[[2]string{"okx", "USDT"}] += eq
+		for ccy, v := range nat {
+			out[[2]string{"okx", ccy}] += v
+		}
 		// T-0100 ③：对拍径 usd=false 原币量入键——ledger 侧非本位键按币量
 		// 建键（ParkedAmt 台账），venue/ledger 单位同径不错配。
 		if err := fundSaveBalances(ctx, pool, okcli, out, false); err != nil {

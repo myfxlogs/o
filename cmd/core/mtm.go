@@ -38,27 +38,33 @@ func mtmReader(pool *pgxpool.Pool,
 			if su != nil {
 				szUnit = *su
 			}
+			sign := 1.0
+			if side == "sell" {
+				sign = -1.0
+			}
+			if !strings.HasSuffix(inst, "-SWAP") {
+				// O-34287 验收③：非合约腿偏移=基币原量入基币键（qty_base
+				// 本币量不折 USDT——venue 基币余额/ledger 原币腿同径币量
+				// 对拍；币量径无价依赖，USD 估值只进估值层不喂对账）。
+				// inst BASE-QUOTE 双段解不出=跳过不产假偏移。
+				parts := strings.SplitN(inst, "-", 2)
+				if len(parts) != 2 {
+					continue
+				}
+				switch {
+				case qtyBase > 0:
+					out[[2]string{venue, parts[0]}] += sign * qtyBase
+				case szUnit == "base":
+					out[[2]string{venue, parts[0]}] += sign * sz
+				}
+				continue
+			}
 			var now float64
 			if err := pool.QueryRow(ctx,
 				`SELECT v FROM (SELECT last v,ts FROM md_ticks WHERE inst_id=$1
 					UNION ALL SELECT px,ts FROM md_mark_index WHERE inst_id=$1) q
 					ORDER BY ts DESC LIMIT 1`,
 				inst).Scan(&now); err != nil || now <= 0 {
-				continue
-			}
-			sign := 1.0
-			if side == "sell" {
-				sign = -1.0
-			}
-			if !strings.HasSuffix(inst, "-SWAP") {
-				// T-0107 量纲消歧：实填币量（qty_base）×现价；base 回填行=sz×现价；
-				// quote 额腿缺 base 量/未消歧=跳过不产假偏移（24×80460=$1.9M 病灶）。
-				switch {
-				case qtyBase > 0:
-					out[[2]string{venue, "USDT"}] += sign * qtyBase * now
-				case szUnit == "base":
-					out[[2]string{venue, "USDT"}] += sign * sz * now
-				}
 				continue
 			}
 			mult := 1.0
