@@ -17,13 +17,21 @@ import (
 // klineEvery 日K扫拍（D1=日级变量低频拍——catalogEvery 同款；拍内分批步进）。
 const klineEvery = 4 * time.Hour
 
-// klineBatch ExMany 单批符号上限（369 符整目录一次拉=网关载荷风险——catalogBatch 同款分批）。
-const klineBatch = 60
+// klineBatch ExMany 单批符号上限（369 符整目录一次拉=网关载荷风险——catalogBatch 同款分批；
+// O-35162 实证 60→30：60×200 棒/批=1.2 万棒响应体压 nginx 超时缘，30×200 稳态）。
+const klineBatch = 30
+
+// klineStaleAfter 回棒窗末端陈化阈——末棒早于 now-此值=venue 史缓存陈窗
+// 签名（O-35162 实证：2026-11-20 全簿 23458 行同截 2026-04-19 而会话 token
+// 当日新立——网关/终端侧 PriceHistory 史缓存按会话生命周期冻结，非代码病；
+// 阈取 14d≫周末+长假，命中=WARN 现形不静默）。
+const klineStaleAfter = 14 * 24 * time.Hour
 
 // klineNumBars 单符回填深度（dirtrend eval 需 lookback20+replay60+1=81 棒——
-// 1000 棒≈4 年日K（FX 252d/yr）一次回填,深窗判词不用等攒数;CopyRates
-// 常规深度,网关拒深=扫拍 WARN 现形退浅。后续拍同量幂等覆写零增量成本）。
-const klineNumBars = 1000
+// O-35162 实证下调 1000→200：NumBars≥500 网关 504（mtapi nginx 超时，
+// 2 符×500 实测死/2 符×200 活）；200 D1 棒≈10 个月交易日≫票面 ≥60d
+// 验收锚，深窗判词不欠。CopyRates 常规深度内。后续拍同量幂等覆写）。
+const klineNumBars = 200
 
 // klineFrom 回填锚窗——From 为网关必填 string 形 DateTime 且语义=**末锚**
 // （首扫实证：From=now-210d 拉回棒齐截 2026-04-19=锚前一日——网关从
@@ -112,12 +120,16 @@ func (c *BridgeCollector) klineBatchWrite(ctx context.Context, cl *Client, batch
 		return 0, r.GetError().String()
 	}
 	n := 0
+	var newest time.Time
 	for _, res := range r.GetResult() {
 		if res.GetException() != "" {
 			continue // 单符 venue 侧缺史=缺席如实（Exception 域载真因,不算批败）
 		}
 		bars := res.GetBars()
 		for j, b := range bars {
+			if t := b.GetTime().AsTime(); t.After(newest) {
+				newest = t
+			}
 			confirm := j < len(bars)-1 // 末棒=形成中帧(收线后次拍终态落)
 			if _, err := c.pool.Exec(ctx, `INSERT INTO md_klines(venue,inst_id,bar,ts,o,h,l,c,vol,vol_ccy,confirm)
 				VALUES('mt5',$1,'1D',$2,$3,$4,$5,$6,$7,$8,$9)
@@ -130,6 +142,10 @@ func (c *BridgeCollector) klineBatchWrite(ctx context.Context, cl *Client, batch
 			}
 			n++
 		}
+	}
+	if n > 0 && time.Since(newest) > klineStaleAfter {
+		log.Printf("WARN [mt5bridge] 日K回棒陈窗——批末棒=%s（>%d天前，venue 史缓存陈化签名/O-35162 在案）",
+			newest.UTC().Format("2006-01-02"), int(klineStaleAfter.Hours()/24))
 	}
 	return n, ""
 }
