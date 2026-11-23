@@ -62,7 +62,7 @@ SQL
 # venue/mt5/cmc 接入属采集钱径不剔)。
 TICKET_N=$(psql "$DSN" -qAt -c "
 SELECT count(*) FROM ops_ticket_desk WHERE dispatchable AND tkind='工单'
-AND note !~ '^工单/(dispatch|spawn|runbook|selfwatch|self-|stall|stuck|session|seat|pin-refuse|landq|queue|host-consol|close-finality|meta-|digest-|canon|kb-|org-|frame|probe|watch|beat|ticket-|worker-|cognition-|audit-|review-|lease|monologue|alert|feed-' )'" 2>/dev/null)
+AND note !~ '^工单/(dispatch|spawn|runbook|selfwatch|self-|stall|stuck|session|seat|pin-refuse|landq|queue|host-consol|close-finality|meta-|digest-|canon|kb-|org-|frame|probe|watch|beat|ticket-|worker-|cognition-|audit-|review-|lease|monologue|alert|feed-)'" 2>/dev/null)
 TICKET_N=${TICKET_N:-0}
 # backlog=窗外在账不可拣(fin_0194 WIP窗——施工道只见窗内,窗外淤积计数入每日一行（housekeeping_daily）;backlog只进触发note供账页观测)
 BACKLOG_N=$(psql "$DSN" -qAt -c "
@@ -94,13 +94,19 @@ fi
 
 UNIT="o-worker-$(date +%s)"
 
+# batchable=（工单O-34419观测段）：拾桌 top10 中 REVIEW 道可批数——
+# 判据单点在 batchdesk.sh（会话拾桌同件复用，本件只计数不选票，
+# 派发零选票权不动）；读败回落 0 不阻唤起。
+BATCHABLE_N=$(bash "$SCRIPT_DIR/batchdesk.sh" --count 2>/dev/null)
+BATCHABLE_N=${BATCHABLE_N:-0}
+
 # 跨机单飞闸: advisory lock(7972) 序列化临界区,「30min 唤起在案且无同
 # unit 唤起败/果∧无后随收口」=跨机在飞判据——seat='施工机' 分账面
 # 与唤知机互不见(两道各自有锁);WRK- 心跳键同不入唤知在飞面。
 WON=$(psql "$DSN" -qAt <<SQL
 SELECT pg_advisory_lock(7972);
 INSERT INTO ops_event(seat,event,ticket,note)
-SELECT '施工机','唤起','','unit=$UNIT host=$(hostname) trigger=ticket_n$TICKET_N backlog=$BACKLOG_N'
+SELECT '施工机','唤起','','unit=$UNIT host=$(hostname) trigger=ticket_n$TICKET_N backlog=$BACKLOG_N batchable=$BATCHABLE_N'
 WHERE NOT EXISTS (
 	SELECT 1 FROM ops_event e
 	WHERE e.seat='施工机' AND e.event='唤起' AND e.ts>now()-interval '30 minutes'
@@ -129,6 +135,6 @@ systemd-run --user --unit="$UNIT" --collect \
 	--setenv=COG_RUNBOOK="$SCRIPT_DIR/worker_runbook.md" \
 	"$SCRIPT_DIR/run.sh" || {
 		psql "$DSN" -qAt -c "INSERT INTO ops_event(seat,event,ticket,note)
-			VALUES('施工机','唤起败','','unit=$UNIT host=$(hostname) trigger=ticket_n$TICKET_N backlog=$BACKLOG_N spawn落败')" >/dev/null 2>&1
+			VALUES('施工机','唤起败','','unit=$UNIT host=$(hostname) trigger=ticket_n$TICKET_N backlog=$BACKLOG_N batchable=$BATCHABLE_N spawn落败')" >/dev/null 2>&1
 		echo "[dispatch-worker] systemd-run 唤起落败(败迹已清锁)" >&2; exit 1; }
-echo "[dispatch-worker] 唤起 $UNIT ticket_n=$TICKET_N backlog=$BACKLOG_N"
+echo "[dispatch-worker] 唤起 $UNIT ticket_n=$TICKET_N backlog=$BACKLOG_N batchable=$BATCHABLE_N"
