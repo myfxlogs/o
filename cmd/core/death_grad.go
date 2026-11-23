@@ -15,9 +15,9 @@
 // 向新上限。年化解负=同一公式对称自愈（0.10→0.25→0.5→1.0 不升件）。
 // 触底另升「死刑/death_clinical」：机械层到此为止——本金收缩/拔管
 // =业主物理件（越线三径归业主，医生不替病人拔管），本件只宣告不执行。
-// 年化分母=部署本金窗时加权均值（令#34702③——NAV 基部署率低时
-// 失真）；分子=fin_pnl_net 净产单源（O-34619）。分母缺腿/零部署
-// 窗不判（缺证不判——同 NAV 盲律旧约）。
+// 年化判据=annualJudgment 单源出口：部署本金窗时加权均值≥floor
+// （令#34702③+O-34963下限）否则回退 NAV 口径；分子=fin_pnl_net
+// 净产单源（O-34619）。判据无据窗不判（缺证不判）。
 package main
 
 import (
@@ -61,24 +61,21 @@ func (c coreService) deathGradCheck(ctx context.Context, deadSince map[string]ti
 		return // 读件败本拍让位
 	}
 	now := time.Now()
-	dep7, ok7, snap7 := c.deployedBasis(ctx, now.Add(-7*24*time.Hour), now)
-	dep14, ok14, snap14 := c.deployedBasis(ctx, now.Add(-14*24*time.Hour), now)
-	dep30, ok30, snap30 := c.deployedBasis(ctx, now.Add(-30*24*time.Hour), now)
+	// 年化判据输入单源 annualJudgment（令#34702③部署本金口径+
+	// O-34963下限补丁：各窗部署均值<floor 回退 NAV——三窗各配
+	// 各窗分母与口径，读面签随实际口径）。任一窗判据无据→本拍
+	// 让位（缺证不判）。
+	ann7, ok7, tag7 := c.annualJudgment(ctx, now.Add(-7*24*time.Hour), now, n7, 7)
+	ann14, ok14, tag14 := c.annualJudgment(ctx, now.Add(-14*24*time.Hour), now, n14, 14)
+	ann30, ok30, tag30 := c.annualJudgment(ctx, now.Add(-30*24*time.Hour), now, n30, 30)
 	if !ok7 || !ok14 || !ok30 {
-		return // 分母缺腿=梯度无据
-	}
-	ann7, okA7 := annualizedPct(n7, 7, dep7)
-	ann14, okA14 := annualizedPct(n14, 14, dep14)
-	ann30, okA30 := annualizedPct(n30, 30, dep30)
-	if !okA7 || !okA14 || !okA30 {
-		return // 零部署窗=年化无义——不虚计
+		return // 判据无据窗=梯度无据
 	}
 	target := deathFactor(ann7, ann14, ann30)
-	depTag := annualDepTag(dep7, ok7, snap7) + "/" +
-		annualDepTag(dep14, ok14, snap14) + "/" + annualDepTag(dep30, ok30, snap30)
+	annTag := tag7 + "/" + tag14 + "/" + tag30
 	if cur, err := c.cfg.GetFloat("lifecycle.death_factor"); err != nil || cur != target {
 		ev := fmt.Sprintf("三窗年化 7d=%.2f%% 14d=%.2f%% 30d=%.2f%% %s（死刑梯度 tier→%.2f）",
-			ann7, ann14, ann30, depTag, target)
+			ann7, ann14, ann30, annTag, target)
 		if _, err := c.cfg.DMSet(ctx, "lifecycle.death_factor",
 			json.RawMessage(strconv.FormatFloat(target, 'f', -1, 64)), ev, "death-grad"); err != nil {
 			return // 写败本拍让位（域闸拒=键漂移册漏登——不静默绕闸）
@@ -88,6 +85,6 @@ func (c coreService) deathGradCheck(ctx context.Context, deadSince map[string]ti
 		fmt.Sprintf("%.2f", target), target <= deathFloorFactor, func() string {
 			return fmt.Sprintf(
 				"死刑/death_clinical: 能力因子触底 %.2f（三窗年化 7d=%.2f%% 14d=%.2f%% 30d=%.2f%% %s——全负），敞口阈已缩至一成;机械层到此为止——本金收缩/拔管=业主物理件（越线三径归业主）,本升件只宣告不执行;年化解负=因子对称自愈",
-				target, ann7, ann14, ann30, depTag)
+				target, ann7, ann14, ann30, annTag)
 		})
 }

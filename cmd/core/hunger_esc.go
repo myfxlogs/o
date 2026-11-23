@@ -3,10 +3,10 @@
 // 「我想赚更多」。本探补该源头:目标差距=信号,目标由认知环自立（探针只
 // 述饿不开药——目标票=会话写的才算它想要,runbook 动机档为契）。
 //
-// 判据=真账年化(30d净×365/30/部署本金窗时加权均值,令#34702③口径
-// ——owner_beat/selfaware 同调 annualized.go 单源)<目标 8%
-// （口径:adulthood-bar——成年判据②,达线前扩投禁）;分母缺腿/零部署
-// 本拍让位（缺证不判——同 nav_stale 盲律）。commercial_stall 只问「净≤0 转而
+// 判据=真账年化<目标 8%（口径:adulthood-bar——成年判据②,达线前扩投禁）
+// ——annualJudgment 单源出口：部署本金窗时加权均值≥floor（令#34702③
+// +O-34963下限补丁）按部署口径判，低于回退 NAV 口径；判据无据本拍
+// 让位（缺证不判——同 nav_stale 盲律）。commercial_stall 只问「净≤0 转而
 // 不出水」,本探问「正也不够」——8% 线下皆饿,差距数随行。
 //
 // 环形:饿→升件→会话立 目标票(scope=hunger_gap)→票 OPEN 探针静默(票抑键)
@@ -26,32 +26,23 @@ const hungerTargetPct = 8.0 // 口径:adulthood-bar 真账年化线
 
 // hungerGapEscCheck 饿探——真账年化 vs 8% 目标差分升件。
 func (c coreService) hungerGapEscCheck(ctx context.Context, deadSince map[string]time.Time) {
-	var nav *float64
 	var net30 float64
 	var liveN int
 	if err := c.pool.QueryRow(ctx, `SELECT
-		(SELECT equity FROM md_equity_curve WHERE ccy='NAV'
-			AND ts>now()-interval '48 hours' ORDER BY ts DESC LIMIT 1),
 		(SELECT COALESCE(sum(amount),0) FROM fin_pnl_net
 			WHERE occurred_at>now()-interval '30 days'),
 		(SELECT count(*) FROM fin_strategy WHERE state IN ('live','probe'))`).
-		Scan(&nav, &net30, &liveN); err != nil {
+		Scan(&net30, &liveN); err != nil {
 		return // 读件败本拍让位
 	}
-	if nav == nil || *nav <= 0 {
-		return // 权益盲=饿判无据（nav_stale 探另报）
-	}
-	// 年化分母=部署本金窗时加权均值（令#34702③——NAV 基部署率低
-	// 时失真，判据不可达）；分子=fin_pnl_net 不动。分母不可得/零
-	// 部署→本拍让位（缺证不判饿也不判饱——同 nav 盲律）。
-	dep, depOK, depSnap := c.deployedBasis(ctx,
-		time.Now().Add(-30*24*time.Hour), time.Now())
-	if !depOK {
-		return
-	}
-	annual, annOK := annualizedPct(net30, 30, dep)
+	// 年化判据输入单源 annualJudgment（令#34702③部署本金口径+
+	// O-34963下限补丁：部署<floor 回退 NAV——分母不足=证据不足
+	// 回退 NAV 判非达标非不达标）。判据无据本拍让位（缺证不判饿
+	// 也不判饱——同 nav 盲律）。
+	annual, annOK, annTag := c.annualJudgment(ctx,
+		time.Now().Add(-30*24*time.Hour), time.Now(), net30, 30)
 	if !annOK {
-		return // 零部署=年化无义——不虚计不判
+		return
 	}
 	hungry := annual < hungerTargetPct
 	c.escEdgeUV(ctx, deadSince, "动机", "hunger_gap",
@@ -59,7 +50,7 @@ func (c coreService) hungerGapEscCheck(ctx context.Context, deadSince map[string
 			return fmt.Sprintf(
 				"动机/hunger_gap: 真账年化 %.2f%% < 目标 %.0f%%（30d净 %.4f%s live+probe %d）——差距 %.2f 个点;饿=信号非药方,目标票归认知环自立(runbook 动机档:工单/goal-* scope=hunger_gap,禁裸销)",
 				annual, hungerTargetPct, net30,
-				annualDepTag(dep, depOK, depSnap), liveN, hungerTargetPct-annual)
+				annTag, liveN, hungerTargetPct-annual)
 		})
 }
 

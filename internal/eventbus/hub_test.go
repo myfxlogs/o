@@ -2,6 +2,7 @@ package eventbus
 
 import (
 	"testing"
+	"time"
 
 	"o/internal/gen/eventv1"
 )
@@ -18,11 +19,20 @@ func TestHub(t *testing.T) {
 	}
 	ch2, _ := h.Watch(map[string]int64{})
 	h.Advance(&eventv1.DataAdvanced{Source: "t1", Kind: "ctx", MaxId: 7})
-	if (<-ch).MaxId != 7 || (<-ch2).MaxId != 7 {
-		t.Fatal("多 watcher 扇出缺")
+	// resume 补帧(5)与活帧(7)同管无序同入 ch2 缓冲——消费侧按 MaxId
+	// 去重语义容忍先收 5，逐帧读到 7 即证扇出（限时不死等）。
+	if (<-ch).MaxId != 7 {
+		t.Fatal("活 watcher 扇出缺")
 	}
-	select {
-	case <-ch: // ch 已收 max=7 补帧
-	default:
+	deadline := time.After(2 * time.Second) // sched-exempt-ok: 测试限时不死等——期界等待非周期调度
+	for {
+		select {
+		case fr := <-ch2:
+			if fr.MaxId == 7 {
+				return
+			}
+		case <-deadline:
+			t.Fatal("新 watcher 扇出缺——max=7 未达")
+		}
 	}
 }
