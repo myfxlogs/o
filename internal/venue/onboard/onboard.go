@@ -115,6 +115,13 @@ func (r *Runner) scan(ctx context.Context) error {
 		return err
 	}
 	for _, b := range brokers {
+		// venue-kind 闸（工单O-35485）：方言开集后非 mt5 族凭据可见
+		// （stallTriage「方言已识」判据消费 fams）但不过 MT5 探测径——
+		// cfd-broker 候选注册/四拍推进全是 MT5 族语义，dex-agent/cex
+		// 族登记形另票议，本闸只挡探测不挡可见。
+		if b.kind != "" && b.kind != "mt5" {
+			continue
+		}
 		if err := r.ensureCandidate(ctx, b.venue); err != nil {
 			return err
 		}
@@ -189,8 +196,12 @@ func (r *Runner) advance(ctx context.Context, b credFamily, maxBeat int) error {
 }
 
 // beat 单拍迁移（返 true=已跃迁续环）。state=registered→探测；probed→草案；
-// mapped→map 闸；paper/其他=止。
+// mapped→map 闸；paper/其他=止。venue-kind 闸在本函数前置（工单O-35485——
+// 非 mt5 族 credFamily 即便绕过 scan 直进 advance 也不过 MT5 探测径）。
 func (r *Runner) beat(ctx context.Context, b credFamily, state string, ob map[string]any) (bool, error) {
+	if b.kind != "" && b.kind != "mt5" {
+		return false, nil
+	}
 	switch state {
 	case "registered":
 		return r.beatProbe(ctx, b, ob)

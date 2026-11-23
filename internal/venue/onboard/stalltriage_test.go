@@ -74,13 +74,15 @@ func TestStallTriageDialectGap(t *testing.T) {
 	ctx := context.Background()
 	seedRecommended(t, ctx, pool, "dialx", true)
 	// 方言不识凭据键——ciphertext 任意（分诊只读键名不解密）。
+	// 工单O-35485 方言开集后 account/agent_key/api_key 等注册表 field
+	// 名已入册——方言缺口案改用未注册 field 名（dialx.paper_login）。
 	if _, err := pool.Exec(ctx,
-		`INSERT INTO app_secrets(key,ciphertext) VALUES('dialx.account','\x00')`); err != nil {
+		`INSERT INTO app_secrets(key,ciphertext) VALUES('dialx.paper_login','\x00')`); err != nil {
 		t.Fatal(err)
 	}
 	fams := famsOf(t, ctx, r)
 	if _, ok := fams["dialx"]; ok {
-		t.Fatal("dialx 不应被 discover 产族（.mt5. 方言外）")
+		t.Fatal("dialx 不应被 discover 产族（未注册方言外）")
 	}
 	for i := 0; i < 2; i++ {
 		if err := r.stallTriage(ctx, fams); err != nil {
@@ -93,7 +95,7 @@ func TestStallTriageDialectGap(t *testing.T) {
 		WHERE event='升件' AND esc_scope='venue_dialect_gap'`).Scan(&n, &note); err != nil || n != 1 {
 		t.Fatalf("方言缺口升件 n=%d err=%v（应 1——函件窗去重不重行）", n, err)
 	}
-	for _, want := range []string{"venue=dialx", "dialx.account"} {
+	for _, want := range []string{"venue=dialx", "dialx.paper"} {
 		if !strings.Contains(note, want) {
 			t.Fatalf("升件 note=%q 缺 %q（应含 venue 名+键形）", note, want)
 		}
