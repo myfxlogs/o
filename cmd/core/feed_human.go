@@ -17,7 +17,7 @@ import (
 // （宽锚误中=人话说错比黑话更糟）。
 
 var (
-	feedHumanBranchRe  = regexp.MustCompile(`支=(\S+)`)
+	feedHumanBranchRe  = regexp.MustCompile(`支=([A-Za-z0-9_./-]+)`)
 	feedHumanBranchRe2 = regexp.MustCompile(`\b(?:fix|feat|canon|audit|t|revfix|hotfix)/[\w.-]+`)
 	feedHumanSHARe     = regexp.MustCompile(`sha=([0-9a-f]{9,40})`)
 	feedHumanHexRe     = regexp.MustCompile(`[0-9a-f]{9,40}`)

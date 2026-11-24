@@ -41,6 +41,7 @@ ledger.recon_tol_usd	owner	对账容差（红线三：对账三通道不可动�
 feishu.chat_id	owner	业主通知通道
 feishu.sys_chat_id	owner	系统通知通道（业主令 2026-11-15 双频——运行/在办富卡）
 notify.*	owner	通知投递面（fail-closed 非钱径）
+feed.*	owner	呈现层开关面（O·动叙事模式等业主消费面——非钱径）
 trx.stake_address	owner	资金去向地址
 trx.rental_payers	owner	资金对手方注册表
 bridge.*	owner	采集基建面（fail-closed）

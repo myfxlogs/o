@@ -81,6 +81,7 @@ var ownerKeyGlobs = []string{
 	"feishu.chat_id",        // 业主通知通道
 	"feishu.sys_chat_id",    // 系统通知通道（业主令 2026-11-15 双频——运行/在办富卡）
 	"notify.*",              // 通知投递面
+	"feed.*",                // 呈现层开关面（O·动叙事模式——业主消费面非钱径）
 	"trx.stake_address",     // 资金去向地址
 	"trx.rental_payers",     // 资金对手方注册表
 	"bridge.*",              // 采集基建面（fail-closed）
