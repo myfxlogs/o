@@ -69,6 +69,7 @@ service CoreService {
   //   api_key/api_secret/passphrase 永不出面）——
   rpc ListBrokerOnboard(ListBrokerOnboardRequest) returns (ListBrokerOnboardResponse) {}
   rpc SubmitBrokerCred(SubmitBrokerCredRequest) returns (SubmitBrokerCredResponse) {}
+  rpc SetBrokerState(SetBrokerStateRequest) returns (SetBrokerStateResponse) {}
 
   // —— T-0432 方言对表面（向导第④步——映射=确认件非推断件：候选清单机造
   //   只省翻页不做决定+席位挑+机器硬验（SymbolParams 对拍官名语义全过才落
@@ -750,6 +751,20 @@ message SubmitBrokerCredResponse {
   int32 fields_written = 2;               // 本拍 upsert 件数（mt5=3+host 选填；cex=3）
   bool verified = 3;                      // 恒 true（verify-then-write——败=拒写即回不产响应体）
   string verify_note = 4;                 // 验连摘要（eq/totalEq 面——凭据零回显）
+}
+
+// ── O-37450 账户生命周期面（fin_venue_roster state 机——增=SubmitBrokerCred，
+//    停/删=本 RPC；会话环自报 connecting/active/degraded，人工面只许
+//    disabled/active/removed 三态迁移）────────────────────────────
+message SetBrokerStateRequest {
+  string venue = 1;                       // roster venue token（形闸同 brokerVenueRE）
+  string state = 2;                       // 目标态：disabled|active|removed（active=复活→connecting 待会话环接管）
+  string note = 3;                        // 处置注记→ops_event 审计行（凭据/login 永禁入注入）
+}
+message SetBrokerStateResponse {
+  string venue = 1;
+  string prev_state = 2;                  // 迁移前 roster 态
+  string state = 3;                       // 落定态（removed 请求落='removed'；active 请求落='connecting'）
 }
 
 // ── T-0432 方言对表面（向导第④步——映射=确认件非推断件）────────────────

@@ -91,10 +91,10 @@ func (c *Collector) handle(ctx context.Context, data []byte) {
 		}
 		instID := str(d, "instId")
 		blob, _ := json.Marshal(d)
-		if _, err := c.pool.Exec(ctx, `INSERT INTO md_account_events(ts,channel,ccy,inst_id,data)
-			VALUES(now(),$1,$2,$3,$4)
+		if _, err := c.pool.Exec(ctx, `INSERT INTO md_account_events(ts,venue,channel,ccy,inst_id,data)
+			VALUES(now(),$1,$2,$3,$4,$5)
 			ON CONFLICT (venue,channel,ccy,inst_id) DO UPDATE SET ts=EXCLUDED.ts,
-			data=EXCLUDED.data,recv_ts=now()`, msg.Arg.Channel, ccy, instID, blob); err != nil {
+			data=EXCLUDED.data,recv_ts=now()`, c.venueOr(), msg.Arg.Channel, ccy, instID, blob); err != nil {
 			c.rej.Inc("write_err")
 		}
 		if eq != 0 {

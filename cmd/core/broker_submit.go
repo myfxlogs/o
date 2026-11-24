@@ -23,14 +23,18 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
-	connect "connectrpc.com/connect/v2"
+	"connectrpc.com/connect/v2"
+	"github.com/jackc/pgx/v5"
 
+	"o/internal/data/okxpriv"
 	"o/internal/gen/dashboardv1"
 	"o/internal/mt5"
 	"o/internal/platform/config"
@@ -51,9 +55,29 @@ const (
 // 数线横；冒号/空白/点禁入台账键域）。
 var brokerVenueRE = regexp.MustCompile(`^[a-z0-9_-]{1,32}$`)
 
-// cexVenueSet CEX venue 册（T-0430 首档 okx——他所见 venue 册再扩；提交闸
-// fail-closed：册外 venue 拒不猜端点）。
-var cexVenueSet = map[string]bool{"okx": true}
+// brokerCredNS cred_ns 推导（O-37450 roster upsert 同源——roster 行在=
+// cred_ns 真源沿用；裸键族在=首户兼容 cred_ns=venue 名〔存量 mt5/okx/
+// okx_read 无中缀形〕；否则 venue+'.'+proto 新户键前缀——与凭据键写
+// `<cred_ns>.<field>` 同式自洽）。
+func brokerCredNS(ctx context.Context, tx pgx.Tx, venue, proto string) (string, error) {
+	var ns string
+	err := tx.QueryRow(ctx, `SELECT cred_ns FROM fin_venue_roster WHERE venue=$1`, venue).Scan(&ns)
+	if err == nil {
+		return ns, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return "", err
+	}
+	probe := venue + "." + map[string]string{"mt5": "login", "cex": "api_key"}[proto]
+	var bare bool
+	if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM app_secrets WHERE key=$1)`, probe).Scan(&bare); err != nil {
+		return "", err
+	}
+	if bare {
+		return venue, nil
+	}
+	return venue + "." + proto, nil
+}
 
 // mt5VerifySession mtapi 验连会话窄面（onboard.Session 同构窄化本地面——
 // *mt5.Client 结构满足；桩测注假 seam：fake Session 喂真形回包，禁桩真
@@ -104,24 +128,27 @@ func (c coreService) verifyMT5(ctx context.Context, login uint64, password, serv
 	return fmt.Sprintf("connect ok eq=%.2f bal=%.2f", eq, bal), nil
 }
 
-// verifyCEX CEX 验连：venue 只读端实测（okx=/api/v5/account/balance——
-// 签名三头过闸即凭据有效；totalEq 面值出摘要）。
-func (c coreService) verifyCEX(ctx context.Context, apiKey, apiSecret, passphrase string) (string, error) {
-	bal := c.cexBalance
-	if bal == nil {
-		bal = func(ctx context.Context, creds signutil.Credentials) (map[string]float64, error) {
-			return okxexec.BalanceEquity(ctx, creds, false)
+// verifyCEX CEX 验连：CexVenue adapter verify 面（O-37450——册内 venue
+// fail-closed 不猜端点；桩测 cexBalance seam 优先，生产径=adapter
+// Verify→okxexec.BalanceEquity 只读端实测 totalEq 面值出摘要）。
+func (c coreService) verifyCEX(ctx context.Context, venue string, apiKey, apiSecret, passphrase string) (string, error) {
+	creds := signutil.Credentials{Key: apiKey, Secret: apiSecret, Passphrase: passphrase}
+	if bal := c.cexBalance; bal != nil {
+		m, err := bal(ctx, creds)
+		if err != nil {
+			return "", err
 		}
+		var total float64
+		for _, v := range m {
+			total += v
+		}
+		return fmt.Sprintf("balance ok totalEq=%.2f", total), nil
 	}
-	m, err := bal(ctx, signutil.Credentials{Key: apiKey, Secret: apiSecret, Passphrase: passphrase})
-	if err != nil {
-		return "", err
+	ad, ok := okxpriv.CexVenueFor(venue)
+	if !ok {
+		return "", fmt.Errorf("venue 册未收——CexVenue adapter 无 %s（fail-closed 不猜端点）", venue)
 	}
-	var total float64
-	for _, v := range m {
-		total += v
-	}
-	return fmt.Sprintf("balance ok totalEq=%.2f", total), nil
+	return ad.Verify(ctx, creds)
 }
 
 // SubmitBrokerCred 凭据提交窄写面（同源闸→形闸→verify-then-write→Seal→
@@ -172,16 +199,16 @@ func (c coreService) SubmitBrokerCred(ctx context.Context,
 		}
 		note = fmt.Sprintf("venue=%s proto=mt5 login=%s server=%s %s", venue, req.GetLogin(), server, verifyNote)
 	case "cex":
-		if !cexVenueSet[venue] {
+		if _, ok := okxpriv.CexVenueFor(venue); !ok {
 			return nil, connect.NewError(connect.CodeInvalidArgument,
-				"venue 册未收——CEX 首档 okx（他所见 venue 册再扩，fail-closed 不猜端点）")
+				"venue 册未收——CexVenue adapter 无此族（他所见 venue 册再扩，fail-closed 不猜端点）")
 		}
 		apiKey, apiSecret, passphrase := req.GetApiKey(), req.GetApiSecret(), req.GetPassphrase()
 		if apiKey == "" || apiSecret == "" || passphrase == "" {
 			return nil, connect.NewError(connect.CodeInvalidArgument,
 				"api_key/api_secret/passphrase 三件必携——CEX 凭据族形闸")
 		}
-		vn, err := c.verifyCEX(ctx, apiKey, apiSecret, passphrase)
+		vn, err := c.verifyCEX(ctx, venue, apiKey, apiSecret, passphrase)
 		if err != nil {
 			return nil, connect.NewError(connect.CodeInvalidArgument, "验连败——凭据未落库: "+err.Error())
 		}
@@ -201,6 +228,12 @@ func (c coreService) SubmitBrokerCred(ctx context.Context,
 		return nil, connect.NewError(connect.CodeInternal, "tx: "+err.Error())
 	}
 	defer tx.Rollback(ctx)
+	// cred_ns 推导（O-37450——凭据键前缀=名册 cred_ns 同源：roster 行在
+	// 沿用/裸键族首户兼容/新户 venue+'.'+proto；键写 `<cred_ns>.<field>`）。
+	credNS, err := brokerCredNS(ctx, tx, venue, proto)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, "cred_ns 推导: "+err.Error())
+	}
 	for f, p := range fields {
 		ct, err := cryptoutil.Seal(mk, p)
 		if err != nil {
@@ -208,9 +241,24 @@ func (c coreService) SubmitBrokerCred(ctx context.Context,
 		}
 		if _, err := tx.Exec(ctx, `INSERT INTO app_secrets(key,ciphertext) VALUES($1,$2)
 			ON CONFLICT (key) DO UPDATE SET ciphertext=EXCLUDED.ciphertext`,
-			venue+"."+proto+"."+f, ct); err != nil {
+			credNS+"."+f, ct); err != nil {
 			return nil, connect.NewError(connect.CodeInternal, "凭据写: "+err.Error())
 		}
+	}
+	// roster upsert 同事务（O-37450 增径——凭据族+名册原子落；验连败上方
+	// 已拒零行；state/roles 冲突不覆盖——人工停用/授权面不被提交面改写，
+	// 新行 state='connecting' 待会话环自报接管，roles 缺省 {collect}）。
+	var loginArg any
+	if proto == "mt5" {
+		loginArg = req.GetLogin()
+	}
+	meta, _ := json.Marshal(map[string]string{"verify_note": verifyNote, "submit_ticket": brokerCredTicket})
+	if _, err := tx.Exec(ctx, `INSERT INTO fin_venue_roster(venue,proto,cred_ns,login,roles,state,meta)
+		VALUES($1,$2,$3,$4,'{collect}','connecting',$5)
+		ON CONFLICT (venue) DO UPDATE SET cred_ns=EXCLUDED.cred_ns,
+		login=EXCLUDED.login,updated_at=now()`,
+		venue, proto, credNS, loginArg, meta); err != nil {
+		return nil, connect.NewError(connect.CodeInternal, "名册 upsert: "+err.Error())
 	}
 	if _, err := tx.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note,esc_scope)
 		VALUES($1,$2,$3,$4,$5)`, brokerCredActor, brokerCredEvent, brokerCredTicket, note, venue); err != nil {
@@ -222,4 +270,18 @@ func (c coreService) SubmitBrokerCred(ctx context.Context,
 	// verify_note=verify 摘要（eq/totalEq 面值——凭据零回显）。
 	return &dashboardv1.SubmitBrokerCredResponse{Venue: venue,
 		FieldsWritten: int32(len(fields)), Verified: true, VerifyNote: verifyNote}, nil
+}
+
+// okxVerifyNote OKX verify 生产实现（装配层注入 CexVenue——BalanceEquity
+// 只读端实测，totalEq 面值出摘要；凭据零回显）。
+func okxVerifyNote(ctx context.Context, creds signutil.Credentials) (string, error) {
+	m, err := okxexec.BalanceEquity(ctx, creds, false)
+	if err != nil {
+		return "", err
+	}
+	var total float64
+	for _, v := range m {
+		total += v
+	}
+	return fmt.Sprintf("balance ok totalEq=%.2f", total), nil
 }

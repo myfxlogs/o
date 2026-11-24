@@ -10,20 +10,16 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"o/internal/platform/roster"
 	"o/internal/platform/signutil"
 )
 
-// Run 私有流主循环：Register「私流守」→Beat→心跳刷源协程→拨号循环。
-// login 失败/权限错 fail-loud（err 上抛外层退避重连，不静默退化）。
+// Run 单户私有流主循环：roster connecting 自报→心跳刷源协程→拨号循环。
+// login 失败/权限错 fail-loud（err 上抛外层退避重连，不静默退化）；
+// degraded/active 自报归 roster.go reportVenueState（名册=生命周期真源）。
 func (c *Collector) Run(ctx context.Context, errc chan<- error) {
-	if err := roster.Register(ctx, c.pool, employeeName, employeeDept, employeeTitle, nil); err != nil {
-		if ctx.Err() == nil {
-			errc <- fmt.Errorf("私流守 register: %w", err)
-		}
-		return
+	if _, err := reportVenueState(ctx, c.pool, c.venueOr(), "connecting", nil); err != nil {
+		log.Printf("[okxpriv] %s roster connecting 自报败: %v", c.venueOr(), err)
 	}
-	go roster.BeatLoop(ctx, c.pool, employeeName, 30*time.Second, errc)
 
 	backoff := backoffMin
 	for ctx.Err() == nil {
@@ -31,7 +27,8 @@ func (c *Collector) Run(ctx context.Context, errc chan<- error) {
 		if ctx.Err() != nil {
 			return
 		}
-		log.Printf("[okxpriv] 连接终：%v——%s 后重连", err, backoff)
+		log.Printf("[okxpriv] %s 连接终：%v——%s 后重连", c.venueOr(), err, backoff)
+		reportVenueFail(ctx, c.pool, c.venueOr(), err)
 		select {
 		case <-ctx.Done():
 			return
@@ -39,6 +36,14 @@ func (c *Collector) Run(ctx context.Context, errc chan<- error) {
 		}
 		backoff = min(backoff*2, backoffMax)
 	}
+}
+
+// venueOr venue 写键归一（空='okx' 存量兼容——测试直构 Collector 零值场景）。
+func (c *Collector) venueOr() string {
+	if c.venue == "" {
+		return "okx"
+	}
+	return c.venue
 }
 
 // login op=login args={apiKey,passphrase,timestamp,sign}——
@@ -82,7 +87,10 @@ func (c *Collector) dialLoop(ctx context.Context) error {
 	if err := conn.WriteJSON(sub); err != nil {
 		return fmt.Errorf("subscribe: %w", err)
 	}
-	log.Printf("[okxpriv] login+subscribed url=%s", c.url)
+	log.Printf("[okxpriv] %s login+subscribed url=%s", c.venueOr(), c.url)
+	if _, err := reportVenueState(ctx, c.pool, c.venueOr(), "active", nil); err != nil {
+		log.Printf("[okxpriv] %s roster active 自报败: %v", c.venueOr(), err)
+	}
 	// boot 首读（事件锚定形 REST 播种——快照写径禁周期轮询，仅此一次性）：
 	// 静户零推送期快照即鲜；之后流事件+心跳续源。
 	c.bootstrapEquity(ctx)
@@ -109,7 +117,7 @@ func (c *Collector) dialLoop(ctx context.Context) error {
 					} `json:"arg"`
 				}
 				if json.Unmarshal(data, &msg) == nil {
-					c.meter.Add("okx_priv/"+msg.Arg.Channel, len(data))
+					c.meter.Add("okx_priv/"+c.venueOr()+"/"+msg.Arg.Channel, len(data))
 				}
 			}
 		}

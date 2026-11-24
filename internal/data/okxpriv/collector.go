@@ -3,6 +3,9 @@
 // 事件→md_account_events 事实行+md_account_events append-only 行（src=okx_event，
 // 键域归一 unified）；3min 心跳刷末帧写行——活性判据=快照行新鲜度非事件到达率；
 // login/权限错误 fail-loud 重连不静默退化；凭据只自 app_secrets 密文列解。
+// O-37450：roster 驱动多账户——Supervisor 按 fin_venue_roster proto='cex'
+// 活跃户迭代 spawn 每户一 Collector（venue=数据写键一身三任，cred_ns=
+// 凭据键前缀；同所第二户=零码，设计 SSOT venue-multi-account.md D5）。
 package okxpriv
 
 import (
@@ -36,6 +39,7 @@ type Collector struct {
 	url    string
 	rej    *rejects.Door
 	creds  signutil.Credentials
+	venue  string // 名册户 token——md_account_events.venue 写键（空='okx' 存量兼容）
 	sim    bool
 	meter  *netmeter.Meter
 	lastEq map[string]float64 // ccy→最近 equity（心跳刷源用末帧值）
@@ -52,31 +56,46 @@ type Collector struct {
 	lastFrm   atomic.Int64
 }
 
-// NewCollector 凭据自 app_secrets 密文列解（master key 文件径；缺件 fail-closed 上抛）。
-func NewCollector(ctx context.Context, pool *pgxpool.Pool, sim bool) (*Collector, error) {
+// readCreds 按 cred_ns 解 CEX 三键凭据（<cred_ns>.{api_key,api_secret,
+// passphrase}——okx cred_ns='okx' 存量三键兼容；okx_read/okx2.cex 等
+// 名册户各键前缀自洽；缺件 fail-closed 上抛）。
+func readCreds(ctx context.Context, pool *pgxpool.Pool, credNS string) (signutil.Credentials, error) {
 	mk, err := config.ReadMasterKey()
 	if err != nil {
-		return nil, fmt.Errorf("master key: %w", err)
+		return signutil.Credentials{}, fmt.Errorf("master key: %w", err)
 	}
-	c := &Collector{pool: pool, url: PrivateURL, sim: sim,
-		rej:    rejects.New("okxpriv", "parse_fail", "write_err", "creds_missing", "login_fail"),
-		lastEq: map[string]float64{}}
-	for k, dst := range map[string]*string{"okx.api_key": &c.creds.Key, "okx.api_secret": &c.creds.Secret, "okx.passphrase": &c.creds.Passphrase} {
+	var creds signutil.Credentials
+	for k, dst := range map[string]*string{
+		credNS + ".api_key":    &creds.Key,
+		credNS + ".api_secret": &creds.Secret,
+		credNS + ".passphrase": &creds.Passphrase,
+	} {
 		var ct []byte
 		if err := pool.QueryRow(ctx, "SELECT ciphertext FROM app_secrets WHERE key=$1", k).Scan(&ct); err != nil {
-			c.rej.Inc("creds_missing")
-			return nil, fmt.Errorf("%s 读败: %w", k, err)
+			return signutil.Credentials{}, fmt.Errorf("%s 读败: %w", k, err)
 		}
 		p, err := cryptoutil.Open(mk, ct)
 		if err != nil {
-			return nil, fmt.Errorf("%s 解密: %w", k, err)
+			return signutil.Credentials{}, fmt.Errorf("%s 解密: %w", k, err)
 		}
 		*dst = p
 	}
-	return c, nil
+	return creds, nil
 }
 
-// newTestRej 测试用计数门（生产由 NewCollector 装）。
+// newAccountCollector 单户私有采集件（per-account 凭据+venue 写键——
+// Supervisor.spawn 径；credNS=名册行 cred_ns）。
+func newAccountCollector(ctx context.Context, pool *pgxpool.Pool, sim bool, venue, credNS string) (*Collector, error) {
+	creds, err := readCreds(ctx, pool, credNS)
+	if err != nil {
+		return nil, err
+	}
+	return &Collector{pool: pool, url: PrivateURL, sim: sim, venue: venue, creds: creds,
+		rej:    rejects.New("okxpriv", "parse_fail", "write_err", "creds_missing", "login_fail"),
+		lastEq: map[string]float64{}}, nil
+}
+
+// newTestRej 测试用计数门（生产由 newAccountCollector 装）。
 func newTestRej() *rejects.Door {
 	return rejects.New("okxpriv", "parse_fail", "write_err", "creds_missing", "login_fail")
 }
