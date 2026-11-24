@@ -48,7 +48,7 @@ type WithdrawalScanner struct {
 
 func NewWithdrawalScanner(pool *pgxpool.Pool, src WithdrawSrc) *WithdrawalScanner {
 	return &WithdrawalScanner{pool: pool, src: src,
-		rej: rejects.New("withdraw", "write_err", "non_usdt_withdrawal", "pre_baseline")}
+		rej: rejects.New("withdraw", "write_err", "bad_withdraw_ccy", "pre_baseline")}
 }
 
 // Scan 巡检一拍：state=2 完成行→bill 幂等落→cashflow withdraw（-amt）。
@@ -70,8 +70,10 @@ func (s *WithdrawalScanner) Scan(ctx context.Context) (int, error) {
 		if r.State != "2" {
 			continue // 非完成态（提现中/失败）——不入账留档
 		}
-		if r.Ccy != "USDT" {
-			s.rej.Inc("non_usdt_withdrawal") // 杂币闭集外（USDT 本位 T-0149 对偶）
+		// O-36422 根修：币形闸代 USDT 闸——非 USDT 出金按本域 ccy 落账
+		// （custody 按币量对拍；deposit.go 同根修镜像）。
+		if !fundCcyOK(r.Ccy) {
+			s.rej.Inc("bad_withdraw_ccy")
 			continue
 		}
 		tsMs, _ := parseMs(r.Ts)
