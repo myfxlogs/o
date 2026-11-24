@@ -64,11 +64,11 @@ func TestSharedSessionRound(t *testing.T) {
 	if err := pgstore.Migrate(ctx, pool, "md"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := sharedSessionRead(ctx, pool); err == nil {
+	if _, err := sharedSessionRead(ctx, pool, sharedSessionKey); err == nil {
 		t.Fatal("行缺应 err（消费腿 fail-closed 等 owner）")
 	}
-	sharedSessionWrite(ctx, pool, "mt5grpc2.mtapi.io:443", "tok-abc")
-	ss, err := sharedSessionRead(ctx, pool)
+	sharedSessionWrite(ctx, pool, sharedSessionKey, "mt5grpc2.mtapi.io:443", "tok-abc")
+	ss, err := sharedSessionRead(ctx, pool, sharedSessionKey)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,8 +76,8 @@ func TestSharedSessionRound(t *testing.T) {
 		t.Fatalf("行载荷错: %+v", ss)
 	}
 	// 幂等覆写（owner 重建换 token——消费腿读新值）。
-	sharedSessionWrite(ctx, pool, "mt5grpc3.mtapi.io:443", "tok-xyz")
-	ss, _ = sharedSessionRead(ctx, pool)
+	sharedSessionWrite(ctx, pool, sharedSessionKey, "mt5grpc3.mtapi.io:443", "tok-xyz")
+	ss, _ = sharedSessionRead(ctx, pool, sharedSessionKey)
 	if ss.Addr != "mt5grpc3.mtapi.io:443" || ss.Token != "tok-xyz" {
 		t.Fatalf("换血覆写未生效: %+v", ss)
 	}
@@ -99,12 +99,12 @@ func TestSharedAttach(t *testing.T) {
 		}
 		return &Client{connM: stub, mt5: mstub}, nil
 	}
-	if _, err := sharedAttach(ctx, pool, dial); err == nil ||
+	if _, err := sharedAttach(ctx, pool, dial, sharedSessionKey); err == nil ||
 		!strings.Contains(err.Error(), "共享会话未立") {
 		t.Fatalf("行缺应返等汇市巡 err got %v", err)
 	}
-	sharedSessionWrite(ctx, pool, "mt5grpc2.mtapi.io:443", "tok-live")
-	cl, err := sharedAttach(ctx, pool, dial)
+	sharedSessionWrite(ctx, pool, sharedSessionKey, "mt5grpc2.mtapi.io:443", "tok-live")
+	cl, err := sharedAttach(ctx, pool, dial, sharedSessionKey)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,7 +113,7 @@ func TestSharedAttach(t *testing.T) {
 	}
 	stub.alive = false
 	mstub.alive = false
-	if _, err := sharedAttach(ctx, pool, dial); err == nil ||
+	if _, err := sharedAttach(ctx, pool, dial, sharedSessionKey); err == nil ||
 		!strings.Contains(err.Error(), "共享会话已死") {
 		t.Fatalf("死 token 应返等重建 err got %v", err)
 	}

@@ -260,4 +260,5 @@ var finMigrationTable = []migEntry{
 	{245, "fin_0245_idle_opcost.sql"},                   // 工单O-36962——fin_park_baseline 停泊基线视图+annualized.park_yield_source/risk_premium 键+idle_capital 臂停泊段+idle_verdict_gate 惧值
 	{246, "fin_0246_feed_narrative.sql"},                // 工单O-36963——feed.narrative_mode 键（O·动 unit 聚合叙事模式开关，默认开；呈现层非钱径）
 	{247, "fin_0247_phantom_audit.sql"},                 // 工单O-36422——豁免#18 dcd_mtm_drift 作废（custody纯币量裁示,USD折算退NAV层）+BTC注资补腿（dep-439722036 deposit+0.02BTC/dcd_out-0.0207BTC 配对基线凭据165；0246 被 feed_narrative 在途占让号）
+	{248, "fin_0248_venue_roster.sql"},                  // 工单O-37448——fin_venue_roster 账户名册（venue token 一身三任+roles 授权面+state 生命周期机；种子自 app_secrets 族实枚举派生；0247 被 phantom_audit 在途占让号）
 }

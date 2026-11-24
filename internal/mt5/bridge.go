@@ -36,6 +36,7 @@ type BridgeCollector struct {
 	cfg       *config.Client
 	meter     *netmeter.Meter
 	rej       *rejects.Door
+	venue     string                                                                              // O-37448——声明服务哪户（空/'mt5'=Exness 兼容）
 	dial      func(addr string) (*Client, error)                                                  // 测试注入面
 	symFetch  func(ctx context.Context, cl *Client, sym string) (*mt5pb.SymbolParamsReply, error) // 测试注入面（FIX-02 消哑失败形态 fixture 缝——nil=生产径）
 	symList   func(ctx context.Context, cl *Client) ([]string, error)                             // 目录粗扫缝（T-0408——nil=SymbolList 正径）
@@ -43,10 +44,27 @@ type BridgeCollector struct {
 	klineWr   func(ctx context.Context, cl *Client, batch []string) (int, string)                 // 日K批写缝（nil=klineBatchWrite 正径——O-35587 自适应拆批桩测面）
 }
 
-// NewBridgeCollector 装配（凭据/址链全归 app_config 会话重读——env 凭据径退役；
-// 本件不再 fail-closed 于凭据缺，缺件=bridgeSession 返错退避重试同址链缺径）。
-func NewBridgeCollector(pool *pgxpool.Pool, cfg *config.Client) (*BridgeCollector, error) {
-	return &BridgeCollector{pool: pool, cfg: cfg,
+// venueKey 数据面 venue 键（空='mt5' Exness 兼容——桩测直构零值同径）。
+func (c *BridgeCollector) venueKey() string {
+	if c.venue == "" {
+		return "mt5"
+	}
+	return c.venue
+}
+
+// sessionKey 共享会话行键——<venue>.session_token（venue 寻址：桥腿在
+// PG-md 无 fin_venue_roster 读权，凭据族 cred_ns 不可解；'mt5'→存量
+// mt5.session_token 零迁移窗，O-37448 按户复挂）。
+func (c *BridgeCollector) sessionKey() string { return c.venueKey() + ".session_token" }
+
+// NewBridgeCollector 装配（venue=声明服务哪户——默认 'mt5' Exness 兼容；
+// 凭据/址链全归 app_config 会话重读——env 凭据径退役；本件不再 fail-closed
+// 于凭据缺，缺件=bridgeSession 返错退避重试同址链缺径）。
+func NewBridgeCollector(pool *pgxpool.Pool, cfg *config.Client, venue string) (*BridgeCollector, error) {
+	if venue == "" {
+		venue = "mt5"
+	}
+	return &BridgeCollector{pool: pool, cfg: cfg, venue: venue,
 		rej: rejects.New("mt5bridge", "connect_failed", "subscribe_failed",
 			"symbols_missing", "tick_write_err", "symbols_read_failed", "symbol_group_nil",
 			"kline_symbols_failed", "kline_read_failed", "kline_write_err")}, nil
@@ -79,8 +97,9 @@ func (c *BridgeCollector) Run(ctx context.Context, errc chan<- error) {
 }
 
 // bridgeSession 一次会话：共享行复挂（纯消费腿——永不 ConnectEx 永不
-// Disconnect）→订阅（bridge.mt5.symbols 热启，缺=fail-closed 返错重试）
-// →OnQuote 流→md_ticks venue='mt5'。零账户面（禁 snapshot/profit）。
+// Disconnect；key=按户共享行键 O-37448）→订阅（bridge.<venue>.symbols
+// 热启，缺=fail-closed 返错重试）→OnQuote 流→md_ticks venue=户 token。
+// 零账户面（禁 snapshot/profit）。
 func (c *BridgeCollector) bridgeSession(ctx context.Context, dial func(string) (*Client, error)) error {
 	// T-0143 返修：会话域派生 ctx（Run 的 ctx 跨重连共用——直接传则断连不
 	// cancel，swapLoop goroutine 随重连累积）。sessCtx 于会话终（stream 断返
@@ -89,9 +108,9 @@ func (c *BridgeCollector) bridgeSession(ctx context.Context, dial func(string) (
 	defer cancel()
 	syms := c.symbols()
 	if len(syms) == 0 {
-		return fmt.Errorf("bridge.mt5.symbols 缺/空——fail-closed 不虚构标的集")
+		return fmt.Errorf("bridge.%s.symbols 缺/空——fail-closed 不虚构标的集", c.venueKey())
 	}
-	cl, err := sharedAttach(ctx, c.pool, dial)
+	cl, err := sharedAttach(ctx, c.pool, dial, c.sessionKey())
 	if err != nil {
 		return err // 共享行缺/会话死——等汇市巡（owner）建；腿永不 ConnectEx 防双 login 竞速
 	}
@@ -99,10 +118,10 @@ func (c *BridgeCollector) bridgeSession(ctx context.Context, dial func(string) (
 	for _, s := range syms {
 		if err := cl.Subscribe(ctx, s); err != nil {
 			c.rej.Inc("subscribe_failed")
-			log.Printf("[mt5bridge] 订阅败 %s: %v", s, err)
+			log.Printf("[mt5bridge] %s 订阅败 %s: %v", c.venueKey(), s, err)
 		}
 	}
-	log.Printf("[mt5bridge] quote-only 桥腿起 syms=%d（零账户面）", len(syms))
+	log.Printf("[mt5bridge] %s quote-only 桥腿起 syms=%d（零账户面）", c.venueKey(), len(syms))
 	stream, err := cl.OnQuote(sessCtx)
 	if err != nil {
 		return err
@@ -154,10 +173,10 @@ func (c *BridgeCollector) bridgeSession(ctx context.Context, dial func(string) (
 		}
 		lastQuote.Store(time.Now().UnixNano())
 		if _, err := c.pool.Exec(ctx,
-			`INSERT INTO md_ticks(ts,venue,inst_id,last,bid,ask) VALUES(now(),'mt5',$1,$2,$3,$4)
+			`INSERT INTO md_ticks(ts,venue,inst_id,last,bid,ask) VALUES(now(),$1,$2,$3,$4,$5)
 			ON CONFLICT (venue,inst_id) DO UPDATE SET ts=EXCLUDED.ts,last=EXCLUDED.last,
 			bid=EXCLUDED.bid,ask=EXCLUDED.ask,recv_ts=now()`,
-			q.Symbol, q.Last, q.Bid, q.Ask); err != nil {
+			c.venueKey(), q.Symbol, q.Last, q.Bid, q.Ask); err != nil {
 			c.rej.Inc("tick_write_err")
 		}
 	}
@@ -208,10 +227,11 @@ func (c *BridgeCollector) pollSwap(ctx context.Context, cl *Client, syms []strin
 	return okN, sample
 }
 
-// symbols 标的集（bridge.mt5.symbols 热启——首集 BTCUSDm/ETHUSDm 与 SG 钱径
-// 清单同；扩集走 venue SymbolList 实读方言件另票）。
+// symbols 标的集（bridge.<venue>.symbols 热启——'mt5'→bridge.mt5.symbols
+// 存量键不变；他户=bridge.<venue>.symbols 按户册，缺=fail-closed 返错
+// 不虚构标的集——O-37448 venue 参数化）。
 func (c *BridgeCollector) symbols() []string {
-	raw, err := c.cfg.Get("bridge.mt5.symbols")
+	raw, err := c.cfg.Get("bridge." + c.venueKey() + ".symbols")
 	if err != nil {
 		return nil
 	}
@@ -229,10 +249,11 @@ const swapEvery = 4 * time.Hour
 // （对齐下游 xvenue 120s 帧龄闸+余量；重订代价仅退避重连一拍）。
 const tickSilentAfter = 150 * time.Second
 
-// midOf sym 现价中点（md_ticks venue='mt5' 最新行——换算名义基准；缺=0 不可年化）。
+// midOf sym 现价中点（md_ticks venue=户 token 最新行——换算名义基准；
+// 缺=0 不可年化）。
 func (c *BridgeCollector) midOf(sym string) float64 {
 	var mid float64
 	_ = c.pool.QueryRow(context.Background(), `SELECT (bid+ask)/2 FROM md_ticks
-		WHERE venue='mt5' AND inst_id=$1 AND bid>0 AND ask>0`, sym).Scan(&mid)
+		WHERE venue=$1 AND inst_id=$2 AND bid>0 AND ask>0`, c.venueKey(), sym).Scan(&mid)
 	return mid
 }

@@ -33,6 +33,11 @@ func newBalanceCollector(t *testing.T) *Collector {
 		rej: rejects.New("mt5", "write_err", "balance_ops_err")}
 }
 
+// testAcct 按户运行件桩——venue='mt5' Exness 兼容锚（写 venue 键断言同旧径）。
+func testAcct() *acctRun {
+	return &acctRun{acct: VenueAcct{Venue: "mt5", CredNS: "mt5", Login: "3001157"}}
+}
+
 // balOrder 充提行桩——实证形（EXR 3001157 OrderHistory 实拍：OrderType_
 // Balance+DealType_Balance 双标记、Profit=带符号金额、CloseTime+
 // CloseTimestampUTC 毫秒双时戳）。
@@ -67,7 +72,7 @@ func TestBalanceDealDeposit(t *testing.T) {
 	close := time.Date(2026, 11, 23, 12, 36, 42, 999000000, time.UTC)
 	o := balOrder(1313122770, 1.80, close)
 
-	c.balanceDeal(ctx, o)
+	c.balanceDeal(ctx, testAcct(), o)
 	if n := cashflowCount(t, c, 1313122770); n != 1 {
 		t.Fatalf("deposit 落行数=%d want 1", n)
 	}
@@ -93,9 +98,9 @@ func TestBalanceDealReplay(t *testing.T) {
 	c := newBalanceCollector(t)
 	ctx := context.Background()
 	o := balOrder(9000000001, 50.0, time.Now().UTC().Truncate(time.Second))
-	c.balanceDeal(ctx, o)
-	c.balanceDeal(ctx, o) // 重放
-	c.balanceDeal(ctx, o) // 三刷
+	c.balanceDeal(ctx, testAcct(), o)
+	c.balanceDeal(ctx, testAcct(), o) // 重放
+	c.balanceDeal(ctx, testAcct(), o) // 三刷
 	if n := cashflowCount(t, c, 9000000001); n != 1 {
 		t.Fatalf("重放后行数=%d want 1（幂等闸失效）", n)
 	}
@@ -106,7 +111,7 @@ func TestBalanceDealWithdraw(t *testing.T) {
 	c := newBalanceCollector(t)
 	ctx := context.Background()
 	o := balOrder(9000000002, -3247.31, time.Now().UTC().Truncate(time.Second))
-	c.balanceDeal(ctx, o)
+	c.balanceDeal(ctx, testAcct(), o)
 	var kind string
 	var amt float64
 	if err := c.pool.QueryRow(ctx,
@@ -130,7 +135,7 @@ func TestNonBalanceDealIgnored(t *testing.T) {
 		Profit:    -0.28,
 		CloseTime: timestamppb.Now(),
 	}
-	c.balanceDeal(ctx, trade)
+	c.balanceDeal(ctx, testAcct(), trade)
 	if n := cashflowCount(t, c, 9000000003); n != 0 {
 		t.Fatalf("交易行误入账 n=%d", n)
 	}
@@ -150,13 +155,13 @@ func TestManualPrecedentConflict(t *testing.T) {
 		t.Fatal(err)
 	}
 	o := balOrder(1312436725, -3247.31, dealTime)
-	c.balanceDeal(ctx, o)
+	c.balanceDeal(ctx, testAcct(), o)
 	if n := cashflowCount(t, c, 1312436725); n != 0 {
 		t.Fatalf("人工先例冲突未拦 n=%d（双记风险）", n)
 	}
 	// 对照：无冲突的负额 deal 照常入账
 	far := balOrder(9000000004, -100.0, time.Now().UTC().Truncate(time.Second))
-	c.balanceDeal(ctx, far)
+	c.balanceDeal(ctx, testAcct(), far)
 	if n := cashflowCount(t, c, 9000000004); n != 1 {
 		t.Fatalf("无冲突 withdraw 未入账 n=%d", n)
 	}
@@ -173,8 +178,8 @@ func TestCreditNoteNotBooked(t *testing.T) {
 		Profit:    500.0,
 		CloseTime: timestamppb.Now(),
 	}
-	c.balanceDeal(ctx, credit)
-	c.balanceDeal(ctx, credit) // 重扫幂等——判词行只落一条
+	c.balanceDeal(ctx, testAcct(), credit)
+	c.balanceDeal(ctx, testAcct(), credit) // 重扫幂等——判词行只落一条
 	if n := cashflowCount(t, c, 9000000005); n != 0 {
 		t.Fatalf("Credit 邻类误入账 n=%d", n)
 	}

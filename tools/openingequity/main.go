@@ -72,16 +72,22 @@ func main() {
 	fmt.Printf("已入账 fin_cashflow id=%d kind=deposit amount=%.2f（source_table=opening_owner_declared）\n", id, eq)
 }
 
-// liveEquity venue 自报实时读（零假设数源）——mt5=AccountSummary.Equity，
-// 与对账环 mt5SummaryOnce 同链（cmd/core/nav_live.go 同调用面）。
+// liveEquity venue 自报实时读（零假设数源）——roster proto='mt5' 户走
+// mt5.OpenSession 现读 AccountSummary.Equity（O-37448——CFD 商零码同径，
+// venue token 即 roster 主键；与对账环 mt5SummaryOnce 同链同基准）。
 func liveEquity(ctx context.Context, pool *pgxpool.Pool, venue string) (float64, error) {
-	switch venue {
+	var proto string
+	if err := pool.QueryRow(ctx,
+		`SELECT proto FROM fin_venue_roster WHERE venue=$1`, venue).Scan(&proto); err != nil {
+		return 0, fmt.Errorf("roster 无户 venue=%q（名册=唯一户源）: %w", venue, err)
+	}
+	switch proto {
 	case "mt5":
 		cfg := config.New(pool)
 		if err := cfg.Load(ctx); err != nil {
 			return 0, fmt.Errorf("cfg load: %w", err)
 		}
-		cl, err := mt5.OpenSession(ctx, pool, cfg)
+		cl, err := mt5.OpenSession(ctx, pool, cfg, venue)
 		if err != nil {
 			return 0, err
 		}
@@ -89,7 +95,7 @@ func liveEquity(ctx context.Context, pool *pgxpool.Pool, venue string) (float64,
 		eq, _, _, err := cl.AccountSummary(ctx)
 		return eq, err
 	default:
-		return 0, fmt.Errorf("venue %q 读件未接——补接须自 cmd/core venue_readers 抽共享件（单口径律），另案", venue)
+		return 0, fmt.Errorf("proto %q 读件未接——补接须自 cmd/core venue_readers 抽共享件（单口径律），另案", proto)
 	}
 }
 
