@@ -2,12 +2,14 @@
 // PriceHistoryExMany 分批拉 D1 棒→md_klines venue='mt5' 同键 upsert
 // （venue 正本=broker 服务端棒——共写语义同键最新帧赢）。
 // 判词面：末棒=形成中帧 confirm=false（次日扫覆写至收线——okxws klines
-// 同款语义）；TimeFrame=16408 MT5 PERIOD_D1 枚举实证锚（mt5-quotes-history
-// skill 注 16408 存歧——以落行 ts 间距自验，非 D1 即日志现形）。
+// 同款语义）；timeFrame=1440 分钟=mtapi ExMany 域单位分钟（O-38639 实测
+// 方言图钉死——MQL5 PERIOD_D1 枚举值 16408 在本网关被吸附 W1 周K，
+// 周期错配 WARN 闸在位不静默）。
 package mt5
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"time"
 
@@ -40,9 +42,12 @@ func klineFrom(now time.Time) string {
 	return now.AddDate(0, 0, 2).UTC().Format("2006-01-02T15:04:05Z")
 }
 
-// mt5FrameD1 PERIOD_D1 枚举值（MT5 标准 ENUM_TIMEFRAMES——实证钉:扫后
-// md_klines ts 间距≠24h 即枚举错配,WARN 行现形,不静默）。
-const mt5FrameD1 = 16408
+// mt5FrameD1 日K周期=分钟数——mtapi ExMany timeFrame 域单位是**分钟**
+// （proto 例 "240"=H4 锚 + O-38639 实测图 {1=M1,60=H1,240=H4,1440=D1,
+// 10080=W1}）。禁搬 MQL5 ENUM_TIMEFRAMES 值：16408（MQL5 PERIOD_D1）
+// 在本网关=16408 分钟≈11.4d，被吸附 W1——全簿周K伪 1D 的陈窗签名
+// 根因（confirm 前沿周级翻旗=消费方饿停表象）。
+const mt5FrameD1 = 1440
 
 // klinePace 批间限速（369 符/60=7 批连发=限频面守——catalogPace 同款步进）。
 var klinePace = 300 * time.Millisecond
@@ -128,6 +133,13 @@ func (c *BridgeCollector) klineWriteAdaptive(ctx context.Context, cl *Client, sy
 	return n1 + n2, w2
 }
 
+// klineAvgGapSuspect D1 回棒窗平均间距>3d=周期疑似非D1（周K伪1D签名——
+// O-38639；末棒新鲜≠周期对，陈窗阈探测盲区根修；真日棒含周末长假
+// 均值≈1.4d，阈 3d 留双倍余量）。
+func klineAvgGapSuspect(first, last time.Time, n int) bool {
+	return n >= 3 && last.Sub(first)/time.Duration(n-1) > 3*24*time.Hour
+}
+
 // klineBatchWrite 单批:ExMany→逐符逐棒 upsert;返落棒数+败样（批败=why非空）。
 func (c *BridgeCollector) klineBatchWrite(ctx context.Context, cl *Client, batch []string) (int, string) {
 	r, err := mt5pb.NewQuoteHistoryClient(cl.Conn()).PriceHistoryExMany(cl.Authed(ctx),
@@ -144,11 +156,19 @@ func (c *BridgeCollector) klineBatchWrite(ctx context.Context, cl *Client, batch
 	}
 	n := 0
 	var newest time.Time
+	var tfSample string // O-38639：周期错配签名采样（末棒新鲜≠周期对——周K伪 1D 陈窗探测盲区根修）
 	for _, res := range r.GetResult() {
 		if res.GetException() != "" {
 			continue // 单符 venue 侧缺史=缺席如实（Exception 域载真因,不算批败）
 		}
 		bars := res.GetBars()
+		if tfSample == "" && len(bars) >= 3 {
+			first, last := bars[0].GetTime().AsTime(), bars[len(bars)-1].GetTime().AsTime()
+			if klineAvgGapSuspect(first, last, len(bars)) {
+				tfSample = fmt.Sprintf("%s avg=%.1fd", res.GetSymbol(),
+					last.Sub(first).Hours()/24/float64(len(bars)-1))
+			}
+		}
 		for j, b := range bars {
 			if t := b.GetTime().AsTime(); t.After(newest) {
 				newest = t
@@ -165,6 +185,9 @@ func (c *BridgeCollector) klineBatchWrite(ctx context.Context, cl *Client, batch
 			}
 			n++
 		}
+	}
+	if tfSample != "" {
+		log.Printf("WARN [mt5bridge] 日K周期疑似非D1——回棒平均间距>3d（样本: %s，O-38639 周K伪1D签名在案）", tfSample)
 	}
 	if n > 0 && time.Since(newest) > klineStaleAfter {
 		log.Printf("WARN [mt5bridge] 日K回棒陈窗——批末棒=%s（>%d天前，venue 史缓存陈化签名/O-35162 在案）",
