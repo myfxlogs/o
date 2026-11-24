@@ -5,6 +5,8 @@ import (
 	"context"
 	"math"
 	"strings"
+
+	"o/internal/mt5"
 )
 
 // closeWant 平仓目标量（下单方言量纲消歧——T-0419 根修：开腿 sz 量纲随
@@ -83,7 +85,7 @@ func (w *Warden) sizedCloseLegs(ctx context.Context, cls [2]CloseLeg) ([2]CloseL
 		}
 		var avail float64
 		var err error
-		if cl.Venue == "mt5" || strings.HasSuffix(cl.InstID, "-SWAP") {
+		if mt5.IsMt5ProtoVenue(ctx, w.pool, cl.Venue) || strings.HasSuffix(cl.InstID, "-SWAP") { // O-37449：mt5-proto 全族 CFD 腿 ContractPos 径
 			avail, err = szr.ContractPos(ctx, cl.InstID)
 		} else {
 			avail, err = szr.SpotAvailBal(ctx, cl.InstID)

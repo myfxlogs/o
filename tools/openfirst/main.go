@@ -28,6 +28,7 @@ func main() {
 	sid := flag.Int64("strategy", 0, "strategy_id（缺省=最新 probe/live 非 retired 行）")
 	dry := flag.Bool("dry", false, "干跑——构 Intent+Check 不执行")
 	structure := flag.String("structure", "funding", "腿构：funding（同 venue 双腿）|cfd_perp（okx perp 卖+mt5 cfd 买）")
+	cfdvenue := flag.String("cfdvenue", "mt5", "cfd_perp 腿 CFD 户 venue token（O-37449——名册 mt5-proto 户；凭据键前缀经 roster 解析）")
 	flag.Parse()
 	ctx := context.Background()
 	pool, err := pgxpool.New(ctx, os.Getenv("DB_DSN"))
@@ -128,10 +129,10 @@ func main() {
 		// T-0432④：腿携官名，方言查表（fin_symbol_dialect——映射=确认件非
 		// 推断件：向导第④步席位挑+硬验在案才落行）缝内译 venue 名；查无映射
 		// =fail-closed 拒（升件在案）——exec.cfd_map 手配径已废，禁静默 fallback。
-		mt, login := mtConnect(ctx, pool, cfg, mk)
-		dx := mt5.VenueTranslator{S: mt5.NewDialectStore(pool), Venue: "mt5",
+		mt, login := mtConnect(ctx, pool, cfg, mk, *cfdvenue)
+		dx := mt5.VenueTranslator{S: mt5.NewDialectStore(pool), Venue: *cfdvenue,
 			Account: fmt.Sprint(login), Seat: "openfirst"}
-		drow, err := mt5.NewDialectStore(pool).Lookup(ctx, "mt5", fmt.Sprint(login), instID)
+		drow, err := mt5.NewDialectStore(pool).Lookup(ctx, *cfdvenue, fmt.Sprint(login), instID)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "方言查无映射 fail-closed（先走座舱向导第④步挑定+硬验）:", err)
 			os.Exit(1)
@@ -156,7 +157,7 @@ func main() {
 		fmt.Printf("cfd %s（官名 %s）trade_mode=%d（FullAccess=4——下单时点实读留痕 T-0039）\n",
 			cfdInst, instID, sg.GetTradeMode())
 		// cfd 腿携官名（官话唯一天——fin_order_leg 台账零方言），mtexec 缝内译。
-		legs, spotInst, err = execution.BuildCfdLegs(instID, instID, notional,
+		legs, spotInst, err = execution.BuildCfdLegs(instID, instID, *cfdvenue, notional,
 			execution.CfdMeta{ContractSize: drow.CtVal,
 				MinLot: drow.MinSz, LotStep: drow.LotStep,
 				TradeMode: int32(sg.GetTradeMode())}, px, pm.CtVal)
@@ -165,8 +166,8 @@ func main() {
 			os.Exit(1)
 		}
 		execR = execution.NewRunner(pool, cfg, execution.RouterExecutor{
-			"okx": &execution.OkxExecutor{C: cli},
-			"mt5": mtexec.Executor{C: mt, X: dx},
+			"okx":     &execution.OkxExecutor{C: cli},
+			*cfdvenue: mtexec.Executor{C: mt, X: dx},
 		}).WithEarn(earnW)
 	} else {
 		execR = execution.NewRunner(pool, cfg, &execution.OkxExecutor{C: cli}).WithEarn(earnW)
@@ -201,14 +202,28 @@ func spotInstCached(instID string) string {
 	return spot
 }
 
-// mtConnect mt5 真户会话接线（凭据自 app_secrets mt5.*；gateway_addr=config 键；
-// 凭据缺=fail-closed——未连成功不构腿）。
-func mtConnect(ctx context.Context, pool *pgxpool.Pool, cfg *config.Client, mk []byte) (*mt5.Client, uint64) {
+// mtConnect mt5 真户会话接线（凭据自 app_secrets <cred_ns>.*——cred_ns 经
+// roster 解析 venue 参数化 O-37449；gateway_addr=config 键共享；凭据缺=
+// fail-closed——未连成功不构腿）。host 键缺=合法 server 径容错（O-37448 同律）。
+func mtConnect(ctx context.Context, pool *pgxpool.Pool, cfg *config.Client, mk []byte, venue string) (*mt5.Client, uint64) {
+	credNS, err := mt5.CredNSFor(ctx, pool, venue)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "cred_ns 解析（roster）:", err)
+		os.Exit(1)
+	}
 	get := func(k string) string {
 		var ct []byte
 		if err := pool.QueryRow(ctx, "SELECT ciphertext FROM app_secrets WHERE key=$1", k).Scan(&ct); err != nil {
 			fmt.Fprintln(os.Stderr, k, err)
 			os.Exit(1)
+		}
+		p, _ := cryptoutil.Open(mk, ct)
+		return p
+	}
+	getOpt := func(k string) string { // host 缺行=合法（server 名径——O-37448 同律）
+		var ct []byte
+		if err := pool.QueryRow(ctx, "SELECT ciphertext FROM app_secrets WHERE key=$1", k).Scan(&ct); err != nil {
+			return ""
 		}
 		p, _ := cryptoutil.Open(mk, ct)
 		return p
@@ -224,12 +239,12 @@ func mtConnect(ctx context.Context, pool *pgxpool.Pool, cfg *config.Client, mk [
 		os.Exit(1)
 	}
 	var login uint64
-	if _, err := fmt.Sscanf(get("mt5.login"), "%d", &login); err != nil {
-		fmt.Fprintln(os.Stderr, "mt5.login 非数字:", err)
+	if _, err := fmt.Sscanf(get(credNS+".login"), "%d", &login); err != nil {
+		fmt.Fprintln(os.Stderr, credNS+".login 非数字:", err)
 		os.Exit(1)
 	}
 	if err := cli.Connect(ctx, mt5.Credentials{Login: login,
-		Password: get("mt5.password"), Server: get("mt5.server"), Host: get("mt5.host")}); err != nil {
+		Password: get(credNS + ".password"), Server: get(credNS + ".server"), Host: getOpt(credNS + ".host")}); err != nil {
 		fmt.Fprintln(os.Stderr, "mt5 connect:", err)
 		os.Exit(1)
 	}

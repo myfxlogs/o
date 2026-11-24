@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"o/internal/mt5"
 )
 
 // 腿行落库一族——fin_order_leg 腿行+滑点采样+现金对称记账+position_ref 补链
@@ -41,7 +43,7 @@ func (r *Runner) legPx(ctx context.Context, execID int64, no int, leg Leg, clOrd
 	szUnit := "base"
 	var qtyBase *float64
 	switch {
-	case leg.Venue == "mt5":
+	case mt5.IsMt5ProtoVenue(ctx, r.pool, leg.Venue): // O-37449：mt5-proto 全族 CFD 腿同径（'mt5'+名册 proto 户）
 		szUnit = "lot"
 		if fillSz > 0 && leg.CtVal > 0 {
 			qb := fillSz * leg.CtVal

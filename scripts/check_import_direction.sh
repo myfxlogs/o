@@ -76,6 +76,9 @@ internal/trading/execution -> internal/platform/config
 internal/trading/execution -> internal/platform/rejects
 internal/trading/execution -> internal/platform/roster
 internal/trading/execution -> internal/trading/okxexec
+# O-37449：mt5-proto 腿分类判据（IsMt5ProtoVenue=fin_venue_roster proto
+# 读面唯一真源——mt5/roster.go 名册读面宿主；mt5 为叶包不回指两域无环）。
+internal/trading/execution -> internal/mt5
 internal/trading/okxgrid -> internal/platform/config
 internal/trading/okxgrid -> internal/platform/roster
 internal/trading/okxgrid -> internal/trading/okxexec
@@ -85,6 +88,8 @@ internal/guard -> internal/platform/config
 internal/guard -> internal/platform/rejects
 internal/guard -> internal/platform/roster
 internal/guard -> internal/risk
+# O-37449：同上——guard 腿分类器 CFD/现货判据收编 IsMt5ProtoVenue。
+internal/guard -> internal/mt5
 internal/portfolio/lifecycle -> internal/platform/rejects
 internal/portfolio/lifecycle -> internal/platform/roster
 internal/portfolio/lifecycle -> internal/platform/opschain

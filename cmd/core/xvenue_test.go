@@ -285,12 +285,12 @@ func TestXvenuePairLookup(t *testing.T) {
 	ctx, pool, cfg := setupDB(t)
 	h := hedgeOpener{pool: pool, cfg: cfg}
 	mainID, mateID := mkXvenuePair(t, ctx, pool, "BTC-USDT-SWAP", "BTCUSDm")
-	cfd, mate, err := h.xvenuePair(ctx, xvSpec(mainID, "BTC-USDT-SWAP"))
+	cfd, cfdVenue, mate, err := h.xvenuePair(ctx, xvSpec(mainID, "BTC-USDT-SWAP"))
 	if err != nil {
 		t.Fatal("pair 对位:", err)
 	}
-	if cfd != "BTCUSDm" || mate != mateID {
-		t.Fatalf("pair 归并错: cfd=%s mate=%d（应 %d）", cfd, mate, mateID)
+	if cfd != "BTCUSDm" || cfdVenue != "mt5" || mate != mateID {
+		t.Fatalf("pair 归并错: cfd=%s venue=%s mate=%d（应 %d）", cfd, cfdVenue, mate, mateID)
 	}
 	// 孤行（无副腿提案）+映射缺=fail-closed 不构单腿
 	var solo int64
@@ -298,7 +298,7 @@ func TestXvenuePairLookup(t *testing.T) {
 		VALUES('ETH-USDT-SWAP','xvenue-carry',0,'long_perp_short_cfd',50,'live','okx','{}') RETURNING id`).Scan(&solo); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := h.xvenuePair(ctx, xvSpec(solo, "ETH-USDT-SWAP")); err == nil {
+	if _, _, _, err := h.xvenuePair(ctx, xvSpec(solo, "ETH-USDT-SWAP")); err == nil {
 		t.Fatal("双腿映射双无未拒——单腿险敞开")
 	}
 }

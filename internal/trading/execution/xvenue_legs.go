@@ -16,7 +16,7 @@ import (
 // pxCfd=cfd 标的价（底层资产行情）；pxPerp=perp 自身最新价（币本位 ctVal
 // 换算）。TradeMode=SymbolGroup 活读值（下单时点 FullAccess 断言同
 // BuildCfdLegs——CloseOnly/Disabled/单向限拒构，禁台账快照当放行证）。
-func BuildXvenueLegs(direction, instID, cfdInst string, notional float64,
+func BuildXvenueLegs(direction, instID, cfdInst, cfdVenue string, notional float64,
 	perpM InstMeta, cfdM CfdMeta, pxCfd, pxPerp float64) ([2]Leg, error) {
 	var cfdSide, perpSide string
 	switch direction {
@@ -29,6 +29,9 @@ func BuildXvenueLegs(direction, instID, cfdInst string, notional float64,
 	}
 	if cfdInst == "" {
 		return [2]Leg{}, fmt.Errorf("cfd 官名缺 fail-closed（%s 无双腿映射）", instID)
+	}
+	if cfdVenue == "" {
+		cfdVenue = "mt5" // 存量调用面兼容锚（O-37449 前=恒 'mt5'）
 	}
 	if cfdM.TradeMode != 4 {
 		return [2]Leg{}, fmt.Errorf("cfd %s TradeMode=%d 非 FullAccess（可开性预检拒——broker 动态限，单腿裸露防线）", cfdInst, cfdM.TradeMode)
@@ -56,7 +59,7 @@ func BuildXvenueLegs(direction, instID, cfdInst string, notional float64,
 		perpUSD *= pxPerp
 	}
 	return [2]Leg{
-		{Venue: "mt5", InstID: cfdInst, Side: cfdSide, Sz: strconv.FormatFloat(lots, 'f', -1, 64),
+		{Venue: cfdVenue, InstID: cfdInst, Side: cfdSide, Sz: strconv.FormatFloat(lots, 'f', -1, 64),
 			Notional: cfdUSD, CtVal: cfdM.ContractSize},
 		{Venue: "okx", InstID: instID, Side: perpSide, Sz: strconv.FormatFloat(perpSz, 'f', -1, 64),
 			Notional: perpUSD},

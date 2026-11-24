@@ -196,7 +196,7 @@ func TestSubmitSymbolMappingHardVerifyReject(t *testing.T) {
 		t.Fatalf("硬验拒收应 400: %d %s", rec.Code, rec.Body.String())
 	}
 	var n int
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM fin_symbol_dialect`).Scan(&n); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM fin_symbol_dialect WHERE venue='exness'`).Scan(&n); err != nil {
 		t.Fatal(err)
 	}
 	if n != 0 {
@@ -224,7 +224,7 @@ func TestSubmitSymbolMappingTradeModeReject(t *testing.T) {
 		t.Fatalf("tradeable 拒应 400: %d", rec.Code)
 	}
 	var n int
-	_ = pool.QueryRow(ctx, `SELECT count(*) FROM fin_symbol_dialect`).Scan(&n)
+	_ = pool.QueryRow(ctx, `SELECT count(*) FROM fin_symbol_dialect WHERE venue='exness'`).Scan(&n)
 	if n != 0 {
 		t.Fatalf("零落表破: %d", n)
 	}
@@ -356,7 +356,7 @@ func TestSubmitSymbolMappingConnFail(t *testing.T) {
 		t.Fatalf("连接败应 400: %d", rec.Code)
 	}
 	var n int
-	_ = pool.QueryRow(ctx, `SELECT count(*) FROM fin_symbol_dialect`).Scan(&n)
+	_ = pool.QueryRow(ctx, `SELECT count(*) FROM fin_symbol_dialect WHERE venue='exness'`).Scan(&n)
 	if n != 0 {
 		t.Fatalf("零落表破: %d", n)
 	}

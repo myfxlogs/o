@@ -57,6 +57,22 @@ func VenueAccounts(ctx context.Context, pool *pgxpool.Pool, proto string) ([]Ven
 	return out, rows.Err()
 }
 
+// IsMt5ProtoVenue venue 是否 mt5 协议族（名册 proto='mt5'——CFD 同质面
+// 判据唯一真源：'mt5' 存量 token 兼容锚直通；他 venue 凭名册行，名册
+// 读败/缺席=非 mt5-proto fail-closed——禁把未知 venue 当 CFD 腿处理）。
+func IsMt5ProtoVenue(ctx context.Context, pool *pgxpool.Pool, venue string) bool {
+	if venue == "mt5" {
+		return true
+	}
+	var ok bool
+	if err := pool.QueryRow(ctx,
+		`SELECT EXISTS(SELECT 1 FROM fin_venue_roster WHERE venue=$1 AND proto='mt5')`,
+		venue).Scan(&ok); err != nil {
+		return false
+	}
+	return ok
+}
+
 // CredNSFor venue→凭据键前缀（OpenSession/消费腿 venue 参数化缝——
 // roster 行是唯一真源；'mt5' 兜底 cred_ns='mt5'——存量单键凭据族语义
 // 不变，roster 未播种/表缺迁移窗兼容）。他户缺行=err 显形禁猜键前缀。
