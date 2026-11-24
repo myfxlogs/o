@@ -21,9 +21,16 @@ func seedDir(t *testing.T, r *Runner, inst, dir string, enteredAgo string) int64
 
 func setTick(t *testing.T, r *Runner, inst string, px float64) {
 	t.Helper()
+	// O-36961：SWAP inst 价源分流 md_mark_index mark-price——桩双写两面
+	// 保 ticks/mark 两径覆盖（非 SWAP inst 仍走 ticks）。
 	if _, err := r.pool.Exec(context.Background(), `INSERT INTO md_ticks(venue,inst_id,last,ts)
 		VALUES('okx',$1,$2,now()) ON CONFLICT (venue,inst_id) DO UPDATE SET last=EXCLUDED.last,ts=EXCLUDED.ts`,
 		inst, px); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.pool.Exec(context.Background(), `INSERT INTO md_mark_index(ts,venue,inst_id,channel,px)
+		VALUES(now(),'okx',$1,'mark-price',$2)
+		ON CONFLICT (venue,inst_id,channel) DO UPDATE SET ts=EXCLUDED.ts,px=EXCLUDED.px,recv_ts=now()`, inst, px); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -162,9 +169,9 @@ func TestDirPaperStaleMark(t *testing.T) {
 	r := dirRig(t)
 	ctx := context.Background()
 	sid := seedDir(t, r, "DIRST-USDT-SWAP", "long_perp", "1 hours")
-	if _, err := r.pool.Exec(ctx, `INSERT INTO md_ticks(venue,inst_id,last,ts)
-		VALUES('okx','DIRST-USDT-SWAP',100,now()-interval '1 hour')
-		ON CONFLICT (venue,inst_id) DO UPDATE SET last=EXCLUDED.last,ts=EXCLUDED.ts`); err != nil {
+	// SWAP inst 价源=md_mark_index——陈 mark 行触发同一鲜度闸。
+	if _, err := r.pool.Exec(ctx, `INSERT INTO md_mark_index(ts,venue,inst_id,channel,px)
+		VALUES(now()-interval '1 hour','okx','DIRST-USDT-SWAP','mark-price',100)`); err != nil {
 		t.Fatal(err)
 	}
 	if err := r.dirPaperAccounting(ctx); err != nil {
@@ -200,5 +207,21 @@ func TestDirPaperMultiLegSkipped(t *testing.T) {
 	var n2 int
 	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_paper_fill WHERE strategy_id=$1 AND kind='open'`, sid2).Scan(&n2); err != nil || n2 != 1 {
 		t.Fatalf("单腿 short_perp 应记 open 锚 n=%d err=%v 期 1", n2, err)
+	}
+}
+
+// O-36961 锚：非 SWAP inst（mt5_dir_mom CFD 官名形）价源仍走 md_ticks——
+// mark-price 桥面无 CFD 面，分流闸不得误伤。
+func TestDirPaperNonSwapTicksPath(t *testing.T) {
+	r := dirRig(t)
+	ctx := context.Background()
+	sid := seedDir(t, r, "XAUUSDm", "long_perp", "1 hours")
+	setTick(t, r, "XAUUSDm", 100) // 双写——ticks 行是本径真源
+	if err := r.dirPaperAccounting(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_paper_fill WHERE strategy_id=$1 AND kind='open'`, sid).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("非 SWAP inst 应走 ticks 记 open 锚 n=%d err=%v 期 1", n, err)
 	}
 }

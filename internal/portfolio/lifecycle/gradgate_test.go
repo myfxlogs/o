@@ -23,21 +23,49 @@ func seedFills(t *testing.T, ctx context.Context, r *Runner, sid int64, amts ...
 func TestConfGate(t *testing.T) {
 	r, ctx := frictionFixture(t)
 	sid := mkPaperStrategy(t, ctx, r)
-	if ok, _ := r.confGate(ctx, sid); ok {
+	if ok, _ := r.confGate(ctx, sid, "funding-hedge"); ok {
 		t.Fatal("零收入笔应拦（样本不足 fail-closed）")
 	}
 	seedFills(t, ctx, r, sid, 0.1, 0.1)
-	if ok, _ := r.confGate(ctx, sid); ok {
+	if ok, _ := r.confGate(ctx, sid, "funding-hedge"); ok {
 		t.Fatal("2 笔应拦（<3）")
 	}
 	seedFills(t, ctx, r, sid, 0.1)
-	if ok, _ := r.confGate(ctx, sid); !ok {
+	if ok, _ := r.confGate(ctx, sid, "funding-hedge"); !ok {
 		t.Fatal("3 笔同额稳流应放（sd=0 LB=mean>0）")
 	}
 	// 混号流——大笔负笔插入→LB 翻负拦。
 	seedFills(t, ctx, r, sid, -0.5, -0.5, -0.5, -0.5, -0.5, -0.5)
-	if ok, _ := r.confGate(ctx, sid); ok {
+	if ok, _ := r.confGate(ctx, sid, "funding-hedge"); ok {
 		t.Fatal("混号流 LB≤0 应拦")
+	}
+}
+
+// O-36961 锚：方向动量族置信序列=alpha 本体（kind='pnl'）——funding 租金
+// 附带流不再稀释 LB；carry 族混采不变。生产实证：256/259 paper=dir_perp_mom
+// 混采下 funding: pnl≈19:1，LB 测的是租金符号非动量。
+func TestConfGateDirAlphaStream(t *testing.T) {
+	r, ctx := frictionFixture(t)
+	sid := mkPaperStrategy(t, ctx, r)
+	// funding 噪声流（混号大方差——混采下 LB 必负）；pnl alpha 流（3 笔同额正）。
+	seedFills(t, ctx, r, sid, 0.02, -0.03, 0.01, -0.02, 0.04, -0.01)
+	for _, a := range []float64{0.1, 0.1, 0.1} {
+		if _, err := r.pool.Exec(ctx, `INSERT INTO fin_paper_fill(strategy_id,kind,inst_id,amount_usd)
+			VALUES($1,'pnl','X-USDT-SWAP',$2)`, sid, a); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// dir 族只采 pnl——3 笔同额 sd=0 LB=mean>0 放（funding 噪声不入列）。
+	if ok, why := r.confGate(ctx, sid, "dir_perp_mom"); !ok {
+		t.Fatalf("dir 族应只采 pnl 流放行: %s", why)
+	}
+	// 对照：carry 族混采——funding 噪声入列 LB≤0 拦（分流不误伤余族）。
+	if ok, _ := r.confGate(ctx, sid, "funding-hedge"); ok {
+		t.Fatal("carry 族混采应拦（funding 噪声 LB≤0）")
+	}
+	// funding-extreme-fade 留混采（funding 即其 alpha 成分）。
+	if ok, _ := r.confGate(ctx, sid, "funding-extreme-fade"); ok {
+		t.Fatal("funding-extreme-fade 混采应拦")
 	}
 }
 

@@ -104,10 +104,12 @@ func TestOIPollerUpsert(t *testing.T) {
 		if path != "/api/v5/public/open-interest?instType=SWAP" {
 			t.Fatalf("OI 端点形错: %s", path)
 		}
-		return json.RawMessage(`{"code":"0","data":[
+		// PublicGet 返文=data 数组本体（信封已剥——工单#36961：信封形桩
+		// 曾掩盖解析败，桩须同真形）。
+		return json.RawMessage(`[
 			{"instId":"TEST-USDT-SWAP","instType":"SWAP","oi":"12345.6","oiCcy":"98765.4"},
 			{"instId":"TEST2-USDT-SWAP","instType":"SWAP","oi":"1","oiCcy":"2"}
-		]}`), nil
+		]`), nil
 	}
 	p := NewOIPoller(pool, get)
 	p.poll(ctx)
@@ -121,7 +123,7 @@ func TestOIPollerUpsert(t *testing.T) {
 	}
 	// 二拍同键 upsert 最新态（state 表律）
 	get2 := func(ctx context.Context, path string) (json.RawMessage, error) {
-		return json.RawMessage(`{"code":"0","data":[{"instId":"TEST-USDT-SWAP","oi":"999","oiCcy":"888"}]}`), nil
+		return json.RawMessage(`[{"instId":"TEST-USDT-SWAP","oi":"999","oiCcy":"888"}]`), nil
 	}
 	p2 := NewOIPoller(pool, get2)
 	p2.poll(ctx)
