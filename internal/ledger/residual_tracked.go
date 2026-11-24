@@ -16,7 +16,6 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"strconv"
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -40,23 +39,12 @@ type exemptPart struct {
 	Mode     string  // static|tracked|fallback|breach
 }
 
-// DcdOrderView venue dcd 持仓单投影（okxexec.DcdOrder 装配层翻译——
-// ledger 不识 venue 方言，同 bal/mtm/earnings 注入缝先例；nil=读件
-// 缺席 resolver fail-closed 回退静态锚）。
-type DcdOrderView struct {
-	OrdID       string
-	State       string
-	NotionalCcy string
-	NotionalSz  string
-}
-
 // residResolver 注册表函数形：resolver 键冒号参数段→现算豁免额（USD）。
 // 读败/缺源/缺读件=err 上抛由调用方回退静态锚——resolver 内禁假零。
 type residResolver func(ctx context.Context, r *Runner,
 	venue, ccy string, params []string) (float64, error)
 
 var residualResolvers = map[string]residResolver{
-	"dcd_mtm_drift":    resolveDCDDrift,
 	"earn_accrual_gap": resolveEarnGap,
 }
 
@@ -114,81 +102,6 @@ func (r *Runner) trackedExempt(ctx context.Context,
 	return total, parts, rows.Err()
 }
 
-// resolveDCDDrift dcd_mtm_drift：DCD 口径差=venue 产品名义量与账本基线
-// 凭据的币量差×标记现价。键形 dcd_mtm_drift:<ordId>——venue 侧名义量
-// 走注入读件 r.dcdOrd（okcli.DcdOrders 60s 缓存在案同源——应计收益使
-// venue 名义量随时间增厚，基线凭据冻结=口径差增生源；升件#34545 定性
-// 「venue真含DCD应计，基线不随应计刷属已知域」）。币量差折 USD=跟踪
-// 豁免额——随 BTC 价漂移（mark 现算）满足「现值随市漂移」验收口径。
-// 基线缺席/单不在名义在持态/币种不配/读件缺席/读败/无价=err→回退
-// 静态锚。近似边界诚实标注：venue 产品 USDT-MTM 真值（fin_position_
-// view/venue_bill 径）归 OCI/唤知面，本解析器量的是名义量差域——
-// 破带护栏兜模型失真。
-func resolveDCDDrift(ctx context.Context, r *Runner,
-	venue, ccy string, params []string) (float64, error) {
-	if len(params) < 1 || params[0] == "" {
-		return 0, fmt.Errorf("dcd_mtm_drift 参数缺 ordId")
-	}
-	ordID := params[0]
-	var amt float64
-	var bccy string
-	err := r.pool.QueryRow(ctx, `SELECT (intent->>'amt')::numeric, intent->>'ccy'
-		FROM fin_risk_decision r
-		WHERE intent->>'op'='dcd_baseline' AND intent->>'ordId'=$1
-		  AND intent->>'venue'=$2
-		  AND NOT EXISTS (SELECT 1 FROM fin_risk_decision s
-		    WHERE s.intent->>'op'='dcd_settle' AND s.intent->>'ordId'=r.intent->>'ordId')
-		ORDER BY id DESC LIMIT 1`, ordID, venue).Scan(&amt, &bccy)
-	if err != nil {
-		return 0, fmt.Errorf("dcd 基线凭据读败 ordId=%s: %w", ordID, err)
-	}
-	if r.dcdOrd == nil {
-		return 0, fmt.Errorf("dcd venue 读件未挂接 ordId=%s", ordID)
-	}
-	ords, err := r.dcdOrd(ctx)
-	if err != nil {
-		return 0, fmt.Errorf("dcd venue 读败 ordId=%s: %w", ordID, err)
-	}
-	var vsz string
-	var vccy, state string
-	found := false
-	for _, od := range ords {
-		if od.OrdID != ordID {
-			continue
-		}
-		found = true
-		vsz, vccy, state = od.NotionalSz, od.NotionalCcy, od.State
-	}
-	if !found {
-		return 0, fmt.Errorf("dcd venue 单缺席 ordId=%s", ordID)
-	}
-	// 名义在持三态才计（restlive addOrd 同集——settled/redeemed 走回款径）。
-	switch {
-	case strings.EqualFold(state, "live"),
-		strings.EqualFold(state, "pending_settle"),
-		strings.EqualFold(state, "pending_redeem"):
-	default:
-		return 0, fmt.Errorf("dcd 单非名义在持态 ordId=%s state=%s", ordID, state)
-	}
-	if !strings.EqualFold(vccy, bccy) {
-		return 0, fmt.Errorf("dcd 名义币种不配 ordId=%s venue=%s 基线=%s",
-			ordID, vccy, bccy)
-	}
-	vamt, perr := strconv.ParseFloat(vsz, 64)
-	if perr != nil || vamt < 0 {
-		return 0, fmt.Errorf("dcd venue 名义量解析败 ordId=%s sz=%q", ordID, vsz)
-	}
-	gap := math.Abs(vamt - amt)
-	if bccy == "USDT" || bccy == "USD" {
-		return gap, nil
-	}
-	px, perr := markPxUSDT(ctx, r.pool, bccy)
-	if perr != nil {
-		return 0, perr
-	}
-	return gap * px, nil
-}
-
 // resolveEarnGap earn_accrual_gap：Earn 应计时基差=应计累计（账本
 // kind='interest' 已入账 accrual 总量——venue amt 面只认实现额，未实现
 // 应计=恒差增生源，earn-accrual-vs-venue-read-residual 条目机制定案）。
@@ -202,21 +115,6 @@ func resolveEarnGap(ctx context.Context, r *Runner,
 		return 0, fmt.Errorf("interest 应计累计读败: %w", err)
 	}
 	return s, nil
-}
-
-// markPxUSDT 非 USDT 币→USDT 现价（run.go:202 判据折算同源——md_ticks
-// last∪md_mark_index px 末行；无价=err 上抛回退静态锚）。
-func markPxUSDT(ctx context.Context, pool *pgxpool.Pool, ccy string) (float64, error) {
-	var px float64
-	if err := pool.QueryRow(ctx, `SELECT v FROM (SELECT last v,ts FROM md_ticks
-		WHERE inst_id=$1||'-USDT' AND venue<>'sim' UNION ALL SELECT px,ts FROM md_mark_index
-		WHERE inst_id=$1||'-USDT') q ORDER BY ts DESC LIMIT 1`, ccy).Scan(&px); err != nil {
-		return 0, fmt.Errorf("%s-USDT 现价读败: %w", ccy, err)
-	}
-	if px <= 0 {
-		return 0, fmt.Errorf("%s-USDT 现价非正 %.4f", ccy, px)
-	}
-	return px, nil
 }
 
 // breachEscalate 破带升件（新族异常——esc_class=对账 同域；scope=行级

@@ -193,23 +193,8 @@ func attachVenueReaders(riskGate *risk.Gate, wd *guard.Warden, ledgerR *ledger.R
 	// T-0095 v2：交易户贡献=基金口径过滤求和（USDT∪open 腿基币行 eqUsd——
 	// 不按全账户取，账外尘口径内天然排除），白名单 FundCcy 同源。
 	ledgerR.WithMTM(mtmReader(pool, ctValReader(okcli))) // T-0076 盯市偏移
-	// O-36327：dcd_mtm_drift resolver venue 名义量差源——DcdOrders 60s
-	// TTL 单飞缓存在案（fundSaveBalances 每拍同调零增量成本）；读败 err
-	// 上抛 resolver 回退静态锚 fail-closed。
-	ledgerR.WithDcdOrders(func(ctx context.Context) ([]ledger.DcdOrderView, error) {
-		ords, err := okcli.DcdOrders(ctx)
-		if err != nil {
-			return nil, err
-		}
-		out := make([]ledger.DcdOrderView, 0, len(ords))
-		for _, od := range ords {
-			out = append(out, ledger.DcdOrderView{
-				OrdID: od.OrdID, State: od.State,
-				NotionalCcy: od.NotionalCcy, NotionalSz: od.NotionalSz,
-			})
-		}
-		return out, nil
-	})
+	// O-36422：dcd_mtm_drift resolver 退役（custody 纯币量裁示）——
+	// WithDcdOrders 读件缝随 resolver 三件套摘除。
 	ledgerR.WithBalances(func(ctx context.Context) (map[[2]string]float64, ledger.VenueParts, error) {
 		out := map[[2]string]float64{}
 		parts := ledger.VenueParts{}

@@ -44,15 +44,17 @@ func TestDepositScanIdempotent(t *testing.T) {
 // （cashflow 注入败真仿=约束违例面；此处借非 USDT 入账行模拟现金面败径——
 // 事务原子语义由同 tx.QueryRow/Exec/Commit 代码径保障，PG 级锚已证双行同成。）
 
-// T-0149 二返修桩锚：非 USDT depId 行→零写零败（D-0021 TRX 自营边界）；
-// 夹杂行序→后续 USDT 行照入账（逐行隔离不 abort 整扫）。
-func TestDepositScanUSDTGate(t *testing.T) {
+// T-0149 二返修桩锚+O-36422 根修：币形闸——BTC 等原生币注金按本域 ccy
+// 落账（custody 按币量对拍；depId=439722036 BTC 注资漏账实证案根修），
+// 形坏串滤除；夹杂行序→后续行照入账（逐行隔离不 abort 整扫）。
+func TestDepositScanCcyGate(t *testing.T) {
 	ctx, pool := setup(t)
 	seedBaseline(t, ctx, pool)
 	src := fakeDepSrc{rows: []DepositRow{
-		{DepID: "trx1", Ccy: "TRX", Amt: "1000", State: "2", Ts: "1792886400000"}, // 非 USDT=不入账
+		{DepID: "trx1", Ccy: "TRX", Amt: "1000", State: "2", Ts: "1792886400000"}, // 原生币=本域入账
+		{DepID: "bad1", Ccy: "btc!", Amt: "1", State: "2", Ts: "1792886400000"},   // 形坏=滤除
 		{DepID: "u1", Ccy: "USDT", Amt: "100", State: "2", Ts: "1792886400001"},
-		{DepID: "btc1", Ccy: "BTC", Amt: "0.5", State: "2", Ts: "1792886400002"}, // 夹杂毒行序
+		{DepID: "btc1", Ccy: "BTC", Amt: "0.5", State: "2", Ts: "1792886400002"}, // 夹杂行序
 		{DepID: "u2", Ccy: "USDT", Amt: "200", State: "2", Ts: "1792886400003"},
 	}}
 	sc := NewDepositScanner(pool, src)
@@ -60,13 +62,20 @@ func TestDepositScanUSDTGate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n != 2 {
-		t.Fatalf("USDT 应入 2 行（TRX/BTC 滤除）: %d", n)
+	if n != 4 {
+		t.Fatalf("TRX+USDT+BTC+USDT 应入 4 行（形坏滤除）: %d", n)
 	}
 	var c int
 	_ = pool.QueryRow(ctx, "SELECT count(*) FROM fin_venue_bill WHERE bill_id LIKE 'dep-%'").Scan(&c)
-	if c != 2 {
-		t.Fatalf("bill 行应 2（非 USDT 不留 bill）: %d", c)
+	if c != 4 {
+		t.Fatalf("bill 行应 4（形坏不留 bill）: %d", c)
+	}
+	// 验收锚：BTC 注金按本域币量落 BTC cashflow（非 USDT 面值换算）。
+	var btcAmt float64
+	var btcCcy string
+	_ = pool.QueryRow(ctx, "SELECT ccy,amount FROM fin_cashflow WHERE kind='deposit' AND source_table='fin_venue_bill' AND amount=0.5").Scan(&btcCcy, &btcAmt)
+	if btcCcy != "BTC" || btcAmt != 0.5 {
+		t.Fatalf("BTC 注金应 ccy=BTC amount=0.5 got %s/%v", btcCcy, btcAmt)
 	}
 }
 

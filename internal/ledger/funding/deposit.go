@@ -41,7 +41,7 @@ type DepositScanner struct {
 
 func NewDepositScanner(pool *pgxpool.Pool, src DepositSrc) *DepositScanner {
 	return &DepositScanner{pool: pool, src: src,
-		rej: rejects.New("deposit", "write_err", "non_usdt_deposit", "pre_baseline")}
+		rej: rejects.New("deposit", "write_err", "bad_deposit_ccy", "pre_baseline")}
 }
 
 // Scan 巡检一拍：state=2 完成行→bill 幂等落→cashflow deposit。
@@ -64,10 +64,12 @@ func (s *DepositScanner) Scan(ctx context.Context) (int, error) {
 		if r.State != "2" {
 			continue // 非完成态（确认中/失败）——不入账留档
 		}
-		// T-0149 二返修①USDT 谓词闸：非 USDT 入金=非基金注资（TRX 自营
-		// 边界 D-0021）——入账=虚增 NAV，skip 不入账不留 bill。
-		if r.Ccy != "USDT" {
-			s.rej.Inc("non_usdt_deposit")
+		// O-36422 根修：币形闸代 USDT 闸——custody 按币量对拍（业主裁示），
+		// BTC/杂币注金按本域 ccy 落账零换算（O-34287 ingest 同形）；形坏
+		// 串=垃圾源行弃记。旧 USDT 闸=BTC 注资永不入账→金源对簿记全盲
+		// （depId=439722036 实证漏账案）。
+		if !fundCcyOK(r.Ccy) {
+			s.rej.Inc("bad_deposit_ccy")
 			continue
 		}
 		tsMs, _ := parseMs(r.Ts)

@@ -29,12 +29,9 @@ type Runner struct {
 	bal func(ctx context.Context) (map[[2]string]float64, VenueParts, error)
 	// earnings savings 累计收益读件（T-0055 利息入账源）。
 	earnings func(ctx context.Context) (map[string]float64, error)
-	// dcdOrd venue dcd 持仓单读件（O-36327：dcd_mtm_drift resolver 名义量
-	// 差源——nil=resolver fail-closed 回退静态锚）。
-	dcdOrd func(ctx context.Context) ([]DcdOrderView, error)
-	pool   *pgxpool.Pool
-	cfg    *config.Client
-	rej    *rejects.Door
+	pool     *pgxpool.Pool
+	cfg      *config.Client
+	rej      *rejects.Door
 }
 
 // WithAlerter 挂告警器（nil=静默降级）。
@@ -57,13 +54,6 @@ func (r *Runner) WithBalances(fn func(ctx context.Context) (map[[2]string]float6
 // WithMTM 挂持仓盯市偏移读件（T-0076——venue×ccy 偏移额；无持仓=空 map）。
 func (r *Runner) WithMTM(fn func(ctx context.Context) (map[[2]string]float64, error)) *Runner {
 	r.mtm = fn
-	return r
-}
-
-// WithDcdOrders 挂 venue dcd 持仓单读件（O-36327——cmd 装配层接线；
-// nil=跟踪豁免 resolver 回退静态锚 fail-closed）。
-func (r *Runner) WithDcdOrders(fn func(ctx context.Context) ([]DcdOrderView, error)) *Runner {
-	r.dcdOrd = fn
 	return r
 }
 

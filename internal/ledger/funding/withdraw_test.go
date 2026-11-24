@@ -47,13 +47,15 @@ func TestWithdrawScanIdempotent(t *testing.T) {
 	}
 }
 
-// T-0274 闸面：非 USDT 滤除（deposit 对偶）+夹毒行序逐行隔离不 abort；
+// T-0274 闸面+O-36422 根修：币形闸——BTC 等原生币按本域 ccy 落账
+// （custody 按币量对拍），形坏串滤除；夹毒行序逐行隔离不 abort；
 // 读败=上抛零写（不炸主径——下拍重试幂等切面不破）。
 func TestWithdrawScanGates(t *testing.T) {
 	ctx, pool := setup(t)
 	seedBaseline(t, ctx, pool)
 	src := fakeWdSrc{rows: []WithdrawalRow{
-		{WdID: "btc1", Ccy: "BTC", Amt: "0.5", State: "2", Ts: "1793371328000"}, // 非 USDT=不入账
+		{WdID: "btc1", Ccy: "BTC", Amt: "0.5", State: "2", Ts: "1793371328000"}, // 原生币=本域入账
+		{WdID: "bad1", Ccy: "btc!", Amt: "1", State: "2", Ts: "1793371328000"},  // 形坏=滤除
 		{WdID: "u1", Ccy: "USDT", Amt: "100", State: "2", Ts: "1793371328001"},
 	}}
 	sc := NewWithdrawalScanner(pool, src)
@@ -61,16 +63,21 @@ func TestWithdrawScanGates(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n != 1 {
-		t.Fatalf("USDT 应入 1 行（BTC 滤除）: %d", n)
+	if n != 2 {
+		t.Fatalf("BTC+USDT 应入 2 行（形坏滤除）: %d", n)
+	}
+	var btcAmt float64
+	_ = pool.QueryRow(ctx, "SELECT amount FROM fin_cashflow WHERE kind='withdraw' AND ccy='BTC'").Scan(&btcAmt)
+	if btcAmt != -0.5 {
+		t.Fatalf("BTC 出金应按本域币量落账 amount=%v", btcAmt)
 	}
 	if _, err := NewWithdrawalScanner(pool, errWdSrc{}).Scan(ctx); err == nil {
 		t.Fatal("读败应上抛")
 	}
 	var c int
 	_ = pool.QueryRow(ctx, "SELECT count(*) FROM fin_venue_bill WHERE bill_id LIKE 'wd-%'").Scan(&c)
-	if c != 1 {
-		t.Fatalf("读败后零新增写: %d", c)
+	if c != 2 {
+		t.Fatalf("读败后零新增写（存量 2 行不增）: %d", c)
 	}
 }
 
