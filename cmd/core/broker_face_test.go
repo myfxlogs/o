@@ -282,8 +282,8 @@ func TestSubmitBrokerCredVerifyThenWrite(t *testing.T) {
 			ph = r.Phase
 		}
 	}
-	if ph != "verified" {
-		t.Fatalf("行态应 verified: %q", ph)
+	if ph != "connecting" {
+		t.Fatalf("行态应 connecting（O-37450 roster 新真源——提交落 connecting 待会话环自报）: %q", ph)
 	}
 }
 
@@ -361,8 +361,8 @@ func TestSubmitBrokerCredCEX(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, r := range list.Rows {
-		if r.Venue == "okx" && (r.Proto != "cex" || r.Phase != "verified") {
-			t.Fatalf("okx 行应 cex/verified: %+v", r)
+		if r.Venue == "okx" && (r.Proto != "cex" || r.Phase != "connecting") {
+			t.Fatalf("okx 行应 cex/connecting（O-37450 roster 新真源）: %+v", r)
 		}
 	}
 }

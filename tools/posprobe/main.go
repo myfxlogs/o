@@ -36,12 +36,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	priv, err := okxpriv.NewCollector(ctx, pool, false)
+	priv := okxpriv.NewSupervisor(pool, false)
+	creds, err := priv.Credentials(ctx)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "okxpriv:", err)
 		os.Exit(1)
 	}
-	cli := okxexec.NewClient(priv.Credentials(), false)
+	cli := okxexec.NewClient(creds, false)
 	sz := execwiring.OkxSizer{C: cli}
 
 	fmt.Println("=== okx 腿现读（生产同径 execwiring.OkxSizer）===")
