@@ -30,6 +30,10 @@ const (
 	beatEvery     = 30 * time.Second
 	livenessEvery = 10 * time.Minute // 活性兜底重对账（事件失联自检——钦定豁免类）
 	mirrorStale   = 2 * time.Minute  // 镜像 max(ts) 陈阈——告警 projector_silent（D-0030 §七）
+	// O-37543 实勘：SG 池半开连接 wedge 曾致镜像腿冻结 ~4h 进程仍活零报——
+	// SG 面操作挂 ctx 界，超时转 errc 岗终走 systemd 重启自愈；界值宽于正常时延。
+	sgOpTimeout        = 90 * time.Second
+	reconcileOpTimeout = 20 * time.Minute
 )
 
 // Runner 投影臂本体。md=PG-md 正本池；sg=SG 镜像池（隧道径）。
@@ -111,8 +115,11 @@ func (r *Runner) Run(ctx context.Context, errc chan<- error) {
 		errc <- fmt.Errorf("[projector] boot 守卫: %w", err)
 		return
 	}
-	if err := r.Reconcile(ctx, true); err != nil {
-		errc <- fmt.Errorf("[projector] 启动对账: %w", err)
+	rctx, cancel := context.WithTimeout(ctx, reconcileOpTimeout)
+	rerr := r.Reconcile(rctx, true)
+	cancel()
+	if rerr != nil {
+		errc <- fmt.Errorf("[projector] 启动对账: %w", rerr)
 		return
 	}
 	log.Printf("[projector] 对账毕——活跃集 %d inst、dcd 活策略 %d 品", r.activeCount(), len(r.dcdSet()))
@@ -242,11 +249,16 @@ func (r *Runner) beatLoop(ctx context.Context, errc chan<- error) {
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			if err := roster.Beat(ctx, r.sg, seatName); err != nil {
+			bctx, cancel := context.WithTimeout(ctx, sgOpTimeout)
+			err := roster.Beat(bctx, r.sg, seatName)
+			cancel()
+			if err != nil {
 				errc <- fmt.Errorf("[projector] beat: %w", err)
 				return
 			}
-			stale, err := r.mirrorStaleSince(ctx)
+			sctx, cancel2 := context.WithTimeout(ctx, sgOpTimeout)
+			stale, err := r.mirrorStaleSince(sctx)
+			cancel2()
 			if err != nil {
 				log.Printf("[projector] silent 哨读败: %v", err)
 				continue
@@ -274,7 +286,10 @@ func (r *Runner) livenessLoop(ctx context.Context, errc chan<- error) {
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			if err := r.Reconcile(ctx, false); err != nil {
+			rctx, cancel := context.WithTimeout(ctx, reconcileOpTimeout)
+			err := r.Reconcile(rctx, false)
+			cancel()
+			if err != nil {
 				errc <- fmt.Errorf("[projector] 活性对账: %w", err)
 				return
 			}
