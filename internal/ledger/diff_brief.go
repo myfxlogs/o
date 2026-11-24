@@ -75,7 +75,7 @@ func diffBriefText(depo, wdr float64, legs string) string {
 // 黑话词 venue读/账本净/容差/豁免/簿记构成/recon_adjust/spot_* 永不出
 // 业主面，桩测词表断言在案）。over=USD折算后判定（run.go 判据不变）。
 func (r *Runner) alertLedgerDiff(ctx context.Context, venue, ccy string,
-	eq, net, tol, exempt, diffUSD float64, over bool) {
+	eq, net, tol, exempt, diffUSD float64, over bool, parts []BalPart) {
 	if !over {
 		return
 	}
@@ -83,6 +83,9 @@ func (r *Runner) alertLedgerDiff(ctx context.Context, venue, ccy string,
 	// 业主令 2026-11-10：告警载初诊（出入金标识+簿记构成——
 	// 「只报发现不答钱从哪来」病灶，见 diff_brief.go）。
 	brief := ledgerDiffBrief(ctx, r, venue, ccy)
+	// O-36964：升件 note 头部白话账段（置于机读段前——业主三秒读懂
+	// 差多少/差由哪几块组成/是否已豁免/要不要人动手；机读底稿段原样保留）。
+	human := r.ledgerDiffHuman(ctx, venue, ccy, eq, net, diffUSD, tol, exempt, parts)
 	raw := Diff(net, eq)
 	dir := "少"
 	if net > eq {
@@ -107,8 +110,8 @@ func (r *Runner) alertLedgerDiff(ctx context.Context, venue, ccy string,
 					WHERE e.id BETWEEN mm[1]::bigint AND mm[2]::bigint)))`, scope).Scan(&open); err == nil && open == 0 {
 		_, _ = r.pool.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note,esc_class,esc_scope)
 			VALUES('探测席','升件','',$1,'对账',$2)`,
-			fmt.Sprintf("对账/%s: 账实差 $%.2f（容差 $%.2f+已定性豁免 $%.2f；venue 现读 %.4f vs 账本净 %.4f）→ %s——定性归唤知会话（runbook 对账档:tools/reconview 自助面→豁免行/根修）",
-				scope, raw, tol, exempt, eq, net, brief), scope)
+			fmt.Sprintf("对账/%s: %s——账实差 $%.2f（容差 $%.2f+已定性豁免 $%.2f；venue 现读 %.4f vs 账本净 %.4f）→ %s——定性归唤知会话（runbook 对账档:tools/reconview 自助面→豁免行/根修）",
+				scope, human, raw, tol, exempt, eq, net, brief), scope)
 	}
 	log.Printf("ALERT [ledger] 对账差 %s/%s venue=%.4f ledger=%.4f（容差 %.2f）", venue, ccy, eq, net, tol)
 }

@@ -247,7 +247,7 @@ func TestReconcileTrackedDCDFollowsMark(t *testing.T) {
 	seedMark(t, pool, "BTC-USDT", 1000, 1)
 	seedResid(t, pool, "okx", "USDT", 100, "dcd_mtm_drift:ORDZ")
 	var ven map[[2]string]float64
-	r.WithBalances(func(ctx context.Context) (map[[2]string]float64, error) { return ven, nil })
+	r.WithBalances(func(ctx context.Context) (map[[2]string]float64, VenueParts, error) { return ven, nil, nil })
 	r.WithDcdOrders(dcdOrdStub(map[string]string{"ORDZ": "0.6"}, nil))
 	// 账本 USDT 净=100；venue USDT=40→diff=60。跟踪豁免=0.1×1000=$100
 	// →60≤0.5+100 静默（静态锚 100 同值——改 mark 见真章）。

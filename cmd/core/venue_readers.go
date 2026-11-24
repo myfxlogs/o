@@ -136,7 +136,7 @@ func attachVenueReaders(riskGate *risk.Gate, wd *guard.Warden, ledgerR *ledger.R
 			return 0, err
 		}
 		fs := map[[2]string]float64{}
-		if err := fundSaveBalances(ctx, pool, okcli, fs, true); err != nil {
+		if err := fundSaveBalances(ctx, pool, okcli, fs, true, nil); err != nil {
 			vg.fail(ctx, "okx", err) // T-0352：风控权益面 funding/savings/dcd 读败入闸（与对账面同源计数）
 			return 0, err
 		}
@@ -210,36 +210,43 @@ func attachVenueReaders(riskGate *risk.Gate, wd *guard.Warden, ledgerR *ledger.R
 		}
 		return out, nil
 	})
-	ledgerR.WithBalances(func(ctx context.Context) (map[[2]string]float64, error) {
+	ledgerR.WithBalances(func(ctx context.Context) (map[[2]string]float64, ledger.VenueParts, error) {
 		out := map[[2]string]float64{}
+		parts := ledger.VenueParts{}
 		// O-34287 验收②：交易户逐币原生量径——details[].eq 原币字段逐 ccy
 		// 并入（eqUsd=USD 估值字段禁入簿记对拍径；BTC/ETH 持仓不再折 USDT）。
 		nat, err := tradingFundMap(ctx, pool, okcli)
 		if err != nil {
 			vg.fail(ctx, "okx", err) // T-0352：对账面读败入闸（生产病灶拍——5s 连败刷日志零升件）
-			return nil, fmt.Errorf("trading 读败: %w", err)
+			return nil, nil, fmt.Errorf("trading 读败: %w", err)
 		}
 		vg.ok("okx")
 		for ccy, v := range nat {
 			out[[2]string{"okx", ccy}] += v
+			if v != 0 {
+				k := [2]string{"okx", ccy}
+				parts[k] = append(parts[k], ledger.BalPart{Name: "trading", Amount: v})
+			}
 		}
 		// T-0100 ③：对拍径 usd=false 原币量入键——ledger 侧非本位键按币量
 		// 建键（ParkedAmt 台账），venue/ledger 单位同径不错配。
-		if err := fundSaveBalances(ctx, pool, okcli, out, false); err != nil {
+		// O-36964：同读面分量集——funding/earn/dcd 三源 emit 分账（人话段原料）。
+		if err := fundSaveBalances(ctx, pool, okcli, out, false, parts); err != nil {
 			vg.fail(ctx, "okx", err)
-			return nil, err
+			return nil, nil, err
 		}
 		vg.ok("okx")
 		if openMt5 != nil {
 			a, cerr := mt5SummaryOnce(ctx, pool, nil, openMt5)
 			if cerr != nil {
 				vg.fail(ctx, "mt5", cerr) // T-0352：对账面 mt5 读败入闸（票面病灶实查径）
-				return nil, fmt.Errorf("mt5 读败: %w", cerr)
+				return nil, nil, fmt.Errorf("mt5 读败: %w", cerr)
 			}
 			vg.ok("mt5")
 			out[[2]string{"mt5", "USD"}] = a.Equity
+			parts[[2]string{"mt5", "USD"}] = []ledger.BalPart{{Name: "account", Amount: a.Equity}}
 		}
-		return out, nil
+		return out, parts, nil
 	})
 }
 
