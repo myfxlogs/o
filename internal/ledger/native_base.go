@@ -4,6 +4,7 @@ package ledger
 
 import (
 	"context"
+	"fmt"
 	"log"
 )
 
@@ -60,6 +61,33 @@ func (r *Runner) armNativeBaselines(ctx context.Context, ven map[[2]string]float
 			nativeBase[k] += resid
 			wl[k] = true // 建账成功本拍即并入对拍域；写败/竞态下拍让位重试
 		}
+	}
+	return nil
+}
+
+// compensateLateBaselineBooks 迟簿双计自愈（O-37868 机制闸——判词=要闸）：
+// 已武装键上 occurred_at<arm_ts ∧ ts>arm_ts 的 custody 现金流=武装时窗外
+// 迟到账（scanner 史前回填/迁移补账/币形闸放开首扫同型——NFT #1808 实证，
+// SHIB/BTT 靠 withdraw 对冲巧合幸免非设计）——基线 resid 已含其 venue
+// 效应，cashflow 再入 net=双计。逐行补 native_baseline 负腿 amt=-amount
+// （lateSrc=cfid 幂等锚——重放/重启/迁移手腿同键不双补；earn_in/out 同
+// arm/reconcile cf 口径排除）。只补已武装键——白名单键无基线可双计自愈；
+// arm_ts=该键 native_baseline 行 MIN(ts)（补偿腿 ts 恒晚于武装行不扰锚）。
+func (r *Runner) compensateLateBaselineBooks(ctx context.Context) error {
+	_, err := r.pool.Exec(ctx, `INSERT INTO fin_risk_decision(intent,decision,reason,config_gen,kind)
+		SELECT jsonb_build_object('op','native_baseline','venue',f.venue,'ccy',f.ccy,
+				'amt',-f.amount,'lateSrc',f.id::text),
+			'allow','allow',1,'open'
+		FROM fin_cashflow f
+		JOIN (SELECT intent->>'venue' v, intent->>'ccy' c, min(ts) arm_ts
+			FROM fin_risk_decision WHERE intent->>'op'='native_baseline'
+			GROUP BY 1,2) b ON b.v=f.venue AND b.c=f.ccy
+		WHERE f.kind NOT IN ('earn_in','earn_out')
+		  AND f.occurred_at < b.arm_ts AND f.ts > b.arm_ts
+		  AND NOT EXISTS (SELECT 1 FROM fin_risk_decision x
+			WHERE x.intent->>'op'='native_baseline' AND x.intent->>'lateSrc'=f.id::text)`)
+	if err != nil {
+		return fmt.Errorf("迟簿补偿腿写败: %w", err)
 	}
 	return nil
 }
