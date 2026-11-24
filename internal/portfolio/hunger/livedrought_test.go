@@ -80,7 +80,7 @@ func TestLiveDroughtFires(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, want := range []string{"live在册=0", "持续=", "eval7d=", "拒因top=net_apr",
-		"断点推定=", "责任=钱径管理面", "在办="} {
+		"断点推定=", "责任=钱径管理面", "在办=", "停泊基线缺"} {
 		if !strings.Contains(note, want) {
 			t.Fatalf("归因卡缺段 %q —— note=%s", want, note)
 		}

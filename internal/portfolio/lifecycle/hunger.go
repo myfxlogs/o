@@ -39,6 +39,7 @@ type hungerSensor interface {
 	ProbeUnitDrift(ctx context.Context) error
 	ProbeAuditCanary(ctx context.Context) error
 	ProbeDeskOrphan(ctx context.Context) error
+	ProbeIdleVerdictGate(ctx context.Context) error // O-36962：有理闲置判词缺停泊基线=不合格件闸
 	MineLessons(ctx context.Context) (int, error)
 }
 
@@ -145,6 +146,12 @@ func (r *Runner) hungerTick(ctx context.Context) {
 	if err := r.sensor.ProbeLiveDrought(ctx); err != nil {
 		log.Printf("[lifecycle] hungertick live终局断流探针败: %v", err)
 		r.hungerEscalate(ctx, "livedrought_probe", err)
+	}
+	// 工单O-36962 有理闲置判词质量闸同槽（同款败情隔离位——判词缺停泊
+	// 基线必备字段=不合格件再升，业主令机会成本语义化验收闸）。
+	if err := r.sensor.ProbeIdleVerdictGate(ctx); err != nil {
+		log.Printf("[lifecycle] hungertick 判词质量闸探针败: %v", err)
+		r.hungerEscalate(ctx, "idleverdict_probe", err)
 	}
 	// 工单#25790 施工收口探针同槽（ProbeOpenDrought 同款败情隔离位）。
 	if err := r.sensor.ProbeWorkerCloseout(ctx); err != nil {

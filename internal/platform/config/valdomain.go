@@ -59,6 +59,7 @@ var valueDomainRules = []valRule{
 	{"risk.*_pct", valFrac}, // 方向书外阈同分数实（risk.max_venue_pct=0.35 在册）
 	{"trx.poll_seconds", valPos},
 	{"annualized.deploy_floor_usd", valPos}, // 部署本金年化判据下限（O-34963——非正=判据恒部署口径=小分母病灶复辟口）
+	{"annualized.risk_premium", valFrac},    // O-36962 机会成本风险溢价分数实（0.04 在册——候选 net_apr 须≥停泊息率+此溢价）
 	{"*notional_usd", valPos},
 	{"*_min_usd", valNonNeg},
 	{"*_bps", valNonNeg},

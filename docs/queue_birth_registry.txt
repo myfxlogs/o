@@ -26,3 +26,6 @@ ops_state|view|-|-|-|存量普查2026-11-24
 ops_ticket_desk|view|-|-|-|存量普查2026-11-24
 ops_ticket_phase|view|-|-|-|存量普查2026-11-24
 ops_ticket_state|view|-|-|-|存量普查2026-11-24
+
+# ── 新生面登记（O-35484 闸后首批——三件套齐）────────────────────────
+fin_park_baseline|view|earn_principal NULL=earn_parking 快照缺席（fail-closed 非零——判词层不得按 0 载）|单行基线无折叠（asof 单值——earn_snap/earn_int/dcd_live 各末行锚）|fin_0245：earn_parking 末行 earn_bal=在停本金；fin_cashflow interest 30d 窗累计÷本金×12=实收年化；dcd_live 末行 orders 聚合=在仓；息流 last_ts 载鲜度|
