@@ -22,7 +22,8 @@ cat > "$T/bin/psql" <<'EOF'
 #!/usr/bin/env bash
 # psql 桩：按 -c SQL 词面应答，全部查询落 $PSQL_LOG 供断言。
 # T_ASEAT_ROWS 在场=按行集评 author-seat 查询（id seat event note TSV，
-# 末行覆盖=ORDER BY id DESC 同义）；缺省回 T_AUTHOR_SEAT 旧径。
+# 首配胜=ORDER BY id ASC LIMIT 1 同义——O-38132 取证修）；缺省回
+# T_AUTHOR_SEAT 旧径。
 sql=""; prev=""
 for a in "$@"; do [ "$prev" = "-c" ] && sql="$a"; prev="$a"; done
 printf '%s\n' "$sql" >> "${PSQL_LOG:-/dev/null}"
@@ -32,11 +33,12 @@ if [[ "$sql" == *"SELECT seat FROM ops_event"* && "$sql" == *"seat NOT IN"* ]]; 
     if [ -f "$T_ASEAT_ROWS" ]; then
       while IFS=$'\t' read -r rid rseat revent rnote; do
         [ -n "$rid" ] || continue
+        [ -n "$seat" ] && break # ASC LIMIT 1——首配即取
         receipt=0
-        [[ "$revent" == *完工* ]] && receipt=1
-        [[ "$rnote" == *完工回执* || "$rnote" == *完工推支候审* || "$rnote" == *候审回执* || "$rnote" == *施工收口* ]] && receipt=1
+        [[ "$revent" == *完工* || "$revent" == *候审* || "$revent" == *施工收口* || "$revent" == *回执* ]] && receipt=1
+        [[ "$rnote" =~ ^.{0,40}(完工回执|完工推支候审|候审回执|施工收口) ]] && receipt=1
         [ "$receipt" = 1 ] || continue
-        [[ "$rnote" == *复审过* || "$rseat" == "复审席" || "$rseat" == "落地件" ]] && continue
+        [[ "$rnote" =~ ^复审过[[:space:]]*sha= || "$rseat" == "复审席" || "$rseat" == "落地件" ]] && continue
         match=0
         if [ -z "${T_BRANCH:-}" ] && [ -z "${T_TIP9:-}" ]; then match=1; else
           [ -n "${T_BRANCH:-}" ] && [[ "$rnote" == *"$T_BRANCH"* ]] && match=1
@@ -262,6 +264,53 @@ TIP=$(tip_of "$T/o" fix/aseat-noreceipt); stamp "$T/o" "$TIP"
 printf '%s\t%s\t%s\t%s\n' 1 复审席 复审过 "复审过 sha=$TIP fix/aseat-noreceipt 候审回执在案" >> "$T/aseat_rows.tsv"
 run_lq T_ASEAT_ROWS="$T/aseat_rows.tsv" T_BRANCH=fix/aseat-noreceipt T_TIP9="${TIP:0:9}" T_REVIEW_OK=1 T_REVIEW_SEAT=唤知 T_AUTHOR_SEAT=施工席
 if landed "$T/o" "$TIP"; then bad "回执行缺竟落"; else ok "回执行缺aseat空仍fail-closed"; fi
+
+# ═══ O-38132：元行引契词不充回执/取行序首配/异形交付行不参选 ═══
+echo "== aseat 元行引述契词不充回执 =="
+new_case
+mk_branch "$T/o" fix/aseat-meta feat_am.txt am
+TIP=$(tip_of "$T/o" fix/aseat-meta); stamp "$T/o" "$TIP"
+: > "$T/aseat_rows.tsv"
+# #38132/#38213 实证形：诊断票/会话叙事引契词+支名在行中（>40 字符位）
+printf '%s\t%s\t%s\t%s\n' 1 处置席 工单 "工单/landq-receipt-lexeme-gap: fix/aseat-meta land_queue 永跳——施工席#1回执用「交付@sha」非契词(候审回执|施工收口),review_ok作者席不可证rc3 fail-closed;戳鲜48min+复审过sha=${TIP:0:9}均在" >> "$T/aseat_rows.tsv"
+printf '%s\t%s\t%s\t%s\n' 2 唤知 会话收口 "unit=o-cognition-1 第N轮:fix/aseat-meta契词缝诊——票landq-receipt-lexeme-gap P2立 用帧=无 自问=无 手感=landq-aseat:诊断票引契词+支名会被闸当作者回执(施工收口契词)" >> "$T/aseat_rows.tsv"
+run_lq T_ASEAT_ROWS="$T/aseat_rows.tsv" T_BRANCH=fix/aseat-meta T_TIP9="${TIP:0:9}" T_REVIEW_OK=1 T_REVIEW_SEAT=唤知 T_AUTHOR_SEAT=施工席
+if landed "$T/o" "$TIP"; then bad "元行引契词竟充回执落成"; else ok "元行引述契词不充回执(aseat空fail-closed)"; fi
+
+echo "== aseat 元行不夺真回执(首配胜) =="
+new_case
+mk_branch "$T/o" fix/aseat-meta2 feat_am2.txt am2
+TIP=$(tip_of "$T/o" fix/aseat-meta2); stamp "$T/o" "$TIP"
+: > "$T/aseat_rows.tsv"
+# 真回执在前(首配)、元行在后——旧 DESC 序会被元行夺 aseat=唤知致自审误拒
+printf '%s\t%s\t%s\t%s\n' 1 施工席 施工收口 "[施工收口:O-38132] @ sha=$TIP 支=fix/aseat-meta2 已推 origin" >> "$T/aseat_rows.tsv"
+printf '%s\t%s\t%s\t%s\n' 2 唤知 会话收口 "unit=o-cognition-2 第N轮:fix/aseat-meta2契词缝复诊——施工收口契词票待裁 用帧=无" >> "$T/aseat_rows.tsv"
+run_lq T_ASEAT_ROWS="$T/aseat_rows.tsv" T_BRANCH=fix/aseat-meta2 T_TIP9="${TIP:0:9}" T_REVIEW_OK=1 T_REVIEW_SEAT=唤知 T_AUTHOR_SEAT=施工席
+if landed "$T/o" "$TIP"; then ok "真回执首配胜——元行不夺aseat"; else bad "元行仍夺aseat致自审误拒"; fi
+
+echo "== aseat 取行序取最早契词行 =="
+new_case
+mk_branch "$T/o" fix/aseat-first feat_af.txt af
+TIP=$(tip_of "$T/o" fix/aseat-first); stamp "$T/o" "$TIP"
+: > "$T/aseat_rows.tsv"
+# 双回执异席：早=外席完工回执(首报工)，晚=施工席施工收口(补行)——
+# 回执语义取最早→aseat=外席；复审席=外席=自审拒；复审席=唤知放行
+printf '%s\t%s\t%s\t%s\n' 1 外席 完工回执 "完工回执 fix/aseat-first @ ${TIP:0:9}——首报工" >> "$T/aseat_rows.tsv"
+printf '%s\t%s\t%s\t%s\n' 2 施工席 施工收口 "[施工收口:O-99999] @ sha=$TIP 支=fix/aseat-first 补行" >> "$T/aseat_rows.tsv"
+run_lq T_ASEAT_ROWS="$T/aseat_rows.tsv" T_BRANCH=fix/aseat-first T_TIP9="${TIP:0:9}" T_REVIEW_OK=1 T_REVIEW_SEAT=外席 T_AUTHOR_SEAT=施工席
+if landed "$T/o" "$TIP"; then bad "复审席=最早作者席竟落(取行序未取最早)"; else ok "取最早契词行——复审席=外席自审拒"; fi
+run_lq T_ASEAT_ROWS="$T/aseat_rows.tsv" T_BRANCH=fix/aseat-first T_TIP9="${TIP:0:9}" T_REVIEW_OK=1 T_REVIEW_SEAT=唤知 T_AUTHOR_SEAT=施工席
+if landed "$T/o" "$TIP"; then ok "复审席=唤知异席放行(aseat=外席)"; else bad "异席复审未放行"; fi
+
+echo "== aseat 交付@sha异形行不参选 =="
+new_case
+mk_branch "$T/o" fix/aseat-nonlex feat_anl.txt anl
+TIP=$(tip_of "$T/o" fix/aseat-nonlex); stamp "$T/o" "$TIP"
+: > "$T/aseat_rows.tsv"
+# #38000 实证形：交付@sha 非契词——支名+tip 在案仍不充回执
+printf '%s\t%s\t%s\t%s\n' 1 施工席 处置 "O-99999 venue面交付@${TIP:0:9}：①面A+面B 桩测绿戳在案。支fix/aseat-nonlex已推" >> "$T/aseat_rows.tsv"
+run_lq T_ASEAT_ROWS="$T/aseat_rows.tsv" T_BRANCH=fix/aseat-nonlex T_TIP9="${TIP:0:9}" T_REVIEW_OK=1 T_REVIEW_SEAT=唤知 T_AUTHOR_SEAT=施工席
+if landed "$T/o" "$TIP"; then bad "交付@sha异形行竟充回执"; else ok "交付@sha非契词不参选(aseat空fail-closed)"; fi
 
 # ═══ 依赖闸1：所依未合 → 跳支不落不烧账（工单#25800）═══
 echo "== 依赖闸 依赖未合拒=="

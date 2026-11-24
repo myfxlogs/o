@@ -132,11 +132,17 @@ review_ok() { # $1=br名 $2=tip全sha → rc0=复审过行在且写行席≠完�
 	local br="$1" tip="$2" bre aseat
 	[ -n "$DSN" ] || return 2
 	bre=$(printf '%s' "$br" | sed 's/[][\\.*^$()+?{}|]/\\&/g') # tolerate: sed 恒 rc0——纯转义器非闸
+	# O-38132 根修：回执判词=宣告位非引述位——契词须在行首窗（≤40 字符）
+	# 或回执事件族（完工|候审|施工收口|工单完工|回执），行中引述契词的
+	# 诊断票/会话叙事不再误充作者回执（#38132/#38135/#38213 实证洞：
+	# 票文引契词+支名曾把 aseat 夺去唤知/处置席=分席证明失真）；
+	# ORDER BY id ASC=回执语义取首次报工——后续余瑕/补行不改写作者面。
 	aseat=$(q "SELECT seat FROM ops_event
-		WHERE ((note ~ '(完工回执|完工推支候审|候审回执|施工收口)' OR event ~ '完工')
+		WHERE ((event ~ '完工|候审|施工收口|工单完工|回执'
+			OR note ~ '^.{0,40}(完工回执|完工推支候审|候审回执|施工收口)')
 			AND note !~ '^复审过[[:space:]]*sha=' AND seat NOT IN ('复审席','落地件')
 			AND (note ~ ('$bre' || '([@[:space:]=]|\$)') OR note ~ '${tip:0:9}'))
-		ORDER BY id DESC LIMIT 1")
+		ORDER BY id ASC LIMIT 1")
 	[ -n "$aseat" ] || return 3 # 作者席不可考=分席不可证→fail-closed
 	aseat=$(printf '%s' "$aseat" | tr -d "\"'\\")
 	[ "$aseat" = "落地件" ] && return 3
@@ -421,7 +427,8 @@ if (cd "$REPO" && bash -c "$PUSH_CMD origin $FINAL:master" >/dev/null 2>&1); the
 			SELECT n.tid FROM nums n JOIN ops_ticket_desk d ON d.id=n.tid
 			WHERE d.closed IS NOT TRUE AND d.susp_until IS NULL AND d.rulable IS NOT TRUE
 			  AND EXISTS (SELECT 1 FROM ops_event r
-			    WHERE (r.note ~ '(完工回执|完工推支候审|候审回执|施工收口)' OR r.event ~ '完工')
+			    WHERE ((r.event ~ '完工|候审|施工收口|工单完工|回执'
+			      OR r.note ~ '^.{0,40}(完工回执|完工推支候审|候审回执|施工收口)')
 			      AND r.note !~ '^复审过[[:space:]]*sha=' AND r.seat NOT IN ('复审席','落地件')
 			      AND (r.note ~ ('O-'||n.tid||'([^0-9]|$)') OR r.note ~ ('工单#'||n.tid||'([^0-9]|$)')
 			        OR r.ticket ~ ('^(O-|工单#)?'||n.tid||'$')))")
