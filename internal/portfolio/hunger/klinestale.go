@@ -6,11 +6,14 @@
 //	面①KLINE-DAILY-RECV：max(recv_ts) 龄阈 30min——business 臂 candle1D
 //	  推帧连续（活跃集 42 inst×形成中帧秒级更新），龄>30min=采集臂死；
 //	  零行史（建表以来零落行）=面未产极端形同报。
-//	面②KLINE-DAILY-CLOSE：max(recv_ts) WHERE confirm 龄阈 30h——日K
-//	  收线帧一日一落（16:00Z 族），超时=收线语义死（confirm 位不写/
-//	  收线帧被节流吞）。冷启防误报：表内无「到期该收线」bar（ts<now-25h
-//	  =开点已超一根日K时长,收线帧应已落）则本面不探——部署初 25h 内
-//	  零收线行是设计态非病灶。
+//	面②KLINE-DAILY-CLOSE：收线语义龄=末条确认棒收线时刻（max(ts)+24h,
+//	  bar='1D'）龄阈 30h——日K 收线帧一日一落（16:00Z 族），超时=
+//	  收线语义死（confirm 位不写/收线帧被节流吞）。语义列必须用 bar
+//	  时刻非 recv_ts——upsert 每拍覆写 recv_ts，收线停摆期收帧仍被
+//	  形成中帧触碰=旧闸恒鲜（O-38640 实证：收线停 41.5h 而 recv_ts
+//	  1.5min 前仍被写）。冷启防误报：表内无「到期该收线」bar
+//	  （ts<now-25h=开点已超一根日K时长,收线帧应已落）则本面不探——
+//	  部署初 25h 内零收线行是设计态非病灶。
 //
 // 只报不修——修归常票（采集臂/upsert 语义/订阅面）。
 package hunger
@@ -50,7 +53,7 @@ var (
 		Scope:    "KLINE-DAILY-CLOSE",
 		Label:    "日K candle 收线面",
 		Verb:     "断更",
-		TsCol:    "recv_ts",
+		TsCol:    "收线时刻(ts+24h)",
 		MaxAge:   klineCloseMaxAge,
 		Thresh:   "30h",
 		ZeroWord: "零收线行史（形成中帧永不确定）",
@@ -82,12 +85,19 @@ func (s *Sensor) ProbeKlineStale(ctx context.Context) error {
 		return nil
 	}
 	_, err := selfprobe.Probe(ctx, s.pool, func(ctx context.Context) (*time.Time, error) {
-		var last *time.Time
+		var ts *time.Time
 		if err := s.pool.QueryRow(ctx,
-			`SELECT max(recv_ts) FROM md_klines WHERE confirm`).Scan(&last); err != nil {
+			`SELECT max(ts) FROM md_klines WHERE confirm AND bar='1D'`).Scan(&ts); err != nil {
 			return nil, err
 		}
-		return last, nil
+		if ts == nil {
+			return nil, nil
+		}
+		// 语义列=收线时刻：1D 棒收线≈开点+24h（okx 16:00Z 族日界）。
+		// 用 bar 时刻而非 recv_ts——upsert 覆写 recv_ts 会把收线停摆
+		// 期被形成中帧触碰的假鲜掩盖（O-38640）。
+		closeAt := ts.Add(24 * time.Hour)
+		return &closeAt, nil
 	}, klineCloseSpec, s.now)
 	return err
 }
