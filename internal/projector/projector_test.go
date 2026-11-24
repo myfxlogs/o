@@ -314,6 +314,66 @@ func TestEvalPKCollisionSeqRewind(t *testing.T) {
 	}
 }
 
+// TestEvalStrategyKeyProjection O-36961：serve 谓词第二臂——在册策略
+// （state<>'retired'）自然键命中的 eval 行无提案引用亦须投影（dirEntryGate
+// 毕业闸读面）；孤儿键/退役策略键仍不投影（谓词收窄不外扩）。
+func TestEvalStrategyKeyProjection(t *testing.T) {
+	ctx := context.Background()
+	r, md, sg := runner(t) // serve 模式=qEvalFresh 谓词面
+	// md 正本侧三行：在册策略键 / 孤儿键 / 退役策略键。
+	for _, e := range []struct {
+		id                       int64
+		inst, tmpl, dir, verdict string
+	}{
+		{500, "STRAT-USDT-SWAP", "dir_perp_mom", "long_perp", "proposed"},
+		{501, "ORPHAN-USDT-SWAP", "dir_perp_mom", "long_perp", "proposed"},
+		{502, "DEAD-USDT-SWAP", "dir_perp_mom", "short_perp", "proposed"},
+	} {
+		if _, err := md.Exec(ctx, `INSERT INTO fin_opp_eval(id,ts,inst_id,template,direction,net_apr,verdict,legs,evidence)
+			VALUES ($1,now(),$2,$3,$4,0.08,$5,'[]','{}')`, e.id, e.inst, e.tmpl, e.dir, e.verdict); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, s := range []struct {
+		inst, tmpl, dir, state string
+	}{
+		{"STRAT-USDT-SWAP", "dir_perp_mom", "long_perp", "paper"},
+		{"DEAD-USDT-SWAP", "dir_perp_mom", "short_perp", "retired"},
+	} {
+		if _, err := md.Exec(ctx, `INSERT INTO fin_strategy(inst_id,template_ref,state,notional_usd,direction)
+			VALUES ($1,$2,$3,100,$4)`, s.inst, s.tmpl, s.state, s.dir); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := r.projectEvals(ctx); err != nil {
+		t.Fatalf("projectEvals: %v", err)
+	}
+	if n := count(t, sg, "SELECT count(*) FROM fin_opp_eval WHERE inst_id='STRAT-USDT-SWAP'"); n != 1 {
+		t.Fatalf("在册策略键 eval 应投影: %d", n)
+	}
+	if n := count(t, sg, "SELECT count(*) FROM fin_opp_eval WHERE inst_id='ORPHAN-USDT-SWAP'"); n != 0 {
+		t.Fatalf("孤儿键 eval 不应投影: %d", n)
+	}
+	if n := count(t, sg, "SELECT count(*) FROM fin_opp_eval WHERE inst_id='DEAD-USDT-SWAP'"); n != 0 {
+		t.Fatalf("退役策略键 eval 不应投影: %d", n)
+	}
+	// 续评新版（新 id 无提案引用）同键命中→SG 行按 ts 新鲜赢覆写。
+	if _, err := md.Exec(ctx, `INSERT INTO fin_opp_eval(id,ts,inst_id,template,direction,net_apr,verdict,legs,evidence)
+		VALUES (503,now()+interval '1 minute','STRAT-USDT-SWAP','dir_perp_mom','long_perp',0.09,'rejected','[]','{}')`); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.projectEvals(ctx); err != nil {
+		t.Fatalf("projectEvals2: %v", err)
+	}
+	var verdict string
+	if err := sg.QueryRow(ctx, `SELECT verdict FROM fin_opp_eval WHERE inst_id='STRAT-USDT-SWAP'`).Scan(&verdict); err != nil {
+		t.Fatal(err)
+	}
+	if verdict != "rejected" {
+		t.Fatalf("续评新版应覆写 SG 行（verdict=rejected）: %s", verdict)
+	}
+}
+
 // TestEvalTsNewerWins T-0211 验收锚④：同键异 id 陈帧不覆鲜行
 // （WHERE EXCLUDED.ts>ts 单调语义在自然键下不动）。
 func TestEvalTsNewerWins(t *testing.T) {
