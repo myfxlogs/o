@@ -32,8 +32,9 @@ type feedRow struct {
 	seat     string
 	event    string
 	note     string
-	escClass string // 人话翻译层锚（升件器官归口）——COALESCE 空串
-	escScope string // 同上，scope 优先于 class 作器官名
+	escClass string    // 人话翻译层锚（升件器官归口）——COALESCE 空串
+	escScope string    // 同上，scope 优先于 class 作器官名
+	ts       time.Time // 行时戳——叙事窗「活了多久」要素（O-36963）
 }
 
 // startFeedPush 装配（cli nil=凭据缺席整件降级不炸——同 sys_push 律）。
@@ -87,14 +88,38 @@ func (s *feedPush) push(ctx context.Context) error {
 		if len(rows) == 0 {
 			return nil
 		}
+		var blocks []string
+		narrOK := false
+		if s.narrativeOn(ctx) { // O-36963 叙事模式——unit 窗聚合段+余逐行混排
+			if nb, err := s.narrativeBlocks(ctx, rows, wm); err != nil {
+				log.Printf("[feed_push] 叙事层败——本批退逐行不丢行: %v", err)
+			} else {
+				narrOK = true
+				for _, b := range nb {
+					blocks = append(blocks, b.text)
+				}
+			}
+		}
+		if !narrOK { // 叙事关/败——现行逐行渲染（加成非替换兜底）
+			subj := func(id int64) string { return s.ticketSubj(ctx, id) }
+			for _, r := range rows {
+				blocks = append(blocks, feedRender(r, subj)) // 人话行+缩进机器行双行（O-32265/O-35002）
+			}
+		}
+		if len(blocks) == 0 { // 全批窗员抑（会话在跑零产出）——照耗水位不空推
+			wm = rows[len(rows)-1].id
+			if err := s.setWM(ctx, wm); err != nil {
+				return err
+			}
+			continue
+		}
 		var b strings.Builder
 		b.WriteString("[O·动]\n")
 		if f := s.feedFrame(ctx); f != "" { // 在办帧冠首——「此刻谁在干什么」白话解说
 			b.WriteString(f + "\n———\n")
 		}
-		for _, r := range rows {
-			subj := func(id int64) string { return s.ticketSubj(ctx, id) }
-			b.WriteString(feedRender(r, subj) + "\n") // 人话行+缩进机器行双行（O-32265/O-35002）
+		for _, t := range blocks {
+			b.WriteString(t + "\n")
 		}
 		if _, err := s.cli.SendText(ctx, chat, strings.TrimRight(b.String(), "\n")); err != nil {
 			return err // 发败=不过水印，下醒重泄同批（不漏件）
@@ -116,7 +141,7 @@ func (s *feedPush) pending(ctx context.Context, wm int64) ([]feedRow, error) {
 	// 未提交期间高 id 行先入水位=低位行永跳）；动作流水非实时径（攒批窗
 	// 本就 6s 合流+10min 静默），滞后无感。
 	rows, err := s.pool.Query(ctx,
-		`SELECT id,seat,event,left(note,500),COALESCE(esc_class,''),COALESCE(esc_scope,'')
+		`SELECT id,seat,event,left(note,500),COALESCE(esc_class,''),COALESCE(esc_scope,''),ts
 		 FROM ops_event
 		 WHERE id>$1 AND ts<now()-interval '60 seconds'
 		   AND event NOT IN `+feedExclude+`
@@ -128,7 +153,7 @@ func (s *feedPush) pending(ctx context.Context, wm int64) ([]feedRow, error) {
 	var out []feedRow
 	for rows.Next() {
 		var r feedRow
-		if err := rows.Scan(&r.id, &r.seat, &r.event, &r.note, &r.escClass, &r.escScope); err != nil {
+		if err := rows.Scan(&r.id, &r.seat, &r.event, &r.note, &r.escClass, &r.escScope, &r.ts); err != nil {
 			return out, err
 		}
 		out = append(out, r)

@@ -258,4 +258,5 @@ var finMigrationTable = []migEntry{
 	{243, "fin_0243_oss_fam_criterion.sql"},             // 工单O-35489：OSS 三族骨架评估判据键（research.xsec_mom/funding_fade/disloc_fade.*——卡 falsify/ev_formula 可算口径；fin_0240-0242 在途占三连跳号钉 0243）
 	{244, "fin_0244_residual_tracked.sql"},              // 工单O-36327——fin_known_residual 加 resolver 列：构性豁免跟踪化（#18/#19 置解析键、#20-22 补差行作废——定额豁免追活值根修）
 	{245, "fin_0245_idle_opcost.sql"},                   // 工单O-36962——fin_park_baseline 停泊基线视图+annualized.park_yield_source/risk_premium 键+idle_capital 臂停泊段+idle_verdict_gate 惧值
+	{246, "fin_0246_feed_narrative.sql"},                // 工单O-36963——feed.narrative_mode 键（O·动 unit 聚合叙事模式开关，默认开；呈现层非钱径）
 }
