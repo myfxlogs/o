@@ -111,7 +111,7 @@ func (r *Runner) promote(ctx context.Context, minH, minNet, maxDD float64, liveS
 				c.id, c.inst, c.tmpl)
 			continue
 		}
-		if ok, why := r.confGate(ctx, c.id); !ok { // T-0521：置信下界证伪闸
+		if ok, why := r.confGate(ctx, c.id, c.tmpl); !ok { // T-0521：置信下界证伪闸（O-36961 族分流 alpha 流）
 			r.rej.Inc("conf_lb_fail")
 			log.Printf("[lifecycle] #%d paper→probe 拦：%s", c.id, why)
 			continue
@@ -169,7 +169,7 @@ func (r *Runner) promote(ctx context.Context, minH, minNet, maxDD float64, liveS
 			log.Printf("[lifecycle] #%d probe→live 拦：inst %s 构型不配族 %s 腿构型（工单#15943）", c.id, c.inst, c.tmpl)
 			continue
 		}
-		if ok, why := r.confGate(ctx, c.id); !ok { // T-0521：置信下界证伪闸（同 paper→probe 径）
+		if ok, why := r.confGate(ctx, c.id, c.tmpl); !ok { // T-0521：置信下界证伪闸（同 paper→probe 径+族分流）
 			r.rej.Inc("conf_lb_fail")
 			log.Printf("[lifecycle] #%d probe→live 拦：%s", c.id, why)
 			continue

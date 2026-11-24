@@ -50,14 +50,33 @@ func tQ975At(df int) float64 {
 	return tQ975[df]
 }
 
+// dirAlphaTmpl 方向动量族=价变 pnl 系 alpha 流（O-36961 取证实锤：生产
+// 259 paper 中 256=dir_perp_mom，confGate 混采 funding+swap+pnl——funding
+// 租金系 carry 附带流非该族 alpha，混入使 LB 测的是租金符号非动量；
+// 分流后置信序列=alpha 本体。funding-extreme-fade 例外留混采——其 alpha
+// =资金费率极值回归，funding 收租本身即收入流成分非附带噪声）。
+var dirAlphaTmpl = map[string]bool{
+	"dir_perp_mom": true, "mt5_dir_mom": true, "perp-trend-daily": true,
+	"xsec-perp-mom-basket": true, "mark-last-disloc-fade": true,
+}
+
 // confGate 置信下界证伪闸：收入流按结算笔序列（kind=funding/swap/pnl——
 // funding 结算笔/dcd 日摊笔/方向 MTM 摊提笔=真实观测粒度；fee/snapshot/
-// open/close 等非收入项不入列，fee 是确定性成本由 net≥minNet 兜）
-// LB=mean−t(0.975,N−1)·sd/√N>0 才放。
-// sd 用样本标准差（ddof=1）。返回 (放?, 判词)。
-func (r *Runner) confGate(ctx context.Context, strategyID int64) (bool, string) {
+// open/close 等非收入项不入列，fee 是确定性成本由 net≥minNet 兜）。
+// O-36961 族分流：dirAlphaTmpl 族只采 kind='pnl'（价变 alpha 本体——
+// funding 租金属 carry 附带流，混采稀释 alpha 信号）；余族维持混采
+// （basis/dcd/stakecarry 族 alpha 流本就写 funding kind，xvenue 写 swap）。
+// LB=mean−t(0.975,N−1)·sd/√N>0 才放。sd 用样本标准差（ddof=1）。
+// 返回 (放?, 判词)。
+func (r *Runner) confGate(ctx context.Context, strategyID int64, tmpl string) (bool, string) {
+	kinds := "'funding','swap','pnl'"
+	stream := "funding+swap+pnl"
+	if dirAlphaTmpl[tmpl] {
+		kinds = "'pnl'"
+		stream = "pnl"
+	}
 	rows, err := r.pool.Query(ctx, `SELECT amount_usd FROM fin_paper_fill
-		WHERE strategy_id=$1 AND kind IN ('funding','swap','pnl') ORDER BY ts`, strategyID)
+		WHERE strategy_id=$1 AND kind IN (`+kinds+`) ORDER BY ts`, strategyID)
 	if err != nil {
 		return false, fmt.Sprintf("置信序列读败 fail-closed: %v", err)
 	}
@@ -73,7 +92,7 @@ func (r *Runner) confGate(ctx context.Context, strategyID int64) (bool, string) 
 	rows.Close()
 	n := float64(len(ds))
 	if n < confMinFills {
-		return false, fmt.Sprintf("置信样本不足（收入笔数=%d<%d——证据不够不宣判）", int(n), confMinFills)
+		return false, fmt.Sprintf("置信样本不足（%s 收入笔数=%d<%d——证据不够不宣判）", stream, int(n), confMinFills)
 	}
 	var mean float64
 	for _, v := range ds {
@@ -92,10 +111,10 @@ func (r *Runner) confGate(ctx context.Context, strategyID int64) (bool, string) 
 		indep = "独立性未检(N<30)"
 	}
 	if lb <= 0 {
-		return false, fmt.Sprintf("收入流置信下界未过（N=%d mean=%.4f sd=%.4f t=%.3f LB=%.4f≤0 %s）",
-			int(n), mean, sd, tq, lb, indep)
+		return false, fmt.Sprintf("收入流置信下界未过（%s N=%d mean=%.4f sd=%.4f t=%.3f LB=%.4f≤0 %s）",
+			stream, int(n), mean, sd, tq, lb, indep)
 	}
-	return true, fmt.Sprintf("LB=%.4f>0(N=%d t=%.3f %s)", lb, int(n), tq, indep)
+	return true, fmt.Sprintf("LB=%.4f>0(%s N=%d t=%.3f %s)", lb, stream, int(n), tq, indep)
 }
 
 // entryCondition 进入条件判词（逆 regime 延评非否决——条件复满即自解）。

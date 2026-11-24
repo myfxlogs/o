@@ -53,19 +53,21 @@ func (p *OIPoller) poll(ctx context.Context) {
 		log.Printf("WARN [okxoi] OI 快照读败——本拍让位: %v", err)
 		return
 	}
-	var resp struct {
-		Data []struct {
-			InstID string `json:"instId"`
-			Oi     string `json:"oi"`
-			OiCcy  string `json:"oiCcy"`
-		} `json:"data"`
+	// PublicGet/Get 返文=信封 data 数组本体（okxexec.do 已剥壳——
+	// scan.go parseScanTickers 同律直解 []struct，勿再包 {data:} 信封；
+	// 工单#36961：信封形桩测掩盖真形——生产每拍 unmarshal array→struct
+	// 败，md_open_interest 恒零行）。
+	var rows []struct {
+		InstID string `json:"instId"`
+		Oi     string `json:"oi"`
+		OiCcy  string `json:"oiCcy"`
 	}
-	if err := json.Unmarshal(raw, &resp); err != nil {
+	if err := json.Unmarshal(raw, &rows); err != nil {
 		log.Printf("WARN [okxoi] OI 快照解析败——本拍让位: %v", err)
 		return
 	}
 	n := 0
-	for _, r := range resp.Data {
+	for _, r := range rows {
 		if r.InstID == "" {
 			continue
 		}
@@ -84,5 +86,5 @@ func (p *OIPoller) poll(ctx context.Context) {
 		}
 		n++
 	}
-	log.Printf("[okxoi] OI 拍：%d/%d inst 落行", n, len(resp.Data))
+	log.Printf("[okxoi] OI 拍：%d/%d inst 落行", n, len(rows))
 }

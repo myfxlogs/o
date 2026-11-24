@@ -10,6 +10,7 @@ package lifecycle
 import (
 	"context"
 	"log"
+	"strings"
 	"time"
 
 	"o/internal/platform/execfam"
@@ -80,8 +81,22 @@ func (r *Runner) dirPaperAccounting(ctx context.Context) error {
 		}
 		var px float64
 		var tickTs time.Time
-		if err := r.pool.QueryRow(ctx, `SELECT last,ts FROM md_ticks
-			WHERE inst_id=$1 AND venue<>'sim' ORDER BY ts DESC LIMIT 1`, x.inst).Scan(&px, &tickTs); err != nil || px <= 0 ||
+		// O-36961 价源分流：SWAP inst（OKX perp 全族）读 md_mark_index
+		// mark-price 桥面行——paper/probe perp inst 不在 okxws 活跃集
+		// 订阅面（ActiveSetUnion 无 paper/probe perp 臂），长尾 alt 的
+		// md_ticks 恒陈（生产实证中位龄 4.1d）→pnl 摊提饿死→confGate
+		// 收入流只剩 funding 噪声恒拦；mark-price 桥面全量订阅本已覆
+		// 盖（basis.go 期货腿同径先例）。非 SWAP inst（mt5_dir_mom CFD
+		// 官名）照旧 md_ticks——CFD 无 mark-price 面。
+		markQ := `SELECT last,ts FROM md_ticks
+			WHERE inst_id=$1 AND venue<>'sim' ORDER BY ts DESC LIMIT 1`
+		src := "md_ticks"
+		if strings.HasSuffix(x.inst, "-SWAP") {
+			markQ = `SELECT px,ts FROM md_mark_index
+				WHERE inst_id=$1 AND channel='mark-price' ORDER BY ts DESC LIMIT 1`
+			src = "md_mark_index"
+		}
+		if err := r.pool.QueryRow(ctx, markQ, x.inst).Scan(&px, &tickTs); err != nil || px <= 0 ||
 			time.Since(tickTs) > time.Duration(maxAge*float64(time.Second)) {
 			r.rej.Inc("dir_mark_stale")
 			continue // 价缺/陈=事实缺让位不造 fill（T-0171 同径）
@@ -90,7 +105,7 @@ func (r *Runner) dirPaperAccounting(ctx context.Context) error {
 			// 首见=开户锚（kind='open' amount=0 detail 载入场价——价差基准行）。
 			if _, err := r.pool.Exec(ctx, `INSERT INTO fin_paper_fill(strategy_id,kind,inst_id,amount_usd,detail,ts)
 				VALUES($1,'open',$2,0,$3,now())`, x.id, x.inst,
-				[]byte(`{"px":`+ftoa(px)+`,"src":"md_ticks"}`)); err != nil {
+				[]byte(`{"px":`+ftoa(px)+`,"src":"`+src+`"}`)); err != nil {
 				return err
 			}
 			continue
