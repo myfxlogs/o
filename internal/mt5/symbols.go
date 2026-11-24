@@ -30,10 +30,23 @@ var cfdMajorsRe = regexp.MustCompile(`^(?i)(BTC|ETH|XAU|XAG)[A-Z0-9]{2,6}([.#+][
 
 // symbols 按户订阅清单三源序取集（spec ⑥钦定序——任一源非空即返，
 // 全源空=SymbolConfirm 空集由 session() 上抛显形）。
+// 显式册通配语义：清单含 "*" 元素=全 SymbolList 订阅（业主钦定面——
+// 新品自跟不列死名；采集面只读零授权含义，执行面仍方言行 fail-closed）。
 func (c *Collector) symbols(ctx context.Context, cl *Client, a *acctRun) []string {
 	if raw, err := c.cfg.Get(a.acct.SymbolsKey()); err == nil {
 		var syms []string
 		if json.Unmarshal(raw, &syms) == nil && len(syms) > 0 {
+			for _, s := range syms {
+				if s == "*" {
+					all, err := cl.SymbolList(ctx)
+					if err != nil || len(all) == 0 {
+						log.Printf("[mt5] %s 通配册 SymbolList 败（%v）——落三源序余径", a.acct.Venue, err)
+						break
+					}
+					log.Printf("[mt5] %s 订阅集=通配全谱 %d 符", a.acct.Venue, len(all))
+					return all
+				}
+			}
 			return syms
 		}
 	}
