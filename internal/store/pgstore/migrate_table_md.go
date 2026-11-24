@@ -65,5 +65,5 @@ var mdMigrationTable = []migEntry{
 	{1104, "md_1104_dir_perp_trend.sql"},      // 工单O-35491②：direction 词表扩 perp_trend（fin_0240 对偶——两链 ALTER 归一化全等）
 	{1105, "md_1105_md_oi_liq.sql"},           // 工单O-35587②/#35490：md_open_interest OI 状态表+md_liquidation 清算事件流水（超表90d+天然键去重——两表入 fin_data_retention 账）
 	{1106, "md_1106_oss_fam_skeleton.sql"},    // 工单O-35489：OSS 三族骨架模板行（卡#578380-82——candidate 态未收养；md_1104/1105 在途占跳号钉 1106）
-	{1107, "md_1107_mt5_klines_d1_purge.sql"}, // 工单O-38593：mt5 '1D' 周棒误标清污（timeFrame 分钟制纠偏——dow=0 谓词只削周签名行）
+	{1107, "md_1107_mt5_klines_d1_purge.sql"}, // 工单O-38593/O-38639 同因撞修：mt5 1D周棒误标清污（timeFrame分钟制纠偏——dow=0谓词只削周签名行）
 }
