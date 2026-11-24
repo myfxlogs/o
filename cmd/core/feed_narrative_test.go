@@ -230,6 +230,131 @@ func TestNarrativeBlocksTimeout(t *testing.T) {
 	}
 }
 
+// TestFeedNarrComposeTicketRefs O-37510②——工单引用一律 O-<id> 票面：
+// 立单用事件行 id（=票号）、认领/销单从 note 提票号，渲染全归 O-N 形；
+// 升件#N=esc 异域保 #（非工单不入 O- 票面）。
+func TestFeedNarrComposeTicketRefs(t *testing.T) {
+	open := feedRow{event: "在办", note: "unit=o-worker-1795990009 在修=",
+		ts: time.Now().Add(-3 * time.Minute)}
+	close := feedRow{event: "会话收口", note: "unit=o-worker-1795990009 收",
+		ts: open.ts.Add(time.Minute)}
+	members := []feedRow{
+		{id: 40100, event: "工单", note: "工单/x: 立单题", ts: open.ts.Add(10 * time.Second)},
+		{event: "认领", note: "工单#40101 认领:开修——unit=o-worker-1795990009",
+			ts: open.ts.Add(20 * time.Second)},
+		{event: "处置", note: "工单#40102 销——做完", ts: open.ts.Add(30 * time.Second)},
+		{event: "处置", note: "升件#40103 销——报警清", ts: open.ts.Add(40 * time.Second)},
+	}
+	got := feedNarrCompose("o-worker-1795990009", open, close, members)
+	for _, want := range []string{"立了工单 O-40100", "领了工单 O-40101",
+		"结了工单 O-40102", "处理了报警 #40103"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("叙事缺票号要素 %q：%s", want, got)
+		}
+	}
+	for _, bad := range []string{"立了工单 #", "领了工单 #", "结了工单 #"} {
+		if strings.Contains(got, bad) {
+			t.Fatalf("工单引用混源 %q：%s", bad, got)
+		}
+	}
+	assertNarrClean(t, got)
+}
+
+// TestNarrativeBlocksPendingClose O-37510①——剔集闭（唤起果）径：
+// 叙事块产出但闭段不转正（st.Pending 待水位实证）；wm 未过批界=发败
+// 重发叙事窗不静默；wm 过批界=闭段转正 st.Closed。
+func TestNarrativeBlocksPendingClose(t *testing.T) {
+	ctx := context.Background()
+	pool := testutil.Pool(t)
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatal(err)
+	}
+	narrCleanState(t, ctx, pool)
+	fp := &feedPush{pool: pool}
+	unit := "o-cognition-1795990010"
+	now := time.Now()
+	open := narrTestRow(t, ctx, pool, "唤知机", "在办",
+		"unit="+unit+" 已耗时=5s 在修=", now.Add(-3*time.Minute))
+	work := narrTestRow(t, ctx, pool, "处置席", "处置",
+		"升件#40301 销——窗内活", now.Add(-2*time.Minute))
+	// 首批：开窗+窗员全抑（窗态落库）
+	if _, err := fp.narrativeBlocks(ctx, []feedRow{open, work}, 0); err != nil {
+		t.Fatal(err)
+	}
+	// later 先于唤起果落库（id<cid——滞后批内行序实形：批行可先于闭标提交）；
+	// 唤起果=剔集闭标（feed 不可见，库查补解径）
+	later := narrTestRow(t, ctx, pool, "探测席", "记事",
+		"无窗记事行", now.Add(-80*time.Second))
+	wake := narrTestRow(t, ctx, pool, "唤知机", "唤起果",
+		"unit="+unit+" 第1190轮:干了", now.Add(-90*time.Second))
+	// 次批：Phase A 库查见唤起果→叙事块产出+pending 登记（窗暂留 Open）
+	blocks, err := fp.narrativeBlocks(ctx, []feedRow{later}, open.id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var narr string
+	for _, b := range blocks {
+		if strings.Contains(b.text, "唤知会话") {
+			narr = b.text
+		}
+	}
+	if narr == "" {
+		t.Fatalf("剔集闭应出叙事块：%v", blocks)
+	}
+	if !strings.Contains(narr, "报警 #40301") {
+		t.Fatalf("叙事缺窗员要素：%s", narr)
+	}
+	st := fp.loadNarrState(ctx)
+	if len(st.Pending) != 1 || st.Pending[0].CloseID != wake.id {
+		t.Fatalf("pending 应登记一条闭段：%+v", st.Pending)
+	}
+	if len(st.Closed) != 0 {
+		t.Fatalf("发前不闭段——Closed 应空：%+v", st.Closed)
+	}
+	if len(st.Open) != 1 {
+		t.Fatalf("pending 期窗应暂留 Open：%+v", st.Open)
+	}
+	// 发败模拟：wm 未过批界（later.id）——重发叙事不静默
+	blocks2, err := fp.narrativeBlocks(ctx, []feedRow{later}, open.id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reEmitted := false
+	for _, b := range blocks2 {
+		if strings.Contains(b.text, "唤知会话") {
+			reEmitted = true
+		}
+	}
+	if !reEmitted {
+		t.Fatalf("发败重发径叙事应再产（窗不静默）：%v", blocks2)
+	}
+	st = fp.loadNarrState(ctx)
+	if len(st.Pending) != 1 || len(st.Closed) != 0 || len(st.Open) != 1 {
+		t.Fatalf("发败态应原样续等：%+v", st)
+	}
+	// 送成实证：wm 过批界——闭段转正
+	blocks3, err := fp.narrativeBlocks(ctx, []feedRow{later}, later.id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, b := range blocks3 {
+		if strings.Contains(b.text, "唤知会话") {
+			t.Fatalf("实证后不应重发叙事：%v", blocks3)
+		}
+	}
+	st = fp.loadNarrState(ctx)
+	if len(st.Pending) != 0 {
+		t.Fatalf("实证后 pending 应清：%+v", st.Pending)
+	}
+	// CloseID=wake.id>wm=later.id——段内行未全消费，Closed 戒区须留（GC 不摘）
+	if len(st.Closed) != 1 || st.Closed[0].CloseID != wake.id {
+		t.Fatalf("实证后应转正 Closed：%+v", st.Closed)
+	}
+	if len(st.Open) != 0 {
+		t.Fatalf("转正后窗应除：%+v", st.Open)
+	}
+}
+
 // TestNarrativeBlocksNoUnit 无 unit 锚行=现行逐行（叙事=加成非替换）。
 func TestNarrativeBlocksNoUnit(t *testing.T) {
 	ctx := context.Background()
