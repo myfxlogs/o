@@ -263,4 +263,5 @@ var finMigrationTable = []migEntry{
 	{248, "fin_0248_venue_roster.sql"},                  // 工单O-37448——fin_venue_roster 账户名册（venue token 一身三任+roles 授权面+state 生命周期机；种子自 app_secrets 族实枚举派生；0247 被 phantom_audit 在途占让号）
 	{249, "fin_0249_venue_exec_xm.sql"},                 // 工单O-37449——名册读面补授(roster_rw/o_fin_ro)+XM 方言硬验行(xmglobal/110660304 BTCUSD#/ETHUSD# 活会话实读值)
 	{250, "fin_0250_nft_baseline_double.sql"},           // 工单O-37868——NFT 双簿根修:负腿凭据冲销#35360+豁免#24/#26作废+迟簿竞争机制闸判词
+	{251, "fin_0251_lesson_consumer.sql"},               // 工单O-38942——教训矿消费环:v_lesson_family_stats 族尸统计面+lifecycle.lesson_dead_sig 闸键+读面补授
 }
