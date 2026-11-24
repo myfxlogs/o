@@ -37,6 +37,7 @@ if [[ "$sql" == *"SELECT seat FROM ops_event"* && "$sql" == *"seat NOT IN"* ]]; 
         receipt=0
         [[ "$revent" == *完工* || "$revent" == *候审* || "$revent" == *施工收口* || "$revent" == *回执* ]] && receipt=1
         [[ "$rnote" =~ ^.{0,40}(完工回执|完工推支候审|候审回执|施工收口) ]] && receipt=1
+        [[ "$revent" == "处置" && "$rnote" =~ ^O-[0-9]+[^@]*@[0-9a-f]{9,40} ]] && receipt=1
         [ "$receipt" = 1 ] || continue
         [[ "$rnote" =~ ^复审过[[:space:]]*sha= || "$rseat" == "复审席" || "$rseat" == "落地件" ]] && continue
         match=0
@@ -247,6 +248,24 @@ printf '%s\t%s\t%s\t%s\n' 1 外席 完工回执 "O-25563 支=fix/aseat-event@${T
 run_lq T_ASEAT_ROWS="$T/aseat_rows.tsv" T_BRANCH=fix/aseat-event T_TIP9="${TIP:0:9}" T_REVIEW_OK=1 T_REVIEW_SEAT=复审席 T_AUTHOR_SEAT=外席
 if landed "$T/o" "$TIP"; then ok "event完工类行认回执且外席可作作者"; else bad "event完工类行/外席未认回执"; fi
 
+echo "== aseat 外派处置取证形认回执（O-38751）=="
+new_case
+mk_branch "$T/o" fix/aseat-foreign feat_af.txt af
+TIP=$(tip_of "$T/o" fix/aseat-foreign); stamp "$T/o" "$TIP"
+: > "$T/aseat_rows.tsv"
+printf '%s\t%s\t%s\t%s\n' 1 施工席 处置 "O-38751 外派票根修@${TIP:0:9}：取证定案=回执谓词缺处置形" >> "$T/aseat_rows.tsv"
+run_lq T_ASEAT_ROWS="$T/aseat_rows.tsv" T_BRANCH=fix/aseat-foreign T_TIP9="${TIP:0:9}" T_REVIEW_OK=1 T_REVIEW_SEAT=复审席 T_AUTHOR_SEAT=施工席
+if landed "$T/o" "$TIP"; then ok "处置O票@sha形认回执aseat"; else bad "处置取证形未认回执——38751病复"; fi
+
+echo "== aseat 处置非宣告形仍拒（负锚）=="
+new_case
+mk_branch "$T/o" fix/aseat-nondecl feat_an.txt an
+TIP=$(tip_of "$T/o" fix/aseat-nondecl); stamp "$T/o" "$TIP"
+: > "$T/aseat_rows.tsv"
+printf '%s\t%s\t%s\t%s\n' 1 施工席 处置 "升件销——fix/aseat-nondecl@${TIP:0:9} 处置顺带提及支尖" >> "$T/aseat_rows.tsv"
+run_lq T_ASEAT_ROWS="$T/aseat_rows.tsv" T_BRANCH=fix/aseat-nondecl T_TIP9="${TIP:0:9}" T_REVIEW_OK=1 T_REVIEW_SEAT=唤知 T_AUTHOR_SEAT=施工席
+if landed "$T/o" "$TIP"; then bad "处置非宣告形竟充回执"; else ok "处置非宣告形仍fail-closed"; fi
+
 echo "== aseat 自审仍拒 =="
 new_case
 mk_branch "$T/o" fix/aseat-selfreview feat_as.txt as
@@ -302,15 +321,16 @@ if landed "$T/o" "$TIP"; then bad "复审席=最早作者席竟落(取行序未�
 run_lq T_ASEAT_ROWS="$T/aseat_rows.tsv" T_BRANCH=fix/aseat-first T_TIP9="${TIP:0:9}" T_REVIEW_OK=1 T_REVIEW_SEAT=唤知 T_AUTHOR_SEAT=施工席
 if landed "$T/o" "$TIP"; then ok "复审席=唤知异席放行(aseat=外席)"; else bad "异席复审未放行"; fi
 
-echo "== aseat 交付@sha异形行不参选 =="
+echo "== aseat 处置O票@sha形参选（O-38751翻案#38000）=="
 new_case
 mk_branch "$T/o" fix/aseat-nonlex feat_anl.txt anl
 TIP=$(tip_of "$T/o" fix/aseat-nonlex); stamp "$T/o" "$TIP"
 : > "$T/aseat_rows.tsv"
-# #38000 实证形：交付@sha 非契词——支名+tip 在案仍不充回执
+# #38000 曾锚「交付@sha非契词不充回执」——O-38751翻案：行首锚
+# O-票…@hex=交付宣告形同格认（容错兜），fail-closed 只守非宣告形
 printf '%s\t%s\t%s\t%s\n' 1 施工席 处置 "O-99999 venue面交付@${TIP:0:9}：①面A+面B 桩测绿戳在案。支fix/aseat-nonlex已推" >> "$T/aseat_rows.tsv"
 run_lq T_ASEAT_ROWS="$T/aseat_rows.tsv" T_BRANCH=fix/aseat-nonlex T_TIP9="${TIP:0:9}" T_REVIEW_OK=1 T_REVIEW_SEAT=唤知 T_AUTHOR_SEAT=施工席
-if landed "$T/o" "$TIP"; then bad "交付@sha异形行竟充回执"; else ok "交付@sha非契词不参选(aseat空fail-closed)"; fi
+if landed "$T/o" "$TIP"; then ok "处置O票@sha形充回执(38751容错兜)"; else bad "宣告形处置回执仍拒——38751病复"; fi
 
 # ═══ 依赖闸1：所依未合 → 跳支不落不烧账（工单#25800）═══
 echo "== 依赖闸 依赖未合拒=="
