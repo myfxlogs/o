@@ -228,6 +228,18 @@ func (c coreService) SubmitBrokerCred(ctx context.Context,
 		return nil, connect.NewError(connect.CodeInternal, "tx: "+err.Error())
 	}
 	defer tx.Rollback(ctx)
+	// 墓碑闸（O-38013——removed=终态不可复活：向导重交同 venue token 须
+	// fail-closed 拒写，防凭据族复活+roster upsert 误触；复挂=新 venue
+	// token 新行同 SetBrokerState 律）。
+	var rstate string
+	if err := tx.QueryRow(ctx, `SELECT state FROM fin_venue_roster WHERE venue=$1`, venue).Scan(&rstate); err == nil {
+		if rstate == "removed" {
+			return nil, connect.NewError(connect.CodeFailedPrecondition,
+				"venue="+venue+" 已 removed 墓碑——凭据向导拒写（终态不可复活，复挂=新 venue token）")
+		}
+	} else if !errors.Is(err, pgx.ErrNoRows) {
+		return nil, connect.NewError(connect.CodeInternal, "roster 态读: "+err.Error())
+	}
 	// cred_ns 推导（O-37450——凭据键前缀=名册 cred_ns 同源：roster 行在
 	// 沿用/裸键族首户兼容/新户 venue+'.'+proto；键写 `<cred_ns>.<field>`）。
 	credNS, err := brokerCredNS(ctx, tx, venue, proto)
