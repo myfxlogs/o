@@ -87,8 +87,16 @@ func staticPlainName(id int64, reason string) string {
 }
 
 // exemptPlainLine 豁免逐行白话（名+额/模式定性——tracked=实时值、
-// fallback=按记账基准兜底、breach=实时值超带归零、static=定性额）。
-func exemptPlainLine(p exemptPart) string {
+// fallback=按记账基准兜底、breach=实时值超带归零、static=定性额、
+// qty=币量豁免 O-38064——币量+币名不冠 $）。
+func exemptPlainLine(p exemptPart, ccy string) string {
+	if p.Mode == "qty" {
+		line := fmt.Sprintf("币量豁免 %s %s", qtyFmt(p.Raw), strings.ToUpper(ccy))
+		if humanBannedHit(line) {
+			return fmt.Sprintf("币量豁免#%d", p.ID)
+		}
+		return line
+	}
 	var name, suffix string
 	if p.Resolver != "" {
 		segs := strings.SplitN(p.Resolver, ":", 2)
@@ -124,13 +132,36 @@ func exemptPlainLine(p exemptPart) string {
 // eq=venue 实读总额、net=账本净（含停泊/dcd/原生基线/mtm 同径）、
 // diffUSD=账实差 USD 口径、tol=允许差、exempt=已定性豁免合计、
 // parts=同读面分量集（nil=分量读面缺降级显总额）。
+// O-38064：dout≠nil=非本位键——币量+币名主量（有价附≈$x.xx/无价写
+// 「无价不可估值待定性」）；dout=nil=本位键逐字节守恒。
 func (r *Runner) ledgerDiffHuman(ctx context.Context, venue, ccy string,
-	eq, net, diffUSD, tol, exempt float64, parts []BalPart) string {
+	eq, net, diffUSD, tol, exempt float64, parts []BalPart, dout *diffOut) string {
+	base := isBaseCCY(ccy)
+	ccyU := strings.ToUpper(ccy)
+	// 数值渲染：本位键 $%.2f 逐字节守恒；非本位=币量+币名（qtyFmt）。
+	money := func(v float64) string {
+		if base {
+			return fmt.Sprintf("$%.2f", v)
+		}
+		return fmt.Sprintf("%s %s", qtyFmt(v), ccyU)
+	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "%s %s 账实差 $%.2f——", strings.ToUpper(venue), ccy, diffUSD)
+	if dout == nil {
+		fmt.Fprintf(&b, "%s %s 账实差 $%.2f——", strings.ToUpper(venue), ccy, diffUSD)
+	} else {
+		var pxNote string
+		if dout.priced {
+			pxNote = fmt.Sprintf(" ≈$%.2f", dout.usd)
+		} else {
+			pxNote = "（无可用行情价）"
+		}
+		fmt.Fprintf(&b, "%s %s 账实差 %s %s%s——", strings.ToUpper(venue), ccyU,
+			qtyFmt(dout.qty), ccyU, pxNote)
+	}
 	// ①App实存分量相加（分量和与总额差>0.01=如实附注不硬凑）。
+	// O-38064：非本位键分量=币量——qtyFmt+币名形不冠 $。
 	if len(parts) == 0 {
-		fmt.Fprintf(&b, "App实读 $%.2f（分量明细缺——见底稿）", eq)
+		fmt.Fprintf(&b, "App实读 %s（分量明细缺——见底稿）", money(eq))
 	} else {
 		var sum float64
 		segs := make([]string, 0, len(parts))
@@ -145,19 +176,32 @@ func (r *Runner) ledgerDiffHuman(ctx context.Context, venue, ccy string,
 			if humanBannedHit(name) {
 				name = "其他分量"
 			}
-			segs = append(segs, fmt.Sprintf("%s %.2f", name, p.Amount))
+			if base {
+				segs = append(segs, fmt.Sprintf("%s %.2f", name, p.Amount))
+			} else {
+				segs = append(segs, fmt.Sprintf("%s %s %s", name, qtyFmt(p.Amount), ccyU))
+			}
 			sum += p.Amount
 		}
 		if len(segs) == 0 {
-			fmt.Fprintf(&b, "App实读 $%.2f（分量皆零——见底稿）", eq)
-		} else {
+			fmt.Fprintf(&b, "App实读 %s（分量皆零——见底稿）", money(eq))
+		} else if base {
 			fmt.Fprintf(&b, "App实存 %s=合计%.2f", strings.Join(segs, "+"), sum)
 			if d := math.Abs(sum - eq); d > 0.01 {
 				fmt.Fprintf(&b, "（分量和与总额读数差$%.2f——底稿见下）", d)
 			}
+		} else {
+			fmt.Fprintf(&b, "App实存 %s=合计%s %s", strings.Join(segs, "+"), qtyFmt(sum), ccyU)
+			if d := math.Abs(sum - eq); d > 0.01 {
+				fmt.Fprintf(&b, "（分量和与总额读数差%s——底稿见下）", money(d))
+			}
 		}
 	}
-	fmt.Fprintf(&b, " vs 账本记 %.2f", net)
+	if base {
+		fmt.Fprintf(&b, " vs 账本记 %.2f", net)
+	} else {
+		fmt.Fprintf(&b, " vs 账本记 %s %s", qtyFmt(net), ccyU)
+	}
 	// ②差额构成逐行（豁免白话名+额——零条=「无豁免条目」行）。
 	b.WriteString("；差额构成：")
 	_, exparts, err := r.trackedExempt(ctx, venue, ccy)
@@ -166,27 +210,41 @@ func (r *Runner) ledgerDiffHuman(ctx context.Context, venue, ccy string,
 	} else {
 		lines := make([]string, 0, len(exparts))
 		for _, p := range exparts {
-			lines = append(lines, exemptPlainLine(p))
+			lines = append(lines, exemptPlainLine(p, ccy))
 		}
 		b.WriteString(strings.Join(lines, "+"))
 	}
 	// ③豁后残差+需动手判词（残差≤允许差=已定性无需动手；超=待定性
 	// 取证底稿见下段——告警面本身即「待定性」常态，判词如实两态）。
-	residual := diffUSD - exempt
-	if residual <= tol {
-		d := residual
-		if d < 0 {
-			d = 0
-		}
-		fmt.Fprintf(&b, "——豁后残差≈$%.2f，无需动手（已定性在案）", d)
+	// O-38064：非本位键残差在 USD 空间判（priced 时=dout.usd−USD豁免；
+	// 无价=币量残量如实写「折不出美元金额」不虚构美元数）。
+	if dout != nil && !dout.priced {
+		fmt.Fprintf(&b, "——币量豁免后仍差 %s %s，无价不可估值，待定性，取证底稿见下段",
+			qtyFmt(dout.qty), ccyU)
 	} else {
-		fmt.Fprintf(&b, "——豁后残差 $%.2f>允许差 $%.2f，待定性，取证底稿见下段", residual, tol)
+		residual := diffUSD - exempt
+		if dout != nil {
+			residual = dout.usd - exempt
+		}
+		if residual <= tol {
+			d := residual
+			if d < 0 {
+				d = 0
+			}
+			fmt.Fprintf(&b, "——豁后残差≈$%.2f，无需动手（已定性在案）", d)
+		} else {
+			fmt.Fprintf(&b, "——豁后残差 $%.2f>允许差 $%.2f，待定性，取证底稿见下段", residual, tol)
+		}
 	}
 	seg := b.String()
 	if humanBannedHit(seg) {
 		// 兜底闸：任一动态件漏消毒→整段降级最小安全形（机读段仍在）。
-		return fmt.Sprintf("%s %s 账实差 $%.2f——明细含机读件见下段底稿",
-			strings.ToUpper(venue), ccy, diffUSD)
+		if dout == nil {
+			return fmt.Sprintf("%s %s 账实差 $%.2f——明细含机读件见下段底稿",
+				strings.ToUpper(venue), ccy, diffUSD)
+		}
+		return fmt.Sprintf("%s %s 账实差 %s %s——明细含机读件见下段底稿",
+			strings.ToUpper(venue), ccyU, qtyFmt(dout.qty), ccyU)
 	}
 	return seg
 }
