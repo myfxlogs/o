@@ -71,6 +71,21 @@ else
 	echo "[bridge-audit] 域视图读面列: fin_0229 未迁移——grace 跳（部署窗）"
 fi
 
+# ── ①d 法证宣告面读列（fin_0252——7 宣告面 o_fin_ro SELECT 钉；审计
+# audit/1125-forensic 实证 grant-base-forget-view 判例第二发：成分劈主面/
+# 豁免册/演习凭据/关停判词全盲。同律：已迁移缺权=红，断言脚本
+# scripts/audit/asserts/finro-declared-face-grants.sh 同义异构双轨）────
+HAS252=$(sg_q "SELECT count(*) FROM schema_migrations WHERE version=252")
+if [ "$HAS252" = "1" ]; then
+	for t in fin_report fin_pnl_net fin_park_baseline fin_known_residual fin_exec_drill fin_guard_close fin_strategy_transition; do
+		n=$(sg_q "SELECT count(*) FROM information_schema.role_table_grants WHERE grantee='o_fin_ro' AND table_name='$t' AND privilege_type='SELECT'")
+		[ "$n" = "1" ] || red "法证宣告面授权缺: SG o_fin_ro.SELECT on $t（fin_0252 在案而实机无——grant-base-forget-view 三发回潮）"
+	done
+	echo "OK[bridge-audit] 法证宣告面列: 7 面×o_fin_ro.SELECT 齐（fin_0252 在案）"
+else
+	echo "[bridge-audit] 法证宣告面列: fin_0252 未迁移——grace 跳（部署窗）"
+fi
+
 # ── ② 触发器存在性列 ─────────────────────────────────────
 # 迁移册派生：TRIGGER <name> ... ON <table>，按文件名链分侧（fin_*→SG，md_*→OCI）。
 # 清单空=红（抽取败静默过=闸失效同病灶）。
