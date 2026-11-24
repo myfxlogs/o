@@ -36,9 +36,18 @@ const qSignal = `SELECT kind,key,val,meta,ts FROM md_signal ORDER BY ts`
 const qDcd = `SELECT ts,venue,surface,uly,product_id,direction,strike,expiry,annualized_yield,min_size,max_size,spot,raw
 	FROM md_dcd_product WHERE ts>$1 AND product_id=ANY($2) ORDER BY ts`
 
+// O-36961：谓词加「在册策略自然键引用」臂——原仅 fin_proposal.eval_id 引用
+// 行可达 SG，策略立项后 eval 臂续评新版（新 id 无提案引用）结构性永不投影
+// →dirEntryGate 读陈行>72h 永判「评估行陈」entry_cond_defer（paper→probe
+// 实证拦因第二断点）。在册=state<>'retired'（paper/probe/live/degraded 同
+// 消费域——lifecycle 毕业闸唯一读面）；md 侧 fin_strategy 只读副本
+// （md_1070 反向桥）行集小 EXISTS 廉价。dualwrite=qEvalDual 全量不动。
 const qEvalFresh = `SELECT e.id,e.ts,e.inst_id,e.template,e.direction,e.gross_apr,e.net_apr,e.verdict,e.legs,e.evidence
 	FROM fin_opp_eval e WHERE e.ts>$1
-	AND EXISTS (SELECT 1 FROM fin_proposal p WHERE p.eval_id=e.id) ORDER BY e.ts`
+	AND (EXISTS (SELECT 1 FROM fin_proposal p WHERE p.eval_id=e.id)
+		OR EXISTS (SELECT 1 FROM fin_strategy s WHERE s.state<>'retired'
+			AND s.inst_id=e.inst_id AND s.template_ref=e.template
+			AND s.direction=e.direction)) ORDER BY e.ts`
 
 const qProposalByID = `SELECT id,eval_id,inst_id,direction,net_apr,created_at FROM fin_proposal WHERE id=ANY($1)`
 

@@ -11,7 +11,8 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// projectEvals 评估桥投影（serve 谓词=仅被 fin_proposal 引用的行——D-0030 §三；
+// projectEvals 评估桥投影（serve 谓词=fin_proposal 引用行∪在册策略自然键
+// 行——D-0030 §三+O-36961 dirEntryGate 陈行根修；
 // dualwrite=全量旁写）。拍尾顺带刷新 eval 脉冲（T-0485——谓词承重墙零触，
 // 活性派生面走正本聚合）。
 func (r *Runner) projectEvals(ctx context.Context) error {
