@@ -103,6 +103,13 @@ func (r *Runner) reconcile(ctx context.Context) error {
 		r.rej.Inc("missing_param")
 		return err
 	}
+	// O-37868：迟簿双计自愈先于一切判定——armed 键迟到账补负腿，
+	// 纯账本内修正不依赖 venue 现读/在途窗（inflight 期照跑不误判）。
+	if err := r.compensateLateBaselineBooks(ctx); err != nil {
+		r.rej.Inc("write_err")
+		log.Printf("WARN [ledger] 迟簿补偿腿写败——本轮对账让位: %v", err)
+		return nil
+	}
 	// T-0048 根修：venue 侧=检查时点 balances+savings 现读聚合（快照行出局——
 	// 判定面只读现读；读件缺席=对账面让位不炸——司账/结算径仍事件驱动）。
 	if r.bal == nil {
