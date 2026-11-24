@@ -264,4 +264,5 @@ var finMigrationTable = []migEntry{
 	{249, "fin_0249_venue_exec_xm.sql"},                 // 工单O-37449——名册读面补授(roster_rw/o_fin_ro)+XM 方言硬验行(xmglobal/110660304 BTCUSD#/ETHUSD# 活会话实读值)
 	{250, "fin_0250_nft_baseline_double.sql"},           // 工单O-37868——NFT 双簿根修:负腿凭据冲销#35360+豁免#24/#26作废+迟簿竞争机制闸判词
 	{251, "fin_0251_lesson_consumer.sql"},               // 工单O-38942——教训矿消费环:v_lesson_family_stats 族尸统计面+lifecycle.lesson_dead_sig 闸键+读面补授
+	{252, "fin_0252_finro_declared_grant.sql"},          // 审计升件#39084——法证宣告面 7 件 o_fin_ro SELECT 补授（grant-base-forget-view 判例第二发；check_bridge_registry §①c 同迁钉链）
 }
