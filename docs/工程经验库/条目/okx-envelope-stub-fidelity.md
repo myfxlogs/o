@@ -1,10 +1,17 @@
 ---
+schema_version: 2
 id: okx-envelope-stub-fidelity
-title: okxexec.Get 已剥信封——桩测喂信封形=绿测掩盖生产恒败
-kind: pit
-date: 2026-11-24
-source: 工单#36961（md_open_interest 生产恒零行取证——o-collecto 每 5min
-  OI 解析败 unmarshal array→struct）
+kind: pitfall
+risk: high
+status: verified
+keywords: [okxexec剥壳, 桩测失真, unmarshal信封, PublicGet返形, md_open_interest, Get, 信封, 返形契约]
+scope: [internal/trading/okxexec, internal/data/okxws, 工单#36961]
+summary: okxexec.Get/PublicGet 内部 do() 已剥 {"code","msg","data"} 信封返 data 数组本体——调用方再按 {Data []T} 解包=生产恒败；桩测喂信封形=绿测掩盖恒败（md_open_interest 零行数周）；修法=直解 []T+桩测喂真返形
+first_seen: 2026-11-24
+last_verified: 2026-11-24
+evidence_refs:
+  - type: ticket
+    ref: 工单#36961（md_open_interest 生产恒零行取证——o-collecto 每 5min OI 解析败 unmarshal array→struct）
 ---
 
 # 信封剥壳后的桩测失真（OIPoller 实证）

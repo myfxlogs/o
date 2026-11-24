@@ -34,6 +34,11 @@ func (m *Matrix) runLegged(ctx context.Context, res *CellResult, c excell.Cell,
 	var flat func() bool
 
 	switch {
+	case shape == excell.ShapeOKXSingleLeg:
+		// O-37649：方向族单腿格——ExecuteDir 产线同码径（DirSide+合约张数
+		// 全额名义合成；perp-only 乐器无现货对，fundingLegs 双腿构恒 fail）。
+		m.execSingleLeg(ctx, res, vs, c, t, stratID, inst)
+		return
 	case shape == excell.ShapeXvenue:
 		mt = newMT5Venue(inst)
 		l, err := xvenueLegs(c, t, inst, mt)
