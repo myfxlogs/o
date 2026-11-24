@@ -104,24 +104,25 @@ func TestSetBrokerStateZeroPositionGate(t *testing.T) {
 // TestSubmitBrokerCredRosterUpsert roster upsert 同事务桩：cex 提交后
 // roster 行在（cred_ns 推导+state=connecting+roles={collect}）。
 func TestSubmitBrokerCredRosterUpsert(t *testing.T) {
+	brokerMk(t) // Seal master key 桩（同 VerifyThenWrite 先例）
 	mux, _, pool, ctx := brokerFaceMux(t, nil,
 		func(context.Context, signutil.Credentials) (map[string]float64, error) {
 			return map[string]float64{"USDT": 1.0}, nil
 		})
-	defer pool.Exec(ctx, `DELETE FROM fin_venue_roster WHERE venue='tstcex2'`)
-	defer pool.Exec(ctx, `DELETE FROM app_secrets WHERE key LIKE 'tstcex2%'`)
-	rec := subPost(t, mux, `{"venue":"tstcex2","proto":"cex","api_key":"k","api_secret":"s","passphrase":"p"}`, "http://ui.local")
+	defer pool.Exec(ctx, `DELETE FROM fin_venue_roster WHERE venue='okx2'`)
+	defer pool.Exec(ctx, `DELETE FROM app_secrets WHERE key LIKE 'okx2%'`)
+	rec := subPost(t, mux, `{"venue":"okx2","proto":"cex","api_key":"k","api_secret":"s","passphrase":"p"}`, "http://ui.local")
 	if rec.Code != 200 {
 		t.Fatalf("submit: %d %s", rec.Code, rec.Body)
 	}
 	var credNS, state string
 	var roles []string
-	err := pool.QueryRow(ctx, `SELECT cred_ns,state,roles FROM fin_venue_roster WHERE venue='tstcex2'`).Scan(&credNS, &state, &roles)
+	err := pool.QueryRow(ctx, `SELECT cred_ns,state,roles FROM fin_venue_roster WHERE venue='okx2'`).Scan(&credNS, &state, &roles)
 	if err != nil {
 		t.Fatalf("roster 行缺: %v", err)
 	}
-	if credNS != "tstcex2.cex" {
-		t.Fatalf("cred_ns=%s 应=tstcex2.cex", credNS)
+	if credNS != "okx2.cex" {
+		t.Fatalf("cred_ns=%s 应=okx2.cex", credNS)
 	}
 	if state != "connecting" {
 		t.Fatalf("state=%s 应=connecting", state)
@@ -130,7 +131,7 @@ func TestSubmitBrokerCredRosterUpsert(t *testing.T) {
 		t.Fatalf("roles=%v 应={collect}", roles)
 	}
 	var n int
-	pool.QueryRow(ctx, `SELECT count(*) FROM app_secrets WHERE key LIKE 'tstcex2.cex.%'`).Scan(&n)
+	pool.QueryRow(ctx, `SELECT count(*) FROM app_secrets WHERE key LIKE 'okx2.cex.%'`).Scan(&n)
 	if n != 3 {
 		t.Fatalf("凭据键应 3 件余 %d", n)
 	}

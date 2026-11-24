@@ -146,8 +146,8 @@ func (c coreService) ListBrokerOnboard(ctx context.Context,
 			crows.Close()
 			return nil, err
 		}
-		if _, ok := venues[v]; !ok {
-			rowOf(v).State = st // 候选行——State=研究面态（probed/mapped/paper…）
+		if !rosterSet[v] {
+			rowOf(v).State = st // 非名册行（凭据孤儿/纯候选）——State=研究面态；roster 户不混候选态（两册分工）
 		}
 	}
 	crows.Close()

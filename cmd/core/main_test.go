@@ -359,6 +359,7 @@ func TestMain(m *testing.M) {
 			"fin_opp_template",
 			"fin_opp_hypothesis",
 			"fin_venue_candidate",
+			"fin_venue_roster",
 			"fin_venue_untradeable",
 			"ops_decision",
 			"ops_headless",
