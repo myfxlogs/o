@@ -13,6 +13,22 @@ import (
 	"o/internal/research/evalgate"
 )
 
+// verdictDist 拍摘要判词分布（proposed/z_weak/net_thin 三分计数——
+// O-38593 观测面件，counter_signal 反侧行不入 cards 不计）。
+func verdictDist(cards []card) (nProp, nZWeak, nNetThin int) {
+	for _, c := range cards {
+		switch {
+		case c.verdict == "proposed":
+			nProp++
+		case c.reason == "z_weak":
+			nZWeak++
+		case c.reason == "net_thin":
+			nNetThin++
+		}
+	}
+	return
+}
+
 // closes 末 n 根确认棒收盘序（旧→新；不足 n 返实得数）。
 func (r *Runner) closes(ctx context.Context, inst string, n int) ([]float64, time.Time, int, error) {
 	rows, err := r.pool.Query(ctx, `SELECT c,ts FROM md_klines

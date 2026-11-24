@@ -48,6 +48,14 @@ func seedCfg(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 func seedKlines(t *testing.T, ctx context.Context, pool *pgxpool.Pool,
 	inst string, n int, drift, vol float64) {
 	t.Helper()
+	seedKlinesV(t, ctx, pool, "okx", inst, n, drift, vol)
+}
+
+// seedKlinesV venue 参数化形（O-38593 mt5 影子臂 E2E——venue='mt5'
+// 宇宙同径产卡断言）。
+func seedKlinesV(t *testing.T, ctx context.Context, pool *pgxpool.Pool, venue, inst string,
+	n int, drift, vol float64) {
+	t.Helper()
 	px := 100.0
 	base := time.Now().Add(-time.Duration(n) * 24 * time.Hour)
 	for i := 0; i < n; i++ {
@@ -59,8 +67,8 @@ func seedKlines(t *testing.T, ctx context.Context, pool *pgxpool.Pool,
 		px *= math.Exp(r)
 		ts := base.Add(time.Duration(i) * 24 * time.Hour)
 		if _, err := pool.Exec(ctx, `INSERT INTO md_klines(venue,inst_id,bar,ts,o,h,l,c,vol,vol_ccy,confirm)
-			VALUES('okx',$1,'1D',$2,$3,$3,$3,$3,1,1,true)`,
-			inst, ts, px); err != nil {
+			VALUES($4,$1,'1D',$2,$3,$3,$3,$3,1,1,true)`,
+			inst, ts, px, venue); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -120,5 +128,42 @@ func TestScanE2E(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM fin_proposal
 		WHERE inst_id='TESTFLAT-USDT-SWAP'`).Scan(&n); err != nil || n != 0 {
 		t.Fatalf("FLAT 提案数=%v 期 0", n)
+	}
+}
+
+// TestScanE2EMt5Venue O-38593 回归锚：mt5 影子臂（venue='mt5' 全目录
+// instLike='%'）同判据产卡——史病灶=周棒误标 '1D' 下 56h 陈棒界结构性
+// 永不满足零产出；本测钉 venue 泛构造径 eval 行真实落账（判词可见=
+// 评估活着，execfam 册内 proposed 可达提案径）。
+func TestScanE2EMt5Venue(t *testing.T) {
+	pool := testutil.Pool(t)
+	ctx := context.Background()
+	migrateBoth(t, ctx, pool)
+	seedCfg(t, ctx, pool)
+	inst := "TESTMT5m"
+	for _, tb := range []string{"md_klines", "fin_opp_eval", "fin_proposal"} {
+		if _, err := pool.Exec(ctx, "DELETE FROM "+tb+" WHERE inst_id=$1", inst); err != nil {
+			t.Fatal(err)
+		}
+	}
+	seedKlinesV(t, ctx, pool, "mt5", inst, 21, 0.015, 0.010)
+	cfg := config.New(pool)
+	if err := cfg.Load(ctx); err != nil {
+		t.Fatal(err)
+	}
+	r := NewRunnerVenue(pool, cfg, "mt5", "%", "mt5_dir_mom", "MT5方向评估")
+	if err := r.ScanOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var v, legs string
+	if err := pool.QueryRow(ctx, `SELECT verdict, legs::text FROM fin_opp_eval
+		WHERE inst_id=$1 AND template='mt5_dir_mom' AND direction='long_perp'`, inst).Scan(&v, &legs); err != nil {
+		t.Fatalf("mt5_dir_mom eval 行缺: %v", err)
+	}
+	if v != "proposed" {
+		t.Fatalf("mt5 UP long_perp 判词=%v 期 proposed", v)
+	}
+	if legs != `["cfd_long"]` {
+		t.Fatalf("mt5 腿原语=%v 期 cfd_long（legName venue 分派锚）", legs)
 	}
 }

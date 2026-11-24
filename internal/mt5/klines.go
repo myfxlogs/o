@@ -2,8 +2,8 @@
 // PriceHistoryExMany 分批拉 D1 棒→md_klines venue='mt5' 同键 upsert
 // （venue 正本=broker 服务端棒——共写语义同键最新帧赢）。
 // 判词面：末棒=形成中帧 confirm=false（次日扫覆写至收线——okxws klines
-// 同款语义）；TimeFrame=16408 MT5 PERIOD_D1 枚举实证锚（mt5-quotes-history
-// skill 注 16408 存歧——以落行 ts 间距自验，非 D1 即日志现形）。
+// 同款语义）；timeFrame=1440 分钟制日棒（O-38593 实测钉死——网关非
+// MT5 原生枚举；nonDailyBars 落行 ts 间距自验在位，非日粒度 WARN 现形）。
 package mt5
 
 import (
@@ -40,9 +40,11 @@ func klineFrom(now time.Time) string {
 	return now.AddDate(0, 0, 2).UTC().Format("2006-01-02T15:04:05Z")
 }
 
-// mt5FrameD1 PERIOD_D1 枚举值（MT5 标准 ENUM_TIMEFRAMES——实证钉:扫后
-// md_klines ts 间距≠24h 即枚举错配,WARN 行现形,不静默）。
-const mt5FrameD1 = 16408
+// mt5FrameD1 网关 timeFrame=分钟制（O-38593 实测钉死：tf=1440→24h 日棒/
+// tf=10080→168h 周棒/tf=1→1m 棒——非 MT5 原生 ENUM_TIMEFRAMES，原
+// 16408=PERIOD_D1 误投被网关按 ~11.4d/未映射归周棒，落行全周日戳署
+// '1D'=粒度污染+臂 56h 陈棒界结构性永不满足史病灶）。
+const mt5FrameD1 = 1440
 
 // klinePace 批间限速（369 符/60=7 批连发=限频面守——catalogPace 同款步进）。
 var klinePace = 300 * time.Millisecond
@@ -144,11 +146,15 @@ func (c *BridgeCollector) klineBatchWrite(ctx context.Context, cl *Client, batch
 	}
 	n := 0
 	var newest time.Time
+	var nonDaily string
 	for _, res := range r.GetResult() {
 		if res.GetException() != "" {
 			continue // 单符 venue 侧缺史=缺席如实（Exception 域载真因,不算批败）
 		}
 		bars := res.GetBars()
+		if nonDailyBars(bars) && nonDaily == "" {
+			nonDaily = res.GetSymbol() // 粒度自验样本（首犯即现形不逐符刷屏）
+		}
 		for j, b := range bars {
 			if t := b.GetTime().AsTime(); t.After(newest) {
 				newest = t
@@ -166,9 +172,29 @@ func (c *BridgeCollector) klineBatchWrite(ctx context.Context, cl *Client, batch
 			n++
 		}
 	}
+	if nonDaily != "" {
+		log.Printf("WARN [mt5bridge] 日K粒度自验败——%s 末段棒距非日签名（timeFrame 枚举错配疑/O-38593 在案）", nonDaily)
+	}
 	if n > 0 && time.Since(newest) > klineStaleAfter {
 		log.Printf("WARN [mt5bridge] 日K回棒陈窗——批末棒=%s（>%d天前，venue 史缓存陈化签名/O-35162 在案）",
 			newest.UTC().Format("2006-01-02"), int(klineStaleAfter.Hours()/24))
 	}
 	return n, ""
+}
+
+// nonDailyBars 日K粒度自验（klines.go 头注「以落行 ts 间距自验」承诺件——
+// O-38593：16408 枚举错配产周棒署 '1D' 全周日戳史病灶后落地）。末 ≤6 对
+// 相邻棒距中 >120h 者过半=非日粒度签名（周棒=168h 恒中；日棒周末/假日
+// 隙≤~96h 不误伤；样本<6 棒不判=证据不足不虚构）。
+func nonDailyBars(bars []*mt5pb.Bar) bool {
+	if len(bars) < 7 {
+		return false
+	}
+	wide := 0
+	for i := len(bars) - 6; i < len(bars); i++ {
+		if bars[i].GetTime().AsTime().Sub(bars[i-1].GetTime().AsTime()) > 120*time.Hour {
+			wide++
+		}
+	}
+	return wide >= 3
 }
