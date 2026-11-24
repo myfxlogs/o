@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"math"
 	"o/internal/platform/events"
 	"time"
 
@@ -205,24 +206,36 @@ func (r *Runner) reconcile(ctx context.Context) error {
 			log.Printf("WARN [ledger] 判据喂数读败 exempt %s/%s——本键让位: %v", x.venue, x.ccy, exErr)
 			continue
 		}
-		// T-0101 修补：非本位键 diff 为币量——按 md_ticks 折 USD 再对容差
-		// （容差/豁免皆 USD 口径；币量直接对 $0.5=高价币真差永静默——
-		// 0.02 BTC 差值 $2400 曾被容差吞）。无 tick 价且 diff≠0=不可估值
-		// 分歧→照报不误压（fail-closed）。
 		diff := Diff(x.net, x.eq)
-		if x.ccy != "USDT" && x.ccy != "USD" && diff != 0 {
-			var px float64
-			_ = r.pool.QueryRow(ctx, `SELECT v FROM (SELECT last v,ts FROM md_ticks
-				WHERE inst_id=$1||'-USDT' AND venue<>'sim' UNION ALL SELECT px,ts FROM md_mark_index
-				WHERE inst_id=$1||'-USDT') q ORDER BY ts DESC LIMIT 1`, x.ccy).Scan(&px)
-			if px <= 0 {
-				diff = tol + exempt + 1 // 不可估值分歧强制告警
-			} else {
-				diff *= px
+		over := false
+		var dout *diffOut
+		if !isBaseCCY(x.ccy) {
+			// O-38064 S3：非本位键币量豁免先扣（币量空间不经价）→残量 rq
+			// 折价判差；rq≈0 不告警不查价；有鲜价 diffUSD=rq*px 对容差+
+			// USD 豁免；无鲜价 fail-closed 照报不产出美元数（删
+			// tol+exempt+1 强制式——自举怪圈+隐含价像根修）。
+			qx, qerr := r.qtyExempt(ctx, x.venue, x.ccy)
+			if qerr != nil {
+				r.rej.Inc("recon_probe_failed")
+				log.Printf("WARN [ledger] qty 豁免读败 %s/%s——本键让位: %v", x.venue, x.ccy, qerr)
+				continue
 			}
+			rq := diff - qx
+			if rq <= 1e-9*math.Max(math.Abs(x.net), math.Abs(x.eq)) {
+				continue // 币量豁免后残量≈0——不告警不查价
+			}
+			dout = &diffOut{qty: rq}
+			if px, ok := r.diffPx(ctx, x.venue, x.ccy); ok {
+				dout.priced, dout.usd = true, rq*px
+				over = dout.usd > tol+exempt
+			} else {
+				over = true // 无鲜价 fail-closed 照报（无价≠静默）
+			}
+		} else {
+			over = diff > tol+exempt
 		}
 		r.alertLedgerDiff(ctx, x.venue, x.ccy, x.eq, x.net, tol, exempt, diff,
-			diff > tol+exempt, vparts[[2]string{x.venue, x.ccy}])
+			over, vparts[[2]string{x.venue, x.ccy}], dout)
 	}
 	return nil
 }

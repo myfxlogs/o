@@ -16,6 +16,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -75,6 +76,19 @@ func (r *Runner) trackedExempt(ctx context.Context,
 			continue
 		}
 		segs := strings.Split(res, ":")
+		// O-38064 S2：qty:<units> 币量豁免——币量空间先扣不经价（非本位键
+		// 专属；USDT/USD 键出 qty 行=按现行 fallback 语义不改）。豁免额
+		// 不计入 USD exempt（Value=0）但成分段照列——落进未注册 fallback
+		// 会把 amount_usd 当 USD 豁免加进去=双计病灶。
+		if segs[0] == "qty" && !isBaseCCY(ccy) {
+			var u float64
+			if len(segs) > 1 {
+				u, _ = strconv.ParseFloat(segs[1], 64)
+			}
+			parts = append(parts, exemptPart{ID: id, Resolver: res, Reason: reason,
+				Anchor: anchor, Raw: u, Value: 0, Mode: "qty"})
+			continue
+		}
 		fn, ok := residualResolvers[segs[0]]
 		var tracked float64
 		var rerr error
@@ -100,6 +114,20 @@ func (r *Runner) trackedExempt(ctx context.Context,
 			Anchor: anchor, Raw: tracked, Value: tracked, Mode: "tracked"})
 	}
 	return total, parts, rows.Err()
+}
+
+// qtyExempt 币量豁免合计（O-38064 S2：resolver='qty:<units>' 未过期行
+// Σunits——units=该 ccy 币量十进制串；amount_usd 只作立行时参考锚不参与
+// 判定。畸形 units 行不计——fail-closed 向多报不向静默）。
+func (r *Runner) qtyExempt(ctx context.Context, venue, ccy string) (float64, error) {
+	var u float64
+	err := r.pool.QueryRow(ctx, `SELECT COALESCE(sum(u),0) FROM (
+		SELECT (split_part(resolver,':',2))::numeric u FROM fin_known_residual
+		WHERE venue=$1 AND ccy=$2 AND expires_at>now()
+		  AND resolver LIKE 'qty:%'
+		  AND split_part(resolver,':',2) ~ '^-?[0-9]+(\.[0-9]+)?$') t`,
+		venue, ccy).Scan(&u)
+	return u, err
 }
 
 // resolveEarnGap earn_accrual_gap：Earn 应计时基差=应计累计（账本
@@ -147,6 +175,8 @@ func exemptBrief(parts []exemptPart) string {
 			b.WriteString("|")
 		}
 		switch p.Mode {
+		case "qty":
+			fmt.Fprintf(&b, "%s=币量豁免", p.Resolver)
 		case "tracked":
 			fmt.Fprintf(&b, "%s=现算$%.2f/锚$%.2f", p.Resolver, p.Value, p.Anchor)
 		case "breach":

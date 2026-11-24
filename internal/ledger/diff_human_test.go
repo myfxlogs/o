@@ -65,7 +65,7 @@ func TestHumanSegmentIncidentShape(t *testing.T) {
 	incidentExempts(t, pool)
 	// 实案数：eq=9477.46 net=9544.69 diff=67.23 exempt=70.92→残差<0→无需动手
 	seg := r.ledgerDiffHuman(ctx, "okx", "USDT",
-		9477.46, 9544.69, 67.23, 0.50, 70.92, incidentParts())
+		9477.46, 9544.69, 67.23, 0.50, 70.92, incidentParts(), nil)
 	for _, want := range []string{
 		"OKX USDT 账实差 $67.23",
 		"App实存", "交易户 41.80", "Earn理财 9385.66", "DCD期权 50.00", "合计9477.46",
@@ -90,7 +90,7 @@ func TestHumanSegmentNoExempt(t *testing.T) {
 	pool := trkFixture(t)
 	r := trkRunner(pool)
 	seg := r.ledgerDiffHuman(context.Background(), "okx", "USDT",
-		100.0, 110.0, 10.0, 0.5, 0, incidentParts())
+		100.0, 110.0, 10.0, 0.5, 0, incidentParts(), nil)
 	if !strings.Contains(seg, "无豁免条目") {
 		t.Fatalf("零豁免未显「无豁免条目」: %s", seg)
 	}
@@ -103,7 +103,7 @@ func TestHumanSegmentPartsMissing(t *testing.T) {
 	pool := trkFixture(t)
 	r := trkRunner(pool)
 	seg := r.ledgerDiffHuman(context.Background(), "mt5", "USD",
-		1.80, 1.80, 0.0, 0.5, 0, nil)
+		1.80, 1.80, 0.0, 0.5, 0, nil, nil)
 	if !strings.Contains(seg, "分量明细缺") {
 		t.Fatalf("分量缺未降级显名: %s", seg)
 	}
@@ -117,7 +117,7 @@ func TestHumanSegmentPendingVerdict(t *testing.T) {
 	r := trkRunner(pool)
 	// 残差>允许差→待定性取证底稿见下段
 	seg := r.ledgerDiffHuman(context.Background(), "okx", "USDT",
-		100.0, 200.0, 100.0, 0.5, 4.28, incidentParts())
+		100.0, 200.0, 100.0, 0.5, 4.28, incidentParts(), nil)
 	if !strings.Contains(seg, "豁后残差 $95.72") || !strings.Contains(seg, "待定性，取证底稿见下段") {
 		t.Fatalf("待定性判词缺: %s", seg)
 	}
@@ -153,7 +153,7 @@ func TestEscalationNoteHeadIsHuman(t *testing.T) {
 	ctx := context.Background()
 	r := trkRunner(pool)
 	incidentExempts(t, pool)
-	r.alertLedgerDiff(ctx, "okx", "USDT", 9477.46, 9544.69, 0.50, 70.92, 67.23, true, incidentParts())
+	r.alertLedgerDiff(ctx, "okx", "USDT", 9477.46, 9544.69, 0.50, 70.92, 67.23, true, incidentParts(), nil)
 	var note string
 	if err := pool.QueryRow(ctx,
 		`SELECT note FROM ops_event WHERE event='升件' AND esc_scope='ledger_diff_okx_USDT'
