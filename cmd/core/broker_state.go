@@ -9,9 +9,10 @@
 //	  （非人工迁移域——会话环自报权威）。
 //	removed（墓碑）：硬闸三前置——①state 须先 disabled（跳档拒）；
 //	  ②零持仓核（fin_strategy 非 retired=0 ∧ fin_order_leg 未平仓
-//	  position=0 ∧ dcd allow 凭据=0——任一在=拒，凭据不可恢复）；
-//	  ③过闸同事务删凭据族 `<cred_ns>.%`+state='removed' 墓碑+审计行。
-//	  removed→任何=终态拒（墓碑不可复活——复挂=新 venue token 新行）。
+//	  position=0 ∧ dcd allow 凭据=0 ∧ Earn 停泊本金=0——任一在=拒，
+//	  凭据不可恢复）；③过闸同事务删凭据族 `<cred_ns>.%`+state='removed'
+//	  墓碑+审计行。removed→任何=终态拒（墓碑不可复活——复挂=新 venue
+//	  token 新行）。
 package main
 
 import (
@@ -90,7 +91,10 @@ func (c coreService) SetBrokerState(ctx context.Context,
 		// 零持仓核（过闸才动手——凭据删不可恢复，任一面在=拒）：
 		// ①fin_strategy 非 retired 行；②未平仓执行仓腿（leg venue 命中
 		// ∧ position state<>'closed'——orphaned 保守计入=venue 实持未结）；
-		// ③dcd allow 凭据（fin_risk_decision intent venue 命中）。
+		// ③dcd allow 凭据（fin_risk_decision intent venue 命中）；
+		// ④Earn 停泊本金（md_account_events earn_parking 快照 earn_bal>0——
+		// O-38013 补漏：dcd allow 只覆盖 DCD 径，Earn 在停本金在册仍删凭据
+		// =断供洞；earn_bal 缺/非数值行按 0 不计）。
 		var blockers []string
 		var n int
 		if err := tx.QueryRow(ctx, `SELECT count(*) FROM fin_strategy WHERE venue=$1 AND state<>'retired'`, venue).Scan(&n); err != nil {
@@ -110,6 +114,14 @@ func (c coreService) SetBrokerState(ctx context.Context,
 			return nil, connect.NewError(connect.CodeInternal, "产品仓核: "+err.Error())
 		} else if n > 0 {
 			blockers = append(blockers, fmt.Sprintf("dcd allow 凭据 %d 笔", n))
+		}
+		if err := tx.QueryRow(ctx, `SELECT count(*) FROM md_account_events
+			WHERE venue=$1 AND channel='earn_parking'
+			  AND CASE WHEN data->>'earn_bal' ~ '^-?[0-9]+(\.[0-9]+)?$'
+			           THEN (data->>'earn_bal')::numeric ELSE 0 END > 0`, venue).Scan(&n); err != nil {
+			return nil, connect.NewError(connect.CodeInternal, "Earn 停泊核: "+err.Error())
+		} else if n > 0 {
+			blockers = append(blockers, fmt.Sprintf("Earn 停泊本金 %d 币", n))
 		}
 		if len(blockers) > 0 {
 			return nil, connect.NewError(connect.CodeFailedPrecondition,

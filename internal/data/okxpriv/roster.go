@@ -145,12 +145,18 @@ type Supervisor struct {
 	bills  func(ctx context.Context)
 	mu     sync.Mutex
 	kids   map[string]context.CancelFunc
+	// credMiss/retryAt spawn 前置败（凭据缺件族）退避账——O-38013：
+	// acctLoop 早退须自清 kids 残行否则 syncRoster 永不重 spawn；退避
+	// 2s→60s 顶格后按拍续试不放弃（凭据=外部供物迟到即活）。
+	credMiss map[string]int
+	retryAt  map[string]time.Time
 }
 
 // NewSupervisor 装配（零凭据读——名册空=零子会话不报错；凭据缺件=子会话
 // spawn 时 per-account 读败→degraded 自报，名册不可读不等于户死）。
 func NewSupervisor(pool *pgxpool.Pool, sim bool) *Supervisor {
-	return &Supervisor{pool: pool, sim: sim, kids: map[string]context.CancelFunc{}}
+	return &Supervisor{pool: pool, sim: sim, kids: map[string]context.CancelFunc{},
+		credMiss: map[string]int{}, retryAt: map[string]time.Time{}}
 }
 
 // SetBootFn 注入 boot 首读播种器（签名带凭据——per-account 各户自解密
@@ -227,12 +233,23 @@ func (s *Supervisor) syncRoster(ctx context.Context) {
 		if _, ok := want[v]; !ok {
 			cancel()
 			delete(s.kids, v)
+			delete(s.credMiss, v)
+			delete(s.retryAt, v)
 			log.Printf("[okxpriv] 户 %s 出册/停用——会话收", v)
+		}
+	}
+	for v := range s.credMiss {
+		if _, ok := want[v]; !ok {
+			delete(s.credMiss, v)
+			delete(s.retryAt, v)
 		}
 	}
 	for v, a := range want {
 		if _, ok := s.kids[v]; ok {
 			continue
+		}
+		if ra, ok := s.retryAt[v]; ok && time.Now().Before(ra) {
+			continue // 凭据缺件退避窗内——下拍续试不放弃
 		}
 		kctx, cancel := context.WithCancel(ctx)
 		s.kids[v] = cancel
@@ -241,14 +258,17 @@ func (s *Supervisor) syncRoster(ctx context.Context) {
 	}
 }
 
-// acctLoop 单户私有会话环——凭据按 cred_ns 解（缺件=degraded 自报让位，
-// 名册行在=凭据面病灶显形不静默）；会话=Collector.Run 逐户保留。
+// acctLoop 单户私有会话环——凭据按 cred_ns 解（缺件=degraded 自报+残行
+// 自清退避记账让位，名册行在=凭据面病灶显形不静默，凭据补位后退避窗内
+// 下拍重 spawn 即活）；会话=Collector.Run 逐户保留。
 func (s *Supervisor) acctLoop(ctx context.Context, a cexAcct) {
 	c, err := newAccountCollector(ctx, s.pool, s.sim, a.Venue, a.CredNS)
 	if err != nil {
 		reportVenueFail(ctx, s.pool, a.Venue, err)
-		return // 凭据缺件户——roster degraded 在册，凭据补位后下拍重 spawn
+		s.noteSpawnMiss(a.Venue)
+		return // 凭据缺件户——roster degraded 在册，退避窗后 syncRoster 重 spawn
 	}
+	s.spawnOK(a.Venue)
 	if s.meter != nil {
 		c.AttachMeter(s.meter)
 	}

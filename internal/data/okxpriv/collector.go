@@ -34,6 +34,10 @@ const (
 	employeeTitle = "OKX 私有流/账户快照岗"
 )
 
+// privateWSURL 会话拨号址（桩测覆写锚——同 rosterPollEvery 先例；生产恒
+// PrivateURL）。
+var privateWSURL = PrivateURL
+
 type Collector struct {
 	pool   *pgxpool.Pool
 	url    string
@@ -90,7 +94,7 @@ func newAccountCollector(ctx context.Context, pool *pgxpool.Pool, sim bool, venu
 	if err != nil {
 		return nil, err
 	}
-	return &Collector{pool: pool, url: PrivateURL, sim: sim, venue: venue, creds: creds,
+	return &Collector{pool: pool, url: privateWSURL, sim: sim, venue: venue, creds: creds,
 		rej:    rejects.New("okxpriv", "parse_fail", "write_err", "creds_missing", "login_fail"),
 		lastEq: map[string]float64{}}, nil
 }

@@ -101,6 +101,63 @@ func TestSetBrokerStateZeroPositionGate(t *testing.T) {
 	}
 }
 
+// TestSetBrokerStateEarnGate 零持仓核 Earn 维（O-38013）：earn_parking
+// 快照 earn_bal>0 在=拒；earn_bal=0/缺席=放行墓碑。
+func TestSetBrokerStateEarnGate(t *testing.T) {
+	mux, _, pool, ctx := brokerFaceMux(t, nil, nil)
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_venue_roster(venue,proto,cred_ns,roles,state)
+		VALUES('tstearn','cex','tstearn.cex','{collect}','disabled')
+		ON CONFLICT (venue) DO UPDATE SET state='disabled'`); err != nil {
+		t.Fatalf("roster 造行: %v", err)
+	}
+	defer pool.Exec(ctx, `DELETE FROM fin_venue_roster WHERE venue='tstearn'`)
+	defer pool.Exec(ctx, `DELETE FROM md_account_events WHERE venue='tstearn'`)
+	// Earn 停泊本金在册——removed 应拒（断供洞闸）。
+	if _, err := pool.Exec(ctx, `INSERT INTO md_account_events(ts,venue,channel,ccy,data)
+		VALUES(now(),'tstearn','earn_parking','USDT','{"earn_bal":9385.66}'::jsonb)`); err != nil {
+		t.Fatalf("earn_parking 造行: %v", err)
+	}
+	rec := statePost(t, mux, "tstearn", "removed", "http://ui.local")
+	if rec.Code == 200 || !strings.Contains(rec.Body.String(), "Earn 停泊本金") {
+		t.Fatalf("有 Earn 停泊应拒: %d %s", rec.Code, rec.Body)
+	}
+	// 停泊清零（earn_bal=0）→放行墓碑（凭据族删同事务）。
+	if _, err := pool.Exec(ctx, `UPDATE md_account_events SET data='{"earn_bal":0}'::jsonb
+		WHERE venue='tstearn' AND channel='earn_parking'`); err != nil {
+		t.Fatal(err)
+	}
+	rec = statePost(t, mux, "tstearn", "removed", "http://ui.local")
+	if rec.Code != 200 || !strings.Contains(rec.Body.String(), `"state":"removed"`) {
+		t.Fatalf("Earn 清零应放行 removed: %d %s", rec.Code, rec.Body)
+	}
+}
+
+// TestSubmitBrokerCredRemovedReject 墓碑闸（O-38013）：removed venue 重交
+// 凭据=fail-closed 拒写零落表（终态不可复活——复挂=新 venue token）。
+func TestSubmitBrokerCredRemovedReject(t *testing.T) {
+	brokerMk(t)
+	mux, _, pool, ctx := brokerFaceMux(t, nil,
+		func(context.Context, signutil.Credentials) (map[string]float64, error) {
+			return map[string]float64{"USDT": 1.0}, nil
+		})
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_venue_roster(venue,proto,cred_ns,roles,state)
+		VALUES('okxtomb','cex','okxtomb.cex','{collect}','removed')
+		ON CONFLICT (venue) DO UPDATE SET state='removed',cred_ns='okxtomb.cex'`); err != nil {
+		t.Fatalf("roster 造行: %v", err)
+	}
+	defer pool.Exec(ctx, `DELETE FROM fin_venue_roster WHERE venue='okxtomb'`)
+	defer pool.Exec(ctx, `DELETE FROM app_secrets WHERE key LIKE 'okxtomb%'`)
+	rec := subPost(t, mux, `{"venue":"okxtomb","proto":"cex","api_key":"k","api_secret":"s","passphrase":"p"}`, "http://ui.local")
+	if rec.Code == 200 || !strings.Contains(rec.Body.String(), "removed 墓碑") {
+		t.Fatalf("removed 户凭据提交应拒: %d %s", rec.Code, rec.Body)
+	}
+	var n int
+	pool.QueryRow(ctx, `SELECT count(*) FROM app_secrets WHERE key LIKE 'okxtomb%'`).Scan(&n)
+	if n != 0 {
+		t.Fatalf("墓碑户凭据零落表断言败余 %d", n)
+	}
+}
+
 // TestSubmitBrokerCredRosterUpsert roster upsert 同事务桩：cex 提交后
 // roster 行在（cred_ns 推导+state=connecting+roles={collect}）。
 func TestSubmitBrokerCredRosterUpsert(t *testing.T) {
