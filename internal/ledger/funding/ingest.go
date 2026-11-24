@@ -14,6 +14,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"o/internal/platform/rejects"
 )
 
 // fundCcyOK 原生币形闸（O-34287——镜像 ledger.CcyOK 同形 ^[A-Z0-9]{2,20}$；
@@ -21,6 +23,8 @@ import (
 var fundCcyOK = regexp.MustCompile(`^[A-Z0-9]{2,20}$`).MatchString
 
 // Bill venue 账单行（域自有型——ledger 不反向依赖交易域，装配层适配 okxexec.Bill）。
+// O-39310：ClOrdID=计价腿判别键（命中 fin_order_leg.cl_ord_id+已记 legCash
+// 现金行=O 自执行单跳过防双计；不命中=venue 侧 bot/手动单落 bill 侧对称径）。
 type Bill struct {
 	BillID   string
 	Type     string
@@ -34,6 +38,8 @@ type Bill struct {
 	Pnl      float64
 	Sz       float64
 	Px       float64
+	OrdID    string
+	ClOrdID  string
 	Raw      json.RawMessage
 }
 
@@ -85,10 +91,12 @@ var instTypesAll = []string{""}
 type Ingester struct {
 	pool *pgxpool.Pool
 	src  BillSource
+	rej  *rejects.Door
 }
 
 func NewIngester(pool *pgxpool.Pool, src BillSource) *Ingester {
-	return &Ingester{pool: pool, src: src}
+	return &Ingester{pool: pool, src: src,
+		rej: rejects.New("funding_ingest", "clordid_missing")}
 }
 
 // Ingest 事件后拉取：首页→逐页向旧游标推进，遇已入库 billId 即止（增量切口）。
@@ -185,10 +193,16 @@ func (i *Ingester) record(ctx context.Context, b Bill) (int, error) {
 	default:
 		// O-34287：SPOT/MARGIN 原生币腿=type2 成交双腿之基币侧——OKX 每币
 		// 独立 bill 行（subType 1=credit/2=debit），balChg=sz+fee 净额
-		// 实测定案；对称两腿各记各币（quote 侧 USDT/USD 仍归 legCash 径）。
+		// 实测定案；对称两腿各记各币。O-39310：计价币腿（USDT/USD）改走
+		// spotQuote clOrdId 判别径——O 自执行单 legCash 已记跳过防双计，
+		// venue 侧 bot/手动单落 bill 侧对称入账（原「quote 侧仍归 legCash
+		// 径」假设只对 O 自执行单成立=守恒破口根修）。
 		spotLike := b.InstType == "SPOT" || b.InstType == "MARGIN"
-		if spotLike && native && (b.SubType == "1" || b.SubType == "2") {
-			return i.spotNative(ctx, b, ccy, srcID, occurred)
+		if spotLike && (b.SubType == "1" || b.SubType == "2") {
+			if native {
+				return i.spotNative(ctx, b, ccy, srcID, occurred)
+			}
+			return i.spotQuote(ctx, b, ccy, srcID, occurred)
 		}
 		n := 0
 		covered := 0.0

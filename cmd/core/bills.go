@@ -25,7 +25,8 @@ func (s billsSrc) Bills(ctx context.Context, instType, after string) ([]legfundi
 	for i, r := range rows {
 		out[i] = legfunding.Bill{BillID: r.BillID, Type: r.Type, SubType: r.SubType,
 			InstID: r.InstID, InstType: r.InstType, Ccy: r.Ccy, TsMs: r.TsMs,
-			BalChg: r.BalChg, Fee: r.Fee, Pnl: r.Pnl, Sz: r.Sz, Px: r.Px}
+			BalChg: r.BalChg, Fee: r.Fee, Pnl: r.Pnl, Sz: r.Sz, Px: r.Px,
+			OrdID: r.OrdID, ClOrdID: r.ClOrdID, Raw: r.Raw}
 	}
 	return out, nil
 }
