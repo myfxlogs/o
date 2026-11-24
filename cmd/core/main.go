@@ -269,7 +269,7 @@ func run() error {
 	wd.AttachAlerter(alerter)
 	// venue 现读件（T-0048：快照行全域出局——venue_readers.go 装配）。
 	attachVenueReaders(riskGate, wd, ledgerR, pool, okcli,
-		func(ctx context.Context) (*mt5.Client, error) { return mt5.OpenSession(ctx, pool, cfg) })
+		func(ctx context.Context) (*mt5.Client, error) { return mt5.OpenSession(ctx, pool, cfg, "mt5") })
 	go wd.Run(ctx, errc)
 
 	// 总览活页（T-0067：service.go mountUI——SPA 静态面；数据面唯一入口=

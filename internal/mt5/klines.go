@@ -155,10 +155,10 @@ func (c *BridgeCollector) klineBatchWrite(ctx context.Context, cl *Client, batch
 			}
 			confirm := j < len(bars)-1 // 末棒=形成中帧(收线后次拍终态落)
 			if _, err := c.pool.Exec(ctx, `INSERT INTO md_klines(venue,inst_id,bar,ts,o,h,l,c,vol,vol_ccy,confirm)
-				VALUES('mt5',$1,'1D',$2,$3,$4,$5,$6,$7,$8,$9)
+				VALUES($1,$2,'1D',$3,$4,$5,$6,$7,$8,$9,$10)
 				ON CONFLICT (venue,inst_id,bar,ts) DO UPDATE SET o=EXCLUDED.o,h=EXCLUDED.h,l=EXCLUDED.l,
 				c=EXCLUDED.c,vol=EXCLUDED.vol,vol_ccy=EXCLUDED.vol_ccy,confirm=EXCLUDED.confirm,recv_ts=now()`,
-				res.GetSymbol(), b.GetTime().AsTime(), b.GetOpenPrice(), b.GetHighPrice(),
+				c.venueKey(), res.GetSymbol(), b.GetTime().AsTime(), b.GetOpenPrice(), b.GetHighPrice(),
 				b.GetLowPrice(), b.GetClosePrice(), float64(b.GetTickVolume()), 0.0, confirm); err != nil {
 				c.rej.Inc("kline_write_err")
 				return n, err.Error()

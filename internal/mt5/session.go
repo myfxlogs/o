@@ -1,5 +1,7 @@
 // session.go —— OpenSession 有界化件（T-0053）：懒拨号首 RPC 无死线=OpenSession
 // 静默悬挂（SG 生产实证）——全程死线+分阶段 log，悬挂态在日志面显形。
+// O-37448：venue 参数化——cred_ns 经 fin_venue_roster 查（'mt5' 兜底兼容），
+// 共享行键=<venue>.session_token 按户复挂。
 package mt5
 
 import (
@@ -24,15 +26,24 @@ import (
 const openSessionBudget = 30 * time.Second
 
 // OpenSession 独立一次性会话（开连+登录——用毕调用方 Disconnect；facts 采面/
-// 探针面用）。分阶段 log（dial→connect→authed 起讫；失败含阶段名+err）。
-func OpenSession(ctx context.Context, pool *pgxpool.Pool, cfg *config.Client) (*Client, error) {
+// 探针面用）。venue=名册户 token（空/'mt5'=存量 Exness 兼容）；cred_ns 经
+// roster 查——按户共享行复挂+按户凭据族读。分阶段 log（dial→connect→authed
+// 起讫；失败含阶段名+err）。
+func OpenSession(ctx context.Context, pool *pgxpool.Pool, cfg *config.Client, venue string) (*Client, error) {
+	if venue == "" {
+		venue = "mt5"
+	}
+	credNS, err := CredNSFor(ctx, pool, venue)
+	if err != nil {
+		return nil, fmt.Errorf("阶段=roster: %w", err)
+	}
 	// 共享先行——共享行活 token=零新 login 复挂（双腿共享会话 churn 减源；
 	// shared 标置=调用侧遗留 Disconnect 幂等空转不伤共享会话）。
-	if cl, err := sharedAttach(ctx, pool, Dial); err == nil {
-		log.Printf("[mt5] OpenSession 复挂共享会话（零新 login）")
+	if cl, err := sharedAttach(ctx, pool, Dial, venue+".session_token"); err == nil {
+		log.Printf("[mt5] OpenSession venue=%s 复挂共享会话（零新 login）", venue)
 		return cl, nil
 	}
-	addrs, cr, err := endpoints(ctx, pool, cfg)
+	addrs, cr, err := endpoints(ctx, pool, cfg, credNS)
 	if err != nil {
 		return nil, fmt.Errorf("阶段=creds: %w", err)
 	}
@@ -40,34 +51,35 @@ func OpenSession(ctx context.Context, pool *pgxpool.Pool, cfg *config.Client) (*
 	defer cancel()
 	var lastErr error
 	for _, addr := range addrs {
-		log.Printf("[mt5] OpenSession dial 起 addr=%s", addr)
+		log.Printf("[mt5] OpenSession venue=%s dial 起 addr=%s", venue, addr)
 		cl, err := Dial(addr)
 		if err != nil {
-			log.Printf("WARN [mt5] OpenSession 阶段=dial 败 addr=%s: %v", addr, err)
+			log.Printf("WARN [mt5] OpenSession venue=%s 阶段=dial 败 addr=%s: %v", venue, addr, err)
 			lastErr = err
 			continue
 		}
-		log.Printf("[mt5] OpenSession connect 起（budget %s）", openSessionBudget)
+		log.Printf("[mt5] OpenSession venue=%s connect 起（budget %s）", venue, openSessionBudget)
 		if err := cl.Connect(sctx, cr); err != nil {
 			cl.Close()
-			log.Printf("WARN [mt5] OpenSession 阶段=connect 败 addr=%s（超死线/登录拒非悬挂）: %v", addr, err)
+			log.Printf("WARN [mt5] OpenSession venue=%s 阶段=connect 败 addr=%s（超死线/登录拒非悬挂）: %v", venue, addr, err)
 			lastErr = err
 			continue
 		}
-		log.Printf("[mt5] OpenSession authed（会话建，用毕 Disconnect）")
+		log.Printf("[mt5] OpenSession venue=%s authed（会话建，用毕 Disconnect）", venue)
 		return cl, nil
 	}
 	return nil, fmt.Errorf("阶段=connect: %w", lastErr)
 }
 
-// endpoints 网关址链+凭据读（SG 侧会话径）。址链=gatewayAddrs 同件——
-// OCI 桥腿（env 凭据）与本件（密文凭据）共享同一址源，端点热更两桥同愈。
-func endpoints(ctx context.Context, pool *pgxpool.Pool, cfg *config.Client) ([]string, Credentials, error) {
+// endpoints 网关址链+按户凭据读（cred_ns=roster 行凭据键前缀）。址链=
+// gatewayAddrs 同件——OCI 桥腿（env 凭据）与本件（密文凭据）共享同一址源，
+// 端点热更两桥同愈；网关址全账户共用（mtapi 基础设施非户级资源）。
+func endpoints(ctx context.Context, pool *pgxpool.Pool, cfg *config.Client, credNS string) ([]string, Credentials, error) {
 	addrs, err := gatewayAddrs(cfg)
 	if err != nil {
 		return nil, Credentials{}, err
 	}
-	_, cr, err := readCreds(ctx, pool, cfg)
+	_, cr, err := readCreds(ctx, pool, cfg, credNS)
 	if err != nil {
 		return nil, Credentials{}, err
 	}
@@ -101,64 +113,70 @@ func gatewayAddrs(cfg *config.Client) ([]string, error) {
 }
 
 // session 一次会话生命周期：Connect→boot（账户快照+符号面+订阅）→OnQuote 流消费。
+// a=按户运行件（凭据/共享会话锚/水位/venue 键全按户隔离——O-37448）。
 // 返回=流断/写败（外层退避重连）；成功消费一帧由调用侧无法感知——流常驻直至断。
-func (c *Collector) session(ctx context.Context, dial func(string) (*Client, error)) error {
-	addrs, cr, err := endpoints(ctx, c.pool, c.cfg)
+func (c *Collector) session(ctx context.Context, dial func(string) (*Client, error), a *acctRun) error {
+	addrs, cr, err := endpoints(ctx, c.pool, c.cfg, a.acct.CredNS)
 	if err != nil {
+		c.reportVenueFail(ctx, a, err)
 		return err
 	}
-	c.cr = cr
-	if c.sessTok == "" {
-		if ss, err := sharedSessionRead(ctx, c.pool); err == nil {
-			c.sessAddr, c.sessTok = ss.Addr, ss.Token // 重启续挂——共享行自读（零新 login）
+	a.cr = cr
+	key := a.acct.SessionKey()
+	if a.sessTok == "" {
+		if ss, err := sharedSessionRead(ctx, c.pool, key); err == nil {
+			a.sessAddr, a.sessTok = ss.Addr, ss.Token // 重启续挂——共享行自读（零新 login）
 		}
 	}
 	var cl *Client
 	var clAddr string
 	var lastErr error
-	for _, a := range addrs {
-		cand, derr := dial(a)
+	for _, ad := range addrs {
+		cand, derr := dial(ad)
 		if derr != nil {
 			lastErr = derr
 			continue
 		}
-		if c.sessTok != "" && a == c.sessAddr {
-			cand.SetToken(c.sessTok)
+		if a.sessTok != "" && ad == a.sessAddr {
+			cand.SetToken(a.sessTok)
 			if cand.CheckAlive(ctx) == nil {
-				cl, clAddr = cand, a // 复挂——流死≠会话死，零新 login 避开券商冲突掐
+				cl, clAddr = cand, ad // 复挂——流死≠会话死，零新 login 避开券商冲突掐
 				break
 			}
 		}
-		if cerr := cand.Connect(ctx, c.cr); cerr != nil {
+		if cerr := cand.Connect(ctx, a.cr); cerr != nil {
 			cand.Close()
 			lastErr = cerr
 			continue
 		}
-		cl, clAddr = cand, a
+		cl, clAddr = cand, ad
 		break
 	}
 	if cl == nil {
 		c.rej.Inc("connect_failed")
+		c.reportVenueFail(ctx, a, lastErr)
 		return lastErr
 	}
-	c.sessAddr, c.sessTok = clAddr, cl.Token()
-	sharedSessionWrite(ctx, c.pool, clAddr, cl.Token()) // owner 落共享行——消费腿据此复挂
+	a.sessAddr, a.sessTok = clAddr, cl.Token()
+	sharedSessionWrite(ctx, c.pool, key, clAddr, cl.Token()) // owner 落共享行——消费腿据此复挂
+	c.reportVenueActive(ctx, a)
 	defer func() {
 		// 共享会话不归腿登出——句柄跨腿共享+跨重启续挂（Disconnect=连坐杀
 		// 共享会话坑）；僵尸界=券商 TTL 自然收尸。关停/流死皆仅收本地 conn。
 		cl.Close()
 	}()
-	// boot 账户快照（事件锚定首读——USD 本位；venue_type 闭集 'mt5' 已在 0005）。
-	c.snapshotOnce(ctx, cl, "mt5_boot")
-	syms := c.symbols(ctx, cl)
+	// boot 账户快照（事件锚定首读——USD 本位；channel=<venue>_boot 按户
+	// 分键 'mt5'→'mt5_boot' 存量形不变——O-37448）。
+	c.snapshotOnce(ctx, cl, a.acct.Venue+"_boot", a)
+	syms := c.symbols(ctx, cl, a)
 	for _, s := range syms {
 		if err := cl.Subscribe(ctx, s); err != nil {
 			c.rej.Inc("subscribe_failed")
-			log.Printf("[mt5] 订阅败 %s: %v", s, err)
+			log.Printf("[mt5] %s 订阅败 %s: %v", a.acct.Venue, s, err)
 		}
 	}
 	if len(syms) == 0 {
-		return fmt.Errorf("采集清单空（mt5.symbols 空且 SymbolList 实读筛选零命中）")
+		return fmt.Errorf("%s 采集清单空（订阅三源全空）", a.acct.Venue)
 	}
 	// 账户权益推送流（OnOrderProfit——持仓期 ~1Hz ProfitUpdate 全摘要帧；
 	// push-on-change：空仓静默=无变动非流死。任一框架死=会话退重连）。
@@ -166,12 +184,12 @@ func (c *Collector) session(ctx context.Context, dial func(string) (*Client, err
 	defer cancel()
 	// O-35753 充提入账细胞——OrderHistory 轮询→fin_cashflow（会话命同寿，
 	// 水位跨会话续；boot 首拍 7d 回看补漏窗，后续 15min 增量）。
-	go c.balanceOpsLoop(sessCtx, cl)
+	go c.balanceOpsLoop(sessCtx, cl, a)
 	if n, err := cl.SubscribeOrderProfit(ctx); err != nil {
 		c.rej.Inc("subscribe_failed")
-		log.Printf("[mt5] SubscribeOrderProfit 败（流实测免订阅自推，不阻塞）: %v", err)
+		log.Printf("[mt5] %s SubscribeOrderProfit 败（流实测免订阅自推，不阻塞）: %v", a.acct.Venue, err)
 	} else {
-		log.Printf("[mt5] order_profit 订阅回执: 在册 %d 仓", n)
+		log.Printf("[mt5] %s order_profit 订阅回执: 在册 %d 仓", a.acct.Venue, n)
 	}
 	pstr, err := cl.OnOrderProfit(sessCtx)
 	if err != nil {
@@ -179,7 +197,7 @@ func (c *Collector) session(ctx context.Context, dial func(string) (*Client, err
 	}
 	profitErr := make(chan error, 1)
 	go func() {
-		err := c.profitLoop(ctx, pstr)
+		err := c.profitLoop(ctx, pstr, a)
 		profitErr <- err // 先送因后 cancel——主循环 Recv 断时真因可取
 		cancel()
 	}()
@@ -193,7 +211,7 @@ func (c *Collector) session(ctx context.Context, dial func(string) (*Client, err
 	if v, err := c.cfg.GetFloat("mt5.tick_dead_sec"); err == nil && v > 0 {
 		dead = time.Duration(v * float64(time.Second))
 	}
-	return c.quoteConsume(ctx, sessCtx, cancel, stream, profitErr, dead, 30*time.Second)
+	return c.quoteConsume(ctx, sessCtx, cancel, stream, profitErr, dead, 30*time.Second, a.acct.Venue)
 }
 
 // quoteConsume OnQuote 流消费环（O-34264：活性=实报价帧——q.Symbol!=""∧
@@ -202,10 +220,11 @@ func (c *Collector) session(ctx context.Context, dial func(string) (*Client, err
 // 每 watchEvery 检 now-lastData>dead 即 cancel sessCtx→Recv 以 ctx err
 // 返回→session 走正常死法退→外层退避重连换血（复挂序 sessTok+CheckAlive
 // →ConnectEx 不动）。死法判词区分：deadFired=数据帧超时优先归簇（心跳帧
-// 续命假活防面——profitErr 真死因仍优先于普通流断）。
+// 续命假活防面——profitErr 真死因仍优先于普通流断）。venue=户 token
+// （O-37448——md_ticks 分键）。
 func (c *Collector) quoteConsume(ctx context.Context, sessCtx context.Context,
 	cancel context.CancelFunc, stream grpc.ServerStreamingClient[mt5pb.OnQuoteReply],
-	profitErr <-chan error, dead, watchEvery time.Duration) error {
+	profitErr <-chan error, dead, watchEvery time.Duration, venue string) error {
 	var lastData, deadFired atomic.Int64
 	lastData.Store(time.Now().UnixNano())
 	deadFired.Store(0)
@@ -219,8 +238,8 @@ func (c *Collector) quoteConsume(ctx context.Context, sessCtx context.Context,
 			case <-t.C:
 				if quiet := time.Since(time.Unix(0, lastData.Load())); quiet > dead {
 					deadFired.Store(1)
-					log.Printf("[mt5] deadstream 数据帧超时（%s 零实报价帧，阈 %s）——收尸重连",
-						quiet.Round(time.Second), dead)
+					log.Printf("[mt5] %s deadstream 数据帧超时（%s 零实报价帧，阈 %s）——收尸重连",
+						venue, quiet.Round(time.Second), dead)
 					cancel()
 					return
 				}
@@ -257,10 +276,10 @@ func (c *Collector) quoteConsume(ctx context.Context, sessCtx context.Context,
 		}
 		lastData.Store(time.Now().UnixNano())
 		if _, err := c.pool.Exec(ctx,
-			`INSERT INTO md_ticks(ts,venue,inst_id,last,bid,ask) VALUES(now(),'mt5',$1,$2,$3,$4)
+			`INSERT INTO md_ticks(ts,venue,inst_id,last,bid,ask) VALUES(now(),$1,$2,$3,$4,$5)
 			ON CONFLICT (venue,inst_id) DO UPDATE SET ts=EXCLUDED.ts,last=EXCLUDED.last,
 			bid=EXCLUDED.bid,ask=EXCLUDED.ask,recv_ts=now()`,
-			q.Symbol, q.Last, q.Bid, q.Ask); err != nil {
+			venue, q.Symbol, q.Last, q.Bid, q.Ask); err != nil {
 			c.rej.Inc("tick_write_err")
 		}
 	}

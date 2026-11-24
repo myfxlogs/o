@@ -36,12 +36,13 @@ import (
 // 常驻会话跨重启/断链自愈——首用 OpenSession（凭据缺=取用点 err 显形非
 // boot 炸）；RPC 败→Suspect() 标失效下次 ensure 重连）。
 type mt5LazyCli struct {
-	pool *pgxpool.Pool
-	cfg  *config.Client
-	mu   sync.Mutex
-	c    *mt5.Client
-	dead bool
-	acct string
+	pool  *pgxpool.Pool
+	cfg   *config.Client
+	venue string // O-37448——服务哪户（空/'mt5'=Exness 兼容；xvenue carry 腿=Exness 户）
+	mu    sync.Mutex
+	c     *mt5.Client
+	dead  bool
+	acct  string
 }
 
 func (l *mt5LazyCli) ensure(ctx context.Context) (*mt5.Client, error) {
@@ -55,7 +56,7 @@ func (l *mt5LazyCli) ensure(ctx context.Context) (*mt5.Client, error) {
 		l.c.Close()
 		l.c, l.acct = nil, ""
 	}
-	c, err := mt5.OpenSession(ctx, l.pool, l.cfg)
+	c, err := mt5.OpenSession(ctx, l.pool, l.cfg, l.venue)
 	if err != nil {
 		l.dead = false // 未建连=非失效标（下拍续试不连坐既有会话）
 		return nil, err
@@ -278,7 +279,7 @@ func (h hedgeOpener) xvenueOpen(ctx context.Context, spec lifecycle.OpenSpec) (i
 // newXvenueDeps xvenue 三面同件构造（懒连会话+方言仓+译件——凭据缺=取用点
 // err 显形非 boot 炸；ro 件亦注——mt5 凭据独立面）。
 func newXvenueDeps(pool *pgxpool.Pool, cfg *config.Client) (*mt5LazyCli, *mt5.DialectStore, mtexec.Dialect) {
-	xcli := &mt5LazyCli{pool: pool, cfg: cfg}
+	xcli := &mt5LazyCli{pool: pool, cfg: cfg, venue: "mt5"}
 	xds := mt5.NewDialectStore(pool)
 	return xcli, xds, mt5LiveDialect{S: xds, cli: xcli, Seat: "o-core"}
 }

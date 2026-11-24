@@ -65,7 +65,7 @@ func main() {
 	}
 
 	fmt.Println("=== mt5 OpenedOrders 实读 ===")
-	cl, err := mt5.OpenSession(ctx, pool, cfg)
+	cl, err := mt5.OpenSession(ctx, pool, cfg, "mt5")
 	if err != nil {
 		fmt.Println("mt5 session:", err)
 		os.Exit(1)

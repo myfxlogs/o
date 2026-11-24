@@ -11,6 +11,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -93,13 +94,11 @@ func main() {
 	sd := sigdist.New(pool)
 	sd.AttachConfig(cfg)
 	go sd.Run(ctx, errc) // 桥二期信号蒸馏拍（basis_ann/funding_view/xvenue→md_signal）
-	// T-0141 MT5 quote-only 桥腿（共享会话纯消费腿——mt5.session_token 共享行
-	// 复挂，永不 ConnectEx；行缺/会话死=返错退避等汇市巡建——让位 WARN 不拖 OKX 面）
-	if bc, err := mt5.NewBridgeCollector(pool, cfg); err != nil {
-		log.Printf("[collector] MT5 桥腿装配败（跨所族停摆非全桥）: %v", err)
-	} else {
-		go bc.Run(ctx, errc)
-	}
+	// T-0141 MT5 quote-only 桥腿（共享会话纯消费腿——<venue>.session_token
+	// 共享行复挂，永不 ConnectEx）。O-37448：桥腿编目=<venue> 自
+	// bridge.<venue>.symbols 键枚举（app_config 桥域——PG-md 可读零 roster
+	// 依赖；键增删 60s 重扫即拍即起停——加户零码同汇市巡径）。
+	go bridgeLegs(ctx, pool, cfg, errc)
 	log.Printf("[collector] 采集桥起——全宇宙蒸馏写 SG（共写语义：同键最新 ts 赢）")
 	for {
 		select {
@@ -109,6 +108,68 @@ func main() {
 			}
 		case <-ctx.Done():
 			return
+		}
+	}
+}
+
+// bridgeLegs 桥腿编目环——bridge.<venue>.symbols 键集=quote 腿编制册
+// （键在=该户起腿，键删=收腿；60s 重扫热更免重启）。每腿独立 ctx——
+// 单腿死只退避本腿（BridgeCollector.Run 自带重连环不 return 至 ctx 终）。
+func bridgeLegs(ctx context.Context, pool *pgxpool.Pool, cfg *config.Client, errc chan<- error) {
+	legs := map[string]context.CancelFunc{}
+	scan := func() {
+		rows, err := pool.Query(ctx,
+			`SELECT key FROM app_config WHERE key LIKE 'bridge.%.symbols'`)
+		if err != nil {
+			log.Printf("[collector] 桥腿编目读败本拍让位: %v", err)
+			return
+		}
+		want := map[string]bool{}
+		for rows.Next() {
+			var k string
+			if err := rows.Scan(&k); err != nil {
+				continue
+			}
+			v := strings.TrimSuffix(strings.TrimPrefix(k, "bridge."), ".symbols")
+			if v != "" {
+				want[v] = true
+			}
+		}
+		rows.Close()
+		for v := range want {
+			if _, ok := legs[v]; ok {
+				continue
+			}
+			bc, err := mt5.NewBridgeCollector(pool, cfg, v)
+			if err != nil {
+				log.Printf("[collector] 桥腿 venue=%s 装配败: %v", v, err)
+				continue
+			}
+			lctx, cancel := context.WithCancel(ctx)
+			legs[v] = cancel
+			go bc.Run(lctx, errc)
+			log.Printf("[collector] 桥腿 venue=%s 起（bridge.%s.symbols 在册）", v, v)
+		}
+		for v, cancel := range legs {
+			if !want[v] {
+				cancel()
+				delete(legs, v)
+				log.Printf("[collector] 桥腿 venue=%s 键删——收腿", v)
+			}
+		}
+	}
+	scan()
+	t := time.NewTicker(time.Minute) // sched-exempt-ok 桥腿编目热读拍（非业务轮询——venue 增删事件面）
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			for _, cancel := range legs {
+				cancel()
+			}
+			return
+		case <-t.C:
+			scan()
 		}
 	}
 }

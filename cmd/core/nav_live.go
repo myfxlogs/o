@@ -64,7 +64,7 @@ func mt5SummaryOnce(ctx context.Context, pool *pgxpool.Pool, cfg *config.Client,
 	open := openMt5
 	if open == nil {
 		open = func(ctx context.Context) (*mt5.Client, error) {
-			return mt5.OpenSession(ctx, pool, cfg)
+			return mt5.OpenSession(ctx, pool, cfg, "mt5")
 		}
 	}
 	cl, err := open(ctx)

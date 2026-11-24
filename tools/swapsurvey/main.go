@@ -23,6 +23,7 @@ import (
 func main() {
 	dsn := flag.String("dsn", "", "")
 	out := flag.String("out", "", "")
+	venue := flag.String("venue", "mt5", "roster 户 token（O-37448——CFD 商零码同径）")
 	perSym := flag.Duration("per-sym", 150*time.Millisecond, "SymbolParams 节拍（限频礼貌）")
 	flag.Parse()
 	ctx := context.Background()
@@ -30,7 +31,7 @@ func main() {
 	die(err)
 	cfg := config.New(pool)
 	die(cfg.Load(ctx))
-	cli, err := mt5.OpenSession(ctx, pool, cfg)
+	cli, err := mt5.OpenSession(ctx, pool, cfg, *venue)
 	die(err)
 	defer func() { cli.Disconnect(ctx); cli.Close() }()
 

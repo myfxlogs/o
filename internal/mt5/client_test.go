@@ -40,7 +40,12 @@ func TestNoMutatingSurface(t *testing.T) {
 
 // TestSymbolCandidates 候选谱常量锚（方言双形——m 尾+裸名；回确制入口面）。
 func TestSymbolCandidates(t *testing.T) {
-	if symbolCandidates != "BTCUSDm,ETHUSDm,BTCUSD,ETHUSD" {
+	// O-37448 扩谱锚——m/#/./+ 尾方言+裸名全族（XM BTCUSD# 族零码命中面）。
+	want := "BTCUSDm,ETHUSDm,XAUUSDm,XAGUSDm," +
+		"BTCUSD#,ETHUSD#,XAUUSD#,XAGUSD#," +
+		"BTCUSD,ETHUSD,XAUUSD,XAGUSD," +
+		"BTCUSD.,ETHUSD.,BTCUSD+,ETHUSD+"
+	if symbolCandidates != want {
 		t.Fatalf("候选谱被改: %q", symbolCandidates)
 	}
 }
