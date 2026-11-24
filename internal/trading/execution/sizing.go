@@ -185,7 +185,10 @@ type CfdMeta struct {
 // BuildCfdLegs 跨 venue 双腿：leg1=okx SWAP 卖（perp 张数 ctVal 系——
 // okx 腿 sizing 仍走 BuildLegs 正径的工具侧已在用；本件产出 cfd 腿+拼腿）。
 // cfd 腿 inst=cfdInst（exec.cfd_map 键映射 BTC-USDT-SWAP→BTCUSDm——工具侧读）。
-func BuildCfdLegs(instID, cfdInst string, notional float64, cfdM CfdMeta, px float64, perpCtVal float64) ([2]Leg, string, error) {
+func BuildCfdLegs(instID, cfdInst, cfdVenue string, notional float64, cfdM CfdMeta, px float64, perpCtVal float64) ([2]Leg, string, error) {
+	if cfdVenue == "" {
+		cfdVenue = "mt5" // 存量调用面兼容锚（O-37449 前=恒 'mt5'）
+	}
 	if cfdInst == "" {
 		return [2]Leg{}, "", fmt.Errorf("exec.cfd_map 无 %s 映射——fail-closed", instID)
 	}
@@ -215,7 +218,7 @@ func BuildCfdLegs(instID, cfdInst string, notional float64, cfdM CfdMeta, px flo
 	}
 	return [2]Leg{
 		{Venue: "okx", InstID: instID, Side: "sell", Sz: strconv.FormatFloat(perpSz, 'f', -1, 64), Notional: half},
-		{Venue: "mt5", InstID: cfdInst, Side: "buy", Sz: strconv.FormatFloat(lots, 'f', -1, 64), Notional: half},
+		{Venue: cfdVenue, InstID: cfdInst, Side: "buy", Sz: strconv.FormatFloat(lots, 'f', -1, 64), Notional: half},
 	}, cfdInst, nil
 }
 

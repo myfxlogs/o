@@ -184,7 +184,7 @@ func TestBuildXvenueLegs(t *testing.T) {
 	cfdM := CfdMeta{ContractSize: 1, MinLot: 0.01, LotStep: 0.01, TradeMode: 4}
 	// long_perp_short_cfd→mt5 sell+okx buy；notional=100@px=100→lots=0.5→
 	// cfdUSD=50→perp 张=50/(0.01×100)=50 张→perpUSD=50。
-	legs, err := BuildXvenueLegs("long_perp_short_cfd", "BTC-USDT-SWAP", "BTCUSDm", 100, perpM, cfdM, 100, 100)
+	legs, err := BuildXvenueLegs("long_perp_short_cfd", "BTC-USDT-SWAP", "BTCUSDm", "mt5", 100, perpM, cfdM, 100, 100)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -198,21 +198,21 @@ func TestBuildXvenueLegs(t *testing.T) {
 		t.Fatalf("名义错位: %v/%v", legs[0].Notional, legs[1].Notional)
 	}
 	// short_perp_long_cfd→mt5 buy+okx sell
-	legs, err = BuildXvenueLegs("short_perp_long_cfd", "BTC-USDT-SWAP", "BTCUSDm", 100, perpM, cfdM, 100, 100)
+	legs, err = BuildXvenueLegs("short_perp_long_cfd", "BTC-USDT-SWAP", "BTCUSDm", "mt5", 100, perpM, cfdM, 100, 100)
 	if err != nil || legs[0].Side != "buy" || legs[1].Side != "sell" {
 		t.Fatalf("short_perp_long_cfd 向位错: %+v %v", legs, err)
 	}
 	// 他向位=fail-closed
-	if _, err = BuildXvenueLegs("long_cfd_short_perp", "BTC-USDT-SWAP", "BTCUSDm", 100, perpM, cfdM, 100, 100); err == nil {
+	if _, err = BuildXvenueLegs("long_cfd_short_perp", "BTC-USDT-SWAP", "BTCUSDm", "mt5", 100, perpM, cfdM, 100, 100); err == nil {
 		t.Fatal("他向位未拒")
 	}
 	// TradeMode≠4=拒构（CloseOnly 预检）
-	if _, err = BuildXvenueLegs("long_perp_short_cfd", "BTC-USDT-SWAP", "BTCUSDm", 100, perpM,
+	if _, err = BuildXvenueLegs("long_perp_short_cfd", "BTC-USDT-SWAP", "BTCUSDm", "mt5", 100, perpM,
 		CfdMeta{ContractSize: 1, MinLot: 0.01, LotStep: 0.01, TradeMode: 3}, 100, 100); err == nil {
 		t.Fatal("CloseOnly 未拒")
 	}
 	// min-lot 构不出=fail-closed（规模不达标不裸放）
-	if _, err = BuildXvenueLegs("long_perp_short_cfd", "BTC-USDT-SWAP", "BTCUSDm", 1, perpM, cfdM, 100, 100); err == nil {
+	if _, err = BuildXvenueLegs("long_perp_short_cfd", "BTC-USDT-SWAP", "BTCUSDm", "mt5", 1, perpM, cfdM, 100, 100); err == nil {
 		t.Fatal("min-lot 构不出未拒")
 	}
 }

@@ -27,9 +27,10 @@ type xvenueSess interface {
 // 他席/手工仓不混读）；LotSz=方言行 lot_step（台账基线——SymbolParams
 // 活读预检在开仓径另位）；SpotAvailBal=CFD 无现货腿恒拒）。
 type Mt5Sizer struct {
-	C xvenueSess
-	X mtexec.Dialect
-	D *mt5.DialectStore
+	C     xvenueSess
+	X     mtexec.Dialect
+	D     *mt5.DialectStore
+	Venue string // O-37449：服务哪户（空/'mt5'=Exness 兼容——LotSz 方言行 venue 键）
 }
 
 func (s Mt5Sizer) ContractPos(ctx context.Context, canonical string) (float64, error) {
@@ -61,7 +62,11 @@ func (s Mt5Sizer) LotSz(ctx context.Context, canonical string) (float64, error) 
 	if err != nil {
 		return 0, err
 	}
-	r, err := s.D.Lookup(ctx, "mt5", acct, canonical)
+	venue := s.Venue
+	if venue == "" {
+		venue = "mt5" // 存量兼容锚（O-37449 前=恒 'mt5'）
+	}
+	r, err := s.D.Lookup(ctx, venue, acct, canonical)
 	if err != nil {
 		return 0, err
 	}

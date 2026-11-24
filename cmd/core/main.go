@@ -19,9 +19,7 @@ import (
 	"o/internal/data/okxws"
 	"o/internal/earn"
 	"o/internal/guard"
-	"o/internal/ledger"
 	"o/internal/ledger/holding"
-	"o/internal/ledger/report"
 	"o/internal/mt5"
 	"o/internal/platform/config"
 	"o/internal/platform/hostmetrics"
@@ -132,9 +130,10 @@ func run() error {
 	if !ro {
 		go earnW.Run(ctx, errc)
 	}
-	var closeSizer guard.VenueSizer              // 平仓量现读面（priv 域接线 T-0046②）
-	var liveOpener lifecycle.Opener              // live 开仓缝（priv 域接线 T-0050）
-	xcli, xds, xdial := newXvenueDeps(pool, cfg) // T-0145 mt5 三面同件（懒连——凭据缺=取用点 err）
+	var closeSizer guard.VenueSizer // 平仓量现读面（priv 域接线 T-0046②）
+	var liveOpener lifecycle.Opener // live 开仓缝（priv 域接线 T-0050）
+	// O-37449 xvenueFleet 名册驱动执行路由（'mt5'=Exness 存量三件预挂；余户 depsFor 懒建——ro 只读件亦注）。
+	xfleet, xprim := wireXvenueFleet(pool, cfg, okxexec.Credentials{})
 	if priv, err := okxpriv.NewCollector(ctx, pool, false); err != nil {
 		log.Printf("WARN: 私流守缺席（%v）——凭据落位后重启即上岗", err)
 	} else {
@@ -152,15 +151,16 @@ func run() error {
 			earnW.AttachIdleFunding(func(ctx context.Context) (float64, error) { return okxFundingAvailUSDT(ctx, okcli) }) // T-0149 ②
 			earnW.AttachCoins(okxCoinsFor(pool, okcli))                                                                    // T-0439 残币处置判据源
 			earnW.AttachClearer(okxClearer{&execution.OkxExecutor{C: okxexec.NewClient(priv.Credentials(), false)}})       // T-0439 杂币清仓缝
-			// 交易域首岗：执事（Executor=RouterExecutor 双腿路由——okx 原径+T-0145 mt5 懒连件）。
-			execR := newExecRunner(pool, cfg, priv.Credentials(), xcli, xdial).WithEarn(earnW).WithAlerter(alerter)
+			// 交易域首岗：执事（O-37449 xvenueFleet 名册驱动路由——腿 venue=名册路由键，disabled 即拍拒单；名册缺席=静态对兜底）。
+			xfleet.attachOkx(priv.Credentials()) // mutating 凭据件就位覆写（ro=零凭据占位不触网）
+			execR := newExecRunner(pool, cfg, xfleet).WithEarn(earnW).WithAlerter(alerter)
 			go execution.Run(ctx, errc, execR)
 			closer = execwiring.CloseExec{R: execR}
 			emgCloser = execwiring.EmergencyExec{R: execR} // 末路出口同执事件（reduce-only 腿径）
 			// live 开仓缝（T-0050——gate+执事+元数据件同源接线；T-0145 xvenue 面同件）。
 			liveOpener = hedgeOpener{pool: pool, cfg: cfg, gate: riskGate, r: execR, // T-0050
 				redeem: earnW.RedeemToTrading, // O-CAP1：dcdexec 前置赎回同源 earn 实例（execR.WithEarn 同件）
-				cli:    newCli(priv.Credentials()), xcli: xcli, xdial: xdial, xds: xds}
+				cli:    newCli(priv.Credentials()), xcli: xprim.cli, xdial: xprim.dial, xds: xprim.ds, xf: xfleet}
 			// venue 原生 bot 管护臂（工单#25840——kill 闸消费+权益快照+业主
 			// 首闸拉起；ro=mutating 全撤不挂；okcli 同 mutating 凭据件）。
 			go okxgrid.NewRunner(pool, cfg, okxgrid.NewAdapter(okcli), okcli.TradingAvailBal, earnW.RedeemToTrading).Run(ctx, errc) // #26337 资金闸注入
@@ -243,14 +243,7 @@ func run() error {
 		rejects: collector.Stats.Snapshot, netKbps: meter.RateKbps, netChannels: meter.Channels}
 	svc, navFn := assemble(pool, cfg, fundingLiveFor(okcli), earnLiveFor(okcli),
 		mt5LiveFor(pool, cfg), dcdLiveFor(okcli), posLiveFor(okcli), trxW, md)
-	var pusher *report.Pusher
-	{
-		mk, _ := config.ReadMasterKey()
-		pusher = report.NewPusher(pool, cfg, mk)
-		go report.NewRunner(pool, pusher).WithConfig(cfg).WithNav(navFn).Run(ctx, errc)
-	}
-	ledgerR := ledger.NewRunner(pool, cfg).WithAlerter(alerter)
-	go ledgerR.Run(ctx, errc)
+	ledgerR := wireLedgerReport(ctx, errc, pool, cfg, navFn, alerter)
 
 	// 风控域首岗：门官——唯一交易前闸，只认放行令牌。
 	go risk.Run(ctx, errc, riskGate)
@@ -263,9 +256,9 @@ func run() error {
 	if closeSizer != nil {
 		wd.AttachSizer(closeSizer) // T-0046②：平仓量现读件
 	}
-	wd.AttachVenueSizer("mt5", Mt5Sizer{C: xcli, X: xdial, D: xds}) // T-0145 mt5 腿路由现读件（OpenedOrders 手数）
-	wd.AttachEmergencyExecutor(emgCloser)                           // 工单#22247：末路只减仓缝（nil=末路缺席不假救）
-	wd.AttachCtVal(ctValReader(okcli))                              // T-0046①：面值现读件（nav_live.go）
+	xfleet.AttachWardenSizers(ctx, wd)    // O-37449：'mt5' 字面量+名册 mt5-proto 全户 sizer 按户挂（名册缺席=仅 mt5 挂余 fail-closed）
+	wd.AttachEmergencyExecutor(emgCloser) // 工单#22247：末路只减仓缝（nil=末路缺席不假救）
+	wd.AttachCtVal(ctValReader(okcli))    // T-0046①：面值现读件（nav_live.go）
 	wd.AttachAlerter(alerter)
 	// venue 现读件（T-0048：快照行全域出局——venue_readers.go 装配）。
 	attachVenueReaders(riskGate, wd, ledgerR, pool, okcli,

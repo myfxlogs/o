@@ -361,7 +361,7 @@ func TestRouterAndCfdLegs(t *testing.T) {
 	}
 	// cfd 腿：lot 换算+minLot 闸+异 venue 断言+perp 币本位换算锚（T-0037：
 	// half=1000 → 1000/(0.01×90000)=1.111→floor=1 张——旧病灶 1000/0.01=10 万张）
-	legs, inst, err := BuildCfdLegs("BTC-USDT-SWAP", "BTCUSDm", 2000,
+	legs, inst, err := BuildCfdLegs("BTC-USDT-SWAP", "BTCUSDm", "mt5", 2000,
 		CfdMeta{ContractSize: 1, MinLot: 0.01, LotStep: 0.01, TradeMode: 4}, 90000, 0.01)
 	if err != nil || legs[0].Venue != "okx" || legs[1].Venue != "mt5" || inst != "BTCUSDm" {
 		t.Fatalf("cfd 腿构 err=%v inst=%s", err, inst)
@@ -372,10 +372,10 @@ func TestRouterAndCfdLegs(t *testing.T) {
 	if legs[1].Sz == "" {
 		t.Fatal("sz 空")
 	}
-	if _, _, err := BuildCfdLegs("BTC-USDT-SWAP", "", 100, CfdMeta{1, 0.01, 0.01, 4}, 90000, 0.01); err == nil {
+	if _, _, err := BuildCfdLegs("BTC-USDT-SWAP", "", "mt5", 100, CfdMeta{1, 0.01, 0.01, 4}, 90000, 0.01); err == nil {
 		t.Fatal("cfd_map 缺映射应拒")
 	}
-	if _, _, err := BuildCfdLegs("BTC-USDT-SWAP", "BTCUSDm", 0.001, CfdMeta{1, 0.01, 0.01, 4}, 90000, 0.01); err == nil {
+	if _, _, err := BuildCfdLegs("BTC-USDT-SWAP", "BTCUSDm", "mt5", 0.001, CfdMeta{1, 0.01, 0.01, 4}, 90000, 0.01); err == nil {
 		t.Fatal("minLot 起不来应拒")
 	}
 }
@@ -400,7 +400,7 @@ func TestCfdTradeModeGate(t *testing.T) {
 	for tm, label := range map[int32]string{
 		0: "Disabled", 1: "LongOnly", 2: "ShortOnly", 3: "CloseOnly",
 	} {
-		_, _, err := BuildCfdLegs("BTC-USDT-SWAP", "BTCUSDm", 2000,
+		_, _, err := BuildCfdLegs("BTC-USDT-SWAP", "BTCUSDm", "mt5", 2000,
 			CfdMeta{ContractSize: 1, MinLot: 0.01, LotStep: 0.01, TradeMode: tm}, 90000, 0.01)
 		if err == nil {
 			t.Fatalf("TradeMode=%d(%s) 应拒构", tm, label)
@@ -410,7 +410,7 @@ func TestCfdTradeModeGate(t *testing.T) {
 		}
 	}
 	// FullAccess 放行（既有换算锚面复证）
-	if _, _, err := BuildCfdLegs("BTC-USDT-SWAP", "BTCUSDm", 2000,
+	if _, _, err := BuildCfdLegs("BTC-USDT-SWAP", "BTCUSDm", "mt5", 2000,
 		CfdMeta{ContractSize: 1, MinLot: 0.01, LotStep: 0.01, TradeMode: 4}, 90000, 0.01); err != nil {
 		t.Fatalf("FullAccess 应放行: %v", err)
 	}

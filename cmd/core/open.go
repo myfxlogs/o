@@ -32,6 +32,7 @@ type hedgeOpener struct {
 	xdial  mtexec.Dialect                                  // T-0145：方言译件（官名→venue 符号唯一天）
 	xds    *mt5.DialectStore                               // T-0145：方言行仓（ct_val/min_sz/lot_step 基线读）
 	xmeta  execution.MetaLoader                            // T-0145 返修①桩测缝——nil=h.loadMeta 产线形（xvenue e2e 桩绕 venue 活读）
+	xf     *xvenueFleet                                    // O-37449：名册驱动执行三件面（nil=旧三件兼容径——桩测旧形）
 	redeem func(ctx context.Context, usdAmt float64) error // O-CAP1：earn.Worker.RedeemToTrading 同源注入——nil=旧径不变
 }
 

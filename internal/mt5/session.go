@@ -33,15 +33,17 @@ func OpenSession(ctx context.Context, pool *pgxpool.Pool, cfg *config.Client, ve
 	if venue == "" {
 		venue = "mt5"
 	}
-	credNS, err := CredNSFor(ctx, pool, venue)
-	if err != nil {
-		return nil, fmt.Errorf("阶段=roster: %w", err)
-	}
 	// 共享先行——共享行活 token=零新 login 复挂（双腿共享会话 churn 减源；
-	// shared 标置=调用侧遗留 Disconnect 幂等空转不伤共享会话）。
+	// shared 标置=调用侧遗留 Disconnect 幂等空转不伤共享会话）。键=venue
+	// 寻址非 cred_ns——roster 读面缺席（PG-md 桥腿/roster_rw 窄权）不阻
+	// 复挂；cred_ns 仅 ConnectEx 兜底径需要（owner 建会话面）。
 	if cl, err := sharedAttach(ctx, pool, Dial, venue+".session_token"); err == nil {
 		log.Printf("[mt5] OpenSession venue=%s 复挂共享会话（零新 login）", venue)
 		return cl, nil
+	}
+	credNS, err := CredNSFor(ctx, pool, venue)
+	if err != nil {
+		return nil, fmt.Errorf("阶段=roster: %w", err)
 	}
 	addrs, cr, err := endpoints(ctx, pool, cfg, credNS)
 	if err != nil {

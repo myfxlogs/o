@@ -139,7 +139,7 @@ func xvenueLegs(c excell.Cell, t excell.Tier, inst string, mt *mt5sim.Sim) ([2]e
 	}
 	px := pxOf(inst)
 	perpM := execution.InstMeta{CtVal: 0.001, CtValCcy: "USDT", LotSz: 0.001, MinSz: 0.001}
-	return execution.BuildXvenueLegs(c.Direction, inst, canon, t.Notional,
+	return execution.BuildXvenueLegs(c.Direction, inst, canon, "mt5", t.Notional,
 		perpM, execution.CfdMeta{ContractSize: cs, MinLot: minLot,
 			LotStep: lotStep, TradeMode: tradeMode}, px, px)
 }
