@@ -137,9 +137,14 @@ review_ok() { # $1=br名 $2=tip全sha → rc0=复审过行在且写行席≠完�
 	# 诊断票/会话叙事不再误充作者回执（#38132/#38135/#38213 实证洞：
 	# 票文引契词+支名曾把 aseat 夺去唤知/处置席=分席证明失真）；
 	# ORDER BY id ASC=回执语义取首次报工——后续余瑕/补行不改写作者面。
+	# O-38751 容错兜：外派径施工席常把交付记作处置事件+行首「O-票 …@sha」
+	# 取证形（#38590/#38618 实证——契词发在会话叙事而落账行取取证形，
+	# rc3 aseat 不可证致 landq_starved 永滞）；行首锚「O-\d+ …@hex{9,40}」
+	# =交付宣告形非引述形，同格认——容错不松宣告位纪律。
 	aseat=$(q "SELECT seat FROM ops_event
 		WHERE ((event ~ '完工|候审|施工收口|工单完工|回执'
-			OR note ~ '^.{0,40}(完工回执|完工推支候审|候审回执|施工收口)')
+			OR note ~ '^.{0,40}(完工回执|完工推支候审|候审回执|施工收口)'
+			OR (event='处置' AND note ~ '^O-[0-9]+[^@]*@[0-9a-f]{9,40}'))
 			AND note !~ '^复审过[[:space:]]*sha=' AND seat NOT IN ('复审席','落地件')
 			AND (note ~ ('$bre' || '([@[:space:]=]|\$)') OR note ~ '${tip:0:9}'))
 		ORDER BY id ASC LIMIT 1")
@@ -428,7 +433,8 @@ if (cd "$REPO" && bash -c "$PUSH_CMD origin $FINAL:master" >/dev/null 2>&1); the
 			WHERE d.closed IS NOT TRUE AND d.susp_until IS NULL AND d.rulable IS NOT TRUE
 			  AND EXISTS (SELECT 1 FROM ops_event r
 			    WHERE ((r.event ~ '完工|候审|施工收口|工单完工|回执'
-			      OR r.note ~ '^.{0,40}(完工回执|完工推支候审|候审回执|施工收口)')
+			      OR r.note ~ '^.{0,40}(完工回执|完工推支候审|候审回执|施工收口)'
+			      OR (r.event='处置' AND r.note ~ '^O-[0-9]+[^@]*@[0-9a-f]{9,40}'))
 			      AND r.note !~ '^复审过[[:space:]]*sha=' AND r.seat NOT IN ('复审席','落地件')
 			      AND (r.note ~ ('O-'||n.tid||'([^0-9]|$)') OR r.note ~ ('工单#'||n.tid||'([^0-9]|$)')
 			        OR r.ticket ~ ('^(O-|工单#)?'||n.tid||'$')))")
