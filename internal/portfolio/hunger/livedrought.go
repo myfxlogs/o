@@ -21,6 +21,7 @@ package hunger
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -164,15 +165,79 @@ func (s *Sensor) liveDroughtCard(ctx context.Context, ageText string) (string, e
 		&openPos, &inFlight); err != nil {
 		return "", fmt.Errorf("在办面读败: %w", err)
 	}
+	park, err := s.parkBaseline(ctx)
+	if err != nil {
+		return "", err
+	}
 	swTxt := "off"
 	if liveSw {
 		swTxt = "on"
 	}
 	return fmt.Sprintf(
-		"live在册=0 持续=%s|eval7d=提案%d/拒%d|拒因top=%s|paper=%d probe=%d(最陈%.1fh)|漏斗30d=paper→probe%d/probe→live%d/probe→退%d|退役因top=%s|live_switch=%s|断点推定=%s|责任=钱径管理面(lifecycle/DM)|在办=提案在途%d/仓位open%d",
+		"live在册=0 持续=%s|eval7d=提案%d/拒%d|拒因top=%s|paper=%d probe=%d(最陈%.1fh)|漏斗30d=paper→probe%d/probe→live%d/probe→退%d|退役因top=%s|live_switch=%s|%s|断点推定=%s|责任=钱径管理面(lifecycle/DM)|在办=提案在途%d/仓位open%d",
 		ageText, prop, rej, reasons, paper, probe, probeMaxH,
-		p2p, p2l, pDead, deadTop, swTxt,
+		p2p, p2l, pDead, deadTop, swTxt, park,
 		liveDroughtPoint(liveSw, prop, rej, paper, probe), inFlight, openPos), nil
+}
+
+// parkBaseline 停泊基线段（O-36962——业主令「钱闲着」须载机会成本参照：
+// 钱停泊≠闲着）。数据源=fin_park_baseline 视图（fin_0245——Earn 在停
+// 本金+近30d实收息率+DCD在仓单读面）；annualized.park_yield_source 键
+// 载读面标识、annualized.risk_premium 载机会成本溢价（判据卡在册数
+// 0.04——纪元2产线档建议≥4%）。读败/本金缺席=「停泊基线缺」fail-closed
+// 不误写 0（判词层不得按零载——spec 验收桩测钉死）。
+func (s *Sensor) parkBaseline(ctx context.Context) (string, error) {
+	var principal, apy, dcdUsdt *float64
+	var dcdLegs *int64
+	var interest30d *float64
+	var snapTs, intLastTs *time.Time
+	err := s.pool.QueryRow(ctx,
+		`SELECT earn_principal::float8, earn_apy::float8, interest_30d::float8,
+			interest_last_ts, earn_snap_ts, dcd_legs::int, dcd_usdt::float8
+		 FROM fin_park_baseline`).
+		Scan(&principal, &apy, &interest30d, &intLastTs, &snapTs, &dcdLegs, &dcdUsdt)
+	if err != nil {
+		// spec 验收钉死：停泊收益读败=判词载「停泊基线缺」不误写 0——
+		// 读败不炸整卡（上游各段读败自有上抛位，本段降级为缺段如实载，
+		// 败因截短入段保诊断锚）。
+		msg := err.Error()
+		if len(msg) > 80 {
+			msg = msg[:80]
+		}
+		return "停泊基线缺(fin_park_baseline读败:" + msg + ")", nil
+	}
+	if principal == nil {
+		return "停泊基线缺(earn_parking快照缺席)", nil
+	}
+	premium := 0.04 // 缺省=判据卡在册建议值；键在册时以 app_config 为准
+	if v, err := s.cfg.GetFloat("annualized.risk_premium"); err == nil && v >= 0 {
+		premium = v
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "停泊=Earn %.2fUSDT@", *principal)
+	if apy != nil {
+		fmt.Fprintf(&b, "%.2f%%/yr(实收30d息%.2f)", *apy*100, deref(interest30d))
+	} else {
+		b.WriteString("收益率缺(息流零记录)")
+	}
+	if dcdLegs != nil && *dcdLegs > 0 {
+		fmt.Fprintf(&b, "+DCD %d笔/%.0fUSDT", *dcdLegs, deref(dcdUsdt))
+	}
+	if intLastTs != nil {
+		fmt.Fprintf(&b, "|息流末=%s", intLastTs.UTC().Format("01-02"))
+	}
+	if apy != nil {
+		fmt.Fprintf(&b, "|机会成本=候选net_apr≥停泊%.2f%%+溢价%.2f%%=%.2f%%/yr",
+			*apy*100, premium*100, (*apy+premium)*100)
+	}
+	return b.String(), nil
+}
+
+func deref(f *float64) float64 {
+	if f == nil {
+		return 0
+	}
+	return *f
 }
 
 // liveDroughtPoint 断点推定（阈内派生——顺序=闸门自上而下，先中先出）：
