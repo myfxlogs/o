@@ -115,10 +115,30 @@ func TestProbeKlineStaleCloseMissing(t *testing.T) {
 	}
 }
 
+// O-38640 回归锚：收线语义停摆+收帧被形成中帧触碰——recv_ts 鲜
+// （写入触碰）而确认棒收线已陈>30h——旧闸（量 recv_ts）恒静默,
+// 新闸（量收线时刻=bar ts+24h）必须升件。
+func TestProbeKlineStaleCloseWriteTouchMasked(t *testing.T) {
+	s, pool := klineFixture(t)
+	ctx := context.Background()
+	// 确认棒开点 56h 前→收线=32h 前>30h 阈=收线语义死;
+	// recv_ts 3min 前仍被 upsert 触碰=写入面活性假象。
+	seedKline(t, pool, "BTC-USDT-SWAP", 56, 0.05, true)
+	if err := s.ProbeKlineStale(ctx); err != nil {
+		t.Fatalf("probe: %v", err)
+	}
+	if n := klineEsc(t, pool, "KLINE-DAILY-RECV"); n != 0 {
+		t.Fatalf("收帧鲜 RECV 不应升件, got %d", n)
+	}
+	if n := klineEsc(t, pool, "KLINE-DAILY-CLOSE"); n != 1 {
+		t.Fatalf("收线陈（写触碰掩盖）CLOSE 应升件, got %d", n)
+	}
+}
+
 func TestProbeKlineStaleCloseFreshQuiet(t *testing.T) {
 	s, pool := klineFixture(t)
 	ctx := context.Background()
-	// 到期 bar+收线行鲜(recv 2h<30h)——静默。
+	// 到期 bar+确认棒收线鲜（开点 26h→收线 2h 前<30h）——静默。
 	seedKline(t, pool, "BTC-USDT-SWAP", 30, 0.02, false)
 	seedKline(t, pool, "ETH-USDT-SWAP", 26, 2, true)
 	if err := s.ProbeKlineStale(ctx); err != nil {

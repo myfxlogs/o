@@ -284,12 +284,16 @@ func (r *Runner) scan(ctx context.Context) error {
 	}); err != nil {
 		return err
 	}
-	// O-38593 拍摘要：死寂臂不可再生——宇宙/拒词分布/判词分布每拍一行
-	// （史病灶=全陈棒静默零产出三天零日志；rejects.Door 纯内存计数无
-	// 持久面，摘要行=唯一可观测出口）。
+	// O-38593 拍摘要：死寂臂不可再生（rejects.Door 纯内存无持久面，
+	// 摘要行=唯一可观测出口）；O-38640 产出语义：卡>0=OK／宇宙空=
+	// Quiet 合理零产出／宇宙在零卡=不调让位 2×beat 告警。
 	nProp, nZWeak, nNetThin := verdictDist(cards)
 	log.Printf("[research/dirmom] 拍摘要 venue=%s 宇宙=%d符｜薄棒=%d 陈棒=%d 零波动=%d｜卡=%d proposed=%d rejected(z弱=%d 净薄=%d)",
 		r.venue, len(insts), nThin, nStale, nFlat, len(cards), nProp, nZWeak, nNetThin)
-	r.watch.OK() // 评估拍完成=产出（恢复清标）
+	if len(cards) > 0 {
+		r.watch.OK()
+	} else if len(insts) == 0 {
+		r.watch.Quiet()
+	}
 	return nil
 }

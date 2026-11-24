@@ -97,6 +97,7 @@ internal/portfolio/lifecycle -> internal/portfolio/hunger
 internal/portfolio/lifecycle -> internal/research/funding
 internal/portfolio/lifecycle -> internal/research/grammar
 internal/repair -> internal/platform/config
+internal/repair -> internal/platform/selfprobe
 internal/review -> internal/platform/config
 internal/review -> internal/platform/rejects
 internal/review -> internal/platform/roster

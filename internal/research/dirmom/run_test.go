@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"o/internal/platform/config"
+	"o/internal/platform/notify"
 	"o/internal/platform/testutil"
 	"o/internal/store/pgstore"
 )
@@ -165,5 +166,86 @@ func TestScanE2EMt5Venue(t *testing.T) {
 	}
 	if legs != `["cfd_long"]` {
 		t.Fatalf("mt5 腿原语=%v 期 cfd_long（legName venue 分派锚）", legs)
+	}
+}
+
+// O-38640 回归锚：宇宙非空+全陈棒→零判词卡→watch 不落 OK→
+// 2×beat 静默告警（旧语义拍返回即 OK=永不告警=mt5_dir_mom
+// 史零产出病灶形）；对照：宇宙空=合理零产出 Quiet 不误报。
+type capSender struct{ sent []string }
+
+func (f *capSender) SendText(_ context.Context, _, text string) (string, error) {
+	f.sent = append(f.sent, text)
+	return "m1", nil
+}
+
+func silentWatchAl() (*notify.Alerter, *capSender) {
+	fs := &capSender{}
+	return notify.NewAlerter(fs, func() string { return "c1" }, func() bool { return true }), fs
+}
+
+func TestScanStaleUniverseSilent(t *testing.T) {
+	pool := testutil.Pool(t)
+	ctx := context.Background()
+	migrateBoth(t, ctx, pool)
+	seedCfg(t, ctx, pool)
+	inst := "TESTSTALE-USDT-SWAP"
+	seedKlines(t, ctx, pool, inst, 21, 0.015, 0.010)
+	// 全棒陈化 10d——staleBars 界外=零卡（宇宙仍在非空）。
+	if _, err := pool.Exec(ctx,
+		`UPDATE md_klines SET ts=ts-interval '10 days' WHERE inst_id=$1`, inst); err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.New(pool)
+	if err := cfg.Load(ctx); err != nil {
+		t.Fatal(err)
+	}
+	al, fs := silentWatchAl()
+	r := NewRunner(pool, cfg).AttachAlerter(al)
+	fakeNow := time.Now()
+	r.watch.SetNow(func() time.Time { return fakeNow })
+	if err := r.ScanOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var evalN int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM fin_opp_eval WHERE inst_id=$1`, inst).Scan(&evalN); err != nil {
+		t.Fatal(err)
+	}
+	if evalN != 0 {
+		t.Fatalf("陈棒宇宙不应产判词卡, got %d", evalN)
+	}
+	fakeNow = fakeNow.Add(49 * time.Hour) // >2×24h beat
+	r.watch.Check(ctx)
+	if len(fs.sent) != 1 {
+		t.Fatalf("宇宙在零卡超 2×beat 应告警恰一次: %v", fs.sent)
+	}
+}
+
+func TestScanEmptyUniverseQuiet(t *testing.T) {
+	pool := testutil.Pool(t)
+	ctx := context.Background()
+	migrateBoth(t, ctx, pool)
+	seedCfg(t, ctx, pool)
+	cfg := config.New(pool)
+	if err := cfg.Load(ctx); err != nil {
+		t.Fatal(err)
+	}
+	// instLike 失配=宇宙空——Quiet 落活性不告警。
+	al, fs := silentWatchAl()
+	r := NewRunnerVenue(pool, cfg, "okx", "NOSUCHINST%", Template, "方向评估").AttachAlerter(al)
+	fakeNow := time.Now()
+	r.watch.SetNow(func() time.Time { return fakeNow })
+	if err := r.ScanOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	// 宇宙空 Quiet 每拍续锚——23h 后再拍（<2×beat 窗内）不告警。
+	fakeNow = fakeNow.Add(23 * time.Hour)
+	if err := r.ScanOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	fakeNow = fakeNow.Add(23 * time.Hour)
+	r.watch.Check(ctx)
+	if len(fs.sent) != 0 {
+		t.Fatalf("宇宙空合理零产出不应告警——误报: %v", fs.sent)
 	}
 }
