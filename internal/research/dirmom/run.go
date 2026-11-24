@@ -280,6 +280,13 @@ func (r *Runner) scan(ctx context.Context) error {
 	}); err != nil {
 		return err
 	}
-	r.watch.OK() // 评估拍完成=产出（恢复清标）
+	// O-38640 产出语义：判词卡>0=实质产出 OK；宇宙空=合理零产出
+	// Quiet；宇宙在零卡（陈棒/薄棒/零波动全滤）=病灶窗不调——
+	// 静默计时让位 2×beat 告警（mt5_dir_mom 史零产出实证）。
+	if len(cards) > 0 {
+		r.watch.OK()
+	} else if len(insts) == 0 {
+		r.watch.Quiet()
+	}
 	return nil
 }

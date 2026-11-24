@@ -199,7 +199,11 @@ func (r *Runner) scan(ctx context.Context) error {
 	}); err != nil {
 		return err
 	}
-	r.watch.OK() // 评估拍完成=产出（恢复清标）
+	// O-38640 产出语义：评估卡>0=实质产出 OK；宇宙空（batch=0）
+	// 不调——funding 宇宙常非空，零评估=上游面病灶窗让位告警。
+	if len(batch) > 0 {
+		r.watch.OK()
+	}
 	return nil
 }
 

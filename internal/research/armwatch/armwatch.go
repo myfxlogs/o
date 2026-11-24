@@ -47,12 +47,21 @@ func (w *Watch) AttachAlerter(a *notify.Alerter) { w.al = a }
 // SetBeat 节拍窗基准（臂读热启键后注入）。
 func (w *Watch) SetBeat(d time.Duration) { w.beat = d }
 
-// OK 成功产出拍（拍内实质产出落位后调——读败让位拍不调）。
+// OK 成功产出拍（本拍实质产出落位后调——判词卡/落账行>0；
+// 读败让位拍不调）。O-38640 语义升档：拍返回≠产出——宇宙在而
+// 零卡=病灶窗不归 OK 管。
 func (w *Watch) OK() {
 	w.mu.Lock()
 	w.lastOK = w.clock()
 	w.silent = false // 恢复产出清标（再静默可再报）
 	w.mu.Unlock()
+}
+
+// Quiet 合理零产出拍（O-38640——宇宙空/队列空等设计态零产出：
+// 活性照记=不误报，但语义与 OK 分账——「拍成」与「产出」两词
+// 从此不混）。
+func (w *Watch) Quiet() {
+	w.OK()
 }
 
 // Check 静默判定（臂每拍首调）：首拍前不判（启动窗）；超 2×beat 零 OK=告警

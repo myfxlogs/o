@@ -176,6 +176,7 @@ func (r *Runner) scan(ctx context.Context) error {
 		gs = append(gs, g)
 	}
 	rows.Close()
+	drafted := 0
 	for _, g := range gs {
 		family, _ := g.meta["family"].(string)
 		if !families[family] {
@@ -200,8 +201,16 @@ func (r *Runner) scan(ctx context.Context) error {
 		}
 		log.Printf("[research/hypo] 假想卡 #%d 立卡 %s/%s（family=%s——待决策席审，零执行权）",
 			cardID, g.venue, g.surface, family)
+		drafted++
 	}
-	r.watch.OK() // 消费拍完成=产出（卡零立=无 pending 静默属正常）
+	// O-38640 产出语义：假想卡落地=实质产出 OK；pending 队列空
+	// =事件驱动臂设计态零产出 Quiet；队列在而零立卡（全跳判据
+	// 或起草面病灶）=不调——静默计时让位 2×beat 告警。
+	if drafted > 0 {
+		r.watch.OK()
+	} else if len(gs) == 0 {
+		r.watch.Quiet()
+	}
 	return nil
 }
 
