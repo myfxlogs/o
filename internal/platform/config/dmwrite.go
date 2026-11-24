@@ -100,6 +100,8 @@ var ownerKeyGlobs = []string{
 	"repair.feeds",          // 采集臂修复注册表（基建自愈面——白名单在码面）
 	"repair.guard",          // 修复环闸参数（配额闸防风暴）
 	"ops.unit_registry",     // 建制单元注册表（工单#26444——基建审计轨面）
+	"ops.cron_manifest",     // 器官产出账名单（O-38640——宿主 cron/systemd 巡检面）
+	"ops.organ_max_age_h",   // 器官陈龄阈小时（O-38640——同族阈键）
 	"okxgrid.live_switch",   // venue原生bot真钱拉起首闸（工单#25840——手动期业主令显式放，fail-closed）
 }
 

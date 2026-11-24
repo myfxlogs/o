@@ -61,6 +61,9 @@ func main() {
 		}
 	}()
 	go repair.Watch(ctx, mdPool, cfg)
+	// OCI 宿主感知哨（O-38640）：md_klines venue='mt5' 收帧/收线双面
+	// +器官产出账（ops.cron_manifest 驱动）——只报不修升件径。
+	go repair.New(mdPool, sgPool, cfg).Run(ctx)
 	tick := time.NewTicker(24 * time.Hour) // sched-exempt-ok：日拍清道（保留账巡面非业务轮询——同 cmd/core/retention.go 豁免形）
 	defer tick.Stop()
 	errc := make(chan error, 4)
