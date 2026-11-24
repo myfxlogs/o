@@ -19,35 +19,84 @@ func (s *feedPush) narrativeBlocks(ctx context.Context, rows []feedRow, wm int64
 	// ── Phase A：库查补解（feed 剔集闭标）+超时兜底+闭段 GC ──
 	// 两遍制：先全量分类定生死（liveRanges=仍占行段/closedNow=本轮新闭段），
 	// 再渲染——他窗段 others 须含本轮全部判定结果才不漏嵌套窗归属。
+	// O-37510①：剔集闭段闭标延至水位实证（st.Pending）——SendText 败=窗保开
+	// 下拍重发叙事，非发前即闭+成员行被抑的整段静默（原径窗内容凭空消失）。
 	type paItem struct {
 		b         feedBracket
 		cid       int64
 		feedClose bool
+		emit      int64 // >0=本拍出叙事块的闭标行 id（新决闭/发败重发）
+		timeout   bool  // 超时兜底逐行退
 	}
 	items := make([]paItem, 0, len(st.Open))
 	for _, b := range st.Open {
 		cid, fc := s.narrDBCloseID(ctx, b.Unit, b.OpenID)
-		items = append(items, paItem{b, cid, fc})
+		items = append(items, paItem{b: b, cid: cid, feedClose: fc})
+	}
+	pendOf := map[int64]feedPendingClose{}
+	for _, p := range st.Pending {
+		pendOf[p.OpenID] = p
+	}
+	batchHi := int64(0) // 本批行 id 上界=送成后水位——pending 实证锚
+	if len(rows) > 0 {
+		batchHi = rows[len(rows)-1].id
 	}
 	var kept []feedBracket
 	var liveRanges, closedNow []narrRange
+	var pendNext []feedPendingClose
+	matched := map[int64]bool{}
 	cidOf := map[string]int64{} // unit→已知闭行（feedClose 待解窗——Phase B others 界）
-	for _, it := range items {
+	for i := range items {
+		it := &items[i]
+		p, hasP := pendOf[it.b.OpenID]
 		switch {
+		case hasP && wm >= p.BatchHi:
+			// 上批载叙事段水位实证=SendText 成——闭段转正（不重发）
+			matched[it.b.OpenID] = true
+			st.Closed = append(st.Closed, feedClosedRange{Unit: p.Unit, OpenID: p.OpenID, CloseID: p.CloseID})
+			closedNow = append(closedNow, narrRange{p.OpenID, p.CloseID})
+		case hasP:
+			// 发败未实证——窗保开重发叙事，pending 刷新本批界待下证
+			matched[it.b.OpenID] = true
+			it.emit = p.CloseID
+			kept = append(kept, it.b)
+			liveRanges = append(liveRanges, narrRange{it.b.OpenID, p.CloseID})
+			cidOf[it.b.Unit] = p.CloseID
+			pendNext = append(pendNext, feedPendingClose{Unit: p.Unit, OpenID: p.OpenID, CloseID: p.CloseID, BatchHi: batchHi})
 		case it.cid > 0 && !it.feedClose:
-			closedNow = append(closedNow, narrRange{it.b.OpenID, it.cid})
+			// 新决剔集闭段——出叙事块+登记待实证；窗暂留 Open（成员行续抑），
+			// 水位实证后转正 Closed
+			it.emit = it.cid
+			kept = append(kept, it.b)
+			liveRanges = append(liveRanges, narrRange{it.b.OpenID, it.cid})
+			cidOf[it.b.Unit] = it.cid
+			pendNext = append(pendNext, feedPendingClose{Unit: it.b.Unit, OpenID: it.b.OpenID, CloseID: it.cid, BatchHi: batchHi})
 		case it.cid > 0:
 			kept = append(kept, it.b) // 首闭=会话收口 feed 可见——留 Phase B 行序解
 			// （闭标已在库界定窗界 hi=cid——行到即叙事，龄再长不走超时）
 			liveRanges = append(liveRanges, narrRange{it.b.OpenID, it.cid})
 			cidOf[it.b.Unit] = it.cid
 		case time.Since(it.b.OpenTS) > feedNarrTimeout:
+			it.timeout = true
 			closedNow = append(closedNow, narrRange{it.b.OpenID, wm}) // 兜底段界=已耗水位
 		default:
 			kept = append(kept, it.b)
 			liveRanges = append(liveRanges, narrRange{it.b.OpenID, 0})
 		}
 	}
+	// pending 孤儿（窗态外——理论不可达，存了就结：实证转正/未证续等）
+	for _, p := range st.Pending {
+		if matched[p.OpenID] {
+			continue
+		}
+		if wm >= p.BatchHi {
+			st.Closed = append(st.Closed, feedClosedRange{Unit: p.Unit, OpenID: p.OpenID, CloseID: p.CloseID})
+			closedNow = append(closedNow, narrRange{p.OpenID, p.CloseID})
+		} else {
+			pendNext = append(pendNext, p)
+		}
+	}
+	st.Pending = pendNext
 	st.Open = kept
 	// 闭段 GC——closeID≤wm=段内行全消费，戒区使命完成
 	cl := st.Closed[:0]
@@ -78,16 +127,16 @@ func (s *feedPush) narrativeBlocks(ctx context.Context, rows []feedRow, wm int64
 		return append(rs, persistClosed...)
 	}
 	// 渲染段——分类已定，逐件出块/兜底
-	for _, it := range items {
+	for i := range items {
+		it := &items[i]
 		switch {
-		case it.cid > 0 && !it.feedClose:
-			txt, err := s.narrText(ctx, it.b, it.cid, othersOf(it.b))
+		case it.emit > 0:
+			txt, err := s.narrText(ctx, it.b, it.emit, othersOf(it.b))
 			if err != nil {
 				return nil, err
 			}
-			blocks = append(blocks, feedNarrBlock{key: it.cid, text: txt})
-			st.Closed = append(st.Closed, feedClosedRange{Unit: it.b.Unit, OpenID: it.b.OpenID, CloseID: it.cid})
-		case it.cid == 0 && time.Since(it.b.OpenTS) > feedNarrTimeout:
+			blocks = append(blocks, feedNarrBlock{key: it.emit, text: txt})
+		case it.timeout:
 			// 超时兜底——窗内已抑行按逐行退不丢行（id≤wm 段；>wm 段本批
 			// 行序自然逐行——窗已除不再抑）
 			members, err := s.narrBracketRows(ctx, it.b, 0, wm, othersOf(it.b))
@@ -133,6 +182,9 @@ func (s *feedPush) narrativeBlocks(ctx context.Context, rows []feedRow, wm int64
 			if u != "" && u != b.Unit {
 				continue // 异 unit 标行归他窗
 			}
+			if hi := cidOf[b.Unit]; hi > 0 && r.id > hi {
+				continue // 已决闭标界外行不归本窗（O-37510——界外成员不吞逐行）
+			}
 			if best == nil || b.OpenID > best.OpenID { // 无标行归最近开窗（内层）
 				best = b
 			}
@@ -161,8 +213,9 @@ func (s *feedPush) narrativeBlocks(ctx context.Context, rows []feedRow, wm int64
 		switch {
 		case inClosed(r):
 			continue // 闭段窗员——叙事已含不二泄
-		case r.event == "会话收口" && u != "" && openNow[u] != nil:
-			// 会话收口闭合——行位解叙事（闭标行本身入窗员集）
+		case r.event == "会话收口" && u != "" && openNow[u] != nil && (cidOf[u] == 0 || r.id <= cidOf[u]):
+			// 会话收口闭合——行位解叙事（闭标行本身入窗员集）；cidOf[u]>0
+			// 且本行在界外=前序闭标（唤起果/败 pending）已决——不重闭（O-37510）
 			b := *openNow[u]
 			txt, err := s.narrTextRows(ctx, b, r, othersB(b))
 			if err != nil {

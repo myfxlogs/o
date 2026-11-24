@@ -61,10 +61,22 @@ type feedClosedRange struct {
 	CloseID int64  `json:"c"`
 }
 
+// feedPendingClose 剔集闭段待实证（O-37510①）——叙事块已产待水位实证：
+// SendText 败=窗保开下拍重发叙事，非发前即闭+成员行被抑的整段静默。
+// BatchHi=载叙事批行 id 上界——wm≥BatchHi=该批送成实证（闭标行 feed
+// 剔集不入水位域，实证锚取批界非闭标 id）。
+type feedPendingClose struct {
+	Unit    string `json:"u"`
+	OpenID  int64  `json:"o"`
+	CloseID int64  `json:"c"`
+	BatchHi int64  `json:"h"`
+}
+
 // feedNarrState 窗态持久件（fin_push_ledger msg_id JSON）。
 type feedNarrState struct {
-	Open   []feedBracket     `json:"o,omitempty"`
-	Closed []feedClosedRange `json:"c,omitempty"`
+	Open    []feedBracket      `json:"o,omitempty"`
+	Closed  []feedClosedRange  `json:"c,omitempty"`
+	Pending []feedPendingClose `json:"p,omitempty"`
 }
 
 // narrativeOn 叙事模式闸——feed.narrative_mode 默认开（业主消费面钦定默认态；

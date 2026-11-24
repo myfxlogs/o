@@ -128,7 +128,9 @@ func feedNarrCompose(unit string, open, close feedRow, members []feedRow) string
 		}
 	}
 
-	joinIDs := func(prefix string, ids []int64, cap int) string {
+	// O-37510②：工单引用一律 O-<id> 票面（票号=ops_event id 域别名，
+	// 「#N」是事件行簿记位口径——混用=口径混源）；升件#N=esc 异域保 #。
+	joinIDs := func(prefix, tag string, ids []int64, cap int) string {
 		if len(ids) == 0 {
 			return ""
 		}
@@ -138,7 +140,7 @@ func feedNarrCompose(unit string, open, close feedRow, members []feedRow) string
 		}
 		var parts []string
 		for _, id := range ids[:n] {
-			parts = append(parts, "#"+strconv.FormatInt(id, 10))
+			parts = append(parts, tag+strconv.FormatInt(id, 10))
 		}
 		s := prefix + " " + strings.Join(parts, "、")
 		if len(ids) > cap {
@@ -147,10 +149,10 @@ func feedNarrCompose(unit string, open, close feedRow, members []feedRow) string
 		return s
 	}
 	var acts []string
-	if s := joinIDs("领了工单", claimIDs, 2); s != "" {
+	if s := joinIDs("领了工单", "O-", claimIDs, 2); s != "" {
 		acts = append(acts, s)
 	}
-	if s := joinIDs("立了工单", filedIDs, 2); s != "" {
+	if s := joinIDs("立了工单", "O-", filedIDs, 2); s != "" {
 		acts = append(acts, s)
 	}
 	if len(reviews) == 1 {
@@ -163,10 +165,10 @@ func feedNarrCompose(unit string, open, close feedRow, members []feedRow) string
 	} else if len(dones) > 1 {
 		acts = append(acts, fmt.Sprintf("%d件完工", len(dones)))
 	}
-	if s := joinIDs("处理了报警", escIDs, 3); s != "" {
+	if s := joinIDs("处理了报警", "#", escIDs, 3); s != "" {
 		acts = append(acts, s)
 	}
-	if s := joinIDs("结了工单", tickIDs, 2); s != "" {
+	if s := joinIDs("结了工单", "O-", tickIDs, 2); s != "" {
 		acts = append(acts, s)
 	}
 	if misc > 0 {
