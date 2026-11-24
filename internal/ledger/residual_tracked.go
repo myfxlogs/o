@@ -28,9 +28,12 @@ const breachDedupHours = 24
 // breachBandFloor 破带下限——锚小额族跟踪噪声不触发（$25 钦定底）。
 const breachBandFloor = 25.0
 
-// exemptPart 豁免逐行明细（diff_brief 成分段+破带升件证据载体）。
+// exemptPart 豁免逐行明细（diff_brief 成分段+破带升件证据载体；
+// O-36964：ID/Reason 供白话段静态行命名——机读段不消费新增字段）。
 type exemptPart struct {
+	ID       int64   // fin_known_residual 行 id（静态行白话名锚）
 	Resolver string  // resolver 键原文（静态行=""）
+	Reason   string  // 定性散文原文（静态行白话名料——截段消毒用）
 	Anchor   float64 // amount_usd 列=锚值（静态行=豁免额本身）
 	Raw      float64 // 解析现算值（静态/回退行=锚值镜像）
 	Value    float64 // 实际计入豁免的额（破带=0）
@@ -61,7 +64,7 @@ var residualResolvers = map[string]residResolver{
 // 返回 (总豁免额, 逐行明细, err)。err=行集读败——调用方让位判例同前。
 func (r *Runner) trackedExempt(ctx context.Context,
 	venue, ccy string) (float64, []exemptPart, error) {
-	rows, err := r.pool.Query(ctx, `SELECT id, amount_usd, coalesce(resolver,'')
+	rows, err := r.pool.Query(ctx, `SELECT id, amount_usd, coalesce(resolver,''), reason
 		FROM fin_known_residual WHERE venue=$1 AND ccy=$2 AND expires_at>now()
 		ORDER BY id`, venue, ccy)
 	if err != nil {
@@ -73,14 +76,14 @@ func (r *Runner) trackedExempt(ctx context.Context,
 	for rows.Next() {
 		var id int64
 		var anchor float64
-		var res string
-		if err := rows.Scan(&id, &anchor, &res); err != nil {
+		var res, reason string
+		if err := rows.Scan(&id, &anchor, &res, &reason); err != nil {
 			return 0, nil, err
 		}
 		if res == "" {
 			total += anchor
-			parts = append(parts, exemptPart{Anchor: anchor, Raw: anchor,
-				Value: anchor, Mode: "static"})
+			parts = append(parts, exemptPart{ID: id, Reason: reason,
+				Anchor: anchor, Raw: anchor, Value: anchor, Mode: "static"})
 			continue
 		}
 		segs := strings.Split(res, ":")
@@ -93,20 +96,20 @@ func (r *Runner) trackedExempt(ctx context.Context,
 		if !ok || rerr != nil {
 			// 未注册/读败→回退静态锚（fail-closed——未知不放大不缩小）。
 			total += anchor
-			parts = append(parts, exemptPart{Resolver: res, Anchor: anchor,
-				Raw: anchor, Value: anchor, Mode: "fallback"})
+			parts = append(parts, exemptPart{ID: id, Resolver: res, Reason: reason,
+				Anchor: anchor, Raw: anchor, Value: anchor, Mode: "fallback"})
 			continue
 		}
 		// 诚实护栏：跟踪值越锚带→不按构性续（贡献 0）+新族异常升件。
 		if math.Abs(tracked-anchor) > math.Max(2*anchor, breachBandFloor) {
 			breachEscalate(ctx, r.pool, venue, ccy, res, tracked, anchor)
-			parts = append(parts, exemptPart{Resolver: res, Anchor: anchor,
-				Raw: tracked, Value: 0, Mode: "breach"})
+			parts = append(parts, exemptPart{ID: id, Resolver: res, Reason: reason,
+				Anchor: anchor, Raw: tracked, Value: 0, Mode: "breach"})
 			continue
 		}
 		total += tracked
-		parts = append(parts, exemptPart{Resolver: res, Anchor: anchor,
-			Raw: tracked, Value: tracked, Mode: "tracked"})
+		parts = append(parts, exemptPart{ID: id, Resolver: res, Reason: reason,
+			Anchor: anchor, Raw: tracked, Value: tracked, Mode: "tracked"})
 	}
 	return total, parts, rows.Err()
 }

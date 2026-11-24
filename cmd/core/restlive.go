@@ -28,14 +28,18 @@ var restOKAt atomic.Int64
 // Earn 利息尘/腿基币渗漏=托管不入 venue 侧键）；usd=true=非 USDT 按 md_ticks
 // 估值归一（权益求和径），false=原币量（对拍 ledger 侧按币量建键径）。
 func fundSaveBalances(ctx context.Context, pool *pgxpool.Pool, okcli *okxexec.Client,
-	out map[[2]string]float64, usd bool) error {
+	out map[[2]string]float64, usd bool, parts ledger.VenueParts) error {
 	set, err := ledger.FundCcy(ctx, pool)
 	if err != nil {
 		return err
 	}
-	emit := func(ccy string, amt float64) {
+	emit := func(ccy string, amt float64, bucket string) {
 		if amt == 0 {
 			return
+		}
+		if parts != nil {
+			k := [2]string{"okx", ccy}
+			parts[k] = append(parts[k], ledger.BalPart{Name: bucket, Amount: amt})
 		}
 		if !usd {
 			// O-34287 验收②：对拍径=venue 真值全币发射（原生币各域——
@@ -58,7 +62,7 @@ func fundSaveBalances(ctx context.Context, pool *pgxpool.Pool, okcli *okxexec.Cl
 		return fmt.Errorf("funding 读败: %w", err)
 	}
 	for _, b := range bals {
-		emit(b.Ccy, okxexec.ParseF(b.Bal))
+		emit(b.Ccy, okxexec.ParseF(b.Bal), "funding")
 	}
 	sav, err := okcli.SavingsBalance(ctx)
 	if err != nil {
@@ -72,7 +76,7 @@ func fundSaveBalances(ctx context.Context, pool *pgxpool.Pool, okcli *okxexec.Cl
 		return fmt.Errorf("savings parse")
 	}
 	for _, r2 := range rows {
-		emit(r2.Ccy, okxexec.ParseF(r2.Amt))
+		emit(r2.Ccy, okxexec.ParseF(r2.Amt), "earn")
 	}
 	// T-0101：dcd 在持产品单无条件入键（venue LIVE 单=已部署资本铁证——
 	// 不走 FundCcy 闸：未基线的新购仓 venue 侧照发，基线缺席由对拍面兜差）；
@@ -98,6 +102,10 @@ func fundSaveBalances(ctx context.Context, pool *pgxpool.Pool, okcli *okxexec.Cl
 		}
 		if amt == 0 {
 			return
+		}
+		if parts != nil {
+			k := [2]string{"okx", ccy}
+			parts[k] = append(parts[k], ledger.BalPart{Name: "dcd", Amount: amt})
 		}
 		if usd && ccy != "USDT" && ccy != "USD" {
 			amt = valCcy(ctx, pool, ccy, amt)

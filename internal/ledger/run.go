@@ -24,7 +24,9 @@ type Runner struct {
 	mtm func(ctx context.Context) (map[[2]string]float64, error)
 	// bal venue 侧余额现读件（T-0048：对账=检查时点 balances+savings 直连——
 	// (venue,ccy)→equity 实读聚合；nil=对账件缺席跳过不炸）。
-	bal func(ctx context.Context) (map[[2]string]float64, error)
+	// O-36964：同读面附分量集（VenueParts——人话段「App实存分量相加」
+	// 原料，零扩 API 面；nil/缺键=分量读面缺白话段降级不虚构）。
+	bal func(ctx context.Context) (map[[2]string]float64, VenueParts, error)
 	// earnings savings 累计收益读件（T-0055 利息入账源）。
 	earnings func(ctx context.Context) (map[string]float64, error)
 	// dcdOrd venue dcd 持仓单读件（O-36327：dcd_mtm_drift resolver 名义量
@@ -45,8 +47,9 @@ func (r *Runner) WithEarnEarnings(fn func(ctx context.Context) (map[string]float
 	return r
 }
 
-// WithBalances 挂 venue 侧余额现读件（cmd 装配层接线——对账检查时点直读）。
-func (r *Runner) WithBalances(fn func(ctx context.Context) (map[[2]string]float64, error)) *Runner {
+// WithBalances 挂 venue 侧余额现读件（cmd 装配层接线——对账检查时点直读；
+// 第二返参=同读面分量集 O-36964 人话段原料，可返 nil）。
+func (r *Runner) WithBalances(fn func(ctx context.Context) (map[[2]string]float64, VenueParts, error)) *Runner {
 	r.bal = fn
 	return r
 }
@@ -142,7 +145,7 @@ func (r *Runner) reconcile(ctx context.Context) error {
 	// T-0055：Earn 利息先入账再对拍（savings amt 已含应计利息——不入账=账本
 	// 系统性偏低且逐日走阔；事件化高水位幂等）。
 	r.postInterest(ctx)
-	ven, err := r.bal(ctx)
+	ven, vparts, err := r.bal(ctx)
 	if err != nil {
 		r.rej.Inc("write_err")
 		return fmt.Errorf("venue 现读: %w", err)
@@ -222,7 +225,7 @@ func (r *Runner) reconcile(ctx context.Context) error {
 			}
 		}
 		r.alertLedgerDiff(ctx, x.venue, x.ccy, x.eq, x.net, tol, exempt, diff,
-			diff > tol+exempt)
+			diff > tol+exempt, vparts[[2]string{x.venue, x.ccy}])
 	}
 	return nil
 }

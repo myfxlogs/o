@@ -106,7 +106,7 @@ func TestReconcileDiffAlert(t *testing.T) {
 	ctx, r := setup(t)
 	// 账本净额 100；venue 现读 200→差 100>0.5 容差=告警计门
 	var ven map[[2]string]float64
-	r.WithBalances(func(ctx context.Context) (map[[2]string]float64, error) { return ven, nil })
+	r.WithBalances(func(ctx context.Context) (map[[2]string]float64, VenueParts, error) { return ven, nil, nil })
 	if _, err := Post(ctx, r.pool, Entry{Kind: "deposit", Venue: "okx", Ccy: "USDT", Amount: 100, SourceRef: 1, SourceTable: "t"}); err != nil {
 		t.Fatal(err)
 	}
@@ -134,7 +134,7 @@ func TestReconcileMultiSubAccountAggregated(t *testing.T) {
 	ctx, r := setup(t)
 	// 账本净额 2104.09（告警实证场景复刻）；venue 现读聚合额=unified 75.49+earn 2028.60 同口径。
 	var ven map[[2]string]float64
-	r.WithBalances(func(ctx context.Context) (map[[2]string]float64, error) { return ven, nil })
+	r.WithBalances(func(ctx context.Context) (map[[2]string]float64, VenueParts, error) { return ven, nil, nil })
 	if _, err := Post(ctx, r.pool, Entry{Kind: "deposit", Venue: "okx", Ccy: "USDT", Amount: 2104.09, SourceRef: 1, SourceTable: "t"}); err != nil {
 		t.Fatal(err)
 	}
@@ -206,7 +206,7 @@ func TestInterestKindsInClosedSet(t *testing.T) {
 func TestReconcileDebounceWindows(t *testing.T) {
 	ctx, r := setup(t)
 	var ven map[[2]string]float64
-	r.WithBalances(func(ctx context.Context) (map[[2]string]float64, error) { return ven, nil })
+	r.WithBalances(func(ctx context.Context) (map[[2]string]float64, VenueParts, error) { return ven, nil, nil })
 	if _, err := Post(ctx, r.pool, Entry{Kind: "deposit", Venue: "okx", Ccy: "USDT",
 		Amount: 100, SourceRef: 1, SourceTable: "t"}); err != nil {
 		t.Fatal(err)
@@ -276,7 +276,7 @@ func TestReconcileDebounceWindows(t *testing.T) {
 func TestReconcileMTMOffset(t *testing.T) {
 	ctx, r := setup(t)
 	var ven map[[2]string]float64
-	r.WithBalances(func(ctx context.Context) (map[[2]string]float64, error) { return ven, nil })
+	r.WithBalances(func(ctx context.Context) (map[[2]string]float64, VenueParts, error) { return ven, nil, nil })
 	if _, err := Post(ctx, r.pool, Entry{Kind: "deposit", Venue: "okx", Ccy: "USDT",
 		Amount: 100, SourceRef: 1, SourceTable: "t"}); err != nil {
 		t.Fatal(err)
@@ -311,7 +311,7 @@ func TestReconcileOffLedgerExempt(t *testing.T) {
 		t.Fatal(err)
 	}
 	var ven map[[2]string]float64
-	r.WithBalances(func(ctx context.Context) (map[[2]string]float64, error) { return ven, nil })
+	r.WithBalances(func(ctx context.Context) (map[[2]string]float64, VenueParts, error) { return ven, nil, nil })
 	if _, err := Post(ctx, r.pool, Entry{Kind: "deposit", Venue: "okx", Ccy: "USDT", Amount: 100, SourceRef: 1, SourceTable: "t"}); err != nil {
 		t.Fatal(err)
 	}
@@ -389,7 +389,7 @@ func TestReconcileParkedUnits(t *testing.T) {
 		t.Fatal(err)
 	}
 	var ven map[[2]string]float64
-	r.WithBalances(func(ctx context.Context) (map[[2]string]float64, error) { return ven, nil })
+	r.WithBalances(func(ctx context.Context) (map[[2]string]float64, VenueParts, error) { return ven, nil, nil })
 	if _, err := Post(ctx, r.pool, Entry{Kind: "deposit", Venue: "okx", Ccy: "USDT",
 		Amount: 100, SourceRef: 1, SourceTable: "t"}); err != nil {
 		t.Fatal(err)
@@ -441,7 +441,7 @@ func TestReconcileDcdBaseline(t *testing.T) {
 		t.Fatal(err)
 	}
 	var ven map[[2]string]float64
-	r.WithBalances(func(ctx context.Context) (map[[2]string]float64, error) { return ven, nil })
+	r.WithBalances(func(ctx context.Context) (map[[2]string]float64, VenueParts, error) { return ven, nil, nil })
 	if _, err := Post(ctx, r.pool, Entry{Kind: "deposit", Venue: "okx", Ccy: "USDT",
 		Amount: 100, SourceRef: 1, SourceTable: "t"}); err != nil {
 		t.Fatal(err)
