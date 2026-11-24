@@ -212,6 +212,7 @@ func (r *Runner) scan(ctx context.Context) error {
 	}
 	instRows.Close()
 	var cards []card
+	var nThin, nStale, nFlat int
 	for _, inst := range insts {
 		cl, ts, n, err := r.closes(ctx, inst, p.Lookback+1)
 		if err != nil {
@@ -219,10 +220,12 @@ func (r *Runner) scan(ctx context.Context) error {
 		}
 		if n < p.Lookback+1 {
 			r.rej.Inc("dir_thin_bars")
+			nThin++
 			continue
 		}
 		if time.Since(ts) > r.staleBars() {
 			r.rej.Inc("dir_stale_bars")
+			nStale++
 			continue // 陈棒面不评估（快照禁令同 funding 新鲜度语义）
 		}
 		rets := make([]float64, 0, n-1)
@@ -240,6 +243,7 @@ func (r *Runner) scan(ctx context.Context) error {
 		}
 		sigma := math.Sqrt(sd / float64(len(rets)-1))
 		if sigma <= 0 {
+			nFlat++
 			continue // 零波动=不可评（除零禁——样本病态如实跳过）
 		}
 		mom := math.Log(cl[n-1] / cl[0])
@@ -280,6 +284,12 @@ func (r *Runner) scan(ctx context.Context) error {
 	}); err != nil {
 		return err
 	}
+	// O-38593 拍摘要：死寂臂不可再生——宇宙/拒词分布/判词分布每拍一行
+	// （史病灶=全陈棒静默零产出三天零日志；rejects.Door 纯内存计数无
+	// 持久面，摘要行=唯一可观测出口）。
+	nProp, nZWeak, nNetThin := verdictDist(cards)
+	log.Printf("[research/dirmom] 拍摘要 venue=%s 宇宙=%d符｜薄棒=%d 陈棒=%d 零波动=%d｜卡=%d proposed=%d rejected(z弱=%d 净薄=%d)",
+		r.venue, len(insts), nThin, nStale, nFlat, len(cards), nProp, nZWeak, nNetThin)
 	r.watch.OK() // 评估拍完成=产出（恢复清标）
 	return nil
 }
