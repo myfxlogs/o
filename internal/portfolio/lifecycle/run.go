@@ -30,9 +30,10 @@ var critKeys = []string{
 // Runner 命官岗：提案→paper 开户→虚拟结算→判据晋升→live 开仓消费（T-0050）
 // +饥饿感知拍（T-0378——T-0376 自治环末件入岗）。
 type Runner struct {
-	pool       *pgxpool.Pool
-	denyAt     map[int64]time.Time // T-0136 ③拒放冷窗（策略→最近拒放戳）
-	frictionAt time.Time           // T-0521 摩擦回灌 6h 节拍闸
+	pool          *pgxpool.Pool
+	denyAt        map[int64]time.Time // T-0136 ③拒放冷窗（策略→最近拒放戳）
+	frictionAt    time.Time           // T-0521 摩擦回灌 6h 节拍闸
+	lessonStatsAt time.Time           // O-38942 族尸统计面刷新节流戳
 
 	cfg    *config.Client
 	op     Opener
@@ -108,6 +109,7 @@ func (r *Runner) scan(ctx context.Context) error {
 		return err
 	}
 	r.retireLessonMine(ctx)                          // fin_0172：退役验尸产线——本拍新死同拍入经济矿（非致命径自含败）
+	r.lessonStatsRefresh(ctx)                        // O-38942：族尸统计面节流刷新（非致命径自含败）
 	if time.Since(r.frictionAt) > frictionCalEvery { // T-0521：实绩回灌 6h 拍（败不阻开户拍）
 		if err := r.frictionCalibrate(ctx); err != nil {
 			log.Printf("[lifecycle] friction 校准拍败: %v", err)
@@ -198,6 +200,9 @@ func (r *Runner) admitProposals(ctx context.Context, notional, minH, minNet, max
 			blocked["shape_gate:"+x.tmpl]++
 			log.Printf("[lifecycle] 提案 #%d %s 形态闸拦：%s（留 fin_proposed 待判据面自解/业主处置）", x.id, x.tmpl, why)
 			continue // #26436 判例#1：leveraged/funded 未过保证金面审——越本金线已由闸内升件记案
+		}
+		if r.deadSigSuppress(ctx, x.id, x.tmpl, x.inst, x.dir) {
+			continue // O-38942 尸签抑制——提案已 fin_retired+「教训消费」审计行（非门闸拦——不入 blocked/template_blocked 计）
 		}
 		if x.tmpl == "xvenue-carry" {
 			if err := r.admitXvenuePair(ctx, x.id, x.inst, x.dir, notional, minH, minNet, maxDD); err != nil {
