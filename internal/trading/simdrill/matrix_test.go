@@ -350,3 +350,33 @@ func TestMatrixRunBatch(t *testing.T) {
 		t.Fatalf("cell_key 凭据行数应=3: n=%d err=%v", n, err)
 	}
 }
+
+// 锚⑧：O-37649 单腿格——dir_perp_mom perp-only 乐器（O-USDT spot 实缺
+// 不在册）ShapeOKXSingleLeg 全周期 pass；detail 载单腿径非 fundingLegs
+// 双腿构（票面验收锚：verdict=pass 且单腿径明示）。
+func TestMatrixSingleLegCell(t *testing.T) {
+	ctx, m := setupMatrix(t)
+	mkOcc(t, ctx, m, "O-USDT-SWAP", "dir_perp_mom", "long_perp", "okx", 250)
+	cells, err := excell.Enumerate(ctx, m.Pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := excell.IndexByCoord(cells)[excell.CoordKey("dir_perp_mom", "okx", "long_perp")]
+	if c == nil {
+		t.Fatal("dir_perp_mom 格未枚举")
+	}
+	res := m.runCell(ctx, *c, c.Tiers[0], excell.ShapeOKXSingleLeg)
+	if res.Verdict != "pass" {
+		t.Fatalf("单腿格 perp-only 乐器应 pass: %s", res.Detail)
+	}
+	if !strings.Contains(res.Detail, "单腿") {
+		t.Fatalf("detail 应载单腿径非 fundingLegs 构: %s", res.Detail)
+	}
+	// venue 真相残留=0 已由 execSingleLeg 内 dirRecon 两锚断言（仓行已平
+	// +合约净持归零）——此处只补凭据落账核验。
+	var verdict string
+	if err := m.Pool.QueryRow(ctx, `SELECT verdict FROM fin_exec_drill
+		WHERE cell_key=$1 ORDER BY id DESC LIMIT 1`, res.CellKey).Scan(&verdict); err != nil || verdict != "pass" {
+		t.Fatalf("凭据缺/不符: %q err=%v", verdict, err)
+	}
+}
