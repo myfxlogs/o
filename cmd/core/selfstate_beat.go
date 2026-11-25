@@ -16,6 +16,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"strings"
 	"time"
 )
 
@@ -165,16 +166,97 @@ func (c coreService) selfStateBeat(ctx context.Context) {
 		seg["cog"] = "?"
 	}
 
+	// ⑨ 升件根聚类（O-39420 举一反三触发拍——同根因病族复发摆到
+	//   唤知眼前：(esc_class,esc_scope) 二元组窗内计数 topN,n≥2
+	//   标「疑似同族」纯计数标不含判断——类化判归会话 canon
+	//   class-escalation-rule。窗/截断=cfg 键缺=fail-closed 段标 ?；
+	//   读败=读败不炸帧。值入帧不入纹——计数漂移不构结构变,6h
+	//   重报闸不被聚类噪声烧穿）。
+	seg["cluster"] = c.escClusterSeg(ctx)
+
 	// 纹=结构态指纹（值随浮点漂者只入帧——纹闸只随结构变重报）。
 	fp := fmt.Sprintf("%s|%s|%s|%s|%s", depSha, seg["esc"], seg["tk"], seg["strat"], seg["gate"])
 	if !gaugeDue(ctx, c, "self_state", fp, selfStateEvery) {
 		return
 	}
-	note := fmt.Sprintf("v=%s 自态账: 部署=%s 升件未决=%s 工单=%s 在场认领=%s NAV=%s %s %s 会话收口=%s——冷启动账页(工单#10358 C件;明细仍自查 ops_event 真源)",
-		fp, seg["dep"], seg["esc"], seg["tk"], seg["claim"], seg["nav"], seg["strat"], seg["gate"], seg["cog"])
+	note := fmt.Sprintf("v=%s 自态账: 部署=%s 升件未决=%s 升件聚类=%s 工单=%s 在场认领=%s NAV=%s %s %s 会话收口=%s——冷启动账页(工单#10358 C件;明细仍自查 ops_event 真源)",
+		fp, seg["dep"], seg["esc"], seg["cluster"], seg["tk"], seg["claim"], seg["nav"], seg["strat"], seg["gate"], seg["cog"])
 	if _, err := c.pool.Exec(ctx,
 		`INSERT INTO ops_event(seat,event,ticket,note) VALUES('探测席','量表','self_state',$1)`,
 		note); err != nil {
 		return
 	}
+}
+
+// escClusterRow 聚类行（esc_class×esc_scope 计数——读面纯件）。
+type escClusterRow struct {
+	class, scope string
+	n            int
+}
+
+// escClusterSeg 升件根聚类段——cfg 缺=?、读败=读败、零行=Nd:0
+// 如实（O-39420：帧只投影不定性——疑似同族标=纯计数标,类化判
+// 归会话；值入帧不入纹）。
+func (c coreService) escClusterSeg(ctx context.Context) string {
+	days, top, ok := c.escClusterCfg(ctx)
+	if !ok {
+		return "?"
+	}
+	rows, err := c.pool.Query(ctx, `SELECT esc_class,esc_scope,count(*)
+		FROM ops_event
+		WHERE event='升件' AND ts>now()-make_interval(days=>$1)
+		  AND esc_class IS NOT NULL AND esc_class<>''
+		  AND esc_scope IS NOT NULL AND esc_scope<>''
+		GROUP BY 1,2 ORDER BY 3 DESC,1,2 LIMIT $2`, days, top)
+	if err != nil {
+		return "读败"
+	}
+	defer rows.Close()
+	var cls []escClusterRow
+	for rows.Next() {
+		var r escClusterRow
+		if err := rows.Scan(&r.class, &r.scope, &r.n); err != nil {
+			return "读败"
+		}
+		cls = append(cls, r)
+	}
+	if err := rows.Err(); err != nil {
+		return "读败"
+	}
+	return fmt.Sprintf("%dd:%s", days, escClusterText(cls))
+}
+
+// escClusterCfg 窗/截断参数（app_config selfstate.esc_cluster_{days,
+// topn}——双键齐才探,缺一=fail-closed；值域 days∈(0,365]∧top∈(0,50]）。
+func (c coreService) escClusterCfg(ctx context.Context) (days, top int, ok bool) {
+	var d, t float64
+	if err := c.pool.QueryRow(ctx,
+		`SELECT (value#>>'{}')::float8 FROM app_config WHERE key='selfstate.esc_cluster_days'`).Scan(&d); err != nil || d <= 0 || d > 365 {
+		return 0, 0, false
+	}
+	if err := c.pool.QueryRow(ctx,
+		`SELECT (value#>>'{}')::float8 FROM app_config WHERE key='selfstate.esc_cluster_topn'`).Scan(&t); err != nil || t <= 0 || t > 50 {
+		return 0, 0, false
+	}
+	return int(d), int(t), true
+}
+
+// escClusterText 聚类段文纯件——「class@scope×n[疑似同族]」| 分隔,
+// n≥2 标疑似同族（纯计数标——类化判归会话）；零行=「0」如实。
+func escClusterText(rows []escClusterRow) string {
+	if len(rows) == 0 {
+		return "0"
+	}
+	parts := make([]string, 0, len(rows))
+	for _, r := range rows {
+		s := fmt.Sprintf("%s@%s×%d", r.class, r.scope, r.n)
+		if r.n >= 2 {
+			s += "[疑似同族]"
+		}
+		if len(s) > 120 {
+			s = s[:117] + "…"
+		}
+		parts = append(parts, s)
+	}
+	return strings.Join(parts, "|")
 }
