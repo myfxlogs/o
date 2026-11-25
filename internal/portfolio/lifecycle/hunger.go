@@ -40,6 +40,7 @@ type hungerSensor interface {
 	ProbeAuditCanary(ctx context.Context) error
 	ProbeDeskOrphan(ctx context.Context) error
 	ProbeBreedStall(ctx context.Context) error      // O-39330：candidate 族卡零产出断流（注册→臂建无主转换感知器）
+	ProbeDeskLifecycle(ctx context.Context) error   // O-39400：票桌生命周期（交付实据销/前提死亡/陈腐衰减阀）
 	ProbeIdleVerdictGate(ctx context.Context) error // O-36962：有理闲置判词缺停泊基线=不合格件闸
 	MineLessons(ctx context.Context) (int, error)
 }
@@ -189,6 +190,12 @@ func (r *Runner) hungerTick(ctx context.Context) {
 	if err := r.sensor.ProbeBreedStall(ctx); err != nil {
 		log.Printf("[lifecycle] hungertick 族卡断流探针败: %v", err)
 		r.hungerEscalate(ctx, "breedstall_probe", err)
+	}
+	// 工单O-39400 票桌生命周期探针同槽（同款败情隔离位——交付实据
+	// 全域销+venue判死直销+策略退役升件+陈腐衰减阀单次升件）。
+	if err := r.sensor.ProbeDeskLifecycle(ctx); err != nil {
+		log.Printf("[lifecycle] hungertick 票桌生命周期探针败: %v", err)
+		r.hungerEscalate(ctx, "desklife_probe", err)
 	}
 	rep, err := r.sensor.Detect(ctx)
 	if err != nil {

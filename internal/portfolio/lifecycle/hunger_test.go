@@ -127,6 +127,10 @@ func (s *stubSensor) ProbeBreedStall(context.Context) error {
 	return nil
 }
 
+func (s *stubSensor) ProbeDeskLifecycle(context.Context) error {
+	return nil
+}
+
 func (s *stubSensor) ProbeIdleVerdictGate(context.Context) error {
 	return nil
 }

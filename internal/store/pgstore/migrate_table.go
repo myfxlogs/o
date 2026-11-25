@@ -266,4 +266,5 @@ var finMigrationTable = []migEntry{
 	{251, "fin_0251_lesson_consumer.sql"},               // 工单O-38942——教训矿消费环:v_lesson_family_stats 族尸统计面+lifecycle.lesson_dead_sig 闸键+读面补授
 	{252, "fin_0252_finro_declared_grant.sql"},          // 审计升件#39084——法证宣告面 7 件 o_fin_ro SELECT 补授（grant-base-forget-view 判例第二发；check_bridge_registry §①c 同迁钉链）
 	{253, "fin_0253_breed_stall.sql"},                   // 工单O-39330——族卡断流探针:dm.hunger.breed_stall_days 键+breed_stall 惧值
+	{254, "fin_0254_desk_lifecycle.sql"},                // 工单O-39400——票桌生命周期:fin_surface_lifecycle 登记册+desk_decay 键+封轴令物理补落
 }

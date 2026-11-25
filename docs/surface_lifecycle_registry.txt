@@ -1,0 +1,10 @@
+# surface_lifecycle_registry.txt —— 积面终末消费者闸豁免册
+# （scripts/check_surface_lifecycle.sh——工单O-39400②B）
+#
+# 判据：本分支 migrations 新增/改动文件内 CREATE TABLE，须同文件
+# INSERT INTO fin_surface_lifecycle 登记（consumer_ref+terminal_path），
+# 或表名入本册。入册=声明「非积累终态面」（联接表/日志表/中间表/
+# 登记册自身/纯配置表）——积累终态面禁入此册，必须走登记。
+# 一行一表名，# 注释/空行免。存量面不追旧账（diff 面判据）。
+
+fin_surface_lifecycle

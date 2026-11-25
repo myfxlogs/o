@@ -69,6 +69,15 @@ SELECT CASE
     OR (SELECT max(now()-susp_since) FROM ops_ticket_desk WHERE rulable)
        > interval '${ADJ_DEBT_AGE:-48} hours'
     THEN 'early:adjudication_debt'
+  -- 工单O-39400③派裁接尾：方向/止血 tkind 票结构性无派件消费面
+  -- （dispatch_rank/dispatchable W 谓词钉 tkind='工单'，worker/batchdesk
+  -- 消费端同钉——#25524 死锁形实证）。裁词归认知席——本席即认知面，
+  -- 新立/有动向的方向止血票=早唤事由；last_active 钉防老票每拍空唤。
+  WHEN EXISTS (SELECT 1 FROM ops_ticket_desk
+    WHERE workable AND tkind IN ('方向','止血')
+      AND (filed_ts > '$LAST_WAKE'::timestamptz
+        OR last_active > '$LAST_WAKE'::timestamptz))
+    THEN 'early:direction_ticket'
   WHEN EXISTS (SELECT 1 FROM fin_cashflow WHERE ts>'$LAST_WAKE'::timestamptz
     AND position_ref IS NOT NULL) THEN 'early:new_position'
   WHEN (SELECT abs(COALESCE(sum(amount),0)) FROM fin_cashflow
