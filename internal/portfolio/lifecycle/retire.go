@@ -7,6 +7,7 @@ package lifecycle
 import (
 	"context"
 	"log"
+	"strings"
 
 	"o/internal/platform/execfam"
 )
@@ -71,7 +72,9 @@ func (r *Runner) retireStaleProposed(ctx context.Context) error {
 // transition 行=T-0255 取证断点根修），reason=armed_ttl_expired 同因续用。
 func (r *Runner) retireStaleArmedStrategies(ctx context.Context, ttl float64) error {
 	fam := execfam.FundingHedgeList() // T-0392：闸域族集=execfam 册同源（原 fundingHedgeFamily 本地册归并）
-	rows, err := r.pool.Query(ctx, `SELECT s.id FROM fin_strategy s
+	rows, err := r.pool.Query(ctx, `SELECT s.id, s.inst_id, s.template_ref, s.direction,
+		COALESCE((SELECT p.net_apr FROM fin_proposal p WHERE p.id=s.proposal_ref),0)
+		FROM fin_strategy s
 		WHERE s.state IN ('live','probe') AND NOT EXISTS(
 			SELECT 1 FROM fin_position p WHERE p.strategy_ref=s.id AND p.state<>'closed')
 		AND GREATEST(s.entered_at,
@@ -86,24 +89,74 @@ func (r *Runner) retireStaleArmedStrategies(ctx context.Context, ttl float64) er
 		r.rej.Inc("write_err")
 		return err
 	}
-	var ids []int64
+	type cand struct {
+		id         int64
+		inst, tmpl string
+		dir        string
+		refAPR     float64
+	}
+	var cands []cand
 	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
+		var c cand
+		if err := rows.Scan(&c.id, &c.inst, &c.tmpl, &c.dir, &c.refAPR); err != nil {
 			rows.Close()
 			return err
 		}
-		ids = append(ids, id)
+		cands = append(cands, c)
 	}
 	rows.Close()
+	var ids []int64
+	alive := 0
+	for _, c := range cands {
+		// O-39955 径B 信号存续锚：「等信号」算活动不算休眠——休眠候选
+		// 先过信号死判（复用 entryGate 族判词同函数，判据一源律）：
+		// 信号活着（eval 仍 proposed/率同号/报价守基准）=豁免本轮退役，
+		// 信号死=照退 armed_ttl_expired。读败=fail-closed 不豁免（判据
+		// 缺席视同信号死——与 entryGate 延评语义同向：不虚构存续）。
+		if r.signalAlive(ctx, c.inst, c.tmpl, c.dir, c.refAPR) {
+			alive++
+			continue
+		}
+		ids = append(ids, c.id)
+	}
+	if alive > 0 {
+		log.Printf("[lifecycle] armed_ttl 候选 %d 行中 %d 行信号存续豁免（等信号=活动非休眠——O-39955）", len(cands), alive)
+	}
 	for _, id := range ids {
 		if err := Transition(ctx, r.pool, id, "retired", "armed_ttl_expired", false); err != nil {
 			r.rej.Inc("write_err")
 			return err
 		}
-		log.Printf("[lifecycle] 策略 #%d armed_ttl 超 %.0fh 退役（armed_ttl_expired——窗内零执行侧活动）", id, ttl)
+		log.Printf("[lifecycle] 策略 #%d armed_ttl 超 %.0fh 退役（armed_ttl_expired——窗内零执行侧活动且入场信号已死）", id, ttl)
 	}
 	return nil
+}
+
+// signalAlive 入场信号存续判据（O-39955 径B——entryCondition 族分流
+// 同判词减宏观爆点日历闸：宏观延开是暂时市况非信号死，不入存续判）。
+// 族判词函数直调（dirEntryGate/fundingEntryGate/volEntryGate 同源——
+// 判据一源律，锚径禁第二套信号数学）；读败/行缺=各 gate 自身 fail-
+// closed 语义延评=视同信号死不豁免（与毕业闸同向：不虚构存续证）。
+// 非 perp 向 funding 判词平凡放行（"无资金费率判词"）≠信号证——
+// default 臂仅在 direction 带 perp 前缀时采信，否则不豁免照退。
+func (r *Runner) signalAlive(ctx context.Context, inst, tmpl, dir string, refAPR float64) bool {
+	switch {
+	case tmpl == "dcd_call" || tmpl == "dcd_put" ||
+		tmpl == "vol_sell_single_call" || tmpl == "vol_sell_strangle":
+		ok, _ := r.volEntryGate(ctx, inst, refAPR)
+		return ok
+	case tmpl == "dir_perp_mom" || tmpl == "perp-trend-daily" ||
+		tmpl == "xsec-perp-mom-basket" || tmpl == "funding-extreme-fade" ||
+		tmpl == "mark-last-disloc-fade":
+		ok, _ := r.dirEntryGate(ctx, inst, tmpl, dir)
+		return ok
+	default:
+		if !strings.HasPrefix(dir, "short_perp") && !strings.HasPrefix(dir, "long_perp") {
+			return false
+		}
+		ok, _ := r.fundingEntryGate(ctx, inst, dir)
+		return ok
+	}
 }
 
 // retireStalePaper paper 沙箱超龄退役（T-0286）：paper 行原无任何退役径
