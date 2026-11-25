@@ -149,36 +149,46 @@ func (r *Runner) scan(ctx context.Context) error {
 			sy = Yield{}
 		}
 		// 工单#19797②摊销窗实测合流（T-0521 同式——eval HoldDays 分母与
-		// opener breakevenOK 同判据一源）：正 funding 族（rate>0→
-		// short_perp_long_spot 收租向）分母=min(声明上限 max_hold/24,
-		// 该 inst 收租号连续段 30d 中位)；无该号段=摊销窗不虚构 fail-closed
-		// 拒（与开闸判据同结论——eval 不虚构放行）。rate<0 反向族本即拒，
-		// 不耗实测查询。measured 源入 evidence 留痕。
+		// opener breakevenOK 同判据一源）：收租号连续段 30d 中位；
+		// rate>0→sign=+1（short_perp 收租期），rate<0→sign=-1（long_perp
+		// 收租期——O-39460 margin-short 臂同判据：借币息年化摊销分母同源）。
+		// 无该号段=摊销窗不虚构 fail-closed 拒（与开闸判据同结论——eval
+		// 不虚构放行）。measured 源入 evidence 留痕。
 		pi := p
-		if rate > 0 {
-			measH, merr := MeasuredHoldDays(ctx, r.pool, instID, 1.0)
-			if merr != nil {
-				r.rej.Inc("write_err")
-				return merr
-			}
-			if measH <= 0 {
-				e := Eval{InstID: instID, Direction: "short_perp_long_spot",
-					Legs:     map[string]any{"perp": "short", "spot": "long"},
-					Verdict:  "rejected",
-					Reason:   "hold_window_unmeasured:30d 无该号收租段——摊销窗不虚构 fail-closed",
-					Evidence: map[string]any{"funding_rate": rate, "hold_days_src": "unmeasured"}}
-				batch = append(batch, e)
-				continue
-			}
-			pi.HoldDays = math.Min(p.HoldDays, measH)
+		sign := 1.0
+		if rate < 0 {
+			sign = -1.0
 		}
-		e := Evaluate(instID, rate, pi, sy)
-		if rate > 0 {
-			if e.Evidence == nil {
-				e.Evidence = map[string]any{}
-			}
-			e.Evidence["hold_days_src"] = "measured"
+		measH, merr := MeasuredHoldDays(ctx, r.pool, instID, sign)
+		if merr != nil {
+			r.rej.Inc("write_err")
+			return merr
 		}
+		if measH <= 0 {
+			dir, lg := "short_perp_long_spot", map[string]any{"perp": "short", "spot": "long"}
+			if rate < 0 {
+				dir, lg = "long_perp_short_spot", map[string]any{"perp": "long", "spot": "short_margin"}
+			}
+			e := Eval{InstID: instID, Direction: dir, Legs: lg,
+				Verdict:  "rejected",
+				Reason:   "hold_window_unmeasured:30d 无该号收租段——摊销窗不虚构 fail-closed",
+				Evidence: map[string]any{"funding_rate": rate, "hold_days_src": "unmeasured"}}
+			batch = append(batch, e)
+			continue
+		}
+		pi.HoldDays = math.Min(p.HoldDays, measH)
+		var e Eval
+		if rate > 0 {
+			e = Evaluate(instID, rate, pi, sy)
+		} else {
+			// O-39460：负 funding 反向=margin-short 臂（借币卖出现货空腿——
+			// 借币息入净硬条款+可借性证据闸，见 borrowquote.go）。
+			e = r.marginShortEval(ctx, instID, rate, pi)
+		}
+		if e.Evidence == nil {
+			e.Evidence = map[string]any{}
+		}
+		e.Evidence["hold_days_src"] = "measured"
 		applyMacro(&e, macro) // 近窗事件→evidence.macro（纯注解层）
 		if e.Verdict == "rejected" && rate < 0 {
 			r.rej.Inc("neg_funding_infeasible")

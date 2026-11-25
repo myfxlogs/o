@@ -23,6 +23,9 @@ strategy.*	dm	降级 TTL 族（degraded_ttl_hours）
 gate.kill.*	dm	族级风险停机闸（退役闸族——决策席 T-0312 既有白名单续认）
 exec.*	dm	执行参数（探针仓位/超时/重开冷却/tick 时限/cfd_map）
 funding.scan_timeout_s	dm	funding 扫描超时
+funding.margin_borrow_stale_hours	dm	margin-short 借币证据新鲜度窗（O-39460——缺=不评估 fail-closed）
+funding.margin_borrow_max_apr	dm	margin-short 借币息尖峰闸（O-39460——息吞 carry 阈，超=拒）
+funding.margin_min_loan_usd	dm	margin-short 可借额度下限 USD（O-39460——额度尘级=不可执行拒）
 gapscan.scan_timeout_s	dm	gap 扫描超时
 dm.hunger.*	dm	饥饿响应自参数（检测窗 N——票面 T-0376 种 3 天）
 selfstate.esc_cluster.*	dm	自态账升件聚类窗/截断（O-39420——esc_cluster_days/topn 双键齐才探,缺=fail-closed）
