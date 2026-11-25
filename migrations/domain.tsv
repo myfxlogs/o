@@ -85,6 +85,7 @@ ops_precedent	fin
 ops_headless	fin
 ops_ticket_usage	fin
 fin_venue_candidate	bridge
+fin_venue_terminal_state	bridge
 md_venue_funding	md
 md_ctx_fact	md
 md_repair_log	md

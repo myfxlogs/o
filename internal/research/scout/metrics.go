@@ -210,12 +210,15 @@ func (r *Runner) maybeRecommend(ctx context.Context, venue string, boards []Boar
 	var kycOK bool
 	var lastReq *time.Time
 	var state string
+	var terminal bool
 	if err := r.pool.QueryRow(ctx,
-		"SELECT kyc_ok, last_request_at, state FROM fin_venue_candidate WHERE venue=$1",
-		venue).Scan(&kycOK, &lastReq, &state); err != nil {
+		`SELECT c.kyc_ok, c.last_request_at, c.state,
+			EXISTS(SELECT 1 FROM fin_venue_terminal_state t WHERE t.state=c.state)
+		FROM fin_venue_candidate c WHERE c.venue=$1`,
+		venue).Scan(&kycOK, &lastReq, &state, &terminal); err != nil {
 		return err
 	}
-	if !kycOK || state == "registered" || state == "rejected" {
+	if !kycOK || state == "registered" || terminal {
 		return nil
 	}
 	if lastReq != nil && r.now().Sub(*lastReq) < 30*24*time.Hour {

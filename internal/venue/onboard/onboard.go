@@ -254,7 +254,7 @@ func (r *Runner) trans(ctx context.Context, venue, login, state, beat string, ob
 	if state != "" {
 		if _, err := r.md.Exec(ctx, `UPDATE fin_venue_candidate
 			SET state=$2, evidence=evidence || jsonb_build_object('onboard', COALESCE(evidence->'onboard','{}'::jsonb) || $1::jsonb)
-			WHERE venue=$3`, obJSON, state, venue); err != nil {
+			WHERE venue=$3 AND state NOT IN (SELECT state FROM fin_venue_terminal_state)`, obJSON, state, venue); err != nil {
 			return err
 		}
 	} else {

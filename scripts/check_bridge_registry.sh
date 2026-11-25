@@ -33,6 +33,14 @@ mapfile -t fwd_tables < <(grep -P '\tbridge$' migrations/domain.tsv | cut -f1)
 #  projector_rw:SELECT×全桥表（反向源读+正向源读）；research_rw:SELECT×reverse 表
 want() { echo "$1"; }
 for t in "${rev_tables[@]}" "${fwd_tables[@]}"; do
+	# 部署窗 grace（fin_0226/0229/0252 同律推广到①授权列——O-38820
+	# 实证：新桥表出生即红=先有鸡先有蛋死锁；表未落实机=迁移未施
+	# 授权无从谈起。仅显式 'f' 跳——查询败空值照断言 fail-closed）。
+	exists=$(sg_q "SELECT to_regclass('public.$t') IS NULL")
+	if [ "$exists" = "t" ]; then
+		echo "[bridge-audit] 授权列: $t 未部署——grace 跳（部署窗）"
+		continue
+	fi
 	for g in "projector_rw|SELECT"; do
 		role="${g%%|*}"; priv="${g##*|}"
 		n=$(sg_q "SELECT count(*) FROM information_schema.role_table_grants WHERE grantee='$role' AND table_name='$t' AND privilege_type='$priv'")
@@ -40,6 +48,11 @@ for t in "${rev_tables[@]}" "${fwd_tables[@]}"; do
 	done
 done
 for t in "${rev_tables[@]}"; do
+	exists=$(sg_q "SELECT to_regclass('public.$t') IS NULL")
+	if [ "$exists" = "t" ]; then
+		echo "[bridge-audit] 授权列: $t 未部署——grace 跳（部署窗）"
+		continue
+	fi
 	n=$(sg_q "SELECT count(*) FROM information_schema.role_table_grants WHERE grantee='research_rw' AND table_name='$t' AND privilege_type='SELECT'")
 	[ "$n" = "1" ] || red "授权缺: SG research_rw.SELECT on $t（reverse 源表研究面按需读）"
 done

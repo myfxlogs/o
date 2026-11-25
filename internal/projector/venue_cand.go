@@ -59,7 +59,9 @@ const uVenueCand = `INSERT INTO fin_venue_candidate(id,ts,venue,kind,endpoints,m
 	ON CONFLICT (venue) DO UPDATE SET ts=EXCLUDED.ts,kind=EXCLUDED.kind,endpoints=EXCLUDED.endpoints,
 		maker_bps=EXCLUDED.maker_bps,taker_bps=EXCLUDED.taker_bps,min_notional_usd=EXCLUDED.min_notional_usd,
 		kyc_ok=EXCLUDED.kyc_ok,api_ok=EXCLUDED.api_ok,withdraw_limit=EXCLUDED.withdraw_limit,
-		metrics=EXCLUDED.metrics,evidence=EXCLUDED.evidence,state=EXCLUDED.state,
+		metrics=EXCLUDED.metrics,evidence=EXCLUDED.evidence,
+		state=CASE WHEN fin_venue_candidate.state IN (SELECT state FROM fin_venue_terminal_state)
+			THEN fin_venue_candidate.state ELSE EXCLUDED.state END,
 		last_request_at=EXCLUDED.last_request_at`
 
 // projectGhostTables 两幽灵表升桥投影（T-0303——md 正本→SG 化石表镜像：
