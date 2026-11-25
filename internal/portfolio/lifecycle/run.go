@@ -2,16 +2,13 @@ package lifecycle
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
-	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"o/internal/platform/config"
-	"o/internal/platform/decision"
 	"o/internal/platform/events"
 	"o/internal/platform/execfam"
 	"o/internal/platform/legset"
@@ -142,6 +139,7 @@ func (r *Runner) scan(ctx context.Context) error {
 	}
 	// ④ live 开仓消费（T-0050 首仓序④——无未平仓行的 live 行过 Opener 缝）。
 	r.openLive(ctx)
+	r.openProbe(ctx) // O-41014：fasttrack probe 小仓消费面（armed≠open——执行侧闸全继承）
 	return nil
 }
 
@@ -162,17 +160,9 @@ func (r *Runner) admitProposals(ctx context.Context, notional, minH, minNet, max
 	if err != nil {
 		return err
 	}
-	type prop struct {
-		id, evalID int64
-		inst       string
-		dir        string
-		tmpl       string
-		netApr     float64
-		venue      string
-	}
-	var ps []prop
+	var ps []admitProp
 	for rows.Next() {
-		var x prop
+		var x admitProp
 		if err := rows.Scan(&x.id, &x.inst, &x.dir, &x.tmpl, &x.evalID, &x.netApr, &x.venue); err != nil {
 			rows.Close()
 			return err
@@ -183,6 +173,11 @@ func (r *Runner) admitProposals(ctx context.Context, notional, minH, minNet, max
 	blocked := map[string]int{}
 	rules := r.loadAdmitBlockRules(ctx) // fin_0175:canon 落规约行=机器闸(lethal 簇禁再喂——劝变闸)
 	nav := &shapeGateNavLazy{}          // #26436 判例#1形态闸：本金线本拍懒读（bounded 直过零 DB 成本）
+	// O-41014 fasttrack 直通阈件+在册并发基线（enabled 缺/坏=关走 paper）。
+	ft := fasttrackLoad(r.cfg.GetFloat, r.cfg.GetBool, r.cfg.GetInt)
+	if ft.enabled {
+		ft.open = r.probeFasttrackCount(ctx)
+	}
 	for _, x := range ps {
 		if admitBlocked(rules, x.tmpl, x.inst, x.dir) {
 			blocked["econ_rule:"+x.tmpl]++
@@ -196,7 +191,12 @@ func (r *Runner) admitProposals(ctx context.Context, notional, minH, minNet, max
 			blocked[x.tmpl+"/inst形不符"]++
 			continue // inst 构型不合族腿构型=看见了做不了——提案留 proposed（工单#15943：DCD 期权形误进 funding-hedge 实证）
 		}
-		if ok, why := r.shapeGateBlock(ctx, fmt.Sprintf("proposal=#%d", x.id), x.tmpl, notional, nav); !ok {
+		ftN, isFT := ft.allow(x) // O-41014：极值∧白名单∧槽未满→probe 直通
+		mn := notional           // paper 径 notional 原样；直通=阈件小仓
+		if isFT {
+			mn = ftN
+		}
+		if ok, why := r.shapeGateBlock(ctx, fmt.Sprintf("proposal=#%d", x.id), x.tmpl, mn, nav); !ok {
 			blocked["shape_gate:"+x.tmpl]++
 			log.Printf("[lifecycle] 提案 #%d %s 形态闸拦：%s（留 fin_proposed 待判据面自解/业主处置）", x.id, x.tmpl, why)
 			continue // #26436 判例#1：leveraged/funded 未过保证金面审——越本金线已由闸内升件记案
@@ -211,48 +211,13 @@ func (r *Runner) admitProposals(ctx context.Context, notional, minH, minNet, max
 			}
 			continue // 跨所双腿径（T-0144——主从策略对，proposal_ref 同引）
 		}
-		crit, _ := json.Marshal(map[string]float64{"min_hours": minH, "min_net": minNet, "max_dd": maxDD})
-		var sid int64
-		// 同键去重（T-0022：同 venue+inst_id+direction+template 同时最多一个非
-		// retired 策略行——T-0124 键绑模板防跨族串仓；已挂 active 行=复用不新建，
-		// 提案照样 armed 被吸收）。
-		err := r.pool.QueryRow(ctx, `INSERT INTO fin_strategy(inst_id,template_ref,proposal_ref,state,notional_usd,criteria,direction,venue)
-			VALUES($1,$2,$3,'paper',$4,$5,$6,$7)
-			ON CONFLICT (venue,inst_id,direction,template_ref) WHERE state<>'retired' DO NOTHING
-			RETURNING id`, x.inst, x.tmpl, x.id, notional, crit, x.dir, x.venue).Scan(&sid)
-		if err != nil {
-			if err.Error() == "no rows in result set" {
-				if _, err := r.pool.Exec(ctx,
-					"UPDATE fin_proposal SET state='fin_armed' WHERE id=$1", x.id); err != nil {
-					return err
-				}
-				log.Printf("[lifecycle] %s %s 同键 active 行在挂——提案 armed 复用不叠仓", x.inst, x.dir)
-				continue
-			}
-			r.rej.Inc("write_err")
-			return err
+		state := "paper"
+		if isFT {
+			state = "probe" // O-41014 直通——跳 paper 证明窗（执行侧闸原样不越）
 		}
-		if _, err := r.pool.Exec(ctx, `INSERT INTO fin_strategy_transition(strategy_id,from_state,to_state,reason)
-			VALUES($1,'proposed','paper','验证官提案过阈→paper 沙箱开户')`, sid); err != nil {
-			return err
+		if _, err := r.commitMint(ctx, x, state, mn, isFT, minH, minNet, maxDD); err != nil {
+			return err // 同键吸收=armed 复用（commitMint 内已回写——主径无续作）
 		}
-		r.chargePaperFriction(ctx, sid, x.venue, x.inst, notional) // T-0521：开户即扣估计往返摩擦（同摩擦基准；O-35163 venue 随模板——mt5 CFD 腿不再误标 okx）
-		if _, err := r.pool.Exec(ctx,
-			"UPDATE fin_proposal SET state='fin_armed' WHERE id=$1", x.id); err != nil {
-			return err
-		}
-		// T-0415：paper 开户=open 决策行（为什么开——提案/eval 锚+期望 carry
-		// +判据快照；继事实行写，写败升件不阻钱径）。
-		decision.WriteEsc(ctx, r.pool, decision.Row{
-			Domain: "fin", Actor: "lifecycle", RefID: strconv.FormatInt(sid, 10),
-			Action: "open",
-			Reason: fmt.Sprintf("提案过阈→paper 开户（proposal=#%d eval=#%d 期望 net_apr=%.4f）",
-				x.id, x.evalID, x.netApr),
-			Payload: map[string]any{
-				"proposal_id": x.id, "eval_id": x.evalID, "net_apr": x.netApr,
-				"template": x.tmpl, "direction": x.dir, "inst_id": x.inst,
-				"notional_usd": notional, "criteria": json.RawMessage(crit)}})
-		log.Printf("[lifecycle] #%d %s paper 开户 notional=%.0f", sid, x.inst, notional)
 	}
 	if len(blocked) > 0 {
 		r.rej.Inc("template_blocked")

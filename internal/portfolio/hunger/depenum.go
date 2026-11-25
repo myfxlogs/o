@@ -244,6 +244,7 @@ var depConfigReaders = map[string]string{
 	"invest":    "lifecycle 放行线",
 	"scout":     "venue 测榜",
 	"lifecycle": "生命周期 TTL",
+	"probe":     "lifecycle 探针直通闸（O-41014）",
 	"strategy":  "降级 TTL",
 	"gate":      "退役闸族",
 	"exec":      "执行参数",

@@ -19,6 +19,7 @@ invest.lifecycle.*	dm	放行线（live_switch）+paper→probe→live 判据值�
 invest.paper.*	dm	paper 仓位判定（notional_usd）
 scout.*	dm	venue 测榜参数（top_n/persist/margin/interval）
 lifecycle.*	dm	生命周期 TTL/冷却族（armed/paper/proposal_stale/reject_cooldown）
+probe.fasttrack_*	dm	O-41014 probe 直通闸四键（enabled/score/notional/max_open——enabled 缺省 false 总闸）
 strategy.*	dm	降级 TTL 族（degraded_ttl_hours）
 gate.kill.*	dm	族级风险停机闸（退役闸族——决策席 T-0312 既有白名单续认）
 exec.*	dm	执行参数（探针仓位/超时/重开冷却/tick 时限/cfd_map）
