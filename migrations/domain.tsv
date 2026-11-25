@@ -49,6 +49,7 @@ md_venue_fact	fin
 md_margin_borrow	fin
 fin_venue_bill	fin
 fin_venue_position	fin
+fin_margin_loan	fin
 fin_review_verdict	fin
 md_calendar_push	fin
 md_calendar_pull	fin

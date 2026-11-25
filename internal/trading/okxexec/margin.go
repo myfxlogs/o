@@ -85,6 +85,28 @@ func (c *Client) MaxLoan(ctx context.Context, ccy, instID, mgnMode, mgnCcy strin
 	return out, nil
 }
 
+// MaxLoanCcy ccy-only 形（O-40707 采集面——instId 与 ccy 互斥 venue 50024，
+// 全量四参形 MaxLoan 对采集宇宙不可用；ccy-only 回单行 maxLoan=该币可借量）。
+func (c *Client) MaxLoanCcy(ctx context.Context, ccy, mgnMode, mgnCcy string) (float64, error) {
+	raw, err := c.Get(ctx, fmt.Sprintf("/api/v5/account/max-loan?ccy=%s&mgnMode=%s&mgnCcy=%s",
+		ccy, mgnMode, mgnCcy))
+	if err != nil {
+		return 0, err
+	}
+	var rows []struct {
+		MaxLoan string `json:"maxLoan"`
+	}
+	if err := json.Unmarshal(raw, &rows); err != nil {
+		return 0, fmt.Errorf("max-loan(ccy) parse: %w", err)
+	}
+	if len(rows) == 0 {
+		return 0, nil
+	}
+	var ml float64
+	fmt.Sscanf(rows[0].MaxLoan, "%g", &ml)
+	return ml, nil
+}
+
 // BorrowRepay quick margin 借/还（POST /account/borrow-repay——{ccy,amt,side,
 // instId?}；side=borrow|repay）。**无幂等键**——venue 侧重复调用=重复借贷，
 // 调用面必须先持仓态对账再决定是否补发（禁盲重试同 okx-exec 歧态势律）。
@@ -173,4 +195,20 @@ func joinCcy(ccys []string) string {
 		s += c
 	}
 	return s
+}
+
+// AccountAdjEquity /account/balance 顶层 adjEq（O-40707 margin 健康闸抵押物
+// 口径——实证 adjEq=Earn赎回后 trading 自由保证金口径，策略冻结资金不计）。
+func (c *Client) AccountAdjEquity(ctx context.Context) (float64, error) {
+	raw, err := c.Get(ctx, "/api/v5/account/balance")
+	if err != nil {
+		return 0, err
+	}
+	var rows []struct {
+		AdjEq string `json:"adjEq"`
+	}
+	if err := json.Unmarshal(raw, &rows); err != nil || len(rows) == 0 {
+		return 0, fmt.Errorf("balance adjEq parse: %w rows=%d", err, len(rows))
+	}
+	return parseF(rows[0].AdjEq), nil
 }

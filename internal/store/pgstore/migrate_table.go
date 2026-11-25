@@ -275,4 +275,5 @@ var finMigrationTable = []migEntry{
 	{260, "fin_0260_manual_flow.sql"},                   // 工单O-33207——手动资金流/手动仓采集:fin_venue_position 手动仓事实面+surface_lifecycle 登记
 	{261, "fin_0261_margin_borrow.sql"},                 // 工单O-39460——margin-short 借币证据面:md_margin_borrow 率/额度快照表+闸键三枚(0260被O-33207在途占让号)
 	{262, "fin_0262_sem_accept_event.sql"},              // 工单O-40642——接票事件入册:ops_event_sem_matrix 接票×施工席/施工/外席三面(fin_0261 margin_borrow 合master占号——跳号钉0262)
+	{264, "fin_0264_margin_exec.sql"},                   // 工单O-40707——margin-short 接线残件:fin_margin_loan 负债台账+borrow_interest kind+闸键五枚(0262被O-40642在途占跳号钉)
 }

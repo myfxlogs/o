@@ -34,6 +34,7 @@ type hedgeOpener struct {
 	xmeta  execution.MetaLoader                            // T-0145 返修①桩测缝——nil=h.loadMeta 产线形（xvenue e2e 桩绕 venue 活读）
 	xf     *xvenueFleet                                    // O-37449：名册驱动执行三件面（nil=旧三件兼容径——桩测旧形）
 	redeem func(ctx context.Context, usdAmt float64) error // O-CAP1：earn.Worker.RedeemToTrading 同源注入——nil=旧径不变
+	mvenue marginVenue                                     // O-40707 margin 借贷/下单窄接口桩测缝——nil=h.cli 产线形
 }
 
 // Open live 策略开仓：双帽取小→闸→腿构→原子执行。任一环败=err 上抛
@@ -61,6 +62,12 @@ func (h hedgeOpener) Open(ctx context.Context, spec lifecycle.OpenSpec) (int64, 
 	case "dir_perp_mom":
 		// 棒5c 方向族单腿真户径（open_dir.go——BuildDirLeg+ExecuteDir）。
 		return h.dirOpen(ctx, spec)
+	}
+	// O-40707 margin-short：direction=long_perp_short_spot∧venue=okx=保证金
+	// 借币卖出现货径（margin_open.go——exec_enabled 总闸 fail-closed 待命；
+	// 余 venue/方向不受本闸影响照旧双腿原子径）。
+	if spec.Direction == "long_perp_short_spot" && spec.Venue == "okx" {
+		return h.marginShortOpen(ctx, spec)
 	}
 	notional := spec.NotionalUSD
 	// 双帽取小（openfirst 同径：probe_notional/max_notional——缺键 fail-closed）。
