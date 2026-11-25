@@ -190,3 +190,32 @@ func TestDeskOrphanSilentClean(t *testing.T) {
 		t.Fatalf("净池误升 n=%d", n)
 	}
 }
+
+// O-39410③同锚判重：两票同 venue 锚→孤儿池按锚分组一报
+// esc_scope='desk_orphan:venue:<v>'（判重硬键）；无锚票仍走
+// 'desk_orphan' 桶。锚由出生触发器自 note venue= 推导。
+func TestDeskOrphanAnchorGroup(t *testing.T) {
+	s, pool := droughtFixture(t)
+	closeAllOrphans(t, pool)
+	// 两张同 venue 锚陈票（note venue= 同触发器推导 premise 锚）
+	seedDeskTicket(t, pool, 50, "venue=grp-v 甲票")
+	seedDeskTicket(t, pool, 40, "venue=grp-v 乙票")
+	seedDeskTicket(t, pool, 30, "plain 无锚丙票")
+	if err := s.ProbeDeskOrphan(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	// 锚组升件：scope=desk_orphan:venue:grp-v 一条（两票同锚=一报）
+	var anchored int
+	if err := pool.QueryRow(context.Background(),
+		`SELECT count(*) FROM ops_event WHERE event='升件'
+		 AND esc_scope='desk_orphan:venue:grp-v'`).Scan(&anchored); err != nil {
+		t.Fatal(err)
+	}
+	if anchored != 1 {
+		t.Fatalf("同锚判重升件=%d want 1", anchored)
+	}
+	// 无锚桶升件照旧 scope='desk_orphan'
+	if n := len(deskOrphanEscRows(t, pool)); n != 1 {
+		t.Fatalf("无锚兜底升件=%d want 1", n)
+	}
+}
