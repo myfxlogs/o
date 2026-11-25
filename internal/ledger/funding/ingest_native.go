@@ -8,24 +8,29 @@ import (
 	"time"
 )
 
+// spotLegKind 现货腿 kind 定向（inst BASE-QUOTE：基币入=买/出=卖，
+// 计价币入=卖/出=买；币对解不出=""=unmapped_bill 残差域）。O-39310
+// 抽出共用——spotNative/spotQuote 双径同式防口径漂移。
+func spotLegKind(instID, ccy string, gross float64) string {
+	if parts := strings.SplitN(instID, "-", 2); len(parts) == 2 {
+		inBase := ccy == parts[0]
+		if inBase || ccy == parts[1] {
+			if (inBase && gross > 0) || (!inBase && gross < 0) {
+				return "spot_buy"
+			}
+			return "spot_sell"
+		}
+	}
+	return ""
+}
+
 // spotNative SPOT/MARGIN 原生币成交腿入账（O-34287 验收④）：bill 每币
 // 独立行=对称两腿之基币侧——毛额腿（balChg−fee=sz 域）+fee 腿各记本币。
 // kind=spot_buy/spot_sell 按币角色定向（inst BASE-QUOTE：基币入=买/出=卖，
 // 计价币入=卖/出=买）；币对不上双段=unmapped_bill 残差如实落。
 func (i *Ingester) spotNative(ctx context.Context, b Bill, ccy string, srcID int64, occurred time.Time) (int, error) {
 	gross := b.BalChg - b.Fee // balChg=sz+fee 净额实测定案——毛额=净−费
-	kind := ""
-	if parts := strings.SplitN(b.InstID, "-", 2); len(parts) == 2 {
-		inBase := ccy == parts[0]
-		if inBase || ccy == parts[1] {
-			buy := (inBase && gross > 0) || (!inBase && gross < 0)
-			if buy {
-				kind = "spot_buy"
-			} else {
-				kind = "spot_sell"
-			}
-		}
-	}
+	kind := spotLegKind(b.InstID, ccy, gross)
 	n := 0
 	if kind != "" && gross != 0 {
 		if err := i.post(ctx, kind, gross, b, ccy, srcID, occurred); err != nil {
