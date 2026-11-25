@@ -261,7 +261,7 @@ var depConfigReaders = map[string]string{
 	"calendar": "宏观日历面",
 	"cmc":      "CMC 采集面",
 	"net":      "带宽预算",
-	"mt5":      "mt5 网关面",
+	"mt5":      "mt5 网关面", // 平台域键前缀（mt5.gateway_addr 等——协议平台非 venue）
 	"okx":      "okx 采集宇宙",
 	"readcred": "读凭据权限面",
 	// —— 册外运行期种键域（迁移种键在案——读者=对应清道夫/采拍面）——

@@ -49,8 +49,8 @@ func TestPostGuards(t *testing.T) {
 		t.Fatal("形闸外币种应拒写")
 	}
 	// MT5 域照旧 USD 单币
-	if _, err := Post(ctx, r.pool, Entry{Kind: "fee", Venue: "mt5", Ccy: "BTC", Amount: 1, SourceRef: 1, SourceTable: "x"}); err == nil {
-		t.Fatal("mt5 非 USD 应拒写")
+	if _, err := Post(ctx, r.pool, Entry{Kind: "fee", Venue: "exness", Ccy: "BTC", Amount: 1, SourceRef: 1, SourceTable: "x"}); err == nil {
+		t.Fatal("exness 非 USD 应拒写")
 	}
 	// kind 闭集外拒
 	if _, err := Post(ctx, r.pool, Entry{Kind: "guess", Venue: "okx", Ccy: "USDT", Amount: 1, SourceRef: 1, SourceTable: "x"}); err == nil {
@@ -371,7 +371,7 @@ func TestFundCcyOpenLegBase(t *testing.T) {
 	}
 	for _, k := range [][2]string{{"okx:trading", "USDT"}, {"okx:funding", "USDT"},
 		{"okx:earn", "USDT"}, {"okx:trading", "ETH"},
-		{"mt5:3001157", "USD"}, {"xmglobal:110660304", "USD"}} {
+		{"exness:3001157", "USD"}, {"xmglobal:110660304", "USD"}} {
 		if !set[k] {
 			t.Fatalf("基金钱集缺 %v", k)
 		}

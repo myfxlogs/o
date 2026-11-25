@@ -76,7 +76,7 @@ func (m *Matrix) execTwoLeg(ctx context.Context, res *CellResult, vs *simvenue.S
 	notional float64, flatFn func() bool) {
 	router := execution.RouterExecutor{"okx": vs}
 	if mt != nil {
-		router["mt5"] = mtexec.Executor{T: mt, C: mt.Cli(), X: mt.Dialect()}
+		router["exness"] = mtexec.Executor{T: mt, C: mt.Cli(), X: mt.Dialect()}
 	}
 	// 行情真相锚（drill_test 同律——venue 成交价与 md_ticks 同价防时差型
 	// 假 drift；全腿统一格价=双腿名义天然对齐带内）。
@@ -95,7 +95,7 @@ func (m *Matrix) execTwoLeg(ctx context.Context, res *CellResult, vs *simvenue.S
 	for _, l := range legs {
 		tag, dir := "perp", "long"
 		switch {
-		case l.Venue == "mt5":
+		case l.Venue == "exness":
 			tag = "cfd"
 		case strings.HasSuffix(l.InstID, "-SWAP"):
 			tag = "perp"
@@ -142,10 +142,10 @@ func (m *Matrix) execTwoLeg(ctx context.Context, res *CellResult, vs *simvenue.S
 	w.AttachVenueSizer("okx", vs)
 	w.AttachSizer(vs)
 	if mt != nil {
-		w.AttachVenueSizer("mt5", mt)
+		w.AttachVenueSizer("exness", mt)
 	}
 	w.AttachCtVal(func(_ context.Context, venue, instID string) (float64, bool) {
-		if venue == "mt5" && mt != nil {
+		if venue == "exness" && mt != nil {
 			cs, _, _, _, ok := mt.Meta(instID)
 			return cs, ok
 		}

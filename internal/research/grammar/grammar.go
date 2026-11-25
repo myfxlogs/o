@@ -130,8 +130,8 @@ func Families() []Family {
 		// ④ mt5 面映射（catalog 注册但 enabled=false——面关=族不生锚）
 		{Template: "mt5_swap_carry", Direction: "gap_carry", Kind: "carry",
 			Legs: []LegPrim{SpotLong}, Settle: "swap_daily",
-			NeedFace:   map[string][]string{"mt5": {"catalog", "symbols"}},
-			PrimaryVen: "mt5", PrimarySurf: "catalog"},
+			NeedFace:   map[string][]string{"exness": {"catalog", "symbols"}},
+			PrimaryVen: "exness", PrimarySurf: "catalog"},
 		// ⑤ stake_carry 双头族（T-0320——质押现货+空单付费双腿同构业主
 		// TRX 自营盘；NeedFace=二维积具体面：质押维注册+空单付费面注册。
 		// executor 缺=假想卡（逐资产实例枚举归假想官 stakeCarryScan 臂）；
@@ -152,8 +152,8 @@ func Families() []Family {
 		// dirmom venue='mt5' NewRunnerVenue 在案，Existing 不重生模板行）。
 		{Template: "mt5_dir_mom", Direction: "cfd_directional", Kind: "trend_follow",
 			Legs: []LegPrim{CfdLong, CfdShort}, Settle: "mtm",
-			NeedFace: map[string][]string{"mt5": {"catalog", "symbols"}},
-			Executor: "dirmom", Existing: true, PrimaryVen: "mt5", PrimarySurf: "catalog"},
+			NeedFace: map[string][]string{"exness": {"catalog", "symbols"}},
+			Executor: "dirmom", Existing: true, PrimaryVen: "exness", PrimarySurf: "catalog"},
 		// ⑧ OSS 三族骨架（工单O-35489——假想卡#578380-82 parked 语义正本
 		// 逐族五件落位：本行=文法闭集注册行；Executor="" 但 Existing=true
 		// =模板行由 md_1106 迁移落位（candidate 态）+假想卡 parked 在案——

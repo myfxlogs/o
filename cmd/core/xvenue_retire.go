@@ -48,7 +48,7 @@ func (h hedgeOpener) xvenueErr(ctx context.Context, spec lifecycle.OpenSpec,
 }
 
 // xvenuePair cfd 官名+副腿 venue+副腿行 id 对位（提案双行同 proposal_ref
-// 配对——xvenuepair.go 建序钦定；O-37449 副腿 venue=名册 mt5-proto 户
+// 配对——xvenuepair.go 建序钦定；O-37449 副腿 venue=名册 cfd 类户
 // 不再钉 'mt5'——XM 等 CFD 户对位同径）。pair 行未落期兜底
 // bridge.xvenue.map 同映射源（双无=fail-closed 不构单腿；兜底径 venue
 // 无从对位=按 'mt5' 存量语义——map 值即 Exness 方言面历史事实）。
@@ -60,7 +60,7 @@ func (h hedgeOpener) xvenuePair(ctx context.Context, spec lifecycle.OpenSpec) (s
 		WHERE s.id=$1 AND m.id<>s.id AND m.venue<>'okx'
 		ORDER BY m.id DESC LIMIT 1`, spec.StrategyRef).Scan(&mateID, &cfd, &cfdVenue)
 	if err == nil {
-		if !mt5.IsMt5ProtoVenue(ctx, h.pool, cfdVenue) {
+		if !mt5.IsCfdProtoVenue(ctx, h.pool, cfdVenue) {
 			return "", "", 0, fmt.Errorf("xvenue 副腿 venue=%s 非 mt5-proto——CFD 面对位拒 fail-closed", cfdVenue)
 		}
 		return cfd, cfdVenue, mateID, nil
@@ -76,7 +76,7 @@ func (h hedgeOpener) xvenuePair(ctx context.Context, spec lifecycle.OpenSpec) (s
 	if e := json.Unmarshal([]byte(mapRaw), &m); e != nil || m[spec.InstID] == "" {
 		return "", "", 0, fmt.Errorf("xvenue.map 无 %s 映射 fail-closed", spec.InstID)
 	}
-	return m[spec.InstID], "mt5", 0, nil
+	return m[spec.InstID], "exness", 0, nil
 }
 
 // xvenueUntradeable 终局拒双腿处置（T-0145③——显式迁移先于入册序位律同

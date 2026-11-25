@@ -55,30 +55,6 @@ const (
 // 数线横；冒号/空白/点禁入台账键域）。
 var brokerVenueRE = regexp.MustCompile(`^[a-z0-9_-]{1,32}$`)
 
-// brokerCredNS cred_ns 推导（O-37450 roster upsert 同源——roster 行在=
-// cred_ns 真源沿用；裸键族在=首户兼容 cred_ns=venue 名〔存量 mt5/okx/
-// okx_read 无中缀形〕；否则 venue+'.'+proto 新户键前缀——与凭据键写
-// `<cred_ns>.<field>` 同式自洽）。
-func brokerCredNS(ctx context.Context, tx pgx.Tx, venue, proto string) (string, error) {
-	var ns string
-	err := tx.QueryRow(ctx, `SELECT cred_ns FROM fin_venue_roster WHERE venue=$1`, venue).Scan(&ns)
-	if err == nil {
-		return ns, nil
-	}
-	if !errors.Is(err, pgx.ErrNoRows) {
-		return "", err
-	}
-	probe := venue + "." + map[string]string{"mt5": "login", "cex": "api_key"}[proto]
-	var bare bool
-	if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM app_secrets WHERE key=$1)`, probe).Scan(&bare); err != nil {
-		return "", err
-	}
-	if bare {
-		return venue, nil
-	}
-	return venue + "." + proto, nil
-}
-
 // mt5VerifySession mtapi 验连会话窄面（onboard.Session 同构窄化本地面——
 // *mt5.Client 结构满足；桩测注假 seam：fake Session 喂真形回包，禁桩真
 // venue）。
@@ -165,17 +141,16 @@ func (c coreService) SubmitBrokerCred(ctx context.Context,
 			"venue 形拒——[a-z0-9_-]{1,32} 小写数线横 token（凭据键前缀同 credscan 形闸）")
 	}
 	proto := req.GetProto()
-	if proto == "" {
-		proto = "mt5"
+	if proto == "" || proto == "mt5" { // O-39440①：mt5=平台非类目——存量 'mt5' 调用别名归一 cfd
+		proto = "cfd"
 	}
-	if proto != "mt5" && proto != "cex" {
-		return nil, connect.NewError(connect.CodeInvalidArgument,
-			"proto 形拒——mt5|cex 两值（MT4 不处理——业主令 2026-11-07，存量 .mt4. 键读面兼容）")
+	if proto != "cfd" && proto != "cex" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, "proto 形拒——cfd|cex 两值")
 	}
 	var fields map[string]string
 	var note, verifyNote string
 	switch proto {
-	case "mt5":
+	case "cfd":
 		login, err := strconv.ParseUint(req.GetLogin(), 10, 64)
 		if err != nil {
 			return nil, connect.NewError(connect.CodeInvalidArgument,
@@ -261,15 +236,19 @@ func (c coreService) SubmitBrokerCred(ctx context.Context,
 	// 已拒零行；state/roles 冲突不覆盖——人工停用/授权面不被提交面改写，
 	// 新行 state='connecting' 待会话环自报接管，roles 缺省 {collect}）。
 	var loginArg any
-	if proto == "mt5" {
+	if proto == "cfd" {
 		loginArg = req.GetLogin()
 	}
 	meta, _ := json.Marshal(map[string]string{"verify_note": verifyNote, "submit_ticket": brokerCredTicket})
-	if _, err := tx.Exec(ctx, `INSERT INTO fin_venue_roster(venue,proto,cred_ns,login,roles,state,meta)
-		VALUES($1,$2,$3,$4,'{collect}','connecting',$5)
+	plat := ""
+	if proto == "cfd" {
+		plat = "mt5"
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO fin_venue_roster(venue,proto,cred_ns,login,roles,state,meta,platform)
+		VALUES($1,$2,$3,$4,'{collect}','connecting',$5,$6)
 		ON CONFLICT (venue) DO UPDATE SET cred_ns=EXCLUDED.cred_ns,
 		login=EXCLUDED.login,updated_at=now()`,
-		venue, proto, credNS, loginArg, meta); err != nil {
+		venue, proto, credNS, loginArg, meta, plat); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, "名册 upsert: "+err.Error())
 	}
 	if _, err := tx.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note,esc_scope)

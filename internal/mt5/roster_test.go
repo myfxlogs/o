@@ -8,8 +8,8 @@
 //	③ 一户 ConnectEx 败不连坐——败户 degraded+last_error+「venue接入」
 //	   ops_event 行（esc_scope=venue:login 首入判词），他户照常 active+token
 //	   在册，败户会话环仍存活续试；
-//	④ Exness 回归——venue='mt5' 键形全存量锚（SessionKey/SymbolsKey/
-//	   channel='mt5_boot'/venue='mt5' 写键/md_ticks 键域）。
+//	④ Exness 回归——venue='exness' 键形全存量锚（SessionKey/SymbolsKey/
+//	   channel='mt5_boot'/venue='exness' 写键/md_ticks 键域）。
 package mt5
 
 import (
@@ -77,7 +77,7 @@ func seedAcct(t *testing.T, ctx context.Context, pool *pgxpool.Pool,
 	t.Helper()
 	if _, err := pool.Exec(ctx,
 		`INSERT INTO fin_venue_roster(venue,proto,cred_ns,login,roles,state)
-		 VALUES($1,'mt5',$2,$3,'{collect,execute}','registered')
+		 VALUES($1,'cfd',$2,$3,'{collect,execute}','registered')
 		 ON CONFLICT (venue) DO UPDATE SET cred_ns=EXCLUDED.cred_ns,
 		 login=EXCLUDED.login, state='registered', last_error=NULL`,
 		venue, credNS, login); err != nil {
@@ -312,13 +312,13 @@ func TestRosterMultiAccountSessions(t *testing.T) {
 	defer cancel()
 	ctx := context.Background()
 	pool := c.pool
-	venues := []string{"mt5", "icmarkets"}
+	venues := []string{"exness", "icmarkets"}
 	rosterClean(t, ctx, pool, venues...)
 	defer rosterClean(t, ctx, pool, venues...)
 	// mt5 存量单键凭据族（cred_ns='mt5'——<cred_ns>.login 形同构）。
-	seedAcctCreds(t, ctx, pool, "mt5", "3001157")
+	seedAcctCreds(t, ctx, pool, "exness.mt5", "3001157")
 	seedAcctCreds(t, ctx, pool, "icmarkets.mt5", "777001")
-	seedAcct(t, ctx, pool, "mt5", "mt5", "3001157")
+	seedAcct(t, ctx, pool, "exness", "exness.mt5", "3001157")
 	seedAcct(t, ctx, pool, "icmarkets", "icmarkets.mt5", "777001")
 
 	c.syncRoster(rctx, func(addr string) (*Client, error) {
@@ -329,15 +329,15 @@ func TestRosterMultiAccountSessions(t *testing.T) {
 		c.mu.Unlock()
 		t.Fatalf("runs=%d want 2（双户各持会话环）", len(c.runs))
 	}
-	if c.runs["mt5"].acct.CredNS != "mt5" || c.runs["icmarkets"].acct.CredNS != "icmarkets.mt5" {
+	if c.runs["exness"].acct.CredNS != "mt5" || c.runs["icmarkets"].acct.CredNS != "icmarkets.mt5" {
 		c.mu.Unlock()
-		t.Fatalf("cred_ns 投影错: %+v / %+v", c.runs["mt5"].acct, c.runs["icmarkets"].acct)
+		t.Fatalf("cred_ns 投影错: %+v / %+v", c.runs["exness"].acct, c.runs["icmarkets"].acct)
 	}
 	c.mu.Unlock()
 
-	waitSessionKey(t, ctx, pool, "mt5.session_token")
+	waitSessionKey(t, ctx, pool, "exness.session_token")
 	waitSessionKey(t, ctx, pool, "icmarkets.session_token")
-	tokA := sessionToken(t, ctx, pool, "mt5.session_token")
+	tokA := sessionToken(t, ctx, pool, "exness.session_token")
 	tokB := sessionToken(t, ctx, pool, "icmarkets.session_token")
 	if !strings.Contains(tokA, "tok-3001157") || !strings.Contains(tokB, "tok-777001") {
 		t.Fatalf("token 户归属错: mt5=%s icmarkets=%s", tokA, tokB)
@@ -345,13 +345,13 @@ func TestRosterMultiAccountSessions(t *testing.T) {
 	// state 自报——双户 active（registered→connecting→active 迁移链在案）。
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
-		if rosterState(t, ctx, pool, "mt5") == "active" &&
+		if rosterState(t, ctx, pool, "exness") == "active" &&
 			rosterState(t, ctx, pool, "icmarkets") == "active" {
 			break
 		}
 		time.Sleep(50 * time.Millisecond) // sched-exempt-ok 测试轮询拍（有界 deadline 等待非生产调度原语）
 	}
-	if s := rosterState(t, ctx, pool, "mt5"); s != "active" {
+	if s := rosterState(t, ctx, pool, "exness"); s != "active" {
 		t.Fatalf("mt5 state=%s want active", s)
 	}
 	if s := rosterState(t, ctx, pool, "icmarkets"); s != "active" {
@@ -362,7 +362,7 @@ func TestRosterMultiAccountSessions(t *testing.T) {
 	for time.Now().Before(deadline) {
 		var n int
 		pool.QueryRow(ctx, `SELECT count(*) FROM md_account_events
-			WHERE venue IN ('mt5','icmarkets') AND channel LIKE '%_boot'`).Scan(&n)
+			WHERE venue IN ('exness','icmarkets') AND channel LIKE '%_boot'`).Scan(&n)
 		if n >= 2 {
 			break
 		}
@@ -370,7 +370,7 @@ func TestRosterMultiAccountSessions(t *testing.T) {
 	}
 	var venuesSeen int
 	pool.QueryRow(ctx, `SELECT count(DISTINCT venue) FROM md_account_events
-		WHERE venue IN ('mt5','icmarkets') AND channel LIKE '%_boot'`).Scan(&venuesSeen)
+		WHERE venue IN ('exness','icmarkets') AND channel LIKE '%_boot'`).Scan(&venuesSeen)
 	if venuesSeen != 2 {
 		t.Fatalf("boot 事件 venue 分键=%d want 2（venue 列写面未按户）", venuesSeen)
 	}
@@ -385,12 +385,12 @@ func TestRosterFailureIsolation(t *testing.T) {
 	defer cancel()
 	ctx := context.Background()
 	pool := c.pool
-	venues := []string{"mt5", "icmarkets-fail"}
+	venues := []string{"exness", "icmarkets-fail"}
 	rosterClean(t, ctx, pool, venues...)
 	defer rosterClean(t, ctx, pool, venues...)
-	seedAcctCreds(t, ctx, pool, "mt5", "3001157")
+	seedAcctCreds(t, ctx, pool, "exness.mt5", "3001157")
 	seedAcctCreds(t, ctx, pool, "icx.mt5", "777001")
-	seedAcct(t, ctx, pool, "mt5", "mt5", "3001157")
+	seedAcct(t, ctx, pool, "exness", "exness.mt5", "3001157")
 	seedAcct(t, ctx, pool, "icmarkets-fail", "icx.mt5", "777001")
 	// 败户专用键域清场（venue 名独立——共享行键=venue 寻址）。
 	if _, err := pool.Exec(ctx,
@@ -399,7 +399,7 @@ func TestRosterFailureIsolation(t *testing.T) {
 	}
 
 	c.syncRoster(rctx, func(addr string) (*Client, error) { return c.dial(addr) })
-	waitSessionKey(t, ctx, pool, "mt5.session_token")
+	waitSessionKey(t, ctx, pool, "exness.session_token")
 
 	// 败户 degraded+last_error 落名册（自报径）。
 	deadline := time.Now().Add(4 * time.Second)
@@ -439,12 +439,12 @@ func TestRosterFailureIsolation(t *testing.T) {
 	// 败户环仍存活。
 	deadline = time.Now().Add(4 * time.Second)
 	for time.Now().Before(deadline) {
-		if rosterState(t, ctx, pool, "mt5") == "active" {
+		if rosterState(t, ctx, pool, "exness") == "active" {
 			break
 		}
 		time.Sleep(50 * time.Millisecond) // sched-exempt-ok 测试轮询拍（有界 deadline 等待非生产调度原语）
 	}
-	if s := rosterState(t, ctx, pool, "mt5"); s != "active" {
+	if s := rosterState(t, ctx, pool, "exness"); s != "active" {
 		t.Fatalf("mt5 被连坐 state=%s want active", s)
 	}
 	var hasTok bool
@@ -454,7 +454,7 @@ func TestRosterFailureIsolation(t *testing.T) {
 		t.Fatal("败户不应有 session_token 行（ConnectEx 未过）")
 	}
 	c.mu.Lock()
-	_, mt5Alive := c.runs["mt5"]
+	_, mt5Alive := c.runs["exness"]
 	_, failAlive := c.runs["icmarkets-fail"]
 	c.mu.Unlock()
 	if !mt5Alive || !failAlive {
@@ -474,47 +474,47 @@ func TestRosterFailureIsolation(t *testing.T) {
 	}
 }
 
-// 案④：Exness 回归锚——venue='mt5' 全键形存量不变（零迁移窗实证）。
+// 案④：Exness 回归锚——venue='exness' 全键形存量不变（零迁移窗实证）。
 func TestExnessKeyCompatibility(t *testing.T) {
-	a := VenueAcct{Venue: "mt5", CredNS: "mt5", Login: "3001157"}
-	if a.SessionKey() != "mt5.session_token" {
-		t.Fatalf("SessionKey=%q want 存量 mt5.session_token", a.SessionKey())
+	a := VenueAcct{Venue: "exness", CredNS: "exness.mt5", Login: "3001157"}
+	if a.SessionKey() != "exness.session_token" {
+		t.Fatalf("SessionKey=%q want exness.session_token", a.SessionKey())
 	}
-	if a.SymbolsKey() != "mt5.symbols" {
-		t.Fatalf("SymbolsKey=%q want 存量 mt5.symbols", a.SymbolsKey())
+	if a.SymbolsKey() != "exness.mt5.symbols" {
+		t.Fatalf("SymbolsKey=%q want exness.mt5.symbols", a.SymbolsKey())
 	}
-	if sharedSessionKey != "mt5.session_token" {
+	if sharedSessionKey != "exness.session_token" {
 		t.Fatalf("sharedSessionKey=%q", sharedSessionKey)
 	}
-	// CredNSFor 兜底——roster 无行/'mt5' venue=存量单键凭据族语义不变。
+	// CredNSFor 兜底——roster 无行/'exness' venue=存量单键凭据族语义不变。
 	pool := testutil.Pool(t)
 	ctx := context.Background()
 	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
 		t.Fatal(err)
 	}
-	pool.Exec(ctx, `DELETE FROM fin_venue_roster WHERE venue='mt5'`)
-	defer seedAcct(t, ctx, pool, "mt5", "mt5", "3001157") // 共享 schema 复原——后续测不继承缺行态
-	ns, err := CredNSFor(ctx, pool, "mt5")
-	if err != nil || ns != "mt5" {
-		t.Fatalf("CredNSFor mt5 兜底 ns=%q err=%v", ns, err)
+	pool.Exec(ctx, `DELETE FROM fin_venue_roster WHERE venue='exness'`)
+	defer seedAcct(t, ctx, pool, "exness", "exness.mt5", "3001157") // 共享 schema 复原——后续测不继承缺行态
+	ns, err := CredNSFor(ctx, pool, "exness")
+	if err != nil || ns != "exness.mt5" {
+		t.Fatalf("CredNSFor exness 兜底 ns=%q err=%v", ns, err)
 	}
 	if _, err := CredNSFor(ctx, pool, "nosuchvenue"); err == nil {
 		t.Fatal("未知 venue 应 err 显形禁猜键前缀")
 	}
-	// snapshotOnce 写面——venue='mt5'/channel='mt5_boot' 存量形不变。
+	// snapshotOnce 写面——venue='exness'/channel='mt5_boot' 存量形不变。
 	c := &Collector{pool: pool, cfg: config.New(pool),
 		rej: rejects.New("mt5", "connect_failed", "subscribe_failed", "stream_dead",
 			"symbols_read_failed", "snapshot_write_failed", "tick_write_err", "write_err",
 			"balance_ops_err")}
 	cl := &Client{mt5: &stubMT5Full{}}
-	ar := &acctRun{acct: VenueAcct{Venue: "mt5", CredNS: "mt5"}, cr: Credentials{Login: 3001157}}
+	ar := &acctRun{acct: VenueAcct{Venue: "exness", CredNS: "exness.mt5"}, cr: Credentials{Login: 3001157}}
 	c.snapshotOnce(ctx, cl, ar.acct.Venue+"_boot", ar)
 	var ch, vn string
 	if err := pool.QueryRow(ctx, `SELECT channel,venue FROM md_account_events
-		WHERE channel='mt5_boot' ORDER BY ts DESC LIMIT 1`).Scan(&ch, &vn); err != nil {
-		t.Fatal("mt5_boot 事件行缺:", err)
+		WHERE channel='exness_boot' ORDER BY ts DESC LIMIT 1`).Scan(&ch, &vn); err != nil {
+		t.Fatal("exness_boot 事件行缺:", err)
 	}
-	if vn != "mt5" {
-		t.Fatalf("venue=%q want mt5（Exness 写键回归）", vn)
+	if vn != "exness" {
+		t.Fatalf("venue=%q want exness（Exness 写键回归）", vn)
 	}
 }

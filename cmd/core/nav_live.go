@@ -55,7 +55,7 @@ var mt5SumBy sync.Map // venue token → *mt5SumEnt
 func mt5SummaryOnce(ctx context.Context, pool *pgxpool.Pool, cfg *config.Client,
 	venueTok string, openMt5 func(context.Context) (*mt5.Client, error)) (mt5Acct, error) {
 	if venueTok == "" {
-		venueTok = "mt5"
+		venueTok = "exness"
 	}
 	entAny, _ := mt5SumBy.LoadOrStore(venueTok, &struct {
 		mu   sync.Mutex

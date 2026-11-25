@@ -1,11 +1,11 @@
--- 0256 账户维根修（工单O-39440——业主令「以账户来分」「直接拉真实数据」）：
+-- 0258 账户维根修（工单O-39440——业主令「以账户来分」「直接拉真实数据」）：
 -- ① fin_account 账户注册表——账户身份=不可变（UPDATE 户号=新行+旧行
---   closed，铁律在 spec）；首批钦定行 okx 四子户+mt5 两户，存量 venue
+--   closed，铁律在 spec）；首批钦定行 okx 四子户+cfd 类两经纪商户，存量 venue
 --   兜底 legacy 终身标（不可判不猜——spec 禁线）。
 -- ② fin_cashflow.account_id——账本域键加账户维：存量行迁移内显式映射
 --   回填（kind 感知：deposit/withdraw/owner_*→funding、earn_*/interest→
 --   earn、dcd_*→dcd、recon_adjust/unmapped_bill→legacy、余→trading；
---   mt5 全行→mt5:3001157——三行簿记链属 Exness 户实证），回填后
+--   exness 全行→exness:3001157——三行簿记链属 Exness 户实证），回填后
 --   NOT NULL+FK 强制「新写入径禁再落无账户行」。
 -- ③ fin_known_residual.account_id——豁免行同维（NULL=未归属——对拍面
 --   按账户精确扣,未归属行不匹配任何账户=fail-safe 不静默吞差）。
@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS fin_account (
     declared_at  timestamptz NOT NULL DEFAULT now()
 );
 COMMENT ON TABLE fin_account IS '账户注册表（O-39440——venue 实读/对拍/簿记三面账户粒度真源；账户身份不可变,变=新行+旧行closed）';
-COMMENT ON COLUMN fin_account.account_id IS '账户域键 venue:account（okx:trading/funding/earn/dcd 子户+mt5-proto 经纪商 venue:login 户号（mt5:3001157=Exness/xmglobal:110660304=XM）+<venue>:legacy 兜底）';
+COMMENT ON COLUMN fin_account.account_id IS '账户域键 venue:account（okx:trading/funding/earn/dcd 子户+cfd 类经纪商 venue:login 户号（exness:3001157=Exness/xmglobal:110660304=XM）+<venue>:legacy 兜底）';
 COMMENT ON COLUMN fin_account.sub_type IS '子户型 trading|funding|earn|dcd|main——对拍组件归属判据（parked→earn/dcdBase→dcd/native+mtm→trading）';
 
 INSERT INTO fin_surface_lifecycle(surface,accumulates,consumer_ref,terminal_path) VALUES
@@ -39,10 +39,10 @@ INSERT INTO fin_account(account_id,venue,account_no,alias,ccy,sub_type,state) VA
   ('okx:funding',  'okx', '',        'OKX资金户',  'USDT', 'funding', 'active'),
   ('okx:earn',     'okx', '',        'OKX Earn理财','USDT', 'earn',    'active'),
   ('okx:dcd',      'okx', '',        'OKX DCD期权', 'USDT', 'dcd',     'active'),
-  ('mt5:3001157',  'mt5', '3001157', 'Exness',     'USD',  'main',    'active'),
+  ('exness:3001157',  'exness','3001157', 'Exness',     'USD',  'main',    'active'),
   ('xmglobal:110660304','xmglobal','110660304','XM','USD','main','active'),
   ('okx:legacy',   'okx', '',        'OKX未归属',  'USDT', 'main',    'frozen'),
-  ('mt5:legacy',   'mt5', '',        'MT5未归属',  'USD',  'main',    'frozen'),
+  ('exness:legacy',   'exness', '',        'CFD未归属',  'USD',  'main',    'frozen'),
   ('xmglobal:legacy','xmglobal','','XM未归属',   'USD',  'main',    'frozen'),
   ('sim:legacy',   'sim', '',        'sim未归属',  'USDT', 'main',    'frozen'),
   ('tron:legacy',  'tron','',        'tron未归属', 'USDT', 'main',    'frozen')
@@ -57,7 +57,7 @@ WHERE venue||':legacy' NOT IN (SELECT account_id FROM fin_account)
 ON CONFLICT (account_id) DO NOTHING;
 
 -- fin_cashflow 账户维列+显式映射回填（kind 感知规则——迁移内注即
--- 映射正本；mt5 全行→mt5:3001157：id5/1658/1689 三行簿记链属
+-- 映射正本；exness 全行→exness:3001157：id5/1658/1689 三行簿记链属
 -- Exness 户实证（+3247.41/-3247.41/+1.80 链=O-33206 更正域）；
 -- xmglobal→xmglobal:110660304 同型）。
 ALTER TABLE fin_cashflow ADD COLUMN IF NOT EXISTS account_id text;
@@ -67,7 +67,7 @@ UPDATE fin_cashflow SET account_id = CASE
   WHEN venue='okx' AND (kind LIKE 'dcd\_%' OR kind='dcd_owner') THEN 'okx:dcd'
   WHEN venue='okx' AND kind IN ('recon_adjust','unmapped_bill') THEN 'okx:legacy'
   WHEN venue='okx' THEN 'okx:trading'
-  WHEN venue='mt5' THEN 'mt5:3001157'
+  WHEN venue='exness' THEN 'exness:3001157'
   WHEN venue='xmglobal' THEN 'xmglobal:110660304'
   ELSE venue||':legacy'
 END
@@ -84,10 +84,13 @@ ALTER TABLE fin_cashflow VALIDATE CONSTRAINT fin_cashflow_account_fk;
 CREATE INDEX IF NOT EXISTS fin_cashflow_account_idx ON fin_cashflow(account_id,ccy);
 
 -- fin_known_residual 豁免行账户维（NULL=未归属——对拍面精确扣,
--- 显式映射：dcd→dcd、earn/应计→earn、余 okx→trading（残差多为
--- 交易户现象）、非 okx→<venue>:legacy）。
+-- 显式映射：cfd 户→本户 main（exness/xmglobal 唯一活跃户）；
+-- dcd→dcd、earn/应计→earn、余 okx→trading（残差多为交易户现象）、
+-- 余非 okx→<venue>:legacy。
 ALTER TABLE fin_known_residual ADD COLUMN IF NOT EXISTS account_id text;
 UPDATE fin_known_residual SET account_id = CASE
+  WHEN venue='exness' THEN 'exness:3001157'
+  WHEN venue='xmglobal' THEN 'xmglobal:110660304'
   WHEN venue<>'okx' THEN venue||':legacy'
   WHEN resolver='earn_accrual_gap' OR reason ~* 'earn|应计|息' THEN 'okx:earn'
   WHEN reason ~* 'dcd' THEN 'okx:dcd'
@@ -111,7 +114,7 @@ BEGIN
       WHEN NEW.venue='okx' AND (NEW.kind LIKE 'dcd\_%' OR NEW.kind='dcd_owner') THEN 'okx:dcd'
       WHEN NEW.venue='okx' AND NEW.kind IN ('recon_adjust','unmapped_bill') THEN 'okx:legacy'
       WHEN NEW.venue='okx' THEN 'okx:trading'
-      WHEN NEW.venue='mt5' THEN 'mt5:3001157'
+      WHEN NEW.venue='exness' THEN 'exness:3001157'
       WHEN NEW.venue='xmglobal' THEN 'xmglobal:110660304'
       ELSE NEW.venue||':legacy'
     END;
@@ -134,12 +137,12 @@ CREATE TRIGGER fin_cashflow_account_trg BEFORE INSERT ON fin_cashflow
 
 -- ⑥ mt5_deal 幂等键随账户维重键：票号命名空间按经纪商户独立
 -- （Exness/XM ticket 可撞）——(venue,…)→(account_id,…)；存量行
--- 回填后全为 mt5:3001157，唯一性保持。索引重建幂等。
+-- 回填后全为 exness:3001157，唯一性保持。索引重建幂等。
 DROP INDEX IF EXISTS fin_cashflow_mt5_deal_uk;
 -- mig-rehearsal-ok: 重键 (venue→account_id) 后唯一性只收紧不放宽——
 --   旧索引 (venue,source_table,source_ref) 已证零违例（fin_0241 建时
 --   实测+三年运行零 23505 误报），account_id 为 venue 函数细分
---   （mt5 行全归 mt5:3001157，xmglobal 行归 xmglobal:110660304——两 venue 值域不相交），同
+--   （mt5 行全归 exness:3001157，xmglobal 行归 xmglobal:110660304——两 venue 值域不相交），同
 --   (account_id,source_table,source_ref) 违例集⊆旧违例集=空集。
 CREATE UNIQUE INDEX IF NOT EXISTS fin_cashflow_mt5_deal_uk
 	ON fin_cashflow (account_id, source_table, source_ref)

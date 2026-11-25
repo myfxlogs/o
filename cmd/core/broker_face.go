@@ -77,7 +77,7 @@ func (c coreService) ListBrokerOnboard(ctx context.Context,
 			continue
 		}
 		var fields []string
-		if rr.proto == "mt5" {
+		if rr.proto == "cfd" {
 			fields = []string{"login", "password", "server"}
 		} else {
 			fields = []string{"api_key", "api_secret", "passphrase"}

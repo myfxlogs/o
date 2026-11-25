@@ -148,16 +148,16 @@ func attachVenueReaders(riskGate *risk.Gate, wd *guard.Warden, ledgerR *ledger.R
 		return eq, nil
 	}
 	riskGate.WithEquity(func(ctx context.Context, venue string) (float64, error) {
-		if venue == "mt5" {
+		if venue == "exness" {
 			if openMt5For == nil {
 				return 0, fmt.Errorf("mt5 权益件缺席") // 件缺席≠读败——boot WARN 显缺径，不入闸
 			}
-			a, err := mt5SummaryOnce(ctx, pool, nil, "mt5", openMt5For("mt5"))
+			a, err := mt5SummaryOnce(ctx, pool, nil, "exness", openMt5For("exness"))
 			if err != nil {
-				vg.fail(ctx, "mt5", err) // T-0352：风控权益面读败入闸
+				vg.fail(ctx, "exness", err) // T-0352：风控权益面读败入闸
 				return 0, err
 			}
-			vg.ok("mt5")
+			vg.ok("exness")
 			return a.Equity, nil
 		}
 		if venue != "okx" {

@@ -79,7 +79,7 @@ func (r *Runner) admitXvenuePair(ctx context.Context, proposalID int64, inst, di
 	for _, leg := range []struct {
 		id int64
 		v  string
-	}{{mainID, "okx"}, {cfdID, "mt5"}} {
+	}{{mainID, "okx"}, {cfdID, "exness"}} {
 		if _, err := r.pool.Exec(ctx, `INSERT INTO fin_strategy_transition(strategy_id,from_state,to_state,reason)
 			VALUES($1,'proposed','paper',$2)`, leg.id,
 			"跨所 carry 双腿 paper 开户（T-0144——venue="+leg.v+"）"); err != nil {
@@ -102,13 +102,13 @@ func (r *Runner) admitXvenuePair(ctx context.Context, proposalID int64, inst, di
 	// T-0521：双腿各按本 venue 率扣估计往返摩擦（同摩擦基准——okx taker 费/
 	// mt5 点差域各归各率）。
 	r.chargePaperFriction(ctx, mainID, "okx", inst, notional)
-	r.chargePaperFriction(ctx, cfdID, "mt5", cfd, notional)
+	r.chargePaperFriction(ctx, cfdID, "exness", cfd, notional)
 	// T-0415：双腿 paper 开户=open 决策行（同提案双腿各落一行 ref_id=腿策略
 	// 行号——单腿退役/平仓对拍口径一致；写败升件不阻钱径）。
 	for _, leg := range []struct {
 		id    int64
 		v, ii string
-	}{{mainID, "okx", inst}, {cfdID, "mt5", cfd}} {
+	}{{mainID, "okx", inst}, {cfdID, "exness", cfd}} {
 		decision.WriteEsc(ctx, r.pool, decision.Row{
 			Domain: "fin", Actor: "lifecycle", RefID: strconv.FormatInt(leg.id, 10),
 			Action: "open",

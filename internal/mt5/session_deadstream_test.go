@@ -74,7 +74,7 @@ func runConsume(c *Collector, fs *fakeQuoteStream, dead, every time.Duration) (t
 	fs.ctx = sessCtx // 桩 Recv 绑同一取消面——看门狗 cancel 即解锁
 	profitErr := make(chan error, 1)
 	start := time.Now()
-	err := c.quoteConsume(ctx, sessCtx, cancel, fs, profitErr, dead, every, "mt5")
+	err := c.quoteConsume(ctx, sessCtx, cancel, fs, profitErr, dead, every, "exness")
 	return time.Since(start), err
 }
 

@@ -20,11 +20,12 @@ import (
 // VenueAcct 名册户投影（fin_venue_roster 行——cred_ns=app_secrets 键前缀，
 // login=出面户号=fin_symbol_dialect account 粒度键）。
 type VenueAcct struct {
-	Venue  string
-	CredNS string
-	Login  string
-	Alias  string
-	Roles  []string
+	Venue    string
+	CredNS   string
+	Login    string
+	Alias    string
+	Roles    []string
+	Platform string // cfd 类平台子属性（mt4|mt5——MT5 会话面只服务 platform='mt5' 户）
 }
 
 // SessionKey 共享会话行键——<venue>.session_token（venue=账户身份 token
@@ -39,7 +40,7 @@ func (a VenueAcct) SymbolsKey() string { return a.CredNS + ".symbols" }
 // VenueAccounts 名册活跃户读——proto 名下 state∉{disabled,removed} 全量
 // （会话数=名册动态勿写死；roles 不滤——采集面只读语义，授权面归执行票）。
 func VenueAccounts(ctx context.Context, pool *pgxpool.Pool, proto string) ([]VenueAcct, error) {
-	rows, err := pool.Query(ctx, `SELECT venue,cred_ns,coalesce(login,''),coalesce(alias,''),roles
+	rows, err := pool.Query(ctx, `SELECT venue,cred_ns,coalesce(login,''),coalesce(alias,''),roles,coalesce(platform,'')
 		FROM fin_venue_roster WHERE proto=$1 AND state NOT IN ('disabled','removed')
 		ORDER BY venue`, proto)
 	if err != nil {
@@ -49,7 +50,7 @@ func VenueAccounts(ctx context.Context, pool *pgxpool.Pool, proto string) ([]Ven
 	var out []VenueAcct
 	for rows.Next() {
 		var a VenueAcct
-		if err := rows.Scan(&a.Venue, &a.CredNS, &a.Login, &a.Alias, &a.Roles); err != nil {
+		if err := rows.Scan(&a.Venue, &a.CredNS, &a.Login, &a.Alias, &a.Roles, &a.Platform); err != nil {
 			return nil, err
 		}
 		out = append(out, a)
@@ -57,16 +58,17 @@ func VenueAccounts(ctx context.Context, pool *pgxpool.Pool, proto string) ([]Ven
 	return out, rows.Err()
 }
 
-// IsMt5ProtoVenue venue 是否 mt5 协议族（名册 proto='mt5'——CFD 同质面
-// 判据唯一真源：'mt5' 存量 token 兼容锚直通；他 venue 凭名册行，名册
-// 读败/缺席=非 mt5-proto fail-closed——禁把未知 venue 当 CFD 腿处理）。
-func IsMt5ProtoVenue(ctx context.Context, pool *pgxpool.Pool, venue string) bool {
-	if venue == "mt5" {
+// IsCfdProtoVenue venue 是否 cfd 类目（名册 proto='cfd'——O-39440① 业主
+// 令：MT4/MT5/cTrader 统归 cfd 类目，协议版本=platform 子属性非类目；
+// 'exness' 存量 token 兼容锚直通；他 venue 凭名册行，名册读败/缺席=
+// 非 cfd fail-closed——禁把未知 venue 当 CFD 腿处理）。
+func IsCfdProtoVenue(ctx context.Context, pool *pgxpool.Pool, venue string) bool {
+	if venue == "exness" {
 		return true
 	}
 	var ok bool
 	if err := pool.QueryRow(ctx,
-		`SELECT EXISTS(SELECT 1 FROM fin_venue_roster WHERE venue=$1 AND proto='mt5')`,
+		`SELECT EXISTS(SELECT 1 FROM fin_venue_roster WHERE venue=$1 AND proto='cfd')`,
 		venue).Scan(&ok); err != nil {
 		return false
 	}
@@ -82,8 +84,8 @@ func CredNSFor(ctx context.Context, pool *pgxpool.Pool, venue string) (string, e
 	if err == nil {
 		return ns, nil
 	}
-	if venue == "mt5" {
-		return "mt5", nil
+	if venue == "exness" {
+		return "exness.mt5", nil
 	}
 	return "", fmt.Errorf("roster 无户 venue=%s: %w", venue, err)
 }
@@ -186,16 +188,19 @@ func (c *Collector) Run(ctx context.Context, errc chan<- error) {
 // roster 读败=本拍让位不拆既有会话；读败且存量 mt5 凭据在=单户兜底
 // （迁移未落/瞬断窗 Exness 行为守恒——名册不可读不等于户死）。
 func (c *Collector) syncRoster(ctx context.Context, dial func(string) (*Client, error)) {
-	accts, err := VenueAccounts(ctx, c.pool, "mt5")
+	accts, err := VenueAccounts(ctx, c.pool, "cfd")
 	if err != nil {
 		log.Printf("[mt5] roster 读败本拍让位（%v）", err)
-		if _, _, cerr := readCreds(ctx, c.pool, c.cfg, "mt5"); cerr != nil {
+		if _, _, cerr := readCreds(ctx, c.pool, c.cfg, "exness"); cerr != nil {
 			return
 		}
-		accts = []VenueAcct{{Venue: "mt5", CredNS: "mt5"}}
+		accts = []VenueAcct{{Venue: "exness", CredNS: "exness.mt5"}}
 	}
 	want := map[string]VenueAcct{}
 	for _, a := range accts {
+		if a.Platform != "" && a.Platform != "mt5" {
+			continue // mt4 等平台户——MT5 会话面不服务（未来 mt4 客户端另件）
+		}
 		want[a.Venue] = a
 	}
 	c.mu.Lock()

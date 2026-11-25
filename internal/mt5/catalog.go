@@ -186,10 +186,10 @@ func (c *BridgeCollector) fetchSwapMid(ctx context.Context, cl *Client, sym stri
 	if ok {
 		val = ann // 空腿年化 bps（负 funding 对冲径正主）
 	}
-	// O-37448：md_signal key 按户命名空间——'mt5'→裸 sym 存量键不变；
+	// O-37448：md_signal key 按户命名空间——'exness'→裸 sym 存量键不变；
 	// 他户 venue:sym 前缀（跨户同名符不互踩——'BTCUSD' 裸名族两商皆有）。
 	sigKey := sym
-	if c.venueKey() != "mt5" {
+	if c.venueKey() != "exness" {
 		sigKey = c.venueKey() + ":" + sym
 	}
 	if _, err := c.pool.Exec(ctx, `INSERT INTO md_signal(kind,key,val,meta,ts)

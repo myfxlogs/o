@@ -69,7 +69,7 @@ func TestProfitDedup(t *testing.T) {
 }
 
 // TestAccountEventWrite 账户事件行落表锚（复审 18212d4：快照表 0029 废弃——
-// 写形状锚改锚 md_account_events append-only 行：venue='mt5'/USD 本位/eq·avail 键域）。
+// 写形状锚改锚 md_account_events append-only 行：venue='exness'/USD 本位/eq·avail 键域）。
 func TestAccountEventWrite(t *testing.T) {
 	pool := testutil.Pool(t)
 	ctx := context.Background()
@@ -83,13 +83,13 @@ func TestAccountEventWrite(t *testing.T) {
 	}
 	// 直写径验证：snapshotOnce/profitLoop 需要 live client——此处验证行形状（写径同 SQL）。
 	if _, err := pool.Exec(ctx, `INSERT INTO md_account_events(ts,venue,channel,ccy,data)
-		VALUES(now(),'mt5','boot','USD',$1)`,
+		VALUES(now(),'exness','boot','USD',$1)`,
 		[]byte(`{"eq":1000.5,"avail":900.25,"src":"boot"}`)); err != nil {
 		t.Fatal(err)
 	}
 	var eq, av float64
 	if err := pool.QueryRow(ctx, `SELECT (data->>'eq')::numeric,(data->>'avail')::numeric
-		FROM md_account_events WHERE venue='mt5' AND channel='boot' AND ccy='USD'
+		FROM md_account_events WHERE venue='exness' AND channel='boot' AND ccy='USD'
 		ORDER BY ts DESC LIMIT 1`).Scan(&eq, &av); err != nil || eq != 1000.5 || av != 900.25 {
 		t.Fatalf("mt5 事件行 eq=%v av=%v err=%v", eq, av, err)
 	}

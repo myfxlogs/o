@@ -44,10 +44,10 @@ type BridgeCollector struct {
 	klineWr   func(ctx context.Context, cl *Client, batch []string) (int, string)                 // 日K批写缝（nil=klineBatchWrite 正径——O-35587 自适应拆批桩测面）
 }
 
-// venueKey 数据面 venue 键（空='mt5' Exness 兼容——桩测直构零值同径）。
+// venueKey 数据面 venue 键（空='exness' 兼容锚——桩测直构零值同径）。
 func (c *BridgeCollector) venueKey() string {
 	if c.venue == "" {
-		return "mt5"
+		return "exness"
 	}
 	return c.venue
 }
@@ -57,12 +57,12 @@ func (c *BridgeCollector) venueKey() string {
 // mt5.session_token 零迁移窗，O-37448 按户复挂）。
 func (c *BridgeCollector) sessionKey() string { return c.venueKey() + ".session_token" }
 
-// NewBridgeCollector 装配（venue=声明服务哪户——默认 'mt5' Exness 兼容；
+// NewBridgeCollector 装配（venue=声明服务哪户——默认 'exness' 兼容锚（O-39440① venue 改名）；
 // 凭据/址链全归 app_config 会话重读——env 凭据径退役；本件不再 fail-closed
 // 于凭据缺，缺件=bridgeSession 返错退避重试同址链缺径）。
 func NewBridgeCollector(pool *pgxpool.Pool, cfg *config.Client, venue string) (*BridgeCollector, error) {
 	if venue == "" {
-		venue = "mt5"
+		venue = "exness"
 	}
 	return &BridgeCollector{pool: pool, cfg: cfg, venue: venue,
 		rej: rejects.New("mt5bridge", "connect_failed", "subscribe_failed",

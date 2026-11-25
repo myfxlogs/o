@@ -182,9 +182,9 @@ func TestSwapPollHealthyShapeLands(t *testing.T) {
 			SymbolInfo:  siOf(0, 0, 0.01, 1),
 			SymbolGroup: sgOf(mt5pb.SwapType_SwapType_InPoints, -1778.7)}}, nil
 	}
-	// mid 基准（midOf 读面——md_ticks venue='mt5' 实行）
+	// mid 基准（midOf 读面——md_ticks venue='exness' 实行）
 	if _, err := pool.Exec(ctx, `INSERT INTO md_ticks(ts,venue,inst_id,last,bid,ask)
-		VALUES(now(),'mt5','BTCUSDm',80000,80000,80000)
+		VALUES(now(),'exness','BTCUSDm',80000,80000,80000)
 		ON CONFLICT (venue,inst_id) DO UPDATE SET ts=now(),last=EXCLUDED.last,
 		bid=EXCLUDED.bid,ask=EXCLUDED.ask,recv_ts=now()`); err != nil {
 		t.Fatal(err)

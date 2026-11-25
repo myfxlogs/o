@@ -95,7 +95,7 @@ func TestXvenueShadowProposedToCondreq(t *testing.T) {
 	// condreq pending 呈——map 闸建议携证据。
 	var surface, state, payload string
 	if err := r.pool.QueryRow(ctx, `SELECT surface, state, payload::text FROM fin_condition_gap
-		WHERE kind='permission' AND venue='mt5'`).Scan(&surface, &state, &payload); err != nil {
+		WHERE kind='permission' AND venue='exness'`).Scan(&surface, &state, &payload); err != nil {
 		t.Fatal("condreq 呈批行应落:", err)
 	}
 	if surface != "bridge.xvenue.map.shadow" || state != "pending" {

@@ -19,8 +19,8 @@ func TestAccountForRules(t *testing.T) {
 		{"okx", "recon_adjust", "", "okx:legacy"},
 		{"okx", "spot_buy", "", "okx:trading"},
 		{"okx", "fee", "", "okx:trading"},
-		{"mt5", "deposit", "", "mt5:3001157"}, // 回填同规则——Exness 户实证
-		{"mt5", "deposit", "mt5:110660304", "mt5:110660304"},
+		{"exness", "deposit", "", "exness:3001157"}, // 回填同规则——Exness 户实证
+		{"xmglobal", "deposit", "xmglobal:110660304", "xmglobal:110660304"},
 		{"xmglobal", "deposit", "", "xmglobal:110660304"},
 		{"sim", "fee", "", "sim:legacy"},
 		{"tron", "prop_credit", "", "tron:legacy"},
@@ -33,7 +33,7 @@ func TestAccountForRules(t *testing.T) {
 }
 
 func TestVenueOfAndCompAccount(t *testing.T) {
-	if VenueOf("okx:trading") != "okx" || VenueOf("mt5:3001157") != "mt5" || VenueOf("okx") != "okx" {
+	if VenueOf("okx:trading") != "okx" || VenueOf("exness:3001157") != "exness" || VenueOf("okx") != "okx" {
 		t.Fatal("VenueOf 折叠错")
 	}
 	accts := []AccountRow{
@@ -41,7 +41,7 @@ func TestVenueOfAndCompAccount(t *testing.T) {
 		{ID: "okx:funding", Venue: "okx", SubType: "funding", State: "active"},
 		{ID: "okx:earn", Venue: "okx", SubType: "earn", State: "active"},
 		{ID: "okx:dcd", Venue: "okx", SubType: "dcd", State: "active"},
-		{ID: "mt5:3001157", Venue: "mt5", SubType: "main", State: "active"},
+		{ID: "exness:3001157", Venue: "exness", SubType: "main", State: "active"},
 		{ID: "xmglobal:110660304", Venue: "xmglobal", SubType: "main", State: "active"},
 		{ID: "okx:legacy", Venue: "okx", SubType: "main", State: "frozen"}, // frozen 不计
 	}
@@ -53,8 +53,8 @@ func TestVenueOfAndCompAccount(t *testing.T) {
 	}
 	// O-39440 通用模型：Exness/XM 分属 venue token——各 venue 单 main
 	// →trading 组件兜底归属成立（双 main 歧义情形不复存在）。
-	if compAccount(accts, "mt5", "trading") != "mt5:3001157" {
-		t.Fatal("mt5 单 main 应兜底归属")
+	if compAccount(accts, "exness", "trading") != "exness:3001157" {
+		t.Fatal("exness 单 main 应兜底归属")
 	}
 	if compAccount(accts, "xmglobal", "trading") != "xmglobal:110660304" {
 		t.Fatal("xmglobal 单 main 应兜底归属")
@@ -67,12 +67,12 @@ func TestVenueOfAndCompAccount(t *testing.T) {
 func TestFoldAcctKeysAndParts(t *testing.T) {
 	ven := map[[2]string]float64{
 		{"okx:trading", "USDT"}: 100, {"okx:funding", "USDT"}: 50,
-		{"okx:earn", "BTC"}: 1, {"mt5:3001157", "USD"}: 2000,
+		{"okx:earn", "BTC"}: 1, {"exness:3001157", "USD"}: 2000,
 	}
 	wl := map[[2]string]bool{{"okx:trading", "USDT"}: true, {"okx:funding", "USDT"}: true}
 	venV, wlV := foldAcctKeys(ven, wl)
 	if venV[[2]string{"okx", "USDT"}] != 150 || venV[[2]string{"okx", "BTC"}] != 1 ||
-		venV[[2]string{"mt5", "USD"}] != 2000 {
+		venV[[2]string{"exness", "USD"}] != 2000 {
 		t.Fatalf("venue 折叠错: %v", venV)
 	}
 	if !wlV[[2]string{"okx", "USDT"}] || wlV[[2]string{"okx", "BTC"}] {

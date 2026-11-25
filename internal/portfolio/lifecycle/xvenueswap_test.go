@@ -14,7 +14,7 @@ func seedSwapLeg(t *testing.T, ctx context.Context, r *Runner, inst, dir string)
 	var sid int64
 	if err := r.pool.QueryRow(ctx, `INSERT INTO fin_strategy
 		(inst_id,template_ref,state,notional_usd,direction,venue,entered_at)
-		VALUES($1,'xvenue-carry','paper',100,$2,'mt5',now()-interval '2 hours') RETURNING id`,
+		VALUES($1,'xvenue-carry','paper',100,$2,'exness',now()-interval '2 hours') RETURNING id`,
 		inst, dir).Scan(&sid); err != nil {
 		t.Fatal(err)
 	}

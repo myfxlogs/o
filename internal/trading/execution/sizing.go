@@ -187,7 +187,7 @@ type CfdMeta struct {
 // cfd 腿 inst=cfdInst（exec.cfd_map 键映射 BTC-USDT-SWAP→BTCUSDm——工具侧读）。
 func BuildCfdLegs(instID, cfdInst, cfdVenue string, notional float64, cfdM CfdMeta, px float64, perpCtVal float64) ([2]Leg, string, error) {
 	if cfdVenue == "" {
-		cfdVenue = "mt5" // 存量调用面兼容锚（O-37449 前=恒 'mt5'）
+		cfdVenue = "exness" // 存量调用面兼容锚（O-39440① venue 改名）
 	}
 	if cfdInst == "" {
 		return [2]Leg{}, "", fmt.Errorf("exec.cfd_map 无 %s 映射——fail-closed", instID)

@@ -23,13 +23,13 @@ type mt5AcctRef struct {
 // mt5RosterAccounts MT5-proto 逐户实读清单（O-39440 通用件——proto
 // 驱动非 venue 硬编码：今 Exness(mt5)/XM(xmglobal)，未来 FXPro/ICMarkets
 // 等 MT5 经纪商 roster+fin_account 插行即自动入面零码改）：
-// fin_account active main 行 ×fin_venue_roster proto='mt5' venue+login
+// fin_account active main 行 ×fin_venue_roster proto='cfd' platform='mt5' venue+login
 // 双匹配→roster venue token；roster 缺行/disabled/removed=该户不入
 // 实读面（cred_gap 由调用侧升件——凭据缺席不猜数）。读败=空集。
 func mt5RosterAccounts(ctx context.Context, pool *pgxpool.Pool) []mt5AcctRef {
 	rows, err := pool.Query(ctx, `SELECT a.account_id, r.venue
 		FROM fin_account a JOIN fin_venue_roster r
-		  ON r.proto='mt5' AND r.venue=a.venue AND r.login=a.account_no
+		  ON r.proto='cfd' AND COALESCE(r.platform,'mt5')='mt5' AND r.venue=a.venue AND r.login=a.account_no
 		WHERE a.sub_type='main' AND a.state='active'
 		  AND r.state NOT IN ('disabled','removed')
 		ORDER BY a.account_id`)

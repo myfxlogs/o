@@ -33,9 +33,9 @@ func newBalanceCollector(t *testing.T) *Collector {
 		rej: rejects.New("mt5", "write_err", "balance_ops_err")}
 }
 
-// testAcct 按户运行件桩——venue='mt5' Exness 兼容锚（写 venue 键断言同旧径）。
+// testAcct 按户运行件桩——venue='exness' Exness 兼容锚（写 venue 键断言同旧径）。
 func testAcct() *acctRun {
-	return &acctRun{acct: VenueAcct{Venue: "mt5", CredNS: "mt5", Login: "3001157"}}
+	return &acctRun{acct: VenueAcct{Venue: "exness", CredNS: "exness.mt5", Login: "3001157"}}
 }
 
 // balOrder 充提行桩——实证形（EXR 3001157 OrderHistory 实拍：OrderType_
@@ -58,7 +58,7 @@ func cashflowCount(t *testing.T, c *Collector, ticket int64) int {
 	t.Helper()
 	var n int
 	if err := c.pool.QueryRow(context.Background(),
-		`SELECT count(*) FROM fin_cashflow WHERE venue='mt5' AND source_table='mt5_deal' AND source_ref=$1`,
+		`SELECT count(*) FROM fin_cashflow WHERE venue='exness' AND source_table='mt5_deal' AND source_ref=$1`,
 		ticket).Scan(&n); err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +81,7 @@ func TestBalanceDealDeposit(t *testing.T) {
 	var occurred time.Time
 	if err := c.pool.QueryRow(ctx,
 		`SELECT kind,ccy,amount,source_table,occurred_at FROM fin_cashflow
-		 WHERE venue='mt5' AND source_table='mt5_deal' AND source_ref=1313122770`).
+		 WHERE venue='exness' AND source_table='mt5_deal' AND source_ref=1313122770`).
 		Scan(&kind, &ccy, &amt, &table, &occurred); err != nil {
 		t.Fatal(err)
 	}
@@ -150,7 +150,7 @@ func TestManualPrecedentConflict(t *testing.T) {
 	// 人工簿记先例行（owner_out 负值形——#34239/#1658 实证镜像）
 	if _, err := c.pool.Exec(ctx,
 		`INSERT INTO fin_cashflow(kind,venue,ccy,amount,source_ref,source_table,occurred_at)
-		 VALUES('owner_out','mt5','USD',-3247.41,99999,'ops_event',$1)`,
+		 VALUES('owner_out','exness','USD',-3247.41,99999,'ops_event',$1)`,
 		dealTime.Add(33*time.Hour)); err != nil {
 		t.Fatal(err)
 	}

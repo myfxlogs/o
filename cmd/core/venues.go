@@ -40,10 +40,10 @@ func (c coreService) venues(ctx context.Context) []*dashboardv1.VenueGroup {
 	var sess *time.Time
 	_ = c.pool.QueryRow(ctx, `SELECT max(b) FROM (
 		SELECT last_beat b FROM fin_employee_registry WHERE name='汇市巡'
-		UNION ALL SELECT max(ts) FROM md_ticks WHERE venue='mt5') t`).Scan(&sess)
-	mt5g := &dashboardv1.VenueGroup{Name: "mt5"}
+		UNION ALL SELECT max(ts) FROM md_ticks WHERE venue IN ('exness','xmglobal')) t`).Scan(&sess)
+	mt5g := &dashboardv1.VenueGroup{Name: "cfd"}
 	lrows, lerr := c.pool.Query(ctx, `SELECT data->>'login', max(ts) FROM md_account_events
-		WHERE venue='mt5' AND data ? 'login' GROUP BY 1 ORDER BY 1`)
+		WHERE venue IN ('exness','xmglobal') AND data ? 'login' GROUP BY 1 ORDER BY 1`)
 	if lerr == nil {
 		defer lrows.Close()
 		for lrows.Next() {

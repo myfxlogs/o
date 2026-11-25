@@ -77,8 +77,8 @@ func AccountFor(venue, kind, explicit string) string {
 	if explicit != "" {
 		return explicit
 	}
-	if venue == "mt5" {
-		return "mt5:3001157" // 迁移回填同规则——mt5 簿记链 Exness 户实证
+	if venue == "exness" {
+		return "exness:3001157" // 迁移回填同规则——Exness 簿记链实证（O-39440① venue 改名）
 	}
 	if venue == "xmglobal" {
 		return "xmglobal:110660304" // XM 户——roster venue token=xmglobal

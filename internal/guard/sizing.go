@@ -85,7 +85,7 @@ func (w *Warden) sizedCloseLegs(ctx context.Context, cls [2]CloseLeg) ([2]CloseL
 		}
 		var avail float64
 		var err error
-		if mt5.IsMt5ProtoVenue(ctx, w.pool, cl.Venue) || strings.HasSuffix(cl.InstID, "-SWAP") { // O-37449：mt5-proto 全族 CFD 腿 ContractPos 径
+		if mt5.IsCfdProtoVenue(ctx, w.pool, cl.Venue) || strings.HasSuffix(cl.InstID, "-SWAP") { // O-37449：cfd 类全族 CFD 腿 ContractPos 径
 			avail, err = szr.ContractPos(ctx, cl.InstID)
 		} else {
 			avail, err = szr.SpotAvailBal(ctx, cl.InstID)
