@@ -274,4 +274,5 @@ var finMigrationTable = []migEntry{
 	{259, "fin_0259_ledger_rebase.sql"},                 // 工单O-33206——业主令账本重锚:ledger.rebase_armed 武装键（重锚行=运行时 venue 实读锚,迁移不写死金额）
 	{260, "fin_0260_manual_flow.sql"},                   // 工单O-33207——手动资金流/手动仓采集:fin_venue_position 手动仓事实面+surface_lifecycle 登记
 	{261, "fin_0261_margin_borrow.sql"},                 // 工单O-39460——margin-short 借币证据面:md_margin_borrow 率/额度快照表+闸键三枚(0260被O-33207在途占让号)
+	{262, "fin_0262_sem_accept_event.sql"},              // 工单O-40642——接票事件入册:ops_event_sem_matrix 接票×施工席/施工/外席三面(fin_0261 margin_borrow 合master占号——跳号钉0262)
 }
