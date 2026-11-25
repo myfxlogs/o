@@ -229,8 +229,9 @@ func run() error {
 
 	// 投资域首岗：命官——paper→probe→live 开仓消费（T-0050 Opener 缝）。
 	lr := lifecycle.NewRunner(pool, cfg).
-		AttachUniverse(uni.Symbols). // T-0416 探针读宇宙挂点——同一供给件（不滤黑名单=探针宽谱判据）
-		AttachOpener(liveOpener)     // nil=缝缺席让位（openLive 自闸——原 if 守同语义）
+		AttachUniverse(uni.Symbols).                                      // T-0416 探针读宇宙挂点——同一供给件（不滤黑名单=探针宽谱判据）
+		AttachOpener(liveOpener).                                         // nil=缝缺席让位（openLive 自闸——原 if 守同语义）
+		AttachCensus(censusFeed(func() *okxexec.Client { return okcli })) // O-39480 oppCensus 腿矩阵供给件（census_feed.go）
 	go lr.Run(ctx, errc)
 
 	// T-0165：复盘域随迁开发机（o-research——SG 零研究行）。

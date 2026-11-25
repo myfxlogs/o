@@ -41,6 +41,8 @@ type hungerSensor interface {
 	ProbeDeskOrphan(ctx context.Context) error
 	ProbeBreedStall(ctx context.Context) error      // O-39330：candidate 族卡零产出断流（注册→臂建无主转换感知器）
 	ProbeDeskLifecycle(ctx context.Context) error   // O-39400：票桌生命周期（交付实据销/前提死亡/陈腐衰减阀）
+	ProbeDecompWatch(ctx context.Context) error     // O-39480：已部署分解眼（bot/paper 正分量∧负件吞噬）
+	ProbeOppCensus(ctx context.Context) error       // O-39480：机会面普查眼（inst×机制矩阵→fin_opp_map+升件）
 	ProbeIdleVerdictGate(ctx context.Context) error // O-36962：有理闲置判词缺停泊基线=不合格件闸
 	MineLessons(ctx context.Context) (int, error)
 }
@@ -58,6 +60,15 @@ type opsChainVerifier interface {
 func (r *Runner) AttachUniverse(fn func(ctx context.Context) ([]string, error)) *Runner {
 	if s, ok := r.sensor.(*hunger.Sensor); ok {
 		s.AttachUniverse(fn)
+	}
+	return r
+}
+
+// AttachCensus 普查公共事实供给件注 hunger 探针（O-39480——oppCensus
+// 腿矩阵原料；桩 sensor 置位=静默让位同 AttachUniverse 先例）。
+func (r *Runner) AttachCensus(fn func(ctx context.Context) (*hunger.CensusFacts, error)) *Runner {
+	if s, ok := r.sensor.(*hunger.Sensor); ok {
+		s.AttachCensus(fn)
 	}
 	return r
 }
@@ -196,6 +207,16 @@ func (r *Runner) hungerTick(ctx context.Context) {
 	if err := r.sensor.ProbeDeskLifecycle(ctx); err != nil {
 		log.Printf("[lifecycle] hungertick 票桌生命周期探针败: %v", err)
 		r.hungerEscalate(ctx, "desklife_probe", err)
+	}
+	// 工单O-39480 探索面双细胞同槽（同款败情隔离位——decompWatcher
+	// 已部署分解眼+oppCensus 机会面普查眼，感知件只述事实）。
+	if err := r.sensor.ProbeDecompWatch(ctx); err != nil {
+		log.Printf("[lifecycle] hungertick 分解眼探针败: %v", err)
+		r.hungerEscalate(ctx, "decomp_probe", err)
+	}
+	if err := r.sensor.ProbeOppCensus(ctx); err != nil {
+		log.Printf("[lifecycle] hungertick 普查眼探针败: %v", err)
+		r.hungerEscalate(ctx, "oppcensus_probe", err)
 	}
 	rep, err := r.sensor.Detect(ctx)
 	if err != nil {

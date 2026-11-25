@@ -269,14 +269,13 @@ var depConfigReaders = map[string]string{
 	// T-0455 fin_0143 种键：meta.autoapprove.registry 读者=dm_autoapprove.sh
 	// 机批闸（签名→钦定文件径白名单——候选票批权径）。
 	"meta": "DM 机批闸册",
-	// repair.feeds/repair.guard 读者=internal/repair/watch.go 修复环
-	// （采集臂鲜度死→配额闸→systemctl restart+md_repair_log——升件#9011
-	// orphan 误报根修：读者在码面实读两键，册外登记补位）。
+	// repair.feeds/repair.guard 读者=internal/repair/watch.go 修复环（采集臂鲜度死→配额闸→
+	// systemctl restart+md_repair_log——升件#9011 orphan 误报根修：读者在码面实读两键，册外登记补位）。
 	"repair": "采集臂修复环",
-	// okxws.kline_watchlist 读者=okxws/klineback.go 日K回填臂
-	// （升件#18307 orphan 同根——depenum-config-reader 案补册）。
-	"okxws":  "日K回填臂",
-	"deploy": "部署管窗", // 工单#25760 deploy.ocore_window_* 读者=scripts/deploy_watch.sh（fin_0217 种键）
+	// okxws.kline_watchlist 读者=okxws/klineback.go 日K回填臂（升件#18307 orphan 同根——depenum-config-reader 案补册）。
+	"okxws":   "日K回填臂",
+	"deploy":  "部署管窗",   // 工单#25760 deploy.ocore_window_* 读者=scripts/deploy_watch.sh（fin_0217 种键）
+	"explore": "探索普查细胞", // O-39480 decomp/oppCensus 阈件读者（fin_0263 种键）
 }
 
 // configDomains app_config 键域谱（首段域枚举——④族枚举源；

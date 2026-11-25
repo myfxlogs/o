@@ -41,6 +41,10 @@ type Sensor struct {
 	// coverSeen 腿键首见戳册（T-0451 新挂腿宽限——键入所需集时刻探针
 	// 不判盲；hungerTick 单协程串行访问免锁，重启清零=全键重计宽限）。
 	coverSeen map[string]time.Time
+	// censusFeed 普查公共事实供给件（O-39480 oppCensus——OKX /public/*
+	// 现货可买集+借币率集；装配层挂 okxexec 适配件。nil=未挂：
+	// ProbeOppCensus fail-closed 上抛不虚构腿事实）。
+	censusFeed censusFeedFunc
 }
 
 // New 装配（now 缺省=time.Now）。
