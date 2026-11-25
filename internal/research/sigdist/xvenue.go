@@ -57,7 +57,7 @@ func (r *Runner) Xvenue(ctx context.Context) error {
 		r.rej.Inc("xvenue_map_missing")
 		return fmt.Errorf("bridge.xvenue.map: %w", err)
 	}
-	// okx mark（mark-price WS 行）/mt5 mid（md_ticks venue='mt5'）/
+	// okx mark（mark-price WS 行）/mt5 mid（md_ticks MT5 符号行）/
 	// funding_view / mt5_swap——任一单边陈/缺=该对跳过如实。
 	// T-0171 频道方言归一：REST 轮询面撤，'mark-price' 单键域唯一。
 	wrote := 0
@@ -97,11 +97,14 @@ func (r *Runner) okxMark(ctx context.Context, okxInst string) (px float64, ts ti
 	return px, ts, err == nil
 }
 
-// mt5TickMid mt5 tick 鲜中点（120s 帧龄闸——venue='mt5' md_ticks 行；
+// mt5TickMid mt5 tick 鲜中点（120s 帧龄闸——md_ticks 按 MT5 符号名取最新
+// 行；fin_0257 税目后 tick venue=cfd 户 venue token（exness/xmglobal 各户
+// 符号方言本不相交——BTCUSDm/BTCUSD# 天然分键），venue 硬过滤即漏迁点。
 // 陈/缺/坏价=not ok 缺席如实）。
 func (r *Runner) mt5TickMid(ctx context.Context, mt5Sym string) (mid float64, ts time.Time, ok bool) {
 	err := r.pool.QueryRow(ctx, `SELECT (bid+ask)/2, ts FROM md_ticks
-		WHERE venue='mt5' AND inst_id=$1 AND ask>0 AND bid>0 AND ts > now()-interval '120 seconds'`,
+		WHERE inst_id=$1 AND ask>0 AND bid>0 AND ts > now()-interval '120 seconds'
+		ORDER BY ts DESC LIMIT 1`,
 		mt5Sym).Scan(&mid, &ts)
 	return mid, ts, err == nil && mid != 0
 }
