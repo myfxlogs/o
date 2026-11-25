@@ -42,6 +42,7 @@ var dmWritableGlobs = []string{
 	"funding.scan_timeout_s",       // funding 扫描超时
 	"gapscan.scan_timeout_s",       // gap 扫描超时
 	"dm.hunger.*",                  // 饥饿响应自参数（检测窗）
+	"selfstate.esc_cluster.*",      // 自态账升件聚类窗/截断（O-39420）
 	"earn.auto_purchase_enabled",   // 闲置金 Earn 自动转入（资金运用重排）
 	"earn.sweep_whitelist",         // Earn 扫袋白名单（T-0439 计价币放行线）
 	"earn.residual_clear_min_usd",  // 杂币实存即清粉尘阈（T-0439 闸值族）
