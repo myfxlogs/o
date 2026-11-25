@@ -124,8 +124,10 @@ func TestBalanceDealWithdraw(t *testing.T) {
 	}
 }
 
-// TestNonBalanceDealIgnored 非充提行（交易单）不入账（spec 验收③）。
-func TestNonBalanceDealIgnored(t *testing.T) {
+// TestTradeDealBooked O-33207 扩谱：交易行（DealBuy/DealSell）→
+// trade_pnl 守恒入账（venue balance 不分谁的手）+手动仓事实——
+// 非 O 单不再静默略。
+func TestTradeDealBooked(t *testing.T) {
 	c := newBalanceCollector(t)
 	ctx := context.Background()
 	trade := &mt5pb.Order{
@@ -136,8 +138,22 @@ func TestNonBalanceDealIgnored(t *testing.T) {
 		CloseTime: timestamppb.Now(),
 	}
 	c.balanceDeal(ctx, testAcct(), trade)
-	if n := cashflowCount(t, c, 9000000003); n != 0 {
-		t.Fatalf("交易行误入账 n=%d", n)
+	var kind, acct string
+	var amt float64
+	if err := c.pool.QueryRow(ctx,
+		`SELECT kind,amount,account_id FROM fin_cashflow
+		 WHERE source_table='mt5_deal' AND source_ref=9000000003`).
+		Scan(&kind, &amt, &acct); err != nil {
+		t.Fatalf("交易行未入 trade_pnl: %v", err)
+	}
+	if kind != "trade_pnl" || amt != -0.28 || acct != "exness:3001157" {
+		t.Fatalf("行域错 kind=%s amt=%v acct=%s", kind, amt, acct)
+	}
+	var vp int
+	if err := c.pool.QueryRow(ctx,
+		`SELECT count(*) FROM fin_venue_position WHERE account_id='exness:3001157' AND ticket='9000000003' AND state='closed'`).
+		Scan(&vp); err != nil || vp != 1 {
+		t.Fatalf("手动仓平仓事实行数=%d err=%v want 1", vp, err)
 	}
 }
 
@@ -167,8 +183,9 @@ func TestManualPrecedentConflict(t *testing.T) {
 	}
 }
 
-// TestCreditNoteNotBooked Credit 邻类→判词注记不入账不静默丢。
-func TestCreditNoteNotBooked(t *testing.T) {
+// TestCreditDealDeposit O-33207：Credit 邻类→deposit|withdraw 同
+// balance 径入账（spec 钦定族——不再仅注记）。
+func TestCreditDealDeposit(t *testing.T) {
 	c := newBalanceCollector(t)
 	ctx := context.Background()
 	credit := &mt5pb.Order{
@@ -179,17 +196,14 @@ func TestCreditNoteNotBooked(t *testing.T) {
 		CloseTime: timestamppb.Now(),
 	}
 	c.balanceDeal(ctx, testAcct(), credit)
-	c.balanceDeal(ctx, testAcct(), credit) // 重扫幂等——判词行只落一条
-	if n := cashflowCount(t, c, 9000000005); n != 0 {
-		t.Fatalf("Credit 邻类误入账 n=%d", n)
+	if n := cashflowCount(t, c, 9000000005); n != 1 {
+		t.Fatalf("Credit 邻类未入账 n=%d", n)
 	}
-	var notes int
+	var kind string
 	if err := c.pool.QueryRow(ctx,
-		`SELECT count(*) FROM ops_event WHERE note LIKE '%exnessdeal:9000000005%'`).Scan(&notes); err != nil {
-		t.Fatal(err)
-	}
-	if notes != 1 {
-		t.Fatalf("判词注记行数=%d want 1（幂等 marker 失效）", notes)
+		`SELECT kind FROM fin_cashflow WHERE source_table='mt5_deal' AND source_ref=9000000005`).
+		Scan(&kind); err != nil || kind != "deposit" {
+		t.Fatalf("Credit kind=%s err=%v want deposit", kind, err)
 	}
 }
 

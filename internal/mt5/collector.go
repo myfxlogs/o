@@ -118,7 +118,7 @@ func NewCollector(ctx context.Context, pool *pgxpool.Pool, cfg *config.Client) (
 	return &Collector{pool: pool, cfg: cfg, runs: map[string]*acctRun{},
 		rej: rejects.New("mt5", "connect_failed", "subscribe_failed", "stream_dead",
 			"symbols_read_failed", "snapshot_write_failed", "tick_write_err", "write_err",
-			"balance_ops_err")}, nil
+			"balance_ops_err", "position_ops_err")}, nil
 }
 
 // AttachMeter 挂带宽计量件（T-0057：nil=不计量）。

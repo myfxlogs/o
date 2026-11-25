@@ -36,3 +36,11 @@ domain: 工程
 - **双流归一 fail 语义**：fail 须 `close(done chan)`，send 端 `select{ch<-, <-done}`，Recv 端 `select{ch,done}`——只存 err 不关信号=Recv 永久阻塞；close(ch)=他 pump send panic（ant STREAM-MERGE-FAIL-SHAPE 实证）。
 
 **订阅回执携仓证据（2026-10-24）**：SubscribeOrderProfit/SubscribeOrderUpdate 的 Result 立即回吐当前持仓 Order 全档（含 DealInternalIn 开仓明细）——订阅=拿到仓态首拍，免再拉 OpenedOrders。
+
+## 手动资金流/手动仓覆盖面（O-33207 实证补——2026-11-25）
+
+- **OrderHistory=deal 唯一拉取面**：无独立 DealHistory RPC（全谱核过）——deal 事实=Order 行嵌 DealType/DealInternalIn/Out；充提 Balance 行与平仓交易行同表混排，`balanceWindow` 时间窗拉全谱后按 DealType 分派。
+- **DealType 分派全集（proto 实录枚举 0-14）**：DealBuy/Sell=平仓仓交易行→`fin_cashflow kind='trade_pnl'`（realized=Profit+Swap+Commission+Fee 行级聚合）+非 O 单→`fin_venue_position`；Balance=充提→deposit/withdraw；Credit/Bonus→同 deposit|withdraw 径；Charge/Correction/Commission 族/InterestRate→`unmapped_bill` 守恒兜底+ops_event 判词注记；CanceledBuy/Sell→仅注记。
+- **comment=clOrdID=O 单判别键**（双簿防线）：fin_order_leg.cl_ord_id ∨ fin_risk_decision.intent->>'cl_ord_id' 命中=O 自执行→trade_pnl 仍入（守恒不分彼此）但禁入 fin_venue_position（O 仓走 fin_position+mtm 径）。
+- **OpenedOrders=在仓权威快照**：openPollOnce 同拍距随 balanceOpsLoop——非 O 单 upsert state='open'+last_seen；快照消失→'stale' 清出 mtm（OrderHistory 平仓行后续翻 'closed'+realized）。
+- **逐户游标=acctRun.balWM**（venue→run 一户一件天然隔离；重启 7d 回看+mt5_deal_uk(account_id,source_table,source_ref) 幂等兜底）。

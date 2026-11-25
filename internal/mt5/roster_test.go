@@ -182,6 +182,11 @@ func (s *stubMT5Full) OrderHistory(ctx context.Context, r *mt5pb.OrderHistoryReq
 	return &mt5pb.OrderHistoryReply{}, nil
 }
 
+func (s *stubMT5Full) OpenedOrders(ctx context.Context, r *mt5pb.OpenedOrdersRequest,
+	opts ...grpc.CallOption) (*mt5pb.OpenedOrdersReply, error) {
+	return &mt5pb.OpenedOrdersReply{}, nil
+}
+
 // stubSubs SubscriptionsClient 桩——Subscribe/SubscribeOrderProfit 恒回执。
 type stubSubs struct{ mt5pb.SubscriptionsClient }
 

@@ -244,6 +244,7 @@ func run() error {
 	svc, navFn := assemble(pool, cfg, fundingLiveFor(okcli), earnLiveFor(okcli),
 		mt5LiveFor(pool, cfg), dcdLiveFor(okcli), posLiveFor(okcli), trxW, md)
 	ledgerR := wireLedgerReport(ctx, errc, pool, cfg, navFn, alerter)
+	go venuePosBeat(ctx, pool, okcli) // O-33207：OKX 手动仓在仓快照环（fin_venue_position——upl 直给 mtm 偏移）
 
 	// 风控域首岗：门官——唯一交易前闸，只认放行令牌。
 	go risk.Run(ctx, errc, riskGate)

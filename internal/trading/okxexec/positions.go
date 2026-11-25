@@ -15,6 +15,10 @@ type Position struct {
 	InstType    string `json:"instType"` // SWAP/FUTURES/OPTION/MARGIN
 	Pos         string `json:"pos"`
 	PosSide     string `json:"posSide"`     // long/short/net
+	PosID       string `json:"posId"`       // venue 仓位号（手动仓事实键）
+	AvgPx       string `json:"avgPx"`       // 开仓均价
+	Upl         string `json:"upl"`         // 未实现盈亏（结算币带号）
+	Ccy         string `json:"ccy"`         // 结算/保证金币（upl 币域）
 	NotionalUsd string `json:"notionalUsd"` // USD 名义
 	CTime       string `json:"cTime"`       // 开仓 ms 串
 }
