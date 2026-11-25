@@ -84,11 +84,27 @@ func (r *Runner) tol(ctx context.Context) (float64, error) {
 	return r.cfg.GetFloat("ledger.recon_tol_usd")
 }
 
-// scan 一拍：①closed 仓结算落位 ②对账环（快照 vs 净额，差即计门）③日切快照。
+// inflightActive 执行/划转在途窗探测（reconcile 判差前置与
+// rebaseDecree 重锚前置同源——30s 内活动=不判不锚,容差不降）。
+func (r *Runner) inflightActive(ctx context.Context) (bool, error) {
+	var inflight bool
+	err := r.pool.QueryRow(ctx, `SELECT EXISTS(
+		SELECT 1 FROM fin_order_leg WHERE ts > now()-interval '30 seconds'
+		UNION SELECT 1 FROM fin_execution WHERE created_at > now()-interval '30 seconds'
+		UNION SELECT 1 FROM fin_cashflow WHERE kind IN ('earn_in','earn_out')
+			AND ts > now()-interval '30 seconds'
+		UNION SELECT 1 FROM fin_risk_decision WHERE reason='transfer'
+			AND ts > now()-interval '30 seconds')`).Scan(&inflight)
+	return inflight, err
+}
+
+// scan 一拍：①closed 仓结算落位 ②业主令重锚（armed 一次性——O-33206,
+// 败不挡对账径）③对账环（快照 vs 净额，差即计门）④日切快照。
 func (r *Runner) scan(ctx context.Context) error {
 	if err := r.settle(ctx); err != nil {
 		return err
 	}
+	r.rebaseDecree(ctx)
 	if err := r.reconcile(ctx); err != nil {
 		return err
 	}
@@ -123,14 +139,8 @@ func (r *Runner) reconcile(ctx context.Context) error {
 	// （T-0060 停写 earn 行后划转的唯一实况留痕，afterMove 每动必落）。
 	// 列名勘误：fin_order_leg 时间列=ts、fin_execution=created_at（0009 schema）
 	// ——旧式 created_at/opened_at 恒报错被吞，debounce 自立起未生效过（T-0087 实证）。
-	var inflight bool
-	if err := r.pool.QueryRow(ctx, `SELECT EXISTS(
-		SELECT 1 FROM fin_order_leg WHERE ts > now()-interval '30 seconds'
-		UNION SELECT 1 FROM fin_execution WHERE created_at > now()-interval '30 seconds'
-		UNION SELECT 1 FROM fin_cashflow WHERE kind IN ('earn_in','earn_out')
-			AND ts > now()-interval '30 seconds'
-		UNION SELECT 1 FROM fin_risk_decision WHERE reason='transfer'
-			AND ts > now()-interval '30 seconds')`).Scan(&inflight); err != nil {
+	inflight, err := r.inflightActive(ctx)
+	if err != nil {
 		r.rej.Inc("recon_probe_failed")
 		log.Printf("WARN [ledger] 在途窗探测败——本轮对账让位不判: %v", err)
 		return nil

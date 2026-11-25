@@ -11,19 +11,18 @@ import (
 	"math"
 )
 
-// reconAccounts 账户粒度对拍主循环（run.go reconcile 尾段——
-// ven/vparts/wl 均为账户域键 {account_id,ccy}；parked/dcdBase/
-// nativeBase 保持 venue 级 {venue,ccy} 原键经归户规则入账）。
-func (r *Runner) reconAccounts(ctx context.Context,
-	ven map[[2]string]float64, vparts VenueParts,
-	wl map[[2]string]bool, parked, dcdBase, nativeBase map[[2]string]float64,
-	tol float64) error {
-	accts, err := AccountRows(ctx, r.pool, "active")
-	if err != nil {
-		r.rej.Inc("recon_probe_failed")
-		log.Printf("WARN [ledger] 账户册读败——本轮对账让位: %v", err)
-		return nil
-	}
+// reconRow 对拍行（账户×币——eq=venue 实读/net=账本净额含组件归户；
+// reconAccounts 判定段与 rebaseDecree 重锚段同源消费,禁两处数学漂移）。
+type reconRow struct {
+	acct, venue, ccy string
+	eq, net          float64
+}
+
+// reconRows 对拍行集装配（原 reconAccounts 前段原样——账户遍历/
+// 读面存在性/组件归户/mtm 并入一处；读败键让位不入集）。
+func (r *Runner) reconRows(ctx context.Context, accts []AccountRow,
+	ven map[[2]string]float64, wl map[[2]string]bool,
+	parked, dcdBase, nativeBase map[[2]string]float64) []reconRow {
 	// 组件归户预计算（每 venue 的 earn/dcd/trading 账户——compAccount
 	// 同规则;无对应 sub_type=该组件不入任何账户对拍）。
 	compOf := func(venue, sub string) string {
@@ -61,10 +60,7 @@ func (r *Runner) reconAccounts(ctx context.Context,
 			mtmMap = mv
 		}
 	}
-	var rs []struct {
-		acct, venue, ccy string
-		eq, net          float64
-	}
+	var rs []reconRow
 	for _, a := range accts {
 		if !present[a.ID] {
 			continue // 读面缺席（cred_gap 升件径已覆盖）——不判不警
@@ -94,12 +90,26 @@ func (r *Runner) reconAccounts(ctx context.Context,
 			if tradingOf(v) == a.ID {
 				net += nativeBase[[2]string{v, ccy}] + mtmMap[[2]string{v, ccy}]
 			}
-			rs = append(rs, struct {
-				acct, venue, ccy string
-				eq, net          float64
-			}{a.ID, v, ccy, ven[k], net})
+			rs = append(rs, reconRow{a.ID, v, ccy, ven[k], net})
 		}
 	}
+	return rs
+}
+
+// reconAccounts 账户粒度对拍主循环（run.go reconcile 尾段——
+// ven/vparts/wl 均为账户域键 {account_id,ccy}；parked/dcdBase/
+// nativeBase 保持 venue 级 {venue,ccy} 原键经归户规则入账）。
+func (r *Runner) reconAccounts(ctx context.Context,
+	ven map[[2]string]float64, vparts VenueParts,
+	wl map[[2]string]bool, parked, dcdBase, nativeBase map[[2]string]float64,
+	tol float64) error {
+	accts, err := AccountRows(ctx, r.pool, "active")
+	if err != nil {
+		r.rej.Inc("recon_probe_failed")
+		log.Printf("WARN [ledger] 账户册读败——本轮对账让位: %v", err)
+		return nil
+	}
+	rs := r.reconRows(ctx, accts, ven, wl, parked, dcdBase, nativeBase)
 	for _, x := range rs {
 		// T-0081 已知残差豁免：未过期豁免额补进容差——只压已定性部分，
 		// unexplained 超额仍即报（豁免≠白名单静默一切）。
