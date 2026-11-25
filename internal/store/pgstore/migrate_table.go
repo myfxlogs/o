@@ -277,4 +277,5 @@ var finMigrationTable = []migEntry{
 	{262, "fin_0262_sem_accept_event.sql"},              // 工单O-40642——接票事件入册:ops_event_sem_matrix 接票×施工席/施工/外席三面(fin_0261 margin_borrow 合master占号——跳号钉0262)
 	{263, "fin_0263_explorer_cells.sql"},                // 工单O-39480——探索面双细胞:fin_opp_map 机会矩阵+explore.* 阈件+双 esc_class 惧值(0261被O-39460在途占跳号钉)
 	{264, "fin_0264_margin_exec.sql"},                   // 工单O-40707——margin-short 接线残件:fin_margin_loan 负债台账+borrow_interest kind+闸键五枚(0262被O-40642在途占跳号钉)
+	{265, "fin_0265_fasttrack_probe.sql"},               // 工单O-41014——快窗信号 probe 直通阈件四键(probe.fasttrack_*)
 }
