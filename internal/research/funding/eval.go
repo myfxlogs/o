@@ -135,3 +135,59 @@ func abs(f float64) float64 {
 	}
 	return f
 }
+
+// BorrowQuote 保证金借币报价（O-39460——rate<0 做空腿成本与可借性证据；
+// 消费面=md_margin_borrow 最新行，APR 已年化换算在采集侧）。
+type BorrowQuote struct {
+	APR     float64 // 年化借币成本（小数——0.073=7.3%/yr）
+	MaxLoan float64 // 卖侧可借量（币单位）
+	LoanUSD float64 // 可借量 USD 名义（额度闸判据）
+}
+
+// EvaluateMarginShort 负 funding 做空腿评估（long_perp_short_spot——
+// perp 多头收负租+借币卖出现货=delta 对冲）。net=gross−borrow_apr−cost_apr：
+// **借币息入净=硬条款**（缺=假账——负 funding 极端档息差可吞净额）。
+// 可借性证据缺席/陈旧=调用面先拒不入本函数（unevaluable 语义由 run.go 落）。
+// b.APR<=0=借币免费档如实计 0（不虚构正息）。
+func EvaluateMarginShort(instID string, rate float64, p Params, b BorrowQuote) Eval {
+	e := Eval{InstID: instID, Direction: "long_perp_short_spot",
+		Legs:     map[string]any{"perp": "long", "spot": "short_margin"},
+		Evidence: map[string]any{}}
+	floor := p.MinNetAPR
+	floorSrc := "static"
+	if p.EarnRateAPR != nil && *p.EarnRateAPR > floor {
+		floor = *p.EarnRateAPR
+		floorSrc = "earn"
+	}
+	gross := abs(rate) * p.SettlesPerDay * 365 // 做空现货腿无质押分量（sy=0 方向闸同 Evaluate）
+	feeBps := 2 * p.TakerFeeBps
+	if p.MakerFeeSet {
+		feeBps = p.TakerFeeBps + p.MakerFeeBps
+	}
+	costAPR := CostAPR(p)
+	net := gross - b.APR - costAPR
+	e.GrossAPR, e.NetAPR = gross, net
+	e.Evidence = map[string]any{
+		"funding_rate": rate, "settles_per_day": p.SettlesPerDay,
+		"fee_bps": feeBps, "taker_fee_bps": p.TakerFeeBps, "maker_fee_bps": p.MakerFeeBps,
+		"maker_fee_set": p.MakerFeeSet, "slippage_bps": p.SlippageBps,
+		"fail_cost_bps": p.FailCostBps, "window_loss_bps": p.WindowLossBps,
+		"cost_rt_bps": RoundTripBps(p), "hold_days": p.HoldDays, "cost_apr": costAPR,
+		"min_net_apr": p.MinNetAPR, "floor_apr": floor, "floor_source": floorSrc,
+		"borrow_apr": b.APR, "borrow_max_loan": b.MaxLoan, "borrow_loan_usd": b.LoanUSD,
+		"borrow_cost_in_net": true, // 钉证：借币息已入 net_apr（假账防呆位）
+	}
+	if p.EarnRateAPR != nil {
+		e.Evidence["earn_rate_apr"] = *p.EarnRateAPR
+	}
+	switch {
+	case net >= floor:
+		e.Verdict = "proposed"
+	case net < p.MinNetAPR:
+		e.Verdict, e.Reason = "rejected", fmt.Sprintf("net_apr %.4f < 阈 %.4f（含借币息 %.4f）", net, p.MinNetAPR, b.APR)
+	default:
+		e.Verdict, e.Reason = "rejected", fmt.Sprintf("below_earn: net_apr %.4f < Earn 底 %.4f（静态底 %.4f 过，含借币息 %.4f）", net, floor, p.MinNetAPR, b.APR)
+	}
+	e.Evidence["reason"] = e.Reason
+	return e
+}

@@ -62,6 +62,21 @@ func (r *Runner) persist(ctx context.Context, tx pgx.Tx, e Eval, p Params) error
 		e.Verdict = "rejected"
 		e.Evidence["reason"] = "exec_family_missing"
 	}
+	// O-39460 margin-short 起草闸：long_perp_short_spot 提案必须双证——
+	// ①borrow_cost_in_net=true 钉证（借币息已入 net_apr——缺=假账拒）；
+	// ②borrow_loan_usd>0 可借额度实证（额度尘级/缺席=不可执行拒）。
+	// 防 eval 侧未来改动漏息——闸在提案落卡前最后一道。
+	if e.Verdict == "proposed" && e.Direction == "long_perp_short_spot" {
+		loanUSD, _ := e.Evidence["borrow_loan_usd"].(float64)
+		if e.Evidence["borrow_cost_in_net"] != true || loanUSD <= 0 {
+			if e.Evidence == nil {
+				e.Evidence = map[string]any{}
+			}
+			e.Evidence["reason"] = "margin_borrow_evidence_missing"
+			e.Verdict = "rejected"
+			r.rej.Inc("no_spot_leg")
+		}
+	}
 	// T-0150 起草闸前置：proposed 提案落卡前核现货腿存在性——无 spot 腿
 	// （perp-only 合成器）=评估行改 rejected 如实拒绝由，不进提案队列。
 	// 前置于指纹闸：终判词须先定——proposed↔rejected 摆动每拍产新版=闸失效
