@@ -90,3 +90,8 @@ okxgrid.scale_size_usd	dm	判加平行单投入USDT（缺省100）
 okxgrid.agg_invest_max_usd	dm	聚合投入帽USDT（机器线内护栏非业主键,缺省500）
 okxgrid.harvest_cooldown_s	dm	收割冷却秒（防重收,缺省86400）
 annualized.*	dm	年化判据参数（deploy_floor_usd=部署本金口径下限——低于回退NAV口径,工单O-34963/裁定#34962）
+margin.collect_ivl_s	dm	margin-short 采集/息腿/健康闸拍距（O-40707）
+margin.exec_enabled	dm	margin-short 执行径总闸——前置三件实证全通仍缺省false待命（O-40707）
+margin.ratio_warn	dm	margin-short 负债/抵押比预警线（O-40707）
+margin.ratio_kill	dm	margin-short 负债/抵押比平仓序触发线（O-40707）
+margin.max_open_usd	dm	margin-short 单仓借币名义上限（O-40707）

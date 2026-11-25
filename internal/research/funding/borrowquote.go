@@ -55,15 +55,17 @@ func (r *Runner) borrowQuote(ctx context.Context, baseCcy, instID string) (Borro
 	return BorrowQuote{APR: apr, MaxLoan: maxLoan, LoanUSD: loanUSD}, ""
 }
 
-// spotPx 基币-USDT 现货最新价（md_mark_index 兜底 md_ticks——与 diff_px
-// 同两级读面；读败=调用面按额度不可证 fail-closed）。
+// spotPx 基币-USDT 现货最新价（md_mark_index.px∪md_ticks.last 两级——
+// diff_px 同面真列名+10min 鲜度窗；O-40707 坑修：md_ticks 无 px 列，
+// 旧 UNION 对 ticks 段结构性读败→额度恒 0=闸恒拒——改 last 真列名；
+// 读败/无鲜行=调用面按额度不可证 fail-closed）。
 func (r *Runner) spotPx(ctx context.Context, baseCcy string) (float64, error) {
 	instID := baseCcy + "-USDT"
 	var px float64
-	err := r.pool.QueryRow(ctx, `SELECT px FROM (
-		SELECT px, ts FROM md_mark_index WHERE inst_id=$1
-		UNION ALL SELECT px, ts FROM md_ticks WHERE inst_id=$1
-	) t ORDER BY ts DESC LIMIT 1`, instID).Scan(&px)
+	err := r.pool.QueryRow(ctx, `SELECT v FROM (
+		SELECT px v, ts FROM md_mark_index WHERE inst_id=$1
+		UNION ALL SELECT last, ts FROM md_ticks WHERE inst_id=$1 AND venue<>'sim'
+	) t WHERE ts > now()-interval '10 minutes' ORDER BY ts DESC LIMIT 1`, instID).Scan(&px)
 	return px, err
 }
 

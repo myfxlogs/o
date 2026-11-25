@@ -43,6 +43,11 @@ var dmWritableGlobs = []string{
 	"funding.margin_borrow_stale_hours", // margin-short 借币证据新鲜度窗（O-39460）
 	"funding.margin_borrow_max_apr",     // margin-short 借币息尖峰闸（O-39460）
 	"funding.margin_min_loan_usd",       // margin-short 可借额度下限（O-39460）
+	"margin.collect_ivl_s",              // margin-short 采集/息腿/健康闸拍距（O-40707）
+	"margin.exec_enabled",               // margin-short 执行径总闸——前置三件实证全通仍缺省false待命（O-40707）
+	"margin.ratio_warn",                 // margin-short 负债/抵押比预警线（O-40707）
+	"margin.ratio_kill",                 // margin-short 负债/抵押比平仓序触发线（O-40707）
+	"margin.max_open_usd",               // margin-short 单仓借币名义上限（O-40707）
 	"gapscan.scan_timeout_s",            // gap 扫描超时
 	"dm.hunger.*",                       // 饥饿响应自参数（检测窗）
 	"selfstate.esc_cluster.*",           // 自态账升件聚类窗/截断（O-39420）

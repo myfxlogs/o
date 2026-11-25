@@ -37,6 +37,10 @@ var kinds = map[string]bool{
 	// O-33362：dcd_out/dcd_in=双币赢申购扣款/结算回款本金腿（transfer
 	// counted——earn_* 排除面外照入 net；与 dcd_baseline 凭据配对互抵）。
 	"dcd_out": true, "dcd_in": true,
+	// O-40707：borrow_interest=保证金借币息负腿（负额真亏计亏——息入净
+	// 硬条款承续，成本必进 net 不入假正收益；position_ref=fin_margin_loan
+	// 挂接位）。
+	"borrow_interest": true,
 }
 
 // ccyRE 原生币种形（O-34287「各币各域」——OKX 原生币全收：BTC/DOGE/
