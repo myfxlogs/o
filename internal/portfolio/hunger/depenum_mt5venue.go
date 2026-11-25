@@ -13,4 +13,7 @@ func init() {
 	// 一次→人工补册同例（域名=roster venue token 动态枚举不可静态预列
 	// ——册内只钉 roster 种子在册户）。
 	depConfigReaders["xmglobal"] = "CFD 户会话/订阅面"
+	// exness 同域补册（O-40205 实证——fin_0257 venue 改名 mt5→exness 后
+	// 产者写 exness.* 键域，册无 exness 条=dep_blind config:exness→∅）。
+	depConfigReaders["exness"] = "CFD 户会话/订阅面"
 }

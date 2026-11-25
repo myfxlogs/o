@@ -110,7 +110,7 @@ func readCreds(ctx context.Context, pool *pgxpool.Pool, cfg *config.Client, cred
 // NewCollector 装配（roster 驱动多会话——无单户凭据 fail-closed：roster 可读
 // ∨存量 mt5 凭据在，两者皆缺=采集面真空 WARN 缺席同旧径）。
 func NewCollector(ctx context.Context, pool *pgxpool.Pool, cfg *config.Client) (*Collector, error) {
-	if _, err := VenueAccounts(ctx, pool, "mt5"); err != nil {
+	if _, err := VenueAccounts(ctx, pool, "cfd"); err != nil {
 		if _, _, cerr := readCreds(ctx, pool, cfg, "mt5"); cerr != nil {
 			return nil, fmt.Errorf("roster 读败且 mt5 凭据缺: %w / %v", err, cerr)
 		}
