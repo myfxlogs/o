@@ -39,6 +39,7 @@ type hungerSensor interface {
 	ProbeUnitDrift(ctx context.Context) error
 	ProbeAuditCanary(ctx context.Context) error
 	ProbeDeskOrphan(ctx context.Context) error
+	ProbeBreedStall(ctx context.Context) error      // O-39330：candidate 族卡零产出断流（注册→臂建无主转换感知器）
 	ProbeIdleVerdictGate(ctx context.Context) error // O-36962：有理闲置判词缺停泊基线=不合格件闸
 	MineLessons(ctx context.Context) (int, error)
 }
@@ -91,6 +92,7 @@ func (r *Runner) hungerLoop(ctx context.Context) {
 // →账链断+升件自报）→族沉默探针（T-0384——先于 Detect 每拍皆测，饥饿与否
 // 无关；败情自报不拖主拍）→腿覆盖探针（T-0392——同款隔离位）→依赖对
 // 枚举探针（T-0394——同款隔离位）→feed 死闸（T-0410——同款隔离位）→
+// 族卡断流探针（O-39330——ProbeDeskOrphan 后 Detect 前钦定位）→
 // Detect→
 // 触发即落 `饥饿` 行（拍壳同构——触发形+证据落账）→Respond 一步响应。
 // 败情不上抛——本拍自身终结。
@@ -181,6 +183,12 @@ func (r *Runner) hungerTick(ctx context.Context) {
 	if err := r.sensor.ProbeDeskOrphan(ctx); err != nil {
 		log.Printf("[lifecycle] hungertick 票桌孤儿池探针败: %v", err)
 		r.hungerEscalate(ctx, "deskorphan_probe", err)
+	}
+	// 工单O-39330 族卡断流探针同槽（同款败情隔离位——candidate 族卡
+	// 归一名下零产出超龄→breed_stall 升件；注册→臂建无主转换感知器）。
+	if err := r.sensor.ProbeBreedStall(ctx); err != nil {
+		log.Printf("[lifecycle] hungertick 族卡断流探针败: %v", err)
+		r.hungerEscalate(ctx, "breedstall_probe", err)
 	}
 	rep, err := r.sensor.Detect(ctx)
 	if err != nil {

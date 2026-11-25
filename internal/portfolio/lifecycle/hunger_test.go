@@ -123,6 +123,10 @@ func (s *stubSensor) ProbeDeskOrphan(context.Context) error {
 	return nil
 }
 
+func (s *stubSensor) ProbeBreedStall(context.Context) error {
+	return nil
+}
+
 func (s *stubSensor) ProbeIdleVerdictGate(context.Context) error {
 	return nil
 }
