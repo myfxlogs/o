@@ -312,9 +312,15 @@ func TestRosterMultiAccountSessions(t *testing.T) {
 	defer cancel()
 	ctx := context.Background()
 	pool := c.pool
-	venues := []string{"exness", "icmarkets"}
+	venues := []string{"exness", "icmarkets", "xmglobal"}
 	rosterClean(t, ctx, pool, venues...)
-	defer rosterClean(t, ctx, pool, venues...)
+	defer func() {
+		rosterClean(t, ctx, pool, venues...)
+		// 复原 fin_0257 无条件种子行——共享 schema 后续测不继承缺行态
+		pool.Exec(ctx, `INSERT INTO fin_venue_roster(venue,proto,platform,cred_ns,login,roles,state,alias)
+			VALUES('xmglobal','cfd','mt5','xmglobal.mt5','110660304','{collect,execute}','registered','XM')
+			ON CONFLICT (venue) DO NOTHING`)
+	}()
 	// mt5 存量单键凭据族（cred_ns='mt5'——<cred_ns>.login 形同构）。
 	seedAcctCreds(t, ctx, pool, "exness.mt5", "3001157")
 	seedAcctCreds(t, ctx, pool, "icmarkets.mt5", "777001")
@@ -329,7 +335,7 @@ func TestRosterMultiAccountSessions(t *testing.T) {
 		c.mu.Unlock()
 		t.Fatalf("runs=%d want 2（双户各持会话环）", len(c.runs))
 	}
-	if c.runs["exness"].acct.CredNS != "mt5" || c.runs["icmarkets"].acct.CredNS != "icmarkets.mt5" {
+	if c.runs["exness"].acct.CredNS != "exness.mt5" || c.runs["icmarkets"].acct.CredNS != "icmarkets.mt5" {
 		c.mu.Unlock()
 		t.Fatalf("cred_ns 投影错: %+v / %+v", c.runs["exness"].acct, c.runs["icmarkets"].acct)
 	}
@@ -486,7 +492,7 @@ func TestExnessKeyCompatibility(t *testing.T) {
 	if sharedSessionKey != "exness.session_token" {
 		t.Fatalf("sharedSessionKey=%q", sharedSessionKey)
 	}
-	// CredNSFor 兜底——roster 无行/'exness' venue=存量单键凭据族语义不变。
+	// CredNSFor——roster 唯一真源（O-39440② 硬编码兜底已撤：无行=err 显形）。
 	pool := testutil.Pool(t)
 	ctx := context.Background()
 	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
@@ -494,9 +500,15 @@ func TestExnessKeyCompatibility(t *testing.T) {
 	}
 	pool.Exec(ctx, `DELETE FROM fin_venue_roster WHERE venue='exness'`)
 	defer seedAcct(t, ctx, pool, "exness", "exness.mt5", "3001157") // 共享 schema 复原——后续测不继承缺行态
+	// O-39440②：硬编码兜底已撤——roster 无行=err 显形禁猜键前缀
+	//   （注册表唯一真源；fin_0257 无条件种子后生产/测试形一致）。
+	if _, err := CredNSFor(ctx, pool, "exness"); err == nil {
+		t.Fatal("roster 缺 exness 行应 err 显形（零硬编码兜底）")
+	}
+	seedAcct(t, ctx, pool, "exness", "exness.mt5", "3001157")
 	ns, err := CredNSFor(ctx, pool, "exness")
 	if err != nil || ns != "exness.mt5" {
-		t.Fatalf("CredNSFor exness 兜底 ns=%q err=%v", ns, err)
+		t.Fatalf("CredNSFor exness ns=%q err=%v", ns, err)
 	}
 	if _, err := CredNSFor(ctx, pool, "nosuchvenue"); err == nil {
 		t.Fatal("未知 venue 应 err 显形禁猜键前缀")

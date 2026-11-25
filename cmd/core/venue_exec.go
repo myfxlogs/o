@@ -282,14 +282,15 @@ func (f *xvenueFleet) AttachWardenSizers(ctx context.Context, wd *guard.Warden) 
 	}
 }
 
-// Mt5ProtoVenues 名册 mt5-proto 活跃户全量（sizer 路由面装配源——
-// 'mt5' 存量户由调用侧字面量兼容锚并入，防名册未播种窗漏挂）。
+// Mt5ProtoVenues 名册 cfd-proto 活跃户全量（sizer 路由面装配源——
+// roster+fin_account 注册表枚举零硬编码；exness 由 AttachWardenSizers
+// primary 预挂并入,本函数不重复产）。
 func (f *xvenueFleet) Mt5ProtoVenues(ctx context.Context) ([]string, error) {
 	accts, err := mt5.VenueAccounts(ctx, f.pool, "cfd")
 	if err != nil {
 		return nil, err
 	}
-	out := []string{"exness"} // 存量兼容锚（O-39440① venue 改名）
+	out := []string{}
 	for _, a := range accts {
 		if a.Venue != "exness" && (a.Platform == "" || a.Platform == "mt5") {
 			out = append(out, a.Venue) // 仅 mt5 平台户——mtexec=MT5 协议执行件

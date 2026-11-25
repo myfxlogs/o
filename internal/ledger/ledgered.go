@@ -160,11 +160,9 @@ func ReconSets(ctx context.Context, pool *pgxpool.Pool) (wlSet map[[2]string]boo
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
-	// O-34287 验收⑤：原生币基线键并入对拍域（venue 真值首拍幂等建账——
-	// 杂币余额开账位=账本域存在，非白名单静默放行）。
-	for k := range nativeBase {
-		wlSet[k] = true
-	}
+	// O-39440：nativeBase venue 级键不再直进对拍面——下账户归户段
+	//   （nativeBase→trading 账户键）是唯一入口;venue 无对应 sub_type
+	//   =不入对拍（与原 venue 桶无键同果,覆盖不丢不增）。
 	// O-39440：台账组件 venue 级键→账户归户白名单键——parked→earn、
 	// dcdBase→dcd、nativeBase→trading（compAccount 同规则含单 main
 	// 兜底）；venue 无对应 sub_type=不入对拍（与原 venue 桶无键同果）。

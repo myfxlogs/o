@@ -60,12 +60,10 @@ func VenueAccounts(ctx context.Context, pool *pgxpool.Pool, proto string) ([]Ven
 
 // IsCfdProtoVenue venue 是否 cfd 类目（名册 proto='cfd'——O-39440① 业主
 // 令：MT4/MT5/cTrader 统归 cfd 类目，协议版本=platform 子属性非类目；
-// 'exness' 存量 token 兼容锚直通；他 venue 凭名册行，名册读败/缺席=
-// 非 cfd fail-closed——禁把未知 venue 当 CFD 腿处理）。
+// 全 venue 凭名册行（exness/xmglobal 由 fin_0257 无条件种子——注册表
+// 唯一真源零硬编码，业主令 2026-11-25）；名册读败/缺席=非 cfd
+// fail-closed——禁把未知 venue 当 CFD 腿处理）。
 func IsCfdProtoVenue(ctx context.Context, pool *pgxpool.Pool, venue string) bool {
-	if venue == "exness" {
-		return true
-	}
 	var ok bool
 	if err := pool.QueryRow(ctx,
 		`SELECT EXISTS(SELECT 1 FROM fin_venue_roster WHERE venue=$1 AND proto='cfd')`,
@@ -76,16 +74,13 @@ func IsCfdProtoVenue(ctx context.Context, pool *pgxpool.Pool, venue string) bool
 }
 
 // CredNSFor venue→凭据键前缀（OpenSession/消费腿 venue 参数化缝——
-// roster 行是唯一真源；'mt5' 兜底 cred_ns='mt5'——存量单键凭据族语义
-// 不变，roster 未播种/表缺迁移窗兼容）。他户缺行=err 显形禁猜键前缀。
+// roster 行是唯一真源零硬编码兜底（fin_0257 无条件种子后迁移窗不存在）；
+// 他户缺行=err 显形禁猜键前缀）。
 func CredNSFor(ctx context.Context, pool *pgxpool.Pool, venue string) (string, error) {
 	var ns string
 	err := pool.QueryRow(ctx, `SELECT cred_ns FROM fin_venue_roster WHERE venue=$1`, venue).Scan(&ns)
 	if err == nil {
 		return ns, nil
-	}
-	if venue == "exness" {
-		return "exness.mt5", nil
 	}
 	return "", fmt.Errorf("roster 无户 venue=%s: %w", venue, err)
 }

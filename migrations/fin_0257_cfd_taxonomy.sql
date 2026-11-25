@@ -43,6 +43,15 @@ DO $$ DECLARE t text; BEGIN
   END LOOP;
 END $$;
 
+-- CFD 两户无条件种子（账户实体注册表真源——fin_account 同迁移无条件
+--   种子 exness:3001157/xmglobal:110660304；fin_0248 凭据条件种子在测试
+--   库零 app_secrets 下不落行=形不一致。ON CONFLICT 保生产已迁移行）。
+INSERT INTO fin_venue_roster(venue,proto,platform,cred_ns,login,roles,state,alias)
+VALUES
+  ('exness', 'cfd', 'mt5', 'exness.mt5',  '3001157',  '{collect,execute}', 'active',     'Exness'),
+  ('xmglobal','cfd', 'mt5', 'xmglobal.mt5','110660304', '{collect,execute}', 'registered', 'XM')
+ON CONFLICT (venue) DO NOTHING;
+
 UPDATE md_account_events SET venue='exness' WHERE venue='mt5';
 
 UPDATE app_secrets SET key='exness.mt5.'||substr(key,5)

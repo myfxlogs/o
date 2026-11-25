@@ -2,9 +2,12 @@ package ledger
 
 // account.go —— 账户维解析面（工单O-39440——「以账户来分」根修）：
 // fin_account 注册表=账户身份真源；account_id=venue:account 域键
-// （okx:trading/funding/earn/dcd 子户+mt5:<login> 户号+<venue>:legacy
-// 兜底）。写入径经 AccountFor 归户——显式 account 优先,缺省按
-// (venue,kind) 显式规则,不可判→<venue>:legacy 终身标禁猜。
+// （okx:trading/funding/earn/dcd 子户+cfd 类经纪商 venue:login 户号
+// +<venue>:legacy 兜底）。写入归户真源=DB 触发器
+// fin_cashflow_account_default（注册表驱动——venue 唯一活跃/disabled
+// main 户→本户,其余→<venue>:legacy;frontend 插行=新经纪商零码接入,
+// 硬编码 venue→account 禁——业主令 2026-11-25）；Post 传显式
+// account_id 或 NULL 交触发器,显式错值 FK fail-loud。
 
 import (
 	"context"
@@ -58,44 +61,6 @@ func VenueOf(accountID string) string {
 		return accountID[:i]
 	}
 	return accountID
-}
-
-// acctKindRules (venue,kind)→账户 显式映射正本（迁移 fin_0256 回填
-// 同规则——两面同源防漂；kind 闭集外→<venue>:legacy）。
-var acctKindRules = map[string]map[string]string{
-	"okx": {
-		"deposit": "okx:funding", "withdraw": "okx:funding",
-		"owner_in": "okx:funding", "owner_out": "okx:funding",
-		"earn_in": "okx:earn", "earn_out": "okx:earn", "interest": "okx:earn",
-	},
-}
-
-// AccountFor 账户解析：explicit 非空=直接用（FK 闸兜底合法性）；
-// 缺省走 (venue,kind) 规则——dcd_* kind 前缀→<venue>:dcd,okx 余者
-// →okx:trading,非 okx/未知→<venue>:legacy。返回值恒非空。
-func AccountFor(venue, kind, explicit string) string {
-	if explicit != "" {
-		return explicit
-	}
-	if venue == "exness" {
-		return "exness:3001157" // 迁移回填同规则——Exness 簿记链实证（O-39440① venue 改名）
-	}
-	if venue == "xmglobal" {
-		return "xmglobal:110660304" // XM 户——roster venue token=xmglobal
-	}
-	if venue == "okx" {
-		if r, ok := acctKindRules["okx"][kind]; ok {
-			return r
-		}
-		if strings.HasPrefix(kind, "dcd_") || kind == "dcd_owner" {
-			return "okx:dcd"
-		}
-		if kind == "recon_adjust" || kind == "unmapped_bill" {
-			return "okx:legacy"
-		}
-		return "okx:trading"
-	}
-	return venue + ":legacy"
 }
 
 // compAccount 对拍组件→账户归属（parked→earn、dcdBase→dcd、

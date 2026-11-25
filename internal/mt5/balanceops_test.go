@@ -185,7 +185,7 @@ func TestCreditNoteNotBooked(t *testing.T) {
 	}
 	var notes int
 	if err := c.pool.QueryRow(ctx,
-		`SELECT count(*) FROM ops_event WHERE note LIKE '%mt5deal:9000000005%'`).Scan(&notes); err != nil {
+		`SELECT count(*) FROM ops_event WHERE note LIKE '%exnessdeal:9000000005%'`).Scan(&notes); err != nil {
 		t.Fatal(err)
 	}
 	if notes != 1 {

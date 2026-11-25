@@ -22,7 +22,7 @@ import (
 	"o/internal/trading/okxexec"
 )
 
-// mkXvenuePair xvenue 双行提案夹具——主行 venue='okx'+副腿行 venue='mt5'
+// mkXvenuePair xvenue 双行提案夹具——主行 venue='okx'+副腿行 venue='exness'
 // 同 proposal_ref（提案双行建序钦定——xvenuepair.go）。返主/副策略 id。
 func mkXvenuePair(t *testing.T, ctx context.Context, pool *pgxpool.Pool,
 	okxInst, cfdInst string) (mainID, mateID int64) {
@@ -37,7 +37,7 @@ func mkXvenuePair(t *testing.T, ctx context.Context, pool *pgxpool.Pool,
 		VALUES($1,$2,'long_perp_short_cfd','fin_armed',0) RETURNING id`, eid, okxInst).Scan(&pid); err != nil {
 		t.Fatal("提案夹具:", err)
 	}
-	for _, row := range []struct{ inst, venue string }{{okxInst, "okx"}, {cfdInst, "mt5"}} {
+	for _, row := range []struct{ inst, venue string }{{okxInst, "okx"}, {cfdInst, "exness"}} {
 		var sid int64
 		if err := pool.QueryRow(ctx, `INSERT INTO fin_strategy(inst_id,template_ref,proposal_ref,direction,notional_usd,state,venue,criteria)
 			VALUES($1,'xvenue-carry',$2,'long_perp_short_cfd',50,'live',$3,'{}') RETURNING id`,
@@ -218,7 +218,7 @@ func TestXvenueOpenE2EOkxTerminal(t *testing.T) {
 	mainID, mateID := mkXvenuePair(t, ctx, pool, "BTC-USDT-SWAP", "BTCUSDm")
 	if _, err := pool.Exec(ctx, `INSERT INTO fin_symbol_dialect
 		(venue,account,canonical,venue_symbol,ct_val,tick_sz,min_sz,lot_unit,lot_step,digits,trade_mode,spec_hash)
-		VALUES('mt5','123','BTCUSDm','BTCUSDm',1,0.5,0.01,'lot',0.01,2,4,'x')`); err != nil {
+		VALUES('exness','123','BTCUSDm','BTCUSDm',1,0.5,0.01,'lot',0.01,2,4,'x')`); err != nil {
 		t.Fatal("方言行夹具:", err)
 	}
 	for _, inst := range []string{"BTC-USDT", "BTC-USDT-SWAP"} {
@@ -230,7 +230,7 @@ func TestXvenueOpenE2EOkxTerminal(t *testing.T) {
 	}
 	var seq []string
 	r := execution.NewRunner(pool, cfg, execution.RouterExecutor{
-		"mt5": &xvExecFake{seq: &seq, name: "mt5", ticket: 777},
+		"exness": &xvExecFake{seq: &seq, name: "exness", ticket: 777},
 		"okx": &xvExecFake{seq: &seq, name: "okx",
 			reject: &okxexec.APIError{Code: "51001", Msg: "Instrument ID doesn't exist"}},
 	})
@@ -256,7 +256,7 @@ func TestXvenueOpenE2EOkxTerminal(t *testing.T) {
 	// LEGGED 回滚在案——mt5 腿 OrderClose(ticket=777) 执行序留痕。
 	var rbSeen bool
 	for _, s := range seq {
-		if s == "mt5:close:t777" {
+		if s == "exness:close:t777" {
 			rbSeen = true
 		}
 	}
@@ -289,7 +289,7 @@ func TestXvenuePairLookup(t *testing.T) {
 	if err != nil {
 		t.Fatal("pair 对位:", err)
 	}
-	if cfd != "BTCUSDm" || cfdVenue != "mt5" || mate != mateID {
+	if cfd != "BTCUSDm" || cfdVenue != "exness" || mate != mateID {
 		t.Fatalf("pair 归并错: cfd=%s venue=%s mate=%d（应 %d）", cfd, cfdVenue, mate, mateID)
 	}
 	// 孤行（无副腿提案）+映射缺=fail-closed 不构单腿

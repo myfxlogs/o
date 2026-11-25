@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS fin_account (
     alias        text NOT NULL DEFAULT '',
     ccy          text NOT NULL DEFAULT '',
     sub_type     text NOT NULL CHECK (sub_type IN ('trading','funding','earn','dcd','main')),
-    state        text NOT NULL DEFAULT 'active' CHECK (state IN ('active','frozen','closed')),
+    state        text NOT NULL DEFAULT 'active' CHECK (state IN ('active','disabled','frozen','closed')),
     declared_at  timestamptz NOT NULL DEFAULT now()
 );
 COMMENT ON TABLE fin_account IS '账户注册表（O-39440——venue 实读/对拍/簿记三面账户粒度真源；账户身份不可变,变=新行+旧行closed）';
@@ -57,9 +57,10 @@ WHERE venue||':legacy' NOT IN (SELECT account_id FROM fin_account)
 ON CONFLICT (account_id) DO NOTHING;
 
 -- fin_cashflow 账户维列+显式映射回填（kind 感知规则——迁移内注即
--- 映射正本；exness 全行→exness:3001157：id5/1658/1689 三行簿记链属
--- Exness 户实证（+3247.41/-3247.41/+1.80 链=O-33206 更正域）；
--- xmglobal→xmglobal:110660304 同型）。
+-- 映射正本：okx kind 规则同下；非 okx 走 fin_account 注册表
+--   （venue 唯一活跃 main 户——exness:3001157/xmglobal:110660304 即此径
+--   产出,exness 全行簿记链属 Exness 户实证 O-33206 更正域；frontend
+--   插行=新经纪商零码接入,硬编码 venue→account 禁）。
 ALTER TABLE fin_cashflow ADD COLUMN IF NOT EXISTS account_id text;
 UPDATE fin_cashflow SET account_id = CASE
   WHEN venue='okx' AND kind IN ('deposit','withdraw','owner_in','owner_out') THEN 'okx:funding'
@@ -67,9 +68,14 @@ UPDATE fin_cashflow SET account_id = CASE
   WHEN venue='okx' AND (kind LIKE 'dcd\_%' OR kind='dcd_owner') THEN 'okx:dcd'
   WHEN venue='okx' AND kind IN ('recon_adjust','unmapped_bill') THEN 'okx:legacy'
   WHEN venue='okx' THEN 'okx:trading'
-  WHEN venue='exness' THEN 'exness:3001157'
-  WHEN venue='xmglobal' THEN 'xmglobal:110660304'
-  ELSE venue||':legacy'
+  -- 非 okx=注册表驱动（O-39440② frontend 可改——venue 唯一活跃 main
+  --   户→本户；全 disabled 单户→仍归本户（钱照样在）；其余→<venue>:legacy）：
+  ELSE COALESCE(
+    (SELECT min(a.account_id) FROM fin_account a WHERE a.venue=fin_cashflow.venue
+      AND a.sub_type='main' AND a.state='active' HAVING count(*)=1),
+    (SELECT min(a.account_id) FROM fin_account a WHERE a.venue=fin_cashflow.venue
+      AND a.sub_type='main' AND a.state='disabled' HAVING count(*)=1),
+    venue||':legacy')
 END
 WHERE account_id IS NULL;
 -- mig-rehearsal-ok: 回填 UPDATE 已将全量存量行 account_id 置非空
@@ -89,9 +95,12 @@ CREATE INDEX IF NOT EXISTS fin_cashflow_account_idx ON fin_cashflow(account_id,c
 -- 余非 okx→<venue>:legacy。
 ALTER TABLE fin_known_residual ADD COLUMN IF NOT EXISTS account_id text;
 UPDATE fin_known_residual SET account_id = CASE
-  WHEN venue='exness' THEN 'exness:3001157'
-  WHEN venue='xmglobal' THEN 'xmglobal:110660304'
-  WHEN venue<>'okx' THEN venue||':legacy'
+  WHEN venue<>'okx' THEN COALESCE(
+    (SELECT min(a.account_id) FROM fin_account a WHERE a.venue=fin_known_residual.venue
+      AND a.sub_type='main' AND a.state='active' HAVING count(*)=1),
+    (SELECT min(a.account_id) FROM fin_account a WHERE a.venue=fin_known_residual.venue
+      AND a.sub_type='main' AND a.state='disabled' HAVING count(*)=1),
+    venue||':legacy')
   WHEN resolver='earn_accrual_gap' OR reason ~* 'earn|应计|息' THEN 'okx:earn'
   WHEN reason ~* 'dcd' THEN 'okx:dcd'
   ELSE 'okx:trading'
@@ -114,9 +123,14 @@ BEGIN
       WHEN NEW.venue='okx' AND (NEW.kind LIKE 'dcd\_%' OR NEW.kind='dcd_owner') THEN 'okx:dcd'
       WHEN NEW.venue='okx' AND NEW.kind IN ('recon_adjust','unmapped_bill') THEN 'okx:legacy'
       WHEN NEW.venue='okx' THEN 'okx:trading'
-      WHEN NEW.venue='exness' THEN 'exness:3001157'
-      WHEN NEW.venue='xmglobal' THEN 'xmglobal:110660304'
-      ELSE NEW.venue||':legacy'
+      -- 非 okx 注册表驱动（同回填 CASE——fin_account 唯一活跃/disabled
+      --   main 户归属,frontend 插行即接新经纪商零码改）：
+      ELSE COALESCE(
+        (SELECT min(a.account_id) FROM fin_account a WHERE a.venue=NEW.venue
+          AND a.sub_type='main' AND a.state='active' HAVING count(*)=1),
+        (SELECT min(a.account_id) FROM fin_account a WHERE a.venue=NEW.venue
+          AND a.sub_type='main' AND a.state='disabled' HAVING count(*)=1),
+        NEW.venue||':legacy')
     END;
     -- legacy 兜底自动开户（frozen 终身标——不可判 venue 的 FK 前补行,
     --   显式 account_id 不经此径=写错照样 FK 炸 fail-loud；幂等

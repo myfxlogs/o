@@ -52,6 +52,21 @@ func CcyOK(venue, ccy string) bool {
 	return ccyRE.MatchString(ccy)
 }
 
+// ccyAllowed Post 写径币闭集（注册表驱动版——roster proto='cfd'
+// 判 USD 单域;CcyOK 存量签名留 okx 专用径 dcdlegs 兼容）。
+func ccyAllowed(ctx context.Context, pool *pgxpool.Pool, venue, ccy string) (bool, error) {
+	var cfd bool
+	if err := pool.QueryRow(ctx,
+		`SELECT EXISTS(SELECT 1 FROM fin_venue_roster WHERE venue=$1 AND proto='cfd')`,
+		venue).Scan(&cfd); err != nil {
+		return ccyRE.MatchString(ccy), nil // 名册读败 fail-open 通用闭集
+	}
+	if cfd {
+		return ccy == "USD", nil
+	}
+	return ccyRE.MatchString(ccy), nil
+}
+
 // Entry 入账入参。
 type Entry struct {
 	Kind        string
@@ -72,7 +87,9 @@ func Post(ctx context.Context, pool *pgxpool.Pool, e Entry) (int64, error) {
 	if !kinds[e.Kind] {
 		return 0, fmt.Errorf("kind %q 非法闭集外", e.Kind)
 	}
-	if !CcyOK(e.Venue, e.Ccy) {
+	if ok, err := ccyAllowed(ctx, pool, e.Venue, e.Ccy); err != nil {
+		return 0, err
+	} else if !ok {
 		return 0, fmt.Errorf("ccy %q 非法——各币各域闭集外", e.Ccy)
 	}
 	if e.SourceRef <= 0 || e.SourceTable == "" {
@@ -83,10 +100,14 @@ func Post(ctx context.Context, pool *pgxpool.Pool, e Entry) (int64, error) {
 	if e.OccurredAt != "" {
 		ts = e.OccurredAt
 	}
+	var acct any // 显式 account_id 直通；空=NULL 交触发器注册表归户
+	if e.AccountID != "" {
+		acct = e.AccountID
+	}
 	err := pool.QueryRow(ctx, `INSERT INTO fin_cashflow(kind,venue,ccy,amount,position_ref,source_ref,source_table,occurred_at,account_id)
 		VALUES($1,$2,$3,$4,$5,$6,$7,COALESCE($8,now()),$9) RETURNING id`,
 		e.Kind, e.Venue, e.Ccy, e.Amount, e.PositionRef, e.SourceRef, e.SourceTable, ts,
-		AccountFor(e.Venue, e.Kind, e.AccountID)).Scan(&id)
+		acct).Scan(&id)
 	return id, err
 }
 

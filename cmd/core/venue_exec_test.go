@@ -20,13 +20,13 @@ import (
 	"o/internal/trading/okxexec"
 )
 
-// xvSeedRoster 名册夹具（三户：mt5 active/xmglobal active/icldemo disabled
+// xvSeedRoster 名册夹具（三户：exness active/xmglobal active/icldemo disabled
 // +ghost 未在册对照——execute 授权面语义全覆）。
 func xvSeedRoster(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 	t.Helper()
 	for _, r := range []struct{ v, p, st, login string }{
-		{"mt5", "mt5", "active", "3001157"}, {"xmglobal", "mt5", "active", "110660304"},
-		{"icldemo", "mt5", "disabled", "555001"},
+		{"exness", "cfd", "active", "3001157"}, {"xmglobal", "cfd", "active", "110660304"},
+		{"icldemo", "cfd", "disabled", "555001"},
 	} {
 		if _, err := pool.Exec(ctx, `INSERT INTO fin_venue_roster
 			(venue,proto,cred_ns,login,roles,state,alias)
@@ -75,7 +75,7 @@ func xvFleet(t *testing.T, ctx context.Context, pool *pgxpool.Pool, cfg *config.
 	deps map[string]*venueExecDeps) *xvenueFleet {
 	t.Helper()
 	f := newXvenueFleet(pool, cfg, okxCredsZero, &venueExecDeps{
-		venue: "mt5", cli: &xvSessFake{mt5Cli: xvMT5Fake{}, acct: "3001157"},
+		venue: "exness", cli: &xvSessFake{mt5Cli: xvMT5Fake{}, acct: "3001157"},
 		dial: xvDialFake{}, ds: nil})
 	f.ds = mt5.NewDialectStore(pool)
 	f.newDep = func(v string) *venueExecDeps { return deps[v] }
@@ -100,7 +100,7 @@ func TestXvenueFleetThreeVenueRouting(t *testing.T) {
 	if err != nil || d1.cli != xmCli {
 		t.Fatalf("xmglobal deps 路由错: %v", err)
 	}
-	if _, err := f.depsFor(ctx, "mt5"); err != nil {
+	if _, err := f.depsFor(ctx, "exness"); err != nil {
 		t.Fatal("mt5 deps:", err)
 	}
 	// executorFor：xmglobal→mtexec 懒连件；icldemo disabled→即拍拒；
@@ -128,7 +128,7 @@ func TestXvenueFleetDisabledZeroExnessCall(t *testing.T) {
 	var mt5N, xmN int32
 	primary := &xvCountCli{acct: "3001157", calls: &mt5N, mt5Cli: &xvMT5Fake{}}
 	f := newXvenueFleet(pool, cfg, okxCredsZero, &venueExecDeps{
-		venue: "mt5", cli: primary, dial: xvDialFake{}, ds: mt5.NewDialectStore(pool)})
+		venue: "exness", cli: primary, dial: xvDialFake{}, ds: mt5.NewDialectStore(pool)})
 	f.newDep = func(v string) *venueExecDeps {
 		return &venueExecDeps{venue: v, cli: &xvCountCli{acct: "9", calls: &xmN},
 			dial: xvRecDial{got: &[]string{}, sym: "X"}, ds: f.ds}
@@ -156,9 +156,9 @@ func TestXvenueFleetRosterAbsentFallback(t *testing.T) {
 	}()
 	var mt5N int32
 	f := newXvenueFleet(pool, cfg, okxCredsZero, &venueExecDeps{
-		venue: "mt5", cli: &xvCountCli{acct: "3001157", calls: &mt5N},
+		venue: "exness", cli: &xvCountCli{acct: "3001157", calls: &mt5N},
 		dial: xvDialFake{}, ds: mt5.NewDialectStore(pool)})
-	if _, err := f.executorFor(ctx, "mt5"); err != nil {
+	if _, err := f.executorFor(ctx, "exness"); err != nil {
 		t.Fatalf("名册缺席 mt5 未兜底: %v", err)
 	}
 	if _, err := f.executorFor(ctx, "okx"); err != nil {
@@ -184,15 +184,15 @@ func TestMt5LiveDialectVenueEscalateScope(t *testing.T) {
 	if scope != "xmglobal" {
 		t.Fatalf("esc_scope=%q 应 xmglobal（替户下单归因串户险）", scope)
 	}
-	// 'mt5' 兼容锚——空 venue 译件 esc_scope='mt5' 回归
+	// 'exness' 兼容锚——空 venue 译件 esc_scope='exness' 回归（O-39440①）
 	d2 := mt5LiveDialect{S: mt5.NewDialectStore(pool), Seat: "o-core"}
 	d2.Escalate(ctx, "BTCUSDm", "x")
 	if err := pool.QueryRow(ctx, `SELECT esc_scope FROM ops_event
 		WHERE seat='o-core' AND event='方言缺映射' ORDER BY id DESC LIMIT 1`).Scan(&scope); err != nil {
 		t.Fatal(err)
 	}
-	if scope != "mt5" {
-		t.Fatalf("mt5 兼容锚 esc_scope=%q", scope)
+	if scope != "exness" {
+		t.Fatalf("exness 兼容锚 esc_scope=%q", scope)
 	}
 }
 
@@ -255,7 +255,7 @@ func TestXvenueOpenXMRoute(t *testing.T) {
 	xmExec := &xvExecFake{seq: &seq, name: "xmglobal", ticket: 888}
 	mt5Exec := &xvExecFake{seq: &seq, name: "mt5", ticket: 777}
 	r := execution.NewRunner(pool, cfg, execution.RouterExecutor{
-		"mt5": mt5Exec, "xmglobal": xmExec,
+		"exness": mt5Exec, "xmglobal": xmExec,
 		"okx": &xvExecFake{seq: &seq, name: "okx", ticket: 666}})
 	gate := risk.NewGate(pool, cfg).WithEquity(func(context.Context, string) (float64, error) {
 		return 1e6, nil
@@ -264,7 +264,7 @@ func TestXvenueOpenXMRoute(t *testing.T) {
 	var dialSeen []string
 	xmCli := &xvCountCli{acct: "110660304", calls: &xmN, mt5Cli: &xvMT5Fake{}}
 	fleet := newXvenueFleet(pool, cfg, okxCredsZero, &venueExecDeps{
-		venue: "mt5", cli: &xvCountCli{acct: "3001157", calls: &mt5N, mt5Cli: &xvMT5Fake{}},
+		venue: "exness", cli: &xvCountCli{acct: "3001157", calls: &mt5N, mt5Cli: &xvMT5Fake{}},
 		dial: xvDialFake{}, ds: mt5.NewDialectStore(pool)})
 	fleet.newDep = func(v string) *venueExecDeps {
 		return &venueExecDeps{venue: v, cli: xmCli,

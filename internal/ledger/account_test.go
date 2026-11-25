@@ -7,28 +7,90 @@ import (
 
 // O-39440 桩测：账户维解析/归户/折叠纯函数案。
 
-func TestAccountForRules(t *testing.T) {
-	cases := []struct{ venue, kind, expl, want string }{
-		{"okx", "deposit", "", "okx:funding"},
-		{"okx", "withdraw", "", "okx:funding"},
-		{"okx", "owner_in", "", "okx:funding"},
-		{"okx", "earn_in", "", "okx:earn"},
-		{"okx", "interest", "", "okx:earn"},
-		{"okx", "dcd_settle", "", "okx:dcd"},
-		{"okx", "dcd_owner", "", "okx:dcd"},
-		{"okx", "recon_adjust", "", "okx:legacy"},
-		{"okx", "spot_buy", "", "okx:trading"},
-		{"okx", "fee", "", "okx:trading"},
-		{"exness", "deposit", "", "exness:3001157"}, // 回填同规则——Exness 户实证
-		{"xmglobal", "deposit", "xmglobal:110660304", "xmglobal:110660304"},
-		{"xmglobal", "deposit", "", "xmglobal:110660304"},
-		{"sim", "fee", "", "sim:legacy"},
-		{"tron", "prop_credit", "", "tron:legacy"},
-	}
-	for _, c := range cases {
-		if got := AccountFor(c.venue, c.kind, c.expl); got != c.want {
-			t.Fatalf("AccountFor(%s,%s,%s)=%s want %s", c.venue, c.kind, c.expl, got, c.want)
+// TestAccountResolveTrigger 归户触发器集成案（O-39440② 注册表驱动——
+// 硬编码 venue→account 已撤,Post 显式或 NULL 交 fin_cashflow_account_default;
+// 断言=落库 account_id 实值,覆盖 okx kind 规则/cfd 注册表/legacy 兜底/
+// disabled 仍归户/closed→legacy/多 main 歧义→legacy/显式直通）。
+func TestAccountResolveTrigger(t *testing.T) {
+	pool := trkFixture(t)
+	ctx := context.Background()
+	post := func(venue, kind, ccy string, acct string) string {
+		t.Helper()
+		if _, err := Post(ctx, pool, Entry{Kind: kind, Venue: venue, Ccy: ccy,
+			Amount: 1, SourceRef: 1, SourceTable: "t", AccountID: acct}); err != nil {
+			t.Fatalf("Post(%s,%s): %v", venue, kind, err)
 		}
+		var id string
+		if err := pool.QueryRow(ctx, `SELECT account_id FROM fin_cashflow
+			WHERE venue=$1 AND kind=$2 ORDER BY id DESC LIMIT 1`, venue, kind).Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+	// okx kind 规则（触发器 CASE 同源）
+	for _, c := range []struct{ kind, want string }{
+		{"deposit", "okx:funding"}, {"withdraw", "okx:funding"}, {"owner_in", "okx:funding"},
+		{"earn_in", "okx:earn"}, {"interest", "okx:earn"}, {"earn_out", "okx:earn"},
+		{"dcd_out", "okx:dcd"}, {"dcd_in", "okx:dcd"},
+		{"recon_adjust", "okx:legacy"}, {"unmapped_bill", "okx:legacy"},
+		{"fee", "okx:trading"}, {"trade_pnl", "okx:trading"},
+	} {
+		if got := post("okx", c.kind, "USDT", ""); got != c.want {
+			t.Fatalf("okx %s 归户=%s want %s", c.kind, got, c.want)
+		}
+	}
+	// cfd 注册表驱动（venue 唯一活跃 main 户——frontend 插行同径）
+	if got := post("exness", "fee", "USD", ""); got != "exness:3001157" {
+		t.Fatalf("exness 归户=%s", got)
+	}
+	if got := post("xmglobal", "deposit", "USD", ""); got != "xmglobal:110660304" {
+		t.Fatalf("xmglobal 归户=%s", got)
+	}
+	// 新经纪商=插行即归户（零码——fxpro 桩行实证通用性）
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_account(account_id,venue,account_no,alias,ccy,sub_type,state)
+		VALUES('fxpro:88001','fxpro','88001','FXPro','USD','main','active')`); err != nil {
+		t.Fatal(err)
+	}
+	if got := post("fxpro", "fee", "USD", ""); got != "fxpro:88001" {
+		t.Fatalf("fxpro 注册表归户=%s want fxpro:88001", got)
+	}
+	// disabled 仍归户（钱照样在本户——停用=运营面非簿记面）
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_account(account_id,venue,account_no,alias,ccy,sub_type,state)
+		VALUES('tstdis:1','tstdis','1','t','USDT','main','disabled')`); err != nil {
+		t.Fatal(err)
+	}
+	if got := post("tstdis", "fee", "USDT", ""); got != "tstdis:1" {
+		t.Fatalf("disabled 户归属=%s want tstdis:1", got)
+	}
+	// closed→legacy（退役户不再收新归属）
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_account(account_id,venue,account_no,alias,ccy,sub_type,state)
+		VALUES('tstcls:1','tstcls','1','t','USDT','main','closed')`); err != nil {
+		t.Fatal(err)
+	}
+	if got := post("tstcls", "fee", "USDT", ""); got != "tstcls:legacy" {
+		t.Fatalf("closed 户归属=%s want tstcls:legacy", got)
+	}
+	// 双活跃 main=歧义→legacy（禁猜）
+	for _, id := range []string{"tstmulti:a", "tstmulti:b"} {
+		if _, err := pool.Exec(ctx, `INSERT INTO fin_account(account_id,venue,account_no,alias,ccy,sub_type,state)
+			VALUES($1,'tstmulti','1','t','USDT','main','active')`, id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := post("tstmulti", "fee", "USDT", ""); got != "tstmulti:legacy" {
+		t.Fatalf("歧义归属=%s want tstmulti:legacy", got)
+	}
+	// 无册 venue→legacy 兜底自动开户（sim 域有演习闸禁簿记——用中性 token）
+	if got := post("tstnone", "fee", "USDT", ""); got != "tstnone:legacy" {
+		t.Fatalf("tstnone 归属=%s want tstnone:legacy", got)
+	}
+	var n int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM fin_account WHERE account_id='tstnone:legacy'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("legacy 自动开户缺失 n=%d err=%v", n, err)
+	}
+	// 显式 account_id 直通（触发器不覆写——含 okx kind 规则域外显式）
+	if got := post("okx", "fee", "USDT", "okx:earn"); got != "okx:earn" {
+		t.Fatalf("显式归属=%s want okx:earn", got)
 	}
 }
 
@@ -92,11 +154,12 @@ func TestFoldAcctKeysAndParts(t *testing.T) {
 func TestReconSetsAccountKeys(t *testing.T) {
 	pool := trkFixture(t)
 	ctx := context.Background()
-	// 台账组件桩：parked {okx,DOGE}、dcd {okx,BTC}、native {okx,ETH}
+	// 台账组件桩：parked {okx,TSTP}、dcd {okx,TSTD}、native {okx,TSTN}
+	//   （异域 ccy 防共库他测/迁移种子行求和互踩——intent ccy 自由文本）
 	if _, err := pool.Exec(ctx, `INSERT INTO fin_risk_decision(intent,decision,reason,config_gen,kind)
-		VALUES ('{"op":"residual_park","venue":"okx","ccy":"DOGE","amt":10}','allow','t',1,'open'),
-		       ('{"op":"dcd_baseline","venue":"okx","ccy":"BTC","amt":0.5}','allow','t',1,'open'),
-		       ('{"op":"native_baseline","venue":"okx","ccy":"ETH","amt":0.1}','allow','t',1,'open')`); err != nil {
+		VALUES ('{"op":"residual_park","venue":"okx","ccy":"TSTP","amt":10}','allow','allow',1,'open'),
+		       ('{"op":"dcd_baseline","venue":"okx","ccy":"TSTD","amt":0.5}','allow','allow',1,'open'),
+		       ('{"op":"native_baseline","venue":"okx","ccy":"TSTN","amt":0.1}','allow','allow',1,'open')`); err != nil {
 		t.Fatal(err)
 	}
 	wl, parked, dcdB, natB, err := ReconSets(ctx, pool)
@@ -104,7 +167,7 @@ func TestReconSetsAccountKeys(t *testing.T) {
 		t.Fatal(err)
 	}
 	// parked→okx:earn、dcd→okx:dcd、native→okx:trading 账户键
-	for _, k := range [][2]string{{"okx:earn", "DOGE"}, {"okx:dcd", "BTC"}, {"okx:trading", "ETH"}} {
+	for _, k := range [][2]string{{"okx:earn", "TSTP"}, {"okx:dcd", "TSTD"}, {"okx:trading", "TSTN"}} {
 		if !wl[k] {
 			t.Fatalf("wl 缺账户键 %v——全键: %v", k, wl)
 		}
@@ -115,8 +178,8 @@ func TestReconSetsAccountKeys(t *testing.T) {
 			t.Fatalf("venue 桶键残留对拍面: %v", k)
 		}
 	}
-	if parked[[2]string{"okx", "DOGE"}] != 10 || dcdB[[2]string{"okx", "BTC"}] != 0.5 ||
-		natB[[2]string{"okx", "ETH"}] != 0.1 {
-		t.Fatal("台账组件 venue 级量错")
+	if parked[[2]string{"okx", "TSTP"}] != 10 || dcdB[[2]string{"okx", "TSTD"}] != 0.5 ||
+		natB[[2]string{"okx", "TSTN"}] != 0.1 {
+		t.Fatalf("台账组件 venue 级量错 parked=%v dcdB=%v natB=%v", parked, dcdB, natB)
 	}
 }

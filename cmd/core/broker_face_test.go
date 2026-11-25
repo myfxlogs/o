@@ -216,6 +216,13 @@ func TestSubmitBrokerCredVerifyFailRedStake(t *testing.T) {
 func TestSubmitBrokerCredVerifyThenWrite(t *testing.T) {
 	mux, _, pool, ctx := brokerFaceMux(t,
 		func(string) (mt5VerifySession, error) { return &fakeSession{eq: 1000, fm: 900, bal: 1000}, nil }, nil)
+	// fin_0257 无条件种子 exness roster 行（state=active）——本测验
+	//   submit→connecting 前提须 fresh 户：先删行，defer 复原种子保
+	//   共享 schema 后续测不继承缺行态。
+	pool.Exec(ctx, `DELETE FROM fin_venue_roster WHERE venue='exness'`)
+	defer pool.Exec(ctx, `INSERT INTO fin_venue_roster(venue,proto,platform,cred_ns,login,roles,state,alias)
+		VALUES('exness','cfd','mt5','exness.mt5','3001157','{collect,execute}','active','Exness')
+		ON CONFLICT (venue) DO NOTHING`)
 	mk := brokerMk(t)
 	rec := subPost(t, mux, goodBody, "http://ui.local")
 	if rec.Code != http.StatusOK {
@@ -431,13 +438,15 @@ func TestListBrokerOnboardPhase(t *testing.T) {
 	mk := brokerMk(t)
 	seedCred := func(venue string) {
 		t.Helper()
-		ct, err := cryptoutil.Seal([]byte(mk), "3001157")
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := pool.Exec(ctx, `INSERT INTO app_secrets(key,ciphertext) VALUES($1,$2)`,
-			venue+".mt5.login", ct); err != nil {
-			t.Fatal(err)
+		for _, f := range []string{"login", "password", "server"} { // cred_missing 判据=必备键齐——三件全落
+			ct, err := cryptoutil.Seal([]byte(mk), "3001157")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := pool.Exec(ctx, `INSERT INTO app_secrets(key,ciphertext) VALUES($1,$2)`,
+				venue+".mt5."+f, ct); err != nil {
+				t.Fatal(err)
+			}
 		}
 	}
 	// 管道 verified：probed 态。
@@ -508,8 +517,8 @@ func TestListBrokerOnboardPhase(t *testing.T) {
 	for _, r := range list.Rows {
 		byVenue[r.Venue] = row{r.Proto, r.State, r.Phase, r.BeatNote, r.BeatFailed}
 	}
-	if r := byVenue["exness"]; r.Proto != "mt5" || r.Phase != "verified" {
-		t.Fatalf("exness 应 mt5/verified: %+v", r)
+	if r := byVenue["exness"]; r.Proto != "cfd" || r.Phase != "verified" {
+		t.Fatalf("exness 应 cfd/verified: %+v", r)
 	}
 	if r := byVenue["waitbro"]; r.Phase != "connecting" {
 		t.Fatalf("waitbro 应 connecting: %+v", r)
