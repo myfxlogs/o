@@ -95,6 +95,7 @@ step "immune";      bash scripts/check_immune.sh                || fail "免疫�
 step "rejects";     bash scripts/check_rejects_keys.sh          || fail "rejects 键红"
 step "config-write-domain"; bash scripts/check_config_write_domain.sh || fail "config 写域闸红"
 step "migrations";  bash scripts/check_migrations.sh            || fail "迁移机检红"
+step "surface-lifecycle"; bash scripts/check_surface_lifecycle.sh || fail "积面出生闸红"
 step "bridge-audit"
 if [ "${CHECK_ALL_DEFER_BRIDGE:-}" = 1 ]; then
   # 提案-check_all甩OCI：OCI 面 SG 内容凭据窄（隧道键 restrict 仅 15433）——
