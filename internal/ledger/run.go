@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"math"
 	"o/internal/platform/events"
 	"time"
 
@@ -148,96 +147,24 @@ func (r *Runner) reconcile(ctx context.Context) error {
 		r.rej.Inc("write_err")
 		return fmt.Errorf("venue 现读: %w", err)
 	}
-	// T-0100 ①③+T-0101：对拍白名单=ReconSets 三件一次出（venue 域折叠白
-	// 名单+停泊/dcd 台账币数）；非本位键 ledger 侧按币量建键——venue=币数
-	// 同径比对，单位错配爆雷根除。台账有量 venue 无行=补零强制比对（漏报根修）。
+	// T-0100 ①③+T-0101+O-39440：对拍白名单=ReconSets 三件一次出（账户域
+	// 白名单+停泊/dcd/原生币台账量）；非本位键 ledger 侧按币量建键——
+	// venue=币数同径比对，单位错配爆雷根除。台账有量账户无行=补零强制
+	// 比对（漏报根修）。对拍面=账户粒度：遍历 fin_account active 行，
+	// 读面缺席账户（cred_gap 已升）不判不警不造 0。
 	wl, parked, dcdBase, nativeBase, err := ReconSets(ctx, r.pool)
 	if err != nil {
 		r.rej.Inc("write_err")
 		return err
 	}
-	if err := r.armNativeBaselines(ctx, ven, wl, parked, dcdBase, nativeBase); err != nil {
+	// 基线武装径仍 venue 粒度（native_baseline intent 域键=venue+ccy
+	// 原样——账户归属由 compAccount 规则在净额装配时归位）。
+	venV, wlV := foldAcctKeys(ven, wl)
+	if err := r.armNativeBaselines(ctx, venV, wlV, parked, dcdBase, nativeBase); err != nil {
 		r.rej.Inc("write_err")
 		return err
 	}
-	var rs []struct {
-		venue, ccy string
-		eq, net    float64
-	}
-	for k, eq := range ven {
-		if !wl[k] {
-			continue
-		}
-		var net float64
-		// 升件#10063③：判据喂数禁吞错——读败=计数+WARN+本键让位（net=0
-		// 续判=venue 全额 phantom diff 无痕；swallow-sql-err-dead-guard 判例）。
-		if err := r.pool.QueryRow(ctx,
-			"SELECT COALESCE(sum(amount),0) FROM fin_cashflow WHERE venue=$1 AND ccy=$2 AND kind NOT IN ('earn_in','earn_out')",
-			k[0], k[1]).Scan(&net); err != nil {
-			r.rej.Inc("recon_probe_failed")
-			log.Printf("WARN [ledger] 判据喂数读败 net %s/%s——本键让位: %v", k[0], k[1], err)
-			continue
-		}
-		net += parked[k]     // 非本位停泊币台账币数（venue=币量同径）
-		net += dcdBase[k]    // T-0101：dcd 基线台账币数（venue=名义币量同径）
-		net += nativeBase[k] // O-34287：原生币基线台账币数（venue=余额币量同径）
-		// T-0076：net+盯市偏移=同口径 NAV（持仓浮动与真差分离——偏移读败=0 不加不减）。
-		if r.mtm != nil {
-			if mv, merr := r.mtm(ctx); merr == nil {
-				net += mv[k]
-			}
-		}
-		rs = append(rs, struct {
-			venue, ccy string
-			eq, net    float64
-		}{k[0], k[1], eq, net})
-	}
-	for _, x := range rs {
-		// T-0081 已知残差豁免：未过期豁免额补进容差——只压已定性部分，
-		// unexplained 超额仍即报（豁免≠白名单静默一切）。
-		var exempt float64
-		// 升件#10063③：豁免额读败=exempt 静默失效过警——同判例计数+让位。
-		// O-36327：豁免额=静态行+resolver 跟踪行现算（trackedExempt 同源——
-		// 破带行贡献归零+升件，回退/静态语义见 residual_tracked.go）。
-		var exErr error
-		exempt, _, exErr = r.trackedExempt(ctx, x.venue, x.ccy)
-		if exErr != nil {
-			r.rej.Inc("recon_probe_failed")
-			log.Printf("WARN [ledger] 判据喂数读败 exempt %s/%s——本键让位: %v", x.venue, x.ccy, exErr)
-			continue
-		}
-		diff := Diff(x.net, x.eq)
-		over := false
-		var dout *diffOut
-		if !isBaseCCY(x.ccy) {
-			// O-38064 S3：非本位键币量豁免先扣（币量空间不经价）→残量 rq
-			// 折价判差；rq≈0 不告警不查价；有鲜价 diffUSD=rq*px 对容差+
-			// USD 豁免；无鲜价 fail-closed 照报不产出美元数（删
-			// tol+exempt+1 强制式——自举怪圈+隐含价像根修）。
-			qx, qerr := r.qtyExempt(ctx, x.venue, x.ccy)
-			if qerr != nil {
-				r.rej.Inc("recon_probe_failed")
-				log.Printf("WARN [ledger] qty 豁免读败 %s/%s——本键让位: %v", x.venue, x.ccy, qerr)
-				continue
-			}
-			rq := diff - qx
-			if rq <= 1e-9*math.Max(math.Abs(x.net), math.Abs(x.eq)) {
-				continue // 币量豁免后残量≈0——不告警不查价
-			}
-			dout = &diffOut{qty: rq}
-			if px, ok := r.diffPx(ctx, x.venue, x.ccy); ok {
-				dout.priced, dout.usd = true, rq*px
-				over = dout.usd > tol+exempt
-			} else {
-				over = true // 无鲜价 fail-closed 照报（无价≠静默）
-			}
-		} else {
-			over = diff > tol+exempt
-		}
-		r.alertLedgerDiff(ctx, x.venue, x.ccy, x.eq, x.net, tol, exempt, diff,
-			over, vparts[[2]string{x.venue, x.ccy}], dout)
-	}
-	return nil
+	return r.reconAccounts(ctx, ven, vparts, wl, parked, dcdBase, nativeBase, tol)
 }
 
 // daySnapshot 日切（venue×ccy 净额行——NAV=venue 总权益口径 T-0060 钉死；

@@ -45,46 +45,59 @@ type mt5Ord struct {
 // mt5 会话单飞+短窗缓存（T-0101 验收修补：mtapi 并发会话读 AccountSummary
 // 返 0 实证——卡面/对拍/风控三调用方各自建会话互踩。20s 窗内共享一次
 // 会话结果；窗口过期重建。登录号/净值/余额三元组同缓存）。
-var mt5Sum = struct {
-	mu   sync.Mutex
-	at   time.Time
-	acct mt5Acct
-	err  error
-}{}
+// mt5SumBy O-39440：单飞缓存按 roster venue token 分键（mt5/xmglobal
+// 逐户互不串——并发会话互踩返零坑在案，同 token 仍单飞）。
+var mt5SumBy sync.Map // venue token → *mt5SumEnt
 
 // mt5SummaryOnce MT5 户概要单飞读（TTL 20s——闲户净值秒级漂移无意义，
-// 并发会话互踩返零才是真实风险）。
+// 并发会话互踩返零才是真实风险）。venueTok=roster venue token
+// （"mt5"/"xmglobal"——O-39440 逐户径）。
 func mt5SummaryOnce(ctx context.Context, pool *pgxpool.Pool, cfg *config.Client,
-	openMt5 func(context.Context) (*mt5.Client, error)) (mt5Acct, error) {
-	mt5Sum.mu.Lock()
-	defer mt5Sum.mu.Unlock()
-	if time.Since(mt5Sum.at) < 20*time.Second {
-		return mt5Sum.acct, mt5Sum.err
+	venueTok string, openMt5 func(context.Context) (*mt5.Client, error)) (mt5Acct, error) {
+	if venueTok == "" {
+		venueTok = "mt5"
+	}
+	entAny, _ := mt5SumBy.LoadOrStore(venueTok, &struct {
+		mu   sync.Mutex
+		at   time.Time
+		acct mt5Acct
+		err  error
+	}{})
+	ent := entAny.(*struct {
+		mu   sync.Mutex
+		at   time.Time
+		acct mt5Acct
+		err  error
+	})
+	ent.mu.Lock()
+	defer ent.mu.Unlock()
+	if time.Since(ent.at) < 20*time.Second {
+		return ent.acct, ent.err
 	}
 	open := openMt5
 	if open == nil {
 		open = func(ctx context.Context) (*mt5.Client, error) {
-			return mt5.OpenSession(ctx, pool, cfg, "mt5")
+			return mt5.OpenSession(ctx, pool, cfg, venueTok)
 		}
 	}
 	cl, err := open(ctx)
 	if err != nil {
-		mt5Sum.at, mt5Sum.err = time.Now(), err
+		ent.at, ent.err = time.Now(), err
 		if IsVenueDead(err) { // 工单#26999：结构死 venue 分类——暂态读败非同类
-			mt5Sum.err = venueDeadWrap(err)
+			ent.err = venueDeadWrap(err)
 		}
-		return mt5Sum.acct, mt5Sum.err
+		return ent.acct, ent.err
 	}
 	defer cl.Close()
 	login, _, _, ferr := cl.AccountFacts(ctx)
 	eq, _, bal, aerr := cl.AccountSummary(ctx)
 	if ferr != nil || aerr != nil {
-		mt5Sum.at = time.Now()
-		mt5Sum.err = fmt.Errorf("mt5 facts/summary: %v / %v", ferr, aerr)
+		ent.at = time.Now()
+		ent.err = fmt.Errorf("mt5 facts/summary: %v / %v", ferr, aerr)
 		if IsVenueDead(ferr) || IsVenueDead(aerr) {
-			mt5Sum.err = venueDeadWrap(mt5Sum.err)
+			ent.err = venueDeadWrap(ent.err)
 		}
-		return mt5Sum.acct, mt5Sum.err
+		return ent.acct, ent.err
 	}
 	acct := mt5Acct{Login: fmt.Sprintf("%d", login), Equity: eq, Balance: bal}
 	// T-0327：同会话捎读在持定单（残仓面枚举源——并发会话互踩返零坑在案，
@@ -103,22 +116,9 @@ func mt5SummaryOnce(ctx context.Context, pool *pgxpool.Pool, cfg *config.Client,
 			acct.Orders = append(acct.Orders, mo)
 		}
 	}
-	mt5Sum.acct = acct
-	mt5Sum.at, mt5Sum.err = time.Now(), nil
-	return mt5Sum.acct, nil
-}
-
-// mt5LiveFor MT5 户活读件（OpenSession 逐会话现读——AccountFacts 出 login、
-// AccountSummary 出净值；凭据缺席/读败=err 上抛，卡面显「读件缺」不假零。
-// T-0101：走单飞缓存——与对拍/风控同一会话窗，防并发会话互踩返零）。
-func mt5LiveFor(pool *pgxpool.Pool, cfg *config.Client) func(context.Context) ([]mt5Acct, error) {
-	return func(ctx context.Context) ([]mt5Acct, error) {
-		a, err := mt5SummaryOnce(ctx, pool, cfg, nil)
-		if err != nil {
-			return nil, err
-		}
-		return []mt5Acct{a}, nil
-	}
+	ent.acct = acct
+	ent.at, ent.err = time.Now(), nil
+	return ent.acct, nil
 }
 
 // T-0086 ①④：NAV 三户活读件（资金户=逐币余额、Earn=逐行 amt——REST 保留面

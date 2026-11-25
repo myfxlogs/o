@@ -33,12 +33,16 @@ func trkRunner(pool *pgxpool.Pool) *Runner {
 			"recon_probe_failed", "postmortem_anomaly", "diag_task_err")}
 }
 
-func seedResid(t *testing.T, pool *pgxpool.Pool, venue, ccy string, amt float64, resolver string) {
+func seedResid(t *testing.T, pool *pgxpool.Pool, venue, ccy string, amt float64, resolver string, acct ...string) {
 	t.Helper()
+	var aid any
+	if len(acct) > 0 {
+		aid = acct[0]
+	}
 	if _, err := pool.Exec(context.Background(),
-		`INSERT INTO fin_known_residual(venue,ccy,amount_usd,reason,ticket_ref,expires_at,resolver)
-		 VALUES($1,$2,$3,'test','t',now()+interval '30 days',$4)`,
-		venue, ccy, amt, resolver); err != nil {
+		`INSERT INTO fin_known_residual(venue,ccy,amount_usd,reason,ticket_ref,expires_at,resolver,account_id)
+		 VALUES($1,$2,$3,'test','t',now()+interval '30 days',$4,$5)`,
+		venue, ccy, amt, resolver, aid); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -57,7 +61,7 @@ func TestTrackedExemptEarnGap(t *testing.T) {
 	seedCash(t, pool, "tkv", "TKB", "interest", 3.5)
 	seedCash(t, pool, "tkv", "TKB", "interest", 2.25)
 	seedCash(t, pool, "tkv", "TKB", "fee", -1) // 非 interest 不计
-	total, parts, err := r.trackedExempt(ctx, "tkv", "TKB")
+	total, parts, err := r.trackedExempt(ctx, "tkv", "TKB", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +80,7 @@ func TestTrackedExemptBreach(t *testing.T) {
 	// 锚 $10 跟踪 $40：|40-10|=30 > max(20,25)=25 → 破带归零+升件
 	seedResid(t, pool, "tkv", "TKC", 10, "earn_accrual_gap")
 	seedCash(t, pool, "tkv", "TKC", "interest", 40)
-	total, parts, err := r.trackedExempt(ctx, "tkv", "TKC")
+	total, parts, err := r.trackedExempt(ctx, "tkv", "TKC", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +109,7 @@ func TestTrackedExemptFallback(t *testing.T) {
 	seedResid(t, pool, "tkv", "TKD", 7, "no_such_resolver")
 	seedResid(t, pool, "tkv", "TKD", 9, "dcd_mtm_drift:NOPE") // O-36422 退役键=未注册回退
 	seedResid(t, pool, "tkv", "TKD", 3, "")                   // 静态行
-	total, parts, err := r.trackedExempt(ctx, "tkv", "TKD")
+	total, parts, err := r.trackedExempt(ctx, "tkv", "TKD", "")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -40,10 +40,11 @@ func nftFixture(t *testing.T, dep, eq float64) (context.Context, *Runner, func()
 	ctx, r := setup(t)
 	armNativeKey(t, r.pool, "okx", "NFT")
 	if _, err := Post(ctx, r.pool, Entry{Kind: "deposit", Venue: "okx",
-		Ccy: "NFT", Amount: dep, SourceRef: 1, SourceTable: "t"}); err != nil {
+		Ccy: "NFT", Amount: dep, SourceRef: 1, SourceTable: "t",
+		AccountID: "okx:trading"}); err != nil { // O-39440：NFT 判差归 trading 户（native_base 归户同键）
 		t.Fatal(err)
 	}
-	ven := map[[2]string]float64{{"okx", "NFT"}: eq}
+	ven := map[[2]string]float64{{"okx:trading", "NFT"}: eq}
 	r.WithBalances(func(ctx context.Context) (map[[2]string]float64, VenueParts, error) {
 		return ven, nil, nil
 	})
@@ -65,8 +66,8 @@ func escNote(t *testing.T, ctx context.Context, pool *pgxpool.Pool, scope string
 // A4a：币量豁免全额覆盖→rq≈0 静默（不告警不查价——无价行缺席下
 // 若误查价仍照报 fail-closed，静默=扣减先于折价判词成立）。
 func TestDiffQtyExemptFullCover(t *testing.T) {
-	ctx, r, alerts := nftFixture(t, 96, 100)         // diff=4 币量
-	seedResid(t, r.pool, "okx", "NFT", 999, "qty:4") // amount_usd=999 诱饵——不得计 USD 豁免
+	ctx, r, alerts := nftFixture(t, 96, 100)                        // diff=4 币量
+	seedResid(t, r.pool, "okx", "NFT", 999, "qty:4", "okx:trading") // amount_usd=999 诱饵——不得计 USD 豁免
 	if err := r.reconcile(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -74,14 +75,14 @@ func TestDiffQtyExemptFullCover(t *testing.T) {
 		t.Fatal("币量豁免全额覆盖应静默")
 	}
 	// trackedExempt 同源面：qty 行 Mode=qty/Value=0——USD 豁免额不含 999。
-	_, parts, err := r.trackedExempt(ctx, "okx", "NFT")
+	_, parts, err := r.trackedExempt(ctx, "okx", "NFT", "okx:trading")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(parts) != 1 || parts[0].Mode != "qty" || parts[0].Value != 0 {
 		t.Fatalf("qty 行应 Mode=qty Value=0 got %+v", parts)
 	}
-	qx, err := r.qtyExempt(ctx, "okx", "NFT")
+	qx, err := r.qtyExempt(ctx, "okx", "NFT", "okx:trading")
 	if err != nil || qx != 4 {
 		t.Fatalf("qtyExempt 应=4 got=%v err=%v", qx, err)
 	}
@@ -91,8 +92,8 @@ func TestDiffQtyExemptFullCover(t *testing.T) {
 // 「无可用行情价」明写、qty 豁免行白话名不冠 $）。自举回归锚：加
 // USD 静态豁免后触发与告警语义不变（豁免只进容差位不再喂强制值）。
 func TestDiffPxUnpricedFailClosed(t *testing.T) {
-	ctx, r, alerts := nftFixture(t, 90, 100)         // diff=10
-	seedResid(t, r.pool, "okx", "NFT", 999, "qty:4") // rq=6 币量
+	ctx, r, alerts := nftFixture(t, 90, 100)                        // diff=10
+	seedResid(t, r.pool, "okx", "NFT", 999, "qty:4", "okx:trading") // rq=6 币量
 	if _, err := r.pool.Exec(ctx, `DELETE FROM md_tick_scan WHERE inst_id='NFT-USDT'`); err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +125,7 @@ func TestDiffPxUnpricedFailClosed(t *testing.T) {
 	// 下豁免+1 会改写告警额=自举怪圈；新径无价不产出美元数故不变）。
 	before := alerts()
 	seedResidReason(t, r.pool, "okx", "NFT", 50,
-		"升件#38064定性：NFT双簿重复记账已知残差", "")
+		"升件#38064定性：NFT双簿重复记账已知残差", "", "okx:trading")
 	if err := r.reconcile(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -140,7 +141,7 @@ func TestDiffPxUnpricedFailClosed(t *testing.T) {
 // A2：陈价行（>10min 鲜度界）按无价——三源全陈=fail-closed 照报。
 func TestDiffPxStalePriceUnpriced(t *testing.T) {
 	ctx, r, alerts := nftFixture(t, 90, 100)
-	seedResid(t, r.pool, "okx", "NFT", 999, "qty:4")
+	seedResid(t, r.pool, "okx", "NFT", 999, "qty:4", "okx:trading")
 	old := time.Now().Add(-time.Hour)
 	if _, err := r.pool.Exec(ctx, `INSERT INTO md_tick_scan(ts,venue,inst_id,last)
 		VALUES($1,'okx','NFT-USDT',1.574)`, old); err != nil {
@@ -192,7 +193,7 @@ func TestDiffPxFreshPriceNFT(t *testing.T) {
 // A3b：md_tick_scan 缺行而 md_ticks 鲜→取后者（S1 两级取数序次级臂）。
 func TestDiffPxFreshPriceTicksFallback(t *testing.T) {
 	ctx, r, alerts := nftFixture(t, 90, 100)
-	seedResid(t, r.pool, "okx", "NFT", 999, "qty:4") // rq=6
+	seedResid(t, r.pool, "okx", "NFT", 999, "qty:4", "okx:trading") // rq=6
 	if _, err := r.pool.Exec(ctx, `INSERT INTO md_ticks(ts,venue,inst_id,last)
 		VALUES(now(),'okx','NFT-USDT',1.574)`); err != nil {
 		t.Fatal(err)
@@ -213,7 +214,7 @@ func TestDiffPxFreshPriceTicksFallback(t *testing.T) {
 // 折价后对 tol+exempt，非币量直对 $0.5 旧病灶复发面）。
 func TestDiffPxPricedWithinTol(t *testing.T) {
 	ctx, r, alerts := nftFixture(t, 90, 100)
-	seedResid(t, r.pool, "okx", "NFT", 999, "qty:4")
+	seedResid(t, r.pool, "okx", "NFT", 999, "qty:4", "okx:trading")
 	// rq=6 × px=0.01 = $0.06 < tol 0.5 → 静默
 	if _, err := r.pool.Exec(ctx, `INSERT INTO md_tick_scan(ts,venue,inst_id,last)
 		VALUES(now(),'okx','NFT-USDT',0.01)`); err != nil {
@@ -249,14 +250,14 @@ func TestQtyResolverBaseCCYFallback(t *testing.T) {
 	ctx := context.Background()
 	r := trkRunner(pool)
 	seedResid(t, pool, "okx", "USDT", 7, "qty:5")
-	total, parts, err := r.trackedExempt(ctx, "okx", "USDT")
+	total, parts, err := r.trackedExempt(ctx, "okx", "USDT", "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if total != 7 || len(parts) != 1 || parts[0].Mode != "fallback" {
 		t.Fatalf("本位键 qty 行应回退静态锚 got total=%.2f parts=%+v", total, parts)
 	}
-	if qx, err := r.qtyExempt(ctx, "okx", "USDT"); err != nil || qx != 5 {
+	if qx, err := r.qtyExempt(ctx, "okx", "USDT", ""); err != nil || qx != 5 {
 		t.Fatalf("qtyExempt 本位键不该被 run.go 消费（防御面仍应如实读）got=%v err=%v", qx, err)
 	}
 }
@@ -267,7 +268,7 @@ func TestHumanSegmentNonBaseQty(t *testing.T) {
 	pool := trkFixture(t)
 	ctx := context.Background()
 	r := trkRunner(pool)
-	seg := r.ledgerDiffHuman(ctx, "okx", "BTC",
+	seg := r.ledgerDiffHuman(ctx, "", "okx", "BTC",
 		0.02, 0.0417, 0, 0.5, 0, nil, &diffOut{qty: 0.0217})
 	if !strings.Contains(seg, "0.0217 BTC") {
 		t.Fatalf("BTC 币量差应保真 8 位内小数: %s", seg)
@@ -275,7 +276,7 @@ func TestHumanSegmentNonBaseQty(t *testing.T) {
 	if strings.Contains(seg, "$") {
 		t.Fatalf("非本位键白话段不得出现 $: %s", seg)
 	}
-	seg2 := r.ledgerDiffHuman(ctx, "okx", "BTC",
+	seg2 := r.ledgerDiffHuman(ctx, "", "okx", "BTC",
 		0.02, 0.04, 0, 0.5, 0, nil, &diffOut{qty: 0.02})
 	if !strings.Contains(seg2, "账实差 0.02 BTC") {
 		t.Fatalf("0.0200 应印 0.02 BTC: %s", seg2)

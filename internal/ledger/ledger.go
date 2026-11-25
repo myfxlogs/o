@@ -62,6 +62,9 @@ type Entry struct {
 	SourceRef   int64
 	SourceTable string
 	OccurredAt  string // timestamptz 文本（测试直控）
+	// AccountID 账户域键（O-39440——空=按 (venue,kind) 规则归户;
+	// 知户写径直填如 'mt5:3001157',禁再落无账户行）。
+	AccountID string
 }
 
 // Post 入账：闭集+来源行校验（source_ref<=0 或杂币/kind 非法=拒写上抛）。
@@ -80,9 +83,10 @@ func Post(ctx context.Context, pool *pgxpool.Pool, e Entry) (int64, error) {
 	if e.OccurredAt != "" {
 		ts = e.OccurredAt
 	}
-	err := pool.QueryRow(ctx, `INSERT INTO fin_cashflow(kind,venue,ccy,amount,position_ref,source_ref,source_table,occurred_at)
-		VALUES($1,$2,$3,$4,$5,$6,$7,COALESCE($8,now())) RETURNING id`,
-		e.Kind, e.Venue, e.Ccy, e.Amount, e.PositionRef, e.SourceRef, e.SourceTable, ts).Scan(&id)
+	err := pool.QueryRow(ctx, `INSERT INTO fin_cashflow(kind,venue,ccy,amount,position_ref,source_ref,source_table,occurred_at,account_id)
+		VALUES($1,$2,$3,$4,$5,$6,$7,COALESCE($8,now()),$9) RETURNING id`,
+		e.Kind, e.Venue, e.Ccy, e.Amount, e.PositionRef, e.SourceRef, e.SourceTable, ts,
+		AccountFor(e.Venue, e.Kind, e.AccountID)).Scan(&id)
 	return id, err
 }
 

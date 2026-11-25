@@ -52,10 +52,11 @@ var residualResolvers = map[string]residResolver{
 // trackedExempt 对拍豁免额（run.go:189 判据喂数+diff_brief 成分段同源）：
 // 返回 (总豁免额, 逐行明细, err)。err=行集读败——调用方让位判例同前。
 func (r *Runner) trackedExempt(ctx context.Context,
-	venue, ccy string) (float64, []exemptPart, error) {
+	venue, ccy, acct string) (float64, []exemptPart, error) {
 	rows, err := r.pool.Query(ctx, `SELECT id, amount_usd, coalesce(resolver,''), reason
 		FROM fin_known_residual WHERE venue=$1 AND ccy=$2 AND expires_at>now()
-		ORDER BY id`, venue, ccy)
+		  AND coalesce(account_id,'')=$3
+		ORDER BY id`, venue, ccy, acct)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -119,14 +120,15 @@ func (r *Runner) trackedExempt(ctx context.Context,
 // qtyExempt 币量豁免合计（O-38064 S2：resolver='qty:<units>' 未过期行
 // Σunits——units=该 ccy 币量十进制串；amount_usd 只作立行时参考锚不参与
 // 判定。畸形 units 行不计——fail-closed 向多报不向静默）。
-func (r *Runner) qtyExempt(ctx context.Context, venue, ccy string) (float64, error) {
+func (r *Runner) qtyExempt(ctx context.Context, venue, ccy, acct string) (float64, error) {
 	var u float64
 	err := r.pool.QueryRow(ctx, `SELECT COALESCE(sum(u),0) FROM (
 		SELECT (split_part(resolver,':',2))::numeric u FROM fin_known_residual
 		WHERE venue=$1 AND ccy=$2 AND expires_at>now()
+		  AND coalesce(account_id,'')=$3
 		  AND resolver LIKE 'qty:%'
 		  AND split_part(resolver,':',2) ~ '^-?[0-9]+(\.[0-9]+)?$') t`,
-		venue, ccy).Scan(&u)
+		venue, ccy, acct).Scan(&u)
 	return u, err
 }
 
@@ -193,8 +195,8 @@ func exemptBrief(parts []exemptPart) string {
 // trackedExemptBrief diff_brief 使用的封装——与 trackedExempt 同径
 // （破带升件 24h 幂等去重，判据拍+brief 双调安全）。
 func (r *Runner) trackedExemptBrief(ctx context.Context,
-	venue, ccy string) (float64, string) {
-	total, parts, err := r.trackedExempt(ctx, venue, ccy)
+	venue, ccy, acct string) (float64, string) {
+	total, parts, err := r.trackedExempt(ctx, venue, ccy, acct)
 	if err != nil {
 		return 0, "豁免读败"
 	}

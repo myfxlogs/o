@@ -110,7 +110,7 @@ func TestReconcileDiffAlert(t *testing.T) {
 	if _, err := Post(ctx, r.pool, Entry{Kind: "deposit", Venue: "okx", Ccy: "USDT", Amount: 100, SourceRef: 1, SourceTable: "t"}); err != nil {
 		t.Fatal(err)
 	}
-	ven = map[[2]string]float64{{"okx", "USDT"}: 200}
+	ven = map[[2]string]float64{{"okx:funding", "USDT"}: 200}
 	if err := r.reconcile(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -128,25 +128,27 @@ func TestReconcileDiffAlert(t *testing.T) {
 	}
 }
 
-// T-0045 锚：同 venue+ccy 多 venue_type 子户行（unified 交易户+earn 停泊户）
-// 按 (venue,ccy) 聚合比对——聚合后账实平=零告警（修前逐行对总额比永响）。
+// T-0045 锚→O-39440 账户粒度版：同 venue 多子账户各自独立对拍——
+// funding 户平账零告警、trading 户差额照报（账户间不互抵不互掩）。
 func TestReconcileMultiSubAccountAggregated(t *testing.T) {
 	ctx, r := setup(t)
-	// 账本净额 2104.09（告警实证场景复刻）；venue 现读聚合额=unified 75.49+earn 2028.60 同口径。
 	var ven map[[2]string]float64
 	r.WithBalances(func(ctx context.Context) (map[[2]string]float64, VenueParts, error) { return ven, nil, nil })
-	if _, err := Post(ctx, r.pool, Entry{Kind: "deposit", Venue: "okx", Ccy: "USDT", Amount: 2104.09, SourceRef: 1, SourceTable: "t"}); err != nil {
+	if _, err := Post(ctx, r.pool, Entry{Kind: "deposit", Venue: "okx", Ccy: "USDT", Amount: 100, SourceRef: 1, SourceTable: "t"}); err != nil {
 		t.Fatal(err)
 	}
-	ven = map[[2]string]float64{{"okx", "USDT"}: 2104.09}
+	if _, err := Post(ctx, r.pool, Entry{Kind: "trade_pnl", Venue: "okx", Ccy: "USDT", Amount: 50, SourceRef: 2, SourceTable: "t"}); err != nil {
+		t.Fatal(err)
+	}
+	ven = map[[2]string]float64{{"okx:funding", "USDT"}: 100, {"okx:trading", "USDT"}: 50}
 	if err := r.reconcile(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if n := r.rej.Snapshot()["ledger/diff_alert"]; n != 0 {
-		t.Fatalf("聚合平账误报: diff_alert=%d（应 0——venue 现读与账本平）", n)
+		t.Fatalf("账户平账误报: diff_alert=%d（应 0——两户各自账实平）", n)
 	}
-	// 反向证：聚合额缺 2028.60→差超容差必须告警。
-	ven = map[[2]string]float64{{"okx", "USDT"}: 75.49}
+	// 反向证：funding 户缺 50→该户差超容差必须告警（trading 户平不互掩）。
+	ven = map[[2]string]float64{{"okx:funding", "USDT"}: 50, {"okx:trading", "USDT"}: 50}
 	if err := r.reconcile(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -211,7 +213,7 @@ func TestReconcileDebounceWindows(t *testing.T) {
 		Amount: 100, SourceRef: 1, SourceTable: "t"}); err != nil {
 		t.Fatal(err)
 	}
-	ven = map[[2]string]float64{{"okx", "USDT"}: 200} // 恒差 100 的判定态
+	ven = map[[2]string]float64{{"okx:funding", "USDT"}: 200} // 恒差 100 的判定态
 	snap := func() int64 { return r.rej.Snapshot()["ledger/diff_alert"] }
 	expectSkip := func(stage string) {
 		before := snap()
@@ -277,11 +279,11 @@ func TestReconcileMTMOffset(t *testing.T) {
 	ctx, r := setup(t)
 	var ven map[[2]string]float64
 	r.WithBalances(func(ctx context.Context) (map[[2]string]float64, VenueParts, error) { return ven, nil, nil })
-	if _, err := Post(ctx, r.pool, Entry{Kind: "deposit", Venue: "okx", Ccy: "USDT",
+	if _, err := Post(ctx, r.pool, Entry{Kind: "trade_pnl", Venue: "okx", Ccy: "USDT",
 		Amount: 100, SourceRef: 1, SourceTable: "t"}); err != nil {
 		t.Fatal(err)
 	}
-	ven = map[[2]string]float64{{"okx", "USDT"}: 104.5}
+	ven = map[[2]string]float64{{"okx:trading", "USDT"}: 104.5}
 	r.WithMTM(func(ctx context.Context) (map[[2]string]float64, error) {
 		return map[[2]string]float64{{"okx", "USDT"}: 4.5}, nil
 	})
@@ -317,9 +319,9 @@ func TestReconcileOffLedgerExempt(t *testing.T) {
 	}
 	// 在册 USDT 差 1（>容差 0.5）→告警；账外 DOGE/Earn-BTC 钉巨额→零告警。
 	ven = map[[2]string]float64{
-		{"okx", "USDT"}: 101,
-		{"okx", "DOGE"}: 999999,
-		{"okx", "BTC"}:  8888,
+		{"okx:funding", "USDT"}: 101,
+		{"okx:funding", "DOGE"}: 999999,
+		{"okx:funding", "BTC"}:  8888,
 	}
 	r.rej = rejects.New("ledger", "diff_alert", "missing_param", "bal_missing", "write_err")
 	if err := r.reconcile(ctx); err != nil {
@@ -368,7 +370,8 @@ func TestFundCcyOpenLegBase(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, k := range [][2]string{{"okx:trading", "USDT"}, {"okx:funding", "USDT"},
-		{"okx:earn", "USDT"}, {"okx:trading", "ETH"}, {"mt5", "USD"}} {
+		{"okx:earn", "USDT"}, {"okx:trading", "ETH"},
+		{"mt5:3001157", "USD"}, {"xmglobal:110660304", "USD"}} {
 		if !set[k] {
 			t.Fatalf("基金钱集缺 %v", k)
 		}
@@ -405,8 +408,8 @@ func TestReconcileParkedUnits(t *testing.T) {
 		VALUES(now(),'okx','DOGE-USDT',0.15)`); err != nil {
 		t.Fatal(err)
 	}
-	// 停泊 100 DOGE 台账=venue 100.2（利息微漂 $0.03<容差）→静默；同时 USDT 平。
-	ven = map[[2]string]float64{{"okx", "USDT"}: 100, {"okx", "DOGE"}: 100.2}
+	// 停泊 100 DOGE 台账→okx:earn 户 venue 100.2（利息微漂 $0.03<容差）→静默；funding 户 USDT 平。
+	ven = map[[2]string]float64{{"okx:funding", "USDT"}: 100, {"okx:earn", "DOGE"}: 100.2}
 	r.rej = rejects.New("ledger", "diff_alert", "missing_param", "bal_missing", "write_err")
 	if err := r.reconcile(ctx); err != nil {
 		t.Fatal(err)
@@ -415,7 +418,7 @@ func TestReconcileParkedUnits(t *testing.T) {
 		t.Fatal("停泊台账币量同径——微漂误报")
 	}
 	// venue 少 5 币单位→真差照报（按币量差非 USD——台账 100 vs 95）。
-	ven = map[[2]string]float64{{"okx", "USDT"}: 100, {"okx", "DOGE"}: 95}
+	ven = map[[2]string]float64{{"okx:funding", "USDT"}: 100, {"okx:earn", "DOGE"}: 95}
 	if err := r.reconcile(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -450,8 +453,8 @@ func TestReconcileDcdBaseline(t *testing.T) {
 		VALUES('{"kind":"transfer","op":"dcd_baseline","venue":"okx","ccy":"BTC","amt":0.0207,"ordId":"x"}','allow','transfer',now()-interval '60 seconds',1)`); err != nil {
 		t.Fatal(err)
 	}
-	// venue 持仓=基线币量→静默（补零路径不触发）。
-	ven = map[[2]string]float64{{"okx", "USDT"}: 100, {"okx", "BTC"}: 0.0207}
+	// venue 持仓=基线币量→静默（补零路径不触发）。dcd 基线归 okx:dcd 户。
+	ven = map[[2]string]float64{{"okx:funding", "USDT"}: 100, {"okx:dcd", "BTC"}: 0.0207}
 	r.rej = rejects.New("ledger", "diff_alert", "missing_param", "bal_missing", "write_err")
 	if err := r.reconcile(ctx); err != nil {
 		t.Fatal(err)
@@ -460,7 +463,7 @@ func TestReconcileDcdBaseline(t *testing.T) {
 		t.Fatal("基线币量同径——误报")
 	}
 	// venue 无持仓行→补零强制比对→基线 0.0207>容差 0.5=真差照报。
-	ven = map[[2]string]float64{{"okx", "USDT"}: 100}
+	ven = map[[2]string]float64{{"okx:funding", "USDT"}: 100}
 	if err := r.reconcile(ctx); err != nil {
 		t.Fatal(err)
 	}

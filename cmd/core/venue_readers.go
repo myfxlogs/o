@@ -23,7 +23,8 @@ import (
 //
 // 凭据缺席=boot 明示 WARN 不静默缺岗；各闭包判 nil 不 panic。
 func attachVenueReaders(riskGate *risk.Gate, wd *guard.Warden, ledgerR *ledger.Runner,
-	pool *pgxpool.Pool, okcli *okxexec.Client, openMt5 func(ctx context.Context) (*mt5.Client, error)) {
+	pool *pgxpool.Pool, okcli *okxexec.Client,
+	openMt5For func(venue string) func(context.Context) (*mt5.Client, error)) {
 	vg := newVenueFailGate(pool) // T-0352 venue 读败连败升件闸（观测面——不改读径）
 	// frameVals 事件帧现读（okx 交易户同源读，REST 非判据源——帧龄不判陈）。
 	frameVals := func(ctx context.Context) (eq, avail float64, err error) {
@@ -148,10 +149,10 @@ func attachVenueReaders(riskGate *risk.Gate, wd *guard.Warden, ledgerR *ledger.R
 	}
 	riskGate.WithEquity(func(ctx context.Context, venue string) (float64, error) {
 		if venue == "mt5" {
-			if openMt5 == nil {
+			if openMt5For == nil {
 				return 0, fmt.Errorf("mt5 权益件缺席") // 件缺席≠读败——boot WARN 显缺径，不入闸
 			}
-			a, err := mt5SummaryOnce(ctx, pool, nil, openMt5)
+			a, err := mt5SummaryOnce(ctx, pool, nil, "mt5", openMt5For("mt5"))
 			if err != nil {
 				vg.fail(ctx, "mt5", err) // T-0352：风控权益面读败入闸
 				return 0, err
@@ -207,9 +208,9 @@ func attachVenueReaders(riskGate *risk.Gate, wd *guard.Warden, ledgerR *ledger.R
 		}
 		vg.ok("okx")
 		for ccy, v := range nat {
-			out[[2]string{"okx", ccy}] += v
+			out[[2]string{"okx:trading", ccy}] += v // O-39440：账户域键（/account/balance→trading 子户）
 			if v != 0 {
-				k := [2]string{"okx", ccy}
+				k := [2]string{"okx:trading", ccy}
 				parts[k] = append(parts[k], ledger.BalPart{Name: "trading", Amount: v})
 			}
 		}
@@ -221,15 +222,21 @@ func attachVenueReaders(riskGate *risk.Gate, wd *guard.Warden, ledgerR *ledger.R
 			return nil, nil, err
 		}
 		vg.ok("okx")
-		if openMt5 != nil {
-			a, cerr := mt5SummaryOnce(ctx, pool, nil, openMt5)
-			if cerr != nil {
-				vg.fail(ctx, "mt5", cerr) // T-0352：对账面 mt5 读败入闸（票面病灶实查径）
-				return nil, nil, fmt.Errorf("mt5 读败: %w", cerr)
+		// O-39440：mt5 逐户实读——fin_account active main 行逐户开会话
+		// （roster venue token 按 login 解；凭据缺席/会话败=cred_gap 升件
+		// 不猜数不造 0，该账户缺席对拍面自然跳过）。
+		for _, ra := range mt5RosterAccounts(ctx, pool) {
+			if openMt5For == nil {
+				credGapEsc(ctx, pool, ra.accountID, "mt5 实读件缺席")
+				continue
 			}
-			vg.ok("mt5")
-			out[[2]string{"mt5", "USD"}] = a.Equity
-			parts[[2]string{"mt5", "USD"}] = []ledger.BalPart{{Name: "account", Amount: a.Equity}}
+			a, cerr := mt5SummaryOnce(ctx, pool, nil, ra.tok, openMt5For(ra.tok))
+			if cerr != nil {
+				credGapEsc(ctx, pool, ra.accountID, fmt.Sprintf("mt5 会话读败: %v", cerr))
+				continue
+			}
+			out[[2]string{ra.accountID, "USD"}] = a.Equity
+			parts[[2]string{ra.accountID, "USD"}] = []ledger.BalPart{{Name: "account", Amount: a.Equity}}
 		}
 		return out, parts, nil
 	})
