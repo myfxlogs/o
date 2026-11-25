@@ -51,6 +51,7 @@ var dmWritableGlobs = []string{
 	"gapscan.scan_timeout_s",            // gap 扫描超时
 	"dm.hunger.*",                       // 饥饿响应自参数（检测窗）
 	"selfstate.esc_cluster.*",           // 自态账升件聚类窗/截断（O-39420）
+	"explore.*",                         // 探索普查细胞自参数（O-39480——decomp 阈/普查拍距净估spread样本升件上限）
 	"earn.auto_purchase_enabled",        // 闲置金 Earn 自动转入（资金运用重排）
 	"earn.sweep_whitelist",              // Earn 扫袋白名单（T-0439 计价币放行线）
 	"earn.residual_clear_min_usd",       // 杂币实存即清粉尘阈（T-0439 闸值族）

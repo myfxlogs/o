@@ -56,6 +56,10 @@ func TestMain(m *testing.M) {
 			"md_equity_curve",
 			"md_funding",
 			"fin_strategy",
+			"fin_bot_equity_snap",
+			"fin_bot_order",
+			"fin_venue_roster",
+			"fin_opp_map",
 		},
 		NoTrigger: []string{"ops_event"},
 	})

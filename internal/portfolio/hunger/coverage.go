@@ -48,6 +48,13 @@ func (s *Sensor) AttachUniverse(fn func(ctx context.Context) ([]string, error)) 
 	return s
 }
 
+// AttachCensus 挂普查公共事实供给件（O-39480——oppCensus 腿矩阵原料；
+// 与 okxexec.CensusFacts 同源适配件，探针面不识 venue 客户端类型）。
+func (s *Sensor) AttachCensus(fn censusFeedFunc) *Sensor {
+	s.censusFeed = fn
+	return s
+}
+
 // ProbeLegCoverage 腿-行情覆盖探针一拍：腿键集×md_ticks 新鲜行对拍→
 // 缺行情腿逐键落 `覆盖失明` 行+观测盲升件。读败=上抛（hungerTick 败情
 // 自报位）非静默。
