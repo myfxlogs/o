@@ -199,3 +199,120 @@ func TestDesklifeSuspendedUntouched(t *testing.T) {
 		t.Fatalf("挂起票误销=%d want 0", n)
 	}
 }
+
+// ── O-39410 锚契约锚桩 ─────────────────────────────────────────
+
+// seedAnchoredTicket 显式锚票（sem 锚键先行——derive 见 anchor_type
+// 已在=返回空=显式恒赢；anchor_type='manual' 模拟无锚票）。
+func seedAnchoredTicket(t *testing.T, pool *pgxpool.Pool, note, atype, aref string, ageDays float64) int64 {
+	t.Helper()
+	var id int64
+	sem := `{"anchor_type":"` + atype + `","anchor_ref":"` + aref + `"}`
+	if err := pool.QueryRow(context.Background(),
+		`INSERT INTO ops_event(seat,event,ticket,note,sem,ts)
+		 VALUES('自我','工单','', $1, $2::jsonb, now()-make_interval(days=>$3)) RETURNING id`,
+		note, sem, ageDays).Scan(&id); err != nil {
+		t.Fatal(err)
+	}
+	return id
+}
+
+// 锚触发器：venue= 票出生即得 premise/venue:<v> 锚（sem jsonb 键）。
+func TestDeskAnchorTriggerDerives(t *testing.T) {
+	_, pool := desklifeFixture(t)
+	ctx := context.Background()
+	id := seedDesklifeTicket(t, pool, "工单[venue=anchor-v·x] P3", 1)
+	var at, ar string
+	if err := pool.QueryRow(ctx,
+		`SELECT sem->>'anchor_type', sem->>'anchor_ref' FROM ops_event WHERE id=$1`, id).
+		Scan(&at, &ar); err != nil {
+		t.Fatal(err)
+	}
+	if at != "premise" || ar != "venue:anchor-v" {
+		t.Fatalf("锚推导错 at=%s ar=%s", at, ar)
+	}
+	// 显式锚恒赢——sem 已带 anchor_type 不覆写
+	id2 := seedAnchoredTicket(t, pool, "工单[venue=other-v·x] P3", "design", "D-0001", 1)
+	if err := pool.QueryRow(ctx,
+		`SELECT sem->>'anchor_type', sem->>'anchor_ref' FROM ops_event WHERE id=$1`, id2).
+		Scan(&at, &ar); err != nil {
+		t.Fatal(err)
+	}
+	if at != "design" || ar != "D-0001" {
+		t.Fatalf("显式锚被覆写 at=%s ar=%s", at, ar)
+	}
+	// 无可提票=manual
+	id3 := seedDesklifeTicket(t, pool, "工单/plain-ticket: 无锚文本", 1)
+	if err := pool.QueryRow(ctx,
+		`SELECT sem->>'anchor_type' FROM ops_event WHERE id=$1`, id3).Scan(&at); err != nil {
+		t.Fatal(err)
+	}
+	if at != "manual" {
+		t.Fatalf("无锚票锚型=%s want manual", at)
+	}
+}
+
+// 锚径：premise/venue: 硬引用+rejected→直销（①带锚销）。
+func TestDesklifeAnchoredVenueCloses(t *testing.T) {
+	s, pool := desklifeFixture(t)
+	ctx := context.Background()
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO fin_venue_candidate(venue,kind,state,kyc_ok)
+		 VALUES('av-dead','cex-perp','rejected',false)`); err != nil {
+		t.Fatal(err)
+	}
+	id := seedAnchoredTicket(t, pool, "工单/anchored: 显式锚票", "premise", "venue:av-dead", 1)
+	if err := s.ProbeDeskLifecycle(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if n := desklifeCloseRows(t, pool, id); n != 1 {
+		t.Fatalf("锚径直销行=%d want 1", n)
+	}
+}
+
+// 锚径：venue 活态→不动作；锚指对象缺席→升件不直杀。
+func TestDesklifeAnchoredVenueAliveAndMissing(t *testing.T) {
+	s, pool := desklifeFixture(t)
+	ctx := context.Background()
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO fin_venue_candidate(venue,kind,state,kyc_ok)
+		 VALUES('av-alive','cex-perp','recommended',true)`); err != nil {
+		t.Fatal(err)
+	}
+	alive := seedAnchoredTicket(t, pool, "工单/anchored-alive", "premise", "venue:av-alive", 1)
+	missing := seedAnchoredTicket(t, pool, "工单/anchored-miss", "premise", "venue:av-ghost", 1)
+	if err := s.ProbeDeskLifecycle(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if n := desklifeCloseRows(t, pool, alive); n != 0 {
+		t.Fatalf("venue 活票误销=%d", n)
+	}
+	if n := desklifeEscCount(t, pool, deskPremiseEscClass, itoa(missing)); n != 1 {
+		t.Fatalf("锚指缺席升件=%d want 1", n)
+	}
+	if n := desklifeCloseRows(t, pool, missing); n != 0 {
+		t.Fatalf("锚指缺席误销=%d", n)
+	}
+}
+
+// 无锚票兜底：manual 锚+note venue=rejected→只升件不直销（②）。
+func TestDesklifeUnanchoredVenueEscalatesOnly(t *testing.T) {
+	s, pool := desklifeFixture(t)
+	ctx := context.Background()
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO fin_venue_candidate(venue,kind,state,kyc_ok)
+		 VALUES('uv-dead','cex-perp','rejected',false)`); err != nil {
+		t.Fatal(err)
+	}
+	// 显式 manual 锚=无锚票（derive 不动）——note 仍引 rejected venue
+	id := seedAnchoredTicket(t, pool, "工单/manual-anchor: venue=uv-dead 旧票形", "manual", "", 1)
+	if err := s.ProbeDeskLifecycle(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if n := desklifeEscCount(t, pool, deskPremiseEscClass, itoa(id)); n != 1 {
+		t.Fatalf("无锚兜底升件=%d want 1", n)
+	}
+	if n := desklifeCloseRows(t, pool, id); n != 0 {
+		t.Fatalf("无锚票误直销=%d want 0", n)
+	}
+}
