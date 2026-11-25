@@ -268,4 +268,5 @@ var finMigrationTable = []migEntry{
 	{253, "fin_0253_breed_stall.sql"},                   // 工单O-39330——族卡断流探针:dm.hunger.breed_stall_days 键+breed_stall 惧值
 	{254, "fin_0254_desk_lifecycle.sql"},                // 工单O-39400——票桌生命周期:fin_surface_lifecycle 登记册+desk_decay 键+封轴令物理补落
 	{255, "fin_0255_desk_anchor.sql"},                   // 工单O-39410——工单出生锚契约:sem 锚键 derive+trigger+存量回填+desk 视图锚投影列
+	{256, "fin_0256_venue_terminal_state.sql"},          // 工单O-38820——venue终态册+7户rejected归位（0255被O-39410在途占跳号钉）
 }

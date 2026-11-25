@@ -33,6 +33,11 @@ func setup(t *testing.T) (context.Context, *Runner) {
 // 锚①采集：桩 fetcher 三 venue 响应→md_venue_funding 落行。
 func TestCollectStub(t *testing.T) {
 	ctx, r := setup(t)
+	// O-38820：封轴集已翻 rejected——采集面测试复位 measuring（守卫正交）
+	if _, err := r.pool.Exec(ctx, `UPDATE fin_venue_candidate SET state='measuring'
+		WHERE venue IN ('binance-usdm','bybit','hyperliquid')`); err != nil {
+		t.Fatal(err)
+	}
 	r.fetch = func(ctx context.Context, url, body string) ([]byte, error) {
 		switch {
 		case url == "https://fapi.binance.com/fapi/v1/premiumIndex":
@@ -70,6 +75,11 @@ func TestCollectStub(t *testing.T) {
 // 锚②推荐闸：达阈 venue→state=recommended+last_request_at 戳；30d 内不重发。
 func TestRecommendOnce(t *testing.T) {
 	ctx, r := setup(t)
+	// O-38820：binance-usdm 已翻 rejected——复位 measuring 测推进径
+	if _, err := r.pool.Exec(ctx, `UPDATE fin_venue_candidate SET state='measuring'
+		WHERE venue='binance-usdm'`); err != nil {
+		t.Fatal(err)
+	}
 	base := time.Now()
 	r.now = func() time.Time { return base }
 	// binance 行：高 funding（净 APR 远超 Earn+margin）
@@ -125,6 +135,11 @@ func TestRecommendOnce(t *testing.T) {
 // 锚③KYC 不可及 venue 永不 recommended（业主地区禁线）。
 func TestKycBlocked(t *testing.T) {
 	ctx, r := setup(t)
+	// O-38820：bybit 已翻 rejected——复位 measuring 隔离 kyc 闸被测面
+	if _, err := r.pool.Exec(ctx, `UPDATE fin_venue_candidate SET state='measuring'
+		WHERE venue='bybit'`); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := r.pool.Exec(ctx, `UPDATE fin_venue_candidate SET kyc_ok=false
 		WHERE venue='bybit'`); err != nil {
 		t.Fatal(err)
@@ -301,5 +316,71 @@ func TestSixAdapters(t *testing.T) {
 		if g := canon(c[0]); g != c[1] {
 			t.Fatalf("canon %s → %s（want %s）", c[0], g, c[1])
 		}
+	}
+}
+
+// O-38820 锚：maybeRecommend 终态册守——rejected/banned/dead 及册内
+// 新终态一律不重荐不写 state；非终态照常推进（册驱动非硬编码）。
+func TestRecommendTerminalGuard(t *testing.T) {
+	ctx, r := setup(t)
+	base := time.Now()
+	r.now = func() time.Time { return base }
+	boards := []Board{{Family: "x", NetAprMid: 9, Baseline: 0, Persist: 1, TopN: 3}}
+
+	// rejected 终态：不动作（state/last_request_at 原样）
+	if _, err := r.pool.Exec(ctx,
+		`UPDATE fin_venue_candidate SET state='rejected', last_request_at=NULL
+		 WHERE venue='gate'`); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.maybeRecommend(ctx, "gate", boards, 0, 0.5); err != nil {
+		t.Fatal(err)
+	}
+	var st string
+	var lr *time.Time
+	if err := r.pool.QueryRow(ctx,
+		`SELECT state,last_request_at FROM fin_venue_candidate WHERE venue='gate'`).
+		Scan(&st, &lr); err != nil {
+		t.Fatal(err)
+	}
+	if st != "rejected" || lr != nil {
+		t.Fatalf("终态 venue 被重荐 state=%s lr=%v", st, lr)
+	}
+
+	// 册驱动：'paper' 入册成终态→同守；非终态 measuring 照常推 recommended
+	if _, err := r.pool.Exec(ctx,
+		`INSERT INTO fin_venue_terminal_state(state) VALUES('paper')
+		 ON CONFLICT DO NOTHING`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.pool.Exec(ctx,
+		`UPDATE fin_venue_candidate SET state='paper', last_request_at=NULL
+		 WHERE venue='mexc'`); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.maybeRecommend(ctx, "mexc", boards, 0, 0.5); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.pool.QueryRow(ctx,
+		`SELECT state FROM fin_venue_candidate WHERE venue='mexc'`).Scan(&st); err != nil {
+		t.Fatal(err)
+	}
+	if st != "paper" {
+		t.Fatalf("册内新终态 paper 被重荐 state=%s", st)
+	}
+	if _, err := r.pool.Exec(ctx,
+		`UPDATE fin_venue_candidate SET state='measuring', last_request_at=NULL
+		 WHERE venue='kucoin-futures'`); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.maybeRecommend(ctx, "kucoin-futures", boards, 0, 0.5); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.pool.QueryRow(ctx,
+		`SELECT state FROM fin_venue_candidate WHERE venue='kucoin-futures'`).Scan(&st); err != nil {
+		t.Fatal(err)
+	}
+	if st != "recommended" {
+		t.Fatalf("非终态 measuring 应推进 recommended state=%s", st)
 	}
 }

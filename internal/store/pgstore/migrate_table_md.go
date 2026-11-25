@@ -67,4 +67,5 @@ var mdMigrationTable = []migEntry{
 	{1106, "md_1106_oss_fam_skeleton.sql"},         // 工单O-35489：OSS 三族骨架模板行（卡#578380-82——candidate 态未收养；md_1104/1105 在途占跳号钉 1106）
 	{1107, "md_1107_mt5_klines_d1_purge.sql"},      // 工单O-38593/O-38639 同因撞修：mt5 1D周棒误标清污（timeFrame分钟制纠偏——dow=0谓词只削周签名行）
 	{1108, "md_1108_proposal_reason_dead_sig.sql"}, // 工单O-38942：fin_proposal 退役死因词表扩 dead_signature（fin_0251 对偶——两链归一化全等）
+	{1109, "md_1109_venue_terminal_state.sql"},     // 工单O-38820——venue终态册+7户rejected归位（fin_0256对偶——md正本侧）
 }

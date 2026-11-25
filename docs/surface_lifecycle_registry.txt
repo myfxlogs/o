@@ -8,3 +8,4 @@
 # 一行一表名，# 注释/空行免。存量面不追旧账（diff 面判据）。
 
 fin_surface_lifecycle
+fin_venue_terminal_state
