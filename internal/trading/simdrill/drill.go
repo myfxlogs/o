@@ -70,10 +70,10 @@ func sweepStaleEphemeral(ctx context.Context, pool *pgxpool.Pool) {
 		return
 	}
 	defer tx.Rollback(ctx) // Committed 后=noop。
-	_, _ = tx.Exec(ctx, `UPDATE fin_strategy SET state='retired' WHERE template_ref LIKE 'simdrill%' AND state='degraded'`)
 	_, _ = tx.Exec(ctx, `INSERT INTO fin_strategy_transition(strategy_id,from_state,to_state,reason)
 	 SELECT id,'degraded','retired','drill_ephemeral_sweep'
 	 FROM fin_strategy WHERE template_ref LIKE 'simdrill%' AND state='degraded'`)
+	_, _ = tx.Exec(ctx, `UPDATE fin_strategy SET state='retired' WHERE template_ref LIKE 'simdrill%' AND state='degraded'`)
 	_ = tx.Commit(ctx)
 }
 
