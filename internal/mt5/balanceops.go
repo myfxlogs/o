@@ -184,20 +184,26 @@ func (c *Collector) bookBalance(ctx context.Context, a *acctRun, o *mt5pb.Order,
 		kind = "deposit"
 	}
 	var id int64
-	err := c.pool.QueryRow(ctx, `INSERT INTO fin_cashflow(kind,venue,ccy,amount,source_ref,source_table,occurred_at)
-		SELECT $1,$8,'USD',$2,$3,'mt5_deal',$4
+	// O-39440：account_id=venue:login 显式归户（跨户 ticket 命名空间独立
+	// ——Exness/XM 同号不互斥；login 缺席=NULLIF→触发器兜底映射）。
+	acctID := ""
+	if a.acct.Login != "" {
+		acctID = a.acct.Venue + ":" + a.acct.Login
+	}
+	err := c.pool.QueryRow(ctx, `INSERT INTO fin_cashflow(kind,venue,ccy,amount,source_ref,source_table,occurred_at,account_id)
+		SELECT $1,$8,'USD',$2,$3,'mt5_deal',$4,NULLIF($9,'')
 		WHERE NOT EXISTS (
 			SELECT 1 FROM fin_cashflow f
-			WHERE f.venue=$8 AND f.source_table='mt5_deal' AND f.source_ref=$3)
+			WHERE f.account_id=COALESCE(NULLIF($9,''),'mt5:3001157') AND f.source_table='mt5_deal' AND f.source_ref=$3)
 		AND NOT EXISTS (
 			SELECT 1 FROM fin_cashflow f
-			WHERE f.venue=$8 AND f.source_table<>'mt5_deal'
+			WHERE f.account_id=COALESCE(NULLIF($9,''),'mt5:3001157') AND f.source_table<>'mt5_deal'
 			  AND f.amount*$2 > 0
 			  AND abs(abs(f.amount)-abs($2)) <= greatest($5, abs($2)*$6)
 			  AND abs(extract(epoch from (f.occurred_at - $4))) <= $7)
 		RETURNING id`,
 		kind, amt, o.GetTicket(), occurred,
-		manualAmtAbsTol, manualAmtRelTol, manualMatchWindowSec, a.acct.Venue).Scan(&id)
+		manualAmtAbsTol, manualAmtRelTol, manualMatchWindowSec, a.acct.Venue, acctID).Scan(&id)
 	if errors.Is(err, pgx.ErrNoRows) {
 		c.classifySkip(ctx, a, o, amt) // 幂等跳过非写败——不计拒因
 		return
@@ -220,9 +226,13 @@ func (c *Collector) bookBalance(ctx context.Context, a *acctRun, o *mt5pb.Order,
 // 先例冲突（非 mt5_deal 行命中容差窗）manual_dup 日志，判词可追。
 func (c *Collector) classifySkip(ctx context.Context, a *acctRun, o *mt5pb.Order, amt float64) {
 	var exact bool
+	acctID := ""
+	if a.acct.Login != "" {
+		acctID = a.acct.Venue + ":" + a.acct.Login
+	}
 	_ = c.pool.QueryRow(ctx,
-		`SELECT EXISTS(SELECT 1 FROM fin_cashflow WHERE venue=$1
-		 AND source_table='mt5_deal' AND source_ref=$2)`, a.acct.Venue, o.GetTicket()).Scan(&exact)
+		`SELECT EXISTS(SELECT 1 FROM fin_cashflow WHERE account_id=COALESCE(NULLIF($1,''),'mt5:3001157')
+		 AND source_table='mt5_deal' AND source_ref=$2)`, acctID, o.GetTicket()).Scan(&exact)
 	if exact {
 		return // 精确重放——静默幂等（高频窗重叠常态）
 	}

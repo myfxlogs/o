@@ -94,16 +94,16 @@ func (c coreService) venueRemnants(ctx context.Context) (items []remnantItem, mi
 	// ③MT5 在持定单（同会话捎读件——读败=ordersErr 显缺）。
 	if c.mt5Live != nil {
 		if accts, aerr := c.mt5Live(ctx); aerr != nil {
-			missing = append(missing, "mt5")
+			missing = append(missing, "exness")
 		} else {
 			for _, a := range accts {
 				if a.OrdersErr != nil {
-					missing = append(missing, "mt5 持仓")
+					missing = append(missing, "exness 持仓")
 					continue
 				}
 				for _, od := range a.Orders {
 					if !attr[od.Symbol] {
-						it := remnantItem{src: "mt5",
+						it := remnantItem{src: "exness",
 							ref: "MT5 " + od.Symbol + " #" + strconv.FormatInt(od.Ticket, 10)}
 						if !od.At.IsZero() {
 							t := od.At.UTC()

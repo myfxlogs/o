@@ -138,7 +138,7 @@ func (c coreService) Overview(ctx context.Context, _ *dashboardv1.OverviewReques
 			"trade_pnl": "平仓盈亏", "deposit": "入金", "withdraw": "出金",
 			"interest": "活期利息", "recon_adjust": "校账调整",
 			"spot_buy": "现货买入", "spot_sell": "现货卖出"}[kind]
-		src := map[string]string{"okx": "OKX", "mt5": "MT5"}[venue]
+		src := map[string]string{"okx": "OKX", "exness": "Exness", "xmglobal": "XM"}[venue]
 		if src != "" {
 			// 钱包/账号细化（业主令）：OKX 按 kind 语义映钱包（利息=Earn 停泊/
 			// 入出金=资金户/交易类=交易户）；MT5=在册 login 单户直标（多户时
@@ -146,10 +146,10 @@ func (c coreService) Overview(ctx context.Context, _ *dashboardv1.OverviewReques
 			wallet := map[string]string{"interest": "Earn 停泊",
 				"funding_settle": "交易户", "trade_pnl": "交易户", "fee": "交易户",
 				"deposit": "资金户", "withdraw": "资金户"}[kind]
-			if venue == "mt5" {
+			if venue == "exness" || venue == "xmglobal" {
 				var login string
 				_ = c.pool.QueryRow(ctx, `SELECT data->>'login' FROM md_account_events
-					WHERE venue='mt5' AND data ? 'login' ORDER BY ts DESC LIMIT 1`).Scan(&login)
+					WHERE venue IN ('exness','xmglobal') AND data ? 'login' ORDER BY ts DESC LIMIT 1`).Scan(&login)
 				if login != "" {
 					src += "·户" + login
 				}

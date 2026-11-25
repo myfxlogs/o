@@ -26,9 +26,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// sharedSessionKey 存量共享会话键（venue='mt5'——Exness 兼容锚；
+// sharedSessionKey 存量共享会话键（venue='exness'——Exness 兼容锚 O-39440①；
 // 新户键=<venue>.session_token 由 VenueAcct.SessionKey 派生）。
-const sharedSessionKey = "mt5.session_token"
+const sharedSessionKey = "exness.session_token"
 
 // sharedSession 共享会话行载荷（app_config 单键 JSON 原子装——token 按
 // 网关域有效故 addr 必携；ts=owner 建会话时刻，消费腿可据此判换血）。

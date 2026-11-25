@@ -21,6 +21,8 @@ import (
 	"sort"
 	"time"
 
+	"google.golang.org/protobuf/types/known/timestamppb"
+
 	"o/internal/gen/dashboardv1"
 	"o/internal/platform/config"
 	"o/internal/platform/cryptoutil"
@@ -77,7 +79,7 @@ func (c coreService) ListBrokerOnboard(ctx context.Context,
 			continue
 		}
 		var fields []string
-		if rr.proto == "mt5" {
+		if rr.proto == "cfd" {
 			fields = []string{"login", "password", "server"}
 		} else {
 			fields = []string{"api_key", "api_secret", "passphrase"}
@@ -219,7 +221,28 @@ func (c coreService) ListBrokerOnboard(ctx context.Context,
 	if err := frows.Err(); err != nil {
 		return nil, err
 	}
+	// ⑦ fin_account 账户册全量（O-39440——账户粒度启停删面数据源；
+	//   表缺迁移窗=空段不炸读面）。
 	resp := &dashboardv1.ListBrokerOnboardResponse{}
+	arows, err := c.pool.Query(ctx, `SELECT account_id,venue,account_no,alias,ccy,sub_type,state,declared_at
+		FROM fin_account ORDER BY account_id`)
+	if err == nil {
+		for arows.Next() {
+			var ar dashboardv1.BrokerAccountRow
+			var declaredAt time.Time
+			if err := arows.Scan(&ar.AccountId, &ar.Venue, &ar.AccountNo, &ar.Alias,
+				&ar.Ccy, &ar.SubType, &ar.State, &declaredAt); err != nil {
+				arows.Close()
+				return nil, err
+			}
+			ar.DeclaredAt = timestamppb.New(declaredAt)
+			resp.Accounts = append(resp.Accounts, &ar)
+		}
+		arows.Close()
+		if err := arows.Err(); err != nil {
+			return nil, err
+		}
+	}
 	for v, r := range venues {
 		if rosterSet[v] {
 			r.Phase = brokerPhaseRoster(r.State, credBad[v])

@@ -100,9 +100,9 @@ func TestOverviewFundScopeVenueCard(t *testing.T) {
 	if !earnDog {
 		t.Fatalf("停泊溯源币未回集: %+v", sec["okx/Earn"])
 	}
-	if len(sec["mt5/户"]) != 1 || sec["mt5/户"][0].Label != "户 3001157" ||
-		sec["mt5/户"][0].Usd != 3247.41 {
-		t.Fatalf("MT5 户行: %+v", sec["mt5/户"])
+	if len(sec["exness/户"]) != 1 || sec["exness/户"][0].Label != "户 3001157" ||
+		sec["exness/户"][0].Usd != 3247.41 {
+		t.Fatalf("MT5 户行: %+v", sec["exness/户"])
 	}
 	for _, m := range o.Money {
 		if m.Ccy == "AVAX" || m.Ccy == "COMP" {
@@ -149,9 +149,9 @@ func TestOverviewMissingAccountsZero(t *testing.T) {
 	// 工单#24802：空帧=交易户真缺腿同显读件缺行（缺腿不藏非假零）——
 	// 行序：交易户(帧空)→资金/Earn 无腿件不插→mt5→dcd。
 	if len(o.Money) != 3 || o.Money[0].Section != "交易户" || o.Money[0].Note != "读件缺" ||
-		o.Money[1].Venue != "mt5" || o.Money[1].Note != "读件缺" ||
+		o.Money[1].Venue != "exness" || o.Money[1].Note != "读件缺" ||
 		o.Money[2].Section != "结构性持仓" || o.Money[2].Note != "读件缺" {
-		t.Fatalf("交易户/MT5/dcd 读件缺行不藏: %+v", o.Money)
+		t.Fatalf("交易户/CFD/dcd 读件缺行不藏: %+v", o.Money)
 	}
 	// 读败同径（err 上抛→读件缺行）。
 	svc2 := coreService{pool: pool,

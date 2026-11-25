@@ -64,7 +64,7 @@ func (s Mt5Sizer) LotSz(ctx context.Context, canonical string) (float64, error) 
 	}
 	venue := s.Venue
 	if venue == "" {
-		venue = "mt5" // 存量兼容锚（O-37449 前=恒 'mt5'）
+		venue = "exness" // 存量兼容锚（O-39440① venue 改名）
 	}
 	r, err := s.D.Lookup(ctx, venue, acct, canonical)
 	if err != nil {

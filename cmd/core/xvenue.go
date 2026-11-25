@@ -39,7 +39,7 @@ type mt5LiveDialect struct {
 
 func (d mt5LiveDialect) v() string {
 	if d.venue == "" {
-		return "mt5"
+		return "exness"
 	}
 	return d.venue
 }
@@ -116,7 +116,7 @@ func (h hedgeOpener) xvenueOpen(ctx context.Context, spec lifecycle.OpenSpec) (i
 		}
 		cli, dial, ds = d.cli, d.dial, d.ds
 	} else {
-		if cfdVenue != "mt5" {
+		if cfdVenue != "exness" {
 			return 0, cerr(fmt.Errorf("xvenue fleet 未装配——cfd venue=%s 无执行三件 fail-closed", cfdVenue))
 		}
 		cli, dial, ds = h.xcli, h.xdial, h.xds

@@ -107,11 +107,11 @@ func (r *Runner) xvenueShadowEval(ctx context.Context, okxInst, dir string, net,
 		return
 	}
 	payload, _ := json.Marshal(map[string]any{
-		"venue": "mt5", "suggested_pairs": map[string]string{okxInst: mt5Sym},
+		"venue": "exness", "suggested_pairs": map[string]string{okxInst: mt5Sym},
 		"direction": dir, "net_ann_bps": net, "capacity_usd": capacity,
 		"eval_id": evalID, "eval_template": shadowTemplate,
 		"note": "影子评估层 map 闸建议（T-0408）——批→落 bridge.xvenue.map→既有 map 闸→paper 径；影子层只呈不写（owner 域不破）"})
-	if err := condreq.Request(ctx, r.fin, "permission", "mt5",
+	if err := condreq.Request(ctx, r.fin, "permission", "exness",
 		"bridge.xvenue.map.shadow", string(payload)); err != nil {
 		r.rej.Inc("hypo_write_err")
 		log.Printf("WARN [research/hypo] xvenue_shadow %s condreq 写败: %v", okxInst, err)

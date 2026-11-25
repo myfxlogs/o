@@ -20,7 +20,7 @@ func (r *Runner) xvenueSwapAccounting(ctx context.Context) error {
 		COALESCE((SELECT max(ts) FROM fin_paper_fill f WHERE f.strategy_id=s.id AND f.kind='swap'), s.entered_at)
 		FROM fin_strategy s
 		WHERE s.state='paper' AND s.template_ref='xvenue-carry'
-		  AND (s.venue='mt5' OR s.venue IN (SELECT venue FROM fin_venue_roster WHERE proto='mt5'))`) // O-37449：mt5-proto 全族 CFD 腿 swap 摊提同径
+		  AND (s.venue='exness' OR s.venue IN (SELECT venue FROM fin_venue_roster WHERE proto='cfd'))`) // O-37449：mt5-proto 全族 CFD 腿 swap 摊提同径
 	if err != nil {
 		return err
 	}

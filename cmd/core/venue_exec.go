@@ -151,7 +151,7 @@ func (f *xvenueFleet) checkVenue(ctx context.Context, venue string) (proto strin
 	return p, false, nil
 }
 
-// depsFor venue→执行三件（mt5-proto 户懒建缓存——会话件 venue 参数化
+// depsFor venue→执行三件（cfd 类户懒建缓存——会话件 venue 参数化
 // 复挂本户共享行；非 mt5-proto=err）。
 func (f *xvenueFleet) depsFor(ctx context.Context, venue string) (*venueExecDeps, error) {
 	proto, legacyOK, err := f.checkVenue(ctx, venue)
@@ -164,8 +164,8 @@ func (f *xvenueFleet) depsFor(ctx context.Context, venue string) (*venueExecDeps
 		}
 		return nil, fmt.Errorf("venue %s 无执行三件（名册缺席兜底面）fail-closed", venue)
 	}
-	if proto != "mt5" {
-		return nil, fmt.Errorf("venue %s proto=%s 非 mt5-proto——无 CFD 执行三件", venue, proto)
+	if proto != "cfd" {
+		return nil, fmt.Errorf("venue %s proto=%s 非 cfd 类——无 CFD 执行三件", venue, proto)
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -185,7 +185,7 @@ func (f *xvenueFleet) depsFor(ctx context.Context, venue string) (*venueExecDeps
 }
 
 // executorFor venue→Executor（名册每调重读授权面；proto 分发——cex 仅
-// okx 在册实现，mt5→mtexec 懒连三件，余 proto=无执行件 err）。
+// okx 在册实现，cfd→mtexec 懒连三件（MT5 协议平台；mt4 平台另件），余 proto=无执行件 err）。
 func (f *xvenueFleet) executorFor(ctx context.Context, venue string) (execution.Executor, error) {
 	proto, legacyOK, err := f.checkVenue(ctx, venue)
 	if err != nil {
@@ -200,7 +200,7 @@ func (f *xvenueFleet) executorFor(ctx context.Context, venue string) (execution.
 			return f.okx, nil
 		}
 		return nil, fmt.Errorf("cex proto venue=%s 无执行件（仅 okx 在册实现）fail-closed", venue)
-	case "mt5":
+	case "cfd":
 		d, derr := f.depsFor(ctx, venue)
 		if derr != nil {
 			return nil, derr
@@ -244,9 +244,9 @@ func (f *xvenueFleet) Cancel(ctx context.Context, leg execution.Leg, clOrdID str
 // deps 供调用侧取 cli/ds/dial 三面引用——懒连会话+方言仓+译件凭据缺
 // =取用点 err 显形非 boot 炸）。
 func wireXvenueFleet(pool *pgxpool.Pool, cfg *config.Client, creds okxexec.Credentials) (*xvenueFleet, *venueExecDeps) {
-	cli := &mt5LazyCli{pool: pool, cfg: cfg, venue: "mt5"}
+	cli := &mt5LazyCli{pool: pool, cfg: cfg, venue: "exness"}
 	ds := mt5.NewDialectStore(pool)
-	prim := &venueExecDeps{venue: "mt5", cli: cli,
+	prim := &venueExecDeps{venue: "exness", cli: cli,
 		dial: mt5LiveDialect{S: ds, cli: cli, Seat: "o-core"}, ds: ds}
 	return newXvenueFleet(pool, cfg, creds, prim), prim
 }
@@ -261,18 +261,18 @@ func newExecRunner(pool *pgxpool.Pool, cfg *config.Client, fleet *xvenueFleet) *
 
 // AttachWardenSizers warden venue sizer 按户挂接（O-37449——'mt5' 字面量+名册 mt5-proto 全户；名册枚举败/户 depsFor 败=该户 sizer 缺席 fail-closed 让位显形）。
 func (f *xvenueFleet) AttachWardenSizers(ctx context.Context, wd *guard.Warden) {
-	if p, ok := f.deps["mt5"]; ok { // 'mt5' 存量户=primary 预挂件
-		wd.AttachVenueSizer("mt5", Mt5Sizer{C: p.cli, X: p.dial, D: p.ds, Venue: "mt5"})
+	if p, ok := f.deps["exness"]; ok { // 'exness' 存量户=primary 预挂件（O-39440① venue 改名）
+		wd.AttachVenueSizer("exness", Mt5Sizer{C: p.cli, X: p.dial, D: p.ds, Venue: "exness"})
 	}
 	xvs, err := f.Mt5ProtoVenues(ctx)
 	if err != nil {
-		log.Printf("WARN [core] 名册 mt5-proto 户枚举败（%v）——仅 'mt5' sizer 在挂", err)
+		log.Printf("WARN [core] 名册 mt5-proto 户枚举败（%v）——仅 'exness' sizer 在挂", err)
 		return
 	}
 	for _, xv := range xvs {
-		if xv == "mt5" {
+		if xv == "exness" {
 			continue
-		}
+		} // primary 已预挂跳过
 		xd, derr := f.depsFor(ctx, xv)
 		if derr != nil {
 			log.Printf("WARN [core] venue=%s sizer 装配跳（%v）——该户平仓量现读面缺席 fail-closed", xv, derr)
@@ -282,17 +282,18 @@ func (f *xvenueFleet) AttachWardenSizers(ctx context.Context, wd *guard.Warden) 
 	}
 }
 
-// Mt5ProtoVenues 名册 mt5-proto 活跃户全量（sizer 路由面装配源——
-// 'mt5' 存量户由调用侧字面量兼容锚并入，防名册未播种窗漏挂）。
+// Mt5ProtoVenues 名册 cfd-proto 活跃户全量（sizer 路由面装配源——
+// roster+fin_account 注册表枚举零硬编码；exness 由 AttachWardenSizers
+// primary 预挂并入,本函数不重复产）。
 func (f *xvenueFleet) Mt5ProtoVenues(ctx context.Context) ([]string, error) {
-	accts, err := mt5.VenueAccounts(ctx, f.pool, "mt5")
+	accts, err := mt5.VenueAccounts(ctx, f.pool, "cfd")
 	if err != nil {
 		return nil, err
 	}
-	out := []string{"mt5"}
+	out := []string{}
 	for _, a := range accts {
-		if a.Venue != "mt5" {
-			out = append(out, a.Venue)
+		if a.Venue != "exness" && (a.Platform == "" || a.Platform == "mt5") {
+			out = append(out, a.Venue) // 仅 mt5 平台户——mtexec=MT5 协议执行件
 		}
 	}
 	return out, nil

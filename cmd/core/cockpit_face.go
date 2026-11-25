@@ -154,7 +154,7 @@ func (c coreService) GetCockpit(ctx context.Context,
 				mrow.Deposited += a.Equity
 			}
 		} else {
-			r.Missing = append(r.Missing, "mt5")
+			r.Missing = append(r.Missing, "exness")
 		}
 	}
 	r.Money.Platforms = append(r.Money.Platforms, mrow)

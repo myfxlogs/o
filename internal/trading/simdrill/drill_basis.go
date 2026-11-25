@@ -48,7 +48,7 @@ func basisGateLegs(legs [2]execution.Leg) []string {
 		switch {
 		case datedFutRe.MatchString(l.InstID):
 			tag = "fut"
-		case l.Venue == "mt5":
+		case l.Venue == "exness":
 			tag = "cfd"
 		case len(l.InstID) > 5 && l.InstID[len(l.InstID)-5:] == "-SWAP":
 			tag = "perp"

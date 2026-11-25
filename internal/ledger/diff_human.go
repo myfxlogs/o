@@ -134,7 +134,7 @@ func exemptPlainLine(p exemptPart, ccy string) string {
 // parts=同读面分量集（nil=分量读面缺降级显总额）。
 // O-38064：dout≠nil=非本位键——币量+币名主量（有价附≈$x.xx/无价写
 // 「无价不可估值待定性」）；dout=nil=本位键逐字节守恒。
-func (r *Runner) ledgerDiffHuman(ctx context.Context, venue, ccy string,
+func (r *Runner) ledgerDiffHuman(ctx context.Context, acct, venue, ccy string,
 	eq, net, diffUSD, tol, exempt float64, parts []BalPart, dout *diffOut) string {
 	base := isBaseCCY(ccy)
 	ccyU := strings.ToUpper(ccy)
@@ -204,7 +204,7 @@ func (r *Runner) ledgerDiffHuman(ctx context.Context, venue, ccy string,
 	}
 	// ②差额构成逐行（豁免白话名+额——零条=「无豁免条目」行）。
 	b.WriteString("；差额构成：")
-	_, exparts, err := r.trackedExempt(ctx, venue, ccy)
+	_, exparts, err := r.trackedExempt(ctx, venue, ccy, acct)
 	if err != nil || len(exparts) == 0 {
 		b.WriteString("无豁免条目")
 	} else {

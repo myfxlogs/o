@@ -3,8 +3,6 @@ package ledger
 import (
 	"context"
 
-	"strings"
-
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -19,14 +17,35 @@ import (
 //
 // 「钱在哪」分区过滤、venue 侧对拍白名单、earn 残币归口判据同源消费。
 func FundCcy(ctx context.Context, pool *pgxpool.Pool) (map[[2]string]bool, error) {
-	out := map[[2]string]bool{
-		{"okx:trading", "USDT"}: true,
-		{"okx:funding", "USDT"}: true,
-		{"okx:earn", "USDT"}:    true,
-		{"mt5", "USD"}:          true,
+	out := map[[2]string]bool{}
+	// O-39440：种子子=fin_account active 行——账户域键=account_id 直发
+	// （okx:trading/funding/earn/dcd+mt5:<login>——venue 桶折叠径退役,
+	// 对拍面账户粒度;读面缺席=空集不炸,下游键面照旧 scope 形）。
+	arows, err := pool.Query(ctx,
+		`SELECT account_id,ccy FROM fin_account WHERE state='active'`)
+	if err != nil {
+		return nil, err
 	}
-	rows, err := pool.Query(ctx, `SELECT DISTINCT l.venue||':trading',split_part(l.inst_id,'-',1)
+	for arows.Next() {
+		var aid, ccy string
+		if err := arows.Scan(&aid, &ccy); err != nil {
+			arows.Close()
+			return nil, err
+		}
+		if ccy != "" {
+			out[[2]string{aid, ccy}] = true
+		}
+	}
+	arows.Close()
+	// O-39440：腿基币键=账户域——join fin_account 解析归属
+	// （sub_type='trading' 直中；mt5 类无 trading 子型→active main 全户
+	// 兜底——腿 venue 不载 login,双户同键白名单=宁宽勿漏,持币户自证
+	// 差、零币户 eq=net=0 天然平;frozen/无册 venue 不出键=对拍面缺席
+	// 同旧 venue 桶无读同果）。
+	rows, err := pool.Query(ctx, `SELECT DISTINCT fa.account_id,split_part(l.inst_id,'-',1)
 		FROM fin_order_leg l JOIN fin_position p ON p.execution_id=l.execution_id
+		JOIN fin_account fa ON fa.venue=l.venue AND fa.state='active'
+		  AND fa.sub_type IN ('trading','main')
 		WHERE p.state<>'closed' AND l.state='filled'`)
 	if err != nil {
 		return nil, err
@@ -124,11 +143,10 @@ func ReconSets(ctx context.Context, pool *pgxpool.Pool) (wlSet map[[2]string]boo
 	}
 	wlSet = map[[2]string]bool{}
 	for k := range set {
-		v := k[0]
-		if i := strings.IndexByte(v, ':'); i >= 0 {
-			v = v[:i] // 账户域作用键折叠回 venue 域
-		}
-		wlSet[[2]string{v, k[1]}] = true
+		// O-39440：账户域作用键直用为对拍键（account_id==scope 键——
+		// venue 桶折叠退役,对拍面账户粒度;无账户行的 scope 键在
+		// 对拍循环按 fin_account 枚举自然缺席）。
+		wlSet[k] = true
 	}
 	parked, err = ParkedAmt(ctx, pool)
 	if err != nil {
@@ -142,10 +160,46 @@ func ReconSets(ctx context.Context, pool *pgxpool.Pool) (wlSet map[[2]string]boo
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
-	// O-34287 验收⑤：原生币基线键并入对拍域（venue 真值首拍幂等建账——
-	// 杂币余额开账位=账本域存在，非白名单静默放行）。
-	for k := range nativeBase {
-		wlSet[k] = true
+	// O-39440：nativeBase venue 级键不再直进对拍面——下账户归户段
+	//   （nativeBase→trading 账户键）是唯一入口;venue 无对应 sub_type
+	//   =不入对拍（与原 venue 桶无键同果,覆盖不丢不增）。
+	// O-39440：台账组件 venue 级键→账户归户白名单键——parked→earn、
+	// dcdBase→dcd、nativeBase→trading（compAccount 同规则含单 main
+	// 兜底）；venue 无对应 sub_type=不入对拍（与原 venue 桶无键同果）。
+	// intent 域键=venue+ccy 原样不动，归户只发生在对拍键面。
+	if accts, aerr := AccountRows(ctx, pool, "active"); aerr == nil {
+		subOf := func(v, sub string) string {
+			if id := compAccount(accts, v, sub); id != "" {
+				return id
+			}
+			for _, a := range accts {
+				if a.Venue == v && a.SubType == sub {
+					return a.ID
+				}
+			}
+			return ""
+		}
+		tradingOf := func(v string) string {
+			if id := subOf(v, "trading"); id != "" {
+				return id
+			}
+			return compAccount(accts, v, "trading")
+		}
+		for k := range parked {
+			if id := subOf(k[0], "earn"); id != "" {
+				wlSet[[2]string{id, k[1]}] = true
+			}
+		}
+		for k := range dcdBase {
+			if id := subOf(k[0], "dcd"); id != "" {
+				wlSet[[2]string{id, k[1]}] = true
+			}
+		}
+		for k := range nativeBase {
+			if id := tradingOf(k[0]); id != "" {
+				wlSet[[2]string{id, k[1]}] = true
+			}
+		}
 	}
 	return
 }

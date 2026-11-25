@@ -93,10 +93,10 @@ func TestXvenueCloseLegTicket(t *testing.T) {
 func TestXvenueSizerRouting(t *testing.T) {
 	ctx, w, _ := setup(t)
 	var m5calls, okcalls []string
-	w.AttachVenueSizer("mt5", routeSizer{calls: &m5calls, avail: 0.4, lot: 0.01})
+	w.AttachVenueSizer("exness", routeSizer{calls: &m5calls, avail: 0.4, lot: 0.01})
 	w.sizer = routeSizer{calls: &okcalls, avail: 100, lot: 0.1}
 	cls := [2]CloseLeg{
-		{Venue: "mt5", InstID: "BTCUSDm", Side: "buy", Sz: 0.5, SzKnown: true, Ticket: 777},
+		{Venue: "exness", InstID: "BTCUSDm", Side: "buy", Sz: 0.5, SzKnown: true, Ticket: 777},
 		{Venue: "okx", InstID: "BTC-USDT-SWAP", Side: "sell", Sz: 10, SzKnown: true}}
 	out, _, ok := w.sizedCloseLegs(ctx, cls)
 	if !ok {

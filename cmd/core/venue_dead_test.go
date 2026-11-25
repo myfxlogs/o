@@ -26,7 +26,7 @@ func TestNavByVenueDeadLeg(t *testing.T) {
 	// ①仅死腿缺（note 载 venueDeadMark）→不拦，NAV=其余腿和。
 	o := &dashboardv1.OverviewResponse{Money: []*dashboardv1.MoneyRow{
 		row("okx", "交易户", "USDT", "", 10),
-		row("mt5", "户", "读件缺", "读件缺·"+venueDeadMark, 0),
+		row("exness", "户", "读件缺", "读件缺·"+venueDeadMark, 0),
 	}}
 	o.NavTotal = 10
 	by, err := navBy(o)
@@ -39,7 +39,7 @@ func TestNavByVenueDeadLeg(t *testing.T) {
 	// ②普通读败（无死因标）→照 miss 照挡。
 	o2 := &dashboardv1.OverviewResponse{Money: []*dashboardv1.MoneyRow{
 		row("okx", "交易户", "USDT", "", 10),
-		row("mt5", "户", "读件缺", "读件缺", 0),
+		row("exness", "户", "读件缺", "读件缺", 0),
 	}}
 	if _, err := navBy(o2); err == nil || !strings.Contains(err.Error(), "户/读件缺") {
 		t.Fatalf("暂态读败应照拦: %v", err)
@@ -47,7 +47,7 @@ func TestNavByVenueDeadLeg(t *testing.T) {
 	// ③死腿+暂态腿并存→暂态腿仍拦（死腿豁免不连带）。
 	o3 := &dashboardv1.OverviewResponse{Money: []*dashboardv1.MoneyRow{
 		row("okx", "交易户", "USDT", "", 10),
-		row("mt5", "户", "读件缺", "读件缺·"+venueDeadMark, 0),
+		row("exness", "户", "读件缺", "读件缺·"+venueDeadMark, 0),
 		row("okx", "资金户", "读件缺", "读件缺", 0),
 	}}
 	if _, err := navBy(o3); err == nil || !strings.Contains(err.Error(), "资金户") {
@@ -102,7 +102,7 @@ func TestMt5DeadLegCardAndNav(t *testing.T) {
 	}
 	var deadRow *dashboardv1.MoneyRow
 	for _, m := range o.Money {
-		if m.GetVenue() == "mt5" && m.GetSection() == "户" {
+		if m.GetVenue() == "exness" && m.GetSection() == "户" {
 			deadRow = m
 		}
 	}

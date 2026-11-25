@@ -12,14 +12,14 @@ import (
 	"strings"
 )
 
-func ledgerDiffBrief(ctx context.Context, r *Runner, venue, ccy string) string {
+func ledgerDiffBrief(ctx context.Context, r *Runner, acct, venue, ccy string) string {
 	pool := r.pool
 	mtmFn := r.mtm
 	var depo, wdr float64
 	_ = pool.QueryRow(ctx, `SELECT COALESCE(sum(amount) FILTER (WHERE kind='deposit'),0),
 		COALESCE(-sum(amount) FILTER (WHERE kind='withdraw'),0) FROM fin_cashflow
-		WHERE venue=$1 AND ccy=$2 AND ts>now()-interval '24 hours'`,
-		venue, ccy).Scan(&depo, &wdr)
+		WHERE account_id=$1 AND ccy=$2 AND ts>now()-interval '24 hours'`,
+		acct, ccy).Scan(&depo, &wdr)
 	// O-38064 S4：非本位键币量不冠 $——kind 金额改「数量 币名」形
 	// （qtyFmt≤8 位去尾零；本位键 $%.2f 逐字节守恒）。
 	base := isBaseCCY(ccy)
@@ -31,8 +31,8 @@ func ledgerDiffBrief(ctx context.Context, r *Runner, venue, ccy string) string {
 	}
 	var legs string
 	lrows, lerr := pool.Query(ctx, `SELECT kind,sum(amount) FROM fin_cashflow
-		WHERE venue=$1 AND ccy=$2 AND ts>now()-interval '72 hours'
-		GROUP BY kind ORDER BY sum(abs(amount)) DESC LIMIT 3`, venue, ccy)
+		WHERE account_id=$1 AND ccy=$2 AND ts>now()-interval '72 hours'
+		GROUP BY kind ORDER BY sum(abs(amount)) DESC LIMIT 3`, acct, ccy)
 	if lerr == nil {
 		var ls []string
 		for lrows.Next() {
@@ -77,10 +77,11 @@ func ledgerDiffBrief(ctx context.Context, r *Runner, venue, ccy string) string {
 	}
 	// O-36327：豁免额=静态行+resolver 跟踪行现算——成分段显逐行
 	// mode 定性（现算/锚/破带归零/回退），与 run.go 判据同源 trackedExempt。
-	_, exBrief := r.trackedExemptBrief(ctx, venue, ccy)
+	_, exBrief := r.trackedExemptBrief(ctx, venue, ccy, acct)
 	var exN int
 	_ = pool.QueryRow(ctx, `SELECT count(*) FROM fin_known_residual
-		WHERE venue=$1 AND ccy=$2 AND expires_at>now()`, venue, ccy).Scan(&exN)
+		WHERE venue=$1 AND ccy=$2 AND expires_at>now() AND coalesce(account_id,'')=$3`,
+		venue, ccy, acct).Scan(&exN)
 	if exN > 0 {
 		comp += "；" + exBrief
 	} else {
@@ -113,7 +114,7 @@ func diffBriefText(depo, wdr float64, legs, ccy string) string {
 // 业主面，桩测词表断言在案）。over=USD折算后判定（run.go 判据不变）。
 // O-38064：dout≠nil=非本位键——币量+币名为主量（有价附≈$x.xx/无价明
 // 写折不出），币量永不冠 $；dout=nil=本位键逐字节守恒。
-func (r *Runner) alertLedgerDiff(ctx context.Context, venue, ccy string,
+func (r *Runner) alertLedgerDiff(ctx context.Context, acct, venue, ccy string,
 	eq, net, tol, exempt, diffUSD float64, over bool, parts []BalPart, dout *diffOut) {
 	if !over {
 		return
@@ -121,10 +122,10 @@ func (r *Runner) alertLedgerDiff(ctx context.Context, venue, ccy string,
 	r.rej.Inc("diff_alert")
 	// 业主令 2026-11-10：告警载初诊（出入金标识+簿记构成——
 	// 「只报发现不答钱从哪来」病灶，见 diff_brief.go）。
-	brief := ledgerDiffBrief(ctx, r, venue, ccy)
+	brief := ledgerDiffBrief(ctx, r, acct, venue, ccy)
 	// O-36964：升件 note 头部白话账段（置于机读段前——业主三秒读懂
 	// 差多少/差由哪几块组成/是否已豁免/要不要人动手；机读底稿段原样保留）。
-	human := r.ledgerDiffHuman(ctx, venue, ccy, eq, net, diffUSD, tol, exempt, parts, dout)
+	human := r.ledgerDiffHuman(ctx, acct, venue, ccy, eq, net, diffUSD, tol, exempt, parts, dout)
 	raw := Diff(net, eq)
 	dir := "少"
 	if net > eq {

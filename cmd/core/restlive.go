@@ -37,25 +37,28 @@ func fundSaveBalances(ctx context.Context, pool *pgxpool.Pool, okcli *okxexec.Cl
 		if amt == 0 {
 			return
 		}
+		// O-39440：账户域键=okx:<bucket>（funding/earn/dcd 三子户分账——
+		// venue 桶聚合退役，对拍面账户粒度；usd 求和径键面无关照旧）。
+		acct := "okx:" + bucket
 		if parts != nil {
-			k := [2]string{"okx", ccy}
+			k := [2]string{acct, ccy}
 			parts[k] = append(parts[k], ledger.BalPart{Name: bucket, Amount: amt})
 		}
 		if !usd {
 			// O-34287 验收②：对拍径=venue 真值全币发射（原生币各域——
 			// 未登记币由基线凭据机制建账本域对拍，不静默跳过；TRX 托管币
 			// 对账域照建、业绩豁免在聚合层 ccy 闸）。
-			out[[2]string{"okx", ccy}] += amt
+			out[[2]string{acct, ccy}] += amt
 			return
 		}
 		if ccy != "USDT" && ccy != "USD" &&
-			!set[[2]string{"okx:funding", ccy}] && !set[[2]string{"okx:earn", ccy}] {
+			!set[[2]string{acct, ccy}] {
 			return // 非停泊托管币=域外不键（T-0100 ① venue 侧同源排除）
 		}
 		if ccy != "USDT" && ccy != "USD" {
 			amt = valCcy(ctx, pool, ccy, amt)
 		}
-		out[[2]string{"okx", ccy}] += amt
+		out[[2]string{acct, ccy}] += amt
 	}
 	bals, err := okcli.AssetBalances(ctx)
 	if err != nil {
@@ -104,13 +107,13 @@ func fundSaveBalances(ctx context.Context, pool *pgxpool.Pool, okcli *okxexec.Cl
 			return
 		}
 		if parts != nil {
-			k := [2]string{"okx", ccy}
+			k := [2]string{"okx:dcd", ccy}
 			parts[k] = append(parts[k], ledger.BalPart{Name: "dcd", Amount: amt})
 		}
 		if usd && ccy != "USDT" && ccy != "USD" {
 			amt = valCcy(ctx, pool, ccy, amt)
 		}
-		out[[2]string{"okx", ccy}] += amt
+		out[[2]string{"okx:dcd", ccy}] += amt
 	}
 	var live []okxexec.DcdOrder
 	for _, od := range ords {

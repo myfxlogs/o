@@ -227,9 +227,9 @@ func researchArms(ctx context.Context, errc chan<- error, pool *pgxpool.Pool,
 	// enabled=f∧ban_premise 行周期重核，前提证伪升件复审非自动解禁）。
 	go banrecheck.NewRunner(pool, cfg).AttachEscPool(finPool).
 		AttachCheck(banrecheckCheckFor(okcli, cfg, rej)).AttachAlerter(alerter).Run(ctx, errc)
-	// 工单#25563 MT5 影子评估臂（venue='mt5' 全目录→同 z 分判据——
+	// 工单#25563 MT5 影子评估臂（venue='exness' 全目录→同 z 分判据——O-39440① venue 改名；
 	// execfam 未册=判词全落 exec_family_missing，影域评分先行执行零径）。
-	go dirmom.NewRunnerVenue(pool, cfg, "mt5", "%", "mt5_dir_mom", "MT5方向评估").
+	go dirmom.NewRunnerVenue(pool, cfg, "exness", "%", "mt5_dir_mom", "MT5方向评估").
 		AttachAlerter(alerter).Run(ctx, errc)
 	// T-0379 MT5 族 broker 接入标准径臂（凭据发现→探测→映射闸→paper 态——
 	// md=候选正本池/fin=凭据+ops_event+请求盒正本池；凭据域只读）。

@@ -53,8 +53,8 @@ func TestXvenueLegOrderAndTicketLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if legs[0].Venue != "mt5" || legs[1].Venue != "okx" {
-		t.Fatalf("腿序应 mt5 先+okx 后（DM 裁定钉死）: %s→%s", legs[0].Venue, legs[1].Venue)
+	if legs[0].Venue != "exness" || legs[1].Venue != "okx" {
+		t.Fatalf("腿序应 exness 先+okx 后（DM 裁定钉死）: %s→%s", legs[0].Venue, legs[1].Venue)
 	}
 	if legs[0].Side != "sell" || legs[1].Side != "buy" {
 		t.Fatalf("long_perp_short_cfd 向位=mt5卖+okx买: %s/%s", legs[0].Side, legs[1].Side)

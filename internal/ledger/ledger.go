@@ -46,10 +46,25 @@ var ccyRE = regexp.MustCompile(`^[A-Z0-9]{2,20}$`)
 // CcyOK 币种域合法判（O-34287：venue 原生币各记各域——mt5 恒 USD 单币
 // 照旧；其余 venue=原生币形全放。库约束 fin_0235 同形镜像）。
 func CcyOK(venue, ccy string) bool {
-	if venue == "mt5" {
-		return ccy == "USD"
+	if venue == "exness" || venue == "xmglobal" {
+		return ccy == "USD" // cfd 经纪商 USD 单币域（O-39440①——exness/xmglobal 同律）
 	}
 	return ccyRE.MatchString(ccy)
+}
+
+// ccyAllowed Post 写径币闭集（注册表驱动版——roster proto='cfd'
+// 判 USD 单域;CcyOK 存量签名留 okx 专用径 dcdlegs 兼容）。
+func ccyAllowed(ctx context.Context, pool *pgxpool.Pool, venue, ccy string) (bool, error) {
+	var cfd bool
+	if err := pool.QueryRow(ctx,
+		`SELECT EXISTS(SELECT 1 FROM fin_venue_roster WHERE venue=$1 AND proto='cfd')`,
+		venue).Scan(&cfd); err != nil {
+		return ccyRE.MatchString(ccy), nil // 名册读败 fail-open 通用闭集
+	}
+	if cfd {
+		return ccy == "USD", nil
+	}
+	return ccyRE.MatchString(ccy), nil
 }
 
 // Entry 入账入参。
@@ -62,6 +77,9 @@ type Entry struct {
 	SourceRef   int64
 	SourceTable string
 	OccurredAt  string // timestamptz 文本（测试直控）
+	// AccountID 账户域键（O-39440——空=按 (venue,kind) 规则归户;
+	// 知户写径直填如 'mt5:3001157',禁再落无账户行）。
+	AccountID string
 }
 
 // Post 入账：闭集+来源行校验（source_ref<=0 或杂币/kind 非法=拒写上抛）。
@@ -69,7 +87,9 @@ func Post(ctx context.Context, pool *pgxpool.Pool, e Entry) (int64, error) {
 	if !kinds[e.Kind] {
 		return 0, fmt.Errorf("kind %q 非法闭集外", e.Kind)
 	}
-	if !CcyOK(e.Venue, e.Ccy) {
+	if ok, err := ccyAllowed(ctx, pool, e.Venue, e.Ccy); err != nil {
+		return 0, err
+	} else if !ok {
 		return 0, fmt.Errorf("ccy %q 非法——各币各域闭集外", e.Ccy)
 	}
 	if e.SourceRef <= 0 || e.SourceTable == "" {
@@ -80,9 +100,14 @@ func Post(ctx context.Context, pool *pgxpool.Pool, e Entry) (int64, error) {
 	if e.OccurredAt != "" {
 		ts = e.OccurredAt
 	}
-	err := pool.QueryRow(ctx, `INSERT INTO fin_cashflow(kind,venue,ccy,amount,position_ref,source_ref,source_table,occurred_at)
-		VALUES($1,$2,$3,$4,$5,$6,$7,COALESCE($8,now())) RETURNING id`,
-		e.Kind, e.Venue, e.Ccy, e.Amount, e.PositionRef, e.SourceRef, e.SourceTable, ts).Scan(&id)
+	var acct any // 显式 account_id 直通；空=NULL 交触发器注册表归户
+	if e.AccountID != "" {
+		acct = e.AccountID
+	}
+	err := pool.QueryRow(ctx, `INSERT INTO fin_cashflow(kind,venue,ccy,amount,position_ref,source_ref,source_table,occurred_at,account_id)
+		VALUES($1,$2,$3,$4,$5,$6,$7,COALESCE($8,now()),$9) RETURNING id`,
+		e.Kind, e.Venue, e.Ccy, e.Amount, e.PositionRef, e.SourceRef, e.SourceTable, ts,
+		acct).Scan(&id)
 	return id, err
 }
 

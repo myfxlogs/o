@@ -70,6 +70,7 @@ service CoreService {
   rpc ListBrokerOnboard(ListBrokerOnboardRequest) returns (ListBrokerOnboardResponse) {}
   rpc SubmitBrokerCred(SubmitBrokerCredRequest) returns (SubmitBrokerCredResponse) {}
   rpc SetBrokerState(SetBrokerStateRequest) returns (SetBrokerStateResponse) {}
+  rpc SetAccountState(SetAccountStateRequest) returns (SetAccountStateResponse) {}
 
   // —— T-0432 方言对表面（向导第④步——映射=确认件非推断件：候选清单机造
   //   只省翻页不做决定+席位挑+机器硬验（SymbolParams 对拍官名语义全过才落
@@ -733,6 +734,17 @@ message BrokerOnboardRow {
 }
 message ListBrokerOnboardResponse {
   repeated BrokerOnboardRow rows = 1;     // venue 升序（服务端排序——前端禁 sort）
+  repeated BrokerAccountRow accounts = 2; // fin_account 账户册全量（O-39440——启停删面数据源,account_id 升序）
+}
+message BrokerAccountRow {
+  string account_id = 1;                  // 账户域键 venue:account（FK 真源——写径归属键）
+  string venue = 2;
+  string account_no = 3;                  // 户号/login（CFD=login 号;cex 子户空）
+  string alias = 4;
+  string ccy = 5;
+  string sub_type = 6;                    // trading|funding|earn|dcd|main
+  string state = 7;                       // active|disabled|frozen|closed——生命周期面 SetAccountState
+  google.protobuf.Timestamp declared_at = 8;
 }
 message SubmitBrokerCredRequest {
   string venue = 1;                       // broker/venue token——凭据键前缀（[a-z0-9_-]+ 同 credscan 形闸）
@@ -765,6 +777,20 @@ message SetBrokerStateResponse {
   string venue = 1;
   string prev_state = 2;                  // 迁移前 roster 态
   string state = 3;                       // 落定态（removed 请求落='removed'；active 请求落='connecting'）
+}
+
+// ── O-39440 账户级生命周期面（fin_account state 机——venue 粒度归
+//    SetBrokerState;本 RPC=账户粒度:CFD login 户/子户启停删。
+//    增=迁移/触发器自动开户;停/启/删=本 RPC 三态人工迁移）────────
+message SetAccountStateRequest {
+  string account_id = 1;                  // fin_account 域键 venue:account（形闸 ^[a-z0-9_-]+:[a-zA-Z0-9_.-]+$）
+  string state = 2;                       // 目标态：active|disabled|closed（closed=退役——零引用物理删/有史墓碑）
+  string note = 3;                        // 处置注记→ops_event 审计行
+}
+message SetAccountStateResponse {
+  string account_id = 1;
+  string prev_state = 2;
+  string state = 3;                       // 落定态（closed 零引用=物理删回 'deleted'）
 }
 
 // ── T-0432 方言对表面（向导第④步——映射=确认件非推断件）────────────────

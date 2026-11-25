@@ -174,7 +174,7 @@ func (c coreService) moneyRows(ctx context.Context, o *dashboardv1.OverviewRespo
 	}
 	// T-0096：MT5 入户（专属券商户全计）——逐真实账号一行；读件缺/读败
 	// =「读件缺」行不藏（禁假零）；nav_total += MT5 净值合计。
-	miss := &dashboardv1.MoneyRow{Venue: "mt5", Section: "户", Label: "读件缺", Note: "读件缺"}
+	miss := &dashboardv1.MoneyRow{Venue: "exness", Section: "户", Label: "读件缺", Note: "读件缺"}
 	var accts []mt5Acct
 	var aerr error
 	if c.mt5Live != nil {
@@ -193,7 +193,7 @@ func (c coreService) moneyRows(ctx context.Context, o *dashboardv1.OverviewRespo
 	} else {
 		for _, a := range accts {
 			o.NavTotal += a.Equity
-			o.Money = append(o.Money, moneyRow("mt5", "户", "USD",
+			o.Money = append(o.Money, moneyRow("exness", "户", "USD",
 				"户 "+a.Login, a.Equity, a.Equity))
 		}
 	}

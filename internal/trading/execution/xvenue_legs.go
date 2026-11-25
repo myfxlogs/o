@@ -31,7 +31,7 @@ func BuildXvenueLegs(direction, instID, cfdInst, cfdVenue string, notional float
 		return [2]Leg{}, fmt.Errorf("cfd 官名缺 fail-closed（%s 无双腿映射）", instID)
 	}
 	if cfdVenue == "" {
-		cfdVenue = "mt5" // 存量调用面兼容锚（O-37449 前=恒 'mt5'）
+		cfdVenue = "exness" // 存量调用面兼容锚（O-39440① venue 改名）
 	}
 	if cfdM.TradeMode != 4 {
 		return [2]Leg{}, fmt.Errorf("cfd %s TradeMode=%d 非 FullAccess（可开性预检拒——broker 动态限，单腿裸露防线）", cfdInst, cfdM.TradeMode)

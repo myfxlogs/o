@@ -204,7 +204,7 @@ func (w *Warden) venueSizerResidual(ctx context.Context, l leg) (VenueSizer, flo
 	}
 	var v float64
 	var err error
-	if mt5.IsMt5ProtoVenue(ctx, w.pool, l.venue) || strings.HasSuffix(l.inst, "-SWAP") { // O-37449：mt5-proto 全族 CFD 腿 ContractPos 径
+	if mt5.IsCfdProtoVenue(ctx, w.pool, l.venue) || strings.HasSuffix(l.inst, "-SWAP") { // O-37449：cfd 类全族 CFD 腿 ContractPos 径
 		v, err = szr.ContractPos(ctx, l.inst)
 	} else {
 		v, err = szr.SpotAvailBal(ctx, l.inst)
@@ -219,7 +219,7 @@ func (w *Warden) venueSizerResidual(ctx context.Context, l leg) (VenueSizer, flo
 // 腿账侧不可当方向源）；合约腿 venue 符号位优先（signedPosSizer 在册
 // 实读），缺席/读败=腿账侧兜底（reduceOnly 兜底防反向新开）。
 func (w *Warden) emergencySide(ctx context.Context, l leg) string {
-	if !mt5.IsMt5ProtoVenue(ctx, w.pool, l.venue) && !strings.HasSuffix(l.inst, "-SWAP") { // O-37449：mt5-proto 全族 CFD 腿非现货径
+	if !mt5.IsCfdProtoVenue(ctx, w.pool, l.venue) && !strings.HasSuffix(l.inst, "-SWAP") { // O-37449：cfd 类全族 CFD 腿非现货径
 		return "sell"
 	}
 	if szr, ok := w.sizerFor(l.venue).(signedPosSizer); ok {

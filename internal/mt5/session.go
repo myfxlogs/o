@@ -26,12 +26,12 @@ import (
 const openSessionBudget = 30 * time.Second
 
 // OpenSession 独立一次性会话（开连+登录——用毕调用方 Disconnect；facts 采面/
-// 探针面用）。venue=名册户 token（空/'mt5'=存量 Exness 兼容）；cred_ns 经
+// 探针面用）。venue=名册户 token（空/'exness'=存量 Exness 兼容锚）；cred_ns 经
 // roster 查——按户共享行复挂+按户凭据族读。分阶段 log（dial→connect→authed
 // 起讫；失败含阶段名+err）。
 func OpenSession(ctx context.Context, pool *pgxpool.Pool, cfg *config.Client, venue string) (*Client, error) {
 	if venue == "" {
-		venue = "mt5"
+		venue = "exness"
 	}
 	// 共享先行——共享行活 token=零新 login 复挂（双腿共享会话 churn 减源；
 	// shared 标置=调用侧遗留 Disconnect 幂等空转不伤共享会话）。键=venue
