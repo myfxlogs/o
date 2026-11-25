@@ -47,6 +47,7 @@ fin_report	fin
 fin_push_ledger	fin
 md_venue_fact	fin
 fin_venue_bill	fin
+fin_venue_position	fin
 fin_review_verdict	fin
 md_calendar_push	fin
 md_calendar_pull	fin

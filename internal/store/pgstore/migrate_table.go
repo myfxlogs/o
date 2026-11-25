@@ -272,4 +272,5 @@ var finMigrationTable = []migEntry{
 	{257, "fin_0257_cfd_taxonomy.sql"},                  // 工单O-39440①——CFD 类目根修:roster proto mt5→cfd+platform 列+venue mt5→exness+密钥键/数据面改名
 	{258, "fin_0258_account_dim.sql"},                   // 工单O-39440②——账户维根修:fin_account 注册表+cashflow/residual account_id 列+存量显式回填
 	{259, "fin_0259_ledger_rebase.sql"},                 // 工单O-33206——业主令账本重锚:ledger.rebase_armed 武装键（重锚行=运行时 venue 实读锚,迁移不写死金额）
+	{260, "fin_0260_manual_flow.sql"},                   // 工单O-33207——手动资金流/手动仓采集:fin_venue_position 手动仓事实面+surface_lifecycle 登记
 }

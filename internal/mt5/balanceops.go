@@ -62,6 +62,10 @@ func (c *Collector) balanceOpsLoop(ctx context.Context, cl *Client, a *acctRun) 
 			c.rej.Inc("balance_ops_err")
 			log.Printf("[mt5] %s 充提轮询败（下拍重试）: %v", a.acct.Venue, err)
 		}
+		if err := c.openPollOnce(ctx, cl, a); err != nil && ctx.Err() == nil {
+			c.rej.Inc("position_ops_err")
+			log.Printf("[mt5] %s 在仓快照轮询败（下拍重试）: %v", a.acct.Venue, err)
+		}
 		select {
 		case <-ctx.Done():
 			return
@@ -115,8 +119,11 @@ func (c *Collector) balancePollOnce(ctx context.Context, cl *Client, a *acctRun)
 	return nil
 }
 
-// balanceDeal 单行分类处置：充提→fin_cashflow venue=户 token；balance 邻类→
-// 判词注记；交易行（Buy/Sell 族）=非充提域静默略（其盈亏归 trade_pnl 他件管）。
+// balanceDeal 单行分类处置（O-33207 扩谱）：充提族→fin_cashflow
+// deposit/withdraw；Credit/Bonus 族（spec 钦定）同径；Charge/Correction/
+// Commission*/InterestRate balance 邻类→unmapped_bill 守恒兜底+判词
+// 注记并存；交易行（DealBuy/DealSell）→trade_pnl+手动仓事实（tradebook.go）；
+// 撤单族→判词注记。
 func (c *Collector) balanceDeal(ctx context.Context, a *acctRun, o *mt5pb.Order) {
 	dealBal := o.GetDealType() == mt5pb.DealType_DealType_Balance
 	ordBal := o.GetOrderType() == mt5pb.OrderType_OrderType_Balance
@@ -125,13 +132,21 @@ func (c *Collector) balanceDeal(ctx context.Context, a *acctRun, o *mt5pb.Order)
 		amt = o.GetDealInternalIn().GetProfit() // 兜底——行顶 Profit 缺时内嵌 deal 实载
 	}
 	switch {
-	case dealBal || (ordBal && !balanceLikeDeal(o.GetDealType())):
+	case isTradeDeal(o.GetDealType()):
+		c.bookTrade(ctx, a, o) // O-33207：平仓仓 realized+手动仓事实
+	case dealBal || creditLikeDeal(o.GetDealType()) ||
+		(ordBal && !balanceLikeDeal(o.GetDealType())):
 		if amt == 0 {
 			log.Printf("[mt5] %s 充提行零额跳票=%d deal=%s comment=%q", a.acct.Venue, o.GetTicket(), o.GetDealType(), o.GetComment())
 			return
 		}
 		c.bookBalance(ctx, a, o, amt)
-	case o.GetOrderType() == mt5pb.OrderType_OrderType_Credit || ordBal || balanceLikeDeal(o.GetDealType()):
+	case balanceLikeDeal(o.GetDealType()):
+		if amt != 0 {
+			c.bookUnmapped(ctx, a, o, amt) // O-33207：守恒兜底不静默吞差
+		}
+		c.noteBalanceLike(ctx, a, o)
+	case isCancelDeal(o.GetDealType()):
 		c.noteBalanceLike(ctx, a, o)
 	}
 }
@@ -184,20 +199,18 @@ func (c *Collector) bookBalance(ctx context.Context, a *acctRun, o *mt5pb.Order,
 		kind = "deposit"
 	}
 	var id int64
-	// O-39440：account_id=venue:login 显式归户（跨户 ticket 命名空间独立
-	// ——Exness/XM 同号不互斥；login 缺席=NULLIF→触发器兜底映射）。
-	acctID := ""
-	if a.acct.Login != "" {
-		acctID = a.acct.Venue + ":" + a.acct.Login
-	}
+	// O-39440：account_id=注册表解析（login 在=venue:login 显式；缺=
+	//   acctIDFor 册 CASE 同触发器规则——'mt5:3001157' 硬编码兜底已撤，
+	//   venue 改名 exness 后旧字面量=错键）。
+	acctID := c.acctIDFor(ctx, a)
 	err := c.pool.QueryRow(ctx, `INSERT INTO fin_cashflow(kind,venue,ccy,amount,source_ref,source_table,occurred_at,account_id)
 		SELECT $1,$8,'USD',$2,$3,'mt5_deal',$4,NULLIF($9,'')
 		WHERE NOT EXISTS (
 			SELECT 1 FROM fin_cashflow f
-			WHERE f.account_id=COALESCE(NULLIF($9,''),'mt5:3001157') AND f.source_table='mt5_deal' AND f.source_ref=$3)
+			WHERE f.account_id=$9 AND f.source_table='mt5_deal' AND f.source_ref=$3)
 		AND NOT EXISTS (
 			SELECT 1 FROM fin_cashflow f
-			WHERE f.account_id=COALESCE(NULLIF($9,''),'mt5:3001157') AND f.source_table<>'mt5_deal'
+			WHERE f.account_id=$9 AND f.source_table<>'mt5_deal'
 			  AND f.amount*$2 > 0
 			  AND abs(abs(f.amount)-abs($2)) <= greatest($5, abs($2)*$6)
 			  AND abs(extract(epoch from (f.occurred_at - $4))) <= $7)
@@ -226,12 +239,9 @@ func (c *Collector) bookBalance(ctx context.Context, a *acctRun, o *mt5pb.Order,
 // 先例冲突（非 mt5_deal 行命中容差窗）manual_dup 日志，判词可追。
 func (c *Collector) classifySkip(ctx context.Context, a *acctRun, o *mt5pb.Order, amt float64) {
 	var exact bool
-	acctID := ""
-	if a.acct.Login != "" {
-		acctID = a.acct.Venue + ":" + a.acct.Login
-	}
+	acctID := c.acctIDFor(ctx, a)
 	_ = c.pool.QueryRow(ctx,
-		`SELECT EXISTS(SELECT 1 FROM fin_cashflow WHERE account_id=COALESCE(NULLIF($1,''),'mt5:3001157')
+		`SELECT EXISTS(SELECT 1 FROM fin_cashflow WHERE account_id=$1
 		 AND source_table='mt5_deal' AND source_ref=$2)`, acctID, o.GetTicket()).Scan(&exact)
 	if exact {
 		return // 精确重放——静默幂等（高频窗重叠常态）

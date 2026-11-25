@@ -58,3 +58,9 @@ domain: 工程
 - 响应信封坑：dcd 族 `code` 字段是**数字**非字符串（`{"code":0,...}`）——okxexec.Client.Get 的信封解析（string code）会拒，须裸签名自解或信封兼容改（经验库 `okx-dcd-endpoint-dialect`）。
 - **网络坑**：OKX 白名单按源 IP 判——IPv6 egress（无外网 v4 时双栈漂移）触发 50110 间歇拒绝；同机同钥匙间歇 401=查出口栈族，非钥匙坏。
 - 定位：双币赢=卖 call 收权利金型 carry（在架 BTC-USDT call 年化 13–72% 实证）——结构产品面候选策略模板，评估须走票面生命周期。生产实持仓：ordId=11448262 0.0207 BTC LIVE（T-0101 入账票）。
+
+## 手动资金流/手动仓覆盖面（O-33207 勘察定案——2026-11-25）
+
+- **bills→fin_cashflow 覆盖已全谱**（O-34287/O-10063/#14671/O-39310 在案）：SPOT/MARGIN 手动买单 subType 1/2 双腿=spotNative 基币腿+spotQuote 计价币腿（clOrdId 判别——O 自执行单 legCash 已记跳过防双计，venue 侧 bot/手动单对称入账）；衍生品族 fee+trade_pnl(Pnl 分量)+unmapped_bill(BalChg 残差) 三件套现金守恒；划转双腿排外（deposit/withdraw 终证扫描径）。
+- **手动仓在仓面=fin_venue_position**（O-33207 新落）：venuePosBeat 60s 拍 /account/positions 全枚举→非 O 单 upsert（mtm_off=upl 直给进对账净值）；O 单排除=instId 命中 fin_position 未闭集（同 instId 合并仓不可分=保守判 O 的不双簿）；平仓 realized 不在此径=bill 族已守恒。
+- **Position 字段扩**：posId/avgPx/upl/ccy 已入 okxexec.Position——posId=手动仓事实键（ticket 域），upl 币域=ccy 列（USDT 缺省）。
