@@ -1,7 +1,7 @@
 // Package lifecycle —— 生命周期状态机+paper 沙箱（投资域首岗；员工「命官」）。
-// 迁移闭集：proposed→paper、paper→probe、paper→degraded/retired、probe→live/
-// degraded/retired、live→degraded/retired。paper→live 越级禁绝；live 迁移另须
-// 投资委员会开关 invest.lifecycle.live_switch=true（缺键/非 true fail-closed）。
+// 迁移闭集：proposed→paper/probe（O-41014 fasttrack 直通）、paper→probe、
+// paper→degraded/retired、probe→live/degraded/retired、live→degraded/retired。
+// paper→live 越级禁绝；live 迁移另须投资委员会开关 invest.lifecycle.live_switch=true（缺键/非 true fail-closed）。
 package lifecycle
 
 import (
@@ -15,7 +15,7 @@ import (
 )
 
 var legal = map[string][]string{
-	"proposed": {"paper", "retired"},
+	"proposed": {"paper", "probe", "retired"}, // O-41014：fasttrack 直通=proposed→probe 合法径（判据=eval 极值∧dir 白名单∧并发槽）
 	"paper":    {"probe", "degraded", "retired"},
 	"probe":    {"live", "degraded", "retired"},
 	"live":     {"degraded", "retired"},

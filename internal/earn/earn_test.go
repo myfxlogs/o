@@ -67,6 +67,12 @@ func setupW(t *testing.T, api VenueAPI, keys map[string]string) (context.Context
 	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
 		t.Fatal(err)
 	}
+	// O-40829：清上件 earn_redeem 在途窗残行——本包 redeem 测试落的
+	// decision 行会让后续 sweep 测试被意向豁免误罩（venue 域=tstearn 隔离）。
+	if _, err := pool.Exec(ctx,
+		`DELETE FROM fin_risk_decision WHERE intent->>'venue'='tstearn' AND intent->>'op'='earn_redeem'`); err != nil {
+		t.Fatal(err)
+	}
 	for k, v := range keys {
 		if _, err := pool.Exec(ctx,
 			"INSERT INTO app_config(key,value) VALUES($1,to_jsonb($2::text)) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value", k, v); err != nil {

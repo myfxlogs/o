@@ -36,6 +36,7 @@ var dmWritableGlobs = []string{
 	"invest.paper.*",                    // paper 仓位判定
 	"scout.*",                           // venue 测榜参数
 	"lifecycle.*",                       // 生命周期 TTL/冷却族
+	"probe.fasttrack_*",                 // O-41014 probe 直通闸四键（enabled/score/notional/max_open）
 	"strategy.*",                        // 降级 TTL 族
 	"gate.kill.*",                       // 族级风险停机闸（退役闸族——T-0312 白名单续认）
 	"exec.*",                            // 执行参数（探针仓位/超时/冷却/cfd_map）
