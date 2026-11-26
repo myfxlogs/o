@@ -106,6 +106,20 @@ func newMT5Venue(inst string) *mt5sim.Sim {
 		TradeMode: 4, Px: px, State: "live"})
 }
 
+// newCFDVenue O-41368 mt5_dir_mom 单腿格 CFD 仿真 venue（canonical=inst
+// 直键——mt5_dir_mom 乐器键=broker 官话 canonical 自身非 okx 键派生
+// （cfdCanonical 是 xvenue okx 键→官名派生径，本族不适用）；VenueSymbol
+// =canonical 同名（仿真方言恒等映射）；ContractSize/MinLot/LotStep 仿真
+// 册定值——产线真值经 fin_symbol_dialect 活读，演习只证执行径产能；
+// TradeMode=FullAccess(4) 产线可开性断言同值）。
+func newCFDVenue(inst string) *mt5sim.Sim {
+	px := pxOf(inst)
+	return mt5sim.New().WithBalance(1e7).WithInstrument(mt5sim.Instrument{
+		VenueSymbol: inst, Canonical: inst,
+		ContractSize: 0.001, MinLot: 0.001, LotStep: 0.001,
+		TradeMode: 4, Px: px, State: "live"})
+}
+
 // VenueForInst 单策略径 venue 装配（cmd 面——inst 派生乐器册：-YYMMDD→
 // FUTURES/现货实有面校真/基键-SWAP 幂等；DCD/复合键域派生键不被消费无害）。
 // T-0522：原 cmd fixture 只 CORE 对——真器策略单钻永远「乐器不在册」。

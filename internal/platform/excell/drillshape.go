@@ -17,6 +17,7 @@ const (
 	ShapeXvenue       LegShape = "xvenue"         // mt5 CFD 腿先+okx perp 腿后
 	ShapeDCD          LegShape = "dcd"            // DCD 产品三步径（quote→trade→status）
 	ShapeOKXSingleLeg LegShape = "okx_single_leg" // 方向族单 perp 腿（棒5c dir_perp_mom 首发；perp-trend-daily 同形工单#11481）
+	ShapeCFDSingleLeg LegShape = "cfd_single_leg" // O-41368 mt5_dir_mom 单 CFD 腿（cfd_long/cfd_short——mtapi OrderSend/OrderClose 产线同径，venue=名册 cfd 户）
 )
 
 // LegShapeOf 模板→腿形映射（注册表——execfam 册内模板全覆盖断言锚）。
@@ -35,6 +36,11 @@ func LegShapeOf(tmpl string) (LegShape, bool) {
 		// （占用格出真演习格同 dir_perp_mom 先例；xsec 篮族=篮复合腿形
 		// 未册=drillUnsupported 白名单，勿虚开）。
 		return ShapeOKXSingleLeg, true
+	case tmpl == "mt5_dir_mom":
+		// O-41368 CFD 方向动量族——单 cfd 腿（venue=名册 cfd 户 exness/
+		// xmglobal，腿 venue 直记不并 mt5 键 fin_0257 律）；Drillable
+		// 同径产能=probe→live 毕业凭据面解锁（live 构型闸位不动）。
+		return ShapeCFDSingleLeg, true
 	case tmpl == "simdrill-gate":
 		// 演习 harness 自体测试模板（单钻径通用双腿闸演——非产线模板，
 		// Run 派路经 LegShapeOf 单源后须显式登记否则拒载）。

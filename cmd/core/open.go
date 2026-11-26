@@ -64,6 +64,10 @@ func (h hedgeOpener) Open(ctx context.Context, spec lifecycle.OpenSpec) (int64, 
 		// O-41014 perp-trend-daily 同构并入（OKX SWAP 单腿 long/short_perp——
 		// fasttrack probe 直通消费面同吃本缝，余模板照旧双腿原子径不株连）。
 		return h.dirOpen(ctx, spec)
+	case "mt5_dir_mom":
+		// O-41368 CFD 方向族单腿真户径（cfd_open.go——venue='mt5' 域标签
+		// 解名册 cfd 户+lot 网格腿构+ExecuteDir；评估腿=exness 供腿同源）。
+		return h.cfdOpen(ctx, spec)
 	}
 	// O-40707 margin-short：direction=long_perp_short_spot∧venue=okx=保证金
 	// 借币卖出现货径（margin_open.go——exec_enabled 总闸 fail-closed 待命；
