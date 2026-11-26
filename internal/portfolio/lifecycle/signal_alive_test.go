@@ -159,3 +159,93 @@ func TestSignalAliveVolGate(t *testing.T) {
 		t.Fatalf("refAPR 缺应视同信号死退役 got %s", got)
 	}
 }
+
+// O-41370 泛化存续判锚桩测：default 臂族谱漏收编类病根修——未注册族
+// （mt5_dir_mom/grid_spot/quarter_basis 系等 8 族+未来新族）存续=最新
+// fin_opp_eval proposed∧72h 内（dirEntryGate 同判词直调一源律）；
+// 行缺/陈/rejected/读败=fail-closed 照退一字不动。
+
+// 锚①：mt5_dir_mom（78 尸族——direction 词复用 long_perp 族位约定，
+// 旧判被 direction 前缀误送 fundingEntryGate→md_funding 无 CFD 源恒死）
+// eval proposed 鲜行=信号活着豁免（无 md_funding 行仍活=证走泛化 eval 判）。
+func TestSignalAliveGenericMt5DirMom(t *testing.T) {
+	r := newRig(t)
+	ctx := context.Background()
+	sid := sigFixture(t, r, "MT5DIR", "mt5_dir_mom", "long_perp", "probe", "25 hours")
+	if _, err := r.pool.Exec(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,net_apr,verdict,legs,evidence)
+		VALUES('MT5DIR','mt5_dir_mom','long_perp',0.1,'proposed','{}','{}')`); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.retireStaleArmed(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := stratState(t, r, sid); got != "probe" {
+		t.Fatalf("mt5_dir_mom eval proposed 鲜行应豁免退役 got %s", got)
+	}
+}
+
+// 锚①b：grid_spot（12 尸族）同径豁免——泛化判据自动覆盖不分族。
+func TestSignalAliveGenericGridSpot(t *testing.T) {
+	r := newRig(t)
+	ctx := context.Background()
+	sid := sigFixture(t, r, "GRID-G", "grid_spot", "grid_spot", "probe", "25 hours")
+	if _, err := r.pool.Exec(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,net_apr,verdict,legs,evidence)
+		VALUES('GRID-G','grid_spot','grid_spot',0.08,'proposed','{}','{}')`); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.retireStaleArmed(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := stratState(t, r, sid); got != "probe" {
+		t.Fatalf("grid_spot eval proposed 鲜行应豁免退役 got %s", got)
+	}
+}
+
+// 锚②a：eval 陈行（ts>72h）=信号死照退——泛化判据鲜度界与
+// dirEntryGate 同值（非新造第二套数学）。
+func TestSignalDeadGenericStale72h(t *testing.T) {
+	r := newRig(t)
+	ctx := context.Background()
+	sid := sigFixture(t, r, "STALE-G", "mt5_dir_mom", "long_perp", "probe", "25 hours")
+	if _, err := r.pool.Exec(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,net_apr,verdict,legs,evidence,ts)
+		VALUES('STALE-G','mt5_dir_mom','long_perp',0.1,'proposed','{}','{}',now()-interval '80 hours')`); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.retireStaleArmed(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := stratState(t, r, sid); got != "retired" {
+		t.Fatalf("eval 陈>72h 应视同信号死退役 got %s", got)
+	}
+}
+
+// 锚②b：eval rejected=信号死照退。
+func TestSignalDeadGenericRejected(t *testing.T) {
+	r := newRig(t)
+	ctx := context.Background()
+	sid := sigFixture(t, r, "REJ-G", "grid_spot", "grid_spot", "probe", "25 hours")
+	if _, err := r.pool.Exec(ctx, `INSERT INTO fin_opp_eval(inst_id,template,direction,net_apr,verdict,legs,evidence)
+		VALUES('REJ-G','grid_spot','grid_spot',0.08,'rejected','{}','{}')`); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.retireStaleArmed(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := stratState(t, r, sid); got != "retired" {
+		t.Fatalf("eval rejected 应退役 got %s", got)
+	}
+}
+
+// 锚②c：eval 行缺=fail-closed 不豁免（不虚构存续证——「无族谱注册」
+// 从死刑改候审，但候审无证仍死）。
+func TestSignalDeadGenericNoEvalRow(t *testing.T) {
+	r := newRig(t)
+	ctx := context.Background()
+	sid := sigFixture(t, r, "NOEV-G", "stake-carry", "stake_carry", "probe", "25 hours")
+	if err := r.retireStaleArmed(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := stratState(t, r, sid); got != "retired" {
+		t.Fatalf("eval 行缺应退役 got %s", got)
+	}
+}

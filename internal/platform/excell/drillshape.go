@@ -18,6 +18,7 @@ const (
 	ShapeDCD          LegShape = "dcd"            // DCD 产品三步径（quote→trade→status）
 	ShapeOKXSingleLeg LegShape = "okx_single_leg" // 方向族单 perp 腿（棒5c dir_perp_mom 首发；perp-trend-daily 同形工单#11481）
 	ShapeCFDSingleLeg LegShape = "cfd_single_leg" // O-41368 mt5_dir_mom 单 CFD 腿（cfd_long/cfd_short——mtapi OrderSend/OrderClose 产线同径，venue=名册 cfd 户）
+	ShapeGridBot      LegShape = "grid_bot"       // O-41370 grid_spot venue 原生 bot 全径（无腿可钻族——bot 创建→挂单校验→喂价→kill 仿真代腿钻，禁假腿）
 )
 
 // LegShapeOf 模板→腿形映射（注册表——execfam 册内模板全覆盖断言锚）。
@@ -41,6 +42,12 @@ func LegShapeOf(tmpl string) (LegShape, bool) {
 		// xmglobal，腿 venue 直记不并 mt5 键 fin_0257 律）；Drillable
 		// 同径产能=probe→live 毕业凭据面解锁（live 构型闸位不动）。
 		return ShapeCFDSingleLeg, true
+	case tmpl == "grid_spot":
+		// O-41370 venue 原生网格族——无腿可钻：bot=OKX tradingBot/grid
+		// algo 单非 execution.Executor 腿语义，演习径=bot 全径仿真
+		// （simgrid 引擎+产线 Adapter 五端点同码）；Drillable 翻真=
+		// probe→live 毕业链解锁，okxgrid.live_switch 业主首闸不动。
+		return ShapeGridBot, true
 	case tmpl == "simdrill-gate":
 		// 演习 harness 自体测试模板（单钻径通用双腿闸演——非产线模板，
 		// Run 派路经 LegShapeOf 单源后须显式登记否则拒载）。

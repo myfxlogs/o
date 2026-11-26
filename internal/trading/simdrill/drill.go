@@ -126,6 +126,8 @@ func (d *Drill) Run(ctx context.Context, strategyRef int64) (Result, error) {
 		return d.runDCDDrill(ctx, res, inst, templateRef, notional)
 	case shape == excell.ShapeCFDSingleLeg:
 		return d.runCFDDrill(ctx, res, inst, templateRef, notional)
+	case shape == excell.ShapeGridBot:
+		return d.runGridDrill(ctx, res, inst, templateRef, notional)
 	case shape == excell.ShapeOKXSingleLeg:
 		return d.runDirDrill(ctx, res, inst, templateRef, notional)
 	case shape == excell.ShapeOKXTwoLeg && !strings.HasSuffix(inst, "-SWAP"):

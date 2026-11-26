@@ -32,6 +32,7 @@ import (
 	"o/internal/research/funding"
 	"o/internal/research/gapscan"
 	"o/internal/research/grammar"
+	"o/internal/research/gridcfd"
 	"o/internal/research/gridfit"
 	"o/internal/research/hypothesis"
 	"o/internal/research/regime"
@@ -215,10 +216,15 @@ func researchArms(ctx context.Context, errc chan<- error, pool *pgxpool.Pool,
 	// Donchian20/10 手术刀 paper 模拟→fin_opp_eval；卡留 proposed 归死刑
 	// 审查裁，本臂影子产出零执行零提案径）。
 	go trendmech.NewRunner(pool, cfg).AttachAlerter(alerter).Run(ctx, errc)
-	// 工单#25737 网格评估族影子臂（grid_spot——md_klines 1D OHLC 现货宇宙
-	// →网格带回放→eval/proposal；execfam 未册=判词落 exec_family_missing，
-	// 影域评分先行执行零径 T-0408 先例）。
+	// 工单#25737 网格评估族臂（grid_spot——md_klines 1D OHLC 现货宇宙
+	// →网格带回放→eval/proposal；execfam 已册 paper 域贯通#25840，
+	// 真单径=okxgrid 双闸未通）。
 	go gridfit.NewRunner(pool, cfg).AttachAlerter(alerter).Run(ctx, errc)
+	// 工单O-41369 CFD 网格评估影子臂（grid_cfd——venue='exness'
+	// md_klines 1D 全目录→网格带回放+价差成本模型→eval/proposal；
+	// execfam 未册=影子族闸 exec_family_missing，执行零径）。
+	go gridcfd.NewRunnerVenue(pool, cfg, "exness", "grid_cfd", "网格评估-cfd").
+		AttachAlerter(alerter).Run(ctx, errc)
 	// 工单#25750 regime→结构映射器（有界钦定形——md_klines 1D 全宇宙
 	// 五态分类→人维护映射表→族覆盖缺口→族提案升件；影子产出零执行，
 	// 映射表外族永不提案 fail-closed；ops_event 写径挂 fin 池）。
