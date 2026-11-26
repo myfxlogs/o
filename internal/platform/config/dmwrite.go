@@ -51,6 +51,7 @@ var dmWritableGlobs = []string{
 	"margin.max_open_usd",               // margin-short 单仓借币名义上限（O-40707）
 	"margin.flatten_max_fails",          // margin-short flatten 序连击封顶升件闸（O-41350）
 	"margin.flatten_retry_ivl_s",        // margin-short flatten_failed 重试防抖间隔（O-41350）
+	"margin.collateral_reserve_usd",     // margin 抵押保底 USD——exec_enabled∧低于此=泊资+停扫（O-41364）
 	"gapscan.scan_timeout_s",            // gap 扫描超时
 	"dm.hunger.*",                       // 饥饿响应自参数（检测窗）
 	"selfstate.esc_cluster.*",           // 自态账升件聚类窗/截断（O-39420）

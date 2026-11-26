@@ -99,3 +99,4 @@ margin.ratio_kill	dm	margin-short 负债/抵押比平仓序触发线（O-40707�
 margin.max_open_usd	dm	margin-short 单仓借币名义上限（O-40707）
 margin.flatten_max_fails	dm	margin-short flatten 序连击封顶——达顶升件 margin_flatten_fail 后停自动重试（O-41350）
 margin.flatten_retry_ivl_s	dm	margin-short flatten_failed 重试防抖间隔秒（O-41350）
+margin.collateral_reserve_usd	dm	margin 抵押保底 USD——exec_enabled∧trading 可用低于此=泊资+停扫（O-41364）
