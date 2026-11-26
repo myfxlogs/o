@@ -1,0 +1,51 @@
+# family_manifest.tsv —— 家族能力声明册v0（工单O-41372——迷宫根修B+C同票原子件：
+# 册=数据闸=断言。族语义单一源外部对拍件——本册只声明「终态与判词径」，
+# execfam 册答「paper门开不开」，两表不一致处=普查闸要抓的漂移本体，禁互拷）。
+#
+# 列（TAB 分隔，6 列）：
+#   family      族键（execfam册∪fin_opp_template可能成员∪grammar闭集 并集全量）
+#   terminal    live=live可达族｜paper_only=设计即paper域族（注释律：paper_only
+#               行 note 必填「为什么不进live」——死径与宣告分清否则后继会话误判）
+#   alive_check generic_eval|volEntry|fundingEntry|none —— 存续判径
+#               （O-41370 后 signalAlive default=generic_eval 泛化eval存续判；
+#               volEntry=期权APR判词、fundingEntry=费率同号判词显式分支；
+#               none=族根本不进策略漏斗 execfam.Has=false 永不产提案策略）
+#   drill_shape okx_two_leg|okx_single|cfd_single|dcd|bounded|none —— 演习凭据
+#               产能形（excell.LegShapeOf+Drillable 实况映：bounded=bot全径仿真
+#               族 ShapeGridBot；none=无策略级演习产能含 ShapeXvenue 格级键域族）
+#   exec_venue  okx|exness|xmglobal|none —— 真单执行场（none=跨venue无单一场/
+#               非枚举域 cmc·tron）
+#   note        判词注记（paper_only 必填事由；live 行可空）
+#
+# 册面来源并集（check_funnel_census.sh 同源枚举——漂移即闸红）：
+#   execfam.set(21) ∪ grammar.Families()(17) ∪ migrations fin_opp_template
+#   种子行(11) = 27 族。eval 内部命名空间（trend_mech/xvenue-carry-shadow/
+#   simdrill*）非策略族不入册。
+family	terminal	alive_check	drill_shape	exec_venue	note
+dcd_call	live	volEntry	dcd	okx	dcdOpen执行径+ShapeDCD演习产能+eval臂在案——live可达
+dcd_put	live	volEntry	dcd	okx	同dcd_call（T-0353复役同径）——live可达
+dir_perp_mom	live	generic_eval	okx_single	okx	dirOpen单腿真户径+ShapeOKXSingleLeg演习产能——live可达
+earn_term_spread	paper_only	none	none	okx	grammar候选族——execfam未册=eval proposed→rejected/exec_family_missing永不产策略；假想卡语义无执行器
+funding-extreme-fade	paper_only	generic_eval	okx_single	okx	O-35489卡#578381未收养候选——真单径执行器未建；ShapeOKXSingleLeg演习形在案
+funding-hedge	live	fundingEntry	okx_two_leg	okx	双腿原子执行径+ShapeOKXTwoLeg演习产能——live可达（族级禁喂裁定复审O-41371判词(b)可解禁在案）
+grid_cfd	paper_only	none	none	exness	O-41369影子评估族——execfam未册=永不产提案策略不进漏斗；执行面零开通=点亮另票
+grid_spot	live	generic_eval	bounded	okx	O-41370 ShapeGridBot=bot全径仿真演习产能+okxgrid.live_switch业主首闸——live可达（闸未翻=待命非paper_only）
+lending_spread	paper_only	none	none	okx	grammar候选族——execfam未册永不产策略；假想卡语义无执行器
+mark-last-disloc-fade	paper_only	generic_eval	okx_single	okx	O-35489卡#578382未收养候选——同funding-extreme-fade
+mt5_dir_mom	live	generic_eval	cfd_single	exness	O-41368 cfdOpen CFD单腿真户径+O-41370存续判修复+ShapeCFDSingleLeg演习产能——live可达（venue解析exness先序=eval供腿同源）
+mt5_swap_carry	paper_only	none	none	exness	grammar候选族——NeedFace exness catalog面关=族不枚举+execfam未册永不产策略
+perp-trend-daily	live	generic_eval	okx_single	okx	dirOpen并入同构单腿径（O-41014）+ShapeOKXSingleLeg演习产能——live可达
+perp_quarter_spread	live	generic_eval	okx_two_leg	okx	basisOpen执行径+ShapeOKXTwoLeg演习产能——live可达
+quarter-calendar-spread	paper_only	generic_eval	okx_two_leg	okx	basis记账臂模板集未覆盖=paper记账臂另棒——提案可达但结算记账缺=设计即paper域待补件
+quarter_basis_long	live	generic_eval	okx_two_leg	okx	basisOpen执行径+ShapeOKXTwoLeg演习产能——live可达
+quarter_basis_short	paper_only	none	okx_two_leg	okx	grammar候选族——spot_short腿margin-borrow面disabled=族不枚举+execfam未册；LegShapeOf已册okx_two_leg备产能
+signal-bot-relay	paper_only	generic_eval	none	okx	parked卡#550054骨架——venue侧信号转发非Executor腿语义；Drillable未册=probe→live结构性拦
+sprd-atomic-basis	paper_only	generic_eval	none	okx	parked卡#550052骨架——OKX Nitro Spread价差原子单；凭据私读403物理前提归业主condreq；Drillable未册
+stable-park-usdg	paper_only	generic_eval	none	okx	parked卡#550053骨架——okusd停泊=earn形；Drillable未册=probe→live结构性拦
+stake-carry	paper_only	generic_eval	none	none	设计即paper域（质押停泊参考模型——stakecarry_paper结算臂）；exec场=TRX/cmc非枚举域；无LegShape映
+stake_carry	paper_only	none	none	none	grammar候选（下划线拼写=与execfam stake-carry连字符键双册漂移在案——同概念两键各自声明不合并）——execfam未册永不产策略；exec场cmc/tron非枚举域
+staking-defi-parking	paper_only	generic_eval	none	okx	parked卡#550055骨架——staking停泊=earn形；Drillable未册=probe→live结构性拦
+vol_sell_single_call	live	volEntry	dcd	okx	volSellStrangle同型单腿执行径（T-0215）+ShapeDCD演习产能——live可达
+vol_sell_strangle	live	volEntry	dcd	okx	volSellStrangle双腿执行径（假想卡id=6钦定名）+ShapeDCD演习产能——live可达
+xsec-perp-mom-basket	paper_only	generic_eval	none	okx	O-35489卡#578380未收养候选——篮复合腿形drillUnsupported白名单勿虚开；真单径未建
+xvenue-carry	paper_only	fundingEntry	none	none	exec.xvenue_open闸在案+ShapeXvenue=格级键域策略级Drillable=false→probe→live结构性拦；跨venue双腿（okx主行+mt5cfd副腿）无单一执行场
