@@ -68,6 +68,8 @@ var dmWritableGlobs = []string{
 	"okxws.kline_watchlist",             // 日K观察名单（业主令 2026-11-15 感知面扩集——破活跃集闭环失明，DM 可自扩）
 	"okxws.kline_topn",                  // 日K宇宙动扩额度（工单#18314①——volCcy24h 降序 topN 并扫集,0=关）
 	"okxws.kline_census_hours",          // 全 USDT-SWAP 普查降频时（工单#18314②——零量新上补盲,0=关）
+	"okxws.kline_spot_topn",             // 现货-USDT对动扩额度（O-41366——volCcy24h 降序 topN 并扫集,缺省100,0=关）
+	"okxws.kline_spot_census_hours",     // 全-USDT现货普查降频时（O-41366——现货长尾补盲,缺省0=关）
 	"deploy.*",                          // 部署窗（o-core 换件集中放件时窗——工单#25760）
 	"okxgrid.snap_sec",                  // venue原生bot监控拍秒（工单#25840）
 	"okxgrid.max_invest_usd",            // 单bot投入帽（工单#25840——业主闸下二次保险）
