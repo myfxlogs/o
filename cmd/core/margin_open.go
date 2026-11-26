@@ -19,6 +19,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"o/internal/portfolio/lifecycle"
 	"o/internal/risk"
 	"o/internal/trading/okxexec"
@@ -82,7 +84,7 @@ func (h hedgeOpener) marginShortOpen(ctx context.Context, spec lifecycle.OpenSpe
 	// 前置查=友好拒因不撞约束）。
 	var dup int
 	if err := h.pool.QueryRow(ctx, `SELECT count(*) FROM fin_margin_loan
-		WHERE venue='okx' AND ccy=$1 AND status IN ('open','closing')`, ccy).Scan(&dup); err != nil {
+		WHERE venue='okx' AND ccy=$1 AND status IN ('open','closing','flatten_failed')`, ccy).Scan(&dup); err != nil {
 		return 0, fmt.Errorf("在借仓查败 fail-closed: %w", err)
 	}
 	if dup > 0 {
@@ -93,14 +95,17 @@ func (h hedgeOpener) marginShortOpen(ctx context.Context, spec lifecycle.OpenSpe
 		return 0, fmt.Errorf("现货价不可得（md 两级读面空）——qty 不可算拒")
 	}
 	qty := notional / px
-	// ①借——spot-manual-borrow-repay（spec 钦定端点）。
+	// ①借——spot-manual-borrow-repay（spec 钦定端点）。发单 err=歧态势
+	// （venue 或已执行）——裸负债升件不静默（O-41350②）。
 	if _, err := mv.SpotManualBorrowRepay(ctx, ccy, qty, "borrow"); err != nil {
+		marginNakedLiabEsc(ctx, h.pool, ccy, qty, "borrow_place", err)
 		return 0, fmt.Errorf("借币发单败: %w", err)
 	}
 	// ②借后必经确认才卖——历史行侧=borrow-repay-history 无 clOrdId；
 	// 确认窗=近 2min 新行 amt≈qty side=borrow。查败/无行=ambiguous
-	// →不卖不还（借了不卖=负债裸持须人工/下拍对账——如实上抛）。
+	// →不卖不还（借了不卖=负债裸持须人工/下拍对账——如实上抛+升件）。
 	if err := marginBorrowConfirm(ctx, mv, ccy, qty); err != nil {
+		marginNakedLiabEsc(ctx, h.pool, ccy, qty, "borrow_confirm", err)
 		return 0, fmt.Errorf("借币确认败（已发单未卖——负债裸持待对账）: %w", err)
 	}
 	// ③卖现货——market sell tgtCcy=base_ccy sz=qty（借来多少卖多少）。
@@ -108,15 +113,23 @@ func (h hedgeOpener) marginShortOpen(ctx context.Context, spec lifecycle.OpenSpe
 	if _, err := mv.PlaceOrder(ctx, okxexec.OrderParams{
 		InstID: spotInst, TdMode: "cash", Side: "sell", OrdType: "market",
 		Sz: fmt.Sprintf("%g", qty), ClOrdID: clOrdID, TgtCcy: "base_ccy"}); err != nil {
+		marginNakedLiabEsc(ctx, h.pool, ccy, qty, "spot_sell_place", err)
 		return 0, fmt.Errorf("卖腿发单败（借币已成负债——待 marginLoanTick/人工对账）: %w", err)
 	}
-	st, _, fillSz, _, _, rerr := mv.ResolveOrderDetail(ctx, spotInst, clOrdID)
+	st, avgPx, fillSz, _, _, rerr := mv.ResolveOrderDetail(ctx, spotInst, clOrdID)
 	if rerr != nil || st != okxexec.StateFilled || fillSz <= 0 {
+		marginNakedLiabEsc(ctx, h.pool, ccy, qty, "spot_sell_state",
+			fmt.Errorf("state=%s fill=%.8g err=%v", st, fillSz, rerr))
 		return 0, fmt.Errorf("卖腿未 filled（state=%s fill=%.8g err=%v）——借币负债在账待对账", st, fillSz, rerr)
 	}
 	// ④簿记——execution+position(delta_neutral=false 非中性裸空)+loan+
-	// spot_sell 现金流（卖出毛额=fillSz×avgPx→USDT；费走 bills 域不重记）。
-	return h.marginBookOpen(ctx, spec, dec.DecisionID, ccy, spotInst, qty, fillSz, px, notional)
+	// spot_sell 现金流（卖出毛额=fillSz×成交avgPx——ResolveOrderDetail
+	// 实收均价，报价 px 仅 avgPx 缺席兜底；费走 bills 域不重记）。
+	bookPx := avgPx
+	if bookPx <= 0 {
+		bookPx = px
+	}
+	return h.marginBookOpen(ctx, spec, dec.DecisionID, ccy, spotInst, qty, fillSz, bookPx, notional)
 }
 
 // marginEvidenceOK 执行时点证据三闸（borrowquote 同判据重验——md_
@@ -178,9 +191,20 @@ func marginBorrowConfirm(ctx context.Context, mv marginVenue, ccy string, qty fl
 	}
 }
 
+// marginNakedLiabEsc 裸负债升件（O-41350②——借发单已出但簿记未立：
+// venue 侧可能真借而 fin_margin_loan/闸全不知，ops_event 升件=人工
+// 对账唯一可见面；每次败径一记不去重——各次事件独立事实）。
+func marginNakedLiabEsc(ctx context.Context, pool *pgxpool.Pool, ccy string,
+	qty float64, stage string, cause error) {
+	_, _ = pool.Exec(ctx, `INSERT INTO ops_event(seat,event,ticket,note,esc_class,esc_scope)
+		VALUES('探测席','升件','O-41350',$1,'margin_naked_liab','okx')`,
+		fmt.Sprintf("margin-short 裸负债嫌疑：%s 借 %.8g stage=%s err=%v——venue 侧可能已借而台账无行，须人工对账/补账", ccy, qty, stage, cause))
+}
+
 // marginBookOpen 簿记四件同事务：fin_execution(legged)+fin_position
 // (delta_neutral=false——保证金裸空非中性)+fin_margin_loan(open)+
-// fin_cashflow spot_sell 毛额（position_ref 挂接——息腿同位）。
+// fin_cashflow spot_sell 毛额（position_ref 挂接——息腿同位；
+// O-41350③毛额=fillSz×成交avgPx 非报价 px——滑点不再偏离真实现金账）。
 func (h hedgeOpener) marginBookOpen(ctx context.Context, spec lifecycle.OpenSpec,
 	decisionID int64, ccy, spotInst string, qty, fillSz, px, notional float64) (int64, error) {
 	tx, err := h.pool.Begin(ctx)

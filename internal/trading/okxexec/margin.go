@@ -186,6 +186,40 @@ func (c *Client) borrowHist(ctx context.Context, path string) ([]BorrowRepayHist
 	return out, nil
 }
 
+// SpotBorrowLiab GET /account/balance?ccy=X → details[] 借币负债面读
+// （O-41350 repay 前 venue 当前负债额真源）：liab=币种负债额+
+// interest=应扣未扣利息（两字段皆正数 ccy 单位，venue 文档口径
+// 「适用跨币种/组合保证金模式」——现货模式空串=present=false 由调用面
+// 回退簿记估计不虚构）。crossLiab/isoLiab=保证金模式负债域不入本和
+// （现货借币径不产）。读败上抛——调用面禁盲 repay。
+func (c *Client) SpotBorrowLiab(ctx context.Context, ccy string) (total float64, present bool, err error) {
+	raw, err := c.Get(ctx, "/api/v5/account/balance?ccy="+ccy)
+	if err != nil {
+		return 0, false, err
+	}
+	var rows []struct {
+		Details []struct {
+			Ccy      string `json:"ccy"`
+			Liab     string `json:"liab"`
+			Interest string `json:"interest"`
+		} `json:"details"`
+	}
+	if err := json.Unmarshal(raw, &rows); err != nil || len(rows) == 0 {
+		return 0, false, fmt.Errorf("balance liab parse: %w rows=%d", err, len(rows))
+	}
+	for _, d := range rows[0].Details {
+		if d.Ccy != ccy {
+			continue
+		}
+		liab, interest := parseF(d.Liab), parseF(d.Interest)
+		if d.Liab != "" || d.Interest != "" {
+			return liab + interest, true, nil
+		}
+		return 0, false, nil // 币种在册但负债字段全空=现货模式无此面
+	}
+	return 0, false, fmt.Errorf("ccy %s 缺席 balance details", ccy)
+}
+
 func joinCcy(ccys []string) string {
 	s := ""
 	for i, c := range ccys {

@@ -279,4 +279,5 @@ var finMigrationTable = []migEntry{
 	{264, "fin_0264_margin_exec.sql"},                   // 工单O-40707——margin-short 接线残件:fin_margin_loan 负债台账+borrow_interest kind+闸键五枚(0262被O-40642在途占跳号钉)
 	{265, "fin_0265_fasttrack_probe.sql"},               // 工单O-41014——快窗信号 probe 直通阈件四键(probe.fasttrack_*)
 	{266, "fin_0266_sweep_intent_exempt.sql"},           // 工单O-40829——停泊环意向豁免阈件:earn.sweep_intent_exempt/liab_check 双键(true=有用途的钱不扫)
+	{267, "fin_0267_margin_trackgap.sql"},               // 工单O-41350——margin 追踪面缺口:flatten_failed枚举窗扩+重试封顶列+裸负债/连击升件esc_class+闸键两枚(0266被O-40829在途占跳号钉)
 }
