@@ -29,6 +29,7 @@ type fakeResolveResp struct {
 
 type fakeMarginVenue struct {
 	calls       []string
+	rateCcyArg  []string // InterestRates 入参留证（O-41363 无参全量锚）
 	rates       []okxexec.MarginRate
 	maxLoan     float64
 	maxLoanErr  error
@@ -49,8 +50,9 @@ type fakeMarginVenue struct {
 	borrowRepay int
 }
 
-func (f *fakeMarginVenue) InterestRates(_ context.Context, _ []string) ([]okxexec.MarginRate, error) {
+func (f *fakeMarginVenue) InterestRates(_ context.Context, ccys []string) ([]okxexec.MarginRate, error) {
 	f.calls = append(f.calls, "rates")
+	f.rateCcyArg = append([]string(nil), ccys...)
 	return f.rates, nil
 }
 func (f *fakeMarginVenue) MaxLoanCcy(_ context.Context, _, _, _ string) (float64, error) {
@@ -127,6 +129,11 @@ func TestMarginCollectOnce(t *testing.T) {
 	if n < 4 {
 		t.Fatalf("采集行数=%d want≥4（TST+三锚）", n)
 	}
+	// O-41363 锚①：利率步必须无参全量调用——venue 不吃逗号多币，
+	// ≥2 币拼接出参=51000 毒批（本断言锁死回归）。
+	if len(fv.rateCcyArg) != 0 {
+		t.Fatalf("InterestRates 入参=%v——须无参全量（nil/空集）", fv.rateCcyArg)
+	}
 	var apr, ml float64
 	if err := pool.QueryRow(ctx, `SELECT borrow_apr,max_loan FROM md_margin_borrow
 		WHERE ccy='TST'`).Scan(&apr, &ml); err != nil {
@@ -138,6 +145,36 @@ func TestMarginCollectOnce(t *testing.T) {
 	// 幂等重跑——upsert 同键不炸。
 	if _, err := marginCollectOnce(ctx, pool, fv); err != nil {
 		t.Fatal("重跑败:", err)
+	}
+}
+
+// O-41363 锚②③：宇宙币缺响应=跳过不产证据行；产出行数=宇宙∩响应交集
+// （venue 无借贷市的币不虚构证据——闸按 missing 拒的语义不变）。
+func TestMarginCollectMissingCcySkips(t *testing.T) {
+	pool := testutil.Pool(t)
+	ctx := context.Background()
+	if _, err := pool.Exec(ctx, `INSERT INTO md_funding(ts,venue,inst_id,funding_rate)
+		VALUES(now(),'okx','MISS-USDT-SWAP',-0.001)`); err != nil {
+		t.Fatal("md_funding seed:", err)
+	}
+	fv := &fakeMarginVenue{
+		// 响应只含 BTC 锚——本测宇宙=MISS+BTC/ETH/USDT 锚，
+		// 响应缺 MISS/ETH/USDT → 只 BTC 产行。
+		rates:   []okxexec.MarginRate{{Ccy: "BTC", InterestRate: 0.0000005}},
+		maxLoan: 50,
+	}
+	n, err := marginCollectOnce(ctx, pool, fv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Fatalf("交集行数=%d want=1（仅 BTC 在响应∩宇宙）", n)
+	}
+	// 缺响应币不产证据行（n==1 已证仅 BTC 写——MISS 为本测独占币锚直查）。
+	var cnt int
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM md_margin_borrow WHERE ccy='MISS'`).Scan(&cnt); err != nil || cnt != 0 {
+		t.Fatalf("MISS 缺响应不应产证据行 cnt=%d err=%v", cnt, err)
 	}
 }
 

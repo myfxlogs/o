@@ -80,7 +80,9 @@ func marginCollectOnce(ctx context.Context, pool *pgxpool.Pool, venue marginVenu
 	for c := range ccySet {
 		ccys = append(ccys, c)
 	}
-	rates, err := venue.InterestRates(ctx, ccys)
+	// O-41363：无参全量拉取→本地交集——venue 不吃逗号多币（ccy=A,B 恒
+	// 51000 毒批实证）；宇宙币不在响应=venue 无借贷市跳过不产证据行。
+	rates, err := venue.InterestRates(ctx, nil)
 	if err != nil {
 		return 0, fmt.Errorf("interest-rate: %w", err)
 	}
