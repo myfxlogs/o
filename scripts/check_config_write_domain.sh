@@ -91,7 +91,7 @@ internal/research/sigdist/xvenue.go:bridge.xvenue.map
 internal/research/sigdist/xshadow.go:okx.symbols
 internal/research/regime/persist.go:research.regime.map
 internal/portfolio/hunger/unitdrift.go:ops.unit_registry
-internal/data/okxws/depth5.go:bridge.depth5.symbols
+internal/data/okxws/depth5.go:okx.depth5.symbols
 cmd/core/dialect_submit.go:okx.symbols'
 bare=$(grep -rnE '\.Get\("[a-z0-9_]+\.[a-z0-9_.]+"' internal cmd tools \
     --include='*.go' --exclude='*_test.go' 2>/dev/null \

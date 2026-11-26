@@ -238,6 +238,14 @@ func researchArms(ctx context.Context, errc chan<- error, pool *pgxpool.Pool,
 	// execfam 未册=判词全落 exec_family_missing，影域评分先行执行零径）。
 	go dirmom.NewRunnerVenue(pool, cfg, "exness", "%", "mt5_dir_mom", "MT5方向评估").
 		AttachAlerter(alerter).Run(ctx, errc)
+	// 工单O-41376 XM 上桌二期评估宇宙注册（venue 参数化构造器设计预留位
+	// 落地——xmglobal 桥腿供数后 klines 空态容忍：scan 对空宇宙零卡零炸；
+	// fin_opp_eval 卡片键 template+inst_id，XM 符方言天然错开 exness
+	// （GOLD24-7# vs XAUUSDm）零碰撞；seat 名唯一防 roster.Register 撞名）。
+	go dirmom.NewRunnerVenue(pool, cfg, "xmglobal", "%", "mt5_dir_mom", "MT5方向评估-xm").
+		AttachAlerter(alerter).Run(ctx, errc)
+	go gridcfd.NewRunnerVenue(pool, cfg, "xmglobal", "grid_cfd", "网格评估-cfd-xm").
+		AttachAlerter(alerter).Run(ctx, errc)
 	// T-0379 MT5 族 broker 接入标准径臂（凭据发现→探测→映射闸→paper 态——
 	// md=候选正本池/fin=凭据+ops_event+请求盒正本池；凭据域只读）。
 	// AttachUniverse=okx.symbols=['*'] 通配展开缝（uniCat 同供给件——字面

@@ -140,7 +140,7 @@ func TestClassifyKeyDomain(t *testing.T) {
 	}
 	owner := []string{
 		"risk.max_notional_usd", "risk.kill_switch", "ledger.recon_tol_usd",
-		"feishu.chat_id", "notify.feishu.enabled", "bridge.depth5.symbols",
+		"feishu.chat_id", "notify.feishu.enabled", "okx.depth5.symbols",
 		"calendar.min_impact", "trx.stake_address", "trx.rental_payers",
 		"trx.trongrid_api_key", "cmc.account_id", "mt5.gateway_addr",
 		"totally.unregistered.key",

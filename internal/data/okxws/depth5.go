@@ -1,5 +1,7 @@
 // depth5.go —— books5 复活信号域（T-0139/D-0022 桥二期）：订阅标的集可配置
-// （bridge.depth5.symbols）+帧蒸馏 top5 USD 额/spread_bps 特征行（非原始盘口）。
+// （okx.depth5.symbols——O-41376 自 bridge.* 迁出：bridge.%.symbols 被 mt5
+// 桥腿枚举器当 venue 吃，depth5 非 mt5 户=枚举污染死等日志噪声）+
+// 帧蒸馏 top5 USD 额/spread_bps 特征行（非原始盘口）。
 package okxws
 
 import (
@@ -78,10 +80,10 @@ func (c *Collector) AttachCTV(fn func(ctx context.Context) (map[string]float64, 
 	c.ctvFeed = fn
 }
 
-// depth5Symbols 深度标的集（config 键 bridge.depth5.symbols JSON 数组；缺/空
+// depth5Symbols 深度标的集（config 键 okx.depth5.symbols JSON 数组；缺/空
 // =面缺席如实不订阅——T-0123 撤订语义对无消费域保持）。
 func (c *Collector) depth5Symbols(ctx context.Context) []string {
-	raw, err := c.cfg.Get("bridge.depth5.symbols")
+	raw, err := c.cfg.Get("okx.depth5.symbols")
 	if err != nil {
 		return nil
 	}

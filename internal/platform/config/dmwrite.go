@@ -110,6 +110,7 @@ var ownerKeyGlobs = []string{
 	"mt5.gateway_fallbacks", // 网关备用址链（基建面——JSON 字符串列）
 	"trx.grpc_endpoint",     // Tron RPC 拓扑（基建面）
 	"okx.symbols",           // 采集宇宙清单（GetStringList 数组键——基建面）
+	"okx.depth5.symbols",    // books5 深度标的集（O-41376 自 bridge.* 迁出——枚举污染根修）
 	"mt5.symbols",           // 采集宇宙清单（GetStringList 数组键——基建面）
 	"mt5.tick_dead_sec",     // OnQuote 死流活性阈秒（O-34264——基建自愈面）
 	"readcred.entitlement",  // 读凭据权限白名单（访问控制面——fail-closed）
