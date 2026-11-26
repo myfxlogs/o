@@ -78,7 +78,9 @@ type Worker struct {
 	coins func(ctx context.Context) (map[string]float64, error)
 	// clr 杂币清仓执行缝（T-0439——产线=execution.OkxExecutor；nil=清仓径
 	// 让位，检出升件照发）。
-	clr    Clearer
+	clr Clearer
+	// liab venue 负债现读件（O-40829 意向豁免判据④——nil=源缺席降级）。
+	liab   func(ctx context.Context) (bool, error)
 	rateFn func(ctx context.Context) (okxexec.RateSummary, error)
 	// haltStaleAfter 停摆置位显形阈（工单#22248①——生产 24h；
 	// 注入位=测缝，updated_at 受 bump_config_generation 触发器保护
@@ -100,7 +102,7 @@ func NewWorker(pool *pgxpool.Pool, cfg *config.Client) *Worker {
 			"deposit_failed", "transfer_ambiguous", "compensation_failed", "auto_purchase_off",
 			"snapshot_refresh_failed", "write_err", "custody_marked", "transfer_rejected",
 			"residual_exposure", "residual_clear_failed", "residual_exempted",
-			"residual_clear_halted",
+			"residual_clear_halted", "sweep_intent_exempt",
 			"clearer_absent", "gross_fallback"),
 		rateFn: func(ctx context.Context) (okxexec.RateSummary, error) {
 			return okxexec.LendingRateSummary(ctx, defaultCcy)
@@ -121,7 +123,10 @@ func (w *Worker) AttachIdle(fn func(ctx context.Context) (float64, error)) { w.i
 func (w *Worker) AttachIdleFunding(fn func(ctx context.Context) (float64, error)) { w.idleFund = fn }
 
 // AttachCoins 挂交易户逐币可动余量现读件（T-0439 残币处置判据源）。
-func (w *Worker) AttachCoins(fn func(ctx context.Context) (map[string]float64, error)) { w.coins = fn }
+func (w *Worker) AttachCoins(fn func(ctx context.Context) (map[string]float64, error)) *Worker {
+	w.coins = fn
+	return w
+}
 
 // Run 配管上岗（Register+BeatLoop 30s+扫描循环；boot 首读刷停泊快照——事件锚定形）。
 func (w *Worker) Run(ctx context.Context, errc chan<- error) {
@@ -179,75 +184,6 @@ func (w *Worker) autoPurchaseOn() bool {
 		return false
 	}
 	return true
-}
-
-// sweepIdle 闲余>阈值（热启）→回存停泊。判据源：unified 快照行 avail（WS 事件源，
-// 鲜<5min fail-closed 不动钱）；执行在途（state=open ∧ <1h）让位防饿腿——
-// 超龄 open=执行行漏关账烂非在途（在途单秒级态迁），放行+探针升件（工单#25693：
-// #1117/#1134 挂 14 天把闸堵死实证——账烂堵钱比饿腿更伤）。
-func (w *Worker) sweepIdle(ctx context.Context) error {
-	if !w.autoPurchaseOn() {
-		return nil // T-0342：自动申购停用中——本拍全段让位（钱留原账户）
-	}
-	thr, err := w.getF("earn.sweep_min_usd")
-	if err != nil {
-		w.rej.Inc("missing_param")
-		return fmt.Errorf("earn.sweep_min_usd: %w", err)
-	}
-	// 在途让位先判（T-0462——dcd 摆渡款落 funding 即属在途单预备金；
-	// 先扫 funding 段会把渡款抢去 Earn=ping-pong 病灶。原序=funding 段
-	// 裸奔无此闸——交易户段同款闸上移罩全域）。
-	var inFlight, stale int
-	if err := w.pool.QueryRow(ctx,
-		`SELECT count(*) FILTER (WHERE created_at>now()-interval '1 hour'),
-			count(*) FILTER (WHERE created_at<=now()-interval '1 hour')
-		 FROM fin_execution WHERE state='open'`).Scan(&inFlight, &stale); err != nil {
-		w.rej.Inc("write_err")
-		return err
-	}
-	if stale > 0 {
-		w.staleExecEsc(ctx)
-	}
-	if inFlight > 0 {
-		w.rej.Inc("sweep_skip_inflight")
-		return nil
-	}
-	// T-0149 ②funding 户闲资先扫（入金落 funding 天然闲——直购 Earn 免
-	// 摆渡单跳；读件缺=让位不误报非阻断径）。
-	if w.idleFund != nil {
-		if favail, err := w.idleFund(ctx); err == nil && favail > thr {
-			if w.depositIdleFunding(ctx, favail) {
-				return nil // funding 段已动——下一拍再扫交易户段
-			}
-		} else if err != nil {
-			w.rej.Inc("idle_fund_missing")
-		}
-	}
-	idle, ok, err := w.tradingIdleUSDT(ctx)
-	if err != nil {
-		return err
-	}
-	if !ok {
-		return nil // 计数门已挂（snapshot_stale）——陈快照 fail-closed 不动钱
-	}
-	if idle <= thr {
-		return nil
-	}
-	if time.Since(w.lastSweepFailAt) < 5*time.Minute && math.Abs(idle-w.lastSweepFailAmt) < 0.01 {
-		w.rej.Inc("sweep_backoff") // 同因退避中——禁同参重发（死锁环根修件）
-		return nil
-	}
-	if !w.mu.TryLock() {
-		w.rej.Inc("sweep_busy")
-		return nil
-	}
-	defer w.mu.Unlock()
-	if moved := w.depositIdle(ctx, idle); !moved {
-		w.lastSweepFailAmt, w.lastSweepFailAt = idle, time.Now()
-	} else {
-		w.lastSweepFailAmt, w.lastSweepFailAt = 0, time.Time{}
-	}
-	return nil
 }
 
 // depositIdleFunding funding 户闲资直购 Earn（T-0149 ②：funding→Earn 单跳

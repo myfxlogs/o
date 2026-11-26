@@ -152,7 +152,7 @@ func run() error {
 				return okxAvailFromEvents(ctx, pool, okcli)
 			})
 			earnW.AttachIdleFunding(func(ctx context.Context) (float64, error) { return okxFundingAvailUSDT(ctx, okcli) }) // T-0149 ②
-			earnW.AttachCoins(okxCoinsFor(pool, okcli))                                                                    // T-0439 残币处置判据源
+			earnW.AttachCoins(okxCoinsFor(pool, okcli)).AttachLiabCheck(okcli.AccountHasLiability)                         // T-0439 残币判据源+O-40829 意向豁免 venue 负债真值源
 			earnW.AttachClearer(okxClearer{&execution.OkxExecutor{C: okxexec.NewClient(creds, false)}})                    // T-0439 杂币清仓缝
 			// 交易域首岗：执事（O-37449 xvenueFleet 名册驱动路由——腿 venue=名册路由键，disabled 即拍拒单；名册缺席=静态对兜底）。
 			xfleet.attachOkx(creds) // mutating 凭据件就位覆写（ro=零凭据占位不触网）
