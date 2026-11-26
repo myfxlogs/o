@@ -146,6 +146,12 @@ internal/research/dirtrend -> internal/platform/notify
 internal/research/dirtrend -> internal/platform/rejects
 internal/research/dirtrend -> internal/platform/roster
 internal/research/dirtrend -> internal/research/armwatch
+internal/research/gridcfd -> internal/platform/config
+internal/research/gridcfd -> internal/platform/execfam
+internal/research/gridcfd -> internal/platform/notify
+internal/research/gridcfd -> internal/platform/rejects
+internal/research/gridcfd -> internal/platform/roster
+internal/research/gridcfd -> internal/research/armwatch
 internal/research/gridfit -> internal/platform/config
 internal/research/gridfit -> internal/platform/execfam
 internal/research/gridfit -> internal/platform/notify
@@ -186,6 +192,7 @@ internal/research/hypothesis -> internal/research/funding
 # research→research/evalgate 同域边（research↛trading 红线不触）。
 internal/research/dirtrend -> internal/research/evalgate
 internal/research/dirmom -> internal/research/evalgate
+internal/research/gridcfd -> internal/research/evalgate
 internal/research/gridfit -> internal/research/evalgate
 internal/research/grammar -> internal/research/evalgate
 internal/research/gapscan -> internal/research/evalgate
@@ -286,6 +293,7 @@ internal/research/analyst -> internal/platform/writefail
 internal/research/ctx -> internal/platform/writefail
 internal/research/dirmom -> internal/platform/writefail
 internal/research/dirtrend -> internal/platform/writefail
+internal/research/gridcfd -> internal/platform/writefail
 internal/research/gridfit -> internal/platform/writefail
 internal/research/regime -> internal/platform/writefail
 internal/research/scout -> internal/platform/writefail
