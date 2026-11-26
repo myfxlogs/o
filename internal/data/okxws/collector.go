@@ -61,7 +61,7 @@ type Collector struct {
 	ExpandSymbols func(ctx context.Context) ([]string, error)
 
 	// T-0139 桥二期信号面：books5 复活（D-0022——特征值非原始盘口；标的集
-	// 可配置域 bridge.depth5.symbols，非全宇宙防桥自造洪泛）。
+	// 可配置域 okx.depth5.symbols，非全宇宙防桥自造洪泛）。
 	depth5Syms []string
 	// T-0209：SG 开仓闸行情自供谓词——inst∈活跃集（fin_position 未平仓
 	// ∪fin_strategy 非 retired）才落表；nil=全写（dev 全宇宙径不动）。

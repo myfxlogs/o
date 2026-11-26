@@ -11,7 +11,7 @@ HARD=450
 # exempt：proto 生成代码（*/gen/）与 *_test.go + docs/ 下 .go 证据探针（//go:build ignore）
 exempt() {
   case "$1" in
-    internal/*/gen/*|internal/gen/*|web/src/gen/*|*_test.go) return 0 ;;
+    internal/*/gen/*|internal/gen/*|web/src/gen/*|web/dist/gen/*|*_test.go) return 0 ;;
     docs/*.go) return 0 ;;
   esac
   return 1
