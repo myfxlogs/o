@@ -251,6 +251,15 @@ internal/venue/onboard -> internal/platform/cryptoutil
 internal/venue/onboard -> internal/platform/events
 internal/venue/onboard -> internal/platform/rejects
 internal/venue/onboard -> internal/platform/roster
+# O-41375 venue 上岗普查臂（o-research 细胞层——onboard 同构臂边集：
+# 台账驱动五步全读检查表+承接面判词；platform 面+mt5 只读会话件+
+# execfam 声明册机读面，零写单禁拍板）。
+internal/venue/survey -> internal/mt5
+internal/venue/survey -> internal/platform/config
+internal/venue/survey -> internal/platform/events
+internal/venue/survey -> internal/platform/execfam
+internal/venue/survey -> internal/platform/rejects
+internal/venue/survey -> internal/platform/roster
 # T-0415 ops_decision 写径（platform 基础件——guard/lifecycle/review 三域机件
 # 决策记忆写面；seat 域裁词走库内镜像触发器不经本包）。T-0420 扩 ledger
 # 边——结案判定机 outcome 判词同径（同族 platform 消费边非新方向类）。

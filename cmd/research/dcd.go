@@ -42,6 +42,7 @@ import (
 	"o/internal/research/trendmech"
 	"o/internal/trading/okxexec"
 	"o/internal/venue/onboard"
+	"o/internal/venue/survey"
 )
 
 // dcdFeedFor 双币赢枚举 REST 面（<endpoint_family>/currency-pair → products?uly=
@@ -242,6 +243,10 @@ func researchArms(ctx context.Context, errc chan<- error, pool *pgxpool.Pool,
 	// AttachUniverse=okx.symbols=['*'] 通配展开缝（uniCat 同供给件——字面
 	// '*' 当 base 找配对=结构性永零实证病灶）。
 	go onboard.New(pool, finPool, cfg).AttachUniverse(uniCat.Symbols).Run(ctx, errc)
+	// O-41375 venue 上岗普查臂（fin_venue_candidate 状态机驱动五步检查表
+	// 全读面——证据机写+承接面判词升件；md=候选正本/fin=roster+凭据+
+	// ops_event 正本+OpenSession 会话面；venue-agnostic 零写单）。
+	go survey.New(pool, finPool, cfg).Run(ctx, errc)
 	// T-0310 regime 分析席臂+ctx 采集臂（mql5/OI/FRED/COT/news 公开面——
 	// analyst=LLM 判词缝缺守位；ctx=四源采集事实行）。
 	go analyst.NewRunner(pool, cfg).AttachAlerter(alerter).Run(ctx, errc)
