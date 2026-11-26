@@ -2,6 +2,7 @@ package pgstore
 
 import (
 	"context"
+	"strconv"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -233,6 +234,70 @@ func TestFinEvalRejectKey(t *testing.T) {
 	}
 	if n != 2 {
 		t.Fatalf("fin_eval_reject 行数=%d（应 2：同因覆写+异因各行）", n)
+	}
+}
+
+// TestMigrationTableDerive 派生等价锚（O-41367）：migrationTable=目录
+// 枚举全集——每枚 .sql 入链一次、版本号=文件名号、链内升序、非 .sql
+// 册面件不入链。
+func TestMigrationTableDerive(t *testing.T) {
+	entries, err := migrations.FS.ReadDir(".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantSQL := 0
+	for _, e := range entries {
+		if !e.IsDir() && strings.HasSuffix(e.Name(), ".sql") {
+			wantSQL++
+		}
+	}
+	if len(migrationTable) != wantSQL {
+		t.Fatalf("migrationTable=%d 枚 ≠ 目录 .sql=%d 枚", len(migrationTable), wantSQL)
+	}
+	seen := map[string]bool{}
+	for i, m := range migrationTable {
+		if seen[m.Name] {
+			t.Fatalf("重复入链 %s", m.Name)
+		}
+		seen[m.Name] = true
+		mm := migFileRe.FindStringSubmatch(m.Name)
+		if mm == nil {
+			t.Fatalf("入链名不合法形 %s", m.Name)
+		}
+		fileVer, err := strconv.Atoi(mm[2])
+		if err != nil || fileVer != m.Version {
+			t.Fatalf("版本号≠文件名号 %s ver=%d file=%v", m.Name, m.Version, mm[2])
+		}
+		if i > 0 {
+			p := migrationTable[i-1]
+			pc, cc := p.Name[:3], m.Name[:3]
+			if pc > cc || (pc == cc && p.Version > m.Version) {
+				t.Fatalf("排序乱：%s(v%d) 在 %s(v%d) 前", p.Name, p.Version, m.Name, m.Version)
+			}
+		}
+	}
+}
+
+// TestBuildMigrationTableRejects 脏名/撞号 fail-closed（编译期等价炸——
+// 登记漏执行/silent-skip 失败类同消）。
+func TestBuildMigrationTableRejects(t *testing.T) {
+	panics := func(names ...string) {
+		t.Helper()
+		defer func() {
+			if recover() == nil {
+				t.Fatalf("应 panic 未炸：%v", names)
+			}
+		}()
+		buildMigrationTable(names)
+	}
+	panics("fin_x.sql")                        // 无版本号段
+	panics("foo_0001_x.sql")                   // 非 fin|md 链前缀
+	panics("fin_0266.sql")                     // 缺名件段
+	panics("fin_0001_a.sql", "fin_0001_b.sql") // 同链撞号
+	// 跨链同号合法（fin/md 各自键域）；非 .sql 册面件不入链
+	out := buildMigrationTable([]string{"fin_0001_a.sql", "md_0001_b.sql", "domain.tsv", "migrations.go"})
+	if len(out) != 2 {
+		t.Fatalf("合法集入链=%d 应=2", len(out))
 	}
 }
 

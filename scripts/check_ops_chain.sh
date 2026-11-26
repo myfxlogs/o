@@ -2,7 +2,9 @@
 # check_ops_chain.sh —— T-0386 ops_event 防篡改账闸（check_all 段）：
 #   ① 迁移面：fin_0121 链列（prev_hash/hash）+链写触发器（BEFORE INSERT+
 #     advisory 串行）+禁UD锁权函数+验链函数 齐位；
-#   ② 登记面：migrate_table.go 挂 0120（check_migrations 另钉序号/孤儿）；
+#   ② 登记面：fin_0121 文件在册即执行（O-41367 目录=唯一清单——登记表
+#     已删，文件存在=登记，结构性保证不再单列；check_migrations 另钉
+#     文件名合法/链内唯一）；
 #   ③ 接线面：验链拍挂 lifecycle 饥饿同槽+tools/hungertick 同径；
 #   ④ LIVE 段（条件）：OPS_CHAIN_DSN|FIN_PG_DSN 在且库内 ops_chain_verify()
 #     已落地→全链重算零断（迁移未发窗/DSN 缺席=跳过不炸——check_all 离线径）。
@@ -20,8 +22,8 @@ for pat in 'prev_hash' 'ADD COLUMN IF NOT EXISTS hash' 'BEFORE INSERT' 'ops_even
 	grep -q "$pat" "$MIG" || { echo "FAIL $MIG: 缺 $pat" >&2; fail=1; }
 done
 
-grep -q '"fin_0121_ops_event_chain.sql"' internal/store/pgstore/migrate_table.go \
-	|| { echo "FAIL migrate_table.go: fin_0121 未登记（孤儿文件——永不执行）" >&2; fail=1; }
+# 登记面已由上行 $MIG 文件存在性断言覆盖（O-41367——目录=唯一清单，
+# 文件在仓=必执行，无孤儿面）。
 
 grep -q 'internal/platform/opschain' internal/portfolio/lifecycle/run.go \
 	|| { echo "FAIL lifecycle/run.go: opschain 未入装配（验链拍未挂饥饿同槽）" >&2; fail=1; }

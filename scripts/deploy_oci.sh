@@ -116,12 +116,14 @@ fi
 
 # ── ①c fin 迁移水位闸（工单#26150①——#26123 journal column "state" does
 # not exist 实证：换臂先于 fin 迁移=新码打旧 schema crash-loop）。SG fin
-# 库 schema_migrations max(version) 须 ≥ 码面登记表 fin_ 最大序号（同
+# 库 schema_migrations max(version) 须 ≥ 码面迁移面 fin_ 最大序号（O-41367 文件名派生）（同
 # check_schema_live 判据）；不达=让位本拍零升件静默等下拍——fin 链迁移
 # 者=o-core SG 侧（deploy_image 窗重启自迁）先到位后本闸自开。读败=
 # fail-closed 同拒——水位不可证不换件。──
-reg_fin=$(grep -oE '\{[0-9]+, "fin_[0-9]+' internal/store/pgstore/migrate_table.go \
-	| grep -oE '^\{[0-9]+' | tr -d '{' | sort -n | tail -1 || true) # tolerate: 登记面解析败=空→下行 fail-closed 拒换（水位不可证不换件同契）
+# 水位派生（O-41367——登记表已删，migrations/fin_*.sql 文件名=版本源；
+# 0* 前缀吃前导零防八进制误判）。
+reg_fin=$(ls migrations/fin_*.sql 2>/dev/null | xargs -r -n1 basename \
+	| sed -nE 's/^fin_0*([0-9]+)_.*/\1/p' | sort -n | tail -1 || true) # tolerate: 迁移面解析败=空→下行 fail-closed 拒换（水位不可证不换件同契）
 live_fin=$(timeout 20 ssh -o BatchMode=yes -o ConnectTimeout=8 "$SG_HOST" \
 	"docker exec o-postgres psql -U o -d o -tc 'SELECT COALESCE(max(version),0) FROM schema_migrations'" 2>/dev/null | tr -d ' ' || true) # tolerate: 读败=空→下行 fail-closed 拒换（不可证不换件）
 if [ -z "$reg_fin" ] || [ -z "$live_fin" ] || [ "$live_fin" -lt "$reg_fin" ]; then
