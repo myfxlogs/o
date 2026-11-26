@@ -19,12 +19,21 @@ type MarginRate struct {
 	NextEstRate  string  `json:"nextEstRate"`
 }
 
-// InterestRates GET /api/v5/account/interest-rate?ccy=A,B（逗号分隔多币）。
+// InterestRates GET /api/v5/account/interest-rate。
+// 实证（O-41363 真户探针）：venue 不吃逗号多币——?ccy=A,B 恒 51000
+// Parameter ccy error（单币 ?ccy=X 与无参全量表均正常）。契约：
+// len=0=无参全量拉取（采集面正解——宇宙本地交集不烧限速）；
+// len=1=单币形；len>1=客户端硬拒——多币拼接出参路径物理消除。
 func (c *Client) InterestRates(ctx context.Context, ccys []string) ([]MarginRate, error) {
-	if len(ccys) == 0 {
-		return nil, fmt.Errorf("interest-rate: ccy 空")
+	q := "/api/v5/account/interest-rate"
+	switch len(ccys) {
+	case 0:
+	case 1:
+		q += "?ccy=" + ccys[0]
+	default:
+		return nil, fmt.Errorf("interest-rate: venue 不支持多币拼接（51000）——无参全量+本地交集")
 	}
-	raw, err := c.Get(ctx, "/api/v5/account/interest-rate?ccy="+joinCcy(ccys))
+	raw, err := c.Get(ctx, q)
 	if err != nil {
 		return nil, err
 	}
@@ -218,17 +227,6 @@ func (c *Client) SpotBorrowLiab(ctx context.Context, ccy string) (total float64,
 		return 0, false, nil // 币种在册但负债字段全空=现货模式无此面
 	}
 	return 0, false, fmt.Errorf("ccy %s 缺席 balance details", ccy)
-}
-
-func joinCcy(ccys []string) string {
-	s := ""
-	for i, c := range ccys {
-		if i > 0 {
-			s += ","
-		}
-		s += c
-	}
-	return s
 }
 
 // AccountAdjEquity /account/balance 顶层 adjEq（O-40707 margin 健康闸抵押物
