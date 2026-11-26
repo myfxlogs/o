@@ -6,6 +6,7 @@ package projector
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 )
 
@@ -18,21 +19,17 @@ const (
 func (r *Runner) mdWake(ctx context.Context, ch string) error {
 	switch ch {
 	case "ev_ticks", "ev_markidx", "ev_funding", "ev_signal", "ev_dcd":
-		if ch == "ev_funding" { // T-0301/T-0303：台账+两幽灵表桥频道顺带（小表全量镜像——ev_funding 帧节拍顺带搬运零成本）
-			if err := r.projectVenueCandidates(ctx); err != nil {
-				return err
-			}
-			if err := r.projectGhostTables(ctx); err != nil {
-				return err
-			}
-			if err := r.projectRegime(ctx); err != nil { // T-0312 第九桥顺带
-				return err
-			}
-			if err := r.projectTwoTier(ctx); err != nil { // T-0401 两级采集制桥面对顺带
-				return err
-			}
+		// O-41373③ 连坐隔离：ts 道=帧本名先跑恒活（顺带件锁等/败不再饿死
+		// 全帧——2026-11-25 venue_candidate 撞键 32h+ 连坐实证）；ev_funding
+		// 顺带件组随后各记失败续跑，首个败因末行归并上抛（writefail 升件
+		// 径不静默——隔离≠吞错）。
+		if err := r.projectAllTs(ctx); err != nil { // T-13230：唤醒名只作叫醒源——全 ts 道过闸（cap1 塌陷道饿死根修）
+			return err
 		}
-		return r.projectAllTs(ctx) // T-13230：唤醒名只作叫醒源——全 ts 道过闸（cap1 塌陷道饿死根修）
+		if ch == "ev_funding" { // T-0301/T-0303：台账+两幽灵表桥频道顺带（小表全量镜像——ev_funding 帧节拍顺带搬运零成本）
+			return r.projectMdSidePieces(ctx)
+		}
+		return nil
 	case "ev_eval":
 		return r.projectEvals(ctx)
 	case "ev_proposal":
@@ -41,21 +38,38 @@ func (r *Runner) mdWake(ctx context.Context, ch string) error {
 		if err := r.projectAllTs(ctx); err != nil {
 			return err
 		}
-		if err := r.projectVenueCandidates(ctx); err != nil {
+		sideErr := r.projectMdSidePieces(ctx) // T-0301/T-0303/T-0312/T-0401 boot 顺带同隔离
+		if err := r.projectEvals(ctx); err != nil {
 			return err
 		}
-		if err := r.projectGhostTables(ctx); err != nil {
-			return err
-		}
-		if err := r.projectRegime(ctx); err != nil { // T-0312 boot 首拍顺带
-			return err
-		}
-		if err := r.projectTwoTier(ctx); err != nil { // T-0401 boot 首拍顺带
-			return err
-		}
-		return r.projectEvals(ctx)
+		return sideErr
 	}
 	return nil
+}
+
+// projectMdSidePieces ev_funding/boot 顺带件组（venue_candidate+两幽灵表+
+// regime+两级采集制——小表全量镜像廉价顺带非帧本名）。O-41373③ 连坐
+// 隔离：各件败记日志续跑不早退，首个败因归并上抛——writefail 升件径
+// 保留（隔离防饿死不等于静默），下 ev_funding 帧幂等重投自愈。
+func (r *Runner) projectMdSidePieces(ctx context.Context) error {
+	var firstErr error
+	for _, p := range []struct {
+		name string
+		fn   func(context.Context) error
+	}{
+		{"venue_candidate", r.projectVenueCandidates},
+		{"ghost_tables", r.projectGhostTables},
+		{"regime", r.projectRegime},   // T-0312 第九桥顺带
+		{"twotier", r.projectTwoTier}, // T-0401 两级采集制桥面对顺带
+	} {
+		if err := p.fn(ctx); err != nil {
+			log.Printf("[projector] 顺带件 %s 投影败（不杀帧——下帧重试）: %v", p.name, err)
+			if firstErr == nil {
+				firstErr = err
+			}
+		}
+	}
+	return firstErr
 }
 
 // sgWake SG 侧帧分派（活跃集刷+proposal 回写+反向桥 diff）。

@@ -53,9 +53,18 @@ func (r *Runner) projectVenueCandidates(ctx context.Context) error {
 	return nil
 }
 
-const uVenueCand = `INSERT INTO fin_venue_candidate(id,ts,venue,kind,endpoints,maker_bps,taker_bps,
+// O-41373②：pick CTE 防撞迁 uEval 判例（mirror.go:128）——md id 被 SG 异
+// venue 行占则 COALESCE(max(id),0)+1 另发号（投影臂=SG 本表唯一写方，
+// 单写者下 max+1 无竞争）；同 venue 占用/空位仍携 md id 落，venue 自然键
+// 冲突照旧走 ON CONFLICT (venue) DO UPDATE（2026-11-25 实证病灶：SG
+// exness@12 残留行占 id=12 撞 md mt5@12→pkey 23505 整批回滚）。
+const uVenueCand = `WITH pick AS (
+	SELECT CASE WHEN EXISTS(SELECT 1 FROM fin_venue_candidate x WHERE x.id=$1
+		AND x.venue IS DISTINCT FROM $3)
+		THEN (SELECT COALESCE(max(id),0)+1 FROM fin_venue_candidate) ELSE $1 END AS id)
+INSERT INTO fin_venue_candidate(id,ts,venue,kind,endpoints,maker_bps,taker_bps,
 	min_notional_usd,kyc_ok,api_ok,withdraw_limit,metrics,evidence,state,last_request_at)
-	VALUES($1,$2::timestamptz,$3,$4,$5::jsonb,$6::numeric,$7::numeric,$8::numeric,$9,$10,$11,$12::jsonb,$13::jsonb,$14,$15::timestamptz)
+	SELECT pick.id,$2::timestamptz,$3,$4,$5::jsonb,$6::numeric,$7::numeric,$8::numeric,$9,$10,$11,$12::jsonb,$13::jsonb,$14,$15::timestamptz FROM pick
 	ON CONFLICT (venue) DO UPDATE SET ts=EXCLUDED.ts,kind=EXCLUDED.kind,endpoints=EXCLUDED.endpoints,
 		maker_bps=EXCLUDED.maker_bps,taker_bps=EXCLUDED.taker_bps,min_notional_usd=EXCLUDED.min_notional_usd,
 		kyc_ok=EXCLUDED.kyc_ok,api_ok=EXCLUDED.api_ok,withdraw_limit=EXCLUDED.withdraw_limit,
