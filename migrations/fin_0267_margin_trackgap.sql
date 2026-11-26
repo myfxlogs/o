@@ -1,4 +1,4 @@
--- fin_0266 margin-short 追踪面缺口修件（O-41350——O-40707 post-merge 三维审
+-- fin_0267 margin-short 追踪面缺口修件（O-41350——O-40707 post-merge 三维审
 -- 遗留，margin.exec_enabled 武装前置）：
 -- ①flatten_failed 退出枚举=息腿停/健康闸失明/永不重试三同根——枚举窗扩+
 --   重试计数/防抖时戳/升件封顶三列补齐；
