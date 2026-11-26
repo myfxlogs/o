@@ -26,10 +26,11 @@ var set = map[string]bool{
 	"dir_perp_mom": true, "perp-trend-daily": true, "mt5_dir_mom": true, // T-0160/T-0215/T-0216 历次落位同集（原 lifecycle.paperTemplates 册归并——quarter_basis_short=spot_short 腿缺 margin 能力面不在册）；dcd_put=T-0353 件②④复役登记（USDT 计价腿=基金钱常径——executor DcdQuote/DcdTrade 方向无关、paper 摊提同式、open 派发同 case，全链贯通验证在案）；xvenue-carry=T-0377 paper 径贯通登记（T-0144 双腿开户全链可达：评估前置拒/模板门闸双闸开）——open 派发仍 opener 永拒显式禁（T-0144 armed→open 钉死，T-0145 真执行另票），登记语义=paper 结算域贯通非真单径；dir_perp_mom=方向族首发 paper-only 登记（棒1——eval→proposal→paper→MTM 记账链贯通；真单径=executor+单腿演习件另棒，Drillable=false 拦 probe→live 在位）；perp-trend-daily=方向趋势族 paper-only 登记（工单#11481——Donchian 突破+winrate-CI 评估臂，eval→proposal→paper→MTM 链同棒1贯通；真单径另棒同裁定）；mt5_dir_mom=O-35163 CFD 方向动量族 paper-only 登记（模板#2074 legs=cfd_long/cfd_short settle=mtm——dirmom venue='mt5' 评估臂在案，eval→proposal→paper→dirpaper MTM 链贯通；live 构型位 fail-closed 桩：eq=0+Drillable 未产能，真单径不建）
 	"grid_spot": true, // 工单#25840 OKX原生网格族登记——paper 域提案门开
 	// （判词卡→提案→paper 链贯通）；真单径=okxgrid venue原生bot适配器非
-	// execution.Executor 腿语义——live 晋升双闸在案：excell.Drillable 未
-	// 产能（grid_spot 无 LegShape 映=probe→live 结构性拦）+okxgrid.live_
-	// switch 业主首闸（缺/非 true fail-closed）——登记语义=paper 域贯通，
-	// 真钱拉起两闸均未通。
+	// execution.Executor 腿语义——live 晋升双闸：O-41370 后 drill 径通
+	// （ShapeGridBot=bot 创建→挂单→喂价→kill 全径仿真凭据产能，
+	// simgrid 引擎）+okxgrid.live_switch 业主首闸（缺/非 true
+	// fail-closed 手动期不动）——登记语义=paper 域贯通+毕业链通，
+	// 真钱拉起仍系业主首闸放行。
 	"sprd-atomic-basis": true, // 工单#26268 OKX Nitro Spread 价差组合族骨架册
 	// ——提案卡#550052 parked 前提②消（裁定词「execfam 骨架未册收养骨检硬拒」）。
 	// 登记语义=paper 域提案门开（判词卡→提案→paper 链贯通），**非真单语义**：

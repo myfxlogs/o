@@ -77,6 +77,13 @@ func (r *Runner) openLive(ctx context.Context) {
 			r.rej.Inc("xvenue_sub_leg")
 			continue
 		}
+		// O-41370：grid_spot「开仓」=venue 原生 bot 拉起非腿执行——消费面
+		// 归 okxgrid.Runner.launchGate（live_switch 业主首闸+fin_bot_order
+		// 簿记），op.Open 腿径对 bot 族不适用（误走=双腿原子径开错仓）。
+		if c.spec.Template == "grid_spot" {
+			r.rej.Inc("grid_bot_owned")
+			continue
+		}
 		// T-0103 ③同键振荡保险丝：1h 内开平轮次 ≥3=判据分裂振荡兜底——
 		// 降级+告警，不再喂下一轮（#1662 每分钟开平刷费实证）。
 		var rounds int

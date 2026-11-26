@@ -243,3 +243,31 @@ func TestLaunchDefiniteClassifier(t *testing.T) {
 		}
 	}
 }
+
+// O-41370 锚④：live_switch 缺/非 true=业主首闸不拉起（armed grid
+// 策略在册也零 Launch 调用零 fin_bot_order 行——毕业链通不等于首闸开）。
+func TestLaunchGateSwitchOffNoLaunch(t *testing.T) {
+	ctx, r, m := launchFixture(t)
+	// fixture 默认放 live_switch=true——本锚须显式关回缺省态（删键+
+	// cfg 重载——GetBool 读内存快照）。
+	if _, err := r.pool.Exec(ctx, `DELETE FROM app_config WHERE key='okxgrid.live_switch'`); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.cfg.Load(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.launchGate(ctx); err == nil {
+		t.Fatal("live_switch 缺应 fail-closed 返回错")
+	}
+	for _, c := range m.calls {
+		if c == "launch" || c == "redeem" {
+			t.Fatalf("首闸未放不应触达资金闸/拉起面: %v", m.calls)
+		}
+	}
+	var n int
+	if err := r.pool.QueryRow(ctx,
+		`SELECT count(*) FROM fin_bot_order WHERE strategy_id=
+		 (SELECT id FROM fin_strategy WHERE inst_id='LT-USDT')`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("首闸未放不应落 bot 行: n=%d err=%v", n, err)
+	}
+}

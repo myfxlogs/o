@@ -285,6 +285,9 @@ internal/trading/simdrill -> internal/platform/excell
 internal/trading/simdrill -> internal/trading/dcdexec
 internal/trading/simdrill -> internal/trading/mt5sim
 internal/trading/simdrill -> internal/trading/mtexec
+# O-41370 grid_spot bot 全径演习（okxgrid=venue 原生 bot 适配器产线
+# 同缝——simgrid 仿真 venue 同包注入，演习径=产线 Adapter 五端点同码）。
+internal/trading/simdrill -> internal/trading/okxgrid
 # 工单#22873 writefail 拍败/写败自报公共件（platform 层——ops_event
 # 升件 esc_class='写败' 24h 同窗去重；events 事件脊 fn 包自报+
 # research 定时臂拍败点同消费，方向=platform/research→platform 下行）。

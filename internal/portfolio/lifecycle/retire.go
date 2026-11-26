@@ -137,8 +137,18 @@ func (r *Runner) retireStaleArmedStrategies(ctx context.Context, ttl float64) er
 // 族判词函数直调（dirEntryGate/fundingEntryGate/volEntryGate 同源——
 // 判据一源律，锚径禁第二套信号数学）；读败/行缺=各 gate 自身 fail-
 // closed 语义延评=视同信号死不豁免（与毕业闸同向：不虚构存续证）。
-// 非 perp 向 funding 判词平凡放行（"无资金费率判词"）≠信号证——
-// default 臂仅在 direction 带 perp 前缀时采信，否则不豁免照退。
+// O-41370 泛化存续判：default 臂不再手工族谱——funding 族册
+// （execfam.FundingHedge 唯一真源）∧perp 前缀向仍走 fundingEntryGate
+// （费率同号更严判词钉死——判词本体零改），余向=dirEntryGate 同款
+// eval 行存续判直调（最新 fin_opp_eval proposed∧72h 内=活；行缺/陈/
+// rejected/读败=死 fail-closed 一字不动）。族谱漏收编类病绝根——
+// eval 臂新族注册即自动免疫（migrate_table 派生哲学同判：判据从通用
+// 产物推导非手工登记）。族属前置的实证必要：mt5_dir_mom direction
+// 词复用 long_perp/short_perp 族位约定（腿原语=cfd_* 才是真相面）——
+// 纯 direction 前缀路由会把 CFD 动量误送 funding 判词（md_funding 无
+// CFD 源=恒死=78 尸病灶本体）；模板族判据才把「词复用」与「语义同族」
+// 分开。funding 族非 perp 向（xvenue cfd 副腿）落泛化 eval 判——
+// 行缺=死不虚构豁免。
 func (r *Runner) signalAlive(ctx context.Context, inst, tmpl, dir string, refAPR float64) bool {
 	switch {
 	case tmpl == "dcd_call" || tmpl == "dcd_put" ||
@@ -151,10 +161,12 @@ func (r *Runner) signalAlive(ctx context.Context, inst, tmpl, dir string, refAPR
 		ok, _ := r.dirEntryGate(ctx, inst, tmpl, dir)
 		return ok
 	default:
-		if !strings.HasPrefix(dir, "short_perp") && !strings.HasPrefix(dir, "long_perp") {
-			return false
+		if execfam.FundingHedge(tmpl) &&
+			(strings.HasPrefix(dir, "short_perp") || strings.HasPrefix(dir, "long_perp")) {
+			ok, _ := r.fundingEntryGate(ctx, inst, dir)
+			return ok
 		}
-		ok, _ := r.fundingEntryGate(ctx, inst, dir)
+		ok, _ := r.dirEntryGate(ctx, inst, tmpl, dir)
 		return ok
 	}
 }

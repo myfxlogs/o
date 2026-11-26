@@ -139,6 +139,8 @@ func (m *Matrix) runCell(ctx context.Context, c excell.Cell, t excell.Tier, shap
 
 	if shape == excell.ShapeDCD {
 		m.runDCD(ctx, &res, c, t, stratID, inst)
+	} else if shape == excell.ShapeGridBot {
+		m.execGridCell(ctx, &res, t, stratID, inst)
 	} else {
 		m.runLegged(ctx, &res, c, t, stratID, inst, shape)
 	}

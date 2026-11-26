@@ -46,7 +46,8 @@ func NewRunner(pool *pgxpool.Pool, cfg *config.Client) *Runner {
 			"exec_drill_missing", "exec_drill_failed", "exec_cell_hold",
 			"exec_drill_unshaped", "exec_drill_err",
 			"conf_lb_fail", "entry_cond_defer", "dir_mark_stale", "inst_form_mismatch",
-			"stake_yield_stale", "cmc_swap_stale"), // 工单#21612：stake-carry 双腿率缺/陈让位拦词 // T-0521 毕业闸判词拒因；exec_drill_unshaped=#15291 消费域收窄拦词、exec_drill_err=#15292 断库上抛拒因；dir_mark_stale=方向面 MTM 价缺/陈让位（棒1）；inst_form_mismatch=#15943 inst 构型不配族拦词
+			"grid_bot_owned",
+			"stake_yield_stale", "cmc_swap_stale"), // O-41370：grid_bot_owned=grid_spot 开仓消费面归 okxgrid.Runner——openLive 跳过计数 // 工单#21612：stake-carry 双腿率缺/陈让位拦词 // T-0521 毕业闸判词拒因；exec_drill_unshaped=#15291 消费域收窄拦词、exec_drill_err=#15292 断库上抛拒因；dir_mark_stale=方向面 MTM 价缺/陈让位（棒1）；inst_form_mismatch=#15943 inst 构型不配族拦词
 		sensor: hunger.New(pool, cfg),
 		chainV: opschain.New(pool)}
 }
