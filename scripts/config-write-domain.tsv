@@ -96,3 +96,5 @@ margin.exec_enabled	dm	margin-short 执行径总闸——前置三件实证全�
 margin.ratio_warn	dm	margin-short 负债/抵押比预警线（O-40707）
 margin.ratio_kill	dm	margin-short 负债/抵押比平仓序触发线（O-40707）
 margin.max_open_usd	dm	margin-short 单仓借币名义上限（O-40707）
+margin.flatten_max_fails	dm	margin-short flatten 序连击封顶——达顶升件 margin_flatten_fail 后停自动重试（O-41350）
+margin.flatten_retry_ivl_s	dm	margin-short flatten_failed 重试防抖间隔秒（O-41350）

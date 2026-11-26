@@ -9,14 +9,12 @@ import (
 	"fmt"
 	"log"
 	"math"
-	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"o/internal/ledger"
 	"o/internal/platform/config"
-	"o/internal/trading/okxexec"
 )
 
 // marginLoanTick 在借仓拍：①息腿 accrual ②退役/平仓触发 close ③健康闸。
@@ -35,7 +33,15 @@ func marginLoanTick(ctx context.Context, pool *pgxpool.Pool, cfg *config.Client,
 		log.Printf("[margin] 息腿 accrual 败（下拍续）: %v", err)
 	}
 	// 退役/仓平触发——策略 retired∪position 已闭=仓位事实终结，负债须还。
+	// flatten_failed=平仓序败留账负债仍在息——重试径恢复（O-41350：
+	// 防抖闸+连击封顶升件，枚举窗扩后三面全续不静默）。
 	for _, l := range loans {
+		if l.Status == "flatten_failed" {
+			if err := retryFlattenFailed(ctx, pool, cfg, venue, l); err != nil {
+				log.Printf("[margin] flatten_failed 重试判 %s/%s 败: %v", l.Ccy, l.InstID, err)
+			}
+			continue
+		}
 		var stratID, posID any
 		if l.StrategyRef != nil {
 			stratID = *l.StrategyRef
@@ -57,12 +63,14 @@ func marginLoanTick(ctx context.Context, pool *pgxpool.Pool, cfg *config.Client,
 	return marginHealthGate(ctx, pool, cfg, venue, loans)
 }
 
-// marginOpenLoans 在借仓全枚举（open+closing——closing=平仓序在途仍计息
-// 负债，息腿不停）。
+// marginOpenLoans 在借仓全枚举（open+closing+flatten_failed——closing=
+// 平仓序在途、flatten_failed=平仓序败均仍计息负债，息腿不停；
+// O-41350 枚举窗扩——三隐身链同根修：accrual 续/闸计入/重试恢复）。
 func marginOpenLoans(ctx context.Context, pool *pgxpool.Pool) ([]marginLoan, error) {
 	rows, err := pool.Query(ctx, `SELECT id,venue,ccy,inst_id,amt,apr,status,
-		strategy_ref,position_ref,execution_id,last_accrual_at
-		FROM fin_margin_loan WHERE status IN ('open','closing') ORDER BY id`)
+		strategy_ref,position_ref,execution_id,last_accrual_at,
+		accrued_interest,flatten_fails,last_flatten_try_at,flatten_escalated
+		FROM fin_margin_loan WHERE status IN ('open','closing','flatten_failed') ORDER BY id`)
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +79,8 @@ func marginOpenLoans(ctx context.Context, pool *pgxpool.Pool) ([]marginLoan, err
 	for rows.Next() {
 		var l marginLoan
 		if err := rows.Scan(&l.ID, &l.Venue, &l.Ccy, &l.InstID, &l.Amt, &l.APRSnap,
-			&l.Status, &l.StrategyRef, &l.PositionRef, &l.ExecutionID, &l.LastAccrualAt); err != nil {
+			&l.Status, &l.StrategyRef, &l.PositionRef, &l.ExecutionID, &l.LastAccrualAt,
+			&l.AccruedInterest, &l.FlattenFails, &l.LastFlattenTryAt, &l.FlattenEscalated); err != nil {
 			return nil, err
 		}
 		out = append(out, l)
@@ -178,102 +187,14 @@ func marginKillAll(ctx context.Context, pool *pgxpool.Pool, venue marginVenue,
 		VALUES('探测席','升件','O-40707',$1,'margin_ratio_kill','okx')`,
 		fmt.Sprintf("marginRatio kill 平仓序触发：%s——在借 %d 仓", reason, len(loans)))
 	for _, l := range loans {
-		if l.Status == "open" {
+		// open+closing 皆重试（closing=平仓序在途负债仍在 kill 域——
+		// resolve-first 幂等不双 flatten；flatten_failed 走专属防抖闸径
+		// 不在此重复计）。
+		if l.Status == "open" || l.Status == "closing" {
 			if err := marginCloseLoan(ctx, pool, venue, l, "ratio_kill:"+reason); err != nil {
 				log.Printf("[margin] kill 平仓序 %s 败: %v", l.InstID, err)
 			}
 		}
-	}
-	return nil
-}
-
-// marginCloseLoan 平仓序（spec 钉死先 flatten 后 repay）：
-// ①市价买回 amt 基币（tgtCcy=base_ccy——sz=币量）②定态 filled 才进
-// ③SpotManualBorrowRepay repay——flatten 败/歧态=flatten_failed 不 repay
-//
-//	（币没买回就还=裸空事故）；repay 败=留 closing 态下拍续（幂等：
-//	venue 侧 repay 重复=重复还——先查历史对账，见 marginRepayOnce）。
-func marginCloseLoan(ctx context.Context, pool *pgxpool.Pool, venue marginVenue,
-	l marginLoan, reason string) error {
-	if _, err := pool.Exec(ctx, `UPDATE fin_margin_loan SET status='closing',
-		note=$2 WHERE id=$1 AND status='open'`, l.ID, reason); err != nil {
-		return err
-	}
-	l.Status = "closing"
-	// ①flatten——买回借币量（spot market buy tgtCcy=base_ccy）。
-	clOrdID := fmt.Sprintf("mgc%d", l.ID)
-	_, err := venue.PlaceOrder(ctx, okxexec.OrderParams{
-		InstID: l.InstID, TdMode: "cash", Side: "buy", OrdType: "market",
-		Sz: fmt.Sprintf("%g", l.Amt), ClOrdID: clOrdID, TgtCcy: "base_ccy"})
-	if err != nil {
-		_, _ = pool.Exec(ctx, `UPDATE fin_margin_loan SET status='flatten_failed',
-			note=$2 WHERE id=$1`, l.ID, "flatten_place:"+err.Error())
-		return fmt.Errorf("flatten 下单败（不 repay——裸空防）: %w", err)
-	}
-	// 歧态势律：下单传输成败皆须定态——filled 才进 repay；live/partial/
-	// unknown=flatten_failed 留账人工/下拍核（市价单应瞬时 filled，非
-	// filled=异常面显形不猜）。
-	st, _, fillSz, _, _, rerr := venue.ResolveOrderDetail(ctx, l.InstID, clOrdID)
-	if rerr != nil || st != okxexec.StateFilled || fillSz <= 0 {
-		_, _ = pool.Exec(ctx, `UPDATE fin_margin_loan SET status='flatten_failed',
-			note=$2 WHERE id=$1`, l.ID,
-			fmt.Sprintf("flatten_state:%v fill=%.8g err=%v", st, fillSz, rerr))
-		return fmt.Errorf("flatten 未 filled（state=%s fill=%.8g err=%v）——不 repay", st, fillSz, rerr)
-	}
-	// ②repay——先历史对账防重复还（venue 无幂等键：同 ccy 近 10min 已有
-	// repay 行且本仓未标 repaid=疑似在途/已还——跳过本次 repay 直接核）。
-	if err := marginRepayOnce(ctx, pool, venue, l); err != nil {
-		return err // 留 closing——下拍续（repay 对账幂等不双还）
-	}
-	// ③终态：仓+执行+头寸同事务收口。
-	tx, err := pool.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback(ctx)
-	if _, err := tx.Exec(ctx, `UPDATE fin_margin_loan SET status='repaid',
-		repaid_at=now(), note=$2 WHERE id=$1`, l.ID, "closed:"+reason); err != nil {
-		return err
-	}
-	if l.PositionRef != nil {
-		if _, err := tx.Exec(ctx, `UPDATE fin_position SET state='closed',
-			closed_at=now() WHERE id=$1 AND closed_at IS NULL`, *l.PositionRef); err != nil {
-			return err
-		}
-	}
-	if l.ExecutionID != nil {
-		if _, err := tx.Exec(ctx, `UPDATE fin_execution SET state='closed'
-			WHERE id=$1 AND state<>'closed'`, *l.ExecutionID); err != nil {
-			return err
-		}
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return err
-	}
-	log.Printf("[margin] 平仓序成 %s #%d（%s）——flatten filled=%.8g→repaid", l.Ccy, l.ID, reason, fillSz)
-	return nil
-}
-
-// marginRepayOnce repay+历史对账（venue 无幂等键——先查 spot-borrow-
-// repay-history：近 10min 已有本币 repay 行=疑似在途/已还→跳过发单
-// 直接由调用面收口；无行才发 repay。发单败=err 上抛留 closing 下拍续）。
-func marginRepayOnce(ctx context.Context, pool *pgxpool.Pool, venue marginVenue,
-	l marginLoan) error {
-	hist, err := venue.SpotBorrowRepayHistory(ctx, l.Ccy, "", 10)
-	if err != nil {
-		return fmt.Errorf("repay 前历史对账读败（禁盲发）: %w", err)
-	}
-	for _, h := range hist {
-		if h.Side != "repay" {
-			continue
-		}
-		if ts, perr := strconv.ParseInt(h.TS, 10, 64); perr == nil &&
-			time.Since(time.UnixMilli(ts)) < 10*time.Minute {
-			return nil // 近 10min 已有 repay 在案——不重发（歧态势律）
-		}
-	}
-	if _, err := venue.SpotManualBorrowRepay(ctx, l.Ccy, l.Amt, "repay"); err != nil {
-		return fmt.Errorf("repay 发单败（留 closing 下拍续）: %w", err)
 	}
 	return nil
 }

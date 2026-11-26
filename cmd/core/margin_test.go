@@ -21,6 +21,12 @@ import (
 	"o/internal/trading/okxexec"
 )
 
+type fakeResolveResp struct {
+	st            okxexec.OrderState
+	avgPx, fillSz float64
+	err           error
+}
+
 type fakeMarginVenue struct {
 	calls       []string
 	rates       []okxexec.MarginRate
@@ -32,8 +38,14 @@ type fakeMarginVenue struct {
 	adjErr      error
 	placeErr    error
 	resolveSt   okxexec.OrderState
+	avgPx       float64
 	fillSz      float64
 	resolveErr  error
+	resolveSeq  []fakeResolveResp // FIFO 优先——空回落 resolveSt/avgPx/fillSz/resolveErr
+	borrowErr   error
+	liab        float64
+	liabPresent bool
+	liabErr     error
 	borrowRepay int
 }
 
@@ -50,7 +62,16 @@ func (f *fakeMarginVenue) SpotManualBorrowRepay(_ context.Context, _ string, _ f
 	if side == "repay" {
 		f.borrowRepay++
 	}
+	if f.borrowErr != nil {
+		return nil, f.borrowErr
+	}
 	return json.RawMessage(`{}`), nil
+}
+
+// SpotBorrowLiab O-41350④repay 额 venue 负债面桩。
+func (f *fakeMarginVenue) SpotBorrowLiab(_ context.Context, _ string) (float64, bool, error) {
+	f.calls = append(f.calls, "liab")
+	return f.liab, f.liabPresent, f.liabErr
 }
 func (f *fakeMarginVenue) SpotBorrowRepayHistory(_ context.Context, _, _ string, _ int) ([]okxexec.BorrowRepayHistRow, error) {
 	f.calls = append(f.calls, "hist")
@@ -62,7 +83,12 @@ func (f *fakeMarginVenue) PlaceOrder(_ context.Context, p okxexec.OrderParams) (
 }
 func (f *fakeMarginVenue) ResolveOrderDetail(_ context.Context, _, _ string) (okxexec.OrderState, float64, float64, float64, string, error) {
 	f.calls = append(f.calls, "resolve")
-	return f.resolveSt, 0, f.fillSz, 0, "", f.resolveErr
+	if len(f.resolveSeq) > 0 {
+		r := f.resolveSeq[0]
+		f.resolveSeq = f.resolveSeq[1:]
+		return r.st, r.avgPx, r.fillSz, 0, "", r.err
+	}
+	return f.resolveSt, f.avgPx, f.fillSz, 0, "", f.resolveErr
 }
 func (f *fakeMarginVenue) AccountAdjEquity(_ context.Context) (float64, error) {
 	f.calls = append(f.calls, "adjeq")
@@ -209,7 +235,9 @@ func TestMarginHealthGate(t *testing.T) {
 		t.Fatalf("warn 档升件=%d want 1", esc)
 	}
 	// 档三：eq=500→ratio=1.0≥kill——flatten→repay 序+repaid 终态。
-	fv3 := &fakeMarginVenue{adjEq: 500, resolveSt: okxexec.StateFilled, fillSz: 5}
+	// O-41350 resolve-first：前序态 absent→发新 flatten→filled→repay。
+	fv3 := &fakeMarginVenue{adjEq: 500, resolveSeq: []fakeResolveResp{
+		{st: okxexec.StateAbsent}, {st: okxexec.StateFilled, fillSz: 5}}}
 	if err := marginHealthGate(ctx, pool, cfg, fv3, loans); err != nil {
 		t.Fatal(err)
 	}
@@ -273,6 +301,10 @@ func TestMarginCloseLoanFlattenFailNoRepay(t *testing.T) {
 	_ = pool.QueryRow(ctx, `SELECT status FROM fin_margin_loan WHERE id=$1`, loanID).Scan(&status)
 	if status != "flatten_failed" {
 		t.Fatalf("status=%s want flatten_failed", status)
+	}
+	// 清场——flatten_failed 残留会被 O-41350 扩后枚举窗拾取污染后续测。
+	if _, err := pool.Exec(ctx, `UPDATE fin_margin_loan SET status='repaid',repaid_at=now() WHERE id=$1`, loanID); err != nil {
+		t.Fatal(err)
 	}
 }
 

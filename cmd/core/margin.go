@@ -22,7 +22,7 @@ import (
 	"o/internal/trading/okxexec"
 )
 
-// marginVenue 借贷/下单/权益读面窄接口（桩测注伪缝——生产=*okxexec.Client）。
+// marginVenue 借贷/下单/权益/负债读面窄接口（桩测注伪缝——生产=*okxexec.Client）。
 type marginVenue interface {
 	InterestRates(ctx context.Context, ccys []string) ([]okxexec.MarginRate, error)
 	MaxLoanCcy(ctx context.Context, ccy, mgnMode, mgnCcy string) (float64, error)
@@ -31,21 +31,28 @@ type marginVenue interface {
 	PlaceOrder(ctx context.Context, p okxexec.OrderParams) (json.RawMessage, error)
 	ResolveOrderDetail(ctx context.Context, instID, clOrdID string) (okxexec.OrderState, float64, float64, float64, string, error)
 	AccountAdjEquity(ctx context.Context) (float64, error)
+	SpotBorrowLiab(ctx context.Context, ccy string) (float64, bool, error)
 }
 
-// marginLoan 在借仓行（fin_margin_loan open/closing 态）。
+// marginLoan 在借仓行（fin_margin_loan open/closing/flatten_failed 态——
+// flatten_failed=平仓序败留账仍计息负债，枚举窗扩后息腿/健康闸/重试
+// 三面全续，O-41350）。
 type marginLoan struct {
-	ID            int64
-	Ccy           string
-	InstID        string
-	Amt           float64
-	APRSnap       float64
-	Status        string
-	StrategyRef   *int64
-	PositionRef   *int64
-	ExecutionID   *int64
-	LastAccrualAt time.Time
-	Venue         string
+	ID               int64
+	Ccy              string
+	InstID           string
+	Amt              float64
+	APRSnap          float64
+	Status           string
+	StrategyRef      *int64
+	PositionRef      *int64
+	ExecutionID      *int64
+	LastAccrualAt    time.Time
+	Venue            string
+	AccruedInterest  float64
+	FlattenFails     int
+	LastFlattenTryAt *time.Time
+	FlattenEscalated bool
 }
 
 // marginCollectOnce 单拍采集：宇宙=近 24h 负 funding 基币∪锚币
