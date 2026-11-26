@@ -10,3 +10,7 @@
 fin_surface_lifecycle
 fin_venue_terminal_state
 md_margin_borrow
+# O-41362 fin_0268 SG 双生件——md 域行情事实表（PG-md 正本 md_1105 在册
+# 同判：采集流水/状态快照面，消费=研究/对账读面非 fin 终态积累面）
+md_open_interest
+md_liquidation
