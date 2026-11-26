@@ -212,3 +212,32 @@ func (c *Client) AccountAdjEquity(ctx context.Context) (float64, error) {
 	}
 	return parseF(rows[0].AdjEq), nil
 }
+
+// AccountHasLiability /account/balance details[] 负债真值（O-40829 停泊环意向
+// 豁免判据源——spec 禁线钦定：venue 有负债账上没有=担保钱，手动借/他径借
+// 簿记零行全覆盖）。判据=任一币种 liab/crossLiab/isoLiab>0 ∨ cashBal<0
+// （统一账户借币负债多形态落点全罩——字段缺席=该维无负债不误报）。
+func (c *Client) AccountHasLiability(ctx context.Context) (bool, error) {
+	raw, err := c.Get(ctx, "/api/v5/account/balance")
+	if err != nil {
+		return false, err
+	}
+	var rows []struct {
+		Details []struct {
+			Liab      string `json:"liab"`
+			CrossLiab string `json:"crossLiab"`
+			IsoLiab   string `json:"isoLiab"`
+			CashBal   string `json:"cashBal"`
+		} `json:"details"`
+	}
+	if err := json.Unmarshal(raw, &rows); err != nil || len(rows) == 0 {
+		return false, fmt.Errorf("balance liab parse: %w rows=%d", err, len(rows))
+	}
+	for _, d := range rows[0].Details {
+		if parseF(d.Liab) > 0 || parseF(d.CrossLiab) > 0 || parseF(d.IsoLiab) > 0 ||
+			parseF(d.CashBal) < 0 {
+			return true, nil
+		}
+	}
+	return false, nil
+}
