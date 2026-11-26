@@ -15,7 +15,10 @@
 //	④ venue 负债真值——/account/balance details liab 系>0∨cashBal<0（spec 禁线
 //	  钦定源：venue 有负债账上没有=担保钱，手动借/他径借全覆盖——权威判据）；
 //	⑤ fin_execution state='open' <1h 在途单——sweepIdle 既有 T-0462 闸同段
-//	  前置，本判据不重复计（让位原因归并 sweep_skip_inflight 旧门）。
+//	  前置，本判据不重复计（让位原因归并 sweep_skip_inflight 旧门）；
+//	⑥ margin 抵押保底（O-41364）——margin.exec_enabled=true ∧ trading 可用
+//	  <reserve：venue 借币额度唯抵押物在场可证，扫光=eval 恒拒额度不足
+//	  死锁环；reserve 键缺=fail-closed 豁免（同缺省律），exec 关=失效。
 //
 // 白名单闸（spec 候选 c）不入：sweepIdle 只动计价币 USDT 本位——USDT 恒在
 // FundCcy 三域在册，查了=永豁免=停泊环死；币级白名单归 sweepResidual 既有径。
@@ -104,16 +107,29 @@ func (w *Worker) sweepIntentExempt(ctx context.Context) (string, bool) {
 		return "margin_loan_open", true
 	}
 	// ④ venue 负债真值（权威源——手动借/他径借账上无行全覆盖；读败=fail-closed）
-	if w.liabCheckOn() {
-		if w.liab == nil {
-			return "", false // 源未接线=缺席降级（产线必挂——测试面零网可缺）
-		}
+	//    源未接线=缺席降级跳过本判据（产线必挂——测试面零网可缺；O-41364
+	//    起本判据非末位——早退会让后续判据整段死码，故降级=跳过非返回）。
+	if w.liabCheckOn() && w.liab != nil {
 		has, err := w.liab(ctx)
 		if err != nil {
 			return "liab_read_fail", true
 		}
 		if has {
 			return "venue_liability", true
+		}
+	}
+	// ⑥ margin 抵押保底（O-41364——借币额度唯抵押物在场可证：trading 可用
+	//   <reserve 时扫走=eval 恒拒额度不足死锁环；泊资径见 collateral.go）。
+	//   源缺席（w.idle nil）=降级跳过；读败=fail-closed 豁免。
+	if floor, hold := w.reserveState(); hold {
+		return "collateral_reserve_key_missing", true
+	} else if floor > 0 && w.idle != nil {
+		avail, err := w.idle(ctx)
+		if err != nil {
+			return "collateral_read_fail", true
+		}
+		if avail < floor {
+			return fmt.Sprintf("collateral_reserve:avail=%.2f<floor=%.2f", avail, floor), true
 		}
 	}
 	return "", false
@@ -176,10 +192,24 @@ func (w *Worker) sweepIdle(ctx context.Context) error {
 	if !ok {
 		return nil // 计数门已挂（snapshot_stale）——陈快照 fail-closed 不动钱
 	}
-	if idle <= thr {
+	// O-41364 抵押保底截量——exec_enabled∧reserve 在案时只扫超部
+	// （sweepable=idle−floor：保底内=抵押物不扫；禁无限豁免——avail≥floor
+	// 时判据⑥放行到本段，超部照扫不误钉死在此）。
+	floor, hold := w.reserveState()
+	if hold {
+		w.rej.Inc("sweep_collateral_reserve")
+		log.Printf("[earn] sweep 让位（抵押保底键缺 fail-closed）")
 		return nil
 	}
-	if time.Since(w.lastSweepFailAt) < 5*time.Minute && math.Abs(idle-w.lastSweepFailAmt) < 0.01 {
+	sweepable := idle - floor
+	if sweepable <= thr {
+		if floor > 0 && idle > thr {
+			w.rej.Inc("sweep_collateral_reserve")
+			log.Printf("[earn] sweep 让位（抵押保底 collateral_reserve）: idle=%.2f floor=%.2f 超部≤阈", idle, floor)
+		}
+		return nil
+	}
+	if time.Since(w.lastSweepFailAt) < 5*time.Minute && math.Abs(sweepable-w.lastSweepFailAmt) < 0.01 {
 		w.rej.Inc("sweep_backoff") // 同因退避中——禁同参重发（死锁环根修件）
 		return nil
 	}
@@ -188,8 +218,8 @@ func (w *Worker) sweepIdle(ctx context.Context) error {
 		return nil
 	}
 	defer w.mu.Unlock()
-	if moved := w.depositIdle(ctx, idle); !moved {
-		w.lastSweepFailAmt, w.lastSweepFailAt = idle, time.Now()
+	if moved := w.depositIdle(ctx, sweepable); !moved {
+		w.lastSweepFailAmt, w.lastSweepFailAt = sweepable, time.Now()
 	} else {
 		w.lastSweepFailAmt, w.lastSweepFailAt = 0, time.Time{}
 	}

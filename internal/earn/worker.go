@@ -91,6 +91,9 @@ type Worker struct {
 	// （终拒后同参重试=死锁环实证；告警随尝试节拍自然 ≤1 条/5min）。
 	lastSweepFailAmt float64
 	lastSweepFailAt  time.Time
+	// lastReserveTopup 抵押保底泊资冷却锚（O-41364——15min 窗内不重复
+	// RedeemToTrading：读面滞后/连败防锤 venue）。
+	lastReserveTopup time.Time
 }
 
 // NewWorker 装配（api 未挂接=现率采集岗；AttachVenue 后停泊钱动上岗）。
@@ -103,6 +106,7 @@ func NewWorker(pool *pgxpool.Pool, cfg *config.Client) *Worker {
 			"snapshot_refresh_failed", "write_err", "custody_marked", "transfer_rejected",
 			"residual_exposure", "residual_clear_failed", "residual_exempted",
 			"residual_clear_halted", "sweep_intent_exempt",
+			"sweep_collateral_reserve", "reserve_topup_failed", "reserve_topup_cooldown",
 			"clearer_absent", "gross_fallback"),
 		rateFn: func(ctx context.Context) (okxexec.RateSummary, error) {
 			return okxexec.LendingRateSummary(ctx, defaultCcy)
@@ -143,9 +147,11 @@ func (w *Worker) Run(ctx context.Context, errc chan<- error) {
 	events.ListenLoop(ctx, w.pool, "earn", []string{"ev_account", "ev_position"}, w.scan)
 }
 
-// scan 一拍三件：现率采样（独立——败不连坐扫额）+扫额回拢+残币归口。
+// scan 一拍三件：现率采样（独立——败不连坐扫额）+抵押保底泊资（O-41364
+// ——sweep 反向=redeem 复用件，钱先到判据才有据）+扫额回拢+残币归口。
 func (w *Worker) scan(ctx context.Context) error {
 	w.pollRate(ctx)
+	w.collateralReserveTopup(ctx)
 	if err := w.sweepIdle(ctx); err != nil {
 		return err
 	}
