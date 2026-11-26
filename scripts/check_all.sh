@@ -111,6 +111,7 @@ step "ops-chain";   bash scripts/check_ops_chain.sh                || fail "ops 
 step "resident-units"; bash scripts/check_resident_units.sh        || fail "常驻件登记对拍闸红"
 step "ops-writepath"; bash scripts/check_ops_event_writepath.sh   || fail "升件写径白名单闸红"
 step "queue-birth"; bash scripts/check_queue_birth.sh              || fail "消费面出生闸红"
+step "funnel-census"; bash scripts/check_funnel_census.sh          || fail "家族普查闸红"
 # 测谱分级（T-0409 刀②+④；T-0433 二期插 merge-scoped 档）：变更面=
 # 已提交面（merge-base...HEAD）∪工作树面（status --porcelain 含
 # untracked），与 docs-only 豁免同径收集不复制判据。五档——
