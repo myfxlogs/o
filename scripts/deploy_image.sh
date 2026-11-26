@@ -165,17 +165,17 @@ ssh "$SG" 'bash /opt/o/scripts/image_tag_gc.sh' \
 # 病灶（T-0333 红②③在案）：本径原只船 SG o-core——PG-md 迁移从不随窗，
 # projector boot 迁移是 OCI 旧件不随 master 进，md_1087+bridge-reverse
 # 五表欠账无人补。此步随锁同窗：arm64 migrate 交叉建→scp 上盒→env 件取
-# MD_PG_DSN 跑 -domain=md→水位断言 live≥登记表（「已合并≠已执行」机检，
+# MD_PG_DSN 跑 -domain=md→水位断言 live≥迁移面水位（O-41367 文件名派生）（「已合并≠已执行」机检，
 # 同 check_schema_live 判据）。O_MD_MIGRATE_SKIP=1 跳步（OCI 失联/演习——
 # 跳步即欠账，哨兵照样报红）。健康闸后本步属尾步——败走 tail_fail 不翻 rc。
 pg_md_tail() {
   local reg_md live_md
-  # 登记表分件（migrate_table*.go——D-588 棘轮拆链：md 链已迁 _md 件，
-  # 只 grep 本件=水位恒空假败，升件#32765 实案）。
-  reg_md=$(grep -hoE '\{[0-9]+, "md_[0-9]+' internal/store/pgstore/migrate_table*.go \
-    | grep -oE '^\{[0-9]+' | tr -d '{' | sort -n | tail -1) || return 1
+  # 水位派生（O-41367——登记表已删，migrations/md_*.sql 文件名=版本源；
+  # 0* 前缀吃前导零防八进制误判）。
+  reg_md=$(ls migrations/md_*.sql 2>/dev/null | xargs -r -n1 basename \
+    | sed -nE 's/^md_0*([0-9]+)_.*/\1/p' | sort -n | tail -1) || return 1
   [ -n "$reg_md" ] || return 1
-  echo "[deploy_image] OCI PG-md 迁移随窗——host=$MD_HOST 登记表水位=$reg_md"
+  echo "[deploy_image] OCI PG-md 迁移随窗——host=$MD_HOST 迁移面水位=$reg_md"
   GOARCH=arm64 GOOS=linux go build -o "/tmp/o-migrate-md.$$" ./cmd/migrate \
     || { rm -f "/tmp/o-migrate-md.$$"; return 1; }
   if ! scp -q -o BatchMode=yes -o ConnectTimeout=10 $O_OCI_JARG "/tmp/o-migrate-md.$$" "$MD_HOST:/tmp/o-migrate-md"; then
@@ -192,7 +192,7 @@ pg_md_tail() {
   live_md=$(ssh -o BatchMode=yes -o ConnectTimeout=10 $O_OCI_JARG "$MD_HOST" \
     "sudo docker exec o-postgres-md psql -U o -d o -tc 'SELECT COALESCE(max(version),0) FROM schema_migrations'" | tr -d ' ') || return 1
   [ "${live_md:-0}" -ge "$reg_md" ] || return 1
-  echo "[deploy_image] PG-md 水位 live=$live_md ≥ 登记表=$reg_md"
+  echo "[deploy_image] PG-md 水位 live=$live_md ≥ 迁移面=$reg_md"
 }
 if [ "${O_MD_MIGRATE_SKIP:-0}" = 1 ]; then
   echo "⚠️  [deploy_image] O_MD_MIGRATE_SKIP=1——PG-md 迁移步跳（欠账哨兵照红）" >&2

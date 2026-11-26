@@ -4,7 +4,8 @@
 #   ① 新增 venue/account/symbol/venue_type 键域列必须同文件带 COMMENT ON COLUMN（域归属声明）
 #   ② 新增 venue 类列必须带 CHECK 域约束（裸域禁冒号或枚举闭集）
 #   ③ 禁建新 *_backup_* / *_tmp 表进主 schema
-#   ④ 迁移号唯一性双检（文件名级 + migrate_table.go 登记表级——同号 silent-skip 撞号病灶）
+#   ④ 迁移号唯一性（O-41367 派生化后=文件名级唯一权威——登记表已删，
+#      撞号=Go init panic 同源闸先拦；同号 silent-skip 撞号病灶）
 # 退出码 0=过；1=违规（打印缺失清单）。无 migrations/ 目录=条件未备直通。
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
@@ -15,21 +16,13 @@ FILES=$(git -c core.quotepath=off diff --cached --name-only --diff-filter=A -- '
 if [ $# -gt 0 ]; then FILES="$*"; fi
 
 uniq_fail=0
-# a) 文件名级：migrations/ 顶层 NNNN_*.sql 按号聚合查重（staged+已提交并集=ls 域）
-dup_files=$(ls migrations/*.sql 2>/dev/null | xargs -r -n1 basename | grep -oE '^[0-9]{3,4}' | sort | uniq -d || true)
+# a+b) 版本号唯一性（O-41367——登记表已删，文件名=版本源唯一权威）：
+# 按 链+号 聚合查重（fin/md 分键空间——md=历史号+1000 约定不相交）。
+dup_files=$(ls migrations/*.sql 2>/dev/null | xargs -r -n1 basename \
+	| sed -nE 's/^(fin|md)_([0-9]+)_.*/\1\/\2/p' | sort | uniq -d || true) # tolerate: 无重号=空集非败态
 if [ -n "$dup_files" ]; then
-  echo "FAIL migrations/: 迁移号文件名撞号（$(echo "$dup_files" | paste -sd' ' -)）——同号后登记者会被 silent-skip" >&2
+  echo "FAIL migrations/: 迁移号撞号（$(echo "$dup_files" | paste -sd' ' -)）——同号后登记者会被 silent-skip（Go init panic 同判据）" >&2
   uniq_fail=1
-fi
-# b) 登记表级：migrate_table*.go 行首 {NNNN, 版本号查重（分件制——
-# md 链在 _md 件，单件漏半面=拆链漏跟件根修）
-REGS=$(ls internal/store/pgstore/migrate_table*.go 2>/dev/null || true) # tolerate: 登记表缺席=空集交下游判
-if [ -n "$REGS" ]; then
-  dup_reg=$(grep -hoE '^\s*\{[0-9]+,' $REGS | grep -oE '[0-9]+' | sort -n | uniq -d || true) # tolerate: 无重号=空集非败态
-  if [ -n "$dup_reg" ]; then
-    echo "FAIL $REGS: 版本号重复登记（$(echo "$dup_reg" | paste -sd' ' -)）——两文件占同号必有一方被跳" >&2
-    uniq_fail=1
-  fi
 fi
 
 if [ -z "$FILES" ]; then exit $uniq_fail; fi

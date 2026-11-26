@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # check_migrations.sh —— 迁移十断言硬闸（T-0109 三断言为基，T-0167 分链制扩七，裸GRANT 闸为⑧，depends_on 声明合法性为⑨，破坏性 DDL 存量违例 lint 为⑩）：
-#   ① migrate_table.go 登记 version 链内唯一（同链重复号=红——同号后登记者被 silent-skip）；
-#   ② 每条登记 {N, "md|fin_NNNN_*.sql"} 的链内序号=登记号 N 且文件实存；
-#   ③ migrations/*.sql 每个文件恰有一条登记行（孤儿文件=红）；
+#   ① migrations/*.sql 文件名派生版本链内唯一（同链重复号=红——同号后登记者被 silent-skip；
+#      O-41367 派生化：登记表文件已删，文件名=版本源=唯一清单）；
+#   ② （结构性消——O-41367：版本号从文件名解析即登记号，「登记号 vs 文件序号失配」类同消）；
+#   ③ migrations/*.sql 每个文件名合法 fin|md_NNNN_*.sql（脏名=红——目录=唯一清单，
+#      孤儿/未登记文件类同消：入库即执行，登记漏执行失败类不存在）；
 #   ④ T-0123：新 md_* 表（链内号>49）须声明 upsert 键或保留期（追加式快照全废机检化）；
-#   ⑤ T-0167：两链登记各自单调（登记序=链内版本升序——分链后链即序，乱序登记=红）；
+#   ⑤ （结构性消——O-41367：migrationTable 由目录枚举按版本号排序构建，登记序=号序恒成立）；
 #   ⑥ T-0167/D-0032 §三-5：八桥表 DDL 归一化同形——md 链正表 vs fin 链镜像：
 #      列定义全项（名/类型/NOT NULL/DEFAULT）+CHECK/UNIQUE/FK 约束+索引集
 #      +hypertable/保留期，归一化（去注释/去 IF NOT EXISTS/折空白）后语句集相等
@@ -37,69 +39,34 @@ MIGDEP_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/mig_dep_lib.sh"
 if [ -f "$MIGDEP_LIB" ]; then . "$MIGDEP_LIB"; else mig_dep_parse() { :; }; mig_dep_stray() { :; }; fi
 cd "$(git rev-parse --show-toplevel)"
 
-# 登记表分件（migrate_table*.go——D-588 棘轮拆链：fin 链本件/md 链 _md 件）。
-# ls 字典序 migrate_table.go<migrate_table_md.go 天然 fin 前 md 后，
-# 链内单调判据序守恒；grep -h 抑文件名前缀保行形。
-REGS=$(ls internal/store/pgstore/migrate_table*.go 2>/dev/null | tr '\n' ' ')
 TSV="migrations/domain.tsv"
 fail=0
 
-if [ -z "$REGS" ]; then
-	echo "check_migrations: 条件未备跳过（登记表缺席）"
-	exit 0
-fi
-
-# ①②⑤ 登记表面（链内唯一/单调+序号失配+幽灵登记）
+# ①③ 登记面=目录派生（O-41367——migrate_table*.go 已删，文件名=版本源
+# =唯一清单）：每 .sql 文件名须匹配 fin|md_NNNN_*.sql（脏名=Go 侧
+# deriveMigrationTable init panic 同判据，提交期先拦）；链内版本号唯一
+# （撞号=silent-skip 同判据）。②序号=登记号/⑤登记序单调由派生构造
+# 结构性保证（版本从文件名解析+按号排序——手写登记失配/乱序失败
+# 类同消，不再单列断言）。
 declare -A SEEN=()
-declare -A LAST=()
-declare -A VEROF=()   # 文件名→登记号（⑨ depends_on 判据）
-while IFS= read -r line; do
-	[ -z "$line" ] && continue
-	ver=$(sed -E 's/^\s*\{([0-9]+),.*/\1/' <<< "$line")
-	name=$(sed -E 's/^\s*\{[0-9]+, *"([^"]+)".*/\1/' <<< "$line")
-	chain=${name%%_*}
-	rest=${name#*_}
-	num=$((10#${rest%%_*}))
-	if [ "$chain" != "md" ] && [ "$chain" != "fin" ]; then
-		echo "FAIL 登记表: 登记 $name 前缀非 md|fin（分链制命名 md_NNNN_*/fin_NNNN_*）" >&2
+declare -A VEROF=()   # 文件名→版本号（⑨ depends_on 判据）
+while IFS= read -r f; do
+	name=$(basename "$f")
+	if [[ ! "$name" =~ ^(fin|md)_([0-9]+)_.+\.sql$ ]]; then
+		echo "FAIL migrations/$name: 文件名非法——唯一合法形 fin|md_NNNN_*.sql（目录=清单，脏名=运行期 init 炸——闸先拦）" >&2
 		fail=1
 		continue
 	fi
-	# ① 链内唯一
+	ver=$((10#${BASH_REMATCH[2]}))
+	chain=${BASH_REMATCH[1]}
 	key="$chain/$ver"
 	if [ -n "${SEEN[$key]:-}" ]; then
-		echo "FAIL 登记表: $chain 链版本号 $ver 重复登记（${SEEN[$key]} 与 $name）——同号后登记者被 silent-skip" >&2
+		echo "FAIL migrations/$name 与 ${SEEN[$key]}: $chain 链版本号 $ver 撞号——同号后登记者被 silent-skip" >&2
 		fail=1
 	fi
 	SEEN[$key]=$name
-	# ⑤ 链内单调（登记序=版本升序）
-	if [ -n "${LAST[$chain]:-}" ] && [ "$ver" -le "${LAST[$chain]}" ]; then
-		echo "FAIL 登记表: $chain 链登记非单调（$name 乱序）——分链后链即序，乱序=红" >&2
-		fail=1
-	fi
-	LAST[$chain]=$ver
-	# ② 链内序号=登记号 + 文件实存
-	if [ "$num" != "$ver" ]; then
-		echo "FAIL 登记表: 登记 $ver 与文件链内序号 $num 失配（$name）——序号语义分裂" >&2
-		fail=1
-	fi
-	if [ ! -f "migrations/$name" ]; then
-		echo "FAIL 登记表: 登记 $ver 的 $name 文件不存在（幽灵登记——部署即炸）" >&2
-		fail=1
-	fi
 	VEROF[$name]=$ver
-done < <(grep -hE '^\s*\{[0-9]+, *"(md|fin)_[0-9]+_' $REGS)
-
-# ③ 孤儿文件（migrations/*.sql 每文件恰一条登记）
-while IFS= read -r f; do
-	name=$(basename "$f")
-	[ "$name" = "migrations.go" ] && continue
-	[ "$name" = "domain.tsv" ] && continue
-	grep -qF "\"$name\"" $REGS || {
-		echo "FAIL migrations/$name: 孤儿迁移文件（登记表无行——永不执行）" >&2
-		fail=1
-	}
-done < <(find migrations -maxdepth 1 \( -name '*.sql' -o -name 'domain.tsv' \) | sort)
+done < <(find migrations -maxdepth 1 -name '*.sql' | sort)
 
 # ④ 新 md_* 表 upsert 键/保留期（链内号>49）
 while IFS= read -r f; do
@@ -253,7 +220,7 @@ fi
 while IFS= read -r f; do
 	name=$(basename "$f")
 	dv=${VEROF[$name]:-}
-	[ -n "$dv" ] || continue   # 未登记文件③已红——⑨不重复判
+	[ -n "$dv" ] || continue   # 脏名文件①已红——⑨不重复判
 	chain=${name%%_*}
 	while IFS= read -r dep; do
 		[ -n "$dep" ] || continue
@@ -266,7 +233,7 @@ while IFS= read -r f; do
 		esac
 		pv=${VEROF[$dep]:-}
 		if [ -z "$pv" ]; then
-			echo "FAIL $f: depends_on 目标 $dep 未登记（依赖不可施——先落依赖或改名）" >&2
+			echo "FAIL $f: depends_on 目标 $dep 不在 migrations/（依赖不可施——先落依赖或改名）" >&2
 			fail=1
 			continue
 		fi
@@ -426,7 +393,7 @@ PYEOF
 fi
 
 if [ "$fail" -eq 1 ]; then
-	echo "❌ check_migrations: 断言红——撞号/串链/桥表漂移/白名单缺册/裸GRANT/depends_on 声明/破坏性 DDL 禁提交（canon migration-number-collision + D-0030 §六 + 工单#25800/#25799）" >&2
+	echo "❌ check_migrations: 断言红——撞号/脏名/串链/桥表漂移/白名单缺册/裸GRANT/depends_on 声明/破坏性 DDL 禁提交（canon migration-number-collision + D-0030 §六 + 工单#25800/#25799/O-41367）" >&2
 	exit 1
 fi
-echo "OK: check_migrations（十断言过——链内唯一/序号实存/零孤儿/md_* 键域/两链单调/八桥 DDL 同形/域白名单/裸GRANT 白名单/depends_on 声明合法/破坏性 DDL lint）"
+echo "OK: check_migrations（十断言过——链内唯一/文件名合法/md_* 键域/八桥 DDL 同形/域白名单/裸GRANT 白名单/depends_on 声明合法/破坏性 DDL lint；②⑤由目录派生结构性保证）"

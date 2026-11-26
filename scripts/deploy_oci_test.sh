@@ -121,10 +121,11 @@ new_repo() { # $1=二提交改动件路径（须落在三臂共有谱系行）
 	rm -rf "$T/o" "$T/origin.git"; git init --bare -q "$T/origin.git"
 	git init -q -b master "$T/o"; git -C "$T/o" config user.email t@t; git -C "$T/o" config user.name t
 	git -C "$T/o" remote add origin "$T/origin.git"
-	mkdir -p "$T/o/scripts" "$T/o/deploy" "$T/o/internal/store/pgstore" "$T/o/docs" "$T/o/$(dirname "$1")"
+	mkdir -p "$T/o/scripts" "$T/o/deploy" "$T/o/docs" "$T/o/migrations" "$T/o/$(dirname "$1")"
 	cp "$HERE/deploy_oci.sh" "$HERE/arm_faces_lib.sh" "$HERE/oci_ssh_route.sh" "$T/o/scripts/"
 	cp "$HERE/../deploy/deploy-faces.tsv" "$HERE/../deploy/oci-env-contract.tsv" "$T/o/deploy/"
-	cp "$HERE/../internal/store/pgstore/migrate_table.go" "$T/o/internal/store/pgstore/"
+	# O-41367——登记表已删：migrations/fin_*.sql 文件名=水位源，夹具拷真仓迁移面
+	cp "$HERE"/../migrations/fin_*.sql "$T/o/migrations/"
 	echo base > "$T/o/docs/base.md"
 	git -C "$T/o" add -A; git -C "$T/o" commit -qm init; git -C "$T/o" push -qu origin master
 	BASE_FULL=$(git -C "$T/o" rev-parse HEAD)
@@ -165,7 +166,8 @@ printf 'FIN_PG_DSN=postgres://stub\n' > "$T/research.env"
 echo "T1 fin 水位闸拦截（live<reg 让位本拍）"
 new_repo internal/platform/config/dummy.go
 setup_remote "$BASE_FULL"
-REG_FIN=$(grep -oE '\{[0-9]+, "fin_[0-9]+' "$T/o/internal/store/pgstore/migrate_table.go" | grep -oE '[0-9]+' | sort -n | tail -1)
+REG_FIN=$(ls "$T/o"/migrations/fin_*.sql | xargs -r -n1 basename \
+	| sed -nE 's/^fin_0*([0-9]+)_.*/\1/p' | sort -n | tail -1)
 T_FIN_LIVE=1 run_deploy > "$T/rc1"
 if grep -q 'fin 迁移水位闸未过' "$T/out" && ! grep -q 'done→' "$T/out" \
 	&& [ "$(cat "$T/remote_oci/arms/o-collecto")" = "OLD-collecto" ] \

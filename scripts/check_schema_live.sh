@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # check_schema_live.sh —— T-0181 漂移哨兵：SG fin/dev md 各查
-# max(schema_migrations.version) 对照登记表最大号，落后即红——「已合并≠
+# max(schema_migrations.version) 对照迁移面最大号（O-41367 文件名派生），落后即红——「已合并≠
 # 已执行」灰色态机械报（哨兵只读对照不自动补迁）。用法：
 # scripts/check_schema_live.sh [SG_PG_DSN] [MD_PG_DSN]（缺=容器探测）。
 set -euo pipefail
-# 登记表最大号（单源——migrate_table 登记链是合法迁移清单；按链名取号）
-# 登记表分件（migrate_table*.go——拆链后 md 链在 _md 件，只读本件=md 水位恒空
-# 致 -lt 空参崩溃/假红，升件#32765 同族漏跟件）。
-max_of() { grep -hoE '\{[0-9]+, "[a-z]+_[0-9]+' internal/store/pgstore/migrate_table*.go 2>/dev/null || true; } # tolerate: 无登记=空集非败态
+# 登记表最大号（O-41367 派生化——登记表已删，migrations/${dom}_*.sql
+# 文件名=版本源=唯一清单；0* 前缀吃前导零防 sort/-lt 八进制误判）
+max_of() { ls migrations/${1}_*.sql 2>/dev/null | xargs -r -n1 basename \
+	| sed -nE "s/^${1}_0*([0-9]+)_.*/\1/p" | sort -n | tail -1 || true; } # tolerate: 无迁移文件=空集非败态（下行 fail-closed 判）
 SG_DSN="${1:-}"
 MD_DSN="${2:-}"
 # T-0181 返修：fin 探针改 SSH 径打 SG 真库（docker port 自动探测=本机
@@ -29,8 +29,7 @@ if [ -z "$MD_DSN" ]; then
 fi
 fail=0
 for dom in fin md; do
-	reg=$(grep -hoE "\{[0-9]+, \"${dom}_[0-9]+" internal/store/pgstore/migrate_table*.go \
-		| grep -oE '^\{[0-9]+' | tr -d '{' | sort -n | tail -1)
+	reg=$(max_of "$dom")
 	dsn=$([ "$dom" = fin ] && echo "$SG_DSN" || echo "$MD_DSN")
 	if [ "$dom" = fin ] && [ "$SG_DSN" = "ssh" ]; then
 		live=$(timeout 20 ssh -o BatchMode=yes -o ConnectTimeout=8 "$SG_HOST" \
@@ -44,11 +43,16 @@ for dom in fin md; do
 		echo "check_schema_live: $dom 链 schema_migrations 读败——fail-closed 红" >&2
 		exit 1
 	fi
+	if [ -z "$reg" ]; then
+		echo "FAIL: $dom 链迁移面水位不可证（migrations/${dom}_*.sql 空集）——fail-closed 红" >&2
+		fail=1
+		continue
+	fi
 	if [ "$live" -lt "$reg" ]; then
-		echo "FAIL: $dom 链落后——live=$live 登记表=$reg（已合并≠已执行灰色态）" >&2
+		echo "FAIL: $dom 链落后——live=$live 迁移面=$reg（已合并≠已执行灰色态）" >&2
 		fail=1
 	else
-		echo "OK: $dom 链 live=$live ≥ 登记表=$reg"
+		echo "OK: $dom 链 live=$live ≥ 迁移面=$reg"
 	fi
 done
 

@@ -165,12 +165,12 @@ verdict_reflow 产 draft→ticketdraft 出票；两并发草案各得独立伪�
 > 树 147 靠撞发现——drift 五类各散各域无一本账。
 
 - **F1 期望态声明**：`deploy/manifest.tsv`——一行一类：unit 名→repo
-  件路径 / binary 名→cmd 构建路径 / 迁移域→migrate_table 期望版 /
+  件路径 / binary 名→cmd 构建路径 / 迁移域→migrations/ 文件名派生期望版 /
   timer→应 enabled 态。repo 件=唯一真源，live 件=被对账面。
 - **F2 只读探针**：`scripts/meta/drift_probe.sh`——实态采集零写径：
   `systemctl --user cat` 哈希 vs repo 件哈希；`go version -m` 取
   二进制 vcs.sha vs 构建期 sha（无嵌入=drift 类「sha 不可考」）；
-  `schema_migrations` max vs 登记表 max；unit/timer active+enabled
+  `schema_migrations` max vs 迁移面文件名 max；unit/timer active+enabled
   实态 vs 期望。drift 行→`gauges.tsv`+ops_event 观测行（说明类词
   形——不进票相位，段 B1 先例）；挂 o-mech 尾窗每拍跑。
 - **F3 自收敛分级**：安全类（unit 文件按 repo sync、二进制按已并入
@@ -297,7 +297,7 @@ sha-unmerged，无嵌入/仓内不可解=sha-unrecoverable，deps 含
 `o/internal/{exec,trading,venue,ledger}`=money-path，`go list -deps` 败=
 dep-unknown，仅当 `git diff <bin sha>..HEAD -- <deps 路径> go.mod go.sum`
 前进才判 stale（deps 未前进不报）；migration 以 live `schema_migrations`
-max 对 `migrate_table.go` 登记链最大号（欠账/超登记/读败三态）。零写径：
+max 对 `migrations/` 文件名派生链最大号（欠账/超登记/读败三态）。零写径：
 写面仅 `$ST/drift.tsv`+`last.ts` 快照与 ops_event `漂移`/`漂移消` 说明类
 观测行（24h 前缀去重、不进票相位），不触 live unit/binary/DB。streak=
 同键连续拍数，上拍龄>`O_DRIFT_STREAK_WINDOW`（默认 1800s）不续；快照先
