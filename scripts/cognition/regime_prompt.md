@@ -38,6 +38,13 @@ SELECT count(*), round(percentile_cont(0.5) WITHIN GROUP (ORDER BY vol)::numeric
 psql "$FIN_DSN" -qAt -c "SELECT event, count(*) FROM ops_event
 WHERE ts>now()-interval '24 hours'
   AND event IN ('升件','处置','部署','量表') GROUP BY 1 ORDER BY 2 DESC LIMIT 8"
+
+# 4) 宏观外部料：md_ctx_fact 近 7d 五源事实（cftc COT 持仓/fred 利率/
+#    ffcal 日历/frankfurter 汇率/okx OI——体制判读的宏观眼；空窗≠败,
+#    如实标陈即可）
+psql "$MD_PG_DSN" -qAt -c "SELECT source, kind, count(*),
+  max(ts)::timestamp(0) last_ts FROM md_ctx_fact
+WHERE ts>now()-interval '7 days' GROUP BY 1,2 ORDER BY 1,2 LIMIT 20"
 ```
 
 ## 判读判据（机械可复核——禁凭感觉）
@@ -50,7 +57,8 @@ WHERE ts>now()-interval '24 hours'
   负向=下行/避险→`risk_off`；breadth 0.4–0.6∧|mom| 小=无主导方向
   →`risk_thin`。
 - **conf**：三源输入互相印证=high；两源一致一源缺/陈=mid；输入
-  缺腿（如 funding 表空窗）或互相矛盾=low。
+  缺腿（如 funding 表空窗）或互相矛盾=low。源4=辅助件非必要腿：
+  ctx 空窗不压 conf，ctx 与市场面矛盾时可压一档。
 - **horizon**：体制快变量（事件冲击/急 funding 漂移）=24h；慢变量
   （趋势/广度格局）=7d。拿不准取 24h——对拍窗短=证伪快。
 
@@ -69,7 +77,7 @@ WHERE NOT EXISTS (
 ```
 
 - `evid` 必载：`fp:<regime_due 标件 fp 前8位>`（对拍回指唤起因）+
-  实读锚（如 `md_funding:7d@<last_ts>;md_klines:1D@<last_bar>;ops_event:24h#<id>`）。
+  实读锚（如 `md_funding:7d@<last_ts>;md_klines:1D@<last_bar>;ops_event:24h#<id>;md_ctx_fact:7d@<last_ts>`）。
 - **去重窗=24h**：同标签+同置信 24h 内已落行→本拍不产（查询返回
   空=正常收工，非失败）。标签或置信任一变=新读数可落。
 - 龄界自觉：你只产当下读数；horizon 满后由 regimedigest.sh 对拍段
