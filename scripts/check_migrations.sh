@@ -10,8 +10,8 @@
 #      +hypertable/保留期，归一化（去注释/去 IF NOT EXISTS/折空白）后语句集相等
 #      （回滚径「SG 镜像表即正表（DDL 相同）」前提机检钉死）；
 #   ⑦ T-0167/D-0030 §六：域表白名单（migrations/domain.tsv 表名→md|fin|bridge|
-#      bridge-reverse）——链内 DDL/DML 触表出现非本域且非桥（bridge/
-#      bridge-reverse）即红（串链）；触表缺册=红；
+#      bridge-reverse|dual）——链内 DDL/DML 触表出现非本域且非桥/非 dual
+#      （dual=两链各建各的无镜像同名表，O-41362）即红（串链）；触表缺册=红；
 #   ⑧ 裸 GRANT 闸（0071/0098/0161/0191 四案实证）：链外角色 GRANT 必须
 #      在 DO $$ IF EXISTS(pg_roles) 块内——顶格 GRANT 只许链内自建角色
 #      或 PUBLIC，否则 fresh 测试库无此角色即 SQLSTATE 42704 炸链。
@@ -195,8 +195,8 @@ while IFS=$'\t' read -r ch tbl kind stmt src; do
 	if [ -z "$d" ]; then
 		echo "FAIL $src: 触表 $tbl 缺 domain.tsv 册（新表先入册再落迁移）" >&2
 		fail=1
-	elif [ "$d" != "$ch" ] && [ "$d" != "bridge" ] && [ "$d" != "bridge-reverse" ]; then
-		echo "FAIL $src: $ch 链触表 $tbl 域=$d（非本域非 bridge——串链）" >&2
+	elif [ "$d" != "$ch" ] && [ "$d" != "bridge" ] && [ "$d" != "bridge-reverse" ] && [ "$d" != "dual" ]; then
+		echo "FAIL $src: $ch 链触表 $tbl 域=$d（非本域非 bridge/dual——串链）" >&2
 		fail=1
 	fi
 done < "$EXTRACT"

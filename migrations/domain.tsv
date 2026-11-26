@@ -1,7 +1,10 @@
 # migrations/domain.tsv —— 域表白名单（T-0167/D-0030 §三/§五/D-0032 §三-5）。
-# 表名<TAB>md|fin|bridge；check_migrations.sh 据此断言：链内出现非本域且非
-# bridge 的表即红（串链）。bridge=八桥表（md 链正表/fin 链镜像，DDL 归一化
-# 同形断言另钉）。前缀不可判域（研究表多 fin_ 前缀、md_calendar_push 名 md
+# 表名<TAB>md|fin|bridge|bridge-reverse|dual；check_migrations.sh 据此断言：
+# 链内出现非本域且非桥/非 dual 的表即红（串链）。bridge=八桥表（md 链正表/
+# fin 链镜像，DDL 归一化同形断言另钉）。dual=双域同名表（O-41362——两链各建
+# 各的无镜像关系：SG o-core 与 OCI collector 各自采集写各自库的同名表，
+# 如 md_open_interest/md_liquidation——md_1105 PG-md 正本+fin_0268 SG 双生）。
+# 前缀不可判域（研究表多 fin_ 前缀、md_calendar_push 名 md
 # 实 fin）——一律以此清单为准；新表先入册再落迁移，缺册=红。
 # 格式：每行 `表名\t域`；# 起头为注。
 # bridge-reverse（T-0172）：反向桥——正本 fin 链（SG 写），projector 反向镜像
@@ -99,8 +102,10 @@ md_opt_instruments	md
 md_opt_summary	md
 md_opt_ticker	md
 md_opt_snapshot	md
-md_open_interest	md
-md_liquidation	md
+# dual（O-41362）：SG o-core okxws 采集器与 OCI collector 各自写各自库的
+# 同名表——两链各建各的无镜像（md_1105 PG-md 正本 / fin_0268 SG 双生）。
+md_open_interest	dual
+md_liquidation	dual
 md_klines	bridge-reverse
 md_regime_fact	bridge
 md_regime_memo	bridge
