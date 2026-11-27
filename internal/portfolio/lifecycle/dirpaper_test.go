@@ -225,3 +225,24 @@ func TestDirPaperNonSwapTicksPath(t *testing.T) {
 		t.Fatalf("非 SWAP inst 应走 ticks 记 open 锚 n=%d err=%v 期 1", n, err)
 	}
 }
+
+// O-41381 锚：CFD inst ticks 龄>exec.tick_max_age_s(120s)但<cfd 界(7200s)
+// 仍记 open 锚——push-on-change 流稀疏符静默≠流死（产线实案:128 paper
+// 零锚饿死）。对照面:同条件 SWAP inst 走 mark-index 不受本界影响。
+func TestDirPaperCfdStaleBound(t *testing.T) {
+	r := dirRig(t)
+	ctx := context.Background()
+	sid := seedDir(t, r, "USDSEK#", "long_perp", "1 hours")
+	if _, err := r.pool.Exec(ctx, `INSERT INTO md_ticks(venue,inst_id,last,ts)
+		VALUES('xmglobal','USDSEK#',10.5,now()-interval '300 seconds')
+		ON CONFLICT (venue,inst_id) DO UPDATE SET last=EXCLUDED.last,ts=EXCLUDED.ts`); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.dirPaperAccounting(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM fin_paper_fill WHERE strategy_id=$1 AND kind='open'`, sid).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("CFD inst 300s龄 tick 应过鲜度界记 open 锚 n=%d err=%v 期 1", n, err)
+	}
+}
