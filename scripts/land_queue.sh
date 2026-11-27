@@ -192,6 +192,23 @@ mig_dep_gate() { # $1=br名 $2=tip [$3=provides文件] → rc0=依赖序合法�
 }
 
 # ── 扫支：七日内未并支按尖龄升序，要件齐支入列车（上界 TRAIN_MAX）──
+# 审计断言载支面外集（工单#43861）：audit/* 断言支=RED 证据载支设计内
+# 有意滞留非候审——「审计」收口行分支=锚在案即标面外（产出拍即豁免,
+# 显式保信号=面外登记行落账非静默前缀豁免）；忘收口的 audit 支不在
+# 集=照常滞留升件（裸前缀豁免被否案不收）。读败/无 DSN=空集 fail-
+# closed 回落现行滞留语义（保守向——宁可多报不漏报）。
+audit_exempt() { case " $AUDIT_EXEMPT " in *" $1 "*) return 0;; esac; return 1; }
+audit_park() { # $1=支名——面外登记行 dedup(esc_scope=landq_oos:<br>)
+	[ -n "$DSN" ] || return 0
+	q "SELECT 1 FROM ops_event WHERE event='面外登记' AND esc_scope='landq_oos:$1' LIMIT 1" \
+		| grep -q . && return 0
+	local n; n=$(sqlq "面外登记 支=$1——审计断言载支收口在案(event=审计 分支=锚)有意滞留非候审,landq_starved 豁免显式保信号(工单#43861)")
+	"$PSQL" "$DSN" -c "INSERT INTO ops_event(seat,event,ticket,note,esc_class,esc_scope)
+		VALUES('落地件','面外登记','','$n','部署','landq_oos:$1')" >/dev/null 2>&1 || true # tolerate: 登记写败下拍补,豁免判定不依账
+}
+AUDIT_EXEMPT=$(q "SELECT note FROM ops_event WHERE event='审计' AND note ~ '分支=audit/'" \
+	| grep -oE '分支=audit/[A-Za-z0-9._/-]+' | sed 's/^分支=//' | sort -u | paste -sd' ' -)
+
 CANDS=$(git for-each-ref --no-merged origin/master --sort=committerdate \
 	--format='%(committerdate:unix) %(refname:short) %(objectname)' \
 	'refs/remotes/origin/fix/*' 'refs/remotes/origin/feat/*' \
@@ -209,7 +226,7 @@ TRAIN=""; STRANDED=""; TN=0; PROV_F=$(mktemp /tmp/lq-prov-XXXXXX 2>/dev/null || 
 while read -r br tip; do
 	[ -n "$br" ] && [ -n "$tip" ] || continue
 	recent_fail "$tip" && { say "跳 $br——同尖24h败冷却"; continue; }
-	stamp_ok "$tip" || { say "跳 $br——戳缺/戳陈"; STRANDED="$STRANDED $br"; continue; }
+	stamp_ok "$tip" || { say "跳 $br——戳缺/戳陈"; if audit_exempt "$br"; then audit_park "$br"; else STRANDED="$STRANDED $br"; fi; continue; }
 	if docs_only_diff "$tip"; then
 		say "$br docs-only 差分——免复审行(b)"
 	else
@@ -221,10 +238,10 @@ while read -r br tip; do
 				4) say "跳 $br——复审过行缺/同席复审" ;;
 				*) say "跳 $br——复审要件未过(rc=$_rrc)" ;;
 			esac
-			STRANDED="$STRANDED $br"; continue
+			if audit_exempt "$br"; then audit_park "$br"; else STRANDED="$STRANDED $br"; fi; continue
 		fi
 	fi
-	mig_dep_gate "$br" "$tip" "$PROV_F" || { STRANDED="$STRANDED $br(依赖未合)"; continue; }
+	mig_dep_gate "$br" "$tip" "$PROV_F" || { if audit_exempt "$br"; then audit_park "$br"; else STRANDED="$STRANDED $br(依赖未合)"; fi; continue; }
 	if ! mergeable "$tip"; then
 		fact "落地败 支=$br 尖=$tip 因=对origin/master不可净合(merge-tree冲突)——支须重基,同尖冷却24h"
 		esc "landq_conflict_${br//\//_}" "部署/landq_merge_conflict: 支=$br 尖=$tip 对origin/master不可净合——须重基或人工裁决,支入24h冷却待处置"
@@ -258,6 +275,7 @@ WTACTIVE=$(git worktree list --porcelain 2>/dev/null \
 	| paste -sd' ' -) # 扁单行——多行 case " x " 空格定界失配漏剔(桩测实证)
 while IFS= read -r ob; do
 	case " $SEEN $WTACTIVE " in *" $ob "*) continue;; esac
+	if audit_exempt "$ob"; then audit_park "$ob"; continue; fi
 	STRANDED="$STRANDED $ob(面外)"
 done < <(git for-each-ref --no-merged origin/master --format='%(refname:short)' \
 	'refs/heads/' 'refs/remotes/origin/' 2>/dev/null \
