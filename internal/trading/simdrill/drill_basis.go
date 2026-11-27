@@ -10,6 +10,7 @@ import (
 	"fmt"
 
 	"o/internal/platform/excell"
+	"o/internal/platform/legset"
 	"o/internal/trading/execution"
 )
 
@@ -36,21 +37,23 @@ func (d *Drill) runBasisDrill(ctx context.Context, res Result, inst, templateRef
 		return res, fmt.Errorf("演习乐器不在册: 多头腿 %s", longID)
 	}
 	return d.leggedDrill(ctx, res, inst, notional, legs,
-		basisGateLegs(legs), deriv, long)
+		basisGateLegs(legs, ""), deriv, long)
 }
 
 // basisGateLegs 闸签标签（matrix_exec 同派生律——腿型按键形判：
 // -YYMMDD=fut/-SWAP=perp/余=spot + 买卖向；闸语义只验非空,签入决策行供审计）。
-func basisGateLegs(legs [2]execution.Leg) []string {
+// cfdVenue=basis 腿族全 okx 域无 CFD 腿——空位=分类支路休眠（O-41383：
+// venue 名册化后分类对名不对字面，CFD 腿族入 basis 时传名册求解值）。
+func basisGateLegs(legs [2]execution.Leg, cfdVenue string) []string {
 	out := make([]string, 0, 2)
 	for _, l := range legs {
 		tag := "spot"
 		switch {
 		case datedFutRe.MatchString(l.InstID):
 			tag = "fut"
-		case l.Venue == "exness":
+		case cfdVenue != "" && l.Venue == cfdVenue:
 			tag = "cfd"
-		case len(l.InstID) > 5 && l.InstID[len(l.InstID)-5:] == "-SWAP":
+		case legset.IsSwapInst(l.InstID):
 			tag = "perp"
 		}
 		dir := "long"

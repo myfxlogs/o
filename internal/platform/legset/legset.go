@@ -23,6 +23,24 @@ var DatedFutRe = regexp.MustCompile(`-[0-9]{6}$`)
 // ——禁再造 venue 枚举第二套）。
 const SparseTickBoundDefS = 7200.0
 
+// IsSwapInst 永续合约官名判（'-SWAP' 尾——O-41383：13+ 处 HasSuffix 平行件
+// 收编；legset=腿行情键归一 SSOT 域内唯一字面位，禁平行第二套）。
+func IsSwapInst(instID string) bool { return strings.HasSuffix(instID, "-SWAP") }
+
+// IsUSDTSwapInst USDT 本位永续判（'-USDT-SWAP' 尾——okxws 宇宙/回填闸同族
+// 谓词收编；比 IsSwapInst 窄——币本位 -USD-SWAP 形不收，语义勿混）。
+func IsUSDTSwapInst(instID string) bool { return strings.HasSuffix(instID, "-USDT-SWAP") }
+
+// 方向族判据缺省单源（lifecycle.dir.* dm 键覆写——O-41383 前 dirpaper/
+// dirtrig 两文件平行字面量=漂移实证锚）；risk/dir_gate 读键不回退=同键同源。
+const DirStopDefFrac = 0.15
+const DirTakeDefFrac = 0.30
+const DirTTLDefH = 240.0
+
+// TickMaxAgeDefS exec.tick_max_age_s 缺省单源（五读点平行 120 字面回退
+// ——同族病 O-41383 收编；dm 键覆写径不变）。
+const TickMaxAgeDefS = 120.0
+
 // IsUSDTInst USDT 计价闸（业主令：杂币不采不用不计——instId 形如 X-USDT[-SWAP]）。
 // 自 okxws 归并唯一真源（T-0392——订阅闸与覆盖探针同判据）：
 // USD 指数键（BTC-USD——index-tickers uly 键域）+到期期货形（-\d{6}$ 尾——

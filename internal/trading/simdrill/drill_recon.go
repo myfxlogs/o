@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"strconv"
+	"strings"
 
 	"o/internal/trading/simvenue"
 )
@@ -94,3 +96,16 @@ func (d *Drill) balanced(long, deriv simvenue.Instrument) bool {
 	tol := math.Max(50, deriv.CtVal*deriv.Px/avg*1e4)
 	return math.Abs(ln-dn)/avg*1e4 <= tol
 }
+
+func baseOf(in simvenue.Instrument) string {
+	return strings.SplitN(in.InstID, "-", 2)[0]
+}
+
+func orDash(s string) string {
+	if s == "" {
+		return "—"
+	}
+	return s
+}
+
+func trimFloat(f float64) string { return strconv.FormatFloat(f, 'f', -1, 64) }

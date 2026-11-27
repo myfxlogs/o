@@ -9,11 +9,11 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"strings"
 
 	"o/internal/guard"
 	"o/internal/ledger"
 	"o/internal/platform/excell"
+	"o/internal/platform/legset"
 	"o/internal/risk"
 	"o/internal/trading/execution"
 	"o/internal/trading/execwiring"
@@ -32,7 +32,7 @@ func (m *Matrix) execSingleLeg(ctx context.Context, res *CellResult, vs *simvenu
 		return
 	}
 	sw, ok := vs.Instrument(inst)
-	if !ok || !strings.HasSuffix(inst, "-SWAP") {
+	if !ok || !legset.IsSwapInst(inst) {
 		res.Verdict, res.Detail = "fail", res.Detail+" 单腿乐器不在册/键形非 SWAP: "+inst
 		return
 	}

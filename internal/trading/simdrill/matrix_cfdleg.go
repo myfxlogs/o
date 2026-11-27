@@ -1,5 +1,6 @@
 // matrix_cfdleg.go —— O-41368 CFD 方向族单腿格执行径（ShapeCFDSingleLeg）：
-// mt5_dir_mom——ExecuteDir 产线同码径，差异=腿 venue='exness' 经
+// mt5_dir_mom——ExecuteDir 产线同码径，差异=腿 venue=名册活 CFD 户求解
+// （O-41383 ActiveCfdVenue）经
 // mtexec.Executor 路由（mt5sim 仿真 MT5 venue——OrderSend/OrderClose/
 // OrderModify 产线同签名+Cli/Trading/Dialect 三缝）；手数=lot 网格 floor
 // 合成（ContractSize/MinLot/LotStep 仿真册）；哨戒平走 CloseExec 单腿
@@ -13,6 +14,7 @@ import (
 
 	"o/internal/guard"
 	"o/internal/ledger"
+	"o/internal/mt5"
 	"o/internal/platform/excell"
 	"o/internal/risk"
 	"o/internal/trading/execution"
@@ -23,7 +25,7 @@ import (
 // execCFDSingleLeg CFD 方向族单腿径（ShapeCFDSingleLeg——matrix_dirleg.
 // execSingleLeg 同构产线同码：DirSide(direction)→side、lot 网格手数合成、
 // 哨戒单腿平走 CloseExec spec.Legs[1] 空→ExecuteDir、对拍两锚=仓行已平+
-// CFD 在仓手数归零；腿 venue='exness'=mt5sim 仿真户路由键）。
+// CFD 在仓手数归零；腿 venue=名册求解值=mt5sim 仿真户路由键）。
 func (m *Matrix) execCFDSingleLeg(ctx context.Context, res *CellResult, c excell.Cell,
 	t excell.Tier, stratID int64, inst string) {
 	if inst == "" {
@@ -56,13 +58,20 @@ func (m *Matrix) execCFDSingleLeg(ctx context.Context, res *CellResult, c excell
 		return
 	}
 	defer retireSimTicks(ctx, m.Pool, [2]execution.Leg{{InstID: inst}})
-	router := execution.RouterExecutor{"exness": mtexec.Executor{T: mt, C: mt.Cli(), X: mt.Dialect()}}
+	// O-41383：演习腿 venue=名册活 CFD 户求解一次传各缝（exness 字面量退役
+	// ——死户钉 venue=记账活病灶）；零活户=演习格 fail 显形，凭据格拒造。
+	cfdVenue, err := mt5.ActiveCfdVenue(ctx, m.Pool)
+	if err != nil {
+		res.Verdict, res.Detail = "fail", res.Detail+" CFD venue 名册求解败: "+err.Error()
+		return
+	}
+	router := execution.RouterExecutor{cfdVenue: mtexec.Executor{T: mt, C: mt.Cli(), X: mt.Dialect()}}
 	runner := execution.NewRunner(m.Pool, m.Cfg, router).WithBookVenue("sim") // 工单#22576：演习腿台账归 sim 域
 	legLabel := "cfd_long"
 	if side == "sell" {
 		legLabel = "cfd_short"
 	}
-	dec := m.Gate.Check(ctx, risk.Intent{StrategyRef: stratID, Venue: "exness", InstID: inst,
+	dec := m.Gate.Check(ctx, risk.Intent{StrategyRef: stratID, Venue: cfdVenue, InstID: inst,
 		Legs: []string{legLabel}, NotionalUSD: t.Notional, Leverage: 1, Kind: "open"})
 	if !dec.Allow {
 		res.Verdict, res.Detail = "fail", res.Detail+" 演习开仓被闸拒（"+dec.Reason+"）"
@@ -70,7 +79,7 @@ func (m *Matrix) execCFDSingleLeg(ctx context.Context, res *CellResult, c excell
 	}
 	execID, err := runner.ExecuteDir(ctx, execution.Intent{DecisionID: dec.DecisionID,
 		StrategyRef: stratID, InstID: inst, NotionalUSD: t.Notional,
-		Legs: [2]execution.Leg{{Venue: "exness", InstID: inst, Side: side,
+		Legs: [2]execution.Leg{{Venue: cfdVenue, InstID: inst, Side: side,
 			Sz: trimFloat(lots), Notional: t.Notional, CtVal: cs}}})
 	if err != nil {
 		res.Verdict, res.Detail = "fail", res.Detail+" 开仓执行败: "+err.Error()
@@ -93,10 +102,10 @@ func (m *Matrix) execCFDSingleLeg(ctx context.Context, res *CellResult, c excell
 	// 哨戒强平（产线径同 execSingleLeg——单腿仓 CloseSpec.Legs[1] 空→ExecuteDir；
 	// sizer venue 路由现读=mt5sim 仿真册直读）。
 	w := guard.NewWarden(m.Pool, m.Cfg, m.Gate, execwiring.CloseExec{R: runner})
-	w.AttachVenueSizer("exness", mt)
+	w.AttachVenueSizer(cfdVenue, mt)
 	w.AttachSizer(mt)
 	w.AttachCtVal(func(_ context.Context, venue, instID string) (float64, bool) {
-		if venue == "exness" {
+		if venue == cfdVenue {
 			cs, _, _, _, ok := mt.Meta(instID)
 			return cs, ok
 		}

@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"log"
 
+	"o/internal/mt5"
 	"o/internal/platform/condreq"
 	"o/internal/platform/execfam"
 	"o/internal/research/evalgate"
@@ -106,12 +107,20 @@ func (r *Runner) xvenueShadowEval(ctx context.Context, okxInst, dir string, net,
 		log.Printf("WARN [research/hypo] xvenue_shadow %s proposed 而 fin 池未挂——呈批径缺位（评估行已落账）", okxInst)
 		return
 	}
+	// O-41383：建议目标 venue=名册活 CFD 户求解（exness 字面量退役——死户
+	// 建议呈批=误导件）；零活户=建议跳过留评估行（呈批面非闸面）。
+	cfdVenue, verr := mt5.ActiveCfdVenue(ctx, r.fin)
+	if verr != nil {
+		r.rej.Inc("hypo_write_err")
+		log.Printf("WARN [research/hypo] xvenue_shadow %s CFD venue 名册求解败——呈批跳过: %v", okxInst, verr)
+		return
+	}
 	payload, _ := json.Marshal(map[string]any{
-		"venue": "exness", "suggested_pairs": map[string]string{okxInst: mt5Sym},
+		"venue": cfdVenue, "suggested_pairs": map[string]string{okxInst: mt5Sym},
 		"direction": dir, "net_ann_bps": net, "capacity_usd": capacity,
 		"eval_id": evalID, "eval_template": shadowTemplate,
 		"note": "影子评估层 map 闸建议（T-0408）——批→落 bridge.xvenue.map→既有 map 闸→paper 径；影子层只呈不写（owner 域不破）"})
-	if err := condreq.Request(ctx, r.fin, "permission", "exness",
+	if err := condreq.Request(ctx, r.fin, "permission", cfdVenue,
 		"bridge.xvenue.map.shadow", string(payload)); err != nil {
 		r.rej.Inc("hypo_write_err")
 		log.Printf("WARN [research/hypo] xvenue_shadow %s condreq 写败: %v", okxInst, err)

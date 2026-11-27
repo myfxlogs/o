@@ -24,6 +24,7 @@ import (
 	"strings"
 
 	"o/internal/mt5"
+	"o/internal/platform/legset"
 )
 
 // bareBags 平仓残袋对拍一拍（非阻塞——写败计数留痕不回滚已平事实）。
@@ -66,7 +67,7 @@ func (w *Warden) bareBags(ctx context.Context, p posRow, legs legSet, cls [2]Clo
 			log.Printf("WARN [guard] 仓 %d 平腿 %s 行缺——残袋对拍本腿跳过", p.id, cl.InstID)
 			continue
 		}
-		if mt5.IsCfdProtoVenue(ctx, w.pool, cl.Venue) || strings.HasSuffix(cl.InstID, "-SWAP") { // O-37449：cfd 类全族 CFD 残仓同律（XM 等名册户腿同径）
+		if mt5.IsCfdProtoVenue(ctx, w.pool, cl.Venue) || legset.IsSwapInst(cl.InstID) { // O-37449：cfd 类全族 CFD 残仓同律（XM 等名册户腿同径）
 			// T-0145：mt5 CFD 残仓同 SWAP 律——合约残仓=敞口事故升件非资产挂账
 			w.bareBagSwap(ctx, p, cl)
 			continue
@@ -172,7 +173,7 @@ func (w *Warden) bareBagSpot(ctx context.Context, p posRow, legs legSet, cl Clos
 // 事实不静默。
 func (w *Warden) noteSettledLeg(ctx context.Context, p posRow, s settledLeg) {
 	ccy := strings.SplitN(s.instID, "-", 2)[0]
-	if mt5.IsCfdProtoVenue(ctx, w.pool, s.venue) || strings.HasSuffix(s.instID, "-SWAP") { // O-37449：cfd 类全族 CFD 腿同律
+	if mt5.IsCfdProtoVenue(ctx, w.pool, s.venue) || legset.IsSwapInst(s.instID) { // O-37449：cfd 类全族 CFD 腿同律
 		if s.avail > 0 {
 			w.rej.Inc("bare_bag")
 			w.al.Alert(ctx, "close_residual_perp",

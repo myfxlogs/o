@@ -7,7 +7,6 @@ package okxws
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -23,7 +22,7 @@ func subscribeArgs(syms []string) []map[string]string {
 	args := make([]map[string]string, 0, len(syms)*3)
 	for _, s := range syms {
 		switch {
-		case strings.HasSuffix(s, "-SWAP"):
+		case legset.IsSwapInst(s):
 			args = append(args, map[string]string{"channel": "funding-rate", "instId": s})
 		case legset.DatedFutRe.MatchString(s): // 季度期货=SG 瘦身面零订（桥面 mark-price 供）
 			continue
@@ -142,7 +141,7 @@ func subscribeArgsFull(syms []string) []map[string]string {
 	args := make([]map[string]string, 0, len(syms)*4)
 	for _, s := range syms {
 		switch {
-		case strings.HasSuffix(s, "-SWAP"):
+		case legset.IsSwapInst(s):
 			args = append(args,
 				map[string]string{"channel": "funding-rate", "instId": s},
 				map[string]string{"channel": "mark-price", "instId": s})

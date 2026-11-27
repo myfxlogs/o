@@ -13,6 +13,7 @@ import (
 	"log"
 	"strconv"
 
+	"o/internal/mt5"
 	"o/internal/platform/decision"
 )
 
@@ -44,6 +45,15 @@ func (r *Runner) admitXvenuePair(ctx context.Context, proposalID int64, inst, di
 	cfd, ok := xm[inst]
 	if !ok || cfd == "" {
 		return fmt.Errorf("xvenue.map 无 %s 映射——双腿缺副腿 fail-closed", inst)
+	}
+	// O-41383：CFD 腿 venue=名册活户求解（exness 字面量退役——死户钉 venue=
+	// 记账活病灶）；零活户=该 paper pair 跳过+rej 显形，存量腿行 venue=历史
+	// 事实不动，提案留 proposed 下拍重试。
+	cfdVenue, err := mt5.ActiveCfdVenue(ctx, r.pool)
+	if err != nil {
+		r.rej.Inc("xvenue_cfd_venue_missing")
+		log.Printf("[lifecycle] xvenue_carry #%d CFD venue 名册求解败——paper pair 跳过: %v", proposalID, err)
+		return nil
 	}
 	crit, _ := json.Marshal(map[string]float64{"min_hours": minH, "min_net": minNet, "max_dd": maxDD})
 	// 主行（okx perp——funding 端）。
@@ -79,7 +89,7 @@ func (r *Runner) admitXvenuePair(ctx context.Context, proposalID int64, inst, di
 	for _, leg := range []struct {
 		id int64
 		v  string
-	}{{mainID, "okx"}, {cfdID, "exness"}} {
+	}{{mainID, "okx"}, {cfdID, cfdVenue}} {
 		if _, err := r.pool.Exec(ctx, `INSERT INTO fin_strategy_transition(strategy_id,from_state,to_state,reason)
 			VALUES($1,'proposed','paper',$2)`, leg.id,
 			"跨所 carry 双腿 paper 开户（T-0144——venue="+leg.v+"）"); err != nil {
@@ -102,13 +112,13 @@ func (r *Runner) admitXvenuePair(ctx context.Context, proposalID int64, inst, di
 	// T-0521：双腿各按本 venue 率扣估计往返摩擦（同摩擦基准——okx taker 费/
 	// mt5 点差域各归各率）。
 	r.chargePaperFriction(ctx, mainID, "okx", inst, notional)
-	r.chargePaperFriction(ctx, cfdID, "exness", cfd, notional)
+	r.chargePaperFriction(ctx, cfdID, cfdVenue, cfd, notional)
 	// T-0415：双腿 paper 开户=open 决策行（同提案双腿各落一行 ref_id=腿策略
 	// 行号——单腿退役/平仓对拍口径一致；写败升件不阻钱径）。
 	for _, leg := range []struct {
 		id    int64
 		v, ii string
-	}{{mainID, "okx", inst}, {cfdID, "exness", cfd}} {
+	}{{mainID, "okx", inst}, {cfdID, cfdVenue, cfd}} {
 		decision.WriteEsc(ctx, r.pool, decision.Row{
 			Domain: "fin", Actor: "lifecycle", RefID: strconv.FormatInt(leg.id, 10),
 			Action: "open",

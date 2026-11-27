@@ -8,6 +8,8 @@ package okxexec
 import (
 	"fmt"
 	"regexp"
+
+	"o/internal/platform/legset"
 )
 
 // dcdProductKeyRe DCD 产品键形（T-0101 实证族——BTC-USDT-261204-66000-P：
@@ -40,7 +42,7 @@ func InstFamily(instID string) string {
 		return "option"
 	case datedFutKeyRe.MatchString(instID):
 		return "futures"
-	case len(instID) > 5 && instID[len(instID)-5:] == "-SWAP":
+	case legset.IsSwapInst(instID):
 		return "swap"
 	case spotKeyRe.MatchString(instID):
 		return "spot"

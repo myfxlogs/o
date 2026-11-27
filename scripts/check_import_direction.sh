@@ -75,6 +75,8 @@ internal/risk -> internal/platform/config
 internal/trading/execution -> internal/platform/config
 internal/trading/execution -> internal/platform/rejects
 internal/trading/execution -> internal/platform/roster
+# O-41383：-SWAP 键形谓词收编 legset.IsSwapInst（单源归一域）。
+internal/trading/execution -> internal/platform/legset
 internal/trading/execution -> internal/trading/okxexec
 # O-37449：mt5-proto 腿分类判据（IsMt5ProtoVenue=fin_venue_roster proto
 # 读面唯一真源——mt5/roster.go 名册读面宿主；mt5 为叶包不回指两域无环）。
@@ -91,6 +93,9 @@ internal/guard -> internal/platform/roster
 internal/guard -> internal/risk
 # O-37449：同上——guard 腿分类器 CFD/现货判据收编 IsMt5ProtoVenue。
 internal/guard -> internal/mt5
+# O-41383：lifecycle xvenue 双腿 paper 户 venue=名册活 CFD 求解
+# （ActiveCfdVenue——fin_venue_roster 读面唯一真源同 IsCfdProtoVenue 宿主）。
+internal/portfolio/lifecycle -> internal/mt5
 internal/portfolio/lifecycle -> internal/platform/rejects
 internal/portfolio/lifecycle -> internal/platform/roster
 internal/portfolio/lifecycle -> internal/platform/opschain
@@ -233,6 +238,8 @@ internal/earn -> internal/platform/rejects
 internal/earn -> internal/platform/roster
 internal/earn -> internal/trading/okxexec
 internal/trading/okxexec -> internal/platform/signutil
+# O-41383：instId 族判 -SWAP 尾收编 legset.IsSwapInst。
+internal/trading/okxexec -> internal/platform/legset
 internal/gen/dashboardv1/dashboardv1connect -> internal/gen/dashboardv1
 internal/gen/scoutv1/scoutv1connect -> internal/gen/scoutv1
 internal/portfolio/lifecycle -> internal/platform/execfam
@@ -243,6 +250,9 @@ internal/research/gapscan -> internal/platform/execfam
 internal/research/grammar -> internal/platform/execfam
 internal/research/hypothesis -> internal/platform/execfam
 internal/research/hypothesis -> internal/platform/condreq
+# O-41383：xshadow 呈批建议目标 venue=名册活 CFD 户求解（ActiveCfdVenue
+# 同真源——死户建议呈批=误导件）。
+internal/research/hypothesis -> internal/mt5
 # T-0379 venue 接入臂（凭据发现[app_secrets+master key+condreq 盒]→mtapi 探测
 # →映射闸→paper 态——o-research 臂边集形：platform 面+mt5 只读会话件）。
 internal/venue/onboard -> internal/mt5
@@ -276,6 +286,8 @@ internal/trading/simvenue -> internal/trading/execution
 internal/trading/execwiring -> internal/guard
 internal/trading/execwiring -> internal/trading/execution
 internal/trading/execwiring -> internal/trading/okxexec
+# O-41383：LotSz 乐器族判 -SWAP 尾收编 legset.IsSwapInst。
+internal/trading/execwiring -> internal/platform/legset
 internal/trading/simdrill -> internal/guard
 internal/trading/simdrill -> internal/ledger
 internal/trading/simdrill -> internal/platform/config
@@ -295,6 +307,10 @@ internal/trading/simdrill -> internal/platform/excell
 internal/trading/simdrill -> internal/trading/dcdexec
 internal/trading/simdrill -> internal/trading/mt5sim
 internal/trading/simdrill -> internal/trading/mtexec
+# O-41383：simdrill CFD 演习腿 venue=名册活户求解（ActiveCfdVenue 同真源）。
+internal/trading/simdrill -> internal/mt5
+# O-41383：演习腿键形判 -SWAP 尾收编 legset.IsSwapInst。
+internal/trading/simdrill -> internal/platform/legset
 # O-41370 grid_spot bot 全径演习（okxgrid=venue 原生 bot 适配器产线
 # 同缝——simgrid 仿真 venue 同包注入，演习径=产线 Adapter 五端点同码）。
 internal/trading/simdrill -> internal/trading/okxgrid

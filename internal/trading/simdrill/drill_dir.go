@@ -8,10 +8,10 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"strings"
 
 	"o/internal/guard"
 	"o/internal/ledger"
+	"o/internal/platform/legset"
 	"o/internal/risk"
 	"o/internal/trading/execution"
 	"o/internal/trading/execwiring"
@@ -29,7 +29,7 @@ func (d *Drill) runDirDrill(ctx context.Context, res Result, inst, templateRef s
 		return res, err
 	}
 	swapInst, ok := d.Venue.Instrument(inst)
-	if !ok || !strings.HasSuffix(inst, "-SWAP") {
+	if !ok || !legset.IsSwapInst(inst) {
 		return res, fmt.Errorf("演习乐器不在册/键形非 SWAP: %s", inst)
 	}
 	contracts := math.Floor(notional/(swapInst.CtVal*swapInst.Px)/swapInst.LotSz+1e-9) * swapInst.LotSz

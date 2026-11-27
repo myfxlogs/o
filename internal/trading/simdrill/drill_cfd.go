@@ -1,6 +1,6 @@
 // drill_cfd.go —— O-41368 CFD 方向族单腿演习径（ShapeCFDSingleLeg 产能件）：
 // 同 runDirDrill 产线全径（ephemeral 策略行→Gate→ExecuteDir→哨戒平→费→
-// 结算→recon→凭据），差异=mt5sim 仿真 MT5 户（venue='exness' 路由键——
+// 结算→recon→凭据），差异=mt5sim 仿真 MT5 户（venue=名册活 CFD 户求解——
 // mtexec.Executor 三缝 Cli/Trading/Dialect 产线同签名）+手数=lot 网格
 // 合成；方向仓真相锚=CFD 在仓手数开=有/平=零+仓行闭。
 package simdrill
@@ -12,6 +12,7 @@ import (
 
 	"o/internal/guard"
 	"o/internal/ledger"
+	"o/internal/mt5"
 	"o/internal/risk"
 	"o/internal/trading/execution"
 	"o/internal/trading/execwiring"
@@ -60,20 +61,26 @@ func (d *Drill) runCFDDrill(ctx context.Context, res Result, inst, templateRef s
 		return res, fmt.Errorf("行情锚写败: %w", err)
 	}
 	defer retireSimTicks(ctx, d.Pool, [2]execution.Leg{{InstID: inst}})
-	router := execution.RouterExecutor{"exness": mtexec.Executor{T: mt, C: mt.Cli(), X: mt.Dialect()}}
+	// O-41383：演习腿 venue=名册活 CFD 户求解一次传各缝（exness 字面量退役
+	// ——死户钉 venue=记账活病灶）；零活户=演习 fail 显形，凭据格拒造。
+	cfdVenue, err := mt5.ActiveCfdVenue(ctx, d.Pool)
+	if err != nil {
+		return res, fmt.Errorf("CFD venue 名册求解败: %w", err)
+	}
+	router := execution.RouterExecutor{cfdVenue: mtexec.Executor{T: mt, C: mt.Cli(), X: mt.Dialect()}}
 	runner := execution.NewRunner(d.Pool, d.Cfg, router).WithBookVenue("sim") // 工单#22576：演习腿台账归 sim 域
 	legLabel := "cfd_long"
 	if side == "sell" {
 		legLabel = "cfd_short"
 	}
-	dec := d.Gate.Check(ctx, risk.Intent{StrategyRef: drillStrat, Venue: "exness", InstID: inst,
+	dec := d.Gate.Check(ctx, risk.Intent{StrategyRef: drillStrat, Venue: cfdVenue, InstID: inst,
 		Legs: []string{legLabel}, NotionalUSD: notional, Leverage: 1, Kind: "open"})
 	if !dec.Allow {
 		return res, fmt.Errorf("演习开仓被闸拒（%s）——判据/config 缺 fail-closed", dec.Reason)
 	}
 	openExecID, err := runner.ExecuteDir(ctx, execution.Intent{DecisionID: dec.DecisionID,
 		StrategyRef: drillStrat, InstID: inst, NotionalUSD: notional,
-		Legs: [2]execution.Leg{{Venue: "exness", InstID: inst, Side: side,
+		Legs: [2]execution.Leg{{Venue: cfdVenue, InstID: inst, Side: side,
 			Sz: trimFloat(lots), Notional: notional, CtVal: cs}}})
 	if err != nil {
 		return res, fmt.Errorf("演习开仓执行败: %w", err)
@@ -86,10 +93,10 @@ func (d *Drill) runCFDDrill(ctx context.Context, res Result, inst, templateRef s
 		return res, fmt.Errorf("演习仓行缺（开仓事实不可读）: %v", err)
 	}
 	w := guard.NewWarden(d.Pool, d.Cfg, d.Gate, execwiring.CloseExec{R: runner})
-	w.AttachVenueSizer("exness", mt)
+	w.AttachVenueSizer(cfdVenue, mt)
 	w.AttachSizer(mt)
 	w.AttachCtVal(func(_ context.Context, venue, instID string) (float64, bool) {
-		if venue == "exness" {
+		if venue == cfdVenue {
 			cs, _, _, _, ok := mt.Meta(instID)
 			return cs, ok
 		}

@@ -6,6 +6,8 @@ import (
 	"context"
 	"strings"
 	"time"
+
+	"o/internal/platform/legset"
 )
 
 // dcdPaperAccounting dcd_call paper 记账（T-0160 ①paper 径实装：md_dcd_product
@@ -43,7 +45,7 @@ func (r *Runner) dcdPaperAccounting(ctx context.Context) error {
 		sts = append(sts, x)
 	}
 	rows.Close()
-	maxAge := 120.0
+	maxAge := legset.TickMaxAgeDefS
 	if v, err := r.cfg.GetFloat("exec.tick_max_age_s"); err == nil && v > 0 {
 		maxAge = v
 	}

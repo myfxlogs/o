@@ -8,12 +8,12 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"regexp"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"o/internal/mt5"
 )
 
 // InstMeta 乐器元数据（/public/instruments 公开只读——钦定保留面）。
@@ -43,28 +43,6 @@ func perpContracts(usd, ctVal float64, ctValCcy string, px float64) (float64, er
 
 // MetaLoader 元数据拉取口（cmd/openfirst 装配注入 okxexec——公开端点零凭据径）。
 type MetaLoader func(ctx context.Context, instID string) (InstMeta, error)
-
-// DeriveSpotInst 派生现货乐器（去 "-SWAP" 尾——派生败 fail-closed 拒构）。
-func DeriveSpotInst(instID string) (string, error) {
-	if !strings.HasSuffix(instID, "-SWAP") {
-		return "", fmt.Errorf("非 SWAP 乐器不可派生现货: %s", instID)
-	}
-	spot := strings.TrimSuffix(instID, "-SWAP")
-	if spot == "" || spot == instID {
-		return "", fmt.Errorf("派生现货败: %s", instID)
-	}
-	return spot, nil
-}
-
-// datedFUTRe 到期日期货键（-YYMMDD 尾——okxws/simdrill 同形）。
-var datedFUTRe = regexp.MustCompile(`-\d{6}$`)
-
-// contractInst 合约域乐器判据（SWAP 永续+datedFUT 到期期货——腿 sz 语义=
-// 张数域，T-0483：legCash/legPx 旧判只排 -SWAP，datedFUT 误落 base 域产
-// phantom spot_* 现金行+qty_base 张数误标币量）。
-func contractInst(instID string) bool {
-	return strings.HasSuffix(instID, "-SWAP") || datedFUTRe.MatchString(instID)
-}
 
 // LatestPx 最新价（md_ticks∪md_mark_index 末帧就近取——T-0132 分级后非活跃
 // 集无 tick 行，mark/index 价续供；事实行流径非 REST 轮询）。
@@ -197,9 +175,15 @@ type CfdMeta struct {
 // BuildCfdLegs 跨 venue 双腿：leg1=okx SWAP 卖（perp 张数 ctVal 系——
 // okx 腿 sizing 仍走 BuildLegs 正径的工具侧已在用；本件产出 cfd 腿+拼腿）。
 // cfd 腿 inst=cfdInst（exec.cfd_map 键映射 BTC-USDT-SWAP→BTCUSDm——工具侧读）。
-func BuildCfdLegs(instID, cfdInst, cfdVenue string, notional float64, cfdM CfdMeta, px float64, perpCtVal float64) ([2]Leg, string, error) {
+func BuildCfdLegs(ctx context.Context, pool *pgxpool.Pool, instID, cfdInst, cfdVenue string, notional float64, cfdM CfdMeta, px float64, perpCtVal float64) ([2]Leg, string, error) {
 	if cfdVenue == "" {
-		cfdVenue = "exness" // 存量调用面兼容锚（O-39440① venue 改名）
+		// O-41383：缺省 venue=名册活 CFD 户求解（exness 字面量兼容锚退役——
+		// 死户钉 venue=记账活病灶）；零活户=err 显形禁回退默认。
+		v, err := mt5.ActiveCfdVenue(ctx, pool)
+		if err != nil {
+			return [2]Leg{}, "", err
+		}
+		cfdVenue = v
 	}
 	if cfdInst == "" {
 		return [2]Leg{}, "", fmt.Errorf("exec.cfd_map 无 %s 映射——fail-closed", instID)

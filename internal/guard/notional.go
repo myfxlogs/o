@@ -26,7 +26,7 @@ func (w *Warden) notionalNow(ctx context.Context, l leg) (float64, bool) {
 			ORDER BY ts DESC LIMIT 1`, l.inst).Scan(&last, &ts); err != nil || last == nil {
 		return 0, false
 	}
-	maxAge := 120.0
+	maxAge := legset.TickMaxAgeDefS
 	if v, err := w.getF("exec.tick_max_age_s"); err == nil && v > 0 {
 		maxAge = v
 	}
