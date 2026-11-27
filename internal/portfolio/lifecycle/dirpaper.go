@@ -90,30 +90,17 @@ func (r *Runner) dirPaperAccounting(ctx context.Context) error {
 		if x.lastPx != nil && time.Since(x.lastMark) < time.Duration(markIv*float64(time.Minute)) {
 			continue // 摊提节距未满——粒度闸非事实缺（首见=立即锚入场价）
 		}
-		var px float64
-		var tickTs time.Time
-		// O-36961 价源分流：SWAP inst（OKX perp 全族）读 md_mark_index
-		// mark-price 桥面行——paper/probe perp inst 不在 okxws 活跃集
-		// 订阅面（ActiveSetUnion 无 paper/probe perp 臂），长尾 alt 的
-		// md_ticks 恒陈（生产实证中位龄 4.1d）→pnl 摊提饿死→confGate
-		// 收入流只剩 funding 噪声恒拦；mark-price 桥面全量订阅本已覆
-		// 盖（basis.go 期货腿同径先例）。非 SWAP inst（mt5_dir_mom CFD
-		// 官名）照旧 md_ticks——CFD 无 mark-price 面。
-		// O-41382：CFD 行情行 last 恒 0（报价型 venue——价在 bid/ask，
-		// xm 全谱 last=0 实案）→取双边中价；单边缺=NULL 拒不虚构。
-		markQ := `SELECT COALESCE(NULLIF(last,0),(NULLIF(bid,0)+NULLIF(ask,0))/2),ts FROM md_ticks
-			WHERE inst_id=$1 AND venue<>'sim' ORDER BY ts DESC LIMIT 1`
-		src := "md_ticks"
+		// O-41385：价源=legset.MarkPx 单源（中价∪mark_index 双源 union——
+		// 原 SWAP/非 SWAP 分支独占形收编；src 胜出源表名沿 detail 审计位）。
+		// 龄界分流语义不动：SWAP=maxAge(exec.tick_max_age_s)、非 SWAP=
+		// cfdMaxAge(push-on-change 界——CFD 无 mark-price 面 union 自然
+		// 落 ticks 径）。
+		px, tickTs, src, ok := legset.MarkPx(ctx, r.pool, "", x.inst)
 		age := maxAge
-		if legset.IsSwapInst(x.inst) {
-			markQ = `SELECT px,ts FROM md_mark_index
-				WHERE inst_id=$1 AND channel='mark-price' ORDER BY ts DESC LIMIT 1`
-			src = "md_mark_index"
-		} else {
+		if !legset.IsSwapInst(x.inst) {
 			age = cfdMaxAge // 非 SWAP=CFD 官名——push-on-change 鲜度界
 		}
-		if err := r.pool.QueryRow(ctx, markQ, x.inst).Scan(&px, &tickTs); err != nil || px <= 0 ||
-			time.Since(tickTs) > time.Duration(age*float64(time.Second)) {
+		if !ok || time.Since(tickTs) > time.Duration(age*float64(time.Second)) {
 			r.rej.Inc("dir_mark_stale")
 			continue // 价缺/陈=事实缺让位不造 fill（T-0171 同径）
 		}

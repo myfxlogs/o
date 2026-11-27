@@ -20,6 +20,8 @@ import (
 	"context"
 	"fmt"
 	"log"
+
+	"o/internal/platform/legset"
 )
 
 const dirTrigKind = "dir_loss_breaker" // 熔断触发名（fin_guard_close.trigger 留痕）
@@ -154,14 +156,12 @@ func (w *Warden) dirFloating(ctx context.Context, fam string) (float64, error) {
 			w.rej.Inc("dir_leg_px_missing")
 			continue // px/qty 缺=该腿不可测——让位不虚构
 		}
-		var mark float64
 		// O-41384：mark 双源——ticks 降级订阅面会死（非活跃 inst 陈帧），
 		// mark_index 独木续供；单读 ticks=尸价喂族熔断（CRML 14h 陈帧
 		// 实案 4.5% 误差）。mark<=0=缺让位——零价按全损判=放大虚构。
-		if err := w.pool.QueryRow(ctx, `SELECT v FROM (
-			SELECT COALESCE(NULLIF(last,0),(NULLIF(bid,0)+NULLIF(ask,0))/2) v,ts FROM md_ticks WHERE venue=$1 AND inst_id=$2
-			UNION ALL SELECT px,ts FROM md_mark_index WHERE venue=$1 AND inst_id=$2 AND channel='mark-price') q
-			ORDER BY ts DESC LIMIT 1`, ven, inst).Scan(&mark); err != nil || mark <= 0 {
+		// O-41385：价源=legset.MarkPx 单源（venue+inst 匹配形——原平行件收编）。
+		mark, _, _, mok := legset.MarkPx(ctx, w.pool, ven, inst)
+		if !mok || mark <= 0 {
 			w.rej.Inc("dir_mark_missing")
 			continue // mark 缺=该 inst 浮亏让位（实现口径照判）
 		}

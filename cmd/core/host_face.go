@@ -116,17 +116,19 @@ func (c coreService) ListOpenPositions(ctx context.Context,
 	}
 	if len(execIDs) > 0 {
 		lrows, err := c.pool.Query(ctx, `SELECT execution_id,venue,side,inst_id,sz,
-			coalesce(px,0),state,ord_type,coalesce(venue_ticket,0),ts
+			coalesce(px,0),state,ord_type,coalesce(venue_ticket,0),ts,fee
 			FROM fin_order_leg WHERE execution_id=ANY($1) ORDER BY execution_id,leg_no`, execIDs)
 		if err != nil {
 			return nil, err
 		}
+		aggs := map[int64]*posPnlAgg{}
 		for lrows.Next() {
 			var execID int64
 			var lts time.Time
 			l := &dashboardv1.OpenLeg{}
+			var fee *float64
 			if err := lrows.Scan(&execID, &l.Venue, &l.Side, &l.InstId, &l.Sz,
-				&l.Px, &l.State, &l.OrdType, &l.VenueTicket, &lts); err != nil {
+				&l.Px, &l.State, &l.OrdType, &l.VenueTicket, &lts, &fee); err != nil {
 				lrows.Close()
 				return nil, err
 			}
@@ -134,10 +136,68 @@ func (c coreService) ListOpenPositions(ctx context.Context,
 			if p, ok := posMap[execID]; ok {
 				p.Legs = append(p.Legs, l)
 			}
+			agg := aggs[execID]
+			if agg == nil {
+				agg = &posPnlAgg{}
+				aggs[execID] = agg
+			}
+			var pxPtr *float64
+			if l.Px > 0 {
+				pxPtr = &l.Px
+			}
+			agg.aggLeg(l.State, l.Side, l.InstId, l.Venue, pxPtr, fee)
 		}
 		lrows.Close()
 		if err := lrows.Err(); err != nil {
 			return nil, err
+		}
+		// O-41385：仓级资金费/实现盈亏批查（position_ref=fin_position.id——
+		// funding_settle 归仓实记，trade_pnl 平仓实现含 total 口径）。
+		posIDs := make([]int64, 0, len(r.Positions))
+		for _, p := range r.Positions {
+			posIDs = append(posIDs, p.Id)
+		}
+		cf := map[[2]int64]float64{} // [posID,kindCode]→amount（0=funding_settle 1=trade_pnl）
+		if len(posIDs) > 0 {
+			crows, err := c.pool.Query(ctx, `SELECT position_ref,kind,sum(amount)
+				FROM fin_cashflow WHERE position_ref=ANY($1)
+				AND kind IN ('funding_settle','trade_pnl')
+				GROUP BY position_ref,kind`, posIDs)
+			if err != nil {
+				return nil, err
+			}
+			for crows.Next() {
+				var pid int64
+				var kind string
+				var amt float64
+				if err := crows.Scan(&pid, &kind, &amt); err != nil {
+					crows.Close()
+					return nil, err
+				}
+				var code int64
+				if kind == "trade_pnl" {
+					code = 1
+				}
+				cf[[2]int64{pid, code}] = amt
+			}
+			crows.Close()
+			if err := crows.Err(); err != nil {
+				return nil, err
+			}
+		}
+		for _, p := range r.Positions {
+			agg := aggs[p.ExecutionId]
+			if agg == nil {
+				agg = &posPnlAgg{}
+			}
+			p.FeesUsd = agg.fees
+			p.FundingUsd = cf[[2]int64{p.Id, 0}]
+			sign := posDirSign(p.Direction, agg.entry.side)
+			p.MarkPx, p.UplFrac, p.UplUsd = c.posMarkPnl(ctx, agg.entry.venue,
+				agg.entry.inst, agg.entry.px, sign, p.NotionalUsd)
+			p.NetPnlUsd = p.UplUsd + p.FeesUsd + p.FundingUsd // 开仓期实现部=0（trade_pnl 归 total 口径）
+			r.TotalUplUsd += p.UplUsd
+			r.TotalNetUsd += p.NetPnlUsd + cf[[2]int64{p.Id, 1}]
 		}
 	}
 	arows, err := c.pool.Query(ctx, `SELECT s.id,s.template_ref,s.venue,s.inst_id,

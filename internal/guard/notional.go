@@ -16,14 +16,11 @@ import (
 // exec.tick_max_age_s（缺省 120s）= 等同缺失 false（陈=缺 fail-closed，
 // 一腿陈一腿新不再产价时差型假失衡；#23 误杀实证）。
 func (w *Warden) notionalNow(ctx context.Context, l leg) (float64, bool) {
-	var last *float64
-	var ts time.Time
-	if err := w.pool.QueryRow(ctx,
-		// 升件#9802③：sim 域显拒——演习夹具以真实 inst_id 播种 venue='sim' 行，
-		// 无 venue 谓词=假价污判官径（risk.dcdExposureUSD 同口径先滤）。
-		`SELECT v,ts FROM (SELECT COALESCE(NULLIF(last,0),(NULLIF(bid,0)+NULLIF(ask,0))/2) v,ts FROM md_ticks WHERE inst_id=$1 AND venue<>'sim'
-			UNION ALL SELECT px,ts FROM md_mark_index WHERE inst_id=$1 AND venue<>'sim') q
-			ORDER BY ts DESC LIMIT 1`, l.inst).Scan(&last, &ts); err != nil || last == nil {
+	// 升件#9802③：sim 域显拒——演习夹具以真实 inst_id 播种 venue='sim' 行，
+	// 无 venue 谓词=假价污判官径（risk.dcdExposureUSD 同口径先滤）。
+	// O-41385：价源=legset.MarkPx 单源（中价∪mark_index union——原平行件收编）。
+	px, ts, _, ok := legset.MarkPx(ctx, w.pool, "", l.inst)
+	if !ok {
 		return 0, false
 	}
 	maxAge := legset.TickMaxAgeDefS
@@ -48,19 +45,19 @@ func (w *Warden) notionalNow(ctx context.Context, l leg) (float64, bool) {
 			if !ok {
 				return 0, false
 			}
-			return l.qtyBase * ct * *last, true
+			return l.qtyBase * ct * px, true
 		}
-		return l.qtyBase * *last, true // quote/base/lot 域 qty_base=币量
+		return l.qtyBase * px, true // quote/base/lot 域 qty_base=币量
 	}
 	switch l.szUnit {
 	case "base":
-		return l.sz * *last, true
+		return l.sz * px, true
 	case "contract":
 		ct, ok := w.ctValOf(ctx, l.venue, l.inst)
 		if !ok {
 			return 0, false
 		}
-		return l.sz * ct * *last, true
+		return l.sz * ct * px, true
 	}
 	return 0, false // quote 缺 base 量/量纲未消歧——禁再误读
 }

@@ -5,7 +5,7 @@ import { client } from "../api";
 import { useLive } from "../hooks";
 import { EmptyState, ErrorState, Skeleton, StateDot, UtcClock } from "../components/ui";
 import { EarnToggle } from "../components/EarnToggle";
-import { OpenPositionsCard } from "../components/flows";
+import { OpenPositionsCard } from "../components/openpositions";
 import { fmtUsd, pbDate } from "../components/fmt";
 import { AGE } from "../components/panel";
 import { PagerBar, usePager } from "../components/pager";
