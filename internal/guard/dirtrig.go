@@ -87,12 +87,9 @@ func (w *Warden) dirTrig(ctx context.Context, p posRow, legs legSet) closeTrig {
 // 报价行 last 恒 0→双边中价（O-41382）；cfd venue 鲜度界换 cfd 键——
 // push-on-change 静默≠死（O-41381 同界，venue 判归名册真源 IsCfdProtoVenue）。
 func (w *Warden) lastPx(ctx context.Context, l leg) (float64, bool) {
-	var last *float64
-	var ts time.Time
-	if err := w.pool.QueryRow(ctx, `SELECT v,ts FROM (
-			SELECT COALESCE(NULLIF(last,0),(NULLIF(bid,0)+NULLIF(ask,0))/2) v,ts FROM md_ticks WHERE inst_id=$1 AND venue<>'sim'
-			UNION ALL SELECT px,ts FROM md_mark_index WHERE inst_id=$1 AND venue<>'sim') q
-			ORDER BY ts DESC LIMIT 1`, l.inst).Scan(&last, &ts); err != nil || last == nil {
+	// O-41385：价源=legset.MarkPx 单源（中价∪mark_index union——原平行件收编）。
+	px, ts, _, ok := legset.MarkPx(ctx, w.pool, "", l.inst)
+	if !ok {
 		return 0, false
 	}
 	maxAge := legset.TickMaxAgeDefS
@@ -108,5 +105,5 @@ func (w *Warden) lastPx(ctx context.Context, l leg) (float64, bool) {
 	if time.Since(ts) > time.Duration(maxAge*float64(time.Second)) {
 		return 0, false
 	}
-	return *last, true
+	return px, true
 }

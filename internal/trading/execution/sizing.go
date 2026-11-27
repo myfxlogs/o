@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"o/internal/mt5"
+	"o/internal/platform/legset"
 )
 
 // InstMeta 乐器元数据（/public/instruments 公开只读——钦定保留面）。
@@ -46,15 +47,11 @@ type MetaLoader func(ctx context.Context, instID string) (InstMeta, error)
 
 // LatestPx 最新价（md_ticks∪md_mark_index 末帧就近取——T-0132 分级后非活跃
 // 集无 tick 行，mark/index 价续供；事实行流径非 REST 轮询）。
+// O-41385：价源=legset.MarkPx 单源（中价∪mark_index union——原平行件收编）。
 func LatestPx(ctx context.Context, pool *pgxpool.Pool, instID string) (float64, error) {
-	var px float64
-	var ts time.Time
-	if err := pool.QueryRow(ctx,
-		`SELECT v,ts FROM (SELECT COALESCE(NULLIF(last,0),(NULLIF(bid,0)+NULLIF(ask,0))/2) v,ts FROM md_ticks WHERE inst_id=$1 AND venue<>'sim'
-			UNION ALL SELECT px,ts FROM md_mark_index WHERE inst_id=$1) q
-			ORDER BY ts DESC LIMIT 1`,
-		instID).Scan(&px, &ts); err != nil {
-		return 0, fmt.Errorf("md_ticks/md_mark_index 无 %s 行: %w", instID, err)
+	px, ts, _, ok := legset.MarkPx(ctx, pool, "", instID)
+	if !ok {
+		return 0, fmt.Errorf("md_ticks/md_mark_index 无 %s 行", instID)
 	}
 	if time.Since(ts) > 60*time.Second {
 		return 0, fmt.Errorf("md_ticks/md_mark_index %s 陈（%v>60s）", instID, time.Since(ts))
