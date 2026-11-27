@@ -7,8 +7,21 @@ package mt5
 import "strings"
 
 // quoteSuffixes broker 符号报价后缀谱（全大写面——u 已 ToUpper 比基；m 尾
-// 方言含——长先剥）。
-var quoteSuffixes = []string{"USDTM", "USDM", "USDT", "USDCM", "USDC", "USDZ", "USDD", "USD", "PERP", ".P"}
+// 方言含——长先剥）。尾段=XM '#' 族（O-41377——自报表实读集
+// docs/能力账/xmglobal-survey-2026-11-26.json：168 hash 符=<BASE><QUOTE>#，
+// quote=fiat 码+BTC；裸 '#' 尾=GOLD#/SILVER#/*Cash# 单名符——剥后须全等
+// base 才命中，GOLD24-7# 剥 '#' 余 GOLD24-7≠GOLD 不误配）。
+var quoteSuffixes = []string{
+	"USDTM", "USDM", "USDT", "USDCM", "USDC", "USDZ", "USDD", "USD", "PERP", ".P",
+	// XM '#' 族 quote 码裸尾（<BASE><QUOTE>#——BTCUSD# 剥 USD#→BTC、
+	// ETHBTC# 剥 BTC#→ETH、GAUCNH# 剥 CNH#→GAU；码谱=自报表实读集
+	// quote 全谱非穷举）；裸 '#' 殿后=单名符兜底剥（GOLD#→GOLD、
+	// GOLD24-7#→GOLD24-7≠GOLD 不误配——剥后全等 base 才命中）。
+	"AUD#", "CAD#", "CHF#", "CNH#", "DKK#", "EUR#", "GBP#", "HKD#",
+	"HUF#", "JPY#", "MXN#", "NOK#", "NZD#", "PLN#", "SEK#", "SGD#",
+	"TRY#", "USD#", "ZAR#", "BTC#",
+	"#",
+}
 
 // QuoteSuffixes 后缀谱只读出件（T-0432 候选机造剥后缀复用——禁平行第二套
 // 后缀表漂移）。

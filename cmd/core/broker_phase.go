@@ -10,7 +10,9 @@ import (
 
 // brokerPhaseRoster 名册户 phase 派生（O-37450——roster.state 生命周期
 // 机→读面相：cred_missing>removed/disabled 直通>active=verified>
-// degraded=failed（连败在册）>connecting/registered=connecting）。
+// degraded=failed（连败在册）>registered/connecting 分态直通；O-41377 刀4
+// 六态全谱——registered/connecting 不再并「connecting」掩同态，未知态
+// 直通原值=词表无命中落「未识别态」兜底显形不掩码）。
 func brokerPhaseRoster(state string, credBad bool) string {
 	if credBad {
 		return "cred_missing"
@@ -24,8 +26,12 @@ func brokerPhaseRoster(state string, credBad bool) string {
 		return "disabled"
 	case "removed":
 		return "removed"
-	default: // connecting/registered/未知态——候首次拍如实显形
+	case "registered":
+		return "registered"
+	case "connecting":
 		return "connecting"
+	default:
+		return state // 未知态直通——词表无命中=「未识别态」兜底（不冒充 connecting）
 	}
 }
 

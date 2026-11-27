@@ -143,9 +143,17 @@ export const BROKER_PHASE_CN: Record<string, string> = {
 	connecting: "验连中",
 	verified: "已验证",
 	failed: "接入败",
+	disabled: "已停用",
+	removed: "已移除",
+	cred_missing: "凭据缺件",
 };
 export const BROKER_STATE_CN: Record<string, string> = {
 	registered: "已注册·候探测",
+	connecting: "会话连接中",
+	active: "会话在线",
+	degraded: "会话降级",
+	disabled: "已停用",
+	removed: "已移除",
 	probed: "已探测",
 	mapped: "映射就绪",
 	paper: "paper 激活",

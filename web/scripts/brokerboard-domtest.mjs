@@ -58,6 +58,15 @@ const rows = [
 	row("okx", "cex", { state: "", phase: "verified", beatNote: "venue=okx proto=cex balance ok totalEq=7.89" }),
 	row("badbro", "mt5", { login: "9", state: "registered", phase: "failed", beatNote: "败径 fail-closed：凭据拒", beatFailed: true, beatAgeS: 30 }),
 	row("fxmt4", "mt4", { login: "777" }),
+	// O-41377 刀1：beatFailed+phase=verified（会话环活性面优先——ws-login
+	// 1006 败行冻结不再盖活会话）→接入态显已验证，败行降末拍列「末败@t」。
+	row("okxdead", "cex", { phase: "verified", beatNote: "beat=ws-login close 1006", beatFailed: true, beatAgeS: 7200 }),
+	// O-41377 刀4：roster 六态全谱——disabled/removed/registered 分态直显，
+	// 未知态=「未识别态」兜底不掩码。
+	row("exd", "mt5", { login: "1", state: "disabled", phase: "disabled" }),
+	row("exr", "mt5", { login: "2", state: "removed", phase: "removed" }),
+	row("exreg", "mt5", { login: "3", state: "registered", phase: "registered" }),
+	row("exbogus", "mt5", { login: "4", state: "bogus", phase: "bogus" }),
 ];
 const listHtml = render(rows);
 
@@ -68,6 +77,17 @@ check("⑦failed chip（接入败）", listHtml.includes("接入败"));
 check("⑦败因列渲出（凭据拒）", listHtml.includes("凭据拒"));
 check("⑦MT4 遗留=链未接如实显形", listHtml.includes("MT4 链未接"));
 check("⑦login 渲出", listHtml.includes("3001157"));
+// O-41377 刀1：beatFailed 不并入态栏——verified+beatFailed 行不产第二枚
+// 「接入败」chip（全表仅 badbro phase=failed 一枚）；败行注「末败@」落末拍列。
+check("刀1 beatFailed+verified 不盖态（接入败 chip 仅 1 枚=badbro）",
+	(listHtml.match(/接入败/g) || []).length === 1);
+check("刀1 末败@t 历史注落末拍列", listHtml.includes("末败@"));
+check("刀1 stale 龄注渲出（分前/时前/天前）", /分前|时前|天前/.test(listHtml));
+// O-41377 刀4：roster 六态全谱人话——disabled/removed/registered 分态直显。
+check("刀4 disabled=已停用（非未识别态）", listHtml.includes("已停用"));
+check("刀4 removed=已移除", listHtml.includes("已移除"));
+check("刀4 registered=已注册·候验连", listHtml.includes("已注册·候验连"));
+check("刀4 未知态=未识别态兜底", listHtml.includes("未识别态"));
 
 // ①步序——步1 缺省：类型+venue 件在，凭据件不在
 const s1 = render(rows);
