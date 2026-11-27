@@ -161,11 +161,15 @@ func (s *Sensor) deskPremiseDeath(ctx context.Context) error {
 }
 
 // deskRetiredRefs 退役 template_ref 集（_ 归一键——note 词元 _↔-
-// 双向归一同 breedstall 硬条款）。
+// 双向归一同 breedstall 硬条款）。族死语义=该族零活员——NOT EXISTS
+// 非退役员排他（审计1126-hunger实证：dir_perp_mom 209退/182活被
+// 「任一退役即中」误判族死，premise_dead 假报 #39747-40070 连环）。
 func (s *Sensor) deskRetiredRefs(ctx context.Context) (map[string]bool, error) {
 	rows, err := s.pool.Query(ctx, `SELECT DISTINCT replace(template_ref,'-','_')
-		FROM fin_strategy WHERE state='retired' AND template_ref IS NOT NULL
-		  AND template_ref<>''`)
+		FROM fin_strategy s WHERE s.state='retired' AND s.template_ref IS NOT NULL
+		  AND s.template_ref<>''
+		  AND NOT EXISTS (SELECT 1 FROM fin_strategy a
+		    WHERE a.template_ref=s.template_ref AND a.state<>'retired')`)
 	if err != nil {
 		return nil, fmt.Errorf("退役面读败: %w", err)
 	}

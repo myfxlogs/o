@@ -125,6 +125,27 @@ func TestDesklifePremiseRetiredEscalates(t *testing.T) {
 	}
 }
 
+// TestDesklifePremisePartialRetiredNoEsc 审计1126-hunger 锚：部分退役族
+// ≠族死——deadMixed_tmpl 1退+1活不命中 premise_dead（修前 deskRetiredRefs
+// 「任一退役即中」全集收→dir_perp_mom 209退/182活连环假报）。
+func TestDesklifePremisePartialRetiredNoEsc(t *testing.T) {
+	s, pool := desklifeFixture(t)
+	ctx := context.Background()
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO fin_strategy(inst_id,template_ref,state,notional_usd)
+		 VALUES('M1-USDT-SWAP','deadMixed_tmpl','retired',100),
+		       ('M2-USDT-SWAP','deadMixed_tmpl','live',100)`); err != nil {
+		t.Fatal(err)
+	}
+	id := seedDesklifeTicket(t, pool, "工单/foo-mixedref: deadMixed_tmpl 族某面", 1)
+	if err := s.ProbeDeskLifecycle(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if n := desklifeEscCount(t, pool, deskPremiseEscClass, itoa(id)); n != 0 {
+		t.Fatalf("部分退役族误升 premise_dead=%d want 0（活员排他缺=病灶回潮）", n)
+	}
+}
+
 func TestDesklifeDecayOnce(t *testing.T) {
 	s, pool := desklifeFixture(t)
 	ctx := context.Background()
