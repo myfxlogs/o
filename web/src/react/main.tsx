@@ -11,6 +11,7 @@ import { DecisionPage } from "./pages/Decision";
 import { FloorPage } from "./pages/Floor";
 import { CockpitPage } from "./pages/Cockpit";
 import { TrxPage } from "./pages/Trx";
+import { ProfitPage } from "./pages/Profit";
 import { ReviewPage } from "./pages/Review";
 import { OnboardPage } from "./pages/Onboard";
 import { InboxPage } from "./pages/Inbox";
@@ -31,6 +32,7 @@ const ROUTES: RouteDef[] = [
   { path: "/decision", label: "何事要裁", el: <DecisionPage /> },
   { path: "/cockpit", label: "要我办啥", el: <CockpitPage /> },
   { path: "/trx", label: "TRX盘怎样", el: <TrxPage /> },
+  { path: "/profit", label: "赚钱怎样", el: <ProfitPage /> },
   { path: "/review", label: "钱怎么走的", el: <ReviewPage /> },
   { path: "/onboard", label: "怎么接进来", el: <OnboardPage /> },
   { path: "/inbox", label: "递东西", el: <InboxPage /> },

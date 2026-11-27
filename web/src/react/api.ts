@@ -94,6 +94,7 @@ export const client: Client<typeof CoreService> = {
   listReports: deduped("ListReports", raw.listReports),
   getEquityCurve: deduped("GetEquityCurve", raw.getEquityCurve),
   listCashflows: deduped("ListCashflows", raw.listCashflows),
+  listStrategyPnl: deduped("ListStrategyPnl", raw.listStrategyPnl),
   listClosedPositions: deduped("ListClosedPositions", raw.listClosedPositions),
   listOpenPositions: deduped("ListOpenPositions", raw.listOpenPositions),
   getHeadless: deduped("GetHeadless", raw.getHeadless),

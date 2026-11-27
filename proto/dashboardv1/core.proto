@@ -31,6 +31,7 @@ service CoreService {
   rpc ListReports(ListReportsRequest) returns (ListReportsResponse) {}
   rpc GetEquityCurve(GetEquityCurveRequest) returns (GetEquityCurveResponse) {}
   rpc ListCashflows(ListCashflowsRequest) returns (ListCashflowsResponse) {}
+  rpc ListStrategyPnl(ListStrategyPnlRequest) returns (ListStrategyPnlResponse) {} // O-41386 策略盈亏榜
   rpc ListClosedPositions(ListClosedPositionsRequest) returns (ListClosedPositionsResponse) {}
   rpc ListOpenPositions(ListOpenPositionsRequest) returns (ListOpenPositionsResponse) {}
   rpc GetHeadless(GetHeadlessRequest) returns (GetHeadlessResponse) {}
@@ -463,6 +464,22 @@ message CashflowRow {
   double amount = 5;
   string venue = 6;
 }
+
+// —— O-41386 策略盈亏榜：fin_pnl_net 钦定账本行 join 仓→策略聚合——
+// 策略账非流水账；position_ref NULL 行（账外腿）天然不入围；
+// net=realized+fees+funding 三者和（服务端算定前端零判据）——
+message ListStrategyPnlRequest { int32 days = 1; }  // <=0=30 上限180
+message StrategyPnlRow {
+  int64 strategy_ref = 1;
+  string template = 2;
+  double realized_usd = 3;              // trade_pnl 合计
+  double fees_usd = 4;                  // fee 合计（负=付）
+  double funding_usd = 5;               // funding_settle 合计
+  double net_usd = 6;                   // 三者和
+  int32 positions = 7;                  // 关联仓数（distinct position_ref）
+  google.protobuf.Timestamp last_ts = 8; // 窗内末笔账行时
+}
+message ListStrategyPnlResponse { repeated StrategyPnlRow rows = 1; }
 
 // —— 业主驾驶舱（T-0239——五块只读聚合：存活/钱面/工单板/待开仓/在做什么——
 // 服务端判态派生，前端零判据纯渲染）——
