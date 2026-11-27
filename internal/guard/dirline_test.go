@@ -34,6 +34,7 @@ func dirClean(t *testing.T, ctx context.Context, w *Warden) {
 		`DELETE FROM app_config WHERE key LIKE 'guard.dir_broken.%'`,
 		`DELETE FROM ops_event WHERE esc_scope='dir_loss_breaker'`,
 		`DELETE FROM md_ticks WHERE inst_id='ETH-USDT-SWAP'`,
+		`DELETE FROM md_mark_index WHERE inst_id='ETH-USDT-SWAP'`,
 		`DELETE FROM md_equity_curve WHERE src='test'`,
 	} {
 		if _, err := w.pool.Exec(ctx, q); err != nil {
@@ -146,6 +147,39 @@ func TestDirTripFreezesDegradesFlattens(t *testing.T) {
 	if err := w.pool.QueryRow(ctx, `SELECT count(*) FROM ops_event
 		WHERE event='升件' AND esc_scope='dir_loss_breaker'`).Scan(&esc); err != nil || esc != 1 {
 		t.Fatalf("熔断升件=%d（应=1）", esc)
+	}
+}
+
+// O-41384 锚：尸 tick+鲜 mark_index——dirFloating 须取 mark_index 新价
+// （单读 ticks=尸价喂族熔断实案：CRML 14h 陈帧 4.5% 误差；浮亏符号都能反）。
+func TestDirFloatingMarkIndexFallback(t *testing.T) {
+	ctx, w, _ := setup(t)
+	dirClean(t, ctx, w)
+	mkDirPosition(t, ctx, w, "dir-test", "live",
+		[]struct {
+			inst, side string
+			qty, px    float64
+		}{
+			{"ETH-USDT-SWAP", "buy", 2, 100},
+		}, time.Now().Add(-time.Hour))
+	// 尸 tick(14h 陈 px=80)+鲜 mark_index(px=110)——浮亏应按 110 算
+	if _, err := w.pool.Exec(ctx,
+		`INSERT INTO md_ticks(ts,venue,inst_id,last) VALUES(now()-interval '14 hours','okx','ETH-USDT-SWAP',80)
+		ON CONFLICT (venue,inst_id) DO UPDATE SET last=80,ts=now()-interval '14 hours'`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.pool.Exec(ctx,
+		`INSERT INTO md_mark_index(ts,venue,inst_id,channel,px) VALUES(now(),'okx','ETH-USDT-SWAP','mark-price',110)
+		ON CONFLICT (venue,inst_id,channel) DO UPDATE SET px=110,ts=now()`); err != nil {
+		t.Fatal(err)
+	}
+	got, err := w.dirFloating(ctx, "dir-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// qty2×(110−100)=+20；若尸 tick 泄漏=2×(80−100)=−40——符号都反。
+	if got < 19.5 || got > 20.5 {
+		t.Fatalf("dirFloating=%v 期≈+20(mark_index源)——若=-40则尸tick泄漏", got)
 	}
 }
 
