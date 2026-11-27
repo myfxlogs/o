@@ -16,23 +16,59 @@ import (
 type OkxExecutor struct {
 	C *okxexec.Client
 
-	posOnce sync.Once
-	posMode string
-	posErr  error
+	confMu sync.Mutex
+	conf   *acctConf // nil=未读（读败不留缓存——瞬断下次自愈）
 }
 
-// posModeOf 惰性读账户 posMode（一次缓存——account config 静态面）。
-func (e *OkxExecutor) posModeOf(ctx context.Context) (string, error) {
-	e.posOnce.Do(func() { e.posMode, e.posErr = e.C.AccountPosMode(ctx) })
-	return e.posMode, e.posErr
+type acctConf struct{ posMode, acctLv string }
+
+// confOf 账户 config 缓存读（静态面首读即缓存；refresh=true 强制重取——
+// acctLv 是业主侧外部可变面，闸拒后强制重取一次让切档自愈不赖重启）。
+func (e *OkxExecutor) confOf(ctx context.Context, refresh bool) (acctConf, error) {
+	e.confMu.Lock()
+	defer e.confMu.Unlock()
+	if e.conf != nil && !refresh {
+		return *e.conf, nil
+	}
+	pm, lv, err := e.C.AccountConfig(ctx)
+	if err != nil {
+		if e.conf != nil {
+			return *e.conf, nil // 刷新败回落旧缓存（静态面降级优于拒）
+		}
+		return acctConf{}, err
+	}
+	e.conf = &acctConf{pm, lv}
+	return *e.conf, nil
+}
+
+// acctLvGate 账户模式预检（2026-11-27 实案：acctLv=1 现货档下 SWAP 单全谱
+// 51010「current account mode」拒——venue 级终局非参数病，盲续试=噪声风暴）。
+// cross 腿须 acctLv≥2（保证金档）；现金腿（cash/spot）现货档可过。
+func acctLvGate(tdMode, acctLv string) error {
+	if tdMode != "cross" {
+		return nil
+	}
+	if lv, err := strconv.Atoi(acctLv); err != nil || lv < 2 {
+		return fmt.Errorf("okx acctLv=%s 现货档不支持衍生品单（cross）——业主侧账户模式改回保证金档自解", acctLv)
+	}
+	return nil
 }
 
 func (e *OkxExecutor) Place(ctx context.Context, leg Leg, clOrdID string) (OrderResult, error) {
-	posMode, err := e.posModeOf(ctx)
+	conf, err := e.confOf(ctx, false)
 	if err != nil {
-		return OrderResult{ClOrdID: clOrdID, State: "unknown"}, fmt.Errorf("posMode fail-closed: %w", err)
+		return OrderResult{ClOrdID: clOrdID, State: "unknown"}, fmt.Errorf("account config fail-closed: %w", err)
 	}
-	raw, err := e.C.PlaceOrder(ctx, buildOrderParams(leg, clOrdID, posMode))
+	if err := acctLvGate(tdMode(leg), conf.acctLv); err != nil {
+		conf, err = e.confOf(ctx, true)
+		if err != nil {
+			return OrderResult{ClOrdID: clOrdID, State: "unknown"}, fmt.Errorf("account config fail-closed: %w", err)
+		}
+		if err := acctLvGate(tdMode(leg), conf.acctLv); err != nil {
+			return OrderResult{ClOrdID: clOrdID, State: "unknown"}, err
+		}
+	}
+	raw, err := e.C.PlaceOrder(ctx, buildOrderParams(leg, clOrdID, conf.posMode))
 	if err != nil {
 		return OrderResult{ClOrdID: clOrdID, State: "unknown"}, err
 	}

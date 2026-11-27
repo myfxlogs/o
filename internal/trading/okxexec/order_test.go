@@ -104,23 +104,29 @@ func TestResolve51603Absent(t *testing.T) {
 	}
 }
 
-// T-0040 锚：posMode 实读（long_short_mode）；空值 fail-closed。
-func TestAccountPosMode(t *testing.T) {
+// T-0040 锚：config 双字段实读（posMode+acctLv）；任一空值 fail-closed。
+func TestAccountConfig(t *testing.T) {
 	ctx := context.Background()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"code":"0","data":[{"posMode":"long_short_mode","acctLv":"2"}]}`))
 	}))
 	defer srv.Close()
 	cli := withBase(NewClient(Credentials{Key: "k", Secret: "s", Passphrase: "p"}, false), srv.URL)
-	if pm, err := cli.AccountPosMode(ctx); err != nil || pm != "long_short_mode" {
-		t.Fatalf("posMode 实读: got=%q err=%v", pm, err)
+	if pm, lv, err := cli.AccountConfig(ctx); err != nil || pm != "long_short_mode" || lv != "2" {
+		t.Fatalf("config 实读: got=%q/%q err=%v", pm, lv, err)
 	}
-	empty := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(`{"code":"0","data":[{"acctLv":"2"}]}`))
-	}))
-	defer empty.Close()
-	if _, err := withBase(NewClient(Credentials{}, false), empty.URL).AccountPosMode(ctx); err == nil {
-		t.Fatal("posMode 空值应 fail-closed 上抛")
+	for _, body := range []string{
+		`{"code":"0","data":[{"acctLv":"2"}]}`,              // posMode 空
+		`{"code":"0","data":[{"posMode":"net_mode"}]}`,      // acctLv 空
+		`{"code":"0","data":[{"posMode":"","acctLv":"2"}]}`, // posMode 空串
+	} {
+		empty := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write([]byte(body))
+		}))
+		if _, _, err := withBase(NewClient(Credentials{}, false), empty.URL).AccountConfig(ctx); err == nil {
+			t.Fatalf("字段空应 fail-closed 上抛 body=%s", body)
+		}
+		empty.Close()
 	}
 }
 

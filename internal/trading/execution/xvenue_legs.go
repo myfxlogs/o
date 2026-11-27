@@ -4,7 +4,6 @@ package execution
 import (
 	"fmt"
 	"math"
-	"strconv"
 )
 
 // BuildXvenueLegs 跨所 carry 双腿构（T-0145——DM 裁定腿序钦定 leg1=mt5 cfd
@@ -59,9 +58,9 @@ func BuildXvenueLegs(direction, instID, cfdInst, cfdVenue string, notional float
 		perpUSD *= pxPerp
 	}
 	return [2]Leg{
-		{Venue: cfdVenue, InstID: cfdInst, Side: cfdSide, Sz: strconv.FormatFloat(lots, 'f', -1, 64),
+		{Venue: cfdVenue, InstID: cfdInst, Side: cfdSide, Sz: szOnGrid(lots, cfdM.LotStep),
 			Notional: cfdUSD, CtVal: cfdM.ContractSize},
-		{Venue: "okx", InstID: instID, Side: perpSide, Sz: strconv.FormatFloat(perpSz, 'f', -1, 64),
+		{Venue: "okx", InstID: instID, Side: perpSide, Sz: szOnGrid(perpSz, perpM.LotSz),
 			Notional: perpUSD},
 	}, nil
 }

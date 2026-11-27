@@ -80,3 +80,36 @@ func TestBuildOrderParamsTgtQuote(t *testing.T) {
 		t.Fatalf("TgtQuote 位应 quote_ccy: %+v", p)
 	}
 }
+
+// 51121 实案锚：floorLot 落网格后 FormatFloat(-1) 吐浮尘（123×0.1=
+// 12.300000000000001）→venue 拒「非 lot 倍数」——szOnGrid 按 grid 位杀尘。
+func TestSzOnGrid(t *testing.T) {
+	for _, tc := range []struct {
+		v, grid float64
+		want    string
+	}{
+		{floorLot(12.34, 0.1), 0.1, "12.3"}, // 实案原值
+		{floorLot(100, 1), 1, "100"},        // CRML 整数档
+		{floorLot(4.97, 0.25), 0.25, "4.75"},
+		{floorLot(33, 5), 5, "30"},    // 非十进 grid
+		{floorLot(7.7777, 0), 0, "7"}, // lot≤0 整数域
+		{floorLot(0.099, 0.01), 0.01, "0.09"},
+	} {
+		if got := szOnGrid(tc.v, tc.grid); got != tc.want {
+			t.Fatalf("szOnGrid(%v,%v)=%q want %q", tc.v, tc.grid, got, tc.want)
+		}
+	}
+}
+
+// 51010 实案锚：acctLv=1 现货档 cross 腿本地拒（非 venue 盲撞续试）；
+// cash 腿现货档放行、acctLv≥2 cross 放行。
+func TestAcctLvGate(t *testing.T) {
+	if err := acctLvGate("cross", "1"); err == nil {
+		t.Fatal("acctLv=1 cross 应拒")
+	}
+	for _, ok := range [][2]string{{"cross", "2"}, {"cross", "3"}, {"cross", "4"}, {"cash", "1"}, {"cash", ""}} {
+		if err := acctLvGate(ok[0], ok[1]); err != nil {
+			t.Fatalf("acctLvGate(%q,%q) 应放: %v", ok[0], ok[1], err)
+		}
+	}
+}

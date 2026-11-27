@@ -12,7 +12,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"strconv"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -53,7 +52,7 @@ func BuildDirLeg(ctx context.Context, pool *pgxpool.Pool, loadMeta MetaLoader,
 		return Leg{}, fmt.Errorf("perp 最小张起不来: sz=%.4f<minSz=%.4f", sz, m.MinSz)
 	}
 	return Leg{Venue: venue, InstID: instID, Side: side,
-		Sz: strconv.FormatFloat(sz, 'f', -1, 64), Notional: notional}, nil
+		Sz: szOnGrid(sz, m.LotSz), Notional: notional}, nil
 }
 
 // ExecuteDir 方向族单腿执行（open|close 同径——close 免 live 闸免赎同 Execute

@@ -188,7 +188,7 @@ func TestBuildXvenueLegs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if legs[0].Venue != "exness" || legs[0].Side != "sell" || legs[0].Sz != "0.5" || legs[0].CtVal != 1 {
+	if legs[0].Venue != "exness" || legs[0].Side != "sell" || legs[0].Sz != "0.50" || legs[0].CtVal != 1 {
 		t.Fatalf("leg1: %+v", legs[0])
 	}
 	if legs[1].Venue != "okx" || legs[1].Side != "buy" || legs[1].Sz != "50" {

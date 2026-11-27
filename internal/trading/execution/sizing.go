@@ -135,7 +135,7 @@ func BuildLegs(ctx context.Context, pool *pgxpool.Pool, loadMeta MetaLoader,
 		return [2]Leg{}, spotInst, fmt.Errorf("spot 最小额起不来: usd=%.4f<minSz=%.6f×px", perpUSD, spotM.MinSz)
 	}
 	return [2]Leg{
-		{Venue: venue, InstID: instID, Side: "sell", Sz: strconv.FormatFloat(perpSz, 'f', -1, 64), Notional: half},
+		{Venue: venue, InstID: instID, Side: "sell", Sz: szOnGrid(perpSz, perpM.LotSz), Notional: half},
 		{Venue: venue, InstID: spotInst, Side: "buy", Sz: strconv.FormatFloat(perpUSD, 'f', -1, 64), Notional: half, TgtQuote: true},
 	}, spotInst, nil
 }
@@ -146,6 +146,18 @@ func floorLot(v, lot float64) float64 {
 		return math.Floor(v)
 	}
 	return math.Floor(v/lot) * lot
+}
+
+// szOnGrid 落网格值序列化——floorLot 浮尘实案（51121：floorLot(12.34,0.1)=
+// 123×0.1=12.300000000000001，FormatFloat(-1) 原样吐尘→venue 拒「非 lot 倍数」）。
+// 按 grid 最小 10 进制位格式杀尘；grid≤0/超 8 位=整数位（floorLot 同义域）。
+func szOnGrid(v, grid float64) string {
+	for d := 0; d <= 8; d++ {
+		if g := grid * math.Pow10(d); math.Abs(g-math.Round(g)) < 1e-6 {
+			return strconv.FormatFloat(v, 'f', d, 64)
+		}
+	}
+	return strconv.FormatFloat(v, 'f', 0, 64)
 }
 
 // RouterExecutor 跨 venue 路由（map[venue]Executor——腿按 Venue 分派，互不串）。
@@ -218,7 +230,7 @@ func BuildCfdLegs(instID, cfdInst, cfdVenue string, notional float64, cfdM CfdMe
 	}
 	return [2]Leg{
 		{Venue: "okx", InstID: instID, Side: "sell", Sz: strconv.FormatFloat(perpSz, 'f', -1, 64), Notional: half},
-		{Venue: cfdVenue, InstID: cfdInst, Side: "buy", Sz: strconv.FormatFloat(lots, 'f', -1, 64), Notional: half},
+		{Venue: cfdVenue, InstID: cfdInst, Side: "buy", Sz: szOnGrid(lots, cfdM.LotStep), Notional: half},
 	}, cfdInst, nil
 }
 
@@ -251,7 +263,7 @@ func BuildBasisLegs(ctx context.Context, pool *pgxpool.Pool, loadMeta MetaLoader
 		futUSD *= pxFut
 	}
 	futLeg := Leg{Venue: venue, InstID: futInst, Side: "sell",
-		Sz: strconv.FormatFloat(futSz, 'f', -1, 64), Notional: half}
+		Sz: szOnGrid(futSz, futM.LotSz), Notional: half}
 	if longIsSpot {
 		longM, err := loadMeta(ctx, longInst)
 		if err != nil {
@@ -284,5 +296,5 @@ func BuildBasisLegs(ctx context.Context, pool *pgxpool.Pool, loadMeta MetaLoader
 		return [2]Leg{}, fmt.Errorf("perp 最小张起不来: sz=%.4f<minSz=%.4f", longSz, longM.MinSz)
 	}
 	return [2]Leg{futLeg, {Venue: venue, InstID: longInst, Side: "buy",
-		Sz: strconv.FormatFloat(longSz, 'f', -1, 64), Notional: half}}, nil
+		Sz: szOnGrid(longSz, longM.LotSz), Notional: half}}, nil
 }
