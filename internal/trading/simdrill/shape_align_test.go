@@ -14,13 +14,13 @@ import (
 // 面者在此登记（空=零豁免：全册须有形）。新增豁免须同 commit 写明裁处。
 var drillUnsupported = []string{
 	// 空=零豁免（棒5c：dir_perp_mom 出册——ShapeOKXSingleLeg 演习件接通）。
-	"stake-carry",          // 工单#21612：参考模型族——venue 执行臂未建无可演习腿形，凭据伪造不可为
-	"grid_spot",            // 工单#25840：venue 原生 bot 容器族——execution.Executor 腿形语义外（okxgrid 适配器径），无可演习腿形
+	"stake-carry", // 工单#21612：参考模型族——venue 执行臂未建无可演习腿形，凭据伪造不可为
+	// 工单#25840 裁定史——O-41370 ShapeGridBot 腿形落成后豁免废，O-41387 撤出（grid_spot）
 	"sprd-atomic-basis",    // 工单#26268：venue 原子多腿价差容器族——sprd 原子执行臂未接（凭据 403 在案），无可演习腿形勿虚开
 	"stable-park-usdg",     // 工单#26272：骨架族——真径=okx finance okusd 申赎非 Executor 腿形，probe→live 结构性拦保持
 	"staking-defi-parking", // 工单#26272：骨架族——真径=okx finance staking-defi purchase/redeem 非 Executor 腿形，probe→live 结构性拦保持
 	"signal-bot-relay",     // 工单#26272：骨架族——真径=tradingBot signal 适配器非 Executor 腿形，probe→live 结构性拦保持
-	"mt5_dir_mom",          // 工单#35163：CFD 方向族 venue='mt5'——mt5 执行臂未建（真单径不建裁定在案 eq=0），无可演习腿形勿虚开（stake-carry 同判例）
+	// 工单#35163 裁定史——O-41368 ShapeCFDSingleLeg 腿形落成后豁免废，O-41387 撤出（mt5_dir_mom）
 	"xsec-perp-mom-basket", // 工单O-35489：篮复合腿形（perp_long_basket+perp_short_basket 多 inst 复合）——单/双腿演习形皆不配，骨架族执行臂未建无可演习腿形，probe→live 结构性拦保持
 }
 
