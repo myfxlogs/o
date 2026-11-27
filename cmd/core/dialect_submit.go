@@ -62,11 +62,11 @@ func (c coreService) SubmitSymbolMapping(ctx context.Context,
 func (c coreService) verifySymbolMapping(ctx context.Context, venue, canonical, venueSymbol string) (mt5.DialectRow, *dashboardv1.SymbolVerifyEvidence, uint64, error) {
 	meta := c.dialectMeta
 	if meta == nil {
-		meta = canonicalMetaDefault
+		meta = c.canonicalSpecMeta
 	}
 	ctVal, ctValCcy, state, err := meta(ctx, canonical)
 	if err != nil {
-		return mt5.DialectRow{}, nil, 0, fmt.Errorf("官名语义源（OKX instruments）: %w", err)
+		return mt5.DialectRow{}, nil, 0, fmt.Errorf("官名语义源（registry∪OKX）: %w", err)
 	}
 	if state != "live" {
 		return mt5.DialectRow{}, nil, 0, fmt.Errorf("官名 state=%s 非 live——官名不可交易面", state)
@@ -84,10 +84,10 @@ func (c coreService) verifySymbolMapping(ctx context.Context, venue, canonical, 
 		return mt5.DialectRow{}, nil, 0, fmt.Errorf("venue 语义（SymbolParams）: %w——符号方言禁猜（venue 自报实读）", err)
 	}
 	vcs := si.GetContractSize()
-	if !approxEq(vcs, ctVal) {
+	if !mt5.ApproxEq(vcs, ctVal) {
 		return mt5.DialectRow{}, nil, 0, fmt.Errorf("ctVal 对拍拒：venue ContractSize=%g ≠ 官名 ctVal=%g（单位错配病防线）", vcs, ctVal)
 	}
-	if !dollarPegged(si.GetProfitCurrency()) {
+	if !mt5.DollarPegged(si.GetProfitCurrency()) {
 		return mt5.DialectRow{}, nil, 0, fmt.Errorf("计价币拒：ProfitCurrency=%q 出美元锚定族 {USD,USDT,USDC}（官名 ctValCcy=%s）",
 			si.GetProfitCurrency(), ctValCcy)
 	}
@@ -125,20 +125,16 @@ func (c coreService) verifySymbolMapping(ctx context.Context, venue, canonical, 
 	return row, ev, login, nil
 }
 
-// approxEq 相对容差等（ctVal 对拍——浮点直等禁，1e-9 相对容差）。
-func approxEq(a, b float64) bool {
-	if a == b {
-		return true
+// canonicalSpecMeta 官名语义参源双源（O-41378 件4：registry ∪ OKX——
+// canonical∈fin_canonical_registry(enabled)→登记 spec 为锚（CFD 原生品种
+// GOLD/SILVER/EURUSD 等 OKX 无品的病根修——「CFD 原生官名无锚」终结）；
+// 否则 OKX instruments 实返现径不变（crypto 族照既例）。手工/自动 mint
+// 同走一把尺子——判据全在 mt5.* 单源）。
+func (c coreService) canonicalSpecMeta(ctx context.Context, canonical string) (float64, string, string, error) {
+	if row, err := mt5.NewRegistryStore(c.pool).Row(ctx, canonical); err == nil {
+		return row.CtVal, row.QuoteCcy, "live", nil
 	}
-	d := a - b
-	if d < 0 {
-		d = -d
-	}
-	m := a
-	if b > m {
-		m = b
-	}
-	return d <= m*1e-9
+	return canonicalMetaDefault(ctx, canonical)
 }
 
 // ListCanonicalUniverse 官名清单读面（okx.symbols owner 册实读——升序服务端
