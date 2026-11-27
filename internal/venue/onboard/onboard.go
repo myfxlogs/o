@@ -75,6 +75,9 @@ type Runner struct {
 	// 禁桩真 venue 同律）。
 	dialProbeFn   func(addr string) (probeSession, error)
 	dialectRowsFn func(ctx context.Context, venue, login string) ([]mt5.DialectRow, error)
+	// O-41378 普查/mint 会话缝（nil=生产径 mt5.Dial——*Client 满足
+	// censusSession 全方法；桩测注假禁桩真 venue 同律）。
+	dialCensusFn func(addr string) (censusSession, error)
 	// okx.symbols=['*'] 通配展开缝（universeCatalog.Symbols 同供给件——
 	// T-0416 唯一真源；nil=通配不可展 fail-closed 空集）。
 	universeFn func(ctx context.Context) ([]string, error)
@@ -162,6 +165,12 @@ func (r *Runner) scan(ctx context.Context) error {
 	// ⑤漂移探针（T-0432——监测面：dialect 行全谱指纹对拍+探活，败不上抛
 	// 不阻主链；升件去重见 probe.go）。
 	r.probePass(ctx, brokers)
+	// O-41378 件2+件3：普查拍（SymbolList+SymbolParams 全量落
+	// fin_venue_symbols——censusEvery 节流）+方言 mint 拍（表上纯函数
+	// 配对→参数对拍→探活→UpsertVerifiedWithAudit；同拍距同数据面=cell
+	// 非器官，resident_units 不另登）。
+	r.censusPass(ctx, brokers)
+	r.mintPass(ctx, brokers)
 	return nil
 }
 

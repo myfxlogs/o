@@ -122,6 +122,8 @@ fin_sub_request	bridge
 ops_face_snapshot	fin
 ops_decision	fin
 fin_symbol_dialect	fin
+fin_canonical_registry	fin
+fin_venue_symbols	fin
 fin_exec_drill	fin
 fin_guard_suspend	fin
 ops_seat_card	fin

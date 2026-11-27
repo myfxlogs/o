@@ -14,3 +14,9 @@ md_margin_borrow
 # 同判：采集流水/状态快照面，消费=研究/对账读面非 fin 终态积累面）
 md_open_interest
 md_liquidation
+# O-41378——两表皆登记册/快照面非积累终态：
+# fin_canonical_registry=席位维护语义字典（固定行集，机器只读）；
+# fin_venue_symbols=venue 自报符号快照（PK upsert 行数=venue 符号数有界，
+# last_seen 刷新非追加积累；消费=onboard mint 配对读面+席位 flag 处置面）
+fin_canonical_registry
+fin_venue_symbols

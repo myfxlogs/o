@@ -327,12 +327,12 @@ func TestListSymbolCandidatesRPC(t *testing.T) {
 // 防误用锚：dollarPegged 族判据（USD/USDT/USDC 同族——族外拒）。
 func TestDollarPeggedFamily(t *testing.T) {
 	for _, ok := range []string{"USD", "USDT", "USDC", "usdt"} {
-		if !dollarPegged(ok) {
+		if !mt5.DollarPegged(ok) {
 			t.Fatalf("族内 %q 误拒", ok)
 		}
 	}
 	for _, no := range []string{"BTC", "JPY", "", "EUR"} {
-		if dollarPegged(no) {
+		if mt5.DollarPegged(no) {
 			t.Fatalf("族外 %q 误纳", no)
 		}
 	}
@@ -376,9 +376,9 @@ func TestSplitDialectHash(t *testing.T) {
 		{"BTCUSDm", "BTC", "usdm"},      // m 尾方言零回归
 	}
 	for _, c := range cases {
-		b, s := splitDialect(c.sym)
+		b, s := mt5.SplitDialect(c.sym)
 		if b != c.base || s != c.suf {
-			t.Fatalf("splitDialect(%q)=(%q,%q) want (%q,%q)", c.sym, b, s, c.base, c.suf)
+			t.Fatalf("mt5.SplitDialect(%q)=(%q,%q) want (%q,%q)", c.sym, b, s, c.base, c.suf)
 		}
 	}
 }

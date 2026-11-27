@@ -80,20 +80,9 @@ func canonicalQuote(canonical string) string {
 	return parts[1]
 }
 
-// dollarPegged 美元锚定计价族（计价币对拍判据——CFD 计价方言：broker 自报
-// ProfitCurrency USD/USDT/USDC 经济同族（美元锚定），官名 quote 直等禁
-// （BTCUSDm profit=USD vs 官名 quote=USDT 字面异经济同）；族外=拒）。
-func dollarPegged(ccy string) bool {
-	switch strings.ToUpper(strings.TrimSpace(ccy)) {
-	case "USD", "USDT", "USDC":
-		return true
-	}
-	return false
-}
-
-// spreadCapBPS 点差合理带上限（硬验拒收带——bps；超带=数据病/死市快照，
-// 拒收非警告）。保守宽带上限——正常主流 CFD 全谱远低于此。
-const spreadCapBPS = 5000
+// spreadCapBPS 点差合理带上限（判据单源=mt5.SpreadCapBPS——O-41378 上收
+// internal/mt5 手工/自动同尺）。
+const spreadCapBPS = mt5.SpreadCapBPS
 
 // mt5CredsOf 凭据族读解（app_secrets <venue>.mt5.*|单例 mt5.*——cryptoutil.
 // Open 正径；缺族/缺件=err 拒——映射操作必持在册凭据）。
@@ -203,7 +192,7 @@ func (c coreService) rankCandidates(ctx context.Context, sess dialectSession,
 	}
 	var rows []*dashboardv1.SymbolCandidate
 	for i, s := range syms {
-		vb, vs := splitDialect(s)
+		vb, vs := mt5.SplitDialect(s)
 		if !strings.EqualFold(vb, base) {
 			continue // base 不中不入面（下拉省翻页——真身 seat 判）
 		}
@@ -220,13 +209,13 @@ func (c coreService) rankCandidates(ctx context.Context, sess dialectSession,
 		}
 		score := 100                          // base 精中
 		family := strings.TrimSuffix(vs, "m") // m 尾=mini 手数方言标（Exness 实拍）——族判剥
-		if quote != "" && family != "" && dollarPegged(family) {
+		if quote != "" && family != "" && mt5.DollarPegged(family) {
 			score += 50
 			if strings.EqualFold(family, quote) {
 				score += 10 // quote 字面同（族内直等高档——USD≈USDT 同族低档）
 			}
 		}
-		if vs == "" && isPerpSuffix(s) {
+		if vs == "" && mt5.IsPerpSuffix(s) {
 			score += 20 // PERP/.P 型后缀=perp 面
 		}
 		rows = append(rows, &dashboardv1.SymbolCandidate{
@@ -242,41 +231,6 @@ func (c coreService) rankCandidates(ctx context.Context, sess dialectSession,
 		rows = rows[:limit]
 	}
 	return rows, len(syms)
-}
-
-// dialectMarkers 档位/型后缀（非报价——Exness .pro 实拍在案/期货 .P·PERP；
-// 剥后续剥 quote——XAUUSD.pro=base XAUUSD+quote USD+标 .pro 两层方言）。
-var dialectMarkers = []string{".PRO", ".P", "PERP"}
-
-// splitDialect 方言名两层剥后缀→(base, quote 后缀)（marker 层先剥档位标，
-// #尾 venue 可用标次剥（O-35250 XM 实拍：#=tradable 变体标，无#同名符=观察面
-// 并存不碍——剥后余串再进 quote 层），quote 层长先剥——mt5.QuoteSuffixes
-// 单源复用禁平行第二套；USDM m 尾方言全含）。base 长度=ASCII 剥余
-// （venue 符 ASCII token 面）。
-func splitDialect(sym string) (base, suffix string) {
-	rest := strings.ToUpper(sym)
-	for _, m := range dialectMarkers {
-		if strings.HasSuffix(rest, m) {
-			rest = rest[:len(rest)-len(m)]
-			break
-		}
-	}
-	rest = strings.TrimSuffix(rest, "#") // XM 方言：#尾=tradable 变体标（BTCUSD#→BTCUSD 再剥 USD→BTC）
-	for _, q := range mt5.QuoteSuffixes() {
-		if q == "PERP" || q == ".P" {
-			continue // 型后缀归 marker 层（本件两遍剥）
-		}
-		if strings.HasSuffix(rest, q) {
-			return sym[:len(rest)-len(q)], strings.ToLower(q)
-		}
-	}
-	return sym[:len(rest)], ""
-}
-
-// isPerpSuffix perp 型后缀判（PERP/.P——期货永续方言面）。
-func isPerpSuffix(sym string) bool {
-	u := strings.ToUpper(sym)
-	return strings.HasSuffix(u, "PERP") || strings.HasSuffix(u, ".P")
 }
 
 // dialectTickSz 点距（TickSize>0 实值否则 Points——T-0143 Exness 实拍：
