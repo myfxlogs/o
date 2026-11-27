@@ -863,6 +863,19 @@ details.rep summary {
   font-size: 13px;
 }
 
+/* —— 赚钱页核心指标条（O-41386：NAV/今日盈亏/30d净/年化率/部署率——
+   五格首档；窄屏回落 2×3 同 TRX 律）—— */
+.profit-kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 20px;
+}
+@media (max-width: 900px) {
+  .profit-kpi-strip {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 /* —— TRX 明细层（T-0220c 三档第三档：统一流水全宽表格 13px——明细是查证
    面，字号让位密度；次级瓦片维持正文字号）—— */
 .hedge-flow-table {
