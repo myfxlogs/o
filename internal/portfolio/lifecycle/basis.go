@@ -8,6 +8,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"o/internal/platform/legset"
 )
 
 // basisRe 到期日期货键（-YYMMDD 尾）——基键派生现货/perp 腿+距到期解析
@@ -69,7 +71,7 @@ func (r *Runner) basisPaperAccounting(ctx context.Context) error {
 		sts = append(sts, x)
 	}
 	rows.Close()
-	maxAge := 120.0
+	maxAge := legset.TickMaxAgeDefS
 	if v, err := r.cfg.GetFloat("exec.tick_max_age_s"); err == nil && v > 0 {
 		maxAge = v
 	}

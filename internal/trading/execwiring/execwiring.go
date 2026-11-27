@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"o/internal/guard"
+	"o/internal/platform/legset"
 	"o/internal/trading/execution"
 	"o/internal/trading/okxexec"
 )
@@ -83,7 +84,7 @@ func (s OkxSizer) ContractPos(ctx context.Context, instID string) (float64, erro
 
 func (s OkxSizer) LotSz(ctx context.Context, instID string) (float64, error) {
 	it := "SPOT"
-	if strings.HasSuffix(instID, "-SWAP") {
+	if legset.IsSwapInst(instID) {
 		it = "SWAP"
 	}
 	m, err := s.C.InstrumentMeta(ctx, it, instID)

@@ -157,7 +157,7 @@ func main() {
 		fmt.Printf("cfd %s（官名 %s）trade_mode=%d（FullAccess=4——下单时点实读留痕 T-0039）\n",
 			cfdInst, instID, sg.GetTradeMode())
 		// cfd 腿携官名（官话唯一天——fin_order_leg 台账零方言），mtexec 缝内译。
-		legs, spotInst, err = execution.BuildCfdLegs(instID, instID, *cfdvenue, notional,
+		legs, spotInst, err = execution.BuildCfdLegs(ctx, pool, instID, instID, *cfdvenue, notional,
 			execution.CfdMeta{ContractSize: drow.CtVal,
 				MinLot: drow.MinSz, LotStep: drow.LotStep,
 				TradeMode: int32(sg.GetTradeMode())}, px, pm.CtVal)

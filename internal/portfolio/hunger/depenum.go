@@ -113,23 +113,11 @@ func (s *Sensor) enumerateDeps(ctx context.Context) ([]depPair, error) {
 			producer: spec.prod, consumer: spec.cons,
 			prodSQL: spec.prodSQL, consSQL: spec.consSQL})
 	}
-	// ④配置对：app_config 键域谱面枚举——域在册（键存在=产者已写）而
-	// 读面册外=产而活零读死键（orphan 形）；册内域=常对（键域有册载
-	// 读者——枚举面留账供谱面审计，恒不盲）。
-	domains, err := s.configDomains(ctx)
+	// ④配置对=app_config 键域谱×读者册（depenum_mt5venue.go——CFD 户域=
+	// 名册 proto='cfd' 全列枚举补位，O-41383 静态双册退役）。
+	pairs, err = s.appendConfigPairs(ctx, pairs)
 	if err != nil {
-		return nil, fmt.Errorf("配置对键域谱读败: %w", err)
-	}
-	for _, d := range domains {
-		if reader, ok := depConfigReaders[d]; ok {
-			pairs = append(pairs, depPair{
-				sig: "config:" + d + "→" + reader, family: "config",
-				producer: d, consumer: reader})
-		} else {
-			pairs = append(pairs, depPair{
-				sig: "config:" + d + "→∅", family: "config",
-				producer: d, consumerAbsent: true})
-		}
+		return nil, err
 	}
 	return pairs, nil
 }

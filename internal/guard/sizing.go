@@ -4,9 +4,9 @@ package guard
 import (
 	"context"
 	"math"
-	"strings"
 
 	"o/internal/mt5"
+	"o/internal/platform/legset"
 )
 
 // closeWant 平仓目标量（下单方言量纲消歧——T-0419 根修：开腿 sz 量纲随
@@ -19,7 +19,7 @@ import (
 //	sizedCloseLegs 备源 venue 余额实查（钦定「读腿/读持仓余额」双径），
 //	美元额禁当 base 卖。
 func (l leg) closeWant() (float64, bool) {
-	if strings.HasSuffix(l.inst, "-SWAP") {
+	if legset.IsSwapInst(l.inst) {
 		return l.sz, true
 	}
 	if l.szUnit == "lot" {
@@ -85,7 +85,7 @@ func (w *Warden) sizedCloseLegs(ctx context.Context, cls [2]CloseLeg) ([2]CloseL
 		}
 		var avail float64
 		var err error
-		if mt5.IsCfdProtoVenue(ctx, w.pool, cl.Venue) || strings.HasSuffix(cl.InstID, "-SWAP") { // O-37449：cfd 类全族 CFD 腿 ContractPos 径
+		if mt5.IsCfdProtoVenue(ctx, w.pool, cl.Venue) || legset.IsSwapInst(cl.InstID) { // O-37449：cfd 类全族 CFD 腿 ContractPos 径
 			avail, err = szr.ContractPos(ctx, cl.InstID)
 		} else {
 			avail, err = szr.SpotAvailBal(ctx, cl.InstID)

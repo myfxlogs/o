@@ -16,7 +16,6 @@ import (
 	"fmt"
 	"log"
 	"math"
-	"strconv"
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -25,6 +24,7 @@ import (
 	"o/internal/ledger"
 	"o/internal/platform/config"
 	"o/internal/platform/excell"
+	"o/internal/platform/legset"
 	"o/internal/risk"
 	"o/internal/trading/execution"
 	"o/internal/trading/execwiring"
@@ -130,7 +130,7 @@ func (d *Drill) Run(ctx context.Context, strategyRef int64) (Result, error) {
 		return d.runGridDrill(ctx, res, inst, templateRef, notional)
 	case shape == excell.ShapeOKXSingleLeg:
 		return d.runDirDrill(ctx, res, inst, templateRef, notional)
-	case shape == excell.ShapeOKXTwoLeg && !strings.HasSuffix(inst, "-SWAP"):
+	case shape == excell.ShapeOKXTwoLeg && !legset.IsSwapInst(inst):
 		return res, fmt.Errorf("okx_two_leg 腿形需 *-SWAP 合约键（inst=%s template=%s——键形不配拒载）", inst, templateRef)
 	}
 	// ② 乐器面（venue 册直取——T-0427 品种主档前同径，不落表；SWAP 键剥尾
@@ -285,16 +285,3 @@ func (d *Drill) fail(ctx context.Context, res Result, detail string) string {
 	log.Printf("[simdrill] 演习 #%d fail：%s", res.StrategyRef, detail)
 	return detail
 }
-
-func baseOf(in simvenue.Instrument) string {
-	return strings.SplitN(in.InstID, "-", 2)[0]
-}
-
-func orDash(s string) string {
-	if s == "" {
-		return "—"
-	}
-	return s
-}
-
-func trimFloat(f float64) string { return strconv.FormatFloat(f, 'f', -1, 64) }

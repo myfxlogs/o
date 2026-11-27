@@ -19,6 +19,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"o/internal/platform/legset"
 )
 
 const (
@@ -238,7 +240,7 @@ func rankSwapTickers(raw json.RawMessage) []swapTicker {
 	}
 	out := make([]swapTicker, 0, len(rows))
 	for _, r := range rows {
-		if !strings.HasSuffix(r.InstID, "-USDT-SWAP") {
+		if !legset.IsUSDTSwapInst(r.InstID) {
 			continue
 		}
 		v, _ := strconv.ParseFloat(r.VolCcy24h, 64)

@@ -19,6 +19,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"o/internal/platform/legset"
 )
 
 // UniverseTTL 目录常驻缓存默认 TTL——venue 目录慢变面（新挂/下市分钟级
@@ -143,7 +145,7 @@ func (u *UniverseCatalog) refresh(ctx context.Context) error {
 	seenSpot := map[string]bool{}
 	var derivedSpot []string // T-0445：基币现货派生键暂存——入集权归 SPOT 族读成与否定夺
 	for _, i := range sw {
-		if i.State != "live" || !strings.HasSuffix(i.InstID, "-USDT-SWAP") {
+		if i.State != "live" || !legset.IsUSDTSwapInst(i.InstID) {
 			continue
 		}
 		swap = append(swap, i.InstID)

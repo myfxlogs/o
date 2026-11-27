@@ -135,3 +135,31 @@ func TestInstFitOKCoversExecFam(t *testing.T) {
 		}
 	}
 }
+
+// TestSwapInstPredicates O-41383 锚：-SWAP 尾谓词单源收编——
+// IsSwapInst=永续合约全谱（USDT/USD 本位同收）；IsUSDTSwapInst=窄判
+// （USDT 本位专属——币本位 -USD-SWAP 不收，okxws 宇宙闸语义勿混）。
+func TestSwapInstPredicates(t *testing.T) {
+	cases := []struct {
+		inst string
+		swap bool
+		usdt bool
+	}{
+		{"BTC-USDT-SWAP", true, true},
+		{"ETH-USDT-SWAP", true, true},
+		{"BTC-USD-SWAP", true, false},     // 币本位永续——IsSwapInst 收/IsUSDTSwapInst 拒
+		{"BTC-USDT", false, false},        // 现货键
+		{"BTC-USDT-261204", false, false}, // datedFUT 到期形非 SWAP 尾
+		{"XAUUSDm", false, false},         // CFD 官名非 OKX 键形
+		{"", false, false},
+		{"-SWAP", true, false}, // 裸尾形——HasSuffix 同义（族判不验前缀合法性）
+	}
+	for _, c := range cases {
+		if got := IsSwapInst(c.inst); got != c.swap {
+			t.Fatalf("IsSwapInst(%q)=%v want %v", c.inst, got, c.swap)
+		}
+		if got := IsUSDTSwapInst(c.inst); got != c.usdt {
+			t.Fatalf("IsUSDTSwapInst(%q)=%v want %v", c.inst, got, c.usdt)
+		}
+	}
+}

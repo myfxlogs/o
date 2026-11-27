@@ -2,8 +2,13 @@
 package execution
 
 import (
+	"context"
 	"fmt"
 	"math"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"o/internal/mt5"
 )
 
 // BuildXvenueLegs 跨所 carry 双腿构（T-0145——DM 裁定腿序钦定 leg1=mt5 cfd
@@ -15,7 +20,7 @@ import (
 // pxCfd=cfd 标的价（底层资产行情）；pxPerp=perp 自身最新价（币本位 ctVal
 // 换算）。TradeMode=SymbolGroup 活读值（下单时点 FullAccess 断言同
 // BuildCfdLegs——CloseOnly/Disabled/单向限拒构，禁台账快照当放行证）。
-func BuildXvenueLegs(direction, instID, cfdInst, cfdVenue string, notional float64,
+func BuildXvenueLegs(ctx context.Context, pool *pgxpool.Pool, direction, instID, cfdInst, cfdVenue string, notional float64,
 	perpM InstMeta, cfdM CfdMeta, pxCfd, pxPerp float64) ([2]Leg, error) {
 	var cfdSide, perpSide string
 	switch direction {
@@ -30,7 +35,13 @@ func BuildXvenueLegs(direction, instID, cfdInst, cfdVenue string, notional float
 		return [2]Leg{}, fmt.Errorf("cfd 官名缺 fail-closed（%s 无双腿映射）", instID)
 	}
 	if cfdVenue == "" {
-		cfdVenue = "exness" // 存量调用面兼容锚（O-39440① venue 改名）
+		// O-41383：缺省 venue=名册活 CFD 户求解（exness 字面量兼容锚退役——
+		// 死户钉 venue=记账活病灶）；零活户=err 显形禁回退默认。
+		v, err := mt5.ActiveCfdVenue(ctx, pool)
+		if err != nil {
+			return [2]Leg{}, err
+		}
+		cfdVenue = v
 	}
 	if cfdM.TradeMode != 4 {
 		return [2]Leg{}, fmt.Errorf("cfd %s TradeMode=%d 非 FullAccess（可开性预检拒——broker 动态限，单腿裸露防线）", cfdInst, cfdM.TradeMode)

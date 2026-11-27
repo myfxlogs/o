@@ -187,7 +187,7 @@ func (h hedgeOpener) xvenueOpen(ctx context.Context, spec lifecycle.OpenSpec) (i
 	if err != nil {
 		return 0, cerr(fmt.Errorf("perp 元数据: %w", err))
 	}
-	legs, lerr := execution.BuildXvenueLegs(spec.Direction, spec.InstID, cfd, cfdVenue,
+	legs, lerr := execution.BuildXvenueLegs(ctx, h.pool, spec.Direction, spec.InstID, cfd, cfdVenue,
 		notional, perpM, cfdM, pxCfd, pxPerp)
 	if lerr != nil {
 		return 0, cerr(fmt.Errorf("xvenue 腿构: %w", lerr))

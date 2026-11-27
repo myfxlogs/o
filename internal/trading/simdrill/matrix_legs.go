@@ -4,11 +4,15 @@
 package simdrill
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"strconv"
 	"strings"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"o/internal/mt5"
 	"o/internal/platform/excell"
 	"o/internal/trading/execution"
 	"o/internal/trading/mt5sim"
@@ -128,9 +132,15 @@ func basisLegs(c excell.Cell, t excell.Tier, inst string, vs *simvenue.SimVenue)
 
 // xvenueLegs xvenue 双腿构（产线同径 execution.BuildXvenueLegs——腿序
 // mt5 CFD 先+okx perp 后钉死；meta/px 全仿真册值注入）。
-func xvenueLegs(c excell.Cell, t excell.Tier, inst string, mt *mt5sim.Sim) ([2]execution.Leg, error) {
+func xvenueLegs(ctx context.Context, pool *pgxpool.Pool, c excell.Cell, t excell.Tier, inst string, mt *mt5sim.Sim) ([2]execution.Leg, error) {
 	if c.Direction != excell.DirLongPerpShortCFD && c.Direction != excell.DirShortPerpLongCFD {
 		return [2]execution.Leg{}, fmt.Errorf("xvenue 向位 %q 未载映射表", c.Direction)
+	}
+	// O-41383：CFD 腿 venue=名册活户求解（exness 字面量退役）；零活户=
+	// 腿构 err→演习格 fail 显形，凭据格拒造。
+	cfdVenue, err := mt5.ActiveCfdVenue(ctx, pool)
+	if err != nil {
+		return [2]execution.Leg{}, fmt.Errorf("CFD venue 名册求解败: %w", err)
 	}
 	canon := cfdCanonical(inst)
 	cs, minLot, lotStep, tradeMode, ok := mt.Meta(canon)
@@ -139,7 +149,7 @@ func xvenueLegs(c excell.Cell, t excell.Tier, inst string, mt *mt5sim.Sim) ([2]e
 	}
 	px := pxOf(inst)
 	perpM := execution.InstMeta{CtVal: 0.001, CtValCcy: "USDT", LotSz: 0.001, MinSz: 0.001}
-	return execution.BuildXvenueLegs(c.Direction, inst, canon, "exness", t.Notional,
+	return execution.BuildXvenueLegs(ctx, pool, c.Direction, inst, canon, cfdVenue, t.Notional,
 		perpM, execution.CfdMeta{ContractSize: cs, MinLot: minLot,
 			LotStep: lotStep, TradeMode: tradeMode}, px, px)
 }

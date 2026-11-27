@@ -10,7 +10,6 @@ package lifecycle
 import (
 	"context"
 	"log"
-	"strings"
 	"time"
 
 	"o/internal/platform/execfam"
@@ -20,7 +19,8 @@ import (
 // dirPaperAccounting paper 态方向族 MTM 记账+出场判定（非致命径——记账败
 // 不拖开户/晋升拍，同 basis/xvenue 位）。
 func (r *Runner) dirPaperAccounting(ctx context.Context) error {
-	markIv, stop, take, ttl := 240.0, 0.15, 0.30, 240.0 // 缺省判据（键缺=内置值非虚构——lifecycle.* 懒读惯例同 armed_ttl_h；O-27493 票面钦定节拍键= lifecycle.pnl_mark_min——240min tuned default 保守守，60min 可经 dm 键直改）
+	markIv := 240.0                                                                    // 缺省判据（键缺=内置值非虚构——lifecycle.* 懒读惯例同 armed_ttl_h；O-27493 票面钦定节拍键= lifecycle.pnl_mark_min——240min tuned default 保守守，60min 可经 dm 键直改）
+	stop, take, ttl := legset.DirStopDefFrac, legset.DirTakeDefFrac, legset.DirTTLDefH // 缺省单源 legset（O-41383——dirtrig 同键同源禁平行字面量）
 	if v, err := r.cfg.GetFloat("lifecycle.pnl_mark_min"); err == nil && v > 0 {
 		markIv = v
 	} else if v, err := r.cfg.GetFloat("lifecycle.dir.mark_iv_min"); err == nil && v > 0 {
@@ -35,7 +35,7 @@ func (r *Runner) dirPaperAccounting(ctx context.Context) error {
 	if v, err := r.cfg.GetFloat("lifecycle.dir.ttl_h"); err == nil && v > 0 {
 		ttl = v
 	}
-	maxAge := 120.0
+	maxAge := legset.TickMaxAgeDefS
 	if v, err := r.cfg.GetFloat("exec.tick_max_age_s"); err == nil && v > 0 {
 		maxAge = v
 	}
@@ -105,7 +105,7 @@ func (r *Runner) dirPaperAccounting(ctx context.Context) error {
 			WHERE inst_id=$1 AND venue<>'sim' ORDER BY ts DESC LIMIT 1`
 		src := "md_ticks"
 		age := maxAge
-		if strings.HasSuffix(x.inst, "-SWAP") {
+		if legset.IsSwapInst(x.inst) {
 			markQ = `SELECT px,ts FROM md_mark_index
 				WHERE inst_id=$1 AND channel='mark-price' ORDER BY ts DESC LIMIT 1`
 			src = "md_mark_index"

@@ -43,7 +43,7 @@ func (w *Warden) dirTrig(ctx context.Context, p posRow, legs legSet) closeTrig {
 		w.note("facts_missing:dir_mark", fmt.Sprintf("仓 %d mark 缺/陈——出场判据跳过（不虚构不残守）", p.id))
 		return closeTrig{}
 	}
-	stop, take, ttl := 0.15, 0.30, 240.0 // 缺省同 dirpaper 内置值（键读败=同值非另设）
+	stop, take, ttl := legset.DirStopDefFrac, legset.DirTakeDefFrac, legset.DirTTLDefH // 缺省单源 legset（O-41383——dirpaper 同键同源禁平行字面量）
 	if v, err := w.getF("lifecycle.dir.stop_frac"); err == nil && v > 0 {
 		stop = v
 	}
@@ -95,7 +95,7 @@ func (w *Warden) lastPx(ctx context.Context, l leg) (float64, bool) {
 			ORDER BY ts DESC LIMIT 1`, l.inst).Scan(&last, &ts); err != nil || last == nil {
 		return 0, false
 	}
-	maxAge := 120.0
+	maxAge := legset.TickMaxAgeDefS
 	if v, err := w.getF("exec.tick_max_age_s"); err == nil && v > 0 {
 		maxAge = v
 	}

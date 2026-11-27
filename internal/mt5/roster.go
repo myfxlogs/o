@@ -73,6 +73,21 @@ func IsCfdProtoVenue(ctx context.Context, pool *pgxpool.Pool, venue string) bool
 	return ok
 }
 
+// ActiveCfdVenue 当前活 CFD venue 名册求解（proto='cfd' AND state='active'
+// ——O-41383：exness 退役实证，字面量钉 venue=死户记账活病灶）。多活户=
+// 确定性取序（ORDER BY venue——序稳定非随机）；零活户=err 显形 fail-closed
+// 禁回退默认 venue。
+func ActiveCfdVenue(ctx context.Context, pool *pgxpool.Pool) (string, error) {
+	var v string
+	err := pool.QueryRow(ctx,
+		`SELECT venue FROM fin_venue_roster WHERE proto='cfd' AND state='active'
+		ORDER BY venue LIMIT 1`).Scan(&v)
+	if err != nil {
+		return "", fmt.Errorf("活 CFD venue 名册求解零行/读败 fail-closed: %w", err)
+	}
+	return v, nil
+}
+
 // CredNSFor venue→凭据键前缀（OpenSession/消费腿 venue 参数化缝——
 // roster 行是唯一真源零硬编码兜底（fin_0257 无条件种子后迁移窗不存在）；
 // 他户缺行=err 显形禁猜键前缀）。

@@ -49,10 +49,9 @@ var ccyRE = regexp.MustCompile(`^[A-Z0-9]{2,20}$`)
 
 // CcyOK 币种域合法判（O-34287：venue 原生币各记各域——mt5 恒 USD 单币
 // 照旧；其余 venue=原生币形全放。库约束 fin_0235 同形镜像）。
+// O-41383：venue 参数留签名兼容——CFD 户 USD 单域判归 ccyAllowed 名册
+// proto='cfd' 径（exness/xmglobal 字面量双支路退役，venue 名不再入判词）。
 func CcyOK(venue, ccy string) bool {
-	if venue == "exness" || venue == "xmglobal" {
-		return ccy == "USD" // cfd 经纪商 USD 单币域（O-39440①——exness/xmglobal 同律）
-	}
 	return ccyRE.MatchString(ccy)
 }
 

@@ -6,7 +6,9 @@
 //	①亏完断粮:书内已实现净亏破 loss_budget_pct×equity=方向书全拒新开
 //	  （累计亏损预算是账不是建议;close 径不入本闸——退仓权保留）;
 //	②单笔帽:本意图名义×止损距(lifecycle.dir.stop_frac——与 dirpaper
-//	  出场同一真源)破 trade_loss_pct×equity=拒——单笔最坏亏损界;
+//	  出场同一真源;缺省值单源=platform/legset.DirStopDefFrac
+//	  消费侧内置——本闸读键不回退=钦定判官严径 O-41383 注锚)破
+//	  trade_loss_pct×equity=拒——单笔最坏亏损界;
 //	③书名义帽:open 持仓+在途 exec dir 名义+本意图>
 //	  max_notional_pct×equity（聚合口径同总敞口读面——簇止损最坏亏
 //	  =帽×stop_frac,预算内收敛）。

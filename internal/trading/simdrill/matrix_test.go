@@ -46,10 +46,15 @@ func TestLegShapeCoverage(t *testing.T) {
 // mt5sim OrderSend→ticket→OpenedOrders→OrderClose→票消残史全周期；
 // mtexec.Executor 经 RouterExecutor 分派产线同码。
 func TestXvenueLegOrderAndTicketLifecycle(t *testing.T) {
+	pool := testutil.Pool(t)
+	ctx := context.Background()
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatal(err)
+	}
 	mt := newMT5Venue("BTC-USDT-SWAP")
 	cell := excell.Cell{Template: "xvenue-carry", VenuePair: excell.VenuePairXvenue,
 		Direction: excell.DirLongPerpShortCFD}
-	legs, err := xvenueLegs(cell, excell.Tier{Notional: 50}, "BTC-USDT-SWAP", mt)
+	legs, err := xvenueLegs(ctx, pool, cell, excell.Tier{Notional: 50}, "BTC-USDT-SWAP", mt)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,7 +66,7 @@ func TestXvenueLegOrderAndTicketLifecycle(t *testing.T) {
 	}
 	// 反向格：mt5买+okx卖。
 	cell.Direction = excell.DirShortPerpLongCFD
-	legs, err = xvenueLegs(cell, excell.Tier{Notional: 50}, "BTC-USDT-SWAP", mt)
+	legs, err = xvenueLegs(ctx, pool, cell, excell.Tier{Notional: 50}, "BTC-USDT-SWAP", mt)
 	if err != nil {
 		t.Fatal(err)
 	}

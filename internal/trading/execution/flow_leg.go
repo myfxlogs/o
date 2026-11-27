@@ -3,10 +3,10 @@ package execution
 import (
 	"context"
 	"strconv"
-	"strings"
 	"time"
 
 	"o/internal/mt5"
+	"o/internal/platform/legset"
 )
 
 // 腿行落库一族——fin_order_leg 腿行+滑点采样+现金对称记账+position_ref 补链
@@ -54,7 +54,7 @@ func (r *Runner) legPx(ctx context.Context, execID int64, no int, leg Leg, clOrd
 		if fillSz > 0 {
 			qtyBase = &fillSz // T-0483 钦定：datedFUT 实填张数落 qty_base（消费锚=guard closeWant qtyBase>0 径——SWAP 域 NULL 不同形）
 		}
-	case strings.HasSuffix(leg.InstID, "-SWAP"):
+	case legset.IsSwapInst(leg.InstID):
 		szUnit = "contract"
 	case leg.TgtQuote:
 		szUnit = "quote"

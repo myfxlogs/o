@@ -535,3 +535,55 @@ func TestExnessKeyCompatibility(t *testing.T) {
 		t.Fatalf("venue=%q want exness（Exness 写键回归）", vn)
 	}
 }
+
+// TestActiveCfdVenue O-41383 锚：名册活 CFD 户求解——proto='cfd' AND
+// state='active' 唯一真源（exness 字面量退役实证锚）：
+// ①单活户中=取该户；②活户切换=跟名册态走（disabled 户不占位）；
+// ③双 active=ORDER BY venue 确定性序非随机；④零活户=err fail-closed
+// 禁回退默认 venue。
+func TestActiveCfdVenue(t *testing.T) {
+	pool := testutil.Pool(t)
+	ctx := context.Background()
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatal(err)
+	}
+	// 种子态接管（fin_0257 无条件种子 exness=active/xmglobal=registered）——
+	// defer 复原防共享 schema 跨测污染。
+	defer func() {
+		_, _ = pool.Exec(ctx, `UPDATE fin_venue_roster SET state='active' WHERE venue='exness'`)
+		_, _ = pool.Exec(ctx, `UPDATE fin_venue_roster SET state='registered' WHERE venue='xmglobal'`)
+	}()
+	set := func(venue, state string) {
+		t.Helper()
+		if _, err := pool.Exec(ctx,
+			`UPDATE fin_venue_roster SET state=$2 WHERE venue=$1`, venue, state); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// ①exness active 中（种子态）→exness
+	set("exness", "active")
+	set("xmglobal", "registered")
+	v, err := ActiveCfdVenue(ctx, pool)
+	if err != nil || v != "exness" {
+		t.Fatalf("单活户求解 v=%q err=%v", v, err)
+	}
+	// ②exness disabled+xmglobal active→xmglobal（活户切换跟名册不钉字面）
+	set("exness", "disabled")
+	set("xmglobal", "active")
+	v, err = ActiveCfdVenue(ctx, pool)
+	if err != nil || v != "xmglobal" {
+		t.Fatalf("活户切换求解 v=%q err=%v", v, err)
+	}
+	// ③双 active→ORDER BY venue 确定性序=exness（字典序先序非随机）
+	set("exness", "active")
+	v, err = ActiveCfdVenue(ctx, pool)
+	if err != nil || v != "exness" {
+		t.Fatalf("双活户确定序 v=%q err=%v", v, err)
+	}
+	// ④零活户（双 disabled）→err 显形禁回退
+	set("exness", "disabled")
+	set("xmglobal", "disabled")
+	if _, err = ActiveCfdVenue(ctx, pool); err == nil {
+		t.Fatal("零活户应 err fail-closed（禁回退默认 venue）")
+	}
+}
