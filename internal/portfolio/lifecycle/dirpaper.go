@@ -38,6 +38,16 @@ func (r *Runner) dirPaperAccounting(ctx context.Context) error {
 	if v, err := r.cfg.GetFloat("exec.tick_max_age_s"); err == nil && v > 0 {
 		maxAge = v
 	}
+	// CFD 鲜度界（O-41381 实案——XM push-on-change 流：价不变不推,稀疏符
+	// 静默≠流死;md_ticks 每符批距≈小时级 vs exec.tick_max_age_s=120s
+	// →mt5 paper 全谱 dir_mark_stale 饿死,128 纸仓零 open 锚零 pnl,
+	// confGate 永不可达=CFD 开仓链死在统计闸）。push-on-change 语义下
+	// 鲜度界=「流死探针」非「价格陈旧」——末帧即近似现值;
+	// 缺省 7200s(2h 无更=判流死);周末停盘期天然陈=正确经济语义(平 pnl)。
+	cfdMaxAge := 7200.0
+	if v, err := r.cfg.GetFloat("lifecycle.dir.cfd_tick_max_age_s"); err == nil && v > 0 {
+		cfdMaxAge = v
+	}
 	rows, err := r.pool.Query(ctx, `SELECT s.id, s.inst_id, s.direction, s.template_ref, s.notional_usd,
 		s.entered_at,
 		COALESCE((SELECT max(ts) FROM fin_paper_fill f WHERE f.strategy_id=s.id
@@ -91,13 +101,16 @@ func (r *Runner) dirPaperAccounting(ctx context.Context) error {
 		markQ := `SELECT last,ts FROM md_ticks
 			WHERE inst_id=$1 AND venue<>'sim' ORDER BY ts DESC LIMIT 1`
 		src := "md_ticks"
+		age := maxAge
 		if strings.HasSuffix(x.inst, "-SWAP") {
 			markQ = `SELECT px,ts FROM md_mark_index
 				WHERE inst_id=$1 AND channel='mark-price' ORDER BY ts DESC LIMIT 1`
 			src = "md_mark_index"
+		} else {
+			age = cfdMaxAge // 非 SWAP=CFD 官名——push-on-change 鲜度界
 		}
 		if err := r.pool.QueryRow(ctx, markQ, x.inst).Scan(&px, &tickTs); err != nil || px <= 0 ||
-			time.Since(tickTs) > time.Duration(maxAge*float64(time.Second)) {
+			time.Since(tickTs) > time.Duration(age*float64(time.Second)) {
 			r.rej.Inc("dir_mark_stale")
 			continue // 价缺/陈=事实缺让位不造 fill（T-0171 同径）
 		}
