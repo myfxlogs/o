@@ -226,6 +226,27 @@ func TestDirPaperNonSwapTicksPath(t *testing.T) {
 	}
 }
 
+// O-41382 锚：CFD 行情行 last 恒 0（报价型 venue——xm 全谱实案）——价取
+// (bid+ask)/2 双边中价；open 锚 px=中价非 0。
+func TestDirPaperCfdMidPx(t *testing.T) {
+	r := dirRig(t)
+	ctx := context.Background()
+	sid := seedDir(t, r, "GOLD#", "long_perp", "1 hours")
+	if _, err := r.pool.Exec(ctx, `INSERT INTO md_ticks(venue,inst_id,last,bid,ask,ts)
+		VALUES('xmglobal','GOLD#',0,3634.20,3634.55,now())
+		ON CONFLICT (venue,inst_id) DO UPDATE SET last=EXCLUDED.last,bid=EXCLUDED.bid,ask=EXCLUDED.ask,ts=EXCLUDED.ts`); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.dirPaperAccounting(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var px float64
+	if err := r.pool.QueryRow(ctx, `SELECT (detail#>>'{px}')::float8 FROM fin_paper_fill
+		WHERE strategy_id=$1 AND kind='open'`, sid).Scan(&px); err != nil || px < 3634.3 || px > 3634.45 {
+		t.Fatalf("CFD 中价锚 px=%v err=%v 期≈3634.375", px, err)
+	}
+}
+
 // O-41381 锚：CFD inst ticks 龄>exec.tick_max_age_s(120s)但<cfd 界(7200s)
 // 仍记 open 锚——push-on-change 流稀疏符静默≠流死（产线实案:128 paper
 // 零锚饿死）。对照面:同条件 SWAP inst 走 mark-index 不受本界影响。

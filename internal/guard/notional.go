@@ -4,6 +4,9 @@ package guard
 import (
 	"context"
 	"time"
+
+	"o/internal/mt5"
+	"o/internal/platform/legset"
 )
 
 // notionalNow 腿现价名义额（量纲按乐器分派——T-0046 根修）。
@@ -18,7 +21,7 @@ func (w *Warden) notionalNow(ctx context.Context, l leg) (float64, bool) {
 	if err := w.pool.QueryRow(ctx,
 		// 升件#9802③：sim 域显拒——演习夹具以真实 inst_id 播种 venue='sim' 行，
 		// 无 venue 谓词=假价污判官径（risk.dcdExposureUSD 同口径先滤）。
-		`SELECT v,ts FROM (SELECT last v,ts FROM md_ticks WHERE inst_id=$1 AND venue<>'sim'
+		`SELECT v,ts FROM (SELECT COALESCE(NULLIF(last,0),(NULLIF(bid,0)+NULLIF(ask,0))/2) v,ts FROM md_ticks WHERE inst_id=$1 AND venue<>'sim'
 			UNION ALL SELECT px,ts FROM md_mark_index WHERE inst_id=$1 AND venue<>'sim') q
 			ORDER BY ts DESC LIMIT 1`, l.inst).Scan(&last, &ts); err != nil || last == nil {
 		return 0, false
@@ -26,6 +29,12 @@ func (w *Warden) notionalNow(ctx context.Context, l leg) (float64, bool) {
 	maxAge := 120.0
 	if v, err := w.getF("exec.tick_max_age_s"); err == nil && v > 0 {
 		maxAge = v
+	}
+	if mt5.IsCfdProtoVenue(ctx, w.pool, l.venue) { // 名册 proto='cfd' 真源判——缺席/读败=严闸 fail-closed（O-41382）
+		maxAge = legset.SparseTickBoundDefS
+		if v, err := w.getF("lifecycle.dir.cfd_tick_max_age_s"); err == nil && v > 0 {
+			maxAge = v
+		}
 	}
 	if time.Since(ts) > time.Duration(maxAge*float64(time.Second)) {
 		return 0, false // 陈 tick=事实缺——fail-closed 同 facts_missing 计数

@@ -8,6 +8,9 @@ import (
 	"context"
 	"fmt"
 	"time"
+
+	"o/internal/mt5"
+	"o/internal/platform/legset"
 )
 
 // dirTrig 单腿方向位出场判（legs.single 专属——evaluate 内挂 ③前位）：
@@ -34,7 +37,7 @@ func (w *Warden) dirTrig(ctx context.Context, p posRow, legs legSet) closeTrig {
 		w.note("facts_missing:entry_px", fmt.Sprintf("仓 %d 入场实腿价读败——出场判据跳过", p.id))
 		return closeTrig{}
 	}
-	px, ok := w.lastPx(ctx, legs.a.inst)
+	px, ok := w.lastPx(ctx, legs.a)
 	if !ok {
 		w.rej.Inc("facts_missing")
 		w.note("facts_missing:dir_mark", fmt.Sprintf("仓 %d mark 缺/陈——出场判据跳过（不虚构不残守）", p.id))
@@ -80,19 +83,27 @@ func (w *Warden) dirTrig(ctx context.Context, p posRow, legs legSet) closeTrig {
 	return closeTrig{}
 }
 
-// lastPx md_ticks 鲜价读（venue<>'sim'——exec.tick_max_age_s 闸同 notionalNow 径）。
-func (w *Warden) lastPx(ctx context.Context, inst string) (float64, bool) {
+// lastPx md_ticks 鲜价读（venue<>'sim'——exec.tick_max_age_s 闸同 notionalNow 径；
+// 报价行 last 恒 0→双边中价（O-41382）；cfd venue 鲜度界换 cfd 键——
+// push-on-change 静默≠死（O-41381 同界，venue 判归名册真源 IsCfdProtoVenue）。
+func (w *Warden) lastPx(ctx context.Context, l leg) (float64, bool) {
 	var last *float64
 	var ts time.Time
 	if err := w.pool.QueryRow(ctx, `SELECT v,ts FROM (
-			SELECT last v,ts FROM md_ticks WHERE inst_id=$1 AND venue<>'sim'
+			SELECT COALESCE(NULLIF(last,0),(NULLIF(bid,0)+NULLIF(ask,0))/2) v,ts FROM md_ticks WHERE inst_id=$1 AND venue<>'sim'
 			UNION ALL SELECT px,ts FROM md_mark_index WHERE inst_id=$1 AND venue<>'sim') q
-			ORDER BY ts DESC LIMIT 1`, inst).Scan(&last, &ts); err != nil || last == nil {
+			ORDER BY ts DESC LIMIT 1`, l.inst).Scan(&last, &ts); err != nil || last == nil {
 		return 0, false
 	}
 	maxAge := 120.0
 	if v, err := w.getF("exec.tick_max_age_s"); err == nil && v > 0 {
 		maxAge = v
+	}
+	if mt5.IsCfdProtoVenue(ctx, w.pool, l.venue) {
+		maxAge = legset.SparseTickBoundDefS
+		if v, err := w.getF("lifecycle.dir.cfd_tick_max_age_s"); err == nil && v > 0 {
+			maxAge = v
+		}
 	}
 	if time.Since(ts) > time.Duration(maxAge*float64(time.Second)) {
 		return 0, false

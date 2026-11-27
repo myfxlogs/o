@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"o/internal/platform/execfam"
+	"o/internal/platform/legset"
 )
 
 // dirPaperAccounting paper 态方向族 MTM 记账+出场判定（非致命径——记账败
@@ -44,7 +45,7 @@ func (r *Runner) dirPaperAccounting(ctx context.Context) error {
 	// confGate 永不可达=CFD 开仓链死在统计闸）。push-on-change 语义下
 	// 鲜度界=「流死探针」非「价格陈旧」——末帧即近似现值;
 	// 缺省 7200s(2h 无更=判流死);周末停盘期天然陈=正确经济语义(平 pnl)。
-	cfdMaxAge := 7200.0
+	cfdMaxAge := legset.SparseTickBoundDefS // 缺省单源（platform/legset）——禁平行第二套
 	if v, err := r.cfg.GetFloat("lifecycle.dir.cfd_tick_max_age_s"); err == nil && v > 0 {
 		cfdMaxAge = v
 	}
@@ -98,7 +99,9 @@ func (r *Runner) dirPaperAccounting(ctx context.Context) error {
 		// 收入流只剩 funding 噪声恒拦；mark-price 桥面全量订阅本已覆
 		// 盖（basis.go 期货腿同径先例）。非 SWAP inst（mt5_dir_mom CFD
 		// 官名）照旧 md_ticks——CFD 无 mark-price 面。
-		markQ := `SELECT last,ts FROM md_ticks
+		// O-41382：CFD 行情行 last 恒 0（报价型 venue——价在 bid/ask，
+		// xm 全谱 last=0 实案）→取双边中价；单边缺=NULL 拒不虚构。
+		markQ := `SELECT COALESCE(NULLIF(last,0),(NULLIF(bid,0)+NULLIF(ask,0))/2),ts FROM md_ticks
 			WHERE inst_id=$1 AND venue<>'sim' ORDER BY ts DESC LIMIT 1`
 		src := "md_ticks"
 		age := maxAge

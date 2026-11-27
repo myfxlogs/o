@@ -155,7 +155,7 @@ func (w *Warden) dirFloating(ctx context.Context, fam string) (float64, error) {
 			continue // px/qty 缺=该腿不可测——让位不虚构
 		}
 		var mark float64
-		if err := w.pool.QueryRow(ctx, `SELECT last FROM md_ticks
+		if err := w.pool.QueryRow(ctx, `SELECT COALESCE(NULLIF(last,0),(NULLIF(bid,0)+NULLIF(ask,0))/2) FROM md_ticks
 			WHERE venue=$1 AND inst_id=$2`, ven, inst).Scan(&mark); err != nil {
 			w.rej.Inc("dir_mark_missing")
 			continue // mark 缺=该 inst 浮亏让位（实现口径照判）

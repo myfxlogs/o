@@ -16,6 +16,13 @@ import (
 // DatedFutRe 季度期货形（'-' 尾 6 位到期日——mark-price 适用无 funding）。
 var DatedFutRe = regexp.MustCompile(`-[0-9]{6}$`)
 
+// SparseTickBoundDefS push-on-change 报价流 venue 的 tick 鲜度界缺省秒
+// （稀疏符静默≠死——界=流死探针非价陈语；dm 键
+// lifecycle.dir.cfd_tick_max_age_s 覆写，字面量单源归此禁平行第二套；
+// venue 判归 fin_venue_roster proto='cfd' 名册真源 mt5.IsCfdProtoVenue
+// ——禁再造 venue 枚举第二套）。
+const SparseTickBoundDefS = 7200.0
+
 // IsUSDTInst USDT 计价闸（业主令：杂币不采不用不计——instId 形如 X-USDT[-SWAP]）。
 // 自 okxws 归并唯一真源（T-0392——订阅闸与覆盖探针同判据）：
 // USD 指数键（BTC-USD——index-tickers uly 键域）+到期期货形（-\d{6}$ 尾——

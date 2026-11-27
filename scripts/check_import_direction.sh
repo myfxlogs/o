@@ -85,6 +85,7 @@ internal/trading/okxgrid -> internal/trading/okxexec
 internal/risk -> internal/platform/rejects
 internal/risk -> internal/platform/roster
 internal/guard -> internal/platform/config
+internal/guard -> internal/platform/legset
 internal/guard -> internal/platform/rejects
 internal/guard -> internal/platform/roster
 internal/guard -> internal/risk
