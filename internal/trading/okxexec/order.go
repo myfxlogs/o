@@ -115,20 +115,22 @@ func (c *Client) ResolveOrderDetail(ctx context.Context, instID, clOrdID string)
 	}
 }
 
-// AccountPosMode GET /account/config posMode（long_short_mode|net_mode）——
-// 双向户开仓腿 posSide 装配依据（T-0040）。空值/读败上抛=调用方 fail-closed。
-func (c *Client) AccountPosMode(ctx context.Context) (string, error) {
+// AccountConfig GET /account/config {posMode,acctLv}——posMode=双向户开仓腿
+// posSide 装配依据（T-0040）；acctLv=账户模式闸（1 现货档=衍生品全拒 51010
+// 实案——cross 腿预检据）。任一空值/读败上抛=调用方 fail-closed。
+func (c *Client) AccountConfig(ctx context.Context) (posMode, acctLv string, err error) {
 	raw, err := c.Get(ctx, "/api/v5/account/config")
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	var rows []struct {
 		PosMode string `json:"posMode"`
+		AcctLv  string `json:"acctLv"`
 	}
-	if err := json.Unmarshal(raw, &rows); err != nil || len(rows) == 0 || rows[0].PosMode == "" {
-		return "", fmt.Errorf("posMode 读不回（fail-closed）: err=%v rows=%d", err, len(rows))
+	if err := json.Unmarshal(raw, &rows); err != nil || len(rows) == 0 || rows[0].PosMode == "" || rows[0].AcctLv == "" {
+		return "", "", fmt.Errorf("account config 读不回（fail-closed）: err=%v rows=%d", err, len(rows))
 	}
-	return rows[0].PosMode, nil
+	return rows[0].PosMode, rows[0].AcctLv, nil
 }
 
 func parseF(s string) float64 {

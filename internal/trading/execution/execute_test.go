@@ -336,8 +336,8 @@ func TestLegsDerivationAndSz(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if legs2[0].Sz != "2.5" {
-		t.Fatalf("USD 面值直除锚: sz=%s（应 2.5）", legs2[0].Sz)
+	if legs2[0].Sz != "2.50" {
+		t.Fatalf("USD 面值直除锚: sz=%s（应 2.50——LotSz=0.01 网格位序列化）", legs2[0].Sz)
 	}
 }
 

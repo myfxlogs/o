@@ -48,7 +48,7 @@ func CloseIntent(spec guard.CloseSpec) execution.Intent {
 // 禁反向单）。
 func CloseLegOf(spec guard.CloseSpec, l guard.CloseLeg) execution.Leg {
 	return execution.Leg{Venue: l.Venue, InstID: l.InstID, Side: l.Side, Close: true,
-		Sz: strconv.FormatFloat(l.Sz, 'f', -1, 64), Notional: spec.NotionalUSD / 2, Ticket: l.Ticket}
+		Sz: szClean(l.Sz), Notional: spec.NotionalUSD / 2, Ticket: l.Ticket}
 }
 
 // EmergencyExec 末路只减仓装配缝（工单#22247——guard.EmergencyExecutor
@@ -63,7 +63,7 @@ func (e EmergencyExec) ExecuteEmergency(ctx context.Context, spec guard.Emergenc
 		Legs: make([]execution.Leg, 0, len(spec.Legs))}
 	for _, l := range spec.Legs {
 		in.Legs = append(in.Legs, execution.Leg{Venue: l.Venue, InstID: l.InstID,
-			Side: l.Side, Sz: strconv.FormatFloat(l.Sz, 'f', -1, 64),
+			Side: l.Side, Sz: szClean(l.Sz),
 			Notional: spec.NotionalUSD, Close: true, Ticket: l.Ticket})
 	}
 	return e.R.ExecuteEmergency(ctx, in)
@@ -116,4 +116,15 @@ func (s OkxSizer) ContractPosDir(ctx context.Context, instID string) (float64, e
 		}
 	}
 	return sum, nil
+}
+
+// szClean 平腿量序列化——guard 侧 floor(sz/lot)*lot 浮尘同 51121 类实案：
+// 直序化吐 12.300000000000001=venue 拒（平腿拒=最劣拒点）。平量本就网格
+// 值，1e-8 快照归真不误伤（venue 腿量粒度域≥1e-8；>1e6 大额保原样防精度
+// 反超）。开仓径另有 szOnGrid（execution——携 grid 精确位）。
+func szClean(v float64) string {
+	if math.Abs(v) < 1e6 {
+		v = math.Round(v*1e8) / 1e8
+	}
+	return strconv.FormatFloat(v, 'f', -1, 64)
 }
