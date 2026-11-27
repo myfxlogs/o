@@ -194,9 +194,10 @@ func TestCensusMintFullChain(t *testing.T) {
 		"login": "12345", "password": "p", "server": "srv"}}
 	r.dialCensusFn = func(string) (censusSession, error) {
 		return &fakeCensusSession{
-			syms: []string{"GOLD#", "EURUSD#", "BTCUSD#", "GOLD24-7#", "XXX#"},
+			syms: []string{"GOLD#", "XAUUSDm", "EURUSD#", "BTCUSD#", "GOLD24-7#", "XXX#"},
 			facts: map[string]mt5.SpecFacts{
 				"GOLD#":     factsOf("GOLD#", 100, 2, 4, "USD", "h-gold"),
+				"XAUUSDm":   factsOf("XAUUSDm", 100, 2, 4, "USD", "h-xaum"),
 				"EURUSD#":   factsOf("EURUSD#", 100000, 5, 4, "USD", "h-eur"),
 				"BTCUSD#":   factsOf("BTCUSD#", 1, 2, 4, "USD", "h-btc"),
 				"GOLD24-7#": factsOf("GOLD24-7#", 100, 2, 4, "USD", "h-g247"),
@@ -208,11 +209,11 @@ func TestCensusMintFullChain(t *testing.T) {
 	if err := r.censusVenue(ctx, broker, bases); err != nil {
 		t.Fatal(err)
 	}
-	// census 落行断言：5 行+family_guess 分拣+params 全谱。
+	// census 落行断言：6 行+family_guess 分拣+params 全谱。
 	var n int
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM fin_venue_symbols
-		WHERE venue='xmtest' AND account='12345'`).Scan(&n); err != nil || n != 5 {
-		t.Fatalf("census 行数=%d err=%v want 5", n, err)
+		WHERE venue='xmtest' AND account='12345'`).Scan(&n); err != nil || n != 6 {
+		t.Fatalf("census 行数=%d err=%v want 6", n, err)
 	}
 	var fam string
 	pool.QueryRow(ctx, `SELECT family_guess FROM fin_venue_symbols
@@ -235,20 +236,45 @@ func TestCensusMintFullChain(t *testing.T) {
 	if err != nil || !fresh {
 		t.Fatalf("censusFresh=%v err=%v want true", fresh, err)
 	}
+	// 撞键锚（O-41379 件②）：BTCUSD# 旧恒等行预置——mint 落行
+	// canonical=venue_symbol 同键 ON CONFLICT 幂等 update 不炸不增行。
+	if _, err := pool.Exec(ctx, `INSERT INTO fin_symbol_dialect
+		(venue,account,canonical,venue_symbol,ct_val,tick_sz,min_sz,lot_step,
+		 lot_unit,digits,trade_mode,spec_hash,quote_snapshot,verified_at)
+		VALUES('xmtest','12345','BTCUSD#','BTCUSD#',1,0.01,0.01,0.01,'lots',
+		 2,4,'h-btc','{}',now())
+		ON CONFLICT (venue,account,canonical) DO NOTHING`); err != nil {
+		t.Fatal(err)
+	}
 	// mint 拍：registry 种子在案（GOLD/GAUUSD/SILVER/BTCUSD/ETHUSD/EURUSD/
 	// USDJPY/GBPUSD——fin_0274 迁移落测试库）。
 	idx := mintTestRegIndex(t, ctx, pool)
 	if err := r.mintVenue(ctx, broker, idx); err != nil {
 		t.Fatal(err)
 	}
-	// dialect 落行=3（GOLD#/EURUSD#/BTCUSD#——GOLD24-7#/XXX# flag）。
+	// dialect 落行=4（GOLD#/XAUUSDm/EURUSD#/BTCUSD#——GOLD24-7#/XXX# flag）。
 	var dn int
 	pool.QueryRow(ctx, `SELECT count(*) FROM fin_symbol_dialect
 		WHERE venue='xmtest' AND account='12345'`).Scan(&dn)
-	if dn != 3 {
-		t.Fatalf("dialect 行数=%d want 3", dn)
+	if dn != 4 {
+		t.Fatalf("dialect 行数=%d want 4", dn)
 	}
-	// census map_state：3 auto_minted+2 flagged（map_reason 全载明）。
+	// O-41379 恒等式锚：全谱 canonical=venue_symbol（策略 inst_id=venue
+	// 原符唯一活命名空间——净名行对 inst_id 永不可达）；registry 命中族
+	// 留 census.canonical_ref 作证物位。
+	var identBad int
+	pool.QueryRow(ctx, `SELECT count(*) FROM fin_symbol_dialect
+		WHERE venue='xmtest' AND canonical<>venue_symbol`).Scan(&identBad)
+	if identBad != 0 {
+		t.Fatalf("恒等式破：canonical<>venue_symbol 行数=%d", identBad)
+	}
+	var cref string
+	pool.QueryRow(ctx, `SELECT canonical_ref FROM fin_venue_symbols
+		WHERE venue='xmtest' AND venue_symbol='XAUUSDm'`).Scan(&cref)
+	if cref != "GOLD" {
+		t.Fatalf("XAUUSDm canonical_ref=%s want GOLD（registry 命中族证物位）", cref)
+	}
+	// census map_state：4 auto_minted+2 flagged（map_reason 全载明）。
 	states := map[string]string{}
 	reasons := map[string]string{}
 	rows, err := pool.Query(ctx, `SELECT venue_symbol,map_state,map_reason
@@ -268,7 +294,7 @@ func TestCensusMintFullChain(t *testing.T) {
 		}
 	}
 	rows.Close()
-	for _, s := range []string{"GOLD#", "EURUSD#", "BTCUSD#"} {
+	for _, s := range []string{"GOLD#", "XAUUSDm", "EURUSD#", "BTCUSD#"} {
 		if states[s] != "auto_minted" {
 			t.Fatalf("%s map_state=%s want auto_minted", s, states[s])
 		}

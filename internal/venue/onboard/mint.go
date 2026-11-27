@@ -137,9 +137,13 @@ func (r *Runner) mintOne(ctx context.Context, b credFamily, sess censusSession,
 	if sbps > mt5.SpreadCapBPS {
 		return fmt.Errorf("点差拒：%.0f bps > %d 带上（数据病快照拒收非警告）", sbps, mt5.SpreadCapBPS)
 	}
+	// O-41379：canonical=venue_symbol 恒等式——策略 inst_id=venue 原符是
+	// 唯一活命名空间（Lookup(canonical=inst_id) 才可达）；registry 降为
+	// 验证规范不借名，reg.Canonical 留 note/evidence/canonical_ref 作
+	// 「验证归属族」证物位。
 	row := mt5.DialectRow{
 		Venue: b.venue, Account: b.fields["login"],
-		Canonical: reg.Canonical, VenueSymbol: m.VenueSymbol,
+		Canonical: m.VenueSymbol, VenueSymbol: m.VenueSymbol,
 		CtVal: *m.CtVal, TickSz: deref(m.TickSz), MinSz: deref(m.MinSz),
 		LotStep: deref(m.LotStep), LotUnit: "lots",
 		Digits: *m.Digits, TradeMode: *m.TradeMode,
@@ -150,8 +154,8 @@ func (r *Runner) mintOne(ctx context.Context, b credFamily, sess censusSession,
 		"source": "auto-mint", "registry": reg.Canonical, "registry_note": reg.Note,
 	})
 	login := b.fields["login"]
-	note := fmt.Sprintf("auto-mint venue=%s login=%s %s→%s ctVal=%g spread=%.0fbps",
-		b.venue, login, reg.Canonical, m.VenueSymbol, row.CtVal, sbps)
+	note := fmt.Sprintf("auto-mint venue=%s login=%s sym=%s registry=%s ctVal=%g spread=%.0fbps",
+		b.venue, login, m.VenueSymbol, reg.Canonical, row.CtVal, sbps)
 	if err := mt5.NewDialectStore(r.fin).UpsertVerifiedWithAudit(ctx, row, ev,
 		mintActor, "venue符号映射", note, b.venue+":"+login); err != nil {
 		return fmt.Errorf("落行: %w", err)

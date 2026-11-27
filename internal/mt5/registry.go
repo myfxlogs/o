@@ -17,6 +17,9 @@ var ErrNoCanonicalRegistry = errors.New("canonical 未登记 fin_canonical_regis
 
 // RegistryRow 官名登记行（ct_val=1手 base币量语义锚；quote_ccy=计价币族锚
 // 信息位——判据只用 ct_val/dollarPegged 族，不以 quote_ccy 字面等值卡）。
+// O-41379：canonical=概念名非落行键——dialect 行 canonical=venue_symbol
+// 恒等式（策略 inst_id=venue 原符唯一活命名空间）；registry 只供别名配对
+// +参数对拍验证规范，命中族名留 canonical_ref/审计 note 证物位。
 type RegistryRow struct {
 	Canonical string
 	Family    string
