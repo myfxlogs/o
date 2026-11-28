@@ -70,15 +70,49 @@ func (w *Warden) dirTrig(ctx context.Context, p posRow, legs legSet) closeTrig {
 			reason: fmt.Sprintf("dir_ttl：age=%.1fh>ttl=%.0fh", time.Since(p.opened).Hours(), ttl),
 			facts:  facts}
 	}
-	// 信号翻面：自身方向最新评估已拒=信念消亡（dirmom 拍距内陈判据=同 paper 径语义）。
-	var v string
-	if err := w.pool.QueryRow(ctx, `SELECT verdict FROM fin_opp_eval
-		WHERE inst_id=$1 AND template=$2 AND direction=$3 ORDER BY ts DESC LIMIT 1`,
-		legs.a.inst, tmpl, dir).Scan(&v); err == nil && v == "rejected" {
-		facts["latest_verdict"] = v
-		return closeTrig{kind: "dir_signal_flip",
-			reason: fmt.Sprintf("dir_signal_flip：%s %s %s 最新评估 rejected——持仓信念消亡", legs.a.inst, tmpl, dir),
-			facts:  facts}
+	// 信号翻面：自身方向连续评估全拒=信念消亡（O-41393 校准——eval 稀疏
+	// 事件驱动，一拍拒读=呼吸非死亡：最新 K 条全 rejected 方杀；
+	// proposed/unevaluable 任一在窗=断连续不杀——读不出非消亡证词；
+	// K=lifecycle.dir.flip_consec 缺省 2（约两评估拍距），K=1=旧语义
+	// 幂等回退；读败/无行=不杀缺证不虚构）。
+	k := 2
+	if v, err := w.getF("lifecycle.dir.flip_consec"); err == nil && v >= 1 {
+		k = int(v) // v>=1 闸——(0,1) 分数 int()=0 会使 len>=k 恒真空真杀（fail-open 防）
+	}
+	rows, err := w.pool.Query(ctx, `SELECT verdict FROM fin_opp_eval
+		WHERE inst_id=$1 AND template=$2 AND direction=$3 ORDER BY ts DESC LIMIT $4`,
+		legs.a.inst, tmpl, dir, k)
+	if err != nil {
+		return closeTrig{} // 读败=不杀（旧径 err→空 trig 同语义零变）
+	}
+	defer rows.Close()
+	var verdicts []string
+	for rows.Next() {
+		var v string
+		if err := rows.Scan(&v); err != nil {
+			return closeTrig{}
+		}
+		verdicts = append(verdicts, v)
+	}
+	if err := rows.Err(); err != nil {
+		return closeTrig{}
+	}
+	if len(verdicts) >= k {
+		allRej := true
+		for _, v := range verdicts {
+			if v != "rejected" {
+				allRej = false
+				break
+			}
+		}
+		if allRej {
+			facts["flip_consec"] = k
+			facts["latest_verdicts"] = verdicts
+			facts["latest_verdict"] = verdicts[0]
+			return closeTrig{kind: "dir_signal_flip",
+				reason: fmt.Sprintf("dir_signal_flip：%s %s %s 最近%d条评估全rejected——信念消亡", legs.a.inst, tmpl, dir, k),
+				facts:  facts}
+		}
 	}
 	return closeTrig{}
 }

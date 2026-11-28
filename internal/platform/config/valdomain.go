@@ -81,6 +81,7 @@ var valueDomainRules = []valRule{
 	{"lifecycle.dir.*_pct", valFrac},
 	{"*.dir.stop_frac", valFrac},
 	{"*.dir.take_frac", valFrac},
+	{"lifecycle.dir.flip_consec", valNonNeg}, // O-41393：连续拒读判消亡窗长——0=回缺省2约定在案
 	{"lifecycle.death_factor", valPos},
 	// —— 百分域 [0,100]：真百分键 ——
 	{"trx.*_pct", numRange(0, 100)}, // floor_pct=8/vote_*_pct=0.1·1.0 在册皆界内
