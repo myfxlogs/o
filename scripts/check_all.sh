@@ -96,6 +96,7 @@ step "hardcode";    bash scripts/check_hardcode.sh              || fail "硬编�
 step "rejects";     bash scripts/check_rejects_keys.sh          || fail "rejects 键红"
 step "config-write-domain"; bash scripts/check_config_write_domain.sh || fail "config 写域闸红"
 step "migrations";  bash scripts/check_migrations.sh            || fail "迁移机检红"
+step "trigger-vocab"; bash scripts/check_trigger_vocab.sh       || fail "触发词谱对拍闸红"
 step "surface-lifecycle"; bash scripts/check_surface_lifecycle.sh || fail "积面出生闸红"
 step "bridge-audit"
 if [ "${CHECK_ALL_DEFER_BRIDGE:-}" = 1 ]; then
