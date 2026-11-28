@@ -1277,12 +1277,14 @@ func ptrTime(t time.Time) *time.Time { return &t }
 // 平仓判据时反向平径恒不可达——定性行落 fin_guard_close 一次
 // （state=close_failed+last_error=leg_anomaly 定性），不发执行、仓不迁、
 // 二拍幂等不重复定性（anomalyMarked 进程内去重）。
+// O-41392 夹具升级：触发载具 max_hold→strategy_degraded——零腿产品形
+// TTL 判词已豁免（本票病灶），事件判词照火同走 legs.one 定性径。
 func TestLegAnomalyClassified(t *testing.T) {
 	ctx, w, fx := setup(t)
 	seedFacts(t, ctx, w, 0.0001)
 	var stratID, execID, posID int64
 	if err := w.pool.QueryRow(ctx,
-		`INSERT INTO fin_strategy(inst_id,template_ref,state,notional_usd,venue) VALUES('BTC-USDT-261204-66000-P','guard-test','live',50,'okx') RETURNING id`).Scan(&stratID); err != nil {
+		`INSERT INTO fin_strategy(inst_id,template_ref,state,notional_usd,venue) VALUES('BTC-USDT-261204-66000-P','guard-test','degraded',50,'okx') RETURNING id`).Scan(&stratID); err != nil {
 		t.Fatal(err)
 	}
 	if err := w.pool.QueryRow(ctx,
@@ -1304,8 +1306,8 @@ func TestLegAnomalyClassified(t *testing.T) {
 		t.Fatalf("腿形态异常仓不应发平仓执行，got %+v", fx.calls)
 	}
 	closed, state, trig := posClosed(t, ctx, w, posID)
-	if closed || state != "close_failed" || trig != "max_hold" {
-		t.Fatalf("仓应仍在+close_failed/max_hold 定性，got closed=%v state=%q trig=%q", closed, state, trig)
+	if closed || state != "close_failed" || trig != "strategy_degraded" {
+		t.Fatalf("仓应仍在+close_failed/strategy_degraded 定性，got closed=%v state=%q trig=%q", closed, state, trig)
 	}
 	var lastErr string
 	if err := w.pool.QueryRow(ctx,
@@ -1345,12 +1347,14 @@ func TestLegAnomalyClassified(t *testing.T) {
 // 时定性行照落但不再产新升件（销一件火一件三火实证根修）；销票后
 // 条件存=抑撤自然复火。anomalyMarked 复位=重启语义（fin_guard_close
 // 行在→ON CONFLICT 重标→升件判径重走）。
+// O-41392 夹具升级：触发载具 max_hold→strategy_degraded（零腿产品形
+// TTL 豁免后事件判词仍走 legs.one 定性径——升件抑契验收面不变）。
 func TestLegAnomalyTicketSuppress(t *testing.T) {
 	ctx, w, _ := setup(t)
 	seedFacts(t, ctx, w, 0.0001)
 	var stratID, execID, posID int64
 	if err := w.pool.QueryRow(ctx,
-		`INSERT INTO fin_strategy(inst_id,template_ref,state,notional_usd,venue) VALUES('BTC-USDT-261204-66000-P','guard-test','live',50,'okx') RETURNING id`).Scan(&stratID); err != nil {
+		`INSERT INTO fin_strategy(inst_id,template_ref,state,notional_usd,venue) VALUES('BTC-USDT-261204-66000-P','guard-test','degraded',50,'okx') RETURNING id`).Scan(&stratID); err != nil {
 		t.Fatal(err)
 	}
 	if err := w.pool.QueryRow(ctx,
