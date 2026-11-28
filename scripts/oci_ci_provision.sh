@@ -105,6 +105,15 @@ check protoc-gen-go-grpc 1.5.1 || { go install google.golang.org/grpc/cmd/protoc
 EOS
 [ $? = 0 ] || die "protoc 插件装败"
 
+# ── docker log-opts 供给断言（O-41390：fail-closed——首个 docker run 前；
+#    缺配先试 sudo -n 修（合并不覆写同 bootstrap 径），sudo 不可得 die
+#    显式报错带修法行，禁裸建容器）──
+say "docker log-opts 供给断言（daemon.json 合并不覆写）"
+srun "cat > '$CI_ROOT/bin/oci_docker_logopts.sh' && chmod 0755 '$CI_ROOT/bin/oci_docker_logopts.sh'" \
+  < "$ROOT/scripts/oci_docker_logopts.sh" || die "log-opts 件上传败"
+srun "$CI_ROOT/bin/oci_docker_logopts.sh assert" \
+  || die "docker log-opts 供给断言败——修法行见上输出（canon: docs/工程经验库/条目/docker-logopts-freshbox-diskbomb.md）"
+
 # ── 测试 PG 族（5434/5436；5435=生产 o-postgres-md 禁占）──
 say "测试 PG 族（$PG_A:5434 / $PG_C:5436）"
 srun "CI='$CI_ROOT' PG_IMAGE='$PG_IMAGE' PG_A='$PG_A' PG_C='$PG_C' bash -s" <<'EOS'
