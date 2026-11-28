@@ -194,6 +194,20 @@
     聚类互证;失真族处置先走 calib_drift 判词径)。
   - 禁销口径：「扫描器还在跑」——扫描器是枚举器排列穷举会衰竭
     （funding-hedge 1804 死实证）;育种是你的活不是它的。
+- **breed_stall 升件**（seat=探测席 esc_class=breed_stall
+  scope=<template>——hunger ProbeBreedStall 族卡断流探
+  （O-39330）：fin_opp_template_roster std_state='candidate'
+  归一名下 fin_opp_eval∪fin_strategy.template_ref 零产出
+  ∧fin_opp_hypothesis.family 锚龄>dm.hunger.breed_stall_days；
+  note=归因卡（出生锚+evals/strategies/proposals 三计数+建议语）；
+  病灶=供给侧落册即完成态、消费侧臂建=工程活无主发起）→
+  处置=族卡→评估臂转换缺口裁断：①零产出属实→立臂建工单
+  （评估臂建设=工程活——模板接 fin_opp_eval 产线，交研究席/
+  施工位按工单规约）；②卡不该养→roster 态裁定（candidate→
+  park/retired——改册归 system 域自裁）；③锚龄误判=
+  hypothesis 史断供→数据面病灶要码修。**禁裸销**——探针只报
+  不裁（禁自动立工单/改 roster 态/建臂钉在发射源）；销词载
+  「臂工单#<id>∨roster 态裁定<态>∨核实查无<据>」。
 - **账疑**（esc_class=账疑 的升件——账实疑似劈差类：域漏行/快照缺席/
   读权失/孤儿仓基线漂移等断言性升件）→ 处置铁序=**先核实再动手**：
   note 所载断言逐条对拍库面实况（fin_*/ops_event 直查原始行,禁信
@@ -473,6 +487,22 @@
   「工单#N 挂起条件=<因>」留据；裁定在途/条件挂起→标挂由不动。
   池清零探针记事自销（note 引升件#id）；禁裸批量销——逐张判词
   必载证据锚（交付件/判据/判词行），同「票滞留」禁空手处置律。
+- **premise_dead 升件**（seat=探测席 esc_class=premise_dead
+  scope=<工单#id>——hunger ProbeDeskLifecycle 前提死亡探
+  （O-39410）：票桌未销未认领票面四径——①锚径
+  anchor_type='premise'∧anchor_ref='venue:<v>' venue
+  state=rejected=硬终态**探针直销**（处置行 seat=落地件自
+  写不走本弹目）；②锚指对象缺席（fin_venue_candidate 无此
+  行）→升件交裁；③无锚票 note venue= 命中 rejected→升件；
+  ④retired template_ref 命中→升件（退役≠死刑存疑）。
+  note 载票#id+命中锚/venue/template）→ 处置=前提死活裁断
+  归席：①venue rejected 实锤→处置「工单#N 销——
+  premise-dead:venue=<v> state=rejected<据>」；②锚缺席=
+  数据面病灶→查 fin_venue_candidate 写入面要码修∨裁锚改写；
+  ③retired 命中=存疑裁定——读退役判词原文裁「销/改锚/
+  复活」；④兜底径命中=rejected 实锤同①、存疑按③。**禁裸销**
+  ——升件面全是「交裁不直杀」存疑件（硬终态已直销不在册），
+  销词载「裁定<径>+<据>」。
 - **判词质量闸**（esc_class=idle_verdict_gate scope=判词质量——
   hunger ProbeIdleVerdictGate 工单O-36962：资金闸 idle_capital∧
   live_drought 升件的「有理闲置」处置判词必备字段=停泊基线值+
@@ -490,3 +520,44 @@
   补正后判词行含「停泊」字即过闸不再计不合格；本件升件 24h dedup
   内不重复，池清零后下拍探针静默。判词仍不合格=处置席裁定径
   （证伪/挂起），非探针修面。
+- **decomp_pos_fragment 升件**（seat=探测席 esc_class=
+  decomp_pos_fragment scope=strategy:<id>|bot:<id>——hunger
+  ProbeDecompWatch 已部署分解眼（O-39480）：paper 面
+  fin_paper_fill 24h 窗 租金件{funding,swap,swap_snapshot}∧
+  价差件{pnl,close} 一正一负∧|负件|>正件×吞噬比阈∧正件和
+  ≥minGain（fee/open 不入两侧如实记）；bot 面 grid_profit
+  单调正∧float_profit 负同判（24h+all 双窗取优）；note=
+  实据分件聚合（件名/两窗增量/吞噬比/窗龄）禁对策词——定性
+  归唤知）→ 处置=分解结构裁断：①属实=策略腿结构缺陷
+  （正件持续增、负件吞噬）→裁拆仓/改腿形/退役，判词写进
+  处置行；②数据面伪象（fill kind 分布异常/窗边界误聚）
+  →核实销「核实|查无|不符+据」；③阈值贴线误报→载据销。
+  **禁裸销**——吞噬是结构性事实非噪声，销词载「分解判词
+  <成立/不成立>+<据>」。
+- **novelty 升件**（seat=探测席 esc_class=novelty
+  scope=novelty_<venue>/<surface>——cmd/core 惊异唤面
+  noveltyEscCheck：「知道自己不知道」器官首探——24h 内新增
+  fin_opp_hypothesis 卡 state='proposed' 未裁=假想官起草了
+  从没卡过的面=生成面扩张物证；fp=卡 id 一卡一 scope 各火
+  各销，30d 纹期后同名再卡=新案照火；note 载「假想卡 #id
+  venue/surface(family=)进管道——O 踏进没踩过的面」）→
+  处置=新面裁决归 decide 窄门（卡裁决窄门条在案——禁直
+  SQL）：`hypo decide -id <卡id> -state
+  adopted|parked|dismissed -reason "<裁词>"`——先读卡面
+  family/leg_primitives/requirements/evidence 起草论证再裁：
+  adopted=执行族在册骨检过→模板注册径；parked=挂起载复审
+  点；dismissed=证伪载据。**禁裸销**——卡是需求账非档案，
+  销词载「裁定<adopted/parked/dismissed>+<裁词>」。
+- **eval_stall_feed 升件**（孤件类——esc_class=eval_stall_feed
+  scope=md_klines_1d_cover_collapse——**类无码面发射器**：
+  ops_event id=30757（2026-11-22 ticket#30433）会话手落/
+  独发件；语义=eval 原料 feed 断供塌——okx 1d confirm K线
+  覆盖塌缩（实案 534→56，dir 族宇宙缩 10x）致评估面饿死；
+  同症复升按本弹目走）→ 处置=采集面断供分诊：①查
+  collector census 订阅集/写谓词面（升件 note 原话处置
+  径——okx 1d confirm 订阅键在册否/census 行鲜度）；
+  ②覆盖塌=订阅面病灶→要码修（collector 订阅集/写谓词）；
+  ③市场真枯（venue 侧 1d K线源头停更）→定性销「供给枯
+  非断供」+记案；④原升件曾被审计行引证词面误销
+  （#30461——销件正则缺陷已另案）——复升按本弹目重判不
+  受旧销词拖累。销词载「断供<属实/查无/供给枯>+<据>」。
