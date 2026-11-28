@@ -122,9 +122,11 @@ func TestShapeGatePromoteBlock(t *testing.T) {
 	seedFlip(t, ctx, r)
 	seedFunding(t, ctx, r)
 	sid := mkStrategy(t, ctx, r, "probe", 2*time.Hour)
-	for i := 0; i < 3; i++ {
+	// T-0521+O-41389：置信闸须≥5 收入笔——8 笔异额正=真序列（sd>0 LB>0，
+	// 使断言落在形闸拦位而非置信闸早拦）。
+	for _, a := range []float64{0.4, 0.5, 0.6, 0.45, 0.55, 0.5, 0.48, 0.52} {
 		if _, err := r.pool.Exec(ctx,
-			"INSERT INTO fin_paper_fill(strategy_id,kind,inst_id,amount_usd,ts) VALUES($1,'funding','OP-USDT-SWAP',0.5,now())", sid); err != nil {
+			"INSERT INTO fin_paper_fill(strategy_id,kind,inst_id,amount_usd,ts) VALUES($1,'funding','OP-USDT-SWAP',$2,now())", sid, a); err != nil {
 			t.Fatal(err)
 		}
 	}
