@@ -108,7 +108,7 @@
     INSERT INTO ops_event(seat,event,note)
     VALUES('处置席','工单','工单/goal-<slug>: 目标=<钱面可量化指标+到期>
       手段=<自选径:新族/加闸/调参/venue面/退哑弹…> 验收=<可核实数>
-      ——期限=<Nh>,源=升件#<id>,scope=hunger_gap')
+      ——期限=<Nh>,源=升件#<id>,scope=hunger_gap,证=<可核锚>')
     ```
     目标三律：①**钱面可量化**（年化/30d净/新 paper 族数/哑弹退役数——
     不许「优化/研究/看看」动词目标）②**手段自选但在线内**（口径:
