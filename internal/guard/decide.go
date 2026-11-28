@@ -84,7 +84,11 @@ func (w *Warden) evaluate(ctx context.Context, p posRow, legs legSet) closeTrig 
 		w.rej.Inc("missing_param")
 		w.note("missing_param:maxhold", fmt.Sprintf("仓 %d guard.max_hold_hours 读败——超龄判据跳过: %v", p.id, err))
 	} else if age := time.Since(p.opened).Hours(); age > maxH {
-		if w.trailingIncomePositive(ctx, p.id) {
+		if legs.zero {
+			// O-41392：零腿产品形（DCD/结构品——venue 到期结算径在案）纯时龄
+			// 判据空转——判「该平」恒不可达（无腿可反向），TTL 判词不适用。
+			w.note("ttl_product_skip", fmt.Sprintf("仓 %d 零腿产品形超龄（age=%.1fh>max_hold_hours=%.0f）——TTL 判词不适用，到期结算径在案", p.id, age, maxH))
+		} else if w.trailingIncomePositive(ctx, p.id) {
 			w.note("max_hold_exempt", fmt.Sprintf("仓 %d 超龄但 trailing 24h 实收>0——收益失效判豁免", p.id))
 		} else {
 			return closeTrig{kind: "max_hold",
