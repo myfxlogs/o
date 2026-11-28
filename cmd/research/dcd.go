@@ -35,6 +35,7 @@ import (
 	"o/internal/research/gridcfd"
 	"o/internal/research/gridfit"
 	"o/internal/research/hypothesis"
+	"o/internal/research/ossfam"
 	"o/internal/research/regime"
 	"o/internal/research/researcher"
 	"o/internal/research/scout"
@@ -226,6 +227,13 @@ func researchArms(ctx context.Context, errc chan<- error, pool *pgxpool.Pool,
 	// execfam 未册=影子族闸 exec_family_missing，执行零径）。
 	go gridcfd.NewRunnerVenue(pool, cfg, "exness", "grid_cfd", "网格评估-cfd").
 		AttachAlerter(alerter).Run(ctx, errc)
+	// 工单O-41394 OSS 三族骨架评估臂（径乙——candidate 态三族有名无实
+	// fin_opp_eval 全 0 行 breed_stall 误火；逐族 Runner 仿 dirmom/
+	// gridcfd 臂形，影子产出零执行零提案径：eval 卡可见，提案/执行=
+	// 收养后另件；判据=fin_0243/0278 research.<fam>.* 机读 fail-closed）。
+	go ossfam.NewFundingRunner(pool, cfg).AttachAlerter(alerter).Run(ctx, errc)
+	go ossfam.NewDislocRunner(pool, cfg).AttachAlerter(alerter).Run(ctx, errc)
+	go ossfam.NewXsecRunner(pool, cfg).AttachAlerter(alerter).Run(ctx, errc)
 	// 工单#25750 regime→结构映射器（有界钦定形——md_klines 1D 全宇宙
 	// 五态分类→人维护映射表→族覆盖缺口→族提案升件；影子产出零执行，
 	// 映射表外族永不提案 fail-closed；ops_event 写径挂 fin 池）。

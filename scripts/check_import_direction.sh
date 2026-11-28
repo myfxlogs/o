@@ -176,6 +176,13 @@ internal/research/regime -> internal/platform/notify
 internal/research/regime -> internal/platform/rejects
 internal/research/regime -> internal/platform/roster
 internal/research/regime -> internal/research/armwatch
+# 工单O-41394 OSS 三族骨架评估臂（ossfam——candidate 态影子产出
+# 零执行零提案；边集=gridcfd 同形臂壳）。
+internal/research/ossfam -> internal/platform/config
+internal/research/ossfam -> internal/platform/notify
+internal/research/ossfam -> internal/platform/rejects
+internal/research/ossfam -> internal/platform/roster
+internal/research/ossfam -> internal/research/armwatch
 internal/research/armwatch -> internal/platform/notify
 internal/research/armwatch -> internal/platform/config
 internal/research/researcher -> internal/platform/notify
@@ -205,6 +212,7 @@ internal/research/gapscan -> internal/research/evalgate
 internal/research/funding -> internal/research/evalgate
 internal/research/dcd -> internal/research/evalgate
 internal/research/hypothesis -> internal/research/evalgate
+internal/research/ossfam -> internal/research/evalgate
 internal/research/gapscan -> internal/platform/config
 internal/research/gapscan -> internal/platform/rejects
 internal/research/gapscan -> internal/platform/roster
@@ -324,6 +332,7 @@ internal/research/dirmom -> internal/platform/writefail
 internal/research/dirtrend -> internal/platform/writefail
 internal/research/gridcfd -> internal/platform/writefail
 internal/research/gridfit -> internal/platform/writefail
+internal/research/ossfam -> internal/platform/writefail
 internal/research/regime -> internal/platform/writefail
 internal/research/scout -> internal/platform/writefail
 internal/research/sigdist -> internal/platform/writefail
