@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -37,10 +38,16 @@ type Runner struct {
 	rej    *rejects.Door
 	sensor hungerSensor     // 饥饿感知器（hunger.go 缝定义——默认实件，桩测面覆写）
 	chainV opsChainVerifier // 验链器（hunger.go 缝定义——T-0386 同槽拍，桩测面覆写/置零即跳）
+
+	drillCh chan drillJob       // 工单#45468：probe 演习凭据产线队列（drillfeed.go）
+	drillMu sync.Mutex          // drillAt 节流图互斥（scan 拍/慢拍共踢）
+	drillAt map[int64]time.Time // 策略→最近入队戳（机械败重试节流锚）
+	drillFn DrillFunc           // 演习缝（nil=产线让位——AttachDrillFeed 注入制）
 }
 
 func NewRunner(pool *pgxpool.Pool, cfg *config.Client) *Runner {
 	return &Runner{pool: pool, denyAt: map[int64]time.Time{}, cfg: cfg,
+		drillCh: make(chan drillJob, 32), drillAt: map[int64]time.Time{},
 		rej: rejects.New("lifecycle", "illegal_transition", "missing_criteria", "write_err", "live_switch_off", "open_failed", "template_blocked", "xvenue_open_forbidden", "xvenue_sub_leg", "blacklist_retire",
 			"facts_missing", "missing_param", "oscillation_fuse", "dcd_quote_missing", "dcd_spot_stale", "basis_mark_stale",
 			"exec_drill_missing", "exec_drill_failed", "exec_cell_hold",
@@ -61,6 +68,7 @@ func (r *Runner) Run(ctx context.Context, errc chan<- error) {
 	go r.hungerLoop(ctx)      // T-0378：饥饿感知拍（BeatLoop 同款 ctx 界内协程——非野径）
 	go r.minerLoop(ctx)       // T-0385：教训矿工拍（同正径——12h 慢拍独立槽）
 	go r.paramIntakeLoop(ctx) // #23296：裁定参数包进气道拍（同正径——5min 慢拍独立槽）
+	r.drillFeedStart(ctx)     // 工单#45468：probe 演习凭据产线（scan 拍踢+慢拍兜底）
 	// 事件化（T-0048：周期环拆——策略/评估卡行变 ev_strategy/ev_eval 驱动）。
 	events.ListenLoop(ctx, r.pool, "lifecycle",
 		[]string{"ev_strategy", "ev_eval"}, r.scan)
@@ -140,7 +148,8 @@ func (r *Runner) scan(ctx context.Context) error {
 	}
 	// ④ live 开仓消费（T-0050 首仓序④——无未平仓行的 live 行过 Opener 缝）。
 	r.openLive(ctx)
-	r.openProbe(ctx) // O-41014：fasttrack probe 小仓消费面（armed≠open——执行侧闸全继承）
+	r.openProbe(ctx)     // O-41014：fasttrack probe 小仓消费面（armed≠open——执行侧闸全继承）
+	r.drillFeedKick(ctx) // 工单#45468：本拍 probe 缺凭据候选入队（产线供件非阻塞）
 	return nil
 }
 

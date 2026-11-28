@@ -34,6 +34,7 @@ import (
 	"o/internal/trading/execwiring"
 	"o/internal/trading/okxexec"
 	"o/internal/trading/okxgrid"
+	"o/internal/trading/simdrill"
 )
 
 const (
@@ -226,14 +227,13 @@ func run() error {
 	xs.AttachAlerter(alerter)
 	go xs.Run(ctx)
 	trxW := trxArms(ctx, errc, pool, cfg) // T-0110 TRX/CMC 采集臂+读面装配（trx.go）
-
 	// 投资域首岗：命官——paper→probe→live 开仓消费（T-0050 Opener 缝）。
 	lr := lifecycle.NewRunner(pool, cfg).
-		AttachUniverse(uni.Symbols).                                      // T-0416 探针读宇宙挂点——同一供给件（不滤黑名单=探针宽谱判据）
-		AttachOpener(liveOpener).                                         // nil=缝缺席让位（openLive 自闸——原 if 守同语义）
-		AttachCensus(censusFeed(func() *okxexec.Client { return okcli })) // O-39480 oppCensus 腿矩阵供给件（census_feed.go）
+		AttachUniverse(uni.Symbols).                                       // T-0416 探针读宇宙挂点——同一供给件（不滤黑名单=探针宽谱判据）
+		AttachOpener(liveOpener).                                          // nil=缝缺席让位（openLive 自闸——原 if 守同语义）
+		AttachCensus(censusFeed(func() *okxexec.Client { return okcli })). // O-39480 oppCensus 腿矩阵供给件（census_feed.go）
+		AttachDrillFeed(simdrill.FeedDrill(pool, cfg))                     // 工单#45468：probe 演习凭据产线缝（毕业链供件——D-514 分层装配在 simdrill 包内）
 	go lr.Run(ctx, errc)
-
 	// T-0165：复盘域随迁开发机（o-research——SG 零研究行）。
 
 	// 账本域：司账+核账（入账结算+对账环——消费事实行不触发钱动作）。
