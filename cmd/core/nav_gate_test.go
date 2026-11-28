@@ -48,7 +48,7 @@ func TestNavPartialLegsGate(t *testing.T) {
 		return nil, nil
 	}
 	mkNav := func(fund, earn func(context.Context) (map[string]float64, error)) func(context.Context) (map[string]float64, error) {
-		_, navFn := assemble(pool, cfg, fund, earn, mt5OK, dcdOK, nil, nil, nil)
+		_, navFn := assemble(ctx, pool, cfg, fund, earn, mt5OK, dcdOK, nil, nil, nil, nil)
 		return navFn
 	}
 	// ① funding 腿读败 → nav() err（缺腿闸）——下拍复常自写。
@@ -71,10 +71,10 @@ func TestNavPartialLegsGate(t *testing.T) {
 		t.Fatalf("账不对: %+v", by)
 	}
 	// ④ dcd 腿读败 → 同拦（结构性持仓缺腿同险）。
-	_, navFn := assemble(pool, cfg, okMap(5), okMap(7), mt5OK,
+	_, navFn := assemble(ctx, pool, cfg, okMap(5), okMap(7), mt5OK,
 		func(context.Context) ([]okxexec.DcdOrder, error) {
 			return nil, errors.New("dcd read down")
-		}, nil, nil, nil)
+		}, nil, nil, nil, nil)
 	if _, err := navFn(ctx); err == nil {
 		t.Fatal("dcd 读败应拦本拍")
 	}

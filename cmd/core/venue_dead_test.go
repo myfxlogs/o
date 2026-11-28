@@ -95,7 +95,7 @@ func TestMt5DeadLegCardAndNav(t *testing.T) {
 	mt5Dead := func(context.Context) ([]mt5Acct, error) {
 		return nil, venueDeadWrap(errors.New("ConnectEx err: OLD_VERSION"))
 	}
-	svc, navFn := assemble(pool, cfg, okMap(5), okMap(7), mt5Dead, dcdOK, nil, nil, nil)
+	svc, navFn := assemble(ctx, pool, cfg, okMap(5), okMap(7), mt5Dead, dcdOK, nil, nil, nil, nil)
 	o, err := svc.Overview(ctx, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -121,7 +121,7 @@ func TestMt5DeadLegCardAndNav(t *testing.T) {
 	mt5Down := func(context.Context) ([]mt5Acct, error) {
 		return nil, errors.New("dial timeout")
 	}
-	_, navFn2 := assemble(pool, cfg, okMap(5), okMap(7), mt5Down, dcdOK, nil, nil, nil)
+	_, navFn2 := assemble(ctx, pool, cfg, okMap(5), okMap(7), mt5Down, dcdOK, nil, nil, nil, nil)
 	if _, err := navFn2(ctx); err == nil || !strings.Contains(err.Error(), "户/读件缺") {
 		t.Fatalf("暂态读败应照拦本拍: %v", err)
 	}

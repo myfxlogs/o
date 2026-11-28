@@ -76,6 +76,7 @@ fin_cmc_positions	bridge-reverse
 fin_cmc_prices	fin
 position_daily_income	fin
 fin_venue_untradeable	bridge-reverse
+fin_valuation_ccy	bridge-reverse
 md_signal	bridge
 # fin_data_retention 升 bridge（T-0169：清道夫双实例——保留账分库各一份，D-0030 §八；
 # 两库账行各自独立，DDL 同构断言钉）

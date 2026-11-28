@@ -20,7 +20,7 @@ import (
 var localWritePredSQL = `SELECT count(*) FROM (
 	SELECT inst_id FROM fin_position WHERE state<>'closed'
 	UNION SELECT inst_id FROM fin_strategy WHERE state<>'retired'
-	UNION ` + legset.ActiveSetUnion + `) t WHERE t.inst_id=$1`
+	UNION ` + legset.ActiveSetUnion + ` UNION ` + legset.ValuationCcyArm + `) t WHERE t.inst_id=$1`
 
 // LocalWritePredFunc SG 活跃集写谓词接件（Collector.LocalWritePred 槽位
 // 注入件——kind 形参各面共用同集，T-0209 原语义不动）。

@@ -109,17 +109,21 @@ func (c coreService) GetCockpit(ctx context.Context,
 	// fin_position 单账——闸面口径对齐归决策另裁，本票只动读面。
 	// T-0364：kind='dcd'=策略域——业主域凭据视图分流 kind='dcd_owner'
 	// 剔出敞口分子（业主独立仓收归，显示面最简隐；闸面同源）。
-	if err := c.pool.QueryRow(ctx, `SELECT COALESCE(
-		  (SELECT sum(notional_usd) FROM fin_position WHERE state<>'closed'),0)
-		+ COALESCE((SELECT sum(v.notional*CASE WHEN v.ccy IN ('USDT','USD') THEN 1
-			ELSE COALESCE(px.p,0) END)
-		  FROM fin_position_view v
-		  LEFT JOIN LATERAL (SELECT p FROM (
-		      SELECT ts,last AS p FROM md_ticks WHERE inst_id=v.ccy||'-USDT'
-		      UNION ALL
-		      SELECT ts,px AS p FROM md_mark_index WHERE inst_id=v.ccy||'-USDT'
-		    ) u ORDER BY ts DESC LIMIT 1) px ON true
-		  WHERE v.kind='dcd'),0)`).Scan(&r.Money.Exposure); err != nil {
+	// O-41395 件①：dcd 凭据估值改走 dcdExposureUSD→ccyPxUSD 鲜度优先
+	// 共享件（原内联 LATERAL 只吃落库 UNION——index-tickers REST 现拉源
+	// 两面同吃，散修即分叉禁复制）；USDT/USD 直入、无价=0 不虚计语义不变。
+	var exposure float64
+	expoOK := true
+	if err := c.pool.QueryRow(ctx,
+		`SELECT COALESCE(sum(notional_usd),0) FROM fin_position WHERE state<>'closed'`,
+	).Scan(&exposure); err != nil {
+		expoOK = false
+	} else if d, derr := dcdExposureUSD(ctx, c.pool); derr != nil {
+		expoOK = false
+	} else {
+		r.Money.Exposure = exposure + d
+	}
+	if !expoOK {
 		moneyErr = true
 	}
 	if moneyErr {

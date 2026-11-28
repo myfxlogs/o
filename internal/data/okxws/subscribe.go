@@ -74,7 +74,7 @@ func (c *Collector) activeSet(ctx context.Context) (map[string]bool, error) {
 	// 由 live/degraded 策略项覆盖=冗余项）。md 侧查询只许引 domain.tsv
 	// 标 md|bridge 表（fin 域表禁引——relation does not exist 病灶根修）。
 	rows, err := c.pool.Query(ctx,
-		`SELECT DISTINCT inst_id FROM (`+legset.ActiveSetUnion+`) t`)
+		`SELECT DISTINCT inst_id FROM (`+legset.ActiveSetUnion+` UNION `+legset.ValuationCcyArm+`) t`)
 	if err != nil {
 		return nil, err
 	}

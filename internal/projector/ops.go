@@ -87,6 +87,8 @@ func (r *Runner) sgWake(ctx context.Context, ch string) error {
 			return err
 		}
 		return r.reverseSubRequests(ctx)
+	case "ev_valuation": // O-41395 估值币集帧（fin_0279 触发器——发布器行变即发）
+		return r.reverseValuationCcy(ctx)
 	case "ev_strategy": // 反向桥帧（fin_0028 在册——策略行变即发，T-0172）
 		if err := r.reverseStrategies(ctx); err != nil {
 			return err

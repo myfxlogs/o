@@ -94,7 +94,8 @@ func New(md, sg *pgxpool.Pool, alert *notify.Alerter, mode string) (*Runner, err
 	}
 	for _, t := range []string{"fin_strategy", "fin_venue_untradeable", "md_earn_rate",
 		"fin_trx_vote_apr", "fin_trx_account", "fin_trx_txs",
-		"fin_cmc_history", "fin_cmc_positions", "md_klines"} {
+		"fin_cmc_history", "fin_cmc_positions", "md_klines",
+		"fin_valuation_ccy"} { // O-41395 件② 估值需求币反向桥
 		if !regRevSet[t] {
 			return nil, fmt.Errorf("域册 bridge-reverse 缺反向桥表 %s——册面先行", t)
 		}
@@ -125,7 +126,7 @@ func (r *Runner) Run(ctx context.Context, errc chan<- error) {
 	log.Printf("[projector] 对账毕——活跃集 %d inst、dcd 活策略 %d 品", r.activeCount(), len(r.dcdSet()))
 
 	mdCh := []string{"ev_ticks", "ev_markidx", "ev_funding", "ev_signal", "ev_eval", "ev_proposal", "ev_dcd"}
-	sgCh := []string{"ev_active_set", "ev_proposal", "ev_strategy", "ev_subreq", "config_changed"}
+	sgCh := []string{"ev_active_set", "ev_proposal", "ev_strategy", "ev_subreq", "ev_valuation", "config_changed"}
 	go events.ListenLoopChan(ctx, r.md, "projector-md", mdCh, r.mdWake)
 	go events.ListenLoopChan(ctx, r.sg, "projector-sg", sgCh, r.sgWake)
 	go r.beatLoop(ctx, errc)

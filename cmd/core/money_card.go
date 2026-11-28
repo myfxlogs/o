@@ -10,8 +10,6 @@ import (
 
 	"o/internal/trading/okxexec"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-
 	"o/internal/gen/dashboardv1"
 	"o/internal/ledger"
 )
@@ -73,22 +71,6 @@ func (c coreService) dcdRows(ctx context.Context, o *dashboardv1.OverviewRespons
 		o.Money = append(o.Money, moneyRow("okx", "结构性持仓", od.NotionalCcy,
 			od.ProductID, sz, u))
 	}
-}
-
-// valCcy 代币数→USD 估值（T-0086 ① amt估值）：USDT/USD 直入；其余=md_ticks
-// 最新价×量（无 tick=0——卡面仍展示，NAV 不虚计 51M NFT 级原生数）。
-func valCcy(ctx context.Context, pool *pgxpool.Pool, ccy string, units float64) float64 {
-	if ccy == "USDT" || ccy == "USD" {
-		return units
-	}
-	var last *float64
-	_ = pool.QueryRow(ctx, `SELECT v FROM (SELECT last v,ts FROM md_ticks WHERE inst_id=$1
-		UNION ALL SELECT px,ts FROM md_mark_index WHERE inst_id=$1) q ORDER BY ts DESC LIMIT 1`,
-		ccy+"-USDT").Scan(&last)
-	if last == nil {
-		return 0
-	}
-	return units * *last
 }
 
 // moneyRows NAV 与三区卡面组装（T-0100 ①② 基金的钱口径账户域作用——
