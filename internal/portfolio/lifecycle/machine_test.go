@@ -84,8 +84,9 @@ func TestLifecycleE2E(t *testing.T) {
 		t.Fatal(err)
 	}
 	// funding 行→虚拟记账+晋升（判据 min_hours=0 即时满）
-	// T-0521：置信闸须≥3 收入笔——3 行 funding 产 3 笔 fill（同额 sd=0→LB>0）。
-	for i := 0; i < 3; i++ {
+	// T-0521+O-41389：置信闸须≥5 收入笔且 sd=0 同值流须 N≥8——8 行 funding
+	// 产 8 笔等额 fill（零方差条款放行径 LB>0）。
+	for i := 0; i < 8; i++ {
 		if _, err := pool.Exec(ctx, `INSERT INTO md_funding(ts,inst_id,funding_rate)
 			VALUES(now()+make_interval(secs => $1),'LC-USDT-SWAP',0.01)`, i); err != nil {
 			t.Fatal(err)
@@ -350,14 +351,14 @@ func TestDcdPutAdmitGate(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT state FROM fin_proposal WHERE id=$1`, pid).Scan(&state); err != nil || state != "fin_armed" {
 		t.Fatalf("dcd_put paper admission 后提案应 armed，state=%s err=%v", state, err)
 	}
-	// T-0521：paper 开户即扣估计往返摩擦（kind='fee'）+置信下界证伪闸——
-	// 收入笔数<3 不宣判；预播 3 笔稳定收益 fill（摊提序列=L B>0 判词件）+
+	// T-0521+O-41389：paper 开户即扣估计往返摩擦（kind='fee'）+置信下界证伪闸——
+	// 收入笔数<5 不宣判；预播 8 笔等额收益 fill（同值流须 N≥8 零方差放行径）+
 	// 回 6 天累计摊出净正才配 probe（7d=paper_ttl 上限）。
 	var sid int64
 	if err := pool.QueryRow(ctx, `SELECT id FROM fin_strategy WHERE proposal_ref=$1`, pid).Scan(&sid); err != nil {
 		t.Fatal(err)
 	}
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 8; i++ {
 		if _, err := pool.Exec(ctx, `INSERT INTO fin_paper_fill(strategy_id,kind,inst_id,amount_usd,ts)
 			VALUES($1,'funding','BTC-USDT-261225-68000-P',0.20,now()-make_interval(days => $2))`,
 			sid, 5-i); err != nil {

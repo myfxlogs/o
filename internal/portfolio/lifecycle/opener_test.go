@@ -134,10 +134,11 @@ func TestProbeToLivePromotion(t *testing.T) {
 	seedFlip(t, ctx, r)
 	seedFunding(t, ctx, r)
 	sid := mkStrategy(t, ctx, r, "probe", 2*time.Hour)
-	// T-0521：置信闸须≥3 收入笔（同额 sd=0→LB>0）。
-	for i := 0; i < 3; i++ {
+	// T-0521+O-41389：置信闸须≥5 收入笔+perp 方向判词须 funding 行（正率同号）；
+	// 8 笔异额正=真序列（sd>0 LB>0，非等额捷径形）。
+	for _, a := range []float64{0.4, 0.5, 0.6, 0.45, 0.55, 0.5, 0.48, 0.52} {
 		if _, err := r.pool.Exec(ctx,
-			"INSERT INTO fin_paper_fill(strategy_id,kind,inst_id,amount_usd,ts) VALUES($1,'funding','OP-USDT-SWAP',0.5,now())", sid); err != nil {
+			"INSERT INTO fin_paper_fill(strategy_id,kind,inst_id,amount_usd,ts) VALUES($1,'funding','OP-USDT-SWAP',$2,now())", sid, a); err != nil {
 			t.Fatal(err)
 		}
 	}
