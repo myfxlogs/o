@@ -14,7 +14,8 @@
 # 前置（盒外，序不可倒）：
 #   ① OCI 控制台开盒（ARM A1·SG West·Ubuntu 24.04）→ cloud-init/Console
 #      贴 dev 公钥 → NSG 双开 22/443
-#   ② dev: scp scripts/oci_bootstrap.sh scripts/backup_pg.sh
+#   ② dev: scp scripts/oci_bootstrap.sh scripts/oci_docker_logopts.sh
+#      scripts/backup_pg.sh
 #      scripts/backup_push_sg.sh scripts/arm/o-backup-md.sh
 #      scripts/arm/o-backup-fin.sh scripts/arm/o-sentinel.sh root@新盒:/root/
 #   ③ SG→dev→新盒：拉末份 o-md dump（/opt/o-backups/oci-inbox 或 R2 oci/
@@ -45,6 +46,14 @@ stage_sys() {
 	doit "loginctl enable-linger ubuntu"
 	doit "iptables -I INPUT -p tcp --dport 443 -m state --state NEW -j ACCEPT"
 	doit "netfilter-persistent save"
+	# O-41390：docker 日志面供给——daemon.json log-opts 合并不覆写（新盒裸生
+	# 断根；本阶段零容器=restart 安全窗）。幂等：已对零变不 restart。
+	if [ "$DRY" = "1" ]; then
+		echo "+ /root/oci_docker_logopts.sh ensure（daemon.json log-opts 合并+按需 restart docker）"
+	else
+		[ -f /root/oci_docker_logopts.sh ] || { echo "缺 /root/oci_docker_logopts.sh——dev 侧 scp 清单见文件头②"; exit 1; }
+		/root/oci_docker_logopts.sh ensure || { echo "❌ daemon.json log-opts 供给败——容器未建，修后重跑本段"; exit 1; }
+	fi
 	echo "  （OCI NSG 侧 22/443 双开须控制台另核——本脚本管不到云面）"
 }
 
@@ -58,7 +67,7 @@ stage_pgmd() {
 stage_scripts() {
 	echo "── scripts：备份链三件+fin/sentinel 件安置 ──"
 	local f
-	for f in oci_bootstrap.sh backup_pg.sh backup_push_sg.sh o-backup-md.sh o-backup-fin.sh o-sentinel.sh; do
+	for f in oci_bootstrap.sh oci_docker_logopts.sh backup_pg.sh backup_push_sg.sh o-backup-md.sh o-backup-fin.sh o-sentinel.sh; do
 		case "$f" in oci_bootstrap.sh) continue;; esac
 		[ -f "/root/$f" ] || { echo "缺 /root/$f——dev 侧 scp 清单见文件头②"; exit 1; }
 		doit "install -m 755 /root/$f /usr/local/bin/$f"
