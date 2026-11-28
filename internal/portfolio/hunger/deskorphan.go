@@ -81,7 +81,7 @@ func (s *Sensor) ProbeDeskOrphan(ctx context.Context) error {
 		}
 		if err := s.deskEscOnce(ctx, deskOrphanEscClass,
 			deskOrphanEscScope+":"+g.aref,
-			fmt.Sprintf("票桌孤儿池·同锚判重：anchor=%s 陈票 %d 张（最陈#%d·%.0fh）——同 anchor_ref=同病判重硬键（O-39410）；分诊三择=补证复活/销案/挂起留据",
+			fmt.Sprintf("票桌孤儿池·同锚判重：anchor=%s 陈票 %d 张（最陈#%d·%.0fh）——同 anchor_ref=同病判重硬键（O-39410）；立案模板必载证=<可核锚>（fin_0212闸——缺证rank NULL不派发）；分诊三择=补证复活/销案/挂起留据",
 				g.aref, g.n, g.oldestID, g.oldestAge), deskOrphanDedupHours); err != nil {
 			return err
 		}
@@ -106,7 +106,7 @@ func (s *Sensor) ProbeDeskOrphan(ctx context.Context) error {
 				`INSERT INTO ops_event(seat,event,ticket,note,esc_class,esc_scope)
 				VALUES($1,'升件',$2,$3,$4,$5)`,
 				hungerSeat, hungerTicket,
-				fmt.Sprintf("票桌孤儿池·无锚兜底：workable∧rank NULL∧龄>%s 陈票 %d 张（最陈#%d·%.0fh）——死因粗分 无证锚=%d 有证未排=%d；无锚票语义兜底非判重键；分诊三择=补证复活/销案/挂起留据（工单O-35463/O-39410）",
+				fmt.Sprintf("票桌孤儿池·无锚兜底：workable∧rank NULL∧龄>%s 陈票 %d 张（最陈#%d·%.0fh）——死因粗分 无证锚=%d 有证未排=%d；立案模板必载证=<可核锚>（fin_0212闸——缺证rank NULL不派发）；无锚票语义兜底非判重键；分诊三择=补证复活/销案/挂起留据（工单O-35463/O-39410）",
 					deskOrphanMinAgeCh, unanch.n, unanch.oldestID, unanch.oldestAge,
 					unanch.nocert, unanch.n-unanch.nocert),
 				deskOrphanEscClass, deskOrphanEscScope); err != nil {
