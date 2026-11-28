@@ -117,6 +117,17 @@ while IFS=$'\t' read -r side tg tbl; do
 	is_bridge=0
 	for t in "${rev_tables[@]}" "${fwd_tables[@]}"; do [ "$t" = "$tbl" ] && is_bridge=1; done
 	[ "$is_bridge" = 1 ] || continue
+	# 部署窗 grace（O-41395——授权列同律推广：表未落实机=迁移未施，
+	# 触发器无从存在；仅显式 'f' 跳——查询败空值照断言 fail-closed）。
+	if [ "$side" = fin ]; then
+		exists=$(sg_q "SELECT to_regclass('public.$tbl') IS NULL")
+	else
+		exists=$(md_q "SELECT to_regclass('public.$tbl') IS NULL")
+	fi
+	if [ "$exists" = "t" ]; then
+		echo "[bridge-audit] 触发器列: $side.$tbl 未部署——grace 跳（部署窗）"
+		continue
+	fi
 	if [ "$side" = fin ]; then
 		n=$(sg_q "SELECT count(*) FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid WHERE NOT t.tgisinternal AND c.relname='$tbl' AND t.tgname='$tg'")
 	else

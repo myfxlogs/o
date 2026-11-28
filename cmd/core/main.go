@@ -242,8 +242,8 @@ func run() error {
 	// 采集观测源束（T-0170——collector/meter 方法值闭包，GetSystemHealth 供数）。
 	md := &mdStats{frames: collector.FrameCount, lastFrame: collector.LastFrame,
 		rejects: collector.Stats.Snapshot, netKbps: meter.RateKbps, netChannels: meter.Channels}
-	svc, navFn := assemble(pool, cfg, fundingLiveFor(okcli), earnLiveFor(okcli),
-		mt5LiveFor(pool, cfg), dcdLiveFor(okcli), posLiveFor(okcli), trxW, md)
+	svc, navFn := assemble(ctx, pool, cfg, fundingLiveFor(okcli), earnLiveFor(okcli),
+		mt5LiveFor(pool, cfg), dcdLiveFor(okcli), posLiveFor(okcli), trxW, md, indexPxFor(okcli))
 	ledgerR := wireLedgerReport(ctx, errc, pool, cfg, navFn, alerter)
 	go venuePosBeat(ctx, pool, okcli)    // O-33207：OKX 手动仓在仓快照环（fin_venue_position——upl 直给 mtm 偏移）
 	go marginBeat(ctx, pool, cfg, okcli) // O-40707：margin-short 采集+息腿+负债健康闸（okcli=nil 整环让位）

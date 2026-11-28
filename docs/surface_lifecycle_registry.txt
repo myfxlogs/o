@@ -20,3 +20,8 @@ md_liquidation
 # last_seen 刷新非追加积累；消费=onboard mint 配对读面+席位 flag 处置面）
 fin_canonical_registry
 fin_venue_symbols
+# O-41395——bridge-reverse 发布面/集合同步状态表（fin_0279 SG 正本
+# +md_1113 PG-md 副本同名）：行生命周期=同步语义本身（在集 upsert/
+# 出集 DELETE），键域封顶=估值币数百级非追加积累；消费=projector
+# reverseValuationCcy→legset.ValuationCcyArm 订阅集/写谓词同源
+fin_valuation_ccy

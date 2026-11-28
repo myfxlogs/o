@@ -270,13 +270,15 @@ func mountCore(mux *http.ServeMux, svc coreService) {
 
 // assemble 复盘域读面单例装配（T-0170：coreService 一处装配两处消费——
 // CoreService 挂载与 NAV 日拍闭包同源，live 读件不重复造）。
-func assemble(pool *pgxpool.Pool, cfg *config.Client,
+func assemble(ctx context.Context, pool *pgxpool.Pool, cfg *config.Client,
 	fundingLive func(context.Context) (map[string]float64, error),
 	earnLive func(context.Context) (map[string]float64, error),
 	mt5Live func(context.Context) ([]mt5Acct, error),
 	dcdLive func(context.Context) ([]okxexec.DcdOrder, error),
 	posLive func(context.Context) ([]okxexec.Position, error), trxW *trxWiring,
-	md *mdStats) (coreService, func(context.Context) (map[string]float64, error)) {
+	md *mdStats, idxPx func(context.Context, string) (float64, time.Time, error)) (coreService, func(context.Context) (map[string]float64, error)) {
+	ccyIdxPx.Store(idxPx)          // O-41395 件① index 价件注入（nil→absent 桩=DB-only 现语义）
+	go valuationCcyBeat(ctx, pool) // O-41395 件②估值需求币发布器
 	svc := coreService{pool: pool, cfg: cfg, fundingLive: fundingLive, earnLive: earnLive,
 		mt5Live: mt5Live, dcdLive: dcdLive, posLive: posLive, trx: trxW, md: md}
 	return svc, func(ctx context.Context) (map[string]float64, error) {

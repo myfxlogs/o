@@ -1096,3 +1096,48 @@ func TestEvalLateCommitOverlap(t *testing.T) {
 		t.Fatalf("晚提交旧 ts eval 应由重叠窗兜回: %d", n)
 	}
 }
+
+// TestReverseValuationCcy O-41395 件②锚：fin_valuation_ccy 反向桥——
+// SG 正本→PG-md 副本 diff upsert + 出集 DELETE（状态集语义——在集币
+// 入副本、退集币副本删=collector 退订面）。
+func TestReverseValuationCcy(t *testing.T) {
+	ctx := context.Background()
+	r, md, sg := runner(t)
+	if _, err := sg.Exec(ctx, `INSERT INTO fin_valuation_ccy(ccy,src) VALUES
+		('LWPVC1','fundccy'),('LWPVC2','view')`); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.reverseValuationCcy(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if n := count(t, md, "SELECT count(*) FROM fin_valuation_ccy WHERE ccy LIKE 'LWPVC%'"); n != 2 {
+		t.Fatalf("副本应 2 行: %d", n)
+	}
+	// 正本行变（src 覆写+新增+退集）→再 diff：差行覆写、新行入、退集行删。
+	if _, err := sg.Exec(ctx, `UPDATE fin_valuation_ccy SET src='fundccy+view' WHERE ccy='LWPVC1'`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sg.Exec(ctx, `INSERT INTO fin_valuation_ccy(ccy,src) VALUES('LWPVC3','view')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sg.Exec(ctx, `DELETE FROM fin_valuation_ccy WHERE ccy='LWPVC2'`); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.reverseValuationCcy(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var src string
+	if err := md.QueryRow(ctx,
+		`SELECT src FROM fin_valuation_ccy WHERE ccy='LWPVC1'`).Scan(&src); err != nil {
+		t.Fatal(err)
+	}
+	if src != "fundccy+view" {
+		t.Fatalf("副本 src 应覆写 fundccy+view: %s", src)
+	}
+	if n := count(t, md, "SELECT count(*) FROM fin_valuation_ccy WHERE ccy LIKE 'LWPVC%'"); n != 2 {
+		t.Fatalf("出集删后副本应 2 行（LWPVC1+LWPVC3）: %d", n)
+	}
+	if n := count(t, md, "SELECT count(*) FROM fin_valuation_ccy WHERE ccy='LWPVC2'"); n != 0 {
+		t.Fatalf("退集币 LWPVC2 副本应删: %d", n)
+	}
+}

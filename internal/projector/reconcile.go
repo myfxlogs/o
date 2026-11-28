@@ -78,6 +78,9 @@ func (r *Runner) Reconcile(ctx context.Context, full bool) error {
 	if err := r.reverseFinMirrors(ctx); err != nil {
 		return fmt.Errorf("反向桥 fin 副本群 diff: %w", err)
 	}
+	if err := r.reverseValuationCcy(ctx); err != nil { // O-41395 估值币集期界兜底
+		return fmt.Errorf("反向桥 valuation_ccy diff: %w", err)
+	}
 	if err := r.reverseSubRequests(ctx); err != nil { // T-0412 user_intent 臂期界兜底
 		return fmt.Errorf("反向桥 sub_request diff: %w", err)
 	}

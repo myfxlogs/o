@@ -81,3 +81,39 @@ func TestActiveSetFictionalSpotFiltered(t *testing.T) {
 		}
 	}
 }
+
+// TestActiveSetValuationCcyArm O-41395 件②锚：估值需求币臂——
+// fin_valuation_ccy 在册 ccy→ccy-USDT 派生入集（BTC-USDT 死订根修面）；
+// USDT/USD 脏行双闸滤除（发布器+臂兜底）；写谓词同源过闸（订而不写同律）。
+func TestActiveSetValuationCcyArm(t *testing.T) {
+	pool := testutil.Pool(t)
+	ctx := context.Background()
+	if err := pgstore.Migrate(ctx, pool, "fin"); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		_, _ = pool.Exec(ctx, `DELETE FROM fin_valuation_ccy WHERE ccy LIKE 'LWPVAL%'`)
+	}()
+	for _, ccy := range []string{"LWPVALCCY", "USDT", "USD"} {
+		if _, err := pool.Exec(ctx,
+			`INSERT INTO fin_valuation_ccy(ccy,src) VALUES($1,'test')
+			 ON CONFLICT (ccy) DO UPDATE SET src='test'`, ccy); err != nil {
+			t.Fatal(err)
+		}
+	}
+	c := &Collector{pool: pool}
+	set, err := c.activeSet(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !set["LWPVALCCY-USDT"] {
+		t.Fatal("估值需求币 LWPVALCCY-USDT 未派生入集——死订根修面缺")
+	}
+	if set["USDT-USDT"] || set["USD-USDT"] {
+		t.Fatal("直入币 USDT/USD 误派生（双闸滤除失效）")
+	}
+	pred := LocalWritePredFunc(ctx, pool)
+	if !pred("tickers", "LWPVALCCY-USDT") {
+		t.Fatal("估值币写谓词未过——订而不写同源闸断")
+	}
+}

@@ -81,6 +81,14 @@ func FundingHedgeSpotArm(pred string) string {
 		WHERE ` + pred + ` AND s.template_ref IN (` + fundingHedgeIN + `)`
 }
 
+// ValuationCcyArm 估值需求币臂（O-41395 件②——活跃集动态持仓联动册
+// 实证病灶：BTC-USDT 2026-11-17 随 dcd 策略退役出集=估值仍需币订阅
+// 真空；估值币集=FundCcy∪持仓视图 ccy 由 o-core 发布器维护
+// fin_valuation_ccy（bridge-reverse，fin_strategy 同径），本臂=PG-md
+// 只读副本消费面。ccy→ccy-USDT 现货对派生同 DCDSpotArm 归一链；
+// USDT/USD 发布器侧已滤，本臂再兜一层防脏行）。
+var ValuationCcyArm = `SELECT ccy||'-USDT' AS inst_id FROM fin_valuation_ccy WHERE ccy NOT IN ('USDT','USD')`
+
 // SubRequestArm 晋级临时订阅臂（T-0401 两级采集制②——评估臂提名候选符的
 // 临时行情请求；fin_sub_request.state='open' 行入集=collector 流式采，
 // 评估判词出闭请行退订，提案常驻=提案臂接管）。谓词自带无外参。
